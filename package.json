@@ -24,5 +24,6 @@
     "@babel/core": "^7.20.0",
     "gh-pages": "^6.1.1"
   },
-  "private": true
+  "private": true,
+  "homepage": "./"
 }
