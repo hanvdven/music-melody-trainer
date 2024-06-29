@@ -820,11 +820,14 @@ const App = () => {
     let blockLength = millisecondsPerNote / noteDivisions / 1000
 
     for (let i = 0; i < noteArrays[0].length; i++) {
-        playSound(noteArrays[0][i], 1.0, currentTime, blockLength)
-        playSound(noteArrays[1][i], 1.0, currentTime, blockLength)
-        playSound(noteArrays[2][i], 1.0, currentTime, blockLength)
-        currentTime += blockLength
+      for(let j = 0 ; j < noteArrays.length; j++){
+        playSound(noteArrays[j][i], 1.0, currentTime, blockLength)
+      }
+      currentTime += blockLength
     }
+
+    await new Promise(r => setTimeout(r, 2000));
+
   };
 
   const playScale = async () => {
