@@ -29,19 +29,12 @@ const App = () => {
 
   const metronome = new Soundfont(context, { instrument: "woodblock" });
 
-  const [isInitialized, setIsInitialized] = useState(false); // State to track initialization
   const [fontsLoaded] = useFonts({
     Maestro: require('./assets/fonts/Maestro.ttf'),
   });
 
-  const { modes, scaleTypes, notesFiles, notes, sounds, intervalNamesMap, intervalNames } = useInitializeSounds() ; 
+  const { modes, scaleTypes, notes, sounds, intervalNamesMap, intervalNames } = useInitializeSounds() ; 
   const tonicOptions = ['C4','C♯4','D4','E♭4','E4','F4','F♯4','G4','A♭4','A4','B♭4','B4',];
-
-  useEffect(() => {
-    if (Object.keys(sounds).length > 0) {
-      setIsInitialized(true);
-    }
-  }, [sounds]);
 
   const abortControllerRef = useRef(null);
 
@@ -85,25 +78,6 @@ const App = () => {
   const [noteDivisions, setNoteDivisions] = useState(1);
   // Function to handle tempo change
 
-  /* Load Sounds */
-  useEffect(() => {
-    const preloadSounds = async () => {
-      const loadedSounds = {};
-      for (const note in notesFiles) {
-        const { sound } = await Audio.Sound.createAsync(notesFiles[note]);
-        loadedSounds[note] = sound;
-      }
-      setSounds(loadedSounds);
-    };
-    preloadSounds();
-
-    return () => {
-      for (const sound of Object.values(sounds)) {
-        sound.unloadAsync();
-      }
-    };
-  }, []);
-  
   {
     /* Adjust Settings */
   }
@@ -948,10 +922,6 @@ const App = () => {
 
   if (!fontsLoaded) {
     return <Text>Loading...</Text>;
-  }
-
-  if (!isInitialized) {
-    return <Text>Initializing...</Text>;
   }
 
   return (

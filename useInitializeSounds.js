@@ -113,130 +113,6 @@ const useInitializeSounds = () => {
 
   const scaleTypes = useMemo(() => Object.keys(modes), [modes]);
 
-  const [notesFiles, setNotesFiles] = useState({});
-
-  const goodNotesFiles = useMemo(() => ({
-    'C3': require('./assets/notes/c3.mp3'),
-    'C♯3': require('./assets/notes/c-3.mp3'),
-    'D3': require('./assets/notes/d3.mp3'),
-    'E♭3': require('./assets/notes/d-3.mp3'),
-    'E3': require('./assets/notes/e3.mp3'),
-    'F3': require('./assets/notes/f3.mp3'),
-    'F♯3': require('./assets/notes/f-3.mp3'),
-    'G3': require('./assets/notes/g3.mp3'),
-    'A♭3': require('./assets/notes/g-3.mp3'),
-    'A3': require('./assets/notes/a4.mp3'),
-    'B♭3': require('./assets/notes/a-4.mp3'),
-    'B3': require('./assets/notes/b4.mp3'),
-    'C4': require('./assets/notes/c4.mp3'),
-    'C♯4': require('./assets/notes/c-4.mp3'),
-    'D4': require('./assets/notes/d4.mp3'),
-    'E♭4': require('./assets/notes/d-4.mp3'),
-    'E4': require('./assets/notes/e4.mp3'),
-    'F4': require('./assets/notes/f4.mp3'),
-    'F♯4': require('./assets/notes/f-4.mp3'),
-    'G4': require('./assets/notes/g4.mp3'),
-    'A♭4': require('./assets/notes/g-4.mp3'),
-    'A4': require('./assets/notes/a5.mp3'),
-    'B♭4': require('./assets/notes/a-5.mp3'),
-    'B4': require('./assets/notes/b5.mp3'),
-    'C5': require('./assets/notes/c5.mp3'),
-    'C♯5': require('./assets/notes/c-5.mp3'),
-    'D5': require('./assets/notes/d5.mp3'),
-    'E♭5': require('./assets/notes/d-5.mp3'),
-    'E5': require('./assets/notes/e5.mp3'),
-    'F5': require('./assets/notes/f5.mp3'),
-    'F♯5': require('./assets/notes/f-5.mp3'),
-    'G5': require('./assets/notes/g5.mp3'),
-    'A♭5': require('./assets/notes/g-5.mp3'),
-    // 'A5': require('./assets/notes/a5.mp3'),
-    // 'B♭5': require('./assets/notes/a-5.mp3'),
-    // 'B5': require('./assets/notes/b5.mp3'),
-    // 'C6': require('./assets/notes/c6.mp3')
-  }), []);
-  
-  const metronomeFiles = useMemo(() => ({
-    'k' : require('./assets/Perc_MetronomeQuartz_hi.wav'),
-    'c' : require('./assets/Perc_MetronomeQuartz_lo.wav'),  
-  }), []);
-
-  const additionalNotesFiles = useMemo(() => ({
-    'A0': require('./assets/notes/additional/A0.mp3'),
-    'B♭0': require('./assets/notes/additional/Bb0.mp3'),
-    'B0': require('./assets/notes/additional/B0.mp3'),
-    'C1': require('./assets/notes/additional/C1.mp3'),
-    'C♯1': require('./assets/notes/additional/Db1.mp3'),
-    'D1': require('./assets/notes/additional/D1.mp3'),
-    'E♭1': require('./assets/notes/additional/Eb1.mp3'),
-    'E1': require('./assets/notes/additional/E1.mp3'),
-    'F1': require('./assets/notes/additional/F1.mp3'),
-    'F♯1': require('./assets/notes/additional/Gb1.mp3'),
-    'G1':require('./assets/notes/additional/G1.mp3'),
-    'A♭1': require('./assets/notes/additional/Ab1.mp3'),
-    'A1': require('./assets/notes/additional/A1.mp3'),
-    'B♭1': require('./assets/notes/additional/Bb1.mp3'),
-    'B1': require('./assets/notes/additional/B1.mp3'),
-    'C2': require('./assets/notes/additional/C2.mp3'),
-    'C♯2': require('./assets/notes/additional/Db2.mp3'),
-    'D2': require('./assets/notes/additional/D2.mp3'),
-    'E♭2': require('./assets/notes/additional/Eb2.mp3'),
-    'E2': require('./assets/notes/additional/E2.mp3'),
-    'F2': require('./assets/notes/additional/F2.mp3'),
-    'F♯2': require('./assets/notes/additional/Gb2.mp3'),
-    'G2':require('./assets/notes/additional/G2.mp3'),
-    'A♭2': require('./assets/notes/additional/Ab2.mp3'),
-    'A2': require('./assets/notes/additional/A2.mp3'),
-    'B♭2': require('./assets/notes/additional/Bb2.mp3'),
-    'B2': require('./assets/notes/additional/B2.mp3'),
-    //
-    'A5': require('./assets/notes/additional/A5.mp3'),
-    'B♭5': require('./assets/notes/additional/Bb5.mp3'),
-    'B5': require('./assets/notes/additional/B5.mp3'),
-    'C6': require('./assets/notes/additional/C6.mp3'),
-    'C♯6': require('./assets/notes/additional/Db6.mp3'),
-    'D6': require('./assets/notes/additional/D6.mp3'),
-    'E♭6': require('./assets/notes/additional/Eb6.mp3'),
-    'E6': require('./assets/notes/additional/E6.mp3'),
-    'F6': require('./assets/notes/additional/F6.mp3'),
-    'F♯6': require('./assets/notes/additional/Gb6.mp3'),
-    'G6':require('./assets/notes/additional/G6.mp3'),
-    'A♭6': require('./assets/notes/additional/Ab6.mp3'),
-    'A6': require('./assets/notes/additional/A6.mp3'),
-    'B♭6': require('./assets/notes/additional/Bb6.mp3'),
-    'B6': require('./assets/notes/additional/B6.mp3'),
-    'C7': require('./assets/notes/additional/C7.mp3'),
-    'C♯7': require('./assets/notes/additional/Db7.mp3'),
-    'D7': require('./assets/notes/additional/D7.mp3'),
-    'E♭7': require('./assets/notes/additional/Eb7.mp3'),
-    'E7': require('./assets/notes/additional/E7.mp3'),
-    'F7': require('./assets/notes/additional/F7.mp3'),
-    'F♯7': require('./assets/notes/additional/Gb7.mp3'),
-    'G7':require('./assets/notes/additional/G7.mp3'),
-    'A♭7': require('./assets/notes/additional/Ab7.mp3'),
-    'A7': require('./assets/notes/additional/A7.mp3'),
-    'B♭7': require('./assets/notes/additional/Bb7.mp3'),
-    'B7': require('./assets/notes/additional/B7.mp3'),
-    'C8': require('./assets/notes/additional/C8.mp3'),
-  }), []);
-
-  useEffect(() => {
-    const preloadSounds = async () => {
-      const loadedSounds = {};
-      for (const note in notesFiles) {
-        const { sound } = await Audio.Sound.createAsync(notesFiles[note]);
-        loadedSounds[note] = sound;
-      }
-      setSounds(loadedSounds);
-    };
-    preloadSounds();
-
-    return () => {
-      for (const sound of Object.values(sounds)) {
-        sound.unloadAsync();
-      }
-    };
-  }, [notesFiles]);
-
   const intervalNamesMap = useMemo(() => ({
     'Unison': 0,
     '2nd': 2,
@@ -255,22 +131,8 @@ const useInitializeSounds = () => {
     'Double Octave': 24,
   }), []);
 
-  const intervalNames  = useMemo(() => Object.keys(intervalNamesMap), [intervalNamesMap]);
-
-  useEffect(() => {
-    // Wait for goodNotesFiles to be populated before proceeding
-    if (Object.keys(goodNotesFiles).length > 0) {
-      const updatedNotesFiles = {
-        ...metronomeFiles,
-        ...additionalNotesFiles,
-        ...goodNotesFiles,
-      };
-      setNotesFiles(updatedNotesFiles);
-      console.log('updatedNotesFiles',updatedNotesFiles)
-    }
-  }, [goodNotesFiles, metronomeFiles, additionalNotesFiles]);
-  
-  return {modes, scaleTypes, notesFiles, notes, sounds, intervalNamesMap, intervalNames };
+  const intervalNames  = useMemo(() => Object.keys(intervalNamesMap), [intervalNamesMap]);  
+  return {modes, scaleTypes, notes, sounds, intervalNamesMap, intervalNames };
 };
 
 export default useInitializeSounds;
