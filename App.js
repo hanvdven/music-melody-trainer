@@ -310,18 +310,25 @@ const App = () => {
   {
     /* Play Sound */
   }
-  const playSound = async (note, volume = 1.0) => {
+  const playSound = async (note, volume = 1.0, time = context.currentTime , duration = millisecondsPerNote / 1000) => {
       if (abortControllerRef.current?.signal.aborted) {
         return;
       }
+      // if(time == null){
+      //   time = context.now();
+      // }
+      // if(duration == null){
+      //   duration = millisecondsPerNote / 1000
+      // }
+
       if (note !== null) {
           if(note === 'k'){
-            metronome.start({note: 100})
+            metronome.start({note: 100, time: time, duration: duration})
           }else if(note === 'c'){
-            metronome.start({note: 75})
+            metronome.start({note: 75, time: time, duration: duration})
           }else{
             const noteNb = notes.indexOf(note) + 21
-            piano.start({note: noteNb, duration: millisecondsPerNote / 1000 })
+            piano.start({note: noteNb, time: time, duration: duration})
           }
       }
       return;
@@ -805,68 +812,18 @@ const App = () => {
   };
 
   const playArrays = async (noteArrays, timingNorm, volumes = []) => {
-    // Abort all previous instances immediately
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      console.log('waiting for playArrays to complete');
-      await preciseDelay(millisecondsPerNote / timingNorm);
-    }
-    abortControllerRef.current = new AbortController();
+    piano.stop()
+    metronome.stop()
 
-    const startTime = performance.now();
-    const notePlayers = noteArrays.map(() => 0); // Track index of each note array
-    let nextNoteTime = startTime;
 
-    try {
-      while (true) {
-        // Check if playback was aborted externally
-        if (abortControllerRef.current.signal.aborted) {
-          break; // Exit the loop immediately if playback was aborted
-        }
-        
-        let allArraysCompleted = true; // Flag to check if all note arrays are completed
+    let currentTime = context.currentTime;
+    let blockLength = millisecondsPerNote / noteDivisions / 1000
 
-        for (let i = 0; i < noteArrays.length; i++) {
-          const noteArray = noteArrays[i];
-          const currentIndex = notePlayers[i];
-
-          if (currentIndex < noteArray.length) {
-            allArraysCompleted = false;
-            const note = noteArray[currentIndex];
-            if (note !== null) {
-              const volume = volumes[i] !== undefined ? volumes[i] : 1.0; // Default volume is 1.0
-              await playSound(note, volume, abortControllerRef.current.signal);
-            }
-            notePlayers[i]++;
-          } 
-        }
-
-        if (allArraysCompleted) {
-          break; // Exit the loop if all note arrays are completed
-        }
-
-        // Calculate next note time based on timingNorm
-        nextNoteTime += millisecondsPerNoteRef.current / timingNorm;
-
-        const currentTime = performance.now();
-        const waitTime = nextNoteTime - currentTime;
-
-        if (waitTime > 0) {
-          await preciseDelay(waitTime);
-        }
-      }
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log('Playback aborted.');
-      } else {
-        console.error('Error during playback:', error);
-      }
-    } finally {
-      // Clean up: Reset abort controller only if playback was completed
-      if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
+    for (let i = 0; i < noteArrays[0].length; i++) {
+        playSound(noteArrays[0][i], 1.0, currentTime, blockLength)
+        playSound(noteArrays[1][i], 1.0, currentTime, blockLength)
+        playSound(noteArrays[2][i], 1.0, currentTime, blockLength)
+        currentTime += blockLength
     }
   };
 
