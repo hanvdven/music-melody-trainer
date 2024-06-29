@@ -1,0 +1,172 @@
+import { StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+  // Containers
+  parentContainer: {
+    // flex: 1,
+    flexDirection: 'column',
+    width: '100%',
+    // marginVertical: 20,
+    alignItems: 'center',
+    // padding: 20,
+  },
+  container: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#151530',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pickerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '90%',
+    marginBottom: 20,
+    position: 'relative',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '90%',
+    marginBottom: 20,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  measureContainer: {
+    alignItems: 'center',
+    width: 120,
+  },
+  metronomeContainer: {
+    alignItems: 'center',
+    flex: 'row',
+    justifyContent: 'space-between',
+    width: 280,
+  },
+  // Buttons
+  button: {
+    backgroundColor: '#036',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  activeButton: {
+    backgroundColor: '#369',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+
+
+  pickerButton: {
+    backgroundColor: '#00AA00',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickerButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  // Labels
+  label: {
+    fontSize: 18,
+    marginBottom: 10,
+    color: '#AAC',
+  },
+  modalContent: {
+    backgroundColor: '#779',
+    padding: 20,
+    borderRadius: 10,
+    width: '80%',
+    maxHeight: '80%',
+    color: '#AAC',
+  },
+  modalOption: {
+    padding: 5,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#AAC',
+  },
+
+  // Music Notation Text (Maestro)
+  noteText: {
+    fontFamily: 'Maestro',
+    fontSize: 30,
+    height: 45,
+    lineHeight: 45,
+    marginTop: 0,
+    paddingHorizontal: 15,
+    textAlign: 'center',
+    overflow: 'hidden',
+    color: '#AAC',
+  },
+  measureText: {
+    flex: 1,
+    fontFamily: 'Maestro',
+    fontSize: 50,
+    height: 88,
+    width: 60,
+    lineHeight: 125,
+    marginTop: -55,
+    paddingTop: 0,
+    textAlign: 'center',
+    overflow: 'hidden',
+    color: '#AAC',
+  },
+  metronomeText: {
+    flex:1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginHorizontal: 10,
+    paddingHorizontal: 15,
+    alignItems: 'center',
+   color: '#AAC',
+  },
+  bpmText: {
+    flex: 1, 
+    fontFamily: 'Maestro',
+    fontSize: 50,
+    height: 88,
+    paddingHorizontal: 15,
+    lineHeight: 125,
+    marginTop: -55,
+    paddingTop: 0,
+    textAlign: 'center',
+    overflow: 'hidden',
+    color: '#AAC',
+  },
+  tempoTerm: {
+    fontFamily: 'Merriweather',
+    fontSize: 18,
+    textAlign: 'center',
+    color: '#AAC',
+  },
+});
+
+export default styles;
