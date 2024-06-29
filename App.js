@@ -24,6 +24,18 @@ const storage = new CacheStorage();
 const piano = new Soundfont(context, { instrument: "acoustic_grand_piano", storage: storage });
 piano.output.addEffect("reverb", reverb, 0.2);
 
+const button = document.querySelector("body");
+button.addEventListener(
+  "click",
+  () => {
+    if(context.state != "running"){
+      console.log("Startup Context")
+      context.resume()
+    }
+  },
+  true,
+);
+
 
 const App = () => {
 

@@ -94,7 +94,7 @@ const Piano = ({ scaleRange, tonic, currentScale, playSound, currentDisplayScale
               key={index}
               style={[
                 styles.blackKey,
-                note === 'placeholder' && {backgroundColor:'transparent'},
+                note === 'placeholder' && {backgroundColor:'transparent', height: 0},
                 isInCurrentScale && styles.highlightedBlackKey,
               ]}
               onPress={() => note === 'placeholder' || playSound(note)}
@@ -131,6 +131,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     width: '100%',
     zIndex: 2, // Black keys behind white keys
+    pointerEvents: 'none'
   },
   whiteKey: {
     flex: 1,
@@ -152,6 +153,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end', // Align text at the bottom
     alignItems: 'center',
     paddingBottom: 5, // Add padding to the bottom for spacing
+    pointerEvents: 'all'
   },
   halfKey: {
     flex: 0.5,
