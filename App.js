@@ -18,8 +18,17 @@ import Measure from './Measure';
 // import generateSoundArrays from './generateSoundArrays';
 // import playingSounds from './playingSounds';
 import styles from './styles';
+import { Reverb, Soundfont, Sampler } from "smplr";
+
 
 const App = () => {
+  const context = new AudioContext();
+  const reverb = new Reverb(context);
+  const piano = new Soundfont(context, { instrument: "acoustic_grand_piano" });
+  piano.output.addEffect("reverb", reverb, 0.2);
+
+  const metronome = new Soundfont(context, { instrument: "woodblock" });
+
   const [isInitialized, setIsInitialized] = useState(false); // State to track initialization
   const [fontsLoaded] = useFonts({
     Maestro: require('./assets/fonts/Maestro.ttf'),
@@ -76,9 +85,7 @@ const App = () => {
   const [noteDivisions, setNoteDivisions] = useState(1);
   // Function to handle tempo change
 
-  {
-    /* Load Sounds */
-  }
+  /* Load Sounds */
   useEffect(() => {
     const preloadSounds = async () => {
       const loadedSounds = {};
@@ -334,16 +341,14 @@ const App = () => {
         return;
       }
       if (note !== null) {
-        try {
-          if (sounds && sounds[note]) {
-            await sounds[note].setVolumeAsync(volume); // Adjust volume before playing
-            await sounds[note].replayAsync();
-          } else {
-            console.error(`playSound: Sound for note ${note} is not loaded.`);
+          if(note === 'k'){
+            metronome.start({note: 100})
+          }else if(note === 'c'){
+            metronome.start({note: 75})
+          }else{
+            const noteNb = notes.indexOf(note) + 21
+            piano.start({note: noteNb, duration: millisecondsPerNote / 1000 })
           }
-        } catch (error) {
-          console.error('playSound: Failed to play sound', error);
-        }
       }
       return;
     };

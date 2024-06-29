@@ -97,7 +97,7 @@ const Piano = ({ scaleRange, tonic, currentScale, playSound, currentDisplayScale
                 note === 'placeholder' && {backgroundColor:'transparent'},
                 isInCurrentScale && styles.highlightedBlackKey,
               ]}
-              onPress={() => playSound(note)}
+              onPress={() => note === 'placeholder' || playSound(note)}
             >
               <Text style={styles.blackKeyText}>{noteDisplayName(note)}</Text>
             </TouchableOpacity>
