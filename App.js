@@ -967,7 +967,7 @@ const App = () => {
 
           {/* Select Scale Range */}
           <View style={styles.pickerRow}>
-            <TouchableOpacity style={[styles.button, { backgroundColor: '#069' }]} onPress={decreaseScaleRange} > - </TouchableOpacity>
+            <TouchableOpacity style={[styles.button, { backgroundColor: '#069' }]} onPress={decreaseScaleRange} ><Text style={styles.pickerButtonText}> - </Text></TouchableOpacity>
             <TouchableOpacity
               style={[styles.pickerButton, { backgroundColor: '#069' }]}
               onPress={() => setIntervalModalVisible(true)}>
@@ -980,7 +980,7 @@ const App = () => {
                 isIntervalModalVisible,
                 setIntervalModalVisible
               )}
-              <TouchableOpacity style={[styles.button, { backgroundColor: '#069' }]} onPress={increaseScaleRange} > + </TouchableOpacity>
+              <TouchableOpacity style={[styles.button, { backgroundColor: '#069' }]} onPress={increaseScaleRange} ><Text style={styles.pickerButtonText}> + </Text></TouchableOpacity>
             </View>
         </View>
         <View style={styles.parentContainer}>
@@ -996,7 +996,7 @@ const App = () => {
         <View style={styles.parentContainer}>
           {/* Play buttons */}
             <View style={styles.buttonContainer}>
-              <TouchableOpacity style={styles.button} onPress={playRandomMelody}> 
+              <TouchableOpacity style={styles.button} onPress={() => playRandomMelody() }> 
                 <Text style={styles.pickerButtonText}> ⏵random melody </Text>
                  </TouchableOpacity>
               <TouchableOpacity style={styles.button} onPress={repeatMelody}>
@@ -1019,29 +1019,29 @@ const App = () => {
 
           {/* Melody Length */}
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.button} onPress={decreaseNotesPerMeasure} > - </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={decreaseNotesPerMeasure} ><Text style={styles.pickerButtonText}> - </Text></TouchableOpacity>
             <Text style={styles.label}>notes per measure ~ {notesPerMeasure}</Text>
-            <TouchableOpacity style={styles.button} onPress={increaseNotesPerMeasure} > + </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={increaseNotesPerMeasure} ><Text style={styles.pickerButtonText}> + </Text></TouchableOpacity>
           </View>
 
           {/* Rhythm Settings */}
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.button} onPress={decreaseSmallestNote} > - </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={decreaseSmallestNote} ><Text style={styles.pickerButtonText}> - </Text></TouchableOpacity>
             <Text style={styles.label}>smallestNote: </Text>
             <Text style={styles.noteText}> {smallestNote} </Text>
-            <TouchableOpacity style={styles.button} onPress={increaseSmallestNote}> + </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={increaseSmallestNote}><Text style={styles.pickerButtonText}> + </Text></TouchableOpacity>
           </View>
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.button} onPress={decreaseNumMeasures} > - </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={decreaseNumMeasures} ><Text style={styles.pickerButtonText}> - </Text></TouchableOpacity>
             <Text style={styles.label}>#Measures: {numMeasures}</Text>
-            <TouchableOpacity style={styles.button} onPress={increaseNumMeasures} > + </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={increaseNumMeasures} ><Text style={styles.pickerButtonText}> + </Text></TouchableOpacity>
           </View>
           <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.button} onPress={decreaseRhythmVariability} > - </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={decreaseRhythmVariability} ><Text style={styles.pickerButtonText}><Text style={styles.pickerButtonText}> - </Text></Text></TouchableOpacity>
             <Text style={styles.label}>
               Rhythm Variability: {rhythmVariability} %
             </Text>
-            <TouchableOpacity style={styles.button} onPress={increaseRhythmVariability} > + </TouchableOpacity>
+            <TouchableOpacity style={styles.button} onPress={increaseRhythmVariability} ><Text style={styles.pickerButtonText}> + </Text></TouchableOpacity>
           </View>
 
         </View>
