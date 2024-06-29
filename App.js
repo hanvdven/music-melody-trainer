@@ -15,19 +15,19 @@ import * as Font from 'expo-font';
 
 import useInitializeSounds from './useInitializeSounds';
 import Measure from './Measure';
-// import generateSoundArrays from './generateSoundArrays';
-// import playingSounds from './playingSounds';
 import styles from './styles';
-import { Reverb, Soundfont, Sampler } from "smplr";
+import { Reverb, Soundfont, Sampler, CacheStorage } from "smplr";
+
+const context = new AudioContext();
+const reverb = new Reverb(context);
+const storage = new CacheStorage();
+const piano = new Soundfont(context, { instrument: "acoustic_grand_piano", storage: storage });
+piano.output.addEffect("reverb", reverb, 0.2);
 
 
 const App = () => {
-  const context = new AudioContext();
-  const reverb = new Reverb(context);
-  const piano = new Soundfont(context, { instrument: "acoustic_grand_piano" });
-  piano.output.addEffect("reverb", reverb, 0.2);
 
-  const metronome = new Soundfont(context, { instrument: "woodblock" });
+  const metronome = new Soundfont(context, { instrument: "woodblock", storage: storage });
 
   const [fontsLoaded] = useFonts({
     Maestro: require('./assets/fonts/Maestro.ttf'),
@@ -311,6 +311,7 @@ const App = () => {
     /* Play Sound */
   }
   const playSound = async (note, volume = 1.0, time = context.currentTime , duration = millisecondsPerNote / 1000) => {
+
       if (abortControllerRef.current?.signal.aborted) {
         return;
       }
@@ -642,47 +643,41 @@ const App = () => {
   //
   //
   const playRandomMelody = async () => {
-    try {
-      const {
-        generatedMelody,
-        generatedBassLine,
-        generatedClickTrack,
-        noteDivisions,
-      } = generateMelody(
-        currentScale,
-        notesPerMeasure,
-        smallestNoteIndex,
-        currentMeasure,
-        numMeasures,
-        noteFrac,
-        rhythmVariability,
-        allowTriplets
-      );
+    const {
+      generatedMelody,
+      generatedBassLine,
+      generatedClickTrack,
+      noteDivisions,
+    } = generateMelody(
+      currentScale,
+      notesPerMeasure,
+      smallestNoteIndex,
+      currentMeasure,
+      numMeasures,
+      noteFrac,
+      rhythmVariability,
+      allowTriplets
+    );
 
-      setGeneratedMelody(generatedMelody);
-      setGeneratedBassLine(generatedBassLine);
-      setGeneratedClickTrack(generatedClickTrack);
-      setNoteDivisions(noteDivisions);
-      
-      console.log('generated click track:', generatedClickTrack);
-      console.log('Generated Bass Line:', generatedBassLine);
-      console.log('Generated Melody', generatedMelody);
+    setGeneratedMelody(generatedMelody);
+    setGeneratedBassLine(generatedBassLine);
+    setGeneratedClickTrack(generatedClickTrack);
+    setNoteDivisions(noteDivisions);
+    
+    console.log('generated click track:', generatedClickTrack);
+    console.log('Generated Bass Line:', generatedBassLine);
+    console.log('Generated Melody', generatedMelody);
 
-      const noteArrays = [
-        generatedMelody,
-        generatedBassLine,
-        generatedClickTrack
-        // Add more arrays as needed
-      ];
+    const noteArrays = [
+      generatedMelody,
+      generatedBassLine,
+      generatedClickTrack
+      // Add more arrays as needed
+    ];
 
-      const volumes = [1,1,0.30];
+    const volumes = [1,1,0.30];
 
-      await playArrays(noteArrays, noteDivisions, volumes);
-
-      // useEffect will start playback.
-    } catch (error) {
-      console.error('Error playing random melody', error);
-    }
+    await playArrays(noteArrays, noteDivisions, volumes);
   };
 
   const repeatMelody = async () => {
@@ -812,9 +807,7 @@ const App = () => {
   };
 
   const playArrays = async (noteArrays, timingNorm, volumes = []) => {
-    piano.stop()
-    metronome.stop()
-
+    console.log("playArrays", noteArrays)
 
     let currentTime = context.currentTime;
     let blockLength = millisecondsPerNote / noteDivisions / 1000
@@ -826,8 +819,7 @@ const App = () => {
       currentTime += blockLength
     }
 
-    await new Promise(r => setTimeout(r, 2000));
-
+    await new Promise(r => setTimeout(r, millisecondsPerNote / noteDivisions * noteArrays[0].length));
   };
 
   const playScale = async () => {
