@@ -24,6 +24,8 @@ const storage = new CacheStorage();
 const piano = new Soundfont(context, { instrument: "acoustic_grand_piano", storage: storage });
 piano.output.addEffect("reverb", reverb, 0.2);
 
+const metronome = new Soundfont(context, { instrument: "woodblock", storage: storage });
+
 const button = document.querySelector("body");
 button.addEventListener(
   "click",
@@ -39,7 +41,6 @@ button.addEventListener(
 
 const App = () => {
 
-  const metronome = new Soundfont(context, { instrument: "woodblock", storage: storage });
 
   const [fontsLoaded] = useFonts({
     Maestro: require('./assets/fonts/Maestro.ttf'),
@@ -348,6 +349,8 @@ const App = () => {
     };
 
   const stopPlayback = () => {
+    piano.stop();
+    metronome.stop();
     setContinuousMode(false);
     // Immediately abort the current playback
     if (abortControllerRef.current) {
@@ -820,6 +823,9 @@ const App = () => {
 
   const playArrays = async (noteArrays, timingNorm, volumes = []) => {
     console.log("playArrays", noteArrays)
+
+    piano.stop();
+    metronome.stop();
 
     let currentTime = context.currentTime;
     let blockLength = millisecondsPerNote / noteDivisions / 1000
