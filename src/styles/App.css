@@ -1,0 +1,375 @@
+:root {
+    /* piano */
+    --white-key-color: #bbd;
+    --white-key-color-highlight: #69C;
+    --white-key-color-tonic: #d585ff;
+    --black-key-color: #000;
+    --black-color-highlight: #036;
+    --black-key-color-tonic: #7d00c6;
+    /* selectorknoppies */
+    --button-passive: #444;
+    --button-active: #7d00c6;
+    --button-text: #fff;
+    --button-small-padding: 4px 8px;
+    --button-small-font: 12px;
+    /* wheel */
+    --wheel-color-lowlight: #333;
+
+    /* Global App Colors */
+    --app-bg: #111;
+    --panel-bg: #222;
+    --text-primary: #ffffff;
+    --text-dim: #cccccc;
+    --accent-yellow: #ffff00;
+}
+
+/* Algemene knoppen voor ScaleSelector */
+.scale-selector-button {
+    margin: 2px;
+    width: 90%;
+    box-sizing: border-box;
+    /* padding inbegrepen in breedte */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: clamp(10px, 2vw, 14px);
+    padding: 2px;
+    /* compact */
+    cursor: pointer;
+    border-radius: 4px;
+    border: none;
+    background-color: var(--button-passive);
+    color: white;
+}
+
+.scale-selector-button.active {
+    background-color: var(--button-active);
+}
+
+.family-buttons-container,
+.mode-buttons-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 0px;
+    /* minimale ruimte tussen knoppen */
+    font-weight: 600;
+    max-height: 250px;
+    overflow-y: auto;
+    /* scrollbaar indien nodig */
+}
+
+
+
+@font-face {
+    font-family: 'Maestro';
+    src: url('/src/assets/fonts/maestro.ttf') format('truetype');
+}
+
+svg {
+    font-family: 'Maestro';
+}
+
+svg path:focus {
+    outline: none;
+}
+
+path {
+    -webkit-tap-highlight-color: transparent;
+}
+
+.App {
+    text-align: center;
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+
+h1 {
+    color: #333;
+}
+
+button {
+    padding: 8px 16px;
+    margin: 5px;
+    font-size: 16px;
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.top-content {
+    flex: 1;
+    padding: 20px;
+    overflow: auto;
+}
+
+.piano-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+.piano-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 80vh;
+    width: 100%;
+}
+
+.piano-wrapper {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.piano-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-left: 12px;
+}
+
+/* Piano keys */
+.piano-container {
+    display: flex;
+    justify-content: center;
+    position: relative;
+    height: 100%;
+    width: 95%;
+}
+
+.piano-white {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 90%;
+    display: flex;
+    z-index: 1;
+}
+
+.piano-black {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 90%;
+    display: flex;
+    justify-content: center;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.white-key {
+    font-size: clamp(6px, 5vw, 16px);
+    overflow: hidden;
+    flex: 1;
+    height: 100%;
+    margin: 1px;
+    background-color: var(--white-key-color);
+    border: 2px solid black;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    padding-bottom: 10px;
+    cursor: pointer;
+}
+
+.black-key {
+    font-size: clamp(6px, 5vw, 16px);
+    overflow: hidden;
+    flex: 1;
+    width: 100%;
+    height: 65%;
+    margin: 0 6px;
+    background-color: var(--black-key-color);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    padding-bottom: 10px;
+    pointer-events: all;
+    color: #fff;
+    cursor: pointer;
+}
+
+.half-key {
+    flex: .5;
+    width: 50%;
+    height: 80%;
+    margin: 0 3px;
+    background-color: transparent;
+}
+
+.placeholder-key {
+    flex: 1;
+    background-color: transparent;
+    margin: 0 6px;
+    height: 80%;
+}
+
+.highlighted-white-key {
+    background-color: var(--white-key-color-highlight);
+}
+
+.highlighted-black-key {
+    background-color: var(--black-color-highlight);
+}
+
+.tonic-white-key {
+    background-color: var(--white-key-color-tonic);
+}
+
+.tonic-black-key {
+    background-color: var(--black-key-color-tonic);
+}
+
+/* === Piano toets labels === */
+.piano-key-label {
+    display: inline-block;
+    width: 100%;
+    /* past binnen de toets */
+    text-align: center;
+    /* gecentreerd op de toets */
+    white-space: nowrap;
+    /* niet op nieuwe regel */
+    overflow: hidden;
+    /* verberg wat te breed is */
+    text-overflow: ellipsis;
+    /* optioneel: vervang overschot met ... */
+
+    /* dynamische font-size: altijd tussen 8px en 14px */
+    font-size: clamp(8px, 1.5vw, 14px);
+}
+
+
+/* Optional: toon labels van toetsen iets kleiner */
+.white-key span,
+.black-key span {
+    font-size: 12px;
+}
+
+.treble-settings {
+    padding: 12px;
+    background-color: #333;
+    color: white;
+    border-radius: 6px;
+    width: 100%;
+    max-width: 400px;
+    margin: auto;
+}
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 8px;
+}
+
+.setting-row label {
+    min-width: 130px;
+}
+
+.setting-row select,
+.setting-row button {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: none;
+    background-color: #555;
+    color: white;
+    cursor: pointer;
+}
+
+.setting-row button:hover,
+.setting-row select:hover {
+    background-color: #777;
+}
+
+.setting-row span {
+    width: 30px;
+    text-align: center;
+}
+
+.diatonic-wheel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.wheel-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.mode-label {
+    min-width: 120px;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* Measure Indicators in Sheet Music */
+.measure-indicator {
+    fill: yellow;
+    font-size: 14px;
+    font-family: Arial, sans-serif;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* BPM Styles */
+.bpm-note {
+    font-family: 'Maestro';
+    font-size: 24px;
+    fill: var(--text-dim);
+    pointer-events: none;
+    user-select: none;
+}
+
+.bpm-text {
+    font-family: Arial, sans-serif;
+    font-size: 24px;
+    fill: white;
+    pointer-events: none;
+    user-select: none;
+}
+
+.bpm-equals {
+    font-family: "Times New Roman", serif;
+    font-size: 14px;
+    fill: var(--text-dim);
+    font-weight: normal;
+    pointer-events: none;
+    user-select: none;
+}
+
+.bpm-value {
+    font-family: 'Maestro';
+    font-size: 32px;
+    fill: var(--text-dim);
+    /* Lowlighted as requested */
+    font-weight: normal;
+    pointer-events: none;
+    user-select: none;
+}
+
+.tempo-term {
+    font-family: "Times New Roman", serif;
+    font-size: 14px;
+    fill: var(--text-dim);
+    font-style: italic;
+    pointer-events: none;
+    user-select: none;
+}
