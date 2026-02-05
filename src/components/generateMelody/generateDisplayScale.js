@@ -1,13 +1,25 @@
-import {standardizeTonic, getRelativeNoteName} from './convertToDisplayNotes'
+import { standardizeTonic, getRelativeNoteName } from './convertToDisplayNotes'
 import generateAllNotesArray from '../../utils/allNotesArray';
 const notes = generateAllNotesArray();
 
-const majorScaleIntervals = [2,2,1,2,2,2,1];
+const majorScaleIntervals = [2, 2, 1, 2, 2, 2, 1];
 
 const generateScale = (anyTonic, intervals, scaleRange) => {
   const tonic = standardizeTonic(anyTonic);
   const scale = [];
   let noteIndex = notes.indexOf(tonic);
+
+  if (noteIndex === -1) {
+    console.warn(`[generateDisplayScale] Tonic "${tonic}" not found. Falling back...`);
+    const pitch = tonic.match(/[A-G][♭♯]?/)?.[0];
+    if (pitch) {
+      noteIndex = notes.findIndex(n => n.startsWith(pitch));
+    }
+    if (noteIndex === -1) {
+      noteIndex = 0;
+    }
+  }
+
   let sumOfIntervals = 0;
   let i = 0;
 
@@ -39,21 +51,21 @@ const computeScaleDelta = (intervals) => {
 };
 
 const simplifications = {
-      'C𝄪': 'D',
-      'D𝄪': 'E',
-      'E♯': 'F',
-      'F𝄪': 'G',
-      'G𝄪': 'A',
-      'A𝄪': 'B',
-      'B♯': 'C',
-      'C♭': 'B',
-      'D𝄫': 'C',
-      'E𝄫': 'D',
-      'F♭': 'E',
-      'G𝄫': 'F',
-      'A𝄫': 'G',
-      'B𝄫': 'A',
-    };
+  'C𝄪': 'D',
+  'D𝄪': 'E',
+  'E♯': 'F',
+  'F𝄪': 'G',
+  'G𝄪': 'A',
+  'A𝄪': 'B',
+  'B♯': 'C',
+  'C♭': 'B',
+  'D𝄫': 'C',
+  'E𝄫': 'D',
+  'F♭': 'E',
+  'G𝄫': 'F',
+  'A𝄫': 'G',
+  'B𝄫': 'A',
+};
 
 const generateDisplayScale = (tonic, intervals, scaleRange) => {
   if (intervals.length === majorScaleIntervals.length) {
@@ -61,7 +73,7 @@ const generateDisplayScale = (tonic, intervals, scaleRange) => {
     console.log(scaleDelta)
 
     const standardMajorNotes = generateScale(tonic, majorScaleIntervals, scaleRange);
-    const majorNotes = standardMajorNotes.map(note => getRelativeNoteName(note,tonic));
+    const majorNotes = standardMajorNotes.map(note => getRelativeNoteName(note, tonic));
 
     return majorNotes.map((note, index) => {
       const [pitch, octave] = note.match(/[A-G]♯?♭?|[0-9]/g);
@@ -88,7 +100,7 @@ const generateDisplayScale = (tonic, intervals, scaleRange) => {
     });
   } else {
     const standardScale = generateScale(tonic, intervals, scaleRange);
-    const displayScale = standardScale.map(note => getRelativeNoteName(note,tonic));
+    const displayScale = standardScale.map(note => getRelativeNoteName(note, tonic));
     return displayScale;
   }
 };

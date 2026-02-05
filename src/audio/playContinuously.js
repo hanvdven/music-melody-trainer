@@ -142,7 +142,7 @@ const playContinuously = async (
                             const newFamily = families[Math.floor(Math.random() * families.length)];
                             const modesInFamily = scaleDefinitions[newFamily];
                             const modeDef = modesInFamily[Math.floor(Math.random() * modesInFamily.length)];
-                            const newMode = modeDef.index ? `${modeDef.index}. ${modeDef.displayName || modeDef.name}` : (modeDef.displayName || modeDef.name);
+                            const newMode = modeDef.index ? `${modeDef.index}. ${modeDef.wheelName || modeDef.name}` : (modeDef.wheelName || modeDef.name);
 
                             activeScale = updateScaleWithMode({
                                 currentScale: activeScale,
@@ -157,7 +157,7 @@ const playContinuously = async (
                             const currentFamily = activeScale.family;
                             const modesInFamily = scaleDefinitions[currentFamily];
                             const modeDef = modesInFamily[Math.floor(Math.random() * modesInFamily.length)];
-                            const newMode = modeDef.index ? `${modeDef.index}. ${modeDef.displayName || modeDef.name}` : (modeDef.displayName || modeDef.name);
+                            const newMode = modeDef.index ? `${modeDef.index}. ${modeDef.wheelName || modeDef.name}` : (modeDef.wheelName || modeDef.name);
 
                             activeScale = updateScaleWithMode({
                                 currentScale: activeScale,

@@ -332,9 +332,9 @@ body {
     border: none;
     background-color: var(--button-passive);
     color: white;
-    height: 24px;
-    /* Fixed small height for consistency */
-    line-height: 20px;
+    height: 36px;
+    /* Increased height for better look */
+    line-height: normal;
 }
 
 .scale-selector-button.active {

@@ -50,6 +50,7 @@ const standardizeTonic = (anyTonic) => {
 };
 
 const getRelativeNoteName = (note, anyTonic) => {
+  if (!note || typeof note !== 'string') return '';
   const noteWithoutOctave = note.replace(/[0-9]/g, '');
   let noteOctave = note.match(/[0-9]+/) ? parseInt(note.match(/[0-9]+/)[0]) : null;
   const preferredTonic = standardizeTonic(anyTonic).replace(/[0-9]/g, '');

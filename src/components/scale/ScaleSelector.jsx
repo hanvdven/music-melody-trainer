@@ -4,10 +4,10 @@ import React, { useState, useEffect } from 'react';
 import PianoView from '../bottom/PianoView';
 import ScaleSelectorWheel from './ScaleSelectorWheel'
 import generateAllNotesArray from '../../utils/allNotesArray';
-import { generateSelectedScale, updateScaleWithTonic, updateScaleWithMode, modes, getCleanModeName, scaleDefinitions } from '../../utils/scaleHandler';
+import { generateSelectedScale, updateScaleWithTonic, updateScaleWithMode, modes, getCleanModeName, getModeDefinition, formatScaleName, scaleDefinitions } from '../../utils/scaleHandler';
 
 const ScaleSelector = ({
-    trebleInstrument, windowSize, scale, scaleRange, setScale, setSelectedMode, setTonic, setCustomScaleLabel
+    trebleInstrument, windowSize, scale, scaleRange, setScale, setSelectedMode, setTonic, customScaleLabel, setCustomScaleLabel
     // Add these props if they aren't there, or use local if they are just for UI
 }) => {
     const allNotesArray = generateAllNotesArray();
@@ -58,11 +58,7 @@ const ScaleSelector = ({
 
     // Format display name: remove octave from tonic, remove numeral from mode name
     const formatDisplayName = (tonic, modeName, family) => {
-        // Remove octave number from tonic (e.g., "C#4" -> "C#")
-        const tonicWithoutOctave = tonic.replace(/\d+$/, '');
-        // Get clean mode name (without index prefix like "II. ")
-        const cleanModeName = getCleanModeName(family, modeName) || modeName.replace(/^[IVX]+\.\s*/, '');
-        return `${tonicWithoutOctave} ${cleanModeName}`;
+        return formatScaleName(tonic, modeName, family);
     };
 
     /* =========================
@@ -86,8 +82,8 @@ const ScaleSelector = ({
         const randomModeDef = familyModes[Math.floor(Math.random() * familyModes.length)];
 
         const modeName = randomModeDef.index
-            ? `${randomModeDef.index}. ${randomModeDef.displayName || randomModeDef.name}`
-            : (randomModeDef.displayName || randomModeDef.name);
+            ? `${randomModeDef.index}. ${randomModeDef.wheelName || randomModeDef.name}`
+            : (randomModeDef.wheelName || randomModeDef.name);
 
         const updatedScale = updateScaleWithMode({
             currentScale: scale,
@@ -125,7 +121,7 @@ const ScaleSelector = ({
     };
 
     // Get families for list view in specific order
-    const listFamilies = ['Simple', 'Pentatonic', 'Hexatonic', 'Diatonic', 'Other Heptatonic', 'Supertonic'];
+    const listFamilies = ['Simple', 'Triad scales', 'Pentatonic', 'Hexatonic', 'Diatonic', 'Other Heptatonic', 'Supertonic'];
 
     // Search functionality
     const searchResults = searchQuery.trim() ? (() => {
@@ -135,7 +131,7 @@ const ScaleSelector = ({
             for (const [modeName, intervals] of Object.entries(familyModes)) {
                 const cleanModeName = getCleanModeName(family, modeName) || modeName.replace(/^[IVX]+\.\s*/, '');
                 const modeDef = scaleDefinitions[family]?.find(def => {
-                    const legacyKey = def.index ? `${def.index}. ${def.displayName || def.name}` : (def.displayName || def.name);
+                    const legacyKey = def.index ? `${def.index}. ${def.wheelName || def.name}` : (def.wheelName || def.name);
                     return legacyKey === modeName || def.name === cleanModeName;
                 });
                 const aliases = modeDef?.aliases || [];
@@ -147,6 +143,11 @@ const ScaleSelector = ({
         }
         return results;
     })() : [];
+
+    const isHighlightActive = scale && (
+        (scaleModeUI === 'list' && scale.family === selectedFamily) ||
+        (scaleModeUI === 'wheel' && scale.family === wheelFamily)
+    );
 
     return (<div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {/* TOP: Mode selector buttons (horizontal) */}
@@ -175,18 +176,18 @@ const ScaleSelector = ({
 
         {/* ACTIVE SCALE NAME */}
         {scaleModeUI !== 'search' && (
-            <div style={{ padding: '0px 0', color: 'white', fontWeight: 'bold', textAlign: 'center', fontSize: '20px' }}>
-                {formatDisplayName(scale.tonic, scale.name, scale.family)}
+            <div style={{ padding: '0px 0', color: 'white', fontWeight: 'bold', textAlign: 'center', fontSize: '20px', lineHeight: '1.2' }}>
+                {formatScaleName(scale.tonic, scale.name, scale.family, customScaleLabel)}
             </div>
         )}
 
         {/* CONTENT AREA */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '0 0', gap: 8 }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'row', gap: 0, minHeight: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '2px 0', gap: 8 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'row', gap: '4px', minHeight: 0 }}>
                 {/* Wheel mode: families on left, wheel in center/right */}
                 {scaleModeUI === 'wheel' && (
                     <>
-                        <div style={{ width: '30%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto', padding: 0 }}>
+                        <div style={{ width: '28%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto', padding: 0 }}>
                             <div style={{ color: '#888', fontWeight: 'bold', textAlign: 'center', marginBottom: 2, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', height: '14px', lineHeight: '14px' }}>
                                 FAMILIES
                             </div>
@@ -199,15 +200,17 @@ const ScaleSelector = ({
                                         width: '100%',
                                         margin: '0',
                                         fontSize: '11px',
-                                        padding: '0',
-                                        height: '24px'
+                                        height: '36px',
+                                        whiteSpace: 'normal',
+                                        lineHeight: '1.2',
+                                        padding: '4px'
                                     }}
                                 >
                                     {family}
                                 </button>
                             ))}
                         </div>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, minHeight: 0 }}>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0, minHeight: 0 }}>
                             <div style={{ color: '#888', fontWeight: 'bold', textAlign: 'center', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', height: '14px', lineHeight: '14px' }}>
                                 MODE
                             </div>
@@ -227,6 +230,7 @@ const ScaleSelector = ({
                             >
                                 <ScaleSelectorWheel
                                     family={wheelFamily}
+                                    size={wheelSize}
                                     activeMode={scale.family === wheelFamily ? scale.name : null}
                                     onSelect={(mode) => {
                                         const updatedScale = updateScaleWithMode({
@@ -247,7 +251,7 @@ const ScaleSelector = ({
                 {/* List mode: families on left, scales on right */}
                 {scaleModeUI === 'list' && (
                     <>
-                        <div style={{ width: '30%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2, overflowY: 'auto', padding: 0 }}>
+                        <div style={{ width: '28%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4, overflowY: 'auto', padding: 0 }}>
                             <div style={{ color: '#888', fontWeight: 'bold', textAlign: 'center', marginBottom: 2, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', height: '14px', lineHeight: '14px' }}>
                                 FAMILIES
                             </div>
@@ -260,15 +264,17 @@ const ScaleSelector = ({
                                         width: '100%',
                                         margin: '0',
                                         fontSize: '11px',
-                                        padding: '0',
-                                        height: '24px',
+                                        height: '36px',
+                                        whiteSpace: 'normal',
+                                        lineHeight: '1.2',
+                                        padding: '4px'
                                     }}
                                 >
                                     {family}
                                 </button>
                             ))}
                         </div>
-                        <div style={{ width: '20px', flexShrink: 0 }} />
+                        <div style={{ width: '4px', flexShrink: 0 }} />
                         <div style={{ flex: 1, gap: 4, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                             <div style={{ color: '#888', fontWeight: 'bold', textAlign: 'center', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', height: '14px', lineHeight: '14px' }}>
                                 SCALE
@@ -278,7 +284,7 @@ const ScaleSelector = ({
                                 style={{
                                     display: 'flex',
                                     flexWrap: 'wrap',
-                                    columnGap: '10%', // 👈 space BETWEEN columns only
+                                    columnGap: '8%', // 👈 space BETWEEN columns only
                                     rowGap: '4px',     // keep your vertical rhythm
                                     justifyContent: 'center',
                                     overflowY: 'auto',
@@ -305,8 +311,14 @@ const ScaleSelector = ({
                                                 }}
                                                 style={{
                                                     fontSize: '11px',
-                                                    width: 'auto', flexBasis: '44.5%',
-                                                    height: '24px', textAlign: 'center'
+                                                    width: 'auto', flexBasis: '44%',
+                                                    height: '36px',
+                                                    textAlign: 'center',
+                                                    whiteSpace: 'normal',
+                                                    lineHeight: '1.1',
+                                                    padding: '2px 4px',
+                                                    backgroundColor: isActive ? 'var(--accent-yellow)' : 'rgba(255, 255, 255, 0.04)',
+                                                    color: isActive ? 'black' : 'white'
                                                 }}
                                             >
                                                 {cleanModeName}
@@ -343,9 +355,9 @@ const ScaleSelector = ({
                                 <div style={{
                                     display: 'flex',
                                     flexWrap: 'wrap',
-                                    gap: '8px',
+                                    gap: '4px',
                                     justifyContent: 'center',
-                                    backgroundColor: 'black',
+                                    background: 'none',
                                     overflowY: 'auto',
                                     width: '100%',
                                     paddingBottom: '20px'
@@ -381,7 +393,7 @@ const ScaleSelector = ({
                                                     // User said: "use the alias".
                                                     // Let's try to find if the current result corresponds to a definition that has a relevant alias.
 
-                                                    const def = scaleDefinitions[result.family]?.find(d => d.name === result.cleanModeName || (d.displayName || d.name) === result.modeName);
+                                                    const def = scaleDefinitions[result.family]?.find(d => d.name === result.cleanModeName || (d.wheelName || d.name) === result.modeName);
                                                     if (def && def.aliases && def.aliases.length > 0) {
                                                         // Use the first alias, or the one that matched? 
                                                         // Simplest: Use the first alias if available to indicate "This is also known as..."
@@ -394,18 +406,18 @@ const ScaleSelector = ({
                                                 }
                                             }}
                                             style={{
-                                                fontSize: '11px', padding: '2px 4px',
-                                                width: 'auto', flexBasis: '48%',
-                                                height: 'auto', minHeight: '32px',
+                                                fontSize: '10px', padding: '2px 4px',
+                                                width: 'auto', flexBasis: '32%',
+                                                height: 'auto', minHeight: '30px',
                                                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
                                             }}
                                         >
                                             <div style={{ fontSize: '9px', opacity: 0.7, marginBottom: 2 }}>{result.family}</div>
-                                            <div style={{ fontWeight: 'bold' }}>{result.cleanModeName}</div>
+                                            <div style={{ fontWeight: 'normal' }}>{result.cleanModeName}</div>
                                             {/* Show Aliases if any match query or just show first alias as info */}
-                                            {scaleDefinitions[result.family]?.find(def => def.name === result.cleanModeName || (def.displayName || def.name) === result.modeName)?.aliases?.length > 0 && (
+                                            {scaleDefinitions[result.family]?.find(def => def.name === result.cleanModeName || (def.wheelName || def.name) === result.modeName)?.aliases?.length > 0 && (
                                                 <div style={{ fontSize: '9px', opacity: 0.6, marginTop: 2, fontStyle: 'italic' }}>
-                                                    {scaleDefinitions[result.family]?.find(def => def.name === result.cleanModeName || (def.displayName || def.name) === result.modeName)?.aliases.join(', ')}
+                                                    {scaleDefinitions[result.family]?.find(def => def.name === result.cleanModeName || (def.wheelName || def.name) === result.modeName)?.aliases.join(', ')}
                                                 </div>
                                             )}
                                         </button>
@@ -441,6 +453,7 @@ const ScaleSelector = ({
                             minNote='A3'
                             maxNote='G5'
                             smallLabels={true}
+                            isHighlightActive={isHighlightActive}
                         />
                     )}
                 </div>

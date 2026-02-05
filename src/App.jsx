@@ -10,6 +10,7 @@ import './styles/App.css'
 import ScaleSelector from "./components/scale/ScaleSelector";
 import generateAllNotesArray from './utils/allNotesArray';
 import { transposeMelodyToScale } from './utils/musicUtils';
+import { formatScaleName } from './utils/scaleHandler';
 import PlaybackSettings from "./components/bottom/PlaybackSettings";
 import Sequencer from './audio/Sequencer';
 import LayoutDebugOverlay from './components/debug/LayoutDebugOverlay';
@@ -43,6 +44,10 @@ const App = () => {
     const [isPlayingScale, setIsPlayingScale] = useState(false);
     const [isPlayingMelody, setIsPlayingMelody] = useState(false);
     const [activeClef, setActiveClef] = useState('treble');
+
+    // UI State persistence for Generator
+    const [generatorMode, setGeneratorMode] = useState('presets');
+    const [activePreset, setActivePreset] = useState('default');
 
     // Theme State
     const [theme, setTheme] = useState('default');
@@ -166,13 +171,19 @@ const App = () => {
     const metronomeRef = useRef(metronomeMelody);
     const melodiesRef = useRef(melodies);
 
-    useEffect(() => { bpmRef.current = bpm; }, [bpm]);
-    useEffect(() => { tsRef.current = timeSignature; }, [timeSignature]);
-    useEffect(() => { nmRef.current = numMeasures; }, [numMeasures]);
-    useEffect(() => { scaleRef.current = scale; }, [scale]);
-    useEffect(() => { configRef.current = { ...playbackConfig, totalMelodies: -1 }; }, [playbackConfig]);
-    useEffect(() => { metronomeRef.current = metronomeMelody; }, [metronomeMelody]);
-    useEffect(() => { melodiesRef.current = melodies; }, [melodies]);
+    const instrumentSettingsRef = useRef({
+        treble: trebleSettings,
+        bass: bassSettings,
+        percussion: percussionSettings
+    });
+
+    useEffect(() => {
+        instrumentSettingsRef.current = {
+            treble: trebleSettings,
+            bass: bassSettings,
+            percussion: percussionSettings
+        };
+    }, [trebleSettings, bassSettings, percussionSettings]);
 
     const sequencerRef = useRef(null);
     useEffect(() => {
@@ -180,7 +191,6 @@ const App = () => {
         sequencerRef.current = new Sequencer({
             context,
             instruments,
-            instrumentSettings: { treble: trebleSettings, bass: bassSettings, percussion: percussionSettings },
             percussionScale,
             setters: {
                 setTrebleMelody,
@@ -190,7 +200,7 @@ const App = () => {
                 setScale: (v) => setScale(v),
                 onStop: () => setIsPlayingContinuously(false)
             },
-            refs: { bpmRef, timeSignatureRef: tsRef, numMeasuresRef: nmRef, scaleRef, playbackConfigRef: configRef, metronomeRef, melodiesRef }
+            refs: { bpmRef, timeSignatureRef: tsRef, numMeasuresRef: nmRef, scaleRef, playbackConfigRef: configRef, metronomeRef, melodiesRef, instrumentSettingsRef }
         });
         return () => { if (sequencerRef.current) sequencerRef.current.stop(); };
     }, [context, !!instruments.treble]);
@@ -289,6 +299,10 @@ const App = () => {
         else if (type === 'cycleBottomBackward') setTimeSignature(p => [p[0], Math.max(2, p[1] / 2)]);
     };
 
+    const handleNumMeasuresChange = (newNum) => {
+        setNumMeasures(newNum);
+    };
+
     return (
         <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--app-bg)', color: 'white', overflow: 'hidden', boxSizing: 'border-box', padding: '20px 0' }}>
 
@@ -296,7 +310,7 @@ const App = () => {
             <div style={{ flex: '1 1 0', minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '0 20px' }}>
                 {/* Title */}
                 <div style={{ width: '100%', textAlign: 'center', marginBottom: '4px', fontFamily: 'serif', fontSize: '24px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-                    Melody in {scale.tonic.replace(/\d+$/, '')} {(customScaleLabel || scale.name).replace(/^[IVXivx]+\.\s*/, '')}
+                    Melody in {formatScaleName(scale.tonic, scale.name, scale.family, customScaleLabel)}
                 </div>
                 <div style={{ flex: 1, minHeight: 0, display: 'flex', width: '100%', justifyContent: 'flex-start', alignItems: 'center' }}>
                     <SheetMusic
@@ -406,15 +420,26 @@ const App = () => {
                         </div>
                     )}
                     {activeTab === 'treble' && <TrebleSettings trebleInstrumentSettings={trebleSettings} setTrebleInstrumentSettings={setTrebleSettings} bassSettings={bassSettings} setBassSettings={setBassSettings} currentTheme={theme} setTheme={setTheme} />}
-                    {activeTab === 'scale' && <ScaleSelector trebleInstrument={instruments.treble} windowSize={windowSize} scale={scale} scaleRange={scaleRange} setTonic={setTonic} setScale={setScale} setSelectedMode={setSelectedMode} setCustomScaleLabel={setCustomScaleLabel} />}
-                    {activeTab === 'playback' && <PlaybackSettings
-                        numMeasures={numMeasures} setNumMeasures={setNumMeasures}
-                        playbackConfig={playbackConfig} setPlaybackConfig={setPlaybackConfig}
-                        trebleSettings={trebleSettings} setTrebleSettings={setTrebleSettings}
-                        bassSettings={bassSettings} setBassSettings={setBassSettings}
-                        percussionSettings={percussionSettings} setPercussionSettings={setPercussionSettings}
-                        activeScale={scale}
-                    />}
+                    {activeTab === 'scale' && <ScaleSelector trebleInstrument={instruments.treble} windowSize={windowSize} scale={scale} scaleRange={scaleRange} setTonic={setTonic} setScale={setScale} setSelectedMode={setSelectedMode} customScaleLabel={customScaleLabel} setCustomScaleLabel={setCustomScaleLabel} />}
+                    {activeTab === 'playback' &&
+                        <PlaybackSettings
+                            numMeasures={numMeasures}
+                            setNumMeasures={handleNumMeasuresChange}
+                            playbackConfig={playbackConfig}
+                            setPlaybackConfig={setPlaybackConfig}
+                            trebleSettings={trebleSettings}
+                            setTrebleSettings={setTrebleSettings}
+                            bassSettings={bassSettings}
+                            setBassSettings={setBassSettings}
+                            percussionSettings={percussionSettings}
+                            setPercussionSettings={setPercussionSettings}
+                            activeScale={scale}
+                            generatorMode={generatorMode}
+                            setGeneratorMode={setGeneratorMode}
+                            activePreset={activePreset}
+                            setActivePreset={setActivePreset}
+                        />
+                    }
                 </div>
             </div>
 

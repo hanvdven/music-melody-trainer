@@ -4,11 +4,31 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0b7f80f1-8dd2-4ee5-a715-c118dc07c51d" name="Changes" comment="" />
+    <list default="true" id="0b7f80f1-8dd2-4ee5-a715-c118dc07c51d" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/music-melody-trainer.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/App.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/audio/Sequencer.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/audio/Sequencer.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/audio/playContinuously.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/audio/playContinuously.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/bottom/PianoView.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/bottom/PianoView.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/bottom/PlaybackSettings.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/bottom/PlaybackSettings.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/generateMelody/convertToDisplayNotes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/generateMelody/convertToDisplayNotes.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/generateMelody/generateDisplayScale.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/generateMelody/generateDisplayScale.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/scale/ScaleSelector.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/scale/ScaleSelector.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/components/scale/ScaleSelectorWheel.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/scale/ScaleSelectorWheel.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/model/theory/scaleData.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/theory/scaleData.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/styles/App.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/styles/App.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/scaleHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/scaleHandler.js" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 1
@@ -18,26 +38,30 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;Node.js.App.js.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/hanvd/Documents/Programming Projects/music melody trainer/components&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Node.js.App.js.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "main",
+    "javascript.preferred.runtime.type.id": "node",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "C:/Users/hanvd/Documents/GitHub/music-melody-trainer",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\hanvd\Documents\Programming Projects\music melody trainer\components" />
@@ -66,6 +90,7 @@
       <option name="presentableId" value="Default" />
       <updated>1768766593512</updated>
       <workItem from="1768766596227" duration="70967000" />
+      <workItem from="1770327700662" duration="4009000" />
     </task>
     <servers />
   </component>

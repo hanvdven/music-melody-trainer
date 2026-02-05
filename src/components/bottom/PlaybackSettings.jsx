@@ -7,7 +7,9 @@ const PlaybackSettings = ({
     trebleSettings, setTrebleSettings,
     bassSettings, setBassSettings,
     percussionSettings, setPercussionSettings,
-    activeScale
+    activeScale,
+    generatorMode, setGeneratorMode,
+    activePreset, setActivePreset
 }) => {
 
     const getTypeFromRule = (rule) => {
@@ -66,11 +68,8 @@ const PlaybackSettings = ({
         }));
     };
 
-    const [activePreset, setActivePreset] = useState('default');
-    const [generatorMode, setGeneratorMode] = useState('presets');
-
     const markCustom = () => {
-        setActivePreset('custom');
+        if (setActivePreset) setActivePreset('custom');
     };
 
     const handleTonicToggle = () => {
@@ -135,7 +134,6 @@ const PlaybackSettings = ({
             const isModeRandom = prev.randomize.mode;
             const isFamilyRandom = prev.randomize.family !== false;
 
-            // Updated Cycle Logic: If both are random, clicking Mode sets BOTH to fixed
             if (isModeRandom && isFamilyRandom) {
                 return {
                     ...prev,
@@ -175,7 +173,6 @@ const PlaybackSettings = ({
         let isRandom = state === true || state === 'hepta';
         let isHepta = state === 'hepta';
 
-        // Tab-style colors
         const activeBg = 'rgba(255, 255, 0, 0.05)';
         const activeColor = 'var(--accent-yellow)';
         const inactiveColor = 'white';
@@ -194,9 +191,14 @@ const PlaybackSettings = ({
             }
             return (
                 <span style={{
-                    fontSize: '18px',
-                    fontFamily: label === 'TONIC' ? 'sans-serif' : 'inherit',
-                    color: inactiveColor
+                    fontSize: '15px',
+                    fontFamily: 'serif',
+                    color: inactiveColor,
+                    fontWeight: '900',
+                    textAlign: 'center',
+                    wordBreak: 'break-word',
+                    lineHeight: '1.1',
+                    padding: '0 4px'
                 }}>
                     {value || 'Active'}
                 </span>
@@ -209,7 +211,7 @@ const PlaybackSettings = ({
                 disabled={disabled}
                 style={{
                     flex: 1,
-                    height: '54px',
+                    height: '68px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -229,12 +231,16 @@ const PlaybackSettings = ({
                     {renderIconOrValue()}
                 </div>
                 <span style={{
-                    fontSize: '9px',
-                    marginTop: '4px',
+                    fontSize: '8.5px',
+                    marginTop: '2px',
                     color: isRandom ? activeColor : labelColor,
-                    fontWeight: 'bold',
+                    fontWeight: 'normal',
                     textTransform: 'uppercase',
-                    letterSpacing: '0.5px'
+                    letterSpacing: '0.4px',
+                    lineHeight: '1',
+                    textAlign: 'center',
+                    maxWidth: '100%',
+                    whiteSpace: 'normal'
                 }}>
                     {isRandom ? (
                         label === 'TONIC' ? 'RANDOMIZE TONIC' :
@@ -242,7 +248,7 @@ const PlaybackSettings = ({
                                 label === 'FAMILY' ? (isHepta ? 'HEPTATONIC SCALE' : 'RANDOM SCALE') :
                                     label === 'MELODY' ? 'RANDOM MELODY' :
                                         (isHepta ? 'RANDOM HEPTATONIC' : 'RANDOM')
-                    ) : `FIXED ${label}`}
+                    ) : `FIX ${label}`}
                 </span>
             </button>
         );
@@ -297,8 +303,8 @@ const PlaybackSettings = ({
     );
 
     const InstrumentRow = ({ label, glyph, instrumentKey }) => (
-        <div style={{ display: 'grid', gridTemplateColumns: generatorMode === 'presets' ? '1.2fr 0.8fr' : '1.2fr 0.8fr 1.2fr 0.8fr 0.6fr 0.8fr', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-            <div style={{ fontSize: glyph ? '20px' : '13px', color: '#ccc', fontFamily: glyph ? 'Maestro' : 'inherit', paddingLeft: glyph ? '5px' : '0' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: generatorMode === 'presets' ? '0.8fr 0.8fr' : '0.8fr 0.8fr 1.2fr 1.2fr 1.2fr 1.2fr', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+            <div style={{ fontSize: glyph ? '20px' : '11px', color: '#ccc', fontFamily: glyph ? 'Maestro' : 'inherit', paddingLeft: glyph ? '2px' : '0', textAlign: 'center', fontWeight: 'bold' }}>
                 {glyph || label}
             </div>
 
@@ -348,7 +354,7 @@ const PlaybackSettings = ({
     };
 
     const applyPreset = (presetName) => {
-        setActivePreset(presetName);
+        if (setActivePreset) setActivePreset(presetName);
         if (presetName === 'default') {
             setPlaybackConfig(prev => ({
                 ...prev,
@@ -421,11 +427,15 @@ const PlaybackSettings = ({
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '8px' }}>
+                    <div style={{ width: '100%', textAlign: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '10px', color: '#666', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Randomization</span>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'space-between', marginTop: '0px' }}>
                         <SmartToggle label="TONIC" value={activeScale?.tonic} state={playbackConfig.randomize.tonic} onToggle={handleTonicToggle} />
                         <SmartToggle label="MODE" value={activeScale?.modeName || activeScale?.name} state={playbackConfig.randomize.mode} onToggle={handleModeToggle} disabled={isModeDisabled || isModeRandomForced} />
                         <SmartToggle label="FAMILY" value={displayFamily} state={playbackConfig.randomize.family} onToggle={handleFamilyToggle} />
-                        <SmartToggle label="MELODY" value="Fixed" state={playbackConfig.randomize.melody} onToggle={handleMelodyToggle} />
+                        <SmartToggle label="MELODY" value="Fix" state={playbackConfig.randomize.melody} onToggle={handleMelodyToggle} />
                     </div>
 
                     <hr style={{ border: 'none', borderTop: '1px solid #333', margin: '10px 0' }} />
@@ -434,21 +444,21 @@ const PlaybackSettings = ({
 
             {generatorMode !== 'presets' && (
                 <div style={{ marginTop: '0' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.2fr 0.8fr 0.6fr 0.8fr', gap: '4px', marginBottom: '8px', color: '#888', fontSize: '10px', fontWeight: 'bold', textAlign: 'center' }}>
-                        <div style={{ textAlign: 'left' }}>INSTR.</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 0.8fr 1.2fr 1.2fr 1.2fr 1.2fr', gap: '4px', marginBottom: '8px', color: '#888', fontSize: '9px', fontWeight: '900', textAlign: 'center' }}>
+                        <div style={{ textAlign: 'left' }}>INSTRUMENT</div>
                         <div>ROUNDS</div>
                         <>
                             <div>TYPE</div>
-                            <div>N / MEAS</div>
+                            <div>NOTES / MEASURE</div>
                             <div>SMALLEST</div>
-                            <div>VAR</div>
+                            <div>VARIABILITY</div>
                         </>
                     </div>
 
                     <InstrumentRow label="Treble" glyph="&" instrumentKey="treble" />
                     <InstrumentRow label="Bass" glyph="?" instrumentKey="bass" />
-                    <InstrumentRow label="Perc." glyph="/" instrumentKey="percussion" />
-                    <InstrumentRow label="Metr." instrumentKey="metronome" />
+                    <InstrumentRow label="PERCUSSION" glyph="/" instrumentKey="percussion" />
+                    <InstrumentRow label="METRONOME" instrumentKey="metronome" />
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr 1.2fr 0.8fr 0.6fr 0.8fr', gap: '4px', marginTop: '8px', alignItems: 'center' }}>
                         <div></div>

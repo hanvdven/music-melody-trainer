@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import '../../styles/App.css'
-import { modes, getModeIndex } from '../../utils/scaleHandler';
+import { modes, getModeIndex, getModeDisplayName } from '../../utils/scaleHandler';
 
 const rootStyles = getComputedStyle(document.documentElement);
 const COLORS = {
@@ -161,27 +161,93 @@ const ScaleSelectorWheel = ({ family = 'Diatonic', activeMode = null, onSelect, 
                                         : COLORS.lowlight
                                 }
                                 stroke="#222"
-                                strokeWidth="1"
+                                strokeWidth="2"
                             />
-                            {isActive && activeIndex < modeNames.length && (
-                                <text
-                                    x={labelX}
-                                    y={labelY}
-                                    textAnchor="middle"
-                                    dominantBaseline="middle"
-                                    fontSize="14"
-                                    fontFamily="sans-serif"
-                                    fill={
-                                        activeIndex === selectedIndex
-                                            ? COLORS.textTonic
-                                            : COLORS.textHighlight
-                                    }
-                                    transform={`rotate(${-currentRotation} ${labelX} ${labelY})`}
-                                    style={{ pointerEvents: 'none' }}
-                                >
-                                    {getModeLabel(modeNames[activeIndex])}
-                                </text>
-                            )}
+                            {isActive && activeIndex < modeNames.length && (() => {
+                                const modeName = modeNames[activeIndex];
+                                const fullName = getModeDisplayName(family, modeName);
+                                const words = fullName.split(' ');
+
+                                // Calculate if there's enough space
+                                const sliceAngleDegrees = angle;
+                                const arcLengthAtRadius = (sliceAngleDegrees * Math.PI / 180) * ((innerRadius + outerRadius) / 2);
+                                const estimatedTextHeight = words.length * 11;
+                                const hasEnoughSpace = arcLengthAtRadius > estimatedTextHeight + 10;
+
+                                // Edge angles (relative to slices)
+                                const startA = i * angle - 90;
+                                const endA = (i + 1) * angle - 90;
+
+                                // Positions for edge labels
+                                // Offset slightly from the exact edge to avoid overlapping stroke
+                                const edgeLabelRadius = (innerRadius + outerRadius) / 2;
+                                const edgePadding = 3; // degrees offset from radial line
+
+                                const leftAngle = startA + edgePadding;
+                                const rightAngle = endA - edgePadding;
+
+                                const lx = cx + edgeLabelRadius * Math.cos(leftAngle * Math.PI / 180);
+                                const ly = cy + edgeLabelRadius * Math.sin(leftAngle * Math.PI / 180);
+                                const rx = cx + edgeLabelRadius * Math.cos(rightAngle * Math.PI / 180);
+                                const ry = cy + edgeLabelRadius * Math.sin(rightAngle * Math.PI / 180);
+
+                                return (
+                                    <>
+                                        {/* Center Label (Roman Numeral) */}
+                                        <text
+                                            x={labelX}
+                                            y={labelY}
+                                            textAnchor="middle"
+                                            dominantBaseline="middle"
+                                            fontSize="14"
+                                            fontFamily="sans-serif"
+                                            fill={activeIndex === selectedIndex ? COLORS.textTonic : COLORS.textHighlight}
+                                            transform={`rotate(${-currentRotation} ${labelX} ${labelY})`}
+                                            style={{ pointerEvents: 'none' }}
+                                        >
+                                            {getModeLabel(modeName)}
+                                        </text>
+
+                                        {/* Left Edge Label (multiline, conditional) */}
+                                        {hasEnoughSpace && (
+                                            <text
+                                                x={lx}
+                                                y={ly}
+                                                textAnchor="middle"
+                                                dominantBaseline="text-after-edge"
+                                                fontSize="10"
+                                                fontFamily="sans-serif"
+                                                fill="rgba(255, 255, 255, 0.4)"
+                                                transform={`rotate(${leftAngle + 180} ${lx} ${ly})`}
+                                                style={{ pointerEvents: 'none', textTransform: 'uppercase', letterSpacing: '0.5px' }}
+                                            >
+                                                {words.map((word, idx) => (
+                                                    <tspan key={idx} x={lx} dy={idx === 0 ? 0 : 11}>{word}</tspan>
+                                                ))}
+                                            </text>
+                                        )}
+
+                                        {/* Right Edge Label (multiline, conditional) */}
+                                        {hasEnoughSpace && (
+                                            <text
+                                                x={rx}
+                                                y={ry}
+                                                textAnchor="middle"
+                                                dominantBaseline="text-after-edge"
+                                                fontSize="10"
+                                                fontFamily="sans-serif"
+                                                fill="rgba(255, 255, 255, 0.4)"
+                                                transform={`rotate(${rightAngle + 0} ${rx} ${ry})`}
+                                                style={{ pointerEvents: 'none', textTransform: 'uppercase', letterSpacing: '0.5px' }}
+                                            >
+                                                {words.map((word, idx) => (
+                                                    <tspan key={idx} x={rx} dy={idx === 0 ? 0 : 11}>{word}</tspan>
+                                                ))}
+                                            </text>
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </g>
                     );
                 })}

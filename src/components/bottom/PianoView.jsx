@@ -10,7 +10,8 @@ const PianoView = ({
   interactionMode = 'play',
   onTonicSelect = null,
   minNote = null,              // optioneel
-  maxNote = null               // optioneel
+  maxNote = null,              // optioneel
+  isHighlightActive = true      // 👈 nieuw
 }) => {
   const tonic = scale?.tonic ? standardizeTonic(scale.tonic) : 'C4';
 
@@ -98,13 +99,17 @@ const PianoView = ({
 
     if (note === 'halfKey') return 'half-key';
     if (note === 'placeholder') return 'placeholder-key';
+
+    const highlightTonic = isHighlightActive && isTonic;
+    const highlightScale = isHighlightActive && isInScale;
+
     if (note.includes('♯') || note.includes('♭')) {
-      if (isTonic) return 'black-key tonic-black-key';
-      if (isInScale) return 'black-key highlighted-black-key';
+      if (highlightTonic) return 'black-key tonic-black-key';
+      if (highlightScale) return 'black-key highlighted-black-key';
       return 'black-key';
     } else {
-      if (isTonic) return 'white-key tonic-white-key';
-      if (isInScale) return 'white-key highlighted-white-key';
+      if (highlightTonic) return 'white-key tonic-white-key';
+      if (highlightScale) return 'white-key highlighted-white-key';
       return 'white-key';
     }
   };

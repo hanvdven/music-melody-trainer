@@ -14,7 +14,6 @@ class Sequencer {
         this.setters = config.setters; // { setTreble, setBass, setPercussion, setTonic, setScale }
         this.refs = config.refs;       // { bpmRef, timeSignatureRef, numMeasuresRef, scaleRef, playbackConfigRef }
         this.instruments = config.instruments;
-        this.instrumentSettings = config.instrumentSettings;
         this.context = config.context;
         this.percussionScale = config.percussionScale;
     }
@@ -121,8 +120,7 @@ class Sequencer {
         const randConfig = this.refs.playbackConfigRef.current.randomize || {};
 
         if (randConfig.tonic) {
-            const rawTonic = randomTonic();
-            const newTonic = rawTonic + '4';
+            const newTonic = randomTonic(); // randomTonic already includes octave (e.g. "C4")
             this.setters.setTonic(newTonic);
             activeScale = updateScaleWithTonic({
                 currentScale: activeScale,
@@ -141,7 +139,7 @@ class Sequencer {
             const newFamily = potentialFamilies[Math.floor(Math.random() * potentialFamilies.length)];
             const modesInFamily = scaleDefinitions[newFamily];
             const modeDef = modesInFamily[Math.floor(Math.random() * modesInFamily.length)];
-            const newMode = modeDef.index ? `${modeDef.index}. ${modeDef.displayName || modeDef.name}` : (modeDef.displayName || modeDef.name);
+            const newMode = modeDef.index ? `${modeDef.index}. ${modeDef.wheelName || modeDef.name}` : (modeDef.wheelName || modeDef.name);
             activeScale = updateScaleWithMode({
                 currentScale: activeScale,
                 newFamily,
@@ -151,20 +149,21 @@ class Sequencer {
             });
             this.setters.setScale(activeScale);
         } else if (randConfig.mode) {
-            const currentFamilyDefs = scaleDefinitions[activeScale.family];
-            const currentModeDef = currentFamilyDefs.find(m => m.name === activeScale.name || (m.aliases && m.aliases.includes(activeScale.name)));
-            const targetFamily = currentModeDef?.randomizationFamily || activeScale.family;
-            const modesInFamily = scaleDefinitions[targetFamily];
-            const modeDef = modesInFamily[Math.floor(Math.random() * modesInFamily.length)];
-            const newMode = modeDef.index ? `${modeDef.index}. ${modeDef.displayName || modeDef.name}` : (modeDef.displayName || modeDef.name);
-            activeScale = updateScaleWithMode({
-                currentScale: activeScale,
-                newFamily: targetFamily,
-                newMode,
-                rangeUp: activeScale.rangeUp,
-                rangeDown: activeScale.rangeDown
-            });
-            this.setters.setScale(activeScale);
+            // FIX: If family is FIXED, only randomize within the current family!
+            // Do NOT use randomizationFamily definitions from scaleHandler if it results in family hoping.
+            const modesInFamily = scaleDefinitions[activeScale.family] || [];
+            if (modesInFamily.length > 0) {
+                const modeDef = modesInFamily[Math.floor(Math.random() * modesInFamily.length)];
+                const newMode = modeDef.index ? `${modeDef.index}. ${modeDef.wheelName || modeDef.name}` : (modeDef.wheelName || modeDef.name);
+                activeScale = updateScaleWithMode({
+                    currentScale: activeScale,
+                    newFamily: activeScale.family,
+                    newMode,
+                    rangeUp: activeScale.rangeUp,
+                    rangeDown: activeScale.rangeDown
+                });
+                this.setters.setScale(activeScale);
+            }
         }
 
         let newTreble, newBass, newPercussion;
@@ -200,9 +199,10 @@ class Sequencer {
             newPercussion = currentMelodies.percussion;
         } else {
             // Regenerate
-            newTreble = new MelodyGenerator(activeScale, numMeasures, timeSignature, this.instrumentSettings.treble).generateMelody();
-            newBass = new MelodyGenerator(activeScale.generateBassScale(), numMeasures, timeSignature, this.instrumentSettings.bass).generateMelody();
-            newPercussion = new MelodyGenerator(this.percussionScale, numMeasures, timeSignature, this.instrumentSettings.percussion).generateMelody();
+            const instrumentSettings = this.refs.instrumentSettingsRef.current;
+            newTreble = new MelodyGenerator(activeScale, numMeasures, timeSignature, instrumentSettings.treble).generateMelody();
+            newBass = new MelodyGenerator(activeScale.generateBassScale(), numMeasures, timeSignature, instrumentSettings.bass).generateMelody();
+            newPercussion = new MelodyGenerator(this.percussionScale, numMeasures, timeSignature, instrumentSettings.percussion).generateMelody();
 
             this.setters.setTrebleMelody(newTreble);
             this.setters.setBassMelody(newBass);

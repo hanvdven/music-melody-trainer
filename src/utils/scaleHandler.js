@@ -42,34 +42,32 @@ const modeAdjustments = {
  * Scale mode definition structure:
  * - index: Roman numeral (I, II, III, etc.) or null for non-indexed modes
  * - name: Clean mode name without index prefix
- * - displayName: Full display name (may include parenthetical notes)
+ * - wheelName: Full display name (may include parenthetical notes)
  * - intervals: Array of semitone intervals
  * - aliases: Optional array of alternative names for searchability
  */
 const scaleDefinitions = {
-  Simple: [
-    { name: 'Blues', intervals: [3, 2, 1, 1, 3, 2], aliases: ['Blues scale'] },
-    { name: 'Major', intervals: [2, 2, 1, 2, 2, 2, 1], aliases: ['Ionian', 'Major scale'] },
-    { name: 'Minor', intervals: [2, 1, 2, 2, 1, 2, 2], aliases: ['Aeolian', 'Natural Minor', 'Minor scale'] },
-    { name: 'Chromatic', intervals: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] },
+  'Triad scales': [
+    { name: 'Major Triad', preferredName: 'Major Triad', intervals: [4, 3, 5], isSimple: true },
+    { name: 'Minor Triad', preferredName: 'Minor Triad', intervals: [3, 4, 5], isSimple: true },
   ],
   Diatonic: [
-    { index: 'I', name: 'Ionian', displayName: 'Ionian (Major)', intervals: [2, 2, 1, 2, 2, 2, 1] },
+    { index: 'I', name: 'Major', wheelName: 'Ionian', intervals: [2, 2, 1, 2, 2, 2, 1], isSimple: true },
     { index: 'II', name: 'Dorian', intervals: [2, 1, 2, 2, 2, 1, 2] },
     { index: 'III', name: 'Phrygian', intervals: [1, 2, 2, 2, 1, 2, 2] },
     { index: 'IV', name: 'Lydian', intervals: [2, 2, 2, 1, 2, 2, 1] },
-    { index: 'V', name: 'Mixolydian', displayName: 'Mixolydian (Melodic Minor ↓)', intervals: [2, 2, 1, 2, 2, 1, 2] },
-    { index: 'VI', name: 'Aeolian', displayName: 'Aeolian (Natural Minor)', intervals: [2, 1, 2, 2, 1, 2, 2] },
+    { index: 'V', name: 'Melodic Minor ↓', wheelName: 'Mixolydian', intervals: [2, 2, 1, 2, 2, 1, 2] },
+    { index: 'VI', name: 'Minor', wheelName: 'Aeolian', intervals: [2, 1, 2, 2, 1, 2, 2], isSimple: true },
     { index: 'VII', name: 'Locrian', intervals: [1, 2, 2, 1, 2, 2, 2] },
   ],
   Melodic: [
-    { index: 'I', name: 'Melodic Minor', displayName: 'Melodic Minor (↑)', intervals: [2, 1, 2, 2, 2, 2, 1] },
+    { index: 'I', name: 'Melodic Minor ↑', intervals: [2, 1, 2, 2, 2, 2, 1], isSimple: true },
     { index: 'II', name: 'Dorian ♭2', intervals: [1, 2, 2, 2, 2, 1, 2] },
     { index: 'III', name: 'Lydian Augmented', intervals: [2, 2, 2, 2, 1, 2, 1] },
-    { index: 'IV', name: 'Lydian Dominant', displayName: 'Lydian Dominant (Acoustic)', intervals: [2, 2, 2, 1, 2, 1, 2] },
+    { index: 'IV', name: 'Acoustic', wheelName: 'Lydian Dominant', intervals: [2, 2, 2, 1, 2, 1, 2] },
     { index: 'V', name: 'Aeolian Dominant', intervals: [2, 2, 1, 2, 1, 2, 2] },
     { index: 'VI', name: 'Half Diminished', intervals: [2, 1, 2, 1, 2, 2, 2] },
-    { index: 'VII', name: 'Super Locrian', displayName: 'Super Locrian "Altered" (Diminished Whole Tone)', intervals: [1, 2, 1, 2, 2, 2, 2] },
+    { index: 'VII', name: 'Altered', wheelName: 'Super Locrian', intervals: [1, 2, 1, 2, 2, 2, 2], aliases: ['Diminished Whole Tone'] },
   ],
   'Harmonic Major': [
     { index: 'I', name: 'Harmonic Major', intervals: [2, 2, 1, 2, 1, 3, 1] },
@@ -81,11 +79,11 @@ const scaleDefinitions = {
     { index: 'VII', name: 'Locrian ♭7', intervals: [1, 2, 2, 1, 2, 1, 3] },
   ],
   'Harmonic Minor': [
-    { index: 'I', name: 'Harmonic Minor', intervals: [2, 1, 2, 2, 1, 3, 1] },
+    { index: 'I', name: 'Harmonic Minor', preferredName: 'Harmonic Minor', intervals: [2, 1, 2, 2, 1, 3, 1], isSimple: true },
     { index: 'II', name: 'Locrian ♯6', intervals: [1, 2, 2, 1, 3, 1, 2] },
     { index: 'III', name: 'Ionian ♯5', intervals: [2, 2, 1, 3, 1, 2, 1] },
-    { index: 'IV', name: 'Dorian ♯4', displayName: 'Dorian ♯4 (Ukrainian Dorian)', intervals: [2, 1, 3, 1, 2, 1, 2] },
-    { index: 'V', name: 'Phrygian ♯2', displayName: 'Phrygian ♯2 (Phrygian Dominant)', intervals: [1, 3, 1, 2, 1, 2, 2] },
+    { index: 'IV', name: 'Ukrainian Dorian', wheelName: 'Dorian ♯4', intervals: [2, 1, 3, 1, 2, 1, 2] },
+    { index: 'V', name: 'Phrygian Dominant', wheelName: 'Phrygian ♯2', intervals: [1, 3, 1, 2, 1, 2, 2] },
     { index: 'VI', name: 'Lydian ♯2', intervals: [3, 1, 2, 1, 2, 2, 1] },
     { index: 'VII', name: 'Mixolydian ♯1', intervals: [1, 2, 1, 2, 2, 1, 3] },
   ],
@@ -93,7 +91,7 @@ const scaleDefinitions = {
     { index: 'I', name: 'Double Harmonic Major', intervals: [1, 3, 1, 2, 1, 3, 1], aliases: ['Gypsy Major', 'Arabic', 'Byzantine Echoi', 'Flamenco'] },
     { index: 'II', name: 'Lydian ♯2 ♯6', intervals: [3, 1, 2, 1, 3, 1, 1] },
     { index: 'III', name: 'Ultraphrygian', intervals: [1, 2, 1, 3, 1, 3, 1] },
-    { index: 'IV', name: 'Hungarian minor', displayName: 'Hungarian minor / Gypsy minor', intervals: [2, 1, 3, 1, 1, 3, 1] },
+    { index: 'IV', name: 'Hungarian minor', aliases: ['Gypsy minor'], intervals: [2, 1, 3, 1, 1, 3, 1] },
     { index: 'V', name: 'Oriental', intervals: [1, 3, 1, 1, 3, 1, 2] },
     { index: 'VI', name: 'Ionian ♯2 ♯5', intervals: [3, 1, 1, 3, 1, 2, 1] },
     { index: 'VII', name: 'Locrian bb3 bb7', intervals: [1, 1, 3, 1, 2, 1, 3] },
@@ -109,8 +107,8 @@ const scaleDefinitions = {
     { name: 'Persian', intervals: [1, 3, 1, 1, 2, 3, 1] },
   ],
   Pentatonic: [
-    { name: 'Pentatonic Major', intervals: [2, 2, 3, 2, 3] },
-    { name: 'Pentatonic Minor', displayName: 'Pentatonic Minor (Yo)', intervals: [3, 2, 2, 3, 2] },
+    { name: 'Pentatonic Major', intervals: [2, 2, 3, 2, 3], isSimple: true },
+    { name: 'Pentatonic Minor', aliases: ['Yo'], intervals: [3, 2, 2, 3, 2], isSimple: true },
     { name: 'Iwato', intervals: [1, 4, 1, 4, 2] },
     { name: 'In', intervals: [1, 4, 2, 1, 4] },
     { name: 'Insen', intervals: [1, 4, 2, 3, 2] },
@@ -132,7 +130,7 @@ const scaleDefinitions = {
     { name: 'Algerian', intervals: [2, 1, 3, 1, 1, 3, 1, 2, 1, 2] },
     { name: 'Diminished', intervals: [2, 1, 2, 1, 2, 1, 2, 1] },
     { name: 'Dominant Diminished', intervals: [1, 2, 1, 2, 1, 2, 1, 2] },
-    { name: 'Chromatic', intervals: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] },
+    { name: 'Chromatic', intervals: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], isSimple: true },
   ],
 };
 
@@ -146,18 +144,23 @@ const scaleDefinitions = {
  */
 const generateLegacyModes = () => {
   const legacy = {};
+
+  // First, gather all Simple modes
+  legacy['Simple'] = {};
+  for (const [family, modeDefs] of Object.entries(scaleDefinitions)) {
+    for (const modeDef of modeDefs) {
+      if (modeDef.isSimple) {
+        const key = modeDef.index ? `${modeDef.index}. ${modeDef.wheelName || modeDef.name}` : (modeDef.wheelName || modeDef.name);
+        legacy['Simple'][key] = modeDef.intervals;
+      }
+    }
+  }
+
+  // Then, add all families including the specific ones
   for (const [family, modeDefs] of Object.entries(scaleDefinitions)) {
     legacy[family] = {};
     for (const modeDef of modeDefs) {
-      // Use displayName if available, otherwise construct from index + name
-      let key;
-      if (modeDef.displayName) {
-        key = modeDef.index ? `${modeDef.index}. ${modeDef.displayName}` : modeDef.displayName;
-      } else if (modeDef.index) {
-        key = `${modeDef.index}. ${modeDef.name}`;
-      } else {
-        key = modeDef.name;
-      }
+      const key = modeDef.index ? `${modeDef.index}. ${modeDef.wheelName || modeDef.name}` : (modeDef.wheelName || modeDef.name);
       legacy[family][key] = modeDef.intervals;
     }
   }
@@ -168,26 +171,38 @@ const generateLegacyModes = () => {
  * Get mode definition by family and mode name (legacy format)
  */
 const getModeDefinition = (family, modeName) => {
+  // If family is Simple, we might need to search all families since it aggregates
+  if (family === 'Simple') {
+    for (const [fam, familyDefs] of Object.entries(scaleDefinitions)) {
+      const found = findInFamily(familyDefs, modeName);
+      if (found) return found;
+    }
+    return null;
+  }
+
   const familyDefs = scaleDefinitions[family];
   if (!familyDefs) return null;
+  return findInFamily(familyDefs, modeName);
+};
 
+// Helper to keep logic DRY
+const findInFamily = (familyDefs, modeName) => {
   // Try to find by legacy format first
   for (const modeDef of familyDefs) {
     const legacyKey = modeDef.index
-      ? `${modeDef.index}. ${modeDef.displayName || modeDef.name}`
-      : (modeDef.displayName || modeDef.name);
+      ? `${modeDef.index}. ${modeDef.wheelName || modeDef.name}`
+      : (modeDef.wheelName || modeDef.name);
     if (legacyKey === modeName) {
       return modeDef;
     }
   }
 
-  // Try to find by clean name
+  // Try to find by clean name or preferred name
   for (const modeDef of familyDefs) {
-    if (modeDef.name === modeName || modeDef.displayName === modeName) {
+    if (modeDef.name === modeName || modeDef.wheelName === modeName || modeDef.preferredName === modeName) {
       return modeDef;
     }
   }
-
   return null;
 };
 
@@ -213,7 +228,36 @@ const getModeIndex = (family, modeName) => {
 const getModeDisplayName = (family, modeName) => {
   const modeDef = getModeDefinition(family, modeName);
   if (!modeDef) return modeName;
-  return modeDef.displayName || modeDef.name;
+  return modeDef.wheelName || modeDef.name;
+};
+
+/**
+ * Format full scale name (e.g. "C Major (Ionian)")
+ */
+const formatScaleName = (tonic, modeName, family, customLabel = null) => {
+  const tonicWithoutOctave = tonic.replace(/\d+$/, '');
+
+  if (customLabel) {
+    return `${tonicWithoutOctave} ${customLabel}`;
+  }
+
+  const modeDef = getModeDefinition(family, modeName);
+
+  // cleanModeName is the simplified name (e.g. "Major")
+  const cleanModeName = modeDef ? modeDef.name : modeName.replace(/^[IVX]+\.\s*/, '');
+
+  if (family === 'Simple' || family === 'Triad scales') {
+    return `${tonicWithoutOctave} ${cleanModeName}`;
+  }
+
+  // technicalName is what is displayed on the wheel/list (e.g. "Ionian")
+  const technicalName = modeDef?.wheelName || modeDef?.name;
+
+  if (technicalName && technicalName !== cleanModeName) {
+    return `${tonicWithoutOctave} ${cleanModeName} (${technicalName})`;
+  }
+
+  return `${tonicWithoutOctave} ${cleanModeName}`;
 };
 
 // ============================================================================
@@ -227,6 +271,10 @@ const modeDiatonicMapping = {
   'Blues': 'Aeolian',
   'Chromatic': 'Ionian',
 
+  // Triad modes
+  'Major Triad': 'Ionian',
+  'Minor Triad': 'Aeolian',
+
   // Diatonic modes (clean names)
   'Ionian': 'Ionian',
   'Dorian': 'Dorian',
@@ -237,7 +285,7 @@ const modeDiatonicMapping = {
   'Locrian': 'Locrian',
 
   // Melodic modes
-  'Melodic Minor': 'Aeolian',
+  'Melodic Minor ↑': 'Aeolian',
   'Dorian ♭2': 'Dorian',
   'Lydian Augmented': 'Lydian',
   'Lydian Dominant': 'Lydian',
@@ -258,8 +306,8 @@ const modeDiatonicMapping = {
   'Harmonic Minor': 'Ionian',
   'Locrian ♯6': 'Dorian',
   'Ionian ♯5': 'Phrygian',
-  'Dorian ♯4': 'Lydian',
-  'Phrygian ♯2': 'Mixolydian',
+  'Ukrainian Dorian': 'Lydian',
+  'Phrygian Dominant': 'Mixolydian',
   'Lydian ♯2': 'Lydian',
   'Mixolydian ♯1': 'Locrian',
 
@@ -299,9 +347,20 @@ const modeDiatonicMapping = {
 
 const generateScale = (anyTonic, intervals, scaleRange) => {
   const tonic = standardizeTonic(anyTonic);
-  console.log('generating Scale for', { tonic }, { intervals }, { scaleRange });
   const scale = [];
   let noteIndex = notes.indexOf(tonic);
+
+  if (noteIndex === -1) {
+    console.warn(`Standardized tonic "${tonic}" not found in notes array. Finding fallback...`);
+    const pitch = tonic.match(/[A-G][♭♯]?/)?.[0];
+    if (pitch) {
+      noteIndex = notes.findIndex(n => n.startsWith(pitch));
+    }
+    if (noteIndex === -1) {
+      noteIndex = 0;
+    }
+  }
+
   let sumOfIntervals = 0;
   let i = 0;
 
@@ -475,5 +534,6 @@ export {
   getModeIndex,
   getModeDisplayName,
   getModeDefinition,
+  formatScaleName,
   scaleDefinitions, // New clean structure
 };
