@@ -1,0 +1,196 @@
+
+// src/model/theory/scaleData.js
+
+export const tonicOptions = [
+    'C4', 'C♯4', 'D♭4', 'D4', 'E♭4', 'E4', 'F4', 'F♯4',
+    'G♭4', 'G4', 'A♭4', 'A4', 'B♭4', 'B4', 'C♭4', 'C5',
+];
+
+export const intervalNamesMap = {
+    Unison: 0, '2nd': 2, '3rd': 4, '4th': 5, '5th': 7,
+    '6th': 9, '7th': 11, Octave: 12, '9th': 14, '10th': 16,
+    '11th': 17, '12th': 19, '13th': 21, '14th': 23, 'Double Octave': 24,
+};
+
+export const modeAdjustments = {
+    Ionian: 0, Dorian: -2, Phrygian: -4, Lydian: 1,
+    Mixolydian: -1, Aeolian: -3, Locrian: -5,
+};
+
+export const scaleDefinitions = {
+    Tritonic: [
+        { name: 'Triad Major', intervals: [4, 3, 5] },
+        { name: 'Triad Minor', intervals: [3, 4, 5] },
+    ],
+    Simple: [
+        { name: 'Triad Major', intervals: [4, 3, 5] },
+        { name: 'Triad Minor', intervals: [3, 4, 5] },
+        { name: 'Pentatonic Major', intervals: [2, 2, 3, 2, 3], randomizationFamily: 'Pentatonic' },
+        { name: 'Pentatonic Minor', intervals: [3, 2, 2, 3, 2], aliases: ['Blues scale'], randomizationFamily: 'Pentatonic' },
+        { name: 'Major', intervals: [2, 2, 1, 2, 2, 2, 1], aliases: ['Ionian', 'Major scale'], randomizationFamily: 'Diatonic' },
+        { name: 'Minor', intervals: [2, 1, 2, 2, 1, 2, 2], aliases: ['Aeolian', 'Natural Minor', 'Minor scale'], randomizationFamily: 'Diatonic' },
+        { name: 'Chromatic', intervals: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] },
+        { name: 'Harmonic Minor', intervals: [2, 1, 2, 2, 1, 3, 1], randomizationFamily: 'Harmonic Minor' },
+    ],
+    Diatonic: [
+        { index: 'I', name: 'Ionian', wheelName: 'Ionian (Major)', intervals: [2, 2, 1, 2, 2, 2, 1] },
+        { index: 'II', name: 'Dorian', intervals: [2, 1, 2, 2, 2, 1, 2] },
+        { index: 'III', name: 'Phrygian', intervals: [1, 2, 2, 2, 1, 2, 2] },
+        { index: 'IV', name: 'Lydian', intervals: [2, 2, 2, 1, 2, 2, 1] },
+        { index: 'V', name: 'Mixolydian', wheelName: 'Melodic Minor ↓', intervals: [2, 2, 1, 2, 2, 1, 2], aliases: ['Melodic Minor ↓'] },
+        { index: 'VI', name: 'Aeolian', wheelName: 'Aeolian (Natural Minor)', intervals: [2, 1, 2, 2, 1, 2, 2] },
+        { index: 'VII', name: 'Locrian', intervals: [1, 2, 2, 1, 2, 2, 2] },
+    ],
+    Melodic: [
+        { index: 'I', name: 'Melodic Minor', wheelName: 'Melodic Minor (↑)', intervals: [2, 1, 2, 2, 2, 2, 1] },
+        { index: 'II', name: 'Dorian ♭2', intervals: [1, 2, 2, 2, 2, 1, 2] },
+        { index: 'III', name: 'Lydian Augmented', intervals: [2, 2, 2, 2, 1, 2, 1] },
+        { index: 'IV', name: 'Lydian Dominant', wheelName: 'Lydian Dominant (Acoustic)', intervals: [2, 2, 2, 1, 2, 1, 2] },
+        { index: 'V', name: 'Aeolian Dominant', intervals: [2, 2, 1, 2, 1, 2, 2] },
+        { index: 'VI', name: 'Half Diminished', intervals: [2, 1, 2, 1, 2, 2, 2] },
+        { index: 'VII', name: 'Super Locrian', wheelName: 'Super Locrian "Altered" (Diminished Whole Tone)', intervals: [1, 2, 1, 2, 2, 2, 2] },
+    ],
+    'Harmonic Minor': [
+        { index: 'I', name: 'Harmonic Minor', intervals: [2, 1, 2, 2, 1, 3, 1] },
+        { index: 'II', name: 'Locrian ♯6', intervals: [1, 2, 2, 1, 3, 1, 2] },
+        { index: 'III', name: 'Ionian ♯5', intervals: [2, 2, 1, 3, 1, 2, 1] },
+        { index: 'IV', name: 'Dorian ♯4', wheelName: 'Dorian ♯4 (Ukrainian Dorian)', intervals: [2, 1, 3, 1, 2, 1, 2], aliases: ['Ukranian Dorian'] },
+        { index: 'V', name: 'Phrygian ♯2', wheelName: 'Phrygian ♯2 (Phrygian Dominant)', intervals: [1, 3, 1, 2, 1, 2, 2], aliases: ['Phrygian Dominant'] },
+        { index: 'VI', name: 'Lydian ♯2', intervals: [3, 1, 2, 1, 2, 2, 1] },
+        { index: 'VII', name: 'Mixolydian ♯1', intervals: [1, 2, 1, 2, 2, 1, 3] },
+    ],
+    'Harmonic Major': [
+        { index: 'I', name: 'Harmonic Major', intervals: [2, 2, 1, 2, 1, 3, 1] },
+        { index: 'II', name: 'Dorian ♭5', intervals: [2, 1, 2, 1, 3, 1, 2] },
+        { index: 'III', name: 'Phrygian ♭4', intervals: [1, 2, 1, 3, 1, 2, 2] },
+        { index: 'IV', name: 'Lydian ♭3', intervals: [2, 1, 3, 1, 2, 2, 1] },
+        { index: 'V', name: 'Mixolydian ♭2', intervals: [1, 3, 1, 2, 2, 1, 2] },
+        { index: 'VI', name: 'Lydian Augmented ♯2', intervals: [3, 1, 2, 2, 1, 2, 1] },
+        { index: 'VII', name: 'Locrian ♭7', intervals: [1, 2, 2, 1, 2, 1, 3] },
+    ],
+    'Double Harmonic': [
+        { index: 'I', name: 'Double Harmonic Major', intervals: [1, 3, 1, 2, 1, 3, 1], aliases: ['Gypsy Major', 'Arabic', 'Byzantine Echoi', 'Flamenco'] },
+        { index: 'II', name: 'Lydian ♯2 ♯6', intervals: [3, 1, 2, 1, 3, 1, 1] },
+        { index: 'III', name: 'Ultraphrygian', intervals: [1, 2, 1, 3, 1, 3, 1] },
+        { index: 'IV', name: 'Hungarian minor', wheelName: 'Hungarian minor / Gypsy minor', intervals: [2, 1, 3, 1, 1, 3, 1], aliases: ['Gypsy Minor'] },
+        { index: 'V', name: 'Oriental', intervals: [1, 3, 1, 1, 3, 1, 2] },
+        { index: 'VI', name: 'Ionian ♯2 ♯5', intervals: [3, 1, 1, 3, 1, 2, 1] },
+        { index: 'VII', name: 'Locrian bb3 bb7', intervals: [1, 1, 3, 1, 2, 1, 3] },
+    ],
+    'Other Heptatonic': [
+        { name: 'Neapolitan major', intervals: [1, 2, 2, 2, 2, 2, 1] },
+        { name: 'Neapolitan minor', intervals: [1, 2, 2, 2, 1, 3, 1] },
+        { name: 'Hungarian major', intervals: [3, 1, 2, 1, 2, 1, 2] },
+        { name: 'Locrian major', intervals: [2, 2, 1, 1, 2, 2, 2] },
+        { name: 'Lydian diminished', intervals: [2, 1, 3, 1, 1, 2, 1] },
+        { name: 'Gypsy major', intervals: [2, 1, 3, 1, 1, 2, 2] },
+        { name: 'Enigmatic', intervals: [1, 3, 2, 2, 2, 1, 1] },
+        { name: 'Persian', intervals: [1, 3, 1, 1, 2, 3, 1] },
+    ],
+    Pentatonic: [
+        { name: 'Pentatonic Major', intervals: [2, 2, 3, 2, 3] },
+        { name: 'Pentatonic Minor', wheelName: 'Pentatonic Minor (Yo)', intervals: [3, 2, 2, 3, 2], aliases: ['Yo'] },
+        { name: 'Iwato', intervals: [1, 4, 1, 4, 2] },
+        { name: 'In', intervals: [1, 4, 2, 1, 4] },
+        { name: 'Insen', intervals: [1, 4, 2, 3, 2] },
+        { name: 'Hirajoshi', intervals: [4, 2, 1, 4, 1] },
+    ],
+    Hexatonic: [
+        { name: 'Blues scale', intervals: [3, 2, 1, 1, 3, 2] },
+        { name: 'Whole Tone', intervals: [2, 2, 2, 2, 2, 2] },
+        { name: 'Two-semitone tritone scale', intervals: [1, 1, 4, 1, 1, 4] },
+        { name: 'Istrian scale', intervals: [1, 2, 1, 2, 1, 5] },
+        { name: 'Tritone scale', intervals: [1, 3, 2, 1, 3, 2] },
+        { name: 'Prometheus scale', intervals: [2, 2, 2, 3, 1, 2] },
+        { name: 'Scale of harmonics', intervals: [3, 1, 1, 2, 2, 3] },
+        { name: 'Augmented scale', intervals: [3, 1, 3, 1, 3, 1] },
+    ],
+    Supertonic: [
+        { name: 'Major Bebop', intervals: [2, 2, 1, 2, 1, 1, 2, 1] },
+        { name: 'Bebop Dominant', intervals: [2, 2, 1, 2, 2, 1, 1, 1] },
+        { name: 'Algerian', intervals: [2, 1, 3, 1, 1, 3, 1, 2, 1, 2] },
+        { name: 'Diminished', intervals: [2, 1, 2, 1, 2, 1, 2, 1] },
+        { name: 'Dominant Diminished', intervals: [1, 2, 1, 2, 1, 2, 1, 2] },
+        { name: 'Chromatic', intervals: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1] },
+    ],
+};
+
+export const modeDiatonicMapping = {
+    'I. Ionian (Major)': 'Ionian',
+    'II. Dorian': 'Dorian',
+    'III. Phrygian': 'Phrygian',
+    'IV. Lydian': 'Lydian',
+    'V. Mixolydian': 'Mixolydian',
+    'VI. Aeolian (Natural Minor)': 'Aeolian',
+    'VII. Locrian': 'Locrian',
+
+    'I. Melodic Minor (↑)': 'Aeolian',
+    'II. Dorian ♭2': 'Dorian',
+    'III. Lydian Augmented': 'Lydian',
+    'IV. Lydian Dominant (Acoustic)': 'Lydian',
+    'V. Aeolian Dominant': 'Aeolian',
+    'VI. Half Diminished': 'Aeolian',
+    'VII. Super Locrian "Altered" (Diminished Whole Tone)': 'Locrian',
+
+    'I. Harmonic Major': 'Ionian',
+    'II. Dorian ♭5': 'Dorian',
+    'III. Phrygian ♭4': 'Phrygian',
+    'IV. Lydian ♭3': 'Lydian',
+    'V. Mixolydian ♭2': 'Mixolydian',
+    'VI. Lydian Augmented ♯2': 'Lydian',
+    'VII. Locrian ♭7': 'Locrian',
+
+    'I. Harmonic Minor': 'Aeolian',
+    'II. Locrian ♯6': 'Locrian',
+    'III. Ionian ♯5': 'Ionian',
+    'IV. Dorian ♯4 (Ukrainian Dorian)': 'Dorian',
+    'V. Phrygian ♯2 (Phrygian Dominant)': 'Phrygian',
+    'VI. Lydian ♯2': 'Lydian',
+    'VII. Mixolydian ♯1': 'Mixolydian',
+
+    'I. Double Harmonic Major': 'Ionian',
+    'II. Lydian ♯2 ♯6': 'Lydian',
+    'III. Ultraphrygian': 'Phrygian',
+    'IV. Hungarian minor / Gypsy minor': 'Lydian',
+    'V. Oriental': 'Mixolydian',
+    'VI. Ionian ♯2 ♯5': 'Ionian',
+    'VII. Locrian bb3 bb7': 'Locrian',
+
+    'Neapolitan major': 'Ionian',
+    'Neapolitan minor': 'Aeolian',
+    'Locrian major': 'Lydian',
+    'Lydian diminished': 'Mixolydian',
+    'Gypsy major': 'Ionian',
+    'Enigmatic': 'Aeolian',
+    'Persian': 'Locrian',
+
+    'Pentatonic Major': 'Ionian',
+    'Pentatonic Minor (Yo)': 'Aeolian',
+    'Iwato': 'Phrygian',
+    'In': 'Lydian',
+    'Insen': 'Mixolydian',
+    'Hirajoshi scale': 'Aeolian',
+
+    'Blues scale': 'Aeolian',
+    'Whole Tone': 'Ionian',
+    'Two-semitone tritone scale': 'Ionian',
+    'Istrian scale': 'Lydian',
+    'Tritone scale': 'Mixolydian',
+    'Prometheus scale': 'Aeolian',
+    'Scale of harmonics': 'Aeolian',
+    'Augmented scale': 'Ionian',
+
+    'Major Bebop': 'Ionian',
+    'Bebop Dominant': 'Ionian',
+    'Algerian': 'Aeolian',
+    'Diminished': 'Lydian',
+    'Dominant Diminished': 'Mixolydian',
+    'Chromatic': 'Ionian',
+
+    // legacy
+    'Major': 'Ionian',
+    'Minor': 'Aeolian',
+    'Blues': 'Aeolian',
+    'Triad Minor': 'Aeolian',
+    'Pentatonic Minor': 'Aeolian',
+};
