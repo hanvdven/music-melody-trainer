@@ -1,7 +1,7 @@
 const replacementsMap = {
-  'A♯': { 'A♭': 'G♯', 'E♭': 'D♯', 'B♭': 'A♯', F: 'E♯', C: 'B♯', G: 'F𝄪', D :'C𝄪' , A :'G𝄪' , E :'D𝄪'  },
-  'D♯': { 'A♭': 'G♯', 'E♭': 'D♯', 'B♭': 'A♯', F: 'E♯', C: 'B♯', G: 'F𝄪', D :'C𝄪' , A :'G𝄪' },
-  'G♯': { 'A♭': 'G♯', 'E♭': 'D♯', 'B♭': 'A♯', F: 'E♯', C: 'B♯', G: 'F𝄪', D :'C𝄪' },
+  'A♯': { 'A♭': 'G♯', 'E♭': 'D♯', 'B♭': 'A♯', F: 'E♯', C: 'B♯', G: 'F𝄪', D: 'C𝄪', A: 'G𝄪', E: 'D𝄪' },
+  'D♯': { 'A♭': 'G♯', 'E♭': 'D♯', 'B♭': 'A♯', F: 'E♯', C: 'B♯', G: 'F𝄪', D: 'C𝄪', A: 'G𝄪' },
+  'G♯': { 'A♭': 'G♯', 'E♭': 'D♯', 'B♭': 'A♯', F: 'E♯', C: 'B♯', G: 'F𝄪', D: 'C𝄪' },
   'C♯': { 'A♭': 'G♯', 'E♭': 'D♯', 'B♭': 'A♯', F: 'E♯', C: 'B♯', G: 'F𝄪' },
   'F♯': { 'A♭': 'G♯', 'E♭': 'D♯', 'B♭': 'A♯', F: 'E♯', C: 'B♯' },
   B: { 'A♭': 'G♯', 'E♭': 'D♯', 'B♭': 'A♯', F: 'E♯' },
@@ -16,38 +16,49 @@ const replacementsMap = {
   'A♭': { 'C♯': 'D♭', 'F♯': 'G♭', B: 'C♭', E: 'F♭', A: 'B𝄫' },
   'D♭': { 'C♯': 'D♭', 'F♯': 'G♭', B: 'C♭', E: 'F♭', A: 'B𝄫', D: 'E𝄫' },
   'G♭': { 'C♯': 'D♭', 'F♯': 'G♭', B: 'C♭', E: 'F♭', A: 'B𝄫', D: 'E𝄫', G: 'A𝄫' },
-  'C♭': { 'C♯': 'D♭', 'F♯': 'G♭', B: 'C♭', E: 'F♭', A: 'B𝄫', D: 'E𝄫', G: 'A𝄫', C: 'D𝄫'},
+  'C♭': { 'C♯': 'D♭', 'F♯': 'G♭', B: 'C♭', E: 'F♭', A: 'B𝄫', D: 'E𝄫', G: 'A𝄫', C: 'D𝄫' },
 };
 
 const standardizeTonic = (anyTonic) => {
-  const mapEnharmonicEquivalent = (note) => {
-    switch (note) {
-      case 'D♭':
-        return 'C♯';
-      case 'G♭':
-        return 'F♯';
-      case 'C♭':
-        return 'B';
-      default:
-        return note;
-    }
-  };
+  if (!anyTonic) return 'C4';
 
-  const parsedTonic = anyTonic.replace(/[0-9]/g, '');
-  const tonic = mapEnharmonicEquivalent(parsedTonic) + anyTonic.match(/[0-9]+/);
+  // 1. Normalize character encoding (# -> ♯, b -> ♭)
+  let normalized = anyTonic.replace('#', '♯').replace('b', '♭');
 
-  return tonic;
+  // 2. Perform enharmonic remapping to preferred variants
+  const pitchMatch = normalized.match(/[A-G][♭♯]?/);
+  const pitch = pitchMatch ? pitchMatch[0] : null;
+  const octaveMatch = normalized.match(/\d+/);
+  const octave = octaveMatch ? octaveMatch[0] : '4';
+
+  if (!pitch) return normalized;
+
+  let preferredPitch = pitch;
+  switch (pitch) {
+    case 'C♯': preferredPitch = 'D♭'; break;
+    case 'D♯': preferredPitch = 'E♭'; break;
+    case 'G♭': preferredPitch = 'F♯'; break;
+    case 'G♯': preferredPitch = 'A♭'; break;
+    case 'A♯': preferredPitch = 'B♭'; break;
+    case 'C♭': preferredPitch = 'B'; break;
+    case 'E♯': preferredPitch = 'F'; break;
+    case 'B♯': preferredPitch = 'C'; break;
+    default: break;
+  }
+
+  return preferredPitch + octave;
 };
 
 const getRelativeNoteName = (note, anyTonic) => {
   const noteWithoutOctave = note.replace(/[0-9]/g, '');
   let noteOctave = note.match(/[0-9]+/) ? parseInt(note.match(/[0-9]+/)[0]) : null;
-  const replacements = replacementsMap[anyTonic.replace(/[0-9]/g, '')] || {};
-  
+  const preferredTonic = standardizeTonic(anyTonic).replace(/[0-9]/g, '');
+  const replacements = replacementsMap[preferredTonic] || {};
+
   let replacedNote = replacements[noteWithoutOctave] || noteWithoutOctave;
 
   if (
-    ['A♯', 'D♯', 'G♯', 'C♯', 'F♯'].includes(anyTonic.replace(/[0-9]/g, '')) &&
+    ['A♯', 'D♯', 'G♯', 'C♯', 'F♯'].includes(preferredTonic) &&
     noteWithoutOctave === 'C'
   ) {
     replacedNote = 'B♯';
@@ -57,7 +68,7 @@ const getRelativeNoteName = (note, anyTonic) => {
   }
 
   if (
-    ['B♭', 'E♭', 'A♭', 'D♭', 'G♭', 'C♭'].includes(anyTonic.replace(/[0-9]/g, '')) &&
+    ['B♭', 'E♭', 'A♭', 'D♭', 'G♭', 'C♭'].includes(preferredTonic) &&
     noteWithoutOctave === 'B'
   ) {
     replacedNote = 'C♭';

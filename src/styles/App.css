@@ -1,45 +1,340 @@
+html,
+body,
+#root {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #111;
+    /* Match app bg */
+}
+
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+}
+
+body {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
 :root {
     /* piano */
-    --white-key-color: #bbd;
-    --white-key-color-highlight: #69C;
-    --white-key-color-tonic: #d585ff;
-    --black-key-color: #000;
-    --black-color-highlight: #036;
-    --black-key-color-tonic: #7d00c6;
+    --white-key-color: #c6c9da;
+    /* koel schemerwit */
+    --white-key-color-highlight: #7fa0c8;
+    /* avondblauw */
+    --white-key-color-tonic: #c08bdc;
+    /* mauve / twilight */
+    --black-key-color: #0e0f14;
+    /* diep nachtblauw-zwart */
+    --black-color-highlight: #1d2247;
+    /* koel maanlicht */
+    --black-key-color-tonic: #6a2a8a;
+    /* donker bessenpaars */
+
     /* selectorknoppies */
-    --button-passive: #444;
-    --button-active: #7d00c6;
+    --button-passive: #333;
+    --button-active: #6a2a8a;
+    /* donker bessenpaars */
     --button-text: #fff;
     --button-small-padding: 4px 8px;
     --button-small-font: 12px;
+
     /* wheel */
     --wheel-color-lowlight: #333;
+    --wheel-color-highlight: #2f3558;
+    --wheel-color-tonic: #6a2a8a;
+    --wheel-text-color-lowlight: #c6c9da;
+    --wheel-text-color-highlight: #c6c9da;
+    --wheel-text-color-tonic: #c6c9da;
 
     /* Global App Colors */
-    --app-bg: #111;
-    --panel-bg: #222;
+    --app-bg: #14131a;
+    /* nachtelijk indigo */
+    --panel-bg: #1f1e2a;
+    /* koel paarsgrijs */
     --text-primary: #ffffff;
     --text-dim: #cccccc;
-    --accent-yellow: #ffff00;
+    --accent-yellow: #f2c879;
+    --accent-purple: #c08bdc;
+    /* zacht amber */
+    --pressed-key-color: #e6a84f;
+    /* warme aanraking */
+    /*--accent-yellow: #ffff00;*/
+    /*--pressed-key-color: #ffaa00;*/
+}
+
+:root[data-theme="nocturne"] {
+    --app-bg: #0b1020;
+    --panel-bg: #151822;
+    --text-primary: #e6e8ef;
+    --text-dim: #8a90a8;
+    --accent-yellow: #d4af37;
+    /* monumentaal goud */
+
+    --wheel-tonic: #d4af37;
+    --wheel-highlight: #2f3f6f;
+    --wheel-lowlight: #151822;
+    --wheel-color-tonic: #d4af37;
+    --wheel-color-highlight: #2f3f6f;
+    --wheel-color-lowlight: #151822;
+
+    --text-tonic: #0b1020;
+    --text-highlight: #e6e8ef;
+    --text-lowlight: #8a90a8;
+
+    --white-key-color: #c6c9da;
+    --black-key-color: #0e0f14;
+    --pressed-key-color: #d4af37;
+}
+
+:root[data-theme="meridienne"] {
+    --app-bg: #f4e7c5;
+    --panel-bg: #e6c15a;
+    /* Slightly darker than bg */
+    --text-primary: #3a2e1f;
+    --text-dim: #7b6a55;
+    --accent-yellow: #b08a5a;
+    /* oker */
+
+    --wheel-tonic: #e6c15a;
+    /* tarwe */
+    --wheel-highlight: #9bb3c8;
+    /* stoffig blauw */
+    --wheel-lowlight: #b08a5a;
+    /* oker */
+    --wheel-color-tonic: #e6c15a;
+    --wheel-color-highlight: #9bb3c8;
+    --wheel-color-lowlight: #b08a5a;
+
+    --text-tonic: #3a2e1f;
+    --text-highlight: #4a5f73;
+    --text-lowlight: #7b6a55;
+
+    --white-key-color: #fffaf0;
+    --black-key-color: #3e2b1d;
+    --pressed-key-color: #dcb35c;
+}
+
+:root[data-theme="museum"] {
+    --app-bg: #0e2a47;
+    --panel-bg: #102030;
+    --text-primary: #eaeef3;
+    --text-dim: #9fb4c9;
+    --accent-yellow: #f2c94c;
+    /* kunstlicht */
+
+    --wheel-tonic: #f2c94c;
+    --wheel-highlight: #3f6fa3;
+    --wheel-lowlight: #102030;
+    --wheel-color-tonic: #f2c94c;
+    --wheel-color-highlight: #3f6fa3;
+    --wheel-color-lowlight: #102030;
+
+    --text-tonic: #0e2a47;
+    --text-highlight: #eaeef3;
+    --text-lowlight: #9fb4c9;
+
+    --white-key-color: #dceefb;
+    --black-key-color: #05101a;
+    --pressed-key-color: #f2c94c;
+}
+
+:root[data-theme="afterglow"] {
+    --app-bg: #0e1220;
+    /* diep blauwviolet */
+    --panel-bg: #1a1d2b;
+    /* nachtschaduw */
+    --text-primary: #f0e6ea;
+    /* warm off-white */
+    --text-dim: #9a8fa3;
+    /* stoffig lila-grijs */
+    --accent-yellow: #c85c5c;
+    /* gedempt ember-rood */
+
+    --wheel-tonic: #c85c5c;
+    --wheel-highlight: #5a4d73;
+    /* mauve / violet-grijs */
+    --wheel-lowlight: #1a1d2b;
+    --wheel-color-tonic: #c85c5c;
+    --wheel-color-highlight: #5a4d73;
+    --wheel-color-lowlight: #1a1d2b;
+
+    --text-tonic: #0e1220;
+    --text-highlight: #f0e6ea;
+    --text-lowlight: #9a8fa3;
+
+    --white-key-color: #e0dbe9;
+    --black-key-color: #120b1f;
+    --pressed-key-color: #c85c5c;
+}
+
+:root[data-theme="pastel-dawn"] {
+    --app-bg: #eef3f7;
+    /* ochtendmist */
+    --panel-bg: #d1d9e2;
+    /* koel grijs */
+    --text-primary: #2b3a42;
+    --text-dim: #7d8e9c;
+    --accent-yellow: #f3c6a8;
+    /* perzik-crème */
+
+    --wheel-tonic: #f3c6a8;
+    --wheel-highlight: #a9bfd6;
+    /* luchtblauw */
+    --wheel-lowlight: #d1d9e2;
+    --wheel-color-tonic: #f3c6a8;
+    --wheel-color-highlight: #a9bfd6;
+    --wheel-color-lowlight: #d1d9e2;
+
+    --text-tonic: #2b3a42;
+    --text-highlight: #445a6b;
+    --text-lowlight: #7d8e9c;
+
+    --white-key-color: #fff;
+    --black-key-color: #445a6b;
+    --pressed-key-color: #f3c6a8;
+}
+
+:root[data-theme="golden-wetlands"] {
+    --app-bg: #e6ddc6;
+    /* natte aarde */
+    --panel-bg: #6b5b3e;
+    /* rietbruin */
+    --text-primary: #3a3324;
+    --text-dim: #7a745e;
+    --accent-yellow: #d6b35c;
+    /* honinggoud */
+
+    --wheel-tonic: #d6b35c;
+    --wheel-highlight: #8fa18c;
+    /* moerasgroen */
+    --wheel-lowlight: #6b5b3e;
+    --wheel-color-tonic: #d6b35c;
+    --wheel-color-highlight: #8fa18c;
+    --wheel-color-lowlight: #6b5b3e;
+
+    --text-tonic: #3a3324;
+    --text-highlight: #4f5d46;
+    --text-lowlight: #7a745e;
+
+    --white-key-color: #f0eadd;
+    --black-key-color: #2b2518;
+    --pressed-key-color: #d6b35c;
+}
+
+:root[data-theme="light"] {
+    --app-bg: #f5f5f5;
+    --panel-bg: #e0e0e0;
+    --text-primary: #000000;
+    --text-dim: #555555;
+    --accent-yellow: #d4d400;
+
+    --white-key-color: #fff;
+    --black-key-color: #333;
+
+    --button-passive: #ccc;
+    --button-active: #69C;
+    --button-text: #000;
+
+    --wheel-color-lowlight: #ddd;
+    --wheel-color-highlight: #ccc;
+    --wheel-color-tonic: #69C;
+
+    --wheel-tonic: #69C;
+    --wheel-highlight: #ccc;
+    --wheel-lowlight: #ddd;
+
+    --text-tonic: #000;
+    --text-highlight: #333;
+    --text-lowlight: #666;
+}
+
+/* UI Utility Classes */
+.ghost-button {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.ghost-button:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+}
+
+.ghost-button.active {
+    background: rgba(125, 0, 198, 0.2);
+    color: var(--white-key-color-tonic);
+    border: 1px solid rgba(125, 0, 198, 0.3);
+}
+
+.tab-button {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 18px;
+    /* Slightly smaller icons */
+    padding: 4px 6px;
+    /* Drastically reduced from 10px */
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 75px;
+    /* Reduced from 85px */
+}
+
+.tab-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.tab-button.active {
+    color: var(--accent-yellow);
+    background: rgba(255, 255, 0, 0.05);
+}
+
+.tab-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 /* Algemene knoppen voor ScaleSelector */
 .scale-selector-button {
-    margin: 2px;
-    width: 90%;
+    margin: 1px;
     box-sizing: border-box;
-    /* padding inbegrepen in breedte */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-size: clamp(10px, 2vw, 14px);
-    padding: 2px;
-    /* compact */
+    font-size: clamp(10px, 2vw, 11px);
+    padding: 2px 4px;
+    /* Tight horizontal padding */
     cursor: pointer;
-    border-radius: 4px;
+    border-radius: 3px;
     border: none;
     background-color: var(--button-passive);
     color: white;
+    height: 24px;
+    /* Fixed small height for consistency */
+    line-height: 20px;
 }
 
 .scale-selector-button.active {
@@ -48,16 +343,7 @@
 
 .family-buttons-container,
 .mode-buttons-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-    gap: 0px;
-    /* minimale ruimte tussen knoppen */
     font-weight: 600;
-    max-height: 250px;
-    overflow-y: auto;
-    /* scrollbaar indien nodig */
 }
 
 
@@ -69,6 +355,8 @@
 
 svg {
     font-family: 'Maestro';
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 svg path:focus {
@@ -99,6 +387,9 @@ button {
     display: flex;
     flex-direction: column;
     height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
 }
 
 .top-content {
@@ -108,11 +399,12 @@ button {
 }
 
 .piano-container {
-    flex: 1;
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 10px;
+    position: relative;
+    height: 100%;
+    width: 100%;
     box-sizing: border-box;
 }
 
@@ -140,30 +432,26 @@ button {
 }
 
 /* Piano keys */
-.piano-container {
-    display: flex;
-    justify-content: center;
-    position: relative;
-    height: 100%;
-    width: 95%;
-}
+
 
 .piano-white {
     position: absolute;
-    top: 0;
-    left: 0;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     width: 100%;
-    height: 90%;
+    height: 100%;
     display: flex;
     z-index: 1;
 }
 
 .piano-black {
     position: absolute;
-    top: 0;
-    left: 0;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     width: 100%;
-    height: 90%;
+    height: 100%;
     display: flex;
     justify-content: center;
     z-index: 2;
@@ -174,16 +462,30 @@ button {
     font-size: clamp(6px, 5vw, 16px);
     overflow: hidden;
     flex: 1;
-    height: 100%;
-    margin: 1px;
+    height: 99%;
+    margin: 0px;
     background-color: var(--white-key-color);
-    border: 2px solid black;
+    border-right: 1px solid #000;
+    border-left: 0;
+    border-bottom: 1px solid #000;
+    border-top: 1px solid #000;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
     align-items: center;
     padding-bottom: 10px;
     cursor: pointer;
+    color: #444;
+    border-radius: 0 0 6px 6px;
+}
+
+.white-key:first-child {
+    border-left: 1px solid #000;
+}
+
+.white-key:active,
+.black-key:active {
+    background-color: var(--pressed-key-color) !important;
 }
 
 .black-key {
@@ -192,8 +494,10 @@ button {
     flex: 1;
     width: 100%;
     height: 65%;
-    margin: 0 6px;
+    margin: 0 8px;
     background-color: var(--black-key-color);
+    border: 1px solid #000;
+    border-radius: 0 0 6px 6px;
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
@@ -208,14 +512,14 @@ button {
     flex: .5;
     width: 50%;
     height: 80%;
-    margin: 0 3px;
+    margin: 0 4px;
     background-color: transparent;
 }
 
 .placeholder-key {
     flex: 1;
     background-color: transparent;
-    margin: 0 6px;
+    margin: 0 8px;
     height: 80%;
 }
 
@@ -323,7 +627,7 @@ button {
 /* Measure Indicators in Sheet Music */
 .measure-indicator {
     fill: yellow;
-    font-size: 14px;
+    font-size: 16px;
     font-family: Arial, sans-serif;
     pointer-events: none;
     user-select: none;

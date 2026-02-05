@@ -4,12 +4,12 @@ import { modes, getModeIndex } from '../../utils/scaleHandler';
 
 const rootStyles = getComputedStyle(document.documentElement);
 const COLORS = {
-    tonic: rootStyles.getPropertyValue('--white-key-color-tonic').trim(),
-    highlight: rootStyles.getPropertyValue('--white-key-color-highlight').trim(),
+    tonic: rootStyles.getPropertyValue('--wheel-color-tonic').trim(),
+    highlight: rootStyles.getPropertyValue('--wheel-color-highlight').trim(),
     lowlight: rootStyles.getPropertyValue('--wheel-color-lowlight').trim(),
-    textTonic: rootStyles.getPropertyValue('--text-color-tonic').trim(),
-    textHighlight: rootStyles.getPropertyValue('--text-color-highlight').trim(),
-    textLowlight: rootStyles.getPropertyValue('--text-color-lowlight').trim(),
+    textTonic: rootStyles.getPropertyValue('--wheel-text-color-tonic').trim(),
+    textHighlight: rootStyles.getPropertyValue('--wheel-text-color-highlight').trim(),
+    textLowlight: rootStyles.getPropertyValue('--wheel-text-color-lowlight').trim(),
 };
 
 // Calculate active indices from scale intervals (starting from 0)
@@ -23,27 +23,27 @@ const calculateActiveIndices = (intervals) => {
     return indices;
 };
 
-const ScaleSelectorWheel = ({ family = 'Diatonic', activeMode = null, onSelect }) => {
+const ScaleSelectorWheel = ({ family = 'Diatonic', activeMode = null, onSelect, size = 200 }) => {
     const allSlices = 12; // 12 chromatic notes
     const angle = 360 / allSlices;
-    
+
     // Get modes for the selected family from scaleHandler
     const familyModes = modes[family] || modes.Diatonic;
     const modeNames = Object.keys(familyModes);
-    
+
     // Get the first mode's intervals to determine which chromatic positions are active
     const firstModeName = modeNames[0];
     const firstModeIntervals = familyModes[firstModeName];
-    
+
     // Calculate active indices based on the first mode's intervals
     const activeIndices = calculateActiveIndices(firstModeIntervals);
-    
+
     // Get mode index (Roman numeral) using helper function
     const getModeLabel = (modeName) => {
         return getModeIndex(family, modeName) || '';
     };
-    const outerRadius = 100;
-    const innerRadius = 50; // Inner radius for donut shape
+    const outerRadius = size / 2;
+    const innerRadius = outerRadius * 0.5; // Inner radius for donut shape
     const cx = outerRadius;
     const cy = outerRadius;
 
@@ -55,7 +55,7 @@ const ScaleSelectorWheel = ({ family = 'Diatonic', activeMode = null, onSelect }
         }
         return 0;
     };
-    
+
     const [selectedIndex, setSelectedIndex] = useState(getInitialIndex);
 
     const [currentRotation, setCurrentRotation] = useState(
@@ -97,31 +97,42 @@ const ScaleSelectorWheel = ({ family = 'Diatonic', activeMode = null, onSelect }
     const getPathForSlice = (i) => {
         const startAngle = (i * angle - 90) * (Math.PI / 180);
         const endAngle = ((i + 1) * angle - 90) * (Math.PI / 180);
-        
+
         // Outer arc points
         const outerX1 = cx + outerRadius * Math.cos(startAngle);
         const outerY1 = cy + outerRadius * Math.sin(startAngle);
         const outerX2 = cx + outerRadius * Math.cos(endAngle);
         const outerY2 = cy + outerRadius * Math.sin(endAngle);
-        
+
         // Inner arc points
         const innerX1 = cx + innerRadius * Math.cos(startAngle);
         const innerY1 = cy + innerRadius * Math.sin(startAngle);
         const innerX2 = cx + innerRadius * Math.cos(endAngle);
         const innerY2 = cy + innerRadius * Math.sin(endAngle);
-        
+
         // Create donut slice path: start at inner point, line to outer, arc outer edge, line to inner end, arc inner edge back
         const largeArcFlag = angle > 180 ? 1 : 0;
-        return `M ${innerX1} ${innerY1} L ${outerX1} ${outerY1} A ${outerRadius} ${outerRadius} 0 ${largeArcFlag} 1 ${outerX2} ${outerY2} L ${innerX2} ${innerY2} A ${innerRadius} ${innerRadius} 0 ${largeArcFlag} 0 ${innerX1} ${innerY1} Z`;
+        return `
+            M ${innerX1} ${innerY1} 
+            L ${outerX1} ${outerY1} 
+            A ${outerRadius} ${outerRadius} 
+            0 ${largeArcFlag} 
+            1 ${outerX2} ${outerY2} 
+            L ${innerX2} ${innerY2} 
+            A ${innerRadius} ${innerRadius} 
+            0 ${largeArcFlag} 
+            0 ${innerX1} ${innerY1} 
+            Z
+        `;
     };
 
     return (
-        <svg viewBox="0 0 200 200" style={{ width: 200, height: 200, display: 'block', margin: '0 auto' }}>
+        <svg viewBox={`0 0 ${size} ${size}`} style={{ width: size, height: size, display: 'block', margin: '0 auto' }}>
             <g
                 style={{
                     transition: 'transform 0.5s ease',
                     transform: `rotate(${currentRotation}deg)`,
-                    transformOrigin: '100px 100px',
+                    transformOrigin: `${cx}px ${cy}px`,
                 }}
             >
                 {Array.from({ length: allSlices }).map((_, i) => {
@@ -134,7 +145,11 @@ const ScaleSelectorWheel = ({ family = 'Diatonic', activeMode = null, onSelect }
                     const labelY = cy + labelRadius * Math.sin(midAngle);
 
                     return (
-                        <g key={i}>
+                        <g
+                            key={i}
+                            onClick={() => handleClick(i)}
+                            style={{ cursor: isActive ? 'pointer' : 'default' }}
+                        >
                             <path
                                 tabIndex={-1}
                                 d={getPathForSlice(i)}
@@ -147,8 +162,6 @@ const ScaleSelectorWheel = ({ family = 'Diatonic', activeMode = null, onSelect }
                                 }
                                 stroke="#222"
                                 strokeWidth="1"
-                                onClick={() => handleClick(i)}
-                                style={{ cursor: isActive ? 'pointer' : 'default' }}
                             />
                             {isActive && activeIndex < modeNames.length && (
                                 <text
@@ -164,6 +177,7 @@ const ScaleSelectorWheel = ({ family = 'Diatonic', activeMode = null, onSelect }
                                             : COLORS.textHighlight
                                     }
                                     transform={`rotate(${-currentRotation} ${labelX} ${labelY})`}
+                                    style={{ pointerEvents: 'none' }}
                                 >
                                     {getModeLabel(modeNames[activeIndex])}
                                 </text>

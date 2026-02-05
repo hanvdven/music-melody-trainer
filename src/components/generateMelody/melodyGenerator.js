@@ -69,54 +69,70 @@ class MelodyGenerator {
     // Step 4: Populate melodyArray with placeholders based on divisors ...
 
     // Start filling the measureslots with rankings
-    for (let i = 0; i < numMeasures; i++) {
-      let measureSlots = Array(numberOfSlotsPerMeasure).fill(null);
-      let divisors = MelodyGenerator.getDivisors(timeSignature, smallestNoteDenom);
-      let nearDivisors = MelodyGenerator.getNearDivisors(timeSignature, smallestNoteDenom);
-      // Loop through the divisors to place the ranking number in appropriate slots
-      for (let div of divisors) {
-        // Calculate the ranking number (number of non-empty array slots)
-        let rank = 1 + measureSlots.filter((slot) => slot !== null).length;
-        // check if slot matches the next divisor
-        for (let j = 0; j < numberOfSlotsPerMeasure; j++) {
-          if (
-            measureSlots[j] === null &&
-            ((j % div) * timeSignature[1]) / measureNoteResolution === 0
-          ) {
-            measureSlots[j] = rank;
-            rank += 0.2; // slightly increase rank, to ensure equal spacing over measure (at low variability)
+    // Start filling the measureslots with rankings
+    if (randomizationRules === 'quarters') {
+      // FORCE QUARTERS
+      for (let i = 0; i < numMeasures; i++) {
+        let measureSlots = Array(numberOfSlotsPerMeasure).fill(null);
+        const measureInQuarters = (timeSignature[0] / timeSignature[1]) * 4;
+        const slotsPerQuarter = numberOfSlotsPerMeasure / measureInQuarters;
+
+        for (let q = 0; q < measureInQuarters; q++) {
+          const idx = Math.round(q * slotsPerQuarter);
+          if (idx < measureSlots.length) measureSlots[idx] = 1;
+        }
+        melodyArray[i] = measureSlots;
+      }
+    } else {
+      for (let i = 0; i < numMeasures; i++) {
+        let measureSlots = Array(numberOfSlotsPerMeasure).fill(null);
+        let divisors = MelodyGenerator.getDivisors(timeSignature, smallestNoteDenom);
+        let nearDivisors = MelodyGenerator.getNearDivisors(timeSignature, smallestNoteDenom);
+        // Loop through the divisors to place the ranking number in appropriate slots
+        for (let div of divisors) {
+          // Calculate the ranking number (number of non-empty array slots)
+          let rank = 1 + measureSlots.filter((slot) => slot !== null).length;
+          // check if slot matches the next divisor
+          for (let j = 0; j < numberOfSlotsPerMeasure; j++) {
+            if (
+              measureSlots[j] === null &&
+              ((j % div) * timeSignature[1]) / measureNoteResolution === 0
+            ) {
+              measureSlots[j] = rank;
+              rank += 0.2; // slightly increase rank, to ensure equal spacing over measure (at low variability)
+            }
           }
         }
-      }
-      for (let div of nearDivisors) {
-        // Calculate the ranking number (number of non-empty array slots)
-        let rank = 1 + measureSlots.filter((slot) => slot !== null).length;
-        // check if slot matches the next near divisor
-        for (let j = 0; j < numberOfSlotsPerMeasure; j++) {
-          if (
-            measureSlots[j] === null &&
-            ((j % div) * timeSignature[1]) / measureNoteResolution === 0
-          ) {
-            measureSlots[j] = rank;
-            rank += 0.2; // slightly increase rank, to ensure equal spacing over measure (at low variability)
+        for (let div of nearDivisors) {
+          // Calculate the ranking number (number of non-empty array slots)
+          let rank = 1 + measureSlots.filter((slot) => slot !== null).length;
+          // check if slot matches the next near divisor
+          for (let j = 0; j < numberOfSlotsPerMeasure; j++) {
+            if (
+              measureSlots[j] === null &&
+              ((j % div) * timeSignature[1]) / measureNoteResolution === 0
+            ) {
+              measureSlots[j] = rank;
+              rank += 0.2; // slightly increase rank, to ensure equal spacing over measure (at low variability)
+            }
           }
         }
-      }
-      // Fill remaining slots with equal rank
-      for (let div of [8, 4, 2, 1]) {
-        // Calculate the ranking number
-        let rank = numberOfSlotsPerMeasure / div;
-        // check if slot matches the next near divisor
-        for (let j = 0; j < numberOfSlotsPerMeasure; j++) {
-          if (
-            measureSlots[j] === null &&
-            ((j % div) * timeSignature[1]) / measureNoteResolution === 0
-          ) {
-            measureSlots[j] = rank;
+        // Fill remaining slots with equal rank
+        for (let div of [8, 4, 2, 1]) {
+          // Calculate the ranking number
+          let rank = numberOfSlotsPerMeasure / div;
+          // check if slot matches the next near divisor
+          for (let j = 0; j < numberOfSlotsPerMeasure; j++) {
+            if (
+              measureSlots[j] === null &&
+              ((j % div) * timeSignature[1]) / measureNoteResolution === 0
+            ) {
+              measureSlots[j] = rank;
+            }
           }
         }
+        melodyArray[i] = measureSlots;
       }
-      melodyArray[i] = measureSlots;
     }
 
     // Step 5: Flatten and melodyArray, using rhythmVariability
@@ -129,10 +145,10 @@ class MelodyGenerator {
     const piecewiseSum = generatedMelodyTemp.map((value, index) => {
       return (
         (rhythmVariability / 100) *
-          numberOfSlotsPerMeasure *
-          numMeasures *
-          generatedMelodyRandomizer[index] *
-          1.1 +
+        numberOfSlotsPerMeasure *
+        numMeasures *
+        generatedMelodyRandomizer[index] *
+        1.1 +
         ((100 - rhythmVariability) / 100) * value
       );
     });

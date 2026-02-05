@@ -12,8 +12,8 @@ const notes = generateAllNotesArray();
 // ============================================================================
 
 const tonicOptions = [
-  'C4', 'C♯4', 'D♭4', 'D4', 'E♭4', 'E4', 'F4', 'F♯4',
-  'G♭4', 'G4', 'A♭4', 'A4', 'B♭4', 'B4', 'C♭4', 'C5',
+  'C4', 'D♭4', 'D4', 'E♭4', 'E4', 'F4', 'F♯4',
+  'G4', 'A♭4', 'A4', 'B♭4', 'B4', 'C5',
 ];
 
 const intervalNamesMap = {
@@ -173,7 +173,7 @@ const getModeDefinition = (family, modeName) => {
 
   // Try to find by legacy format first
   for (const modeDef of familyDefs) {
-    const legacyKey = modeDef.index 
+    const legacyKey = modeDef.index
       ? `${modeDef.index}. ${modeDef.displayName || modeDef.name}`
       : (modeDef.displayName || modeDef.name);
     if (legacyKey === modeName) {
@@ -315,24 +315,30 @@ const generateScale = (anyTonic, intervals, scaleRange) => {
   return scale;
 };
 
-const generateNumAccidentals = (tonic, modeName) => {
-  // Extract the tonic without the octave number
+const generateNumAccidentals = (anyTonic, modeName) => {
+  if (!anyTonic) return 0;
+
+  // Use standardized tonic for theory calculation (e.g. C# -> Db)
+  const tonic = standardizeTonic(anyTonic);
   const tonicNote = tonic.match(/[A-G][♭♯]?/)?.[0];
   if (!tonicNote) return 0;
 
   // Determine the basic number of sharps or flats based on the circle of fifths
   const circleOfFifths = {
-    C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, 'F♯': 6, 'C♯': 7,
-    F: -1, 'B♭': -2, 'E♭': -3, 'A♭': -4, 'D♭': -5, 'G♭': -6, 'C♭': -7,
+    'C': 0, 'G': 1, 'D': 2, 'A': 3, 'E': 4, 'B': 5, 'F♯': 6, 'C♯': 7,
+    'F': -1, 'B♭': -2, 'E♭': -3, 'A♭': -4, 'D♭': -5, 'G♭': -6, 'C♭': -7,
+    'F♭': -8, 'B♯': 8
   };
 
-  let accidentals = circleOfFifths[tonicNote] || 0;
+  // Internal normalization for lookup consistency if we hit a non-preferred entry
+  // (e.g. if C# is passed, we might want to know it's effectively Db for some logic, 
+  // but here we just need the count, so 7 is technically correct for C#)
+  let accidentals = circleOfFifths[tonicNote] !== undefined ? circleOfFifths[tonicNote] : 0;
 
   // Adjust based on mode using modeDiatonicMapping
-  // First try to get clean name, then look up in mapping
   const cleanName = modeName.split('.').pop().trim().split('(')[0].trim();
   const modeType = modeDiatonicMapping[cleanName] || modeDiatonicMapping[modeName];
-  
+
   if (modeType && modeAdjustments[modeType] !== undefined) {
     accidentals += modeAdjustments[modeType];
   }
@@ -342,7 +348,7 @@ const generateNumAccidentals = (tonic, modeName) => {
 
 const generateSelectedScale = (tonic, selectedScaleType, mode, scaleRange) => {
   const legacyModes = generateLegacyModes();
-  
+
   if (!legacyModes || !legacyModes.hasOwnProperty(selectedScaleType)) {
     console.error(`Scale type '${selectedScaleType}' not found in modes.`);
     return { scale: [], displayScale: [], numAccidentals: 0 };

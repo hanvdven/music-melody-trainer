@@ -30,7 +30,7 @@ const SheetMusic = ({
     noteGroupSize = 18;
   }
 
-  const endX = screenWidth * 0.85;
+  const endX = screenWidth - 40;
 
   const staffLines = [
     11, 21, 31, 41, 51, 91, 101, 111, 121, 131, 171, 181, 191, 201, 211,
@@ -142,16 +142,16 @@ const SheetMusic = ({
             {/* Visual Indicators - Yellow +/-. Only show if showNumeric (active interaction) is true */}
             {showNumeric && (
               <>
-                <text x={measurePositionX - 18} y={yPos + 4} className="measure-indicator">-</text>
-                <text x={measurePositionX + 18} y={yPos + 4} className="measure-indicator">+</text>
+                <text x={measurePositionX - 18} y={yPos + 2} className="measure-indicator">-</text>
+                <text x={measurePositionX + 18} y={yPos + 4.5} className="measure-indicator">+</text>
               </>
             )}
 
             {/* Text Display */}
             <text
               x={measurePositionX}
-              y={yPos}
-              fontSize="32"
+              y={yPos + 1}
+              fontSize="35"
               fill="var(--text-primary)"
               fontFamily="Maestro"
               textAnchor="middle"
@@ -163,7 +163,7 @@ const SheetMusic = ({
             {/* Left Hitbox (Decrement / Cycle Backward) */}
             <rect
               x={rectX}
-              y={rectY}
+              y={rectY + 2}
               width={halfWidth}
               height={rectHeight}
               fill="transparent"
@@ -177,7 +177,7 @@ const SheetMusic = ({
             {/* Right Hitbox (Increment / Cycle Forward) */}
             <rect
               x={rectX + halfWidth}
-              y={rectY}
+              y={rectY + 2}
               width={halfWidth}
               height={rectHeight}
               fill="transparent"
@@ -254,7 +254,6 @@ const SheetMusic = ({
     timeSignature,
     noteGroupSize
   );
-  console.log('trebleMelodyFlags', trebleMelodyFlags);
 
   const adjustedBassMelody = processMelodyAndCalculateSlots(
     bassMelody,
@@ -341,18 +340,18 @@ const SheetMusic = ({
     return (
       <g>
         {/* q = [bpm] */}
-        <text x={x} y={y} className="bpm-note">q</text>
-        <text x={x + 18} y={textY} className="bpm-equals">=</text> {/* Closer (was 20) */}
-        <text x={x + 35} y={y - 4} className="bpm-value">{bpm}</text> {/* Closer (was 40) */}
+        <text x={x} y={y + 4} className="bpm-note">q</text>
+        <text x={x + 15} y={textY} className="bpm-equals">=</text> {/* Closer (was 20) */}
+        <text x={x + 30} y={y - 4} className="bpm-value">{bpm}</text> {/* Closer (was 40) */}
 
         {/* Italian Term */}
-        <text x={x + 85} y={textY} className="tempo-term">{term}</text> {/* Closer (was 95) */}
+        <text x={x + 75} y={textY} className="tempo-term">{term}</text> {/* Closer (was 95) */}
 
         {/* Controls (Auto-Hide) */}
         {showBpmControls && (
           <>
-            <text x={x + 20} y={y + 8} className="measure-indicator">-</text>
-            <text x={x + 70} y={y + 8} className="measure-indicator">+</text>
+            <text x={x + 17} y={y - 4} className="measure-indicator">-</text>
+            <text x={x + 70} y={y - 3} className="measure-indicator">+</text>
           </>
         )}
 
@@ -361,7 +360,7 @@ const SheetMusic = ({
 
         {/* Left Hitbox (Dec) */}
         <rect
-          x={x + 30} y={y - 30} width="30" height="40" fill="transparent" style={{ cursor: 'pointer' }}
+          x={x + 0} y={y - 30} width="45" height="45" fill="transparent" style={{ cursor: 'pointer' }}
           onMouseDown={() => bpmLongPress.start(handleBpmLongPress)}
           onMouseUp={(e) => bpmLongPress.end(e, () => handleBpmChangeWrapper(Math.max(10, bpm - 5)))}
           onMouseLeave={() => bpmLongPress.cancel()}
@@ -374,7 +373,7 @@ const SheetMusic = ({
 
         {/* Right Hitbox (Inc) */}
         <rect
-          x={x + 60} y={y - 30} width="30" height="40" fill="transparent" style={{ cursor: 'pointer' }}
+          x={x + 45} y={y - 30} width="45" height="45" fill="transparent" style={{ cursor: 'pointer' }}
           onMouseDown={() => bpmLongPress.start(handleBpmLongPress)}
           onMouseUp={(e) => bpmLongPress.end(e, () => handleBpmChangeWrapper(bpm + 5))}
           onMouseLeave={() => bpmLongPress.cancel()}
@@ -407,7 +406,7 @@ const SheetMusic = ({
           onClick();
         }}
       >
-        <rect x="-5" y="-5" width={size + 10} height={size + 10} fill="transparent" /> {/* Hitbox with padding */}
+        <rect x="-10" y="-10" width={size + 20} height={size + 20} fill="transparent" /> {/* Hitbox with padding */}
         {/* Arrow 1: Top-Left to Bottom-Right */}
         <path d={`M 0 0 L ${size} ${size} M ${size - 6} ${size} L ${size} ${size} L ${size} ${size - 6}`} stroke="var(--accent-yellow)" strokeWidth="3" fill="none" />
         {/* Arrow 2: Bottom-Left to Top-Right */}
@@ -495,6 +494,14 @@ const SheetMusic = ({
         viewBox={`0 -60 ${endX + 2} 310`}
         xmlns="http://www.w3.org/2000/svg"
       >
+        {/* Settings Wheel Icon (Standard SVG gear) - Yellow */}
+        <g transform={`translate(${endX - 25}, -50) scale(0.8)`}>
+          <path
+            fill="var(--accent-yellow)"
+            d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"
+          />
+        </g>
+
         {/* Removed yellow lines */}
 
         {/* Draw BPM Controls */}

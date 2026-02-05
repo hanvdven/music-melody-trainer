@@ -21,7 +21,7 @@ class InstrumentSettings {
     return new InstrumentSettings(
       'acoustic_grand_piano', // instrument
       'treble', // type
-      3, // notesPerMeasure
+      2, // notesPerMeasure
       4, // smallestNoteDenom
       30, // rhythmVariability
       false, // enableTriplets

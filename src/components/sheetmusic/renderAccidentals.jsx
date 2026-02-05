@@ -32,16 +32,16 @@ const renderAccidentals = (numAccidentals) => {
       }
 
       symbols.push(
-          <text
-              key={`${symbol}-${i}`}
-              x={x}
-              y={y}
-              fontSize="28"
-              fill="white"
-              fontFamily="Maestro"
-          >
-            {symbol}
-          </text>
+        <text
+          key={`${symbol}-${i}`}
+          x={x}
+          y={y}
+          fontSize="28"
+          fill="var(--text-primary)"
+          fontFamily="Maestro"
+        >
+          {symbol}
+        </text>
       );
     }
 
@@ -49,23 +49,23 @@ const renderAccidentals = (numAccidentals) => {
   };
 
   const trebleSymbols = renderSymbols(
-      absNum,
-      yPositionsTreble,
-      singleSymbol,
-      isSharp ? doubleSharpSymbol : doubleFlatSymbol
+    absNum,
+    yPositionsTreble,
+    singleSymbol,
+    isSharp ? doubleSharpSymbol : doubleFlatSymbol
   );
   const bassSymbols = renderSymbols(
-      absNum,
-      yPositionsBass,
-      singleSymbol,
-      isSharp ? doubleSharpSymbol : doubleFlatSymbol
+    absNum,
+    yPositionsBass,
+    singleSymbol,
+    isSharp ? doubleSharpSymbol : doubleFlatSymbol
   );
 
   return (
-      <>
-        {trebleSymbols}
-        {bassSymbols}
-      </>
+    <>
+      {trebleSymbols}
+      {bassSymbols}
+    </>
   );
 };
 

@@ -122,25 +122,25 @@ const ledgerLinesMapTreble = {
   C6: [1, -9],
 };
 
-  const ledgerLinesMapBass = {
-    // 'F3': [61,71,81],
-    // 'G3': [61,71],
-    // 'A3': [61,71],
-    // 'B3': [61],
-    C4: [81],
-    D4: [81],
-    E4: [81,71],
-    F4: [81,71],
-    G4: [81,71,61],
-  };
+const ledgerLinesMapBass = {
+  // 'F3': [61,71,81],
+  // 'G3': [61,71],
+  // 'A3': [61,71],
+  // 'B3': [61],
+  C4: [81],
+  D4: [81],
+  E4: [81, 71],
+  F4: [81, 71],
+  G4: [81, 71, 61],
+};
 
 const renderMelodyNotes = (
-    melody,
-    numAccidentals,
-    startX,
-    noteWidth,
-    allTimeStamps,
-    staff='treble'
+  melody,
+  numAccidentals,
+  startX,
+  noteWidth,
+  allTimeStamps,
+  staff = 'treble'
 ) => {
   const melodyNotes = melody.notes;
   const melodyDurations = melody.durations;
@@ -152,70 +152,70 @@ const renderMelodyNotes = (
   return melodyNotes.map((noteWithAccidental, index) => {
     const positionX = startX + allTimeStamps.indexOf(melodyTimeStamps[index]) * noteWidth;
     const duration = melodyDurations[index];
-    const note = noteWithAccidental ? noteWithAccidental.replace(/[♭º♯Ü]/g,'') : null;
+    const note = noteWithAccidental ? noteWithAccidental.replace(/[♭º♯Ü]/g, '') : null;
 
-    const noteSymbol = staff==='percussion' ? percussionNoteHeads[note] : durationNoteMap[duration];
+    const noteSymbol = staff === 'percussion' ? percussionNoteHeads[note] : durationNoteMap[duration];
     const dot = durationDotMap[duration];
     const articulation = melodyTies[index];
-    const restY = note ? (staff==='bass' ? 115 : staff==='percussion' ? 195 : 35) : null;
+    const restY = note ? (staff === 'bass' ? 115 : staff === 'percussion' ? 195 : 35) : null;
 
-    if(note==='r') {
+    if (note === 'r') {
       return (
-          <text
-              key={index}
-              x={positionX}
-              y={restY}
-              fontSize="32"
-              fill="white"
-              fontFamily="Maestro"
-          >
-            {restMap[duration]}
-          </text>
+        <text
+          key={index}
+          x={positionX}
+          y={restY}
+          fontSize="32"
+          fill="var(--text-primary)"
+          fontFamily="Maestro"
+        >
+          {restMap[duration]}
+        </text>
       );
-    } else if(note) {
-      const positionY = noteYMap[note] + (staff==='bass' ? 20 : 0);
-      const flagsUp = (positionY>31 && staff==='treble') || (positionY>115 && staff==='bass');
-      const lineX = flagsUp ? positionX+10 : positionX+0.5;
-      const lineYstart = flagsUp ? positionY-1 : positionY+1;
-      const lineYend = flagsUp ? positionY-25 : positionY+25;
-      const ledgerLines = staff==='bass' ? ledgerLinesMapBass[note]||[] : ledgerLinesMapTreble[note]||[];
+    } else if (note) {
+      const positionY = noteYMap[note] + (staff === 'bass' ? 20 : 0);
+      const flagsUp = (positionY > 31 && staff === 'treble') || (positionY > 115 && staff === 'bass');
+      const lineX = flagsUp ? positionX + 10 : positionX + 0.5;
+      const lineYstart = flagsUp ? positionY - 1 : positionY + 1;
+      const lineYend = flagsUp ? positionY - 25 : positionY + 25;
+      const ledgerLines = staff === 'bass' ? ledgerLinesMapBass[note] || [] : ledgerLinesMapTreble[note] || [];
       const flagSymbol = flagsUp ? durationFlagMapUp[duration] : durationFlagMapDown[duration];
-      const flagX = flagsUp ? positionX+8.5 : positionX-1;
-      const flagY = flagsUp ? positionY-20 : positionY+18;
+      const flagX = flagsUp ? positionX + 8.5 : positionX - 1;
+      const flagY = flagsUp ? positionY - 20 : positionY + 18;
 
-      let nextNoteIndex=-1;
-      for(let i=index+1;i<melodyTimeStamps.length;i++){
-        if(melodyTimeStamps[i]!==null){
-          nextNoteIndex=i;
+      let nextNoteIndex = -1;
+      for (let i = index + 1; i < melodyTimeStamps.length; i++) {
+        if (melodyTimeStamps[i] !== null) {
+          nextNoteIndex = i;
           break;
         }
       }
-      const nextPositionX = nextNoteIndex!==-1 ? startX + allTimeStamps.indexOf(melodyTimeStamps[nextNoteIndex])*noteWidth : null;
+      const nextPositionX = nextNoteIndex !== -1 ? startX + allTimeStamps.indexOf(melodyTimeStamps[nextNoteIndex]) * noteWidth : null;
 
       return (
-          <React.Fragment key={index}>
-            {ledgerLines.map((y,idx)=>(
-                <path key={`ledger-${index}-${idx}`} d={`M ${positionX-6} ${y} H ${positionX+18}`} stroke="white" strokeWidth="0.5"/>
-            ))}
-            <text x={positionX} y={positionY} fontSize="32" fill="white" fontFamily="Maestro">{noteSymbol}</text>
-            <text x={positionX+13} y={positionY-0.5+(positionY%10)} fontSize="32" fill="white" fontFamily="Maestro">{dot}</text>
-            {duration<48 && <path d={`M ${lineX} ${lineYstart} V ${lineYend}`} stroke="white" strokeWidth="1"/>}
-            <text x={flagX} y={flagY} fontSize="32" fill="white" fontFamily="Maestro">{flagSymbol}</text>
-            <text x={positionX-4} y={positionY-3} fontSize="32" fill="white" fontFamily="Maestro" textAnchor="end">
-              {staff==='percussion'?null:accidentals[index]}
-            </text>
-            {articulation==='tie' && nextPositionX!==null && (
-                <path
-                    d={`M ${positionX+4} ${flagsUp?positionY+7:positionY-6} 
-                 C ${positionX+4+noteWidth/3} ${flagsUp?positionY+14:positionY-13}, 
-                   ${nextPositionX-noteWidth/3} ${flagsUp?positionY+14:positionY-13}, 
-                   ${nextPositionX} ${flagsUp?positionY+7:positionY-6}`}
-                    stroke="white"
-                    strokeWidth="1"
-                    fill="none"
-                />
-            )}
-          </React.Fragment>
+        <React.Fragment key={index}>
+          {ledgerLines.map((y, idx) => (
+            <path key={`ledger-${index}-${idx}`} d={`M ${positionX - 6} ${y} H ${positionX + 18}`} stroke="var(--text-primary)" strokeWidth="0.5" />
+          ))}
+          <text x={positionX} y={positionY} fontSize="32" fill="var(--text-primary)" fontFamily="Maestro">{noteSymbol}</text>
+          <text x={positionX + 13} y={positionY - 0.5 + (positionY % 10)} fontSize="32" fill="var(--text-primary)" fontFamily="Maestro">{dot}</text>
+          {duration < 48 && <path d={`M ${lineX} ${lineYstart} V ${lineYend}`} stroke="var(--text-primary)" strokeWidth="1" />}
+          <text x={flagX} y={flagY} fontSize="32" fill="var(--text-primary)" fontFamily="Maestro">{flagSymbol}</text>
+          <text x={positionX - 4} y={positionY - 3} fontSize="32" fill="var(--text-primary)" fontFamily="Maestro" textAnchor="end">
+            {staff === 'percussion' ? null : accidentals[index]}
+          </text>
+          {articulation === 'tie' && nextPositionX !== null && (
+            <path
+              d={`M ${positionX + 4} ${flagsUp ? positionY + 7 : positionY - 6} 
+                 C ${positionX + 4 + noteWidth / 3} ${flagsUp ? positionY + 14 : positionY - 13}, 
+                   ${nextPositionX - noteWidth / 3} ${flagsUp ? positionY + 14 : positionY - 13}, 
+                   ${nextPositionX} ${flagsUp ? positionY + 7 : positionY - 6}`}
+              stroke="var(--text-primary)"
+              strokeWidth="1"
+              fill="none"
+            />
+          )}
+        </React.Fragment>
       );
     }
 
