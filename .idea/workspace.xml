@@ -4,32 +4,27 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="0b7f80f1-8dd2-4ee5-a715-c118dc07c51d" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/music-melody-trainer.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/App.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/audio/Sequencer.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/audio/Sequencer.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/audio/playContinuously.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/audio/playContinuously.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/bottom/PianoView.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/bottom/PianoView.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/bottom/PlaybackSettings.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/bottom/PlaybackSettings.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/generateMelody/convertToDisplayNotes.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/generateMelody/convertToDisplayNotes.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/generateMelody/generateDisplayScale.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/generateMelody/generateDisplayScale.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/scale/ScaleSelector.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/scale/ScaleSelector.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/components/scale/ScaleSelectorWheel.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/src/components/scale/ScaleSelectorWheel.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/model/theory/scaleData.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/model/theory/scaleData.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/styles/App.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/styles/App.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/scaleHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/scaleHandler.js" afterDir="false" />
-    </list>
+    <list default="true" id="0b7f80f1-8dd2-4ee5-a715-c118dc07c51d" name="Changes" comment="2026 version 1.&#10;&#10;cont playback is broken :D" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
+  <component name="ChangesViewManager">
+    <option name="groupingKeys">
+      <option value="directory" />
+      <option value="repository" />
+    </option>
+  </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/hanvdven/music-melody-trainer.git",
+    "accountId": "0de6861b-99b4-4215-8b58-b09ce7b22ed1"
+  }
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 1
 }</component>
@@ -38,30 +33,30 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "Node.js.App.js.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "main",
-    "javascript.preferred.runtime.type.id": "node",
-    "junie.onboarding.icon.badge.shown": "true",
-    "last_opened_file_path": "C:/Users/hanvd/Documents/GitHub/music-melody-trainer",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "to.speed.mode.migration.done": "true",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Node.js.App.js.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;javascript.preferred.runtime.type.id&quot;: &quot;node&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/hanvd/Documents/GitHub/music-melody-trainer&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\hanvd\Documents\Programming Projects\music melody trainer\components" />
@@ -78,7 +73,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-WS-253.29346.242" />
+        <option value="bundled-js-predefined-d6986cc7102b-9b0f141eb926-JavaScript-WS-253.30387.83" />
       </set>
     </attachedChunks>
   </component>
@@ -91,10 +86,36 @@
       <updated>1768766593512</updated>
       <workItem from="1768766596227" duration="70967000" />
       <workItem from="1770327700662" duration="4009000" />
+      <workItem from="1770335410072" duration="319000" />
     </task>
+    <task id="LOCAL-00001" summary="2026 version 1.&#10;&#10;cont playback is broken :D">
+      <option name="closed" value="true" />
+      <created>1770335484876</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1770335484876</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <option name="CHECK_CODE_CLEANUP_BEFORE_PROJECT_COMMIT" value="true" />
+    <MESSAGE value="2026 version 1.&#10;&#10;cont playback is broken :D" />
+    <option name="LAST_COMMIT_MESSAGE" value="2026 version 1.&#10;&#10;cont playback is broken :D" />
   </component>
 </project>
