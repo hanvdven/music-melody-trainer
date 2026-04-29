@@ -1,0 +1,170 @@
+.generic-stepper {
+  position: relative;
+  width: 100%;
+  max-width: 250px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  overflow: visible;
+}
+
+.gs-popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 999;
+}
+
+.gs-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #222;
+  border: 2px solid var(--text-primary);
+  border-radius: 8px;
+  padding: 20px;
+  z-index: 1000;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.gs-popup-hint {
+  color: #888;
+  font-size: 12px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.gs-popup-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gs-popup-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 42px;
+  background-color: #333;
+  color: white;
+  border: 1px solid #444;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  font-weight: normal;
+  font-family: sans-serif;
+  padding: 0 40px;
+}
+
+.gs-popup-option.selected {
+  background-color: var(--accent-yellow);
+  color: black;
+}
+
+.gs-popup-option-icon {
+  position: absolute;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+
+.gs-popup-input {
+  width: 100%;
+  background: #111;
+  border: 1px solid #444;
+  color: white;
+  text-align: center;
+  font-size: 24px;
+  padding: 10px;
+  border-radius: 4px;
+  outline: none;
+}
+
+.gs-popup-ok {
+  padding: 10px;
+  background-color: var(--accent-yellow);
+  color: black;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.gs-hitzone {
+  position: absolute;
+  width: 45%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  cursor: pointer;
+  outline: none;
+}
+
+.gs-hitzone.lowlighted {
+  cursor: default;
+}
+
+.gs-hitzone-left {
+  left: 0;
+}
+
+.gs-hitzone-right {
+  right: 0;
+}
+
+.gs-icon-left {
+  position: absolute;
+  left: 40%;
+  transform: translate(-50%, 0);
+}
+
+.gs-icon-right {
+  position: absolute;
+  right: 40%;
+  transform: translate(50%, 0);
+}
+
+.gs-center {
+  width: 70%;
+  z-index: 2;
+  font-weight: normal;
+  pointer-events: auto;
+  cursor: default;
+  text-align: center;
+  word-break: break-word;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.gs-center.has-options {
+  cursor: pointer;
+}
+
+.gs-center.uppercase {
+  text-transform: uppercase;
+}
+
+.gs-center-icon {
+  display: flex;
+  align-items: center;
+}

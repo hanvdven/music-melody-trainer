@@ -1,0 +1,169 @@
+/* ChordGrid component styles */
+
+/* ── Container & layout ───────────────────────────────────────────────────── */
+
+.chord-grid-container {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.chord-grid-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+.chord-grid-main {
+    position: relative;
+    flex-shrink: 0;
+}
+
+/* ── Header toggle buttons — extend tab-button style ─────────────────────── */
+
+/* Narrower than the default 75px tab-button; label never wraps */
+.chord-grid-toggle {
+    width: auto;
+    min-width: 52px;
+    padding: 4px 8px;
+    white-space: nowrap;
+}
+
+.chord-grid-toggle .tab-label {
+    white-space: nowrap;
+    font-size: 9px;
+}
+
+/* Symbol (ADV / V7 / vii° / bII7) — 20% larger than previous 15px */
+.chord-grid-toggle-symbol {
+    font-size: 18px;
+    font-family: sans-serif;
+    font-weight: bold;
+    line-height: 1;
+}
+
+/* Superscript sizes */
+.chord-grid-btn-label-sup  { font-size: 7px; }
+.chord-grid-btn-label-sup2 { font-size: 9px; }
+.chord-grid-btn-label-sup3 { font-size: 11px; font-weight: 500; }
+.chord-grid-btn-label-roman { font-size: 8px; opacity: 0.8; }
+
+/* ── Main chord cells ─────────────────────────────────────────────────────── */
+
+.chord-grid-cell {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    box-sizing: border-box;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.55);
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Band 1 — pink (tonic/center area) */
+.chord-grid-cell-band-1 { background: #c04a6e; }
+.chord-grid-cell-band-1:hover { background: #d45a80; }
+
+/* Band 2 */
+.chord-grid-cell-band-2 { background: #9a3858; }
+.chord-grid-cell-band-2:hover { background: #b04468; }
+
+/* Band 3 */
+.chord-grid-cell-band-3 { background: #752844; }
+.chord-grid-cell-band-3:hover { background: #8a3454; }
+
+/* Band 4 */
+.chord-grid-cell-band-4 { background: #541a30; }
+.chord-grid-cell-band-4:hover { background: #6a2440; }
+
+/* Band 5 — dark wine */
+.chord-grid-cell-band-5 { background: #360e1e; }
+.chord-grid-cell-band-5:hover { background: #4c1830; }
+
+.chord-grid-cell-label {
+    color: #fff;
+    font-weight: 700;
+    font-size: 23px; /* 19px × 1.2 */
+    line-height: 1;
+    user-select: none;
+    font-family: serif;
+}
+
+
+/* ── Advanced mode small cells ────────────────────────────────────────────── */
+
+.chord-grid-smallcell {
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+}
+
+.chord-grid-smallcell-active {
+    background: rgba(100, 115, 210, 0.75);
+    cursor: pointer;
+    box-shadow: 1px 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.chord-grid-smallcell-active:hover {
+    background: rgba(120, 135, 230, 0.85);
+}
+
+.chord-grid-smallcell-inactive {
+    background: rgba(65, 70, 130, 0.25);
+}
+
+/* ── Diatonic approach cells (between-row slots in advanced mode) ─────────── */
+
+.chord-grid-approach-cell {
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(192, 74, 110, 0.35);
+    border: 1px solid rgba(192, 74, 110, 0.55);
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.chord-grid-approach-cell:hover {
+    background: rgba(212, 88, 128, 0.55);
+}
+
+.chord-grid-approach-label {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+    font-weight: 600;
+    font-family: serif;
+    user-select: none;
+}
+
+/* ── Secondary chord labels (inside small cells) ──────────────────────────── */
+
+.chord-grid-secondary-label       { color: var(--chordgrid-secondary, #dde); }
+.chord-grid-secondary-label-adv   { color: var(--chordgrid-adv,  #ffcc44); }
+.chord-grid-secondary-label-main  { color: var(--chordgrid-main, #88ccff); }
+.chord-grid-secondary-label-dim   { color: var(--chordgrid-dim,  #ffcc44); }
+.chord-grid-secondary-label-dom   { color: var(--chordgrid-dom,  #ffcc44); }
+.chord-grid-secondary-label-tri   { color: var(--chordgrid-tri,  #ffcc44); }
+
+.chord-grid-secondary-label-inactive,
+.chord-grid-secondary-label-inactive-dim,
+.chord-grid-secondary-label-inactive-dom,
+.chord-grid-secondary-label-inactive-tri {
+    color: #556;
+}

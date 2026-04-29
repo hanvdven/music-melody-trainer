@@ -1,0 +1,9 @@
+/* Shared SVG interaction helpers */
+.svg-no-interact {
+  pointer-events: none;
+  user-select: none;
+}
+
+.svg-pointer {
+  cursor: pointer;
+}

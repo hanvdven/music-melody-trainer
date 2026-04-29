@@ -1,0 +1,68 @@
+.range-controls {
+  display: grid;
+  grid-template-columns: 20% 10% 12% 18% 20% 20%;
+  padding: 4px 0;
+  margin: 0;
+  align-items: center;
+  height: 40px;
+  width: 100%;
+  background-color: transparent;
+}
+
+.rc-col {
+  display: flex;
+  justify-content: center;
+}
+
+.rc-col-padded {
+  display: flex;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.rc-palette-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 75px;
+  padding: 4px 2px;
+  gap: 4px;
+  box-sizing: border-box;
+  color: inherit;
+}
+
+.rc-palette-icon-wrap {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rc-palette-label {
+  font-family: sans-serif;
+  font-size: 9px;
+  font-weight: bold;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.2;
+  max-width: 70px;
+}
+
+.rc-note-label {
+  transform: translateY(-8px);
+}
+
+/* Maestro font glyph spans */
+.rc-maestro-sm {
+  font-family: 'Maestro', serif;
+  font-size: 18px;
+}
+
+.rc-maestro-lg {
+  font-family: 'Maestro', serif;
+  font-size: 26px;
+  font-weight: normal;
+}

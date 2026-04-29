@@ -1,0 +1,335 @@
+/* ── PlaybackSettings root ── */
+.ps-root {
+  padding: 8px 8px 20px 8px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* ── 3-column grid rows ── */
+.ps-row-3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.ps-row-3col-headers {
+  margin-bottom: 4px;
+}
+
+.ps-row-3col-controls {
+  margin-bottom: 12px;
+  height: 42px;
+}
+
+/* ── Column header cells ── */
+.ps-col-header-cell {
+  font-size: 9px;
+  color: #666;
+  text-align: center;
+  text-transform: uppercase;
+  font-family: sans-serif;
+}
+
+.ps-col-header-cell-difficulty {
+  position: relative;
+}
+
+.ps-difficulty-level-overlay {
+  position: absolute;
+  top: -2px;
+  right: 4px;
+  font-size: 11.5px;
+  color: var(--accent-yellow);
+  font-family: serif;
+}
+
+/* ── Preset control ── */
+.ps-preset-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.ps-preset-btn {
+  height: 42px;
+  font-size: 11.5px;
+  width: 100%;
+  max-width: 250px;
+  text-align: center;
+  text-transform: uppercase;
+  margin: 0 auto;
+}
+
+/* ── Difficulty slider control ── */
+.ps-difficulty-control {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 42px;
+  max-width: 250px;
+  margin: 0 auto;
+}
+
+.ps-difficulty-multiplier {
+  font-size: 9px;
+  color: var(--accent-yellow);
+  margin-bottom: 2px;
+  font-weight: bold;
+}
+
+.ps-difficulty-slider-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: #222;
+  border-radius: 4px;
+  padding: 0 10px;
+  width: 100%;
+  height: 24px;
+}
+
+.ps-difficulty-range-input {
+  flex: 1;
+  height: 4px;
+  cursor: pointer;
+  accent-color: var(--accent-yellow);
+}
+
+/* ── Progression wrapper ── */
+.ps-progression-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* ── Section gap spacer ── */
+.ps-section-gap {
+  margin-bottom: 8px;
+}
+
+/* ── Visibility grid ── */
+.ps-vis-grid {
+  display: grid;
+  padding: 4px 0;
+  margin-bottom: 8px;
+}
+
+.ps-vis-odd-header {
+  grid-column: 2 / 4;
+}
+
+.ps-vis-even-header {
+  grid-column: 4 / 6;
+}
+
+.ps-vis-clef-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: #666;
+  text-transform: uppercase;
+  font-family: sans-serif;
+}
+
+/* ── Difficulty row (harmonic / treble / bass) ── */
+.ps-diff-row {
+  display: grid;
+  align-items: center;
+  height: 42px;
+  padding: 4px 0;
+}
+
+.ps-diff-col-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #888;
+}
+
+.ps-diff-col-slider {
+  grid-column: 2 / 6;
+  padding-right: 8px;
+}
+
+.ps-diff-col-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--accent-yellow);
+  font-variant-numeric: tabular-nums;
+}
+
+.ps-diff-col-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ps-clear-btn {
+  padding: 2px 6px;
+  font-size: 9px;
+  background-color: transparent;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #666;
+  cursor: pointer;
+}
+
+/* ── DifficultyRow sub-component ── */
+.dr-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.dr-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #999;
+}
+
+.dr-score {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--accent-yellow);
+  font-variant-numeric: tabular-nums;
+}
+
+.dr-detail {
+  font-size: 9px;
+  color: #555;
+  padding-left: 8px;
+  line-height: 1.5;
+}
+
+/* ── DifficultyPanel sub-component ── */
+.dp-panel {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background-color: rgba(0, 0, 0, 0.25);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.dp-debug-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #666;
+}
+
+.dp-multiplier-group {
+  display: flex;
+  gap: 10px;
+}
+
+.dp-multiplier-text {
+  font-size: 10px;
+  color: #aaa;
+}
+
+.dp-multiplier-value {
+  color: var(--accent-yellow);
+}
+
+/* ── HarmonicSlider sub-component ── */
+.hs-container {
+  position: relative;
+  flex: 1;
+  height: 20px;
+  display: flex;
+  align-items: center;
+}
+
+.hs-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #553300;
+  border-radius: 2px;
+}
+
+.hs-track.disabled {
+  background: #444;
+}
+
+.hs-fill {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  background: var(--accent-yellow);
+  border-radius: 2px;
+}
+
+.hs-fill.disabled {
+  background: #555;
+}
+
+.hs-actual-line {
+  position: absolute;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 16px;
+  background: #4488ff;
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.hs-thumb {
+  position: absolute;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 14px;
+  background: var(--accent-yellow);
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 4px rgba(255, 200, 0, 0.5);
+}
+
+.hs-thumb.disabled {
+  background: #555;
+  box-shadow: none;
+}
+
+.hs-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  width: 100%;
+  cursor: pointer;
+}
+
+.hs-input:disabled {
+  cursor: not-allowed;
+}

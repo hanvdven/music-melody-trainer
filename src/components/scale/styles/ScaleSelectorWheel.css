@@ -1,0 +1,31 @@
+/* ScaleSelectorWheel component styles */
+.scale-selector-wheel {
+    display: block;
+    margin: 0 auto;
+    filter: drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.5));
+}
+
+.scale-selector-wheel-slice {
+    cursor: pointer;
+    transition: fill 0.2s ease;
+}
+
+.scale-selector-wheel-slice:hover {
+    fill: var(--wheel-color-highlight) !important;
+}
+
+.scale-selector-wheel-slice.active {
+    fill: var(--wheel-color-tonic) !important;
+}
+
+.scale-selector-wheel-label {
+    font-size: 10px;
+    text-align: center;
+    fill: var(--wheel-text-color-tonic);
+    pointer-events: none;
+    user-select: none;
+}
+
+.scale-selector-wheel-label.lowlight {
+    fill: var(--wheel-text-color-lowlight);
+}

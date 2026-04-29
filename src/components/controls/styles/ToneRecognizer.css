@@ -1,0 +1,227 @@
+.tr-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 8px;
+  overflow: hidden;
+  padding: 8px 0 0 0;
+}
+
+.tr-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.tr-listen-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, var(--accent-purple), #6a2a8a);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(192, 139, 220, 0.3);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.tr-listen-btn.active {
+  background: linear-gradient(135deg, #c0392b, #96281b);
+  box-shadow: 0 0 14px rgba(192, 57, 43, 0.5);
+}
+
+.tr-toggle-group {
+  display: flex;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #444;
+  flex-shrink: 0;
+}
+
+.tr-mode-btn {
+  padding: 6px 14px;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--text-dim);
+  transition: all 0.15s ease;
+}
+
+.tr-mode-btn.active {
+  background: var(--accent-yellow);
+  color: #000;
+}
+
+.tr-source-btn {
+  padding: 6px 12px;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: transparent;
+  color: var(--text-dim);
+  transition: all 0.15s ease;
+}
+
+.tr-source-btn.active {
+  background: rgba(242, 200, 121, 0.18);
+  color: var(--accent-yellow);
+}
+
+.tr-error {
+  padding: 8px 16px;
+  background: rgba(192, 57, 43, 0.15);
+  border-left: 3px solid #c0392b;
+  color: #e74c3c;
+  font-size: 12px;
+  flex-shrink: 0;
+  margin: 0 12px;
+  border-radius: 0 6px 6px 0;
+}
+
+.tr-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 6px;
+  padding: 6px 0;
+  min-height: 90px;
+}
+
+.tr-note-row {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.tr-note-name {
+  font-size: clamp(48px, 10vw, 72px);
+  font-weight: 700;
+  color: var(--accent-yellow);
+  line-height: 1;
+  letter-spacing: -2px;
+  text-shadow: 0 0 20px rgba(242, 200, 121, 0.5);
+}
+
+.tr-note-oct {
+  font-size: clamp(20px, 4vw, 30px);
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.tr-note-hz {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-left: 10px;
+}
+
+.tr-listening {
+  font-size: 14px;
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
+.tr-chord-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.tr-chord-name {
+  font-size: clamp(32px, 7vw, 56px);
+  font-weight: 700;
+  color: var(--accent-yellow);
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(242, 200, 121, 0.5);
+}
+
+.tr-chord-pcs {
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
+.tr-idle {
+  font-size: 13px;
+  color: var(--text-dim);
+  opacity: 0.4;
+}
+
+.tr-cents-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tr-cents-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  width: 28px;
+}
+
+.tr-cents-label-right {
+  text-align: right;
+}
+
+.tr-cents-track {
+  position: relative;
+  width: 160px;
+  height: 8px;
+  background: #333;
+  border-radius: 4px;
+  overflow: visible;
+}
+
+.tr-cents-center {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: #555;
+  transform: translateX(-50%);
+}
+
+.tr-cents-needle {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 4px;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  transition: left 0.08s linear, background 0.2s;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
+}
+
+.tr-cents-value {
+  font-size: 11px;
+  color: var(--text-dim);
+  min-width: 36px;
+  text-align: right;
+}
+
+.tr-piano {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  min-height: 0;
+}

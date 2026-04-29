@@ -1,0 +1,74 @@
+/* TrebleSettings component styles */
+.treble-settings {
+    /* Add layout and spacing styles as needed */
+}
+
+.treble-settings-setup-title {
+    text-align: center;
+    margin: 10px 0;
+}
+
+.treble-settings-heat-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    padding: 10px 20px;
+    background-color: #222;
+    border-radius: 12px;
+    margin: 0 20px 20px 20px;
+}
+
+.treble-settings-heat-label {
+    font-size: 10px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-align: center;
+}
+
+.treble-settings-heat-range {
+    width: 100%;
+    cursor: pointer;
+    accent-color: var(--accent-yellow);
+}
+
+.treble-settings-heat-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.treble-settings-range-section {
+    padding: 0 20px;
+    margin-bottom: 20px;
+}
+
+.treble-settings-range-row {
+    margin-bottom: 4px;
+}
+
+.treble-settings-regen-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.treble-settings-regen-btn {
+    min-width: 120px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: #333;
+    border: 1px solid #555;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.treble-settings-regen-label {
+    font-weight: bold;
+}

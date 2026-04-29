@@ -1,14 +1,19 @@
+import { generateRankedRhythm } from '../generation/generateRankedRhythm.js';
+import { TICKS_PER_WHOLE } from '../constants/timing.js';
+import convertRankedArrayToMelody from '../generation/convertRankedArrayToMelody.js';
+import { getRelativeNoteName } from '../theory/convertToDisplayNotes.js';
+
 class Melody {
   constructor(
     notes,
     durations,
-    timeStamps,
+    offsets,
     displayNotes = notes,
     volumes = new Array(notes.length).fill(1)
   ) {
     this.notes = notes;
     this.durations = durations; // duration = how many 48th notes (smallest); e.g.q = 12
-    this.timeStamps = timeStamps;
+    this.offsets = offsets;
     this.displayNotes = displayNotes;
     this.volumes = volumes;
   }
@@ -33,42 +38,8 @@ class Melody {
         null,
         null,
       ],
-      [
-        12,
-        null,
-        18,
-        null,
-        null,
-        6,
-        6,
-        6,
-        12,
-        null,
-        12,
-        null,
-        24,
-        null,
-        null,
-        null,
-      ],
-      [
-        0,
-        null,
-        12,
-        null,
-        null,
-        30,
-        36,
-        42,
-        48,
-        null,
-        60,
-        null,
-        72,
-        null,
-        null,
-        null,
-      ]
+      [12, null, 18, null, null, 6, 6, 6, 12, null, 12, null, 24, null, null, null],
+      [0, null, 12, null, null, 30, 36, 42, 48, null, 60, null, 72, null, null, null]
     );
   }
 
@@ -77,77 +48,116 @@ class Melody {
   }
 
   static defaultPercussionMelody() {
-    return new Melody(
-      ['b', 'hh', 's', 'hh', 'b'],
-      [12, 12, 12, 12, 12],
-      [0, 12, 24, 36, 48]
-    );
+    return new Melody(['k', 'hh', 's', 'hh', 'k'], [12, 12, 12, 12, 12], [0, 12, 24, 36, 48]);
   }
 
   static defaultMetronomeMelody() {
     return new Melody(
-      ['k', 'c', 'c', 'c', 'k', 'c', 'c', 'c'],
+      ['wh', 'wl', 'wl', 'wl', 'wh', 'wl', 'wl', 'wl'],
       [12, 12, 12, 12, 12, 12, 12, 12],
       [0, 12, 24, 36, 48, 60, 72, 84]
     );
   }
 
-  static fromFlattenedNotes(
-    notes,
-    timeSignature,
-    numMeasures,
-    displayMelody = notes
-  ) {
+  static fromFlattenedNotes(notes, timeSignature, numMeasures, displayMelody = notes, volumes = null, scaleContext = null) {
     let durations = [];
-    let timeStamps = [];
-    let timeScale =
-      ((48 * numMeasures) / notes.length) *
-      (timeSignature[0] / timeSignature[1]);
+    let offsets = [];
+    let expandedVolumes = [];
+    let timeScale = ((TICKS_PER_WHOLE * numMeasures) / notes.length) * (timeSignature[0] / timeSignature[1]);
 
     let noteIndex = 0;
 
-    for (let index in notes) {
+    for (let index = 0; index < notes.length; index++) {
       const note = notes[index];
       if (note == null) {
         durations.push(null);
-        timeStamps.push(null);
+        offsets.push(null);
+        expandedVolumes.push(null);
         durations[noteIndex]++;
       } else {
         durations.push(1);
         noteIndex = index;
-        timeStamps.push(index * timeScale);
+        offsets.push(index * timeScale);
+        expandedVolumes.push(volumes ? volumes[index] : 1);
       }
     }
 
-    for (let index in notes) {
+    for (let index = 0; index < notes.length; index++) {
       const dur = durations[index];
       if (dur > 0) {
         durations[index] = timeScale * dur;
       }
     }
 
-    return new Melody(notes, durations, timeStamps, displayMelody);
-  }
+    let finalDisplayMelody = displayMelody || notes;
 
-  static updateMetronome(timeSignature, numMeasures) {
-    const measureCounts = (4 * timeSignature[0]) / timeSignature[1];
-    const beatsPerMeasure = Math.ceil(measureCounts);
-    const totalBeats = beatsPerMeasure * numMeasures;
-    const reciprocalDuration = (1 + measureCounts - beatsPerMeasure) * 12;
-    const notes = [];
-    const timestamps = [];
-    const durations = [];
+    // Automatically resolve display notes if a scale context is passed and displayMelody was not explicitly decoupled (e.g., passing chords)
+    if (scaleContext && (!displayMelody || displayMelody === notes)) {
+      const { notes: scaleNotes, displayNotes: scaleDisplayNotes, tonic: scaleTonic } = scaleContext;
+      if (scaleNotes && scaleDisplayNotes && scaleTonic) {
+        finalDisplayMelody = notes.map(note => {
+          if (note === null) return null;
+          // Skip mapping for percussion or rests
+          if (!note.match(/^[A-G]/i)) return note;
 
-    for (let i = 0; i < totalBeats; i++) {
-      const isFirstBeat = i % beatsPerMeasure === 0;
-      const isLastBeat = (i + 1) % beatsPerMeasure === 0;
-      notes.push(isFirstBeat ? 'k' : 'c');
-      let nextTimeStamp = durations.reduce((accumulator, currentValue) => accumulator + currentValue, 0);
-      timestamps.push(nextTimeStamp);
-      durations.push(isLastBeat ? reciprocalDuration : 12);
+          const index = scaleNotes.indexOf(note);
+          if (index !== -1) return scaleDisplayNotes[index];
+          // Fallback to spelling it relative to the key if it's an out-of-scale chromatic note
+          return getRelativeNoteName(note, scaleTonic);
+        });
+      }
     }
 
-    return new Melody(notes, durations, timestamps, notes);
+    return new Melody(notes, durations, offsets, finalDisplayMelody, expandedVolumes);
+  }
+
+  static updateMetronome(timeSignature, numMeasures, smallestNoteDenom = 4) {
+    // Formula: notes per measure = ceiling ( measure top / measure bottom * smallest note value )
+    const notesPerMeasure = Math.ceil((timeSignature[0] / timeSignature[1]) * smallestNoteDenom);
+
+    // 1. Generate rhythmic ranks
+    const rankedArray = generateRankedRhythm(
+      numMeasures,
+      timeSignature,
+      notesPerMeasure,
+      smallestNoteDenom,
+      0, // variability
+      false, // triplets
+      'uniform' // randomizationRule
+    );
+
+    // 2. Convert ranks to woodblock pitches using standardized logic
+    const { melody: flattenedNotes } = convertRankedArrayToMelody(
+      rankedArray,
+      null, // tonic
+      null, // scale
+      notesPerMeasure,
+      numMeasures,
+      'metronome', // source
+      null, // chordProgression
+      null, // range
+      'metronome-gen', // runId
+      'uniform', // randomizationRule
+      smallestNoteDenom
+    );
+
+    // 3. Create Melody object
+    const metronomeMelody = Melody.fromFlattenedNotes(
+      flattenedNotes,
+      timeSignature,
+      numMeasures,
+      flattenedNotes
+    );
+
+    const priorities = rankedArray.map(rank => {
+      if (rank === null) return null;
+      if (rank < numMeasures) return 'top';
+      if (rank < (numMeasures * notesPerMeasure) / 2) return 'high';
+      if (rank < numMeasures * notesPerMeasure) return 'low';
+      return null;
+    });
+
+    return metronomeMelody;
   }
 }
 

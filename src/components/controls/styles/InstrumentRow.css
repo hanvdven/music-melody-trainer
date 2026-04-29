@@ -1,0 +1,85 @@
+/* ── InstrumentRow layout ── */
+.ir-row {
+  display: grid;
+  padding: 4px 0;
+  align-items: center;
+  height: 42px;
+}
+
+/* ── Column wrappers ── */
+.ir-col-center {
+  display: flex;
+  justify-content: center;
+}
+
+.ir-col-center-full {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+/* ── Round button (36×36 circle) ── */
+.ir-round-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: #333;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* ── Glyph cell (Col 1) ── */
+.ir-glyph-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  margin: 0 auto;
+  font-weight: normal;
+  color: #eee;
+}
+
+/* ── Stepper wrappers ── */
+.ir-stepper-90 {
+  width: 90%;
+}
+
+.ir-stepper-80 {
+  width: 80%;
+}
+
+.ir-stepper-full {
+  width: 100%;
+}
+
+.ir-placeholder {
+  opacity: 0.3;
+}
+
+.ir-pin-dim {
+  opacity: 0.6;
+}
+
+.ir-serif {
+  font-family: serif;
+}
+
+.ir-maestro-note-sm {
+  font-family: 'Maestro', serif;
+  font-size: 24px;
+  font-weight: normal;
+}
+
+.ir-maestro-note-lg {
+  font-family: 'Maestro', serif;
+  font-size: 26px;
+}
+
+.ir-prog-sup {
+  font-size: 0.7em;
+}

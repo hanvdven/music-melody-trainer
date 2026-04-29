@@ -1,0 +1,222 @@
+/* ============================================================
+ * APP ROOT & PANEL LAYOUT
+ * ============================================================ */
+
+.app-root {
+  width: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--panel-bg);
+  color: white;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.app-top-wrapper {
+  background-color: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.app-content-area {
+  flex: 1;
+  overflow: hidden;
+  padding: 0 20px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Tab content panels */
+.app-tab-sheet {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-tab-chords {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.app-tab-chords-inner {
+  padding: 0 8px;
+}
+
+.app-tab-playback {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.app-tab-listen {
+  display: block;
+  height: 100%;
+}
+
+/* Instrument view panels */
+.app-instrument-panel {
+  flex: 1;
+  position: 'relative';
+  width: 100%;
+  overflow: visible;
+}
+
+.app-instrument-loading {
+  padding: 20px;
+  color: #888;
+}
+
+/* ============================================================
+ * QWERTY KEYBOARD BUTTON (in nav sidebar)
+ * ============================================================ */
+
+.app-qwerty-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--panel-bg);
+  border: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+ * OTHER-SETTINGS PANEL
+ * ============================================================ */
+
+.app-settings-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.app-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app-settings-section-label {
+  font-size: 10px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+
+/* Clickable setting row (palette, fullscreen, etc.) */
+.app-settings-row {
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  border: 1px solid #333;
+}
+
+.app-settings-row-icon {
+  color: var(--accent-yellow);
+}
+
+.app-settings-row-body {
+  flex: 1;
+}
+
+.app-settings-row-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--text-primary);
+}
+
+.app-settings-row-sub {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+/* Theme picker */
+.app-theme-picker {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.app-theme-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.app-theme-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.app-theme-swatch-slice {
+  flex: 1;
+}
+
+.app-theme-label {
+  font-size: 9px;
+  text-transform: capitalize;
+}
+
+/* Toggle switches */
+.app-settings-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.app-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.app-toggle-track {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  position: relative;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.app-toggle-thumb {
+  width: 14px;
+  height: 14px;
+  background-color: #fff;
+  border-radius: 50%;
+  position: absolute;
+  top: 3px;
+  transition: left 0.2s;
+}
+
+.app-toggle-label {
+  font-size: 13px;
+}

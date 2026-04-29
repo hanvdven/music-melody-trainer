@@ -1,0 +1,53 @@
+.tso-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.tso-dialog {
+  background-color: #222;
+  padding: 20px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 250px;
+}
+
+.tso-title {
+  color: white;
+  text-align: center;
+  margin-bottom: 5px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.tso-btn {
+  width: 100%;
+  text-align: center;
+  height: 42px;
+  /* No text-transform: labels contain Roman numerals where case is semantic
+     (e.g. "ii" = minor, "V" = major). Uppercasing would destroy that. */
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 11px;
+  background-color: #333;
+  border: 1px solid #444;
+}
+
+.tso-cancel {
+  margin-top: 10px;
+  background: none;
+  border: 1px solid #444;
+  color: #888;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}

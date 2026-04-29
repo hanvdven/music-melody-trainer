@@ -1,0 +1,90 @@
+.app-header {
+  width: 100%;
+  position: relative;
+  margin-bottom: 0;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+.app-header-left {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-header-right {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-header-center {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+  height: 100%;
+  justify-content: center;
+}
+
+.app-header-center-inner {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-header-title {
+  font-family: serif;
+  font-size: 22px;
+  font-weight: bold;
+  color: var(--text-primary);
+  text-align: center;
+  line-height: 1;
+}
+
+.app-header-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-header-btn-sm {
+  /* 20% smaller than the regular 32px btn */
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  /* Cancel the parent's 8px flex gap so the repeat/once toggle sits flush
+     against the play button (user request: remove the space between them). */
+  margin-left: -8px;
+}
+
+.app-header-btn:disabled {
+  cursor: default;
+}

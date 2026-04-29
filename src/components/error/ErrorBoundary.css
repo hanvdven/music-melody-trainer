@@ -1,0 +1,45 @@
+.error-boundary-container {
+  padding: 20px;
+  margin: 20px;
+  background-color: #2a0000;
+  border: 2px solid #ff4444;
+  border-radius: 8px;
+  color: #ffcccc;
+}
+
+.error-boundary-title {
+  color: #ff6666;
+  margin-top: 0;
+}
+
+.error-boundary-message {
+  margin-bottom: 10px;
+}
+
+.error-boundary-details {
+  margin-bottom: 15px;
+}
+
+.error-boundary-summary {
+  cursor: pointer;
+  color: #ff8888;
+}
+
+.error-boundary-stack {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: #1a0000;
+  border-radius: 4px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.error-boundary-reset-btn {
+  padding: 8px 16px;
+  background-color: #ff6666;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}

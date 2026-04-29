@@ -1,679 +1,902 @@
+/* ============================================================
+ * DESIGN TOKENS — default (dark / nocturne-base)
+ * ============================================================ */
+
+:root {
+  /* App surfaces */
+  --app-bg: #14131a;
+  /* nachtelijk indigo */
+  --panel-bg: #1f1e2a;
+  /* koel paarsgrijs */
+
+  /* Typography */
+  --text-primary: #ffffff;
+  --text-secondary: var(--white-key-color);
+  --text-dim: #cccccc;
+
+  /* Accent */
+  --accent-yellow: #f2c879;
+  /* zacht amber */
+  --accent-purple: #c08bdc;
+  --pressed-key-color: #e6a84f;
+  /* warme aanraking */
+
+  /* Buttons */
+  --button-passive: #333;
+  --button-active: #6a2a8a;
+  /* donker bessenpaars */
+  --button-text: #fff;
+  --button-small-padding: 4px 8px;
+  --button-small-font: 12px;
+
+  /* Piano keys */
+  --white-key-color: #c6c9da;
+  /* koel schemerwit */
+  --white-key-color-highlight: #9bb3d1;
+  /* avondblauw */
+  --white-key-color-tonic: #c08bdc;
+  /* mauve / twilight */
+  --black-key-color: #0e0f14;
+  /* diep nachtblauw-zwart */
+  --black-key-color-highlight: #1d2247;
+  /* koel maanlicht */
+  --black-key-color-tonic: #6a2a8a;
+  /* donker bessenpaars */
+
+  /* Wheel */
+  --wheel-color-lowlight: #333;
+  --wheel-color-highlight: #2f3558;
+  --wheel-color-tonic: #6a2a8a;
+  --wheel-text-color-lowlight: #c6c9da;
+  --wheel-text-color-highlight: #c6c9da;
+  --wheel-text-color-tonic: #c6c9da;
+
+  /* Scale selector */
+  --scale-selector-bg: rgba(255, 255, 255, 0.05);
+  --scale-selector-border: rgba(255, 255, 255, 0.1);
+  --scale-selector-active-bg: var(--accent-yellow);
+  --scale-selector-active-text: #ffffff;
+
+  /* Sheet music notes */
+  --note-tonic: #d27ffb;
+  --note-scale: #7fa0c8;
+
+  /* Chromatone Color System (pitch classes 0–11) */
+  --chromatone-0: #88FF00;
+  /* C  */
+  --chromatone-1: #00FF00;
+  /* C# */
+  --chromatone-2: #00FF88;
+  /* D  */
+  --chromatone-3: #00FFFF;
+  /* D# */
+  --chromatone-4: #0088FF;
+  /* E  */
+  --chromatone-5: #0000FF;
+  /* F  */
+  --chromatone-6: #8800FF;
+  /* F# */
+  --chromatone-7: #FF00F2;
+  /* G  */
+  --chromatone-8: #FF006A;
+  /* G# */
+  --chromatone-9: #FF0000;
+  /* A  */
+  --chromatone-10: #FF8800;
+  /* A# */
+  --chromatone-11: #FFFF00;
+  /* B  */
+
+  /* Drum Pad Colors */
+  --drum-cymbal: #f9f0bc;
+  --drum-kick-snare: #c6add5;
+  --drum-tom: #8dbcf0;
+  --drum-woodblock: #c89f76;
+  --drum-cowbell: #e6e6e6;
+
+  /* Chromatone Percussion Colors */
+  --chromatone-percussion-kick: #FF007A;
+  /* hot magenta */
+  --chromatone-percussion-snare: #C000FF;
+  /* electric violet */
+  --chromatone-percussion-snare-rim: #8833FF;
+  /* blue-violet rim click */
+  --chromatone-percussion-snare-ghost: #7800B8;
+  /* dim violet ghost */
+
+  --chromatone-percussion-tom-high: #00D4FF;
+  /* bright cyan */
+  --chromatone-percussion-tom-mid: #0099FF;
+  /* sky blue */
+  --chromatone-percussion-tom-floor: #005CFF;
+  /* electric blue */
+
+  --chromatone-percussion-crash: #FFFF00;
+  /* pure spectrum yellow */
+  --chromatone-percussion-crash-tip: #FFE100;
+  /* golden yellow */
+  --chromatone-percussion-crash-bell: hsl(48 100% 50%);
+  --chromatone-percussion-ride: #FFC400;
+  /* amber */
+  --chromatone-percussion-ride-tip: #FFB000;
+  /* warm amber */
+  --chromatone-percussion-ride-bell: hsl(42 100% 45%);
+  --chromatone-percussion-hihat-open: #FFF700;
+  /* lemon */
+  --chromatone-percussion-hihat-closed: #FFD000;
+  /* compact gold */
+  --chromatone-percussion-hihat-pedal: #FFB800;
+  /* deeper brass */
+
+  --chromatone-percussion-woodblock-hi: #FF6A00;
+  /* vivid orange */
+  --chromatone-percussion-woodblock-mid: #FF4500;
+  /* orange-red */
+  --chromatone-percussion-woodblock-lo: #FF1E00;
+  /* red-orange */
+
+  --chromatone-percussion-cowbell: #00FF66;
+  /* vivid spring green */
+  --chromatone-percussion-other: #66FF00;
+  /* electric lime */
+
+  --soft-mix-target: #ffffff;
+}
+
+/* ============================================================
+ * THEMES
+ * ============================================================ */
+
+:root[data-theme='nocturne'] {
+  --app-bg: #0b1020;
+  --panel-bg: #222c40;
+  --text-primary: #e6e8ef;
+  --text-dim: #8a90a8;
+  --text-tonic: #0b1020;
+  --text-highlight: #e6e8ef;
+  --text-lowlight: #8a90a8;
+
+  --accent-yellow: #d4af37;
+  --button-active: var(--accent-yellow);
+  --pressed-key-color: #d4af37;
+
+  --white-key-color: #c6c9da;
+  --white-key-color-tonic: #316ee1;
+  --black-key-color: #0e0f14;
+  --black-key-color-tonic: #316ee1;
+
+  --wheel-color-tonic: #d4af37;
+  --wheel-color-highlight: #3451aa;
+  --wheel-color-lowlight: #151822;
+
+  --soft-mix-target: #ffffff;
+}
+
+/* Warm parchment */
+:root[data-theme='meridienne'] {
+  --app-bg: #f4e7c5;
+  --panel-bg: #e3d3a2;
+  --text-primary: #3a2e1f;
+  --text-dim: #7b6a55;
+  --text-tonic: #3a2e1f;
+  --text-highlight: #4a5f73;
+  --text-lowlight: #7b6a55;
+
+  --accent-yellow: #b08a5a;
+  --button-active: var(--accent-yellow);
+  --pressed-key-color: #dcb35c;
+
+  --white-key-color: #fffaf0;
+  --black-key-color: #3e2b1d;
+
+  --wheel-color-tonic: #e6c15a;
+  --wheel-color-highlight: #9bb3c8;
+  --wheel-color-lowlight: #b08a5a;
+
+  --note-tonic: #7c2bb3;
+  --note-scale: #4c6b95;
+
+  --soft-mix-target: #ffffff;
+}
+
+:root[data-theme='light'] {
+  --app-bg: #eef3f7;
+  --panel-bg: #bcc7d4;
+  --text-primary: #2b3a42;
+  --text-dim: #7d8e9c;
+  --text-tonic: #2b3a42;
+  --text-highlight: #445a6b;
+  --text-lowlight: #7d8e9c;
+
+  --accent-yellow: #c97b4b;
+  /* strong enough to read on light bg */
+  --button-active: var(--accent-yellow);
+  --pressed-key-color: #c97b4b;
+
+  --white-key-color: #f5f7fb;
+  /* slight off-white reduces glare */
+  --white-key-color-highlight: #9bb3d1;
+  --black-key-color: #445a6b;
+
+  --wheel-color-tonic: #c97b4b;
+  --wheel-color-highlight: #a9bfd6;
+  --wheel-color-lowlight: #bcc7d4;
+
+  --note-tonic: #8a3fd1;
+  --note-scale: #4e6fa3;
+
+  --soft-mix-target: var(--panel-bg);
+}
+
+/* ============================================================
+ * BASE / RESET
+ * ============================================================ */
+
 html,
 body,
 #root {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background-color: #111;
-    /* Match app bg */
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--panel-bg);
 }
 
 * {
-    box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent;
-    outline: none;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
 }
 
 body {
-    user-select: none;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
-
-:root {
-    /* piano */
-    --white-key-color: #c6c9da;
-    /* koel schemerwit */
-    --white-key-color-highlight: #7fa0c8;
-    /* avondblauw */
-    --white-key-color-tonic: #c08bdc;
-    /* mauve / twilight */
-    --black-key-color: #0e0f14;
-    /* diep nachtblauw-zwart */
-    --black-color-highlight: #1d2247;
-    /* koel maanlicht */
-    --black-key-color-tonic: #6a2a8a;
-    /* donker bessenpaars */
-
-    /* selectorknoppies */
-    --button-passive: #333;
-    --button-active: #6a2a8a;
-    /* donker bessenpaars */
-    --button-text: #fff;
-    --button-small-padding: 4px 8px;
-    --button-small-font: 12px;
-
-    /* wheel */
-    --wheel-color-lowlight: #333;
-    --wheel-color-highlight: #2f3558;
-    --wheel-color-tonic: #6a2a8a;
-    --wheel-text-color-lowlight: #c6c9da;
-    --wheel-text-color-highlight: #c6c9da;
-    --wheel-text-color-tonic: #c6c9da;
-
-    /* Global App Colors */
-    --app-bg: #14131a;
-    /* nachtelijk indigo */
-    --panel-bg: #1f1e2a;
-    /* koel paarsgrijs */
-    --text-primary: #ffffff;
-    --text-dim: #cccccc;
-    --accent-yellow: #f2c879;
-    --accent-purple: #c08bdc;
-    /* zacht amber */
-    --pressed-key-color: #e6a84f;
-    /* warme aanraking */
-    /*--accent-yellow: #ffff00;*/
-    /*--pressed-key-color: #ffaa00;*/
-}
-
-:root[data-theme="nocturne"] {
-    --app-bg: #0b1020;
-    --panel-bg: #151822;
-    --text-primary: #e6e8ef;
-    --text-dim: #8a90a8;
-    --accent-yellow: #d4af37;
-    /* monumentaal goud */
-
-    --wheel-tonic: #d4af37;
-    --wheel-highlight: #2f3f6f;
-    --wheel-lowlight: #151822;
-    --wheel-color-tonic: #d4af37;
-    --wheel-color-highlight: #2f3f6f;
-    --wheel-color-lowlight: #151822;
-
-    --text-tonic: #0b1020;
-    --text-highlight: #e6e8ef;
-    --text-lowlight: #8a90a8;
-
-    --white-key-color: #c6c9da;
-    --black-key-color: #0e0f14;
-    --pressed-key-color: #d4af37;
-}
-
-:root[data-theme="meridienne"] {
-    --app-bg: #f4e7c5;
-    --panel-bg: #e6c15a;
-    /* Slightly darker than bg */
-    --text-primary: #3a2e1f;
-    --text-dim: #7b6a55;
-    --accent-yellow: #b08a5a;
-    /* oker */
-
-    --wheel-tonic: #e6c15a;
-    /* tarwe */
-    --wheel-highlight: #9bb3c8;
-    /* stoffig blauw */
-    --wheel-lowlight: #b08a5a;
-    /* oker */
-    --wheel-color-tonic: #e6c15a;
-    --wheel-color-highlight: #9bb3c8;
-    --wheel-color-lowlight: #b08a5a;
-
-    --text-tonic: #3a2e1f;
-    --text-highlight: #4a5f73;
-    --text-lowlight: #7b6a55;
-
-    --white-key-color: #fffaf0;
-    --black-key-color: #3e2b1d;
-    --pressed-key-color: #dcb35c;
-}
-
-:root[data-theme="museum"] {
-    --app-bg: #0e2a47;
-    --panel-bg: #102030;
-    --text-primary: #eaeef3;
-    --text-dim: #9fb4c9;
-    --accent-yellow: #f2c94c;
-    /* kunstlicht */
-
-    --wheel-tonic: #f2c94c;
-    --wheel-highlight: #3f6fa3;
-    --wheel-lowlight: #102030;
-    --wheel-color-tonic: #f2c94c;
-    --wheel-color-highlight: #3f6fa3;
-    --wheel-color-lowlight: #102030;
-
-    --text-tonic: #0e2a47;
-    --text-highlight: #eaeef3;
-    --text-lowlight: #9fb4c9;
-
-    --white-key-color: #dceefb;
-    --black-key-color: #05101a;
-    --pressed-key-color: #f2c94c;
-}
-
-:root[data-theme="afterglow"] {
-    --app-bg: #0e1220;
-    /* diep blauwviolet */
-    --panel-bg: #1a1d2b;
-    /* nachtschaduw */
-    --text-primary: #f0e6ea;
-    /* warm off-white */
-    --text-dim: #9a8fa3;
-    /* stoffig lila-grijs */
-    --accent-yellow: #c85c5c;
-    /* gedempt ember-rood */
-
-    --wheel-tonic: #c85c5c;
-    --wheel-highlight: #5a4d73;
-    /* mauve / violet-grijs */
-    --wheel-lowlight: #1a1d2b;
-    --wheel-color-tonic: #c85c5c;
-    --wheel-color-highlight: #5a4d73;
-    --wheel-color-lowlight: #1a1d2b;
-
-    --text-tonic: #0e1220;
-    --text-highlight: #f0e6ea;
-    --text-lowlight: #9a8fa3;
-
-    --white-key-color: #e0dbe9;
-    --black-key-color: #120b1f;
-    --pressed-key-color: #c85c5c;
-}
-
-:root[data-theme="pastel-dawn"] {
-    --app-bg: #eef3f7;
-    /* ochtendmist */
-    --panel-bg: #d1d9e2;
-    /* koel grijs */
-    --text-primary: #2b3a42;
-    --text-dim: #7d8e9c;
-    --accent-yellow: #f3c6a8;
-    /* perzik-crème */
-
-    --wheel-tonic: #f3c6a8;
-    --wheel-highlight: #a9bfd6;
-    /* luchtblauw */
-    --wheel-lowlight: #d1d9e2;
-    --wheel-color-tonic: #f3c6a8;
-    --wheel-color-highlight: #a9bfd6;
-    --wheel-color-lowlight: #d1d9e2;
-
-    --text-tonic: #2b3a42;
-    --text-highlight: #445a6b;
-    --text-lowlight: #7d8e9c;
-
-    --white-key-color: #fff;
-    --black-key-color: #445a6b;
-    --pressed-key-color: #f3c6a8;
-}
-
-:root[data-theme="golden-wetlands"] {
-    --app-bg: #e6ddc6;
-    /* natte aarde */
-    --panel-bg: #6b5b3e;
-    /* rietbruin */
-    --text-primary: #3a3324;
-    --text-dim: #7a745e;
-    --accent-yellow: #d6b35c;
-    /* honinggoud */
-
-    --wheel-tonic: #d6b35c;
-    --wheel-highlight: #8fa18c;
-    /* moerasgroen */
-    --wheel-lowlight: #6b5b3e;
-    --wheel-color-tonic: #d6b35c;
-    --wheel-color-highlight: #8fa18c;
-    --wheel-color-lowlight: #6b5b3e;
-
-    --text-tonic: #3a3324;
-    --text-highlight: #4f5d46;
-    --text-lowlight: #7a745e;
-
-    --white-key-color: #f0eadd;
-    --black-key-color: #2b2518;
-    --pressed-key-color: #d6b35c;
-}
-
-:root[data-theme="light"] {
-    --app-bg: #f5f5f5;
-    --panel-bg: #e0e0e0;
-    --text-primary: #000000;
-    --text-dim: #555555;
-    --accent-yellow: #d4d400;
-
-    --white-key-color: #fff;
-    --black-key-color: #333;
-
-    --button-passive: #ccc;
-    --button-active: #69C;
-    --button-text: #000;
-
-    --wheel-color-lowlight: #ddd;
-    --wheel-color-highlight: #ccc;
-    --wheel-color-tonic: #69C;
-
-    --wheel-tonic: #69C;
-    --wheel-highlight: #ccc;
-    --wheel-lowlight: #ddd;
-
-    --text-tonic: #000;
-    --text-highlight: #333;
-    --text-lowlight: #666;
-}
-
-/* UI Utility Classes */
-.ghost-button {
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    font-size: 14px;
-    padding: 8px 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    border-radius: 6px;
-    transition: all 0.2s ease;
-}
-
-.ghost-button:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: white;
-}
-
-.ghost-button.active {
-    background: rgba(125, 0, 198, 0.2);
-    color: var(--white-key-color-tonic);
-    border: 1px solid rgba(125, 0, 198, 0.3);
-}
-
-.tab-button {
-    background: none;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    font-size: 18px;
-    /* Slightly smaller icons */
-    padding: 4px 6px;
-    /* Drastically reduced from 10px */
-    border-radius: 6px;
-    transition: all 0.2s ease;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    min-width: 75px;
-    /* Reduced from 85px */
-}
-
-.tab-button:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-}
-
-.tab-button.active {
-    color: var(--accent-yellow);
-    background: rgba(255, 255, 0, 0.05);
-}
-
-.tab-label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* Algemene knoppen voor ScaleSelector */
-.scale-selector-button {
-    margin: 1px;
-    box-sizing: border-box;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-size: clamp(10px, 2vw, 11px);
-    padding: 2px 4px;
-    /* Tight horizontal padding */
-    cursor: pointer;
-    border-radius: 3px;
-    border: none;
-    background-color: var(--button-passive);
-    color: white;
-    height: 36px;
-    /* Increased height for better look */
-    line-height: normal;
-}
-
-.scale-selector-button.active {
-    background-color: var(--button-active);
-}
-
-.family-buttons-container,
-.mode-buttons-container {
-    font-weight: 600;
-}
-
-
 
 @font-face {
-    font-family: 'Maestro';
-    src: url('/src/assets/fonts/maestro.ttf') format('truetype');
+  font-family: 'Maestro';
+  src: url('/src/assets/fonts/maestro.ttf') format('truetype');
 }
 
 svg {
-    font-family: 'Maestro';
-    user-select: none;
-    -webkit-user-select: none;
+  font-family: 'Maestro';
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 svg path:focus {
-    outline: none;
+  outline: none;
 }
 
 path {
-    -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.App {
-    text-align: center;
-    font-family: Arial, sans-serif;
-    margin: 20px;
+/* ============================================================
+ * ANIMATIONS
+ * ============================================================ */
+
+/* Scroll-mode preview overlay: fade in over 0.5s (failsafe for late-arriving pregen content) */
+@keyframes scrollPreviewFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
-h1 {
-    color: #333;
+/* Live input test mode: pulsing red indicator dot */
+@keyframes livePulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
 }
 
-button {
-    padding: 8px 16px;
-    margin: 5px;
-    font-size: 16px;
+/* Tone Recognizer: detected single note key */
+@keyframes tonePulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 14px 4px rgba(242, 200, 121, 0.8);
+  }
+
+  50% {
+    box-shadow: 0 0 22px 8px rgba(242, 200, 121, 1.0);
+  }
 }
+
+@keyframes successFadeOutline {
+  0% {
+    filter: drop-shadow(0 0 8px #00FF00) drop-shadow(0 0 4px #00FF00) drop-shadow(0 0 2px #00FF00);
+  }
+
+  100% {
+    filter: drop-shadow(0 0 0px rgba(0, 255, 0, 0));
+  }
+}
+
+/* ============================================================
+ * LAYOUT
+ * ============================================================ */
 
 .app-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .top-content {
-    flex: 1;
-    padding: 20px;
-    overflow: auto;
+  flex: 1;
+  padding: 20px;
+  overflow: auto;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05);
 }
 
 .piano-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    height: 100%;
-    width: 100%;
-    box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .piano-row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 80vh;
-    width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80vh;
+  width: 100%;
 }
 
 .piano-wrapper {
-    flex: 1;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .piano-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-left: 12px;
 }
 
-/* Piano keys */
-
+/* ============================================================
+ * PIANO KEYS
+ * ============================================================ */
 
 .piano-white {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 100%;
-    height: 100%;
-    display: flex;
-    z-index: 1;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  z-index: 1;
 }
 
 .piano-black {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    z-index: 2;
-    pointer-events: none;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  z-index: 2;
+  pointer-events: none;
 }
 
 .white-key {
-    font-size: clamp(6px, 5vw, 16px);
-    overflow: hidden;
-    flex: 1;
-    height: 99%;
-    margin: 0px;
-    background-color: var(--white-key-color);
-    border-right: 1px solid #000;
-    border-left: 0;
-    border-bottom: 1px solid #000;
-    border-top: 1px solid #000;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    align-items: center;
-    padding-bottom: 10px;
-    cursor: pointer;
-    color: #444;
-    border-radius: 0 0 6px 6px;
+  font-size: clamp(10px, 4vw, 26px);
+  overflow: visible;
+  flex: 1;
+  height: 100%;
+  margin: 0;
+  background-color: var(--white-key-color);
+  border-right: 1px solid #000;
+  border-left: 0;
+  border-bottom: 1px solid #000;
+  border-top: 1px solid #000;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding-bottom: 10px;
+  cursor: pointer;
+  color: #444;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 4px 8px 12px -4px rgba(0, 0, 0, 0.5);
 }
 
 .white-key:first-child {
-    border-left: 1px solid #000;
+  border-left: 1px solid #000;
 }
 
 .white-key:active,
 .black-key:active {
-    background-color: var(--pressed-key-color) !important;
+  background-color: var(--pressed-key-color) !important;
 }
 
 .black-key {
-    font-size: clamp(6px, 5vw, 16px);
-    overflow: hidden;
-    flex: 1;
-    width: 100%;
-    height: 65%;
-    margin: 0 8px;
-    background-color: var(--black-key-color);
-    border: 1px solid #000;
-    border-radius: 0 0 6px 6px;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    align-items: center;
-    padding-bottom: 10px;
-    pointer-events: all;
-    color: #fff;
-    cursor: pointer;
+  font-size: clamp(10px, 4vw, 26px);
+  overflow: hidden;
+  flex: 1;
+  width: 100%;
+  height: 65%;
+  margin: 0 8px;
+  background-color: var(--black-key-color);
+  border: 1px solid #000;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding-bottom: 10px;
+  pointer-events: all;
+  color: #fff;
+  cursor: pointer;
 }
 
 .half-key {
-    flex: .5;
-    width: 50%;
-    height: 80%;
-    margin: 0 4px;
-    background-color: transparent;
+  flex: 0.5;
+  width: 50%;
+  height: 80%;
+  margin: 0 4px;
+  background-color: transparent;
 }
 
 .placeholder-key {
-    flex: 1;
-    background-color: transparent;
-    margin: 0 8px;
-    height: 80%;
+  flex: 1;
+  background-color: transparent;
+  margin: 0 8px;
+  height: 80%;
 }
 
 .highlighted-white-key {
-    background-color: var(--white-key-color-highlight);
+  background-color: var(--white-key-color-highlight);
 }
 
 .highlighted-black-key {
-    background-color: var(--black-color-highlight);
+  background-color: var(--black-key-color-highlight);
 }
 
 .tonic-white-key {
-    background-color: var(--white-key-color-tonic);
+  background-color: var(--white-key-color-tonic);
 }
 
 .tonic-black-key {
-    background-color: var(--black-key-color-tonic);
+  background-color: var(--black-key-color-tonic);
 }
 
-/* === Piano toets labels === */
 .piano-key-label {
-    display: inline-block;
-    width: 100%;
-    /* past binnen de toets */
-    text-align: center;
-    /* gecentreerd op de toets */
-    white-space: nowrap;
-    /* niet op nieuwe regel */
-    overflow: hidden;
-    /* verberg wat te breed is */
-    text-overflow: ellipsis;
-    /* optioneel: vervang overschot met ... */
-
-    /* dynamische font-size: altijd tussen 8px en 14px */
-    font-size: clamp(8px, 1.5vw, 14px);
+  display: inline-block;
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: clamp(8px, 1.5vw, 14px);
 }
 
-
-/* Optional: toon labels van toetsen iets kleiner */
-.white-key span,
-.black-key span {
-    font-size: 12px;
-}
-
-.treble-settings {
-    padding: 12px;
-    background-color: #333;
-    color: white;
-    border-radius: 6px;
-    width: 100%;
-    max-width: 400px;
-    margin: auto;
-}
-
-.setting-row {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-    gap: 8px;
-}
-
-.setting-row label {
-    min-width: 130px;
-}
-
-.setting-row select,
-.setting-row button {
-    padding: 4px 8px;
-    border-radius: 4px;
-    border: none;
-    background-color: #555;
-    color: white;
-    cursor: pointer;
-}
-
-.setting-row button:hover,
-.setting-row select:hover {
-    background-color: #777;
-}
-
-.setting-row span {
-    width: 30px;
-    text-align: center;
-}
+/* ============================================================
+ * WHEEL
+ * ============================================================ */
 
 .diatonic-wheel {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
 
 .wheel-controls {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .mode-label {
-    min-width: 120px;
-    text-align: center;
-    font-weight: 600;
+  min-width: 120px;
+  text-align: center;
+  font-weight: 600;
 }
 
-/* Measure Indicators in Sheet Music */
-.measure-indicator {
-    fill: yellow;
-    font-size: 16px;
-    font-family: Arial, sans-serif;
-    pointer-events: none;
-    user-select: none;
+.diatonic.tab-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s;
+  min-width: 0;
+  flex: 1;
 }
 
-/* BPM Styles */
+/* ============================================================
+ * UI CONTROLS
+ * ============================================================ */
+
+.ghost-button {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.ghost-button:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.ghost-button.active {
+  background: rgba(125, 0, 198, 0.2);
+  color: var(--white-key-color-tonic);
+  border: 1px solid rgba(125, 0, 198, 0.3);
+}
+
+.tab-button {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 0;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 75px;
+  flex-shrink: 0;
+}
+
+.tab-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.tab-button.active {
+  color: var(--accent-yellow);
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.tab-button.secondary {
+  color: var(--text-secondary);
+}
+
+.tab-button.secondary:hover {
+  color: white;
+}
+
+.tab-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scale-selector-button {
+  margin: 1px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: clamp(10px, 2vw, 11px);
+  padding: 2px 4px;
+  cursor: pointer;
+  border-radius: 3px;
+  border: none;
+  background-color: var(--button-passive);
+  color: var(--text-primary);
+  height: 36px;
+  line-height: normal;
+}
+
+.scale-selector-button.active {
+  background-color: var(--scale-selector-active-bg);
+  color: var(--scale-selector-active-text);
+  font-weight: 600;
+}
+
+.family-buttons-container,
+.mode-buttons-container {
+  font-weight: 600;
+}
+
+/* ============================================================
+ * SHEET MUSIC
+ * ============================================================ */
+
+/* BPM / Tempo */
 .bpm-note {
-    font-family: 'Maestro';
-    font-size: 24px;
-    fill: var(--text-dim);
-    pointer-events: none;
-    user-select: none;
+  font-family: 'Maestro';
+  font-size: 24px;
+  fill: var(--text-dim);
+  pointer-events: none;
+  user-select: none;
 }
 
 .bpm-text {
-    font-family: Arial, sans-serif;
-    font-size: 24px;
-    fill: white;
-    pointer-events: none;
-    user-select: none;
+  font-family: Arial, sans-serif;
+  font-size: 24px;
+  fill: var(--text-primary);
+  pointer-events: none;
+  user-select: none;
 }
 
 .bpm-equals {
-    font-family: "Times New Roman", serif;
-    font-size: 14px;
-    fill: var(--text-dim);
-    font-weight: normal;
-    pointer-events: none;
-    user-select: none;
+  font-family: 'Times New Roman', serif;
+  font-size: 14px;
+  fill: var(--text-dim);
+  font-weight: normal;
+  pointer-events: none;
+  user-select: none;
 }
 
 .bpm-value {
-    font-family: 'Maestro';
-    font-size: 32px;
-    fill: var(--text-dim);
-    /* Lowlighted as requested */
-    font-weight: normal;
-    pointer-events: none;
-    user-select: none;
+  font-family: 'Maestro';
+  font-size: 32px;
+  fill: var(--text-dim);
+  font-weight: normal;
+  pointer-events: none;
+  user-select: none;
 }
 
 .tempo-term {
-    font-family: "Times New Roman", serif;
-    font-size: 14px;
-    fill: var(--text-dim);
-    font-style: italic;
-    pointer-events: none;
-    user-select: none;
+  font-family: 'Times New Roman', serif;
+  font-size: 14px;
+  fill: var(--text-dim);
+  font-style: italic;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Measure number indicators */
+.measure-indicator {
+  fill: var(--text-secondary);
+  font-size: 16px;
+  font-family: Arial, sans-serif;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Layer transition fade */
+.notes-transition {
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* ============================================================
+ * RUNTIME STATE & HIGHLIGHTS
+ * ============================================================ */
+
+/* Transition resting states — opacity managed by rAF / useLayoutEffect, not inline JSX style.
+ * Using CSS classes instead of inline style.opacity prevents React re-renders from overwriting
+ * the animated values on every commit (inline style always wins over CSS animations/classes,
+ * so a JSX opacity prop would reset the animation on every React render). */
+
+/* Pagination crossfade: rAF animates [data-pagination-old] and [data-pagination-new] */
+.pagination-old-visible {
+  opacity: 1;
+}
+
+.pagination-old-hidden {
+  opacity: 0;
+}
+
+.pagination-new-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+/* Wipe transition: useLayoutEffect sets style.opacity='1' + HIDDEN mask after React commits;
+ * the class keeps it invisible before that synchronous update fires (no flash). */
+.wipe-new-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Note playback highlight — applied via direct DOM class toggle in rAF loop */
+.note-active {
+  filter: url(#note-glow-subtle);
+}
+
+/* Chord grid cell highlights — applied via rAF direct DOM manipulation.
+ * Band 1 (pink/tonic) → bright white-yellow active; Band 5 (dark wine) → dim gold active. */
+
+/* Active: band 1 — bright white-yellow */
+[data-band="1"][data-degree].chord-active {
+  background: rgba(255, 253, 210, 0.97) !important;
+  box-shadow: 0 0 10px 3px rgba(255, 240, 120, 0.5) !important;
+  outline: none !important;
+}
+
+[data-band="1"][data-degree].chord-active span {
+  color: #222 !important;
+}
+
+[data-band="1"][data-degree].chord-next {
+  background: rgba(240, 220, 60, 0.93) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+[data-band="1"][data-degree].chord-next span {
+  color: #111 !important;
+}
+
+/* Active: band 2 */
+[data-band="2"][data-degree].chord-active {
+  background: rgba(235, 220, 100, 0.96) !important;
+  box-shadow: 0 0 8px 2px rgba(240, 210, 60, 0.4) !important;
+  outline: none !important;
+}
+
+[data-band="2"][data-degree].chord-active span {
+  color: #222 !important;
+}
+
+[data-band="2"][data-degree].chord-next {
+  background: rgba(210, 180, 0, 0.93) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+[data-band="2"][data-degree].chord-next span {
+  color: #111 !important;
+}
+
+/* Active: band 3 */
+[data-band="3"][data-degree].chord-active {
+  background: rgba(210, 185, 0, 0.95) !important;
+  box-shadow: 0 0 8px 2px rgba(210, 175, 0, 0.35) !important;
+  outline: none !important;
+}
+
+[data-band="3"][data-degree].chord-active span {
+  color: #111 !important;
+}
+
+[data-band="3"][data-degree].chord-next {
+  background: rgba(175, 145, 0, 0.93) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+[data-band="3"][data-degree].chord-next span {
+  color: #ddd !important;
+}
+
+/* Active: band 4 */
+[data-band="4"][data-degree].chord-active {
+  background: rgba(175, 140, 0, 0.95) !important;
+  box-shadow: 0 0 6px 2px rgba(175, 135, 0, 0.3) !important;
+  outline: none !important;
+}
+
+[data-band="4"][data-degree].chord-active span {
+  color: #eee !important;
+}
+
+[data-band="4"][data-degree].chord-next {
+  background: rgba(140, 105, 0, 0.93) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+[data-band="4"][data-degree].chord-next span {
+  color: #ddd !important;
+}
+
+/* Active: band 5 — dark white-yellow (dim) */
+[data-band="5"][data-degree].chord-active {
+  background: rgba(140, 105, 0, 0.95) !important;
+  box-shadow: 0 0 6px 2px rgba(140, 100, 0, 0.25) !important;
+  outline: none !important;
+}
+
+[data-band="5"][data-degree].chord-active span {
+  color: #ddd !important;
+}
+
+[data-band="5"][data-degree].chord-next {
+  background: rgba(100, 72, 0, 0.93) !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+[data-band="5"][data-degree].chord-next span {
+  color: #ccc !important;
+}
+
+/* Sheet music chord label highlight — subtle white glow (same as note-active) */
+[data-mel="chord"].chord-label-active text {
+  filter: url(#note-glow-subtle);
+}
+
+/* Brief flash when a note or chord is clicked via tap-to-play.
+ * Uses the same note-glow SVG filter for visual consistency with playback highlight.
+ * Class is added/removed via DOM manipulation (no React re-render). */
+@keyframes note-click-flash {
+  0%   { filter: url(#note-glow); opacity: 0.55; }
+  40%  { filter: url(#note-glow); opacity: 1; }
+  100% { filter: none;            opacity: 1; }
+}
+.note-click-flash {
+  animation: note-click-flash 0.4s ease-out forwards;
+}
+
+/* Tone Recognizer: chord and active key highlights */
+.tone-chord-key {
+  box-shadow: 0 0 8px 2px rgba(192, 128, 64, 0.55);
+}
+
+.tone-active-key {
+  animation: tonePulse 0.6s ease-in-out infinite;
+}
+
+/* Overlay sheet: color all notation gold/yellow (note heads are <text>, stems are <path>) */
+.overlay-sheet text {
+  fill: #c8a000 !important;
+}
+
+.overlay-sheet path {
+  stroke: #c8a000 !important;
+}
+
+.overlay-sheet line {
+  stroke: #c8a000 !important;
+}
+
+/* Input Test Mode */
+.input-test-waiting text {
+  filter: url(#note-glow);
+}
+
+.input-test-success {
+  animation: successFadeOutline 1s ease-out forwards;
+}
+
+.input-test-error text {
+  filter: url(#note-glow-error);
+}
+
+.chord-note-hit {
+  filter: drop-shadow(0 0 8px #00FF00) drop-shadow(0 0 4px #00FF00) !important;
 }
