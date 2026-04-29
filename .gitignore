@@ -33,3 +33,15 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# editor / IDE
+.idea/
+.vscode/
+.claude/
+
+# backups and scratch
+*.bak
+temp_*.jsx
+temp_*.js
+test_chord_format.js
+test_chords_complex.js
