@@ -1,0 +1,54 @@
+<global>
+ //+ Instrument: Tubular Bells
+ //+ Program: 15
+ ampeg_release=5
+
+<group>
+<region>
+ lokey=52 hikey=57
+ pitch_keycenter=54
+ sample=samples/TubularBells/F#3.wav
+<region>
+ lokey=58 hikey=61
+ pitch_keycenter=60
+ sample=samples/TubularBells/C4.wav
+<region>
+ lokey=62 hikey=63
+ pitch_keycenter=62
+ sample=samples/TubularBells/D4.wav
+<region>
+ lokey=64 hikey=65
+ pitch_keycenter=64
+ sample=samples/TubularBells/E4.wav
+<region>
+ lokey=66 hikey=67
+ pitch_keycenter=66
+ sample=samples/TubularBells/F#4.wav
+<region>
+ lokey=68 hikey=69
+ pitch_keycenter=68
+ sample=samples/TubularBells/G#4.wav
+<region>
+ lokey=70 hikey=71
+ pitch_keycenter=70
+ sample=samples/TubularBells/A#4.wav
+<region>
+ lokey=72 hikey=73
+ pitch_keycenter=72
+ sample=samples/TubularBells/C5.wav
+<region>
+ lokey=74 hikey=75
+ pitch_keycenter=74
+ sample=samples/TubularBells/D5.wav
+<region>
+ lokey=76 hikey=79
+ pitch_keycenter=76
+ sample=samples/TubularBells/E5.wav
+<region>
+ lokey=80 hikey=85
+ pitch_keycenter=82
+ sample=samples/TubularBells/A#5.wav
+<region>
+ lokey=86 hikey=89
+ pitch_keycenter=88
+ sample=samples/TubularBells/E6.wav

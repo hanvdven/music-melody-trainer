@@ -1,0 +1,73 @@
+<global>
+ //+ Instrument: Synth Crystal
+ //+ Program: 99
+ ampeg_release=2
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=32 hikey=38
+ loop_start=156227
+ loop_end=239169
+ pitch_keycenter=36
+ sample=samples/SynthCrystal/C2.wav
+<region>
+ lokey=39 hikey=44
+ loop_start=156684
+ loop_end=239169
+ pitch_keycenter=42
+ sample=samples/SynthCrystal/F#2.wav
+<region>
+ lokey=45 hikey=50
+ loop_start=157245
+ loop_end=239169
+ pitch_keycenter=48
+ sample=samples/SynthCrystal/C3.wav
+<region>
+ lokey=51 hikey=56
+ loop_start=158115
+ loop_end=239169
+ pitch_keycenter=54
+ sample=samples/SynthCrystal/F#3.wav
+<region>
+ lokey=57 hikey=62
+ loop_start=156065
+ loop_end=239169
+ pitch_keycenter=60
+ sample=samples/SynthCrystal/C4.wav
+<region>
+ lokey=63 hikey=68
+ loop_start=154184
+ loop_end=239169
+ pitch_keycenter=66
+ sample=samples/SynthCrystal/F#4.wav
+<region>
+ lokey=69 hikey=74
+ loop_start=158848
+ loop_end=239169
+ pitch_keycenter=72
+ sample=samples/SynthCrystal/C5.wav
+<region>
+ lokey=75 hikey=80
+ loop_start=153768
+ loop_end=239169
+ pitch_keycenter=78
+ sample=samples/SynthCrystal/F#5.wav
+<region>
+ lokey=81 hikey=86
+ loop_start=153497
+ loop_end=239169
+ pitch_keycenter=84
+ sample=samples/SynthCrystal/C6.wav
+<region>
+ lokey=87 hikey=92
+ loop_start=159221
+ loop_end=239169
+ pitch_keycenter=90
+ sample=samples/SynthCrystal/F#6.wav
+<region>
+ lokey=93 hikey=103
+ loop_start=158470
+ loop_end=239169
+ pitch_keycenter=96
+ sample=samples/SynthCrystal/C7.wav

@@ -1,0 +1,104 @@
+<global>
+ //+ Instrument: Rock Organ
+ //+ Program: 19
+ ampeg_release=0.7
+ loop_mode=loop_continuous
+ ampeg_attack=0.001
+
+<group>
+<region>
+ sample=samples/RockOrgan/C2.wav
+ lokey=G1 hikey=Db2
+ pitch_keycenter=C2
+ loop_start=54485
+ loop_end=306061
+<region>
+ sample=samples/RockOrgan/E2.wav
+ lokey=D2 hikey=F2
+ pitch_keycenter=E2
+ loop_start=140822
+ loop_end=281595
+<region>
+ sample=samples/RockOrgan/G#2.wav
+ lokey=Gb2 hikey=A2
+ pitch_keycenter=G#2
+ loop_start=48673
+ loop_end=219056
+<region>
+ sample=samples/RockOrgan/C3.wav
+ lokey=Bb2 hikey=Db3
+ pitch_keycenter=C3
+ loop_start=57829
+ loop_end=223032
+<region>
+ sample=samples/RockOrgan/E3.wav
+ lokey=D3 hikey=F3
+ pitch_keycenter=E3
+ loop_start=56784
+ loop_end=196502
+<region>
+ sample=samples/RockOrgan/G3.wav
+ lokey=Gb3 hikey=A3
+ pitch_keycenter=G3
+ loop_start=117016
+ loop_end=235337
+<region>
+ sample=samples/RockOrgan/C4.wav
+ lokey=Bb3 hikey=Db4
+ pitch_keycenter=C4
+ loop_start=97859
+ loop_end=238485
+<region>
+ sample=samples/RockOrgan/E4.wav
+ lokey=D4 hikey=Gb4
+ pitch_keycenter=E4
+ loop_start=75731
+ loop_end=238456
+<region>
+ sample=samples/RockOrgan/G#4.wav
+ lokey=G4 hikey=Bb4
+ pitch_keycenter=G#4
+ loop_start=146830
+ loop_end=228204
+<region>
+ sample=samples/RockOrgan/C5.wav
+ lokey=B4 hikey=Db5
+ pitch_keycenter=C5
+ loop_start=106370
+ loop_end=164701
+<region>
+ sample=samples/RockOrgan/E5.wav
+ lokey=D5 hikey=Gb5
+ pitch_keycenter=E5
+ loop_start=108070
+ loop_end=189309
+<region>
+ sample=samples/RockOrgan/G#5.wav
+ lokey=G5 hikey=Bb5
+ pitch_keycenter=G#5
+ loop_start=49907
+ loop_end=174939
+<region>
+ sample=samples/RockOrgan/C6.wav
+ lokey=B5 hikey=Db6
+ pitch_keycenter=C6
+ loop_start=117174
+ loop_end=198360
+<region>
+ sample=samples/RockOrgan/E6.wav
+ lokey=D6 hikey=F6
+ pitch_keycenter=E6
+ loop_start=38814
+ loop_end=145062
+<region>
+ sample=samples/RockOrgan/G#6.wav
+ lokey=Gb6 hikey=Bb6
+ pitch_keycenter=G#6
+ loop_start=95199
+ loop_end=188894
+<region>
+ sample=samples/RockOrgan/C7.wav
+ lokey=B6 hikey=C8
+ pitch_keycenter=C7
+ loop_start=89192
+ loop_end=176704

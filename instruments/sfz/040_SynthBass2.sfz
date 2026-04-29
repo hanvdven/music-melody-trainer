@@ -1,0 +1,42 @@
+<global>
+ //+ Instrument: Synth Bass 2
+ //+ Program: 40
+ ampeg_release=0.5
+
+<group>
+<region>
+ lokey=28 hikey=38
+ pitch_keycenter=36
+ sample=samples/SynthBass2/C2.wav
+<region>
+ lokey=39 hikey=44
+ pitch_keycenter=42
+ sample=samples/SynthBass2/F#2.wav
+<region>
+ lokey=45 hikey=50
+ pitch_keycenter=48
+ sample=samples/SynthBass2/C3.wav
+<region>
+ lokey=51 hikey=56
+ pitch_keycenter=54
+ sample=samples/SynthBass2/F#3.wav
+<region>
+ lokey=57 hikey=62
+ pitch_keycenter=60
+ sample=samples/SynthBass2/C4.wav
+<region>
+ lokey=63 hikey=68
+ pitch_keycenter=66
+ sample=samples/SynthBass2/F#4.wav
+<region>
+ lokey=69 hikey=74
+ pitch_keycenter=72
+ sample=samples/SynthBass2/C5.wav
+<region>
+ lokey=75 hikey=80
+ pitch_keycenter=78
+ sample=samples/SynthBass2/F#5.wav
+<region>
+ lokey=81 hikey=88
+ pitch_keycenter=84
+ sample=samples/SynthBass2/C6.wav

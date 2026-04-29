@@ -1,0 +1,80 @@
+<global>
+ //+ Instrument: Synth Pad Bowed
+ //+ Program: 93
+ ampeg_release=2
+ loop_mode=loop_continuous
+ ampeg_attack=0.001
+
+<group>
+<region>
+ sample=samples/SynthPadBowed/C2.wav
+ lokey=G1 hikey=Eb2
+ pitch_keycenter=C2
+ loop_start=112851
+ loop_end=408471
+<region>
+ sample=samples/SynthPadBowed/Ab2.wav
+ lokey=E2 hikey=B2
+ pitch_keycenter=Ab2
+ loop_start=33744
+ loop_end=408471
+<region>
+ sample=samples/SynthPadBowed/E3.wav
+ lokey=C3 hikey=F3
+ pitch_keycenter=E3
+ loop_start=286857
+ loop_end=408471
+<region>
+ sample=samples/SynthPadBowed/Ab3.wav
+ lokey=Gb3 hikey=A3
+ pitch_keycenter=Ab3
+ loop_start=171702
+ loop_end=408471
+<region>
+ sample=samples/SynthPadBowed/C4.wav
+ lokey=Bb3 hikey=Db4
+ pitch_keycenter=C4
+ loop_start=298405
+ loop_end=408471
+<region>
+ sample=samples/SynthPadBowed/E4.wav
+ lokey=D4 hikey=F4
+ pitch_keycenter=E4
+ loop_start=278915
+ loop_end=408471
+<region>
+ sample=samples/SynthPadBowed/Ab4.wav
+ lokey=Gb4 hikey=A4
+ pitch_keycenter=Ab4
+ loop_start=216526
+ loop_end=408471
+<region>
+ sample=samples/SynthPadBowed/C5.wav
+ lokey=Bb4 hikey=Db5
+ pitch_keycenter=C5
+ loop_start=85510
+ loop_end=408471
+<region>
+ sample=samples/SynthPadBowed/E5.wav
+ lokey=D5 hikey=F5
+ pitch_keycenter=E5
+ loop_start=226324
+ loop_end=408471
+<region>
+ sample=samples/SynthPadBowed/Ab5.wav
+ lokey=Gb5 hikey=B5
+ pitch_keycenter=Ab5
+ loop_start=217687
+ loop_end=408471
+<region>
+ sample=samples/SynthPadBowed/E6.wav
+ lokey=C6 hikey=G6
+ pitch_keycenter=E6
+ loop_start=271007
+ loop_end=408471
+<region>
+ sample=samples/SynthPadBowed/C7.wav
+ lokey=Ab6 hikey=A7
+ pitch_keycenter=C7
+ loop_start=203056
+ loop_end=401727

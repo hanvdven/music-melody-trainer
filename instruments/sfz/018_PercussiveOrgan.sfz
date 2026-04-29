@@ -1,0 +1,104 @@
+<global>
+ //+ Instrument: Percussive Organ
+ //+ Program: 18
+ ampeg_release=0.7
+ loop_mode=loop_continuous
+ ampeg_attack=0.001
+
+<group>
+<region>
+ sample=samples/PercussiveOrgan/C2.wav
+ lokey=G1 hikey=Db2
+ pitch_keycenter=C2
+ loop_start=64232
+ loop_end=282065
+<region>
+ sample=samples/PercussiveOrgan/E2.wav
+ lokey=D2 hikey=F2
+ pitch_keycenter=E2
+ loop_start=36049
+ loop_end=171465
+<region>
+ sample=samples/PercussiveOrgan/G#2.wav
+ lokey=Gb2 hikey=A2
+ pitch_keycenter=Ab2
+ loop_start=39285
+ loop_end=256449
+<region>
+ sample=samples/PercussiveOrgan/C3.wav
+ lokey=Bb2 hikey=Db3
+ pitch_keycenter=C3
+ loop_start=143393
+ loop_end=257375
+<region>
+ sample=samples/PercussiveOrgan/E3.wav
+ lokey=D3 hikey=F3
+ pitch_keycenter=E3
+ loop_start=146394
+ loop_end=275973
+<region>
+ sample=samples/PercussiveOrgan/G#3.wav
+ lokey=Gb3 hikey=A3
+ pitch_keycenter=Ab3
+ loop_start=16161
+ loop_end=198019
+<region>
+ sample=samples/PercussiveOrgan/C4.wav
+ lokey=Bb3 hikey=Db4
+ pitch_keycenter=C4
+ loop_start=120556
+ loop_end=194072
+<region>
+ sample=samples/PercussiveOrgan/E4.wav
+ lokey=D4 hikey=F4
+ pitch_keycenter=E4
+ loop_start=164618
+ loop_end=237951
+<region>
+ sample=samples/PercussiveOrgan/G#4.wav
+ lokey=Gb4 hikey=A4
+ pitch_keycenter=Ab4
+ loop_start=103515
+ loop_end=169371
+<region>
+ sample=samples/PercussiveOrgan/C5.wav
+ lokey=Bb4 hikey=Db5
+ pitch_keycenter=C5
+ loop_start=107750
+ loop_end=184805
+<region>
+ sample=samples/PercussiveOrgan/E5.wav
+ lokey=D5 hikey=F5
+ pitch_keycenter=E5
+ loop_start=84042
+ loop_end=208365
+<region>
+ sample=samples/PercussiveOrgan/G#5.wav
+ lokey=Gb5 hikey=A5
+ pitch_keycenter=Ab5
+ loop_start=138584
+ loop_end=218586
+<region>
+ sample=samples/PercussiveOrgan/C6.wav
+ lokey=Bb5 hikey=Db6
+ pitch_keycenter=C6
+ loop_start=91644
+ loop_end=273754
+<region>
+ sample=samples/PercussiveOrgan/E6.wav
+ lokey=D6 hikey=F6
+ pitch_keycenter=E6
+ loop_start=129809
+ loop_end=215414
+<region>
+ sample=samples/PercussiveOrgan/G#6.wav
+ lokey=Gb6 hikey=A6
+ pitch_keycenter=Ab6
+ loop_start=179559
+ loop_end=247173
+<region>
+ sample=samples/PercussiveOrgan/C7.wav
+ lokey=Bb6 hikey=C8
+ pitch_keycenter=C7
+ loop_start=47690
+ loop_end=244044

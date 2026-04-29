@@ -1,0 +1,82 @@
+<global>
+ //+ Instrument: Synth Strings 1
+ //+ Program: 51
+ ampeg_attack=0.1
+ ampeg_release=1.0
+ fil_type=lpf_2p
+ cutoff=8000
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=24 hikey=32
+ pitch_keycenter=30
+ loop_start=304
+ loop_end=620744
+ sample=samples/SynthStrings1/F#1.wav
+<region>
+ lokey=33 hikey=38
+ pitch_keycenter=36
+ loop_start=239
+ loop_end=218136
+ sample=samples/SynthStrings1/C2.wav
+<region>
+ lokey=39 hikey=44
+ pitch_keycenter=42
+ loop_start=147
+ loop_end=387489
+ sample=samples/SynthStrings1/F#2.wav
+<region>
+ lokey=45 hikey=50
+ pitch_keycenter=48
+ loop_start=118
+ loop_end=218916
+ sample=samples/SynthStrings1/C3.wav
+<region>
+ lokey=51 hikey=56
+ pitch_keycenter=54
+ loop_start=75
+ loop_end=216802
+ sample=samples/SynthStrings1/F#3.wav
+<region>
+ lokey=57 hikey=62
+ pitch_keycenter=60
+ loop_start=35
+ loop_end=354941
+ sample=samples/SynthStrings1/C4.wav
+<region>
+ lokey=63 hikey=68
+ pitch_keycenter=66
+ loop_start=20
+ loop_end=250855
+ sample=samples/SynthStrings1/F#4.wav
+<region>
+ lokey=69 hikey=74
+ pitch_keycenter=72
+ loop_start=40
+ loop_end=177603
+ sample=samples/SynthStrings1/C5.wav
+<region>
+ lokey=75 hikey=80
+ pitch_keycenter=78
+ loop_start=20
+ loop_end=125022
+ sample=samples/SynthStrings1/F#5.wav
+<region>
+ lokey=81 hikey=86
+ pitch_keycenter=84
+ loop_start=22
+ loop_end=75130
+ sample=samples/SynthStrings1/C6.wav
+<region>
+ lokey=87 hikey=92
+ pitch_keycenter=90
+ loop_start=46
+ loop_end=182387
+ sample=samples/SynthStrings1/F#6.wav
+<region>
+ lokey=93 hikey=100
+ pitch_keycenter=96
+ loop_start=30
+ loop_end=125918
+ sample=samples/SynthStrings1/C7.wav

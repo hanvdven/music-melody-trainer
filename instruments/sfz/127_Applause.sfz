@@ -1,0 +1,12 @@
+<global>
+ //+ Instrument: Applause
+ //+ Program: 127
+ ampeg_release=2
+ pitch_keytrack=0
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ loop_start=229338
+ loop_end=605912
+ sample=samples/Applause/Applause.wav

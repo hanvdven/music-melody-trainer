@@ -1,0 +1,45 @@
+<global>
+ //+ Instrument: Kalimba
+ //+ Program: 109
+ ampeg_release=1.2
+
+<group>
+<region>
+ lokey=48 hikey=56
+ pitch_keycenter=53
+ sample=samples/Kalimba/F3_01.wav
+<region>
+ lokey=57 hikey=61
+ pitch_keycenter=60
+ tune=25
+ sample=samples/Kalimba/1_01.wav
+<region>
+ lokey=62 hikey=63
+ pitch_keycenter=63
+ tune=5
+ sample=samples/Kalimba/2_03.wav
+<region>
+ lokey=64 hikey=65
+ pitch_keycenter=64
+ tune=-40
+ sample=samples/Kalimba/3_01.wav
+<region>
+ lokey=66 hikey=67
+ pitch_keycenter=67
+ tune=7
+ sample=samples/Kalimba/4_01.wav
+<region>
+ lokey=68 hikey=70
+ pitch_keycenter=68
+ tune=17
+ sample=samples/Kalimba/5_01.wav
+<region>
+ lokey=71 hikey=72
+ pitch_keycenter=72
+ tune=22
+ sample=samples/Kalimba/6_01.wav
+<region>
+ lokey=73 hikey=84
+ pitch_keycenter=73
+ tune=-15
+ sample=samples/Kalimba/7_01.wav

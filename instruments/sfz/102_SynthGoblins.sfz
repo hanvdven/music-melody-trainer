@@ -1,0 +1,87 @@
+<global>
+ //+ Instrument: Synth Goblins
+ //+ Program: 102
+ ampeg_release=4
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=34 hikey=37
+ pitch_keycenter=36
+ loop_start=159472 loop_end=299471
+ sample=samples/SynthGoblins/C2.wav
+<region>
+ lokey=38 hikey=41
+ pitch_keycenter=40
+ loop_start=159496 loop_end=299495
+ sample=samples/SynthGoblins/E2.wav
+<region>
+ lokey=42 hikey=45
+ pitch_keycenter=44
+ loop_start=159448 loop_end=299447
+ sample=samples/SynthGoblins/G#2.wav
+<region>
+ lokey=46 hikey=49
+ pitch_keycenter=48
+ loop_start=159469 loop_end=299468
+ sample=samples/SynthGoblins/C3.wav
+<region>
+ lokey=50 hikey=53
+ pitch_keycenter=52
+ loop_start=159571 loop_end=299570
+ sample=samples/SynthGoblins/E3.wav
+<region>
+ lokey=54 hikey=57
+ pitch_keycenter=56
+ loop_start=159469 loop_end=299468
+ sample=samples/SynthGoblins/G#3.wav
+<region>
+ lokey=58 hikey=61
+ pitch_keycenter=60
+ loop_start=159434 loop_end=299433
+ sample=samples/SynthGoblins/C4.wav
+<region>
+ lokey=62 hikey=65
+ pitch_keycenter=64
+ loop_start=159530 loop_end=299529
+ sample=samples/SynthGoblins/E4.wav
+<region>
+ lokey=66 hikey=69
+ pitch_keycenter=68
+ loop_start=159410 loop_end=299409
+ sample=samples/SynthGoblins/G#4.wav
+<region>
+ lokey=70 hikey=73
+ pitch_keycenter=72
+ loop_start=159487 loop_end=299486
+ sample=samples/SynthGoblins/C5.wav
+<region>
+ lokey=74 hikey=77
+ pitch_keycenter=76
+ loop_start=159515 loop_end=299514
+ sample=samples/SynthGoblins/E5.wav
+<region>
+ lokey=78 hikey=81
+ pitch_keycenter=80
+ loop_start=159472 loop_end=299471
+ sample=samples/SynthGoblins/G#5.wav
+<region>
+ lokey=82 hikey=85
+ pitch_keycenter=84
+ loop_start=158501 loop_end=298500
+ sample=samples/SynthGoblins/C6.wav
+<region>
+ lokey=86 hikey=89
+ pitch_keycenter=88
+ loop_start=159494 loop_end=299493
+ sample=samples/SynthGoblins/E6.wav
+<region>
+ lokey=90 hikey=93
+ pitch_keycenter=92
+ loop_start=159483 loop_end=299482
+ sample=samples/SynthGoblins/G#6.wav
+<region>
+ lokey=94 hikey=100
+ pitch_keycenter=96
+ loop_start=159487 loop_end=299486
+ sample=samples/SynthGoblins/C7.wav

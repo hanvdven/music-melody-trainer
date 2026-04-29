@@ -1,0 +1,141 @@
+<global>
+ //+ Instrument: Percussion
+ //+ PercussionMode: Yes
+ loop_mode=one_shot
+
+<group>
+<region>
+ key=35
+ sample=samples/Percussion/AcousticBassDrum.wav
+<region>
+ key=36
+ sample=samples/Percussion/ElectricBassDrum.wav
+<region>
+ key=37
+ sample=samples/Percussion/SideStick.wav
+<region>
+ key=38
+ sample=samples/Percussion/AcousticSnare.wav
+<region>
+ key=39
+ sample=samples/Percussion/HandClap.wav
+<region>
+ key=40
+ sample=samples/Percussion/ElectricSnare.wav
+<region>
+ lokey=41 hikey=41
+ pitch_keycenter=43
+ sample=samples/Percussion/LowTom.wav
+<region>
+ key=42
+ sample=samples/Percussion/ClosedHiHat.wav
+<region>
+ key=43
+ sample=samples/Percussion/LowTom.wav
+<region>
+ key=44
+ sample=samples/Percussion/PedalHiHat.wav
+<region>
+ lokey=45 hikey=45
+ pitch_keycenter=47
+ sample=samples/Percussion/MidTom.wav
+<region>
+ key=46
+ sample=samples/Percussion/OpenHi-Hat.wav
+<region>
+ key=47
+ sample=samples/Percussion/MidTom.wav
+<region>
+ lokey=48 hikey=48
+ pitch_keycenter=50
+ sample=samples/Percussion/HighTom.wav
+<region>
+ key=49
+ sample=samples/Percussion/CrashCymbal1.wav
+<region>
+ key=50
+ sample=samples/Percussion/HighTom.wav
+<region>
+ key=51
+ sample=samples/Percussion/RideCymbal1.wav
+<region>
+ key=52
+ sample=samples/Percussion/ChinaCymbal.wav
+<region>
+ key=53
+ sample=samples/Percussion/RideBell.wav
+<region>
+ key=54
+ sample=samples/Percussion/Tambourine.wav
+<region>
+ key=55
+ sample=samples/Percussion/SplashCymbal.wav
+<region>
+ key=56
+ sample=samples/Percussion/Cowbell.wav
+<region>
+ key=57
+ sample=samples/Percussion/CrashCymbal2.wav
+<region>
+ loop_mode=no_loop
+ ampeg_release=1
+ key=58
+ sample=samples/Percussion/Vibraslap.wav
+<region>
+ key=59
+ sample=samples/Percussion/RideCymbal2.wav
+<region>
+ key=60
+ sample=samples/Percussion/HighBongo.wav
+<region>
+ key=61
+ sample=samples/Percussion/LowBongo.wav
+<region>
+ key=62
+ sample=samples/Percussion/MutedConga.wav
+<region>
+ key=63
+ sample=samples/Percussion/HighConga.wav
+<region>
+ key=64
+ sample=samples/Percussion/LowConga.wav
+<region>
+ key=67
+ sample=samples/Percussion/HighAgogo.wav
+<region>
+ key=68
+ sample=samples/Percussion/LowAgogo.wav
+<region>
+ key=69
+ sample=samples/Percussion/Cabasa.wav
+<region>
+ key=70
+ sample=samples/Percussion/Maracas.wav
+<region>
+ key=71
+ sample=samples/Percussion/ShortWhistle.wav
+<region>
+ key=72
+ sample=samples/Percussion/LongWhistle.wav
+<region>
+ key=73
+ sample=samples/Percussion/ShortGuiro.wav
+<region>
+ key=74
+ sample=samples/Percussion/LongGuiro.wav
+<region>
+ key=75
+ sample=samples/Percussion/Claves.wav
+<region>
+ lokey=76 hikey=76
+ pitch_keycenter=72
+ sample=samples/Percussion/WoodBlock.wav
+<region>
+ key=77
+ sample=samples/Percussion/WoodBlock.wav
+<region>
+ key=80
+ sample=samples/Percussion/MutedTriangle.wav
+<region>
+ key=81
+ sample=samples/Percussion/OpenTriangle.wav

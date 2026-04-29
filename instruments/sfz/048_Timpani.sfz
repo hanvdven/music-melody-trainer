@@ -1,0 +1,49 @@
+<global>
+ //+ Instrument: Timpani
+ //+ Program: 48
+ ampeg_release=100
+
+<group>
+<region>
+ lokey=36 hikey=40
+ pitch_keycenter=39
+ tune=-60
+ sample=samples/Timpani/1C_v5_rr1.wav
+<region>
+ lokey=41 hikey=42
+ pitch_keycenter=42
+ sample=samples/Timpani/1D_v5_rr1.wav
+<region>
+ key=43
+ tune=50
+ sample=samples/Timpani/2A_v5_rr1.wav
+<region>
+ lokey=44 hikey=45
+ pitch_keycenter=45
+ tune=-10
+ sample=samples/Timpani/2B_v5_rr1.wav
+<region>
+ lokey=46 hikey=47
+ pitch_keycenter=46
+ tune=50
+ sample=samples/Timpani/3A_v5_rr1.wav
+<region>
+ key=48
+ tune=30
+ sample=samples/Timpani/3B_v5_rr1.wav
+<region>
+ lokey=49 hikey=50
+ pitch_keycenter=49
+ tune=-30
+ sample=samples/Timpani/3C_v5_rr1.wav
+<region>
+ lokey=51 hikey=54
+ pitch_keycenter=53
+ tune=20
+ sample=samples/Timpani/4A_v5_rr1.wav
+<region>
+ lokey=55 hikey=62
+ pitch_keycenter=57
+ seq_position=1
+ tune=20
+ sample=samples/Timpani/5B_v5_rr1.wav

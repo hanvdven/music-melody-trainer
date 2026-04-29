@@ -1,0 +1,84 @@
+<global>
+ //+ Instrument: Recorder
+ //+ Program: 75
+ ampeg_release=0.35
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=60 hikey=68
+ pitch_keycenter=65
+ loop_start=29227
+ loop_end=84611
+ sample=samples/Recorder/F4.wav
+<region>
+ lokey=69 hikey=72
+ pitch_keycenter=72
+ loop_start=34795
+ loop_end=104051
+ sample=samples/Recorder/C5.wav
+<region>
+ lokey=73 hikey=74
+ pitch_keycenter=74
+ loop_start=22107
+ loop_end=85859
+ sample=samples/Recorder/D5.wav
+<region>
+ lokey=75 hikey=76
+ pitch_keycenter=76
+ loop_start=16759
+ loop_end=127137
+ sample=samples/Recorder/E5.wav
+<region>
+ lokey=77 hikey=78
+ pitch_keycenter=78
+ loop_start=28532
+ loop_end=120967
+ sample=samples/Recorder/F#5.wav
+<region>
+ lokey=79 hikey=80
+ pitch_keycenter=80
+ loop_start=10100
+ loop_end=129610
+ sample=samples/Recorder/G#5.wav
+<region>
+ lokey=81 hikey=82
+ pitch_keycenter=82
+ loop_start=13626
+ loop_end=152495
+ sample=samples/Recorder/A#5.wav
+<region>
+ lokey=83 hikey=84
+ pitch_keycenter=83
+ loop_start=20457
+ loop_end=117157
+ sample=samples/Recorder/B5.wav
+<region>
+ lokey=85 hikey=86
+ pitch_keycenter=86
+ loop_start=10780
+ loop_end=86505
+ sample=samples/Recorder/D6.wav
+<region>
+ lokey=87 hikey=88
+ pitch_keycenter=88
+ loop_start=20628
+ loop_end=120520
+ sample=samples/Recorder/E6.wav
+<region>
+ key=89
+ loop_start=21686
+ loop_end=136315
+ sample=samples/Recorder/F6.wav
+<region>
+ lokey=90 hikey=91
+ pitch_keycenter=91
+ loop_start=15640
+ loop_end=128476
+ sample=samples/Recorder/G6.wav
+<region>
+ lokey=92 hikey=100
+ pitch_keycenter=93
+ loop_start=17245
+ loop_end=107521
+ sample=samples/Recorder/A6.wav

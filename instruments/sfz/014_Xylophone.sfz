@@ -1,0 +1,42 @@
+<global>
+ //+ Instrument: Xylophone
+ //+ Program: 14
+ ampeg_release=15
+
+<group>
+<region>
+ lokey=46 hikey=51
+ pitch_keycenter=48
+ sample=samples/Xylophone/C3.wav
+<region>
+ lokey=52 hikey=57
+ pitch_keycenter=55
+ sample=samples/Xylophone/G3.wav
+<region>
+ lokey=58 hikey=63
+ pitch_keycenter=60
+ sample=samples/Xylophone/C4.wav
+<region>
+ lokey=64 hikey=69
+ pitch_keycenter=67
+ sample=samples/Xylophone/G4.wav
+<region>
+ lokey=70 hikey=75
+ pitch_keycenter=72
+ sample=samples/Xylophone/C5.wav
+<region>
+ lokey=76 hikey=81
+ pitch_keycenter=79
+ sample=samples/Xylophone/G5.wav
+<region>
+ lokey=82 hikey=87
+ pitch_keycenter=84
+ sample=samples/Xylophone/C6.wav
+<region>
+ lokey=88 hikey=93
+ pitch_keycenter=91
+ sample=samples/Xylophone/G6.wav
+<region>
+ lokey=94 hikey=99
+ pitch_keycenter=96
+ sample=samples/Xylophone/C7.wav

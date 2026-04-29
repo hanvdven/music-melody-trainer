@@ -1,0 +1,92 @@
+<global>
+ //+ Instrument: Synth Sci-Fi
+ //+ Program: 104
+ ampeg_release=3
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=31 hikey=37
+ pitch_keycenter=36
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/C2.wav
+<region>
+ lokey=38 hikey=40
+ pitch_keycenter=39
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/D#2.wav
+<region>
+ lokey=41 hikey=43
+ pitch_keycenter=42
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/F#2.wav
+<region>
+ lokey=44 hikey=46
+ pitch_keycenter=45
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/A2.wav
+<region>
+ lokey=47 hikey=49
+ pitch_keycenter=48
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/C3.wav
+<region>
+ lokey=50 hikey=52
+ pitch_keycenter=51
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/D#3.wav
+<region>
+ lokey=53 hikey=55
+ pitch_keycenter=54
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/F#3.wav
+<region>
+ lokey=56 hikey=58
+ pitch_keycenter=57
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/A3.wav
+<region>
+ lokey=59 hikey=61
+ pitch_keycenter=60
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/C4.wav
+<region>
+ lokey=62 hikey=64
+ pitch_keycenter=63
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/D#4.wav
+<region>
+ lokey=65 hikey=67
+ pitch_keycenter=66
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/F#4.wav
+<region>
+ lokey=68 hikey=70
+ pitch_keycenter=69
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/A4.wav
+<region>
+ lokey=71 hikey=73
+ pitch_keycenter=72
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/C5.wav
+<region>
+ lokey=74 hikey=77
+ pitch_keycenter=75
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/D#5.wav
+<region>
+ lokey=78 hikey=83
+ pitch_keycenter=81
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/A5.wav
+<region>
+ lokey=84 hikey=89
+ pitch_keycenter=87
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/D#6.wav
+<region>
+ lokey=90 hikey=100
+ pitch_keycenter=93
+ loop_start=180000 loop_end=299999
+ sample=samples/SynthSciFi/A6.wav

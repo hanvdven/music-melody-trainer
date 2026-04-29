@@ -1,0 +1,76 @@
+<global>
+ //+ Instrument: E. Guitar Muted
+ //+ Program: 29
+ ampeg_release=2
+
+<group>
+<region>
+ lokey=36 hikey=41
+ pitch_keycenter=40
+ sample=samples/ElectricGuitarMuted/E2.wav
+<region>
+ lokey=42 hikey=44
+ pitch_keycenter=43
+ sample=samples/ElectricGuitarMuted/G2.wav
+<region>
+ lokey=45 hikey=46
+ pitch_keycenter=45
+ sample=samples/ElectricGuitarMuted/A2.wav
+<region>
+ key=47
+ sample=samples/ElectricGuitarMuted/B2.wav
+<region>
+ lokey=48 hikey=50
+ pitch_keycenter=49
+ sample=samples/ElectricGuitarMuted/C#3.wav
+<region>
+ lokey=51 hikey=53
+ pitch_keycenter=52
+ sample=samples/ElectricGuitarMuted/E3.wav
+<region>
+ lokey=54 hikey=56
+ pitch_keycenter=55
+ sample=samples/ElectricGuitarMuted/G3.wav
+<region>
+ lokey=57 hikey=59
+ pitch_keycenter=58
+ sample=samples/ElectricGuitarMuted/A#3.wav
+<region>
+ lokey=60 hikey=61
+ pitch_keycenter=61
+ sample=samples/ElectricGuitarMuted/C#4.wav
+<region>
+ lokey=62 hikey=64
+ pitch_keycenter=63
+ sample=samples/ElectricGuitarMuted/D#4.wav
+<region>
+ key=65
+ sample=samples/ElectricGuitarMuted/F4.wav
+<region>
+ lokey=66 hikey=67
+ pitch_keycenter=67
+ sample=samples/ElectricGuitarMuted/G4.wav
+<region>
+ lokey=68 hikey=70
+ pitch_keycenter=69
+ sample=samples/ElectricGuitarMuted/A4.wav
+<region>
+ lokey=71 hikey=73
+ pitch_keycenter=72
+ sample=samples/ElectricGuitarMuted/C5.wav
+<region>
+ lokey=74 hikey=76
+ pitch_keycenter=75
+ sample=samples/ElectricGuitarMuted/D#5.wav
+<region>
+ lokey=77 hikey=79
+ pitch_keycenter=78
+ sample=samples/ElectricGuitarMuted/F#5.wav
+<region>
+ lokey=80 hikey=82
+ pitch_keycenter=81
+ sample=samples/ElectricGuitarMuted/A5.wav
+<region>
+ lokey=83 hikey=88
+ pitch_keycenter=84
+ sample=samples/ElectricGuitarMuted/C6.wav

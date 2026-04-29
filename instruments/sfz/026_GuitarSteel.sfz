@@ -1,0 +1,58 @@
+<global>
+ //+ Instrument: Steel-String Guitar
+ //+ Program: 26
+ ampeg_release=1.1
+
+<group>
+<region>
+ lokey=33 hikey=42
+ pitch_keycenter=40
+ sample=samples/GuitarSteel/E2.wav
+<region>
+ lokey=43 hikey=47
+ pitch_keycenter=45
+ sample=samples/GuitarSteel/A2.wav
+<region>
+ lokey=48 hikey=53
+ pitch_keycenter=51
+ sample=samples/GuitarSteel/D#3.wav
+<region>
+ lokey=54 hikey=57
+ pitch_keycenter=56
+ sample=samples/GuitarSteel/G#3.wav
+<region>
+ lokey=58 hikey=61
+ pitch_keycenter=60
+ sample=samples/GuitarSteel/C4.wav
+<region>
+ lokey=62 hikey=64
+ pitch_keycenter=63
+ sample=samples/GuitarSteel/D#4.wav
+<region>
+ lokey=65 hikey=67
+ pitch_keycenter=66
+ sample=samples/GuitarSteel/F#4.wav
+<region>
+ lokey=68 hikey=70
+ pitch_keycenter=69
+ sample=samples/GuitarSteel/A4.wav
+<region>
+ lokey=71 hikey=73
+ pitch_keycenter=72
+ sample=samples/GuitarSteel/C5.wav
+<region>
+ lokey=74 hikey=76
+ pitch_keycenter=75
+ sample=samples/GuitarSteel/D#5.wav
+<region>
+ lokey=77 hikey=79
+ pitch_keycenter=78
+ sample=samples/GuitarSteel/F#5.wav
+<region>
+ lokey=80 hikey=82
+ pitch_keycenter=81
+ sample=samples/GuitarSteel/A5.wav
+<region>
+ lokey=83 hikey=86
+ pitch_keycenter=84
+ sample=samples/GuitarSteel/C6.wav

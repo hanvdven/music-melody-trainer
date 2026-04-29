@@ -1,0 +1,46 @@
+<global>
+ //+ Instrument: Electric Piano 1
+ //+ Program: 5
+ ampeg_release=0.4
+
+<group>
+<region>
+ lokey=26 hikey=38
+ pitch_keycenter=36
+ sample=samples/ElectricPiano1/C2.wav
+<region>
+ lokey=39 hikey=44
+ pitch_keycenter=42
+ sample=samples/ElectricPiano1/F#2.wav
+<region>
+ lokey=45 hikey=50
+ pitch_keycenter=48
+ sample=samples/ElectricPiano1/C3.wav
+<region>
+ lokey=51 hikey=56
+ pitch_keycenter=54
+ sample=samples/ElectricPiano1/F#3.wav
+<region>
+ lokey=57 hikey=62
+ pitch_keycenter=60
+ sample=samples/ElectricPiano1/C4.wav
+<region>
+ lokey=63 hikey=68
+ pitch_keycenter=66
+ sample=samples/ElectricPiano1/F#4.wav
+<region>
+ lokey=69 hikey=74
+ pitch_keycenter=72
+ sample=samples/ElectricPiano1/C5.wav
+<region>
+ lokey=75 hikey=80
+ pitch_keycenter=78
+ sample=samples/ElectricPiano1/F#5.wav
+<region>
+ lokey=81 hikey=86
+ pitch_keycenter=84
+ sample=samples/ElectricPiano1/C6.wav
+<region>
+ lokey=87 hikey=103
+ pitch_keycenter=90
+ sample=samples/ElectricPiano1/F#6.wav

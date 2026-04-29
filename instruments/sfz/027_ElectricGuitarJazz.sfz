@@ -1,0 +1,82 @@
+<global>
+ //+ Instrument: E. Guitar Jazz
+ //+ Program: 27
+ ampeg_release=1.1
+
+<group>
+ loop_mode=loop_continuous
+
+<region>
+ lokey=35 hikey=38
+ pitch_keycenter=36
+ loop_start=322894 loop_end=578430
+ sample=samples/ElectricGuitarJazz/C2.wav
+
+<region>
+ lokey=39 hikey=42
+ pitch_keycenter=41
+ loop_start=404518 loop_end=594644
+ sample=samples/ElectricGuitarJazz/F2.wav
+
+<region>
+ lokey=43 hikey=46
+ pitch_keycenter=45
+ loop_start=376518 loop_end=537764
+ sample=samples/ElectricGuitarJazz/A2.wav
+
+<region>
+ lokey=47 hikey=49
+ pitch_keycenter=48
+ loop_start=244372 loop_end=352762
+ sample=samples/ElectricGuitarJazz/C3.wav
+
+<region>
+ lokey=50 hikey=53
+ pitch_keycenter=52
+ loop_start=180709 loop_end=286430
+ sample=samples/ElectricGuitarJazz/E3.wav
+
+<region>
+ lokey=54 hikey=56
+ pitch_keycenter=55
+ loop_start=158540 loop_end=265069
+ sample=samples/ElectricGuitarJazz/G3.wav
+
+<region>
+ lokey=57 hikey=61
+ pitch_keycenter=59
+ loop_start=126273 loop_end=219909
+ sample=samples/ElectricGuitarJazz/B3.wav
+
+<group>
+ loop_mode=no_loop
+
+<region>
+ lokey=62 hikey=65
+ pitch_keycenter=64
+ sample=samples/ElectricGuitarJazz/E4.wav
+
+<region>
+ lokey=66 hikey=69
+ pitch_keycenter=67
+ sample=samples/ElectricGuitarJazz/G4.wav
+
+<region>
+ lokey=70 hikey=72
+ pitch_keycenter=71
+ sample=samples/ElectricGuitarJazz/B4.wav
+
+<region>
+ lokey=73 hikey=76
+ pitch_keycenter=74
+ sample=samples/ElectricGuitarJazz/D5.wav
+
+<region>
+ lokey=77 hikey=82
+ pitch_keycenter=80
+ sample=samples/ElectricGuitarJazz/G#5.wav
+
+<region>
+ lokey=83 hikey=86
+ pitch_keycenter=85
+ sample=samples/ElectricGuitarJazz/C#6.wav

@@ -1,0 +1,79 @@
+<global>
+ //+ Instrument: Distortion Guitar
+ //+ Program: 31
+ ampeg_release=1.0
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=36 hikey=42
+ pitch_keycenter=40
+ loop_start=264716
+ loop_end=458405
+ sample=samples/DistortionGuitar/E2.wav
+<region>
+ lokey=43 hikey=46
+ pitch_keycenter=45
+ loop_start=195081
+ loop_end=349550
+ sample=samples/DistortionGuitar/A2.wav
+<region>
+ lokey=47 hikey=50
+ pitch_keycenter=49
+ loop_start=189648
+ loop_end=334688
+ sample=samples/DistortionGuitar/C#3.wav
+<region>
+ lokey=51 hikey=54
+ pitch_keycenter=53
+ loop_start=130200
+ loop_end=329035
+ sample=samples/DistortionGuitar/F3.wav
+<region>
+ lokey=55 hikey=58
+ pitch_keycenter=57
+ loop_start=90648
+ loop_end=233771
+ sample=samples/DistortionGuitar/A3.wav
+<region>
+ lokey=59 hikey=62
+ pitch_keycenter=61
+ loop_start=100040
+ loop_end=246779
+ sample=samples/DistortionGuitar/C#4.wav
+<region>
+ lokey=63 hikey=66
+ pitch_keycenter=65
+ loop_start=45577
+ loop_end=105631
+ sample=samples/DistortionGuitar/F4.wav
+<region>
+ lokey=67 hikey=70
+ pitch_keycenter=69
+ loop_start=25326
+ loop_end=112067
+ sample=samples/DistortionGuitar/A4.wav
+<region>
+ lokey=71 hikey=74
+ pitch_keycenter=73
+ loop_start=36733
+ loop_end=149582
+ sample=samples/DistortionGuitar/C#5.wav
+<region>
+ lokey=75 hikey=78
+ pitch_keycenter=77
+ loop_start=25315
+ loop_end=121259
+ sample=samples/DistortionGuitar/F5.wav
+<region>
+ lokey=79 hikey=82
+ pitch_keycenter=81
+ loop_start=25759
+ loop_end=118586
+ sample=samples/DistortionGuitar/A5.wav
+<region>
+ lokey=83 hikey=88
+ pitch_keycenter=84
+ loop_start=16143
+ loop_end=94494
+ sample=samples/DistortionGuitar/C6.wav

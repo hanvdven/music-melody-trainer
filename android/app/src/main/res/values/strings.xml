@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Music Melody Trainer</string>
+    <string name="title_activity_main">Music Melody Trainer</string>
+    <string name="package_name">com.hanvdven.musicmelodytrainer</string>
+    <string name="custom_url_scheme">com.hanvdven.musicmelodytrainer</string>
+</resources>

@@ -1,0 +1,75 @@
+<global>
+ //+ Instrument: Ocarina
+ //+ Program: 80
+ ampeg_release=0.4
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=51 hikey=56
+ pitch_keycenter=54
+ loop_start=44930 loop_end=220579
+ sample=samples/Ocarina/F#3.wav
+<region>
+ lokey=57 hikey=62
+ pitch_keycenter=60
+ loop_start=49928 loop_end=220641
+ sample=samples/Ocarina/C4.wav
+<region>
+ lokey=63 hikey=70
+ pitch_keycenter=66
+ loop_start=7898 loop_end=41259
+ sample=samples/Ocarina/F#4.wav
+<region>
+ lokey=71 hikey=73
+ pitch_keycenter=73
+ loop_start=38229 loop_end=138452
+ sample=samples/Ocarina/C#5_01.wav
+<region>
+ lokey=74 hikey=75
+ pitch_keycenter=74
+ loop_start=23126 loop_end=64431
+ sample=samples/Ocarina/D5_01.wav
+<region>
+ key=76
+ loop_start=36803 loop_end=194310
+ sample=samples/Ocarina/E5_01.wav
+<region>
+ key=77
+ loop_start=84593 loop_end=196295
+ sample=samples/Ocarina/F5_01.wav
+<region>
+ key=78
+ loop_start=19376 loop_end=137903
+ sample=samples/Ocarina/F#5_01.wav
+<region>
+ key=79
+ loop_start=35791 loop_end=144750
+ sample=samples/Ocarina/G5_01.wav
+<region>
+ key=80
+ loop_start=14441 loop_end=170545
+ sample=samples/Ocarina/G#5_01.wav
+<region>
+ key=81
+ loop_start=67780 loop_end=205498
+ sample=samples/Ocarina/A5_01.wav
+<region>
+ key=82
+ loop_start=35717 loop_end=193345
+ sample=samples/Ocarina/A#5_01.wav
+<region>
+ lokey=83 hikey=85
+ pitch_keycenter=83
+ loop_start=33792 loop_end=246302
+ sample=samples/Ocarina/B5_01.wav
+<region>
+ lokey=86 hikey=90
+ pitch_keycenter=88
+ loop_start=31839 loop_end=243709
+ sample=samples/Ocarina/E6.wav
+<region>
+ lokey=91 hikey=96
+ pitch_keycenter=93
+ loop_start=21396 loop_end=245803
+ sample=samples/Ocarina/A6.wav

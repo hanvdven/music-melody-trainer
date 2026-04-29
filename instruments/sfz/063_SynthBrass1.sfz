@@ -1,0 +1,79 @@
+<global>
+ //+ Instrument: Synth Brass 1
+ //+ Program: 63
+ ampeg_release=0.5
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=26 hikey=32
+ pitch_keycenter=30
+ loop_start=91884
+ loop_end=389356
+ sample=samples/SynthBrass1/F#1.wav
+<region>
+ lokey=33 hikey=38
+ pitch_keycenter=36
+ loop_start=97464
+ loop_end=379064
+ sample=samples/SynthBrass1/C2.wav
+<region>
+ lokey=39 hikey=44
+ pitch_keycenter=42
+ loop_start=72911
+ loop_end=420991
+ sample=samples/SynthBrass1/F#2.wav
+<region>
+ lokey=45 hikey=50
+ pitch_keycenter=48
+ loop_start=89005
+ loop_end=364051
+ sample=samples/SynthBrass1/C3.wav
+<region>
+ lokey=51 hikey=56
+ pitch_keycenter=54
+ loop_start=92874
+ loop_end=316507
+ sample=samples/SynthBrass1/F#3.wav
+<region>
+ lokey=57 hikey=62
+ pitch_keycenter=60
+ loop_start=135409
+ loop_end=257788
+ sample=samples/SynthBrass1/C4.wav
+<region>
+ lokey=63 hikey=68
+ pitch_keycenter=66
+ loop_start=114644
+ loop_end=333809
+ sample=samples/SynthBrass1/F#4.wav
+<region>
+ lokey=69 hikey=74
+ pitch_keycenter=72
+ loop_start=65785
+ loop_end=175897
+ sample=samples/SynthBrass1/C5.wav
+<region>
+ lokey=75 hikey=80
+ pitch_keycenter=78
+ loop_start=70473
+ loop_end=268032
+ sample=samples/SynthBrass1/F#5.wav
+<region>
+ lokey=81 hikey=86
+ pitch_keycenter=84
+ loop_start=75015
+ loop_end=224893
+ sample=samples/SynthBrass1/C6.wav
+<region>
+ lokey=87 hikey=92
+ pitch_keycenter=90
+ loop_start=96861
+ loop_end=274148
+ sample=samples/SynthBrass1/F#6.wav
+<region>
+ lokey=93 hikey=100
+ pitch_keycenter=96
+ loop_start=80577
+ loop_end=303197
+ sample=samples/SynthBrass1/C7.wav

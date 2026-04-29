@@ -1,0 +1,281 @@
+<global>
+ //+ Instrument: Piano
+ //+ Program: 1
+ ampeg_release=1.5
+
+<group>
+ loop_mode=loop_continuous
+ lovel=82
+<region>
+ lokey=21 hikey=26
+ pitch_keycenter=24
+ loop_start=306378
+ loop_end=424657
+ sample=samples/Piano/C1.wav
+<region>
+ lokey=27 hikey=32
+ pitch_keycenter=30
+ loop_start=240705
+ loop_end=351556
+ sample=samples/Piano/F#1.wav
+<region>
+ lokey=33 hikey=36
+ pitch_keycenter=35
+ loop_start=256475
+ loop_end=366932
+ sample=samples/Piano/B1.wav
+<region>
+ lokey=37 hikey=40
+ pitch_keycenter=39
+ loop_start=288169
+ loop_end=398441
+ sample=samples/Piano/D#2.wav
+<region>
+ lokey=41 hikey=44
+ pitch_keycenter=42
+ loop_start=250236
+ loop_end=393511
+ sample=samples/Piano/F#2.wav
+<region>
+ lokey=45 hikey=48
+ pitch_keycenter=47
+ loop_start=238940
+ loop_end=341297
+ sample=samples/Piano/B2.wav
+<region>
+ lokey=49 hikey=52
+ pitch_keycenter=51
+ loop_start=162986
+ loop_end=240314
+ sample=samples/Piano/D#3.wav
+<region>
+ lokey=53 hikey=55
+ pitch_keycenter=54
+ loop_start=194343
+ loop_end=265634
+ sample=samples/Piano/F#3.wav
+<region>
+ lokey=56 hikey=58
+ pitch_keycenter=57
+ loop_start=120679
+ loop_end=186801
+ sample=samples/Piano/A3.wav
+<region>
+ lokey=59 hikey=61
+ pitch_keycenter=60
+ loop_start=145927
+ loop_end=213379
+ sample=samples/Piano/C4.wav
+<region>
+ lokey=62 hikey=64
+ pitch_keycenter=63
+ loop_start=151896
+ loop_end=217597
+ sample=samples/Piano/D#4.wav
+<region>
+ lokey=65 hikey=67
+ pitch_keycenter=66
+ loop_start=138527
+ loop_end=185330
+ sample=samples/Piano/F#4.wav
+
+<group>
+ lovel=82
+ loop_mode=no_loop
+<region>
+ lokey=68 hikey=70
+ pitch_keycenter=69
+ sample=samples/Piano/A4.wav
+<region>
+ lokey=71 hikey=73
+ pitch_keycenter=72
+ sample=samples/Piano/C5.wav
+<region>
+ lokey=74 hikey=76
+ pitch_keycenter=75
+ sample=samples/Piano/D#5.wav
+<region>
+ lokey=77 hikey=79
+ pitch_keycenter=78
+ sample=samples/Piano/F#5.wav
+<region>
+ lokey=80 hikey=82
+ pitch_keycenter=81
+ sample=samples/Piano/A5.wav
+<region>
+ lokey=83 hikey=85
+ pitch_keycenter=84
+ sample=samples/Piano/C6.wav
+<region>
+ lokey=86 hikey=88
+ pitch_keycenter=87
+ sample=samples/Piano/D#6.wav
+<region>
+ lokey=89 hikey=91
+ pitch_keycenter=90
+ sample=samples/Piano/F#6.wav
+<region>
+ lokey=92 hikey=94
+ pitch_keycenter=93
+ sample=samples/Piano/A6.wav
+<region>
+ lokey=95 hikey=97
+ pitch_keycenter=96
+ sample=samples/Piano/C7.wav
+<region>
+ lokey=98 hikey=100
+ pitch_keycenter=99
+ sample=samples/Piano/D#7.wav
+<region>
+ lokey=101 hikey=103
+ pitch_keycenter=102
+ sample=samples/Piano/F#7.wav
+<region>
+ lokey=104
+ hikey=105
+ pitch_keycenter=105
+ sample=samples/Piano/A7.wav
+<region>
+ lokey=106 hikey=108
+ pitch_keycenter=107
+ sample=samples/Piano/B7.wav
+
+<group>
+ hivel=81
+ loop_mode=loop_continuous
+ fil_type=lpf_2p
+ cutoff=2000
+<region>
+ lokey=21 hikey=26
+ pitch_keycenter=24
+ loop_start=306378
+ loop_end=424657
+ sample=samples/Piano/C1.wav
+<region>
+ lokey=27 hikey=32
+ pitch_keycenter=30
+ loop_start=240705
+ loop_end=351556
+ sample=samples/Piano/F#1.wav
+<region>
+ lokey=33 hikey=36
+ pitch_keycenter=35
+ loop_start=256475
+ loop_end=366932
+ sample=samples/Piano/B1.wav
+<region>
+ lokey=37 hikey=40
+ pitch_keycenter=39
+ loop_start=288169
+ loop_end=398441
+ sample=samples/Piano/D#2.wav
+<region>
+ lokey=41 hikey=44
+ pitch_keycenter=42
+ loop_start=250236
+ loop_end=393511
+ sample=samples/Piano/F#2.wav
+<region>
+ lokey=45 hikey=48
+ pitch_keycenter=47
+ loop_start=238940
+ loop_end=341297
+ sample=samples/Piano/B2.wav
+<region>
+ lokey=49 hikey=52
+ pitch_keycenter=51
+ loop_start=162986
+ loop_end=240314
+ sample=samples/Piano/D#3.wav
+<region>
+ lokey=53 hikey=55
+ pitch_keycenter=54
+ loop_start=194343
+ loop_end=265634
+ sample=samples/Piano/F#3.wav
+<region>
+ lokey=56 hikey=58
+ pitch_keycenter=57
+ loop_start=120679
+ loop_end=186801
+ sample=samples/Piano/A3.wav
+<region>
+ lokey=59 hikey=61
+ pitch_keycenter=60
+ loop_start=145927
+ loop_end=213379
+ sample=samples/Piano/C4.wav
+<region>
+ lokey=62 hikey=64
+ pitch_keycenter=63
+ loop_start=151896
+ loop_end=217597
+ sample=samples/Piano/D#4.wav
+<region>
+ lokey=65 hikey=67
+ pitch_keycenter=66
+ loop_start=138527
+ loop_end=185330
+ sample=samples/Piano/F#4.wav
+
+<group>
+ hivel=81
+ loop_mode=no_loop
+ fil_type=lpf_2p
+ cutoff=2000
+<region>
+ lokey=68 hikey=70
+ pitch_keycenter=69
+ sample=samples/Piano/A4.wav
+<region>
+ lokey=71 hikey=73
+ pitch_keycenter=72
+ sample=samples/Piano/C5.wav
+<region>
+ lokey=74 hikey=76
+ pitch_keycenter=75
+ sample=samples/Piano/D#5.wav
+<region>
+ lokey=77 hikey=79
+ pitch_keycenter=78
+ sample=samples/Piano/F#5.wav
+<region>
+ lokey=80 hikey=82
+ pitch_keycenter=81
+ sample=samples/Piano/A5.wav
+<region>
+ lokey=83 hikey=85
+ pitch_keycenter=84
+ sample=samples/Piano/C6.wav
+<region>
+ lokey=86 hikey=88
+ pitch_keycenter=87
+ sample=samples/Piano/D#6.wav
+<region>
+ lokey=89 hikey=91
+ pitch_keycenter=90
+ sample=samples/Piano/F#6.wav
+<region>
+ lokey=92 hikey=94
+ pitch_keycenter=93
+ sample=samples/Piano/A6.wav
+<region>
+ lokey=95 hikey=97
+ pitch_keycenter=96
+ sample=samples/Piano/C7.wav
+<region>
+ lokey=98 hikey=100
+ pitch_keycenter=99
+ sample=samples/Piano/D#7.wav
+<region>
+ lokey=101 hikey=103
+ pitch_keycenter=102
+ sample=samples/Piano/F#7.wav
+<region>
+ lokey=104 hikey=105
+ pitch_keycenter=105
+ sample=samples/Piano/A7.wav
+<region>
+ lokey=106 hikey=108
+ pitch_keycenter=107
+ sample=samples/Piano/B7.wav

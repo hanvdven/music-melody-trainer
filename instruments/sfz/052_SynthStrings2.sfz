@@ -1,0 +1,116 @@
+<global>
+ //+ Instrument: Synth Strings 2
+ //+ Program: 52
+ ampeg_attack=0.1
+ ampeg_release=1.2
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=24 hikey=29
+ pitch_keycenter=28
+ loop_start=40
+ loop_end=435700
+ sample=samples/SynthStrings2/E1.wav
+<region>
+ lokey=30 hikey=33
+ pitch_keycenter=32
+ loop_start=40
+ loop_end=342047
+ sample=samples/SynthStrings2/G#1.wav
+<region>
+ lokey=34 hikey=37
+ pitch_keycenter=36
+ loop_start=16
+ loop_end=375641
+ sample=samples/SynthStrings2/C2.wav
+<region>
+ lokey=38 hikey=41
+ pitch_keycenter=40
+ loop_start=20
+ loop_end=272083
+ sample=samples/SynthStrings2/E2.wav
+<region>
+ lokey=42 hikey=45
+ pitch_keycenter=44
+ loop_start=17
+ loop_end=293349
+ sample=samples/SynthStrings2/G#2.wav
+<region>
+ lokey=46 hikey=49
+ pitch_keycenter=48
+ loop_start=20
+ loop_end=286255
+ sample=samples/SynthStrings2/C3.wav
+<region>
+ lokey=50 hikey=53
+ pitch_keycenter=52
+ loop_start=20
+ loop_end=261607
+ sample=samples/SynthStrings2/E3.wav
+<region>
+ lokey=54 hikey=57
+ pitch_keycenter=56
+ loop_start=17
+ loop_end=215477
+ sample=samples/SynthStrings2/G#3.wav
+<region>
+ lokey=58 hikey=61
+ pitch_keycenter=60
+ loop_start=18
+ loop_end=227846
+ sample=samples/SynthStrings2/C4.wav
+<region>
+ lokey=62 hikey=65
+ pitch_keycenter=64
+ loop_start=18
+ loop_end=235614
+ sample=samples/SynthStrings2/E4.wav
+<region>
+ lokey=66 hikey=69
+ pitch_keycenter=68
+ loop_start=17
+ loop_end=235171
+ sample=samples/SynthStrings2/G#4.wav
+<region>
+ lokey=70 hikey=73
+ pitch_keycenter=72
+ loop_start=18
+ loop_end=226257
+ sample=samples/SynthStrings2/C5.wav
+<region>
+ lokey=74 hikey=77
+ pitch_keycenter=76
+ loop_start=20
+ loop_end=219815
+ sample=samples/SynthStrings2/E5.wav
+<region>
+ lokey=78 hikey=81
+ pitch_keycenter=80
+ loop_start=17
+ loop_end=188031
+ sample=samples/SynthStrings2/G#5.wav
+<region>
+ lokey=82 hikey=85
+ pitch_keycenter=84
+ loop_start=20
+ loop_end=175906
+ sample=samples/SynthStrings2/C6.wav
+<region>
+ lokey=86 hikey=89
+ pitch_keycenter=88
+ loop_start=16
+ loop_end=179845
+ sample=samples/SynthStrings2/E6.wav
+<region>
+ lokey=90 hikey=93
+ pitch_keycenter=92
+ loop_start=16
+ loop_end=158479
+ sample=samples/SynthStrings2/G#6.wav
+<region>
+ lokey=94 hikey=101
+ pitch_keycenter=96
+ loop_start=17
+ loop_end=186108
+ sample=samples/SynthStrings2/C7.wav

@@ -1,0 +1,79 @@
+ <global>
+ //+ Instrument: Electric Bass 1
+ //+ Program: 34
+ ampeg_release=0.35
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=26 hikey=29
+ pitch_keycenter=28
+ loop_start=142662
+ loop_end=279577
+ sample=samples/ElectricBassFinger/E1.wav
+<region>
+ lokey=30 hikey=32
+ pitch_keycenter=32
+ loop_start=221599
+ loop_end=352596
+ sample=samples/ElectricBassFinger/G#1.wav
+<region>
+ lokey=33 hikey=35
+ pitch_keycenter=34
+ loop_start=292607
+ loop_end=444052
+ sample=samples/ElectricBassFinger/A#1.wav
+<region>
+ lokey=36 hikey=38
+ pitch_keycenter=38
+ loop_start=202274
+ loop_end=353552
+ sample=samples/ElectricBassFinger/D2.wav
+<region>
+ lokey=39 hikey=40
+ pitch_keycenter=40
+ loop_start=199533
+ loop_end=308037
+ sample=samples/ElectricBassFinger/E2.wav
+<region>
+ lokey=41 hikey=43
+ pitch_keycenter=41
+ loop_start=136962
+ loop_end=271367
+ sample=samples/ElectricBassFinger/F2.wav
+<region>
+ lokey=44 hikey=48
+ pitch_keycenter=47
+ loop_start=221831
+ loop_end=310895
+ sample=samples/ElectricBassFinger/B2.wav
+<region>
+ lokey=49 hikey=52
+ pitch_keycenter=51
+ loop_start=88099
+ loop_end=132487
+ sample=samples/ElectricBassFinger/D#3.wav
+<region>
+ lokey=53 hikey=55
+ pitch_keycenter=54
+ loop_start=260494
+ loop_end=328237
+ sample=samples/ElectricBassFinger/F#3.wav
+<region>
+ lokey=56 hikey=58
+ pitch_keycenter=58
+ loop_start=256858
+ loop_end=352934
+ sample=samples/ElectricBassFinger/A#3.wav
+<region>
+ lokey=59 hikey=62
+ pitch_keycenter=60
+ loop_start=262865
+ loop_end=351751
+ sample=samples/ElectricBassFinger/C4.wav
+<region>
+ lokey=63 hikey=68
+ pitch_keycenter=65
+ loop_start=174396
+ loop_end=262957
+ sample=samples/ElectricBassFinger/F4.wav

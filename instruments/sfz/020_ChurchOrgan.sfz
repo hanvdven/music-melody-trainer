@@ -1,0 +1,73 @@
+<global>
+ //+ Instrument: Church Organ
+ //+ Program: 20
+ ampeg_release=2.8
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=21 hikey=38
+ pitch_keycenter=36
+ loop_start=98369
+ loop_end=397980
+ sample=samples/ChurchOrgan/C2.wav
+<region>
+ lokey=39 hikey=44
+ pitch_keycenter=42
+ loop_start=45568
+ loop_end=354304
+ sample=samples/ChurchOrgan/F#2.wav
+<region>
+ lokey=45 hikey=50
+ pitch_keycenter=48
+ loop_start=51200
+ loop_end=343040
+ sample=samples/ChurchOrgan/C3.wav
+<region>
+ lokey=51 hikey=56
+ pitch_keycenter=54
+ loop_start=45568
+ loop_end=353792
+ sample=samples/ChurchOrgan/F#3.wav
+<region>
+ lokey=57 hikey=62
+ pitch_keycenter=60
+ loop_start=58880
+ loop_end=305664
+ sample=samples/ChurchOrgan/C4.wav
+<region>
+ lokey=63 hikey=68
+ pitch_keycenter=66
+ loop_start=39511
+ loop_end=291326
+ sample=samples/ChurchOrgan/F#4.wav
+<region>
+ lokey=69 hikey=74
+ pitch_keycenter=72
+ loop_start=35840
+ loop_end=334720
+ sample=samples/ChurchOrgan/C5.wav
+<region>
+ lokey=75 hikey=80
+ pitch_keycenter=78
+ loop_start=45568
+ loop_end=310272
+ sample=samples/ChurchOrgan/F#5.wav
+<region>
+ lokey=81 hikey=86
+ pitch_keycenter=84
+ loop_start=45568
+ loop_end=332288
+ sample=samples/ChurchOrgan/C6.wav
+<region>
+ lokey=87 hikey=92
+ pitch_keycenter=90
+ loop_start=46080
+ loop_end=320000
+ sample=samples/ChurchOrgan/F#6.wav
+<region>
+ lokey=93 hikey=108
+ pitch_keycenter=96
+ loop_start=36352
+ loop_end=269312
+ sample=samples/ChurchOrgan/C7.wav

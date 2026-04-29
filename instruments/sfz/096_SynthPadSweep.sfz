@@ -1,0 +1,85 @@
+<global>
+ //+ Instrument: Synth Pad Sweep
+ //+ Program: 96
+ ampeg_release=1.0
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=33 hikey=37
+ pitch_keycenter=36
+ loop_start=32767
+ loop_end=352255
+ sample=samples/SynthPadSweep/C2.wav
+<region>
+ lokey=38 hikey=41
+ pitch_keycenter=40
+ loop_start=43199
+ loop_end=336063
+ sample=samples/SynthPadSweep/E2.wav
+<region>
+ lokey=42 hikey=45
+ pitch_keycenter=44
+ loop_start=27903
+ loop_end=329471
+ sample=samples/SynthPadSweep/G#2.wav
+<region>
+ lokey=46 hikey=49
+ pitch_keycenter=48
+ loop_start=34720
+ loop_end=357321
+ sample=samples/SynthPadSweep/C3.wav
+<region>
+ lokey=50 hikey=53
+ pitch_keycenter=52
+ loop_start=34303
+ loop_end=321535
+ sample=samples/SynthPadSweep/E3.wav
+<region>
+ lokey=54 hikey=57
+ pitch_keycenter=56
+ loop_start=36760
+ loop_end=291327
+ sample=samples/SynthPadSweep/G#3.wav
+<region>
+ lokey=58 hikey=61
+ pitch_keycenter=60
+ loop_start=21167
+ loop_end=352511
+ sample=samples/SynthPadSweep/C4.wav
+<region>
+ lokey=62 hikey=65
+ pitch_keycenter=64
+ loop_start=33791
+ loop_end=346623
+ sample=samples/SynthPadSweep/E4.wav
+<region>
+ lokey=66 hikey=69
+ pitch_keycenter=68
+ loop_start=31207
+ loop_end=309247
+ sample=samples/SynthPadSweep/G#4.wav
+<region>
+ lokey=70 hikey=73
+ pitch_keycenter=72
+ loop_start=17382
+ loop_end=302079
+ sample=samples/SynthPadSweep/C5.wav
+<region>
+ lokey=74 hikey=77
+ pitch_keycenter=76
+ loop_start=46591
+ loop_end=329727
+ sample=samples/SynthPadSweep/E5.wav
+<region>
+ lokey=78 hikey=81
+ pitch_keycenter=80
+ loop_start=24298
+ loop_end=273147
+ sample=samples/SynthPadSweep/G#5.wav
+<region>
+ lokey=82 hikey=96
+ pitch_keycenter=84
+ loop_start=28385
+ loop_end=304344
+ sample=samples/SynthPadSweep/C6.wav

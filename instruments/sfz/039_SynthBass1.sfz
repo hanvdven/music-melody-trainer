@@ -1,0 +1,91 @@
+<global>
+ //+ Instrument: Synth Bass 1
+ //+ Program: 39
+ ampeg_release=0.5
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=24 hikey=29
+ pitch_keycenter=28
+ loop_start=171275
+ loop_end=416936
+ sample=samples/SynthBass1/E1.wav
+<region>
+ lokey=30 hikey=33
+ pitch_keycenter=32
+ loop_start=149920
+ loop_end=344902
+ sample=samples/SynthBass1/G#1.wav
+<region>
+ lokey=34 hikey=37
+ pitch_keycenter=36
+ loop_start=97728
+ loop_end=252483
+ sample=samples/SynthBass1/C2.wav
+<region>
+ lokey=38 hikey=41
+ pitch_keycenter=40
+ loop_start=93452
+ loop_end=216817
+ sample=samples/SynthBass1/E2.wav
+<region>
+ lokey=42 hikey=45
+ pitch_keycenter=44
+ loop_start=75486
+ loop_end=173401
+ sample=samples/SynthBass1/G#2.wav
+<region>
+ lokey=46 hikey=49
+ pitch_keycenter=48
+ loop_start=41523
+ loop_end=119579
+ sample=samples/SynthBass1/C3.wav
+<region>
+ lokey=50 hikey=53
+ pitch_keycenter=52
+ loop_start=51471
+ loop_end=112886
+ sample=samples/SynthBass1/E3.wav
+<region>
+ lokey=54 hikey=57
+ pitch_keycenter=56
+ loop_start=49015
+ loop_end=97759
+ sample=samples/SynthBass1/G#3.wav
+<region>
+ lokey=58 hikey=61
+ pitch_keycenter=60
+ loop_start=41413
+ loop_end=79935
+ sample=samples/SynthBass1/C4.wav
+<region>
+ lokey=62 hikey=65
+ pitch_keycenter=64
+ loop_start=46469
+ loop_end=77041
+ sample=samples/SynthBass1/E4.wav
+<region>
+ lokey=66 hikey=69
+ pitch_keycenter=68
+ loop_start=38266
+ loop_end=62744
+ sample=samples/SynthBass1/G#4.wav
+<region>
+ lokey=70 hikey=73
+ pitch_keycenter=72
+ loop_start=44960
+ loop_end=64388
+ sample=samples/SynthBass1/C5.wav
+<region>
+ lokey=74 hikey=77
+ pitch_keycenter=76
+ loop_start=43127
+ loop_end=58348
+ sample=samples/SynthBass1/E5.wav
+<region>
+ lokey=78 hikey=84
+ pitch_keycenter=80
+ loop_start=44027
+ loop_end=56373
+ sample=samples/SynthBass1/G#5.wav

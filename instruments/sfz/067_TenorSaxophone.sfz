@@ -1,0 +1,124 @@
+<global>
+ //+ Instrument: Tenor Saxophone
+ //+ Program: 67
+ ampeg_release=0.5
+ loop_mode=loop_continuous
+
+<group>
+<region>
+ lokey=38 hikey=42
+ pitch_keycenter=40
+ loop_start=43062 loop_end=220732
+ sample=samples/TenorSaxophone/E2_v3.wav
+
+<region>
+ lokey=43 hikey=46
+ hivel=89
+ pitch_keycenter=44
+ loop_start=63387 loop_end=203131
+ sample=samples/TenorSaxophone/G#2_v2.wav
+
+<region>
+ lokey=43 hikey=46
+ lovel=90
+ pitch_keycenter=44
+ loop_start=35339 loop_end=207356
+ sample=samples/TenorSaxophone/G#2_v3.wav
+
+<region>
+ lokey=47 hikey=50
+ hivel=89
+ pitch_keycenter=48
+ loop_start=85331 loop_end=212085
+ sample=samples/TenorSaxophone/C3_v2.wav
+
+<region>
+ lokey=47 hikey=50
+ lovel=90
+ pitch_keycenter=48
+ loop_start=65050 loop_end=203600
+ sample=samples/TenorSaxophone/C3_v3.wav
+
+<region>
+ lokey=51 hikey=54
+ hivel=89
+ pitch_keycenter=52
+ loop_start=34118 loop_end=198682
+ sample=samples/TenorSaxophone/E3_v2.wav
+
+<region>
+ lokey=51 hikey=54
+ lovel=90
+ pitch_keycenter=52
+ loop_start=25992 loop_end=202606
+ sample=samples/TenorSaxophone/E3_v3.wav
+
+<region>
+ lokey=55 hikey=58
+ hivel=89
+ pitch_keycenter=56
+ loop_start=52764 loop_end=216096
+ sample=samples/TenorSaxophone/G#3_v2.wav
+
+<region>
+ lokey=55 hikey=58
+ lovel=90
+ pitch_keycenter=56
+ loop_start=63999 loop_end=198437
+ sample=samples/TenorSaxophone/G#3_v3.wav
+
+<region>
+ lokey=59 hikey=62
+ hivel=89
+ pitch_keycenter=60
+ loop_start=79342 loop_end=220748
+ sample=samples/TenorSaxophone/C4_v2.wav
+
+<region>
+ lokey=59 hikey=62
+ lovel=90
+ pitch_keycenter=60
+ loop_start=103096 loop_end=226815
+ sample=samples/TenorSaxophone/C4_v3.wav
+
+<region>
+ lokey=63 hikey=66
+ pitch_keycenter=64
+ loop_start=90880 loop_end=198987
+ sample=samples/TenorSaxophone/E4_v3.wav
+
+<region>
+ lokey=67 hikey=70
+ pitch_keycenter=68
+ loop_start=46497 loop_end=200995
+ sample=samples/TenorSaxophone/G#4_v3.wav
+
+<region>
+ lokey=71 hikey=74
+ pitch_keycenter=72
+ loop_start=29378 loop_end=202751
+ sample=samples/TenorSaxophone/C5_v3.wav
+
+<region>
+ lokey=75 hikey=78
+ pitch_keycenter=76
+ loop_start=28162 loop_end=201899
+ sample=samples/TenorSaxophone/E5_v3.wav
+
+<region>
+ lokey=79 hikey=82
+ pitch_keycenter=80
+ loop_start=67694 loop_end=194232
+ sample=samples/TenorSaxophone/G#5_v3.wav
+
+<region>
+ lokey=83 hikey=86
+ pitch_keycenter=84
+ loop_start=57645 loop_end=199921
+ sample=samples/TenorSaxophone/C6_v3.wav
+
+<region>
+ lokey=87 hikey=90
+ pitch_keycenter=88
+ loop_start=48416 loop_end=178669
+ sample=samples/TenorSaxophone/E6_v3.wav
