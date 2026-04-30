@@ -1,277 +1,451 @@
-# Profiel & Skill-tracking — Gedetailleerd Schema
+# Granulaire Skill-tracking — Volledig Ontwerp
 
 **Status:** Concept / ter review
 **Datum:** 2026-04-30
 
 ---
 
-## Kernidee: rollend venster per dimensie
+## Het kernprobleem: attributie
 
-Elke vaardigheid wordt bijgehouden als **"X van de laatste 20 melodieën foutloos"**.
+Wanneer een speler faalt bij `{Lydisch, 130 BPM, zestienden, 5/4}`, weten we niet waardoor.
+Was het de toonladder? Het tempo? De maatsoort? De combinatie?
+
+**Oplossing: moeilijkheid is multiplicatief, credit/blame is proportioneel.**
 
 ```
-Ionisch:           17/20  ██████████████████░░  85%
-Dorisch:            5/8   ██████░░░░░░░░░░░░░░  63%  (< 20 pogingen)
-Lydisch:            3/20  ███░░░░░░░░░░░░░░░░░  15%  (zwak punt)
-Pentatonisch Mj:    0/0   ░░░░░░░░░░░░░░░░░░░░  —    (nog nooit)
+moeilijkheid(config) = ∏ hardheid(dim_i)
+
+hardheid(dim, waarde) = 1 − vaardigheid(dim, waarde)
 ```
 
-- **Venster:** laatste 20 pogingen, oudste valt eraf zodra de 21e binnenkomt
-- **Weergave:** geheel getal (17/20), nooit decimalen
-- **Drempel onvolledig venster:** < 20 pogingen tonen als "5/8" (niet opschalen naar /20)
+Een combinatie is moeilijk als *meerdere* dimensies tegelijk onbekend zijn.
+Een fout wordt toegeschreven aan de dimensies die het meest bijdroegen aan de moeilijkheid.
 
 ---
 
-## Opslagformaat (localStorage)
+## Het model in drie regels
 
-Sleutel: `mmt_profile` → JSON-object.
+```
+Bij SUCCES  → alle dimensies krijgen credit (+1 in venster)
+Bij FALEN   → alleen dimensies die > gemiddeld moeilijk waren krijgen blame (0 in venster)
+Bij MAKKELIJK-EN-TOCH-FALEN → alle dimensies krijgen blame (fundamenteel probleem)
+```
 
-### Toplevel structuur
+### Formeel
+
+Gegeven config `C` met dimensies `{d1:v1, d2:v2, ...}`:
+
+```
+w_i   = 1 − vaardigheid(d_i, v_i)       // moeilijkheidsgewicht per dimensie
+                                          // prior = 0.5 als nog nooit gespeeld
+μ     = gemiddelde(w_i)                   // gemiddeld gewicht over alle dims
+
+Bij SUCCES:    push(d_i, 1)  voor alle i
+Bij FALEN:
+  als alle w_i < 0.2:                     // makkelijke combo, toch gefaald
+    push(d_i, 0)  voor alle i
+  anders:
+    push(d_i, 0)  voor elke i waar w_i > μ   // zwakste schakels krijgen blame
+    // sterke dimensies worden niet gestraft
+```
+
+### Voorbeeld
+
+Speler speelt `{Lydisch: 20%, 100 BPM: 85%, kwartnoten: 95%, 4/4: 90%}`.
+
+```
+w = [0.80, 0.15, 0.05, 0.10]    μ = 0.275
+w_Lydisch = 0.80 > 0.275        → Lydisch krijgt 0 bij falen
+w_overige < 0.275               → worden niet gestraft
+```
+
+Bij succes krijgt ook Lydisch een 1 — zodat succes in moeilijke combos
+de zwakste dimensie helpt groeien.
+
+---
+
+## Rollend venster
+
+Per dimensie-waarde: array van maximaal 20 resultaten, nieuwste eerst.
+
+```js
+[1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+ ↑nieuw                                                  oud↑
+```
+
+- Weergave: `correct / total` — altijd geheel getal → `"17/20"`
+- `total` = `Math.min(arr.length, 20)`, nooit opschalen naar /20 als er minder zijn
+- Geen resultaat: `"—"`
+- Prior (nog nooit gespeeld): `vaardigheid = 0.5`
+
+---
+
+## Volledig vocabulaire
+
+### Dimensie 1 — Toonladder / modus (67 waarden)
+
+```
+Diatonisch (7):
+  Major · Dorian · Phrygian · Lydian · Mixolydian (= Acoustic) ·
+  Minor (= Aeolian) · Locrian
+
+Melodisch Mineur (7):
+  Melodic Minor ↑ · Dorian ♭2 · Lydian Augmented · Acoustic ·
+  Aeolian Dominant · Half Diminished · Altered
+
+Melodisch Mineur ↓ (1):
+  Melodic Minor ↓
+
+Harmonisch Majeur (7):
+  Harmonic Major · Dorian ♭5 · Phrygian ♭4 · Lydian ♭3 ·
+  Mixolydian ♭2 · Lydian Augmented ♯2 · Locrian ♭7
+
+Harmonisch Mineur (7):
+  Harmonic Minor · Locrian ♯6 · Ionian ♯5 · Ukrainian Dorian ·
+  Phrygian Dominant · Lydian ♯2 · Mixolydian ♯1
+
+Double Harmonic (7):
+  Double Harmonic Major · Lydian ♯2 ♯6 · Ultraphrygian ·
+  Hungarian minor · Oriental · Ionian ♯2 ♯5 · Locrian ♭3 ♭7
+
+Neapolitaans / Exotisch (8):
+  Neapolitan major · Neapolitan minor · Hungarian major ·
+  Locrian major · Lydian diminished · Gypsy major ·
+  Enigmatic · Persian
+
+Pentatonisch (8):
+  Pentatonic Major · Pentatonic Minor · Iwato · In · Insen ·
+  Hirajoshi scale · Egyptian pentatonic · Kumoi ·
+  Minor six pentatonic
+
+Blues (2):
+  Minor Blues scale · Major blues scale
+
+Hexatonisch (6):
+  Whole Tone · Two-semitone tritone scale · Istrian scale ·
+  Tritone scale · Prometheus scale · Scale of harmonics ·
+  Augmented scale
+
+Bebop / Octatonisch (4):
+  Major Bebop · Bebop Dominant · Diminished ·
+  Dominant Diminished · Spanish octatonic
+
+Chromatisch (1):
+  Chromatic
+```
+
+### Dimensie 2 — Aantal voortekens (15 waarden)
+
+```
+0♯/♭  1♭  2♭  3♭  4♭  5♭  6♭  7♭
+      1♯  2♯  3♯  4♯  5♯  6♯  7♯
+```
+
+Voortekens worden bijgehouden los van de toonladder.
+Zo zien we: "speelt Ionisch goed in C (0♯) maar moeite in F♯ (6♯)".
+
+### Dimensie 3 — Tempband (5 waarden)
+
+| Waarde | BPM-bereik |
+|---|---|
+| `adagio`  | ≤ 69 |
+| `andante` | 70–89 |
+| `moderato`| 90–109 |
+| `allegro` | 110–139 |
+| `presto`  | ≥ 140 |
+
+### Dimensie 4 — Maatsoort (8 waarden)
+
+`2/4 · 3/4 · 4/4 · 5/4 · 6/8 · 7/8 · 9/8 · 12/8`
+
+### Dimensie 5 — Ritmische variabiliteit (6 waarden)
+
+Gebaseerd op de `rhythmVariability`-instelling (0–10) in de app:
+
+| Waarde | Range | Karakter |
+|---|---|---|
+| `static`   | 0    | Strikt uniforme noten |
+| `low`      | 1–2  | Lichte variatie |
+| `medium`   | 3–5  | Gemengde nootwaarden |
+| `high`     | 6–8  | Veel syncopatie en variatie |
+| `extreme`  | 9–10 | Maximaal chaotisch ritme |
+| `tuplets`  | nvt  | Triolen/kwintolen aanwezig |
+
+### Dimensie 6 — Kleinste nootwaarde (5 waarden)
+
+`whole_half · quarter · eighth · sixteenth · tuplet`
+
+### Dimensie 7 — Nootdichtheid / noten per maat (5 waarden)
+
+| Waarde | Noten/maat |
+|---|---|
+| `very_sparse` | 1 |
+| `sparse`      | 2 |
+| `medium`      | 3–4 |
+| `dense`       | 5–7 |
+| `very_dense`  | 8+ |
+
+### Dimensie 8 — Aantal maten (4 waarden)
+
+`2 · 4 · 8 · 16`
+
+### Dimensie 9 — Sleutel (3 waarden)
+
+`treble · bass · both`
+
+### Dimensie 10 — Akkoordcomplexiteit (5 waarden)
+
+`none · triads · sevenths · passing · jazz`
+
+### Dimensie 11 — Intervalstructuur (4 waarden)
+
+Wordt afgeleid uit de gegenereerde melodie:
+
+| Waarde | Beschrijving |
+|---|---|
+| `stepwise`    | Alleen secunden (stappen) |
+| `small_leaps` | Secunden + tertsen |
+| `large_leaps` | Ook kwarten en groter |
+| `wide`        | Sexten, septimen of meer |
+
+---
+
+## Opslagschema (localStorage)
 
 ```json
 {
-  "version": 1,
-  "meta": {
-    "createdAt": "2026-04-30",
-    "lastActiveAt": "2026-04-30",
-    "totalMelodiesPlayed": 347,
-    "streakDays": 9,
-    "freezeTokens": 1,
-    "lastStreakDate": "2026-04-30"
-  },
-  "xp": {
-    "total": 4820,
-    "level": 14
-  },
-  "lessons": {
-    "completed": ["w1_m1_l1", "w1_m1_l2", "w1_m1_l3"],
-    "examsPassed": ["exam_1", "exam_2"],
-    "placementLevel": 2
-  },
-  "unlocks": {
-    "scales":      ["Ionian", "Dorian", "Aeolian", "Harmonic Minor"],
-    "timeSignatures": ["4/4", "3/4"],
-    "tempoMax":    110,
-    "features":    ["passing_chords", "bass_clef"],
-    "themes":      ["default"]
-  },
-  "badges": ["first_note", "on_fire", "all_twelve"],
-  "skills": { ... }
-}
-```
-
----
-
-## `skills` — het granulaire gedeelte
-
-Elke dimensie is een array van 0 en 1, maximaal 20 items, **nieuwste eerst**.
-
-```
-1 = melodie foutloos gespeeld
-0 = melodie met minstens één fout
-```
-
-### Compacte weergave
-
-```json
-"skills": {
-  "scales": {
-    "Ionian":                [1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
-    "Dorian":                [1,0,1,1,1],
-    "Phrygian":              [],
-    "Lydian":                [0,0,1,0,1,1,0,0,1,0,1,0,0,0,1,0,0,0,1,0],
-    "Mixolydian":            [1,1,1,0,1,1,1,1],
-    "Aeolian":               [1,1,1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1],
-    "Locrian":               [],
-    "Harmonic Minor":        [1,0,1,1,0,1,1,1,0,1,1,1],
-    "Melodic Minor ↑":       [1,1,0,1],
-    "Melodic Minor ↓":       [],
-    "Harmonic Major":        [],
-    "Double Harmonic Major": [],
-    "Pentatonic Major":      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1],
-    "Pentatonic Minor":      [1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
-    "Blues":                 [1,0,1,1,0,1],
-    "Whole Tone":            [],
-    "Diminished":            [],
-    "Chromatic":             []
-  },
-  "tempos": {
-    "slow":      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    "medium":    [1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1],
-    "fast":      [0,1,0,1,1,0,1,0,1,1,0,1],
-    "very_fast": []
-  },
-  "timeSignatures": {
-    "2/4": [],
-    "3/4": [1,0,1,1,1,0,1,1,1,1,1,1],
-    "4/4": [1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
-    "5/4": [],
-    "6/8": [0,1,0,1],
-    "7/8": []
-  },
-  "rhythmDensity": {
-    "sparse":    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    "medium":    [1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
-    "dense":     [1,0,1,0,1,1,0,1,1,0,1,1],
-    "very_dense": []
-  },
-  "smallestNote": {
-    "whole_half": [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    "quarter":    [1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    "eighth":     [1,0,1,1,1,0,1,1,0,1,1,1,1,1,1,0,1,1,1,1],
-    "sixteenth":  [0,1,0,0,1,0,0,1],
-    "triplet":    [1,0,0,1,0]
-  },
-  "clef": {
-    "treble": [1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
-    "bass":   [1,0,1,1,0,1,1,0,1,1],
-    "both":   [0,1,0,0,1]
-  },
-  "numMeasures": {
-    "2":  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    "4":  [1,1,0,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,0,1],
-    "8":  [0,1,0,1,0,1],
-    "16": []
-  },
-  "chords": {
-    "none":    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-    "simple":  [1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0,1,1],
-    "modal":   [0,1,0,1,1,0,1],
-    "jazz":    [0,0,1,0,0,1,0,0],
-    "passing": []
+  "version": 2,
+  "skills": {
+    "scale": {
+      "Major":              [1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+      "Dorian":             [1,0,1,1,1,1,1,0,1,1],
+      "Lydian":             [0,0,1,0,0,1,0,1,0,0,1,0,0,1,0,0,0,1,0,0],
+      "Harmonic Minor":     [1,0,1,1,0,1,1,1],
+      "Double Harmonic Major": [],
+      "Chromatic":          []
+    },
+    "accidentals": {
+      "0":  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      "1b": [1,1,0,1,1,1,1,1,0,1],
+      "2b": [1,0,1,1,0,1,1],
+      "6s": [],
+      "7s": []
+    },
+    "tempo": {
+      "adagio":   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      "andante":  [1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,0,1],
+      "moderato": [1,0,1,1,0,1,1,0,1,1,1,1],
+      "allegro":  [0,1,0,0,1,0,1],
+      "presto":   []
+    },
+    "timeSignature": {
+      "4/4": [1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+      "3/4": [1,0,1,1,0,1,1,1,0,1,1],
+      "5/4": [0,0,1,0,0],
+      "6/8": [],
+      "7/8": []
+    },
+    "rhythmVariability": {
+      "static":  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      "low":     [1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      "medium":  [1,0,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1],
+      "high":    [0,1,0,0,1,0,1,0],
+      "extreme": [],
+      "tuplets": [1,0,0,1,0,1]
+    },
+    "smallestNote": {
+      "whole_half": [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      "quarter":    [1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1],
+      "eighth":     [1,0,1,1,0,1,1,0,1,1,1,1,1,1,0,1,1,1,1,1],
+      "sixteenth":  [0,0,1,0,1,0,0,1,0],
+      "tuplet":     [1,0,0,1,0]
+    },
+    "noteDensity": {
+      "very_sparse": [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      "sparse":      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1],
+      "medium":      [1,0,1,1,0,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1],
+      "dense":       [0,1,0,1,1,0,1,0,1],
+      "very_dense":  []
+    },
+    "numMeasures": {
+      "2":  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      "4":  [1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,0,1,1,1],
+      "8":  [0,1,0,0,1,0,0],
+      "16": []
+    },
+    "clef": {
+      "treble": [1,1,0,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1],
+      "bass":   [1,0,1,1,0,1,1,0,1,1],
+      "both":   [0,1,0,0,1]
+    },
+    "chords": {
+      "none":    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      "triads":  [1,1,0,1,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,1],
+      "sevenths":[0,1,0,1,1,0,1,0],
+      "passing": [0,0,1,0,0,1,0,0],
+      "jazz":    []
+    },
+    "intervals": {
+      "stepwise":    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      "small_leaps": [1,1,0,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1],
+      "large_leaps": [0,1,0,1,1,0,1,0,1,1],
+      "wide":        [0,0,1,0,0]
+    }
   }
 }
 ```
 
 ---
 
-## Lees-API (afgeleid, niet opgeslagen)
-
-Hulpfuncties berekenen altijd live uit de array — nooit cached:
+## Lees-API
 
 ```js
-// Aantal correcte pogingen in het venster
-const correct = (arr) => arr.reduce((s, v) => s + v, 0);
+const mastery  = (arr)       => arr.length === 0
+                                  ? 0.5                       // prior
+                                  : arr.reduce((s,v)=>s+v,0) / arr.length;
 
-// Venstergrootte (max 20)
-const total = (arr) => arr.length;
+const display  = (arr)       => arr.length === 0
+                                  ? '—'
+                                  : `${arr.reduce((s,v)=>s+v,0)}/${arr.length}`;
 
-// Weergave: "17/20" of "5/8" of "—"
-const display = (arr) =>
-  arr.length === 0 ? '—' : `${correct(arr)}/${total(arr)}`;
+const hardness = (arr)       => 1 - mastery(arr);            // 0.0–1.0
 
-// Ratio 0.0–1.0 (null als nog geen data)
-const ratio = (arr) =>
-  arr.length === 0 ? null : correct(arr) / arr.length;
-
-// Is de speler "vaardig"? (≥ 80% bij ≥ 10 pogingen)
-const isProficient = (arr) =>
-  arr.length >= 10 && ratio(arr) >= 0.8;
+const proficient = (arr)     => arr.length >= 10 && mastery(arr) >= 0.8;
 ```
 
 ---
 
 ## Schrijf-API: `recordAttempt`
 
-Na elke voltooide melodie (in exercise mode of lesson mode) wordt één poging geregistreerd in **alle relevante dimensies tegelijk**:
-
 ```js
 recordAttempt({
-  scale:         'Ionian',       // modeName
-  tempoBand:     'medium',       // 'slow'|'medium'|'fast'|'very_fast'
-  timeSignature: '4/4',          // '3/4'|'4/4'|'5/4'|'6/8'|'7/8'|...
-  rhythmDensity: 'medium',       // 'sparse'|'medium'|'dense'|'very_dense'
-  smallestNote:  'eighth',       // 'whole_half'|'quarter'|'eighth'|'sixteenth'|'triplet'
-  clef:          'treble',       // 'treble'|'bass'|'both'
-  numMeasures:   4,              // als string-sleutel: '2'|'4'|'8'|'16'
-  chords:        'simple',       // 'none'|'simple'|'modal'|'jazz'|'passing'
-  faultless:     true,           // true als geen enkele fout gemaakt
+  scale:             'Lydian',
+  accidentals:       '2s',         // b = flats, s = sharps, '0' = geen
+  tempoBand:         'allegro',
+  timeSignature:     '5/4',
+  rhythmVariability: 'high',
+  smallestNote:      'eighth',
+  noteDensity:       'medium',
+  numMeasures:       4,
+  clef:              'treble',
+  chords:            'triads',
+  intervals:         'small_leaps',
+  faultless:         false,
 })
 ```
 
-Implementatie per dimensie:
+### Implementatie van de attributie
 
 ```js
-const push = (arr, value, maxWindow = 20) => {
-  const next = [value ? 1 : 0, ...arr];  // nieuwste eerst
-  return next.slice(0, maxWindow);        // venster begrenzen
+function recordAttempt(attempt, profile) {
+  const dims = getDimensionEntries(attempt);           // [{dim, val, arr}, ...]
+
+  // Bereken moeilijkheidsgewicht per dimensie
+  const weights = dims.map(d => ({ ...d, w: hardness(d.arr) }));
+  const mu = weights.reduce((s, d) => s + d.w, 0) / weights.length;
+  const allEasy = weights.every(d => d.w < 0.2);
+
+  if (attempt.faultless) {
+    // Succes: alle dimensies krijgen credit
+    dims.forEach(d => push(d.arr, 1));
+
+  } else if (allEasy) {
+    // Makkelijke combo, toch gefaald → fundamenteel probleem
+    dims.forEach(d => push(d.arr, 0));
+
+  } else {
+    // Gedeeltelijke attributie: enkel bovengemiddeld moeilijke dims
+    weights
+      .filter(d => d.w > mu)
+      .forEach(d => push(d.arr, 0));
+    // Sterke dimensies worden NIET gestraft
+  }
+}
+
+// Circulaire buffer: max 20, nieuwste eerst
+const push = (arr, val) => {
+  arr.unshift(val ? 1 : 0);
+  if (arr.length > 20) arr.pop();
 };
 ```
 
 ---
 
-## Tempo-bandindeling
+## Gecombineerde moeilijkheidsscore
 
-| Band | BPM-bereik | Sleutel |
-|---|---|---|
-| Langzaam | ≤ 79 | `slow` |
-| Medium | 80–109 | `medium` |
-| Snel | 110–139 | `fast` |
-| Zeer snel | ≥ 140 | `very_fast` |
-
----
-
-## Ritmedichtheid-indeling
-
-| Dichtheid | Noten/maat | Sleutel |
-|---|---|---|
-| Dun | 1–2 | `sparse` |
-| Gemiddeld | 3–4 | `medium` |
-| Dicht | 5–8 | `dense` |
-| Zeer dicht | 9+ | `very_dense` |
-
----
-
-## Gebruik in de adaptive engine
-
-De adaptive engine leest skills om het startpunt van een sessie te bepalen:
+Wordt gebruikt door de adaptive engine om de volgende sessie te kiezen:
 
 ```js
-// Welke toonladders zijn "zwak"? (< 70% bij ≥ 5 pogingen)
-const weakScales = Object.entries(profile.skills.scales)
-  .filter(([_, arr]) => arr.length >= 5 && ratio(arr) < 0.7)
-  .map(([name]) => name);
-
-// Welk tempobereik is de grens?
-const highestProficientTempo = ['slow','medium','fast','very_fast']
-  .filter(band => isProficient(profile.skills.tempos[band]))
-  .at(-1) ?? 'slow';
+// Gecombineerde moeilijkheid van een config (0.0–1.0)
+const configDifficulty = (config, skills) => {
+  const dims = getDimensionEntries(config, skills);
+  // Geometrisch gemiddelde van de hardheid — zodat één makkelijke dim
+  // niet de hele score omlaag trekt
+  const product = dims.reduce((p, d) => p * (0.1 + 0.9 * hardness(d.arr)), 1);
+  return Math.pow(product, 1 / dims.length);
+};
 ```
 
----
-
-## Debug mode — skills handmatig aanpassen
-
-In debug mode kan de gebruiker per dimensie de array direct overschrijven:
-
-```js
-// Reset één dimensie
-profile.skills.scales['Ionian'] = [];
-
-// Simuleer "goed in Ionisch"
-profile.skills.scales['Ionian'] = Array(20).fill(1);
-
-// Simuleer "slecht in Lydisch"
-profile.skills.scales['Lydian'] = Array(20).fill(0);
-```
-
-De debug UI toont elke dimensie als een rij van 20 vakjes (groen/grijs/leeg), klikbaar om te togglen.
+**Doelzone voor de adaptive engine:** `configDifficulty` tussen 0.25 en 0.45.
+- Te laag (< 0.25): speler speelt in de comfortzone → geen groei
+- Te hoog (> 0.45): te moeilijk → frustratie
+- In de zone: ~70–80% verwacht succespercentage = optimale leerzone
 
 ---
 
 ## Opslaggrootte schatting
 
-| Onderdeel | Dimensies | Max items | Bytes (JSON) |
-|---|---|---|---|
-| Scales | ~18 | 20 elk | ~800 B |
-| Tempos | 4 | 20 elk | ~200 B |
-| Time signatures | 7 | 20 elk | ~350 B |
-| Ritmedichtheid | 4 | 20 elk | ~200 B |
-| Kleinste noot | 5 | 20 elk | ~250 B |
-| Clef | 3 | 20 elk | ~150 B |
-| Num maten | 4 | 20 elk | ~200 B |
-| Akkoorden | 5 | 20 elk | ~250 B |
-| Meta + XP + unlocks | — | — | ~500 B |
-| **Totaal** | | | **~2,9 KB** |
+| Dimensie | Waarden | Max bytes |
+|---|---|---|
+| Toonladder (67) | 20 per item | 1 340 B |
+| Voortekens (15) | 20 per item | 300 B |
+| Tempband (5) | 20 per item | 100 B |
+| Maatsoort (8) | 20 per item | 160 B |
+| Ritme-variabiliteit (6) | 20 per item | 120 B |
+| Kleinste noot (5) | 20 per item | 100 B |
+| Nootdichtheid (5) | 20 per item | 100 B |
+| Aantal maten (4) | 20 per item | 80 B |
+| Sleutel (3) | 20 per item | 60 B |
+| Akkoorden (5) | 20 per item | 100 B |
+| Intervallen (4) | 20 per item | 80 B |
+| Meta + XP + unlocks | — | 500 B |
+| **Totaal** | | **~3,1 KB** |
 
-Ruim binnen localStorage-limieten (typisch 5–10 MB per origin).
+Ruim binnen de localStorage-limiet (5–10 MB).
+
+---
+
+## Debug UI — "Woordenlijst"
+
+Toont alle dimensies als een doorzoekbare lijst:
+
+```
+🔍 [filter...]
+
+TOONLADDERS
+  Major            ████████████████████  20/20  ✓
+  Dorian           █████████░░░░░░░░░░░  10/10
+  Lydian           ███░░░░░░░░░░░░░░░░░   3/20  ⚠
+  Phrygian         ░░░░░░░░░░░░░░░░░░░░   —     (nog nooit)
+  Chromatic        ░░░░░░░░░░░░░░░░░░░░   —
+
+TEMPO
+  adagio           ████████████████████  20/20  ✓
+  andante          █████████████████░░░  17/20
+  moderato         ████████████░░░░░░░░  12/18
+  allegro          ████░░░░░░░░░░░░░░░░   7/20  ⚠
+  presto           ░░░░░░░░░░░░░░░░░░░░   —
+
+...
+```
+
+Per rij klikbaar om de 20 slots te bewerken (debug-only).
+
+---
+
+## Open vragen voor review
+
+1. **Attributie-drempel:** bovengemiddeld moeilijk (> μ) is een goede start, maar wil je dit later verfijnen tot bijv. > μ + 0.5σ?
+2. **Prior 0.5:** voor een nog niet gespeelde toonladder nemen we aan 50% kans. Alternatief: intrinsieke moeilijkheid per schaal als prior (bijv. Chromatic = 0.1, Major = 0.7).
+3. **Intervalstructuur:** wordt afgeleid uit de melodie, niet ingesteld. Wil je dat de app de gegenereerde intervallen automatisch categoriseert bij `recordAttempt`?
+4. **Gecombineerde moeilijkheid weergeven?** De speler zou kunnen zien: "dit was een 0.38/1.0 sessie" — nuttig of afleidend?
