@@ -17,7 +17,6 @@ import {
     updateScaleWithMode,
     getBestEnharmonicTonic,
     modes,
-    ENHARMONIC_PAIRS,
 } from './theory/scaleHandler';
 import PlaybackSettings from './components/controls/PlaybackSettings';
 import Sequencer from './audio/Sequencer';
@@ -45,6 +44,9 @@ import useSheetMusicHighlight from './hooks/useSheetMusicHighlight';
 import useDeviceState from './hooks/useDeviceState';
 import useSettingsOverlay from './hooks/useSettingsOverlay';
 import useNoteInteraction from './hooks/useNoteInteraction';
+import usePlaybackNavigation from './hooks/usePlaybackNavigation';
+import useScaleManagement from './hooks/useScaleManagement';
+import SettingsPanel from './components/controls/SettingsPanel';
 import useDifficultySettings from './hooks/useDifficultySettings';
 import { buildHarmonyTable, getHarmonyAtDifficulty, HARMONY_DIFFICULTY_RANGE } from './utils/harmonyTable';
 import { calculateMusicalBlocks } from './utils/pagination';
@@ -57,15 +59,12 @@ import {
     Music,
     Piano,
     Settings,
-    Palette,
     Guitar,
     Drum,
     BookOpen,
     Mic,
     Keyboard,
     ListRestart,
-    Maximize,
-    Minimize,
     Grid3x3,
 } from 'lucide-react';
 import ChordGrid from './components/controls/ChordGrid';
@@ -75,17 +74,7 @@ import { PlaybackConfigProvider } from './contexts/PlaybackConfigContext';
 import { InstrumentSettingsProvider } from './contexts/InstrumentSettingsContext';
 import { DisplaySettingsProvider } from './contexts/DisplaySettingsContext';
 
-// ── Cycling lists — used in SubHeader and the settings panel ──────────────────
-const COLOR_MODES = ['none', 'tonic_scale_keys', 'chords', 'chromatone', 'subtle-chroma'];
 const VOLUME_LEVELS = [1.0, 0.8, 0.6, 0.4, 0.2, 0.0];
-
-/** Theme swatches: each entry describes one selectable theme. */
-const THEMES = [
-    { id: 'default', label: 'Default', swatches: ['#14131a', '#1f1e2a', '#6a2a8a', '#f2c879'] },
-    { id: 'light', label: 'Light', swatches: ['#eef3f7', '#d1d9e2', '#f3c6a8', '#2b3a42'] },
-    { id: 'nocturne', label: 'Nocturne', swatches: ['#0b1020', '#222c40', '#d4af37', '#e6e8ef'] },
-    { id: 'meridienne', label: 'Meridienne', swatches: ['#f4e7c5', '#e6c15a', '#b08a5a', '#3a2e1f'] },
-];
 
 /** Tab navigation entries — rendered via .map() in the bottom menu bar. */
 const TABS = [
@@ -301,39 +290,9 @@ const App = () => {
     }, [instruments]);
 
 
-    const [isScalePlaying, setIsScalePlaying] = useState(false);
-    const scalePlayTimerRef = useRef(null);
-
-    // Play all scale notes sequentially when the scale name in the header is clicked.
-    const handleScaleClick = useCallback(async () => {
-        if (!context || !instruments.treble || !scale?.notes?.length) return;
-        try {
-            if (context.state !== 'running') await context.resume();
-            const spacing = 60 / Math.max(60, bpmRef.current || 120);
-            scale.notes.forEach((note, i) => {
-                playSound(note, instruments.treble, context, context.currentTime + i * spacing, spacing * 0.9, 1, null);
-            });
-            setIsScalePlaying(true);
-            if (scalePlayTimerRef.current) clearTimeout(scalePlayTimerRef.current);
-            const totalMs = scale.notes.length * spacing * 1000;
-            scalePlayTimerRef.current = setTimeout(() => setIsScalePlaying(false), totalMs);
-        } catch {}
-    }, [context, instruments.treble, scale]);
-
-    // Toggle tonic to its enharmonic equivalent when the key-signature accidentals are clicked.
-    // E.g. F♯ major ↔ G♭ major. Uses ENHARMONIC_PAIRS (pitch-class → enharmonic pitch-class).
-    const handleEnharmonicToggle = useCallback(() => {
-        setScale(prev => {
-            if (!prev?.tonic) return prev;
-            // Strip octave suffix to get pitch class, then look up enharmonic spelling.
-            const tonicPC = prev.tonic.replace(/\d+$/, '');
-            const altPC = ENHARMONIC_PAIRS[tonicPC];
-            if (!altPC) return prev; // no enharmonic exists (C, E, B, etc.)
-            const octave = prev.tonic.match(/\d+$/)?.[0] ?? '4';
-            const newTonic = altPC + octave;
-            return updateScaleWithTonic({ currentScale: prev, newTonic });
-        });
-    }, []);
+    const { isScalePlaying, handleScaleClick, handleEnharmonicToggle } = useScaleManagement({
+        context, instruments, scale, setScale, bpmRef,
+    });
 
 
     // Factory: creates a setter that also mirrors the new value into instrumentSettingsRef.current[key].
@@ -603,13 +562,14 @@ const App = () => {
         onPlaybackStart: useCallback(() => onPlaybackStartRef.current(), [])
     });
 
-    // Clicking a measure number label: navigate to that measure and stop playback if running.
-    // Placed after usePlayback so isPlayingContinuously/handleStopAllPlayback are initialized.
-    const handleMeasureNumberClick = useCallback((globalIdx) => {
-        setStartMeasureIndex(globalIdx);
-        if (isPlayingContinuously || isPlayingMelody) handleStopAllPlayback();
-    }, [setStartMeasureIndex, isPlayingContinuously, isPlayingMelody, handleStopAllPlayback]);
-
+    // Skip-back/forward and measure-number-click navigation. Placed after usePlayback
+    // so isPlayingContinuously/handleStopAllPlayback are initialized.
+    const { handleSkipBack, handleSkipForward, handleMeasureNumberClick } = usePlaybackNavigation({
+        animationMode, musicalBlocks, startMeasureIndex, setStartMeasureIndex, numMeasures,
+        navigateHistory, setScale, _setTonic,
+        isPlayingContinuously, isPlayingMelody, handleStopAllPlayback, startSequencer,
+        setIsPlayingMelody, setIsPlayingContinuously, melodies,
+    });
 
     const handlePlayMelody = useCallback(() => {
         handlePlayMelodyLogic();
@@ -620,119 +580,6 @@ const App = () => {
         handlePlayContinuouslyLogic();
         setHeaderPlayMode('continuous');
     }, [handlePlayContinuouslyLogic]);
-
-    const handleSkipBack = useCallback(() => {
-        // PAGINATION: Try to go to previous block first
-        if (animationMode === 'pagination' && musicalBlocks.length > 1) {
-            const localS = startMeasureIndex % (numMeasures || 1);
-            let cumulative = 0;
-            let currentBlockIdx = -1;
-            for (let i = 0; i < musicalBlocks.length; i++) {
-                if (localS >= cumulative && localS < cumulative + musicalBlocks[i]) {
-                    currentBlockIdx = i;
-                    break;
-                }
-                cumulative += musicalBlocks[i];
-            }
-
-            if (currentBlockIdx > 0) {
-                const prevBlockStart = cumulative - musicalBlocks[currentBlockIdx - 1];
-                const newGlobalStart = Math.floor(startMeasureIndex / (numMeasures || 1)) * (numMeasures || 1) + prevBlockStart;
-                setStartMeasureIndex(newGlobalStart);
-                
-                if (isPlayingContinuously || isPlayingMelody) {
-                    handleStopAllPlayback();
-                    setTimeout(() => {
-                        const melodiesData = { treble: melodies.treble, bass: melodies.bass, percussion: melodies.percussion, chordProgression: melodies.chordProgression };
-                        startSequencer(melodiesData, isPlayingMelody, newGlobalStart);
-                        if (isPlayingMelody) setIsPlayingMelody(true);
-                        else setIsPlayingContinuously(true);
-                    }, 50);
-                }
-                return;
-            }
-        }
-
-        const entry = navigateHistory('back');
-        if (entry) {
-            // Update UI/Refs
-            if (entry.scale) setScale(entry.scale);
-            if (entry.tonic) _setTonic(entry.tonic);
-            
-            // To provide a consistent experience, skipping back to a previous melody 
-            // starts it from the beginning (index 0). 
-            const newStartIdx = 0;
-            setStartMeasureIndex(newStartIdx);
-
-            if (isPlayingContinuously || isPlayingMelody) {
-                handleStopAllPlayback();
-                setTimeout(() => {
-                    startSequencer(entry, isPlayingMelody, newStartIdx);
-                    if (isPlayingMelody) setIsPlayingMelody(true);
-                    else setIsPlayingContinuously(true);
-                }, 50);
-            }
-        }
-    }, [
-        animationMode, musicalBlocks, startMeasureIndex, numMeasures, 
-        navigateHistory, setScale, isPlayingContinuously, isPlayingMelody, 
-        handleStopAllPlayback, startSequencer, melodies
-    ]);
-
-    const handleSkipForward = useCallback(() => {
-        // PAGINATION: Try to go to next block first
-        if (animationMode === 'pagination' && musicalBlocks.length > 1) {
-            const localS = startMeasureIndex % (numMeasures || 1);
-            let cumulative = 0;
-            let currentBlockIdx = -1;
-            for (let i = 0; i < musicalBlocks.length; i++) {
-                if (localS >= cumulative && localS < cumulative + musicalBlocks[i]) {
-                    currentBlockIdx = i;
-                    break;
-                }
-                cumulative += musicalBlocks[i];
-            }
-
-            if (currentBlockIdx !== -1 && currentBlockIdx < musicalBlocks.length - 1) {
-                const nextBlockStart = cumulative + musicalBlocks[currentBlockIdx];
-                const newGlobalStart = Math.floor(startMeasureIndex / (numMeasures || 1)) * (numMeasures || 1) + nextBlockStart;
-                setStartMeasureIndex(newGlobalStart);
-                
-                if (isPlayingContinuously || isPlayingMelody) {
-                    handleStopAllPlayback();
-                    setTimeout(() => {
-                        const melodiesData = { treble: melodies.treble, bass: melodies.bass, percussion: melodies.percussion, chordProgression: melodies.chordProgression };
-                        startSequencer(melodiesData, isPlayingMelody, newGlobalStart);
-                        if (isPlayingMelody) setIsPlayingMelody(true);
-                        else setIsPlayingContinuously(true);
-                    }, 50);
-                }
-                return;
-            }
-        }
-
-        const entry = navigateHistory('forward');
-        if (entry) {
-            if (entry.scale) setScale(entry.scale);
-            if (entry.tonic) _setTonic(entry.tonic);
-            
-            const newStartIdx = 0;
-            setStartMeasureIndex(newStartIdx);
-
-            if (isPlayingContinuously || isPlayingMelody) {
-                handleStopAllPlayback();
-                setTimeout(() => {
-                    startSequencer(entry, isPlayingMelody, newStartIdx);
-                    if (isPlayingMelody) setIsPlayingMelody(true);
-                    else setIsPlayingContinuously(true);
-                }, 50);
-            }
-        }
-    }, [
-        animationMode, musicalBlocks, startMeasureIndex, numMeasures,
-        navigateHistory, setScale, isPlayingContinuously, isPlayingMelody, 
-        handleStopAllPlayback, startSequencer, melodies
-    ]);
 
     const {
         isInputTestMode, setIsInputTestMode,
@@ -1759,81 +1606,12 @@ const App = () => {
                         </div>
                     )}
                     {activeTab === 'other-settings' && (
-                        <div className="app-settings-panel">
-                            {/* Theme */}
-                            <div className="app-settings-section">
-                                <div className="app-settings-section-label">THEME</div>
-                                <div className="app-theme-picker">
-                                    {THEMES.map(({ id: tId, label: tLabel, swatches }) => {
-                                        const isActive = theme === tId || (!theme && tId === 'default');
-                                        return (
-                                            <div key={tId} className="app-theme-item" onClick={() => setTheme(tId)}>
-                                                <div
-                                                    className="app-theme-swatch"
-                                                    style={{ border: isActive ? '2px solid var(--accent-yellow)' : '2px solid #444' }}
-                                                >
-                                                    {swatches.map((c, ci) => (
-                                                        <div key={ci} className="app-theme-swatch-slice" style={{ backgroundColor: c }} />
-                                                    ))}
-                                                </div>
-                                                <span className="app-theme-label" style={{ color: isActive ? 'var(--accent-yellow)' : 'var(--text-dim)' }}>{tLabel}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* Color Palette */}
-                            <div className="app-settings-section">
-                                <div className="app-settings-section-label">STAVE COLORING</div>
-                                <div className="app-settings-row" onClick={() => {
-                                    const idx = COLOR_MODES.indexOf(noteColoringMode);
-                                    setNoteColoringMode(COLOR_MODES[(idx + 1) % COLOR_MODES.length]);
-                                }}>
-                                    <div className="app-settings-row-icon"><Palette size={20} /></div>
-                                    <div className="app-settings-row-body">
-                                        <div className="app-settings-row-title">
-                                            {noteColoringMode === 'none' ? 'None' :
-                                                noteColoringMode === 'tonic_scale_keys' ? 'Tonic / Scale' :
-                                                    noteColoringMode === 'chords' ? 'Chords' : 'Chromatone'}
-                                        </div>
-                                        <div className="app-settings-row-sub">Cycle coloring mode</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Fullscreen */}
-                            <div className="app-settings-section">
-                                <div className="app-settings-section-label">DISPLAY</div>
-                                <div className="app-settings-row" onClick={() => toggleFullscreen()}>
-                                    <div className="app-settings-row-icon">
-                                        {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-                                    </div>
-                                    <div className="app-settings-row-body">
-                                        <div className="app-settings-row-title">{isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Scale toggles */}
-                            <div className="app-settings-section">
-                                <div className="app-settings-section-label">SCALE OPTIONS</div>
-                                <div className="app-settings-toggles">
-                                    <div className="app-toggle-row" onClick={() => setMinimizeAccidentals(v => !v)}>
-                                        <div className="app-toggle-track" style={{ backgroundColor: minimizeAccidentals ? 'var(--accent-yellow)' : '#444' }}>
-                                            <div className="app-toggle-thumb" style={{ left: minimizeAccidentals ? 19 : 3 }} />
-                                        </div>
-                                        <span className="app-toggle-label" style={{ color: minimizeAccidentals ? 'var(--text-primary)' : 'var(--text-dim)' }}>Minimize Accidentals</span>
-                                    </div>
-                                    <div className="app-toggle-row" onClick={() => setIsModulationEnabled(v => !v)}>
-                                        <div className="app-toggle-track" style={{ backgroundColor: isModulationEnabled ? 'var(--accent-yellow)' : '#444' }}>
-                                            <div className="app-toggle-thumb" style={{ left: isModulationEnabled ? 19 : 3 }} />
-                                        </div>
-                                        <span className="app-toggle-label" style={{ color: isModulationEnabled ? 'var(--text-primary)' : 'var(--text-dim)' }}>Modulate</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                        <SettingsPanel
+                            theme={theme} setTheme={setTheme}
+                            isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen}
+                            minimizeAccidentals={minimizeAccidentals} setMinimizeAccidentals={setMinimizeAccidentals}
+                            isModulationEnabled={isModulationEnabled} setIsModulationEnabled={setIsModulationEnabled}
+                        />
                     )}
                 </div>
             </div>
