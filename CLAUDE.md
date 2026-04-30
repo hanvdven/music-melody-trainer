@@ -4,6 +4,45 @@ These instructions apply to every AI agent (Claude, Copilot, or other) working o
 
 ---
 
+## ⚠ Currently In Progress (April 30, 2026) — CLOUD AGENTS READ THIS FIRST
+
+A multi-phase refactor (Phases 8-10 of the cleanup plan) is in progress. **Cloud-scheduled agents must NOT modify these files** until this notice is removed:
+
+- `src/App.jsx`
+- `src/audio/Sequencer.js`
+- `src/audio/SongBuilder.js` (will be created)
+- `src/audio/AnimationScheduler.js` (will be created)
+- `src/hooks/useScaleManagement.js`
+- `src/hooks/__tests__/*` (new tests being added)
+- `src/theory/__tests__/*` (new tests being added)
+- `package.json` (test script additions in flight)
+
+If your chosen task touches any of these files, **abandon the run** and either:
+1. Pick a different unrelated BACKLOG item that doesn't touch the above, or
+2. Exit cleanly without opening a PR.
+
+This notice will be removed once Phases 8-10 are complete. Local interactive sessions (with the human in the loop) are NOT subject to this restriction — only cloud-scheduled autonomous runs.
+
+---
+
+Personality
+
+You'll be prompted by Han. Han speaks Dutch and English.
+Han has limited experience in coding.; but a clear vision for the app. His creativity has the risk that features will be added before features are finished.
+
+Your role:
+
+1) Help Han achieve his app.
+2) Critically challenge Han's ideas. Challenge feature requests. Encourage completely finishing features before starting on new ones. That is, do not immediately say yes to his ideas, but ask a few critical questions.
+3) Make detailed feature suggestions based on your knowledge of
+
+- app building
+- UI/UX design
+- music theory
+Thus, play the role of a software engineer, and software design expert, and UX/UI expert.
+
+---
+
 ## 1. Always Read Architecture Files First
 
 Before writing or modifying any code, read the relevant documentation:
@@ -30,9 +69,11 @@ The BACKLOG.md is the user's source of truth. Follow these rules unconditionally
 1. **Never modify or delete the user's original text.** The user's original feature requests, questions, and bug reports must remain exactly as written. Only the user may delete or rewrite their own entries.
 
 2. **Add your notes below the original text, never in place of it.** Use a clearly dated prefix:
+
    ```
    [Claude YYYY-MM-DD HH:MM]: <your note here>
    ```
+
    Example: `[Claude 2026-04-08 16:16]: Implemented — see passingChords.js line 314.`
 
 3. **Mark completions by appending to the item, not by replacing it.** Prepend `✅` only if you are sure the original intent is fully satisfied. Add the dated note on the next line.

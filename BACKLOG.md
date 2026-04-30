@@ -2,6 +2,18 @@
 
 ---
 
+## ⚠ WORK IN PROGRESS (cloud agents, please read)
+
+[Claude 2026-04-30]: Phases 8-10 of the cleanup refactor are currently in progress. The following items are RESERVED for the active local refactor session — cloud-scheduled agents should NOT pick them up:
+
+- App.jsx slim-down (specifically: setTonic / setSelectedMode / applyHarmonyAtDifficulty extraction)
+- Sequencer.js decomposition (SongBuilder, AnimationScheduler extractions)
+- Test infrastructure (new tests for hooks, noteUtils)
+
+If a backlog item below relates to these areas, leave it alone and pick something else. See CLAUDE.md "Currently In Progress" section for the full file off-limits list. This notice will be removed once the work is complete.
+
+---
+
 ## BACKLOG REGELS (voor de AI-agent)
 
 > Deze regels gaan voor alles. Lees ze bij elke sessie opnieuw.
