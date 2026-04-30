@@ -191,7 +191,7 @@ class MelodyGenerator {
 
             // Build sorted chord event list.
             // this.chords can be a Melody object (normal path from randomizeAll) or a
-            // ChordProgression / raw Chord array (playContinuously.js path).
+            // ChordProgression / raw Chord array (Sequencer.randomizeScaleAndGenerate path).
             const chordEvents = [];
             const measureLength = TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]);
             if (this.chords.offsets && Array.isArray(this.chords.offsets)) {

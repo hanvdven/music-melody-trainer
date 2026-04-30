@@ -20,6 +20,7 @@ import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, isRest 
 
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
+import { PRESET_RANGES as CLEF_RANGE_PRESET_RANGES } from '../../constants/ranges';
 import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionDisplay } from '../../constants/transposingInstruments';
 import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange } from '../../utils/melodySlice';
 import { calculateMusicalBlocks } from '../../utils/pagination';
@@ -35,11 +36,8 @@ import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 // ── Clef/range picker ─────────────────────────────────────────────────────
 // Matches RangeControls rangeOptionsList so clicking the clef in the sheet
 // music opens the same full-list picker as the range-mode stepper.
-const CLEF_RANGE_PRESET_RANGES = {
-  STANDARD: { treble: { min: 'C4', max: 'E5' }, bass: { min: 'A2', max: 'C4' } },
-  LARGE:    { treble: { min: 'C4', max: 'G5' }, bass: { min: 'G2', max: 'C4' } },
-  FULL:     { treble: { min: 'A3', max: 'C6' }, bass: { min: 'C2', max: 'E4' } },
-};
+// CLEF_RANGE_PRESET_RANGES is imported above as PRESET_RANGES (renamed locally
+// for context — the picker only opens from the clef in this view).
 const CLEF_VOCAL_RANGES = [
   { label: 'Bass',          min: 'G2', max: 'C4', clef: 'bass' },
   { label: 'Baritone',      min: 'B2', max: 'F4', clef: 'bass' },

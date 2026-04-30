@@ -14,6 +14,7 @@ import {
 import DoubleStepper from '../common/DoubleStepper';
 import GenericStepper from '../common/GenericStepper';
 import { ALL_NOTES, getNoteSemitone } from '../../theory/noteUtils';
+import { PRESET_RANGES } from '../../constants/ranges';
 import './styles/RangeControls.css';
 
 const getNoteValue = (note) => {
@@ -64,21 +65,6 @@ const RangeControls = ({
         { label: 'Mezzo-soprano', min: 'A3', max: 'G5', clef: 'mezzo-soprano' },
         { label: 'Soprano', min: 'C4', max: 'G6', clef: 'soprano' },
     ];
-
-    const PRESET_RANGES = {
-        STANDARD: {
-            treble: { min: 'C4', max: 'E5' },
-            bass: { min: 'A2', max: 'C4' }
-        },
-        LARGE: {
-            treble: { min: 'C4', max: 'G5' },
-            bass: { min: 'G2', max: 'C4' }
-        },
-        FULL: {
-            treble: { min: 'A3', max: 'C6' },
-            bass: { min: 'C2', max: 'E4' }
-        }
-    };
 
     const isCustom = !['STANDARD', 'LARGE', 'FULL', 'relative'].includes(rangeMode) && !VOCAL_RANGES.some(r => r.label === rangeMode);
     const [lastPreset, setLastPreset] = useState('STANDARD');

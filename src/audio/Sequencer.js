@@ -23,12 +23,7 @@ import { sliceMelodyByMeasure, sliceChordsForMeasure } from '../utils/melodySlic
 import { getChordsWithSlashes } from '../theory/chordLabelHandler';
 import { getHarmonyAtDifficulty } from '../utils/harmonyTable';
 import { getMelodyAtDifficulty } from '../utils/melodyDifficultyTable';
-
-const PRESET_RANGES = {
-  STANDARD: { treble: { min: 'C4', max: 'E5' }, bass: { min: 'A2', max: 'C4' } },
-  LARGE: { treble: { min: 'C4', max: 'G5' }, bass: { min: 'G2', max: 'C4' } },
-  FULL: { treble: { min: 'A3', max: 'C6' }, bass: { min: 'C2', max: 'E4' } },
-};
+import { PRESET_RANGES } from '../constants/ranges';
 
 class Sequencer {
   constructor(config) {

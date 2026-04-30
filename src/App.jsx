@@ -475,8 +475,8 @@ const App = () => {
     );
 
 
-    // Sync chord complexity from chordSettings into playbackConfig so Sequencer/playContinuously
-    // (which read playbackConfigRef.current.chordComplexity) pick up the latest value.
+    // Sync chord complexity from chordSettings into playbackConfig so the Sequencer
+    // (which reads playbackConfigRef.current.chordComplexity) picks up the latest value.
     useEffect(() => {
         if (chordSettings?.complexity) {
             setPlaybackConfig(p => ({ ...p, chordComplexity: chordSettings.complexity }));
