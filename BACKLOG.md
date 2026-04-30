@@ -450,10 +450,17 @@ Nog open: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren 
 
 - algemene code cleanup
   - verwijderen van verouderde bestanden (`playContinuously.js`, `usePlaybackState.js`)
+    - [Claude 2026-04-30]: ✅ playContinuously.js was deleted in v2 reorg; stale comment references in App.jsx and melodyGenerator.js cleaned up.
   - DRY note-matching logica in `convertRankedArrayToMelody.js`
+    - [Claude 2026-04-30]: ✅ Done. Replaced local `getNotePC` + `ALL_PCS_CALC` with `getNoteSemitone` from `noteUtils.js`. Same fix applied to `useInputTest.js` (replaced inline `canonicalMap` with `getCanonicalNote(normalizeNoteChars(n))`) and `RangeControls.jsx` (replaced inline enharmonics map). See commit `f69f80a`.
   - refactor `MelodyGenerator.generateMelody` om complexiteit te verminderen
+    - [Claude 2026-04-30]: Investigated. The unified `generateAllMelodies()` extraction (planned to dedupe between `Sequencer.randomizeScaleAndGenerate` and `useMelodyState.randomizeAll`) was skipped: the two call sites have meaningfully diverged control flow (transpose-existing vs fixed-reference branches), and merging would need 8+ config flags with audio-scheduling risk per CLAUDE.md §6. Still open.
   - hooks extraheren uit `App.jsx` om bestandsgrootte te verminderen
+    - [Claude 2026-04-30]: ✅ Done. App.jsx 2,204 → 1,625 lines (26% reduction). Extracted: `useSettingsOverlay`, `useNoteInteraction`, `usePlaybackNavigation`, `useScaleManagement` (partial — `setTonic`/`setSelectedMode` stayed due to coupling with refs & range setters); `SubHeader` and `SettingsPanel` components; three React Contexts (`PlaybackConfigContext`, `InstrumentSettingsContext`, `DisplaySettingsContext`).
   - `PlaybackSettings.jsx` opsplitsen in subcomponenten
+    - [Claude 2026-04-30]: ✅ Done. PlaybackSettings 602 → 504 lines. Extracted "Instruments" + "Visibility & Audibility" sections into `PlaybackInstrumentSection.jsx`. See commit `e60fef5`.
+  - PRESET_RANGES geconsolideerd
+    - [Claude 2026-04-30]: ✅ Done. Was triplicated in `Sequencer.js`, `RangeControls.jsx`, and `SheetMusic.jsx`. Now imported from `src/constants/ranges.js`.
 
 ---
 
