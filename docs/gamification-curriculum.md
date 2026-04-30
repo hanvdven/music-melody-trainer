@@ -245,9 +245,26 @@ Elke les volgt hetzelfde stramien, duurt 10–20 min:
 
 ---
 
+## Unlock-tabel per examen
+
+Bij het halen van een examen worden alle bijbehorende lessen én content unlocked in Exercise Mode.
+
+| Examen | Unlocked content in Exercise Mode |
+|---|---|
+| Examen 1 | C Groot · 4/4 · kwartnoten/halven · 60–80 BPM · treble input |
+| Examen 2 | + G Groot · F Groot · achtste noten · 90–100 BPM |
+| Examen 3 | + A/E/D Mineur · 3/4 · I–IV–V progressies · bassleutel lezen |
+| Examen 4 | + Dorisch · Mixolydisch · basslijn input · ii–V–I progressie · 100–110 BPM |
+| Examen 5 | + 5/4 · 6/8 · triolen · passing chords · alle diatonische modi |
+| Examen 6 | + Alle toonsoorten · alle modi · jazz-progressies · vrije improvisatie |
+
+**Placement skip:** wie via de onboarding-quiz direct Examen 4 haalt, krijgt meteen alle content t/m Examen 4 unlocked — alsof alle lessen t/m mijlpaal 12 gevolgd zijn.
+
+---
+
 ## Open vragen voor review
 
-1. **Mijlpaal 4–18:** wil je dat ik de lessen voor de resterende werelden even gedetailleerd uitwerk als Wereld 1, of is de hoog-niveau beschrijving voldoende voor nu?
-2. **Lesinhoud vs. generator:** elke les heeft een specifieke app-configuratie (toonsoort, BPM, maatsoort, input-modus). Wil je dat die config vastgelegd wordt als een *preset* in de app, of wordt de les-engine een apart systeem?
-3. **Wereldkaart UI:** is de kaart puur decoratief (je ziet welke wereld je in zit) of interactief (je klikt op een wereld en ziet alle lessen/mijlpalen als nodes)?
-4. **Lessen los van gamification?** Kunnen lessen ook los van de pathway gespeeld worden (vrij oefenen blijft altijd beschikbaar), of is de pathway de primaire toegang?
+1. **Mijlpaal 4–18:** wil je alle 180 lessen even gedetailleerd uitwerken als Wereld 1, of eerst de architectuur bouwen?
+2. **Lesconfig als preset:** elke les heeft een specifieke app-config (toonsoort, BPM, maatsoort, input-modus). Wordt dit een preset-systeem of een aparte les-engine?
+3. **Wereldkaart UI:** puur decoratief of interactief (klikbare nodes per les/mijlpaal)?
+4. **Lessen los speelbaar:** kunnen lessen ook buiten de pathway om gespeeld worden?
