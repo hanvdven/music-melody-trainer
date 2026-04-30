@@ -13,19 +13,15 @@ import {
 } from 'lucide-react';
 import DoubleStepper from '../common/DoubleStepper';
 import GenericStepper from '../common/GenericStepper';
-import { ALL_NOTES } from '../../theory/noteUtils';
+import { ALL_NOTES, getNoteSemitone } from '../../theory/noteUtils';
 import './styles/RangeControls.css';
 
 const getNoteValue = (note) => {
     if (!note) return 60;
     const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
     if (!match) return 60;
-    let pc = match[1].replace('#', '♯').replace('b', '♭');
     const oct = parseInt(match[2], 10);
-    const enharmonics = { 'C♯': 'D♭', 'D♯': 'E♭', 'G♯': 'A♭', 'A♯': 'B♭' };
-    if (enharmonics[pc]) pc = enharmonics[pc];
-    const pcIndex = ALL_NOTES.indexOf(pc);
-    return pcIndex === -1 ? 60 : (oct + 1) * 12 + pcIndex;
+    return (oct + 1) * 12 + getNoteSemitone(match[1]);
 };
 
 const getNoteFromValue = (val) => {

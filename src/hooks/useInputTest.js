@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { getCanonicalNote, normalizeNoteChars } from '../theory/noteUtils';
 
 /**
  * useInputTest — manages all Input Test Mode state and logic.
@@ -176,17 +177,10 @@ const useInputTest = ({
     }, [isInputTestMode, activeTab, activeClef]);
 
     // ── Note evaluation ──────────────────────────────────────────────────────
-    const canonicalMap = {
-        'C♯': 'D♭', 'D♯': 'E♭', 'G♭': 'F♯', 'G♯': 'A♭', 'A♯': 'B♭',
-        'E♯': 'F', 'B♯': 'C', 'C♭': 'B', 'F♭': 'E',
-        'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb',
-    };
-    const getCan = useCallback((n) => {
-        const m = n.match(/^(.+?)(-?\d+)$/);
-        if (!m) return n;
-        const p = m[1].replace('#', '♯').replace('b', '♭');
-        return (canonicalMap[p] || p) + m[2];
-    }, []);
+    // Canonicalize a note (any spelling, ASCII or Unicode) to the form used by
+    // allNotesArray (D♭, E♭, F♯, A♭, B♭). normalizeNoteChars first promotes ASCII
+    // accidentals to Unicode, then getCanonicalNote applies CANONICAL_MAP.
+    const getCan = useCallback((n) => getCanonicalNote(normalizeNoteChars(n)), []);
 
     const handleInputTestNoteCore = useCallback((playedNote, isTap = false) => {
         if (!isInputTestModeRef.current || inputTestStateRef.current.activeIndex === -1) return;
