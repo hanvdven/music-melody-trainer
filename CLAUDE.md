@@ -246,6 +246,24 @@ Whenever you need to play a percussion note interactively (e.g. click-to-play in
 
 ---
 
+## 7b. Pre-commit Verification
+
+Before opening a PR or marking work complete, run:
+
+1. `npm run test:run` — runs the full vitest suite once. Must be green.
+2. `npm run build` — Vite build. Must compile without errors.
+3. `npm run lint` — optional but recommended.
+
+Test files live under `src/**/__tests__/*.test.js`. The suite includes:
+
+- `src/theory/__tests__/noteUtils.test.js` — pitch primitives
+- `src/hooks/__tests__/*.test.js` — extracted hook behavior
+- `src/utils/__tests__/*.test.js` — music utilities
+
+When extracting a new hook or pure helper from a larger file, **add at least one smoke test for it in the same PR**. Tests are the safety net for the next refactor wave.
+
+---
+
 ## 8. File Ownership Summary
 
 Quick guide to which file owns which concern:
