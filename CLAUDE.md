@@ -246,6 +246,44 @@ Whenever you need to play a percussion note interactively (e.g. click-to-play in
 
 ---
 
+## 7a. Error Handling, Error Codes, and Logging
+
+The app now has a leveled logger and a root error boundary. Use them.
+
+### Logger
+Use `import logger from 'src/utils/logger'` instead of bare `console.*` for any non-trivial logging. The logger formats messages with timestamp, level, and a source tag, and lets us silence noisy modules in production via `localStorage.LOG_LEVEL` or `VITE_LOG_LEVEL`.
+
+```js
+logger.debug('Sequencer', 'iteration tick', { measure: 0 });
+logger.info('App', 'audio context resumed');
+logger.warn('App', 'unexpected null melody, falling back', { staff: 'treble' });
+logger.error('Sequencer', 'E010-PLAYBACK-START', err, { bpm: 120 });
+```
+
+`logger.error(source, code, ...)` requires a stable error code as the second argument so error reports stay grep-able across builds. Reuse codes for the same failure mode; allocate new ones for genuinely new failures. Allocated codes:
+
+- **E001-REACT-RENDER** — error caught by an ErrorBoundary during render
+- **E002-UNCAUGHT** — escaped error caught by `window.error` listener
+- **E003-UNHANDLED-REJECTION** — escaped promise rejection caught by `window.unhandledrejection`
+
+When you add a new `logger.error` call, allocate a new code (e.g. `E020-AUDIO-INIT`) and add it to this list.
+
+### Error Boundaries
+The root `<ErrorBoundary boundary="root">` in `src/main.jsx` catches anything React renders that throws. For tab content or large isolated UI sections, wrap them in their own ErrorBoundary with a descriptive `boundary` name (e.g. `boundary="sheet-music"`, `boundary="chords-tab"`) so a failure in one area doesn't blank out the whole app and so logs identify which area failed.
+
+```jsx
+<ErrorBoundary boundary="my-section">
+  <MySection />
+</ErrorBoundary>
+```
+
+Add an ErrorBoundary around any new top-level feature or risky tab.
+
+### Don't Hide Errors
+Per §7 ("No error handling for impossible states") we don't add try/catch for things that can't happen. But for things that CAN go wrong at system boundaries (audio context init, user input parsing, external API calls), catch the error AND log it with `logger.error` and a stable error code. Silent `catch {}` is only acceptable when the error is genuinely expected and irrelevant (e.g. AudioContext.resume() rejecting because already running).
+
+---
+
 ## 7b. Pre-commit Verification
 
 Before opening a PR or marking work complete, run:
