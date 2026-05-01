@@ -351,6 +351,7 @@ const App = () => {
         tonic, selectedMode, isScalePlaying,
         setTonic, setSelectedMode, applyHarmonyAtDifficulty,
         handleScaleClick, handleEnharmonicToggle,
+        _setTonic, // raw setter for history-restore in usePlaybackNavigation
     } = useScaleManagement({
         context, instruments, scale, setScale, _setScale, bpmRef,
         instrumentSettingsRef, setTrebleSettings, setBassSettings,

@@ -166,5 +166,9 @@ export default function useScaleManagement({
         applyHarmonyAtDifficulty,
         handleScaleClick,
         handleEnharmonicToggle,
+        // Raw setters — exposed so callers (e.g. usePlaybackNavigation history
+        // restore) can set the tonic without re-applying minimize-accidentals,
+        // range sync, and scale update side effects of setTonic.
+        _setTonic,
     };
 }
