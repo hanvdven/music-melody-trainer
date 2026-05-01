@@ -10,12 +10,9 @@ import { instrumentOptions } from './components/controls/instrumentOptions';
 import './styles/App.css';
 import './styles/AppLayout.css';
 import ScaleSelector from './components/scale/ScaleSelector';
-import { transposeMelodyToScale, transposeMelodyBySemitones, modulateMelody, calculateRelativeRange } from './theory/musicUtils';
+import { transposeMelodyToScale, transposeMelodyBySemitones, modulateMelody } from './theory/musicUtils';
 import {
     formatScaleName,
-    updateScaleWithTonic,
-    updateScaleWithMode,
-    getBestEnharmonicTonic,
     modes,
 } from './theory/scaleHandler';
 import PlaybackSettings from './components/controls/PlaybackSettings';
@@ -48,7 +45,7 @@ import usePlaybackNavigation from './hooks/usePlaybackNavigation';
 import useScaleManagement from './hooks/useScaleManagement';
 import SettingsPanel from './components/controls/SettingsPanel';
 import useDifficultySettings from './hooks/useDifficultySettings';
-import { buildHarmonyTable, getHarmonyAtDifficulty, HARMONY_DIFFICULTY_RANGE } from './utils/harmonyTable';
+import { buildHarmonyTable, HARMONY_DIFFICULTY_RANGE } from './utils/harmonyTable';
 import { calculateMusicalBlocks } from './utils/pagination';
 import { resizeMelody } from './utils/melodySlice';
 import { TICKS_PER_WHOLE } from './constants/timing';
@@ -274,8 +271,6 @@ const App = () => {
         }
     }, [theme]);
 
-    const [selectedMode, _setSelectedMode] = useState('Major');
-
     const percussionScale = Scale.defaultPercussionScale();
     const windowSize = useWindowSize();
     const [musicalBlocks, setMusicalBlocks] = useState([1]);
@@ -288,11 +283,6 @@ const App = () => {
     useEffect(() => {
         instrumentsRef.current = instruments;
     }, [instruments]);
-
-
-    const { isScalePlaying, handleScaleClick, handleEnharmonicToggle } = useScaleManagement({
-        context, instruments, scale, setScale, bpmRef,
-    });
 
 
     // Factory: creates a setter that also mirrors the new value into instrumentSettingsRef.current[key].
@@ -329,63 +319,6 @@ const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const setChordSettings = useCallback(makeInstrumentSetter(_setChordSettings, 'chords'), [_setChordSettings]);
 
-    const [tonic, _setTonic] = useState('C4');
-    const setTonic = useCallback((newTonic, isManualOverride = false) => {
-        let finalTonic = newTonic;
-        // Apply minimization only if NOT manually overridden and toggle is ON
-        if (minimizeAccidentals && !isManualOverride) {
-            finalTonic = getBestEnharmonicTonic(newTonic, selectedMode);
-        }
-        _setTonic(finalTonic);
-
-        // SYNC RANGES SYNCHRONOUSLY to prevent lag between tonic change and melody generation
-        const trebleRange = calculateRelativeRange('treble', instrumentSettingsRef.current.treble?.rangeMode, finalTonic);
-        if (trebleRange) {
-            setTrebleSettings(p => ({ ...p, range: trebleRange }));
-        }
-        const bassRange = calculateRelativeRange('bass', instrumentSettingsRef.current.bass?.rangeMode, finalTonic);
-        if (bassRange) {
-            setBassSettings(p => ({ ...p, range: bassRange }));
-        }
-
-        // Also update scale since tonic usually changes scale
-        _setScale((prev) => {
-            if (!prev) return prev;
-            return updateScaleWithTonic({ currentScale: prev, newTonic: finalTonic });
-        });
-    }, [minimizeAccidentals, selectedMode, setTrebleSettings, setBassSettings]);
-
-    const setSelectedMode = useCallback((newMode) => {
-        _setSelectedMode(newMode);
-
-        // When mode changes, if minimize is on, we might need a better tonic for THIS mode
-        if (minimizeAccidentals) {
-            _setTonic((prevTonic) => {
-                const bestTonic = getBestEnharmonicTonic(prevTonic, newMode);
-                if (bestTonic !== prevTonic) {
-                    // Update scale too if we switched tonic
-                    _setScale((prevScale) => {
-                        if (!prevScale) return prevScale;
-                        return updateScaleWithTonic({ currentScale: prevScale, newTonic: bestTonic });
-                    });
-
-                    // SYNC RANGES SYNCHRONOUSLY
-                    const trebleRange = calculateRelativeRange('treble', instrumentSettingsRef.current.treble?.rangeMode, bestTonic);
-                    if (trebleRange) {
-                        setTrebleSettings(p => ({ ...p, range: trebleRange }));
-                    }
-                    const bassRange = calculateRelativeRange('bass', instrumentSettingsRef.current.bass?.rangeMode, bestTonic);
-                    if (bassRange) {
-                        setBassSettings(p => ({ ...p, range: bassRange }));
-                    }
-
-                    return bestTonic;
-                }
-                return prevTonic;
-            });
-        }
-    }, [minimizeAccidentals, setTrebleSettings, setBassSettings]);
-
     const [playbackConfig, _setPlaybackConfig] = useState(configRef.current);
 
     const setPlaybackConfig = useCallback((val) => {
@@ -410,27 +343,19 @@ const App = () => {
         actualDifficulty,
     } = useDifficultySettings({ scale, trebleSettings, bpm, playbackConfig });
 
-    /**
-     * Picks a random (family, mode, tonic) whose harmonic difficulty matches
-     * `target` within ±tolerance and applies it to the current scale.
-     */
-    const applyHarmonyAtDifficulty = useCallback((target) => {
-        const rand = playbackConfig.randomize;
-        const constraints = {
-            fixedTonic: !rand.tonic ? scale.displayTonic?.replace(/\d+$/, '') ?? scale.tonic.replace(/\d+$/, '') : null,
-            fixedFamily: rand.family === false ? scale.family : null,
-            fixedMode: (rand.family === false && !rand.mode) ? scale.name : null,
-        };
-        const entry = getHarmonyAtDifficulty(target, 0.5, constraints);
-        if (!entry) return;
-        if (rand.family !== false || rand.mode) {
-            _setScale((prev) => updateScaleWithMode({ currentScale: prev, newFamily: entry.family, newMode: entry.modeName }));
-            _setSelectedMode(entry.modeName);
-        }
-        if (rand.tonic) {
-            setTonic(entry.tonic + '4');
-        }
-    }, [setTonic, playbackConfig, scale]);
+    // Owns scale-related state (tonic, selectedMode) and handlers (setTonic,
+    // setSelectedMode, applyHarmonyAtDifficulty, handleScaleClick,
+    // handleEnharmonicToggle). Placed after setTrebleSettings/setBassSettings
+    // and playbackConfig because setTonic/applyHarmonyAtDifficulty depend on them.
+    const {
+        tonic, selectedMode, isScalePlaying,
+        setTonic, setSelectedMode, applyHarmonyAtDifficulty,
+        handleScaleClick, handleEnharmonicToggle,
+    } = useScaleManagement({
+        context, instruments, scale, setScale, _setScale, bpmRef,
+        instrumentSettingsRef, setTrebleSettings, setBassSettings,
+        minimizeAccidentals, playbackConfig,
+    });
 
     // Initial ref sync for all instruments
     useEffect(() => {
