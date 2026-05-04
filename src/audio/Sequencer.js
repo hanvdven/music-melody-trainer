@@ -412,41 +412,9 @@ class Sequencer {
           // Also precompute chord timestamps for sheet-music and chord-grid highlighting.
           // `degree` is embedded so the ChordGrid rAF needs no React state at all —
           // same pattern as scheduledNotes for note-active highlighting.
-          const schedChords = [];
-          if (chordProgression?.offsets) {
-            const _RDEG = { I:1, II:2, III:3, IV:4, V:5, VI:6, VII:7 };
-
-            for (let i = 0; i < chordProgression.offsets.length; i++) {
-              const slot = chordProgression.offsets[i];
-              if (slot >= m * measureLengthTicks && slot < (m + 1) * measureLengthTicks) {
-                // Read degree directly from displayNotes[i] — always matches the current
-                // chord melody, never one block behind like the old displayChordProgression lookup.
-                const chord = chordProgression.displayNotes?.[i];
-                const romanBase = chord?.meta?.romanBaseRaw ?? '';
-                const degree = _RDEG[String(romanBase).toUpperCase()] ?? null;
-                schedChords.push({
-                  audioTime: nextStartTime + (slot - m * measureLengthTicks) * timeFactor,
-                  duration: chordProgression.durations[i] * timeFactor,
-                  measureIndex: schedMeasureIndex,
-                  localSlot: slot - m * measureLengthTicks,
-                  degree,
-                });
-              }
-            }
-
-            // Extend each chord's highlight window to fill until the next chord starts
-            // (or until the measure ends for the last chord). This prevents flicker when
-            // chord durations don't perfectly tile the measure (e.g. with rhythmVariability).
-            const measureEnd = nextStartTime + measureDuration;
-            for (let k = 0; k < schedChords.length; k++) {
-              const effectiveEnd = k + 1 < schedChords.length
-                ? schedChords[k + 1].audioTime
-                : measureEnd;
-              if (effectiveEnd > schedChords[k].audioTime + schedChords[k].duration) {
-                schedChords[k] = { ...schedChords[k], duration: effectiveEnd - schedChords[k].audioTime };
-              }
-            }
-          }
+          const schedChords = this.buildScheduledChords(
+            chordProgression, m, measureLengthTicks, nextStartTime, measureDuration, timeFactor, schedMeasureIndex
+          );
 
           // Append to existing notes/chords rather than replacing: entries from the
           // previous measure that are still within their audio window are kept so
@@ -1299,6 +1267,57 @@ class Sequencer {
     result.generatedNumMeasures = maxContentSpan > 0 ? maxContentSpan : numMeasures;
 
     return result;
+  }
+
+  /**
+   * Build scheduled chord entries for one measure, extending each chord's highlight window
+   * to fill until the next chord starts (prevents flicker when durations don't tile perfectly).
+   * Returns an array of { audioTime, duration, measureIndex, localSlot, degree } objects.
+   *
+   * @param {object} chordProgression - Melody-like object with .offsets/.durations/.displayNotes
+   * @param {number} m               - Current measure index within the series (0-based)
+   * @param {number} measureLengthTicks - Ticks per measure
+   * @param {number} nextStartTime   - AudioContext time at the start of this measure
+   * @param {number} measureDuration - Duration of one measure in seconds
+   * @param {number} timeFactor      - Seconds per tick (beatDuration / ticksPerBeat)
+   * @param {number} schedMeasureIndex - Global measure index for rAF highlight matching
+   */
+  buildScheduledChords(chordProgression, m, measureLengthTicks, nextStartTime, measureDuration, timeFactor, schedMeasureIndex) {
+    const schedChords = [];
+    if (!chordProgression?.offsets) return schedChords;
+
+    const _RDEG = { I:1, II:2, III:3, IV:4, V:5, VI:6, VII:7 };
+    for (let i = 0; i < chordProgression.offsets.length; i++) {
+      const slot = chordProgression.offsets[i];
+      if (slot >= m * measureLengthTicks && slot < (m + 1) * measureLengthTicks) {
+        // Read degree directly from displayNotes[i] — always matches the current
+        // chord melody, never one block behind like the old displayChordProgression lookup.
+        const chord = chordProgression.displayNotes?.[i];
+        const romanBase = chord?.meta?.romanBaseRaw ?? '';
+        const degree = _RDEG[String(romanBase).toUpperCase()] ?? null;
+        schedChords.push({
+          audioTime: nextStartTime + (slot - m * measureLengthTicks) * timeFactor,
+          duration: chordProgression.durations[i] * timeFactor,
+          measureIndex: schedMeasureIndex,
+          localSlot: slot - m * measureLengthTicks,
+          degree,
+        });
+      }
+    }
+
+    // Extend each chord's highlight window to fill until the next chord starts
+    // (or until the measure ends for the last chord). This prevents flicker when
+    // chord durations don't perfectly tile the measure (e.g. with rhythmVariability).
+    const measureEnd = nextStartTime + measureDuration;
+    for (let k = 0; k < schedChords.length; k++) {
+      const effectiveEnd = k + 1 < schedChords.length
+        ? schedChords[k + 1].audioTime
+        : measureEnd;
+      if (effectiveEnd > schedChords[k].audioTime + schedChords[k].duration) {
+        schedChords[k] = { ...schedChords[k], duration: effectiveEnd - schedChords[k].audioTime };
+      }
+    }
+    return schedChords;
   }
 
   /**
