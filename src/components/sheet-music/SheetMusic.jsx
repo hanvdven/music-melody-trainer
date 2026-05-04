@@ -338,23 +338,13 @@ const SheetMusic = ({
   const notesVisible = viewMode === 'melody';
 
   // Randomise-measure button rendered inside the SVG. Moved inside for scope.
-  const [trebleActiveClef, setTrebleActiveClef] = React.useState('treble');
-  const [bassActiveClef, setBassActiveClef] = React.useState('bass');
-
-  // Sync with settings (vocal ranges)
-  React.useEffect(() => {
-    if (trebleSettings?.preferredClef) {
-      setTrebleActiveClef(trebleSettings.preferredClef);
-    }
-  }, [trebleSettings?.preferredClef]);
-
-  React.useEffect(() => {
-    if (bassSettings?.preferredClef) {
-      if (ACTIVE_CLEF_TYPES.includes(bassSettings.preferredClef)) {
-        setBassActiveClef(bassSettings.preferredClef);
-      }
-    }
-  }, [bassSettings?.preferredClef]);
+  // Derived directly from settings — no local state needed.
+  // When the user taps to cycle clef, setTrebleSettings/setBassSettings updates preferredClef
+  // and these values follow in the same React render (React 18 automatic batching).
+  const trebleActiveClef = trebleSettings?.preferredClef ?? 'treble';
+  const bassActiveClef = ACTIVE_CLEF_TYPES.includes(bassSettings?.preferredClef)
+    ? bassSettings.preferredClef
+    : 'bass';
 
   const measureLengthSlots = (TICKS_PER_WHOLE * timeSignature[0]) / timeSignature[1];
   const noteGroupSize = measureLengthSlots % 18 === 0 ? 18 : 12;
@@ -596,14 +586,12 @@ const SheetMusic = ({
       const idx = ACTIVE_CLEF_TYPES.indexOf(activeClef);
       const nextClef = ACTIVE_CLEF_TYPES[(idx + 1) % ACTIVE_CLEF_TYPES.length];
       const setter = isT ? setTrebleSettings : setBassSettings;
-      const setActive = isT ? setTrebleActiveClef : setBassActiveClef;
       if (setter) {
         const defMin = nextClef === 'bass' ? (isT ? 'A2' : 'E2') : (nextClef === 'alto' ? 'F3' : 'C4');
         const defMax = nextClef === 'bass' ? (isT ? 'C4' : 'E4') : (nextClef === 'alto' ? 'C5' : 'E5');
         const rMode  = nextClef === 'alto' ? 'Alto' : 'STANDARD';
         setter(prev => ({ ...prev, preferredClef: nextClef, rangeMode: rMode, range: { min: defMin, max: defMax } }));
       }
-      setActive(nextClef);
     }, 300);
   };
 
