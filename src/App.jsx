@@ -1,5 +1,5 @@
 // App.jsx
-import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
     standardizeTonic,
     getRelativeNoteName,
@@ -11,10 +11,6 @@ import './styles/App.css';
 import './styles/AppLayout.css';
 import ScaleSelector from './components/scale/ScaleSelector';
 import { transposeMelodyToScale, transposeMelodyBySemitones, modulateMelody } from './theory/musicUtils';
-import {
-    formatScaleName,
-    modes,
-} from './theory/scaleHandler';
 import PlaybackSettings from './components/controls/PlaybackSettings';
 import Sequencer from './audio/Sequencer';
 import Melody from './model/Melody';
@@ -27,8 +23,6 @@ import DrumPad from './components/controls/DrumPad';
 import { KIT_NOTE_MAPPINGS } from './audio/drumKits';
 import AppHeader from './components/layout/AppHeader';
 import SubHeader from './components/layout/SubHeader';
-import GenericStepper from './components/common/GenericStepper';
-import { MetronomeIcon, IconOne } from './components/common/CustomIcons';
 import ToneRecognizer from './components/controls/ToneRecognizer';
 
 // Hooks
@@ -38,7 +32,6 @@ import useInstruments from './hooks/useInstruments';
 import useMelodyState from './hooks/useMelodyState';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
-import useSheetMusicHighlight from './hooks/useSheetMusicHighlight';
 import useDeviceState from './hooks/useDeviceState';
 import useSettingsOverlay from './hooks/useSettingsOverlay';
 import useNoteInteraction from './hooks/useNoteInteraction';
