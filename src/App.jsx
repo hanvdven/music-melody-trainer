@@ -80,6 +80,7 @@ import { SectionHeader, ColumnHeaders } from './components/controls/PlaybackSubC
 import { PlaybackConfigProvider } from './contexts/PlaybackConfigContext';
 import { InstrumentSettingsProvider } from './contexts/InstrumentSettingsContext';
 import { DisplaySettingsProvider } from './contexts/DisplaySettingsContext';
+import { MelodyProvider } from './contexts/MelodyContext';
 
 
 
@@ -1052,6 +1053,13 @@ const App = () => {
         <PlaybackConfigProvider value={playbackConfigCtx}>
         <InstrumentSettingsProvider value={instrumentSettingsCtx}>
         <DisplaySettingsProvider value={displaySettingsCtx}>
+        <MelodyProvider
+            treble={melodies.treble}
+            bass={melodies.bass}
+            percussion={melodies.percussion}
+            metronome={melodies.metronome}
+            chordProgression={chordProgression}
+        >
         <div className="app-root">
             {/* TOP AREA WRAPPER (Preserves app theme for header/sheet) */}
             <div className="App app-top-wrapper">
@@ -1131,13 +1139,9 @@ const App = () => {
                             numMeasures={numMeasures}
                             musicalBlocks={musicalBlocks}
                             onMusicalBlocksChange={setMusicalBlocks}
-                            trebleMelody={melodies.treble}
-                            bassMelody={melodies.bass}
-                            percussionMelody={melodies.percussion}
                             numAccidentals={scale.numAccidentals}
                             screenWidth={windowSize.width}
                             onRandomizeMeasure={randomizeMeasure}
-                            chordProgression={chordProgression}
                             showSettings={showSheetMusicSettings}
                             onToggleSettings={toggleSheetMusicSettings}
                             onSettingsInteraction={resetSettingsTimer}
@@ -1157,7 +1161,6 @@ const App = () => {
                             clearHighlightStateRef={clearHighlightStateRef}
                             setCurrentMeasureIndex={setCurrentMeasureIndex}
                             showNoteHighlightRef={showNoteHighlightRef}
-                            metronomeMelody={melodies.metronome}
                             inputTestState={isInputTestMode ? inputTestState : null}
                             isPlaying={isPlaying}
                             isOddRound={isOddRound}
@@ -1292,13 +1295,9 @@ const App = () => {
                                     numMeasures={numMeasures}
                                     musicalBlocks={musicalBlocks}
                                     onMusicalBlocksChange={setMusicalBlocks}
-                                    trebleMelody={melodies.treble}
-                                    bassMelody={melodies.bass}
-                                    percussionMelody={melodies.percussion}
                                     numAccidentals={scale.numAccidentals}
                                     screenWidth={windowSize.width}
                                     onRandomizeMeasure={randomizeMeasure}
-                                    chordProgression={chordProgression}
                                     showChords={isPlayingContinuously ? showChordLabels : (showChordsOddRounds || showChordsEvenRounds)}
                                     showSettings={showSheetMusicSettings}
                                     onNumMeasuresChange={setNumMeasures}
@@ -1327,7 +1326,6 @@ const App = () => {
                                     clearHighlightStateRef={clearHighlightStateRef}
                                     setCurrentMeasureIndex={setCurrentMeasureIndex}
                                     showNoteHighlightRef={showNoteHighlightRef}
-                                    metronomeMelody={melodies.metronome}
                                     inputTestState={isInputTestMode ? inputTestState : null}
                                     startMeasureIndex={startMeasureIndex}
                                     song={songRef.current}
@@ -1568,6 +1566,7 @@ const App = () => {
                 </div>
             </div>
         </div >
+        </MelodyProvider>
         </DisplaySettingsProvider>
         </InstrumentSettingsProvider>
         </PlaybackConfigProvider>

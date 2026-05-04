@@ -28,6 +28,7 @@ import useLongPressTimer from '../../hooks/useLongPressTimer';
 import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
+import { useMelodies } from '../../contexts/MelodyContext';
 import { PRESET_RANGES } from '../../constants/musicLayout';
 
 // ── Static / pure module-level data & helpers ──────────────────────────────
@@ -137,13 +138,9 @@ const SheetMusic = ({
   onBpmChange,
   numRepeats,
   onNumRepeatsChange,
-  trebleMelody,
-  bassMelody,
-  percussionMelody,
   numAccidentals,
   screenWidth,
   onRandomizeMeasure,
-  chordProgression,
   showChords,
   showSettings,
   onToggleSettings,
@@ -154,7 +151,6 @@ const SheetMusic = ({
   inputTestSubMode,
   setInputTestSubMode,
   tonic,
-  metronomeMelody = null,
   inputTestState = null,
   showNoteHighlightRef,
   containerHeight = 400,
@@ -192,6 +188,8 @@ const SheetMusic = ({
   onNoteEnharmonicToggle = null, // (staff: string, absoluteOffset: number) => void — toggles a note's accidental spelling
 }) => {
   // ── Context-provided values (formerly props) ──────────────────────────────
+  const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
+          metronome: metronomeMelody, chordProgression } = useMelodies();
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
   const { trebleSettings, setTrebleSettings, bassSettings, setBassSettings,
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
