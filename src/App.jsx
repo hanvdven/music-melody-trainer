@@ -184,14 +184,12 @@ const App = () => {
     const showNoteHighlightRef = useRef(true);
     const clearHighlightStateRef = useRef(false);
     const [startMeasureIndex, setStartMeasureIndex] = useState(0);
-    const songRef = useRef(null);
 
     // Unified play mode: 'once', 'test', 'continuous'
     const [headerPlayMode, setHeaderPlayMode] = useState('continuous'); // Controls which button is in the header
 
     // Also need to keep the actual logic toggles in sync or refactor usePlayback/useInputTest to use playMode.
     // For now, let's just make the UI look right and then wire up the logic.
-    const [songVersion, setSongVersion] = useState(0);
     const [currentMeasureIndex, setCurrentMeasureIndex] = useState(0);
     const [animationMode, setAnimationMode] = useState('pagination');
     const animationModeRef = useRef('pagination');
@@ -793,7 +791,7 @@ const App = () => {
                 setStartMeasureIndex,
                 setIsOddRound,
                 setVolume,
-                setSong: (song, version) => { songRef.current = song; setSongVersion(version); },
+
                 setCurrentMeasureIndex,
                 clearActiveHighlight: () => {
                     const svg = svgRef.current;
@@ -896,7 +894,7 @@ const App = () => {
                 setStartMeasureIndex,
                 setIsOddRound,
                 setVolume,
-                setSong: (song, version) => { songRef.current = song; setSongVersion(version); },
+
                 setCurrentMeasureIndex,
                 clearActiveHighlight: () => {
                     const svg = svgRef.current;
@@ -920,7 +918,7 @@ const App = () => {
                 },
             };
         }
-    }, [instruments, setTrebleMelody, setBassMelody, setPercussionMelody, generateChords, setShowNotes, setShowChordLabels, setTonic, setScale, setTrebleSettings, setBassSettings, setChordProgression, setDisplayChordProgression, setReferenceMelody, setReferenceBassMelody, setReferenceScale, setStartMeasureIndex, setSongVersion, setCurrentMeasureIndex, setNextLayer, setPreviewMelody]);
+    }, [instruments, setTrebleMelody, setBassMelody, setPercussionMelody, generateChords, setShowNotes, setShowChordLabels, setTonic, setScale, setTrebleSettings, setBassSettings, setChordProgression, setDisplayChordProgression, setReferenceMelody, setReferenceBassMelody, setReferenceScale, setStartMeasureIndex, setCurrentMeasureIndex, setNextLayer, setPreviewMelody]);
 
 
 
