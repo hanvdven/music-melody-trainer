@@ -8,6 +8,7 @@ import { insertPassingChords } from '../generation/passingChords';
 import ChordProgression from '../model/ChordProgression';
 import { calculateRelativeRange, modulateMelody } from '../theory/musicUtils';
 import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
+import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
 
 const useMelodyState = (
   numMeasures,
@@ -128,24 +129,23 @@ const useMelodyState = (
     } else {
       const abstractProgression = generateChords(chordSettings?.strategy);
 
-      // MelodyGenerator's downsampling logic assumes globalDenom=16 (see melodyGenerator.js:72).
+      // MelodyGenerator's downsampling logic assumes GLOBAL_RESOLUTION=16 (see melodyGenerator.js).
       // The template must use 16th-note resolution so that MelodyGenerator's step calculation
-      // (step = 16 / smallestNoteDenom) produces the right number of sampled slots.
+      // (step = GLOBAL_RESOLUTION / smallestNoteDenom) produces the right number of sampled slots.
       // Example for 4/4: measureSlots=16, smallestNoteDenom=4, step=4 → 4 sampled slots per
       // measure → chordCount=2 correctly places chords on beats 1 and 3.
       // Example for 5/8: measureSlots=10, smallestNoteDenom=8, step=2 → 5 sampled slots →
       // decomposeNumeratorToBeatGroups ranks slots 0 and 6 (beats 1 and 4) first.
       // NOTE: The 5/8 chord-distribution fix (C//C/ vs C///C) works via decomposeNumerator-
       // ToBeatGroups in rhythmicPriorities.js — it does NOT depend on this resolution value.
-      const globalResolution = 16;
-      const measureSlots = Math.round((globalResolution * activeTS[0]) / activeTS[1]);
+      const measureSlots = Math.round((GLOBAL_RESOLUTION * activeTS[0]) / activeTS[1]);
 
       const globalTemplate = generateDeterministicRhythm(
         1,
         activeTS,
         measureSlots,
         'default',
-        globalResolution
+        GLOBAL_RESOLUTION
       );
       globalRhythmArray = globalTemplate;
 

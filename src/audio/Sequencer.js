@@ -23,12 +23,8 @@ import { sliceMelodyByMeasure, sliceChordsForMeasure } from '../utils/melodySlic
 import { getChordsWithSlashes } from '../theory/chordLabelHandler';
 import { getHarmonyAtDifficulty } from '../utils/harmonyTable';
 import { getMelodyAtDifficulty } from '../utils/melodyDifficultyTable';
-
-const PRESET_RANGES = {
-  STANDARD: { treble: { min: 'C4', max: 'E5' }, bass: { min: 'A2', max: 'C4' } },
-  LARGE: { treble: { min: 'C4', max: 'G5' }, bass: { min: 'G2', max: 'C4' } },
-  FULL: { treble: { min: 'A3', max: 'C6' }, bass: { min: 'C2', max: 'E4' } },
-};
+import { PRESET_RANGES } from '../constants/musicLayout';
+import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
 
 class Sequencer {
   constructor(config) {
@@ -140,9 +136,8 @@ class Sequencer {
         const ts = currentTS;
         const chordSettings = this.refs.instrumentSettingsRef?.current?.chords;
         const activeScale = this.refs.scaleRef.current;
-        const globalResolution = 16;
-        const measureSlots = (globalResolution * ts[0]) / ts[1];
-        const globalTemplate = generateDeterministicRhythm(1, ts, measureSlots, 'default', globalResolution);
+        const measureSlots = (GLOBAL_RESOLUTION * ts[0]) / ts[1];
+        const globalTemplate = generateDeterministicRhythm(1, ts, measureSlots, 'default', GLOBAL_RESOLUTION);
         const chordGen = new MelodyGenerator(
           activeScale, currentNumMeasures, ts,
           {
@@ -167,7 +162,6 @@ class Sequencer {
 
     let nextStartTime = this.context.currentTime + 0.1;
     this.melodyCount = 0;
-    let repCount = 0;
     let iteration = 0;
     this.globalMeasureIndex = initialMeasureIndex;
     this.isOnceMode = once;
@@ -1031,15 +1025,14 @@ class Sequencer {
 
     // 2. Generate Global Rhythm DNA (NEW STEP)
     // We need to match useMelodyState logic
-    const globalResolution = 16;
-    const measureSlots = (globalResolution * timeSignature[0]) / timeSignature[1];
+    const measureSlots = (GLOBAL_RESOLUTION * timeSignature[0]) / timeSignature[1];
 
     const globalTemplate = generateDeterministicRhythm(
       1,
       timeSignature,
       measureSlots,
       'default',
-      globalResolution
+      GLOBAL_RESOLUTION
     );
 
     // Always ensure displayChordProgression is set — it may be null on the first call

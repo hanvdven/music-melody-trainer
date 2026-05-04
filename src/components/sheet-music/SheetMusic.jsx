@@ -14,7 +14,8 @@ import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
-import { getNoteSemitone, ALL_NOTES, CANONICAL_MAP, getKodalySolfege } from '../../theory/noteUtils';
+import { getNoteSemitone, getKodalySolfege } from '../../theory/noteUtils';
+import { getNoteIndex } from '../../theory/musicUtils';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, isRest } from '../../theory/rhythmicSolfege';
 
@@ -27,19 +28,15 @@ import useLongPressTimer from '../../hooks/useLongPressTimer';
 import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
-
-// Randomise-measure button rendered inside the SVG.
+import { PRESET_RANGES } from '../../constants/musicLayout';
 
 // ── Static / pure module-level data & helpers ──────────────────────────────
 
 // ── Clef/range picker ─────────────────────────────────────────────────────
 // Matches RangeControls rangeOptionsList so clicking the clef in the sheet
 // music opens the same full-list picker as the range-mode stepper.
-const CLEF_RANGE_PRESET_RANGES = {
-  STANDARD: { treble: { min: 'C4', max: 'E5' }, bass: { min: 'A2', max: 'C4' } },
-  LARGE:    { treble: { min: 'C4', max: 'G5' }, bass: { min: 'G2', max: 'C4' } },
-  FULL:     { treble: { min: 'A3', max: 'C6' }, bass: { min: 'C2', max: 'E4' } },
-};
+// PRESET_RANGES is imported from constants/musicLayout (shared with Sequencer).
+const CLEF_RANGE_PRESET_RANGES = PRESET_RANGES;
 const CLEF_VOCAL_RANGES = [
   { label: 'Bass',          min: 'G2', max: 'C4', clef: 'bass' },
   { label: 'Baritone',      min: 'B2', max: 'F4', clef: 'bass' },
@@ -111,14 +108,6 @@ const clefSymbols = {
   bass15vb: { char: '?', yOffset: -10, ottava: '15', below: true },
 };
 
-// Note-to-MIDI value (octave × 12 + pitch-class). Used for optimal-clef detection.
-const getNoteValue = (note) => {
-  const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
-  if (!match) return 0;
-  let pc = match[1].replace('#', '♯').replace('b', '♭');
-  if (CANONICAL_MAP[pc]) pc = CANONICAL_MAP[pc];
-  return parseInt(match[2], 10) * 12 + (ALL_NOTES.indexOf(pc) || 0);
-};
 
 // Maximum extent (offset + duration) across all notes in a melody.
 const getMelodyEndTime = (melody) => {
@@ -538,9 +527,9 @@ const SheetMusic = ({
     const notes = melodyNotes
       .map(n => {
         if (!n) return null;
-        if (typeof n === 'string') return getNoteValue(n);
+        if (typeof n === 'string') return getNoteIndex(n);
         if (typeof n.midi === 'number') return n.midi;
-        if (typeof n.note === 'string') return getNoteValue(n.note);
+        if (typeof n.note === 'string') return getNoteIndex(n.note);
         return null;
       })
       .filter(m => typeof m === 'number');

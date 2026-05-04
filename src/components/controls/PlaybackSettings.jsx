@@ -21,6 +21,7 @@ import { DifficultyPanel, HarmonicSlider } from './DifficultyControls';
 import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
+import { GRID_GENERATOR, GRID_VISIBILITY } from '../../constants/musicLayout';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -66,10 +67,6 @@ const PlaybackSettings = ({
     percussionSettings, setPercussionSettings, metronomeSettings, setMetronomeSettings,
     chordSettings, setChordSettings } = useInstrumentSettings();
   const { chordDisplayMode, setChordDisplayMode, setNoteColoringMode } = useDisplaySettings();
-  // GRID CONFIGS
-  const GRID_GENERATOR = '12% 18% 12% 22% 12% 12% 12%';
-  const GRID_VISIBILITY = '12% 22% 22% 22% 22%';
-
   const MELODY_NOTE_SOURCES = [
     { value: "root", label: "Root" },
     { value: "chord", label: "Chord" },

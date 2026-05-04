@@ -35,6 +35,7 @@ import { MetronomeIcon, IconOne } from './components/common/CustomIcons';
 import ToneRecognizer from './components/controls/ToneRecognizer';
 
 // Hooks
+import useRefState from './hooks/useRefState';
 import useWindowSize from './hooks/useWindowSize';
 import useInstruments from './hooks/useInstruments';
 import useMelodyState from './hooks/useMelodyState';
@@ -53,6 +54,12 @@ import { calculateMusicalBlocks } from './utils/pagination';
 import { resizeMelody } from './utils/melodySlice';
 import { TICKS_PER_WHOLE } from './constants/timing';
 import playSound from './audio/playSound';
+import {
+    VOLUME_LEVELS,
+    DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
+    DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE,
+} from './constants/generatorDefaults';
+import { APPROX_HEADER_WIDTH, APPROX_PX_PER_MEASURE } from './constants/musicLayout';
 
 // Icons
 import {
@@ -74,7 +81,7 @@ import { PlaybackConfigProvider } from './contexts/PlaybackConfigContext';
 import { InstrumentSettingsProvider } from './contexts/InstrumentSettingsContext';
 import { DisplaySettingsProvider } from './contexts/DisplaySettingsContext';
 
-const VOLUME_LEVELS = [1.0, 0.8, 0.6, 0.4, 0.2, 0.0];
+
 
 /** Tab navigation entries — rendered via .map() in the bottom menu bar. */
 const TABS = [
@@ -93,10 +100,13 @@ const TABS = [
 const App = () => {
     const [context] = useState(() => new (window.AudioContext || window.webkitAudioContext)());
 
-    const bpmRef = useRef(120);
-    const tsRef = useRef([4, 4]);
-    const nmRef = useRef(2);
-    const scaleRef = useRef(Scale.defaultScale('C4', 'Major'));
+    // useRefState keeps React state and a mutable ref in sync.
+    // The ref is read by Sequencer/AudioContext callbacks without stale-closure risk.
+    // Declared before configRef so the refs are available when configRef is initialised.
+    const [bpm,           setBpm,           bpmRef]   = useRefState(DEFAULT_BPM);
+    const [timeSignature, setTimeSignature, tsRef]    = useRefState(DEFAULT_TIME_SIG);
+    const [numMeasures,   setNumMeasures,   nmRef]    = useRefState(DEFAULT_NUM_MEASURES);
+    const [scale,         setScale,         scaleRef] = useRefState(() => Scale.defaultScale(DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE));
     const configRef = useRef({
         repsPerMelody: 4,
         oddRounds: {
@@ -133,62 +143,6 @@ const App = () => {
     const prevScaleRef = useRef(null);
 
     const [activeTab, setActiveTab] = useState('piano');
-
-    const [bpm, _setBpm] = useState(120);
-    const setBpm = useCallback((val) => {
-        if (typeof val === 'function') {
-            _setBpm((p) => {
-                const next = val(p);
-                bpmRef.current = next;
-                return next;
-            });
-        } else {
-            bpmRef.current = val;
-            _setBpm(val);
-        }
-    }, []);
-
-    const [timeSignature, _setTimeSignature] = useState([4, 4]);
-    const setTimeSignature = useCallback((val) => {
-        if (typeof val === 'function') {
-            _setTimeSignature((p) => {
-                const next = val(p);
-                tsRef.current = next;
-                return next;
-            });
-        } else {
-            tsRef.current = val;
-            _setTimeSignature(val);
-        }
-    }, []);
-
-    const [numMeasures, _setNumMeasures] = useState(2);
-    const setNumMeasures = useCallback((val) => {
-        if (typeof val === 'function') {
-            _setNumMeasures((p) => {
-                const next = val(p);
-                nmRef.current = next;
-                return next;
-            });
-        } else {
-            nmRef.current = val;
-            _setNumMeasures(val);
-        }
-    }, []);
-
-    const [scale, _setScale] = useState(() => Scale.defaultScale('C4', 'Major'));
-    const setScale = useCallback((val) => {
-        if (typeof val === 'function') {
-            _setScale((p) => {
-                const next = val(p);
-                scaleRef.current = next;
-                return next;
-            });
-        } else {
-            scaleRef.current = val;
-            _setScale(val);
-        }
-    }, []);
 
     const [chordProgression, setChordProgression] = useState(() => {
         return ChordProgression.default();
@@ -1063,8 +1017,6 @@ const App = () => {
     // Clamped to [2, numMeasures] — minimum 2 so there is always a prev+current visible.
     // Replaces the hardcoded visibleMeasures={3} that was too wide on small screens.
     const sheetWidth = windowSize.width;
-    const APPROX_HEADER_WIDTH = 70; // px reserved for clef/key/time-sig
-    const APPROX_PX_PER_MEASURE = 120;
     const idealVisibleMeasures = Math.max(2, Math.min(
         numMeasures,
         Math.round((sheetWidth - APPROX_HEADER_WIDTH) / APPROX_PX_PER_MEASURE)
