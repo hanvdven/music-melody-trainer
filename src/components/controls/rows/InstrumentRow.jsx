@@ -6,38 +6,19 @@ import { useDisplaySettings } from '../../../contexts/DisplaySettingsContext';
 import {
     Dices,
     TrendingUp,
-    MoveUpRight,
-    MoveDownRight,
-    Shuffle,
-    Music,
-    Minus,
-    Plus,
     Pin,
     Tally4,
-    SquareArrowRight,
     Drum,
 } from 'lucide-react';
-import NumberControl from '../../common/NumberControl';
 import { VolumeIcon, VisibilityIcon, MetronomeIcon } from '../../common/CustomIcons';
-import { getNoteSourceLabel, getPlayStyleLabel, getProgressionLabel } from '../../../utils/labelUtils';
+import { getProgressionLabel } from '../../../utils/labelUtils';
 import GenericStepper from '../../common/GenericStepper';
-
-/* ===============================
-   Randomization Rule Families
-================================= */
-
-const RULE_FAMILIES = {
-    random: ['uniform', 'emphasize_roots', 'weighted'],
-    arp: ['arp_up', 'arp_down', 'arp'],
-    chords: ['pairedchord', 'fullchord'],
-    fixed: ['fixed']
-};
-
-const PERC_FAMILIES = {
-    random: ['uniform'],
-    stylized: ['backbeat', 'swing'],
-    fixed: ['fixed']
-};
+import { RULE_FAMILIES, PERC_FAMILIES } from '../../../constants/instrumentRules';
+import { GRID_GENERATOR, GRID_VISIBILITY } from '../../../constants/musicLayout';
+import ChordGroupIcon from '../ChordGroupIcon';
+import ChordComplexityIcon from '../ChordComplexityIcon';
+import PlayStyleSelector from '../PlayStyleSelector';
+import RuleSelector from '../RuleSelector';
 
 const getRuleFamily = (rule) => {
     if (RULE_FAMILIES.random.includes(rule)) return 'random';
@@ -49,190 +30,6 @@ const getRuleFamily = (rule) => {
 };
 
 
-// getRandTypeLabel moved to src/utils/labelUtils.js
-
-// Renders 3 stacked Maestro whole-note glyphs to represent a block chord.
-// Used for the 'chords' group family icon in treble/bass rows.
-const ChordGroupIcon = ({ size = 22, color = 'currentColor' }) => {
-    const fontSize = Math.round(size * 1.08);
-    const spacing = Math.round(size * 0.41) - 2;
-    const vertShift = Math.round(size * -0.2); // shift all noteheads up
-    return (
-        <span style={{
-            position: 'relative',
-            display: 'inline-block',
-            width: `${fontSize + 2}px`,
-            height: `${fontSize + spacing * 2 + Math.round(size * 0.3)}px`,
-            verticalAlign: 'middle',
-        }}>
-            {[spacing, 0, -spacing].map((yOff, i) => (
-                <span key={i} style={{
-                    position: 'absolute',
-                    left: '50%',
-                    top: '50%',
-                    transform: `translate(-50%, calc(-50% + ${yOff + vertShift}px))`,
-                    fontFamily: 'Maestro',
-                    fontSize: `${fontSize}px`,
-                    lineHeight: 1,
-                    color,
-                }}>w</span>
-            ))}
-        </span>
-    );
-};
-
-const ChordComplexityIcon = ({ type }) => {
-    const STEP = 7;
-    const OFFSET = 3.5;
-    const Note = ({ x = 0, y = 0, char = 'w', lowlight = false }) => (
-        <span style={{
-            position: 'absolute',
-            left: '50%',
-            top: '50%',
-            transform: `translate(calc(-50% + ${x}px), calc(-50% + ${y + OFFSET}px))`,
-            fontFamily: 'Maestro',
-            fontSize: '24px',
-            lineHeight: 1,
-            color: lowlight ? '#666' : 'var(--text-primary)',
-            fontWeight: 'normal', // Maestro glyphs MUST be normal weight
-            textTransform: 'none' // Disable all transforms to preserve glyph
-        }}>
-            {char}
-        </span>
-    );
-
-    return (
-        <div style={{ position: 'relative', width: '24px', height: '20px', margin: '0 auto' }}>
-            {type === 'root' && <Note y={0} />}
-            {type === 'power' && (
-                <>
-                    <Note y={-2 * STEP} />
-                    <Note y={0} />
-                </>
-            )}
-            {type === 'triad' && (
-                <>
-                    <Note y={-2 * STEP} />
-                    <Note y={-STEP} />
-                    <Note y={0} />
-                </>
-            )}
-            {type === 'seventh' && (
-                <>
-                    <Note y={-3 * STEP} />
-                    <Note y={-2 * STEP} />
-                    <Note y={-STEP} />
-                    <Note y={0} />
-                </>
-            )}
-            {type === 'sus' && (
-                <>
-                    <Note x={-12} y={-2.5 * STEP} char="b" lowlight={true} />
-                    <Note x={-12} y={-0.5 * STEP} char="#" lowlight={true} />
-                    <Note x={0} y={-3 * STEP} lowlight={true} />
-                    <Note x={0} y={-2 * STEP} />
-                    <Note x={0} y={-STEP} lowlight={true} />
-                    <Note x={0} y={0} />
-                    <Note x={12} y={-2.5 * STEP} lowlight={true} />
-                    <Note x={12} y={-1.5 * STEP} lowlight={true} />
-                    <Note x={12} y={-0.5 * STEP} lowlight={true} />
-                </>
-            )}
-            {type === 'exotic' && (
-                <>
-                    <Note x={-11} y={-2.5 * STEP} char="b" lowlight={true} />
-                    <Note x={-11} y={-0.5 * STEP} char="#" lowlight={true} />
-                    <Note x={2} y={-3 * STEP} />
-                    <Note x={2} y={-2 * STEP} />
-                    <Note x={2} y={-STEP} />
-                    <Note x={2} y={0} />
-                </>
-            )}
-        </div>
-    );
-};
-
-const PlayStyleSelector = ({ settings, setSettings, isSheetMusic = false, instrumentKey, lowlighted = false }) => {
-    if (instrumentKey === 'metronome' || instrumentKey === 'chords') return null;
-    if (isSheetMusic) return <div className="ir-placeholder">-</div>;
-
-    const currentRule = settings?.type === 'fullchord' ? 'fullchord' : (settings?.randomizationRule || 'uniform');
-    const isPerc = instrumentKey === 'percussion';
-    const families = isPerc ? PERC_FAMILIES : RULE_FAMILIES;
-
-    const allRulesFlat = Object.values(families).flat();
-
-    const getIconForRule = (r) => {
-        const family = Object.keys(families).find(k => families[k].includes(r));
-        if (family === 'random') return <Dices size={14} />;
-        if (family === 'arp') return <TrendingUp size={14} />;
-        if (family === 'chords') return <ChordGroupIcon size={14} />;
-        if (family === 'stylized') return <Drum size={14} />;
-        if (family === 'fixed') return <Pin size={14} />;
-        return null;
-    };
-
-    const options = allRulesFlat.map(r => ({
-        label: getPlayStyleLabel(r),
-        value: r,
-        icon: getIconForRule(r)
-    }));
-
-    return (
-        <div className="ir-stepper-90">
-            <GenericStepper
-                value={currentRule}
-                label={getPlayStyleLabel(currentRule)}
-                fontSize="11.5px" // Reduced ~5% from 12px
-                fontWeight="normal"
-                fontFamily="sans-serif"
-                uppercase={true}
-                allowedValues={allRulesFlat}
-                options={options}
-                shouldCycle={true}
-                onChange={(val) => setSettings(p => {
-                    const newType = RULE_FAMILIES.chords.includes(val) ? val : (RULE_FAMILIES.chords.includes(p.type) ? instrumentKey : p.type);
-                    return { ...p, randomizationRule: val, type: newType };
-                })}
-                background="none"
-                lowlighted={lowlighted}
-            />
-        </div>
-    );
-};
-
-const RuleSelector = ({ instrumentKey, settings, setSettings, setActiveRandTypeSelector, isSheetMusic = false }) => {
-    // Standard label removed as requested. Reps will be rendered in Col 4 for Sheet Music.
-    if (isSheetMusic) return null;
-
-    let rules = [];
-    if (instrumentKey === 'treble' || instrumentKey === 'bass') {
-        rules = ['root', 'chord', 'scale', 'chromatic'];
-    } else if (instrumentKey === 'percussion') {
-        rules = ['claves', 'kick_snare', 'all'];
-    } else if (instrumentKey === 'chords') {
-        rules = ['modal-random', 'ii-v-i', 'pop-1-5-6-4', 'pop-6-4-1-5', 'doo-wop', 'classical-1-4-5-5', 'pachelbel'];
-    }
-
-    const currentRule = settings?.notePool || (instrumentKey === 'percussion' ? 'all' : 'scale');
-    const options = rules.map(r => ({ label: getNoteSourceLabel(r), value: r }));
-
-    return (
-        <div className="ir-stepper-90">
-            <GenericStepper
-                value={currentRule}
-                label={getNoteSourceLabel(currentRule)}
-                fontSize="11.5px" // Matches other GenericStepper sizes; was 8.5pt (~11.3px)
-                fontFamily="sans-serif"
-                uppercase={true}
-                allowedValues={rules}
-                options={options}
-                shouldCycle={true}
-                onChange={(val) => setSettings(p => ({ ...p, notePool: val }))}
-            />
-        </div>
-    );
-};
 
 const InstrumentRow = ({
     label,
@@ -282,11 +79,6 @@ const InstrumentRow = ({
         return 'rgba(255,255,255,0.35)';
     };
 
-    // GRID WIDTHS: 
-    // Generator (Instrument/Chords): 12% 16% 12% 20% 12% 16% 12% (approx)
-    // Visibility: 20% 20% 20% 20% 20%
-    const GRID_GENERATOR = '12% 18% 12% 22% 12% 12% 12%';
-    const GRID_VISIBILITY = '12% 22% 22% 22% 22%';
     const GRID_CONFIG = renderMode === 'visibility' ? GRID_VISIBILITY : GRID_GENERATOR;
 
     const PROGRESSION_OPTIONS = [
