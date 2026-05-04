@@ -82,6 +82,7 @@ import { InstrumentSettingsProvider } from './contexts/InstrumentSettingsContext
 import { DisplaySettingsProvider } from './contexts/DisplaySettingsContext';
 import { MelodyProvider } from './contexts/MelodyContext';
 import { PlaybackStateProvider } from './contexts/PlaybackStateContext';
+import { AnimationRefsProvider } from './contexts/AnimationRefsContext';
 
 
 
@@ -1069,6 +1070,17 @@ const App = () => {
             inputTestSubMode={inputTestSubMode}
             setInputTestSubMode={handleSetInputTestSubMode}
         >
+        <AnimationRefsProvider
+            wipeTransitionRef={wipeTransitionRef}
+            scrollTransitionRef={scrollTransitionRef}
+            pendingScrollTransitionRef={pendingScrollTransitionRef}
+            paginationFadeRef={paginationFadeRef}
+            clearHighlightStateRef={clearHighlightStateRef}
+            showNoteHighlightRef={showNoteHighlightRef}
+            setCurrentMeasureIndex={setCurrentMeasureIndex}
+            sequencerRef={sequencerRef}
+            context={context}
+        >
         <div className="app-root">
             {/* TOP AREA WRAPPER (Preserves app theme for header/sheet) */}
             <div className="App app-top-wrapper">
@@ -1158,16 +1170,7 @@ const App = () => {
                             startMeasureIndex={startMeasureIndex}
                             tonic={scale.tonic}
                             nextLayer={nextLayer}
-                            wipeTransitionRef={wipeTransitionRef}
-                            scrollTransitionRef={scrollTransitionRef}
-                            pendingScrollTransitionRef={pendingScrollTransitionRef}
-                            paginationFadeRef={paginationFadeRef}
                             svgRef={svgRef}
-                            sequencerRef={sequencerRef}
-                            context={context}
-                            clearHighlightStateRef={clearHighlightStateRef}
-                            setCurrentMeasureIndex={setCurrentMeasureIndex}
-                            showNoteHighlightRef={showNoteHighlightRef}
                             previewMelody={previewMelody}
                             isFullscreen={isFullscreen}
                             toggleFullscreen={toggleFullscreen}
@@ -1318,16 +1321,7 @@ const App = () => {
                                     visibleMeasures={idealVisibleMeasures}
                                     tonic={scale.tonic}
                                     nextLayer={nextLayer}
-                                    wipeTransitionRef={wipeTransitionRef}
-                                    scrollTransitionRef={scrollTransitionRef}
-                                    pendingScrollTransitionRef={pendingScrollTransitionRef}
-                                    paginationFadeRef={paginationFadeRef}
                                     svgRef={svgRef}
-                                    sequencerRef={sequencerRef}
-                                    context={context}
-                                    clearHighlightStateRef={clearHighlightStateRef}
-                                    setCurrentMeasureIndex={setCurrentMeasureIndex}
-                                    showNoteHighlightRef={showNoteHighlightRef}
                                     startMeasureIndex={startMeasureIndex}
                                     onNoteClick={handleNoteClick}
                                     onChordClick={handleChordClick}
@@ -1564,6 +1558,7 @@ const App = () => {
                 </div>
             </div>
         </div >
+        </AnimationRefsProvider>
         </PlaybackStateProvider>
         </MelodyProvider>
         </DisplaySettingsProvider>

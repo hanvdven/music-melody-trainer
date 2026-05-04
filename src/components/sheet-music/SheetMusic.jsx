@@ -30,6 +30,7 @@ import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext'
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { useMelodies } from '../../contexts/MelodyContext';
 import { usePlaybackState } from '../../contexts/PlaybackStateContext';
+import { useAnimationRefs } from '../../contexts/AnimationRefsContext';
 import { PRESET_RANGES } from '../../constants/musicLayout';
 
 // ── Static / pure module-level data & helpers ──────────────────────────────
@@ -150,7 +151,6 @@ const SheetMusic = ({
   numMeasures, // Added prop
   onNumMeasuresChange,      // NEW — for overlay measure count stepper
   tonic,
-  showNoteHighlightRef,
   containerHeight = 400,
   musicalBlocks,
   startMeasureIndex = 0,
@@ -165,14 +165,6 @@ const SheetMusic = ({
   handlePlayMelody = null,
   handlePlayContinuously = null,
   onMusicalBlocksChange = null,
-  sequencerRef,
-  context,
-  clearHighlightStateRef,
-  setCurrentMeasureIndex,
-  wipeTransitionRef,
-  scrollTransitionRef,
-  pendingScrollTransitionRef,
-  paginationFadeRef = null,
   svgRef: svgRefProp = null,
   onNoteClick = null,          // (notes: string[], staff: string) => void — plays note(s) when a note head is clicked
   onChordClick = null,         // (notes: string[]) => void — plays a chord with strumming when a chord label is clicked
@@ -185,6 +177,9 @@ const SheetMusic = ({
           metronome: metronomeMelody, chordProgression } = useMelodies();
   const { isPlaying, isOddRound, inputTestState,
           inputTestSubMode, setInputTestSubMode } = usePlaybackState();
+  const { wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+          clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
+          sequencerRef, context } = useAnimationRefs();
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
   const { trebleSettings, setTrebleSettings, bassSettings, setBassSettings,
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
