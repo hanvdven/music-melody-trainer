@@ -59,7 +59,7 @@ import {
     DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
     DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE,
 } from './constants/generatorDefaults';
-import { APPROX_HEADER_WIDTH, APPROX_PX_PER_MEASURE } from './constants/musicLayout';
+import useAppLayout from './hooks/useAppLayout';
 
 // Icons
 import {
@@ -991,39 +991,7 @@ const App = () => {
     }, [generateChords]);
 
 
-    const isDualView = windowSize.height >= 700;
-    const usableHeight = windowSize.height - 100; // Subtract header (100px)
-    let sheetHeight, btmPanelHeight;
-
-    if (!isDualView) {
-        // Single view mode: active tab takes full height
-        sheetHeight = usableHeight;
-        btmPanelHeight = usableHeight;
-    } else if (usableHeight <= 700) {
-        // 700-800px range: 300px bottom, remainder sheet
-        btmPanelHeight = 300;
-        sheetHeight = usableHeight - 300;
-    } else if (usableHeight <= 800) {
-        // 800-900px range: 400px sheet, remainder bottom
-        sheetHeight = 400;
-        btmPanelHeight = usableHeight - 400;
-    } else {
-        // > 900px: 50/50 split
-        btmPanelHeight = usableHeight / 2;
-        sheetHeight = usableHeight / 2;
-    }
-
-    const tabBtnScale = windowSize.width >= 550 ? 1 : Math.max(0.5, windowSize.width / 550);
-
-    // Ideal visible measures for scroll/wipe animation: how many measures fit in the
-    // sheet music viewport at a comfortable note width (~120px per measure).
-    // Clamped to [2, numMeasures] — minimum 2 so there is always a prev+current visible.
-    // Replaces the hardcoded visibleMeasures={3} that was too wide on small screens.
-    const sheetWidth = windowSize.width;
-    const idealVisibleMeasures = Math.max(2, Math.min(
-        numMeasures,
-        Math.round((sheetWidth - APPROX_HEADER_WIDTH) / APPROX_PX_PER_MEASURE)
-    ));
+    const { isDualView, sheetHeight, btmPanelHeight, tabBtnScale, idealVisibleMeasures } = useAppLayout(windowSize, numMeasures);
 
     // Context values — memoized to prevent unnecessary re-renders of consumers
     const playbackConfigCtx = useMemo(() => ({
