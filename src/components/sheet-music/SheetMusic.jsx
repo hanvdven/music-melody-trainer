@@ -29,6 +29,7 @@ import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { useMelodies } from '../../contexts/MelodyContext';
+import { usePlaybackState } from '../../contexts/PlaybackStateContext';
 import { PRESET_RANGES } from '../../constants/musicLayout';
 
 // ── Static / pure module-level data & helpers ──────────────────────────────
@@ -148,19 +149,11 @@ const SheetMusic = ({
   viewMode,    // 'melody' | 'repeat' — see viewMode prop in App.jsx for the source-of-truth computation
   numMeasures, // Added prop
   onNumMeasuresChange,      // NEW — for overlay measure count stepper
-  inputTestSubMode,
-  setInputTestSubMode,
   tonic,
-  inputTestState = null,
   showNoteHighlightRef,
   containerHeight = 400,
   musicalBlocks,
   startMeasureIndex = 0,
-  song = null,
-  songVersion = 0,
-  currentMeasureIndex = 0,
-  isPlaying = false,
-  isOddRound = true,
   visibleMeasures = null,   // number of measures visible on screen at once (scroll/wipe modes)
   nextLayer = null,         // wipe/scroll-mode preview type: 'yellow' | 'red' | null
   previewMelody = null,     // pre-generated next melody for red overlay
@@ -190,6 +183,8 @@ const SheetMusic = ({
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
           metronome: metronomeMelody, chordProgression } = useMelodies();
+  const { isPlaying, isOddRound, inputTestState,
+          inputTestSubMode, setInputTestSubMode } = usePlaybackState();
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
   const { trebleSettings, setTrebleSettings, bassSettings, setBassSettings,
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
