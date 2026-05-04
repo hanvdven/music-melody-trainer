@@ -10,6 +10,36 @@ import { calculateRelativeRange, modulateMelody } from '../theory/musicUtils';
 import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
 
+// Percussion note tokens are non-pitched and must never be passed through
+// enharmonic conversion or scale-relative display name resolution.
+const PERC_TOKENS = new Set(['k', 'c', 'b', 'hh', 's', '/']);
+
+// Resolve one voice for the next generation round.
+// - Fixed + pitched (refMelody supplied): modulate from reference scale to new scale.
+// - Fixed + unpitched (no refMelody): keep current.
+// - canRandomize=false: keep current.
+// - Otherwise: generate fresh via MelodyGenerator.
+const resolveVoice = ({
+  isFixed, currentMelody, refMelody, refScale, targetScale,
+  canRandomize, voiceType, settings, nextProgression, nm, ts, runId, rhythm,
+}) => {
+  if (isFixed && refMelody) {
+    const modulatedNotes = modulateMelody(refMelody.notes, refScale, targetScale);
+    const displayNotes = modulatedNotes.map(n => {
+      if (!n || PERC_TOKENS.has(n)) return n;
+      const idx = targetScale.notes.indexOf(n);
+      if (idx !== -1) return targetScale.displayNotes[idx];
+      return getRelativeNoteName(n, targetScale.tonic);
+    });
+    return new Melody(modulatedNotes, refMelody.durations, refMelody.offsets, displayNotes);
+  }
+  if ((isFixed || !canRandomize) && currentMelody) return currentMelody;
+  const effectiveRange = voiceType
+    ? calculateRelativeRange(voiceType, settings?.rangeMode, targetScale.tonic) || settings?.range
+    : null;
+  return new MelodyGenerator(targetScale, nm, ts, settings, nextProgression, effectiveRange, runId, rhythm).generateMelody();
+};
+
 const useMelodyState = (
   numMeasures,
   timeSignature,
@@ -206,82 +236,25 @@ const useMelodyState = (
       };
     }
 
-    let newTreble;
-    const isTrebleFixed = trebleSettings?.randomizationRule === 'fixed';
-
-    if (isTrebleFixed && referenceMelody) {
-      const modulatedNotes = modulateMelody(referenceMelody.notes, referenceScale, scale);
-      const displayNotes = modulatedNotes.map(n => {
-        if (!n || ['k', 'c', 'b', 'hh', 's', '/'].includes(n)) return n;
-        const idx = scale.notes.indexOf(n);
-        if (idx !== -1) return scale.displayNotes[idx];
-        return getRelativeNoteName(n, scale.tonic);
-      });
-      newTreble = new Melody(modulatedNotes, referenceMelody.durations, referenceMelody.offsets, displayNotes);
-    } else if (!canRandomizeMelody && treble) {
-      newTreble = treble;
-    } else {
-      const effectiveRange = calculateRelativeRange('treble', trebleSettings?.rangeMode, scale.tonic) || trebleSettings?.range;
-      newTreble = new MelodyGenerator(
-        scale,
-        activeNumMeasures,
-        activeTS,
-        trebleSettings,
-        nextProgression,
-        effectiveRange,
-        runId,
-        globalRhythmArray
-      ).generateMelody();
-    }
-
-    let newBass;
-    const isBassFixed = bassSettings?.randomizationRule === 'fixed';
-    if (isBassFixed && referenceBassMelody) {
-      const targetBassSc = scale.generateBassScale();
-      const refBassSc = referenceScale.generateBassScale();
-      const modulatedNotes = modulateMelody(referenceBassMelody.notes, refBassSc, targetBassSc);
-      const displayNotes = modulatedNotes.map(n => {
-        if (!n || ['k', 'c', 'b', 'hh', 's', '/'].includes(n)) return n;
-        const idx = targetBassSc.notes.indexOf(n);
-        if (idx !== -1) return targetBassSc.displayNotes[idx];
-        return getRelativeNoteName(n, targetBassSc.tonic);
-      });
-      newBass = new Melody(modulatedNotes, referenceBassMelody.durations, referenceBassMelody.offsets, displayNotes);
-    } else if (!canRandomizeMelody && bass) {
-      newBass = bass;
-    } else {
-      const targetBassSc = scale.generateBassScale();
-      const effectiveRange = calculateRelativeRange('bass', bassSettings?.rangeMode, scale.tonic) || bassSettings?.range;
-      newBass = new MelodyGenerator(
-        targetBassSc,
-        activeNumMeasures,
-        activeTS,
-        bassSettings,
-        nextProgression,
-        effectiveRange,
-        runId,
-        globalRhythmArray
-      ).generateMelody();
-    }
-
-    let newPercussion;
-    const isPercFixed = percussionSettings?.randomizationRule === 'fixed';
-    if (isPercFixed && percussion) {
-      newPercussion = percussion;
-    } else if (!canRandomizeMelody && percussion) {
-      newPercussion = percussion;
-    } else {
-      newPercussion = new MelodyGenerator(
-        percussionScale,
-        activeNumMeasures,
-        activeTS,
-        percussionSettings,
-        nextProgression,
-        null,
-        runId,
-        globalRhythmArray
-      ).generateMelody();
-    }
+    const bassSc = scale.generateBassScale();
+    const newTreble = resolveVoice({
+      isFixed: trebleSettings?.randomizationRule === 'fixed',
+      currentMelody: treble, refMelody: referenceMelody, refScale: referenceScale, targetScale: scale,
+      canRandomize: canRandomizeMelody, voiceType: 'treble', settings: trebleSettings,
+      nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray,
+    });
+    const newBass = resolveVoice({
+      isFixed: bassSettings?.randomizationRule === 'fixed',
+      currentMelody: bass, refMelody: referenceBassMelody, refScale: referenceScale.generateBassScale(), targetScale: bassSc,
+      canRandomize: canRandomizeMelody, voiceType: 'bass', settings: bassSettings,
+      nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray,
+    });
+    const newPercussion = resolveVoice({
+      isFixed: percussionSettings?.randomizationRule === 'fixed',
+      currentMelody: percussion, refMelody: null, refScale: null, targetScale: percussionScale,
+      canRandomize: canRandomizeMelody, voiceType: null, settings: percussionSettings,
+      nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray,
+    });
 
     const metronomeGenSettings = {
       notesPerMeasure: Math.ceil((activeTS[0] / activeTS[1]) * (metronomeSettings?.smallestNoteDenom || 4)),
@@ -312,8 +285,8 @@ const useMelodyState = (
     setBass(newBass);
     setPercussion(newPercussion);
 
-    const nextRefTreble = isTrebleFixed ? referenceMelody : newTreble;
-    const nextRefBass = isBassFixed ? referenceBassMelody : newBass;
+    const nextRefTreble = trebleSettings?.randomizationRule === 'fixed' ? referenceMelody : newTreble;
+    const nextRefBass = bassSettings?.randomizationRule === 'fixed' ? referenceBassMelody : newBass;
 
     setReferenceMelody(nextRefTreble);
     setReferenceBassMelody(nextRefBass);
