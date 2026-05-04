@@ -341,7 +341,108 @@ Na placement:
 
 ---
 
-## 13. Open vragen voor review
+## 13. Tutorial — Eerste keer Oefenmodus
+
+### Doel
+
+De oefenmodus heeft een eigen UI-taal: bladmuziek, een mini-HUD, noot-voor-noot feedback, checkpoint-kaartjes. Nieuwe gebruikers — ook zij die al door de onboarding zijn — kennen deze taal niet. De tutorial legt het één keer uit, non-blokkerend, en verdwijnt dan voorgoed.
+
+### Wanneer triggert de tutorial?
+
+De tutorial start **de eerste keer dat een gebruiker de oefenmodus betreedt**, ongeacht of ze via een les of via de Practice Hub binnenkomen. Eén keer per installatie. Daarna nooit meer, tenzij de gebruiker hem handmatig herstart via Profiel → Instellingen → "Tutorial opnieuw zien".
+
+Sla-over-knop is altijd zichtbaar — geen verplichte tutorial.
+
+---
+
+### Structuur: 5 coach marks in volgorde
+
+De tutorial gebruikt **coach marks**: een uitgelicht element + een tekstballon. De rest van het scherm is licht gedempt. De speler tikt "Volgende" of tikt ergens buiten de ballon om verder te gaan.
+
+De bladmuziek en piano zijn al zichtbaar en speelbaar — de tutorial onderbreekt niets, hij wijst alleen aan.
+
+```
+Stap 1 van 5
+┌──────────────────────────────────┐
+│  G Groot · 100BPM    maat 1/10  │
+│                          🔥×0   │
+├──────────────────────────────────┤  ← uitgelicht
+│                                  │
+│      [ bladmuziek SVG ]          │  ╔══════════════════╗
+│                                  │  ║ Dit is de        ║
+│                                  │  ║ bladmuziek.      ║
+├──────────────────────────────────┤  ║ Speel de noten   ║
+│  ░░░░░░░░░░░░░░░░  0%   [ ⏸ ]   │  ║ die je ziet.     ║
+├──────────────────────────────────┤  ║                  ║
+│      [ piano ]                   │  ║ [Volgende →]     ║
+└──────────────────────────────────┘  ╚══════════════════╝
+```
+
+| Stap | Uitgelicht element | Tekst |
+|---|---|---|
+| 1 | Bladmuziek | "Dit zijn de noten die je speelt. Van links naar rechts, één voor één." |
+| 2 | Piano / toetsenbord | "Tik hier de juiste noot. De app luistert en geeft meteen reactie." |
+| 3 | Noot-feedback (groen/rood) | "Groen = goed. Rood = de juiste noot licht op — en je gaat door." |
+| 4 | HUD (streak + maat-teller) | "🔥×N telt je reeks correcte noten. Maat 3/10 laat zien hoe ver je bent." |
+| 5 | Progressbalk onderaan | "De balk toont je accuraatheid in deze set. Na 10 maten zie je een samenvatting." |
+
+Na stap 5: korte fade-out van alle coach marks, sessie begint direct.
+
+---
+
+### Interactieve stap (optioneel — stap 2½)
+
+Na het uitleggen van de piano (stap 2) volgt optioneel één speelmoment:
+
+```
+╔══════════════════════════════════╗
+║  Probeer het!                    ║
+║  Speel de noot die oplicht →     ║
+║  (C4 knippert)                   ║
+║                                  ║
+║  [Sla over]                      ║
+╚══════════════════════════════════╝
+```
+
+Zodra de speler de juiste noot raakt: korte groene flash + "Prima! Zo werkt het." → automatisch naar stap 3.
+
+Dit is de enige actieve stap. De rest is passief lezen + tikken.
+
+---
+
+### UX-regels voor de tutorial
+
+1. **Nooit blokkerend.** De speler kan op elk moment tikken op "Sla tutorial over" (klein, maar altijd zichtbaar).
+2. **Geen tekst-walls.** Elke coach mark heeft maximaal 2 zinnen.
+3. **Geen herhaling.** Na voltooiing of overslaan: nooit meer automatisch getoond.
+4. **Zelfde visuele taal.** Coach marks gebruiken dezelfde kleur en typografie als de rest van de app — geen aparte "tutorial-stijl".
+5. **Mobiel-vriendelijk.** Tekstballon verschijnt boven of onder het uitgelichte element, nooit erover heen op kleine schermen.
+
+---
+
+### Gamification-koppeling
+
+Na het voltooien (niet overslaan) van alle 5 stappen:
+
+- **+10 XP** — "Welkom in de oefenmodus"
+- Badge-kans: geen aparte badge voor de tutorial (te triviaal)
+- Eerste sessie daarna telt mee voor de dagelijkse streak
+
+---
+
+### Herstart via instellingen
+
+```
+Profiel → Instellingen
+  ├─ ...
+  └─ Tutorial opnieuw zien
+       ├─ Oefenmodus-tutorial     [Herstart]
+       └─ Wereldkaart-tutorial    [Herstart]  ← voor toekomstige uitbreiding
+```
+
+---
+
+## 14. Open vragen voor review
 
 1. **Werelden 2–6 uitwerken?** Wil je alle 180 lessen even gedetailleerd als Wereld 1, of eerst de architectuur bouwen?
 2. **Lesconfig als preset?** Elke les heeft een specifieke app-config (toonsoort, BPM, modus, input-type). Wordt dit een preset-systeem of een aparte les-engine?
