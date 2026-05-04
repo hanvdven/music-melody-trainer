@@ -14,7 +14,8 @@ import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
-import { getNoteSemitone, ALL_NOTES, CANONICAL_MAP, getKodalySolfege } from '../../theory/noteUtils';
+import { getNoteSemitone, getKodalySolfege } from '../../theory/noteUtils';
+import { getNoteIndex } from '../../theory/musicUtils';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, isRest } from '../../theory/rhythmicSolfege';
 
@@ -28,16 +29,17 @@ import useLongPressTimer from '../../hooks/useLongPressTimer';
 import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
-
-// Randomise-measure button rendered inside the SVG.
+import { useMelodies } from '../../contexts/MelodyContext';
+import { usePlaybackState } from '../../contexts/PlaybackStateContext';
+import { PRESET_RANGES } from '../../constants/musicLayout';
 
 // ── Static / pure module-level data & helpers ──────────────────────────────
 
 // ── Clef/range picker ─────────────────────────────────────────────────────
 // Matches RangeControls rangeOptionsList so clicking the clef in the sheet
 // music opens the same full-list picker as the range-mode stepper.
-// CLEF_RANGE_PRESET_RANGES is imported above as PRESET_RANGES (renamed locally
-// for context — the picker only opens from the clef in this view).
+// PRESET_RANGES is imported from constants/musicLayout (shared with Sequencer).
+const CLEF_RANGE_PRESET_RANGES = PRESET_RANGES;
 const CLEF_VOCAL_RANGES = [
   { label: 'Bass',          min: 'G2', max: 'C4', clef: 'bass' },
   { label: 'Baritone',      min: 'B2', max: 'F4', clef: 'bass' },
@@ -109,14 +111,6 @@ const clefSymbols = {
   bass15vb: { char: '?', yOffset: -10, ottava: '15', below: true },
 };
 
-// Note-to-MIDI value (octave × 12 + pitch-class). Used for optimal-clef detection.
-const getNoteValue = (note) => {
-  const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
-  if (!match) return 0;
-  let pc = match[1].replace('#', '♯').replace('b', '♭');
-  if (CANONICAL_MAP[pc]) pc = CANONICAL_MAP[pc];
-  return parseInt(match[2], 10) * 12 + (ALL_NOTES.indexOf(pc) || 0);
-};
 
 // Maximum extent (offset + duration) across all notes in a melody.
 const getMelodyEndTime = (melody) => {
@@ -146,13 +140,9 @@ const SheetMusic = ({
   onBpmChange,
   numRepeats,
   onNumRepeatsChange,
-  trebleMelody,
-  bassMelody,
-  percussionMelody,
   numAccidentals,
   screenWidth,
   onRandomizeMeasure,
-  chordProgression,
   showChords,
   showSettings,
   onToggleSettings,
@@ -160,20 +150,11 @@ const SheetMusic = ({
   viewMode,    // 'melody' | 'repeat' — see viewMode prop in App.jsx for the source-of-truth computation
   numMeasures, // Added prop
   onNumMeasuresChange,      // NEW — for overlay measure count stepper
-  inputTestSubMode,
-  setInputTestSubMode,
   tonic,
-  metronomeMelody = null,
-  inputTestState = null,
   showNoteHighlightRef,
   containerHeight = 400,
   musicalBlocks,
   startMeasureIndex = 0,
-  song = null,
-  songVersion = 0,
-  currentMeasureIndex = 0,
-  isPlaying = false,
-  isOddRound = true,
   visibleMeasures = null,   // number of measures visible on screen at once (scroll/wipe modes)
   nextLayer = null,         // wipe/scroll-mode preview type: 'yellow' | 'red' | null
   previewMelody = null,     // pre-generated next melody for red overlay
@@ -201,6 +182,10 @@ const SheetMusic = ({
   onNoteEnharmonicToggle = null, // (staff: string, absoluteOffset: number) => void — toggles a note's accidental spelling
 }) => {
   // ── Context-provided values (formerly props) ──────────────────────────────
+  const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
+          metronome: metronomeMelody, chordProgression } = useMelodies();
+  const { isPlaying, isOddRound, inputTestState,
+          inputTestSubMode, setInputTestSubMode } = usePlaybackState();
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
   const { trebleSettings, setTrebleSettings, bassSettings, setBassSettings,
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
@@ -536,9 +521,9 @@ const SheetMusic = ({
     const notes = melodyNotes
       .map(n => {
         if (!n) return null;
-        if (typeof n === 'string') return getNoteValue(n);
+        if (typeof n === 'string') return getNoteIndex(n);
         if (typeof n.midi === 'number') return n.midi;
-        if (typeof n.note === 'string') return getNoteValue(n.note);
+        if (typeof n.note === 'string') return getNoteIndex(n.note);
         return null;
       })
       .filter(m => typeof m === 'number');

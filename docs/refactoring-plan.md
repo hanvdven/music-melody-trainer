@@ -1,8 +1,23 @@
 # Refactoring Plan — Music Melody Trainer
 
-**Status:** Goedgekeurd / in uitvoering  
+**Status:** In uitvoering  
 **Datum:** 2026-05-04  
 **Scope:** Technische schuld wegwerken zonder features te verliezen
+
+### Voortgang
+
+| Fase | Beschrijving | Status |
+|------|-------------|--------|
+| 1 | Constanten centraliseren (musicLayout, generatorDefaults, instrumentRules) | ✅ Gereed |
+| 2 | useRefState hook + App.jsx duplicate setters elimineren | ✅ Gereed |
+| 3 | Context uitbreiden (MelodyContext, PlaybackStateContext, AnimationRefsContext) | ⏳ Gepland |
+| 4 | App.jsx opsplitsen (useAppCoreState, useAppHandlers, TabView) | ⏳ Gepland |
+| 5 | SheetMusic.jsx opsplitsen (transitions hook, header component) | ⏳ Gepland |
+| 6 | Sequencer.js — applyGenerationResult + buildScheduledChords | ⏳ Gepland |
+| 7 | useMelodyState — resolveVoice factory (elimineer 3× dubbele generatielogica) | ✅ Gereed |
+| 8 | getNoteValue consolideren → getNoteIndex uit musicUtils | ✅ Gereed |
+| 9 | InstrumentRow subcomponenten extraheren + GRID-constanten centraliseren | ✅ Gereed |
+| 10 | Dode code opruimen (repCount, ongebruikte imports) | ✅ Gereed |
 
 ---
 
