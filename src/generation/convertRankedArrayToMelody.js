@@ -1,5 +1,6 @@
 import generateAllNotesArray from '../theory/allNotesArray';
 import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
+import { getNoteSemitone } from '../theory/noteUtils';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
 
 /**
@@ -72,17 +73,8 @@ const convertRankedArrayToMelody = (
     // =========================================================================
     // 1. HELPER FUNCTIONS
     // =========================================================================
-    const ALL_PCS_CALC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
-    const getNotePC = (note) => {
-        if (!note) return '';
-        const pc = note.replace(/-?\d+$/, '');
-        return pc
-            .replace(/[♭b]/g, 'b').replace(/[♯#]/g, '#')
-            .replace('Db', 'C#').replace('Eb', 'D#').replace('Gb', 'F#').replace('Ab', 'G#').replace('Bb', 'A#')
-            .replace('D♭', 'C#').replace('E♭', 'D#').replace('G♭', 'F#').replace('A♭', 'G#').replace('B♭', 'A#')
-            .replace('C♯', 'C#').replace('D♯', 'D#').replace('F♯', 'F#').replace('G♯', 'G#').replace('A♯', 'A#');
-    };
+    // Pitch-class identity uses getNoteSemitone (0-11) — single source of truth
+    // in noteUtils.js handles all enharmonic spellings including double accidentals.
 
     const getNoteValue = (note) => {
         if (!note) return -1;
@@ -90,23 +82,22 @@ const convertRankedArrayToMelody = (
         if (typeof note !== 'string') return -1;
         const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
         if (!match) return -1;
-        const pc = getNotePC(match[1]);
         const oct = parseInt(match[2], 10);
-        return oct * 12 + ALL_PCS_CALC.indexOf(pc);
+        return oct * 12 + getNoteSemitone(match[1]);
     };
 
     const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
     const getChordNotesInRange = (chord) => {
         if (!chord) return [];
-        const chordPCs = chord.notes?.map(n => getNotePC(n)) || [];
-        return fullAvailablePool.filter(n => chordPCs.includes(getNotePC(n)));
+        const chordSemis = chord.notes?.map(getNoteSemitone) || [];
+        return fullAvailablePool.filter(n => chordSemis.includes(getNoteSemitone(n)));
     };
 
     const getRootNotesInRange = (chord) => {
         if (!chord) return [];
-        const rootPC = getNotePC(chord.root);
-        return fullAvailablePool.filter(n => getNotePC(n) === rootPC);
+        const rootSemi = getNoteSemitone(chord.root);
+        return fullAvailablePool.filter(n => getNoteSemitone(n) === rootSemi);
     };
 
     const KICK_SNARE_CHORD = { root: 'k', notes: ['k', 's', 'hh'] };

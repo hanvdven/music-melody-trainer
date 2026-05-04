@@ -10,12 +10,11 @@ import TypeSelectorOverlay from './rows/TypeSelectorOverlay';
 import InstrumentRow from './rows/InstrumentRow';
 import PresetPicker from './PresetPicker';
 import GenericStepper from '../common/GenericStepper';
-import { MetronomeIcon } from '../common/CustomIcons';
 import { getNoteSourceLabel, getProgressionLabel } from '../../utils/labelUtils';
 import { modes, updateScaleWithMode } from '../../theory/scaleHandler';
-import { SectionHeader, RepeatMeasureBar, ColumnHeaders, BracketHeader } from './PlaybackSubComponents';
+import { SectionHeader, RepeatMeasureBar, ColumnHeaders } from './PlaybackSubComponents';
+import PlaybackInstrumentSection from './PlaybackInstrumentSection';
 import { calcHarmonicDifficulty } from '../../utils/difficultyCalculator';
-import { MELODY_DIFFICULTY_RANGE, calcTrebleDifficulty } from '../../utils/melodyDifficultyTable';
 import { HARMONY_DIFFICULTY_RANGE } from '../../utils/harmonyTable';
 import { DifficultyPanel, HarmonicSlider } from './DifficultyControls';
 import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
@@ -450,108 +449,12 @@ const PlaybackSettings = ({
       <div className="ps-section-gap" />
 
       {/* 3. INSTRUMENTS BLOCK */}
-      <SectionHeader label="Instruments" />
-
-      {/* ── MELODY DIFFICULTY SLIDERS (treble + bass) ───────────────────── */}
-      {[
-        { key: 'treble', settings: trebleSettings, target: targetTrebleDifficulty, setTarget: setTargetTrebleDifficulty },
-        { key: 'bass',   settings: bassSettings,   target: targetBassDifficulty,   setTarget: setTargetBassDifficulty   },
-      ].map(({ key, settings, target, setTarget }) => (
-        <div key={key} className="ps-diff-row" style={{ gridTemplateColumns: GRID_GENERATOR }}>
-          <div className="ps-diff-col-label">{key}</div>
-          <div className="ps-diff-col-slider">
-            <HarmonicSlider
-              min={MELODY_DIFFICULTY_RANGE.min}
-              max={MELODY_DIFFICULTY_RANGE.max}
-              target={target ?? MELODY_DIFFICULTY_RANGE.min}
-              actual={calcTrebleDifficulty(settings)}
-              disabled={false}
-              onChange={(e) => setTarget(parseInt(e.target.value, 10))}
-            />
-          </div>
-          <div className="ps-diff-col-value">{target != null ? target : '–'}</div>
-          <div className="ps-diff-col-clear">
-            {target != null && (
-              <button onClick={() => setTarget(null)} className="ps-clear-btn" title="Clear — return to manual">✕</button>
-            )}
-          </div>
-        </div>
-      ))}
-
-      <ColumnHeaders
-        gridConfig={GRID_GENERATOR}
-        columns={['instrument', 'melody notes', 'randomization', 'melody', 'NOTES / MEASURE', 'SMALLEST NOTE', 'VARIABILITY']}
-      />
-      <InstrumentRow
-        label="Treble"
-        glyph="&"
-        instrumentKey="treble"
-        settings={trebleSettings}
-        setSettings={setTrebleSettings}
+      <PlaybackInstrumentSection
+        targetTrebleDifficulty={targetTrebleDifficulty}
+        setTargetTrebleDifficulty={setTargetTrebleDifficulty}
+        targetBassDifficulty={targetBassDifficulty}
+        setTargetBassDifficulty={setTargetBassDifficulty}
         setActiveRandTypeSelector={setActiveRandTypeSelector}
-        renderMode="instrument"
-      />
-      <InstrumentRow
-        label="Bass"
-        glyph="?"
-        instrumentKey="bass"
-        settings={bassSettings}
-        setSettings={setBassSettings}
-        setActiveRandTypeSelector={setActiveRandTypeSelector}
-        renderMode="instrument"
-      />
-      <InstrumentRow
-        label="Perc"
-        glyph="/"
-        instrumentKey="percussion"
-        settings={percussionSettings}
-        setSettings={setPercussionSettings}
-        setActiveRandTypeSelector={setActiveRandTypeSelector}
-        renderMode="instrument"
-      />
-      <div className="ps-section-gap" />
-
-      {/* 4. VISIBILITY / AUDIBILITY BLOCK */}
-      <SectionHeader label="Visibility & Audibility" />
-      <div className="ps-vis-grid" style={{ gridTemplateColumns: GRID_VISIBILITY }}>
-        <div className="ps-vis-clef-label">Clef</div>
-        <div className="ps-vis-odd-header">
-          <BracketHeader label="ODD REPETITIONS" subLeft="VISIBLE" subRight="AUDIBLE" />
-        </div>
-        <div className="ps-vis-even-header">
-          <BracketHeader label="EVEN REPETITIONS" subLeft="VISIBLE" subRight="AUDIBLE" />
-        </div>
-      </div>
-
-      <InstrumentRow
-        label="Chords"
-        glyph="/"
-        instrumentKey="chords"
-        renderMode="visibility"
-      />
-      <InstrumentRow
-        label="Treble"
-        glyph="&"
-        instrumentKey="treble"
-        renderMode="visibility"
-      />
-      <InstrumentRow
-        label="Bass"
-        glyph="?"
-        instrumentKey="bass"
-        renderMode="visibility"
-      />
-      <InstrumentRow
-        label="Perc"
-        glyph="/"
-        instrumentKey="percussion"
-        renderMode="visibility"
-      />
-      <InstrumentRow
-        label="Metronome"
-        glyph={<MetronomeIcon />}
-        instrumentKey="metronome"
-        renderMode="visibility"
       />
 
       {/* ── DIFFICULTY DEBUG PANEL ────────────────────────────────────── */}

@@ -4,6 +4,45 @@ These instructions apply to every AI agent (Claude, Copilot, or other) working o
 
 ---
 
+## ⚠ Currently In Progress (April 30, 2026) — CLOUD AGENTS READ THIS FIRST
+
+A multi-phase refactor (Phases 8-10 of the cleanup plan) is in progress. **Cloud-scheduled agents must NOT modify these files** until this notice is removed:
+
+- `src/App.jsx`
+- `src/audio/Sequencer.js`
+- `src/audio/SongBuilder.js` (will be created)
+- `src/audio/AnimationScheduler.js` (will be created)
+- `src/hooks/useScaleManagement.js`
+- `src/hooks/__tests__/*` (new tests being added)
+- `src/theory/__tests__/*` (new tests being added)
+- `package.json` (test script additions in flight)
+
+If your chosen task touches any of these files, **abandon the run** and either:
+1. Pick a different unrelated BACKLOG item that doesn't touch the above, or
+2. Exit cleanly without opening a PR.
+
+This notice will be removed once Phases 8-10 are complete. Local interactive sessions (with the human in the loop) are NOT subject to this restriction — only cloud-scheduled autonomous runs.
+
+---
+
+Personality
+
+You'll be prompted by Han. Han speaks Dutch and English.
+Han has limited experience in coding.; but a clear vision for the app. His creativity has the risk that features will be added before features are finished.
+
+Your role:
+
+1) Help Han achieve his app.
+2) Critically challenge Han's ideas. Challenge feature requests. Encourage completely finishing features before starting on new ones. That is, do not immediately say yes to his ideas, but ask a few critical questions.
+3) Make detailed feature suggestions based on your knowledge of
+
+- app building
+- UI/UX design
+- music theory
+Thus, play the role of a software engineer, and software design expert, and UX/UI expert.
+
+---
+
 ## 1. Always Read Architecture Files First
 
 Before writing or modifying any code, read the relevant documentation:
@@ -30,9 +69,11 @@ The BACKLOG.md is the user's source of truth. Follow these rules unconditionally
 1. **Never modify or delete the user's original text.** The user's original feature requests, questions, and bug reports must remain exactly as written. Only the user may delete or rewrite their own entries.
 
 2. **Add your notes below the original text, never in place of it.** Use a clearly dated prefix:
+
    ```
    [Claude YYYY-MM-DD HH:MM]: <your note here>
    ```
+
    Example: `[Claude 2026-04-08 16:16]: Implemented — see passingChords.js line 314.`
 
 3. **Mark completions by appending to the item, not by replacing it.** Prepend `✅` only if you are sure the original intent is fully satisfied. Add the dated note on the next line.
@@ -202,6 +243,62 @@ Whenever you need to play a percussion note interactively (e.g. click-to-play in
 - **No backward-compatibility shims**: delete unused code rather than commenting it out or adding `// removed` markers.
 - **No error handling for impossible states**: trust internal invariants and framework guarantees; only validate at system boundaries (user input, external API calls).
 - **Prefer `const` and pure functions** for theory/generation code; side effects belong in hooks and `Sequencer`.
+
+---
+
+## 7a. Error Handling, Error Codes, and Logging
+
+The app now has a leveled logger and a root error boundary. Use them.
+
+### Logger
+Use `import logger from 'src/utils/logger'` instead of bare `console.*` for any non-trivial logging. The logger formats messages with timestamp, level, and a source tag, and lets us silence noisy modules in production via `localStorage.LOG_LEVEL` or `VITE_LOG_LEVEL`.
+
+```js
+logger.debug('Sequencer', 'iteration tick', { measure: 0 });
+logger.info('App', 'audio context resumed');
+logger.warn('App', 'unexpected null melody, falling back', { staff: 'treble' });
+logger.error('Sequencer', 'E010-PLAYBACK-START', err, { bpm: 120 });
+```
+
+`logger.error(source, code, ...)` requires a stable error code as the second argument so error reports stay grep-able across builds. Reuse codes for the same failure mode; allocate new ones for genuinely new failures. Allocated codes:
+
+- **E001-REACT-RENDER** — error caught by an ErrorBoundary during render
+- **E002-UNCAUGHT** — escaped error caught by `window.error` listener
+- **E003-UNHANDLED-REJECTION** — escaped promise rejection caught by `window.unhandledrejection`
+
+When you add a new `logger.error` call, allocate a new code (e.g. `E020-AUDIO-INIT`) and add it to this list.
+
+### Error Boundaries
+The root `<ErrorBoundary boundary="root">` in `src/main.jsx` catches anything React renders that throws. For tab content or large isolated UI sections, wrap them in their own ErrorBoundary with a descriptive `boundary` name (e.g. `boundary="sheet-music"`, `boundary="chords-tab"`) so a failure in one area doesn't blank out the whole app and so logs identify which area failed.
+
+```jsx
+<ErrorBoundary boundary="my-section">
+  <MySection />
+</ErrorBoundary>
+```
+
+Add an ErrorBoundary around any new top-level feature or risky tab.
+
+### Don't Hide Errors
+Per §7 ("No error handling for impossible states") we don't add try/catch for things that can't happen. But for things that CAN go wrong at system boundaries (audio context init, user input parsing, external API calls), catch the error AND log it with `logger.error` and a stable error code. Silent `catch {}` is only acceptable when the error is genuinely expected and irrelevant (e.g. AudioContext.resume() rejecting because already running).
+
+---
+
+## 7b. Pre-commit Verification
+
+Before opening a PR or marking work complete, run:
+
+1. `npm run test:run` — runs the full vitest suite once. Must be green.
+2. `npm run build` — Vite build. Must compile without errors.
+3. `npm run lint` — optional but recommended.
+
+Test files live under `src/**/__tests__/*.test.js`. The suite includes:
+
+- `src/theory/__tests__/noteUtils.test.js` — pitch primitives
+- `src/hooks/__tests__/*.test.js` — extracted hook behavior
+- `src/utils/__tests__/*.test.js` — music utilities
+
+When extracting a new hook or pure helper from a larger file, **add at least one smoke test for it in the same PR**. Tests are the safety net for the next refactor wave.
 
 ---
 
