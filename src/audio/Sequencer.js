@@ -23,7 +23,8 @@ import { sliceMelodyByMeasure, sliceChordsForMeasure } from '../utils/melodySlic
 import { getChordsWithSlashes } from '../theory/chordLabelHandler';
 import { getHarmonyAtDifficulty } from '../utils/harmonyTable';
 import { getMelodyAtDifficulty } from '../utils/melodyDifficultyTable';
-import { PRESET_RANGES } from '../constants/ranges';
+import { PRESET_RANGES } from '../constants/musicLayout';
+import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
 
 class Sequencer {
   constructor(config) {
@@ -78,29 +79,7 @@ class Sequencer {
       bass = firstResult.bass || bass;
       percussion = firstResult.percussion || percussion;
       chordProgression = firstResult.chordProgression || chordProgression;
-      if (firstResult.tonic) this.setters.setTonic(firstResult.tonic);
-      if (firstResult.scale) {
-        this.setters.setScale(firstResult.scale);
-        if (this.setters.setReferenceScale) this.setters.setReferenceScale(firstResult.scale);
-      }
-      if (firstResult.treble) {
-        this.setters.setTrebleMelody(firstResult.treble);
-        if (this.setters.setReferenceMelody) this.setters.setReferenceMelody(firstResult.treble);
-      }
-      if (firstResult.bass) {
-        this.setters.setBassMelody(firstResult.bass);
-        if (this.setters.setReferenceBassMelody) this.setters.setReferenceBassMelody(firstResult.bass);
-      }
-      if (firstResult.percussion) this.setters.setPercussionMelody(firstResult.percussion);
-      if (firstResult.chordProgression && this.setters.setChordProgression) {
-        this.setters.setChordProgression(firstResult.chordProgression);
-      }
-      if (firstResult.trebleSettings && this.setters.setTrebleSettings) {
-        this.setters.setTrebleSettings(firstResult.trebleSettings);
-      }
-      if (firstResult.bassSettings && this.setters.setBassSettings) {
-        this.setters.setBassSettings(firstResult.bassSettings);
-      }
+      this.applyResultToSetters(firstResult, { initialLoad: true });
       if (firstResult.generatedNumMeasures) {
         currentNumMeasures = firstResult.generatedNumMeasures;
       }
@@ -135,9 +114,8 @@ class Sequencer {
         const ts = currentTS;
         const chordSettings = this.refs.instrumentSettingsRef?.current?.chords;
         const activeScale = this.refs.scaleRef.current;
-        const globalResolution = 16;
-        const measureSlots = (globalResolution * ts[0]) / ts[1];
-        const globalTemplate = generateDeterministicRhythm(1, ts, measureSlots, 'default', globalResolution);
+        const measureSlots = (GLOBAL_RESOLUTION * ts[0]) / ts[1];
+        const globalTemplate = generateDeterministicRhythm(1, ts, measureSlots, 'default', GLOBAL_RESOLUTION);
         const chordGen = new MelodyGenerator(
           activeScale, currentNumMeasures, ts,
           {
@@ -162,7 +140,6 @@ class Sequencer {
 
     let nextStartTime = this.context.currentTime + 0.1;
     this.melodyCount = 0;
-    let repCount = 0;
     let iteration = 0;
     this.globalMeasureIndex = initialMeasureIndex;
     this.isOnceMode = once;
@@ -646,46 +623,10 @@ class Sequencer {
             const nextFirstRoundVisible = !!(this.refs.playbackConfigRef.current.oddRounds?.notes);
             const seriesStartMeasureIndex = this.globalMeasureIndex;
 
-            const applyResult = () => {
-              // Hide the current-content group before React commits the new melody so
-              // there is never a frame where new content appears with a stale partial mask.
-              if (this.setters.hideOldGroup) this.setters.hideOldGroup();
-              if (result.tonic) this.setters.setTonic(result.tonic);
-              if (result.scale) {
-                this.setters.setScale(result.scale);
-                if (this.setters.setReferenceScale) this.setters.setReferenceScale(result.scale);
-              }
-              const instrumentSettings = this.refs.instrumentSettingsRef.current;
-              if (result.treble) {
-                this.setters.setTrebleMelody(result.treble);
-                if (instrumentSettings.treble.randomizationRule !== 'fixed' && this.setters.setReferenceMelody) {
-                  this.setters.setReferenceMelody(result.treble);
-                }
-              }
-              if (result.bass) {
-                this.setters.setBassMelody(result.bass);
-                if (instrumentSettings.bass.randomizationRule !== 'fixed' && this.setters.setReferenceBassMelody) {
-                  this.setters.setReferenceBassMelody(result.bass);
-                }
-              }
-              if (result.percussion) this.setters.setPercussionMelody(result.percussion);
-              if (result.chordProgression && this.setters.setChordProgression) {
-                this.setters.setChordProgression(result.chordProgression);
-              }
-              if (result.trebleSettings && this.setters.setTrebleSettings) {
-                this.setters.setTrebleSettings(result.trebleSettings);
-              }
-              if (result.bassSettings && this.setters.setBassSettings) {
-                this.setters.setBassSettings(result.bassSettings);
-              }
-              if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(seriesStartMeasureIndex);
-              // Clear preview — the new block is now the main content.
-              // wipeTransitionRef is intentionally NOT cleared here: the useLayoutEffect in
-              // App.jsx clears it (and removes the mask) synchronously after React commits the
-              // new melody, preventing a 1-frame flash of the old melody.
-              if (this.setters.setNextLayer) this.setters.setNextLayer(null);
-              if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
-            };
+            // wipeTransitionRef is intentionally NOT cleared here: the useLayoutEffect in
+            // App.jsx clears it (and removes the mask) synchronously after React commits the
+            // new melody, preventing a 1-frame flash of the old melody.
+            const applyResult = () => this.applyResultToSetters(result, { seriesStartMeasureIndex });
 
             // Schedule red preview overlay and apply result.
             if (!this.isOnceMode) {
@@ -1026,15 +967,14 @@ class Sequencer {
 
     // 2. Generate Global Rhythm DNA (NEW STEP)
     // We need to match useMelodyState logic
-    const globalResolution = 16;
-    const measureSlots = (globalResolution * timeSignature[0]) / timeSignature[1];
+    const measureSlots = (GLOBAL_RESOLUTION * timeSignature[0]) / timeSignature[1];
 
     const globalTemplate = generateDeterministicRhythm(
       1,
       timeSignature,
       measureSlots,
       'default',
-      globalResolution
+      GLOBAL_RESOLUTION
     );
 
     // Always ensure displayChordProgression is set — it may be null on the first call
@@ -1359,6 +1299,44 @@ class Sequencer {
     result.generatedNumMeasures = maxContentSpan > 0 ? maxContentSpan : numMeasures;
 
     return result;
+  }
+
+  /**
+   * Push a generation result's fields to React setters.
+   * initialLoad=true  → always update reference melodies (called once at session start).
+   * initialLoad=false → respect 'fixed' rule; also clears the preview overlay.
+   */
+  applyResultToSetters(result, { initialLoad = false, seriesStartMeasureIndex = null } = {}) {
+    if (!initialLoad && this.setters.hideOldGroup) this.setters.hideOldGroup();
+    if (result.tonic) this.setters.setTonic(result.tonic);
+    if (result.scale) {
+      this.setters.setScale(result.scale);
+      if (this.setters.setReferenceScale) this.setters.setReferenceScale(result.scale);
+    }
+    const instSettings = this.refs.instrumentSettingsRef.current;
+    if (result.treble) {
+      this.setters.setTrebleMelody(result.treble);
+      const canUpdateRef = initialLoad || instSettings.treble.randomizationRule !== 'fixed';
+      if (canUpdateRef && this.setters.setReferenceMelody) this.setters.setReferenceMelody(result.treble);
+    }
+    if (result.bass) {
+      this.setters.setBassMelody(result.bass);
+      const canUpdateRef = initialLoad || instSettings.bass.randomizationRule !== 'fixed';
+      if (canUpdateRef && this.setters.setReferenceBassMelody) this.setters.setReferenceBassMelody(result.bass);
+    }
+    if (result.percussion) this.setters.setPercussionMelody(result.percussion);
+    if (result.chordProgression && this.setters.setChordProgression) {
+      this.setters.setChordProgression(result.chordProgression);
+    }
+    if (result.trebleSettings && this.setters.setTrebleSettings) this.setters.setTrebleSettings(result.trebleSettings);
+    if (result.bassSettings && this.setters.setBassSettings) this.setters.setBassSettings(result.bassSettings);
+    if (!initialLoad) {
+      if (seriesStartMeasureIndex !== null && this.setters.setStartMeasureIndex) {
+        this.setters.setStartMeasureIndex(seriesStartMeasureIndex);
+      }
+      if (this.setters.setNextLayer) this.setters.setNextLayer(null);
+      if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
+    }
   }
 
   /** Returns how many measures of content a melody spans (0 if empty). */

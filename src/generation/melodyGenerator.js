@@ -4,6 +4,7 @@ import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { generateBackbeat, generateSwing, GROOVE_PATTERNS } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
+import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults.js';
 
 const isNoteInRange = (note, range) => {
     if (!range) return true;
@@ -65,15 +66,14 @@ class MelodyGenerator {
         let deterministicTemplate = null;
 
         if (this.globalRhythmArray) {
-            // Global resolution is 16th notes (scale factor 1)
-            // Current resolution is defined by smallestNoteDenom (e.g., 8)
+            // Global resolution is 16th notes (GLOBAL_RESOLUTION = 16).
+            // Current resolution is defined by smallestNoteDenom (e.g., 8).
             // If global is 16 and local is 8, we sample every 2nd slot.
 
-            const globalDenom = 16;
             const localDenom = smallestNoteDenom;
 
-            if (localDenom <= globalDenom && globalDenom % localDenom === 0) {
-                const step = globalDenom / localDenom; // e.g. 16/8 = 2. Sample every 2nd.
+            if (localDenom <= GLOBAL_RESOLUTION && GLOBAL_RESOLUTION % localDenom === 0) {
+                const step = GLOBAL_RESOLUTION / localDenom; // e.g. 16/8 = 2. Sample every 2nd.
 
                 // globalRhythmArray is Array<Array<number|null>> (measures of slots)
                 // We need to map this to the local resolution.
@@ -109,24 +109,12 @@ class MelodyGenerator {
 
         // Pre-calculate allowed notes based on Range
         let effectiveScale = this.scale;
+        // ASCII sharps used as pitch-class keys for the range-expansion loop below.
         const ALL_PCS_CALC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
         if (this.range) {
-            const getNoteValue = (note) => {
-                if (!note) return -1;
-                const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
-                if (!match) return -1;
-                const pc = match[1]
-                    .replace('♭', 'b').replace('♯', '#')
-                    .replace('Db', 'C#').replace('Eb', 'D#')
-                    .replace('Gb', 'F#').replace('Ab', 'G#')
-                    .replace('Bb', 'A#');
-                const oct = parseInt(match[2], 10);
-                return oct * 12 + ALL_PCS_CALC.indexOf(pc);
-            };
-
-            const minVal = getNoteValue(this.range.min);
-            const maxVal = getNoteValue(this.range.max);
+            const minVal = getNoteIndex(this.range.min) ?? -1;
+            const maxVal = getNoteIndex(this.range.max) ?? -1;
 
             const expanded = [];
 
