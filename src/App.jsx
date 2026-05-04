@@ -81,6 +81,7 @@ import { PlaybackConfigProvider } from './contexts/PlaybackConfigContext';
 import { InstrumentSettingsProvider } from './contexts/InstrumentSettingsContext';
 import { DisplaySettingsProvider } from './contexts/DisplaySettingsContext';
 import { MelodyProvider } from './contexts/MelodyContext';
+import { PlaybackStateProvider } from './contexts/PlaybackStateContext';
 
 
 
@@ -1060,6 +1061,14 @@ const App = () => {
             metronome={melodies.metronome}
             chordProgression={chordProgression}
         >
+        <PlaybackStateProvider
+            isPlaying={isPlaying}
+            isOddRound={isOddRound}
+            currentMeasureIndex={currentMeasureIndex}
+            inputTestState={isInputTestMode ? inputTestState : null}
+            inputTestSubMode={inputTestSubMode}
+            setInputTestSubMode={handleSetInputTestSubMode}
+        >
         <div className="app-root">
             {/* TOP AREA WRAPPER (Preserves app theme for header/sheet) */}
             <div className="App app-top-wrapper">
@@ -1147,8 +1156,6 @@ const App = () => {
                             onSettingsInteraction={resetSettingsTimer}
                             visibleMeasures={idealVisibleMeasures}
                             startMeasureIndex={startMeasureIndex}
-                            inputTestSubMode={inputTestSubMode}
-                            setInputTestSubMode={handleSetInputTestSubMode}
                             tonic={scale.tonic}
                             nextLayer={nextLayer}
                             wipeTransitionRef={wipeTransitionRef}
@@ -1161,9 +1168,6 @@ const App = () => {
                             clearHighlightStateRef={clearHighlightStateRef}
                             setCurrentMeasureIndex={setCurrentMeasureIndex}
                             showNoteHighlightRef={showNoteHighlightRef}
-                            inputTestState={isInputTestMode ? inputTestState : null}
-                            isPlaying={isPlaying}
-                            isOddRound={isOddRound}
                             previewMelody={previewMelody}
                             isFullscreen={isFullscreen}
                             toggleFullscreen={toggleFullscreen}
@@ -1172,9 +1176,7 @@ const App = () => {
                             handleToggleInputTest={handleToggleInputTest}
                             handlePlayMelody={handlePlayMelody}
                             handlePlayContinuously={handlePlayContinuously}
-                            song={songRef.current}
-                            songVersion={songVersion}
-                            currentMeasureIndex={currentMeasureIndex}
+
                             viewMode={isPlayingContinuously
                                 ? (showNotes ? 'melody' : 'repeat')
                                 : (playbackConfig.oddRounds?.notes ? 'melody' : 'repeat')}
@@ -1326,11 +1328,7 @@ const App = () => {
                                     clearHighlightStateRef={clearHighlightStateRef}
                                     setCurrentMeasureIndex={setCurrentMeasureIndex}
                                     showNoteHighlightRef={showNoteHighlightRef}
-                                    inputTestState={isInputTestMode ? inputTestState : null}
                                     startMeasureIndex={startMeasureIndex}
-                                    song={songRef.current}
-                                    songVersion={songVersion}
-                                    currentMeasureIndex={currentMeasureIndex}
                                     onNoteClick={handleNoteClick}
                                     onChordClick={handleChordClick}
                                     onEnharmonicToggle={handleEnharmonicToggle}
@@ -1566,6 +1564,7 @@ const App = () => {
                 </div>
             </div>
         </div >
+        </PlaybackStateProvider>
         </MelodyProvider>
         </DisplaySettingsProvider>
         </InstrumentSettingsProvider>
