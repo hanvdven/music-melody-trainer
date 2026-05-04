@@ -32,15 +32,12 @@ import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { useMelodies } from '../../contexts/MelodyContext';
 import { usePlaybackState } from '../../contexts/PlaybackStateContext';
 import { useAnimationRefs } from '../../contexts/AnimationRefsContext';
-import { PRESET_RANGES } from '../../constants/musicLayout';
-
 // ── Static / pure module-level data & helpers ──────────────────────────────
 
 // ── Clef/range picker ─────────────────────────────────────────────────────
 // Matches RangeControls rangeOptionsList so clicking the clef in the sheet
 // music opens the same full-list picker as the range-mode stepper.
-// PRESET_RANGES is imported from constants/musicLayout (shared with Sequencer).
-const CLEF_RANGE_PRESET_RANGES = PRESET_RANGES;
+// CLEF_RANGE_PRESET_RANGES is imported from constants/ranges (single source of truth).
 const CLEF_VOCAL_RANGES = [
   { label: 'Bass',          min: 'G2', max: 'C4', clef: 'bass' },
   { label: 'Baritone',      min: 'B2', max: 'F4', clef: 'bass' },
