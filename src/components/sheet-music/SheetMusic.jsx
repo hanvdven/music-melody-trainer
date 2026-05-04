@@ -21,6 +21,7 @@ import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, isRest 
 
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
+import { PRESET_RANGES as CLEF_RANGE_PRESET_RANGES } from '../../constants/ranges';
 import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionDisplay } from '../../constants/transposingInstruments';
 import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange } from '../../utils/melodySlice';
 import { calculateMusicalBlocks } from '../../utils/pagination';
