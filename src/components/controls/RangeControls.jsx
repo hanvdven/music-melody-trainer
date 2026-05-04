@@ -13,19 +13,16 @@ import {
 } from 'lucide-react';
 import DoubleStepper from '../common/DoubleStepper';
 import GenericStepper from '../common/GenericStepper';
-import { ALL_NOTES } from '../../theory/noteUtils';
+import { ALL_NOTES, getNoteSemitone } from '../../theory/noteUtils';
+import { PRESET_RANGES } from '../../constants/ranges';
 import './styles/RangeControls.css';
 
 const getNoteValue = (note) => {
     if (!note) return 60;
     const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
     if (!match) return 60;
-    let pc = match[1].replace('#', '♯').replace('b', '♭');
     const oct = parseInt(match[2], 10);
-    const enharmonics = { 'C♯': 'D♭', 'D♯': 'E♭', 'G♯': 'A♭', 'A♯': 'B♭' };
-    if (enharmonics[pc]) pc = enharmonics[pc];
-    const pcIndex = ALL_NOTES.indexOf(pc);
-    return pcIndex === -1 ? 60 : (oct + 1) * 12 + pcIndex;
+    return (oct + 1) * 12 + getNoteSemitone(match[1]);
 };
 
 const getNoteFromValue = (val) => {
@@ -68,21 +65,6 @@ const RangeControls = ({
         { label: 'Mezzo-soprano', min: 'A3', max: 'G5', clef: 'mezzo-soprano' },
         { label: 'Soprano', min: 'C4', max: 'G6', clef: 'soprano' },
     ];
-
-    const PRESET_RANGES = {
-        STANDARD: {
-            treble: { min: 'C4', max: 'E5' },
-            bass: { min: 'A2', max: 'C4' }
-        },
-        LARGE: {
-            treble: { min: 'C4', max: 'G5' },
-            bass: { min: 'G2', max: 'C4' }
-        },
-        FULL: {
-            treble: { min: 'A3', max: 'C6' },
-            bass: { min: 'C2', max: 'E4' }
-        }
-    };
 
     const isCustom = !['STANDARD', 'LARGE', 'FULL', 'relative'].includes(rangeMode) && !VOCAL_RANGES.some(r => r.label === rangeMode);
     const [lastPreset, setLastPreset] = useState('STANDARD');

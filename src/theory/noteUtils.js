@@ -149,7 +149,8 @@ export const collapseAccidentals = (pitch) =>
  */
 export const getNoteSemitone = (note) => {
     if (!note) return 0;
-    const pc = normalizeNoteChars(note.replace(/\d+$/, ''));
+    // Strip optional sign + trailing digits (e.g. 'A-1' → 'A', 'C4' → 'C').
+    const pc = normalizeNoteChars(note.replace(/-?\d+$/, ''));
     const map = {
         'C': 0, 'B♯': 0, 'D𝄫': 0,
         'C♯': 1, 'D♭': 1,

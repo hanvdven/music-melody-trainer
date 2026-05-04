@@ -1,5 +1,6 @@
 import React from 'react';
 import './ErrorBoundary.css';
+import logger from '../../utils/logger';
 
 /**
  * ErrorFallback component
@@ -32,7 +33,10 @@ const ErrorFallback = ({ error, resetError }) => {
 
 /**
  * ErrorBoundary component
- * Catches JavaScript errors anywhere in the child component tree
+ * Catches JavaScript errors anywhere in the child component tree.
+ *
+ * Pass `boundary="<name>"` to identify which boundary fired in logs (e.g.
+ * "root", "sheet-music", "playback-tab"). Defaults to "anonymous".
  */
 class ErrorBoundary extends React.Component {
     constructor(props) {
@@ -45,10 +49,16 @@ class ErrorBoundary extends React.Component {
     }
 
     componentDidCatch(error, errorInfo) {
-        console.error('Error caught by ErrorBoundary:', error, errorInfo);
+        const boundaryName = this.props.boundary || 'anonymous';
+        // E001-REACT-RENDER: any error escaping a child render. Stable code so
+        // reports / logs can be grep'd across builds.
+        logger.error(
+            `ErrorBoundary:${boundaryName}`,
+            'E001-REACT-RENDER',
+            error,
+            { componentStack: errorInfo?.componentStack }
+        );
         this.setState({ error, errorInfo });
-        // TODO: Log to error tracking service (e.g., Sentry)
-        // logErrorToService(error, errorInfo);
     }
 
     resetError = () => {
