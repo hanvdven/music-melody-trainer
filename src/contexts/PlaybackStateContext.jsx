@@ -4,12 +4,12 @@ const PlaybackStateContext = createContext(null);
 
 export const PlaybackStateProvider = ({
     isPlaying, isOddRound, currentMeasureIndex,
-    song, songVersion, inputTestState, inputTestSubMode, setInputTestSubMode,
+    inputTestState, inputTestSubMode, setInputTestSubMode,
     children,
 }) => (
     <PlaybackStateContext.Provider value={{
         isPlaying, isOddRound, currentMeasureIndex,
-        song, songVersion, inputTestState, inputTestSubMode, setInputTestSubMode,
+        inputTestState, inputTestSubMode, setInputTestSubMode,
     }}>
         {children}
     </PlaybackStateContext.Provider>
