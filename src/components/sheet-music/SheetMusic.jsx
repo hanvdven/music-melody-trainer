@@ -2,7 +2,7 @@
 
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import useSheetMusicHighlight from '../../hooks/useSheetMusicHighlight';
-import { Shuffle } from 'lucide-react';
+import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
 import { processMelodyAndCalculateFlags } from './processMelodyAndCalculateFlags';
 import SettingsOverlay, { VOL_STEPS } from './SettingsOverlay';
@@ -338,16 +338,6 @@ const SheetMusic = ({
   const notesVisible = viewMode === 'melody';
 
   // Randomise-measure button rendered inside the SVG. Moved inside for scope.
-  const RandomizeIcon = ({ onClick }) => (
-    <g onClick={(e) => { e.stopPropagation(); onClick(); }} style={{ cursor: 'pointer' }}>
-      {debugMode && <rect x="-10" y="-10" width="20" height="20" fill="yellow" fillOpacity={0.4} stroke="yellow" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
-      <rect x="-10" y="-10" width="20" height="20" fill="transparent" />
-      <g transform="translate(-8, -8)">
-        <Shuffle size={16} color="var(--accent-yellow)" strokeWidth={3} />
-      </g>
-    </g>
-  );
-
   const [trebleActiveClef, setTrebleActiveClef] = React.useState('treble');
   const [bassActiveClef, setBassActiveClef] = React.useState('bass');
 
@@ -1548,7 +1538,7 @@ const SheetMusic = ({
 
     const wrapIcon = (key, cy, staff) => (
       <g key={key} transform={`translate(${xPos}, ${cy})`}>
-        <RandomizeIcon x={0} y={0} onClick={() => onRandomizeMeasure(i, staff)} />
+        <RandomizeIcon onClick={() => onRandomizeMeasure(i, staff)} debugMode={debugMode} />
       </g>
     );
 
