@@ -372,6 +372,15 @@ Voeg nog weighted chromatic toe als extreem moeilijk.
 
 - bass generator seems not to take the range into account
 
+### Quarter note span (melodische sprong-beperking)
+
+- voeg een parameter toe aan treble en bass melodie: **quarter note span**
+  - standaard: 1 octaaf (12 halve tonen)
+  - instelbaar minimum: 2 hele noten (24 halve tonen) — ruimer, niet beperkter dan default
+  - gedrag: als een willekeurig gegenereerde noot verder ligt van alle noten in het afgelopen kwartslag-venster dan de ingestelde span, dan opnieuw tekenen
+  - fallback na 10 pogingen: vergroot de span stapsgewijs met 0,5 noot per poging totdat een noot past, of kies een richting (omhoog/omlaag) en pak de dichtstbijzijnde in-range noot
+  - rand cases om rekening mee te houden: pentatonische toonladders (grote sprongen inherent), zeer beperkende instellingen (kleine range + kleine span)
+
 ### Overig
 
 - 'humanization' in afspelen van de muziek: volume en timing
