@@ -265,6 +265,9 @@ logger.error('Sequencer', 'E010-PLAYBACK-START', err, { bpm: 120 });
 - **E001-REACT-RENDER** — error caught by an ErrorBoundary during render
 - **E002-UNCAUGHT** — escaped error caught by `window.error` listener
 - **E003-UNHANDLED-REJECTION** — escaped promise rejection caught by `window.unhandledrejection`
+- **E004-SEQUENCER-AUTOSTART** — sequencer failed to auto-start on Sequencer init (App.jsx)
+- **E005-CHORD-INIT** — initial chord progression generation failed on mount (App.jsx)
+- **E006-TIMESIG-REGEN** — melody regen failed after time signature change (App.jsx)
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E020-AUDIO-INIT`) and add it to this list.
 

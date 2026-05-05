@@ -50,6 +50,7 @@ import {
     DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE,
 } from './constants/generatorDefaults';
 import useAppLayout from './hooks/useAppLayout';
+import logger from './utils/logger';
 
 // Icons
 import {
@@ -739,14 +740,14 @@ const App = () => {
                 const initial = randomizeAll(configRef.current?.randomize);
                 sequencerRef.current?.start(initial);
             } catch (e) {
-                console.error('Failed to auto-start sequencer:', e);
+                logger.error('App', 'E004-SEQUENCER-AUTOSTART', e);
             }
         } else {
             // Generate initial chord progression so chord labels are ready before first playback
             try {
                 randomizeAll({ melody: false, chords: true });
             } catch (e) {
-                console.error('Failed to initialize chord progression:', e);
+                logger.error('App', 'E005-CHORD-INIT', e);
             }
         }
 
@@ -792,7 +793,7 @@ const App = () => {
                 // until we implement the "graceful partial-measure display" feature
                 randomizeAll(playbackConfig.randomize);
             } catch (e) {
-                console.error('[handleTimeSignatureChange] Melody regen failed:', e);
+                logger.error('App', 'E006-TIMESIG-REGEN', e);
             }
         }
     };
