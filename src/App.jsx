@@ -893,8 +893,12 @@ const App = () => {
         >
         <PlaybackStateProvider
             isPlaying={isPlaying}
+            isPlayingContinuously={isPlayingContinuously}
             isOddRound={isOddRound}
             currentMeasureIndex={currentMeasureIndex}
+            showNotes={showNotes}
+            nextLayer={nextLayer}
+            previewMelody={previewMelody}
             inputTestState={isInputTestMode ? inputTestState : null}
             inputTestSubMode={inputTestSubMode}
             setInputTestSubMode={handleSetInputTestSubMode}
@@ -998,9 +1002,7 @@ const App = () => {
                             visibleMeasures={idealVisibleMeasures}
                             startMeasureIndex={startMeasureIndex}
                             tonic={scale.tonic}
-                            nextLayer={nextLayer}
                             svgRef={svgRef}
-                            previewMelody={previewMelody}
                             isFullscreen={isFullscreen}
                             toggleFullscreen={toggleFullscreen}
                             headerPlayMode={headerPlayMode}
@@ -1149,7 +1151,6 @@ const App = () => {
                                         : (playbackConfig.oddRounds?.notes ? 'melody' : 'repeat')}
                                     visibleMeasures={idealVisibleMeasures}
                                     tonic={scale.tonic}
-                                    nextLayer={nextLayer}
                                     svgRef={svgRef}
                                     startMeasureIndex={startMeasureIndex}
                                     onNoteClick={handleNoteClick}
