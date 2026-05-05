@@ -5,7 +5,6 @@ import Melody from '../model/Melody';
 import MelodyGenerator from '../generation/melodyGenerator';
 import {
   randomTonic,
-  randomMode,
   scaleDefinitions,
   updateScaleWithTonic,
   updateScaleWithMode,
@@ -873,8 +872,6 @@ class Sequencer {
       // The strategy for that generation comes from the UI (chordSettings.strategy).
       const shouldGenerateNew = !!randConfig.chords;
       const uiStrategy = chordSettings?.strategy || 'modal-random';
-      const existingStrategy = (currentProgression.type && currentProgression.type !== 'tonic-tonic-tonic')
-        ? currentProgression.type : null;
 
       if (shouldGenerateNew && uiStrategy) {
         const complexity = this.refs.playbackConfigRef.current.chordComplexity || currentProgression.complexity || 'triad';

@@ -511,7 +511,7 @@ const App = () => {
     }, [numMeasures]);
 
 
-    const toggleRoundSetting = (round, instrument, type = 'audio') => {
+    const toggleRoundSetting = useCallback((round, instrument, type = 'audio') => {
         if (setActivePreset) setActivePreset('custom');
         const field = type === 'visual' ? `${instrument}Eye` : instrument;
 
@@ -549,7 +549,7 @@ const App = () => {
 
             return nextConfig;
         });
-    };
+    }, [setActivePreset, setPlaybackConfig, setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings]);
 
     // OPTION+p → set all instrument volumes to pp (pianissimo)
     useEffect(() => {
@@ -759,7 +759,7 @@ const App = () => {
 
 
 
-    const handleTimeSignatureChange = (type, value) => {
+    const handleTimeSignatureChange = useCallback((type, value) => {
         // Compute new TS inline. Using setTimeSignature(scalar) updates tsRef.current
         // synchronously, so randomizeAll (which reads tsRef.current) can use the new
         // TS immediately. All setState calls inside one event handler are batched by
@@ -782,14 +782,14 @@ const App = () => {
 
         if (isPlayingContinuously) {
             try {
-                // We keep randomizeAll here for Time Signature changes 
+                // We keep randomizeAll here for Time Signature changes
                 // until we implement the "graceful partial-measure display" feature
                 randomizeAll(playbackConfig.randomize);
             } catch (e) {
                 logger.error('App', 'E006-TIMESIG-REGEN', e);
             }
         }
-    };
+    }, [timeSignature, setTimeSignature, isPlayingContinuously, randomizeAll, playbackConfig.randomize]);
 
 
     const [chordDisplayMode, setChordDisplayMode] = useState('letters');
