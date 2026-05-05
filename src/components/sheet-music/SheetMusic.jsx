@@ -207,7 +207,7 @@ const SheetMusic = ({
     paginationFadeRef,
   });
 
-  useSheetMusicTransitions(nextLayer, layoutRef);
+  useSheetMusicTransitions(nextLayer, layoutRef, svgRef);
   // Read theme from DOM attribute set by App.jsx — avoids threading it as a prop.
   const theme = document.documentElement.getAttribute('data-theme') ?? 'default';
   // Alias for overlay-preview state (yellow = same-melody repeat preview, red = new-melody preview).

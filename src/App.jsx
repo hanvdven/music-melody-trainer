@@ -614,9 +614,7 @@ const App = () => {
             const shouldBassTranspose = shouldTransposeGlobal || (bassSettings?.randomizationRule === 'fixed');
 
             if (shouldTrebleTranspose || shouldBassTranspose) {
-                const oldScaleNotes = prevScaleRef.current.notes;
                 const newScaleNotes = scale.notes;
-                const oldDisplayScale = prevScaleRef.current.displayNotes;
                 const newDisplayScale = scale.displayNotes;
 
                 // Transpose Treble

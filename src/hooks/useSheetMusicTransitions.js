@@ -12,9 +12,10 @@ import { useDisplaySettings } from '../contexts/DisplaySettingsContext';
  *
  * @param {*} nextLayer  - 'yellow' | 'red' | 'block-flip' | null (from PlaybackStateContext or prop)
  * @param {object} layoutRef - ref to the layout object exposing pageWidth (from useSheetMusicHighlight)
+ * @param {object} svgRef    - ref to the SheetMusic SVG element (owned by SheetMusic, not in context)
  */
-const useSheetMusicTransitions = (nextLayer, layoutRef) => {
-    const { svgRef, wipeTransitionRef, paginationFadeRef, context } = useAnimationRefs();
+const useSheetMusicTransitions = (nextLayer, layoutRef, svgRef) => {
+    const { wipeTransitionRef, paginationFadeRef, context } = useAnimationRefs();
     const { animationMode } = useDisplaySettings();
 
     // ── Transition lifecycle: synchronous DOM cleanup before browser paint ────────
