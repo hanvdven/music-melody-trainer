@@ -154,8 +154,6 @@ const SheetMusic = ({
   musicalBlocks,
   startMeasureIndex = 0,
   visibleMeasures = null,   // number of measures visible on screen at once (scroll/wipe modes)
-  nextLayer = null,         // wipe/scroll-mode preview type: 'yellow' | 'red' | null
-  previewMelody = null,     // pre-generated next melody for red overlay
   isFullscreen = false,
   toggleFullscreen = null,
   headerPlayMode = 'once',
@@ -174,8 +172,8 @@ const SheetMusic = ({
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
           metronome: metronomeMelody, chordProgression } = useMelodies();
-  const { isPlaying, isOddRound, inputTestState,
-          inputTestSubMode, setInputTestSubMode } = usePlaybackState();
+  const { isPlaying, isOddRound, nextLayer = null, previewMelody = null,
+          inputTestState, inputTestSubMode, setInputTestSubMode } = usePlaybackState();
   const { wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
           clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
           sequencerRef, context } = useAnimationRefs();
