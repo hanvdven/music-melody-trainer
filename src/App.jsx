@@ -130,8 +130,6 @@ const App = () => {
     const metronomeRef = useRef(null);
     const melodiesRef = useRef(null);
     const chordProgressionRef = useRef(ChordProgression.default());
-    const showChordsOddRoundsRef = useRef(false);
-    const showChordsEvenRoundsRef = useRef(false);
     const sequencerRef = useRef(null);
     const prevScaleRef = useRef(null);
 
@@ -142,12 +140,10 @@ const App = () => {
     });
     const [displayChordProgression, setDisplayChordProgression] = useState(null);
 
-    const [showNotes, setShowNotes] = useState(true);
+    const [showNotes, setShowNotes, showNotesRef] = useRefState(true);
     const [activeClef, setActiveClef] = useState('treble');
 
-    const [customPercussionMapping, setCustomPercussionMapping] = useState({});
-    const customPercussionMappingRef = useRef({});
-    useEffect(() => { customPercussionMappingRef.current = customPercussionMapping; }, [customPercussionMapping]);
+    const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
 
     // UI State persistence for Generator
     const [generatorMode, setGeneratorMode] = useState('presets');
@@ -169,8 +165,7 @@ const App = () => {
     const { showSheetMusicSettings, toggleSheetMusicSettings, resetSettingsTimer } = useSettingsOverlay();
     const [debugMode, setDebugMode] = useState(false);
     const [noteColoringMode, setNoteColoringMode] = useState('tonic_scale_keys');
-    const [showNoteHighlight, setShowNoteHighlight] = useState(true);
-    const showNoteHighlightRef = useRef(true);
+    const [showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef] = useRefState(true);
     const clearHighlightStateRef = useRef(false);
     const [startMeasureIndex, setStartMeasureIndex] = useState(0);
 
@@ -180,9 +175,7 @@ const App = () => {
     // Also need to keep the actual logic toggles in sync or refactor usePlayback/useInputTest to use playMode.
     // For now, let's just make the UI look right and then wire up the logic.
     const [currentMeasureIndex, setCurrentMeasureIndex] = useState(0);
-    const [animationMode, setAnimationMode] = useState('pagination');
-    const animationModeRef = useRef('pagination');
-    useEffect(() => { animationModeRef.current = animationMode; }, [animationMode]);
+    const [animationMode, setAnimationMode, animationModeRef] = useRefState('pagination');
     const [lyricsMode, setLyricsMode] = useState('none');
     const [nextLayer, setNextLayer] = useState(null); // wipe/scroll-mode preview type: 'yellow' | 'red' | null
     const [previewMelody, setPreviewMelody] = useState(null); // pre-generated next melody for red overlay
@@ -193,9 +186,6 @@ const App = () => {
     const svgRef = useRef(null); // shared ref to the SheetMusic SVG element (used by Sequencer callbacks)
     const [qwertyKeyboardActive, setQwertyKeyboardActive] = useState(false);
 
-    // Tracks showNotes for the rAF without causing re-renders
-    const showNotesRef = useRef(true);
-    useEffect(() => { showNotesRef.current = showNotes; }, [showNotes]);
 
     // Input Test Mode — all state, live tracker, and handlers extracted to useInputTest
     // (wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available)
@@ -220,10 +210,7 @@ const App = () => {
 
     const percussionScale = Scale.defaultPercussionScale();
     const windowSize = useWindowSize();
-    const [musicalBlocks, setMusicalBlocks] = useState([1]);
-
-    const musicalBlocksRef = useRef(musicalBlocks);
-    useEffect(() => { musicalBlocksRef.current = musicalBlocks; }, [musicalBlocks]);
+    const [musicalBlocks, setMusicalBlocks, musicalBlocksRef] = useRefState([1]);
 
     const { instruments, manualInstruments, settings: instrumentSettingsHooks, setVolume } = useInstruments(context);
 
@@ -532,8 +519,6 @@ const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [numMeasures]);
 
-    // Keep highlight-enabled ref in sync (avoids restarting the rAF on toggle)
-    useEffect(() => { showNoteHighlightRef.current = showNoteHighlight; }, [showNoteHighlight]);
 
     const toggleRoundSetting = (round, instrument, type = 'audio') => {
         if (setActivePreset) setActivePreset('custom');
@@ -655,10 +640,8 @@ const App = () => {
     // Chord label visibility state — declared here so they are in scope for the Sequencer
     // init useEffect and the setters-refresh useEffect below.
     const [showChordLabels, setShowChordLabels] = useState(false);
-    const [showChordsOddRounds, setShowChordsOddRounds] = useState(false);
-    const [showChordsEvenRounds, setShowChordsEvenRounds] = useState(false);
-    useEffect(() => { showChordsOddRoundsRef.current = showChordsOddRounds; }, [showChordsOddRounds]);
-    useEffect(() => { showChordsEvenRoundsRef.current = showChordsEvenRounds; }, [showChordsEvenRounds]);
+    const [showChordsOddRounds, setShowChordsOddRounds, showChordsOddRoundsRef] = useRefState(false);
+    const [showChordsEvenRounds, setShowChordsEvenRounds, showChordsEvenRoundsRef] = useRefState(false);
 
     // Canonical setters object passed to the Sequencer on init and kept fresh by the
     // refresh effect below. Memoized so the refresh effect only fires when a setter
