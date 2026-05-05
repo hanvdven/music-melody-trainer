@@ -1,7 +1,6 @@
 // App.jsx
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-    standardizeTonic,
     getRelativeNoteName,
 } from './theory/convertToDisplayNotes';
 import { getProgressionLabel } from './theory/progressionDefinitions';
@@ -10,7 +9,7 @@ import { instrumentOptions } from './components/controls/instrumentOptions';
 import './styles/App.css';
 import './styles/AppLayout.css';
 import ScaleSelector from './components/scale/ScaleSelector';
-import { transposeMelodyToScale, transposeMelodyBySemitones, modulateMelody } from './theory/musicUtils';
+import { modulateMelody } from './theory/musicUtils';
 import PlaybackSettings from './components/controls/PlaybackSettings';
 import Sequencer from './audio/Sequencer';
 import Melody from './model/Melody';
@@ -40,10 +39,8 @@ import useScaleManagement from './hooks/useScaleManagement';
 import SettingsPanel from './components/controls/SettingsPanel';
 import useDifficultySettings from './hooks/useDifficultySettings';
 import { buildHarmonyTable, HARMONY_DIFFICULTY_RANGE } from './utils/harmonyTable';
-import { calculateMusicalBlocks } from './utils/pagination';
 import { resizeMelody } from './utils/melodySlice';
 import { TICKS_PER_WHOLE } from './constants/timing';
-import playSound from './audio/playSound';
 import {
     VOLUME_LEVELS,
     DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
@@ -138,7 +135,7 @@ const App = () => {
     const [chordProgression, setChordProgression, chordProgressionRef] = useRefState(() => ChordProgression.default());
     const [displayChordProgression, setDisplayChordProgression] = useState(null);
 
-    const [showNotes, setShowNotes, showNotesRef] = useRefState(true);
+    const [showNotes, setShowNotes] = useState(true);
     const [activeClef, setActiveClef] = useState('treble');
 
     const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
@@ -189,7 +186,7 @@ const App = () => {
     // (wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available)
     const onPlaybackStartRef = useRef(() => { });
 
-    const { isFullscreen, toggleFullscreen, isLandscape, isTouch } = useDeviceState();
+    const { isFullscreen, toggleFullscreen, isTouch } = useDeviceState();
 
     // BPM-driven fade duration: 2 quarter notes
     useEffect(() => {
@@ -280,7 +277,7 @@ const App = () => {
     // handleEnharmonicToggle). Placed after setTrebleSettings/setBassSettings
     // and playbackConfig because setTonic/applyHarmonyAtDifficulty depend on them.
     const {
-        tonic, selectedMode, isScalePlaying,
+        selectedMode, isScalePlaying,
         setTonic, setSelectedMode, applyHarmonyAtDifficulty,
         handleScaleClick, handleEnharmonicToggle,
         _setTonic, // raw setter for history-restore in usePlaybackNavigation
@@ -314,7 +311,6 @@ const App = () => {
         randomizeMeasure,
         generateChords: generateChordsLogic, // Renamed to avoid conflict
         historyIndex,
-        historyLength,
         navigateHistory,
     } = useMelodyState(
         numMeasures,
@@ -350,9 +346,7 @@ const App = () => {
     const {
         treble: trebleMelody,
         bass: bassMelody,
-        percussion: percussionMelody,
         metronome: metronomeMelody,
-        // chordProgression, // No longer destructured from useMelodyState
         referenceMelody,
         referenceBassMelody,
         referenceScale,
@@ -365,7 +359,6 @@ const App = () => {
         setTreble: setTrebleMelody,
         setBass: setBassMelody,
         setPercussion: setPercussionMelody,
-        setMetronome: setMetronomeMelody,
         setReferenceMelody,
         setReferenceBassMelody,
         setReferenceScale,
@@ -443,7 +436,7 @@ const App = () => {
         isInputTestMode, setIsInputTestMode,
         inputTestState, setInputTestState,
         inputTestSubMode, setInputTestSubMode,
-        isInputTestModeRef, inputTestStateRef, inputTestSubModeRef,
+        isInputTestModeRef, inputTestSubModeRef,
         handleToggleInputTest,
         handleInputTestNote,
     } = useInputTest({
@@ -828,7 +821,7 @@ const App = () => {
     }, [generateChords]);
 
 
-    const { isDualView, sheetHeight, btmPanelHeight, tabBtnScale, idealVisibleMeasures } = useAppLayout(windowSize, numMeasures);
+    const { isDualView, sheetHeight, tabBtnScale, idealVisibleMeasures } = useAppLayout(windowSize, numMeasures);
 
     // Context values — memoized to prevent unnecessary re-renders of consumers
     const playbackConfigCtx = useMemo(() => ({
