@@ -141,7 +141,6 @@ const App = () => {
         return ChordProgression.default();
     });
     const [displayChordProgression, setDisplayChordProgression] = useState(null);
-    const [chordTabRandTypeSelector, setChordTabRandTypeSelector] = useState(null);
 
     const [showNotes, setShowNotes] = useState(true);
     const [activeClef, setActiveClef] = useState('treble');
@@ -301,7 +300,7 @@ const App = () => {
         handleScaleClick, handleEnharmonicToggle,
         _setTonic, // raw setter for history-restore in usePlaybackNavigation
     } = useScaleManagement({
-        context, instruments, scale, setScale, _setScale, bpmRef,
+        context, instruments, scale, setScale, _setScale: setScale, bpmRef,
         instrumentSettingsRef, setTrebleSettings, setBassSettings,
         minimizeAccidentals, playbackConfig,
     });
@@ -536,11 +535,6 @@ const App = () => {
     // Keep highlight-enabled ref in sync (avoids restarting the rAF on toggle)
     useEffect(() => { showNoteHighlightRef.current = showNoteHighlight; }, [showNoteHighlight]);
 
-
-    // Synchronously manage wipe masks on every nextLayer change (before browser paint).
-
-
-
     const toggleRoundSetting = (round, instrument, type = 'audio') => {
         if (setActivePreset) setActivePreset('custom');
         const field = type === 'visual' ? `${instrument}Eye` : instrument;
@@ -668,64 +662,75 @@ const App = () => {
     useEffect(() => { showChordsOddRoundsRef.current = showChordsOddRounds; }, [showChordsOddRounds]);
     useEffect(() => { showChordsEvenRoundsRef.current = showChordsEvenRounds; }, [showChordsEvenRounds]);
 
+    // Canonical setters object passed to the Sequencer on init and kept fresh by the
+    // refresh effect below. Memoized so the refresh effect only fires when a setter
+    // identity actually changes (i.e. a useCallback dependency changed).
+    // Refs (svgRef, animationModeRef, etc.) have stable identity — no dep needed.
+    const sequencerSetters = useMemo(() => ({
+        onStop: () => {
+            setIsPlayingContinuously(false);
+            setIsPlayingScale(false);
+            setIsPlayingMelody(false);
+            setNextLayer(null);
+            setPreviewMelody(null);
+            wipeTransitionRef.current = null;
+            scrollTransitionRef.current = null;
+        },
+        setTonic,
+        setScale,
+        setTrebleSettings,
+        setBassSettings,
+        setChordProgression,
+        generateChords,
+        setTrebleMelody,
+        setBassMelody,
+        setPercussionMelody,
+        setShowNotes,
+        setShowChordLabels,
+        setReferenceMelody,
+        setReferenceBassMelody,
+        setReferenceScale,
+        setStartMeasureIndex,
+        setIsOddRound,
+        setVolume,
+        setCurrentMeasureIndex,
+        setDisplayChordProgression,
+        setNextLayer,
+        setPreviewMelody,
+        clearActiveHighlight: () => {
+            const svg = svgRef.current;
+            if (svg) {
+                svg.querySelectorAll('.note-active').forEach(el => el.classList.remove('note-active'));
+            }
+            clearHighlightStateRef.current = true;
+        },
+        hideOldGroup: () => {
+            // Only apply in wipe mode: prevents a partial-mask flash when React commits
+            // new melody content while the wipe sweep mask is still active.
+            // In scroll/pagination, this mask can get permanently stuck if React batches
+            // setNextLayer('red') + setNextLayer(null) into a null→null no-op.
+            if (animationModeRef.current !== 'wipe') return;
+            const svg = svgRef.current;
+            if (!svg) return;
+            const TRANSPARENT = 'linear-gradient(to right, transparent 100%, black 108%)';
+            svg.querySelectorAll('[data-wipe-role="old"]').forEach(g => {
+                g.style.maskImage = TRANSPARENT;
+                g.style.webkitMaskImage = TRANSPARENT;
+            });
+        },
+    }), [setTonic, setScale, setTrebleSettings, setBassSettings, setChordProgression,
+        generateChords, setTrebleMelody, setBassMelody, setPercussionMelody,
+        setShowNotes, setShowChordLabels, setReferenceMelody, setReferenceBassMelody,
+        setReferenceScale, setStartMeasureIndex, setIsOddRound, setVolume,
+        setCurrentMeasureIndex, setDisplayChordProgression, setNextLayer, setPreviewMelody]);
+
     useEffect(() => {
         if (!context || !instruments.treble) return;
         sequencerRef.current = new Sequencer({
             context,
             instruments,
             percussionScale,
-            setters: {
-                onStop: () => {
-                    setIsPlayingContinuously(false);
-                    setIsPlayingScale(false);
-                    setIsPlayingMelody(false);
-                    setNextLayer(null);
-                    setPreviewMelody(null);
-                    wipeTransitionRef.current = null;
-                    scrollTransitionRef.current = null;
-                },
-                setTonic,
-                setScale,
-                setTrebleSettings,
-                setChordProgression,
-                generateChords,
-                setTrebleMelody,
-                setBassMelody,
-                setPercussionMelody,
-                setShowNotes,
-                setShowChordLabels,
-                setReferenceMelody,
-                setReferenceBassMelody,
-                setReferenceScale,
-                setStartMeasureIndex,
-                setIsOddRound,
-                setVolume,
-
-                setCurrentMeasureIndex,
-                clearActiveHighlight: () => {
-                    const svg = svgRef.current;
-                    if (svg) {
-                        svg.querySelectorAll('.note-active').forEach(el => el.classList.remove('note-active'));
-                    }
-                    clearHighlightStateRef.current = true;
-                },
-                setNextLayer,
-                setPreviewMelody,
-                hideOldGroup: () => {
-                    // Only apply in wipe mode: prevents a partial-mask flash when React commits
-                    // new melody content while the wipe sweep mask is still active.
-                    // In scroll/pagination, this mask can get permanently stuck if React batches
-                    // setNextLayer('red') + setNextLayer(null) into a null→null no-op.
-                    if (animationModeRef.current !== 'wipe') return;
-                    const svg = svgRef.current;
-                    if (!svg) return;
-                    const TRANSPARENT = 'linear-gradient(to right, transparent 100%, black 108%)';
-                    svg.querySelectorAll('[data-wipe-role="old"]').forEach(g => {
-                        g.style.maskImage = TRANSPARENT;
-                        g.style.webkitMaskImage = TRANSPARENT;
-                    });
-                },
-            },
+            setters: sequencerSetters,
             refs: {
                 bpmRef,
                 timeSignatureRef: tsRef,
@@ -772,62 +777,13 @@ const App = () => {
         };
     }, [context, !!instruments.treble]);
 
-    // Keep Sequencer fresh to avoid stale closures or stale instrument instances
+    // Keep Sequencer fresh when instruments or any setter identity changes.
     useEffect(() => {
         if (sequencerRef.current) {
             sequencerRef.current.instruments = instruments;
-            sequencerRef.current.setters = {
-                setTrebleMelody,
-                setBassMelody,
-                setPercussionMelody,
-                setTonic,
-                setScale,
-                setTrebleSettings,
-                setBassSettings,
-                setChordProgression,
-                generateChords,
-                setShowNotes,
-                setShowChordLabels,
-                onStop: () => {
-                    setIsPlayingContinuously(false);
-                    setIsPlayingScale(false);
-                    setIsPlayingMelody(false);
-                    setNextLayer(null);
-                    setPreviewMelody(null);
-                    wipeTransitionRef.current = null;
-                    scrollTransitionRef.current = null;
-                },
-                setReferenceMelody,
-                setReferenceBassMelody,
-                setReferenceScale,
-                setStartMeasureIndex,
-                setIsOddRound,
-                setVolume,
-
-                setCurrentMeasureIndex,
-                clearActiveHighlight: () => {
-                    const svg = svgRef.current;
-                    if (svg) {
-                        svg.querySelectorAll('.note-active').forEach(el => el.classList.remove('note-active'));
-                    }
-                    clearHighlightStateRef.current = true;
-                },
-                setDisplayChordProgression,
-                setNextLayer,
-                setPreviewMelody,
-                hideOldGroup: () => {
-                    if (animationModeRef.current !== 'wipe') return;
-                    const svg = svgRef.current;
-                    if (!svg) return;
-                    const TRANSPARENT = 'linear-gradient(to right, transparent 100%, black 108%)';
-                    svg.querySelectorAll('[data-wipe-role="old"]').forEach(g => {
-                        g.style.maskImage = TRANSPARENT;
-                        g.style.webkitMaskImage = TRANSPARENT;
-                    });
-                },
-            };
+            sequencerRef.current.setters = sequencerSetters;
         }
-    }, [instruments, setTrebleMelody, setBassMelody, setPercussionMelody, generateChords, setShowNotes, setShowChordLabels, setTonic, setScale, setTrebleSettings, setBassSettings, setChordProgression, setDisplayChordProgression, setReferenceMelody, setReferenceBassMelody, setReferenceScale, setStartMeasureIndex, setCurrentMeasureIndex, setNextLayer, setPreviewMelody]);
+    }, [instruments, sequencerSetters]);
 
 
 
@@ -1340,7 +1296,7 @@ const App = () => {
                                     instrumentKey="chords"
                                     settings={chordSettings}
                                     setSettings={setChordSettings}
-                                    setActiveRandTypeSelector={setChordTabRandTypeSelector}
+                                    setActiveRandTypeSelector={() => {}}
                                     firstChord={chordProgression?.chords?.[0] ?? null}
                                     renderMode="instrument"
                                 />

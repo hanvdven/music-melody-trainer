@@ -26,9 +26,9 @@ import { getHarmonyAtDifficulty } from '../utils/harmonyTable';
  * - `applyHarmonyAtDifficulty(target)` — picks (family, mode, tonic) matching the
  *   target harmonic difficulty within ±0.5 and applies it.
  *
- * NOTE: setTonic, setSelectedMode, and applyHarmonyAtDifficulty all use `_setScale`
- * (the raw setter) directly — preserving the existing behavior where scaleRef.current
- * is NOT synced via these paths. If you need scaleRef sync, use the wrapped setScale.
+ * NOTE: setTonic, setSelectedMode, and applyHarmonyAtDifficulty all use `_setScale`.
+ * App.jsx passes the wrapped `setScale` (from useRefState) for both params, so scaleRef
+ * is synced on all paths. The distinction is kept as a parameter to preserve API shape.
  */
 export default function useScaleManagement({
     context,
