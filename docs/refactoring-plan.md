@@ -1,7 +1,7 @@
 # Refactoring Plan — Music Melody Trainer
 
 **Status:** In uitvoering  
-**Datum:** 2026-05-04  
+**Datum:** 2026-05-05  
 **Scope:** Technische schuld wegwerken zonder features te verliezen
 
 ### Voortgang
@@ -12,12 +12,25 @@
 | 2 | useRefState hook + App.jsx duplicate setters elimineren | ✅ Gereed |
 | 3 | Context uitbreiden (MelodyContext, PlaybackStateContext, AnimationRefsContext) | ✅ Gereed |
 | 4 | App.jsx opsplitsen — useAppLayout geëxtraheerd; useAppCoreState/useAppHandlers/TabView nog open | 🔄 Deels |
-| 5 | SheetMusic.jsx opsplitsen (transitions hook, header component) | ⏳ Gepland |
+| 5 | SheetMusic.jsx opsplitsen — useSheetMusicTransitions ✅ hook geëxtraheerd; SheetMusicHeader nog open | 🔄 Deels |
 | 6 | Sequencer.js — applyResultToSetters ✅ + buildScheduledChords ✅ + scheduleTimeout ✅ | ✅ Gereed |
 | 7 | useMelodyState — resolveVoice factory (elimineer 3× dubbele generatielogica) | ✅ Gereed |
 | 8 | getNoteValue consolideren → getNoteIndex uit musicUtils | ✅ Gereed |
 | 9 | InstrumentRow subcomponenten extraheren + GRID-constanten centraliseren | ✅ Gereed |
 | 10 | Dode code opruimen (repCount, ongebruikte imports) | ✅ Gereed |
+
+### Extra (2026-05-05)
+
+| Item | Beschrijving | Status |
+|------|-------------|--------|
+| 11 | PlaybackStateContext uitgebreid met isPlayingContinuously, showNotes, nextLayer, previewMelody | ✅ Gereed |
+| 12 | 8× useState+useRef+useEffect ref-sync → useRefState (App.jsx) | ✅ Gereed |
+| 13 | chordProgressionRef → useRefState + sync useEffect verwijderd | ✅ Gereed |
+| 14 | sequencerSetters useMemo — duplicate setter blokken samengevoegd | ✅ Gereed |
+| 15 | SheetMusic props gededupliceerd via sheetMusicCommonProps (−65 JSX regels) | ✅ Gereed |
+| 16 | Logger migratie — alle console.error/warn → leveled logger (E004-E019) | ✅ Gereed |
+| 17 | numMeasures playback bug — randomizeAll in useEffect verwijderd | ✅ Gereed |
+| 18 | _setScale bug — useRefState wrapper correct doorgegeven aan useScaleManagement | ✅ Gereed |
 
 ---
 
