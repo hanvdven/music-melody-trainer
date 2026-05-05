@@ -856,6 +856,52 @@ const App = () => {
         chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
         animationMode, setAnimationMode]);
 
+    // Shared props for both SheetMusic instances (primary + tab view).
+    // containerHeight and visibleMeasures differ between instances and are passed inline.
+    const sheetMusicCommonProps = useMemo(() => ({
+        timeSignature,
+        onTimeSignatureChange: handleTimeSignatureChange,
+        bpm,
+        onBpmChange: setBpm,
+        numRepeats: playbackConfig.repsPerMelody,
+        onNumRepeatsChange: (val) => setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val })),
+        numMeasures,
+        musicalBlocks,
+        onMusicalBlocksChange: setMusicalBlocks,
+        onNumMeasuresChange: setNumMeasures,
+        numAccidentals: scale.numAccidentals,
+        screenWidth: windowSize.width,
+        onRandomizeMeasure: randomizeMeasure,
+        showSettings: showSheetMusicSettings,
+        onToggleSettings: toggleSheetMusicSettings,
+        onSettingsInteraction: resetSettingsTimer,
+        tonic: scale.tonic,
+        svgRef,
+        isFullscreen,
+        toggleFullscreen,
+        headerPlayMode,
+        setHeaderPlayMode,
+        handleToggleInputTest,
+        handlePlayMelody,
+        handlePlayContinuously,
+        viewMode: isPlayingContinuously
+            ? (showNotes ? 'melody' : 'repeat')
+            : (playbackConfig.oddRounds?.notes ? 'melody' : 'repeat'),
+        showChords: isPlayingContinuously ? showChordLabels : (showChordsOddRounds || showChordsEvenRounds),
+        onNoteClick: handleNoteClick,
+        onChordClick: handleChordClick,
+        onEnharmonicToggle: handleEnharmonicToggle,
+        onMeasureNumberClick: handleMeasureNumberClick,
+        onNoteEnharmonicToggle: handleNoteEnharmonicToggle,
+    }), [timeSignature, handleTimeSignatureChange, bpm, setBpm, playbackConfig, setPlaybackConfig,
+        numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
+        windowSize.width, randomizeMeasure, showSheetMusicSettings, toggleSheetMusicSettings,
+        resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
+        handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
+        showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
+        handleNoteClick, handleChordClick, handleEnharmonicToggle, handleMeasureNumberClick,
+        handleNoteEnharmonicToggle]);
+
     return (
         <PlaybackConfigProvider value={playbackConfigCtx}>
         <InstrumentSettingsProvider value={instrumentSettingsCtx}>
@@ -956,46 +1002,10 @@ const App = () => {
                 >
                     <ErrorBoundary>
                         <SheetMusic
+                            {...sheetMusicCommonProps}
                             containerHeight={sheetHeight}
-                            timeSignature={timeSignature}
-                            onTimeSignatureChange={handleTimeSignatureChange}
-                            bpm={bpm}
-                            onBpmChange={setBpm}
-                            numRepeats={playbackConfig.repsPerMelody}
-                            onNumRepeatsChange={(val) =>
-                                setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val }))
-                            }
-                            onNumMeasuresChange={setNumMeasures}
-                            numMeasures={numMeasures}
-                            musicalBlocks={musicalBlocks}
-                            onMusicalBlocksChange={setMusicalBlocks}
-                            numAccidentals={scale.numAccidentals}
-                            screenWidth={windowSize.width}
-                            onRandomizeMeasure={randomizeMeasure}
-                            showSettings={showSheetMusicSettings}
-                            onToggleSettings={toggleSheetMusicSettings}
-                            onSettingsInteraction={resetSettingsTimer}
                             visibleMeasures={idealVisibleMeasures}
                             startMeasureIndex={startMeasureIndex}
-                            tonic={scale.tonic}
-                            svgRef={svgRef}
-                            isFullscreen={isFullscreen}
-                            toggleFullscreen={toggleFullscreen}
-                            headerPlayMode={headerPlayMode}
-                            setHeaderPlayMode={setHeaderPlayMode}
-                            handleToggleInputTest={handleToggleInputTest}
-                            handlePlayMelody={handlePlayMelody}
-                            handlePlayContinuously={handlePlayContinuously}
-
-                            viewMode={isPlayingContinuously
-                                ? (showNotes ? 'melody' : 'repeat')
-                                : (playbackConfig.oddRounds?.notes ? 'melody' : 'repeat')}
-                            showChords={isPlayingContinuously ? showChordLabels : (showChordsOddRounds || showChordsEvenRounds)}
-                            onNoteClick={handleNoteClick}
-                            onChordClick={handleChordClick}
-                            onEnharmonicToggle={handleEnharmonicToggle}
-                            onMeasureNumberClick={handleMeasureNumberClick}
-                            onNoteEnharmonicToggle={handleNoteEnharmonicToggle}
                         />
                     </ErrorBoundary>
                 </div>
@@ -1096,44 +1106,9 @@ const App = () => {
                         <div className="app-tab-sheet">
                             <ErrorBoundary>
                                 <SheetMusic
-                                    timeSignature={timeSignature}
-                                    onTimeSignatureChange={handleTimeSignatureChange}
-                                    bpm={bpm}
-                                    onBpmChange={setBpm}
-                                    numRepeats={playbackConfig.repsPerMelody}
-                                    onNumRepeatsChange={(val) =>
-                                        setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val }))
-                                    }
-                                    numMeasures={numMeasures}
-                                    musicalBlocks={musicalBlocks}
-                                    onMusicalBlocksChange={setMusicalBlocks}
-                                    numAccidentals={scale.numAccidentals}
-                                    screenWidth={windowSize.width}
-                                    onRandomizeMeasure={randomizeMeasure}
-                                    showChords={isPlayingContinuously ? showChordLabels : (showChordsOddRounds || showChordsEvenRounds)}
-                                    showSettings={showSheetMusicSettings}
-                                    onNumMeasuresChange={setNumMeasures}
-                                    onToggleSettings={toggleSheetMusicSettings}
-                                    onSettingsInteraction={resetSettingsTimer}
-                                    isFullscreen={isFullscreen}
-                                    toggleFullscreen={toggleFullscreen}
-                                    headerPlayMode={headerPlayMode}
-                                    setHeaderPlayMode={setHeaderPlayMode}
-                                    handleToggleInputTest={handleToggleInputTest}
-                                    handlePlayMelody={handlePlayMelody}
-                                    handlePlayContinuously={handlePlayContinuously}
-                                    viewMode={isPlayingContinuously
-                                        ? (showNotes ? 'melody' : 'repeat')
-                                        : (playbackConfig.oddRounds?.notes ? 'melody' : 'repeat')}
+                                    {...sheetMusicCommonProps}
                                     visibleMeasures={idealVisibleMeasures}
-                                    tonic={scale.tonic}
-                                    svgRef={svgRef}
                                     startMeasureIndex={startMeasureIndex}
-                                    onNoteClick={handleNoteClick}
-                                    onChordClick={handleChordClick}
-                                    onEnharmonicToggle={handleEnharmonicToggle}
-                                    onMeasureNumberClick={handleMeasureNumberClick}
-                                    onNoteEnharmonicToggle={handleNoteEnharmonicToggle}
                                 />
                             </ErrorBoundary>
                         </div>
