@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import playSound from '../../audio/playSound';
-import { PADS, DRUM_KITS, KIT_NOTE_MAPPINGS } from '../../audio/drumKits';
+import { DRUM_KITS, KIT_NOTE_MAPPINGS } from '../../audio/drumKits';
 
-const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, percussionSettings, setPercussionSettings, onNoteInput, qwertyKeyboardActive, theme }) => {
-    const isLightMode = theme === 'light' || theme === 'meridienne';
+const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, percussionSettings, setPercussionSettings, onNoteInput, qwertyKeyboardActive }) => {
     const subtleMix = (color) => {
         return `color-mix(in srgb, ${color} 65%, var(--soft-mix-target) 35%)`;
     };
@@ -33,7 +32,7 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
             try {
                 activeStopsRef.current[groupId]();
                 delete activeStopsRef.current[groupId];
-            } catch (e) { }
+            } catch { /* stop may fail if sample not loaded */ }
         }
 
         const inst = ['wh', 'wm', 'wl'].includes(note) ? instruments?.metronome : instruments?.percussion;

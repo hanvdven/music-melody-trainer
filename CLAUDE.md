@@ -265,6 +265,22 @@ logger.error('Sequencer', 'E010-PLAYBACK-START', err, { bpm: 120 });
 - **E001-REACT-RENDER** — error caught by an ErrorBoundary during render
 - **E002-UNCAUGHT** — escaped error caught by `window.error` listener
 - **E003-UNHANDLED-REJECTION** — escaped promise rejection caught by `window.unhandledrejection`
+- **E004-SEQUENCER-AUTOSTART** — sequencer failed to auto-start on Sequencer init (App.jsx)
+- **E005-CHORD-INIT** — initial chord progression generation failed on mount (App.jsx)
+- **E006-TIMESIG-REGEN** — melody regen failed after time signature change (App.jsx)
+- **E007-RANDOMIZE-BEFORE-START** — randomizeAll threw before continuous playback sequencer start (usePlayback.js)
+- **E008-SEQUENCER-START** — sequencer.start() threw during continuous playback (usePlayback.js)
+- **E009-PLAY-SCALE** — playMelodies threw during scale playback (usePlayback.js)
+- **E010-PLAY-MELODY** — sequencer.start() threw during single-melody playback (usePlayback.js)
+- **E011-INSTRUMENT-CREATE** — smplr instrument constructor threw (useInstruments.js)
+- **E012-GENERATE-PROGRESSION** — generateProgression threw during chord generation (useMelodyState.js)
+- **E013-PROGRESSION-FALLBACK** — fallback tonic chord generation also failed (useMelodyState.js)
+- **E014-GET-USER-MEDIA** — getUserMedia failed for pitch detection (usePitchDetector.js)
+- **E015-FULLSCREEN** — requestFullscreen rejected (useDeviceState.js)
+- **E016-SCALE-TYPE-NOT-FOUND** — selectedScaleType not found in legacy modes (scaleHandler.js)
+- **E017-SCALE-DEF-NOT-FOUND** — scale definition not found for family+mode (scaleHandler.js)
+- **E018-INVALID-SLOTS** — invalid numberOfSlotsPerMeasure in generateRankedRhythm (generateRankedRhythm.js)
+- **E019-TONIC-NOT-FOUND** — tonic note not found in notes array (PianoView.jsx)
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E020-AUDIO-INIT`) and add it to this list.
 

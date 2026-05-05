@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import playMelodies from '../audio/playMelodies';
+import logger from '../utils/logger';
 
 const usePlayback = ({
     sequencerRef,
@@ -12,7 +13,6 @@ const usePlayback = ({
     playbackConfig,
     randomizeAll, // Function to regenerate melodies (for continuous mode)
     instrumentSettings, // { treble, bass, percussion, chords, metronome }
-    musicalBlocksRef,
     headerPlayMode,
     onPlaybackStart, // Callback when any playback mode starts
 }) => {
@@ -108,7 +108,7 @@ const usePlayback = ({
         try {
             initial = randomizeAll(playbackConfig.randomize);
         } catch (e) {
-            console.error("Randomize error before sequencer start:", e);
+            logger.error('usePlayback', 'E007-RANDOMIZE-BEFORE-START', e);
             setIsPlayingContinuously(false);
             return;
         }
@@ -117,7 +117,7 @@ const usePlayback = ({
             // Start sequencer (don't await so UI remains responsive)
             sequencerRef.current?.start(initial, false, offset);
         } catch (e) {
-            console.error("Sequencer start error:", e);
+            logger.error('usePlayback', 'E008-SEQUENCER-START', e);
             setIsPlayingContinuously(false);
         }
     }, [isPlayingContinuously, isPlayingMelody, handleStopAllPlayback, context, randomizeAll, playbackConfig.randomize, sequencerRef, onPlaybackStart, melodies.globalMeasureOffset]);
@@ -153,7 +153,7 @@ const usePlayback = ({
                     playbackTimeoutRef.current = null;
                 }, durationMs);
             } catch (e) {
-                console.error("Play scale error:", e);
+                logger.error('usePlayback', 'E009-PLAY-SCALE', e);
                 setIsPlayingScale(false);
             }
         }
@@ -177,7 +177,7 @@ const usePlayback = ({
             const offset = melodies.globalMeasureOffset || 0;
             sequencerRef.current?.start(melodies, true, offset);
         } catch (e) {
-            console.error("Play melody error:", e);
+            logger.error('usePlayback', 'E010-PLAY-MELODY', e);
             setIsPlayingMelody(false);
         }
     }, [isPlayingMelody, handleStopAllPlayback, melodies, context, sequencerRef, onPlaybackStart]);

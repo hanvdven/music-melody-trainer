@@ -67,7 +67,9 @@ De filosofie is dat noten worden gesplitst zodat op te tel steeds een noot staat
 
 [Claude 2026-04-10]: Opgelost — pagination-effect in SheetMusic.jsx gebruikte numMeasures (generator-instelling) in calculateAllOffsets en calculateMusicalBlocks. Vervangen door melodyMeasureCount (afgeleid uit feitelijke nootinhoud van de melodie). Dependency array bijgewerkt van numMeasures → melodyMeasureCount.
 
-increasing nummeasures during playback messes up the sheet music visualisation. -> nog altijd niet opgelost.
+✅ increasing nummeasures during playback messes up the sheet music visualisation. -> nog altijd niet opgelost.
+
+[Claude 2026-05-04]: Opgelost — de `useEffect` in App.jsx die bij numMeasures-wijziging tijdens playback `randomizeAll` aanriep, deed precies het verkeerde: die updatet React melody-state onmiddellijk, waardoor SheetMusic de nieuwe (langere) melodie toont terwijl de Sequencer nog de oude (kortere) melodie speelt → playhead loopt buiten beeld. De Sequencer leest `numMeasuresRef.current` al bij elke serie-grens en genereert dan vanzelf een nieuwe melodie op de juiste lengte. De `useEffect` was dus overbodig én schadelijk. Verwijderd uit App.jsx.
 
 ✅ bug: schermgrootte aanpassen tijdens paginatiemode zodat aantal maten geplitst wordt, is beetje lelijk
 

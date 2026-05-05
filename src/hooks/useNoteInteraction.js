@@ -53,7 +53,7 @@ export default function useNoteInteraction({
                 // Passing null caused some smplr instruments to cut off immediately (inconsistent).
                 playSound(note, instrument, context, context.currentTime, 2.0, 1, mapping);
             });
-        } catch {}
+        } catch { /* audio context may not be ready */ }
     }, [context, instruments.treble, instruments.bass, instruments.percussion, instruments.metronome]);
 
     // Play a chord label clicked in the sheet music.
@@ -88,7 +88,7 @@ export default function useNoteInteraction({
                     }
                 }
             }
-        } catch {}
+        } catch { /* audio context may not be ready */ }
     }, [context, sequencerRef]);
 
     // Clicking an accidental symbol (♯/♭) in front of a note toggles its enharmonic spelling.
@@ -107,7 +107,7 @@ export default function useNoteInteraction({
         if (!displayNote || displayNote === 'r') return;
 
         // Strip octave number to get pitch class, look up enharmonic pair
-        const match = displayNote.match(/^([A-G][♭♯𝄫𝄪b#]*)(-?\d+)$/);
+        const match = displayNote.match(/^([A-G][♭♯𝄫𝄪b#]*)(-?\d+)$/u);
         if (!match) return;
         const [, pitchClass, octave] = match;
         const enharmonicPC = ENHARMONIC_PAIRS[pitchClass];

@@ -3,12 +3,8 @@ import React from 'react';
 import {
     Shuffle,
     Music,
-    Eye,
-    EyeOff,
     ListMusic,
     Percent,
-    Snowflake,
-    Flame
 } from 'lucide-react';
 
 export const ShuffleIcon = ({ color = 'var(--accent-yellow)' }) => (
@@ -69,7 +65,7 @@ export const VisibilityIcon = ({ color, crossed, low, size = 22 }) => {
     return <Icon color={color} size={size} style={{ opacity: low ? 0.4 : (crossed ? 0.6 : 1) }} />;
 };
 
-export const ChordIcon = ({ color, mode }) => (
+export const ChordIcon = ({ color }) => (
     <ListMusic color={color} size={18} />
 );
 

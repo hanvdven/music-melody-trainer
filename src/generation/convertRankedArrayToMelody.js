@@ -1,4 +1,5 @@
 import generateAllNotesArray from '../theory/allNotesArray';
+import logger from '../utils/logger';
 import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
 import { getNoteSemitone } from '../theory/noteUtils';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
@@ -419,7 +420,7 @@ const convertRankedArrayToMelody = (
     // Safety Check: If we generated absolute silence for an active progression, force at least one note.
     const hasValidNote = generatedMelody.some(n => n !== null && n !== 'r');
     if (!hasValidNote && activeSlotsSet.size > 0 && scale.length > 0) {
-        console.warn(`[Generation] Melody generated absolute silence despite active slots. Forcing fallback note.`);
+        logger.warn('convertRankedArrayToMelody', 'Melody generated absolute silence despite active slots. Forcing fallback note.');
         const firstActiveSlot = Array.from(activeSlotsSet)[0];
         generatedMelody[firstActiveSlot] = scale[0];
         generatedVolumes[firstActiveSlot] = 0.9;

@@ -1,4 +1,5 @@
 import { generateDeterministicRhythm } from './rhythmicPriorities';
+import logger from '../utils/logger';
 
 export const generateRankedRhythm = (
     numMeasures,
@@ -17,11 +18,8 @@ export const generateRankedRhythm = (
     const numberOfSlotsPerMeasure = (measureNoteResolution * timeSignature[0]) / timeSignature[1];
 
     if (!timeSignature || timeSignature.length < 2 || !Number.isFinite(numberOfSlotsPerMeasure) || numberOfSlotsPerMeasure <= 0) {
-        console.error('[generateRankedRhythm] Invalid slots:', {
-            measureNoteResolution,
-            timeSignature,
-            smallestNoteDenom,
-            numberOfSlotsPerMeasure
+        logger.error('generateRankedRhythm', 'E018-INVALID-SLOTS', null, {
+            measureNoteResolution, timeSignature, smallestNoteDenom, numberOfSlotsPerMeasure,
         });
         const fallbackLen = (numMeasures && numMeasures > 0) ? numMeasures * 4 : 4;
         return new Array(fallbackLen).fill(null);

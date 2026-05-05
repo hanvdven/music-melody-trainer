@@ -1062,3 +1062,101 @@ The number is placed above or below the stem tips depending on stem direction (`
 | `src/generation/melodyGenerator.js` | Tuplet post-processing; builds `melody.triplets` |
 | `src/utils/melodySlice.js` | Propagates `triplets` through all slice/resize helpers |
 | `src/components/sheet-music/renderMelodyNotes.jsx` | Reads `melodyTriplets`; uses `visualDuration` for note shape; accumulates `tupletGroupData`; renders bracket + label SVG |
+
+---
+
+## 23. Context Architecture — Prop Drilling Elimination (2026-05)
+
+### Purpose
+SheetMusic.jsx previously received ~60 props from App.jsx, including melody objects, playback
+flags, animation refs, and AudioContext callbacks. Three React contexts replace the most
+repetitive groups, reducing the SheetMusic prop surface to ~38 and making dual-view rendering
+(two `<SheetMusic>` instances) free — both consumers read from the same context.
+
+### Contexts
+
+| Context | File | What it carries |
+|---|---|---|
+| `MelodyContext` | `src/contexts/MelodyContext.jsx` | `treble`, `bass`, `percussion`, `metronome`, `chordProgression` Melody objects |
+| `PlaybackStateContext` | `src/contexts/PlaybackStateContext.jsx` | `isPlaying`, `isOddRound`, `currentMeasureIndex`, `inputTestState`, `inputTestSubMode` / setter |
+| `AnimationRefsContext` | `src/contexts/AnimationRefsContext.jsx` | All 9 animation refs/callbacks: `wipeTransitionRef`, `scrollTransitionRef`, `pendingScrollTransitionRef`, `paginationFadeRef`, `clearHighlightStateRef`, `showNoteHighlightRef`, `setCurrentMeasureIndex`, `sequencerRef`, `context` (AudioContext) |
+
+### Invariants
+- All three providers are mounted in `App.jsx` above both `<SheetMusic>` instances.
+- `AnimationRefsContext` carries refs (not state), so consuming it never triggers re-renders.
+- `svgRef` is **not** in context — SheetMusic receives it as a prop because the component
+  has an internal fallback: `const svgRef = svgRefProp ?? svgRefInternal`.
+
+### Files
+- `src/contexts/MelodyContext.jsx` — new
+- `src/contexts/PlaybackStateContext.jsx` — new
+- `src/contexts/AnimationRefsContext.jsx` — new
+- `src/App.jsx` — added providers; removed 22 props from both SheetMusic call sites
+
+---
+
+## 24. Extracted Hooks (2026-05 Refactoring)
+
+### 24.1 `useAppLayout`
+
+**Purpose:** Derives all viewport-dependent layout values from `windowSize` and `numMeasures`.
+Pure computation — no side effects. Called once per render in App.jsx.
+
+**Returns:** `{ isDualView, sheetHeight, btmPanelHeight, tabBtnScale, sheetWidth, idealVisibleMeasures }`
+
+**File:** `src/hooks/useAppLayout.js`
+
+### 24.2 `useSheetMusicTransitions`
+
+**Purpose:** Manages synchronous DOM cleanup for wipe/pagination/scroll transitions.
+Extracted from a 95-line `useLayoutEffect` that previously lived inline in SheetMusic.jsx.
+Uses `useLayoutEffect` internally so DOM mutations happen before the browser paints.
+
+**How it works:** Reacts to `nextLayer` and `animationMode` changes:
+- `nextLayer → non-null + wipe`: applies fully-opaque mask to `[data-wipe-role="new"]`
+- `nextLayer === 'block-flip'`: sets `data-block-flip-pending` on `[data-pagination-old]`
+- `nextLayer → null`: clears wipe masks, restores pagination opacity, resets scroll transform
+
+Reads `svgRef`, `wipeTransitionRef`, `paginationFadeRef`, `context`, and `animationMode`
+directly from `AnimationRefsContext` and `DisplaySettingsContext`.
+
+**Parameters:** `(nextLayer, layoutRef)` — only two, everything else from context.
+
+**File:** `src/hooks/useSheetMusicTransitions.js`
+
+---
+
+## 25. Sequencer — Method Extractions (2026-05 Refactoring)
+
+### 25.1 `applyResultToSetters(result, { initialLoad, seriesStartMeasureIndex })`
+
+**Purpose:** Centralises the "push generation result to React setters" logic that previously
+existed in two near-identical forms (startup path and loop path).
+
+- `initialLoad=true`: always updates reference melodies (called once at session start).
+- `initialLoad=false`: respects the `'fixed'` randomization rule; also calls `hideOldGroup`
+  to prevent a wipe-mode flash when new content arrives.
+
+**File:** `src/audio/Sequencer.js`
+
+### 25.2 `buildScheduledChords(chordProgression, m, measureLengthTicks, nextStartTime, measureDuration, timeFactor, schedMeasureIndex)`
+
+**Purpose:** Extracts the per-measure chord timestamp computation from the scheduling loop
+into a testable method. Builds `schedChords` entries with AudioContext timestamps, then
+extends each chord's highlight window to fill until the next chord starts (prevents flicker
+when durations don't perfectly tile the measure).
+
+**Returns:** `Array<{ audioTime, duration, measureIndex, localSlot, degree }>`
+
+**File:** `src/audio/Sequencer.js`
+
+### 25.3 `scheduleTimeout(fn, delayMs)`
+
+**Purpose:** Wraps `setTimeout` to auto-remove the ID from `this.timeouts` when the callback
+fires. Prevents `this.timeouts` from accumulating thousands of already-fired IDs during long
+playback sessions. `stop()` still cancels all pending IDs on teardown.
+
+**Invariant:** All `setTimeout` calls inside the scheduling loop must go through
+`scheduleTimeout` — never `this.timeouts.push(setTimeout(...))` directly.
+
+**File:** `src/audio/Sequencer.js`
