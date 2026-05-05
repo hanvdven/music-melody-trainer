@@ -268,6 +268,11 @@ logger.error('Sequencer', 'E010-PLAYBACK-START', err, { bpm: 120 });
 - **E004-SEQUENCER-AUTOSTART** — sequencer failed to auto-start on Sequencer init (App.jsx)
 - **E005-CHORD-INIT** — initial chord progression generation failed on mount (App.jsx)
 - **E006-TIMESIG-REGEN** — melody regen failed after time signature change (App.jsx)
+- **E007-RANDOMIZE-BEFORE-START** — randomizeAll threw before continuous playback sequencer start (usePlayback.js)
+- **E008-SEQUENCER-START** — sequencer.start() threw during continuous playback (usePlayback.js)
+- **E009-PLAY-SCALE** — playMelodies threw during scale playback (usePlayback.js)
+- **E010-PLAY-MELODY** — sequencer.start() threw during single-melody playback (usePlayback.js)
+- **E011-INSTRUMENT-CREATE** — smplr instrument constructor threw (useInstruments.js)
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E020-AUDIO-INIT`) and add it to this list.
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Soundfont, Reverb, DrumMachine, Sampler, getDrumMachineNames } from 'smplr';
 import InstrumentSettings from '../model/InstrumentSettings';
 import { LOCAL_PERCUSSION_BUFFERS } from '../audio/drumKits';
+import logger from '../utils/logger';
 
 const VALID_DRUM_KITS = new Set(getDrumMachineNames());
 
@@ -78,7 +79,7 @@ const useInstruments = (context) => {
             newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: context.destination, disableScheduler: true });
           } else {
             if (!VALID_DRUM_KITS.has(settings.instrument)) {
-              console.warn(`[useInstruments] Invalid drum kit: "${settings.instrument}".`);
+              logger.warn('useInstruments', `Invalid drum kit: "${settings.instrument}".`);
               return;
             }
             newInst = new DrumMachine(context, { instrument: settings.instrument, destination: dest, disableScheduler: true });
@@ -89,7 +90,7 @@ const useInstruments = (context) => {
           newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: context.destination, disableScheduler: true });
         }
       } catch (e) {
-        console.error(`[useInstruments] Failed to create instrument "${settings.instrument}":`, e);
+        logger.error('useInstruments', 'E011-INSTRUMENT-CREATE', e, { instrument: settings.instrument });
         return;
       }
 
