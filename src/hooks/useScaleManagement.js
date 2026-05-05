@@ -137,7 +137,7 @@ export default function useScaleManagement({
             if (scalePlayTimerRef.current) clearTimeout(scalePlayTimerRef.current);
             const totalMs = scale.notes.length * spacing * 1000;
             scalePlayTimerRef.current = setTimeout(() => setIsScalePlaying(false), totalMs);
-        } catch {}
+        } catch { /* audio context may not be ready */ }
     }, [context, instruments.treble, scale, bpmRef]);
 
     // Toggle tonic to its enharmonic equivalent when the key-signature accidentals are clicked.

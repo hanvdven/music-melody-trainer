@@ -13,7 +13,6 @@ const usePlayback = ({
     playbackConfig,
     randomizeAll, // Function to regenerate melodies (for continuous mode)
     instrumentSettings, // { treble, bass, percussion, chords, metronome }
-    musicalBlocksRef,
     headerPlayMode,
     onPlaybackStart, // Callback when any playback mode starts
 }) => {

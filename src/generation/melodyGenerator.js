@@ -92,7 +92,7 @@ class MelodyGenerator {
 
 
             } else {
-                logger.warn('melodyGenerator', `Incompatible resolutions: Global ${globalDenom}, Local ${localDenom}. Fallback to local.`);
+                logger.warn('melodyGenerator', `Incompatible resolutions: Global ${GLOBAL_RESOLUTION}, Local ${localDenom}. Fallback to local.`);
             }
         }
 

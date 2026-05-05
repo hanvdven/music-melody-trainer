@@ -14,7 +14,7 @@ const normalizePC = (note) => {
 };
 
 // Strip accidentals for noteYMap lookup — map only has natural note names (C, D, E…)
-const stripAccidentals = n => n ? n.replace(/[♭º♯Ü#b𝄫𝄪]/g, '') : n;
+const stripAccidentals = n => n ? n.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '') : n;
 
 // Melody Notes
 const noteYMap = {
@@ -322,7 +322,7 @@ const renderMelodyNotes = (
       return;
     }
 
-    let note = noteWithAccidental ? noteWithAccidental.replace(/[♭º♯Ü#b𝄫𝄪]/g, '') : null;
+    let note = noteWithAccidental ? noteWithAccidental.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '') : null;
     let shift = 0;
 
     if (note && note !== 'r' && staff !== 'percussion') {
@@ -367,7 +367,7 @@ const renderMelodyNotes = (
             const midNote = melodyNotes[j];
             if (!midNote || midNote === 'r') continue;
 
-            const pureY = noteYMap[midNote.replace(/[♭º♯Ü#b𝄫𝄪]/g, '')];
+            const pureY = noteYMap[midNote.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '')];
             const bounds = activeBounds;
 
             // Grace: if between two shifted notes and not "too far" from staff boundary
@@ -1291,7 +1291,7 @@ const renderMelodyNotes = (
             && (() => {
               // Parse wrongNote (e.g. "E4", "A♭3") to look up its Y position
               const wn = inputTestState.wrongNote;
-              const wnNat = wn ? wn.replace(/[♭º♯Ü#b𝄫𝄪]/g, '') : null;
+              const wnNat = wn ? wn.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '') : null;
               const wnBaseY = wnNat ? noteYMap[wnNat] : null;
               if (wnBaseY == null) return null;
               const wnY = wnBaseY + combinedShift;

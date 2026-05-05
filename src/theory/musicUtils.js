@@ -10,7 +10,7 @@ const allNotes = generateAllNotesArray();
  */
 export const getNoteIndex = (note) => {
     if (!note || typeof note !== 'string') return -1;
-    const match = note.match(/^([A-G])([♯#♭b𝄪𝄫]*)(-?\d+)?$/);
+    const match = note.match(/^([A-G])([♯#♭b𝄪𝄫]*)(-?\d+)?$/u);
     if (!match) return -1;
 
     const [_, base, accidentals, octaveStr] = match;

@@ -61,8 +61,8 @@ const useInstruments = (context) => {
 
       const current = instancesRef.current[type];
       const currentManual = manualInstancesRef.current[type];
-      if (current) { try { current.stop(); } catch (e) { } }
-      if (currentManual) { try { currentManual.stop(); } catch (e) { } }
+      if (current) { try { current.stop(); } catch { /* may not be started */ } }
+      if (currentManual) { try { currentManual.stop(); } catch { /* may not be started */ } }
 
       let newInst, newManualInst;
       try {

@@ -67,7 +67,7 @@ const logger = {
             currentLevel = level;
             try {
                 if (typeof window !== 'undefined') window.localStorage?.setItem('LOG_LEVEL', level);
-            } catch {}
+            } catch { /* localStorage may be unavailable (private mode) */ }
         }
     },
     getLevel: () => currentLevel,

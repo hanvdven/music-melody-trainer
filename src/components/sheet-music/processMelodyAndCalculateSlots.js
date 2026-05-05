@@ -6,7 +6,7 @@ const allowedDurations = [3, 6, 9, 12, 18, 21, 24, 36, 42, 48, 72];
 // Accidentals are stripped — only the letter+octave matters for staff line position.
 const getDiatonicPos = (n) => {
   if (!n || typeof n !== 'string') return 28;
-  const clean = n.replace(/[♭º♯Ü#b𝄫𝄪]/g, '');
+  const clean = n.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '');
   const match = clean.match(/^([A-G])(-?\d+)$/);
   if (!match) return 28;
   const lp = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };

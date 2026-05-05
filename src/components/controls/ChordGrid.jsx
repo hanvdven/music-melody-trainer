@@ -422,7 +422,7 @@ const ChordGrid = ({
                                 {secTypes.map((type, ti) => (
                                     <div
                                         key={type}
-                                        className={`chord-grid-smallcell${!!sec?.[type] ? ' chord-grid-smallcell-active' : ' chord-grid-smallcell-inactive'}`}
+                                        className={`chord-grid-smallcell${sec?.[type] ? ' chord-grid-smallcell-active' : ' chord-grid-smallcell-inactive'}`}
                                         style={{ width: BETWEEN_W, height: secCellH, left: x, top: y + ti * (secCellH + ADV_SMALL_VGAP) }}
                                         onClick={() => sec?.[type]?.notes && playNotes(sec[type].notes)}
                                     >

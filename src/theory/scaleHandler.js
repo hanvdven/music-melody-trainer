@@ -603,13 +603,13 @@ const generateSelectedScale = (tonic, selectedScaleType, mode, scaleRange) => {
     const legacyModes = generateLegacyModes();
     const resolvedScaleType = getParentFamily(selectedScaleType, mode);
 
-    if (!legacyModes || !legacyModes.hasOwnProperty(resolvedScaleType)) {
+    if (!legacyModes || !Object.prototype.hasOwnProperty.call(legacyModes, resolvedScaleType)) {
         return { scale: [], displayScale: [], numAccidentals: 0 };
     }
 
     const scaleType = legacyModes[resolvedScaleType];
 
-    if (!scaleType.hasOwnProperty(mode)) {
+    if (!Object.prototype.hasOwnProperty.call(scaleType, mode)) {
         return { scale: [], displayScale: [], numAccidentals: 0 };
     }
 
@@ -642,7 +642,7 @@ const randomScale = (scaleTypes, modes, setSelectedScaleType, setSelectedMode) =
 
 const randomMode = (selectedScaleType, modes, setSelectedMode) => {
     const legacyModes = generateLegacyModes();
-    if (!legacyModes.hasOwnProperty(selectedScaleType)) {
+    if (!Object.prototype.hasOwnProperty.call(legacyModes, selectedScaleType)) {
         logger.error('scaleHandler', 'E016-SCALE-TYPE-NOT-FOUND', null, { selectedScaleType });
         return;
     }

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Minus, Plus } from 'lucide-react';
 import './GenericStepper.css';
 
 /**
