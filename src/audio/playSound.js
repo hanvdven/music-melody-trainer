@@ -3,7 +3,6 @@ import { DEFAULT_NOTE_MAPPING } from './drumKits';
 
 const allNotesArray = generateAllNotesArray();
 
-// ['clap/cp', 'clave/cl', 'conga-hi/hc00', 'conga-hi/hc10', 'conga-hi/hc25', 'conga-hi/hc50', 'conga-hi/hc75', 'conga-low/lc00', 'conga-low/lc10', 'conga-low/lc25', 'conga-low/lc50', 'conga-low/lc75', 'conga-mid/mc00', 'conga-mid/mc10', 'conga-mid/mc25', 'conga-mid/mc50', 'conga-mid/mc75', 'cowbell/cb', 'cymbal/cy0000', 'cymbal/cy0010', 'cymbal/cy0025', 'cymbal/cy0050', 'cymbal/cy0075', 'cymbal/cy1000', 'cymbal/cy1010', 'cymbal/cy1025', 'cymbal/cy1050', 'cymbal/cy1075', 'cymbal/cy2500', 'cymbal/cy2510', 'cymbal/cy2525', 'cymbal/cy2550', 'cymbal/cy2575', 'cymbal/cy5000', 'cymbal/cy5010', 'cymbal/cy5025', 'cymbal/cy5050', 'cymbal/cy5075', 'cymbal/cy7500', 'cymbal/cy7510', 'cymbal/cy7525', 'cymbal/cy7550', 'cymbal/cy7575', 'hihat-close/ch', 'hihat-open/oh00', 'hihat-open/oh10', 'hihat-open/oh25', 'hihat-open/oh50', 'hihat-open/oh75', 'kick/bd0000', 'kick/bd0010', 'kick/bd0025', 'kick/bd0050', 'kick/bd0075', 'kick/bd1000', 'kick/bd1010', 'kick/bd1025', 'kick/bd1050', 'kick/bd1075', 'kick/bd2500', 'kick/bd2510', 'kick/bd2525', 'kick/bd2550', 'kick/bd2575', 'kick/bd5000', 'kick/bd5010', 'kick/bd5025', 'kick/bd5050', 'kick/bd5075', 'kick/bd7500', 'kick/bd7510', 'kick/bd7525', 'kick/bd7550', 'kick/bd7575', 'maraca/ma', 'mid-tom/mt00', 'mid-tom/mt10', 'mid-tom/mt25', 'mid-tom/mt50', 'mid-tom/mt75', 'rimshot/rs', 'snare/sd0000', 'snare/sd0010', 'snare/sd0025', 'snare/sd0050', 'snare/sd0075', 'snare/sd1000', 'snare/sd1010', 'snare/sd1025', 'snare/sd1050', 'snare/sd1075', 'snare/sd2500', 'snare/sd2510', 'snare/sd2525', 'snare/sd2550', 'snare/sd2575', 'snare/sd5000', 'snare/sd5010', 'snare/sd5025', 'snare/sd5050', …]
 
 
 // Create a lookup map for faster pitch resolution
@@ -35,7 +34,7 @@ const resolveNotePitch = (note, customMapping = null) => {
   // Piano Note Normalization
   // Handles variations like B𝄫4, C##4, etc.
   let normalizedNote = note;
-  const match = note.match(/^([A-G])([♭º♯Ü#b𝄫𝄪]*)([0-9])$/);
+  const match = note.match(/^([A-G])([♭º♯Ü#b𝄫𝄪]*)([0-9])$/u);
 
   if (match) {
     const [, letter, accidentals, octave] = match;

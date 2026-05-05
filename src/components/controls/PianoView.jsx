@@ -1,11 +1,10 @@
 // components/PianoView.jsx
 import React, { useMemo, useEffect, useRef } from 'react';
 import logger from '../../utils/logger';
-import playSound, { resolveNotePitch } from '../../audio/playSound';
+import playSound from '../../audio/playSound';
 import { standardizeTonic, getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import generateAllNotesArray from '../../theory/allNotesArray';
-import { tonicOptions } from '../../theory/scaleHandler';
-import { CANONICAL_MAP, getCanonicalNote, ENHARMONIC_PAIRS } from '../../theory/noteUtils';
+import { getCanonicalNote, ENHARMONIC_PAIRS } from '../../theory/noteUtils';
 
 
 // QWERTY → piano key mapping (standard GarageBand/DAW layout)
@@ -46,11 +45,18 @@ const PianoView = ({
 
   const findNoteIndex = (note) => notes.findIndex((n) => n === note);
   const tonicIndex = findNoteIndex(canonicalTonic);
+  const tonicNotFound = tonicIndex === -1;
 
-  if (tonicIndex === -1) {
+  if (tonicNotFound) {
     logger.error('PianoView', 'E019-TONIC-NOT-FOUND', null, { tonic, canonicalTonic });
-    return null;
   }
+
+  // Refs must be declared before any early return (Rules of Hooks)
+  const pressTimesRef = useRef({});
+  const activeKeysRef = useRef(new Set());
+  const activeStopsRef = useRef({});
+  const ringingTapsRef = useRef(new Set());
+  const tapsTimeoutRef = useRef({});
 
   /* =========================
      NOTE DISPLAY
@@ -207,6 +213,7 @@ const PianoView = ({
 
   // Build white and black keys (memoized for performance)
   const { whiteKeys, blackKeys } = useMemo(() => {
+    if (tonicNotFound) return { whiteKeys: [], blackKeys: [] };
     const pianoWhiteKeys = [];
     for (let i = startIndex; i <= endIndex; i++) {
       // Only push if it's white. 
@@ -305,6 +312,9 @@ const PianoView = ({
     };
   }, [qwertyKeyboardActive, qwertyNoteMap, trebleInstrument, onNoteInput]);
 
+  // All hooks have been called above — safe to early-return now
+  if (tonicNotFound) return null;
+
   /* =========================
      STYLING (CSS classes)
      ========================= */
@@ -322,7 +332,6 @@ const PianoView = ({
   };
 
   // Tone Recognizer active-key helpers
-  const activeNotePc = activeNote ? getNotePc(activeNote.replace(/\d+$/, '') + '0') : -1;
   const activeNoteStr = activeNote ? activeNote : null;
   const isActiveNote = (note) => {
     if (!activeNoteStr) return false;
@@ -443,12 +452,6 @@ const PianoView = ({
   /* =========================
      INTERACTION HANDLER
      ========================= */
-  const pressTimesRef = useRef({});
-  const activeKeysRef = useRef(new Set());
-  const activeStopsRef = useRef({});
-  const ringingTapsRef = useRef(new Set());
-  const tapsTimeoutRef = useRef({});
-
   const stopNote = (note) => {
     if (activeStopsRef.current[note]) {
       activeStopsRef.current[note]();

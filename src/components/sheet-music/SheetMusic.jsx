@@ -1364,7 +1364,7 @@ const SheetMusic = ({
           flashElement(noteGroup);
           onNoteClick(notes, staff);
         }
-      } catch {}
+      } catch { /* audio context may not be ready */ }
       return;
     }
 
@@ -1378,7 +1378,7 @@ const SheetMusic = ({
           onChordClick(notes);
           return;
         }
-      } catch {}
+      } catch { /* audio context may not be ready */ }
     }
 
     // 3. Settings toggle
@@ -1723,7 +1723,7 @@ const SheetMusic = ({
   // Returns {base, acc} solfège pair for a single note string.
   const getSolfegeForNote = (rawNote) => {
     if (lyricsMode === 'doremi-rel') {
-      const tonicLetter = (tonic || 'C').replace(/[♯♭𝄪𝄫]/g, '').replace(/-?\d+$/, '')[0] || 'C';
+      const tonicLetter = (tonic || 'C').replace(/[♯♭𝄪𝄫]/gu, '').replace(/-?\d+$/, '')[0] || 'C';
       return spellingToSolfege(rawNote, tonicLetter);
     } else if (lyricsMode === 'doremi-abs') {
       return spellingToSolfege(rawNote, 'C');

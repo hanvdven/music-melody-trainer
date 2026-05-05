@@ -1,5 +1,5 @@
 import React from 'react';
-import { calcDifficulty, calcHarmonicDifficulty } from '../../utils/difficultyCalculator';
+import { calcDifficulty } from '../../utils/difficultyCalculator';
 import { MELODY_DIFFICULTY_RANGE, calcTrebleDifficulty } from '../../utils/melodyDifficultyTable';
 import { HARMONY_DIFFICULTY_RANGE } from '../../utils/harmonyTable';
 

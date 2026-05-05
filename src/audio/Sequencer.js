@@ -1389,13 +1389,13 @@ class Sequencer {
     }
     if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
 
-    try { this.instruments.treble?.stop(); } catch (e) { }
-    try { this.instruments.bass?.stop(); } catch (e) { }
-    try { this.instruments.chords?.stop(); } catch (e) { }
+    try { this.instruments.treble?.stop(); } catch { /* instrument may not be started */ }
+    try { this.instruments.bass?.stop(); } catch { /* instrument may not be started */ }
+    try { this.instruments.chords?.stop(); } catch { /* instrument may not be started */ }
     // percussion and metronome were missing here — they must be stopped too or
     // their scheduled audio continues playing after the user presses Stop.
-    try { this.instruments.percussion?.stop(); } catch (e) { }
-    try { this.instruments.metronome?.stop(); } catch (e) { }
+    try { this.instruments.percussion?.stop(); } catch { /* instrument may not be started */ }
+    try { this.instruments.metronome?.stop(); } catch { /* instrument may not be started */ }
 
     this.playbackState = null;
     this.scheduledNotes = null;

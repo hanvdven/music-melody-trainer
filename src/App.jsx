@@ -408,7 +408,6 @@ const App = () => {
             chords: chordSettings,
             metronome: metronomeSettings
         },
-        musicalBlocksRef,
         headerPlayMode,
         onPlaybackStart: useCallback(() => onPlaybackStartRef.current(), [])
     });
