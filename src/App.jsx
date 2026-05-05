@@ -129,15 +129,12 @@ const App = () => {
     const instrumentsRef = useRef(null);
     const metronomeRef = useRef(null);
     const melodiesRef = useRef(null);
-    const chordProgressionRef = useRef(ChordProgression.default());
     const sequencerRef = useRef(null);
     const prevScaleRef = useRef(null);
 
     const [activeTab, setActiveTab] = useState('piano');
 
-    const [chordProgression, setChordProgression] = useState(() => {
-        return ChordProgression.default();
-    });
+    const [chordProgression, setChordProgression, chordProgressionRef] = useRefState(() => ChordProgression.default());
     const [displayChordProgression, setDisplayChordProgression] = useState(null);
 
     const [showNotes, setShowNotes, showNotesRef] = useRefState(true);
@@ -817,11 +814,6 @@ const App = () => {
         return label;
     }, [displayChordProgression, chordProgression]);
 
-    // Sync chordProgressionRef whenever chordProgression state changes
-    // Key fix for live strategy: Sequencer reads ref, not state
-    useEffect(() => {
-        chordProgressionRef.current = chordProgression;
-    }, [chordProgression]);
 
     // Mount Effect: Build harmony table on startup so runtime scale/chord changes are reflected
     useEffect(() => { buildHarmonyTable(); }, []);
