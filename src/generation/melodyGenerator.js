@@ -1,4 +1,5 @@
 import Melody from '../model/Melody.js';
+import logger from '../utils/logger';
 import convertRankedArrayToMelody from './convertRankedArrayToMelody.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { generateBackbeat, generateSwing, GROOVE_PATTERNS } from './generateBackbeat.js';
@@ -91,7 +92,7 @@ class MelodyGenerator {
 
 
             } else {
-                console.warn(`[MelodyGenerator] Incompatible resolutions: Global ${globalDenom}, Local ${localDenom}. Fallback to local.`);
+                logger.warn('melodyGenerator', `Incompatible resolutions: Global ${globalDenom}, Local ${localDenom}. Fallback to local.`);
             }
         }
 

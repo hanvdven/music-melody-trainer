@@ -18,6 +18,8 @@
  *   window.appConfig.download()  → download as JSON file
  */
 
+import logger from './logger';
+
 const STORAGE_KEY = 'melody_trainer_config';
 
 /** Persist the current settings object. Merges with any existing config. */
@@ -49,7 +51,7 @@ export const clearConfig = () => {
 /** Download the current config as a JSON file. */
 export const downloadConfig = () => {
     const config = loadConfig();
-    if (!config) { console.warn('[appConfig] No config saved yet.'); return; }
+    if (!config) { logger.warn('appConfig', 'No config saved yet.'); return; }
     const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
