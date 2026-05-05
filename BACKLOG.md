@@ -368,6 +368,10 @@ Voeg nog weighted chromatic toe als extreem moeilijk.
 
 - het concept van zwaartetonen en leidnoten verder uitwerken, ook toepassen bij akkoorden (bijv: akoord - leidnoot)
 
+### Bass range bug
+
+- bass generator seems not to take the range into account
+
 ### Overig
 
 - 'humanization' in afspelen van de muziek: volume en timing

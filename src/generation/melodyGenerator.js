@@ -2,7 +2,7 @@ import Melody from '../model/Melody.js';
 import logger from '../utils/logger';
 import convertRankedArrayToMelody from './convertRankedArrayToMelody.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
-import { generateBackbeat, generateSwing, GROOVE_PATTERNS } from './generateBackbeat.js';
+import { generateBackbeat, generateSwing } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults.js';
@@ -31,9 +31,7 @@ class MelodyGenerator {
     }
 
     generateMelody() {
-        let scale = this.scale;
         let tonic = this.tonic;
-        let displayScale = this.displayNotes;
         let notesPerMeasure = this.InstrumentSettings.notesPerMeasure;
         let numMeasures = this.numMeasures;
         let timeSignature = this.timeSignature;
@@ -41,7 +39,6 @@ class MelodyGenerator {
         let rhythmVariability = this.InstrumentSettings.rhythmVariability;
         let enableTriplets = this.InstrumentSettings.enableTriplets;
         let randomizationNotes = this.InstrumentSettings.notePool;
-        let playStyle = this.InstrumentSettings.playStyle;
         let instrumentType = this.InstrumentSettings.type;
         let randomizationRule = this.InstrumentSettings.randomizationRule;
 

@@ -44,7 +44,7 @@ export const generateRankedRhythm = (
     const flattened = melodyArray.flat();
 
     // Apply variability
-    const piecewiseSum = flattened.map((value, index) => {
+    const piecewiseSum = flattened.map((value) => {
         if (value === null) return null;
 
         // User requested minimum 1% variability internally even if 0 is passed

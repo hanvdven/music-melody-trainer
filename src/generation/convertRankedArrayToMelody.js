@@ -37,9 +37,7 @@ const convertRankedArrayToMelody = (
     randomizationNotes,  // 'scale', 'chord', 'root', 'chromatic', 'kick_snare', etc
     chordProgression,    // array of chord objects per measure
     range = null,
-    runId = 'unknown',
     randomizationRule = 'uniform',
-    smallestNoteDenom = 4,
     timeSignature = null    // [numerator, denominator] — needed for offset-based chord lookup
 ) => {
     // =========================================================================

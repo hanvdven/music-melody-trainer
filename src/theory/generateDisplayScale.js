@@ -1,6 +1,6 @@
 import { standardizeTonic, getRelativeNoteName } from './convertToDisplayNotes';
 import logger from '../utils/logger';
-import { CANONICAL_MAP, getCanonicalNote, collapseAccidentals } from './noteUtils';
+import { getCanonicalNote, collapseAccidentals } from './noteUtils';
 import generateAllNotesArray from './allNotesArray';
 const notes = generateAllNotesArray();
 
