@@ -11,7 +11,7 @@
 | 1 | Constanten centraliseren (musicLayout, generatorDefaults, instrumentRules) | ✅ Gereed |
 | 2 | useRefState hook + App.jsx duplicate setters elimineren | ✅ Gereed |
 | 3 | Context uitbreiden (MelodyContext, PlaybackStateContext, AnimationRefsContext) | ✅ Gereed |
-| 4 | App.jsx opsplitsen — useAppLayout geëxtraheerd; useAppCoreState/useAppHandlers/TabView nog open | 🔄 Deels |
+| 4 | App.jsx opsplitsen — useAppLayout ✅ + TabView.jsx ✅ geëxtraheerd; useAppCoreState/useAppHandlers nog open | 🔄 Deels |
 | 5 | SheetMusic.jsx opsplitsen — useSheetMusicTransitions ✅ hook geëxtraheerd; SheetMusicHeader nog open | 🔄 Deels |
 | 6 | Sequencer.js — applyResultToSetters ✅ + buildScheduledChords ✅ + scheduleTimeout ✅ | ✅ Gereed |
 | 7 | useMelodyState — resolveVoice factory (elimineer 3× dubbele generatielogica) | ✅ Gereed |
@@ -33,6 +33,7 @@
 | 18 | _setScale bug — useRefState wrapper correct doorgegeven aan useScaleManagement | ✅ Gereed |
 | 19 | Lint pass 1 — 29 errors → 0: regex u-flag, empty catches, hooks-in-conditional (PianoView), no-prototype-builtins, globalDenom bug | ✅ Gereed |
 | 20 | Lint pass 2 — 898 → 755 warnings: ongebruikte imports/props/vars verwijderd in 29 bestanden | ✅ Gereed |
+| 21 | TabView.jsx geëxtraheerd uit App.jsx — 238 regels JSX tab-content verplaatst, 15 imports verwijderd | ✅ Gereed |
 
 ---
 
