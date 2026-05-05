@@ -17,8 +17,7 @@ const LYRICS_MODES = ['none', 'doremi-rel', 'doremi-abs', 'kodaly', 'takadimi'];
 
 const SubHeader = ({
     show,
-    inputTestSubMode, setInputTestSubMode,
-    isInputTestMode, handleToggleInputTest,
+    isInputTestMode,
     inputTestState,
     headerPlayMode, setHeaderPlayMode,
     isPlaying, isPlayingMelody, isPlayingContinuously,

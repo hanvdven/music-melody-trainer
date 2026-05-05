@@ -1,5 +1,5 @@
 
-import { getNoteIndex, transposeNoteBySemitones, transposeMelodyToScale } from '../theory/musicUtils';
+import { transposeNoteBySemitones, transposeMelodyToScale } from '../theory/musicUtils';
 
 class Chord {
     /**

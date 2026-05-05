@@ -316,12 +316,7 @@ const generateAllScaleChords = (scaleObj, chordType = 'triad') => {
     return out;
 };
 
-const generateRandomProgression = (
-    scaleObj,
-    length = 4,
-    chordTypes = ['triad', 'seventh'],
-    weighted = false
-) => {
+const generateRandomProgression = (scaleObj, length = 4) => {
     return generateProgression(scaleObj, length, 'random');
 };
 

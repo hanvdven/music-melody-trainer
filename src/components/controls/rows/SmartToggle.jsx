@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Pin, Dices, Disc } from 'lucide-react';
-import { ShuffleIcon, NotesIcon, WheelIcon } from '../../common/CustomIcons';
+import { Pin, Dices } from 'lucide-react';
+import { WheelIcon } from '../../common/CustomIcons';
 import useLongPress from '../../../hooks/useLongPress';
 import './SmartToggle.css';
 
@@ -12,8 +12,6 @@ const SmartToggle = ({
     disabled,
     lowlighted,
     height = '77px', // Increased ~20% from 64px
-    activeScale,
-    playbackConfig,
     longPressOptions = [], // [{ label, value, iconType }]
     onOptionSelect
 }) => {
@@ -51,16 +49,9 @@ const SmartToggle = ({
 
     const activeColor = 'var(--accent-yellow)';
     const inactiveColor = '#888';
-    const activeBg = 'rgba(255, 204, 0, 0.1)';
     const lowlightedOpacity = 0.5;
 
     const isRandom = state !== false;
-
-    const isHeptatonicSubset = (family) => {
-        return ['Diatonic', 'Melodic', 'Harmonic Minor', 'Harmonic Major', 'Double Harmonic'].includes(family);
-    };
-
-    const isHepta = label === 'FAMILY' && state === 'hepta';
 
     const renderIcon = (type, color, size = 18) => {
         if (type === 'wheel') return <WheelIcon size={size} color={color} />;
@@ -89,7 +80,7 @@ const SmartToggle = ({
         <div ref={containerRef} className="st-container" style={{ height }}>
             <button
                 {...longPress}
-                onClick={(e) => {
+                onClick={() => {
                     if (isLongPressActive.current) {
                         isLongPressActive.current = false;
                         return;

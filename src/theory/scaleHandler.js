@@ -4,7 +4,7 @@ import logger from '../utils/logger';
 
 import generateDisplayScale from './generateDisplayScale';
 import { standardizeTonic } from './convertToDisplayNotes';
-import { CANONICAL_MAP, getCanonicalNote, ENHARMONIC_PAIRS } from './noteUtils';
+import { getCanonicalNote, ENHARMONIC_PAIRS } from './noteUtils';
 
 import generateAllNotesArray from './allNotesArray';
 const notes = generateAllNotesArray();
@@ -394,7 +394,7 @@ const generateLegacyModes = () => {
     const legacy = {};
 
     legacy['Simple'] = {};
-    for (const [family, modeDefs] of Object.entries(scaleDefinitions)) {
+    for (const [, modeDefs] of Object.entries(scaleDefinitions)) {
         for (const modeDef of modeDefs) {
             if (modeDef.isSimple) {
                 const key = modeDef.index
@@ -419,7 +419,7 @@ const generateLegacyModes = () => {
 
 const getModeDefinition = (family, modeName) => {
     if (family === 'Simple') {
-        for (const [fam, familyDefs] of Object.entries(scaleDefinitions)) {
+        for (const [, familyDefs] of Object.entries(scaleDefinitions)) {
             const found = findInFamily(familyDefs, modeName);
             if (found) return found;
         }
@@ -561,7 +561,7 @@ const generateNumAccidentals = (anyTonic, modeName) => {
     const cleanName = modeName.split('.').pop().trim().split('(')[0].trim();
 
     const findDiatonicForMode = (name) => {
-        for (const [family, modeDefs] of Object.entries(scaleDefinitions)) {
+        for (const [, modeDefs] of Object.entries(scaleDefinitions)) {
             if (!Array.isArray(modeDefs)) continue;
             for (const modeDef of modeDefs) {
                 const legacyKey = modeDef.index

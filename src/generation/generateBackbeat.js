@@ -22,7 +22,7 @@ import { findBestSlot } from './proximityUtils.js';
 // ─── Beat-count helpers ─────────────────────────────────────────────────────
 
 /** Tick duration of one slot at the given resolution. 48 ticks = whole note. */
-const slotTicks = ([top, bottom], smallestNoteDenom) =>
+const slotTicks = ([, bottom], smallestNoteDenom) =>
     48 / Math.max(bottom, smallestNoteDenom);
 
 // ─── Note-level variability mutations ────────────────────────────────────────

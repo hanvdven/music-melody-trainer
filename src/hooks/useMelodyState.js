@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import logger from '../utils/logger';
 import Melody from '../model/Melody';
 import MelodyGenerator from '../generation/melodyGenerator';
-import { generateRankedRhythm } from '../generation/generateRankedRhythm';
 import { generateDeterministicRhythm } from '../generation/rhythmicPriorities';
 import { generateProgression, generateChordOnDegree } from '../theory/chordGenerator';
 import { insertPassingChords } from '../generation/passingChords';

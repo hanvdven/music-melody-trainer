@@ -27,9 +27,7 @@ const PlaybackSettings = ({
   activeScale,
   activePreset,
   setActivePreset,
-  showChordsOddRounds,
   setShowChordsOddRounds,
-  showChordsEvenRounds,
   setShowChordsEvenRounds,
   setShowChordLabels,
   bpm,
@@ -42,45 +40,19 @@ const PlaybackSettings = ({
   setDifficultyProgression,
   targetHarmonicDifficulty,
   setTargetHarmonicDifficulty,
-  onApplyHarmonyDifficulty,
   harmonyDifficultyRange,
   targetTrebleDifficulty,
   setTargetTrebleDifficulty,
   targetBassDifficulty,
   setTargetBassDifficulty,
   chordProgression,
-  generateChords,
 }) => {
   // ── Context-provided values (formerly props) ──────────────────────────────
-  const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
+  const { playbackConfig, setPlaybackConfig } = usePlaybackConfig();
   const { trebleSettings, setTrebleSettings, bassSettings, setBassSettings,
-    percussionSettings, setPercussionSettings, metronomeSettings, setMetronomeSettings,
+    percussionSettings, setPercussionSettings,
     chordSettings, setChordSettings } = useInstrumentSettings();
-  const { chordDisplayMode, setChordDisplayMode, setNoteColoringMode } = useDisplaySettings();
-  const MELODY_NOTE_SOURCES = [
-    { value: "root", label: "Root" },
-    { value: "chord", label: "Chord" },
-    { value: "scale", label: "Scale" },
-    { value: "chromatic", label: "Chromatic" }
-  ];
-
-  const PERCUSSION_NOTE_SOURCES = [
-    { value: "claves", label: "Claves" },
-    { value: "kick_snare", label: "Kick & Snare" },
-    { value: "all", label: "All Percussion" }
-  ];
-
-  const RANDOMIZATION_RULES = [
-    { value: "uniform", label: "Uniform" },
-    { value: "emphasize_roots", label: "Emphasize Roots" },
-    { value: "weighted", label: "Weighted" },
-    { value: "arp_up", label: "Arpeggio Up" },
-    { value: "arp_down", label: "Arpeggio Down" },
-    { value: "arp", label: "Arpeggio (Bounce)" }
-  ];
-
-
-  // use getRandTypeLabel instead
+  const { setNoteColoringMode } = useDisplaySettings();
 
   const [randType, setRandType] = useState({});
   const [activeRandTypeSelector, setActiveRandTypeSelector] = useState(null);
@@ -102,27 +74,6 @@ const PlaybackSettings = ({
 
   const randTypeOptions = ['random', 'tonic', 'quarters', 'scale'];
 
-  const cycleRandType = (instrument) => {
-    markCustom();
-    const current = randType[instrument] || 'random';
-    const index = randTypeOptions.indexOf(current);
-    const nextType = randTypeOptions[(index + 1) % randTypeOptions.length];
-
-    const ruleMap = {
-      random: 'scale',
-      tonic: 'root',
-      quarters: 'scale',
-      scale: 'scale',
-    };
-    const nextRule = ruleMap[nextType];
-
-    if (instrument === 'treble' && setTrebleSettings)
-      setTrebleSettings((p) => ({ ...p, notePool: nextRule }));
-    if (instrument === 'bass' && setBassSettings)
-      setBassSettings((p) => ({ ...p, notePool: nextRule }));
-    if (instrument === 'percussion' && setPercussionSettings)
-      setPercussionSettings((p) => ({ ...p, notePool: nextRule }));
-  };
 
 
   const handleRepsChangeLocal = (newValue) => {
@@ -146,13 +97,6 @@ const PlaybackSettings = ({
     }));
   };
 
-  const handleMelodyToggle = () => {
-    markCustom();
-    setPlaybackConfig((prev) => ({
-      ...prev,
-      randomize: { ...prev.randomize, melody: !prev.randomize.melody },
-    }));
-  };
 
   const displayFamily = (() => {
     if (activeScale?.family === 'Simple') {
@@ -161,11 +105,6 @@ const PlaybackSettings = ({
     return activeScale?.family;
   })();
 
-  const isHeptatonicSubset = (family) => {
-    return ['Diatonic', 'Melodic', 'Harmonic Minor', 'Harmonic Major', 'Double Harmonic'].includes(
-      family
-    );
-  };
 
   const handleModeToggle = () => {
     if (
@@ -220,16 +159,6 @@ const PlaybackSettings = ({
   };
 
   const noteDenoms = [1, 2, 4, 8, 16];
-  const noteDenomLabels = { 1: '1/1', 2: '1/2', 4: '1/4', 8: '1/8', 16: '1/16' };
-
-  const cycleSmallestNote = () => {
-    if (!trebleSettings) return;
-    markCustom();
-    const current = trebleSettings.smallestNoteDenom || 4;
-    const idx = noteDenoms.indexOf(current);
-    const next = noteDenoms[(idx + 1) % noteDenoms.length];
-    handleTrebleChange('smallestNoteDenom', next);
-  };
 
 
   const handleMeasureChangeLocal = (newValue) => {

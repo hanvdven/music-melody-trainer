@@ -35,7 +35,6 @@ export function getChordsWithSlashes(chordMelody, numMeasures, timeSignature) {
     if (!chordMelody || !chordMelody.displayNotes) return [];
 
     const measureLength = (TICKS_PER_WHOLE * timeSignature[0]) / timeSignature[1];
-    const totalDuration = measureLength * numMeasures;
 
     // 1. Group existing chords by measure
     const measureMap = Array.from({ length: numMeasures }, () => []);

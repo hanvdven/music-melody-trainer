@@ -50,14 +50,14 @@ const SvgSetter = ({
 
     // Returns event handler props for a hitbox zone. shortClickFn is called on short press.
     const makeHandlers = (shortClickFn) => ({
-        onMouseDown: (e) => { onInteraction?.(); startLongPress(); },
+        onMouseDown: () => { onInteraction?.(); startLongPress(); },
         onMouseUp: (e) => {
             if (timerRef.current) clearTimeout(timerRef.current);
             if (!isLongPress.current) { e.stopPropagation(); shortClickFn?.(); }
             isLongPress.current = false;
         },
         onMouseLeave: cancelLongPress,
-        onTouchStart: (e) => { onInteraction?.(); startLongPress(); },
+        onTouchStart: () => { onInteraction?.(); startLongPress(); },
         onTouchEnd: (e) => {
             e.preventDefault(); // prevent browser from synthesizing mouse events (avoids double-trigger)
             if (timerRef.current) clearTimeout(timerRef.current);

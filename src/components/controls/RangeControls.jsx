@@ -1,14 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
 import {
-    Dices,
-    TrendingUp,
-    Pin,
     Piano,
     Guitar,
     Music2,
     Wind,
     MicVocal,
-    MoveVertical,
     Palette,
 } from 'lucide-react';
 import DoubleStepper from '../common/DoubleStepper';
@@ -46,9 +42,7 @@ const formatNoteLabel = (note, baseSize = '24px', subSize = '0.7em', fontFamily 
 const RangeControls = ({
     activeSettings,
     setSettings,
-    tonic,
     activeClef,
-    instrumentOptions: oldOptions,
     setInstrument,
     noteColoringMode,
     setNoteColoringMode,
@@ -67,7 +61,6 @@ const RangeControls = ({
     ];
 
     const isCustom = !['STANDARD', 'LARGE', 'FULL', 'relative'].includes(rangeMode) && !VOCAL_RANGES.some(r => r.label === rangeMode);
-    const [lastPreset, setLastPreset] = useState('STANDARD');
 
     const getActiveClefCategory = () => {
         const pref = activeSettings?.preferredClef || activeClef;
@@ -98,7 +91,6 @@ const RangeControls = ({
                 const p = PRESET_RANGES[m][activeClef === 'treble' ? 'treble' : 'bass'];
                 if (p.min === nextRange.min && p.max === nextRange.max) {
                     nextMode = m;
-                    setLastPreset(m);
                     break;
                 }
             }
@@ -302,12 +294,10 @@ const RangeControls = ({
                             const preset = PRESET_RANGES[mode]?.[clef];
                             if (preset) {
                                 setSettings(p => ({ ...p, rangeMode: mode, range: preset, preferredClef: clef === 'treble' ? 'treble' : 'bass' }));
-                                setLastPreset(mode);
                             }
                         } else if (['STANDARD', 'LARGE', 'FULL'].includes(val)) {
                             const preset = PRESET_RANGES[val][activeClef === 'treble' ? 'treble' : 'bass'];
                             setSettings(p => ({ ...p, rangeMode: val, range: preset }));
-                            setLastPreset(val);
                         } else {
                             const preset = VOCAL_RANGES.find(v => v.label === val);
                             if (preset) setSettings(p => ({ ...p, range: { min: preset.min, max: preset.max }, preferredClef: preset.clef, rangeMode: preset.label }));

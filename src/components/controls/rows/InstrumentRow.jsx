@@ -32,31 +32,21 @@ const getRuleFamily = (rule) => {
 
 
 const InstrumentRow = ({
-    label,
     glyph,
     instrumentKey,
     type = 'audio',
     settings,
     setSettings,
     firstChord,
-    showChords,
-    onShowChordsToggle,
     setActiveRandTypeSelector,
-    numMeasures,
-    handleMeasureChange,
-    handleRepsChange,
     renderMode = 'instrument' // 'instrument', 'chords', 'visibility'
 }) => {
     // ── Context-provided values (formerly props) ────────────────────────────
     const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
-    const { setTrebleSettings, setBassSettings, setPercussionSettings } = useInstrumentSettings();
     const { chordDisplayMode, setChordDisplayMode } = useDisplaySettings();
     const isMetronome = instrumentKey === 'metronome';
     const isChords = instrumentKey === 'chords';
-    const isSheetMusic = instrumentKey === 'notes';
     const isPerc = instrumentKey === 'percussion';
-
-    const Icon = (type === 'visual' || isChords) ? VisibilityIcon : VolumeIcon;
 
     const togglePercPerc = (round) => {
         const current = playbackConfig[round].percussion;

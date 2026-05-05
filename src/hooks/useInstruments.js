@@ -53,8 +53,6 @@ const useInstruments = (context) => {
       }
     });
 
-    const reverb = new Reverb(context);
-
     // Helper to only recreate if slug changes
     const updateInstrument = (type, settings, setter, manualSetter = null, Effect = null, effectMix = 0) => {
       if (slugsRef.current[type] === settings.instrument) return; // Already loaded

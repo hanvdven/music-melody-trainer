@@ -88,7 +88,7 @@ class Scale {
    * NOTE: Scale does NOT import scaleHandler to avoid a circular dependency.
    * (scaleHandler imports Scale to construct Scale instances.)
    */
-  static defaultScale(tonic = 'C4', name = 'Major', family = 'Diatonic') {
+  static defaultScale() {
     // Hardcoded C Major — correct for the default case and avoids circular imports.
     return new Scale(
       ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'],
