@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import logger from '../utils/logger';
 
 /**
  * Tracks device/viewport state that is independent of music logic:
@@ -14,7 +15,7 @@ const useDeviceState = () => {
     const toggleFullscreen = useCallback(() => {
         if (!document.fullscreenElement) {
             document.documentElement.requestFullscreen().catch(err => {
-                console.error(`Full-screen error: ${err.message}`);
+                logger.error('useDeviceState', 'E015-FULLSCREEN', err);
             });
         } else {
             if (document.exitFullscreen) document.exitFullscreen();

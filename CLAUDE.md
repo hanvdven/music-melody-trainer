@@ -273,6 +273,12 @@ logger.error('Sequencer', 'E010-PLAYBACK-START', err, { bpm: 120 });
 - **E009-PLAY-SCALE** — playMelodies threw during scale playback (usePlayback.js)
 - **E010-PLAY-MELODY** — sequencer.start() threw during single-melody playback (usePlayback.js)
 - **E011-INSTRUMENT-CREATE** — smplr instrument constructor threw (useInstruments.js)
+- **E012-GENERATE-PROGRESSION** — generateProgression threw during chord generation (useMelodyState.js)
+- **E013-PROGRESSION-FALLBACK** — fallback tonic chord generation also failed (useMelodyState.js)
+- **E014-GET-USER-MEDIA** — getUserMedia failed for pitch detection (usePitchDetector.js)
+- **E015-FULLSCREEN** — requestFullscreen rejected (useDeviceState.js)
+- **E016-SCALE-TYPE-NOT-FOUND** — selectedScaleType not found in legacy modes (scaleHandler.js)
+- **E017-SCALE-DEF-NOT-FOUND** — scale definition not found for family+mode (scaleHandler.js)
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E020-AUDIO-INIT`) and add it to this list.
 

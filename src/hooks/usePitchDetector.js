@@ -15,6 +15,7 @@
 // audioContext: existing AudioContext from App (avoids creating a second one)
 
 import { useRef, useState, useCallback, useEffect } from 'react';
+import logger from '../utils/logger';
 
 // --- Pitch-class names (canonical) ---
 const PC_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
@@ -206,7 +207,7 @@ export default function usePitchDetector(audioContext, mode = 'note') {
                 ? 'Microphone permission denied. Please allow microphone access and try again.'
                 : `Microphone error: ${err.message}`;
             setError(msg);
-            console.error('[usePitchDetector] getUserMedia failed:', err);
+            logger.error('usePitchDetector', 'E014-GET-USER-MEDIA', err);
         }
     }, [audioContext, startLoop]);
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import logger from '../utils/logger';
 import Melody from '../model/Melody';
 import MelodyGenerator from '../generation/melodyGenerator';
 import { generateRankedRhythm } from '../generation/generateRankedRhythm';
@@ -110,12 +111,12 @@ const useMelodyState = (
 
       return new ChordProgression(chords, chordComplexity, strategy, modality);
     } catch (e) {
-      console.error('  ✗ generateProgression threw:', e);
+      logger.error('useMelodyState', 'E012-GENERATE-PROGRESSION', e);
       try {
         const tonicChord = generateChordOnDegree(scale, 1, chordComplexity);
         return new ChordProgression([tonicChord], chordComplexity, 'fallback-tonic', 'modal');
       } catch (innerE) {
-        console.error('  catch-fallback also failed:', innerE);
+        logger.error('useMelodyState', 'E013-PROGRESSION-FALLBACK', innerE);
         return ChordProgression.default();
       }
     }
