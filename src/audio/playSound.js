@@ -38,7 +38,7 @@ const resolveNotePitch = (note, customMapping = null) => {
   const match = note.match(/^([A-G])([♭º♯Ü#b𝄫𝄪]*)([0-9])$/);
 
   if (match) {
-    const [_, letter, accidentals, octave] = match;
+    const [, letter, accidentals, octave] = match;
     const baseSemitones = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
     let semitone = baseSemitones[letter] + parseInt(octave) * 12;
 
