@@ -4,25 +4,18 @@ import {
     getRelativeNoteName,
 } from './theory/convertToDisplayNotes';
 import { getProgressionLabel } from './theory/progressionDefinitions';
-import RangeControls from './components/controls/RangeControls';
-import { instrumentOptions } from './components/controls/instrumentOptions';
 import './styles/App.css';
 import './styles/AppLayout.css';
-import ScaleSelector from './components/scale/ScaleSelector';
 import { modulateMelody } from './theory/musicUtils';
-import PlaybackSettings from './components/controls/PlaybackSettings';
 import Sequencer from './audio/Sequencer';
 import Melody from './model/Melody';
 import ChordProgression from './model/ChordProgression';
 import ErrorBoundary from './components/error/ErrorBoundary';
 import Scale from './model/Scale';
 import SheetMusic from './components/sheet-music/SheetMusic';
-import PianoView from './components/controls/PianoView';
-import DrumPad from './components/controls/DrumPad';
 import { KIT_NOTE_MAPPINGS } from './audio/drumKits';
 import AppHeader from './components/layout/AppHeader';
 import SubHeader from './components/layout/SubHeader';
-import ToneRecognizer from './components/controls/ToneRecognizer';
 
 // Hooks
 import useRefState from './hooks/useRefState';
@@ -36,9 +29,8 @@ import useSettingsOverlay from './hooks/useSettingsOverlay';
 import useNoteInteraction from './hooks/useNoteInteraction';
 import usePlaybackNavigation from './hooks/usePlaybackNavigation';
 import useScaleManagement from './hooks/useScaleManagement';
-import SettingsPanel from './components/controls/SettingsPanel';
 import useDifficultySettings from './hooks/useDifficultySettings';
-import { buildHarmonyTable, HARMONY_DIFFICULTY_RANGE } from './utils/harmonyTable';
+import { buildHarmonyTable } from './utils/harmonyTable';
 import { resizeMelody } from './utils/melodySlice';
 import { TICKS_PER_WHOLE } from './constants/timing';
 import {
@@ -62,9 +54,7 @@ import {
     ListRestart,
     Grid3x3,
 } from 'lucide-react';
-import ChordGrid from './components/controls/ChordGrid';
-import InstrumentRow from './components/controls/rows/InstrumentRow';
-import { SectionHeader, ColumnHeaders } from './components/controls/PlaybackSubComponents';
+import TabView from './components/layout/TabView';
 import { PlaybackConfigProvider } from './contexts/PlaybackConfigContext';
 import { InstrumentSettingsProvider } from './contexts/InstrumentSettingsContext';
 import { DisplaySettingsProvider } from './contexts/DisplaySettingsContext';
@@ -1093,242 +1083,71 @@ const App = () => {
                 </div>
 
                 {/* CONTENT AREA */}
-                <div className="app-content-area">
-                    {activeTab === 'sheet-music' && (
-                        <div className="app-tab-sheet">
-                            <ErrorBoundary>
-                                <SheetMusic
-                                    {...sheetMusicCommonProps}
-                                    visibleMeasures={idealVisibleMeasures}
-                                    startMeasureIndex={startMeasureIndex}
-                                />
-                            </ErrorBoundary>
-                        </div>
-                    )}
-                    {activeTab === 'piano' && (
-                        <div className="app-instrument-panel" style={{ display: 'flex', flexDirection: 'column' }}>
-                            {instruments.treble ? (
-                                <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'visible' }}>
-                                    <PianoView
-                                        scale={scale}
-                                        trebleInstrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
-                                        activeClef={activeClef}
-                                        minNote={activeClef === 'treble' ? trebleSettings?.range?.min : bassSettings?.range?.min}
-                                        maxNote={activeClef === 'treble' ? trebleSettings?.range?.max : bassSettings?.range?.max}
-                                        noteColoringMode={noteColoringMode}
-                                        onNoteInput={handleInputTestNote}
-                                        qwertyKeyboardActive={qwertyKeyboardActive}
-                                    />
-                                    {/* Range Controls - overlaid on top of piano when settings open */}
-                                    {showSheetMusicSettings && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: 0, left: 0, right: 0,
-                                            background: 'var(--panel-bg)', // Match bottom view background
-                                            zIndex: 20,
-                                            padding: '4px 8px 20px 8px', // Reduced bottom padding to 20px
-                                        }}>
-                                            <RangeControls
-                                                activeSettings={activeClef === 'treble' ? trebleSettings : bassSettings}
-                                                setSettings={activeClef === 'treble' ? setTrebleSettings : setBassSettings}
-                                                tonic={scale.tonic}
-                                                activeClef={activeClef}
-                                                instrumentOptions={instrumentOptions}
-                                                setInstrument={(slug) => {
-                                                    if (activeClef === 'treble') setTrebleSettings(p => ({ ...p, instrument: slug }));
-                                                    else setBassSettings(p => ({ ...p, instrument: slug }));
-                                                }}
-                                                noteColoringMode={noteColoringMode}
-                                                setNoteColoringMode={setNoteColoringMode}
-                                                onSettingsInteraction={resetSettingsTimer}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="app-instrument-loading">Waking up instruments...</div>
-                            )}
-                        </div>
-                    )}
-                    {/* Persistent ToneRecognizer for mic input across tabs */}
-                    {(activeTab === 'listen' || inputTestSubMode === 'live') && (
-                        <div className="app-tab-listen" style={{ display: activeTab === 'listen' ? 'block' : 'none' }}>
-                            <ToneRecognizer
-                                context={context}
-                                scale={scale}
-                                noteColoringMode={noteColoringMode}
-                                onNoteInput={handleInputTestNote}
-                                inputTestSubMode={inputTestSubMode}
-                                activeTab={activeTab}
-                            />
-                        </div>
-                    )}
-                    {activeTab === 'keys-bottom' && (
-                        <div className="app-instrument-panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                            {instruments.bass ? (
-                                <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'visible' }}>
-                                    <PianoView
-                                        scale={scale}
-                                        trebleInstrument={manualInstruments.bass}
-                                        activeClef={'bass'}
-                                        minNote={bassSettings?.range?.min}
-                                        maxNote={bassSettings?.range?.max}
-                                        noteColoringMode={noteColoringMode}
-                                        onNoteInput={handleInputTestNote}
-                                        qwertyKeyboardActive={qwertyKeyboardActive}
-                                    />
-                                    {showSheetMusicSettings && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: 0, left: 0, right: 0,
-                                            background: 'var(--panel-bg)', // Match bottom view background
-                                            zIndex: 20,
-                                            padding: '4px 8px 20px 8px', // Reduced bottom padding to 20px
-                                        }}>
-                                            <RangeControls
-                                                activeSettings={bassSettings}
-                                                setSettings={setBassSettings}
-                                                tonic={scale.tonic}
-                                                activeClef={'bass'}
-                                                instrumentOptions={instrumentOptions}
-                                                setInstrument={(slug) => setBassSettings(p => ({ ...p, instrument: slug }))}
-                                                noteColoringMode={noteColoringMode}
-                                                setNoteColoringMode={setNoteColoringMode}
-                                                onSettingsInteraction={resetSettingsTimer}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="app-instrument-loading">Waking up instruments...</div>
-                            )}
-                        </div>
-                    )}
-                    {activeTab === 'percussion' && (
-                        <div style={{
-                            width: '100%',
-                            flex: 1,
-                            minHeight: 0,
-                            maxHeight: `${Math.min(windowSize.height * 0.65, windowSize.width * 0.75)}px`,
-                        }}>
-                            <DrumPad
-                                instruments={manualInstruments}
-                                context={context}
-                                customMapping={customPercussionMapping}
-                                setCustomMapping={setCustomPercussionMapping}
-                                percussionSettings={percussionSettings}
-                                setPercussionSettings={setPercussionSettings}
-                                onNoteInput={handleInputTestNote}
-                                qwertyKeyboardActive={qwertyKeyboardActive}
-                                theme={theme}
-                            />
-                        </div>
-                    )}
-                    {activeTab === 'chords' && (
-                        <div className="app-tab-chords">
-                            <div className="app-tab-chords-inner">
-                                <SectionHeader label="Chords" />
-                                <ColumnHeaders
-                                    gridConfig="12% 18% 12% 22% 12% 12% 12%"
-                                    columns={['chord notation', 'complexity', 'randomization', 'progression', 'chords/ MEASURE', '', 'variability']}
-                                />
-                                <InstrumentRow
-                                    label="Chords"
-                                    glyph="/"
-                                    instrumentKey="chords"
-                                    settings={chordSettings}
-                                    setSettings={setChordSettings}
-                                    setActiveRandTypeSelector={() => {}}
-                                    firstChord={chordProgression?.chords?.[0] ?? null}
-                                    renderMode="instrument"
-                                />
-                            </div>
-                            <ChordGrid
-                                scale={scale}
-                                chordProgression={displayChordProgression}
-                                chordDisplayMode={chordDisplayMode}
-                                setChordDisplayMode={setChordDisplayMode}
-                                isPlaying={isPlayingContinuously || isPlayingMelody}
-                                liveComplexity={chordSettings?.complexity || 'triad'}
-                                context={context}
-                                sequencerRef={sequencerRef}
-                            />
-                        </div>
-                    )}
-                    {activeTab === 'scale' && (
-                        <ErrorBoundary>
-                            <ScaleSelector
-                                trebleInstrument={manualInstruments.treble}
-                                windowSize={windowSize}
-                                scale={scale}
-                                setScale={setScale}
-                                scaleRange={trebleSettings?.range}
-                                setTonic={(v, isManualOverride) => {
-                                    setTonic(v, isManualOverride);
-                                }}
-                                activeMode={selectedMode}
-                                setSelectedMode={setSelectedMode}
-                                customScaleLabel={customScaleLabel}
-                                setCustomScaleLabel={setCustomScaleLabel}
-                                isModulationEnabled={isModulationEnabled}
-                                setIsModulationEnabled={setIsModulationEnabled}
-                                isSimpleView={isSimpleView}
-                                setIsSimpleView={setIsSimpleView}
-                                minimizeAccidentals={minimizeAccidentals}
-                                setMinimizeAccidentals={setMinimizeAccidentals}
-                                handlePlayScale={handlePlayScale}
-                                isPlayingScale={isPlayingScale}
-                            />
-                        </ErrorBoundary>
-                    )}
-                    {activeTab === 'playback' && (
-                        <div className="app-tab-playback">
-                            <ErrorBoundary>
-                                <PlaybackSettings
-                                    numMeasures={numMeasures}
-                                    musicalBlocks={musicalBlocks}
-                                    setNumMeasures={setNumMeasures}
-                                    setShowChordLabels={setShowChordLabels}
-                                    activeScale={scale}
-                                    generatorMode={generatorMode}
-                                    setGeneratorMode={setGeneratorMode}
-                                    activePreset={activePreset}
-                                    setActivePreset={setActivePreset}
-                                    showChordsOddRounds={showChordsOddRounds}
-                                    setShowChordsOddRounds={setShowChordsOddRounds}
-                                    showChordsEvenRounds={showChordsEvenRounds}
-                                    setShowChordsEvenRounds={setShowChordsEvenRounds}
-                                    difficultyLevel={difficultyLevel}
-                                    setDifficultyLevel={setDifficultyLevel}
-                                    difficultyProgression={difficultyProgression}
-                                    setDifficultyProgression={setDifficultyProgression}
-                                    bpm={bpm}
-                                    setBpm={setBpm}
-                                    generateChords={generateChords}
-                                    setScale={setScale}
-                                    setSelectedMode={setSelectedMode}
-                                    targetHarmonicDifficulty={targetHarmonicDifficulty}
-                                    setTargetHarmonicDifficulty={setTargetHarmonicDifficulty}
-                                    onApplyHarmonyDifficulty={applyHarmonyAtDifficulty}
-                                    harmonyDifficultyRange={HARMONY_DIFFICULTY_RANGE}
-                                    targetTrebleDifficulty={targetTrebleDifficulty}
-                                    setTargetTrebleDifficulty={setTargetTrebleDifficulty}
-                                    targetBassDifficulty={targetBassDifficulty}
-                                    setTargetBassDifficulty={setTargetBassDifficulty}
-                                    chordProgression={chordProgression}
-                                />
-                            </ErrorBoundary>
-                        </div>
-                    )}
-                    {activeTab === 'other-settings' && (
-                        <SettingsPanel
-                            theme={theme} setTheme={setTheme}
-                            isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen}
-                            minimizeAccidentals={minimizeAccidentals} setMinimizeAccidentals={setMinimizeAccidentals}
-                            isModulationEnabled={isModulationEnabled} setIsModulationEnabled={setIsModulationEnabled}
-                        />
-                    )}
-                </div>
+                <TabView
+                    activeTab={activeTab}
+                    sheetMusicCommonProps={sheetMusicCommonProps}
+                    startMeasureIndex={startMeasureIndex}
+                    idealVisibleMeasures={idealVisibleMeasures}
+                    instruments={instruments}
+                    manualInstruments={manualInstruments}
+                    context={context}
+                    scale={scale}
+                    activeClef={activeClef}
+                    handleInputTestNote={handleInputTestNote}
+                    qwertyKeyboardActive={qwertyKeyboardActive}
+                    showSheetMusicSettings={showSheetMusicSettings}
+                    resetSettingsTimer={resetSettingsTimer}
+                    customPercussionMapping={customPercussionMapping}
+                    setCustomPercussionMapping={setCustomPercussionMapping}
+                    theme={theme}
+                    setTheme={setTheme}
+                    displayChordProgression={displayChordProgression}
+                    chordProgression={chordProgression}
+                    sequencerRef={sequencerRef}
+                    selectedMode={selectedMode}
+                    setSelectedMode={setSelectedMode}
+                    customScaleLabel={customScaleLabel}
+                    setCustomScaleLabel={setCustomScaleLabel}
+                    isModulationEnabled={isModulationEnabled}
+                    setIsModulationEnabled={setIsModulationEnabled}
+                    isSimpleView={isSimpleView}
+                    setIsSimpleView={setIsSimpleView}
+                    minimizeAccidentals={minimizeAccidentals}
+                    setMinimizeAccidentals={setMinimizeAccidentals}
+                    handlePlayScale={handlePlayScale}
+                    isPlayingScale={isPlayingScale}
+                    setTonic={setTonic}
+                    setScale={setScale}
+                    numMeasures={numMeasures}
+                    setNumMeasures={setNumMeasures}
+                    musicalBlocks={musicalBlocks}
+                    setShowChordLabels={setShowChordLabels}
+                    generatorMode={generatorMode}
+                    setGeneratorMode={setGeneratorMode}
+                    activePreset={activePreset}
+                    setActivePreset={setActivePreset}
+                    showChordsOddRounds={showChordsOddRounds}
+                    setShowChordsOddRounds={setShowChordsOddRounds}
+                    showChordsEvenRounds={showChordsEvenRounds}
+                    setShowChordsEvenRounds={setShowChordsEvenRounds}
+                    difficultyLevel={difficultyLevel}
+                    setDifficultyLevel={setDifficultyLevel}
+                    difficultyProgression={difficultyProgression}
+                    setDifficultyProgression={setDifficultyProgression}
+                    bpm={bpm}
+                    setBpm={setBpm}
+                    generateChords={generateChords}
+                    targetHarmonicDifficulty={targetHarmonicDifficulty}
+                    setTargetHarmonicDifficulty={setTargetHarmonicDifficulty}
+                    applyHarmonyAtDifficulty={applyHarmonyAtDifficulty}
+                    targetTrebleDifficulty={targetTrebleDifficulty}
+                    setTargetTrebleDifficulty={setTargetTrebleDifficulty}
+                    targetBassDifficulty={targetBassDifficulty}
+                    setTargetBassDifficulty={setTargetBassDifficulty}
+                    isFullscreen={isFullscreen}
+                    toggleFullscreen={toggleFullscreen}
+                    windowSize={windowSize}
+                />
             </div>
         </div >
         </AnimationRefsProvider>
