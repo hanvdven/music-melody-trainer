@@ -31,6 +31,8 @@
 | 16 | Logger migratie — alle console.error/warn → leveled logger (E004-E019) | ✅ Gereed |
 | 17 | numMeasures playback bug — randomizeAll in useEffect verwijderd | ✅ Gereed |
 | 18 | _setScale bug — useRefState wrapper correct doorgegeven aan useScaleManagement | ✅ Gereed |
+| 19 | Lint pass 1 — 29 errors → 0: regex u-flag, empty catches, hooks-in-conditional (PianoView), no-prototype-builtins, globalDenom bug | ✅ Gereed |
+| 20 | Lint pass 2 — 898 → 755 warnings: ongebruikte imports/props/vars verwijderd in 29 bestanden | ✅ Gereed |
 
 ---
 
