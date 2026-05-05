@@ -1,5 +1,6 @@
 // theory/scaleHandler.js
 import Scale from '../model/Scale';
+import logger from '../utils/logger';
 
 import generateDisplayScale from './generateDisplayScale';
 import { standardizeTonic } from './convertToDisplayNotes';
@@ -506,7 +507,7 @@ const generateScale = (anyTonic, intervals, scaleRange) => {
         noteIndex = notes.indexOf(tonic);
 
         if (noteIndex === -1) {
-            console.warn(`Standardized tonic "${tonic}" (canonical: ${canonicalTonic}) not found in notes array. Fallback to C4.`);
+            logger.warn('scaleHandler', `Standardized tonic "${tonic}" (canonical: ${canonicalTonic}) not found in notes array. Fallback to C4.`);
             noteIndex = 0; // Fallback to safe default
         }
     }
@@ -602,13 +603,13 @@ const generateSelectedScale = (tonic, selectedScaleType, mode, scaleRange) => {
     const legacyModes = generateLegacyModes();
     const resolvedScaleType = getParentFamily(selectedScaleType, mode);
 
-    if (!legacyModes || !legacyModes.hasOwnProperty(resolvedScaleType)) {
+    if (!legacyModes || !Object.prototype.hasOwnProperty.call(legacyModes, resolvedScaleType)) {
         return { scale: [], displayScale: [], numAccidentals: 0 };
     }
 
     const scaleType = legacyModes[resolvedScaleType];
 
-    if (!scaleType.hasOwnProperty(mode)) {
+    if (!Object.prototype.hasOwnProperty.call(scaleType, mode)) {
         return { scale: [], displayScale: [], numAccidentals: 0 };
     }
 
@@ -641,8 +642,8 @@ const randomScale = (scaleTypes, modes, setSelectedScaleType, setSelectedMode) =
 
 const randomMode = (selectedScaleType, modes, setSelectedMode) => {
     const legacyModes = generateLegacyModes();
-    if (!legacyModes.hasOwnProperty(selectedScaleType)) {
-        console.error(`Scale type '${selectedScaleType}' not found in modes.`);
+    if (!Object.prototype.hasOwnProperty.call(legacyModes, selectedScaleType)) {
+        logger.error('scaleHandler', 'E016-SCALE-TYPE-NOT-FOUND', null, { selectedScaleType });
         return;
     }
 
@@ -668,7 +669,7 @@ export const updateScaleWithTonic = ({ currentScale, newTonic, rangeUp = 12, ran
 
     const scaleDef = getScaleDefinition(family, mode);
     if (!scaleDef) {
-        console.error(`Scale definition not found for family: ${family}, mode: ${mode}`);
+        logger.error('scaleHandler', 'E017-SCALE-DEF-NOT-FOUND', null, { family, mode });
         return currentScale;
     }
 
@@ -705,7 +706,7 @@ export const updateScaleWithMode = ({
 
     const scaleDef = getScaleDefinition(newFamily, newMode);
     if (!scaleDef) {
-        console.error(`Scale definition not found for family: ${newFamily}, mode: ${newMode}`);
+        logger.error('scaleHandler', 'E017-SCALE-DEF-NOT-FOUND', null, { family: newFamily, mode: newMode });
         return currentScale;
     }
 

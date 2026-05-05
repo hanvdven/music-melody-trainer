@@ -1,4 +1,5 @@
 import { standardizeTonic, getRelativeNoteName } from './convertToDisplayNotes';
+import logger from '../utils/logger';
 import { CANONICAL_MAP, getCanonicalNote, collapseAccidentals } from './noteUtils';
 import generateAllNotesArray from './allNotesArray';
 const notes = generateAllNotesArray();
@@ -16,7 +17,7 @@ const generateScale = (anyTonic, intervals, scaleRange) => {
         noteIndex = notes.indexOf(tonic);
 
         if (noteIndex === -1) {
-            console.warn(`[generateDisplayScale] Tonic "${tonic}" (canonical: ${canonicalTonic}) not found. Falling back...`);
+            logger.warn('generateDisplayScale', `Tonic "${tonic}" (canonical: ${canonicalTonic}) not found. Falling back...`);
             const pitch = tonic.match(/[A-G][♭♯]?/)?.[0];
             if (pitch) {
                 noteIndex = notes.findIndex((n) => n.startsWith(pitch));

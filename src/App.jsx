@@ -1,7 +1,6 @@
 // App.jsx
-import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
-    standardizeTonic,
     getRelativeNoteName,
 } from './theory/convertToDisplayNotes';
 import { getProgressionLabel } from './theory/progressionDefinitions';
@@ -10,11 +9,7 @@ import { instrumentOptions } from './components/controls/instrumentOptions';
 import './styles/App.css';
 import './styles/AppLayout.css';
 import ScaleSelector from './components/scale/ScaleSelector';
-import { transposeMelodyToScale, transposeMelodyBySemitones, modulateMelody } from './theory/musicUtils';
-import {
-    formatScaleName,
-    modes,
-} from './theory/scaleHandler';
+import { modulateMelody } from './theory/musicUtils';
 import PlaybackSettings from './components/controls/PlaybackSettings';
 import Sequencer from './audio/Sequencer';
 import Melody from './model/Melody';
@@ -27,8 +22,6 @@ import DrumPad from './components/controls/DrumPad';
 import { KIT_NOTE_MAPPINGS } from './audio/drumKits';
 import AppHeader from './components/layout/AppHeader';
 import SubHeader from './components/layout/SubHeader';
-import GenericStepper from './components/common/GenericStepper';
-import { MetronomeIcon, IconOne } from './components/common/CustomIcons';
 import ToneRecognizer from './components/controls/ToneRecognizer';
 
 // Hooks
@@ -38,7 +31,6 @@ import useInstruments from './hooks/useInstruments';
 import useMelodyState from './hooks/useMelodyState';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
-import useSheetMusicHighlight from './hooks/useSheetMusicHighlight';
 import useDeviceState from './hooks/useDeviceState';
 import useSettingsOverlay from './hooks/useSettingsOverlay';
 import useNoteInteraction from './hooks/useNoteInteraction';
@@ -47,16 +39,15 @@ import useScaleManagement from './hooks/useScaleManagement';
 import SettingsPanel from './components/controls/SettingsPanel';
 import useDifficultySettings from './hooks/useDifficultySettings';
 import { buildHarmonyTable, HARMONY_DIFFICULTY_RANGE } from './utils/harmonyTable';
-import { calculateMusicalBlocks } from './utils/pagination';
 import { resizeMelody } from './utils/melodySlice';
 import { TICKS_PER_WHOLE } from './constants/timing';
-import playSound from './audio/playSound';
 import {
     VOLUME_LEVELS,
     DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
     DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE,
 } from './constants/generatorDefaults';
-import { APPROX_HEADER_WIDTH, APPROX_PX_PER_MEASURE } from './constants/musicLayout';
+import useAppLayout from './hooks/useAppLayout';
+import logger from './utils/logger';
 
 // Icons
 import {
@@ -79,6 +70,7 @@ import { InstrumentSettingsProvider } from './contexts/InstrumentSettingsContext
 import { DisplaySettingsProvider } from './contexts/DisplaySettingsContext';
 import { MelodyProvider } from './contexts/MelodyContext';
 import { PlaybackStateProvider } from './contexts/PlaybackStateContext';
+import { AnimationRefsProvider } from './contexts/AnimationRefsContext';
 
 
 
@@ -135,26 +127,18 @@ const App = () => {
     const instrumentsRef = useRef(null);
     const metronomeRef = useRef(null);
     const melodiesRef = useRef(null);
-    const chordProgressionRef = useRef(ChordProgression.default());
-    const showChordsOddRoundsRef = useRef(false);
-    const showChordsEvenRoundsRef = useRef(false);
     const sequencerRef = useRef(null);
     const prevScaleRef = useRef(null);
 
     const [activeTab, setActiveTab] = useState('piano');
 
-    const [chordProgression, setChordProgression] = useState(() => {
-        return ChordProgression.default();
-    });
+    const [chordProgression, setChordProgression, chordProgressionRef] = useRefState(() => ChordProgression.default());
     const [displayChordProgression, setDisplayChordProgression] = useState(null);
-    const [chordTabRandTypeSelector, setChordTabRandTypeSelector] = useState(null);
 
     const [showNotes, setShowNotes] = useState(true);
     const [activeClef, setActiveClef] = useState('treble');
 
-    const [customPercussionMapping, setCustomPercussionMapping] = useState({});
-    const customPercussionMappingRef = useRef({});
-    useEffect(() => { customPercussionMappingRef.current = customPercussionMapping; }, [customPercussionMapping]);
+    const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
 
     // UI State persistence for Generator
     const [generatorMode, setGeneratorMode] = useState('presets');
@@ -176,22 +160,17 @@ const App = () => {
     const { showSheetMusicSettings, toggleSheetMusicSettings, resetSettingsTimer } = useSettingsOverlay();
     const [debugMode, setDebugMode] = useState(false);
     const [noteColoringMode, setNoteColoringMode] = useState('tonic_scale_keys');
-    const [showNoteHighlight, setShowNoteHighlight] = useState(true);
-    const showNoteHighlightRef = useRef(true);
+    const [showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef] = useRefState(true);
     const clearHighlightStateRef = useRef(false);
     const [startMeasureIndex, setStartMeasureIndex] = useState(0);
-    const songRef = useRef(null);
 
     // Unified play mode: 'once', 'test', 'continuous'
     const [headerPlayMode, setHeaderPlayMode] = useState('continuous'); // Controls which button is in the header
 
     // Also need to keep the actual logic toggles in sync or refactor usePlayback/useInputTest to use playMode.
     // For now, let's just make the UI look right and then wire up the logic.
-    const [songVersion, setSongVersion] = useState(0);
     const [currentMeasureIndex, setCurrentMeasureIndex] = useState(0);
-    const [animationMode, setAnimationMode] = useState('pagination');
-    const animationModeRef = useRef('pagination');
-    useEffect(() => { animationModeRef.current = animationMode; }, [animationMode]);
+    const [animationMode, setAnimationMode, animationModeRef] = useRefState('pagination');
     const [lyricsMode, setLyricsMode] = useState('none');
     const [nextLayer, setNextLayer] = useState(null); // wipe/scroll-mode preview type: 'yellow' | 'red' | null
     const [previewMelody, setPreviewMelody] = useState(null); // pre-generated next melody for red overlay
@@ -202,15 +181,12 @@ const App = () => {
     const svgRef = useRef(null); // shared ref to the SheetMusic SVG element (used by Sequencer callbacks)
     const [qwertyKeyboardActive, setQwertyKeyboardActive] = useState(false);
 
-    // Tracks showNotes for the rAF without causing re-renders
-    const showNotesRef = useRef(true);
-    useEffect(() => { showNotesRef.current = showNotes; }, [showNotes]);
 
     // Input Test Mode — all state, live tracker, and handlers extracted to useInputTest
     // (wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available)
     const onPlaybackStartRef = useRef(() => { });
 
-    const { isFullscreen, toggleFullscreen, isLandscape, isTouch } = useDeviceState();
+    const { isFullscreen, toggleFullscreen, isTouch } = useDeviceState();
 
     // BPM-driven fade duration: 2 quarter notes
     useEffect(() => {
@@ -229,10 +205,7 @@ const App = () => {
 
     const percussionScale = Scale.defaultPercussionScale();
     const windowSize = useWindowSize();
-    const [musicalBlocks, setMusicalBlocks] = useState([1]);
-
-    const musicalBlocksRef = useRef(musicalBlocks);
-    useEffect(() => { musicalBlocksRef.current = musicalBlocks; }, [musicalBlocks]);
+    const [musicalBlocks, setMusicalBlocks, musicalBlocksRef] = useRefState([1]);
 
     const { instruments, manualInstruments, settings: instrumentSettingsHooks, setVolume } = useInstruments(context);
 
@@ -304,12 +277,12 @@ const App = () => {
     // handleEnharmonicToggle). Placed after setTrebleSettings/setBassSettings
     // and playbackConfig because setTonic/applyHarmonyAtDifficulty depend on them.
     const {
-        tonic, selectedMode, isScalePlaying,
+        selectedMode, isScalePlaying,
         setTonic, setSelectedMode, applyHarmonyAtDifficulty,
         handleScaleClick, handleEnharmonicToggle,
         _setTonic, // raw setter for history-restore in usePlaybackNavigation
     } = useScaleManagement({
-        context, instruments, scale, setScale, _setScale, bpmRef,
+        context, instruments, scale, setScale, _setScale: setScale, bpmRef,
         instrumentSettingsRef, setTrebleSettings, setBassSettings,
         minimizeAccidentals, playbackConfig,
     });
@@ -338,7 +311,6 @@ const App = () => {
         randomizeMeasure,
         generateChords: generateChordsLogic, // Renamed to avoid conflict
         historyIndex,
-        historyLength,
         navigateHistory,
     } = useMelodyState(
         numMeasures,
@@ -374,9 +346,7 @@ const App = () => {
     const {
         treble: trebleMelody,
         bass: bassMelody,
-        percussion: percussionMelody,
         metronome: metronomeMelody,
-        // chordProgression, // No longer destructured from useMelodyState
         referenceMelody,
         referenceBassMelody,
         referenceScale,
@@ -389,7 +359,6 @@ const App = () => {
         setTreble: setTrebleMelody,
         setBass: setBassMelody,
         setPercussion: setPercussionMelody,
-        setMetronome: setMetronomeMelody,
         setReferenceMelody,
         setReferenceBassMelody,
         setReferenceScale,
@@ -439,7 +408,6 @@ const App = () => {
             chords: chordSettings,
             metronome: metronomeSettings
         },
-        musicalBlocksRef,
         headerPlayMode,
         onPlaybackStart: useCallback(() => onPlaybackStartRef.current(), [])
     });
@@ -467,7 +435,7 @@ const App = () => {
         isInputTestMode, setIsInputTestMode,
         inputTestState, setInputTestState,
         inputTestSubMode, setInputTestSubMode,
-        isInputTestModeRef, inputTestStateRef, inputTestSubModeRef,
+        isInputTestModeRef, inputTestSubModeRef,
         handleToggleInputTest,
         handleInputTestNote,
     } = useInputTest({
@@ -522,8 +490,11 @@ const App = () => {
     // sheet music immediately reflects the new target length:
     //   - Shorter target: notes beyond the new end are dropped; the last note is clamped.
     //   - Longer target:  one whole-rest measure is appended per missing measure.
-    // During playback, the Sequencer owns the active melody and will apply numMeasures
-    // to the next generated series — so we skip the resize to avoid disrupting playback.
+    // During playback, the Sequencer owns the active melody: it reads numMeasuresRef.current
+    // at each series boundary and generates a fresh melody at the new length. We must NOT
+    // update React melody state here during playback — doing so causes SheetMusic to render
+    // the new (longer) melody while the Sequencer is still playing the old (shorter) one,
+    // which breaks the note-highlight synchronisation (the playhead jumps past the displayed notes).
     useEffect(() => {
         if (isPlaying) return;
         const measureLengthTicks = (TICKS_PER_WHOLE * timeSignature[0]) / timeSignature[1];
@@ -538,28 +509,8 @@ const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [numMeasures]);
 
-    // When numMeasures changes DURING continuous playback, regenerate melodies immediately
-    // so the Sequencer picks them up at the next melody cycle boundary instead of finishing
-    // the entire current series at the old length. Same pattern as handleTimeSignatureChange.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        if (!isPlayingContinuously) return;
-        try {
-            randomizeAll(configRef.current?.randomize);
-        } catch (e) {
-            console.error('[numMeasures change during playback] Melody regen failed:', e);
-        }
-    }, [numMeasures]); // intentionally omit randomizeAll/isPlayingContinuously — only trigger on numMeasures change
 
-    // Keep highlight-enabled ref in sync (avoids restarting the rAF on toggle)
-    useEffect(() => { showNoteHighlightRef.current = showNoteHighlight; }, [showNoteHighlight]);
-
-
-    // Synchronously manage wipe masks on every nextLayer change (before browser paint).
-
-
-
-    const toggleRoundSetting = (round, instrument, type = 'audio') => {
+    const toggleRoundSetting = useCallback((round, instrument, type = 'audio') => {
         if (setActivePreset) setActivePreset('custom');
         const field = type === 'visual' ? `${instrument}Eye` : instrument;
 
@@ -597,7 +548,7 @@ const App = () => {
 
             return nextConfig;
         });
-    };
+    }, [setActivePreset, setPlaybackConfig, setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings]);
 
     // OPTION+p → set all instrument volumes to pp (pianissimo)
     useEffect(() => {
@@ -638,9 +589,7 @@ const App = () => {
             const shouldBassTranspose = shouldTransposeGlobal || (bassSettings?.randomizationRule === 'fixed');
 
             if (shouldTrebleTranspose || shouldBassTranspose) {
-                const oldScaleNotes = prevScaleRef.current.notes;
                 const newScaleNotes = scale.notes;
-                const oldDisplayScale = prevScaleRef.current.displayNotes;
                 const newDisplayScale = scale.displayNotes;
 
                 // Transpose Treble
@@ -681,10 +630,70 @@ const App = () => {
     // Chord label visibility state — declared here so they are in scope for the Sequencer
     // init useEffect and the setters-refresh useEffect below.
     const [showChordLabels, setShowChordLabels] = useState(false);
-    const [showChordsOddRounds, setShowChordsOddRounds] = useState(false);
-    const [showChordsEvenRounds, setShowChordsEvenRounds] = useState(false);
-    useEffect(() => { showChordsOddRoundsRef.current = showChordsOddRounds; }, [showChordsOddRounds]);
-    useEffect(() => { showChordsEvenRoundsRef.current = showChordsEvenRounds; }, [showChordsEvenRounds]);
+    const [showChordsOddRounds, setShowChordsOddRounds, showChordsOddRoundsRef] = useRefState(false);
+    const [showChordsEvenRounds, setShowChordsEvenRounds, showChordsEvenRoundsRef] = useRefState(false);
+
+    // Canonical setters object passed to the Sequencer on init and kept fresh by the
+    // refresh effect below. Memoized so the refresh effect only fires when a setter
+    // identity actually changes (i.e. a useCallback dependency changed).
+    // Refs (svgRef, animationModeRef, etc.) have stable identity — no dep needed.
+    const sequencerSetters = useMemo(() => ({
+        onStop: () => {
+            setIsPlayingContinuously(false);
+            setIsPlayingScale(false);
+            setIsPlayingMelody(false);
+            setNextLayer(null);
+            setPreviewMelody(null);
+            wipeTransitionRef.current = null;
+            scrollTransitionRef.current = null;
+        },
+        setTonic,
+        setScale,
+        setTrebleSettings,
+        setBassSettings,
+        setChordProgression,
+        generateChords,
+        setTrebleMelody,
+        setBassMelody,
+        setPercussionMelody,
+        setShowNotes,
+        setShowChordLabels,
+        setReferenceMelody,
+        setReferenceBassMelody,
+        setReferenceScale,
+        setStartMeasureIndex,
+        setIsOddRound,
+        setVolume,
+        setCurrentMeasureIndex,
+        setDisplayChordProgression,
+        setNextLayer,
+        setPreviewMelody,
+        clearActiveHighlight: () => {
+            const svg = svgRef.current;
+            if (svg) {
+                svg.querySelectorAll('.note-active').forEach(el => el.classList.remove('note-active'));
+            }
+            clearHighlightStateRef.current = true;
+        },
+        hideOldGroup: () => {
+            // Only apply in wipe mode: prevents a partial-mask flash when React commits
+            // new melody content while the wipe sweep mask is still active.
+            // In scroll/pagination, this mask can get permanently stuck if React batches
+            // setNextLayer('red') + setNextLayer(null) into a null→null no-op.
+            if (animationModeRef.current !== 'wipe') return;
+            const svg = svgRef.current;
+            if (!svg) return;
+            const TRANSPARENT = 'linear-gradient(to right, transparent 100%, black 108%)';
+            svg.querySelectorAll('[data-wipe-role="old"]').forEach(g => {
+                g.style.maskImage = TRANSPARENT;
+                g.style.webkitMaskImage = TRANSPARENT;
+            });
+        },
+    }), [setTonic, setScale, setTrebleSettings, setBassSettings, setChordProgression,
+        generateChords, setTrebleMelody, setBassMelody, setPercussionMelody,
+        setShowNotes, setShowChordLabels, setReferenceMelody, setReferenceBassMelody,
+        setReferenceScale, setStartMeasureIndex, setIsOddRound, setVolume,
+        setCurrentMeasureIndex, setDisplayChordProgression, setNextLayer, setPreviewMelody]);
 
     useEffect(() => {
         if (!context || !instruments.treble) return;
@@ -692,58 +701,7 @@ const App = () => {
             context,
             instruments,
             percussionScale,
-            setters: {
-                onStop: () => {
-                    setIsPlayingContinuously(false);
-                    setIsPlayingScale(false);
-                    setIsPlayingMelody(false);
-                    setNextLayer(null);
-                    setPreviewMelody(null);
-                    wipeTransitionRef.current = null;
-                    scrollTransitionRef.current = null;
-                },
-                setTonic,
-                setScale,
-                setTrebleSettings,
-                setChordProgression,
-                generateChords,
-                setTrebleMelody,
-                setBassMelody,
-                setPercussionMelody,
-                setShowNotes,
-                setShowChordLabels,
-                setReferenceMelody,
-                setReferenceBassMelody,
-                setReferenceScale,
-                setStartMeasureIndex,
-                setIsOddRound,
-                setVolume,
-                setSong: (song, version) => { songRef.current = song; setSongVersion(version); },
-                setCurrentMeasureIndex,
-                clearActiveHighlight: () => {
-                    const svg = svgRef.current;
-                    if (svg) {
-                        svg.querySelectorAll('.note-active').forEach(el => el.classList.remove('note-active'));
-                    }
-                    clearHighlightStateRef.current = true;
-                },
-                setNextLayer,
-                setPreviewMelody,
-                hideOldGroup: () => {
-                    // Only apply in wipe mode: prevents a partial-mask flash when React commits
-                    // new melody content while the wipe sweep mask is still active.
-                    // In scroll/pagination, this mask can get permanently stuck if React batches
-                    // setNextLayer('red') + setNextLayer(null) into a null→null no-op.
-                    if (animationModeRef.current !== 'wipe') return;
-                    const svg = svgRef.current;
-                    if (!svg) return;
-                    const TRANSPARENT = 'linear-gradient(to right, transparent 100%, black 108%)';
-                    svg.querySelectorAll('[data-wipe-role="old"]').forEach(g => {
-                        g.style.maskImage = TRANSPARENT;
-                        g.style.webkitMaskImage = TRANSPARENT;
-                    });
-                },
-            },
+            setters: sequencerSetters,
             refs: {
                 bpmRef,
                 timeSignatureRef: tsRef,
@@ -774,14 +732,14 @@ const App = () => {
                 const initial = randomizeAll(configRef.current?.randomize);
                 sequencerRef.current?.start(initial);
             } catch (e) {
-                console.error('Failed to auto-start sequencer:', e);
+                logger.error('App', 'E004-SEQUENCER-AUTOSTART', e);
             }
         } else {
             // Generate initial chord progression so chord labels are ready before first playback
             try {
                 randomizeAll({ melody: false, chords: true });
             } catch (e) {
-                console.error('Failed to initialize chord progression:', e);
+                logger.error('App', 'E005-CHORD-INIT', e);
             }
         }
 
@@ -790,66 +748,17 @@ const App = () => {
         };
     }, [context, !!instruments.treble]);
 
-    // Keep Sequencer fresh to avoid stale closures or stale instrument instances
+    // Keep Sequencer fresh when instruments or any setter identity changes.
     useEffect(() => {
         if (sequencerRef.current) {
             sequencerRef.current.instruments = instruments;
-            sequencerRef.current.setters = {
-                setTrebleMelody,
-                setBassMelody,
-                setPercussionMelody,
-                setTonic,
-                setScale,
-                setTrebleSettings,
-                setBassSettings,
-                setChordProgression,
-                generateChords,
-                setShowNotes,
-                setShowChordLabels,
-                onStop: () => {
-                    setIsPlayingContinuously(false);
-                    setIsPlayingScale(false);
-                    setIsPlayingMelody(false);
-                    setNextLayer(null);
-                    setPreviewMelody(null);
-                    wipeTransitionRef.current = null;
-                    scrollTransitionRef.current = null;
-                },
-                setReferenceMelody,
-                setReferenceBassMelody,
-                setReferenceScale,
-                setStartMeasureIndex,
-                setIsOddRound,
-                setVolume,
-                setSong: (song, version) => { songRef.current = song; setSongVersion(version); },
-                setCurrentMeasureIndex,
-                clearActiveHighlight: () => {
-                    const svg = svgRef.current;
-                    if (svg) {
-                        svg.querySelectorAll('.note-active').forEach(el => el.classList.remove('note-active'));
-                    }
-                    clearHighlightStateRef.current = true;
-                },
-                setDisplayChordProgression,
-                setNextLayer,
-                setPreviewMelody,
-                hideOldGroup: () => {
-                    if (animationModeRef.current !== 'wipe') return;
-                    const svg = svgRef.current;
-                    if (!svg) return;
-                    const TRANSPARENT = 'linear-gradient(to right, transparent 100%, black 108%)';
-                    svg.querySelectorAll('[data-wipe-role="old"]').forEach(g => {
-                        g.style.maskImage = TRANSPARENT;
-                        g.style.webkitMaskImage = TRANSPARENT;
-                    });
-                },
-            };
+            sequencerRef.current.setters = sequencerSetters;
         }
-    }, [instruments, setTrebleMelody, setBassMelody, setPercussionMelody, generateChords, setShowNotes, setShowChordLabels, setTonic, setScale, setTrebleSettings, setBassSettings, setChordProgression, setDisplayChordProgression, setReferenceMelody, setReferenceBassMelody, setReferenceScale, setStartMeasureIndex, setSongVersion, setCurrentMeasureIndex, setNextLayer, setPreviewMelody]);
+    }, [instruments, sequencerSetters]);
 
 
 
-    const handleTimeSignatureChange = (type, value) => {
+    const handleTimeSignatureChange = useCallback((type, value) => {
         // Compute new TS inline. Using setTimeSignature(scalar) updates tsRef.current
         // synchronously, so randomizeAll (which reads tsRef.current) can use the new
         // TS immediately. All setState calls inside one event handler are batched by
@@ -872,14 +781,14 @@ const App = () => {
 
         if (isPlayingContinuously) {
             try {
-                // We keep randomizeAll here for Time Signature changes 
+                // We keep randomizeAll here for Time Signature changes
                 // until we implement the "graceful partial-measure display" feature
                 randomizeAll(playbackConfig.randomize);
             } catch (e) {
-                console.error('[handleTimeSignatureChange] Melody regen failed:', e);
+                logger.error('App', 'E006-TIMESIG-REGEN', e);
             }
         }
-    };
+    }, [timeSignature, setTimeSignature, isPlayingContinuously, randomizeAll, playbackConfig.randomize]);
 
 
     const [chordDisplayMode, setChordDisplayMode] = useState('letters');
@@ -898,11 +807,6 @@ const App = () => {
         return label;
     }, [displayChordProgression, chordProgression]);
 
-    // Sync chordProgressionRef whenever chordProgression state changes
-    // Key fix for live strategy: Sequencer reads ref, not state
-    useEffect(() => {
-        chordProgressionRef.current = chordProgression;
-    }, [chordProgression]);
 
     // Mount Effect: Build harmony table on startup so runtime scale/chord changes are reflected
     useEffect(() => { buildHarmonyTable(); }, []);
@@ -916,39 +820,7 @@ const App = () => {
     }, [generateChords]);
 
 
-    const isDualView = windowSize.height >= 700;
-    const usableHeight = windowSize.height - 100; // Subtract header (100px)
-    let sheetHeight, btmPanelHeight;
-
-    if (!isDualView) {
-        // Single view mode: active tab takes full height
-        sheetHeight = usableHeight;
-        btmPanelHeight = usableHeight;
-    } else if (usableHeight <= 700) {
-        // 700-800px range: 300px bottom, remainder sheet
-        btmPanelHeight = 300;
-        sheetHeight = usableHeight - 300;
-    } else if (usableHeight <= 800) {
-        // 800-900px range: 400px sheet, remainder bottom
-        sheetHeight = 400;
-        btmPanelHeight = usableHeight - 400;
-    } else {
-        // > 900px: 50/50 split
-        btmPanelHeight = usableHeight / 2;
-        sheetHeight = usableHeight / 2;
-    }
-
-    const tabBtnScale = windowSize.width >= 550 ? 1 : Math.max(0.5, windowSize.width / 550);
-
-    // Ideal visible measures for scroll/wipe animation: how many measures fit in the
-    // sheet music viewport at a comfortable note width (~120px per measure).
-    // Clamped to [2, numMeasures] — minimum 2 so there is always a prev+current visible.
-    // Replaces the hardcoded visibleMeasures={3} that was too wide on small screens.
-    const sheetWidth = windowSize.width;
-    const idealVisibleMeasures = Math.max(2, Math.min(
-        numMeasures,
-        Math.round((sheetWidth - APPROX_HEADER_WIDTH) / APPROX_PX_PER_MEASURE)
-    ));
+    const { isDualView, sheetHeight, tabBtnScale, idealVisibleMeasures } = useAppLayout(windowSize, numMeasures);
 
     // Context values — memoized to prevent unnecessary re-renders of consumers
     const playbackConfigCtx = useMemo(() => ({
@@ -976,6 +848,52 @@ const App = () => {
         chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
         animationMode, setAnimationMode]);
 
+    // Shared props for both SheetMusic instances (primary + tab view).
+    // containerHeight and visibleMeasures differ between instances and are passed inline.
+    const sheetMusicCommonProps = useMemo(() => ({
+        timeSignature,
+        onTimeSignatureChange: handleTimeSignatureChange,
+        bpm,
+        onBpmChange: setBpm,
+        numRepeats: playbackConfig.repsPerMelody,
+        onNumRepeatsChange: (val) => setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val })),
+        numMeasures,
+        musicalBlocks,
+        onMusicalBlocksChange: setMusicalBlocks,
+        onNumMeasuresChange: setNumMeasures,
+        numAccidentals: scale.numAccidentals,
+        screenWidth: windowSize.width,
+        onRandomizeMeasure: randomizeMeasure,
+        showSettings: showSheetMusicSettings,
+        onToggleSettings: toggleSheetMusicSettings,
+        onSettingsInteraction: resetSettingsTimer,
+        tonic: scale.tonic,
+        svgRef,
+        isFullscreen,
+        toggleFullscreen,
+        headerPlayMode,
+        setHeaderPlayMode,
+        handleToggleInputTest,
+        handlePlayMelody,
+        handlePlayContinuously,
+        viewMode: isPlayingContinuously
+            ? (showNotes ? 'melody' : 'repeat')
+            : (playbackConfig.oddRounds?.notes ? 'melody' : 'repeat'),
+        showChords: isPlayingContinuously ? showChordLabels : (showChordsOddRounds || showChordsEvenRounds),
+        onNoteClick: handleNoteClick,
+        onChordClick: handleChordClick,
+        onEnharmonicToggle: handleEnharmonicToggle,
+        onMeasureNumberClick: handleMeasureNumberClick,
+        onNoteEnharmonicToggle: handleNoteEnharmonicToggle,
+    }), [timeSignature, handleTimeSignatureChange, bpm, setBpm, playbackConfig, setPlaybackConfig,
+        numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
+        windowSize.width, randomizeMeasure, showSheetMusicSettings, toggleSheetMusicSettings,
+        resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
+        handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
+        showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
+        handleNoteClick, handleChordClick, handleEnharmonicToggle, handleMeasureNumberClick,
+        handleNoteEnharmonicToggle]);
+
     return (
         <PlaybackConfigProvider value={playbackConfigCtx}>
         <InstrumentSettingsProvider value={instrumentSettingsCtx}>
@@ -989,11 +907,26 @@ const App = () => {
         >
         <PlaybackStateProvider
             isPlaying={isPlaying}
+            isPlayingContinuously={isPlayingContinuously}
             isOddRound={isOddRound}
             currentMeasureIndex={currentMeasureIndex}
+            showNotes={showNotes}
+            nextLayer={nextLayer}
+            previewMelody={previewMelody}
             inputTestState={isInputTestMode ? inputTestState : null}
             inputTestSubMode={inputTestSubMode}
             setInputTestSubMode={handleSetInputTestSubMode}
+        >
+        <AnimationRefsProvider
+            wipeTransitionRef={wipeTransitionRef}
+            scrollTransitionRef={scrollTransitionRef}
+            pendingScrollTransitionRef={pendingScrollTransitionRef}
+            paginationFadeRef={paginationFadeRef}
+            clearHighlightStateRef={clearHighlightStateRef}
+            showNoteHighlightRef={showNoteHighlightRef}
+            setCurrentMeasureIndex={setCurrentMeasureIndex}
+            sequencerRef={sequencerRef}
+            context={context}
         >
         <div className="app-root">
             {/* TOP AREA WRAPPER (Preserves app theme for header/sheet) */}
@@ -1061,57 +994,10 @@ const App = () => {
                 >
                     <ErrorBoundary>
                         <SheetMusic
+                            {...sheetMusicCommonProps}
                             containerHeight={sheetHeight}
-                            timeSignature={timeSignature}
-                            onTimeSignatureChange={handleTimeSignatureChange}
-                            bpm={bpm}
-                            onBpmChange={setBpm}
-                            numRepeats={playbackConfig.repsPerMelody}
-                            onNumRepeatsChange={(val) =>
-                                setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val }))
-                            }
-                            onNumMeasuresChange={setNumMeasures}
-                            numMeasures={numMeasures}
-                            musicalBlocks={musicalBlocks}
-                            onMusicalBlocksChange={setMusicalBlocks}
-                            numAccidentals={scale.numAccidentals}
-                            screenWidth={windowSize.width}
-                            onRandomizeMeasure={randomizeMeasure}
-                            showSettings={showSheetMusicSettings}
-                            onToggleSettings={toggleSheetMusicSettings}
-                            onSettingsInteraction={resetSettingsTimer}
                             visibleMeasures={idealVisibleMeasures}
                             startMeasureIndex={startMeasureIndex}
-                            tonic={scale.tonic}
-                            nextLayer={nextLayer}
-                            wipeTransitionRef={wipeTransitionRef}
-                            scrollTransitionRef={scrollTransitionRef}
-                            pendingScrollTransitionRef={pendingScrollTransitionRef}
-                            paginationFadeRef={paginationFadeRef}
-                            svgRef={svgRef}
-                            sequencerRef={sequencerRef}
-                            context={context}
-                            clearHighlightStateRef={clearHighlightStateRef}
-                            setCurrentMeasureIndex={setCurrentMeasureIndex}
-                            showNoteHighlightRef={showNoteHighlightRef}
-                            previewMelody={previewMelody}
-                            isFullscreen={isFullscreen}
-                            toggleFullscreen={toggleFullscreen}
-                            headerPlayMode={headerPlayMode}
-                            setHeaderPlayMode={setHeaderPlayMode}
-                            handleToggleInputTest={handleToggleInputTest}
-                            handlePlayMelody={handlePlayMelody}
-                            handlePlayContinuously={handlePlayContinuously}
-
-                            viewMode={isPlayingContinuously
-                                ? (showNotes ? 'melody' : 'repeat')
-                                : (playbackConfig.oddRounds?.notes ? 'melody' : 'repeat')}
-                            showChords={isPlayingContinuously ? showChordLabels : (showChordsOddRounds || showChordsEvenRounds)}
-                            onNoteClick={handleNoteClick}
-                            onChordClick={handleChordClick}
-                            onEnharmonicToggle={handleEnharmonicToggle}
-                            onMeasureNumberClick={handleMeasureNumberClick}
-                            onNoteEnharmonicToggle={handleNoteEnharmonicToggle}
                         />
                     </ErrorBoundary>
                 </div>
@@ -1212,54 +1098,9 @@ const App = () => {
                         <div className="app-tab-sheet">
                             <ErrorBoundary>
                                 <SheetMusic
-                                    timeSignature={timeSignature}
-                                    onTimeSignatureChange={handleTimeSignatureChange}
-                                    bpm={bpm}
-                                    onBpmChange={setBpm}
-                                    numRepeats={playbackConfig.repsPerMelody}
-                                    onNumRepeatsChange={(val) =>
-                                        setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val }))
-                                    }
-                                    numMeasures={numMeasures}
-                                    musicalBlocks={musicalBlocks}
-                                    onMusicalBlocksChange={setMusicalBlocks}
-                                    numAccidentals={scale.numAccidentals}
-                                    screenWidth={windowSize.width}
-                                    onRandomizeMeasure={randomizeMeasure}
-                                    showChords={isPlayingContinuously ? showChordLabels : (showChordsOddRounds || showChordsEvenRounds)}
-                                    showSettings={showSheetMusicSettings}
-                                    onNumMeasuresChange={setNumMeasures}
-                                    onToggleSettings={toggleSheetMusicSettings}
-                                    onSettingsInteraction={resetSettingsTimer}
-                                    isFullscreen={isFullscreen}
-                                    toggleFullscreen={toggleFullscreen}
-                                    headerPlayMode={headerPlayMode}
-                                    setHeaderPlayMode={setHeaderPlayMode}
-                                    handleToggleInputTest={handleToggleInputTest}
-                                    handlePlayMelody={handlePlayMelody}
-                                    handlePlayContinuously={handlePlayContinuously}
-                                    viewMode={isPlayingContinuously
-                                        ? (showNotes ? 'melody' : 'repeat')
-                                        : (playbackConfig.oddRounds?.notes ? 'melody' : 'repeat')}
+                                    {...sheetMusicCommonProps}
                                     visibleMeasures={idealVisibleMeasures}
-                                    tonic={scale.tonic}
-                                    nextLayer={nextLayer}
-                                    wipeTransitionRef={wipeTransitionRef}
-                                    scrollTransitionRef={scrollTransitionRef}
-                                    pendingScrollTransitionRef={pendingScrollTransitionRef}
-                                    paginationFadeRef={paginationFadeRef}
-                                    svgRef={svgRef}
-                                    sequencerRef={sequencerRef}
-                                    context={context}
-                                    clearHighlightStateRef={clearHighlightStateRef}
-                                    setCurrentMeasureIndex={setCurrentMeasureIndex}
-                                    showNoteHighlightRef={showNoteHighlightRef}
                                     startMeasureIndex={startMeasureIndex}
-                                    onNoteClick={handleNoteClick}
-                                    onChordClick={handleChordClick}
-                                    onEnharmonicToggle={handleEnharmonicToggle}
-                                    onMeasureNumberClick={handleMeasureNumberClick}
-                                    onNoteEnharmonicToggle={handleNoteEnharmonicToggle}
                                 />
                             </ErrorBoundary>
                         </div>
@@ -1397,7 +1238,7 @@ const App = () => {
                                     instrumentKey="chords"
                                     settings={chordSettings}
                                     setSettings={setChordSettings}
-                                    setActiveRandTypeSelector={setChordTabRandTypeSelector}
+                                    setActiveRandTypeSelector={() => {}}
                                     firstChord={chordProgression?.chords?.[0] ?? null}
                                     renderMode="instrument"
                                 />
@@ -1490,6 +1331,7 @@ const App = () => {
                 </div>
             </div>
         </div >
+        </AnimationRefsProvider>
         </PlaybackStateProvider>
         </MelodyProvider>
         </DisplaySettingsProvider>

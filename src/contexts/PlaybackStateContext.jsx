@@ -3,13 +3,15 @@ import React, { createContext, useContext } from 'react';
 const PlaybackStateContext = createContext(null);
 
 export const PlaybackStateProvider = ({
-    isPlaying, isOddRound, currentMeasureIndex,
-    song, songVersion, inputTestState, inputTestSubMode, setInputTestSubMode,
+    isPlaying, isPlayingContinuously, isOddRound, currentMeasureIndex,
+    showNotes, nextLayer, previewMelody,
+    inputTestState, inputTestSubMode, setInputTestSubMode,
     children,
 }) => (
     <PlaybackStateContext.Provider value={{
-        isPlaying, isOddRound, currentMeasureIndex,
-        song, songVersion, inputTestState, inputTestSubMode, setInputTestSubMode,
+        isPlaying, isPlayingContinuously, isOddRound, currentMeasureIndex,
+        showNotes, nextLayer, previewMelody,
+        inputTestState, inputTestSubMode, setInputTestSubMode,
     }}>
         {children}
     </PlaybackStateContext.Provider>

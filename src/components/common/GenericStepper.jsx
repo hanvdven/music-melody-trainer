@@ -9,8 +9,6 @@ import './GenericStepper.css';
  */
 const GenericStepper = ({
     value,
-    onIncrease,
-    onDecrease,
     onChange,
     allowedValues, // Array of values to step through
     options,       // Array of {label, value} for list popup
@@ -22,7 +20,6 @@ const GenericStepper = ({
     color = 'var(--text-primary)',
     fontFamily = 'sans-serif',
     suffix = '',
-    background = 'none',
     lowlighted = false,
     uppercase = false,
     height = '42px',
@@ -53,10 +50,6 @@ const GenericStepper = ({
             clearTimeout(longPressTimer.current);
             longPressTimer.current = null;
         }
-    };
-
-    const handleInputBlur = () => {
-        if (!options) submitValue();
     };
 
     const handleKeyDown = (e) => {

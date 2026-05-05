@@ -34,7 +34,7 @@ const ChordRowPreview = ({ cx, centerY, color, visible, displayMode, processedCh
     return (
       <text x={cx} y={centerY} textAnchor="middle" fontFamily="Maestro"
         fontSize={30} fill={color} className="svg-no-interact">
-        "
+        &quot;
       </text>
     );
   }

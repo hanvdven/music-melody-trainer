@@ -1,8 +1,9 @@
 // /components/sheet-music/SheetMusic.jsx
 
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import useSheetMusicHighlight from '../../hooks/useSheetMusicHighlight';
-import { Shuffle } from 'lucide-react';
+import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
+import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
 import { processMelodyAndCalculateFlags } from './processMelodyAndCalculateFlags';
 import SettingsOverlay, { VOL_STEPS } from './SettingsOverlay';
@@ -31,15 +32,13 @@ import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext'
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { useMelodies } from '../../contexts/MelodyContext';
 import { usePlaybackState } from '../../contexts/PlaybackStateContext';
-import { PRESET_RANGES } from '../../constants/musicLayout';
-
+import { useAnimationRefs } from '../../contexts/AnimationRefsContext';
 // ── Static / pure module-level data & helpers ──────────────────────────────
 
 // ── Clef/range picker ─────────────────────────────────────────────────────
 // Matches RangeControls rangeOptionsList so clicking the clef in the sheet
 // music opens the same full-list picker as the range-mode stepper.
-// PRESET_RANGES is imported from constants/musicLayout (shared with Sequencer).
-const CLEF_RANGE_PRESET_RANGES = PRESET_RANGES;
+// CLEF_RANGE_PRESET_RANGES is imported from constants/ranges (single source of truth).
 const CLEF_VOCAL_RANGES = [
   { label: 'Bass',          min: 'G2', max: 'C4', clef: 'bass' },
   { label: 'Baritone',      min: 'B2', max: 'F4', clef: 'bass' },
@@ -151,13 +150,10 @@ const SheetMusic = ({
   numMeasures, // Added prop
   onNumMeasuresChange,      // NEW — for overlay measure count stepper
   tonic,
-  showNoteHighlightRef,
   containerHeight = 400,
   musicalBlocks,
   startMeasureIndex = 0,
   visibleMeasures = null,   // number of measures visible on screen at once (scroll/wipe modes)
-  nextLayer = null,         // wipe/scroll-mode preview type: 'yellow' | 'red' | null
-  previewMelody = null,     // pre-generated next melody for red overlay
   isFullscreen = false,
   toggleFullscreen = null,
   headerPlayMode = 'once',
@@ -166,14 +162,6 @@ const SheetMusic = ({
   handlePlayMelody = null,
   handlePlayContinuously = null,
   onMusicalBlocksChange = null,
-  sequencerRef,
-  context,
-  clearHighlightStateRef,
-  setCurrentMeasureIndex,
-  wipeTransitionRef,
-  scrollTransitionRef,
-  pendingScrollTransitionRef,
-  paginationFadeRef = null,
   svgRef: svgRefProp = null,
   onNoteClick = null,          // (notes: string[], staff: string) => void — plays note(s) when a note head is clicked
   onChordClick = null,         // (notes: string[]) => void — plays a chord with strumming when a chord label is clicked
@@ -184,8 +172,11 @@ const SheetMusic = ({
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
           metronome: metronomeMelody, chordProgression } = useMelodies();
-  const { isPlaying, isOddRound, inputTestState,
-          inputTestSubMode, setInputTestSubMode } = usePlaybackState();
+  const { isPlaying, isOddRound, nextLayer = null, previewMelody = null,
+          inputTestState, inputTestSubMode, setInputTestSubMode } = usePlaybackState();
+  const { wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+          clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
+          sequencerRef, context } = useAnimationRefs();
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
   const { trebleSettings, setTrebleSettings, bassSettings, setBassSettings,
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
@@ -214,123 +205,7 @@ const SheetMusic = ({
     paginationFadeRef,
   });
 
-  // ── Transition lifecycle: synchronous DOM cleanup before browser paint ────────
-  //
-  // This effect mirrors steps 1 and 7-8 of the transition sequence documented in
-  // useSheetMusicHighlight.js. It fires synchronously after every React commit that
-  // changes nextLayer or animationMode — before the browser paints.
-  //
-  // nextLayer → non-null  (step 1-2: incoming content appears in DOM)
-  //   • wipe  : apply a fully-opaque HIDDEN mask to [data-wipe-role="new"] so the rAF
-  //             can sweep it open without a 1-frame flash. Set opacity:1 so the mask
-  //             (not opacity) controls visibility. The element starts with CSS class
-  //             .wipe-new-hidden (opacity:0); setting style.opacity='1' here overrides
-  //             the class — React won't fight it because opacity is not in the JSX style prop.
-  //   • pagination : no mask needed. paginationFadeRef was already set by Sequencer.
-  //                  The rAF will animate [data-pagination-new] once it finds it in DOM.
-  //
-  // nextLayer → null  (steps 7-8: overlay removed, new content committed)
-  //   • all modes : clear wipe masks, clear wipeTransitionRef so rAF stops re-applying them.
-  //   • pagination : the rAF locked [data-pagination-old].style.opacity='0' after the fade.
-  //                  Clear it now so the new melody content (just committed by React) is
-  //                  visible at full opacity. The CSS class takes over after clearing.
-  //   • scroll    : reset scroll-group transform synchronously if no animation is queued.
-  useLayoutEffect(() => {
-    if (!svgRef.current) return;
-
-    if (nextLayer !== null && animationMode === 'wipe') {
-      // Step 1 (wipe): hide incoming content behind a fully-opaque mask, then set
-      // opacity:1 so the mask — not opacity — controls visibility as the rAF sweeps it open.
-      const HIDDEN = 'linear-gradient(to right, black -8%, transparent 0%)';
-      svgRef.current.querySelectorAll('[data-wipe-role="new"]').forEach(g => {
-        g.style.maskImage = HIDDEN;
-        g.style.webkitMaskImage = HIDDEN;
-        g.style.opacity = '1'; // overrides .wipe-new-hidden class; React won't reset (no JSX opacity prop)
-      });
-
-    } else if (nextLayer === 'block-flip') {
-      // Step 1 (block-flip): arm the pending fade-in marker on the old group.
-      // When nextLayer→null fires (same React batch as setStartMeasureIndex), the null
-      // cleanup sees this attribute and adds the CSS fade-in animation for the new block.
-      svgRef.current.querySelectorAll('[data-pagination-old]').forEach(g => {
-        g.setAttribute('data-block-flip-pending', '');
-      });
-
-    } else if (nextLayer === null) {
-      // Steps 7-8: overlay removed — clean up all transition state before next paint.
-
-      // Clear wipe masks so rAF stops re-applying the "old fully transparent" mask.
-      svgRef.current.querySelectorAll('[data-wipe-role]').forEach(g => {
-        if (g.style.maskImage) {
-          g.style.maskImage = '';
-          g.style.webkitMaskImage = '';
-        }
-      });
-      if (wipeTransitionRef) wipeTransitionRef.current = null;
-
-      // Pagination: the rAF left [data-pagination-old].style.opacity='0' to hold the
-      // faded-out state. Clear it now so the new content React just committed is visible.
-      //
-      // Regular crossfades (yellow/red): restore instantly — the overlay already showed
-      // the incoming content, so no fade-in is needed.
-      //
-      // Block-flips: the old group now holds new block content (committed by React during
-      // the phase-complete gap). Keep the element at opacity 0 and start the rAF fade-in
-      // (phase 2) so the new block appears with the same easing as the fade-out.
-      // The fade-in duration matches the fade-out duration, making the transition symmetric.
-      let anyBlockFlip = false;
-      svgRef.current.querySelectorAll('[data-pagination-old]').forEach(g => {
-        const isBlockFlip = g.hasAttribute('data-block-flip-pending');
-        g.removeAttribute('data-block-flip-pending');
-        if (isBlockFlip) {
-          anyBlockFlip = true;
-          // Force opacity to 0 as the explicit starting point for the rAF fade-in,
-          // regardless of whether the fade-out rAF completed or the setTimeout fired
-          // slightly early (in which case the rAF may not have reached exactly 0 yet).
-          if (g.style.opacity !== '0') g.style.opacity = '0';
-        } else {
-          // Regular crossfade: clear inline opacity — CSS class restores instantly to 1.
-          if (g.style.opacity !== '') g.style.opacity = '';
-        }
-      });
-      if (paginationFadeRef) {
-        if (anyBlockFlip && context) {
-          // Read the fade-out duration from the (still-live) ref before replacing it.
-          // The ref has phaseComplete=true (or is still mid-fade-out if setTimeout fired
-          // slightly early), but startTime/totalEnd are always valid.
-          const prevFade = paginationFadeRef.current;
-          const fadeInDuration = prevFade ? (prevFade.totalEnd - prevFade.startTime) : 0;
-          // Replace with the fade-in ref. rAF picks it up on the next tick and animates
-          // [data-pagination-old] from 0→1 using the same ease-in-out curve as phase 1.
-          paginationFadeRef.current = fadeInDuration > 0 ? {
-            startTime: context.currentTime,
-            totalEnd: context.currentTime + fadeInDuration,
-            fadeInOnly: true,
-          } : null;
-        } else {
-          paginationFadeRef.current = null;
-        }
-      }
-
-      // Scroll: reset transform synchronously before paint so the new melody content
-      // is never visible at the old (scrolled) offset for even one frame.
-      // Set to 0.25*pageWidth (= p=0 of the new animation) so the first note of the
-      // new melody starts at the playhead position immediately.
-      // Do NOT touch scrollTransitionRef here — the Sequencer owns it and may have
-      // already set the next animation synchronously (timing race with rAF promotion).
-      if (animationMode === 'scroll') {
-        const scrollGroup = svgRef.current.querySelector('[data-scroll-group]');
-        if (scrollGroup) {
-          const pageWidth = layoutRef.current?.pageWidth;
-          if (pageWidth) {
-            scrollGroup.setAttribute('transform', `translate(${(0.25 * pageWidth).toFixed(2)}, 0)`);
-          } else {
-            scrollGroup.setAttribute('transform', 'translate(0, 0)');
-          }
-        }
-      }
-    }
-  }, [nextLayer, animationMode]);
+  useSheetMusicTransitions(nextLayer, layoutRef, svgRef);
   // Read theme from DOM attribute set by App.jsx — avoids threading it as a prop.
   const theme = document.documentElement.getAttribute('data-theme') ?? 'default';
   // Alias for overlay-preview state (yellow = same-melody repeat preview, red = new-melody preview).
@@ -344,33 +219,13 @@ const SheetMusic = ({
   const notesVisible = viewMode === 'melody';
 
   // Randomise-measure button rendered inside the SVG. Moved inside for scope.
-  const RandomizeIcon = ({ onClick }) => (
-    <g onClick={(e) => { e.stopPropagation(); onClick(); }} style={{ cursor: 'pointer' }}>
-      {debugMode && <rect x="-10" y="-10" width="20" height="20" fill="yellow" fillOpacity={0.4} stroke="yellow" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
-      <rect x="-10" y="-10" width="20" height="20" fill="transparent" />
-      <g transform="translate(-8, -8)">
-        <Shuffle size={16} color="var(--accent-yellow)" strokeWidth={3} />
-      </g>
-    </g>
-  );
-
-  const [trebleActiveClef, setTrebleActiveClef] = React.useState('treble');
-  const [bassActiveClef, setBassActiveClef] = React.useState('bass');
-
-  // Sync with settings (vocal ranges)
-  React.useEffect(() => {
-    if (trebleSettings?.preferredClef) {
-      setTrebleActiveClef(trebleSettings.preferredClef);
-    }
-  }, [trebleSettings?.preferredClef]);
-
-  React.useEffect(() => {
-    if (bassSettings?.preferredClef) {
-      if (ACTIVE_CLEF_TYPES.includes(bassSettings.preferredClef)) {
-        setBassActiveClef(bassSettings.preferredClef);
-      }
-    }
-  }, [bassSettings?.preferredClef]);
+  // Derived directly from settings — no local state needed.
+  // When the user taps to cycle clef, setTrebleSettings/setBassSettings updates preferredClef
+  // and these values follow in the same React render (React 18 automatic batching).
+  const trebleActiveClef = trebleSettings?.preferredClef ?? 'treble';
+  const bassActiveClef = ACTIVE_CLEF_TYPES.includes(bassSettings?.preferredClef)
+    ? bassSettings.preferredClef
+    : 'bass';
 
   const measureLengthSlots = (TICKS_PER_WHOLE * timeSignature[0]) / timeSignature[1];
   const noteGroupSize = measureLengthSlots % 18 === 0 ? 18 : 12;
@@ -612,14 +467,12 @@ const SheetMusic = ({
       const idx = ACTIVE_CLEF_TYPES.indexOf(activeClef);
       const nextClef = ACTIVE_CLEF_TYPES[(idx + 1) % ACTIVE_CLEF_TYPES.length];
       const setter = isT ? setTrebleSettings : setBassSettings;
-      const setActive = isT ? setTrebleActiveClef : setBassActiveClef;
       if (setter) {
         const defMin = nextClef === 'bass' ? (isT ? 'A2' : 'E2') : (nextClef === 'alto' ? 'F3' : 'C4');
         const defMax = nextClef === 'bass' ? (isT ? 'C4' : 'E4') : (nextClef === 'alto' ? 'C5' : 'E5');
         const rMode  = nextClef === 'alto' ? 'Alto' : 'STANDARD';
         setter(prev => ({ ...prev, preferredClef: nextClef, rangeMode: rMode, range: { min: defMin, max: defMax } }));
       }
-      setActive(nextClef);
     }, 300);
   };
 
@@ -1511,7 +1364,7 @@ const SheetMusic = ({
           flashElement(noteGroup);
           onNoteClick(notes, staff);
         }
-      } catch {}
+      } catch { /* audio context may not be ready */ }
       return;
     }
 
@@ -1525,7 +1378,7 @@ const SheetMusic = ({
           onChordClick(notes);
           return;
         }
-      } catch {}
+      } catch { /* audio context may not be ready */ }
     }
 
     // 3. Settings toggle
@@ -1554,7 +1407,7 @@ const SheetMusic = ({
 
     const wrapIcon = (key, cy, staff) => (
       <g key={key} transform={`translate(${xPos}, ${cy})`}>
-        <RandomizeIcon x={0} y={0} onClick={() => onRandomizeMeasure(i, staff)} />
+        <RandomizeIcon onClick={() => onRandomizeMeasure(i, staff)} debugMode={debugMode} />
       </g>
     );
 
@@ -1870,7 +1723,7 @@ const SheetMusic = ({
   // Returns {base, acc} solfège pair for a single note string.
   const getSolfegeForNote = (rawNote) => {
     if (lyricsMode === 'doremi-rel') {
-      const tonicLetter = (tonic || 'C').replace(/[♯♭𝄪𝄫]/g, '').replace(/-?\d+$/, '')[0] || 'C';
+      const tonicLetter = (tonic || 'C').replace(/[♯♭𝄪𝄫]/gu, '').replace(/-?\d+$/, '')[0] || 'C';
       return spellingToSolfege(rawNote, tonicLetter);
     } else if (lyricsMode === 'doremi-abs') {
       return spellingToSolfege(rawNote, 'C');

@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Snowflake,
-  Flame,
-} from 'lucide-react';
+import { Snowflake, Flame } from 'lucide-react';
 import '../../styles/App.css';
 import './styles/PlaybackSettings.css';
 import SmartToggle from './rows/SmartToggle';
@@ -15,12 +12,11 @@ import { modes, updateScaleWithMode } from '../../theory/scaleHandler';
 import { SectionHeader, RepeatMeasureBar, ColumnHeaders } from './PlaybackSubComponents';
 import PlaybackInstrumentSection from './PlaybackInstrumentSection';
 import { calcHarmonicDifficulty } from '../../utils/difficultyCalculator';
-import { HARMONY_DIFFICULTY_RANGE } from '../../utils/harmonyTable';
 import { DifficultyPanel, HarmonicSlider } from './DifficultyControls';
 import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
-import { GRID_GENERATOR, GRID_VISIBILITY } from '../../constants/musicLayout';
+import { GRID_GENERATOR } from '../../constants/musicLayout';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -29,13 +25,8 @@ const PlaybackSettings = ({
   musicalBlocks,
   setNumMeasures,
   activeScale,
-  generatorMode,
-  setGeneratorMode,
   activePreset,
   setActivePreset,
-  onRandomizeAll,
-  isPlayingContinuously,
-  setIsPlayingContinuously,
   showChordsOddRounds,
   setShowChordsOddRounds,
   showChordsEvenRounds,

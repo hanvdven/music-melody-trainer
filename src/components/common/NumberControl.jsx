@@ -1,9 +1,7 @@
 import React from 'react';
-import { Minus, Plus } from 'lucide-react';
 
-const NumberControl = ({ value, onWarning, onIncrease, onDecrease, min = 0, max = 100, step = 1, label, showLabel = false, fontFamily = 'serif', color = 'var(--accent-yellow)', fontSize = '16px', disableRangeCheck = false, suffix = '' }) => {
-    const handleDecrease = (e) => {
-        // e.stopPropagation(); // Optional, depending on if rows are clickable
+const NumberControl = ({ value, onWarning, onIncrease, onDecrease, min = 0, max = 100, fontFamily = 'serif', color = 'var(--accent-yellow)', fontSize = '16px', disableRangeCheck = false, suffix = '' }) => {
+    const handleDecrease = () => {
         if (disableRangeCheck || value > min) {
             onDecrease();
         } else if (onWarning) {
@@ -11,8 +9,7 @@ const NumberControl = ({ value, onWarning, onIncrease, onDecrease, min = 0, max 
         }
     };
 
-    const handleIncrease = (e) => {
-        // e.stopPropagation();
+    const handleIncrease = () => {
         if (disableRangeCheck || value < max) {
             onIncrease();
         } else if (onWarning) {

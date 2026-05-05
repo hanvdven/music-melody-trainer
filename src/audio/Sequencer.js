@@ -5,7 +5,6 @@ import Melody from '../model/Melody';
 import MelodyGenerator from '../generation/melodyGenerator';
 import {
   randomTonic,
-  randomMode,
   scaleDefinitions,
   updateScaleWithTonic,
   updateScaleWithMode,
@@ -169,9 +168,9 @@ class Sequencer {
         if (this.setters.setIsOddRound) {
           // Schedule isOddRound update to happen at nextStartTime
           const scheduleTime = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
-          this.timeouts.push(setTimeout(() => {
+          this.scheduleTimeout(() => {
             if (this.isPlaying) this.setters.setIsOddRound(isOddRound);
-          }, scheduleTime));
+          }, scheduleTime);
         }
 
         // Removed master volume fader setVolume calls to allow natural sample decay across measure boundaries.
@@ -209,7 +208,7 @@ class Sequencer {
             // Wipe: fire at animation-end so visibility never changes mid-wipe.
             const showNotesTime = iterMode === 'wipe' ? wipeStateClearTime : visibilityTrigger(notesVisible);
             const scheduleTime = Math.max(0, (showNotesTime - this.context.currentTime) * 1000);
-            this.timeouts.push(setTimeout(() => { this.setters.setShowNotes(notesVisible); }, scheduleTime));
+            this.scheduleTimeout(() => { this.setters.setShowNotes(notesVisible); }, scheduleTime);
           }
 
           // All modes now use Song-based rendering with absolute globalMeasureIndex for
@@ -232,12 +231,12 @@ class Sequencer {
             // In non-wipe modes they fire at nextStartTime as before.
             const startIdx = this.globalMeasureIndex;
             const iterStateMs = Math.max(0, (wipeStateClearTime - this.context.currentTime) * 1000);
-            this.timeouts.push(setTimeout(() => {
+            this.scheduleTimeout(() => {
               // Both in one callback so React 18 automatic batching merges them into a single render.
               // wipeTransitionRef cleared by useLayoutEffect in App.jsx after React commits.
               if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(startIdx);
               if (this.setters.setNextLayer) this.setters.setNextLayer(null);
-            }, iterStateMs));
+            }, iterStateMs);
           }
 
           // Per-measure: record when this measure's audio starts so the rAF loop
@@ -254,9 +253,9 @@ class Sequencer {
             // Trigger onMeasureStart setter if present
             if (this.setters.onMeasureStart) {
               const scheduleTime = Math.max(0, (nextStartTime - audioNow) * 1000);
-              this.timeouts.push(setTimeout(() => {
+              this.scheduleTimeout(() => {
                 if (this.isPlaying) this.setters.onMeasureStart(gIdx);
-              }, scheduleTime));
+              }, scheduleTime);
             }
           }
 
@@ -291,20 +290,20 @@ class Sequencer {
                 // can set the data-block-flip-pending attribute on the old group before the
                 // rAF opacity animation starts.
                 const armMs = Math.max(0, (fadeStart - this.context.currentTime) * 1000 - 50);
-                this.timeouts.push(setTimeout(() => {
+                this.scheduleTimeout(() => {
                   if (this.isPlaying && this.setters.setNextLayer) {
                     this.setters.setNextLayer('block-flip');
                   }
-                }, armMs));
+                }, armMs);
 
                 // At flipTime: swap content + trigger cleanup in ONE callback so React 18
                 // automatic batching merges both into a single render. The useLayoutEffect
                 // on nextLayer→null detects the pending block-flip and adds the CSS fade-in.
-                this.timeouts.push(setTimeout(() => {
+                this.scheduleTimeout(() => {
                   if (!this.isPlaying) return;
                   if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(newStartIdx);
                   if (this.setters.setNextLayer) this.setters.setNextLayer(null);
-                }, Math.max(0, (flipTime - this.context.currentTime) * 1000)));
+                }, Math.max(0, (flipTime - this.context.currentTime) * 1000));
                 break;
               }
               blockStart += blocks[b];
@@ -317,7 +316,7 @@ class Sequencer {
               ? !!(this.refs.showChordsOddRoundsRef?.current ?? true)
               : !!(this.refs.showChordsEvenRoundsRef?.current ?? true);
             const scheduleTime = Math.max(0, (visibilityTrigger(chordsVisible) - this.context.currentTime) * 1000);
-            this.timeouts.push(setTimeout(() => { this.setters.setShowChordLabels(chordsVisible); }, scheduleTime));
+            this.scheduleTimeout(() => { this.setters.setShowChordLabels(chordsVisible); }, scheduleTime);
           }
 
 
@@ -412,41 +411,9 @@ class Sequencer {
           // Also precompute chord timestamps for sheet-music and chord-grid highlighting.
           // `degree` is embedded so the ChordGrid rAF needs no React state at all —
           // same pattern as scheduledNotes for note-active highlighting.
-          const schedChords = [];
-          if (chordProgression?.offsets) {
-            const _RDEG = { I:1, II:2, III:3, IV:4, V:5, VI:6, VII:7 };
-
-            for (let i = 0; i < chordProgression.offsets.length; i++) {
-              const slot = chordProgression.offsets[i];
-              if (slot >= m * measureLengthTicks && slot < (m + 1) * measureLengthTicks) {
-                // Read degree directly from displayNotes[i] — always matches the current
-                // chord melody, never one block behind like the old displayChordProgression lookup.
-                const chord = chordProgression.displayNotes?.[i];
-                const romanBase = chord?.meta?.romanBaseRaw ?? '';
-                const degree = _RDEG[String(romanBase).toUpperCase()] ?? null;
-                schedChords.push({
-                  audioTime: nextStartTime + (slot - m * measureLengthTicks) * timeFactor,
-                  duration: chordProgression.durations[i] * timeFactor,
-                  measureIndex: schedMeasureIndex,
-                  localSlot: slot - m * measureLengthTicks,
-                  degree,
-                });
-              }
-            }
-
-            // Extend each chord's highlight window to fill until the next chord starts
-            // (or until the measure ends for the last chord). This prevents flicker when
-            // chord durations don't perfectly tile the measure (e.g. with rhythmVariability).
-            const measureEnd = nextStartTime + measureDuration;
-            for (let k = 0; k < schedChords.length; k++) {
-              const effectiveEnd = k + 1 < schedChords.length
-                ? schedChords[k + 1].audioTime
-                : measureEnd;
-              if (effectiveEnd > schedChords[k].audioTime + schedChords[k].duration) {
-                schedChords[k] = { ...schedChords[k], duration: effectiveEnd - schedChords[k].audioTime };
-              }
-            }
-          }
+          const schedChords = this.buildScheduledChords(
+            chordProgression, m, measureLengthTicks, nextStartTime, measureDuration, timeFactor, schedMeasureIndex
+          );
 
           // Append to existing notes/chords rather than replacing: entries from the
           // previous measure that are still within their audio window are kept so
@@ -482,9 +449,9 @@ class Sequencer {
             // never empty during the scroll. The penultimate-measure code replaces it with
             // the pre-generated next melody ('red') when it becomes available.
             const msFromNow = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
-            this.timeouts.push(setTimeout(() => {
+            this.scheduleTimeout(() => {
               if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
-            }, msFromNow));
+            }, msFromNow);
             if (this.refs.scrollTransitionRef) {
               if (!this.refs.scrollTransitionRef.current) {
                 // No active animation — set directly. rAF clamps p=0 until startTime.
@@ -506,7 +473,7 @@ class Sequencer {
               const scrollStart = nextStartTime + 0.75 * measureDuration;
               const scrollEnd = nextStartTime + (currentNumMeasures + 0.75) * measureDuration;
               const msFromNow = Math.max(0, (scrollStart - this.context.currentTime) * 1000);
-              this.timeouts.push(setTimeout(() => {
+              this.scheduleTimeout(() => {
                 if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
                 if (this.refs.scrollTransitionRef) {
                   if (!this.refs.scrollTransitionRef.current) {
@@ -515,7 +482,7 @@ class Sequencer {
                     this.refs.pendingScrollTransitionRef.current = { startTime: scrollStart, endTime: scrollEnd };
                   }
                 }
-              }, msFromNow));
+              }, msFromNow);
             } else if (mode !== 'scroll' && isLastMeasureNow) {
               // Wipe: 0.5 measures before block end; pagination: 0.25 measures before block end.
               const yellowFraction = mode === 'wipe' ? 0.5 : 0.25;
@@ -532,9 +499,9 @@ class Sequencer {
               if (mode === 'pagination' && this.refs.paginationFadeRef) {
                 this.refs.paginationFadeRef.current = { startTime: yellowAudioTime, totalEnd: transitionEnd };
               }
-              this.timeouts.push(setTimeout(() => {
+              this.scheduleTimeout(() => {
                 if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
-              }, setLayerMs));
+              }, setLayerMs);
             }
           }
 
@@ -543,7 +510,7 @@ class Sequencer {
           // The new content fades in on the right side via scrollPreviewFadeIn CSS animation.
           if (!this.isOnceMode && mode === 'scroll' && isLastRepNow && isPenultimateMeasure && currentNumMeasures >= 2) {
             const fadeInDelay = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
-            this.timeouts.push(setTimeout(() => {
+            this.scheduleTimeout(() => {
               // Pregen first so content is available when React renders the overlay.
               const pregenResult = this.randomizeScaleAndGenerate(
                 this.refs.numMeasuresRef.current,
@@ -555,7 +522,7 @@ class Sequencer {
               // overlay mounts with opacity:0 and fades in via scrollPreviewFadeIn.
               if (this.setters.setNextLayer) this.setters.setNextLayer('red');
               if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(pregenResult);
-            }, fadeInDelay));
+            }, fadeInDelay);
           }
 
           if (!skipSleep) {
@@ -648,9 +615,9 @@ class Sequencer {
                 // Trigger React render ~200ms before wipeStart so new content is in DOM and
                 // hidden (via useLayoutEffect HIDDEN mask) before the sweep begins.
                 const setLayerMs = Math.max(0, (wipeStart - this.context.currentTime) * 1000 - 200);
-                this.timeouts.push(setTimeout(() => {
+                this.scheduleTimeout(() => {
                   if (this.setters.setNextLayer) this.setters.setNextLayer('red');
-                }, setLayerMs));
+                }, setLayerMs);
               } else if (previewMode !== 'scroll') {
                 // Pagination: crossfade 0.25 measures before block end.
                 const previewStart = nextStartTime - 0.25 * lastMeasureDuration;
@@ -659,10 +626,10 @@ class Sequencer {
                   this.refs.paginationFadeRef.current = { startTime: previewStart, totalEnd: nextStartTime };
                 }
                 const previewDelay = Math.max(0, (previewStart - this.context.currentTime) * 1000 - 50);
-                this.timeouts.push(setTimeout(() => {
+                this.scheduleTimeout(() => {
                   if (this.setters.setNextLayer) this.setters.setNextLayer('red');
                   if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(result);
-                }, previewDelay));
+                }, previewDelay);
               } else if (currentNumMeasures === 1) {
                 // Single-measure scroll: inner loop pregen (isPenultimateMeasure) never fires,
                 // so handle here. Outer loop runs ~lookahead ahead of block end, so
@@ -673,14 +640,14 @@ class Sequencer {
                 const scrollStart = nextStartTime - 0.25 * lastMeasureDuration;
                 const scrollEnd = nextStartTime + 0.75 * lastMeasureDuration;
                 const scrollPreviewDelay = Math.max(0, (scrollStart - this.context.currentTime) * 1000);
-                this.timeouts.push(setTimeout(() => {
+                this.scheduleTimeout(() => {
                   // Animation ref first — layer starts moving before React re-renders.
                   if (this.refs.scrollTransitionRef) {
                     this.refs.scrollTransitionRef.current = { startTime: scrollStart, endTime: scrollEnd };
                   }
                   if (this.setters.setNextLayer) this.setters.setNextLayer('red');
                   if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(result);
-                }, scrollPreviewDelay));
+                }, scrollPreviewDelay);
               }
               // Multi-measure scroll: inner loop already set setNextLayer + scrollTransitionRef
               // at the correct audio time; nothing to do here.
@@ -693,26 +660,26 @@ class Sequencer {
                 ? nextStartTime + 0.75 * lastMeasureDuration
                 : nextStartTime;
               const scheduleTime = Math.max(0, (applyTime - this.context.currentTime) * 1000);
-              this.timeouts.push(setTimeout(() => {
+              this.scheduleTimeout(() => {
                 if (this.setters.clearActiveHighlight) this.setters.clearActiveHighlight();
                 if (this.scheduledNotes) {
                   this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
                 }
                 applyResult();
                 if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
-              }, scheduleTime));
+              }, scheduleTime);
             } else {
               // Once mode: apply result immediately (no preview needed).
               const newSeriesStart = nextStartTime;
               const scheduleTime = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
-              this.timeouts.push(setTimeout(() => {
+              this.scheduleTimeout(() => {
                 if (this.setters.clearActiveHighlight) this.setters.clearActiveHighlight();
                 if (this.scheduledNotes) {
                   this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
                 }
                 applyResult();
                 if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
-              }, scheduleTime));
+              }, scheduleTime);
             }
           }
         }
@@ -905,8 +872,6 @@ class Sequencer {
       // The strategy for that generation comes from the UI (chordSettings.strategy).
       const shouldGenerateNew = !!randConfig.chords;
       const uiStrategy = chordSettings?.strategy || 'modal-random';
-      const existingStrategy = (currentProgression.type && currentProgression.type !== 'tonic-tonic-tonic')
-        ? currentProgression.type : null;
 
       if (shouldGenerateNew && uiStrategy) {
         const complexity = this.refs.playbackConfigRef.current.chordComplexity || currentProgression.complexity || 'triad';
@@ -1302,6 +1267,71 @@ class Sequencer {
   }
 
   /**
+   * Build scheduled chord entries for one measure, extending each chord's highlight window
+   * to fill until the next chord starts (prevents flicker when durations don't tile perfectly).
+   * Returns an array of { audioTime, duration, measureIndex, localSlot, degree } objects.
+   *
+   * @param {object} chordProgression - Melody-like object with .offsets/.durations/.displayNotes
+   * @param {number} m               - Current measure index within the series (0-based)
+   * @param {number} measureLengthTicks - Ticks per measure
+   * @param {number} nextStartTime   - AudioContext time at the start of this measure
+   * @param {number} measureDuration - Duration of one measure in seconds
+   * @param {number} timeFactor      - Seconds per tick (beatDuration / ticksPerBeat)
+   * @param {number} schedMeasureIndex - Global measure index for rAF highlight matching
+   */
+  buildScheduledChords(chordProgression, m, measureLengthTicks, nextStartTime, measureDuration, timeFactor, schedMeasureIndex) {
+    const schedChords = [];
+    if (!chordProgression?.offsets) return schedChords;
+
+    const _RDEG = { I:1, II:2, III:3, IV:4, V:5, VI:6, VII:7 };
+    for (let i = 0; i < chordProgression.offsets.length; i++) {
+      const slot = chordProgression.offsets[i];
+      if (slot >= m * measureLengthTicks && slot < (m + 1) * measureLengthTicks) {
+        // Read degree directly from displayNotes[i] — always matches the current
+        // chord melody, never one block behind like the old displayChordProgression lookup.
+        const chord = chordProgression.displayNotes?.[i];
+        const romanBase = chord?.meta?.romanBaseRaw ?? '';
+        const degree = _RDEG[String(romanBase).toUpperCase()] ?? null;
+        schedChords.push({
+          audioTime: nextStartTime + (slot - m * measureLengthTicks) * timeFactor,
+          duration: chordProgression.durations[i] * timeFactor,
+          measureIndex: schedMeasureIndex,
+          localSlot: slot - m * measureLengthTicks,
+          degree,
+        });
+      }
+    }
+
+    // Extend each chord's highlight window to fill until the next chord starts
+    // (or until the measure ends for the last chord). This prevents flicker when
+    // chord durations don't perfectly tile the measure (e.g. with rhythmVariability).
+    const measureEnd = nextStartTime + measureDuration;
+    for (let k = 0; k < schedChords.length; k++) {
+      const effectiveEnd = k + 1 < schedChords.length
+        ? schedChords[k + 1].audioTime
+        : measureEnd;
+      if (effectiveEnd > schedChords[k].audioTime + schedChords[k].duration) {
+        schedChords[k] = { ...schedChords[k], duration: effectiveEnd - schedChords[k].audioTime };
+      }
+    }
+    return schedChords;
+  }
+
+  /**
+   * Schedule a one-shot callback and track its ID for cancellation in stop().
+   * Auto-removes the ID from this.timeouts when the callback fires, preventing
+   * unbounded array growth during long playback sessions.
+   */
+  scheduleTimeout(fn, delayMs) {
+    const id = setTimeout(() => {
+      const idx = this.timeouts.indexOf(id);
+      if (idx !== -1) this.timeouts.splice(idx, 1);
+      fn();
+    }, delayMs);
+    this.timeouts.push(id);
+  }
+
+  /**
    * Push a generation result's fields to React setters.
    * initialLoad=true  → always update reference melodies (called once at session start).
    * initialLoad=false → respect 'fixed' rule; also clears the preview overlay.
@@ -1359,13 +1389,13 @@ class Sequencer {
     }
     if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
 
-    try { this.instruments.treble?.stop(); } catch (e) { }
-    try { this.instruments.bass?.stop(); } catch (e) { }
-    try { this.instruments.chords?.stop(); } catch (e) { }
+    try { this.instruments.treble?.stop(); } catch { /* instrument may not be started */ }
+    try { this.instruments.bass?.stop(); } catch { /* instrument may not be started */ }
+    try { this.instruments.chords?.stop(); } catch { /* instrument may not be started */ }
     // percussion and metronome were missing here — they must be stopped too or
     // their scheduled audio continues playing after the user presses Stop.
-    try { this.instruments.percussion?.stop(); } catch (e) { }
-    try { this.instruments.metronome?.stop(); } catch (e) { }
+    try { this.instruments.percussion?.stop(); } catch { /* instrument may not be started */ }
+    try { this.instruments.metronome?.stop(); } catch { /* instrument may not be started */ }
 
     this.playbackState = null;
     this.scheduledNotes = null;
