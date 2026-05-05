@@ -1,4 +1,5 @@
 import React from 'react';
+import logger from '../../utils/logger';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { getNoteSemitone, getCanonicalNote } from '../../theory/noteUtils';
 import { transposeMelodyBySemitones } from '../../theory/musicUtils';
@@ -1049,7 +1050,7 @@ const renderMelodyNotes = (
       // Safety check for invalid notes
       if (Number.isNaN(positionY)) {
         if (index === 0 || index % 4 === 0) { // Limit log spam
-          console.warn(`[renderMelodyNotes] Invalid note position for ${note} (Original: ${noteWithAccidental}) on ${staff}`, { positionY });
+          logger.warn('renderMelodyNotes', `Invalid note position for ${note} (Original: ${noteWithAccidental}) on ${staff}`, { positionY });
         }
         return null;
       }

@@ -279,6 +279,8 @@ logger.error('Sequencer', 'E010-PLAYBACK-START', err, { bpm: 120 });
 - **E015-FULLSCREEN** — requestFullscreen rejected (useDeviceState.js)
 - **E016-SCALE-TYPE-NOT-FOUND** — selectedScaleType not found in legacy modes (scaleHandler.js)
 - **E017-SCALE-DEF-NOT-FOUND** — scale definition not found for family+mode (scaleHandler.js)
+- **E018-INVALID-SLOTS** — invalid numberOfSlotsPerMeasure in generateRankedRhythm (generateRankedRhythm.js)
+- **E019-TONIC-NOT-FOUND** — tonic note not found in notes array (PianoView.jsx)
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E020-AUDIO-INIT`) and add it to this list.
 

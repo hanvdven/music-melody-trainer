@@ -1,5 +1,6 @@
 // components/PianoView.jsx
 import React, { useMemo, useEffect, useRef } from 'react';
+import logger from '../../utils/logger';
 import playSound, { resolveNotePitch } from '../../audio/playSound';
 import { standardizeTonic, getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import generateAllNotesArray from '../../theory/allNotesArray';
@@ -47,7 +48,7 @@ const PianoView = ({
   const tonicIndex = findNoteIndex(canonicalTonic);
 
   if (tonicIndex === -1) {
-    console.error('Tonic not found in notes:', tonic, 'Canonical:', canonicalTonic, notes);
+    logger.error('PianoView', 'E019-TONIC-NOT-FOUND', null, { tonic, canonicalTonic });
     return null;
   }
 
