@@ -27,6 +27,8 @@ import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionDis
 import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange } from '../../utils/melodySlice';
 import { calculateMusicalBlocks } from '../../utils/pagination';
 import useLongPressTimer from '../../hooks/useLongPressTimer';
+import BpmControls from './BpmControls';
+import RepeatsControls from './RepeatsControls';
 import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
@@ -1077,255 +1079,24 @@ const SheetMusic = ({
   // Thick repeat barlines — always visible, never masked
   const renderRepeatBarlines = (ppt = null) => _iterMeasureLines('repeat', allOffsets, noteWidth, ppt);
 
-  // State for BPM controls visibility
+  // BPM controls visibility — lifted from BpmControls so renderRandomizeIcons and handleSheetMusicClick can read it
   const [showBpmControls, setShowBpmControls] = React.useState(false);
   const bpmTimerRef = React.useRef(null);
-
-  // TAP BPM — accumulate up to 4 tap timestamps; use the last 4 intervals to derive BPM.
-  // Taps older than 3 s reset the sequence (stale tap).
-  const tapTimesRef = React.useRef([]);
-  const [tapFlash, setTapFlash] = React.useState(false);
-  const tapFlashTimerRef = React.useRef(null);
-
-  const handleTap = () => {
-    resetBpmTimer();
-    openSettingsIfClosed();
-    const now = performance.now();
-    const times = tapTimesRef.current;
-    // Drop taps older than 3 s
-    const fresh = times.filter(t => now - t < 3000);
-    fresh.push(now);
-    // Keep only the last 5 timestamps (gives 4 intervals)
-    if (fresh.length > 5) fresh.shift();
-    tapTimesRef.current = fresh;
-
-    if (fresh.length >= 2) {
-      const intervals = [];
-      for (let i = 1; i < fresh.length; i++) intervals.push(fresh[i] - fresh[i - 1]);
-      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-      const tappedBpm = Math.round(60000 / avgInterval);
-      onBpmChange(clampBpm(tappedBpm));
-    }
-
-    // Brief visual flash on the TAP label
-    setTapFlash(true);
-    if (tapFlashTimerRef.current) clearTimeout(tapFlashTimerRef.current);
-    tapFlashTimerRef.current = setTimeout(() => setTapFlash(false), 120);
-  };
-
   const resetBpmTimer = () => {
     setShowBpmControls(true);
-    if (bpmTimerRef.current) {
-      clearTimeout(bpmTimerRef.current);
-    }
-    bpmTimerRef.current = setTimeout(() => {
-      setShowBpmControls(false);
-    }, 5000);
+    if (bpmTimerRef.current) clearTimeout(bpmTimerRef.current);
+    bpmTimerRef.current = setTimeout(() => setShowBpmControls(false), 5000);
   };
 
-  const BPM_MIN = 12;
-  const BPM_MAX = 360;
-  const clampBpm = (v) => Math.min(BPM_MAX, Math.max(BPM_MIN, v));
+  // resetRepeatsTimer — no-op stub kept so call sites in handleSheetMusicClick and the number picker don't need to change.
+  // The original showRepeatsControls state was never read in the render, so no visible effect was lost.
+  const resetRepeatsTimer = () => {};
 
+  // Needed by the tempo-picker dialog (tempoPicker state lives here, not in BpmControls).
   const handleBpmChangeWrapper = (val) => {
     resetBpmTimer();
     openSettingsIfClosed();
-    onBpmChange(clampBpm(val));
-  };
-
-  // Inner -/+: jump to nearest integer (always moves by at least 1)
-  const bpmDecrement = () => handleBpmChangeWrapper(Math.floor(bpm - 0.001));
-  const bpmIncrement = () => handleBpmChangeWrapper(Math.ceil(bpm + 0.001));
-  // Outer --/++: jump to nearest multiple of 5
-  const bpmDecrementFive = () => handleBpmChangeWrapper(Math.floor((bpm - 0.001) / 5) * 5);
-  const bpmIncrementFive = () => handleBpmChangeWrapper(Math.ceil((bpm + 0.001) / 5) * 5);
-
-  // Long press for BPM
-  const handleBpmLongPress = () => {
-    resetBpmTimer();
-    setTimeout(() => {
-      const input = window.prompt('Enter BPM:', bpm);
-      if (input !== null) {
-        const val = parseFloat(input);
-        if (!isNaN(val) && val >= BPM_MIN && val <= BPM_MAX) {
-          onBpmChange(clampBpm(val));
-        }
-      }
-    }, 10);
-  };
-  const bpmLongPress = useLongPressTimer();
-
-  const renderBpmControls = () => {
-    const x = 25;
-    const term = getTempoTerm(bpm);
-    const headerY = trebleStart - 89;
-    const valueY = trebleStart - 59; // aligned with sheet music chords
-
-    // Button zones (relative to x=25, total span from x-22 to x+112):
-    // --  : x-22 .. x+3   (25px)
-    // -   : x+3  .. x+45  (42px)  ← inner edge meets + at x+45
-    // +   : x+45 .. x+87  (42px)
-    // ++  : x+87 .. x+112 (25px)
-    const zL2 = x - 22, zL2w = 25;   // -- button
-    const zL1 = x + 3,  zL1w = 42;   // -  button
-    const zR1 = x + 45, zR1w = 42;   // +  button
-    const zR2 = x + 87, zR2w = 25;   // ++ button
-    const zH  = valueY - 30;          // top of all hit rects
-    const zHh = 45;                   // height of all hit rects
-    const dc  = debugMode ? 'orange' : 'transparent';
-    const dop = debugMode ? 0.4 : 1;
-    const ds  = debugMode ? 1 : 0;
-
-    const mkRect = (rx, rw, onUp, longPressOpts) => (
-      <rect
-        x={rx} y={zH} width={rw} height={zHh}
-        fill={dc} fillOpacity={dop} stroke={dc} strokeWidth={ds}
-        style={{ cursor: 'pointer' }}
-        onMouseDown={() => longPressOpts && bpmLongPress.start(handleBpmLongPress)}
-        onMouseUp={(e) => { e.stopPropagation(); longPressOpts ? bpmLongPress.end(e, onUp) : onUp(); }}
-        onClick={(e) => e.stopPropagation()} // prevent click from bubbling to SVG's settings-toggle handler
-        onMouseLeave={() => longPressOpts && bpmLongPress.cancel()}
-        onTouchStart={() => longPressOpts && bpmLongPress.start(handleBpmLongPress)}
-        onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); longPressOpts ? bpmLongPress.end(e, onUp) : onUp(); }}
-      />
-    );
-
-    return (
-      <g>
-        {/* Tempo term — clickable to open tempo word picker */}
-        <text x={x + 10} y={headerY} className="tempo-term" fontSize="14"
-          style={{ cursor: 'pointer', fill: showSettings ? 'var(--accent-yellow)' : undefined }}
-        >
-          {term}
-        </text>
-        {debugMode && <rect x={x + 6} y={headerY - 14} width={80} height={18} fill="green" fillOpacity={0.4} stroke="green" strokeWidth={1} />}
-        <rect
-          x={x + 6} y={headerY - 14} width={80} height={18}
-          fill="transparent" style={{ cursor: 'pointer' }}
-          onClick={(e) => { e.stopPropagation(); setTempoPicker(p => !p); openSettingsIfClosed(); onSettingsInteraction?.(10000); }}
-        />
-
-        {/* q = BPM */}
-        <text x={x} y={valueY} className="bpm-note" fill={showSettings ? 'var(--accent-yellow)' : undefined}>q</text>
-        <text x={x + 15} y={valueY} className="bpm-equals" fill={showSettings ? 'var(--accent-yellow)' : undefined}>=</text>
-        <text x={x + 30} y={valueY - 8} className="bpm-value" fontFamily="Maestro" fill={showSettings ? 'var(--accent-yellow)' : undefined}>{bpm}</text>
-
-        {/* -- / - / + / ++ indicators */}
-        {(showBpmControls || showSettings) && (
-          <>
-            <text x={x - 12} y={valueY - 5} className="measure-indicator" fontSize="10">--</text>
-            <text x={x + 17} y={valueY - 5} className="measure-indicator">-</text>
-            <text x={x + 70} y={valueY - 4} className="measure-indicator">+</text>
-            <text x={x + 91} y={valueY - 4} className="measure-indicator" fontSize="10">++</text>
-          </>
-        )}
-
-        {/* -- (outer left): jump to next lower multiple of 5 */}
-        {mkRect(zL2, zL2w, bpmDecrementFive, false)}
-        {/* -  (inner left): jump to next lower integer, long-press = prompt */}
-        {mkRect(zL1, zL1w, bpmDecrement, true)}
-        {/* +  (inner right): jump to next higher integer, long-press = prompt */}
-        {mkRect(zR1, zR1w, bpmIncrement, true)}
-        {/* ++ (outer right): jump to next higher multiple of 5 */}
-        {mkRect(zR2, zR2w, bpmIncrementFive, false)}
-
-        {/* TAP button — always visible in settings, appears briefly after first BPM interaction */}
-        {(showBpmControls || showSettings) && (
-          <>
-            <rect
-              x={x + 3} y={valueY + 12} width={84} height={18} rx="3"
-              fill={tapFlash ? 'var(--accent-yellow)' : (showSettings ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.05)')}
-              stroke={showSettings ? 'var(--accent-yellow)' : 'var(--text-dim)'}
-              strokeWidth="0.5"
-              style={{ cursor: 'pointer' }}
-              onClick={(e) => { e.stopPropagation(); handleTap(); }}
-              onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleTap(); }}
-            />
-            <text
-              x={x + 45} y={valueY + 24}
-              fontSize="9" fontFamily="sans-serif" textAnchor="middle"
-              fill={tapFlash ? '#222' : (showSettings ? 'var(--accent-yellow)' : 'var(--text-dim)')}
-              style={{ pointerEvents: 'none', userSelect: 'none' }}
-            >
-              TAP
-            </text>
-          </>
-        )}
-      </g>
-    );
-  };
-
-  /* =========================
-       REPEATS CONTROLS
-       ========================= */
-  const [showRepeatsControls, setShowRepeatsControls] = React.useState(false);
-  const repeatsTimerRef = React.useRef(null);
-
-  const resetRepeatsTimer = () => {
-    setShowRepeatsControls(true);
-    if (repeatsTimerRef.current) {
-      clearTimeout(repeatsTimerRef.current);
-    }
-    repeatsTimerRef.current = setTimeout(() => {
-      setShowRepeatsControls(false);
-    }, 5000);
-  };
-
-  const cycleRepeats = (direction) => {
-    onSettingsInteraction?.();
-    resetRepeatsTimer();
-    const options = [1, 2, 4, 6, 8, -1];
-    const currentIndex = options.indexOf(numRepeats);
-
-    let nextIndex;
-    if (currentIndex === -1) {
-      nextIndex = options.indexOf(4); // Default to 4 if unknown
-    } else {
-      if (direction === 'up') {
-        nextIndex = (currentIndex + 1) % options.length;
-      } else {
-        nextIndex = (currentIndex - 1 + options.length) % options.length;
-      }
-    }
-    onNumRepeatsChange(options[nextIndex]);
-  };
-
-  const resetRepeatsToDefault = () => {
-    resetRepeatsTimer();
-    onNumRepeatsChange(4);
-  }
-
-  const renderRepeatsControls = () => {
-    const cx = showSettings ? systemEndX - 30 : systemEndX - 20;
-    const baseY = trebleStart - 18;
-    const displayVal = numRepeats === -1 ? '∞' : numRepeats;
-
-    if (!showSettings) {
-      // Outside adjustments: right-aligned [numRepeats]À in Maestro — clickable to show repeat controls
-      return (
-        <g onClick={(e) => { e.stopPropagation(); resetRepeatsTimer(); }} style={{ cursor: 'pointer' }}>
-          {debugMode && <rect x={systemEndX - 55} y={trebleStart - 50} width={55} height={30} fill="magenta" fillOpacity={0.4} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
-          <rect x={systemEndX - 55} y={trebleStart - 50} width={55} height={30} fill="transparent" />
-          <text
-            x={systemEndX}
-            y={trebleStart - 25}
-            fontFamily="Maestro"
-            fontWeight="normal"
-            textAnchor="end"
-            style={{ pointerEvents: 'none' }}
-          >
-            {numRepeats === -1 ? '' : (
-              <>
-                <tspan fontSize="32" fill="var(--text-dim)">{numRepeats}</tspan>
-                <tspan fontSize="26" fill="var(--text-dim)"> À</tspan>
-              </>
-            )}
-          </text>
-        </g>
-      );
-    }
-
-    return null;
+    onBpmChange(Math.min(360, Math.max(12, val)));
   };
 
   // Walk up from el to stopEl looking for an element with the given attribute.
@@ -2060,11 +1831,30 @@ const SheetMusic = ({
           />
 
           {/* Draw BPM Controls */}
-          {renderBpmControls()}
-
+          <BpmControls
+            bpm={bpm}
+            onBpmChange={onBpmChange}
+            trebleStart={trebleStart}
+            showSettings={showSettings}
+            showBpmControls={showBpmControls}
+            onResetBpmTimer={resetBpmTimer}
+            debugMode={debugMode}
+            openSettingsIfClosed={openSettingsIfClosed}
+            onSettingsInteraction={onSettingsInteraction}
+            setTempoPicker={setTempoPicker}
+          />
 
           {/* Draw Repeats Controls - always visible, shows 4x outside adjustments */}
-          {renderRepeatsControls()}
+          <RepeatsControls
+            numRepeats={numRepeats}
+            onNumRepeatsChange={onNumRepeatsChange}
+            trebleStart={trebleStart}
+            systemEndX={systemEndX}
+            showSettings={showSettings}
+            debugMode={debugMode}
+            onSettingsInteraction={onSettingsInteraction}
+            onResetRepeatsTimer={resetRepeatsTimer}
+          />
 
           {/* Randomize Icons */}
           {renderRandomizeIcons()}
