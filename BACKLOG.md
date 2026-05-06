@@ -137,10 +137,12 @@ Increase font size for triplet text. Use serif font, boldface, increase size by 
 -> Er is momenteel geen ruimte tussen de x en de : y. Visueel is het nu "x: y", moet zijn "x : y".
 -> ok resolved!
 
-Bug: triplets (3:2) van 3 achststen in plaats van 2 achststen, hebben dubbele bar (dus zestienten). Dat is niet correct. Ik zie ook triplets van halve noten genoteerd als paren van verbonden kwartnoten; voorkom dat en noteer als halve noten.
+✅ Bug: triplets (3:2) van 3 achststen in plaats van 2 achststen, hebben dubbele bar (dus zestienten). Dat is niet correct. Ik zie ook triplets van halve noten genoteerd als paren van verbonden kwartnoten; voorkom dat en noteer als halve noten.
 -> triplets van halve noten zijn nog altijd genoteerd als paren van kwartnoten.
 
 [Claude 2026-04-10 14:00]: Dubbele balk bij triool-achtsten opgelost via `effectiveDur(n)`. Kwartnoot-triolen beamed als paren: fix was afhankelijk van `processMelodyAndCalculateSlots` die `triplets` doorgeeft (zie fix hierboven). Na die fix: `tupletVis=12` (kwart) → beaming-check `>= 12` sluit ze correct uit.
+
+[Claude 2026-05-06]: Halve-noot-triolen volledig opgelost. Oorzaak: `processMelodyAndCalculateSlots` splitste 16-tick noten (halve-noot triool in kwartnoot-grid, 48/3=16) in meerdere stukken omdat 16 niet in `allowedDurations` staat. Elke splits kreeg via `melody.triplets` de `visualDuration=24` (halve noot), wat resulteerde in meerdere gebonden halve-nootkoppen op opeenvolgende posities. Fix: tuplet-noten bypassen nu alle splitlogica met een early-exit vóór stap 1 in `processMelodyAndCalculateSlots.js` — hun weergave verloopt volledig via `melody.triplets` in `renderMelodyNotes`. Geldt ook voor kleine triolen (4-tick achtste-triolen) en kwartnoot-triolen.
 
 Ik zie geen tuplets bij percussie of bas, hoe komt dat? Is de bedoeling dat ze ook daar voorkomen. -> gezien bij perucssie! Opgelost.
 
