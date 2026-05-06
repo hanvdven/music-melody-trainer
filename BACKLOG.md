@@ -54,6 +54,18 @@ De filosofie is dat noten worden gesplitst zodat op te tel steeds een noot staat
 
 ## BLADMUZIEK / NOTATIE
 
+### Vrij tempo / Tempo ad libitum / Tempo rubato
+
+add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Common time-symbool: Maestro SHIFT+T ipv 4/4
+
+gebruik ipv de 4/4 dit Maestro-symbool: SHIFT+T | ~ | Turn, grupetto
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
 ### Sleutel & transponerend instrument
 
 ✅ clef in sheet music: cycle bij korte klik (of 2×), open lijst bij lange klik of 3× klikken. Noten en akkoorden klikbaar met visuele flash-feedback.
@@ -460,6 +472,46 @@ Nog open: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren 
 ---
 
 ## MUZIEKTHEORIE & PEDAGOGIE
+
+---
+
+## UX / UI — NAVIGATIE & STRUCTUUR
+
+### Input achter een submenu
+
+vind een manier om input achter een submenu te steken: treble, vocal (mic input), bass, percussion, guitar neck (nog niet geïmplementeerd)
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Scale en Chords achter een submenu
+
+vind een manier om scale en chords achter een submenu te steken
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Generator opsplitsen in simpel / advanced / debug
+
+vind een manier om generator te splitsen in simpel (difficulty, playback setting, presets), advanced en debug
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Profiel: interface, preferences, kennisbank
+
+voeg een profiel toe met interface, preferences, en kennisbank.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Generatorsettings en playback duidelijker splitsen
+
+vind een manier om generatorsettings en playback duidelijker te splitsen (sheet music settings overlay)
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Kleuren harmoniseren
+
+harmoniseer kleuren (2 accentkleuren blauw en geel → één kleur)
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 
 ---
 
