@@ -34,6 +34,7 @@
 | 19 | Lint pass 1 — 29 errors → 0: regex u-flag, empty catches, hooks-in-conditional (PianoView), no-prototype-builtins, globalDenom bug | ✅ Gereed |
 | 20 | Lint pass 2 — 898 → 755 warnings: ongebruikte imports/props/vars verwijderd in 29 bestanden | ✅ Gereed |
 | 21 | TabView.jsx geëxtraheerd uit App.jsx — 238 regels JSX tab-content verplaatst, 15 imports verwijderd | ✅ Gereed |
+| 22 | useAppUIState hook — 36 useState/useRef/useRefState declaraties + theme effect verplaatst uit App.jsx | ✅ Gereed |
 
 ---
 

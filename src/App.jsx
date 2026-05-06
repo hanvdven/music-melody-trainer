@@ -39,6 +39,7 @@ import {
     DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE,
 } from './constants/generatorDefaults';
 import useAppLayout from './hooks/useAppLayout';
+import useAppUIState from './hooks/useAppUIState';
 import logger from './utils/logger';
 
 // Icons
@@ -120,61 +121,48 @@ const App = () => {
     const sequencerRef = useRef(null);
     const prevScaleRef = useRef(null);
 
-    const [activeTab, setActiveTab] = useState('piano');
+    // Pure UI state — no cross-dependencies with audio, instruments, or melody generation.
+    // Theme side-effect (data-theme attribute) lives inside the hook alongside its state.
+    const {
+        activeTab, setActiveTab,
+        displayChordProgression, setDisplayChordProgression,
+        showNotes, setShowNotes,
+        activeClef, setActiveClef,
+        generatorMode, setGeneratorMode,
+        activePreset, setActivePreset,
+        theme, setTheme,
+        customScaleLabel, setCustomScaleLabel,
+        isModulationEnabled, setIsModulationEnabled,
+        isSimpleView, setIsSimpleView,
+        minimizeAccidentals, setMinimizeAccidentals,
+        debugMode, setDebugMode,
+        noteColoringMode, setNoteColoringMode,
+        showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef,
+        clearHighlightStateRef,
+        startMeasureIndex, setStartMeasureIndex,
+        headerPlayMode, setHeaderPlayMode,
+        currentMeasureIndex, setCurrentMeasureIndex,
+        animationMode, setAnimationMode, animationModeRef,
+        lyricsMode, setLyricsMode,
+        nextLayer, setNextLayer,
+        previewMelody, setPreviewMelody,
+        wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+        svgRef,
+        qwertyKeyboardActive, setQwertyKeyboardActive,
+        onPlaybackStartRef,
+        showChordLabels, setShowChordLabels,
+        showChordsOddRounds, setShowChordsOddRounds, showChordsOddRoundsRef,
+        showChordsEvenRounds, setShowChordsEvenRounds, showChordsEvenRoundsRef,
+        chordDisplayMode, setChordDisplayMode,
+    } = useAppUIState();
 
     const [chordProgression, setChordProgression, chordProgressionRef] = useRefState(() => ChordProgression.default());
-    const [displayChordProgression, setDisplayChordProgression] = useState(null);
-
-    const [showNotes, setShowNotes] = useState(true);
-    const [activeClef, setActiveClef] = useState('treble');
-
     const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
-
-    // UI State persistence for Generator
-    const [generatorMode, setGeneratorMode] = useState('presets');
-    const [activePreset, setActivePreset] = useState('standard');
-
-    // Theme State
-    const [theme, setTheme] = useState('default');
-    const [customScaleLabel, setCustomScaleLabel] = useState(null);
-
-    // Modulation Toggle State (default true)
-    const [isModulationEnabled, setIsModulationEnabled] = useState(true);
-
-    // Scale View Mode State (default true for initial C Major)
-    const [isSimpleView, setIsSimpleView] = useState(true);
-
-    const [minimizeAccidentals, setMinimizeAccidentals] = useState(true);
 
     // Sheet Music Settings state (Lifted)
     const { showSheetMusicSettings, toggleSheetMusicSettings, resetSettingsTimer } = useSettingsOverlay();
-    const [debugMode, setDebugMode] = useState(false);
-    const [noteColoringMode, setNoteColoringMode] = useState('tonic_scale_keys');
-    const [showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef] = useRefState(true);
-    const clearHighlightStateRef = useRef(false);
-    const [startMeasureIndex, setStartMeasureIndex] = useState(0);
 
-    // Unified play mode: 'once', 'test', 'continuous'
-    const [headerPlayMode, setHeaderPlayMode] = useState('continuous'); // Controls which button is in the header
-
-    // Also need to keep the actual logic toggles in sync or refactor usePlayback/useInputTest to use playMode.
-    // For now, let's just make the UI look right and then wire up the logic.
-    const [currentMeasureIndex, setCurrentMeasureIndex] = useState(0);
-    const [animationMode, setAnimationMode, animationModeRef] = useRefState('pagination');
-    const [lyricsMode, setLyricsMode] = useState('none');
-    const [nextLayer, setNextLayer] = useState(null); // wipe/scroll-mode preview type: 'yellow' | 'red' | null
-    const [previewMelody, setPreviewMelody] = useState(null); // pre-generated next melody for red overlay
-    const wipeTransitionRef = useRef(null);         // {startTime, endTime} for wipe mask animation
-    const scrollTransitionRef = useRef(null);       // {startTime, endTime} for scroll slide animation
-    const pendingScrollTransitionRef = useRef(null); // queued next scroll animation (applied when current finishes)
-    const paginationFadeRef = useRef(null);         // {startTime, totalEnd} for rAF-driven pagination crossfade
-    const svgRef = useRef(null); // shared ref to the SheetMusic SVG element (used by Sequencer callbacks)
-    const [qwertyKeyboardActive, setQwertyKeyboardActive] = useState(false);
-
-
-    // Input Test Mode — all state, live tracker, and handlers extracted to useInputTest
-    // (wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available)
-    const onPlaybackStartRef = useRef(() => { });
+    // Input Test Mode — wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available
 
     const { isFullscreen, toggleFullscreen, isTouch } = useDeviceState();
 
@@ -184,14 +172,6 @@ const App = () => {
         document.documentElement.style.setProperty('--note-fade-duration', `${dur}s`);
     }, [bpm]);
 
-
-    useEffect(() => {
-        if (theme === 'default') {
-            document.documentElement.removeAttribute('data-theme');
-        } else {
-            document.documentElement.setAttribute('data-theme', theme);
-        }
-    }, [theme]);
 
     const percussionScale = Scale.defaultPercussionScale();
     const windowSize = useWindowSize();
@@ -617,12 +597,6 @@ const App = () => {
         }
         prevScaleRef.current = scale;
     }, [scale, playbackConfig.randomize.melody, trebleMelody, bassMelody, trebleSettings, bassSettings]);
-    // Chord label visibility state — declared here so they are in scope for the Sequencer
-    // init useEffect and the setters-refresh useEffect below.
-    const [showChordLabels, setShowChordLabels] = useState(false);
-    const [showChordsOddRounds, setShowChordsOddRounds, showChordsOddRoundsRef] = useRefState(false);
-    const [showChordsEvenRounds, setShowChordsEvenRounds, showChordsEvenRoundsRef] = useRefState(false);
-
     // Canonical setters object passed to the Sequencer on init and kept fresh by the
     // refresh effect below. Memoized so the refresh effect only fires when a setter
     // identity actually changes (i.e. a useCallback dependency changed).
@@ -780,8 +754,6 @@ const App = () => {
         }
     }, [timeSignature, setTimeSignature, isPlayingContinuously, randomizeAll, playbackConfig.randomize]);
 
-
-    const [chordDisplayMode, setChordDisplayMode] = useState('letters');
 
     // Derived label shown in the header title: "Pop 4 in C Major" instead of "Melody in C Major".
     // displayChordProgression (set by Sequencer, always a ChordProgression with .chords) takes priority.
