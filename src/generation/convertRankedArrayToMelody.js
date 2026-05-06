@@ -43,7 +43,8 @@ const convertRankedArrayToMelody = (
     // =========================================================================
     // 0. PREPARE NOTE POOL
     // =========================================================================
-    const percussionIDs = ['k', 's', 'sg', 'sr', 'hh', 'ho', 'th', 'tm', 'tl', 'hp', 'cr', 'cc', 'wh', 'wl'];
+    // wm (mid woodblock) and cb (cowbell) were missing — added for parity with PERC_POOLS.all in generateBackbeat.js
+    const percussionIDs = ['k', 's', 'sg', 'sr', 'hh', 'ho', 'th', 'tm', 'tl', 'hp', 'cr', 'cc', 'wh', 'wm', 'wl', 'cb'];
     const fullAvailablePool = (() => {
         const allNotes = generateAllNotesArray();
         if (!range) return [...allNotes, ...percussionIDs];
@@ -171,7 +172,7 @@ const convertRankedArrayToMelody = (
         if (s === 'scale') return scale; // This is the PRE-RANGED scale from MelodyGenerator
         if (s === 'chromatic') return scale; // For now, chromatic also respects the ranged scale
         if (s === 'kick_snare') return ['k', 's', 'hh'];
-        if (s === 'claves') return ['wh', 'wl'];
+        if (s === 'claves') return ['wh', 'wm', 'wl'];
         if (s === 'all') return percussionIDs;
         if (s === 'metronome') return ['wh', 'wm', 'wl'];
         return scale;

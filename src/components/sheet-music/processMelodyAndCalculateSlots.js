@@ -44,6 +44,14 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
   const durations = melody.durations;
   const offsets = melody.offsets;
   const measureLength = TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]);
+
+  // Secondary beat span: the largest rhythmic group that must NOT be obscured by a single note.
+  // Simple duple/quadruple time (even top > 2): half-measure (e.g. 24 ticks in 4/4).
+  //   A dotted quarter on beat 1 or 3 in 4/4 stays within its half → keep whole.
+  //   A dotted quarter on beat 2 crosses the half-bar midpoint → still split (beat 3 must be visible).
+  // Triple and compound time: full measure — dotted notes are idiomatic on any beat.
+  const timeSigTop = timeSignature[0];
+  const secondaryBeatSize = (timeSigTop % 2 === 0 && timeSigTop > 2) ? measureLength / 2 : measureLength;
   let startRestDuration = 0;
 
   // Helper function to determine if a timestamp is at a multiple of 12 (within a measure)
@@ -228,11 +236,23 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
         currentMeasureEnd += measureLength;
       }
 
-      // Step 3: Continue splitting until the note aligns with allowed durations
+      // Step 3: Continue splitting until the note aligns with allowed durations.
+      // A note may stay whole when:
+      //   a) it fits within one beat group (≤ effectiveGroupSize = quarter note), OR
+      //   b) it ends exactly on a beat boundary, OR
+      //   c) it is a standard notation value (in allowedDurations) that starts on-beat
+      //      and does not cross the secondary beat span (half-measure in simple duple/
+      //      quadruple time, full measure in triple/compound time). This avoids splitting
+      //      idiomatic dotted notes: e.g. ♩. on beat 1 or 3 in 4/4 stays whole instead
+      //      of becoming ♩ ♪ with a tie.
+      const staysInSecondarySpan =
+        Math.floor(currentOffset / secondaryBeatSize) ===
+        Math.floor((currentOffset + remainingDuration - 1) / secondaryBeatSize);
       if (
         allowedDurations.includes(remainingDuration) &&
         (remainingDuration <= effectiveGroupSize ||
-          ((currentOffset + remainingDuration) % measureLength) % effectiveGroupSize === 0)
+          ((currentOffset + remainingDuration) % measureLength) % effectiveGroupSize === 0 ||
+          staysInSecondarySpan)
       ) {
         resultNotes.push(paddedNotes[i]);
         resultDurations.push(remainingDuration);
