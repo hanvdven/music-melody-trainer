@@ -129,9 +129,16 @@ bug! Ik zie precies geen verbindingsbalken meer sinds laatse oplossing..! Niet t
 
 [Claude 2026-04-10 15:00]: Regression opgelost — de tuplet-isolatie check (`lastInGroup.tupletId !== e.tupletId`) vergeleek `undefined` (uit pushed item) met `null` (uit spanElement). `undefined !== null` is altijd `true`, waardoor ALLE beamgroepen direct werden geflushed en er geen balken meer waren. Fix: `tupletId: e.tupletId` toegevoegd aan `currentSubGroup.push(...)`. Zie renderMelodyNotes.jsx.
 
-add pentuplet 5 : 6,  sextuplets 6 : 4 and 6 : 5 and septuplets  7 : 6 , 7 : 8; (omit 7 : 4). These should be very rare.
+✅ add pentuplet 5 : 6,  sextuplets 6 : 4 and 6 : 5 and septuplets  7 : 6 , 7 : 8; (omit 7 : 4). These should be very rare.
 triptles can occur as of variability 30%;
 the rest only from variability > 50% with a probability of variability% / 100.
+
+[Claude 2026-05-06]: Geïmplementeerd in `melodyGenerator.js`. Vijf nieuwe types toegevoegd aan `tupletCandidates`, allemaal met `minVar: 51` (alleen boven variability 50):
+- 5:6 (var/8000), 6:4 (var/5000), 6:5 (var/8000), 7:6 (var/10000), 7:8 (var/10000).
+De bestaande standaard types (3:2, 4:3, 5:4) kregen `minVar: 30`.
+De bestaande `filter(t => t.groupTicks <= measureTicks)` zorgt al voor de maatsoort-beperking:
+5:6 en 7:6 (groupTicks=6×slot) passen alleen in 6/8, 9/8, 12/8 e.d.; 7:8 (groupTicks=8×slot) vereist minstens 4/4 in 8th-grid.
+`processMelodyAndCalculateSlots` slaat alle tuplet-noten over (fix eerder deze sessie), dus alle nieuwe types renderen direct correct.
 
 Increase font size for triplet text. Use serif font, boldface, increase size by about 60%. Make the lowlighted second part more lowlighted. Maak afstand tussen alle tegekens gelijk (3 : 2) dus een spatie tussen alle tekens.
 -> Er is momenteel geen ruimte tussen de x en de : y. Visueel is het nu "x: y", moet zijn "x : y".
