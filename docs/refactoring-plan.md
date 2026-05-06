@@ -12,7 +12,7 @@
 | 2 | useRefState hook + App.jsx duplicate setters elimineren | ✅ Gereed |
 | 3 | Context uitbreiden (MelodyContext, PlaybackStateContext, AnimationRefsContext) | ✅ Gereed |
 | 4 | App.jsx opsplitsen — useAppLayout ✅ + TabView.jsx ✅ + useAppUIState ✅ + useAppHandlers ✅ | ✅ Gereed |
-| 5 | SheetMusic.jsx opsplitsen — useSheetMusicTransitions ✅ hook geëxtraheerd; SheetMusicHeader nog open | 🔄 Deels |
+| 5 | SheetMusic.jsx opsplitsen — useSheetMusicTransitions ✅ + BpmControls ✅ + RepeatsControls ✅ | ✅ Gereed |
 | 6 | Sequencer.js — applyResultToSetters ✅ + buildScheduledChords ✅ + scheduleTimeout ✅ | ✅ Gereed |
 | 7 | useMelodyState — resolveVoice factory (elimineer 3× dubbele generatielogica) | ✅ Gereed |
 | 8 | getNoteValue consolideren → getNoteIndex uit musicUtils | ✅ Gereed |
@@ -36,6 +36,8 @@
 | 21 | TabView.jsx geëxtraheerd uit App.jsx — 238 regels JSX tab-content verplaatst, 15 imports verwijderd | ✅ Gereed |
 | 22 | useAppUIState hook — 36 useState/useRef/useRefState declaraties + theme effect verplaatst uit App.jsx | ✅ Gereed |
 | 23 | useAppHandlers hook — toggleRoundSetting + handleTimeSignatureChange + generateChords + Option+P effect | ✅ Gereed |
+| 24 | BpmControls.jsx geëxtraheerd uit SheetMusic.jsx — BPM-display, stepper, tap-tempo (showBpmControls lifted) | ✅ Gereed |
+| 25 | RepeatsControls.jsx geëxtraheerd uit SheetMusic.jsx — repeat-glyph; dead showRepeatsControls state verwijderd | ✅ Gereed |
 
 ---
 
