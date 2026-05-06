@@ -286,7 +286,6 @@ const useSheetMusicHighlight = ({
         // ── SCROLL SLIDE ────────────────────────────────────────────────────────
         // NOTE: scroll is NOT a block transition — it is a continuous side-scroll where
         // notes flow at constant speed. It does not follow the transition sequence above.
-        // TODO: redesign as constant-speed playhead once pagination and wipe are stable.
         const runScrollAnimation = () => {
             const scrollGroup = getScrollGroup();
             if (!scrollGroup) return;
