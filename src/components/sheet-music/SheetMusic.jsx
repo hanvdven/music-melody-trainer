@@ -1092,6 +1092,13 @@ const SheetMusic = ({
   // The original showRepeatsControls state was never read in the render, so no visible effect was lost.
   const resetRepeatsTimer = () => {};
 
+  // Needed by the tempo-picker dialog (tempoPicker state lives here, not in BpmControls).
+  const handleBpmChangeWrapper = (val) => {
+    resetBpmTimer();
+    openSettingsIfClosed();
+    onBpmChange(Math.min(360, Math.max(12, val)));
+  };
+
   // Walk up from el to stopEl looking for an element with the given attribute.
   // Using a manual walk instead of closest() because SVGElement.closest() is unreliable
   // in some WebView / Capacitor environments, causing note clicks to fall through to settings.
