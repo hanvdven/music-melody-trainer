@@ -66,7 +66,7 @@ function noteToString(noteInfo) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ToneRecognizer = ({ context, scale, noteColoringMode, onNoteInput, inputTestSubMode, activeTab }) => {
+const ToneRecognizer = ({ context, scale, noteColoringMode, onNoteInput, inputTestSubMode }) => {
     const [detectionMode, setDetectionMode] = useState('note'); // 'note' | 'chord'
     const [source, setSource] = useState('piano'); // 'piano' | 'guitar' | 'voice'
 

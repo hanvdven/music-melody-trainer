@@ -19,8 +19,6 @@ const useInputTest = ({
     tsRef,
     context,
     isPlayingContinuously,
-    handleStopAllPlayback,
-    handlePlayContinuously,
     randomizeAll,
     playbackConfig,
     activeTab,

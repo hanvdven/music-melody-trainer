@@ -4,25 +4,18 @@ import {
     getRelativeNoteName,
 } from './theory/convertToDisplayNotes';
 import { getProgressionLabel } from './theory/progressionDefinitions';
-import RangeControls from './components/controls/RangeControls';
-import { instrumentOptions } from './components/controls/instrumentOptions';
 import './styles/App.css';
 import './styles/AppLayout.css';
-import ScaleSelector from './components/scale/ScaleSelector';
 import { modulateMelody } from './theory/musicUtils';
-import PlaybackSettings from './components/controls/PlaybackSettings';
 import Sequencer from './audio/Sequencer';
 import Melody from './model/Melody';
 import ChordProgression from './model/ChordProgression';
 import ErrorBoundary from './components/error/ErrorBoundary';
 import Scale from './model/Scale';
 import SheetMusic from './components/sheet-music/SheetMusic';
-import PianoView from './components/controls/PianoView';
-import DrumPad from './components/controls/DrumPad';
 import { KIT_NOTE_MAPPINGS } from './audio/drumKits';
 import AppHeader from './components/layout/AppHeader';
 import SubHeader from './components/layout/SubHeader';
-import ToneRecognizer from './components/controls/ToneRecognizer';
 
 // Hooks
 import useRefState from './hooks/useRefState';
@@ -36,17 +29,17 @@ import useSettingsOverlay from './hooks/useSettingsOverlay';
 import useNoteInteraction from './hooks/useNoteInteraction';
 import usePlaybackNavigation from './hooks/usePlaybackNavigation';
 import useScaleManagement from './hooks/useScaleManagement';
-import SettingsPanel from './components/controls/SettingsPanel';
 import useDifficultySettings from './hooks/useDifficultySettings';
-import { buildHarmonyTable, HARMONY_DIFFICULTY_RANGE } from './utils/harmonyTable';
+import { buildHarmonyTable } from './utils/harmonyTable';
 import { resizeMelody } from './utils/melodySlice';
 import { TICKS_PER_WHOLE } from './constants/timing';
 import {
-    VOLUME_LEVELS,
     DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
     DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE,
 } from './constants/generatorDefaults';
 import useAppLayout from './hooks/useAppLayout';
+import useAppUIState from './hooks/useAppUIState';
+import useAppHandlers from './hooks/useAppHandlers';
 import logger from './utils/logger';
 
 // Icons
@@ -62,9 +55,7 @@ import {
     ListRestart,
     Grid3x3,
 } from 'lucide-react';
-import ChordGrid from './components/controls/ChordGrid';
-import InstrumentRow from './components/controls/rows/InstrumentRow';
-import { SectionHeader, ColumnHeaders } from './components/controls/PlaybackSubComponents';
+import TabView from './components/layout/TabView';
 import { PlaybackConfigProvider } from './contexts/PlaybackConfigContext';
 import { InstrumentSettingsProvider } from './contexts/InstrumentSettingsContext';
 import { DisplaySettingsProvider } from './contexts/DisplaySettingsContext';
@@ -130,61 +121,48 @@ const App = () => {
     const sequencerRef = useRef(null);
     const prevScaleRef = useRef(null);
 
-    const [activeTab, setActiveTab] = useState('piano');
+    // Pure UI state — no cross-dependencies with audio, instruments, or melody generation.
+    // Theme side-effect (data-theme attribute) lives inside the hook alongside its state.
+    const {
+        activeTab, setActiveTab,
+        displayChordProgression, setDisplayChordProgression,
+        showNotes, setShowNotes,
+        activeClef, setActiveClef,
+        generatorMode, setGeneratorMode,
+        activePreset, setActivePreset,
+        theme, setTheme,
+        customScaleLabel, setCustomScaleLabel,
+        isModulationEnabled, setIsModulationEnabled,
+        isSimpleView, setIsSimpleView,
+        minimizeAccidentals, setMinimizeAccidentals,
+        debugMode, setDebugMode,
+        noteColoringMode, setNoteColoringMode,
+        showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef,
+        clearHighlightStateRef,
+        startMeasureIndex, setStartMeasureIndex,
+        headerPlayMode, setHeaderPlayMode,
+        currentMeasureIndex, setCurrentMeasureIndex,
+        animationMode, setAnimationMode, animationModeRef,
+        lyricsMode, setLyricsMode,
+        nextLayer, setNextLayer,
+        previewMelody, setPreviewMelody,
+        wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+        svgRef,
+        qwertyKeyboardActive, setQwertyKeyboardActive,
+        onPlaybackStartRef,
+        showChordLabels, setShowChordLabels,
+        showChordsOddRounds, setShowChordsOddRounds, showChordsOddRoundsRef,
+        showChordsEvenRounds, setShowChordsEvenRounds, showChordsEvenRoundsRef,
+        chordDisplayMode, setChordDisplayMode,
+    } = useAppUIState();
 
     const [chordProgression, setChordProgression, chordProgressionRef] = useRefState(() => ChordProgression.default());
-    const [displayChordProgression, setDisplayChordProgression] = useState(null);
-
-    const [showNotes, setShowNotes] = useState(true);
-    const [activeClef, setActiveClef] = useState('treble');
-
     const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
-
-    // UI State persistence for Generator
-    const [generatorMode, setGeneratorMode] = useState('presets');
-    const [activePreset, setActivePreset] = useState('standard');
-
-    // Theme State
-    const [theme, setTheme] = useState('default');
-    const [customScaleLabel, setCustomScaleLabel] = useState(null);
-
-    // Modulation Toggle State (default true)
-    const [isModulationEnabled, setIsModulationEnabled] = useState(true);
-
-    // Scale View Mode State (default true for initial C Major)
-    const [isSimpleView, setIsSimpleView] = useState(true);
-
-    const [minimizeAccidentals, setMinimizeAccidentals] = useState(true);
 
     // Sheet Music Settings state (Lifted)
     const { showSheetMusicSettings, toggleSheetMusicSettings, resetSettingsTimer } = useSettingsOverlay();
-    const [debugMode, setDebugMode] = useState(false);
-    const [noteColoringMode, setNoteColoringMode] = useState('tonic_scale_keys');
-    const [showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef] = useRefState(true);
-    const clearHighlightStateRef = useRef(false);
-    const [startMeasureIndex, setStartMeasureIndex] = useState(0);
 
-    // Unified play mode: 'once', 'test', 'continuous'
-    const [headerPlayMode, setHeaderPlayMode] = useState('continuous'); // Controls which button is in the header
-
-    // Also need to keep the actual logic toggles in sync or refactor usePlayback/useInputTest to use playMode.
-    // For now, let's just make the UI look right and then wire up the logic.
-    const [currentMeasureIndex, setCurrentMeasureIndex] = useState(0);
-    const [animationMode, setAnimationMode, animationModeRef] = useRefState('pagination');
-    const [lyricsMode, setLyricsMode] = useState('none');
-    const [nextLayer, setNextLayer] = useState(null); // wipe/scroll-mode preview type: 'yellow' | 'red' | null
-    const [previewMelody, setPreviewMelody] = useState(null); // pre-generated next melody for red overlay
-    const wipeTransitionRef = useRef(null);         // {startTime, endTime} for wipe mask animation
-    const scrollTransitionRef = useRef(null);       // {startTime, endTime} for scroll slide animation
-    const pendingScrollTransitionRef = useRef(null); // queued next scroll animation (applied when current finishes)
-    const paginationFadeRef = useRef(null);         // {startTime, totalEnd} for rAF-driven pagination crossfade
-    const svgRef = useRef(null); // shared ref to the SheetMusic SVG element (used by Sequencer callbacks)
-    const [qwertyKeyboardActive, setQwertyKeyboardActive] = useState(false);
-
-
-    // Input Test Mode — all state, live tracker, and handlers extracted to useInputTest
-    // (wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available)
-    const onPlaybackStartRef = useRef(() => { });
+    // Input Test Mode — wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available
 
     const { isFullscreen, toggleFullscreen, isTouch } = useDeviceState();
 
@@ -194,14 +172,6 @@ const App = () => {
         document.documentElement.style.setProperty('--note-fade-duration', `${dur}s`);
     }, [bpm]);
 
-
-    useEffect(() => {
-        if (theme === 'default') {
-            document.documentElement.removeAttribute('data-theme');
-        } else {
-            document.documentElement.setAttribute('data-theme', theme);
-        }
-    }, [theme]);
 
     const percussionScale = Scale.defaultPercussionScale();
     const windowSize = useWindowSize();
@@ -510,67 +480,22 @@ const App = () => {
     }, [numMeasures]);
 
 
-    const toggleRoundSetting = useCallback((round, instrument, type = 'audio') => {
-        if (setActivePreset) setActivePreset('custom');
-        const field = type === 'visual' ? `${instrument}Eye` : instrument;
-
-        setPlaybackConfig((prev) => {
-            const current = prev[round][field];
-            let next;
-
-            if (type === 'visual') {
-                if (instrument === 'percussion') {
-                    // Eye (true) -> Metronome ('metronome') -> EyeOff (false)
-                    if (current === true) next = 'metronome';
-                    else if (current === 'metronome') next = false;
-                    else next = true;
-                } else {
-                    next = !current;
-                }
-            } else {
-                // Volume cycle: f → mf → mp → p → pp → // → f
-                const idx = VOLUME_LEVELS.findIndex(v => Math.abs(v - current) < 0.05);
-                next = VOLUME_LEVELS[(idx < 0 ? 0 : idx + 1) % VOLUME_LEVELS.length];
-            }
-
-            const nextConfig = {
-                ...prev,
-                [round]: { ...prev[round], [field]: next }
-            };
-
-            // If enabling 'chords' audio, apply the requested presets if it was 0
-            if (instrument === 'chords' && type === 'audio' && current === 0 && next > 0) {
-                if (setTrebleSettings) setTrebleSettings(p => ({ ...p, notePool: 'scale', randomizationRule: 'weighted' }));
-                if (setBassSettings) setBassSettings(p => ({ ...p, notePool: 'chord', randomizationRule: 'emphasize_roots' }));
-                if (setPercussionSettings) setPercussionSettings(p => ({ ...p, notePool: 'all', randomizationRule: 'uniform' }));
-                if (setChordSettings) setChordSettings(p => ({ ...p, strategy: 'modal-random' }));
-            }
-
-            return nextConfig;
-        });
-    }, [setActivePreset, setPlaybackConfig, setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings]);
-
-    // OPTION+p → set all instrument volumes to pp (pianissimo)
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (!e.altKey || e.code !== 'KeyP') return;
-            e.preventDefault();
-            setPlaybackConfig((prev) => ({
-                ...prev,
-                oddRounds: { ...prev.oddRounds, treble: 0.2, bass: 0.2, chords: 0.2, percussion: 0.2 },
-                evenRounds: { ...prev.evenRounds, treble: 0.2, bass: 0.2, chords: 0.2, percussion: 0.2 },
-            }));
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [setPlaybackConfig]);
-
-    // Wrapper for generateChords from useMelodyState to update elevated chordProgression
-    const generateChords = useCallback((strategy) => {
-        const nextProgression = generateChordsLogic(strategy || chordSettings.strategy);
-        setChordProgression(nextProgression);
-        return nextProgression;
-    }, [generateChordsLogic, chordSettings.strategy]);
+    const { toggleRoundSetting, generateChords, handleTimeSignatureChange } = useAppHandlers({
+        setActivePreset,
+        setPlaybackConfig,
+        setTrebleSettings,
+        setBassSettings,
+        setPercussionSettings,
+        setChordSettings,
+        timeSignature,
+        setTimeSignature,
+        isPlayingContinuously,
+        randomizeAll,
+        generateChordsLogic,
+        chordSettings,
+        setChordProgression,
+        playbackConfig,
+    });
 
 
     useEffect(() => {
@@ -627,12 +552,6 @@ const App = () => {
         }
         prevScaleRef.current = scale;
     }, [scale, playbackConfig.randomize.melody, trebleMelody, bassMelody, trebleSettings, bassSettings]);
-    // Chord label visibility state — declared here so they are in scope for the Sequencer
-    // init useEffect and the setters-refresh useEffect below.
-    const [showChordLabels, setShowChordLabels] = useState(false);
-    const [showChordsOddRounds, setShowChordsOddRounds, showChordsOddRoundsRef] = useRefState(false);
-    const [showChordsEvenRounds, setShowChordsEvenRounds, showChordsEvenRoundsRef] = useRefState(false);
-
     // Canonical setters object passed to the Sequencer on init and kept fresh by the
     // refresh effect below. Memoized so the refresh effect only fires when a setter
     // identity actually changes (i.e. a useCallback dependency changed).
@@ -757,41 +676,6 @@ const App = () => {
     }, [instruments, sequencerSetters]);
 
 
-
-    const handleTimeSignatureChange = useCallback((type, value) => {
-        // Compute new TS inline. Using setTimeSignature(scalar) updates tsRef.current
-        // synchronously, so randomizeAll (which reads tsRef.current) can use the new
-        // TS immediately. All setState calls inside one event handler are batched by
-        // React 18 into a single commit — so the render sees new TS + new melodies
-        // together, eliminating the intermediate frame that caused SheetMusic to crash.
-        const [top, bottom] = timeSignature;
-        let newTS;
-        if (type === 'incrementTop') newTS = [Math.min(32, top + 1), bottom];
-        else if (type === 'decrementTop') newTS = [Math.max(1, top - 1), bottom];
-        else if (type === 'cycleBottom') newTS = [top, bottom === 16 ? 2 : bottom * 2];
-        else if (type === 'cycleBottomBackward') newTS = [top, Math.max(2, bottom / 2)];
-        else if (type === 'setTop') {
-            // Direct numeric input from long-press prompt dialog; value arrives as a string
-            const parsed = parseInt(value, 10);
-            if (!isNaN(parsed)) newTS = [Math.max(1, Math.min(32, parsed)), bottom];
-        }
-        if (!newTS) return;
-
-        setTimeSignature(newTS); // also updates tsRef.current synchronously
-
-        if (isPlayingContinuously) {
-            try {
-                // We keep randomizeAll here for Time Signature changes
-                // until we implement the "graceful partial-measure display" feature
-                randomizeAll(playbackConfig.randomize);
-            } catch (e) {
-                logger.error('App', 'E006-TIMESIG-REGEN', e);
-            }
-        }
-    }, [timeSignature, setTimeSignature, isPlayingContinuously, randomizeAll, playbackConfig.randomize]);
-
-
-    const [chordDisplayMode, setChordDisplayMode] = useState('letters');
 
     // Derived label shown in the header title: "Pop 4 in C Major" instead of "Melody in C Major".
     // displayChordProgression (set by Sequencer, always a ChordProgression with .chords) takes priority.
@@ -1093,242 +977,71 @@ const App = () => {
                 </div>
 
                 {/* CONTENT AREA */}
-                <div className="app-content-area">
-                    {activeTab === 'sheet-music' && (
-                        <div className="app-tab-sheet">
-                            <ErrorBoundary>
-                                <SheetMusic
-                                    {...sheetMusicCommonProps}
-                                    visibleMeasures={idealVisibleMeasures}
-                                    startMeasureIndex={startMeasureIndex}
-                                />
-                            </ErrorBoundary>
-                        </div>
-                    )}
-                    {activeTab === 'piano' && (
-                        <div className="app-instrument-panel" style={{ display: 'flex', flexDirection: 'column' }}>
-                            {instruments.treble ? (
-                                <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'visible' }}>
-                                    <PianoView
-                                        scale={scale}
-                                        trebleInstrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
-                                        activeClef={activeClef}
-                                        minNote={activeClef === 'treble' ? trebleSettings?.range?.min : bassSettings?.range?.min}
-                                        maxNote={activeClef === 'treble' ? trebleSettings?.range?.max : bassSettings?.range?.max}
-                                        noteColoringMode={noteColoringMode}
-                                        onNoteInput={handleInputTestNote}
-                                        qwertyKeyboardActive={qwertyKeyboardActive}
-                                    />
-                                    {/* Range Controls - overlaid on top of piano when settings open */}
-                                    {showSheetMusicSettings && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: 0, left: 0, right: 0,
-                                            background: 'var(--panel-bg)', // Match bottom view background
-                                            zIndex: 20,
-                                            padding: '4px 8px 20px 8px', // Reduced bottom padding to 20px
-                                        }}>
-                                            <RangeControls
-                                                activeSettings={activeClef === 'treble' ? trebleSettings : bassSettings}
-                                                setSettings={activeClef === 'treble' ? setTrebleSettings : setBassSettings}
-                                                tonic={scale.tonic}
-                                                activeClef={activeClef}
-                                                instrumentOptions={instrumentOptions}
-                                                setInstrument={(slug) => {
-                                                    if (activeClef === 'treble') setTrebleSettings(p => ({ ...p, instrument: slug }));
-                                                    else setBassSettings(p => ({ ...p, instrument: slug }));
-                                                }}
-                                                noteColoringMode={noteColoringMode}
-                                                setNoteColoringMode={setNoteColoringMode}
-                                                onSettingsInteraction={resetSettingsTimer}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="app-instrument-loading">Waking up instruments...</div>
-                            )}
-                        </div>
-                    )}
-                    {/* Persistent ToneRecognizer for mic input across tabs */}
-                    {(activeTab === 'listen' || inputTestSubMode === 'live') && (
-                        <div className="app-tab-listen" style={{ display: activeTab === 'listen' ? 'block' : 'none' }}>
-                            <ToneRecognizer
-                                context={context}
-                                scale={scale}
-                                noteColoringMode={noteColoringMode}
-                                onNoteInput={handleInputTestNote}
-                                inputTestSubMode={inputTestSubMode}
-                                activeTab={activeTab}
-                            />
-                        </div>
-                    )}
-                    {activeTab === 'keys-bottom' && (
-                        <div className="app-instrument-panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                            {instruments.bass ? (
-                                <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'visible' }}>
-                                    <PianoView
-                                        scale={scale}
-                                        trebleInstrument={manualInstruments.bass}
-                                        activeClef={'bass'}
-                                        minNote={bassSettings?.range?.min}
-                                        maxNote={bassSettings?.range?.max}
-                                        noteColoringMode={noteColoringMode}
-                                        onNoteInput={handleInputTestNote}
-                                        qwertyKeyboardActive={qwertyKeyboardActive}
-                                    />
-                                    {showSheetMusicSettings && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: 0, left: 0, right: 0,
-                                            background: 'var(--panel-bg)', // Match bottom view background
-                                            zIndex: 20,
-                                            padding: '4px 8px 20px 8px', // Reduced bottom padding to 20px
-                                        }}>
-                                            <RangeControls
-                                                activeSettings={bassSettings}
-                                                setSettings={setBassSettings}
-                                                tonic={scale.tonic}
-                                                activeClef={'bass'}
-                                                instrumentOptions={instrumentOptions}
-                                                setInstrument={(slug) => setBassSettings(p => ({ ...p, instrument: slug }))}
-                                                noteColoringMode={noteColoringMode}
-                                                setNoteColoringMode={setNoteColoringMode}
-                                                onSettingsInteraction={resetSettingsTimer}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="app-instrument-loading">Waking up instruments...</div>
-                            )}
-                        </div>
-                    )}
-                    {activeTab === 'percussion' && (
-                        <div style={{
-                            width: '100%',
-                            flex: 1,
-                            minHeight: 0,
-                            maxHeight: `${Math.min(windowSize.height * 0.65, windowSize.width * 0.75)}px`,
-                        }}>
-                            <DrumPad
-                                instruments={manualInstruments}
-                                context={context}
-                                customMapping={customPercussionMapping}
-                                setCustomMapping={setCustomPercussionMapping}
-                                percussionSettings={percussionSettings}
-                                setPercussionSettings={setPercussionSettings}
-                                onNoteInput={handleInputTestNote}
-                                qwertyKeyboardActive={qwertyKeyboardActive}
-                                theme={theme}
-                            />
-                        </div>
-                    )}
-                    {activeTab === 'chords' && (
-                        <div className="app-tab-chords">
-                            <div className="app-tab-chords-inner">
-                                <SectionHeader label="Chords" />
-                                <ColumnHeaders
-                                    gridConfig="12% 18% 12% 22% 12% 12% 12%"
-                                    columns={['chord notation', 'complexity', 'randomization', 'progression', 'chords/ MEASURE', '', 'variability']}
-                                />
-                                <InstrumentRow
-                                    label="Chords"
-                                    glyph="/"
-                                    instrumentKey="chords"
-                                    settings={chordSettings}
-                                    setSettings={setChordSettings}
-                                    setActiveRandTypeSelector={() => {}}
-                                    firstChord={chordProgression?.chords?.[0] ?? null}
-                                    renderMode="instrument"
-                                />
-                            </div>
-                            <ChordGrid
-                                scale={scale}
-                                chordProgression={displayChordProgression}
-                                chordDisplayMode={chordDisplayMode}
-                                setChordDisplayMode={setChordDisplayMode}
-                                isPlaying={isPlayingContinuously || isPlayingMelody}
-                                liveComplexity={chordSettings?.complexity || 'triad'}
-                                context={context}
-                                sequencerRef={sequencerRef}
-                            />
-                        </div>
-                    )}
-                    {activeTab === 'scale' && (
-                        <ErrorBoundary>
-                            <ScaleSelector
-                                trebleInstrument={manualInstruments.treble}
-                                windowSize={windowSize}
-                                scale={scale}
-                                setScale={setScale}
-                                scaleRange={trebleSettings?.range}
-                                setTonic={(v, isManualOverride) => {
-                                    setTonic(v, isManualOverride);
-                                }}
-                                activeMode={selectedMode}
-                                setSelectedMode={setSelectedMode}
-                                customScaleLabel={customScaleLabel}
-                                setCustomScaleLabel={setCustomScaleLabel}
-                                isModulationEnabled={isModulationEnabled}
-                                setIsModulationEnabled={setIsModulationEnabled}
-                                isSimpleView={isSimpleView}
-                                setIsSimpleView={setIsSimpleView}
-                                minimizeAccidentals={minimizeAccidentals}
-                                setMinimizeAccidentals={setMinimizeAccidentals}
-                                handlePlayScale={handlePlayScale}
-                                isPlayingScale={isPlayingScale}
-                            />
-                        </ErrorBoundary>
-                    )}
-                    {activeTab === 'playback' && (
-                        <div className="app-tab-playback">
-                            <ErrorBoundary>
-                                <PlaybackSettings
-                                    numMeasures={numMeasures}
-                                    musicalBlocks={musicalBlocks}
-                                    setNumMeasures={setNumMeasures}
-                                    setShowChordLabels={setShowChordLabels}
-                                    activeScale={scale}
-                                    generatorMode={generatorMode}
-                                    setGeneratorMode={setGeneratorMode}
-                                    activePreset={activePreset}
-                                    setActivePreset={setActivePreset}
-                                    showChordsOddRounds={showChordsOddRounds}
-                                    setShowChordsOddRounds={setShowChordsOddRounds}
-                                    showChordsEvenRounds={showChordsEvenRounds}
-                                    setShowChordsEvenRounds={setShowChordsEvenRounds}
-                                    difficultyLevel={difficultyLevel}
-                                    setDifficultyLevel={setDifficultyLevel}
-                                    difficultyProgression={difficultyProgression}
-                                    setDifficultyProgression={setDifficultyProgression}
-                                    bpm={bpm}
-                                    setBpm={setBpm}
-                                    generateChords={generateChords}
-                                    setScale={setScale}
-                                    setSelectedMode={setSelectedMode}
-                                    targetHarmonicDifficulty={targetHarmonicDifficulty}
-                                    setTargetHarmonicDifficulty={setTargetHarmonicDifficulty}
-                                    onApplyHarmonyDifficulty={applyHarmonyAtDifficulty}
-                                    harmonyDifficultyRange={HARMONY_DIFFICULTY_RANGE}
-                                    targetTrebleDifficulty={targetTrebleDifficulty}
-                                    setTargetTrebleDifficulty={setTargetTrebleDifficulty}
-                                    targetBassDifficulty={targetBassDifficulty}
-                                    setTargetBassDifficulty={setTargetBassDifficulty}
-                                    chordProgression={chordProgression}
-                                />
-                            </ErrorBoundary>
-                        </div>
-                    )}
-                    {activeTab === 'other-settings' && (
-                        <SettingsPanel
-                            theme={theme} setTheme={setTheme}
-                            isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen}
-                            minimizeAccidentals={minimizeAccidentals} setMinimizeAccidentals={setMinimizeAccidentals}
-                            isModulationEnabled={isModulationEnabled} setIsModulationEnabled={setIsModulationEnabled}
-                        />
-                    )}
-                </div>
+                <TabView
+                    activeTab={activeTab}
+                    sheetMusicCommonProps={sheetMusicCommonProps}
+                    startMeasureIndex={startMeasureIndex}
+                    idealVisibleMeasures={idealVisibleMeasures}
+                    instruments={instruments}
+                    manualInstruments={manualInstruments}
+                    context={context}
+                    scale={scale}
+                    activeClef={activeClef}
+                    handleInputTestNote={handleInputTestNote}
+                    qwertyKeyboardActive={qwertyKeyboardActive}
+                    showSheetMusicSettings={showSheetMusicSettings}
+                    resetSettingsTimer={resetSettingsTimer}
+                    customPercussionMapping={customPercussionMapping}
+                    setCustomPercussionMapping={setCustomPercussionMapping}
+                    theme={theme}
+                    setTheme={setTheme}
+                    displayChordProgression={displayChordProgression}
+                    chordProgression={chordProgression}
+                    sequencerRef={sequencerRef}
+                    selectedMode={selectedMode}
+                    setSelectedMode={setSelectedMode}
+                    customScaleLabel={customScaleLabel}
+                    setCustomScaleLabel={setCustomScaleLabel}
+                    isModulationEnabled={isModulationEnabled}
+                    setIsModulationEnabled={setIsModulationEnabled}
+                    isSimpleView={isSimpleView}
+                    setIsSimpleView={setIsSimpleView}
+                    minimizeAccidentals={minimizeAccidentals}
+                    setMinimizeAccidentals={setMinimizeAccidentals}
+                    handlePlayScale={handlePlayScale}
+                    isPlayingScale={isPlayingScale}
+                    setTonic={setTonic}
+                    setScale={setScale}
+                    numMeasures={numMeasures}
+                    setNumMeasures={setNumMeasures}
+                    musicalBlocks={musicalBlocks}
+                    setShowChordLabels={setShowChordLabels}
+                    generatorMode={generatorMode}
+                    setGeneratorMode={setGeneratorMode}
+                    activePreset={activePreset}
+                    setActivePreset={setActivePreset}
+                    showChordsOddRounds={showChordsOddRounds}
+                    setShowChordsOddRounds={setShowChordsOddRounds}
+                    showChordsEvenRounds={showChordsEvenRounds}
+                    setShowChordsEvenRounds={setShowChordsEvenRounds}
+                    difficultyLevel={difficultyLevel}
+                    setDifficultyLevel={setDifficultyLevel}
+                    difficultyProgression={difficultyProgression}
+                    setDifficultyProgression={setDifficultyProgression}
+                    bpm={bpm}
+                    setBpm={setBpm}
+                    generateChords={generateChords}
+                    targetHarmonicDifficulty={targetHarmonicDifficulty}
+                    setTargetHarmonicDifficulty={setTargetHarmonicDifficulty}
+                    applyHarmonyAtDifficulty={applyHarmonyAtDifficulty}
+                    targetTrebleDifficulty={targetTrebleDifficulty}
+                    setTargetTrebleDifficulty={setTargetTrebleDifficulty}
+                    targetBassDifficulty={targetBassDifficulty}
+                    setTargetBassDifficulty={setTargetBassDifficulty}
+                    isFullscreen={isFullscreen}
+                    toggleFullscreen={toggleFullscreen}
+                    windowSize={windowSize}
+                />
             </div>
         </div >
         </AnimationRefsProvider>

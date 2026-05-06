@@ -149,14 +149,6 @@ class Melody {
       flattenedNotes
     );
 
-    const priorities = rankedArray.map(rank => {
-      if (rank === null) return null;
-      if (rank < numMeasures) return 'top';
-      if (rank < (numMeasures * notesPerMeasure) / 2) return 'high';
-      if (rank < numMeasures * notesPerMeasure) return 'low';
-      return null;
-    });
-
     return metronomeMelody;
   }
 }

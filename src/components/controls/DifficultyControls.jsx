@@ -19,7 +19,7 @@ const DifficultyRow = ({ label, score, children }) => (
 
 const norm01 = (score, min, max) => max > min ? Math.max(0, Math.min(1, (score - min) / (max - min))) : 0;
 
-export const DifficultyPanel = ({ scale, trebleSettings, bassSettings, bpm, playbackConfig }) => {
+export const DifficultyPanel = ({ scale, trebleSettings, bpm, playbackConfig }) => {
   const d = calcDifficulty(scale, trebleSettings, bpm, playbackConfig);
   const { harmonic, song } = d;
   const trebleScore = calcTrebleDifficulty(trebleSettings);

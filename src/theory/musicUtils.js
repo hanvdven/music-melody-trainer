@@ -1,5 +1,4 @@
 import generateAllNotesArray from './allNotesArray';
-import { getDiatonicIntervals } from './scaleHandler';
 import { normalizeNoteChars, CANONICAL_MAP, ALL_NOTES } from './noteUtils';
 
 const allNotes = generateAllNotesArray();
@@ -13,7 +12,7 @@ export const getNoteIndex = (note) => {
     const match = note.match(/^([A-G])([♯#♭b𝄪𝄫]*)(-?\d+)?$/u);
     if (!match) return -1;
 
-    const [_, base, accidentals, octaveStr] = match;
+    const [, base, accidentals, octaveStr] = match;
     const octave = octaveStr ? parseInt(octaveStr, 10) : 4;
 
     const baseMap = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
