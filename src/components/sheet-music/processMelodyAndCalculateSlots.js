@@ -116,6 +116,20 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
       continue;
     }
 
+    // Tuplet notes have non-standard tick counts by design (e.g. 16 ticks for a half-note
+    // triplet, 4 ticks for an 8th-note triplet). Splitting them into allowedDurations
+    // produces multiple tied noteheads instead of one correct notehead. Skip all splitting —
+    // renderMelodyNotes reads display info from melody.triplets, not from the duration here.
+    const origIdx = paddedOriginalIndices[i];
+    if (origIdx !== null && melody.triplets?.[origIdx]) {
+      resultNotes.push(paddedNotes[i]);
+      resultDurations.push(paddedDurations[i]);
+      resultOffsets.push(paddedOffsets[i]);
+      resultOriginalIndices.push(origIdx);
+      resultTies.push(null);
+      continue;
+    }
+
     let remainingDuration = paddedDurations[i];
     let currentOffset = paddedOffsets[i];
     let isFirstSplit = true;
