@@ -46,11 +46,23 @@ bug: ik hoor soms precies extra drumsamples die niet in de bladmuziek staan. Ze 
 VERMOEDEN: misschien zijn er 'akkoorden' die niet goed worden genoteerd? Ik zie nu een maat waarin een kwartnoot 'ontbreekt' in de bladmuziek; daar spelen wel degelijk verschillende drumnoten.  
 Ah! nadere inspectie: ik hoor een basnoot die niet genoteerd is!
 
+[Claude 2026-05-06]: Gedeeltelijk opgelost. Twee inconsistenties gevonden en gefixed in `convertRankedArrayToMelody.js`:
+1. `percussionIDs` miste `'wm'` (mid woodblock) en `'cb'` (cowbell) — backbeat/swing konden deze noten wél genereren (via PERC_POOLS.all in generateBackbeat.js), maar 'uniform' mode niet. Nu gelijk getrokken.
+2. `claves` notepool miste `'wm'` — nu `['wh', 'wm', 'wl']`.
+De diepere oorzaak ("basnoot niet genoteerd", "kwartnoot ontbreekt in maat") is nog niet gevonden via code-inspectie. Alle rendering-maps (`percussionNoteHeads`, `noteYMap`) zijn compleet voor alle bekende noot-IDs. ❓ Kan je een reproduceerbaar geval maken? Bijv: welke instellingen (time signature, randomization rule, notePool), welke maat, en kun je de specifieke noten benoemen die je hoort vs. ziet? Dan kan ik gerichter debuggen. Een debug-screenshot of console-log van `melody.notes` zou ook helpen.
+
 ✅ Bug: in drumnotatie worden soms dubbele beams gebruikt voor achtsten, zouden enkele beams moeten zijn.
 [Claude 2026-05-06]: Oorzaak: standaard percussie gebruikt `smallestNoteDenom=16` (zestienden) als raster. Elke noot krijgt dan duration=3 ticks. Bij het groeperen (beaming) zijn dat technisch gezien zestienden → 2 balken. Oplossing: standaard `smallestNoteDenom` voor percussie verlaagd van 16 naar 8 in `InstrumentSettings.defaultPercussionInstrumentSettings()`. Het percussieraster is nu gebaseerd op achtststen (duration=6 ticks), wat de standaard drumnotatie is (1 balk bij beaming). Bestaande instellingen van de gebruiker zijn niet gewijzigd.
 
-Overdadig gebruik van verbindingsboogjes; ik zie vaak verbindingsboogjes waar een dot of dubbel dot een perfecte optie is. Ik zie nu een harde cut-off bij kwartnoten; evalueer de regels en doe een tegenvoorstel, voor iets minder verbindingsboogjes, zonder leesbaarheid op te offeren.
+✅ Overdadig gebruik van verbindingsboogjes; ik zie vaak verbindingsboogjes waar een dot of dubbel dot een perfecte optie is. Ik zie nu een harde cut-off bij kwartnoten; evalueer de regels en doe een tegenvoorstel, voor iets minder verbindingsboogjes, zonder leesbaarheid op te offeren.
 De filosofie is dat noten worden gesplitst zodat op te tel steeds een noot staat. Logischerwijs gaan noten nooit over de maatgrens, en liever niet over de beats (als ik beat, back beat), en liever gegroepeerd per kwartnoot; maar in sommige gevallen is het overbodig om verbindingsboogjes te trekken. Gebruik je kennis van muziektheorie om iets gebalanceerder te noteren
+[Claude 2026-05-06]: Opgelost in `processMelodyAndCalculateSlots.js` stap 3. Oorzaak: stap 3 stond een noot alleen heel als `duur ≤ kwartnoot` OF `eindpositie % kwartnoot === 0`. Dotted kwartnoot (18 ticks) op slag 1 in 4/4 voldeed aan geen van beide → werd gesplitst in ♩ + ♪ met verbindingsboogje.
+Nieuwe voorwaarde: noot mag ook heel blijven als hij binnen de *secundaire tel-span* valt (halve maat voor enkelvoudig tweedelig/vierdelig maatsoort, hele maat voor driedelig/samengesteld). Resultaat:
+- ♩. op slag 1 of 3 in 4/4 → heel (was: ♩ ♪ met boogje)
+- ♩. op slag 2 in 4/4 → gesplitst (overschrijdt halvemaat-grens, slag 3 moet zichtbaar zijn)
+- ♩. op elke slag in 3/4 → heel
+- Dubbel-gestippelde noten (bijv. 𝅗𝅥. op slag 1 in 4/4) → gesplitst (gaan over de halve maat)
+Maatgrens- en slaggrens-splits uit stap 1 en 2 zijn ongewijzigd.
 ---
 
 ## BLADMUZIEK / NOTATIE
