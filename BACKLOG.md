@@ -46,7 +46,8 @@ bug: ik hoor soms precies extra drumsamples die niet in de bladmuziek staan. Ze 
 VERMOEDEN: misschien zijn er 'akkoorden' die niet goed worden genoteerd? Ik zie nu een maat waarin een kwartnoot 'ontbreekt' in de bladmuziek; daar spelen wel degelijk verschillende drumnoten.  
 Ah! nadere inspectie: ik hoor een basnoot die niet genoteerd is!
 
-Bug: in drumnotatie worden soms dubbele beams gebruikt voor achtsten, zouden enkele beams moeten zijn.
+✅ Bug: in drumnotatie worden soms dubbele beams gebruikt voor achtsten, zouden enkele beams moeten zijn.
+[Claude 2026-05-06]: Oorzaak: standaard percussie gebruikt `smallestNoteDenom=16` (zestienden) als raster. Elke noot krijgt dan duration=3 ticks. Bij het groeperen (beaming) zijn dat technisch gezien zestienden → 2 balken. Oplossing: standaard `smallestNoteDenom` voor percussie verlaagd van 16 naar 8 in `InstrumentSettings.defaultPercussionInstrumentSettings()`. Het percussieraster is nu gebaseerd op achtststen (duration=6 ticks), wat de standaard drumnotatie is (1 balk bij beaming). Bestaande instellingen van de gebruiker zijn niet gewijzigd.
 
 Overdadig gebruik van verbindingsboogjes; ik zie vaak verbindingsboogjes waar een dot of dubbel dot een perfecte optie is. Ik zie nu een harde cut-off bij kwartnoten; evalueer de regels en doe een tegenvoorstel, voor iets minder verbindingsboogjes, zonder leesbaarheid op te offeren.
 De filosofie is dat noten worden gesplitst zodat op te tel steeds een noot staat. Logischerwijs gaan noten nooit over de maatgrens, en liever niet over de beats (als ik beat, back beat), en liever gegroepeerd per kwartnoot; maar in sommige gevallen is het overbodig om verbindingsboogjes te trekken. Gebruik je kennis van muziektheorie om iets gebalanceerder te noteren
