@@ -13,7 +13,6 @@ const RepeatsControls = ({
     systemEndX,
     showSettings,
     debugMode,
-    onSettingsInteraction,
     onResetRepeatsTimer,
 }) => {
     if (!showSettings) {

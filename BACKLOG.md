@@ -536,6 +536,8 @@ harmoniseer kleuren (2 accentkleuren blauw en geel → één kleur)
     - [Claude 2026-04-30]: Investigated. The unified `generateAllMelodies()` extraction (planned to dedupe between `Sequencer.randomizeScaleAndGenerate` and `useMelodyState.randomizeAll`) was skipped: the two call sites have meaningfully diverged control flow (transpose-existing vs fixed-reference branches), and merging would need 8+ config flags with audio-scheduling risk per CLAUDE.md §6. Still open.
   - hooks extraheren uit `App.jsx` om bestandsgrootte te verminderen
     - [Claude 2026-04-30]: ✅ Done. App.jsx 2,204 → 1,625 lines (26% reduction). Extracted: `useSettingsOverlay`, `useNoteInteraction`, `usePlaybackNavigation`, `useScaleManagement` (partial — `setTonic`/`setSelectedMode` stayed due to coupling with refs & range setters); `SubHeader` and `SettingsPanel` components; three React Contexts (`PlaybackConfigContext`, `InstrumentSettingsContext`, `DisplaySettingsContext`).
+  - Scroll-animatie in `useSheetMusicHighlight.js` (`runScrollAnimation`) herontwerpen als constant-speed playhead (huidig: css-transform, niet muzikaal gesynchroniseerd). Wacht tot pagination en wipe stabiel zijn.
+    - [Claude 2026-05-06]: TODO overgebracht vanuit `useSheetMusicHighlight.js` lijn 289.
   - `PlaybackSettings.jsx` opsplitsen in subcomponenten
     - [Claude 2026-04-30]: ✅ Done. PlaybackSettings 602 → 504 lines. Extracted "Instruments" + "Visibility & Audibility" sections into `PlaybackInstrumentSection.jsx`. See commit `e60fef5`.
   - PRESET_RANGES geconsolideerd

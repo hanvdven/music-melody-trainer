@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useRef, useCallback, useState } from 'react';
 import './styles/ChordGrid.css';
+import logger from '../../utils/logger';
 import { generateAllScaleChords } from '../../theory/chordGenerator';
 import { ChordNotationIcon } from '../common/CustomIcons';
 import { resolveNotePitch } from '../../audio/playSound';
@@ -96,7 +97,7 @@ const ChordGrid = ({
             const map = {};
             all.forEach((ch, i) => { map[i + 1] = ch; });
             return map;
-        } catch { return {}; }
+        } catch (err) { logger.warn('ChordGrid', 'generateAllScaleChords failed', err); return {}; }
     }, [stableScale, stableComplexity]);
 
     // ── Secondary chords: V7/x, vii°/x, bII7/x for each degree x ────────────

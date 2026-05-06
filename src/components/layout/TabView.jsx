@@ -106,7 +106,7 @@ const TabView = ({
     } = useInstrumentSettings();
 
     const { noteColoringMode, setNoteColoringMode, chordDisplayMode, setChordDisplayMode } = useDisplaySettings();
-    const { isPlayingContinuously, isPlaying, inputTestSubMode } = usePlaybackState();
+    const { isPlaying, inputTestSubMode } = usePlaybackState();
 
     return (
         <div className="app-content-area">
