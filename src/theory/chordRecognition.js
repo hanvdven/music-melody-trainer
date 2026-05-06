@@ -30,7 +30,6 @@ const getChordInfo = (intervals, root, romanBase, scaleInfo = 'Unknown', structu
     // Derive a parallel core structure (degrees whose interval is ≤ 11)
     let coreStructure = null;
     if (structure) {
-        const sorted = [...intervals].sort((a, b) => a - b);
         coreStructure = structure.filter((_, idx) => {
             // Keep degrees whose corresponding semitone value is ≤ 11 in normalised form
             const semi = (((intervals[idx] % 12) + 12) % 12);

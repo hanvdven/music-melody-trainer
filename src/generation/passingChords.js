@@ -313,7 +313,6 @@ export function insertPassingChords(chordMelody, scale, timeSignature, complexit
     // The structural chord is placed at the highest-ranked slot (beat 1) by MelodyGenerator
     // using the rank + 2×distance proximity formula from proximityUtils.findBestSlot.
     // This guarantees each measure always contains exactly one chord from the progression.
-    const structuralCount    = 1;
     const passingProbability = chordCount - 1; // total passing per structural gap
     // baseInsert: always insert this many per gap; extraProb: chance of one more.
     const baseInsert = Math.floor(passingProbability);

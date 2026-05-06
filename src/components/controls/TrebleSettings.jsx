@@ -38,9 +38,6 @@ const TrebleSettings = ({
   noteColoringMode,
   setNoteColoringMode,
   activeTonic,
-  onTonicChange,
-  activeMode,
-  onModeChange
 }) => {
   const [heat, setHeat] = useState(50);
 
