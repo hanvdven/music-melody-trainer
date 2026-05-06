@@ -85,7 +85,7 @@ class InstrumentSettings {
       'FreePats Percussion',        // instrument (default kit)
       'percussion',           // type
       4,                      // notesPerMeasure
-      16,                     // smallestNoteDenom
+      8,                      // smallestNoteDenom — 8th-note grid gives single-beam grouping in standard drum notation; 16th-note grid was producing double beams for all patterns
       50,                     // rhythmVariability
       false,                  // enableTriplets
       'all',                  // notePool
