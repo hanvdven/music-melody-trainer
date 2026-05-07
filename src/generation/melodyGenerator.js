@@ -111,8 +111,12 @@ class MelodyGenerator {
         const ALL_PCS_CALC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
         if (this.range) {
-            const minVal = getNoteIndex(this.range.min) ?? -1;
-            const maxVal = getNoteIndex(this.range.max) ?? -1;
+            // getNoteIndex returns position in allNotes where A0=0 (9 semitones above C0=0).
+            // noteVal = oct*12+i uses chromatic MIDI convention (C0=0). Add 9 to align origins.
+            const rawMin = getNoteIndex(this.range.min);
+            const rawMax = getNoteIndex(this.range.max);
+            const minVal = rawMin >= 0 ? rawMin + 9 : 0;
+            const maxVal = rawMax >= 0 ? rawMax + 9 : 108; // 108 = C8 (safe upper bound)
 
             const expanded = [];
 

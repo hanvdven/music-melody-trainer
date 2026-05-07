@@ -33,7 +33,8 @@ If a backlog item below relates to these areas, leave it alone and pick somethin
 
 Deel deze features in bij de juiste categorie.
 
-bug: op instellingen klikken in settings overlay, sluit het overlaymenu. Los op, en zorg voor een fatsoenlijke klikzone. Visualiseer uiteraard in debug mode.
+✅ bug: op instellingen klikken in settings overlay, sluit het overlaymenu. Los op, en zorg voor een fatsoenlijke klikzone. Visualiseer uiteraard in debug mode.
+[Claude 2026-05-07]: Root cause: clicks inside SettingsOverlay bubbled up to `handleSheetMusicClick` which closes the overlay when `showSettings=true`. Fixed by adding `onClick={(e) => e.stopPropagation()}` on the root `<g className="settings-overlay">` plus a transparent background `<rect>` covering the full overlay bounding area so clicks on empty space also stop propagation. Files: `src/components/sheet-music/SettingsOverlay.jsx`.
 
 alle odd repeats / even repeats settings:
 volume, spelen / pauzeren;
@@ -404,7 +405,8 @@ Voeg nog weighted chromatic toe als extreem moeilijk.
 
 ### Bass range bug
 
-- bass generator seems not to take the range into account
+✅ bass generator seems not to take the range into account
+[Claude 2026-05-07]: Root cause: in `melodyGenerator.js`, the `effectiveScale` range-expansion loop compared `noteVal = oct * 12 + i` (chromatic MIDI from C0=0) against `getNoteIndex(range.min/max)` which returns indices from A0=0. This 9-semitone offset caused the effective scale to be shifted down by 9 semitones — notes below the intended minimum were included and notes near the top were excluded. Fixed by adding +9 to convert both bounds to the same chromatic origin. Files: `src/generation/melodyGenerator.js`.
 
 ### Quarter note span (melodische sprong-beperking)
 
