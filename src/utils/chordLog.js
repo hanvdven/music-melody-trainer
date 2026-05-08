@@ -4,6 +4,8 @@
  * Entries are deduplicated by root + intervals signature.
  */
 
+import logger from './logger.js';
+
 const STORAGE_KEY = 'melody_trainer_chord_log';
 
 const load = () => {
@@ -48,7 +50,7 @@ export const logChord = (kind, data) => {
     if (!isDuplicate) {
         entries.push(entry);
         save(entries);
-        console.warn(`[chordLog] ${kind} chord:`, entry);
+        logger.warn('chordLog', `${kind} chord`, entry);
     }
 };
 

@@ -156,6 +156,20 @@ Rationale: comments encode the reasoning behind past decisions. Silently removin
 
 ---
 
+## 4b. Interview Before Implementing — Mandatory
+
+**Before implementing any feature — even after a direct instruction from Han — conduct a short interview with clarifying questions, both functional and technical.**
+
+This applies unconditionally: no feature is too small to skip the interview step. The cost of two questions is zero; the cost of building the wrong thing is high.
+
+Typical interview questions:
+- *Functional:* What is the exact user-facing behaviour? Any edge cases? What should NOT change?
+- *Technical:* Which existing components/hooks are affected? Should this be a new file or extend an existing one? Any performance or accessibility concerns?
+
+Exception: pure refactors with no user-visible change (e.g. renaming, extracting a hook) do not require an interview if the scope is unambiguous.
+
+---
+
 ## 5. Ask Clarifying Questions
 
 Before starting non-trivial work, state your understanding and ask about anything unclear.

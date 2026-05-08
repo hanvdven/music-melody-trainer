@@ -33,7 +33,8 @@ If a backlog item below relates to these areas, leave it alone and pick somethin
 
 Deel deze features in bij de juiste categorie.
 
-bug: op instellingen klikken in settings overlay, sluit het overlaymenu. Los op, en zorg voor een fatsoenlijke klikzone. Visualiseer uiteraard in debug mode.
+✅ bug: op instellingen klikken in settings overlay, sluit het overlaymenu. Los op, en zorg voor een fatsoenlijke klikzone. Visualiseer uiteraard in debug mode.
+[Claude 2026-05-07]: Root cause: clicks inside SettingsOverlay bubbled up to `handleSheetMusicClick` which closes the overlay when `showSettings=true`. Fixed by adding `onClick={(e) => e.stopPropagation()}` on the root `<g className="settings-overlay">` plus a transparent background `<rect>` covering the full overlay bounding area so clicks on empty space also stop propagation. Files: `src/components/sheet-music/SettingsOverlay.jsx`.
 
 alle odd repeats / even repeats settings:
 volume, spelen / pauzeren;
@@ -46,13 +47,38 @@ bug: ik hoor soms precies extra drumsamples die niet in de bladmuziek staan. Ze 
 VERMOEDEN: misschien zijn er 'akkoorden' die niet goed worden genoteerd? Ik zie nu een maat waarin een kwartnoot 'ontbreekt' in de bladmuziek; daar spelen wel degelijk verschillende drumnoten.  
 Ah! nadere inspectie: ik hoor een basnoot die niet genoteerd is!
 
-Bug: in drumnotatie worden soms dubbele beams gebruikt voor achtsten, zouden enkele beams moeten zijn.
+[Claude 2026-05-06]: Gedeeltelijk opgelost. Twee inconsistenties gevonden en gefixed in `convertRankedArrayToMelody.js`:
+1. `percussionIDs` miste `'wm'` (mid woodblock) en `'cb'` (cowbell) — backbeat/swing konden deze noten wél genereren (via PERC_POOLS.all in generateBackbeat.js), maar 'uniform' mode niet. Nu gelijk getrokken.
+2. `claves` notepool miste `'wm'` — nu `['wh', 'wm', 'wl']`.
+De diepere oorzaak ("basnoot niet genoteerd", "kwartnoot ontbreekt in maat") is nog niet gevonden via code-inspectie. Alle rendering-maps (`percussionNoteHeads`, `noteYMap`) zijn compleet voor alle bekende noot-IDs. ❓ Kan je een reproduceerbaar geval maken? Bijv: welke instellingen (time signature, randomization rule, notePool), welke maat, en kun je de specifieke noten benoemen die je hoort vs. ziet? Dan kan ik gerichter debuggen. Een debug-screenshot of console-log van `melody.notes` zou ook helpen.
 
-Overdadig gebruik van verbindingsboogjes; ik zie vaak verbindingsboogjes waar een dot of dubbel dot een perfecte optie is. Ik zie nu een harde cut-off bij kwartnoten; evalueer de regels en doe een tegenvoorstel, voor iets minder verbindingsboogjes, zonder leesbaarheid op te offeren.
+✅ Bug: in drumnotatie worden soms dubbele beams gebruikt voor achtsten, zouden enkele beams moeten zijn.
+[Claude 2026-05-06]: Oorzaak: standaard percussie gebruikt `smallestNoteDenom=16` (zestienden) als raster. Elke noot krijgt dan duration=3 ticks. Bij het groeperen (beaming) zijn dat technisch gezien zestienden → 2 balken. Oplossing: standaard `smallestNoteDenom` voor percussie verlaagd van 16 naar 8 in `InstrumentSettings.defaultPercussionInstrumentSettings()`. Het percussieraster is nu gebaseerd op achtststen (duration=6 ticks), wat de standaard drumnotatie is (1 balk bij beaming). Bestaande instellingen van de gebruiker zijn niet gewijzigd.
+
+✅ Overdadig gebruik van verbindingsboogjes; ik zie vaak verbindingsboogjes waar een dot of dubbel dot een perfecte optie is. Ik zie nu een harde cut-off bij kwartnoten; evalueer de regels en doe een tegenvoorstel, voor iets minder verbindingsboogjes, zonder leesbaarheid op te offeren.
 De filosofie is dat noten worden gesplitst zodat op te tel steeds een noot staat. Logischerwijs gaan noten nooit over de maatgrens, en liever niet over de beats (als ik beat, back beat), en liever gegroepeerd per kwartnoot; maar in sommige gevallen is het overbodig om verbindingsboogjes te trekken. Gebruik je kennis van muziektheorie om iets gebalanceerder te noteren
+[Claude 2026-05-06]: Opgelost in `processMelodyAndCalculateSlots.js` stap 3. Oorzaak: stap 3 stond een noot alleen heel als `duur ≤ kwartnoot` OF `eindpositie % kwartnoot === 0`. Dotted kwartnoot (18 ticks) op slag 1 in 4/4 voldeed aan geen van beide → werd gesplitst in ♩ + ♪ met verbindingsboogje.
+Nieuwe voorwaarde: noot mag ook heel blijven als hij binnen de *secundaire tel-span* valt (halve maat voor enkelvoudig tweedelig/vierdelig maatsoort, hele maat voor driedelig/samengesteld). Resultaat:
+- ♩. op slag 1 of 3 in 4/4 → heel (was: ♩ ♪ met boogje)
+- ♩. op slag 2 in 4/4 → gesplitst (overschrijdt halvemaat-grens, slag 3 moet zichtbaar zijn)
+- ♩. op elke slag in 3/4 → heel
+- Dubbel-gestippelde noten (bijv. 𝅗𝅥. op slag 1 in 4/4) → gesplitst (gaan over de halve maat)
+Maatgrens- en slaggrens-splits uit stap 1 en 2 zijn ongewijzigd.
 ---
 
 ## BLADMUZIEK / NOTATIE
+
+### Vrij tempo / Tempo ad libitum / Tempo rubato
+
+add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Common time-symbool: Maestro SHIFT+T ipv 4/4
+
+gebruik ipv de 4/4 dit Maestro-symbool: SHIFT+T | ~ | Turn, grupetto
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 
 ### Sleutel & transponerend instrument
 
@@ -117,18 +143,27 @@ bug! Ik zie precies geen verbindingsbalken meer sinds laatse oplossing..! Niet t
 
 [Claude 2026-04-10 15:00]: Regression opgelost — de tuplet-isolatie check (`lastInGroup.tupletId !== e.tupletId`) vergeleek `undefined` (uit pushed item) met `null` (uit spanElement). `undefined !== null` is altijd `true`, waardoor ALLE beamgroepen direct werden geflushed en er geen balken meer waren. Fix: `tupletId: e.tupletId` toegevoegd aan `currentSubGroup.push(...)`. Zie renderMelodyNotes.jsx.
 
-add pentuplet 5 : 6,  sextuplets 6 : 4 and 6 : 5 and septuplets  7 : 6 , 7 : 8; (omit 7 : 4). These should be very rare.
+✅ add pentuplet 5 : 6,  sextuplets 6 : 4 and 6 : 5 and septuplets  7 : 6 , 7 : 8; (omit 7 : 4). These should be very rare.
 triptles can occur as of variability 30%;
 the rest only from variability > 50% with a probability of variability% / 100.
+
+[Claude 2026-05-06]: Geïmplementeerd in `melodyGenerator.js`. Vijf nieuwe types toegevoegd aan `tupletCandidates`, allemaal met `minVar: 51` (alleen boven variability 50):
+- 5:6 (var/8000), 6:4 (var/5000), 6:5 (var/8000), 7:6 (var/10000), 7:8 (var/10000).
+De bestaande standaard types (3:2, 4:3, 5:4) kregen `minVar: 30`.
+De bestaande `filter(t => t.groupTicks <= measureTicks)` zorgt al voor de maatsoort-beperking:
+5:6 en 7:6 (groupTicks=6×slot) passen alleen in 6/8, 9/8, 12/8 e.d.; 7:8 (groupTicks=8×slot) vereist minstens 4/4 in 8th-grid.
+`processMelodyAndCalculateSlots` slaat alle tuplet-noten over (fix eerder deze sessie), dus alle nieuwe types renderen direct correct.
 
 Increase font size for triplet text. Use serif font, boldface, increase size by about 60%. Make the lowlighted second part more lowlighted. Maak afstand tussen alle tegekens gelijk (3 : 2) dus een spatie tussen alle tekens.
 -> Er is momenteel geen ruimte tussen de x en de : y. Visueel is het nu "x: y", moet zijn "x : y".
 -> ok resolved!
 
-Bug: triplets (3:2) van 3 achststen in plaats van 2 achststen, hebben dubbele bar (dus zestienten). Dat is niet correct. Ik zie ook triplets van halve noten genoteerd als paren van verbonden kwartnoten; voorkom dat en noteer als halve noten.
+✅ Bug: triplets (3:2) van 3 achststen in plaats van 2 achststen, hebben dubbele bar (dus zestienten). Dat is niet correct. Ik zie ook triplets van halve noten genoteerd als paren van verbonden kwartnoten; voorkom dat en noteer als halve noten.
 -> triplets van halve noten zijn nog altijd genoteerd als paren van kwartnoten.
 
 [Claude 2026-04-10 14:00]: Dubbele balk bij triool-achtsten opgelost via `effectiveDur(n)`. Kwartnoot-triolen beamed als paren: fix was afhankelijk van `processMelodyAndCalculateSlots` die `triplets` doorgeeft (zie fix hierboven). Na die fix: `tupletVis=12` (kwart) → beaming-check `>= 12` sluit ze correct uit.
+
+[Claude 2026-05-06]: Halve-noot-triolen volledig opgelost. Oorzaak: `processMelodyAndCalculateSlots` splitste 16-tick noten (halve-noot triool in kwartnoot-grid, 48/3=16) in meerdere stukken omdat 16 niet in `allowedDurations` staat. Elke splits kreeg via `melody.triplets` de `visualDuration=24` (halve noot), wat resulteerde in meerdere gebonden halve-nootkoppen op opeenvolgende posities. Fix: tuplet-noten bypassen nu alle splitlogica met een early-exit vóór stap 1 in `processMelodyAndCalculateSlots.js` — hun weergave verloopt volledig via `melody.triplets` in `renderMelodyNotes`. Geldt ook voor kleine triolen (4-tick achtste-triolen) en kwartnoot-triolen.
 
 Ik zie geen tuplets bij percussie of bas, hoe komt dat? Is de bedoeling dat ze ook daar voorkomen. -> gezien bij perucssie! Opgelost.
 
@@ -370,7 +405,8 @@ Voeg nog weighted chromatic toe als extreem moeilijk.
 
 ### Bass range bug
 
-- bass generator seems not to take the range into account
+✅ bass generator seems not to take the range into account
+[Claude 2026-05-07]: Root cause: in `melodyGenerator.js`, the `effectiveScale` range-expansion loop compared `noteVal = oct * 12 + i` (chromatic MIDI from C0=0) against `getNoteIndex(range.min/max)` which returns indices from A0=0. This 9-semitone offset caused the effective scale to be shifted down by 9 semitones — notes below the intended minimum were included and notes near the top were excluded. Fixed by adding +9 to convert both bounds to the same chromatic origin. Files: `src/generation/melodyGenerator.js`.
 
 ### Quarter note span (melodische sprong-beperking)
 
@@ -463,6 +499,46 @@ Nog open: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren 
 
 ---
 
+## UX / UI — NAVIGATIE & STRUCTUUR
+
+### Input achter een submenu
+
+vind een manier om input achter een submenu te steken: treble, vocal (mic input), bass, percussion, guitar neck (nog niet geïmplementeerd)
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Scale en Chords achter een submenu
+
+vind een manier om scale en chords achter een submenu te steken
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Generator opsplitsen in simpel / advanced / debug
+
+vind een manier om generator te splitsen in simpel (difficulty, playback setting, presets), advanced en debug
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Profiel: interface, preferences, kennisbank
+
+voeg een profiel toe met interface, preferences, en kennisbank.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Generatorsettings en playback duidelijker splitsen
+
+vind een manier om generatorsettings en playback duidelijker te splitsen (sheet music settings overlay)
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Kleuren harmoniseren
+
+harmoniseer kleuren (2 accentkleuren blauw en geel → één kleur)
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+---
+
 ## UX / UI (algemeen)
 
 - meer presets
@@ -484,6 +560,8 @@ Nog open: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren 
     - [Claude 2026-04-30]: Investigated. The unified `generateAllMelodies()` extraction (planned to dedupe between `Sequencer.randomizeScaleAndGenerate` and `useMelodyState.randomizeAll`) was skipped: the two call sites have meaningfully diverged control flow (transpose-existing vs fixed-reference branches), and merging would need 8+ config flags with audio-scheduling risk per CLAUDE.md §6. Still open.
   - hooks extraheren uit `App.jsx` om bestandsgrootte te verminderen
     - [Claude 2026-04-30]: ✅ Done. App.jsx 2,204 → 1,625 lines (26% reduction). Extracted: `useSettingsOverlay`, `useNoteInteraction`, `usePlaybackNavigation`, `useScaleManagement` (partial — `setTonic`/`setSelectedMode` stayed due to coupling with refs & range setters); `SubHeader` and `SettingsPanel` components; three React Contexts (`PlaybackConfigContext`, `InstrumentSettingsContext`, `DisplaySettingsContext`).
+  - Scroll-animatie in `useSheetMusicHighlight.js` (`runScrollAnimation`) herontwerpen als constant-speed playhead (huidig: css-transform, niet muzikaal gesynchroniseerd). Wacht tot pagination en wipe stabiel zijn.
+    - [Claude 2026-05-06]: TODO overgebracht vanuit `useSheetMusicHighlight.js` lijn 289.
   - `PlaybackSettings.jsx` opsplitsen in subcomponenten
     - [Claude 2026-04-30]: ✅ Done. PlaybackSettings 602 → 504 lines. Extracted "Instruments" + "Visibility & Audibility" sections into `PlaybackInstrumentSection.jsx`. See commit `e60fef5`.
   - PRESET_RANGES geconsolideerd

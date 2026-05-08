@@ -8,6 +8,7 @@ import Chord from '../model/Chord.js';
 import { PREDETERMINED_STRATEGIES } from './progressionDefinitions.js';
 import { getNoteIndex, generateHeptaScaleNotes } from './musicUtils.js';
 import { getNoteSemitone } from './noteUtils.js';
+import logger from '../utils/logger.js';
 
 const ALL_NOTES = generateAllNotesArray();
 
@@ -543,7 +544,8 @@ const generatePassingChord = (scaleObj, nextChord, type, complexity = 'triad') =
             // Mark as passing — clone meta to avoid mutating the original
             chord.meta = { ...chord.meta, isPassing: true };
             return chord;
-        } catch {
+        } catch (err) {
+            logger.warn('chordGenerator', 'generatePassingChord: adjacent degree failed', { adjacentDegree, type, err });
             return null;
         }
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Snowflake, Flame } from 'lucide-react';
 import '../../styles/App.css';
 import './styles/PlaybackSettings.css';
@@ -7,7 +7,6 @@ import TypeSelectorOverlay from './rows/TypeSelectorOverlay';
 import InstrumentRow from './rows/InstrumentRow';
 import PresetPicker from './PresetPicker';
 import GenericStepper from '../common/GenericStepper';
-import { getNoteSourceLabel, getProgressionLabel } from '../../utils/labelUtils';
 import { modes, updateScaleWithMode } from '../../theory/scaleHandler';
 import { SectionHeader, RepeatMeasureBar, ColumnHeaders } from './PlaybackSubComponents';
 import PlaybackInstrumentSection from './PlaybackInstrumentSection';
@@ -54,25 +53,7 @@ const PlaybackSettings = ({
     chordSettings, setChordSettings } = useInstrumentSettings();
   const { setNoteColoringMode } = useDisplaySettings();
 
-  const [randType, setRandType] = useState({});
   const [activeRandTypeSelector, setActiveRandTypeSelector] = useState(null);
-
-  // Sync state with props
-  useEffect(() => {
-    setRandType({
-      treble: getNoteSourceLabel(trebleSettings?.notePool),
-      bass: getNoteSourceLabel(bassSettings?.notePool),
-      percussion: getNoteSourceLabel(percussionSettings?.notePool),
-      chords: getProgressionLabel(chordSettings?.strategy),
-    });
-  }, [
-    trebleSettings?.notePool,
-    bassSettings?.notePool,
-    percussionSettings?.notePool,
-    chordSettings?.strategy,
-  ]);
-
-  const randTypeOptions = ['random', 'tonic', 'quarters', 'scale'];
 
 
 
@@ -395,7 +376,6 @@ const PlaybackSettings = ({
         setChordSettings={setChordSettings}
         setPlaybackConfig={setPlaybackConfig}
         setNumMeasures={handleMeasureChangeLocal}
-        setRandType={setRandType}
       />
 
       <PresetPicker

@@ -111,8 +111,12 @@ class MelodyGenerator {
         const ALL_PCS_CALC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
         if (this.range) {
-            const minVal = getNoteIndex(this.range.min) ?? -1;
-            const maxVal = getNoteIndex(this.range.max) ?? -1;
+            // getNoteIndex returns position in allNotes where A0=0 (9 semitones above C0=0).
+            // noteVal = oct*12+i uses chromatic MIDI convention (C0=0). Add 9 to align origins.
+            const rawMin = getNoteIndex(this.range.min);
+            const rawMax = getNoteIndex(this.range.max);
+            const minVal = rawMin >= 0 ? rawMin + 9 : 0;
+            const maxVal = rawMax >= 0 ? rawMax + 9 : 108; // 108 = C8 (safe upper bound)
 
             const expanded = [];
 
@@ -325,16 +329,24 @@ class MelodyGenerator {
         );
 
         // Tuplet post-processing: each qualifying note has an independent chance of becoming a
-        // triplet (3:2), quadruplet (4:3), or quintuplet (5:4).
-        // Probabilities: triplet-small = var/500, triplet-large = var/750, quad = var/1000, quint = var/2000.
+        // triplet (3:2), quadruplet (4:3), quintuplet (5:4), and extended rare types.
+        // Each candidate has a minVar threshold and probability denominator.
         // Multiple tuplets per measure are possible — no limit.
         // Chord sequences excluded — tuplets only apply to single-note melodies.
         //
         // Tuplet types (slotTicks = TICKS_PER_WHOLE / smallestNoteDenom):
-        //   triplet-small (3:2): 3 notes in 2×slotTicks  → each looks like slotTicks (e.g. 8th in 8th-grid)
-        //   triplet-large (3:2): 3 notes in 4×slotTicks  → each looks like 2×slotTicks (quarter in 8th-grid)
-        //   quadruplet   (4:3): 4 notes in 3×slotTicks  → each looks like slotTicks
-        //   quintuplet   (5:4): 5 notes in 4×slotTicks  → each looks like slotTicks
+        //   triplet-small (3:2): 3 notes in 2×slotTicks  → visualDuration = slotTicks
+        //   triplet-large (3:2): 3 notes in 4×slotTicks  → visualDuration = 2×slotTicks
+        //   quadruplet   (4:3): 4 notes in 3×slotTicks  → visualDuration = slotTicks
+        //   quintuplet   (5:4): 5 notes in 4×slotTicks  → visualDuration = slotTicks
+        //   pentuplet    (5:6): 5 notes in 6×slotTicks  → visualDuration = slotTicks  (compound meter)
+        //   sextuplet    (6:4): 6 notes in 4×slotTicks  → visualDuration = slotTicks
+        //   sextuplet    (6:5): 6 notes in 5×slotTicks  → visualDuration = slotTicks
+        //   septuplet    (7:6): 7 notes in 6×slotTicks  → visualDuration = slotTicks  (compound meter)
+        //   septuplet    (7:8): 7 notes in 8×slotTicks  → visualDuration = slotTicks
+        //
+        // The groupTicks filter naturally restricts compound-meter types (5:6, 7:6) to
+        // meters where the group fits (6/8, 9/8, 12/8…); 7:8 requires ≥4/4 in 8th-grid.
         //
         // melody.triplets[i] = null | { id, noteCount, denominator, groupTicks, visualDuration }
         if (rhythmVariability > 0 && !isChordSequence) {
@@ -342,12 +354,20 @@ class MelodyGenerator {
             const measureTicks = TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]);
 
             // Candidates ordered rarest → most common (first successful roll wins per note).
+            // minVar: minimum rhythmVariability for the type to be eligible.
             const tupletCandidates = [
-                { noteCount: 5, denominator: 4, groupTicks: 4 * slotTicks, prob: rhythmVariability / 2000 },
-                { noteCount: 4, denominator: 3, groupTicks: 3 * slotTicks, prob: rhythmVariability / 1000 },
-                { noteCount: 3, denominator: 2, groupTicks: 4 * slotTicks, prob: rhythmVariability / 750 },
-                { noteCount: 3, denominator: 2, groupTicks: 2 * slotTicks, prob: rhythmVariability / 500 },
-            ].filter(t => t.groupTicks > 0 && t.groupTicks <= measureTicks);
+                // Extended types — only when variability > 50, very rare
+                { noteCount: 7, denominator: 8, groupTicks: 8 * slotTicks, prob: rhythmVariability / 10000, minVar: 51 },
+                { noteCount: 7, denominator: 6, groupTicks: 6 * slotTicks, prob: rhythmVariability / 10000, minVar: 51 },
+                { noteCount: 6, denominator: 5, groupTicks: 5 * slotTicks, prob: rhythmVariability / 8000,  minVar: 51 },
+                { noteCount: 6, denominator: 4, groupTicks: 4 * slotTicks, prob: rhythmVariability / 5000,  minVar: 51 },
+                { noteCount: 5, denominator: 6, groupTicks: 6 * slotTicks, prob: rhythmVariability / 8000,  minVar: 51 },
+                // Standard types — from variability ≥ 30
+                { noteCount: 5, denominator: 4, groupTicks: 4 * slotTicks, prob: rhythmVariability / 2000,  minVar: 30 },
+                { noteCount: 4, denominator: 3, groupTicks: 3 * slotTicks, prob: rhythmVariability / 1000,  minVar: 30 },
+                { noteCount: 3, denominator: 2, groupTicks: 4 * slotTicks, prob: rhythmVariability / 750,   minVar: 30 },
+                { noteCount: 3, denominator: 2, groupTicks: 2 * slotTicks, prob: rhythmVariability / 500,   minVar: 30 },
+            ].filter(t => t.groupTicks > 0 && t.groupTicks <= measureTicks && rhythmVariability >= t.minVar);
 
             let groupIdCounter = 0;
             const winners = [];

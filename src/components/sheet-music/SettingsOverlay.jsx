@@ -280,8 +280,27 @@ const SettingsOverlay = ({
   const HEADER_Y    = trebleStart - 89;  // all section header labels
   const CHORD_ROW_Y = trebleStart - 64;  // chord row center (vol/vis icons, measure/repeat setters)
 
+  // Full overlay bounding area — clicks anywhere inside must NOT propagate to the
+  // sheet-music click handler (which closes the overlay on any non-note click).
+  const overlayTop    = trebleStart - 95;
+  const overlayBottom = bottomY + 8;
+  const overlayLeft   = startX - 8;
+  const overlayRight  = (systemEndX ?? endX) + 8;
+
   return (
-    <g className="settings-overlay">
+    // stopPropagation here prevents all child-element clicks from bubbling to
+    // handleSheetMusicClick, which would toggle (close) the overlay immediately.
+    <g className="settings-overlay" onClick={(e) => e.stopPropagation()}>
+
+      {/* Transparent hit-zone covering the full overlay area so clicks on empty
+          space inside the overlay also stop propagation instead of falling
+          through to the sheet-music close handler.  */}
+      <rect
+        x={overlayLeft} y={overlayTop}
+        width={overlayRight - overlayLeft} height={overlayBottom - overlayTop}
+        fill="transparent"
+        style={{ cursor: 'default' }}
+      />
 
       {/* ── COLUMN HEADERS ─────────────────────────────────── */}
       <text x={oddCol} y={HEADER_Y} textAnchor="middle" fontFamily="serif" fontStyle="italic"
