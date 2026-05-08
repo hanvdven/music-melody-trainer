@@ -68,6 +68,7 @@ import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { generatePassingChord, generateChordOnDegree } from '../theory/chordGenerator.js';
 import { getNoteSemitone } from '../theory/noteUtils.js';
 import Melody from '../model/Melody.js';
+import logger from '../utils/logger.js';
 
 // ─── TYPE SELECTION ──────────────────────────────────────────────────────────
 
@@ -197,7 +198,8 @@ function buildDiatonicChain(scale, targetChord, count, direction, complexity) {
             if (!chord) break;
             chord.meta = { ...chord.meta, isPassing: true };
             chain.push(chord);
-        } catch {
+        } catch (err) {
+            logger.warn('passingChords', 'diatonic chain: generateChordOnDegree failed', { degree, err });
             break;
         }
     }

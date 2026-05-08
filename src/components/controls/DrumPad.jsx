@@ -9,6 +9,7 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
     const [lastPlayed, setLastPlayed] = useState(null);
     const [kitPickerOpen, setKitPickerOpen] = useState(false);
     const activeStopsRef = useRef({});
+    const lastPlayedTimerRef = useRef(null);
 
     const activeKit = percussionSettings?.instrument || 'TR-808';
     const activeKitBase = KIT_NOTE_MAPPINGS[activeKit] || {};
@@ -48,7 +49,8 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
         }
 
         // Reset lastPlayed highlight after a short delay
-        setTimeout(() => setLastPlayed(null), 150);
+        if (lastPlayedTimerRef.current) clearTimeout(lastPlayedTimerRef.current);
+        lastPlayedTimerRef.current = setTimeout(() => setLastPlayed(null), 150);
     };
 
     // Keyboard controls for drum pads
@@ -91,6 +93,8 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [instruments, context, effectiveMapping, qwertyKeyboardActive]);
+
+    useEffect(() => () => { if (lastPlayedTimerRef.current) clearTimeout(lastPlayedTimerRef.current); }, []);
 
     const styles = {
         container: { width: '100%', height: '100%', position: 'relative', display: 'flex', boxSizing: 'border-box', borderRadius: '12px', overflow: 'hidden' },

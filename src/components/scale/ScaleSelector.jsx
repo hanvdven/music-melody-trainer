@@ -3,28 +3,16 @@
 import React, { useState, useEffect } from 'react';
 import PianoView from '../controls/PianoView';
 import ScaleSelectorWheel from './ScaleSelectorWheel';
-import generateAllNotesArray from '../../theory/allNotesArray';
 import {
-  Music,
   Play,
   Square,
-  Maximize,
-  Minimize,
-  Maximize2,
-  BookOpen,
-  Settings,
   List as ListIcon,
-  Search as SearchIcon,
   Shuffle as ShuffleIcon
 } from 'lucide-react';
 import {
-  generateSelectedScale,
-  updateScaleWithTonic,
   updateScaleWithMode,
   modes,
   getCleanModeName,
-  getModeDefinition,
-  formatScaleName,
   scaleDefinitions,
 } from '../../theory/scaleHandler';
 import './ScaleSelector.css';
@@ -48,8 +36,6 @@ const ScaleSelector = ({
   handlePlayScale,
   isPlayingScale,
 }) => {
-  const allNotesArray = generateAllNotesArray();
-
   /* =========================
        UI STATE (presentation)
        ========================= */
@@ -67,7 +53,7 @@ const ScaleSelector = ({
     if (scale && wheelFamilies.includes(scale.family)) return 'wheel';
     return 'list';
   });
-  const [selectTonic, setSelectTonic] = useState(true);
+  const selectTonic = true;
   const [selectedFamily, setSelectedFamily] = useState(() => {
     if (isSimpleView) return 'Simple';
     return scale?.family || 'Diatonic';
@@ -141,11 +127,6 @@ const ScaleSelector = ({
     if (setCustomScaleLabel) setCustomScaleLabel(null);
   };
 
-  // Format display name: remove octave from tonic, remove numeral from mode name
-  const formatDisplayName = (tonic, modeName, family) => {
-    return formatScaleName(tonic, modeName, family);
-  };
-
   /* =========================
        TONIC CHANGE HANDLER
        ========================= */
@@ -154,15 +135,6 @@ const ScaleSelector = ({
 
     // Pass isManualOverride to the elevated setTonic
     setTonic(newTonic, isManualOverride);
-
-    // We don't need updateScaleWithTonic here if App.setTonic handles it,
-    // but the current structure has App and Selector both updating scale.
-    // Let's keep it consistent: App.setTonic will now handle the scale update too.
-    /*
-    const updatedScale = updateScaleWithTonic({ currentScale: scale, newTonic });
-    setScale(updatedScale);
-    */
-
   };
 
   const handleRandomScale = () => {
@@ -219,12 +191,6 @@ const ScaleSelector = ({
       <path d="m19.07 4.93-14.14 14.14" />
     </svg>
   );
-
-  const modeIcons = {
-    wheel: <WheelIcon />,
-    list: <ListIcon />,
-    random: <ShuffleIcon />,
-  };
 
   // Get families for list view in specific order
   const listFamilies = [
