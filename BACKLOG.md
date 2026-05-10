@@ -279,7 +279,12 @@ Continuous : Lucide shuffle
 
 [Claude 2026-04-14 13:45]: Opgelost in [AppHeader.css:84](src/components/layout/AppHeader.css#L84). De Play-knop had geen eigen margins — de afstand kwam volledig van `gap: 8px` op `.app-header-right`. De repeat-knop had al `margin-left: -4px` (vorige halvering) wat 4px over liet. Nu `margin-left: -8px` zodat de flex-gap volledig geneutraliseerd wordt en beide knoppen flush tegen elkaar zitten.
 
-bug: na herhaaldelijk klikken op 'volgende' loopt de app vast. Oorzaak onbekend.
+✅ bug: na herhaaldelijk klikken op 'volgende' loopt de app vast. Oorzaak onbekend.
+
+[Claude 2026-05-10 13:00]: Twee samenhangende oorzaken gevonden en opgelost:
+1. **Stale closure in `navigateHistory`**: `historyIndex` en `history` werden gelezen uit een verouderde closure. Bij snel klikken gebruikte elke aanroep hetzelfde oude `historyIndex`, waardoor `randomizeAll` steeds opnieuw werd aangeroepen met dezelfde stale state. Fix: `historyIndexRef` en `historyRef` toegevoegd die altijd up-to-date zijn; `navigateHistory` en de `setHistory`-updater in `randomizeAll` gebruiken nu deze refs.
+2. **Geen debounce**: `handleSkipForward`/`handleSkipBack` hadden geen guard tegen rapid-fire clicks. Elke klik kon een zware `randomizeAll` + `startSequencer` aanroepen. Fix: `isNavigatingRef` guard in `usePlaybackNavigation.js` — 300ms cooldown na elke navigatieactie.
+Bestanden: `src/hooks/useMelodyState.js`, `src/hooks/usePlaybackNavigation.js`.
 
 ### Iconen & stijl (consistency check)
 
