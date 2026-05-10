@@ -50,23 +50,25 @@ export default function ProfileTab() {
                 <p className="profile-section-desc">
                     Unlocked families appear in the scale selector and randomizer.
                 </p>
+                {!debugMode && (
+                    <p className="profile-section-hint">
+                        Enable debug mode to manually change lock state.
+                    </p>
+                )}
                 <ul className="profile-family-list">
                     {ALL_SCALE_FAMILIES.map(family => {
                         const isUnlocked = unlockedFamilies.has(family);
-                        // When debug is on, all are effectively active but we still show real lock state
-                        const effectivelyActive = isFamilyUnlocked(family);
-
                         return (
                             <li
                                 key={family}
-                                className={`profile-family-item${effectivelyActive ? ' active' : ' locked'}`}
+                                className={`profile-family-item${isUnlocked ? ' active' : ' locked'}`}
                             >
                                 <button
                                     className="profile-family-btn"
                                     onClick={() => toggleFamily(family)}
                                     aria-pressed={isUnlocked}
-                                    // Debug mode doesn't prevent toggling — user can still manage
-                                    // the underlying unlock state even while debug overrides it
+                                    disabled={!debugMode}
+                                    title={!debugMode ? 'Enable debug mode to edit' : undefined}
                                 >
                                     <span className="profile-family-lock-icon">
                                         {isUnlocked

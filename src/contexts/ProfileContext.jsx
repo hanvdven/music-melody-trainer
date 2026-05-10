@@ -58,7 +58,9 @@ export function ProfileProvider({ children }) {
     }, []);
 
     const toggleFamily = useCallback((family) => {
+        // Toggling lock state requires debug mode — in normal use, lessons control locks
         setState(prev => {
+            if (!prev.debugMode) return prev;
             const next = new Set(prev.unlockedFamilies);
             if (next.has(family)) {
                 next.delete(family);
@@ -71,15 +73,13 @@ export function ProfileProvider({ children }) {
         });
     }, []);
 
-    // Returns true when the family can be used. Debug mode unlocks everything.
+    // Returns true when the family can be used (based on unlock state only — debug doesn't auto-unlock)
     const isFamilyUnlocked = useCallback((family) => {
-        return state.debugMode || state.unlockedFamilies.has(family);
+        return state.unlockedFamilies.has(family);
     }, [state]);
 
-    // All families the user currently has access to (respecting debug mode)
-    const activeFamilies = state.debugMode
-        ? new Set(ALL_SCALE_FAMILIES)
-        : state.unlockedFamilies;
+    // Expose the raw unlock set (same as isFamilyUnlocked but for consumers that need the set)
+    const activeFamilies = state.unlockedFamilies;
 
     return (
         <ProfileContext.Provider value={{
