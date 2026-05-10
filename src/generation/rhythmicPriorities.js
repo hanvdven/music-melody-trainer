@@ -26,7 +26,7 @@
  * @param {number} n - Meter numerator
  * @returns {number[]} Beat offsets (in denominator-unit beats) of each group's first beat
  */
-const decomposeNumeratorToBeatGroups = (n) => {
+export const decomposeNumeratorToBeatGroups = (n) => {
     if (n < 2) return [];
     // Prefer 3s; handle the remainder:
     //   n%3 === 0 → all 3s

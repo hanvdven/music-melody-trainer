@@ -115,6 +115,7 @@ onderzoek: 5/4 (en andere onregelmatige maatsoorten) bas/treble-notatie ritmisch
 
 [Claude 2026-04-09]: ONDERZOEK VOLTOOID. Primaire oorzaak was inderdaad rhythmicPriorities.js: de beat-groep downbeats (bijv. slot 6 = beat 4 in 5/4 bij 8th-resolutie) werden NIET hoger gerankt dan nearDivisors-artefacten. Dat is opgelost met decomposeNumeratorToBeatGroups in een eerdere sessie. Na de fix: met standaard settings (notesPerMeasure=2) geeft 5/4 dotted-half + half; met 4 noten: half+quarter+quarter+quarter — allemaal correcte notenwaarden.
 RESTERENDE NOTATIE-KWESTIE (laag prioriteit): Noten die de 3|2-grensslijn overschrijden (bijv. halve noot van beat 3 t/m 5) worden NIET gesplitst op de groepsgrens (tick 36). Correct zou zijn: quarter(beat3) + quarter(beat4) gebonden. processMelodyAndCalculateSlots kent de beat-groepsstructuur niet. Zal de notatie soms onduidelijker maken maar veroorzaakt geen 16de-noten. Aparte fix nodig als dit storend is.
+✅ [Claude 2026-05-10]: Opgelost — `decomposeNumeratorToBeatGroups` geëxporteerd uit `rhythmicPriorities.js` en geïmporteerd in `processMelodyAndCalculateSlots.js`. Beat-groepsgrens-ticks (bijv. tick 36 voor 5/4 3+2) worden vóór de `staysInSecondarySpan`-check als extra splitpunten behandeld. Alleen gesplitst wanneer het eerste stuk een toegestane notenwaarde is (allowedDurations). Bestanden: `rhythmicPriorities.js`, `processMelodyAndCalculateSlots.js`.
 
 ### Tuplets & polyritmiek
 
@@ -478,7 +479,8 @@ automatisch klopt met de gegenereerde gridresolutie (i.p.v. afleiden uit melody.
 Ook: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren.
 
 [Claude 2026-04-08]: Geïmplementeerd — `melody.smallestNoteDenom` wordt nu doorgegeven aan `getEffectiveBeatDuration` als derde parameter. Hierdoor klopt de beat-level in Takadimi altijd met de grid-resolutie uit de percussie-instellingen. Aanname: 4 × subdivision = beat (simple meter); compound meter gebruikt altijd de nootwaarde van de noemer.
-Nog open: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren in Takadimi.
+✅ Nog open: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren in Takadimi.
+[Claude 2026-05-10]: Opgelost — `getTupletSyllable(posInGroup, noteCount)` toegevoegd aan `rhythmicSolfege.js`. Geeft de correcte lettergreep op basis van positie binnen de tuplet-groep (niet op ticks): ÷2=ta/di, ÷3=ta/ki/da, ÷4=ta/ka/di/mi, ÷5=ta/ka/di/mi/ti, ÷6=ta/va/ki/di/da/ma, ÷7=ta/va/ki/di/da/ma/ti. In `SheetMusic.jsx` Takadimi-renderingloop: `melody.triplets[i]` geeft de tuplet-groep-info; positie binnen de groep wordt bijgehouden via `tupletPosMap`. Tuplet-noten gebruiken `getTupletSyllable`; reguliere noten blijven `getTakadimiSyllable` gebruiken. Tick-gebaseerde aanpak was onbetrouwbaar omdat `Math.round(groupTicks / noteCount)` niet altijd exact op B/N uitkomt. Bestanden: `rhythmicSolfege.js`, `SheetMusic.jsx`.
 
 ### Bugs percussie / playback
 

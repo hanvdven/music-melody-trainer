@@ -18,7 +18,7 @@ import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
 import { getNoteSemitone, getKodalySolfege } from '../../theory/noteUtils';
 import { getNoteIndex } from '../../theory/musicUtils';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
-import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, isRest } from '../../theory/rhythmicSolfege';
+import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
 
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
@@ -1582,6 +1582,31 @@ const SheetMusic = ({
     const beatDur = getEffectiveBeatDuration(timeSignature, melody.durations, melody.smallestNoteDenom ?? null);
     const getXLocal = (index) => startX + (index - 1) * nw;
 
+    // Pre-compute tuplet position for each note. melody.triplets[i] identifies the group
+    // (same id for all notes in a group); posInGroup is the 0-based index within it.
+    // This is more reliable than tick-based detection: Math.round(groupTicks / noteCount)
+    // produces non-integer B/N fractions that don't satisfy exact equality checks.
+    const triplets = melody.triplets ?? null;
+    const tupletPosMap = new Map(); // note index → { noteCount, posInGroup }
+    if (triplets) {
+      let lastTupletId = null;
+      let posInGroup = 0;
+      for (let ti = 0; ti < notes.length; ti++) {
+        const t = triplets[ti];
+        if (t) {
+          if (t.id === lastTupletId) {
+            posInGroup++;
+          } else {
+            posInGroup = 0;
+            lastTupletId = t.id;
+          }
+          tupletPosMap.set(ti, { noteCount: t.noteCount, posInGroup });
+        } else {
+          lastTupletId = null;
+        }
+      }
+    }
+
     return notes.map((note, i) => {
       // Skip rests and null slots — only annotate actual drum hits
       if (isRest(note)) return null;
@@ -1591,7 +1616,11 @@ const SheetMusic = ({
       if (idx < 0) return null;
       const x = getXLocal(idx) + 5;
 
-      const syllable = getTakadimiSyllable(tickOffset, beatDur, compound);
+      // Tuplet notes use position-within-group syllables; regular notes use tick-based position.
+      const tupletPos = tupletPosMap.get(i);
+      const syllable = tupletPos
+          ? getTupletSyllable(tupletPos.posInGroup, tupletPos.noteCount)
+          : getTakadimiSyllable(tickOffset, beatDur, compound);
       if (!syllable || syllable === '·') return null;
 
       const percNotes = Array.isArray(note) ? note : [note];

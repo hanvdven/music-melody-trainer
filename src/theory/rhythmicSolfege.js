@@ -139,6 +139,40 @@ export function getTakadimiSyllable(absoluteOffset, beatDuration, compound) {
     }
 }
 
+// ── Tuplet-aware syllables ─────────────────────────────────────────────────
+
+/**
+ * Syllable tables for irregular subdivisions (Takadimi / Hoffman–Pelto–White 1996).
+ * Indexed by noteCount (2–7); position 0 is always 'ta' (beat onset).
+ * For noteCount > 7, split near halfway and recurse — not needed for current generator
+ * (max 7 notes). For compound meter, positions ÷6 naturally map to these tables.
+ */
+const TUPLET_SYLLABLES = {
+    2: ['ta', 'di'],
+    3: ['ta', 'ki', 'da'],
+    4: ['ta', 'ka', 'di', 'mi'],
+    5: ['ta', 'ka', 'di', 'mi', 'ti'],
+    6: ['ta', 'va', 'ki', 'di', 'da', 'ma'],
+    7: ['ta', 'va', 'ki', 'di', 'da', 'ma', 'ti'],
+};
+
+/**
+ * Returns the Takadimi syllable for a note at `posInGroup` (0-based) within a tuplet
+ * of `noteCount` notes. This is position-based, not tick-based, which is reliable
+ * because the melody generator uses Math.round(groupTicks / noteCount) for note spacing
+ * — those tick values don't always align exactly with B/N beat fractions, making the
+ * tick-based getTakadimiSyllable unreliable for irregular tuplet types (÷5, ÷6, ÷7).
+ *
+ * @param {number} posInGroup - 0-based position within the tuplet group
+ * @param {number} noteCount  - number of notes in the tuplet (2–7)
+ * @returns {string|null}     - Takadimi syllable, or null if out of range
+ */
+export function getTupletSyllable(posInGroup, noteCount) {
+    const table = TUPLET_SYLLABLES[noteCount];
+    if (!table) return null;
+    return table[posInGroup] ?? null;
+}
+
 // ── Rest detection ─────────────────────────────────────────────────────────
 
 /** True for rests: null, undefined, 'r', or empty array. Arrays and non-empty strings are notes. */
