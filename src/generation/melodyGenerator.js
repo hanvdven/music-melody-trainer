@@ -172,6 +172,63 @@ class MelodyGenerator {
             generatedVolumes = new Array(generatedMelody.length).fill(null);
         }
 
+        const maxLeap = this.InstrumentSettings.maxLeap ?? null;
+
+        // Melodic leap constraint: replace any note that jumps more than maxLeap semitones from
+        // all notes placed within the previous quarter-note window. Uses intersection approach
+        // (O(pool × window) linear scan) instead of retries — always terminates.
+        // Not applied to fullchord (span constraint below) or chord sequences (progression mode).
+        if (maxLeap !== null && instrumentType !== 'fullchord') {
+            // Quarter-note window in slots: smallestNoteDenom=8 → 2 slots, =16 → 4 slots, =4 → 1 slot.
+            const slotsPerQuarter = Math.max(1, Math.round(smallestNoteDenom / 4));
+            const placed = []; // { slotIndex, noteIdx }
+
+            for (let i = 0; i < generatedMelody.length; i++) {
+                const note = generatedMelody[i];
+                if (note === null || note === 'r' || typeof note !== 'string') continue;
+                const noteIdx = getNoteIndex(note);
+                if (noteIdx === -1) continue; // percussion IDs and unrecognised notes
+
+                const refNotes = placed
+                    .filter(p => p.slotIndex >= i - slotsPerQuarter)
+                    .map(p => p.noteIdx);
+
+                if (refNotes.length === 0) {
+                    placed.push({ slotIndex: i, noteIdx });
+                    continue;
+                }
+
+                if (refNotes.every(r => Math.abs(noteIdx - r) <= maxLeap)) {
+                    placed.push({ slotIndex: i, noteIdx });
+                    continue;
+                }
+
+                // Intersection: scale notes reachable from ALL reference notes within maxLeap
+                const allowed = effectiveScale.filter(c => {
+                    const cIdx = getNoteIndex(c);
+                    return cIdx !== -1 && refNotes.every(r => Math.abs(cIdx - r) <= maxLeap);
+                });
+
+                let replacement;
+                if (allowed.length > 0) {
+                    replacement = allowed[Math.floor(Math.random() * allowed.length)];
+                } else {
+                    // Fallback: nearest note in effectiveScale (min distance to any ref)
+                    let minDist = Infinity;
+                    replacement = effectiveScale[0] || note;
+                    for (const c of effectiveScale) {
+                        const cIdx = getNoteIndex(c);
+                        if (cIdx === -1) continue;
+                        const d = Math.min(...refNotes.map(r => Math.abs(cIdx - r)));
+                        if (d < minDist) { minDist = d; replacement = c; }
+                    }
+                }
+
+                generatedMelody[i] = replacement;
+                placed.push({ slotIndex: i, noteIdx: getNoteIndex(replacement) });
+            }
+        }
+
         // Full-chord mode: replace each rhythm-active slot with all chord tones at that time offset.
         // The rhythm (which slots are active) comes from the normal generateRankedRhythm pipeline above,
         // so notesPerMeasure, smallestNoteDenom, rhythmVariability, etc. all apply as normal.
@@ -217,7 +274,22 @@ class MelodyGenerator {
                 if (note === null) return null; // inactive (rest) slot
                 const chordNotes = getChordAt(i * fcTimeScale);
                 if (!chordNotes) return null;
-                const kept = this.range ? chordNotes.filter(n => isNoteInRange(n, this.range)) : chordNotes;
+                let kept = this.range ? chordNotes.filter(n => isNoteInRange(n, this.range)) : chordNotes;
+                // Chord voicing span: limit semitone distance between lowest and highest note.
+                // Find the largest consecutive pitch window that fits within maxLeap.
+                if (maxLeap !== null && kept.length > 1) {
+                    const sorted = [...kept].sort((a, b) => getNoteIndex(a) - getNoteIndex(b));
+                    let best = [sorted[0]];
+                    for (let lo = 0; lo < sorted.length; lo++) {
+                        for (let hi = sorted.length - 1; hi > lo; hi--) {
+                            if (getNoteIndex(sorted[hi]) - getNoteIndex(sorted[lo]) <= maxLeap) {
+                                if (hi - lo + 1 > best.length) best = sorted.slice(lo, hi + 1);
+                                break;
+                            }
+                        }
+                    }
+                    kept = best;
+                }
                 return kept.length > 0 ? kept : null;
             });
 
@@ -266,11 +338,12 @@ class MelodyGenerator {
                 if (!chordNotes) return note;
                 const melIdx = getNoteIndex(note);
                 if (melIdx === -1) return note;
-                // Range-filter chord tones, then keep only those within one octave (12 semitones)
+                // Range-filter chord tones, then keep those within maxLeap (or one octave if unlimited)
+                const spanLimit = maxLeap !== null ? Math.min(12, maxLeap) : 12;
                 const inRange = this.range ? chordNotes.filter(n => isNoteInRange(n, this.range)) : chordNotes;
                 const candidates = inRange.filter(n => {
                     const nIdx = getNoteIndex(n);
-                    return nIdx !== -1 && n !== note && Math.abs(nIdx - melIdx) <= 12;
+                    return nIdx !== -1 && n !== note && Math.abs(nIdx - melIdx) <= spanLimit;
                 });
                 if (candidates.length === 0) return note; // fallback: single note
                 const partner = candidates[Math.floor(Math.random() * candidates.length)];

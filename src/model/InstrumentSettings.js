@@ -26,7 +26,8 @@ class InstrumentSettings {
     range = null,
     preferredClef = null,
     rangeMode = 'fixed',
-    transpositionKey = 'C'
+    transpositionKey = 'C',
+    maxLeap = null
   ) {
     this.instrument = instrument;
     this.type = type;
@@ -42,6 +43,9 @@ class InstrumentSettings {
     this.preferredClef = preferredClef;
     this.rangeMode = rangeMode;
     this.transpositionKey = transpositionKey;
+    // Max melodic leap between adjacent notes (semitones). null = unlimited.
+    // For chord voicing (fullchord/pairedchord): max span between lowest and highest note.
+    this.maxLeap = maxLeap;
   }
 
   static defaultTrebleInstrumentSettings() {

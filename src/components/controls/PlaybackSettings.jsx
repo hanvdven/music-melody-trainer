@@ -335,7 +335,7 @@ const PlaybackSettings = ({
       <SectionHeader label="Chords" />
       <ColumnHeaders
         gridConfig={GRID_GENERATOR}
-        columns={['chord notation', 'complexity', 'randomization', 'progression', 'chords/ MEASURE', 'PASSING CHORDS', 'variability']}
+        columns={['chord notation', 'complexity', 'randomization', 'progression', 'chords/ MEASURE', 'PASSING CHORDS', 'variability', '']}
       />
       <InstrumentRow
         label="Chords"
