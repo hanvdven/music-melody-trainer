@@ -75,6 +75,7 @@ Maatgrens- en slaggrens-splits uit stap 1 en 2 zijn ongewijzigd.
 add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-10]: ⬇ LAGE PRIORITEIT — op verzoek van Han. Vereist uitgebreidere toelichting voor implementatie.
 
 ### Common time-symbool: Maestro SHIFT+T ipv 4/4
 
