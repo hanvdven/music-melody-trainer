@@ -41,7 +41,8 @@ volume, spelen / pauzeren;
 aantal maten
 aantal herhalingen.
 
-Verwijder 'randomize now' uit de settings.
+✅ Verwijder 'randomize now' uit de settings.
+[Claude 2026-05-10 12:00]: Bevestigd door Han — al geïmplementeerd in een vorige sessie.
 
 bug: ik hoor soms precies extra drumsamples die niet in de bladmuziek staan. Ze zijn consistent wanneer ik herhaal; dus niet willekeurig. Lijkt vaak te gebeuren vlak na woodblocks.
 VERMOEDEN: misschien zijn er 'akkoorden' die niet goed worden genoteerd? Ik zie nu een maat waarin een kwartnoot 'ontbreekt' in de bladmuziek; daar spelen wel degelijk verschillende drumnoten.  
@@ -410,12 +411,14 @@ Voeg nog weighted chromatic toe als extreem moeilijk.
 
 ### Quarter note span (melodische sprong-beperking)
 
-- voeg een parameter toe aan treble en bass melodie: **quarter note span**
+✅ voeg een parameter toe aan treble en bass melodie: **quarter note span**
   - standaard: 1 octaaf (12 halve tonen)
   - instelbaar minimum: 2 hele noten (24 halve tonen) — ruimer, niet beperkter dan default
   - gedrag: als een willekeurig gegenereerde noot verder ligt van alle noten in het afgelopen kwartslag-venster dan de ingestelde span, dan opnieuw tekenen
   - fallback na 10 pogingen: vergroot de span stapsgewijs met 0,5 noot per poging totdat een noot past, of kies een richting (omhoog/omlaag) en pak de dichtstbijzijnde in-range noot
   - rand cases om rekening mee te houden: pentatonische toonladders (grote sprongen inherent), zeer beperkende instellingen (kleine range + kleine span)
+
+[Claude 2026-05-10 12:00]: Geïmplementeerd als `maxLeap` (null = onbeperkt). Intersectie-aanpak i.p.v. retries: voor elke noot-slot wordt de kandidatenpool gefilterd op noten die binnen maxLeap vallen van ALLE noten in het vorige kwartslag-venster (window = smallestNoteDenom/4 slots). Fallback: dichtstbijzijnde noot in effectiveScale. Geldt ook voor akkoord-breedte (fullchord: max span tussen laagste en hoogste noot; pairedchord: max afstand tussen melodienoot en partner). UI: GenericStepper "SPAN" in Col 8 van InstrumentRow voor treble en bas, opties 3rd–15th + ∞. Bestanden: `InstrumentSettings.js`, `melodyGenerator.js`, `InstrumentRow.jsx`, `musicLayout.js`, `PlaybackInstrumentSection.jsx`, `PlaybackSettings.jsx`.
 
 ### Overig
 
