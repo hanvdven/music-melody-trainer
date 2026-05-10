@@ -37,6 +37,13 @@
     margin: 0 0 12px;
 }
 
+.profile-section-hint {
+    font-size: 11px;
+    color: #555;
+    font-style: italic;
+    margin: 0 0 10px;
+}
+
 /* Debug toggle */
 .profile-debug-toggle {
     padding: 6px 20px;
