@@ -40,6 +40,7 @@ alle odd repeats / even repeats settings:
 volume, spelen / pauzeren;
 aantal maten
 aantal herhalingen.
+[Claude 2026-05-10]: ⬇ LAGE PRIORITEIT — markering op verzoek van Han. Feature is nog niet geïmplementeerd; oppakken zodra hogere-prioriteit items klaar zijn.
 
 ✅ Verwijder 'randomize now' uit de settings.
 [Claude 2026-05-10 12:00]: Bevestigd door Han — al geïmplementeerd in een vorige sessie.
