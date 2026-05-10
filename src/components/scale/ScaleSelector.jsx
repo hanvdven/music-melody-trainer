@@ -15,6 +15,7 @@ import {
   getCleanModeName,
   scaleDefinitions,
 } from '../../theory/scaleHandler';
+import { useProfile } from '../../contexts/ProfileContext';
 import './ScaleSelector.css';
 
 const ScaleSelector = ({
@@ -36,6 +37,8 @@ const ScaleSelector = ({
   handlePlayScale,
   isPlayingScale,
 }) => {
+  const { isFamilyUnlocked } = useProfile();
+
   /* =========================
        UI STATE (presentation)
        ========================= */
@@ -138,8 +141,10 @@ const ScaleSelector = ({
   };
 
   const handleRandomScale = () => {
-    const familyKeys = Object.keys(scaleDefinitions);
-    const randomFamily = familyKeys[Math.floor(Math.random() * familyKeys.length)];
+    // Restrict to families the profile has unlocked
+    const allowedFamilies = Object.keys(scaleDefinitions).filter(f => isFamilyUnlocked(f));
+    const pool = allowedFamilies.length > 0 ? allowedFamilies : Object.keys(scaleDefinitions);
+    const randomFamily = pool[Math.floor(Math.random() * pool.length)];
     const familyModes = scaleDefinitions[randomFamily];
     const randomModeDef = familyModes[Math.floor(Math.random() * familyModes.length)];
 
@@ -192,7 +197,7 @@ const ScaleSelector = ({
     </svg>
   );
 
-  // Get families for list view in specific order
+  // Get families for list view in specific order; locked families are kept visible but marked
   const listFamilies = [
     'Simple',
     'Pentatonic',
@@ -201,6 +206,10 @@ const ScaleSelector = ({
     'Other Heptatonic',
     'Supertonic',
   ];
+
+  // Families available for random selection (only unlocked ones)
+  const unlockedWheelFamilies = wheelFamilies.filter(f => isFamilyUnlocked(f));
+  const unlockedListFamilies = listFamilies.filter(f => isFamilyUnlocked(f));
 
   // Search functionality
   const searchResults = searchQuery.trim()
@@ -287,23 +296,29 @@ const ScaleSelector = ({
 
           {/* SCROLLABLE FAMILY LIST + SEARCH AT BOTTOM */}
           <div className="ss-family-list">
-            {(scaleModeUI === 'wheel' ? wheelFamilies : listFamilies).map((family) => (
-              <button
-                key={family}
-                className={`scale-selector-button ss-family-btn${((scaleModeUI === 'wheel' ? wheelFamily : selectedFamily) === family) ? ' active' : ''}`}
-                onClick={() => {
-                  if (scaleModeUI === 'wheel') setWheelFamily(family);
-                  else setSelectedFamily(family);
-                  setSearchQuery(''); // Clear search when family reselected
-                  if (scaleModeUI === 'search') {
-                    // Restore view based on the clicked family
-                    setScaleModeUI(wheelFamilies.includes(family) ? 'wheel' : 'list');
-                  }
-                }}
-              >
-                {family}
-              </button>
-            ))}
+            {(scaleModeUI === 'wheel' ? wheelFamilies : listFamilies).map((family) => {
+              const familyUnlocked = isFamilyUnlocked(family);
+              return (
+                <button
+                  key={family}
+                  className={`scale-selector-button ss-family-btn${((scaleModeUI === 'wheel' ? wheelFamily : selectedFamily) === family) ? ' active' : ''}${!familyUnlocked ? ' ss-family-locked' : ''}`}
+                  disabled={!familyUnlocked}
+                  title={!familyUnlocked ? 'Locked — unlock in Profile tab' : undefined}
+                  onClick={() => {
+                    if (!familyUnlocked) return;
+                    if (scaleModeUI === 'wheel') setWheelFamily(family);
+                    else setSelectedFamily(family);
+                    setSearchQuery(''); // Clear search when family reselected
+                    if (scaleModeUI === 'search') {
+                      // Restore view based on the clicked family
+                      setScaleModeUI(wheelFamilies.includes(family) ? 'wheel' : 'list');
+                    }
+                  }}
+                >
+                  {family}{!familyUnlocked ? ' 🔒' : ''}
+                </button>
+              );
+            })}
 
             {/* Search Input — below family list */}
             <div className="ss-search-wrap">

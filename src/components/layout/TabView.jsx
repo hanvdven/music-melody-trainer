@@ -8,6 +8,7 @@ import ScaleSelector from '../scale/ScaleSelector';
 import PlaybackSettings from '../controls/PlaybackSettings';
 import SettingsPanel from '../controls/SettingsPanel';
 import ChordGrid from '../controls/ChordGrid';
+import ProfileTab from '../profile/ProfileTab';
 import InstrumentRow from '../controls/rows/InstrumentRow';
 import ErrorBoundary from '../error/ErrorBoundary';
 import { SectionHeader, ColumnHeaders } from '../controls/PlaybackSubComponents';
@@ -342,6 +343,11 @@ const TabView = ({
                     minimizeAccidentals={minimizeAccidentals} setMinimizeAccidentals={setMinimizeAccidentals}
                     isModulationEnabled={isModulationEnabled} setIsModulationEnabled={setIsModulationEnabled}
                 />
+            )}
+            {activeTab === 'profile' && (
+                <ErrorBoundary boundary="profile-tab">
+                    <ProfileTab />
+                </ErrorBoundary>
             )}
         </div>
     );
