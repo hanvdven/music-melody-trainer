@@ -333,11 +333,15 @@ Bestanden: `src/hooks/useMelodyState.js`, `src/hooks/usePlaybackNavigation.js`.
 
 ### Tonica & bereik
 
-adjust range (tonic + 8va) after changing tonic, should happen before melody generation (i.e., force sequential range adjustments)
+✅ adjust range (tonic + 8va) after changing tonic, should happen before melody generation (i.e., force sequential range adjustments)
 randomize tonic seems to select an ever higher tonic. This is due to the range logic - now, when the range is set to tonic +  8va (and variants): let tonic be within the range C4-B5 (including enharmonic variants).
 
 [Claude 2026-04-08]: ANALYSE — `randomTonic()` in scaleHandler.js picks from tonicOptions (C4-C5). The drift likely comes from `getBestEnharmonicTonic` doing octave bumps for B→C♭ or C→B♯. Fix: After randomTonic, clamp the result so octave is at most 5 (for relative mode) and pitch class is at most B.
 VRAAG: Bedoel je dat tonic MAXIMAAL B5 mag zijn (dus 2 octaven: C4 t/m B5)? Of ALLEEN C4-B4 (1 octaaf, max B4)? De tekst zegt C4-B5 maar dat is hoger dan de huidige max C5. Graag bevestigen voor implementatie.
+[Claude 2026-05-10]: Twee fixes geïmplementeerd:
+1. `tonicOptions` in `scaleHandler.js`: C5 verwijderd. Bereik is nu C4–B4 (alle 12 toonsoorten, 1 octaaf). In relative-range mode (tonic+8va) geeft dit een speelbereik van max B4–B5. `getBestEnharmonicTonic` kan B4 → C♭5 omzetten (zelfde pitch) — dat is correct gedrag.
+2. `Sequencer.js` `applyResultToSetters`: `setTonic(result.tonic, true)` — `isManualOverride=true` voorkomt dat `setTonic` `getBestEnharmonicTonic` nogmaals toepast met verouderde React `selectedMode`, wat kon leiden tot enharmonische flips.
+Bereik-sync vóór melodiegeneratie: al correct — `useMelodyState` herberekent altijd via `calculateRelativeRange(voiceType, rangeMode, targetScale.tonic)` onafhankelijk van state-timing.
 
 ---
 
