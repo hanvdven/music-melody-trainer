@@ -230,7 +230,12 @@ class Sequencer {
             // wipe mode (= nextStartTime + 0.2m) so the content never changes mid-animation.
             // In non-wipe modes they fire at nextStartTime as before.
             const startIdx = this.globalMeasureIndex;
-            const iterStateMs = Math.max(0, (wipeStateClearTime - this.context.currentTime) * 1000);
+            // +25ms buffer: setTimeout(fn,0) fires before the next requestAnimationFrame, so
+            // without the buffer setNextLayer(null) triggers useLayoutEffect while the rAF
+            // crossfade animation is still in progress (e.g. old at 70% faded). useLayoutEffect
+            // clears style.opacity, snapping old from 0.7 → 1 — a visible brightness pop.
+            // 25ms ≈ 1.5 rAF frames at 60 fps, enough for the animation to reach completion.
+            const iterStateMs = Math.max(25, (wipeStateClearTime - this.context.currentTime) * 1000 + 25);
             this.scheduleTimeout(() => {
               // Both in one callback so React 18 automatic batching merges them into a single render.
               // wipeTransitionRef cleared by useLayoutEffect in App.jsx after React commits.
