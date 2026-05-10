@@ -1338,7 +1338,10 @@ class Sequencer {
    */
   applyResultToSetters(result, { initialLoad = false, seriesStartMeasureIndex = null } = {}) {
     if (!initialLoad && this.setters.hideOldGroup) this.setters.hideOldGroup();
-    if (result.tonic) this.setters.setTonic(result.tonic);
+    // Pass isManualOverride=true: the Sequencer has already applied getBestEnharmonicTonic
+    // when building result.tonic. Letting setTonic re-apply it with a potentially stale
+    // selectedMode from React state would cause enharmonic flips (e.g. B4 ↔ C♭5).
+    if (result.tonic) this.setters.setTonic(result.tonic, true);
     if (result.scale) {
       this.setters.setScale(result.scale);
       if (this.setters.setReferenceScale) this.setters.setReferenceScale(result.scale);
