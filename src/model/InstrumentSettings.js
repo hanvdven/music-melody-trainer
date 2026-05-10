@@ -46,6 +46,10 @@ class InstrumentSettings {
     // Max melodic leap between adjacent notes (semitones). null = unlimited.
     // For chord voicing (fullchord/pairedchord): max span between lowest and highest note.
     this.maxLeap = maxLeap;
+    // Global polyrhythm multiplier applied to all tuplet probabilities.
+    // 1 = normal (default); higher values make tuplets dramatically more frequent.
+    // Set by the global Polyrhythm control in PlaybackSettings — same value on all instruments.
+    this.polyMultiplier = 1;
   }
 
   static defaultTrebleInstrumentSettings() {

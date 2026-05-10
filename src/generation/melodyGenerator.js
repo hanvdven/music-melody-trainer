@@ -426,20 +426,25 @@ class MelodyGenerator {
             const slotTicks    = Math.round(TICKS_PER_WHOLE / smallestNoteDenom);
             const measureTicks = TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]);
 
+            // polyMultiplier boosts all tuplet probabilities proportionally.
+            // 1 = normal; higher values from the global Polyrhythm control make tuplets
+            // dramatically more frequent. Capped at 1 so no probability exceeds 100%.
+            const polyMult = this.InstrumentSettings.polyMultiplier || 1;
+
             // Candidates ordered rarest → most common (first successful roll wins per note).
             // minVar: minimum rhythmVariability for the type to be eligible.
             const tupletCandidates = [
                 // Extended types — only when variability > 50, very rare
-                { noteCount: 7, denominator: 8, groupTicks: 8 * slotTicks, prob: rhythmVariability / 10000, minVar: 51 },
-                { noteCount: 7, denominator: 6, groupTicks: 6 * slotTicks, prob: rhythmVariability / 10000, minVar: 51 },
-                { noteCount: 6, denominator: 5, groupTicks: 5 * slotTicks, prob: rhythmVariability / 8000,  minVar: 51 },
-                { noteCount: 6, denominator: 4, groupTicks: 4 * slotTicks, prob: rhythmVariability / 5000,  minVar: 51 },
-                { noteCount: 5, denominator: 6, groupTicks: 6 * slotTicks, prob: rhythmVariability / 8000,  minVar: 51 },
+                { noteCount: 7, denominator: 8, groupTicks: 8 * slotTicks, prob: Math.min(1, rhythmVariability / 10000 * polyMult), minVar: 51 },
+                { noteCount: 7, denominator: 6, groupTicks: 6 * slotTicks, prob: Math.min(1, rhythmVariability / 10000 * polyMult), minVar: 51 },
+                { noteCount: 6, denominator: 5, groupTicks: 5 * slotTicks, prob: Math.min(1, rhythmVariability / 8000  * polyMult), minVar: 51 },
+                { noteCount: 6, denominator: 4, groupTicks: 4 * slotTicks, prob: Math.min(1, rhythmVariability / 5000  * polyMult), minVar: 51 },
+                { noteCount: 5, denominator: 6, groupTicks: 6 * slotTicks, prob: Math.min(1, rhythmVariability / 8000  * polyMult), minVar: 51 },
                 // Standard types — from variability ≥ 30
-                { noteCount: 5, denominator: 4, groupTicks: 4 * slotTicks, prob: rhythmVariability / 2000,  minVar: 30 },
-                { noteCount: 4, denominator: 3, groupTicks: 3 * slotTicks, prob: rhythmVariability / 1000,  minVar: 30 },
-                { noteCount: 3, denominator: 2, groupTicks: 4 * slotTicks, prob: rhythmVariability / 750,   minVar: 30 },
-                { noteCount: 3, denominator: 2, groupTicks: 2 * slotTicks, prob: rhythmVariability / 500,   minVar: 30 },
+                { noteCount: 5, denominator: 4, groupTicks: 4 * slotTicks, prob: Math.min(1, rhythmVariability / 2000  * polyMult), minVar: 30 },
+                { noteCount: 4, denominator: 3, groupTicks: 3 * slotTicks, prob: Math.min(1, rhythmVariability / 1000  * polyMult), minVar: 30 },
+                { noteCount: 3, denominator: 2, groupTicks: 4 * slotTicks, prob: Math.min(1, rhythmVariability / 750   * polyMult), minVar: 30 },
+                { noteCount: 3, denominator: 2, groupTicks: 2 * slotTicks, prob: Math.min(1, rhythmVariability / 500   * polyMult), minVar: 30 },
             ].filter(t => t.groupTicks > 0 && t.groupTicks <= measureTicks && rhythmVariability >= t.minVar);
 
             let groupIdCounter = 0;
