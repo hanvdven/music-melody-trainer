@@ -182,6 +182,31 @@ const usePlayback = ({
         }
     }, [isPlayingMelody, handleStopAllPlayback, melodies, context, sequencerRef, onPlaybackStart]);
 
+    // Repeat-forever mode: loops the current melody indefinitely (alternating odd/even rounds)
+    // without regenerating. Reuses isPlayingMelody state so the stop button works identically.
+    const handlePlayRepeat = useCallback(async () => {
+        if (isPlayingMelody) {
+            handleStopAllPlayback();
+            return;
+        }
+
+        handleStopAllPlayback();
+        if (onPlaybackStart) onPlaybackStart();
+        setIsPlayingMelody(true);
+
+        if (context.state !== 'running') {
+            await context.resume();
+        }
+
+        try {
+            const offset = melodies.globalMeasureOffset || 0;
+            sequencerRef.current?.start(melodies, false, offset, true); // repeatForever=true
+        } catch (e) {
+            logger.error('usePlayback', 'E010-PLAY-MELODY', e);
+            setIsPlayingMelody(false);
+        }
+    }, [isPlayingMelody, handleStopAllPlayback, melodies, context, sequencerRef, onPlaybackStart]);
+
     const startSequencer = useCallback((initial, once = false, offset = 0) => {
         sequencerRef.current?.start(initial, once, offset);
     }, [sequencerRef]);
@@ -202,6 +227,7 @@ const usePlayback = ({
         handlePlayContinuously,
         handlePlayScale,
         handlePlayMelody,
+        handlePlayRepeat,
         handleStopAllPlayback,
         setIsPlayingContinuously,
         setIsPlayingScale,

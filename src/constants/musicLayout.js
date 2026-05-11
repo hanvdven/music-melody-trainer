@@ -11,6 +11,6 @@ export const APPROX_HEADER_WIDTH   = 70;  // px reserved for clef/key/time-sig
 export const APPROX_PX_PER_MEASURE = 120; // approximate px per measure at default zoom
 
 // CSS grid-template-columns strings shared between InstrumentRow and PlaybackSettings.
-// 8 columns: glyph | rule | pool | play-style | notes/measure | note-denom | variability | max-leap
-export const GRID_GENERATOR  = '10% 16% 10% 22% 10% 10% 11% 11%';
+// 9 columns: glyph | rule | pool | play-style | notes/measure | note-denom | variability | max-leap | poly
+export const GRID_GENERATOR  = '9% 14% 9% 20% 9% 9% 10% 10% 10%';
 export const GRID_VISIBILITY = '12% 22% 22% 22% 22%';
