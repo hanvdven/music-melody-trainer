@@ -274,10 +274,11 @@ Dat menu blijft enkele seconden openstaan (as-is)
 
 ✅ Letter / Roman: tekst-gebaseerd icoon: letters mode = "D-" + superscript "7"; roman = "ii" + superscript "7". Serif normal, size 26 (20% groter dan vorige 22). Aanname: "-" = minor conventie (jazz/lead sheet), superscript "7" voor de 7de graad.
 
-Ik wil nog een playback type:  herhalen. Die herhaalt eindeloos de gegeven melodie, zonder een nieuwe te genereren. In de header, gebuik iconen:
+✅ Ik wil nog een playback type:  herhalen. Die herhaalt eindeloos de gegeven melodie, zonder een nieuwe te genereren. In de header, gebuik iconen:
 Play once (1) (as is)
 Repeat : Lucide repeat-1
 Continuous : Lucide shuffle
+[Claude 2026-05-11]: Geïmplementeerd. Sequencer.start() heeft nu een `repeatForever` parameter (4e arg). Bij `true` wordt `isRepeatMode=true`; na elke `repsPerMelody` iteraties reset `iteration=0` maar `melodyCount` blijft 0 — geen regeneratie. `handlePlayRepeat` in `usePlayback.js` start met `repeatForever=true` en deelt `isPlayingMelody` state. AppHeader: toggle cyclet nu once→repeat→continuous (Repeat1 icoon). Bestanden: `Sequencer.js`, `usePlayback.js`, `App.jsx`, `AppHeader.jsx`.
 
 ✅ Haal de rechter marge uit de play-knop, en de linker marge uit de repeatknop, zodat deze dichter bij elkaar komen te liggen.
 
@@ -469,7 +470,9 @@ Voeg nog weighted chromatic toe als extreem moeilijk.
 
 Matrix: <https://www.moderndrummer.com/2014/04/modern-drummer-education-team-weighs-developing-independence/>
 
-I would like a polyrhythm toggler somewhere in the advanced settings [none, low, medium, high. extreme], which drastically increases the chance for tuplets to occur; e.g., to variability%/20 or even varbility%/10, and variability%/1.
+✅ I would like a polyrhythm toggler somewhere in the advanced settings [none, low, medium, high. extreme], which drastically increases the chance for tuplets to occur; e.g., to variability%/20 or even varbility%/10, and variability%/1.
+[Claude 2026-05-11]: Geïmplementeerd per instrument. Globale poly-control uit PlaybackSettings verwijderd. InstrumentRow col 9 (GRID_GENERATOR uitgebreid naar 9 kolommen): GenericStepper none(1×)/low(5×)/med(15×)/high(50×)/xtreme(200×) per instrument. Metronoom uitgesloten. Multipliers zijn dezelfde schaal als voorheen. Bestanden: `musicLayout.js`, `InstrumentRow.jsx`, `PlaybackSettings.jsx`, `PlaybackSettings.css`.
+❓ Per-type tuplet filtering (welke tuplet-types aan/uit) is uitgesteld tot het profiel/kennisbank-systeem beschikbaar is.
 
 ### Takadimi / Rhythmisch solfège
 
