@@ -335,7 +335,7 @@ const PlaybackSettings = ({
       <SectionHeader label="Chords" />
       <ColumnHeaders
         gridConfig={GRID_GENERATOR}
-        columns={['chord notation', 'complexity', 'randomization', 'progression', 'chords/ MEASURE', 'PASSING CHORDS', 'variability']}
+        columns={['chord notation', 'complexity', 'randomization', 'progression', 'chords/ MEASURE', 'PASSING CHORDS', 'variability', '']}
       />
       <InstrumentRow
         label="Chords"
@@ -347,6 +347,44 @@ const PlaybackSettings = ({
         firstChord={chordProgression?.chords?.[0] ?? null}
         renderMode="instrument"
       />
+      <div className="ps-section-gap" />
+
+      {/* 2b. POLYRHYTHM — global multiplier on all tuplet probabilities */}
+      {(() => {
+        // Multipliers per level. "none" = 1× (no change), "extreme" = 200× (constant tuplets).
+        const POLY_LEVELS = [
+          { label: 'none',    value: 1   },
+          { label: 'low',     value: 5   },
+          { label: 'medium',  value: 15  },
+          { label: 'high',    value: 50  },
+          { label: 'extreme', value: 200 },
+        ];
+        const curMult = trebleSettings?.polyMultiplier ?? 1;
+        const curLevel = POLY_LEVELS.find(l => l.value === curMult) ?? POLY_LEVELS[0];
+        const setPolyLevel = (mult) => {
+          setTrebleSettings(p => ({ ...p, polyMultiplier: mult }));
+          setBassSettings(p => ({ ...p, polyMultiplier: mult }));
+          setPercussionSettings(p => ({ ...p, polyMultiplier: mult }));
+        };
+        return (
+          <div className="ps-poly-row">
+            <span className="ps-poly-label">Polyrhythm</span>
+            <div className="ps-poly-stepper">
+              <GenericStepper
+                value={curMult}
+                label={curLevel.label}
+                fontSize="11.5px"
+                fontFamily="sans-serif"
+                allowedValues={POLY_LEVELS.map(l => l.value)}
+                options={POLY_LEVELS}
+                shouldCycle={false}
+                onChange={setPolyLevel}
+              />
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="ps-section-gap" />
 
       {/* 3. INSTRUMENTS BLOCK */}

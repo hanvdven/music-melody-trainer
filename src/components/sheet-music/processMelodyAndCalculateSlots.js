@@ -1,4 +1,5 @@
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
+import { decomposeNumeratorToBeatGroups } from '../../generation/rhythmicPriorities.js';
 
 const allowedDurations = [3, 6, 9, 12, 18, 21, 24, 36, 42, 48, 72];
 
@@ -52,6 +53,16 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
   // Triple and compound time: full measure — dotted notes are idiomatic on any beat.
   const timeSigTop = timeSignature[0];
   const secondaryBeatSize = (timeSigTop % 2 === 0 && timeSigTop > 2) ? measureLength / 2 : measureLength;
+
+  // Beat-group boundaries (in ticks, relative to measure start) for irregular time signatures.
+  // E.g. 5/4 → 3+2 → boundary at tick 36 (beat 4 onset). Notes that cross these boundaries
+  // must be split so each group's structure is visually clear (a half note from beat 3 to beat 5
+  // would obscure the 3+2 grouping without the split).
+  const beatUnit = TICKS_PER_WHOLE / timeSignature[1];
+  const beatGroupBoundaryTicks = decomposeNumeratorToBeatGroups(timeSigTop)
+      .slice(1)              // exclude 0 (measure start — not an internal boundary)
+      .map(s => s * beatUnit);
+
   let startRestDuration = 0;
 
   // Helper function to determine if a timestamp is at a multiple of 12 (within a measure)
@@ -237,6 +248,33 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
       }
 
       // Step 3: Continue splitting until the note aligns with allowed durations.
+
+      // 3a: Irregular beat-group boundary split (e.g. 5/4 = 3+2, boundary at tick 36).
+      // A note crossing this boundary must be split regardless of staysInSecondarySpan,
+      // because secondaryBeatSize is the full measure for odd-numerator meters — it cannot
+      // detect the internal group boundary. Only split when the resulting first piece is an
+      // allowed notation value; otherwise fall through to the greedy splitter.
+      if (beatGroupBoundaryTicks.length > 0) {
+        const offsetInMeasure = currentOffset % measureLength;
+        const nextGroupBoundary = beatGroupBoundaryTicks.find(
+            b => b > offsetInMeasure && b < offsetInMeasure + remainingDuration
+        );
+        if (nextGroupBoundary != null) {
+          const splitDuration = nextGroupBoundary - offsetInMeasure;
+          if (allowedDurations.includes(splitDuration)) {
+            resultNotes.push(paddedNotes[i]);
+            resultDurations.push(splitDuration);
+            resultOffsets.push(currentOffset);
+            resultOriginalIndices.push(paddedOriginalIndices[i]);
+            resultTies.push(isFirstSplit ? null : 'tie');
+            isFirstSplit = false;
+            currentOffset += splitDuration;
+            remainingDuration -= splitDuration;
+            continue;
+          }
+        }
+      }
+
       // A note may stay whole when:
       //   a) it fits within one beat group (≤ effectiveGroupSize = quarter note), OR
       //   b) it ends exactly on a beat boundary, OR

@@ -40,8 +40,10 @@ alle odd repeats / even repeats settings:
 volume, spelen / pauzeren;
 aantal maten
 aantal herhalingen.
+[Claude 2026-05-10]: ⬇ LAGE PRIORITEIT — markering op verzoek van Han. Feature is nog niet geïmplementeerd; oppakken zodra hogere-prioriteit items klaar zijn.
 
-Verwijder 'randomize now' uit de settings.
+✅ Verwijder 'randomize now' uit de settings.
+[Claude 2026-05-10 12:00]: Bevestigd door Han — al geïmplementeerd in een vorige sessie.
 
 bug: ik hoor soms precies extra drumsamples die niet in de bladmuziek staan. Ze zijn consistent wanneer ik herhaal; dus niet willekeurig. Lijkt vaak te gebeuren vlak na woodblocks.
 VERMOEDEN: misschien zijn er 'akkoorden' die niet goed worden genoteerd? Ik zie nu een maat waarin een kwartnoot 'ontbreekt' in de bladmuziek; daar spelen wel degelijk verschillende drumnoten.  
@@ -73,6 +75,7 @@ Maatgrens- en slaggrens-splits uit stap 1 en 2 zijn ongewijzigd.
 add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-10]: ⬇ LAGE PRIORITEIT — op verzoek van Han. Vereist uitgebreidere toelichting voor implementatie.
 
 ### Common time-symbool: Maestro SHIFT+T ipv 4/4
 
@@ -112,6 +115,7 @@ onderzoek: 5/4 (en andere onregelmatige maatsoorten) bas/treble-notatie ritmisch
 
 [Claude 2026-04-09]: ONDERZOEK VOLTOOID. Primaire oorzaak was inderdaad rhythmicPriorities.js: de beat-groep downbeats (bijv. slot 6 = beat 4 in 5/4 bij 8th-resolutie) werden NIET hoger gerankt dan nearDivisors-artefacten. Dat is opgelost met decomposeNumeratorToBeatGroups in een eerdere sessie. Na de fix: met standaard settings (notesPerMeasure=2) geeft 5/4 dotted-half + half; met 4 noten: half+quarter+quarter+quarter — allemaal correcte notenwaarden.
 RESTERENDE NOTATIE-KWESTIE (laag prioriteit): Noten die de 3|2-grensslijn overschrijden (bijv. halve noot van beat 3 t/m 5) worden NIET gesplitst op de groepsgrens (tick 36). Correct zou zijn: quarter(beat3) + quarter(beat4) gebonden. processMelodyAndCalculateSlots kent de beat-groepsstructuur niet. Zal de notatie soms onduidelijker maken maar veroorzaakt geen 16de-noten. Aparte fix nodig als dit storend is.
+✅ [Claude 2026-05-10]: Opgelost — `decomposeNumeratorToBeatGroups` geëxporteerd uit `rhythmicPriorities.js` en geïmporteerd in `processMelodyAndCalculateSlots.js`. Beat-groepsgrens-ticks (bijv. tick 36 voor 5/4 3+2) worden vóór de `staysInSecondarySpan`-check als extra splitpunten behandeld. Alleen gesplitst wanneer het eerste stuk een toegestane notenwaarde is (allowedDurations). Bestanden: `rhythmicPriorities.js`, `processMelodyAndCalculateSlots.js`.
 
 ### Tuplets & polyritmiek
 
@@ -210,7 +214,8 @@ Ik zie geen tuplets bij percussie of bas, hoe komt dat? Is de bedoeling dat ze o
 
 [Claude 2026-04-09]: Geïmplementeerd — YCOL en RCOL in SheetMusic.jsx zijn nu `debugMode ? kleur : null`. In normale modus renderen de overlay-noten in standaard notenkleuren.
 
-- fade out aan het einde van repeat block is niet goed. Check de specs / architectuurbeschrijving voor animaties en zorg dat er een mooie fade-out is; momenteel is de overgang tussen sequence blokken nog hakkelig.
+✅ fade out aan het einde van repeat block is niet goed. Check de specs / architectuurbeschrijving voor animaties en zorg dat er een mooie fade-out is; momenteel is de overgang tussen sequence blokken nog hakkelig.
+[Claude 2026-05-10]: Oorzaak: `setTimeout(fn,0)` vuurt altijd vóór de volgende `requestAnimationFrame`. `setNextLayer(null)` triggerden `useLayoutEffect` terwijl de rAF-crossfade nog bezig was (bijv. old opacity 0.7). `useLayoutEffect` herstelde dan opacity naar 1 — zichtbare helderheidssprong. Fix: `iterStateMs` in Sequencer.js verhoogd met minimaal 25ms buffer, zodat de rAF de animatie kan afronden voordat `useLayoutEffect` de opacity wist. Bestand: `Sequencer.js`.
 
 ---
 
@@ -278,7 +283,12 @@ Continuous : Lucide shuffle
 
 [Claude 2026-04-14 13:45]: Opgelost in [AppHeader.css:84](src/components/layout/AppHeader.css#L84). De Play-knop had geen eigen margins — de afstand kwam volledig van `gap: 8px` op `.app-header-right`. De repeat-knop had al `margin-left: -4px` (vorige halvering) wat 4px over liet. Nu `margin-left: -8px` zodat de flex-gap volledig geneutraliseerd wordt en beide knoppen flush tegen elkaar zitten.
 
-bug: na herhaaldelijk klikken op 'volgende' loopt de app vast. Oorzaak onbekend.
+✅ bug: na herhaaldelijk klikken op 'volgende' loopt de app vast. Oorzaak onbekend.
+
+[Claude 2026-05-10 13:00]: Twee samenhangende oorzaken gevonden en opgelost:
+1. **Stale closure in `navigateHistory`**: `historyIndex` en `history` werden gelezen uit een verouderde closure. Bij snel klikken gebruikte elke aanroep hetzelfde oude `historyIndex`, waardoor `randomizeAll` steeds opnieuw werd aangeroepen met dezelfde stale state. Fix: `historyIndexRef` en `historyRef` toegevoegd die altijd up-to-date zijn; `navigateHistory` en de `setHistory`-updater in `randomizeAll` gebruiken nu deze refs.
+2. **Geen debounce**: `handleSkipForward`/`handleSkipBack` hadden geen guard tegen rapid-fire clicks. Elke klik kon een zware `randomizeAll` + `startSequencer` aanroepen. Fix: `isNavigatingRef` guard in `usePlaybackNavigation.js` — 300ms cooldown na elke navigatieactie.
+Bestanden: `src/hooks/useMelodyState.js`, `src/hooks/usePlaybackNavigation.js`.
 
 ### Iconen & stijl (consistency check)
 
@@ -325,11 +335,15 @@ bug: na herhaaldelijk klikken op 'volgende' loopt de app vast. Oorzaak onbekend.
 
 ### Tonica & bereik
 
-adjust range (tonic + 8va) after changing tonic, should happen before melody generation (i.e., force sequential range adjustments)
+✅ adjust range (tonic + 8va) after changing tonic, should happen before melody generation (i.e., force sequential range adjustments)
 randomize tonic seems to select an ever higher tonic. This is due to the range logic - now, when the range is set to tonic +  8va (and variants): let tonic be within the range C4-B5 (including enharmonic variants).
 
 [Claude 2026-04-08]: ANALYSE — `randomTonic()` in scaleHandler.js picks from tonicOptions (C4-C5). The drift likely comes from `getBestEnharmonicTonic` doing octave bumps for B→C♭ or C→B♯. Fix: After randomTonic, clamp the result so octave is at most 5 (for relative mode) and pitch class is at most B.
 VRAAG: Bedoel je dat tonic MAXIMAAL B5 mag zijn (dus 2 octaven: C4 t/m B5)? Of ALLEEN C4-B4 (1 octaaf, max B4)? De tekst zegt C4-B5 maar dat is hoger dan de huidige max C5. Graag bevestigen voor implementatie.
+[Claude 2026-05-10]: Twee fixes geïmplementeerd:
+1. `tonicOptions` in `scaleHandler.js`: C5 verwijderd. Bereik is nu C4–B4 (alle 12 toonsoorten, 1 octaaf). In relative-range mode (tonic+8va) geeft dit een speelbereik van max B4–B5. `getBestEnharmonicTonic` kan B4 → C♭5 omzetten (zelfde pitch) — dat is correct gedrag.
+2. `Sequencer.js` `applyResultToSetters`: `setTonic(result.tonic, true)` — `isManualOverride=true` voorkomt dat `setTonic` `getBestEnharmonicTonic` nogmaals toepast met verouderde React `selectedMode`, wat kon leiden tot enharmonische flips.
+Bereik-sync vóór melodiegeneratie: al correct — `useMelodyState` herberekent altijd via `calculateRelativeRange(voiceType, rangeMode, targetScale.tonic)` onafhankelijk van state-timing.
 
 ---
 
@@ -410,12 +424,14 @@ Voeg nog weighted chromatic toe als extreem moeilijk.
 
 ### Quarter note span (melodische sprong-beperking)
 
-- voeg een parameter toe aan treble en bass melodie: **quarter note span**
+✅ voeg een parameter toe aan treble en bass melodie: **quarter note span**
   - standaard: 1 octaaf (12 halve tonen)
   - instelbaar minimum: 2 hele noten (24 halve tonen) — ruimer, niet beperkter dan default
   - gedrag: als een willekeurig gegenereerde noot verder ligt van alle noten in het afgelopen kwartslag-venster dan de ingestelde span, dan opnieuw tekenen
   - fallback na 10 pogingen: vergroot de span stapsgewijs met 0,5 noot per poging totdat een noot past, of kies een richting (omhoog/omlaag) en pak de dichtstbijzijnde in-range noot
   - rand cases om rekening mee te houden: pentatonische toonladders (grote sprongen inherent), zeer beperkende instellingen (kleine range + kleine span)
+
+[Claude 2026-05-10 12:00]: Geïmplementeerd als `maxLeap` (null = onbeperkt). Intersectie-aanpak i.p.v. retries: voor elke noot-slot wordt de kandidatenpool gefilterd op noten die binnen maxLeap vallen van ALLE noten in het vorige kwartslag-venster (window = smallestNoteDenom/4 slots). Fallback: dichtstbijzijnde noot in effectiveScale. Geldt ook voor akkoord-breedte (fullchord: max span tussen laagste en hoogste noot; pairedchord: max afstand tussen melodienoot en partner). UI: GenericStepper "SPAN" in Col 8 van InstrumentRow voor treble en bas, opties 3rd–15th + ∞. Bestanden: `InstrumentSettings.js`, `melodyGenerator.js`, `InstrumentRow.jsx`, `musicLayout.js`, `PlaybackInstrumentSection.jsx`, `PlaybackSettings.jsx`.
 
 ### Overig
 
@@ -463,7 +479,8 @@ automatisch klopt met de gegenereerde gridresolutie (i.p.v. afleiden uit melody.
 Ook: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren.
 
 [Claude 2026-04-08]: Geïmplementeerd — `melody.smallestNoteDenom` wordt nu doorgegeven aan `getEffectiveBeatDuration` als derde parameter. Hierdoor klopt de beat-level in Takadimi altijd met de grid-resolutie uit de percussie-instellingen. Aanname: 4 × subdivision = beat (simple meter); compound meter gebruikt altijd de nootwaarde van de noemer.
-Nog open: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren in Takadimi.
+✅ Nog open: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren in Takadimi.
+[Claude 2026-05-10]: Opgelost — `getTupletSyllable(posInGroup, noteCount)` toegevoegd aan `rhythmicSolfege.js`. Geeft de correcte lettergreep op basis van positie binnen de tuplet-groep (niet op ticks): ÷2=ta/di, ÷3=ta/ki/da, ÷4=ta/ka/di/mi, ÷5=ta/ka/di/mi/ti, ÷6=ta/va/ki/di/da/ma, ÷7=ta/va/ki/di/da/ma/ti. In `SheetMusic.jsx` Takadimi-renderingloop: `melody.triplets[i]` geeft de tuplet-groep-info; positie binnen de groep wordt bijgehouden via `tupletPosMap`. Tuplet-noten gebruiken `getTupletSyllable`; reguliere noten blijven `getTakadimiSyllable` gebruiken. Tick-gebaseerde aanpak was onbetrouwbaar omdat `Math.round(groupTicks / noteCount)` niet altijd exact op B/N uitkomt. Bestanden: `rhythmicSolfege.js`, `SheetMusic.jsx`.
 
 ### Bugs percussie / playback
 

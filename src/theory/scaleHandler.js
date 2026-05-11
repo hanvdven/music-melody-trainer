@@ -13,20 +13,23 @@ const notes = generateAllNotesArray();
 // CONSTANTS
 // ============================================================================
 
+// C4–B4 only (one octave, all 12 pitch classes).
+// C5 is excluded: in relative range mode (tonic+8va) it would push the playable
+// range to C5–C6, which is too high for practical melody training.
+// getBestEnharmonicTonic may return C♭5 for B4 (enharmonically identical), which is fine.
 const tonicOptions = [
     'C4',
     'C♯4', 'D♭4',
     'D4',
     'D♯4', 'E♭4',
-    'E4', // E# / Fb? rarely used as tonic center in this context
+    'E4',
     'F4',
     'F♯4', 'G♭4',
     'G4',
     'G♯4', 'A♭4',
     'A4',
     'A♯4', 'B♭4',
-    'B4', // Cb?
-    'C5',
+    'B4',
 ];
 
 export { ENHARMONIC_PAIRS };

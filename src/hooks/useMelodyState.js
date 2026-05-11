@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import logger from '../utils/logger';
 import Melody from '../model/Melody';
 import MelodyGenerator from '../generation/melodyGenerator';
@@ -69,6 +69,12 @@ const useMelodyState = (
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [globalMeasureOffset, setGlobalMeasureOffset] = useState(0);
+
+  // Refs that mirror history state — always reflects the committed value even inside stale
+  // closures. Required because navigateHistory and randomizeAll are called from rapid-fire
+  // click handlers where React hasn't re-rendered between calls.
+  const historyIndexRef = useRef(-1);
+  const historyRef = useRef([]);
 
   const generateChords = useCallback((strategyKey) => {
     let strategy = strategyKey;
@@ -306,8 +312,14 @@ const useMelodyState = (
     };
 
     setHistory(prev => {
-      const newHistory = [...prev.slice(0, historyIndex + 1), historyEntry];
-      setHistoryIndex(newHistory.length - 1);
+      // Use historyIndexRef.current (not the closure-captured historyIndex) so rapid-fire
+      // calls from handleSkipForward don't all read the same stale index and overwrite each other.
+      const curIdx = historyIndexRef.current;
+      const newHistory = [...prev.slice(0, curIdx + 1), historyEntry];
+      const newIdx = newHistory.length - 1;
+      historyIndexRef.current = newIdx;
+      historyRef.current = newHistory;
+      setHistoryIndex(newIdx);
       return newHistory;
     });
 
@@ -355,10 +367,15 @@ const useMelodyState = (
   }, [scale, numMeasures, timeSignature, trebleSettings, bassSettings, percussionSettings, percussionScale, chordProgression]);
 
   const navigateHistory = useCallback((direction) => {
+    // Read from refs so rapid-fire clicks see the latest committed index/history,
+    // not the stale closure values that React hasn't flushed yet.
+    const curIdx = historyIndexRef.current;
+    const curHistory = historyRef.current;
+
     if (direction === 'back') {
-      if (historyIndex > 0) {
-        const prevIndex = historyIndex - 1;
-        const entry = history[prevIndex];
+      if (curIdx > 0) {
+        const prevIndex = curIdx - 1;
+        const entry = curHistory[prevIndex];
         setTreble(entry.treble);
         setBass(entry.bass);
         setPercussion(entry.percussion);
@@ -366,16 +383,16 @@ const useMelodyState = (
         setReferenceMelody(entry.referenceMelody);
         setReferenceBassMelody(entry.referenceBassMelody);
         setReferenceScale(entry.referenceScale);
+        historyIndexRef.current = prevIndex;
         setHistoryIndex(prevIndex);
-        // Calculate offset based on previous melodies
         const newOffset = globalMeasureOffset + numMeasures;
         setGlobalMeasureOffset(newOffset);
         return { ...entry, globalMeasureOffset: newOffset };
       }
     } else if (direction === 'forward') {
-      if (historyIndex < history.length - 1) {
-        const nextIdx = historyIndex + 1;
-        const entry = history[nextIdx];
+      if (curIdx < curHistory.length - 1) {
+        const nextIdx = curIdx + 1;
+        const entry = curHistory[nextIdx];
         setTreble(entry.treble);
         setBass(entry.bass);
         setPercussion(entry.percussion);
@@ -383,12 +400,13 @@ const useMelodyState = (
         setReferenceMelody(entry.referenceMelody);
         setReferenceBassMelody(entry.referenceBassMelody);
         setReferenceScale(entry.referenceScale);
+        historyIndexRef.current = nextIdx;
         setHistoryIndex(nextIdx);
         const newOffset = globalMeasureOffset + numMeasures;
         setGlobalMeasureOffset(newOffset);
         return { ...entry, globalMeasureOffset: newOffset };
       } else {
-        // Skip forward generates new
+        // Skip forward past the end of history: generate a new melody.
         const newOffset = globalMeasureOffset + numMeasures;
         setGlobalMeasureOffset(newOffset);
         const newMelody = randomizeAll(null);
@@ -396,7 +414,7 @@ const useMelodyState = (
       }
     }
     return null;
-  }, [history, historyIndex, timeSignature, numMeasures, metronomeSettings, randomizeAll, globalMeasureOffset]);
+  }, [timeSignature, numMeasures, metronomeSettings, randomizeAll, globalMeasureOffset]);
 
   const memoizedMelodies = useMemo(() => ({
     treble,

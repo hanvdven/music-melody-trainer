@@ -230,7 +230,12 @@ class Sequencer {
             // wipe mode (= nextStartTime + 0.2m) so the content never changes mid-animation.
             // In non-wipe modes they fire at nextStartTime as before.
             const startIdx = this.globalMeasureIndex;
-            const iterStateMs = Math.max(0, (wipeStateClearTime - this.context.currentTime) * 1000);
+            // +25ms buffer: setTimeout(fn,0) fires before the next requestAnimationFrame, so
+            // without the buffer setNextLayer(null) triggers useLayoutEffect while the rAF
+            // crossfade animation is still in progress (e.g. old at 70% faded). useLayoutEffect
+            // clears style.opacity, snapping old from 0.7 → 1 — a visible brightness pop.
+            // 25ms ≈ 1.5 rAF frames at 60 fps, enough for the animation to reach completion.
+            const iterStateMs = Math.max(25, (wipeStateClearTime - this.context.currentTime) * 1000 + 25);
             this.scheduleTimeout(() => {
               // Both in one callback so React 18 automatic batching merges them into a single render.
               // wipeTransitionRef cleared by useLayoutEffect in App.jsx after React commits.
@@ -1338,7 +1343,10 @@ class Sequencer {
    */
   applyResultToSetters(result, { initialLoad = false, seriesStartMeasureIndex = null } = {}) {
     if (!initialLoad && this.setters.hideOldGroup) this.setters.hideOldGroup();
-    if (result.tonic) this.setters.setTonic(result.tonic);
+    // Pass isManualOverride=true: the Sequencer has already applied getBestEnharmonicTonic
+    // when building result.tonic. Letting setTonic re-apply it with a potentially stale
+    // selectedMode from React state would cause enharmonic flips (e.g. B4 ↔ C♭5).
+    if (result.tonic) this.setters.setTonic(result.tonic, true);
     if (result.scale) {
       this.setters.setScale(result.scale);
       if (this.setters.setReferenceScale) this.setters.setReferenceScale(result.scale);
