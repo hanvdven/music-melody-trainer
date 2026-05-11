@@ -42,7 +42,7 @@ class Sequencer {
     this.pregenResult = null; // pre-generated next melody for scroll/wipe advance preview
   }
 
-  async start(initialMelodies, once = false, initialMeasureIndex = 0) {
+  async start(initialMelodies, once = false, initialMeasureIndex = 0, repeatForever = false) {
     if (this.isPlaying) {
       return;
     }
@@ -142,6 +142,10 @@ class Sequencer {
     let iteration = 0;
     this.globalMeasureIndex = initialMeasureIndex;
     this.isOnceMode = once;
+    // Repeat mode: loop the same melody indefinitely without regenerating.
+    // The outer while stays alive (isOnceMode=false, totalMelodies=-1); after each
+    // repsPerMelody passes the block below resets iteration without incrementing melodyCount.
+    this.isRepeatMode = repeatForever;
     this.song = Song.empty();
     this.songVersion = 0;
     this.scheduledMeasures = [];
@@ -548,8 +552,13 @@ class Sequencer {
         iteration++;
 
         if (repsPerMelody !== -1 && iteration >= repsPerMelody) {
+          iteration = 0; // Reset for next cycle (repeat mode) or next melody (normal mode)
+
+          if (this.isRepeatMode) {
+            // Repeat-forever: keep playing the same melody. melodyCount stays 0 so the
+            // outer while never exits due to totalMelodies. No regeneration happens.
+          } else {
           this.melodyCount++;
-          iteration = 0; // Reset for next melody
 
           if (this.isOnceMode && this.melodyCount >= 1) {
             break;
@@ -687,6 +696,7 @@ class Sequencer {
               }, scheduleTime);
             }
           }
+          } // end !isRepeatMode
         }
       }
 
