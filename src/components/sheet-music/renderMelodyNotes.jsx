@@ -1538,20 +1538,21 @@ const renderMelodyNotes = (
     }
 
     const color    = previewColor ?? 'var(--text-primary)';
-    // Dimmed ratio suffix: more contrast than text-secondary (20% opacity vs ~50%).
+    // Dimmed ratio suffix: heavily lowlighted (18% opacity).
     const dimColor = previewColor
-      ? `color-mix(in srgb, ${previewColor}, transparent 75%)`
-      : 'color-mix(in srgb, var(--text-primary), transparent 72%)';
+      ? `color-mix(in srgb, ${previewColor}, transparent 82%)`
+      : 'color-mix(in srgb, var(--text-primary), transparent 82%)';
 
     const hookLen  = 5;
-    // Number is above bracket line (stems-up) or below (stems-down).
-    // Larger font (14px, ~60% bigger than original 9px) needs more vertical clearance.
-    const numY     = stemIsAbove ? bracketY - 3 : bracketY + 12;
-    // Format: "3 : 2" — use explicit pixel gap (labelGap) between the two text anchors
-    // so that "3" and ": 2" are visually separated regardless of font whitespace behaviour.
-    const labelGap = 4; // px half-gap: numLabel ends at midX-labelGap, dimLabel starts at midX+labelGap
+    // Number label vertically: above bracket line for stems-up, below for stems-down.
+    // +60% font (22px) needs extra clearance — stems-down baseline pushed down an extra 6px.
+    const numY     = stemIsAbove ? bracketY - 3 : bracketY + 18;
+    // Bracket gap: half-width reserved around the number label (scaled for 22px font).
+    const bracketGap = 22;
+    // Format: "3 : 2" — render as single <text> with two tspans so spacing between
+    // numeral, colon, and denominator is determined by the font (uniform character spacing).
     const numLabel = `${noteCount}`;
-    const dimLabel = `: ${denominator}`;
+    const dimLabel = ` : ${denominator}`;
 
     return (
       <g key={`tuplet-${id}`}>
@@ -1560,43 +1561,31 @@ const renderMelodyNotes = (
           <>
             <path
               d={stemIsAbove
-                ? `M ${x1} ${bracketY + hookLen} V ${bracketY} H ${midX - 12}`
-                : `M ${x1} ${bracketY - hookLen} V ${bracketY} H ${midX - 12}`}
+                ? `M ${x1} ${bracketY + hookLen} V ${bracketY} H ${midX - bracketGap}`
+                : `M ${x1} ${bracketY - hookLen} V ${bracketY} H ${midX - bracketGap}`}
               stroke={color} strokeWidth="0.8" fill="none"
             />
             <path
               d={stemIsAbove
-                ? `M ${midX + 12} ${bracketY} H ${x2} V ${bracketY + hookLen}`
-                : `M ${midX + 12} ${bracketY} H ${x2} V ${bracketY - hookLen}`}
+                ? `M ${midX + bracketGap} ${bracketY} H ${x2} V ${bracketY + hookLen}`
+                : `M ${midX + bracketGap} ${bracketY} H ${x2} V ${bracketY - hookLen}`}
               stroke={color} strokeWidth="0.8" fill="none"
             />
           </>
         )}
-        {/* Numerator (e.g. "3") — serif bold, 14px */}
+        {/* "3 : 2" — single text element so font provides uniform character spacing.
+            numLabel is full-color; dimLabel (" : 2") is heavily dimmed via tspan. */}
         <text
-          x={midX - labelGap}
+          x={midX}
           y={numY}
-          fontSize="14"
+          fontSize="22"
           fontWeight="bold"
-          textAnchor="end"
-          fill={color}
+          textAnchor="middle"
           fontFamily="Georgia, 'Times New Roman', serif"
           style={{ userSelect: 'none' }}
         >
-          {numLabel}
-        </text>
-        {/* Ratio suffix (e.g. ": 2") — same font, heavily dimmed */}
-        <text
-          x={midX + labelGap}
-          y={numY}
-          fontSize="14"
-          fontWeight="bold"
-          textAnchor="start"
-          fill={dimColor}
-          fontFamily="Georgia, 'Times New Roman', serif"
-          style={{ userSelect: 'none' }}
-        >
-          {dimLabel}
+          <tspan fill={color}>{numLabel}</tspan>
+          <tspan fill={dimColor}>{dimLabel}</tspan>
         </text>
       </g>
     );
