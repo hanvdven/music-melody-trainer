@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Soundfont, Reverb, DrumMachine, Sampler, getDrumMachineNames } from 'smplr';
 import InstrumentSettings from '../model/InstrumentSettings';
 import { LOCAL_PERCUSSION_BUFFERS } from '../audio/drumKits';
+import { LOCAL_INSTRUMENT_BUFFERS } from '../audio/localInstruments';
 import logger from '../utils/logger';
 
 const VALID_DRUM_KITS = new Set(getDrumMachineNames());
@@ -84,8 +85,16 @@ const useInstruments = (context) => {
             newManualInst = new DrumMachine(context, { instrument: settings.instrument, destination: context.destination, disableScheduler: true });
           }
         } else {
-          newInst = new Soundfont(context, { instrument: settings.instrument, destination: dest, disableScheduler: true });
-          newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: context.destination, disableScheduler: true });
+          // Use local FLAC samples when available (avoids CDN dependency for default instruments).
+          // Falls back to smplr Soundfont (CDN) for any slug not in the local map.
+          const localBuffers = LOCAL_INSTRUMENT_BUFFERS[settings.instrument];
+          if (localBuffers) {
+            newInst = new Sampler(context, { destination: dest, buffers: localBuffers });
+            newManualInst = new Sampler(context, { destination: context.destination, buffers: localBuffers });
+          } else {
+            newInst = new Soundfont(context, { instrument: settings.instrument, destination: dest });
+            newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: context.destination });
+          }
         }
       } catch (e) {
         logger.error('useInstruments', 'E011-INSTRUMENT-CREATE', e, { instrument: settings.instrument });
