@@ -333,3 +333,25 @@
 .hs-input:disabled {
   cursor: not-allowed;
 }
+
+/* ── Polyrhythm global control ── */
+.ps-poly-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+}
+
+.ps-poly-label {
+  font-size: 10px;
+  font-family: sans-serif;
+  color: var(--text-secondary, #888);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.ps-poly-stepper {
+  width: 120px;
+}

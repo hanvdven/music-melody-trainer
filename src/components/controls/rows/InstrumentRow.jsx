@@ -435,6 +435,40 @@ const InstrumentRow = ({
                     />
                 )}
             </div>
+
+            {/* Col 8: Max Leap — melodic interval limit per quarter-note window (treble/bass only).
+                For fullchord/pairedchord: max span between lowest and highest voicing note. */}
+            <div className="ir-col-center">
+                {!isMetronome && !isChords && !isPerc && (() => {
+                    const LEAP_OPTIONS = [
+                        { label: '3rd',  value: 4  },
+                        { label: '4th',  value: 5  },
+                        { label: '6th',  value: 9  },
+                        { label: '7th',  value: 11 },
+                        { label: '8ve',  value: 12 },
+                        { label: '9th',  value: 14 },
+                        { label: '10th', value: 16 },
+                        { label: '11th', value: 17 },
+                        { label: '12th', value: 19 },
+                        { label: '15th', value: 24 },
+                        { label: '∞',    value: null },
+                    ];
+                    const currentLeap = settings?.maxLeap ?? null;
+                    const currentLabel = LEAP_OPTIONS.find(o => o.value === currentLeap)?.label ?? '∞';
+                    return (
+                        <GenericStepper
+                            value={currentLeap}
+                            label={currentLabel}
+                            fontSize="11.5px"
+                            fontFamily="sans-serif"
+                            allowedValues={LEAP_OPTIONS.map(o => o.value)}
+                            options={LEAP_OPTIONS}
+                            shouldCycle={true}
+                            onChange={(val) => setSettings(p => ({ ...p, maxLeap: val }))}
+                        />
+                    );
+                })()}
+            </div>
         </div>
     );
 };

@@ -1,0 +1,143 @@
+.profile-tab {
+    padding: 16px 20px;
+    color: #ddd;
+    max-width: 600px;
+    margin: 0 auto;
+    font-family: sans-serif;
+}
+
+.profile-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 20px;
+    color: #fff;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.profile-section {
+    margin-bottom: 28px;
+}
+
+.profile-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #aaa;
+    margin-bottom: 6px;
+}
+
+.profile-section-desc {
+    font-size: 12px;
+    color: #666;
+    margin: 0 0 12px;
+}
+
+.profile-section-hint {
+    font-size: 11px;
+    color: #555;
+    font-style: italic;
+    margin: 0 0 10px;
+}
+
+/* Debug toggle */
+.profile-debug-toggle {
+    padding: 6px 20px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #888;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.profile-debug-toggle.active {
+    background: #1a3a1a;
+    border-color: #4caf50;
+    color: #4caf50;
+}
+
+/* Family list */
+.profile-family-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.profile-family-item {
+    border-radius: 6px;
+    overflow: hidden;
+    transition: opacity 0.15s;
+}
+
+.profile-family-item.locked {
+    opacity: 0.45;
+}
+
+.profile-family-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    background: #1c1c1c;
+    border: 1px solid #333;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.profile-family-item.active .profile-family-btn {
+    background: #1e2a1e;
+    border-color: #3a6a3a;
+}
+
+.profile-family-btn:hover {
+    background: #252525;
+}
+
+.profile-family-item.active .profile-family-btn:hover {
+    background: #223022;
+}
+
+.profile-family-lock-icon {
+    color: #888;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.profile-family-item.active .profile-family-lock-icon {
+    color: #5a9a5a;
+}
+
+.profile-family-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #ccc;
+    min-width: 140px;
+}
+
+.profile-family-item.active .profile-family-name {
+    color: #e8e8e8;
+}
+
+.profile-family-desc {
+    font-size: 11px;
+    color: #555;
+}
+
+.profile-family-item.active .profile-family-desc {
+    color: #778;
+}

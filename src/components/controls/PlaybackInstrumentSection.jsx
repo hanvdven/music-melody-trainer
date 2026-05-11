@@ -54,7 +54,7 @@ const PlaybackInstrumentSection = ({
 
             <ColumnHeaders
                 gridConfig={GRID_GENERATOR}
-                columns={['instrument', 'melody notes', 'randomization', 'melody', 'NOTES / MEASURE', 'SMALLEST NOTE', 'VARIABILITY']}
+                columns={['instrument', 'melody notes', 'randomization', 'melody', 'NOTES / MEASURE', 'SMALLEST NOTE', 'VARIABILITY', 'SPAN']}
             />
             <InstrumentRow
                 label="Treble"

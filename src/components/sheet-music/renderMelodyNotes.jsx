@@ -322,7 +322,11 @@ const renderMelodyNotes = (
       return;
     }
 
-    let note = noteWithAccidental ? noteWithAccidental.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '') : null;
+    // Percussion IDs ('cb', 'wh', etc.) must NOT be stripped — 'b' in 'cb' is not a flat.
+    // Only melodic note names (e.g. 'Ab4', 'F#3') should have accidentals removed.
+    let note = (noteWithAccidental && staff !== 'percussion')
+      ? noteWithAccidental.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '')
+      : noteWithAccidental;
     let shift = 0;
 
     if (note && note !== 'r' && staff !== 'percussion') {
@@ -774,7 +778,8 @@ const renderMelodyNotes = (
       // Collect valid notes with their y positions, noteheads, and colors
       const chordNotes = note
         .map((n, hi) => {
-          const nat = stripAccidentals(n);
+          // Percussion IDs must not be stripped — 'cb' (cowbell) contains 'b' which is not a flat.
+          const nat = staff === 'percussion' ? n : stripAccidentals(n);
           return {
             n,
             y: noteYMap[nat] !== undefined ? noteYMap[nat] + combinedShift : null,

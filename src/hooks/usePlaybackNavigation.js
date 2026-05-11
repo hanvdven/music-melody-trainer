@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 /**
  * Handles skip-back, skip-forward, and measure-number-click navigation.
@@ -22,12 +22,20 @@ export default function usePlaybackNavigation({
     setIsPlayingContinuously,
     melodies,
 }) {
+    // Prevents crash from rapidly clicking skip-back/forward. Each navigation call may
+    // trigger randomizeAll (heavy) or startSequencer; overlapping calls corrupt history
+    // state and can saturate the main thread. 300ms cooldown is imperceptible to users.
+    const isNavigatingRef = useRef(false);
+
     const handleMeasureNumberClick = useCallback((globalIdx) => {
         setStartMeasureIndex(globalIdx);
         if (isPlayingContinuously || isPlayingMelody) handleStopAllPlayback();
     }, [setStartMeasureIndex, isPlayingContinuously, isPlayingMelody, handleStopAllPlayback]);
 
     const handleSkipBack = useCallback(() => {
+        if (isNavigatingRef.current) return;
+        isNavigatingRef.current = true;
+        setTimeout(() => { isNavigatingRef.current = false; }, 300);
         // PAGINATION: Try to go to previous block first
         if (animationMode === 'pagination' && musicalBlocks.length > 1) {
             const localS = startMeasureIndex % (numMeasures || 1);
@@ -86,6 +94,9 @@ export default function usePlaybackNavigation({
     ]);
 
     const handleSkipForward = useCallback(() => {
+        if (isNavigatingRef.current) return;
+        isNavigatingRef.current = true;
+        setTimeout(() => { isNavigatingRef.current = false; }, 300);
         // PAGINATION: Try to go to next block first
         if (animationMode === 'pagination' && musicalBlocks.length > 1) {
             const localS = startMeasureIndex % (numMeasures || 1);

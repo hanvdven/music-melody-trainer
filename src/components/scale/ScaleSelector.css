@@ -242,3 +242,9 @@
   display: flex;
   align-items: stretch;
 }
+
+/* Locked family buttons (restricted by Profile) */
+.ss-family-btn.ss-family-locked {
+  opacity: 0.35;
+  cursor: not-allowed;
+}

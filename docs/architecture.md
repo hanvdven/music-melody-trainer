@@ -1160,3 +1160,27 @@ playback sessions. `stop()` still cancels all pending IDs on teardown.
 `scheduleTimeout` — never `this.timeouts.push(setTimeout(...))` directly.
 
 **File:** `src/audio/Sequencer.js`
+
+---
+
+## 26. Quarter Note Span — Melodic Leap Constraint (`maxLeap`)
+
+**Purpose:** Prevents large melodic jumps within a short time window, making generated melodies more singable and instrumentally idiomatic. Also constrains chord voicing width for fullchord/pairedchord modes.
+
+**How it works:**
+- `InstrumentSettings.maxLeap` (number | null): maximum allowed semitone distance. `null` = unlimited (default). Stored per-instrument on treble/bass settings.
+- For each note slot, all notes placed within the previous quarter-note window (= `smallestNoteDenom / 4` slots back) are collected as reference notes.
+- A candidate note passes if its semitone distance from **every** reference note is ≤ `maxLeap`.
+- Implementation uses **intersection** (not retries): filter `effectiveScale` to candidates satisfying the constraint, then pick randomly. O(pool × window) — always terminates.
+- **Fallback** (empty intersection): pick the note in `effectiveScale` with minimum distance to any reference note — deterministic and always musical.
+- **Chord voicing span** (fullchord): after range-filtering chord tones, find the largest consecutive pitch window where `max_idx − min_idx ≤ maxLeap`.
+- **Paired-chord span** (pairedchord): partner note is limited to `min(12, maxLeap)` semitones from the melody note.
+
+**UI:** `GenericStepper` in Col 8 of `InstrumentRow`, shown only for treble/bass rows. Options: 3rd (4), 4th (5), 6th (9), 7th (11), 8ve (12), 9th (14), 10th (16), 11th (17), 12th (19), 15th (24), ∞ (null).
+
+**Invariants:**
+- Applied as post-processing in `MelodyGenerator.generateMelody()` after `convertRankedArrayToMelody` returns — does not change the function signature.
+- Not applied to fullchord slots (chord span is handled separately in the fullchord block).
+- Percussion IDs (`getNoteIndex` returns -1) are skipped by the leap filter.
+
+**Files:** `src/model/InstrumentSettings.js`, `src/generation/melodyGenerator.js`, `src/components/controls/rows/InstrumentRow.jsx`, `src/constants/musicLayout.js`, `src/components/controls/PlaybackInstrumentSection.jsx`, `src/components/controls/PlaybackSettings.jsx`.

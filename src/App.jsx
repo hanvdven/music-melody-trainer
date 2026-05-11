@@ -54,6 +54,7 @@ import {
     Keyboard,
     ListRestart,
     Grid3x3,
+    GraduationCap,
 } from 'lucide-react';
 import TabView from './components/layout/TabView';
 import { PlaybackConfigProvider } from './contexts/PlaybackConfigContext';
@@ -61,6 +62,7 @@ import { InstrumentSettingsProvider } from './contexts/InstrumentSettingsContext
 import { DisplaySettingsProvider } from './contexts/DisplaySettingsContext';
 import { MelodyProvider } from './contexts/MelodyContext';
 import { PlaybackStateProvider } from './contexts/PlaybackStateContext';
+import { ProfileProvider } from './contexts/ProfileContext';
 import { AnimationRefsProvider } from './contexts/AnimationRefsContext';
 
 
@@ -75,6 +77,7 @@ const TABS = [
     { id: 'playback', Icon: ListRestart, label: 'GENERATOR', accentColor: 'var(--accent-yellow)' },
     { id: 'other-settings', Icon: Settings, label: 'SETTINGS' },
     { id: 'listen', Icon: Mic, label: 'LISTEN' },
+    { id: 'profile', Icon: GraduationCap, label: 'PROFILE' },
 ];
 
 
@@ -779,6 +782,7 @@ const App = () => {
         handleNoteEnharmonicToggle]);
 
     return (
+        <ProfileProvider>
         <PlaybackConfigProvider value={playbackConfigCtx}>
         <InstrumentSettingsProvider value={instrumentSettingsCtx}>
         <DisplaySettingsProvider value={displaySettingsCtx}>
@@ -1050,6 +1054,7 @@ const App = () => {
         </DisplaySettingsProvider>
         </InstrumentSettingsProvider>
         </PlaybackConfigProvider>
+        </ProfileProvider>
     );
 };
 
