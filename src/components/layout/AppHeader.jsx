@@ -4,6 +4,7 @@ import {
     Square,
     SlidersHorizontal,
     RefreshCw,
+    Repeat1,
     MicOff,
     Piano,
     Mic,
@@ -24,6 +25,7 @@ const AppHeader = ({
     setInputTestSubMode,
     isPlayingMelody,
     handlePlayMelody,
+    handlePlayRepeat,
     handleToggleInputTest,
     isPlayingContinuously,
     handlePlayContinuously,
@@ -156,6 +158,7 @@ const AppHeader = ({
                             if (isPlayingContinuously) handlePlayContinuously();
                         } else {
                             if (headerPlayMode === 'once') handlePlayMelody();
+                            else if (headerPlayMode === 'repeat') handlePlayRepeat?.();
                             else if (headerPlayMode === 'continuous') handlePlayContinuously();
                         }
                     }}
@@ -171,10 +174,10 @@ const AppHeader = ({
                 {/* Slim Repeat/Once Toggle */}
                 <button
                     className="tab-button secondary app-header-btn-sm"
-                    onClick={() => setHeaderPlayMode(m => m === 'once' ? 'continuous' : 'once')}
+                    onClick={() => setHeaderPlayMode(m => m === 'once' ? 'repeat' : m === 'repeat' ? 'continuous' : 'once')}
                     style={{ color: '#88ccff', outline: debugMode ? '2px solid cyan' : undefined }}
                 >
-                    {headerPlayMode === 'once' ? <IconOne size={17} /> : <RefreshCw size={17} />}
+                    {headerPlayMode === 'once' ? <IconOne size={17} /> : headerPlayMode === 'repeat' ? <Repeat1 size={17} /> : <RefreshCw size={17} />}
                 </button>
             </div>
 

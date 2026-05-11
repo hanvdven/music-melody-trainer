@@ -357,6 +357,7 @@ const App = () => {
         handlePlayContinuously: handlePlayContinuouslyLogic,
         handlePlayScale,
         handlePlayMelody: handlePlayMelodyLogic,
+        handlePlayRepeat: handlePlayRepeatLogic,
         handleStopAllPlayback,
         setIsPlayingContinuously,
         setIsPlayingScale,
@@ -403,6 +404,11 @@ const App = () => {
         handlePlayContinuouslyLogic();
         setHeaderPlayMode('continuous');
     }, [handlePlayContinuouslyLogic]);
+
+    const handlePlayRepeat = useCallback(() => {
+        handlePlayRepeatLogic();
+        setHeaderPlayMode('repeat');
+    }, [handlePlayRepeatLogic]);
 
     const {
         isInputTestMode, setIsInputTestMode,
@@ -829,6 +835,7 @@ const App = () => {
                     setInputTestSubMode={handleSetInputTestSubMode}
                     isPlayingMelody={isPlayingMelody}
                     handlePlayMelody={handlePlayMelody}
+                    handlePlayRepeat={handlePlayRepeat}
                     handleToggleInputTest={handleToggleInputTest}
                     isPlayingContinuously={isPlayingContinuously}
                     handlePlayContinuously={handlePlayContinuously}

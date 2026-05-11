@@ -469,6 +469,35 @@ const InstrumentRow = ({
                     );
                 })()}
             </div>
+
+            {/* Col 9: Polyrhythm multiplier — scales tuplet probability for this instrument.
+                Kept per-instrument so e.g. bass can stay rhythmically simple while percussion is busy. */}
+            <div className="ir-col-center">
+                {!isMetronome && (() => {
+                    const POLY_LEVELS = [
+                        { label: 'none',    value: 1   },
+                        { label: 'low',     value: 5   },
+                        { label: 'med',     value: 15  },
+                        { label: 'high',    value: 50  },
+                        { label: 'xtreme',  value: 200 },
+                    ];
+                    const curMult = settings?.polyMultiplier ?? 1;
+                    // Map multiplier value to level; default 1 = 'none' (no boost).
+                    const curLevel = POLY_LEVELS.find(l => l.value === curMult) ?? POLY_LEVELS[0];
+                    return (
+                        <GenericStepper
+                            value={curMult}
+                            label={curLevel.label}
+                            fontSize="11.5px"
+                            fontFamily="sans-serif"
+                            allowedValues={POLY_LEVELS.map(l => l.value)}
+                            options={POLY_LEVELS}
+                            shouldCycle={false}
+                            onChange={(val) => setSettings(p => ({ ...p, polyMultiplier: val }))}
+                        />
+                    );
+                })()}
+            </div>
         </div>
     );
 };
