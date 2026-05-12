@@ -60,8 +60,8 @@ class Scale {
       return pitch + octave;
     }
 
-    const bassNotes = this.notes.map(lowerOctave);
-    const bassDisplayScale = this.displayNotes.map(lowerOctave);
+    const bassNotes = (this.notes ?? []).map(lowerOctave);
+    const bassDisplayScale = (this.displayNotes ?? []).map(lowerOctave);
     return new Scale(
       bassNotes,
       bassDisplayScale,
