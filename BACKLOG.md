@@ -487,6 +487,15 @@ Ook: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren.
 
 ### Bugs percussie / playback
 
+bug: "Scale must be a heptatonic collection." crash bij afspelen via Sequencer wanneer akkoorden aanstaan.
+[Claude 2026-05-12]: Root cause: `generateChordOnDegree` (chordGenerator.js:146) gooit een fout wanneer `rawScale.length < 7` EN `heptaRefIntervals = null`. De bestaande fallback (regel 127) loopt alleen als `heptaRefIntervals?.length === 7`. Bij heptatonische toonladders met < 7 gegenereerde noten (bijv. bij degenerate Scale-object met `notes=[]`, of bij een toonladder waarvan de `heptaRefIntervals` niet is ingevuld) én heptaRef=null wordt de fallback overgeslagen, waarna de throw optreedt. Reproduceerbaar via Sequencer.start() → randomizeScaleAndGenerate → generateProgression met een benoemde progressiestrategie (niet 'modal-random'). Fix: secundaire fallback toegevoegd in chordGenerator.js die `scaleObj.intervals` gebruikt als die 7 noten heeft, anders Ionian Major [2,2,1,2,2,2,1] als last-resort — identiek aan de fallback in `modulateMelody` (musicUtils.js). Bestanden: `src/theory/chordGenerator.js`.
+
+bug2: akkoorden in niet hepta - hiervoor was een oplossing, elke toonladder heeft een hepta equivalent: heptaRefIntervals; dus ik ben verbaasd over deze error.
+[Claude 2026-05-12]: Zie "Scale must be a heptatonic collection" bug hierboven — zelfde issue, bevestigd door Han. Alle pentatonische/hexatonische toonladders hebben `heptaRefIntervals` in de definitie, maar via een onbekend code-pad kan heptaRef toch null zijn. Fix in chordGenerator.js als secundaire fallback, zie boven.
+
+bug: geen geluid bij indrukken pianotoets / "Play Melodies" — `gain`-property in playSound.js ongeldig voor smplr 0.20.0.
+[Claude 2026-05-12]: In smplr 0.20.0 is het `NoteEvent`-type gedefinieerd als `{ note, velocity?, time?, duration?, detune?, ... }` — geen `gain`-veld. `playSound.js` stelde `startOpts.gain = _volume` in, wat door smplr stilzwijgend wordt genegeerd. Fix: `gain`-property verwijderd uit startOpts; alleen `velocity: Math.floor(_volume * 127)` blijft over. Bestanden: `src/audio/playSound.js`. NB: dit was waarschijnlijk NIET de oorzaak van de hoofdstilte (die wordt vermoedelijk veroorzaakt door de Scale-fout hierboven of door AudioContext suspend), maar het is wel een onjuiste API-aanroep.
+
 ✅ bug: stop playback for drum en metronoom onmiddelijk na het drukken van 'stop'
 
 ✅ highlight ook de akkoorden in de bladmuziek - soms blijft een gehighlight akkoord 'hangen'.

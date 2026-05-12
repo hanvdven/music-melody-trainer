@@ -87,9 +87,7 @@ const playSound = (
       duration: duration,
     };
     if (_volume !== undefined) {
-      // Use both velocity (0-127) and gain (0-1) for maximum compatibility with smplr
       startOpts.velocity = Math.floor(_volume * 127);
-      startOpts.gain = _volume;
     }
     return instrument.start(startOpts);
   }
