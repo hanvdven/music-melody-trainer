@@ -130,6 +130,44 @@ onderzoek: 5/4 (en andere onregelmatige maatsoorten) bas/treble-notatie ritmisch
 RESTERENDE NOTATIE-KWESTIE (laag prioriteit): Noten die de 3|2-grensslijn overschrijden (bijv. halve noot van beat 3 t/m 5) worden NIET gesplitst op de groepsgrens (tick 36). Correct zou zijn: quarter(beat3) + quarter(beat4) gebonden. processMelodyAndCalculateSlots kent de beat-groepsstructuur niet. Zal de notatie soms onduidelijker maken maar veroorzaakt geen 16de-noten. Aparte fix nodig als dit storend is.
 ✅ [Claude 2026-05-10]: Opgelost — `decomposeNumeratorToBeatGroups` geëxporteerd uit `rhythmicPriorities.js` en geïmporteerd in `processMelodyAndCalculateSlots.js`. Beat-groepsgrens-ticks (bijv. tick 36 voor 5/4 3+2) worden vóór de `staysInSecondarySpan`-check als extra splitpunten behandeld. Alleen gesplitst wanneer het eerste stuk een toegestane notenwaarde is (allowedDurations). Bestanden: `rhythmicPriorities.js`, `processMelodyAndCalculateSlots.js`.
 
+### Splitsregels (note splitting)
+
+bug: twee verbonden halve noten in plaats van een hele noot — splitsregels te streng.
+
+Review splitsregels. Beschrijf logica en voorbeelden in documentatie. Kernprincipes:
+
+**Simpele maatsoorten (2/4, 3/4, 4/4, 2/2)**
+- 2/4: halve noot op tel 1 = goed. Gepunteerde kwart op tel 1 = goed. Gepunteerde kwart op tel 2 = slecht (maatgrens verbergen).
+- 3/4: gepunteerde halve (hele maat) = goed. Halve tied naar kwart = slecht.
+- 4/4: halve op tel 1 = goed. Halve op tel 2 = slecht (tel 3 verbergen). Gepunteerde halve op tel 1 = goed. Gepunteerde halve op tel 2 = slecht (tel 3 verbergen). Kwart tied naar achtste over tel 2 = goed (syncopering zichtbaar). 2/2: beat = halve noot.
+
+**Samengestelde maatsoorten (6/8, 9/8)**
+- 6/8: gepunteerde kwart = goed voor 1 beatgroep. Gepunteerde kwart tied naar achtste = goed voor 4 achtsten (beatgroep 2 zichtbaar). Kwart binnen 1 beatgroep = goed.
+- 9/8: gepunteerde halve = 2 beats. Gepunteerde kwart tied naar kwart = 5 achtsten.
+
+**Onregelmatige maatsoorten (5/8, 7/8, 11/8, ...)**
+- Groepering (2+3 of 3+2) bepaalt splitsregels: groepsgrens MOET zichtbaar blijven.
+- 7/8 voorbeeld: kwart | kwart | gepunteerde kwart (2+2+3).
+- 11/8 voorbeeld: elk beatgroepje zichtbaar.
+
+**Syncopen**
+- achtste rust + kwart tied naar achtste = correct (accent buiten tel zichtbaar).
+- Noot MAG tel verbergen als dat de syncopering is die gegenereerd werd.
+
+Afhankelijkheid: rhythmicDNA-groepering (zie hieronder).
+
+### RhythmicDNA — beat-groepering voor melodiegeneratie
+
+Verdeel voor het genereren van de melodie de tel op in groepen. Er is al een methode om dit te doen; maar die kan ook anders. Bijv: 5 = 2+3 of 3+2. Waar zitten de beats, en back-beats.
+
+- backbeat drum moet naar groepering luisteren
+- verdeling van noten over notenbank moet naar groepering luisteren
+- ranked array voor melodie moet naar groepering luisteren
+
+Voorlopig: elke maat dezelfde onderverdeling.
+
+[Claude 2026-05-12]: Opmerking: `decomposeNumeratorToBeatGroups` in `rhythmicPriorities.js` bestaat al en geeft beat-groepen terug (bijv. 5→[3,2]). De koppeling met splitsregels, backbeat-routing en notenpool-weging is nog niet gemaakt.
+
 ### Tuplets & polyritmiek
 
 ✅ triolen: triool vervangt een halve noot, kwartnoot of achtste noot (afhankelijk van de smallest note denom). Alle trioolnoten zijn ingevuld (dus geen rusten). Drop de laatste twee noten van de notes array, zodat notes per measure overall klopt.
@@ -159,6 +197,11 @@ Bug: nu zijn tuplets van achtsten niet meer verbonden met een beam!
 bug! Ik zie precies geen verbindingsbalken meer sinds laatse oplossing..! Niet tussen triplets van achststen, niet tussen achtsten, zestienden... Je laatste wijziging heeft te aggresief beaming tegengehouden..
 
 [Claude 2026-04-10 15:00]: Regression opgelost — de tuplet-isolatie check (`lastInGroup.tupletId !== e.tupletId`) vergeleek `undefined` (uit pushed item) met `null` (uit spanElement). `undefined !== null` is altijd `true`, waardoor ALLE beamgroepen direct werden geflushed en er geen balken meer waren. Fix: `tupletId: e.tupletId` toegevoegd aan `currentSubGroup.push(...)`. Zie renderMelodyNotes.jsx.
+
+bug: pentuplet rendering fouten in 4/4 (bijv. kwart - kwart - 5:4 achtsten - zestiende rust):
+1. De 4de noot van de pentuplet wordt niet gerenderd.
+2. Het ritme van de pentuplet klopt niet (timing van de noten).
+3. De som van de maat klopt niet: pentuplet heeft 5 achtsten i.p.v. 4 achtsten; de zestiende rust aan het einde is daardoor redundant.
 
 ✅ add pentuplet 5 : 6,  sextuplets 6 : 4 and 6 : 5 and septuplets  7 : 6 , 7 : 8; (omit 7 : 4). These should be very rare.
 triptles can occur as of variability 30%;
