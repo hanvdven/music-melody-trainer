@@ -164,9 +164,7 @@ class MelodyGenerator {
             randomizationNotes, // = notePool
             this.chords,
             this.range,
-            this.runId,
             randomizationRule,
-            smallestNoteDenom,
             timeSignature  // needed for offset-based chord lookup (passing chords)
         );
 
