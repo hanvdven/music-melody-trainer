@@ -71,8 +71,9 @@ const useInstruments = (context) => {
           const isLocalKit = settings.instrument === 'FreePats Percussion';
 
           if (isLocalKit) {
-            newInst = new Sampler(context, { destination: dest, buffers: LOCAL_PERCUSSION_BUFFERS, disableScheduler: true });
-            newManualInst = new Sampler(context, { destination: context.destination, buffers: LOCAL_PERCUSSION_BUFFERS, disableScheduler: true });
+            const percSamplerOpts = { destination: dest, buffers: LOCAL_PERCUSSION_BUFFERS, detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
+            newInst = new Sampler(context, percSamplerOpts);
+            newManualInst = new Sampler(context, { ...percSamplerOpts, destination: context.destination });
           } else if (isGMKit) {
             newInst = new Soundfont(context, { instrument: settings.instrument, destination: dest, disableScheduler: true });
             newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: context.destination, disableScheduler: true });
@@ -87,10 +88,16 @@ const useInstruments = (context) => {
         } else {
           // Use local FLAC samples when available (avoids CDN dependency for default instruments).
           // Falls back to smplr Soundfont (CDN) for any slug not in the local map.
+          //
+          // smplr 0.20.0 bug: samplerToSmplrJson includes `defaults: { detune: options.detune }`
+          // in the generated JSON. When options.detune is undefined, it overrides PARAM_DEFAULTS.detune=0
+          // with undefined during resolveParams, producing NaN → "non-finite AudioParam" TypeError.
+          // Passing explicit 0 values here prevents undefined from reaching PARAM_DEFAULTS overrides.
+          const SAMPLER_SAFE_DEFAULTS = { detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
           const localBuffers = LOCAL_INSTRUMENT_BUFFERS[settings.instrument];
           if (localBuffers) {
-            newInst = new Sampler(context, { destination: dest, buffers: localBuffers });
-            newManualInst = new Sampler(context, { destination: context.destination, buffers: localBuffers });
+            newInst = new Sampler(context, { destination: dest, buffers: localBuffers, ...SAMPLER_SAFE_DEFAULTS });
+            newManualInst = new Sampler(context, { destination: context.destination, buffers: localBuffers, ...SAMPLER_SAFE_DEFAULTS });
           } else {
             newInst = new Soundfont(context, { instrument: settings.instrument, destination: dest });
             newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: context.destination });
