@@ -143,6 +143,23 @@ const generateChordOnDegree = (
             usedHeptaRef = true;
         }
     }
+    // Secondary fallback: heptaRefIntervals was missing (e.g. heptatonic scale with null heptaRef,
+    // or degenerate Scale object). Mirror the logic in modulateMelody (musicUtils.js): prefer
+    // scaleObj.intervals if it is 7 notes, otherwise default to Major (Ionian).
+    if (!rawScale || rawScale.length < 7) {
+        const fallbackIntervals = scaleObj.intervals?.length === 7
+            ? scaleObj.intervals
+            : [2, 2, 1, 2, 2, 2, 1]; // Ionian (Major) — same last-resort as modulateMelody
+        const tonicRaw = scaleObj.tonic || rawScale?.[0] || 'C4';
+        const tonicNote = tonicRaw.match(/\d/) ? tonicRaw : `${tonicRaw}4`;
+        const built = buildNotesFromIntervals(tonicNote, fallbackIntervals);
+        if (built?.length >= 7) {
+            rawScale = built;
+            const builtDisplay = generateDisplayScale(tonicRaw, fallbackIntervals, 12);
+            rawDisplay = builtDisplay?.length >= 7 ? builtDisplay : built;
+            usedHeptaRef = true;
+        }
+    }
     if (!rawScale || rawScale.length < 7) throw new Error('Scale must be a heptatonic collection.');
 
     const degreeScale = [];
