@@ -18,7 +18,14 @@ const isNoteInRange = (note, range) => {
 class MelodyGenerator {
     constructor(Scale, numMeasures, timeSignature, InstrumentSettings, chords = [], range = null, runId = null, globalRhythmArray = null) {
 
-        this.scale = Scale ? Scale.notes : [];
+        // Guard against Scale.notes being undefined — root cause unclear but defensive
+        // coding prevents the runtime crash. Log to aid future diagnosis.
+        if (Scale && !Array.isArray(Scale.notes)) {
+            logger.warn('MelodyGenerator', 'Scale.notes is not an array — falling back to empty scale.', {
+                family: Scale.family, name: Scale.name, tonic: Scale.tonic, notes: Scale.notes
+            });
+        }
+        this.scale = Array.isArray(Scale?.notes) ? Scale.notes : [];
         this.numAccidentals = Scale ? Scale.numAccidentals : 0;
         this.tonic = Scale ? Scale.tonic : null;
         this.numMeasures = numMeasures;
