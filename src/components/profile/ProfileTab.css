@@ -4,6 +4,9 @@
     max-width: 600px;
     margin: 0 auto;
     font-family: sans-serif;
+    max-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .profile-title {
