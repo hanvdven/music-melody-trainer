@@ -33,6 +33,9 @@ If a backlog item below relates to these areas, leave it alone and pick somethin
 
 Deel deze features in bij de juiste categorie.
 
+### Bestaande liedjes
+bestaande liedjes (happy birthday, ...)
+
 ### Profiel-icoon & submenu (navigatie)
 vervang profile settings icoon met Lucide: user.
 Submenu: kennisbank (graduation-cap) en settings (waar nu thema etc onder staan).
@@ -502,6 +505,7 @@ bug: "Scale must be a heptatonic collection." crash bij afspelen via Sequencer w
 
 bug2: akkoorden in niet hepta - hiervoor was een oplossing, elke toonladder heeft een hepta equivalent: heptaRefIntervals; dus ik ben verbaasd over deze error.
 [Claude 2026-05-12]: Zie "Scale must be a heptatonic collection" bug hierboven — zelfde issue, bevestigd door Han. Alle pentatonische/hexatonische toonladders hebben `heptaRefIntervals` in de definitie, maar via een onbekend code-pad kan heptaRef toch null zijn. Fix in chordGenerator.js als secundaire fallback, zie boven.
+[Claude 2026-05-12 14:xx]: ✅ Fallback uitgebreid met volledige decision tree (Han, 2026-05-12): (1) hepta → direct (primaire pad); (2) heptaRefIntervals → gebruik die (primaire pad); (3) scaleObj.diatonic → opzoeken in DIATONIC_MODE_INTERVALS (Ionian/Dorian/Phrygian/Lydian/Mixolydian/Aeolian/Locrian); (3b) scaleObj.intervals met 7 stappen → eigen intervallen hepta toonladder; (4) Ionian als absolute last-resort. Bestanden: `src/theory/chordGenerator.js`.
 
 bug: geen geluid bij indrukken pianotoets / "Play Melodies" — `gain`-property in playSound.js ongeldig voor smplr 0.20.0.
 [Claude 2026-05-12]: In smplr 0.20.0 is het `NoteEvent`-type gedefinieerd als `{ note, velocity?, time?, duration?, detune?, ... }` — geen `gain`-veld. `playSound.js` stelde `startOpts.gain = _volume` in, wat door smplr stilzwijgend wordt genegeerd. Fix: `gain`-property verwijderd uit startOpts; alleen `velocity: Math.floor(_volume * 127)` blijft over. Bestanden: `src/audio/playSound.js`. NB: dit was waarschijnlijk NIET de oorzaak van de hoofdstilte (die wordt vermoedelijk veroorzaakt door de Scale-fout hierboven of door AudioContext suspend), maar het is wel een onjuiste API-aanroep.

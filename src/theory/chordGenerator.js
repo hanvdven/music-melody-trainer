@@ -12,6 +12,19 @@ import logger from '../utils/logger.js';
 
 const ALL_NOTES = generateAllNotesArray();
 
+// The 7 standard diatonic modes — used as the step-3 fallback when a scale
+// has no heptaRefIntervals (e.g. heptatonic scales whose `diatonic` property
+// names their parent mode). Values match scaleDefinitions in scaleHandler.js.
+const DIATONIC_MODE_INTERVALS = {
+    'Ionian':     [2, 2, 1, 2, 2, 2, 1],
+    'Dorian':     [2, 1, 2, 2, 2, 1, 2],
+    'Phrygian':   [1, 2, 2, 2, 1, 2, 2],
+    'Lydian':     [2, 2, 2, 1, 2, 2, 1],
+    'Mixolydian': [2, 2, 1, 2, 2, 1, 2],
+    'Aeolian':    [2, 1, 2, 2, 1, 2, 2],
+    'Locrian':    [1, 2, 2, 1, 2, 2, 2],
+};
+
 // Semitone-from-root interval pairs used by the chord modulator for non-hepta scales.
 // Root [0], perfect fifth [7], and octave [12] are unpaired — they never change.
 // Each pair contains the two "same harmonic function" alternatives (e.g. m3 ↔ M3).
@@ -143,13 +156,23 @@ const generateChordOnDegree = (
             usedHeptaRef = true;
         }
     }
-    // Secondary fallback: heptaRefIntervals was missing (e.g. heptatonic scale with null heptaRef,
-    // or degenerate Scale object). Mirror the logic in modulateMelody (musicUtils.js): prefer
-    // scaleObj.intervals if it is 7 notes, otherwise default to Major (Ionian).
+    // Secondary fallback — fires when heptaRefIntervals is absent.
+    // Decision tree (per Han, 2026-05-12):
+    //   1. hepta (rawScale.length === 7)            → primary path above, never reaches here
+    //   2. heptaRefIntervals                        → primary path above, never reaches here
+    //   3. scaleObj.diatonic (e.g. 'Dorian')        → look up standard 7-mode intervals
+    //   3b. scaleObj.intervals of length 7           → scale itself is heptatonic; use its own steps
+    //   4. Ionian / Major                            → ultimate last resort
     if (!rawScale || rawScale.length < 7) {
-        const fallbackIntervals = scaleObj.intervals?.length === 7
-            ? scaleObj.intervals
-            : [2, 2, 1, 2, 2, 2, 1]; // Ionian (Major) — same last-resort as modulateMelody
+        let fallbackIntervals;
+        if (scaleObj.diatonic && DIATONIC_MODE_INTERVALS[scaleObj.diatonic]) {
+            fallbackIntervals = DIATONIC_MODE_INTERVALS[scaleObj.diatonic];
+        } else if (scaleObj.intervals?.length === 7) {
+            // Heptatonic scale whose rawScale was corrupted/empty — use its own steps
+            fallbackIntervals = scaleObj.intervals;
+        } else {
+            fallbackIntervals = DIATONIC_MODE_INTERVALS['Ionian'];
+        }
         const tonicRaw = scaleObj.tonic || rawScale?.[0] || 'C4';
         const tonicNote = tonicRaw.match(/\d/) ? tonicRaw : `${tonicRaw}4`;
         const built = buildNotesFromIntervals(tonicNote, fallbackIntervals);
