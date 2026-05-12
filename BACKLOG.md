@@ -33,6 +33,16 @@ If a backlog item below relates to these areas, leave it alone and pick somethin
 
 Deel deze features in bij de juiste categorie.
 
+### Profiel-icoon & submenu (navigatie)
+vervang profile settings icoon met Lucide: user.
+Submenu: kennisbank (graduation-cap) en settings (waar nu thema etc onder staan).
+
+### Afgesloten items: slot-icoon vervangen + klikgedrag
+vervang het slotje (emoji) bij afgesloten componenten voor Lucide graduation-cap. Wanneer je op een gesloten item klikt: krijg je opties:
+1) ik wil les (open de les indien deze bestaat - voorlopig altijd greyed out) -> open de relevante les
+2) ik wil dit oefenen -> selecteer dit item in de sequencer
+3) ik ken dit -> callout (wil je [item] permanent toevoegen aan je kennisbank zonder de les te volgen? ja/nee) -> ja: voeg permanent toe aan kennisbank
+
 ✅ bug: op instellingen klikken in settings overlay, sluit het overlaymenu. Los op, en zorg voor een fatsoenlijke klikzone. Visualiseer uiteraard in debug mode.
 [Claude 2026-05-07]: Root cause: clicks inside SettingsOverlay bubbled up to `handleSheetMusicClick` which closes the overlay when `showSettings=true`. Fixed by adding `onClick={(e) => e.stopPropagation()}` on the root `<g className="settings-overlay">` plus a transparent background `<rect>` covering the full overlay bounding area so clicks on empty space also stop propagation. Files: `src/components/sheet-music/SettingsOverlay.jsx`.
 
