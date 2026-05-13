@@ -129,16 +129,15 @@ class Melody {
     // 2. Convert ranks to woodblock pitches using standardized logic
     const { melody: flattenedNotes } = convertRankedArrayToMelody(
       rankedArray,
-      null, // tonic
-      null, // scale
+      null,        // tonic
+      null,        // scale
       notesPerMeasure,
       numMeasures,
-      'metronome', // source
-      null, // chordProgression
-      null, // range
-      'metronome-gen', // runId
-      'uniform', // randomizationRule
-      smallestNoteDenom
+      'metronome', // randomizationNotes
+      null,        // chordProgression
+      null,        // range
+      'uniform',   // randomizationRule
+      null         // timeSignature (no chord-offset lookup needed for metronome)
     );
 
     // 3. Create Melody object

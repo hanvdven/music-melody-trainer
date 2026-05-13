@@ -155,6 +155,15 @@ class MelodyGenerator {
             }
         }
 
+        // randomizationRule must be a string. Log the unexpected type to aid root-cause
+        // diagnosis; then default to 'uniform' so generation can continue.
+        if (typeof randomizationRule !== 'string') {
+            logger.warn('MelodyGenerator', 'randomizationRule is not a string — defaulting to uniform', {
+                type: typeof randomizationRule, value: randomizationRule, instrumentType,
+            });
+            randomizationRule = 'uniform';
+        }
+
         const rawResult = convertRankedArrayToMelody(
             rankedArray,
             tonic,
