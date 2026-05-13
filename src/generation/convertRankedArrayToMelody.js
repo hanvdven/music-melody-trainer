@@ -45,17 +45,18 @@ const convertRankedArrayToMelody = (
     // =========================================================================
     // wm (mid woodblock) and cb (cowbell) were missing — added for parity with PERC_POOLS.all in generateBackbeat.js
     const percussionIDs = ['k', 's', 'sg', 'sr', 'hh', 'ho', 'th', 'tm', 'tl', 'hp', 'cr', 'cc', 'wh', 'wm', 'wl', 'cb'];
+    // Pitched notes only — percussion sources ('kick_snare', 'all', 'claves', 'metronome')
+    // return their own hard-coded ID arrays from getPool and never use this pool.
     const fullAvailablePool = (() => {
         const allNotes = generateAllNotesArray();
-        if (!range) return [...allNotes, ...percussionIDs];
+        if (!range) return allNotes;
 
         const findNoteIdx = (note) => allNotes.findIndex(n => n === (note?.replace(/#/g, '♯').replace(/b/g, '♭') || ''));
         let startIdx = findNoteIdx(range.min), endIdx = findNoteIdx(range.max);
         if (startIdx === -1) startIdx = 0;
         if (endIdx === -1) endIdx = allNotes.length - 1;
 
-        const rangedNotes = allNotes.slice(startIdx, endIdx + 1).map(n => getRelativeNoteName(n, tonic));
-        return [...rangedNotes, ...percussionIDs];
+        return allNotes.slice(startIdx, endIdx + 1).map(n => getRelativeNoteName(n, tonic));
     })();
 
     // Normalize chordProgression (handle Melody object or Array)
@@ -91,16 +92,13 @@ const convertRankedArrayToMelody = (
     const getChordNotesInRange = (chord) => {
         if (!chord) return [];
         const chordSemis = chord.notes?.map(getNoteSemitone) || [];
-        // Exclude percussion IDs: getNoteSemitone returns 0 for unknown strings, which
-        // would match any C-root chord and leak 'ho', 'k', 's' etc. into pitched pools.
-        return fullAvailablePool.filter(n => !percussionIDs.includes(n) && chordSemis.includes(getNoteSemitone(n)));
+        return fullAvailablePool.filter(n => chordSemis.includes(getNoteSemitone(n)));
     };
 
     const getRootNotesInRange = (chord) => {
         if (!chord) return [];
         const rootSemi = getNoteSemitone(chord.root);
-        // Exclude percussion IDs for the same reason as getChordNotesInRange.
-        return fullAvailablePool.filter(n => !percussionIDs.includes(n) && getNoteSemitone(n) === rootSemi);
+        return fullAvailablePool.filter(n => getNoteSemitone(n) === rootSemi);
     };
 
     const KICK_SNARE_CHORD = { root: 'k', notes: ['k', 's', 'hh'] };
