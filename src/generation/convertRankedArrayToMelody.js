@@ -45,17 +45,18 @@ const convertRankedArrayToMelody = (
     // =========================================================================
     // wm (mid woodblock) and cb (cowbell) were missing — added for parity with PERC_POOLS.all in generateBackbeat.js
     const percussionIDs = ['k', 's', 'sg', 'sr', 'hh', 'ho', 'th', 'tm', 'tl', 'hp', 'cr', 'cc', 'wh', 'wm', 'wl', 'cb'];
+    // Pitched notes only — percussion sources ('kick_snare', 'all', 'claves', 'metronome')
+    // return their own hard-coded ID arrays from getPool and never use this pool.
     const fullAvailablePool = (() => {
         const allNotes = generateAllNotesArray();
-        if (!range) return [...allNotes, ...percussionIDs];
+        if (!range) return allNotes;
 
         const findNoteIdx = (note) => allNotes.findIndex(n => n === (note?.replace(/#/g, '♯').replace(/b/g, '♭') || ''));
         let startIdx = findNoteIdx(range.min), endIdx = findNoteIdx(range.max);
         if (startIdx === -1) startIdx = 0;
         if (endIdx === -1) endIdx = allNotes.length - 1;
 
-        const rangedNotes = allNotes.slice(startIdx, endIdx + 1).map(n => getRelativeNoteName(n, tonic));
-        return [...rangedNotes, ...percussionIDs];
+        return allNotes.slice(startIdx, endIdx + 1).map(n => getRelativeNoteName(n, tonic));
     })();
 
     // Normalize chordProgression (handle Melody object or Array)
