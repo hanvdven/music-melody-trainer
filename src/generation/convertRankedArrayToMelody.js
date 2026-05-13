@@ -91,13 +91,16 @@ const convertRankedArrayToMelody = (
     const getChordNotesInRange = (chord) => {
         if (!chord) return [];
         const chordSemis = chord.notes?.map(getNoteSemitone) || [];
-        return fullAvailablePool.filter(n => chordSemis.includes(getNoteSemitone(n)));
+        // Exclude percussion IDs: getNoteSemitone returns 0 for unknown strings, which
+        // would match any C-root chord and leak 'ho', 'k', 's' etc. into pitched pools.
+        return fullAvailablePool.filter(n => !percussionIDs.includes(n) && chordSemis.includes(getNoteSemitone(n)));
     };
 
     const getRootNotesInRange = (chord) => {
         if (!chord) return [];
         const rootSemi = getNoteSemitone(chord.root);
-        return fullAvailablePool.filter(n => getNoteSemitone(n) === rootSemi);
+        // Exclude percussion IDs for the same reason as getChordNotesInRange.
+        return fullAvailablePool.filter(n => !percussionIDs.includes(n) && getNoteSemitone(n) === rootSemi);
     };
 
     const KICK_SNARE_CHORD = { root: 'k', notes: ['k', 's', 'hh'] };
