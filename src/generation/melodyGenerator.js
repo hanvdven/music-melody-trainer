@@ -492,7 +492,9 @@ class MelodyGenerator {
 
                 for (let k = winners.length - 1; k >= 0; k--) {
                     const { i: idx, id, noteCount, denominator, groupTicks } = winners[k];
-                    const noteTicks     = Math.round(groupTicks / noteCount);
+                    // Use floor so the last note absorbs any rounding remainder, keeping total exact.
+                    const noteTicks     = Math.floor(groupTicks / noteCount);
+                    const lastNoteTicks = groupTicks - (noteCount - 1) * noteTicks;
                     // visualDuration: note value to display (groupTicks / denominator maps to a standard tick count).
                     const visualDuration = Math.round(groupTicks / denominator);
 
@@ -504,30 +506,26 @@ class MelodyGenerator {
 
                     const entry = { id, noteCount, denominator, groupTicks, visualDuration };
 
-                    notes        = [...notes.slice(0, idx),        ...allNotes,                                         ...notes.slice(idx + 1)];
-                    durations    = [...durations.slice(0, idx),    ...allNotes.map(() => noteTicks),                    ...durations.slice(idx + 1)];
-                    offsets      = [...offsets.slice(0, idx),      ...allNotes.map((_, j) => baseOff + j * noteTicks), ...offsets.slice(idx + 1)];
-                    displayNotes = [...displayNotes.slice(0, idx), ...allNotes,                                         ...displayNotes.slice(idx + 1)];
-                    volumes      = [...volumes.slice(0, idx),      ...allNotes.map(() => vol),                          ...volumes.slice(idx + 1)];
-                    triplets     = [...triplets.slice(0, idx),     ...allNotes.map(() => entry),                        ...triplets.slice(idx + 1)];
+                    // Replace the original note AND its denominator-1 continuation nulls (the full slot span).
+                    notes        = [...notes.slice(0, idx),        ...allNotes,                                                             ...notes.slice(idx + denominator)];
+                    durations    = [...durations.slice(0, idx),    ...allNotes.map((_, j) => j === noteCount - 1 ? lastNoteTicks : noteTicks), ...durations.slice(idx + denominator)];
+                    offsets      = [...offsets.slice(0, idx),      ...allNotes.map((_, j) => baseOff + j * noteTicks),                       ...offsets.slice(idx + denominator)];
+                    displayNotes = [...displayNotes.slice(0, idx), ...allNotes,                                                             ...displayNotes.slice(idx + denominator)];
+                    volumes      = [...volumes.slice(0, idx),      ...allNotes.map(() => vol),                                               ...volumes.slice(idx + denominator)];
+                    triplets     = [...triplets.slice(0, idx),     ...allNotes.map(() => entry),                                             ...triplets.slice(idx + denominator)];
                 }
 
-                // Drop (noteCount - 1) entries per winner from the tail so length stays consistent.
-                const extraTotal = winners.reduce((sum, w) => sum + (w.noteCount - 1), 0);
-                const keepN      = notes.length - extraTotal;
-
-                if (keepN > 0) {
-                    const tupletMelody = new Melody(
-                        notes.slice(0, keepN),
-                        durations.slice(0, keepN),
-                        offsets.slice(0, keepN),
-                        displayNotes.slice(0, keepN),
-                        volumes.slice(0, keepN),
-                    );
-                    tupletMelody.smallestNoteDenom = smallestNoteDenom;
-                    tupletMelody.triplets = triplets.slice(0, keepN);
-                    return tupletMelody;
-                }
+                // Arrays are now exactly the right length — no tail trimming needed.
+                const tupletMelody = new Melody(
+                    notes,
+                    durations,
+                    offsets,
+                    displayNotes,
+                    volumes,
+                );
+                tupletMelody.smallestNoteDenom = smallestNoteDenom;
+                tupletMelody.triplets = triplets;
+                return tupletMelody;
             }
             // No qualifying notes won the roll — fall through to return the unmodified melody.
         }
