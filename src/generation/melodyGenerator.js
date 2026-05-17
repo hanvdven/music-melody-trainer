@@ -3,7 +3,7 @@ import logger from '../utils/logger';
 import convertRankedArrayToMelody from './convertRankedArrayToMelody.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
-import { generateBackbeat, generateSwing } from './generateBackbeat.js';
+import { generateBackbeat, generateBackbeat2, generateSwing } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults.js';
@@ -52,6 +52,15 @@ class MelodyGenerator {
 
         if (randomizationRule === 'backbeat') {
             return generateBackbeat(
+                timeSignature, numMeasures,
+                smallestNoteDenom || 4,
+                rhythmVariability || 0,
+                notesPerMeasure,
+                randomizationNotes
+            );
+        }
+        if (randomizationRule === 'backbeat_2') {
+            return generateBackbeat2(
                 timeSignature, numMeasures,
                 smallestNoteDenom || 4,
                 rhythmVariability || 0,

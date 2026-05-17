@@ -18,6 +18,7 @@
 import Melody from '../model/Melody.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { findBestSlot } from './proximityUtils.js';
+import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
 
 // ─── Beat-count helpers ─────────────────────────────────────────────────────
 
@@ -258,6 +259,141 @@ export function generateBackbeat(
 }
 
 /**
+ * Generate a group-aware backbeat: kick on the downbeat, snares on backbeat group
+ * starts (prioritised by DNA rank), hihat on every beat-unit, and optional spillover
+ * from the note pool.
+ *
+ * Key differences from backbeat:
+ *  - Grouping is derived from chooseGrouping so irregular meters (5/8, 7/8, …) work.
+ *  - findBestSlot window spans the FULL array — a note may slide to an adjacent measure.
+ *  - When notesPerMeasure < numGroups only the highest-priority snare slots are filled.
+ *  - rhythmicGrouping is attached to the returned Melody for beaming in the renderer.
+ */
+export function generateBackbeat2(
+    timeSignature, numMeasures,
+    smallestNoteDenom = 4, variability = 0,
+    notesPerMeasure = 4,
+    notePool = 'all'
+) {
+    const v = Math.max(0, Math.min(100, variability)) / 100;
+    const pool = PERC_POOLS[notePool] || PERC_POOLS.all;
+
+    const measureNoteResolution = Math.max(timeSignature[1], smallestNoteDenom);
+    const slotsPerMeasure = (measureNoteResolution * timeSignature[0]) / timeSignature[1];
+    // slotsPerBeat = slots per denominator beat-unit (e.g. 4 for 16th-note resolution in 4/4)
+    const slotsPerBeat = measureNoteResolution / timeSignature[1];
+    const totalSlots = slotsPerMeasure * numMeasures;
+    const totalNotesThreshold = notesPerMeasure * numMeasures;
+
+    // One grouping choice applies to every measure in the block.
+    const grouping = chooseGrouping(timeSignature[0]);
+    const numGroups = grouping.length;
+
+    // Slot offset within a measure for each group's first beat.
+    const groupSlotOffsets = [];
+    let beatAcc = 0;
+    for (const size of grouping) {
+        groupSlotOffsets.push(Math.round(beatAcc * slotsPerBeat));
+        beatAcc += size;
+    }
+
+    // Build the DNA template from the chosen grouping and apply variability.
+    const dnaMeasure = generateRhythmicDNA(grouping, timeSignature, smallestNoteDenom);
+    const deterministicTemplate = new Array(numMeasures).fill(null).map(() => [...dnaMeasure]);
+    const rankedArray = generateRankedRhythm(
+        numMeasures, timeSignature, notesPerMeasure, smallestNoteDenom,
+        variability, false, 'default', deterministicTemplate
+    );
+
+    // Working copy: null out slots after allocation to prevent reuse.
+    const workingRanks = [...rankedArray];
+    const fullWindow = { start: 0, end: totalSlots - 1 };
+
+    // rawNotes accumulator — one entry per slot.
+    const rawNotes = new Array(totalSlots).fill('r');
+
+    // Merge a note into a slot, stacking with any existing notes.
+    const addNote = (slotIdx, note) => {
+        const cur = rawNotes[slotIdx];
+        if (cur === 'r') {
+            rawNotes[slotIdx] = note;
+        } else if (Array.isArray(cur)) {
+            if (!cur.includes(note)) cur.push(note);
+        } else if (cur !== note) {
+            rawNotes[slotIdx] = [cur, note];
+        }
+    };
+
+    // ── 1. Hihat on every beat-unit slot across all measures ──────────────────
+    // slotsPerBeat is always an integer (measureNoteResolution / timeSignature[1]).
+    for (let s = 0; s < totalSlots; s += slotsPerBeat) {
+        rawNotes[s] = 'hh';
+    }
+
+    // ── 2. Kick + snares + spillover, per measure ─────────────────────────────
+    for (let m = 0; m < numMeasures; m++) {
+        const measureStart = m * slotsPerMeasure;
+        let budget = notesPerMeasure;
+
+        // Kick on group-0 downbeat (always slot 0 of the measure).
+        const kickTarget = measureStart + groupSlotOffsets[0];
+        const kickResult = findBestSlot(workingRanks, kickTarget, fullWindow, totalNotesThreshold);
+        if (kickResult.index !== -1 && budget > 0) {
+            addNote(kickResult.index, 'k');
+            workingRanks[kickResult.index] = null;
+            budget--;
+        }
+
+        // Snares on remaining group downbeats, ordered by DNA rank (ascending = highest priority).
+        // When notesPerMeasure < numGroups only the top-priority backbeat groups receive a snare.
+        if (numGroups > 1 && budget > 0) {
+            const backbeatTargets = groupSlotOffsets.slice(1).map(off => ({
+                target: measureStart + off,
+                // Use the variability-adjusted rank at the group's ideal slot for priority ordering.
+                rank: rankedArray[measureStart + off] ?? Infinity,
+            }));
+            backbeatTargets.sort((a, b) => a.rank - b.rank);
+
+            for (const bg of backbeatTargets) {
+                if (budget <= 0) break;
+                const snareResult = findBestSlot(workingRanks, bg.target, fullWindow, totalNotesThreshold);
+                if (snareResult.index !== -1) {
+                    addNote(snareResult.index, 's');
+                    workingRanks[snareResult.index] = null;
+                    budget--;
+                }
+            }
+        }
+
+        // Spillover: fill any remaining budget with random pool notes on the best
+        // remaining ranked slots within this measure's ideal region.
+        while (budget > 0) {
+            const spillResult = findBestSlot(workingRanks, measureStart, fullWindow, totalNotesThreshold);
+            if (spillResult.index === -1) break;
+            const randNote = pool[Math.floor(Math.random() * pool.length)];
+            addNote(spillResult.index, randNote);
+            workingRanks[spillResult.index] = null;
+            budget--;
+        }
+    }
+
+    // ── 3. Apply note-level variability mutations ─────────────────────────────
+    const mutatedNotes = v > 0 ? applyVariability(rawNotes, v) : rawNotes;
+
+    // ── 4. Clean percussion hierarchy collisions ──────────────────────────────
+    const finalNotes = mutatedNotes.map(slot => cleanPercussionChord(slot));
+
+    const tickDur = slotTicks(timeSignature, smallestNoteDenom);
+    const durations = finalNotes.map(() => tickDur);
+    const offsets = finalNotes.map((_, i) => i * tickDur);
+
+    const melody = new Melody(finalNotes, durations, offsets, finalNotes);
+    // Attach grouping so the sheet-music renderer can draw correct beam spans.
+    melody.rhythmicGrouping = grouping;
+    return melody;
+}
+
+/**
  * Generate a variable swing pattern (cr/hp/k/s + fills).
  */
 export function generateSwing(
@@ -272,6 +408,6 @@ export function generateSwing(
 /**
  * Registry of all available deterministic pattern names.
  */
-export const GROOVE_PATTERNS = ['backbeat', 'swing'];
+export const GROOVE_PATTERNS = ['backbeat', 'backbeat_2', 'swing'];
 
 
