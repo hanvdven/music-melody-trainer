@@ -31,7 +31,8 @@ export function sliceMelodyByMeasure(melody, measureLengthTicks, numMeasures) {
       ties:         idx.map(i => melody.ties?.[i] ?? null),
       displayNotes: idx.map(i => (melody.displayNotes ?? melody.notes)[i]),
       volumes:      idx.map(i => (melody.volumes ?? [])[i] ?? 1),
-      triplets:     melody.triplets ? idx.map(i => melody.triplets[i] ?? null) : null,
+      triplets:         melody.triplets ? idx.map(i => melody.triplets[i] ?? null) : null,
+      rhythmicGrouping: melody.rhythmicGrouping ?? null,
     };
   });
 }
@@ -72,7 +73,8 @@ export function sliceToMelodyLike(slice, measureLengthTicks) {
       displayNotes: slice.displayNotes,
       ties:         slice.ties,
       volumes:      slice.volumes,
-      triplets:     slice.triplets ?? null,
+      triplets:         slice.triplets ?? null,
+      rhythmicGrouping: slice.rhythmicGrouping ?? null,
     };
   }
   // Empty measure: single whole-rest spanning the full measure
@@ -105,7 +107,8 @@ export function sliceMelodyByRange(melody, measureLengthTicks, numMeasuresToKeep
     ties:         idx.map(i => melody.ties?.[i] ?? null),
     displayNotes: idx.map(i => (melody.displayNotes ?? melody.notes)[i]),
     volumes:      idx.map(i => (melody.volumes ?? [])[i] ?? 1),
-    triplets:     melody.triplets ? idx.map(i => melody.triplets[i] ?? null) : null,
+    triplets:         melody.triplets ? idx.map(i => melody.triplets[i] ?? null) : null,
+    rhythmicGrouping: melody.rhythmicGrouping ?? null,
   };
 }
 
@@ -188,7 +191,7 @@ export function resizeMelody(melody, targetMeasures, measureLengthTicks) {
   }
 
   const hasTriplets = triplets.some(t => t !== null);
-  return { notes, durations, offsets, displayNotes, volumes, ties, triplets: hasTriplets ? triplets : null };
+  return { notes, durations, offsets, displayNotes, volumes, ties, triplets: hasTriplets ? triplets : null, rhythmicGrouping: melody.rhythmicGrouping ?? null };
 }
 
 /**

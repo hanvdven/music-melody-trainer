@@ -56,6 +56,132 @@ export const decomposeNumeratorToBeatGroups = (n) => {
     return starts;
 };
 
+/**
+ * Randomly arranges the 3-groups and 2-groups for a meter numerator.
+ * The count of 3s and 2s is fixed by the numerator (prefer 3s); only the ORDER is random.
+ *   4 → [2,2]
+ *   5 → [3,2] or [2,3] with equal probability
+ *   8 → one of [3,3,2], [3,2,3], [2,3,3]
+ */
+export const chooseGrouping = (numerator) => {
+    if (numerator < 2) return [numerator];
+    const rem = numerator % 3;
+    let threes, twos;
+    if (rem === 0) { threes = numerator / 3; twos = 0; }
+    else if (rem === 2) { threes = (numerator - 2) / 3; twos = 1; }
+    else {
+        if (numerator < 4) return [numerator];
+        threes = (numerator - 4) / 3; twos = 2;
+    }
+    const groups = [...Array(threes).fill(3), ...Array(twos).fill(2)];
+    // Fisher-Yates shuffle — equal probability for every permutation.
+    for (let i = groups.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [groups[i], groups[j]] = [groups[j], groups[i]];
+    }
+    return groups;
+};
+
+// Rank a set of beat positions by proximity to the measure reference points.
+// initial: 'left' (leftmost first) or 'right' (rightmost first).
+// tie: tiebreak direction for "closest to reference" steps.
+const _rankPositions = (positions, n, initial, tie, startRank) => {
+    if (positions.length === 0) return [];
+    const rem = [...positions];
+    const out = [];
+    let rank = startRank;
+
+    // Step 1: leftmost or rightmost
+    let initIdx = 0;
+    for (let i = 1; i < rem.length; i++) {
+        if (initial === 'left' ? rem[i] < rem[initIdx] : rem[i] > rem[initIdx]) initIdx = i;
+    }
+    out.push({ pos: rem[initIdx], rank: rank++ });
+    rem.splice(initIdx, 1);
+
+    // Reference sequence: [n/2, n/4, 3n/4, n/4, 3n/4, ...]
+    const refs = [n / 2];
+    const quarters = [n / 4, (3 * n) / 4];
+    for (let t = 0; refs.length < positions.length - 1; t++) refs.push(quarters[t % 2]);
+
+    for (const ref of refs) {
+        if (rem.length === 0) break;
+        let best = 0;
+        for (let i = 1; i < rem.length; i++) {
+            const di = Math.abs(rem[i] - ref), db = Math.abs(rem[best] - ref);
+            if (di < db || (di === db && (tie === 'right' ? rem[i] > rem[best] : rem[i] < rem[best])))
+                best = i;
+        }
+        out.push({ pos: rem[best], rank: rank++ });
+        rem.splice(best, 1);
+    }
+    for (const p of rem) out.push({ pos: p, rank: rank++ });
+    return out;
+};
+
+/**
+ * Generates a ranked slot array for one measure from a beat grouping (e.g. [3,2,3] for 8/8).
+ * Returns an array of length (numerator × slotsPerBeat). Lower rank number = higher priority.
+ *
+ * Three-phase ranking:
+ *   Phase 1 — first note of each group (leftmost first, then closest to n/2, n/4, 3n/4 …)
+ *   Phase 2 — third note of 3-groups, rightmost first (or 2-group second notes if no 3-groups)
+ *   Phase 3 — second note of all groups if 3-groups exist (leftmost first, rightmost tiebreak)
+ *
+ * Subdivision slots between beats are filled at increasing rank levels:
+ *   rank = (slots_at_previous_level) + 1 for each subdivision doubling.
+ */
+export const generateRhythmicDNA = (grouping, timeSignature, smallestNoteDenom) => {
+    const [numerator, denominator] = timeSignature;
+    const slotsPerBeat = smallestNoteDenom / denominator;
+
+    const groupStarts = [];
+    let off = 0;
+    for (const size of grouping) { groupStarts.push(off); off += size; }
+
+    const beatRanks = new Array(numerator).fill(null);
+    let nextRank = 1;
+
+    // Phase 1: group downbeats (leftmost first, leftmost tiebreak)
+    for (const { pos, rank } of _rankPositions(groupStarts, numerator, 'left', 'left', nextRank))
+        beatRanks[pos] = rank;
+    nextRank += groupStarts.length;
+
+    // Phase 2: 3-group third beats (rightmost first); fallback to 2-group second beats
+    const has3 = grouping.some(s => s === 3);
+    const p2 = has3
+        ? grouping.flatMap((size, i) => size === 3 ? [groupStarts[i] + 2] : [])
+        : groupStarts.map(s => s + 1);
+    for (const { pos, rank } of _rankPositions(p2, numerator, 'right', 'right', nextRank))
+        beatRanks[pos] = rank;
+    nextRank += p2.length;
+
+    // Phase 3: second beat of all groups (leftmost first, rightmost tiebreak)
+    // Only when 3-groups exist; otherwise Phase 2 already consumed the second beats.
+    if (has3) {
+        const p3 = groupStarts.map(s => s + 1);
+        for (const { pos, rank } of _rankPositions(p3, numerator, 'left', 'right', nextRank))
+            beatRanks[pos] = rank;
+    }
+
+    // Expand to slot level: beat positions map to slot b*slotsPerBeat; in-between slots
+    // receive subdivision ranks (level l: rank = slotCount_at_previous_level + 1).
+    const totalSlots = numerator * slotsPerBeat;
+    const slotRanks = new Array(totalSlots).fill(null);
+    for (let b = 0; b < numerator; b++) slotRanks[b * slotsPerBeat] = beatRanks[b];
+
+    let levelSize = numerator;
+    let step = slotsPerBeat;
+    while (step > 1) {
+        step = Math.floor(step / 2);
+        const subRank = levelSize + 1;
+        for (let s = step; s < totalSlots; s += step * 2) slotRanks[s] = subRank;
+        levelSize *= 2;
+    }
+
+    return slotRanks;
+};
+
 export const generateDeterministicRhythm = (
     numMeasures,
     timeSignature,
