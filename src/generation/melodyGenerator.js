@@ -481,6 +481,20 @@ class MelodyGenerator {
                 { noteCount: 3, denominator: 2, groupTicks: 2 * slotTicks, prob: Math.min(1, rhythmVariability / 500   * polyMult), minVar: 30 },
             ].filter(t => t.groupTicks > 0 && t.groupTicks <= measureTicks && rhythmVariability >= t.minVar);
 
+            // Pre-compute group-boundary tick offsets within one measure (excluding 0 and measureTicks).
+            // Tuplets that span a boundary are musically disruptive and should be rare.
+            const beatTick = TICKS_PER_WHOLE / timeSignature[1];
+            const groupBoundaryTicks = [];
+            {
+                let acc = 0;
+                for (let gi = 0; gi < rhythmicGrouping.length - 1; gi++) {
+                    acc += rhythmicGrouping[gi];
+                    groupBoundaryTicks.push(acc * beatTick);
+                }
+            }
+            // 10× penalty when the tuplet interval crosses a beat-group boundary.
+            const CROSS_BOUNDARY_FACTOR = 0.1;
+
             let groupIdCounter = 0;
             const winners = [];
 
@@ -489,7 +503,15 @@ class MelodyGenerator {
                 const dur = finalMelody.durations[i];
                 if (n === null || n === 'r') continue;
                 for (const t of tupletCandidates) {
-                    if (dur === t.groupTicks && Math.random() < t.prob) {
+                    if (dur !== t.groupTicks) continue;
+                    let prob = t.prob;
+                    if (groupBoundaryTicks.length > 0) {
+                        const offInMeasure = finalMelody.offsets[i] % measureTicks;
+                        const tupletEnd    = offInMeasure + t.groupTicks;
+                        if (groupBoundaryTicks.some(b => b > offInMeasure && b < tupletEnd))
+                            prob *= CROSS_BOUNDARY_FACTOR;
+                    }
+                    if (Math.random() < prob) {
                         groupIdCounter++;
                         winners.push({ i, id: groupIdCounter, ...t });
                         break; // Only one tuplet type per note
