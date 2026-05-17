@@ -39,6 +39,7 @@ export const getPlayStyleLabel = (val) => {
         'scale-down': 'Scale \u2198',
         'scale-up-down': 'Scale \u2197 \u2198',
         'backbeat': 'Backbeat',
+        'backbeat_2': 'Backbeat 2',
         'swing': 'Jazz Swing',
         'pairedchord': 'Duo Chord',
         'fullchord': 'Full Chord',
