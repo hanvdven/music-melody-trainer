@@ -167,6 +167,7 @@ Verdeel voor het genereren van de melodie de tel op in groepen. Er is al een met
 Voorlopig: elke maat dezelfde onderverdeling.
 
 [Claude 2026-05-12]: Opmerking: `decomposeNumeratorToBeatGroups` in `rhythmicPriorities.js` bestaat al en geeft beat-groepen terug (bijv. 5→[3,2]). De koppeling met splitsregels, backbeat-routing en notenpool-weging is nog niet gemaakt.
+[Claude 2026-05-17]: ⬇ LAGE PRIORITEIT — op verzoek van Han. Backbeat drum ✅ (backbeat_2 implementeert groeperings-bewuste kick/snare-plaatsing). Melodische noot-gewichten naar groepering: uitgesteld. De ranked array (DNA) zelf bevat al de groeperings-hiërarchie; de melodiegenerator gebruikt die al voor prioriteit. Extra weging van notenpool naar groepsgrens is een verfijning, niet een blocker.
 
 ### Tuplets & polyritmiek
 
@@ -204,11 +205,12 @@ bug! Ik zie precies geen verbindingsbalken meer sinds laatse oplossing..! Niet t
 3. De som van de maat klopt niet: pentuplet heeft 5 achtsten i.p.v. 4 achtsten; de zestiende rust aan het einde is daardoor redundant.
 [Claude 2026-05-16]: Opgelost in `melodyGenerator.js` tuplet-expansie loop. Drie bugs: (1) `notes.slice(idx + 1)` verving slechts 1 slot i.p.v. alle `denominator` slots (incl. continuation nulls) → gewijzigd naar `slice(idx + denominator)`; (2) `Math.round(groupTicks / noteCount)` veroorzaakte timing-drift → gewijzigd naar `Math.floor` + `lastNoteTicks = groupTicks - (noteCount-1) * noteTicks` voor exact totaal; (3) keepN-trimming aan het einde sneed de 5e noot weg → keepN-blok verwijderd, arrays zijn nu exact de juiste lengte na expansie.
 
-### RhythmicDNA — tuplets mogen geen groepsgrenzen overschrijden
+✅ RhythmicDNA — tuplets mogen geen groepsgrenzen overschrijden
 
 Tuplets die een groepsgrens (bijv. 3+2 boundary in 5/8) overschrijden zouden significant duurder moeten zijn in de randomisatie. Dit is een uitbreiding op de RhythmicDNA-feature: zodra de groepering beschikbaar is in `melodyGenerator.js`, kan de tuplet-kandidaten-loop een extra strafterm toepassen wanneer het tuplet-interval een groepsgrens bevat.
 
 [Claude 2026-05-17]: Op de backlog gezet op verzoek van Han. Niet implementeren voordat RhythmicDNA basisimplementatie klaar is.
+[Claude 2026-05-17]: Geïmplementeerd in `melodyGenerator.js`. Pre-computed `groupBoundaryTicks` (beat-groepsgrens-ticks binnen een maat, excl. 0 en einde). Per tuplet-kandidaat: als het tuplet-interval een groepsgrens overspant, wordt de kans vermenigvuldigd met `CROSS_BOUNDARY_FACTOR = 0.1` (10× zeldzamer). Werkt voor alle maatsoorten incl. irreguliere (5/8, 7/8, 11/4).
 
 ✅ add pentuplet 5 : 6,  sextuplets 6 : 4 and 6 : 5 and septuplets  7 : 6 , 7 : 8; (omit 7 : 4). These should be very rare.
 triptles can occur as of variability 30%;
