@@ -452,15 +452,30 @@ const renderMelodyNotes = (
     });
   }
 
-  // Helper to determine allowed beam spans within a measure based on music theory rules
+  // Helper to determine allowed beam spans within a measure based on the RhythmicDNA grouping.
+  // When the melody carries a rhythmicGrouping (e.g. [3,2] for 5/8), each group becomes its
+  // own beam span so notes never beam across group boundaries.
+  // Falls back to the old even-split logic for melodies without a grouping (chords, metronome).
   const getAllowedSpans = (elementsInMeasure, top) => {
-    // Collect durations of all short notes/rests (duration < 12)
     const shortDurations = elementsInMeasure.filter(e => e.duration < 12).map(e => e.duration);
     if (shortDurations.length === 0) return [];
 
+    const grouping = melody.rhythmicGrouping;
+    if (grouping && grouping.length > 1) {
+      const beatTicks = measureLengthSlots / top;
+      const spans = [];
+      let start = 0;
+      for (const groupSize of grouping) {
+        const end = start + groupSize * beatTicks;
+        spans.push({ start, end });
+        start = end;
+      }
+      return spans;
+    }
+
+    // Fallback: split at midpoint for even numerators, single span for odd/compound
     const spans = [];
     const secondaryBeatSlots = (top % 2 === 0) ? measureLengthSlots / 2 : measureLengthSlots;
-
     for (let i = 0; i < measureLengthSlots; i += secondaryBeatSlots) {
       spans.push({ start: i, end: i + secondaryBeatSlots });
     }

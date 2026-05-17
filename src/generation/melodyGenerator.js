@@ -2,6 +2,7 @@ import Melody from '../model/Melody.js';
 import logger from '../utils/logger';
 import convertRankedArrayToMelody from './convertRankedArrayToMelody.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
+import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
 import { generateBackbeat, generateSwing } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
@@ -68,6 +69,10 @@ class MelodyGenerator {
             );
         }
 
+        // Choose the beat grouping once for this entire block (all numMeasures share the same grouping).
+        // e.g. 5/8 → [3,2] or [2,3] at random; 4/4 → [2,2] always.
+        const rhythmicGrouping = chooseGrouping(timeSignature[0]);
+
         let deterministicTemplate = null;
 
         if (this.globalRhythmArray) {
@@ -98,6 +103,12 @@ class MelodyGenerator {
             } else {
                 logger.warn('melodyGenerator', `Incompatible resolutions: Global ${GLOBAL_RESOLUTION}, Local ${localDenom}. Fallback to local.`);
             }
+        }
+
+        // Build the DNA template from the chosen grouping when no external template overrides it.
+        if (!deterministicTemplate) {
+            const dnaMeasure = generateRhythmicDNA(rhythmicGrouping, timeSignature, smallestNoteDenom);
+            deterministicTemplate = new Array(numMeasures).fill(null).map(() => [...dnaMeasure]);
         }
 
         const rankedArray = generateRankedRhythm(
@@ -525,11 +536,13 @@ class MelodyGenerator {
                 );
                 tupletMelody.smallestNoteDenom = smallestNoteDenom;
                 tupletMelody.triplets = triplets;
+                tupletMelody.rhythmicGrouping = rhythmicGrouping;
                 return tupletMelody;
             }
             // No qualifying notes won the roll — fall through to return the unmodified melody.
         }
 
+        finalMelody.rhythmicGrouping = rhythmicGrouping;
         return finalMelody;
     }
 }

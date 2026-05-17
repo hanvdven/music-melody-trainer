@@ -204,6 +204,12 @@ bug! Ik zie precies geen verbindingsbalken meer sinds laatse oplossing..! Niet t
 3. De som van de maat klopt niet: pentuplet heeft 5 achtsten i.p.v. 4 achtsten; de zestiende rust aan het einde is daardoor redundant.
 [Claude 2026-05-16]: Opgelost in `melodyGenerator.js` tuplet-expansie loop. Drie bugs: (1) `notes.slice(idx + 1)` verving slechts 1 slot i.p.v. alle `denominator` slots (incl. continuation nulls) → gewijzigd naar `slice(idx + denominator)`; (2) `Math.round(groupTicks / noteCount)` veroorzaakte timing-drift → gewijzigd naar `Math.floor` + `lastNoteTicks = groupTicks - (noteCount-1) * noteTicks` voor exact totaal; (3) keepN-trimming aan het einde sneed de 5e noot weg → keepN-blok verwijderd, arrays zijn nu exact de juiste lengte na expansie.
 
+### RhythmicDNA — tuplets mogen geen groepsgrenzen overschrijden
+
+Tuplets die een groepsgrens (bijv. 3+2 boundary in 5/8) overschrijden zouden significant duurder moeten zijn in de randomisatie. Dit is een uitbreiding op de RhythmicDNA-feature: zodra de groepering beschikbaar is in `melodyGenerator.js`, kan de tuplet-kandidaten-loop een extra strafterm toepassen wanneer het tuplet-interval een groepsgrens bevat.
+
+[Claude 2026-05-17]: Op de backlog gezet op verzoek van Han. Niet implementeren voordat RhythmicDNA basisimplementatie klaar is.
+
 ✅ add pentuplet 5 : 6,  sextuplets 6 : 4 and 6 : 5 and septuplets  7 : 6 , 7 : 8; (omit 7 : 4). These should be very rare.
 triptles can occur as of variability 30%;
 the rest only from variability > 50% with a probability of variability% / 100.
