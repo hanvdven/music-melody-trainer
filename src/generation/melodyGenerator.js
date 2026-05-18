@@ -86,13 +86,13 @@ class MelodyGenerator {
 
         if (this.globalRhythmArray) {
             // Global resolution is 16th notes (GLOBAL_RESOLUTION = 16).
-            // Current resolution is defined by smallestNoteDenom (e.g., 8).
-            // If global is 16 and local is 8, we sample every 2nd slot.
-
-            const localDenom = smallestNoteDenom;
+            // Use effectiveDenom = max(smallestNoteDenom, timeSignature[1]) so that bass
+            // (smallestNoteDenom=2 in 4/4 or 5/4) samples at the beat grid, not the half-note
+            // grid. Without this guard, step = 16/2 = 8 produces only 3 slots in 5/4 instead of 5.
+            const localDenom = Math.max(smallestNoteDenom, timeSignature[1]);
 
             if (localDenom <= GLOBAL_RESOLUTION && GLOBAL_RESOLUTION % localDenom === 0) {
-                const step = GLOBAL_RESOLUTION / localDenom; // e.g. 16/8 = 2. Sample every 2nd.
+                const step = GLOBAL_RESOLUTION / localDenom; // e.g. 16/4 = 4. Sample every 4th.
 
                 // globalRhythmArray is Array<Array<number|null>> (measures of slots)
                 // We need to map this to the local resolution.
