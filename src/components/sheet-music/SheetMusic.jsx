@@ -372,7 +372,15 @@ const SheetMusic = ({
     return shifts[c] || 0;
   };
 
-  const calculateOptimalClef = (activeClef, melodyNotes, staff = 'treble') => {
+  // Clef types that are inherently vocal — these never receive 8va/8vb markings.
+  // Bass and Baritone vocal ranges share the 'bass' clef type but are identified by rangeMode.
+  const VOCAL_CLEF_TYPES = new Set(['soprano', 'mezzo-soprano', 'alto', 'tenor']);
+  const VOCAL_RANGE_MODES = new Set(['Bass', 'Baritone', 'Tenor', 'Alto', 'Mezzo-soprano', 'Soprano']);
+
+  const calculateOptimalClef = (activeClef, melodyNotes, staff = 'treble', rangeMode = null) => {
+    // Vocal clefs never use ottava markings — range selection already constrains their register.
+    if (VOCAL_CLEF_TYPES.has(activeClef) || VOCAL_RANGE_MODES.has(rangeMode)) return activeClef;
+
     if (!melodyNotes || melodyNotes.length === 0) return activeClef;
 
     const notes = melodyNotes
@@ -419,9 +427,6 @@ const SheetMusic = ({
   };
 
   const scaleNotes = trebleSettings?.scaleNotes || [];
-
-  const clefTreble = calculateOptimalClef(trebleActiveClef, trebleMelody?.notes, 'treble');
-  const clefBass = calculateOptimalClef(bassActiveClef, bassMelody?.notes, 'bass');
 
   // Display-only transposition: how many semitones to shift written notes up/down.
   // Audio always plays concert pitch; only the sheet music notation changes.
@@ -729,6 +734,11 @@ const SheetMusic = ({
   const currentPercussion = sliceMelodyForPagination(percussionMelody);
   const currentMetronome = sliceMelodyForPagination(metronomeMelody);
   const currentChordProgression = chordProgression; // ChordProgression is not a Melody — no slicing
+
+  // Clef selection is per visible block (not full melody) so that a passage that sits in a
+  // different register than the rest of the piece doesn't force an ottava on every other block.
+  const clefTreble = calculateOptimalClef(trebleActiveClef, currentTreble?.notes, 'treble', trebleSettings?.rangeMode);
+  const clefBass = calculateOptimalClef(bassActiveClef, currentBass?.notes, 'bass', bassSettings?.rangeMode);
 
   const adjustedTrebleMelody = processMelodyAndCalculateSlots(
     currentTreble,
