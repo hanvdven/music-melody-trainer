@@ -68,11 +68,13 @@ const CHROMATIC = new Set(['#', 'b', 'Ü', 'º']);
 const REVERTED = Symbol('REVERTED');
 
 // Apply within-measure and cross-measure accidental state for one note.
-// seenInMeasure  — current measure: base letter → last-set state (string or REVERTED)
+// seenInMeasure  — current measure: (letter+octave) → last-set state (string or REVERTED)
 // prevMeasure    — snapshot of previous measure's seenInMeasure at barline
+// showCourtesy   — when false, repeats are suppressed (null) and no cross-measure reminders
 // Mutates seenInMeasure; returns the display character (or null).
-const applyMeasureState = (noteStr, raw, seenInMeasure, prevMeasure) => {
-  const base = noteStr.match(/[A-G]/)?.[0];
+const applyMeasureState = (noteStr, raw, seenInMeasure, prevMeasure, showCourtesy) => {
+  // Track by letter+octave (e.g. 'F4') so F♯4 and F♯5 are independent — standard notation.
+  const base = noteStr.replace(/[^A-G0-9]/g, '') || null;
   if (!base) return raw;
 
   const prev  = seenInMeasure.get(base);                  // undefined when not yet seen
@@ -84,25 +86,30 @@ const applyMeasureState = (noteStr, raw, seenInMeasure, prevMeasure) => {
     // ── Note requires an accidental ────────────────────────────────────────────
     if (prev === undefined) {
       seenInMeasure.set(base, raw);
-      // Same chromatic from previous measure continues → small courtesy.
-      if (crossDue && prevM === raw) return SMALL_COURTESY[raw] ?? raw;
+      if (showCourtesy && crossDue && prevM === raw) {
+        // Same chromatic continues from previous measure → small courtesy.
+        return SMALL_COURTESY[raw] ?? raw;
+      }
       return raw;
     }
-    if (prev === raw) return SMALL_COURTESY[raw] ?? raw; // repeated same → courtesy
+    if (prev === raw) {
+      // Repeated same accidental within measure.
+      return showCourtesy ? (SMALL_COURTESY[raw] ?? raw) : null;
+    }
     seenInMeasure.set(base, raw);
-    return raw; // changed accidental → full new symbol
+    return raw; // changed accidental → always show full new symbol
   }
 
   // ── Note is at its key-signature pitch (raw === null) ───────────────────────
   const revert = noteOwnAccidental(noteStr); // symbol that represents this note's pitch
 
   if (prev === undefined) {
-    if (crossDue) {
+    if (showCourtesy && crossDue) {
       // Previous measure had a chromatic alteration; remind player of key-sig pitch.
       seenInMeasure.set(base, REVERTED);
       return SMALL_COURTESY[revert] ?? revert;
     }
-    return null; // no prior modification to remind about
+    return null; // no prior modification to remind about (or courtesy disabled)
   }
 
   if (prev === REVERTED || !CHROMATIC.has(prev)) {
@@ -111,15 +118,17 @@ const applyMeasureState = (noteStr, raw, seenInMeasure, prevMeasure) => {
   }
 
   // Within-measure revert: active chromatic accidental → key-sig pitch.
+  // Always shown regardless of courtesy setting — it's required, not optional.
   seenInMeasure.set(base, REVERTED);
-  return revert; // full symbol (this is an in-measure change, not a courtesy)
+  return revert;
 };
 
-// offsets and measureLengthSlots are optional. When provided, repeated accidentals
-// within a measure become small courtesy symbols, reverts get the correct accidental,
-// and cross-measure reminders are added when needed. Without them the function
-// behaves identically to the original (backward-compatible).
-const generateAccidentalMap = (melody, numAccidentals, offsets = null, measureLengthSlots = null) => {
+// offsets and measureLengthSlots are optional. When provided, reverts get the correct
+// accidental and within-measure repeats are tracked. showCourtesy (default true) controls
+// whether small courtesy symbols and cross-measure reminders are shown; when false, repeats
+// are suppressed and cross-measure reminders omitted. Without offsets/measureLengthSlots
+// the function behaves identically to the original (backward-compatible).
+const generateAccidentalMap = (melody, numAccidentals, offsets = null, measureLengthSlots = null, showCourtesy = true) => {
   const accidentals = [];
   const scaleAccidentals = scaleAccidentalNotes[numAccidentals] || [];
 
@@ -144,7 +153,7 @@ const generateAccidentalMap = (melody, numAccidentals, offsets = null, measureLe
       // Per-note accidentals for melodic chord arrays.
       accidentals.push(noteWithAcc.map(n => {
         const raw = computeAccidental(n, scaleAccidentals);
-        return useTracking ? applyMeasureState(n, raw, seenInMeasure, prevMeasure) : raw;
+        return useTracking ? applyMeasureState(n, raw, seenInMeasure, prevMeasure, showCourtesy) : raw;
       }));
       continue;
     }
@@ -155,7 +164,7 @@ const generateAccidentalMap = (melody, numAccidentals, offsets = null, measureLe
     }
 
     const raw = computeAccidental(noteWithAcc, scaleAccidentals);
-    accidentals.push(useTracking ? applyMeasureState(noteWithAcc, raw, seenInMeasure, prevMeasure) : raw);
+    accidentals.push(useTracking ? applyMeasureState(noteWithAcc, raw, seenInMeasure, prevMeasure, showCourtesy) : raw);
   }
 
   return accidentals;

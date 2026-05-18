@@ -28,6 +28,7 @@ export default function useAppUIState() {
     const [isModulationEnabled, setIsModulationEnabled] = useState(true);
     const [isSimpleView, setIsSimpleView] = useState(true);
     const [minimizeAccidentals, setMinimizeAccidentals] = useState(true);
+    const [courtesyAccidentals, setCourtesyAccidentals] = useState(true);
 
     const [debugMode, setDebugMode] = useState(false);
     const [noteColoringMode, setNoteColoringMode] = useState('tonic_scale_keys');
@@ -72,6 +73,7 @@ export default function useAppUIState() {
         isModulationEnabled, setIsModulationEnabled,
         isSimpleView, setIsSimpleView,
         minimizeAccidentals, setMinimizeAccidentals,
+        courtesyAccidentals, setCourtesyAccidentals,
         debugMode, setDebugMode,
         noteColoringMode, setNoteColoringMode,
         showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef,
