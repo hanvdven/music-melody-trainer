@@ -269,9 +269,27 @@ Vereist:
 
 bug (backlog): excessive use of 8vb in treble clef. Only use 8va and 8vb when MANY notes fall outside the standard range (not just single notes). A single note that falls outside C4–G5 should not trigger an 8va/8vb marking; only use it when a significant portion of the passage lies outside the staff range.
 
-[Claude 2026-05-18]: Opgelost. `renderMelodyNotes.jsx`: ottava-groepen met minder dan 3 niet-rust-noten worden onderdrukt — die noten renderen met notenstreepjes in plaats van 8va/8vb. `MIN_OTTAVA_NOTE_COUNT = 3`. Originele (niet-verschoven) noten worden hersteld via `rawDisplayNotes`. Geldt voor alle sleutels (treble, bass, alto).
+[Claude 2026-05-18]: Eerste poging fout — gebruikte `MIN_OTTAVA_NOTE_COUNT=3` als drempelwaarde. Oorzaak van het probleem was in feite dat alle RANGES in `calculateOptimalClef` 9 eenheden te hoog stonden (fout: C4=48, correct: C4=39 via `getNoteIndex`). Tweede fix: correcte rangewaarden + per-blok clef-selectie (gebruikt `currentTreble.notes` ipv volledige melodie) + vocale sleutels worden nooit 8va/8vb gegeven. `MIN_OTTAVA_NOTE_COUNT`-blok verwijderd uit `renderMelodyNotes.jsx`. Bestanden: `SheetMusic.jsx`, `renderMelodyNotes.jsx`.
 
 ✅ Noten en lyrics klikbaar (do-re-mi / takadimi spelen de noot/slag).
+
+### Nootgroepering: geen splitsing over groepsgrenzen
+
+note grouping - if a note spans multiple full note groups do not split across groups. (e.g., group (12)(34) with a full note at 1, can use a whole note, rather than two half notes).
+this can be generalised: if the end of a note fits into a group, no splitting is needed: e.g., groups (12)(34), with a 3/4 note on 2 -> dotted half note.
+however, if the note needs to be split anyway; prefer splitting on group lines. e.g.,
+5/4 note with groups (12)(345) -> half + half-dot
+but groups (123)(45) -> half-dot + half.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-18]: Op de backlog gezet op verzoek van Han. Betreft de nootgroeperingslogica in `renderMelodyNotes.jsx` / `processMelodyAndCalculateSlots.js` — noten die over groepslijnen heen lopen worden gesplitst, maar dat is onnodig als de noot binnen één groep past of als de eindtick precies op een groepsgrens valt.
+
+### Bug: Span onjuist berekend voor tuplets
+
+bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2 eighths tuplet a5 f4 a6 - but a6 and f4 are further apart than 8 semitones.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-18]: Op de backlog gezet op verzoek van Han. De span (afstand in halve tonen tussen de hoogste en laagste noot in een passus) lijkt niet correct te worden meegenomen bij de selectie van ottava-markering voor passages die tuplets bevatten.
 
 ### Weergave & layout
 
