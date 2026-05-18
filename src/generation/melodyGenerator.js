@@ -545,9 +545,56 @@ class MelodyGenerator {
                     const visualDuration = Math.round(groupTicks / denominator);
 
                     const firstNote = notes[idx];
-                    const extra     = Array.from({ length: noteCount - 1 }, () => pick(firstNote));
-                    const allNotes  = [firstNote, ...extra];
                     const baseOff   = offsets[idx];
+
+                    // Generate extra tuplet notes with the same maxLeap constraint as the main
+                    // melodic pass. Each note looks back up to 24 ticks and must stay within
+                    // maxLeap semitones of every reference note in that window.
+                    const extra = [];
+                    for (let j = 0; j < noteCount - 1; j++) {
+                        const curOff = baseOff + (j + 1) * noteTicks;
+                        if (maxLeap === null) {
+                            extra.push(pick(firstNote));
+                            continue;
+                        }
+                        // Collect pitches of notes placed in this group within the 24-tick window.
+                        const refIdxs = [];
+                        if (curOff - baseOff <= 24) {
+                            const fi = getNoteIndex(firstNote);
+                            if (fi !== -1) refIdxs.push(fi);
+                        }
+                        for (let ej = 0; ej < j; ej++) {
+                            const eOff = baseOff + (ej + 1) * noteTicks;
+                            if (curOff - eOff <= 24) {
+                                const ei = getNoteIndex(extra[ej]);
+                                if (ei !== -1) refIdxs.push(ei);
+                            }
+                        }
+                        if (refIdxs.length === 0) {
+                            extra.push(pick(firstNote));
+                            continue;
+                        }
+                        const allowed = effectiveScale.filter(c => {
+                            const ci = getNoteIndex(c);
+                            return ci !== -1 && refIdxs.every(r => Math.abs(ci - r) <= maxLeap);
+                        });
+                        if (allowed.length > 0) {
+                            extra.push(allowed[Math.floor(Math.random() * allowed.length)]);
+                        } else {
+                            // Fallback: nearest scale note to the immediately preceding note.
+                            const prevIdx = getNoteIndex(j === 0 ? firstNote : extra[j - 1]);
+                            let minDist = Infinity;
+                            let nearest = pick(firstNote);
+                            for (const c of effectiveScale) {
+                                const ci = getNoteIndex(c);
+                                if (ci === -1) continue;
+                                const d = Math.abs(ci - prevIdx);
+                                if (d < minDist) { minDist = d; nearest = c; }
+                            }
+                            extra.push(nearest);
+                        }
+                    }
+                    const allNotes  = [firstNote, ...extra];
                     const vol       = volumes[idx] ?? 0.9;
 
                     const entry = { id, noteCount, denominator, groupTicks, visualDuration };
