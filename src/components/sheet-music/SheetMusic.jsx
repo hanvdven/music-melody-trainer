@@ -1415,6 +1415,52 @@ const SheetMusic = ({
     );
   };
 
+  // ── Debug: RhythmicDNA overlay above chord labels ────────────────────────────────────────
+  // Renders grouped rank numbers per measure in debug mode: "(1 3 7)(2 5)(4 6)"
+  // One group per rhythmicGrouping entry, each containing groupSize × slotsPerBeat ranks.
+  const renderDNADebug = () => {
+    if (!debugMode) return null;
+    const srcMelody = trebleMelody ?? bassMelody ?? percussionMelody;
+    const dna = srcMelody?.rhythmicDNA;
+    const grouping = srcMelody?.rhythmicGrouping;
+    if (!dna || !grouping || dna.length === 0 || grouping.length === 0) return null;
+
+    const totalGroupBeats = grouping.reduce((a, b) => a + b, 0);
+    if (totalGroupBeats === 0) return null;
+    const slotsPerBeat = dna.length / totalGroupBeats;
+
+    // Format one measure's DNA as "(r0 r1)(r2 r3)..."
+    const dnaText = grouping.map((size, gi) => {
+      const start = Math.round(grouping.slice(0, gi).reduce((a, b) => a + b, 0) * slotsPerBeat);
+      const end   = Math.round(start + size * slotsPerBeat);
+      return `(${dna.slice(start, end).map(r => r ?? '?').join(' ')})`;
+    }).join('');
+
+    // Find measure start X positions using the same 'm'-marker scan as renderRepeatSymbols.
+    const getXLocal = (index) => index === 0 ? startX - 35 : startX + (index - 1) * noteWidth;
+    const measureXs = [];
+    allOffsets.forEach((o, i) => { if (o === 'm') measureXs.push(getXLocal(i)); });
+    if (measureXs.length === 0) return null;
+
+    const DNA_Y = trebleStart - 74; // above chord labels (CHORD_ROOT_Y = trebleStart - 58)
+    return Array.from({ length: displayNumMeasures }, (_, m) => {
+      if (m >= measureXs.length) return null;
+      return (
+        <text
+          key={`dna-debug-${m}`}
+          x={measureXs[m]}
+          y={DNA_Y}
+          fontSize="8"
+          fontFamily="monospace"
+          fill="red"
+          style={{ pointerEvents: 'none', userSelect: 'none' }}
+        >
+          {dnaText}
+        </text>
+      );
+    });
+  };
+
   // ── Lyric color helper — mirrors getMelodicColor / percussion chromatone logic ──────────
   const PERC_CHROMA = {
     k:  'var(--chromatone-percussion-kick)',
@@ -2207,6 +2253,7 @@ const SheetMusic = ({
                       style={{ filter: showSettings ? 'blur(6px)' : 'none', opacity: showSettings ? 0.6 : 1 }}
                     >
                       {actualChords && renderChordLabels(null, allOffsets, noteWidth, ppt)}
+                      {renderDNADebug()}
                     </g>
 
                     {/* Scroll mode: barline at the block boundary (x=endX in scroll-group coords).

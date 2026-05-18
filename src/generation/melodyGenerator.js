@@ -118,10 +118,12 @@ class MelodyGenerator {
         // Use effectiveDenom ≥ timeSignature[1] so that slotsPerBeat = effectiveDenom/denominator ≥ 1.
         // Without this guard, smallestNoteDenom < denominator (e.g., bass default of 2 in 4/4) produces
         // fractional slot counts, causing new Array(non-integer) to throw for odd numerators.
+        // dnaMeasureForDebug is kept for attaching to the melody so SheetMusic can render it in debug mode.
+        let dnaMeasureForDebug = null;
         if (!deterministicTemplate) {
             const effectiveDenom = Math.max(smallestNoteDenom, timeSignature[1]);
-            const dnaMeasure = generateRhythmicDNA(rhythmicGrouping, timeSignature, effectiveDenom);
-            deterministicTemplate = new Array(numMeasures).fill(null).map(() => [...dnaMeasure]);
+            dnaMeasureForDebug = generateRhythmicDNA(rhythmicGrouping, timeSignature, effectiveDenom);
+            deterministicTemplate = new Array(numMeasures).fill(null).map(() => [...dnaMeasureForDebug]);
         }
 
         const rankedArray = generateRankedRhythm(
@@ -572,12 +574,14 @@ class MelodyGenerator {
                 tupletMelody.smallestNoteDenom = smallestNoteDenom;
                 tupletMelody.triplets = triplets;
                 tupletMelody.rhythmicGrouping = rhythmicGrouping;
+                tupletMelody.rhythmicDNA = dnaMeasureForDebug;
                 return tupletMelody;
             }
             // No qualifying notes won the roll — fall through to return the unmodified melody.
         }
 
         finalMelody.rhythmicGrouping = rhythmicGrouping;
+        finalMelody.rhythmicDNA = dnaMeasureForDebug;
         return finalMelody;
     }
 }

@@ -33,6 +33,7 @@ export function sliceMelodyByMeasure(melody, measureLengthTicks, numMeasures) {
       volumes:      idx.map(i => (melody.volumes ?? [])[i] ?? 1),
       triplets:         melody.triplets ? idx.map(i => melody.triplets[i] ?? null) : null,
       rhythmicGrouping: melody.rhythmicGrouping ?? null,
+      rhythmicDNA:      melody.rhythmicDNA ?? null,
     };
   });
 }
@@ -75,6 +76,7 @@ export function sliceToMelodyLike(slice, measureLengthTicks) {
       volumes:      slice.volumes,
       triplets:         slice.triplets ?? null,
       rhythmicGrouping: slice.rhythmicGrouping ?? null,
+      rhythmicDNA:      slice.rhythmicDNA ?? null,
     };
   }
   // Empty measure: single whole-rest spanning the full measure
@@ -109,6 +111,7 @@ export function sliceMelodyByRange(melody, measureLengthTicks, numMeasuresToKeep
     volumes:      idx.map(i => (melody.volumes ?? [])[i] ?? 1),
     triplets:         melody.triplets ? idx.map(i => melody.triplets[i] ?? null) : null,
     rhythmicGrouping: melody.rhythmicGrouping ?? null,
+    rhythmicDNA:      melody.rhythmicDNA ?? null,
   };
 }
 
@@ -191,7 +194,7 @@ export function resizeMelody(melody, targetMeasures, measureLengthTicks) {
   }
 
   const hasTriplets = triplets.some(t => t !== null);
-  return { notes, durations, offsets, displayNotes, volumes, ties, triplets: hasTriplets ? triplets : null, rhythmicGrouping: melody.rhythmicGrouping ?? null };
+  return { notes, durations, offsets, displayNotes, volumes, ties, triplets: hasTriplets ? triplets : null, rhythmicGrouping: melody.rhythmicGrouping ?? null, rhythmicDNA: melody.rhythmicDNA ?? null };
 }
 
 /**
