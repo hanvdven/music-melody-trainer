@@ -262,7 +262,8 @@ const renderMelodyNotes = (
 
   // Accidental map is generated from the (possibly transposed) display notes so that
   // accidentals reflect the written key, not the sounding key.
-  const accidentals = generateAccidentalMap(melodyNotes, numAccidentals);
+  // Offsets + measureLengthSlots enable within-measure repeat suppression and natural reminders.
+  const accidentals = generateAccidentalMap(melodyNotes, numAccidentals, melodyOffsets, measureLengthSlots);
 
   // --- UNIFIED Y-SHIFT CALCULATION ---
   const clefOffsets = {

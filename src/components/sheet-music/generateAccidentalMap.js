@@ -40,17 +40,92 @@ const computeAccidental = (n, scaleAccidentals) => {
   return scaleAccidentals.includes(note) ? null : 'n';
 };
 
-const generateAccidentalMap = (melody, numAccidentals) => {
+// Maestro font characters for small courtesy accidentals (shown when the same
+// accidental repeats within a measure to avoid redundant full symbols).
+const SMALL_COURTESY = {
+  '#': '[',   // small courtesy sharp   (Maestro: [)
+  'b': '{',   // small courtesy flat    (Maestro: SHIFT+[)
+  'n': 'N',   // courtesy natural       (Maestro: SHIFT+n)
+  'Ü': ']',   // small courtesy double-sharp
+  'º': 'º',   // no distinct small double-flat in Maestro; keep full symbol
+};
+
+// Apply within-measure accidental state for one note.
+// seenInMeasure maps base pitch letter (A–G) → last shown accidental character.
+// Mutates seenInMeasure in place; returns the character to display (or null).
+const applyMeasureState = (noteStr, raw, seenInMeasure) => {
+  const base = noteStr.match(/[A-G]/)?.[0];
+  if (!base) return raw; // unparseable (shouldn't happen for melodic notes)
+
+  const prev = seenInMeasure.get(base); // undefined = not seen this measure
+
+  if (raw !== null) {
+    if (prev === undefined) {
+      // First time this letter gets an accidental this measure.
+      seenInMeasure.set(base, raw);
+      return raw;
+    }
+    if (prev === raw) {
+      // Same accidental already shown → small courtesy reminder.
+      return SMALL_COURTESY[raw] ?? raw;
+    }
+    // Different accidental (e.g. shown ♯ now needs ♭) → show full new one.
+    seenInMeasure.set(base, raw);
+    return raw;
+  }
+
+  // raw === null: note is natural.
+  if (prev === undefined || prev === 'n') {
+    // No prior accidental shown for this letter, or natural was already shown as
+    // a reminder — nothing more to add.
+    return null;
+  }
+  // An accidental was shown earlier this measure; show a natural reminder.
+  seenInMeasure.set(base, 'n');
+  return 'n';
+};
+
+// offsets and measureLengthSlots are optional. When provided, repeated accidentals
+// within the same measure are replaced with small courtesy symbols and a natural
+// reminder is shown when a previously-accidentalled note reverts to natural.
+// Without them the function behaves identically to the original version.
+const generateAccidentalMap = (melody, numAccidentals, offsets = null, measureLengthSlots = null) => {
   const accidentals = [];
   const scaleAccidentals = scaleAccidentalNotes[numAccidentals] || [];
+
+  const useTracking = offsets !== null && measureLengthSlots !== null && measureLengthSlots > 0;
+  const seenInMeasure = new Map(); // base letter → last shown accidental char
+  let currentMeasure = -1;
+
   for (let i = 0; i < melody.length; i++) {
-    if (Array.isArray(melody[i])) {
-      // For melodic chord arrays: per-note accidentals (percussion rendering ignores this array)
-      accidentals.push(melody[i].map(n => computeAccidental(n, scaleAccidentals)));
+    const noteWithAcc = melody[i];
+
+    if (useTracking) {
+      const measure = Math.floor((offsets[i] ?? 0) / measureLengthSlots);
+      if (measure !== currentMeasure) {
+        seenInMeasure.clear();
+        currentMeasure = measure;
+      }
+    }
+
+    if (Array.isArray(noteWithAcc)) {
+      // Per-note accidentals for melodic chord arrays.
+      accidentals.push(noteWithAcc.map(n => {
+        const raw = computeAccidental(n, scaleAccidentals);
+        return useTracking ? applyMeasureState(n, raw, seenInMeasure) : raw;
+      }));
       continue;
     }
-    accidentals.push(melody[i] ? computeAccidental(melody[i], scaleAccidentals) : null);
+
+    if (!noteWithAcc || noteWithAcc === 'r') {
+      accidentals.push(null);
+      continue;
+    }
+
+    const raw = computeAccidental(noteWithAcc, scaleAccidentals);
+    accidentals.push(useTracking ? applyMeasureState(noteWithAcc, raw, seenInMeasure) : raw);
   }
+
   return accidentals;
 };
 

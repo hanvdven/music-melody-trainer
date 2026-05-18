@@ -255,7 +255,7 @@ Dus: klik op ♯/♭ direct vóór een noot → speelt de noot af (zelfde gedrag
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 [Claude 2026-05-18]: Opgelost. Inline accidentalen (direct voor een noot) roepen niet langer `onAccidentalClick` aan — de click-handler en `stopPropagation` zijn verwijderd, zodat klikken op het voorteken omhoog borrelt naar de parent `<g data-notes>` en de noot afspeelt (identiek aan klikken op de nootkop zelf). De glow-highlight (`note-active` filter) is automatisch van toepassing op het voorteken omdat het een kind is van de `<g data-notes>`. Extra brede transparante `<rect>` (20×30px) toegevoegd als klikzone rond het voorteken. Sleutelvoortekens (begin van de maat, via `renderAccidentals()`) hebben een eigen handler en gedragen zich ongewijzigd. `onAccidentalClick`-prop verwijderd uit `renderMelodyNotes`; `trebleAccidentalClick`/`bassAccidentalClick` verwijderd uit `SheetMusic.jsx`. Bestanden: `renderMelodyNotes.jsx`, `SheetMusic.jsx`. Extra vereiste (Han 2026-05-18): bij herhaalde accidentalen feature — highlight het eerder-in-de-maat-getoonde accidentaal wanneer de noot actief is.
 
-### Feature: Correcte accidentaal-weergave — herhaalde accidentalen en herstellingstekens
+✅ ### Feature: Correcte accidentaal-weergave — herhaalde accidentalen en herstellingstekens
 
 feature request (backlog): correct behaviour of accidentals: repeated accidentals and natural accidentals. The maestro letter for natural accidental is 'n'.
 
@@ -265,6 +265,12 @@ Vereist:
 - Logica hoort in renderMelodyNotes.jsx, bijgehouden per maat via een accidentalState map.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-18]: Geïmplementeerd in `generateAccidentalMap.js`. Tracking per basletter (A–G) per maat via `seenInMeasure` Map. Regels:
+- Eerste keer accidentaal in maat → volledig symbool, onthoud char
+- Zelfde accidentaal herhaald → klein courtesy-symbool (Maestro: `[` voor ♯, `{` voor ♭, `N` voor ♮-reminder, `]` voor 𝄪)
+- Noot wordt terug naturel na accidentaal → herstellingsteken `n` (eenmalig)
+- Maatgrens → reset state
+Optionele `offsets`/`measureLengthSlots` params (backward compatible — bestaande aanroepen zonder die args werken ongewijzigd). In `renderMelodyNotes.jsx` de aanroep bijgewerkt met `melodyOffsets` en `measureLengthSlots`. Interviewantwoord Han: zelfde basletter geldt voor alle octaven; small bracketed (courtesy) accidentalen gebruiken. Bestanden: `generateAccidentalMap.js`, `renderMelodyNotes.jsx`.
 
 ### ✅ Bug: Overmatig gebruik van 8vb in de treblesleutel
 
