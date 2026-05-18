@@ -49,16 +49,30 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
   const timeSigTop = timeSignature[0];
 
   // Beat-group boundary ticks (relative to measure start, excluding 0 = downbeat).
-  // decomposeNumeratorToBeatGroups returns group-start offsets in beat-unit steps;
-  // multiply by beatUnit to get ticks. Used for both beat-level assignment and
-  // the legacy 3a irregular-boundary path below.
-  // Examples: 4/4 → [0,2]×12 → internal boundary at 24 (beat 3).
-  //           5/4 → [0,3]×12 → internal boundary at 36 (beat 4).
-  //           6/8 → [0,3]×6  → internal boundary at 18 (compound beat 2).
+  // When melody.rhythmicGrouping is present (e.g. [3,2] for 5/4 played as 3+2),
+  // use it directly so boundaries match the DNA that drove generation. This fixes
+  // cases where the generated grouping differs from decomposeNumeratorToBeatGroups'
+  // default (e.g. 5/4 generated as [2,3] has its boundary at beat 2, not beat 3).
+  // Fall back to decomposeNumeratorToBeatGroups for melodies without explicit grouping.
+  // Examples: [3,2]×12 → internal boundary at 36 (beat 4 of 5/4).
+  //           [2,3]×12 → internal boundary at 24 (beat 3 of 5/4).
+  //           [3,3]×6  → internal boundary at 18 (compound beat 2 of 6/8).
   const beatUnit = TICKS_PER_WHOLE / timeSignature[1];
-  const beatGroupBoundaryTicks = decomposeNumeratorToBeatGroups(timeSigTop)
-      .slice(1)              // exclude 0 (measure start — not an internal boundary)
-      .map(s => s * beatUnit);
+  let beatGroupBoundaryTicks;
+  if (melody.rhythmicGrouping && melody.rhythmicGrouping.length > 1) {
+    // Convert group sizes to cumulative beat-starts, skip the first (measure start = 0).
+    const groupStarts = [];
+    let groupAcc = 0;
+    for (let gi = 0; gi < melody.rhythmicGrouping.length; gi++) {
+      groupStarts.push(groupAcc);
+      groupAcc += melody.rhythmicGrouping[gi];
+    }
+    beatGroupBoundaryTicks = groupStarts.slice(1).map(s => s * beatUnit);
+  } else {
+    beatGroupBoundaryTicks = decomposeNumeratorToBeatGroups(timeSigTop)
+        .slice(1)
+        .map(s => s * beatUnit);
+  }
   const beatGroupBoundaryTickSet = new Set(beatGroupBoundaryTicks);
 
   // Beat-strength level of a tick position within a measure.
