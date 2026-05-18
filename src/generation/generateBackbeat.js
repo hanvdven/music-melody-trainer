@@ -324,9 +324,11 @@ export function generateBackbeat2(
         }
     };
 
-    // ── 1. Hihat on every beat-unit slot across all measures ──────────────────
-    // slotsPerBeat is always an integer (measureNoteResolution / timeSignature[1]).
-    for (let s = 0; s < totalSlots; s += slotsPerBeat) {
+    // ── 1. Hihat on every slot across all measures ────────────────────────────
+    // Step by 1 so the hihat fills every subdivision (= every smallestNoteDenom value),
+    // matching the density of backbeat_1. backbeat_2 differs only in WHERE kick and snare
+    // land, not in hihat density.
+    for (let s = 0; s < totalSlots; s++) {
         rawNotes[s] = 'hh';
     }
 
