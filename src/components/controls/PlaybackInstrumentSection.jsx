@@ -5,9 +5,10 @@ import { SectionHeader, ColumnHeaders, BracketHeader } from './PlaybackSubCompon
 import { HarmonicSlider } from './DifficultyControls';
 import { MELODY_DIFFICULTY_RANGE, calcTrebleDifficulty } from '../../utils/melodyDifficultyTable';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
+import { GRID_GENERATOR, GRID_VISIBILITY } from '../../constants/musicLayout';
 
-const GRID_GENERATOR = '12% 18% 12% 22% 12% 12% 12%';
-const GRID_VISIBILITY = '12% 22% 22% 22% 22%';
+// Narrower 2-column grid for the difficulty-slider rows (label + slider only).
+const GRID_DIFF = '12% 18% 12% 22% 12% 12% 12%';
 
 /**
  * Renders the "Instruments" and "Visibility & Audibility" sections of PlaybackSettings.
@@ -31,7 +32,7 @@ const PlaybackInstrumentSection = ({
                 { key: 'treble', settings: trebleSettings, target: targetTrebleDifficulty, setTarget: setTargetTrebleDifficulty },
                 { key: 'bass',   settings: bassSettings,   target: targetBassDifficulty,   setTarget: setTargetBassDifficulty   },
             ].map(({ key, settings, target, setTarget }) => (
-                <div key={key} className="ps-diff-row" style={{ gridTemplateColumns: GRID_GENERATOR }}>
+                <div key={key} className="ps-diff-row" style={{ gridTemplateColumns: GRID_DIFF }}>
                     <div className="ps-diff-col-label">{key}</div>
                     <div className="ps-diff-col-slider">
                         <HarmonicSlider
@@ -54,7 +55,7 @@ const PlaybackInstrumentSection = ({
 
             <ColumnHeaders
                 gridConfig={GRID_GENERATOR}
-                columns={['instrument', 'melody notes', 'randomization', 'melody', 'NOTES / MEASURE', 'SMALLEST NOTE', 'VARIABILITY', 'SPAN']}
+                columns={['instrument', 'melody notes', 'randomization', 'melody', 'NOTES / MEASURE', 'SMALLEST NOTE', 'VARIABILITY', 'SPAN', 'TUPLETS']}
             />
             <InstrumentRow
                 label="Treble"

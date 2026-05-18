@@ -66,7 +66,9 @@ class InstrumentSettings {
       true,                   // strummingEnabled
       { min: 'C4', max: 'E5' }, // range
       'treble',               // preferredClef
-      'STANDARD'              // rangeMode
+      'STANDARD',             // rangeMode
+      'C',                    // transpositionKey
+      12                      // maxLeap — one octave default
     );
   }
 
@@ -84,7 +86,9 @@ class InstrumentSettings {
       true,                   // strummingEnabled
       { min: 'A2', max: 'C4' }, // range
       'bass',                 // preferredClef
-      'STANDARD'              // rangeMode
+      'STANDARD',             // rangeMode
+      'C',                    // transpositionKey
+      12                      // maxLeap — one octave default
     );
   }
 
