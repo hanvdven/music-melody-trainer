@@ -738,8 +738,6 @@ const SheetMusic = ({
     timeSignature,
     noteGroupSize,
     displayNumMeasures * measureLengthSlots, // use block duration
-    partialMeasureStart,
-    partialTop
   );
 
   const trebleMelodyFlags = processMelodyAndCalculateFlags(
@@ -753,8 +751,6 @@ const SheetMusic = ({
     timeSignature,
     noteGroupSize,
     displayNumMeasures * measureLengthSlots,
-    partialMeasureStart,
-    partialTop
   );
 
   const adjustedPercussionMelody = processMelodyAndCalculateSlots(
@@ -762,12 +758,10 @@ const SheetMusic = ({
     timeSignature,
     noteGroupSize,
     displayNumMeasures * measureLengthSlots,
-    partialMeasureStart,
-    partialTop
   );
 
   const adjustedMetronomeMelody = currentMetronome
-    ? processMelodyAndCalculateSlots(currentMetronome, timeSignature, noteGroupSize, displayNumMeasures * measureLengthSlots, partialMeasureStart, partialTop)
+    ? processMelodyAndCalculateSlots(currentMetronome, timeSignature, noteGroupSize, displayNumMeasures * measureLengthSlots)
     : null;
 
   // For rendering, expand chords to match the active melody's measure span so chord labels
