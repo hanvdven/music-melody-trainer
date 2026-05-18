@@ -392,6 +392,7 @@ export function generateBackbeat2(
     const melody = new Melody(finalNotes, durations, offsets, finalNotes);
     // Attach grouping so the sheet-music renderer can draw correct beam spans.
     melody.rhythmicGrouping = grouping;
+    melody.rhythmicDNA = dnaMeasure;
     return melody;
 }
 
