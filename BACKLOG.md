@@ -246,6 +246,31 @@ Ik zie geen tuplets bij percussie of bas, hoe komt dat? Is de bedoeling dat ze o
 
 [Claude 2026-04-09]: Geïmplementeerd — klik op ♯/♭ symbool vóór een noot wisselt de displayNote naar enharmonisch equivalent (F♯↔G♭ etc.) via ENHARMONIC_PAIRS. Speelt de noot NIET af (stopPropagation). Alleen displayNotes gewijzigd; audio-pitch (notes array) blijft ongewijzigd. Bestanden: renderMelodyNotes.jsx (onAccidentalClick param), SheetMusic.jsx (onNoteEnharmonicToggle prop + paginationOffset), App.jsx (handleNoteEnharmonicToggle). Aanname: alleen singlenoten (geen akkoorden); enharmonisch equivalent op basis van ENHARMONIC_PAIRS uit noteUtils.js.
 
+### Bug: klikken op accidentaal vóór noot wisselt enharmonisch — moet alleen noot spelen
+
+bug (backlog): clicking the accidental of a note in the sheet music changes the note to its enharmonic equivalent — this should only happen when clicking the accidental all the way at the beginning of the bar (key signature), not accidentals directly before notes. Clicking the accidental should just play the note (as if the note itself was clicked).
+
+Dus: klik op ♯/♭ direct vóór een noot → speelt de noot af (zelfde gedrag als klikken op de noot zelf). Klik op voortekens in de sleutel / aan het begin van de maat → wisselt enharmonisch equivalent.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Feature: Correcte accidentaal-weergave — herhaalde accidentalen en herstellingstekens
+
+feature request (backlog): correct behaviour of accidentals: repeated accidentals and natural accidentals. The maestro letter for natural accidental is 'n'.
+
+Vereist:
+- Wanneer een noot in dezelfde maat al een voorteken had, maar de volgende versie van dezelfde noot geen voorteken heeft, toon dan een herstellingsteken (♮, Maestro letter 'n').
+- Wanneer dezelfde geaccidenteerde noot herhaald wordt in dezelfde maat, hoeft het accidentaal niet herhaald te worden (tenzij er een noot zonder accidentaal tussenzit).
+- Logica hoort in renderMelodyNotes.jsx, bijgehouden per maat via een accidentalState map.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Bug: Overmatig gebruik van 8vb in de treblesleutel
+
+bug (backlog): excessive use of 8vb in treble clef. Only use 8va and 8vb when MANY notes fall outside the standard range (not just single notes). A single note that falls outside C4–G5 should not trigger an 8va/8vb marking; only use it when a significant portion of the passage lies outside the staff range.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
 ✅ Noten en lyrics klikbaar (do-re-mi / takadimi spelen de noot/slag).
 
 ### Weergave & layout
@@ -466,6 +491,20 @@ Invariant: wanneer `passingChords !== 'none'`, altijd **precies 1 structurele ch
 Zorg dat notatie, en progressielogica, akkoorden strookt met muziektheorie. bijvoorbeeld:
 <https://musictheory.pugetsound.edu/mt21c/MusicTheory.html>
 <https://method-behind-the-music.com/theory/notation/>
+
+### Bug: 'Next' knop genereert geen nieuwe akkoorden
+
+bug (backlog): when clicking 'next' in the header, no new chords are being generated.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Issue: Akkoorden respecteren beats en backbeats niet
+
+issue (backlog): chords should also respect the beats and backbeats. both with normal and passing chord settings.
+
+De chord-plaatsing via MelodyGenerator gebruikt rank+2×afstand (proximityUtils.findBestSlot). Beats en backbeats hebben hogere ranks vanwege rhythmicDNA-prioritering. Toch lijkt de chord-positie soms niet overeen te komen met de beat/backbeat-logica van het drum-patroon. Kan ook samenhangen met backbeat_2: het is onduidelijk of chord-generatie dezelfde grouping gebruikt als de percussie.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 
 ---
 

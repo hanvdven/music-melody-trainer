@@ -77,7 +77,7 @@ class InstrumentSettings {
       'electric_bass_pick',   // instrument
       'bass',                 // type
       2,                      // notesPerMeasure
-      2,                      // smallestNoteDenom
+      4,                      // smallestNoteDenom — quarter-note resolution; 2 (half-note) broke odd-numerator time sigs
       0,                      // rhythmVariability
       false,                  // enableTriplets
       'chord',                // notePool
