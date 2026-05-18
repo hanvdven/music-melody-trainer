@@ -396,19 +396,20 @@ const SheetMusic = ({
     if (notes.length === 0) return activeClef;
     const countInRange = (min, max) => notes.filter(m => m >= min && m <= max).length;
 
-    // Ranges per user requirement (INTERNAL MIDI: C4 = 48)
+    // Ranges use getNoteIndex() indices: A0=0, each semitone = 1 step.
+    // C4 = 39 (not 48 — the old comment was wrong and caused all ranges to be off by 9).
     const RANGES = staff === 'bass' ? {
-      base: [24, 52],   // C2-E4
-      '8vb': [9, 28],   // A0-E2 (Extended down to A0=9)
+      base: [15, 43],   // C2-E4
+      '8vb': [0, 19],   // A0-E2
       '15vb': [0, 0],   // DISABLED
-      '8va': [48, 64],  // C4-E5
-      '15va': [60, 96]  // C5-C8 (Extended up to C8=96)
+      '8va': [39, 55],  // C4-E5
+      '15va': [51, 87]  // C5-C8
     } : {
-      base: [45, 72],   // A3-C6
-      '8vb': [33, 48],  // A2-C4
-      '15vb': [21, 36], // A1-C3
-      '8va': [69, 84],  // A5-C7
-      '15va': [81, 96]  // A6-C8
+      base: [36, 63],   // A3-C6
+      '8vb': [24, 39],  // A2-C4
+      '15vb': [12, 27], // A1-C3
+      '8va': [60, 75],  // A5-C7
+      '15va': [72, 87]  // A6-C8
     };
 
     // Rule 1: stay in base if all notes fit
@@ -1904,6 +1905,22 @@ const SheetMusic = ({
               </clipPath>
             )}
           </defs>
+
+          {/* Debug: branch name + PR number, top-right corner */}
+          {debugMode && (
+            <text
+              x={endX}
+              y={-18}
+              textAnchor="end"
+              fontSize="7"
+              fontFamily="monospace"
+              fill="rgba(255,0,0,0.75)"
+              style={{ pointerEvents: 'none', userSelect: 'none' }}
+            >
+              {import.meta.env.VITE_GIT_BRANCH ?? '?'}{' '}
+              {import.meta.env.VITE_PR_NUMBER ? `#${import.meta.env.VITE_PR_NUMBER}` : ''}
+            </text>
+          )}
 
           {/* Settings overlay is rendered AFTER blurred content so it appears on top */}
           {/* Vertical Barline - start of system. Animate height. */}
