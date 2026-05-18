@@ -312,12 +312,16 @@ const renderMelodyNotes = (
   const activeBounds = getTargetBounds();
 
   const displayNotes = [];
+  // rawDisplayNotes holds the note at its natural octave (before any 8va/8vb shift).
+  // Used to restore isolated notes that don't qualify for an ottava marking.
+  const rawDisplayNotes = [];
   const octaveShifts = [];
 
   melodyNotes.forEach((noteWithAccidental) => {
     // Chord arrays (simultaneous percussion notes) pass through unchanged
     if (Array.isArray(noteWithAccidental)) {
       displayNotes.push(noteWithAccidental);
+      rawDisplayNotes.push(noteWithAccidental);
       octaveShifts.push(0);
       return;
     }
@@ -328,6 +332,9 @@ const renderMelodyNotes = (
       ? noteWithAccidental.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '')
       : noteWithAccidental;
     let shift = 0;
+
+    // Capture the note at its natural octave before any 8va/8vb shift.
+    const noteBeforeShift = note;
 
     if (note && note !== 'r' && staff !== 'percussion') {
       let pureY = noteYMap[note];
@@ -349,6 +356,7 @@ const renderMelodyNotes = (
       }
     }
 
+    rawDisplayNotes.push(noteBeforeShift);
     displayNotes.push(note);
     octaveShifts.push(shift);
   });
@@ -418,6 +426,25 @@ const renderMelodyNotes = (
     }
   });
   if (currentGroup) octaveGroups.push(currentGroup);
+
+  // Suppress 8va/8vb for isolated notes — only mark passages where at least this many
+  // consecutive non-rest notes fall outside the staff range. Fewer notes use ledger lines
+  // instead, which is cleaner for single out-of-range notes in an otherwise normal passage.
+  const MIN_OTTAVA_NOTE_COUNT = 3;
+  for (let gi = octaveGroups.length - 1; gi >= 0; gi--) {
+    const g = octaveGroups[gi];
+    const nonRestCount = melodyNotes
+      .slice(g.start, g.end + 1)
+      .filter(n => n && n !== 'r' && !Array.isArray(n)).length;
+    if (nonRestCount < MIN_OTTAVA_NOTE_COUNT) {
+      // Restore natural-octave display notes and clear shift so ledger lines are used instead.
+      for (let i = g.start; i <= g.end; i++) {
+        smoothedShifts[i] = 0;
+        displayNotes[i] = rawDisplayNotes[i];
+      }
+      octaveGroups.splice(gi, 1);
+    }
+  }
 
   // Shifts and bounds logic moved up into UNIFIED Y-SHIFT CALCULATION
 
