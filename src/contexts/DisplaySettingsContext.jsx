@@ -9,7 +9,8 @@ import React, { createContext, useContext } from 'react';
  *   lyricsMode, setLyricsMode,
  *   chordDisplayMode, setChordDisplayMode,
  *   showNoteHighlight, setShowNoteHighlight,
- *   animationMode, setAnimationMode
+ *   animationMode, setAnimationMode,
+ *   courtesyAccidentals, setCourtesyAccidentals
  */
 const DisplaySettingsContext = createContext(null);
 

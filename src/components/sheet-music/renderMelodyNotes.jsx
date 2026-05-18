@@ -244,7 +244,8 @@ const renderMelodyNotes = (
   startMeasureIndex = 0,
   transpositionSemitones = 0,
   debugMode = false,
-  interactive = true  // set false for non-playable layers (metronome, previews)
+  interactive = true,  // set false for non-playable layers (metronome, previews)
+  courtesyAccidentals = true
 ) => {
   // previewMode can be: false (normal), true (yellow, for input test), or a CSS color string (e.g. 'rgba(220,30,30,0.85)' for wipe preview)
   const previewColor = typeof previewMode === 'string' ? previewMode : (previewMode ? 'var(--accent-yellow)' : null);
@@ -262,8 +263,9 @@ const renderMelodyNotes = (
 
   // Accidental map is generated from the (possibly transposed) display notes so that
   // accidentals reflect the written key, not the sounding key.
-  // Offsets + measureLengthSlots enable within-measure repeat suppression and natural reminders.
-  const accidentals = generateAccidentalMap(melodyNotes, numAccidentals, melodyOffsets, measureLengthSlots);
+  // Offsets + measureLengthSlots enable within-measure tracking; courtesyAccidentals controls
+  // whether small repeat reminders and cross-measure courtesies are shown.
+  const accidentals = generateAccidentalMap(melodyNotes, numAccidentals, melodyOffsets, measureLengthSlots, courtesyAccidentals);
 
   // --- UNIFIED Y-SHIFT CALCULATION ---
   const clefOffsets = {

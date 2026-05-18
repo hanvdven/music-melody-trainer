@@ -138,6 +138,7 @@ const App = () => {
         isModulationEnabled, setIsModulationEnabled,
         isSimpleView, setIsSimpleView,
         minimizeAccidentals, setMinimizeAccidentals,
+        courtesyAccidentals, setCourtesyAccidentals,
         debugMode, setDebugMode,
         noteColoringMode, setNoteColoringMode,
         showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef,
@@ -737,9 +738,10 @@ const App = () => {
         chordDisplayMode, setChordDisplayMode,
         showNoteHighlight, setShowNoteHighlight,
         animationMode, setAnimationMode,
+        courtesyAccidentals, setCourtesyAccidentals,
     }), [noteColoringMode, setNoteColoringMode, debugMode, lyricsMode, setLyricsMode,
         chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
-        animationMode, setAnimationMode]);
+        animationMode, setAnimationMode, courtesyAccidentals, setCourtesyAccidentals]);
 
     // Shared props for both SheetMusic instances (primary + tab view).
     // containerHeight and visibleMeasures differ between instances and are passed inline.
