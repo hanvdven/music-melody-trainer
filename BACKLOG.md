@@ -265,12 +265,7 @@ Vereist:
 - Logica hoort in renderMelodyNotes.jsx, bijgehouden per maat via een accidentalState map.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
-[Claude 2026-05-18]: Geïmplementeerd in `generateAccidentalMap.js`. Tracking per basletter (A–G) per maat via `seenInMeasure` Map. Regels:
-- Eerste keer accidentaal in maat → volledig symbool, onthoud char
-- Zelfde accidentaal herhaald → klein courtesy-symbool (Maestro: `[` voor ♯, `{` voor ♭, `N` voor ♮-reminder, `]` voor 𝄪)
-- Noot wordt terug naturel na accidentaal → herstellingsteken `n` (eenmalig)
-- Maatgrens → reset state
-Optionele `offsets`/`measureLengthSlots` params (backward compatible — bestaande aanroepen zonder die args werken ongewijzigd). In `renderMelodyNotes.jsx` de aanroep bijgewerkt met `melodyOffsets` en `measureLengthSlots`. Interviewantwoord Han: zelfde basletter geldt voor alle octaven; small bracketed (courtesy) accidentalen gebruiken. Bestanden: `generateAccidentalMap.js`, `renderMelodyNotes.jsx`.
+[Claude 2026-05-18 v2]: Herzien na Han's correcties. Drie bugfixes t.o.v. v1: (1) Revert toont altijd het juiste symbool via `noteOwnAccidental()` — terug naar ♭ toont `b`, terug naar ♮ toont `n`, terug naar 𝄪/𝄫 toont `Ü`/`º`. (2) Cross-maat courtesy: als een noot in de vorige maat chromatisch gewijzigd was (CHROMATIC set), krijgt de eerste verschijning in de nieuwe maat een small-courtesy versie van het juiste symbool. (3) Revert sentinel `REVERTED` (Symbol) voorkomt dubbele 'b'-reminder voor opeenvolgende in-key noten. `SMALL_COURTESY` bevat nu ook `'º': 'Î'` (kleine courtesy double-flat) en `'Ü': ']'`.
 
 ### ✅ Bug: Overmatig gebruik van 8vb in de treblesleutel
 
