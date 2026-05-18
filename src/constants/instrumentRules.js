@@ -10,6 +10,6 @@ export const RULE_FAMILIES = {
 
 export const PERC_FAMILIES = {
   random:   ['uniform'],
-  stylized: ['backbeat', 'swing'],
+  stylized: ['backbeat', 'backbeat_2', 'swing'],
   fixed:    ['fixed'],
 };

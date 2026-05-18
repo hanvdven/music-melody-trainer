@@ -2,7 +2,8 @@ import Melody from '../model/Melody.js';
 import logger from '../utils/logger';
 import convertRankedArrayToMelody from './convertRankedArrayToMelody.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
-import { generateBackbeat, generateSwing } from './generateBackbeat.js';
+import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
+import { generateBackbeat, generateBackbeat2, generateSwing } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults.js';
@@ -58,6 +59,15 @@ class MelodyGenerator {
                 randomizationNotes
             );
         }
+        if (randomizationRule === 'backbeat_2') {
+            return generateBackbeat2(
+                timeSignature, numMeasures,
+                smallestNoteDenom || 4,
+                rhythmVariability || 0,
+                notesPerMeasure,
+                randomizationNotes
+            );
+        }
         if (randomizationRule === 'swing') {
             return generateSwing(
                 timeSignature, numMeasures,
@@ -67,6 +77,10 @@ class MelodyGenerator {
                 randomizationNotes
             );
         }
+
+        // Choose the beat grouping once for this entire block (all numMeasures share the same grouping).
+        // e.g. 5/8 → [3,2] or [2,3] at random; 4/4 → [2,2] always.
+        const rhythmicGrouping = chooseGrouping(timeSignature[0]);
 
         let deterministicTemplate = null;
 
@@ -98,6 +112,12 @@ class MelodyGenerator {
             } else {
                 logger.warn('melodyGenerator', `Incompatible resolutions: Global ${GLOBAL_RESOLUTION}, Local ${localDenom}. Fallback to local.`);
             }
+        }
+
+        // Build the DNA template from the chosen grouping when no external template overrides it.
+        if (!deterministicTemplate) {
+            const dnaMeasure = generateRhythmicDNA(rhythmicGrouping, timeSignature, smallestNoteDenom);
+            deterministicTemplate = new Array(numMeasures).fill(null).map(() => [...dnaMeasure]);
         }
 
         const rankedArray = generateRankedRhythm(
@@ -461,6 +481,20 @@ class MelodyGenerator {
                 { noteCount: 3, denominator: 2, groupTicks: 2 * slotTicks, prob: Math.min(1, rhythmVariability / 500   * polyMult), minVar: 30 },
             ].filter(t => t.groupTicks > 0 && t.groupTicks <= measureTicks && rhythmVariability >= t.minVar);
 
+            // Pre-compute group-boundary tick offsets within one measure (excluding 0 and measureTicks).
+            // Tuplets that span a boundary are musically disruptive and should be rare.
+            const beatTick = TICKS_PER_WHOLE / timeSignature[1];
+            const groupBoundaryTicks = [];
+            {
+                let acc = 0;
+                for (let gi = 0; gi < rhythmicGrouping.length - 1; gi++) {
+                    acc += rhythmicGrouping[gi];
+                    groupBoundaryTicks.push(acc * beatTick);
+                }
+            }
+            // 10× penalty when the tuplet interval crosses a beat-group boundary.
+            const CROSS_BOUNDARY_FACTOR = 0.1;
+
             let groupIdCounter = 0;
             const winners = [];
 
@@ -469,7 +503,15 @@ class MelodyGenerator {
                 const dur = finalMelody.durations[i];
                 if (n === null || n === 'r') continue;
                 for (const t of tupletCandidates) {
-                    if (dur === t.groupTicks && Math.random() < t.prob) {
+                    if (dur !== t.groupTicks) continue;
+                    let prob = t.prob;
+                    if (groupBoundaryTicks.length > 0) {
+                        const offInMeasure = finalMelody.offsets[i] % measureTicks;
+                        const tupletEnd    = offInMeasure + t.groupTicks;
+                        if (groupBoundaryTicks.some(b => b > offInMeasure && b < tupletEnd))
+                            prob *= CROSS_BOUNDARY_FACTOR;
+                    }
+                    if (Math.random() < prob) {
                         groupIdCounter++;
                         winners.push({ i, id: groupIdCounter, ...t });
                         break; // Only one tuplet type per note
@@ -492,7 +534,9 @@ class MelodyGenerator {
 
                 for (let k = winners.length - 1; k >= 0; k--) {
                     const { i: idx, id, noteCount, denominator, groupTicks } = winners[k];
-                    const noteTicks     = Math.round(groupTicks / noteCount);
+                    // Use floor so the last note absorbs any rounding remainder, keeping total exact.
+                    const noteTicks     = Math.floor(groupTicks / noteCount);
+                    const lastNoteTicks = groupTicks - (noteCount - 1) * noteTicks;
                     // visualDuration: note value to display (groupTicks / denominator maps to a standard tick count).
                     const visualDuration = Math.round(groupTicks / denominator);
 
@@ -504,34 +548,32 @@ class MelodyGenerator {
 
                     const entry = { id, noteCount, denominator, groupTicks, visualDuration };
 
-                    notes        = [...notes.slice(0, idx),        ...allNotes,                                         ...notes.slice(idx + 1)];
-                    durations    = [...durations.slice(0, idx),    ...allNotes.map(() => noteTicks),                    ...durations.slice(idx + 1)];
-                    offsets      = [...offsets.slice(0, idx),      ...allNotes.map((_, j) => baseOff + j * noteTicks), ...offsets.slice(idx + 1)];
-                    displayNotes = [...displayNotes.slice(0, idx), ...allNotes,                                         ...displayNotes.slice(idx + 1)];
-                    volumes      = [...volumes.slice(0, idx),      ...allNotes.map(() => vol),                          ...volumes.slice(idx + 1)];
-                    triplets     = [...triplets.slice(0, idx),     ...allNotes.map(() => entry),                        ...triplets.slice(idx + 1)];
+                    // Replace the original note AND its denominator-1 continuation nulls (the full slot span).
+                    notes        = [...notes.slice(0, idx),        ...allNotes,                                                             ...notes.slice(idx + denominator)];
+                    durations    = [...durations.slice(0, idx),    ...allNotes.map((_, j) => j === noteCount - 1 ? lastNoteTicks : noteTicks), ...durations.slice(idx + denominator)];
+                    offsets      = [...offsets.slice(0, idx),      ...allNotes.map((_, j) => baseOff + j * noteTicks),                       ...offsets.slice(idx + denominator)];
+                    displayNotes = [...displayNotes.slice(0, idx), ...allNotes,                                                             ...displayNotes.slice(idx + denominator)];
+                    volumes      = [...volumes.slice(0, idx),      ...allNotes.map(() => vol),                                               ...volumes.slice(idx + denominator)];
+                    triplets     = [...triplets.slice(0, idx),     ...allNotes.map(() => entry),                                             ...triplets.slice(idx + denominator)];
                 }
 
-                // Drop (noteCount - 1) entries per winner from the tail so length stays consistent.
-                const extraTotal = winners.reduce((sum, w) => sum + (w.noteCount - 1), 0);
-                const keepN      = notes.length - extraTotal;
-
-                if (keepN > 0) {
-                    const tupletMelody = new Melody(
-                        notes.slice(0, keepN),
-                        durations.slice(0, keepN),
-                        offsets.slice(0, keepN),
-                        displayNotes.slice(0, keepN),
-                        volumes.slice(0, keepN),
-                    );
-                    tupletMelody.smallestNoteDenom = smallestNoteDenom;
-                    tupletMelody.triplets = triplets.slice(0, keepN);
-                    return tupletMelody;
-                }
+                // Arrays are now exactly the right length — no tail trimming needed.
+                const tupletMelody = new Melody(
+                    notes,
+                    durations,
+                    offsets,
+                    displayNotes,
+                    volumes,
+                );
+                tupletMelody.smallestNoteDenom = smallestNoteDenom;
+                tupletMelody.triplets = triplets;
+                tupletMelody.rhythmicGrouping = rhythmicGrouping;
+                return tupletMelody;
             }
             // No qualifying notes won the roll — fall through to return the unmodified melody.
         }
 
+        finalMelody.rhythmicGrouping = rhythmicGrouping;
         return finalMelody;
     }
 }
