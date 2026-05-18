@@ -2,6 +2,8 @@
 
 These instructions apply to every AI agent (Claude, Copilot, or other) working on this codebase. Follow them unconditionally. They exist to keep the codebase comprehensible, prevent regressions, and maintain a shared understanding between human and AI contributors.
 
+> **Before implementing anything**: read §4b. Every feature and bug fix requires an interview first — no exceptions.
+
 ---
 
 ## ⚠ Currently In Progress (April 30, 2026) — CLOUD AGENTS READ THIS FIRST
@@ -156,17 +158,28 @@ Rationale: comments encode the reasoning behind past decisions. Silently removin
 
 ---
 
-## 4b. Interview Before Implementing — Mandatory
+## ⚠ 4b. Interview Before Implementing — HARD STOP
 
-**Before implementing any feature — even after a direct instruction from Han — conduct a short interview with clarifying questions, both functional and technical.**
+> **Do not write a single line of implementation code until the interview is complete.**
+> This rule has no exceptions for features or bug fixes with any user-visible effect.
+> Skipping it is a mistake even when the request seems obvious — Han's intent is always
+> more specific than the summary suggests.
 
-This applies unconditionally: no feature is too small to skip the interview step. The cost of two questions is zero; the cost of building the wrong thing is high.
+**Before implementing any feature or bug fix, conduct a short interview:**
 
-Typical interview questions:
-- *Functional:* What is the exact user-facing behaviour? Any edge cases? What should NOT change?
-- *Technical:* Which existing components/hooks are affected? Should this be a new file or extend an existing one? Any performance or accessibility concerns?
+1. State your understanding of what was asked (1–2 sentences).
+2. Ask 2–4 clarifying questions — both functional and technical:
+   - *Functional:* What is the exact user-facing behaviour? Edge cases? What must NOT change?
+   - *Technical:* Which files are affected? New file or extend existing? Any invariants at risk?
+3. Wait for Han's answers before opening any file for editing.
 
-Exception: pure refactors with no user-visible change (e.g. renaming, extracting a hook) do not require an interview if the scope is unambiguous.
+**This applies unconditionally, even when:**
+- Han phrases the request as a direct instruction ("fix X", "add Y")
+- The fix seems small or obvious
+- The backlog item already has a `⚠ Neem alvorens dit te implementeren een interview af bij Han` notice (that notice is a reminder of THIS rule, not a separate one)
+- You already have a clear implementation plan in mind
+
+**Exception:** pure refactors with zero user-visible change (e.g. renaming a variable, extracting a hook with identical behaviour) — only if the scope is completely unambiguous.
 
 ---
 
