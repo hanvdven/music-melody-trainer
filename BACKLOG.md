@@ -265,11 +265,11 @@ Vereist:
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 
-### Bug: Overmatig gebruik van 8vb in de treblesleutel
+### ✅ Bug: Overmatig gebruik van 8vb in de treblesleutel
 
 bug (backlog): excessive use of 8vb in treble clef. Only use 8va and 8vb when MANY notes fall outside the standard range (not just single notes). A single note that falls outside C4–G5 should not trigger an 8va/8vb marking; only use it when a significant portion of the passage lies outside the staff range.
 
-> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-18]: Opgelost. `renderMelodyNotes.jsx`: ottava-groepen met minder dan 3 niet-rust-noten worden onderdrukt — die noten renderen met notenstreepjes in plaats van 8va/8vb. `MIN_OTTAVA_NOTE_COUNT = 3`. Originele (niet-verschoven) noten worden hersteld via `rawDisplayNotes`. Geldt voor alle sleutels (treble, bass, alto).
 
 ✅ Noten en lyrics klikbaar (do-re-mi / takadimi spelen de noot/slag).
 
