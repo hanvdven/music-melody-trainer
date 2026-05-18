@@ -115,8 +115,12 @@ class MelodyGenerator {
         }
 
         // Build the DNA template from the chosen grouping when no external template overrides it.
+        // Use effectiveDenom ≥ timeSignature[1] so that slotsPerBeat = effectiveDenom/denominator ≥ 1.
+        // Without this guard, smallestNoteDenom < denominator (e.g., bass default of 2 in 4/4) produces
+        // fractional slot counts, causing new Array(non-integer) to throw for odd numerators.
         if (!deterministicTemplate) {
-            const dnaMeasure = generateRhythmicDNA(rhythmicGrouping, timeSignature, smallestNoteDenom);
+            const effectiveDenom = Math.max(smallestNoteDenom, timeSignature[1]);
+            const dnaMeasure = generateRhythmicDNA(rhythmicGrouping, timeSignature, effectiveDenom);
             deterministicTemplate = new Array(numMeasures).fill(null).map(() => [...dnaMeasure]);
         }
 
