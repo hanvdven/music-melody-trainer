@@ -1427,50 +1427,9 @@ const SheetMusic = ({
   };
 
   // ── Debug: RhythmicDNA overlay above chord labels ────────────────────────────────────────
-  // Renders grouped rank numbers per measure in debug mode: "(1 3 7)(2 5)(4 6)"
-  // One group per rhythmicGrouping entry, each containing groupSize × slotsPerBeat ranks.
-  const renderDNADebug = () => {
-    if (!debugMode) return null;
-    const srcMelody = trebleMelody ?? bassMelody ?? percussionMelody;
-    const dna = srcMelody?.rhythmicDNA;
-    const grouping = srcMelody?.rhythmicGrouping;
-    if (!dna || !grouping || dna.length === 0 || grouping.length === 0) return null;
-
-    const totalGroupBeats = grouping.reduce((a, b) => a + b, 0);
-    if (totalGroupBeats === 0) return null;
-    const slotsPerBeat = dna.length / totalGroupBeats;
-
-    // Format one measure's DNA as "(r0 r1)(r2 r3)..."
-    const dnaText = grouping.map((size, gi) => {
-      const start = Math.round(grouping.slice(0, gi).reduce((a, b) => a + b, 0) * slotsPerBeat);
-      const end   = Math.round(start + size * slotsPerBeat);
-      return `(${dna.slice(start, end).map(r => r ?? '?').join(' ')})`;
-    }).join('');
-
-    // Find measure start X positions using the same 'm'-marker scan as renderRepeatSymbols.
-    const getXLocal = (index) => index === 0 ? startX - 35 : startX + (index - 1) * noteWidth;
-    const measureXs = [];
-    allOffsets.forEach((o, i) => { if (o === 'm') measureXs.push(getXLocal(i)); });
-    if (measureXs.length === 0) return null;
-
-    const DNA_Y = trebleStart - 74; // above chord labels (CHORD_ROOT_Y = trebleStart - 58)
-    return Array.from({ length: displayNumMeasures }, (_, m) => {
-      if (m >= measureXs.length) return null;
-      return (
-        <text
-          key={`dna-debug-${m}`}
-          x={measureXs[m]}
-          y={DNA_Y}
-          fontSize="8"
-          fontFamily="monospace"
-          fill="red"
-          style={{ pointerEvents: 'none', userSelect: 'none' }}
-        >
-          {dnaText}
-        </text>
-      );
-    });
-  };
+  // DNA debug is now rendered as an HTML overlay above the SVG (see the HTML overlay block
+  // just before the SVG wrapper div). Kept here as a no-op stub so call sites compile.
+  const renderDNADebug = () => null;
 
   // ── Lyric color helper — mirrors getMelodicColor / percussion chromatone logic ──────────
   const PERC_CHROMA = {
@@ -1827,6 +1786,41 @@ const SheetMusic = ({
 
       {/* Overlay controls — rendered INSIDE the SVG so coords match stave geometry */}
 
+      {/* Debug overlay: branch/PR and DNA groupings — rendered in HTML so SVG scaling never clips it */}
+      {debugMode && (() => {
+        const srcMelody = trebleMelody ?? bassMelody ?? percussionMelody;
+        const dna = srcMelody?.rhythmicDNA;
+        const grouping = srcMelody?.rhythmicGrouping;
+        let dnaText = null;
+        if (dna && grouping && dna.length > 0 && grouping.length > 0) {
+          const totalGroupBeats = grouping.reduce((a, b) => a + b, 0);
+          const slotsPerBeat = totalGroupBeats > 0 ? dna.length / totalGroupBeats : 1;
+          dnaText = grouping.map((size, gi) => {
+            const start = Math.round(grouping.slice(0, gi).reduce((a, b) => a + b, 0) * slotsPerBeat);
+            const end   = Math.round(start + size * slotsPerBeat);
+            return `(${dna.slice(start, end).map(r => r ?? '?').join(' ')})`;
+          }).join('');
+        }
+        const branch = import.meta.env.VITE_GIT_BRANCH ?? '?';
+        const pr = import.meta.env.VITE_PR_NUMBER;
+        return (
+          <div style={{
+            position: 'absolute', top: 2, right: 8, left: 8,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+            pointerEvents: 'none', userSelect: 'none', zIndex: 10,
+          }}>
+            {dnaText && (
+              <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'red', whiteSpace: 'nowrap', opacity: 0.85 }}>
+                {dnaText}
+              </span>
+            )}
+            <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'red', marginLeft: 'auto', whiteSpace: 'nowrap', opacity: 0.85 }}>
+              {branch}{pr ? ` #${pr}` : ''}
+            </span>
+          </div>
+        );
+      })()}
+
       <div
         style={{ flex: 1, display: 'flex', justifyContent: 'center', width: '100%', cursor: showSettings ? 'pointer' : 'default' }}
         onClick={handleSheetMusicClick}
@@ -1905,22 +1899,6 @@ const SheetMusic = ({
               </clipPath>
             )}
           </defs>
-
-          {/* Debug: branch name + PR number, top-right corner */}
-          {debugMode && (
-            <text
-              x={endX}
-              y={-18}
-              textAnchor="end"
-              fontSize="7"
-              fontFamily="monospace"
-              fill="rgba(255,0,0,0.75)"
-              style={{ pointerEvents: 'none', userSelect: 'none' }}
-            >
-              {import.meta.env.VITE_GIT_BRANCH ?? '?'}{' '}
-              {import.meta.env.VITE_PR_NUMBER ? `#${import.meta.env.VITE_PR_NUMBER}` : ''}
-            </text>
-          )}
 
           {/* Settings overlay is rendered AFTER blurred content so it appears on top */}
           {/* Vertical Barline - start of system. Animate height. */}
