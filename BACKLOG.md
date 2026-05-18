@@ -246,13 +246,14 @@ Ik zie geen tuplets bij percussie of bas, hoe komt dat? Is de bedoeling dat ze o
 
 [Claude 2026-04-09]: Geïmplementeerd — klik op ♯/♭ symbool vóór een noot wisselt de displayNote naar enharmonisch equivalent (F♯↔G♭ etc.) via ENHARMONIC_PAIRS. Speelt de noot NIET af (stopPropagation). Alleen displayNotes gewijzigd; audio-pitch (notes array) blijft ongewijzigd. Bestanden: renderMelodyNotes.jsx (onAccidentalClick param), SheetMusic.jsx (onNoteEnharmonicToggle prop + paginationOffset), App.jsx (handleNoteEnharmonicToggle). Aanname: alleen singlenoten (geen akkoorden); enharmonisch equivalent op basis van ENHARMONIC_PAIRS uit noteUtils.js.
 
-### Bug: klikken op accidentaal vóór noot wisselt enharmonisch — moet alleen noot spelen
+✅ ### Bug: klikken op accidentaal vóór noot wisselt enharmonisch — moet alleen noot spelen
 
 bug (backlog): clicking the accidental of a note in the sheet music changes the note to its enharmonic equivalent — this should only happen when clicking the accidental all the way at the beginning of the bar (key signature), not accidentals directly before notes. Clicking the accidental should just play the note (as if the note itself was clicked).
 
 Dus: klik op ♯/♭ direct vóór een noot → speelt de noot af (zelfde gedrag als klikken op de noot zelf). Klik op voortekens in de sleutel / aan het begin van de maat → wisselt enharmonisch equivalent.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-18]: Opgelost. Inline accidentalen (direct voor een noot) roepen niet langer `onAccidentalClick` aan — de click-handler en `stopPropagation` zijn verwijderd, zodat klikken op het voorteken omhoog borrelt naar de parent `<g data-notes>` en de noot afspeelt (identiek aan klikken op de nootkop zelf). De glow-highlight (`note-active` filter) is automatisch van toepassing op het voorteken omdat het een kind is van de `<g data-notes>`. Extra brede transparante `<rect>` (20×30px) toegevoegd als klikzone rond het voorteken. Sleutelvoortekens (begin van de maat, via `renderAccidentals()`) hebben een eigen handler en gedragen zich ongewijzigd. `onAccidentalClick`-prop verwijderd uit `renderMelodyNotes`; `trebleAccidentalClick`/`bassAccidentalClick` verwijderd uit `SheetMusic.jsx`. Bestanden: `renderMelodyNotes.jsx`, `SheetMusic.jsx`. Extra vereiste (Han 2026-05-18): bij herhaalde accidentalen feature — highlight het eerder-in-de-maat-getoonde accidentaal wanneer de noot actief is.
 
 ### Feature: Correcte accidentaal-weergave — herhaalde accidentalen en herstellingstekens
 
