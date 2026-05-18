@@ -244,8 +244,7 @@ const renderMelodyNotes = (
   startMeasureIndex = 0,
   transpositionSemitones = 0,
   debugMode = false,
-  interactive = true,  // set false for non-playable layers (metronome, previews)
-  onAccidentalClick = null  // (absoluteOffset: number) => void — called when user clicks an accidental symbol; caller computes the absolute offset
+  interactive = true  // set false for non-playable layers (metronome, previews)
 ) => {
   // previewMode can be: false (normal), true (yellow, for input test), or a CSS color string (e.g. 'rgba(220,30,30,0.85)' for wipe preview)
   const previewColor = typeof previewMode === 'string' ? previewMode : (previewMode ? 'var(--accent-yellow)' : null);
@@ -1281,6 +1280,16 @@ const renderMelodyNotes = (
           >
             {dot}
           </text>
+          {/* Wider transparent hit area so clicking just beside the accidental glyph still triggers the note. */}
+          {interactive && accidentals[index] && (
+            <rect
+              x={positionX - 22}
+              y={positionY - 18}
+              width={20}
+              height={30}
+              fill="transparent"
+            />
+          )}
           <text
             x={positionX - 4}
             y={positionY - 3}
@@ -1288,15 +1297,6 @@ const renderMelodyNotes = (
             fill={headColor}
             fontFamily="Maestro"
             textAnchor="end"
-            // Make the accidental symbol clickable to toggle enharmonic spelling.
-            // Only interactive when there is an actual accidental character AND the caller
-            // provides a handler. stopPropagation prevents the parent <g data-notes> from
-            // also firing and playing the note.
-            style={onAccidentalClick && accidentals[index] ? { cursor: 'pointer' } : undefined}
-            onClick={onAccidentalClick && accidentals[index] ? (e) => {
-              e.stopPropagation();
-              onAccidentalClick(melody.offsets[index]);
-            } : undefined}
           >
             {staff === 'percussion' ? null : accidentals[index]}
           </text>

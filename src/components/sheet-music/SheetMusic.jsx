@@ -722,14 +722,6 @@ const SheetMusic = ({
     ? localMeasureStart * measureLengthSlots
     : 0;
 
-  // Per-staff accidental-click handlers. Only created when the consumer provides the callback.
-  const trebleAccidentalClick = onNoteEnharmonicToggle
-    ? (relOffset) => onNoteEnharmonicToggle('treble', relOffset + paginationOffset)
-    : null;
-  const bassAccidentalClick = onNoteEnharmonicToggle
-    ? (relOffset) => onNoteEnharmonicToggle('bass', relOffset + paginationOffset)
-    : null;
-
   const currentTreble = sliceMelodyForPagination(trebleMelody);
   const currentBass = sliceMelodyForPagination(bassMelody);
   const currentPercussion = sliceMelodyForPagination(percussionMelody);
@@ -2173,7 +2165,7 @@ const SheetMusic = ({
                     >
                       {/* CHORD MELODY BLURRED BACKGROUND REMOVED */}
                       <g style={{ transform: `translateY(${trebleStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualTreble && renderMelodyNotes(adjustedTrebleMelody, numAccidentals, startX, noteWidth, allOffsets, 'treble', 0, noteGroupSize, measureLengthSlots, timeSignature, clefTreble, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, trebleTransSemitones, debugMode, true, trebleAccidentalClick)}
+                        {actualTreble && renderMelodyNotes(adjustedTrebleMelody, numAccidentals, startX, noteWidth, allOffsets, 'treble', 0, noteGroupSize, measureLengthSlots, timeSignature, clefTreble, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, trebleTransSemitones, debugMode, true)}
                         {isTrebleVisible && !actualTreble && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       {melodicLyricsActive && actualTreble && (
@@ -2182,7 +2174,7 @@ const SheetMusic = ({
                         </g>
                       )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualBass && renderMelodyNotes(adjustedBassMelody, numAccidentals, startX, noteWidth, allOffsets, 'bass', 0, noteGroupSize, measureLengthSlots, timeSignature, clefBass, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, bassTransSemitones, debugMode, true, bassAccidentalClick)}
+                        {actualBass && renderMelodyNotes(adjustedBassMelody, numAccidentals, startX, noteWidth, allOffsets, 'bass', 0, noteGroupSize, measureLengthSlots, timeSignature, clefBass, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, bassTransSemitones, debugMode, true)}
                         {isBassVisible && !actualBass && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>
