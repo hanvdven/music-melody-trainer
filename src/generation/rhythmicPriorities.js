@@ -133,7 +133,12 @@ const _rankPositions = (positions, n, initial, tie, startRank) => {
  */
 export const generateRhythmicDNA = (grouping, timeSignature, smallestNoteDenom) => {
     const [numerator, denominator] = timeSignature;
-    const slotsPerBeat = smallestNoteDenom / denominator;
+    // Guard: slotsPerBeat must be >= 1. If smallestNoteDenom < denominator
+    // (e.g. bass with half-note resolution in 4/4), treat the beat unit as the
+    // minimum grid resolution. The caller's smallestNoteDenom still expresses the
+    // desired minimum note duration; this guard only affects slot count.
+    const effectiveDenom = Math.max(smallestNoteDenom, denominator);
+    const slotsPerBeat = effectiveDenom / denominator; // always an integer >= 1
 
     const groupStarts = [];
     let off = 0;
@@ -235,7 +240,9 @@ export const generateDeterministicRhythm = (
         // For regular meters the slots are already filled by getDivisors, so the
         // null-check makes this pass a no-op — no separate "isIrregular" guard needed.
         const beatGroupStarts = decomposeNumeratorToBeatGroups(timeSignature[0]);
-        const slotsPerBeat = smallestNoteDenom / timeSignature[1];
+        // Use measureNoteResolution (already Math.max-guarded at line 215) so that
+        // slotsPerBeat >= 1 when smallestNoteDenom < denominator (e.g. bass in 4/4).
+        const slotsPerBeat = measureNoteResolution / timeSignature[1];
 
         for (let i = 0; i < numMeasures; i++) {
             let measureSlots = Array(numberOfSlotsPerMeasure).fill(null);
