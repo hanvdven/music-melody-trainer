@@ -130,16 +130,67 @@ The `Sequencer` is the conductor:
 The `Sequencer` passes the generated `chordProgression` (array of `Chord` objects) to the `MelodyGenerator` constructor for each track (treble, bass, percussion).
 
 ### Step 4 — Melody Construction (`melodyGenerator.js`)
-1. **Rhythm generation:** `generateRankedRhythm` builds a rhythmic grid of weighted "Ranks".
-2. **Range preparation:** determines the valid note range per instrument; builds `chromaticScale` with only valid notes.
-3. **Conversion:** calls `convertRankedArrayToMelody` with the rhythm, chords, and chromatic scale.
-4. **Tuplet post-processing:** after `fromFlattenedNotes`, scans the melody for qualifying notes and probabilistically converts them into tuplet groups (see §22). Attaches `melody.triplets` with per-note `TupletEntry` metadata.
+
+**Overview:** six sub-steps, identical for ALL instrument tracks (treble, bass, chords, percussion). No instrument-specific special-casing is allowed in the generation pipeline. `InstrumentSettings` (notePool, randomizationRule, smallestNoteDenom, rhythmVariability, …) carry all per-instrument variation.
+
+#### 4a — RhythmicDNA (`rhythmicPriorities.js` → `generateRhythmicDNA`)
+Produces a flat array of integer ranks for **one measure** — one rank per slot.
+
+- **Beat grouping** (`chooseGrouping`): decomposes the meter numerator into groups of 2 and 3 (e.g. 5 → [3,2] or [2,3], randomly ordered). Groups are chosen once and shared by all measures in the block.
+- **Phase 1:** rank group downbeats (leftmost first, then closest to n/2, n/4, 3n/4…).
+- **Phase 2:** rank 3-group third beats (rightmost first); fall back to 2-group second beats when no 3-groups.
+- **Phase 3:** rank second beats of all groups (only when 3-groups exist; otherwise Phase 2 already covered these).
+- **Subdivision expansion:** after beat-level ranks are assigned, the loop `while step > 1` fills in-between slots at increasing rank levels — each doubling of resolution gets a higher (lower-priority) rank.
+- **slotsPerBeat guard:** `effectiveDenom = Math.max(smallestNoteDenom, denominator)` ensures `slotsPerBeat = effectiveDenom / denominator ≥ 1` always — even when the instrument's `smallestNoteDenom` is coarser than a beat (e.g. bass with `smallestNoteDenom=2` in 4/4). Callers pass the raw `smallestNoteDenom`; the guard is internal to this function.
+- **Result:** `number[]` of length `numerator × slotsPerBeat`. Lower rank = higher rhythmic priority.
+- **Attached to melody** as `melody.rhythmicDNA` for debug display in SheetMusic.
+
+#### 4b — Measure replication (`melodyGenerator.js`)
+`deterministicTemplate = new Array(numMeasures).fill(null).map(() => [...dnaMeasure])`
+
+The single-measure DNA array is deep-copied once per measure. All measures share the same grouping and rank structure — variability is added in the next step.
+
+**Exception path:** when `globalRhythmArray` is set (cross-instrument rhythm sync), the template is downsampled from the global 16th-note grid instead. In this case `melody.rhythmicDNA` is null.
+
+#### 4c — Variability & ranking (`generateRankedRhythm.js`)
+Takes the `deterministicTemplate` and applies stochastic shuffling:
+
+- **Variability blend:** each slot value is perturbed by `(v/100) × totalSlots × random × 1.1 + ((1-v/100) × deterministicValue)` where `v = rhythmVariability`. At `v=0` the DNA order is fully preserved; at `v=100` it is nearly random.
+- **Sorting → rank assignment:** non-null values are sorted ascending; their array indices receive monotonically increasing rank integers. Equal values share the same rank.
+- **Result:** `number[]` of length `numMeasures × slotsPerMeasure`. Rank 0 = highest priority slot for note placement.
+- **`measureNoteResolution = Math.max(timeSignature[1], smallestNoteDenom)`** is applied here too, matching the slot count produced by `generateRhythmicDNA`.
+
+#### 4d — Range preparation (`melodyGenerator.js`)
+Filters the scale to only notes within the instrument's configured range (`InstrumentSettings.range`). For chromatic-range instruments the full chromatic set within the range is used. This produces `effectiveScale`.
+
+#### 4e — Note assignment (`convertRankedArrayToMelody.js`)
+Walks the ranked array and assigns notes to active slots:
+
+- **Active slot detection:** a slot is active when its rank places it within the top `notesPerMeasure` ranks per measure.
+- **Chord lookup:** for each slot, `getActiveChord(offset)` returns the current chord from `chordProgression`.
+- **Note pool filtering:** depending on `notePool` ('scale' | 'chord' | 'all' | 'metronome'), the candidate list is filtered.
+- **Randomization rule:** one of `'uniform'`, `'emphasize_roots'`, `'weighted'`, `'arp'`, `'fixed'` — determines how a note is chosen from the candidate pool.
+- **Null slots:** inactive slots remain `null`; they become continuation ticks in `Melody.fromFlattenedNotes` (see 4f).
+
+**Early-exit special cases** (before convertRankedArrayToMelody):
+- `backbeat` / `backbeat_2` / `swing`: percussion-specific generators, return a `Melody` directly.
+- `fullchord` / `pairedchord`: chord-voicing modes that replace note strings with `string[]` arrays.
+
+#### 4f — Rest insertion & melody construction (`melodyGenerator.js` → `Melody.fromFlattenedNotes`)
+- **Percussion rest insertion:** `insertRestsAtBeats` ensures every beat-aligned null slot becomes an explicit rest `'r'` (so the sheet renderer never shows a beat-length empty gap).
+- **`Melody.fromFlattenedNotes`:** converts the flat slot array into `(notes, durations, offsets)` triplets. Consecutive null slots after an active note extend that note's duration (`timeScale × count`). The `timeScale` is derived from `notes.length` and `numMeasures`, so it matches the actual slot resolution.
+- **Metadata attachment:** `melody.rhythmicGrouping = rhythmicGrouping`, `melody.rhythmicDNA = dnaMeasureForDebug` — used by the renderer for beaming and debug display.
+
+#### 4g — Tuplet post-processing (`melodyGenerator.js`)
+After `fromFlattenedNotes`, when `rhythmVariability > 0`, each active note has independent probabilistic chances of becoming a tuplet group (triplet, quintuplet, etc.). See §22 for the full tuplet specification.
+
+**Beat-group boundary penalty:** tuplets that span a rhythmic group boundary (e.g. crossing the 3|2 division in 5/4) receive a 10× probability reduction (`CROSS_BOUNDARY_FACTOR = 0.1`).
 
 ### Step 5 — Note Assignment (`convertRankedArrayToMelody.js`)
-1. **Slot iteration:** walks through rhythmic slots.
-2. **Chord lookup:** identifies the current chord by measure index.
-3. **Note pool filtering:** filters `chromaticScale` to notes matching the current chord's pitches.
-4. **Selection rule:** picks a note based on `randomizationType` (`'roots'`, `'chord'`, `'scale'`, `'balanced'`) and proximity weighting.
+*(Detailed in §4e above.)*
+
+### Step 6 — Slicing (`melodySlice.js`)
+The multi-measure `Melody` is sliced into per-measure `SlicedMelody` objects for sheet-music rendering. `rhythmicGrouping` and `rhythmicDNA` are passed through all slice/resize operations unchanged.
 
 ---
 
