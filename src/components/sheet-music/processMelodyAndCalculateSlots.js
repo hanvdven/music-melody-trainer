@@ -377,6 +377,9 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
     triplets: melody.triplets
       ? outOriginalIndices.map(i => (i !== null ? (melody.triplets[i] ?? null) : null))
       : null,
+    // Pass through so calculateAllOffsets can insert 'g' markers at the correct beat-group
+    // boundaries for the actual generated grouping (e.g. [2,3] vs [3,2] for 5/4).
+    rhythmicGrouping: melody.rhythmicGrouping ?? null,
   };
 };
 
