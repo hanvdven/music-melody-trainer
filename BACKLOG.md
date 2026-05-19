@@ -168,6 +168,18 @@ Voorlopig: elke maat dezelfde onderverdeling.
 
 [Claude 2026-05-12]: Opmerking: `decomposeNumeratorToBeatGroups` in `rhythmicPriorities.js` bestaat al en geeft beat-groepen terug (bijv. 5→[3,2]). De koppeling met splitsregels, backbeat-routing en notenpool-weging is nog niet gemaakt.
 [Claude 2026-05-17]: ⬇ LAGE PRIORITEIT — op verzoek van Han. Backbeat drum ✅ (backbeat_2 implementeert groeperings-bewuste kick/snare-plaatsing). Melodische noot-gewichten naar groepering: uitgesteld. De ranked array (DNA) zelf bevat al de groeperings-hiërarchie; de melodiegenerator gebruikt die al voor prioriteit. Extra weging van notenpool naar groepsgrens is een verfijning, niet een blocker.
+[Claude 2026-05-19]: ✅ Gedeelde groepering geïmplementeerd — `chooseGrouping()` wordt één keer per generatieblok aangeroepen in `useMelodyState.randomizeAll()` en doorgegeven aan alle generators (treble, bas, percussie, akkoorden, metronoom). `globalRhythmArray` gebruikt nu `generateRhythmicDNA(sharedGrouping)` in plaats van `generateDeterministicRhythm('default')`. Metronoom gebruikt `randomizationRule: 'metronome'` met `wh/wm/wl` woodblock-klikken op basis van groepsstart. Doorgegeven akkoorden (`insertPassingChords`) plaatst leidakkoorden op DNA-gerangschikte beats.
+
+### RhythmicGrouping — edge case bij maatsoortwijziging en geschiedenisnavigatie
+
+⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+Elk `Melody`-object draagt zijn eigen `rhythmicGrouping` (bijv. `[3,2]`). Twee randgevallen:
+
+1. **Geschiedenisnavigatie**: wanneer je teruggaat naar een oudere melodie, kan de groepering van die melodie afwijken van de huidige. Visueel is dit correct (de renderer gebruikt `melody.rhythmicGrouping`), maar dit moet bevestigd worden voor afspeelscheduling.
+2. **Maatsoortwijziging midden in de sessie**: de opgeslagen melodieën in de history hebben een groepering die bij de *oude* maatsoort hoort. Wat moet er gebeuren bij navigatie naar zo'n entry na een maatsoortwijziging?
+
+[Claude 2026-05-19]: Geparkeerd op verzoek van Han. Interview vereist vóór implementatie.
 
 ### Tuplets & polyritmiek
 
