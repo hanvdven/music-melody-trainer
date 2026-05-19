@@ -450,6 +450,7 @@ const useMelodyState = (
     navigateHistory,
     historyIndex,
     historyLength: history.length,
+    historyIndexRef,
     chordProgressionRef,
   };
 };

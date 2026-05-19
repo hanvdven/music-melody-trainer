@@ -284,6 +284,7 @@ const App = () => {
         randomizeMeasure,
         generateChords: generateChordsLogic,
         historyIndex,
+        historyIndexRef,
         navigateHistory,
         chordProgressionRef,
     } = useMelodyState(
@@ -462,6 +463,25 @@ const App = () => {
 
     const isPlaying = isPlayingContinuously || isPlayingScale || isPlayingMelody;
 
+    // Block display state: which song-level measure number the current block starts at,
+    // and which sequence position it first appeared at (for computing the repeat suffix R).
+    // blockMeasureStart: 1-indexed measure number of the first measure in the current block.
+    // blockPlayStart: the startMeasureIndex when the current block first appeared.
+    const [blockMeasureStart, setBlockMeasureStart] = useState(1);
+    const [blockPlayStart, setBlockPlayStart] = useState(0);
+
+    // Sync block display whenever historyIndex changes — covers: Next button, history navigation,
+    // and play start (randomizeAll fires here too). For Sequencer auto-generated blocks during
+    // continuous play, applyResultToSetters overrides these via the setBlockMeasureStart /
+    // setBlockPlayStart setters passed in sequencerSetters below.
+    useEffect(() => {
+        if (historyIndex >= 0) {
+            setBlockMeasureStart(historyIndex * numMeasures + 1);
+            setBlockPlayStart(0);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [historyIndex]);
+
     // When numMeasures is changed while NOT playing, resize the active melodies so the
     // sheet music immediately reflects the new target length:
     //   - Shorter target: notes beyond the new end are dropped; the last note is clamped.
@@ -587,6 +607,8 @@ const App = () => {
         setReferenceBassMelody,
         setReferenceScale,
         setStartMeasureIndex,
+        setBlockMeasureStart,
+        setBlockPlayStart,
         setIsOddRound,
         setVolume,
         setCurrentMeasureIndex,
@@ -617,7 +639,7 @@ const App = () => {
     }), [setTonic, setScale, setTrebleSettings, setBassSettings, setChordProgression,
         generateChords, setTrebleMelody, setBassMelody, setPercussionMelody,
         setShowNotes, setShowChordLabels, setReferenceMelody, setReferenceBassMelody,
-        setReferenceScale, setStartMeasureIndex, setIsOddRound, setVolume,
+        setReferenceScale, setStartMeasureIndex, setBlockMeasureStart, setBlockPlayStart, setIsOddRound, setVolume,
         setCurrentMeasureIndex, setDisplayChordProgression, setNextLayer, setPreviewMelody]);
 
     useEffect(() => {
@@ -631,6 +653,7 @@ const App = () => {
                 bpmRef,
                 timeSignatureRef: tsRef,
                 numMeasuresRef: nmRef,
+                historyIndexRef,
                 scaleRef,
                 playbackConfigRef: configRef,
                 metronomeRef,
@@ -891,6 +914,8 @@ const App = () => {
                             containerHeight={sheetHeight}
                             visibleMeasures={idealVisibleMeasures}
                             startMeasureIndex={startMeasureIndex}
+                            blockMeasureStart={blockMeasureStart}
+                            blockPlayStart={blockPlayStart}
                         />
                     </ErrorBoundary>
                 </div>
@@ -990,6 +1015,8 @@ const App = () => {
                     activeTab={activeTab}
                     sheetMusicCommonProps={sheetMusicCommonProps}
                     startMeasureIndex={startMeasureIndex}
+                    blockMeasureStart={blockMeasureStart}
+                    blockPlayStart={blockPlayStart}
                     idealVisibleMeasures={idealVisibleMeasures}
                     instruments={instruments}
                     manualInstruments={manualInstruments}
