@@ -539,6 +539,28 @@ Alle andere akkoorden die zijn ingevuld worden ingevuld door passing chords.
 
 Invariant: wanneer `passingChords !== 'none'`, altijd **precies 1 structurele chord per maat**, overal — in de progressie-pool-lengte, in MelodyGenerator's `notesPerMeasure`, én in de gefilterde notePool die Sequencer hergebruikt. Dit matcht de hardcoded `structuralCount = 1` in [passingChords.js:316](src/generation/passingChords.js#L316).
 
+### Bug: Verkeerde noot gegenereerd bij passing chords (geparkeerd — wacht op reproduceerbaar voorbeeld)
+
+bug: progression with passing chords accidental/note mistake:
+|| G | F#7 || Bdim | D7 || (|| = maatgrens, | = groepsgrens)
+notes: || xxx | f# xx || f(#) x x | x f# ||
+probleem: de f# voor Bdim heeft een courtesy sharp (#). Zou een courtesy neutral (n) moeten zijn. Bij afspelen klinkt inderdaad f#; moet f zijn.
+
+[Claude 2026-05-19 16:00]: Onderzocht. Bevindingen:
+
+**Hypothese 1 (wrongful courtesy accidental) — gefalsifieerd.**
+Een courtesy `#` op een noot kan enkel verschijnen als de noot-string letterlijk `F♯` bevat. `computeAccidental('F4', scaleAccidentals)` in C groot retourneert altijd `'n'` (herstellingsteken), nooit `'#'`. De courtesy `#` bewijst dus dat de opgeslagen noot wél F♯ is — de weergave is correct voor de verkeerde noot.
+
+**Hypothese 2 (verkeerde chord in opzoeklogica) — waarschijnlijk oorzaak, niet bevestigd.**
+In C groot zit F♯ niet in de toonladder; de `'scale'`-pool kan F♯ dan ook niet leveren. F♯ moet dus komen uit een `'chord'`-pool die de verkeerde chord retourneert. Vermoedelijke oorzaak: `getActiveChord` retourneert F#7 i.p.v. Bdim voor dat slot via de offset-gebaseerde lookup in `convertRankedArrayToMelody.js`. Exacte trigger (floating point, off-by-one bij passing chord boundary, of misalignment in `chordOffsetEvents`) kon niet worden vastgesteld zonder reproduceerbaar voorbeeld.
+
+**Wat te onderzoeken zodra er een reproduceerbaar geval is:**
+- Welk instrument / notePool toonde de fout (treble = 'scale', bas = 'chord')?
+- Log `chordOffsetEvents` en `slotOffset` voor het betreffende slot om te zien welke chord werd teruggegeven.
+- Controleer of de Bdim event-offset in de Melody exact overeenkomt met `slotIndex * ticksPerSlot`.
+
+[Claude 2026-05-19]: ⬇ GEPARKEERD — wacht op reproduceerbaar voorbeeld met screenshot/settings.
+
 ### Akkoord-taxonomie
 
 - nakijken of taxonomie volledig is
