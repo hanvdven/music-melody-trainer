@@ -678,6 +678,22 @@ bug: geen geluid bij indrukken pianotoets / "Play Melodies" — `gain`-property 
 
 ---
 
+## GAMIFICATION & FEEDBACK
+
+### Session progress bar, XP, levels & badges
+
+session progress bar, xp bar, levels, badges
+
+[Claude 2026-05-19]: Op de backlog gezet op verzoek van Han. Betreft een gamificatielaag: sessie-voortgangsbalk, XP-punten per goed gespeelde noot/maat, levels op basis van opgebouwde XP, en badges voor mijlpalen (bijv. "eerste 100 noten", "5 sessies voltooid"). Niet implementeren totdat Han dit activeert.
+
+### Auditieve feedback
+
+auditive feedback (dream: 'sparkles/chimes'; vocal feedback: "nice!" "beautiful!" - with temperaments. (e.g., SCREAMING!).
+
+[Claude 2026-05-19]: Op de backlog gezet op verzoek van Han. Betreft auditieve beloning bij goede input: korte chime/sparkle-effecten én stemgeluid-feedback met instelbaar temperament (rustig enthousiast t/m uitbundig schreeuwerig). Niet implementeren totdat Han dit activeert.
+
+---
+
 ## UX / UI — NAVIGATIE & STRUCTUUR
 
 ### Input achter een submenu

@@ -798,6 +798,7 @@ const SheetMusic = ({
       numRepeats,
       melodyMeasureCount,
       partialMeasureStart,
+      trebleMelody?.rhythmicGrouping ?? bassMelody?.rhythmicGrouping ?? percussionMelody?.rhythmicGrouping ?? null,
       (notesVisible && trebleMelody) ? melodyToTaggedOffsets(trebleMelody, fullTrebleAcc) : [],
       (notesVisible && bassMelody) ? melodyToTaggedOffsets(bassMelody, fullBassAcc) : [],
       (notesVisible && percussionMelody) ? percussionMelody.offsets : [],
@@ -859,6 +860,7 @@ const SheetMusic = ({
     numRepeats,
     displayNumMeasures,
     partialMeasureStart,
+    adjustedTrebleMelody?.rhythmicGrouping ?? adjustedBassMelody?.rhythmicGrouping ?? adjustedPercussionMelody?.rhythmicGrouping ?? null,
     (notesVisible && adjustedTrebleMelody) ? melodyToTaggedOffsets(adjustedTrebleMelody, trebleAccidentals) : [],
     (notesVisible && adjustedBassMelody) ? melodyToTaggedOffsets(adjustedBassMelody, bassAccidentals) : [],
     (notesVisible && adjustedPercussionMelody) ? adjustedPercussionMelody.offsets : [],
@@ -2330,6 +2332,7 @@ const SheetMusic = ({
                         const pmBassAcc = previewBass ? generateAccidentalMap(previewBass.notes, numAccidentals) : {};
                         const pmAllOffsets = calculateAllOffsets(
                           timeSignature, noteGroupSize, numRepeats, pmDisplayMeasures, null,
+                          pm.treble?.rhythmicGrouping ?? pm.bass?.rhythmicGrouping ?? pm.percussion?.rhythmicGrouping ?? null,
                           (nextNotesVisible && previewTreble) ? melodyToTaggedOffsets(previewTreble, pmTrebleAcc) : [],
                           (nextNotesVisible && previewBass) ? melodyToTaggedOffsets(previewBass, pmBassAcc) : [],
                           (nextNotesVisible && previewPerc) ? previewPerc.offsets : [],
