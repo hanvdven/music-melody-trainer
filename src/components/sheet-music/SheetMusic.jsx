@@ -186,7 +186,7 @@ const SheetMusic = ({
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
   const { noteColoringMode, setNoteColoringMode, debugMode, lyricsMode,
     chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
-    animationMode, courtesyAccidentals = true } = useDisplaySettings();
+    animationMode, courtesyAccidentals = true, percussionVoiceSplit = false } = useDisplaySettings();
   const svgRefInternal = useRef(null);
   // Use the ref passed from App.jsx if provided (so Sequencer callbacks can access the SVG),
   // otherwise fall back to an internal ref.
@@ -2184,7 +2184,7 @@ const SheetMusic = ({
                         {isBassVisible && !actualBass && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualPerc && renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, inputTestState, false, ppt, startMeasureIndex, 0, debugMode)}
+                        {actualPerc && renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, inputTestState, false, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
                         {isPercussionVisible && !actualPerc && !actualMetronome && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       {rhythmicLyricsActive && actualPerc && (
@@ -2206,7 +2206,7 @@ const SheetMusic = ({
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>
                         {isPercussionVisible && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
-                        {adjustedMetronomeMelody && renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, false, ppt, startMeasureIndex, 0, false, false)}
+                        {adjustedMetronomeMelody && renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, false, ppt, startMeasureIndex, 0, false, false, courtesyAccidentals, false)}
                       </g>
                     </g>
                     {/* Regular inner barlines — masked with old content during wipe */}
@@ -2289,9 +2289,9 @@ const SheetMusic = ({
                           </g>
                           <g style={{ transform: `translateY(${percussionStart}px)` }}>
                             {isPercussionVisible && nextPerc && nextNotesVisible && adjustedPercussionMelody &&
-                              renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex)}
+                              renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
                             {isPercussionVisible && nextMetro && adjustedMetronomeMelody &&
-                              renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex, 0, false, false)}
+                              renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex, 0, false, false, courtesyAccidentals, false)}
                             {isPercussionVisible && (!nextPerc && !nextMetro) &&
                               renderRepeatSymbols(allOffsets, noteWidth, ppt, [30], YCOL)}
                           </g>
@@ -2378,7 +2378,7 @@ const SheetMusic = ({
                             </g>
                             <g style={{ transform: `translateY(${percussionStart}px)` }}>
                               {isPercussionVisible && nextPerc && nextNotesVisible && previewPerc &&
-                                renderMelodyNotes(previewPerc, numAccidentals, startX, pmNoteWidth, pmAllOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], previewChords ?? processedChords, theme, null, RCOL, ppt, startMeasureIndex)}
+                                renderMelodyNotes(previewPerc, numAccidentals, startX, pmNoteWidth, pmAllOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], previewChords ?? processedChords, theme, null, RCOL, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
                               {isPercussionVisible && (!nextPerc && !nextMetro) &&
                                 renderRepeatSymbols(pmAllOffsets, pmNoteWidth, ppt, [30], RCOL)}
                             </g>

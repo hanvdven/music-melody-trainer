@@ -221,6 +221,25 @@ const ledgerLinesMapPercussion = {
 // Helper: Shorten stem for specific percussion notes
 const shortStemNotes = ['ho', 'wh', 'wl'];
 
+// RH (right hand / cymbal group): stem UP in parallel-voices notation.
+// Cymbals and hi-hats are played with sticks held in the right hand.
+// Woodblocks and cowbell are also RH by convention.
+const RH_PERC_NOTES = new Set(['hh', 'ho', 'cr', 'cc', 'cct', 'crt', 'cb', 'wh', 'wm', 'wl', 'c']);
+// LH (left hand / drum group): stem DOWN.
+// Snare, toms, kick, and hi-hat pedal are driven by left hand or foot.
+const LH_PERC_NOTES = new Set(['k', 's', 'sg', 'sr', 'th', 'tm', 'tl', 'hp']);
+
+// Returns true (stem up) when the note or chord belongs to the right-hand voice.
+// For mixed chords, RH majority wins; ties go UP (cymbals sit above drums on the staff).
+const percussionStemUp = (noteOrChord) => {
+  if (Array.isArray(noteOrChord)) {
+    let rh = 0, lh = 0;
+    noteOrChord.forEach(n => { if (RH_PERC_NOTES.has(n)) rh++; else lh++; });
+    return rh >= lh;
+  }
+  return !LH_PERC_NOTES.has(noteOrChord); // unknown notes default UP
+};
+
 const renderMelodyNotes = (
   melody,
   numAccidentals,
@@ -245,7 +264,8 @@ const renderMelodyNotes = (
   transpositionSemitones = 0,
   debugMode = false,
   interactive = true,  // set false for non-playable layers (metronome, previews)
-  courtesyAccidentals = true
+  courtesyAccidentals = true,
+  percussionVoiceSplit = false
 ) => {
   // previewMode can be: false (normal), true (yellow, for input test), or a CSS color string (e.g. 'rgba(220,30,30,0.85)' for wipe preview)
   const previewColor = typeof previewMode === 'string' ? previewMode : (previewMode ? 'var(--accent-yellow)' : null);
@@ -610,6 +630,18 @@ const renderMelodyNotes = (
           positionY = noteYMap[note] + combinedShift;
           if (Number.isNaN(positionY)) continue;
           stemIsAbove = positionY > staffYStart + 20;
+        }
+
+        // Parallel-voices override: classify every percussion note as RH (↑) or LH (↓).
+        // For chord arrays positionY must be recalculated after the direction change.
+        if (staff === 'percussion' && percussionVoiceSplit && !isRest) {
+          stemIsAbove = percussionStemUp(note);
+          if (Array.isArray(note)) {
+            const ys = note
+              .map(n => { const nat = stripAccidentals(n); return noteYMap[nat] !== undefined ? noteYMap[nat] + combinedShift : null; })
+              .filter(y => y !== null);
+            if (ys.length) positionY = stemIsAbove ? Math.max(...ys) : Math.min(...ys);
+          }
         }
 
         currentSubGroup.push({
