@@ -36,19 +36,23 @@ const SubHeader = ({
     const { treble: trebleMelody, bass: bassMelody, percussion: percMelody } = useMelodies();
 
     // Build DNA grouping string for debug overlay: "(r0 r1)(r2 r3)..."
-    const debugDnaText = (() => {
-        if (!debugMode) return null;
+    const { debugDnaText, debugGroupingText } = (() => {
+        if (!debugMode) return { debugDnaText: null, debugGroupingText: null };
         const src = trebleMelody ?? bassMelody ?? percMelody;
         const dna = src?.rhythmicDNA;
         const grouping = src?.rhythmicGrouping;
-        if (!dna?.length || !grouping?.length) return null;
+        const debugGroupingText = grouping?.length
+            ? `grouping: [${grouping.join(', ')}]`
+            : null;
+        if (!dna?.length || !grouping?.length) return { debugDnaText: null, debugGroupingText };
         const totalBeats = grouping.reduce((a, b) => a + b, 0);
-        if (!totalBeats) return null;
+        if (!totalBeats) return { debugDnaText: null, debugGroupingText };
         const spb = dna.length / totalBeats;
-        return grouping.map((size, gi) => {
+        const debugDnaText = grouping.map((size, gi) => {
             const start = Math.round(grouping.slice(0, gi).reduce((a, b) => a + b, 0) * spb);
             return `(${dna.slice(start, Math.round(start + size * spb)).map(r => r ?? '?').join(' ')})`;
         }).join('');
+        return { debugDnaText, debugGroupingText };
     })();
 
     const branch = import.meta.env.VITE_GIT_BRANCH ?? '?';
@@ -253,6 +257,11 @@ const SubHeader = ({
                     <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'red', whiteSpace: 'nowrap' }}>
                         {branch}{pr ? ` #${pr}` : ''}
                     </span>
+                    {debugGroupingText && (
+                        <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'red', whiteSpace: 'nowrap' }}>
+                            {debugGroupingText}
+                        </span>
+                    )}
                 </div>
             )}
         </div >
