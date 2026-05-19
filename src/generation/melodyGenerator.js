@@ -3,7 +3,7 @@ import logger from '../utils/logger';
 import convertRankedArrayToMelody from './convertRankedArrayToMelody.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
-import { generateBackbeat, generateBackbeat2, generateSwing } from './generateBackbeat.js';
+import { generateBackbeat, generateBackbeat2, generateSwing, generateMetronome } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults.js';
@@ -17,7 +17,7 @@ const isNoteInRange = (note, range) => {
 };
 
 class MelodyGenerator {
-    constructor(Scale, numMeasures, timeSignature, InstrumentSettings, chords = [], range = null, runId = null, globalRhythmArray = null) {
+    constructor(Scale, numMeasures, timeSignature, InstrumentSettings, chords = [], range = null, runId = null, globalRhythmArray = null, externalRhythmicGrouping = null) {
 
         // Guard against Scale.notes being undefined — root cause unclear but defensive
         // coding prevents the runtime crash. Log to aid future diagnosis.
@@ -36,6 +36,9 @@ class MelodyGenerator {
         this.range = range; // { min: 'C4', max: 'C5' }
         this.runId = runId;
         this.globalRhythmArray = globalRhythmArray;
+        // When provided by the caller (e.g. useMelodyState shared grouping), skip the
+        // internal chooseGrouping() call so all generators in one block share the same grouping.
+        this.externalRhythmicGrouping = externalRhythmicGrouping;
     }
 
     generateMelody() {
@@ -77,22 +80,27 @@ class MelodyGenerator {
                 randomizationNotes
             );
         }
+        if (randomizationRule === 'metronome') {
+            // wh/wm/wl woodblock clicks driven by the shared grouping; no randomisation.
+            const grouping = this.externalRhythmicGrouping ?? chooseGrouping(timeSignature[0]);
+            return generateMetronome(timeSignature, numMeasures, grouping);
+        }
 
-        // Choose the beat grouping once for this entire block (all numMeasures share the same grouping).
-        // e.g. 5/8 → [3,2] or [2,3] at random; 4/4 → [2,2] always.
-        const rhythmicGrouping = chooseGrouping(timeSignature[0]);
+        // Use the externally supplied grouping when all generators in one block should share the
+        // same beat hierarchy. Falls back to a fresh random choice when none is provided.
+        const rhythmicGrouping = this.externalRhythmicGrouping ?? chooseGrouping(timeSignature[0]);
 
         let deterministicTemplate = null;
 
         if (this.globalRhythmArray) {
             // Global resolution is 16th notes (GLOBAL_RESOLUTION = 16).
-            // Current resolution is defined by smallestNoteDenom (e.g., 8).
-            // If global is 16 and local is 8, we sample every 2nd slot.
-
-            const localDenom = smallestNoteDenom;
+            // Use effectiveDenom = max(smallestNoteDenom, timeSignature[1]) so that bass
+            // (smallestNoteDenom=2 in 4/4 or 5/4) samples at the beat grid, not the half-note
+            // grid. Without this guard, step = 16/2 = 8 produces only 3 slots in 5/4 instead of 5.
+            const localDenom = Math.max(smallestNoteDenom, timeSignature[1]);
 
             if (localDenom <= GLOBAL_RESOLUTION && GLOBAL_RESOLUTION % localDenom === 0) {
-                const step = GLOBAL_RESOLUTION / localDenom; // e.g. 16/8 = 2. Sample every 2nd.
+                const step = GLOBAL_RESOLUTION / localDenom; // e.g. 16/4 = 4. Sample every 4th.
 
                 // globalRhythmArray is Array<Array<number|null>> (measures of slots)
                 // We need to map this to the local resolution.
@@ -115,14 +123,12 @@ class MelodyGenerator {
         }
 
         // Build the DNA template from the chosen grouping when no external template overrides it.
-        // Use effectiveDenom ≥ timeSignature[1] so that slotsPerBeat = effectiveDenom/denominator ≥ 1.
-        // Without this guard, smallestNoteDenom < denominator (e.g., bass default of 2 in 4/4) produces
-        // fractional slot counts, causing new Array(non-integer) to throw for odd numerators.
-        // dnaMeasureForDebug is kept for attaching to the melody so SheetMusic can render it in debug mode.
+        // generateRhythmicDNA guards slotsPerBeat >= 1 internally via Math.max(smallestNoteDenom, denominator),
+        // so callers can pass the raw instrument smallestNoteDenom without workarounds.
+        // dnaMeasureForDebug is attached to the melody so SheetMusic can display it in debug mode.
         let dnaMeasureForDebug = null;
         if (!deterministicTemplate) {
-            const effectiveDenom = Math.max(smallestNoteDenom, timeSignature[1]);
-            dnaMeasureForDebug = generateRhythmicDNA(rhythmicGrouping, timeSignature, effectiveDenom);
+            dnaMeasureForDebug = generateRhythmicDNA(rhythmicGrouping, timeSignature, smallestNoteDenom);
             deterministicTemplate = new Array(numMeasures).fill(null).map(() => [...dnaMeasureForDebug]);
         }
 
@@ -547,9 +553,56 @@ class MelodyGenerator {
                     const visualDuration = Math.round(groupTicks / denominator);
 
                     const firstNote = notes[idx];
-                    const extra     = Array.from({ length: noteCount - 1 }, () => pick(firstNote));
-                    const allNotes  = [firstNote, ...extra];
                     const baseOff   = offsets[idx];
+
+                    // Generate extra tuplet notes with the same maxLeap constraint as the main
+                    // melodic pass. Each note looks back up to 24 ticks and must stay within
+                    // maxLeap semitones of every reference note in that window.
+                    const extra = [];
+                    for (let j = 0; j < noteCount - 1; j++) {
+                        const curOff = baseOff + (j + 1) * noteTicks;
+                        if (maxLeap === null) {
+                            extra.push(pick(firstNote));
+                            continue;
+                        }
+                        // Collect pitches of notes placed in this group within the 24-tick window.
+                        const refIdxs = [];
+                        if (curOff - baseOff <= 24) {
+                            const fi = getNoteIndex(firstNote);
+                            if (fi !== -1) refIdxs.push(fi);
+                        }
+                        for (let ej = 0; ej < j; ej++) {
+                            const eOff = baseOff + (ej + 1) * noteTicks;
+                            if (curOff - eOff <= 24) {
+                                const ei = getNoteIndex(extra[ej]);
+                                if (ei !== -1) refIdxs.push(ei);
+                            }
+                        }
+                        if (refIdxs.length === 0) {
+                            extra.push(pick(firstNote));
+                            continue;
+                        }
+                        const allowed = effectiveScale.filter(c => {
+                            const ci = getNoteIndex(c);
+                            return ci !== -1 && refIdxs.every(r => Math.abs(ci - r) <= maxLeap);
+                        });
+                        if (allowed.length > 0) {
+                            extra.push(allowed[Math.floor(Math.random() * allowed.length)]);
+                        } else {
+                            // Fallback: nearest scale note to the immediately preceding note.
+                            const prevIdx = getNoteIndex(j === 0 ? firstNote : extra[j - 1]);
+                            let minDist = Infinity;
+                            let nearest = pick(firstNote);
+                            for (const c of effectiveScale) {
+                                const ci = getNoteIndex(c);
+                                if (ci === -1) continue;
+                                const d = Math.abs(ci - prevIdx);
+                                if (d < minDist) { minDist = d; nearest = c; }
+                            }
+                            extra.push(nearest);
+                        }
+                    }
+                    const allNotes  = [firstNote, ...extra];
                     const vol       = volumes[idx] ?? 0.9;
 
                     const entry = { id, noteCount, denominator, groupTicks, visualDuration };

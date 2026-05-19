@@ -1382,6 +1382,19 @@ class Sequencer {
       if (seriesStartMeasureIndex !== null && this.setters.setStartMeasureIndex) {
         this.setters.setStartMeasureIndex(seriesStartMeasureIndex);
       }
+      // Update block display counters for each Sequencer-auto-generated block.
+      // historyIndexRef stays at the value set by randomizeAll at play start; melodyCount
+      // tracks how many auto-gens have occurred since then (starts at 1 for the first).
+      if (seriesStartMeasureIndex !== null) {
+        const hir = this.refs.historyIndexRef;
+        const nm = this.refs.numMeasuresRef.current;
+        if (hir && nm && this.setters.setBlockMeasureStart) {
+          this.setters.setBlockMeasureStart((Math.max(0, hir.current) + this.melodyCount) * nm + 1);
+        }
+        if (this.setters.setBlockPlayStart) {
+          this.setters.setBlockPlayStart(seriesStartMeasureIndex);
+        }
+      }
       if (this.setters.setNextLayer) this.setters.setNextLayer(null);
       if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
     }
