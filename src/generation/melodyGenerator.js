@@ -3,7 +3,7 @@ import logger from '../utils/logger';
 import convertRankedArrayToMelody from './convertRankedArrayToMelody.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
-import { generateBackbeat, generateBackbeat2, generateSwing } from './generateBackbeat.js';
+import { generateBackbeat, generateBackbeat2, generateSwing, generateMetronome } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults.js';
@@ -17,7 +17,7 @@ const isNoteInRange = (note, range) => {
 };
 
 class MelodyGenerator {
-    constructor(Scale, numMeasures, timeSignature, InstrumentSettings, chords = [], range = null, runId = null, globalRhythmArray = null) {
+    constructor(Scale, numMeasures, timeSignature, InstrumentSettings, chords = [], range = null, runId = null, globalRhythmArray = null, externalRhythmicGrouping = null) {
 
         // Guard against Scale.notes being undefined — root cause unclear but defensive
         // coding prevents the runtime crash. Log to aid future diagnosis.
@@ -36,6 +36,9 @@ class MelodyGenerator {
         this.range = range; // { min: 'C4', max: 'C5' }
         this.runId = runId;
         this.globalRhythmArray = globalRhythmArray;
+        // When provided by the caller (e.g. useMelodyState shared grouping), skip the
+        // internal chooseGrouping() call so all generators in one block share the same grouping.
+        this.externalRhythmicGrouping = externalRhythmicGrouping;
     }
 
     generateMelody() {
@@ -77,10 +80,15 @@ class MelodyGenerator {
                 randomizationNotes
             );
         }
+        if (randomizationRule === 'metronome') {
+            // wh/wm/wl woodblock clicks driven by the shared grouping; no randomisation.
+            const grouping = this.externalRhythmicGrouping ?? chooseGrouping(timeSignature[0]);
+            return generateMetronome(timeSignature, numMeasures, grouping);
+        }
 
-        // Choose the beat grouping once for this entire block (all numMeasures share the same grouping).
-        // e.g. 5/8 → [3,2] or [2,3] at random; 4/4 → [2,2] always.
-        const rhythmicGrouping = chooseGrouping(timeSignature[0]);
+        // Use the externally supplied grouping when all generators in one block should share the
+        // same beat hierarchy. Falls back to a fresh random choice when none is provided.
+        const rhythmicGrouping = this.externalRhythmicGrouping ?? chooseGrouping(timeSignature[0]);
 
         let deterministicTemplate = null;
 

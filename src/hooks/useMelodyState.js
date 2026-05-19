@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useRef } from 'react';
 import logger from '../utils/logger';
 import Melody from '../model/Melody';
 import MelodyGenerator from '../generation/melodyGenerator';
-import { generateDeterministicRhythm } from '../generation/rhythmicPriorities';
+import { chooseGrouping, generateRhythmicDNA } from '../generation/rhythmicPriorities';
 import { generateProgression, generateChordOnDegree } from '../theory/chordGenerator';
 import { insertPassingChords } from '../generation/passingChords';
 import ChordProgression from '../model/ChordProgression';
@@ -21,7 +21,7 @@ const PERC_TOKENS = new Set(['k', 'c', 'b', 'hh', 's', '/']);
 // - Otherwise: generate fresh via MelodyGenerator.
 const resolveVoice = ({
   isFixed, currentMelody, refMelody, refScale, targetScale,
-  canRandomize, voiceType, settings, nextProgression, nm, ts, runId, rhythm,
+  canRandomize, voiceType, settings, nextProgression, nm, ts, runId, rhythm, grouping,
 }) => {
   if (isFixed && refMelody) {
     const modulatedNotes = modulateMelody(refMelody.notes, refScale, targetScale);
@@ -37,7 +37,7 @@ const resolveVoice = ({
   const effectiveRange = voiceType
     ? calculateRelativeRange(voiceType, settings?.rangeMode, targetScale.tonic) || settings?.range
     : null;
-  return new MelodyGenerator(targetScale, nm, ts, settings, nextProgression, effectiveRange, runId, rhythm).generateMelody();
+  return new MelodyGenerator(targetScale, nm, ts, settings, nextProgression, effectiveRange, runId, rhythm, grouping).generateMelody();
 };
 
 const useMelodyState = (
@@ -138,6 +138,9 @@ const useMelodyState = (
     const canRandomizeMelody = !randomizeConfig || randomizeConfig.melody !== false;
     let nextProgression;
     let globalRhythmArray = null;
+    // One grouping choice for the entire generation block. All generators (treble, bass,
+    // percussion, chords, metronome) receive this so every voice shares the same beat hierarchy.
+    const sharedGrouping = chooseGrouping(activeTS[0]);
 
     const runId = Date.now().toString();
 
@@ -165,25 +168,13 @@ const useMelodyState = (
     } else {
       const abstractProgression = generateChords(chordSettings?.strategy);
 
-      // MelodyGenerator's downsampling logic assumes GLOBAL_RESOLUTION=16 (see melodyGenerator.js).
-      // The template must use 16th-note resolution so that MelodyGenerator's step calculation
-      // (step = GLOBAL_RESOLUTION / smallestNoteDenom) produces the right number of sampled slots.
-      // Example for 4/4: measureSlots=16, smallestNoteDenom=4, step=4 → 4 sampled slots per
-      // measure → chordCount=2 correctly places chords on beats 1 and 3.
-      // Example for 5/8: measureSlots=10, smallestNoteDenom=8, step=2 → 5 sampled slots →
-      // decomposeNumeratorToBeatGroups ranks slots 0 and 6 (beats 1 and 4) first.
-      // NOTE: The 5/8 chord-distribution fix (C//C/ vs C///C) works via decomposeNumerator-
-      // ToBeatGroups in rhythmicPriorities.js — it does NOT depend on this resolution value.
-      const measureSlots = Math.round((GLOBAL_RESOLUTION * activeTS[0]) / activeTS[1]);
-
-      const globalTemplate = generateDeterministicRhythm(
-        1,
-        activeTS,
-        measureSlots,
-        'default',
-        GLOBAL_RESOLUTION
-      );
-      globalRhythmArray = globalTemplate;
+      // Build globalRhythmArray at GLOBAL_RESOLUTION (16th-note) using the shared grouping.
+      // MelodyGenerator downsamples this by step = GLOBAL_RESOLUTION / localDenom so each
+      // instrument reads the correct number of slots at its own resolution.
+      // Using generateRhythmicDNA here (instead of the old generateDeterministicRhythm)
+      // ensures that chord, melody, and percussion generators all operate on the SAME
+      // beat hierarchy derived from sharedGrouping.
+      globalRhythmArray = [generateRhythmicDNA(sharedGrouping, activeTS, GLOBAL_RESOLUTION)];
 
       const notePool = abstractProgression?.chords || [];
 
@@ -214,7 +205,8 @@ const useMelodyState = (
         null,
         null,
         runId,
-        globalRhythmArray
+        globalRhythmArray,
+        sharedGrouping
       );
 
       let chordMelody = chordGen.generateMelody();
@@ -226,7 +218,7 @@ const useMelodyState = (
       if (passingMode !== 'none') {
         const firstChord = chordMelody.displayNotes?.find(c => c !== null) ?? null;
         const passingVariability = chordSettings?.rhythmVariability ?? 100;
-        chordMelody = insertPassingChords(chordMelody, scale, activeTS, chordSettings?.complexity || 'triad', passingMode, chordCount, firstChord, passingVariability);
+        chordMelody = insertPassingChords(chordMelody, scale, activeTS, chordSettings?.complexity || 'triad', passingMode, chordCount, firstChord, passingVariability, sharedGrouping);
       }
 
       nextProgression = chordMelody;
@@ -247,30 +239,31 @@ const useMelodyState = (
       isFixed: trebleSettings?.randomizationRule === 'fixed',
       currentMelody: treble, refMelody: referenceMelody, refScale: referenceScale, targetScale: scale,
       canRandomize: canRandomizeMelody, voiceType: 'treble', settings: trebleSettings,
-      nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray,
+      nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
     const newBass = resolveVoice({
       isFixed: bassSettings?.randomizationRule === 'fixed',
       currentMelody: bass, refMelody: referenceBassMelody, refScale: referenceScale.generateBassScale(), targetScale: bassSc,
       canRandomize: canRandomizeMelody, voiceType: 'bass', settings: bassSettings,
-      nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray,
+      nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
     const newPercussion = resolveVoice({
       isFixed: percussionSettings?.randomizationRule === 'fixed',
       currentMelody: percussion, refMelody: null, refScale: null, targetScale: percussionScale,
       canRandomize: canRandomizeMelody, voiceType: null, settings: percussionSettings,
-      nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray,
+      nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
 
     const metronomeGenSettings = {
-      notesPerMeasure: Math.ceil((activeTS[0] / activeTS[1]) * (metronomeSettings?.smallestNoteDenom || 4)),
-      smallestNoteDenom: metronomeSettings?.smallestNoteDenom || 4,
+      // One click per denominator-unit beat; wh/wm/wl assigned by generateMetronome based on grouping.
+      notesPerMeasure: activeTS[0],
+      smallestNoteDenom: activeTS[1],
       rhythmVariability: 0,
       enableTriplets: false,
-      notePool: 'metronome',
+      notePool: ['wh', 'wm', 'wl'],
       playStyle: 'metronome',
       type: 'metronome',
-      randomizationRule: 'uniform'
+      randomizationRule: 'metronome'
     };
 
     const metronomeGen = new MelodyGenerator(
@@ -281,7 +274,8 @@ const useMelodyState = (
       null,
       null,
       runId,
-      globalRhythmArray
+      globalRhythmArray,
+      sharedGrouping
     );
 
     const newMetronome = metronomeGen.generateMelody();
