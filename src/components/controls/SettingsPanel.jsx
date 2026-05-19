@@ -18,7 +18,7 @@ const SettingsPanel = ({
     minimizeAccidentals, setMinimizeAccidentals,
     isModulationEnabled, setIsModulationEnabled,
 }) => {
-    const { noteColoringMode, setNoteColoringMode, courtesyAccidentals, setCourtesyAccidentals } = useDisplaySettings();
+    const { noteColoringMode, setNoteColoringMode, courtesyAccidentals, setCourtesyAccidentals, percussionVoiceSplit, setPercussionVoiceSplit } = useDisplaySettings();
 
     return (
         <div className="app-settings-panel">
@@ -98,6 +98,19 @@ const SettingsPanel = ({
                             <div className="app-toggle-thumb" style={{ left: courtesyAccidentals ? 19 : 3 }} />
                         </div>
                         <span className="app-toggle-label" style={{ color: courtesyAccidentals ? 'var(--text-primary)' : 'var(--text-dim)' }}>Courtesy Accidentals</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Percussion notation */}
+            <div className="app-settings-section">
+                <div className="app-settings-section-label">PERCUSSION NOTATION</div>
+                <div className="app-settings-toggles">
+                    <div className="app-toggle-row" onClick={() => setPercussionVoiceSplit(v => !v)}>
+                        <div className="app-toggle-track" style={{ backgroundColor: percussionVoiceSplit ? 'var(--accent-yellow)' : '#444' }}>
+                            <div className="app-toggle-thumb" style={{ left: percussionVoiceSplit ? 19 : 3 }} />
+                        </div>
+                        <span className="app-toggle-label" style={{ color: percussionVoiceSplit ? 'var(--text-primary)' : 'var(--text-dim)' }}>Parallel Voices (RH↑ / LH↓)</span>
                     </div>
                 </div>
             </div>

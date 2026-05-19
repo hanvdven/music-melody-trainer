@@ -221,6 +221,25 @@ const ledgerLinesMapPercussion = {
 // Helper: Shorten stem for specific percussion notes
 const shortStemNotes = ['ho', 'wh', 'wl'];
 
+// RH (right hand / cymbal group): stem UP in parallel-voices notation.
+// Cymbals and hi-hats are played with sticks held in the right hand.
+// Woodblocks and cowbell are also RH by convention.
+const RH_PERC_NOTES = new Set(['hh', 'ho', 'cr', 'cc', 'cct', 'crt', 'cb', 'wh', 'wm', 'wl', 'c']);
+// LH (left hand / drum group): stem DOWN.
+// Snare, toms, kick, and hi-hat pedal are driven by left hand or foot.
+const LH_PERC_NOTES = new Set(['k', 's', 'sg', 'sr', 'th', 'tm', 'tl', 'hp']);
+
+// Returns true (stem up) when the note or chord belongs to the right-hand voice.
+// For mixed chords, RH majority wins; ties go UP (cymbals sit above drums on the staff).
+const percussionStemUp = (noteOrChord) => {
+  if (Array.isArray(noteOrChord)) {
+    let rh = 0, lh = 0;
+    noteOrChord.forEach(n => { if (RH_PERC_NOTES.has(n)) rh++; else lh++; });
+    return rh >= lh;
+  }
+  return !LH_PERC_NOTES.has(noteOrChord); // unknown notes default UP
+};
+
 const renderMelodyNotes = (
   melody,
   numAccidentals,
@@ -245,7 +264,8 @@ const renderMelodyNotes = (
   transpositionSemitones = 0,
   debugMode = false,
   interactive = true,  // set false for non-playable layers (metronome, previews)
-  courtesyAccidentals = true
+  courtesyAccidentals = true,
+  percussionVoiceSplit = false
 ) => {
   // previewMode can be: false (normal), true (yellow, for input test), or a CSS color string (e.g. 'rgba(220,30,30,0.85)' for wipe preview)
   const previewColor = typeof previewMode === 'string' ? previewMode : (previewMode ? 'var(--accent-yellow)' : null);
@@ -546,7 +566,7 @@ const renderMelodyNotes = (
           // differently (e.g. equidistant tiebreak) and would otherwise produce a wrong
           // minYend in beamData, pushing the beam far off the staff.
           currentSubGroup.forEach(item => {
-            if (!item.isRest) {
+            if (!item.isRest && !item.voiceSplit) {
               item.stemIsAbove = masterStemIsAbove;
               const noteEntry = displayNotes[item.index];
               if (Array.isArray(noteEntry)) {
@@ -612,11 +632,20 @@ const renderMelodyNotes = (
           stemIsAbove = positionY > staffYStart + 20;
         }
 
+        // Voice split: for single percussion notes, fix stem direction by RH/LH classification
+        // so it survives the masterStemIsAbove pass (guarded by voiceSplit flag below).
+        // Chord arrays are split into separate stems during the rendering pass — not here.
+        if (staff === 'percussion' && percussionVoiceSplit && !isRest && !Array.isArray(note)) {
+          stemIsAbove = percussionStemUp(note);
+        }
+
         currentSubGroup.push({
           index: e.index,
           beatIndexWithinMeasure: Math.floor((e.offset % measureLengthSlots) / noteGroupSize),
           isRest,
           stemIsAbove,
+          // Protect RH/LH classified entries from being reset by masterStemIsAbove.
+          voiceSplit: staff === 'percussion' && percussionVoiceSplit && !Array.isArray(note),
           positionY,
           chordSpan: Array.isArray(note) ? (() => {
             const ys = note.map(n => { const nat = stripAccidentals(n); return noteYMap[nat] !== undefined ? noteYMap[nat] + combinedShift : null; }).filter(y => y !== null);
@@ -825,6 +854,15 @@ const renderMelodyNotes = (
       // Stem UP when the furthest note is BELOW centre (large y), DOWN when ABOVE centre (small y)
       let stemIsAbove = furthest.y > staffMiddleY;
 
+      // Voice split: pre-split RH/LH subsets so each gets its own stem below.
+      const rhChordNotes = (staff === 'percussion' && percussionVoiceSplit)
+        ? chordNotes.filter(p => !LH_PERC_NOTES.has(p.n))
+        : null;
+      const lhChordNotes = (staff === 'percussion' && percussionVoiceSplit)
+        ? chordNotes.filter(p => LH_PERC_NOTES.has(p.n))
+        : null;
+      const useVoiceSplit = rhChordNotes !== null && (rhChordNotes.length > 0 || lhChordNotes.length > 0);
+
       // --- Beaming: does this chord participate in a beam group? ---
       const chordGroupIndex = beamedNoteIndices.get(index);
       const isBeamed = chordGroupIndex !== undefined;
@@ -942,14 +980,37 @@ const renderMelodyNotes = (
               />
             );
           })}
-          {/* Single stem (whole notes have no stem) */}
-          {duration < 48 && (
+          {/* Stem(s) — two independent stems when voice split is active */}
+          {duration < 48 && (useVoiceSplit ? (
+            <>
+              {/* RH voice: stem UP, anchored at bottom of RH noteheads */}
+              {rhChordNotes.length > 0 && (() => {
+                const rhTopY = Math.min(...rhChordNotes.map(p => p.y));
+                const rhBottomY = Math.max(...rhChordNotes.map(p => p.y));
+                const rhTriangle = rhChordNotes.some(p => p.symbol === 'Ñ');
+                const rhSpecial = rhChordNotes.some(p => p.symbol === 'À' || p.symbol === 'Ñ');
+                const rhStart = rhTriangle ? rhBottomY + 3 : rhBottomY - (rhSpecial ? 5 : 1);
+                const rhEnd = rhTriangle ? rhTopY - 32.4 : rhTopY - 27;
+                return <path d={`M ${positionX + 11} ${rhStart} V ${rhEnd}`} stroke={stemColor} strokeWidth="1.5" />;
+              })()}
+              {/* LH voice: stem DOWN, anchored at top of LH noteheads */}
+              {lhChordNotes.length > 0 && (() => {
+                const lhTopY = Math.min(...lhChordNotes.map(p => p.y));
+                const lhBottomY = Math.max(...lhChordNotes.map(p => p.y));
+                const lhTriangle = lhChordNotes.some(p => p.symbol === 'Ñ');
+                const lhSpecial = lhChordNotes.some(p => p.symbol === 'À' || p.symbol === 'Ñ');
+                const lhStart = lhTopY + (lhTriangle ? 8 : (lhSpecial ? 5 : 1));
+                const lhEnd = lhTriangle ? lhBottomY + 34.2 : lhBottomY + 27;
+                return <path d={`M ${positionX + 0.5} ${lhStart} V ${lhEnd}`} stroke={stemColor} strokeWidth="1.5" />;
+              })()}
+            </>
+          ) : (
             <path
               d={`M ${stemX} ${stemStartY} V ${stemEndY}`}
               stroke={stemColor}
               strokeWidth="1.5"
             />
-          )}
+          ))}
           {/* Flag at stem tip — suppressed when beamed */}
           {!isBeamed && duration < 12 && flagSymbol && (
             <text x={staff === 'percussion' && !stemIsAbove && duration < 6 ? finalFlagX + 1 : finalFlagX} y={finalFlagY} fontSize="36" fill={stemColor} fontFamily="Maestro">
@@ -1100,6 +1161,8 @@ const renderMelodyNotes = (
           stemIsAbove = beamGroup[noteIndexInGroup].stemIsAbove;
         }
       }
+      // Voice split: RH/LH classification is the final authority — overrides both position and beamGroup.
+      if (staff === 'percussion' && percussionVoiceSplit) stemIsAbove = percussionStemUp(note);
 
       const lineX = stemIsAbove ? positionX + 11 : positionX + 0.5;
       const lineYstart = stemIsAbove ? positionY - 1 : positionY + 1;
