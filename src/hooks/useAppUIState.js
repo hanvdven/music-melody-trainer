@@ -29,6 +29,7 @@ export default function useAppUIState() {
     const [isSimpleView, setIsSimpleView] = useState(true);
     const [minimizeAccidentals, setMinimizeAccidentals] = useState(true);
     const [courtesyAccidentals, setCourtesyAccidentals] = useState(true);
+    const [percussionVoiceSplit, setPercussionVoiceSplit] = useState(false);
 
     const [debugMode, setDebugMode] = useState(false);
     const [noteColoringMode, setNoteColoringMode] = useState('tonic_scale_keys');
@@ -74,6 +75,7 @@ export default function useAppUIState() {
         isSimpleView, setIsSimpleView,
         minimizeAccidentals, setMinimizeAccidentals,
         courtesyAccidentals, setCourtesyAccidentals,
+        percussionVoiceSplit, setPercussionVoiceSplit,
         debugMode, setDebugMode,
         noteColoringMode, setNoteColoringMode,
         showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef,

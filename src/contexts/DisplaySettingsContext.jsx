@@ -10,7 +10,8 @@ import React, { createContext, useContext } from 'react';
  *   chordDisplayMode, setChordDisplayMode,
  *   showNoteHighlight, setShowNoteHighlight,
  *   animationMode, setAnimationMode,
- *   courtesyAccidentals, setCourtesyAccidentals
+ *   courtesyAccidentals, setCourtesyAccidentals,
+ *   percussionVoiceSplit, setPercussionVoiceSplit
  */
 const DisplaySettingsContext = createContext(null);
 
