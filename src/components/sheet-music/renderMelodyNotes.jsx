@@ -1572,10 +1572,9 @@ const renderMelodyNotes = (
 
     const hookLen  = 5;
     // Number label vertically: above bracket line for stems-up, below for stems-down.
-    // +60% font (22px) needs extra clearance — stems-down baseline pushed down an extra 6px.
-    const numY     = stemIsAbove ? bracketY - 3 : bracketY + 18;
-    // Bracket gap: half-width reserved around the number label (scaled for 22px font).
-    const bracketGap = 22;
+    const numY     = stemIsAbove ? bracketY - 2 : bracketY + 13;
+    // Bracket gap: half-width reserved around the number label (scaled for 15px font).
+    const bracketGap = 15;
     // Format: "3 : 2" — render as single <text> with two tspans so spacing between
     // numeral, colon, and denominator is determined by the font (uniform character spacing).
     const numLabel = `${noteCount}`;
@@ -1605,7 +1604,7 @@ const renderMelodyNotes = (
         <text
           x={midX}
           y={numY}
-          fontSize="22"
+          fontSize="15"
           fontWeight="bold"
           textAnchor="middle"
           fontFamily="Georgia, 'Times New Roman', serif"
