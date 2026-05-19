@@ -67,6 +67,7 @@
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { generatePassingChord, generateChordOnDegree } from '../theory/chordGenerator.js';
 import { getNoteSemitone } from '../theory/noteUtils.js';
+import { generateRhythmicDNA, decomposeNumeratorToBeatGroups } from './rhythmicPriorities.js';
 import Melody from '../model/Melody.js';
 import logger from '../utils/logger.js';
 
@@ -305,7 +306,7 @@ function snapToGrid(rawPos, gridUnit, gapStart, gapEnd) {
  *                                         Intermediate values blend between both modes.
  * @returns {Melody} New Melody with passing chords inserted
  */
-export function insertPassingChords(chordMelody, scale, timeSignature, complexity, mode, chordCount, firstChord = null, rhythmVariability = 100) {
+export function insertPassingChords(chordMelody, scale, timeSignature, complexity, mode, chordCount, firstChord = null, rhythmVariability = 100, rhythmicGrouping = null) {
     if (!chordMelody || !chordMelody.displayNotes || chordMelody.displayNotes.length === 0) {
         return chordMelody;
     }
@@ -322,9 +323,19 @@ export function insertPassingChords(chordMelody, scale, timeSignature, complexit
 
     if (passingProbability <= 0) return chordMelody;
 
-    // Grid unit: same resolution as the normal chord generator (smallestNoteDenom = ts[1]).
-    // Quarter notes for 4/4 and 3/4, 8th notes for 6/8, etc.
+    // Grid unit: one denominator beat (same resolution as the normal chord generator).
     const gridUnit = TICKS_PER_WHOLE / timeSignature[1];
+    const measureLength = TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]);
+
+    // Derive grouping for DNA ranking.
+    // Convert decomposeNumeratorToBeatGroups (start offsets) → group sizes when no
+    // externally-shared grouping is provided.
+    const resolvedGrouping = rhythmicGrouping ?? (() => {
+        const starts = decomposeNumeratorToBeatGroups(timeSignature[0]);
+        return starts.map((s, i) => (starts[i + 1] ?? timeSignature[0]) - s);
+    })();
+    // Beat-level DNA ranks for one measure (slotsPerBeat=1 → all beats ranked, no nulls).
+    const dnaRanks = generateRhythmicDNA(resolvedGrouping, timeSignature, timeSignature[1]);
 
     // ── Collect structural chord events ──────────────────────────────────────
     const structural = [];
@@ -374,16 +385,20 @@ export function insertPassingChords(chordMelody, scale, timeSignature, complexit
         const insertCount        = Math.random() < variabilityFactor ? stochasticCount : deterministicCount;
         if (insertCount === 0) continue;
 
-        // Evenly-spaced positions within gap, snapped to gridUnit.
-        // Divides gap into (insertCount + 1) equal parts; k-th boundary = rawPos.
-        const positions = [];
-        const step = gapLen / (insertCount + 1);
-        for (let k = 1; k <= insertCount; k++) {
-            const raw     = gapStart + k * step;
-            const snapped = snapToGrid(raw, gridUnit, gapStart, gapEnd);
-            if (snapped !== null) positions.push(snapped);
+        // Collect all grid positions strictly inside the gap, ranked by DNA priority.
+        // Lower DNA rank = higher priority (beat 1 of a group ranks best).
+        // Structural chord offsets already occupy the grid boundaries, so we exclude
+        // gapStart and gapEnd themselves.
+        const slotsInGap = [];
+        const firstGridPos = (Math.floor(gapStart / gridUnit) + 1) * gridUnit;
+        for (let pos = firstGridPos; pos < gapEnd; pos += gridUnit) {
+            const beatInMeasure = Math.round((pos % measureLength) / gridUnit);
+            const rank = dnaRanks[beatInMeasure] ?? (dnaRanks.length + 1);
+            slotsInGap.push({ pos, rank });
         }
-        const uniquePositions = [...new Set(positions)].sort((a, b) => a - b);
+        // Sort by rank ascending (best beat first); break ties left-to-right.
+        slotsInGap.sort((a, b) => a.rank - b.rank || a.pos - b.pos);
+        const uniquePositions = slotsInGap.slice(0, insertCount).map(s => s.pos).sort((a, b) => a - b);
         if (uniquePositions.length === 0) continue;
 
         // ── Generate passing chords ───────────────────────────────────────────

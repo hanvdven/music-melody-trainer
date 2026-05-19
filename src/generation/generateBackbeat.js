@@ -16,6 +16,7 @@
  */
 
 import Melody from '../model/Melody.js';
+import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { findBestSlot } from './proximityUtils.js';
 import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
@@ -393,6 +394,47 @@ export function generateBackbeat2(
     // Attach grouping so the sheet-music renderer can draw correct beam spans.
     melody.rhythmicGrouping = grouping;
     melody.rhythmicDNA = dnaMeasure;
+    return melody;
+}
+
+/**
+ * Generate a woodblock metronome pattern driven by the shared rhythmicGrouping.
+ *
+ *   wh (woodblock hi)  — measure downbeat (beat index 0)
+ *   wm (woodblock mid) — other group downbeats (beat indices from grouping)
+ *   wl (woodblock lo)  — all remaining beats
+ *
+ * One click per denominator-unit beat per measure. No randomisation; variability
+ * is intentionally zero for the metronome.
+ */
+export function generateMetronome(timeSignature, numMeasures, rhythmicGrouping) {
+    const [numerator, denominator] = timeSignature;
+
+    // Beat positions (0-indexed within measure) that open a group, excluding beat 0
+    // (which is always wh — the measure downbeat).
+    const innerGroupStarts = new Set();
+    let acc = 0;
+    for (let i = 0; i < rhythmicGrouping.length - 1; i++) {
+        acc += rhythmicGrouping[i];
+        innerGroupStarts.add(acc);
+    }
+
+    const ticksPerBeat = TICKS_PER_WHOLE / denominator;
+    const notes = [];
+    for (let m = 0; m < numMeasures; m++) {
+        for (let b = 0; b < numerator; b++) {
+            if (b === 0) notes.push('wh');
+            else if (innerGroupStarts.has(b)) notes.push('wm');
+            else notes.push('wl');
+        }
+    }
+
+    const durations = notes.map(() => ticksPerBeat);
+    const offsets   = notes.map((_, i) => i * ticksPerBeat);
+
+    const melody = new Melody(notes, durations, offsets, notes);
+    // Attach grouping so sheet-music renderer can draw correct beam spans.
+    melody.rhythmicGrouping = rhythmicGrouping;
     return melody;
 }
 
