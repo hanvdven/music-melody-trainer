@@ -170,6 +170,8 @@ const SheetMusic = ({
   onEnharmonicToggle = null,   // () => void — toggles tonic to its enharmonic equivalent (e.g. F♯ ↔ G♭)
   onMeasureNumberClick = null, // (globalMeasureIndex: number) => void — navigates to that measure when label is clicked
   onNoteEnharmonicToggle = null, // (staff: string, absoluteOffset: number) => void — toggles a note's accidental spelling
+  blockMeasureStart = 1,   // 1-indexed song measure number of the first measure in this block
+  blockPlayStart = 0,      // sequence startMeasureIndex when this block was first played (for repeat suffix R)
 }) => {
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
@@ -941,36 +943,38 @@ const SheetMusic = ({
         const isStart = index === (numRepeats > 1 ? 1 : 0);
         const isEnd = index === lastIdx;
 
-        // Returns "N" for the first playthrough and "N.R" for repeat R (R >= 2), where N is
-        // the 1-based measure position within the melody and R is the 1-based repeat count.
-        const measureLabel = (globalMeasureIdx) => {
-          const repeatNum = Math.floor(globalMeasureIdx / numMeasures) + 1;
-          const localNum = (globalMeasureIdx % numMeasures) + 1;
-          return repeatNum > 1 ? `${localNum}.${repeatNum}` : `${localNum}`;
+        // R = how many times the current block has been played in this session.
+        // Only shown during active playback (isPlaying=true). Resets per block via blockPlayStart.
+        const repeatNum = isPlaying
+          ? Math.max(1, Math.floor((startIdx - blockPlayStart) / numMeasures) + 1)
+          : 1;
+        // Returns "N" (first play) or "N . R" (repeat R, R≥2) where N = song measure number.
+        const measureLabel = (localIndex) => {
+          const N = blockMeasureStart + localIndex;
+          return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
         };
 
         if (numRepeats > 1) {
           if (isStart) {
             if (mode === 'regular') {
               // Show measure number label above the start barline even when repeats > 1
-              const globalIdx = startIdx;
               return (
                 <g key={`measure-line-${index}`}
-                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(globalIdx); } : undefined}
+                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx); } : undefined}
                   style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
                 >
-                  <rect x={startX - 10} y={trebleStart - 28} width={36} height={18} fill="transparent" />
+                  <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
                   <text
                     x={startX}
                     y={trebleStart - 14}
-                    fontSize="14"
+                    fontSize="18"
                     fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
                     fontFamily="Maestro"
                     style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
                   >
-                    {measureLabel(globalIdx)}
+                    {measureLabel(0)}
                   </text>
-                  {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={36} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+                  {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
                 </g>
               );
             }
@@ -1019,24 +1023,23 @@ const SheetMusic = ({
         // For the opening barline (numRepeats <= 1): suppress the barline itself but
         // still render the "1" measure label above startX (the first note position).
         if (isStart && numRepeats <= 1) {
-          const globalIdx = startIdx + measureNumForLabel;
           return (
             <g key={`measure-line-${index}`}
-              onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(globalIdx); } : undefined}
+              onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
               style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
             >
-              <rect x={startX - 10} y={trebleStart - 28} width={36} height={18} fill="transparent" />
+              <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
               <text
                 x={startX}
                 y={trebleStart - 14}
-                fontSize="14"
+                fontSize="18"
                 fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
                 fontFamily="Maestro"
                 style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
               >
-                {measureLabel(globalIdx)}
+                {measureLabel(measureNumForLabel)}
               </text>
-              {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={36} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+              {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
             </g>
           );
         }
@@ -1051,24 +1054,23 @@ const SheetMusic = ({
               strokeWidth=".5"
             />
             {!isEnd && (() => {
-              const globalIdx = startIdx + measureNumForLabel;
               return (
                 <g
-                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(globalIdx); } : undefined}
+                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
                   style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
                 >
-                  <rect x={x - 10} y={trebleStart - 28} width={36} height={18} fill="transparent" />
+                  <rect x={x - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
                   <text
                     x={x}
                     y={trebleStart - 14}
-                    fontSize="14"
+                    fontSize="18"
                     fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
                     fontFamily="Maestro"
                     style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
                   >
-                    {measureLabel(globalIdx)}
+                    {measureLabel(measureNumForLabel)}
                   </text>
-                  {debugMode && <rect x={x - 10} y={trebleStart - 28} width={36} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+                  {debugMode && <rect x={x - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
                 </g>
               );
             })()}

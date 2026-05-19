@@ -29,6 +29,8 @@ const TabView = ({
     // Sheet music
     sheetMusicCommonProps,
     startMeasureIndex,
+    blockMeasureStart,
+    blockPlayStart,
     idealVisibleMeasures,
     // Instruments (loading state + audio)
     instruments,
@@ -118,6 +120,8 @@ const TabView = ({
                             {...sheetMusicCommonProps}
                             visibleMeasures={idealVisibleMeasures}
                             startMeasureIndex={startMeasureIndex}
+                            blockMeasureStart={blockMeasureStart}
+                            blockPlayStart={blockPlayStart}
                         />
                     </ErrorBoundary>
                 </div>
