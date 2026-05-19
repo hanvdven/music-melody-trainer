@@ -582,6 +582,12 @@ De generator-instellingen zijn rommelig geworden naarmate er meer kolommen zijn 
 - 'humanization' in afspelen van de muziek: volume en timing
 - herbalanceren variability (misschien wortel nemen van percentage voor genuanceerder effect?)
 
+### Rusten en staccato in treble en bass melody
+
+rusten en staccato in treble en bass melody
+
+[Claude 2026-05-19]: Op de backlog gezet op verzoek van Han. Betreft het toevoegen van rusten en staccato-articulatie als gegenereerde notenwaarden in de treble- en basmelodie. Niet implementeren totdat Han dit activeert.
+
 ---
 
 ## RITME & PERCUSSIE

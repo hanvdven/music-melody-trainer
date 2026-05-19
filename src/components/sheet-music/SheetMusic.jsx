@@ -1337,7 +1337,7 @@ const SheetMusic = ({
         {isSlash ? (
           <text
             x={xPos}
-            y={CHORD_ROOT_Y - CHORD_SUPER_DY + 10}
+            y={CHORD_ROOT_Y - CHORD_SUPER_DY - 5}
             fontSize="32"
             fontFamily="Maestro"
             fill="var(--text-primary)"

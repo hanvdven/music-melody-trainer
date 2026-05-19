@@ -167,6 +167,9 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
     let remainingDuration = paddedDurations[i];
     let currentOffset = paddedOffsets[i];
     let isFirstSplit = true;
+    // Set to true once a Step 3 group-boundary split has occurred for this note.
+    // Subsequent Step 3 chunks become rests instead of tied note continuations.
+    let inGroupBoundaryCont = false;
 
     // Step 1: If note does not start at a count alignment and crosses a count alignment, split it
 
@@ -259,11 +262,11 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
         // Rule 1: note fills its last group exactly AND is a renderable duration — stay whole.
         // When the full-measure duration isn't representable (e.g. 60 ticks in 5/4) fall through
         // to Rule 2, which splits at the first group boundary (e.g. half + dotted-half for [2,3]).
-        resultNotes.push(paddedNotes[i]);
+        resultNotes.push(inGroupBoundaryCont ? 'r' : paddedNotes[i]);
         resultDurations.push(remainingDuration);
         resultOffsets.push(currentOffset);
         resultOriginalIndices.push(paddedOriginalIndices[i]);
-        resultTies.push(isFirstSplit ? null : 'tie');
+        resultTies.push(inGroupBoundaryCont ? null : (isFirstSplit ? null : 'tie'));
         break;
       }
 
@@ -272,11 +275,12 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
       if (firstBoundaryAfterStart != null && firstBoundaryAfterStart < endInMeasure) {
         // Split there; the loop re-evaluates the remainder on the next iteration.
         const splitDuration = firstBoundaryAfterStart - startInMeasure;
-        resultNotes.push(paddedNotes[i]);
+        resultNotes.push(inGroupBoundaryCont ? 'r' : paddedNotes[i]);
         resultDurations.push(splitDuration);
         resultOffsets.push(currentOffset);
         resultOriginalIndices.push(paddedOriginalIndices[i]);
-        resultTies.push(isFirstSplit ? null : 'tie');
+        resultTies.push(inGroupBoundaryCont ? null : (isFirstSplit ? null : 'tie'));
+        inGroupBoundaryCont = true; // remainder goes to rest on next iteration
         isFirstSplit = false;
         currentOffset += splitDuration;
         remainingDuration -= splitDuration;
@@ -285,11 +289,11 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
 
       // Rule 3: note is entirely within one group.
       if (allowedDurations.includes(remainingDuration)) {
-        resultNotes.push(paddedNotes[i]);
+        resultNotes.push(inGroupBoundaryCont ? 'r' : paddedNotes[i]);
         resultDurations.push(remainingDuration);
         resultOffsets.push(currentOffset);
         resultOriginalIndices.push(paddedOriginalIndices[i]);
-        resultTies.push(isFirstSplit ? null : 'tie');
+        resultTies.push(inGroupBoundaryCont ? null : (isFirstSplit ? null : 'tie'));
         break;
       }
 
@@ -301,11 +305,11 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
       }
       if (splitDuration === 0) break; // guard against infinite loop
 
-      resultNotes.push(paddedNotes[i]);
+      resultNotes.push(inGroupBoundaryCont ? 'r' : paddedNotes[i]);
       resultDurations.push(splitDuration);
       resultOffsets.push(currentOffset);
       resultOriginalIndices.push(paddedOriginalIndices[i]);
-      resultTies.push(isFirstSplit ? null : 'tie');
+      resultTies.push(inGroupBoundaryCont ? null : (isFirstSplit ? null : 'tie'));
       isFirstSplit = false;
       remainingDuration -= splitDuration;
       currentOffset += splitDuration;
