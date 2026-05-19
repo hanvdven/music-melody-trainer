@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { ChordNotationIcon } from '../common/CustomIcons';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
+import { useMelodies } from '../../contexts/MelodyContext';
 
 // ── Cycling lists for button modes ───────────────────────────────────────────
 const COLOR_MODES = ['none', 'tonic_scale_keys', 'chords', 'chromatone', 'subtle-chroma'];
@@ -31,6 +32,31 @@ const SubHeader = ({
         showNoteHighlight, setShowNoteHighlight,
         animationMode, setAnimationMode,
     } = useDisplaySettings();
+
+    const { treble: trebleMelody, bass: bassMelody, percussion: percMelody } = useMelodies();
+
+    // Build DNA grouping string for debug overlay: "(r0 r1)(r2 r3)..."
+    const { debugDnaText, debugGroupingText } = (() => {
+        if (!debugMode) return { debugDnaText: null, debugGroupingText: null };
+        const src = trebleMelody ?? bassMelody ?? percMelody;
+        const dna = src?.rhythmicDNA;
+        const grouping = src?.rhythmicGrouping;
+        const debugGroupingText = grouping?.length
+            ? `grouping: [${grouping.join(', ')}]`
+            : null;
+        if (!dna?.length || !grouping?.length) return { debugDnaText: null, debugGroupingText };
+        const totalBeats = grouping.reduce((a, b) => a + b, 0);
+        if (!totalBeats) return { debugDnaText: null, debugGroupingText };
+        const spb = dna.length / totalBeats;
+        const debugDnaText = grouping.map((size, gi) => {
+            const start = Math.round(grouping.slice(0, gi).reduce((a, b) => a + b, 0) * spb);
+            return `(${dna.slice(start, Math.round(start + size * spb)).map(r => r ?? '?').join(' ')})`;
+        }).join('');
+        return { debugDnaText, debugGroupingText };
+    })();
+
+    const branch = import.meta.env.VITE_GIT_BRANCH ?? '?';
+    const pr = import.meta.env.VITE_PR_NUMBER;
 
     // Scale factor: 100% at 550px, scales down linearly below. Applied to button content, NOT the container.
     const btnScale = windowWidth >= 550 ? 1 : Math.max(0.5, windowWidth / 550);
@@ -207,6 +233,37 @@ const SubHeader = ({
                 </div>
 
             </div>
+
+            {/* Debug info: centered over everything else, visible only in debug mode */}
+            {debugMode && (
+                <div style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: 20,
+                    pointerEvents: 'none',
+                    userSelect: 'none',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 1,
+                }}>
+                    {debugDnaText && (
+                        <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'red', whiteSpace: 'nowrap' }}>
+                            {debugDnaText}
+                        </span>
+                    )}
+                    <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'red', whiteSpace: 'nowrap' }}>
+                        {branch}{pr ? ` #${pr}` : ''}
+                    </span>
+                    {debugGroupingText && (
+                        <span style={{ fontFamily: 'monospace', fontSize: 9, color: 'red', whiteSpace: 'nowrap' }}>
+                            {debugGroupingText}
+                        </span>
+                    )}
+                </div>
+            )}
         </div >
     );
 };

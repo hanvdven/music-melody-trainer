@@ -11,8 +11,17 @@ import { useState, useCallback, useRef } from 'react';
  * except for the extra ref as the third element.
  */
 const useRefState = (initialValue) => {
-  const ref = useRef(initialValue);
-  const [state, _setState] = useState(initialValue);
+  // useRef does NOT call lazy initializer functions — unlike useState.
+  // If initialValue is a function (React lazy-init pattern), ref.current would be set to
+  // the function itself rather than its return value, causing crashes in Sequencer callbacks
+  // that read refs directly. Fix: wrap both in a single lazy-init so React evaluates the
+  // function once and we synchronously assign the result to ref.current.
+  const ref = useRef(null);
+  const [state, _setState] = useState(() => {
+    const val = typeof initialValue === 'function' ? initialValue() : initialValue;
+    ref.current = val;
+    return val;
+  });
 
   const setState = useCallback((val) => {
     if (typeof val === 'function') {

@@ -170,6 +170,8 @@ const SheetMusic = ({
   onEnharmonicToggle = null,   // () => void — toggles tonic to its enharmonic equivalent (e.g. F♯ ↔ G♭)
   onMeasureNumberClick = null, // (globalMeasureIndex: number) => void — navigates to that measure when label is clicked
   onNoteEnharmonicToggle = null, // (staff: string, absoluteOffset: number) => void — toggles a note's accidental spelling
+  blockMeasureStart = 1,   // 1-indexed song measure number of the first measure in this block
+  blockPlayStart = 0,      // sequence startMeasureIndex when this block was first played (for repeat suffix R)
 }) => {
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
@@ -184,7 +186,7 @@ const SheetMusic = ({
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
   const { noteColoringMode, setNoteColoringMode, debugMode, lyricsMode,
     chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
-    animationMode } = useDisplaySettings();
+    animationMode, courtesyAccidentals = true } = useDisplaySettings();
   const svgRefInternal = useRef(null);
   // Use the ref passed from App.jsx if provided (so Sequencer callbacks can access the SVG),
   // otherwise fall back to an internal ref.
@@ -372,7 +374,15 @@ const SheetMusic = ({
     return shifts[c] || 0;
   };
 
-  const calculateOptimalClef = (activeClef, melodyNotes, staff = 'treble') => {
+  // Clef types that are inherently vocal — these never receive 8va/8vb markings.
+  // Bass and Baritone vocal ranges share the 'bass' clef type but are identified by rangeMode.
+  const VOCAL_CLEF_TYPES = new Set(['soprano', 'mezzo-soprano', 'alto', 'tenor']);
+  const VOCAL_RANGE_MODES = new Set(['Bass', 'Baritone', 'Tenor', 'Alto', 'Mezzo-soprano', 'Soprano']);
+
+  const calculateOptimalClef = (activeClef, melodyNotes, staff = 'treble', rangeMode = null) => {
+    // Vocal clefs never use ottava markings — range selection already constrains their register.
+    if (VOCAL_CLEF_TYPES.has(activeClef) || VOCAL_RANGE_MODES.has(rangeMode)) return activeClef;
+
     if (!melodyNotes || melodyNotes.length === 0) return activeClef;
 
     const notes = melodyNotes
@@ -388,19 +398,20 @@ const SheetMusic = ({
     if (notes.length === 0) return activeClef;
     const countInRange = (min, max) => notes.filter(m => m >= min && m <= max).length;
 
-    // Ranges per user requirement (INTERNAL MIDI: C4 = 48)
+    // Ranges use getNoteIndex() indices: A0=0, each semitone = 1 step.
+    // C4 = 39 (not 48 — the old comment was wrong and caused all ranges to be off by 9).
     const RANGES = staff === 'bass' ? {
-      base: [24, 52],   // C2-E4
-      '8vb': [9, 28],   // A0-E2 (Extended down to A0=9)
+      base: [15, 43],   // C2-E4
+      '8vb': [0, 19],   // A0-E2
       '15vb': [0, 0],   // DISABLED
-      '8va': [48, 64],  // C4-E5
-      '15va': [60, 96]  // C5-C8 (Extended up to C8=96)
+      '8va': [39, 55],  // C4-E5
+      '15va': [51, 87]  // C5-C8
     } : {
-      base: [45, 72],   // A3-C6
-      '8vb': [33, 48],  // A2-C4
-      '15vb': [21, 36], // A1-C3
-      '8va': [69, 84],  // A5-C7
-      '15va': [81, 96]  // A6-C8
+      base: [36, 63],   // A3-C6
+      '8vb': [24, 39],  // A2-C4
+      '15vb': [12, 27], // A1-C3
+      '8va': [60, 75],  // A5-C7
+      '15va': [72, 87]  // A6-C8
     };
 
     // Rule 1: stay in base if all notes fit
@@ -419,9 +430,6 @@ const SheetMusic = ({
   };
 
   const scaleNotes = trebleSettings?.scaleNotes || [];
-
-  const clefTreble = calculateOptimalClef(trebleActiveClef, trebleMelody?.notes, 'treble');
-  const clefBass = calculateOptimalClef(bassActiveClef, bassMelody?.notes, 'bass');
 
   // Display-only transposition: how many semitones to shift written notes up/down.
   // Audio always plays concert pitch; only the sheet music notation changes.
@@ -716,27 +724,22 @@ const SheetMusic = ({
     ? localMeasureStart * measureLengthSlots
     : 0;
 
-  // Per-staff accidental-click handlers. Only created when the consumer provides the callback.
-  const trebleAccidentalClick = onNoteEnharmonicToggle
-    ? (relOffset) => onNoteEnharmonicToggle('treble', relOffset + paginationOffset)
-    : null;
-  const bassAccidentalClick = onNoteEnharmonicToggle
-    ? (relOffset) => onNoteEnharmonicToggle('bass', relOffset + paginationOffset)
-    : null;
-
   const currentTreble = sliceMelodyForPagination(trebleMelody);
   const currentBass = sliceMelodyForPagination(bassMelody);
   const currentPercussion = sliceMelodyForPagination(percussionMelody);
   const currentMetronome = sliceMelodyForPagination(metronomeMelody);
   const currentChordProgression = chordProgression; // ChordProgression is not a Melody — no slicing
 
+  // Clef selection is per visible block (not full melody) so that a passage that sits in a
+  // different register than the rest of the piece doesn't force an ottava on every other block.
+  const clefTreble = calculateOptimalClef(trebleActiveClef, currentTreble?.notes, 'treble', trebleSettings?.rangeMode);
+  const clefBass = calculateOptimalClef(bassActiveClef, currentBass?.notes, 'bass', bassSettings?.rangeMode);
+
   const adjustedTrebleMelody = processMelodyAndCalculateSlots(
     currentTreble,
     timeSignature,
     noteGroupSize,
     displayNumMeasures * measureLengthSlots, // use block duration
-    partialMeasureStart,
-    partialTop
   );
 
   const trebleMelodyFlags = processMelodyAndCalculateFlags(
@@ -750,8 +753,6 @@ const SheetMusic = ({
     timeSignature,
     noteGroupSize,
     displayNumMeasures * measureLengthSlots,
-    partialMeasureStart,
-    partialTop
   );
 
   const adjustedPercussionMelody = processMelodyAndCalculateSlots(
@@ -759,12 +760,10 @@ const SheetMusic = ({
     timeSignature,
     noteGroupSize,
     displayNumMeasures * measureLengthSlots,
-    partialMeasureStart,
-    partialTop
   );
 
   const adjustedMetronomeMelody = currentMetronome
-    ? processMelodyAndCalculateSlots(currentMetronome, timeSignature, noteGroupSize, displayNumMeasures * measureLengthSlots, partialMeasureStart, partialTop)
+    ? processMelodyAndCalculateSlots(currentMetronome, timeSignature, noteGroupSize, displayNumMeasures * measureLengthSlots)
     : null;
 
   // For rendering, expand chords to match the active melody's measure span so chord labels
@@ -944,17 +943,27 @@ const SheetMusic = ({
         const isStart = index === (numRepeats > 1 ? 1 : 0);
         const isEnd = index === lastIdx;
 
+        // R = how many times the current block has been played in this session.
+        // Only shown during active playback (isPlaying=true). Resets per block via blockPlayStart.
+        const repeatNum = isPlaying
+          ? Math.max(1, Math.floor((startIdx - blockPlayStart) / numMeasures) + 1)
+          : 1;
+        // Returns "N" (first play) or "N . R" (repeat R, R≥2) where N = song measure number.
+        const measureLabel = (localIndex) => {
+          const N = blockMeasureStart + localIndex;
+          return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
+        };
+
         if (numRepeats > 1) {
           if (isStart) {
             if (mode === 'regular') {
               // Show measure number label above the start barline even when repeats > 1
-              const globalIdx = startIdx;
               return (
                 <g key={`measure-line-${index}`}
-                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(globalIdx); } : undefined}
+                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx); } : undefined}
                   style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
                 >
-                  <rect x={startX - 10} y={trebleStart - 28} width={28} height={18} fill="transparent" />
+                  <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
                   <text
                     x={startX}
                     y={trebleStart - 14}
@@ -963,9 +972,9 @@ const SheetMusic = ({
                     fontFamily="Maestro"
                     style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
                   >
-                    {startIdx + 1}
+                    {measureLabel(0)}
                   </text>
-                  {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={28} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+                  {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
                 </g>
               );
             }
@@ -1014,13 +1023,12 @@ const SheetMusic = ({
         // For the opening barline (numRepeats <= 1): suppress the barline itself but
         // still render the "1" measure label above startX (the first note position).
         if (isStart && numRepeats <= 1) {
-          const globalIdx = startIdx + measureNumForLabel;
           return (
             <g key={`measure-line-${index}`}
-              onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(globalIdx); } : undefined}
+              onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
               style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
             >
-              <rect x={startX - 10} y={trebleStart - 28} width={28} height={18} fill="transparent" />
+              <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
               <text
                 x={startX}
                 y={trebleStart - 14}
@@ -1029,9 +1037,9 @@ const SheetMusic = ({
                 fontFamily="Maestro"
                 style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
               >
-                {startIdx + measureNumForLabel + 1}
+                {measureLabel(measureNumForLabel)}
               </text>
-              {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={28} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+              {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
             </g>
           );
         }
@@ -1046,13 +1054,12 @@ const SheetMusic = ({
               strokeWidth=".5"
             />
             {!isEnd && (() => {
-              const globalIdx = startIdx + measureNumForLabel;
               return (
                 <g
-                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(globalIdx); } : undefined}
+                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
                   style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
                 >
-                  <rect x={x - 10} y={trebleStart - 28} width={28} height={18} fill="transparent" />
+                  <rect x={x - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
                   <text
                     x={x}
                     y={trebleStart - 14}
@@ -1061,9 +1068,9 @@ const SheetMusic = ({
                     fontFamily="Maestro"
                     style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
                   >
-                    {startIdx + measureNumForLabel + 1}
+                    {measureLabel(measureNumForLabel)}
                   </text>
-                  {debugMode && <rect x={x - 10} y={trebleStart - 28} width={28} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+                  {debugMode && <rect x={x - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
                 </g>
               );
             })()}
@@ -1330,7 +1337,7 @@ const SheetMusic = ({
         {isSlash ? (
           <text
             x={xPos}
-            y={CHORD_ROOT_Y - CHORD_SUPER_DY + 10}
+            y={CHORD_ROOT_Y - CHORD_SUPER_DY - 5}
             fontSize="32"
             fontFamily="Maestro"
             fill="var(--text-primary)"
@@ -1416,50 +1423,9 @@ const SheetMusic = ({
   };
 
   // ── Debug: RhythmicDNA overlay above chord labels ────────────────────────────────────────
-  // Renders grouped rank numbers per measure in debug mode: "(1 3 7)(2 5)(4 6)"
-  // One group per rhythmicGrouping entry, each containing groupSize × slotsPerBeat ranks.
-  const renderDNADebug = () => {
-    if (!debugMode) return null;
-    const srcMelody = trebleMelody ?? bassMelody ?? percussionMelody;
-    const dna = srcMelody?.rhythmicDNA;
-    const grouping = srcMelody?.rhythmicGrouping;
-    if (!dna || !grouping || dna.length === 0 || grouping.length === 0) return null;
-
-    const totalGroupBeats = grouping.reduce((a, b) => a + b, 0);
-    if (totalGroupBeats === 0) return null;
-    const slotsPerBeat = dna.length / totalGroupBeats;
-
-    // Format one measure's DNA as "(r0 r1)(r2 r3)..."
-    const dnaText = grouping.map((size, gi) => {
-      const start = Math.round(grouping.slice(0, gi).reduce((a, b) => a + b, 0) * slotsPerBeat);
-      const end   = Math.round(start + size * slotsPerBeat);
-      return `(${dna.slice(start, end).map(r => r ?? '?').join(' ')})`;
-    }).join('');
-
-    // Find measure start X positions using the same 'm'-marker scan as renderRepeatSymbols.
-    const getXLocal = (index) => index === 0 ? startX - 35 : startX + (index - 1) * noteWidth;
-    const measureXs = [];
-    allOffsets.forEach((o, i) => { if (o === 'm') measureXs.push(getXLocal(i)); });
-    if (measureXs.length === 0) return null;
-
-    const DNA_Y = trebleStart - 74; // above chord labels (CHORD_ROOT_Y = trebleStart - 58)
-    return Array.from({ length: displayNumMeasures }, (_, m) => {
-      if (m >= measureXs.length) return null;
-      return (
-        <text
-          key={`dna-debug-${m}`}
-          x={measureXs[m]}
-          y={DNA_Y}
-          fontSize="8"
-          fontFamily="monospace"
-          fill="red"
-          style={{ pointerEvents: 'none', userSelect: 'none' }}
-        >
-          {dnaText}
-        </text>
-      );
-    });
-  };
+  // DNA debug is now rendered as an HTML overlay above the SVG (see the HTML overlay block
+  // just before the SVG wrapper div). Kept here as a no-op stub so call sites compile.
+  const renderDNADebug = () => null;
 
   // ── Lyric color helper — mirrors getMelodicColor / percussion chromatone logic ──────────
   const PERC_CHROMA = {
@@ -2203,7 +2169,7 @@ const SheetMusic = ({
                     >
                       {/* CHORD MELODY BLURRED BACKGROUND REMOVED */}
                       <g style={{ transform: `translateY(${trebleStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualTreble && renderMelodyNotes(adjustedTrebleMelody, numAccidentals, startX, noteWidth, allOffsets, 'treble', 0, noteGroupSize, measureLengthSlots, timeSignature, clefTreble, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, trebleTransSemitones, debugMode, true, trebleAccidentalClick)}
+                        {actualTreble && renderMelodyNotes(adjustedTrebleMelody, numAccidentals, startX, noteWidth, allOffsets, 'treble', 0, noteGroupSize, measureLengthSlots, timeSignature, clefTreble, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, trebleTransSemitones, debugMode, true, courtesyAccidentals)}
                         {isTrebleVisible && !actualTreble && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       {melodicLyricsActive && actualTreble && (
@@ -2212,7 +2178,7 @@ const SheetMusic = ({
                         </g>
                       )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualBass && renderMelodyNotes(adjustedBassMelody, numAccidentals, startX, noteWidth, allOffsets, 'bass', 0, noteGroupSize, measureLengthSlots, timeSignature, clefBass, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, bassTransSemitones, debugMode, true, bassAccidentalClick)}
+                        {actualBass && renderMelodyNotes(adjustedBassMelody, numAccidentals, startX, noteWidth, allOffsets, 'bass', 0, noteGroupSize, measureLengthSlots, timeSignature, clefBass, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, bassTransSemitones, debugMode, true, courtesyAccidentals)}
                         {isBassVisible && !actualBass && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>

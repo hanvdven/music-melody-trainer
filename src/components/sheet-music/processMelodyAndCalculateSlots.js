@@ -38,7 +38,7 @@ const isStemUp = (noteArray) => {
 // Largest-first for greedy splitting: try the longest fitting duration first.
 const splittableDurations = [...allowedDurations].reverse();
 
-const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, globalMaxDuration, partialMeasureStart = null, partialTop = null) => {
+const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, globalMaxDuration) => {
   const firstNonNull = melody.displayNotes ? melody.displayNotes.find(n => n !== null && n !== 'r') : null;
   const useDisplayNotes = melody.displayNotes && firstNonNull && (typeof firstNonNull === 'string' || Array.isArray(firstNonNull));
   const notes = useDisplayNotes ? melody.displayNotes : (melody.notes || []);
@@ -49,41 +49,34 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
   const timeSigTop = timeSignature[0];
 
   // Beat-group boundary ticks (relative to measure start, excluding 0 = downbeat).
-  // decomposeNumeratorToBeatGroups returns group-start offsets in beat-unit steps;
-  // multiply by beatUnit to get ticks. Used for both beat-level assignment and
-  // the legacy 3a irregular-boundary path below.
-  // Examples: 4/4 → [0,2]×12 → internal boundary at 24 (beat 3).
-  //           5/4 → [0,3]×12 → internal boundary at 36 (beat 4).
-  //           6/8 → [0,3]×6  → internal boundary at 18 (compound beat 2).
+  // When melody.rhythmicGrouping is present (e.g. [3,2] for 5/4 played as 3+2),
+  // use it directly so boundaries match the DNA that drove generation. This fixes
+  // cases where the generated grouping differs from decomposeNumeratorToBeatGroups'
+  // default (e.g. 5/4 generated as [2,3] has its boundary at beat 2, not beat 3).
+  // Fall back to decomposeNumeratorToBeatGroups for melodies without explicit grouping.
+  // Examples: [3,2]×12 → internal boundary at 36 (beat 4 of 5/4).
+  //           [2,3]×12 → internal boundary at 24 (beat 3 of 5/4).
+  //           [3,3]×6  → internal boundary at 18 (compound beat 2 of 6/8).
   const beatUnit = TICKS_PER_WHOLE / timeSignature[1];
-  const beatGroupBoundaryTicks = decomposeNumeratorToBeatGroups(timeSigTop)
-      .slice(1)              // exclude 0 (measure start — not an internal boundary)
-      .map(s => s * beatUnit);
-  const beatGroupBoundaryTickSet = new Set(beatGroupBoundaryTicks);
-
-  // Beat-strength level of a tick position within a measure.
-  // Level 4 = downbeat (tick 0), Level 2 = secondary group boundary (e.g. beat 3 in 4/4,
-  // compound beat 2 in 6/8), Level 1 = other beat-unit boundary, Level 0 = sub-beat.
-  // Split rule: a note starting at level L must be split at any boundary with level > L.
-  const getBeatLevel = (posInMeasure) => {
-    if (Math.abs(posInMeasure % measureLength) < 0.01) return 4; // downbeat
-    if (beatGroupBoundaryTickSet.has(posInMeasure)) return 2;
-    if (Math.abs(posInMeasure % beatUnit) < 0.01) return 1;
-    return 0;
-  };
-
-  // Returns the first absolute tick ≥ absOffset+ε inside [absOffset, absOffset+duration)
-  // whose beat level exceeds the level at absOffset. Returns null when no such point exists
-  // (meaning the note may stay whole from a metrical perspective).
-  const getNextRequiredSplitBoundary = (absOffset, duration) => {
-    const startInMeasure = absOffset % measureLength;
-    const startLevel = getBeatLevel(startInMeasure);
-    const firstBeat = Math.ceil((absOffset + 0.01) / beatUnit) * beatUnit;
-    for (let b = firstBeat; b < absOffset + duration; b += beatUnit) {
-      if (getBeatLevel(b % measureLength) > startLevel) return b;
+  let beatGroupBoundaryTicks;
+  if (melody.rhythmicGrouping && melody.rhythmicGrouping.length > 1) {
+    // Convert group sizes to cumulative beat-starts, skip the first (measure start = 0).
+    const groupStarts = [];
+    let groupAcc = 0;
+    for (let gi = 0; gi < melody.rhythmicGrouping.length; gi++) {
+      groupStarts.push(groupAcc);
+      groupAcc += melody.rhythmicGrouping[gi];
     }
-    return null;
-  };
+    beatGroupBoundaryTicks = groupStarts.slice(1).map(s => s * beatUnit);
+  } else {
+    beatGroupBoundaryTicks = decomposeNumeratorToBeatGroups(timeSigTop)
+        .slice(1)
+        .map(s => s * beatUnit);
+  }
+  // All group start ticks within one measure: [0, internal boundaries…, measureLength].
+  // A note "fills the last group" when its end tick (relative to the measure start) equals
+  // the next entry in this array — i.e. it ends exactly at a group boundary.
+  const allGroupStarts = [0, ...beatGroupBoundaryTicks, measureLength];
 
   let startRestDuration = 0;
 
@@ -174,6 +167,9 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
     let remainingDuration = paddedDurations[i];
     let currentOffset = paddedOffsets[i];
     let isFirstSplit = true;
+    // Set to true once a Step 3 group-boundary split has occurred for this note.
+    // Subsequent Step 3 chunks become rests instead of tied note continuations.
+    let inGroupBoundaryCont = false;
 
     // Step 1: If note does not start at a count alignment and crosses a count alignment, split it
 
@@ -201,66 +197,43 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
       remainingDuration -= splitDuration;
     }
 
-    // Step 2: Check and split if the note crosses a measure boundary
+    // Step 2: Split at measure boundaries.
     while (remainingDuration > 0) {
-      // Calculate effective group size dynamically based on position
-      let effectiveGroupSize = noteGroupSize;
-      if (partialMeasureStart !== null && currentOffset >= partialMeasureStart) {
-        if ([2, 3, 4].includes(partialTop)) {
-          effectiveGroupSize = 12;
-        }
-      }
-
       let currentMeasureEnd = Math.ceil((currentOffset + 0.5) / measureLength) * measureLength;
 
-      // Split if the note crosses one or more measure boundaries
+      // Split across one or more measure boundaries.
       while (currentOffset + remainingDuration > currentMeasureEnd) {
         let splitDuration = currentMeasureEnd - currentOffset;
 
-        // Check if the split duration is allowed, if not, further split it.
-        // Guard: if splitDuration drops below the minimum splittable unit (3 ticks,
-        // a 32nd note) and is not itself an allowedDuration, no further split is possible.
-        // This can happen with tuplet notes (e.g. duration=4 for triplet-8ths) that cross
-        // a measure boundary, leaving a sub-3-tick remainder. Without the guard the loop
-        // spins forever, freezing the app. Drop the remainder — it is inaudible and
-        // unrenderable, and the note effectively ends at the measure boundary.
+        // If the piece at the measure boundary is not a standard notation value, subdivide it.
+        // Guard: drop any remainder < 3 ticks (sub-32nd, unrenderable) to prevent infinite loop.
         while (!allowedDurations.includes(splitDuration)) {
           let found = false;
           for (let j = 0; j < splittableDurations.length; j++) {
             if (splittableDurations[j] <= splitDuration) {
               const firstPart = splittableDurations[j];
-              const secondPart = splitDuration - firstPart;
-
               resultNotes.push(paddedNotes[i]);
               resultDurations.push(firstPart);
               resultOffsets.push(currentOffset);
               resultOriginalIndices.push(paddedOriginalIndices[i]);
               resultTies.push(isFirstSplit ? null : 'tie');
-
               isFirstSplit = false;
               currentOffset += firstPart;
-              splitDuration = secondPart;
+              splitDuration -= firstPart;
               remainingDuration -= firstPart;
               found = true;
               break;
             }
           }
-          if (!found) {
-            // Remainder is too small to split further — drop it to prevent infinite loop.
-            remainingDuration -= splitDuration;
-            splitDuration = 0;
-            break;
-          }
+          if (!found) { remainingDuration -= splitDuration; splitDuration = 0; break; }
         }
 
-        // Skip the push when splitDuration was zeroed by the guard above.
         if (splitDuration > 0) {
           resultNotes.push(paddedNotes[i]);
           resultDurations.push(splitDuration);
           resultOffsets.push(currentOffset);
           resultOriginalIndices.push(paddedOriginalIndices[i]);
           resultTies.push(isFirstSplit ? null : 'tie');
-
           isFirstSplit = false;
           currentOffset += splitDuration;
           remainingDuration -= splitDuration;
@@ -269,100 +242,74 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
         currentMeasureEnd += measureLength;
       }
 
-      // Step 3: Continue splitting until the note aligns with allowed durations.
+      // Step 3: Group-boundary split.
+      // Rule 1 — fills last group: if the note ends exactly at a group boundary it is
+      //   metrically complete and stays whole.
+      // Rule 2 — doesn't fill last group: split at the first group boundary after the note
+      //   start so the group boundary remains visible. Iterate until rule 1 or rule 3 applies.
+      // Rule 3 — within one group: note starts and ends inside the same group; stay whole
+      //   if the duration is a standard notation value, otherwise use greedy fallback.
+      const startInMeasure = currentOffset % measureLength;
+      const endInMeasure   = startInMeasure + remainingDuration; // ≤ measureLength after step 2
 
-      // 3a: Fast-path for the first beat-group boundary crossing (e.g. 5/4 = 3+2, tick 36).
-      // The new beat-strength model below handles this too, but this path short-circuits
-      // cleanly when the first boundary produces a valid notation value. The guard
-      // (allowedDurations check) prevents spurious splits when the piece would be un-renderable.
-      if (beatGroupBoundaryTicks.length > 0) {
-        const offsetInMeasure = currentOffset % measureLength;
-        const nextGroupBoundary = beatGroupBoundaryTicks.find(
-            b => b > offsetInMeasure && b < offsetInMeasure + remainingDuration
-        );
-        if (nextGroupBoundary != null) {
-          const splitDuration = nextGroupBoundary - offsetInMeasure;
-          if (allowedDurations.includes(splitDuration)) {
-            resultNotes.push(paddedNotes[i]);
-            resultDurations.push(splitDuration);
-            resultOffsets.push(currentOffset);
-            resultOriginalIndices.push(paddedOriginalIndices[i]);
-            resultTies.push(isFirstSplit ? null : 'tie');
-            isFirstSplit = false;
-            currentOffset += splitDuration;
-            remainingDuration -= splitDuration;
-            continue;
-          }
-        }
+      // Find the boundary that closes the last group the note touches.
+      let lastGroupEnd = measureLength;
+      for (const g of allGroupStarts) {
+        if (g >= endInMeasure) { lastGroupEnd = g; break; }
       }
 
-      // A note stays whole when it is a valid notation value AND no metrically-stronger
-      // beat boundary falls within its span.
-      // Beat-strength rule: split at boundary B only if level(B) > level(start_position).
-      // Examples (4/4): whole note from beat 1 (level 4) — beats 2/3/4 all ≤ 4 → no split.
-      //                 half note from beat 2 (level 1) — beat 3 is level 2 > 1 → split.
-      //                 dotted quarter from beat 3 (level 2) — beat 4 is level 1 ≤ 2 → no split.
-      // Compound meters (6/8): compound beat 2 (tick 18) has level 2; an 8th note starting
-      // at tick 6 (level 1) must split there.
-      const noSplitRequired = getNextRequiredSplitBoundary(currentOffset, remainingDuration) === null;
-      if (
-        allowedDurations.includes(remainingDuration) &&
-        (remainingDuration <= effectiveGroupSize ||
-          ((currentOffset + remainingDuration) % measureLength) % effectiveGroupSize === 0 ||
-          noSplitRequired)
-      ) {
-        resultNotes.push(paddedNotes[i]);
+      if (endInMeasure === lastGroupEnd && allowedDurations.includes(remainingDuration)) {
+        // Rule 1: note fills its last group exactly AND is a renderable duration — stay whole.
+        // When the full-measure duration isn't representable (e.g. 60 ticks in 5/4) fall through
+        // to Rule 2, which splits at the first group boundary (e.g. half + dotted-half for [2,3]).
+        resultNotes.push(inGroupBoundaryCont ? 'r' : paddedNotes[i]);
         resultDurations.push(remainingDuration);
         resultOffsets.push(currentOffset);
         resultOriginalIndices.push(paddedOriginalIndices[i]);
-        resultTies.push(isFirstSplit ? null : 'tie');
+        resultTies.push(inGroupBoundaryCont ? null : (isFirstSplit ? null : 'tie'));
         break;
       }
 
-      // Beat-boundary split: if a metrically-required split point exists and the resulting
-      // first piece is a valid notation value, split exactly there. This produces cleaner
-      // notation than the greedy splitter (e.g. half + half for a whole note on beat 2 in
-      // 4/4 rather than whatever the greedy heuristic would pick first).
-      const splitPoint = getNextRequiredSplitBoundary(currentOffset, remainingDuration);
-      if (splitPoint !== null) {
-        const boundaryDur = splitPoint - currentOffset;
-        if (allowedDurations.includes(boundaryDur)) {
-          resultNotes.push(paddedNotes[i]);
-          resultDurations.push(boundaryDur);
-          resultOffsets.push(currentOffset);
-          resultOriginalIndices.push(paddedOriginalIndices[i]);
-          resultTies.push(isFirstSplit ? null : 'tie');
-          isFirstSplit = false;
-          currentOffset += boundaryDur;
-          remainingDuration -= boundaryDur;
-          continue;
-        }
+      // Rule 2: find the first group boundary strictly after the note's start.
+      const firstBoundaryAfterStart = allGroupStarts.find(g => g > startInMeasure);
+      if (firstBoundaryAfterStart != null && firstBoundaryAfterStart < endInMeasure) {
+        // Split there; the loop re-evaluates the remainder on the next iteration.
+        const splitDuration = firstBoundaryAfterStart - startInMeasure;
+        resultNotes.push(inGroupBoundaryCont ? 'r' : paddedNotes[i]);
+        resultDurations.push(splitDuration);
+        resultOffsets.push(currentOffset);
+        resultOriginalIndices.push(paddedOriginalIndices[i]);
+        resultTies.push(inGroupBoundaryCont ? null : (isFirstSplit ? null : 'tie'));
+        inGroupBoundaryCont = true; // remainder goes to rest on next iteration
+        isFirstSplit = false;
+        currentOffset += splitDuration;
+        remainingDuration -= splitDuration;
+        continue;
       }
 
-      // Greedy split: pick the longest notation value that fits and ends on a beat boundary.
+      // Rule 3: note is entirely within one group.
+      if (allowedDurations.includes(remainingDuration)) {
+        resultNotes.push(inGroupBoundaryCont ? 'r' : paddedNotes[i]);
+        resultDurations.push(remainingDuration);
+        resultOffsets.push(currentOffset);
+        resultOriginalIndices.push(paddedOriginalIndices[i]);
+        resultTies.push(inGroupBoundaryCont ? null : (isFirstSplit ? null : 'tie'));
+        break;
+      }
+
+      // Greedy fallback for non-standard durations (e.g. padding rests with irregular length).
+      // Take the largest standard notation value that fits.
       let splitDuration = 0;
       for (let j = 0; j < splittableDurations.length; j++) {
-        if (
-          splittableDurations[j] <= remainingDuration &&
-          (splittableDurations[j] === 3 ||
-            ((currentOffset + splittableDurations[j]) % measureLength) % effectiveGroupSize === 0)
-        ) {
-          splitDuration = splittableDurations[j];
-          break;
-        }
+        if (splittableDurations[j] <= remainingDuration) { splitDuration = splittableDurations[j]; break; }
       }
+      if (splitDuration === 0) break; // guard against infinite loop
 
-      // Guard: if no valid split duration found, break to prevent infinite loop.
-      // This can occur when remainingDuration < 3 (e.g. due to a non-multiple-of-3
-      // padding rest added when melodies and time signature are temporarily mismatched).
-      if (splitDuration === 0) break;
-
-      resultNotes.push(paddedNotes[i]);
+      resultNotes.push(inGroupBoundaryCont ? 'r' : paddedNotes[i]);
       resultDurations.push(splitDuration);
       resultOffsets.push(currentOffset);
       resultOriginalIndices.push(paddedOriginalIndices[i]);
-      resultTies.push(isFirstSplit ? null : 'tie');
-
+      resultTies.push(inGroupBoundaryCont ? null : (isFirstSplit ? null : 'tie'));
       isFirstSplit = false;
       remainingDuration -= splitDuration;
       currentOffset += splitDuration;

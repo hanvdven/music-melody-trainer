@@ -2,6 +2,8 @@
 
 These instructions apply to every AI agent (Claude, Copilot, or other) working on this codebase. Follow them unconditionally. They exist to keep the codebase comprehensible, prevent regressions, and maintain a shared understanding between human and AI contributors.
 
+> **Before implementing anything**: read §4b. Every feature and bug fix requires an interview first — no exceptions.
+
 ---
 
 ## ⚠ Currently In Progress (April 30, 2026) — CLOUD AGENTS READ THIS FIRST
@@ -156,17 +158,28 @@ Rationale: comments encode the reasoning behind past decisions. Silently removin
 
 ---
 
-## 4b. Interview Before Implementing — Mandatory
+## ⚠ 4b. Interview Before Implementing — HARD STOP
 
-**Before implementing any feature — even after a direct instruction from Han — conduct a short interview with clarifying questions, both functional and technical.**
+> **Do not write a single line of implementation code until the interview is complete.**
+> This rule has no exceptions for features or bug fixes with any user-visible effect.
+> Skipping it is a mistake even when the request seems obvious — Han's intent is always
+> more specific than the summary suggests.
 
-This applies unconditionally: no feature is too small to skip the interview step. The cost of two questions is zero; the cost of building the wrong thing is high.
+**Before implementing any feature or bug fix, conduct a short interview:**
 
-Typical interview questions:
-- *Functional:* What is the exact user-facing behaviour? Any edge cases? What should NOT change?
-- *Technical:* Which existing components/hooks are affected? Should this be a new file or extend an existing one? Any performance or accessibility concerns?
+1. State your understanding of what was asked (1–2 sentences).
+2. Ask 2–4 clarifying questions — both functional and technical:
+   - *Functional:* What is the exact user-facing behaviour? Edge cases? What must NOT change?
+   - *Technical:* Which files are affected? New file or extend existing? Any invariants at risk?
+3. Wait for Han's answers before opening any file for editing.
 
-Exception: pure refactors with no user-visible change (e.g. renaming, extracting a hook) do not require an interview if the scope is unambiguous.
+**This applies unconditionally, even when:**
+- Han phrases the request as a direct instruction ("fix X", "add Y")
+- The fix seems small or obvious
+- The backlog item already has a `⚠ Neem alvorens dit te implementeren een interview af bij Han` notice (that notice is a reminder of THIS rule, not a separate one)
+- You already have a clear implementation plan in mind
+
+**Exception:** pure refactors with zero user-visible change (e.g. renaming a variable, extracting a hook with identical behaviour) — only if the scope is completely unambiguous.
 
 ---
 
@@ -218,7 +231,31 @@ These are the most common ways agents break things. Read them carefully.
 
 ---
 
-## 6b. Use Existing Logic — Do Not Hardcode
+## 6b. Melody Generation — Mandatory Re-read Rule
+
+**Any edit to anything related to melody generation requires re-reading `docs/architecture.md` §3 (Generation Pipeline) first.** This includes — but is not limited to:
+
+- `src/generation/melodyGenerator.js`
+- `src/generation/rhythmicPriorities.js` (`generateRhythmicDNA`, `chooseGrouping`, `generateDeterministicRhythm`)
+- `src/generation/generateRankedRhythm.js`
+- `src/generation/generateBackbeat.js`
+- `src/generation/convertRankedArrayToMelody.js`
+- `src/model/InstrumentSettings.js` (any default that feeds into generation)
+- `src/utils/melodySlice.js`
+
+**Why this rule exists:** In May 2026 a bug in `generateRhythmicDNA` (fractional `slotsPerBeat` when `smallestNoteDenom < denominator`) was patched by hardcoding `smallestNoteDenom=4` in `defaultBassInstrumentSettings` instead of fixing the root cause inside the generation function. This broke the principle that ALL instruments share the same pipeline, and introduced instrument-specific branching where none should exist.
+
+**The invariant that MUST hold**: The melody generation pipeline (steps 4a–4g in §3) is identical for ALL instrument types. Variation is expressed through `InstrumentSettings` fields only — never by special-casing instrument type inside the generation code.
+
+**Before patching a generation bug, verify:**
+1. The fix is inside the affected generation function (not at the call site or in settings).
+2. No hardcoded per-instrument parameters are introduced.
+3. The fix works for ALL time signatures, including odd numerators (5/4, 7/8, 11/8).
+4. `npm run test:run` passes after the fix.
+
+---
+
+## 6c. Use Existing Logic — Do Not Hardcode
 
 **Before writing any lookup table, constant map, or per-value special case**, stop and search the codebase for a formula or utility that already handles the problem generically. This is a mandatory step, not optional.
 

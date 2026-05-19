@@ -168,6 +168,18 @@ Voorlopig: elke maat dezelfde onderverdeling.
 
 [Claude 2026-05-12]: Opmerking: `decomposeNumeratorToBeatGroups` in `rhythmicPriorities.js` bestaat al en geeft beat-groepen terug (bijv. 5→[3,2]). De koppeling met splitsregels, backbeat-routing en notenpool-weging is nog niet gemaakt.
 [Claude 2026-05-17]: ⬇ LAGE PRIORITEIT — op verzoek van Han. Backbeat drum ✅ (backbeat_2 implementeert groeperings-bewuste kick/snare-plaatsing). Melodische noot-gewichten naar groepering: uitgesteld. De ranked array (DNA) zelf bevat al de groeperings-hiërarchie; de melodiegenerator gebruikt die al voor prioriteit. Extra weging van notenpool naar groepsgrens is een verfijning, niet een blocker.
+[Claude 2026-05-19]: ✅ Gedeelde groepering geïmplementeerd — `chooseGrouping()` wordt één keer per generatieblok aangeroepen in `useMelodyState.randomizeAll()` en doorgegeven aan alle generators (treble, bas, percussie, akkoorden, metronoom). `globalRhythmArray` gebruikt nu `generateRhythmicDNA(sharedGrouping)` in plaats van `generateDeterministicRhythm('default')`. Metronoom gebruikt `randomizationRule: 'metronome'` met `wh/wm/wl` woodblock-klikken op basis van groepsstart. Doorgegeven akkoorden (`insertPassingChords`) plaatst leidakkoorden op DNA-gerangschikte beats.
+
+### RhythmicGrouping — edge case bij maatsoortwijziging en geschiedenisnavigatie
+
+⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+Elk `Melody`-object draagt zijn eigen `rhythmicGrouping` (bijv. `[3,2]`). Twee randgevallen:
+
+1. **Geschiedenisnavigatie**: wanneer je teruggaat naar een oudere melodie, kan de groepering van die melodie afwijken van de huidige. Visueel is dit correct (de renderer gebruikt `melody.rhythmicGrouping`), maar dit moet bevestigd worden voor afspeelscheduling.
+2. **Maatsoortwijziging midden in de sessie**: de opgeslagen melodieën in de history hebben een groepering die bij de *oude* maatsoort hoort. Wat moet er gebeuren bij navigatie naar zo'n entry na een maatsoortwijziging?
+
+[Claude 2026-05-19]: Geparkeerd op verzoek van Han. Interview vereist vóór implementatie.
 
 ### Tuplets & polyritmiek
 
@@ -246,15 +258,16 @@ Ik zie geen tuplets bij percussie of bas, hoe komt dat? Is de bedoeling dat ze o
 
 [Claude 2026-04-09]: Geïmplementeerd — klik op ♯/♭ symbool vóór een noot wisselt de displayNote naar enharmonisch equivalent (F♯↔G♭ etc.) via ENHARMONIC_PAIRS. Speelt de noot NIET af (stopPropagation). Alleen displayNotes gewijzigd; audio-pitch (notes array) blijft ongewijzigd. Bestanden: renderMelodyNotes.jsx (onAccidentalClick param), SheetMusic.jsx (onNoteEnharmonicToggle prop + paginationOffset), App.jsx (handleNoteEnharmonicToggle). Aanname: alleen singlenoten (geen akkoorden); enharmonisch equivalent op basis van ENHARMONIC_PAIRS uit noteUtils.js.
 
-### Bug: klikken op accidentaal vóór noot wisselt enharmonisch — moet alleen noot spelen
+✅ ### Bug: klikken op accidentaal vóór noot wisselt enharmonisch — moet alleen noot spelen
 
 bug (backlog): clicking the accidental of a note in the sheet music changes the note to its enharmonic equivalent — this should only happen when clicking the accidental all the way at the beginning of the bar (key signature), not accidentals directly before notes. Clicking the accidental should just play the note (as if the note itself was clicked).
 
 Dus: klik op ♯/♭ direct vóór een noot → speelt de noot af (zelfde gedrag als klikken op de noot zelf). Klik op voortekens in de sleutel / aan het begin van de maat → wisselt enharmonisch equivalent.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-18]: Opgelost. Inline accidentalen (direct voor een noot) roepen niet langer `onAccidentalClick` aan — de click-handler en `stopPropagation` zijn verwijderd, zodat klikken op het voorteken omhoog borrelt naar de parent `<g data-notes>` en de noot afspeelt (identiek aan klikken op de nootkop zelf). De glow-highlight (`note-active` filter) is automatisch van toepassing op het voorteken omdat het een kind is van de `<g data-notes>`. Extra brede transparante `<rect>` (20×30px) toegevoegd als klikzone rond het voorteken. Sleutelvoortekens (begin van de maat, via `renderAccidentals()`) hebben een eigen handler en gedragen zich ongewijzigd. `onAccidentalClick`-prop verwijderd uit `renderMelodyNotes`; `trebleAccidentalClick`/`bassAccidentalClick` verwijderd uit `SheetMusic.jsx`. Bestanden: `renderMelodyNotes.jsx`, `SheetMusic.jsx`. Extra vereiste (Han 2026-05-18): bij herhaalde accidentalen feature — highlight het eerder-in-de-maat-getoonde accidentaal wanneer de noot actief is.
 
-### Feature: Correcte accidentaal-weergave — herhaalde accidentalen en herstellingstekens
+✅ ### Feature: Correcte accidentaal-weergave — herhaalde accidentalen en herstellingstekens
 
 feature request (backlog): correct behaviour of accidentals: repeated accidentals and natural accidentals. The maestro letter for natural accidental is 'n'.
 
@@ -264,14 +277,33 @@ Vereist:
 - Logica hoort in renderMelodyNotes.jsx, bijgehouden per maat via een accidentalState map.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-18 v2]: Herzien na Han's correcties. Drie bugfixes t.o.v. v1: (1) Revert toont altijd het juiste symbool via `noteOwnAccidental()` — terug naar ♭ toont `b`, terug naar ♮ toont `n`, terug naar 𝄪/𝄫 toont `Ü`/`º`. (2) Cross-maat courtesy: als een noot in de vorige maat chromatisch gewijzigd was (CHROMATIC set), krijgt de eerste verschijning in de nieuwe maat een small-courtesy versie van het juiste symbool. (3) Revert sentinel `REVERTED` (Symbol) voorkomt dubbele 'b'-reminder voor opeenvolgende in-key noten. `SMALL_COURTESY` bevat nu ook `'º': 'Î'` (kleine courtesy double-flat) en `'Ü': ']'`.
 
-### Bug: Overmatig gebruik van 8vb in de treblesleutel
+### ✅ Bug: Overmatig gebruik van 8vb in de treblesleutel
 
 bug (backlog): excessive use of 8vb in treble clef. Only use 8va and 8vb when MANY notes fall outside the standard range (not just single notes). A single note that falls outside C4–G5 should not trigger an 8va/8vb marking; only use it when a significant portion of the passage lies outside the staff range.
 
-> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-18]: Eerste poging fout — gebruikte `MIN_OTTAVA_NOTE_COUNT=3` als drempelwaarde. Oorzaak van het probleem was in feite dat alle RANGES in `calculateOptimalClef` 9 eenheden te hoog stonden (fout: C4=48, correct: C4=39 via `getNoteIndex`). Tweede fix: correcte rangewaarden + per-blok clef-selectie (gebruikt `currentTreble.notes` ipv volledige melodie) + vocale sleutels worden nooit 8va/8vb gegeven. `MIN_OTTAVA_NOTE_COUNT`-blok verwijderd uit `renderMelodyNotes.jsx`. Bestanden: `SheetMusic.jsx`, `renderMelodyNotes.jsx`.
 
 ✅ Noten en lyrics klikbaar (do-re-mi / takadimi spelen de noot/slag).
+
+### Nootgroepering: geen splitsing over groepsgrenzen
+
+note grouping - if a note spans multiple full note groups do not split across groups. (e.g., group (12)(34) with a full note at 1, can use a whole note, rather than two half notes).
+this can be generalised: if the end of a note fits into a group, no splitting is needed: e.g., groups (12)(34), with a 3/4 note on 2 -> dotted half note.
+however, if the note needs to be split anyway; prefer splitting on group lines. e.g.,
+5/4 note with groups (12)(345) -> half + half-dot
+but groups (123)(45) -> half-dot + half.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-18]: Op de backlog gezet op verzoek van Han. Betreft de nootgroeperingslogica in `renderMelodyNotes.jsx` / `processMelodyAndCalculateSlots.js` — noten die over groepslijnen heen lopen worden gesplitst, maar dat is onnodig als de noot binnen één groep past of als de eindtick precies op een groepsgrens valt.
+
+### Bug: Span onjuist berekend voor tuplets
+
+bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2 eighths tuplet a5 f4 a6 - but a6 and f4 are further apart than 8 semitones.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-18]: Op de backlog gezet op verzoek van Han. De span (afstand in halve tonen tussen de hoogste en laagste noot in een passus) lijkt niet correct te worden meegenomen bij de selectie van ottava-markering voor passages die tuplets bevatten.
 
 ### Weergave & layout
 
@@ -549,6 +581,12 @@ De generator-instellingen zijn rommelig geworden naarmate er meer kolommen zijn 
 
 - 'humanization' in afspelen van de muziek: volume en timing
 - herbalanceren variability (misschien wortel nemen van percentage voor genuanceerder effect?)
+
+### Rusten en staccato in treble en bass melody
+
+rusten en staccato in treble en bass melody
+
+[Claude 2026-05-19]: Op de backlog gezet op verzoek van Han. Betreft het toevoegen van rusten en staccato-articulatie als gegenereerde notenwaarden in de treble- en basmelodie. Niet implementeren totdat Han dit activeert.
 
 ---
 

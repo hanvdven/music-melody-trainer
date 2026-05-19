@@ -77,7 +77,7 @@ class InstrumentSettings {
       'electric_bass_pick',   // instrument
       'bass',                 // type
       2,                      // notesPerMeasure
-      4,                      // smallestNoteDenom — quarter-note resolution; 2 (half-note) broke odd-numerator time sigs
+      2,                      // smallestNoteDenom — half-note resolution; generateRhythmicDNA clamps internally via Math.max(smallestNoteDenom, denominator)
       0,                      // rhythmVariability
       false,                  // enableTriplets
       'chord',                // notePool

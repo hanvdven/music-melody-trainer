@@ -138,6 +138,7 @@ const App = () => {
         isModulationEnabled, setIsModulationEnabled,
         isSimpleView, setIsSimpleView,
         minimizeAccidentals, setMinimizeAccidentals,
+        courtesyAccidentals, setCourtesyAccidentals,
         debugMode, setDebugMode,
         noteColoringMode, setNoteColoringMode,
         showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef,
@@ -159,7 +160,6 @@ const App = () => {
         chordDisplayMode, setChordDisplayMode,
     } = useAppUIState();
 
-    const [chordProgression, setChordProgression, chordProgressionRef] = useRefState(() => ChordProgression.default());
     const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
 
     // Sheet Music Settings state (Lifted)
@@ -280,11 +280,13 @@ const App = () => {
     const {
         melodies,
         setters: melodySetters,
-        randomizeAll: randomizeAllLogic, // Renamed to avoid conflict
+        randomizeAll: randomizeAllLogic,
         randomizeMeasure,
-        generateChords: generateChordsLogic, // Renamed to avoid conflict
+        generateChords: generateChordsLogic,
         historyIndex,
+        historyIndexRef,
         navigateHistory,
+        chordProgressionRef,
     } = useMelodyState(
         numMeasures,
         timeSignature,
@@ -296,7 +298,6 @@ const App = () => {
         metronomeSettings,
         chordSettings,
         chordSettings?.complexity || 'triad',
-        chordProgression,
         tsRef,
         nmRef
     );
@@ -320,6 +321,7 @@ const App = () => {
         treble: trebleMelody,
         bass: bassMelody,
         metronome: metronomeMelody,
+        chordProgression,
         referenceMelody,
         referenceBassMelody,
         referenceScale,
@@ -332,10 +334,10 @@ const App = () => {
         setTreble: setTrebleMelody,
         setBass: setBassMelody,
         setPercussion: setPercussionMelody,
+        setChordProgression,
         setReferenceMelody,
         setReferenceBassMelody,
         setReferenceScale,
-        // setChordProgression is now handled by App state
     } = melodySetters;
 
     const { handleNoteClick, handleChordClick, handleNoteEnharmonicToggle } = useNoteInteraction({
@@ -343,12 +345,8 @@ const App = () => {
         trebleMelody, bassMelody, setTrebleMelody, setBassMelody,
     });
 
-    // Wrapper for randomizeAll from useMelodyState to update elevated chordProgression
-    const randomizeAll = useCallback((config) => {
-        const result = randomizeAllLogic(config);
-        setChordProgression(result.chordProgression);
-        return result;
-    }, [randomizeAllLogic, setChordProgression]);
+    // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
+    const randomizeAll = randomizeAllLogic;
 
     const {
         isPlayingContinuously,
@@ -464,6 +462,25 @@ const App = () => {
     // Manual instrument playing (UI keys/pads) will still use default volumes or respect their individual velocity handling.
 
     const isPlaying = isPlayingContinuously || isPlayingScale || isPlayingMelody;
+
+    // Block display state: which song-level measure number the current block starts at,
+    // and which sequence position it first appeared at (for computing the repeat suffix R).
+    // blockMeasureStart: 1-indexed measure number of the first measure in the current block.
+    // blockPlayStart: the startMeasureIndex when the current block first appeared.
+    const [blockMeasureStart, setBlockMeasureStart] = useState(1);
+    const [blockPlayStart, setBlockPlayStart] = useState(0);
+
+    // Sync block display whenever historyIndex changes — covers: Next button, history navigation,
+    // and play start (randomizeAll fires here too). For Sequencer auto-generated blocks during
+    // continuous play, applyResultToSetters overrides these via the setBlockMeasureStart /
+    // setBlockPlayStart setters passed in sequencerSetters below.
+    useEffect(() => {
+        if (historyIndex >= 0) {
+            setBlockMeasureStart(historyIndex * numMeasures + 1);
+            setBlockPlayStart(0);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [historyIndex]);
 
     // When numMeasures is changed while NOT playing, resize the active melodies so the
     // sheet music immediately reflects the new target length:
@@ -590,6 +607,8 @@ const App = () => {
         setReferenceBassMelody,
         setReferenceScale,
         setStartMeasureIndex,
+        setBlockMeasureStart,
+        setBlockPlayStart,
         setIsOddRound,
         setVolume,
         setCurrentMeasureIndex,
@@ -620,7 +639,7 @@ const App = () => {
     }), [setTonic, setScale, setTrebleSettings, setBassSettings, setChordProgression,
         generateChords, setTrebleMelody, setBassMelody, setPercussionMelody,
         setShowNotes, setShowChordLabels, setReferenceMelody, setReferenceBassMelody,
-        setReferenceScale, setStartMeasureIndex, setIsOddRound, setVolume,
+        setReferenceScale, setStartMeasureIndex, setBlockMeasureStart, setBlockPlayStart, setIsOddRound, setVolume,
         setCurrentMeasureIndex, setDisplayChordProgression, setNextLayer, setPreviewMelody]);
 
     useEffect(() => {
@@ -634,6 +653,7 @@ const App = () => {
                 bpmRef,
                 timeSignatureRef: tsRef,
                 numMeasuresRef: nmRef,
+                historyIndexRef,
                 scaleRef,
                 playbackConfigRef: configRef,
                 metronomeRef,
@@ -737,9 +757,10 @@ const App = () => {
         chordDisplayMode, setChordDisplayMode,
         showNoteHighlight, setShowNoteHighlight,
         animationMode, setAnimationMode,
+        courtesyAccidentals, setCourtesyAccidentals,
     }), [noteColoringMode, setNoteColoringMode, debugMode, lyricsMode, setLyricsMode,
         chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
-        animationMode, setAnimationMode]);
+        animationMode, setAnimationMode, courtesyAccidentals, setCourtesyAccidentals]);
 
     // Shared props for both SheetMusic instances (primary + tab view).
     // containerHeight and visibleMeasures differ between instances and are passed inline.
@@ -776,7 +797,7 @@ const App = () => {
         onNoteClick: handleNoteClick,
         onChordClick: handleChordClick,
         onEnharmonicToggle: handleEnharmonicToggle,
-        onMeasureNumberClick: handleMeasureNumberClick,
+        onMeasureNumberClick: null,
         onNoteEnharmonicToggle: handleNoteEnharmonicToggle,
     }), [timeSignature, handleTimeSignatureChange, bpm, setBpm, playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
@@ -893,6 +914,8 @@ const App = () => {
                             containerHeight={sheetHeight}
                             visibleMeasures={idealVisibleMeasures}
                             startMeasureIndex={startMeasureIndex}
+                            blockMeasureStart={blockMeasureStart}
+                            blockPlayStart={blockPlayStart}
                         />
                     </ErrorBoundary>
                 </div>
@@ -992,6 +1015,8 @@ const App = () => {
                     activeTab={activeTab}
                     sheetMusicCommonProps={sheetMusicCommonProps}
                     startMeasureIndex={startMeasureIndex}
+                    blockMeasureStart={blockMeasureStart}
+                    blockPlayStart={blockPlayStart}
                     idealVisibleMeasures={idealVisibleMeasures}
                     instruments={instruments}
                     manualInstruments={manualInstruments}
