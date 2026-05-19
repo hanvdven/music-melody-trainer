@@ -941,6 +941,14 @@ const SheetMusic = ({
         const isStart = index === (numRepeats > 1 ? 1 : 0);
         const isEnd = index === lastIdx;
 
+        // Returns "N" for the first playthrough and "N.R" for repeat R (R >= 2), where N is
+        // the 1-based measure position within the melody and R is the 1-based repeat count.
+        const measureLabel = (globalMeasureIdx) => {
+          const repeatNum = Math.floor(globalMeasureIdx / numMeasures) + 1;
+          const localNum = (globalMeasureIdx % numMeasures) + 1;
+          return repeatNum > 1 ? `${localNum}.${repeatNum}` : `${localNum}`;
+        };
+
         if (numRepeats > 1) {
           if (isStart) {
             if (mode === 'regular') {
@@ -951,18 +959,18 @@ const SheetMusic = ({
                   onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(globalIdx); } : undefined}
                   style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
                 >
-                  <rect x={startX - 10} y={trebleStart - 28} width={28} height={18} fill="transparent" />
+                  <rect x={startX - 10} y={trebleStart - 28} width={36} height={18} fill="transparent" />
                   <text
                     x={startX}
                     y={trebleStart - 14}
-                    fontSize="18"
+                    fontSize="14"
                     fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
                     fontFamily="Maestro"
                     style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
                   >
-                    {startIdx + 1}
+                    {measureLabel(globalIdx)}
                   </text>
-                  {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={28} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+                  {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={36} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
                 </g>
               );
             }
@@ -1017,18 +1025,18 @@ const SheetMusic = ({
               onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(globalIdx); } : undefined}
               style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
             >
-              <rect x={startX - 10} y={trebleStart - 28} width={28} height={18} fill="transparent" />
+              <rect x={startX - 10} y={trebleStart - 28} width={36} height={18} fill="transparent" />
               <text
                 x={startX}
                 y={trebleStart - 14}
-                fontSize="18"
+                fontSize="14"
                 fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
                 fontFamily="Maestro"
                 style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
               >
-                {startIdx + measureNumForLabel + 1}
+                {measureLabel(globalIdx)}
               </text>
-              {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={28} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+              {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={36} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
             </g>
           );
         }
@@ -1049,18 +1057,18 @@ const SheetMusic = ({
                   onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(globalIdx); } : undefined}
                   style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
                 >
-                  <rect x={x - 10} y={trebleStart - 28} width={28} height={18} fill="transparent" />
+                  <rect x={x - 10} y={trebleStart - 28} width={36} height={18} fill="transparent" />
                   <text
                     x={x}
                     y={trebleStart - 14}
-                    fontSize="18"
+                    fontSize="14"
                     fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
                     fontFamily="Maestro"
                     style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
                   >
-                    {startIdx + measureNumForLabel + 1}
+                    {measureLabel(globalIdx)}
                   </text>
-                  {debugMode && <rect x={x - 10} y={trebleStart - 28} width={28} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+                  {debugMode && <rect x={x - 10} y={trebleStart - 28} width={36} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
                 </g>
               );
             })()}

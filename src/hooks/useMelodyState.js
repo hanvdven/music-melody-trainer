@@ -9,6 +9,7 @@ import ChordProgression from '../model/ChordProgression';
 import { calculateRelativeRange, modulateMelody } from '../theory/musicUtils';
 import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
+import useRefState from './useRefState';
 
 // Percussion note tokens are non-pitched and must never be passed through
 // enharmonic conversion or scale-relative display name resolution.
@@ -49,9 +50,8 @@ const useMelodyState = (
   bassSettings,
   percussionSettings,
   metronomeSettings,
-  chordSettings, // New parameter
+  chordSettings,
   chordComplexity,
-  chordProgression, // Elevated as a stable input
   timeSignatureRef = null, // Optional: read latest TS inside randomizeAll to batch with state updates
   numMeasuresRef = null    // Optional: read latest numMeasures inside randomizeAll
 ) => {
@@ -59,6 +59,8 @@ const useMelodyState = (
   const [bass, setBass] = useState(Melody.defaultBassMelody());
   const [percussion, setPercussion] = useState(Melody.defaultPercussionMelody());
   const [metronome, setMetronome] = useState(Melody.defaultMetronomeMelody());
+  // chordProgression is owned here so navigateHistory can restore it alongside treble/bass/percussion.
+  const [chordProgression, setChordProgression, chordProgressionRef] = useRefState(() => ChordProgression.default());
 
   // Reference state for lossless modulation
   const [referenceMelody, setReferenceMelody] = useState(Melody.defaultTrebleMelody());
@@ -284,6 +286,8 @@ const useMelodyState = (
     setTreble(newTreble);
     setBass(newBass);
     setPercussion(newPercussion);
+    setMetronome(newMetronome);
+    setChordProgression(nextProgression);
 
     const nextRefTreble = trebleSettings?.randomizationRule === 'fixed' ? referenceMelody : newTreble;
     const nextRefBass = bassSettings?.randomizationRule === 'fixed' ? referenceBassMelody : newBass;
@@ -296,6 +300,7 @@ const useMelodyState = (
       treble: newTreble,
       bass: newBass,
       percussion: newPercussion,
+      metronome: newMetronome,
       chordProgression: nextProgression,
       referenceMelody: nextRefTreble,
       referenceBassMelody: nextRefBass,
@@ -366,17 +371,25 @@ const useMelodyState = (
     const curIdx = historyIndexRef.current;
     const curHistory = historyRef.current;
 
+    // Restore all voices from a history entry identically to how randomizeAll stores them.
+    const restoreEntry = (entry) => {
+      setTreble(entry.treble);
+      setBass(entry.bass);
+      setPercussion(entry.percussion);
+      // Restore the stored metronome (which carries the correct wh/wm/wl grouping for that
+      // generation block) instead of regenerating with Melody.updateMetronome.
+      if (entry.metronome) setMetronome(entry.metronome);
+      setChordProgression(entry.chordProgression);
+      setReferenceMelody(entry.referenceMelody);
+      setReferenceBassMelody(entry.referenceBassMelody);
+      setReferenceScale(entry.referenceScale);
+    };
+
     if (direction === 'back') {
       if (curIdx > 0) {
         const prevIndex = curIdx - 1;
         const entry = curHistory[prevIndex];
-        setTreble(entry.treble);
-        setBass(entry.bass);
-        setPercussion(entry.percussion);
-        setMetronome(Melody.updateMetronome(timeSignature, numMeasures, metronomeSettings?.smallestNoteDenom || 4));
-        setReferenceMelody(entry.referenceMelody);
-        setReferenceBassMelody(entry.referenceBassMelody);
-        setReferenceScale(entry.referenceScale);
+        restoreEntry(entry);
         historyIndexRef.current = prevIndex;
         setHistoryIndex(prevIndex);
         const newOffset = globalMeasureOffset + numMeasures;
@@ -387,13 +400,7 @@ const useMelodyState = (
       if (curIdx < curHistory.length - 1) {
         const nextIdx = curIdx + 1;
         const entry = curHistory[nextIdx];
-        setTreble(entry.treble);
-        setBass(entry.bass);
-        setPercussion(entry.percussion);
-        setMetronome(Melody.updateMetronome(timeSignature, numMeasures, metronomeSettings?.smallestNoteDenom || 4));
-        setReferenceMelody(entry.referenceMelody);
-        setReferenceBassMelody(entry.referenceBassMelody);
-        setReferenceScale(entry.referenceScale);
+        restoreEntry(entry);
         historyIndexRef.current = nextIdx;
         setHistoryIndex(nextIdx);
         const newOffset = globalMeasureOffset + numMeasures;
@@ -408,7 +415,7 @@ const useMelodyState = (
       }
     }
     return null;
-  }, [timeSignature, numMeasures, metronomeSettings, randomizeAll, globalMeasureOffset]);
+  }, [randomizeAll, globalMeasureOffset, numMeasures]);
 
   const memoizedMelodies = useMemo(() => ({
     treble,
@@ -427,11 +434,12 @@ const useMelodyState = (
     setBass,
     setPercussion,
     setMetronome,
+    setChordProgression,
     setReferenceMelody,
     setReferenceBassMelody,
     setReferenceScale,
     setGlobalMeasureOffset,
-  }), [setTreble, setBass, setPercussion, setMetronome, setReferenceMelody, setReferenceBassMelody, setReferenceScale, setGlobalMeasureOffset]);
+  }), [setTreble, setBass, setPercussion, setMetronome, setChordProgression, setReferenceMelody, setReferenceBassMelody, setReferenceScale, setGlobalMeasureOffset]);
 
   return {
     melodies: memoizedMelodies,
@@ -442,6 +450,7 @@ const useMelodyState = (
     navigateHistory,
     historyIndex,
     historyLength: history.length,
+    chordProgressionRef,
   };
 };
 

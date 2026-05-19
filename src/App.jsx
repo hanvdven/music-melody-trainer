@@ -160,7 +160,6 @@ const App = () => {
         chordDisplayMode, setChordDisplayMode,
     } = useAppUIState();
 
-    const [chordProgression, setChordProgression, chordProgressionRef] = useRefState(() => ChordProgression.default());
     const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
 
     // Sheet Music Settings state (Lifted)
@@ -281,11 +280,12 @@ const App = () => {
     const {
         melodies,
         setters: melodySetters,
-        randomizeAll: randomizeAllLogic, // Renamed to avoid conflict
+        randomizeAll: randomizeAllLogic,
         randomizeMeasure,
-        generateChords: generateChordsLogic, // Renamed to avoid conflict
+        generateChords: generateChordsLogic,
         historyIndex,
         navigateHistory,
+        chordProgressionRef,
     } = useMelodyState(
         numMeasures,
         timeSignature,
@@ -297,7 +297,6 @@ const App = () => {
         metronomeSettings,
         chordSettings,
         chordSettings?.complexity || 'triad',
-        chordProgression,
         tsRef,
         nmRef
     );
@@ -321,6 +320,7 @@ const App = () => {
         treble: trebleMelody,
         bass: bassMelody,
         metronome: metronomeMelody,
+        chordProgression,
         referenceMelody,
         referenceBassMelody,
         referenceScale,
@@ -333,10 +333,10 @@ const App = () => {
         setTreble: setTrebleMelody,
         setBass: setBassMelody,
         setPercussion: setPercussionMelody,
+        setChordProgression,
         setReferenceMelody,
         setReferenceBassMelody,
         setReferenceScale,
-        // setChordProgression is now handled by App state
     } = melodySetters;
 
     const { handleNoteClick, handleChordClick, handleNoteEnharmonicToggle } = useNoteInteraction({
@@ -344,12 +344,8 @@ const App = () => {
         trebleMelody, bassMelody, setTrebleMelody, setBassMelody,
     });
 
-    // Wrapper for randomizeAll from useMelodyState to update elevated chordProgression
-    const randomizeAll = useCallback((config) => {
-        const result = randomizeAllLogic(config);
-        setChordProgression(result.chordProgression);
-        return result;
-    }, [randomizeAllLogic, setChordProgression]);
+    // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
+    const randomizeAll = randomizeAllLogic;
 
     const {
         isPlayingContinuously,
@@ -778,7 +774,7 @@ const App = () => {
         onNoteClick: handleNoteClick,
         onChordClick: handleChordClick,
         onEnharmonicToggle: handleEnharmonicToggle,
-        onMeasureNumberClick: handleMeasureNumberClick,
+        onMeasureNumberClick: null,
         onNoteEnharmonicToggle: handleNoteEnharmonicToggle,
     }), [timeSignature, handleTimeSignatureChange, bpm, setBpm, playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,

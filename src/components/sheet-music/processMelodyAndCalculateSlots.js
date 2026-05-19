@@ -255,8 +255,10 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
         if (g >= endInMeasure) { lastGroupEnd = g; break; }
       }
 
-      if (endInMeasure === lastGroupEnd) {
-        // Rule 1: note fills its last group exactly — stay whole.
+      if (endInMeasure === lastGroupEnd && allowedDurations.includes(remainingDuration)) {
+        // Rule 1: note fills its last group exactly AND is a renderable duration — stay whole.
+        // When the full-measure duration isn't representable (e.g. 60 ticks in 5/4) fall through
+        // to Rule 2, which splits at the first group boundary (e.g. half + dotted-half for [2,3]).
         resultNotes.push(paddedNotes[i]);
         resultDurations.push(remainingDuration);
         resultOffsets.push(currentOffset);

@@ -19,7 +19,7 @@ class Melody {
   }
 
   static defaultTrebleMelody() {
-    return new Melody(
+    const m = new Melody(
       [
         'C4',
         null,
@@ -41,22 +41,30 @@ class Melody {
       [12, null, 18, null, null, 6, 6, 6, 12, null, 12, null, 24, null, null, null],
       [0, null, 12, null, null, 30, 36, 42, 48, null, 60, null, 72, null, null, null]
     );
+    m.rhythmicGrouping = [2, 2];
+    return m;
   }
 
   static defaultBassMelody() {
-    return new Melody(['C3', 'G3'], [48, 48], [0, 48]);
+    const m = new Melody(['C3', 'G3'], [48, 48], [0, 48]);
+    m.rhythmicGrouping = [2, 2];
+    return m;
   }
 
   static defaultPercussionMelody() {
-    return new Melody(['k', 'hh', 's', 'hh', 'k'], [12, 12, 12, 12, 12], [0, 12, 24, 36, 48]);
+    const m = new Melody(['k', 'hh', 's', 'hh', 'k'], [12, 12, 12, 12, 12], [0, 12, 24, 36, 48]);
+    m.rhythmicGrouping = [2, 2];
+    return m;
   }
 
   static defaultMetronomeMelody() {
-    return new Melody(
+    const m = new Melody(
       ['wh', 'wl', 'wl', 'wl', 'wh', 'wl', 'wl', 'wl'],
       [12, 12, 12, 12, 12, 12, 12, 12],
       [0, 12, 24, 36, 48, 60, 72, 84]
     );
+    m.rhythmicGrouping = [2, 2];
+    return m;
   }
 
   static fromFlattenedNotes(notes, timeSignature, numMeasures, displayMelody = notes, volumes = null, scaleContext = null) {
