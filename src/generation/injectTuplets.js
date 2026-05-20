@@ -207,6 +207,12 @@ export const injectTuplets = (
             }
             if (!winner) continue;
 
+            // Half-full guard: the tuplet is always filled completely (n notes, no rests inside).
+            // Only place it when the original slot density is high enough that n notes make sense.
+            // Rule: slotVals.length (non-null original slots) must be > winner.n / 2.
+            // A 7-tuplet placed over 2 active slots would be musically implausible → skip.
+            if (slotVals.length <= winner.n / 2) continue;
+
             // Apply: set start slot to min-priority, null out continuation slots.
             const minPriority = Math.min(...slotVals);
             modified[start] = minPriority;
