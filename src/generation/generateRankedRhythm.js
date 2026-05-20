@@ -1,4 +1,5 @@
 import { generateDeterministicRhythm } from './rhythmicPriorities';
+import { injectTuplets } from './injectTuplets.js';
 import logger from '../utils/logger';
 
 export const generateRankedRhythm = (
@@ -9,7 +10,8 @@ export const generateRankedRhythm = (
     rhythmVariability,
     enableTriplets,
     randomizationRules,
-    deterministicTemplate = null // New optional argument
+    deterministicTemplate = null,
+    polyMultiplier = 1        // boosts tuplet probability; mirrors InstrumentSettings.polyMultiplier
 ) => {
 
 
@@ -58,26 +60,35 @@ export const generateRankedRhythm = (
         );
     });
 
-    // Triplets
-    let tripletsArray = piecewiseSum;
-    if (enableTriplets) {
-        const triplets = [];
-        for (let val of piecewiseSum) {
-            triplets.push(val, null, null);
-        }
-        let numTriplets = 1 + Math.floor((Math.random() * numMeasures * rhythmVariability) / 100);
-        for (let i = 0; i < numTriplets; i++) {
-            const randomIndex = Math.floor(Math.random() * (piecewiseSum.length - 1)) * 3;
-            if (triplets[randomIndex] !== null) {
-                triplets[randomIndex * 1 + 2] = triplets[randomIndex];
-                triplets[(randomIndex + 1) % triplets.length] = null;
-            }
-        }
-        tripletsArray = triplets;
+    // Tuplet injection: done BEFORE the ranking pass so that note-selection rules
+    // (arp_var, arp_group, etc.) see the full rhythmic skeleton including tuplets.
+    // tripletProb scales with variability so tuplets become more frequent as the
+    // rhythm gets more complex; polyMultiplier amplifies the global Polyrhythm setting.
+    // Tuplets are only attempted when variability >= 30 (below that the rhythm is
+    // too simple to benefit from tuplets).
+    let injectedArray  = piecewiseSum;
+    let tupletGroups   = [];
+    if (enableTriplets && rhythmVariability >= 30) {
+        const tripletProb = Math.min(1, (rhythmVariability / 100) * 0.15 * polyMultiplier);
+        const result = injectTuplets(
+            piecewiseSum,
+            numberOfSlotsPerMeasure,
+            numMeasures,
+            timeSignature,
+            smallestNoteDenom,
+            tripletProb,
+            false,          // tripletOnly=false → enable all TUPLET_DEFS (weight-scaled)
+            notesPerMeasure,
+        );
+        injectedArray = result.modified;
+        tupletGroups  = result.tupletGroups;
     }
 
-    // Ranking pass
-    const nonNullValues = tripletsArray
+    // Ranking pass: sort non-null float values and assign integer ranks 0, 1, 2 …
+    // Tuplet start slots (set to their min-priority float in injectTuplets) are
+    // ranked alongside regular slots — their integer rank determines when the tuplet
+    // fires based on notesPerMeasure budget in convertRankedArrayToMelody.
+    const nonNullValues = injectedArray
         .map((value, index) => (value !== null ? { value, index } : null))
         .filter((item) => item !== null);
 
@@ -93,10 +104,10 @@ export const generateRankedRhythm = (
         lastValue = item.value;
     });
 
-    const finalRanked = tripletsArray.map(() => null);
+    const finalRanked = injectedArray.map(() => null);
     nonNullValues.forEach((item) => {
         finalRanked[item.index] = item.rank;
     });
 
-    return finalRanked;
+    return { rankedArray: finalRanked, tupletGroups };
 };
