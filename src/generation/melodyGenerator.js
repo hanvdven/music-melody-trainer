@@ -567,7 +567,10 @@ class MelodyGenerator {
                     }
                     const allNotes = [firstNote, ...extra];
                     const vol      = volumes[idx] ?? 0.9;
-                    const entry    = { id, noteCount, denominator: slotCount, groupTicks, visualDuration };
+                    // denominator = tg.d (the ratio denominator from TUPLET_DEFS, e.g. 2 for 3:2).
+                    // Using slotCount here was wrong when k>1 (e.g. 3:2 on 4 eighth slots
+                    // produced label "3 : 4" instead of "3 : 2").
+                    const entry    = { id, noteCount, denominator: tg.d, groupTicks, visualDuration };
 
                     // Replace the start note AND its slotCount-1 continuation nulls with n sub-notes.
                     notes        = [...notes.slice(0, idx),        ...allNotes,                                                                 ...notes.slice(idx + slotCount)];

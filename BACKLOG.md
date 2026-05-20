@@ -264,7 +264,7 @@ lijkt vooral te gebeuren met tuplets van kwartnoten.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 
-### Bug & Verbetering: Tuplet-kansen en dichtheid
+### ✅ Bug & Verbetering: Tuplet-kansen en dichtheid
 
 tuplet chance high zorgt voor ongeveer 100% tuplets. Balanceer de kansen.
 
@@ -273,8 +273,13 @@ het valt me op dat notes/measure 3 moet zijn voordat ik ooit een triplet zie - i
 het lijkt erop dat tuplets hun lengte/2 'kosten' in termen van aantal noten per maat. Dat is een goed criterium om ze te plaatsen, maar na plaatsing moet wel het correcte aantal noten van de beschikbare noten worden afgetrokken.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-20]: ✅ Opgelost. Drie aanpassingen:
+1. **Globale budget** (i.p.v. per-maat): `remainingBudget = notesPerMeasure × numMeasures` buiten de per-maat loop gedeclareerd; na elke geplaatste tuplet met `winner.n` verlaagd. Hierdoor worden de reeds gecommitteerde noten van latere tuplets afgetrokken — cross-maat densiteitscontrole.
+2. **Power-law kansformule**: `tripletProb = min(0.85, (rhythmVariability/100) × 0.20 × (polyMultiplier/50)^1.3)`. Geeft: low(5)≈1%, med(15)≈5%, high(50)=20%, xtreme(200)≈66%. Was voorheen `min(1, variability/100 × 0.15 × polyMultiplier)` = 37.5% bij low(5) + variability=50 — veel te hoog.
+3. **`tg.d` opgeslagen in TupletGroup**: entry.denominator gebruikte eerder `slotCount` wat voor k>1 (bijv. 3:2 triplet op 4 achtste-slots) het verkeerde label gaf ("3:4" i.p.v. "3:2"). Nu `tg.d` doorgegeven vanuit TUPLET_DEFS.
+Bestanden: `src/generation/injectTuplets.js`, `src/generation/generateRankedRhythm.js`, `src/generation/melodyGenerator.js`.
 
-### Verbetering: Tuplet-label uiterlijk
+### ✅ Verbetering: Tuplet-label uiterlijk
 
 het label is lelijk. Er wordt nu een blokhaak gemaakt (perfect!) en een verhouding genoteerd (super!). zorg ervoor: de verhouding tus
 
@@ -287,6 +292,12 @@ de clipping: er zit een clipping achtergrond achter de nummer, om de lijn de ond
 da afstand, zorg dat de lijn en nummers iets verder van de noten af staan.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-20]: ✅ Opgelost. Vier verbeteringen in `renderMelodyNotes.jsx` (tupletBracketElements):
+1. **Afstand van noten**: ±5 → ±8 pixels (stemTipY offset).
+2. **bracketGap** (ruimte in de lijn voor het getal): 15 → 20 pixels (40px totaal; genoeg voor "3 : 2" in 15px serif zonder overlap).
+3. **Vetgedrukt**: `fontWeight="bold"` → `fontWeight="normal"`.
+4. **Uitlijning**: `dominantBaseline="central"` toegevoegd + `y={bracketY}` (was aparte numY met ±2/±13 offset die tekst boven/onder de lijn plaatste i.p.v. erdoor).
+Bestand: `src/components/sheet-music/renderMelodyNotes.jsx`.
 
 ### Klikzones & interactiviteit
 
@@ -339,17 +350,19 @@ but groups (123)(45) -> half-dot + half.
 [Claude 2026-05-18]: Op de backlog gezet op verzoek van Han. Betreft de nootgroeperingslogica in `renderMelodyNotes.jsx` / `processMelodyAndCalculateSlots.js` — noten die over groepslijnen heen lopen worden gesplitst, maar dat is onnodig als de noot binnen één groep past of als de eindtick precies op een groepsgrens valt.
 [Claude 2026-05-19]: Op verzoek van Han: "zou af moeten zijn" (Rule 1 in `processMelodyAndCalculateSlots.js` behandelt al het geval dat een noot exact op een groepsgrens eindigt). Controleren of dit volledig correct werkt voor alle maatsoorten.
 
-### Bug: Beams renderen niet juist in parallel voices mode
+### ✅ Bug: Beams renderen niet juist in parallel voices mode
 
 bug (backlog) beams connecting stems for 8th notes and smaller renderen niet juist in parallel voices mode.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-20]: ✅ Opgelost. Oorzaak: de beam sub-group loop in `renderMelodyNotes.jsx` had geen controle op stemrichting in parallel-voices mode. RH-noten (hi-hat, cymbals, woodblock — stem omhoog) en LH-noten (kick, snare, toms — stem omlaag) konden in dezelfde beam-groep belanden. Fix: `percussionVoiceSplit`-check toegevoegd in de beam-vorming loop; wanneer de stemrichting (`percussionStemUp`) verschilt tussen de laatste noot in de huidige groep en de nieuwe noot, wordt de groep geflushed (nieuwe beam-groep gestart). Bestand: `src/components/sheet-music/renderMelodyNotes.jsx`.
 
-### Bug: Beams gaan over groepsgrenzen in 5/4
+### ✅ Bug: Beams gaan over groepsgrenzen in 5/4
 
 bug (backlog) beams connecting stems for 8th notes in 5/4, gaan over groepsgrenzen, resulterend in 10 achtsten aan elkaar - dat is niet leesbaar. Splits op groepsgrens.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-20]: ✅ Opgelost. Oorzaak: `processMelodyAndCalculateSlots.js` retourneerde `rhythmicGrouping` niet in het return-object. Daardoor las `getAllowedSpans` in `renderMelodyNotes.jsx` altijd `null` en viel terug op de even-split fallback (bijv. [5] i.p.v. [2,3] of [3,2]). Fix: `rhythmicGrouping: melody.rhythmicGrouping ?? null` toegevoegd aan het return-object. Nu ontvangt `getAllowedSpans` de echte groepering en beperkt beam-spans tot de beat-groepsgrens. Bestand: `src/components/sheet-music/processMelodyAndCalculateSlots.js`.
 
 ### Bug: Span onjuist berekend voor tuplets
 

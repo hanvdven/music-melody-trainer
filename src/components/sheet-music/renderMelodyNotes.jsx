@@ -1634,9 +1634,9 @@ const renderMelodyNotes = (
     // Bracket y: just outside stem tips (above for stems-up, below for stems-down).
     let bracketY;
     if (stemIsAbove) {
-      bracketY = Math.min(...points.map(p => p.stemTipY)) - 5;
+      bracketY = Math.min(...points.map(p => p.stemTipY)) - 8;
     } else {
-      bracketY = Math.max(...points.map(p => p.stemTipY)) + 5;
+      bracketY = Math.max(...points.map(p => p.stemTipY)) + 8;
     }
 
     const color    = previewColor ?? 'var(--text-primary)';
@@ -1646,10 +1646,9 @@ const renderMelodyNotes = (
       : 'color-mix(in srgb, var(--text-primary), transparent 82%)';
 
     const hookLen  = 5;
-    // Number label vertically: above bracket line for stems-up, below for stems-down.
-    const numY     = stemIsAbove ? bracketY - 2 : bracketY + 13;
-    // Bracket gap: half-width reserved around the number label (scaled for 15px font).
-    const bracketGap = 15;
+    // Bracket gap: half of the space reserved around the number label.
+    // Wide enough so bracket paths don't overlap non-bold 15px text ("3 : 2" ≈ 30px wide).
+    const bracketGap = 20;
     // Format: "3 : 2" — render as single <text> with two tspans so spacing between
     // numeral, colon, and denominator is determined by the font (uniform character spacing).
     const numLabel = `${noteCount}`;
@@ -1674,14 +1673,16 @@ const renderMelodyNotes = (
             />
           </>
         )}
-        {/* "3 : 2" — single text element so font provides uniform character spacing.
-            numLabel is full-color; dimLabel (" : 2") is heavily dimmed via tspan. */}
+        {/* "3 : 2" — centered vertically on the bracket line via dominantBaseline="central".
+            numLabel is full-color; dimLabel (" : 2") is heavily dimmed via tspan.
+            Non-bold to distinguish from note heads; Georgia/Times serif matches music engraving style. */}
         <text
           x={midX}
-          y={numY}
+          y={bracketY}
           fontSize="15"
-          fontWeight="bold"
+          fontWeight="normal"
           textAnchor="middle"
+          dominantBaseline="central"
           fontFamily="Georgia, 'Times New Roman', serif"
           style={{ userSelect: 'none' }}
         >
