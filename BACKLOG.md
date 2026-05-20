@@ -33,9 +33,10 @@ If a backlog item below relates to these areas, leave it alone and pick somethin
 
 Deel deze features in bij de juiste categorie.
 
-### Bestaande liedjes
+### ✅ Bestaande liedjes
 bestaande liedjes (happy birthday, ...)
 [Claude 2026-05-19]: Op verzoek van Han: samenvoegen met custom chord progressions (#25). Twee features: (1) bestaande liedjes afspelen (SHORTLIST); (2) eigen invoer (LONGLIST). Nieuwe feature samen met 'eigen invoer': akkoord / drum-sequencer → LONGLIST.
+[Claude 2026-05-20]: ✅ Geïmplementeerd. Nieuwe bestanden: `src/songs/definitions/happyBirthday.js` (F groot, 3/4, 24 noten, per-lettergreep lyrics), `src/songs/loadSong.js` (transponeert naar huidig tonica), `src/songs/songIndex.js` (register). UI: `src/components/songs/SongsTab.jsx` — kaartgrid met Easy/Medium/Hard kiezer + "Originele toonaard"-toggler (toggling ON laadt het nummer opnieuw in geschreven toonaard én zet app-tonica op die toonaard). Tekstlyrics worden gerenderd onder de treble via `renderTextLyricsRow` in `SheetMusic.jsx`, onafhankelijk van solfège-modus.
 
 ### Profiel-icoon & submenu (navigatie)
 vervang profile settings icoon met Lucide: user.
@@ -173,9 +174,10 @@ Voorlopig: elke maat dezelfde onderverdeling.
 [Claude 2026-05-17]: ⬇ LAGE PRIORITEIT — op verzoek van Han. Backbeat drum ✅ (backbeat_2 implementeert groeperings-bewuste kick/snare-plaatsing). Melodische noot-gewichten naar groepering: uitgesteld. De ranked array (DNA) zelf bevat al de groeperings-hiërarchie; de melodiegenerator gebruikt die al voor prioriteit. Extra weging van notenpool naar groepsgrens is een verfijning, niet een blocker.
 [Claude 2026-05-19]: ✅ Gedeelde groepering geïmplementeerd — `chooseGrouping()` wordt één keer per generatieblok aangeroepen in `useMelodyState.randomizeAll()` en doorgegeven aan alle generators (treble, bas, percussie, akkoorden, metronoom). `globalRhythmArray` gebruikt nu `generateRhythmicDNA(sharedGrouping)` in plaats van `generateDeterministicRhythm('default')`. Metronoom gebruikt `randomizationRule: 'metronome'` met `wh/wm/wl` woodblock-klikken op basis van groepsstart. Doorgegeven akkoorden (`insertPassingChords`) plaatst leidakkoorden op DNA-gerangschikte beats.
 
-### Bug: 'g'-markeringen op verkeerde groepsgrensposities
+### ✅ Bug: 'g'-markeringen op verkeerde groepsgrensposities
 
 Bug (2026-05-19): In 5/4 met gegenereerde groepering [2,3] verschenen de visuele groepsscheidingstekens ('g' in de allOffsets-array) op de positie van [3,2] (de fallback). Oorzaak: `processMelodyAndCalculateSlots` retourneerde `rhythmicGrouping` niet in zijn return-object. Daardoor las de `allOffsets`-aanroep in `SheetMusic.jsx` altijd `null` en viel terug op `decomposeNumeratorToBeatGroups` (altijd [3,2]-ordening). Fix: `rhythmicGrouping: melody.rhythmicGrouping ?? null` toegevoegd aan het return-object van `processMelodyAndCalculateSlots.js`. Bestand: `src/components/sheet-music/processMelodyAndCalculateSlots.js`.
+[Claude 2026-05-20]: ✅ Bevestigd opgelost via code-inspectie.
 
 ### RhythmicGrouping — edge case bij maatsoortwijziging en geschiedenisnavigatie
 
@@ -556,6 +558,7 @@ Bereik-sync vóór melodiegeneratie: al correct — `useMelodyState` herberekent
 
 - notatie voor romeinse cijfers in intermodaal: e.g. bII bVII.
 [Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han.
+[Claude 2026-05-20]: VOORSTEL (zie sessie-antwoord). Samenvatting: gebruik ♭/♯ als prefix op de Romein op basis van semitoonpositie t.o.v. de majeur-toonladder. ♭II = Napolitaans (diatonisch in Frygisch, geleend in mineur) — NIET specifiek Lydisch. Lydisch-kenmerk is ♯IV. ♭VII = subtonica (diatonisch in Mixolydisch/Dorisch/Aeolisch). Implementatie: in `chordGenerator.js` een `CHROMATIC_ROMAN_PREFIX`-lookup (semitonen 0–11) toevoegen die ♭/♯ berekent t.o.v. majeur. `normalizeNoteChars` al beschikbaar voor display-conversie. Interview nodig vóór implementatie.
 
 - In notatie werkelijke unicode voortekens gebruiken ipv b en #. (bladmuziek én chord grid). Logica checken op consistentie met muziektheorie.
 
@@ -624,6 +627,11 @@ In C groot zit F♯ niet in de toonladder; de `'scale'`-pool kan F♯ dan ook ni
 
 - nakijken of taxonomie volledig is
 [Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han. Toevoegen: extra passing chord types. Interview nodig voor gewenste uitbreiding.
+[Claude 2026-05-20]: VOORSTEL (zie sessie-antwoord). Huidige typen: secondary-dominant (V7/x), secondary-dim (vii°7/x), tritone-sub (♭II7/x), diatonic. Ontbrekende categorieën op basis van muziektheorie:
+1. **Subdominant approach (IV/x)** — zachte voorbereiding via kwart-stap omhoog; veel gebruikt in pop/gospel. Makkelijk toe te voegen als 4e type.
+2. **Borrowed minor chords** — ♭VI, ♭III uit parallelle mineurtoonladder als passing kleur; al deels gedekt via diatonic-chain maar niet geëxpliciteerd.
+3. **Augmented sixth (It+6, Ger+6)** — klassieke chromatische passing chords; zeldzaam, hoge moeilijkheidsgraad. Complexer om te implementeren.
+Prioriteit: (1) eerst implementeren, (2) daarna bekijken, (3) longlist.
 
 ### Muziektheorie (akkoorden)
 
@@ -659,12 +667,14 @@ De chord-plaatsing via MelodyGenerator gebruikt rank+2×afstand (proximityUtils.
 - walking bass setting, die walking bass maakt
 [Claude 2026-05-19]: → LONGLIST (generation overhaul). Op verzoek van Han.
 
-- verbetering van arpeggio mode voor chords/scales: start bij root/tonica; juiste afhandeling in range cut-off
+✅ - verbetering van arpeggio mode voor chords/scales: start bij root/tonica; juiste afhandeling in range cut-off
 [Claude 2026-05-19]: ⬆ SHORTLIST — hoge prioriteit op verzoek van Han. Interview nodig voor exacte vereisten.
 [Claude 2026-05-20]: Ontwerp volledig uitgewerkt in overleg met Han (mei 2026). Twee subtypes gespecificeerd: `arp_var` (rhythm-variability-aware) en `arp_group` (beat-group-aware met backwards planning, landing notes, kaats/spring boundary modes). Volledige specificatie inclusief voorbeelden: docs/architecture.md §27. Implementatie nog niet gestart — interview per §4b CLAUDE.md vereist voor aanvang.
+[Claude 2026-05-20]: ✅ Bevestigd door Han: "ik denk dat dit af is!" `arp_var` en `arp_group` zijn geïmplementeerd in `src/generation/convertRankedArrayToMelody.js` (regels 263–390) met backwards planning, landing notes en kaats/spring boundary modes.
 
-- akkoord mode: kans op akkoorden (milde versie van 'full chord') -> genereer uniform willekeurig maar nu paren van noten uit de melody notes set die is ingesteld. Idee: pak één noot uit het 'akkoord' en één noot uit de notenset. beperkingen: maximum afstand is een octaaf. Bij 'mislukt' genereer gewoon één noot uit de notenset.
+✅ - akkoord mode: kans op akkoorden (milde versie van 'full chord') -> genereer uniform willekeurig maar nu paren van noten uit de melody notes set die is ingesteld. Idee: pak één noot uit het 'akkoord' en één noot uit de notenset. beperkingen: maximum afstand is een octaaf. Bij 'mislukt' genereer gewoon één noot uit de notenset.
 [Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han. Interview nodig voor exacte vereisten.
+[Claude 2026-05-20]: ✅ Bevestigd door Han: "paren van noten is geïmplementeerd." Geïmplementeerd als `pairedchord`-modus. TODO (backlog): (a) controleer of chord modes `maxLeap`-beperking respecteren; (b) bepaal logica voor omleggingen (inversions).
 
 - akkoord mode: simpele akkoorden / omleggingen
 Maak uniform + scale een stuk 'duurder' dan arp.
@@ -735,8 +745,9 @@ rusten en staccato in treble en bass melody
 
 - betere percussie, e.g., backbeat, claves; revisie van rythmische slots
 
-- parallele percussielijnen: RH LH // cymbalen, kick/snare
+✅ - parallele percussielijnen: RH LH // cymbalen, kick/snare
 [Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han.
+[Claude 2026-05-20]: ✅ Bevestigd door Han: "gedaan, maar nog bugs. markeer voltooid, bugs staan gelogd." Bekende bugs zijn al gelogd in de backlog onder "Bugs percussie / playback" en "Bug: Beams renderen niet juist in parallel voices mode".
 
 - triolen, polyritmiek en paradiddels
 
