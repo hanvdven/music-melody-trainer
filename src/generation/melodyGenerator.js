@@ -196,6 +196,8 @@ class MelodyGenerator {
             randomizationRule = 'uniform';
         }
 
+        const arpSpan = this.InstrumentSettings.arpSpan ?? 12;
+
         const rawResult = convertRankedArrayToMelody(
             rankedArray,
             tonic,
@@ -207,7 +209,8 @@ class MelodyGenerator {
             this.range,
             randomizationRule,
             timeSignature,     // needed for offset-based chord lookup (passing chords)
-            rhythmicGrouping   // needed by arp_group for beat-group line boundaries
+            rhythmicGrouping,  // needed by arp_group for beat-group line boundaries
+            arpSpan            // working semitone span for arp_var / arp_group
         );
 
         let generatedMelody = rawResult.melody;

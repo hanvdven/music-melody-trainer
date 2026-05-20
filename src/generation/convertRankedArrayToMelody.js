@@ -39,7 +39,8 @@ const convertRankedArrayToMelody = (
     range = null,
     randomizationRule = 'uniform',
     timeSignature = null,   // [numerator, denominator] — needed for offset-based chord lookup
-    rhythmicGrouping = null // beat-group decomposition ([3,2] etc) — needed by arp_group
+    rhythmicGrouping = null, // beat-group decomposition ([3,2] etc) — needed by arp_group
+    arpSpan = 12            // semitone window for arp_var / arp_group backwards planning; null = full pool range
 ) => {
     // =========================================================================
     // 0. PREPARE NOTE POOL
@@ -269,7 +270,7 @@ const convertRankedArrayToMelody = (
         // direction='up'  → L is at top of span; planning walks DOWN from L.
         // direction='down'→ L is at bottom of span; planning walks UP from L.
         // boundaryMode: 'kaats' reverses planning direction; 'spring' shifts the span by one octave.
-        const SPAN_SEMITONES = 12;
+        // spanSize: null means use the full pool range (no boundary triggers).
         const buildArpLine = (lineLength, L, direction, boundaryMode, pool) => {
             const sorted = pool
                 .map(n => ({ note: n, val: getNoteValue(n) }))
@@ -283,8 +284,10 @@ const convertRankedArrayToMelody = (
             const lVal = getNoteValue(L);
             // For direction='up': L is span top; approach from below.
             // For direction='down': L is span bottom; approach from above.
-            let spanLow = direction === 'up' ? lVal - SPAN_SEMITONES : lVal;
-            let spanHigh = direction === 'up' ? lVal : lVal + SPAN_SEMITONES;
+            // null arpSpan = full pool range (no boundary ever triggers).
+            const effectiveSpan = arpSpan ?? (sorted[sorted.length - 1].val - sorted[0].val + 1);
+            let spanLow = direction === 'up' ? lVal - effectiveSpan : lVal;
+            let spanHigh = direction === 'up' ? lVal : lVal + effectiveSpan;
             // Backwards planning step: -1 = walking down, +1 = walking up.
             let planStep = direction === 'up' ? -1 : 1;
             let currentVal = lVal;
@@ -310,8 +313,8 @@ const convertRankedArrayToMelody = (
                         planStep = -planStep;
                         next = stepFrom(currentVal, planStep, spanLow, spanHigh);
                     } else {
-                        // Spring: shift the span one octave in the planning direction, then continue.
-                        const shift = planStep === -1 ? -SPAN_SEMITONES : SPAN_SEMITONES;
+                        // Spring: shift the span one span-width in the planning direction, then continue.
+                        const shift = planStep === -1 ? -effectiveSpan : effectiveSpan;
                         spanLow += shift;
                         spanHigh += shift;
                         const newNotes = inSpan(spanLow, spanHigh);
