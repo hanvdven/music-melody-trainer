@@ -8,7 +8,6 @@ export const generateRankedRhythm = (
     notesPerMeasure,
     smallestNoteDenom,
     rhythmVariability,
-    enableTriplets,
     randomizationRules,
     deterministicTemplate = null,
     polyMultiplier = 1        // boosts tuplet probability; mirrors InstrumentSettings.polyMultiplier
@@ -70,12 +69,12 @@ export const generateRankedRhythm = (
     // Tuplets are only attempted when variability >= 30.
     let injectedArray = piecewiseSum;
     let tupletGroups  = [];
-    // polyMultiplier > 1 means the user has engaged the Polyrhythm setting (low/med/high/xtreme).
-    // enableTriplets is kept as a secondary override; either condition gates the injection.
-    if ((enableTriplets || polyMultiplier > 1) && rhythmVariability >= 30) {
+    // polyMultiplier > 1 means the user has set the Polyrhythm level to low/med/high/xtreme.
+    // This replaces the old enableTriplets boolean — the toggler is the single control.
+    if (polyMultiplier > 1 && rhythmVariability >= 30) {
         const tripletProb = Math.min(1, (rhythmVariability / 100) * 0.15 * polyMultiplier);
         logger.debug('RhythmGen', '3/4 tuplets — attempting injection', {
-            tripletProb: tripletProb.toFixed(3), polyMultiplier, enableTriplets,
+            tripletProb: tripletProb.toFixed(3), polyMultiplier,
         });
         const result = injectTuplets(
             piecewiseSum,
@@ -97,7 +96,7 @@ export const generateRankedRhythm = (
         logger.debug('RhythmGen', '3/4 tuplets — skipped', {
             reason: rhythmVariability < 30
                 ? `variability ${rhythmVariability} < 30`
-                : `enableTriplets=${enableTriplets}, polyMultiplier=${polyMultiplier}`,
+                : `polyMultiplier=${polyMultiplier} (set to none)`,
         });
     }
 

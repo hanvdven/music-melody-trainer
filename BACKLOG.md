@@ -306,6 +306,18 @@ but groups (123)(45) -> half-dot + half.
 [Claude 2026-05-18]: Op de backlog gezet op verzoek van Han. Betreft de nootgroeperingslogica in `renderMelodyNotes.jsx` / `processMelodyAndCalculateSlots.js` — noten die over groepslijnen heen lopen worden gesplitst, maar dat is onnodig als de noot binnen één groep past of als de eindtick precies op een groepsgrens valt.
 [Claude 2026-05-19]: Op verzoek van Han: "zou af moeten zijn" (Rule 1 in `processMelodyAndCalculateSlots.js` behandelt al het geval dat een noot exact op een groepsgrens eindigt). Controleren of dit volledig correct werkt voor alle maatsoorten.
 
+### Bug: Beams renderen niet juist in parallel voices mode
+
+bug (backlog) beams connecting stems for 8th notes and smaller renderen niet juist in parallel voices mode.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Bug: Beams gaan over groepsgrenzen in 5/4
+
+bug (backlog) beams connecting stems for 8th notes in 5/4, gaan over groepsgrenzen, resulterend in 10 achtsten aan elkaar - dat is niet leesbaar. Splits op groepsgrens.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
 ### Bug: Span onjuist berekend voor tuplets
 
 bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2 eighths tuplet a5 f4 a6 - but a6 and f4 are further apart than 8 semitones.
