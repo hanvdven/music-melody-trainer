@@ -196,6 +196,8 @@ class MelodyGenerator {
             randomizationRule = 'uniform';
         }
 
+        const maxLeap = this.InstrumentSettings.maxLeap ?? null;
+
         const rawResult = convertRankedArrayToMelody(
             rankedArray,
             tonic,
@@ -219,8 +221,6 @@ class MelodyGenerator {
             generatedMelody = rawResult;
             generatedVolumes = new Array(generatedMelody.length).fill(null);
         }
-
-        const maxLeap = this.InstrumentSettings.maxLeap ?? null;
 
         // Melodic leap constraint: replace any note that jumps more than maxLeap semitones from
         // all notes placed within the previous quarter-note window. Uses intersection approach
