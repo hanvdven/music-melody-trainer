@@ -350,11 +350,21 @@ const App = () => {
     });
 
     // Load a static song definition into the active melody state.
-    // Transposes to the current tonic so the song plays in whatever key the user has selected.
-    // Time signature and measure count are set to the song's values.
-    const handleLoadSong = useCallback((songDef, difficulty) => {
+    // useOriginalTonic=true: load in the song's written key and update the app tonic to match.
+    // useOriginalTonic=false (default): transpose the song to the user's current tonic.
+    const handleLoadSong = useCallback((songDef, difficulty, useOriginalTonic = false) => {
         const currentTonic = scale?.tonic?.replace(/-?\d+$/, '') ?? null;
-        const targetTonic = currentTonic !== songDef.defaultTonic ? currentTonic : null;
+        let targetTonic;
+        if (useOriginalTonic) {
+            // Load in written key; update the app tonic so scale/key sig aligns with the song.
+            targetTonic = null;
+            if (songDef.defaultTonic && currentTonic !== songDef.defaultTonic) {
+                // setTonic expects a note with octave (e.g. "F4").
+                setTonic(songDef.defaultTonic + '4');
+            }
+        } else {
+            targetTonic = currentTonic !== songDef.defaultTonic ? currentTonic : null;
+        }
         const loaded = loadSong(songDef, difficulty, targetTonic);
         setTrebleMelody(loaded.treble);
         setChordProgression(loaded.chordMelody);
@@ -364,7 +374,7 @@ const App = () => {
         setNumMeasures(loaded.numMeasures);
         setBpm(loaded.defaultTempo);
         setActiveTab('sheet-music');
-    }, [scale, setTrebleMelody, setChordProgression, setBassMelody, setPercussionMelody,
+    }, [scale, setTonic, setTrebleMelody, setChordProgression, setBassMelody, setPercussionMelody,
         setTimeSignature, setNumMeasures, setBpm, setActiveTab]);
 
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
