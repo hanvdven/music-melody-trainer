@@ -41,6 +41,7 @@ import useAppLayout from './hooks/useAppLayout';
 import useAppUIState from './hooks/useAppUIState';
 import useAppHandlers from './hooks/useAppHandlers';
 import logger from './utils/logger';
+import { loadSong } from './songs/loadSong';
 
 // Icons
 import {
@@ -55,6 +56,7 @@ import {
     ListRestart,
     Grid3x3,
     GraduationCap,
+    Library,
 } from 'lucide-react';
 import TabView from './components/layout/TabView';
 import { PlaybackConfigProvider } from './contexts/PlaybackConfigContext';
@@ -75,6 +77,7 @@ const TABS = [
     { id: 'chords', Icon: Grid3x3, label: 'CHORDS' },
     { id: 'scale', Icon: Music, label: 'SCALES' },
     { id: 'playback', Icon: ListRestart, label: 'GENERATOR', accentColor: 'var(--accent-yellow)' },
+    { id: 'songs', Icon: Library, label: 'SONGS', accentColor: 'var(--accent-yellow)' },
     { id: 'other-settings', Icon: Settings, label: 'SETTINGS' },
     { id: 'listen', Icon: Mic, label: 'LISTEN' },
     { id: 'profile', Icon: GraduationCap, label: 'PROFILE' },
@@ -345,6 +348,24 @@ const App = () => {
         context, instruments, customPercussionMappingRef, sequencerRef,
         trebleMelody, bassMelody, setTrebleMelody, setBassMelody,
     });
+
+    // Load a static song definition into the active melody state.
+    // Transposes to the current tonic so the song plays in whatever key the user has selected.
+    // Time signature and measure count are set to the song's values.
+    const handleLoadSong = useCallback((songDef, difficulty) => {
+        const currentTonic = scale?.tonic?.replace(/-?\d+$/, '') ?? null;
+        const targetTonic = currentTonic !== songDef.defaultTonic ? currentTonic : null;
+        const loaded = loadSong(songDef, difficulty, targetTonic);
+        setTrebleMelody(loaded.treble);
+        setChordProgression(loaded.chordMelody);
+        setBassMelody(Melody.defaultBassMelody());
+        setPercussionMelody(Melody.defaultPercussionMelody());
+        setTimeSignature(loaded.timeSignature);
+        setNumMeasures(loaded.numMeasures);
+        setBpm(loaded.defaultTempo);
+        setActiveTab('sheet-music');
+    }, [scale, setTrebleMelody, setChordProgression, setBassMelody, setPercussionMelody,
+        setTimeSignature, setNumMeasures, setBpm, setActiveTab]);
 
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
     const randomizeAll = randomizeAllLogic;
@@ -1080,6 +1101,7 @@ const App = () => {
                     isFullscreen={isFullscreen}
                     toggleFullscreen={toggleFullscreen}
                     windowSize={windowSize}
+                    onLoadSong={handleLoadSong}
                 />
             </div>
         </div >

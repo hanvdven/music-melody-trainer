@@ -9,6 +9,7 @@ import PlaybackSettings from '../controls/PlaybackSettings';
 import SettingsPanel from '../controls/SettingsPanel';
 import ChordGrid from '../controls/ChordGrid';
 import ProfileTab from '../profile/ProfileTab';
+import SongsTab from '../songs/SongsTab';
 import InstrumentRow from '../controls/rows/InstrumentRow';
 import ErrorBoundary from '../error/ErrorBoundary';
 import { SectionHeader, ColumnHeaders } from '../controls/PlaybackSubComponents';
@@ -100,6 +101,8 @@ const TabView = ({
     toggleFullscreen,
     // Layout
     windowSize,
+    // Songs tab
+    onLoadSong,
 }) => {
     const {
         trebleSettings, setTrebleSettings,
@@ -347,6 +350,11 @@ const TabView = ({
                     minimizeAccidentals={minimizeAccidentals} setMinimizeAccidentals={setMinimizeAccidentals}
                     isModulationEnabled={isModulationEnabled} setIsModulationEnabled={setIsModulationEnabled}
                 />
+            )}
+            {activeTab === 'songs' && (
+                <ErrorBoundary boundary="songs-tab">
+                    <SongsTab onLoadSong={onLoadSong} />
+                </ErrorBoundary>
             )}
             {activeTab === 'profile' && (
                 <ErrorBoundary boundary="profile-tab">
