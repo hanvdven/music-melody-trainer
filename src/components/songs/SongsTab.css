@@ -1,0 +1,114 @@
+.songs-tab {
+  padding: 16px;
+  color: var(--text-primary, #eee);
+}
+
+.songs-tab__heading {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.songs-tab__sub {
+  font-size: 0.8rem;
+  opacity: 0.6;
+  margin: 0 0 16px;
+}
+
+.songs-tab__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* ── Song card ─────────────────────────────────────────── */
+.song-card {
+  background: var(--surface-2, #2a2a2a);
+  border: 1px solid var(--border, #444);
+  border-radius: 10px;
+  padding: 14px 16px;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.song-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.song-card__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.song-card__subtitle {
+  font-size: 0.72rem;
+  opacity: 0.5;
+}
+
+.song-card__meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.song-card__timesig,
+.song-card__key,
+.song-card__tempo {
+  font-size: 0.72rem;
+  background: var(--surface-3, #333);
+  border-radius: 4px;
+  padding: 2px 6px;
+  opacity: 0.8;
+}
+
+/* ── Difficulty buttons ─────────────────────────────────── */
+.song-card__difficulties {
+  display: flex;
+  gap: 6px;
+}
+
+.diff-btn {
+  flex: 1;
+  padding: 4px 0;
+  font-size: 0.72rem;
+  background: var(--surface-3, #333);
+  border: 1px solid var(--border, #444);
+  border-radius: 6px;
+  color: var(--text-primary, #eee);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.diff-btn:hover {
+  background: var(--surface-hover, #3a3a3a);
+}
+
+.diff-btn--active {
+  background: var(--accent-yellow, #e8c340);
+  border-color: var(--accent-yellow, #e8c340);
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+/* ── Load button ─────────────────────────────────────────── */
+.song-card__load-btn {
+  width: 100%;
+  padding: 8px 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--accent-yellow, #e8c340);
+  border: none;
+  border-radius: 8px;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.song-card__load-btn:hover {
+  opacity: 0.85;
+}

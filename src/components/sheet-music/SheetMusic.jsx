@@ -281,12 +281,14 @@ const SheetMusic = ({
   const LYRICS_GAP = 45; // extra vertical space for melodic lyrics row below treble staff
   const melodicLyricsActive = (lyricsMode === 'doremi-rel' || lyricsMode === 'doremi-abs' || lyricsMode === 'kodaly') && isTrebleVisible;
   const rhythmicLyricsActive = lyricsMode === 'takadimi' && isPercussionVisible;
+  // Text lyrics from a loaded song (melody.lyrics array) — shown regardless of lyricsMode.
+  const textLyricsActive = isTrebleVisible && Array.isArray(trebleMelody?.lyrics) && trebleMelody.lyrics.length > 0;
   // Keep lyricsActive for any backward-compat references
-  const lyricsActive = melodicLyricsActive || rhythmicLyricsActive;
+  const lyricsActive = melodicLyricsActive || rhythmicLyricsActive || textLyricsActive;
   const baseStaffGap = containerHeight >= 400
     ? baseGap
     : Math.max(minGap, (containerHeight - 110 - 131) / numGaps);
-  const staffGap = melodicLyricsActive ? baseStaffGap + LYRICS_GAP : baseStaffGap;
+  const staffGap = (melodicLyricsActive || textLyricsActive) ? baseStaffGap + LYRICS_GAP : baseStaffGap;
 
   const bassStart = isTrebleVisible ? trebleStart + staffHeight + staffGap : trebleStart;
   const percussionStart = isBassVisible ? bassStart + staffHeight + staffGap : (isTrebleVisible ? trebleStart + staffHeight + staffGap : trebleStart);
@@ -1583,6 +1585,41 @@ const SheetMusic = ({
     });
   };
 
+  // Renders song text lyrics (from melody.lyrics[]) below the treble staff.
+  // Used when a song is loaded; independent of the solfège lyricsMode setting.
+  const renderTextLyricsRow = (melody, lyricsY, offsets = allOffsets, nw = noteWidth) => {
+    if (!melody?.lyrics || !textLyricsActive) return null;
+    const notes = melody.notes;
+    const melOffsets = melody.offsets;
+    if (!notes || !melOffsets) return null;
+
+    const getXLocal = (index) => startX + (index - 1) * nw;
+    const FONT_SIZE = 13;
+
+    return notes.map((note, i) => {
+      const syllable = melody.lyrics[i];
+      if (!syllable) return null;
+      const tickOffset = melOffsets[i];
+      if (tickOffset == null) return null;
+      const idx = offsets.indexOf(tickOffset);
+      if (idx < 0) return null;
+      const x = getXLocal(idx) + 5;
+      const fill = getLyricFill(note, tickOffset, false);
+      return (
+        <text
+          key={`tlyric-${i}`}
+          x={x} y={lyricsY}
+          textAnchor="middle"
+          fontSize={FONT_SIZE}
+          fontFamily="Georgia, 'Times New Roman', serif"
+          fill={fill}
+        >
+          {syllable}
+        </text>
+      );
+    });
+  };
+
   // Renders Takadimi rhythmic solfège lyrics below the percussion staff.
   const renderRhythmicLyricsRow = (melody, lyricsY, offsets = allOffsets, nw = noteWidth) => {
     if (!melody || !rhythmicLyricsActive) return null;
@@ -2177,6 +2214,12 @@ const SheetMusic = ({
                       {melodicLyricsActive && actualTreble && (
                         <g className="lyrics-group">
                           {renderLyricsRow(adjustedTrebleMelody, trebleStart + staffHeight + 39)}
+                        </g>
+                      )}
+                      {textLyricsActive && actualTreble && (
+                        <g className="text-lyrics-group">
+                          {/* Pass original trebleMelody so melody.lyrics indices align correctly. */}
+                          {renderTextLyricsRow(trebleMelody, trebleStart + staffHeight + 39)}
                         </g>
                       )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>
