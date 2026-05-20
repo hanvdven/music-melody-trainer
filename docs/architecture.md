@@ -1235,3 +1235,181 @@ playback sessions. `stop()` still cancels all pending IDs on teardown.
 - Percussion IDs (`getNoteIndex` returns -1) are skipped by the leap filter.
 
 **Files:** `src/model/InstrumentSettings.js`, `src/generation/melodyGenerator.js`, `src/components/controls/rows/InstrumentRow.jsx`, `src/constants/musicLayout.js`, `src/components/controls/PlaybackInstrumentSection.jsx`, `src/components/controls/PlaybackSettings.jsx`.
+
+---
+
+## 27. Arpeggio Randomization — `arp_var` and `arp_group`
+
+### 27.1 Purpose
+
+The `'arp'` randomization rule (`randomizationType` / `randomizationRule`) generates melodic lines where notes travel sequentially toward a **landing note** — creating broken-chord and scale-run patterns. Two subtypes are planned:
+
+- **`arp_var`** — rhythm-aware; inherits the ranked array from `generateRankedRhythm` and varies line length with `rhythmVariability`.
+- **`arp_group`** — beat-group-aware; pre-determines line structure from `rhythmicGrouping` and fills groups backwards from landing notes with predictable, even runs.
+
+The combination of note pool and arpeggio subtype determines the musical exercise:
+- `chord` pool + arp → broken chords
+- `scale` pool + arp → scale runs
+- Both subtypes reuse the existing pipeline (4a–4g). Per-instrument variation is expressed through `InstrumentSettings` only. No instrument-specific special-casing is allowed inside the generation functions.
+
+---
+
+### 27.2 Core Concepts
+
+#### Landing note (L)
+**L is always the last note of a line.** Every note in a line travels toward L. The concept of "notes starting from L" does not exist — L is exclusively an endpoint.
+
+#### Line
+A contiguous sequence of active note slots that ends at L. A melody contains 1 to `numMeasures × beatsPerMeasure` lines depending on density and rhythm.
+
+#### Direction
+Set once per line, not per landing note. Two options:
+- **omhoog (up):** notes ascend in pitch over time, arriving at L from below.
+- **omlaag (down):** notes descend in pitch over time, arriving at L from above.
+
+Direction does not change mid-line. A new line may have a different direction.
+
+#### Backwards planning
+The algorithm fills approach notes by working **backward from L**, walking in the direction **opposite to the line direction**:
+- Line direction up → backwards planning walks **down** from L.
+- Line direction down → backwards planning walks **up** from L.
+
+After filling, the approach-note list is reversed to get time order (earliest note first, L last).
+
+#### Span
+A 1-octave window that defines the working pitch range for one line. Centered on L (L is the top of the span for direction=up; the bottom for direction=down). When the backwards-planning walk reaches the span boundary, one of two boundary modes applies.
+
+#### Boundary modes
+
+**Kaats (bounce):** reverse the backwards-planning walk direction at the span boundary, creating a wave pattern within the span.
+
+**Spring (jump):** jump back one span (wrap cyclically) and continue walking in the same backwards-planning direction. Creates a repeating cyclic pattern across octaves.
+
+---
+
+### 27.3 Note Pools and Landing Notes
+
+| Note pool | L (landing note) |
+|---|---|
+| `chord` | Root of the active chord |
+| `scale` | Random chord tone (not necessarily root) |
+| `chromatic` | Random note in range |
+
+Approach notes are drawn from the same pool (scale/chord tones within the span).
+
+---
+
+### 27.4 `arp_var` — Rhythm-Variability Subtype
+
+Uses the output of `generateRankedRhythm` directly. Top N slots per measure (determined by `notesPerMeasure`) are filled.
+
+**Line determination:**
+- Active slots that are separated by at least one rest slot form distinct lines.
+- The last active slot before each rest (or before the measure end) is L.
+- On tie (two candidate boundaries have equal surrounding rests): choose the one preceded by the **longest empty stretch**; stop searching when found. This yields 1 to `numMeasures × beatsPerMeasure` lines.
+
+**Note selection within a line:**
+- For a line of length N, generate approach notes by backwards planning from L (see §27.2).
+- Pick approach notes from the scale/chord pool within the span, respecting `maxLeap` between consecutive notes.
+- Assign in time order (approach notes first, L last).
+
+**`rhythmVariability` effect:** higher variability produces more varied rhythm patterns via `generateRankedRhythm`, resulting in lines of more varied lengths.
+
+---
+
+### 27.5 `arp_group` — Beat-Group Subtype
+
+Uses `rhythmicGrouping` (the beat-group decomposition from `generateRhythmicDNA`) to pre-determine line boundaries. Each beat group maps to one line.
+
+**Line structure:**
+- One line per beat group (e.g. 4/4 with grouping [2,2] → 2 lines per measure; 5/4 with grouping [3,2] → 2 lines per measure).
+- Line length = `notesPerBeatGroup` (derived from `notesPerMeasure / numGroups`); fractional remainder is distributed across groups.
+- L is placed at the last rhythmic slot of each group.
+
+**Filling algorithm:**
+1. Determine L for this group (root or random chord tone per §27.3).
+2. Choose line direction (omhoog / omlaag) — fixed for the duration of this line.
+3. Walk backwards from L, picking approach notes from the note pool within the span.
+4. Apply spring or kaats when the span boundary is reached (see §27.2).
+5. Reverse the collected approach-note list and assign to the group's slots in time order, placing L at the last slot.
+
+**Direction changes:** direction is chosen fresh for each new line (random or alternating). Direction does not change mid-line.
+
+**Chord changes:** if the active chord changes within a group, the approach notes before the chord change are drawn from the old chord's pool; notes after (up to and including L) from the new chord's pool.
+
+---
+
+### 27.6 Concrete Examples
+
+All examples: C major, 4/4, grouping [2,2] (two groups of 2 beats), scale pool, `arp_group`.
+
+#### Example A — direction omhoog (ascending), kaats boundary mode
+L for each group is a random chord tone. Suppose L₁=c5, L₂=a4.
+
+```
+Group 1 — 4 notes, direction up, L=c5, span=c4–c5
+  Backwards planning (walking down from c5): c5 → b4 → a4 → g4
+  Time order: g4  a4  b4  c5L
+
+Group 2 — 4 notes, direction up, L=a4, span=a3–a4
+  Backwards planning (walking down from a4): a4 → g4 → f4 → e4
+  Time order: e4  f4  g4  a4L
+
+Measure result: | g4 a4 b4 c5 | e4 f4 g4 a4 |
+```
+
+#### Example B — direction omlaag (descending), spring boundary mode
+L₁=e3 (low), need 6 approach notes, span=e3–e4.
+
+```
+Group 1 — 6 notes, direction down, L=e3, span=e3–e4
+  Backwards planning (walking up from e3): e3 → f3 → g3 → a3 → b3 → [boundary e4]
+  Spring: jump to e4–e5 span, continue up: f4
+  Backwards list (reverse order of collection): f4  b3  a3  g3  f3  e3L
+  Time order: f4  b3  a3  g3  f3  e3L
+```
+
+The spring creates a jump across an octave boundary, then resolves downward to L — idiomatic for scale-run patterns that span a wide range.
+
+#### Example C — kaats (bounce) at boundary
+L=c4, 7 approach notes, span=c4–c5, direction omhoog.
+
+```
+Backwards planning (walking down from c4): c4 → b3 → a3 → g3 → f3 → e3 → [boundary c3]
+Kaats: reverse, now walking up: d3
+Backwards list: d3  e3  f3  g3  a3  b3  c4L
+Time order: d3  e3  f3  g3  a3  b3  c4L   ← wave approaching L from below
+```
+
+---
+
+### 27.7 Edge Cases
+
+| Situation | Handling |
+|---|---|
+| Note pool too narrow for span (e.g. chord pool has 3 notes, span needs 5) | Wrap cyclically within pool; allow repetition |
+| Only root in chord pool (diminished/augmented chord with 1 unique tone) | Use root as L and sole approach note; pad with rests |
+| Narrow range: span wider than `InstrumentSettings.range` | Clip span to range; if clipped span has < 2 distinct pool notes, allow repetition |
+| Rest blocking L (rest forced at group end by percussion rules) | Shift L one slot earlier within the group; if no slot available, group produces a rest |
+| Line length 1 | Single note = L only; no approach notes |
+
+---
+
+### 27.8 Invariants
+
+- **L is always the last note of a line.** No note follows L within the same line.
+- **Direction is fixed for a line.** It may differ between lines.
+- **Backwards planning is always the inverse of line direction.** Never plan forward.
+- **The pipeline is identical for all instrument types** (treble, bass, percussion). Variation is in `InstrumentSettings` only.
+- **Do not hardcode per-group or per-numerator tables.** Derive group structure from `decomposeNumeratorToBeatGroups` and the existing rhythmic DNA functions. See §6c.
+- **`arp_group` uses `rhythmicGrouping` from `generateRhythmicDNA`**, not a freshly computed decomposition — both must stay in sync.
+
+---
+
+### 27.9 Files
+
+- `src/generation/convertRankedArrayToMelody.js` — existing `'arp'` rule lives here; `arp_var` and `arp_group` extend this block.
+- `src/generation/melodyGenerator.js` — entry point; passes grouping info to converter.
+- `src/generation/rhythmicPriorities.js` — `generateRhythmicDNA`, `decomposeNumeratorToBeatGroups` — reuse for group structure.
+- `src/generation/generateRankedRhythm.js` — ranked array; `arp_var` reads this directly.
+- `src/model/InstrumentSettings.js` — `randomizationType` field; add `'arp_var'` and `'arp_group'` as valid values.
