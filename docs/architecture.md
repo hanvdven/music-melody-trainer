@@ -1418,3 +1418,152 @@ Time order: d3  e3  f3  g3  a3  b3  c4L   ← wave approaching L from below
 - `src/components/controls/rows/InstrumentRow.jsx` — Col 8 Max Leap stepper also controls arp span.
 - `src/constants/instrumentRules.js` — `RULE_FAMILIES.arp` includes `'arp_var'`, `'arp_group'`.
 - `src/utils/labelUtils.js` — display labels for `'arp_var'` and `'arp_group'`.
+
+---
+
+## Section 28 — Tuplet Injection Architecture
+
+### 28.1 Motivation
+
+Before this refactor, tuplets were added as a post-processing step AFTER note selection. This meant that randomization rules (arp_var, arp_group, beat-backbeat) had no awareness of tuplet groups: an arp line could be cut in half by a tuplet boundary, and the tuplet's notes were chosen from a uniform random pick rather than the arp algorithm.
+
+The fix: inject tuplets into the **ranked array** (between variability application and integer-rank assignment), so that note-selection rules see the full rhythmic skeleton including tuplets.
+
+### 28.2 Pipeline
+
+```
+generateDeterministicRhythm   → nested measure arrays (float ranks)
+   ↓ flatten + apply variability
+piecewiseSum                   → flat float-priority array
+   ↓ injectTuplets()           ← NEW: place tuplets here, before ranking
+injectedArray + tupletGroups
+   ↓ ranking pass (sort → integer ranks 0,1,2…)
+rankedArray + tupletGroups     ← returned by generateRankedRhythm
+   ↓ convertRankedArrayToMelody
+melody[]                       — tuplet start slots have notes; continuation slots = null
+   ↓ Melody.fromFlattenedNotes
+Melody object                  — tuplet start note has duration = slotCount × timeScale
+   ↓ tuplet expansion (melodyGenerator.js)
+final Melody                   — n sub-notes per tuplet, float offsets/durations
+```
+
+### 28.3 Data Structures
+
+**TupletGroup** (produced by `injectTuplets`, threaded through to `melodyGenerator.js`):
+```
+{
+  slotStart:    number   // absolute index in flat rankedArray
+  slotCount:    number   // d — number of original slots replaced (= group width)
+  n:            number   // number of sub-notes to produce
+  priority:     number   // min float-priority of replaced slots (before ranking pass)
+  measureIndex: number   // 0-based measure
+}
+```
+
+**triplets entry** (attached to Melody, used by sheet-music renderer):
+```
+{ id, noteCount, denominator, groupTicks, visualDuration }
+```
+All n sub-notes within one tuplet share the same entry; `denominator = slotCount`.
+
+### 28.4 Candidate Generation
+
+For each measure, candidates are (start, size) pairs in slots:
+
+**Super-groups** — 1, 2, or 3 consecutive beat-groups (no quads: too large):
+```
+single  d = groupSlotSize
+pair    d = groupSlotSize₀ + groupSlotSize₁
+triple  d = groupSlotSize₀ + groupSlotSize₁ + groupSlotSize₂
+```
+
+**Sub-groups** — one halving of each super-group (even sizes only):
+```
+d=4  → d=2  (most common: 3:2 triplet on two 16th-note slots)
+d=6  → d=3  (4:3 quadruplet on compound-meter group)
+d=8  → d=4  (5:4 / 6:4 / 7:4 on one beat at 16th resolution)
+d=12 → d=6
+d=16 → d=8
+d=24 → d=12
+```
+Maximum ONE halving level ("hooguit 1x") to stay close to `smallestNoteDenom`.
+Odd group sizes (e.g. 3) have no sub-candidate.
+
+Duplicates are deduplicated by `(start, size)` key.
+Candidates are **shuffled** before processing for unbiased selection.
+
+### 28.5 Mutual Exclusion
+
+A claimed-slot set tracks which slots are already taken by a placed tuplet.
+Any candidate that overlaps a claimed slot is skipped.
+This allows multiple non-overlapping tuplets per measure.
+
+### 28.6 Priority Assignment
+
+Winning tuplet: `priority = min(all non-null float-priority values in [start, start+size))`.
+Continuation slots `[start+1 … start+size-1]` are set to `null`.
+After injectTuplets, the integer ranking pass re-numbers all non-null values 0,1,2… —
+the tuplet start slot's rank is determined by its min-priority, which controls when
+the tuplet fires relative to other notes based on `notesPerMeasure` budget.
+
+### 28.7 Probability Formula
+
+Base probability for 3:2 triplet:
+```
+tripletProb = min(1, (rhythmVariability / 100) × 0.15 × polyMultiplier)
+```
+At variability=30, polyMult=1: tripletProb ≈ 4.5% (near Han's 5% default).
+
+Any tuplet with weight W:
+```
+prob = min(1, tripletProb × TRIPLET_WEIGHT / W)
+     = min(1, tripletProb × 6 / W)
+```
+`TRIPLET_WEIGHT = 6 = lcm(3,2) × |3-2|`.
+
+### 28.8 Density Guard
+
+A tuplet with n > `notesPerMeasure` is skipped — it would produce far more notes
+than the rhythmic budget, making it musically implausible.
+
+### 28.9 Tuplet Definitions
+
+File: `src/constants/tuplets.js`. Weight = `lcm(n,d) × |n-d|`.
+
+| Ratio | Name | Weight | Notes |
+|---|---|---|---|
+| 3:2 | triplet | 6 | reference |
+| 4:3 | quadruplet | 12 | |
+| 5:4 | quintuplet | 20 | |
+| 6:4 | sextuplet | 24 | |
+| 5:3 | 5 in 3 | 30 | |
+| 5:6 | 5 in 6 | 30 | |
+| 6:5 | 6 in 5 | 30 | |
+| 7:6 | 7 in 6 | 42 | |
+| 6:7 | 6 in 7 | 42 | stretch |
+| 6:8 | 6 in 8 | 48 | stretch |
+| 7:8 | 7 in 8 | 56 | stretch |
+| 7:5 | 7 in 5 | 70 | |
+| 5:7 | 5 in 7 | 70 | stretch, very rare |
+| 9:8 | nonuplet | 72 | Chopin/Brahms |
+| 7:4 | septuplet | 84 | |
+| 5:8 | 5 in 8 | 120 | extremely rare |
+| 7:9 | 7 in 9 | 126 | extremely rare |
+
+Removed: {2:3} and {4:6} — duplet forms uncommon in simple-meter melody notation.
+
+### 28.10 Tick Arithmetic
+
+Tuplet sub-note durations are **float ticks**: `noteTicks = floor(groupTicks / n)`.
+Last sub-note absorbs rounding remainder: `lastNoteTicks = groupTicks - (n-1) × noteTicks`.
+Float ticks are fine: the Sequencer converts `duration_ticks × timeFactor` to seconds
+(AudioContext time), which is inherently float. No change to `TICKS_PER_WHOLE`.
+
+### 28.11 Files
+
+- `src/constants/tuplets.js` — TUPLET_DEFS, weight formula, TRIPLET_WEIGHT, tupletsForSlotCount
+- `src/generation/injectTuplets.js` — candidate generation, dice rolls, priority assignment
+- `src/generation/generateRankedRhythm.js` — calls injectTuplets; returns `{ rankedArray, tupletGroups }`
+- `src/generation/melodyGenerator.js` — destructures tupletGroups; deterministic expansion into n sub-notes
+- `src/model/Melody.js` — updateMetronome caller updated to destructure `{ rankedArray }`
+- `src/generation/generateBackbeat.js` — two callers updated to destructure `{ rankedArray }`

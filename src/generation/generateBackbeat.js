@@ -147,7 +147,7 @@ function generatePercussionFromDNA(
     const slotsPerMeasure = (measureNoteResolution * timeSignature[0]) / timeSignature[1];
 
     // dnaVariability controls ranked-array shuffling (0 = deterministic, >0 = shuffled)
-    const rankedArray = generateRankedRhythm(
+    const { rankedArray } = generateRankedRhythm(
         numMeasures,
         timeSignature,
         notesPerMeasure,
@@ -301,7 +301,7 @@ export function generateBackbeat2(
     // Build the DNA template from the chosen grouping and apply variability.
     const dnaMeasure = generateRhythmicDNA(grouping, timeSignature, smallestNoteDenom);
     const deterministicTemplate = new Array(numMeasures).fill(null).map(() => [...dnaMeasure]);
-    const rankedArray = generateRankedRhythm(
+    const { rankedArray } = generateRankedRhythm(
         numMeasures, timeSignature, notesPerMeasure, smallestNoteDenom,
         variability, false, 'default', deterministicTemplate
     );
