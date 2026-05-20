@@ -10,7 +10,8 @@ export const generateRankedRhythm = (
     rhythmVariability,
     randomizationRules,
     deterministicTemplate = null,
-    polyMultiplier = 1        // boosts tuplet probability; mirrors InstrumentSettings.polyMultiplier
+    polyMultiplier = 1,        // boosts tuplet probability; mirrors InstrumentSettings.polyMultiplier
+    rhythmicGrouping = null    // beat-group sizes in beats (e.g. [2,3] for 5/4); passed through to injectTuplets
 ) => {
 
     const smallestNoteDenomValue = timeSignature[1];
@@ -72,7 +73,9 @@ export const generateRankedRhythm = (
     // polyMultiplier > 1 means the user has set the Polyrhythm level to low/med/high/xtreme.
     // This replaces the old enableTriplets boolean — the toggler is the single control.
     if (polyMultiplier > 1 && rhythmVariability >= 30) {
-        const tripletProb = Math.min(1, (rhythmVariability / 100) * 0.15 * polyMultiplier);
+        // Power-law formula: low(5)≈1%, med(15)≈5%, high(50)=20%, xtreme(200)≈66%.
+        // Capped at 0.85 so there is always some chance of a plain note in every measure.
+        const tripletProb = Math.min(0.85, (rhythmVariability / 100) * 0.20 * Math.pow(polyMultiplier / 50, 1.3));
         logger.debug('RhythmGen', '3/4 tuplets — attempting injection', {
             tripletProb: tripletProb.toFixed(3), polyMultiplier,
         });
@@ -85,6 +88,7 @@ export const generateRankedRhythm = (
             tripletProb,
             false,          // tripletOnly=false → all TUPLET_DEFS (weight-scaled)
             notesPerMeasure,
+            rhythmicGrouping,
         );
         injectedArray = result.modified;
         tupletGroups  = result.tupletGroups;

@@ -43,5 +43,10 @@ export const TUPLET_DEFS = [
     { n: 7, d: 9 },  // 7 in 9 (stretch)  weight = 126  (extremely rare)
 ].map(t => ({ ...t, weight: tupletWeight(t.n, t.d) }));
 
-// All defined tuplets whose d-value (replaced-slot count) matches the given count.
-export const tupletsForSlotCount = (d) => TUPLET_DEFS.filter(t => t.d === d);
+// All defined tuplets whose d-value (ratio denominator) divides the given slot count.
+// maxK caps the scale factor: 1 = exact match only (d === slotCount),
+//                             2 = also allow slotCount = 2×d (one zoom level up).
+// Use maxK=2 only at ≥8th-note resolution (slotsPerBeat > 1); at quarter resolution
+// slotCount=2 already gives the correct quarter triplet without scaling.
+export const tupletsForSlotCount = (slotCount, maxK = 1) =>
+    TUPLET_DEFS.filter(t => slotCount % t.d === 0 && slotCount / t.d <= Math.max(1, maxK));
