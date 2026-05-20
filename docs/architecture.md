@@ -1267,7 +1267,7 @@ Set once per line, not per landing note. Two options:
 - **omhoog (up):** notes ascend in pitch over time, arriving at L from below.
 - **omlaag (down):** notes descend in pitch over time, arriving at L from above.
 
-Direction does not change mid-line. A new line may have a different direction.
+Direction is chosen randomly per line (50/50). It does not change mid-line.
 
 #### Backwards planning
 The algorithm fills approach notes by working **backward from L**, walking in the direction **opposite to the line direction**:
@@ -1281,9 +1281,11 @@ A 1-octave window that defines the working pitch range for one line. Centered on
 
 #### Boundary modes
 
+Each line independently receives a randomly chosen boundary mode (kaats OR spring, 50/50). The mode is fixed for the entire line.
+
 **Kaats (bounce):** reverse the backwards-planning walk direction at the span boundary, creating a wave pattern within the span.
 
-**Spring (jump):** jump back one span (wrap cyclically) and continue walking in the same backwards-planning direction. Creates a repeating cyclic pattern across octaves.
+**Spring (jump):** shift the span by one octave in the planning direction and continue walking. Creates a cyclic pattern across octaves.
 
 ---
 

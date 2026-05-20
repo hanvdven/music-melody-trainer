@@ -34,6 +34,8 @@ export const getPlayStyleLabel = (val) => {
         'arp_up': 'Arp Up',
         'arp_down': 'Arp Down',
         'arp': 'Arp (Bounce)',
+        'arp_var': 'Arp Var',
+        'arp_group': 'Arp Group',
         'scale-up': 'Scale \u2197',
         'scale': 'Scale',
         'scale-down': 'Scale \u2198',

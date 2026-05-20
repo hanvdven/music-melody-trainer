@@ -206,7 +206,8 @@ class MelodyGenerator {
             this.chords,
             this.range,
             randomizationRule,
-            timeSignature  // needed for offset-based chord lookup (passing chords)
+            timeSignature,     // needed for offset-based chord lookup (passing chords)
+            rhythmicGrouping   // needed by arp_group for beat-group line boundaries
         );
 
         let generatedMelody = rawResult.melody;

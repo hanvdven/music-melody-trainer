@@ -38,7 +38,8 @@ const convertRankedArrayToMelody = (
     chordProgression,    // array of chord objects per measure
     range = null,
     randomizationRule = 'uniform',
-    timeSignature = null    // [numerator, denominator] — needed for offset-based chord lookup
+    timeSignature = null,   // [numerator, denominator] — needed for offset-based chord lookup
+    rhythmicGrouping = null // beat-group decomposition ([3,2] etc) — needed by arp_group
 ) => {
     // =========================================================================
     // 0. PREPARE NOTE POOL
@@ -227,14 +228,199 @@ const convertRankedArrayToMelody = (
     const activeSlotsSet = new Set(allSlots.filter(s => s.priority !== null).map(s => s.index));
 
     // =========================================================================
+    // 2.5 ARP_VAR / ARP_GROUP — sequence-level backwards-planning arpeggio
+    // =========================================================================
+    // These rules operate on all active slots at once (not slot-by-slot), so
+    // they pre-compute the full melody and return early before the main loop.
+    //
+    // Core concepts (see docs/architecture.md §27):
+    //   L       = landing note; always the LAST note of a line.
+    //   line    = contiguous run of active slots that ends at L.
+    //   direction = 'up' (notes ascend toward L) | 'down' (notes descend toward L).
+    //   backwards planning = walks OPPOSITE to direction, starting from L.
+    //   span    = 12-semitone window around L; boundary modes: kaats (bounce) / spring (jump).
+
+    const rule = (randomizationRule || 'uniform').toLowerCase();
+
+    if (rule === 'arp_var' || rule === 'arp_group') {
+        const arpSource = (typeof randomizationNotes === 'string')
+            ? (randomizationNotes || 'scale').toLowerCase()
+            : 'custom_pool';
+
+        // Choose the landing note for a line based on the pool and chord:
+        //   chord/root pool → root of chord; scale pool → random chord tone; otherwise random.
+        const chooseLandingNote = (pool, chord) => {
+            if (!pool.length) return null;
+            if (arpSource === 'chord' || arpSource === 'root') {
+                const roots = getRootNotesInRange(chord);
+                const validRoots = roots.filter(n => pool.includes(n));
+                if (validRoots.length > 0) return pickRandom(validRoots);
+            }
+            if (arpSource === 'scale') {
+                const chordTones = getChordNotesInRange(chord);
+                const candidates = chordTones.filter(n => pool.includes(n));
+                if (candidates.length > 0) return pickRandom(candidates);
+            }
+            return pickRandom(pool);
+        };
+
+        // Build approach notes for one arp line via backwards planning.
+        // Returns the line in TIME ORDER: [approach1, ..., approachN, L].
+        // direction='up'  → L is at top of span; planning walks DOWN from L.
+        // direction='down'→ L is at bottom of span; planning walks UP from L.
+        // boundaryMode: 'kaats' reverses planning direction; 'spring' shifts the span by one octave.
+        const SPAN_SEMITONES = 12;
+        const buildArpLine = (lineLength, L, direction, boundaryMode, pool) => {
+            const sorted = pool
+                .map(n => ({ note: n, val: getNoteValue(n) }))
+                .filter(x => x.val >= 0)
+                .sort((a, b) => a.val - b.val);
+            if (sorted.length === 0) return Array(lineLength).fill(L);
+
+            const n = lineLength - 1; // number of approach notes
+            if (n === 0) return [L];
+
+            const lVal = getNoteValue(L);
+            // For direction='up': L is span top; approach from below.
+            // For direction='down': L is span bottom; approach from above.
+            let spanLow = direction === 'up' ? lVal - SPAN_SEMITONES : lVal;
+            let spanHigh = direction === 'up' ? lVal : lVal + SPAN_SEMITONES;
+            // Backwards planning step: -1 = walking down, +1 = walking up.
+            let planStep = direction === 'up' ? -1 : 1;
+            let currentVal = lVal;
+
+            const inSpan = (lo, hi) => sorted.filter(x => x.val >= lo && x.val <= hi);
+            const stepFrom = (val, step, lo, hi) => {
+                const notes = inSpan(lo, hi);
+                if (step === -1) {
+                    const c = notes.filter(x => x.val < val);
+                    return c.length > 0 ? c[c.length - 1] : null;
+                }
+                const c = notes.filter(x => x.val > val);
+                return c.length > 0 ? c[0] : null;
+            };
+
+            const approaches = [];
+            for (let k = 0; k < n; k++) {
+                let next = stepFrom(currentVal, planStep, spanLow, spanHigh);
+
+                if (!next) {
+                    if (boundaryMode === 'kaats') {
+                        // Bounce: reverse planning direction within the same span.
+                        planStep = -planStep;
+                        next = stepFrom(currentVal, planStep, spanLow, spanHigh);
+                    } else {
+                        // Spring: shift the span one octave in the planning direction, then continue.
+                        const shift = planStep === -1 ? -SPAN_SEMITONES : SPAN_SEMITONES;
+                        spanLow += shift;
+                        spanHigh += shift;
+                        const newNotes = inSpan(spanLow, spanHigh);
+                        if (newNotes.length > 0) {
+                            // Start from the edge of the new span closest to where we came from.
+                            next = planStep === -1 ? newNotes[newNotes.length - 1] : newNotes[0];
+                        }
+                    }
+                }
+
+                // Final fallback: pick the closest available pool note in planning direction.
+                if (!next) {
+                    const allCands = planStep === -1
+                        ? sorted.filter(x => x.val < currentVal)
+                        : sorted.filter(x => x.val > currentVal);
+                    next = allCands.length > 0
+                        ? (planStep === -1 ? allCands[allCands.length - 1] : allCands[0])
+                        : sorted[Math.floor(Math.random() * sorted.length)];
+                }
+
+                approaches.push(next.note);
+                currentVal = next.val;
+            }
+
+            approaches.reverse(); // convert from backwards-plan order to time order
+            approaches.push(L);
+            return approaches;
+        };
+
+        // Assign pitches to a list of slot indices using one arp line.
+        const fillLine = (slotIndices, melody, volumes) => {
+            if (slotIndices.length === 0) return;
+            const lastSlot = slotIndices[slotIndices.length - 1];
+            const measureIdx = Math.floor(lastSlot / numberOfSlotsPerMeasure);
+            const chord = getActiveChord(measureIdx, randomizationNotes, lastSlot);
+            const pool = getPool(arpSource, chord);
+            if (!pool.length) return;
+
+            const L = chooseLandingNote(pool, chord);
+            if (!L) return;
+
+            const direction = Math.random() < 0.5 ? 'up' : 'down';
+            const boundaryMode = Math.random() < 0.5 ? 'kaats' : 'spring';
+            const pitches = buildArpLine(slotIndices.length, L, direction, boundaryMode, pool);
+
+            slotIndices.forEach((idx, i) => {
+                melody[idx] = pitches[i] ?? L;
+                // L (last note) gets downbeat volume; approach notes get slightly softer.
+                volumes[idx] = i === slotIndices.length - 1 ? 0.9 : 0.7;
+            });
+        };
+
+        const arpMelody = new Array(generatedMelody.length).fill(null);
+        const arpVolumes = new Array(generatedMelody.length).fill(null);
+
+        if (rule === 'arp_var') {
+            // Lines = contiguous runs of active slots separated by inactive slots.
+            // L = last active slot in each run; line boundary at longest empty gap on tie.
+            let currentLine = [];
+            const flush = () => { fillLine(currentLine, arpMelody, arpVolumes); currentLine = []; };
+
+            for (let i = 0; i <= allSlots.length; i++) {
+                const isActive = i < allSlots.length && allSlots[i].priority !== null;
+                if (isActive) {
+                    currentLine.push(i);
+                } else if (currentLine.length > 0) {
+                    flush();
+                }
+            }
+
+        } else {
+            // arp_group: one line per beat group, per measure.
+            // Requires rhythmicGrouping ([g1, g2, ...] beats per group).
+            const grouping = rhythmicGrouping ?? (timeSignature ? [timeSignature[0]] : [4]);
+            const slotsPerBeat = numberOfSlotsPerMeasure / (timeSignature?.[0] ?? 4);
+
+            for (let m = 0; m < numMeasures; m++) {
+                const measureStart = m * numberOfSlotsPerMeasure;
+                let beatCursor = 0;
+
+                for (const groupBeats of grouping) {
+                    const groupStart = measureStart + Math.round(beatCursor * slotsPerBeat);
+                    const groupEnd   = measureStart + Math.round((beatCursor + groupBeats) * slotsPerBeat);
+                    beatCursor += groupBeats;
+
+                    const groupActiveSlots = [];
+                    for (let s = groupStart; s < groupEnd; s++) {
+                        if (s < allSlots.length && allSlots[s].priority !== null) groupActiveSlots.push(s);
+                    }
+                    fillLine(groupActiveSlots, arpMelody, arpVolumes);
+                }
+            }
+        }
+
+        // Safety: if the entire result is silent, fall back to a random scale note.
+        if (!arpMelody.some(n => n !== null && n !== 'r') && scale.length > 0) {
+            const firstActive = allSlots.findIndex(s => s.priority !== null);
+            if (firstActive >= 0) { arpMelody[firstActive] = scale[0]; arpVolumes[firstActive] = 0.9; }
+        }
+
+        return { melody: arpMelody, volumes: arpVolumes };
+    }
+
+    // =========================================================================
     // 3. MELODY GENERATION
     // =========================================================================
     let measureHasNote = Array(numMeasures).fill(false);
     let seqIdx = 0, arpPhaseOffset = 0;
     const generatedVolumes = new Array(generatedMelody.length).fill(null);
-
-    // Pre-calculate active slots for 'progression' rule
-    const rule = (randomizationRule || 'uniform').toLowerCase();
 
     let activeIndices = [];
     if (rule === 'progression') {
