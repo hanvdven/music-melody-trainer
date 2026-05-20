@@ -7,7 +7,7 @@ class InstrumentSettings {
    * @param {number} rhythmVariability - 0–100 variability in rhythm generation
    * @param {boolean} enableTriplets - Whether triplets are allowed
    * @param {string} notePool - Which notes to draw from: 'scale' | 'chord' | 'all' | 'metronome'
-   * @param {string} randomizationRule - How to select notes: 'uniform' | 'emphasize_roots' | 'weighted' | 'arp' | 'arp_var' | 'arp_group' | 'fixed'
+   * @param {string} randomizationRule - How to select notes: 'uniform' | 'emphasize_roots' | 'weighted' | 'arp' | 'arp_var' | 'arp_group' | 'fixed'. For arp_var/arp_group, maxLeap also controls the span window.
    * @param {string} strategy - Chord/progression strategy (for chord track): 'pop-1-5-6-4' | 'modal-random' | etc.
    * @param {string} transpositionKey - Instrument transposition key: 'C' (concert, default), 'Bb', 'F', 'Eb', etc.
    *   Affects display only — audio always plays concert pitch. See src/constants/transposingInstruments.js.
@@ -27,8 +27,7 @@ class InstrumentSettings {
     preferredClef = null,
     rangeMode = 'fixed',
     transpositionKey = 'C',
-    maxLeap = null,
-    arpSpan = 12
+    maxLeap = null
   ) {
     this.instrument = instrument;
     this.type = type;
@@ -47,8 +46,6 @@ class InstrumentSettings {
     // Max melodic leap between adjacent notes (semitones). null = unlimited.
     // For chord voicing (fullchord/pairedchord): max span between lowest and highest note.
     this.maxLeap = maxLeap;
-    // Working range (semitones) for arp_var / arp_group backwards planning. null = full pool range.
-    this.arpSpan = arpSpan;
     // Global polyrhythm multiplier applied to all tuplet probabilities.
     // 1 = normal (default); higher values make tuplets dramatically more frequent.
     // Set by the global Polyrhythm control in PlaybackSettings — same value on all instruments.

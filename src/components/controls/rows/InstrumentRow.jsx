@@ -436,42 +436,11 @@ const InstrumentRow = ({
                 )}
             </div>
 
-            {/* Col 8: Arp Span (arp_var / arp_group) or Max Leap (all other rules) — treble/bass only.
-                Arp Span = semitone window for backwards-planning arp lines (null = full pool range).
-                Max Leap = max semitone jump per quarter-note window; for fullchord: max voicing width. */}
+            {/* Col 8: Max Leap — melodic interval limit per quarter-note window (treble/bass only).
+                Also used as the span window for arp_var / arp_group backwards planning.
+                For fullchord/pairedchord: max span between lowest and highest voicing note. */}
             <div className="ir-col-center">
                 {!isMetronome && !isChords && !isPerc && (() => {
-                    const currentRule = settings?.randomizationRule || 'uniform';
-                    const isArpMode = currentRule === 'arp_var' || currentRule === 'arp_group';
-
-                    if (isArpMode) {
-                        const ARP_SPAN_OPTIONS = [
-                            { label: '5th',  value: 7  },
-                            { label: 'M6th', value: 9  },
-                            { label: 'M7th', value: 11 },
-                            { label: '8ve',  value: 12 },
-                            { label: '9th',  value: 14 },
-                            { label: '10th', value: 16 },
-                            { label: '12th', value: 19 },
-                            { label: '15th', value: 24 },
-                            { label: '∞',    value: null },
-                        ];
-                        const currentSpan = settings?.arpSpan ?? 12;
-                        const currentLabel = ARP_SPAN_OPTIONS.find(o => o.value === currentSpan)?.label ?? '8ve';
-                        return (
-                            <GenericStepper
-                                value={currentSpan}
-                                label={currentLabel}
-                                fontSize="11.5px"
-                                fontFamily="sans-serif"
-                                allowedValues={ARP_SPAN_OPTIONS.map(o => o.value)}
-                                options={ARP_SPAN_OPTIONS}
-                                shouldCycle={true}
-                                onChange={(val) => setSettings(p => ({ ...p, arpSpan: val }))}
-                            />
-                        );
-                    }
-
                     const LEAP_OPTIONS = [
                         { label: '3rd',  value: 4  },
                         { label: '4th',  value: 5  },
