@@ -1277,7 +1277,7 @@ The algorithm fills approach notes by working **backward from L**, walking in th
 After filling, the approach-note list is reversed to get time order (earliest note first, L last).
 
 #### Span
-A configurable semitone window that defines the working pitch range for one line. L sits at the top of the span (direction=up) or at the bottom (direction=down). Size is set by `InstrumentSettings.arpSpan` (default 12 = 1 octave; null = full pool range, no boundary triggers). When the backwards-planning walk exhausts notes in the current span, a boundary mode applies.
+A configurable semitone window that defines the working pitch range for one line. L sits at the top of the span (direction=up) or at the bottom (direction=down). Size is set by `InstrumentSettings.maxLeap` (default 12 = 1 octave; null = full pool range, no boundary triggers). `maxLeap` therefore serves double duty: melodic leap constraint for other rules, and arp span for `arp_var`/`arp_group`. When the backwards-planning walk exhausts notes in the current span, a boundary mode applies.
 
 #### Boundary modes
 
@@ -1414,7 +1414,7 @@ Time order: d3  e3  f3  g3  a3  b3  c4L   ← wave approaching L from below
 - `src/generation/melodyGenerator.js` — entry point; passes grouping info and `arpSpan` to converter.
 - `src/generation/rhythmicPriorities.js` — `generateRhythmicDNA`, `decomposeNumeratorToBeatGroups` — reuse for group structure.
 - `src/generation/generateRankedRhythm.js` — ranked array; `arp_var` reads this directly.
-- `src/model/InstrumentSettings.js` — `randomizationRule` and `arpSpan` fields.
-- `src/components/controls/rows/InstrumentRow.jsx` — Col 8 shows Arp Span stepper (5th–15th + ∞) when arp_var/arp_group is active, Max Leap otherwise.
+- `src/model/InstrumentSettings.js` — `randomizationRule` and `maxLeap` fields (`maxLeap` doubles as arp span).
+- `src/components/controls/rows/InstrumentRow.jsx` — Col 8 Max Leap stepper also controls arp span.
 - `src/constants/instrumentRules.js` — `RULE_FAMILIES.arp` includes `'arp_var'`, `'arp_group'`.
 - `src/utils/labelUtils.js` — display labels for `'arp_var'` and `'arp_group'`.

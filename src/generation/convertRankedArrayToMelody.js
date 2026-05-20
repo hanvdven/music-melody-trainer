@@ -40,7 +40,7 @@ const convertRankedArrayToMelody = (
     randomizationRule = 'uniform',
     timeSignature = null,   // [numerator, denominator] — needed for offset-based chord lookup
     rhythmicGrouping = null, // beat-group decomposition ([3,2] etc) — needed by arp_group
-    arpSpan = 12            // semitone window for arp_var / arp_group backwards planning; null = full pool range
+    maxLeap = 12             // reused as semitone span for arp_var / arp_group; null = full pool range
 ) => {
     // =========================================================================
     // 0. PREPARE NOTE POOL
@@ -285,7 +285,7 @@ const convertRankedArrayToMelody = (
             // For direction='up': L is span top; approach from below.
             // For direction='down': L is span bottom; approach from above.
             // null arpSpan = full pool range (no boundary ever triggers).
-            const effectiveSpan = arpSpan ?? (sorted[sorted.length - 1].val - sorted[0].val + 1);
+            const effectiveSpan = maxLeap ?? (sorted[sorted.length - 1].val - sorted[0].val + 1);
             let spanLow = direction === 'up' ? lVal - effectiveSpan : lVal;
             let spanHigh = direction === 'up' ? lVal : lVal + effectiveSpan;
             // Backwards planning step: -1 = walking down, +1 = walking up.
