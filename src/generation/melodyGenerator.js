@@ -53,6 +53,13 @@ class MelodyGenerator {
         let instrumentType = this.InstrumentSettings.type;
         let randomizationRule = this.InstrumentSettings.randomizationRule;
 
+        logger.debug('MelodyGen', 'start', {
+            instrumentType, tonic, numMeasures, timeSignature,
+            notesPerMeasure, smallestNoteDenom, rhythmVariability,
+            enableTriplets, polyMultiplier: this.InstrumentSettings.polyMultiplier,
+            rule: randomizationRule, pool: randomizationNotes,
+        });
+
         if (randomizationRule === 'backbeat') {
             return generateBackbeat(
                 timeSignature, numMeasures,
@@ -132,6 +139,10 @@ class MelodyGenerator {
             deterministicTemplate = new Array(numMeasures).fill(null).map(() => [...dnaMeasureForDebug]);
         }
 
+        logger.debug('MelodyGen', 'DNA+rhythm done', {
+            grouping: rhythmicGrouping, dnaSample: dnaMeasureForDebug?.slice(0, 8),
+        });
+
         const { rankedArray, tupletGroups } = generateRankedRhythm(
             numMeasures,
             timeSignature,
@@ -144,6 +155,12 @@ class MelodyGenerator {
             this.InstrumentSettings.polyMultiplier || 1
         );
 
+
+        logger.debug('MelodyGen', 'rankedArray ready', {
+            totalSlots: rankedArray.length,
+            activeSlots: rankedArray.filter(v => v !== null).length,
+            tupletGroupsCount: tupletGroups.length,
+        });
 
         // Pre-calculate allowed notes based on Range
         let effectiveScale = this.scale;
@@ -451,6 +468,12 @@ class MelodyGenerator {
         );
 
         // melody.triplets[i] = null | { id, noteCount, denominator, groupTicks, visualDuration }
+        logger.debug('MelodyGen', 'notes assigned', {
+            notes: generatedMelody.filter(n => n !== null && n !== 'r').length,
+            totalSlots: generatedMelody.length,
+            sample: generatedMelody.slice(0, 8).map(n => n ?? '·'),
+        });
+
         if (tupletGroups.length > 0 && !isChordSequence) {
             // timeScale: ticks per slot — same formula used by Melody.fromFlattenedNotes.
             const timeScale = (TICKS_PER_WHOLE * numMeasures / finalMelody.notes.length)
@@ -462,6 +485,11 @@ class MelodyGenerator {
             const activeWinners = sortedGroups.filter(tg => {
                 const note = finalMelody.notes[tg.slotStart];
                 return note !== null && note !== 'r';
+            });
+
+            logger.debug('MelodyGen', 'tuplet expansion', {
+                total: tupletGroups.length, active: activeWinners.length,
+                winners: activeWinners.map(g => `s${g.slotStart} ${g.n}:${g.slotCount}`),
             });
 
             if (activeWinners.length > 0) {
@@ -554,12 +582,20 @@ class MelodyGenerator {
                 tupletMelody.triplets          = triplets;
                 tupletMelody.rhythmicGrouping  = rhythmicGrouping;
                 tupletMelody.rhythmicDNA       = dnaMeasureForDebug;
+
+                logger.debug('MelodyGen', 'done (with tuplets)', {
+                    finalNotes: notes.length, tupletsExpanded: activeWinners.length,
+                });
                 return tupletMelody;
             }
         }
 
         finalMelody.rhythmicGrouping = rhythmicGrouping;
         finalMelody.rhythmicDNA = dnaMeasureForDebug;
+
+        logger.debug('MelodyGen', 'done (no tuplets)', {
+            finalNotes: finalMelody.notes.length,
+        });
         return finalMelody;
     }
 }

@@ -75,6 +75,7 @@
 
 import { decomposeNumeratorToBeatGroups } from './rhythmicPriorities.js';
 import { tupletsForSlotCount, TRIPLET_WEIGHT } from '../constants/tuplets.js';
+import logger from '../utils/logger';
 
 /**
  * Inject tuplets into the pre-ranking priority array.
@@ -103,8 +104,13 @@ export const injectTuplets = (
 ) => {
     if (tripletProb <= 0) return { modified: piecewiseSum, tupletGroups: [] };
 
-    const modified    = [...piecewiseSum];
+    const modified     = [...piecewiseSum];
     const tupletGroups = [];
+
+    logger.debug('injectTuplets', 'start', {
+        slotsPerMeasure, numMeasures, tripletProb: tripletProb.toFixed(3), tripletOnly,
+        notesPerMeasure, totalSlots: piecewiseSum.length,
+    });
 
     const [numerator, denominator] = timeSignature;
     const measureNoteResolution = Math.max(smallestNoteDenom, denominator);
@@ -166,6 +172,11 @@ export const injectTuplets = (
             }
         }
 
+        logger.debug('injectTuplets', `m${m} candidates`, {
+            count: candidates.length,
+            list: candidates.map(c => `[${c.start},+${c.size}]`),
+        });
+
         // Shuffle for unbiased candidate order.
         for (let i = candidates.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -211,12 +222,21 @@ export const injectTuplets = (
             // Only place it when the original slot density is high enough that n notes make sense.
             // Rule: slotVals.length (non-null original slots) must be > winner.n / 2.
             // A 7-tuplet placed over 2 active slots would be musically implausible → skip.
-            if (slotVals.length <= winner.n / 2) continue;
+            if (slotVals.length <= winner.n / 2) {
+                logger.debug('injectTuplets', `m${m} half-full skip`, {
+                    slot: start, size, winner: `${winner.n}:${winner.d}`, activeSlots: slotVals.length,
+                });
+                continue;
+            }
 
             // Apply: set start slot to min-priority, null out continuation slots.
             const minPriority = Math.min(...slotVals);
             modified[start] = minPriority;
             for (let s = start + 1; s < start + size; s++) modified[s] = null;
+
+            logger.debug('injectTuplets', `m${m} placed ${winner.n}:${winner.d}`, {
+                slot: start, size, priority: minPriority.toFixed(2), activeSlots: slotVals.length,
+            });
 
             tupletGroups.push({
                 slotStart:    start,
@@ -229,6 +249,11 @@ export const injectTuplets = (
             for (let s = start; s < start + size; s++) claimed.add(s);
         }
     }
+
+    logger.debug('injectTuplets', 'done', {
+        placed: tupletGroups.length,
+        groups: tupletGroups.map(g => `m${g.measureIndex} s${g.slotStart} ${g.n}:${g.slotCount}`),
+    });
 
     return { modified, tupletGroups };
 };

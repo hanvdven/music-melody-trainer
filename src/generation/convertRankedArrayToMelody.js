@@ -42,6 +42,11 @@ const convertRankedArrayToMelody = (
     rhythmicGrouping = null, // beat-group decomposition ([3,2] etc) — needed by arp_group
     maxLeap = 12             // reused as semitone span for arp_var / arp_group; null = full pool range
 ) => {
+    logger.debug('convertRanked', 'start', {
+        rule: randomizationRule, source: randomizationNotes,
+        slots: rankedArray.length, numMeasures, notesPerMeasure, maxLeap,
+    });
+
     // =========================================================================
     // 0. PREPARE NOTE POOL
     // =========================================================================
@@ -228,6 +233,13 @@ const convertRankedArrayToMelody = (
 
     const activeSlotsSet = new Set(allSlots.filter(s => s.priority !== null).map(s => s.index));
 
+    logger.debug('convertRanked', 'active slots', {
+        active: activeSlotsSet.size, total: rankedArray.length,
+        top: allSlots.filter(s => s.priority === 'top').length,
+        high: allSlots.filter(s => s.priority === 'high').length,
+        low: allSlots.filter(s => s.priority === 'low').length,
+    });
+
     // =========================================================================
     // 2.5 ARP_VAR / ARP_GROUP — sequence-level backwards-planning arpeggio
     // =========================================================================
@@ -242,6 +254,11 @@ const convertRankedArrayToMelody = (
     //   span    = 12-semitone window around L; boundary modes: kaats (bounce) / spring (jump).
 
     const rule = (randomizationRule || 'uniform').toLowerCase();
+
+    logger.debug('convertRanked', `rule=${rule}`, {
+        pool: typeof randomizationNotes === 'string' ? randomizationNotes : 'custom',
+        scaleSize: scale.length, activeSlots: activeSlotsSet.size,
+    });
 
     if (rule === 'arp_var' || rule === 'arp_group') {
         const arpSource = (typeof randomizationNotes === 'string')
@@ -408,6 +425,10 @@ const convertRankedArrayToMelody = (
                 }
             }
         }
+
+        logger.debug('convertRanked', 'arp done', {
+            rule, notesPlaced: arpMelody.filter(n => n !== null && n !== 'r').length,
+        });
 
         // Safety: if the entire result is silent, fall back to a random scale note.
         if (!arpMelody.some(n => n !== null && n !== 'r') && scale.length > 0) {
@@ -614,6 +635,12 @@ const convertRankedArrayToMelody = (
         generatedMelody[firstActiveSlot] = scale[0];
         generatedVolumes[firstActiveSlot] = 0.9;
     }
+
+    const notesPlaced = generatedMelody.filter(n => n !== null && n !== 'r').length;
+    logger.debug('convertRanked', 'done', {
+        notesPlaced, totalSlots: generatedMelody.length,
+        sample: generatedMelody.slice(0, 8).map(n => n ?? '·'),
+    });
 
     return { melody: generatedMelody, volumes: generatedVolumes };
 };
