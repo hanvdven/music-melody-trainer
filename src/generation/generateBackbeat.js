@@ -153,7 +153,6 @@ function generatePercussionFromDNA(
         notesPerMeasure,
         smallestNoteDenom,
         dnaVariability,      // ← rhythm-level variability (shuffles ranks)
-        false,
         'default',
     );
 
@@ -303,7 +302,7 @@ export function generateBackbeat2(
     const deterministicTemplate = new Array(numMeasures).fill(null).map(() => [...dnaMeasure]);
     const { rankedArray } = generateRankedRhythm(
         numMeasures, timeSignature, notesPerMeasure, smallestNoteDenom,
-        variability, false, 'default', deterministicTemplate
+        variability, 'default', deterministicTemplate
     );
 
     // Working copy: null out slots after allocation to prevent reuse.

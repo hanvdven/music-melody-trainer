@@ -130,7 +130,6 @@ class Melody {
       notesPerMeasure,
       smallestNoteDenom,
       0,        // variability
-      false,    // triplets
       'uniform' // randomizationRule
     );
 

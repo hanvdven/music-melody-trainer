@@ -48,7 +48,6 @@ class MelodyGenerator {
         let timeSignature = this.timeSignature;
         let smallestNoteDenom = this.InstrumentSettings.smallestNoteDenom;
         let rhythmVariability = this.InstrumentSettings.rhythmVariability;
-        let enableTriplets = this.InstrumentSettings.enableTriplets;
         let randomizationNotes = this.InstrumentSettings.notePool;
         let instrumentType = this.InstrumentSettings.type;
         let randomizationRule = this.InstrumentSettings.randomizationRule;
@@ -56,7 +55,7 @@ class MelodyGenerator {
         logger.debug('MelodyGen', 'start', {
             instrumentType, tonic, numMeasures, timeSignature,
             notesPerMeasure, smallestNoteDenom, rhythmVariability,
-            enableTriplets, polyMultiplier: this.InstrumentSettings.polyMultiplier,
+            polyMultiplier: this.InstrumentSettings.polyMultiplier,
             rule: randomizationRule, pool: randomizationNotes,
         });
 
@@ -149,7 +148,6 @@ class MelodyGenerator {
             notesPerMeasure,
             smallestNoteDenom,
             rhythmVariability,
-            enableTriplets,
             randomizationNotes,
             deterministicTemplate,
             this.InstrumentSettings.polyMultiplier || 1
