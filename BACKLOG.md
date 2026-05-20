@@ -602,6 +602,7 @@ De chord-plaatsing via MelodyGenerator gebruikt rank+2×afstand (proximityUtils.
 
 - verbetering van arpeggio mode voor chords/scales: start bij root/tonica; juiste afhandeling in range cut-off
 [Claude 2026-05-19]: ⬆ SHORTLIST — hoge prioriteit op verzoek van Han. Interview nodig voor exacte vereisten.
+[Claude 2026-05-20]: Ontwerp volledig uitgewerkt in overleg met Han (mei 2026). Twee subtypes gespecificeerd: `arp_var` (rhythm-variability-aware) en `arp_group` (beat-group-aware met backwards planning, landing notes, kaats/spring boundary modes). Volledige specificatie inclusief voorbeelden: docs/architecture.md §27. Implementatie nog niet gestart — interview per §4b CLAUDE.md vereist voor aanvang.
 
 - akkoord mode: kans op akkoorden (milde versie van 'full chord') -> genereer uniform willekeurig maar nu paren van noten uit de melody notes set die is ingesteld. Idee: pak één noot uit het 'akkoord' en één noot uit de notenset. beperkingen: maximum afstand is een octaaf. Bij 'mislukt' genereer gewoon één noot uit de notenset.
 [Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han. Interview nodig voor exacte vereisten.
@@ -814,6 +815,58 @@ harmoniseer kleuren (2 accentkleuren blauw en geel → één kleur)
 - meer presets
   - Practice: hearing, sight-reading, scales, chords, improvisation mode
 - polijsten van UX/UI
+
+---
+
+## PRESETS / OEFENINGEN
+
+Verzameling van voorgestelde presets (combinaties van instellingen). Nog niet geïmplementeerd — dienen als inspiratie voor het preset-systeem.
+
+### Schaalloopjes (Scale Runs)
+- notePool: `scale`, randomizationType: `arp_group`
+- akkoordenprogressie: klassieke cadens (I–IV–V–I of ii–V–I)
+- smallestNoteDenom: 8 (achtsten) of 16 (zestienden)
+- notesPerMeasure: hoog (bijv. 6–8 per maat)
+- variability: laag (voorspelbare loopjes)
+- maxLeap: klein (octaaf of minder)
+- Doel: toonladders oefenen, aanvalstechniek, vingervlugheid
+
+### Gebroken Akkoorden (Broken Chords)
+- notePool: `chord`, randomizationType: `arp_group`
+- akkoordenprogressie: vrij te kiezen
+- smallestNoteDenom: 8
+- notesPerMeasure: middel (4–6 per maat)
+- variability: laag–middel
+- Doel: akkoordbewust spelen, greepposities verkennen
+
+### Vingervlugheid (Dexterity)
+- notePool: `scale` of `chromatic`, randomizationType: `arp_var`
+- smallestNoteDenom: 16
+- notesPerMeasure: maximaal
+- variability: middel–hoog
+- maxLeap: klein (secunde of terts)
+- Doel: snelheid, techniek
+
+### Syncope / Polyritme
+- notePool: `chord` of `scale`, randomizationType: `arp_var`
+- smallestNoteDenom: 16
+- variability: hoog
+- timeSignature: 5/4, 7/8 of 3/4
+- Doel: ritmisch gevoel, syncope, off-beat-accenten
+
+### Gehoortraining (Ear Training)
+- notePool: `chord`, randomizationType: `uniform`
+- playbackSettings: Round 1 = alleen muziek, Round 2 = muziek + noten
+- variability: laag
+- Doel: noten en akkoorden herkennen op gehoor
+
+### Bladmuziek (Sight-reading)
+- notePool: `scale`, randomizationType: `weighted`
+- playbackSettings: Round 1 = noten zichtbaar, geen audio; Round 2 = audio
+- variability: middel
+- Doel: van blad spelen oefenen
+
+[Claude 2026-05-20]: Presets toegevoegd op basis van ontwerpgesprek over arp_var / arp_group (mei 2026). Specificaties voor arp_var en arp_group staan in docs/architecture.md §27. Implementatie vereist eerst afronding van arp_var/arp_group algoritmen + preset-selectie UI.
   - harmoniseren knoppen, velden, iconen, lettertypes, kleuren, beperken van thema's
   - polijsten van scale selection
 
