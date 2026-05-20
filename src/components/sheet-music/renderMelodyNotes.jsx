@@ -602,6 +602,18 @@ const renderMelodyNotes = (
           flushSubGroup();
         }
 
+        // Parallel voices isolation: RH (stem up) and LH (stem down) notes belong to
+        // separate voices and must never share a beam even when their durations match.
+        if (percussionVoiceSplit && currentSubGroup.length > 0) {
+          const curNote = displayNotes[e.index];
+          const lastNote = displayNotes[currentSubGroup[currentSubGroup.length - 1].index];
+          if (!Array.isArray(curNote) && !Array.isArray(lastNote)) {
+            if (percussionStemUp(curNote) !== percussionStemUp(lastNote)) {
+              flushSubGroup();
+            }
+          }
+        }
+
         const note = displayNotes[e.index];
         if (!note) continue;
 
