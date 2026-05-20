@@ -349,6 +349,7 @@ but groups (123)(45) -> half-dot + half.
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 [Claude 2026-05-18]: Op de backlog gezet op verzoek van Han. Betreft de nootgroeperingslogica in `renderMelodyNotes.jsx` / `processMelodyAndCalculateSlots.js` — noten die over groepslijnen heen lopen worden gesplitst, maar dat is onnodig als de noot binnen één groep past of als de eindtick precies op een groepsgrens valt.
 [Claude 2026-05-19]: Op verzoek van Han: "zou af moeten zijn" (Rule 1 in `processMelodyAndCalculateSlots.js` behandelt al het geval dat een noot exact op een groepsgrens eindigt). Controleren of dit volledig correct werkt voor alle maatsoorten.
+[Claude 2026-05-20]: ✅ Geverifieerd via code-inspectie voor 3/4, 4/4, 6/8, 9/8, 5/4 [2,3] en [3,2]. Rule 1 (`endInMeasure === lastGroupEnd && allowedDurations.includes(remainingDuration)`) werkt correct in alle gevallen: halve noot op tel 1 in 4/4 (eindigt op maat-helft grens → heel blijven), gepunteerde halve in 3/4 (vult hele maat → heel), noot die groepsgrens in 5/4 nadert maar er niet op uitkomt (→ gesplitst via Rule 2). Geen verdere actie nodig.
 
 ### ✅ Bug: Beams renderen niet juist in parallel voices mode
 
