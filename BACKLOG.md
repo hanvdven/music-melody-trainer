@@ -255,6 +255,39 @@ Increase font size for triplet text. Use serif font, boldface, increase size by 
 
 Ik zie geen tuplets bij percussie of bas, hoe komt dat? Is de bedoeling dat ze ook daar voorkomen. -> gezien bij perucssie! Opgelost.
 
+### Bug: Kwartnoot-tuplets — verkeerde maatindeling in weergave
+
+soms klopt de plaatsing van noten niet op bladmuziek. Waarschijnlijke verkeerde attributie van de noten. voorbeeld:
+4/4: [q q 3:2q | 3:2q,q q | q q q qr ]
+wordt gerenderd als [q q 3:2q| 3:2q q | q q q q | qr ]
+lijkt vooral te gebeuren met tuplets van kwartnoten.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Bug & Verbetering: Tuplet-kansen en dichtheid
+
+tuplet chance high zorgt voor ongeveer 100% tuplets. Balanceer de kansen.
+
+het valt me op dat notes/measure 3 moet zijn voordat ik ooit een triplet zie - is het criterium om triplets te plaatsen misschien notes/measure, moet zijn: nummeasures*notes/measure.
+
+het lijkt erop dat tuplets hun lengte/2 'kosten' in termen van aantal noten per maat. Dat is een goed criterium om ze te plaatsen, maar na plaatsing moet wel het correcte aantal noten van de beschikbare noten worden afgetrokken.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Verbetering: Tuplet-label uiterlijk
+
+het label is lelijk. Er wordt nu een blokhaak gemaakt (perfect!) en een verhouding genoteerd (super!). zorg ervoor: de verhouding tus
+
+de nummers: kun je een goed alternatief of zelfs hetzelfde font als maestro gebruiken? De getallen uit maestro zijn allemaal bold face, ik heb liever geen bold face hier (ook voor maatnummers)
+
+de alignment: zorg dat het midden van de lijn (verticaal en horizontaal) mooi door het midden van de nummers gaat
+
+de clipping: er zit een clipping achtergrond achter de nummer, om de lijn de onderbreken. Deze box is smaller dan de cijfers, waardoor de lijn en de cijfers overlappen.
+
+da afstand, zorg dat de lijn en nummers iets verder van de noten af staan.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
 ### Klikzones & interactiviteit
 
 ✅ klikzone-audit accidentals: klikken op voortekens wisselt tonika naar enharmonische equivalent (bijv. F♯ ↔ G♭).
