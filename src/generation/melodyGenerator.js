@@ -150,7 +150,8 @@ class MelodyGenerator {
             rhythmVariability,
             randomizationNotes,
             deterministicTemplate,
-            this.InstrumentSettings.polyMultiplier || 1
+            this.InstrumentSettings.polyMultiplier || 1,
+            rhythmicGrouping,
         );
 
 
@@ -506,13 +507,15 @@ class MelodyGenerator {
                 for (const tg of activeWinners) {
                     const idx        = tg.slotStart;
                     const noteCount  = tg.n;
-                    const slotCount  = tg.slotCount;   // = d (replaced slots)
+                    const slotCount  = tg.slotCount;   // number of replaced slots
                     const groupTicks = slotCount * timeScale;
                     // Use floor so last note absorbs rounding remainder, keeping total exact.
                     const noteTicks     = Math.floor(groupTicks / noteCount);
                     const lastNoteTicks = groupTicks - (noteCount - 1) * noteTicks;
-                    // Each sub-note is displayed with the per-slot tick duration.
-                    const visualDuration = Math.round(timeScale);
+                    // visualDuration = duration of one undivided note in the n:d ratio.
+                    // tg.d is the denominator from TUPLET_DEFS (e.g. 2 for 3:2 triplet).
+                    // (slotCount / tg.d) gives how many slots that reference note spans.
+                    const visualDuration = Math.round((slotCount / tg.d) * timeScale);
                     groupIdCounter++;
                     const id = groupIdCounter;
 

@@ -101,6 +101,7 @@ export const injectTuplets = (
     tripletProb,
     tripletOnly,
     notesPerMeasure,
+    rhythmicGrouping = null,  // beat-group sizes in beats, e.g. [2,3] for 5/4
 ) => {
     if (tripletProb <= 0) return { modified: piecewiseSum, tupletGroups: [] };
 
@@ -109,23 +110,34 @@ export const injectTuplets = (
 
     logger.debug('injectTuplets', 'start', {
         slotsPerMeasure, numMeasures, tripletProb: tripletProb.toFixed(3), tripletOnly,
-        notesPerMeasure, totalSlots: piecewiseSum.length,
+        notesPerMeasure, rhythmicGrouping, totalSlots: piecewiseSum.length,
     });
 
     const [numerator, denominator] = timeSignature;
     const measureNoteResolution = Math.max(smallestNoteDenom, denominator);
     const slotsPerBeat           = measureNoteResolution / denominator;
 
-    // Beat-group sizes in beats (deterministic decomposition — no random order).
-    const groupStartsInBeats = decomposeNumeratorToBeatGroups(numerator);
-    if (groupStartsInBeats.length === 0) return { modified, tupletGroups };
+    // Use the caller-supplied rhythmicGrouping (which matches the melody's DNA grouping).
+    // Falling back to decomposeNumeratorToBeatGroups would use a deterministic [3,2] order
+    // for n=5, while the melody may have been generated with [2,3] — causing tuplets to land
+    // on the wrong beat group.
+    const beatGroupSizesInBeats = rhythmicGrouping ?? (() => {
+        const starts = decomposeNumeratorToBeatGroups(numerator);
+        if (starts.length === 0) return [];
+        return starts.map((s, i) =>
+            i < starts.length - 1 ? starts[i + 1] - s : numerator - s
+        );
+    })();
+    if (beatGroupSizesInBeats.length === 0) return { modified, tupletGroups };
 
-    const beatGroupSizesInBeats = groupStartsInBeats.map((s, i) =>
-        i < groupStartsInBeats.length - 1
-            ? groupStartsInBeats[i + 1] - s
-            : numerator - s
-    );
     const beatGroupSizes = beatGroupSizesInBeats.map(b => b * slotsPerBeat);
+    // Allow 2× scaling (quarter-note triplets from 8th-note slots) only when the resolution
+    // is finer than beat-level (slotsPerBeat > 1 means each slot is ≤ one eighth note).
+    const maxK = slotsPerBeat > 1 ? 2 : 1;
+
+    // Global budget: total notes available across all measures. Decrement by n for each placed
+    // tuplet so the density guard accounts for notes already committed to earlier tuplets.
+    let remainingBudget = notesPerMeasure * numMeasures;
 
     for (let m = 0; m < numMeasures; m++) {
         const measureBase = m * slotsPerMeasure;
@@ -195,7 +207,7 @@ export const injectTuplets = (
             if (overlaps) continue;
 
             // Valid tuplet defs for this slot count.
-            let defs = tupletsForSlotCount(size);
+            let defs = tupletsForSlotCount(size, maxK);
             if (tripletOnly) defs = defs.filter(t => t.n === 3 && t.d === 2);
             if (defs.length === 0) continue;
 
@@ -206,8 +218,8 @@ export const injectTuplets = (
             }
             if (slotVals.length === 0) continue; // all-rest range — nothing to replace
 
-            // Density guard: skip if the tuplet would produce more notes than the measure budget.
-            defs = defs.filter(t => t.n <= notesPerMeasure);
+            // Density guard: skip if placing this tuplet would exceed the remaining global note budget.
+            defs = defs.filter(t => t.n <= remainingBudget);
             if (defs.length === 0) continue;
 
             // First successful dice roll wins (list already sorted by ascending weight).
@@ -234,14 +246,19 @@ export const injectTuplets = (
             modified[start] = minPriority;
             for (let s = start + 1; s < start + size; s++) modified[s] = null;
 
+            // Deduct actual note count from global budget so later candidates see updated headroom.
+            remainingBudget -= winner.n;
+
             logger.debug('injectTuplets', `m${m} placed ${winner.n}:${winner.d}`, {
                 slot: start, size, priority: minPriority.toFixed(2), activeSlots: slotVals.length,
+                remainingBudget,
             });
 
             tupletGroups.push({
                 slotStart:    start,
                 slotCount:    size,
                 n:            winner.n,
+                d:            winner.d,  // ratio denominator; needed for visualDuration in expansion
                 priority:     minPriority,
                 measureIndex: m,
             });
