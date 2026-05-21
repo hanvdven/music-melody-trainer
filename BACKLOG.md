@@ -515,6 +515,15 @@ Bestanden: `src/hooks/useMelodyState.js`, `src/hooks/usePlaybackNavigation.js`.
 - InstrumentRow groot (22px) vs klein (14px) iconen: bewust onderscheid tussen status en decoratie.
 - DrumPad clamp-font: responsive, OK.
 
+### Actief instrument highlight
+
+Visueel aangeven welk instrument momenteel 'actief' is — d.w.z. het instrument dat momenteel afspeelt of het meest recent door de gebruiker geselecteerd is. Gedacht aan een subtiele glow, randhighlight of achtergrondkleur op de InstrumentRow of het bijbehorende blok in de generator settings.
+
+### Unieke look & feel: tweekleurige achtergrond + Thronefall-achtige nootshadow
+
+Tweekleurige achtergrond: bijv. een split bovenaan/onderaan of een diagonale overgang tussen twee compacte kleuren (vergelijkbaar met Thronefall's aardse palet). Thronefall-esque schaduw: noten in de bladmuziek krijgen een harde, enigszins verschoven drop-shadow (2D perspectief-effect), in contrast met de huidige glow/blur-gebaseerde highlight. Dit kan de bladmuziek een heel eigen stijl geven.
+[Claude 2026-05-21]: Twee losse sub-features: (1) achtergrond-kleurovergang — CSS-variabelen aanpassen of een gradient-laag achter de SheetMusic SVG; (2) harde noot-shadow — SVG `<filter>` met `feDropShadow` met nul blur en een vaste offset (bijv. 2px rechts, 3px onder) voor de notenkoppen. Sub-feature (2) past goed bij de bestaande `note-glow` filterinfrastructuur in `SheetMusic.jsx`. Interview nodig vóór implementatie (kleurkeuze, schaduwrichting/-kleur, welke elementen de schaduw krijgen).
+
 ### BPM controls
 
 ✅ BPM: -- / ++ knoppen (naar dichtstbijzijnd veelvoud van 5); - / + (naar dichtstbijzijnd geheel getal); min 12, max 360; ook via numerieke input.
