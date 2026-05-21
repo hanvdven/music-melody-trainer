@@ -9,6 +9,7 @@ import {
     Pin,
     Tally4,
     Drum,
+    Footprints,
 } from 'lucide-react';
 import { VolumeIcon, VisibilityIcon, MetronomeIcon } from '../../common/CustomIcons';
 import { getProgressionLabel } from '../../../utils/labelUtils';
@@ -23,6 +24,7 @@ import RuleSelector from '../RuleSelector';
 const getRuleFamily = (rule) => {
     if (RULE_FAMILIES.random.includes(rule)) return 'random';
     if (RULE_FAMILIES.arp.includes(rule)) return 'arp';
+    if (RULE_FAMILIES.walk.includes(rule)) return 'walk';
     if (RULE_FAMILIES.chords.includes(rule)) return 'chords';
     if (rule === 'fixed') return 'fixed';
     if (PERC_FAMILIES.stylized.includes(rule)) return 'stylized';
@@ -277,7 +279,8 @@ const InstrumentRow = ({
                                 else { nextRule = 'uniform'; newType = instrumentKey; }
                             } else {
                                 if (family === 'random') { nextRule = RULE_FAMILIES.arp[0]; newType = instrumentKey; }
-                                else if (family === 'arp') { nextRule = RULE_FAMILIES.chords[0]; newType = RULE_FAMILIES.chords[0]; }
+                                else if (family === 'arp') { nextRule = RULE_FAMILIES.walk[0]; newType = instrumentKey; }
+                                else if (family === 'walk') { nextRule = RULE_FAMILIES.chords[0]; newType = RULE_FAMILIES.chords[0]; }
                                 else if (family === 'chords') {
                                     const ci = RULE_FAMILIES.chords.indexOf(currentRule);
                                     if (ci < RULE_FAMILIES.chords.length - 1) {
@@ -295,6 +298,7 @@ const InstrumentRow = ({
                             <div className="ir-round-btn" onClick={toggleMode}>
                                 {family === 'random' && <Dices size={22} color="var(--accent-yellow)" />}
                                 {family === 'arp' && <TrendingUp size={22} color="var(--accent-yellow)" />}
+                                {family === 'walk' && <Footprints size={22} color="var(--accent-yellow)" />}
                                 {family === 'chords' && <ChordGroupIcon size={22} color="var(--accent-yellow)" />}
                                 {family === 'stylized' && <Drum size={22} color="var(--accent-yellow)" />}
                                 {family === 'fixed' && <Pin size={22} color="white" className="ir-pin-dim" />}
