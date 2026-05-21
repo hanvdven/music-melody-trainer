@@ -265,6 +265,11 @@ wordt gerenderd als [q q 3:2q| 3:2q q | q q q q | qr ]
 lijkt vooral te gebeuren met tuplets van kwartnoten.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-21 ONDERZOEK]: Uitgebreid code-inspectie uitgevoerd. Tick-rekenkunde in `melodyGenerator.js` is correct (groupTicks = slotCount × timeScale; sub-noot-durations tellen altijd op tot groupTicks). `injectTuplets` genereert nooit maatgrens-overschrijdende tuplets. De `triplets`-bypass in `processMelodyAndCalculateSlots` (regel 158-165) herkent tuplet-noten correct.
+**Twee kandidaat-oorzaken gevonden:**
+1. **`totalDuration`-bug** (`processMelodyAndCalculateSlots.js` regels 119-123): `startRestDuration` wordt per-element opgeteld in de `reduce` i.p.v. eenmalig. Bij melodieën met een leidende rust → `totalDuration` te groot → trailing-rest-padding mist → maat-wisseling aan het einde. Reproductie: eerste noot niet op offset 0.
+2. **Stapeling van meerdere tuplet-expansies** (`melodyGenerator.js` regels 507-582): twee opeenvolgende tuplets worden right-to-left verwerkt, dus indices blijven stabiel. Maar: bij `n - slotCount ≠ 0` (bijv. kwartnoottriplet in 8ste-resolutie: slotCount=4, n=3 → array krimpt met 1) verandert de lengte van `notes`/`offsets`/`triplets` na elke expansie. Als een tweede tuplet daarna `offsets.slice(idx + slotCount)` aanroept met een index die al verschoven is door de eerste expansie, kunnen de offsets van latere noten incorrect worden.
+**Aanbevolen vervolgstap**: debug-logging toevoegen van `offsets` en `durations` vóór/ná elke tuplet-expansie in de `for (const tg of activeWinners)` loop om de cumulatieve telsom na meerdere expansies te verifiëren. Interview met Han nodig voor exacte reproduceer-stappen.
 
 ### ✅ Bug & Verbetering: Tuplet-kansen en dichtheid
 
@@ -678,8 +683,9 @@ De chord-plaatsing via MelodyGenerator gebruikt rank+2×afstand (proximityUtils.
 - muzikale random generation setting, die muzikaal logische lijnen maakt
 [Claude 2026-05-19]: → LONGLIST (generation overhaul). Op verzoek van Han.
 
-- walking bass setting, die walking bass maakt
+✅ - walking bass setting, die walking bass maakt
 [Claude 2026-05-19]: → LONGLIST (generation overhaul). Op verzoek van Han.
+[Claude 2026-05-21]: ✅ Geïmplementeerd als `randomizationRule = 'walking_bass'` in `src/generation/convertRankedArrayToMelody.js` (sectie 2.6). Eerste actieve slot = root (gepint), laatste slot = approach-noot richting volgende chord-root, middelste slots via backwards planning (`buildArpLine`). Approach-karakter via bestaande `randomizationNotes` pool: 'chord' = power/close approach, 'scale' = diatonische leidtoon, 'chromatic' = ±1 halve toon (jazz). Ritmedichtheid via `rhythmVariability`. Respects passing chords via `chordOffsetEvents`. `buildArpLine` gehost naar module-scope (gedeeld met arp_var/arp_group). UI: 'walk'-familie toegevoegd aan `RULE_FAMILIES`, Footprints-icoon in `InstrumentRow`, toggle-cycle uitgebreid. Label 'Walking Bass' in `labelUtils.js`.
 
 ✅ - verbetering van arpeggio mode voor chords/scales: start bij root/tonica; juiste afhandeling in range cut-off
 [Claude 2026-05-19]: ⬆ SHORTLIST — hoge prioriteit op verzoek van Han. Interview nodig voor exacte vereisten.
