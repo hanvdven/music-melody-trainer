@@ -556,9 +556,10 @@ Bereik-sync vóór melodiegeneratie: al correct — `useMelodyState` herberekent
 - chord progression 'puzzels' met weergave kwintencirkel (vaag idee)
 [Claude 2026-05-19]: → LONGLIST.
 
-- notatie voor romeinse cijfers in intermodaal: e.g. bII bVII.
+✅ - notatie voor romeinse cijfers in intermodaal: e.g. bII bVII.
 [Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han.
 [Claude 2026-05-20]: VOORSTEL (zie sessie-antwoord). Samenvatting: gebruik ♭/♯ als prefix op de Romein op basis van semitoonpositie t.o.v. de majeur-toonladder. ♭II = Napolitaans (diatonisch in Frygisch, geleend in mineur) — NIET specifiek Lydisch. Lydisch-kenmerk is ♯IV. ♭VII = subtonica (diatonisch in Mixolydisch/Dorisch/Aeolisch). Implementatie: in `chordGenerator.js` een `CHROMATIC_ROMAN_PREFIX`-lookup (semitonen 0–11) toevoegen die ♭/♯ berekent t.o.v. majeur. `normalizeNoteChars` al beschikbaar voor display-conversie. Interview nodig vóór implementatie.
+[Claude 2026-05-21]: ✅ Geïmplementeerd. `getChromaticRomanDegree(semitone)` toegevoegd aan `noteUtils.js` — mapt semitoonafstand van tonica op Romein met Unicode ♭/♯ prefix (0→I, 1→♭II, 3→♭III, 6→♯IV, 8→♭VI, 10→♭VII, 11→VII). `generateChordOnDegree` in `chordGenerator.js` gebruikt dit nu voor `romanBaseRaw` zodat alle modale akkoorden (Frygisch ♭II, Mixolydisch ♭VII, enz.) correct worden gelabeld in chord grid én bladmuziek. `FUNCTION_CATEGORY` bijgewerkt voor alle 12 chromatische graden. ASCII `bII` in ChordGrid.jsx vervangen door `♭II`. Progressieselector-labels omgezet naar `^n`-Arabisch (bijv. "Pop Song (^1-^5-^6-^4)").
 
 - In notatie werkelijke unicode voortekens gebruiken ipv b en #. (bladmuziek én chord grid). Logica checken op consistentie met muziektheorie.
 
@@ -625,13 +626,17 @@ In C groot zit F♯ niet in de toonladder; de `'scale'`-pool kan F♯ dan ook ni
 
 ### Akkoord-taxonomie
 
-- nakijken of taxonomie volledig is
+✅ - nakijken of taxonomie volledig is
 [Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han. Toevoegen: extra passing chord types. Interview nodig voor gewenste uitbreiding.
 [Claude 2026-05-20]: VOORSTEL (zie sessie-antwoord). Huidige typen: secondary-dominant (V7/x), secondary-dim (vii°7/x), tritone-sub (♭II7/x), diatonic. Ontbrekende categorieën op basis van muziektheorie:
 1. **Subdominant approach (IV/x)** — zachte voorbereiding via kwart-stap omhoog; veel gebruikt in pop/gospel. Makkelijk toe te voegen als 4e type.
 2. **Borrowed minor chords** — ♭VI, ♭III uit parallelle mineurtoonladder als passing kleur; al deels gedekt via diatonic-chain maar niet geëxpliciteerd.
 3. **Augmented sixth (It+6, Ger+6)** — klassieke chromatische passing chords; zeldzaam, hoge moeilijkheidsgraad. Complexer om te implementeren.
 Prioriteit: (1) eerst implementeren, (2) daarna bekijken, (3) longlist.
+[Claude 2026-05-21]: ✅ Geïmplementeerd. Twee nieuwe typen toegevoegd aan `chordGenerator.js` → `generatePassingChord()`:
+- **`subdominant-approach` (IV/x)**: wortel een reine kwart boven doel-akkoord. Diatonische kwaliteit wanneer de wortel in de huidige ladder zit, anders majeur drieklank. Label: `IV/x`.
+- **`borrowed-parallel`**: willekeurig akkoord gebouwd op een graad die WEL in `heptaRefIntervals` zit maar NIET in de huidige ladder (modal mixture). Werkt automatisch voor exotische ladders (bijv. dubbel harmonisch majeur). Label: chromatisch Romein van de geleende graad + `/x`.
+UI: stepper (none/secondary-dominant/all) vervangen door 7 afzonderlijk schakelbare chips in InstrumentRow col 6. Setting opgeslagen als `passingChordTypes: string[]` (was: `passingChords: string`). Augmented sixth (It+6, Ger+6) → LONGLIST (vereist apart interview).
 
 ### Muziektheorie (akkoorden)
 
