@@ -1,4 +1,5 @@
 import { generateDeterministicRhythm } from './rhythmicPriorities';
+import { injectTuplets } from './injectTuplets.js';
 import logger from '../utils/logger';
 
 export const generateRankedRhythm = (
@@ -7,11 +8,11 @@ export const generateRankedRhythm = (
     notesPerMeasure,
     smallestNoteDenom,
     rhythmVariability,
-    enableTriplets,
     randomizationRules,
-    deterministicTemplate = null // New optional argument
+    deterministicTemplate = null,
+    polyMultiplier = 1,        // boosts tuplet probability; mirrors InstrumentSettings.polyMultiplier
+    rhythmicGrouping = null    // beat-group sizes in beats (e.g. [2,3] for 5/4); passed through to injectTuplets
 ) => {
-
 
     const smallestNoteDenomValue = timeSignature[1];
     const measureNoteResolution = Math.max(smallestNoteDenomValue, smallestNoteDenom);
@@ -22,14 +23,17 @@ export const generateRankedRhythm = (
             measureNoteResolution, timeSignature, smallestNoteDenom, numberOfSlotsPerMeasure,
         });
         const fallbackLen = (numMeasures && numMeasures > 0) ? numMeasures * 4 : 4;
-        return new Array(fallbackLen).fill(null);
+        return { rankedArray: new Array(fallbackLen).fill(null), tupletGroups: [] };
     }
 
-    let melodyArray;
+    logger.debug('RhythmGen', '1/4 DNA', {
+        timeSignature, numMeasures, notesPerMeasure,
+        smallestNoteDenom, slotsPerMeasure: numberOfSlotsPerMeasure,
+        usingTemplate: !!deterministicTemplate,
+    });
 
+    let melodyArray;
     if (deterministicTemplate) {
-        // Use the provided template directly
-        // Ensure deep copy if we're going to mutate it (we flatten it later, so flat array is new)
         melodyArray = deterministicTemplate;
     } else {
         melodyArray = generateDeterministicRhythm(
@@ -46,11 +50,8 @@ export const generateRankedRhythm = (
     // Apply variability
     const piecewiseSum = flattened.map((value) => {
         if (value === null) return null;
-
-        // User requested minimum 1% variability internally even if 0 is passed
-        // This avoids 'equal rank' issues where sorting is unstable or degenerate
+        // Minimum 1% variability internally to avoid 'equal rank' sorting instability.
         const effectiveVariability = Math.max(rhythmVariability, 1);
-
         const randomShift = Math.random();
         return (
             (effectiveVariability / 100) * (numberOfSlotsPerMeasure * numMeasures) * randomShift * 1.1 +
@@ -58,26 +59,53 @@ export const generateRankedRhythm = (
         );
     });
 
-    // Triplets
-    let tripletsArray = piecewiseSum;
-    if (enableTriplets) {
-        const triplets = [];
-        for (let val of piecewiseSum) {
-            triplets.push(val, null, null);
-        }
-        let numTriplets = 1 + Math.floor((Math.random() * numMeasures * rhythmVariability) / 100);
-        for (let i = 0; i < numTriplets; i++) {
-            const randomIndex = Math.floor(Math.random() * (piecewiseSum.length - 1)) * 3;
-            if (triplets[randomIndex] !== null) {
-                triplets[randomIndex * 1 + 2] = triplets[randomIndex];
-                triplets[(randomIndex + 1) % triplets.length] = null;
-            }
-        }
-        tripletsArray = triplets;
+    const activeAfterVariability = piecewiseSum.filter(v => v !== null).length;
+    logger.debug('RhythmGen', '2/4 variability', {
+        rhythmVariability, activeSlots: activeAfterVariability, totalSlots: piecewiseSum.length,
+    });
+
+    // Tuplet injection: done BEFORE the ranking pass so that note-selection rules
+    // (arp_var, arp_group, etc.) see the full rhythmic skeleton including tuplets.
+    // tripletProb scales with variability; polyMultiplier amplifies the Polyrhythm setting.
+    // Tuplets are only attempted when variability >= 30.
+    let injectedArray = piecewiseSum;
+    let tupletGroups  = [];
+    // polyMultiplier > 1 means the user has set the Polyrhythm level to low/med/high/xtreme.
+    // This replaces the old enableTriplets boolean — the toggler is the single control.
+    if (polyMultiplier > 1 && rhythmVariability >= 30) {
+        // Power-law formula: low(5)≈1%, med(15)≈5%, high(50)=20%, xtreme(200)≈66%.
+        // Capped at 0.85 so there is always some chance of a plain note in every measure.
+        const tripletProb = Math.min(0.85, (rhythmVariability / 100) * 0.20 * Math.pow(polyMultiplier / 50, 1.3));
+        logger.debug('RhythmGen', '3/4 tuplets — attempting injection', {
+            tripletProb: tripletProb.toFixed(3), polyMultiplier,
+        });
+        const result = injectTuplets(
+            piecewiseSum,
+            numberOfSlotsPerMeasure,
+            numMeasures,
+            timeSignature,
+            smallestNoteDenom,
+            tripletProb,
+            false,          // tripletOnly=false → all TUPLET_DEFS (weight-scaled)
+            notesPerMeasure,
+            rhythmicGrouping,
+        );
+        injectedArray = result.modified;
+        tupletGroups  = result.tupletGroups;
+        logger.debug('RhythmGen', '3/4 tuplets — result', {
+            placed: tupletGroups.length,
+            groups: tupletGroups.map(g => `m${g.measureIndex} slot${g.slotStart} ${g.n}:${g.slotCount}`),
+        });
+    } else {
+        logger.debug('RhythmGen', '3/4 tuplets — skipped', {
+            reason: rhythmVariability < 30
+                ? `variability ${rhythmVariability} < 30`
+                : `polyMultiplier=${polyMultiplier} (set to none)`,
+        });
     }
 
-    // Ranking pass
-    const nonNullValues = tripletsArray
+    // Ranking pass: sort non-null float values → integer ranks 0, 1, 2 …
+    const nonNullValues = injectedArray
         .map((value, index) => (value !== null ? { value, index } : null))
         .filter((item) => item !== null);
 
@@ -86,17 +114,18 @@ export const generateRankedRhythm = (
     let rank = 0;
     let lastValue = nonNullValues[0]?.value;
     nonNullValues.forEach((item, i) => {
-        if (i === 0 || item.value !== lastValue) {
-            rank = i;
-        }
+        if (i === 0 || item.value !== lastValue) rank = i;
         item.rank = rank;
         lastValue = item.value;
     });
 
-    const finalRanked = tripletsArray.map(() => null);
-    nonNullValues.forEach((item) => {
-        finalRanked[item.index] = item.rank;
+    const finalRanked = injectedArray.map(() => null);
+    nonNullValues.forEach((item) => { finalRanked[item.index] = item.rank; });
+
+    logger.debug('RhythmGen', '4/4 ranked', {
+        rankedSlots: nonNullValues.length,
+        top5ranks: nonNullValues.slice(0, 5).map(i => `[${i.index}]=${i.rank}`),
     });
 
-    return finalRanked;
+    return { rankedArray: finalRanked, tupletGroups };
 };

@@ -1235,3 +1235,335 @@ playback sessions. `stop()` still cancels all pending IDs on teardown.
 - Percussion IDs (`getNoteIndex` returns -1) are skipped by the leap filter.
 
 **Files:** `src/model/InstrumentSettings.js`, `src/generation/melodyGenerator.js`, `src/components/controls/rows/InstrumentRow.jsx`, `src/constants/musicLayout.js`, `src/components/controls/PlaybackInstrumentSection.jsx`, `src/components/controls/PlaybackSettings.jsx`.
+
+---
+
+## 27. Arpeggio Randomization — `arp_var` and `arp_group`
+
+### 27.1 Purpose
+
+The `'arp'` randomization rule (`randomizationType` / `randomizationRule`) generates melodic lines where notes travel sequentially toward a **landing note** — creating broken-chord and scale-run patterns. Two subtypes are planned:
+
+- **`arp_var`** — rhythm-aware; inherits the ranked array from `generateRankedRhythm` and varies line length with `rhythmVariability`.
+- **`arp_group`** — beat-group-aware; pre-determines line structure from `rhythmicGrouping` and fills groups backwards from landing notes with predictable, even runs.
+
+The combination of note pool and arpeggio subtype determines the musical exercise:
+- `chord` pool + arp → broken chords
+- `scale` pool + arp → scale runs
+- Both subtypes reuse the existing pipeline (4a–4g). Per-instrument variation is expressed through `InstrumentSettings` only. No instrument-specific special-casing is allowed inside the generation functions.
+
+---
+
+### 27.2 Core Concepts
+
+#### Landing note (L)
+**L is always the last note of a line.** Every note in a line travels toward L. The concept of "notes starting from L" does not exist — L is exclusively an endpoint.
+
+#### Line
+A contiguous sequence of active note slots that ends at L. A melody contains 1 to `numMeasures × beatsPerMeasure` lines depending on density and rhythm.
+
+#### Direction
+Set once per line, not per landing note. Two options:
+- **omhoog (up):** notes ascend in pitch over time, arriving at L from below.
+- **omlaag (down):** notes descend in pitch over time, arriving at L from above.
+
+Direction is chosen randomly per line (50/50). It does not change mid-line.
+
+#### Backwards planning
+The algorithm fills approach notes by working **backward from L**, walking in the direction **opposite to the line direction**:
+- Line direction up → backwards planning walks **down** from L.
+- Line direction down → backwards planning walks **up** from L.
+
+After filling, the approach-note list is reversed to get time order (earliest note first, L last).
+
+#### Span
+A configurable semitone window that defines the working pitch range for one line. L sits at the top of the span (direction=up) or at the bottom (direction=down). Size is set by `InstrumentSettings.maxLeap` (default 12 = 1 octave; null = full pool range, no boundary triggers). `maxLeap` therefore serves double duty: melodic leap constraint for other rules, and arp span for `arp_var`/`arp_group`. When the backwards-planning walk exhausts notes in the current span, a boundary mode applies.
+
+#### Boundary modes
+
+Each line independently receives a randomly chosen boundary mode (kaats OR spring, 50/50). The mode is fixed for the entire line.
+
+**Kaats (bounce):** reverse the backwards-planning walk direction at the span boundary, creating a wave pattern within the span.
+
+**Spring (jump):** shift the span by one octave in the planning direction and continue walking. Creates a cyclic pattern across octaves.
+
+---
+
+### 27.3 Note Pools and Landing Notes
+
+| Note pool | L (landing note) |
+|---|---|
+| `chord` | Root of the active chord |
+| `scale` | Random chord tone (not necessarily root) |
+| `chromatic` | Random note in range |
+
+Approach notes are drawn from the same pool (scale/chord tones within the span).
+
+---
+
+### 27.4 `arp_var` — Rhythm-Variability Subtype
+
+Uses the output of `generateRankedRhythm` directly. Top N slots per measure (determined by `notesPerMeasure`) are filled.
+
+**Line determination:**
+- Active slots that are separated by at least one rest slot form distinct lines.
+- The last active slot before each rest (or before the measure end) is L.
+- On tie (two candidate boundaries have equal surrounding rests): choose the one preceded by the **longest empty stretch**; stop searching when found. This yields 1 to `numMeasures × beatsPerMeasure` lines.
+
+**Note selection within a line:**
+- For a line of length N, generate approach notes by backwards planning from L (see §27.2).
+- Pick approach notes from the scale/chord pool within the span, respecting `maxLeap` between consecutive notes.
+- Assign in time order (approach notes first, L last).
+
+**`rhythmVariability` effect:** higher variability produces more varied rhythm patterns via `generateRankedRhythm`, resulting in lines of more varied lengths.
+
+---
+
+### 27.5 `arp_group` — Beat-Group Subtype
+
+Uses `rhythmicGrouping` (the beat-group decomposition from `generateRhythmicDNA`) to pre-determine line boundaries. Each beat group maps to one line.
+
+**Line structure:**
+- One line per beat group (e.g. 4/4 with grouping [2,2] → 2 lines per measure; 5/4 with grouping [3,2] → 2 lines per measure).
+- Line length = `notesPerBeatGroup` (derived from `notesPerMeasure / numGroups`); fractional remainder is distributed across groups.
+- L is placed at the last rhythmic slot of each group.
+
+**Filling algorithm:**
+1. Determine L for this group (root or random chord tone per §27.3).
+2. Choose line direction (omhoog / omlaag) — fixed for the duration of this line.
+3. Walk backwards from L, picking approach notes from the note pool within the span.
+4. Apply spring or kaats when the span boundary is reached (see §27.2).
+5. Reverse the collected approach-note list and assign to the group's slots in time order, placing L at the last slot.
+
+**Direction changes:** direction is chosen fresh for each new line (random or alternating). Direction does not change mid-line.
+
+**Chord changes:** if the active chord changes within a group, the approach notes before the chord change are drawn from the old chord's pool; notes after (up to and including L) from the new chord's pool.
+
+---
+
+### 27.6 Concrete Examples
+
+All examples: C major, 4/4, grouping [2,2] (two groups of 2 beats), scale pool, `arp_group`.
+
+#### Example A — direction omhoog (ascending), kaats boundary mode
+L for each group is a random chord tone. Suppose L₁=c5, L₂=a4.
+
+```
+Group 1 — 4 notes, direction up, L=c5, span=c4–c5
+  Backwards planning (walking down from c5): c5 → b4 → a4 → g4
+  Time order: g4  a4  b4  c5L
+
+Group 2 — 4 notes, direction up, L=a4, span=a3–a4
+  Backwards planning (walking down from a4): a4 → g4 → f4 → e4
+  Time order: e4  f4  g4  a4L
+
+Measure result: | g4 a4 b4 c5 | e4 f4 g4 a4 |
+```
+
+#### Example B — direction omlaag (descending), spring boundary mode
+L₁=e3 (low), need 6 approach notes, span=e3–e4.
+
+```
+Group 1 — 6 notes, direction down, L=e3, span=e3–e4
+  Backwards planning (walking up from e3): e3 → f3 → g3 → a3 → b3 → [boundary e4]
+  Spring: jump to e4–e5 span, continue up: f4
+  Backwards list (reverse order of collection): f4  b3  a3  g3  f3  e3L
+  Time order: f4  b3  a3  g3  f3  e3L
+```
+
+The spring creates a jump across an octave boundary, then resolves downward to L — idiomatic for scale-run patterns that span a wide range.
+
+#### Example C — kaats (bounce) at boundary
+L=c4, 7 approach notes, span=c4–c5, direction omhoog.
+
+```
+Backwards planning (walking down from c4): c4 → b3 → a3 → g3 → f3 → e3 → [boundary c3]
+Kaats: reverse, now walking up: d3
+Backwards list: d3  e3  f3  g3  a3  b3  c4L
+Time order: d3  e3  f3  g3  a3  b3  c4L   ← wave approaching L from below
+```
+
+---
+
+### 27.7 Edge Cases
+
+| Situation | Handling |
+|---|---|
+| Note pool too narrow for span (e.g. chord pool has 3 notes, span needs 5) | Wrap cyclically within pool; allow repetition |
+| Only root in chord pool (diminished/augmented chord with 1 unique tone) | Use root as L and sole approach note; pad with rests |
+| Narrow range: span wider than `InstrumentSettings.range` | Clip span to range; if clipped span has < 2 distinct pool notes, allow repetition |
+| Rest blocking L (rest forced at group end by percussion rules) | Shift L one slot earlier within the group; if no slot available, group produces a rest |
+| Line length 1 | Single note = L only; no approach notes |
+
+---
+
+### 27.8 Invariants
+
+- **L is always the last note of a line.** No note follows L within the same line.
+- **Direction is fixed for a line.** It may differ between lines.
+- **Backwards planning is always the inverse of line direction.** Never plan forward.
+- **The pipeline is identical for all instrument types** (treble, bass, percussion). Variation is in `InstrumentSettings` only.
+- **Do not hardcode per-group or per-numerator tables.** Derive group structure from `decomposeNumeratorToBeatGroups` and the existing rhythmic DNA functions. See §6c.
+- **`arp_group` uses `rhythmicGrouping` from `generateRhythmicDNA`**, not a freshly computed decomposition — both must stay in sync.
+
+---
+
+### 27.9 Files
+
+- `src/generation/convertRankedArrayToMelody.js` — existing `'arp'` rule lives here; `arp_var` and `arp_group` extend this block.
+- `src/generation/melodyGenerator.js` — entry point; passes grouping info and `arpSpan` to converter.
+- `src/generation/rhythmicPriorities.js` — `generateRhythmicDNA`, `decomposeNumeratorToBeatGroups` — reuse for group structure.
+- `src/generation/generateRankedRhythm.js` — ranked array; `arp_var` reads this directly.
+- `src/model/InstrumentSettings.js` — `randomizationRule` and `maxLeap` fields (`maxLeap` doubles as arp span).
+- `src/components/controls/rows/InstrumentRow.jsx` — Col 8 Max Leap stepper also controls arp span.
+- `src/constants/instrumentRules.js` — `RULE_FAMILIES.arp` includes `'arp_var'`, `'arp_group'`.
+- `src/utils/labelUtils.js` — display labels for `'arp_var'` and `'arp_group'`.
+
+---
+
+## Section 28 — Tuplet Injection Architecture
+
+### 28.1 Motivation
+
+Before this refactor, tuplets were added as a post-processing step AFTER note selection. This meant that randomization rules (arp_var, arp_group, beat-backbeat) had no awareness of tuplet groups: an arp line could be cut in half by a tuplet boundary, and the tuplet's notes were chosen from a uniform random pick rather than the arp algorithm.
+
+The fix: inject tuplets into the **ranked array** (between variability application and integer-rank assignment), so that note-selection rules see the full rhythmic skeleton including tuplets.
+
+### 28.2 Pipeline
+
+```
+generateDeterministicRhythm   → nested measure arrays (float ranks)
+   ↓ flatten + apply variability
+piecewiseSum                   → flat float-priority array
+   ↓ injectTuplets()           ← NEW: place tuplets here, before ranking
+injectedArray + tupletGroups
+   ↓ ranking pass (sort → integer ranks 0,1,2…)
+rankedArray + tupletGroups     ← returned by generateRankedRhythm
+   ↓ convertRankedArrayToMelody
+melody[]                       — tuplet start slots have notes; continuation slots = null
+   ↓ Melody.fromFlattenedNotes
+Melody object                  — tuplet start note has duration = slotCount × timeScale
+   ↓ tuplet expansion (melodyGenerator.js)
+final Melody                   — n sub-notes per tuplet, float offsets/durations
+```
+
+### 28.3 Data Structures
+
+**TupletGroup** (produced by `injectTuplets`, threaded through to `melodyGenerator.js`):
+```
+{
+  slotStart:    number   // absolute index in flat rankedArray
+  slotCount:    number   // d — number of original slots replaced (= group width)
+  n:            number   // number of sub-notes to produce
+  priority:     number   // min float-priority of replaced slots (before ranking pass)
+  measureIndex: number   // 0-based measure
+}
+```
+
+**triplets entry** (attached to Melody, used by sheet-music renderer):
+```
+{ id, noteCount, denominator, groupTicks, visualDuration }
+```
+All n sub-notes within one tuplet share the same entry; `denominator = slotCount`.
+
+### 28.4 Candidate Generation
+
+For each measure, candidates are (start, size) pairs in slots:
+
+**Super-groups** — 1, 2, or 3 consecutive beat-groups (no quads: too large):
+```
+single  d = groupSlotSize
+pair    d = groupSlotSize₀ + groupSlotSize₁
+triple  d = groupSlotSize₀ + groupSlotSize₁ + groupSlotSize₂
+```
+
+**Sub-groups** — one halving of each super-group (even sizes only):
+```
+d=4  → d=2  (most common: 3:2 triplet on two 16th-note slots)
+d=6  → d=3  (4:3 quadruplet on compound-meter group)
+d=8  → d=4  (5:4 / 6:4 / 7:4 on one beat at 16th resolution)
+d=12 → d=6
+d=16 → d=8
+d=24 → d=12
+```
+Maximum ONE halving level ("hooguit 1x") to stay close to `smallestNoteDenom`.
+Odd group sizes (e.g. 3) have no sub-candidate.
+
+Duplicates are deduplicated by `(start, size)` key.
+Candidates are **shuffled** before processing for unbiased selection.
+
+### 28.5 Mutual Exclusion
+
+A claimed-slot set tracks which slots are already taken by a placed tuplet.
+Any candidate that overlaps a claimed slot is skipped.
+This allows multiple non-overlapping tuplets per measure.
+
+### 28.6 Priority Assignment
+
+Winning tuplet: `priority = min(all non-null float-priority values in [start, start+size))`.
+Continuation slots `[start+1 … start+size-1]` are set to `null`.
+After injectTuplets, the integer ranking pass re-numbers all non-null values 0,1,2… —
+the tuplet start slot's rank is determined by its min-priority, which controls when
+the tuplet fires relative to other notes based on `notesPerMeasure` budget.
+
+### 28.7 Probability Formula
+
+Base probability for 3:2 triplet:
+```
+tripletProb = min(1, (rhythmVariability / 100) × 0.15 × polyMultiplier)
+```
+At variability=30, polyMult=1: tripletProb ≈ 4.5% (near Han's 5% default).
+
+Any tuplet with weight W:
+```
+prob = min(1, tripletProb × TRIPLET_WEIGHT / W)
+     = min(1, tripletProb × 6 / W)
+```
+`TRIPLET_WEIGHT = 6 = lcm(3,2) × |3-2|`.
+
+### 28.8 Density Guard
+
+A tuplet with n > `notesPerMeasure` is skipped — it would produce far more notes
+than the rhythmic budget, making it musically implausible.
+
+### 28.9 Tuplet Definitions
+
+File: `src/constants/tuplets.js`. Weight = `lcm(n,d) × |n-d|`.
+
+| Ratio | Name | Weight | Notes |
+|---|---|---|---|
+| 3:2 | triplet | 6 | reference |
+| 4:3 | quadruplet | 12 | |
+| 5:4 | quintuplet | 20 | |
+| 6:4 | sextuplet | 24 | |
+| 5:3 | 5 in 3 | 30 | |
+| 5:6 | 5 in 6 | 30 | |
+| 6:5 | 6 in 5 | 30 | |
+| 7:6 | 7 in 6 | 42 | |
+| 6:7 | 6 in 7 | 42 | stretch |
+| 6:8 | 6 in 8 | 48 | stretch |
+| 7:8 | 7 in 8 | 56 | stretch |
+| 7:5 | 7 in 5 | 70 | |
+| 5:7 | 5 in 7 | 70 | stretch, very rare |
+| 9:8 | nonuplet | 72 | Chopin/Brahms |
+| 7:4 | septuplet | 84 | |
+| 5:8 | 5 in 8 | 120 | extremely rare |
+| 7:9 | 7 in 9 | 126 | extremely rare |
+
+Removed: {2:3} and {4:6} — duplet forms uncommon in simple-meter melody notation.
+
+### 28.10 Tick Arithmetic
+
+Tuplet sub-note durations are **float ticks**: `noteTicks = floor(groupTicks / n)`.
+Last sub-note absorbs rounding remainder: `lastNoteTicks = groupTicks - (n-1) × noteTicks`.
+Float ticks are fine: the Sequencer converts `duration_ticks × timeFactor` to seconds
+(AudioContext time), which is inherently float. No change to `TICKS_PER_WHOLE`.
+
+### 28.11 Files
+
+- `src/constants/tuplets.js` — TUPLET_DEFS, weight formula, TRIPLET_WEIGHT, tupletsForSlotCount
+- `src/generation/injectTuplets.js` — candidate generation, dice rolls, priority assignment
+- `src/generation/generateRankedRhythm.js` — calls injectTuplets; returns `{ rankedArray, tupletGroups }`
+- `src/generation/melodyGenerator.js` — destructures tupletGroups; deterministic expansion into n sub-notes
+- `src/model/Melody.js` — updateMetronome caller updated to destructure `{ rankedArray }`
+- `src/generation/generateBackbeat.js` — two callers updated to destructure `{ rankedArray }`

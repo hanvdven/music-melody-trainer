@@ -33,8 +33,10 @@ If a backlog item below relates to these areas, leave it alone and pick somethin
 
 Deel deze features in bij de juiste categorie.
 
-### Bestaande liedjes
+### ✅ Bestaande liedjes
 bestaande liedjes (happy birthday, ...)
+[Claude 2026-05-19]: Op verzoek van Han: samenvoegen met custom chord progressions (#25). Twee features: (1) bestaande liedjes afspelen (SHORTLIST); (2) eigen invoer (LONGLIST). Nieuwe feature samen met 'eigen invoer': akkoord / drum-sequencer → LONGLIST.
+[Claude 2026-05-20]: ✅ Geïmplementeerd. Nieuwe bestanden: `src/songs/definitions/happyBirthday.js` (F groot, 3/4, 24 noten, per-lettergreep lyrics), `src/songs/loadSong.js` (transponeert naar huidig tonica), `src/songs/songIndex.js` (register). UI: `src/components/songs/SongsTab.jsx` — kaartgrid met Easy/Medium/Hard kiezer + "Originele toonaard"-toggler (toggling ON laadt het nummer opnieuw in geschreven toonaard én zet app-tonica op die toonaard). Tekstlyrics worden gerenderd onder de treble via `renderTextLyricsRow` in `SheetMusic.jsx`, onafhankelijk van solfège-modus.
 
 ### Profiel-icoon & submenu (navigatie)
 vervang profile settings icoon met Lucide: user.
@@ -61,6 +63,7 @@ aantal herhalingen.
 bug: ik hoor soms precies extra drumsamples die niet in de bladmuziek staan. Ze zijn consistent wanneer ik herhaal; dus niet willekeurig. Lijkt vaak te gebeuren vlak na woodblocks.
 VERMOEDEN: misschien zijn er 'akkoorden' die niet goed worden genoteerd? Ik zie nu een maat waarin een kwartnoot 'ontbreekt' in de bladmuziek; daar spelen wel degelijk verschillende drumnoten.  
 Ah! nadere inspectie: ik hoor een basnoot die niet genoteerd is!
+[Claude 2026-05-19]: ⬇ GEEN REPRODUCED EXAMPLES — op verzoek van Han. Parkeer tot er een reproduceerbaar geval is.
 
 [Claude 2026-05-06]: Gedeeltelijk opgelost. Twee inconsistenties gevonden en gefixed in `convertRankedArrayToMelody.js`:
 1. `percussionIDs` miste `'wm'` (mid woodblock) en `'cb'` (cowbell) — backbeat/swing konden deze noten wél genereren (via PERC_POOLS.all in generateBackbeat.js), maar 'uniform' mode niet. Nu gelijk getrokken.
@@ -89,6 +92,7 @@ add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 [Claude 2026-05-10]: ⬇ LAGE PRIORITEIT — op verzoek van Han. Vereist uitgebreidere toelichting voor implementatie.
+[Claude 2026-05-19]: Op verzoek van Han: rubato (~) als maatsoort wél gewenst — toevoegen als een kiesbare "maatsoort" (bijv. symbool ~ in de maatsoort-kiezer) naast normale maatsoorten. Interview nodig voor exacte afspeellogica en notatie.
 
 ### Common time-symbool: Maestro SHIFT+T ipv 4/4
 
@@ -170,6 +174,11 @@ Voorlopig: elke maat dezelfde onderverdeling.
 [Claude 2026-05-17]: ⬇ LAGE PRIORITEIT — op verzoek van Han. Backbeat drum ✅ (backbeat_2 implementeert groeperings-bewuste kick/snare-plaatsing). Melodische noot-gewichten naar groepering: uitgesteld. De ranked array (DNA) zelf bevat al de groeperings-hiërarchie; de melodiegenerator gebruikt die al voor prioriteit. Extra weging van notenpool naar groepsgrens is een verfijning, niet een blocker.
 [Claude 2026-05-19]: ✅ Gedeelde groepering geïmplementeerd — `chooseGrouping()` wordt één keer per generatieblok aangeroepen in `useMelodyState.randomizeAll()` en doorgegeven aan alle generators (treble, bas, percussie, akkoorden, metronoom). `globalRhythmArray` gebruikt nu `generateRhythmicDNA(sharedGrouping)` in plaats van `generateDeterministicRhythm('default')`. Metronoom gebruikt `randomizationRule: 'metronome'` met `wh/wm/wl` woodblock-klikken op basis van groepsstart. Doorgegeven akkoorden (`insertPassingChords`) plaatst leidakkoorden op DNA-gerangschikte beats.
 
+### ✅ Bug: 'g'-markeringen op verkeerde groepsgrensposities
+
+Bug (2026-05-19): In 5/4 met gegenereerde groepering [2,3] verschenen de visuele groepsscheidingstekens ('g' in de allOffsets-array) op de positie van [3,2] (de fallback). Oorzaak: `processMelodyAndCalculateSlots` retourneerde `rhythmicGrouping` niet in zijn return-object. Daardoor las de `allOffsets`-aanroep in `SheetMusic.jsx` altijd `null` en viel terug op `decomposeNumeratorToBeatGroups` (altijd [3,2]-ordening). Fix: `rhythmicGrouping: melody.rhythmicGrouping ?? null` toegevoegd aan het return-object van `processMelodyAndCalculateSlots.js`. Bestand: `src/components/sheet-music/processMelodyAndCalculateSlots.js`.
+[Claude 2026-05-20]: ✅ Bevestigd opgelost via code-inspectie.
+
 ### RhythmicGrouping — edge case bij maatsoortwijziging en geschiedenisnavigatie
 
 ⚠ Neem alvorens dit te implementeren een interview af bij Han.
@@ -179,7 +188,7 @@ Elk `Melody`-object draagt zijn eigen `rhythmicGrouping` (bijv. `[3,2]`). Twee r
 1. **Geschiedenisnavigatie**: wanneer je teruggaat naar een oudere melodie, kan de groepering van die melodie afwijken van de huidige. Visueel is dit correct (de renderer gebruikt `melody.rhythmicGrouping`), maar dit moet bevestigd worden voor afspeelscheduling.
 2. **Maatsoortwijziging midden in de sessie**: de opgeslagen melodieën in de history hebben een groepering die bij de *oude* maatsoort hoort. Wat moet er gebeuren bij navigatie naar zo'n entry na een maatsoortwijziging?
 
-[Claude 2026-05-19]: Geparkeerd op verzoek van Han. Interview vereist vóór implementatie.
+[Claude 2026-05-19]: Geparkeerd op verzoek van Han. Interview vereist vóór implementatie. Han: "laat voorlopig staan".
 
 ### Tuplets & polyritmiek
 
@@ -248,6 +257,55 @@ Increase font size for triplet text. Use serif font, boldface, increase size by 
 
 Ik zie geen tuplets bij percussie of bas, hoe komt dat? Is de bedoeling dat ze ook daar voorkomen. -> gezien bij perucssie! Opgelost.
 
+### Bug: Kwartnoot-tuplets — verkeerde maatindeling in weergave
+
+soms klopt de plaatsing van noten niet op bladmuziek. Waarschijnlijke verkeerde attributie van de noten. voorbeeld:
+4/4: [q q 3:2q | 3:2q,q q | q q q qr ]
+wordt gerenderd als [q q 3:2q| 3:2q q | q q q q | qr ]
+lijkt vooral te gebeuren met tuplets van kwartnoten.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-21 ONDERZOEK]: Uitgebreid code-inspectie uitgevoerd. Tick-rekenkunde in `melodyGenerator.js` is correct (groupTicks = slotCount × timeScale; sub-noot-durations tellen altijd op tot groupTicks). `injectTuplets` genereert nooit maatgrens-overschrijdende tuplets. De `triplets`-bypass in `processMelodyAndCalculateSlots` (regel 158-165) herkent tuplet-noten correct.
+**Twee kandidaat-oorzaken gevonden:**
+1. **`totalDuration`-bug** (`processMelodyAndCalculateSlots.js` regels 119-123): `startRestDuration` wordt per-element opgeteld in de `reduce` i.p.v. eenmalig. Bij melodieën met een leidende rust → `totalDuration` te groot → trailing-rest-padding mist → maat-wisseling aan het einde. Reproductie: eerste noot niet op offset 0.
+2. **Stapeling van meerdere tuplet-expansies** (`melodyGenerator.js` regels 507-582): twee opeenvolgende tuplets worden right-to-left verwerkt, dus indices blijven stabiel. Maar: bij `n - slotCount ≠ 0` (bijv. kwartnoottriplet in 8ste-resolutie: slotCount=4, n=3 → array krimpt met 1) verandert de lengte van `notes`/`offsets`/`triplets` na elke expansie. Als een tweede tuplet daarna `offsets.slice(idx + slotCount)` aanroept met een index die al verschoven is door de eerste expansie, kunnen de offsets van latere noten incorrect worden.
+**Aanbevolen vervolgstap**: debug-logging toevoegen van `offsets` en `durations` vóór/ná elke tuplet-expansie in de `for (const tg of activeWinners)` loop om de cumulatieve telsom na meerdere expansies te verifiëren. Interview met Han nodig voor exacte reproduceer-stappen.
+
+### ✅ Bug & Verbetering: Tuplet-kansen en dichtheid
+
+tuplet chance high zorgt voor ongeveer 100% tuplets. Balanceer de kansen.
+
+het valt me op dat notes/measure 3 moet zijn voordat ik ooit een triplet zie - is het criterium om triplets te plaatsen misschien notes/measure, moet zijn: nummeasures*notes/measure.
+
+het lijkt erop dat tuplets hun lengte/2 'kosten' in termen van aantal noten per maat. Dat is een goed criterium om ze te plaatsen, maar na plaatsing moet wel het correcte aantal noten van de beschikbare noten worden afgetrokken.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-20]: ✅ Opgelost. Drie aanpassingen:
+1. **Globale budget** (i.p.v. per-maat): `remainingBudget = notesPerMeasure × numMeasures` buiten de per-maat loop gedeclareerd; na elke geplaatste tuplet met `winner.n` verlaagd. Hierdoor worden de reeds gecommitteerde noten van latere tuplets afgetrokken — cross-maat densiteitscontrole.
+2. **Power-law kansformule**: `tripletProb = min(0.85, (rhythmVariability/100) × 0.20 × (polyMultiplier/50)^1.3)`. Geeft: low(5)≈1%, med(15)≈5%, high(50)=20%, xtreme(200)≈66%. Was voorheen `min(1, variability/100 × 0.15 × polyMultiplier)` = 37.5% bij low(5) + variability=50 — veel te hoog.
+3. **`tg.d` opgeslagen in TupletGroup**: entry.denominator gebruikte eerder `slotCount` wat voor k>1 (bijv. 3:2 triplet op 4 achtste-slots) het verkeerde label gaf ("3:4" i.p.v. "3:2"). Nu `tg.d` doorgegeven vanuit TUPLET_DEFS.
+Bestanden: `src/generation/injectTuplets.js`, `src/generation/generateRankedRhythm.js`, `src/generation/melodyGenerator.js`.
+
+### ✅ Verbetering: Tuplet-label uiterlijk
+
+het label is lelijk. Er wordt nu een blokhaak gemaakt (perfect!) en een verhouding genoteerd (super!). zorg ervoor: de verhouding tus
+
+de nummers: kun je een goed alternatief of zelfs hetzelfde font als maestro gebruiken? De getallen uit maestro zijn allemaal bold face, ik heb liever geen bold face hier (ook voor maatnummers)
+
+de alignment: zorg dat het midden van de lijn (verticaal en horizontaal) mooi door het midden van de nummers gaat
+
+de clipping: er zit een clipping achtergrond achter de nummer, om de lijn de onderbreken. Deze box is smaller dan de cijfers, waardoor de lijn en de cijfers overlappen.
+
+da afstand, zorg dat de lijn en nummers iets verder van de noten af staan.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-20]: ✅ Opgelost. Vier verbeteringen in `renderMelodyNotes.jsx` (tupletBracketElements):
+1. **Afstand van noten**: ±5 → ±8 pixels (stemTipY offset).
+2. **bracketGap** (ruimte in de lijn voor het getal): 15 → 20 pixels (40px totaal; genoeg voor "3 : 2" in 15px serif zonder overlap).
+3. **Vetgedrukt**: `fontWeight="bold"` → `fontWeight="normal"`.
+4. **Uitlijning**: `dominantBaseline="central"` toegevoegd + `y={bracketY}` (was aparte numY met ±2/±13 offset die tekst boven/onder de lijn plaatste i.p.v. erdoor).
+Bestand: `src/components/sheet-music/renderMelodyNotes.jsx`.
+
 ### Klikzones & interactiviteit
 
 ✅ klikzone-audit accidentals: klikken op voortekens wisselt tonika naar enharmonische equivalent (bijv. F♯ ↔ G♭).
@@ -297,6 +355,22 @@ but groups (123)(45) -> half-dot + half.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 [Claude 2026-05-18]: Op de backlog gezet op verzoek van Han. Betreft de nootgroeperingslogica in `renderMelodyNotes.jsx` / `processMelodyAndCalculateSlots.js` — noten die over groepslijnen heen lopen worden gesplitst, maar dat is onnodig als de noot binnen één groep past of als de eindtick precies op een groepsgrens valt.
+[Claude 2026-05-19]: Op verzoek van Han: "zou af moeten zijn" (Rule 1 in `processMelodyAndCalculateSlots.js` behandelt al het geval dat een noot exact op een groepsgrens eindigt). Controleren of dit volledig correct werkt voor alle maatsoorten.
+[Claude 2026-05-20]: ✅ Geverifieerd via code-inspectie voor 3/4, 4/4, 6/8, 9/8, 5/4 [2,3] en [3,2]. Rule 1 (`endInMeasure === lastGroupEnd && allowedDurations.includes(remainingDuration)`) werkt correct in alle gevallen: halve noot op tel 1 in 4/4 (eindigt op maat-helft grens → heel blijven), gepunteerde halve in 3/4 (vult hele maat → heel), noot die groepsgrens in 5/4 nadert maar er niet op uitkomt (→ gesplitst via Rule 2). Geen verdere actie nodig.
+
+### ✅ Bug: Beams renderen niet juist in parallel voices mode
+
+bug (backlog) beams connecting stems for 8th notes and smaller renderen niet juist in parallel voices mode.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-20]: ✅ Opgelost. Oorzaak: de beam sub-group loop in `renderMelodyNotes.jsx` had geen controle op stemrichting in parallel-voices mode. RH-noten (hi-hat, cymbals, woodblock — stem omhoog) en LH-noten (kick, snare, toms — stem omlaag) konden in dezelfde beam-groep belanden. Fix: `percussionVoiceSplit`-check toegevoegd in de beam-vorming loop; wanneer de stemrichting (`percussionStemUp`) verschilt tussen de laatste noot in de huidige groep en de nieuwe noot, wordt de groep geflushed (nieuwe beam-groep gestart). Bestand: `src/components/sheet-music/renderMelodyNotes.jsx`.
+
+### ✅ Bug: Beams gaan over groepsgrenzen in 5/4
+
+bug (backlog) beams connecting stems for 8th notes in 5/4, gaan over groepsgrenzen, resulterend in 10 achtsten aan elkaar - dat is niet leesbaar. Splits op groepsgrens.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-20]: ✅ Opgelost. Oorzaak: `processMelodyAndCalculateSlots.js` retourneerde `rhythmicGrouping` niet in het return-object. Daardoor las `getAllowedSpans` in `renderMelodyNotes.jsx` altijd `null` en viel terug op de even-split fallback (bijv. [5] i.p.v. [2,3] of [3,2]). Fix: `rhythmicGrouping: melody.rhythmicGrouping ?? null` toegevoegd aan het return-object. Nu ontvangt `getAllowedSpans` de echte groepering en beperkt beam-spans tot de beat-groepsgrens. Bestand: `src/components/sheet-music/processMelodyAndCalculateSlots.js`.
 
 ### Bug: Span onjuist berekend voor tuplets
 
@@ -304,16 +378,19 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 [Claude 2026-05-18]: Op de backlog gezet op verzoek van Han. De span (afstand in halve tonen tussen de hoogste en laagste noot in een passus) lijkt niet correct te worden meegenomen bij de selectie van ottava-markering voor passages die tuplets bevatten.
+[Claude 2026-05-19]: ⬇ GEEN REPRODUCED EXAMPLES — op verzoek van Han. Parkeer tot er een reproduceerbaar geval is.
 
 ### Weergave & layout
 
 ✅ startX op fixed position, en sleutel, maatsoort, accidentals verdelen over ruimte links daarvan. Maatsoort gecentreerd tussen laatste header-element en startX.
 
 - oplossing voor veranderen van instellingen (num measure, maatsoort) die zorgen voor (tijdelijk) lelijke sheet music
+[Claude 2026-05-19]: ⬆ NOG NIET OPGELOST — op verzoek van Han. Hoge prioriteit. Symptoom: bij het wijzigen van maatsoort of aantal maten verschijnt er tijdelijk misvormde bladmuziek. Oorzaak nog niet vastgesteld.
 
 - meer regels bladmuziek op groter scherm; of op mobile horizontal wanneer de keys uitstaan
 - optie om zowel bas als treble toetsen in beeld te hebben
 - optie om geen bladmuziek in beeld te hebben
+[Claude 2026-05-19]: ⬇ LAGE PRIORITEIT — op verzoek van Han. Samenvoegen met toekomstige UX/UI rehaul.
 
 ### Lyrics / Solfège
 
@@ -328,6 +405,7 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 ✅ ideal visible measures gebruikt in alle animatie-modi — hardcoded 3 vervangen door `idealVisibleMeasures` in App.jsx, berekend als `Math.max(2, Math.min(numMeasures, round((screenWidth - 70) / 120)))`. Aanname: ~120px per maat, 70px voor sleutel/voortekens. Minimum 2 maten (zodat altijd vorige+huidige zichtbaar is). Fallback in SheetMusic.jsx ook bijgewerkt van ?? 3 naar ?? 2.
 
 - scroll mode: change bpm during animation...
+[Claude 2026-05-19]: ⬆ NOG NIET OPGELOST — op verzoek van Han: "werkt nog niet goed". Scroll-animatie (constante-snelheid playhead) heeft nog problemen. Onderzoek nodig; interview voor reproduceerbare stappen.
 ✅ begin de animatie 0,5 maat later, en eindig ook 0,5 maat later (zodat de actieve noot op ongeveer 25% van startX - endX ligt.)
 
 [Claude 2026-04-10]: Geïmplementeerd — scroll startTime/endTime verschoven met +0.5m op alle drie plaatsen in Sequencer.js: multi-measure last-rep (0.25→0.75), multi-measure non-last-rep (0.25→0.75), single-measure (start: -0.75→-0.25, end: +0.25→+0.75). Actieve noot staat nu langer stil op 25% gedurende de eerste maat voor de scroll begint te bewegen.
@@ -442,6 +520,15 @@ Bestanden: `src/hooks/useMelodyState.js`, `src/hooks/usePlaybackNavigation.js`.
 - InstrumentRow groot (22px) vs klein (14px) iconen: bewust onderscheid tussen status en decoratie.
 - DrumPad clamp-font: responsive, OK.
 
+### Actief instrument highlight
+
+Visueel aangeven welk instrument momenteel 'actief' is — d.w.z. het instrument dat momenteel afspeelt of het meest recent door de gebruiker geselecteerd is. Gedacht aan een subtiele glow, randhighlight of achtergrondkleur op de InstrumentRow of het bijbehorende blok in de generator settings.
+
+### Unieke look & feel: tweekleurige achtergrond + Thronefall-achtige nootshadow
+
+Tweekleurige achtergrond: bijv. een split bovenaan/onderaan of een diagonale overgang tussen twee compacte kleuren (vergelijkbaar met Thronefall's aardse palet). Thronefall-esque schaduw: noten in de bladmuziek krijgen een harde, enigszins verschoven drop-shadow (2D perspectief-effect), in contrast met de huidige glow/blur-gebaseerde highlight. Dit kan de bladmuziek een heel eigen stijl geven.
+[Claude 2026-05-21]: Twee losse sub-features: (1) achtergrond-kleurovergang — CSS-variabelen aanpassen of een gradient-laag achter de SheetMusic SVG; (2) harde noot-shadow — SVG `<filter>` met `feDropShadow` met nul blur en een vaste offset (bijv. 2px rechts, 3px onder) voor de notenkoppen. Sub-feature (2) past goed bij de bestaande `note-glow` filterinfrastructuur in `SheetMusic.jsx`. Interview nodig vóór implementatie (kleurkeuze, schaduwrichting/-kleur, welke elementen de schaduw krijgen).
+
 ### BPM controls
 
 ✅ BPM: -- / ++ knoppen (naar dichtstbijzijnd veelvoud van 5); - / + (naar dichtstbijzijnd geheel getal); min 12, max 360; ook via numerieke input.
@@ -475,9 +562,18 @@ Bereik-sync vóór melodiegeneratie: al correct — `useMelodyState` herberekent
 ### Progressie-strategieën
 
 - intermodale progressie generator op basis van spanning maken en oplossen (light en dark?)
+[Claude 2026-05-19]: → LONGLIST. Op verzoek van Han.
+
 - custom chord progressions of zelfs hele liederen (e.g., jazz standards)
+[Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han. Interview nodig. Toevoegen: verschillende moeilijkheidsgraden / stijlen. Samenvoegen met item #32 (bestaande liedjes). Twee aparte features: (1) bestaande liedjes, (2) eigen invoer. Eigen invoer op LONGLIST. Nieuwe aparte feature: akkoord/drum-sequencer → samen met eigen invoer (LONGLIST).
+
 - chord progression 'puzzels' met weergave kwintencirkel (vaag idee)
-- notatie voor romeinse cijfers in intermodaal: e.g. bII bVII.
+[Claude 2026-05-19]: → LONGLIST.
+
+✅ - notatie voor romeinse cijfers in intermodaal: e.g. bII bVII.
+[Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han.
+[Claude 2026-05-20]: VOORSTEL (zie sessie-antwoord). Samenvatting: gebruik ♭/♯ als prefix op de Romein op basis van semitoonpositie t.o.v. de majeur-toonladder. ♭II = Napolitaans (diatonisch in Frygisch, geleend in mineur) — NIET specifiek Lydisch. Lydisch-kenmerk is ♯IV. ♭VII = subtonica (diatonisch in Mixolydisch/Dorisch/Aeolisch). Implementatie: in `chordGenerator.js` een `CHROMATIC_ROMAN_PREFIX`-lookup (semitonen 0–11) toevoegen die ♭/♯ berekent t.o.v. majeur. `normalizeNoteChars` al beschikbaar voor display-conversie. Interview nodig vóór implementatie.
+[Claude 2026-05-21]: ✅ Geïmplementeerd. `getChromaticRomanDegree(semitone)` toegevoegd aan `noteUtils.js` — mapt semitoonafstand van tonica op Romein met Unicode ♭/♯ prefix (0→I, 1→♭II, 3→♭III, 6→♯IV, 8→♭VI, 10→♭VII, 11→VII). `generateChordOnDegree` in `chordGenerator.js` gebruikt dit nu voor `romanBaseRaw` zodat alle modale akkoorden (Frygisch ♭II, Mixolydisch ♭VII, enz.) correct worden gelabeld in chord grid én bladmuziek. `FUNCTION_CATEGORY` bijgewerkt voor alle 12 chromatische graden. ASCII `bII` in ChordGrid.jsx vervangen door `♭II`. Progressieselector-labels omgezet naar `^n`-Arabisch (bijv. "Pop Song (^1-^5-^6-^4)").
 
 - In notatie werkelijke unicode voortekens gebruiken ipv b en #. (bladmuziek én chord grid). Logica checken op consistentie met muziektheorie.
 
@@ -494,10 +590,16 @@ De titel 'JAZZ SONG' is wel belangrijk, deze wordt gebruikt in de header.
 
 ### Passing chords
 
--> passing chords: notatie bV7/ii in Romeinse cijfers
+-> passing chords: notatie bV7/ii in Römeinse cijfers
+[Claude 2026-05-19]: Staat open — interview nodig. Op verzoek van Han.
+
 -> harmoniseren settings passing chords in generator settings en in chord grid view
+
 -> visualisatie van passing chords
+[Claude 2026-05-19]: ⬇ LAGE PRIORITEIT — op verzoek van Han.
+
 -> betere visualisatie van akkoordenprogressie (bijv. pijlen wanneer de sequencer uitstaat)
+[Claude 2026-05-19]: ⬇ LAGE PRIORITEIT — op verzoek van Han.
 
 Nieuwe logica voor passing chords (voor meer balans): Wanneer Passing chords aanstaan: probeer elke maat een akkoord uit de progressie te geven: kies de slot het meest dicht bij de eerste tel van een maat met afstandsregels: minimum van (slotrank + afstand tot maatstart *2) (net als bepalen van beat en backbeat --- zorg dat je zeker deze logica hergebruikt!!)
 Alle andere akkoorden die zijn ingevuld worden ingevuld door passing chords.
@@ -514,9 +616,41 @@ Alle andere akkoorden die zijn ingevuld worden ingevuld door passing chords.
 
 Invariant: wanneer `passingChords !== 'none'`, altijd **precies 1 structurele chord per maat**, overal — in de progressie-pool-lengte, in MelodyGenerator's `notesPerMeasure`, én in de gefilterde notePool die Sequencer hergebruikt. Dit matcht de hardcoded `structuralCount = 1` in [passingChords.js:316](src/generation/passingChords.js#L316).
 
+### Bug: Verkeerde noot gegenereerd bij passing chords (geparkeerd — wacht op reproduceerbaar voorbeeld)
+
+bug: progression with passing chords accidental/note mistake:
+|| G | F#7 || Bdim | D7 || (|| = maatgrens, | = groepsgrens)
+notes: || xxx | f# xx || f(#) x x | x f# ||
+probleem: de f# voor Bdim heeft een courtesy sharp (#). Zou een courtesy neutral (n) moeten zijn. Bij afspelen klinkt inderdaad f#; moet f zijn.
+
+[Claude 2026-05-19 16:00]: Onderzocht. Bevindingen:
+
+**Hypothese 1 (wrongful courtesy accidental) — gefalsifieerd.**
+Een courtesy `#` op een noot kan enkel verschijnen als de noot-string letterlijk `F♯` bevat. `computeAccidental('F4', scaleAccidentals)` in C groot retourneert altijd `'n'` (herstellingsteken), nooit `'#'`. De courtesy `#` bewijst dus dat de opgeslagen noot wél F♯ is — de weergave is correct voor de verkeerde noot.
+
+**Hypothese 2 (verkeerde chord in opzoeklogica) — waarschijnlijk oorzaak, niet bevestigd.**
+In C groot zit F♯ niet in de toonladder; de `'scale'`-pool kan F♯ dan ook niet leveren. F♯ moet dus komen uit een `'chord'`-pool die de verkeerde chord retourneert. Vermoedelijke oorzaak: `getActiveChord` retourneert F#7 i.p.v. Bdim voor dat slot via de offset-gebaseerde lookup in `convertRankedArrayToMelody.js`. Exacte trigger (floating point, off-by-one bij passing chord boundary, of misalignment in `chordOffsetEvents`) kon niet worden vastgesteld zonder reproduceerbaar voorbeeld.
+
+**Wat te onderzoeken zodra er een reproduceerbaar geval is:**
+- Welk instrument / notePool toonde de fout (treble = 'scale', bas = 'chord')?
+- Log `chordOffsetEvents` en `slotOffset` voor het betreffende slot om te zien welke chord werd teruggegeven.
+- Controleer of de Bdim event-offset in de Melody exact overeenkomt met `slotIndex * ticksPerSlot`.
+
+[Claude 2026-05-19]: ⬇ GEPARKEERD — wacht op reproduceerbaar voorbeeld met screenshot/settings.
+
 ### Akkoord-taxonomie
 
-- nakijken of taxonomie volledig is
+✅ - nakijken of taxonomie volledig is
+[Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han. Toevoegen: extra passing chord types. Interview nodig voor gewenste uitbreiding.
+[Claude 2026-05-20]: VOORSTEL (zie sessie-antwoord). Huidige typen: secondary-dominant (V7/x), secondary-dim (vii°7/x), tritone-sub (♭II7/x), diatonic. Ontbrekende categorieën op basis van muziektheorie:
+1. **Subdominant approach (IV/x)** — zachte voorbereiding via kwart-stap omhoog; veel gebruikt in pop/gospel. Makkelijk toe te voegen als 4e type.
+2. **Borrowed minor chords** — ♭VI, ♭III uit parallelle mineurtoonladder als passing kleur; al deels gedekt via diatonic-chain maar niet geëxpliciteerd.
+3. **Augmented sixth (It+6, Ger+6)** — klassieke chromatische passing chords; zeldzaam, hoge moeilijkheidsgraad. Complexer om te implementeren.
+Prioriteit: (1) eerst implementeren, (2) daarna bekijken, (3) longlist.
+[Claude 2026-05-21]: ✅ Geïmplementeerd. Twee nieuwe typen toegevoegd aan `chordGenerator.js` → `generatePassingChord()`:
+- **`subdominant-approach` (IV/x)**: wortel een reine kwart boven doel-akkoord. Diatonische kwaliteit wanneer de wortel in de huidige ladder zit, anders majeur drieklank. Label: `IV/x`.
+- **`borrowed-parallel`**: willekeurig akkoord gebouwd op een graad die WEL in `heptaRefIntervals` zit maar NIET in de huidige ladder (modal mixture). Werkt automatisch voor exotische ladders (bijv. dubbel harmonisch majeur). Label: chromatisch Romein van de geleende graad + `/x`.
+UI: stepper (none/secondary-dominant/all) vervangen door 7 afzonderlijk schakelbare chips in InstrumentRow col 6. Setting opgeslagen als `passingChordTypes: string[]` (was: `passingChords: string`). Augmented sixth (It+6, Ger+6) → LONGLIST (vereist apart interview).
 
 ### Muziektheorie (akkoorden)
 
@@ -524,19 +658,21 @@ Zorg dat notatie, en progressielogica, akkoorden strookt met muziektheorie. bijv
 <https://musictheory.pugetsound.edu/mt21c/MusicTheory.html>
 <https://method-behind-the-music.com/theory/notation/>
 
-### Bug: 'Next' knop genereert geen nieuwe akkoorden
+✅ ### Bug: 'Next' knop genereert geen nieuwe akkoorden
 
 bug (backlog): when clicking 'next' in the header, no new chords are being generated.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-19]: ✅ Resolved — op verzoek van Han. chordProgression verplaatst naar useMelodyState history.
 
-### Issue: Akkoorden respecteren beats en backbeats niet
+✅ ### Issue: Akkoorden respecteren beats en backbeats niet
 
 issue (backlog): chords should also respect the beats and backbeats. both with normal and passing chord settings.
 
 De chord-plaatsing via MelodyGenerator gebruikt rank+2×afstand (proximityUtils.findBestSlot). Beats en backbeats hebben hogere ranks vanwege rhythmicDNA-prioritering. Toch lijkt de chord-positie soms niet overeen te komen met de beat/backbeat-logica van het drum-patroon. Kan ook samenhangen met backbeat_2: het is onduidelijk of chord-generatie dezelfde grouping gebruikt als de percussie.
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-19]: ✅ Resolved — op verzoek van Han. insertPassingChords gebruikt nu sharedGrouping (zelfde als percussie en treble/bas).
 
 ---
 
@@ -545,14 +681,28 @@ De chord-plaatsing via MelodyGenerator gebruikt rank+2×afstand (proximityUtils.
 ### Generatie
 
 - muzikale random generation setting, die muzikaal logische lijnen maakt
-- walking bass setting, die walking bass maakt
-- verbetering van arpeggio mode voor chords/scales: start bij root/tonica; juiste afhandeling in range cut-off
-- akkoord mode: kans op akkoorden (milde versie van 'full chord') -> genereer uniform willekeurig maar nu paren van noten uit de melody notes set die is ingesteld. Idee: pak één noot uit het 'akkoord' en één noot uit de notenset. beperkingen: maximum afstand is een octaaf. Bij 'mislukt' genereer gewoon één noot uit de notenset.
+[Claude 2026-05-19]: → LONGLIST (generation overhaul). Op verzoek van Han.
+
+✅ - walking bass setting, die walking bass maakt
+[Claude 2026-05-19]: → LONGLIST (generation overhaul). Op verzoek van Han.
+[Claude 2026-05-21]: ✅ Geïmplementeerd als `randomizationRule = 'walking_bass'` in `src/generation/convertRankedArrayToMelody.js` (sectie 2.6). Eerste actieve slot = root (gepint), laatste slot = approach-noot richting volgende chord-root, middelste slots via backwards planning (`buildArpLine`). Approach-karakter via bestaande `randomizationNotes` pool: 'chord' = power/close approach, 'scale' = diatonische leidtoon, 'chromatic' = ±1 halve toon (jazz). Ritmedichtheid via `rhythmVariability`. Respects passing chords via `chordOffsetEvents`. `buildArpLine` gehost naar module-scope (gedeeld met arp_var/arp_group). UI: 'walk'-familie toegevoegd aan `RULE_FAMILIES`, Footprints-icoon in `InstrumentRow`, toggle-cycle uitgebreid. Label 'Walking Bass' in `labelUtils.js`.
+
+✅ - verbetering van arpeggio mode voor chords/scales: start bij root/tonica; juiste afhandeling in range cut-off
+[Claude 2026-05-19]: ⬆ SHORTLIST — hoge prioriteit op verzoek van Han. Interview nodig voor exacte vereisten.
+[Claude 2026-05-20]: Ontwerp volledig uitgewerkt in overleg met Han (mei 2026). Twee subtypes gespecificeerd: `arp_var` (rhythm-variability-aware) en `arp_group` (beat-group-aware met backwards planning, landing notes, kaats/spring boundary modes). Volledige specificatie inclusief voorbeelden: docs/architecture.md §27. Implementatie nog niet gestart — interview per §4b CLAUDE.md vereist voor aanvang.
+[Claude 2026-05-20]: ✅ Bevestigd door Han: "ik denk dat dit af is!" `arp_var` en `arp_group` zijn geïmplementeerd in `src/generation/convertRankedArrayToMelody.js` (regels 263–390) met backwards planning, landing notes en kaats/spring boundary modes.
+
+✅ - akkoord mode: kans op akkoorden (milde versie van 'full chord') -> genereer uniform willekeurig maar nu paren van noten uit de melody notes set die is ingesteld. Idee: pak één noot uit het 'akkoord' en één noot uit de notenset. beperkingen: maximum afstand is een octaaf. Bij 'mislukt' genereer gewoon één noot uit de notenset.
+[Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han. Interview nodig voor exacte vereisten.
+[Claude 2026-05-20]: ✅ Bevestigd door Han: "paren van noten is geïmplementeerd." Geïmplementeerd als `pairedchord`-modus. TODO (backlog): (a) controleer of chord modes `maxLeap`-beperking respecteren; (b) bepaal logica voor omleggingen (inversions).
+
 - akkoord mode: simpele akkoorden / omleggingen
 Maak uniform + scale een stuk 'duurder' dan arp.
 Voeg nog weighted chromatic toe als extreem moeilijk.
+[Claude 2026-05-19]: → LONGLIST (generation overhaul).
 
 - het concept van zwaartetonen en leidnoten verder uitwerken, ook toepassen bij akkoorden (bijv: akoord - leidnoot)
+[Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han.
 
 ### Bass range bug
 
@@ -580,7 +730,10 @@ De generator-instellingen zijn rommelig geworden naarmate er meer kolommen zijn 
 ### Overig
 
 - 'humanization' in afspelen van de muziek: volume en timing
+[Claude 2026-05-19]: → LONGLIST (generation overhaul + difficulty settings). Op verzoek van Han.
+
 - herbalanceren variability (misschien wortel nemen van percentage voor genuanceerder effect?)
+[Claude 2026-05-19]: → LONGLIST (generation overhaul). Op verzoek van Han.
 
 ### Rusten en staccato in treble en bass melody
 
@@ -608,13 +761,25 @@ rusten en staccato in treble en bass melody
   - specifieke afspeelstijlen/liedstijlen: akkoord, bossa nova, waltz/jazz waltz, pop pulse, …
   - metronoom aanpassen (flat, zwaartenoten)
   - shuffle feel
+[Claude 2026-05-19]: → LONGLIST — op verzoek van Han.
+
 - betere percussie, e.g., backbeat, claves; revisie van rythmische slots
-- parallele percussielijnen: RH LH // cymbalen, kick/snare
+
+✅ - parallele percussielijnen: RH LH // cymbalen, kick/snare
+[Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han.
+[Claude 2026-05-20]: ✅ Bevestigd door Han: "gedaan, maar nog bugs. markeer voltooid, bugs staan gelogd." Bekende bugs zijn al gelogd in de backlog onder "Bugs percussie / playback" en "Bug: Beams renderen niet juist in parallel voices mode".
+
 - triolen, polyritmiek en paradiddels
+
 - voorkomen dat men 3 handen of 3 voeten nodig heeft
+
 - meer drumstijlen: <https://rhythmnotes.net/drumming-styles/>
+[Claude 2026-05-19]: → LONGLIST (generation overhaul) — op verzoek van Han.
+
 - onafhankelijkheidstraining (denk matrix - makkelijk: hh/s/k; hh/s/k/hp, en moeilijker: [r,rb,rt]/[s,sg,th,tm],[hp],[k])
+
 - percussie rudiments / claves /
+
 - polyrithmiek / subdivisies: triolen, maar ook pentolen etc.:
 
 Matrix: <https://www.moderndrummer.com/2014/04/modern-drummer-education-team-weighs-developing-independence/>
@@ -629,6 +794,40 @@ sync rhythmicDNA en percussienotatie: de `smallestNoteDenom` uit percussie-inste
 doorgeven aan `getEffectiveBeatDuration`, zodat de beat-level in Takadimi/Konnakol
 automatisch klopt met de gegenereerde gridresolutie (i.p.v. afleiden uit melody.durations).
 Ook: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren.
+[Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han: "Kodaly aanpassen aan groepen". Doel: lettergrepen afgestemd op beat-groepen (bijv. 3+2 in 5/4 → juiste lettergreepsyllaben per groep).
+[Claude 2026-05-21]: Scope bijgesteld o.b.v. Hoffman, Pelto & White (1996). Kodaly (do-re-mi toonhoogte-solfège) voorlopig laten vallen. Uitsluitend Takadimi (ritmisch solfège) afmaken voor asymmetrische maatsoorten.
+
+**Scope: Takadimi beat-group awareness (asymmetrische maatsoorten)**
+
+De artikelregel die ontbreekt: "Switching from one division type to another requires a change from 'Ta-ki-da' to 'Ta-di' or vice versa" — d.w.z. elke beat-groep bepaalt of de subdivisies *simple* of *compound* zijn.
+
+Wat de app nu doet (fout voor asymmetrisch):
+- `getTakadimiSyllable` gebruikt één vaste `beatDuration` voor de hele maat.
+- In 5/8 [2+3] behandelt het alle achtsten hetzelfde → verkeerde syllaben voor de 3-groep.
+
+Wat correct is (artikel §Application 1, Fig. 10):
+- Groep van 2 eenheden = **simple beat**: ta | di  (subdivisie: ta ka di mi)
+- Groep van 3 eenheden = **compound beat**: ta | ki | da  (subdivisie: ta va ki di da ma)
+
+Voor 5/8 [2, 3], eenheid = achtste:
+- Offset 0 → **ta** (groep 1 start)
+- Offset 1 → **di** (positie 1 van 2 = simple mid-beat)
+- Offset 2 → **ta** (groep 2 start)
+- Offset 3 → **ki** (positie 1 van 3 = compound div 1)
+- Offset 4 → **da** (positie 2 van 3 = compound div 2)
+
+"di" = altijd het midden van de beat (syncs simple ÷2 en compound ÷3 — artikel Fig. 7).
+
+**Implementatieplan (nog niet uitvoeren — interview vereist):**
+1. Nieuwe functie `getTakadimiSyllableGrouped(measureOffset, rhythmicGrouping, unitTicks)` in `rhythmicSolfege.js`:
+   - Bepaal voor `measureOffset` welke groep (index, grootte, positie-binnen-groep).
+   - Groepgrootte 2 → simple syllaben; groepgrootte 3 → compound syllaben.
+   - Subdivisies (halvering van de eenheid) volgen hetzelfde patroon.
+2. In `SheetMusic.jsx` Takadimi-renderingloop: gebruik `getTakadimiSyllableGrouped` wanneer `rhythmicGrouping` aanwezig is én maatsoort asymmetrisch is (niet 4/4, 3/4, 6/8, etc.).
+3. Symmetrische maatsoorten vallen terug op de bestaande `getTakadimiSyllable` (ongewijzigd).
+
+**Betrokken bestanden:** `src/theory/rhythmicSolfege.js`, `src/components/sheet-music/SheetMusic.jsx`.
+**Scope:** Alleen rhythmische solfège. Melodische solfège (do-re-mi) is losgekoppeld en valt buiten deze taak.
 
 [Claude 2026-04-08]: Geïmplementeerd — `melody.smallestNoteDenom` wordt nu doorgegeven aan `getEffectiveBeatDuration` als derde parameter. Hierdoor klopt de beat-level in Takadimi altijd met de grid-resolutie uit de percussie-instellingen. Aanname: 4 × subdivision = beat (simple meter); compound meter gebruikt altijd de nootwaarde van de noemer.
 ✅ Nog open: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren in Takadimi.
@@ -678,6 +877,22 @@ bug: geen geluid bij indrukken pianotoets / "Play Melodies" — `gain`-property 
 
 ---
 
+## GAMIFICATION & FEEDBACK
+
+### Session progress bar, XP, levels & badges
+
+session progress bar, xp bar, levels, badges
+
+[Claude 2026-05-19]: Op de backlog gezet op verzoek van Han. Betreft een gamificatielaag: sessie-voortgangsbalk, XP-punten per goed gespeelde noot/maat, levels op basis van opgebouwde XP, en badges voor mijlpalen (bijv. "eerste 100 noten", "5 sessies voltooid"). Niet implementeren totdat Han dit activeert.
+
+### Auditieve feedback
+
+auditive feedback (dream: 'sparkles/chimes'; vocal feedback: "nice!" "beautiful!" - with temperaments. (e.g., SCREAMING!).
+
+[Claude 2026-05-19]: Op de backlog gezet op verzoek van Han. Betreft auditieve beloning bij goede input: korte chime/sparkle-effecten én stemgeluid-feedback met instelbaar temperament (rustig enthousiast t/m uitbundig schreeuwerig). Niet implementeren totdat Han dit activeert.
+
+---
+
 ## UX / UI — NAVIGATIE & STRUCTUUR
 
 ### Input achter een submenu
@@ -723,6 +938,58 @@ harmoniseer kleuren (2 accentkleuren blauw en geel → één kleur)
 - meer presets
   - Practice: hearing, sight-reading, scales, chords, improvisation mode
 - polijsten van UX/UI
+
+---
+
+## PRESETS / OEFENINGEN
+
+Verzameling van voorgestelde presets (combinaties van instellingen). Nog niet geïmplementeerd — dienen als inspiratie voor het preset-systeem.
+
+### Schaalloopjes (Scale Runs)
+- notePool: `scale`, randomizationType: `arp_group`
+- akkoordenprogressie: klassieke cadens (I–IV–V–I of ii–V–I)
+- smallestNoteDenom: 8 (achtsten) of 16 (zestienden)
+- notesPerMeasure: hoog (bijv. 6–8 per maat)
+- variability: laag (voorspelbare loopjes)
+- maxLeap: klein (octaaf of minder)
+- Doel: toonladders oefenen, aanvalstechniek, vingervlugheid
+
+### Gebroken Akkoorden (Broken Chords)
+- notePool: `chord`, randomizationType: `arp_group`
+- akkoordenprogressie: vrij te kiezen
+- smallestNoteDenom: 8
+- notesPerMeasure: middel (4–6 per maat)
+- variability: laag–middel
+- Doel: akkoordbewust spelen, greepposities verkennen
+
+### Vingervlugheid (Dexterity)
+- notePool: `scale` of `chromatic`, randomizationType: `arp_var`
+- smallestNoteDenom: 16
+- notesPerMeasure: maximaal
+- variability: middel–hoog
+- maxLeap: klein (secunde of terts)
+- Doel: snelheid, techniek
+
+### Syncope / Polyritme
+- notePool: `chord` of `scale`, randomizationType: `arp_var`
+- smallestNoteDenom: 16
+- variability: hoog
+- timeSignature: 5/4, 7/8 of 3/4
+- Doel: ritmisch gevoel, syncope, off-beat-accenten
+
+### Gehoortraining (Ear Training)
+- notePool: `chord`, randomizationType: `uniform`
+- playbackSettings: Round 1 = alleen muziek, Round 2 = muziek + noten
+- variability: laag
+- Doel: noten en akkoorden herkennen op gehoor
+
+### Bladmuziek (Sight-reading)
+- notePool: `scale`, randomizationType: `weighted`
+- playbackSettings: Round 1 = noten zichtbaar, geen audio; Round 2 = audio
+- variability: middel
+- Doel: van blad spelen oefenen
+
+[Claude 2026-05-20]: Presets toegevoegd op basis van ontwerpgesprek over arp_var / arp_group (mei 2026). Specificaties voor arp_var en arp_group staan in docs/architecture.md §27. Implementatie vereist eerst afronding van arp_var/arp_group algoritmen + preset-selectie UI.
   - harmoniseren knoppen, velden, iconen, lettertypes, kleuren, beperken van thema's
   - polijsten van scale selection
 

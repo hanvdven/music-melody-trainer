@@ -7,7 +7,7 @@ import { getChordInfo } from './chordRecognition.js';
 import Chord from '../model/Chord.js';
 import { PREDETERMINED_STRATEGIES } from './progressionDefinitions.js';
 import { getNoteIndex, generateHeptaScaleNotes } from './musicUtils.js';
-import { getNoteSemitone } from './noteUtils.js';
+import { getNoteSemitone, getChromaticRomanDegree } from './noteUtils.js';
 import logger from '../utils/logger.js';
 
 const ALL_NOTES = generateAllNotesArray();
@@ -54,14 +54,20 @@ const CHORD_STRUCTURES = {
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 
+// Functional category indexed by chromatic Roman numeral (incl. ♭/♯ prefixed degrees).
 const FUNCTION_CATEGORY = {
-    I: 'Tonic',
-    II: 'Pre-dominant',
-    III: 'Modal / Color',
-    IV: 'Pre-dominant',
-    V: 'Dominant',
-    VI: 'Ambiguous',
-    VII: 'Dominant',
+    'I':    'Tonic',
+    '♭II':  'Neapolitan / Pre-dominant',
+    'II':   'Pre-dominant',
+    '♭III': 'Modal / Color',
+    'III':  'Modal / Color',
+    'IV':   'Pre-dominant',
+    '♯IV':  'Modal / Color',
+    'V':    'Dominant',
+    '♭VI':  'Modal / Color',
+    'VI':   'Ambiguous',
+    '♭VII': 'Modal / Color',
+    'VII':  'Dominant',
 };
 
 const stripOctave = (note) => {
@@ -299,7 +305,14 @@ const generateChordOnDegree = (
 
     const intervals = chordNotes.map((n) => ((getNoteSemitone(n) - getNoteSemitone(root)) + 12) % 12);
 
-    const romanBaseRaw = ROMAN[rootIndex] || '?';
+    // Compute chromatic Roman numeral relative to tonic (e.g. ♭VII, ♯IV).
+    // getChromaticRomanDegree maps semitone distance from tonic → prefixed Roman numeral.
+    // Falls back to positional ROMAN[rootIndex] when tonic is unknown (should be rare).
+    const tonicPC = scaleObj?.tonic ? getNoteSemitone(scaleObj.tonic) : null;
+    const rootPC  = getNoteSemitone(root);
+    const romanBaseRaw = tonicPC !== null
+        ? getChromaticRomanDegree((rootPC - tonicPC + 12) % 12)
+        : (ROMAN[rootIndex] || '?');
     const scaleInfoStr = scaleObj ? `${scaleObj.tonic || ''} ${scaleObj.name || ''} (${scaleObj.family || ''})` : 'Unknown Scale';
     const chordInfo = getChordInfo(intervals, rootDisplay, romanBaseRaw, scaleInfoStr, structure);
 
@@ -620,6 +633,76 @@ const generatePassingChord = (scaleObj, nextChord, type, complexity = 'triad') =
             'm7',
             { romanBaseRaw: 'II', romanSuffix: `m7${slashPart}` }
         );
+    }
+
+    if (type === 'subdominant-approach') {
+        // IV/x: root a perfect 4th above x (= the subdominant of x).
+        // Soft preparation — no tritone tension, warm stepwise approach descending into x.
+        // Works for any target, not just the dominant (IV/I, IV/ii, IV/vi all valid).
+        const subdomPC = (nextRootPC + 5) % 12;
+        const scaleNotes = scaleObj.notes || [];
+        const subdomDegIdx = scaleNotes.findIndex(n => getNoteSemitone(n) === subdomPC);
+        const targetBase = nextChord.romanBaseRaw || '';
+        const slashPart  = (targetBase === 'I' || targetBase === '') ? '' : `/${targetBase.toLowerCase()}`;
+        if (subdomDegIdx !== -1) {
+            // Root is diatonic — use its natural quality from the scale.
+            try {
+                const chord = generateChordOnDegree(scaleObj, subdomDegIdx + 1, complexity);
+                if (chord) {
+                    chord.meta = { ...chord.meta, isPassing: true, romanBaseRaw: 'IV', romanSuffix: slashPart };
+                }
+                return chord;
+            } catch (_) { /* fall through to chromatic build */ }
+        }
+        // Root is non-diatonic — build plain major triad (most common subdominant quality).
+        const rootNote = findNoteNearRef(subdomPC, refNote);
+        if (!rootNote) return null;
+        return buildChordFromIntervals(
+            rootNote, PASSING_CHORD_INTERVALS['major'], 'major', '',
+            { romanBaseRaw: 'IV', romanSuffix: slashPart }
+        );
+    }
+
+    if (type === 'borrowed-parallel') {
+        // Borrowed chord from the parallel heptaRef scale (modal mixture).
+        // Roots: degrees present in heptaRefIntervals but absent from the current scale.
+        // Generalises naturally to exotic scales (e.g. double harmonic major) because
+        // every scale definition carries a heptaRefIntervals or diatonic parent key.
+        const heptaRef = scaleObj.heptaRefIntervals
+            ?? DIATONIC_MODE_INTERVALS[scaleObj.diatonic]
+            ?? DIATONIC_MODE_INTERVALS['Ionian'];
+        const tonicStr  = scaleObj.tonic || (scaleObj.notes?.[0]?.replace(/-?\d+$/, '') ?? 'C');
+        const tonicNote = scaleObj.notes?.find(n => n.replace(/-?\d+$/, '') === tonicStr)
+            ?? `${tonicStr}4`;
+        const heptaNotes = buildNotesFromIntervals(tonicNote, heptaRef);
+        if (!heptaNotes) return null;
+
+        const currentPCs = new Set((scaleObj.notes || []).map(n => getNoteSemitone(n)));
+        // Collect heptaRef degrees whose pitch class is absent from the current scale.
+        const borrowedDegrees = heptaNotes
+            .map((n, i) => ({ deg: i + 1, pc: getNoteSemitone(n) }))
+            .filter(({ pc }) => !currentPCs.has(pc));
+        if (borrowedDegrees.length === 0) return null;
+
+        // Pick a random borrowed degree and build the chord using the heptaRef scale context.
+        const chosen = borrowedDegrees[Math.floor(Math.random() * borrowedDegrees.length)];
+        const heptaScaleObj = {
+            ...scaleObj,
+            notes: heptaNotes,
+            displayNotes: heptaNotes,
+            heptaRefIntervals: null, // prevent recursion
+        };
+        try {
+            const chord = generateChordOnDegree(heptaScaleObj, chosen.deg, complexity);
+            if (chord) {
+                chord.meta = { ...chord.meta, isPassing: true };
+                // Append /targetBase slash to romanSuffix for clarity.
+                const targetBase = nextChord.romanBaseRaw || '';
+                const slashPart  = (targetBase === 'I' || targetBase === '') ? '' : `/${targetBase.toLowerCase()}`;
+                if (slashPart) chord.meta.romanSuffix = (chord.meta.romanSuffix || '') + slashPart;
+            }
+            return chord;
+        } catch (_) { return null; }
     }
 
     if (type === 'iiv-VI') {

@@ -18,7 +18,7 @@ import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
 import { getNoteSemitone, getKodalySolfege } from '../../theory/noteUtils';
 import { getNoteIndex } from '../../theory/musicUtils';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
-import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
+import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, getTakadimiSyllableGrouped, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
 
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
@@ -186,7 +186,7 @@ const SheetMusic = ({
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
   const { noteColoringMode, setNoteColoringMode, debugMode, lyricsMode,
     chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
-    animationMode, courtesyAccidentals = true } = useDisplaySettings();
+    animationMode, courtesyAccidentals = true, percussionVoiceSplit = false } = useDisplaySettings();
   const svgRefInternal = useRef(null);
   // Use the ref passed from App.jsx if provided (so Sequencer callbacks can access the SVG),
   // otherwise fall back to an internal ref.
@@ -281,12 +281,14 @@ const SheetMusic = ({
   const LYRICS_GAP = 45; // extra vertical space for melodic lyrics row below treble staff
   const melodicLyricsActive = (lyricsMode === 'doremi-rel' || lyricsMode === 'doremi-abs' || lyricsMode === 'kodaly') && isTrebleVisible;
   const rhythmicLyricsActive = lyricsMode === 'takadimi' && isPercussionVisible;
+  // Text lyrics from a loaded song (melody.lyrics array) — shown regardless of lyricsMode.
+  const textLyricsActive = isTrebleVisible && Array.isArray(trebleMelody?.lyrics) && trebleMelody.lyrics.length > 0;
   // Keep lyricsActive for any backward-compat references
-  const lyricsActive = melodicLyricsActive || rhythmicLyricsActive;
+  const lyricsActive = melodicLyricsActive || rhythmicLyricsActive || textLyricsActive;
   const baseStaffGap = containerHeight >= 400
     ? baseGap
     : Math.max(minGap, (containerHeight - 110 - 131) / numGaps);
-  const staffGap = melodicLyricsActive ? baseStaffGap + LYRICS_GAP : baseStaffGap;
+  const staffGap = (melodicLyricsActive || textLyricsActive) ? baseStaffGap + LYRICS_GAP : baseStaffGap;
 
   const bassStart = isTrebleVisible ? trebleStart + staffHeight + staffGap : trebleStart;
   const percussionStart = isBassVisible ? bassStart + staffHeight + staffGap : (isTrebleVisible ? trebleStart + staffHeight + staffGap : trebleStart);
@@ -798,6 +800,7 @@ const SheetMusic = ({
       numRepeats,
       melodyMeasureCount,
       partialMeasureStart,
+      trebleMelody?.rhythmicGrouping ?? bassMelody?.rhythmicGrouping ?? percussionMelody?.rhythmicGrouping ?? null,
       (notesVisible && trebleMelody) ? melodyToTaggedOffsets(trebleMelody, fullTrebleAcc) : [],
       (notesVisible && bassMelody) ? melodyToTaggedOffsets(bassMelody, fullBassAcc) : [],
       (notesVisible && percussionMelody) ? percussionMelody.offsets : [],
@@ -859,6 +862,7 @@ const SheetMusic = ({
     numRepeats,
     displayNumMeasures,
     partialMeasureStart,
+    adjustedTrebleMelody?.rhythmicGrouping ?? adjustedBassMelody?.rhythmicGrouping ?? adjustedPercussionMelody?.rhythmicGrouping ?? null,
     (notesVisible && adjustedTrebleMelody) ? melodyToTaggedOffsets(adjustedTrebleMelody, trebleAccidentals) : [],
     (notesVisible && adjustedBassMelody) ? melodyToTaggedOffsets(adjustedBassMelody, bassAccidentals) : [],
     (notesVisible && adjustedPercussionMelody) ? adjustedPercussionMelody.offsets : [],
@@ -1581,6 +1585,41 @@ const SheetMusic = ({
     });
   };
 
+  // Renders song text lyrics (from melody.lyrics[]) below the treble staff.
+  // Used when a song is loaded; independent of the solfège lyricsMode setting.
+  const renderTextLyricsRow = (melody, lyricsY, offsets = allOffsets, nw = noteWidth) => {
+    if (!melody?.lyrics || !textLyricsActive) return null;
+    const notes = melody.notes;
+    const melOffsets = melody.offsets;
+    if (!notes || !melOffsets) return null;
+
+    const getXLocal = (index) => startX + (index - 1) * nw;
+    const FONT_SIZE = 13;
+
+    return notes.map((note, i) => {
+      const syllable = melody.lyrics[i];
+      if (!syllable) return null;
+      const tickOffset = melOffsets[i];
+      if (tickOffset == null) return null;
+      const idx = offsets.indexOf(tickOffset);
+      if (idx < 0) return null;
+      const x = getXLocal(idx) + 5;
+      const fill = getLyricFill(note, tickOffset, false);
+      return (
+        <text
+          key={`tlyric-${i}`}
+          x={x} y={lyricsY}
+          textAnchor="middle"
+          fontSize={FONT_SIZE}
+          fontFamily="Georgia, 'Times New Roman', serif"
+          fill={fill}
+        >
+          {syllable}
+        </text>
+      );
+    });
+  };
+
   // Renders Takadimi rhythmic solfège lyrics below the percussion staff.
   const renderRhythmicLyricsRow = (melody, lyricsY, offsets = allOffsets, nw = noteWidth) => {
     if (!melody || !rhythmicLyricsActive) return null;
@@ -1592,6 +1631,10 @@ const SheetMusic = ({
     // Prefer smallestNoteDenom from the melody's generation settings over deriving from durations.
     // e.g. percussion set to 16th-note grid → beat = quarter even if no 16ths were generated.
     const beatDur = getEffectiveBeatDuration(timeSignature, melody.durations, melody.smallestNoteDenom ?? null);
+    // Group-aware Takadimi: rhythmicGrouping carries the beat-group sizes (e.g. [2,3] for 5/8).
+    // When present, each group independently determines simple (÷2) or compound (÷3) syllables.
+    const melodyGrouping = melody.rhythmicGrouping ?? null;
+    const unitTicks = TICKS_PER_WHOLE / timeSignature[1];
     const getXLocal = (index) => startX + (index - 1) * nw;
 
     // Pre-compute tuplet position for each note. melody.triplets[i] identifies the group
@@ -1628,11 +1671,16 @@ const SheetMusic = ({
       if (idx < 0) return null;
       const x = getXLocal(idx) + 5;
 
-      // Tuplet notes use position-within-group syllables; regular notes use tick-based position.
+      // Tuplet notes use position-within-group syllables (ta ka di mi ti / ta va ki di da ma ti).
+      // Regular notes: when rhythmicGrouping is available, derive syllable from the beat group
+      // the note falls in (group of 3 = compound ta-ki-da, group of 2 = simple ta-di).
+      // Falls back to the single-beatDuration path for metronome / missing grouping.
       const tupletPos = tupletPosMap.get(i);
       const syllable = tupletPos
           ? getTupletSyllable(tupletPos.posInGroup, tupletPos.noteCount)
-          : getTakadimiSyllable(tickOffset, beatDur, compound);
+          : melodyGrouping
+              ? getTakadimiSyllableGrouped(tickOffset % measureLengthSlots, melodyGrouping, unitTicks)
+              : getTakadimiSyllable(tickOffset, beatDur, compound);
       if (!syllable || syllable === '·') return null;
 
       const percNotes = Array.isArray(note) ? note : [note];
@@ -2177,12 +2225,18 @@ const SheetMusic = ({
                           {renderLyricsRow(adjustedTrebleMelody, trebleStart + staffHeight + 39)}
                         </g>
                       )}
+                      {textLyricsActive && actualTreble && (
+                        <g className="text-lyrics-group">
+                          {/* Pass original trebleMelody so melody.lyrics indices align correctly. */}
+                          {renderTextLyricsRow(trebleMelody, trebleStart + staffHeight + 39)}
+                        </g>
+                      )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>
                         {actualBass && renderMelodyNotes(adjustedBassMelody, numAccidentals, startX, noteWidth, allOffsets, 'bass', 0, noteGroupSize, measureLengthSlots, timeSignature, clefBass, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, bassTransSemitones, debugMode, true, courtesyAccidentals)}
                         {isBassVisible && !actualBass && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualPerc && renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, inputTestState, false, ppt, startMeasureIndex, 0, debugMode)}
+                        {actualPerc && renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, inputTestState, false, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
                         {isPercussionVisible && !actualPerc && !actualMetronome && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       {rhythmicLyricsActive && actualPerc && (
@@ -2204,7 +2258,7 @@ const SheetMusic = ({
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>
                         {isPercussionVisible && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
-                        {adjustedMetronomeMelody && renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, false, ppt, startMeasureIndex, 0, false, false)}
+                        {adjustedMetronomeMelody && renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, false, ppt, startMeasureIndex, 0, false, false, courtesyAccidentals, false)}
                       </g>
                     </g>
                     {/* Regular inner barlines — masked with old content during wipe */}
@@ -2287,9 +2341,9 @@ const SheetMusic = ({
                           </g>
                           <g style={{ transform: `translateY(${percussionStart}px)` }}>
                             {isPercussionVisible && nextPerc && nextNotesVisible && adjustedPercussionMelody &&
-                              renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex)}
+                              renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
                             {isPercussionVisible && nextMetro && adjustedMetronomeMelody &&
-                              renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex, 0, false, false)}
+                              renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex, 0, false, false, courtesyAccidentals, false)}
                             {isPercussionVisible && (!nextPerc && !nextMetro) &&
                               renderRepeatSymbols(allOffsets, noteWidth, ppt, [30], YCOL)}
                           </g>
@@ -2330,6 +2384,7 @@ const SheetMusic = ({
                         const pmBassAcc = previewBass ? generateAccidentalMap(previewBass.notes, numAccidentals) : {};
                         const pmAllOffsets = calculateAllOffsets(
                           timeSignature, noteGroupSize, numRepeats, pmDisplayMeasures, null,
+                          pm.treble?.rhythmicGrouping ?? pm.bass?.rhythmicGrouping ?? pm.percussion?.rhythmicGrouping ?? null,
                           (nextNotesVisible && previewTreble) ? melodyToTaggedOffsets(previewTreble, pmTrebleAcc) : [],
                           (nextNotesVisible && previewBass) ? melodyToTaggedOffsets(previewBass, pmBassAcc) : [],
                           (nextNotesVisible && previewPerc) ? previewPerc.offsets : [],
@@ -2375,7 +2430,7 @@ const SheetMusic = ({
                             </g>
                             <g style={{ transform: `translateY(${percussionStart}px)` }}>
                               {isPercussionVisible && nextPerc && nextNotesVisible && previewPerc &&
-                                renderMelodyNotes(previewPerc, numAccidentals, startX, pmNoteWidth, pmAllOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], previewChords ?? processedChords, theme, null, RCOL, ppt, startMeasureIndex)}
+                                renderMelodyNotes(previewPerc, numAccidentals, startX, pmNoteWidth, pmAllOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], previewChords ?? processedChords, theme, null, RCOL, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
                               {isPercussionVisible && (!nextPerc && !nextMetro) &&
                                 renderRepeatSymbols(pmAllOffsets, pmNoteWidth, ppt, [30], RCOL)}
                             </g>

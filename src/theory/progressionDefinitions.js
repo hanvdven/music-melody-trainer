@@ -63,7 +63,7 @@ export const PROGRESSION_STRATEGIES = [
     // ── PREDETERMINED ─────────────────────────────────────────────────────────
     {
         key: 'pachelbel',
-        label: 'Pachelbel (I-V-vi-III-IV-I-IV-V)',
+        label: 'Pachelbel (^1-^5-^6-^3-^4-^1-^4-^5)',
         shortLabel: 'Pachelbel',
         category: 'predetermined',
         preferredScale: 'major',
@@ -72,7 +72,7 @@ export const PROGRESSION_STRATEGIES = [
     },
     {
         key: 'pop-1-5-6-4',
-        label: 'Pop Song (I-V-vi-IV)',
+        label: 'Pop Song (^1-^5-^6-^4)',
         shortLabel: 'Pop Song',
         category: 'predetermined',
         preferredScale: 'major',
@@ -81,7 +81,7 @@ export const PROGRESSION_STRATEGIES = [
     },
     {
         key: 'pop-6-4-1-5',
-        label: 'Pop Ballad (vi-IV-I-V)',
+        label: 'Pop Ballad (^6-^4-^1-^5)',
         shortLabel: 'Pop Ballad',
         category: 'predetermined',
         preferredScale: 'major',
@@ -90,7 +90,7 @@ export const PROGRESSION_STRATEGIES = [
     },
     {
         key: 'doo-wop',
-        label: 'Doo-Wop (I-vi-IV-V)',
+        label: 'Doo-Wop (^1-^6-^4-^5)',
         shortLabel: 'Doo-Wop',
         category: 'predetermined',
         preferredScale: 'major',
@@ -99,7 +99,7 @@ export const PROGRESSION_STRATEGIES = [
     },
     {
         key: 'classical-1-4-5-5',
-        label: 'Cadential (I-IV-V-V)',
+        label: 'Cadential (^1-^4-^5-^5)',
         shortLabel: 'Cadential',
         category: 'predetermined',
         preferredScale: 'major',
@@ -108,7 +108,7 @@ export const PROGRESSION_STRATEGIES = [
     },
     {
         key: 'ii-v-i',
-        label: 'Jazz (...ii-V-I)',
+        label: 'Jazz (...^2-^5-^1)',
         shortLabel: 'Jazz Song',
         category: 'predetermined',
         preferredScale: 'major',
@@ -117,7 +117,7 @@ export const PROGRESSION_STRATEGIES = [
     },
     {
         key: 'andalusian',
-        label: 'Andalusian Cadence (i-VII-VI-V)',
+        label: 'Andalusian Cadence (^1-^7-^6-^5)',
         shortLabel: 'Andalusian Cadence',
         category: 'predetermined',
         preferredScale: 'minor',
@@ -126,7 +126,7 @@ export const PROGRESSION_STRATEGIES = [
     },
     {
         key: 'classical-1-4-5-1',
-        label: 'Classical Cadence (I-IV-V-I)',
+        label: 'Classical Cadence (^1-^4-^5-^1)',
         shortLabel: 'Classical Cadence',
         category: 'predetermined',
         preferredScale: 'major',

@@ -221,6 +221,25 @@ const ledgerLinesMapPercussion = {
 // Helper: Shorten stem for specific percussion notes
 const shortStemNotes = ['ho', 'wh', 'wl'];
 
+// RH (right hand / cymbal group): stem UP in parallel-voices notation.
+// Cymbals and hi-hats are played with sticks held in the right hand.
+// Woodblocks and cowbell are also RH by convention.
+const RH_PERC_NOTES = new Set(['hh', 'ho', 'cr', 'cc', 'cct', 'crt', 'cb', 'wh', 'wm', 'wl', 'c']);
+// LH (left hand / drum group): stem DOWN.
+// Snare, toms, kick, and hi-hat pedal are driven by left hand or foot.
+const LH_PERC_NOTES = new Set(['k', 's', 'sg', 'sr', 'th', 'tm', 'tl', 'hp']);
+
+// Returns true (stem up) when the note or chord belongs to the right-hand voice.
+// For mixed chords, RH majority wins; ties go UP (cymbals sit above drums on the staff).
+const percussionStemUp = (noteOrChord) => {
+  if (Array.isArray(noteOrChord)) {
+    let rh = 0, lh = 0;
+    noteOrChord.forEach(n => { if (RH_PERC_NOTES.has(n)) rh++; else lh++; });
+    return rh >= lh;
+  }
+  return !LH_PERC_NOTES.has(noteOrChord); // unknown notes default UP
+};
+
 const renderMelodyNotes = (
   melody,
   numAccidentals,
@@ -245,7 +264,8 @@ const renderMelodyNotes = (
   transpositionSemitones = 0,
   debugMode = false,
   interactive = true,  // set false for non-playable layers (metronome, previews)
-  courtesyAccidentals = true
+  courtesyAccidentals = true,
+  percussionVoiceSplit = false
 ) => {
   // previewMode can be: false (normal), true (yellow, for input test), or a CSS color string (e.g. 'rgba(220,30,30,0.85)' for wipe preview)
   const previewColor = typeof previewMode === 'string' ? previewMode : (previewMode ? 'var(--accent-yellow)' : null);
@@ -546,7 +566,7 @@ const renderMelodyNotes = (
           // differently (e.g. equidistant tiebreak) and would otherwise produce a wrong
           // minYend in beamData, pushing the beam far off the staff.
           currentSubGroup.forEach(item => {
-            if (!item.isRest) {
+            if (!item.isRest && !item.voiceSplit) {
               item.stemIsAbove = masterStemIsAbove;
               const noteEntry = displayNotes[item.index];
               if (Array.isArray(noteEntry)) {
@@ -582,6 +602,18 @@ const renderMelodyNotes = (
           flushSubGroup();
         }
 
+        // Parallel voices isolation: RH (stem up) and LH (stem down) notes belong to
+        // separate voices and must never share a beam even when their durations match.
+        if (percussionVoiceSplit && currentSubGroup.length > 0) {
+          const curNote = displayNotes[e.index];
+          const lastNote = displayNotes[currentSubGroup[currentSubGroup.length - 1].index];
+          if (!Array.isArray(curNote) && !Array.isArray(lastNote)) {
+            if (percussionStemUp(curNote) !== percussionStemUp(lastNote)) {
+              flushSubGroup();
+            }
+          }
+        }
+
         const note = displayNotes[e.index];
         if (!note) continue;
 
@@ -612,11 +644,20 @@ const renderMelodyNotes = (
           stemIsAbove = positionY > staffYStart + 20;
         }
 
+        // Voice split: for single percussion notes, fix stem direction by RH/LH classification
+        // so it survives the masterStemIsAbove pass (guarded by voiceSplit flag below).
+        // Chord arrays are split into separate stems during the rendering pass — not here.
+        if (staff === 'percussion' && percussionVoiceSplit && !isRest && !Array.isArray(note)) {
+          stemIsAbove = percussionStemUp(note);
+        }
+
         currentSubGroup.push({
           index: e.index,
           beatIndexWithinMeasure: Math.floor((e.offset % measureLengthSlots) / noteGroupSize),
           isRest,
           stemIsAbove,
+          // Protect RH/LH classified entries from being reset by masterStemIsAbove.
+          voiceSplit: staff === 'percussion' && percussionVoiceSplit && !Array.isArray(note),
           positionY,
           chordSpan: Array.isArray(note) ? (() => {
             const ys = note.map(n => { const nat = stripAccidentals(n); return noteYMap[nat] !== undefined ? noteYMap[nat] + combinedShift : null; }).filter(y => y !== null);
@@ -737,6 +778,31 @@ const renderMelodyNotes = (
     beamData.set(groupIndex, { firstX, lastX, firstYend, lastYend, slope, nonRests });
   });
 
+  // Pre-compute forced stem direction for unbeamed tuplet groups (quarter/half notes, visualDuration ≥ 12).
+  // Average Y position across all notes in the group determines direction — standard engraving practice.
+  // Beamed tuplets (eighth-note triplets) are excluded; beaming already enforces a unified direction.
+  const forcedTupletStemDir = (() => {
+    if (!melodyTriplets) return new Map();
+    const groupYSums = new Map();
+    displayNotes.forEach((noteEntry, i) => {
+      const ti = melodyTriplets[i];
+      if (!ti || ti.visualDuration < 12) return;
+      if (Array.isArray(noteEntry) || !noteEntry || noteEntry === 'c') return;
+      const nat = stripAccidentals(noteEntry);
+      const baseY = noteYMap[nat];
+      if (baseY === undefined) return;
+      const y = baseY + combinedShift;
+      if (!groupYSums.has(ti.id)) groupYSums.set(ti.id, { sum: 0, count: 0 });
+      const g = groupYSums.get(ti.id);
+      g.sum += y; g.count += 1;
+    });
+    const result = new Map();
+    groupYSums.forEach(({ sum, count }, id) => {
+      result.set(id, (sum / count) > staffYStart + 20);
+    });
+    return result;
+  })();
+
   // Accumulate tuplet bracket data during note rendering.
   // Map from group id → { noteCount, denominator, visualDuration, points: [{x, stemTipY, stemIsAbove, isBeamed}] }
   const tupletGroupData = new Map();
@@ -824,6 +890,15 @@ const renderMelodyNotes = (
       );
       // Stem UP when the furthest note is BELOW centre (large y), DOWN when ABOVE centre (small y)
       let stemIsAbove = furthest.y > staffMiddleY;
+
+      // Voice split: pre-split RH/LH subsets so each gets its own stem below.
+      const rhChordNotes = (staff === 'percussion' && percussionVoiceSplit)
+        ? chordNotes.filter(p => !LH_PERC_NOTES.has(p.n))
+        : null;
+      const lhChordNotes = (staff === 'percussion' && percussionVoiceSplit)
+        ? chordNotes.filter(p => LH_PERC_NOTES.has(p.n))
+        : null;
+      const useVoiceSplit = rhChordNotes !== null && (rhChordNotes.length > 0 || lhChordNotes.length > 0);
 
       // --- Beaming: does this chord participate in a beam group? ---
       const chordGroupIndex = beamedNoteIndices.get(index);
@@ -942,14 +1017,37 @@ const renderMelodyNotes = (
               />
             );
           })}
-          {/* Single stem (whole notes have no stem) */}
-          {duration < 48 && (
+          {/* Stem(s) — two independent stems when voice split is active */}
+          {duration < 48 && (useVoiceSplit ? (
+            <>
+              {/* RH voice: stem UP, anchored at bottom of RH noteheads */}
+              {rhChordNotes.length > 0 && (() => {
+                const rhTopY = Math.min(...rhChordNotes.map(p => p.y));
+                const rhBottomY = Math.max(...rhChordNotes.map(p => p.y));
+                const rhTriangle = rhChordNotes.some(p => p.symbol === 'Ñ');
+                const rhSpecial = rhChordNotes.some(p => p.symbol === 'À' || p.symbol === 'Ñ');
+                const rhStart = rhTriangle ? rhBottomY + 3 : rhBottomY - (rhSpecial ? 5 : 1);
+                const rhEnd = rhTriangle ? rhTopY - 32.4 : rhTopY - 27;
+                return <path d={`M ${positionX + 11} ${rhStart} V ${rhEnd}`} stroke={stemColor} strokeWidth="1.5" />;
+              })()}
+              {/* LH voice: stem DOWN, anchored at top of LH noteheads */}
+              {lhChordNotes.length > 0 && (() => {
+                const lhTopY = Math.min(...lhChordNotes.map(p => p.y));
+                const lhBottomY = Math.max(...lhChordNotes.map(p => p.y));
+                const lhTriangle = lhChordNotes.some(p => p.symbol === 'Ñ');
+                const lhSpecial = lhChordNotes.some(p => p.symbol === 'À' || p.symbol === 'Ñ');
+                const lhStart = lhTopY + (lhTriangle ? 8 : (lhSpecial ? 5 : 1));
+                const lhEnd = lhTriangle ? lhBottomY + 34.2 : lhBottomY + 27;
+                return <path d={`M ${positionX + 0.5} ${lhStart} V ${lhEnd}`} stroke={stemColor} strokeWidth="1.5" />;
+              })()}
+            </>
+          ) : (
             <path
               d={`M ${stemX} ${stemStartY} V ${stemEndY}`}
               stroke={stemColor}
               strokeWidth="1.5"
             />
-          )}
+          ))}
           {/* Flag at stem tip — suppressed when beamed */}
           {!isBeamed && duration < 12 && flagSymbol && (
             <text x={staff === 'percussion' && !stemIsAbove && duration < 6 ? finalFlagX + 1 : finalFlagX} y={finalFlagY} fontSize="36" fill={stemColor} fontFamily="Maestro">
@@ -1099,6 +1197,13 @@ const renderMelodyNotes = (
         if (noteIndexInGroup !== -1) {
           stemIsAbove = beamGroup[noteIndexInGroup].stemIsAbove;
         }
+      }
+      // Voice split: RH/LH classification is the final authority — overrides both position and beamGroup.
+      if (staff === 'percussion' && percussionVoiceSplit) stemIsAbove = percussionStemUp(note);
+
+      // Unbeamed tuplets (quarter/half): force uniform stem direction based on group average Y.
+      if (tripletInfo && tripletInfo.visualDuration >= 12 && forcedTupletStemDir.has(tripletInfo.id)) {
+        stemIsAbove = forcedTupletStemDir.get(tripletInfo.id);
       }
 
       const lineX = stemIsAbove ? positionX + 11 : positionX + 0.5;
@@ -1549,7 +1654,8 @@ const renderMelodyNotes = (
 
     const first = points[0];
     const last  = points[points.length - 1];
-    const stemIsAbove = first.stemIsAbove;
+    // Derive bracket direction from majority consensus — after stem forcing, all points should agree.
+    const stemIsAbove = points.filter(p => p.stemIsAbove).length >= points.length / 2;
     const isBeamed    = first.isBeamed && vd < 12; // beamed when short visual duration
 
     const x1   = first.x + 5;  // near notehead centre
@@ -1559,22 +1665,21 @@ const renderMelodyNotes = (
     // Bracket y: just outside stem tips (above for stems-up, below for stems-down).
     let bracketY;
     if (stemIsAbove) {
-      bracketY = Math.min(...points.map(p => p.stemTipY)) - 5;
+      bracketY = Math.min(...points.map(p => p.stemTipY)) - 8;
     } else {
-      bracketY = Math.max(...points.map(p => p.stemTipY)) + 5;
+      bracketY = Math.max(...points.map(p => p.stemTipY)) + 8;
     }
 
     const color    = previewColor ?? 'var(--text-primary)';
-    // Dimmed ratio suffix: heavily lowlighted (18% opacity).
+    // Dimmed ratio suffix: 45% opacity — legible on dark backgrounds without overpowering the numeral.
     const dimColor = previewColor
-      ? `color-mix(in srgb, ${previewColor}, transparent 82%)`
-      : 'color-mix(in srgb, var(--text-primary), transparent 82%)';
+      ? `color-mix(in srgb, ${previewColor}, transparent 55%)`
+      : 'color-mix(in srgb, var(--text-primary), transparent 55%)';
 
     const hookLen  = 5;
-    // Number label vertically: above bracket line for stems-up, below for stems-down.
-    const numY     = stemIsAbove ? bracketY - 2 : bracketY + 13;
-    // Bracket gap: half-width reserved around the number label (scaled for 15px font).
-    const bracketGap = 15;
+    // Bracket gap: half of the space reserved around the number label.
+    // Wide enough so bracket paths don't overlap non-bold 15px text ("3 : 2" ≈ 30px wide).
+    const bracketGap = 20;
     // Format: "3 : 2" — render as single <text> with two tspans so spacing between
     // numeral, colon, and denominator is determined by the font (uniform character spacing).
     const numLabel = `${noteCount}`;
@@ -1599,14 +1704,16 @@ const renderMelodyNotes = (
             />
           </>
         )}
-        {/* "3 : 2" — single text element so font provides uniform character spacing.
-            numLabel is full-color; dimLabel (" : 2") is heavily dimmed via tspan. */}
+        {/* "3 : 2" — centered vertically on the bracket line via dominantBaseline="central".
+            numLabel is full-color; dimLabel (" : 2") is heavily dimmed via tspan.
+            Non-bold to distinguish from note heads; Georgia/Times serif matches music engraving style. */}
         <text
           x={midX}
-          y={numY}
+          y={bracketY}
           fontSize="15"
-          fontWeight="bold"
+          fontWeight="normal"
           textAnchor="middle"
+          dominantBaseline="central"
           fontFamily="Georgia, 'Times New Roman', serif"
           style={{ userSelect: 'none' }}
         >

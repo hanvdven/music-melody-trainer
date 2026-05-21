@@ -3,7 +3,8 @@
 
 export const RULE_FAMILIES = {
   random: ['uniform', 'emphasize_roots', 'weighted'],
-  arp:    ['arp_up', 'arp_down', 'arp'],
+  arp:    ['arp_up', 'arp_down', 'arp', 'arp_var', 'arp_group'],
+  walk:   ['walking_bass'],
   chords: ['pairedchord', 'fullchord'],
   fixed:  ['fixed'],
 };

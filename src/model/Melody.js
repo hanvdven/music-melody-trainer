@@ -124,13 +124,12 @@ class Melody {
     const notesPerMeasure = Math.ceil((timeSignature[0] / timeSignature[1]) * smallestNoteDenom);
 
     // 1. Generate rhythmic ranks
-    const rankedArray = generateRankedRhythm(
+    const { rankedArray } = generateRankedRhythm(
       numMeasures,
       timeSignature,
       notesPerMeasure,
       smallestNoteDenom,
-      0, // variability
-      false, // triplets
+      0,        // variability
       'uniform' // randomizationRule
     );
 
