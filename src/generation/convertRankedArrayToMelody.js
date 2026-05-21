@@ -260,6 +260,68 @@ const convertRankedArrayToMelody = (
         scaleSize: scale.length, activeSlots: activeSlotsSet.size,
     });
 
+    // Shared backwards-planning helper used by arp_var, arp_group, and walking_bass.
+    // Returns the line in TIME ORDER: [approach1, ..., approachN, L].
+    // direction='up'  → L is at top of span; planning walks DOWN from L.
+    // direction='down'→ L is at bottom of span; planning walks UP from L.
+    // boundaryMode: 'kaats' reverses planning direction; 'spring' shifts span by one octave.
+    // maxLeap (outer scope) caps the span; null = full pool range.
+    const buildArpLine = (lineLength, L, direction, boundaryMode, pool) => {
+        const sorted = pool
+            .map(n => ({ note: n, val: getNoteValue(n) }))
+            .filter(x => x.val >= 0)
+            .sort((a, b) => a.val - b.val);
+        if (sorted.length === 0) return Array(lineLength).fill(L);
+
+        const n = lineLength - 1;
+        if (n === 0) return [L];
+
+        const lVal = getNoteValue(L);
+        const effectiveSpan = maxLeap ?? (sorted[sorted.length - 1].val - sorted[0].val + 1);
+        let spanLow  = direction === 'up' ? lVal - effectiveSpan : lVal;
+        let spanHigh = direction === 'up' ? lVal : lVal + effectiveSpan;
+        let planStep = direction === 'up' ? -1 : 1;
+        let currentVal = lVal;
+
+        const inSpan   = (lo, hi) => sorted.filter(x => x.val >= lo && x.val <= hi);
+        const stepFrom = (val, step, lo, hi) => {
+            const notes = inSpan(lo, hi);
+            if (step === -1) { const c = notes.filter(x => x.val < val); return c.length > 0 ? c[c.length - 1] : null; }
+            const c = notes.filter(x => x.val > val);
+            return c.length > 0 ? c[0] : null;
+        };
+
+        const approaches = [];
+        for (let k = 0; k < n; k++) {
+            let next = stepFrom(currentVal, planStep, spanLow, spanHigh);
+            if (!next) {
+                if (boundaryMode === 'kaats') {
+                    planStep = -planStep;
+                    next = stepFrom(currentVal, planStep, spanLow, spanHigh);
+                } else {
+                    const shift = planStep === -1 ? -effectiveSpan : effectiveSpan;
+                    spanLow += shift; spanHigh += shift;
+                    const newNotes = inSpan(spanLow, spanHigh);
+                    if (newNotes.length > 0)
+                        next = planStep === -1 ? newNotes[newNotes.length - 1] : newNotes[0];
+                }
+            }
+            if (!next) {
+                const allCands = planStep === -1
+                    ? sorted.filter(x => x.val < currentVal)
+                    : sorted.filter(x => x.val > currentVal);
+                next = allCands.length > 0
+                    ? (planStep === -1 ? allCands[allCands.length - 1] : allCands[0])
+                    : sorted[Math.floor(Math.random() * sorted.length)];
+            }
+            approaches.push(next.note);
+            currentVal = next.val;
+        }
+        approaches.reverse();
+        approaches.push(L);
+        return approaches;
+    };
+
     if (rule === 'arp_var' || rule === 'arp_group') {
         const arpSource = (typeof randomizationNotes === 'string')
             ? (randomizationNotes || 'scale').toLowerCase()
@@ -280,85 +342,6 @@ const convertRankedArrayToMelody = (
                 if (candidates.length > 0) return pickRandom(candidates);
             }
             return pickRandom(pool);
-        };
-
-        // Build approach notes for one arp line via backwards planning.
-        // Returns the line in TIME ORDER: [approach1, ..., approachN, L].
-        // direction='up'  → L is at top of span; planning walks DOWN from L.
-        // direction='down'→ L is at bottom of span; planning walks UP from L.
-        // boundaryMode: 'kaats' reverses planning direction; 'spring' shifts the span by one octave.
-        // spanSize: null means use the full pool range (no boundary triggers).
-        const buildArpLine = (lineLength, L, direction, boundaryMode, pool) => {
-            const sorted = pool
-                .map(n => ({ note: n, val: getNoteValue(n) }))
-                .filter(x => x.val >= 0)
-                .sort((a, b) => a.val - b.val);
-            if (sorted.length === 0) return Array(lineLength).fill(L);
-
-            const n = lineLength - 1; // number of approach notes
-            if (n === 0) return [L];
-
-            const lVal = getNoteValue(L);
-            // For direction='up': L is span top; approach from below.
-            // For direction='down': L is span bottom; approach from above.
-            // null arpSpan = full pool range (no boundary ever triggers).
-            const effectiveSpan = maxLeap ?? (sorted[sorted.length - 1].val - sorted[0].val + 1);
-            let spanLow = direction === 'up' ? lVal - effectiveSpan : lVal;
-            let spanHigh = direction === 'up' ? lVal : lVal + effectiveSpan;
-            // Backwards planning step: -1 = walking down, +1 = walking up.
-            let planStep = direction === 'up' ? -1 : 1;
-            let currentVal = lVal;
-
-            const inSpan = (lo, hi) => sorted.filter(x => x.val >= lo && x.val <= hi);
-            const stepFrom = (val, step, lo, hi) => {
-                const notes = inSpan(lo, hi);
-                if (step === -1) {
-                    const c = notes.filter(x => x.val < val);
-                    return c.length > 0 ? c[c.length - 1] : null;
-                }
-                const c = notes.filter(x => x.val > val);
-                return c.length > 0 ? c[0] : null;
-            };
-
-            const approaches = [];
-            for (let k = 0; k < n; k++) {
-                let next = stepFrom(currentVal, planStep, spanLow, spanHigh);
-
-                if (!next) {
-                    if (boundaryMode === 'kaats') {
-                        // Bounce: reverse planning direction within the same span.
-                        planStep = -planStep;
-                        next = stepFrom(currentVal, planStep, spanLow, spanHigh);
-                    } else {
-                        // Spring: shift the span one span-width in the planning direction, then continue.
-                        const shift = planStep === -1 ? -effectiveSpan : effectiveSpan;
-                        spanLow += shift;
-                        spanHigh += shift;
-                        const newNotes = inSpan(spanLow, spanHigh);
-                        if (newNotes.length > 0) {
-                            // Start from the edge of the new span closest to where we came from.
-                            next = planStep === -1 ? newNotes[newNotes.length - 1] : newNotes[0];
-                        }
-                    }
-                }
-
-                // Final fallback: pick the closest available pool note in planning direction.
-                if (!next) {
-                    const allCands = planStep === -1
-                        ? sorted.filter(x => x.val < currentVal)
-                        : sorted.filter(x => x.val > currentVal);
-                    next = allCands.length > 0
-                        ? (planStep === -1 ? allCands[allCands.length - 1] : allCands[0])
-                        : sorted[Math.floor(Math.random() * sorted.length)];
-                }
-
-                approaches.push(next.note);
-                currentVal = next.val;
-            }
-
-            approaches.reverse(); // convert from backwards-plan order to time order
-            approaches.push(L);
-            return approaches;
         };
 
         // Assign pitches to a list of slot indices using one arp line.
@@ -437,6 +420,157 @@ const convertRankedArrayToMelody = (
         }
 
         return { melody: arpMelody, volumes: arpVolumes };
+    }
+
+    // =========================================================================
+    // 2.6 WALKING BASS — structured bass line with root pin + approach note
+    // =========================================================================
+    // Each chord event defines a segment. Within each segment:
+    //   • First active slot  → pinned to the root of the current chord.
+    //   • Last active slot   → approach note toward the root of the next chord.
+    //     Approach character is determined by randomizationNotes (note pool):
+    //       'chord'    → nearest chord tone to next root   (power/close approach)
+    //       'scale'    → nearest diatonic step to next root (leidtoon approach)
+    //       'chromatic'→ exactly ±1 semitone from next root (classic jazz approach)
+    //   • Middle slots       → filled via backwards planning (reuses buildArpLine)
+    //     moving between the pinned root and the approach note.
+    //
+    // rhythmVariability drives which slots are active (via ranked array),
+    // so variability=0 → quarter notes only; higher → subdivisions/passing notes.
+    // maxLeap applies to the middle-fill span (via buildArpLine).
+
+    if (rule === 'walking_bass') {
+        const wbSource = (typeof randomizationNotes === 'string')
+            ? (randomizationNotes || 'chord').toLowerCase()
+            : 'chord';
+
+        const wbMelody  = new Array(generatedMelody.length).fill(null);
+        const wbVolumes = new Array(generatedMelody.length).fill(null);
+
+        // Pick candidate closest in pitch to reference note (voice leading).
+        const closestNote = (candidates, reference) => {
+            if (!candidates.length) return null;
+            if (!reference) return candidates[Math.floor(Math.random() * candidates.length)];
+            const refVal = getNoteValue(reference);
+            return [...candidates].sort((a, b) =>
+                Math.abs(getNoteValue(a) - refVal) - Math.abs(getNoteValue(b) - refVal)
+            )[0];
+        };
+
+        // Approach note toward nextRoot, character set by wbSource:
+        //   chromatic → search fullAvailablePool for note exactly ±1 semitone, prefer below.
+        //   chord/scale → closest pool note that is NOT nextRoot itself.
+        const findApproachNote = (nextRoot, pool, prevNote) => {
+            const nextVal = getNoteValue(nextRoot);
+            if (wbSource === 'chromatic') {
+                const below = fullAvailablePool.filter(n => getNoteValue(n) === nextVal - 1);
+                const above = fullAvailablePool.filter(n => getNoteValue(n) === nextVal + 1);
+                const cands = below.length > 0 ? below : above; // prefer from below
+                return closestNote(cands, prevNote ?? nextRoot) ?? pickRandom(pool) ?? nextRoot;
+            }
+            // chord or scale: nearest pool note excluding nextRoot pitch class
+            const sorted = [...pool]
+                .map(n => ({ note: n, val: getNoteValue(n) }))
+                .filter(x => x.val >= 0 && x.val !== nextVal)
+                .sort((a, b) => Math.abs(a.val - nextVal) - Math.abs(b.val - nextVal));
+            return sorted[0]?.note ?? pickRandom(pool) ?? nextRoot;
+        };
+
+        // Build chord segments — one per chord event (respects passing chords).
+        // Falls back to one segment per measure when no offset data is available.
+        const segments = (() => {
+            if (chordOffsetEvents && chordOffsetEvents.length > 0 && ticksPerSlot > 0) {
+                return chordOffsetEvents.map((ev, i) => {
+                    const next = chordOffsetEvents[i + 1];
+                    return {
+                        chord:     ev.chord,
+                        nextChord: chordOffsetEvents[(i + 1) % chordOffsetEvents.length].chord,
+                        slotStart: Math.round(ev.offset / ticksPerSlot),
+                        slotEnd:   next ? Math.round(next.offset / ticksPerSlot) : rankedArray.length,
+                    };
+                });
+            }
+            // Fallback: one segment per measure
+            const pLen = Math.max(1, progressionArray?.length ?? 0);
+            return Array.from({ length: numMeasures }, (_, m) => ({
+                chord:     progressionArray?.[m] ?? null,
+                nextChord: progressionArray?.[(m + 1) % pLen] ?? progressionArray?.[0] ?? null,
+                slotStart: m * numberOfSlotsPerMeasure,
+                slotEnd:   (m + 1) * numberOfSlotsPerMeasure,
+            }));
+        })();
+
+        // Tonic fallback when no chord progression is active.
+        const tonicRoot  = scale.length > 0 ? scale[0] : null;
+        const tonicFallback = tonicRoot ? { root: tonicRoot, notes: [tonicRoot] } : null;
+
+        let prevLastNote = null; // tracks last placed note for cross-segment voice leading
+
+        for (const { chord, nextChord, slotStart, slotEnd } of segments) {
+            const eff     = chord     ?? tonicFallback;
+            const effNext = nextChord ?? tonicFallback ?? eff;
+            if (!eff) continue;
+
+            // Collect active slots in this segment
+            const activeSlots = [];
+            for (let s = Math.max(0, slotStart); s < Math.min(slotEnd, rankedArray.length); s++) {
+                if (allSlots[s]?.priority !== null) activeSlots.push(s);
+            }
+            if (activeSlots.length === 0) continue;
+
+            const pool = getPool(wbSource, eff);
+            if (pool.length === 0) continue;
+
+            // ── PIN: first active slot = root of current chord ────────────────
+            const roots = getRootNotesInRange(eff);
+            const firstNote = closestNote(roots.length > 0 ? roots : pool, prevLastNote)
+                ?? pickRandom(pool);
+            if (!firstNote) continue;
+
+            wbMelody[activeSlots[0]]  = firstNote;
+            wbVolumes[activeSlots[0]] = 0.9; // downbeat always accented
+
+            if (activeSlots.length === 1) { prevLastNote = firstNote; continue; }
+
+            // ── APPROACH: last active slot → next chord root ───────────────────
+            const nextRoots = getRootNotesInRange(effNext);
+            const nextRoot  = closestNote(nextRoots.length > 0 ? nextRoots : pool, firstNote)
+                ?? firstNote;
+            const lastNote  = findApproachNote(nextRoot, pool, firstNote);
+
+            wbMelody[activeSlots.at(-1)]  = lastNote;
+            wbVolumes[activeSlots.at(-1)] = 0.75; // approach note slightly softer
+
+            // ── FILL: middle slots via backwards planning (reuses buildArpLine) ─
+            // buildArpLine plans from L backwards; the approach notes land in time
+            // order before lastNote. We drop position 0 (firstNote is already pinned).
+            if (activeSlots.length > 2) {
+                const midSlots  = activeSlots.slice(1, -1);
+                const direction = getNoteValue(lastNote) >= getNoteValue(firstNote) ? 'up' : 'down';
+                // lineLength includes lastNote itself; result = [...midNotes, lastNote]
+                const pitches   = buildArpLine(midSlots.length + 1, lastNote, direction, 'kaats', pool);
+                // pitches[0..n-2] = mid notes, pitches[n-1] = lastNote (already placed)
+                midSlots.forEach((slotIdx, k) => {
+                    wbMelody[slotIdx]  = pitches[k] ?? lastNote;
+                    wbVolumes[slotIdx] = 0.7;
+                });
+            }
+
+            prevLastNote = lastNote;
+        }
+
+        // Safety: silence fallback
+        if (!wbMelody.some(n => n !== null && n !== 'r') && scale.length > 0) {
+            const firstActive = allSlots.findIndex(s => s.priority !== null);
+            if (firstActive >= 0) { wbMelody[firstActive] = scale[0]; wbVolumes[firstActive] = 0.9; }
+        }
+
+        logger.debug('convertRanked', 'walking_bass done', {
+            placed: wbMelody.filter(n => n !== null).length,
+            source: wbSource, segments: segments.length,
+        });
+
+        return { melody: wbMelody, volumes: wbVolumes };
     }
 
     // =========================================================================
