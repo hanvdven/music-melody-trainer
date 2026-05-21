@@ -173,6 +173,53 @@ export function getTupletSyllable(posInGroup, noteCount) {
     return table[posInGroup] ?? null;
 }
 
+// ── Beat-group-aware Takadimi (asymmetric meters) ─────────────────────────
+
+/**
+ * Takadimi syllable for asymmetric (and symmetric) meters using the melody's rhythmicGrouping.
+ *
+ * Each entry in rhythmicGrouping is the number of denominator-units in that beat group.
+ * Group size 2 = simple beat (÷2: ta di; ÷4: ta ka di mi).
+ * Group size 3 = compound beat (÷3: ta ki da; ÷6: ta va ki di da ma).
+ *
+ * This matches Hoffman, Pelto & White (1996): "Asymmetric meters combine simple and compound
+ * divisions. Keeping the divisions equal will produce beats of varied lengths."
+ *
+ * @param {number}   measureOffset    - offset within the measure (ticks from measure start)
+ * @param {number[]} rhythmicGrouping - e.g. [2,3] for 5/8 or [3,2,2] for 7/8
+ * @param {number}   unitTicks        - ticks per denominator unit (TICKS_PER_WHOLE / denominator)
+ */
+export function getTakadimiSyllableGrouped(measureOffset, rhythmicGrouping, unitTicks) {
+    let cursor = 0;
+    for (const groupSize of rhythmicGrouping) {
+        const groupTicks = groupSize * unitTicks;
+        if (measureOffset < cursor + groupTicks) {
+            const pos = measureOffset - cursor;
+            if (pos === 0) return 'ta';
+
+            if (groupSize === 3) {
+                // Compound beat: division at 1/3 and 2/3
+                if (pos === unitTicks)          return 'ki';
+                if (pos === 2 * unitTicks)      return 'da';
+                // Subdivision at 1/6, 3/6, 5/6
+                if (pos * 6 === groupTicks)     return 'va';
+                if (pos * 2 === groupTicks)     return 'di'; // 3/6 = midpoint
+                if (pos * 6 === groupTicks * 5) return 'ma';
+            } else if (groupSize === 2) {
+                // Simple beat: division at 1/2
+                if (pos === unitTicks)          return 'di';
+                // Subdivision at 1/4 and 3/4
+                if (pos * 4 === groupTicks)     return 'ka';
+                if (pos * 4 === groupTicks * 3) return 'mi';
+            }
+            // Groups of 1, or subdivisions beyond 16th level — no label
+            return '·';
+        }
+        cursor += groupTicks;
+    }
+    return '·';
+}
+
 // ── Rest detection ─────────────────────────────────────────────────────────
 
 /** True for rests: null, undefined, 'r', or empty array. Arrays and non-empty strings are notes. */
