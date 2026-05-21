@@ -192,6 +192,23 @@ const KODALY_SOLFEGE = [
     'Do', 'Di', 'Re', 'Me', 'Mi', 'Fa', 'Fi', 'Sol', 'Le', 'La', 'Te', 'Ti',
 ];
 
+/**
+ * Chromatic Roman numerals for all 12 semitones above the tonic.
+ * Uses ♭/♯ prefix (Unicode) relative to the major scale degrees.
+ * Semitone 6 = ♯IV (Lydian augmented 4th convention in modern theory).
+ */
+export const CHROMATIC_ROMAN_DEGREES = [
+    'I', '♭II', 'II', '♭III', 'III', 'IV', '♯IV',
+    'V', '♭VI', 'VI', '♭VII', 'VII',
+];
+
+/**
+ * Returns the Roman numeral with Unicode ♭/♯ prefix for a given semitone
+ * distance from the tonic (0 = tonic → 'I', 10 = minor 7th → '♭VII', etc.).
+ */
+export const getChromaticRomanDegree = (semitone) =>
+    CHROMATIC_ROMAN_DEGREES[((semitone % 12) + 12) % 12] ?? '?';
+
 export const getTraditionalSolfege = (note, tonic) => {
     const interval = ((getNoteSemitone(note) - getNoteSemitone(tonic)) + 12) % 12;
     return TRADITIONAL_SOLFEGE[interval] || { base: '?', acc: '' };

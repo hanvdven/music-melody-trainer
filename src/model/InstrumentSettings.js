@@ -5,9 +5,8 @@ class InstrumentSettings {
    * @param {number} notesPerMeasure - Target notes per measure
    * @param {number} smallestNoteDenom - Smallest note denomination (e.g. 4, 8, 16)
    * @param {number} rhythmVariability - 0–100 variability in rhythm generation
-   * @param {boolean} enableTriplets - Whether triplets are allowed
    * @param {string} notePool - Which notes to draw from: 'scale' | 'chord' | 'all' | 'metronome'
-   * @param {string} randomizationRule - How to select notes: 'uniform' | 'emphasize_roots' | 'weighted' | 'arp' | 'fixed'
+   * @param {string} randomizationRule - How to select notes: 'uniform' | 'emphasize_roots' | 'weighted' | 'arp' | 'arp_var' | 'arp_group' | 'fixed'. For arp_var/arp_group, maxLeap also controls the span window.
    * @param {string} strategy - Chord/progression strategy (for chord track): 'pop-1-5-6-4' | 'modal-random' | etc.
    * @param {string} transpositionKey - Instrument transposition key: 'C' (concert, default), 'Bb', 'F', 'Eb', etc.
    *   Affects display only — audio always plays concert pitch. See src/constants/transposingInstruments.js.
@@ -18,7 +17,6 @@ class InstrumentSettings {
     notesPerMeasure,
     smallestNoteDenom,
     rhythmVariability,
-    enableTriplets,
     notePool,
     randomizationRule = 'uniform',
     strategy = null,
@@ -34,7 +32,6 @@ class InstrumentSettings {
     this.notesPerMeasure = notesPerMeasure;
     this.smallestNoteDenom = smallestNoteDenom;
     this.rhythmVariability = rhythmVariability;
-    this.enableTriplets = enableTriplets;
     this.notePool = notePool;
     this.randomizationRule = randomizationRule;
     this.strategy = strategy;
@@ -59,7 +56,6 @@ class InstrumentSettings {
       2,                      // notesPerMeasure
       8,                      // smallestNoteDenom
       30,                     // rhythmVariability
-      false,                  // enableTriplets
       'scale',                // notePool
       'uniform',              // randomizationRule
       null,                   // strategy
@@ -79,7 +75,6 @@ class InstrumentSettings {
       2,                      // notesPerMeasure
       2,                      // smallestNoteDenom — half-note resolution; generateRhythmicDNA clamps internally via Math.max(smallestNoteDenom, denominator)
       0,                      // rhythmVariability
-      false,                  // enableTriplets
       'chord',                // notePool
       'emphasize_roots',      // randomizationRule
       null,                   // strategy
@@ -99,7 +94,6 @@ class InstrumentSettings {
       4,                      // notesPerMeasure
       8,                      // smallestNoteDenom — 8th-note grid gives single-beam grouping in standard drum notation; 16th-note grid was producing double beams for all patterns
       50,                     // rhythmVariability
-      false,                  // enableTriplets
       'all',                  // notePool
       'uniform',              // randomizationRule
       null,                   // strategy
@@ -115,7 +109,6 @@ class InstrumentSettings {
       0,                      // notesPerMeasure (Calculated)
       0,                      // smallestNoteDenom (Calculated)
       0,                      // rhythmVariability
-      false,                  // enableTriplets
       'metronome',            // notePool
       'uniform',              // randomizationRule
       null,                   // strategy
@@ -131,7 +124,6 @@ class InstrumentSettings {
       2,                      // notesPerMeasure (half notes)
       1,                      // smallestNoteDenom
       0,                      // rhythmVariability
-      false,                  // enableTriplets
       'chord',                // notePool
       'uniform',              // randomizationRule
       'classical-1-4-5-1',    // strategy
@@ -139,8 +131,10 @@ class InstrumentSettings {
       null                    // range
     );
     settings.chordCount = 2;
-    // 'none' | 'secondary-dominant' | 'all'
-    settings.passingChords = 'none';
+    // Array of enabled passing chord type keys. Empty array = no passing chords.
+    // Possible values: 'secondary-dominant', 'secondary-dim', 'tritone-sub',
+    //   'diatonic', 'sus4', 'subdominant-approach', 'borrowed-parallel'.
+    settings.passingChordTypes = [];
     return settings;
   }
   static defaultFullChordSettings(clef = 'treble') {
@@ -153,7 +147,6 @@ class InstrumentSettings {
       1,                  // notesPerMeasure (ignored in fullchord branch)
       1,                  // smallestNoteDenom (ignored)
       0,                  // rhythmVariability
-      false,              // enableTriplets
       'chord',            // notePool (ignored)
       'uniform',          // randomizationRule (ignored)
       null,               // strategy
