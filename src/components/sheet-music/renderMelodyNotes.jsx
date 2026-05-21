@@ -778,6 +778,31 @@ const renderMelodyNotes = (
     beamData.set(groupIndex, { firstX, lastX, firstYend, lastYend, slope, nonRests });
   });
 
+  // Pre-compute forced stem direction for unbeamed tuplet groups (quarter/half notes, visualDuration ≥ 12).
+  // Average Y position across all notes in the group determines direction — standard engraving practice.
+  // Beamed tuplets (eighth-note triplets) are excluded; beaming already enforces a unified direction.
+  const forcedTupletStemDir = (() => {
+    if (!melodyTriplets) return new Map();
+    const groupYSums = new Map();
+    displayNotes.forEach((noteEntry, i) => {
+      const ti = melodyTriplets[i];
+      if (!ti || ti.visualDuration < 12) return;
+      if (Array.isArray(noteEntry) || !noteEntry || noteEntry === 'c') return;
+      const nat = stripAccidentals(noteEntry);
+      const baseY = noteYMap[nat];
+      if (baseY === undefined) return;
+      const y = baseY + combinedShift;
+      if (!groupYSums.has(ti.id)) groupYSums.set(ti.id, { sum: 0, count: 0 });
+      const g = groupYSums.get(ti.id);
+      g.sum += y; g.count += 1;
+    });
+    const result = new Map();
+    groupYSums.forEach(({ sum, count }, id) => {
+      result.set(id, (sum / count) > staffYStart + 20);
+    });
+    return result;
+  })();
+
   // Accumulate tuplet bracket data during note rendering.
   // Map from group id → { noteCount, denominator, visualDuration, points: [{x, stemTipY, stemIsAbove, isBeamed}] }
   const tupletGroupData = new Map();
@@ -1175,6 +1200,11 @@ const renderMelodyNotes = (
       }
       // Voice split: RH/LH classification is the final authority — overrides both position and beamGroup.
       if (staff === 'percussion' && percussionVoiceSplit) stemIsAbove = percussionStemUp(note);
+
+      // Unbeamed tuplets (quarter/half): force uniform stem direction based on group average Y.
+      if (tripletInfo && tripletInfo.visualDuration >= 12 && forcedTupletStemDir.has(tripletInfo.id)) {
+        stemIsAbove = forcedTupletStemDir.get(tripletInfo.id);
+      }
 
       const lineX = stemIsAbove ? positionX + 11 : positionX + 0.5;
       const lineYstart = stemIsAbove ? positionY - 1 : positionY + 1;
@@ -1624,7 +1654,8 @@ const renderMelodyNotes = (
 
     const first = points[0];
     const last  = points[points.length - 1];
-    const stemIsAbove = first.stemIsAbove;
+    // Derive bracket direction from majority consensus — after stem forcing, all points should agree.
+    const stemIsAbove = points.filter(p => p.stemIsAbove).length >= points.length / 2;
     const isBeamed    = first.isBeamed && vd < 12; // beamed when short visual duration
 
     const x1   = first.x + 5;  // near notehead centre
@@ -1640,10 +1671,10 @@ const renderMelodyNotes = (
     }
 
     const color    = previewColor ?? 'var(--text-primary)';
-    // Dimmed ratio suffix: heavily lowlighted (18% opacity).
+    // Dimmed ratio suffix: 45% opacity — legible on dark backgrounds without overpowering the numeral.
     const dimColor = previewColor
-      ? `color-mix(in srgb, ${previewColor}, transparent 82%)`
-      : 'color-mix(in srgb, var(--text-primary), transparent 82%)';
+      ? `color-mix(in srgb, ${previewColor}, transparent 55%)`
+      : 'color-mix(in srgb, var(--text-primary), transparent 55%)';
 
     const hookLen  = 5;
     // Bracket gap: half of the space reserved around the number label.
