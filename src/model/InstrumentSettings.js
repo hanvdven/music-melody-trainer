@@ -131,8 +131,10 @@ class InstrumentSettings {
       null                    // range
     );
     settings.chordCount = 2;
-    // 'none' | 'secondary-dominant' | 'all'
-    settings.passingChords = 'none';
+    // Array of enabled passing chord type keys. Empty array = no passing chords.
+    // Possible values: 'secondary-dominant', 'secondary-dim', 'tritone-sub',
+    //   'diatonic', 'sus4', 'subdominant-approach', 'borrowed-parallel'.
+    settings.passingChordTypes = [];
     return settings;
   }
   static defaultFullChordSettings(clef = 'treble') {
