@@ -83,3 +83,30 @@
 .ir-prog-sup {
   font-size: 0.7em;
 }
+
+/* ── Passing chord type chip toggles ── */
+.ir-passing-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  width: 84px;
+}
+
+.ir-passing-chip {
+  font-size: 8.5px;
+  font-family: sans-serif;
+  padding: 2px 4px;
+  background: var(--surface-3, #333);
+  border: 1px solid var(--border, #555);
+  border-radius: 3px;
+  color: var(--text-primary, #eee);
+  cursor: pointer;
+  line-height: 1.2;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.ir-passing-chip--on {
+  background: var(--accent-yellow, #e8c340);
+  border-color: var(--accent-yellow, #e8c340);
+  color: #1a1a1a;
+}

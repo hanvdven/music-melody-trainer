@@ -372,32 +372,39 @@ const InstrumentRow = ({
                 ) : null}
             </div>
 
-            {/* Col 6: Smallest Note / Passing Chords toggle */}
+            {/* Col 6: Smallest Note / Passing Chord type toggles */}
             <div className="ir-col-center">
                 {isChords ? (
-                    // Passing chords mode selector.
-                    // 'none'                → no passing chords
-                    // 'secondary-dominant'  → only secondary-dominant approach (V7/x)
-                    // 'all'                 → all types incl. sequential chains
-                    <div className="ir-stepper-80">
-                        <GenericStepper
-                            value={settings?.passingChords ?? 'none'}
-                            label={(() => {
-                                const v = settings?.passingChords ?? 'none';
-                                if (v === 'secondary-dominant') return '2nd dom';
-                                if (v === 'all') return 'all types';
-                                return 'none';
-                            })()}
-                            fontSize="11px"
-                            fontFamily="sans-serif"
-                            allowedValues={['none', 'secondary-dominant', 'all']}
-                            options={[
-                                { label: 'none',     value: 'none' },
-                                { label: '2nd dom',  value: 'secondary-dominant' },
-                                { label: 'all types', value: 'all' },
-                            ]}
-                            onChange={(val) => setSettings(p => ({ ...p, passingChords: val }))}
-                        />
+                    // Per-type passing chord toggles. Each chip independently enables/disables
+                    // one passing chord type; empty selection = no passing chords.
+                    <div className="ir-passing-types">
+                        {[
+                            { key: 'secondary-dominant',   label: 'V⁷',   title: 'Secondary dominant (V7/x)' },
+                            { key: 'secondary-dim',        label: 'vii°',  title: 'Secondary diminished (vii°7/x)' },
+                            { key: 'tritone-sub',          label: '♭II⁷',  title: 'Tritone substitution (♭II7/x)' },
+                            { key: 'diatonic',             label: 'dia',   title: 'Diatonic step approach' },
+                            { key: 'sus4',                 label: 'sus',   title: 'Suspended 4th (sus4)' },
+                            { key: 'subdominant-approach', label: 'IV',    title: 'Subdominant approach (IV/x)' },
+                            { key: 'borrowed-parallel',    label: '♭bor',  title: 'Borrowed parallel chord' },
+                        ].map(({ key, label, title }) => {
+                            const active = (settings?.passingChordTypes ?? []).includes(key);
+                            return (
+                                <button
+                                    key={key}
+                                    className={`ir-passing-chip${active ? ' ir-passing-chip--on' : ''}`}
+                                    title={title}
+                                    onClick={() => {
+                                        const prev = settings?.passingChordTypes ?? [];
+                                        const next = active
+                                            ? prev.filter(t => t !== key)
+                                            : [...prev, key];
+                                        setSettings(p => ({ ...p, passingChordTypes: next }));
+                                    }}
+                                >
+                                    {label}
+                                </button>
+                            );
+                        })}
                     </div>
                 ) : !isChords && !isMetronome ? (() => {
                     const current = settings?.smallestNoteDenom || 4;

@@ -92,14 +92,14 @@ const useMelodyState = (
 
     try {
       const chordCount = chordSettings?.chordCount || 1;
-      const passingMode = chordSettings?.passingChords ?? 'none';
+      const enabledPassingTypes = chordSettings?.passingChordTypes ?? [];
       // When passing chords are enabled, exactly 1 structural chord per measure is
       // generated (placed near beat 1). insertPassingChords fills the remaining
       // chordCount-1 slots. Must match the `structuralCount = 1` rule used in the
       // randomizeAll branch below (line ~158) and in Sequencer.js — otherwise the
       // abstract progression pool length and the MelodyGenerator's slot count disagree,
       // which causes half the progression to be wasted or notePool reuse to double-count.
-      const structuralCount = passingMode !== 'none' ? 1 : chordCount;
+      const structuralCount = enabledPassingTypes.length > 0 ? 1 : chordCount;
       let progressionLength = Math.ceil(numMeasures * structuralCount);
       if (['modal-random', 'inter-modal-random', 'extra-modal-random'].includes(strategy)) {
         progressionLength += 4;
@@ -181,12 +181,12 @@ const useMelodyState = (
       const notePool = abstractProgression?.chords || [];
 
       const chordCount = chordSettings?.chordCount || 1;
-      const passingMode = chordSettings?.passingChords ?? 'none';
+      const enabledPassingTypes = chordSettings?.passingChordTypes ?? [];
       // When passing chords are enabled, always use 1 structural chord per measure (placed near
       // beat 1 — the highest-ranked slot — by MelodyGenerator's rank+2×distance logic).
       // insertPassingChords then fills the remaining chordCount-1 slots with passing chords.
       // This ensures each measure always gets exactly ONE chord from the progression.
-      const structuralCount = passingMode !== 'none' ? 1 : chordCount;
+      const structuralCount = enabledPassingTypes.length > 0 ? 1 : chordCount;
 
       const chordGenSettings = {
         notesPerMeasure: structuralCount,
@@ -217,10 +217,10 @@ const useMelodyState = (
       // passingProbability internally via the same structuralCount halving formula.
       // firstChord is used for the wrap-around gap after the last structural chord.
       // rhythmVariability (0–100) modulates insertion stochasticity: 0 = deterministic.
-      if (passingMode !== 'none') {
+      if (enabledPassingTypes.length > 0) {
         const firstChord = chordMelody.displayNotes?.find(c => c !== null) ?? null;
         const passingVariability = chordSettings?.rhythmVariability ?? 100;
-        chordMelody = insertPassingChords(chordMelody, scale, activeTS, chordSettings?.complexity || 'triad', passingMode, chordCount, firstChord, passingVariability, sharedGrouping);
+        chordMelody = insertPassingChords(chordMelody, scale, activeTS, chordSettings?.complexity || 'triad', enabledPassingTypes, chordCount, firstChord, passingVariability, sharedGrouping);
       }
 
       nextProgression = chordMelody;

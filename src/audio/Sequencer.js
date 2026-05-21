@@ -891,10 +891,10 @@ class Sequencer {
       if (shouldGenerateNew && uiStrategy) {
         const complexity = this.refs.playbackConfigRef.current.chordComplexity || currentProgression.complexity || 'triad';
         const density = chordSettings?.chordCount || 1;
-        const passingMode = chordSettings?.passingChords ?? 'none';
+        const enabledPassingTypes = chordSettings?.passingChordTypes ?? [];
         // Match useMelodyState: when passing chords are on, exactly 1 structural chord per
         // measure is used. insertPassingChords fills the remaining slots.
-        const structuralDensity = passingMode !== 'none' ? 1 : density;
+        const structuralDensity = enabledPassingTypes.length > 0 ? 1 : density;
         let progressionLength = Math.ceil(numMeasures * structuralDensity);
         // Add +4 chord buffer for random strategies
         if (['modal-random', 'inter-modal-random', 'extra-modal-random'].includes(uiStrategy)) {
@@ -973,12 +973,12 @@ class Sequencer {
     // If we have a chord progression (abstract), let's make it rhythmic
     // Only if we actually have chords to play.
     if (chordProgression && (chordProgression.chords || chordProgression.displayNotes)) {
-      const seqPassingMode = chordSettings?.passingChords ?? 'none';
+      const seqEnabledPassingTypes = chordSettings?.passingChordTypes ?? [];
       const seqChordCount = chordSettings?.chordCount || 1;
       // Must match useMelodyState: exactly 1 structural chord per measure when passing is on.
       // Previously used Math.ceil(chordCount/2) which mismatched useMelodyState and (for
       // chordCount > 2) caused the notePool to be sized wrong.
-      const seqStructuralCount = seqPassingMode !== 'none' ? 1 : seqChordCount;
+      const seqStructuralCount = seqEnabledPassingTypes.length > 0 ? 1 : seqChordCount;
 
       // notePool resolution — must yield a clean (passing-free) structural progression.
       //   .chords      : abstract ChordProgression (fresh generation this tick, or transposed) — clean.
@@ -1020,10 +1020,10 @@ class Sequencer {
       // Insert passing chords — mirrors useMelodyState. Without this, subsequent sequence
       // blocks generated here in the Sequencer would lack passing chords.
       // seqChordCount is passed so insertPassingChords derives passingProbability internally.
-      if (seqPassingMode !== 'none') {
+      if (seqEnabledPassingTypes.length > 0) {
         const complexity = chordProgression.complexity || chordSettings?.complexity || 'triad';
         const firstChord = chordMelody.displayNotes?.find(c => c !== null) ?? null;
-        chordMelody = insertPassingChords(chordMelody, activeScale, timeSignature, complexity, seqPassingMode, seqChordCount, firstChord);
+        chordMelody = insertPassingChords(chordMelody, activeScale, timeSignature, complexity, seqEnabledPassingTypes, seqChordCount, firstChord);
       }
 
       // Now chordMelody IS the rhythmic progression.

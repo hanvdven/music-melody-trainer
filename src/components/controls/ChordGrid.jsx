@@ -292,7 +292,7 @@ const ChordGrid = ({
             rootDisplay = isRoman ? 'vii' : sec.diminished.rootName;
             suffix = '°';
         } else {
-            rootDisplay = isRoman ? 'bII' : sec.tritone.rootName;
+            rootDisplay = isRoman ? '♭II' : sec.tritone.rootName;
             suffix = '7';
         }
 

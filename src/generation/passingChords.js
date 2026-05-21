@@ -88,77 +88,72 @@ function weightedChoice(weightTable) {
 }
 
 /**
- * Select a passing chord type for the gap between `currentChord` and `targetChord`,
- * applying exclusion/preference rules from docs/passing-chords-theory.md §6.
+ * Select a passing chord type for the gap between `currentChord` and `targetChord`.
+ * Only types present in `enabledTypes` are considered.
  *
  * Same-root exclusion: V7/x has the same root as currentChord when the motion is
- * a rising 4th (I→IV, ii→V, iii→vi, V→I, vi→ii). In that case the secondary
- * dominant barely changes the current chord, so prefer tritone-sub or secondary-dim.
- *
+ * a rising 4th — prefer tritone-sub or secondary-dim instead.
  * Chromatic-clash exclusion: vii°7/x has the same root as currentChord when
- * currentChord.rootPC === (targetPC - 1 + 12) % 12. Prefer other types instead.
+ * currentChord.rootPC === (targetPC - 1 + 12) % 12 — prefer other types.
  *
- * @param {Chord}  currentChord - The structural chord before the gap (eventA)
- * @param {Chord}  targetChord  - The structural chord after the gap (eventB)
- * @param {string} mode         - 'secondary-dominant' | 'all'
- * @param {boolean} singleChord - true when only one passing chord will be inserted
+ * @param {Chord}    currentChord  - Structural chord before the gap
+ * @param {Chord}    targetChord   - Structural chord after the gap
+ * @param {string[]} enabledTypes  - Allowed passing chord type keys
+ * @param {boolean}  singleChord   - true when only one passing chord will be inserted
  * @returns {string} A type key for generatePassingChord
  */
-function selectPassingChordType(currentChord, targetChord, mode, singleChord = true) {
-    if (mode === 'secondary-dominant') return 'secondary-dominant';
+function selectPassingChordType(currentChord, targetChord, enabledTypes, singleChord = true) {
+    // Default weights for all known types (§6.1)
+    const BASE_WEIGHTS = {
+        'secondary-dominant':   30,
+        'secondary-dim':        20,
+        'tritone-sub':          25,
+        'diatonic':             20,
+        'sus4':                  5,
+        'subdominant-approach': 15,
+        'borrowed-parallel':    10,
+    };
 
     const currentPC = getNoteSemitone(currentChord.root);
     const targetPC  = getNoteSemitone(targetChord.root);
 
-    // Same-root check: secondary dominant root = (targetPC + 7) % 12.
-    // Same-root when that equals currentPC (motion by rising 4th).
-    const secDomRootPC = (targetPC + 7) % 12;
-    const sameRootAsSecDom = (currentPC === secDomRootPC);
+    // Same-root check: sec-dom root = (targetPC + 7) % 12.
+    const sameRootAsSecDom = (currentPC === (targetPC + 7) % 12);
+    // Dim-clash check: sec-dim root = (targetPC - 1 + 12) % 12.
+    const sameRootAsSecDim = (currentPC === (targetPC - 1 + 12) % 12);
 
-    // Dim-clash check: secondary dim root = (targetPC - 1 + 12) % 12.
-    // Clash when that equals currentPC.
-    const secDimRootPC = (targetPC - 1 + 12) % 12;
-    const sameRootAsSecDim = (currentPC === secDimRootPC);
-
-    // Default weights (§6.1)
-    let weights = [
-        ['secondary-dominant', 30],
-        ['secondary-dim',      20],
-        ['tritone-sub',        25],
-        ['diatonic',           20],
-        ['sus4',                5],
-    ];
+    let weights = { ...BASE_WEIGHTS };
 
     if (sameRootAsSecDom) {
-        // §6.2: same-root — demote secondary-dominant, promote tritone-sub and dim
-        weights = [
-            ['secondary-dominant',  5],
-            ['secondary-dim',      35],
-            ['tritone-sub',        40],
-            ['diatonic',           15],
-            ['sus4',                5],
-        ];
+        // §6.2: demote secondary-dominant, promote tritone-sub and dim
+        weights['secondary-dominant']   =  5;
+        weights['secondary-dim']        = 35;
+        weights['tritone-sub']          = 40;
+        weights['diatonic']             = 15;
+        weights['sus4']                 =  5;
     } else if (sameRootAsSecDim) {
-        // §6.3: dim-clash — demote secondary-dim, promote tritone-sub
-        weights = [
-            ['secondary-dominant', 35],
-            ['secondary-dim',       5],
-            ['tritone-sub',        40],
-            ['diatonic',           15],
-            ['sus4',                5],
-        ];
+        // §6.3: demote secondary-dim, promote tritone-sub
+        weights['secondary-dominant']   = 35;
+        weights['secondary-dim']        =  5;
+        weights['tritone-sub']          = 40;
+        weights['diatonic']             = 15;
+        weights['sus4']                 =  5;
     } else if (singleChord) {
-        // §6.5: single-chord — slightly elevate sus4 (hover-then-resolve effect most audible in isolation)
-        weights = [
-            ['secondary-dominant', 28],
-            ['secondary-dim',      18],
-            ['tritone-sub',        23],
-            ['diatonic',           22],
-            ['sus4',                9],
-        ];
+        // §6.5: single-chord — elevate sus4 slightly
+        weights['sus4'] = 9;
+        weights['secondary-dominant'] = 28;
+        weights['secondary-dim']      = 18;
+        weights['tritone-sub']        = 23;
+        weights['diatonic']           = 22;
     }
 
-    return weightedChoice(weights);
+    // Filter to only enabled types and build weighted table
+    const table = enabledTypes
+        .map(t => [t, weights[t] ?? 10])
+        .filter(([, w]) => w > 0);
+
+    if (table.length === 0) return enabledTypes[0] ?? 'diatonic';
+    return weightedChoice(table);
 }
 
 // ─── CHAIN BUILDERS ──────────────────────────────────────────────────────────
@@ -296,7 +291,9 @@ function snapToGrid(rawPos, gridUnit, gapStart, gapEnd) {
  * @param {object}     scale              - Scale instance
  * @param {number[]}   timeSignature      - [numerator, denominator]
  * @param {string}     complexity         - Chord complexity key, e.g. 'triad'
- * @param {string}     mode               - 'secondary-dominant' | 'all'
+ * @param {string[]}   enabledTypes       - Which passing chord type keys are active,
+ *                                         e.g. ['secondary-dominant', 'tritone-sub'].
+ *                                         Empty array → returns chordMelody unchanged.
  * @param {number}     chordCount         - Total desired chords per measure (UI value).
  *                                         Used to compute passingProbability internally.
  * @param {Chord|null} firstChord         - First structural chord; used for wrap-around gap.
@@ -306,10 +303,11 @@ function snapToGrid(rawPos, gridUnit, gapStart, gapEnd) {
  *                                         Intermediate values blend between both modes.
  * @returns {Melody} New Melody with passing chords inserted
  */
-export function insertPassingChords(chordMelody, scale, timeSignature, complexity, mode, chordCount, firstChord = null, rhythmVariability = 100, rhythmicGrouping = null) {
+export function insertPassingChords(chordMelody, scale, timeSignature, complexity, enabledTypes, chordCount, firstChord = null, rhythmVariability = 100, rhythmicGrouping = null) {
     if (!chordMelody || !chordMelody.displayNotes || chordMelody.displayNotes.length === 0) {
         return chordMelody;
     }
+    if (!enabledTypes || enabledTypes.length === 0) return chordMelody;
 
     // New balance logic: exactly 1 structural chord per measure (near beat 1),
     // and chordCount-1 passing chords per measure fill the rest.
@@ -405,15 +403,15 @@ export function insertPassingChords(chordMelody, scale, timeSignature, complexit
         let passingChords;
         if (uniquePositions.length === 1) {
             // Weighted type selection accounts for same-root and dim-clash exclusions (§6).
-            const type = selectPassingChordType(eventA.chord, targetChord, mode, true);
+            const type = selectPassingChordType(eventA.chord, targetChord, enabledTypes, true);
             const chord = generatePassingChord(scale, targetChord, type, complexity);
             passingChords = chord ? [chord] : [];
         } else {
             // Multi-chord chain: pick a style (§7).
-            // In secondary-dominant mode only diatonic and secondary-iiv are allowed
-            // (tritone-sub and chromatic alternation are suppressed).
+            // When only secondary-dominant is enabled, restrict chains to diatonic + secondary-iiv.
+            const onlySecDom = enabledTypes.length === 1 && enabledTypes[0] === 'secondary-dominant';
             let style;
-            if (mode === 'secondary-dominant') {
+            if (onlySecDom) {
                 style = Math.random() < 0.5 ? 'diatonic' : 'secondary-iiv';
             } else {
                 const r = Math.random();
