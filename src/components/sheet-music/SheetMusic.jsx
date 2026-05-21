@@ -18,7 +18,7 @@ import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
 import { getNoteSemitone, getKodalySolfege } from '../../theory/noteUtils';
 import { getNoteIndex } from '../../theory/musicUtils';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
-import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
+import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, getTakadimiSyllableGrouped, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
 
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
@@ -1631,6 +1631,10 @@ const SheetMusic = ({
     // Prefer smallestNoteDenom from the melody's generation settings over deriving from durations.
     // e.g. percussion set to 16th-note grid → beat = quarter even if no 16ths were generated.
     const beatDur = getEffectiveBeatDuration(timeSignature, melody.durations, melody.smallestNoteDenom ?? null);
+    // Group-aware Takadimi: rhythmicGrouping carries the beat-group sizes (e.g. [2,3] for 5/8).
+    // When present, each group independently determines simple (÷2) or compound (÷3) syllables.
+    const melodyGrouping = melody.rhythmicGrouping ?? null;
+    const unitTicks = TICKS_PER_WHOLE / timeSignature[1];
     const getXLocal = (index) => startX + (index - 1) * nw;
 
     // Pre-compute tuplet position for each note. melody.triplets[i] identifies the group
@@ -1667,11 +1671,16 @@ const SheetMusic = ({
       if (idx < 0) return null;
       const x = getXLocal(idx) + 5;
 
-      // Tuplet notes use position-within-group syllables; regular notes use tick-based position.
+      // Tuplet notes use position-within-group syllables (ta ka di mi ti / ta va ki di da ma ti).
+      // Regular notes: when rhythmicGrouping is available, derive syllable from the beat group
+      // the note falls in (group of 3 = compound ta-ki-da, group of 2 = simple ta-di).
+      // Falls back to the single-beatDuration path for metronome / missing grouping.
       const tupletPos = tupletPosMap.get(i);
       const syllable = tupletPos
           ? getTupletSyllable(tupletPos.posInGroup, tupletPos.noteCount)
-          : getTakadimiSyllable(tickOffset, beatDur, compound);
+          : melodyGrouping
+              ? getTakadimiSyllableGrouped(tickOffset % measureLengthSlots, melodyGrouping, unitTicks)
+              : getTakadimiSyllable(tickOffset, beatDur, compound);
       if (!syllable || syllable === '·') return null;
 
       const percNotes = Array.isArray(note) ? note : [note];
