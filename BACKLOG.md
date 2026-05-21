@@ -780,6 +780,39 @@ doorgeven aan `getEffectiveBeatDuration`, zodat de beat-level in Takadimi/Konnak
 automatisch klopt met de gegenereerde gridresolutie (i.p.v. afleiden uit melody.durations).
 Ook: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren.
 [Claude 2026-05-19]: ⬆ SHORTLIST — op verzoek van Han: "Kodaly aanpassen aan groepen". Doel: lettergrepen afgestemd op beat-groepen (bijv. 3+2 in 5/4 → juiste lettergreepsyllaben per groep).
+[Claude 2026-05-21]: Scope bijgesteld o.b.v. Hoffman, Pelto & White (1996). Kodaly (do-re-mi toonhoogte-solfège) voorlopig laten vallen. Uitsluitend Takadimi (ritmisch solfège) afmaken voor asymmetrische maatsoorten.
+
+**Scope: Takadimi beat-group awareness (asymmetrische maatsoorten)**
+
+De artikelregel die ontbreekt: "Switching from one division type to another requires a change from 'Ta-ki-da' to 'Ta-di' or vice versa" — d.w.z. elke beat-groep bepaalt of de subdivisies *simple* of *compound* zijn.
+
+Wat de app nu doet (fout voor asymmetrisch):
+- `getTakadimiSyllable` gebruikt één vaste `beatDuration` voor de hele maat.
+- In 5/8 [2+3] behandelt het alle achtsten hetzelfde → verkeerde syllaben voor de 3-groep.
+
+Wat correct is (artikel §Application 1, Fig. 10):
+- Groep van 2 eenheden = **simple beat**: ta | di  (subdivisie: ta ka di mi)
+- Groep van 3 eenheden = **compound beat**: ta | ki | da  (subdivisie: ta va ki di da ma)
+
+Voor 5/8 [2, 3], eenheid = achtste:
+- Offset 0 → **ta** (groep 1 start)
+- Offset 1 → **di** (positie 1 van 2 = simple mid-beat)
+- Offset 2 → **ta** (groep 2 start)
+- Offset 3 → **ki** (positie 1 van 3 = compound div 1)
+- Offset 4 → **da** (positie 2 van 3 = compound div 2)
+
+"di" = altijd het midden van de beat (syncs simple ÷2 en compound ÷3 — artikel Fig. 7).
+
+**Implementatieplan (nog niet uitvoeren — interview vereist):**
+1. Nieuwe functie `getTakadimiSyllableGrouped(measureOffset, rhythmicGrouping, unitTicks)` in `rhythmicSolfege.js`:
+   - Bepaal voor `measureOffset` welke groep (index, grootte, positie-binnen-groep).
+   - Groepgrootte 2 → simple syllaben; groepgrootte 3 → compound syllaben.
+   - Subdivisies (halvering van de eenheid) volgen hetzelfde patroon.
+2. In `SheetMusic.jsx` Takadimi-renderingloop: gebruik `getTakadimiSyllableGrouped` wanneer `rhythmicGrouping` aanwezig is én maatsoort asymmetrisch is (niet 4/4, 3/4, 6/8, etc.).
+3. Symmetrische maatsoorten vallen terug op de bestaande `getTakadimiSyllable` (ongewijzigd).
+
+**Betrokken bestanden:** `src/theory/rhythmicSolfege.js`, `src/components/sheet-music/SheetMusic.jsx`.
+**Scope:** Alleen rhythmische solfège. Melodische solfège (do-re-mi) is losgekoppeld en valt buiten deze taak.
 
 [Claude 2026-04-08]: Geïmplementeerd — `melody.smallestNoteDenom` wordt nu doorgegeven aan `getEffectiveBeatDuration` als derde parameter. Hierdoor klopt de beat-level in Takadimi altijd met de grid-resolutie uit de percussie-instellingen. Aanname: 4 × subdivision = beat (simple meter); compound meter gebruikt altijd de nootwaarde van de noemer.
 ✅ Nog open: onregelmatige subdivisies (triolen, kwintolet) herkennen en annoteren in Takadimi.
