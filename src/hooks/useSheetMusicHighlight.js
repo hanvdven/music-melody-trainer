@@ -303,7 +303,16 @@ const useSheetMusicHighlight = ({
                 if (lastStageT !== null) {
                     // Transition just ended — clear inline opacity so CSS class takes over.
                     // Using '' (not '1') avoids stale inline values blocking future writes.
+                    //
+                    // Both layers need clearing:
+                    //   • old: CSS class `.pagination-old-visible` restores opacity:1
+                    //   • new: CSS class `.pagination-new-hidden`  restores opacity:0 so the
+                    //          overlay snaps invisible before React (a few ms later) unmounts
+                    //          it. Without this, the overlay stays at its last rAF-set value
+                    //          (≈1.0) on top of the now-restored old layer, causing a brief
+                    //          double-bright flash at fadeEnd.
                     if (stageNowCached) stageNowCached.style.opacity = '';
+                    if (stageNextCached) stageNextCached.style.opacity = '';
                     stageNowCached = null;
                     stageNextCached = null;
                     lastStageT = null;

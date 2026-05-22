@@ -257,7 +257,7 @@ const convertRankedArrayToMelody = (
 
     logger.debug('convertRanked', `rule=${rule}`, {
         pool: typeof randomizationNotes === 'string' ? randomizationNotes : 'custom',
-        scaleSize: scale.length, activeSlots: activeSlotsSet.size,
+        scaleSize: scale?.length ?? 0, activeSlots: activeSlotsSet.size,
     });
 
     // Shared backwards-planning helper used by arp_var, arp_group, and walking_bass.
