@@ -268,12 +268,41 @@ soms klopt de plaatsing van noten niet op bladmuziek. Waarschijnlijke verkeerde 
 wordt gerenderd als [q q 3:2q| 3:2q q | q q q q | qr ]
 lijkt vooral te gebeuren met tuplets van kwartnoten.
 
+[Han 2026-05-22 EXTRA VOORBEELD]: 4/4 [h 3:2q | (leeg) e q-dot | hr ] wordt gerenderd als [h 3:2q | e q-dot hr]. De bladmuziek is waarschijnlijk juist (audio komt overeen), maar de slot-toekenning klopt niet. Vermoeden: 3:2q (kwartnoot-triplet) wordt gerekend als 2 halve noten i.p.v. 2 kwarten in de slot-berekening. Alleszins gaat hier iets mis in de berekening van de ritmische slots.
+
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 [Claude 2026-05-21 ONDERZOEK]: Uitgebreid code-inspectie uitgevoerd. Tick-rekenkunde in `melodyGenerator.js` is correct (groupTicks = slotCount × timeScale; sub-noot-durations tellen altijd op tot groupTicks). `injectTuplets` genereert nooit maatgrens-overschrijdende tuplets. De `triplets`-bypass in `processMelodyAndCalculateSlots` (regel 158-165) herkent tuplet-noten correct.
 **Twee kandidaat-oorzaken gevonden:**
 1. **`totalDuration`-bug** (`processMelodyAndCalculateSlots.js` regels 119-123): `startRestDuration` wordt per-element opgeteld in de `reduce` i.p.v. eenmalig. Bij melodieën met een leidende rust → `totalDuration` te groot → trailing-rest-padding mist → maat-wisseling aan het einde. Reproductie: eerste noot niet op offset 0.
 2. **Stapeling van meerdere tuplet-expansies** (`melodyGenerator.js` regels 507-582): twee opeenvolgende tuplets worden right-to-left verwerkt, dus indices blijven stabiel. Maar: bij `n - slotCount ≠ 0` (bijv. kwartnoottriplet in 8ste-resolutie: slotCount=4, n=3 → array krimpt met 1) verandert de lengte van `notes`/`offsets`/`triplets` na elke expansie. Als een tweede tuplet daarna `offsets.slice(idx + slotCount)` aanroept met een index die al verschoven is door de eerste expansie, kunnen de offsets van latere noten incorrect worden.
 **Aanbevolen vervolgstap**: debug-logging toevoegen van `offsets` en `durations` vóór/ná elke tuplet-expansie in de `for (const tg of activeWinners)` loop om de cumulatieve telsom na meerdere expansies te verifiëren. Interview met Han nodig voor exacte reproduceer-stappen.
+
+### Tuplets — visuele en notatie-bugs (Han 2026-05-22)
+
+Verzameld in één blok, allemaal `⚠ Neem alvorens dit te implementeren een interview af bij Han.`:
+
+- **Tuplet-cijfers overlappen met de notenbalk-lijnen** — forceer dat het cijfer (en ":m" als die wordt getoond) niet over de 5 lijnen van de balk valt. Plaatsing boven/onder afhankelijk van stem-richting.
+- **Risico: tuplet-cijfers overlappen met lyrics-rij** (ta-ka-di-mi onder percussie). Bij tuplet boven percussie + Takadimi onder treble is dit minder relevant; bij tuplet onder treble + Takadimi op zelfde positie wel.
+- **Maatnummers stijl-consistent met tuplet-cijfers** — beide gebruiken nu verschillende fonts/groottes. Han: graag in dezelfde stijl en kleur (zie volgend item).
+- **Vermijd opacity in de bladmuziek** — de transitie-animatie maakt elementen donkerder (opacity verlaagt RGB-output op een donkere achtergrond). In plaats daarvan: een CSS-variabele `--text-lowlight` per theme (dark + light mode). Maatnummers en de ":m" van tuplets moeten dezelfde lowlight-kleur krijgen.
+- **Tuplet-beugel iets breder** — nu loopt de beugel van het midden van de eerste tot het midden van de laatste tuplet-noot. Moet zijn: van de uiterste rand van de eerste tot de uiterste rand van de laatste noot.
+- **Edge case: parallel voicing in percussie + tuplets** — gedrag onduidelijk. ⚠ Interview met Han voor scope.
+- **Tuplets > numMeasures × notes-per-measure verkeerd geteld** — vermoedelijk gerelateerd aan de slot-bug hierboven; bij tuplets is de totale noten-telling soms hoger dan verwacht.
+
+### Percussie beams — schuine staan
+[Han 2026-05-22]: De beams voor achtsten/zestienden zijn vaak schuin. Voor percussie is er geen melodie die omhoog/omlaag gaat, dus hoek heeft geen functie. Beperk de maximale hoek, of fixeer hem op horizontaal. Dit kan ook tuplets, dual-voice mode etc. leesbaarder maken.
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Rusten — beter balanceren
+[Han 2026-05-22]: In gegenereerde melodieën zie ik veel herhaalde kwartrusten achter elkaar. Wil graag betere distributie / minder voorspelbaarheid. Mogelijk gerelateerd aan de variability-instelling.
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Feature: rusten binnen tuplets bij hogere variability
+[Han 2026-05-22]: Op dit moment hebben tuplets altijd alle slots gevuld met noten. Bij hogere variability wil ik dat een deel van de tuplet-slots als rust gegenereerd kan worden. Hangt samen met tuplet-rendering in parallel-voices mode.
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han. Algoritme én notatie te bespreken.
+
+### Bug: arp_group volgt variatie i.p.v. smallestNoteDenom
+[Han 2026-05-22]: arp_group voldoet niet aan spec. Het algoritme volgt nu de variatie-instelling voor het vullen van groepen naar leidtonen, maar zou de `smallestNoteDenom` moeten volgen (= de gewenste rasterresolutie). Resultaat: groepen worden te dicht of te dun gevuld afhankelijk van variability i.p.v. de bedoelde rastergrootte.
 
 ### ✅ Bug & Verbetering: Tuplet-kansen en dichtheid
 
