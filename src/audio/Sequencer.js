@@ -1415,7 +1415,7 @@ class Sequencer {
    * treble/bass/percussion/chordProgression melodies plus a startMeasureIndex marker
    * for the barline numbers.
    */
-  _buildPaginationPreview(sourceMelodies, measureLengthTicks, numMeasuresToKeep, localStartMeasure, globalStartMeasure, roundKey) {
+  _buildPaginationPreview(sourceMelodies, measureLengthTicks, numMeasuresToKeep, localStartMeasure, globalStartMeasure, roundKey, blockMeasureStart, blockPlayStart) {
     const sliceOne = (m) => m ? sliceMelodyByRange(m, measureLengthTicks, numMeasuresToKeep, localStartMeasure) : null;
     return {
       treble: sliceOne(sourceMelodies.treble),
@@ -1433,6 +1433,12 @@ class Sequencer {
       // 'lang' variant's 0.25m overshoot when React's isOddRound updates while the
       // overlay is still mounted).
       _roundKey: roundKey,
+      // Future block-label state. For series-flip the values reflect the next
+      // sequence block (so the preview shows e.g. "3" instead of "1 . 5" before
+      // applyResultToSetters fires at the audio boundary). For visual-flip and
+      // repeat-flip the values are unchanged.
+      _blockMeasureStart: blockMeasureStart ?? null,
+      _blockPlayStart: blockPlayStart ?? null,
     };
   }
 
@@ -1501,6 +1507,23 @@ class Sequencer {
         incomingRoundKey = (boundary.repeatIndex % 2 === 0) ? 'oddRounds' : 'evenRounds';
       }
 
+      // Future blockMeasureStart / blockPlayStart for the overlay's barline labels.
+      // Mirrors the formula in applyResultToSetters:
+      //   blockMeasureStart = (historyIndex + melodyCount) × numMeasures + 1
+      //   blockPlayStart    = seriesStartMeasureIndex (only updated on series-flip)
+      // For visual/repeat-flip the current values are correct, so pass null and
+      // SheetMusic falls back to React state.
+      let futureBlockMeasureStart = null;
+      let futureBlockPlayStart = null;
+      if (boundary.kind === 'series-flip') {
+        const hir = Math.max(0, this.refs.historyIndexRef?.current ?? 0);
+        const nm = this.refs.numMeasuresRef.current;
+        // melodyCount is incremented BEFORE applyResultToSetters runs, so the
+        // future value is (current + 1).
+        futureBlockMeasureStart = (hir + this.melodyCount + 1) * nm + 1;
+        futureBlockPlayStart = newGlobalStart;
+      }
+
       // ── 1. JIT generation (series-flip only) ────────────────────────────
       if (boundary.kind === 'series-flip') {
         const genMs = Math.max(0, (deadlineTime - this.context.currentTime) * 1000);
@@ -1524,7 +1547,13 @@ class Sequencer {
       }
 
       // ── 2. Fade arm: render preview overlay, start crossfade ────────────
-      const armMs = Math.max(0, (fadeStartTime - this.context.currentTime) * 1000 - 50);
+      // 200ms lead: React's render+commit can take up to ~100ms on slow devices
+      // or under GC pressure. Without sufficient lead the rAF starts animating
+      // [data-pagination-new] opacity before the element is in the DOM —
+      // querySelector returns null, stageNextCached stays null, and the new
+      // layer never animates (only fades in once React commits, sometimes
+      // mid-fade → visible flicker / hapering).
+      const armMs = Math.max(0, (fadeStartTime - this.context.currentTime) * 1000 - 200);
       this.scheduleTimeout(() => {
         if (!this.isPlaying) return;
 
@@ -1547,10 +1576,10 @@ class Sequencer {
             }
           }
           if (this.pregenResult) {
-            preview = this._buildPaginationPreview(this.pregenResult, measureLengthTicks, Math.min(newSize, this.refs.numMeasuresRef.current), 0, newGlobalStart, incomingRoundKey);
+            preview = this._buildPaginationPreview(this.pregenResult, measureLengthTicks, Math.min(newSize, this.refs.numMeasuresRef.current), 0, newGlobalStart, incomingRoundKey, futureBlockMeasureStart, futureBlockPlayStart);
           }
         } else {
-          preview = this._buildPaginationPreview(currentMelodies, measureLengthTicks, newSize, newLocalStartM, newGlobalStart, incomingRoundKey);
+          preview = this._buildPaginationPreview(currentMelodies, measureLengthTicks, newSize, newLocalStartM, newGlobalStart, incomingRoundKey, futureBlockMeasureStart, futureBlockPlayStart);
         }
 
         if (this.refs.transitionRef) {
@@ -1586,12 +1615,27 @@ class Sequencer {
       }
 
       // ── 4. Cleanup at fadeEnd ───────────────────────────────────────────
+      // Two-phase cleanup to avoid a 1-frame blank when React removes the
+      // overlay before the rAF clears the inline opacity on [data-pagination-old]:
+      //
+      //   Phase 1 (fadeEndTick)         : clear transitionRef. The very next rAF
+      //                                   tick reads null, clears inline opacity
+      //                                   on BOTH stages → CSS classes restore
+      //                                   opacity (old → 1, new → 0).
+      //   Phase 2 (fadeEndTick + 16ms)  : React setters fire — setNextLayer(null)
+      //                                   and setPreviewMelody(null). React
+      //                                   unmounts the overlay. 16ms ≈ 1 frame at
+      //                                   60fps, enough for Phase 1's opacity
+      //                                   clear to paint first.
       const cleanMs = Math.max(0, (fadeEndTime - this.context.currentTime) * 1000);
       this.scheduleTimeout(() => {
         if (!this.isPlaying) return;
         if (this.refs.transitionRef) this.refs.transitionRef.current = null;
-        if (this.setters.setNextLayer) this.setters.setNextLayer(null);
-        if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
+        this.scheduleTimeout(() => {
+          if (!this.isPlaying) return;
+          if (this.setters.setNextLayer) this.setters.setNextLayer(null);
+          if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
+        }, 16);
       }, cleanMs);
     }
   }

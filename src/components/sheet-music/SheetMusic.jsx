@@ -906,7 +906,14 @@ const SheetMusic = ({
   // mode='repeat'   → thick start/end repeat barlines with dots (always visible)
   // ppt: when non-null, barlines are placed at startX + barlineCount*measureLengthSlots*ppt
   //      (uniform tick-based spacing); when null, uses elastic slot-index spacing.
-  const _iterMeasureLines = (mode, offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex) => {
+  const _iterMeasureLines = (mode, offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex, bmsOverride = null, bpsOverride = null) => {
+    // bmsOverride / bpsOverride: pagination crossfade overlay passes the FUTURE
+    // blockMeasureStart and blockPlayStart so the preview's measure-number labels
+    // are correct AHEAD of the boundary. Without this the overlay renders labels
+    // from the still-current state (e.g. "1.5" because the current block's
+    // blockMeasureStart is 1 and startIdx is past the last repeat).
+    const bms = bmsOverride ?? blockMeasureStart;
+    const bps = bpsOverride ?? blockPlayStart;
     const getXLocal = (index) => index === 0 ? startX - 35 : startX + (index - 1) * nw;
     const lastIdx = offsets.length - 1;
     let barlineCount = 0;
@@ -952,11 +959,11 @@ const SheetMusic = ({
         // R = how many times the current block has been played in this session.
         // Only shown during active playback (isPlaying=true). Resets per block via blockPlayStart.
         const repeatNum = isPlaying
-          ? Math.max(1, Math.floor((startIdx - blockPlayStart) / numMeasures) + 1)
+          ? Math.max(1, Math.floor((startIdx - bps) / numMeasures) + 1)
           : 1;
         // Returns "N" (first play) or "N . R" (repeat R, R≥2) where N = song measure number.
         const measureLabel = (localIndex) => {
-          const N = blockMeasureStart + localIndex;
+          const N = bms + localIndex;
           return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
         };
 
@@ -1088,7 +1095,7 @@ const SheetMusic = ({
   };
 
   // Regular (inner) barlines — included in the mask animation
-  const renderRegularBarlines = (offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex) => _iterMeasureLines('regular', offsets, nw, ppt, startIdx);
+  const renderRegularBarlines = (offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex, bmsOverride = null, bpsOverride = null) => _iterMeasureLines('regular', offsets, nw, ppt, startIdx, bmsOverride, bpsOverride);
   // Thick repeat barlines — always visible, never masked
   const renderRepeatBarlines = (ppt = null) => _iterMeasureLines('repeat', allOffsets, noteWidth, ppt);
 
@@ -2454,9 +2461,12 @@ const SheetMusic = ({
                                 renderRepeatSymbols(pmAllOffsets, pmNoteWidth, ppt, [30], RCOL)}
                             </g>
                             {/* Barlines for the incoming content — use the preview's startMeasureIndex so
-                                measure numbers are correct during the wipe (not the old block's numbers) */}
+                                measure numbers are correct during the wipe (not the old block's numbers).
+                                _blockMeasureStart / _blockPlayStart (set by pagination scheduler at
+                                arm-time) override the still-current React state for series-flip, so the
+                                label says "3" not "1 . 5" when crossing a sequence boundary. */}
                             <g style={{ opacity: showSettings ? 0.6 : 1 }}>
-                              {renderRegularBarlines(pmAllOffsets, pmNoteWidth, ppt, pm.startMeasureIndex ?? startMeasureIndex)}
+                              {renderRegularBarlines(pmAllOffsets, pmNoteWidth, ppt, pm.startMeasureIndex ?? startMeasureIndex, pm._blockMeasureStart ?? null, pm._blockPlayStart ?? null)}
                             </g>
                           </g>
                         );
