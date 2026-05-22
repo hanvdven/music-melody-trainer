@@ -60,7 +60,8 @@ import { useEffect, useLayoutEffect, startTransition } from 'react';
  * @param {React.RefObject} params.wipeTransitionRef      — {startTime, endTime} for wipe mask sweep
  * @param {React.RefObject} params.scrollTransitionRef    — {startTime, endTime} for scroll slide
  * @param {React.RefObject} params.pendingScrollTransitionRef — queued next scroll (applied when current finishes)
- * @param {React.RefObject} params.paginationFadeRef      — {startTime, totalEnd} for pagination crossfade
+ * @param {React.RefObject} params.paginationFadeRef      — {startTime, totalEnd} for pagination crossfade (legacy two-phase path)
+ * @param {React.RefObject} params.transitionRef          — {kind:'crossfade', startTime, endTime} driven by AnimationScheduler
  */
 const useSheetMusicHighlight = ({
     sequencerRef,
@@ -76,6 +77,7 @@ const useSheetMusicHighlight = ({
     scrollTransitionRef,
     pendingScrollTransitionRef,
     paginationFadeRef,
+    transitionRef,
 }) => {
 
     // ── Main rAF loop ──────────────────────────────────────────────────────────
@@ -283,6 +285,52 @@ const useSheetMusicHighlight = ({
             }
         };
 
+        // ── UNIFIED STAGE TRANSITION (new pagination architecture) ─────────────
+        // Reads transitionRef set by AnimationScheduler. Currently only handles
+        // 'crossfade' (opacity 1→0 on [data-pagination-old], 0→1 on
+        // [data-pagination-new]). Wipe/stream/rubato kinds will use the same ref
+        // shape with extended payload once those modes migrate too.
+        //
+        // Same caching pattern as runPaginationFade: cache the DOM nodes per
+        // transition, invalidate when transitionRef changes identity (so the next
+        // crossfade re-queries for freshly-mounted overlays).
+        let stageNowCached = null;
+        let stageNextCached = null;
+        let lastStageT = null;
+        const runStageTransition = (svg) => {
+            const t = transitionRef?.current;
+            if (!t) {
+                if (lastStageT !== null) {
+                    // Transition just ended — clear inline opacity so CSS class takes over.
+                    // Using '' (not '1') avoids stale inline values blocking future writes.
+                    if (stageNowCached) stageNowCached.style.opacity = '';
+                    stageNowCached = null;
+                    stageNextCached = null;
+                    lastStageT = null;
+                }
+                return;
+            }
+            if (!svg) return;
+            if (t.kind !== 'crossfade') return;
+
+            if (t !== lastStageT) {
+                // Re-query nodes. Reuse the existing data-pagination-old/-new
+                // attributes so the redesign coexists with the legacy paths.
+                stageNowCached = svg.querySelector('[data-pagination-old]');
+                stageNextCached = svg.querySelector('[data-pagination-new]');
+                if (stageNextCached) lastStageT = t;
+            }
+            const now = context.currentTime;
+            const dur = t.endTime - t.startTime;
+            const elapsed = now - t.startTime;
+            const raw = dur > 0 ? elapsed / dur : 1;
+            const p = Math.max(0, Math.min(1, raw));
+            const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+
+            if (stageNowCached) stageNowCached.style.opacity = (1 - eased).toFixed(4);
+            if (stageNextCached) stageNextCached.style.opacity = eased.toFixed(4);
+        };
+
         // ── SCROLL SLIDE ────────────────────────────────────────────────────────
         // NOTE: scroll is NOT a block transition — it is a continuous side-scroll where
         // notes flow at constant speed. It does not follow the transition sequence above.
@@ -446,6 +494,7 @@ const useSheetMusicHighlight = ({
             runWipeAnimation(svg);
             runScrollAnimation();
             runPaginationFade();
+            runStageTransition(svg);
 
             rafId = requestAnimationFrame(tick);
         };

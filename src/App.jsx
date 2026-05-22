@@ -151,10 +151,12 @@ const App = () => {
         headerPlayMode, setHeaderPlayMode,
         currentMeasureIndex, setCurrentMeasureIndex,
         animationMode, setAnimationMode, animationModeRef,
+        paginationVariant, setPaginationVariant, paginationVariantRef,
         lyricsMode, setLyricsMode,
         nextLayer, setNextLayer,
         previewMelody, setPreviewMelody,
         wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+        transitionRef,
         svgRef,
         qwertyKeyboardActive, setQwertyKeyboardActive,
         onPlaybackStartRef,
@@ -699,10 +701,12 @@ const App = () => {
                 targetTrebleDifficultyRef,
                 targetBassDifficultyRef,
                 animationModeRef,
+                paginationVariantRef,
                 wipeTransitionRef,
                 scrollTransitionRef,
                 pendingScrollTransitionRef,
                 paginationFadeRef,
+                transitionRef,
                 musicalBlocksRef,
             },
         });
@@ -789,11 +793,13 @@ const App = () => {
         chordDisplayMode, setChordDisplayMode,
         showNoteHighlight, setShowNoteHighlight,
         animationMode, setAnimationMode,
+        paginationVariant, setPaginationVariant,
         courtesyAccidentals, setCourtesyAccidentals,
         percussionVoiceSplit, setPercussionVoiceSplit,
     }), [noteColoringMode, setNoteColoringMode, debugMode, lyricsMode, setLyricsMode,
         chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
-        animationMode, setAnimationMode, courtesyAccidentals, setCourtesyAccidentals,
+        animationMode, setAnimationMode, paginationVariant, setPaginationVariant,
+        courtesyAccidentals, setCourtesyAccidentals,
         percussionVoiceSplit, setPercussionVoiceSplit]);
 
     // Shared props for both SheetMusic instances (primary + tab view).
@@ -871,6 +877,7 @@ const App = () => {
             scrollTransitionRef={scrollTransitionRef}
             pendingScrollTransitionRef={pendingScrollTransitionRef}
             paginationFadeRef={paginationFadeRef}
+            transitionRef={transitionRef}
             clearHighlightStateRef={clearHighlightStateRef}
             showNoteHighlightRef={showNoteHighlightRef}
             setCurrentMeasureIndex={setCurrentMeasureIndex}

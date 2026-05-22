@@ -179,6 +179,7 @@ const SheetMusic = ({
   const { isPlaying, isOddRound, nextLayer = null, previewMelody = null,
           inputTestState, inputTestSubMode, setInputTestSubMode } = usePlaybackState();
   const { wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+          transitionRef,
           clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
           sequencerRef, context } = useAnimationRefs();
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
@@ -207,6 +208,7 @@ const SheetMusic = ({
     scrollTransitionRef,
     pendingScrollTransitionRef,
     paginationFadeRef,
+    transitionRef,
   });
 
   useSheetMusicTransitions(nextLayer, layoutRef, svgRef);
@@ -2356,7 +2358,7 @@ const SheetMusic = ({
                         </g>
                       );
                     })()}
-                    {showWipePreview === 'red' && (() => {
+                    {(showWipePreview === 'red' || showWipePreview === 'crossfade') && (() => {
                       // Use next-round visibility (same as yellow overlay)
                       const nextRoundKey = isOddRound ? 'evenRounds' : 'oddRounds';
                       const nextCfg = playbackConfig?.[nextRoundKey] ?? {};
