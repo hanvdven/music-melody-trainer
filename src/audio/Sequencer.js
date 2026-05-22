@@ -1465,13 +1465,16 @@ class Sequencer {
     const timeFactor = 5 / this.refs.bpmRef.current;
     const tickToTime = (tick) => baseAudioTime + tick * timeFactor;
 
-    // Initial setStartMeasureIndex for this sequence block — the inner loop no longer
-    // does this when iterMode === 'pagination' (the scheduler owns startMeasureIndex
-    // scheduling across the whole block).
+    // Initial setStartMeasureIndex + isOddRound for this sequence block.
+    // The inner loop no longer fires these when iterMode === 'pagination' — the
+    // scheduler owns both across the whole block. Batched here in one callback so
+    // React commits them in a single render (otherwise startMeasureIndex would
+    // update with stale roundKey for one frame → wrong visibility config briefly).
     const initialDelayMs = Math.max(0, (baseAudioTime - this.context.currentTime) * 1000);
     this.scheduleTimeout(() => {
       if (!this.isPlaying) return;
       if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(sequenceStartGlobalMeasure);
+      if (this.setters.setIsOddRound) this.setters.setIsOddRound(true); // iter 0 is always odd
       if (this.setters.setNextLayer) this.setters.setNextLayer(null);
     }, initialDelayMs);
 
@@ -1606,11 +1609,21 @@ class Sequencer {
       // render via React 18's automatic batching. Firing setStartMeasureIndex
       // separately would commit the index BEFORE the new melody refs, causing a
       // 1-frame flash of the old melody at the new page (empty / wrong content).
+      //
+      // For repeat-flip we batch setIsOddRound here too — without it the inner
+      // loop's separate setIsOddRound setTimeout fires as a SECOND render after
+      // ours, leaving one frame where startMeasureIndex points at the new iter
+      // but roundKey is still the old iter's (= overlay-old layer briefly shows
+      // wrong visibility config). Visual-flip doesn't change the round.
       if (boundary.kind !== 'series-flip') {
+        const newIsOddRound = (boundary.kind === 'repeat-flip')
+          ? ((boundary.repeatIndex + 1) % 2 === 0)
+          : null;
         const atMs = Math.max(0, (atTime - this.context.currentTime) * 1000);
         this.scheduleTimeout(() => {
           if (!this.isPlaying) return;
           if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(newGlobalStart);
+          if (newIsOddRound !== null && this.setters.setIsOddRound) this.setters.setIsOddRound(newIsOddRound);
         }, atMs);
       }
 
