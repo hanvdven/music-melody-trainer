@@ -361,7 +361,59 @@ All timings are relative to `nextStartTime` — the audio start time of the **cu
 
 ### 10.1 Pagination Mode
 
-Pagination has three distinct transition cases depending on position within the sequence block.
+> **Redesigned 2026-05-22** (PR #26). Pagination is now driven by the pure
+> `src/audio/transitionPlanner.js` planner and `Sequencer._armPaginationSequence`.
+> All three boundary kinds use the same crossfade mechanism — the legacy two-phase
+> block-flip and the separate yellow/red ad-hoc branches below are no longer hit
+> in pagination mode. They are preserved in the doc for historical reference and
+> still describe wipe/scroll behaviour (which are not yet migrated).
+
+#### Redesigned flow (current)
+
+At the start of each sequence block (`iteration === 0`, before the inner for-m
+loop) the Sequencer calls `_armPaginationSequence`. This:
+
+1. Builds a flat list of boundaries via `computeSequenceBoundaries(plan)`:
+   - one `visual-flip` per non-last visual block within a repeat
+   - one `repeat-flip` per non-last repeat
+   - one `series-flip` at the end of the last repeat
+2. Per boundary, computes a fade window via `planPaginationFade({ boundary, variant })`:
+
+   | Variant | gen lead | fade duration | overshoot |
+   |---|---|---|---|
+   | `snel` | 0.5m | 0.25m | 0 |
+   | `mid`  | 1.0m | 0.5m  | 0 |
+   | `lang` | 2.0m | 2.0m  | 0.25m (fade ends 0.25m AFTER boundary so old notes linger briefly) |
+
+   `fadeEndTick = boundary.atTick + overshoot × measureLengthTicks`
+   `fadeStartTick = fadeEndTick − fadeDuration × measureLengthTicks`
+   `generationDeadlineTick = boundary.atTick − genLead × measureLengthTicks`
+
+3. For every event schedules 3-4 `setTimeout`s converted from ticks to AudioContext seconds:
+   - (series-flip only) JIT generation at `generationDeadlineTick`. Result stored in `this.pregenResult`.
+   - Fade arm at `fadeStartTick − 50 ms`: sets `transitionRef.current = { kind: 'crossfade', startTime, endTime }`, `setNextLayer('crossfade')`, `setPreviewMelody(slice)` (sliced via `_buildPaginationPreview`).
+   - Audio swap at `boundary.atTick`: `setStartMeasureIndex(newGlobalStart)`. For series-flip the outer loop additionally fires `applyResult` at this same time but with `skipFadeCleanup: true` so the overlay survives the overshoot.
+   - Cleanup at `fadeEndTick`: clears `transitionRef`, `setNextLayer(null)`, `setPreviewMelody(null)`.
+
+4. `useSheetMusicHighlight.runStageTransition` reads `transitionRef` every rAF tick
+   and writes eased opacity to `[data-pagination-old]` (1→0) and
+   `[data-pagination-new]` (0→1). Single phase, no React batching surprises.
+
+5. Inner-loop `setStartMeasureIndex` + `setNextLayer(null)` at `m === 0` are
+   **skipped** when `iterMode === 'pagination'` — the scheduler owns both across
+   the whole block (matters for `lang` overshoot: setting nextLayer→null at the
+   boundary would clear the overlay 0.25m too early).
+
+#### Invariants
+
+- `currentMelodies` is captured at arm-time (start of the sequence block). Visual-flip / repeat-flip preview uses the snapshot. Series-flip preview uses `this.pregenResult` (set by JIT timeout).
+- `transitionRef.current` always has `endTime > startTime`. Cleared at `fadeEndTick` cleanup.
+- Outer-loop `applyResult` is the **only writer** of melody refs at series boundary. The scheduler's audio-swap callback only sets `startMeasureIndex`.
+- Boundary ticks are integer multiples of `measureLengthTicks`. `newGlobalStart = sequenceStartGlobalMeasure + Math.round(boundary.atTick / measureLengthTicks)`.
+
+#### Legacy cases (no longer fire in pagination mode)
+
+The three cases below remain in the codebase but are gated by `iterMode === 'pagination'` checks that now resolve to `false` for those branches. They are preserved (a) as a reference for the wipe/scroll migration that will follow, (b) so reviewers can compare the redesign against what it replaced.
 
 #### Case A — Inner visual block flip (mid-repeat-block, non-last visual block)
 
