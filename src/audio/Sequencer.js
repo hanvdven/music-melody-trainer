@@ -671,6 +671,14 @@ class Sequencer {
                 }
                 applyResult();
                 if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
+                // Batch setIsOddRound(true) in the same callback as applyResult so it
+                // commits in the same React 18 batch as melody refs + startMeasureIndex.
+                // The inner-loop's separate setIsOddRound(true) fires moments later
+                // (same audio time, but a separate setTimeout = a separate render)
+                // which would otherwise create a 1-frame window where the preview
+                // overlay still uses the OLD round's visibility config — visible as
+                // a brief flicker when notes appear/disappear across round changes.
+                if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
               }, scheduleTime);
             } else {
               // Once mode: apply result immediately (no preview needed).
@@ -682,6 +690,7 @@ class Sequencer {
                   this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
                 }
                 applyResult();
+                if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
                 if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
               }, scheduleTime);
             }
@@ -1537,17 +1546,23 @@ class Sequencer {
       }, armMs);
 
       // ── 3. Audio swap at boundary.atTick ────────────────────────────────
-      // For visual-flip / repeat-flip the scheduler owns setStartMeasureIndex
-      // (the inner loop skips its m=0 update under pagination). For series-flip
-      // the outer-loop applyResult closure performs the React melody swap with
-      // skipFadeCleanup=true so the overlay stays visible until fadeEnd; it also
-      // calls setStartMeasureIndex via seriesStartMeasureIndex, so the line below
-      // becomes an idempotent no-op for series-flip — fine and avoids races.
-      const atMs = Math.max(0, (atTime - this.context.currentTime) * 1000);
-      this.scheduleTimeout(() => {
-        if (!this.isPlaying) return;
-        if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(newGlobalStart);
-      }, atMs);
+      // For visual-flip / repeat-flip the scheduler owns setStartMeasureIndex —
+      // the inner loop skips its m=0 update under pagination, so this is the
+      // only writer.
+      //
+      // For series-flip we DO NOT fire setStartMeasureIndex here: the outer-loop
+      // applyResult callback batches setStartMeasureIndex with setTrebleMelody /
+      // setBassMelody / setPercussionMelody / setChordProgression into one React
+      // render via React 18's automatic batching. Firing setStartMeasureIndex
+      // separately would commit the index BEFORE the new melody refs, causing a
+      // 1-frame flash of the old melody at the new page (empty / wrong content).
+      if (boundary.kind !== 'series-flip') {
+        const atMs = Math.max(0, (atTime - this.context.currentTime) * 1000);
+        this.scheduleTimeout(() => {
+          if (!this.isPlaying) return;
+          if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(newGlobalStart);
+        }, atMs);
+      }
 
       // ── 4. Cleanup at fadeEnd ───────────────────────────────────────────
       const cleanMs = Math.max(0, (fadeEndTime - this.context.currentTime) * 1000);

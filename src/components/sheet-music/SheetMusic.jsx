@@ -2359,8 +2359,17 @@ const SheetMusic = ({
                       );
                     })()}
                     {(showWipePreview === 'red' || showWipePreview === 'crossfade') && (() => {
-                      // Use next-round visibility (same as yellow overlay)
-                      const nextRoundKey = isOddRound ? 'evenRounds' : 'oddRounds';
+                      // Visibility config for the preview overlay:
+                      //   wipe/scroll red (= series boundary): use NEXT round so the preview
+                      //     reflects what the new sequence block's first iter will look like.
+                      //   pagination crossfade: use CURRENT round so visibility doesn't
+                      //     jump during the fade. The round-switch happens atomically at
+                      //     the boundary via applyResult + setShowNotes; the preview
+                      //     overlay then shares the new visibility with the old layer.
+                      const useCurrentRound = (showWipePreview === 'crossfade');
+                      const nextRoundKey = useCurrentRound
+                        ? (isOddRound ? 'oddRounds' : 'evenRounds')
+                        : (isOddRound ? 'evenRounds' : 'oddRounds');
                       const nextCfg = playbackConfig?.[nextRoundKey] ?? {};
                       const nextNotesVisible = !!nextCfg.notes;
                       const nextTreble = nextCfg.trebleEye !== false;
