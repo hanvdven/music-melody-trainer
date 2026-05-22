@@ -417,6 +417,21 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 ✅ fade out aan het einde van repeat block is niet goed. Check de specs / architectuurbeschrijving voor animaties en zorg dat er een mooie fade-out is; momenteel is de overgang tussen sequence blokken nog hakkelig.
 [Claude 2026-05-10]: Oorzaak: `setTimeout(fn,0)` vuurt altijd vóór de volgende `requestAnimationFrame`. `setNextLayer(null)` triggerden `useLayoutEffect` terwijl de rAF-crossfade nog bezig was (bijv. old opacity 0.7). `useLayoutEffect` herstelde dan opacity naar 1 — zichtbare helderheidssprong. Fix: `iterStateMs` in Sequencer.js verhoogd met minimaal 25ms buffer, zodat de rAF de animatie kan afronden voordat `useLayoutEffect` de opacity wist. Bestand: `Sequencer.js`.
 
+### Pagination redesign — vervolgwerk (na PR #26)
+
+[Claude 2026-05-22]: Pagination animatie is herontworpen rond `src/audio/transitionPlanner.js` (pure planner) + `Sequencer._armPaginationSequence` (event-driven scheduler). 3 variants (snel/mid/lang) togglebaar in subheader cycle. Visual-flip, repeat-flip en series-flip gebruiken nu hetzelfde crossfade-mechanisme. Lang variant overshoot 0.25m voorbij block-einde (speler ziet oude noten nog kort terwijl nieuwe verschijnen). JIT generatie loopt mee met variant-deadline.
+
+Open items uit de redesign:
+
+- **Stream-mode** (vervangt huidige scroll): continue scroll R→L met dynamisch `visibleMeasures = clamp(2, idealVisible, repeatBlockSize)`. 1-maats sequence block: meerdere vooruit-generaties. Nog niet geïmplementeerd.
+- **Rubato-mode** (audio + visueel volgen speler): basisimplementatie via `useInputTest.onNoteCorrect`. Nog niet geïmplementeerd.
+- **Rubato fallback: blind-play modus** — wanneer noten onzichtbaar zijn (gehoortraining), tijdsbescherming tegen oneindig wachten. Auto-stretch naar normale BPM na N misses, of "geef hint" mode. Han: "zet maar op de backlog en doe eerst het basisontwerp." (2026-05-21)
+- **Pagination variant per preset** — variant-keuze (snel/mid/lang) zou onderdeel van preset-systeem moeten zijn.
+- **Wipe-animatie als alternatief voor pagination-mid** — iter 2 (Han: "in een tweede iteratie wil ik de crossfade van tweede type vervangen voor een animatie die de noten opveegt, van links naar rechts"). Wipe blijft voorlopig een aparte mode op het legacy pad.
+- **Chord progression preview bij visual-flip / repeat-flip** — toont nu de eerste N akkoorden van de huidige melodie i.p.v. die van de nieuwe pagina. Noten zelf renderen wel correct (pre-sliced). Geen audio-impact.
+- **Pagination scheduler: BPM-change tijdens fade** — iter 2 edge case (Han 2026-05-22). De huidige scheduler ticks→seconds conversie gebruikt de BPM op het moment van armen. BPM-wijziging mid-fade laat de planner-events op de oude conversie staan tot de volgende sequence block.
+- **Pagination scheduler: long-press voor variant-keuze** — op dit moment cycle door snel/mid/lang/wipe/scroll. Iter 2: long-press op de PAG-knop opent een gs-popup met 3 expliciete variant-keuzes (en daarnaast separate WIPE/SCROLL knoppen).
+
 ---
 
 ## UI / SETTINGS
