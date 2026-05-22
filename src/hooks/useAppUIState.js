@@ -40,6 +40,9 @@ export default function useAppUIState() {
     const [headerPlayMode, setHeaderPlayMode] = useState('continuous');
     const [currentMeasureIndex, setCurrentMeasureIndex] = useState(0);
     const [animationMode, setAnimationMode, animationModeRef] = useRefState('pagination');
+    // Pagination crossfade speed: 'snel' | 'mid' | 'lang'. See transitionPlanner.PAGINATION_VARIANTS.
+    // Only consulted when animationMode === 'pagination'.
+    const [paginationVariant, setPaginationVariant, paginationVariantRef] = useRefState('mid');
     const [lyricsMode, setLyricsMode] = useState('none');
 
     const [nextLayer, setNextLayer] = useState(null);
@@ -49,7 +52,10 @@ export default function useAppUIState() {
     const wipeTransitionRef = useRef(null);         // {startTime, endTime} for wipe mask animation
     const scrollTransitionRef = useRef(null);       // {startTime, endTime} for scroll slide animation
     const pendingScrollTransitionRef = useRef(null); // queued next scroll animation
-    const paginationFadeRef = useRef(null);         // {startTime, totalEnd} for rAF-driven pagination crossfade
+    const paginationFadeRef = useRef(null);         // {startTime, totalEnd} for rAF-driven pagination crossfade (legacy two-phase path)
+    // New unified transition ref consumed by useSheetMusicHighlight in the redesign.
+    // Shape: { kind: 'crossfade', startTime, endTime } — extensible for wipe/stream/rubato later.
+    const transitionRef = useRef(null);
 
     const svgRef = useRef(null); // shared ref to the SheetMusic SVG element (used by Sequencer callbacks)
     const [qwertyKeyboardActive, setQwertyKeyboardActive] = useState(false);
@@ -84,6 +90,7 @@ export default function useAppUIState() {
         headerPlayMode, setHeaderPlayMode,
         currentMeasureIndex, setCurrentMeasureIndex,
         animationMode, setAnimationMode, animationModeRef,
+        paginationVariant, setPaginationVariant, paginationVariantRef,
         lyricsMode, setLyricsMode,
         nextLayer, setNextLayer,
         previewMelody, setPreviewMelody,
@@ -91,6 +98,7 @@ export default function useAppUIState() {
         scrollTransitionRef,
         pendingScrollTransitionRef,
         paginationFadeRef,
+        transitionRef,
         svgRef,
         qwertyKeyboardActive, setQwertyKeyboardActive,
         onPlaybackStartRef,

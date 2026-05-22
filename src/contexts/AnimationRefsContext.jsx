@@ -4,12 +4,14 @@ const AnimationRefsContext = createContext(null);
 
 export const AnimationRefsProvider = ({
     wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+    transitionRef,
     clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
     sequencerRef, context,
     children,
 }) => (
     <AnimationRefsContext.Provider value={{
         wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+        transitionRef,
         clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
         sequencerRef, context,
     }}>
