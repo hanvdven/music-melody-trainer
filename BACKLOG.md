@@ -39,7 +39,8 @@ bestaande liedjes (happy birthday, ...)
 [Claude 2026-05-20]: ✅ Geïmplementeerd. Nieuwe bestanden: `src/songs/definitions/happyBirthday.js` (F groot, 3/4, 24 noten, per-lettergreep lyrics), `src/songs/loadSong.js` (transponeert naar huidig tonica), `src/songs/songIndex.js` (register). UI: `src/components/songs/SongsTab.jsx` — kaartgrid met Easy/Medium/Hard kiezer + "Originele toonaard"-toggler (toggling ON laadt het nummer opnieuw in geschreven toonaard én zet app-tonica op die toonaard). Tekstlyrics worden gerenderd onder de treble via `renderTextLyricsRow` in `SheetMusic.jsx`, onafhankelijk van solfège-modus.
 
 [Han 2026-05-22]: Bugs op de huidige song-implementatie:
-- **Songs > loading sets bottomview to sheet music** — onbedoeld; verwachting was dat de huidige bottomview behouden blijft (of in elk geval niet hard switchen naar sheet music) wanneer je een lied laadt.
+- ✅ **Songs > loading sets bottomview to sheet music** — onbedoeld; verwachting was dat de huidige bottomview behouden blijft (of in elk geval niet hard switchen naar sheet music) wanneer je een lied laadt.
+  [Claude 2026-05-22]: De `setActiveTab('sheet-music')` regel in de `loadSongAndPlay` callback in `App.jsx` verwijderd. De gebruiker's huidige tab blijft nu behouden bij het laden van een lied.
 - **Happy Birthday klinkt niet correct** — de melodie of het ritme klopt niet met het bekende kinderliedje. Vermoedelijk een tikfout in `src/songs/definitions/happyBirthday.js` of een transpositie-bug.
 
 ### Profiel-icoon & submenu (navigatie)
@@ -283,9 +284,12 @@ Verzameld in één blok, allemaal `⚠ Neem alvorens dit te implementeren een in
 
 - **Tuplet-cijfers overlappen met de notenbalk-lijnen** — forceer dat het cijfer (en ":m" als die wordt getoond) niet over de 5 lijnen van de balk valt. Plaatsing boven/onder afhankelijk van stem-richting.
 - **Risico: tuplet-cijfers overlappen met lyrics-rij** (ta-ka-di-mi onder percussie). Bij tuplet boven percussie + Takadimi onder treble is dit minder relevant; bij tuplet onder treble + Takadimi op zelfde positie wel.
-- **Maatnummers stijl-consistent met tuplet-cijfers** — beide gebruiken nu verschillende fonts/groottes. Han: graag in dezelfde stijl en kleur (zie volgend item).
-- **Vermijd opacity in de bladmuziek** — de transitie-animatie maakt elementen donkerder (opacity verlaagt RGB-output op een donkere achtergrond). In plaats daarvan: een CSS-variabele `--text-lowlight` per theme (dark + light mode). Maatnummers en de ":m" van tuplets moeten dezelfde lowlight-kleur krijgen.
-- **Tuplet-beugel iets breder** — nu loopt de beugel van het midden van de eerste tot het midden van de laatste tuplet-noot. Moet zijn: van de uiterste rand van de eerste tot de uiterste rand van de laatste noot.
+- ✅ **Maatnummers stijl-consistent met tuplet-cijfers** — beide gebruiken nu verschillende fonts/groottes. Han: graag in dezelfde stijl en kleur (zie volgend item).
+  [Claude 2026-05-22]: Maatnummers nu Georgia/Times serif 15px (matcht tuplet). Bestand: `SheetMusic.jsx`.
+- ✅ **Vermijd opacity in de bladmuziek** — de transitie-animatie maakt elementen donkerder (opacity verlaagt RGB-output op een donkere achtergrond). In plaats daarvan: een CSS-variabele `--text-lowlight` per theme (dark + light mode). Maatnummers en de ":m" van tuplets moeten dezelfde lowlight-kleur krijgen.
+  [Claude 2026-05-22]: `--text-lowlight` toegevoegd voor default theme (`#8a8a8a`); bestond al voor nocturne/meridienne/light. Maatnummers (was `opacity:0.3`) en tuplet ":m" (was `color-mix transparent 55%`) gebruiken nu beide `var(--text-lowlight)` als fill. Geen opacity-stapeling meer tijdens crossfade. Debug-mode previewColor tinting blijft via color-mix met previewColor zoals voorheen. Bestanden: `App.css`, `SheetMusic.jsx`, `renderMelodyNotes.jsx`.
+- ✅ **Tuplet-beugel iets breder** — nu loopt de beugel van het midden van de eerste tot het midden van de laatste tuplet-noot. Moet zijn: van de uiterste rand van de eerste tot de uiterste rand van de laatste noot.
+  [Claude 2026-05-22]: Bracket-eindpunten verbreed met 6px aan elke kant (= half notehead-breedte bij fontSize=36). Bestand: `renderMelodyNotes.jsx`.
 - **Edge case: parallel voicing in percussie + tuplets** — gedrag onduidelijk. ⚠ Interview met Han voor scope.
 - **Tuplets > numMeasures × notes-per-measure verkeerd geteld** — vermoedelijk gerelateerd aan de slot-bug hierboven; bij tuplets is de totale noten-telling soms hoger dan verwacht.
 
