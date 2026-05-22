@@ -38,6 +38,10 @@ bestaande liedjes (happy birthday, ...)
 [Claude 2026-05-19]: Op verzoek van Han: samenvoegen met custom chord progressions (#25). Twee features: (1) bestaande liedjes afspelen (SHORTLIST); (2) eigen invoer (LONGLIST). Nieuwe feature samen met 'eigen invoer': akkoord / drum-sequencer → LONGLIST.
 [Claude 2026-05-20]: ✅ Geïmplementeerd. Nieuwe bestanden: `src/songs/definitions/happyBirthday.js` (F groot, 3/4, 24 noten, per-lettergreep lyrics), `src/songs/loadSong.js` (transponeert naar huidig tonica), `src/songs/songIndex.js` (register). UI: `src/components/songs/SongsTab.jsx` — kaartgrid met Easy/Medium/Hard kiezer + "Originele toonaard"-toggler (toggling ON laadt het nummer opnieuw in geschreven toonaard én zet app-tonica op die toonaard). Tekstlyrics worden gerenderd onder de treble via `renderTextLyricsRow` in `SheetMusic.jsx`, onafhankelijk van solfège-modus.
 
+[Han 2026-05-22]: Bugs op de huidige song-implementatie:
+- **Songs > loading sets bottomview to sheet music** — onbedoeld; verwachting was dat de huidige bottomview behouden blijft (of in elk geval niet hard switchen naar sheet music) wanneer je een lied laadt.
+- **Happy Birthday klinkt niet correct** — de melodie of het ritme klopt niet met het bekende kinderliedje. Vermoedelijk een tikfout in `src/songs/definitions/happyBirthday.js` of een transpositie-bug.
+
 ### Profiel-icoon & submenu (navigatie)
 vervang profile settings icoon met Lucide: user.
 Submenu: kennisbank (graduation-cap) en settings (waar nu thema etc onder staan).
@@ -421,6 +425,18 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 
 [Claude 2026-05-22]: Pagination animatie is herontworpen rond `src/audio/transitionPlanner.js` (pure planner) + `Sequencer._armPaginationSequence` (event-driven scheduler). 3 variants (snel/mid/lang) togglebaar in subheader cycle. Visual-flip, repeat-flip en series-flip gebruiken nu hetzelfde crossfade-mechanisme. Lang variant overshoot 0.25m voorbij block-einde (speler ziet oude noten nog kort terwijl nieuwe verschijnen). JIT generatie loopt mee met variant-deadline.
 
+[Han 2026-05-22]: Bedoeling van de zichtbaarheidsregels tijdens de fade — **per laag, niet samengevoegd**:
+- Oude laag: huidig blok met huidig-blok's zichtbaarheidsregels (oddRounds/evenRounds van de huidige iter).
+- Nieuwe laag (overlay): nieuw blok met nieuw-blok's zichtbaarheidsregels.
+- Tijdens de fade smelten deze visueel samen — een onzichtbare ronde dissoolveert dus zacht in een zichtbare ronde, niet via een harde flip.
+
+[Claude 2026-05-22]: Geïmplementeerd via `previewMelody._roundKey` die scheduler bij arm-time vastlegt op basis van boundary-type:
+- `visual-flip`: zelfde iter → zelfde round
+- `repeat-flip`: volgende iter → tegenovergestelde round
+- `series-flip`: nieuwe sequence block iter 0 → altijd `oddRounds`
+
+SheetMusic gebruikt `previewMelody._roundKey` zodat de overlay's visibility niet meebeweegt met React's `isOddRound`-state (die op atTick flipt en anders de overlay tijdens de lang-variant overshoot van zichtbaarheid zou laten omschakelen).
+
 Open items uit de redesign:
 
 - **Stream-mode** (vervangt huidige scroll): continue scroll R→L met dynamisch `visibleMeasures = clamp(2, idealVisible, repeatBlockSize)`. 1-maats sequence block: meerdere vooruit-generaties. Nog niet geïmplementeerd.
@@ -431,6 +447,20 @@ Open items uit de redesign:
 - **Chord progression preview bij visual-flip / repeat-flip** — toont nu de eerste N akkoorden van de huidige melodie i.p.v. die van de nieuwe pagina. Noten zelf renderen wel correct (pre-sliced). Geen audio-impact.
 - **Pagination scheduler: BPM-change tijdens fade** — iter 2 edge case (Han 2026-05-22). De huidige scheduler ticks→seconds conversie gebruikt de BPM op het moment van armen. BPM-wijziging mid-fade laat de planner-events op de oude conversie staan tot de volgende sequence block.
 - **Pagination scheduler: long-press voor variant-keuze** — op dit moment cycle door snel/mid/lang/wipe/scroll. Iter 2: long-press op de PAG-knop opent een gs-popup met 3 expliciete variant-keuzes (en daarnaast separate WIPE/SCROLL knoppen).
+
+### Header — split play button
+
+[Han 2026-05-22]: Ik wil de play-knop in de header opsplitsen in twee acties:
+- **Play (huidig)** — speelt de laatst gegenereerde melodie nog eens af.
+- **Start genereren** — genereert direct een nieuwe melodie.
+
+⚠ Neem alvorens dit te implementeren een interview af bij Han. Vragen die nog open zijn: wat is precies "de laatste melodie" in continuous play vs. once mode, hoe verhoudt dit zich tot de Next/Prev navigatie, en moet het visueel één knop met twee zones of twee aparte iconen worden?
+
+### Startup screen & tooltips
+
+[Han 2026-05-22]: Twee losse items op de longlist:
+- **Startup screen** — een eerste-keer-gebruik intro die de belangrijkste UI-zones uitlegt (eerst nog scope te bepalen via interview).
+- **Tooltips** — hover/long-press tooltips op alle iconen in header en subheader, met korte uitleg van wat ze doen.
 
 ---
 

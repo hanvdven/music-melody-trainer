@@ -2359,17 +2359,25 @@ const SheetMusic = ({
                       );
                     })()}
                     {(showWipePreview === 'red' || showWipePreview === 'crossfade') && (() => {
-                      // Visibility config for the preview overlay:
-                      //   wipe/scroll red (= series boundary): use NEXT round so the preview
-                      //     reflects what the new sequence block's first iter will look like.
-                      //   pagination crossfade: use CURRENT round so visibility doesn't
-                      //     jump during the fade. The round-switch happens atomically at
-                      //     the boundary via applyResult + setShowNotes; the preview
-                      //     overlay then shares the new visibility with the old layer.
-                      const useCurrentRound = (showWipePreview === 'crossfade');
-                      const nextRoundKey = useCurrentRound
-                        ? (isOddRound ? 'oddRounds' : 'evenRounds')
-                        : (isOddRound ? 'evenRounds' : 'oddRounds');
+                      // Visibility config for the preview overlay.
+                      //
+                      // Rule: each layer uses its OWN block's visibility — the old layer
+                      // shows the current block with its current-round config, the overlay
+                      // shows the incoming block with the INCOMING block's config. During
+                      // the fade these two visibility states crossfade together (e.g. a
+                      // hidden-notes round dissolves into a visible-notes round naturally).
+                      //
+                      // The incoming round is locked into previewMelody._roundKey by the
+                      // pagination scheduler at arm time. Reading it from React's
+                      // isOddRound state instead would let the overlay's visibility flip
+                      // mid-overshoot for the 'lang' variant (when isOddRound updates at
+                      // the boundary while the overlay is still up for another 0.25m).
+                      //
+                      // Fallback (wipe/scroll red, or any preview without _roundKey): use
+                      // the legacy opposite-of-current-round derivation.
+                      const lockedKey = previewMelody?._roundKey;
+                      const nextRoundKey = lockedKey
+                        ?? (isOddRound ? 'evenRounds' : 'oddRounds');
                       const nextCfg = playbackConfig?.[nextRoundKey] ?? {};
                       const nextNotesVisible = !!nextCfg.notes;
                       const nextTreble = nextCfg.trebleEye !== false;

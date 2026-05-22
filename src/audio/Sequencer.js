@@ -1415,7 +1415,7 @@ class Sequencer {
    * treble/bass/percussion/chordProgression melodies plus a startMeasureIndex marker
    * for the barline numbers.
    */
-  _buildPaginationPreview(sourceMelodies, measureLengthTicks, numMeasuresToKeep, localStartMeasure, globalStartMeasure) {
+  _buildPaginationPreview(sourceMelodies, measureLengthTicks, numMeasuresToKeep, localStartMeasure, globalStartMeasure, roundKey) {
     const sliceOne = (m) => m ? sliceMelodyByRange(m, measureLengthTicks, numMeasuresToKeep, localStartMeasure) : null;
     return {
       treble: sliceOne(sourceMelodies.treble),
@@ -1428,6 +1428,11 @@ class Sequencer {
       // tracked in BACKLOG.
       chordProgression: sourceMelodies.chordProgression ?? null,
       startMeasureIndex: globalStartMeasure,
+      // Per-layer visibility lock — SheetMusic reads this for the preview overlay's
+      // round config so the visibility never flips mid-fade (notably during the
+      // 'lang' variant's 0.25m overshoot when React's isOddRound updates while the
+      // overlay is still mounted).
+      _roundKey: roundKey,
     };
   }
 
@@ -1480,6 +1485,22 @@ class Sequencer {
       const newLocalStartM   = boundary.newWindowStartLocal / measureLengthTicks;
       const newSize          = boundary.newWindowSizeMeasures;
 
+      // Round config for the INCOMING block — locked at arm-time so the overlay's
+      // visibility never flips mid-fade. iteration % 2 === 0 → oddRounds.
+      //   visual-flip   : same iter, same round as the boundary.repeatIndex iter
+      //   repeat-flip   : next iter, opposite round
+      //   series-flip   : new sequence block iter 0 → always 'oddRounds'
+      let incomingRoundKey;
+      if (boundary.kind === 'series-flip') {
+        incomingRoundKey = 'oddRounds';
+      } else if (boundary.kind === 'repeat-flip') {
+        const nextIter = boundary.repeatIndex + 1;
+        incomingRoundKey = (nextIter % 2 === 0) ? 'oddRounds' : 'evenRounds';
+      } else {
+        // visual-flip: same iter, same round
+        incomingRoundKey = (boundary.repeatIndex % 2 === 0) ? 'oddRounds' : 'evenRounds';
+      }
+
       // ── 1. JIT generation (series-flip only) ────────────────────────────
       if (boundary.kind === 'series-flip') {
         const genMs = Math.max(0, (deadlineTime - this.context.currentTime) * 1000);
@@ -1526,10 +1547,10 @@ class Sequencer {
             }
           }
           if (this.pregenResult) {
-            preview = this._buildPaginationPreview(this.pregenResult, measureLengthTicks, Math.min(newSize, this.refs.numMeasuresRef.current), 0, newGlobalStart);
+            preview = this._buildPaginationPreview(this.pregenResult, measureLengthTicks, Math.min(newSize, this.refs.numMeasuresRef.current), 0, newGlobalStart, incomingRoundKey);
           }
         } else {
-          preview = this._buildPaginationPreview(currentMelodies, measureLengthTicks, newSize, newLocalStartM, newGlobalStart);
+          preview = this._buildPaginationPreview(currentMelodies, measureLengthTicks, newSize, newLocalStartM, newGlobalStart, incomingRoundKey);
         }
 
         if (this.refs.transitionRef) {
