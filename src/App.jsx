@@ -375,9 +375,10 @@ const App = () => {
         setTimeSignature(loaded.timeSignature);
         setNumMeasures(loaded.numMeasures);
         setBpm(loaded.defaultTempo);
-        setActiveTab('sheet-music');
+        // Keep the user's current bottom-view tab; loading a song should not
+        // hijack the layout. Reported by Han 2026-05-22.
     }, [scale, setTonic, setTrebleMelody, setChordProgression, setBassMelody, setPercussionMelody,
-        setTimeSignature, setNumMeasures, setBpm, setActiveTab]);
+        setTimeSignature, setNumMeasures, setBpm]);
 
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
     const randomizeAll = randomizeAllLogic;

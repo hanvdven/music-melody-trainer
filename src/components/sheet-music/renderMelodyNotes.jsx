@@ -1658,8 +1658,12 @@ const renderMelodyNotes = (
     const stemIsAbove = points.filter(p => p.stemIsAbove).length >= points.length / 2;
     const isBeamed    = first.isBeamed && vd < 12; // beamed when short visual duration
 
-    const x1   = first.x + 5;  // near notehead centre
-    const x2   = last.x  + 5;
+    // Bracket spans the OUTER edges of the first and last noteheads, not their
+    // centres — visually clearer at a glance which notes the tuplet covers.
+    // Notehead width ≈ 12px at fontSize=36 (FLIP_OFFSET, see earlier comment).
+    const noteheadHalfWidth = 6;
+    const x1   = first.x + 5 - noteheadHalfWidth;
+    const x2   = last.x  + 5 + noteheadHalfWidth;
     const midX = (x1 + x2) / 2;
 
     // Bracket y: just outside stem tips (above for stems-up, below for stems-down).
@@ -1671,10 +1675,17 @@ const renderMelodyNotes = (
     }
 
     const color    = previewColor ?? 'var(--text-primary)';
-    // Dimmed ratio suffix: 45% opacity — legible on dark backgrounds without overpowering the numeral.
+    // Lowlight ratio suffix: a dedicated colour, not opacity, in normal rendering.
+    // Using opacity here would double-darken the element during the pagination
+    // crossfade (which itself animates opacity). var(--text-lowlight) is the same
+    // colour the measure numbers use, so the numerator/denominator/measure-number
+    // triad shares one visual "lowlight" pass.
+    //
+    // Debug-mode preview overlays (previewColor non-null) still use a transparent
+    // variant of the tint colour so the YCOL/RCOL distinction stays visible.
     const dimColor = previewColor
       ? `color-mix(in srgb, ${previewColor}, transparent 55%)`
-      : 'color-mix(in srgb, var(--text-primary), transparent 55%)';
+      : 'var(--text-lowlight)';
 
     const hookLen  = 5;
     // Bracket gap: half of the space reserved around the number label.

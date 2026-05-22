@@ -980,10 +980,10 @@ const SheetMusic = ({
                   <text
                     x={startX}
                     y={trebleStart - 14}
-                    fontSize="18"
-                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
-                    fontFamily="Maestro"
-                    style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
+                    fontSize="15"
+                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                    fontFamily="Georgia, 'Times New Roman', serif"
+                    style={{ userSelect: 'none' }}
                   >
                     {measureLabel(0)}
                   </text>
@@ -1045,10 +1045,10 @@ const SheetMusic = ({
               <text
                 x={startX}
                 y={trebleStart - 14}
-                fontSize="18"
-                fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
-                fontFamily="Maestro"
-                style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
+                fontSize="15"
+                fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                fontFamily="Georgia, 'Times New Roman', serif"
+                style={{ userSelect: 'none' }}
               >
                 {measureLabel(measureNumForLabel)}
               </text>
@@ -1076,10 +1076,10 @@ const SheetMusic = ({
                   <text
                     x={x}
                     y={trebleStart - 14}
-                    fontSize="18"
-                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
-                    fontFamily="Maestro"
-                    style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
+                    fontSize="15"
+                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                    fontFamily="Georgia, 'Times New Roman', serif"
+                    style={{ userSelect: 'none' }}
                   >
                     {measureLabel(measureNumForLabel)}
                   </text>
