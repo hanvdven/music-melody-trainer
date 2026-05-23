@@ -19,7 +19,7 @@ import Chord from '../model/Chord';
 import ChordProgression from '../model/ChordProgression';
 import Song from '../model/Song';
 import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceMelodyByRange } from '../utils/melodySlice';
-import { planPaginationSequence } from './transitionPlanner';
+import { planPaginationSequence, PAGINATION_VARIANTS } from './transitionPlanner';
 import logger from '../utils/logger';
 import { getChordsWithSlashes } from '../theory/chordLabelHandler';
 import { getHarmonyAtDifficulty } from '../utils/harmonyTable';
@@ -600,14 +600,30 @@ class Sequencer {
             // wipeTransitionRef is intentionally NOT cleared here: the useLayoutEffect in
             // App.jsx clears it (and removes the mask) synchronously after React commits the
             // new melody, preventing a 1-frame flash of the old melody.
-            // Pagination scheduler owns the preview/fade lifecycle for its mode; the
-            // boundary apply must keep the overlay+previewMelody alive until fadeEnd
-            // (lang variant overshoots 0.25m past the boundary).
+            // Pagination scheduler owns the preview/fade lifecycle for its mode.
+            // For the LANG variant (fade overshoots 0.25m past the boundary) the
+            // applyResult must KEEP the overlay alive — the scheduler's separate
+            // fadeEnd timeout will clear it later. For snel/mid (no overshoot)
+            // applyResult clears the overlay in the same batch as the melody
+            // refs, so the swap is atomic in one React render.
             const isPaginationOuter = (this.refs.animationModeRef?.current ?? 'pagination') === 'pagination';
-            const applyResult = () => this.applyResultToSetters(result, {
-              seriesStartMeasureIndex,
-              skipFadeCleanup: isPaginationOuter,
-            });
+            const outerVariantSpec = isPaginationOuter
+              ? (PAGINATION_VARIANTS[this.refs.paginationVariantRef?.current ?? 'mid'] ?? PAGINATION_VARIANTS.mid)
+              : null;
+            const outerHasOvershoot = !!(outerVariantSpec && outerVariantSpec.fadeOvershootMeasures > 0);
+            const applyResult = () => {
+              this.applyResultToSetters(result, {
+                seriesStartMeasureIndex,
+                skipFadeCleanup: outerHasOvershoot,
+              });
+              // For snel/mid pagination: clear transitionRef in the same task so
+              // the rAF stops writing inline opacity once React commits. The
+              // setNextLayer(null) + setPreviewMelody(null) part is already
+              // handled by applyResultToSetters when skipFadeCleanup is false.
+              if (isPaginationOuter && !outerHasOvershoot && this.refs.transitionRef) {
+                this.refs.transitionRef.current = null;
+              }
+            };
 
             // Schedule red preview overlay and apply result.
             if (!this.isOnceMode) {
@@ -1470,13 +1486,25 @@ class Sequencer {
     // scheduler owns both across the whole block. Batched here in one callback so
     // React commits them in a single render (otherwise startMeasureIndex would
     // update with stale roundKey for one frame → wrong visibility config briefly).
+    //
+    // IMPORTANT: do NOT call setNextLayer(null) here. The previous block's
+    // overlay may still be visible (notably during the 'lang' variant's 0.25m
+    // overshoot past the boundary). Clearing nextLayer prematurely would unmount
+    // the overlay before the cleanup phase at fadeEnd, causing a visible
+    // flash / blank frame. The previous block's scheduler owns nextLayer
+    // teardown.
     const initialDelayMs = Math.max(0, (baseAudioTime - this.context.currentTime) * 1000);
     this.scheduleTimeout(() => {
       if (!this.isPlaying) return;
       if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(sequenceStartGlobalMeasure);
       if (this.setters.setIsOddRound) this.setters.setIsOddRound(true); // iter 0 is always odd
-      if (this.setters.setNextLayer) this.setters.setNextLayer(null);
     }, initialDelayMs);
+
+    // Variant config — same hasOvershoot flag is used by the outer loop's
+    // applyResult to decide whether to skip the fade cleanup (lang only) or
+    // bundle it into the same render as the melody-refs commit (snel/mid).
+    const variantSpec = (typeof variant === 'string' && PAGINATION_VARIANTS[variant]) || PAGINATION_VARIANTS.mid;
+    const hasOvershoot = variantSpec.fadeOvershootMeasures > 0;
 
     for (const { boundary, fade } of events) {
       // Skip boundaries that already happened (mid-block start case).
@@ -1613,8 +1641,20 @@ class Sequencer {
       // For repeat-flip we batch setIsOddRound here too — without it the inner
       // loop's separate setIsOddRound setTimeout fires as a SECOND render after
       // ours, leaving one frame where startMeasureIndex points at the new iter
-      // but roundKey is still the old iter's (= overlay-old layer briefly shows
-      // wrong visibility config). Visual-flip doesn't change the round.
+      // but roundKey is still the old iter's. Visual-flip doesn't change the round.
+      //
+      // CRITICAL: when there is no overshoot (snel/mid variants), the atTime
+      // callback ALSO bundles the fade cleanup — transitionRef=null +
+      // setNextLayer=null + setPreviewMelody=null — into the same React batch as
+      // setStartMeasureIndex + setIsOddRound. One render, useLayoutEffect fires
+      // synchronously, browser paints. Without this bundling the cleanup ran as
+      // a separate setTimeout that produced its own render AFTER applyResult's
+      // commit, opening a window where:
+      //   1. inline opacity from rAF was still ~0 on data-pagination-old
+      //   2. React removed the overlay (nextLayer=null)
+      //   3. user saw a 1-frame blank (or the previous content's brief flash
+      //      depending on visibility/round state at that moment)
+      // before useLayoutEffect or the next rAF tick restored CSS-class opacity.
       if (boundary.kind !== 'series-flip') {
         const newIsOddRound = (boundary.kind === 'repeat-flip')
           ? ((boundary.repeatIndex + 1) % 2 === 0)
@@ -1624,32 +1664,31 @@ class Sequencer {
           if (!this.isPlaying) return;
           if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(newGlobalStart);
           if (newIsOddRound !== null && this.setters.setIsOddRound) this.setters.setIsOddRound(newIsOddRound);
+          // Atomic cleanup for snel/mid (no overshoot): same React batch as the
+          // state updates above. For lang the separate fadeEnd timeout below
+          // handles cleanup so the overlay stays visible during the overshoot.
+          if (!hasOvershoot) {
+            if (this.refs.transitionRef) this.refs.transitionRef.current = null;
+            if (this.setters.setNextLayer) this.setters.setNextLayer(null);
+            if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
+          }
         }, atMs);
       }
 
-      // ── 4. Cleanup at fadeEnd ───────────────────────────────────────────
-      // Two-phase cleanup to avoid a 1-frame blank when React removes the
-      // overlay before the rAF clears the inline opacity on [data-pagination-old]:
-      //
-      //   Phase 1 (fadeEndTick)         : clear transitionRef. The very next rAF
-      //                                   tick reads null, clears inline opacity
-      //                                   on BOTH stages → CSS classes restore
-      //                                   opacity (old → 1, new → 0).
-      //   Phase 2 (fadeEndTick + 16ms)  : React setters fire — setNextLayer(null)
-      //                                   and setPreviewMelody(null). React
-      //                                   unmounts the overlay. 16ms ≈ 1 frame at
-      //                                   60fps, enough for Phase 1's opacity
-      //                                   clear to paint first.
-      const cleanMs = Math.max(0, (fadeEndTime - this.context.currentTime) * 1000);
-      this.scheduleTimeout(() => {
-        if (!this.isPlaying) return;
-        if (this.refs.transitionRef) this.refs.transitionRef.current = null;
+      // ── 4. Cleanup at fadeEnd (LANG variant only) ───────────────────────
+      // For snel/mid the cleanup is bundled into step 3's atTime callback or
+      // into the outer-loop applyResult callback (for series-flip). Only lang
+      // needs a separate timeout because its fadeEnd is 0.25m PAST the boundary
+      // — we want to keep the overlay visible during the overshoot.
+      if (hasOvershoot) {
+        const cleanMs = Math.max(0, (fadeEndTime - this.context.currentTime) * 1000);
         this.scheduleTimeout(() => {
           if (!this.isPlaying) return;
+          if (this.refs.transitionRef) this.refs.transitionRef.current = null;
           if (this.setters.setNextLayer) this.setters.setNextLayer(null);
           if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
-        }, 16);
-      }, cleanMs);
+        }, cleanMs);
+      }
     }
   }
 
