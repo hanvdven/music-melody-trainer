@@ -1375,21 +1375,99 @@ Uses the output of `generateRankedRhythm` directly. Top N slots per measure (det
 
 Uses `rhythmicGrouping` (the beat-group decomposition from `generateRhythmicDNA`) to pre-determine line boundaries. Each beat group maps to one line.
 
-**Line structure:**
-- One line per beat group (e.g. 4/4 with grouping [2,2] → 2 lines per measure; 5/4 with grouping [3,2] → 2 lines per measure).
-- Line length = `notesPerBeatGroup` (derived from `notesPerMeasure / numGroups`); fractional remainder is distributed across groups.
-- L is placed at the last rhythmic slot of each group.
+`arp_group` runs in **two stages**:
+  1. **Line decomposition** — walk through the priority ranks, assigning each slot to either L (line-ending landing note) or n (approach note), without yet picking pitches. This stage uses `smallestNoteDenom` (NOT `rhythmVariability`) to determine the granularity of approach-note clusters.
+  2. **Note filling** — for each L, plan its approach notes backwards within a span (the existing §27.2 backwards-planning algorithm).
 
-**Filling algorithm:**
-1. Determine L for this group (root or random chord tone per §27.3).
-2. Choose line direction (omhoog / omlaag) — fixed for the duration of this line.
-3. Walk backwards from L, picking approach notes from the note pool within the span.
-4. Apply spring or kaats when the span boundary is reached (see §27.2).
-5. Reverse the collected approach-note list and assign to the group's slots in time order, placing L at the last slot.
+> **Spec note (2026-05-22)**: The current implementation uses `rhythmVariability` for stage-1 grouping, which is a known divergence from spec. Tracked in BACKLOG.
 
-**Direction changes:** direction is chosen fresh for each new line (random or alternating). Direction does not change mid-line.
+#### 27.5a Stage 1 — Line decomposition (Han 2026-05-22 spec)
 
-**Chord changes:** if the active chord changes within a group, the approach notes before the chord change are drawn from the old chord's pool; notes after (up to and including L) from the new chord's pool.
+Walk the priority ranks (1 = highest priority) from the ranked rhythm array:
+
+```
+[(1 7 5)(3 10)|(2 8 5)(4 9)]     ← ranks from generateRankedRhythm
+```
+
+1. **Pick the lowest unused rank** (= highest priority slot).
+2. **Assign L** to that slot — unless the slot is already tagged `n` (because a previous step's "fill" overwrote it). If already `n`, leave it and proceed to step 3 anyway.
+3. **Fill the group BEFORE** (the previous beat group in time) with `n`. **Overwrite L's** in that fill — those L's become approach notes of a longer line. Skip if no group-before exists.
+4. **Repeat** with next-lowest unused rank.
+5. **Stop conditions**:
+   - All slots are tagged (`L` or `n`).
+   - Tie on lowest-rank → pick the slot whose "group-before" fill would create the longest empty stretch. After this tie-breaker stop searching (no more line creations).
+
+Resulting number of lines: between `1` and `numMeasures × numGroupsPerMeasure`.
+
+**Worked example** (Han 2026-05-22) — `[(1 7 5)(3 10)|(2 8 5)(4 9)]`:
+
+```
+Initial:  [(1 7 5)(3 10) | (2 8 5)(4 9) ]
+
+Rank 1 → slot becomes L:
+          [(L 7 5)(3 10) | (2 8 5)(4 9) ]
+          Fill group-before: doesn't exist (first group). Skip.
+
+Rank 2 → slot becomes L:
+          [(L 7 5)(3 10) | (L 8 5)(4 9) ]
+          Fill group-before: previous group = (3 10) → (n n).
+          [(L 7 5)(n n)  | (L 8 5)(4 9) ]
+
+Rank 3 → slot already n; leave it.
+          Fill group-before: previous group = (L 7 5). Overwrite L → (n n n).
+          [(n n n)(n n)  | (L 8 5)(4 9) ]
+
+Stop: all m1 slots filled. (Subsequent ranks 4,5,…,10 would fill m2's
+remaining slots one cluster at a time by the same rule.)
+```
+
+Each cluster `(n ... n L)` is one line. All notes in a line approach the same L; there is no "starting FROM an L" — every note in the cluster moves *toward* the L.
+
+#### 27.5b Stage 2 — Note filling (per-line backwards planning)
+
+For each line (cluster ending in L), pick fresh parameters and back-plan from L:
+1. Choose **type**: `kaats` (bounce) or `spring` (octave jump) at span boundaries (§27.2).
+2. Choose **span** (12 semitones around L by default; see `maxLeap`).
+3. Choose **direction** (up / down) — `richting omhoog` = the line ascends in TIME toward L.
+4. Backwards plan from L within span; on boundary apply chosen type.
+5. Reverse collected list and assign to the cluster's slots in time order; place L at the last slot.
+
+**Worked example** (Han 2026-05-22) — C major, range [c4, e5], two lines:
+
+```
+Line 1: cluster of 5 slots ending in L₁ = G4.
+        type=spring, span=[c4,c5], direction=down.
+        Backwards step  1: ___ ___ ___ A5  G4   ← wait — A5 outside span [c4,c5];
+                                                  this trace shows pitches AFTER spring
+                                                  ('direction down' walks UP in pitch
+                                                  going back in time, so picks > G4).
+        Backwards step  2: ___ ___ B5  A5  G4
+        Backwards step  3: ___ C5  A5  G5        ← (intermediate trace)
+        Spring! (octave jump at boundary)
+        Final:             C4  C5  A5  G5        ← time order; spring resolved
+                                                   one of the inner pitches via the
+                                                   spring rule.
+
+Line 2: cluster of 3 slots ending in L₂ = E4.
+        type=kaats, span=[d4,d5], direction=up.
+        Backwards step 1:           ___ E4
+        Backwards step 2:       D4  E4   ← walks down ('up' direction)
+        Kaats! (reverse at boundary)
+        Final:           E4  D4  E4
+```
+
+> The exact pitches shown above are illustrative — Han noted the trace
+> step-by-step including the boundary triggers. Re-confirm during
+> implementation that the trace direction labels match the algorithm
+> (since "direction down" can be read as "down in time" or "down in
+> pitch").
+
+#### 27.5c Edge cases (Han 2026-05-22 additions)
+
+- **Tie on lowest rank** → pick the slot whose "group-before" fill creates the longest empty stretch (= most contiguous unfilled slots). After this tie-breaker stop searching.
+- **Span has no valid pool notes** AND **the chord is just its root** (so the pool is tiny): exceptionally allow the **fifth** of the chord into the line. If still no candidate, repeat the previous approach note.
+
+> See also §27.7 for the earlier edge-case table (rest blocking L, narrow range etc.).
 
 ---
 
