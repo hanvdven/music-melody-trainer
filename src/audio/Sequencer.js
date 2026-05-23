@@ -573,7 +573,30 @@ class Sequencer {
             // USE LATEST state for generation!
             currentTS = this.refs.timeSignatureRef.current;
 
-            // Use pre-generated result (scroll mode fires this earlier) or generate now.
+            // Pagination mode: AWAIT the scheduler's JIT generation rather than
+            // racing it. The JIT setTimeout fires at boundary - genLead × measure
+            // duration. The outer loop reads pregenResult at boundary - lookahead.
+            // For snel (genLead=0.5m) at 4/4 the two deadlines coincide; for
+            // larger time-sig denominators (3/4, 6/8) or low BPMs the outer loop
+            // can FIRE FIRST, generating a fresh melody that diverges from what
+            // the scheduler's arm callback will read for the overlay preview.
+            // Result: overlay shows melody Y while audio plays melody X — a
+            // visible mismatch that looks like "the overlay still shows the
+            // current melody".
+            //
+            // Wait up to 250ms (50 × 5ms polls). The JIT deadline is well within
+            // this window for all variants; if it hasn't fired, something is
+            // wrong and we fall back to inline generation below.
+            const seqMode = this.refs.animationModeRef?.current ?? 'pagination';
+            if (seqMode === 'pagination' && !this.pregenResult && !this.isOnceMode) {
+              for (let i = 0; i < 50 && !this.pregenResult && this.isPlaying; i++) {
+                if (sessionController.signal.aborted) break;
+                await new Promise(r => setTimeout(r, 5));
+              }
+            }
+
+            // Use pre-generated result (scroll mode fires this earlier; pagination
+            // waited above) or generate now as a last-resort fallback.
             const result = this.pregenResult ?? this.randomizeScaleAndGenerate(this.refs.numMeasuresRef.current, currentTS, {
               treble,
               bass,

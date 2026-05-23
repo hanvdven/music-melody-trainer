@@ -308,6 +308,8 @@ Verzameld in één blok, allemaal `⚠ Neem alvorens dit te implementeren een in
 ### Bug: arp_group volgt variatie i.p.v. smallestNoteDenom
 [Han 2026-05-22]: arp_group voldoet niet aan spec. Het algoritme volgt nu de variatie-instelling voor het vullen van groepen naar leidtonen, maar zou de `smallestNoteDenom` moeten volgen (= de gewenste rasterresolutie). Resultaat: groepen worden te dicht of te dun gevuld afhankelijk van variability i.p.v. de bedoelde rastergrootte.
 
+[Claude 2026-05-22]: Volledige spec uitgewerkt en gedocumenteerd in `docs/architecture.md` §27.5a (line-decomposition stage 1 met L/n algoritme), §27.5b (per-line backwards planning), §27.5c (edge cases — gelijkspel tie-break, alleen-root chord met enge span → kwint of herhaal vorige noot). Implementatie nog uit te voeren: `src/generation/convertRankedArrayToMelody.js` — vervang de variability-gestuurde grouping door de rank-walking algoritme (zie §27.5a worked example met [(1 7 5)(3 10)|(2 8 5)(4 9)]).
+
 ### ✅ Bug & Verbetering: Tuplet-kansen en dichtheid
 
 tuplet chance high zorgt voor ongeveer 100% tuplets. Balanceer de kansen.
