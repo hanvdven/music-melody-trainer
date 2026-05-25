@@ -101,6 +101,42 @@ const useSheetMusicHighlight = ({
         let lastChordActiveKey = '';
         let lastSetMeasureIndex = -1;
 
+        // ── DOM lookup cache for note + chord highlighting ────────────────────
+        // Before: every diff frame did a 3-attribute querySelectorAll per key
+        // change. At 16th notes / 120 BPM that's ~64 querySelector calls per
+        // second. The DevTools profile showed this path at ~10% of total CPU.
+        //
+        // After: cache the queried NodeList per key. On read, verify the first
+        // cached element is still in the DOM via `isConnected` — if React
+        // unmounted/replaced the element (e.g. melody apply, startMeasureIndex
+        // change), isConnected returns false and we re-query.
+        //
+        // Cache is also cleared when clearHighlightStateRef.current is true
+        // (set by the melodies-changed scrub useLayoutEffect) so stale keys
+        // for removed notes don't accumulate.
+        let noteElCache = new Map();
+        let chordElCache = new Map();
+        const getNoteEls = (key) => {
+            const hit = noteElCache.get(key);
+            if (hit && (hit.length === 0 || hit[0].isConnected)) return hit;
+            const [mi, mel, ls] = key.split(':');
+            const list = Array.from(svgRef.current?.querySelectorAll(
+                `[data-measure-index="${mi}"][data-local-slot="${ls}"][data-mel="${mel}"]`
+            ) || []);
+            noteElCache.set(key, list);
+            return list;
+        };
+        const getChordEls = (key) => {
+            const hit = chordElCache.get(key);
+            if (hit && (hit.length === 0 || hit[0].isConnected)) return hit;
+            const [mi, ls] = key.split(':');
+            const list = Array.from(svgRef.current?.querySelectorAll(
+                `[data-measure-index="${mi}"][data-local-slot="${ls}"][data-mel="chord"]`
+            ) || []);
+            chordElCache.set(key, list);
+            return list;
+        };
+
         // ── Cached DOM refs ────────────────────────────────────────────────────
         // Querying the SVG every frame is expensive. We cache stable elements once
         // and re-query only when the relevant transition object changes.
@@ -405,6 +441,10 @@ const useSheetMusicHighlight = ({
                 // silently skipping any chord that should be deactivated.
                 lastChordActiveKeys = new Set();
                 lastChordActiveKey = '';
+                // DOM elements were rebuilt; drop cached lookups so the next diff
+                // does a fresh query rather than relying on stale (disconnected) nodes.
+                noteElCache.clear();
+                chordElCache.clear();
                 clearHighlightStateRef.current = false;
             }
 
@@ -423,16 +463,12 @@ const useSheetMusicHighlight = ({
                 if (key !== lastActiveKey) {
                     for (const k of lastActiveKeys) {
                         if (!activeKeys.has(k)) {
-                            const [measureIndex, mel, localSlot] = k.split(':');
-                            svg.querySelectorAll(`[data-measure-index="${measureIndex}"][data-local-slot="${localSlot}"][data-mel="${mel}"]`)
-                                .forEach(el => el.classList.remove('note-active'));
+                            getNoteEls(k).forEach(el => el.classList.remove('note-active'));
                         }
                     }
                     for (const k of activeKeys) {
                         if (!lastActiveKeys.has(k)) {
-                            const [measureIndex, mel, localSlot] = k.split(':');
-                            svg.querySelectorAll(`[data-measure-index="${measureIndex}"][data-local-slot="${localSlot}"][data-mel="${mel}"]`)
-                                .forEach(el => el.classList.add('note-active'));
+                            getNoteEls(k).forEach(el => el.classList.add('note-active'));
                         }
                     }
                     lastActiveKeys = activeKeys;
@@ -482,16 +518,12 @@ const useSheetMusicHighlight = ({
                     if (chordKey !== lastChordActiveKey) {
                         for (const k of lastChordActiveKeys) {
                             if (!chordActiveKeys.has(k)) {
-                                const [mi, ls] = k.split(':');
-                                svg.querySelectorAll(`[data-measure-index="${mi}"][data-local-slot="${ls}"][data-mel="chord"]`)
-                                    .forEach(el => el.classList.remove('chord-label-active'));
+                                getChordEls(k).forEach(el => el.classList.remove('chord-label-active'));
                             }
                         }
                         for (const k of chordActiveKeys) {
                             if (!lastChordActiveKeys.has(k)) {
-                                const [mi, ls] = k.split(':');
-                                svg.querySelectorAll(`[data-measure-index="${mi}"][data-local-slot="${ls}"][data-mel="chord"]`)
-                                    .forEach(el => el.classList.add('chord-label-active'));
+                                getChordEls(k).forEach(el => el.classList.add('chord-label-active'));
                             }
                         }
                         lastChordActiveKeys = chordActiveKeys;

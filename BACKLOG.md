@@ -310,6 +310,36 @@ Verzameld in één blok, allemaal `⚠ Neem alvorens dit te implementeren een in
 
 [Claude 2026-05-22]: Volledige spec uitgewerkt en gedocumenteerd in `docs/architecture.md` §27.5a (line-decomposition stage 1 met L/n algoritme), §27.5b (per-line backwards planning), §27.5c (edge cases — gelijkspel tie-break, alleen-root chord met enge span → kwint of herhaal vorige noot). Implementatie nog uit te voeren: `src/generation/convertRankedArrayToMelody.js` — vervang de variability-gestuurde grouping door de rank-walking algoritme (zie §27.5a worked example met [(1 7 5)(3 10)|(2 8 5)(4 9)]).
 
+[Han 2026-05-25]: Voorbeelden vergeleken (arp_var boven, arp_group onder) — `4/4` `smallestNoteDenom=8` `variability=0`. arp_group genereert nu `(h)(q q)|(h)(q q)` maar zou `(h)(e e e e)|(w)()` moeten zijn. Drie deelvragen voor de fix:
+
+**A) Worden de ranks correct samengevoegd voor het toekennen van L en n?**
+
+Voor de groepering van de noten (de "0-variabiliteit baseline") verwacht Han dat eerst de prio's met `smallestNoteDenom` worden ingevuld:
+
+```
+ranks van rhythm-engine:     (1 5)(4 7) | (2 6)(3 8)
+na invullen op smallestNoteDenom=8 (0-variability):
+(1 9 5 9)(4 9 7 9) | (2 9 6 9)(3 9 8 9)
+```
+
+Daarna wordt L/n toegekend (stage 1, zie §27.5a). Test of arp_group de ranks al op de 8e-noten-grid ziet vóór toekenning.
+
+**B) Worden L en n correct toegekend?**
+
+Verwacht: één lijn per groep van 4 noten, eindigend in L. Voor het voorbeeld:
+
+```
+(L x x x)(n n n n) | (L x x x)(x x x x)
+```
+
+Han denkt dat er nu te veel L-noten zitten — de "toonladder" loopt niet door. Lijkt erop dat arp_group elke groep een eigen L geeft, terwijl het vul-algoritme (zie §27.5a) zou moeten resulteren in maar één L per cluster (en clusters lopen over groepen heen).
+
+**C) Wordt de span correct bepaald?**
+
+Concrete observatie: Han zag een potentiële span `[d5, e5]` terwijl range `[c4, e4]` en `maxLeap=octaaf`. Vermoeden: de span wordt berekend als `intersection(range, [L-12, L+12])` waardoor de werkelijke span veel smaller dan een octaaf wordt.
+
+Spec-fix: zorg dat de span (waar mogelijk) altijd `maxLeap` breed is. Voor L=d5 met range `[c4, e4]` en maxLeap=octaaf: kies ofwel `[d4, d5]` of `[e4, e5]`, maar NIET `[f4, e5]` (of erger). Met andere woorden: schuif de span binnen de range zodat L erin past, en als de range groot genoeg is hou je de volle maxLeap-breedte.
+
 ### ✅ Bug & Verbetering: Tuplet-kansen en dichtheid
 
 tuplet chance high zorgt voor ongeveer 100% tuplets. Balanceer de kansen.
@@ -482,6 +512,39 @@ Open items uit de redesign:
 - **Chord progression preview bij visual-flip / repeat-flip** — toont nu de eerste N akkoorden van de huidige melodie i.p.v. die van de nieuwe pagina. Noten zelf renderen wel correct (pre-sliced). Geen audio-impact.
 - **Pagination scheduler: BPM-change tijdens fade** — iter 2 edge case (Han 2026-05-22). De huidige scheduler ticks→seconds conversie gebruikt de BPM op het moment van armen. BPM-wijziging mid-fade laat de planner-events op de oude conversie staan tot de volgende sequence block.
 - **Pagination scheduler: long-press voor variant-keuze** — op dit moment cycle door snel/mid/lang/wipe/scroll. Iter 2: long-press op de PAG-knop opent een gs-popup met 3 expliciete variant-keuzes (en daarnaast separate WIPE/SCROLL knoppen).
+- **Pagination scheduler: preview vs applied melody mismatch** (Han 2026-05-25). Verklaring nog niet rond — de scheduler-log toont `previewBms` consequent +2 per blok (kloppend) maar Han ziet soms een melodie in de overlay die NIET overeenkomt met wat daarna afgespeeld wordt. Verdacht: misschien geeft een user-interactie tussen JIT en outer-loop-apply een nieuwe generatie, of er is een race waar pregenResult tussen arm en outer wordt overschreven. Vraagt reproduceerbaar voorbeeld om dieper te debuggen — bij gelegenheid `localStorage.LOG_LEVEL='debug'` en de pagArm-logs delen.
+
+### Performance — frame drops bij continuous playback (Han 2026-05-25)
+
+Han: "Als continuous playback loopt duurt alles te lang." DevTools Lighthouse-meting tijdens playback:
+
+- **LCP** = 3.34 s (poor; target < 2.5 s)
+- **CLS** = 0.00 (good)
+- **INP** = 696 ms (poor; target < 200 ms) — gebruiker-interacties hebben bijna 700ms latency
+
+DevTools-trace analyse (~16 sec sample tijdens playback):
+- **React renders (`performWorkUntilDeadline`) = 250–411 ms** per cycle, meerdere keren per seconde.
+- **`useSheetMusicHighlight` rAF tick = 263 ms** in één frame — 16 frames gemist op 60fps.
+- **AdBlock extensie** (`webext-ad-filtering-solution`) ~135ms × 10 calls = 1.35s background CPU (Han's eigen Chrome-omgeving; niet onze code).
+- Top hotspot: react-dom_client.js reconciliation = 5s totaal over de sample.
+
+Hypotheses voor de animatie-haperingen (vermoedelijk dezelfde root cause):
+1. **`SheetMusic.jsx` is een monoliet**: ~2500 regels, re-rendert bij ELKE state change (currentMeasureIndex, isOddRound, nextLayer, previewMelody, melodies, …). Bij elke render worden `processMelodyAndCalculateSlots`, `calculateAllOffsets`, `getChordsWithSlashes`, en de preview-overlay's eigen layout opnieuw berekend.
+2. **Geen `useMemo`-bescherming** op de duurste delen (note rendering, accidental maps, offset arrays).
+3. **Preview overlay rendert per frame opnieuw** — pmAllOffsets, previewTreble/bass/perc, etc. worden per render herberekend.
+4. **rAF-loop iteert per frame over `scheduledMeasures` / `scheduledNotes` / `scheduledChords`** voor highlighting — die arrays groeien tijdens playback.
+
+Acties voor backlog (vraagt interview voor scope/prioriteit):
+- **Memoize `SheetMusic.jsx`-children** via `React.memo` + selectieve props.
+- **Splits SheetMusic op** in OLD-layer (vrij stabiel) en NEW-overlay (vrij stabiel) sub-componenten met eigen memoization.
+- **`useMemo` op `processMelodyAndCalculateSlots` / `calculateAllOffsets`** — heronderzoek dependencies (waarschijnlijk meeste re-renders krijgen identieke inputs).
+- **rAF-loop**: prune `scheduledMeasures` / `scheduledNotes` agressiever (nu 2s window), of gebruik binary search / sorted insertion.
+- **Inspecteer of er onnodige Context providers** zijn die ALLE consumers laten re-renderen bij minor state changes (bv. PlaybackStateContext bij elk currentMeasureIndex tick).
+
+> ⚠ Performance-werk vraagt interview met Han om de prioritering, scope en acceptatiecriteria af te stemmen. Han noemde: na animatie eerste prio.
+
+### Bug: click anywhere should close settings overlay (Han 2026-05-25)
+Eenderwaar klikken (behalve op responsieve knoppen / settings-elementen zelf) moet de settings overlay sluiten. Op dit moment moet je specifiek buiten een knop maar binnen de "klik-vrije" zone klikken — soms niet intuïtief.
 
 ### Header — split play button
 

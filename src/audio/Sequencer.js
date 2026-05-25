@@ -1647,22 +1647,6 @@ class Sequencer {
         // it like the existing 'yellow'/'red' path but always sourced from previewMelody.
         if (this.setters.setNextLayer) this.setters.setNextLayer('crossfade');
         if (preview && this.setters.setPreviewMelody) this.setters.setPreviewMelody(preview);
-        // Debug: log what we're setting for this boundary so we can spot
-        // when the series-flip preview doesn't carry the future block info.
-        logger.debug('Sequencer', 'pagArm', {
-          kind: boundary.kind,
-          atTickInMeasures: boundary.atTick / measureLengthTicks,
-          pregenSet: !!this.pregenResult,
-          previewSet: !!preview,
-          previewBms: preview?._blockMeasureStart ?? null,
-          previewBps: preview?._blockPlayStart ?? null,
-          futureBms: futureBlockMeasureStart,
-          futureBps: futureBlockPlayStart,
-          melodyCount: this.melodyCount,
-          historyIndex: this.refs.historyIndexRef?.current,
-          previewTrebleLength: preview?.treble?.notes?.length ?? null,
-          pregenTrebleLength: this.pregenResult?.treble?.notes?.length ?? null,
-        });
       }, armMs);
 
       // ── 3. Audio swap at boundary.atTick ────────────────────────────────
