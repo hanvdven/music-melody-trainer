@@ -865,7 +865,6 @@ const App = () => {
             isPlaying={isPlaying}
             isPlayingContinuously={isPlayingContinuously}
             isOddRound={isOddRound}
-            currentMeasureIndex={currentMeasureIndex}
             showNotes={showNotes}
             nextLayer={nextLayer}
             previewMelody={previewMelody}
