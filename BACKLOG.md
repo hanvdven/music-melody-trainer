@@ -38,6 +38,11 @@ bestaande liedjes (happy birthday, ...)
 [Claude 2026-05-19]: Op verzoek van Han: samenvoegen met custom chord progressions (#25). Twee features: (1) bestaande liedjes afspelen (SHORTLIST); (2) eigen invoer (LONGLIST). Nieuwe feature samen met 'eigen invoer': akkoord / drum-sequencer → LONGLIST.
 [Claude 2026-05-20]: ✅ Geïmplementeerd. Nieuwe bestanden: `src/songs/definitions/happyBirthday.js` (F groot, 3/4, 24 noten, per-lettergreep lyrics), `src/songs/loadSong.js` (transponeert naar huidig tonica), `src/songs/songIndex.js` (register). UI: `src/components/songs/SongsTab.jsx` — kaartgrid met Easy/Medium/Hard kiezer + "Originele toonaard"-toggler (toggling ON laadt het nummer opnieuw in geschreven toonaard én zet app-tonica op die toonaard). Tekstlyrics worden gerenderd onder de treble via `renderTextLyricsRow` in `SheetMusic.jsx`, onafhankelijk van solfège-modus.
 
+[Han 2026-05-22]: Bugs op de huidige song-implementatie:
+- ✅ **Songs > loading sets bottomview to sheet music** — onbedoeld; verwachting was dat de huidige bottomview behouden blijft (of in elk geval niet hard switchen naar sheet music) wanneer je een lied laadt.
+  [Claude 2026-05-22]: De `setActiveTab('sheet-music')` regel in de `loadSongAndPlay` callback in `App.jsx` verwijderd. De gebruiker's huidige tab blijft nu behouden bij het laden van een lied.
+- **Happy Birthday klinkt niet correct** — de melodie of het ritme klopt niet met het bekende kinderliedje. Vermoedelijk een tikfout in `src/songs/definitions/happyBirthday.js` of een transpositie-bug.
+
 ### Profiel-icoon & submenu (navigatie)
 vervang profile settings icoon met Lucide: user.
 Submenu: kennisbank (graduation-cap) en settings (waar nu thema etc onder staan).
@@ -264,12 +269,78 @@ soms klopt de plaatsing van noten niet op bladmuziek. Waarschijnlijke verkeerde 
 wordt gerenderd als [q q 3:2q| 3:2q q | q q q q | qr ]
 lijkt vooral te gebeuren met tuplets van kwartnoten.
 
+[Han 2026-05-22 EXTRA VOORBEELD]: 4/4 [h 3:2q | (leeg) e q-dot | hr ] wordt gerenderd als [h 3:2q | e q-dot hr]. De bladmuziek is waarschijnlijk juist (audio komt overeen), maar de slot-toekenning klopt niet. Vermoeden: 3:2q (kwartnoot-triplet) wordt gerekend als 2 halve noten i.p.v. 2 kwarten in de slot-berekening. Alleszins gaat hier iets mis in de berekening van de ritmische slots.
+
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
 [Claude 2026-05-21 ONDERZOEK]: Uitgebreid code-inspectie uitgevoerd. Tick-rekenkunde in `melodyGenerator.js` is correct (groupTicks = slotCount × timeScale; sub-noot-durations tellen altijd op tot groupTicks). `injectTuplets` genereert nooit maatgrens-overschrijdende tuplets. De `triplets`-bypass in `processMelodyAndCalculateSlots` (regel 158-165) herkent tuplet-noten correct.
 **Twee kandidaat-oorzaken gevonden:**
 1. **`totalDuration`-bug** (`processMelodyAndCalculateSlots.js` regels 119-123): `startRestDuration` wordt per-element opgeteld in de `reduce` i.p.v. eenmalig. Bij melodieën met een leidende rust → `totalDuration` te groot → trailing-rest-padding mist → maat-wisseling aan het einde. Reproductie: eerste noot niet op offset 0.
 2. **Stapeling van meerdere tuplet-expansies** (`melodyGenerator.js` regels 507-582): twee opeenvolgende tuplets worden right-to-left verwerkt, dus indices blijven stabiel. Maar: bij `n - slotCount ≠ 0` (bijv. kwartnoottriplet in 8ste-resolutie: slotCount=4, n=3 → array krimpt met 1) verandert de lengte van `notes`/`offsets`/`triplets` na elke expansie. Als een tweede tuplet daarna `offsets.slice(idx + slotCount)` aanroept met een index die al verschoven is door de eerste expansie, kunnen de offsets van latere noten incorrect worden.
 **Aanbevolen vervolgstap**: debug-logging toevoegen van `offsets` en `durations` vóór/ná elke tuplet-expansie in de `for (const tg of activeWinners)` loop om de cumulatieve telsom na meerdere expansies te verifiëren. Interview met Han nodig voor exacte reproduceer-stappen.
+
+### Tuplets — visuele en notatie-bugs (Han 2026-05-22)
+
+Verzameld in één blok, allemaal `⚠ Neem alvorens dit te implementeren een interview af bij Han.`:
+
+- **Tuplet-cijfers overlappen met de notenbalk-lijnen** — forceer dat het cijfer (en ":m" als die wordt getoond) niet over de 5 lijnen van de balk valt. Plaatsing boven/onder afhankelijk van stem-richting.
+- **Risico: tuplet-cijfers overlappen met lyrics-rij** (ta-ka-di-mi onder percussie). Bij tuplet boven percussie + Takadimi onder treble is dit minder relevant; bij tuplet onder treble + Takadimi op zelfde positie wel.
+- ✅ **Maatnummers stijl-consistent met tuplet-cijfers** — beide gebruiken nu verschillende fonts/groottes. Han: graag in dezelfde stijl en kleur (zie volgend item).
+  [Claude 2026-05-22]: Maatnummers nu Georgia/Times serif 15px (matcht tuplet). Bestand: `SheetMusic.jsx`.
+- ✅ **Vermijd opacity in de bladmuziek** — de transitie-animatie maakt elementen donkerder (opacity verlaagt RGB-output op een donkere achtergrond). In plaats daarvan: een CSS-variabele `--text-lowlight` per theme (dark + light mode). Maatnummers en de ":m" van tuplets moeten dezelfde lowlight-kleur krijgen.
+  [Claude 2026-05-22]: `--text-lowlight` toegevoegd voor default theme (`#8a8a8a`); bestond al voor nocturne/meridienne/light. Maatnummers (was `opacity:0.3`) en tuplet ":m" (was `color-mix transparent 55%`) gebruiken nu beide `var(--text-lowlight)` als fill. Geen opacity-stapeling meer tijdens crossfade. Debug-mode previewColor tinting blijft via color-mix met previewColor zoals voorheen. Bestanden: `App.css`, `SheetMusic.jsx`, `renderMelodyNotes.jsx`.
+- ✅ **Tuplet-beugel iets breder** — nu loopt de beugel van het midden van de eerste tot het midden van de laatste tuplet-noot. Moet zijn: van de uiterste rand van de eerste tot de uiterste rand van de laatste noot.
+  [Claude 2026-05-22]: Bracket-eindpunten verbreed met 6px aan elke kant (= half notehead-breedte bij fontSize=36). Bestand: `renderMelodyNotes.jsx`.
+- **Edge case: parallel voicing in percussie + tuplets** — gedrag onduidelijk. ⚠ Interview met Han voor scope.
+- **Tuplets > numMeasures × notes-per-measure verkeerd geteld** — vermoedelijk gerelateerd aan de slot-bug hierboven; bij tuplets is de totale noten-telling soms hoger dan verwacht.
+
+### Percussie beams — schuine staan
+[Han 2026-05-22]: De beams voor achtsten/zestienden zijn vaak schuin. Voor percussie is er geen melodie die omhoog/omlaag gaat, dus hoek heeft geen functie. Beperk de maximale hoek, of fixeer hem op horizontaal. Dit kan ook tuplets, dual-voice mode etc. leesbaarder maken.
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Rusten — beter balanceren
+[Han 2026-05-22]: In gegenereerde melodieën zie ik veel herhaalde kwartrusten achter elkaar. Wil graag betere distributie / minder voorspelbaarheid. Mogelijk gerelateerd aan de variability-instelling.
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Feature: rusten binnen tuplets bij hogere variability
+[Han 2026-05-22]: Op dit moment hebben tuplets altijd alle slots gevuld met noten. Bij hogere variability wil ik dat een deel van de tuplet-slots als rust gegenereerd kan worden. Hangt samen met tuplet-rendering in parallel-voices mode.
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han. Algoritme én notatie te bespreken.
+
+### ✅ Bug: arp_group volgt variatie i.p.v. smallestNoteDenom
+[Han 2026-05-22]: arp_group voldoet niet aan spec. Het algoritme volgt nu de variatie-instelling voor het vullen van groepen naar leidtonen, maar zou de `smallestNoteDenom` moeten volgen (= de gewenste rasterresolutie). Resultaat: groepen worden te dicht of te dun gevuld afhankelijk van variability i.p.v. de bedoelde rastergrootte.
+
+[Claude 2026-05-26]: ✅ Geïmplementeerd in `src/generation/convertRankedArrayToMelody.js` (`arp_group` else-branch volledig herschreven). Stage 1: rank-walking met placeholder-rank voor inactieve slots, group-before fill, tie-break met longest-empty-stretch. Stage 2: per-line backwards-planning met random-span-containing-L. Bestaande `buildArpLine` uitgebreid met optionele `spanLow/spanHigh` overrides zodat arp_var ongewijzigd blijft. Test gerust met 4/4 + smallestNoteDenom=8 + variability=0 om te checken of de output nu eighth-noten-dichtheid heeft i.p.v. quarter-noten.
+
+[Claude 2026-05-22]: Volledige spec uitgewerkt en gedocumenteerd in `docs/architecture.md` §27.5a (line-decomposition stage 1 met L/n algoritme), §27.5b (per-line backwards planning), §27.5c (edge cases — gelijkspel tie-break, alleen-root chord met enge span → kwint of herhaal vorige noot). Implementatie nog uit te voeren: `src/generation/convertRankedArrayToMelody.js` — vervang de variability-gestuurde grouping door de rank-walking algoritme (zie §27.5a worked example met [(1 7 5)(3 10)|(2 8 5)(4 9)]).
+
+[Han 2026-05-25]: Voorbeelden vergeleken (arp_var boven, arp_group onder) — `4/4` `smallestNoteDenom=8` `variability=0`. arp_group genereert nu `(h)(q q)|(h)(q q)` maar zou `(h)(e e e e)|(w)()` moeten zijn. Drie deelvragen voor de fix:
+
+**A) Worden de ranks correct samengevoegd voor het toekennen van L en n?**
+
+Voor de groepering van de noten (de "0-variabiliteit baseline") verwacht Han dat eerst de prio's met `smallestNoteDenom` worden ingevuld:
+
+```
+ranks van rhythm-engine:     (1 5)(4 7) | (2 6)(3 8)
+na invullen op smallestNoteDenom=8 (0-variability):
+(1 9 5 9)(4 9 7 9) | (2 9 6 9)(3 9 8 9)
+```
+
+Daarna wordt L/n toegekend (stage 1, zie §27.5a). Test of arp_group de ranks al op de 8e-noten-grid ziet vóór toekenning.
+
+**B) Worden L en n correct toegekend?**
+
+Verwacht: één lijn per groep van 4 noten, eindigend in L. Voor het voorbeeld:
+
+```
+(L x x x)(n n n n) | (L x x x)(x x x x)
+```
+
+Han denkt dat er nu te veel L-noten zitten — de "toonladder" loopt niet door. Lijkt erop dat arp_group elke groep een eigen L geeft, terwijl het vul-algoritme (zie §27.5a) zou moeten resulteren in maar één L per cluster (en clusters lopen over groepen heen).
+
+**C) Wordt de span correct bepaald?**
+
+Concrete observatie: Han zag een potentiële span `[d5, e5]` terwijl range `[c4, e4]` en `maxLeap=octaaf`. Vermoeden: de span wordt berekend als `intersection(range, [L-12, L+12])` waardoor de werkelijke span veel smaller dan een octaaf wordt.
+
+Spec-fix: zorg dat de span (waar mogelijk) altijd `maxLeap` breed is. Voor L=d5 met range `[c4, e4]` en maxLeap=octaaf: kies ofwel `[d4, d5]` of `[e4, e5]`, maar NIET `[f4, e5]` (of erger). Met andere woorden: schuif de span binnen de range zodat L erin past, en als de range groot genoeg is hou je de volle maxLeap-breedte.
 
 ### ✅ Bug & Verbetering: Tuplet-kansen en dichtheid
 
@@ -416,6 +487,80 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 
 ✅ fade out aan het einde van repeat block is niet goed. Check de specs / architectuurbeschrijving voor animaties en zorg dat er een mooie fade-out is; momenteel is de overgang tussen sequence blokken nog hakkelig.
 [Claude 2026-05-10]: Oorzaak: `setTimeout(fn,0)` vuurt altijd vóór de volgende `requestAnimationFrame`. `setNextLayer(null)` triggerden `useLayoutEffect` terwijl de rAF-crossfade nog bezig was (bijv. old opacity 0.7). `useLayoutEffect` herstelde dan opacity naar 1 — zichtbare helderheidssprong. Fix: `iterStateMs` in Sequencer.js verhoogd met minimaal 25ms buffer, zodat de rAF de animatie kan afronden voordat `useLayoutEffect` de opacity wist. Bestand: `Sequencer.js`.
+
+### Pagination redesign — vervolgwerk (na PR #26)
+
+[Claude 2026-05-22]: Pagination animatie is herontworpen rond `src/audio/transitionPlanner.js` (pure planner) + `Sequencer._armPaginationSequence` (event-driven scheduler). 3 variants (snel/mid/lang) togglebaar in subheader cycle. Visual-flip, repeat-flip en series-flip gebruiken nu hetzelfde crossfade-mechanisme. Lang variant overshoot 0.25m voorbij block-einde (speler ziet oude noten nog kort terwijl nieuwe verschijnen). JIT generatie loopt mee met variant-deadline.
+
+[Han 2026-05-22]: Bedoeling van de zichtbaarheidsregels tijdens de fade — **per laag, niet samengevoegd**:
+- Oude laag: huidig blok met huidig-blok's zichtbaarheidsregels (oddRounds/evenRounds van de huidige iter).
+- Nieuwe laag (overlay): nieuw blok met nieuw-blok's zichtbaarheidsregels.
+- Tijdens de fade smelten deze visueel samen — een onzichtbare ronde dissoolveert dus zacht in een zichtbare ronde, niet via een harde flip.
+
+[Claude 2026-05-22]: Geïmplementeerd via `previewMelody._roundKey` die scheduler bij arm-time vastlegt op basis van boundary-type:
+- `visual-flip`: zelfde iter → zelfde round
+- `repeat-flip`: volgende iter → tegenovergestelde round
+- `series-flip`: nieuwe sequence block iter 0 → altijd `oddRounds`
+
+SheetMusic gebruikt `previewMelody._roundKey` zodat de overlay's visibility niet meebeweegt met React's `isOddRound`-state (die op atTick flipt en anders de overlay tijdens de lang-variant overshoot van zichtbaarheid zou laten omschakelen).
+
+Open items uit de redesign:
+
+- **Stream-mode** (vervangt huidige scroll): continue scroll R→L met dynamisch `visibleMeasures = clamp(2, idealVisible, repeatBlockSize)`. 1-maats sequence block: meerdere vooruit-generaties. Nog niet geïmplementeerd.
+- **Rubato-mode** (audio + visueel volgen speler): basisimplementatie via `useInputTest.onNoteCorrect`. Nog niet geïmplementeerd.
+- **Rubato fallback: blind-play modus** — wanneer noten onzichtbaar zijn (gehoortraining), tijdsbescherming tegen oneindig wachten. Auto-stretch naar normale BPM na N misses, of "geef hint" mode. Han: "zet maar op de backlog en doe eerst het basisontwerp." (2026-05-21)
+- **Pagination variant per preset** — variant-keuze (snel/mid/lang) zou onderdeel van preset-systeem moeten zijn.
+- **Wipe-animatie als alternatief voor pagination-mid** — iter 2 (Han: "in een tweede iteratie wil ik de crossfade van tweede type vervangen voor een animatie die de noten opveegt, van links naar rechts"). Wipe blijft voorlopig een aparte mode op het legacy pad.
+- **Chord progression preview bij visual-flip / repeat-flip** — toont nu de eerste N akkoorden van de huidige melodie i.p.v. die van de nieuwe pagina. Noten zelf renderen wel correct (pre-sliced). Geen audio-impact.
+- **Pagination scheduler: BPM-change tijdens fade** — iter 2 edge case (Han 2026-05-22). De huidige scheduler ticks→seconds conversie gebruikt de BPM op het moment van armen. BPM-wijziging mid-fade laat de planner-events op de oude conversie staan tot de volgende sequence block.
+- **Pagination scheduler: long-press voor variant-keuze** — op dit moment cycle door snel/mid/lang/wipe/scroll. Iter 2: long-press op de PAG-knop opent een gs-popup met 3 expliciete variant-keuzes (en daarnaast separate WIPE/SCROLL knoppen).
+- **Pagination scheduler: preview vs applied melody mismatch** (Han 2026-05-25). Verklaring nog niet rond — de scheduler-log toont `previewBms` consequent +2 per blok (kloppend) maar Han ziet soms een melodie in de overlay die NIET overeenkomt met wat daarna afgespeeld wordt. Verdacht: misschien geeft een user-interactie tussen JIT en outer-loop-apply een nieuwe generatie, of er is een race waar pregenResult tussen arm en outer wordt overschreven. Vraagt reproduceerbaar voorbeeld om dieper te debuggen — bij gelegenheid `localStorage.LOG_LEVEL='debug'` en de pagArm-logs delen.
+
+### Performance — frame drops bij continuous playback (Han 2026-05-25)
+
+Han: "Als continuous playback loopt duurt alles te lang." DevTools Lighthouse-meting tijdens playback:
+
+- **LCP** = 3.34 s (poor; target < 2.5 s)
+- **CLS** = 0.00 (good)
+- **INP** = 696 ms (poor; target < 200 ms) — gebruiker-interacties hebben bijna 700ms latency
+
+DevTools-trace analyse (~16 sec sample tijdens playback):
+- **React renders (`performWorkUntilDeadline`) = 250–411 ms** per cycle, meerdere keren per seconde.
+- **`useSheetMusicHighlight` rAF tick = 263 ms** in één frame — 16 frames gemist op 60fps.
+- **AdBlock extensie** (`webext-ad-filtering-solution`) ~135ms × 10 calls = 1.35s background CPU (Han's eigen Chrome-omgeving; niet onze code).
+- Top hotspot: react-dom_client.js reconciliation = 5s totaal over de sample.
+
+Hypotheses voor de animatie-haperingen (vermoedelijk dezelfde root cause):
+1. **`SheetMusic.jsx` is een monoliet**: ~2500 regels, re-rendert bij ELKE state change (currentMeasureIndex, isOddRound, nextLayer, previewMelody, melodies, …). Bij elke render worden `processMelodyAndCalculateSlots`, `calculateAllOffsets`, `getChordsWithSlashes`, en de preview-overlay's eigen layout opnieuw berekend.
+2. **Geen `useMemo`-bescherming** op de duurste delen (note rendering, accidental maps, offset arrays).
+3. **Preview overlay rendert per frame opnieuw** — pmAllOffsets, previewTreble/bass/perc, etc. worden per render herberekend.
+4. **rAF-loop iteert per frame over `scheduledMeasures` / `scheduledNotes` / `scheduledChords`** voor highlighting — die arrays groeien tijdens playback.
+
+Acties voor backlog (vraagt interview voor scope/prioriteit):
+- **Memoize `SheetMusic.jsx`-children** via `React.memo` + selectieve props.
+- **Splits SheetMusic op** in OLD-layer (vrij stabiel) en NEW-overlay (vrij stabiel) sub-componenten met eigen memoization.
+- **`useMemo` op `processMelodyAndCalculateSlots` / `calculateAllOffsets`** — heronderzoek dependencies (waarschijnlijk meeste re-renders krijgen identieke inputs).
+- **rAF-loop**: prune `scheduledMeasures` / `scheduledNotes` agressiever (nu 2s window), of gebruik binary search / sorted insertion.
+- **Inspecteer of er onnodige Context providers** zijn die ALLE consumers laten re-renderen bij minor state changes (bv. PlaybackStateContext bij elk currentMeasureIndex tick).
+
+> ⚠ Performance-werk vraagt interview met Han om de prioritering, scope en acceptatiecriteria af te stemmen. Han noemde: na animatie eerste prio.
+
+### Bug: click anywhere should close settings overlay (Han 2026-05-25)
+Eenderwaar klikken (behalve op responsieve knoppen / settings-elementen zelf) moet de settings overlay sluiten. Op dit moment moet je specifiek buiten een knop maar binnen de "klik-vrije" zone klikken — soms niet intuïtief.
+
+### Header — split play button
+
+[Han 2026-05-22]: Ik wil de play-knop in de header opsplitsen in twee acties:
+- **Play (huidig)** — speelt de laatst gegenereerde melodie nog eens af.
+- **Start genereren** — genereert direct een nieuwe melodie.
+
+⚠ Neem alvorens dit te implementeren een interview af bij Han. Vragen die nog open zijn: wat is precies "de laatste melodie" in continuous play vs. once mode, hoe verhoudt dit zich tot de Next/Prev navigatie, en moet het visueel één knop met twee zones of twee aparte iconen worden?
+
+### Startup screen & tooltips
+
+[Han 2026-05-22]: Twee losse items op de longlist:
+- **Startup screen** — een eerste-keer-gebruik intro die de belangrijkste UI-zones uitlegt (eerst nog scope te bepalen via interview).
+- **Tooltips** — hover/long-press tooltips op alle iconen in header en subheader, met korte uitleg van wat ze doen.
 
 ---
 

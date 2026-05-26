@@ -38,8 +38,20 @@ export default function useAppUIState() {
 
     const [startMeasureIndex, setStartMeasureIndex] = useState(0);
     const [headerPlayMode, setHeaderPlayMode] = useState('continuous');
-    const [currentMeasureIndex, setCurrentMeasureIndex] = useState(0);
+    // currentMeasureIndex is updated by the highlight rAF on every measure
+    // boundary (~once per second) but isn't actually rendered by any
+    // component — the leftover state forced an App-level re-render on every
+    // tick, which propagated through every Provider to every consumer.
+    // Switched to a ref so the setter is a pure write with no React work.
+    // If a consumer ever needs it back as state, expose a small ref-based
+    // hook (e.g. useSyncExternalStore) instead of restoring full state.
+    const currentMeasureIndexRef = useRef(0);
+    const currentMeasureIndex = 0; // legacy alias for the (now-unused) state value
+    const setCurrentMeasureIndex = (n) => { currentMeasureIndexRef.current = n; };
     const [animationMode, setAnimationMode, animationModeRef] = useRefState('pagination');
+    // Pagination crossfade speed: 'snel' | 'mid' | 'lang'. See transitionPlanner.PAGINATION_VARIANTS.
+    // Only consulted when animationMode === 'pagination'.
+    const [paginationVariant, setPaginationVariant, paginationVariantRef] = useRefState('mid');
     const [lyricsMode, setLyricsMode] = useState('none');
 
     const [nextLayer, setNextLayer] = useState(null);
@@ -49,7 +61,10 @@ export default function useAppUIState() {
     const wipeTransitionRef = useRef(null);         // {startTime, endTime} for wipe mask animation
     const scrollTransitionRef = useRef(null);       // {startTime, endTime} for scroll slide animation
     const pendingScrollTransitionRef = useRef(null); // queued next scroll animation
-    const paginationFadeRef = useRef(null);         // {startTime, totalEnd} for rAF-driven pagination crossfade
+    const paginationFadeRef = useRef(null);         // {startTime, totalEnd} for rAF-driven pagination crossfade (legacy two-phase path)
+    // New unified transition ref consumed by useSheetMusicHighlight in the redesign.
+    // Shape: { kind: 'crossfade', startTime, endTime } — extensible for wipe/stream/rubato later.
+    const transitionRef = useRef(null);
 
     const svgRef = useRef(null); // shared ref to the SheetMusic SVG element (used by Sequencer callbacks)
     const [qwertyKeyboardActive, setQwertyKeyboardActive] = useState(false);
@@ -84,6 +99,7 @@ export default function useAppUIState() {
         headerPlayMode, setHeaderPlayMode,
         currentMeasureIndex, setCurrentMeasureIndex,
         animationMode, setAnimationMode, animationModeRef,
+        paginationVariant, setPaginationVariant, paginationVariantRef,
         lyricsMode, setLyricsMode,
         nextLayer, setNextLayer,
         previewMelody, setPreviewMelody,
@@ -91,6 +107,7 @@ export default function useAppUIState() {
         scrollTransitionRef,
         pendingScrollTransitionRef,
         paginationFadeRef,
+        transitionRef,
         svgRef,
         qwertyKeyboardActive, setQwertyKeyboardActive,
         onPlaybackStartRef,
