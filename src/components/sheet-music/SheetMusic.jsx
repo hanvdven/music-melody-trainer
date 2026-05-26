@@ -2682,4 +2682,15 @@ const SheetMusic = ({
   );
 };
 
-export default SheetMusic;
+// React.memo skips re-renders when all props are referentially equal. The
+// upstream callers (App.jsx, TabView.jsx) pass either memoised objects
+// (sheetMusicCommonProps via useMemo) or primitives, so re-renders triggered
+// by unrelated App state churn (header buttons, tab switches, scale wheel,
+// etc.) bypass SheetMusic entirely.
+//
+// SheetMusic still re-renders when its OWN consumed contexts change
+// (MelodyContext, PlaybackStateContext, DisplaySettings, etc.) because
+// React's context propagation goes through every consumer regardless of
+// React.memo. The earlier useMemo round on context values keeps THOSE
+// re-renders to only what actually changed.
+export default React.memo(SheetMusic);
