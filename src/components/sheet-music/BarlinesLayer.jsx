@@ -1,0 +1,242 @@
+import React from 'react';
+
+/**
+ * BarlinesLayer — memoised wrapper around barline + measure-number rendering.
+ *
+ * Why this exists:
+ * SheetMusic.jsx had `_iterMeasureLines` as a local closure that captured ~20
+ * parent values (blockMeasureStart, isPlaying, partialTop, staff Y positions,
+ * visibility flags, …). It was invoked 3× per render via `renderRegularBarlines`
+ * (OLD, RED preview, crossfade) plus 1× via `renderRepeatBarlines`. Every call
+ * walked the entire offsets array, branched on mode/repeats/partial-time-sig,
+ * and rebuilt the JSX from scratch.
+ *
+ * Wrapping the iteration in `React.memo` lets React skip the whole pass when
+ * all inputs are referentially equal. The iterator is now a pure function
+ * (`iterMeasureLines` below) with explicit args — no closure capture — so its
+ * JSX is deterministic from its inputs.
+ *
+ * DOM output is unchanged: same `<g data-mel="barline" data-offset=…>` wrappers,
+ * same measure-number labels with the same click handlers. The pagination
+ * highlight rAF in `useSheetMusicHighlight` reads `[data-mel="barline"]` via
+ * the same selectors regardless of which layer produced the elements.
+ */
+
+const iterMeasureLines = ({
+  mode,
+  offsets,
+  noteWidth,
+  pixelsPerTick,
+  startX,
+  startIdx,
+  blockMeasureStart,
+  blockPlayStart,
+  partialTop,
+  partialMeasureStart,
+  measureBottom,
+  measureYPositions,
+  trebleStart,
+  bassStart,
+  percussionStart,
+  bottomY,
+  isTrebleVisible,
+  isBassVisible,
+  isPercussionVisible,
+  numRepeats,
+  isPlaying,
+  numMeasures,
+  debugMode,
+  showSettings,
+  measureLengthSlots,
+  onMeasureNumberClick,
+}) => {
+  // bmsOverride / bpsOverride: pagination crossfade overlay passes the FUTURE
+  // blockMeasureStart and blockPlayStart so the preview's measure-number labels
+  // are correct AHEAD of the boundary. Without this the overlay renders labels
+  // from the still-current state (e.g. "1.5" because the current block's
+  // blockMeasureStart is 1 and startIdx is past the last repeat).
+  const bms = blockMeasureStart;
+  const bps = blockPlayStart;
+  const getXLocal = (index) => index === 0 ? startX - 35 : startX + (index - 1) * noteWidth;
+  const lastIdx = offsets.length - 1;
+  let barlineCount = 0;
+  return offsets.map((timestamp, index) => {
+    // Adaptive time-signature change label: always in the regular (fadeable) group
+    // Only render inline if it does not happen exactly at the start of the staff (0)
+    if (timestamp === 'ts' && partialTop !== null && partialMeasureStart !== 0) {
+      if (mode !== 'regular') return null;
+      const x = getXLocal(index);
+      return (
+        <g key={`ts-${index}`}>
+          {measureYPositions.map((yPos, i) => {
+            const isTop = i % 2 === 0;
+            return (
+              <text
+                key={i}
+                x={x}
+                y={yPos + 1}
+                fontSize="36"
+                fill="var(--text-primary)"
+                fontFamily="Maestro"
+                textAnchor="middle"
+                style={{ pointerEvents: 'none', userSelect: 'none' }}
+              >
+                {isTop ? partialTop : measureBottom}
+              </text>
+            );
+          })}
+        </g>
+      );
+    }
+
+    if (timestamp === 'm') {
+      const x = pixelsPerTick !== null
+        ? startX + barlineCount * measureLengthSlots * pixelsPerTick
+        : getXLocal(index);
+      const barlineOffset = barlineCount * measureLengthSlots;
+      const measureNumForLabel = barlineCount; // 0-indexed series measure that starts after this barline
+      barlineCount++;
+      const isStart = index === (numRepeats > 1 ? 1 : 0);
+      const isEnd = index === lastIdx;
+
+      // R = how many times the current block has been played in this session.
+      // Only shown during active playback (isPlaying=true). Resets per block via blockPlayStart.
+      const repeatNum = isPlaying
+        ? Math.max(1, Math.floor((startIdx - bps) / numMeasures) + 1)
+        : 1;
+      // Returns "N" (first play) or "N . R" (repeat R, R≥2) where N = song measure number.
+      const measureLabel = (localIndex) => {
+        const N = bms + localIndex;
+        return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
+      };
+
+      if (numRepeats > 1) {
+        if (isStart) {
+          if (mode === 'regular') {
+            // Show measure number label above the start barline even when repeats > 1
+            return (
+              <g key={`measure-line-${index}`}
+                onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx); } : undefined}
+                style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
+              >
+                <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
+                <text
+                  x={startX}
+                  y={trebleStart - 14}
+                  fontSize="15"
+                  fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                  fontFamily="Georgia, 'Times New Roman', serif"
+                  style={{ userSelect: 'none' }}
+                >
+                  {measureLabel(0)}
+                </text>
+                {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+              </g>
+            );
+          }
+          if (mode !== 'repeat') return null;
+          const startXOffset = x - 15;
+          return (
+            <g key={`measure-line-${index}`} data-offset={barlineOffset} data-mel="barline">
+              <rect x={startXOffset - 2} y={trebleStart} width="3" height={bottomY - trebleStart} fill="var(--text-primary)" />
+              <path d={`M ${startXOffset + 4} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="1" />
+              {[trebleStart, bassStart, percussionStart].map((start, sIdx) => {
+                const showDots = sIdx === 0 ? isTrebleVisible : (sIdx === 1 ? isBassVisible : isPercussionVisible);
+                if (!showDots) return null;
+                return (
+                  <g key={`rep-dot-start-${start}-${sIdx}`}>
+                    <text x={startXOffset + 9} y={start + 18.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
+                    <text x={startXOffset + 9} y={start + 28.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
+                  </g>
+                );
+              })}
+            </g>
+          );
+        }
+        if (isEnd) {
+          if (mode !== 'repeat') return null;
+          return (
+            <g key={`measure-line-${index}`} data-offset={barlineOffset} data-mel="barline">
+              {[trebleStart, bassStart, percussionStart].map((start, sIdx) => {
+                const showDots = sIdx === 0 ? isTrebleVisible : (sIdx === 1 ? isBassVisible : isPercussionVisible);
+                if (!showDots) return null;
+                return (
+                  <g key={`rep-dot-end-${start}-${sIdx}`}>
+                    <text x={x - 9} y={start + 18.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
+                    <text x={x - 9} y={start + 28.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
+                  </g>
+                );
+              })}
+              <path d={`M ${x - 4} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="1" />
+              <rect x={x + 1} y={trebleStart} width="3" height={bottomY - trebleStart} fill="var(--text-primary)" />
+            </g>
+          );
+        }
+      }
+
+      if (mode !== 'regular') return null;
+
+      // For the opening barline (numRepeats <= 1): suppress the barline itself but
+      // still render the "1" measure label above startX (the first note position).
+      if (isStart && numRepeats <= 1) {
+        return (
+          <g key={`measure-line-${index}`}
+            onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
+            style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
+          >
+            <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
+            <text
+              x={startX}
+              y={trebleStart - 14}
+              fontSize="15"
+              fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+              fontFamily="Georgia, 'Times New Roman', serif"
+              style={{ userSelect: 'none' }}
+            >
+              {measureLabel(measureNumForLabel)}
+            </text>
+            {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+          </g>
+        );
+      }
+
+      return (
+        <g key={`measure-line-${index}`}>
+          <path
+            data-offset={barlineOffset}
+            data-mel="barline"
+            d={`M ${x} ${trebleStart} V ${bottomY}`}
+            stroke="var(--text-primary)"
+            strokeWidth=".5"
+          />
+          {!isEnd && (
+            <g
+              onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
+              style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
+            >
+              <rect x={x - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
+              <text
+                x={x}
+                y={trebleStart - 14}
+                fontSize="15"
+                fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                fontFamily="Georgia, 'Times New Roman', serif"
+                style={{ userSelect: 'none' }}
+              >
+                {measureLabel(measureNumForLabel)}
+              </text>
+              {debugMode && <rect x={x - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
+            </g>
+          )}
+        </g>
+      );
+    }
+    return null;
+  });
+};
+
+const BarlinesLayer = (props) => {
+  return <>{iterMeasureLines(props)}</>;
+};
+
+export default React.memo(BarlinesLayer);
