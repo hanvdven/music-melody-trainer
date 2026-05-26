@@ -11,6 +11,7 @@ import GenericTypeSelector from '../common/GenericTypeSelector';
 import SvgSetter from './SvgSetter';
 
 import MelodyNotesLayer from './MelodyNotesLayer';
+import ChordLabelsLayer from './ChordLabelsLayer';
 import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
@@ -1341,184 +1342,6 @@ const SheetMusic = ({
     return symbols;
   };
 
-  const renderChordLabels = (customChords = null, offsets = allOffsets, nw = noteWidth, ppt = null, overrideColor = null) => {
-    const chordsToRender = customChords ?? processedChords;
-    if (!chordProgression || !chordsToRender || chordsToRender.length === 0) return null;
-
-    const getXLocal = (index) => index === 0 ? startX - 35 : startX + (index - 1) * nw;
-    const labels = [];
-
-    const totalSlots = displayNumMeasures * measureLengthSlots;
-    chordsToRender.forEach((item, idx) => {
-      const { chord, absoluteOffset } = item;
-      if (!chord) return;
-      const nextOffset = idx < chordsToRender.length - 1 ? chordsToRender[idx + 1].absoluteOffset : totalSlots;
-      const chordDuration = nextOffset - absoluteOffset;
-
-      if (ppt !== null) {
-        // Tick-based: position directly from absoluteOffset (no slot-index search needed)
-        const xPos = startX + absoluteOffset * ppt;
-        renderSingleChordLabel(chord, xPos, absoluteOffset, chordDuration, `chord-p-${idx}`, labels, idx, overrideColor);
-      } else {
-        // Elastic: find visual position in the provided offsets grid
-        let visualIdx = -1;
-        for (let i = 0; i < offsets.length; i++) {
-          if (typeof offsets[i] === 'number' && Math.abs(offsets[i] - absoluteOffset) < 0.01) {
-            visualIdx = i;
-            break;
-          }
-        }
-        if (visualIdx !== -1) {
-          const xPos = getXLocal(visualIdx);
-          renderSingleChordLabel(chord, xPos, absoluteOffset, chordDuration, `chord-p-${idx}`, labels, idx, overrideColor);
-        }
-      }
-    });
-
-    return labels;
-  };
-
-  const renderSingleChordLabel = (chord, xPos, absoluteOffset, chordDuration, key, container, idx, overrideColor = null) => {
-    const CHORD_ROOT_Y  = trebleStart - 58;  // root text baseline
-    const CHORD_SUPER_DY = 12;               // units above root for superscript
-
-    const rawRomanBase = chord.romanBaseRaw || chord.romanBase || '';
-    const isMinorish = chord.quality === 'minor' || chord.quality === 'diminished' || chord.quality === 'dim';
-    const romanBaseDisplay = isMinorish ? String(rawRomanBase).toLowerCase() : rawRomanBase;
-
-    const internalRoot  = (chord.internalRoot || chord.root || '').replace(/\d+/g, '');
-    // internalRoot is now key-spelled at generation time (e.g. G♭ in C Locrian, not F♯)
-    const spelledRoot = internalRoot;
-    const isSlash = chord.type === 'slash';
-    // Passing chords are rendered smaller and carry a right-arrow indicator.
-    // isPassing lives in meta to avoid mutating the base Chord model.
-    const isPassing = chord.meta?.isPassing === true;
-
-    // Merge letters/roman branches — differ only in which fields to display
-    const displayRoot   = chordDisplayMode === 'letters' ? spelledRoot              : romanBaseDisplay;
-    const displaySuffix = chordDisplayMode === 'letters' ? (chord.internalSuffix || '') : (chord.romanSuffix || '');
-    // Split slash notation (V7/vi) so the /vi part renders as subscript, not superscript.
-    // slashIdx = -1 means no slash → old behaviour (entire suffix as superscript).
-    const slashIdx  = displaySuffix.indexOf('/');
-    const superPart = slashIdx === -1 ? displaySuffix : displaySuffix.slice(0, slashIdx);
-    const slashPart = slashIdx === -1 ? ''             : displaySuffix.slice(slashIdx);
-    const chordColor = overrideColor ?? (noteColoringMode === 'chords'
-      ? `color-mix(in srgb, var(--chromatone-${getNoteSemitone(internalRoot)}), ${theme === 'light' ? 'black' : 'white'} 30%)`
-      : 'var(--text-primary)');
-
-    // Passing chords use a 20% smaller font so they visually subordinate to structural chords
-    const rootFontSize    = isPassing ? 21 : 26;
-    const suffixFontSize  = isPassing ? 13 : 16;
-
-    let inputTestClass = '';
-    if (inputTestState && inputTestState.activeStaff === 'chords') {
-      if (inputTestState.activeIndex === idx) {
-        inputTestClass = ` input-test-${inputTestState.status}`;
-      } else if (inputTestState.successes?.includes(idx)) {
-        inputTestClass = ' input-test-success';
-      }
-    }
-
-    // data-chord-notes enables tap-to-play: handleSheetMusicClick reads this attribute
-    // via ancestor walk and passes the note array to onNoteClick for immediate playback.
-    const chordNotesJson = (!isSlash && chord.notes?.length)
-      ? JSON.stringify(chord.notes)
-      : null;
-
-    container.push(
-      <g key={key} data-offset={absoluteOffset} data-mel="chord" data-duration={chordDuration}
-        data-measure-index={Math.floor(absoluteOffset / measureLengthSlots) + startMeasureIndex}
-        data-local-slot={absoluteOffset % measureLengthSlots}
-        {...(chordNotesJson ? { 'data-chord-notes': chordNotesJson } : {})}
-        className={inputTestClass.trim() || undefined}>
-        {isSlash ? (
-          <text
-            x={xPos}
-            y={CHORD_ROOT_Y - CHORD_SUPER_DY - 5}
-            fontSize="32"
-            fontFamily="Maestro"
-            fill="var(--text-primary)"
-            textAnchor="start"
-            style={{ opacity: 0.4 }}
-          >
-            Ë
-          </text>
-        ) : (
-          <>
-            {/* Arrow for passing chords — fixed Y so it is never displaced by superscript dy offsets */}
-            {isPassing && (
-              <text
-                x={xPos}
-                y={CHORD_ROOT_Y - CHORD_SUPER_DY - 10}
-                fontSize="10"
-                fontFamily="sans-serif"
-                fill={chordColor}
-                textAnchor="start"
-                style={{ userSelect: 'none', pointerEvents: 'none' }}
-              >→</text>
-            )}
-            {/* textAnchor="start" anchors the left edge of the root letter at xPos,
-                so the root is always directly above the note regardless of superscript width. */}
-            <text
-              x={xPos}
-              y={CHORD_ROOT_Y}
-              textAnchor="start"
-              fontFamily="serif"
-              fontSize={rootFontSize}
-              fontWeight="normal"
-              fill={chordColor}
-              style={{ userSelect: 'none', pointerEvents: 'none' }}
-            >
-              {displayRoot}
-              {displaySuffix && (
-                slashIdx === -1 ? (
-                  // No slash — entire suffix is superscript (unchanged behaviour)
-                  <tspan fontSize={suffixFontSize} dy={-CHORD_SUPER_DY} dx="2">{displaySuffix}</tspan>
-                ) : (
-                  // Slash notation (e.g. V7/vi): superscript quality only in this text element.
-                  // The subscript /target is a separate text element below for predictable positioning
-                  // (tspan dy is relative to cursor after superPart, causing drift when superPart has text).
-                  <tspan fontSize={suffixFontSize} dy={-CHORD_SUPER_DY} dx="2">{superPart}</tspan>
-                )
-              )}
-            </text>
-            {/* Slash subscript (/vi, /IV, etc.) as separate text element.
-                x aligns with the root character's right edge (estimated: rootFontSize * 0.65).
-                y is at root baseline so the subscript sits visually below the superscript.
-                Font is 60% larger than the old tspan (suffixFontSize − 3) for better legibility. */}
-            {slashPart && (
-              <text
-                x={xPos + Math.round(rootFontSize * 0.65)}
-                y={CHORD_ROOT_Y + 2}
-                textAnchor="start"
-                fontFamily="serif"
-                fontSize={Math.round(suffixFontSize * 1.6)}
-                fontWeight="normal"
-                fill={chordColor}
-                style={{ userSelect: 'none', pointerEvents: 'none' }}
-              >{slashPart}</text>
-            )}
-          </>
-        )}
-        {/* Transparent hit area — chord texts have pointerEvents:none so this rect
-            catches clicks and lets the ancestor walk find data-chord-notes on the <g>. */}
-        {chordNotesJson && (
-          <rect
-            x={xPos - 3}
-            y={CHORD_ROOT_Y - 28}
-            width={45}
-            height={36}
-            fill={debugMode ? 'teal' : 'transparent'}
-            fillOpacity={debugMode ? 0.4 : 1}
-            stroke={debugMode ? 'teal' : 'none'}
-            strokeWidth={debugMode ? 1 : 0}
-            style={{ cursor: 'pointer' }}
-          />
-        )}
-      </g>
-    );
-  };
-
   // ── Debug: RhythmicDNA overlay above chord labels ────────────────────────────────────────
   // DNA debug is now rendered as an HTML overlay above the SVG (see the HTML overlay block
   // just before the SVG wrapper div). Kept here as a no-op stub so call sites compile.
@@ -2469,7 +2292,25 @@ const SheetMusic = ({
                       className="chord-labels-group"
                       style={{ filter: showSettings ? 'blur(6px)' : 'none', opacity: showSettings ? 0.6 : 1 }}
                     >
-                      {actualChords && renderChordLabels(null, allOffsets, noteWidth, ppt)}
+                      {actualChords && <ChordLabelsLayer
+                        chordProgression={chordProgression}
+                        chords={null}
+                        processedChords={processedChords}
+                        offsets={allOffsets}
+                        startX={startX}
+                        noteWidth={noteWidth}
+                        pixelsPerTick={ppt}
+                        displayNumMeasures={displayNumMeasures}
+                        measureLengthSlots={measureLengthSlots}
+                        trebleStart={trebleStart}
+                        startMeasureIndex={startMeasureIndex}
+                        chordDisplayMode={chordDisplayMode}
+                        noteColoringMode={noteColoringMode}
+                        theme={theme}
+                        debugMode={debugMode}
+                        overrideColor={null}
+                        inputTestState={inputTestState}
+                      />}
                       {renderDNADebug()}
                     </g>
 
@@ -2523,7 +2364,25 @@ const SheetMusic = ({
                         >
                           {/* Chord labels above treble staff — shown if next round has chords visible */}
                           {nextCfg.chordsEye !== false && chordProgression && processedChords?.length > 0 &&
-                            renderChordLabels(null, allOffsets, noteWidth, ppt, YCOL)}
+                            <ChordLabelsLayer
+                              chordProgression={chordProgression}
+                              chords={null}
+                              processedChords={processedChords}
+                              offsets={allOffsets}
+                              startX={startX}
+                              noteWidth={noteWidth}
+                              pixelsPerTick={ppt}
+                              displayNumMeasures={displayNumMeasures}
+                              measureLengthSlots={measureLengthSlots}
+                              trebleStart={trebleStart}
+                              startMeasureIndex={startMeasureIndex}
+                              chordDisplayMode={chordDisplayMode}
+                              noteColoringMode={noteColoringMode}
+                              theme={theme}
+                              debugMode={debugMode}
+                              overrideColor={YCOL}
+                              inputTestState={null}
+                            />}
                           <g style={{ transform: `translateY(${trebleStart}px)` }}>
                             {isTrebleVisible && nextTreble && nextNotesVisible && adjustedTrebleMelody &&
                               <MelodyNotesLayer
@@ -2707,7 +2566,25 @@ const SheetMusic = ({
                             }}
                           >
                             {nextCfg.chordsEye !== false && previewChords?.length > 0 &&
-                              renderChordLabels(previewChords, pmAllOffsets, pmNoteWidth, ppt, RCOL)}
+                              <ChordLabelsLayer
+                                chordProgression={chordProgression}
+                                chords={previewChords}
+                                processedChords={processedChords}
+                                offsets={pmAllOffsets}
+                                startX={startX}
+                                noteWidth={pmNoteWidth}
+                                pixelsPerTick={ppt}
+                                displayNumMeasures={displayNumMeasures}
+                                measureLengthSlots={measureLengthSlots}
+                                trebleStart={trebleStart}
+                                startMeasureIndex={startMeasureIndex}
+                                chordDisplayMode={chordDisplayMode}
+                                noteColoringMode={noteColoringMode}
+                                theme={theme}
+                                debugMode={debugMode}
+                                overrideColor={RCOL}
+                                inputTestState={null}
+                              />}
                             <g style={{ transform: `translateY(${trebleStart}px)` }}>
                               {isTrebleVisible && nextTreble && nextNotesVisible && previewTreble &&
                                 <MelodyNotesLayer
