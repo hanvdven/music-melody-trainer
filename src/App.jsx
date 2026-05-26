@@ -63,7 +63,9 @@ import { PlaybackConfigProvider } from './contexts/PlaybackConfigContext';
 import { InstrumentSettingsProvider } from './contexts/InstrumentSettingsContext';
 import { DisplaySettingsProvider } from './contexts/DisplaySettingsContext';
 import { MelodyProvider } from './contexts/MelodyContext';
-import { PlaybackStateProvider } from './contexts/PlaybackStateContext';
+import { PlaybackTransportProvider } from './contexts/PlaybackTransportContext';
+import { RoundStateProvider } from './contexts/RoundStateContext';
+import { TransitionOverlayProvider } from './contexts/TransitionOverlayContext';
 import { ProfileProvider } from './contexts/ProfileContext';
 import { AnimationRefsProvider } from './contexts/AnimationRefsContext';
 
@@ -861,16 +863,20 @@ const App = () => {
             metronome={melodies.metronome}
             chordProgression={chordProgression}
         >
-        <PlaybackStateProvider
+        <PlaybackTransportProvider
             isPlaying={isPlaying}
             isPlayingContinuously={isPlayingContinuously}
+        >
+        <RoundStateProvider
             isOddRound={isOddRound}
             showNotes={showNotes}
-            nextLayer={nextLayer}
-            previewMelody={previewMelody}
             inputTestState={isInputTestMode ? inputTestState : null}
             inputTestSubMode={inputTestSubMode}
             setInputTestSubMode={handleSetInputTestSubMode}
+        >
+        <TransitionOverlayProvider
+            nextLayer={nextLayer}
+            previewMelody={previewMelody}
         >
         <AnimationRefsProvider
             wipeTransitionRef={wipeTransitionRef}
@@ -1123,7 +1129,9 @@ const App = () => {
             </div>
         </div >
         </AnimationRefsProvider>
-        </PlaybackStateProvider>
+        </TransitionOverlayProvider>
+        </RoundStateProvider>
+        </PlaybackTransportProvider>
         </MelodyProvider>
         </DisplaySettingsProvider>
         </InstrumentSettingsProvider>
