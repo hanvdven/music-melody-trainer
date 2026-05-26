@@ -10,7 +10,7 @@ import SettingsOverlay, { VOL_STEPS } from './SettingsOverlay';
 import GenericTypeSelector from '../common/GenericTypeSelector';
 import SvgSetter from './SvgSetter';
 
-import { renderMelodyNotes } from './renderMelodyNotes';
+import MelodyNotesLayer from './MelodyNotesLayer';
 import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
@@ -121,6 +121,11 @@ const getMelodyEndTime = (melody) => {
 
 // Dotted durations — used when tagging offsets with 'd' for the calculateAllOffsets dot-flag.
 const DOTTED_DURATIONS = new Set([9, 18, 21, 36, 42, 72]);
+
+// Stable references for `scaleNotes` / `processedChords` defaults on layers
+// (percussion / metronome) so React.memo on MelodyNotesLayer never sees a fresh
+// `[]` on each render and can hit its cache.
+const EMPTY_SCALE_NOTES = Object.freeze([]);
 
 const melodyToTaggedOffsets = (melody, accidentals) => {
   if (!melody || !melody.offsets) return [];
@@ -433,12 +438,21 @@ const SheetMusic = ({
     return scores.reduce((max, s) => s.score >= max.score ? s : max, scores[0]).id;
   };
 
-  const scaleNotes = trebleSettings?.scaleNotes || [];
+  // Memoised so the empty-array fallback gets a stable reference across renders —
+  // required for React.memo on MelodyNotesLayer to hit the cache (otherwise a
+  // fresh [] each render forces re-renders even when nothing has changed).
+  const scaleNotes = useMemo(() => trebleSettings?.scaleNotes || [], [trebleSettings?.scaleNotes]);
 
   // Display-only transposition: how many semitones to shift written notes up/down.
   // Audio always plays concert pitch; only the sheet music notation changes.
-  const trebleTransSemitones = getTranspositionSemitones(trebleSettings?.transpositionKey);
-  const bassTransSemitones   = getTranspositionSemitones(bassSettings?.transpositionKey);
+  const trebleTransSemitones = useMemo(
+    () => getTranspositionSemitones(trebleSettings?.transpositionKey),
+    [trebleSettings?.transpositionKey],
+  );
+  const bassTransSemitones = useMemo(
+    () => getTranspositionSemitones(bassSettings?.transpositionKey),
+    [bassSettings?.transpositionKey],
+  );
 
   // 'treble' | 'bass' | null — which staff's picker is open
   const [transPicker, setTransPicker] = useState(null);  // transposition key picker
@@ -744,8 +758,14 @@ const SheetMusic = ({
 
   // Clef selection is per visible block (not full melody) so that a passage that sits in a
   // different register than the rest of the piece doesn't force an ottava on every other block.
-  const clefTreble = calculateOptimalClef(trebleActiveClef, currentTreble?.notes, 'treble', trebleSettings?.rangeMode);
-  const clefBass = calculateOptimalClef(bassActiveClef, currentBass?.notes, 'bass', bassSettings?.rangeMode);
+  const clefTreble = useMemo(
+    () => calculateOptimalClef(trebleActiveClef, currentTreble?.notes, 'treble', trebleSettings?.rangeMode),
+    [trebleActiveClef, currentTreble, trebleSettings?.rangeMode],
+  );
+  const clefBass = useMemo(
+    () => calculateOptimalClef(bassActiveClef, currentBass?.notes, 'bass', bassSettings?.rangeMode),
+    [bassActiveClef, currentBass, bassSettings?.rangeMode],
+  );
 
   const adjustedTrebleMelody = useMemo(() => processMelodyAndCalculateSlots(
     currentTreble,
@@ -889,7 +909,10 @@ const SheetMusic = ({
     trebleAccidentals, bassAccidentals, processedChords, notesVisible,
   ]);
 
-  const noteWidth = (allOffsets.length > 2 ? (endX - startX) / (allOffsets.length - 2) : 0);
+  const noteWidth = useMemo(
+    () => (allOffsets.length > 2 ? (endX - startX) / (allOffsets.length - 2) : 0),
+    [allOffsets, endX, startX],
+  );
 
   // Preview overlay layout — computed once per previewMelody change instead of
   // every SheetMusic render. The crossfade overlay does its own
@@ -2287,7 +2310,33 @@ const SheetMusic = ({
                     >
                       {/* CHORD MELODY BLURRED BACKGROUND REMOVED */}
                       <g style={{ transform: `translateY(${trebleStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualTreble && renderMelodyNotes(adjustedTrebleMelody, numAccidentals, startX, noteWidth, allOffsets, 'treble', 0, noteGroupSize, measureLengthSlots, timeSignature, clefTreble, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, trebleTransSemitones, debugMode, true, courtesyAccidentals)}
+                        {actualTreble && <MelodyNotesLayer
+                          melody={adjustedTrebleMelody}
+                          numAccidentals={numAccidentals}
+                          startX={startX}
+                          noteWidth={noteWidth}
+                          allOffsets={allOffsets}
+                          staff="treble"
+                          staffYStart={0}
+                          noteGroupSize={noteGroupSize}
+                          measureLengthSlots={measureLengthSlots}
+                          timeSignature={timeSignature}
+                          clef={clefTreble}
+                          noteColoringMode={noteColoringMode}
+                          tonic={tonic}
+                          scaleNotes={scaleNotes}
+                          processedChords={processedChords}
+                          theme={theme}
+                          inputTestState={inputTestState}
+                          previewMode={false}
+                          pixelsPerTick={ppt}
+                          startMeasureIndex={startMeasureIndex}
+                          transpositionSemitones={trebleTransSemitones}
+                          debugMode={debugMode}
+                          interactive={true}
+                          courtesyAccidentals={courtesyAccidentals}
+                          percussionVoiceSplit={false}
+                        />}
                         {isTrebleVisible && !actualTreble && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       {melodicLyricsActive && actualTreble && (
@@ -2302,11 +2351,63 @@ const SheetMusic = ({
                         </g>
                       )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualBass && renderMelodyNotes(adjustedBassMelody, numAccidentals, startX, noteWidth, allOffsets, 'bass', 0, noteGroupSize, measureLengthSlots, timeSignature, clefBass, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, bassTransSemitones, debugMode, true, courtesyAccidentals)}
+                        {actualBass && <MelodyNotesLayer
+                          melody={adjustedBassMelody}
+                          numAccidentals={numAccidentals}
+                          startX={startX}
+                          noteWidth={noteWidth}
+                          allOffsets={allOffsets}
+                          staff="bass"
+                          staffYStart={0}
+                          noteGroupSize={noteGroupSize}
+                          measureLengthSlots={measureLengthSlots}
+                          timeSignature={timeSignature}
+                          clef={clefBass}
+                          noteColoringMode={noteColoringMode}
+                          tonic={tonic}
+                          scaleNotes={scaleNotes}
+                          processedChords={processedChords}
+                          theme={theme}
+                          inputTestState={inputTestState}
+                          previewMode={false}
+                          pixelsPerTick={ppt}
+                          startMeasureIndex={startMeasureIndex}
+                          transpositionSemitones={bassTransSemitones}
+                          debugMode={debugMode}
+                          interactive={true}
+                          courtesyAccidentals={courtesyAccidentals}
+                          percussionVoiceSplit={false}
+                        />}
                         {isBassVisible && !actualBass && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualPerc && renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, inputTestState, false, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
+                        {actualPerc && <MelodyNotesLayer
+                          melody={adjustedPercussionMelody}
+                          numAccidentals={numAccidentals}
+                          startX={startX}
+                          noteWidth={noteWidth}
+                          allOffsets={allOffsets}
+                          staff="percussion"
+                          staffYStart={0}
+                          noteGroupSize={noteGroupSize}
+                          measureLengthSlots={measureLengthSlots}
+                          timeSignature={timeSignature}
+                          clef={null}
+                          noteColoringMode={noteColoringMode}
+                          tonic={tonic}
+                          scaleNotes={EMPTY_SCALE_NOTES}
+                          processedChords={processedChords}
+                          theme={theme}
+                          inputTestState={inputTestState}
+                          previewMode={false}
+                          pixelsPerTick={ppt}
+                          startMeasureIndex={startMeasureIndex}
+                          transpositionSemitones={0}
+                          debugMode={debugMode}
+                          interactive={true}
+                          courtesyAccidentals={courtesyAccidentals}
+                          percussionVoiceSplit={percussionVoiceSplit}
+                        />}
                         {isPercussionVisible && !actualPerc && !actualMetronome && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       {rhythmicLyricsActive && actualPerc && (
@@ -2328,7 +2429,33 @@ const SheetMusic = ({
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>
                         {isPercussionVisible && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
-                        {adjustedMetronomeMelody && renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, false, ppt, startMeasureIndex, 0, false, false, courtesyAccidentals, false)}
+                        {adjustedMetronomeMelody && <MelodyNotesLayer
+                          melody={adjustedMetronomeMelody}
+                          numAccidentals={numAccidentals}
+                          startX={startX}
+                          noteWidth={noteWidth}
+                          allOffsets={allOffsets}
+                          staff="percussion"
+                          staffYStart={0}
+                          noteGroupSize={noteGroupSize}
+                          measureLengthSlots={measureLengthSlots}
+                          timeSignature={timeSignature}
+                          clef={null}
+                          noteColoringMode={noteColoringMode}
+                          tonic={tonic}
+                          scaleNotes={EMPTY_SCALE_NOTES}
+                          processedChords={processedChords}
+                          theme={theme}
+                          inputTestState={null}
+                          previewMode={false}
+                          pixelsPerTick={ppt}
+                          startMeasureIndex={startMeasureIndex}
+                          transpositionSemitones={0}
+                          debugMode={false}
+                          interactive={false}
+                          courtesyAccidentals={courtesyAccidentals}
+                          percussionVoiceSplit={false}
+                        />}
                       </g>
                     </g>
                     {/* Regular inner barlines — masked with old content during wipe */}
@@ -2399,21 +2526,117 @@ const SheetMusic = ({
                             renderChordLabels(null, allOffsets, noteWidth, ppt, YCOL)}
                           <g style={{ transform: `translateY(${trebleStart}px)` }}>
                             {isTrebleVisible && nextTreble && nextNotesVisible && adjustedTrebleMelody &&
-                              renderMelodyNotes(adjustedTrebleMelody, numAccidentals, startX, noteWidth, allOffsets, 'treble', 0, noteGroupSize, measureLengthSlots, timeSignature, clefTreble, noteColoringMode, tonic, scaleNotes, processedChords, theme, null, YCOL, ppt, startMeasureIndex, trebleTransSemitones)}
+                              <MelodyNotesLayer
+                                melody={adjustedTrebleMelody}
+                                numAccidentals={numAccidentals}
+                                startX={startX}
+                                noteWidth={noteWidth}
+                                allOffsets={allOffsets}
+                                staff="treble"
+                                staffYStart={0}
+                                noteGroupSize={noteGroupSize}
+                                measureLengthSlots={measureLengthSlots}
+                                timeSignature={timeSignature}
+                                clef={clefTreble}
+                                noteColoringMode={noteColoringMode}
+                                tonic={tonic}
+                                scaleNotes={scaleNotes}
+                                processedChords={processedChords}
+                                theme={theme}
+                                inputTestState={null}
+                                previewMode={YCOL}
+                                pixelsPerTick={ppt}
+                                startMeasureIndex={startMeasureIndex}
+                                transpositionSemitones={trebleTransSemitones}
+                              />}
                             {isTrebleVisible && (!nextTreble || !nextNotesVisible) &&
                               renderRepeatSymbols(allOffsets, noteWidth, ppt, [30], YCOL)}
                           </g>
                           <g style={{ transform: `translateY(${bassStart}px)` }}>
                             {isBassVisible && nextBass && nextNotesVisible && adjustedBassMelody &&
-                              renderMelodyNotes(adjustedBassMelody, numAccidentals, startX, noteWidth, allOffsets, 'bass', 0, noteGroupSize, measureLengthSlots, timeSignature, clefBass, noteColoringMode, tonic, scaleNotes, processedChords, theme, null, YCOL, ppt, startMeasureIndex, bassTransSemitones)}
+                              <MelodyNotesLayer
+                                melody={adjustedBassMelody}
+                                numAccidentals={numAccidentals}
+                                startX={startX}
+                                noteWidth={noteWidth}
+                                allOffsets={allOffsets}
+                                staff="bass"
+                                staffYStart={0}
+                                noteGroupSize={noteGroupSize}
+                                measureLengthSlots={measureLengthSlots}
+                                timeSignature={timeSignature}
+                                clef={clefBass}
+                                noteColoringMode={noteColoringMode}
+                                tonic={tonic}
+                                scaleNotes={scaleNotes}
+                                processedChords={processedChords}
+                                theme={theme}
+                                inputTestState={null}
+                                previewMode={YCOL}
+                                pixelsPerTick={ppt}
+                                startMeasureIndex={startMeasureIndex}
+                                transpositionSemitones={bassTransSemitones}
+                              />}
                             {isBassVisible && (!nextBass || !nextNotesVisible) &&
                               renderRepeatSymbols(allOffsets, noteWidth, ppt, [30], YCOL)}
                           </g>
                           <g style={{ transform: `translateY(${percussionStart}px)` }}>
                             {isPercussionVisible && nextPerc && nextNotesVisible && adjustedPercussionMelody &&
-                              renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
+                              <MelodyNotesLayer
+                                melody={adjustedPercussionMelody}
+                                numAccidentals={numAccidentals}
+                                startX={startX}
+                                noteWidth={noteWidth}
+                                allOffsets={allOffsets}
+                                staff="percussion"
+                                staffYStart={0}
+                                noteGroupSize={noteGroupSize}
+                                measureLengthSlots={measureLengthSlots}
+                                timeSignature={timeSignature}
+                                clef={null}
+                                noteColoringMode={noteColoringMode}
+                                tonic={tonic}
+                                scaleNotes={EMPTY_SCALE_NOTES}
+                                processedChords={processedChords}
+                                theme={theme}
+                                inputTestState={null}
+                                previewMode={YCOL}
+                                pixelsPerTick={ppt}
+                                startMeasureIndex={startMeasureIndex}
+                                transpositionSemitones={0}
+                                debugMode={debugMode}
+                                interactive={true}
+                                courtesyAccidentals={courtesyAccidentals}
+                                percussionVoiceSplit={percussionVoiceSplit}
+                              />}
                             {isPercussionVisible && nextMetro && adjustedMetronomeMelody &&
-                              renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex, 0, false, false, courtesyAccidentals, false)}
+                              <MelodyNotesLayer
+                                melody={adjustedMetronomeMelody}
+                                numAccidentals={numAccidentals}
+                                startX={startX}
+                                noteWidth={noteWidth}
+                                allOffsets={allOffsets}
+                                staff="percussion"
+                                staffYStart={0}
+                                noteGroupSize={noteGroupSize}
+                                measureLengthSlots={measureLengthSlots}
+                                timeSignature={timeSignature}
+                                clef={null}
+                                noteColoringMode={noteColoringMode}
+                                tonic={tonic}
+                                scaleNotes={EMPTY_SCALE_NOTES}
+                                processedChords={processedChords}
+                                theme={theme}
+                                inputTestState={null}
+                                previewMode={YCOL}
+                                pixelsPerTick={ppt}
+                                startMeasureIndex={startMeasureIndex}
+                                transpositionSemitones={0}
+                                debugMode={false}
+                                interactive={false}
+                                courtesyAccidentals={courtesyAccidentals}
+                                percussionVoiceSplit={false}
+                              />}
                             {isPercussionVisible && (!nextPerc && !nextMetro) &&
                               renderRepeatSymbols(allOffsets, noteWidth, ppt, [30], YCOL)}
                           </g>
@@ -2487,19 +2710,89 @@ const SheetMusic = ({
                               renderChordLabels(previewChords, pmAllOffsets, pmNoteWidth, ppt, RCOL)}
                             <g style={{ transform: `translateY(${trebleStart}px)` }}>
                               {isTrebleVisible && nextTreble && nextNotesVisible && previewTreble &&
-                                renderMelodyNotes(previewTreble, numAccidentals, startX, pmNoteWidth, pmAllOffsets, 'treble', 0, noteGroupSize, measureLengthSlots, timeSignature, clefTreble, noteColoringMode, tonic, scaleNotes, previewChords ?? processedChords, theme, null, RCOL, ppt, startMeasureIndex, trebleTransSemitones)}
+                                <MelodyNotesLayer
+                                  melody={previewTreble}
+                                  numAccidentals={numAccidentals}
+                                  startX={startX}
+                                  noteWidth={pmNoteWidth}
+                                  allOffsets={pmAllOffsets}
+                                  staff="treble"
+                                  staffYStart={0}
+                                  noteGroupSize={noteGroupSize}
+                                  measureLengthSlots={measureLengthSlots}
+                                  timeSignature={timeSignature}
+                                  clef={clefTreble}
+                                  noteColoringMode={noteColoringMode}
+                                  tonic={tonic}
+                                  scaleNotes={scaleNotes}
+                                  processedChords={previewChords ?? processedChords}
+                                  theme={theme}
+                                  inputTestState={null}
+                                  previewMode={RCOL}
+                                  pixelsPerTick={ppt}
+                                  startMeasureIndex={startMeasureIndex}
+                                  transpositionSemitones={trebleTransSemitones}
+                                />}
                               {isTrebleVisible && (!nextTreble || !nextNotesVisible) &&
                                 renderRepeatSymbols(pmAllOffsets, pmNoteWidth, ppt, [30], RCOL)}
                             </g>
                             <g style={{ transform: `translateY(${bassStart}px)` }}>
                               {isBassVisible && nextBass && nextNotesVisible && previewBass &&
-                                renderMelodyNotes(previewBass, numAccidentals, startX, pmNoteWidth, pmAllOffsets, 'bass', 0, noteGroupSize, measureLengthSlots, timeSignature, clefBass, noteColoringMode, tonic, scaleNotes, previewChords ?? processedChords, theme, null, RCOL, ppt, startMeasureIndex, bassTransSemitones)}
+                                <MelodyNotesLayer
+                                  melody={previewBass}
+                                  numAccidentals={numAccidentals}
+                                  startX={startX}
+                                  noteWidth={pmNoteWidth}
+                                  allOffsets={pmAllOffsets}
+                                  staff="bass"
+                                  staffYStart={0}
+                                  noteGroupSize={noteGroupSize}
+                                  measureLengthSlots={measureLengthSlots}
+                                  timeSignature={timeSignature}
+                                  clef={clefBass}
+                                  noteColoringMode={noteColoringMode}
+                                  tonic={tonic}
+                                  scaleNotes={scaleNotes}
+                                  processedChords={previewChords ?? processedChords}
+                                  theme={theme}
+                                  inputTestState={null}
+                                  previewMode={RCOL}
+                                  pixelsPerTick={ppt}
+                                  startMeasureIndex={startMeasureIndex}
+                                  transpositionSemitones={bassTransSemitones}
+                                />}
                               {isBassVisible && (!nextBass || !nextNotesVisible) &&
                                 renderRepeatSymbols(pmAllOffsets, pmNoteWidth, ppt, [30], RCOL)}
                             </g>
                             <g style={{ transform: `translateY(${percussionStart}px)` }}>
                               {isPercussionVisible && nextPerc && nextNotesVisible && previewPerc &&
-                                renderMelodyNotes(previewPerc, numAccidentals, startX, pmNoteWidth, pmAllOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], previewChords ?? processedChords, theme, null, RCOL, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
+                                <MelodyNotesLayer
+                                  melody={previewPerc}
+                                  numAccidentals={numAccidentals}
+                                  startX={startX}
+                                  noteWidth={pmNoteWidth}
+                                  allOffsets={pmAllOffsets}
+                                  staff="percussion"
+                                  staffYStart={0}
+                                  noteGroupSize={noteGroupSize}
+                                  measureLengthSlots={measureLengthSlots}
+                                  timeSignature={timeSignature}
+                                  clef={null}
+                                  noteColoringMode={noteColoringMode}
+                                  tonic={tonic}
+                                  scaleNotes={EMPTY_SCALE_NOTES}
+                                  processedChords={previewChords ?? processedChords}
+                                  theme={theme}
+                                  inputTestState={null}
+                                  previewMode={RCOL}
+                                  pixelsPerTick={ppt}
+                                  startMeasureIndex={startMeasureIndex}
+                                  transpositionSemitones={0}
+                                  debugMode={debugMode}
+                                  interactive={true}
+                                  courtesyAccidentals={courtesyAccidentals}
+                                  percussionVoiceSplit={percussionVoiceSplit}
+                                />}
                               {isPercussionVisible && (!nextPerc && !nextMetro) &&
                                 renderRepeatSymbols(pmAllOffsets, pmNoteWidth, ppt, [30], RCOL)}
                             </g>
