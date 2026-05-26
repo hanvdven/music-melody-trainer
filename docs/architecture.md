@@ -1376,10 +1376,10 @@ Uses the output of `generateRankedRhythm` directly. Top N slots per measure (det
 Uses `rhythmicGrouping` (the beat-group decomposition from `generateRhythmicDNA`) to pre-determine line boundaries. Each beat group maps to one line.
 
 `arp_group` runs in **two stages**:
-  1. **Line decomposition** — walk through the priority ranks, assigning each slot to either L (line-ending landing note) or n (approach note), without yet picking pitches. This stage uses `smallestNoteDenom` (NOT `rhythmVariability`) to determine the granularity of approach-note clusters.
-  2. **Note filling** — for each L, plan its approach notes backwards within a span (the existing §27.2 backwards-planning algorithm).
+  1. **Line decomposition** — walk through the priority ranks, assigning each slot to either L (line-ending landing note) or n (approach note), without yet picking pitches. The rhythm grid resolution comes from `smallestNoteDenom` (set by the rhythm engine when building the ranked array); the L/n algorithm operates on whatever slot count the array contains. Inactive slots (no rank from the rhythm engine) get a placeholder rank so the walk treats every slot uniformly.
+  2. **Note filling** — for each L, plan its approach notes backwards within a span (the existing §27.2 backwards-planning algorithm). The span is `maxLeap` semitones wide, positioned **randomly** within the instrument range so L falls inside (Han 2026-05-26).
 
-> **Spec note (2026-05-22)**: The current implementation uses `rhythmVariability` for stage-1 grouping, which is a known divergence from spec. Tracked in BACKLOG.
+> **Implementation status (2026-05-26)**: Spec-compliant — see `src/generation/convertRankedArrayToMelody.js`, the `else` branch of the `arp_group` block. Previously the code grouped by `rhythmVariability` and did per-beat-group lines; now it walks ranks, tags L/n, and decomposes into lines that can span groups.
 
 #### 27.5a Stage 1 — Line decomposition (Han 2026-05-22 spec)
 
