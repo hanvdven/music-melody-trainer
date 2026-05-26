@@ -595,14 +595,27 @@ class Sequencer {
               }
             }
 
-            // Use pre-generated result (scroll mode fires this earlier; pagination
-            // waited above) or generate now as a last-resort fallback.
-            const result = this.pregenResult ?? this.randomizeScaleAndGenerate(this.refs.numMeasuresRef.current, currentTS, {
-              treble,
-              bass,
-              percussion,
-            });
-            this.pregenResult = null;
+            // If still null (await timed out, or non-pagination mode), generate
+            // fresh and STORE in pregenResult so the scheduler's arm callback
+            // reads the SAME melody. This matters for the 'snel' variant where
+            // the arm callback fires AFTER the outer code runs (arm at
+            // atTick − 0.7s vs outer at atTick − lookahead = atTick − 1s at
+            // 120 BPM 4/4). With the old code outer cleared pregenResult,
+            // then arm found null and sync-generated a DIFFERENT random
+            // melody — the overlay showed melody Y while the audio applied
+            // melody X. Bug reported by Han 2026-05-25 / 2026-05-26.
+            if (!this.pregenResult) {
+              this.pregenResult = this.randomizeScaleAndGenerate(this.refs.numMeasuresRef.current, currentTS, {
+                treble,
+                bass,
+                percussion,
+              });
+            }
+            const result = this.pregenResult;
+            // Do NOT clear pregenResult here. The applyResult closure clears
+            // it AFTER the React commit (= after arm has had its chance to
+            // read it). Cleared too early → arm sees null → sync-fallback
+            // generates a different melody → preview/applied mismatch.
 
             currentNumMeasures = result.generatedNumMeasures || this.refs.numMeasuresRef.current;
             currentTS = [...this.refs.timeSignatureRef.current];
@@ -646,6 +659,12 @@ class Sequencer {
               if (isPaginationOuter && !outerHasOvershoot && this.refs.transitionRef) {
                 this.refs.transitionRef.current = null;
               }
+              // Clear pregenResult AFTER the React commit (= after both the
+              // outer-loop's read above AND the scheduler arm's read). The
+              // NEXT block's JIT will generate fresh once its timeout fires
+              // — pregenResult must be null by then so the JIT's
+              // `if (this.pregenResult) return;` guard doesn't skip it.
+              this.pregenResult = null;
             };
 
             // Schedule red preview overlay and apply result.
