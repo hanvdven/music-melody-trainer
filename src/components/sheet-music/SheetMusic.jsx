@@ -37,7 +37,9 @@ import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { useMelodies } from '../../contexts/MelodyContext';
-import { usePlaybackState } from '../../contexts/PlaybackStateContext';
+import { usePlaybackTransport } from '../../contexts/PlaybackTransportContext';
+import { useRoundState } from '../../contexts/RoundStateContext';
+import { useTransitionOverlay } from '../../contexts/TransitionOverlayContext';
 import { useAnimationRefs } from '../../contexts/AnimationRefsContext';
 // ── Static / pure module-level data & helpers ──────────────────────────────
 
@@ -185,8 +187,9 @@ const SheetMusic = ({
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
           metronome: metronomeMelody, chordProgression } = useMelodies();
-  const { isPlaying, isOddRound, nextLayer = null, previewMelody = null,
-          inputTestState, inputTestSubMode, setInputTestSubMode } = usePlaybackState();
+  const { isPlaying } = usePlaybackTransport();
+  const { isOddRound, inputTestState, inputTestSubMode, setInputTestSubMode } = useRoundState();
+  const { nextLayer = null, previewMelody = null } = useTransitionOverlay();
   const { wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
           transitionRef,
           clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
