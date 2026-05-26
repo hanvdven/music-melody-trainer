@@ -38,7 +38,16 @@ export default function useAppUIState() {
 
     const [startMeasureIndex, setStartMeasureIndex] = useState(0);
     const [headerPlayMode, setHeaderPlayMode] = useState('continuous');
-    const [currentMeasureIndex, setCurrentMeasureIndex] = useState(0);
+    // currentMeasureIndex is updated by the highlight rAF on every measure
+    // boundary (~once per second) but isn't actually rendered by any
+    // component — the leftover state forced an App-level re-render on every
+    // tick, which propagated through every Provider to every consumer.
+    // Switched to a ref so the setter is a pure write with no React work.
+    // If a consumer ever needs it back as state, expose a small ref-based
+    // hook (e.g. useSyncExternalStore) instead of restoring full state.
+    const currentMeasureIndexRef = useRef(0);
+    const currentMeasureIndex = 0; // legacy alias for the (now-unused) state value
+    const setCurrentMeasureIndex = (n) => { currentMeasureIndexRef.current = n; };
     const [animationMode, setAnimationMode, animationModeRef] = useRefState('pagination');
     // Pagination crossfade speed: 'snel' | 'mid' | 'lang'. See transitionPlanner.PAGINATION_VARIANTS.
     // Only consulted when animationMode === 'pagination'.
