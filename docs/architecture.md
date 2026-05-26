@@ -625,7 +625,12 @@ Purpose of every significant file in the codebase. One-sentence description + re
 | File | Purpose |
 |---|---|
 | `SheetMusic.jsx` | The SVG sheet music renderer. Accepts `melody`, `nextLayer`, `startMeasureIndex`, pagination props; renders treble, bass, percussion staves; manages `[data-pagination-old/new]` groups and the `useLayoutEffect` that coordinates block-flip transitions. |
+| `MelodyNotesLayer.jsx` | `React.memo`-wrapped wrapper around `renderMelodyNotes`. Called 11× per render from `SheetMusic` (OLD / yellow / red layers × 3 staves + metronome). The memo skips the entire `renderMelodyNotes` call (O(N²) beaming + stem-direction forcing + accidental maps) when its props are referentially equal. See §29. |
+| `ChordLabelsLayer.jsx` | `React.memo`-wrapped chord-label renderer. Contains the per-chord builder (`renderSingleChordLabel`) as a pure function so the JSX is deterministic from props. Replaces 3 inline calls in `SheetMusic`. See §29. |
+| `BarlinesLayer.jsx` | `React.memo`-wrapped barline + measure-number renderer. Holds the pure `iterMeasureLines` iterator (the iterator depends on ~20 layout/visibility values that were previously closure-captured in `SheetMusic`). `mode="regular"` for thin inner barlines, `mode="repeat"` for thick start/end repeat lines. See §29. |
+| `PreviewOverlay.jsx` | `React.memo`-wrapped RED/crossfade overlay (the "incoming melody" preview during a pagination transition). Lazy-mounted from `SheetMusic` only when `showWipePreview === 'red'` or `'crossfade'`, so absent from the DOM ~90% of the session. See §29. |
 | `renderMelodyNotes.jsx` | Pure rendering function — given a `SlicedMelody` and layout parameters, returns SVG note heads, stems, beams, flags, accidentals, and chord labels. |
+| `renderOneMeasureRepeatSymbols.jsx` | Pure helper that renders the Maestro "Ô" one-measure-repeat glyph centred between barlines. Shared between `SheetMusic` (existing closure delegates here) and `PreviewOverlay` (calls it directly). |
 | `renderAccidentals.jsx` | Renders key-signature accidentals (sharps/flats) at the start of each staff. |
 | `processMelodyAndCalculateSlots.js` | Lays out note horizontal positions ("slots") across a measure, handling beaming groups and spacing. |
 | `processMelodyAndCalculateFlags.js` | Determines stem direction, beam/flag rendering flags for each note based on pitch and context. |
@@ -1181,20 +1186,29 @@ repetitive groups, reducing the SheetMusic prop surface to ~38 and making dual-v
 | Context | File | What it carries |
 |---|---|---|
 | `MelodyContext` | `src/contexts/MelodyContext.jsx` | `treble`, `bass`, `percussion`, `metronome`, `chordProgression` Melody objects |
-| `PlaybackStateContext` | `src/contexts/PlaybackStateContext.jsx` | `isPlaying`, `isOddRound`, `currentMeasureIndex`, `inputTestState`, `inputTestSubMode` / setter |
-| `AnimationRefsContext` | `src/contexts/AnimationRefsContext.jsx` | All 9 animation refs/callbacks: `wipeTransitionRef`, `scrollTransitionRef`, `pendingScrollTransitionRef`, `paginationFadeRef`, `clearHighlightStateRef`, `showNoteHighlightRef`, `setCurrentMeasureIndex`, `sequencerRef`, `context` (AudioContext) |
+| `PlaybackTransportContext` | `src/contexts/PlaybackTransportContext.jsx` | `isPlaying`, `isPlayingContinuously` — flips at start/stop only |
+| `RoundStateContext` | `src/contexts/RoundStateContext.jsx` | `isOddRound`, `showNotes`, `inputTestState`, `inputTestSubMode` / setter — flips ~1× per measure |
+| `TransitionOverlayContext` | `src/contexts/TransitionOverlayContext.jsx` | `nextLayer`, `previewMelody` — non-null only during transitions |
+| `AnimationRefsContext` | `src/contexts/AnimationRefsContext.jsx` | All animation refs/callbacks: `wipeTransitionRef`, `scrollTransitionRef`, `pendingScrollTransitionRef`, `paginationFadeRef`, `clearHighlightStateRef`, `showNoteHighlightRef`, `setCurrentMeasureIndex`, `sequencerRef`, `context` (AudioContext) |
+
+The original monolithic `PlaybackStateContext` was split into three providers in May 2026 because its value object invalidated on every measure tick (isOddRound flip), re-rendering every consumer — including the SheetMusic subtree whose layer caches (`MelodyNotesLayer`, `ChordLabelsLayer`, `BarlinesLayer`, `PreviewOverlay`) we'd just built around the heavy renderers. Splitting by update frequency keeps those memos hot. See §29.
+
+The legacy `usePlaybackState()` hook is retained as a backwards-compat aggregator in `src/contexts/PlaybackStateContext.jsx` — it merges the three new contexts so any caller can still pull the old shape, but new consumers should subscribe to only what they need.
 
 ### Invariants
-- All three providers are mounted in `App.jsx` above both `<SheetMusic>` instances.
+- All providers are mounted in `App.jsx` above both `<SheetMusic>` instances.
 - `AnimationRefsContext` carries refs (not state), so consuming it never triggers re-renders.
 - `svgRef` is **not** in context — SheetMusic receives it as a prop because the component
   has an internal fallback: `const svgRef = svgRefProp ?? svgRefInternal`.
 
 ### Files
-- `src/contexts/MelodyContext.jsx` — new
-- `src/contexts/PlaybackStateContext.jsx` — new
-- `src/contexts/AnimationRefsContext.jsx` — new
-- `src/App.jsx` — added providers; removed 22 props from both SheetMusic call sites
+- `src/contexts/MelodyContext.jsx`
+- `src/contexts/PlaybackTransportContext.jsx`
+- `src/contexts/RoundStateContext.jsx`
+- `src/contexts/TransitionOverlayContext.jsx`
+- `src/contexts/PlaybackStateContext.jsx` — now a backwards-compat aggregator hook
+- `src/contexts/AnimationRefsContext.jsx`
+- `src/App.jsx` — nests the four providers around the layout tree
 
 ---
 
@@ -1697,3 +1711,80 @@ Float ticks are fine: the Sequencer converts `duration_ticks × timeFactor` to s
 - `src/generation/melodyGenerator.js` — destructures tupletGroups; deterministic expansion into n sub-notes
 - `src/model/Melody.js` — updateMetronome caller updated to destructure `{ rankedArray }`
 - `src/generation/generateBackbeat.js` — two callers updated to destructure `{ rankedArray }`
+
+---
+
+## 29. SheetMusic Render-Cost Refactor (2026-05)
+
+### 29.1 Purpose
+
+DevTools traces during continuous playback showed React renders at 230–304 ms (36× in a 16 s sample). The rAF loop itself was clean (0 ticks > 16 ms after an earlier round of cache + memo work), but every SheetMusic re-render — fired ~38×/minute on isOddRound flips, showNotes toggles, transition arms, and tab switches — still re-executed:
+
+- `renderMelodyNotes(...)` inline **11×** (OLD / yellow / red layers × 3 staves + metronome variants)
+- `renderChordLabels(...)` inline **3×** (OLD, yellow overlay, red/crossfade preview)
+- `renderRegularBarlines(...)` inline **2–3×** (OLD, yellow preview, crossfade preview)
+- the full ~220 LOC RED/crossfade preview IIFE, even when no transition was active
+
+Inline function calls do not memoise: JSX evaluates the function body every render, even when its arguments are referentially equal. Each `renderMelodyNotes` call performs O(N²) beaming-cluster work, stem-direction forcing, accidental-map generation, and tuplet-bracket layout — the dominant cost in those 230–304 ms renders.
+
+The refactor wraps each heavy render in a `React.memo` sub-component so React skips the entire JS pass when props are shallow-equal, and splits the context provider that was invalidating those memo caches once per measure.
+
+### 29.2 Architecture
+
+Memoised layer components (all under `src/components/sheet-music/`):
+
+| Component | Wraps | Call sites in SheetMusic |
+|---|---|---|
+| `MelodyNotesLayer` | `renderMelodyNotes` | 11 (treble/bass/percussion × OLD/yellow/red + metronome) |
+| `ChordLabelsLayer` | inline chord-label renderer + per-chord builder | 3 (OLD, yellow, red) |
+| `BarlinesLayer` | `_iterMeasureLines` (now `iterMeasureLines`, pure) | 4 (3× `mode="regular"`, 1× `mode="repeat"`) |
+| `PreviewOverlay` | the RED/crossfade IIFE | 1, lazy-mounted only when `showWipePreview === 'red'` or `'crossfade'` |
+
+The per-chord builder (`renderSingleChordLabel`), the measure-line iterator (`iterMeasureLines`), and the one-measure-repeat renderer (`renderOneMeasureRepeatSymbols`) are now pure functions with explicit args — no closure capture. This is what makes the memo deterministic from props.
+
+`PreviewOverlay` is lazy-mounted, not just memoised. With `previewMelody` null (stopped state), the old IIFE still computed visibility config + previewLayout destructure + fallback "NEXT BLOCK" text. Now the parent passes `null` and the component is absent from the DOM entirely.
+
+### 29.3 Context split
+
+The `PlaybackStateContext` provider was split into three (see §23):
+
+| New context | Update frequency | Consumers |
+|---|---|---|
+| `PlaybackTransportContext` | start/stop only | TabView, SheetMusic |
+| `RoundStateContext` | ~1× per measure (isOddRound flip) | SheetMusic, TabView |
+| `TransitionOverlayContext` | only during transitions | SheetMusic |
+
+Why this matters: without the split, the monolithic context's value object invalidated on every measure tick because isOddRound flipped. Every consumer re-rendered. The layer memos still cache-hit on prop equality, BUT React still has to do the shallow compare on each layer at each tick. Worse, anything inside SheetMusic that DID consume isOddRound (the visibility derivations for OLD layer) re-rendered the SheetMusic body — invalidating the JSX tree React diffs against and forcing the layer memos to re-evaluate their props.
+
+With the split, SheetMusic still re-renders when isOddRound flips (it consumes RoundStateContext for `actualTreble` / `actualBass` / `actualPercussion`), but `PlaybackTransportContext` consumers don't, and `TransitionOverlayContext` consumers (only `PreviewOverlay` paths) don't either.
+
+### 29.4 Invariants — must hold
+
+- `MelodyNotesLayer`, `ChordLabelsLayer`, `BarlinesLayer`, `PreviewOverlay` produce **identical DOM** to the inline calls they replaced. `useSheetMusicHighlight` reads `data-measure-index` / `data-mel` / `data-local-slot` / `data-pagination-new` / `data-wipe-role` attributes via `querySelectorAll` and ancestor walks. Any layer-component refactor must preserve those attrs.
+- `PreviewOverlay` mounts and unmounts based on `showWipePreview`. `useSheetMusicHighlight` caches `[data-pagination-new]` and re-resolves via `isConnected` check, so the mount/unmount transition is safe.
+- The pure builders (`renderSingleChordLabel`, `iterMeasureLines`, `renderOneMeasureRepeatSymbols`) must remain free of closure capture. Adding a hidden dependency on a parent value would make the memo stale.
+- The legacy `usePlaybackState()` aggregator hook in `PlaybackStateContext.jsx` must keep merging all three new contexts so any old caller (or test) sees the same shape.
+
+### 29.5 Files
+
+**New:**
+- `src/components/sheet-music/MelodyNotesLayer.jsx`
+- `src/components/sheet-music/ChordLabelsLayer.jsx`
+- `src/components/sheet-music/BarlinesLayer.jsx`
+- `src/components/sheet-music/PreviewOverlay.jsx`
+- `src/components/sheet-music/renderOneMeasureRepeatSymbols.jsx`
+- `src/contexts/PlaybackTransportContext.jsx`
+- `src/contexts/RoundStateContext.jsx`
+- `src/contexts/TransitionOverlayContext.jsx`
+
+**Modified:**
+- `src/components/sheet-music/SheetMusic.jsx` — inline calls replaced; `_iterMeasureLines` / `renderChordLabels` / `renderSingleChordLabel` / preview IIFE removed; `renderRepeatSymbols` delegates to the pure helper
+- `src/contexts/PlaybackStateContext.jsx` — now a backwards-compat aggregator hook (Provider removed)
+- `src/App.jsx` — three nested providers replace the single `PlaybackStateProvider`
+- `src/components/layout/TabView.jsx` — `usePlaybackState()` → specific hooks
+
+### 29.6 Rejected alternatives
+
+- **SVG → Canvas/WebGL.** Not the bottleneck. The cost is JS-side layout/JSX (beaming, stem direction, accidental maps), not pixel rasterisation. ~20 h effort, loses free hit-testing (note-click via `data-notes`), CSS-class animations, and accessibility. **No.**
+- **`noteWidth` as a percentage.** One division per render; the derived note-x positions are the cost. Marginal. **Not the fix.**
+- **Total redesign of SheetMusic.** Scope explosion without a targeted change. **No.**
