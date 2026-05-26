@@ -12,6 +12,7 @@ import SvgSetter from './SvgSetter';
 
 import MelodyNotesLayer from './MelodyNotesLayer';
 import ChordLabelsLayer from './ChordLabelsLayer';
+import BarlinesLayer from './BarlinesLayer';
 import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
@@ -986,203 +987,9 @@ const SheetMusic = ({
     };
   }, [measureWidth, measurePpt, effectiveVisibleMeasures, layoutRef, startX, trebleStart, bottomY, measureLengthSlots, endX, startMeasureIndex]);
 
-  // Shared measure-line iteration — called twice to separate fadeable from non-fadeable elements.
-  // mode='regular'  → thin inner barlines + adaptive-TS labels (go into the masked group)
-  // mode='repeat'   → thick start/end repeat barlines with dots (always visible)
-  // ppt: when non-null, barlines are placed at startX + barlineCount*measureLengthSlots*ppt
-  //      (uniform tick-based spacing); when null, uses elastic slot-index spacing.
-  const _iterMeasureLines = (mode, offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex, bmsOverride = null, bpsOverride = null) => {
-    // bmsOverride / bpsOverride: pagination crossfade overlay passes the FUTURE
-    // blockMeasureStart and blockPlayStart so the preview's measure-number labels
-    // are correct AHEAD of the boundary. Without this the overlay renders labels
-    // from the still-current state (e.g. "1.5" because the current block's
-    // blockMeasureStart is 1 and startIdx is past the last repeat).
-    const bms = bmsOverride ?? blockMeasureStart;
-    const bps = bpsOverride ?? blockPlayStart;
-    const getXLocal = (index) => index === 0 ? startX - 35 : startX + (index - 1) * nw;
-    const lastIdx = offsets.length - 1;
-    let barlineCount = 0;
-    return offsets.map((timestamp, index) => {
-      // Adaptive time-signature change label: always in the regular (fadeable) group
-      // Only render inline if it does not happen exactly at the start of the staff (0)
-      if (timestamp === 'ts' && partialTop !== null && partialMeasureStart !== 0) {
-        if (mode !== 'regular') return null;
-        const x = getXLocal(index);
-        return (
-          <g key={`ts-${index}`}>
-            {measureYPositions.map((yPos, i) => {
-              const isTop = i % 2 === 0;
-              return (
-                <text
-                  key={i}
-                  x={x}
-                  y={yPos + 1}
-                  fontSize="36"
-                  fill="var(--text-primary)"
-                  fontFamily="Maestro"
-                  textAnchor="middle"
-                  style={{ pointerEvents: 'none', userSelect: 'none' }}
-                >
-                  {isTop ? partialTop : measureBottom}
-                </text>
-              );
-            })}
-          </g>
-        );
-      }
-
-      if (timestamp === 'm') {
-        const x = ppt !== null
-          ? startX + barlineCount * measureLengthSlots * ppt
-          : getXLocal(index);
-        const barlineOffset = barlineCount * measureLengthSlots;
-        const measureNumForLabel = barlineCount; // 0-indexed series measure that starts after this barline
-        barlineCount++;
-        const isStart = index === (numRepeats > 1 ? 1 : 0);
-        const isEnd = index === lastIdx;
-
-        // R = how many times the current block has been played in this session.
-        // Only shown during active playback (isPlaying=true). Resets per block via blockPlayStart.
-        const repeatNum = isPlaying
-          ? Math.max(1, Math.floor((startIdx - bps) / numMeasures) + 1)
-          : 1;
-        // Returns "N" (first play) or "N . R" (repeat R, R≥2) where N = song measure number.
-        const measureLabel = (localIndex) => {
-          const N = bms + localIndex;
-          return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
-        };
-
-        if (numRepeats > 1) {
-          if (isStart) {
-            if (mode === 'regular') {
-              // Show measure number label above the start barline even when repeats > 1
-              return (
-                <g key={`measure-line-${index}`}
-                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx); } : undefined}
-                  style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
-                >
-                  <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
-                  <text
-                    x={startX}
-                    y={trebleStart - 14}
-                    fontSize="15"
-                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
-                    fontFamily="Georgia, 'Times New Roman', serif"
-                    style={{ userSelect: 'none' }}
-                  >
-                    {measureLabel(0)}
-                  </text>
-                  {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
-                </g>
-              );
-            }
-            if (mode !== 'repeat') return null;
-            const startXOffset = x - 15;
-            return (
-              <g key={`measure-line-${index}`} data-offset={barlineOffset} data-mel="barline">
-                <rect x={startXOffset - 2} y={trebleStart} width="3" height={bottomY - trebleStart} fill="var(--text-primary)" />
-                <path d={`M ${startXOffset + 4} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="1" />
-                {[trebleStart, bassStart, percussionStart].map((start, sIdx) => {
-                  const showDots = sIdx === 0 ? isTrebleVisible : (sIdx === 1 ? isBassVisible : isPercussionVisible);
-                  if (!showDots) return null;
-                  return (
-                    <g key={`rep-dot-start-${start}-${sIdx}`}>
-                      <text x={startXOffset + 9} y={start + 18.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                      <text x={startXOffset + 9} y={start + 28.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                    </g>
-                  );
-                })}
-              </g>
-            );
-          }
-          if (isEnd) {
-            if (mode !== 'repeat') return null;
-            return (
-              <g key={`measure-line-${index}`} data-offset={barlineOffset} data-mel="barline">
-                {[trebleStart, bassStart, percussionStart].map((start, sIdx) => {
-                  const showDots = sIdx === 0 ? isTrebleVisible : (sIdx === 1 ? isBassVisible : isPercussionVisible);
-                  if (!showDots) return null;
-                  return (
-                    <g key={`rep-dot-end-${start}-${sIdx}`}>
-                      <text x={x - 9} y={start + 18.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                      <text x={x - 9} y={start + 28.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                    </g>
-                  );
-                })}
-                <path d={`M ${x - 4} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="1" />
-                <rect x={x + 1} y={trebleStart} width="3" height={bottomY - trebleStart} fill="var(--text-primary)" />
-              </g>
-            );
-          }
-        }
-
-        if (mode !== 'regular') return null;
-
-        // For the opening barline (numRepeats <= 1): suppress the barline itself but
-        // still render the "1" measure label above startX (the first note position).
-        if (isStart && numRepeats <= 1) {
-          return (
-            <g key={`measure-line-${index}`}
-              onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
-              style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
-            >
-              <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
-              <text
-                x={startX}
-                y={trebleStart - 14}
-                fontSize="15"
-                fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
-                fontFamily="Georgia, 'Times New Roman', serif"
-                style={{ userSelect: 'none' }}
-              >
-                {measureLabel(measureNumForLabel)}
-              </text>
-              {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
-            </g>
-          );
-        }
-
-        return (
-          <g key={`measure-line-${index}`}>
-            <path
-              data-offset={barlineOffset}
-              data-mel="barline"
-              d={`M ${x} ${trebleStart} V ${bottomY}`}
-              stroke="var(--text-primary)"
-              strokeWidth=".5"
-            />
-            {!isEnd && (() => {
-              return (
-                <g
-                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
-                  style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
-                >
-                  <rect x={x - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
-                  <text
-                    x={x}
-                    y={trebleStart - 14}
-                    fontSize="15"
-                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
-                    fontFamily="Georgia, 'Times New Roman', serif"
-                    style={{ userSelect: 'none' }}
-                  >
-                    {measureLabel(measureNumForLabel)}
-                  </text>
-                  {debugMode && <rect x={x - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
-                </g>
-              );
-            })()}
-          </g>
-        );
-      }
-      return null;
-    });
-  };
-
-  // Regular (inner) barlines — included in the mask animation
-  const renderRegularBarlines = (offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex, bmsOverride = null, bpsOverride = null) => _iterMeasureLines('regular', offsets, nw, ppt, startIdx, bmsOverride, bpsOverride);
-  // Thick repeat barlines — always visible, never masked
-  const renderRepeatBarlines = (ppt = null) => _iterMeasureLines('repeat', allOffsets, noteWidth, ppt);
+  // Barlines + measure-number labels are rendered by <BarlinesLayer>
+  // (./BarlinesLayer.jsx). The pure iterator lives there so React.memo can skip
+  // the entire pass when its inputs are referentially equal.
 
   // BPM controls visibility — lifted from BpmControls so renderRandomizeIcons and handleSheetMusicClick can read it
   const [showBpmControls, setShowBpmControls] = React.useState(false);
@@ -2283,7 +2090,34 @@ const SheetMusic = ({
                     </g>
                     {/* Regular inner barlines — masked with old content during wipe */}
                     <g data-wipe-role="old" style={{ opacity: showSettings ? 0.6 : 1, filter: showSettings ? 'blur(1.5px)' : 'none' }}>
-                      {renderRegularBarlines(allOffsets, noteWidth, ppt)}
+                      <BarlinesLayer
+                        mode="regular"
+                        offsets={allOffsets}
+                        noteWidth={noteWidth}
+                        pixelsPerTick={ppt}
+                        startX={startX}
+                        startIdx={startMeasureIndex}
+                        blockMeasureStart={blockMeasureStart}
+                        blockPlayStart={blockPlayStart}
+                        partialTop={partialTop}
+                        partialMeasureStart={partialMeasureStart}
+                        measureBottom={measureBottom}
+                        measureYPositions={measureYPositions}
+                        trebleStart={trebleStart}
+                        bassStart={bassStart}
+                        percussionStart={percussionStart}
+                        bottomY={bottomY}
+                        isTrebleVisible={isTrebleVisible}
+                        isBassVisible={isBassVisible}
+                        isPercussionVisible={isPercussionVisible}
+                        numRepeats={numRepeats}
+                        isPlaying={isPlaying}
+                        numMeasures={numMeasures}
+                        debugMode={debugMode}
+                        showSettings={showSettings}
+                        measureLengthSlots={measureLengthSlots}
+                        onMeasureNumberClick={onMeasureNumberClick}
+                      />
                     </g>
 
                     {/* Chord labels */}
@@ -2503,7 +2337,34 @@ const SheetMusic = ({
                               Show the NEXT iteration's measure numbers (startMeasureIndex + displayNumMeasures)
                               so the numbers visually animate during the wipe instead of jumping at the end. */}
                           <g style={{ opacity: showSettings ? 0.6 : 1 }}>
-                            {renderRegularBarlines(allOffsets, noteWidth, ppt, startMeasureIndex + displayNumMeasures)}
+                            <BarlinesLayer
+                              mode="regular"
+                              offsets={allOffsets}
+                              noteWidth={noteWidth}
+                              pixelsPerTick={ppt}
+                              startX={startX}
+                              startIdx={startMeasureIndex + displayNumMeasures}
+                              blockMeasureStart={blockMeasureStart}
+                              blockPlayStart={blockPlayStart}
+                              partialTop={partialTop}
+                              partialMeasureStart={partialMeasureStart}
+                              measureBottom={measureBottom}
+                              measureYPositions={measureYPositions}
+                              trebleStart={trebleStart}
+                              bassStart={bassStart}
+                              percussionStart={percussionStart}
+                              bottomY={bottomY}
+                              isTrebleVisible={isTrebleVisible}
+                              isBassVisible={isBassVisible}
+                              isPercussionVisible={isPercussionVisible}
+                              numRepeats={numRepeats}
+                              isPlaying={isPlaying}
+                              numMeasures={numMeasures}
+                              debugMode={debugMode}
+                              showSettings={showSettings}
+                              measureLengthSlots={measureLengthSlots}
+                              onMeasureNumberClick={onMeasureNumberClick}
+                            />
                           </g>
                         </g>
                       );
@@ -2679,7 +2540,34 @@ const SheetMusic = ({
                                 arm-time) override the still-current React state for series-flip, so the
                                 label says "3" not "1 . 5" when crossing a sequence boundary. */}
                             <g style={{ opacity: showSettings ? 0.6 : 1 }}>
-                              {renderRegularBarlines(pmAllOffsets, pmNoteWidth, ppt, pm.startMeasureIndex ?? startMeasureIndex, pm._blockMeasureStart ?? null, pm._blockPlayStart ?? null)}
+                              <BarlinesLayer
+                                mode="regular"
+                                offsets={pmAllOffsets}
+                                noteWidth={pmNoteWidth}
+                                pixelsPerTick={ppt}
+                                startX={startX}
+                                startIdx={pm.startMeasureIndex ?? startMeasureIndex}
+                                blockMeasureStart={pm._blockMeasureStart ?? blockMeasureStart}
+                                blockPlayStart={pm._blockPlayStart ?? blockPlayStart}
+                                partialTop={partialTop}
+                                partialMeasureStart={partialMeasureStart}
+                                measureBottom={measureBottom}
+                                measureYPositions={measureYPositions}
+                                trebleStart={trebleStart}
+                                bassStart={bassStart}
+                                percussionStart={percussionStart}
+                                bottomY={bottomY}
+                                isTrebleVisible={isTrebleVisible}
+                                isBassVisible={isBassVisible}
+                                isPercussionVisible={isPercussionVisible}
+                                numRepeats={numRepeats}
+                                isPlaying={isPlaying}
+                                numMeasures={numMeasures}
+                                debugMode={debugMode}
+                                showSettings={showSettings}
+                                measureLengthSlots={measureLengthSlots}
+                                onMeasureNumberClick={onMeasureNumberClick}
+                              />
                             </g>
                           </g>
                         );
@@ -2733,7 +2621,36 @@ const SheetMusic = ({
                   )}
 
                   {/* Thick repeat barlines — hidden in scroll+playing (no start/end repeat signs in scroll mode) */}
-                  {!(animationMode === 'scroll' && isPlaying) && renderRepeatBarlines(ppt)}
+                  {!(animationMode === 'scroll' && isPlaying) && (
+                    <BarlinesLayer
+                      mode="repeat"
+                      offsets={allOffsets}
+                      noteWidth={noteWidth}
+                      pixelsPerTick={ppt}
+                      startX={startX}
+                      startIdx={startMeasureIndex}
+                      blockMeasureStart={blockMeasureStart}
+                      blockPlayStart={blockPlayStart}
+                      partialTop={partialTop}
+                      partialMeasureStart={partialMeasureStart}
+                      measureBottom={measureBottom}
+                      measureYPositions={measureYPositions}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      bottomY={bottomY}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      numRepeats={numRepeats}
+                      isPlaying={isPlaying}
+                      numMeasures={numMeasures}
+                      debugMode={debugMode}
+                      showSettings={showSettings}
+                      measureLengthSlots={measureLengthSlots}
+                      onMeasureNumberClick={onMeasureNumberClick}
+                    />
+                  )}
 
                   {/* Settings overlay — rendered LAST so it sits above blurred content */}
                   {showSettings && (
