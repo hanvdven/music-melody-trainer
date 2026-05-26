@@ -31,6 +31,7 @@ const SubHeader = ({
         chordDisplayMode, setChordDisplayMode,
         showNoteHighlight, setShowNoteHighlight,
         animationMode, setAnimationMode,
+        paginationVariant, setPaginationVariant,
     } = useDisplaySettings();
 
     const { treble: trebleMelody, bass: bassMelody, percussion: percMelody } = useMelodies();
@@ -196,12 +197,28 @@ const SubHeader = ({
                     )}
                 </div>
 
-                {/* LEFT: 2*BW*btnScale from padded edge */}
+                {/* LEFT: 2*BW*btnScale from padded edge — animation mode + pagination variant.
+                    Single cycle through 5 states: pag-snel → pag-mid → pag-lang → wipe → scroll.
+                    The pagination variant is set together with the mode so the user can pick
+                    a crossfade speed without an extra interaction. Long-press behaviour can
+                    be added later (popup) once the basic redesign is verified. */}
                 <div style={{ position: 'absolute', left: Math.round(BW * 2 * btnScale), top: '50%', transform: 'translateY(-50%)' }}>
                     {renderButton(
                         animationMode === 'wipe' ? <ArrowRightFromLine size={22} /> : animationMode === 'scroll' ? <ArrowLeft size={22} /> : <BookOpenCheck size={22} />,
-                        animationMode === 'wipe' ? 'WIPE' : animationMode === 'scroll' ? 'SCROLL' : 'PAGINATION',
-                        () => setAnimationMode(m => m === 'pagination' ? 'wipe' : m === 'wipe' ? 'scroll' : 'pagination'),
+                        animationMode === 'wipe' ? 'WIPE'
+                            : animationMode === 'scroll' ? 'SCROLL'
+                            : `PAG · ${(paginationVariant ?? 'mid').toUpperCase()}`,
+                        () => {
+                            // Cycle: pag/snel → pag/mid → pag/lang → wipe → scroll → pag/snel
+                            if (animationMode !== 'pagination') {
+                                if (animationMode === 'wipe') setAnimationMode('scroll');
+                                else { setAnimationMode('pagination'); setPaginationVariant('snel'); }
+                                return;
+                            }
+                            const next = { snel: 'mid', mid: 'lang', lang: null }[paginationVariant ?? 'mid'];
+                            if (next) setPaginationVariant(next);
+                            else setAnimationMode('wipe');
+                        },
                         false,
                         '#88ccff'
                     )}

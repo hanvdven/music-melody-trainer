@@ -13,6 +13,12 @@
   --text-primary: #ffffff;
   --text-secondary: var(--white-key-color);
   --text-dim: #cccccc;
+  /* --text-lowlight is the dimmed-but-readable text variant used for
+     measure numbers and tuplet denominator suffixes. Defined as a COLOR
+     (not opacity) so it composes correctly with the pagination crossfade
+     animation — opacity already drives the fade, layering another opacity
+     for "lowlight" would double-darken the element during transitions. */
+  --text-lowlight: #8a8a8a;
 
   /* Accent */
   --accent-yellow: #f2c879;

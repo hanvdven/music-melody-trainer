@@ -1,6 +1,6 @@
 // /components/sheet-music/SheetMusic.jsx
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import useSheetMusicHighlight from '../../hooks/useSheetMusicHighlight';
 import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
 import RandomizeIcon from '../common/RandomizeIcon';
@@ -179,6 +179,7 @@ const SheetMusic = ({
   const { isPlaying, isOddRound, nextLayer = null, previewMelody = null,
           inputTestState, inputTestSubMode, setInputTestSubMode } = usePlaybackState();
   const { wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+          transitionRef,
           clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
           sequencerRef, context } = useAnimationRefs();
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
@@ -207,6 +208,7 @@ const SheetMusic = ({
     scrollTransitionRef,
     pendingScrollTransitionRef,
     paginationFadeRef,
+    transitionRef,
   });
 
   useSheetMusicTransitions(nextLayer, layoutRef, svgRef);
@@ -726,10 +728,18 @@ const SheetMusic = ({
     ? localMeasureStart * measureLengthSlots
     : 0;
 
-  const currentTreble = sliceMelodyForPagination(trebleMelody);
-  const currentBass = sliceMelodyForPagination(bassMelody);
-  const currentPercussion = sliceMelodyForPagination(percussionMelody);
-  const currentMetronome = sliceMelodyForPagination(metronomeMelody);
+  // Memoise the per-page melody slice so unrelated state changes (currentMeasureIndex tick,
+  // isOddRound flip, nextLayer, previewMelody, etc.) don't re-run sliceMelodyByRange and
+  // the heavier processMelodyAndCalculateSlots downstream. Deps cover everything that
+  // affects the slice; if all stay equal-by-reference the cached result is returned.
+  const currentTreble = useMemo(() => sliceMelodyForPagination(trebleMelody),
+    [trebleMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  const currentBass = useMemo(() => sliceMelodyForPagination(bassMelody),
+    [bassMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  const currentPercussion = useMemo(() => sliceMelodyForPagination(percussionMelody),
+    [percussionMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  const currentMetronome = useMemo(() => sliceMelodyForPagination(metronomeMelody),
+    [metronomeMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
   const currentChordProgression = chordProgression; // ChordProgression is not a Melody — no slicing
 
   // Clef selection is per visible block (not full melody) so that a passage that sits in a
@@ -737,12 +747,12 @@ const SheetMusic = ({
   const clefTreble = calculateOptimalClef(trebleActiveClef, currentTreble?.notes, 'treble', trebleSettings?.rangeMode);
   const clefBass = calculateOptimalClef(bassActiveClef, currentBass?.notes, 'bass', bassSettings?.rangeMode);
 
-  const adjustedTrebleMelody = processMelodyAndCalculateSlots(
+  const adjustedTrebleMelody = useMemo(() => processMelodyAndCalculateSlots(
     currentTreble,
     timeSignature,
     noteGroupSize,
-    displayNumMeasures * measureLengthSlots, // use block duration
-  );
+    displayNumMeasures * measureLengthSlots,
+  ), [currentTreble, timeSignature, noteGroupSize, displayNumMeasures, measureLengthSlots]);
 
   const trebleMelodyFlags = processMelodyAndCalculateFlags(
     adjustedTrebleMelody,
@@ -750,35 +760,40 @@ const SheetMusic = ({
     noteGroupSize
   );
 
-  const adjustedBassMelody = processMelodyAndCalculateSlots(
+  const adjustedBassMelody = useMemo(() => processMelodyAndCalculateSlots(
     currentBass,
     timeSignature,
     noteGroupSize,
     displayNumMeasures * measureLengthSlots,
-  );
+  ), [currentBass, timeSignature, noteGroupSize, displayNumMeasures, measureLengthSlots]);
 
-  const adjustedPercussionMelody = processMelodyAndCalculateSlots(
+  const adjustedPercussionMelody = useMemo(() => processMelodyAndCalculateSlots(
     currentPercussion,
     timeSignature,
     noteGroupSize,
     displayNumMeasures * measureLengthSlots,
-  );
+  ), [currentPercussion, timeSignature, noteGroupSize, displayNumMeasures, measureLengthSlots]);
 
-  const adjustedMetronomeMelody = currentMetronome
+  const adjustedMetronomeMelody = useMemo(() => currentMetronome
     ? processMelodyAndCalculateSlots(currentMetronome, timeSignature, noteGroupSize, displayNumMeasures * measureLengthSlots)
-    : null;
+    : null,
+    [currentMetronome, timeSignature, noteGroupSize, displayNumMeasures, measureLengthSlots]);
 
   // For rendering, expand chords to match the active melody's measure span so chord labels
   // don't appear/disappear when numMeasures is changed while a different-length melody is shown.
   // processedChordsRaw is also used by the block-layout effect below; calculateAllOffsets
   // always pads to numMeasures measures independently, so using displayNumMeasures here is safe.
-  const processedChordsRaw = getChordsWithSlashes(chordProgression, displayNumMeasures, timeSignature);
-  const processedChords = (animationMode === 'pagination' && musicalBlocks)
+  const processedChordsRaw = useMemo(() => getChordsWithSlashes(chordProgression, displayNumMeasures, timeSignature),
+    [chordProgression, displayNumMeasures, timeSignature]);
+  const processedChords = useMemo(() => (animationMode === 'pagination' && musicalBlocks)
     ? sliceChordsByRange(processedChordsRaw, localMeasureStart, displayNumMeasures, measureLengthSlots)
-    : processedChordsRaw;
+    : processedChordsRaw,
+    [processedChordsRaw, animationMode, musicalBlocks, localMeasureStart, displayNumMeasures, measureLengthSlots]);
 
-  const trebleAccidentals = generateAccidentalMap(adjustedTrebleMelody.notes, numAccidentals);
-  const bassAccidentals = generateAccidentalMap(adjustedBassMelody.notes, numAccidentals);
+  const trebleAccidentals = useMemo(() => generateAccidentalMap(adjustedTrebleMelody.notes, numAccidentals),
+    [adjustedTrebleMelody, numAccidentals]);
+  const bassAccidentals = useMemo(() => generateAccidentalMap(adjustedBassMelody.notes, numAccidentals),
+    [adjustedBassMelody, numAccidentals]);
 
   // MUSICAL PAGINATION: Calculate ideal block distribution based on available width and slot density.
   // This effect runs whenever the layout or song content changes, ensuring balanced blocks.
@@ -856,7 +871,7 @@ const SheetMusic = ({
   ]);
 
   // Layer A: pure Layer A data — never merged with Layer B so Layer A note positions stay stable
-  const allOffsets = calculateAllOffsets(
+  const allOffsets = useMemo(() => calculateAllOffsets(
     timeSignature,
     noteGroupSize,
     numRepeats,
@@ -868,9 +883,57 @@ const SheetMusic = ({
     (notesVisible && adjustedPercussionMelody) ? adjustedPercussionMelody.offsets : [],
     adjustedMetronomeMelody ? adjustedMetronomeMelody.offsets : [],
     processedChords.map(c => c.absoluteOffset),
-  );
+  ), [
+    timeSignature, noteGroupSize, numRepeats, displayNumMeasures, partialMeasureStart,
+    adjustedTrebleMelody, adjustedBassMelody, adjustedPercussionMelody, adjustedMetronomeMelody,
+    trebleAccidentals, bassAccidentals, processedChords, notesVisible,
+  ]);
 
   const noteWidth = (allOffsets.length > 2 ? (endX - startX) / (allOffsets.length - 2) : 0);
+
+  // Preview overlay layout — computed once per previewMelody change instead of
+  // every SheetMusic render. The crossfade overlay does its own
+  // processMelodyAndCalculateSlots × 3 + getChordsWithSlashes + generateAccidentalMap × 2
+  // + calculateAllOffsets pass. Without memoisation that pass re-runs on every
+  // currentMeasureIndex tick / isOddRound flip / showNotes toggle during the fade
+  // (~16ms of work per render at 120 BPM 16th-note granularity).
+  //
+  // nextNotesVisible is derived from previewMelody._roundKey (locked by the
+  // pagination scheduler at arm time) so it's stable for the fade's lifetime.
+  // playbackConfig + isOddRound are listed as deps as a safety net for legacy
+  // wipe/scroll callers that don't set _roundKey.
+  const previewLayout = useMemo(() => {
+    if (!previewMelody) return null;
+    const pm = previewMelody;
+    const pmDur = Math.max(getMelodyEndTime(pm.treble), getMelodyEndTime(pm.bass), getMelodyEndTime(pm.percussion));
+    const pmDisplayMeasures = pmDur > 0 ? Math.max(1, Math.round(pmDur / measureLengthSlots)) : displayNumMeasures;
+    const previewTreble = pm.treble ? processMelodyAndCalculateSlots(pm.treble, timeSignature, noteGroupSize, pmDur, null, null) : null;
+    const previewBass = pm.bass ? processMelodyAndCalculateSlots(pm.bass, timeSignature, noteGroupSize, pmDur, null, null) : null;
+    const previewPerc = pm.percussion ? processMelodyAndCalculateSlots(pm.percussion, timeSignature, noteGroupSize, pmDur, null, null) : null;
+    const previewChords = pm.chordProgression ? getChordsWithSlashes(pm.chordProgression, pmDisplayMeasures, timeSignature) : null;
+    const pmTrebleAcc = previewTreble ? generateAccidentalMap(previewTreble.notes, numAccidentals) : {};
+    const pmBassAcc = previewBass ? generateAccidentalMap(previewBass.notes, numAccidentals) : {};
+    const lockedKey = pm._roundKey;
+    const nextRoundKey = lockedKey ?? (isOddRound ? 'evenRounds' : 'oddRounds');
+    const nextCfg = playbackConfig?.[nextRoundKey] ?? {};
+    const nextNotesVisible = !!nextCfg.notes;
+    const pmAllOffsets = calculateAllOffsets(
+      timeSignature, noteGroupSize, numRepeats, pmDisplayMeasures, null,
+      pm.treble?.rhythmicGrouping ?? pm.bass?.rhythmicGrouping ?? pm.percussion?.rhythmicGrouping ?? null,
+      (nextNotesVisible && previewTreble) ? melodyToTaggedOffsets(previewTreble, pmTrebleAcc) : [],
+      (nextNotesVisible && previewBass) ? melodyToTaggedOffsets(previewBass, pmBassAcc) : [],
+      (nextNotesVisible && previewPerc) ? previewPerc.offsets : [],
+      [],
+      [],
+      previewChords ? previewChords.map(c => c.absoluteOffset) : [],
+    );
+    const pmNoteWidth = pmAllOffsets.length > 2 ? (endX - startX) / (pmAllOffsets.length - 2) : 0;
+    return { pm, pmDur, pmDisplayMeasures, previewTreble, previewBass, previewPerc, previewChords,
+      pmTrebleAcc, pmBassAcc, pmAllOffsets, pmNoteWidth, nextCfg, nextNotesVisible };
+  }, [
+    previewMelody, timeSignature, noteGroupSize, numAccidentals, numRepeats,
+    measureLengthSlots, displayNumMeasures, endX, startX, playbackConfig, isOddRound,
+  ]);
 
   const ppt = null;
 
@@ -904,7 +967,14 @@ const SheetMusic = ({
   // mode='repeat'   → thick start/end repeat barlines with dots (always visible)
   // ppt: when non-null, barlines are placed at startX + barlineCount*measureLengthSlots*ppt
   //      (uniform tick-based spacing); when null, uses elastic slot-index spacing.
-  const _iterMeasureLines = (mode, offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex) => {
+  const _iterMeasureLines = (mode, offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex, bmsOverride = null, bpsOverride = null) => {
+    // bmsOverride / bpsOverride: pagination crossfade overlay passes the FUTURE
+    // blockMeasureStart and blockPlayStart so the preview's measure-number labels
+    // are correct AHEAD of the boundary. Without this the overlay renders labels
+    // from the still-current state (e.g. "1.5" because the current block's
+    // blockMeasureStart is 1 and startIdx is past the last repeat).
+    const bms = bmsOverride ?? blockMeasureStart;
+    const bps = bpsOverride ?? blockPlayStart;
     const getXLocal = (index) => index === 0 ? startX - 35 : startX + (index - 1) * nw;
     const lastIdx = offsets.length - 1;
     let barlineCount = 0;
@@ -950,11 +1020,11 @@ const SheetMusic = ({
         // R = how many times the current block has been played in this session.
         // Only shown during active playback (isPlaying=true). Resets per block via blockPlayStart.
         const repeatNum = isPlaying
-          ? Math.max(1, Math.floor((startIdx - blockPlayStart) / numMeasures) + 1)
+          ? Math.max(1, Math.floor((startIdx - bps) / numMeasures) + 1)
           : 1;
         // Returns "N" (first play) or "N . R" (repeat R, R≥2) where N = song measure number.
         const measureLabel = (localIndex) => {
-          const N = blockMeasureStart + localIndex;
+          const N = bms + localIndex;
           return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
         };
 
@@ -971,10 +1041,10 @@ const SheetMusic = ({
                   <text
                     x={startX}
                     y={trebleStart - 14}
-                    fontSize="18"
-                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
-                    fontFamily="Maestro"
-                    style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
+                    fontSize="15"
+                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                    fontFamily="Georgia, 'Times New Roman', serif"
+                    style={{ userSelect: 'none' }}
                   >
                     {measureLabel(0)}
                   </text>
@@ -1036,10 +1106,10 @@ const SheetMusic = ({
               <text
                 x={startX}
                 y={trebleStart - 14}
-                fontSize="18"
-                fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
-                fontFamily="Maestro"
-                style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
+                fontSize="15"
+                fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                fontFamily="Georgia, 'Times New Roman', serif"
+                style={{ userSelect: 'none' }}
               >
                 {measureLabel(measureNumForLabel)}
               </text>
@@ -1067,10 +1137,10 @@ const SheetMusic = ({
                   <text
                     x={x}
                     y={trebleStart - 14}
-                    fontSize="18"
-                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
-                    fontFamily="Maestro"
-                    style={{ userSelect: 'none', opacity: showSettings ? 0.8 : 0.3 }}
+                    fontSize="15"
+                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                    fontFamily="Georgia, 'Times New Roman', serif"
+                    style={{ userSelect: 'none' }}
                   >
                     {measureLabel(measureNumForLabel)}
                   </text>
@@ -1086,7 +1156,7 @@ const SheetMusic = ({
   };
 
   // Regular (inner) barlines — included in the mask animation
-  const renderRegularBarlines = (offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex) => _iterMeasureLines('regular', offsets, nw, ppt, startIdx);
+  const renderRegularBarlines = (offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex, bmsOverride = null, bpsOverride = null) => _iterMeasureLines('regular', offsets, nw, ppt, startIdx, bmsOverride, bpsOverride);
   // Thick repeat barlines — always visible, never masked
   const renderRepeatBarlines = (ppt = null) => _iterMeasureLines('repeat', allOffsets, noteWidth, ppt);
 
@@ -2356,11 +2426,30 @@ const SheetMusic = ({
                         </g>
                       );
                     })()}
-                    {showWipePreview === 'red' && (() => {
-                      // Use next-round visibility (same as yellow overlay)
-                      const nextRoundKey = isOddRound ? 'evenRounds' : 'oddRounds';
-                      const nextCfg = playbackConfig?.[nextRoundKey] ?? {};
-                      const nextNotesVisible = !!nextCfg.notes;
+                    {(showWipePreview === 'red' || showWipePreview === 'crossfade') && (() => {
+                      // Visibility config for the preview overlay.
+                      //
+                      // Rule: each layer uses its OWN block's visibility — the old layer
+                      // shows the current block with its current-round config, the overlay
+                      // shows the incoming block with the INCOMING block's config. During
+                      // the fade these two visibility states crossfade together (e.g. a
+                      // hidden-notes round dissolves into a visible-notes round naturally).
+                      //
+                      // The incoming round is locked into previewMelody._roundKey by the
+                      // pagination scheduler at arm time. Reading it from React's
+                      // isOddRound state instead would let the overlay's visibility flip
+                      // mid-overshoot for the 'lang' variant (when isOddRound updates at
+                      // the boundary while the overlay is still up for another 0.25m).
+                      //
+                      // The HEAVY layout pass (processMelodyAndCalculateSlots × 3 +
+                      // calculateAllOffsets + getChordsWithSlashes + accidental maps) is
+                      // memoised once per previewMelody change in `previewLayout`. The
+                      // visibility-eye derivations stay inline since they're cheap.
+                      const lockedKey = previewMelody?._roundKey;
+                      const nextRoundKey = lockedKey
+                        ?? (isOddRound ? 'evenRounds' : 'oddRounds');
+                      const nextCfg = previewLayout?.nextCfg ?? (playbackConfig?.[nextRoundKey] ?? {});
+                      const nextNotesVisible = previewLayout?.nextNotesVisible ?? !!nextCfg.notes;
                       const nextTreble = nextCfg.trebleEye !== false;
                       const nextBass = nextCfg.bassEye !== false;
                       const nextPerc = nextCfg.percussionEye === true;
@@ -2370,29 +2459,9 @@ const SheetMusic = ({
                       // In normal mode: render with default note colors (null = no tint).
                       const RCOL = debugMode ? RED : null;
                       // If pre-generated melody is available, render its notes
-                      if (previewMelody) {
+                      if (previewMelody && previewLayout) {
+                        const { previewTreble, previewBass, previewPerc, previewChords, pmAllOffsets, pmNoteWidth } = previewLayout;
                         const pm = previewMelody;
-                        const pmDur = Math.max(getMelodyEndTime(pm.treble), getMelodyEndTime(pm.bass), getMelodyEndTime(pm.percussion));
-                        const pmDisplayMeasures = pmDur > 0 ? Math.max(1, Math.round(pmDur / measureLengthSlots)) : displayNumMeasures;
-                        // Process preview melodies with their own slot calculation
-                        const previewTreble = pm.treble ? processMelodyAndCalculateSlots(pm.treble, timeSignature, noteGroupSize, pmDur, null, null) : null;
-                        const previewBass = pm.bass ? processMelodyAndCalculateSlots(pm.bass, timeSignature, noteGroupSize, pmDur, null, null) : null;
-                        const previewPerc = pm.percussion ? processMelodyAndCalculateSlots(pm.percussion, timeSignature, noteGroupSize, pmDur, null, null) : null;
-                        const previewChords = pm.chordProgression ? getChordsWithSlashes(pm.chordProgression, pmDisplayMeasures, timeSignature) : null;
-                        // Compute independent layout (allOffsets + noteWidth) for the preview melody
-                        const pmTrebleAcc = previewTreble ? generateAccidentalMap(previewTreble.notes, numAccidentals) : {};
-                        const pmBassAcc = previewBass ? generateAccidentalMap(previewBass.notes, numAccidentals) : {};
-                        const pmAllOffsets = calculateAllOffsets(
-                          timeSignature, noteGroupSize, numRepeats, pmDisplayMeasures, null,
-                          pm.treble?.rhythmicGrouping ?? pm.bass?.rhythmicGrouping ?? pm.percussion?.rhythmicGrouping ?? null,
-                          (nextNotesVisible && previewTreble) ? melodyToTaggedOffsets(previewTreble, pmTrebleAcc) : [],
-                          (nextNotesVisible && previewBass) ? melodyToTaggedOffsets(previewBass, pmBassAcc) : [],
-                          (nextNotesVisible && previewPerc) ? previewPerc.offsets : [],
-                          [],
-                          [],
-                          previewChords ? previewChords.map(c => c.absoluteOffset) : [],
-                        );
-                        const pmNoteWidth = pmAllOffsets.length > 2 ? (endX - startX) / (pmAllOffsets.length - 2) : 0;
                         return (
                           <g
                             data-wipe-role={animationMode === 'wipe' ? 'new' : undefined}
@@ -2435,9 +2504,12 @@ const SheetMusic = ({
                                 renderRepeatSymbols(pmAllOffsets, pmNoteWidth, ppt, [30], RCOL)}
                             </g>
                             {/* Barlines for the incoming content — use the preview's startMeasureIndex so
-                                measure numbers are correct during the wipe (not the old block's numbers) */}
+                                measure numbers are correct during the wipe (not the old block's numbers).
+                                _blockMeasureStart / _blockPlayStart (set by pagination scheduler at
+                                arm-time) override the still-current React state for series-flip, so the
+                                label says "3" not "1 . 5" when crossing a sequence boundary. */}
                             <g style={{ opacity: showSettings ? 0.6 : 1 }}>
-                              {renderRegularBarlines(pmAllOffsets, pmNoteWidth, ppt, pm.startMeasureIndex ?? startMeasureIndex)}
+                              {renderRegularBarlines(pmAllOffsets, pmNoteWidth, ppt, pm.startMeasureIndex ?? startMeasureIndex, pm._blockMeasureStart ?? null, pm._blockPlayStart ?? null)}
                             </g>
                           </g>
                         );
@@ -2610,4 +2682,15 @@ const SheetMusic = ({
   );
 };
 
-export default SheetMusic;
+// React.memo skips re-renders when all props are referentially equal. The
+// upstream callers (App.jsx, TabView.jsx) pass either memoised objects
+// (sheetMusicCommonProps via useMemo) or primitives, so re-renders triggered
+// by unrelated App state churn (header buttons, tab switches, scale wheel,
+// etc.) bypass SheetMusic entirely.
+//
+// SheetMusic still re-renders when its OWN consumed contexts change
+// (MelodyContext, PlaybackStateContext, DisplaySettings, etc.) because
+// React's context propagation goes through every consumer regardless of
+// React.memo. The earlier useMemo round on context values keeps THOSE
+// re-renders to only what actually changed.
+export default React.memo(SheetMusic);

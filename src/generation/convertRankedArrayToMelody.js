@@ -257,7 +257,7 @@ const convertRankedArrayToMelody = (
 
     logger.debug('convertRanked', `rule=${rule}`, {
         pool: typeof randomizationNotes === 'string' ? randomizationNotes : 'custom',
-        scaleSize: scale.length, activeSlots: activeSlotsSet.size,
+        scaleSize: scale?.length ?? 0, activeSlots: activeSlotsSet.size,
     });
 
     // Shared backwards-planning helper used by arp_var, arp_group, and walking_bass.
@@ -266,7 +266,10 @@ const convertRankedArrayToMelody = (
     // direction='down'→ L is at bottom of span; planning walks UP from L.
     // boundaryMode: 'kaats' reverses planning direction; 'spring' shifts span by one octave.
     // maxLeap (outer scope) caps the span; null = full pool range.
-    const buildArpLine = (lineLength, L, direction, boundaryMode, pool) => {
+    // spanLowOverride/spanHighOverride: when provided, used directly instead of
+    // deriving from direction (arp_group passes a random span containing L per
+    // Han's spec — see §27.5b).
+    const buildArpLine = (lineLength, L, direction, boundaryMode, pool, spanLowOverride = null, spanHighOverride = null) => {
         const sorted = pool
             .map(n => ({ note: n, val: getNoteValue(n) }))
             .filter(x => x.val >= 0)
@@ -278,8 +281,8 @@ const convertRankedArrayToMelody = (
 
         const lVal = getNoteValue(L);
         const effectiveSpan = maxLeap ?? (sorted[sorted.length - 1].val - sorted[0].val + 1);
-        let spanLow  = direction === 'up' ? lVal - effectiveSpan : lVal;
-        let spanHigh = direction === 'up' ? lVal : lVal + effectiveSpan;
+        let spanLow  = spanLowOverride !== null ? spanLowOverride : (direction === 'up' ? lVal - effectiveSpan : lVal);
+        let spanHigh = spanHighOverride !== null ? spanHighOverride : (direction === 'up' ? lVal : lVal + effectiveSpan);
         let planStep = direction === 'up' ? -1 : 1;
         let currentVal = lVal;
 
@@ -386,27 +389,175 @@ const convertRankedArrayToMelody = (
             }
 
         } else {
-            // arp_group: one line per beat group, per measure.
-            // Requires rhythmicGrouping ([g1, g2, ...] beats per group).
+            // arp_group — NEW spec (Han 2026-05-22, §27.5a/b/c in docs/architecture.md).
+            //
+            // Stage 1: line decomposition by rank-walking. Every slot in the
+            //          smallestNoteDenom grid gets a rank — actives from the
+            //          rhythm engine, inactives a PLACEHOLDER (max value).
+            //          Walking ranks ascending, assign L to the slot unless it
+            //          is already 'n' (overwritten by an earlier fill). Then
+            //          fill the GROUP BEFORE (previous beat group in time, per
+            //          rhythmicGrouping) with 'n', overwriting any L's there
+            //          (those L's become approach notes of a longer line).
+            //          Stop conditions:
+            //            (a) all slots are tagged (L or n), or
+            //            (b) the next-lowest rank is tied across multiple slots
+            //                → tie-break: pick the slot whose group-before fill
+            //                creates the longest empty stretch, then STOP.
+            //
+            // Stage 2: per-line backwards-plan with a RANDOM span containing L
+            //          (Han's answer to "span sliding" 2026-05-26) — span width
+            //          = maxLeap semitones, positioned randomly within the
+            //          instrument range so L falls inside. The existing
+            //          buildArpLine handles boundary modes (kaats / spring).
+
             const grouping = rhythmicGrouping ?? (timeSignature ? [timeSignature[0]] : [4]);
             const slotsPerBeat = numberOfSlotsPerMeasure / (timeSignature?.[0] ?? 4);
 
+            // Build [start, end) group ranges in slot space across all measures.
+            const groups = [];
             for (let m = 0; m < numMeasures; m++) {
                 const measureStart = m * numberOfSlotsPerMeasure;
                 let beatCursor = 0;
-
                 for (const groupBeats of grouping) {
-                    const groupStart = measureStart + Math.round(beatCursor * slotsPerBeat);
-                    const groupEnd   = measureStart + Math.round((beatCursor + groupBeats) * slotsPerBeat);
+                    const gs = measureStart + Math.round(beatCursor * slotsPerBeat);
+                    const ge = measureStart + Math.round((beatCursor + groupBeats) * slotsPerBeat);
+                    groups.push([gs, ge]);
                     beatCursor += groupBeats;
-
-                    const groupActiveSlots = [];
-                    for (let s = groupStart; s < groupEnd; s++) {
-                        if (s < allSlots.length && allSlots[s].priority !== null) groupActiveSlots.push(s);
-                    }
-                    fillLine(groupActiveSlots, arpMelody, arpVolumes);
                 }
             }
+
+            // Stage 1 — rank walk.
+            const PLACEHOLDER = Number.MAX_SAFE_INTEGER;
+            const ranks = allSlots.map(s => s.priority ?? PLACEHOLDER);
+            const tags = new Array(allSlots.length).fill(null); // 'L' | 'n' | null
+
+            const groupIdxOf = (slotIdx) => {
+                for (let g = 0; g < groups.length; g++) {
+                    if (slotIdx >= groups[g][0] && slotIdx < groups[g][1]) return g;
+                }
+                return -1;
+            };
+            const fillGroupBefore = (slotIdx) => {
+                const g = groupIdxOf(slotIdx);
+                if (g <= 0) return; // first group has no predecessor
+                const [s, e] = groups[g - 1];
+                for (let i = s; i < e; i++) tags[i] = 'n';
+            };
+            const groupBeforeUntaggedCount = (slotIdx) => {
+                const g = groupIdxOf(slotIdx);
+                if (g <= 0) return 0;
+                const [s, e] = groups[g - 1];
+                let c = 0;
+                for (let i = s; i < e; i++) if (tags[i] === null) c++;
+                return c;
+            };
+
+            // Indices sorted by rank ascending, stable on slot index for determinism.
+            const slotsByRank = Array.from({ length: allSlots.length }, (_, i) => i)
+                .sort((a, b) => ranks[a] - ranks[b] || a - b);
+
+            let i = 0;
+            while (i < slotsByRank.length) {
+                if (!tags.includes(null)) break; // all tagged
+
+                const curRank = ranks[slotsByRank[i]];
+                let j = i;
+                while (j < slotsByRank.length && ranks[slotsByRank[j]] === curRank) j++;
+                // Filter out slots already tagged (a previous fill marked them 'n').
+                const tied = slotsByRank.slice(i, j).filter(s => tags[s] === null);
+
+                if (tied.length === 0) {
+                    i = j;
+                    continue;
+                }
+
+                if (tied.length > 1) {
+                    // Tie-break: pick slot whose group-before fill creates the
+                    // longest empty stretch. Stops Stage 1 afterwards.
+                    let bestSlot = tied[0];
+                    let bestCount = groupBeforeUntaggedCount(bestSlot);
+                    for (let k = 1; k < tied.length; k++) {
+                        const c = groupBeforeUntaggedCount(tied[k]);
+                        if (c > bestCount) { bestSlot = tied[k]; bestCount = c; }
+                    }
+                    if (tags[bestSlot] !== 'n') tags[bestSlot] = 'L';
+                    fillGroupBefore(bestSlot);
+                    break;
+                }
+
+                // Unique rank — process it.
+                const slotIdx = tied[0];
+                if (tags[slotIdx] !== 'n') tags[slotIdx] = 'L';
+                fillGroupBefore(slotIdx);
+                i = j;
+            }
+
+            // Decompose tags into lines: each contiguous run of tagged slots
+            // ending in 'L' is one line. Trailing n's without an L are dropped
+            // (no landing note → not a valid arp line).
+            const lines = [];
+            let currentLine = [];
+            for (let s = 0; s < tags.length; s++) {
+                if (tags[s] === null) continue;
+                currentLine.push(s);
+                if (tags[s] === 'L') {
+                    lines.push(currentLine);
+                    currentLine = [];
+                }
+            }
+
+            // Stage 2 — fill each line with backwards-planned notes.
+            // Span: random, maxLeap wide, contains L, clamped to range.
+            const span = maxLeap ?? 12;
+            const rangeMinVal = range?.min ? getNoteValue(range.min) : null;
+            const rangeMaxVal = range?.max ? getNoteValue(range.max) : null;
+
+            const fillArpGroupLine = (slotIndices) => {
+                if (slotIndices.length === 0) return;
+                const lastSlot = slotIndices[slotIndices.length - 1];
+                const measureIdx = Math.floor(lastSlot / numberOfSlotsPerMeasure);
+                const chord = getActiveChord(measureIdx, randomizationNotes, lastSlot);
+                const pool = getPool(arpSource, chord);
+                if (!pool.length) return;
+                const L = chooseLandingNote(pool, chord);
+                if (!L) return;
+
+                const direction = Math.random() < 0.5 ? 'up' : 'down';
+                const boundaryMode = Math.random() < 0.5 ? 'kaats' : 'spring';
+
+                // Random span containing L, maxLeap wide, clamped to range.
+                // spanLow must be in [max(rangeMin, L − span + 1), min(rangeMax − span + 1, L)].
+                // If range is narrower than the span, clamp to range entirely.
+                const lVal = getNoteValue(L);
+                let spanLow, spanHigh;
+                if (rangeMinVal === null || rangeMaxVal === null) {
+                    // No range constraint — use the legacy edge-of-span behaviour.
+                    spanLow = null; spanHigh = null;
+                } else {
+                    const lo = Math.max(rangeMinVal, lVal - span + 1);
+                    const hi = Math.min(rangeMaxVal - span + 1, lVal);
+                    if (lo > hi) {
+                        // Range narrower than span — clamp entirely to range.
+                        spanLow = rangeMinVal;
+                        spanHigh = rangeMaxVal;
+                    } else {
+                        spanLow = lo + Math.floor(Math.random() * (hi - lo + 1));
+                        spanHigh = spanLow + span - 1;
+                    }
+                }
+
+                const pitches = buildArpLine(
+                    slotIndices.length, L, direction, boundaryMode, pool,
+                    spanLow, spanHigh,
+                );
+                slotIndices.forEach((idx, k) => {
+                    arpMelody[idx] = pitches[k] ?? L;
+                    arpVolumes[idx] = k === slotIndices.length - 1 ? 0.9 : 0.7;
+                });
+            };
+
+            for (const line of lines) fillArpGroupLine(line);
         }
 
         logger.debug('convertRanked', 'arp done', {

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 const STORAGE_KEY = 'music-trainer-profile';
 
@@ -81,15 +81,20 @@ export function ProfileProvider({ children }) {
     // Expose the raw unlock set (same as isFamilyUnlocked but for consumers that need the set)
     const activeFamilies = state.unlockedFamilies;
 
+    // Memoise the value object so consumers don't re-render on parent re-renders
+    // that don't touch the profile state itself.
+    const value = useMemo(() => ({
+        unlockedFamilies: state.unlockedFamilies,
+        activeFamilies,
+        debugMode: state.debugMode,
+        setDebugMode,
+        toggleFamily,
+        isFamilyUnlocked,
+    }), [state.unlockedFamilies, activeFamilies, state.debugMode,
+         setDebugMode, toggleFamily, isFamilyUnlocked]);
+
     return (
-        <ProfileContext.Provider value={{
-            unlockedFamilies: state.unlockedFamilies,
-            activeFamilies,
-            debugMode: state.debugMode,
-            setDebugMode,
-            toggleFamily,
-            isFamilyUnlocked,
-        }}>
+        <ProfileContext.Provider value={value}>
             {children}
         </ProfileContext.Provider>
     );

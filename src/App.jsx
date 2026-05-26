@@ -151,10 +151,12 @@ const App = () => {
         headerPlayMode, setHeaderPlayMode,
         currentMeasureIndex, setCurrentMeasureIndex,
         animationMode, setAnimationMode, animationModeRef,
+        paginationVariant, setPaginationVariant, paginationVariantRef,
         lyricsMode, setLyricsMode,
         nextLayer, setNextLayer,
         previewMelody, setPreviewMelody,
         wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+        transitionRef,
         svgRef,
         qwertyKeyboardActive, setQwertyKeyboardActive,
         onPlaybackStartRef,
@@ -373,9 +375,10 @@ const App = () => {
         setTimeSignature(loaded.timeSignature);
         setNumMeasures(loaded.numMeasures);
         setBpm(loaded.defaultTempo);
-        setActiveTab('sheet-music');
+        // Keep the user's current bottom-view tab; loading a song should not
+        // hijack the layout. Reported by Han 2026-05-22.
     }, [scale, setTonic, setTrebleMelody, setChordProgression, setBassMelody, setPercussionMelody,
-        setTimeSignature, setNumMeasures, setBpm, setActiveTab]);
+        setTimeSignature, setNumMeasures, setBpm]);
 
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
     const randomizeAll = randomizeAllLogic;
@@ -699,10 +702,12 @@ const App = () => {
                 targetTrebleDifficultyRef,
                 targetBassDifficultyRef,
                 animationModeRef,
+                paginationVariantRef,
                 wipeTransitionRef,
                 scrollTransitionRef,
                 pendingScrollTransitionRef,
                 paginationFadeRef,
+                transitionRef,
                 musicalBlocksRef,
             },
         });
@@ -789,11 +794,13 @@ const App = () => {
         chordDisplayMode, setChordDisplayMode,
         showNoteHighlight, setShowNoteHighlight,
         animationMode, setAnimationMode,
+        paginationVariant, setPaginationVariant,
         courtesyAccidentals, setCourtesyAccidentals,
         percussionVoiceSplit, setPercussionVoiceSplit,
     }), [noteColoringMode, setNoteColoringMode, debugMode, lyricsMode, setLyricsMode,
         chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
-        animationMode, setAnimationMode, courtesyAccidentals, setCourtesyAccidentals,
+        animationMode, setAnimationMode, paginationVariant, setPaginationVariant,
+        courtesyAccidentals, setCourtesyAccidentals,
         percussionVoiceSplit, setPercussionVoiceSplit]);
 
     // Shared props for both SheetMusic instances (primary + tab view).
@@ -858,7 +865,6 @@ const App = () => {
             isPlaying={isPlaying}
             isPlayingContinuously={isPlayingContinuously}
             isOddRound={isOddRound}
-            currentMeasureIndex={currentMeasureIndex}
             showNotes={showNotes}
             nextLayer={nextLayer}
             previewMelody={previewMelody}
@@ -871,6 +877,7 @@ const App = () => {
             scrollTransitionRef={scrollTransitionRef}
             pendingScrollTransitionRef={pendingScrollTransitionRef}
             paginationFadeRef={paginationFadeRef}
+            transitionRef={transitionRef}
             clearHighlightStateRef={clearHighlightStateRef}
             showNoteHighlightRef={showNoteHighlightRef}
             setCurrentMeasureIndex={setCurrentMeasureIndex}
