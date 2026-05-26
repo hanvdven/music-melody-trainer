@@ -305,8 +305,10 @@ Verzameld in één blok, allemaal `⚠ Neem alvorens dit te implementeren een in
 [Han 2026-05-22]: Op dit moment hebben tuplets altijd alle slots gevuld met noten. Bij hogere variability wil ik dat een deel van de tuplet-slots als rust gegenereerd kan worden. Hangt samen met tuplet-rendering in parallel-voices mode.
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han. Algoritme én notatie te bespreken.
 
-### Bug: arp_group volgt variatie i.p.v. smallestNoteDenom
+### ✅ Bug: arp_group volgt variatie i.p.v. smallestNoteDenom
 [Han 2026-05-22]: arp_group voldoet niet aan spec. Het algoritme volgt nu de variatie-instelling voor het vullen van groepen naar leidtonen, maar zou de `smallestNoteDenom` moeten volgen (= de gewenste rasterresolutie). Resultaat: groepen worden te dicht of te dun gevuld afhankelijk van variability i.p.v. de bedoelde rastergrootte.
+
+[Claude 2026-05-26]: ✅ Geïmplementeerd in `src/generation/convertRankedArrayToMelody.js` (`arp_group` else-branch volledig herschreven). Stage 1: rank-walking met placeholder-rank voor inactieve slots, group-before fill, tie-break met longest-empty-stretch. Stage 2: per-line backwards-planning met random-span-containing-L. Bestaande `buildArpLine` uitgebreid met optionele `spanLow/spanHigh` overrides zodat arp_var ongewijzigd blijft. Test gerust met 4/4 + smallestNoteDenom=8 + variability=0 om te checken of de output nu eighth-noten-dichtheid heeft i.p.v. quarter-noten.
 
 [Claude 2026-05-22]: Volledige spec uitgewerkt en gedocumenteerd in `docs/architecture.md` §27.5a (line-decomposition stage 1 met L/n algoritme), §27.5b (per-line backwards planning), §27.5c (edge cases — gelijkspel tie-break, alleen-root chord met enge span → kwint of herhaal vorige noot). Implementatie nog uit te voeren: `src/generation/convertRankedArrayToMelody.js` — vervang de variability-gestuurde grouping door de rank-walking algoritme (zie §27.5a worked example met [(1 7 5)(3 10)|(2 8 5)(4 9)]).
 
