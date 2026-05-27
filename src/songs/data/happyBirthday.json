@@ -1,0 +1,133 @@
+{
+  "id": "happy-birthday",
+  "title": "Happy Birthday to You",
+  "subtitle": "Traditional",
+  "category": "beginner",
+  "timeSignature": [3, 4],
+  "defaultTempo": 90,
+  "defaultTonic": "G",
+  "numMeasures": 9,
+  "_layoutNotes": [
+    "Layout derived 2026-05-27 from Happy_Birthday___Piano.mid (uploaded by Han).",
+    "9 measures of 3/4. m0 = anacrusis (silent beats 1+2, 'Hap-py' on beat 3 dotted-eighth + sixteenth).",
+    "m1: Birth-day to (3 quarters). m2: 'you,' (half) + Hap-py anacrusis line 2 (beat 3).",
+    "m3: line 2 melody. m4: 'you,' + anacrusis line 3. m5: 'Birth-day dear' (line 3).",
+    "m6: '[name]' + anacrusis line 4 (incl. one continuation onset on hard). m7: line 4 melody.",
+    "m8: 'you!' final (dotted-half).",
+    "MIDI source was in G major 4/4; reinterpreted as 3/4. Lines 1-3 end with 'you' as half-note then anacrusis-in-same-measure (per MIDI). Line 4 ends with 'you!' as dotted-half.",
+    "Fermata on '[name]' (offset 216) is NOT yet encoded — fermata feature is on BACKLOG. For easy, [name] duration is stretched to 24 (half-note) to approximate the fermata feel."
+  ],
+  "generator": {
+    "scaleFamily": "Diatonic",
+    "scaleMode": "Major",
+    "chordSettings": {
+      "strategy": "classical-1-4-5-1",
+      "chordCount": 1,
+      "passingChordTypes": []
+    },
+    "trebleSettings": {
+      "randomizationRule": "fixed",
+      "notesPerMeasure": 2
+    },
+    "bassSettings": {
+      "randomizationRule": "walking_bass",
+      "notePool": "chord",
+      "notesPerMeasure": 2,
+      "smallestNoteDenom": 4,
+      "rhythmVariability": 30
+    },
+    "percussionSettings": null
+  },
+  "difficulties": {
+    "easy": {
+      "_comment": "Single melodic line (top notes of the MIDI's harmonised stacks). 24 notes. Anacrusis = dotted-eighth + sixteenth (dur 9 + 3). Lines 1-3 end 'you' as half-note (dur 24), line 4 ends 'you!' as dotted-half (dur 36). [name] stretched to half-note (dur 24) to approximate the traditional fermata.",
+      "treble": {
+        "notes":     ["D4","D4","E4","D4","G4","F#4","D4","D4","E4","D4","A4","G4","D4","D4","D5","B4","G4","F#4","C5","C5","B4","G4","A4","G4"],
+        "durations": [9,    3,   12,  12,  12,  24,   9,   3,   12,  12,  12,  24,  9,   3,   12,  12,  12,  24,   9,   3,   12,  12,  12,  36],
+        "offsets":   [24,   33,  36,  48,  60,  72,   96,  105, 108, 120, 132, 144, 168, 177, 180, 192, 204, 216,  240, 249, 252, 264, 276, 288],
+        "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","Hap-","py","Birth-","day","to","you!"]
+      },
+      "bass": null,
+      "percussion": null,
+      "chords": [
+        { "offset": 0,   "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
+        { "offset": 72,  "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
+        { "offset": 108, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
+        { "offset": 180, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
+        { "offset": 216, "notes": ["C3","E3","G3"],        "root": "C3", "type": "major",    "name": "C",  "duration": 36 },
+        { "offset": 252, "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
+        { "offset": 288, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 }
+      ]
+    },
+    "hard": {
+      "_comment": "Full chorale-style harmonisation: each onset carries the MIDI's full chord voicing in both staves. 25 treble onsets (incl. one continuation '—' after [name] for the MIDI's rearticulation), 19 bass onsets (consecutive same-voicing entries merged into longer durations).",
+      "treble": {
+        "notes": [
+          "D4",
+          "D4",
+          ["C4","E4"],
+          "D4",
+          ["D4","G4"],
+          ["D4","F#4"],
+          ["C4","D4"],
+          ["C4","D4"],
+          ["C4","E4"],
+          ["C4","D4"],
+          ["C4","F#4","A4"],
+          ["D4","G4"],
+          "D4",
+          "D4",
+          ["G4","B4","D5"],
+          ["D4","G4","B4"],
+          ["D4","G4"],
+          ["D4","F#4"],
+          ["C4","E4"],
+          ["E4","G4","C5"],
+          "C5",
+          ["D4","G4","B4"],
+          ["D4","G4"],
+          ["C4","A4"],
+          ["D4","G4"]
+        ],
+        "durations": [9, 3, 12, 12, 12, 24, 9, 3, 12, 12, 12, 24, 9, 3, 12, 12, 12, 12, 12, 9, 3, 12, 12, 12, 36],
+        "offsets":   [24, 33, 36, 48, 60, 72, 96, 105, 108, 120, 132, 144, 168, 177, 180, 192, 204, 216, 228, 240, 249, 252, 264, 276, 288],
+        "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","—","Hap-","py","Birth-","day","to","you!"]
+      },
+      "bass": {
+        "notes": [
+          "B3",
+          ["G2","G3"],
+          "B3",
+          ["B2","G3"],
+          ["D3","A3"],
+          "A3",
+          ["D3","G3"],
+          "F#3",
+          "D3",
+          ["G2","B3"],
+          "B3",
+          "G2",
+          "A2",
+          ["B2","G3"],
+          ["C3","G3"],
+          "A2",
+          "D3",
+          ["D2","D3"],
+          ["G2","B3"]
+        ],
+        "durations": [12, 12, 12, 12, 24, 12, 12, 12, 12, 24, 12, 12, 12, 12, 24, 12, 24, 12, 36],
+        "offsets":   [24, 36, 48, 60, 72, 96, 108, 120, 132, 144, 168, 180, 192, 204, 216, 240, 252, 276, 288]
+      },
+      "percussion": null,
+      "chords": [
+        { "offset": 0,   "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
+        { "offset": 72,  "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
+        { "offset": 108, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
+        { "offset": 180, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
+        { "offset": 216, "notes": ["C3","E3","G3"],        "root": "C3", "type": "major",    "name": "C",  "duration": 36 },
+        { "offset": 252, "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
+        { "offset": 288, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 }
+      ]
+    }
+  }
+}
