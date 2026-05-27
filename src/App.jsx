@@ -42,6 +42,7 @@ import useAppUIState from './hooks/useAppUIState';
 import useAppHandlers from './hooks/useAppHandlers';
 import logger from './utils/logger';
 import { loadSong } from './songs/loadSong';
+import { updateScaleWithTonic, updateScaleWithMode } from './theory/scaleHandler';
 
 // Icons
 import {
@@ -356,6 +357,19 @@ const App = () => {
     // Load a static song definition into the active melody state.
     // useOriginalTonic=true: load in the song's written key and update the app tonic to match.
     // useOriginalTonic=false (default): transpose the song to the user's current tonic.
+    //
+    // Pipeline:
+    //   1. Compute the effective tonic and shift to the song's scale mode.
+    //   2. Apply per-instrument settings overrides from `songDef.generator.*Settings`
+    //      (shallow merge — songs only need to override the fields they care about).
+    //   3. Apply melodies. Tracks the song explicitly provides are also set as the
+    //      reference melody so future "fixed"-rule regenerations preserve them
+    //      (resolveVoice modulates refMelody from refScale to the current scale).
+    //   4. Tracks not provided are cleared to a default empty melody — the user's
+    //      next "generate" or "play continuous" populates them according to the
+    //      now-applied instrument settings (e.g. walking-bass over the song chords).
+    //   5. If the song provides a chord progression: pin it on the next regen
+    //      (`playbackConfig.randomize.chords = false`). Otherwise allow regen.
     const handleLoadSong = useCallback((songDef, difficulty, useOriginalTonic = false) => {
         const currentTonic = scale?.tonic?.replace(/-?\d+$/, '') ?? null;
         let targetTonic;
@@ -370,17 +384,85 @@ const App = () => {
             targetTonic = currentTonic !== songDef.defaultTonic ? currentTonic : null;
         }
         const loaded = loadSong(songDef, difficulty, targetTonic);
-        setTrebleMelody(loaded.treble);
-        setChordProgression(loaded.chordMelody);
-        setBassMelody(Melody.defaultBassMelody());
-        setPercussionMelody(Melody.defaultPercussionMelody());
+
+        // Apply scale mode (e.g. 'Major' / 'Dorian') so the key signature, scale
+        // wheel, and harmony all reflect the song's intended mode.
+        if (loaded.scaleMode) {
+            setSelectedMode(loaded.scaleMode);
+        }
+
+        // Apply per-instrument settings overrides from the song's generator block.
+        const gen = loaded.generator || {};
+        if (gen.trebleSettings)     setTrebleSettings(prev => ({ ...prev, ...gen.trebleSettings }));
+        if (gen.bassSettings)       setBassSettings(prev => ({ ...prev, ...gen.bassSettings }));
+        if (gen.percussionSettings) setPercussionSettings(prev => ({ ...prev, ...gen.percussionSettings }));
+        if (gen.chordSettings)      setChordSettings(prev => ({ ...prev, ...gen.chordSettings }));
+
+        // Apply melodies + pin those the song explicitly provides.
+        if (loaded.treble) {
+            setTrebleMelody(loaded.treble);
+            setReferenceMelody(loaded.treble);
+        } else {
+            setTrebleMelody(Melody.defaultTrebleMelody());
+        }
+        if (loaded.bass) {
+            setBassMelody(loaded.bass);
+            setReferenceBassMelody(loaded.bass);
+        } else {
+            setBassMelody(Melody.defaultBassMelody());
+        }
+        setPercussionMelody(loaded.percussion ?? Melody.defaultPercussionMelody());
+
+        // referenceScale anchors the source-key of refMelody. resolveVoice
+        // modulates from refScale to the (possibly later-changed) app scale; if
+        // we leave the previous referenceScale in place, modulateMelody would
+        // double-transpose loaded melodies away from their intended key.
+        // Build the scale synchronously here because setSelectedMode / setTonic
+        // only commit on the next render — resolveVoice may need refScale
+        // immediately if the user clicks "play continuous" right after load.
+        const effectiveTonic = targetTonic ?? songDef.defaultTonic;
+        let refScale = scale;
+        if (refScale && refScale.tonic.replace(/-?\d+$/, '') !== effectiveTonic) {
+            refScale = updateScaleWithTonic({ currentScale: refScale, newTonic: effectiveTonic + '4' });
+        }
+        if (loaded.scaleMode && refScale && (refScale.name !== loaded.scaleMode || (loaded.scaleFamily && refScale.family !== loaded.scaleFamily))) {
+            refScale = updateScaleWithMode({
+                currentScale: refScale,
+                newFamily: loaded.scaleFamily ?? refScale.family,
+                newMode: loaded.scaleMode,
+            });
+        }
+        if (refScale) setReferenceScale(refScale);
+
+        if (loaded.chordMelody) {
+            setChordProgression(loaded.chordMelody);
+            // Preserve the song's chord progression on the user's next
+            // randomize-on-play. Toggling it back to true is how the user
+            // opts into "match style only" — regenerate chords with the song's
+            // chord strategy instead of replaying the exact progression.
+            setPlaybackConfig(prev => ({
+                ...prev,
+                randomize: { ...(prev.randomize || {}), chords: false },
+            }));
+        } else {
+            // No chord progression provided — let the next randomize regenerate
+            // using the song's chord strategy (or the app defaults).
+            setPlaybackConfig(prev => ({
+                ...prev,
+                randomize: { ...(prev.randomize || {}), chords: true },
+            }));
+        }
+
         setTimeSignature(loaded.timeSignature);
         setNumMeasures(loaded.numMeasures);
         setBpm(loaded.defaultTempo);
         // Keep the user's current bottom-view tab; loading a song should not
         // hijack the layout. Reported by Han 2026-05-22.
-    }, [scale, setTonic, setTrebleMelody, setChordProgression, setBassMelody, setPercussionMelody,
-        setTimeSignature, setNumMeasures, setBpm]);
+    }, [scale, setTonic, setSelectedMode,
+        setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings,
+        setTrebleMelody, setBassMelody, setPercussionMelody, setChordProgression,
+        setReferenceMelody, setReferenceBassMelody, setReferenceScale,
+        setTimeSignature, setNumMeasures, setBpm, setPlaybackConfig]);
 
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
     const randomizeAll = randomizeAllLogic;
