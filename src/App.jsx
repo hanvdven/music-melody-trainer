@@ -855,6 +855,16 @@ const App = () => {
 
     const { isDualView, sheetHeight, tabBtnScale, idealVisibleMeasures } = useAppLayout(windowSize, numMeasures);
 
+    // Scroll mode uses a different visibleMeasures formula than pagination/wipe:
+    //   - For numMeasures > 1: visible = numMeasures (drop the capacity cap so melodyWidth
+    //     always equals pageWidth — keeps the scroll formula `tx = 0.25*pw - pageFraction*mw`
+    //     well-conditioned without multi-panel rendering kicking in unnecessarily).
+    //   - For numMeasures = 1: visible = 2 (so user sees ~"half-whole-half" = 3 measure-copies
+    //     across the visible width, with multi-panel overlays filling the right side).
+    // Other modes keep idealVisibleMeasures (capacity-capped, screen-size-aware).
+    const scrollVisibleMeasures = numMeasures > 1 ? numMeasures : 2;
+    const effectiveVisibleMeasures = animationMode === 'scroll' ? scrollVisibleMeasures : idealVisibleMeasures;
+
     // Context values — memoized to prevent unnecessary re-renders of consumers
     const playbackConfigCtx = useMemo(() => ({
         playbackConfig, setPlaybackConfig, toggleRoundSetting,
@@ -1039,7 +1049,7 @@ const App = () => {
                         <SheetMusic
                             {...sheetMusicCommonProps}
                             containerHeight={sheetHeight}
-                            visibleMeasures={idealVisibleMeasures}
+                            visibleMeasures={effectiveVisibleMeasures}
                             startMeasureIndex={startMeasureIndex}
                             blockMeasureStart={blockMeasureStart}
                             blockPlayStart={blockPlayStart}
@@ -1144,7 +1154,7 @@ const App = () => {
                     startMeasureIndex={startMeasureIndex}
                     blockMeasureStart={blockMeasureStart}
                     blockPlayStart={blockPlayStart}
-                    idealVisibleMeasures={idealVisibleMeasures}
+                    idealVisibleMeasures={effectiveVisibleMeasures}
                     instruments={instruments}
                     manualInstruments={manualInstruments}
                     context={context}

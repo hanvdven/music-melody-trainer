@@ -377,29 +377,36 @@ const useSheetMusicHighlight = ({
         // ── SCROLL SLIDE ────────────────────────────────────────────────────────
         // Continuous side-scroll. The ref shape is { startTime, startPageFraction, secondsPerPage }:
         //   pageFraction(now) = startPageFraction + (now - startTime) / secondsPerPage
-        //   tx(now) = (0.25 - pageFraction) * pageWidth
-        // 0.25 is the playhead position. The currently-playing note always sits at the
-        // playhead because audio and visual share the same time anchor (no offset).
+        //   tx(now) = 0.25 × pageWidth  −  pageFraction × melodyWidth
+        // (pageWidth = visible width; melodyWidth = one melody iteration's pixel width.
+        // These differ when displayNumMeasures < visibleMeasures, e.g. numMeasures=1 with
+        // visible=2 — using pageWidth as the scale factor would move the visual at the
+        // wrong speed relative to the audio.)
         //
-        // Sequencer keeps the formula continuous across boundaries:
-        //  - BPM change at measure boundary T: snap secondsPerPage to the new value and
-        //    set startTime=T, startPageFraction=pageFraction(T). tx is unchanged at T;
-        //    velocity changes thereafter (no ramp — audio also changes BPM instantly at T).
+        // 0.25 × pageWidth is the playhead pixel offset. The currently-playing note always
+        // sits at the playhead because pageFraction × melodyWidth equals the pixel position
+        // (in DOM coordinates) of the audio's current location within the active iteration.
+        //
+        // Sequencer keeps the formula continuous across boundaries (see Sequencer.js):
+        //  - BPM change at measure boundary T: snap secondsPerPage and set
+        //    startTime=T, startPageFraction=pageFraction(T) under the old rate.
         //  - Page boundary (audio time = startTime + secondsPerPage): in the same setTimeout
-        //    callback that swaps the melody (applyResult / repeat-roll-over), decrement
-        //    startPageFraction by 1. The next melody's first note (DOM x=pageWidth before
-        //    swap, x=0 after swap) lands at the same visual position — invisible swap.
+        //    callback that swaps melody state (applyResult / repeat roll-over), decrement
+        //    startPageFraction by 1. The next iteration's content (rendered side-by-side
+        //    in overlay slots at DOM x = i × melodyWidth) lands at the same visual
+        //    position — invisible swap.
         const runScrollAnimation = () => {
             const scrollGroup = getScrollGroup();
             if (!scrollGroup) return;
             const s = scrollTransitionRef?.current;
             if (s && s.secondsPerPage > 0) {
                 const pageWidth = layoutRef.current?.pageWidth;
-                if (pageWidth) {
+                const melodyWidth = layoutRef.current?.melodyWidth ?? pageWidth;
+                if (pageWidth && melodyWidth) {
                     const now = context.currentTime;
                     const elapsed = Math.max(0, now - s.startTime);
                     const pageFraction = s.startPageFraction + elapsed / s.secondsPerPage;
-                    const tx = ((0.25 - pageFraction) * pageWidth).toFixed(2);
+                    const tx = (0.25 * pageWidth - pageFraction * melodyWidth).toFixed(2);
                     scrollGroup.setAttribute('transform', `translate(${tx}, 0)`);
                 }
             } else {

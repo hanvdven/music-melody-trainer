@@ -56,6 +56,7 @@ const PreviewOverlay = ({
   noteGroupSize,
   measureLengthSlots,
   displayNumMeasures,
+  melodyWidth,
   numAccidentals,
   pixelsPerTick,
   // music data
@@ -130,7 +131,7 @@ const PreviewOverlay = ({
     <g
       data-wipe-role={animationMode === 'wipe' ? 'new' : undefined}
       data-pagination-new={animationMode === 'pagination' ? '' : undefined}
-      transform={animationMode === 'scroll' ? `translate(${endX - startX}, 0)` : undefined}
+      transform={animationMode === 'scroll' ? `translate(${melodyWidth ?? (endX - startX)}, 0)` : undefined}
       className={
         // Same pattern as yellow overlay: CSS class owns resting opacity,
         // never inline style — prevents React re-renders from overriding
