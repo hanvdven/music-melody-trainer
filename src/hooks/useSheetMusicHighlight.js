@@ -58,8 +58,7 @@ import { useEffect, useLayoutEffect, startTransition } from 'react';
  * @param {React.RefObject} params.clearHighlightStateRef
  * @param {function}        params.setCurrentMeasureIndex — driven by AudioContext clock (no setTimeout drift)
  * @param {React.RefObject} params.wipeTransitionRef      — {startTime, endTime} for wipe mask sweep
- * @param {React.RefObject} params.scrollTransitionRef    — {startTime, endTime} for scroll slide
- * @param {React.RefObject} params.pendingScrollTransitionRef — queued next scroll (applied when current finishes)
+ * @param {React.RefObject} params.scrollTransitionRef    — {startTime, startPageFraction, secondsPerPage} continuous scroll anchor
  * @param {React.RefObject} params.paginationFadeRef      — {startTime, totalEnd} for pagination crossfade (legacy two-phase path)
  * @param {React.RefObject} params.transitionRef          — {kind:'crossfade', startTime, endTime} driven by AnimationScheduler
  */
@@ -75,7 +74,6 @@ const useSheetMusicHighlight = ({
     setCurrentMeasureIndex,
     wipeTransitionRef,
     scrollTransitionRef,
-    pendingScrollTransitionRef,
     paginationFadeRef,
     transitionRef,
 }) => {
@@ -377,36 +375,32 @@ const useSheetMusicHighlight = ({
         };
 
         // ── SCROLL SLIDE ────────────────────────────────────────────────────────
-        // NOTE: scroll is NOT a block transition — it is a continuous side-scroll where
-        // notes flow at constant speed. It does not follow the transition sequence above.
+        // Continuous side-scroll. The ref shape is { startTime, startPageFraction, secondsPerPage }:
+        //   pageFraction(now) = startPageFraction + (now - startTime) / secondsPerPage
+        //   tx(now) = (0.25 - pageFraction) * pageWidth
+        // 0.25 is the playhead position. The currently-playing note always sits at the
+        // playhead because audio and visual share the same time anchor (no offset).
+        //
+        // Sequencer keeps the formula continuous across boundaries:
+        //  - BPM change at measure boundary T: snap secondsPerPage to the new value and
+        //    set startTime=T, startPageFraction=pageFraction(T). tx is unchanged at T;
+        //    velocity changes thereafter (no ramp — audio also changes BPM instantly at T).
+        //  - Page boundary (audio time = startTime + secondsPerPage): in the same setTimeout
+        //    callback that swaps the melody (applyResult / repeat-roll-over), decrement
+        //    startPageFraction by 1. The next melody's first note (DOM x=pageWidth before
+        //    swap, x=0 after swap) lands at the same visual position — invisible swap.
         const runScrollAnimation = () => {
             const scrollGroup = getScrollGroup();
             if (!scrollGroup) return;
-            const scrollT = scrollTransitionRef?.current;
-            if (scrollT) {
+            const s = scrollTransitionRef?.current;
+            if (s && s.secondsPerPage > 0) {
                 const pageWidth = layoutRef.current?.pageWidth;
                 if (pageWidth) {
                     const now = context.currentTime;
-                    const raw = (now - scrollT.startTime) / (scrollT.endTime - scrollT.startTime);
-                    const p = Math.max(0, Math.min(1, raw));
-                    // Playhead at 25%: at p=0 the first note starts at 25% from left;
-                    // at p=1 the last note of old content and first note of new content
-                    // both arrive at 25% simultaneously — seamless handoff.
-                    const tx = ((0.25 - p) * pageWidth).toFixed(2);
+                    const elapsed = Math.max(0, now - s.startTime);
+                    const pageFraction = s.startPageFraction + elapsed / s.secondsPerPage;
+                    const tx = ((0.25 - pageFraction) * pageWidth).toFixed(2);
                     scrollGroup.setAttribute('transform', `translate(${tx}, 0)`);
-                    if (raw >= 1) {
-                        // Apply queued animation (or snap to identity if none pending).
-                        const pending = pendingScrollTransitionRef?.current ?? null;
-                        if (scrollTransitionRef) scrollTransitionRef.current = pending;
-                        if (pendingScrollTransitionRef) pendingScrollTransitionRef.current = null;
-                        // Pre-position at p=0 of the next animation (0.25*pageWidth) so
-                        // the very first rAF tick of the new animation has no jump.
-                        if (pending && pageWidth) {
-                            scrollGroup.setAttribute('transform', `translate(${(0.25 * pageWidth).toFixed(2)}, 0)`);
-                        } else {
-                            scrollGroup.setAttribute('transform', 'translate(0, 0)');
-                        }
-                    }
                 }
             } else {
                 if (scrollGroup.hasAttribute('transform')) {

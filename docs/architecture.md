@@ -514,30 +514,80 @@ Wipe always shows exactly `visibleMeasures` (3) measures. Visual block = repeat 
 
 ---
 
-### 10.3 Scroll Mode
+### 10.3 Scroll Mode (continuous, May 2026 rewrite)
 
-Scroll is continuous — notes flow at constant speed past a fixed playhead. There are no hard page cuts. New content appears off-screen to the right and scrolls into view.
+Scroll is a single continuous left-shift of `.scroll-group-transform`. The currently-playing
+audio note always sits at the 25% playhead — audio and visual share one time anchor with
+no offset. Rep boundaries and series boundaries are visually invisible page-shifts.
 
-#### Intra-series (non-last repeat)
+#### State shape
 
-At `m = 0` of each non-last rep:
-- `setNextLayer('yellow')` — yellow overlay rendered at `translate(endX − startX, 0)` (off-screen right), opacity 0.55.
-- `scrollTransitionRef.current = { startTime: nextStartTime + 0.75m, endTime: nextStartTime + (numMeasures + 0.75)m }`.
-- rAF drives scroll: `translateX = (0.25 − p) × pageWidth` where `p` goes 0→1 over `numMeasures` measures.
-- The +0.75m offset keeps the first note frozen at the 25% playhead for ~3/4 of the first measure before scrolling begins.
+```
+scrollTransitionRef.current = { startTime, startPageFraction, secondsPerPage }
+```
 
-#### Series boundary (multi-measure)
+rAF formula (in `useSheetMusicHighlight.js`):
+```
+pageFraction(now) = startPageFraction + (now − startTime) / secondsPerPage
+tx(now)           = (0.25 − pageFraction) × pageWidth     [0.25 = playhead]
+```
 
-At `m = 0` of last rep: scroll animation queued (same formula, numMeasures-long).
-At penultimate measure (`m = numMeasures - 2`) of last rep:
-- `randomizeScaleAndGenerate()` called.
-- `setNextLayer('red')` + `setPreviewMelody(result)` — new melody appears off-screen right with `scrollPreviewFadeIn` CSS animation.
+`secondsPerPage = currentNumMeasures × measureDuration` for the current BPM.
 
-At `applyTime = nextStartTime + 0.75m` after series boundary:
-- `applyResult()` applies new melody. Content in old group updated. `setNextLayer(null)`.
-- `useLayoutEffect`: resets scroll-group transform to `translate(0.25 × pageWidth, 0)` (= p=0 of new animation).
+#### Continuity invariants
 
-**New melody loaded:** At `applyTime = seriesBoundary + 0.75 × measureDuration`. The scroll animation ends at +0.75m, so content is replaced exactly when the animation completes and the old melody has fully scrolled past the playhead.
+The Sequencer keeps the formula continuous across boundaries via three operations:
+
+1. **Cold start.** First scroll-eligible measure boundary: write
+   `{ startTime: T, startPageFraction: 0, secondsPerPage: N×md }`. First note plays at `T`
+   and sits at the playhead.
+
+2. **BPM change at measure boundary `T`.** When `bpmRef.current` is read at a new measure
+   and yields a different `secondsPerPage`, snap rate while keeping `tx(T)` unchanged:
+   ```
+   fractionAtT = startPageFraction + (T − startTime) / oldSecondsPerPage
+   { startTime: T, startPageFraction: fractionAtT, secondsPerPage: newSecondsPerPage }
+   ```
+   Audio also picks up the new BPM on the next measure (see line 231 of `Sequencer.js`), so
+   audio and visual snap together. **No ramp** — a ramped scroll would be mid-ramp out of
+   sync with the un-ramped audio.
+
+3. **Page boundary (end of an iteration).** In the same setTimeout that swaps melody state:
+   `startPageFraction -= 1`. The just-swapped content's first note (DOM x moves from
+   `+pageWidth` to `0` across the swap) lands at the same visual position — invisible swap.
+
+#### Overlay ("right-side preview") coverage
+
+The scroll ribbon must always have content to the right of the playhead. The overlay slot
+(`<g data-wipe-role="new" transform="translate(endX−startX, 0)">`) is populated by
+`setNextLayer`:
+
+- At `m = 0` of every iteration (in scroll mode): `setNextLayer('yellow')` — same-melody
+  copy. Renders identical content one page-width to the right of main.
+- At penultimate measure (`m = N − 2`) of the last rep: pregen runs, then
+  `setNextLayer('red')` + `setPreviewMelody(pregenResult)` — replaces the yellow overlay
+  with the upcoming new melody so it slides into view during the last rep.
+- Single-measure scroll (`N = 1`): penultimate never fires; instead the outer loop's
+  series-handler schedules `setNextLayer('red')` 0.25m before the series boundary.
+
+#### Swap mechanics
+
+For **mid-series repeat boundaries** (non-last rep → next rep): no React state change is
+needed (same melody). The Sequencer schedules `startPageFraction -= 1` at the end of each
+non-last iteration. Visually identical content cycles past the playhead.
+
+For **series boundaries** (last rep end → new melody start): the existing `applyResult`
+setTimeout fires at exactly `nextStartTime` (no +0.75m offset). In one batched callback:
+`applyResult()` swaps main to the pregen melody, `startPageFraction -= 1` shifts the
+formula by one page, `setNextLayer('yellow')` + `setPreviewMelody(null)` resets the
+overlay for the next series.
+
+**Removed in May 2026 rewrite:**
+- `pendingScrollTransitionRef` — no longer needed. The continuous anchor never needs to
+  be queued; per-measure updates maintain it in place.
+- `+0.75m linger offset` at scroll-start and applyTime — audio/visual now sync exactly.
+- Discrete `scrollTransitionRef = {startTime, endTime}` writes per rep — replaced by
+  the single continuous `{ startTime, startPageFraction, secondsPerPage }` anchor.
 
 ---
 
@@ -1189,7 +1239,7 @@ repetitive groups, reducing the SheetMusic prop surface to ~38 and making dual-v
 | `PlaybackTransportContext` | `src/contexts/PlaybackTransportContext.jsx` | `isPlaying`, `isPlayingContinuously` — flips at start/stop only |
 | `RoundStateContext` | `src/contexts/RoundStateContext.jsx` | `isOddRound`, `showNotes`, `inputTestState`, `inputTestSubMode` / setter — flips ~1× per measure |
 | `TransitionOverlayContext` | `src/contexts/TransitionOverlayContext.jsx` | `nextLayer`, `previewMelody` — non-null only during transitions |
-| `AnimationRefsContext` | `src/contexts/AnimationRefsContext.jsx` | All animation refs/callbacks: `wipeTransitionRef`, `scrollTransitionRef`, `pendingScrollTransitionRef`, `paginationFadeRef`, `clearHighlightStateRef`, `showNoteHighlightRef`, `setCurrentMeasureIndex`, `sequencerRef`, `context` (AudioContext) |
+| `AnimationRefsContext` | `src/contexts/AnimationRefsContext.jsx` | All animation refs/callbacks: `wipeTransitionRef`, `scrollTransitionRef`, `paginationFadeRef`, `clearHighlightStateRef`, `showNoteHighlightRef`, `setCurrentMeasureIndex`, `sequencerRef`, `context` (AudioContext) |
 
 The original monolithic `PlaybackStateContext` was split into three providers in May 2026 because its value object invalidated on every measure tick (isOddRound flip), re-rendering every consumer — including the SheetMusic subtree whose layer caches (`MelodyNotesLayer`, `ChordLabelsLayer`, `BarlinesLayer`, `PreviewOverlay`) we'd just built around the heavy renderers. Splitting by update frequency keeps those memos hot. See §29.
 

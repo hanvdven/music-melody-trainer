@@ -456,59 +456,68 @@ class Sequencer {
 
           const mode = this.refs.animationModeRef?.current ?? 'pagination';
 
-          // Multi-measure scroll: start the full-page scroll at m=0 of the last rep.
-          // The scroll runs for exactly numMeasures * measureDuration so one full page width
-          // is traversed at constant speed.
-          // Pending-queue: if an old animation is still active, queue the new timing instead
-          // of overwriting it — overwriting causes a snap from ~90% to 0 on the next rAF frame.
-          // The rAF loop will apply the pending timing atomically when the old animation ends.
-          if (!this.isOnceMode && mode === 'scroll' && isLastRepNow && m === 0 && currentNumMeasures >= 2) {
-            const newScrollTiming = {
-              // +0.75m offset: animation starts 0.75m into the repeat (0.5m later than before),
-              // so the first note sits at the 25% playhead for most of the first measure before
-              // the scroll begins. Ends at N+0.75m so active note stays at 25% through the last measure.
-              startTime: nextStartTime + 0.75 * measureDuration,
-              endTime: nextStartTime + (currentNumMeasures + 0.75) * measureDuration,
-            };
-            // Show same-melody overlay from the start so the right side of the screen is
-            // never empty during the scroll. The penultimate-measure code replaces it with
-            // the pre-generated next melody ('red') when it becomes available.
-            const msFromNow = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
-            this.scheduleTimeout(() => {
-              if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
-            }, msFromNow);
-            if (this.refs.scrollTransitionRef) {
-              if (!this.refs.scrollTransitionRef.current) {
-                // No active animation — set directly. rAF clamps p=0 until startTime.
-                this.refs.scrollTransitionRef.current = newScrollTiming;
-              } else if (this.refs.pendingScrollTransitionRef) {
-                // Active animation in progress — queue so it takes over on completion.
-                this.refs.pendingScrollTransitionRef.current = newScrollTiming;
-              }
+          // === Continuous scroll bookkeeping (per measure) ============================
+          // Maintains scrollTransitionRef = { startTime, startPageFraction, secondsPerPage }.
+          // rAF reads this and computes
+          //   pageFraction(now) = startPageFraction + (now - startTime) / secondsPerPage
+          //   tx(now) = (0.25 - pageFraction) * pageWidth   (0.25 = playhead position)
+          // so the currently-playing note always sits at the 25% playhead (audio/visual sync,
+          // no offset — unlike the previous +0.75m linger).
+          //
+          // The anchor stays continuous across reps AND series transitions:
+          //  - BPM change at this measure boundary T: snap secondsPerPage, keep tx continuous
+          //    by setting startTime=T and startPageFraction=pageFraction(T) under the old rate.
+          //    Mirrors the audio side, which also picks up the new BPM on the next measure.
+          //  - Page boundary (end of one iteration = start of the next): in the same setTimeout
+          //    that swaps melody state (applyResult for series, or a no-op for repeats),
+          //    decrement startPageFraction by 1. The just-swapped content's first note (DOM x
+          //    moves from +pageWidth to 0 across the swap) lands at the same visual position —
+          //    invisible swap.
+          if (!this.isOnceMode && mode === 'scroll' && this.refs.scrollTransitionRef) {
+            const T = nextStartTime;
+            const newSecondsPerPage = currentNumMeasures * measureDuration;
+            const cur = this.refs.scrollTransitionRef.current;
+            if (!cur) {
+              this.refs.scrollTransitionRef.current = {
+                startTime: T,
+                startPageFraction: 0,
+                secondsPerPage: newSecondsPerPage,
+              };
+            } else if (cur.secondsPerPage !== newSecondsPerPage) {
+              const elapsed = Math.max(0, T - cur.startTime);
+              const fractionAtT = cur.startPageFraction + elapsed / cur.secondsPerPage;
+              this.refs.scrollTransitionRef.current = {
+                startTime: T,
+                startPageFraction: fractionAtT,
+                secondsPerPage: newSecondsPerPage,
+              };
+            }
+            // Populate the right-side overlay at the start of each iteration so the ribbon
+            // is never empty to the right of the playhead. 'yellow' = same-melody copy.
+            // The penultimate-measure pregen below upgrades this to 'red' (new-melody preview).
+            if (m === 0) {
+              const setLayerDelay = Math.max(0, (T - this.context.currentTime) * 1000);
+              this.scheduleTimeout(() => {
+                if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
+              }, setLayerDelay);
+            }
+            // Repeat-boundary decrement: schedule startPageFraction-=1 at the END of this
+            // iteration for non-last reps. The series-boundary applyResult callback handles
+            // the decrement for the last rep — see "Apply result at block end" below.
+            if (m === 0 && !isLastRepNow) {
+              const T_swap = T + newSecondsPerPage;
+              const swapDelay = Math.max(0, (T_swap - this.context.currentTime) * 1000);
+              this.scheduleTimeout(() => {
+                const c = this.refs.scrollTransitionRef?.current;
+                if (c) c.startPageFraction -= 1;
+              }, swapDelay);
             }
           }
 
-          // Yellow overlay: mid-series repeat boundaries.
+          // Yellow overlay for wipe-mode mid-series repeat boundaries.
+          // (Scroll's overlay is handled by the continuous-scroll block above.)
           if (!this.isOnceMode && !isLastRepNow) {
-            if (mode === 'scroll' && m === 0) {
-              // Scroll: at the start of each non-last rep, begin a full-block scroll so the
-              // playhead stays consistent across all reps. Duration = numMeasures * measureDuration.
-              // +0.75m offset (0.5m later than before) so the first note stays at the 25% playhead
-              // for most of measure 1 before the scroll starts moving.
-              const scrollStart = nextStartTime + 0.75 * measureDuration;
-              const scrollEnd = nextStartTime + (currentNumMeasures + 0.75) * measureDuration;
-              const msFromNow = Math.max(0, (scrollStart - this.context.currentTime) * 1000);
-              this.scheduleTimeout(() => {
-                if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
-                if (this.refs.scrollTransitionRef) {
-                  if (!this.refs.scrollTransitionRef.current) {
-                    this.refs.scrollTransitionRef.current = { startTime: scrollStart, endTime: scrollEnd };
-                  } else if (this.refs.pendingScrollTransitionRef) {
-                    this.refs.pendingScrollTransitionRef.current = { startTime: scrollStart, endTime: scrollEnd };
-                  }
-                }
-              }, msFromNow);
-            } else if (mode === 'wipe' && isLastMeasureNow) {
+            if (mode === 'wipe' && isLastMeasureNow) {
               // Wipe-mode repeat-flip yellow overlay: 0.5 measures before block end.
               // (Pagination's repeat-flip is owned by _armPaginationSequence.)
               const yellowAudioTime = nextStartTime + 0.5 * measureDuration;
@@ -710,35 +719,31 @@ class Sequencer {
                 }, setLayerMs);
               } else if (previewMode === 'pagination') {
                 // Owned by _armPaginationSequence — no preview scheduling here.
-              } else if (currentNumMeasures === 1) {
+              } else if (previewMode === 'scroll' && currentNumMeasures === 1) {
                 // Single-measure scroll: inner loop pregen (isPenultimateMeasure) never fires,
-                // so handle here. Outer loop runs ~lookahead ahead of block end, so
-                // scrollStart - currentTime ≈ lookahead (positive), firing at the correct audio time.
-                // +0.75m offset (0.5m later than before): animation starts 0.25m before block end
-                // and ends 0.75m after block end, so the old melody scrolls fully past the
-                // 25% playhead before the new content takes over.
-                const scrollStart = nextStartTime - 0.25 * lastMeasureDuration;
-                const scrollEnd = nextStartTime + 0.75 * lastMeasureDuration;
-                const scrollPreviewDelay = Math.max(0, (scrollStart - this.context.currentTime) * 1000);
+                // so handle here. Trigger setNextLayer('red') 0.25m before series boundary so
+                // the red overlay (with pregen melody) is in the DOM before the page-boundary
+                // swap. The continuous-scroll bookkeeping in the inner loop already maintains
+                // scrollTransitionRef — no manual {startTime,endTime} writes needed.
+                const redTriggerTime = nextStartTime - 0.25 * lastMeasureDuration;
+                const redDelay = Math.max(0, (redTriggerTime - this.context.currentTime) * 1000);
                 this.scheduleTimeout(() => {
-                  // Animation ref first — layer starts moving before React re-renders.
-                  if (this.refs.scrollTransitionRef) {
-                    this.refs.scrollTransitionRef.current = { startTime: scrollStart, endTime: scrollEnd };
-                  }
                   if (this.setters.setNextLayer) this.setters.setNextLayer('red');
                   if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(result);
-                }, scrollPreviewDelay);
+                }, redDelay);
               }
               // Multi-measure scroll: inner loop already set setNextLayer + scrollTransitionRef
               // at the correct audio time; nothing to do here.
 
-              // Apply result at block end for wipe/pagination; +0.75m for scroll so the
-              // old melody fully scrolls past the 25% playhead before content is replaced
-              // (scroll animation ends at +0.75m after the series boundary).
+              // Apply result at series boundary. For scroll mode the swap is audio/visual sync'd
+              // at exactly nextStartTime: the just-pregen'd melody's first note (audio) plays
+              // at T_series, and the red overlay (DOM x=+pageWidth) has visually reached the
+              // 25% playhead at the same moment. The applyResult swap re-renders main with the
+              // new melody (DOM x=0) — startPageFraction-=1 in the same callback offsets the
+              // scroll formula by exactly one page so the new main first note stays at the
+              // playhead. Invisible swap.
               const newSeriesStart = nextStartTime;
-              const applyTime = previewMode === 'scroll'
-                ? nextStartTime + 0.75 * lastMeasureDuration
-                : nextStartTime;
+              const applyTime = nextStartTime;
               const scheduleTime = Math.max(0, (applyTime - this.context.currentTime) * 1000);
               this.scheduleTimeout(() => {
                 if (this.setters.clearActiveHighlight) this.setters.clearActiveHighlight();
@@ -746,6 +751,18 @@ class Sequencer {
                   this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
                 }
                 applyResult();
+                // Scroll-mode: shift the scroll anchor by exactly one page so that the new
+                // main's first note (now at DOM x=0) lands at the same visual position the
+                // overlay's first note (DOM x=+pageWidth) occupied just before the swap.
+                if (previewMode === 'scroll' && this.refs.scrollTransitionRef?.current) {
+                  this.refs.scrollTransitionRef.current.startPageFraction -= 1;
+                  // The overlay was 'red' (showing previewMelody = the now-applied new melody).
+                  // After the swap, the same melody is in main and previewMelody is stale —
+                  // demote nextLayer to 'yellow' (same-melody copy) and clear previewMelody so
+                  // the next iteration's m=0 yellow setter is idempotent.
+                  if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
+                  if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
+                }
                 if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
                 // Batch setIsOddRound(true) in the same callback as applyResult so it
                 // commits in the same React 18 batch as melody refs + startMeasureIndex.

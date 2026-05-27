@@ -505,11 +505,18 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 - scroll mode: change bpm during animation...
 [Claude 2026-05-19]: ⬆ NOG NIET OPGELOST — op verzoek van Han: "werkt nog niet goed". Scroll-animatie (constante-snelheid playhead) heeft nog problemen. Onderzoek nodig; interview voor reproduceerbare stappen.
 
+[Claude 2026-05-27 12:50]: ✅ Iter 1 ge-implementeerd op branch `claude/sheet-music-animations-cYqld`. Continue scroll-anchor `{ startTime, startPageFraction, secondsPerPage }` vervangt het discrete `{startTime, endTime}` + `pendingScrollTransitionRef`. Drie continuïteits-operaties: (1) cold start anchored op eerste maat met `startPageFraction=0`; (2) BPM-snap op maatovergang — keeps `tx(T)` continu door `startTime=T, startPageFraction = pageFraction(T)`; (3) page-boundary swap (`startPageFraction -= 1`) in dezelfde setTimeout-callback als de React state advance (applyResult voor series, of no-op voor repeats). Het `+0.75m` linger-offset is verwijderd zodat audio en visual exact synchroon lopen. Overlay-slot wordt nu bij elke `m=0` op `'yellow'` gezet (same-melody kopie rechts) en op penultieme maat van laatste rep ge-upgrade naar `'red'` (pregen new melody). Iter 2 (N-panel rendering voor kleine repeat-blokken zoals 1-maats sequences) staat nog open — zie hieronder.
+
+  Bestanden: `src/audio/Sequencer.js`, `src/hooks/useSheetMusicHighlight.js`, `src/hooks/useAppUIState.js`, `src/contexts/AnimationRefsContext.jsx`, `src/components/sheet-music/SheetMusic.jsx`, `src/App.jsx`, `docs/architecture.md` §10.3.
+
+  Open punt iter 2: bij `repeatBlockSize < idealVisibleMeasures` (bv. 1-maats blokken met visible=4) heeft de huidige 2-panel overlay (main+overlay) niet genoeg breedte; rechtsranderkant kan leeg lijken. Iter 2 = ceil(idealVisible / repeatBlockSize) + 1 panels side-by-side + recycle rechts.
+
 [Claude 2026-05-27 11:42]: Interview-antwoorden van Han voor herontwerp scroll-modus (volgende PR, separaat van wipe-fix b9e9845):
   • **Beweging**: noten schuiven rechts→links door een venster ter grootte van `idealVisibleMeasures`. Meerdere blokken/repeats lijnen horizontaal achter elkaar uit als één doorlopend lint (één continue tijdslijn — geen page-jumps, geen piano-roll cursor; visueel hetzelfde gevoel als constante-snelheid playhead maar met >2 maten zichtbaar).
   • **Repeats**: smooth continuous loop. Bij een nieuwe iteratie van dezelfde melodie verschijnt de volgende kopie rechts ín het scrollvenster zonder visuele harde grens of pauze.
   • **Series flip (nieuwe melodie/sequence block)**: géén apart visueel signaal. Maatnummering draagt al die informatie. Geen overlay, geen tint, geen crossfade-marker.
   • **BPM-wijziging tijdens scroll**: soft retune op de eerstvolgende maatovergang — over ~1 beat ramp de scroll-snelheid naar de nieuwe BPM-snelheid.
+    [Claude 2026-05-27 12:50 — herzien]: Na vervolgvraag van Han ("BPM-update van melodie en bladmuziek moet gelijk lopen — ik denk dat updates op de eerstvolgende maat worden toegepast") gewijzigd naar HARD SNAP op maatovergang (geen ramp). Reden: een ramp zou de scroll mid-ramp uit sync brengen met de audio (die wel hard snapt). Geïmplementeerd in iter 1.
   Ontwerpconsequenties die ik in de volgende PR moet adresseren:
   – `idealVisibleMeasures` (App.jsx) bepaalt de scroll-vensterbreedte; bij erg kleine repeat-blokken (bv. 1 maat) moeten meerdere kopieën pre-gerenderd zijn zodat het lint niet "leeg" lijkt aan de rechterkant.
   – Maatnummering moet zichtbaar zijn én correct doorlopen over series-grenzen (anders mist Han het visuele signaal voor "nieuw blok").

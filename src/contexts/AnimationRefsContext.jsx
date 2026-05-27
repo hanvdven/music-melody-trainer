@@ -3,7 +3,7 @@ import React, { createContext, useContext, useMemo } from 'react';
 const AnimationRefsContext = createContext(null);
 
 export const AnimationRefsProvider = ({
-    wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+    wipeTransitionRef, scrollTransitionRef, paginationFadeRef,
     transitionRef,
     clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
     sequencerRef, context,
@@ -15,12 +15,12 @@ export const AnimationRefsProvider = ({
     // useMemo the value object got a new reference on every App re-render,
     // forcing every consumer to re-render too.
     const value = useMemo(() => ({
-        wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+        wipeTransitionRef, scrollTransitionRef, paginationFadeRef,
         transitionRef,
         clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
         sequencerRef, context,
     }), [
-        wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+        wipeTransitionRef, scrollTransitionRef, paginationFadeRef,
         transitionRef,
         clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
         sequencerRef, context,
