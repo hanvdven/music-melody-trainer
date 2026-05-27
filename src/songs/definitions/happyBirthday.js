@@ -37,13 +37,49 @@ export default {
   defaultTonic: 'F',
   numMeasures: 12,
 
+  // ── Generator config — applied to app/instrument state on song load ──────
+  //
+  // Shape: each `*Settings` block is shallow-merged onto the corresponding
+  // default `InstrumentSettings` so the song can override only the fields it
+  // cares about. `randomizationRule: 'fixed'` on a track means the loaded
+  // melody is pinned: regenerations (e.g. clicking "generate") preserve it,
+  // transposing it to the current scale via `resolveVoice`.
+  //
+  // A track that the difficulty data leaves empty (e.g. no `bass`) will be
+  // freshly generated on regen using these settings. Happy Birthday uses
+  // walking-bass over the loaded chord progression.
+  //
+  // `scaleMode` is the Scale.modeName the song was composed in; loadSong
+  // applies it to the app scale together with `defaultTonic`.
+  generator: {
+    scaleFamily: 'Diatonic',
+    scaleMode: 'Major',
+    chordSettings: {
+      strategy: 'classical-1-4-5-1',
+      chordCount: 1,
+      passingChordTypes: [],
+    },
+    trebleSettings: {
+      randomizationRule: 'fixed',
+      notesPerMeasure: 2,
+    },
+    bassSettings: {
+      randomizationRule: 'walking_bass',
+      notePool: 'chord',
+      notesPerMeasure: 2,
+      smallestNoteDenom: 4,
+      rhythmVariability: 30,
+    },
+    percussionSettings: null,
+  },
+
   difficulties: {
     easy: {
       treble: {
-        // Line 1: "Happy Birthday to you"  (m0 pickup → m2)
-        // Line 2: "Happy Birthday to you"  (m3 pickup → m5)
-        // Line 3: "Happy Birthday dear [name]" (m6 pickup → m8)
-        // Line 4: "Happy Birthday to you"  (m9 pickup → m11)
+        // Line 1: "Happy Birthday to you"     (m0 pickup → m2)  ends 3rd (E)
+        // Line 2: "Happy Birthday to you"     (m3 pickup → m5)  ends tonic (F)
+        // Line 3: "Happy Birthday dear [name]" (m6 pickup → m8) jumps to C5
+        // Line 4: "Happy Birthday to you"     (m9 pickup → m11) classic Bb anacrusis
         notes: [
           'C4','C4', 'D4','C4','F4', 'E4',
           'C4','C4', 'D4','C4','G4', 'F4',
@@ -70,7 +106,9 @@ export default {
         ],
       },
       chords: EASY_CHORDS,
-      // null = no percussion preset; the user can enable it manually
+      // null = song does not provide this track. The generator config above
+      // determines what (if anything) happens for it on song load and regen.
+      bass: null,
       percussion: null,
     },
   },
