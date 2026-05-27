@@ -988,8 +988,14 @@ const SheetMusic = ({
       bottomY,
       fixedPlayheadX: startX + 60,
       pageWidth: endX - startX,
+      // melodyWidth = how wide ONE iteration of the current melody is in pixels.
+      // Differs from pageWidth (= visible width) when displayNumMeasures < visibleMeasures
+      // (e.g. numMeasures=1 with floored visibleMeasures=2). Scroll rAF uses melodyWidth
+      // as the per-page travel distance, not pageWidth — otherwise the visual moves at
+      // the wrong speed relative to audio when these differ.
+      melodyWidth: displayNumMeasures * measureWidth,
     };
-  }, [measureWidth, measurePpt, effectiveVisibleMeasures, layoutRef, startX, trebleStart, bottomY, measureLengthSlots, endX, startMeasureIndex]);
+  }, [measureWidth, measurePpt, effectiveVisibleMeasures, layoutRef, startX, trebleStart, bottomY, measureLengthSlots, endX, startMeasureIndex, displayNumMeasures]);
 
   // Barlines + measure-number labels are rendered by <BarlinesLayer>
   // (./BarlinesLayer.jsx). The pure iterator lives there so React.memo can skip
@@ -2158,7 +2164,7 @@ const SheetMusic = ({
                         <g
                           data-wipe-role="new"
                           data-pagination-new=""
-                          transform={animationMode === 'scroll' ? `translate(${endX - startX}, 0)` : undefined}
+                          transform={animationMode === 'scroll' ? `translate(${displayNumMeasures * measureWidth}, 0)` : undefined}
                           className={
                             // CSS class controls resting opacity — NOT inline style.
                             // Reason: React re-renders would reset inline style.opacity on every
@@ -2369,6 +2375,7 @@ const SheetMusic = ({
                         noteGroupSize={noteGroupSize}
                         measureLengthSlots={measureLengthSlots}
                         displayNumMeasures={displayNumMeasures}
+                        melodyWidth={displayNumMeasures * measureWidth}
                         numAccidentals={numAccidentals}
                         pixelsPerTick={ppt}
                         chordProgression={chordProgression}
