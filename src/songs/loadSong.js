@@ -53,6 +53,11 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
   // accidentals moved).
   const PITCH_RE = /^[A-G][#♯b♭]?-?\d+$/;
   const transpose = (note) => {
+    // Recurse into chord-stack arrays. Without this, songs that voice a track
+    // as [['C4','E4','G4'], 'D4', ...] would only transpose the scalar element
+    // and silently leave the chord stacks in the song's written key — audible
+    // immediately as the wrong chord on every stacked onset.
+    if (Array.isArray(note)) return note.map(transpose);
     if (!note || typeof note !== 'string') return note;
     if (!PITCH_RE.test(note)) return note; // percussion tokens, rests, sentinels
     return transposeNoteBySemitones(note, shift);
