@@ -158,7 +158,7 @@ const App = () => {
         lyricsMode, setLyricsMode,
         nextLayer, setNextLayer,
         previewMelody, setPreviewMelody,
-        wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+        wipeTransitionRef, scrollTransitionRef, paginationFadeRef,
         transitionRef,
         svgRef,
         qwertyKeyboardActive, setQwertyKeyboardActive,
@@ -789,7 +789,6 @@ const App = () => {
                 paginationVariantRef,
                 wipeTransitionRef,
                 scrollTransitionRef,
-                pendingScrollTransitionRef,
                 paginationFadeRef,
                 transitionRef,
                 musicalBlocksRef,
@@ -963,7 +962,6 @@ const App = () => {
         <AnimationRefsProvider
             wipeTransitionRef={wipeTransitionRef}
             scrollTransitionRef={scrollTransitionRef}
-            pendingScrollTransitionRef={pendingScrollTransitionRef}
             paginationFadeRef={paginationFadeRef}
             transitionRef={transitionRef}
             clearHighlightStateRef={clearHighlightStateRef}

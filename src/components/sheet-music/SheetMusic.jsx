@@ -190,7 +190,7 @@ const SheetMusic = ({
   const { isPlaying } = usePlaybackTransport();
   const { isOddRound, inputTestState, inputTestSubMode, setInputTestSubMode } = useRoundState();
   const { nextLayer = null, previewMelody = null } = useTransitionOverlay();
-  const { wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+  const { wipeTransitionRef, scrollTransitionRef, paginationFadeRef,
           transitionRef,
           clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
           sequencerRef, context } = useAnimationRefs();
@@ -218,7 +218,6 @@ const SheetMusic = ({
     setCurrentMeasureIndex,
     wipeTransitionRef,
     scrollTransitionRef,
-    pendingScrollTransitionRef,
     paginationFadeRef,
     transitionRef,
   });
