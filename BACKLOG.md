@@ -43,6 +43,14 @@ bestaande liedjes (happy birthday, ...)
   [Claude 2026-05-22]: De `setActiveTab('sheet-music')` regel in de `loadSongAndPlay` callback in `App.jsx` verwijderd. De gebruiker's huidige tab blijft nu behouden bij het laden van een lied.
 - **Happy Birthday klinkt niet correct** — de melodie of het ritme klopt niet met het bekende kinderliedje. Vermoedelijk een tikfout in `src/songs/definitions/happyBirthday.js` of een transpositie-bug.
 
+[Han 2026-05-27]: Geüploade MIDI als bron van waarheid: `Happy_Birthday___Piano.mid` (zie chat). Doe hier de "volledige" versie van: melodie + akkoorden in zowel treble als bass. De huidige `happyBirthday.js` is alleen treble + akkoord-bracket; vervang die door een Hard/Full difficulty die uit de MIDI is gegenereerd. De bestaande "Easy" wordt later gemaakt door noten te strippen — geen aparte handgemaakte easy meer.
+[Claude 2026-05-27 11:42]: Interview vereist vóór implementatie (zie chat). Open vragen:
+  1. **Lyric-uitlijning**: in HBD ligt elke lettergreep onder één melodische noot. Bij een akkoord-in-treble (bv. de hele I/IV/V harmonisatie als gestapelde notenkop) — komt de lyric onder de bovenste noot, onder de onderste, of in het midden? Of: laten we de melodische stem visueel apart laten van de begeleidingstemmen?
+  2. **Stemverdeling treble**: één gestapeld akkoord op elke melodienoot (bv. F/A/C voor de "Hap-py"), of melodie op 1 stem en akkoord apart erboven/eronder (2-voice notatie)? Het laatste vereist parallel voices-rendering.
+  3. **Bass-akkoord-voicing**: in de MIDI staan zowel grondtonen als 3-stemmige akkoorden in de baspartij? Of alleen grondtonen + 5e? Ik moet de MIDI eerst exact ontleden.
+  4. **Source of truth**: blijft de JSON onder `src/songs/definitions/happyBirthday.js` (status quo), of komt er een nieuw `.json`-bestand naast met de MIDI-export en wordt de `.js` een import-wrapper? Voor latere bestaande liedjes is dat schaalbaarder.
+  5. **Fermata in HBD**: HBD heeft traditioneel een fermata op "[name]" (3e regel, hoge noot). De MIDI lijkt dat niet expliciet te coderen (MIDI heeft geen fermata-event). Wil je dat ik de fermata met de hand intik op die positie? Zie ook nieuwe fermata-feature hieronder.
+
 ### Profiel-icoon & submenu (navigatie)
 vervang profile settings icoon met Lucide: user.
 Submenu: kennisbank (graduation-cap) en settings (waar nu thema etc onder staan).
@@ -104,6 +112,25 @@ add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 gebruik ipv de 4/4 dit Maestro-symbool: SHIFT+T | ~ | Turn, grupetto
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Fermata (Han 2026-05-27)
+
+[Han 2026-05-27]: Ik denk dat er een fermata in HBD zit — dat zou ik ook graag in de app hebben.
+
+Maestro-glyphs:
+- `SHIFT+u` → Fermata (above note)
+- `u` → Fermata (below note)
+
+Voorgestelde semantiek: een fermata-noot duurt 50% langer dan zijn geschreven duur. Dit verschuift het schema van alle daaropvolgende noten, maar de bladmuziek-notatie (offsets, beam-groepen, maatindeling) blijft visueel ongewijzigd. Dat is een uitdaging — interview vereist.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-27 11:42]: Open vragen voor het interview:
+  1. **Audio-scheduling**: een fermata-noot houdt zijn `duration * 1.5` aan; alle volgende `offset`-waarden moeten in audio-tijd met `0.5 * duration` opgeschoven worden zonder dat de geschreven offsets in de JSON veranderen. Wil je dat de Sequencer dit "on the fly" doet (offsets in JSON blijven puur visueel, fermata-flag triggert run-time tijdrekken), of liever twee parallelle offset-velden (`visualOffset` + `audioOffset`)?
+  2. **Maat-uitlijning**: na een fermata loopt audio-tijd achter t.o.v. bladmuziek-tijd. Wanneer "haalt" audio dat in? Mogelijke antwoorden: (a) nooit — de hele rest van het lied schuift mee; (b) bij de volgende maatlijn — audio "krimpt" een micro-pauze in om weer synchroon te lopen; (c) bij de eerstvolgende rust — die rust wordt verkort.
+  3. **Notatie-laag**: tijdens een fermata-rendering, hoe communiceer ik dat dit een fermata is naar `renderMelodyNotes.jsx`? Voorstel: extra optioneel veld `articulation: 'fermata-above' | 'fermata-below'` per noot, gerenderd als Maestro-glyph U+E4C0 boven/onder de notenkop. Akkoord/notatie ja/nee?
+  4. **Continuous playback**: in repeats — geldt de fermata elke iteratie? Of alleen op de laatste? (Klassiek: alleen op de laatste van de hele performance.) Wat is verwacht gedrag in continuous-loop modus?
+  5. **Highlight-animatie**: bij playback met een fermata zou de active-note highlight ook 1.5× zo lang moeten "blijven hangen" op die noot. Eens?
+  6. **Interactie met free-time/rubato**: in rubato-modus betekent fermata strikt genomen "wacht tot speler klaar is". Maar dat is de hele rubato-modus al. Dubbele logica vermijden — wat is de relatie?
 
 ### Sleutel & transponerend instrument
 
@@ -477,6 +504,17 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 
 - scroll mode: change bpm during animation...
 [Claude 2026-05-19]: ⬆ NOG NIET OPGELOST — op verzoek van Han: "werkt nog niet goed". Scroll-animatie (constante-snelheid playhead) heeft nog problemen. Onderzoek nodig; interview voor reproduceerbare stappen.
+
+[Claude 2026-05-27 11:42]: Interview-antwoorden van Han voor herontwerp scroll-modus (volgende PR, separaat van wipe-fix b9e9845):
+  • **Beweging**: noten schuiven rechts→links door een venster ter grootte van `idealVisibleMeasures`. Meerdere blokken/repeats lijnen horizontaal achter elkaar uit als één doorlopend lint (één continue tijdslijn — geen page-jumps, geen piano-roll cursor; visueel hetzelfde gevoel als constante-snelheid playhead maar met >2 maten zichtbaar).
+  • **Repeats**: smooth continuous loop. Bij een nieuwe iteratie van dezelfde melodie verschijnt de volgende kopie rechts ín het scrollvenster zonder visuele harde grens of pauze.
+  • **Series flip (nieuwe melodie/sequence block)**: géén apart visueel signaal. Maatnummering draagt al die informatie. Geen overlay, geen tint, geen crossfade-marker.
+  • **BPM-wijziging tijdens scroll**: soft retune op de eerstvolgende maatovergang — over ~1 beat ramp de scroll-snelheid naar de nieuwe BPM-snelheid.
+  Ontwerpconsequenties die ik in de volgende PR moet adresseren:
+  – `idealVisibleMeasures` (App.jsx) bepaalt de scroll-vensterbreedte; bij erg kleine repeat-blokken (bv. 1 maat) moeten meerdere kopieën pre-gerenderd zijn zodat het lint niet "leeg" lijkt aan de rechterkant.
+  – Maatnummering moet zichtbaar zijn én correct doorlopen over series-grenzen (anders mist Han het visuele signaal voor "nieuw blok").
+  – De scroll-translate is een functie van `(currentTime - scrollStartTime) * pixelsPerSecond`, waarbij `pixelsPerSecond` bij maatovergang opnieuw bepaald wordt (BPM-retune). Acceleratie over ~1 beat = linear ramp van oude naar nieuwe `pixelsPerSecond`.
+  – Geen `wipeTransitionRef`/`paginationFadeRef` analoog: scroll heeft alleen één `scrollTransitionRef` met `{startTime, endTime, startTransform, endTransform}` of vergelijkbaar, doorlopend over series-grenzen.
 ✅ begin de animatie 0,5 maat later, en eindig ook 0,5 maat later (zodat de actieve noot op ongeveer 25% van startX - endX ligt.)
 
 [Claude 2026-04-10]: Geïmplementeerd — scroll startTime/endTime verschoven met +0.5m op alle drie plaatsen in Sequencer.js: multi-measure last-rep (0.25→0.75), multi-measure non-last-rep (0.25→0.75), single-measure (start: -0.75→-0.25, end: +0.25→+0.75). Actieve noot staat nu langer stil op 25% gedurende de eerste maat voor de scroll begint te bewegen.
@@ -1150,6 +1188,46 @@ Verzameling van voorgestelde presets (combinaties van instellingen). Nog niet ge
 ---
 
 ## CODE & ARCHITECTUUR
+
+### Refactor: parallel arrays → events (Han 2026-05-27)
+
+[Han 2026-05-27]: Ik kreeg een refactor-suggestie: ipv parallele arrays te gaan naar events.
+
+Bijvoorbeeld, in plaats van:
+
+```js
+notes[17]
+durations[17]
+offsets[17]
+lyrics[17]
+```
+
+→
+
+```js
+events: [
+  {
+    note: 'C4',
+    duration: 6,
+    offset: 24,
+    lyric: 'Hap-'
+  }
+]
+```
+
+Zet dat op de backlog — heeft veeeeel impact maar gaat de robuustheid vd app verhogen.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-27 11:42]: Impact-analyse (ruw, vóór interview):
+  - **Affected files**: alles dat een melodie aanraakt — generatoren (`melodyGenerator.js`, `convertRankedArrayToMelody.js`, `generateRankedRhythm.js`, `generateBackbeat.js`), renderers (`renderMelodyNotes.jsx`, `SheetMusic.jsx`), playback (`playMelodies.js`, `Sequencer.js`), splitsers (`melodySlice.js`, `pagination.js`), tests, en alle song-definities (`src/songs/definitions/*.js`).
+  - **Voordelen**: indices kunnen nooit meer mismatchen (een noot zonder duration of met fantoom-offset is onmogelijk); makkelijker uitbreidbaar (fermata, articulaties, ties, lyrics-per-syllabe staan natuurlijk per-event); JSON-songs lezen leesbaarder; iteratie-logica wordt `melody.events.forEach` ipv parallel-index gymnastiek.
+  - **Nadelen / kosten**: alle code die `notes[i]` / `offsets[i]` doet moet om. Het zijn 100en plaatsen. Sommige hot-paths (rAF highlighting, ranked-array generatie) zijn nu vector-georiënteerd en kunnen marginaal trager worden bij `forEach` over objecten ipv index-loops over arrays — niet kritisch maar checken.
+  - **Migratiepad**: ofwel "big bang" (één PR, ~weekend werk, hoog risico), ofwel parallel — voeg `melody.events` toe naast `notes/durations/offsets`, beide gevuld vanuit één source-of-truth, geleidelijk consumers migreren, oude velden later verwijderen. Voor §6c-robustness raad ik geleidelijk aan.
+  Open vragen voor het interview:
+  1. **Acccu of revolutie**: parallel migreren (events + arrays naast elkaar, langzaam) of big-bang?
+  2. **Event-schema**: wat is het verplichte/optionele veld-overzicht? Suggestie: `{pitch, duration, offset, lyric?, articulation?, group?, tie?}` per event. Voor rests: `{rest: true, duration, offset}`. Akkoorden: `{pitches: ['F3','A3','C4'], ...}` of meerdere events op dezelfde offset?
+  3. **Akkoord-representatie**: aparte `events`-array per stem, of één gedeelde array met overlappende offsets en `voice: 'treble'|'bass'` velden? De huidige scheiding `treble.notes` / `bass.notes` is duidelijk; één-array zou dat verliezen.
+  4. **Timing tijdens transitie**: kunnen we het oude `notes/durations/offsets`-schema parallel houden achter een compat-shim (`melody.notes` getter die uit `melody.events` afleidt) zodat refactor incrementeel kan?
 
 - algemene code cleanup
   - verwijderen van verouderde bestanden (`playContinuously.js`, `usePlaybackState.js`)
