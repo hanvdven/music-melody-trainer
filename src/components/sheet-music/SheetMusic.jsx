@@ -2148,7 +2148,9 @@ const SheetMusic = ({
                     )}
 
                     {/* Wipe mode: yellow = overlay next repeat's notes in the next-round visibility,
-                        red = "NEXT BLOCK" text (new melody not yet known). */}
+                        red = "NEXT BLOCK" text (new melody not yet known).
+                        Scroll mode: rendered K times side-by-side (left history + right previews)
+                        so the visible viewport is always full as the scroll progresses. */}
                     {showWipePreview === 'yellow' && (() => {
                       const nextRoundKey = isOddRound ? 'evenRounds' : 'oddRounds';
                       const nextCfg = playbackConfig?.[nextRoundKey] ?? {};
@@ -2160,28 +2162,11 @@ const SheetMusic = ({
                       // In debug mode: tint yellow so the overlay is visually distinct.
                       // In normal mode: render with default note colors (null = no tint).
                       const YCOL = debugMode ? 'var(--accent-yellow)' : null;
-                      return (
-                        <g
-                          data-wipe-role="new"
-                          data-pagination-new=""
-                          transform={animationMode === 'scroll' ? `translate(${displayNumMeasures * measureWidth}, 0)` : undefined}
-                          className={
-                            // CSS class controls resting opacity — NOT inline style.
-                            // Reason: React re-renders would reset inline style.opacity on every
-                            // commit, fighting with the rAF / useLayoutEffect that own opacity
-                            // during the transition. With a class (not inline style), React only
-                            // reconciles className and never touches style.opacity.
-                            animationMode === 'wipe' ? 'wipe-new-hidden'          // opacity:0; useLayoutEffect sets style.opacity='1' once
-                          : animationMode === 'pagination' ? 'pagination-new-hidden' // opacity:0; rAF animates to 1
-                          : undefined
-                          }
-                          style={{
-                            // scroll: tinted yellow at 0.55 opacity (no transition needed).
-                            opacity: animationMode === 'scroll' ? 0.55 : undefined,
-                            filter: showSettings ? 'blur(1.5px)' : 'none',
-                            pointerEvents: 'none',
-                          }}
-                        >
+
+                      // Inner content shared across all overlay panels (chord labels + 3 staves + barlines).
+                      // MelodyNotesLayer is React.memo'd, so rendering it K times with identical props
+                      // results in K-1 cache hits (only one fresh paint per round).
+                      const renderContent = () => (<>
                           {/* Chord labels above treble staff — shown if next round has chords visible */}
                           {nextCfg.chordsEye !== false && chordProgression && processedChords?.length > 0 &&
                             <ChordLabelsLayer
@@ -2352,61 +2337,95 @@ const SheetMusic = ({
                               onMeasureNumberClick={onMeasureNumberClick}
                             />
                           </g>
+                      </>);
+
+                      // Non-scroll modes (wipe / pagination): single overlay at no translate offset.
+                      if (animationMode !== 'scroll') {
+                        return (
+                          <g
+                            data-wipe-role="new"
+                            data-pagination-new=""
+                            className={
+                              animationMode === 'wipe' ? 'wipe-new-hidden'
+                            : animationMode === 'pagination' ? 'pagination-new-hidden'
+                            : undefined
+                            }
+                            style={{
+                              filter: showSettings ? 'blur(1.5px)' : 'none',
+                              pointerEvents: 'none',
+                            }}
+                          >
+                            {renderContent()}
+                          </g>
+                        );
+                      }
+
+                      // Scroll mode: multi-panel rendering. K_left copies at negative offsets
+                      // fill the viewport's left history as scroll progresses; K_right copies
+                      // at positive offsets cover the right-side preview. The +1 panel keeps
+                      // data-wipe-role/data-pagination-new for back-compat with code that
+                      // queries [data-pagination-new] (none of it runs in scroll mode today,
+                      // but keeping the attr stable matches the non-scroll DOM structure).
+                      const mw = displayNumMeasures * measureWidth;
+                      const K_left = Math.max(1, Math.ceil(0.25 * effectiveVisibleMeasures / displayNumMeasures));
+                      const K_right = Math.max(1, Math.ceil(0.75 * effectiveVisibleMeasures / displayNumMeasures));
+                      const offsets = [];
+                      for (let i = -K_left; i <= K_right; i++) {
+                        if (i === 0) continue; // i=0 is the main melody — already rendered above
+                        offsets.push(i);
+                      }
+                      return offsets.map(i => (
+                        <g
+                          key={`scroll-yellow-${i}`}
+                          data-wipe-role={i === 1 ? "new" : undefined}
+                          data-pagination-new={i === 1 ? "" : undefined}
+                          transform={`translate(${i * mw}, 0)`}
+                          style={{
+                            opacity: 0.55,
+                            filter: showSettings ? 'blur(1.5px)' : 'none',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          {renderContent()}
                         </g>
-                      );
+                      ));
                     })()}
-                    {(showWipePreview === 'red' || showWipePreview === 'crossfade') && (
-                      <PreviewOverlay
-                        previewMelody={previewMelody}
-                        previewLayout={previewLayout}
-                        playbackConfig={playbackConfig}
-                        isOddRound={isOddRound}
-                        animationMode={animationMode}
-                        startX={startX}
-                        endX={endX}
-                        trebleStart={trebleStart}
-                        bassStart={bassStart}
-                        percussionStart={percussionStart}
-                        bottomY={bottomY}
-                        measureBottom={measureBottom}
-                        measureYPositions={measureYPositions}
-                        partialTop={partialTop}
-                        partialMeasureStart={partialMeasureStart}
-                        noteGroupSize={noteGroupSize}
-                        measureLengthSlots={measureLengthSlots}
-                        displayNumMeasures={displayNumMeasures}
-                        melodyWidth={displayNumMeasures * measureWidth}
-                        numAccidentals={numAccidentals}
-                        pixelsPerTick={ppt}
-                        chordProgression={chordProgression}
-                        processedChords={processedChords}
-                        timeSignature={timeSignature}
-                        tonic={tonic}
-                        scaleNotes={scaleNotes}
-                        clefTreble={clefTreble}
-                        clefBass={clefBass}
-                        trebleTransSemitones={trebleTransSemitones}
-                        bassTransSemitones={bassTransSemitones}
-                        isTrebleVisible={isTrebleVisible}
-                        isBassVisible={isBassVisible}
-                        isPercussionVisible={isPercussionVisible}
-                        chordDisplayMode={chordDisplayMode}
-                        noteColoringMode={noteColoringMode}
-                        theme={theme}
-                        showSettings={showSettings}
-                        debugMode={debugMode}
-                        blockMeasureStart={blockMeasureStart}
-                        blockPlayStart={blockPlayStart}
-                        numRepeats={numRepeats}
-                        numMeasures={numMeasures}
-                        isPlaying={isPlaying}
-                        startMeasureIndex={startMeasureIndex}
-                        onMeasureNumberClick={onMeasureNumberClick}
-                        courtesyAccidentals={courtesyAccidentals}
-                        percussionVoiceSplit={percussionVoiceSplit}
-                        emptyScaleNotes={EMPTY_SCALE_NOTES}
-                      />
-                    )}
+                    {(showWipePreview === 'red' || showWipePreview === 'crossfade') && (() => {
+                      const mw = displayNumMeasures * measureWidth;
+                      // Common props for every rendered PreviewOverlay instance.
+                      const commonProps = {
+                        previewMelody, previewLayout, playbackConfig, isOddRound, animationMode,
+                        startX, endX, trebleStart, bassStart, percussionStart, bottomY,
+                        measureBottom, measureYPositions, partialTop, partialMeasureStart,
+                        noteGroupSize, measureLengthSlots, displayNumMeasures,
+                        melodyWidth: mw,
+                        numAccidentals, pixelsPerTick: ppt, chordProgression, processedChords,
+                        timeSignature, tonic, scaleNotes, clefTreble, clefBass,
+                        trebleTransSemitones, bassTransSemitones,
+                        isTrebleVisible, isBassVisible, isPercussionVisible,
+                        chordDisplayMode, noteColoringMode, theme, showSettings, debugMode,
+                        blockMeasureStart, blockPlayStart, numRepeats, numMeasures, isPlaying,
+                        startMeasureIndex, onMeasureNumberClick, courtesyAccidentals,
+                        percussionVoiceSplit, emptyScaleNotes: EMPTY_SCALE_NOTES,
+                      };
+                      if (animationMode !== 'scroll') {
+                        return <PreviewOverlay {...commonProps} />;
+                      }
+                      // Scroll: render K_left history + K_right right-side preview copies.
+                      // K=0 (the main panel) is the existing melody — not rendered here.
+                      // Same formulas as the yellow multi-panel above so the two overlay layers
+                      // tile identically.
+                      const K_left = Math.max(1, Math.ceil(0.25 * effectiveVisibleMeasures / displayNumMeasures));
+                      const K_right = Math.max(1, Math.ceil(0.75 * effectiveVisibleMeasures / displayNumMeasures));
+                      const offsets = [];
+                      for (let i = -K_left; i <= K_right; i++) {
+                        if (i === 0) continue;
+                        offsets.push(i);
+                      }
+                      return offsets.map(i => (
+                        <PreviewOverlay key={`scroll-red-${i}`} {...commonProps} panelOffset={i * mw} />
+                      ));
+                    })()}
                   </g>
                   </g>{/* end scroll-content-clip wrapper */}
 

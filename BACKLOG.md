@@ -511,6 +511,14 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 
   Open punt iter 2: bij `repeatBlockSize < idealVisibleMeasures` (bv. 1-maats blokken met visible=4) heeft de huidige 2-panel overlay (main+overlay) niet genoeg breedte; rechtsranderkant kan leeg lijken. Iter 2 = ceil(idealVisible / repeatBlockSize) + 1 panels side-by-side + recycle rechts.
 
+[Claude 2026-05-27 16:30]: ✅ Iter 2a + 2b geïmplementeerd op claude/sheet-music-perf-refactor. Twee commits:
+  - **2a** (`f6fcf74`): nieuwe scroll-mode-clamp `effectiveVisibleMeasures = max(2, numMeasures)` (drop capacity-cap). rAF-formule herschreven naar `tx = 0.25*pageWidth − pageFraction*melodyWidth` waar `melodyWidth = displayNumMeasures × measureWidth` (toegevoegd aan layoutRef). Fixt visual lag wanneer numMeasures > capacity (mobile / hoog num-measures). Overlay-transform van endX-startX naar melodyWidth.
+  - **2b**: yellow- en red-overlay K-keer side-by-side gerenderd in scroll-modus, `K_left = ceil(0.25*visible/numMeasures)` history + `K_right = ceil(0.75*visible/numMeasures)` rechts-previews. Voor numMeasures=1, visible=2 = 4 panels totaal ("half-heel-half"); voor typisch numMeasures=visible=4 = 3 panels (= history fix voor de post-swap empty-left-25%). `PreviewOverlay` heeft een nieuwe `panelOffset` prop.
+
+  Visual quirk geaccepteerd voor iter 2: tijdens last rep (red-overlay actief) tonen óók de K_left history-panelen de NIEUWE pregen-melodie i.p.v. de oude. Brief content-swap zichtbaar bij series-overgang in het linker history-gebied. Fix zou per-panel state vereisen — buiten scope iter 2.
+
+  Bestanden: `src/App.jsx` (effectiveVisibleMeasures), `src/hooks/useSheetMusicHighlight.js` (rAF), `src/components/sheet-music/SheetMusic.jsx` (layoutRef.melodyWidth, multi-panel yellow + red), `src/components/sheet-music/PreviewOverlay.jsx` (panelOffset prop), `docs/architecture.md` §10.3.
+
 [Claude 2026-05-27 11:42]: Interview-antwoorden van Han voor herontwerp scroll-modus (volgende PR, separaat van wipe-fix b9e9845):
   • **Beweging**: noten schuiven rechts→links door een venster ter grootte van `idealVisibleMeasures`. Meerdere blokken/repeats lijnen horizontaal achter elkaar uit als één doorlopend lint (één continue tijdslijn — geen page-jumps, geen piano-roll cursor; visueel hetzelfde gevoel als constante-snelheid playhead maar met >2 maten zichtbaar).
   • **Repeats**: smooth continuous loop. Bij een nieuwe iteratie van dezelfde melodie verschijnt de volgende kopie rechts ín het scrollvenster zonder visuele harde grens of pauze.

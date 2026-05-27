@@ -57,6 +57,11 @@ const PreviewOverlay = ({
   measureLengthSlots,
   displayNumMeasures,
   melodyWidth,
+  // panelOffset: x-translation in scroll mode, in pixels. Defaults to melodyWidth
+  // (= the +1 panel slot adjacent to the main melody). For scroll-mode multi-panel
+  // rendering, SheetMusic passes negative (history) and positive (further-right
+  // preview) multiples of melodyWidth.
+  panelOffset,
   numAccidentals,
   pixelsPerTick,
   // music data
@@ -131,7 +136,7 @@ const PreviewOverlay = ({
     <g
       data-wipe-role={animationMode === 'wipe' ? 'new' : undefined}
       data-pagination-new={animationMode === 'pagination' ? '' : undefined}
-      transform={animationMode === 'scroll' ? `translate(${melodyWidth ?? (endX - startX)}, 0)` : undefined}
+      transform={animationMode === 'scroll' ? `translate(${panelOffset ?? melodyWidth ?? (endX - startX)}, 0)` : undefined}
       className={
         // Same pattern as yellow overlay: CSS class owns resting opacity,
         // never inline style — prevents React re-renders from overriding
