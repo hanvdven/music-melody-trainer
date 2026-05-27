@@ -545,6 +545,15 @@ Acties voor backlog (vraagt interview voor scope/prioriteit):
 
 > ⚠ Performance-werk vraagt interview met Han om de prioritering, scope en acceptatiecriteria af te stemmen. Han noemde: na animatie eerste prio.
 
+[Claude 2026-05-27]: PR #27 levert Phase 1+2+3 van de aanbevolen acties:
+- ✅ `React.memo` op SheetMusic-children — `MelodyNotesLayer` (11× inline call), `ChordLabelsLayer` (3×), `BarlinesLayer` (4×) wrappen nu de zware `renderMelodyNotes` / `renderChordLabels` / `_iterMeasureLines` aanroepen.
+- ✅ `<PreviewOverlay>` lazy-mount — RED/crossfade overlay is alleen in de DOM tijdens een transitie (was altijd aanwezig met 220 LOC IIFE).
+- ✅ Context split — `PlaybackStateContext` (monolithisch) → `PlaybackTransportContext` + `RoundStateContext` + `TransitionOverlayContext`. Voorkomt dat de layer-memo's invalidaten op elke isOddRound-tick.
+- ✅ `useMemo` op `processMelodyAndCalculateSlots` / `calculateAllOffsets` / `getChordsWithSlashes` — al in PR #26 gedaan.
+- ✅ rAF-loop hot path — al schoon (0 ticks > 16ms na PR #26).
+- ➖ `noteWidth` als percentage / SVG→Canvas — niet de bottleneck (verworpen in plan, gedocumenteerd in `docs/architecture.md` §29.6).
+Verificatie open: Han moet in browser nieuwe DevTools-trace draaien om de 250→<50ms / INP→<200ms doelen te bevestigen voordat ✅ kan.
+
 ### Bug: click anywhere should close settings overlay (Han 2026-05-25)
 Eenderwaar klikken (behalve op responsieve knoppen / settings-elementen zelf) moet de settings overlay sluiten. Op dit moment moet je specifiek buiten een knop maar binnen de "klik-vrije" zone klikken — soms niet intuïtief.
 
