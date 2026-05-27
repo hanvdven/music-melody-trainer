@@ -46,9 +46,9 @@ export default {
         // Line 4: "Happy Birthday to you"  (m9 pickup → m11)
         notes: [
           'C4','C4', 'D4','C4','F4', 'E4',
+          'C4','C4', 'D4','C4','G4', 'F4',
           'C4','C4', 'C5','A4','F4', 'E4',
           'Bb4','Bb4', 'A4','F4','G4', 'F4',
-          'F5','F5', 'E5','C5','D5', 'C5',
         ],
         durations: [
            6,  6,  12, 12, 12, 36,
