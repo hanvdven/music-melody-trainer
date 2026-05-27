@@ -529,10 +529,18 @@ scrollTransitionRef.current = { startTime, startPageFraction, secondsPerPage }
 rAF formula (in `useSheetMusicHighlight.js`):
 ```
 pageFraction(now) = startPageFraction + (now − startTime) / secondsPerPage
-tx(now)           = (0.25 − pageFraction) × pageWidth     [0.25 = playhead]
+tx(now)           = 0.25 × pageWidth − pageFraction × melodyWidth
 ```
 
-`secondsPerPage = currentNumMeasures × measureDuration` for the current BPM.
+`pageWidth` = visible viewport width. `melodyWidth` = `displayNumMeasures × measureWidth`
+= one melody iteration's pixel width. `0.25 × pageWidth` is the playhead pixel offset
+(25% from screen-left). `pageFraction × melodyWidth` is the DOM-pixel position of the
+audio's current location within the active iteration. `secondsPerPage = currentNumMeasures
+× measureDuration` for the current BPM.
+
+`pageWidth` and `melodyWidth` differ when `displayNumMeasures < visibleMeasures`. The May
+2026 iter 2a rewrite uses both so the scroll speed matches the audio progression rate
+(`measureWidth / measureDuration`) independent of how the melody/viewport sizes relate.
 
 #### Continuity invariants
 
@@ -556,19 +564,55 @@ The Sequencer keeps the formula continuous across boundaries via three operation
    `startPageFraction -= 1`. The just-swapped content's first note (DOM x moves from
    `+pageWidth` to `0` across the swap) lands at the same visual position — invisible swap.
 
-#### Overlay ("right-side preview") coverage
+#### Overlay tiling for full-viewport coverage (iter 2b, May 2026)
 
-The scroll ribbon must always have content to the right of the playhead. The overlay slot
-(`<g data-wipe-role="new" transform="translate(endX−startX, 0)">`) is populated by
-`setNextLayer`:
+The scroll ribbon must cover the full visible viewport at every moment. Iter 2b renders
+the overlay layer as K side-by-side panels, where K depends on the ratio between visible
+viewport width and melody width:
 
-- At `m = 0` of every iteration (in scroll mode): `setNextLayer('yellow')` — same-melody
-  copy. Renders identical content one page-width to the right of main.
+```
+K_left  = max(1, ceil(0.25 × visibleMeasures / displayNumMeasures))
+K_right = max(1, ceil(0.75 × visibleMeasures / displayNumMeasures))
+```
+
+(Coefficient 0.25 corresponds to the visible area left of the playhead; 0.75 to the area
+right of the playhead.)
+
+Each panel renders the same content (yellow = current-melody copy, red = pregen new-melody)
+at `transform="translate(i × melodyWidth, 0)"` for `i ∈ [-K_left, -1] ∪ [1, K_right]`.
+`i = 0` is the main melody — rendered by the regular sheet-music path, not the overlay.
+
+Examples:
+- `numMeasures = 4`, `visibleMeasures = 4` (typical case): `K_left = 1`, `K_right = 1` →
+  3 total panels (1 history + 1 main + 1 future). The post-swap empty-left-25% transient
+  is gone.
+- `numMeasures = 1`, `visibleMeasures = 2` (1-measure sequences): `K_left = 1`,
+  `K_right = 2` → 4 total panels (1 history + 1 main + 2 future). User sees
+  ~"half-whole-half" pattern Han specified.
+
+`setNextLayer` still toggles between `'yellow'` (all K panels = current-melody copies) and
+`'red'` (all K panels = pregen next-melody) per the existing per-measure logic:
+
+- At `m = 0` of every iteration (in scroll mode): `setNextLayer('yellow')`.
 - At penultimate measure (`m = N − 2`) of the last rep: pregen runs, then
-  `setNextLayer('red')` + `setPreviewMelody(pregenResult)` — replaces the yellow overlay
-  with the upcoming new melody so it slides into view during the last rep.
-- Single-measure scroll (`N = 1`): penultimate never fires; instead the outer loop's
+  `setNextLayer('red')` + `setPreviewMelody(pregenResult)`.
+- Single-measure scroll (`N = 1`): penultimate never fires; the outer loop's
   series-handler schedules `setNextLayer('red')` 0.25m before the series boundary.
+
+**Visual quirk (accepted as iter 2 limitation):** During the last rep of a series, all
+`K_left` history panels also show the pregen NEW melody (since the overlay state is
+shared). This means visually the left history briefly shows future content. After the
+swap, history becomes correct (= the just-applied melody). Brief inconsistency at series
+transitions only.
+
+#### `visibleMeasures` clamp differs per mode (iter 2a)
+
+- Pagination/wipe: `idealVisibleMeasures = max(2, min(numMeasures, screenCapacity))` —
+  capacity-capped, screen-size-aware (unchanged).
+- Scroll: `effectiveVisibleMeasures = max(2, numMeasures)` — drops the capacity cap.
+  For `numMeasures > 1` this guarantees `melodyWidth = pageWidth` so the rAF formula
+  reduces to the simpler `(0.25 − pageFraction) × pageWidth`. For `numMeasures = 1`
+  it floors at 2 so the user sees ~3 measure-copies across the viewport.
 
 #### Swap mechanics
 
