@@ -50,6 +50,9 @@ class Sequencer {
     }
     this.isPlaying = true;
     this.abortController = new AbortController();
+    // Channel-volume restoration after stop() hard-mute lives in playMelodies
+    // so every entry path (sequencer, scale preview, one-shot) restores audibly
+    // without each caller having to remember.
     // Capture the controller for this session. When stop() is called and a new start()
     // immediately follows, this.abortController is replaced. Using a local const ensures
     // this session's loop always checks its OWN controller, not the new session's.
@@ -171,8 +174,14 @@ class Sequencer {
 
         // iteration 0, 2, 4… → "odd rounds" (Round 1); iteration 1, 3, 5… → "even rounds" (Round 2)
         const isOddRound = iteration % 2 === 0;
-        if (this.setters.setIsOddRound) {
-          // Schedule isOddRound update to happen at nextStartTime
+        const wipeRoundBatched = (this.refs.animationModeRef?.current === 'wipe');
+        if (this.setters.setIsOddRound && !wipeRoundBatched) {
+          // Schedule isOddRound update to happen at nextStartTime.
+          // In wipe mode this is folded into the m===0 batched callback below
+          // (alongside setStartMeasureIndex + setNextLayer(null)) so all three
+          // commit in one React render — preventing a 1-frame flash where the
+          // wipe mask clears while the old round's visibility config is still
+          // active. Same pattern as the red-wipe series-boundary batch ~L739.
           const scheduleTime = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
           this.scheduleTimeout(() => {
             if (this.isPlaying) this.setters.setIsOddRound(isOddRound);
@@ -283,11 +292,20 @@ class Sequencer {
               // clears style.opacity, snapping old from 0.7 → 1 — a visible brightness pop.
               // 25ms ≈ 1.5 rAF frames at 60 fps, enough for the animation to reach completion.
               const iterStateMs = Math.max(25, (wipeStateClearTime - this.context.currentTime) * 1000 + 25);
+              const oddRoundForBatch = isOddRound;
               this.scheduleTimeout(() => {
-                // Both in one callback so React 18 automatic batching merges them into a single render.
-                // wipeTransitionRef cleared by useLayoutEffect in App.jsx after React commits.
+                // All three in one callback so React 18 automatic batching merges them
+                // into a single render. Without this batch, setIsOddRound's separate
+                // setTimeout (~25ms earlier) committed a render where the OLD wipe-role
+                // group still had the previous round's visibility — and when the
+                // mask-clear render finally landed 25ms later, the user saw 1 frame of
+                // that stale content peeking through. wipeTransitionRef is cleared by
+                // the useLayoutEffect in useSheetMusicTransitions after the commit.
                 if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(startIdx);
                 if (this.setters.setNextLayer) this.setters.setNextLayer(null);
+                if (wipeRoundBatched && this.setters.setIsOddRound) {
+                  this.setters.setIsOddRound(oddRoundForBatch);
+                }
               }, iterStateMs);
             }
           }
@@ -1753,6 +1771,17 @@ class Sequencer {
       this.timeouts = [];
     }
     if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
+
+    // smplr's voice.stop() applies a release envelope on each playing note —
+    // gain linearly ramps from 1 → 0 over the soundfont's `ampRelease` (often
+    // 0.3–1.0s for sustained samples). That tail is what users perceive as
+    // "stop doesn't stop immediately". Hard-mute each instrument's output
+    // channel BEFORE calling .stop() so the release plays silently. Sequencer
+    // .start() restores the channel volume on next play.
+    const SILENCE = ['treble', 'bass', 'chords', 'percussion', 'metronome'];
+    SILENCE.forEach(name => {
+      try { this.instruments[name]?.output?.setVolume(0); } catch { /* output API absent */ }
+    });
 
     try { this.instruments.treble?.stop(); } catch { /* instrument may not be started */ }
     try { this.instruments.bass?.stop(); } catch { /* instrument may not be started */ }
