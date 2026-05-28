@@ -423,7 +423,13 @@ const useSheetMusicHighlight = ({
                 if (pageWidth && melodyWidth) {
                     const now = context.currentTime;
                     const elapsed = Math.max(0, now - s.startTime);
-                    const pageFraction = s.startPageFraction + elapsed / s.secondsPerPage;
+                    // Intro delay (Han 2026-05-28): subtract introDelaySeconds from elapsed
+                    // so the first introDelaySeconds of playback keeps tx at its starting
+                    // position (notes stand still). After the delay is consumed, the
+                    // adjusted elapsed grows linearly and scroll proceeds normally. The
+                    // delay is a one-shot — subsequent series-flips don't pause again.
+                    const adjustedElapsed = Math.max(0, elapsed - (s.introDelaySeconds ?? 0));
+                    const pageFraction = s.startPageFraction + adjustedElapsed / s.secondsPerPage;
                     const tx = (0.25 * pageWidth - pageFraction * melodyWidth).toFixed(2);
                     scrollGroup.setAttribute('transform', `translate(${tx}, 0)`);
                 }

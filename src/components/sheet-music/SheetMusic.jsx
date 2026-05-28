@@ -2090,6 +2090,16 @@ const SheetMusic = ({
                         filter: showSettings ? 'blur(1.5px)' : 'none',
                       }}
                     >
+                      {/* Leading barline at startX for scroll-mode main panel
+                          (Han 2026-05-28). Scroll-mode overlay panels already draw
+                          their own leading barline so every visual block is delimited;
+                          main was missing one (the clef + signature act as visual start
+                          in static notation, but scroll mode treats main as a block
+                          like any other). Suppressed for wipe/pagination — those modes
+                          keep the no-leading-barline convention since main never moves. */}
+                      {animationMode === 'scroll' && (
+                        <path d={`M ${startX} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.4" />
+                      )}
                       <BarlinesLayer
                         mode="regular"
                         offsets={allOffsets}
@@ -2466,7 +2476,11 @@ const SheetMusic = ({
                           data-pagination-new={i === 1 ? "" : undefined}
                           transform={`translate(${i * mw}, 0)`}
                           style={{
-                            opacity: 0.55,
+                            // Scroll-mode yellow panels render at full opacity (Han
+                            // 2026-05-28). Previously dimmed to 0.55 to distinguish
+                            // "overlay" from main; Han finds the dim distracting since
+                            // these panels show real upcoming/just-played content.
+                            opacity: 1,
                             filter: showSettings ? 'blur(1.5px)' : 'none',
                             pointerEvents: 'none',
                           }}
@@ -2542,19 +2556,11 @@ const SheetMusic = ({
                   </g>
                   </g>{/* end scroll-content-clip wrapper */}
 
-                  {/* Scroll mode playhead — fixed vertical line at 25% from left, outside the scroll group */}
-                  {animationMode === 'scroll' && isPlaying && startX != null && endX != null && (
-                    <line
-                      x1={startX + 0.25 * (endX - startX)}
-                      y1={trebleStart - 20}
-                      x2={startX + 0.25 * (endX - startX)}
-                      y2={bottomY + 10}
-                      stroke="var(--accent-yellow)"
-                      strokeWidth={2}
-                      opacity={0.75}
-                      pointerEvents="none"
-                    />
-                  )}
+                  {/* Scroll mode playhead REMOVED (Han 2026-05-28). The fixed yellow line
+                      at 25% was visually inexact (didn't align cleanly with the active note
+                      head) and felt redundant — the active-note highlight already shows where
+                      playback is. The 25% position is still the conceptual playhead anchor
+                      for the scroll formula; only the visual marker is gone. */}
 
                   {/* Scroll mode right fade overlay: covers melodies AND staff lines near endX.
                       Placed here (inside layer-a, after staff-groups) so it paints on top of both.
