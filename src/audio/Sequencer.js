@@ -500,6 +500,13 @@ class Sequencer {
               this.scheduleTimeout(() => {
                 if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
               }, setLayerDelay);
+              // Publish iter index so SheetMusic knows how many reps remain in the series.
+              // Used by scroll-mode per-panel content selection (current-series panels render
+              // currentMelody, next-series panels render previewMelody).
+              if (this.setters.setIterInCurrentSeries) {
+                const iterToSet = iteration;
+                this.scheduleTimeout(() => this.setters.setIterInCurrentSeries(iterToSet), setLayerDelay);
+              }
             }
             // Repeat-boundary decrement: schedule startPageFraction-=1 at the END of this
             // iteration for non-last reps. The series-boundary applyResult callback handles
@@ -534,10 +541,21 @@ class Sequencer {
             }
           }
 
-          // Scroll: 2 measures before series boundary — pregen and fade in the next melody.
-          // The scroll is already running (started at m=0 of last rep above).
-          // The new content fades in on the right side via scrollPreviewFadeIn CSS animation.
-          if (!this.isOnceMode && mode === 'scroll' && isLastRepNow && isPenultimateMeasure && currentNumMeasures >= 2) {
+          // Scroll: pregen + setPreviewMelody at the START of the last rep (m=0 of last rep),
+          // so panels representing the next series have correct content from the moment the
+          // last rep begins playing. Was previously at penultimate measure (= 2 m before
+          // boundary), which meant rightmost scroll panels showed CURRENT melody for most
+          // of the last rep and only switched to NEW content with 2 m remaining — visible
+          // "jump" in panel content. Now the switch happens at the iter boundary (still
+          // visually invisible because per-panel selection determines which panels show
+          // current vs next series).
+          //
+          // For currentNumMeasures === 1 (one-measure melody): m=0 IS the only measure of
+          // the last rep, so this fires at the same audio time as the series boundary
+          // approaches. The N=1 special-case in the outer loop (around line ~720) still
+          // schedules setPreviewMelody at boundary − 0.25 m so the previewMelody is
+          // populated even earlier; this inner-loop trigger covers the multi-measure case.
+          if (!this.isOnceMode && mode === 'scroll' && isLastRepNow && m === 0 && currentNumMeasures >= 2) {
             const fadeInDelay = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
             this.scheduleTimeout(() => {
               // Pregen first so content is available when React renders the overlay.
@@ -772,6 +790,10 @@ class Sequencer {
                 // overlay still uses the OLD round's visibility config — visible as
                 // a brief flicker when notes appear/disappear across round changes.
                 if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
+                // Reset iter-in-series counter so scroll-mode per-panel selection sees
+                // iter 0 of the new series — all right-side panels go back to current
+                // (= the just-applied melody) until the new series's last-rep pregen.
+                if (this.setters.setIterInCurrentSeries) this.setters.setIterInCurrentSeries(0);
               }, scheduleTime);
             } else {
               // Once mode: apply result immediately (no preview needed).
@@ -1691,10 +1713,20 @@ class Sequencer {
         }
 
         if (this.refs.transitionRef) {
+          // Defensive: if scheduler-drift delayed this callback past fadeStartTime
+          // (most likely for the 2nd+ series-flip with the 'lang' variant whose
+          // armMs is the largest of the variants), the rAF would otherwise compute
+          // p=(now-startTime)/dur ≥ 1 on the first frame and skip straight to the
+          // end state (= hard cut). Clamp startTime forward so the user still sees
+          // a fade. End time keeps the original audio-aligned target so the swap
+          // moment doesn't shift.
+          const audioNow = this.context.currentTime;
+          const startTime = Math.max(fadeStartTime, audioNow);
+          const endTime = Math.max(fadeEndTime, startTime + 0.05);
           this.refs.transitionRef.current = {
             kind: 'crossfade',
-            startTime: fadeStartTime,
-            endTime: fadeEndTime,
+            startTime,
+            endTime,
           };
         }
         // Use 'crossfade' as the nextLayer signal; SheetMusic's render code treats

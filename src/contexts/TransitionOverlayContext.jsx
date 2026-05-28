@@ -16,8 +16,11 @@ import React, { createContext, useContext, useMemo } from 'react';
  */
 const TransitionOverlayContext = createContext(null);
 
-export const TransitionOverlayProvider = ({ nextLayer, previewMelody, children }) => {
-  const value = useMemo(() => ({ nextLayer, previewMelody }), [nextLayer, previewMelody]);
+export const TransitionOverlayProvider = ({ nextLayer, previewMelody, iterInCurrentSeries, children }) => {
+  const value = useMemo(
+    () => ({ nextLayer, previewMelody, iterInCurrentSeries }),
+    [nextLayer, previewMelody, iterInCurrentSeries]
+  );
   return (
     <TransitionOverlayContext.Provider value={value}>
       {children}
