@@ -2074,8 +2074,22 @@ const SheetMusic = ({
                         />}
                       </g>
                     </g>
-                    {/* Regular inner barlines — masked with old content during wipe */}
-                    <g data-wipe-role="old" style={{ opacity: showSettings ? 0.6 : 1, filter: showSettings ? 'blur(1.5px)' : 'none' }}>
+                    {/* Regular inner barlines + measure-number labels — fade with the rest
+                        of the old layer during pagination crossfade. Same pattern as the
+                        chord-labels-group: data-pagination-old marks it for rAF, CSS class
+                        owns the resting opacity, inline opacity is undefined in pagination
+                        mode so the rAF can freely write style.opacity. */}
+                    <g
+                      data-wipe-role="old"
+                      data-pagination-old=""
+                      className={animationMode === 'pagination' && !showSettings
+                        ? 'pagination-old-visible'
+                        : undefined}
+                      style={{
+                        opacity: showSettings ? 0.6 : (animationMode !== 'pagination' ? 1 : undefined),
+                        filter: showSettings ? 'blur(1.5px)' : 'none',
+                      }}
+                    >
                       <BarlinesLayer
                         mode="regular"
                         offsets={allOffsets}
