@@ -495,18 +495,25 @@ class Sequencer {
             // Populate the right-side overlay at the start of each iteration so the ribbon
             // is never empty to the right of the playhead. 'yellow' = same-melody copy.
             // The penultimate-measure pregen below upgrades this to 'red' (new-melody preview).
+            //
+            // Publish iter index so SheetMusic knows how many reps remain in the series.
+            // Used by scroll-mode per-panel content selection (current-series panels render
+            // currentMelody, next-series panels render previewMelody).
+            //
+            // Tier 1.1 (2026-05-28, Bug 3 frame-flash fix): both setters MUST go in the
+            // same scheduleTimeout callback. Two scheduleTimeout calls at identical
+            // setLayerDelay are queued as separate macrotasks; React 18 auto-batching
+            // only batches setters within the SAME callback. Separate callbacks can
+            // commit in two paints, producing one frame where nextLayer='yellow' but
+            // iterInCurrentSeries still holds the previous value — the K-panel scroll
+            // overlay then renders the wrong offsets that frame (visible as a flash).
             if (m === 0) {
               const setLayerDelay = Math.max(0, (T - this.context.currentTime) * 1000);
+              const iterToSet = iteration;
               this.scheduleTimeout(() => {
                 if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
+                if (this.setters.setIterInCurrentSeries) this.setters.setIterInCurrentSeries(iterToSet);
               }, setLayerDelay);
-              // Publish iter index so SheetMusic knows how many reps remain in the series.
-              // Used by scroll-mode per-panel content selection (current-series panels render
-              // currentMelody, next-series panels render previewMelody).
-              if (this.setters.setIterInCurrentSeries) {
-                const iterToSet = iteration;
-                this.scheduleTimeout(() => this.setters.setIterInCurrentSeries(iterToSet), setLayerDelay);
-              }
             }
             // Repeat-boundary decrement: schedule startPageFraction-=1 at the END of this
             // iteration for non-last reps. The series-boundary applyResult callback handles
