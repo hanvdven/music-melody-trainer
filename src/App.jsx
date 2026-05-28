@@ -158,6 +158,7 @@ const App = () => {
         lyricsMode, setLyricsMode,
         nextLayer, setNextLayer,
         previewMelody, setPreviewMelody,
+        iterInCurrentSeries, setIterInCurrentSeries,
         wipeTransitionRef, scrollTransitionRef, paginationFadeRef,
         transitionRef,
         svgRef,
@@ -734,6 +735,7 @@ const App = () => {
         setDisplayChordProgression,
         setNextLayer,
         setPreviewMelody,
+        setIterInCurrentSeries,
         clearActiveHighlight: () => {
             const svg = svgRef.current;
             if (svg) {
@@ -759,7 +761,7 @@ const App = () => {
         generateChords, setTrebleMelody, setBassMelody, setPercussionMelody,
         setShowNotes, setShowChordLabels, setReferenceMelody, setReferenceBassMelody,
         setReferenceScale, setStartMeasureIndex, setBlockMeasureStart, setBlockPlayStart, setIsOddRound, setVolume,
-        setCurrentMeasureIndex, setDisplayChordProgression, setNextLayer, setPreviewMelody]);
+        setCurrentMeasureIndex, setDisplayChordProgression, setNextLayer, setPreviewMelody, setIterInCurrentSeries]);
 
     useEffect(() => {
         if (!context || !instruments.treble) return;
@@ -968,6 +970,7 @@ const App = () => {
         <TransitionOverlayProvider
             nextLayer={nextLayer}
             previewMelody={previewMelody}
+            iterInCurrentSeries={iterInCurrentSeries}
         >
         <AnimationRefsProvider
             wipeTransitionRef={wipeTransitionRef}

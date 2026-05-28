@@ -189,7 +189,7 @@ const SheetMusic = ({
           metronome: metronomeMelody, chordProgression } = useMelodies();
   const { isPlaying } = usePlaybackTransport();
   const { isOddRound, inputTestState, inputTestSubMode, setInputTestSubMode } = useRoundState();
-  const { nextLayer = null, previewMelody = null } = useTransitionOverlay();
+  const { nextLayer = null, previewMelody = null, iterInCurrentSeries = 0 } = useTransitionOverlay();
   const { wipeTransitionRef, scrollTransitionRef, paginationFadeRef,
           transitionRef,
           clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
@@ -2175,13 +2175,22 @@ const SheetMusic = ({
                       <path d={`M ${endX} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.4" />
                     )}
 
-                    {/* Wipe mode: yellow = overlay next repeat's notes in the next-round visibility,
-                        red = "NEXT BLOCK" text (new melody not yet known).
+                    {/* Wipe/pagination mode: yellow = overlay next repeat's notes in the next-round
+                        visibility (= current round's opposite). Single overlay slot.
                         Scroll mode: rendered K times side-by-side (left history + right previews)
-                        so the visible viewport is always full as the scroll progresses. */}
-                    {showWipePreview === 'yellow' && (() => {
-                      const nextRoundKey = isOddRound ? 'evenRounds' : 'oddRounds';
-                      const nextCfg = playbackConfig?.[nextRoundKey] ?? {};
+                        so the visible viewport is always full as the scroll progresses. Scroll
+                        renders the CURRENT round's config (all panels share the playing round) and
+                        filters offsets to "in current series only" — panels past the series boundary
+                        render below via the red/preview path with `previewMelody`. */}
+                    {((animationMode !== 'scroll' && showWipePreview === 'yellow') ||
+                      (animationMode === 'scroll' && isPlaying)) && (() => {
+                      // Round config:
+                      //   wipe/pagination yellow = OPPOSITE round (this overlay previews the next repeat).
+                      //   scroll = CURRENT round (all panels show the round that's playing now).
+                      const roundKey = animationMode === 'scroll'
+                        ? (isOddRound ? 'oddRounds' : 'evenRounds')
+                        : (isOddRound ? 'evenRounds' : 'oddRounds');
+                      const nextCfg = playbackConfig?.[roundKey] ?? {};
                       const nextNotesVisible = !!nextCfg.notes;
                       const nextTreble = nextCfg.trebleEye !== false;
                       const nextBass = nextCfg.bassEye !== false;
@@ -2388,18 +2397,30 @@ const SheetMusic = ({
                         );
                       }
 
-                      // Scroll mode: multi-panel rendering. K_left copies at negative offsets
-                      // fill the viewport's left history as scroll progresses; K_right copies
-                      // at positive offsets cover the right-side preview. The +1 panel keeps
-                      // data-wipe-role/data-pagination-new for back-compat with code that
-                      // queries [data-pagination-new] (none of it runs in scroll mode today,
-                      // but keeping the attr stable matches the non-scroll DOM structure).
+                      // Scroll mode: yellow (current-series) panels at offsets [-K_left..K_right]
+                      // EXCLUDING positions past the series boundary. Those next-series panels
+                      // are rendered by the red/PreviewOverlay path below (gated on previewMelody).
+                      //
+                      // itersRemaining = how many MORE reps of the same melody after the current
+                      // iter (= K_remaining iter offsets that still belong to the current series).
+                      //   numRepeats = -1 (infinite repeat mode) → no series boundary → all yellow.
+                      //   numRepeats = 1 (typical, repsPerMelody=1)  → itersRemaining = 0 → panel +1 onwards is next series.
+                      //   numRepeats = 3, iterInCurrentSeries=0      → itersRemaining = 2 → panels +1, +2 yellow; +3 red.
+                      //
+                      // Left history panels (i < 0) are always yellow (= current melody copy). This
+                      // is an approximation: the very first iters of a new series briefly show new
+                      // melody as history, which is technically wrong, but tracking previous-series
+                      // melody just for left-history would balloon scope. Accepted limitation.
                       const mw = displayNumMeasures * measureWidth;
                       const K_left = Math.max(1, Math.ceil(0.25 * effectiveVisibleMeasures / displayNumMeasures));
                       const K_right = Math.max(1, Math.ceil(0.75 * effectiveVisibleMeasures / displayNumMeasures));
+                      const itersRemaining = numRepeats === -1
+                        ? Number.POSITIVE_INFINITY
+                        : Math.max(0, (numRepeats ?? 1) - iterInCurrentSeries - 1);
                       const offsets = [];
                       for (let i = -K_left; i <= K_right; i++) {
-                        if (i === 0) continue; // i=0 is the main melody — already rendered above
+                        if (i === 0) continue; // main is rendered above
+                        if (i > 0 && i > itersRemaining) continue; // beyond series boundary → red path
                         offsets.push(i);
                       }
                       return offsets.map(i => (
@@ -2418,7 +2439,12 @@ const SheetMusic = ({
                         </g>
                       ));
                     })()}
-                    {(showWipePreview === 'red' || showWipePreview === 'crossfade') && (() => {
+                    {/* Red/crossfade overlay (NEW melody preview).
+                        - wipe/pagination: gated on showWipePreview; one overlay at translate(melodyWidth).
+                        - scroll: gated on previewMelody being set; K right-side panels at offsets
+                          (itersRemaining+1)..K_right, each showing the pregen new-melody. */}
+                    {((animationMode !== 'scroll' && (showWipePreview === 'red' || showWipePreview === 'crossfade')) ||
+                      (animationMode === 'scroll' && isPlaying && previewMelody)) && (() => {
                       const mw = displayNumMeasures * measureWidth;
                       // Common props for every rendered PreviewOverlay instance.
                       const commonProps = {
@@ -2441,13 +2467,15 @@ const SheetMusic = ({
                       }
                       // Scroll: render K_left history + K_right right-side preview copies.
                       // K=0 (the main panel) is the existing melody — not rendered here.
-                      // Same formulas as the yellow multi-panel above so the two overlay layers
-                      // tile identically.
-                      const K_left = Math.max(1, Math.ceil(0.25 * effectiveVisibleMeasures / displayNumMeasures));
+                      // Scroll: render red panels ONLY for positions past the series boundary
+                      // (= panels representing iters in the next series). Yellow renderer above
+                      // covers the current-series positions; together the two tile the viewport.
                       const K_right = Math.max(1, Math.ceil(0.75 * effectiveVisibleMeasures / displayNumMeasures));
+                      const itersRemaining = numRepeats === -1
+                        ? Number.POSITIVE_INFINITY
+                        : Math.max(0, (numRepeats ?? 1) - iterInCurrentSeries - 1);
                       const offsets = [];
-                      for (let i = -K_left; i <= K_right; i++) {
-                        if (i === 0) continue;
+                      for (let i = Math.max(1, itersRemaining + 1); i <= K_right; i++) {
                         offsets.push(i);
                       }
                       return offsets.map(i => (
