@@ -560,6 +560,13 @@ Volledig plan opgeslagen in `/root/.claude/plans/animaties-in-de-bladmuziek-pure
 **Separaat openstaand bug-onderzoek** (niet onderdeel van bovenstaande PR):
 - Critical: sheet-music regressie na song-load. Symptoom moet eerst gereproduceerd worden (Han: "tweede sheet-music regression komt vaker voor na het laden van een song"). Diagnose-fase eerst, fix daarna in eigen branch + PR.
 
+[Claude 2026-05-28 14:50]: Tier 1.1 + 1.5 geïmplementeerd op deze branch (PR #28). Status:
+- ✅ Tier 1.1 — `setNextLayer` + `setIterInCurrentSeries` gebundeld in één scheduleTimeout callback (Sequencer.js ~498-518). Han bevestigt: scroll bijna goed, wipe OK, pagination-lang nog steeds hard cut (verwacht).
+- ✅ Per-rep round visibility voor scroll-mode panels (Han 2026-05-28 interview): `renderContent(panelCfg)` parameteriseerd; yellow panels berekenen `panelOddRound = (i % 2 === 0) ? isOddRound : !isOddRound`; red panels berekenen `nextSeriesRep = i - itersRemaining - 1` en round van daar. PreviewOverlay krijgt `roundKeyOverride` prop. Files: `SheetMusic.jsx`, `PreviewOverlay.jsx`.
+- ⏳ Tier 1.2/1.3/1.4 (Bug 2 lang 2× hard cut) — nog niet aangepakt; speculatieve hypothese, eerst empirische verificatie van 1.1 nodig.
+
+**Bekende crash — geparkeerd** (Han 2026-05-28): scroll-mode bij `numMeasures=1, repeats=1` loopt de app vast zodra de eerste maat 25% bereikt. Vermoedelijke root cause: outer-loop heeft geen sleep wanneer `skipSleep = isLastRepNow && isLastMeasureNow` voor beide true is (= elke maat), dus de while-loop itereert zo snel mogelijk en pompt setTimeouts/setStates richting React totdat de main thread vast loopt. Han: parkeer deze edge case. Mogelijke fix later: minimale sleep in outer-loop, of fallback naar pagination-mid voor numMeasures=1 in scroll-mode.
+
 ---
 
 ### Pagination redesign — vervolgwerk (na PR #26)
