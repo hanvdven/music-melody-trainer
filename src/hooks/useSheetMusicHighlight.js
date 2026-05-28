@@ -58,8 +58,7 @@ import { useEffect, useLayoutEffect, startTransition } from 'react';
  * @param {React.RefObject} params.clearHighlightStateRef
  * @param {function}        params.setCurrentMeasureIndex — driven by AudioContext clock (no setTimeout drift)
  * @param {React.RefObject} params.wipeTransitionRef      — {startTime, endTime} for wipe mask sweep
- * @param {React.RefObject} params.scrollTransitionRef    — {startTime, endTime} for scroll slide
- * @param {React.RefObject} params.pendingScrollTransitionRef — queued next scroll (applied when current finishes)
+ * @param {React.RefObject} params.scrollTransitionRef    — {startTime, startPageFraction, secondsPerPage} continuous scroll anchor
  * @param {React.RefObject} params.paginationFadeRef      — {startTime, totalEnd} for pagination crossfade (legacy two-phase path)
  * @param {React.RefObject} params.transitionRef          — {kind:'crossfade', startTime, endTime} driven by AnimationScheduler
  */
@@ -75,7 +74,6 @@ const useSheetMusicHighlight = ({
     setCurrentMeasureIndex,
     wipeTransitionRef,
     scrollTransitionRef,
-    pendingScrollTransitionRef,
     paginationFadeRef,
     transitionRef,
 }) => {
@@ -148,8 +146,15 @@ const useSheetMusicHighlight = ({
         let wipeOldsCached = null;
         let wipeNewCached = null;
         let lastWipeT = null;
+        // NodeLists, not single elements — multiple data-pagination-old/-new groups
+        // (melody notes + chord labels) all animate together.
         let paginationOldCached = null;
         let paginationNewCached = null;
+        const hasAny = (nl) => nl && nl.length > 0;
+        const setOpacityAll = (nl, value) => {
+            if (!nl) return;
+            for (let i = 0; i < nl.length; i++) nl[i].style.opacity = value;
+        };
 
         const getScrollGroup = () => {
             if (!scrollGroupCached) {
@@ -261,17 +266,17 @@ const useSheetMusicHighlight = ({
             const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
             // ── PHASE 2: FADE IN (block-flip) ────────────────────────────────────
-            // Old group already holds new block content (committed by React during the gap).
-            // Animate its opacity 0→1 with same easing as the fade-out.
+            // Old groups already hold new block content (committed by React during the gap).
+            // Animate their opacity 0→1 with same easing as the fade-out.
             if (fadeT.fadeInOnly) {
-                if (!paginationOldCached) paginationOldCached = svg.querySelector('[data-pagination-old]');
-                if (paginationOldCached) {
-                    paginationOldCached.style.opacity = eased.toFixed(4);
+                if (!hasAny(paginationOldCached)) paginationOldCached = svg.querySelectorAll('[data-pagination-old]');
+                if (hasAny(paginationOldCached)) {
+                    setOpacityAll(paginationOldCached, eased.toFixed(4));
                     if (elapsed >= fadeDuration) {
                         // Fade-in complete. Clear inline opacity — CSS class (.pagination-old-visible)
                         // takes over at opacity:1. Using '' (not '1') avoids leaving a stale inline
                         // value that could block future rAF writes.
-                        paginationOldCached.style.opacity = '';
+                        setOpacityAll(paginationOldCached, '');
                         if (paginationFadeRef) paginationFadeRef.current = null;
                         paginationOldCached = null;
                     }
@@ -280,7 +285,7 @@ const useSheetMusicHighlight = ({
             }
 
             // ── PHASE 1: FADE OUT / REGULAR CROSSFADE ────────────────────────────
-            if (!paginationOldCached) paginationOldCached = svg.querySelector('[data-pagination-old]');
+            if (!hasAny(paginationOldCached)) paginationOldCached = svg.querySelectorAll('[data-pagination-old]');
 
             // For regular crossfades (not fadeOutOnly), guard against animating old before
             // new is in the DOM. If new hasn't been committed yet, hold old at full opacity
@@ -288,23 +293,21 @@ const useSheetMusicHighlight = ({
             // This prevents the asymmetric "old fades out but new never appears" flash on
             // slow devices where React takes > 50ms to commit after setNextLayer fires.
             if (!fadeT.fadeOutOnly) {
-                if (!paginationNewCached) paginationNewCached = svg.querySelector('[data-pagination-new]');
-                if (!paginationNewCached) return; // new not in DOM yet — hold and retry next frame
+                if (!hasAny(paginationNewCached)) paginationNewCached = svg.querySelectorAll('[data-pagination-new]');
+                if (!hasAny(paginationNewCached)) return; // new not in DOM yet — hold and retry next frame
             }
 
-            // Old group: 1 → 0
-            if (paginationOldCached) {
-                paginationOldCached.style.opacity = (1 - eased).toFixed(4);
-            }
+            // Old groups: 1 → 0
+            setOpacityAll(paginationOldCached, (1 - eased).toFixed(4));
 
-            // New group: 0 → 1 (regular crossfades only — block-flip has no overlay)
-            if (!fadeT.fadeOutOnly && paginationNewCached) {
-                paginationNewCached.style.opacity = eased.toFixed(4);
+            // New groups: 0 → 1 (regular crossfades only — block-flip has no overlay)
+            if (!fadeT.fadeOutOnly) {
+                setOpacityAll(paginationNewCached, eased.toFixed(4));
             }
 
             if (elapsed >= fadeDuration) {
-                if (paginationOldCached) paginationOldCached.style.opacity = '0';
-                if (!fadeT.fadeOutOnly && paginationNewCached) paginationNewCached.style.opacity = '1';
+                setOpacityAll(paginationOldCached, '0');
+                if (!fadeT.fadeOutOnly) setOpacityAll(paginationNewCached, '1');
 
                 if (fadeT.fadeOutOnly) {
                     // Block-flip phase 1 done. Mark complete so rAF stops re-animating,
@@ -330,9 +333,22 @@ const useSheetMusicHighlight = ({
         // Same caching pattern as runPaginationFade: cache the DOM nodes per
         // transition, invalidate when transitionRef changes identity (so the next
         // crossfade re-queries for freshly-mounted overlays).
-        let stageNowCached = null;
-        let stageNextCached = null;
+        // Multiple elements can carry the data-pagination-old / data-pagination-new
+        // attributes (e.g. the melody-notes group AND the chord-labels group). The
+        // rAF animates ALL of them in lockstep so the entire visible page fades as a
+        // single unit — otherwise pieces with the attribute fade while pieces without
+        // stay hard-visible (the chord-letters-don't-fade bug, May 2026).
+        let stageNowCached = null;   // NodeList | null
+        let stageNextCached = null;  // NodeList | null
         let lastStageT = null;
+        const clearOpacityOn = (nodeList) => {
+            if (!nodeList) return;
+            for (let i = 0; i < nodeList.length; i++) nodeList[i].style.opacity = '';
+        };
+        const setOpacityOn = (nodeList, value) => {
+            if (!nodeList) return;
+            for (let i = 0; i < nodeList.length; i++) nodeList[i].style.opacity = value;
+        };
         const runStageTransition = (svg) => {
             const t = transitionRef?.current;
             if (!t) {
@@ -347,8 +363,8 @@ const useSheetMusicHighlight = ({
                     //          it. Without this, the overlay stays at its last rAF-set value
                     //          (≈1.0) on top of the now-restored old layer, causing a brief
                     //          double-bright flash at fadeEnd.
-                    if (stageNowCached) stageNowCached.style.opacity = '';
-                    if (stageNextCached) stageNextCached.style.opacity = '';
+                    clearOpacityOn(stageNowCached);
+                    clearOpacityOn(stageNextCached);
                     stageNowCached = null;
                     stageNextCached = null;
                     lastStageT = null;
@@ -359,11 +375,11 @@ const useSheetMusicHighlight = ({
             if (t.kind !== 'crossfade') return;
 
             if (t !== lastStageT) {
-                // Re-query nodes. Reuse the existing data-pagination-old/-new
-                // attributes so the redesign coexists with the legacy paths.
-                stageNowCached = svg.querySelector('[data-pagination-old]');
-                stageNextCached = svg.querySelector('[data-pagination-new]');
-                if (stageNextCached) lastStageT = t;
+                // Re-query nodes. querySelectorAll so multiple data-pagination-old
+                // / -new elements (chord labels + melody notes) all animate together.
+                stageNowCached = svg.querySelectorAll('[data-pagination-old]');
+                stageNextCached = svg.querySelectorAll('[data-pagination-new]');
+                if (stageNextCached && stageNextCached.length > 0) lastStageT = t;
             }
             const now = context.currentTime;
             const dur = t.endTime - t.startTime;
@@ -372,41 +388,44 @@ const useSheetMusicHighlight = ({
             const p = Math.max(0, Math.min(1, raw));
             const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
 
-            if (stageNowCached) stageNowCached.style.opacity = (1 - eased).toFixed(4);
-            if (stageNextCached) stageNextCached.style.opacity = eased.toFixed(4);
+            setOpacityOn(stageNowCached, (1 - eased).toFixed(4));
+            setOpacityOn(stageNextCached, eased.toFixed(4));
         };
 
         // ── SCROLL SLIDE ────────────────────────────────────────────────────────
-        // NOTE: scroll is NOT a block transition — it is a continuous side-scroll where
-        // notes flow at constant speed. It does not follow the transition sequence above.
+        // Continuous side-scroll. The ref shape is { startTime, startPageFraction, secondsPerPage }:
+        //   pageFraction(now) = startPageFraction + (now - startTime) / secondsPerPage
+        //   tx(now) = 0.25 × pageWidth  −  pageFraction × melodyWidth
+        // (pageWidth = visible width; melodyWidth = one melody iteration's pixel width.
+        // These differ when displayNumMeasures < visibleMeasures, e.g. numMeasures=1 with
+        // visible=2 — using pageWidth as the scale factor would move the visual at the
+        // wrong speed relative to the audio.)
+        //
+        // 0.25 × pageWidth is the playhead pixel offset. The currently-playing note always
+        // sits at the playhead because pageFraction × melodyWidth equals the pixel position
+        // (in DOM coordinates) of the audio's current location within the active iteration.
+        //
+        // Sequencer keeps the formula continuous across boundaries (see Sequencer.js):
+        //  - BPM change at measure boundary T: snap secondsPerPage and set
+        //    startTime=T, startPageFraction=pageFraction(T) under the old rate.
+        //  - Page boundary (audio time = startTime + secondsPerPage): in the same setTimeout
+        //    callback that swaps melody state (applyResult / repeat roll-over), decrement
+        //    startPageFraction by 1. The next iteration's content (rendered side-by-side
+        //    in overlay slots at DOM x = i × melodyWidth) lands at the same visual
+        //    position — invisible swap.
         const runScrollAnimation = () => {
             const scrollGroup = getScrollGroup();
             if (!scrollGroup) return;
-            const scrollT = scrollTransitionRef?.current;
-            if (scrollT) {
+            const s = scrollTransitionRef?.current;
+            if (s && s.secondsPerPage > 0) {
                 const pageWidth = layoutRef.current?.pageWidth;
-                if (pageWidth) {
+                const melodyWidth = layoutRef.current?.melodyWidth ?? pageWidth;
+                if (pageWidth && melodyWidth) {
                     const now = context.currentTime;
-                    const raw = (now - scrollT.startTime) / (scrollT.endTime - scrollT.startTime);
-                    const p = Math.max(0, Math.min(1, raw));
-                    // Playhead at 25%: at p=0 the first note starts at 25% from left;
-                    // at p=1 the last note of old content and first note of new content
-                    // both arrive at 25% simultaneously — seamless handoff.
-                    const tx = ((0.25 - p) * pageWidth).toFixed(2);
+                    const elapsed = Math.max(0, now - s.startTime);
+                    const pageFraction = s.startPageFraction + elapsed / s.secondsPerPage;
+                    const tx = (0.25 * pageWidth - pageFraction * melodyWidth).toFixed(2);
                     scrollGroup.setAttribute('transform', `translate(${tx}, 0)`);
-                    if (raw >= 1) {
-                        // Apply queued animation (or snap to identity if none pending).
-                        const pending = pendingScrollTransitionRef?.current ?? null;
-                        if (scrollTransitionRef) scrollTransitionRef.current = pending;
-                        if (pendingScrollTransitionRef) pendingScrollTransitionRef.current = null;
-                        // Pre-position at p=0 of the next animation (0.25*pageWidth) so
-                        // the very first rAF tick of the new animation has no jump.
-                        if (pending && pageWidth) {
-                            scrollGroup.setAttribute('transform', `translate(${(0.25 * pageWidth).toFixed(2)}, 0)`);
-                        } else {
-                            scrollGroup.setAttribute('transform', 'translate(0, 0)');
-                        }
-                    }
                 }
             } else {
                 if (scrollGroup.hasAttribute('transform')) {
