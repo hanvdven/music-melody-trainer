@@ -10,7 +10,11 @@ import SettingsOverlay, { VOL_STEPS } from './SettingsOverlay';
 import GenericTypeSelector from '../common/GenericTypeSelector';
 import SvgSetter from './SvgSetter';
 
-import { renderMelodyNotes } from './renderMelodyNotes';
+import MelodyNotesLayer from './MelodyNotesLayer';
+import ChordLabelsLayer from './ChordLabelsLayer';
+import BarlinesLayer from './BarlinesLayer';
+import PreviewOverlay from './PreviewOverlay';
+import { renderOneMeasureRepeatSymbols } from './renderOneMeasureRepeatSymbols';
 import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
@@ -33,7 +37,9 @@ import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { useMelodies } from '../../contexts/MelodyContext';
-import { usePlaybackState } from '../../contexts/PlaybackStateContext';
+import { usePlaybackTransport } from '../../contexts/PlaybackTransportContext';
+import { useRoundState } from '../../contexts/RoundStateContext';
+import { useTransitionOverlay } from '../../contexts/TransitionOverlayContext';
 import { useAnimationRefs } from '../../contexts/AnimationRefsContext';
 // ── Static / pure module-level data & helpers ──────────────────────────────
 
@@ -122,6 +128,11 @@ const getMelodyEndTime = (melody) => {
 // Dotted durations — used when tagging offsets with 'd' for the calculateAllOffsets dot-flag.
 const DOTTED_DURATIONS = new Set([9, 18, 21, 36, 42, 72]);
 
+// Stable references for `scaleNotes` / `processedChords` defaults on layers
+// (percussion / metronome) so React.memo on MelodyNotesLayer never sees a fresh
+// `[]` on each render and can hit its cache.
+const EMPTY_SCALE_NOTES = Object.freeze([]);
+
 const melodyToTaggedOffsets = (melody, accidentals) => {
   if (!melody || !melody.offsets) return [];
   return melody.offsets.map((offset, i) => ({
@@ -176,9 +187,10 @@ const SheetMusic = ({
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
           metronome: metronomeMelody, chordProgression } = useMelodies();
-  const { isPlaying, isOddRound, nextLayer = null, previewMelody = null,
-          inputTestState, inputTestSubMode, setInputTestSubMode } = usePlaybackState();
-  const { wipeTransitionRef, scrollTransitionRef, pendingScrollTransitionRef, paginationFadeRef,
+  const { isPlaying } = usePlaybackTransport();
+  const { isOddRound, inputTestState, inputTestSubMode, setInputTestSubMode } = useRoundState();
+  const { nextLayer = null, previewMelody = null, iterInCurrentSeries = 0 } = useTransitionOverlay();
+  const { wipeTransitionRef, scrollTransitionRef, paginationFadeRef,
           transitionRef,
           clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
           sequencerRef, context } = useAnimationRefs();
@@ -206,7 +218,6 @@ const SheetMusic = ({
     setCurrentMeasureIndex,
     wipeTransitionRef,
     scrollTransitionRef,
-    pendingScrollTransitionRef,
     paginationFadeRef,
     transitionRef,
   });
@@ -433,12 +444,21 @@ const SheetMusic = ({
     return scores.reduce((max, s) => s.score >= max.score ? s : max, scores[0]).id;
   };
 
-  const scaleNotes = trebleSettings?.scaleNotes || [];
+  // Memoised so the empty-array fallback gets a stable reference across renders —
+  // required for React.memo on MelodyNotesLayer to hit the cache (otherwise a
+  // fresh [] each render forces re-renders even when nothing has changed).
+  const scaleNotes = useMemo(() => trebleSettings?.scaleNotes || [], [trebleSettings?.scaleNotes]);
 
   // Display-only transposition: how many semitones to shift written notes up/down.
   // Audio always plays concert pitch; only the sheet music notation changes.
-  const trebleTransSemitones = getTranspositionSemitones(trebleSettings?.transpositionKey);
-  const bassTransSemitones   = getTranspositionSemitones(bassSettings?.transpositionKey);
+  const trebleTransSemitones = useMemo(
+    () => getTranspositionSemitones(trebleSettings?.transpositionKey),
+    [trebleSettings?.transpositionKey],
+  );
+  const bassTransSemitones = useMemo(
+    () => getTranspositionSemitones(bassSettings?.transpositionKey),
+    [bassSettings?.transpositionKey],
+  );
 
   // 'treble' | 'bass' | null — which staff's picker is open
   const [transPicker, setTransPicker] = useState(null);  // transposition key picker
@@ -744,8 +764,14 @@ const SheetMusic = ({
 
   // Clef selection is per visible block (not full melody) so that a passage that sits in a
   // different register than the rest of the piece doesn't force an ottava on every other block.
-  const clefTreble = calculateOptimalClef(trebleActiveClef, currentTreble?.notes, 'treble', trebleSettings?.rangeMode);
-  const clefBass = calculateOptimalClef(bassActiveClef, currentBass?.notes, 'bass', bassSettings?.rangeMode);
+  const clefTreble = useMemo(
+    () => calculateOptimalClef(trebleActiveClef, currentTreble?.notes, 'treble', trebleSettings?.rangeMode),
+    [trebleActiveClef, currentTreble, trebleSettings?.rangeMode],
+  );
+  const clefBass = useMemo(
+    () => calculateOptimalClef(bassActiveClef, currentBass?.notes, 'bass', bassSettings?.rangeMode),
+    [bassActiveClef, currentBass, bassSettings?.rangeMode],
+  );
 
   const adjustedTrebleMelody = useMemo(() => processMelodyAndCalculateSlots(
     currentTreble,
@@ -889,7 +915,10 @@ const SheetMusic = ({
     trebleAccidentals, bassAccidentals, processedChords, notesVisible,
   ]);
 
-  const noteWidth = (allOffsets.length > 2 ? (endX - startX) / (allOffsets.length - 2) : 0);
+  const noteWidth = useMemo(
+    () => (allOffsets.length > 2 ? (endX - startX) / (allOffsets.length - 2) : 0),
+    [allOffsets, endX, startX],
+  );
 
   // Preview overlay layout — computed once per previewMelody change instead of
   // every SheetMusic render. The crossfade overlay does its own
@@ -959,206 +988,18 @@ const SheetMusic = ({
       bottomY,
       fixedPlayheadX: startX + 60,
       pageWidth: endX - startX,
+      // melodyWidth = how wide ONE iteration of the current melody is in pixels.
+      // Differs from pageWidth (= visible width) when displayNumMeasures < visibleMeasures
+      // (e.g. numMeasures=1 with floored visibleMeasures=2). Scroll rAF uses melodyWidth
+      // as the per-page travel distance, not pageWidth — otherwise the visual moves at
+      // the wrong speed relative to audio when these differ.
+      melodyWidth: displayNumMeasures * measureWidth,
     };
-  }, [measureWidth, measurePpt, effectiveVisibleMeasures, layoutRef, startX, trebleStart, bottomY, measureLengthSlots, endX, startMeasureIndex]);
+  }, [measureWidth, measurePpt, effectiveVisibleMeasures, layoutRef, startX, trebleStart, bottomY, measureLengthSlots, endX, startMeasureIndex, displayNumMeasures]);
 
-  // Shared measure-line iteration — called twice to separate fadeable from non-fadeable elements.
-  // mode='regular'  → thin inner barlines + adaptive-TS labels (go into the masked group)
-  // mode='repeat'   → thick start/end repeat barlines with dots (always visible)
-  // ppt: when non-null, barlines are placed at startX + barlineCount*measureLengthSlots*ppt
-  //      (uniform tick-based spacing); when null, uses elastic slot-index spacing.
-  const _iterMeasureLines = (mode, offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex, bmsOverride = null, bpsOverride = null) => {
-    // bmsOverride / bpsOverride: pagination crossfade overlay passes the FUTURE
-    // blockMeasureStart and blockPlayStart so the preview's measure-number labels
-    // are correct AHEAD of the boundary. Without this the overlay renders labels
-    // from the still-current state (e.g. "1.5" because the current block's
-    // blockMeasureStart is 1 and startIdx is past the last repeat).
-    const bms = bmsOverride ?? blockMeasureStart;
-    const bps = bpsOverride ?? blockPlayStart;
-    const getXLocal = (index) => index === 0 ? startX - 35 : startX + (index - 1) * nw;
-    const lastIdx = offsets.length - 1;
-    let barlineCount = 0;
-    return offsets.map((timestamp, index) => {
-      // Adaptive time-signature change label: always in the regular (fadeable) group
-      // Only render inline if it does not happen exactly at the start of the staff (0)
-      if (timestamp === 'ts' && partialTop !== null && partialMeasureStart !== 0) {
-        if (mode !== 'regular') return null;
-        const x = getXLocal(index);
-        return (
-          <g key={`ts-${index}`}>
-            {measureYPositions.map((yPos, i) => {
-              const isTop = i % 2 === 0;
-              return (
-                <text
-                  key={i}
-                  x={x}
-                  y={yPos + 1}
-                  fontSize="36"
-                  fill="var(--text-primary)"
-                  fontFamily="Maestro"
-                  textAnchor="middle"
-                  style={{ pointerEvents: 'none', userSelect: 'none' }}
-                >
-                  {isTop ? partialTop : measureBottom}
-                </text>
-              );
-            })}
-          </g>
-        );
-      }
-
-      if (timestamp === 'm') {
-        const x = ppt !== null
-          ? startX + barlineCount * measureLengthSlots * ppt
-          : getXLocal(index);
-        const barlineOffset = barlineCount * measureLengthSlots;
-        const measureNumForLabel = barlineCount; // 0-indexed series measure that starts after this barline
-        barlineCount++;
-        const isStart = index === (numRepeats > 1 ? 1 : 0);
-        const isEnd = index === lastIdx;
-
-        // R = how many times the current block has been played in this session.
-        // Only shown during active playback (isPlaying=true). Resets per block via blockPlayStart.
-        const repeatNum = isPlaying
-          ? Math.max(1, Math.floor((startIdx - bps) / numMeasures) + 1)
-          : 1;
-        // Returns "N" (first play) or "N . R" (repeat R, R≥2) where N = song measure number.
-        const measureLabel = (localIndex) => {
-          const N = bms + localIndex;
-          return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
-        };
-
-        if (numRepeats > 1) {
-          if (isStart) {
-            if (mode === 'regular') {
-              // Show measure number label above the start barline even when repeats > 1
-              return (
-                <g key={`measure-line-${index}`}
-                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx); } : undefined}
-                  style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
-                >
-                  <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
-                  <text
-                    x={startX}
-                    y={trebleStart - 14}
-                    fontSize="15"
-                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
-                    fontFamily="Georgia, 'Times New Roman', serif"
-                    style={{ userSelect: 'none' }}
-                  >
-                    {measureLabel(0)}
-                  </text>
-                  {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
-                </g>
-              );
-            }
-            if (mode !== 'repeat') return null;
-            const startXOffset = x - 15;
-            return (
-              <g key={`measure-line-${index}`} data-offset={barlineOffset} data-mel="barline">
-                <rect x={startXOffset - 2} y={trebleStart} width="3" height={bottomY - trebleStart} fill="var(--text-primary)" />
-                <path d={`M ${startXOffset + 4} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="1" />
-                {[trebleStart, bassStart, percussionStart].map((start, sIdx) => {
-                  const showDots = sIdx === 0 ? isTrebleVisible : (sIdx === 1 ? isBassVisible : isPercussionVisible);
-                  if (!showDots) return null;
-                  return (
-                    <g key={`rep-dot-start-${start}-${sIdx}`}>
-                      <text x={startXOffset + 9} y={start + 18.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                      <text x={startXOffset + 9} y={start + 28.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                    </g>
-                  );
-                })}
-              </g>
-            );
-          }
-          if (isEnd) {
-            if (mode !== 'repeat') return null;
-            return (
-              <g key={`measure-line-${index}`} data-offset={barlineOffset} data-mel="barline">
-                {[trebleStart, bassStart, percussionStart].map((start, sIdx) => {
-                  const showDots = sIdx === 0 ? isTrebleVisible : (sIdx === 1 ? isBassVisible : isPercussionVisible);
-                  if (!showDots) return null;
-                  return (
-                    <g key={`rep-dot-end-${start}-${sIdx}`}>
-                      <text x={x - 9} y={start + 18.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                      <text x={x - 9} y={start + 28.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                    </g>
-                  );
-                })}
-                <path d={`M ${x - 4} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="1" />
-                <rect x={x + 1} y={trebleStart} width="3" height={bottomY - trebleStart} fill="var(--text-primary)" />
-              </g>
-            );
-          }
-        }
-
-        if (mode !== 'regular') return null;
-
-        // For the opening barline (numRepeats <= 1): suppress the barline itself but
-        // still render the "1" measure label above startX (the first note position).
-        if (isStart && numRepeats <= 1) {
-          return (
-            <g key={`measure-line-${index}`}
-              onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
-              style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
-            >
-              <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
-              <text
-                x={startX}
-                y={trebleStart - 14}
-                fontSize="15"
-                fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
-                fontFamily="Georgia, 'Times New Roman', serif"
-                style={{ userSelect: 'none' }}
-              >
-                {measureLabel(measureNumForLabel)}
-              </text>
-              {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
-            </g>
-          );
-        }
-
-        return (
-          <g key={`measure-line-${index}`}>
-            <path
-              data-offset={barlineOffset}
-              data-mel="barline"
-              d={`M ${x} ${trebleStart} V ${bottomY}`}
-              stroke="var(--text-primary)"
-              strokeWidth=".5"
-            />
-            {!isEnd && (() => {
-              return (
-                <g
-                  onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
-                  style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
-                >
-                  <rect x={x - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
-                  <text
-                    x={x}
-                    y={trebleStart - 14}
-                    fontSize="15"
-                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
-                    fontFamily="Georgia, 'Times New Roman', serif"
-                    style={{ userSelect: 'none' }}
-                  >
-                    {measureLabel(measureNumForLabel)}
-                  </text>
-                  {debugMode && <rect x={x - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
-                </g>
-              );
-            })()}
-          </g>
-        );
-      }
-      return null;
-    });
-  };
-
-  // Regular (inner) barlines — included in the mask animation
-  const renderRegularBarlines = (offsets = allOffsets, nw = noteWidth, ppt = null, startIdx = startMeasureIndex, bmsOverride = null, bpsOverride = null) => _iterMeasureLines('regular', offsets, nw, ppt, startIdx, bmsOverride, bpsOverride);
-  // Thick repeat barlines — always visible, never masked
-  const renderRepeatBarlines = (ppt = null) => _iterMeasureLines('repeat', allOffsets, noteWidth, ppt);
+  // Barlines + measure-number labels are rendered by <BarlinesLayer>
+  // (./BarlinesLayer.jsx). The pure iterator lives there so React.memo can skip
+  // the entire pass when its inputs are referentially equal.
 
   // BPM controls visibility — lifted from BpmControls so renderRandomizeIcons and handleSheetMusicClick can read it
   const [showBpmControls, setShowBpmControls] = React.useState(false);
@@ -1273,227 +1114,25 @@ const SheetMusic = ({
   // Repeat symbols on staves.
   // staveYsOverride: when provided, renders symbols only at those Y values (used for per-staff
   //   eye-off repeats in melody mode). When null, renders for all layout-visible staves.
+  // Delegates to the pure helper in ./renderOneMeasureRepeatSymbols.jsx so PreviewOverlay
+  // can call the same renderer without closure-capturing parent state.
   const renderRepeatSymbols = (offsets = allOffsets, nw = noteWidth, ppt = null, staveYsOverride = null, color = null) => {
-    if (displayNumMeasures <= 0) return null;
-    const staveYsRaw = staveYsOverride ?? [
+    const staveYs = staveYsOverride ?? [
       { y: 30, show: isTrebleVisible },
       { y: 30, show: isBassVisible },
       { y: 30, show: isPercussionVisible },
-    ].filter(s => s.show);
-
-    // Hide repeat labels (like 4x) when adjustments mode is active
-    const opacity = showSettings ? 0 : 0.8;
-    const staveYs = staveYsRaw.map(s => typeof s === 'object' ? s.y : s);
-    const symbols = [];
-    let measureXs;
-    if (ppt !== null) {
-      measureXs = Array.from({ length: displayNumMeasures + 1 }, (_, i) => startX + i * measureLengthSlots * ppt);
-    } else {
-      if (nw === 0) return null;
-      const getXLocal = (index) => index === 0 ? startX - 35 : startX + (index - 1) * nw;
-      measureXs = [];
-      offsets.forEach((o, i) => { if (o === 'm') measureXs.push(getXLocal(i)); });
-    }
-
-    for (let m = 0; m < displayNumMeasures; m++) {
-      if (m + 1 >= measureXs.length) break;
-      const cx = (measureXs[m] + measureXs[m + 1]) / 2;
-      for (const y of staveYs) {
-        symbols.push(
-          <text
-            key={`onemrep-${y}-${m}`}
-            x={cx}
-            y={y - 1}
-            fontSize="36"
-            fontFamily="Maestro"
-            fill={color ?? 'var(--text-primary)'}
-            textAnchor="middle"
-            style={{ pointerEvents: 'none', userSelect: 'none', opacity, transition: 'opacity 0.3s' }}
-          >
-            Ô
-          </text>
-        );
-      }
-    }
-    return symbols;
-  };
-
-  const renderChordLabels = (customChords = null, offsets = allOffsets, nw = noteWidth, ppt = null, overrideColor = null) => {
-    const chordsToRender = customChords ?? processedChords;
-    if (!chordProgression || !chordsToRender || chordsToRender.length === 0) return null;
-
-    const getXLocal = (index) => index === 0 ? startX - 35 : startX + (index - 1) * nw;
-    const labels = [];
-
-    const totalSlots = displayNumMeasures * measureLengthSlots;
-    chordsToRender.forEach((item, idx) => {
-      const { chord, absoluteOffset } = item;
-      if (!chord) return;
-      const nextOffset = idx < chordsToRender.length - 1 ? chordsToRender[idx + 1].absoluteOffset : totalSlots;
-      const chordDuration = nextOffset - absoluteOffset;
-
-      if (ppt !== null) {
-        // Tick-based: position directly from absoluteOffset (no slot-index search needed)
-        const xPos = startX + absoluteOffset * ppt;
-        renderSingleChordLabel(chord, xPos, absoluteOffset, chordDuration, `chord-p-${idx}`, labels, idx, overrideColor);
-      } else {
-        // Elastic: find visual position in the provided offsets grid
-        let visualIdx = -1;
-        for (let i = 0; i < offsets.length; i++) {
-          if (typeof offsets[i] === 'number' && Math.abs(offsets[i] - absoluteOffset) < 0.01) {
-            visualIdx = i;
-            break;
-          }
-        }
-        if (visualIdx !== -1) {
-          const xPos = getXLocal(visualIdx);
-          renderSingleChordLabel(chord, xPos, absoluteOffset, chordDuration, `chord-p-${idx}`, labels, idx, overrideColor);
-        }
-      }
+    ].filter(s => s.show).map(s => s.y);
+    return renderOneMeasureRepeatSymbols({
+      offsets,
+      noteWidth: nw,
+      pixelsPerTick: ppt,
+      staveYs,
+      color,
+      startX,
+      displayNumMeasures,
+      measureLengthSlots,
+      showSettings,
     });
-
-    return labels;
-  };
-
-  const renderSingleChordLabel = (chord, xPos, absoluteOffset, chordDuration, key, container, idx, overrideColor = null) => {
-    const CHORD_ROOT_Y  = trebleStart - 58;  // root text baseline
-    const CHORD_SUPER_DY = 12;               // units above root for superscript
-
-    const rawRomanBase = chord.romanBaseRaw || chord.romanBase || '';
-    const isMinorish = chord.quality === 'minor' || chord.quality === 'diminished' || chord.quality === 'dim';
-    const romanBaseDisplay = isMinorish ? String(rawRomanBase).toLowerCase() : rawRomanBase;
-
-    const internalRoot  = (chord.internalRoot || chord.root || '').replace(/\d+/g, '');
-    // internalRoot is now key-spelled at generation time (e.g. G♭ in C Locrian, not F♯)
-    const spelledRoot = internalRoot;
-    const isSlash = chord.type === 'slash';
-    // Passing chords are rendered smaller and carry a right-arrow indicator.
-    // isPassing lives in meta to avoid mutating the base Chord model.
-    const isPassing = chord.meta?.isPassing === true;
-
-    // Merge letters/roman branches — differ only in which fields to display
-    const displayRoot   = chordDisplayMode === 'letters' ? spelledRoot              : romanBaseDisplay;
-    const displaySuffix = chordDisplayMode === 'letters' ? (chord.internalSuffix || '') : (chord.romanSuffix || '');
-    // Split slash notation (V7/vi) so the /vi part renders as subscript, not superscript.
-    // slashIdx = -1 means no slash → old behaviour (entire suffix as superscript).
-    const slashIdx  = displaySuffix.indexOf('/');
-    const superPart = slashIdx === -1 ? displaySuffix : displaySuffix.slice(0, slashIdx);
-    const slashPart = slashIdx === -1 ? ''             : displaySuffix.slice(slashIdx);
-    const chordColor = overrideColor ?? (noteColoringMode === 'chords'
-      ? `color-mix(in srgb, var(--chromatone-${getNoteSemitone(internalRoot)}), ${theme === 'light' ? 'black' : 'white'} 30%)`
-      : 'var(--text-primary)');
-
-    // Passing chords use a 20% smaller font so they visually subordinate to structural chords
-    const rootFontSize    = isPassing ? 21 : 26;
-    const suffixFontSize  = isPassing ? 13 : 16;
-
-    let inputTestClass = '';
-    if (inputTestState && inputTestState.activeStaff === 'chords') {
-      if (inputTestState.activeIndex === idx) {
-        inputTestClass = ` input-test-${inputTestState.status}`;
-      } else if (inputTestState.successes?.includes(idx)) {
-        inputTestClass = ' input-test-success';
-      }
-    }
-
-    // data-chord-notes enables tap-to-play: handleSheetMusicClick reads this attribute
-    // via ancestor walk and passes the note array to onNoteClick for immediate playback.
-    const chordNotesJson = (!isSlash && chord.notes?.length)
-      ? JSON.stringify(chord.notes)
-      : null;
-
-    container.push(
-      <g key={key} data-offset={absoluteOffset} data-mel="chord" data-duration={chordDuration}
-        data-measure-index={Math.floor(absoluteOffset / measureLengthSlots) + startMeasureIndex}
-        data-local-slot={absoluteOffset % measureLengthSlots}
-        {...(chordNotesJson ? { 'data-chord-notes': chordNotesJson } : {})}
-        className={inputTestClass.trim() || undefined}>
-        {isSlash ? (
-          <text
-            x={xPos}
-            y={CHORD_ROOT_Y - CHORD_SUPER_DY - 5}
-            fontSize="32"
-            fontFamily="Maestro"
-            fill="var(--text-primary)"
-            textAnchor="start"
-            style={{ opacity: 0.4 }}
-          >
-            Ë
-          </text>
-        ) : (
-          <>
-            {/* Arrow for passing chords — fixed Y so it is never displaced by superscript dy offsets */}
-            {isPassing && (
-              <text
-                x={xPos}
-                y={CHORD_ROOT_Y - CHORD_SUPER_DY - 10}
-                fontSize="10"
-                fontFamily="sans-serif"
-                fill={chordColor}
-                textAnchor="start"
-                style={{ userSelect: 'none', pointerEvents: 'none' }}
-              >→</text>
-            )}
-            {/* textAnchor="start" anchors the left edge of the root letter at xPos,
-                so the root is always directly above the note regardless of superscript width. */}
-            <text
-              x={xPos}
-              y={CHORD_ROOT_Y}
-              textAnchor="start"
-              fontFamily="serif"
-              fontSize={rootFontSize}
-              fontWeight="normal"
-              fill={chordColor}
-              style={{ userSelect: 'none', pointerEvents: 'none' }}
-            >
-              {displayRoot}
-              {displaySuffix && (
-                slashIdx === -1 ? (
-                  // No slash — entire suffix is superscript (unchanged behaviour)
-                  <tspan fontSize={suffixFontSize} dy={-CHORD_SUPER_DY} dx="2">{displaySuffix}</tspan>
-                ) : (
-                  // Slash notation (e.g. V7/vi): superscript quality only in this text element.
-                  // The subscript /target is a separate text element below for predictable positioning
-                  // (tspan dy is relative to cursor after superPart, causing drift when superPart has text).
-                  <tspan fontSize={suffixFontSize} dy={-CHORD_SUPER_DY} dx="2">{superPart}</tspan>
-                )
-              )}
-            </text>
-            {/* Slash subscript (/vi, /IV, etc.) as separate text element.
-                x aligns with the root character's right edge (estimated: rootFontSize * 0.65).
-                y is at root baseline so the subscript sits visually below the superscript.
-                Font is 60% larger than the old tspan (suffixFontSize − 3) for better legibility. */}
-            {slashPart && (
-              <text
-                x={xPos + Math.round(rootFontSize * 0.65)}
-                y={CHORD_ROOT_Y + 2}
-                textAnchor="start"
-                fontFamily="serif"
-                fontSize={Math.round(suffixFontSize * 1.6)}
-                fontWeight="normal"
-                fill={chordColor}
-                style={{ userSelect: 'none', pointerEvents: 'none' }}
-              >{slashPart}</text>
-            )}
-          </>
-        )}
-        {/* Transparent hit area — chord texts have pointerEvents:none so this rect
-            catches clicks and lets the ancestor walk find data-chord-notes on the <g>. */}
-        {chordNotesJson && (
-          <rect
-            x={xPos - 3}
-            y={CHORD_ROOT_Y - 28}
-            width={45}
-            height={36}
-            fill={debugMode ? 'teal' : 'transparent'}
-            fillOpacity={debugMode ? 0.4 : 1}
-            stroke={debugMode ? 'teal' : 'none'}
-            strokeWidth={debugMode ? 1 : 0}
-            style={{ cursor: 'pointer' }}
-          />
-        )}
-      </g>
-    );
   };
 
   // ── Debug: RhythmicDNA overlay above chord labels ────────────────────────────────────────
@@ -2287,7 +1926,33 @@ const SheetMusic = ({
                     >
                       {/* CHORD MELODY BLURRED BACKGROUND REMOVED */}
                       <g style={{ transform: `translateY(${trebleStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualTreble && renderMelodyNotes(adjustedTrebleMelody, numAccidentals, startX, noteWidth, allOffsets, 'treble', 0, noteGroupSize, measureLengthSlots, timeSignature, clefTreble, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, trebleTransSemitones, debugMode, true, courtesyAccidentals)}
+                        {actualTreble && <MelodyNotesLayer
+                          melody={adjustedTrebleMelody}
+                          numAccidentals={numAccidentals}
+                          startX={startX}
+                          noteWidth={noteWidth}
+                          allOffsets={allOffsets}
+                          staff="treble"
+                          staffYStart={0}
+                          noteGroupSize={noteGroupSize}
+                          measureLengthSlots={measureLengthSlots}
+                          timeSignature={timeSignature}
+                          clef={clefTreble}
+                          noteColoringMode={noteColoringMode}
+                          tonic={tonic}
+                          scaleNotes={scaleNotes}
+                          processedChords={processedChords}
+                          theme={theme}
+                          inputTestState={inputTestState}
+                          previewMode={false}
+                          pixelsPerTick={ppt}
+                          startMeasureIndex={startMeasureIndex}
+                          transpositionSemitones={trebleTransSemitones}
+                          debugMode={debugMode}
+                          interactive={true}
+                          courtesyAccidentals={courtesyAccidentals}
+                          percussionVoiceSplit={false}
+                        />}
                         {isTrebleVisible && !actualTreble && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       {melodicLyricsActive && actualTreble && (
@@ -2302,11 +1967,63 @@ const SheetMusic = ({
                         </g>
                       )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualBass && renderMelodyNotes(adjustedBassMelody, numAccidentals, startX, noteWidth, allOffsets, 'bass', 0, noteGroupSize, measureLengthSlots, timeSignature, clefBass, noteColoringMode, tonic, scaleNotes, processedChords, theme, inputTestState, false, ppt, startMeasureIndex, bassTransSemitones, debugMode, true, courtesyAccidentals)}
+                        {actualBass && <MelodyNotesLayer
+                          melody={adjustedBassMelody}
+                          numAccidentals={numAccidentals}
+                          startX={startX}
+                          noteWidth={noteWidth}
+                          allOffsets={allOffsets}
+                          staff="bass"
+                          staffYStart={0}
+                          noteGroupSize={noteGroupSize}
+                          measureLengthSlots={measureLengthSlots}
+                          timeSignature={timeSignature}
+                          clef={clefBass}
+                          noteColoringMode={noteColoringMode}
+                          tonic={tonic}
+                          scaleNotes={scaleNotes}
+                          processedChords={processedChords}
+                          theme={theme}
+                          inputTestState={inputTestState}
+                          previewMode={false}
+                          pixelsPerTick={ppt}
+                          startMeasureIndex={startMeasureIndex}
+                          transpositionSemitones={bassTransSemitones}
+                          debugMode={debugMode}
+                          interactive={true}
+                          courtesyAccidentals={courtesyAccidentals}
+                          percussionVoiceSplit={false}
+                        />}
                         {isBassVisible && !actualBass && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>
-                        {actualPerc && renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, inputTestState, false, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
+                        {actualPerc && <MelodyNotesLayer
+                          melody={adjustedPercussionMelody}
+                          numAccidentals={numAccidentals}
+                          startX={startX}
+                          noteWidth={noteWidth}
+                          allOffsets={allOffsets}
+                          staff="percussion"
+                          staffYStart={0}
+                          noteGroupSize={noteGroupSize}
+                          measureLengthSlots={measureLengthSlots}
+                          timeSignature={timeSignature}
+                          clef={null}
+                          noteColoringMode={noteColoringMode}
+                          tonic={tonic}
+                          scaleNotes={EMPTY_SCALE_NOTES}
+                          processedChords={processedChords}
+                          theme={theme}
+                          inputTestState={inputTestState}
+                          previewMode={false}
+                          pixelsPerTick={ppt}
+                          startMeasureIndex={startMeasureIndex}
+                          transpositionSemitones={0}
+                          debugMode={debugMode}
+                          interactive={true}
+                          courtesyAccidentals={courtesyAccidentals}
+                          percussionVoiceSplit={percussionVoiceSplit}
+                        />}
                         {isPercussionVisible && !actualPerc && !actualMetronome && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       {rhythmicLyricsActive && actualPerc && (
@@ -2328,21 +2045,120 @@ const SheetMusic = ({
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>
                         {isPercussionVisible && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
-                        {adjustedMetronomeMelody && renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, false, ppt, startMeasureIndex, 0, false, false, courtesyAccidentals, false)}
+                        {adjustedMetronomeMelody && <MelodyNotesLayer
+                          melody={adjustedMetronomeMelody}
+                          numAccidentals={numAccidentals}
+                          startX={startX}
+                          noteWidth={noteWidth}
+                          allOffsets={allOffsets}
+                          staff="percussion"
+                          staffYStart={0}
+                          noteGroupSize={noteGroupSize}
+                          measureLengthSlots={measureLengthSlots}
+                          timeSignature={timeSignature}
+                          clef={null}
+                          noteColoringMode={noteColoringMode}
+                          tonic={tonic}
+                          scaleNotes={EMPTY_SCALE_NOTES}
+                          processedChords={processedChords}
+                          theme={theme}
+                          inputTestState={null}
+                          previewMode={false}
+                          pixelsPerTick={ppt}
+                          startMeasureIndex={startMeasureIndex}
+                          transpositionSemitones={0}
+                          debugMode={false}
+                          interactive={false}
+                          courtesyAccidentals={courtesyAccidentals}
+                          percussionVoiceSplit={false}
+                        />}
                       </g>
                     </g>
-                    {/* Regular inner barlines — masked with old content during wipe */}
-                    <g data-wipe-role="old" style={{ opacity: showSettings ? 0.6 : 1, filter: showSettings ? 'blur(1.5px)' : 'none' }}>
-                      {renderRegularBarlines(allOffsets, noteWidth, ppt)}
+                    {/* Regular inner barlines + measure-number labels — fade with the rest
+                        of the old layer during pagination crossfade. Same pattern as the
+                        chord-labels-group: data-pagination-old marks it for rAF, CSS class
+                        owns the resting opacity, inline opacity is undefined in pagination
+                        mode so the rAF can freely write style.opacity. */}
+                    <g
+                      data-wipe-role="old"
+                      data-pagination-old=""
+                      className={animationMode === 'pagination' && !showSettings
+                        ? 'pagination-old-visible'
+                        : undefined}
+                      style={{
+                        opacity: showSettings ? 0.6 : (animationMode !== 'pagination' ? 1 : undefined),
+                        filter: showSettings ? 'blur(1.5px)' : 'none',
+                      }}
+                    >
+                      <BarlinesLayer
+                        mode="regular"
+                        offsets={allOffsets}
+                        noteWidth={noteWidth}
+                        pixelsPerTick={ppt}
+                        startX={startX}
+                        startIdx={startMeasureIndex}
+                        blockMeasureStart={blockMeasureStart}
+                        blockPlayStart={blockPlayStart}
+                        partialTop={partialTop}
+                        partialMeasureStart={partialMeasureStart}
+                        measureBottom={measureBottom}
+                        measureYPositions={measureYPositions}
+                        trebleStart={trebleStart}
+                        bassStart={bassStart}
+                        percussionStart={percussionStart}
+                        bottomY={bottomY}
+                        isTrebleVisible={isTrebleVisible}
+                        isBassVisible={isBassVisible}
+                        isPercussionVisible={isPercussionVisible}
+                        numRepeats={numRepeats}
+                        isPlaying={isPlaying}
+                        numMeasures={numMeasures}
+                        debugMode={debugMode}
+                        showSettings={showSettings}
+                        measureLengthSlots={measureLengthSlots}
+                        onMeasureNumberClick={onMeasureNumberClick}
+                      />
                     </g>
 
                     {/* Chord labels */}
                     <g
                       data-wipe-role="old"
-                      className="chord-labels-group"
-                      style={{ filter: showSettings ? 'blur(6px)' : 'none', opacity: showSettings ? 0.6 : 1 }}
+                      data-pagination-old=""
+                      className={
+                        // Mirror the melody-notes-group: in pagination mode the rAF crossfade owns
+                        // opacity (rAF writes style.opacity directly). The CSS class restores the
+                        // resting opacity (1 when chords visible, 0 when hidden) once the rAF clears
+                        // inline opacity at transition end. Without data-pagination-old, the chord
+                        // labels stayed at React-set opacity:1 during the crossfade — melody notes
+                        // would fade out but chord letters stayed hard-visible.
+                        animationMode === 'pagination' && !showSettings
+                          ? (actualChords ? 'pagination-old-visible' : 'pagination-old-hidden')
+                          : 'chord-labels-group'
+                      }
+                      style={{
+                        filter: showSettings ? 'blur(6px)' : 'none',
+                        opacity: showSettings ? 0.6 : (animationMode !== 'pagination' ? 1 : undefined),
+                      }}
                     >
-                      {actualChords && renderChordLabels(null, allOffsets, noteWidth, ppt)}
+                      {actualChords && <ChordLabelsLayer
+                        chordProgression={chordProgression}
+                        chords={null}
+                        processedChords={processedChords}
+                        offsets={allOffsets}
+                        startX={startX}
+                        noteWidth={noteWidth}
+                        pixelsPerTick={ppt}
+                        displayNumMeasures={displayNumMeasures}
+                        measureLengthSlots={measureLengthSlots}
+                        trebleStart={trebleStart}
+                        startMeasureIndex={startMeasureIndex}
+                        chordDisplayMode={chordDisplayMode}
+                        noteColoringMode={noteColoringMode}
+                        theme={theme}
+                        debugMode={debugMode}
+                        overrideColor={null}
+                        inputTestState={inputTestState}
+                      />}
                       {renderDNADebug()}
                     </g>
 
@@ -2359,11 +2175,22 @@ const SheetMusic = ({
                       <path d={`M ${endX} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.4" />
                     )}
 
-                    {/* Wipe mode: yellow = overlay next repeat's notes in the next-round visibility,
-                        red = "NEXT BLOCK" text (new melody not yet known). */}
-                    {showWipePreview === 'yellow' && (() => {
-                      const nextRoundKey = isOddRound ? 'evenRounds' : 'oddRounds';
-                      const nextCfg = playbackConfig?.[nextRoundKey] ?? {};
+                    {/* Wipe/pagination mode: yellow = overlay next repeat's notes in the next-round
+                        visibility (= current round's opposite). Single overlay slot.
+                        Scroll mode: rendered K times side-by-side (left history + right previews)
+                        so the visible viewport is always full as the scroll progresses. Scroll
+                        renders the CURRENT round's config (all panels share the playing round) and
+                        filters offsets to "in current series only" — panels past the series boundary
+                        render below via the red/preview path with `previewMelody`. */}
+                    {((animationMode !== 'scroll' && showWipePreview === 'yellow') ||
+                      (animationMode === 'scroll' && isPlaying)) && (() => {
+                      // Round config:
+                      //   wipe/pagination yellow = OPPOSITE round (this overlay previews the next repeat).
+                      //   scroll = CURRENT round (all panels show the round that's playing now).
+                      const roundKey = animationMode === 'scroll'
+                        ? (isOddRound ? 'oddRounds' : 'evenRounds')
+                        : (isOddRound ? 'evenRounds' : 'oddRounds');
+                      const nextCfg = playbackConfig?.[roundKey] ?? {};
                       const nextNotesVisible = !!nextCfg.notes;
                       const nextTreble = nextCfg.trebleEye !== false;
                       const nextBass = nextCfg.bassEye !== false;
@@ -2372,48 +2199,145 @@ const SheetMusic = ({
                       // In debug mode: tint yellow so the overlay is visually distinct.
                       // In normal mode: render with default note colors (null = no tint).
                       const YCOL = debugMode ? 'var(--accent-yellow)' : null;
-                      return (
-                        <g
-                          data-wipe-role="new"
-                          data-pagination-new=""
-                          transform={animationMode === 'scroll' ? `translate(${endX - startX}, 0)` : undefined}
-                          className={
-                            // CSS class controls resting opacity — NOT inline style.
-                            // Reason: React re-renders would reset inline style.opacity on every
-                            // commit, fighting with the rAF / useLayoutEffect that own opacity
-                            // during the transition. With a class (not inline style), React only
-                            // reconciles className and never touches style.opacity.
-                            animationMode === 'wipe' ? 'wipe-new-hidden'          // opacity:0; useLayoutEffect sets style.opacity='1' once
-                          : animationMode === 'pagination' ? 'pagination-new-hidden' // opacity:0; rAF animates to 1
-                          : undefined
-                          }
-                          style={{
-                            // scroll: tinted yellow at 0.55 opacity (no transition needed).
-                            opacity: animationMode === 'scroll' ? 0.55 : undefined,
-                            filter: showSettings ? 'blur(1.5px)' : 'none',
-                            pointerEvents: 'none',
-                          }}
-                        >
+
+                      // Inner content shared across all overlay panels (chord labels + 3 staves + barlines).
+                      // MelodyNotesLayer is React.memo'd, so rendering it K times with identical props
+                      // results in K-1 cache hits (only one fresh paint per round).
+                      const renderContent = () => (<>
                           {/* Chord labels above treble staff — shown if next round has chords visible */}
                           {nextCfg.chordsEye !== false && chordProgression && processedChords?.length > 0 &&
-                            renderChordLabels(null, allOffsets, noteWidth, ppt, YCOL)}
+                            <ChordLabelsLayer
+                              chordProgression={chordProgression}
+                              chords={null}
+                              processedChords={processedChords}
+                              offsets={allOffsets}
+                              startX={startX}
+                              noteWidth={noteWidth}
+                              pixelsPerTick={ppt}
+                              displayNumMeasures={displayNumMeasures}
+                              measureLengthSlots={measureLengthSlots}
+                              trebleStart={trebleStart}
+                              startMeasureIndex={startMeasureIndex}
+                              chordDisplayMode={chordDisplayMode}
+                              noteColoringMode={noteColoringMode}
+                              theme={theme}
+                              debugMode={debugMode}
+                              overrideColor={YCOL}
+                              inputTestState={null}
+                            />}
                           <g style={{ transform: `translateY(${trebleStart}px)` }}>
                             {isTrebleVisible && nextTreble && nextNotesVisible && adjustedTrebleMelody &&
-                              renderMelodyNotes(adjustedTrebleMelody, numAccidentals, startX, noteWidth, allOffsets, 'treble', 0, noteGroupSize, measureLengthSlots, timeSignature, clefTreble, noteColoringMode, tonic, scaleNotes, processedChords, theme, null, YCOL, ppt, startMeasureIndex, trebleTransSemitones)}
+                              <MelodyNotesLayer
+                                melody={adjustedTrebleMelody}
+                                numAccidentals={numAccidentals}
+                                startX={startX}
+                                noteWidth={noteWidth}
+                                allOffsets={allOffsets}
+                                staff="treble"
+                                staffYStart={0}
+                                noteGroupSize={noteGroupSize}
+                                measureLengthSlots={measureLengthSlots}
+                                timeSignature={timeSignature}
+                                clef={clefTreble}
+                                noteColoringMode={noteColoringMode}
+                                tonic={tonic}
+                                scaleNotes={scaleNotes}
+                                processedChords={processedChords}
+                                theme={theme}
+                                inputTestState={null}
+                                previewMode={YCOL}
+                                pixelsPerTick={ppt}
+                                startMeasureIndex={startMeasureIndex}
+                                transpositionSemitones={trebleTransSemitones}
+                              />}
                             {isTrebleVisible && (!nextTreble || !nextNotesVisible) &&
                               renderRepeatSymbols(allOffsets, noteWidth, ppt, [30], YCOL)}
                           </g>
                           <g style={{ transform: `translateY(${bassStart}px)` }}>
                             {isBassVisible && nextBass && nextNotesVisible && adjustedBassMelody &&
-                              renderMelodyNotes(adjustedBassMelody, numAccidentals, startX, noteWidth, allOffsets, 'bass', 0, noteGroupSize, measureLengthSlots, timeSignature, clefBass, noteColoringMode, tonic, scaleNotes, processedChords, theme, null, YCOL, ppt, startMeasureIndex, bassTransSemitones)}
+                              <MelodyNotesLayer
+                                melody={adjustedBassMelody}
+                                numAccidentals={numAccidentals}
+                                startX={startX}
+                                noteWidth={noteWidth}
+                                allOffsets={allOffsets}
+                                staff="bass"
+                                staffYStart={0}
+                                noteGroupSize={noteGroupSize}
+                                measureLengthSlots={measureLengthSlots}
+                                timeSignature={timeSignature}
+                                clef={clefBass}
+                                noteColoringMode={noteColoringMode}
+                                tonic={tonic}
+                                scaleNotes={scaleNotes}
+                                processedChords={processedChords}
+                                theme={theme}
+                                inputTestState={null}
+                                previewMode={YCOL}
+                                pixelsPerTick={ppt}
+                                startMeasureIndex={startMeasureIndex}
+                                transpositionSemitones={bassTransSemitones}
+                              />}
                             {isBassVisible && (!nextBass || !nextNotesVisible) &&
                               renderRepeatSymbols(allOffsets, noteWidth, ppt, [30], YCOL)}
                           </g>
                           <g style={{ transform: `translateY(${percussionStart}px)` }}>
                             {isPercussionVisible && nextPerc && nextNotesVisible && adjustedPercussionMelody &&
-                              renderMelodyNotes(adjustedPercussionMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
+                              <MelodyNotesLayer
+                                melody={adjustedPercussionMelody}
+                                numAccidentals={numAccidentals}
+                                startX={startX}
+                                noteWidth={noteWidth}
+                                allOffsets={allOffsets}
+                                staff="percussion"
+                                staffYStart={0}
+                                noteGroupSize={noteGroupSize}
+                                measureLengthSlots={measureLengthSlots}
+                                timeSignature={timeSignature}
+                                clef={null}
+                                noteColoringMode={noteColoringMode}
+                                tonic={tonic}
+                                scaleNotes={EMPTY_SCALE_NOTES}
+                                processedChords={processedChords}
+                                theme={theme}
+                                inputTestState={null}
+                                previewMode={YCOL}
+                                pixelsPerTick={ppt}
+                                startMeasureIndex={startMeasureIndex}
+                                transpositionSemitones={0}
+                                debugMode={debugMode}
+                                interactive={true}
+                                courtesyAccidentals={courtesyAccidentals}
+                                percussionVoiceSplit={percussionVoiceSplit}
+                              />}
                             {isPercussionVisible && nextMetro && adjustedMetronomeMelody &&
-                              renderMelodyNotes(adjustedMetronomeMelody, numAccidentals, startX, noteWidth, allOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], processedChords, theme, null, YCOL, ppt, startMeasureIndex, 0, false, false, courtesyAccidentals, false)}
+                              <MelodyNotesLayer
+                                melody={adjustedMetronomeMelody}
+                                numAccidentals={numAccidentals}
+                                startX={startX}
+                                noteWidth={noteWidth}
+                                allOffsets={allOffsets}
+                                staff="percussion"
+                                staffYStart={0}
+                                noteGroupSize={noteGroupSize}
+                                measureLengthSlots={measureLengthSlots}
+                                timeSignature={timeSignature}
+                                clef={null}
+                                noteColoringMode={noteColoringMode}
+                                tonic={tonic}
+                                scaleNotes={EMPTY_SCALE_NOTES}
+                                processedChords={processedChords}
+                                theme={theme}
+                                inputTestState={null}
+                                previewMode={YCOL}
+                                pixelsPerTick={ppt}
+                                startMeasureIndex={startMeasureIndex}
+                                transpositionSemitones={0}
+                                debugMode={false}
+                                interactive={false}
+                                courtesyAccidentals={courtesyAccidentals}
+                                percussionVoiceSplit={false}
+                              />}
                             {isPercussionVisible && (!nextPerc && !nextMetro) &&
                               renderRepeatSymbols(allOffsets, noteWidth, ppt, [30], YCOL)}
                           </g>
@@ -2421,115 +2345,142 @@ const SheetMusic = ({
                               Show the NEXT iteration's measure numbers (startMeasureIndex + displayNumMeasures)
                               so the numbers visually animate during the wipe instead of jumping at the end. */}
                           <g style={{ opacity: showSettings ? 0.6 : 1 }}>
-                            {renderRegularBarlines(allOffsets, noteWidth, ppt, startMeasureIndex + displayNumMeasures)}
+                            <BarlinesLayer
+                              mode="regular"
+                              offsets={allOffsets}
+                              noteWidth={noteWidth}
+                              pixelsPerTick={ppt}
+                              startX={startX}
+                              startIdx={startMeasureIndex + displayNumMeasures}
+                              blockMeasureStart={blockMeasureStart}
+                              blockPlayStart={blockPlayStart}
+                              partialTop={partialTop}
+                              partialMeasureStart={partialMeasureStart}
+                              measureBottom={measureBottom}
+                              measureYPositions={measureYPositions}
+                              trebleStart={trebleStart}
+                              bassStart={bassStart}
+                              percussionStart={percussionStart}
+                              bottomY={bottomY}
+                              isTrebleVisible={isTrebleVisible}
+                              isBassVisible={isBassVisible}
+                              isPercussionVisible={isPercussionVisible}
+                              numRepeats={numRepeats}
+                              isPlaying={isPlaying}
+                              numMeasures={numMeasures}
+                              debugMode={debugMode}
+                              showSettings={showSettings}
+                              measureLengthSlots={measureLengthSlots}
+                              onMeasureNumberClick={onMeasureNumberClick}
+                            />
                           </g>
-                        </g>
-                      );
-                    })()}
-                    {(showWipePreview === 'red' || showWipePreview === 'crossfade') && (() => {
-                      // Visibility config for the preview overlay.
-                      //
-                      // Rule: each layer uses its OWN block's visibility — the old layer
-                      // shows the current block with its current-round config, the overlay
-                      // shows the incoming block with the INCOMING block's config. During
-                      // the fade these two visibility states crossfade together (e.g. a
-                      // hidden-notes round dissolves into a visible-notes round naturally).
-                      //
-                      // The incoming round is locked into previewMelody._roundKey by the
-                      // pagination scheduler at arm time. Reading it from React's
-                      // isOddRound state instead would let the overlay's visibility flip
-                      // mid-overshoot for the 'lang' variant (when isOddRound updates at
-                      // the boundary while the overlay is still up for another 0.25m).
-                      //
-                      // The HEAVY layout pass (processMelodyAndCalculateSlots × 3 +
-                      // calculateAllOffsets + getChordsWithSlashes + accidental maps) is
-                      // memoised once per previewMelody change in `previewLayout`. The
-                      // visibility-eye derivations stay inline since they're cheap.
-                      const lockedKey = previewMelody?._roundKey;
-                      const nextRoundKey = lockedKey
-                        ?? (isOddRound ? 'evenRounds' : 'oddRounds');
-                      const nextCfg = previewLayout?.nextCfg ?? (playbackConfig?.[nextRoundKey] ?? {});
-                      const nextNotesVisible = previewLayout?.nextNotesVisible ?? !!nextCfg.notes;
-                      const nextTreble = nextCfg.trebleEye !== false;
-                      const nextBass = nextCfg.bassEye !== false;
-                      const nextPerc = nextCfg.percussionEye === true;
-                      const nextMetro = nextCfg.percussionEye === 'metronome';
-                      const RED = 'rgba(220,30,30,0.75)';
-                      // In debug mode: tint red so the pre-generated melody overlay is distinct.
-                      // In normal mode: render with default note colors (null = no tint).
-                      const RCOL = debugMode ? RED : null;
-                      // If pre-generated melody is available, render its notes
-                      if (previewMelody && previewLayout) {
-                        const { previewTreble, previewBass, previewPerc, previewChords, pmAllOffsets, pmNoteWidth } = previewLayout;
-                        const pm = previewMelody;
+                      </>);
+
+                      // Non-scroll modes (wipe / pagination): single overlay at no translate offset.
+                      if (animationMode !== 'scroll') {
                         return (
                           <g
-                            data-wipe-role={animationMode === 'wipe' ? 'new' : undefined}
-                            data-pagination-new={animationMode === 'pagination' ? '' : undefined}
-                            transform={animationMode === 'scroll' ? `translate(${endX - startX}, 0)` : undefined}
+                            data-wipe-role="new"
+                            data-pagination-new=""
                             className={
-                              // Same pattern as yellow overlay: CSS class owns resting opacity,
-                              // never inline style — prevents React re-renders from overriding
-                              // the rAF/useLayoutEffect that animate opacity during the transition.
                               animationMode === 'wipe' ? 'wipe-new-hidden'
                             : animationMode === 'pagination' ? 'pagination-new-hidden'
                             : undefined
                             }
                             style={{
-                              // scroll: tinted red; fades in via CSS animation (scroll mode only).
-                              opacity: animationMode === 'scroll' ? undefined : undefined,
-                              animation: animationMode === 'scroll' ? 'scrollPreviewFadeIn 0.5s ease-in forwards' : undefined,
                               filter: showSettings ? 'blur(1.5px)' : 'none',
                               pointerEvents: 'none',
                             }}
                           >
-                            {nextCfg.chordsEye !== false && previewChords?.length > 0 &&
-                              renderChordLabels(previewChords, pmAllOffsets, pmNoteWidth, ppt, RCOL)}
-                            <g style={{ transform: `translateY(${trebleStart}px)` }}>
-                              {isTrebleVisible && nextTreble && nextNotesVisible && previewTreble &&
-                                renderMelodyNotes(previewTreble, numAccidentals, startX, pmNoteWidth, pmAllOffsets, 'treble', 0, noteGroupSize, measureLengthSlots, timeSignature, clefTreble, noteColoringMode, tonic, scaleNotes, previewChords ?? processedChords, theme, null, RCOL, ppt, startMeasureIndex, trebleTransSemitones)}
-                              {isTrebleVisible && (!nextTreble || !nextNotesVisible) &&
-                                renderRepeatSymbols(pmAllOffsets, pmNoteWidth, ppt, [30], RCOL)}
-                            </g>
-                            <g style={{ transform: `translateY(${bassStart}px)` }}>
-                              {isBassVisible && nextBass && nextNotesVisible && previewBass &&
-                                renderMelodyNotes(previewBass, numAccidentals, startX, pmNoteWidth, pmAllOffsets, 'bass', 0, noteGroupSize, measureLengthSlots, timeSignature, clefBass, noteColoringMode, tonic, scaleNotes, previewChords ?? processedChords, theme, null, RCOL, ppt, startMeasureIndex, bassTransSemitones)}
-                              {isBassVisible && (!nextBass || !nextNotesVisible) &&
-                                renderRepeatSymbols(pmAllOffsets, pmNoteWidth, ppt, [30], RCOL)}
-                            </g>
-                            <g style={{ transform: `translateY(${percussionStart}px)` }}>
-                              {isPercussionVisible && nextPerc && nextNotesVisible && previewPerc &&
-                                renderMelodyNotes(previewPerc, numAccidentals, startX, pmNoteWidth, pmAllOffsets, 'percussion', 0, noteGroupSize, measureLengthSlots, timeSignature, null, noteColoringMode, tonic, [], previewChords ?? processedChords, theme, null, RCOL, ppt, startMeasureIndex, 0, debugMode, true, courtesyAccidentals, percussionVoiceSplit)}
-                              {isPercussionVisible && (!nextPerc && !nextMetro) &&
-                                renderRepeatSymbols(pmAllOffsets, pmNoteWidth, ppt, [30], RCOL)}
-                            </g>
-                            {/* Barlines for the incoming content — use the preview's startMeasureIndex so
-                                measure numbers are correct during the wipe (not the old block's numbers).
-                                _blockMeasureStart / _blockPlayStart (set by pagination scheduler at
-                                arm-time) override the still-current React state for series-flip, so the
-                                label says "3" not "1 . 5" when crossing a sequence boundary. */}
-                            <g style={{ opacity: showSettings ? 0.6 : 1 }}>
-                              {renderRegularBarlines(pmAllOffsets, pmNoteWidth, ppt, pm.startMeasureIndex ?? startMeasureIndex, pm._blockMeasureStart ?? null, pm._blockPlayStart ?? null)}
-                            </g>
+                            {renderContent()}
                           </g>
                         );
                       }
-                      // Fallback: no preview melody yet — show "NEXT BLOCK" text
-                      return (
-                        <text
-                          x={(startX + endX) / 2}
-                          y={(trebleStart + bottomY) / 2}
-                          textAnchor="middle"
-                          dominantBaseline="middle"
-                          fontSize={Math.round((endX - startX) / 5)}
-                          fill={RED}
-                          fontFamily="serif"
-                          fontWeight="bold"
-                          style={{ pointerEvents: 'none', userSelect: 'none' }}
+
+                      // Scroll mode: yellow (current-series) panels at offsets [-K_left..K_right]
+                      // EXCLUDING positions past the series boundary. Those next-series panels
+                      // are rendered by the red/PreviewOverlay path below (gated on previewMelody).
+                      //
+                      // itersRemaining = how many MORE reps of the same melody after the current
+                      // iter (= K_remaining iter offsets that still belong to the current series).
+                      //   numRepeats = -1 (infinite repeat mode) → no series boundary → all yellow.
+                      //   numRepeats = 1 (typical, repsPerMelody=1)  → itersRemaining = 0 → panel +1 onwards is next series.
+                      //   numRepeats = 3, iterInCurrentSeries=0      → itersRemaining = 2 → panels +1, +2 yellow; +3 red.
+                      //
+                      // Left history panels (i < 0) are always yellow (= current melody copy). This
+                      // is an approximation: the very first iters of a new series briefly show new
+                      // melody as history, which is technically wrong, but tracking previous-series
+                      // melody just for left-history would balloon scope. Accepted limitation.
+                      const mw = displayNumMeasures * measureWidth;
+                      const K_left = Math.max(1, Math.ceil(0.25 * effectiveVisibleMeasures / displayNumMeasures));
+                      const K_right = Math.max(1, Math.ceil(0.75 * effectiveVisibleMeasures / displayNumMeasures));
+                      const itersRemaining = numRepeats === -1
+                        ? Number.POSITIVE_INFINITY
+                        : Math.max(0, (numRepeats ?? 1) - iterInCurrentSeries - 1);
+                      const offsets = [];
+                      for (let i = -K_left; i <= K_right; i++) {
+                        if (i === 0) continue; // main is rendered above
+                        if (i > 0 && i > itersRemaining) continue; // beyond series boundary → red path
+                        offsets.push(i);
+                      }
+                      return offsets.map(i => (
+                        <g
+                          key={`scroll-yellow-${i}`}
+                          data-wipe-role={i === 1 ? "new" : undefined}
+                          data-pagination-new={i === 1 ? "" : undefined}
+                          transform={`translate(${i * mw}, 0)`}
+                          style={{
+                            opacity: 0.55,
+                            filter: showSettings ? 'blur(1.5px)' : 'none',
+                            pointerEvents: 'none',
+                          }}
                         >
-                          NEXT BLOCK
-                        </text>
-                      );
+                          {renderContent()}
+                        </g>
+                      ));
+                    })()}
+                    {/* Red/crossfade overlay (NEW melody preview).
+                        - wipe/pagination: gated on showWipePreview; one overlay at translate(melodyWidth).
+                        - scroll: gated on previewMelody being set; K right-side panels at offsets
+                          (itersRemaining+1)..K_right, each showing the pregen new-melody. */}
+                    {((animationMode !== 'scroll' && (showWipePreview === 'red' || showWipePreview === 'crossfade')) ||
+                      (animationMode === 'scroll' && isPlaying && previewMelody)) && (() => {
+                      const mw = displayNumMeasures * measureWidth;
+                      // Common props for every rendered PreviewOverlay instance.
+                      const commonProps = {
+                        previewMelody, previewLayout, playbackConfig, isOddRound, animationMode,
+                        startX, endX, trebleStart, bassStart, percussionStart, bottomY,
+                        measureBottom, measureYPositions, partialTop, partialMeasureStart,
+                        noteGroupSize, measureLengthSlots, displayNumMeasures,
+                        melodyWidth: mw,
+                        numAccidentals, pixelsPerTick: ppt, chordProgression, processedChords,
+                        timeSignature, tonic, scaleNotes, clefTreble, clefBass,
+                        trebleTransSemitones, bassTransSemitones,
+                        isTrebleVisible, isBassVisible, isPercussionVisible,
+                        chordDisplayMode, noteColoringMode, theme, showSettings, debugMode,
+                        blockMeasureStart, blockPlayStart, numRepeats, numMeasures, isPlaying,
+                        startMeasureIndex, onMeasureNumberClick, courtesyAccidentals,
+                        percussionVoiceSplit, emptyScaleNotes: EMPTY_SCALE_NOTES,
+                      };
+                      if (animationMode !== 'scroll') {
+                        return <PreviewOverlay {...commonProps} />;
+                      }
+                      // Scroll: render K_left history + K_right right-side preview copies.
+                      // K=0 (the main panel) is the existing melody — not rendered here.
+                      // Scroll: render red panels ONLY for positions past the series boundary
+                      // (= panels representing iters in the next series). Yellow renderer above
+                      // covers the current-series positions; together the two tile the viewport.
+                      const K_right = Math.max(1, Math.ceil(0.75 * effectiveVisibleMeasures / displayNumMeasures));
+                      const itersRemaining = numRepeats === -1
+                        ? Number.POSITIVE_INFINITY
+                        : Math.max(0, (numRepeats ?? 1) - iterInCurrentSeries - 1);
+                      const offsets = [];
+                      for (let i = Math.max(1, itersRemaining + 1); i <= K_right; i++) {
+                        offsets.push(i);
+                      }
+                      return offsets.map(i => (
+                        <PreviewOverlay key={`scroll-red-${i}`} {...commonProps} panelOffset={i * mw} />
+                      ));
                     })()}
                   </g>
                   </g>{/* end scroll-content-clip wrapper */}
@@ -2563,7 +2514,36 @@ const SheetMusic = ({
                   )}
 
                   {/* Thick repeat barlines — hidden in scroll+playing (no start/end repeat signs in scroll mode) */}
-                  {!(animationMode === 'scroll' && isPlaying) && renderRepeatBarlines(ppt)}
+                  {!(animationMode === 'scroll' && isPlaying) && (
+                    <BarlinesLayer
+                      mode="repeat"
+                      offsets={allOffsets}
+                      noteWidth={noteWidth}
+                      pixelsPerTick={ppt}
+                      startX={startX}
+                      startIdx={startMeasureIndex}
+                      blockMeasureStart={blockMeasureStart}
+                      blockPlayStart={blockPlayStart}
+                      partialTop={partialTop}
+                      partialMeasureStart={partialMeasureStart}
+                      measureBottom={measureBottom}
+                      measureYPositions={measureYPositions}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      bottomY={bottomY}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      numRepeats={numRepeats}
+                      isPlaying={isPlaying}
+                      numMeasures={numMeasures}
+                      debugMode={debugMode}
+                      showSettings={showSettings}
+                      measureLengthSlots={measureLengthSlots}
+                      onMeasureNumberClick={onMeasureNumberClick}
+                    />
+                  )}
 
                   {/* Settings overlay — rendered LAST so it sits above blurred content */}
                   {showSettings && (

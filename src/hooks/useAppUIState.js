@@ -57,10 +57,22 @@ export default function useAppUIState() {
     const [nextLayer, setNextLayer] = useState(null);
     const [previewMelody, setPreviewMelody] = useState(null);
 
+    // Scroll-mode multi-panel rendering needs to know how many iterations remain in
+    // the current series (= same melody being repeated). Set by Sequencer at each
+    // iter boundary; SheetMusic uses it to decide per-panel content (current-series
+    // panels render currentMelody, next-series panels render previewMelody).
+    //   0 = currently in the LAST rep of the series (next iter is a series boundary).
+    //   k (k > 0) = k more reps of the same melody before series flip.
+    const [iterInCurrentSeries, setIterInCurrentSeries] = useState(0);
+
     // Transition refs read by rAF callbacks in SheetMusic/AnimationRefs — stable identity across renders
     const wipeTransitionRef = useRef(null);         // {startTime, endTime} for wipe mask animation
-    const scrollTransitionRef = useRef(null);       // {startTime, endTime} for scroll slide animation
-    const pendingScrollTransitionRef = useRef(null); // queued next scroll animation
+    // Continuous scroll state. Shape: { startTime, startPageFraction, secondsPerPage }.
+    // rAF computes pageFraction = startPageFraction + (now-startTime)/secondsPerPage,
+    // tx = (0.25 - pageFraction) * pageWidth. Single persistent anchor; Sequencer adjusts
+    // startTime/startPageFraction on BPM changes (snap-on-measure) and at page boundaries
+    // (startPageFraction -= 1 in the same callback that swaps melody state — visually seamless).
+    const scrollTransitionRef = useRef(null);
     const paginationFadeRef = useRef(null);         // {startTime, totalEnd} for rAF-driven pagination crossfade (legacy two-phase path)
     // New unified transition ref consumed by useSheetMusicHighlight in the redesign.
     // Shape: { kind: 'crossfade', startTime, endTime } — extensible for wipe/stream/rubato later.
@@ -103,9 +115,9 @@ export default function useAppUIState() {
         lyricsMode, setLyricsMode,
         nextLayer, setNextLayer,
         previewMelody, setPreviewMelody,
+        iterInCurrentSeries, setIterInCurrentSeries,
         wipeTransitionRef,
         scrollTransitionRef,
-        pendingScrollTransitionRef,
         paginationFadeRef,
         transitionRef,
         svgRef,
