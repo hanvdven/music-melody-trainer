@@ -62,6 +62,11 @@ const PreviewOverlay = ({
   // rendering, SheetMusic passes negative (history) and positive (further-right
   // preview) multiples of melodyWidth.
   panelOffset,
+  // roundKeyOverride: 'oddRounds' | 'evenRounds' — scroll-mode passes a per-panel
+  // round so each next-series preview panel renders the visibility of THE rep it
+  // represents (Han 2026-05-28). When undefined, falls back to lockedKey /
+  // isOddRound-derived behaviour (pagination/wipe path).
+  roundKeyOverride,
   numAccidentals,
   pixelsPerTick,
   // music data
@@ -105,9 +110,16 @@ const PreviewOverlay = ({
   // would let the overlay's visibility flip mid-overshoot for the 'lang' variant
   // (when isOddRound updates at the boundary while the overlay is still up
   // for another 0.25m).
+  // roundKeyOverride wins over both lockedKey and the isOddRound-derived fallback.
+  // Scroll mode passes a per-panel round (Han 2026-05-28) so each next-series
+  // preview panel reflects ITS rep's visibility, not the master playing round.
   const lockedKey = previewMelody?._roundKey;
-  const nextRoundKey = lockedKey ?? (isOddRound ? 'evenRounds' : 'oddRounds');
-  const nextCfg = previewLayout?.nextCfg ?? (playbackConfig?.[nextRoundKey] ?? {});
+  const nextRoundKey = roundKeyOverride ?? lockedKey ?? (isOddRound ? 'evenRounds' : 'oddRounds');
+  // previewLayout.nextCfg is precomputed from the locked/master round; the override
+  // path bypasses it and reads playbackConfig directly so the cfg matches nextRoundKey.
+  const nextCfg = roundKeyOverride
+    ? (playbackConfig?.[nextRoundKey] ?? {})
+    : (previewLayout?.nextCfg ?? (playbackConfig?.[nextRoundKey] ?? {}));
   const nextNotesVisible = previewLayout?.nextNotesVisible ?? !!nextCfg.notes;
   const nextTreble = nextCfg.trebleEye !== false;
   const nextBass = nextCfg.bassEye !== false;

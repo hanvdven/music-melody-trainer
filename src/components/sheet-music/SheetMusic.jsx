@@ -2186,26 +2186,33 @@ const SheetMusic = ({
                       (animationMode === 'scroll' && isPlaying)) && (() => {
                       // Round config:
                       //   wipe/pagination yellow = OPPOSITE round (this overlay previews the next repeat).
-                      //   scroll = CURRENT round (all panels show the round that's playing now).
+                      //   scroll = PER-PANEL round (Han 2026-05-28). Each panel represents a
+                      //     specific rep — its visibility must match THAT rep's round. The
+                      //     master round is the one that's currently PLAYING; for any other
+                      //     panel offset i, the round alternates per rep relative to master.
+                      //     See per-panel calculation in the offsets.map below.
                       const roundKey = animationMode === 'scroll'
                         ? (isOddRound ? 'oddRounds' : 'evenRounds')
                         : (isOddRound ? 'evenRounds' : 'oddRounds');
-                      const nextCfg = playbackConfig?.[roundKey] ?? {};
-                      const nextNotesVisible = !!nextCfg.notes;
-                      const nextTreble = nextCfg.trebleEye !== false;
-                      const nextBass = nextCfg.bassEye !== false;
-                      const nextPerc = nextCfg.percussionEye === true;
-                      const nextMetro = nextCfg.percussionEye === 'metronome';
+                      const defaultCfg = playbackConfig?.[roundKey] ?? {};
                       // In debug mode: tint yellow so the overlay is visually distinct.
                       // In normal mode: render with default note colors (null = no tint).
                       const YCOL = debugMode ? 'var(--accent-yellow)' : null;
 
                       // Inner content shared across all overlay panels (chord labels + 3 staves + barlines).
+                      // panelCfg is the playbackConfig.{odd,even}Rounds object for THIS panel.
                       // MelodyNotesLayer is React.memo'd, so rendering it K times with identical props
                       // results in K-1 cache hits (only one fresh paint per round).
-                      const renderContent = () => (<>
+                      const renderContent = (panelCfg) => {
+                        const nextNotesVisible = !!panelCfg.notes;
+                        const nextTreble = panelCfg.trebleEye !== false;
+                        const nextBass = panelCfg.bassEye !== false;
+                        const nextPerc = panelCfg.percussionEye === true;
+                        const nextMetro = panelCfg.percussionEye === 'metronome';
+                        const nextChords = panelCfg.chordsEye !== false;
+                        return (<>
                           {/* Chord labels above treble staff — shown if next round has chords visible */}
-                          {nextCfg.chordsEye !== false && chordProgression && processedChords?.length > 0 &&
+                          {nextChords && chordProgression && processedChords?.length > 0 &&
                             <ChordLabelsLayer
                               chordProgression={chordProgression}
                               chords={null}
@@ -2375,6 +2382,7 @@ const SheetMusic = ({
                             />
                           </g>
                       </>);
+                      };
 
                       // Non-scroll modes (wipe / pagination): single overlay at no translate offset.
                       if (animationMode !== 'scroll') {
@@ -2392,7 +2400,7 @@ const SheetMusic = ({
                               pointerEvents: 'none',
                             }}
                           >
-                            {renderContent()}
+                            {renderContent(defaultCfg)}
                           </g>
                         );
                       }
@@ -2423,7 +2431,16 @@ const SheetMusic = ({
                         if (i > 0 && i > itersRemaining) continue; // beyond series boundary → red path
                         offsets.push(i);
                       }
-                      return offsets.map(i => (
+                      return offsets.map(i => {
+                        // Per-panel round (Han 2026-05-28): the panel at offset i represents
+                        // iter (iterInCurrentSeries + i) within the current series. Round
+                        // alternates per iter, so panel round = master XOR (i odd).
+                        // i = 0 (main) is rendered above; same-parity offsets share main's
+                        // round, opposite-parity offsets show the other round's config.
+                        const panelOddRound = (i % 2 === 0) ? isOddRound : !isOddRound;
+                        const panelRoundKey = panelOddRound ? 'oddRounds' : 'evenRounds';
+                        const panelCfg = playbackConfig?.[panelRoundKey] ?? {};
+                        return (
                         <g
                           key={`scroll-yellow-${i}`}
                           data-wipe-role={i === 1 ? "new" : undefined}
@@ -2435,9 +2452,10 @@ const SheetMusic = ({
                             pointerEvents: 'none',
                           }}
                         >
-                          {renderContent()}
+                          {renderContent(panelCfg)}
                         </g>
-                      ));
+                        );
+                      });
                     })()}
                     {/* Red/crossfade overlay (NEW melody preview).
                         - wipe/pagination: gated on showWipePreview; one overlay at translate(melodyWidth).
@@ -2478,9 +2496,23 @@ const SheetMusic = ({
                       for (let i = Math.max(1, itersRemaining + 1); i <= K_right; i++) {
                         offsets.push(i);
                       }
-                      return offsets.map(i => (
-                        <PreviewOverlay key={`scroll-red-${i}`} {...commonProps} panelOffset={i * mw} />
-                      ));
+                      // Per-panel round (Han 2026-05-28): red panel at offset i represents
+                      // next-series rep (i - itersRemaining - 1). At every series-flip the
+                      // applyResult callback sets isOddRound=true, so the next-series rep 0
+                      // is always 'oddRounds'. Round alternates per rep from there.
+                      return offsets.map(i => {
+                        const nextSeriesRep = i - (Number.isFinite(itersRemaining) ? itersRemaining : 0) - 1;
+                        const panelOddRound = (nextSeriesRep % 2 === 0);
+                        const panelRoundKey = panelOddRound ? 'oddRounds' : 'evenRounds';
+                        return (
+                          <PreviewOverlay
+                            key={`scroll-red-${i}`}
+                            {...commonProps}
+                            panelOffset={i * mw}
+                            roundKeyOverride={panelRoundKey}
+                          />
+                        );
+                      });
                     })()}
                   </g>
                   </g>{/* end scroll-content-clip wrapper */}
