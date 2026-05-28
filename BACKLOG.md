@@ -39,6 +39,123 @@ bestaande liedjes (happy birthday, ...)
   4. **Source of truth**: blijft de JSON onder `src/songs/definitions/happyBirthday.js` (status quo), of komt er een nieuw `.json`-bestand naast met de MIDI-export en wordt de `.js` een import-wrapper? Voor latere bestaande liedjes is dat schaalbaarder.
   5. **Fermata in HBD**: HBD heeft traditioneel een fermata op "[name]" (3e regel, hoge noot). De MIDI lijkt dat niet expliciet te coderen (MIDI heeft geen fermata-event). Wil je dat ik de fermata met de hand intik op die positie? Zie ook nieuwe fermata-feature hieronder.
 
+[Han 2026-05-28]: **Aanvullende HBD-bugs en feature-requests** (ronde 5):
+
+- **Bug: HBD heeft geen measure grouping → maak fallback voor common time sigs.** In plaats van rhythmicGrouping verplicht te maken, voorzie een fallback per maatsoort:
+  - 3/4: `[3]` quarters, `[2,2,2]` eighths, `[4,4,4]` sixteenths
+  - 4/4: `[2,2]` quarters, `[2,2,2,2]` eighths, `[4,4,4,4]` sixteenths
+  - 6/8: `[3,3]` eighths, `[2,2,2,2,2,2]` sixteenths
+- **Bug: HBD-akkoorden komen niet overeen met de melodie** — de begeleiding houdt vast aan de generator's klassieke cadens. Ik verwacht een 'chord melody' per song (= akkoorden komen uit de song-definitie, niet uit de generator).
+- **Feature: anacrusis**: de eerste maat van HBD is een anacrusis met maatnummer 0. Maatnummering moet hier op 0 (of -1, of vergelijkbaar) starten.
+- **Feature: N.C. (no chord)**: er moeten ook chordless passages mogelijk zijn. ⚠ Heeft impact op melodie-generatie (in het bijzonder als chord-notes als pitch-pool gebruikt worden). Interview nodig voor fallback-strategy.
+- **Feature: song-load reset measure number** — laden van een song zou de current measure-index moeten resetten naar de start van die song.
+- **Feature: chord progression fixed by default after song load** — na laden van een song zou de chord progression standaard 'fixed' moeten staan (= geen herauto-generatie bij volgende randomize).
+- **CRITICAL bug**: generation of zelfs PLAYBACK van volgende maten na het EERSTE sequence-block na song-load levert verkeerde sheet music. (zie ook line ~613 "sheet-music regressie na song-load" — mogelijk hetzelfde symptoom).
+- **HBD lyrics: [name] mist een noot** — '[name]' heeft 2 lettergrepen (bv. "Eve-lyn") en zou dus 2 noten moeten beslaan, niet 1. Plus: traditionele fermata ligt op '[name]' (zie Fermata-sectie).
+
+[Claude 2026-05-28 19:55]: Bovenstaande items uitgepakt in onderstaande sub-secties — elk krijgt zijn eigen plek zodat ze niet vergeten worden bij de volgende ronde.
+
+---
+
+### HBD/Song-load Bug: measure grouping fallback per maatsoort
+
+**Symptom (Han 2026-05-28)**: Happy Birthday JSON heeft geen `rhythmicGrouping`. De huidige code maakt dit verplicht; ontbrekende grouping veroorzaakt verkeerde beam-berekening of een crash.
+
+**Root cause hypothesis**: `loadSong.js` zet `treble.rhythmicGrouping = songDef.rhythmicGrouping ?? null`. Voor songs die het niet meegeven blijft het null en moet de generator/sheet-music-renderer er zelf een afleiden. De afleiding bestaat (`decomposeNumeratorToBeatGroups` of vergelijkbaar) maar wordt niet automatisch toegepast.
+
+**Fix (Han's voorgestelde fallback)**:
+- 3/4: `[3]q`, `[2,2,2]e`, `[4,4,4]s`
+- 4/4: `[2,2]q`, `[2,2,2,2]e`, `[4,4,4,4]s`
+- 6/8: `[3,3]e`, `[2,2,2,2,2,2]s`
+
+Implementeer als een **derive-from-timeSignature helper** in `theory/` of `generation/`, die bij `null` grouping wordt aangeroepen. Geen tabel maar bereken: voor numerator N met denominator D, zoek prime-factor decomposition (3=3, 4=2×2, 6=3×2, 9=3×3, 12=2×2×3, etc.); kies decomposition die in groepen van 2 of 3 valt. Voor "smaller note denoms" (eights, sixteenths) vermenigvuldig de groepering met (smallerDenom / D).
+
+**Niet doen**: hard-coded lookup tabel zoals Han impliceerde — dat schaalt niet voor odd time sigs (5/4, 7/8, 11/8) en is in strijd met CLAUDE.md §6c ("use existing logic — do not hardcode"). Bereken vanuit numerator + denominator.
+
+---
+
+### HBD/Song Bug: chord melody komt uit generator i.p.v. song-definitie
+
+**Symptom (Han 2026-05-28)**: HBD's chord-progressie volgt nog steeds de generator's `chordSettings.strategy: 'classical-1-4-5-1'` in plaats van de in de song meegeleverde akkoorden. De akkoorden ZIJN in `happyBirthday.json` aanwezig (G, D7, G, G, C, D7, G met juiste offsets en durations), maar worden mogelijk niet als bron-van-waarheid gebruikt tijdens playback/regen.
+
+**Root cause kandidaten**:
+1. `loadSong.js` zet wel `chordMelody` maar de Sequencer / regen-loop overschrijft die op de eerste series-flip met de generator's eigen chord-progressie.
+2. De UI heeft geen "fixed chord progression" toggle die na song-load standaard aan staat.
+3. De chord-progressie in song-definitie wordt enkel voor displaybar gebruikt, niet voor audio.
+
+**Fix-richting**: zie ook "chord progression fixed by default after song load" item. Beide moeten samen.
+
+---
+
+### HBD/Generic Feature: anacrusis (measure 0)
+
+**Han 2026-05-28**: De eerste maat van HBD is een anacrusis. Verwachting: maatnummering start op 0 (of mogelijk -1, conventie-vraag).
+
+**Vragen voor interview**:
+1. Anacrusis = altijd measure 0, of soms measure 1 met de "echte" muziek startend op measure 2?
+2. Anacrusis-detectie automatisch (= eerste maat heeft rest aan begin tot eerste noot) of expliciet via een `anacrusis: true` flag in song-definitie?
+3. Visuele afbeelding: maatnummer onder eerste maat verbergen, of "0" tonen, of "(0)" tussen haakjes?
+4. Effect op generation: telt de anacrusis mee in `numMeasures`? In HBD is `numMeasures: 9` incl. anacrusis.
+
+**Niet doen vóór interview**.
+
+---
+
+### HBD/Generic Feature: N.C. (no chord) passages
+
+**Han 2026-05-28**: N.C. (no chord, "tacet harmony") moet kunnen voorkomen in een chord-progressie. ⚠ **Impact op melodie-generatie**: als de generator chord-notes als pitch-pool gebruikt, en een passage heeft "geen akkoord", wat is dan de pool?
+
+**Vragen voor interview**:
+1. Fallback-strategy voor melodie-generatie tijdens N.C.: (a) scale-notes als pool; (b) blijf bij vorige akkoord's notes; (c) chromatic; (d) geen melodie (silent measure).
+2. Visuele representatie: "N.C." tekst boven de staff, of niets?
+3. Audio: percussion + bass tijdens N.C. ook stil, of alleen treble/chord-staff?
+
+**Niet doen vóór interview**.
+
+---
+
+### HBD/Song-load: reset measure number + fixed chord progression
+
+**Han 2026-05-28**: Bij song-load:
+- Reset `startMeasureIndex` / `currentMeasureIndex` naar 0 (of de anacrusis-positie).
+- Zet chord-progression `fixed`-rule standaard aan zodat de generator de song's akkoorden niet overschrijft bij volgende randomize.
+
+**Files**: `src/App.jsx` `loadSongAndPlay` callback, `useMelodyState.js`.
+
+Relatief klein, maar afhankelijk van "chord melody komt uit song-definitie" item hierboven (samen oplossen).
+
+---
+
+### CRITICAL HBD Bug: verkeerde sheet music na song-load (2e sequence block)
+
+**Han 2026-05-28**: "Generation of zelfs playing van subsequent maten na het EERSTE sequence block na laden van een song levert verkeerde sheet music."
+
+**Symptom**: Song-load werkt; eerste sequence-block (= eerste 9 maten HBD) wordt correct getoond. Na de eerste series-flip (volgende iteratie) wordt de bladmuziek fout.
+
+**Hypotheses (zonder repro)**:
+1. De Sequencer's outer-loop pakt bij iteration=0 van de tweede series een NIEUWE melodie via `randomizeScaleAndGenerate`, NIET de song's vaste melodie → song verandert in random generation.
+2. `melodiesRef.current.treble` wordt niet gerefresht met de song's vaste content na song-load → de Sequencer gebruikt nog de pre-song melody.
+3. `currentNumMeasures` blijft op de song's waarde (9), maar de gegenereerde melody is voor de algemene `numMeasures` (bv. 4) → slice-mismatch.
+
+**Cross-reference**: line ~613 "sheet-music regressie na song-load" — mogelijk hetzelfde symptoom, eerder al genoteerd.
+
+**Aanpak**: Han moet repro-stappen geven (welke song, na hoeveel reps, welke modus). Daarna instrumentatie + fix.
+
+---
+
+### HBD lyric bug: [name] zou 2 lettergrepen moeten zijn
+
+**Han 2026-05-28**: '[name]' in "Happy Birthday dear [name]" wordt vaak 2 lettergrepen (bv. "Eve-lyn", "Han-sel"). Huidige JSON heeft '[name]' als 1 noot.
+
+**Fix-opties**:
+1. Splits '[name]' naar 2 noten (verlies van melody-fidelity — sommige namen zijn 1 lettergreep).
+2. Houd 1 noot maar maak [name] een speciale lyric die runtime gesplitst kan worden naar gelang de naam-input van de user (bijv. een name-prompt bij song-laden).
+3. Voorzie '[name]' als één noot maar render een onderdeel "—" voor 2e lettergreep dat alleen actief is als naam > 1 syllabe.
+
+**Vraag voor interview**: welke optie? Plus: heeft de user een name-input UI nodig?
+
+---
+
 ### Profiel-icoon & submenu (navigatie)
 vervang profile settings icoon met Lucide: user.
 Submenu: kennisbank (graduation-cap) en settings (waar nu thema etc onder staan).
@@ -119,7 +236,7 @@ add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 
 **Discoverability**:
 4. **Long-click op BPM-naam** voor rubato-toggle is verstopt. Wel dat type interactie heeft Han eerder gebruikt voor andere features, dus consistentie. Maar minstens een visuele hint (cursor change, tooltip) is nodig.
-5. **q = SHIFT+T symbool**: in Maestro-font is SHIFT+T het common-time-symbool. Han wil dat als rubato-glyph? Of bedoelt hij een ander glyph? Conflict met de andere backlog-item "Common time-symbool: SHIFT+T ipv 4/4". Verduidelijking nodig.
+5. ~~**q = SHIFT+T symbool**~~: ~~conflict met common-time-symbool item~~. **Opgelost (Han 2026-05-28)**: common-time = 'c', is al lang geïmplementeerd, het SHIFT+T-backlog-item was documentatiefout en is verwijderd. SHIFT+T is dus vrij voor rubato (of Han kiest ander Maestro-glyph in PR-B).
 
 **UX edge cases**:
 6. **Wave 5 "te snel sla noten over"**: voelt jarring. Alternatief: cross-fade naar de positie waar de speler is, of snap-to-grid op de eerstvolgende noot.
@@ -143,15 +260,44 @@ add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 **Vragen die ik aan Han moet stellen vóór PR-B**:
 - Input-bron: microphone pitch-detect of MIDI-keyboard via Web MIDI? Hybride?
 - Wat doen we bij verkeerde noten? (negeren / blokkeren / soft-feedback)
-- Concrete glyph voor rubato: Maestro's SHIFT+T conflict met common-time-glyph (zie backlog "Common time-symbool")?
+- Concrete glyph voor rubato: SHIFT+T is vrij (common-time gebruikt 'c'). Bevestig SHIFT+T of kies ander glyph.
 - Visual block in scroll-mode: 1 maat? 1 rep? hele series?
 - Welke modi krijgen WEL rubato (alle 3 modi, of alleen pagination + wipe in eerste fase)?
 
-### Common time-symbool: Maestro SHIFT+T ipv 4/4
+[Han 2026-05-28]: **Antwoorden op de 5 vragen**:
+1. **Verkeerde noten**: wachten tot de goede noot gespeeld is + soft-feedback (geen blokkering, geen negeren).
+2. **Input-bron**: voorlopig alleen het bottom-pane keyboard. De ACTIEVE keyboard (treble / bass / perc / chords) bepaalt welke lijn leidend is.
+3. **Glyph**: SHIFT+T conflict opgelost (common-time = 'c', al geïmplementeerd; SHIFT+T-backlog-item was documentatie-fout, verwijderd). SHIFT+T is dus vrij voor rubato.
+4. **Visual block**: "zoals altijd, op basis van beste visuele ruimte" → zet op backlog om te reviewen wat "beste visuele ruimte" hier precies betekent (zie sub-item hieronder).
+5. **Fase 1 modi**: pagination + wipe (niet scroll in fase 1).
 
-gebruik ipv de 4/4 dit Maestro-symbool: SHIFT+T | ~ | Turn, grupetto
+[Claude 2026-05-28 19:55]: **Verwerking van Han's antwoorden in implementatie-plan**:
 
-> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+- **PR-B (rubato infra)**: toggle, UI-glyph (SHIFT+T Maestro), long-click op BPM-naam. Visuele hint: cursor-change op BPM-label + tooltip "long-press for rubato".
+- **PR-C (wave 1)**: next-to-play highlight + correct-note-detection + visual-block-end-trigger voor **pagination + wipe** (geen scroll). Input via bottom-pane keyboard; de actieve keyboard-laag bepaalt welk staff "leidt". Verkeerde noten → **soft-feedback**: noot rood-flits (kort), animatie blijft wachten op correcte noot. Geen blokkering van andere inputs.
+- **PR-D (wave 2)**: BPM-estimate (EWMA) + predictive accompaniment.
+- **PR-E (wave 3+4+5)**: meerdere input-tracks (kan via toggle van actieve keyboard), scroll-rubato, fallbacks.
+
+---
+
+### Visual block-definitie in rubato — to-review
+
+[Han 2026-05-28]: "visual block — zoals altijd, op basis van beste visuele ruimte. Zet op backlog om dat te reviewen."
+
+[Claude 2026-05-28 19:55]: In de huidige codebase is "visual block" niet een uniforme term:
+- **Pagination**: visual block = één item uit `musicalBlocks` array (kan 1, 2, ..., N maten zijn — bepaald door pagination's space-fitting).
+- **Wipe**: visual block = hele numMeasures (= 1 sequence-block per wipe).
+- **Scroll**: visual block = hele page-content (= `secondsPerPage` aan content).
+
+Voor rubato wave-1 ("laatste noot van visual block triggert animatie"):
+- In pagination: betekent dit dat de laatste noot van een musicalBlock de visual-flip naar het volgende block triggert. Voor multi-block-per-rep (bv. `[3, 2]`) zijn er 2 visual-flips per rep.
+- In wipe: laatste noot van numMeasures triggert de wipe. 1 trigger per rep.
+
+**Vraag voor interview**: in pagination, is "visual block" = musicalBlock-element of = hele numMeasures? Op het tweede komt rubato dichter bij wipe-gedrag.
+
+**Niet doen vóór review**.
+
+---
 
 ### Fermata (Han 2026-05-27)
 
