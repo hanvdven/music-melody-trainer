@@ -13,6 +13,19 @@ const playMelodies = (
   customMapping = null,
   trackGains = null
 ) => {
+  // Restore output channel volume on every instrument we're about to play.
+  // Sequencer.stop() hard-mutes each instrument's output (setVolume(0)) so
+  // smplr's per-voice release envelopes ramp down inaudibly when the user
+  // presses Stop — without this, the next playback would schedule notes into
+  // a still-muted channel and the user would hear nothing. Idempotent for
+  // channels that are already at 100, so it's safe to run on every entry.
+  const allInstruments = namedInstruments
+    ? Object.values(namedInstruments).filter(Boolean)
+    : (instruments || []).filter(Boolean);
+  allInstruments.forEach(inst => {
+    try { inst.output?.setVolume?.(100); } catch { /* output API absent */ }
+  });
+
   const timeFactor = 5 / bpm;
   const safetyBuffer = 0.05;
   const adjustedStart = Math.max(scheduledStart, context.currentTime + safetyBuffer);

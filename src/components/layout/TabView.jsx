@@ -17,7 +17,8 @@ import { instrumentOptions } from '../controls/instrumentOptions';
 import { HARMONY_DIFFICULTY_RANGE } from '../../utils/harmonyTable';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
-import { usePlaybackState } from '../../contexts/PlaybackStateContext';
+import { usePlaybackTransport } from '../../contexts/PlaybackTransportContext';
+import { useRoundState } from '../../contexts/RoundStateContext';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TabView — renders the content area for each tab.
@@ -112,7 +113,8 @@ const TabView = ({
     } = useInstrumentSettings();
 
     const { noteColoringMode, setNoteColoringMode, chordDisplayMode, setChordDisplayMode } = useDisplaySettings();
-    const { isPlaying, inputTestSubMode } = usePlaybackState();
+    const { isPlaying } = usePlaybackTransport();
+    const { inputTestSubMode } = useRoundState();
 
     return (
         <div className="app-content-area">

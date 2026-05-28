@@ -43,6 +43,14 @@ bestaande liedjes (happy birthday, ...)
   [Claude 2026-05-22]: De `setActiveTab('sheet-music')` regel in de `loadSongAndPlay` callback in `App.jsx` verwijderd. De gebruiker's huidige tab blijft nu behouden bij het laden van een lied.
 - **Happy Birthday klinkt niet correct** — de melodie of het ritme klopt niet met het bekende kinderliedje. Vermoedelijk een tikfout in `src/songs/definitions/happyBirthday.js` of een transpositie-bug.
 
+[Han 2026-05-27]: Geüploade MIDI als bron van waarheid: `Happy_Birthday___Piano.mid` (zie chat). Doe hier de "volledige" versie van: melodie + akkoorden in zowel treble als bass. De huidige `happyBirthday.js` is alleen treble + akkoord-bracket; vervang die door een Hard/Full difficulty die uit de MIDI is gegenereerd. De bestaande "Easy" wordt later gemaakt door noten te strippen — geen aparte handgemaakte easy meer.
+[Claude 2026-05-27 11:42]: Interview vereist vóór implementatie (zie chat). Open vragen:
+  1. **Lyric-uitlijning**: in HBD ligt elke lettergreep onder één melodische noot. Bij een akkoord-in-treble (bv. de hele I/IV/V harmonisatie als gestapelde notenkop) — komt de lyric onder de bovenste noot, onder de onderste, of in het midden? Of: laten we de melodische stem visueel apart laten van de begeleidingstemmen?
+  2. **Stemverdeling treble**: één gestapeld akkoord op elke melodienoot (bv. F/A/C voor de "Hap-py"), of melodie op 1 stem en akkoord apart erboven/eronder (2-voice notatie)? Het laatste vereist parallel voices-rendering.
+  3. **Bass-akkoord-voicing**: in de MIDI staan zowel grondtonen als 3-stemmige akkoorden in de baspartij? Of alleen grondtonen + 5e? Ik moet de MIDI eerst exact ontleden.
+  4. **Source of truth**: blijft de JSON onder `src/songs/definitions/happyBirthday.js` (status quo), of komt er een nieuw `.json`-bestand naast met de MIDI-export en wordt de `.js` een import-wrapper? Voor latere bestaande liedjes is dat schaalbaarder.
+  5. **Fermata in HBD**: HBD heeft traditioneel een fermata op "[name]" (3e regel, hoge noot). De MIDI lijkt dat niet expliciet te coderen (MIDI heeft geen fermata-event). Wil je dat ik de fermata met de hand intik op die positie? Zie ook nieuwe fermata-feature hieronder.
+
 ### Profiel-icoon & submenu (navigatie)
 vervang profile settings icoon met Lucide: user.
 Submenu: kennisbank (graduation-cap) en settings (waar nu thema etc onder staan).
@@ -104,6 +112,25 @@ add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 gebruik ipv de 4/4 dit Maestro-symbool: SHIFT+T | ~ | Turn, grupetto
 
 > ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+
+### Fermata (Han 2026-05-27)
+
+[Han 2026-05-27]: Ik denk dat er een fermata in HBD zit — dat zou ik ook graag in de app hebben.
+
+Maestro-glyphs:
+- `SHIFT+u` → Fermata (above note)
+- `u` → Fermata (below note)
+
+Voorgestelde semantiek: een fermata-noot duurt 50% langer dan zijn geschreven duur. Dit verschuift het schema van alle daaropvolgende noten, maar de bladmuziek-notatie (offsets, beam-groepen, maatindeling) blijft visueel ongewijzigd. Dat is een uitdaging — interview vereist.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-27 11:42]: Open vragen voor het interview:
+  1. **Audio-scheduling**: een fermata-noot houdt zijn `duration * 1.5` aan; alle volgende `offset`-waarden moeten in audio-tijd met `0.5 * duration` opgeschoven worden zonder dat de geschreven offsets in de JSON veranderen. Wil je dat de Sequencer dit "on the fly" doet (offsets in JSON blijven puur visueel, fermata-flag triggert run-time tijdrekken), of liever twee parallelle offset-velden (`visualOffset` + `audioOffset`)?
+  2. **Maat-uitlijning**: na een fermata loopt audio-tijd achter t.o.v. bladmuziek-tijd. Wanneer "haalt" audio dat in? Mogelijke antwoorden: (a) nooit — de hele rest van het lied schuift mee; (b) bij de volgende maatlijn — audio "krimpt" een micro-pauze in om weer synchroon te lopen; (c) bij de eerstvolgende rust — die rust wordt verkort.
+  3. **Notatie-laag**: tijdens een fermata-rendering, hoe communiceer ik dat dit een fermata is naar `renderMelodyNotes.jsx`? Voorstel: extra optioneel veld `articulation: 'fermata-above' | 'fermata-below'` per noot, gerenderd als Maestro-glyph U+E4C0 boven/onder de notenkop. Akkoord/notatie ja/nee?
+  4. **Continuous playback**: in repeats — geldt de fermata elke iteratie? Of alleen op de laatste? (Klassiek: alleen op de laatste van de hele performance.) Wat is verwacht gedrag in continuous-loop modus?
+  5. **Highlight-animatie**: bij playback met een fermata zou de active-note highlight ook 1.5× zo lang moeten "blijven hangen" op die noot. Eens?
+  6. **Interactie met free-time/rubato**: in rubato-modus betekent fermata strikt genomen "wacht tot speler klaar is". Maar dat is de hele rubato-modus al. Dubbele logica vermijden — wat is de relatie?
 
 ### Sleutel & transponerend instrument
 
@@ -477,6 +504,32 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 
 - scroll mode: change bpm during animation...
 [Claude 2026-05-19]: ⬆ NOG NIET OPGELOST — op verzoek van Han: "werkt nog niet goed". Scroll-animatie (constante-snelheid playhead) heeft nog problemen. Onderzoek nodig; interview voor reproduceerbare stappen.
+
+[Claude 2026-05-27 12:50]: ✅ Iter 1 ge-implementeerd op branch `claude/sheet-music-animations-cYqld`. Continue scroll-anchor `{ startTime, startPageFraction, secondsPerPage }` vervangt het discrete `{startTime, endTime}` + `pendingScrollTransitionRef`. Drie continuïteits-operaties: (1) cold start anchored op eerste maat met `startPageFraction=0`; (2) BPM-snap op maatovergang — keeps `tx(T)` continu door `startTime=T, startPageFraction = pageFraction(T)`; (3) page-boundary swap (`startPageFraction -= 1`) in dezelfde setTimeout-callback als de React state advance (applyResult voor series, of no-op voor repeats). Het `+0.75m` linger-offset is verwijderd zodat audio en visual exact synchroon lopen. Overlay-slot wordt nu bij elke `m=0` op `'yellow'` gezet (same-melody kopie rechts) en op penultieme maat van laatste rep ge-upgrade naar `'red'` (pregen new melody). Iter 2 (N-panel rendering voor kleine repeat-blokken zoals 1-maats sequences) staat nog open — zie hieronder.
+
+  Bestanden: `src/audio/Sequencer.js`, `src/hooks/useSheetMusicHighlight.js`, `src/hooks/useAppUIState.js`, `src/contexts/AnimationRefsContext.jsx`, `src/components/sheet-music/SheetMusic.jsx`, `src/App.jsx`, `docs/architecture.md` §10.3.
+
+  Open punt iter 2: bij `repeatBlockSize < idealVisibleMeasures` (bv. 1-maats blokken met visible=4) heeft de huidige 2-panel overlay (main+overlay) niet genoeg breedte; rechtsranderkant kan leeg lijken. Iter 2 = ceil(idealVisible / repeatBlockSize) + 1 panels side-by-side + recycle rechts.
+
+[Claude 2026-05-27 16:30]: ✅ Iter 2a + 2b geïmplementeerd op claude/sheet-music-perf-refactor. Twee commits:
+  - **2a** (`f6fcf74`): nieuwe scroll-mode-clamp `effectiveVisibleMeasures = max(2, numMeasures)` (drop capacity-cap). rAF-formule herschreven naar `tx = 0.25*pageWidth − pageFraction*melodyWidth` waar `melodyWidth = displayNumMeasures × measureWidth` (toegevoegd aan layoutRef). Fixt visual lag wanneer numMeasures > capacity (mobile / hoog num-measures). Overlay-transform van endX-startX naar melodyWidth.
+  - **2b**: yellow- en red-overlay K-keer side-by-side gerenderd in scroll-modus, `K_left = ceil(0.25*visible/numMeasures)` history + `K_right = ceil(0.75*visible/numMeasures)` rechts-previews. Voor numMeasures=1, visible=2 = 4 panels totaal ("half-heel-half"); voor typisch numMeasures=visible=4 = 3 panels (= history fix voor de post-swap empty-left-25%). `PreviewOverlay` heeft een nieuwe `panelOffset` prop.
+
+  Visual quirk geaccepteerd voor iter 2: tijdens last rep (red-overlay actief) tonen óók de K_left history-panelen de NIEUWE pregen-melodie i.p.v. de oude. Brief content-swap zichtbaar bij series-overgang in het linker history-gebied. Fix zou per-panel state vereisen — buiten scope iter 2.
+
+  Bestanden: `src/App.jsx` (effectiveVisibleMeasures), `src/hooks/useSheetMusicHighlight.js` (rAF), `src/components/sheet-music/SheetMusic.jsx` (layoutRef.melodyWidth, multi-panel yellow + red), `src/components/sheet-music/PreviewOverlay.jsx` (panelOffset prop), `docs/architecture.md` §10.3.
+
+[Claude 2026-05-27 11:42]: Interview-antwoorden van Han voor herontwerp scroll-modus (volgende PR, separaat van wipe-fix b9e9845):
+  • **Beweging**: noten schuiven rechts→links door een venster ter grootte van `idealVisibleMeasures`. Meerdere blokken/repeats lijnen horizontaal achter elkaar uit als één doorlopend lint (één continue tijdslijn — geen page-jumps, geen piano-roll cursor; visueel hetzelfde gevoel als constante-snelheid playhead maar met >2 maten zichtbaar).
+  • **Repeats**: smooth continuous loop. Bij een nieuwe iteratie van dezelfde melodie verschijnt de volgende kopie rechts ín het scrollvenster zonder visuele harde grens of pauze.
+  • **Series flip (nieuwe melodie/sequence block)**: géén apart visueel signaal. Maatnummering draagt al die informatie. Geen overlay, geen tint, geen crossfade-marker.
+  • **BPM-wijziging tijdens scroll**: soft retune op de eerstvolgende maatovergang — over ~1 beat ramp de scroll-snelheid naar de nieuwe BPM-snelheid.
+    [Claude 2026-05-27 12:50 — herzien]: Na vervolgvraag van Han ("BPM-update van melodie en bladmuziek moet gelijk lopen — ik denk dat updates op de eerstvolgende maat worden toegepast") gewijzigd naar HARD SNAP op maatovergang (geen ramp). Reden: een ramp zou de scroll mid-ramp uit sync brengen met de audio (die wel hard snapt). Geïmplementeerd in iter 1.
+  Ontwerpconsequenties die ik in de volgende PR moet adresseren:
+  – `idealVisibleMeasures` (App.jsx) bepaalt de scroll-vensterbreedte; bij erg kleine repeat-blokken (bv. 1 maat) moeten meerdere kopieën pre-gerenderd zijn zodat het lint niet "leeg" lijkt aan de rechterkant.
+  – Maatnummering moet zichtbaar zijn én correct doorlopen over series-grenzen (anders mist Han het visuele signaal voor "nieuw blok").
+  – De scroll-translate is een functie van `(currentTime - scrollStartTime) * pixelsPerSecond`, waarbij `pixelsPerSecond` bij maatovergang opnieuw bepaald wordt (BPM-retune). Acceleratie over ~1 beat = linear ramp van oude naar nieuwe `pixelsPerSecond`.
+  – Geen `wipeTransitionRef`/`paginationFadeRef` analoog: scroll heeft alleen één `scrollTransitionRef` met `{startTime, endTime, startTransform, endTransform}` of vergelijkbaar, doorlopend over series-grenzen.
 ✅ begin de animatie 0,5 maat later, en eindig ook 0,5 maat later (zodat de actieve noot op ongeveer 25% van startX - endX ligt.)
 
 [Claude 2026-04-10]: Geïmplementeerd — scroll startTime/endTime verschoven met +0.5m op alle drie plaatsen in Sequencer.js: multi-measure last-rep (0.25→0.75), multi-measure non-last-rep (0.25→0.75), single-measure (start: -0.75→-0.25, end: +0.25→+0.75). Actieve noot staat nu langer stil op 25% gedurende de eerste maat voor de scroll begint te bewegen.
@@ -544,6 +597,15 @@ Acties voor backlog (vraagt interview voor scope/prioriteit):
 - **Inspecteer of er onnodige Context providers** zijn die ALLE consumers laten re-renderen bij minor state changes (bv. PlaybackStateContext bij elk currentMeasureIndex tick).
 
 > ⚠ Performance-werk vraagt interview met Han om de prioritering, scope en acceptatiecriteria af te stemmen. Han noemde: na animatie eerste prio.
+
+[Claude 2026-05-27]: PR #27 levert Phase 1+2+3 van de aanbevolen acties:
+- ✅ `React.memo` op SheetMusic-children — `MelodyNotesLayer` (11× inline call), `ChordLabelsLayer` (3×), `BarlinesLayer` (4×) wrappen nu de zware `renderMelodyNotes` / `renderChordLabels` / `_iterMeasureLines` aanroepen.
+- ✅ `<PreviewOverlay>` lazy-mount — RED/crossfade overlay is alleen in de DOM tijdens een transitie (was altijd aanwezig met 220 LOC IIFE).
+- ✅ Context split — `PlaybackStateContext` (monolithisch) → `PlaybackTransportContext` + `RoundStateContext` + `TransitionOverlayContext`. Voorkomt dat de layer-memo's invalidaten op elke isOddRound-tick.
+- ✅ `useMemo` op `processMelodyAndCalculateSlots` / `calculateAllOffsets` / `getChordsWithSlashes` — al in PR #26 gedaan.
+- ✅ rAF-loop hot path — al schoon (0 ticks > 16ms na PR #26).
+- ➖ `noteWidth` als percentage / SVG→Canvas — niet de bottleneck (verworpen in plan, gedocumenteerd in `docs/architecture.md` §29.6).
+Verificatie open: Han moet in browser nieuwe DevTools-trace draaien om de 250→<50ms / INP→<200ms doelen te bevestigen voordat ✅ kan.
 
 ### Bug: click anywhere should close settings overlay (Han 2026-05-25)
 Eenderwaar klikken (behalve op responsieve knoppen / settings-elementen zelf) moet de settings overlay sluiten. Op dit moment moet je specifiek buiten een knop maar binnen de "klik-vrije" zone klikken — soms niet intuïtief.
@@ -1141,6 +1203,46 @@ Verzameling van voorgestelde presets (combinaties van instellingen). Nog niet ge
 ---
 
 ## CODE & ARCHITECTUUR
+
+### Refactor: parallel arrays → events (Han 2026-05-27)
+
+[Han 2026-05-27]: Ik kreeg een refactor-suggestie: ipv parallele arrays te gaan naar events.
+
+Bijvoorbeeld, in plaats van:
+
+```js
+notes[17]
+durations[17]
+offsets[17]
+lyrics[17]
+```
+
+→
+
+```js
+events: [
+  {
+    note: 'C4',
+    duration: 6,
+    offset: 24,
+    lyric: 'Hap-'
+  }
+]
+```
+
+Zet dat op de backlog — heeft veeeeel impact maar gaat de robuustheid vd app verhogen.
+
+> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+[Claude 2026-05-27 11:42]: Impact-analyse (ruw, vóór interview):
+  - **Affected files**: alles dat een melodie aanraakt — generatoren (`melodyGenerator.js`, `convertRankedArrayToMelody.js`, `generateRankedRhythm.js`, `generateBackbeat.js`), renderers (`renderMelodyNotes.jsx`, `SheetMusic.jsx`), playback (`playMelodies.js`, `Sequencer.js`), splitsers (`melodySlice.js`, `pagination.js`), tests, en alle song-definities (`src/songs/definitions/*.js`).
+  - **Voordelen**: indices kunnen nooit meer mismatchen (een noot zonder duration of met fantoom-offset is onmogelijk); makkelijker uitbreidbaar (fermata, articulaties, ties, lyrics-per-syllabe staan natuurlijk per-event); JSON-songs lezen leesbaarder; iteratie-logica wordt `melody.events.forEach` ipv parallel-index gymnastiek.
+  - **Nadelen / kosten**: alle code die `notes[i]` / `offsets[i]` doet moet om. Het zijn 100en plaatsen. Sommige hot-paths (rAF highlighting, ranked-array generatie) zijn nu vector-georiënteerd en kunnen marginaal trager worden bij `forEach` over objecten ipv index-loops over arrays — niet kritisch maar checken.
+  - **Migratiepad**: ofwel "big bang" (één PR, ~weekend werk, hoog risico), ofwel parallel — voeg `melody.events` toe naast `notes/durations/offsets`, beide gevuld vanuit één source-of-truth, geleidelijk consumers migreren, oude velden later verwijderen. Voor §6c-robustness raad ik geleidelijk aan.
+  Open vragen voor het interview:
+  1. **Acccu of revolutie**: parallel migreren (events + arrays naast elkaar, langzaam) of big-bang?
+  2. **Event-schema**: wat is het verplichte/optionele veld-overzicht? Suggestie: `{pitch, duration, offset, lyric?, articulation?, group?, tie?}` per event. Voor rests: `{rest: true, duration, offset}`. Akkoorden: `{pitches: ['F3','A3','C4'], ...}` of meerdere events op dezelfde offset?
+  3. **Akkoord-representatie**: aparte `events`-array per stem, of één gedeelde array met overlappende offsets en `voice: 'treble'|'bass'` velden? De huidige scheiding `treble.notes` / `bass.notes` is duidelijk; één-array zou dat verliezen.
+  4. **Timing tijdens transitie**: kunnen we het oude `notes/durations/offsets`-schema parallel houden achter een compat-shim (`melody.notes` getter die uit `melody.events` afleidt) zodat refactor incrementeel kan?
 
 - algemene code cleanup
   - verwijderen van verouderde bestanden (`playContinuously.js`, `usePlaybackState.js`)
