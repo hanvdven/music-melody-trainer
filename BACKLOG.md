@@ -488,6 +488,39 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 ✅ fade out aan het einde van repeat block is niet goed. Check de specs / architectuurbeschrijving voor animaties en zorg dat er een mooie fade-out is; momenteel is de overgang tussen sequence blokken nog hakkelig.
 [Claude 2026-05-10]: Oorzaak: `setTimeout(fn,0)` vuurt altijd vóór de volgende `requestAnimationFrame`. `setNextLayer(null)` triggerden `useLayoutEffect` terwijl de rAF-crossfade nog bezig was (bijv. old opacity 0.7). `useLayoutEffect` herstelde dan opacity naar 1 — zichtbare helderheidssprong. Fix: `iterStateMs` in Sequencer.js verhoogd met minimaal 25ms buffer, zodat de rAF de animatie kan afronden voordat `useLayoutEffect` de opacity wist. Bestand: `Sequencer.js`.
 
+### Robuust animatie-systeem — post-PR-#27 stabilisatie (Han 2026-05-28)
+
+[Claude 2026-05-28]: Han rapporteert na PR #27 drie regressies: (1) wipe lege notenbalken, (2) lang pagination 2× hard cut na 1×, (3) 1-frame flashes bij fade-overgangen. Han's verzoek: *"Maak een robuust plan voor de animaties; failsafe. Leg uit hoe je de blokken van de scroll animatie plant."*
+
+Volledig plan opgeslagen in `/root/.claude/plans/animaties-in-de-bladmuziek-pure-ocean.md`. Han heeft alle 3 tiers in één PR goedgekeurd ("alles samen"). Geschat 7–10 dagen werk.
+
+**Tier 1 — directe regressies (1 dag)**:
+- 1.1: Bundel `setNextLayer` + `setIterInCurrentSeries` in één setTimeout-callback (Sequencer.js ~500/508) → fixt bug 3 (1-frame flash).
+- 1.2: Bundel scroll-mode `setStartMeasureIndex` + `setIsOddRound` + `wipeRoundBatched` in één callback → reduceer wipe race-window.
+- 1.3: Force-cleanup van `transitionRef`/`paginationFadeRef` bij elke nieuwe arm-call → fixt bug 2 (2e hard cut).
+- 1.4: Expliciete `pregenResult` lifecycle: nieuwe `pregenStateRef` met `{melody, validForBoundary, generatedAt}`; bij arm verificatie van `validForBoundary === expectedBoundary` voordat verbruikt wordt.
+- 1.5: TransitionOverlayContext: split `iterInCurrentSeries` uit value-useMemo (eigen context of ref) → fixt bug 1 (wipe lege staves).
+
+**Tier 2 — robustness zonder rewrite (1–2 dagen)**:
+- 2.1: Single `useSheetMusicTransitions`-source-of-truth voor opacity setting (alleen rAF; nooit JSX).
+- 2.2: applyResultToSetters → één React batch via `unstable_batchedUpdates` waar nodig.
+- 2.3: Sanity-watchdog: rAF-tick logt warn als opacity mismatch met expected stage > 100ms.
+- 2.4: Memory/MEMORY.md update: documenteer "Two setTimeouts at same delay are NOT batched".
+
+**Tier 3 — fundamentele AnimationPlan-redesign (5–7 dagen)**:
+- 3a: `src/audio/AnimationPlan.js` — pure datastructure `{events: [{type, atSec, payload}]}` voor één hele transitie (visual-flip / repeat-flip / series-flip).
+- 3b: `src/audio/PlanRunner.js` — rAF-driven runner, single source of truth voor opacity + DOM-attrs.
+- 3c–3e: Wipe → scroll → pagination omschakelen naar plan-driven rendering.
+- 3f: Cleanup van oude refs (`transitionRef`, `paginationFadeRef`, `scrollTransitionRef`, `wipeTransitionRef`).
+- 3g: `docs/architecture.md` §11 + backlog-entry sluiten.
+
+**Afhankelijke files** (raken expliciet de "WORK IN PROGRESS" lijst bovenaan deze BACKLOG.md): `src/audio/Sequencer.js`, `src/App.jsx`, nieuwe `src/audio/AnimationScheduler.js`. Daarom heeft de cloud-agent vandaag **NIET geïmplementeerd** maar enkel het plan vastgelegd. Run werd schoon afgebroken — geen branch-push, geen PR. Wacht tot het in-progress notice opgeheven is, of tot Han expliciet groen licht geeft om door de WORK-IN-PROGRESS-gate heen te gaan.
+
+**Separaat openstaand bug-onderzoek** (niet onderdeel van bovenstaande PR):
+- Critical: sheet-music regressie na song-load. Symptoom moet eerst gereproduceerd worden (Han: "tweede sheet-music regression komt vaker voor na het laden van een song"). Diagnose-fase eerst, fix daarna in eigen branch + PR.
+
+---
+
 ### Pagination redesign — vervolgwerk (na PR #26)
 
 [Claude 2026-05-22]: Pagination animatie is herontworpen rond `src/audio/transitionPlanner.js` (pure planner) + `Sequencer._armPaginationSequence` (event-driven scheduler). 3 variants (snel/mid/lang) togglebaar in subheader cycle. Visual-flip, repeat-flip en series-flip gebruiken nu hetzelfde crossfade-mechanisme. Lang variant overshoot 0.25m voorbij block-einde (speler ziet oude noten nog kort terwijl nieuwe verschijnen). JIT generatie loopt mee met variant-deadline.
