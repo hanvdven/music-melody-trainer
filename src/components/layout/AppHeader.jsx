@@ -3,7 +3,7 @@ import {
     Play,
     Square,
     SlidersHorizontal,
-    RefreshCw,
+    Cog,
     Repeat1,
     MicOff,
     Piano,
@@ -44,8 +44,6 @@ const AppHeader = ({
     progressionLabel = null,
 }) => {
     const headerScale = windowWidth >= 550 ? 1 : Math.max(0.5, windowWidth / 550);
-
-    const isSomethingPlaying = isPlayingMelody || isPlayingContinuously;
 
     return (
         <div className="app-header">
@@ -150,34 +148,61 @@ const AppHeader = ({
                     <SkipForward size={22} />
                 </button>
 
+                {/* PLAY THIS (Han 2026-05-28): play the CURRENT melody. Mode is set
+                    by the toggler next to it — 'once' = single playback, 'repeat' = repeat
+                    the same melody without regeneration. Continuous-with-regeneration is
+                    its own button (the cog/Generate button below). */}
                 <button
-                    className={`tab-button secondary app-header-btn ${isSomethingPlaying ? 'active' : ''}`}
+                    className={`tab-button secondary app-header-btn ${isPlayingMelody ? 'active' : ''}`}
                     onClick={() => {
-                        if (isSomethingPlaying) {
-                            if (isPlayingMelody) handlePlayMelody();
-                            if (isPlayingContinuously) handlePlayContinuously();
+                        if (isPlayingMelody) {
+                            handlePlayMelody();
                         } else {
-                            if (headerPlayMode === 'once') handlePlayMelody();
-                            else if (headerPlayMode === 'repeat') handlePlayRepeat?.();
-                            else if (headerPlayMode === 'continuous') handlePlayContinuously();
+                            // Defensive: legacy headerPlayMode='continuous' from before
+                            // this split is treated as 'once' here. The toggler below
+                            // only emits 'once'/'repeat' from now on.
+                            if (headerPlayMode === 'repeat') handlePlayRepeat?.();
+                            else handlePlayMelody();
                         }
                     }}
-                    style={{ color: isSomethingPlaying ? 'var(--accent-yellow)' : '#88ccff', outline: debugMode ? '2px solid cyan' : undefined }}
+                    title="Play this melody"
+                    style={{ color: isPlayingMelody ? 'var(--accent-yellow)' : '#88ccff', outline: debugMode ? '2px solid cyan' : undefined }}
                 >
-                    {isSomethingPlaying ? (
+                    {isPlayingMelody ? (
                         <Square size={24} color="var(--accent-yellow)" />
                     ) : (
                         <Play size={24} />
                     )}
                 </button>
 
-                {/* Slim Repeat/Once Toggle */}
+                {/* Once/Repeat toggle (Han 2026-05-28: 'continuous' option removed,
+                    that role is now owned by the cog/Generate button). */}
                 <button
                     className="tab-button secondary app-header-btn-sm"
-                    onClick={() => setHeaderPlayMode(m => m === 'once' ? 'repeat' : m === 'repeat' ? 'continuous' : 'once')}
+                    onClick={() => setHeaderPlayMode(m => m === 'repeat' ? 'once' : 'repeat')}
+                    title={headerPlayMode === 'repeat' ? 'Repeat current melody' : 'Play once'}
                     style={{ color: '#88ccff', outline: debugMode ? '2px solid cyan' : undefined }}
                 >
-                    {headerPlayMode === 'once' ? <IconOne size={17} /> : headerPlayMode === 'repeat' ? <Repeat1 size={17} /> : <RefreshCw size={17} />}
+                    {headerPlayMode === 'repeat' ? <Repeat1 size={17} /> : <IconOne size={17} />}
+                </button>
+
+                {/* START GENERATING (Han 2026-05-28): continuous play that regenerates
+                    a fresh melody at every series boundary. Independent toggle from PLAY
+                    THIS so the user can keep "play this once" muscle memory separate
+                    from "start the random-generation loop". */}
+                <button
+                    className={`tab-button secondary app-header-btn ${isPlayingContinuously ? 'active' : ''}`}
+                    onClick={() => {
+                        handlePlayContinuously();
+                    }}
+                    title={isPlayingContinuously ? 'Stop generating' : 'Start generating'}
+                    style={{ color: isPlayingContinuously ? 'var(--accent-yellow)' : '#88ccff', outline: debugMode ? '2px solid cyan' : undefined }}
+                >
+                    {isPlayingContinuously ? (
+                        <Square size={24} color="var(--accent-yellow)" />
+                    ) : (
+                        <Cog size={24} />
+                    )}
                 </button>
             </div>
 

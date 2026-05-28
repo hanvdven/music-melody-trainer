@@ -577,6 +577,42 @@ Nog niet geadresseerd (Han 2026-05-28 round 2 feedback):
 
 **Bekende crash — geparkeerd** (Han 2026-05-28 round 1): scroll-mode bij `numMeasures=1, repeats=1` loopt de app vast zodra de eerste maat 25% bereikt. UPDATE (Han 2026-05-28 round 2): crash is weg (mogelijk per ongeluk gefixt door de Tier 1.1 bundeling), maar visuele glitches blijven. Vermoedelijke originele root cause was: outer-loop heeft geen sleep wanneer `skipSleep = isLastRepNow && isLastMeasureNow` voor beide true is.
 
+[Claude 2026-05-28 19:25]: Ronde 3 fixes na Han's verificatie (verkeerde branch-mismatch is voorbij). Op deze branch (PR #28) nu af:
+- ✅ **Wipe breekt bij mid-playback animation-mode change**: Sequencer track nu `this.activeAnimationMode`; aan het begin van elke maat wordt mismatch met `animationModeRef.current` gedetecteerd → HARD RESET (`wipeTransitionRef`, `scrollTransitionRef`, `transitionRef`, `paginationFadeRef`, `setNextLayer(null)`, `setPreviewMelody(null)`). Schone overgang naar de nieuwe mode op de eerstvolgende maat-grens. File: `Sequencer.js` (~31, ~457).
+- ✅ **Scroll-mode lage opacity in niet-actieve maatblok**: yellow panels stonden op `opacity: 0.55` → nu `opacity: 1` (zelfde behandeling als red panels in ronde 2). File: `SheetMusic.jsx`.
+- ✅ **Leading vertical barline op MAIN panel in scroll mode**: vorige ronde alleen op overlay-panels; nu ook op main (Han: "actieve melodie heeft geen maatstreep voor de eerste maat"). File: `SheetMusic.jsx`.
+- ✅ **Verwijder gele playhead-streep op 25%**: deze stond `<line>` direct buiten de scroll-group. Han: "horizontale lijn niet exact". File: `SheetMusic.jsx`.
+- ✅ **Intro delay scroll-mode**: noten staan stil voor de eerste 0.25 maten van playback. Geïmplementeerd via een one-shot `introDelaySeconds` in `scrollTransitionRef`; rAF substract dit van elapsed zolang het nog niet verbruikt is. Bij series-flips niet meer actief (elapsed is dan al lang > delay). Files: `Sequencer.js`, `useSheetMusicHighlight.js`.
+- ✅ **Click-outside sluit Settings Overlay**: `useSettingsOverlay` luistert nu op `document.pointerdown` (capture phase) terwijl overlay open is — clicks buiten `.settings-overlay` en buiten `[data-settings-keepalive]` sluiten de overlay. File: `useSettingsOverlay.js`.
+- ✅ **Header-knoppen herontwerp**: Play-knop splitst nu in twee aparte knoppen — "Play this" (huidige melodie, met 2-state once/repeat toggler) en "Start Generating" (cog-icoon, continu genereren). De 3-state toggler (once/repeat/continuous) is een 2-state geworden; "continuous" zit nu in zijn eigen Generate-knop. File: `AppHeader.jsx`.
+
+Nog steeds open (vereisen empirische data of MIDI-toegang die ik nu niet heb):
+- ⏳ Pagination-lang "werkt maar 2 keer" — zonder repro of instrumentatie blijft dit speculatief.
+- ⏳ numMeasures=1 visuele glitches in scroll-mode — welke glitches?
+
+---
+
+### Happy Birthday — status na ronde 3 onderzoek (Claude 2026-05-28 19:25)
+
+Han's vraag: "Pak alle backlog items gerelateerd aan Happy Birthday op."
+
+**Item: Happy Birthday klinkt niet correct (Han 2026-05-22)**.
+Verificatie uitgevoerd:
+- De *easy* treble-melodie (24 noten, top-stem uit MIDI) is genote-voor-noot correct voor Happy Birthday in G majeur. Patroon line-by-line:
+  - L1: D D | E D G | F♯ (half) ✓
+  - L2: D D | E D A | G (half) ✓
+  - L3: D D | D5 B G | F♯ (half) ✓ (fermata op [name] nog NIET gecodeerd — bekend)
+  - L4: C5 C5 | B G A | G (dotted-half) ✓
+- De rhythmische structuur: m0 anacrusis 24 ticks rust + 9+3 (dotted-8th + 16th) = 36 totaal. m1-m8 elk 36 ticks. Totaal 9 maten × 36 = 324 ticks. ✓
+- De *hard* versie's top-stem komt overeen met de *easy* versie. Onderstemmen + bas zijn full chord-voicings uit de MIDI; Visuele clashes met begeleiding zijn een design-issue, geen typo.
+
+**Conclusie**: pitch & rhythm in `happyBirthday.json` zijn correct voor de easy variant. Han's "klinkt niet correct" observatie is dus NIET een tikfout in de pitches/durations. Mogelijke andere oorzaken: (a) ontbrekende fermata op [name], (b) chord-voicing van begeleiding klinkt vol omdat MIDI veel akkoorden tegelijk speelt, (c) tempo/instrument-keuze. Vraag aan Han: kun je specifieker zeggen WAT er fout klinkt? Voorbeeld: "de melodie zelf is goed, maar het ritme van X" of "akkoord op offset Y voelt verkeerd".
+
+**Item: Happy Birthday MIDI Full Version (Han 2026-05-27)**.
+Status: NIET-implementeerbaar in deze sessie. De 5 open interview-vragen van Claude 2026-05-27 11:42 zijn nog niet door Han beantwoord (zie #1-5 op line 35-40 hierboven). Bovendien heb ik geen toegang tot `Happy_Birthday___Piano.mid` in deze cloud-sessie (de file werd in chat geüpload bij de vorige sessie en zit niet in de repository). Vereist:
+1. Han beantwoordt de 5 vragen (lyric-uitlijning, voice-distributie, bass-voicing, source-of-truth-formaat, fermata).
+2. MIDI-file moet in `src/songs/data/` of een ander toegankelijk pad gecommit zijn voordat een agent het kan ontleden.
+
 ---
 
 ### Pagination redesign — vervolgwerk (na PR #26)

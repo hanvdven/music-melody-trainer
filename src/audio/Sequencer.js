@@ -42,6 +42,12 @@ class Sequencer {
     this.playbackState = null;
     this.scheduledNotes = null;
     this.pregenResult = null; // pre-generated next melody for scroll/wipe advance preview
+    // Tracks the animation mode currently applied to the playback loop.
+    // When this differs from `animationModeRef.current` at the start of a
+    // measure, the inner loop performs a hard reset of all transition refs
+    // before adopting the new mode — prevents stale wipe/scroll/pagination
+    // state from leaking across a mid-playback mode change (Han 2026-05-28).
+    this.activeAnimationMode = null;
   }
 
   async start(initialMelodies, once = false, initialMeasureIndex = 0, repeatForever = false) {
@@ -456,6 +462,24 @@ class Sequencer {
 
           const mode = this.refs.animationModeRef?.current ?? 'pagination';
 
+          // Mid-playback animation-mode change: when the user toggles mode
+          // (e.g. scroll → wipe) during playback, the new mode's render path
+          // would otherwise be driven by the previous mode's transition refs,
+          // producing broken / glitchy animations (Han 2026-05-28: "wipe is
+          // terug gebroken"). At the start of each measure, detect the change
+          // and HARD RESET: clear every transition ref + overlay state so the
+          // next iteration starts from a clean slate. The user accepts a brief
+          // visual reset at the boundary as the cost of the mode switch.
+          if (this.activeAnimationMode !== mode) {
+            if (this.refs.wipeTransitionRef) this.refs.wipeTransitionRef.current = null;
+            if (this.refs.scrollTransitionRef) this.refs.scrollTransitionRef.current = null;
+            if (this.refs.transitionRef) this.refs.transitionRef.current = null;
+            if (this.refs.paginationFadeRef) this.refs.paginationFadeRef.current = null;
+            if (this.setters.setNextLayer) this.setters.setNextLayer(null);
+            if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
+            this.activeAnimationMode = mode;
+          }
+
           // === Continuous scroll bookkeeping (per measure) ============================
           // Maintains scrollTransitionRef = { startTime, startPageFraction, secondsPerPage }.
           // rAF reads this and computes
@@ -478,10 +502,16 @@ class Sequencer {
             const newSecondsPerPage = currentNumMeasures * measureDuration;
             const cur = this.refs.scrollTransitionRef.current;
             if (!cur) {
+              // Intro delay (Han 2026-05-28): keep notes still for the first 0.25
+              // measures of playback so the listener can take in the first few notes
+              // before the scroll engages. introDelaySeconds is consumed by the rAF
+              // (see useSheetMusicHighlight scroll formula) and is a one-shot — once
+              // wall-clock elapsed exceeds it the formula behaves normally.
               this.refs.scrollTransitionRef.current = {
                 startTime: T,
                 startPageFraction: 0,
                 secondsPerPage: newSecondsPerPage,
+                introDelaySeconds: 0.25 * newSecondsPerPage,
               };
             } else if (cur.secondsPerPage !== newSecondsPerPage) {
               const elapsed = Math.max(0, T - cur.startTime);
@@ -490,6 +520,9 @@ class Sequencer {
                 startTime: T,
                 startPageFraction: fractionAtT,
                 secondsPerPage: newSecondsPerPage,
+                // Preserve introDelaySeconds across BPM re-tunes. If the previous anchor
+                // had one, keep it (already-elapsed time still counts against it).
+                introDelaySeconds: cur.introDelaySeconds ?? 0,
               };
             }
             // Populate the right-side overlay at the start of each iteration so the ribbon
