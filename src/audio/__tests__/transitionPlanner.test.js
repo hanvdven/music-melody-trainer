@@ -133,18 +133,10 @@ describe('planPaginationFade — variant timings', () => {
         expect(fade.fadeDurationMeasures).toBe(0.5);
     });
 
-    it('lang: 2m generation lead, 2m fade, ends 0.25m AFTER boundary (overshoot)', () => {
-        const fade = planPaginationFade({
-            boundary: makeBoundary(), variant: 'lang', measureLengthTicks: TPM,
-        });
-        // Audio swap at boundary (10m). Visual fade extends 0.25m past so the
-        // player keeps seeing the old notes briefly while reading the new ones.
-        expect(fade.fadeEndTick).toBe(10 * TPM + 0.25 * TPM);
-        expect(fade.fadeStartTick).toBe(10 * TPM + 0.25 * TPM - 2 * TPM); // T - 1.75m
-        expect(fade.generationDeadlineTick).toBe(10 * TPM - 2 * TPM);
-        expect(fade.fadeDurationMeasures).toBe(2);
-        expect(fade.isClamped).toBe(false);
-    });
+    // 'lang' variant removed 2026-05-28 (Han: no use case) — its dedicated
+    // test for 2m fade + 0.25m overshoot was deleted alongside the variant.
+    // The fallback-to-mid test below now also covers the case where 'lang' is
+    // passed in by legacy localStorage.
 
     it('unknown variant falls back to mid', () => {
         const fade = planPaginationFade({
@@ -155,23 +147,9 @@ describe('planPaginationFade — variant timings', () => {
 });
 
 describe('planPaginationFade — clamping', () => {
-    it('lang variant on a 1-measure block clamps to fallback (overshoot preserved)', () => {
-        const boundary = {
-            kind: 'visual-flip',
-            atTick: 1 * TPM,
-            oldWindowSizeMeasures: 1,
-            newWindowSizeMeasures: 1,
-            repeatIndex: 0, visualBlockIndex: 0, newWindowStartLocal: 0,
-        };
-        const fade = planPaginationFade({ boundary, variant: 'lang', measureLengthTicks: TPM });
-        expect(fade.isClamped).toBe(true);
-        expect(fade.fadeDurationMeasures).toBe(PAGINATION_CLAMP_FALLBACK_MEASURES);
-        // Overshoot (0.25m) is preserved even when clamped — fade still extends past boundary.
-        expect(fade.fadeEndTick).toBe(1 * TPM + 0.25 * TPM);
-        expect(fade.fadeStartTick).toBe(1 * TPM + 0.25 * TPM - PAGINATION_CLAMP_FALLBACK_MEASURES * TPM);
-        // generation deadline is NOT re-clamped — it can be negative (caller decides).
-        expect(fade.generationDeadlineTick).toBe(1 * TPM - 2 * TPM);
-    });
+    // The lang-variant clamping test was deleted with the variant on
+    // 2026-05-28. mid + snel never reach the 1-measure clamp boundary on
+    // their own — see the mid 0.25m-block test below for the live clamp case.
 
     it('mid variant on a 0.5-measure block: fade exactly fills the block (no clamp)', () => {
         const boundary = {
@@ -218,25 +196,9 @@ describe('planPaginationFade — clamping', () => {
 });
 
 describe('planPaginationSequence — integration', () => {
-    it('Han\'s example with lang variant: each fade overshoots 0.25m past its boundary', () => {
-        const plan = {
-            numMeasures: 5, repsPerMelody: 3, measureLengthTicks: TPM, musicalBlocks: [3, 2],
-        };
-        const out = planPaginationSequence({ plan, variant: 'lang' });
-        expect(out).toHaveLength(6);
-        for (const { boundary, fade } of out) {
-            // lang has 0.25m overshoot — but only when not clamped.
-            // In this example block sizes are 3 and 2; lang's 2m fade fits in both,
-            // so no clamping occurs and overshoot applies to every fade.
-            expect(fade.isClamped).toBe(false);
-            expect(fade.fadeEndTick).toBe(boundary.atTick + 0.25 * TPM);
-        }
-        // Last entry: series-flip. Generation deadline = 2 measures before boundary
-        // (overshoot does NOT affect the deadline — deadline is anchored to atTick).
-        const series = out[out.length - 1];
-        expect(series.boundary.kind).toBe('series-flip');
-        expect(series.fade.generationDeadlineTick).toBe(15 * TPM - 2 * TPM);
-    });
+    // Han's lang-variant integration test removed 2026-05-28 with the variant.
+    // The series-flip generation-deadline behaviour is now exercised by the
+    // snel/mid integration tests below.
 
     it('snel/mid variants: fade ends exactly at boundary (no overshoot)', () => {
         const plan = {

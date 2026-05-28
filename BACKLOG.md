@@ -95,6 +95,58 @@ add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 [Claude 2026-05-10]: ⬇ LAGE PRIORITEIT — op verzoek van Han. Vereist uitgebreidere toelichting voor implementatie.
 [Claude 2026-05-19]: Op verzoek van Han: rubato (~) als maatsoort wél gewenst — toevoegen als een kiesbare "maatsoort" (bijv. symbool ~ in de maatsoort-kiezer) naast normale maatsoorten. Interview nodig voor exacte afspeellogica en notatie.
 
+[Han 2026-05-28]: **Rubato scroll — gedetailleerde scope (verbatim uit chat)**:
+> Ik wil ook meteen de 'rubato scroll' oppakken.
+> Het idee is dit: vervang de BPM door een rubato symbool (shift+T) dus q = shift + T in plaats van een bpm-cijfer, en het woord rubato. Selecteerbaar door lange klik op de BPM-naam.
+>
+> Gedrag - wave 1: alle animatiemodes behalve scroll: highlight in treble de volgende te spelen noot.
+> Wanneer de speler via input keyboard de juiste noot speelt (dus niet door op bladmuziek te klikken) wordt de noot groen. Wanneer de speler de laatste noot van visual block speelt, triggert de animatie.
+>
+> Wave 2- reken een 'geschatte BPM' uit door de laatste 3 gespeelde noten. schedule playback van alle VOLGENDE noten TOT EN MET de eerstvolgende noot die de speler moet spelen - behalve op het treble-spoor.
+>
+> Wave 3 - speler kan ook chord / bass / percussion input kiezen
+>
+> Wave 4 - scroll scrollt volgende de geschatte BPM, (en zorgt dus dat de volgende te spelen noot steeds op 25% van het scherm komt.)
+>
+> Wave 5 - fallbacks - ik denk dat scroll, en geplande noten een klein beetje spillover moeten hebben; bijvoorbeeld smallest-note-denum van de inputmelodie / 2. Er moet ook een mechanisme zijn voor als de speler veel te snel of te traag is. Bij veel te traag valt de melodie (en eventueel scrollanimatie) stil; bij veel te snel.... sla nog niet gespeelde noten over (onderbrek schedule). speel de noten die tegelijk vallen met de zojuist gespeelde noten van de speler onmiddelijk. En plan dan zoals hierboven gedefinieerd.
+
+[Claude 2026-05-28 19:35]: **Kritische feedback op rubato scroll-voorstel** (per CLAUDE.md "challenge ideas"):
+
+**Architecturaal**:
+1. **Sequencer is audio-time-driven, rubato moet user-input-driven**. Huidige inner-loop berekent `nextStartTime` op basis van `bpm` en `measureLengthTicks`. Rubato vereist een fundamenteel andere lus: wacht op gebruikersinput, schedule de volgende noten relatief, herhaal. Dat is een aparte execution-strategy, geen kleine patch.
+2. **Pitch-detect latency is ~30-50ms** (`usePitchDetector`). Wave 2's "geschatte BPM uit 3 noten" gebruikt deze detection-tijdstippen → BPM estimate drift met +/- ~50ms per noot. Bij snelle ritmes (16-noten op 120 BPM = 125ms per noot) is dat een derde van de noot-lengte. Smoothing nodig (zie suggestie hieronder).
+3. **Wave 1 stopt bij "laatste noot van visual block triggert animatie"** — maar bij MIDI-keyboard input lopen note-on en note-off niet altijd in fase met visual block-grenzen. Wat als de speler te ver naar voren speelt? Hier ontstaat een "ahead of the music" probleem.
+
+**Discoverability**:
+4. **Long-click op BPM-naam** voor rubato-toggle is verstopt. Wel dat type interactie heeft Han eerder gebruikt voor andere features, dus consistentie. Maar minstens een visuele hint (cursor change, tooltip) is nodig.
+5. **q = SHIFT+T symbool**: in Maestro-font is SHIFT+T het common-time-symbool. Han wil dat als rubato-glyph? Of bedoelt hij een ander glyph? Conflict met de andere backlog-item "Common time-symbool: SHIFT+T ipv 4/4". Verduidelijking nodig.
+
+**UX edge cases**:
+6. **Wave 5 "te snel sla noten over"**: voelt jarring. Alternatief: cross-fade naar de positie waar de speler is, of snap-to-grid op de eerstvolgende noot.
+7. **Wave 5 "te traag valt melodie stil"**: hoe lang is "te traag"? 1× verwachte noot-duur? 2×? Hard threshold of soft fade-out? Onverwacht stoppen is even storend als overslaan.
+8. **Wat als de speler verkeerde noten speelt?** Han noemt alleen groen voor correct, niet wat er gebeurt bij fout. Worden ze genegeerd (BPM-est blijft draaien)? Geblokkeerd (animatie wacht tot correcte noot)? Beide?
+9. **Wave 2 schedule "tot en met eerstvolgende noot die speler moet spelen"**: predictive scheduling. Wat als de geschatte BPM verkeerd is en de speler 200ms LATER aankomt dan voorspeld? Accompaniment is dan al gefinished en wacht. Drone-effect of mute?
+
+**Suggesties voor refinement** (zonder de scope te wijzigen):
+- BPM-estimate met **exponentially-weighted moving average** (EWMA, alpha=0.4-0.6) i.p.v. simple-3-noten gemiddelde. Smoothes uit terwijl het responsief blijft.
+- **Adaptive spillover window**: in plaats van `smallestNoteDenom/2` vast, gebruik `0.5 * gemiddelde noot-interval` (= zelf-meet) — schaalt mee met daadwerkelijke tempo.
+- **Visuele state-indicator** (klein icoon naast rubato-symbool): "wachtend", "in sync", "te snel", "te traag". Han krijgt feedback over de algorithmische beslissing.
+
+**Voorgesteld implementatie-plan** (5 PRs, niet 5 waves binnen 1 PR):
+
+- **PR-A (prep)**: Wipe quadratic ease-out + remove pag-lang. **Klein, kan nu** ← In huidige PR #28 al gedaan.
+- **PR-B (rubato infra)**: rubato-mode toggle, UI-glyph, long-click op BPM. Geen playback-aanpassingen. Smoke-test: toggle werkt, UI laat rubato zien.
+- **PR-C (wave 1)**: Next-to-play highlight + correct-note detection + visual-block-end animation-trigger voor pagination/wipe. Treble alleen. Pitch-input via bestaande `usePitchDetector` of (afhankelijk van Han's keus) MIDI-keyboard via Web MIDI API.
+- **PR-D (wave 2)**: BPM-estimate (EWMA) + predictive accompaniment scheduling. State-indicator.
+- **PR-E (wave 3+4+5)**: track-keuze, scroll-rubato, fallback-machinerie.
+
+**Vragen die ik aan Han moet stellen vóór PR-B**:
+- Input-bron: microphone pitch-detect of MIDI-keyboard via Web MIDI? Hybride?
+- Wat doen we bij verkeerde noten? (negeren / blokkeren / soft-feedback)
+- Concrete glyph voor rubato: Maestro's SHIFT+T conflict met common-time-glyph (zie backlog "Common time-symbool")?
+- Visual block in scroll-mode: 1 maat? 1 rep? hele series?
+- Welke modi krijgen WEL rubato (alle 3 modi, of alleen pagination + wipe in eerste fase)?
+
 ### Common time-symbool: Maestro SHIFT+T ipv 4/4
 
 gebruik ipv de 4/4 dit Maestro-symbool: SHIFT+T | ~ | Turn, grupetto
@@ -587,8 +639,13 @@ Nog niet geadresseerd (Han 2026-05-28 round 2 feedback):
 - ✅ **Header-knoppen herontwerp**: Play-knop splitst nu in twee aparte knoppen — "Play this" (huidige melodie, met 2-state once/repeat toggler) en "Start Generating" (cog-icoon, continu genereren). De 3-state toggler (once/repeat/continuous) is een 2-state geworden; "continuous" zit nu in zijn eigen Generate-knop. File: `AppHeader.jsx`.
 
 Nog steeds open (vereisen empirische data of MIDI-toegang die ik nu niet heb):
-- ⏳ Pagination-lang "werkt maar 2 keer" — zonder repro of instrumentatie blijft dit speculatief.
+- ✅ Pagination-lang "werkt maar 2 keer" — **niet meer relevant**: Han heeft 2026-05-28 ronde 4 de `lang` variant laten verwijderen ("heeft geen use case"). De bug verdwijnt met de variant. Defensieve overshoot-machinerie in Sequencer blijft als dead code voor toekomstige reintroductie.
 - ⏳ numMeasures=1 visuele glitches in scroll-mode — welke glitches?
+
+[Claude 2026-05-28 19:35]: Ronde 4 op deze branch (PR #28) — wipe polish + rubato-planning:
+- ✅ **Wipe ease-out**: lineaire (eigenlijk symmetrische ease-in-out) easing vervangen door quadratic ease-out `1 - (1-p)²`. Eerste helft snel (p=0.5 → 75% klaar), laatste kwart langzaam (p=0.75 → 94%, p=1 → 100%). Han: "zo min mogelijk storend". File: `useSheetMusicHighlight.js`.
+- ✅ **Pagination 'lang' variant verwijderd**: uit `PAGINATION_VARIANTS`, SubHeader-cycler gaat nu pag-snel → pag-mid → wipe → scroll. Bijbehorende tests in `transitionPlanner.test.js` weggehaald. Defensieve `hasOvershoot` branches in Sequencer blijven dead code voor mogelijke toekomstige variant. Files: `transitionPlanner.js`, `SubHeader.jsx`, `transitionPlanner.test.js`.
+- 📋 **Rubato scroll**: scope + feedback + 5-PR plan gedocumenteerd op de "Vrij tempo" sectie hierboven (line ~90). Vóór PR-B implementatie nodig: 5 vragen aan Han beantwoord (input-bron, foute-noten-gedrag, glyph-conflict met common-time, visual-block-definitie in scroll, welke modi krijgen rubato).
 
 ---
 

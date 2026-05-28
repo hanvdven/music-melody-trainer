@@ -188,7 +188,12 @@ const useSheetMusicHighlight = ({
                     const now = context.currentTime;
                     const raw = (now - wipeT.startTime) / (wipeT.endTime - wipeT.startTime);
                     const p = Math.max(0, Math.min(1, raw));
-                    const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+                    // Quadratic ease-out curve (Han 2026-05-28): first half fast,
+                    // last quarter slow, so the wipe finishes with a "settle" instead
+                    // of an abrupt cut. At p=0.5 → 75% done; at p=0.75 → 94%; p=1 → 100%.
+                    // The previous symmetric ease-in-out spent equal time at both ends,
+                    // which felt sluggish at the start where the user expects motion.
+                    const eased = 1 - (1 - p) * (1 - p);
                     // Sweep from -4% to 104% so the wipe fully clears notes near the edges.
                     const sweepPct = -4 + eased * 108;
                     const edge1 = `${(sweepPct - 4).toFixed(4)}%`;
