@@ -508,10 +508,41 @@ class Sequencer {
             // iterInCurrentSeries still holds the previous value — the K-panel scroll
             // overlay then renders the wrong offsets that frame (visible as a flash).
             if (m === 0) {
-              const setLayerDelay = Math.max(0, (T - this.context.currentTime) * 1000);
               const iterToSet = iteration;
+              // Tier 1.1+ (Han 2026-05-28, residual 1-frame flit fix): when this m=0
+              // is the START of the LAST rep in a multi-measure scroll-mode series,
+              // pregen the next-series melody NOW (synchronous) and bundle
+              // setNextLayer('red') + setPreviewMelody into the SAME callback as
+              // the yellow + iter setter. Without this bundling there was a 1-frame
+              // window between the yellow+iter render and the separate red+preview
+              // render where right-side panels (filtered to i <= itersRemaining = 0)
+              // showed no content — visible as a flash.
+              const isLastRepStartForScrollPregen =
+                !this.isOnceMode &&
+                (this.refs.animationModeRef?.current ?? 'pagination') === 'scroll' &&
+                isLastRepNow &&
+                currentNumMeasures >= 2;
+              let pregenForBatch = null;
+              if (isLastRepStartForScrollPregen) {
+                // Pregen synchronously. Cost (~10-50ms) happens here, BEFORE we
+                // recompute setLayerDelay so the timeout still fires at audio time T.
+                // Result is held on `this` so the outer-loop poll (line ~660) finds
+                // it instead of generating again. applyResult clears pregenResult.
+                pregenForBatch = this.randomizeScaleAndGenerate(
+                  this.refs.numMeasuresRef.current,
+                  this.refs.timeSignatureRef.current,
+                  { treble, bass, percussion }
+                );
+                this.pregenResult = pregenForBatch;
+              }
+              const setLayerDelay = Math.max(0, (T - this.context.currentTime) * 1000);
               this.scheduleTimeout(() => {
-                if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
+                if (isLastRepStartForScrollPregen && pregenForBatch) {
+                  if (this.setters.setNextLayer) this.setters.setNextLayer('red');
+                  if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(pregenForBatch);
+                } else {
+                  if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
+                }
                 if (this.setters.setIterInCurrentSeries) this.setters.setIterInCurrentSeries(iterToSet);
               }, setLayerDelay);
             }
@@ -548,36 +579,17 @@ class Sequencer {
             }
           }
 
-          // Scroll: pregen + setPreviewMelody at the START of the last rep (m=0 of last rep),
-          // so panels representing the next series have correct content from the moment the
-          // last rep begins playing. Was previously at penultimate measure (= 2 m before
-          // boundary), which meant rightmost scroll panels showed CURRENT melody for most
-          // of the last rep and only switched to NEW content with 2 m remaining — visible
-          // "jump" in panel content. Now the switch happens at the iter boundary (still
-          // visually invisible because per-panel selection determines which panels show
-          // current vs next series).
+          // Scroll: pregen + setNextLayer('red') + setPreviewMelody at the START of the
+          // LAST rep (m=0 of last rep) is now BUNDLED INTO the m=0 setLayer+iter
+          // timeout above (Han 2026-05-28 residual flit fix). Previously this lived
+          // in a separate scheduleTimeout firing at the same delay, which React
+          // committed in a separate render — that 1-frame window had iter=LAST and
+          // previewMelody=null, so right-side panels (filtered to i > itersRemaining = 0)
+          // were empty. Bundling eliminates the gap. See line ~510.
           //
-          // For currentNumMeasures === 1 (one-measure melody): m=0 IS the only measure of
-          // the last rep, so this fires at the same audio time as the series boundary
-          // approaches. The N=1 special-case in the outer loop (around line ~720) still
-          // schedules setPreviewMelody at boundary − 0.25 m so the previewMelody is
-          // populated even earlier; this inner-loop trigger covers the multi-measure case.
-          if (!this.isOnceMode && mode === 'scroll' && isLastRepNow && m === 0 && currentNumMeasures >= 2) {
-            const fadeInDelay = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
-            this.scheduleTimeout(() => {
-              // Pregen first so content is available when React renders the overlay.
-              const pregenResult = this.randomizeScaleAndGenerate(
-                this.refs.numMeasuresRef.current,
-                this.refs.timeSignatureRef.current,
-                { treble, bass, percussion }
-              );
-              this.pregenResult = pregenResult;
-              // setNextLayer + setPreviewMelody batch into one React render;
-              // overlay mounts with opacity:0 and fades in via scrollPreviewFadeIn.
-              if (this.setters.setNextLayer) this.setters.setNextLayer('red');
-              if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(pregenResult);
-            }, fadeInDelay);
-          }
+          // For currentNumMeasures === 1 (one-measure melody): the N=1 special-case in
+          // the outer loop (around line ~720) schedules setNextLayer('red') +
+          // setPreviewMelody at boundary − 0.25 m. Multi-measure case is covered above.
 
           if (!skipSleep) {
             const sleepUntil = nextStartTime + measureDuration - lookahead;
