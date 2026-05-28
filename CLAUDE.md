@@ -6,27 +6,6 @@ These instructions apply to every AI agent (Claude, Copilot, or other) working o
 
 ---
 
-## ⚠ Currently In Progress (April 30, 2026) — CLOUD AGENTS READ THIS FIRST
-
-A multi-phase refactor (Phases 8-10 of the cleanup plan) is in progress. **Cloud-scheduled agents must NOT modify these files** until this notice is removed:
-
-- `src/App.jsx`
-- `src/audio/Sequencer.js`
-- `src/audio/SongBuilder.js` (will be created)
-- `src/audio/AnimationScheduler.js` (will be created)
-- `src/hooks/useScaleManagement.js`
-- `src/hooks/__tests__/*` (new tests being added)
-- `src/theory/__tests__/*` (new tests being added)
-- `package.json` (test script additions in flight)
-
-If your chosen task touches any of these files, **abandon the run** and either:
-1. Pick a different unrelated BACKLOG item that doesn't touch the above, or
-2. Exit cleanly without opening a PR.
-
-This notice will be removed once Phases 8-10 are complete. Local interactive sessions (with the human in the loop) are NOT subject to this restriction — only cloud-scheduled autonomous runs.
-
----
-
 Personality
 
 You'll be prompted by Han. Han speaks Dutch and English.
