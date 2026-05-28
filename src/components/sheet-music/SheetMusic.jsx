@@ -2211,6 +2211,16 @@ const SheetMusic = ({
                         const nextMetro = panelCfg.percussionEye === 'metronome';
                         const nextChords = panelCfg.chordsEye !== false;
                         return (<>
+                          {/* Leading barline at the panel's startX so each scroll-mode
+                              visual block is delimited (Han 2026-05-28). The end barline
+                              at endX is drawn outside renderContent at world coords for
+                              the main/preview boundary only; right-side overlay panels
+                              would otherwise look like one continuous run with no
+                              block delimiter. Suppressed for wipe/pagination since the
+                              transition already replaces the whole staff in place. */}
+                          {animationMode === 'scroll' && (
+                            <path d={`M ${startX} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.4" />
+                          )}
                           {/* Chord labels above treble staff — shown if next round has chords visible */}
                           {nextChords && chordProgression && processedChords?.length > 0 &&
                             <ChordLabelsLayer
@@ -2432,12 +2442,21 @@ const SheetMusic = ({
                         offsets.push(i);
                       }
                       return offsets.map(i => {
-                        // Per-panel round (Han 2026-05-28): the panel at offset i represents
-                        // iter (iterInCurrentSeries + i) within the current series. Round
-                        // alternates per iter, so panel round = master XOR (i odd).
-                        // i = 0 (main) is rendered above; same-parity offsets share main's
-                        // round, opposite-parity offsets show the other round's config.
-                        const panelOddRound = (i % 2 === 0) ? isOddRound : !isOddRound;
+                        // Per-panel round (Han 2026-05-28, refined): the panel at offset i
+                        // represents the rep at (iterInCurrentSeries + i). Within a series,
+                        // round alternates per rep (iteration % 2). Master `isOddRound` is
+                        // (iter % 2 === 0). For HISTORY panels (i < 0, especially early in
+                        // a new series where iter+i can be NEGATIVE), the panel represents
+                        // a rep in the PREVIOUS series; iteration resets to 0 at series-flip
+                        // so we wrap modulo numRepeats. For ODD numRepeats this matters —
+                        // without the wraparound the history panel's round disagreed with
+                        // the just-played rep, producing a visible "flip" right after the
+                        // series boundary. For infinite repeat (numRepeats=-1) no wrap.
+                        const globalRep = iterInCurrentSeries + i;
+                        const localRep = (numRepeats > 0)
+                          ? (((globalRep % numRepeats) + numRepeats) % numRepeats)
+                          : globalRep;
+                        const panelOddRound = (((localRep % 2) + 2) % 2) === 0;
                         const panelRoundKey = panelOddRound ? 'oddRounds' : 'evenRounds';
                         const panelCfg = playbackConfig?.[panelRoundKey] ?? {};
                         return (
@@ -2496,13 +2515,19 @@ const SheetMusic = ({
                       for (let i = Math.max(1, itersRemaining + 1); i <= K_right; i++) {
                         offsets.push(i);
                       }
-                      // Per-panel round (Han 2026-05-28): red panel at offset i represents
-                      // next-series rep (i - itersRemaining - 1). At every series-flip the
-                      // applyResult callback sets isOddRound=true, so the next-series rep 0
-                      // is always 'oddRounds'. Round alternates per rep from there.
+                      // Per-panel round (Han 2026-05-28, refined): red panel at offset i
+                      // represents next-series rep (i - itersRemaining - 1). At every
+                      // series-flip the applyResult sets isOddRound=true, so next-series
+                      // rep 0 is always 'oddRounds'. Round alternates per rep. For
+                      // K_right > itersRemaining + numRepeats the panel would represent
+                      // a rep in the series AFTER next — wrap modulo numRepeats to be
+                      // consistent with the yellow-panel wraparound semantics.
                       return offsets.map(i => {
                         const nextSeriesRep = i - (Number.isFinite(itersRemaining) ? itersRemaining : 0) - 1;
-                        const panelOddRound = (nextSeriesRep % 2 === 0);
+                        const localRep = (numRepeats > 0)
+                          ? (((nextSeriesRep % numRepeats) + numRepeats) % numRepeats)
+                          : nextSeriesRep;
+                        const panelOddRound = (((localRep % 2) + 2) % 2) === 0;
                         const panelRoundKey = panelOddRound ? 'oddRounds' : 'evenRounds';
                         return (
                           <PreviewOverlay

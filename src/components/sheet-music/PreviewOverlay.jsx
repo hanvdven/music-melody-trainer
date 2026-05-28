@@ -158,13 +158,21 @@ const PreviewOverlay = ({
         : undefined
       }
       style={{
-        // scroll: tinted red; fades in via CSS animation (scroll mode only).
-        opacity: animationMode === 'scroll' ? undefined : undefined,
-        animation: animationMode === 'scroll' ? 'scrollPreviewFadeIn 0.5s ease-in forwards' : undefined,
+        // scroll: appear at opacity 1 immediately (Han 2026-05-28). The previous
+        // scrollPreviewFadeIn animation accentuated the new-content moment but
+        // made the right-side panels visibly dimmer than main/yellow panels.
+        opacity: undefined,
+        animation: undefined,
         filter: showSettings ? 'blur(1.5px)' : 'none',
         pointerEvents: 'none',
       }}
     >
+      {/* Leading barline at the panel's startX for scroll mode (Han 2026-05-28).
+          Mirrors the SheetMusic yellow-panel leading barline so red preview panels
+          also delimit their visual block. */}
+      {animationMode === 'scroll' && (
+        <path d={`M ${startX} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.4" />
+      )}
       {nextCfg.chordsEye !== false && previewChords?.length > 0 &&
         <ChordLabelsLayer
           chordProgression={chordProgression}
