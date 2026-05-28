@@ -2109,8 +2109,22 @@ const SheetMusic = ({
                     {/* Chord labels */}
                     <g
                       data-wipe-role="old"
-                      className="chord-labels-group"
-                      style={{ filter: showSettings ? 'blur(6px)' : 'none', opacity: showSettings ? 0.6 : 1 }}
+                      data-pagination-old=""
+                      className={
+                        // Mirror the melody-notes-group: in pagination mode the rAF crossfade owns
+                        // opacity (rAF writes style.opacity directly). The CSS class restores the
+                        // resting opacity (1 when chords visible, 0 when hidden) once the rAF clears
+                        // inline opacity at transition end. Without data-pagination-old, the chord
+                        // labels stayed at React-set opacity:1 during the crossfade — melody notes
+                        // would fade out but chord letters stayed hard-visible.
+                        animationMode === 'pagination' && !showSettings
+                          ? (actualChords ? 'pagination-old-visible' : 'pagination-old-hidden')
+                          : 'chord-labels-group'
+                      }
+                      style={{
+                        filter: showSettings ? 'blur(6px)' : 'none',
+                        opacity: showSettings ? 0.6 : (animationMode !== 'pagination' ? 1 : undefined),
+                      }}
                     >
                       {actualChords && <ChordLabelsLayer
                         chordProgression={chordProgression}
