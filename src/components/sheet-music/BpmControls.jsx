@@ -22,6 +22,12 @@ const BpmControls = ({
     openSettingsIfClosed,
     onSettingsInteraction,
     setTempoPicker,
+    // Rubato mode (Han 2026-05-28 PR-B): when true the BPM number is replaced
+    // by the Maestro rubato glyph (SHIFT+T → 'Å'? — Maestro mapping TBD)
+    // and the tempo term becomes "rubato". Long-press on the value area
+    // toggles between BPM and rubato.
+    isRubato = false,
+    onToggleRubato,
 }) => {
     // TAP BPM — accumulate up to 4 tap timestamps; use the last 4 intervals to derive BPM.
     // Taps older than 3 s reset the sequence (stale tap).
@@ -59,6 +65,17 @@ const BpmControls = ({
         }, 10);
     };
 
+    // Long-press on the BPM value area (= the number, not the +/− buttons)
+    // toggles rubato mode. Han 2026-05-28: "selecteerbaar door lange klik op
+    // de BPM-naam". The handler is only attached when onToggleRubato is
+    // wired through (PR-B and later); without it the area is a plain click
+    // target with no special behaviour.
+    const valueLongPress = useLongPressTimer();
+    const handleValueLongPress = () => {
+        onResetBpmTimer();
+        if (onToggleRubato) onToggleRubato();
+    };
+
     const handleTap = () => {
         onResetBpmTimer();
         openSettingsIfClosed();
@@ -83,7 +100,10 @@ const BpmControls = ({
     };
 
     const x = 25;
-    const term = getTempoTerm(bpm);
+    // Tempo term: "rubato" in rubato mode (Han 2026-05-28), otherwise the
+    // BPM-derived term ("Andante" etc.). The italic-text styling stays the
+    // same so the visual position doesn't shift.
+    const term = isRubato ? 'rubato' : getTempoTerm(bpm);
     const headerY = trebleStart - 89;
     const valueY = trebleStart - 59;
 
@@ -131,10 +151,43 @@ const BpmControls = ({
                 onClick={(e) => { e.stopPropagation(); setTempoPicker(p => !p); openSettingsIfClosed(); onSettingsInteraction?.(10000); }}
             />
 
-            {/* q = BPM */}
+            {/* q = BPM, or in rubato mode: q = T (Maestro SHIFT+T glyph for free-time).
+                Rubato glyph in Maestro: capital T = the tempo-libero symbol commonly
+                used as q = T (Han 2026-05-28). The numeric BPM is hidden in rubato. */}
             <text x={x} y={valueY} className="bpm-note" fill={showSettings ? 'var(--accent-yellow)' : undefined}>q</text>
             <text x={x + 15} y={valueY} className="bpm-equals" fill={showSettings ? 'var(--accent-yellow)' : undefined}>=</text>
-            <text x={x + 30} y={valueY - 8} className="bpm-value" fontFamily="Maestro" fill={showSettings ? 'var(--accent-yellow)' : undefined}>{bpm}</text>
+            {isRubato ? (
+                <text
+                    x={x + 30}
+                    y={valueY - 8}
+                    className="bpm-value"
+                    fontFamily="Maestro"
+                    fill={showSettings ? 'var(--accent-yellow)' : undefined}
+                >
+                    T
+                </text>
+            ) : (
+                <text x={x + 30} y={valueY - 8} className="bpm-value" fontFamily="Maestro" fill={showSettings ? 'var(--accent-yellow)' : undefined}>{bpm}</text>
+            )}
+            {/* Long-press capture zone over the value glyph — toggles rubato mode.
+                Sits above the +/− zones so the +/− zones keep their normal click
+                handlers. Slightly inset so it doesn't intercept the outer adjusters. */}
+            {onToggleRubato && (
+                <rect
+                    x={x + 18} y={valueY - 30} width={50} height={36}
+                    fill={debugMode ? 'magenta' : 'transparent'}
+                    fillOpacity={debugMode ? 0.3 : 0}
+                    stroke={debugMode ? 'magenta' : 'transparent'}
+                    strokeWidth={debugMode ? 1 : 0}
+                    style={{ cursor: 'pointer' }}
+                    onMouseDown={() => valueLongPress.start(handleValueLongPress)}
+                    onMouseUp={(e) => { e.stopPropagation(); valueLongPress.end(e, () => {}); }}
+                    onMouseLeave={() => valueLongPress.cancel()}
+                    onTouchStart={() => valueLongPress.start(handleValueLongPress)}
+                    onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); valueLongPress.end(e, () => {}); }}
+                    onClick={(e) => e.stopPropagation()}
+                />
+            )}
 
             {/* -- / - / + / ++ indicators */}
             {(showBpmControls || showSettings) && (

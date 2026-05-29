@@ -49,9 +49,14 @@ export default function useAppUIState() {
     const currentMeasureIndex = 0; // legacy alias for the (now-unused) state value
     const setCurrentMeasureIndex = (n) => { currentMeasureIndexRef.current = n; };
     const [animationMode, setAnimationMode, animationModeRef] = useRefState('pagination');
-    // Pagination crossfade speed: 'snel' | 'mid' | 'lang'. See transitionPlanner.PAGINATION_VARIANTS.
-    // Only consulted when animationMode === 'pagination'.
+    // Pagination crossfade speed: 'snel' | 'mid'. See transitionPlanner.PAGINATION_VARIANTS.
+    // ('lang' removed 2026-05-28 — no use case.) Only consulted when animationMode === 'pagination'.
     const [paginationVariant, setPaginationVariant, paginationVariantRef] = useRefState('mid');
+    // Rubato toggle (Han 2026-05-28 PR-B). When true, the BPM display becomes a
+    // rubato glyph (Maestro SHIFT+T) + the word "rubato" instead of the numeric
+    // BPM, and tempo-driven playback is replaced by user-input-driven timing
+    // (implemented in PR-C+). UI: long-press on the BPM value area toggles this.
+    const [isRubato, setIsRubato, isRubatoRef] = useRefState(false);
     const [lyricsMode, setLyricsMode] = useState('none');
 
     const [nextLayer, setNextLayer] = useState(null);
@@ -112,6 +117,7 @@ export default function useAppUIState() {
         currentMeasureIndex, setCurrentMeasureIndex,
         animationMode, setAnimationMode, animationModeRef,
         paginationVariant, setPaginationVariant, paginationVariantRef,
+        isRubato, setIsRubato, isRubatoRef,
         lyricsMode, setLyricsMode,
         nextLayer, setNextLayer,
         previewMelody, setPreviewMelody,
