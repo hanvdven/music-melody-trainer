@@ -41,12 +41,12 @@
   "difficulties": {
     "easy": {
       "_comment": "Single melodic line (top notes of the MIDI's harmonised stacks). 24 notes. Anacrusis = dotted-eighth + sixteenth (dur 9 + 3). Lines 1-3 end 'you' as half-note (dur 24), line 4 ends 'you!' as dotted-half (dur 36). [name] stretched to half-note (dur 24) to approximate the traditional fermata.",
+      "fermatas": [{ "tick": 216, "hold": 18 }],
       "treble": {
         "notes":     ["D4","D4","E4","D4","G4","F#4","D4","D4","E4","D4","A4","G4","D4","D4","D5","B4","G4","F#4","C5","C5","B4","G4","A4","G4"],
         "durations": [9,    3,   12,  12,  12,  24,   9,   3,   12,  12,  12,  24,  9,   3,   12,  12,  12,  24,   9,   3,   12,  12,  12,  36],
         "offsets":   [24,   33,  36,  48,  60,  72,   96,  105, 108, 120, 132, 144, 168, 177, 180, 192, 204, 216,  240, 249, 252, 264, 276, 288],
-        "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","Hap-","py","Birth-","day","to","you!"],
-        "fermatas":  [{ "noteIndex": 17, "hold": 18 }]
+        "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","Hap-","py","Birth-","day","to","you!"]
       },
       "bass": null,
       "percussion": null,
@@ -64,6 +64,7 @@
     },
     "hard": {
       "_comment": "Full chorale-style harmonisation: each onset carries the MIDI's full chord voicing in both staves. 25 treble onsets (incl. one continuation '—' after [name] for the MIDI's rearticulation), 19 bass onsets (consecutive same-voicing entries merged into longer durations).",
+      "fermatas": [{ "tick": 216, "hold": 18 }],
       "treble": {
         "notes": [
           "D4",
@@ -94,8 +95,7 @@
         ],
         "durations": [9, 3, 12, 12, 12, 24, 9, 3, 12, 12, 12, 24, 9, 3, 12, 12, 12, 12, 12, 9, 3, 12, 12, 12, 36],
         "offsets":   [24, 33, 36, 48, 60, 72, 96, 105, 108, 120, 132, 144, 168, 177, 180, 192, 204, 216, 228, 240, 249, 252, 264, 276, 288],
-        "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","—","Hap-","py","Birth-","day","to","you!"],
-        "fermatas":  [{ "noteIndex": 17, "hold": 18 }]
+        "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","—","Hap-","py","Birth-","day","to","you!"]
       },
       "bass": {
         "notes": [
@@ -123,21 +123,22 @@
         "offsets":   [24, 36, 48, 60, 72, 96, 108, 120, 132, 144, 168, 180, 192, 204, 216, 240, 252, 276, 288]
       },
       "percussion": null,
-      "_chordNotes": "Han 2026-05-29: jazz arrangement in D major, transposed here to G major (+5 semitones). 14 chords spanning the anacrusis through m8.",
+      "_chordNotes": "Han 2026-05-29 round 13: jazz arrangement in D major, transposed here to G major (+5 semitones). Passing chords land on beat 3 (except m5 which has chords on beats 1+2+3). Passing chords carry meta.isPassing so ChordLabelsLayer renders the smaller font + arrow.",
       "chords": [
-        { "offset": 0,   "duration": 36, "notes": ["G3","B3","D4","F♯4","A4"],      "root": "G3",  "type": "maj9",      "name": "Gmaj9",     "suffix": "maj9" },
-        { "offset": 36,  "duration": 24, "notes": ["G♯3","B3","D4","F4"],            "root": "G♯3", "type": "dim",       "name": "G♯dim",     "suffix": "dim" },
-        { "offset": 60,  "duration": 12, "notes": ["A3","C4","E4","G4","B4"],        "root": "A3",  "type": "min9",      "name": "Am9",       "suffix": "m9" },
-        { "offset": 72,  "duration": 24, "notes": ["E♭3","G3","A3","D♭4"],           "root": "E♭3", "type": "dom7b5",    "name": "E♭7♭5",     "suffix": "7♭5" },
-        { "offset": 96,  "duration": 12, "notes": ["D3","C4","E4","G4"],             "root": "C3",  "type": "major",     "name": "C/D",       "suffix": "/D" },
-        { "offset": 108, "duration": 36, "notes": ["D3","F♯3","A3","C4","E♭4"],      "root": "D3",  "type": "dom7b9",    "name": "D7♭9",      "suffix": "7♭9" },
-        { "offset": 144, "duration": 24, "notes": ["G3","B3","D4","F♯4","A4"],      "root": "G3",  "type": "maj9",      "name": "Gmaj9",     "suffix": "maj9" },
-        { "offset": 168, "duration": 12, "notes": ["D3","F3","A3","C4","G4"],        "root": "D3",  "type": "min7add11", "name": "Dm7add11",  "suffix": "m7add11" },
-        { "offset": 180, "duration": 24, "notes": ["D♭3","F3","G3","B3"],            "root": "D♭3", "type": "dom7b5",    "name": "D♭7♭5",     "suffix": "7♭5" },
-        { "offset": 204, "duration": 12, "notes": ["C3","E3","G3","B3"],             "root": "C3",  "type": "maj7",      "name": "Cmaj7",     "suffix": "maj7" },
-        { "offset": 216, "duration": 24, "notes": ["E3","G♯3","B3","D4","C4"],       "root": "E3",  "type": "dom7b13",   "name": "E7♭13",     "suffix": "7♭13" },
-        { "offset": 240, "duration": 12, "notes": ["A3","C4","E4","G4","B4"],        "root": "A3",  "type": "min9",      "name": "Am9",       "suffix": "m9" },
-        { "offset": 252, "duration": 36, "notes": ["E♭3","G♭3","B♭3","C4"],          "root": "E♭3", "type": "min6",      "name": "E♭m6",      "suffix": "m6" },
+        { "offset": 0,   "duration": 36, "notes": [],                                "root": "",    "type": "nc",        "name": "N.C.",      "suffix": "" },
+        { "offset": 36,  "duration": 24, "notes": ["G3","B3","D4","F♯4","A4"],      "root": "G3",  "type": "maj9",      "name": "Gmaj9",     "suffix": "maj9" },
+        { "offset": 60,  "duration": 12, "notes": ["G♯3","B3","D4"],                 "root": "G♯3", "type": "dim",       "name": "G♯°",       "suffix": "°", "meta": { "isPassing": true } },
+        { "offset": 72,  "duration": 24, "notes": ["A3","C4","E4","G4","B4"],        "root": "A3",  "type": "min9",      "name": "Am9",       "suffix": "m9" },
+        { "offset": 96,  "duration": 12, "notes": ["E♭3","G3","A3","D♭4"],           "root": "E♭3", "type": "dom7b5",    "name": "E♭7♭5",     "suffix": "7♭5", "meta": { "isPassing": true } },
+        { "offset": 108, "duration": 24, "notes": ["D3","C4","E4","G4"],             "root": "C3",  "type": "major",     "name": "C/D",       "suffix": "/D" },
+        { "offset": 132, "duration": 12, "notes": ["D3","F♯3","A3","C4","E♭4"],      "root": "D3",  "type": "dom7b9",    "name": "D7♭9",      "suffix": "7♭9", "meta": { "isPassing": true } },
+        { "offset": 144, "duration": 36, "notes": ["G3","B3","D4","F♯4","A4"],      "root": "G3",  "type": "maj9",      "name": "Gmaj9",     "suffix": "maj9" },
+        { "offset": 180, "duration": 12, "notes": ["D3","F3","A3","C4","G4"],        "root": "D3",  "type": "min7add11", "name": "Dm7add11",  "suffix": "m7add11" },
+        { "offset": 192, "duration": 12, "notes": ["D♭3","F3","G3","B3"],            "root": "D♭3", "type": "dom7b5",    "name": "D♭7♭5",     "suffix": "7♭5", "meta": { "isPassing": true } },
+        { "offset": 204, "duration": 12, "notes": ["C3","E3","G3","B3"],             "root": "C3",  "type": "maj7",      "name": "Cmaj7",     "suffix": "maj7", "meta": { "isPassing": true } },
+        { "offset": 216, "duration": 36, "notes": ["E3","G♯3","B3","D4","C4"],       "root": "E3",  "type": "dom7b13",   "name": "E7♭13",     "suffix": "7♭13" },
+        { "offset": 252, "duration": 24, "notes": ["A3","C4","E4","G4","B4"],        "root": "A3",  "type": "min9",      "name": "Am9",       "suffix": "m9" },
+        { "offset": 276, "duration": 12, "notes": ["E♭3","G♭3","B♭3","C4"],          "root": "E♭3", "type": "min6",      "name": "E♭m6",      "suffix": "m6", "meta": { "isPassing": true } },
         { "offset": 288, "duration": 36, "notes": ["G3","B3","D4","F♯4"],            "root": "G3",  "type": "maj7",      "name": "Gmaj7",     "suffix": "maj7" }
       ]
     }

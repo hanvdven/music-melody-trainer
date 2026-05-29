@@ -1300,21 +1300,18 @@ const SheetMusic = ({
     });
   };
 
-  // Renders fermata glyphs above the treble staff for any notes carrying a
-  // fermata entry (Han 2026-05-28). Maestro 'U' (SHIFT+u) is the arc-down
-  // fermata for stem-down notes (placed above). Future refinement: detect
-  // stem direction per note and swap to 'u' (placed below) for stem-up notes.
-  // For round 9/10 we render the above-staff form for all fermatas — works
-  // for HBD's [name] (C5, conventionally stem-down).
+  // Renders fermata glyphs above the treble staff. Tick-based format (Han
+  // 2026-05-29 round 13): each fermata is { tick, hold } at the song level.
+  // The glyph sits above whichever note happens to land on that tick.
+  // Maestro 'U' (SHIFT+u) is the arc-down fermata for stem-down notes;
+  // stem-direction-aware swap to 'u' is a follow-up refinement.
   const renderFermataGlyphs = (melody, glyphY, offsets = allOffsets, nw = noteWidth) => {
     if (!melody?.fermatas || melody.fermatas.length === 0) return null;
-    const melOffsets = melody.offsets;
-    if (!melOffsets) return null;
+    if (!melody.offsets) return null;
     const getXLocal = (index) => startX + (index - 1) * nw;
     return melody.fermatas.map((f, fi) => {
-      const tickOffset = melOffsets[f.noteIndex];
-      if (tickOffset == null) return null;
-      const idx = offsets.indexOf(tickOffset);
+      if (typeof f?.tick !== 'number') return null;
+      const idx = offsets.indexOf(f.tick);
       if (idx < 0) return null;
       const x = getXLocal(idx) + 5;
       return (
