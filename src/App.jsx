@@ -521,20 +521,42 @@ const App = () => {
         setIsPlayingMelody, setIsPlayingContinuously, melodies,
     });
 
+    // Rubato playback engage hook (PR-C wave 1, Han 2026-05-29).
+    // When rubato is active, the Play buttons hand control to input-test mode
+    // instead of starting the Sequencer's audio-time loop — the user advances
+    // note-by-note from the bottom-pane keyboard. The ref is populated by a
+    // useEffect AFTER useInputTest mounts; until then it's a no-op.
+    const rubatoEngageRef = useRef(null);
+
     const handlePlayMelody = useCallback(() => {
+        if (isRubatoRef.current && rubatoEngageRef.current) {
+            rubatoEngageRef.current('once');
+            setHeaderPlayMode('once');
+            return;
+        }
         handlePlayMelodyLogic();
         setHeaderPlayMode('once');
-    }, [handlePlayMelodyLogic]);
+    }, [handlePlayMelodyLogic, isRubatoRef]);
 
     const handlePlayContinuously = useCallback(() => {
+        if (isRubatoRef.current && rubatoEngageRef.current) {
+            rubatoEngageRef.current('continuous');
+            setHeaderPlayMode('continuous');
+            return;
+        }
         handlePlayContinuouslyLogic();
         setHeaderPlayMode('continuous');
-    }, [handlePlayContinuouslyLogic]);
+    }, [handlePlayContinuouslyLogic, isRubatoRef]);
 
     const handlePlayRepeat = useCallback(() => {
+        if (isRubatoRef.current && rubatoEngageRef.current) {
+            rubatoEngageRef.current('repeat');
+            setHeaderPlayMode('repeat');
+            return;
+        }
         handlePlayRepeatLogic();
         setHeaderPlayMode('repeat');
-    }, [handlePlayRepeatLogic]);
+    }, [handlePlayRepeatLogic, isRubatoRef]);
 
     const {
         isInputTestMode, setIsInputTestMode,
@@ -571,6 +593,21 @@ const App = () => {
         // Keyboard is only active in 'note' (Piano) mode
         setQwertyKeyboardActive(mode === 'note');
     }, [setInputTestSubMode]);
+
+    // Populate the rubato-play interceptor now that useInputTest is mounted.
+    // The Play buttons (handlePlayMelody/Repeat/Continuously) consult this ref
+    // when isRubato is true and call into here instead of starting the
+    // Sequencer. Wave 1 just flips the user into input-test 'note' sub-mode
+    // (= the existing user-driven note advance with red-flash on wrong input)
+    // and treats Play/Repeat/Continuously identically — no audio scheduling.
+    // Wave 2 (PR-D) will add background-track accompaniment.
+    useEffect(() => {
+        rubatoEngageRef.current = () => {
+            if (!isInputTestModeRef.current) handleToggleInputTest();
+            handleSetInputTestSubMode('note');
+        };
+        return () => { rubatoEngageRef.current = null; };
+    }, [handleToggleInputTest, handleSetInputTestSubMode, isInputTestModeRef]);
 
     // Update onPlaybackStart logic to use state from useInputTest
     useEffect(() => {
