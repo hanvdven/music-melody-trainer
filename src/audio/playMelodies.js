@@ -38,16 +38,29 @@ const playMelodies = (
     const defaultInstrument = instruments[index];
     if (!defaultInstrument) continue;
 
-    // Fermata hold lookup (Han 2026-05-28): map note-index → extra tick hold.
-    // playMelodies is called with the FULL melody (not pre-sliced) so we read
-    // `melody.fermatas` directly. The hold is added to the audio duration of
-    // the matching note only; subsequent offsets do not shift, so the held
-    // sound rings over any following anacrusis (matches HBD's traditional
-    // [name] sustain into the next verse).
+    // Fermata hold + cumulative shift (Han 2026-05-29 revision). The note's
+    // audio duration is extended by `hold`, AND every subsequent note's audio
+    // start time is delayed by the same amount. Han: "de noot moet langer
+    // doorklinken, maar de rest van de melodie moet uitgesteld worden". This
+    // matches real fermata performance — the held note pushes the next phrase
+    // later in time. Visual stays at natural offsets (the renderer is unaware
+    // of fermatas other than to draw the glyph above the held note), so the
+    // moving-cursor highlight follows audio while the static page shows the
+    // natural rhythm.
     const fermataHoldByIdx = new Map();
+    const fermataShiftByIdx = new Array(notes.length).fill(0);
     if (melody.fermatas) {
       for (const f of melody.fermatas) {
         if (f && f.noteIndex != null && f.hold > 0) fermataHoldByIdx.set(f.noteIndex, f.hold);
+      }
+      // Build per-note cumulative shift: the shift at index i is the sum of
+      // all fermata holds at indices < i. The fermata note itself sounds at
+      // its natural offset+shift (= unshifted by its own hold).
+      let shift = 0;
+      for (let k = 0; k < notes.length; k++) {
+        fermataShiftByIdx[k] = shift;
+        const h = fermataHoldByIdx.get(k);
+        if (h) shift += h;
       }
     }
 
@@ -97,10 +110,14 @@ const playMelodies = (
           const interruptGroup = PERCUSSION_INTERRUPT_GROUP[id] ?? null;
 
           const fermataHold = fermataHoldByIdx.get(i) || 0;
+          const fermataShift = fermataShiftByIdx[i] || 0;
           queue.push({
             pitch,
             instrument: noteInstrument,
-            time: adjustedStart + relativeTick * timeFactor + stagger,
+            // fermataShift delays this note's audio start; for the fermata note
+            // itself it's the cumulative shift from earlier fermatas (0 if it's
+            // the first), and `+ fermataHold` extends its sounding length.
+            time: adjustedStart + (relativeTick + fermataShift) * timeFactor + stagger,
             // Percussion samples play to their natural end; use a large duration so smplr
             // never forces an early cutoff. Choke happens via stopId (see playback loop).
             duration: interruptGroup ? 60 : (durations[i] + fermataHold) * timeFactor,

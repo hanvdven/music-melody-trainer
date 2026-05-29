@@ -144,7 +144,12 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       const newRoot  = shift !== 0 ? transposeNoteBySemitones(c.root, shift) : c.root;
       const newNotes = chordNotes[i];
       const rootPC   = newRoot.replace(/-?\d+$/, '');
-      return new Chord(newRoot, c.type, newNotes, c.name, rootPC, '', '', [], []);
+      // c.suffix (Han 2026-05-29) is the explicit chord suffix for display,
+      // e.g. "maj9", "dim", "7♭5". Without it, ChordLabelsLayer just shows the
+      // root letter — fine for the easy progression but not for the jazz
+      // arrangement on hard. Falls back to the empty string when the JSON
+      // doesn't provide one.
+      return new Chord(newRoot, c.type, newNotes, c.name, rootPC, c.suffix || '', '', [], []);
     });
     chordMelody = new Melody(chordNotes, chordDurations, chordOffsets, chordDisplays);
   }

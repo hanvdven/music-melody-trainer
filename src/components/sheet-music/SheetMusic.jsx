@@ -1548,7 +1548,7 @@ const SheetMusic = ({
                 const next = tempoTerms[i + 1];
                 const rangeLo = t.bpm;
                 const rangeHi = next ? next.bpm - 1 : '∞';
-                const isCurrent = bpm >= t.bpm && (next ? bpm < next.bpm : true);
+                const isCurrent = !isRubato && bpm >= t.bpm && (next ? bpm < next.bpm : true);
                 return (
                   <button
                     key={t.term + i}
@@ -1557,6 +1557,8 @@ const SheetMusic = ({
                       // Use explicit target if set (e.g. Larghissimo=30, Prestissimo=210),
                       // otherwise midpoint of [bpm[i], bpm[i+1]).
                       const mid = t.target ?? (next ? Math.round((rangeLo + next.bpm) / 2) : rangeLo);
+                      // Picking a regular tempo also exits rubato mode (Han 2026-05-29).
+                      if (isRubato && onToggleRubato) onToggleRubato();
                       handleBpmChangeWrapper(mid);
                       setTempoPicker(false);
                     }}
@@ -1571,6 +1573,27 @@ const SheetMusic = ({
                   </button>
                 );
               })}
+              {/* Rubato entry — Han 2026-05-29: appended to the tempo list so picking
+                  it switches the display to q = T (Maestro SHIFT+T) and the term "rubato".
+                  Re-clicking it while already in rubato is a no-op. */}
+              {onToggleRubato && (
+                <button
+                  key="rubato"
+                  className={`gs-popup-option${isRubato ? ' selected' : ''}`}
+                  onClick={() => {
+                    if (!isRubato) onToggleRubato();
+                    setTempoPicker(false);
+                  }}
+                >
+                  <div className="gs-popup-option-icon" style={{ fontFamily: 'Maestro', fontSize: '18px', minWidth: '28px' }}>
+                    T
+                  </div>
+                  <span style={{ flex: 1 }}>rubato</span>
+                  <span style={{ fontSize: '11px', opacity: 0.5, marginLeft: '6px', whiteSpace: 'nowrap' }}>
+                    free time
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         </>
@@ -2007,12 +2030,12 @@ const SheetMusic = ({
                           {renderTextLyricsRow(trebleMelody, trebleStart + staffHeight + 39)}
                         </g>
                       )}
-                      {/* Fermata glyphs well above the top staff line so they don't
-                          collide with the highest notes. Read from the original
-                          trebleMelody so fermata note-indices align with melody.notes. */}
+                      {/* Fermata glyphs just above the top staff line. Han 2026-05-29
+                          said the previous trebleStart-18 was unnecessarily high; tightened
+                          to -2 so the glyph sits right above the staff. */}
                       {actualTreble && trebleMelody?.fermatas && trebleMelody.fermatas.length > 0 && (
                         <g className="fermata-glyphs-group">
-                          {renderFermataGlyphs(trebleMelody, trebleStart - 18)}
+                          {renderFermataGlyphs(trebleMelody, trebleStart - 2)}
                         </g>
                       )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>

@@ -1881,22 +1881,20 @@ class Sequencer {
     }
     if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
 
-    // smplr's voice.stop() applies a release envelope on each playing note —
-    // gain linearly ramps from 1 → 0 over the soundfont's `ampRelease` (often
-    // 0.3–1.0s for sustained samples). That tail is what users perceive as
-    // "stop doesn't stop immediately". Hard-mute each instrument's output
-    // channel BEFORE calling .stop() so the release plays silently. Sequencer
-    // .start() restores the channel volume on next play.
-    const SILENCE = ['treble', 'bass', 'chords', 'percussion', 'metronome'];
-    SILENCE.forEach(name => {
-      try { this.instruments[name]?.output?.setVolume(0); } catch { /* output API absent */ }
-    });
-
+    // Han 2026-05-29: previously we hard-muted each instrument's output
+    // channel (setVolume(0)) before calling .stop() so the release envelope
+    // played silently — but that left the channels muted afterwards, which
+    // killed every subsequent click-to-play (the note got dispatched into a
+    // muted channel and the user heard nothing). It also amputated the
+    // natural tail of the last melody note when playback ended on its own
+    // — a "brute" cutoff Han specifically called out. Now we just call
+    // instrument.stop() and let smplr's per-voice release envelope ring
+    // naturally (~0.3–1.0s tail). Note: instrument.stop() also prevents
+    // new scheduled-but-not-yet-started notes from sounding, so the
+    // abortController + this call together honour the "no new notes" intent.
     try { this.instruments.treble?.stop(); } catch { /* instrument may not be started */ }
     try { this.instruments.bass?.stop(); } catch { /* instrument may not be started */ }
     try { this.instruments.chords?.stop(); } catch { /* instrument may not be started */ }
-    // percussion and metronome were missing here — they must be stopped too or
-    // their scheduled audio continues playing after the user presses Stop.
     try { this.instruments.percussion?.stop(); } catch { /* instrument may not be started */ }
     try { this.instruments.metronome?.stop(); } catch { /* instrument may not be started */ }
 
