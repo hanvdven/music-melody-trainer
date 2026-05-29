@@ -23,6 +23,21 @@ Deel deze features in bij de juiste categorie.
 
 ---
 
+### HBD hard bass: alle MIDI bass-noten (Han 2026-05-29)
+
+> ik mis ook nog noten uit de midi-file in hard-mode kan je zorgen dat ook de bas alle midi-basnoten bevat?
+
+Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120, 132, 144, 168, 180, 192, 204, 216, 240, 252, 276, 288). De originele MIDI `Happy_Birthday___Piano.mid` is per `_layoutNotes` van mei 2026 verwerkt voor de huidige content, maar bevat waarschijnlijk fijnere bass-figuratie die nog niet in de JSON staat.
+
+**Wat ik nodig heb voor implementatie**:
+- Optie (a): upload de MIDI-file ergens in de repo (bv. `docs/midi/Happy_Birthday___Piano.mid`) zodat ik de bass-track kan extracten.
+- Optie (b): lever de extra bass-noten als JSON-edit aan (notes + durations + offsets).
+- Optie (c): geef per maat een grovere beschrijving (bv. "m1 bass: walking 8ths op G-B-D-D"), dan kan ik een passend bass-pattern uitschrijven.
+
+**Status**: gedocumenteerd, gereed wanneer Han de MIDI-source of een spec aanlevert.
+
+---
+
 ### Bug (Han 2026-05-29): tuplet slot/length mismatch
 
 > [3:2]q w q q wordt weergegeven en afgespeeld als [3:2]q [x]q w q q r (waar de x een 'leegte' van een kwartnoot is). Dus de tuplet in de generatie maakt de note planning in de war.
