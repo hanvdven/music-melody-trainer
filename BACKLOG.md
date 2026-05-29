@@ -21,6 +21,48 @@
 
 Deel deze features in bij de juiste categorie.
 
+---
+
+### Bug (Han 2026-05-29): tuplet slot/length mismatch
+
+> [3:2]q w q q wordt weergegeven en afgespeeld als [3:2]q [x]q w q q r (waar de x een 'leegte' van een kwartnoot is). Dus de tuplet in de generatie maakt de note planning in de war.
+> Ofwel had het een [3:2]h moeten zijn, of had de w een kwartnoot eerder gepland moeten worden. Vind het probleem uit en los op. Ik ben zeker dat het probleem zit in het toekennen van de slots en lengtes in de melodie. Het totaal van nootlengten en de start van de noten komt niet goed overeen. Mogelijk oplosbaar met de grote refactor naar events.
+
+[Claude 2026-05-29 ronde 11 — eerste analyse, NIET geïmplementeerd]:
+
+**Symptom**: een 3:2 quarter-triplet gevolgd door een whole-note krijgt een extra kwartrust ingevoegd. Visueel + audio identiek scheef. Totaal van nootlengten klopt niet meer met de maatlengte.
+
+**Hypothesis-richting** (zonder reproductie):
+- `injectTuplets` markeert een tuplet-kandidaat met `slotCount` slots — dat zijn de slots die de tuplet "consumeert". Voor 3:2 op 4 eighth-slots: slotCount=4 (= 2 quarter beats), noteCount=3.
+- In `melodyGenerator.js` (~line 511-518): `groupTicks = slotCount * timeScale`, `noteTicks = floor(groupTicks / noteCount)`, last note absorbs remainder. Som van noot-ticks = groupTicks. ✅ Klopt op zich.
+- Maar wat Han ziet: na de triplet komt een kwartrust voordat de `w` start. Mogelijke oorzaken:
+  - (a) De `w` was al gepland op de oorspronkelijke slot vóór tuplet-expansion, en de expansion duwde alleen lokale slots (3 noten in 4 oude slots), niet de buurnoten. Maar de `w` zou dan gewoon op zijn slot blijven — geen extra rust.
+  - (b) Het probleem zit in `processMelodyAndCalculateSlots` (= visual layer). De rendering vouwt 3 triplet-noten in 4 slots terug naar een ratio `[3:2]`, maar laat de oorspronkelijke 4 slots staan ipv 2 slots (= 2 quarter beats). De extra 2 slots worden als rust gerenderd.
+  - (c) Of: `[3:2]q` had eigenlijk `[3:2]h` (= 3 halves in 2 halves = 4 quarter beats) moeten zijn — verkeerde ratio-aanduiding door de generator.
+
+**Voorgestelde investigatie-stappen** (voor ronde 11/12 als prioriteit):
+1. Reproduceer met logger.debug — voeg traces toe in `injectTuplets` voor de exacte kandidaat (slotStart, slotCount, n) en in `melodyGenerator` voor de resulterende ticks per noot.
+2. Vergelijk `slotCount * timeScale` (audio-pad) met de visuele slot-toewijzing in `processMelodyAndCalculateSlots` voor dezelfde tuplet-noten.
+3. Check of `triplets[i].visualDuration` correct is voor `[3:2]q` (= 12 ticks = 1 quarter referentienoot) en of de visuele renderer er een 2-quarter-totaal van maakt (dus 1.5 quarters per ratio-noot zou ongeldig zijn).
+
+**Han's hint**: "totaal van nootlengten en de start van de noten komt niet goed overeen" → twee plaatsen om te controleren:
+- som van `melody.durations[i]` over een maat = `measureLengthTicks`? Indien niet, audio/visual drift.
+- `melody.offsets[i+1] - melody.offsets[i] === melody.durations[i]` voor consecutieve noten? Indien niet, gaps die als rest gerenderd worden.
+
+**Status**: gedocumenteerd, niet opgelost. Vereist concrete repro (random regen vinden waar dit gebeurt) of een unit test met een 3:2-triplet input. Han noemt dit "mogelijk oplosbaar met de grote refactor naar events" — die refactor staat al elders in deze backlog. Tot dan: gerichte fix mogelijk maar risico op regressie.
+
+---
+
+### ✅ Bug (Han 2026-05-29): subheader knoppen sluiten settings overlay
+
+> closing settings overlay is in conflict met de knoppen op het scherm: ik kan niet klikken op note coloring, highlights, etc. in de subheader. Wanneer ik op een knop klik, moet de close settings overlay niet triggeren.
+
+[Claude 2026-05-29 ronde 11 ✅ geïmplementeerd]: `SubHeader.jsx` heeft nu `data-settings-keepalive=""` op zijn outer `<div>`. `useSettingsOverlay`'s click-outside-to-close handler (`pointerdown` in capture phase) checkt al op `closest('[data-settings-keepalive]')` als escape hatch; daarmee blijft de overlay open bij subheader-klikken. De renderButton's `e.stopPropagation()` stopt al onClick-propagation, dus de actie zelf (note coloring togglen, etc.) werkt onveranderd.
+
+---
+
+
+
 ### ✅ Bestaande liedjes
 bestaande liedjes (happy birthday, ...)
 [Claude 2026-05-19]: Op verzoek van Han: samenvoegen met custom chord progressions (#25). Twee features: (1) bestaande liedjes afspelen (SHORTLIST); (2) eigen invoer (LONGLIST). Nieuwe feature samen met 'eigen invoer': akkoord / drum-sequencer → LONGLIST.
