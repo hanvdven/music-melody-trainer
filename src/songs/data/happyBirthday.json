@@ -53,11 +53,12 @@
       "chords": [
         { "offset": 0,   "notes": [],                       "root": "",   "type": "nc",       "name": "N.C.", "duration": 36 },
         { "offset": 36,  "notes": ["G3","B3","D4"],         "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
-        { "offset": 72,  "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
-        { "offset": 108, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
-        { "offset": 180, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
+        { "offset": 72,  "notes": ["D3","F#3","A3"],        "root": "D3", "type": "major",    "name": "D",  "duration": 36 },
+        { "offset": 108, "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
+        { "offset": 144, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
         { "offset": 216, "notes": ["C3","E3","G3"],        "root": "C3", "type": "major",    "name": "C",  "duration": 36 },
-        { "offset": 252, "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
+        { "offset": 252, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 24 },
+        { "offset": 276, "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 12 },
         { "offset": 288, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 }
       ]
     },
@@ -125,11 +126,12 @@
       "chords": [
         { "offset": 0,   "notes": [],                       "root": "",   "type": "nc",       "name": "N.C.", "duration": 36 },
         { "offset": 36,  "notes": ["G3","B3","D4"],         "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
-        { "offset": 72,  "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
-        { "offset": 108, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
-        { "offset": 180, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
+        { "offset": 72,  "notes": ["D3","F#3","A3"],        "root": "D3", "type": "major",    "name": "D",  "duration": 36 },
+        { "offset": 108, "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
+        { "offset": 144, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
         { "offset": 216, "notes": ["C3","E3","G3"],        "root": "C3", "type": "major",    "name": "C",  "duration": 36 },
-        { "offset": 252, "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
+        { "offset": 252, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 24 },
+        { "offset": 276, "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 12 },
         { "offset": 288, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 }
       ]
     }
