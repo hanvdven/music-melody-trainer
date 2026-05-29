@@ -75,6 +75,17 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
   const fallbackGrouping = chooseGrouping(songDef.timeSignature[0]);
   const groupingForSong = songDef.rhythmicGrouping ?? fallbackGrouping;
 
+  // Song-level fermatas (Han 2026-05-29 round 13). Tick-based format:
+  // { tick, hold } where `tick` is the absolute tick of the fermata note and
+  // `hold` is how many extra ticks every subsequent note gets delayed by.
+  // Propagated to ALL track melodies (treble, bass, percussion, chordMelody)
+  // so audio shifts uniformly — the previous per-track-treble-only design
+  // left the chord and bass tracks playing on the natural timeline while the
+  // treble shifted, which Han correctly flagged as "alleen op treble melodie".
+  const songFermatas = Array.isArray(diffData.fermatas)
+    ? diffData.fermatas.filter(f => f && typeof f.tick === 'number' && typeof f.hold === 'number' && f.hold > 0)
+    : [];
+
   // ── Treble melody ─────────────────────────────────────────────────────────
   let treble = null;
   if (diffData.treble) {
@@ -86,11 +97,7 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
     );
     if (td.lyrics) treble.lyrics = [...td.lyrics];
     treble.rhythmicGrouping = groupingForSong;
-    // Fermatas (Han 2026-05-28): array of { noteIndex, hold } where `hold` is
-    // the EXTRA tick count the note sustains beyond its natural duration.
-    // The audio scheduler applies the hold per measure-slice (see melodySlice).
-    // The visual layer renders the fermata glyph at the noteIndex position.
-    if (td.fermatas) treble.fermatas = td.fermatas.map(f => ({ ...f }));
+    if (songFermatas.length > 0) treble.fermatas = songFermatas.map(f => ({ ...f }));
   }
 
   // ── Bass melody ───────────────────────────────────────────────────────────
@@ -103,7 +110,7 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       [...bd.offsets],
     );
     bass.rhythmicGrouping = groupingForSong;
-    if (bd.fermatas) bass.fermatas = bd.fermatas.map(f => ({ ...f }));
+    if (songFermatas.length > 0) bass.fermatas = songFermatas.map(f => ({ ...f }));
   }
 
   // ── Percussion melody ─────────────────────────────────────────────────────
@@ -118,6 +125,7 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       [...pd.offsets],
     );
     percussion.rhythmicGrouping = groupingForSong;
+    if (songFermatas.length > 0) percussion.fermatas = songFermatas.map(f => ({ ...f }));
   }
 
   // ── Chord melody ──────────────────────────────────────────────────────────
@@ -148,10 +156,12 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       // e.g. "maj9", "dim", "7♭5". Without it, ChordLabelsLayer just shows the
       // root letter — fine for the easy progression but not for the jazz
       // arrangement on hard. Falls back to the empty string when the JSON
-      // doesn't provide one.
-      return new Chord(newRoot, c.type, newNotes, c.name, rootPC, c.suffix || '', '', [], []);
+      // doesn't provide one. c.meta carries flags like isPassing so the
+      // smaller-font + arrow rendering kicks in for passing chords.
+      return new Chord(newRoot, c.type, newNotes, c.name, rootPC, c.suffix || '', '', [], [], c.meta || {});
     });
     chordMelody = new Melody(chordNotes, chordDurations, chordOffsets, chordDisplays);
+    if (songFermatas.length > 0) chordMelody.fermatas = songFermatas.map(f => ({ ...f }));
   }
 
   return {
