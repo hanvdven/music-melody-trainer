@@ -122,7 +122,10 @@ const iterMeasureLines = ({
             // song's pickup measure, omit the number entirely (Han 2026-05-28).
             // The empty <g> keeps the click target so onMeasureNumberClick still
             // works for jump-to-measure interactions.
-            const isAnacrusisStart = anacrusisMeasureIndex !== null && bms === anacrusisMeasureIndex;
+            // bms is 1-indexed (e.g. 1 for the first measure of the song); anacrusisMeasureIndex
+// is 0-indexed (= the global measureIndex of the song's pickup), so we compare with
+// (bms - 1). For HBD song-load: bms=1, anacrusisMeasureIndex=0 → match → suppress.
+const isAnacrusisStart = anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
             return (
               <g key={`measure-line-${index}`}
                 onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx); } : undefined}
@@ -192,7 +195,10 @@ const iterMeasureLines = ({
       // Anacrusis: when the leftmost displayed measure is the song's pickup, omit
       // the label entirely (Han 2026-05-28).
       if (isStart && numRepeats <= 1) {
-        const isAnacrusisStart = anacrusisMeasureIndex !== null && bms === anacrusisMeasureIndex;
+        // bms is 1-indexed (e.g. 1 for the first measure of the song); anacrusisMeasureIndex
+// is 0-indexed (= the global measureIndex of the song's pickup), so we compare with
+// (bms - 1). For HBD song-load: bms=1, anacrusisMeasureIndex=0 → match → suppress.
+const isAnacrusisStart = anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
         return (
           <g key={`measure-line-${index}`}
             onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}

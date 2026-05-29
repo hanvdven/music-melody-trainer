@@ -1301,11 +1301,11 @@ const SheetMusic = ({
   };
 
   // Renders fermata glyphs above the treble staff for any notes carrying a
-  // fermata entry (Han 2026-05-28). Maestro 'u' is the standard arc-down
-  // fermata symbol; positioned above the staff at the note's x-position.
-  // Future refinement: detect stem direction per note and swap to SHIFT+u
-  // ('U') for stem-down notes (placed above) versus stem-up notes (below).
-  // For round 9 we render the standard above-staff form for all fermatas.
+  // fermata entry (Han 2026-05-28). Maestro 'U' (SHIFT+u) is the arc-down
+  // fermata for stem-down notes (placed above). Future refinement: detect
+  // stem direction per note and swap to 'u' (placed below) for stem-up notes.
+  // For round 9/10 we render the above-staff form for all fermatas — works
+  // for HBD's [name] (C5, conventionally stem-down).
   const renderFermataGlyphs = (melody, glyphY, offsets = allOffsets, nw = noteWidth) => {
     if (!melody?.fermatas || melody.fermatas.length === 0) return null;
     const melOffsets = melody.offsets;
@@ -1321,7 +1321,7 @@ const SheetMusic = ({
         <text
           key={`fermata-${fi}`}
           x={x} y={glyphY}
-          fontSize={28}
+          fontSize={24}
           fontFamily="Maestro"
           fill="var(--text-primary)"
           textAnchor="middle"
@@ -2007,11 +2007,12 @@ const SheetMusic = ({
                           {renderTextLyricsRow(trebleMelody, trebleStart + staffHeight + 39)}
                         </g>
                       )}
-                      {/* Fermata glyphs above the treble staff. Read from the original
+                      {/* Fermata glyphs well above the top staff line so they don't
+                          collide with the highest notes. Read from the original
                           trebleMelody so fermata note-indices align with melody.notes. */}
-                      {actualTreble && trebleMelody?.fermatas && (
+                      {actualTreble && trebleMelody?.fermatas && trebleMelody.fermatas.length > 0 && (
                         <g className="fermata-glyphs-group">
-                          {renderFermataGlyphs(trebleMelody, trebleStart - 8)}
+                          {renderFermataGlyphs(trebleMelody, trebleStart - 18)}
                         </g>
                       )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>

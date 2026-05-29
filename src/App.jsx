@@ -712,11 +712,24 @@ const App = () => {
     // Refs (svgRef, animationModeRef, etc.) have stable identity — no dep needed.
     const sequencerSetters = useMemo(() => ({
         onStop: () => {
+            // Han 2026-05-29: reset all visual playback state on stop so the next
+            // play starts from a clean slate. Without this, leftover state like
+            // an advanced startMeasureIndex (= where the previous session left off)
+            // makes the sheet-music render diverge from a freshly-loaded melody —
+            // suspected root cause of the "sheet-music ≠ audio after sequence
+            // block 2" report (item 6). Resetting here also kills any in-flight
+            // pagination/wipe transition that would otherwise animate after the
+            // last audio note of a "Play This" run.
             setIsPlayingContinuously(false);
             setIsPlayingScale(false);
             setIsPlayingMelody(false);
             setNextLayer(null);
             setPreviewMelody(null);
+            setCurrentMeasureIndex(null);
+            setStartMeasureIndex(0);
+            setBlockMeasureStart(1);
+            setBlockPlayStart(0);
+            setIterInCurrentSeries(0);
             wipeTransitionRef.current = null;
             scrollTransitionRef.current = null;
         },

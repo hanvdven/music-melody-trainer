@@ -1661,6 +1661,14 @@ class Sequencer {
       // Skip boundaries that already happened (mid-block start case).
       if (boundary.atTick <= startSkipTick) continue;
 
+      // Han 2026-05-29: in once-mode ("Play This Melody") the playback ends
+      // after the last note. The planner still emits a series-flip event for
+      // the final block boundary (it's structural — every block ends with a
+      // flip kind); without this guard we'd JIT-generate a new melody,
+      // schedule a preview overlay, and animate a crossfade that no one
+      // ever sees the resolution of (playback already stopped). Skip those.
+      if (this.isOnceMode && boundary.kind === 'series-flip') continue;
+
       const atTime        = tickToTime(boundary.atTick);
       const fadeStartTime = tickToTime(fade.fadeStartTick);
       const fadeEndTime   = tickToTime(fade.fadeEndTick);
