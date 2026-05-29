@@ -575,6 +575,39 @@ add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 - Geen playback-gedrag aangepast: rubato beïnvloedt voorlopig alleen de UI. Sequencer leest `isRubatoRef` nog niet — dat komt pas in PR-C met note-by-note triggering.
 - Files: `useAppUIState.js`, `BpmControls.jsx`, `SheetMusic.jsx`, `App.jsx`.
 
+[Claude 2026-05-29 ronde 13 — PR-C interview voltooid, Han's antwoorden]:
+
+**Rubato playback semantiek**:
+1. **Advance-unit**: per noot. Elk user-input event speelt de volgende noot.
+2. **Input-bron**: alleen bottom-pane (voor nu). Drie kanalen om te implementeren: treble keyboard, bass keyboard, percussion board. Toekomstige bronnen (microfoon, etc.) komen later.
+3. **Verkeerde noot input**: flits rood, wacht op juiste. Geen progressie tot user de correcte noot speelt.
+4. **Fermata in rubato**: gewoon 1 advance zoals andere noten. Geen speciale wachtbehandeling — de hold-duur is bij rubato irrelevant want tijd wordt user-gedreven.
+5. **Generate mode + rubato**: regenereert per iteratie (rekening houdend met `repsPerMelody`).
+6. **Background tracks bij rubato advance**: speel het hele beat-grid tot-en-met de volgende treble-noot, op basis van een leading average BPM (EWMA over recente intervals).
+7. **Verstopte noten + rubato**: nog steeds bruikbaar. User krijgt groen/rood feedback maar ziet niet welke noot hij zou moeten spelen.
+
+**PR-C wave 1 implementatie-plan**:
+- Hergebruik bestaande `useInputTest` infrastructuur (= sub-mode 'live' tracker, `inputTestState`, correct/wrong feedback).
+- Nieuwe sub-mode `'rubato'` (of een `isRubato`-aware variant van 'live'): playback pauzeert tussen noten, advance op user-input.
+- Sequencer: in rubato-mode geen audio-time-driven `nextStartTime` loop. In plaats daarvan: na elke note-schedule, wacht op user-event signal (via ref) en advance.
+- Bottom-pane: leidende keyboard-laag (op basis van `inputTestSubMode` of selectie) bepaalt welk staff de timing controleert.
+- Wrong-note detection: bij key-press, vergelijk pitch met `melody.notes[expectedIndex]`. Match → advance. Mismatch → rood flits via `inputTestState.status='wrong'`, nieuw timeout.
+
+**PR-D wave 2 — predictive accompaniment** (afgesproken, latere ronde):
+- EWMA-BPM uit recente user-intervals (~last 4 advance events).
+- Background tracks (bass/chord/percussion) auto-spelen tussen user-events met predicted timing.
+- Schedule alle background notes van "nu" tot "volgende treble note" op basis van EWMA-BPM.
+
+**PR-E wave 3+** (later):
+- Microfoon-input (pitch detector hergebruiken).
+- MIDI keyboard.
+- Scroll-mode rubato (= scroll-positie volgt user-advance i.p.v. audio-tijd).
+- Hidden-notes ondersteuning bij rubato (= geen visuele noten, alleen groen/rood feedback).
+
+**Status PR-C**: gereed voor implementatie. Volgende ronde focus op rubato-aware Sequencer + correct-note detection via bottom-pane keyboard.
+
+---
+
 ---
 
 ### Visual block-definitie in rubato — to-review
