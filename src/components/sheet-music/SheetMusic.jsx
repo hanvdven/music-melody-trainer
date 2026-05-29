@@ -1300,6 +1300,39 @@ const SheetMusic = ({
     });
   };
 
+  // Renders fermata glyphs above the treble staff for any notes carrying a
+  // fermata entry (Han 2026-05-28). Maestro 'u' is the standard arc-down
+  // fermata symbol; positioned above the staff at the note's x-position.
+  // Future refinement: detect stem direction per note and swap to SHIFT+u
+  // ('U') for stem-down notes (placed above) versus stem-up notes (below).
+  // For round 9 we render the standard above-staff form for all fermatas.
+  const renderFermataGlyphs = (melody, glyphY, offsets = allOffsets, nw = noteWidth) => {
+    if (!melody?.fermatas || melody.fermatas.length === 0) return null;
+    const melOffsets = melody.offsets;
+    if (!melOffsets) return null;
+    const getXLocal = (index) => startX + (index - 1) * nw;
+    return melody.fermatas.map((f, fi) => {
+      const tickOffset = melOffsets[f.noteIndex];
+      if (tickOffset == null) return null;
+      const idx = offsets.indexOf(tickOffset);
+      if (idx < 0) return null;
+      const x = getXLocal(idx) + 5;
+      return (
+        <text
+          key={`fermata-${fi}`}
+          x={x} y={glyphY}
+          fontSize={28}
+          fontFamily="Maestro"
+          fill="var(--text-primary)"
+          textAnchor="middle"
+          style={{ userSelect: 'none' }}
+        >
+          U
+        </text>
+      );
+    });
+  };
+
   // Renders song text lyrics (from melody.lyrics[]) below the treble staff.
   // Used when a song is loaded; independent of the solfège lyricsMode setting.
   const renderTextLyricsRow = (melody, lyricsY, offsets = allOffsets, nw = noteWidth) => {
@@ -1972,6 +2005,13 @@ const SheetMusic = ({
                         <g className="text-lyrics-group">
                           {/* Pass original trebleMelody so melody.lyrics indices align correctly. */}
                           {renderTextLyricsRow(trebleMelody, trebleStart + staffHeight + 39)}
+                        </g>
+                      )}
+                      {/* Fermata glyphs above the treble staff. Read from the original
+                          trebleMelody so fermata note-indices align with melody.notes. */}
+                      {actualTreble && trebleMelody?.fermatas && (
+                        <g className="fermata-glyphs-group">
+                          {renderFermataGlyphs(trebleMelody, trebleStart - 8)}
                         </g>
                       )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>

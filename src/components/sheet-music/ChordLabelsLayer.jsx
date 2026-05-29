@@ -52,6 +52,10 @@ const renderSingleChordLabel = ({
   // internalRoot is now key-spelled at generation time (e.g. G♭ in C Locrian, not F♯)
   const spelledRoot = internalRoot;
   const isSlash = chord.type === 'slash';
+  // N.C. (no chord) — Han 2026-05-28: render literal "N.C." in italic serif,
+  // no root/suffix layout. Comes from loaded songs (e.g. HBD anacrusis) where
+  // a passage explicitly has no harmony.
+  const isNC = chord.type === 'nc';
   // Passing chords are rendered smaller and carry a right-arrow indicator.
   // isPassing lives in meta to avoid mutating the base Chord model.
   const isPassing = chord.meta?.isPassing === true;
@@ -93,7 +97,20 @@ const renderSingleChordLabel = ({
       data-local-slot={absoluteOffset % measureLengthSlots}
       {...(chordNotesJson ? { 'data-chord-notes': chordNotesJson } : {})}
       className={inputTestClass.trim() || undefined}>
-      {isSlash ? (
+      {isNC ? (
+        <text
+          x={xPos}
+          y={CHORD_ROOT_Y}
+          fontSize={20}
+          fontFamily="Georgia, 'Times New Roman', serif"
+          fontStyle="italic"
+          fill={chordColor}
+          textAnchor="start"
+          style={{ userSelect: 'none' }}
+        >
+          N.C.
+        </text>
+      ) : isSlash ? (
         <text
           x={xPos}
           y={CHORD_ROOT_Y - CHORD_SUPER_DY - 5}

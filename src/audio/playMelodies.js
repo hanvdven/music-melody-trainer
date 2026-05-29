@@ -38,6 +38,19 @@ const playMelodies = (
     const defaultInstrument = instruments[index];
     if (!defaultInstrument) continue;
 
+    // Fermata hold lookup (Han 2026-05-28): map note-index → extra tick hold.
+    // playMelodies is called with the FULL melody (not pre-sliced) so we read
+    // `melody.fermatas` directly. The hold is added to the audio duration of
+    // the matching note only; subsequent offsets do not shift, so the held
+    // sound rings over any following anacrusis (matches HBD's traditional
+    // [name] sustain into the next verse).
+    const fermataHoldByIdx = new Map();
+    if (melody.fermatas) {
+      for (const f of melody.fermatas) {
+        if (f && f.noteIndex != null && f.hold > 0) fermataHoldByIdx.set(f.noteIndex, f.hold);
+      }
+    }
+
     // Identify track name to apply trackGains if provided.
     let trackName = 'treble';
     if (namedInstruments) {
@@ -83,13 +96,14 @@ const playMelodies = (
 
           const interruptGroup = PERCUSSION_INTERRUPT_GROUP[id] ?? null;
 
+          const fermataHold = fermataHoldByIdx.get(i) || 0;
           queue.push({
             pitch,
             instrument: noteInstrument,
             time: adjustedStart + relativeTick * timeFactor + stagger,
             // Percussion samples play to their natural end; use a large duration so smplr
             // never forces an early cutoff. Choke happens via stopId (see playback loop).
-            duration: interruptGroup ? 60 : durations[i] * timeFactor,
+            duration: interruptGroup ? 60 : (durations[i] + fermataHold) * timeFactor,
             gain,
             interruptGroup,
           });
