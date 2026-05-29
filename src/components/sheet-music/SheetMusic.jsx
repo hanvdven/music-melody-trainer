@@ -150,6 +150,8 @@ const SheetMusic = ({
   onTimeSignatureChange,
   bpm,
   onBpmChange,
+  isRubato = false,
+  onToggleRubato,
   numRepeats,
   onNumRepeatsChange,
   numAccidentals,
@@ -1640,6 +1642,8 @@ const SheetMusic = ({
             openSettingsIfClosed={openSettingsIfClosed}
             onSettingsInteraction={onSettingsInteraction}
             setTempoPicker={setTempoPicker}
+            isRubato={isRubato}
+            onToggleRubato={onToggleRubato}
           />
 
           {/* Draw Repeats Controls - always visible, shows 4x outside adjustments */}

@@ -197,13 +197,20 @@ function decomposeGreedy(N) {
 
 **Han 2026-05-28**: De eerste maat van HBD is een anacrusis. Verwachting: maatnummering start op 0 (of mogelijk -1, conventie-vraag).
 
-**Vragen voor interview**:
-1. Anacrusis = altijd measure 0, of soms measure 1 met de "echte" muziek startend op measure 2?
-2. Anacrusis-detectie automatisch (= eerste maat heeft rest aan begin tot eerste noot) of expliciet via een `anacrusis: true` flag in song-definitie?
-3. Visuele afbeelding: maatnummer onder eerste maat verbergen, of "0" tonen, of "(0)" tussen haakjes?
-4. Effect op generation: telt de anacrusis mee in `numMeasures`? In HBD is `numMeasures: 9` incl. anacrusis.
+[Han 2026-05-28 antwoord]: Auto-detect uit leidende rust + geen nummer.
 
-**Niet doen vóór interview**.
+**Geconcretiseerd plan (Claude 2026-05-28 ronde 7)**:
+- **Detectie**: bij song-load, controleer of `treble.offsets[0] > 0` (eerste noot na een rest in m0). Zo ja → `isAnacrusis = true`. Geen flag in song-def nodig.
+- **Display**: in `BarlinesLayer.jsx`, voor de eerste maat van het displayed window (m=0 of m=`startMeasureIndex`), als `isAnacrusisMeasure(slice)` true is, render GEEN maatnummer-label. De barline zelf blijft (geen visuele leegte aan de start).
+- **numMeasures**: blijft incl. anacrusis (HBD = 9). De anacrusis-detectie is een display-laag, geen counting-laag.
+- **Repeat-iteraties**: alleen de EERSTE measure-index van een song-load wordt als anacrusis behandeld. Bij rep 2 (measureIndex=9 voor HBD) hetzelfde patroon? **Niet automatisch** — alleen m=0 van de geladen song is een anacrusis; rep 2's m=9 is een continuatie. Detectie moet weten "welke measureIndex is de song-start" — sla dit op in App-state als `songStartMeasureIndex` (default null).
+
+**Files (bij implementatie)**:
+- `src/App.jsx` `loadSongAndPlay`: detect anacrusis, store `songStartMeasureIndex = 0`.
+- `src/components/sheet-music/BarlinesLayer.jsx`: nieuwe `isAnacrusisAtMeasure` check.
+- `src/components/sheet-music/SheetMusic.jsx`: pass `songStartMeasureIndex` prop door.
+
+**Status**: gereed voor implementatie (ronde 8).
 
 ---
 
@@ -211,12 +218,29 @@ function decomposeGreedy(N) {
 
 **Han 2026-05-28**: N.C. (no chord, "tacet harmony") moet kunnen voorkomen in een chord-progressie. ⚠ **Impact op melodie-generatie**: als de generator chord-notes als pitch-pool gebruikt, en een passage heeft "geen akkoord", wat is dan de pool?
 
-**Vragen voor interview**:
-1. Fallback-strategy voor melodie-generatie tijdens N.C.: (a) scale-notes als pool; (b) blijf bij vorige akkoord's notes; (c) chromatic; (d) geen melodie (silent measure).
-2. Visuele representatie: "N.C." tekst boven de staff, of niets?
-3. Audio: percussion + bass tijdens N.C. ook stil, of alleen treble/chord-staff?
+[Han 2026-05-28 antwoord]: "doe maar: voorgaand anders volgend, anders, 1 3 5 van toonladder". Dus fallback-chain: previous chord's notes → next chord's notes → tonic triad (scale degrees 1, 3, 5).
 
-**Niet doen vóór interview**.
+**Geconcretiseerd plan (Claude 2026-05-28 ronde 7)**:
+- **Representatie**: chord-progression krijgt een nieuw chord-type `"nc"` (of `null` chord entry met `type: 'nc'`). Visueel: "N.C." text boven de staff op de offset waar de N.C. start.
+- **Melodie-generator fallback** (in `convertRankedArrayToMelody.js` of waar `chordNotes` als pool gebruikt wordt):
+  ```js
+  function resolveChordPool(currentChord, prevChord, nextChord, scaleNotes) {
+    if (currentChord && currentChord.type !== 'nc') return currentChord.notes;
+    if (prevChord && prevChord.type !== 'nc') return prevChord.notes;
+    if (nextChord && nextChord.type !== 'nc') return nextChord.notes;
+    // Tonic triad: scale degrees 1, 3, 5.
+    return [scaleNotes[0], scaleNotes[2], scaleNotes[4]].filter(Boolean);
+  }
+  ```
+- **Audio gedrag**: bass + percussion blijven spelen (alleen treble's chord-pool faalt-back). Chord-staff zwijgt tijdens N.C. (= geen akkoord-akkoord gespeeld).
+
+**Files (bij implementatie)**:
+- `src/model/Chord.js`: nieuwe `type: 'nc'` value, eventueel met factory `Chord.NoChord()`.
+- `src/generation/convertRankedArrayToMelody.js` of `melodyGenerator.js`: pass prev/next chord context naar pitch-resolver, gebruik `resolveChordPool`.
+- `src/audio/playMelodies.js`: skip chord-stack playback bij N.C.
+- `src/components/sheet-music/ChordLabelsLayer.jsx`: render "N.C." text wanneer chord.type === 'nc'.
+
+**Status**: gereed voor implementatie (ronde 8).
 
 ---
 
@@ -261,22 +285,68 @@ Drie scenario's afhankelijk van playback-mode:
 3. Wacht tot rep 2 begint. Wat zie je verkeerd? (melody-noten? lyrics? chord-akkoorden? ritme?)
 4. Probeer met "Start Generating" — wijkt het van Repeat-mode af?
 
-**Geen blind fix** voor de critical bug — eerst Han's antwoorden op de repro-vragen. Wel: de `setStartMeasureIndex(0)` reset in item 5 (zojuist geïmplementeerd) verkleint de kans dat de bug zich überhaupt manifesteert bij eerste-laad-en-direct-afspelen.
+[Han 2026-05-28 antwoord]: **Sheet-music render ≠ audio, audio correct**. Het is dus puur een rendering-bug — audio speelt HBD correct over en weer, maar sheet music toont foute noten / labels / posities vanaf de 2e sequence-block.
 
-**Cross-reference**: line ~613 "sheet-music regressie na song-load" — mogelijk dezelfde bug.
+**Geconcretiseerd onderzoek (Claude 2026-05-28 ronde 7)**:
+
+Audio = correct → de Sequencer's `scheduledNotes` zijn juist gepland. SheetMusic rendert echter via React state (`trebleMelody`, `bassMelody`, `chordProgression`, `startMeasureIndex`). Dat divergeert.
+
+Hypotheses (gefocust op rendering-laag):
+1. **`startMeasureIndex` advances** maar het melody-object stays the same. SheetMusic renders `trebleMelody` from offset 0 (= start van melody), maar labelt de maten met `startMeasureIndex + m`. Bij iteration 1 toont de bladmuziek "Hap-py" maar met maatnummer 9, niet 0. Voor de gebruiker: "verkeerde maatnummers + lyrics op verkeerde plek".
+2. **`allOffsets` divergeert**: in pagination mode wordt `sliceMelodyByRange(trebleMelody, ml, displayNumMeasures, localMeasureStart)` aangeroepen. Bij `localMeasureStart > 0` (= page > 0 binnen sequence-block) slicet hij het melodie-object aan een offset > 0 → andere offsets dan iteration 0. Voor SHEET-LAYOUT die offsets gebruikt → andere x-posities. Voor lyrics-rendering die ORIGINAL `melody.offsets` gebruikt → mismatch met `allOffsets`.
+3. **Chord-progression slicing**: chord-progression heeft offsets 0, 72, 108, ..., 288 (HBD specifiek). Bij iteration 1 mag het CHORD-MELODIE ofwel doorgrowen naar 324+ (nieuwe progressie identiek copy) ofwel wrappen. Onduidelijk wat in praktijk gebeurt.
+
+**Suggestie voor concrete bugfix-pad**:
+- Eerst bekijk je in welke modus (scroll/wipe/pagination) Han de bug ziet. Per Han's eerdere feedback: alle drie modi geven bugs, maar mogelijk verschillend.
+- Voor pagination: trace `localMeasureStart` evolutie tijdens iteraties.
+- Voor wipe/scroll: trace `startMeasureIndex` evolutie en hoe SheetMusic measure-nummers vs lyrics rendert.
+
+**Geen blind fix** zonder mode-specifieke repro. Wel: de `setStartMeasureIndex(0)` reset in item 5 verkleint de kans bij eerste-laad-en-direct-afspelen.
+
+**Cross-reference**: line ~613 "sheet-music regressie na song-load" — waarschijnlijk dezelfde bug. Mark beide gelijktijdig op te lossen.
 
 ---
 
-### HBD lyric bug: [name] zou 2 lettergrepen moeten zijn
+### HBD lyric bug: [name] zou 2 lettergrepen moeten zijn (+ fermata)
 
-**Han 2026-05-28**: '[name]' in "Happy Birthday dear [name]" wordt vaak 2 lettergrepen (bv. "Eve-lyn", "Han-sel"). Huidige JSON heeft '[name]' als 1 noot.
+**Han 2026-05-28**: '[name]' in "Happy Birthday dear [name]" wordt vaak 2 lettergrepen (bv. "Eve-lyn", "Han-sel"). Huidige JSON heeft '[name]' als 1 noot. Plus: traditionele fermata ligt op '[name]'.
 
-**Fix-opties**:
-1. Splits '[name]' naar 2 noten (verlies van melody-fidelity — sommige namen zijn 1 lettergreep).
-2. Houd 1 noot maar maak [name] een speciale lyric die runtime gesplitst kan worden naar gelang de naam-input van de user (bijv. een name-prompt bij song-laden).
-3. Voorzie '[name]' als één noot maar render een onderdeel "—" voor 2e lettergreep dat alleen actief is als naam > 1 syllabe.
+[Han 2026-05-28 antwoord]: 1 noot blijven, fermata audio-only ×1.5 duur, lyrics-streep voor 2-syllabe namen.
 
-**Vraag voor interview**: welke optie? Plus: heeft de user een name-input UI nodig?
+**Geconcretiseerd plan (Claude 2026-05-28 ronde 7)**:
+
+**Lyrics-deel** (klein):
+- HBD JSON krijgt geen verandering aan de noot-array; lyrics blijft `"[name]"` als enkele entry.
+- Bij song-load (of bij een naam-prompt UI later), als de geconfigureerde naam meer lettergrepen heeft dan 1:
+  - Lyric blijft `"[name]"` op de eerste noot.
+  - Render een continuatie-streep `"—"` onder de daaropvolgende-noot-positie (of expliciet onder dezelfde noot, met een tweede lettergreep tekst).
+- Voor 1-syllabe namen: geen streep, gewone weergave.
+- **Files**: `SheetMusic.jsx` `renderTextLyricsRow` — detect `"[name]"` placeholder + name-syllable-count (uit een nieuwe `songName` prop, default "Han" = 1-syllabe of een namen-database).
+
+**Fermata-deel** (groter — interactie met audio-scheduling):
+- **Semantiek (Han bevestigd)**: ×1.5 audio-duur. Notatie: noot zelf is een ENKELE quarter (of half) in de JSON, fermata-marker is een aparte metadata.
+- **Encoding**: nieuwe `fermatas` array in de song's treble-block: `fermatas: [{ noteIndex: 17 }]` waar `noteIndex` verwijst naar de positie in `notes`/`offsets`/`durations`.
+- **Audio**: in `playMelodies.js` (of `Sequencer._buildIterationSlices`), bij het schedulen van noten: als note has fermata, vermenigvuldig duration met 1.5 EN schuif alle volgende offsets van die maat (en eventueel de hele iteratie) op met `0.5 × original duration`. NIET de notatie wijzigen.
+- **Re-sync na fermata**: vraag voor Han — sync re-aligneert (a) per maat (next bar starts on time), (b) per series-flip (next iteration starts on time), of (c) nooit (alles shuift mee permanent voor de iteratie)? Veel veiliger is (a) — fermata "eats" beats van de huidige maat zodat de volgende maat op tijd start. Maar dat conflicteert met ×1.5 = extra duur die het ergens heen moet.
+- **Visualisatie**: SHIFT+u (small) en u (large) glyphs uit Maestro boven de fermata-noot. Render-laag `FermataMarkers.jsx` (nieuw) zit boven `MelodyNotesLayer`.
+
+**Open fermata-vragen** (van eerder backlog, line ~156):
+1. ✅ Semantiek: ×1.5, audio-only — bevestigd.
+2. ✅ Notatie ongewijzigd, alleen marker — bevestigd.
+3. ⏳ Re-sync na fermata: per maat / per series / nooit?
+4. ⏳ Fermata in elk repeat of alleen eerste/laatste?
+5. ⏳ Visual glyph: SHIFT+u (small) of u (large) — beide of één van twee?
+6. ⏳ Welke offset wordt opgeschoven: alleen rest-van-maat, of hele iteratie?
+
+Niet doen zonder antwoorden op 3–6.
+
+**Files (bij implementatie)**:
+- `src/songs/data/happyBirthday.json`: voeg `fermatas: [{ noteIndex: 17 }]` toe (= [name] op offset 216).
+- `src/songs/loadSong.js`: parse `fermatas` veld door naar Melody object.
+- `src/audio/Sequencer.js` of `playMelodies.js`: fermata-aware audio scheduling.
+- nieuwe `src/components/sheet-music/FermataMarkers.jsx`.
+
+**Status**: lyrics-deel gereed voor implementatie. Fermata-deel wacht op antwoorden 3-6.
 
 ---
 
@@ -401,6 +471,13 @@ add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 - **PR-C (wave 1)**: next-to-play highlight + correct-note-detection + visual-block-end-trigger voor **pagination + wipe** (geen scroll). Input via bottom-pane keyboard; de actieve keyboard-laag bepaalt welk staff "leidt". Verkeerde noten → **soft-feedback**: noot rood-flits (kort), animatie blijft wachten op correcte noot. Geen blokkering van andere inputs.
 - **PR-D (wave 2)**: BPM-estimate (EWMA) + predictive accompaniment.
 - **PR-E (wave 3+4+5)**: meerdere input-tracks (kan via toggle van actieve keyboard), scroll-rubato, fallbacks.
+
+[Claude 2026-05-28 ronde 7]: ✅ **PR-B geïmplementeerd**:
+- Nieuwe state `isRubato` in `useAppUIState` (met `setIsRubato` + `isRubatoRef` voor latere Sequencer-leesbaarheid).
+- `BpmControls` toont nu `q = T` (Maestro 'T' = rubato/tempo-libero glyph) i.p.v. `q = <bpm>` zodra `isRubato` aan is. Tempo-term ("Andante" / "Moderato" / ...) wordt vervangen door "rubato".
+- Long-press op de BPM-value zone toggelt rubato (Han: "selecteerbaar door lange klik op de BPM-naam"). De `useLongPressTimer` hook is hergebruikt; de zone heeft een transparente `<rect>` die alleen rendert wanneer `onToggleRubato` is aangesloten zodat oude callsites onveranderd blijven.
+- Geen playback-gedrag aangepast: rubato beïnvloedt voorlopig alleen de UI. Sequencer leest `isRubatoRef` nog niet — dat komt pas in PR-C met note-by-note triggering.
+- Files: `useAppUIState.js`, `BpmControls.jsx`, `SheetMusic.jsx`, `App.jsx`.
 
 ---
 
