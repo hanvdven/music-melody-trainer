@@ -86,6 +86,11 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
     );
     if (td.lyrics) treble.lyrics = [...td.lyrics];
     treble.rhythmicGrouping = groupingForSong;
+    // Fermatas (Han 2026-05-28): array of { noteIndex, hold } where `hold` is
+    // the EXTRA tick count the note sustains beyond its natural duration.
+    // The audio scheduler applies the hold per measure-slice (see melodySlice).
+    // The visual layer renders the fermata glyph at the noteIndex position.
+    if (td.fermatas) treble.fermatas = td.fermatas.map(f => ({ ...f }));
   }
 
   // ── Bass melody ───────────────────────────────────────────────────────────
@@ -98,6 +103,7 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       [...bd.offsets],
     );
     bass.rhythmicGrouping = groupingForSong;
+    if (bd.fermatas) bass.fermatas = bd.fermatas.map(f => ({ ...f }));
   }
 
   // ── Percussion melody ─────────────────────────────────────────────────────
@@ -122,10 +128,19 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
   //   .durations[i]   = tick duration
   let chordMelody = null;
   if (diffData.chords) {
-    const chordNotes      = diffData.chords.map(c => c.notes.map(transpose));
+    // N.C. (no chord) entries have type 'nc' + empty notes/root. They participate
+    // in the chord-progression timeline but are not transposed and play silently
+    // (the audio scheduler sees an empty notes array → schedules nothing). The
+    // visual layer renders "N.C." instead of a root + suffix (Han 2026-05-28).
+    const chordNotes      = diffData.chords.map(c => c.type === 'nc' ? [] : c.notes.map(transpose));
     const chordDurations  = diffData.chords.map(c => c.duration);
     const chordOffsets    = diffData.chords.map(c => c.offset);
     const chordDisplays   = diffData.chords.map((c, i) => {
+      if (c.type === 'nc') {
+        // Construct a placeholder Chord with type='nc'. Root is empty; the
+        // label layer detects this and renders "N.C." instead of root+suffix.
+        return new Chord('', 'nc', [], c.name || 'N.C.', '', '', '', [], []);
+      }
       const newRoot  = shift !== 0 ? transposeNoteBySemitones(c.root, shift) : c.root;
       const newNotes = chordNotes[i];
       const rootPC   = newRoot.replace(/-?\d+$/, '');

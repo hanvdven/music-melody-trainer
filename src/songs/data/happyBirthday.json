@@ -45,12 +45,14 @@
         "notes":     ["D4","D4","E4","D4","G4","F#4","D4","D4","E4","D4","A4","G4","D4","D4","D5","B4","G4","F#4","C5","C5","B4","G4","A4","G4"],
         "durations": [9,    3,   12,  12,  12,  24,   9,   3,   12,  12,  12,  24,  9,   3,   12,  12,  12,  24,   9,   3,   12,  12,  12,  36],
         "offsets":   [24,   33,  36,  48,  60,  72,   96,  105, 108, 120, 132, 144, 168, 177, 180, 192, 204, 216,  240, 249, 252, 264, 276, 288],
-        "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","Hap-","py","Birth-","day","to","you!"]
+        "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","Hap-","py","Birth-","day","to","you!"],
+        "fermatas":  [{ "noteIndex": 17, "hold": 18 }]
       },
       "bass": null,
       "percussion": null,
       "chords": [
-        { "offset": 0,   "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
+        { "offset": 0,   "notes": [],                       "root": "",   "type": "nc",       "name": "N.C.", "duration": 36 },
+        { "offset": 36,  "notes": ["G3","B3","D4"],         "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
         { "offset": 72,  "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
         { "offset": 108, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
         { "offset": 180, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
@@ -91,7 +93,8 @@
         ],
         "durations": [9, 3, 12, 12, 12, 24, 9, 3, 12, 12, 12, 24, 9, 3, 12, 12, 12, 12, 12, 9, 3, 12, 12, 12, 36],
         "offsets":   [24, 33, 36, 48, 60, 72, 96, 105, 108, 120, 132, 144, 168, 177, 180, 192, 204, 216, 228, 240, 249, 252, 264, 276, 288],
-        "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","—","Hap-","py","Birth-","day","to","you!"]
+        "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","—","Hap-","py","Birth-","day","to","you!"],
+        "fermatas":  [{ "noteIndex": 17, "hold": 18 }]
       },
       "bass": {
         "notes": [
@@ -120,7 +123,8 @@
       },
       "percussion": null,
       "chords": [
-        { "offset": 0,   "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
+        { "offset": 0,   "notes": [],                       "root": "",   "type": "nc",       "name": "N.C.", "duration": 36 },
+        { "offset": 36,  "notes": ["G3","B3","D4"],         "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
         { "offset": 72,  "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
         { "offset": 108, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
         { "offset": 180, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 },

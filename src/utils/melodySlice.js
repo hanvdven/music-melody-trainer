@@ -15,6 +15,17 @@
  * @returns {(object|null)[]}
  */
 export function sliceMelodyByMeasure(melody, measureLengthTicks, numMeasures) {
+  // Build a quick lookup of fermata hold per original-melody noteIndex.
+  // Fermata semantics (Han 2026-05-28): each entry { noteIndex, hold } extends
+  // the note's PLAYBACK duration by `hold` ticks. Subsequent offsets do not
+  // shift — the fermata ring sustains over any following anacrusis (HBD's
+  // traditional rendition where [name] holds while the next verse begins).
+  const fermataByIdx = new Map();
+  if (melody.fermatas) {
+    for (const f of melody.fermatas) {
+      if (f && f.noteIndex != null && f.hold > 0) fermataByIdx.set(f.noteIndex, f.hold);
+    }
+  }
   return Array.from({ length: numMeasures }, (_, m) => {
     const lo = m * measureLengthTicks;
     const hi = (m + 1) * measureLengthTicks;
@@ -24,8 +35,19 @@ export function sliceMelodyByMeasure(melody, measureLengthTicks, numMeasures) {
       if (o != null && o >= lo && o < hi) idx.push(i);
     }
     if (idx.length === 0) return null;
+    // Build per-slice fermata array (relative noteIndex within the slice) so
+    // visual layers can render glyphs at the correct positions.
+    const sliceFermatas = [];
+    for (let si = 0; si < idx.length; si++) {
+      const hold = fermataByIdx.get(idx[si]);
+      if (hold) sliceFermatas.push({ noteIndex: si, hold });
+    }
     return {
       notes:        idx.map(i => melody.notes[i]),
+      // `durations` stays at the NATURAL value. Audio scheduling reads
+      // fermatas from the full melody (not from slices) and adds the hold
+      // there; slicing only needs to carry fermata note positions so the
+      // visual layer can render glyphs.
       durations:    idx.map(i => melody.durations[i]),
       offsets:      idx.map(i => melody.offsets[i] - lo),    // make relative to measure start
       ties:         idx.map(i => melody.ties?.[i] ?? null),
@@ -34,6 +56,7 @@ export function sliceMelodyByMeasure(melody, measureLengthTicks, numMeasures) {
       triplets:         melody.triplets ? idx.map(i => melody.triplets[i] ?? null) : null,
       rhythmicGrouping: melody.rhythmicGrouping ?? null,
       rhythmicDNA:      melody.rhythmicDNA ?? null,
+      fermatas:         sliceFermatas.length > 0 ? sliceFermatas : null,
     };
   });
 }
@@ -77,6 +100,7 @@ export function sliceToMelodyLike(slice, measureLengthTicks) {
       triplets:         slice.triplets ?? null,
       rhythmicGrouping: slice.rhythmicGrouping ?? null,
       rhythmicDNA:      slice.rhythmicDNA ?? null,
+      fermatas:         slice.fermatas ?? null,
     };
   }
   // Empty measure: single whole-rest spanning the full measure
