@@ -235,7 +235,14 @@ Files: `src/App.jsx`, `src/components/sheet-music/SheetMusic.jsx`, `src/componen
 
 ---
 
-### HBD/Generic Feature: N.C. (no chord) passages
+### ✅ HBD/Generic Feature: N.C. (no chord) passages
+
+[Claude 2026-05-28 ronde 9 ✅ infrastructure + HBD-anacrusis geïmplementeerd]:
+- **HBD JSON**: easy + hard chord-progressions splitsen de openings-G chord (offset 0, duration 72) in twee entries: N.C. (offset 0, duration 36, type `"nc"`, lege notes/root) over de anacrusis, en G (offset 36, duration 36) op m1's downbeat.
+- **loadSong.js**: herkent `chord.type === 'nc'` en construeert een placeholder Chord met lege root + lege notes. Audio skipt N.C. automatisch want playMelodies' bestaande `items.length > 0` gate vuurt niet.
+- **ChordLabelsLayer.jsx**: rendert italic serif "N.C." in plaats van root + suffix wanneer chord.type === 'nc'.
+
+De generator-pool fallback (prev → next → tonic 1-3-5) is NIET geïmplementeerd want voor HBD's gebruik (= geladen song, generator wordt niet aangeroepen) is het niet nodig. Wanneer een toekomstige feature `melody-generation-met-N.C.-in-progressie` opduikt, kan de resolver utility worden toegevoegd zoals beschreven onder "scope refinement".
 
 **Han 2026-05-28**: N.C. (no chord, "tacet harmony") moet kunnen voorkomen in een chord-progressie. ⚠ **Impact op melodie-generatie**: als de generator chord-notes als pitch-pool gebruikt, en een passage heeft "geen akkoord", wat is dan de pool?
 
@@ -335,7 +342,21 @@ Hypotheses (gefocust op rendering-laag):
 
 ---
 
-### HBD lyric bug: [name] zou 2 lettergrepen moeten zijn (+ fermata)
+### Fermata + [name] lyric
+
+[Claude 2026-05-28 ronde 9 ✅ fermata infrastructuur + audio + visual]:
+- **Melody.fermatas**: array van `{ noteIndex, hold }` waarbij `hold` het EXTRA aantal ticks is dat de noot aanhoudt voorbij haar natural duration.
+- **loadSong.js**: leest `fermatas` veld uit JSON op treble/bass blokken.
+- **playMelodies.js**: bouwt een noteIndex → hold map uit de volledige melody en voegt de hold toe aan de geplande noot-duur. GEEN offset shift — opvolgende noten blijven op hun originele offsets, dus de fermata sustain overlapt elke anacrusis daarna (= HBD's traditionele rendition waarin [name] vasthoudt terwijl de volgende strofe begint).
+- **sliceMelodyByMeasure**: `durations` blijft natural; per-slice `fermatas` array (met slice-relatieve noteIndex) wordt mee-geslicet zodat de visuele laag glyphs kan plaatsen op paged views.
+- **SheetMusic.jsx**: nieuwe `renderFermataGlyphs` tekent Maestro `U` glyph (boven de staf) op de x-positie van elke fermata-noot.
+- **HBD JSON** (easy + hard): `"fermatas": [{ "noteIndex": 17, "hold": 18 }]` → [name] houdt vast voor natural 24 + 18 = 42 ticks (= 3.5 quarters) terwijl de volgende verse's "Hap-py" anacrusis eronder begint.
+
+**Open verfijning (ronde 10 candidate)**: stem-direction-aware glyph swap. Han: "u en shift u zijn voor onder (stem up) of boven (stem down) de noot." → lowercase 'u' onder de noot voor stem-up notes, capital 'U' boven de noot voor stem-down notes. Vereist toegang tot per-note stem direction uit renderMelodyNotes. Simpele heuristic: pitch boven staff middle = stem down (current 'U' boven werkt), pitch onder middle = stem up (zou 'u' onder moeten zijn). Voor HBD's C5 [name] werkt de current 'U' boven correct. Voor lagere noten later.
+
+**[name] lyric streep**: Han 2026-05-28 koos **optie (c)**: accepteer dat HBD's '[name]' visueel niet wijzigt tot een name-input UI er is. Geen werk hier; staat open voor toekomst.
+
+---
 
 **Han 2026-05-28**: '[name]' in "Happy Birthday dear [name]" wordt vaak 2 lettergrepen (bv. "Eve-lyn", "Han-sel"). Huidige JSON heeft '[name]' als 1 noot. Plus: traditionele fermata ligt op '[name]'.
 
