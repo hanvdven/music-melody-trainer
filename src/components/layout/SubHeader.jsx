@@ -117,6 +117,14 @@ const SubHeader = ({
 
     return (
         <div
+            // Han 2026-05-29: mark the SubHeader as a settings-keepalive zone
+            // so pointerdown here doesn't trigger useSettingsOverlay's
+            // click-outside-to-close. The buttons still receive their clicks
+            // (renderButton stops propagation), but without this marker the
+            // capture-phase listener would close the overlay first and the
+            // user's tap would feel like it dismissed everything instead of
+            // toggling the intended option (note coloring, highlights, ...).
+            data-settings-keepalive=""
             onClick={onActivateAdjustments}
             style={{
                 width: '100%',
