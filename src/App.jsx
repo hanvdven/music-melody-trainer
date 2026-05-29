@@ -908,6 +908,17 @@ const App = () => {
 
     // Shared props for both SheetMusic instances (primary + tab view).
     // containerHeight and visibleMeasures differ between instances and are passed inline.
+    // Anacrusis detection (Han 2026-05-28): when the loaded melody's first note
+    // sits AFTER tick 0 of measure 0, that measure is a pickup. We treat its
+    // global index as the anacrusis marker so BarlinesLayer can suppress the
+    // measure-number label. Re-runs whenever trebleMelody flips identity, e.g.
+    // after song-load or after a regen that produced a non-anacrusis melody.
+    const anacrusisMeasureIndex = useMemo(() => {
+        const firstOffset = trebleMelody?.offsets?.[0];
+        if (firstOffset == null || firstOffset <= 0) return null;
+        return 0;
+    }, [trebleMelody]);
+
     const sheetMusicCommonProps = useMemo(() => ({
         timeSignature,
         onTimeSignatureChange: handleTimeSignatureChange,
@@ -915,6 +926,7 @@ const App = () => {
         onBpmChange: setBpm,
         isRubato,
         onToggleRubato: () => setIsRubato(p => !p),
+        anacrusisMeasureIndex,
         numRepeats: playbackConfig.repsPerMelody,
         onNumRepeatsChange: (val) => setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val })),
         numMeasures,
@@ -946,6 +958,7 @@ const App = () => {
         onMeasureNumberClick: null,
         onNoteEnharmonicToggle: handleNoteEnharmonicToggle,
     }), [timeSignature, handleTimeSignatureChange, bpm, setBpm, isRubato, setIsRubato,
+        anacrusisMeasureIndex,
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
         windowSize.width, randomizeMeasure, showSheetMusicSettings, toggleSheetMusicSettings,

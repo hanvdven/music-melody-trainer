@@ -57,7 +57,18 @@ bestaande liedjes (happy birthday, ...)
 
 ---
 
-### HBD/Song-load Bug: measure grouping fallback per maatsoort
+### ✅ HBD/Song-load Bug: measure grouping fallback per maatsoort
+
+[Claude 2026-05-28 ronde 8 ✅ geïmplementeerd]: `loadSong.js` valt nu terug op `chooseGrouping(numerator)` wanneer het song-def `rhythmicGrouping` mist. Dit hergebruikt de bestaande "prefer 3s, dan 2s" decomposition die de generator al gebruikt — geen nieuwe lookup-tabel, conform CLAUDE.md §6c. Werkt voor:
+- HBD (3/4) → [3] ✓
+- 4/4 → [2,2] ✓
+- 5/4 → [3,2] ✓
+- 6/8 → [3,3] ✓
+- 7/8 → [3,2,2] ✓
+- 11/8 → [3,3,3,2] (Bulgarian-folk) ✓
+- 13/16 → [3,3,3,2,2] ✓
+
+Han's spec noemt ook subdivisions ([2,2,2]e en [4,4,4]s voor 3/4). Die zijn niet expliciet nodig — `rhythmicGrouping` in deze codebase is op BEAT-niveau; downstream beaming-logica handelt fijnere subdivisions zelf af. Verificatie volgt in ronde 9 wanneer Han HBD opnieuw test.
 
 **Symptom (Han 2026-05-28)**: Happy Birthday JSON heeft geen `rhythmicGrouping`. De huidige code maakt dit verplicht; ontbrekende grouping veroorzaakt verkeerde beam-berekening of een crash.
 
@@ -193,7 +204,17 @@ function decomposeGreedy(N) {
 
 ---
 
-### HBD/Generic Feature: anacrusis (measure 0)
+### ✅ HBD/Generic Feature: anacrusis (measure 0)
+
+[Claude 2026-05-28 ronde 8 ✅ geïmplementeerd]: 
+- `App.jsx` berekent `anacrusisMeasureIndex = useMemo(() => trebleMelody?.offsets?.[0] > 0 ? 0 : null, [trebleMelody])`. Dit hertrigger als trebleMelody verandert (= song-load of regen).
+- Doorgepassed via `sheetMusicCommonProps` → SheetMusic → BarlinesLayer (alle drie BarlinesLayer-instances).
+- BarlinesLayer's iterMeasureLines: bij isStart en `bms === anacrusisMeasureIndex` (= leftmost displayed measure IS de song's pickup), wordt het maat-nummer-label weggelaten. De barline/repeat-marker zelf blijft (geen visuele lege ruimte aan de start).
+- Voor repeat-iteraties: alleen de literal m0 (= startMeasureIndex=0) wordt onderdrukt. Bij iteration 1 met startMeasureIndex=9 wordt het nummer "9" gewoon getoond — bewust, omdat iteration 1 musisch een continuatie is, niet een nieuwe pickup. Han kan dit later refinen als hij iteration-restart-numbering wenst.
+
+Files: `src/App.jsx`, `src/components/sheet-music/SheetMusic.jsx`, `src/components/sheet-music/BarlinesLayer.jsx`.
+
+---
 
 **Han 2026-05-28**: De eerste maat van HBD is een anacrusis. Verwachting: maatnummering start op 0 (of mogelijk -1, conventie-vraag).
 
@@ -241,6 +262,13 @@ function decomposeGreedy(N) {
 - `src/components/sheet-music/ChordLabelsLayer.jsx`: render "N.C." text wanneer chord.type === 'nc'.
 
 **Status**: gereed voor implementatie (ronde 8).
+
+[Claude 2026-05-28 ronde 8 — scope refinement]: Bij implementatie blijkt: `chord.notes` wordt op ~8 plekken consumed (`convertRankedArrayToMelody.js`, `melodyGenerator.js` veel keren, `playMelodies.js`). De cleanste aanpak is om N.C. fallback **op chord-progression-build-time** te resolven (= bij `loadSong.js` of chord-generator), zodat downstream `chord.notes` gewoon de fallback-noten heeft. `chord.type === 'nc'` wordt behouden voor display + audio-skip. Hiermee:
+- 1 plek waar fallback wordt berekend (resolver utility).
+- Bestaande consumers blijven onveranderd.
+- N.C.-display + audio-skip zijn de enige nieuwe code-paden.
+
+Echter: er bestaat momenteel **geen song met N.C.** om tegen te implementeren. Zonder concrete test-data wordt dit hypothetisch werk. **Voorstel: uitgesteld tot ronde 9** + Han ofwel maakt een N.C.-test-song, ofwel bevestigt dat ik de N.C. functionaliteit blind moet implementeren. Pure resolver-utility kan los toegevoegd worden als geunit-test, dat zou een nuttige tussenstap zijn.
 
 ---
 
@@ -347,6 +375,11 @@ Niet doen zonder antwoorden op 3–6.
 - nieuwe `src/components/sheet-music/FermataMarkers.jsx`.
 
 **Status**: lyrics-deel gereed voor implementatie. Fermata-deel wacht op antwoorden 3-6.
+
+[Claude 2026-05-28 ronde 8 — open vraag voor implementatie]: lyrics-streep voor 2-syllabe namen vereist eerst een **naam-input UI** waar de gebruiker zijn naam invult. Zonder die UI heeft de app geen informatie over het syllable-count. Een hardcoded default ("naam" = 2 syllables) als demo voelt arbitrair. **Voorstel**: uitgesteld tot ronde 9 + Han ofwel:
+- (a) Bevestigt dat we een name-input UI bouwen (apart prompt / songs-tab veld).
+- (b) Levert een vaste default-naam met syllable-count die de demo dient.
+- (c) Accepteert dat HBD's '[name]' visueel niet wijzigt tot de UI er is.
 
 ---
 

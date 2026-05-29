@@ -2,6 +2,7 @@ import Melody from '../model/Melody.js';
 import Chord from '../model/Chord.js';
 import { transposeNoteBySemitones } from '../theory/musicUtils.js';
 import { getNoteSemitone } from '../theory/noteUtils.js';
+import { chooseGrouping } from '../generation/rhythmicPriorities.js';
 
 /**
  * Converts a song definition + optional transposition into the Melody objects
@@ -63,6 +64,17 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
     return transposeNoteBySemitones(note, shift);
   };
 
+  // Fallback rhythmic grouping derived from the time signature when the song
+  // doesn't provide one (Han 2026-05-28). Reuses `chooseGrouping` (which the
+  // generator already uses for its own meters) so we keep one source of truth
+  // for "prefer 3s then 2s" decomposition. Works for regular and irregular
+  // meters: 3/4 → [3], 4/4 → [2,2], 5/4 → [3,2], 6/8 → [3,3], 7/8 → [3,2,2],
+  // 11/8 → [3,3,3,2], 13/16 → [3,3,3,2,2]. The result is at the BEAT level
+  // (= denominator-unit count); finer subdivisions are handled by downstream
+  // beaming logic.
+  const fallbackGrouping = chooseGrouping(songDef.timeSignature[0]);
+  const groupingForSong = songDef.rhythmicGrouping ?? fallbackGrouping;
+
   // ── Treble melody ─────────────────────────────────────────────────────────
   let treble = null;
   if (diffData.treble) {
@@ -73,9 +85,7 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       [...td.offsets],
     );
     if (td.lyrics) treble.lyrics = [...td.lyrics];
-    // Songs never use automatic rhythmic-grouping derivation; supply the
-    // measure-grouping explicitly so beam calculations work correctly.
-    treble.rhythmicGrouping = songDef.rhythmicGrouping ?? null;
+    treble.rhythmicGrouping = groupingForSong;
   }
 
   // ── Bass melody ───────────────────────────────────────────────────────────
@@ -87,7 +97,7 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       [...bd.durations],
       [...bd.offsets],
     );
-    bass.rhythmicGrouping = songDef.rhythmicGrouping ?? null;
+    bass.rhythmicGrouping = groupingForSong;
   }
 
   // ── Percussion melody ─────────────────────────────────────────────────────
@@ -101,7 +111,7 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       [...pd.durations],
       [...pd.offsets],
     );
-    percussion.rhythmicGrouping = songDef.rhythmicGrouping ?? null;
+    percussion.rhythmicGrouping = groupingForSong;
   }
 
   // ── Chord melody ──────────────────────────────────────────────────────────
