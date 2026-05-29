@@ -65,17 +65,6 @@ const BpmControls = ({
         }, 10);
     };
 
-    // Long-press on the BPM value area (= the number, not the +/− buttons)
-    // toggles rubato mode. Han 2026-05-28: "selecteerbaar door lange klik op
-    // de BPM-naam". The handler is only attached when onToggleRubato is
-    // wired through (PR-B and later); without it the area is a plain click
-    // target with no special behaviour.
-    const valueLongPress = useLongPressTimer();
-    const handleValueLongPress = () => {
-        onResetBpmTimer();
-        if (onToggleRubato) onToggleRubato();
-    };
-
     const handleTap = () => {
         onResetBpmTimer();
         openSettingsIfClosed();
@@ -137,7 +126,7 @@ const BpmControls = ({
     );
 
     return (
-        <g>
+        <g data-settings-keepalive="">
             {/* Tempo term — clickable to open tempo word picker */}
             <text x={x + 10} y={headerY} className="tempo-term" fontSize="14"
                 style={{ cursor: 'pointer', fill: showSettings ? 'var(--accent-yellow)' : undefined }}
@@ -168,25 +157,6 @@ const BpmControls = ({
                 </text>
             ) : (
                 <text x={x + 30} y={valueY - 8} className="bpm-value" fontFamily="Maestro" fill={showSettings ? 'var(--accent-yellow)' : undefined}>{bpm}</text>
-            )}
-            {/* Long-press capture zone over the value glyph — toggles rubato mode.
-                Sits above the +/− zones so the +/− zones keep their normal click
-                handlers. Slightly inset so it doesn't intercept the outer adjusters. */}
-            {onToggleRubato && (
-                <rect
-                    x={x + 18} y={valueY - 30} width={50} height={36}
-                    fill={debugMode ? 'magenta' : 'transparent'}
-                    fillOpacity={debugMode ? 0.3 : 0}
-                    stroke={debugMode ? 'magenta' : 'transparent'}
-                    strokeWidth={debugMode ? 1 : 0}
-                    style={{ cursor: 'pointer' }}
-                    onMouseDown={() => valueLongPress.start(handleValueLongPress)}
-                    onMouseUp={(e) => { e.stopPropagation(); valueLongPress.end(e, () => {}); }}
-                    onMouseLeave={() => valueLongPress.cancel()}
-                    onTouchStart={() => valueLongPress.start(handleValueLongPress)}
-                    onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); valueLongPress.end(e, () => {}); }}
-                    onClick={(e) => e.stopPropagation()}
-                />
             )}
 
             {/* -- / - / + / ++ indicators */}

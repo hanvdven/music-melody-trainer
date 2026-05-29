@@ -17,7 +17,7 @@ const RepeatsControls = ({
 }) => {
     if (!showSettings) {
         return (
-            <g onClick={(e) => { e.stopPropagation(); onResetRepeatsTimer(); }} style={{ cursor: 'pointer' }}>
+            <g data-settings-keepalive="" onClick={(e) => { e.stopPropagation(); onResetRepeatsTimer(); }} style={{ cursor: 'pointer' }}>
                 {debugMode && <rect x={systemEndX - 55} y={trebleStart - 50} width={55} height={30} fill="magenta" fillOpacity={0.4} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
                 <rect x={systemEndX - 55} y={trebleStart - 50} width={55} height={30} fill="transparent" />
                 <text

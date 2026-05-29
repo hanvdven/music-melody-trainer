@@ -110,8 +110,15 @@ const iterMeasureLines = ({
         ? Math.max(1, Math.floor((startIdx - bps) / numMeasures) + 1)
         : 1;
       // Returns "N" (first play) or "N . R" (repeat R, R≥2) where N = song measure number.
+      // Anacrusis offset (Han 2026-05-29): when the song has a pickup measure,
+      // the pickup is m0 (suppressed below) and the FIRST FULL measure should
+      // be labeled "1", not "2". Subtract 1 from N for all labels when an
+      // anacrusis is present in this displayed sequence block (= bms-1 matches
+      // the anacrusis index). This shifts the entire numbering down by one so
+      // m1 reads "1", m2 reads "2", etc.
+      const hasAnacrusisInBlock = anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
       const measureLabel = (localIndex) => {
-        const N = bms + localIndex;
+        const N = bms + localIndex - (hasAnacrusisInBlock ? 1 : 0);
         return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
       };
 
