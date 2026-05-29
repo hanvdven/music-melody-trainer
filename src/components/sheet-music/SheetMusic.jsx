@@ -152,6 +152,10 @@ const SheetMusic = ({
   onBpmChange,
   isRubato = false,
   onToggleRubato,
+  // Anacrusis handling (Han 2026-05-28): the global measureIndex of the song's
+  // pickup measure, or null if no song with anacrusis is loaded. BarlinesLayer
+  // uses this to suppress the number label on that one measure.
+  anacrusisMeasureIndex = null,
   numRepeats,
   onNumRepeatsChange,
   numAccidentals,
@@ -2131,6 +2135,7 @@ const SheetMusic = ({
                         showSettings={showSettings}
                         measureLengthSlots={measureLengthSlots}
                         onMeasureNumberClick={onMeasureNumberClick}
+                        anacrusisMeasureIndex={anacrusisMeasureIndex}
                       />
                     </g>
 
@@ -2403,6 +2408,7 @@ const SheetMusic = ({
                               showSettings={showSettings}
                               measureLengthSlots={measureLengthSlots}
                               onMeasureNumberClick={onMeasureNumberClick}
+                              anacrusisMeasureIndex={anacrusisMeasureIndex}
                             />
                           </g>
                       </>);
@@ -2609,6 +2615,7 @@ const SheetMusic = ({
                       showSettings={showSettings}
                       measureLengthSlots={measureLengthSlots}
                       onMeasureNumberClick={onMeasureNumberClick}
+                      anacrusisMeasureIndex={anacrusisMeasureIndex}
                     />
                   )}
 

@@ -49,6 +49,11 @@ const iterMeasureLines = ({
   showSettings,
   measureLengthSlots,
   onMeasureNumberClick,
+  // Anacrusis support (Han 2026-05-28): when the loaded song's first measure
+  // has a leading rest (= trebleMelody.offsets[0] > 0), pass the global index
+  // of that pickup measure here so its number label is suppressed in the
+  // pickup-measure convention. null = no anacrusis to hide.
+  anacrusisMeasureIndex = null,
 }) => {
   // bmsOverride / bpsOverride: pagination crossfade overlay passes the FUTURE
   // blockMeasureStart and blockPlayStart so the preview's measure-number labels
@@ -113,23 +118,29 @@ const iterMeasureLines = ({
       if (numRepeats > 1) {
         if (isStart) {
           if (mode === 'regular') {
-            // Show measure number label above the start barline even when repeats > 1
+            // Anacrusis suppression: when the leftmost displayed measure IS the
+            // song's pickup measure, omit the number entirely (Han 2026-05-28).
+            // The empty <g> keeps the click target so onMeasureNumberClick still
+            // works for jump-to-measure interactions.
+            const isAnacrusisStart = anacrusisMeasureIndex !== null && bms === anacrusisMeasureIndex;
             return (
               <g key={`measure-line-${index}`}
                 onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx); } : undefined}
                 style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
               >
                 <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
-                <text
-                  x={startX}
-                  y={trebleStart - 14}
-                  fontSize="15"
-                  fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
-                  fontFamily="Georgia, 'Times New Roman', serif"
-                  style={{ userSelect: 'none' }}
-                >
-                  {measureLabel(0)}
-                </text>
+                {!isAnacrusisStart && (
+                  <text
+                    x={startX}
+                    y={trebleStart - 14}
+                    fontSize="15"
+                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                    fontFamily="Georgia, 'Times New Roman', serif"
+                    style={{ userSelect: 'none' }}
+                  >
+                    {measureLabel(0)}
+                  </text>
+                )}
                 {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
               </g>
             );
@@ -178,13 +189,17 @@ const iterMeasureLines = ({
 
       // For the opening barline (numRepeats <= 1): suppress the barline itself but
       // still render the "1" measure label above startX (the first note position).
+      // Anacrusis: when the leftmost displayed measure is the song's pickup, omit
+      // the label entirely (Han 2026-05-28).
       if (isStart && numRepeats <= 1) {
+        const isAnacrusisStart = anacrusisMeasureIndex !== null && bms === anacrusisMeasureIndex;
         return (
           <g key={`measure-line-${index}`}
             onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
             style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
           >
             <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
+            {!isAnacrusisStart && (
             <text
               x={startX}
               y={trebleStart - 14}
@@ -195,6 +210,7 @@ const iterMeasureLines = ({
             >
               {measureLabel(measureNumForLabel)}
             </text>
+            )}
             {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
           </g>
         );
