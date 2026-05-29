@@ -419,18 +419,34 @@ class Sequencer {
 
           // Precompute exact audio timestamps for each note so the rAF loop
           // can compare context.currentTime directly — no rounding via Math.floor.
+          // Fermata-aware (Han 2026-05-29 round 17): if a melody carries
+          // song-level fermatas {tick, hold}, the cumulative shift up to each
+          // note's offset is added to the audio time, and any note that sits
+          // AT a fermata tick gets its duration extended by hold. This keeps
+          // scheduledNotes aligned with what playMelodies actually scheduled,
+          // so the moving-cursor highlight pauses on the fermata note for the
+          // full hold instead of racing ahead on natural time.
           const schedNotes = [];
           // All modes use Song-based rendering: DOM data-measure-index = Song's measure.measureIndex
           // = globalMeasureIndex. schedNotes must match.
           const schedMeasureIndex = this.globalMeasureIndex;
           for (const [mel, melName] of [[treble, 'treble'], [bass, 'bass'], [percussion, 'percussion']]) {
             if (!mel?.offsets) continue;
+            const fermataEvents = Array.isArray(mel.fermatas)
+              ? mel.fermatas.filter(f => f && typeof f.tick === 'number' && typeof f.hold === 'number' && f.hold > 0)
+              : [];
             for (let i = 0; i < mel.offsets.length; i++) {
               const slot = mel.offsets[i];
               if (slot >= m * measureLengthTicks && slot < (m + 1) * measureLengthTicks) {
+                let shift = 0;
+                let extraHold = 0;
+                for (const f of fermataEvents) {
+                  if (slot > f.tick) shift += f.hold;
+                  if (slot === f.tick) extraHold += f.hold;
+                }
                 schedNotes.push({
-                  audioTime: nextStartTime + (slot - m * measureLengthTicks) * timeFactor,
-                  duration: mel.durations[i] * timeFactor,
+                  audioTime: nextStartTime + (slot - m * measureLengthTicks + shift) * timeFactor,
+                  duration: (mel.durations[i] + extraHold) * timeFactor,
                   slot,
                   mel: melName,
                   measureIndex: schedMeasureIndex,
@@ -638,6 +654,23 @@ class Sequencer {
         }
 
         if (sessionController.signal.aborted) break;
+
+        // Iteration-wide fermata extension (Han 2026-05-29 round 17). The
+        // inner loop advances nextStartTime by measureDuration per measure (=
+        // natural iteration duration). Fermata events delay subsequent notes
+        // inside the iteration via playMelodies' internal shift logic, but the
+        // OUTER iteration boundary stayed at the natural time — so the next
+        // iteration's m=0 would start while the previous iteration's last
+        // note (extended by the fermata hold) was still ringing into the
+        // future. Sum the song-level fermata holds and push nextStartTime
+        // forward so iteration 2 begins at the actual audio-end of iteration 1.
+        const trebleFermatas = Array.isArray(treble?.fermatas) ? treble.fermatas : [];
+        const totalIterationFermataHold = trebleFermatas.reduce(
+          (acc, f) => acc + (f?.hold > 0 ? f.hold : 0), 0
+        );
+        if (totalIterationFermataHold > 0) {
+          nextStartTime += totalIterationFermataHold * timeFactor;
+        }
 
         iteration++;
 
@@ -1465,6 +1498,12 @@ class Sequencer {
     if (!chordProgression?.offsets) return schedChords;
 
     const _RDEG = { I:1, II:2, III:3, IV:4, V:5, VI:6, VII:7 };
+    // Fermata-aware (Han 2026-05-29 round 17): mirror the schedNotes treatment
+    // so chord highlights also pause on the fermata chord and shift on later
+    // chords. The chord progression carries the same song-level fermatas array.
+    const fermataEvents = Array.isArray(chordProgression.fermatas)
+      ? chordProgression.fermatas.filter(f => f && typeof f.tick === 'number' && typeof f.hold === 'number' && f.hold > 0)
+      : [];
     for (let i = 0; i < chordProgression.offsets.length; i++) {
       const slot = chordProgression.offsets[i];
       if (slot >= m * measureLengthTicks && slot < (m + 1) * measureLengthTicks) {
@@ -1473,9 +1512,15 @@ class Sequencer {
         const chord = chordProgression.displayNotes?.[i];
         const romanBase = chord?.meta?.romanBaseRaw ?? '';
         const degree = _RDEG[String(romanBase).toUpperCase()] ?? null;
+        let shift = 0;
+        let extraHold = 0;
+        for (const f of fermataEvents) {
+          if (slot > f.tick) shift += f.hold;
+          if (slot === f.tick) extraHold += f.hold;
+        }
         schedChords.push({
-          audioTime: nextStartTime + (slot - m * measureLengthTicks) * timeFactor,
-          duration: chordProgression.durations[i] * timeFactor,
+          audioTime: nextStartTime + (slot - m * measureLengthTicks + shift) * timeFactor,
+          duration: (chordProgression.durations[i] + extraHold) * timeFactor,
           measureIndex: schedMeasureIndex,
           localSlot: slot - m * measureLengthTicks,
           degree,
