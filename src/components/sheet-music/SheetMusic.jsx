@@ -251,7 +251,20 @@ const SheetMusic = ({
     : 'bass';
 
   const measureLengthSlots = (TICKS_PER_WHOLE * timeSignature[0]) / timeSignature[1];
-  const noteGroupSize = measureLengthSlots % 18 === 0 ? 18 : 12;
+  // noteGroupSize = ticks per BEAT (= one count). processMelodyAndCalculateSlots
+  // splits any note that crosses a beat boundary. The previous heuristic
+  //   measureLengthSlots % 18 === 0 ? 18 : 12
+  // mis-classified 3/4 as compound: 36 % 18 === 0 picks 18 (= dotted-quarter)
+  // when the correct beat is 12 (= quarter). That forced three quarter notes
+  // in 3/4 to render as q + (e tied to e) + q — Han reported this for the
+  // HBD bass m1. The musical rule is: compound time = denominator 8/16 with
+  // a numerator that's a multiple of 3 GREATER than 3, in which case each beat
+  // is 3 denominator-units (= dotted-quarter for 8). All other meters use one
+  // denominator unit as the beat.
+  const [tsNum, tsDen] = timeSignature;
+  const denomTicks = TICKS_PER_WHOLE / tsDen;
+  const isCompound = (tsDen === 8 || tsDen === 16) && tsNum > 3 && tsNum % 3 === 0;
+  const noteGroupSize = isCompound ? 3 * denomTicks : denomTicks;
 
   // --- Vertical Layout Constants (Responsive) ---
   const baseGap = 70;
