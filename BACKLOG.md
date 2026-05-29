@@ -68,9 +68,115 @@ bestaande liedjes (happy birthday, ...)
 - 4/4: `[2,2]q`, `[2,2,2,2]e`, `[4,4,4,4]s`
 - 6/8: `[3,3]e`, `[2,2,2,2,2,2]s`
 
-Implementeer als een **derive-from-timeSignature helper** in `theory/` of `generation/`, die bij `null` grouping wordt aangeroepen. Geen tabel maar bereken: voor numerator N met denominator D, zoek prime-factor decomposition (3=3, 4=2×2, 6=3×2, 9=3×3, 12=2×2×3, etc.); kies decomposition die in groepen van 2 of 3 valt. Voor "smaller note denoms" (eights, sixteenths) vermenigvuldig de groepering met (smallerDenom / D).
+[Claude 2026-05-28 ronde 6 voorstel — voor regular én irregular meters]:
 
-**Niet doen**: hard-coded lookup tabel zoals Han impliceerde — dat schaalt niet voor odd time sigs (5/4, 7/8, 11/8) en is in strijd met CLAUDE.md §6c ("use existing logic — do not hardcode"). Bereken vanuit numerator + denominator.
+Han's vraag: "hoe met onregelmatiger maatsoorten?". Hier is een berekening die ALLE meters dekt (5/4, 7/8, 11/8, 13/16, ...) zonder een lookup-tabel. Bewijs voor Han's voorbeelden inbegrepen.
+
+```js
+// theory/defaultRhythmicGrouping.js (nieuw)
+//
+// Inputs:  numerator, denominator (= [N, D] uit timeSignature), smallestNoteDenom (4=q, 8=e, 16=s, ...).
+// Output:  array van groepsgroottes in units van smallestNoteDenom. Groepen sommeren tot
+//          N * (smallestNoteDenom / D). Beams + measure-grouping gebruiken dit.
+//
+// Twee gevallen op basis van S = smallestNoteDenom / D:
+//  S = 1  (= grid is the denominator unit, geen fijnere subdivision):
+//          Decompose N into "natural beat groups" volgens onderstaande regels.
+//  S > 1  (= grid is finer than denom):
+//          Itereer over de N denominator-units. Voor SIMPLE time geef per unit
+//          één groep van S. Voor COMPOUND time geef per 3-unit-blok één groep
+//          van 3*S — wacht: Han's 6/8 s = [2,2,2,2,2,2] (= 6 groepen van 2)
+//          contradicts that. Han wil bij sixteenths gewoon de denominator-units
+//          groeperen, niet de beat-units. Dus regel = "S>1: N groepen van S".
+//
+// Decompose voor S=1:
+//  compound = (D == 8 || D == 16) && N % 3 == 0 && N > 3
+//  - compound:   return Array(N/3).fill(3)
+//  - N==1: [1]; N==2: [2]; N==3: [3]; N==4: [2,2]; N==5: [3,2]
+//  - N==6: [2,2,2]  (simple 6/4 — compound 6/8 is al via compound-rule)
+//  - N==7: [3,2,2]
+//  - N>=8 odd:  [3, ...decompose(N-3)]
+//  - N>=8 even: [2, ...decompose(N-2)]
+//
+// Long-short convention: oneven N krijgt leading 3 (= long-short feel).
+
+function defaultRhythmicGrouping(numerator, denominator, smallestNoteDenom = denominator) {
+  const N = numerator;
+  const D = denominator;
+  const S = smallestNoteDenom / D;
+  if (!Number.isInteger(S) || S < 1) {
+    // smallestNoteDenom < D (= melody uses LARGER notes than the beat) — rare.
+    // Fall back to S=1 with possibly fractional units; callers should not hit this.
+    return decomposeForBeatLevel(N, D);
+  }
+  if (S === 1) return decomposeForBeatLevel(N, D);
+  // S > 1: each denominator-unit becomes one beam-group of S subdivisions.
+  return Array(N).fill(S);
+}
+
+function decomposeForBeatLevel(N, D) {
+  const isCompound = (D === 8 || D === 16) && N % 3 === 0 && N > 3;
+  if (isCompound) return Array(N / 3).fill(3);
+  if (N === 1) return [1];
+  if (N === 2) return [2];
+  if (N === 3) return [3];
+  if (N === 4) return [2, 2];
+  if (N === 5) return [3, 2];
+  if (N === 6) return [2, 2, 2];   // simple 6 (e.g. 6/4)
+  if (N === 7) return [3, 2, 2];
+  if (N % 2 === 1) return [3, ...decomposeForBeatLevel(N - 3, D)];
+  return [2, ...decomposeForBeatLevel(N - 2, D)];
+}
+```
+
+Verificatie tegen Han's voorbeelden:
+- 3/4 q (N=3, D=4, S=1):  S=1 → decomposeForBeatLevel(3) = [3] ✓
+- 3/4 e (N=3, D=4, S=2):  S>1 → Array(3).fill(2) = [2,2,2] ✓
+- 3/4 s (N=3, D=4, S=4):  S>1 → Array(3).fill(4) = [4,4,4] ✓
+- 4/4 q (N=4, D=4, S=1):  S=1 → decomposeForBeatLevel(4) = [2,2] ✓
+- 4/4 e (N=4, D=4, S=2):  S>1 → [2,2,2,2] ✓
+- 4/4 s (N=4, D=4, S=4):  S>1 → [4,4,4,4] ✓
+- 6/8 e (N=6, D=8, S=1):  S=1, compound (D=8, N%3=0, N>3) → [3,3] ✓
+- 6/8 s (N=6, D=8, S=2):  S>1 → [2,2,2,2,2,2] ✓
+
+Irregular meters (gepredict, niet door Han bevestigd — eerst bespreken):
+- 5/4 q:  decomposeForBeatLevel(5) = [3,2]            (long-short)
+- 5/4 e:  Array(5).fill(2) = [2,2,2,2,2]
+- 5/8 e:  decomposeForBeatLevel(5) = [3,2]            (gelijk aan 5/4q)
+- 7/8 e:  decomposeForBeatLevel(7) = [3,2,2]
+- 11/8 e: decomposeForBeatLevel(11) = [3,3,3,2]       (3 leading + decompose(8) = [3, 2,2,2,2] → fix: zie volgorde)
+- 13/16 s: decomposeForBeatLevel(13) = [3,3,3,2,2]
+- 9/8 e (compound): D=8, N=9 divisible by 3, N>3 → [3,3,3]
+- 12/8 e (compound): [3,3,3,3]
+
+Edge case 11/8: oneven → [3, decompose(8)] = [3, [2,2,2,2]] = [3,2,2,2,2]. Maar conventie wil vaak [3,3,3,2] of [2,3,3,3]. Ons algoritme geeft [3,2,2,2,2] — verschilt van de "Bulgarian-folk" conventie. **Vraag voor Han**: voor 11/8 / 13/8 wil je leading-triplet of meerdere triplets? Het algoritme is met één parameter (`tripletGreedy`) aanpasbaar: greedy probeer max triplets, dan vul met duplets aan.
+
+Greedy-triplet alternative:
+```js
+function decomposeGreedy(N) {
+  // Maximize triplets, leave duplets for the remainder.
+  const triplets = Math.floor(N / 3);
+  let rem = N - triplets * 3;
+  if (rem === 1) {
+    // Can't have a leftover 1 — borrow a 3 to make 4 = 2+2.
+    return [...Array(triplets - 1).fill(3), 2, 2];
+  }
+  // rem is 0 or 2: triplets then 0 or one duplet.
+  return rem === 0 ? Array(triplets).fill(3) : [...Array(triplets).fill(3), 2];
+}
+```
+11/8 greedy: floor(11/3)=3 triplets + rem=2 → [3,3,3,2] (conventional Bulgarian) ✓
+13/16 greedy: floor(13/3)=4 + rem=1 → [3,3,3,2,2] ✓
+7/8 greedy: floor(7/3)=2 + rem=1 → [3,2,2] ✓ (same as before)
+
+**Voorstel**: gebruik `decomposeGreedy` als default voor S=1 (consistent met folk conventies), behoud `decomposeForBeatLevel` als fallback voor N<=7 waar de bekende patterns scherper zijn.
+
+**Files (bij implementatie)**:
+- nieuw: `src/theory/defaultRhythmicGrouping.js`
+- `src/songs/loadSong.js`: vervang `?? null` door `?? defaultRhythmicGrouping(...)` voor treble/bass/percussion.
+- `src/theory/__tests__/defaultRhythmicGrouping.test.js`: smoke tests voor alle voorbeelden hierboven.
+
+**Wacht op**: Han's go op het algoritme (in bijzonder de 11/8 / 13/16 greedy-triplet conventie).
 
 ---
 
@@ -122,7 +228,7 @@ Implementeer als een **derive-from-timeSignature helper** in `theory/` of `gener
 
 **Files**: `src/App.jsx` `loadSongAndPlay` callback, `useMelodyState.js`.
 
-Relatief klein, maar afhankelijk van "chord melody komt uit song-definitie" item hierboven (samen oplossen).
+✅ **Geïmplementeerd (Claude 2026-05-28 ronde 6)**: chord-pin was al sinds 2026-05-20 in de callback (`randomize: { chords: false }` op line ~446 van `App.jsx`). Toegevoegd: `setStartMeasureIndex(0)` in dezelfde callback zodat een song altijd bij maat 0 begint. Files: `src/App.jsx`.
 
 ---
 
@@ -132,14 +238,32 @@ Relatief klein, maar afhankelijk van "chord melody komt uit song-definitie" item
 
 **Symptom**: Song-load werkt; eerste sequence-block (= eerste 9 maten HBD) wordt correct getoond. Na de eerste series-flip (volgende iteratie) wordt de bladmuziek fout.
 
-**Hypotheses (zonder repro)**:
-1. De Sequencer's outer-loop pakt bij iteration=0 van de tweede series een NIEUWE melodie via `randomizeScaleAndGenerate`, NIET de song's vaste melodie → song verandert in random generation.
-2. `melodiesRef.current.treble` wordt niet gerefresht met de song's vaste content na song-load → de Sequencer gebruikt nog de pre-song melody.
-3. `currentNumMeasures` blijft op de song's waarde (9), maar de gegenereerde melody is voor de algemene `numMeasures` (bv. 4) → slice-mismatch.
+**Hypotheses (Claude 2026-05-28 ronde 6, verfijnd)**:
 
-**Cross-reference**: line ~613 "sheet-music regressie na song-load" — mogelijk hetzelfde symptoom, eerder al genoteerd.
+Drie scenario's afhankelijk van playback-mode:
 
-**Aanpak**: Han moet repro-stappen geven (welke song, na hoeveel reps, welke modus). Daarna instrumentatie + fix.
+1. **"Start Generating" (continuous)** — verwachte regen, niet de bug Han bedoelt:
+   In continuous mode is regen aan, melody=true (default). Series 2 = random regen. Dit is bekend gedrag, niet de bug. Maar als Han verwachtte dat een geladen song "doorgespeeld" zou worden i.p.v. geregenereerd, is dat een design-issue (oplossing: bij song-load ook melody-pin: `randomize.melody=false` zetten?).
+
+2. **"Play This" (handlePlayMelody)** — éénmalig, geen series 2 mogelijk. Niet relevant.
+
+3. **"Repeat" mode (handlePlayRepeat)** — meest waarschijnlijk de bug-bron:
+   `isRepeatMode=true`, dezelfde melody wordt herhaald. Sequencer's `globalMeasureIndex` blijft groeien (= 0..8, 9..17, 18..26 voor HBD 9-maats song). `_buildIterationSlices` schrijft elke iteratie als NIEUWE slices met onafhankelijke `measureIndex` in de Song. `startMeasureIndex` setter (line 310 Sequencer.js) updated naar de huidige iteratie's start.
+
+   **Vermoedelijke breekpunten**:
+   a. **Lyrics**: HBD heeft expliciete lyrics gebonden aan offsets `[24, 33, 36, ...]`. Bij iteration 1, de slices worden gebouwd uit DE oorspronkelijke melody (treble), die nog steeds dezelfde offsets heeft. Maar `globalMeasureIndex=9` → measureIndex 9-17. De sheet music renderer leest measureIndex 9-17 uit Song, krijgt slices van DE oorspronkelijke melody. Lyrics blijven hangen aan de noten. ✅ Should work?
+   b. **Anacrusis-mismatch**: HBD m0 is anacrusis met `offsets[0]=24` (= 24 ticks rest aan begin). Het Song-system slice-er rond meter-grenzen: maat 0 bevat noten op offset 24-35 (relative 0-11), maat 9 bevat noten op offset 24-35 (relative 0-11). Maar de eerste-rep song heeft "24 ticks rest" voor de eerste noot; herhaalde versie heeft GEEN gap tussen rep 1's "you!" (offset 288, dur 36) en rep 2's "Hap-py" (offset 24+324=348). Dat is een ritme-glitch (geen rest tussen rep, terwijl rep 1 begint met rest).
+   c. **Chord-progression-loop**: chord-progressie heeft 7 chords op offsets 0, 72, 108, 180, 216, 252, 288 (totaal 324 ticks = 9 maten). Bij rep 2, offsets schuiven naar 324+0, 324+72, ... maar de Song-slicer / generator past dit ALLEEN aan als chord-progression een Melody is met juiste offsets. Anders: chord-progressie speelt niet of speelt op fout moment.
+
+**Voorgestelde repro-stappen voor Han**:
+1. Load Happy Birthday (easy, default tonic).
+2. Klik "Play This" met de Repeat-toggle aan (= REPEAT mode).
+3. Wacht tot rep 2 begint. Wat zie je verkeerd? (melody-noten? lyrics? chord-akkoorden? ritme?)
+4. Probeer met "Start Generating" — wijkt het van Repeat-mode af?
+
+**Geen blind fix** voor de critical bug — eerst Han's antwoorden op de repro-vragen. Wel: de `setStartMeasureIndex(0)` reset in item 5 (zojuist geïmplementeerd) verkleint de kans dat de bug zich überhaupt manifesteert bij eerste-laad-en-direct-afspelen.
+
+**Cross-reference**: line ~613 "sheet-music regressie na song-load" — mogelijk dezelfde bug.
 
 ---
 

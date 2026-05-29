@@ -457,13 +457,20 @@ const App = () => {
         setTimeSignature(loaded.timeSignature);
         setNumMeasures(loaded.numMeasures);
         setBpm(loaded.defaultTempo);
+        // Reset the on-screen measure index to 0 so the song starts from its
+        // first measure visually + behaviorally (Han 2026-05-28). Without this,
+        // a song loaded mid-session inherits the previous melody's index, so
+        // its first measure is mislabeled and the highlighter/scheduler line up
+        // against stale state.
+        setStartMeasureIndex(0);
         // Keep the user's current bottom-view tab; loading a song should not
         // hijack the layout. Reported by Han 2026-05-22.
     }, [scale, setTonic, setSelectedMode,
         setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings,
         setTrebleMelody, setBassMelody, setPercussionMelody, setChordProgression,
         setReferenceMelody, setReferenceBassMelody, setReferenceScale,
-        setTimeSignature, setNumMeasures, setBpm, setPlaybackConfig]);
+        setTimeSignature, setNumMeasures, setBpm, setPlaybackConfig,
+        setStartMeasureIndex]);
 
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
     const randomizeAll = randomizeAllLogic;
