@@ -2138,15 +2138,24 @@ exercise score), top half = sheet music, bottom half = input/keyboard.
 serves as the blueprint pattern for all later settings (clef/instrument → scale →
 exercise/song → advanced generation → visualization).
 
-**Current status (scaffold only).** A **temporary** always-visible `RANGE`
-button sits on the right of the `SubHeader` (outside the `opacity:show` wrapper
-so it stays visible when adjustment buttons fade). It opens `RangeOverlay`, an
-empty HTML shell that establishes the open/close + backdrop + Escape behaviour.
-The real range selector (in-SVG note row + in-keyboard key selection) is not yet
-built. The button and shell are throwaway entry points to be replaced by
-tap-on-element context overlays.
+**Current status (Phase 2 — static in-SVG row).** The always-visible `RANGE`
+button on the right of the `SubHeader` toggles `rangeEditMode` (D4), which drives
+`RangeStaffOverlay` — a `<g>` rendered inside the SheetMusic SVG (sibling of
+`SettingsOverlay`). It draws a diagonal row of selectable **natural** noteheads
+on the treble and bass staves (low→high, left→right), highlighting the current
+`{min,max}` band with ring handles on the boundaries, using the shared
+`getNoteAbsoluteY` so positions match real noteheads exactly. The earlier HTML
+scaffold (`RangeOverlay.jsx`) was retired (D4).
 
-**Files:** `src/components/controls/RangeOverlay.jsx` (new shell),
-`src/components/layout/SubHeader.jsx` (temporary RANGE button),
-`src/App.jsx` (overlay open/close state + wiring).
+**Not yet built:** interaction (drag/tap, Phase 3), ledger lines, preset chips
+(Phase 4), percussion pool (Phase 5), enter/exit morph (Phase 6). The legacy
+stepper `RangeControls` is untouched. See `docs/range-overlay-design.md`.
+
+**Files:** `src/components/sheet-music/RangeStaffOverlay.jsx` (new in-SVG row),
+`src/components/sheet-music/renderMelodyNotes.jsx` (exported `noteYMap`,
+`clefOffsets`, `stripAccidentals`, `getNoteAbsoluteY`; `clefOffsets` lifted to
+module scope), `src/components/sheet-music/SheetMusic.jsx` (`rangeEditMode` prop
++ overlay render + staff keep-alive), `src/utils/rangeUtils.js` (shared
+note↔MIDI + clamp helpers, with test), `src/components/controls/RangeControls.jsx`
+(now reuses `rangeUtils`), `src/App.jsx` (`rangeEditMode` state + wiring).
 

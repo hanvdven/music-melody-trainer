@@ -9,23 +9,9 @@ import {
 } from 'lucide-react';
 import DoubleStepper from '../common/DoubleStepper';
 import GenericStepper from '../common/GenericStepper';
-import { ALL_NOTES, getNoteSemitone } from '../../theory/noteUtils';
+import { getNoteValue, getNoteFromValue, clampRange } from '../../utils/rangeUtils';
 import { PRESET_RANGES } from '../../constants/ranges';
 import './styles/RangeControls.css';
-
-const getNoteValue = (note) => {
-    if (!note) return 60;
-    const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
-    if (!match) return 60;
-    const oct = parseInt(match[2], 10);
-    return (oct + 1) * 12 + getNoteSemitone(match[1]);
-};
-
-const getNoteFromValue = (val) => {
-    const oct = Math.floor(val / 12) - 1;
-    const pcIndex = val % 12;
-    return `${ALL_NOTES[pcIndex]}${oct}`;
-};
 
 const formatNoteLabel = (note, baseSize = '24px', subSize = '0.7em', fontFamily = 'serif') => {
     const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
@@ -74,16 +60,10 @@ const RangeControls = ({
         setSettings(prev => {
             const currentMin = getNoteValue(prev.range.min);
             const currentMax = getNoteValue(prev.range.max);
-            let newMin = bound === 'min' ? newVal : currentMin;
-            let newMax = bound === 'max' ? newVal : currentMax;
+            const startMin = bound === 'min' ? newVal : currentMin;
+            const startMax = bound === 'max' ? newVal : currentMax;
 
-            if (newMax - newMin < 12) {
-                if (bound === 'min') newMax = newMin + 12;
-                else newMin = newMax - 12;
-            }
-
-            if (newMin < 21) { newMin = 21; if (newMax < 33) newMax = 33; }
-            if (newMax > 108) { newMax = 108; if (newMin > 96) newMin = 96; }
+            const { min: newMin, max: newMax } = clampRange(startMin, startMax, bound);
 
             const nextRange = { min: getNoteFromValue(newMin), max: getNoteFromValue(newMax) };
             let nextMode = 'CUSTOM';
