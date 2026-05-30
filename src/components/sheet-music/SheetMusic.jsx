@@ -36,6 +36,9 @@ import BpmControls from './BpmControls';
 import RepeatsControls from './RepeatsControls';
 import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
+import { clampRange, getNoteValue, getNoteFromValue } from '../../utils/rangeUtils';
+import { PRESET_RANGES } from '../../constants/ranges';
+import { PERCUSSION_PRESETS } from '../../audio/drumKits';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { useMelodies } from '../../contexts/MelodyContext';
 import { usePlaybackTransport } from '../../contexts/PlaybackTransportContext';
@@ -2774,6 +2777,11 @@ const SheetMusic = ({
                       clefBass={clefBass}
                       trebleRange={trebleSettings?.range}
                       bassRange={bassSettings?.range}
+                      enabledPads={percussionSettings?.enabledPads}
+                      onSetMelodicBoundary={setMelodicBoundary}
+                      onApplyMelodicPreset={applyMelodicPreset}
+                      onTogglePad={togglePad}
+                      onApplyPercussionPreset={applyPercussionPreset}
                       timeSignature={timeSignature}
                       theme={theme}
                     />

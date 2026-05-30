@@ -1,7 +1,8 @@
 import React from 'react';
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, fireEvent } from '@testing-library/react';
 import RangeStaffOverlay from '../RangeStaffOverlay';
+import { PERCUSSION_PRESETS } from '../../../../audio/drumKits';
 
 // Smoke test for the in-SVG range selector. It renders the WHOLE path
 // (RangeStaffOverlay → MelodyNotesLayer → renderMelodyNotes) so it catches
@@ -39,18 +40,40 @@ describe('RangeStaffOverlay', () => {
         expect(container.querySelectorAll('text').length).toBeGreaterThan(10);
     });
 
-    it('draws preset brackets (STANDARD/LARGE/FULL) for the melodic staves', () => {
+    it('draws preset groups for melodic staves + percussion', () => {
         const { container } = renderOverlay();
-        expect(container.querySelectorAll('.range-presets').length).toBe(2); // treble + bass
+        expect(container.querySelectorAll('.range-presets').length).toBe(3); // treble + bass + percussion
         expect(container.textContent).toContain('STANDARD');
         expect(container.textContent).toContain('LARGE');
-        expect(container.textContent).toContain('FULL');
+        expect(container.textContent).toContain('BASIC'); // percussion preset
     });
 
     it('shows the range-selector mode indicator', () => {
         const { container } = renderOverlay();
         expect(container.querySelector('.range-mode-indicator')).not.toBeNull();
         expect(container.textContent).toContain('RANGE SELECTOR');
+    });
+
+    it('toggles a percussion pad on tap', () => {
+        const onTogglePad = vi.fn();
+        const { container } = renderOverlay({
+            enabledPads: [...PERCUSSION_PRESETS.STANDARD],
+            onTogglePad,
+        });
+        // The per-pad hit rects carry the click handler; click the first one.
+        const hitRects = container.querySelectorAll('.range-row-percussion rect');
+        expect(hitRects.length).toBeGreaterThan(0);
+        fireEvent.click(hitRects[0]);
+        expect(onTogglePad).toHaveBeenCalledTimes(1);
+        expect(typeof onTogglePad.mock.calls[0][0]).toBe('string');
+    });
+
+    it('applies a melodic preset on bracket tap', () => {
+        const onApplyMelodicPreset = vi.fn();
+        const { container } = renderOverlay({ onApplyMelodicPreset });
+        const presetGroup = container.querySelector('.range-presets-treble g');
+        fireEvent.click(presetGroup);
+        expect(onApplyMelodicPreset).toHaveBeenCalledWith('treble', expect.any(String));
     });
 
     it('renders nothing when geometry is missing', () => {
