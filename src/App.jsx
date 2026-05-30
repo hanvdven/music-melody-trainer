@@ -17,7 +17,6 @@ import SheetMusic from './components/sheet-music/SheetMusic';
 import { KIT_NOTE_MAPPINGS } from './audio/drumKits';
 import AppHeader from './components/layout/AppHeader';
 import SubHeader from './components/layout/SubHeader';
-import RangeOverlay from './components/controls/RangeOverlay';
 
 // Hooks
 import useRefState from './hooks/useRefState';
@@ -178,8 +177,9 @@ const App = () => {
     // Sheet Music Settings state (Lifted)
     const { showSheetMusicSettings, toggleSheetMusicSettings, resetSettingsTimer } = useSettingsOverlay();
 
-    // Range overlay (TEMPORARY scaffold entry point for the visual settings re-haul).
-    const [showRangeOverlay, setShowRangeOverlay] = useState(false);
+    // In-SVG range-edit mode for the visual settings re-haul. Toggled by the
+    // SubHeader RANGE button; drives RangeStaffOverlay inside the SheetMusic SVG.
+    const [rangeEditMode, setRangeEditMode] = useState(false);
 
     // Input Test Mode — wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available
 
@@ -1105,6 +1105,7 @@ const App = () => {
         screenWidth: windowSize.width,
         onRandomizeMeasure: randomizeMeasure,
         showSettings: showSheetMusicSettings,
+        rangeEditMode: rangeEditMode,
         onToggleSettings: toggleSheetMusicSettings,
         onSettingsInteraction: resetSettingsTimer,
         tonic: scale.tonic,
@@ -1129,7 +1130,7 @@ const App = () => {
         anacrusisMeasureIndex,
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
-        windowSize.width, randomizeMeasure, showSheetMusicSettings, toggleSheetMusicSettings,
+        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, toggleSheetMusicSettings,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
         showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
@@ -1224,12 +1225,10 @@ const App = () => {
                     handlePlayMelody={handlePlayMelody}
                     handlePlayContinuously={handlePlayContinuously}
                     onActivateAdjustments={!showSheetMusicSettings ? toggleSheetMusicSettings : undefined}
-                    onOpenRange={() => setShowRangeOverlay(true)}
+                    onOpenRange={() => setRangeEditMode(v => !v)}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}
                 />
-
-                <RangeOverlay open={showRangeOverlay} onClose={() => setShowRangeOverlay(false)} />
 
                 {/* TOP SECTION: SHEET MUSIC & PLAYBACK */}
                 <div

@@ -7,6 +7,7 @@ import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
 import { processMelodyAndCalculateFlags } from './processMelodyAndCalculateFlags';
 import SettingsOverlay, { VOL_STEPS } from './SettingsOverlay';
+import RangeStaffOverlay from './RangeStaffOverlay';
 import GenericTypeSelector from '../common/GenericTypeSelector';
 import SvgSetter from './SvgSetter';
 
@@ -163,6 +164,7 @@ const SheetMusic = ({
   onRandomizeMeasure,
   showChords,
   showSettings,
+  rangeEditMode,
   onToggleSettings,
   onSettingsInteraction,
   viewMode,    // 'melody' | 'repeat' — see viewMode prop in App.jsx for the source-of-truth computation
@@ -295,9 +297,11 @@ const SheetMusic = ({
   // rounds. When the current round has a staff hidden (actualTreble/Bass/Perc = false), the staff
   // stays but shows a repeat symbol instead of notes (see per-staff repeats in the render section).
   // showSettings keeps all staves alive so overlay buttons stay correctly anchored.
-  const isTrebleVisible = showSettings ||
+  // rangeEditMode also keeps the treble/bass staves alive so the range overlay's
+  // selectable note rows have a staff to anchor to even if a staff is hidden.
+  const isTrebleVisible = showSettings || rangeEditMode ||
     (playbackConfig?.oddRounds?.trebleEye !== false || playbackConfig?.evenRounds?.trebleEye !== false);
-  const isBassVisible = showSettings ||
+  const isBassVisible = showSettings || rangeEditMode ||
     (playbackConfig?.oddRounds?.bassEye !== false || playbackConfig?.evenRounds?.bassEye !== false);
   const isPercussionVisible = showSettings ||
     (playbackConfig?.oddRounds?.percussionEye === true || playbackConfig?.evenRounds?.percussionEye === true ||
@@ -2728,6 +2732,22 @@ const SheetMusic = ({
                       chordProgression={chordProgression}
                       processedChords={processedChords}
                       onSettingsInteraction={onSettingsInteraction}
+                    />
+                  )}
+
+                  {/* Range overlay — in-SVG selectable note rows (Phase 2: static). */}
+                  {rangeEditMode && (
+                    <RangeStaffOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      clefTreble={clefTreble}
+                      clefBass={clefBass}
+                      trebleRange={trebleSettings?.range}
+                      bassRange={bassSettings?.range}
                     />
                   )}
                 </>

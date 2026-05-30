@@ -14,10 +14,45 @@ const normalizePC = (note) => {
 };
 
 // Strip accidentals for noteYMap lookup — map only has natural note names (C, D, E…)
-const stripAccidentals = n => n ? n.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '') : n;
+export const stripAccidentals = n => n ? n.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '') : n;
+
+// Per-clef vertical offset (in SVG units) applied on top of noteYMap. Lifted to
+// module scope (and exported) so the in-SVG range overlay can position
+// selectable noteheads with the SAME math the renderer uses (CLAUDE.md §6c).
+export const clefOffsets = {
+  treble: -11,
+  bass: -71,
+  alto: -41,
+  tenor: -51,
+  soprano: -21,
+  'mezzo-soprano': -31,
+  treble8va: 24,
+  treble8vb: -46,
+  treble15va: 59,
+  treble15vb: -81,
+  bass8va: -36,
+  bass8vb: -106,
+  bass15va: -1,
+  bass15vb: -141,
+  alto8va: -6,
+  alto8vb: -76
+};
+
+// Absolute SVG Y of a note on a given staff, matching how renderMelodyNotes
+// places real noteheads (notes render at noteYMap[name] + combinedShift inside a
+// group translated to staffStart, with staffYStart always 0). Returns null for
+// notes not in noteYMap. `staff === 'percussion'` uses the fixed -171 baseline.
+export const getNoteAbsoluteY = (note, staffStart, clef, staff) => {
+  const base = noteYMap[stripAccidentals(note)];
+  if (base == null) return null;
+  const off = staff === 'percussion'
+    ? -171
+    : (clefOffsets[clef] !== undefined ? clefOffsets[clef] : -11);
+  return staffStart + base + off;
+};
 
 // Melody Notes
-const noteYMap = {
+export const noteYMap = {
   // Octave 0
   A0: 176,
   B0: 171,
@@ -288,25 +323,8 @@ const renderMelodyNotes = (
   const accidentals = generateAccidentalMap(melodyNotes, numAccidentals, melodyOffsets, measureLengthSlots, courtesyAccidentals);
 
   // --- UNIFIED Y-SHIFT CALCULATION ---
-  const clefOffsets = {
-    treble: -11,
-    bass: -71,
-    alto: -41,
-    tenor: -51,
-    soprano: -21,
-    'mezzo-soprano': -31,
-    treble8va: 24,
-    treble8vb: -46,
-    treble15va: 59,
-    treble15vb: -81,
-    bass8va: -36,
-    bass8vb: -106,
-    bass15va: -1,
-    bass15vb: -141,
-    alto8va: -6,
-    alto8vb: -76
-  };
-
+  // clefOffsets is now module-scoped (see top of file) and shared with the
+  // range overlay; do not redefine it here.
   const dynamicClefOffset = clefOffsets[clef] !== undefined ? clefOffsets[clef] : -11;
   const combinedShift = staff === 'percussion' ? (staffYStart - 171) : (staffYStart + dynamicClefOffset);
 

@@ -223,13 +223,16 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
 > Each phase is independently shippable and keeps the old `RangeControls`
 > working. No phase removes existing functionality.
 
-- **Phase 0 (done):** temporary RANGE button + HTML scaffold (PR #29).
-- **Phase 1 — shared helpers:** extract `getNoteValue/getNoteFromValue` and the
-  range-clamp logic from `RangeControls` into a shared util with a smoke test
-  (§7b). No UI change.
-- **Phase 2 — static row render:** add `RangeStaffOverlay` `<g>` rendered by
-  SheetMusic when `rangeEditMode` is on; draw the ghost row + band + handles for
-  treble/bass using `noteYMap`. Read-only (no interaction yet).
+- **Phase 0 (done):** temporary RANGE button + HTML scaffold (PR #29). Scaffold
+  later retired in Phase 2 (D4).
+- **Phase 1 (done):** `src/utils/rangeUtils.js` (`getNoteValue`,
+  `getNoteFromValue`, `clampRange`) + test; `RangeControls` now reuses it.
+- **Phase 2 (done):** `RangeStaffOverlay` `<g>` rendered by SheetMusic when
+  `rangeEditMode` is on; static ghost row + band + ring handles for treble/bass
+  via shared `getNoteAbsoluteY`. RANGE button toggles `rangeEditMode`; HTML
+  scaffold retired. **Deferred to later phases:** ledger lines under floating
+  noteheads, and tuning the 8vb/8va extent (currently FULL ± 1 octave can place
+  extreme notes far from the staff).
 - **Phase 3 — interaction:** drag + tap to move boundaries, with constraints;
   write back to `InstrumentSettings.range`; preset-match highlight.
 - **Phase 4 — preset chips:** bracket chips right of the row applying
