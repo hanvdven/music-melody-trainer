@@ -39,11 +39,18 @@ describe('RangeStaffOverlay', () => {
         expect(container.querySelectorAll('text').length).toBeGreaterThan(10);
     });
 
-    it('labels the current min and max boundary notes', () => {
+    it('draws preset brackets (STANDARD/LARGE/FULL) for the melodic staves', () => {
         const { container } = renderOverlay();
-        expect(container.textContent).toContain('C4'); // treble min (and bass max)
-        expect(container.textContent).toContain('E5'); // treble max
-        expect(container.textContent).toContain('A2'); // bass min
+        expect(container.querySelectorAll('.range-presets').length).toBe(2); // treble + bass
+        expect(container.textContent).toContain('STANDARD');
+        expect(container.textContent).toContain('LARGE');
+        expect(container.textContent).toContain('FULL');
+    });
+
+    it('shows the range-selector mode indicator', () => {
+        const { container } = renderOverlay();
+        expect(container.querySelector('.range-mode-indicator')).not.toBeNull();
+        expect(container.textContent).toContain('RANGE SELECTOR');
     });
 
     it('renders nothing when geometry is missing', () => {

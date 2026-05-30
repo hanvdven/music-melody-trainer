@@ -207,7 +207,44 @@ export const PERCUSSION_INTERRUPT_GROUP = {
 };
 
 /**
- * Default pad → smplr sample name mapping per drum kit.
+ * Display ordering for the range-selector percussion row (Han 2026-05-30).
+ * Ordered per instrument family (kick → snare → toms → hi-hat → ride → crash →
+ * other); within each family the BASE pad comes first, followed by its variants.
+ * Robust to future additions: append a new pad id to the relevant family array
+ * and it appears automatically (the renderer filters to pads that have a staff
+ * position). Keep in sync with PERCUSSION_INTERRUPT_GROUP base/variant grouping.
+ */
+export const PERCUSSION_DISPLAY_FAMILIES = [
+    ['k'],                              // kick
+    ['s', 'sg', 'sr'],                  // snare: base, ghost, rim
+    ['tl', 'tm', 'th'],                 // toms: floor, mid, high
+    ['hh', 'ho', 'hp'],                 // hi-hat: closed, open, pedal
+    ['cr', 'crt', 'cr_bell'],           // ride: base, tip, bell
+    ['cc', 'cct', 'cc_bell'],           // crash: base, tip, bell
+    ['cb', 'wh', 'wm', 'wl', 'other'],  // other percussion
+];
+export const PERCUSSION_DISPLAY_ORDER = PERCUSSION_DISPLAY_FAMILIES.flat();
+
+/**
+ * Percussion "range" presets (Han 2026-05-30) — the pad pool each preset selects.
+ * basic = core 3-piece kit; standard adds crash, ride and floor tom; full = every
+ * pad. Variants (open/pedal hi-hat, ghost/rim snare, cymbal tips/bells) only
+ * appear in 'full'. FULL is derived from the display order so it stays complete
+ * as new pads are added.
+ */
+export const PERCUSSION_PRESETS = {
+    BASIC: ['k', 's', 'hh'],
+    STANDARD: ['k', 's', 'hh', 'cc', 'cr', 'tl'],
+    FULL: PERCUSSION_DISPLAY_ORDER,
+};
+
+/**
+ * Display order helper: the family-grouped percussion ids as a flat array.
+ * Exposed as a function so callers don't depend on array identity.
+ */
+export const orderedPercussionPads = () => PERCUSSION_DISPLAY_ORDER;
+
+/**
  * All DrumMachine kits use smplr sample path strings (NOT MIDI numbers).
  * Sample names must exactly match the upstream dm.json manifest for each kit.
  * Woodblocks (wh/wm/wl) always use MIDI numbers — they go through the
