@@ -248,12 +248,34 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
     margin is reserved for preset chips (and makes the row compact); out-of-band
     notes are dimmed further; in rangeEditMode repeat signs + the "4×" are hidden
     and barlines are plain, ending in a normal vertical barline.
-- **Phase 3 — interaction:** drag + tap to move boundaries, with constraints;
-  write back to `InstrumentSettings.range`; preset-match highlight.
-- **Phase 4 — preset chips:** bracket chips right of the row applying
-  `PRESET_RANGES`.
-- **Phase 5 — percussion pool:** model field (D6) + togglable percussion
-  noteheads; wire into generation (re-read §3 first).
+- **Phase 3 (done, Han 2026-05-30):** interaction.
+  - Melodic: press/drag anywhere on a staff row moves the nearest `{min,max}`
+    boundary to the column under the pointer and keeps following it (tap = a
+    zero-distance drag). Pointer capture + SVG `getScreenCTM` mapping → works for
+    mouse and touch. Writes reuse `RangeControls` semantics exactly (`clampRange`
+    12-semitone min span + 21…108 bounds, preset-match → `rangeMode`).
+  - Percussion: tap a pad to toggle it in/out of the pool; disabled pads dimmed.
+  - Presets clickable: melodic right-brackets apply `PRESET_RANGES`; percussion
+    `BASIC/STANDARD/FULL` labels apply `PERCUSSION_PRESETS`; active highlighted.
+  - Handlers live in `SheetMusic` (already holds the settings setters via
+    context) and pass to the overlay as optional callbacks.
+  - **Percussion pool model + generation (done):** `enabledPads: string[]` on
+    percussion `InstrumentSettings` (default `PERCUSSION_PRESETS.STANDARD`). The
+    `MelodyGenerator` post-filters every percussion pattern via
+    `filterPercussionByEnabledPads` (drops disabled pads, emptied slot → rest, so
+    rhythm stays intact). `enabledPads=null` = all pads (back-compat).
+  - **Disabled pads lowlighted in the bottom DrumPad board too** (not just the
+    overlay), visual-only — pads stay playable.
+  - **Phase-5 TECHNICAL DEBT (Han 2026-05-30):** the percussion drum *style*
+    (swing / backbeat / kick&snare / claves) currently lives on `notePool`. It
+    should move onto `randomizationRule`, freeing `notePool` and removing the
+    awkward `notePool`(style) vs `enabledPads`(pool) split.
+- **Phase 4 — bottom-view (re)integration:** open the bottom range settings when
+  range mode is active (stripped copy: no note-coloring, no instrument selector,
+  treble/bass only) + fix the `useSettingsOverlay` capture-pointerdown that closes
+  the overlay when bottom-view range setters are clicked. See BACKLOG.
+- **Phase 5 — polish:** lyrics/label spacing so boundary names can return without
+  overlapping noteheads; 8vb/8va extent tuning.
 - **Phase 6 — morph animation:** fade real notes ↔ selectable row on enter/exit;
   retire the HTML scaffold for the sheet variant (D4).
 - **Phase 7 — polish + coach-tour hook** (later, shared with other settings).
