@@ -1,7 +1,7 @@
 import React from 'react';
-import { getNoteAbsoluteY } from './renderMelodyNotes';
-import { getNoteValue } from '../../utils/rangeUtils';
-import { PRESET_RANGES } from '../../constants/ranges';
+import { getNoteAbsoluteY } from '../renderMelodyNotes';
+import { getNoteValue } from '../../../utils/rangeUtils';
+import { PRESET_RANGES } from '../../../constants/ranges';
 
 /**
  * RangeStaffOverlay — in-SVG range selector (sheet/bladmuziek variant).

@@ -557,6 +557,13 @@ const App = () => {
         setHeaderPlayMode('continuous');
     }, [handlePlayContinuouslyLogic, isRubatoRef]);
 
+    // Range-edit and playback are mutually exclusive (Han 2026-05-30): opening
+    // the range overlay stops playback; see also the close-on-play effect below.
+    const handleToggleRangeEdit = useCallback(() => {
+        if (!rangeEditMode) handleStopAllPlayback();
+        setRangeEditMode(v => !v);
+    }, [rangeEditMode, handleStopAllPlayback]);
+
     const handlePlayRepeat = useCallback(() => {
         if (isRubatoRef.current && rubatoEngageRef.current) {
             rubatoEngageRef.current('repeat');
@@ -736,6 +743,13 @@ const App = () => {
     // Manual instrument playing (UI keys/pads) will still use default volumes or respect their individual velocity handling.
 
     const isPlaying = isPlayingContinuously || isPlayingScale || isPlayingMelody;
+
+    // Starting any playback closes the range overlay (mutually exclusive with
+    // range-edit). Covers every play entry point in one place. Closing range-edit
+    // never starts playback, so no feedback loop with handleToggleRangeEdit.
+    useEffect(() => {
+        if (isPlaying) setRangeEditMode(false);
+    }, [isPlaying]);
 
     // Block display state: which song-level measure number the current block starts at,
     // and which sequence position it first appeared at (for computing the repeat suffix R).
@@ -1225,7 +1239,7 @@ const App = () => {
                     handlePlayMelody={handlePlayMelody}
                     handlePlayContinuously={handlePlayContinuously}
                     onActivateAdjustments={!showSheetMusicSettings ? toggleSheetMusicSettings : undefined}
-                    onOpenRange={() => setRangeEditMode(v => !v)}
+                    onOpenRange={handleToggleRangeEdit}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}
                 />

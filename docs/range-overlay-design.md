@@ -230,9 +230,12 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
 - **Phase 2 (done):** `RangeStaffOverlay` `<g>` rendered by SheetMusic when
   `rangeEditMode` is on; static ghost row + band + ring handles for treble/bass
   via shared `getNoteAbsoluteY`. RANGE button toggles `rangeEditMode`; HTML
-  scaffold retired. **Deferred to later phases:** ledger lines under floating
-  noteheads, and tuning the 8vb/8va extent (currently FULL ± 1 octave can place
-  extreme notes far from the staff).
+  scaffold retired. **In rangeEditMode all melody notes/chords/lyrics are hidden
+  (`notes-transition` → `display:none`) and playback is mutually exclusive**:
+  opening stops playback, starting playback closes the overlay (Han 2026-05-30).
+  Overlays moved to `src/components/sheet-music/overlays/`. **Deferred to later
+  phases:** ledger lines under floating noteheads, and tuning the 8vb/8va extent
+  (currently FULL ± 1 octave can place extreme notes far from the staff).
 - **Phase 3 — interaction:** drag + tap to move boundaries, with constraints;
   write back to `InstrumentSettings.range`; preset-match highlight.
 - **Phase 4 — preset chips:** bracket chips right of the row applying

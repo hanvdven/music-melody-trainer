@@ -6,8 +6,8 @@ import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
 import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
 import { processMelodyAndCalculateFlags } from './processMelodyAndCalculateFlags';
-import SettingsOverlay, { VOL_STEPS } from './SettingsOverlay';
-import RangeStaffOverlay from './RangeStaffOverlay';
+import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
+import RangeStaffOverlay from './overlays/RangeStaffOverlay';
 import GenericTypeSelector from '../common/GenericTypeSelector';
 import SvgSetter from './SvgSetter';
 
@@ -1982,7 +1982,11 @@ const SheetMusic = ({
                     clipPath={animationMode === 'scroll' && !isPlaying ? 'url(#scroll-content-clip)' : undefined}
                     mask={animationMode === 'scroll' && isPlaying ? 'url(#scroll-left-mask)' : undefined}
                   >
-                  <g className="notes-transition" data-scroll-group style={{ willChange: animationMode === 'scroll' ? 'transform' : 'auto' }}>
+                  <g className="notes-transition" data-scroll-group style={{ willChange: animationMode === 'scroll' ? 'transform' : 'auto',
+                    // In rangeEditMode the staves are blank canvases for the range
+                    // selector — hide ALL melodic content (notes/chords/lyrics) but
+                    // keep the node mounted so transition refs stay valid on exit.
+                    display: rangeEditMode ? 'none' : undefined }}>
                     {/* Melody notes: visible in 'melody' viewMode */}
                     {/* In pagination mode, opacity is driven by the rAF loop via data-pagination-old.
                         CSS classes set the resting state; rAF sets style.opacity during the crossfade.

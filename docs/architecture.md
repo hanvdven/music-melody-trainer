@@ -2147,15 +2147,28 @@ on the treble and bass staves (low→high, left→right), highlighting the curre
 `getNoteAbsoluteY` so positions match real noteheads exactly. The earlier HTML
 scaffold (`RangeOverlay.jsx`) was retired (D4).
 
+**Range-edit ↔ playback are mutually exclusive (Han 2026-05-30).** While
+`rangeEditMode` is on, the staves are blank canvases: the entire
+`notes-transition` group is hidden via `display:none` (kept mounted so transition
+refs stay valid), so NO melody notes / chords / lyrics render. Opening the
+overlay (`handleToggleRangeEdit` in App.jsx) calls `handleStopAllPlayback`;
+starting any playback closes the overlay via a `useEffect` on `isPlaying`. There
+is no feedback loop because closing range-edit never starts playback.
+
+**File organisation.** All sheet-music context overlays live under
+`src/components/sheet-music/overlays/`. New context overlays go there too.
+
 **Not yet built:** interaction (drag/tap, Phase 3), ledger lines, preset chips
 (Phase 4), percussion pool (Phase 5), enter/exit morph (Phase 6). The legacy
 stepper `RangeControls` is untouched. See `docs/range-overlay-design.md`.
 
-**Files:** `src/components/sheet-music/RangeStaffOverlay.jsx` (new in-SVG row),
+**Files:** `src/components/sheet-music/overlays/RangeStaffOverlay.jsx` (in-SVG
+row), `src/components/sheet-music/overlays/SettingsOverlay.jsx` (moved here),
 `src/components/sheet-music/renderMelodyNotes.jsx` (exported `noteYMap`,
 `clefOffsets`, `stripAccidentals`, `getNoteAbsoluteY`; `clefOffsets` lifted to
 module scope), `src/components/sheet-music/SheetMusic.jsx` (`rangeEditMode` prop
-+ overlay render + staff keep-alive), `src/utils/rangeUtils.js` (shared
-note↔MIDI + clamp helpers, with test), `src/components/controls/RangeControls.jsx`
-(now reuses `rangeUtils`), `src/App.jsx` (`rangeEditMode` state + wiring).
++ overlay render + staff keep-alive + notes hidden), `src/utils/rangeUtils.js`
+(shared note↔MIDI + clamp helpers, with test),
+`src/components/controls/RangeControls.jsx` (now reuses `rangeUtils`),
+`src/App.jsx` (`rangeEditMode` state + playback wiring).
 
