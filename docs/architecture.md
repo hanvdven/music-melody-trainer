@@ -984,6 +984,30 @@ Spacers (`'c'`) and inserted rests have `outOriginalIndices[i] === null` → `tr
 
 **Files:** `src/components/sheet-music/processMelodyAndCalculateSlots.js`
 
+### Bass Beaming in 3/4 — `q q q` split as `q + (e tied to e) + q` (2026-05-29)
+
+**Symptom:** in 3/4 time, three consecutive quarters in the bass (e.g. HBD m1: B3 G2 B2 at offsets 36, 48, 60) rendered with the middle quarter split into two tied eighths.
+
+**Root cause:** `noteGroupSize` in `SheetMusic.jsx` was derived from
+```js
+measureLengthSlots % 18 === 0 ? 18 : 12
+```
+3/4's measure is 36 ticks, divisible by 18, so the heuristic picked 18 (= compound dotted-quarter beat, correct for 6/8 only). The middle quarter at offset 48 crossed the false 18-tick beat boundary at offset 54, forcing `processMelodyAndCalculateSlots` to split.
+
+**Fix:** derive the beat size from the time signature directly. Compound = denominator 8/16 AND numerator > 3 AND numerator % 3 === 0; in that case beat = 3 × denominator-unit (dotted-quarter for /8). Otherwise beat = one denominator-unit. See architecture §32.
+
+**Files:** `src/components/sheet-music/SheetMusic.jsx`
+
+### `totalDuration` Miscount Blocking Trailing-Rest Pad (2026-05-29)
+
+**Symptom:** percussion or bass tracks shorter than the song's `globalMaxDuration` were not padded with a trailing rest — so the track ended early instead of staying aligned with the song's end.
+
+**Root cause:** `processMelodyAndCalculateSlots` computed `totalDuration` via a reduce that added `startRestDuration` inside the loop, so it was counted N times (= once per note) instead of once. For a melody with a 24-tick leading rest and 19 notes, `totalDuration` came out as 24 × 19 + Σdurations (= 456 + content) instead of 24 + Σdurations. With the inflated value, `totalDuration < globalMaxDuration` was always false, so the adaptive padding never ran.
+
+**Fix:** pull `startRestDuration` out of the reduce — it's the leading rest, counted exactly once.
+
+**Files:** `src/components/sheet-music/processMelodyAndCalculateSlots.js`
+
 ---
 
 ## 14. Scale Selection Wheel
