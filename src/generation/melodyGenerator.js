@@ -3,7 +3,7 @@ import logger from '../utils/logger';
 import convertRankedArrayToMelody from './convertRankedArrayToMelody.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
-import { generateBackbeat, generateBackbeat2, generateSwing, generateMetronome } from './generateBackbeat.js';
+import { generateBackbeat, generateBackbeat2, generateSwing, generateMetronome, filterPercussionByEnabledPads } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults.js';
