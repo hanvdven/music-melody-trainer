@@ -42,18 +42,19 @@ Because higher pitch = higher on the staff (lower Y in `noteYMap`), the row
 **ascends diagonally** from bottom-left to top-right, with ledger lines above
 and below the 5 staff lines — matching the concept sketch.
 
-### 3.2 Positions are diatonic, snapping is chromatic (proposed)
+### 3.2 Positions and snapping are diatonic (RESOLVED — D1)
 
 `noteYMap` only contains natural notes (C D E F G A B), 5 units per staff step;
 accidentals share their natural's Y (`stripAccidentals`). So each visible
 notehead sits on a diatonic line/space.
 
-- **Proposed:** the band boundary snaps **chromatically** (every semitone), and
-  when a boundary lands on a sharp/flat we draw the accidental glyph to the left
-  of the notehead (same Maestro glyph the renderer uses). Rationale: the data
-  model (`{min,max}` via `getNoteFromValue`) and the future keyboard variant are
-  both chromatic; snapping diatonically would make some MIDI bounds unreachable.
-- *(Open decision D1 — see §9.)*
+- **Decided (D1):** the row shows **only natural notes** (7 per octave) and the
+  band boundary **snaps diatonically** to those naturals. No accidentals are
+  drawn on the row. This is consistent with every entry in `PRESET_RANGES`
+  (all naturals) and keeps the row visually clean.
+- Consequence: `{min,max}` written from this overlay are always natural note
+  names. The chromatic in-between pitches are still *generated* normally; we
+  only constrain the *boundary picker* to naturals.
 
 ### 3.3 Extent: full range + one octave either side
 
@@ -99,8 +100,8 @@ noteheads.
   the current kit** at its fixed `noteYMap` position, using the existing
   `percussionNoteHeads` glyphs (filled / x / triangle).
 - **Tap a notehead** → toggles it in/out of the pool; out = dimmed.
-- *(Open decision D3: show all kit IDs, or only the ones currently in the
-  generated pattern? — §9.)*
+- **Decided (D3):** show a notehead for **every percussion ID in the current
+  kit**, so the user can switch on sounds that aren't currently playing.
 
 ### 4.3 Preset chips ("blokhaken")
 
@@ -134,17 +135,18 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
 
 ## 6. Open / close & animation
 
-- The **RANGE button** (currently opens the HTML scaffold) instead toggles a
-  `rangeEditMode` flag passed into SheetMusic. *(Open decision D4: retire the
-  HTML `RangeOverlay` for the sheet variant, keep it only as future chrome for
-  abstract settings — §9.)*
+- **Decided (D4):** the **RANGE button** toggles a `rangeEditMode` flag passed
+  into SheetMusic (it no longer opens the HTML scaffold). The HTML `RangeOverlay`
+  is **retired for the sheet variant**; it may later be reused as chrome for
+  abstract settings.
 - On enter: real melody noteheads **fade out** and the selectable row **fades
   in**, in the same SVG space (opacity via `element.style.opacity` in rAF per
   §6 — never JSX opacity props). Staff lines and clefs stay put.
 - On exit: reverse the morph. Must not interfere with the
   pagination/wipe/scroll transition system (§7 invariants).
-- Auto-close behaviour: follow the existing settings-overlay pattern
-  (click-outside / inactivity) or an explicit close affordance — *(D5)*.
+- **Decided (D5):** auto-close follows the existing settings-overlay pattern —
+  **click-outside / inactivity** (reuse the `useSettingsOverlay` keep-alive +
+  timer approach, §35). No explicit close button.
 
 ---
 
@@ -177,7 +179,8 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
    to current `RangeControls` behaviour).
 6. The result is written to the correct staff's `InstrumentSettings.range` and
    regenerates the melody exactly as the old control did.
-7. Boundary noteheads on sharps/flats render the correct accidental glyph.
+7. The row shows only natural notes; boundaries always snap to naturals (no
+   accidentals drawn).
 
 **Percussion pool**
 8. The percussion staff shows a togglable notehead per available kit ID at the
@@ -198,19 +201,20 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
 
 ---
 
-## 9. Open decisions (need Han)
+## 9. Decisions
 
-- **D1 — Snapping:** chromatic (every semitone, accidentals shown) *(proposed)*
-  vs diatonic (naturals only).
-- **D2 — Extent:** FULL ± 1 octave *(proposed)* vs some other span.
-- **D3 — Percussion notes shown:** all current-kit IDs *(proposed)* vs only IDs
-  in the current pattern.
-- **D4 — RANGE button target:** retire the HTML scaffold and drive an in-SVG
-  `rangeEditMode` *(proposed)* vs keep the HTML shell as a wrapper.
-- **D5 — Close affordance:** click-outside/inactivity (match existing overlay)
-  vs explicit close button vs both.
+**Resolved with Han:**
+- **D1 — Snapping:** **diatonic (naturals only)**, no accidentals on the row.
+- **D2 — Extent:** **FULL ± 1 octave**, marked with 8vb (left) / 8va (right).
+- **D3 — Percussion notes shown:** **all current-kit IDs**.
+- **D4 — RANGE button target:** **retire the HTML scaffold**, drive an in-SVG
+  `rangeEditMode`.
+- **D5 — Close affordance:** **click-outside / inactivity** (reuse §35 pattern).
+
+**Still open (Phase 5, percussion):**
 - **D6 — Percussion data field:** add `notePool: string[]` to percussion
-  settings; confirm name and how generation reads it (touches §3).
+  settings; confirm exact name and how generation reads it (touches §3). To be
+  interviewed when we reach the percussion phase.
 
 ---
 
