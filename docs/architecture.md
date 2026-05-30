@@ -2141,11 +2141,16 @@ exercise/song → advanced generation → visualization).
 **Current status (Phase 2 — static in-SVG row).** The always-visible `RANGE`
 button on the right of the `SubHeader` toggles `rangeEditMode` (D4), which drives
 `RangeStaffOverlay` — a `<g>` rendered inside the SheetMusic SVG (sibling of
-`SettingsOverlay`). It draws a diagonal row of selectable **natural** noteheads
-on the treble and bass staves (low→high, left→right), highlighting the current
-`{min,max}` band with ring handles on the boundaries, using the shared
-`getNoteAbsoluteY` so positions match real noteheads exactly. The earlier HTML
-scaffold (`RangeOverlay.jsx`) was retired (D4).
+`SettingsOverlay`). It shows the selectable pitches as a **synthetic
+rhythm-less melody rendered through the real `MelodyNotesLayer`/
+`renderMelodyNotes`** (reusing ledger lines, ottava shifting and notehead glyphs
+— §6c; no hand-rolled pitch→Y). Treble, bass **and percussion** each get a
+horizontal row (low→high), laid out via a private slot grid. The current
+`{min,max}` band is colour-coded entirely with theme vars via the renderer's
+`previewMode` override: boundary notes `--accent-yellow`, in-band
+`--text-primary`, out-of-band `--text-dim`; boundary note names are labelled.
+Percussion shows every kit pad with a staff position (from `PADS`). The earlier
+HTML scaffold (`RangeOverlay.jsx`) was retired (D4).
 
 **Range-edit ↔ playback are mutually exclusive (Han 2026-05-30).** While
 `rangeEditMode` is on, the staves are blank canvases: the entire
@@ -2158,12 +2163,13 @@ is no feedback loop because closing range-edit never starts playback.
 **File organisation.** All sheet-music context overlays live under
 `src/components/sheet-music/overlays/`. New context overlays go there too.
 
-**Not yet built:** interaction (drag/tap, Phase 3), ledger lines, preset chips
-(Phase 4), percussion pool (Phase 5), enter/exit morph (Phase 6). The legacy
+**Not yet built:** interaction (drag/tap, Phase 3), preset chips (Phase 4),
+percussion pool toggling (Phase 5), enter/exit morph (Phase 6). The legacy
 stepper `RangeControls` is untouched. See `docs/range-overlay-design.md`.
 
 **Files:** `src/components/sheet-music/overlays/RangeStaffOverlay.jsx` (in-SVG
-row), `src/components/sheet-music/overlays/SettingsOverlay.jsx` (moved here),
+row, reuses `MelodyNotesLayer`) + its smoke test under `overlays/__tests__/`,
+`src/components/sheet-music/overlays/SettingsOverlay.jsx` (moved here),
 `src/components/sheet-music/renderMelodyNotes.jsx` (exported `noteYMap`,
 `clefOffsets`, `stripAccidentals`, `getNoteAbsoluteY`; `clefOffsets` lifted to
 module scope), `src/components/sheet-music/SheetMusic.jsx` (`rangeEditMode` prop

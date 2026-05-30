@@ -303,7 +303,7 @@ const SheetMusic = ({
     (playbackConfig?.oddRounds?.trebleEye !== false || playbackConfig?.evenRounds?.trebleEye !== false);
   const isBassVisible = showSettings || rangeEditMode ||
     (playbackConfig?.oddRounds?.bassEye !== false || playbackConfig?.evenRounds?.bassEye !== false);
-  const isPercussionVisible = showSettings ||
+  const isPercussionVisible = showSettings || rangeEditMode ||
     (playbackConfig?.oddRounds?.percussionEye === true || playbackConfig?.evenRounds?.percussionEye === true ||
       playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome');
 
@@ -2746,12 +2746,16 @@ const SheetMusic = ({
                       endX={endX}
                       trebleStart={trebleStart}
                       bassStart={bassStart}
+                      percussionStart={percussionStart}
                       isTrebleVisible={isTrebleVisible}
                       isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
                       clefTreble={clefTreble}
                       clefBass={clefBass}
                       trebleRange={trebleSettings?.range}
                       bassRange={bassSettings?.range}
+                      timeSignature={timeSignature}
+                      theme={theme}
                     />
                   )}
                 </>
