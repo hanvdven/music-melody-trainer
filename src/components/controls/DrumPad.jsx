@@ -15,6 +15,15 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
     const activeKitBase = KIT_NOTE_MAPPINGS[activeKit] || {};
     const effectiveMapping = { ...activeKitBase, ...customMapping };
 
+    // Han CR 2026-05-30: disabled pads (not in the user's enabledPads pool) must be
+    // lowlighted everywhere on the drum board, not just in the range-selector view.
+    // enabledPads lives on percussionSettings; when it is null/undefined we treat ALL
+    // pads as enabled (back-compat). Dim level 0.3 matches the range overlay concept.
+    // This is purely visual — pads stay clickable/playable (play() is never gated).
+    const enabledPads = percussionSettings?.enabledPads;
+    const padOpacity = (note) =>
+        Array.isArray(enabledPads) && !enabledPads.includes(note) ? 0.3 : 1;
+
     const play = (note) => {
         setLastPlayed(note);
         onNoteInput?.(note);
@@ -115,7 +124,7 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
     };
 
     const CirclePad = ({ cx, cy, r, note, label, color, shortcut }) => (
-        <g onClick={() => play(note)} style={styles.pad}>
+        <g onClick={() => play(note)} style={styles.pad} opacity={padOpacity(note)}>
             <circle cx={cx} cy={cy} r={r} fill={subtleMix(color)} stroke={lastPlayed === note ? 'white' : 'rgba(0,0,0,0.2)'} strokeWidth={lastPlayed === note ? 3 : 2} />
             <text x={cx} y={cy + 12} style={styles.label}>{label}</text>
             <ShortcutLabel x={cx} y={cy - 2} shortcut={shortcut} />
@@ -123,7 +132,7 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
     );
 
     const RectPad = ({ x, y, width, height, rx, note, label, color, shortcut }) => (
-        <g onClick={() => play(note)} style={styles.pad}>
+        <g onClick={() => play(note)} style={styles.pad} opacity={padOpacity(note)}>
             <rect x={x} y={y} width={width} height={height} rx={rx} fill={subtleMix(color)} stroke={lastPlayed === note ? 'white' : 'rgba(0,0,0,0.2)'} strokeWidth={lastPlayed === note ? 3 : 2} />
             <text x={x + width / 2} y={y + height / 2 + 12} style={styles.label}>{label}</text>
             <ShortcutLabel x={x + width / 2} y={y + height / 2 - 2} shortcut={shortcut} />
@@ -138,7 +147,7 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
         const shortcutX = cx;
         const shortcutY = side === 'top' ? labelY - 14 : labelY - 14;
         return (
-            <g onClick={() => play(note)} style={styles.pad}>
+            <g onClick={() => play(note)} style={styles.pad} opacity={padOpacity(note)}>
                 <path d={d} fill={subtleMix(color)} stroke={lastPlayed === note ? 'white' : 'rgba(0,0,0,0.2)'} strokeWidth={lastPlayed === note ? 3 : 2} />
                 <text x={cx} y={labelY + labelYOffset} style={styles.label}>{label}</text>
                 <ShortcutLabel x={shortcutX} y={shortcutY + labelYOffset} shortcut={shortcut} />
@@ -183,18 +192,21 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
                             fill={subtleMix('var(--chromatone-percussion-snare)')}
                             stroke={lastPlayed === 's' ? 'white' : 'rgba(0,0,0,0.2)'}
                             strokeWidth={lastPlayed === 's' ? 3 : 2}
+                            opacity={padOpacity('s')}
                             onClick={() => play('s')} style={styles.pad} />
                         {/* Rim click: top-left wedge */}
                         <path d="M 140 308.35 A 100 100 0 0 0 80 400 L 140 400 Z"
                             fill={subtleMix('var(--chromatone-percussion-snare-rim)')}
                             stroke={lastPlayed === 'sr' ? 'white' : 'rgba(0,0,0,0.2)'}
                             strokeWidth={lastPlayed === 'sr' ? 3 : 2}
+                            opacity={padOpacity('sr')}
                             onClick={e => { e.stopPropagation(); play('sr'); }} style={styles.pad} />
                         {/* Ghost snare: bottom-left wedge */}
                         <path d="M 80 400 A 100 100 0 0 0 140 491.65 L 140 400 Z"
                             fill={subtleMix('var(--chromatone-percussion-snare-ghost)')}
                             stroke={lastPlayed === 'sg' ? 'white' : 'rgba(0,0,0,0.2)'}
                             strokeWidth={lastPlayed === 'sg' ? 3 : 2}
+                            opacity={padOpacity('sg')}
                             onClick={e => { e.stopPropagation(); play('sg'); }} style={styles.pad} />
                         {/* Dividing lines */}
                         <line x1="140" y1="308.35" x2="140" y2="491.65" stroke="rgba(0,0,0,0.5)" strokeWidth="1.5" pointerEvents="none" />
@@ -215,15 +227,15 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
 
                     <SemiCircle cx={530} cy={130} r={90} side="top" note="cr" label="ride" color="var(--chromatone-percussion-ride)" shortcut="8" />
                     <SemiCircle cx={530} cy={130} r={90} side="bottom" note="crt" label="ride tip" color="var(--chromatone-percussion-ride-tip)" shortcut="u" />
-                    <g style={styles.pad} onClick={e => { e.stopPropagation(); play('cr_bell') }}>
+                    <g style={styles.pad} opacity={padOpacity('cr_bell')} onClick={e => { e.stopPropagation(); play('cr_bell') }}>
                         <circle cx={530} cy={130} r={25} fill={subtleMix('var(--chromatone-percussion-ride-bell)')} stroke={lastPlayed === 'cr_bell' ? 'white' : 'rgba(0,0,0,0.3)'} strokeWidth={lastPlayed === 'cr_bell' ? 3 : 2} />
                         <ShortcutLabel x={530} y={130} shortcut="7" />
                     </g>
 
                     {/* HI-HAT — r=100, cx=140, cy=215; diagonal endpoints at cx±71, cy∓71 */}
                     <g style={styles.pad}>
-                        <circle cx={140} cy={215} r={100} fill={subtleMix('var(--chromatone-percussion-hihat-closed)')} stroke={lastPlayed === 'hh' || lastPlayed === 'ho' ? 'white' : 'rgba(0,0,0,0.2)'} strokeWidth={lastPlayed === 'hh' || lastPlayed === 'ho' ? 3 : 2} />
-                        <path d="M 211 144 A 100 100 0 0 0 69 286 Z" fill={subtleMix('var(--chromatone-percussion-hihat-open)')} onClick={e => { e.stopPropagation(); play('ho') }} pointerEvents="all" />
+                        <circle cx={140} cy={215} r={100} fill={subtleMix('var(--chromatone-percussion-hihat-closed)')} stroke={lastPlayed === 'hh' || lastPlayed === 'ho' ? 'white' : 'rgba(0,0,0,0.2)'} strokeWidth={lastPlayed === 'hh' || lastPlayed === 'ho' ? 3 : 2} opacity={padOpacity('hh')} />
+                        <path d="M 211 144 A 100 100 0 0 0 69 286 Z" fill={subtleMix('var(--chromatone-percussion-hihat-open)')} opacity={padOpacity('ho')} onClick={e => { e.stopPropagation(); play('ho') }} pointerEvents="all" />
                         <path d="M 211 144 A 100 100 0 0 1 69 286 Z" fill="transparent" onClick={e => { e.stopPropagation(); play('hh') }} pointerEvents="all" />
                         <line x1="69" y1="286" x2="211" y2="144" stroke="rgba(0,0,0,0.3)" strokeWidth="1" />
                         <text x={100} y={175} style={styles.label}><tspan x={100} dy="0">hi-hat</tspan><tspan x={100} dy="14">open</tspan></text>
