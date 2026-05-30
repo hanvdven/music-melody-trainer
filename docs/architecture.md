@@ -99,6 +99,10 @@ type TupletEntry = {
 };
 ```
 
+- **`fermatas`** — `Array<{ tick: number, hold: number }>`. Song-level events shared identically across treble + bass + percussion + chordMelody (see §25). `tick` = absolute tick of the held note; `hold` = extra tick count the note sustains beyond its natural duration, and the amount every subsequent note in every track gets delayed. Loaded from per-difficulty `fermatas` field in song JSON; for generated melodies the array stays absent.
+
+- **`lyrics`** — `Array<string | null>`, same length as `notes`. Loaded from song JSON (e.g. HBD's lyric syllables). Absent for generated melodies.
+
 ### SystemSettings
 Application-level UI preferences (theme, etc.) — not music-theory state.
 
@@ -1882,3 +1886,158 @@ With the split, SheetMusic still re-renders when isOddRound flips (it consumes R
 - **SVG → Canvas/WebGL.** Not the bottleneck. The cost is JS-side layout/JSX (beaming, stem direction, accidental maps), not pixel rasterisation. ~20 h effort, loses free hit-testing (note-click via `data-notes`), CSS-class animations, and accessibility. **No.**
 - **`noteWidth` as a percentage.** One division per render; the derived note-x positions are the cost. Marginal. **Not the fix.**
 - **Total redesign of SheetMusic.** Scope explosion without a targeted change. **No.**
+
+---
+
+## 30. Fermata — Song-level events, audio shift, visual sync (2026-05)
+
+**Purpose:** held notes (fermata) extend their playback duration AND delay every subsequent note in every track. Visual rendering keeps natural offsets + a glyph on top, so the static page reads as a normal note with a fermata symbol while audio and the moving cursor honour the hold.
+
+**Data model.** Per-difficulty in song JSON:
+
+```json
+"fermatas": [{ "tick": 216, "hold": 18 }]
+```
+
+`loadSong.js` copies this array onto every track's Melody (`treble.fermatas`, `bass.fermatas`, `percussion.fermatas`, `chordMelody.fermatas`) so each track's `playMelodies` call sees the same events. The format is **tick-based**: events fire at the absolute tick of the fermata-ed note, independent of track or note indexing.
+
+**Audio shift logic (`playMelodies.js`).** Per note:
+- `shift` = sum of `f.hold` where `f.tick < note.offset` (cumulative delay).
+- `extraHold` = sum of `f.hold` where `f.tick === note.offset` (this note IS the fermata-ed one).
+- Audio time = `adjustedStart + (relativeTick + shift) * timeFactor`.
+- Audio duration = `(natural duration + extraHold) * timeFactor`.
+
+Subsequent notes (offset > fermata tick) all shift uniformly — no "ring through" overlap with the next phrase.
+
+**Visual cursor sync (`Sequencer.js` `schedNotes` + `buildScheduledChords`).** Both apply the same per-note shift + duration extension so `scheduledNotes` (= source-of-truth for `useSheetMusicHighlight`'s note-active highlight) lines up with audio. Without this the cursor raced ahead on natural time during the held note. **Invariant:** `audioTime` and `duration` written to `scheduledNotes` MUST equal what `playMelodies` actually schedules. If you add a new audio shift mechanism, mirror it in `schedNotes`.
+
+**Iteration extension (`Sequencer.js`).** After the inner measure loop, `nextStartTime += totalIterationFermataHold * timeFactor`. Without this the next iteration's m=0 starts at the natural end of iteration N while the fermata-extended audio is still ringing into the future — repeats had an inter-iteration gap. Now iteration N+1 starts exactly when N's audio actually ends.
+
+**Visual glyph.** `SheetMusic.jsx` `renderFermataGlyphs` draws Maestro `U` (SHIFT+u, arc-down) above the staff at the fermata note's x-position. Future: detect stem direction and swap to lowercase `u` (placed below) for stem-up notes — Han's stated convention.
+
+**Files:**
+- `src/songs/loadSong.js` — parses + propagates the array.
+- `src/audio/playMelodies.js` — audio shift + duration extension.
+- `src/audio/Sequencer.js` — `schedNotes` shift + `buildScheduledChords` shift + iteration boundary extension.
+- `src/utils/melodySlice.js` — slices carry the song-level fermatas array unchanged (tick-based events are global).
+- `src/components/sheet-music/SheetMusic.jsx` — `renderFermataGlyphs`.
+
+---
+
+## 31. Rubato Mode — User-driven tempo (2026-05)
+
+**Purpose:** turn off BPM-driven playback and let the user advance the melody note-by-note via bottom-pane input. Background tracks fill the time between advances using an EWMA-estimated BPM.
+
+**State.** `useAppUIState.isRubato` (with `isRubatoRef` for non-React reads). Toggled via the tempo-picker dropdown (`SheetMusic.jsx` tempo picker) which appends "rubato" with the Maestro `T` glyph. Enabling rubato also activates `inputTestSubMode='note'` on the next Play press so the bottom-pane keyboard drives advances.
+
+**Play interception (`App.jsx`).** When `isRubato=true`, the Play This / Repeat / Continuously buttons skip `sequencer.start` and instead call `rubatoEngageRef.current` which toggles input-test mode + sets sub-mode 'note'. The user then taps notes via piano / percussion / chord tab.
+
+**Correct-note flow (existing `useInputTest`).** `handleInputTestNote` already matches input against `melodiesRef.current[activeStaff].notes[activeIndex]`; correct → advance index + flash green; wrong → red `inputTestState.status='error'`. Audio plays via `onNoteCorrect(note, dur)` → `instruments.treble.start({note})` then scheduled stop after `dur * 5000/bpm` ms.
+
+**Predictive accompaniment (PR-D, `App.jsx`).** When the correct note advances treble in rubato:
+- `rubatoEventHistoryRef` stores `{ wallTime, offset }` for the last 8 advances.
+- `estimateRubatoTps()` returns an EWMA over `(Δticks / Δseconds)` across consecutive pairs (`alpha=0.6`, recent-weighted). First two advances fall back to `bpmRef.current / 5`.
+- `scheduleRubatoAccompaniment(currentOffset, nextOffset)` calls `playMelodies` with bass + percussion + chord tracks and a `tickRange = [currentOffset, nextOffset)` so only the notes belonging in that rubato-window get scheduled, at the estimated BPM.
+
+**Scroll-mode cursor (PR-E, `useSheetMusicHighlight.js`).** When `rubatoScrollAnchorRef.current.isActive`, `runScrollAnimation` bypasses its time-based formula and reads `pageFraction` directly. Each correct advance sets `pageFraction = nextOffset / (numMeasures * measureLengthTicks)` — cursor eases toward the next expected note at 12%/frame (~170ms critically-damped glide). Flip-off clears `isActive` + `rubatoEventHistoryRef` so the next session starts fresh.
+
+**Cycle-break ref.** `onNoteCorrect` is defined in the useInputTest config object whose destructure happens AFTER the callback's useCallback (= `inputTestStateRef` is in TDZ at that point). `rubatoInputStateRefForwarderRef` is a small App-owned ref populated by a useEffect after useInputTest mounts; the callback reads through it at call time.
+
+**Hidden-notes rubato.** Covered by existing `playbackConfig.oddRounds.notes` toggle — the user can turn note glyphs off and still get green/red feedback via `inputTestState`. No separate code path.
+
+**Long-list (deferred):** microphone input (reuse `usePitchDetector`), MIDI keyboard via Web MIDI API. Both feed into the same `handleInputTestNote` once wired.
+
+**Files:**
+- `src/hooks/useAppUIState.js` — `isRubato` + setter + ref.
+- `src/components/sheet-music/BpmControls.jsx` — `q = T` display when rubato.
+- `src/components/sheet-music/SheetMusic.jsx` — tempo-picker "rubato" entry.
+- `src/App.jsx` — rubato engage interceptor, accompaniment EWMA, scroll anchor.
+- `src/hooks/useSheetMusicHighlight.js` — rubato scroll branch in `runScrollAnimation`.
+- `src/contexts/AnimationRefsContext.jsx` — propagates `rubatoScrollAnchorRef`.
+
+---
+
+## 32. Beat-size derivation — `noteGroupSize` (2026-05)
+
+**Purpose:** `processMelodyAndCalculateSlots` splits notes that cross beat boundaries. The beat size (= `noteGroupSize`, ticks per count) needs to match the meter's natural beat.
+
+**Rule (Han 2026-05-29 fix).** In `SheetMusic.jsx`:
+```js
+const isCompound = (tsDen === 8 || tsDen === 16) && tsNum > 3 && tsNum % 3 === 0;
+const noteGroupSize = isCompound ? 3 * denomTicks : denomTicks;
+```
+
+Compound time (6/8, 9/8, 12/8) → beat = dotted-quarter (3 × denomTicks). Everything else (simple time including 3/4, 3/8) → beat = one denominator unit.
+
+The previous heuristic `measureLengthSlots % 18 === 0 ? 18 : 12` mis-classified 3/4 as compound because 3/4's 36-tick measure is divisible by 18. The result: three quarters in 3/4 m1 rendered as `q + (e tied to e) + q` because the middle quarter crossed the false 18-tick boundary at offset 54. Han reported this on the HBD hard bass.
+
+**Files:** `src/components/sheet-music/SheetMusic.jsx`.
+
+---
+
+## 33. N.C. (No Chord) Support (2026-05)
+
+**Purpose:** songs can include "no chord" passages — typically anacruses or fermatas where the harmony is implied/silent.
+
+**Data model.** Chord entry in song JSON:
+```json
+{ "offset": 0, "duration": 36, "notes": [], "root": "", "type": "nc", "name": "N.C." }
+```
+
+`loadSong.js` recognises `type === 'nc'` and constructs a placeholder Chord with empty root/notes. Audio happens to skip these for free because the empty `notes` array trips `playMelodies`' existing `items.length > 0` gate.
+
+**Display.** `ChordLabelsLayer` renders literal "N.C." in italic serif when `chord.type === 'nc'`, instead of the root + suffix layout.
+
+**Open (deferred):** generator fallback for melody pitch-pool during N.C. — Han's spec is "previous chord → next chord → tonic 1-3-5 triad". Not yet implemented because no generated song uses N.C.; for loaded songs the chord progression is given.
+
+**Files:** `src/songs/loadSong.js`, `src/components/sheet-music/ChordLabelsLayer.jsx`.
+
+---
+
+## 34. Anacrusis (Pickup Measure) Detection (2026-05)
+
+**Purpose:** songs starting with a pickup (= rest before first note in m0) should suppress the m0 measure number AND number subsequent measures as if the pickup were "m0".
+
+**Detection (App.jsx).** `anacrusisMeasureIndex = useMemo(() => trebleMelody?.offsets?.[0] > 0 ? 0 : null, [trebleMelody])`. Re-runs on any trebleMelody identity change.
+
+**Display (BarlinesLayer.jsx).** When `(bms - 1) === anacrusisMeasureIndex` (= the leftmost displayed measure IS the song's pickup):
+- The number label is omitted while the start barline / repeat marker stays.
+- `measureLabel(localIndex)` subtracts 1 from the displayed N for ALL labels in the block — so m1 reads "1" not "2", m2 reads "2" not "3", etc.
+
+The `(bms - 1)` adjustment handles the 1-indexed bms versus 0-indexed anacrusisMeasureIndex mismatch.
+
+**Files:** `src/App.jsx`, `src/components/sheet-music/SheetMusic.jsx`, `src/components/sheet-music/BarlinesLayer.jsx`.
+
+---
+
+## 35. Settings Overlay — Keep-alive Zones (2026-05)
+
+**Purpose:** clicking interactive controls (subheader buttons, BPM controls, repeat controls) should NOT close the settings overlay. Only clicks on neutral sheet-music space close it.
+
+**Mechanism (`useSettingsOverlay.js`).** A document-level `pointerdown` capture-phase listener closes the overlay unless the target's `closest('.settings-overlay')` OR `closest('[data-settings-keepalive]')` returns non-null.
+
+**Keep-alive zones:**
+- `SubHeader.jsx` outer `<div data-settings-keepalive="">`.
+- `BpmControls.jsx` outer `<g data-settings-keepalive="">`.
+- `RepeatsControls.jsx` outer `<g data-settings-keepalive="">`.
+
+Without these, clicking a sheet-music button caused the overlay to flash closed (pointerdown) then re-open (button onClick re-toggle), making the action feel like a dismiss instead of a toggle.
+
+**Note clicks on the staff** stay outside the keep-alive — clicking a note WILL close the overlay (intended).
+
+**Files:** `src/hooks/useSettingsOverlay.js`, `src/components/layout/SubHeader.jsx`, `src/components/sheet-music/BpmControls.jsx`, `src/components/sheet-music/RepeatsControls.jsx`.
+
+---
+
+## 36. Sequencer Stop — Soft Mute (2026-05)
+
+**Purpose:** when playback ends or user presses Stop, the release-tail of the last note should ring naturally and subsequent click-to-play interactions should still produce audio.
+
+**Mechanism.** `Sequencer.stop()` calls `instrument.stop()` (= releases playing voices with their soundfont's `ampRelease`, ~0.3–1.0s tail) and aborts pending scheduling. It does **NOT** hard-mute the instrument's output channel.
+
+Previously a `setVolume(0)` was applied BEFORE `.stop()` so the release tail played silently, but the channels stayed muted afterwards — Han's "geen audio na het klikken op een noot/akkoord na 1x afspelen" symptom. Removing the hard-mute restored click-to-play and made stops feel less brutal.
+
+The `abortController` + `instrument.stop()` combination still honours the "no new notes" intent — no new audio is scheduled, and any already-scheduled-but-not-yet-started notes won't sound. Only the currently-sounding voices' release tails ring through.
+
+**Files:** `src/audio/Sequencer.js`.
+
