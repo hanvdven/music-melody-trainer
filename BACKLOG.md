@@ -23,6 +23,19 @@ Deel deze features in bij de juiste categorie.
 
 ---
 
+### Rondes 16/17/18 — afgesloten + open
+
+[Claude 2026-05-29]: korte index van wat in rondes 16-18 is opgepakt:
+- **Ronde 16**: bass beaming bug (q q q in 3/4 split als q + e-e + q). Root cause: `noteGroupSize` heuristic mis-classificeerde 3/4 als compound. Vervangen door simple/compound rule op basis van time signature (zie architecture §32).
+- **Ronde 17**: fermata visueel sync (cursor pause't nu tijdens hold) + Sequencer iteratie-extensie (geen gap tussen repeats meer). Zie architecture §30.
+- **Ronde 18**: scroll-mode rubato (cursor volgt user advance i.p.v. audio tijd). Zie architecture §31.
+- **Ronde 18b**: BACKLOG actualisering + architecture docs §30-36 toegevoegd.
+- **Ronde 18c**: bugfix `processMelodyAndCalculateSlots.js` — `startRestDuration` werd N keer opgeteld in reduce. Trailing-rest padding firede nooit voor korte tracks bij songs met leading rest.
+
+Microfoon-input en MIDI keyboard zijn verplaatst naar de **PR-E long list** (uit Han's instructie van 2026-05-29). Niet voor de korte termijn.
+
+---
+
 ### HBD hard bass: alle MIDI bass-noten (Han 2026-05-29)
 
 > ik mis ook nog noten uit de midi-file in hard-mode kan je zorgen dat ook de bas alle midi-basnoten bevat?
