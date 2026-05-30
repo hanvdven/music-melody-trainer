@@ -158,7 +158,7 @@ export function computeSequenceBoundaries({ numMeasures, repsPerMelody, measureL
  *
  * @param {object}   args
  * @param {Boundary} args.boundary
- * @param {string}   args.variant            — 'snel' | 'mid' | 'lang'
+ * @param {string}   args.variant            — 'snel' | 'mid'
  * @param {number}   args.measureLengthTicks
  *
  * @returns {FadeTiming}
@@ -206,7 +206,7 @@ export function planPaginationFade({ boundary, variant, measureLengthTicks }) {
  *
  * @param {object} args
  * @param {object} args.plan     — see computeSequenceBoundaries
- * @param {string} args.variant  — 'snel' | 'mid' | 'lang'
+ * @param {string} args.variant  — 'snel' | 'mid'
  *
  * @returns {Array<{ boundary, fade }>}
  */
