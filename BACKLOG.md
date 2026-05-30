@@ -614,10 +614,12 @@ add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 - Schedule alle background notes van "nu" tot "volgende treble note" op basis van EWMA-BPM.
 
 **PR-E wave 3+** (later):
-- Microfoon-input (pitch detector hergebruiken).
-- MIDI keyboard.
-- Scroll-mode rubato (= scroll-positie volgt user-advance i.p.v. audio-tijd).
-- Hidden-notes ondersteuning bij rubato (= geen visuele noten, alleen groen/rood feedback).
+- ~~Scroll-mode rubato (= scroll-positie volgt user-advance i.p.v. audio-tijd).~~ ✅ Geïmplementeerd in ronde 18.
+- ~~Hidden-notes ondersteuning bij rubato (= geen visuele noten, alleen groen/rood feedback).~~ ✅ Werkt via bestaande `oddRounds.notes` visibility toggle (ronde 15).
+
+**PR-E long list** (Han 2026-05-29: niet voor de korte termijn):
+- Microfoon-input (pitch detector hergebruiken voor rubato input).
+- MIDI keyboard via Web MIDI API (rubato input alternatief).
 
 **Status PR-C**: gereed voor implementatie. Volgende ronde focus op rubato-aware Sequencer + correct-note detection via bottom-pane keyboard.
 

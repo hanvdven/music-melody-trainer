@@ -199,7 +199,7 @@ const SheetMusic = ({
   const { wipeTransitionRef, scrollTransitionRef, paginationFadeRef,
           transitionRef,
           clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
-          sequencerRef, context } = useAnimationRefs();
+          sequencerRef, context, rubatoScrollAnchorRef } = useAnimationRefs();
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
   const { trebleSettings, setTrebleSettings, bassSettings, setBassSettings,
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
@@ -226,6 +226,7 @@ const SheetMusic = ({
     scrollTransitionRef,
     paginationFadeRef,
     transitionRef,
+    rubatoScrollAnchorRef,
   });
 
   useSheetMusicTransitions(nextLayer, layoutRef, svgRef);

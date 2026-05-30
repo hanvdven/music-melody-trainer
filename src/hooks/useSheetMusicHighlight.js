@@ -76,6 +76,15 @@ const useSheetMusicHighlight = ({
     scrollTransitionRef,
     paginationFadeRef,
     transitionRef,
+    // Rubato scroll anchor (Han 2026-05-29 round 18). When the user is in
+    // rubato + scroll mode, the scroll position no longer follows audio time
+    // — it follows the user's note advance. The ref shape is:
+    //   { pageFraction: 0..1, isActive: boolean }
+    // When isActive is true, runScrollAnimation reads pageFraction directly
+    // and bypasses the time-based formula. The natural scroll-anchor remains
+    // populated so flipping out of rubato resumes smoothly from whatever
+    // pageFraction the audio engine reports.
+    rubatoScrollAnchorRef = null,
 }) => {
 
     // ── Main rAF loop ──────────────────────────────────────────────────────────
@@ -421,6 +430,29 @@ const useSheetMusicHighlight = ({
         const runScrollAnimation = () => {
             const scrollGroup = getScrollGroup();
             if (!scrollGroup) return;
+            // Rubato scroll branch (Han 2026-05-29 round 18): pageFraction is
+            // user-driven, not time-driven. Each correct-note advance writes
+            // the new fraction to rubatoScrollAnchorRef. We ease toward it
+            // here so the scroll glides rather than snapping (~150ms ease-out).
+            const r = rubatoScrollAnchorRef?.current;
+            if (r && r.isActive) {
+                const pageWidth = layoutRef.current?.pageWidth;
+                const melodyWidth = layoutRef.current?.melodyWidth ?? pageWidth;
+                if (pageWidth && melodyWidth) {
+                    // Smooth interpolation: every frame we move 12% of the gap
+                    // toward the target. Gives a critically-damped feel that
+                    // settles in ~10 frames (= ~170ms at 60fps) regardless of
+                    // gap size, without rAF math gymnastics.
+                    if (typeof r.currentFraction !== 'number') r.currentFraction = r.pageFraction;
+                    r.currentFraction += (r.pageFraction - r.currentFraction) * 0.12;
+                    if (Math.abs(r.pageFraction - r.currentFraction) < 0.0005) {
+                        r.currentFraction = r.pageFraction;
+                    }
+                    const tx = (0.25 * pageWidth - r.currentFraction * melodyWidth).toFixed(2);
+                    scrollGroup.setAttribute('transform', `translate(${tx}, 0)`);
+                }
+                return;
+            }
             const s = scrollTransitionRef?.current;
             if (s && s.secondsPerPage > 0) {
                 const pageWidth = layoutRef.current?.pageWidth;
