@@ -311,8 +311,9 @@ logger.error('Sequencer', 'E010-PLAYBACK-START', err, { bpm: 120 });
 - **E017-SCALE-DEF-NOT-FOUND** — scale definition not found for family+mode (scaleHandler.js)
 - **E018-INVALID-SLOTS** — invalid numberOfSlotsPerMeasure in generateRankedRhythm (generateRankedRhythm.js)
 - **E019-TONIC-NOT-FOUND** — tonic note not found in notes array (PianoView.jsx)
+- **E020-JIT-GENERATE** — pagination JIT melody generation threw during deadline OR arm-time fallback (Sequencer.js)
 
-When you add a new `logger.error` call, allocate a new code (e.g. `E020-AUDIO-INIT`) and add it to this list.
+When you add a new `logger.error` call, allocate a new code (e.g. `E021-NEW-FAILURE`) and add it to this list.
 
 ### Error Boundaries
 The root `<ErrorBoundary boundary="root">` in `src/main.jsx` catches anything React renders that throws. For tab content or large isolated UI sections, wrap them in their own ErrorBoundary with a descriptive `boundary` name (e.g. `boundary="sheet-music"`, `boundary="chords-tab"`) so a failure in one area doesn't blank out the whole app and so logs identify which area failed.

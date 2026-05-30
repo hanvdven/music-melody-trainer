@@ -637,6 +637,18 @@ overlay for the next series.
 - Discrete `scrollTransitionRef = {startTime, endTime}` writes per rep — replaced by
   the single continuous `{ startTime, startPageFraction, secondsPerPage }` anchor.
 
+#### Rubato override (§31)
+
+When `rubatoScrollAnchorRef.current.isActive` is true, the scroll rAF in `useSheetMusicHighlight`
+bypasses the time-based `pageFraction = startPageFraction + elapsed / secondsPerPage` formula
+and reads `pageFraction` directly from the rubato anchor. Each correct-note advance writes the
+NEXT expected note's `offset / totalIterationTicks` to the ref's `pageFraction`; the rAF eases
+the displayed `currentFraction` toward it at 12 % / frame (~170 ms critically-damped glide).
+
+Flipping out of rubato clears `isActive` and the natural `scrollTransitionRef` anchor resumes.
+If the anchor hasn't been updated since playback began, the rAF holds the scroll at its last
+position rather than jumping back to the time-based value.
+
 ---
 
 ### 10.4 Common Sequence for All Modes
@@ -1293,6 +1305,16 @@ The number is placed above or below the stem tips depending on stem direction (`
 | `src/utils/melodySlice.js` | Propagates `triplets` through all slice/resize helpers |
 | `src/components/sheet-music/renderMelodyNotes.jsx` | Reads `melodyTriplets`; uses `visualDuration` for note shape; accumulates `tupletGroupData`; renders bracket + label SVG |
 
+### 22.9 Interaction with fermatas (§30)
+
+A tuplet note CAN carry a fermata — both fields live on the parallel-array Melody structure. The fermata events are tick-based (`{ tick, hold }`), so they don't care about tuplet slot accounting. `playMelodies` and `Sequencer.schedNotes` apply the shift uniformly to ALL notes whose offset is past the fermata tick, including subsequent tuplet notes.
+
+What still needs care if you author a song with a fermata mid-tuplet (rare):
+- The tuplet's `noteTicks` for sub-notes uses `groupTicks / noteCount`; the fermata extension is added on top in audio scheduling. The audio sustains the held note for `noteTicks + hold` and pushes the remaining tuplet sub-notes by `hold`.
+- The visual still renders the tuplet bracket + label over the natural-tick positions — the fermata glyph sits above the held note like a normal fermata.
+
+No song in the repo currently uses this combination; it's tested implicitly by the song-level fermata propagation (which doesn't care whether the underlying note is a tuplet or not).
+
 ---
 
 ## 23. Context Architecture — Prop Drilling Elimination (2026-05)
@@ -1945,6 +1967,10 @@ Subsequent notes (offset > fermata tick) all shift uniformly — no "ring throug
 - `src/audio/Sequencer.js` — `schedNotes` shift + `buildScheduledChords` shift + iteration boundary extension.
 - `src/utils/melodySlice.js` — slices carry the song-level fermatas array unchanged (tick-based events are global).
 - `src/components/sheet-music/SheetMusic.jsx` — `renderFermataGlyphs`.
+
+**Cross-references:**
+- §22.9 — fermata + tuplet interaction.
+- §31 — in rubato mode the fermata's hold is ignored (Han 2026-05-29 decision: rubato is user-driven; the held note is just another note advance). The audio shift logic still applies in time-driven playback.
 
 ---
 
