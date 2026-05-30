@@ -116,9 +116,15 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
   const lastNonNullIndex = findLastNonNullIndex(offsets);
   if (lastNonNullIndex >= 0) {
     const lastTimestamp = offsets[lastNonNullIndex] + durations[lastNonNullIndex];
-    const totalDuration = offsets.reduce(
-      (acc, timestamp, index) =>
-        acc + startRestDuration + (durations[index] !== null ? durations[index] : 0),
+    // BUGFIX 2026-05-29: startRestDuration was added inside the reduce — so for
+    // a melody with a leading rest of 24 ticks and 19 notes, totalDuration came
+    // out as 24 × 19 + Σdurations (= 456 + content) instead of 24 + Σdurations.
+    // This made totalDuration always look LARGER than globalMaxDuration, so the
+    // trailing-rest padding never fired for melodies that needed it. Pull
+    // startRestDuration out of the loop — it's the LEADING rest, counted once.
+    const totalDuration = startRestDuration + offsets.reduce(
+      (acc, _timestamp, index) =>
+        acc + (durations[index] !== null ? durations[index] : 0),
       0
     );
     // ADAPTIVE PADDING: Pad to match the song's global end (fixing percussion alignment)

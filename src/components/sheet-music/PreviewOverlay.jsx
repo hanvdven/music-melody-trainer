@@ -62,6 +62,11 @@ const PreviewOverlay = ({
   // rendering, SheetMusic passes negative (history) and positive (further-right
   // preview) multiples of melodyWidth.
   panelOffset,
+  // roundKeyOverride: 'oddRounds' | 'evenRounds' — scroll-mode passes a per-panel
+  // round so each next-series preview panel renders the visibility of THE rep it
+  // represents (Han 2026-05-28). When undefined, falls back to lockedKey /
+  // isOddRound-derived behaviour (pagination/wipe path).
+  roundKeyOverride,
   numAccidentals,
   pixelsPerTick,
   // music data
@@ -105,9 +110,16 @@ const PreviewOverlay = ({
   // would let the overlay's visibility flip mid-overshoot for the 'lang' variant
   // (when isOddRound updates at the boundary while the overlay is still up
   // for another 0.25m).
+  // roundKeyOverride wins over both lockedKey and the isOddRound-derived fallback.
+  // Scroll mode passes a per-panel round (Han 2026-05-28) so each next-series
+  // preview panel reflects ITS rep's visibility, not the master playing round.
   const lockedKey = previewMelody?._roundKey;
-  const nextRoundKey = lockedKey ?? (isOddRound ? 'evenRounds' : 'oddRounds');
-  const nextCfg = previewLayout?.nextCfg ?? (playbackConfig?.[nextRoundKey] ?? {});
+  const nextRoundKey = roundKeyOverride ?? lockedKey ?? (isOddRound ? 'evenRounds' : 'oddRounds');
+  // previewLayout.nextCfg is precomputed from the locked/master round; the override
+  // path bypasses it and reads playbackConfig directly so the cfg matches nextRoundKey.
+  const nextCfg = roundKeyOverride
+    ? (playbackConfig?.[nextRoundKey] ?? {})
+    : (previewLayout?.nextCfg ?? (playbackConfig?.[nextRoundKey] ?? {}));
   const nextNotesVisible = previewLayout?.nextNotesVisible ?? !!nextCfg.notes;
   const nextTreble = nextCfg.trebleEye !== false;
   const nextBass = nextCfg.bassEye !== false;
@@ -146,13 +158,21 @@ const PreviewOverlay = ({
         : undefined
       }
       style={{
-        // scroll: tinted red; fades in via CSS animation (scroll mode only).
-        opacity: animationMode === 'scroll' ? undefined : undefined,
-        animation: animationMode === 'scroll' ? 'scrollPreviewFadeIn 0.5s ease-in forwards' : undefined,
+        // scroll: appear at opacity 1 immediately (Han 2026-05-28). The previous
+        // scrollPreviewFadeIn animation accentuated the new-content moment but
+        // made the right-side panels visibly dimmer than main/yellow panels.
+        opacity: undefined,
+        animation: undefined,
         filter: showSettings ? 'blur(1.5px)' : 'none',
         pointerEvents: 'none',
       }}
     >
+      {/* Leading barline at the panel's startX for scroll mode (Han 2026-05-28).
+          Mirrors the SheetMusic yellow-panel leading barline so red preview panels
+          also delimit their visual block. */}
+      {animationMode === 'scroll' && (
+        <path d={`M ${startX} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.4" />
+      )}
       {nextCfg.chordsEye !== false && previewChords?.length > 0 &&
         <ChordLabelsLayer
           chordProgression={chordProgression}

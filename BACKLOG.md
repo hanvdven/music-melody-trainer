@@ -2,18 +2,6 @@
 
 ---
 
-## ⚠ WORK IN PROGRESS (cloud agents, please read)
-
-[Claude 2026-04-30]: Phases 8-10 of the cleanup refactor are currently in progress. The following items are RESERVED for the active local refactor session — cloud-scheduled agents should NOT pick them up:
-
-- App.jsx slim-down (specifically: setTonic / setSelectedMode / applyHarmonyAtDifficulty extraction)
-- Sequencer.js decomposition (SongBuilder, AnimationScheduler extractions)
-- Test infrastructure (new tests for hooks, noteUtils)
-
-If a backlog item below relates to these areas, leave it alone and pick something else. See CLAUDE.md "Currently In Progress" section for the full file off-limits list. This notice will be removed once the work is complete.
-
----
-
 ## BACKLOG REGELS (voor de AI-agent)
 
 > Deze regels gaan voor alles. Lees ze bij elke sessie opnieuw.
@@ -33,6 +21,76 @@ If a backlog item below relates to these areas, leave it alone and pick somethin
 
 Deel deze features in bij de juiste categorie.
 
+---
+
+### Rondes 16/17/18 — afgesloten + open
+
+[Claude 2026-05-29]: korte index van wat in rondes 16-18 is opgepakt:
+- **Ronde 16**: bass beaming bug (q q q in 3/4 split als q + e-e + q). Root cause: `noteGroupSize` heuristic mis-classificeerde 3/4 als compound. Vervangen door simple/compound rule op basis van time signature (zie architecture §32).
+- **Ronde 17**: fermata visueel sync (cursor pause't nu tijdens hold) + Sequencer iteratie-extensie (geen gap tussen repeats meer). Zie architecture §30.
+- **Ronde 18**: scroll-mode rubato (cursor volgt user advance i.p.v. audio tijd). Zie architecture §31.
+- **Ronde 18b**: BACKLOG actualisering + architecture docs §30-36 toegevoegd.
+- **Ronde 18c**: bugfix `processMelodyAndCalculateSlots.js` — `startRestDuration` werd N keer opgeteld in reduce. Trailing-rest padding firede nooit voor korte tracks bij songs met leading rest.
+
+Microfoon-input en MIDI keyboard zijn verplaatst naar de **PR-E long list** (uit Han's instructie van 2026-05-29). Niet voor de korte termijn.
+
+---
+
+### HBD hard bass: alle MIDI bass-noten (Han 2026-05-29)
+
+> ik mis ook nog noten uit de midi-file in hard-mode kan je zorgen dat ook de bas alle midi-basnoten bevat?
+
+Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120, 132, 144, 168, 180, 192, 204, 216, 240, 252, 276, 288). De originele MIDI `Happy_Birthday___Piano.mid` is per `_layoutNotes` van mei 2026 verwerkt voor de huidige content, maar bevat waarschijnlijk fijnere bass-figuratie die nog niet in de JSON staat.
+
+**Wat ik nodig heb voor implementatie**:
+- Optie (a): upload de MIDI-file ergens in de repo (bv. `docs/midi/Happy_Birthday___Piano.mid`) zodat ik de bass-track kan extracten.
+- Optie (b): lever de extra bass-noten als JSON-edit aan (notes + durations + offsets).
+- Optie (c): geef per maat een grovere beschrijving (bv. "m1 bass: walking 8ths op G-B-D-D"), dan kan ik een passend bass-pattern uitschrijven.
+
+**Status**: gedocumenteerd, gereed wanneer Han de MIDI-source of een spec aanlevert.
+
+---
+
+### Bug (Han 2026-05-29): tuplet slot/length mismatch
+
+> [3:2]q w q q wordt weergegeven en afgespeeld als [3:2]q [x]q w q q r (waar de x een 'leegte' van een kwartnoot is). Dus de tuplet in de generatie maakt de note planning in de war.
+> Ofwel had het een [3:2]h moeten zijn, of had de w een kwartnoot eerder gepland moeten worden. Vind het probleem uit en los op. Ik ben zeker dat het probleem zit in het toekennen van de slots en lengtes in de melodie. Het totaal van nootlengten en de start van de noten komt niet goed overeen. Mogelijk oplosbaar met de grote refactor naar events.
+
+[Claude 2026-05-29 ronde 11 — eerste analyse, NIET geïmplementeerd]:
+
+**Symptom**: een 3:2 quarter-triplet gevolgd door een whole-note krijgt een extra kwartrust ingevoegd. Visueel + audio identiek scheef. Totaal van nootlengten klopt niet meer met de maatlengte.
+
+**Hypothesis-richting** (zonder reproductie):
+- `injectTuplets` markeert een tuplet-kandidaat met `slotCount` slots — dat zijn de slots die de tuplet "consumeert". Voor 3:2 op 4 eighth-slots: slotCount=4 (= 2 quarter beats), noteCount=3.
+- In `melodyGenerator.js` (~line 511-518): `groupTicks = slotCount * timeScale`, `noteTicks = floor(groupTicks / noteCount)`, last note absorbs remainder. Som van noot-ticks = groupTicks. ✅ Klopt op zich.
+- Maar wat Han ziet: na de triplet komt een kwartrust voordat de `w` start. Mogelijke oorzaken:
+  - (a) De `w` was al gepland op de oorspronkelijke slot vóór tuplet-expansion, en de expansion duwde alleen lokale slots (3 noten in 4 oude slots), niet de buurnoten. Maar de `w` zou dan gewoon op zijn slot blijven — geen extra rust.
+  - (b) Het probleem zit in `processMelodyAndCalculateSlots` (= visual layer). De rendering vouwt 3 triplet-noten in 4 slots terug naar een ratio `[3:2]`, maar laat de oorspronkelijke 4 slots staan ipv 2 slots (= 2 quarter beats). De extra 2 slots worden als rust gerenderd.
+  - (c) Of: `[3:2]q` had eigenlijk `[3:2]h` (= 3 halves in 2 halves = 4 quarter beats) moeten zijn — verkeerde ratio-aanduiding door de generator.
+
+**Voorgestelde investigatie-stappen** (voor ronde 11/12 als prioriteit):
+1. Reproduceer met logger.debug — voeg traces toe in `injectTuplets` voor de exacte kandidaat (slotStart, slotCount, n) en in `melodyGenerator` voor de resulterende ticks per noot.
+2. Vergelijk `slotCount * timeScale` (audio-pad) met de visuele slot-toewijzing in `processMelodyAndCalculateSlots` voor dezelfde tuplet-noten.
+3. Check of `triplets[i].visualDuration` correct is voor `[3:2]q` (= 12 ticks = 1 quarter referentienoot) en of de visuele renderer er een 2-quarter-totaal van maakt (dus 1.5 quarters per ratio-noot zou ongeldig zijn).
+
+**Han's hint**: "totaal van nootlengten en de start van de noten komt niet goed overeen" → twee plaatsen om te controleren:
+- som van `melody.durations[i]` over een maat = `measureLengthTicks`? Indien niet, audio/visual drift.
+- `melody.offsets[i+1] - melody.offsets[i] === melody.durations[i]` voor consecutieve noten? Indien niet, gaps die als rest gerenderd worden.
+
+**Status**: gedocumenteerd, niet opgelost. Vereist concrete repro (random regen vinden waar dit gebeurt) of een unit test met een 3:2-triplet input. Han noemt dit "mogelijk oplosbaar met de grote refactor naar events" — die refactor staat al elders in deze backlog. Tot dan: gerichte fix mogelijk maar risico op regressie.
+
+---
+
+### ✅ Bug (Han 2026-05-29): subheader knoppen sluiten settings overlay
+
+> closing settings overlay is in conflict met de knoppen op het scherm: ik kan niet klikken op note coloring, highlights, etc. in de subheader. Wanneer ik op een knop klik, moet de close settings overlay niet triggeren.
+
+[Claude 2026-05-29 ronde 11 ✅ geïmplementeerd]: `SubHeader.jsx` heeft nu `data-settings-keepalive=""` op zijn outer `<div>`. `useSettingsOverlay`'s click-outside-to-close handler (`pointerdown` in capture phase) checkt al op `closest('[data-settings-keepalive]')` als escape hatch; daarmee blijft de overlay open bij subheader-klikken. De renderButton's `e.stopPropagation()` stopt al onClick-propagation, dus de actie zelf (note coloring togglen, etc.) werkt onveranderd.
+
+---
+
+
+
 ### ✅ Bestaande liedjes
 bestaande liedjes (happy birthday, ...)
 [Claude 2026-05-19]: Op verzoek van Han: samenvoegen met custom chord progressions (#25). Twee features: (1) bestaande liedjes afspelen (SHORTLIST); (2) eigen invoer (LONGLIST). Nieuwe feature samen met 'eigen invoer': akkoord / drum-sequencer → LONGLIST.
@@ -50,6 +108,398 @@ bestaande liedjes (happy birthday, ...)
   3. **Bass-akkoord-voicing**: in de MIDI staan zowel grondtonen als 3-stemmige akkoorden in de baspartij? Of alleen grondtonen + 5e? Ik moet de MIDI eerst exact ontleden.
   4. **Source of truth**: blijft de JSON onder `src/songs/definitions/happyBirthday.js` (status quo), of komt er een nieuw `.json`-bestand naast met de MIDI-export en wordt de `.js` een import-wrapper? Voor latere bestaande liedjes is dat schaalbaarder.
   5. **Fermata in HBD**: HBD heeft traditioneel een fermata op "[name]" (3e regel, hoge noot). De MIDI lijkt dat niet expliciet te coderen (MIDI heeft geen fermata-event). Wil je dat ik de fermata met de hand intik op die positie? Zie ook nieuwe fermata-feature hieronder.
+
+[Han 2026-05-28]: **Aanvullende HBD-bugs en feature-requests** (ronde 5):
+
+- **Bug: HBD heeft geen measure grouping → maak fallback voor common time sigs.** In plaats van rhythmicGrouping verplicht te maken, voorzie een fallback per maatsoort:
+  - 3/4: `[3]` quarters, `[2,2,2]` eighths, `[4,4,4]` sixteenths
+  - 4/4: `[2,2]` quarters, `[2,2,2,2]` eighths, `[4,4,4,4]` sixteenths
+  - 6/8: `[3,3]` eighths, `[2,2,2,2,2,2]` sixteenths
+- **Bug: HBD-akkoorden komen niet overeen met de melodie** — de begeleiding houdt vast aan de generator's klassieke cadens. Ik verwacht een 'chord melody' per song (= akkoorden komen uit de song-definitie, niet uit de generator).
+- **Feature: anacrusis**: de eerste maat van HBD is een anacrusis met maatnummer 0. Maatnummering moet hier op 0 (of -1, of vergelijkbaar) starten.
+- **Feature: N.C. (no chord)**: er moeten ook chordless passages mogelijk zijn. ⚠ Heeft impact op melodie-generatie (in het bijzonder als chord-notes als pitch-pool gebruikt worden). Interview nodig voor fallback-strategy.
+- **Feature: song-load reset measure number** — laden van een song zou de current measure-index moeten resetten naar de start van die song.
+- **Feature: chord progression fixed by default after song load** — na laden van een song zou de chord progression standaard 'fixed' moeten staan (= geen herauto-generatie bij volgende randomize).
+- **CRITICAL bug**: generation of zelfs PLAYBACK van volgende maten na het EERSTE sequence-block na song-load levert verkeerde sheet music. (zie ook line ~613 "sheet-music regressie na song-load" — mogelijk hetzelfde symptoom).
+- **HBD lyrics: [name] mist een noot** — '[name]' heeft 2 lettergrepen (bv. "Eve-lyn") en zou dus 2 noten moeten beslaan, niet 1. Plus: traditionele fermata ligt op '[name]' (zie Fermata-sectie).
+
+[Claude 2026-05-28 19:55]: Bovenstaande items uitgepakt in onderstaande sub-secties — elk krijgt zijn eigen plek zodat ze niet vergeten worden bij de volgende ronde.
+
+---
+
+### ✅ HBD/Song-load Bug: measure grouping fallback per maatsoort
+
+[Claude 2026-05-28 ronde 8 ✅ geïmplementeerd]: `loadSong.js` valt nu terug op `chooseGrouping(numerator)` wanneer het song-def `rhythmicGrouping` mist. Dit hergebruikt de bestaande "prefer 3s, dan 2s" decomposition die de generator al gebruikt — geen nieuwe lookup-tabel, conform CLAUDE.md §6c. Werkt voor:
+- HBD (3/4) → [3] ✓
+- 4/4 → [2,2] ✓
+- 5/4 → [3,2] ✓
+- 6/8 → [3,3] ✓
+- 7/8 → [3,2,2] ✓
+- 11/8 → [3,3,3,2] (Bulgarian-folk) ✓
+- 13/16 → [3,3,3,2,2] ✓
+
+Han's spec noemt ook subdivisions ([2,2,2]e en [4,4,4]s voor 3/4). Die zijn niet expliciet nodig — `rhythmicGrouping` in deze codebase is op BEAT-niveau; downstream beaming-logica handelt fijnere subdivisions zelf af. Verificatie volgt in ronde 9 wanneer Han HBD opnieuw test.
+
+**Symptom (Han 2026-05-28)**: Happy Birthday JSON heeft geen `rhythmicGrouping`. De huidige code maakt dit verplicht; ontbrekende grouping veroorzaakt verkeerde beam-berekening of een crash.
+
+**Root cause hypothesis**: `loadSong.js` zet `treble.rhythmicGrouping = songDef.rhythmicGrouping ?? null`. Voor songs die het niet meegeven blijft het null en moet de generator/sheet-music-renderer er zelf een afleiden. De afleiding bestaat (`decomposeNumeratorToBeatGroups` of vergelijkbaar) maar wordt niet automatisch toegepast.
+
+**Fix (Han's voorgestelde fallback)**:
+- 3/4: `[3]q`, `[2,2,2]e`, `[4,4,4]s`
+- 4/4: `[2,2]q`, `[2,2,2,2]e`, `[4,4,4,4]s`
+- 6/8: `[3,3]e`, `[2,2,2,2,2,2]s`
+
+[Claude 2026-05-28 ronde 6 voorstel — voor regular én irregular meters]:
+
+Han's vraag: "hoe met onregelmatiger maatsoorten?". Hier is een berekening die ALLE meters dekt (5/4, 7/8, 11/8, 13/16, ...) zonder een lookup-tabel. Bewijs voor Han's voorbeelden inbegrepen.
+
+```js
+// theory/defaultRhythmicGrouping.js (nieuw)
+//
+// Inputs:  numerator, denominator (= [N, D] uit timeSignature), smallestNoteDenom (4=q, 8=e, 16=s, ...).
+// Output:  array van groepsgroottes in units van smallestNoteDenom. Groepen sommeren tot
+//          N * (smallestNoteDenom / D). Beams + measure-grouping gebruiken dit.
+//
+// Twee gevallen op basis van S = smallestNoteDenom / D:
+//  S = 1  (= grid is the denominator unit, geen fijnere subdivision):
+//          Decompose N into "natural beat groups" volgens onderstaande regels.
+//  S > 1  (= grid is finer than denom):
+//          Itereer over de N denominator-units. Voor SIMPLE time geef per unit
+//          één groep van S. Voor COMPOUND time geef per 3-unit-blok één groep
+//          van 3*S — wacht: Han's 6/8 s = [2,2,2,2,2,2] (= 6 groepen van 2)
+//          contradicts that. Han wil bij sixteenths gewoon de denominator-units
+//          groeperen, niet de beat-units. Dus regel = "S>1: N groepen van S".
+//
+// Decompose voor S=1:
+//  compound = (D == 8 || D == 16) && N % 3 == 0 && N > 3
+//  - compound:   return Array(N/3).fill(3)
+//  - N==1: [1]; N==2: [2]; N==3: [3]; N==4: [2,2]; N==5: [3,2]
+//  - N==6: [2,2,2]  (simple 6/4 — compound 6/8 is al via compound-rule)
+//  - N==7: [3,2,2]
+//  - N>=8 odd:  [3, ...decompose(N-3)]
+//  - N>=8 even: [2, ...decompose(N-2)]
+//
+// Long-short convention: oneven N krijgt leading 3 (= long-short feel).
+
+function defaultRhythmicGrouping(numerator, denominator, smallestNoteDenom = denominator) {
+  const N = numerator;
+  const D = denominator;
+  const S = smallestNoteDenom / D;
+  if (!Number.isInteger(S) || S < 1) {
+    // smallestNoteDenom < D (= melody uses LARGER notes than the beat) — rare.
+    // Fall back to S=1 with possibly fractional units; callers should not hit this.
+    return decomposeForBeatLevel(N, D);
+  }
+  if (S === 1) return decomposeForBeatLevel(N, D);
+  // S > 1: each denominator-unit becomes one beam-group of S subdivisions.
+  return Array(N).fill(S);
+}
+
+function decomposeForBeatLevel(N, D) {
+  const isCompound = (D === 8 || D === 16) && N % 3 === 0 && N > 3;
+  if (isCompound) return Array(N / 3).fill(3);
+  if (N === 1) return [1];
+  if (N === 2) return [2];
+  if (N === 3) return [3];
+  if (N === 4) return [2, 2];
+  if (N === 5) return [3, 2];
+  if (N === 6) return [2, 2, 2];   // simple 6 (e.g. 6/4)
+  if (N === 7) return [3, 2, 2];
+  if (N % 2 === 1) return [3, ...decomposeForBeatLevel(N - 3, D)];
+  return [2, ...decomposeForBeatLevel(N - 2, D)];
+}
+```
+
+Verificatie tegen Han's voorbeelden:
+- 3/4 q (N=3, D=4, S=1):  S=1 → decomposeForBeatLevel(3) = [3] ✓
+- 3/4 e (N=3, D=4, S=2):  S>1 → Array(3).fill(2) = [2,2,2] ✓
+- 3/4 s (N=3, D=4, S=4):  S>1 → Array(3).fill(4) = [4,4,4] ✓
+- 4/4 q (N=4, D=4, S=1):  S=1 → decomposeForBeatLevel(4) = [2,2] ✓
+- 4/4 e (N=4, D=4, S=2):  S>1 → [2,2,2,2] ✓
+- 4/4 s (N=4, D=4, S=4):  S>1 → [4,4,4,4] ✓
+- 6/8 e (N=6, D=8, S=1):  S=1, compound (D=8, N%3=0, N>3) → [3,3] ✓
+- 6/8 s (N=6, D=8, S=2):  S>1 → [2,2,2,2,2,2] ✓
+
+Irregular meters (gepredict, niet door Han bevestigd — eerst bespreken):
+- 5/4 q:  decomposeForBeatLevel(5) = [3,2]            (long-short)
+- 5/4 e:  Array(5).fill(2) = [2,2,2,2,2]
+- 5/8 e:  decomposeForBeatLevel(5) = [3,2]            (gelijk aan 5/4q)
+- 7/8 e:  decomposeForBeatLevel(7) = [3,2,2]
+- 11/8 e: decomposeForBeatLevel(11) = [3,3,3,2]       (3 leading + decompose(8) = [3, 2,2,2,2] → fix: zie volgorde)
+- 13/16 s: decomposeForBeatLevel(13) = [3,3,3,2,2]
+- 9/8 e (compound): D=8, N=9 divisible by 3, N>3 → [3,3,3]
+- 12/8 e (compound): [3,3,3,3]
+
+Edge case 11/8: oneven → [3, decompose(8)] = [3, [2,2,2,2]] = [3,2,2,2,2]. Maar conventie wil vaak [3,3,3,2] of [2,3,3,3]. Ons algoritme geeft [3,2,2,2,2] — verschilt van de "Bulgarian-folk" conventie. **Vraag voor Han**: voor 11/8 / 13/8 wil je leading-triplet of meerdere triplets? Het algoritme is met één parameter (`tripletGreedy`) aanpasbaar: greedy probeer max triplets, dan vul met duplets aan.
+
+Greedy-triplet alternative:
+```js
+function decomposeGreedy(N) {
+  // Maximize triplets, leave duplets for the remainder.
+  const triplets = Math.floor(N / 3);
+  let rem = N - triplets * 3;
+  if (rem === 1) {
+    // Can't have a leftover 1 — borrow a 3 to make 4 = 2+2.
+    return [...Array(triplets - 1).fill(3), 2, 2];
+  }
+  // rem is 0 or 2: triplets then 0 or one duplet.
+  return rem === 0 ? Array(triplets).fill(3) : [...Array(triplets).fill(3), 2];
+}
+```
+11/8 greedy: floor(11/3)=3 triplets + rem=2 → [3,3,3,2] (conventional Bulgarian) ✓
+13/16 greedy: floor(13/3)=4 + rem=1 → [3,3,3,2,2] ✓
+7/8 greedy: floor(7/3)=2 + rem=1 → [3,2,2] ✓ (same as before)
+
+**Voorstel**: gebruik `decomposeGreedy` als default voor S=1 (consistent met folk conventies), behoud `decomposeForBeatLevel` als fallback voor N<=7 waar de bekende patterns scherper zijn.
+
+**Files (bij implementatie)**:
+- nieuw: `src/theory/defaultRhythmicGrouping.js`
+- `src/songs/loadSong.js`: vervang `?? null` door `?? defaultRhythmicGrouping(...)` voor treble/bass/percussion.
+- `src/theory/__tests__/defaultRhythmicGrouping.test.js`: smoke tests voor alle voorbeelden hierboven.
+
+**Wacht op**: Han's go op het algoritme (in bijzonder de 11/8 / 13/16 greedy-triplet conventie).
+
+---
+
+### HBD/Song Bug: chord melody komt uit generator i.p.v. song-definitie
+
+**Symptom (Han 2026-05-28)**: HBD's chord-progressie volgt nog steeds de generator's `chordSettings.strategy: 'classical-1-4-5-1'` in plaats van de in de song meegeleverde akkoorden. De akkoorden ZIJN in `happyBirthday.json` aanwezig (G, D7, G, G, C, D7, G met juiste offsets en durations), maar worden mogelijk niet als bron-van-waarheid gebruikt tijdens playback/regen.
+
+**Root cause kandidaten**:
+1. `loadSong.js` zet wel `chordMelody` maar de Sequencer / regen-loop overschrijft die op de eerste series-flip met de generator's eigen chord-progressie.
+2. De UI heeft geen "fixed chord progression" toggle die na song-load standaard aan staat.
+3. De chord-progressie in song-definitie wordt enkel voor displaybar gebruikt, niet voor audio.
+
+**Fix-richting**: zie ook "chord progression fixed by default after song load" item. Beide moeten samen.
+
+---
+
+### ✅ HBD/Generic Feature: anacrusis (measure 0)
+
+[Claude 2026-05-28 ronde 8 ✅ geïmplementeerd]: 
+- `App.jsx` berekent `anacrusisMeasureIndex = useMemo(() => trebleMelody?.offsets?.[0] > 0 ? 0 : null, [trebleMelody])`. Dit hertrigger als trebleMelody verandert (= song-load of regen).
+- Doorgepassed via `sheetMusicCommonProps` → SheetMusic → BarlinesLayer (alle drie BarlinesLayer-instances).
+- BarlinesLayer's iterMeasureLines: bij isStart en `bms === anacrusisMeasureIndex` (= leftmost displayed measure IS de song's pickup), wordt het maat-nummer-label weggelaten. De barline/repeat-marker zelf blijft (geen visuele lege ruimte aan de start).
+- Voor repeat-iteraties: alleen de literal m0 (= startMeasureIndex=0) wordt onderdrukt. Bij iteration 1 met startMeasureIndex=9 wordt het nummer "9" gewoon getoond — bewust, omdat iteration 1 musisch een continuatie is, niet een nieuwe pickup. Han kan dit later refinen als hij iteration-restart-numbering wenst.
+
+Files: `src/App.jsx`, `src/components/sheet-music/SheetMusic.jsx`, `src/components/sheet-music/BarlinesLayer.jsx`.
+
+---
+
+**Han 2026-05-28**: De eerste maat van HBD is een anacrusis. Verwachting: maatnummering start op 0 (of mogelijk -1, conventie-vraag).
+
+[Han 2026-05-28 antwoord]: Auto-detect uit leidende rust + geen nummer.
+
+**Geconcretiseerd plan (Claude 2026-05-28 ronde 7)**:
+- **Detectie**: bij song-load, controleer of `treble.offsets[0] > 0` (eerste noot na een rest in m0). Zo ja → `isAnacrusis = true`. Geen flag in song-def nodig.
+- **Display**: in `BarlinesLayer.jsx`, voor de eerste maat van het displayed window (m=0 of m=`startMeasureIndex`), als `isAnacrusisMeasure(slice)` true is, render GEEN maatnummer-label. De barline zelf blijft (geen visuele leegte aan de start).
+- **numMeasures**: blijft incl. anacrusis (HBD = 9). De anacrusis-detectie is een display-laag, geen counting-laag.
+- **Repeat-iteraties**: alleen de EERSTE measure-index van een song-load wordt als anacrusis behandeld. Bij rep 2 (measureIndex=9 voor HBD) hetzelfde patroon? **Niet automatisch** — alleen m=0 van de geladen song is een anacrusis; rep 2's m=9 is een continuatie. Detectie moet weten "welke measureIndex is de song-start" — sla dit op in App-state als `songStartMeasureIndex` (default null).
+
+**Files (bij implementatie)**:
+- `src/App.jsx` `loadSongAndPlay`: detect anacrusis, store `songStartMeasureIndex = 0`.
+- `src/components/sheet-music/BarlinesLayer.jsx`: nieuwe `isAnacrusisAtMeasure` check.
+- `src/components/sheet-music/SheetMusic.jsx`: pass `songStartMeasureIndex` prop door.
+
+**Status**: gereed voor implementatie (ronde 8).
+
+---
+
+### ✅ HBD/Generic Feature: N.C. (no chord) passages
+
+[Claude 2026-05-28 ronde 9 ✅ infrastructure + HBD-anacrusis geïmplementeerd]:
+- **HBD JSON**: easy + hard chord-progressions splitsen de openings-G chord (offset 0, duration 72) in twee entries: N.C. (offset 0, duration 36, type `"nc"`, lege notes/root) over de anacrusis, en G (offset 36, duration 36) op m1's downbeat.
+- **loadSong.js**: herkent `chord.type === 'nc'` en construeert een placeholder Chord met lege root + lege notes. Audio skipt N.C. automatisch want playMelodies' bestaande `items.length > 0` gate vuurt niet.
+- **ChordLabelsLayer.jsx**: rendert italic serif "N.C." in plaats van root + suffix wanneer chord.type === 'nc'.
+
+De generator-pool fallback (prev → next → tonic 1-3-5) is NIET geïmplementeerd want voor HBD's gebruik (= geladen song, generator wordt niet aangeroepen) is het niet nodig. Wanneer een toekomstige feature `melody-generation-met-N.C.-in-progressie` opduikt, kan de resolver utility worden toegevoegd zoals beschreven onder "scope refinement".
+
+**Han 2026-05-28**: N.C. (no chord, "tacet harmony") moet kunnen voorkomen in een chord-progressie. ⚠ **Impact op melodie-generatie**: als de generator chord-notes als pitch-pool gebruikt, en een passage heeft "geen akkoord", wat is dan de pool?
+
+[Han 2026-05-28 antwoord]: "doe maar: voorgaand anders volgend, anders, 1 3 5 van toonladder". Dus fallback-chain: previous chord's notes → next chord's notes → tonic triad (scale degrees 1, 3, 5).
+
+**Geconcretiseerd plan (Claude 2026-05-28 ronde 7)**:
+- **Representatie**: chord-progression krijgt een nieuw chord-type `"nc"` (of `null` chord entry met `type: 'nc'`). Visueel: "N.C." text boven de staff op de offset waar de N.C. start.
+- **Melodie-generator fallback** (in `convertRankedArrayToMelody.js` of waar `chordNotes` als pool gebruikt wordt):
+  ```js
+  function resolveChordPool(currentChord, prevChord, nextChord, scaleNotes) {
+    if (currentChord && currentChord.type !== 'nc') return currentChord.notes;
+    if (prevChord && prevChord.type !== 'nc') return prevChord.notes;
+    if (nextChord && nextChord.type !== 'nc') return nextChord.notes;
+    // Tonic triad: scale degrees 1, 3, 5.
+    return [scaleNotes[0], scaleNotes[2], scaleNotes[4]].filter(Boolean);
+  }
+  ```
+- **Audio gedrag**: bass + percussion blijven spelen (alleen treble's chord-pool faalt-back). Chord-staff zwijgt tijdens N.C. (= geen akkoord-akkoord gespeeld).
+
+**Files (bij implementatie)**:
+- `src/model/Chord.js`: nieuwe `type: 'nc'` value, eventueel met factory `Chord.NoChord()`.
+- `src/generation/convertRankedArrayToMelody.js` of `melodyGenerator.js`: pass prev/next chord context naar pitch-resolver, gebruik `resolveChordPool`.
+- `src/audio/playMelodies.js`: skip chord-stack playback bij N.C.
+- `src/components/sheet-music/ChordLabelsLayer.jsx`: render "N.C." text wanneer chord.type === 'nc'.
+
+**Status**: gereed voor implementatie (ronde 8).
+
+[Claude 2026-05-28 ronde 8 — scope refinement]: Bij implementatie blijkt: `chord.notes` wordt op ~8 plekken consumed (`convertRankedArrayToMelody.js`, `melodyGenerator.js` veel keren, `playMelodies.js`). De cleanste aanpak is om N.C. fallback **op chord-progression-build-time** te resolven (= bij `loadSong.js` of chord-generator), zodat downstream `chord.notes` gewoon de fallback-noten heeft. `chord.type === 'nc'` wordt behouden voor display + audio-skip. Hiermee:
+- 1 plek waar fallback wordt berekend (resolver utility).
+- Bestaande consumers blijven onveranderd.
+- N.C.-display + audio-skip zijn de enige nieuwe code-paden.
+
+Echter: er bestaat momenteel **geen song met N.C.** om tegen te implementeren. Zonder concrete test-data wordt dit hypothetisch werk. **Voorstel: uitgesteld tot ronde 9** + Han ofwel maakt een N.C.-test-song, ofwel bevestigt dat ik de N.C. functionaliteit blind moet implementeren. Pure resolver-utility kan los toegevoegd worden als geunit-test, dat zou een nuttige tussenstap zijn.
+
+---
+
+### HBD/Song-load: reset measure number + fixed chord progression
+
+**Han 2026-05-28**: Bij song-load:
+- Reset `startMeasureIndex` / `currentMeasureIndex` naar 0 (of de anacrusis-positie).
+- Zet chord-progression `fixed`-rule standaard aan zodat de generator de song's akkoorden niet overschrijft bij volgende randomize.
+
+**Files**: `src/App.jsx` `loadSongAndPlay` callback, `useMelodyState.js`.
+
+✅ **Geïmplementeerd (Claude 2026-05-28 ronde 6)**: chord-pin was al sinds 2026-05-20 in de callback (`randomize: { chords: false }` op line ~446 van `App.jsx`). Toegevoegd: `setStartMeasureIndex(0)` in dezelfde callback zodat een song altijd bij maat 0 begint. Files: `src/App.jsx`.
+
+---
+
+### ✅ (vermoedelijk) CRITICAL HBD Bug: verkeerde sheet music na song-load (2e sequence block)
+
+[Claude 2026-05-29 ronde 17 — status update]: De `onStop` reset uit ronde 10 (= alle visual state opschonen op stop, inclusief `setStartMeasureIndex(0)`, `setBlockMeasureStart(1)`, `setCurrentMeasureIndex(null)`, etc.) was waarschijnlijk root cause. Sindsdien geen herhaalde melding van Han. **Wacht op verificatie**: speel HBD repeat door tot iteratie 2 begint en controleer of sheet music nu klopt met audio.
+
+---
+
+
+**Han 2026-05-28**: "Generation of zelfs playing van subsequent maten na het EERSTE sequence block na laden van een song levert verkeerde sheet music."
+
+**Symptom**: Song-load werkt; eerste sequence-block (= eerste 9 maten HBD) wordt correct getoond. Na de eerste series-flip (volgende iteratie) wordt de bladmuziek fout.
+
+**Hypotheses (Claude 2026-05-28 ronde 6, verfijnd)**:
+
+Drie scenario's afhankelijk van playback-mode:
+
+1. **"Start Generating" (continuous)** — verwachte regen, niet de bug Han bedoelt:
+   In continuous mode is regen aan, melody=true (default). Series 2 = random regen. Dit is bekend gedrag, niet de bug. Maar als Han verwachtte dat een geladen song "doorgespeeld" zou worden i.p.v. geregenereerd, is dat een design-issue (oplossing: bij song-load ook melody-pin: `randomize.melody=false` zetten?).
+
+2. **"Play This" (handlePlayMelody)** — éénmalig, geen series 2 mogelijk. Niet relevant.
+
+3. **"Repeat" mode (handlePlayRepeat)** — meest waarschijnlijk de bug-bron:
+   `isRepeatMode=true`, dezelfde melody wordt herhaald. Sequencer's `globalMeasureIndex` blijft groeien (= 0..8, 9..17, 18..26 voor HBD 9-maats song). `_buildIterationSlices` schrijft elke iteratie als NIEUWE slices met onafhankelijke `measureIndex` in de Song. `startMeasureIndex` setter (line 310 Sequencer.js) updated naar de huidige iteratie's start.
+
+   **Vermoedelijke breekpunten**:
+   a. **Lyrics**: HBD heeft expliciete lyrics gebonden aan offsets `[24, 33, 36, ...]`. Bij iteration 1, de slices worden gebouwd uit DE oorspronkelijke melody (treble), die nog steeds dezelfde offsets heeft. Maar `globalMeasureIndex=9` → measureIndex 9-17. De sheet music renderer leest measureIndex 9-17 uit Song, krijgt slices van DE oorspronkelijke melody. Lyrics blijven hangen aan de noten. ✅ Should work?
+   b. **Anacrusis-mismatch**: HBD m0 is anacrusis met `offsets[0]=24` (= 24 ticks rest aan begin). Het Song-system slice-er rond meter-grenzen: maat 0 bevat noten op offset 24-35 (relative 0-11), maat 9 bevat noten op offset 24-35 (relative 0-11). Maar de eerste-rep song heeft "24 ticks rest" voor de eerste noot; herhaalde versie heeft GEEN gap tussen rep 1's "you!" (offset 288, dur 36) en rep 2's "Hap-py" (offset 24+324=348). Dat is een ritme-glitch (geen rest tussen rep, terwijl rep 1 begint met rest).
+   c. **Chord-progression-loop**: chord-progressie heeft 7 chords op offsets 0, 72, 108, 180, 216, 252, 288 (totaal 324 ticks = 9 maten). Bij rep 2, offsets schuiven naar 324+0, 324+72, ... maar de Song-slicer / generator past dit ALLEEN aan als chord-progression een Melody is met juiste offsets. Anders: chord-progressie speelt niet of speelt op fout moment.
+
+**Voorgestelde repro-stappen voor Han**:
+1. Load Happy Birthday (easy, default tonic).
+2. Klik "Play This" met de Repeat-toggle aan (= REPEAT mode).
+3. Wacht tot rep 2 begint. Wat zie je verkeerd? (melody-noten? lyrics? chord-akkoorden? ritme?)
+4. Probeer met "Start Generating" — wijkt het van Repeat-mode af?
+
+[Han 2026-05-28 antwoord]: **Sheet-music render ≠ audio, audio correct**. Het is dus puur een rendering-bug — audio speelt HBD correct over en weer, maar sheet music toont foute noten / labels / posities vanaf de 2e sequence-block.
+
+**Geconcretiseerd onderzoek (Claude 2026-05-28 ronde 7)**:
+
+Audio = correct → de Sequencer's `scheduledNotes` zijn juist gepland. SheetMusic rendert echter via React state (`trebleMelody`, `bassMelody`, `chordProgression`, `startMeasureIndex`). Dat divergeert.
+
+Hypotheses (gefocust op rendering-laag):
+1. **`startMeasureIndex` advances** maar het melody-object stays the same. SheetMusic renders `trebleMelody` from offset 0 (= start van melody), maar labelt de maten met `startMeasureIndex + m`. Bij iteration 1 toont de bladmuziek "Hap-py" maar met maatnummer 9, niet 0. Voor de gebruiker: "verkeerde maatnummers + lyrics op verkeerde plek".
+2. **`allOffsets` divergeert**: in pagination mode wordt `sliceMelodyByRange(trebleMelody, ml, displayNumMeasures, localMeasureStart)` aangeroepen. Bij `localMeasureStart > 0` (= page > 0 binnen sequence-block) slicet hij het melodie-object aan een offset > 0 → andere offsets dan iteration 0. Voor SHEET-LAYOUT die offsets gebruikt → andere x-posities. Voor lyrics-rendering die ORIGINAL `melody.offsets` gebruikt → mismatch met `allOffsets`.
+3. **Chord-progression slicing**: chord-progression heeft offsets 0, 72, 108, ..., 288 (HBD specifiek). Bij iteration 1 mag het CHORD-MELODIE ofwel doorgrowen naar 324+ (nieuwe progressie identiek copy) ofwel wrappen. Onduidelijk wat in praktijk gebeurt.
+
+**Suggestie voor concrete bugfix-pad**:
+- Eerst bekijk je in welke modus (scroll/wipe/pagination) Han de bug ziet. Per Han's eerdere feedback: alle drie modi geven bugs, maar mogelijk verschillend.
+- Voor pagination: trace `localMeasureStart` evolutie tijdens iteraties.
+- Voor wipe/scroll: trace `startMeasureIndex` evolutie en hoe SheetMusic measure-nummers vs lyrics rendert.
+
+**Geen blind fix** zonder mode-specifieke repro. Wel: de `setStartMeasureIndex(0)` reset in item 5 verkleint de kans bij eerste-laad-en-direct-afspelen.
+
+**Cross-reference**: line ~613 "sheet-music regressie na song-load" — waarschijnlijk dezelfde bug. Mark beide gelijktijdig op te lossen.
+
+---
+
+### ✅ Fermata (robust) + [name] lyric (separate)
+
+[Claude 2026-05-29 ronde 17 — fermata robust afgerond. Status na rondes 9, 12, 13, 17]:
+
+**Data model** (round 13): fermatas zijn nu **song-level tick-based events** `[{ tick, hold }]` op het difficulty-niveau van een song. `loadSong.js` propageert ze naar treble + bass + percussion + chordMelody zodat audio + visuals uniform shiften.
+
+**Audio** (`playMelodies.js`, rondes 12, 13): per noot wordt cumulatieve shift = sum(holds met tick < noot.offset) toegevoegd aan audio-tijd. Noot AT tick (= de fermata-noot zelf) krijgt zijn duur uitgebreid met hold. Alle tracks (treble, bass, chord, percussion) zien dezelfde fermatas en shifts.
+
+**Visual sync** (`Sequencer.js`, round 17): `scheduledNotes` (= source-of-truth voor cursor-highlight) past nu dezelfde fermata shift toe. `buildScheduledChords` ook. Cursor pause't dus op de fermata-noot zo lang als hold duurt; geen mismatch meer tussen audio en cursor.
+
+**Iteratie-extensie** (`Sequencer.js`, round 17): na de inner measure loop wordt `totalIterationFermataHold × timeFactor` toegevoegd aan `nextStartTime` zodat repeats geen gap meer hebben tussen iteraties.
+
+**Visual glyph** (`SheetMusic.jsx`, rondes 9, 12): `renderFermataGlyphs` tekent Maestro `U` boven de staf op de fermata-noot positie. Position is `trebleStart - 2` (round 12 aanpassing na Han's "onnodig hoog" feedback).
+
+**HBD JSON**: `fermatas: [{ "tick": 216, "hold": 18 }]` voor easy + hard — `[name]` houdt vast voor natural 24 + 18 = 42 ticks.
+
+**Open verfijning** (low priority): stem-direction-aware glyph swap. Han spec: lowercase 'u' onder noot voor stem-up notes, capital 'U' boven voor stem-down. Vereist per-note stem direction uit `renderMelodyNotes`. Huidige 'U' boven werkt voor HBD's C5 (= stem-down).
+
+**[name] lyric streep** (round 9, Han keuze C): geen werk tot een name-input UI er is.
+
+---
+
+### Oudere fermata historie (referentie)
+
+[Claude 2026-05-28 ronde 9 ✅ fermata infrastructuur v1 — vervangen door round 13 song-level refactor]:
+- **Melody.fermatas**: array van `{ noteIndex, hold }` waarbij `hold` het EXTRA aantal ticks is dat de noot aanhoudt voorbij haar natural duration.
+- **loadSong.js**: leest `fermatas` veld uit JSON op treble/bass blokken.
+- **playMelodies.js**: bouwt een noteIndex → hold map uit de volledige melody en voegt de hold toe aan de geplande noot-duur. GEEN offset shift — opvolgende noten blijven op hun originele offsets, dus de fermata sustain overlapt elke anacrusis daarna (= HBD's traditionele rendition waarin [name] vasthoudt terwijl de volgende strofe begint).
+- **sliceMelodyByMeasure**: `durations` blijft natural; per-slice `fermatas` array (met slice-relatieve noteIndex) wordt mee-geslicet zodat de visuele laag glyphs kan plaatsen op paged views.
+- **SheetMusic.jsx**: nieuwe `renderFermataGlyphs` tekent Maestro `U` glyph (boven de staf) op de x-positie van elke fermata-noot.
+- **HBD JSON** (easy + hard): `"fermatas": [{ "noteIndex": 17, "hold": 18 }]` → [name] houdt vast voor natural 24 + 18 = 42 ticks (= 3.5 quarters) terwijl de volgende verse's "Hap-py" anacrusis eronder begint.
+
+**Open verfijning (ronde 10 candidate)**: stem-direction-aware glyph swap. Han: "u en shift u zijn voor onder (stem up) of boven (stem down) de noot." → lowercase 'u' onder de noot voor stem-up notes, capital 'U' boven de noot voor stem-down notes. Vereist toegang tot per-note stem direction uit renderMelodyNotes. Simpele heuristic: pitch boven staff middle = stem down (current 'U' boven werkt), pitch onder middle = stem up (zou 'u' onder moeten zijn). Voor HBD's C5 [name] werkt de current 'U' boven correct. Voor lagere noten later.
+
+**[name] lyric streep**: Han 2026-05-28 koos **optie (c)**: accepteer dat HBD's '[name]' visueel niet wijzigt tot een name-input UI er is. Geen werk hier; staat open voor toekomst.
+
+---
+
+**Han 2026-05-28**: '[name]' in "Happy Birthday dear [name]" wordt vaak 2 lettergrepen (bv. "Eve-lyn", "Han-sel"). Huidige JSON heeft '[name]' als 1 noot. Plus: traditionele fermata ligt op '[name]'.
+
+[Han 2026-05-28 antwoord]: 1 noot blijven, fermata audio-only ×1.5 duur, lyrics-streep voor 2-syllabe namen.
+
+**Geconcretiseerd plan (Claude 2026-05-28 ronde 7)**:
+
+**Lyrics-deel** (klein):
+- HBD JSON krijgt geen verandering aan de noot-array; lyrics blijft `"[name]"` als enkele entry.
+- Bij song-load (of bij een naam-prompt UI later), als de geconfigureerde naam meer lettergrepen heeft dan 1:
+  - Lyric blijft `"[name]"` op de eerste noot.
+  - Render een continuatie-streep `"—"` onder de daaropvolgende-noot-positie (of expliciet onder dezelfde noot, met een tweede lettergreep tekst).
+- Voor 1-syllabe namen: geen streep, gewone weergave.
+- **Files**: `SheetMusic.jsx` `renderTextLyricsRow` — detect `"[name]"` placeholder + name-syllable-count (uit een nieuwe `songName` prop, default "Han" = 1-syllabe of een namen-database).
+
+**Fermata-deel** (groter — interactie met audio-scheduling):
+- **Semantiek (Han bevestigd)**: ×1.5 audio-duur. Notatie: noot zelf is een ENKELE quarter (of half) in de JSON, fermata-marker is een aparte metadata.
+- **Encoding**: nieuwe `fermatas` array in de song's treble-block: `fermatas: [{ noteIndex: 17 }]` waar `noteIndex` verwijst naar de positie in `notes`/`offsets`/`durations`.
+- **Audio**: in `playMelodies.js` (of `Sequencer._buildIterationSlices`), bij het schedulen van noten: als note has fermata, vermenigvuldig duration met 1.5 EN schuif alle volgende offsets van die maat (en eventueel de hele iteratie) op met `0.5 × original duration`. NIET de notatie wijzigen.
+- **Re-sync na fermata**: vraag voor Han — sync re-aligneert (a) per maat (next bar starts on time), (b) per series-flip (next iteration starts on time), of (c) nooit (alles shuift mee permanent voor de iteratie)? Veel veiliger is (a) — fermata "eats" beats van de huidige maat zodat de volgende maat op tijd start. Maar dat conflicteert met ×1.5 = extra duur die het ergens heen moet.
+- **Visualisatie**: SHIFT+u (small) en u (large) glyphs uit Maestro boven de fermata-noot. Render-laag `FermataMarkers.jsx` (nieuw) zit boven `MelodyNotesLayer`.
+
+**Open fermata-vragen** (van eerder backlog, line ~156):
+1. ✅ Semantiek: ×1.5, audio-only — bevestigd.
+2. ✅ Notatie ongewijzigd, alleen marker — bevestigd.
+3. ⏳ Re-sync na fermata: per maat / per series / nooit?
+4. ⏳ Fermata in elk repeat of alleen eerste/laatste?
+5. ⏳ Visual glyph: SHIFT+u (small) of u (large) — beide of één van twee?
+6. ⏳ Welke offset wordt opgeschoven: alleen rest-van-maat, of hele iteratie?
+
+Niet doen zonder antwoorden op 3–6.
+
+**Files (bij implementatie)**:
+- `src/songs/data/happyBirthday.json`: voeg `fermatas: [{ noteIndex: 17 }]` toe (= [name] op offset 216).
+- `src/songs/loadSong.js`: parse `fermatas` veld door naar Melody object.
+- `src/audio/Sequencer.js` of `playMelodies.js`: fermata-aware audio scheduling.
+- nieuwe `src/components/sheet-music/FermataMarkers.jsx`.
+
+**Status**: lyrics-deel gereed voor implementatie. Fermata-deel wacht op antwoorden 3-6.
+
+[Claude 2026-05-28 ronde 8 — open vraag voor implementatie]: lyrics-streep voor 2-syllabe namen vereist eerst een **naam-input UI** waar de gebruiker zijn naam invult. Zonder die UI heeft de app geen informatie over het syllable-count. Een hardcoded default ("naam" = 2 syllables) als demo voelt arbitrair. **Voorstel**: uitgesteld tot ronde 9 + Han ofwel:
+- (a) Bevestigt dat we een name-input UI bouwen (apart prompt / songs-tab veld).
+- (b) Levert een vaste default-naam met syllable-count die de demo dient.
+- (c) Accepteert dat HBD's '[name]' visueel niet wijzigt tot de UI er is.
+
+---
 
 ### Profiel-icoon & submenu (navigatie)
 vervang profile settings icoon met Lucide: user.
@@ -107,13 +557,136 @@ add symbols and play mode for free time aka tempo ad libitum aka tempo rubato
 [Claude 2026-05-10]: ⬇ LAGE PRIORITEIT — op verzoek van Han. Vereist uitgebreidere toelichting voor implementatie.
 [Claude 2026-05-19]: Op verzoek van Han: rubato (~) als maatsoort wél gewenst — toevoegen als een kiesbare "maatsoort" (bijv. symbool ~ in de maatsoort-kiezer) naast normale maatsoorten. Interview nodig voor exacte afspeellogica en notatie.
 
-### Common time-symbool: Maestro SHIFT+T ipv 4/4
+[Han 2026-05-28]: **Rubato scroll — gedetailleerde scope (verbatim uit chat)**:
+> Ik wil ook meteen de 'rubato scroll' oppakken.
+> Het idee is dit: vervang de BPM door een rubato symbool (shift+T) dus q = shift + T in plaats van een bpm-cijfer, en het woord rubato. Selecteerbaar door lange klik op de BPM-naam.
+>
+> Gedrag - wave 1: alle animatiemodes behalve scroll: highlight in treble de volgende te spelen noot.
+> Wanneer de speler via input keyboard de juiste noot speelt (dus niet door op bladmuziek te klikken) wordt de noot groen. Wanneer de speler de laatste noot van visual block speelt, triggert de animatie.
+>
+> Wave 2- reken een 'geschatte BPM' uit door de laatste 3 gespeelde noten. schedule playback van alle VOLGENDE noten TOT EN MET de eerstvolgende noot die de speler moet spelen - behalve op het treble-spoor.
+>
+> Wave 3 - speler kan ook chord / bass / percussion input kiezen
+>
+> Wave 4 - scroll scrollt volgende de geschatte BPM, (en zorgt dus dat de volgende te spelen noot steeds op 25% van het scherm komt.)
+>
+> Wave 5 - fallbacks - ik denk dat scroll, en geplande noten een klein beetje spillover moeten hebben; bijvoorbeeld smallest-note-denum van de inputmelodie / 2. Er moet ook een mechanisme zijn voor als de speler veel te snel of te traag is. Bij veel te traag valt de melodie (en eventueel scrollanimatie) stil; bij veel te snel.... sla nog niet gespeelde noten over (onderbrek schedule). speel de noten die tegelijk vallen met de zojuist gespeelde noten van de speler onmiddelijk. En plan dan zoals hierboven gedefinieerd.
 
-gebruik ipv de 4/4 dit Maestro-symbool: SHIFT+T | ~ | Turn, grupetto
+[Claude 2026-05-28 19:35]: **Kritische feedback op rubato scroll-voorstel** (per CLAUDE.md "challenge ideas"):
 
-> ⚠ Neem alvorens dit te implementeren een interview af bij Han.
+**Architecturaal**:
+1. **Sequencer is audio-time-driven, rubato moet user-input-driven**. Huidige inner-loop berekent `nextStartTime` op basis van `bpm` en `measureLengthTicks`. Rubato vereist een fundamenteel andere lus: wacht op gebruikersinput, schedule de volgende noten relatief, herhaal. Dat is een aparte execution-strategy, geen kleine patch.
+2. **Pitch-detect latency is ~30-50ms** (`usePitchDetector`). Wave 2's "geschatte BPM uit 3 noten" gebruikt deze detection-tijdstippen → BPM estimate drift met +/- ~50ms per noot. Bij snelle ritmes (16-noten op 120 BPM = 125ms per noot) is dat een derde van de noot-lengte. Smoothing nodig (zie suggestie hieronder).
+3. **Wave 1 stopt bij "laatste noot van visual block triggert animatie"** — maar bij MIDI-keyboard input lopen note-on en note-off niet altijd in fase met visual block-grenzen. Wat als de speler te ver naar voren speelt? Hier ontstaat een "ahead of the music" probleem.
 
-### Fermata (Han 2026-05-27)
+**Discoverability**:
+4. **Long-click op BPM-naam** voor rubato-toggle is verstopt. Wel dat type interactie heeft Han eerder gebruikt voor andere features, dus consistentie. Maar minstens een visuele hint (cursor change, tooltip) is nodig.
+5. ~~**q = SHIFT+T symbool**~~: ~~conflict met common-time-symbool item~~. **Opgelost (Han 2026-05-28)**: common-time = 'c', is al lang geïmplementeerd, het SHIFT+T-backlog-item was documentatiefout en is verwijderd. SHIFT+T is dus vrij voor rubato (of Han kiest ander Maestro-glyph in PR-B).
+
+**UX edge cases**:
+6. **Wave 5 "te snel sla noten over"**: voelt jarring. Alternatief: cross-fade naar de positie waar de speler is, of snap-to-grid op de eerstvolgende noot.
+7. **Wave 5 "te traag valt melodie stil"**: hoe lang is "te traag"? 1× verwachte noot-duur? 2×? Hard threshold of soft fade-out? Onverwacht stoppen is even storend als overslaan.
+8. **Wat als de speler verkeerde noten speelt?** Han noemt alleen groen voor correct, niet wat er gebeurt bij fout. Worden ze genegeerd (BPM-est blijft draaien)? Geblokkeerd (animatie wacht tot correcte noot)? Beide?
+9. **Wave 2 schedule "tot en met eerstvolgende noot die speler moet spelen"**: predictive scheduling. Wat als de geschatte BPM verkeerd is en de speler 200ms LATER aankomt dan voorspeld? Accompaniment is dan al gefinished en wacht. Drone-effect of mute?
+
+**Suggesties voor refinement** (zonder de scope te wijzigen):
+- BPM-estimate met **exponentially-weighted moving average** (EWMA, alpha=0.4-0.6) i.p.v. simple-3-noten gemiddelde. Smoothes uit terwijl het responsief blijft.
+- **Adaptive spillover window**: in plaats van `smallestNoteDenom/2` vast, gebruik `0.5 * gemiddelde noot-interval` (= zelf-meet) — schaalt mee met daadwerkelijke tempo.
+- **Visuele state-indicator** (klein icoon naast rubato-symbool): "wachtend", "in sync", "te snel", "te traag". Han krijgt feedback over de algorithmische beslissing.
+
+**Voorgesteld implementatie-plan** (5 PRs, niet 5 waves binnen 1 PR):
+
+- **PR-A (prep)**: Wipe quadratic ease-out + remove pag-lang. **Klein, kan nu** ← In huidige PR #28 al gedaan.
+- **PR-B (rubato infra)**: rubato-mode toggle, UI-glyph, long-click op BPM. Geen playback-aanpassingen. Smoke-test: toggle werkt, UI laat rubato zien.
+- **PR-C (wave 1)**: Next-to-play highlight + correct-note detection + visual-block-end animation-trigger voor pagination/wipe. Treble alleen. Pitch-input via bestaande `usePitchDetector` of (afhankelijk van Han's keus) MIDI-keyboard via Web MIDI API.
+- **PR-D (wave 2)**: BPM-estimate (EWMA) + predictive accompaniment scheduling. State-indicator.
+- **PR-E (wave 3+4+5)**: track-keuze, scroll-rubato, fallback-machinerie.
+
+**Vragen die ik aan Han moet stellen vóór PR-B**:
+- Input-bron: microphone pitch-detect of MIDI-keyboard via Web MIDI? Hybride?
+- Wat doen we bij verkeerde noten? (negeren / blokkeren / soft-feedback)
+- Concrete glyph voor rubato: SHIFT+T is vrij (common-time gebruikt 'c'). Bevestig SHIFT+T of kies ander glyph.
+- Visual block in scroll-mode: 1 maat? 1 rep? hele series?
+- Welke modi krijgen WEL rubato (alle 3 modi, of alleen pagination + wipe in eerste fase)?
+
+[Han 2026-05-28]: **Antwoorden op de 5 vragen**:
+1. **Verkeerde noten**: wachten tot de goede noot gespeeld is + soft-feedback (geen blokkering, geen negeren).
+2. **Input-bron**: voorlopig alleen het bottom-pane keyboard. De ACTIEVE keyboard (treble / bass / perc / chords) bepaalt welke lijn leidend is.
+3. **Glyph**: SHIFT+T conflict opgelost (common-time = 'c', al geïmplementeerd; SHIFT+T-backlog-item was documentatie-fout, verwijderd). SHIFT+T is dus vrij voor rubato.
+4. **Visual block**: "zoals altijd, op basis van beste visuele ruimte" → zet op backlog om te reviewen wat "beste visuele ruimte" hier precies betekent (zie sub-item hieronder).
+5. **Fase 1 modi**: pagination + wipe (niet scroll in fase 1).
+
+[Claude 2026-05-28 19:55]: **Verwerking van Han's antwoorden in implementatie-plan**:
+
+- **PR-B (rubato infra)**: toggle, UI-glyph (SHIFT+T Maestro), long-click op BPM-naam. Visuele hint: cursor-change op BPM-label + tooltip "long-press for rubato".
+- **PR-C (wave 1)**: next-to-play highlight + correct-note-detection + visual-block-end-trigger voor **pagination + wipe** (geen scroll). Input via bottom-pane keyboard; de actieve keyboard-laag bepaalt welk staff "leidt". Verkeerde noten → **soft-feedback**: noot rood-flits (kort), animatie blijft wachten op correcte noot. Geen blokkering van andere inputs.
+- **PR-D (wave 2)**: BPM-estimate (EWMA) + predictive accompaniment.
+- **PR-E (wave 3+4+5)**: meerdere input-tracks (kan via toggle van actieve keyboard), scroll-rubato, fallbacks.
+
+[Claude 2026-05-28 ronde 7]: ✅ **PR-B geïmplementeerd**:
+- Nieuwe state `isRubato` in `useAppUIState` (met `setIsRubato` + `isRubatoRef` voor latere Sequencer-leesbaarheid).
+- `BpmControls` toont nu `q = T` (Maestro 'T' = rubato/tempo-libero glyph) i.p.v. `q = <bpm>` zodra `isRubato` aan is. Tempo-term ("Andante" / "Moderato" / ...) wordt vervangen door "rubato".
+- Long-press op de BPM-value zone toggelt rubato (Han: "selecteerbaar door lange klik op de BPM-naam"). De `useLongPressTimer` hook is hergebruikt; de zone heeft een transparente `<rect>` die alleen rendert wanneer `onToggleRubato` is aangesloten zodat oude callsites onveranderd blijven.
+- Geen playback-gedrag aangepast: rubato beïnvloedt voorlopig alleen de UI. Sequencer leest `isRubatoRef` nog niet — dat komt pas in PR-C met note-by-note triggering.
+- Files: `useAppUIState.js`, `BpmControls.jsx`, `SheetMusic.jsx`, `App.jsx`.
+
+[Claude 2026-05-29 ronde 13 — PR-C interview voltooid, Han's antwoorden]:
+
+**Rubato playback semantiek**:
+1. **Advance-unit**: per noot. Elk user-input event speelt de volgende noot.
+2. **Input-bron**: alleen bottom-pane (voor nu). Drie kanalen om te implementeren: treble keyboard, bass keyboard, percussion board. Toekomstige bronnen (microfoon, etc.) komen later.
+3. **Verkeerde noot input**: flits rood, wacht op juiste. Geen progressie tot user de correcte noot speelt.
+4. **Fermata in rubato**: gewoon 1 advance zoals andere noten. Geen speciale wachtbehandeling — de hold-duur is bij rubato irrelevant want tijd wordt user-gedreven.
+5. **Generate mode + rubato**: regenereert per iteratie (rekening houdend met `repsPerMelody`).
+6. **Background tracks bij rubato advance**: speel het hele beat-grid tot-en-met de volgende treble-noot, op basis van een leading average BPM (EWMA over recente intervals).
+7. **Verstopte noten + rubato**: nog steeds bruikbaar. User krijgt groen/rood feedback maar ziet niet welke noot hij zou moeten spelen.
+
+**PR-C wave 1 implementatie-plan**:
+- Hergebruik bestaande `useInputTest` infrastructuur (= sub-mode 'live' tracker, `inputTestState`, correct/wrong feedback).
+- Nieuwe sub-mode `'rubato'` (of een `isRubato`-aware variant van 'live'): playback pauzeert tussen noten, advance op user-input.
+- Sequencer: in rubato-mode geen audio-time-driven `nextStartTime` loop. In plaats daarvan: na elke note-schedule, wacht op user-event signal (via ref) en advance.
+- Bottom-pane: leidende keyboard-laag (op basis van `inputTestSubMode` of selectie) bepaalt welk staff de timing controleert.
+- Wrong-note detection: bij key-press, vergelijk pitch met `melody.notes[expectedIndex]`. Match → advance. Mismatch → rood flits via `inputTestState.status='wrong'`, nieuw timeout.
+
+**PR-D wave 2 — predictive accompaniment** (afgesproken, latere ronde):
+- EWMA-BPM uit recente user-intervals (~last 4 advance events).
+- Background tracks (bass/chord/percussion) auto-spelen tussen user-events met predicted timing.
+- Schedule alle background notes van "nu" tot "volgende treble note" op basis van EWMA-BPM.
+
+**PR-E wave 3+** (later):
+- ~~Scroll-mode rubato (= scroll-positie volgt user-advance i.p.v. audio-tijd).~~ ✅ Geïmplementeerd in ronde 18.
+- ~~Hidden-notes ondersteuning bij rubato (= geen visuele noten, alleen groen/rood feedback).~~ ✅ Werkt via bestaande `oddRounds.notes` visibility toggle (ronde 15).
+
+**PR-E long list** (Han 2026-05-29: niet voor de korte termijn):
+- Microfoon-input (pitch detector hergebruiken voor rubato input).
+- MIDI keyboard via Web MIDI API (rubato input alternatief).
+
+**Status PR-C**: gereed voor implementatie. Volgende ronde focus op rubato-aware Sequencer + correct-note detection via bottom-pane keyboard.
+
+---
+
+---
+
+### Visual block-definitie in rubato — to-review
+
+[Han 2026-05-28]: "visual block — zoals altijd, op basis van beste visuele ruimte. Zet op backlog om dat te reviewen."
+
+[Claude 2026-05-28 19:55]: In de huidige codebase is "visual block" niet een uniforme term:
+- **Pagination**: visual block = één item uit `musicalBlocks` array (kan 1, 2, ..., N maten zijn — bepaald door pagination's space-fitting).
+- **Wipe**: visual block = hele numMeasures (= 1 sequence-block per wipe).
+- **Scroll**: visual block = hele page-content (= `secondsPerPage` aan content).
+
+Voor rubato wave-1 ("laatste noot van visual block triggert animatie"):
+- In pagination: betekent dit dat de laatste noot van een musicalBlock de visual-flip naar het volgende block triggert. Voor multi-block-per-rep (bv. `[3, 2]`) zijn er 2 visual-flips per rep.
+- In wipe: laatste noot van numMeasures triggert de wipe. 1 trigger per rep.
+
+**Vraag voor interview**: in pagination, is "visual block" = musicalBlock-element of = hele numMeasures? Op het tweede komt rubato dichter bij wipe-gedrag.
+
+**Niet doen vóór review**.
+
+---
+
+### ✅ Fermata (Han 2026-05-27) — geïmplementeerd in rondes 9, 12, 13, 17. Zie hierboven onder "Fermata (robust) + [name] lyric".
 
 [Han 2026-05-27]: Ik denk dat er een fermata in HBD zit — dat zou ik ook graag in de app hebben.
 
@@ -541,6 +1114,97 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 ✅ fade out aan het einde van repeat block is niet goed. Check de specs / architectuurbeschrijving voor animaties en zorg dat er een mooie fade-out is; momenteel is de overgang tussen sequence blokken nog hakkelig.
 [Claude 2026-05-10]: Oorzaak: `setTimeout(fn,0)` vuurt altijd vóór de volgende `requestAnimationFrame`. `setNextLayer(null)` triggerden `useLayoutEffect` terwijl de rAF-crossfade nog bezig was (bijv. old opacity 0.7). `useLayoutEffect` herstelde dan opacity naar 1 — zichtbare helderheidssprong. Fix: `iterStateMs` in Sequencer.js verhoogd met minimaal 25ms buffer, zodat de rAF de animatie kan afronden voordat `useLayoutEffect` de opacity wist. Bestand: `Sequencer.js`.
 
+### Robuust animatie-systeem — post-PR-#27 stabilisatie (Han 2026-05-28)
+
+[Claude 2026-05-28]: Han rapporteert na PR #27 drie regressies: (1) wipe lege notenbalken, (2) lang pagination 2× hard cut na 1×, (3) 1-frame flashes bij fade-overgangen. Han's verzoek: *"Maak een robuust plan voor de animaties; failsafe. Leg uit hoe je de blokken van de scroll animatie plant."*
+
+Volledig plan opgeslagen in `/root/.claude/plans/animaties-in-de-bladmuziek-pure-ocean.md`. Han heeft alle 3 tiers in één PR goedgekeurd ("alles samen"). Geschat 7–10 dagen werk.
+
+**Tier 1 — directe regressies (1 dag)**:
+- 1.1: Bundel `setNextLayer` + `setIterInCurrentSeries` in één setTimeout-callback (Sequencer.js ~500/508) → fixt bug 3 (1-frame flash).
+- 1.2: Bundel scroll-mode `setStartMeasureIndex` + `setIsOddRound` + `wipeRoundBatched` in één callback → reduceer wipe race-window.
+- 1.3: Force-cleanup van `transitionRef`/`paginationFadeRef` bij elke nieuwe arm-call → fixt bug 2 (2e hard cut).
+- 1.4: Expliciete `pregenResult` lifecycle: nieuwe `pregenStateRef` met `{melody, validForBoundary, generatedAt}`; bij arm verificatie van `validForBoundary === expectedBoundary` voordat verbruikt wordt.
+- 1.5: TransitionOverlayContext: split `iterInCurrentSeries` uit value-useMemo (eigen context of ref) → fixt bug 1 (wipe lege staves).
+
+**Tier 2 — robustness zonder rewrite (1–2 dagen)**:
+- 2.1: Single `useSheetMusicTransitions`-source-of-truth voor opacity setting (alleen rAF; nooit JSX).
+- 2.2: applyResultToSetters → één React batch via `unstable_batchedUpdates` waar nodig.
+- 2.3: Sanity-watchdog: rAF-tick logt warn als opacity mismatch met expected stage > 100ms.
+- 2.4: Memory/MEMORY.md update: documenteer "Two setTimeouts at same delay are NOT batched".
+
+**Tier 3 — fundamentele AnimationPlan-redesign (5–7 dagen)**:
+- 3a: `src/audio/AnimationPlan.js` — pure datastructure `{events: [{type, atSec, payload}]}` voor één hele transitie (visual-flip / repeat-flip / series-flip).
+- 3b: `src/audio/PlanRunner.js` — rAF-driven runner, single source of truth voor opacity + DOM-attrs.
+- 3c–3e: Wipe → scroll → pagination omschakelen naar plan-driven rendering.
+- 3f: Cleanup van oude refs (`transitionRef`, `paginationFadeRef`, `scrollTransitionRef`, `wipeTransitionRef`).
+- 3g: `docs/architecture.md` §11 + backlog-entry sluiten.
+
+**Afhankelijke files** (raken expliciet de "WORK IN PROGRESS" lijst bovenaan deze BACKLOG.md): `src/audio/Sequencer.js`, `src/App.jsx`, nieuwe `src/audio/AnimationScheduler.js`. Daarom heeft de cloud-agent vandaag **NIET geïmplementeerd** maar enkel het plan vastgelegd. Run werd schoon afgebroken — geen branch-push, geen PR. Wacht tot het in-progress notice opgeheven is, of tot Han expliciet groen licht geeft om door de WORK-IN-PROGRESS-gate heen te gaan.
+
+**Separaat openstaand bug-onderzoek** (niet onderdeel van bovenstaande PR):
+- Critical: sheet-music regressie na song-load. Symptoom moet eerst gereproduceerd worden (Han: "tweede sheet-music regression komt vaker voor na het laden van een song"). Diagnose-fase eerst, fix daarna in eigen branch + PR.
+
+[Claude 2026-05-28 14:50]: Tier 1.1 + 1.5 geïmplementeerd op deze branch (PR #28). Status:
+- ✅ Tier 1.1 — `setNextLayer` + `setIterInCurrentSeries` gebundeld in één scheduleTimeout callback (Sequencer.js ~498-518). Han bevestigt: scroll bijna goed, wipe OK, pagination-lang nog steeds hard cut (verwacht).
+- ✅ Per-rep round visibility voor scroll-mode panels (Han 2026-05-28 interview): `renderContent(panelCfg)` parameteriseerd; yellow panels berekenen `panelOddRound = (i % 2 === 0) ? isOddRound : !isOddRound`; red panels berekenen `nextSeriesRep = i - itersRemaining - 1` en round van daar. PreviewOverlay krijgt `roundKeyOverride` prop. Files: `SheetMusic.jsx`, `PreviewOverlay.jsx`.
+- ⏳ Tier 1.2/1.3/1.4 (Bug 2 lang 2× hard cut) — nog niet aangepakt; speculatieve hypothese, eerst empirische verificatie van 1.1 nodig.
+
+[Claude 2026-05-28 19:00]: Tweede ronde fixes na Han's verificatie van PR #28 op de juiste branch (de eerste ronde feedback bleek op de perf-refactor branch). Wat nu af is:
+- ✅ Red preview-panels in scroll-mode: opacity 1 vanaf het mounten. `scrollPreviewFadeIn`-animatie verwijderd; nieuwe melodie is meteen vol-zichtbaar. File: `PreviewOverlay.jsx`.
+- ✅ Per-rep round wraparound bij oneven `numRepeats` (Han: "met oneven aantal repeats flipt de visibility tussen sequence blocks"). Yellow + red panels gebruiken nu `localRep = ((globalRep % numRepeats) + numRepeats) % numRepeats` zodat history-panels (i+iter < 0, = rep van vorige series) wrap-around krijgen naar de correcte parity. Voor `numRepeats=3` werd vorige-series-rep 2 (oddRound) eerder ten onrechte als evenRound gerenderd; nu correct. Files: `SheetMusic.jsx`.
+- ✅ Verticale maatstreep aan de start van scroll-mode visual blocks (Han 2026-05-28). Yellow + red panels hebben een leading barline bij internal `startX`. Files: `SheetMusic.jsx`, `PreviewOverlay.jsx`. Main panel gekregen geen leading barline (de clef + signature dient als visueel start-anker).
+- ✅ Residual 1-frame flit fix (scroll-mode, multi-measure last-rep). Pregen + `setNextLayer('red')` + `setPreviewMelody` + `setIterInCurrentSeries` zitten nu ALLEMAAL in dezelfde scheduleTimeout callback (Sequencer.js ~510-543). Vorige situatie had pregen+setPreview in een SEPARATE setTimeout op dezelfde delay → twee React renders → 1 frame waarin iter=LAST en previewMelody=null tegelijk waar waren (rechter K-panels filtered weg = visueel leeg). De oude pregen-block op line ~565+ is verwijderd.
+
+Nog niet geadresseerd (Han 2026-05-28 round 2 feedback):
+- ❓ Pagination-lang "werkt maar 2 keer" — Han bevestigt dit specifiek bij pagination-lang variant. Hypotheses zonder repro: (a) scheduler-drift bij grote `armMs` na 2-3 series wordt te laat; (b) interferentie tussen lang's fadeEnd cleanup (boundary+0.25m) en een te-vroege volgende arm; (c) pregenResult niet correct gewist tussen series 2 → 3. Vereist instrumentatie of empirische repro voor diagnose.
+- ❓ Visuele glitches bij `numMeasures=1` in scroll-mode (Han: "crash is weg maar visuele glitches blijven"). Niet gespecificeerd welke glitches. Geen repro-stappen ontvangen.
+
+**Bekende crash — geparkeerd** (Han 2026-05-28 round 1): scroll-mode bij `numMeasures=1, repeats=1` loopt de app vast zodra de eerste maat 25% bereikt. UPDATE (Han 2026-05-28 round 2): crash is weg (mogelijk per ongeluk gefixt door de Tier 1.1 bundeling), maar visuele glitches blijven. Vermoedelijke originele root cause was: outer-loop heeft geen sleep wanneer `skipSleep = isLastRepNow && isLastMeasureNow` voor beide true is.
+
+[Claude 2026-05-28 19:25]: Ronde 3 fixes na Han's verificatie (verkeerde branch-mismatch is voorbij). Op deze branch (PR #28) nu af:
+- ✅ **Wipe breekt bij mid-playback animation-mode change**: Sequencer track nu `this.activeAnimationMode`; aan het begin van elke maat wordt mismatch met `animationModeRef.current` gedetecteerd → HARD RESET (`wipeTransitionRef`, `scrollTransitionRef`, `transitionRef`, `paginationFadeRef`, `setNextLayer(null)`, `setPreviewMelody(null)`). Schone overgang naar de nieuwe mode op de eerstvolgende maat-grens. File: `Sequencer.js` (~31, ~457).
+- ✅ **Scroll-mode lage opacity in niet-actieve maatblok**: yellow panels stonden op `opacity: 0.55` → nu `opacity: 1` (zelfde behandeling als red panels in ronde 2). File: `SheetMusic.jsx`.
+- ✅ **Leading vertical barline op MAIN panel in scroll mode**: vorige ronde alleen op overlay-panels; nu ook op main (Han: "actieve melodie heeft geen maatstreep voor de eerste maat"). File: `SheetMusic.jsx`.
+- ✅ **Verwijder gele playhead-streep op 25%**: deze stond `<line>` direct buiten de scroll-group. Han: "horizontale lijn niet exact". File: `SheetMusic.jsx`.
+- ✅ **Intro delay scroll-mode**: noten staan stil voor de eerste 0.25 maten van playback. Geïmplementeerd via een one-shot `introDelaySeconds` in `scrollTransitionRef`; rAF substract dit van elapsed zolang het nog niet verbruikt is. Bij series-flips niet meer actief (elapsed is dan al lang > delay). Files: `Sequencer.js`, `useSheetMusicHighlight.js`.
+- ✅ **Click-outside sluit Settings Overlay**: `useSettingsOverlay` luistert nu op `document.pointerdown` (capture phase) terwijl overlay open is — clicks buiten `.settings-overlay` en buiten `[data-settings-keepalive]` sluiten de overlay. File: `useSettingsOverlay.js`.
+- ✅ **Header-knoppen herontwerp**: Play-knop splitst nu in twee aparte knoppen — "Play this" (huidige melodie, met 2-state once/repeat toggler) en "Start Generating" (cog-icoon, continu genereren). De 3-state toggler (once/repeat/continuous) is een 2-state geworden; "continuous" zit nu in zijn eigen Generate-knop. File: `AppHeader.jsx`.
+
+Nog steeds open (vereisen empirische data of MIDI-toegang die ik nu niet heb):
+- ✅ Pagination-lang "werkt maar 2 keer" — **niet meer relevant**: Han heeft 2026-05-28 ronde 4 de `lang` variant laten verwijderen ("heeft geen use case"). De bug verdwijnt met de variant. Defensieve overshoot-machinerie in Sequencer blijft als dead code voor toekomstige reintroductie.
+- ⏳ numMeasures=1 visuele glitches in scroll-mode — welke glitches?
+
+[Claude 2026-05-28 19:35]: Ronde 4 op deze branch (PR #28) — wipe polish + rubato-planning:
+- ✅ **Wipe ease-out**: lineaire (eigenlijk symmetrische ease-in-out) easing vervangen door quadratic ease-out `1 - (1-p)²`. Eerste helft snel (p=0.5 → 75% klaar), laatste kwart langzaam (p=0.75 → 94%, p=1 → 100%). Han: "zo min mogelijk storend". File: `useSheetMusicHighlight.js`.
+- ✅ **Pagination 'lang' variant verwijderd**: uit `PAGINATION_VARIANTS`, SubHeader-cycler gaat nu pag-snel → pag-mid → wipe → scroll. Bijbehorende tests in `transitionPlanner.test.js` weggehaald. Defensieve `hasOvershoot` branches in Sequencer blijven dead code voor mogelijke toekomstige variant. Files: `transitionPlanner.js`, `SubHeader.jsx`, `transitionPlanner.test.js`.
+- 📋 **Rubato scroll**: scope + feedback + 5-PR plan gedocumenteerd op de "Vrij tempo" sectie hierboven (line ~90). Vóór PR-B implementatie nodig: 5 vragen aan Han beantwoord (input-bron, foute-noten-gedrag, glyph-conflict met common-time, visual-block-definitie in scroll, welke modi krijgen rubato).
+
+---
+
+### Happy Birthday — status na ronde 3 onderzoek (Claude 2026-05-28 19:25)
+
+Han's vraag: "Pak alle backlog items gerelateerd aan Happy Birthday op."
+
+**Item: Happy Birthday klinkt niet correct (Han 2026-05-22)**.
+Verificatie uitgevoerd:
+- De *easy* treble-melodie (24 noten, top-stem uit MIDI) is genote-voor-noot correct voor Happy Birthday in G majeur. Patroon line-by-line:
+  - L1: D D | E D G | F♯ (half) ✓
+  - L2: D D | E D A | G (half) ✓
+  - L3: D D | D5 B G | F♯ (half) ✓ (fermata op [name] nog NIET gecodeerd — bekend)
+  - L4: C5 C5 | B G A | G (dotted-half) ✓
+- De rhythmische structuur: m0 anacrusis 24 ticks rust + 9+3 (dotted-8th + 16th) = 36 totaal. m1-m8 elk 36 ticks. Totaal 9 maten × 36 = 324 ticks. ✓
+- De *hard* versie's top-stem komt overeen met de *easy* versie. Onderstemmen + bas zijn full chord-voicings uit de MIDI; Visuele clashes met begeleiding zijn een design-issue, geen typo.
+
+**Conclusie**: pitch & rhythm in `happyBirthday.json` zijn correct voor de easy variant. Han's "klinkt niet correct" observatie is dus NIET een tikfout in de pitches/durations. Mogelijke andere oorzaken: (a) ontbrekende fermata op [name], (b) chord-voicing van begeleiding klinkt vol omdat MIDI veel akkoorden tegelijk speelt, (c) tempo/instrument-keuze. Vraag aan Han: kun je specifieker zeggen WAT er fout klinkt? Voorbeeld: "de melodie zelf is goed, maar het ritme van X" of "akkoord op offset Y voelt verkeerd".
+
+**Item: Happy Birthday MIDI Full Version (Han 2026-05-27)**.
+Status: NIET-implementeerbaar in deze sessie. De 5 open interview-vragen van Claude 2026-05-27 11:42 zijn nog niet door Han beantwoord (zie #1-5 op line 35-40 hierboven). Bovendien heb ik geen toegang tot `Happy_Birthday___Piano.mid` in deze cloud-sessie (de file werd in chat geüpload bij de vorige sessie en zit niet in de repository). Vereist:
+1. Han beantwoordt de 5 vragen (lyric-uitlijning, voice-distributie, bass-voicing, source-of-truth-formaat, fermata).
+2. MIDI-file moet in `src/songs/data/` of een ander toegankelijk pad gecommit zijn voordat een agent het kan ontleden.
+
+---
+
 ### Pagination redesign — vervolgwerk (na PR #26)
 
 [Claude 2026-05-22]: Pagination animatie is herontworpen rond `src/audio/transitionPlanner.js` (pure planner) + `Sequencer._armPaginationSequence` (event-driven scheduler). 3 variants (snel/mid/lang) togglebaar in subheader cycle. Visual-flip, repeat-flip en series-flip gebruiken nu hetzelfde crossfade-mechanisme. Lang variant overshoot 0.25m voorbij block-einde (speler ziet oude noten nog kort terwijl nieuwe verschijnen). JIT generatie loopt mee met variant-deadline.
@@ -607,8 +1271,10 @@ Acties voor backlog (vraagt interview voor scope/prioriteit):
 - ➖ `noteWidth` als percentage / SVG→Canvas — niet de bottleneck (verworpen in plan, gedocumenteerd in `docs/architecture.md` §29.6).
 Verificatie open: Han moet in browser nieuwe DevTools-trace draaien om de 250→<50ms / INP→<200ms doelen te bevestigen voordat ✅ kan.
 
-### Bug: click anywhere should close settings overlay (Han 2026-05-25)
+### ✅ Bug: click anywhere should close settings overlay (Han 2026-05-25)
 Eenderwaar klikken (behalve op responsieve knoppen / settings-elementen zelf) moet de settings overlay sluiten. Op dit moment moet je specifiek buiten een knop maar binnen de "klik-vrije" zone klikken — soms niet intuïtief.
+
+[Claude 2026-05-29]: Geïmplementeerd via `data-settings-keepalive` zones (rondes 11/12). Het pointerdown-capture-phase listener in `useSettingsOverlay.js` sluit nu de overlay bij elke klik OPENBAAR sheet-muziek-gebied, behalve in expliciete keep-alive zones: SubHeader, BpmControls, RepeatsControls. Note/chord clicks DO sluiten (= bedoeld). Zie architecture §35.
 
 ### Header — split play button
 
