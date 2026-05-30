@@ -439,20 +439,24 @@ const App = () => {
 
         if (loaded.chordMelody) {
             setChordProgression(loaded.chordMelody);
-            // Preserve the song's chord progression on the user's next
-            // randomize-on-play. Toggling it back to true is how the user
-            // opts into "match style only" — regenerate chords with the song's
-            // chord strategy instead of replaying the exact progression.
+            // Preserve BOTH the song's chord progression AND its melody on the
+            // user's next randomize-on-play (Han 2026-05-29). Loading a song
+            // should mean "play THIS song verbatim until I say otherwise" —
+            // turning melody pinning back on is how the user opts into
+            // "generate variations on this song's harmony". chords=false pins
+            // the harmony; melody=false pins the treble/bass content.
             setPlaybackConfig(prev => ({
                 ...prev,
-                randomize: { ...(prev.randomize || {}), chords: false },
+                randomize: { ...(prev.randomize || {}), chords: false, melody: false },
             }));
         } else {
             // No chord progression provided — let the next randomize regenerate
-            // using the song's chord strategy (or the app defaults).
+            // using the song's chord strategy (or the app defaults). Still pin
+            // the melody so the loaded version plays as-is until the user
+            // explicitly opts in to variations.
             setPlaybackConfig(prev => ({
                 ...prev,
-                randomize: { ...(prev.randomize || {}), chords: true },
+                randomize: { ...(prev.randomize || {}), chords: true, melody: false },
             }));
         }
 
