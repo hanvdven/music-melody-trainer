@@ -1,8 +1,8 @@
 import React from 'react';
-import SvgSetter from './SvgSetter';
-import './SheetMusic.css';
-import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
-import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
+import SvgSetter from '../SvgSetter';
+import '../SheetMusic.css';
+import { usePlaybackConfig } from '../../../contexts/PlaybackConfigContext';
+import { useDisplaySettings } from '../../../contexts/DisplaySettingsContext';
 
 // ── Volume steps ─────────────────────────────────────────────────────────────
 // 6 levels: //(0), pp(0.2), p(0.4), mp(0.6), mf(0.8), f(1.0)

@@ -363,7 +363,13 @@ Quick guide to which file owns which concern:
 | Playback scheduling | `src/audio/Sequencer.js` |
 | Note + measure highlighting | `src/hooks/useSheetMusicHighlight.js` |
 | SVG rendering | `src/components/sheet-music/SheetMusic.jsx` + `renderMelodyNotes.jsx` |
+| Sheet-music context overlays | `src/components/sheet-music/overlays/` |
 | Melody generation | `src/generation/melodyGenerator.js` |
 | App-level state orchestration | `src/App.jsx` |
 
 For a full file-by-file reference see **Section 12** of `docs/architecture.md`.
+
+**Overlay file convention (Han 2026-05-30):** every sheet-music context overlay
+(settings, range, and future ones) lives in its own file under
+`src/components/sheet-music/overlays/`. Never cram multiple overlays into one
+file.
