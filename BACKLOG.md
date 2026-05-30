@@ -348,7 +348,12 @@ Echter: er bestaat momenteel **geen song met N.C.** om tegen te implementeren. Z
 
 ---
 
-### CRITICAL HBD Bug: verkeerde sheet music na song-load (2e sequence block)
+### ✅ (vermoedelijk) CRITICAL HBD Bug: verkeerde sheet music na song-load (2e sequence block)
+
+[Claude 2026-05-29 ronde 17 — status update]: De `onStop` reset uit ronde 10 (= alle visual state opschonen op stop, inclusief `setStartMeasureIndex(0)`, `setBlockMeasureStart(1)`, `setCurrentMeasureIndex(null)`, etc.) was waarschijnlijk root cause. Sindsdien geen herhaalde melding van Han. **Wacht op verificatie**: speel HBD repeat door tot iteratie 2 begint en controleer of sheet music nu klopt met audio.
+
+---
+
 
 **Han 2026-05-28**: "Generation of zelfs playing van subsequent maten na het EERSTE sequence block na laden van een song levert verkeerde sheet music."
 
@@ -399,9 +404,31 @@ Hypotheses (gefocust op rendering-laag):
 
 ---
 
-### Fermata + [name] lyric
+### ✅ Fermata (robust) + [name] lyric (separate)
 
-[Claude 2026-05-28 ronde 9 ✅ fermata infrastructuur + audio + visual]:
+[Claude 2026-05-29 ronde 17 — fermata robust afgerond. Status na rondes 9, 12, 13, 17]:
+
+**Data model** (round 13): fermatas zijn nu **song-level tick-based events** `[{ tick, hold }]` op het difficulty-niveau van een song. `loadSong.js` propageert ze naar treble + bass + percussion + chordMelody zodat audio + visuals uniform shiften.
+
+**Audio** (`playMelodies.js`, rondes 12, 13): per noot wordt cumulatieve shift = sum(holds met tick < noot.offset) toegevoegd aan audio-tijd. Noot AT tick (= de fermata-noot zelf) krijgt zijn duur uitgebreid met hold. Alle tracks (treble, bass, chord, percussion) zien dezelfde fermatas en shifts.
+
+**Visual sync** (`Sequencer.js`, round 17): `scheduledNotes` (= source-of-truth voor cursor-highlight) past nu dezelfde fermata shift toe. `buildScheduledChords` ook. Cursor pause't dus op de fermata-noot zo lang als hold duurt; geen mismatch meer tussen audio en cursor.
+
+**Iteratie-extensie** (`Sequencer.js`, round 17): na de inner measure loop wordt `totalIterationFermataHold × timeFactor` toegevoegd aan `nextStartTime` zodat repeats geen gap meer hebben tussen iteraties.
+
+**Visual glyph** (`SheetMusic.jsx`, rondes 9, 12): `renderFermataGlyphs` tekent Maestro `U` boven de staf op de fermata-noot positie. Position is `trebleStart - 2` (round 12 aanpassing na Han's "onnodig hoog" feedback).
+
+**HBD JSON**: `fermatas: [{ "tick": 216, "hold": 18 }]` voor easy + hard — `[name]` houdt vast voor natural 24 + 18 = 42 ticks.
+
+**Open verfijning** (low priority): stem-direction-aware glyph swap. Han spec: lowercase 'u' onder noot voor stem-up notes, capital 'U' boven voor stem-down. Vereist per-note stem direction uit `renderMelodyNotes`. Huidige 'U' boven werkt voor HBD's C5 (= stem-down).
+
+**[name] lyric streep** (round 9, Han keuze C): geen werk tot een name-input UI er is.
+
+---
+
+### Oudere fermata historie (referentie)
+
+[Claude 2026-05-28 ronde 9 ✅ fermata infrastructuur v1 — vervangen door round 13 song-level refactor]:
 - **Melody.fermatas**: array van `{ noteIndex, hold }` waarbij `hold` het EXTRA aantal ticks is dat de noot aanhoudt voorbij haar natural duration.
 - **loadSong.js**: leest `fermatas` veld uit JSON op treble/bass blokken.
 - **playMelodies.js**: bouwt een noteIndex → hold map uit de volledige melody en voegt de hold toe aan de geplande noot-duur. GEEN offset shift — opvolgende noten blijven op hun originele offsets, dus de fermata sustain overlapt elke anacrusis daarna (= HBD's traditionele rendition waarin [name] vasthoudt terwijl de volgende strofe begint).
@@ -646,7 +673,7 @@ Voor rubato wave-1 ("laatste noot van visual block triggert animatie"):
 
 ---
 
-### Fermata (Han 2026-05-27)
+### ✅ Fermata (Han 2026-05-27) — geïmplementeerd in rondes 9, 12, 13, 17. Zie hierboven onder "Fermata (robust) + [name] lyric".
 
 [Han 2026-05-27]: Ik denk dat er een fermata in HBD zit — dat zou ik ook graag in de app hebben.
 
