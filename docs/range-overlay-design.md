@@ -228,14 +228,22 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
 - **Phase 1 (done):** `src/utils/rangeUtils.js` (`getNoteValue`,
   `getNoteFromValue`, `clampRange`) + test; `RangeControls` now reuses it.
 - **Phase 2 (done):** `RangeStaffOverlay` `<g>` rendered by SheetMusic when
-  `rangeEditMode` is on; static ghost row + band + ring handles for treble/bass
-  via shared `getNoteAbsoluteY`. RANGE button toggles `rangeEditMode`; HTML
-  scaffold retired. **In rangeEditMode all melody notes/chords/lyrics are hidden
-  (`notes-transition` → `display:none`) and playback is mutually exclusive**:
-  opening stops playback, starting playback closes the overlay (Han 2026-05-30).
-  Overlays moved to `src/components/sheet-music/overlays/`. **Deferred to later
-  phases:** ledger lines under floating noteheads, and tuning the 8vb/8va extent
-  (currently FULL ± 1 octave can place extreme notes far from the staff).
+  `rangeEditMode` is on. The selectable pitches are built as a **synthetic
+  rhythm-less melody and rendered THROUGH `MelodyNotesLayer`/`renderMelodyNotes`**
+  (CLAUDE.md §6c) — so ledger lines, ottava (8va/8vb/15ma/15vb) vertical
+  shifting and notehead glyphs all come from the real renderer; no hand-rolled
+  pitch→Y. Rows are laid out horizontally via a private slot grid
+  (`pixelsPerTick=null`). Treble, bass **and percussion** all show selectable
+  rows (D3: every kit pad with a staff position, from `PADS`). Colours come from
+  the renderer's `previewMode` override, split into three sub-melodies:
+  boundary notes `--accent-yellow`, in-band `--text-primary`, out-of-band
+  `--text-dim`. Boundary note **names** are labelled under each melodic staff.
+  RANGE button toggles `rangeEditMode`; HTML scaffold retired. **In rangeEditMode
+  all real melody notes/chords/lyrics are hidden (`notes-transition` →
+  `display:none`) and playback is mutually exclusive**: opening stops playback,
+  starting playback closes the overlay (Han 2026-05-30). Overlays live in
+  `src/components/sheet-music/overlays/`. Smoke test renders the full path
+  (`overlays/__tests__/RangeStaffOverlay.test.jsx`).
 - **Phase 3 — interaction:** drag + tap to move boundaries, with constraints;
   write back to `InstrumentSettings.range`; preset-match highlight.
 - **Phase 4 — preset chips:** bracket chips right of the row applying
