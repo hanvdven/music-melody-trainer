@@ -1,5 +1,40 @@
 import { describe, it, expect } from 'vitest';
-import { getTakadimiSyllableGrouped, getTakadimiSyllable, getTupletSyllable } from '../rhythmicSolfege.js';
+import { getTakadimiSyllableGrouped, getTakadimiSyllable, getTupletSyllable, getBeatDurationTicks, isCompoundMeter } from '../rhythmicSolfege.js';
+
+describe('isCompoundMeter', () => {
+    // Compound = numerator divisible by 3 AND > 3 (excludes 3/n simple meters).
+    it.each([
+        [[3, 4], false],
+        [[3, 8], false],
+        [[4, 4], false],
+        [[5, 4], false],
+        [[6, 8], true],
+        [[6, 4], true],
+        [[9, 8], true],
+        [[12, 8], true],
+        [[7, 8], false],
+    ])('isCompoundMeter(%j) → %s', (ts, expected) => {
+        expect(isCompoundMeter(ts)).toBe(expected);
+    });
+});
+
+describe('getBeatDurationTicks', () => {
+    // TICKS_PER_WHOLE = 48; denomTicks = 48/den.
+    // Compound returns 3 × denomTicks (= dotted-quarter for /8); simple returns denomTicks.
+    it.each([
+        [[3, 4],  12],  // simple — quarter beat
+        [[4, 4],  12],
+        [[5, 4],  12],
+        [[3, 8],   6],  // simple — eighth beat (3/8 is fast triple, not compound)
+        [[6, 8],  18],  // compound — dotted-quarter
+        [[9, 8],  18],
+        [[12, 8], 18],
+        [[6, 4],  36],  // compound — dotted-half
+        [[7, 8],   6],  // odd meter, treat as simple
+    ])('getBeatDurationTicks(%j) → %i', (ts, expected) => {
+        expect(getBeatDurationTicks(ts)).toBe(expected);
+    });
+});
 
 // Unit = 6 ticks (eighth note, TICKS_PER_WHOLE / 8)
 const E = 6;

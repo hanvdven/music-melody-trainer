@@ -22,7 +22,7 @@ import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
 import { getNoteSemitone, getKodalySolfege } from '../../theory/noteUtils';
 import { getNoteIndex } from '../../theory/musicUtils';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
-import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, getTakadimiSyllableGrouped, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
+import { isCompoundMeter, getEffectiveBeatDuration, getBeatDurationTicks, getTakadimiSyllable, getTakadimiSyllableGrouped, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
 
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
@@ -253,19 +253,16 @@ const SheetMusic = ({
 
   const measureLengthSlots = (TICKS_PER_WHOLE * timeSignature[0]) / timeSignature[1];
   // noteGroupSize = ticks per BEAT (= one count). processMelodyAndCalculateSlots
-  // splits any note that crosses a beat boundary. The previous heuristic
+  // splits any note that crosses a beat boundary. Delegated to the shared
+  // getBeatDurationTicks helper (theory/rhythmicSolfege.js) which already
+  // knows the compound-vs-simple rule. Replaces the legacy heuristic
   //   measureLengthSlots % 18 === 0 ? 18 : 12
-  // mis-classified 3/4 as compound: 36 % 18 === 0 picks 18 (= dotted-quarter)
-  // when the correct beat is 12 (= quarter). That forced three quarter notes
-  // in 3/4 to render as q + (e tied to e) + q — Han reported this for the
-  // HBD bass m1. The musical rule is: compound time = denominator 8/16 with
-  // a numerator that's a multiple of 3 GREATER than 3, in which case each beat
-  // is 3 denominator-units (= dotted-quarter for 8). All other meters use one
-  // denominator unit as the beat.
-  const [tsNum, tsDen] = timeSignature;
-  const denomTicks = TICKS_PER_WHOLE / tsDen;
-  const isCompound = (tsDen === 8 || tsDen === 16) && tsNum > 3 && tsNum % 3 === 0;
-  const noteGroupSize = isCompound ? 3 * denomTicks : denomTicks;
+  // that mis-classified 3/4 as compound (36 % 18 === 0 picked 18 = dotted-
+  // quarter, but 3/4 is simple — beat is the quarter, 12 ticks). Han observed
+  // this on HBD bass m1: three quarters rendered as q + (e tied to e) + q.
+  // Consolidated 2026-05-29 so SheetMusic and rhythmic-solfege agree on what
+  // a "beat" is.
+  const noteGroupSize = getBeatDurationTicks(timeSignature);
 
   // --- Vertical Layout Constants (Responsive) ---
   const baseGap = 70;
