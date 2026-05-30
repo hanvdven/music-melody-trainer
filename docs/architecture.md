@@ -2091,3 +2091,62 @@ The `abortController` + `instrument.stop()` combination still honours the "no ne
 
 **Files:** `src/audio/Sequencer.js`.
 
+---
+
+## 37. Visual Settings Re-haul — Context Overlays (2026-05, in progress)
+
+**Purpose.** Han is migrating the app away from a central settings panel toward
+**context overlays**: every setting is adjusted in-place by interacting with the
+element it affects (tap a clef → clef overlay, tap the staff → range overlay,
+tap a key → keyboard-side overlay), with minimal text. GSM-portrait is the first
+(and currently only) target layout: three stacked panels — header (title + nav +
+exercise score), top half = sheet music, bottom half = input/keyboard.
+
+**Decided principles (validated with Han, treat as invariants for this work):**
+
+1. **Two UIs per setting where meaningful.** Each setting gets a *bladmuziek*
+   (sheet) variant and an *input* (keyboard) variant. Intrinsically abstract
+   settings (theme, BPM, generation, animation mode) have no natural sheet/key
+   representation and live in a neutral HTML chrome panel instead — do not force
+   a fake "note version" for those.
+2. **Spatially-anchored selectors render in their native coordinate space, not
+   in a floating HTML layer.** The range/clef/scale selectors must align exactly
+   with staff lines / piano keys, so:
+   - the **sheet variant renders inside the SheetMusic SVG** (same pattern as the
+     existing `SettingsOverlay` `<g>`, reusing the functions that place real
+     noteheads), and
+   - the **input variant renders inside the keyboard component** (reusing key
+     positions).
+   A thin HTML overlay is used **only for chrome** (title, preset chips, close,
+   coach-tour) that floats above and needs no pixel alignment.
+3. **Dual-surface live sync.** On GSM-portrait the staff (top) and keyboard
+   (bottom) are both on screen. While editing a spatial setting, *both* surfaces
+   are in edit mode simultaneously and stay synchronised: dragging the range on
+   the staff lights up the matching keys, and vice-versa. This is what makes the
+   transition seamless — the staff and keyboard *become* the selector and return
+   to normal afterwards, rather than being covered by a panel.
+4. **Animation respects existing invariants.** Morphs between "real notes" and
+   "selectable notes" happen in the same SVG coordinate space via
+   `element.style.opacity` in rAF (per §6), never via JSX opacity props, and must
+   not interfere with the pagination/wipe/scroll transition system.
+5. **Discoverability via a one-time coach-tour** (Han's choice) plus subtle
+   affordances, given the minimal-text goal. The old central settings panel is
+   removed **last**, only after each setting's new variant(s) are proven — no
+   feature is lost mid-migration.
+
+**Build order.** Range is the first vertical slice (clearest spatial example) and
+serves as the blueprint pattern for all later settings (clef/instrument → scale →
+exercise/song → advanced generation → visualization).
+
+**Current status (scaffold only).** A **temporary** always-visible `RANGE`
+button sits on the right of the `SubHeader` (outside the `opacity:show` wrapper
+so it stays visible when adjustment buttons fade). It opens `RangeOverlay`, an
+empty HTML shell that establishes the open/close + backdrop + Escape behaviour.
+The real range selector (in-SVG note row + in-keyboard key selection) is not yet
+built. The button and shell are throwaway entry points to be replaced by
+tap-on-element context overlays.
+
+**Files:** `src/components/controls/RangeOverlay.jsx` (new shell),
+`src/components/layout/SubHeader.jsx` (temporary RANGE button),
+`src/App.jsx` (overlay open/close state + wiring).
+

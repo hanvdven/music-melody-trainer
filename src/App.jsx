@@ -17,6 +17,7 @@ import SheetMusic from './components/sheet-music/SheetMusic';
 import { KIT_NOTE_MAPPINGS } from './audio/drumKits';
 import AppHeader from './components/layout/AppHeader';
 import SubHeader from './components/layout/SubHeader';
+import RangeOverlay from './components/controls/RangeOverlay';
 
 // Hooks
 import useRefState from './hooks/useRefState';
@@ -176,6 +177,9 @@ const App = () => {
 
     // Sheet Music Settings state (Lifted)
     const { showSheetMusicSettings, toggleSheetMusicSettings, resetSettingsTimer } = useSettingsOverlay();
+
+    // Range overlay (TEMPORARY scaffold entry point for the visual settings re-haul).
+    const [showRangeOverlay, setShowRangeOverlay] = useState(false);
 
     // Input Test Mode — wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available
 
@@ -1220,9 +1224,12 @@ const App = () => {
                     handlePlayMelody={handlePlayMelody}
                     handlePlayContinuously={handlePlayContinuously}
                     onActivateAdjustments={!showSheetMusicSettings ? toggleSheetMusicSettings : undefined}
+                    onOpenRange={() => setShowRangeOverlay(true)}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}
                 />
+
+                <RangeOverlay open={showRangeOverlay} onClose={() => setShowRangeOverlay(false)} />
 
                 {/* TOP SECTION: SHEET MUSIC & PLAYBACK */}
                 <div
