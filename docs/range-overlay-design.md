@@ -244,6 +244,10 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
   starting playback closes the overlay (Han 2026-05-30). Overlays live in
   `src/components/sheet-music/overlays/`. Smoke test renders the full path
   (`overlays/__tests__/RangeStaffOverlay.test.jsx`).
+  - **Refinements (Han 2026-05-30):** notes render as quarter notes; a right
+    margin is reserved for preset chips (and makes the row compact); out-of-band
+    notes are dimmed further; in rangeEditMode repeat signs + the "4×" are hidden
+    and barlines are plain, ending in a normal vertical barline.
 - **Phase 3 — interaction:** drag + tap to move boundaries, with constraints;
   write back to `InstrumentSettings.range`; preset-match highlight.
 - **Phase 4 — preset chips:** bracket chips right of the row applying

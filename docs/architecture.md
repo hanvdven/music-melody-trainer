@@ -2149,8 +2149,14 @@ horizontal row (low→high), laid out via a private slot grid. The current
 `{min,max}` band is colour-coded entirely with theme vars via the renderer's
 `previewMode` override: boundary notes `--accent-yellow`, in-band
 `--text-primary`, out-of-band `--text-dim`; boundary note names are labelled.
-Percussion shows every kit pad with a staff position (from `PADS`). The earlier
-HTML scaffold (`RangeOverlay.jsx`) was retired (D4).
+Percussion shows every kit pad with a staff position (from `PADS`). Notes render
+as quarter notes (`TICKS_PER_WHOLE/4`); out-of-band notes are dimmed further via
+group opacity. A right margin (`PRESET_AREA_WIDTH`) is reserved for the preset
+chips (Phase 4) and makes the row more compact. In rangeEditMode the repeat
+barlines + `RepeatsControls` (the "4×") are suppressed and a dedicated
+`mode="regular"`, `numRepeats=1` `BarlinesLayer` is rendered so the staves show
+plain barlines ending in a normal vertical barline. The earlier HTML scaffold
+(`RangeOverlay.jsx`) was retired (D4).
 
 **Range-edit ↔ playback are mutually exclusive (Han 2026-05-30).** While
 `rangeEditMode` is on, the staves are blank canvases: the entire
