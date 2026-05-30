@@ -1271,8 +1271,10 @@ Acties voor backlog (vraagt interview voor scope/prioriteit):
 - ➖ `noteWidth` als percentage / SVG→Canvas — niet de bottleneck (verworpen in plan, gedocumenteerd in `docs/architecture.md` §29.6).
 Verificatie open: Han moet in browser nieuwe DevTools-trace draaien om de 250→<50ms / INP→<200ms doelen te bevestigen voordat ✅ kan.
 
-### Bug: click anywhere should close settings overlay (Han 2026-05-25)
+### ✅ Bug: click anywhere should close settings overlay (Han 2026-05-25)
 Eenderwaar klikken (behalve op responsieve knoppen / settings-elementen zelf) moet de settings overlay sluiten. Op dit moment moet je specifiek buiten een knop maar binnen de "klik-vrije" zone klikken — soms niet intuïtief.
+
+[Claude 2026-05-29]: Geïmplementeerd via `data-settings-keepalive` zones (rondes 11/12). Het pointerdown-capture-phase listener in `useSettingsOverlay.js` sluit nu de overlay bij elke klik OPENBAAR sheet-muziek-gebied, behalve in expliciete keep-alive zones: SubHeader, BpmControls, RepeatsControls. Note/chord clicks DO sluiten (= bedoeld). Zie architecture §35.
 
 ### Header — split play button
 
