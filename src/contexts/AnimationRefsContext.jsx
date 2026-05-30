@@ -7,6 +7,7 @@ export const AnimationRefsProvider = ({
     transitionRef,
     clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
     sequencerRef, context,
+    rubatoScrollAnchorRef,
     children,
 }) => {
     // All values here are refs / setters with stable identity across renders,
@@ -19,11 +20,13 @@ export const AnimationRefsProvider = ({
         transitionRef,
         clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
         sequencerRef, context,
+        rubatoScrollAnchorRef,
     }), [
         wipeTransitionRef, scrollTransitionRef, paginationFadeRef,
         transitionRef,
         clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
         sequencerRef, context,
+        rubatoScrollAnchorRef,
     ]);
     return (
         <AnimationRefsContext.Provider value={value}>

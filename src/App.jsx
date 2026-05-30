@@ -570,6 +570,12 @@ const App = () => {
     // Forwarder for inputTestStateRef — populated after useInputTest mounts so
     // onNoteCorrect can read the latest activeIndex without circular TDZ.
     const rubatoInputStateRefForwarderRef = useRef(null);
+    // Scroll anchor for rubato (PR-E round 18). When isActive=true, the scroll
+    // animation in useSheetMusicHighlight uses pageFraction directly instead
+    // of the audio-time formula. Updated on each correct-note advance to
+    // point at the NEXT expected note's tick offset so the user sees the
+    // cursor glide forward into the upcoming note position.
+    const rubatoScrollAnchorRef = useRef({ pageFraction: 0, isActive: false, currentFraction: 0 });
     const RUBATO_HISTORY_LIMIT = 8;
     const RUBATO_EWMA_ALPHA = 0.6; // higher → more reactive to recent intervals
 
@@ -658,6 +664,17 @@ const App = () => {
                         rubatoEventHistoryRef.current.shift();
                     }
                     scheduleRubatoAccompaniment(currentOffset, nextOffset);
+                    // PR-E round 18: drive the scroll-mode cursor to the NEXT
+                    // expected note so the user sees what's coming. Linear
+                    // pageFraction = nextOffset / total iteration ticks. The
+                    // rAF in useSheetMusicHighlight eases from currentFraction
+                    // toward this target. isActive flips on so the hook
+                    // bypasses its time-based formula.
+                    const total = (nmRef.current || 1) * (TICKS_PER_WHOLE * tsRef.current[0] / tsRef.current[1]);
+                    if (total > 0) {
+                        rubatoScrollAnchorRef.current.pageFraction = nextOffset / total;
+                        rubatoScrollAnchorRef.current.isActive = true;
+                    }
                 }
             }
         }, [instruments.treble, context, scheduleRubatoAccompaniment]),
@@ -1059,7 +1076,16 @@ const App = () => {
         bpm,
         onBpmChange: setBpm,
         isRubato,
-        onToggleRubato: () => setIsRubato(p => !p),
+        onToggleRubato: () => setIsRubato(p => {
+            // Flipping OFF rubato also clears the scroll anchor so the next
+            // (audio-time-driven) scroll resumes cleanly without a stale
+            // pageFraction holding the playhead in place.
+            if (p) {
+                rubatoScrollAnchorRef.current.isActive = false;
+                rubatoEventHistoryRef.current = [];
+            }
+            return !p;
+        }),
         anacrusisMeasureIndex,
         numRepeats: playbackConfig.repsPerMelody,
         onNumRepeatsChange: (val) => setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val })),
@@ -1140,6 +1166,7 @@ const App = () => {
             setCurrentMeasureIndex={setCurrentMeasureIndex}
             sequencerRef={sequencerRef}
             context={context}
+            rubatoScrollAnchorRef={rubatoScrollAnchorRef}
         >
         <div className="app-root">
             {/* TOP AREA WRAPPER (Preserves app theme for header/sheet) */}
