@@ -3,7 +3,7 @@ import MelodyNotesLayer from '../MelodyNotesLayer';
 import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
 import { getNoteValue } from '../../../utils/rangeUtils';
 import { PRESET_RANGES } from '../../../constants/ranges';
-import { PADS } from '../../../audio/drumKits';
+import { orderedPercussionPads } from '../../../audio/drumKits';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
 
 /**
@@ -17,31 +17,37 @@ import { TICKS_PER_WHOLE } from '../../../constants/timing';
  * Layout: each staff gets a horizontal row of selectable noteheads spread across
  * the staff width by giving them sequential offsets on a private slot grid (the
  * renderer's slot-index X mode, pixelsPerTick=null). Pitch still maps to the
- * correct staff line, so the row reads as an ascending diagonal.
+ * correct staff line, so the row reads as an ascending diagonal. Percussion is
+ * ordered per instrument family (orderedPercussionPads), variants behind base.
  *
  * Colouring (Han 2026-05-30, all via CSS theme vars):
  *   - boundary notes (current min & max)  → --accent-yellow (highlight)
  *   - notes inside the band                → --text-primary  (white/high)
- *   - notes outside the band               → --text-dim      (grey/low)
+ *   - notes outside the band               → --text-dim, dimmed (lowlight)
  * Achieved by splitting the row into three sub-melodies, each rendered with the
- * renderer's `previewMode` colour override. Boundary note NAMES are labelled.
+ * renderer's `previewMode` colour override.
  *
- * Decisions (docs/range-overlay-design.md §9): diatonic naturals only (D1);
- * extent = FULL preset ± 1 octave (D2); all kit percussion notes shown (D3).
+ * Preset brackets: in the reserved right margin each melodic preset
+ * (STANDARD/LARGE/FULL) is drawn as a right bracket spanning that preset's range
+ * (Han 2026-05-30: "alleen een rechter blokhaak, die de juiste span heeft"). The
+ * bracket matching the staff's current range is highlighted.
  *
- * No interaction yet (drag/tap = Phase 3); percussion pool toggling = Phase 5.
+ * A mode indicator makes it obvious the sheet is in range-selector mode.
+ *
+ * No interaction yet (drag/tap, percussion pool on/off, preset tap-to-apply =
+ * Phase 3).
  */
 
-const STAFF_HEIGHT = 40;        // 5 staff lines × 10 units (matches SheetMusic)
-// Quarter-note duration → filled head + stem, no flag (no flag entry for this
-// value) and no beam (beaming only applies below a quarter). Derived from the
-// timing constant rather than hardcoded (CLAUDE.md §6c).
-const QUARTER = TICKS_PER_WHOLE / 4;
-// Reserved right margin for the preset chips (STANDARD / LARGE / FULL, Phase 4).
-// Also makes the note row more compact, as Han requested.
+const QUARTER = TICKS_PER_WHOLE / 4;   // quarter-note duration → filled head + stem, no flag/beam
+// Reserved right margin holding the preset brackets. Also makes the note row
+// more compact, as Han requested.
 const PRESET_AREA_WIDTH = 92;
 // Out-of-band ("lowlight") notes are dimmed further via group opacity.
-const LOWLIGHT_OPACITY = 0.35;
+const LOWLIGHT_OPACITY = 0.3;
+// Preset-bracket geometry (in the reserved right margin).
+const BRACKET_TICK = 7;         // horizontal tick length of the right bracket
+const BRACKET_GAP = 26;         // x-spacing between nested preset brackets
+const BRACKET_LABEL_SIZE = 9;
 
 // Natural pitch classes only — diatonic row (D1).
 const PC_TO_LETTER = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
@@ -57,9 +63,6 @@ const naturalsInRange = (lowMidi, highMidi) => {
 };
 
 // Constant MelodyNotesLayer props for our synthetic, rhythm-less selectable rows.
-// scaleNotes/tonic/processedChords are unused because noteColoringMode='none' and
-// colour comes from previewMode; ties=[] per note so the renderer's tie lookups
-// (renderMelodyNotes reads melody.ties[index] unguarded) never hit undefined.
 const STATIC_LAYER_PROPS = {
     numAccidentals: 0,
     noteGroupSize: 1,
@@ -86,6 +89,10 @@ const mkMelody = (entries) => ({
     triplets: null,
     rhythmicGrouping: null,
 });
+
+// Build a right-bracket path "]" spanning [yTop, yBottom] at x.
+const rightBracketPath = (x, yTop, yBottom, tick) =>
+    `M ${x - tick} ${yTop} H ${x} V ${yBottom} H ${x - tick}`;
 
 const RangeStaffOverlay = ({
     startX, endX,
@@ -115,7 +122,6 @@ const RangeStaffOverlay = ({
         // first note exactly at startX.
         const allOffsets = Array.from({ length: N + 1 }, (_, i) => i);
         const noteWidth = (endX - PRESET_AREA_WIDTH - startX) / N;
-        const noteX = (offset) => startX + (offset - 1) * noteWidth;
 
         const out = [], inBand = [], boundary = [];
         notes.forEach((n, i) => {
@@ -139,7 +145,7 @@ const RangeStaffOverlay = ({
                             {...STATIC_LAYER_PROPS}
                             melody={mkMelody(layer.entries)}
                             staff={staff}
-                            staffYStart={staffStart}   // absolute: no per-staff translate here
+                            staffYStart={staffStart}
                             clef={clef}
                             startX={startX}
                             noteWidth={noteWidth}
@@ -150,26 +156,53 @@ const RangeStaffOverlay = ({
                         />
                     </g>
                 ))}
-                {/* Boundary note-name labels in a tidy row under the staff. */}
-                {boundary.map(e => (
-                    <text
-                        key={`lbl-${e.offset}`}
-                        x={noteX(e.offset)} y={staffStart + STAFF_HEIGHT + 16}
-                        textAnchor="middle" fontFamily="serif" fontSize={12}
-                        fill="var(--accent-yellow)"
-                    >
-                        {e.name}
-                    </text>
-                ))}
             </g>
         );
     };
 
-    // Percussion: show a selectable notehead for every kit pad that has a staff
-    // position (D3). Pool toggling (colour by selected/deselected) is Phase 5; for
-    // now all are shown in the "available" colour.
+    // Preset brackets for a melodic staff, nested in the reserved right margin.
+    const melodicPresetBrackets = (staff, staffStart, clef, range) => {
+        const selMin = getNoteValue(range?.min);
+        const selMax = getNoteValue(range?.max);
+        const presetX0 = endX - PRESET_AREA_WIDTH + BRACKET_TICK + 4;
+        const modes = ['STANDARD', 'LARGE', 'FULL'];
+        return (
+            <g className={`range-presets range-presets-${staff}`}>
+                {modes.map((mode, i) => {
+                    const p = PRESET_RANGES[mode][staff];
+                    const pMin = getNoteValue(p.min);
+                    const pMax = getNoteValue(p.max);
+                    const yTop = getNoteAbsoluteY(p.max, staffStart, clef, staff);
+                    const yBottom = getNoteAbsoluteY(p.min, staffStart, clef, staff);
+                    if (yTop == null || yBottom == null) return null;
+                    const x = presetX0 + i * BRACKET_GAP;
+                    // Highlight the bracket matching the staff's current range.
+                    const isActive = pMin === selMin && pMax === selMax;
+                    const color = isActive ? 'var(--accent-yellow)' : 'var(--text-dim)';
+                    const midY = (yTop + yBottom) / 2;
+                    return (
+                        <g key={mode}>
+                            <path d={rightBracketPath(x, yTop, yBottom, BRACKET_TICK)}
+                                fill="none" stroke={color}
+                                strokeWidth={isActive ? 1.6 : 1} />
+                            <text x={x - BRACKET_TICK - 2} y={midY}
+                                fill={color} fontSize={BRACKET_LABEL_SIZE}
+                                fontFamily="Georgia, serif" textAnchor="end"
+                                dominantBaseline="middle"
+                                transform={`rotate(-90 ${x - BRACKET_TICK - 2} ${midY})`}>
+                                {mode}
+                            </text>
+                        </g>
+                    );
+                })}
+            </g>
+        );
+    };
+
+    // Percussion selectable row — every kit pad with a staff position, ordered
+    // per instrument family (orderedPercussionPads), variants behind base.
     const percussionStaffRow = () => {
-        const ids = PADS.map(p => p.id).filter(id => noteYMap[id] != null);
+        const ids = orderedPercussionPads().filter(id => noteYMap[id] != null);
         const M = ids.length;
         if (!M) return null;
         const allOffsets = Array.from({ length: M + 1 }, (_, i) => i);
@@ -193,12 +226,25 @@ const RangeStaffOverlay = ({
         );
     };
 
+    // Clear "you are in range-selector mode" indicator (Han 2026-05-30).
+    const modeIndicator = () => (
+        <g className="range-mode-indicator" style={{ pointerEvents: 'none' }}>
+            <text x={startX} y={trebleStart - 30}
+                fill="var(--accent-yellow)" fontSize={12}
+                fontFamily="Georgia, serif" fontWeight="bold"
+                letterSpacing="1">
+                ◆ RANGE SELECTOR
+            </text>
+        </g>
+    );
+
     return (
-        // stopPropagation so taps here don't fall through to the sheet click
-        // handler (Phase 3 will add real interaction inside this group).
         <g className="range-overlay" onClick={(e) => e.stopPropagation()}>
+            {modeIndicator()}
             {isTrebleVisible && melodicStaff('treble', trebleStart, clefTreble, trebleRange)}
             {isBassVisible && melodicStaff('bass', bassStart, clefBass, bassRange)}
+            {isTrebleVisible && melodicPresetBrackets('treble', trebleStart, clefTreble, trebleRange)}
+            {isBassVisible && melodicPresetBrackets('bass', bassStart, clefBass, bassRange)}
             {isPercussionVisible && percussionStaffRow()}
         </g>
     );

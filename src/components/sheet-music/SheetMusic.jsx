@@ -2708,35 +2708,14 @@ const SheetMusic = ({
                       hidden notes-transition group, so render a dedicated visible copy
                       here with numRepeats=1 → plain barlines ending in a normal vertical
                       barline, no repeats (Han 2026-05-30). */}
+                  {/* Range-edit: no intermediate barlines (ignore measure count);
+                      just a single normal vertical end barline closing the staff
+                      (Han 2026-05-30). */}
                   {rangeEditMode && (
-                    <BarlinesLayer
-                      mode="regular"
-                      offsets={allOffsets}
-                      noteWidth={noteWidth}
-                      pixelsPerTick={ppt}
-                      startX={startX}
-                      startIdx={startMeasureIndex}
-                      blockMeasureStart={blockMeasureStart}
-                      blockPlayStart={blockPlayStart}
-                      partialTop={partialTop}
-                      partialMeasureStart={partialMeasureStart}
-                      measureBottom={measureBottom}
-                      measureYPositions={measureYPositions}
-                      trebleStart={trebleStart}
-                      bassStart={bassStart}
-                      percussionStart={percussionStart}
-                      bottomY={bottomY}
-                      isTrebleVisible={isTrebleVisible}
-                      isBassVisible={isBassVisible}
-                      isPercussionVisible={isPercussionVisible}
-                      numRepeats={1}
-                      isPlaying={false}
-                      numMeasures={numMeasures}
-                      debugMode={debugMode}
-                      showSettings={showSettings}
-                      measureLengthSlots={measureLengthSlots}
-                      onMeasureNumberClick={onMeasureNumberClick}
-                      anacrusisMeasureIndex={anacrusisMeasureIndex}
+                    <path
+                      d={`M ${endX} ${trebleStart} V ${bottomY}`}
+                      stroke="var(--text-primary)"
+                      strokeWidth="1"
                     />
                   )}
 
