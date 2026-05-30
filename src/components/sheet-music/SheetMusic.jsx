@@ -1718,17 +1718,21 @@ const SheetMusic = ({
             onToggleRubato={onToggleRubato}
           />
 
-          {/* Draw Repeats Controls - always visible, shows 4x outside adjustments */}
-          <RepeatsControls
-            numRepeats={numRepeats}
-            onNumRepeatsChange={onNumRepeatsChange}
-            trebleStart={trebleStart}
-            systemEndX={systemEndX}
-            showSettings={showSettings}
-            debugMode={debugMode}
-            onSettingsInteraction={onSettingsInteraction}
-            onResetRepeatsTimer={resetRepeatsTimer}
-          />
+          {/* Draw Repeats Controls - always visible, shows 4x outside adjustments.
+              Hidden in rangeEditMode: the range selector wants plain staves with
+              no repeat affordances. */}
+          {!rangeEditMode && (
+            <RepeatsControls
+              numRepeats={numRepeats}
+              onNumRepeatsChange={onNumRepeatsChange}
+              trebleStart={trebleStart}
+              systemEndX={systemEndX}
+              showSettings={showSettings}
+              debugMode={debugMode}
+              onSettingsInteraction={onSettingsInteraction}
+              onResetRepeatsTimer={resetRepeatsTimer}
+            />
+          )}
 
           {/* Randomize Icons */}
           {renderRandomizeIcons()}
@@ -2666,7 +2670,8 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* Thick repeat barlines — hidden in scroll+playing (no start/end repeat signs in scroll mode) */}
+                  {/* Thick repeat barlines — hidden in scroll+playing (no start/end repeat signs in scroll mode).
+                      In rangeEditMode we force numRepeats=1 so this layer draws nothing (no repeat signs). */}
                   {!(animationMode === 'scroll' && isPlaying) && (
                     <BarlinesLayer
                       mode="repeat"
@@ -2688,8 +2693,44 @@ const SheetMusic = ({
                       isTrebleVisible={isTrebleVisible}
                       isBassVisible={isBassVisible}
                       isPercussionVisible={isPercussionVisible}
-                      numRepeats={numRepeats}
+                      numRepeats={rangeEditMode ? 1 : numRepeats}
                       isPlaying={isPlaying}
+                      numMeasures={numMeasures}
+                      debugMode={debugMode}
+                      showSettings={showSettings}
+                      measureLengthSlots={measureLengthSlots}
+                      onMeasureNumberClick={onMeasureNumberClick}
+                      anacrusisMeasureIndex={anacrusisMeasureIndex}
+                    />
+                  )}
+
+                  {/* Range-edit: the usual mode="regular" barlines live inside the
+                      hidden notes-transition group, so render a dedicated visible copy
+                      here with numRepeats=1 → plain barlines ending in a normal vertical
+                      barline, no repeats (Han 2026-05-30). */}
+                  {rangeEditMode && (
+                    <BarlinesLayer
+                      mode="regular"
+                      offsets={allOffsets}
+                      noteWidth={noteWidth}
+                      pixelsPerTick={ppt}
+                      startX={startX}
+                      startIdx={startMeasureIndex}
+                      blockMeasureStart={blockMeasureStart}
+                      blockPlayStart={blockPlayStart}
+                      partialTop={partialTop}
+                      partialMeasureStart={partialMeasureStart}
+                      measureBottom={measureBottom}
+                      measureYPositions={measureYPositions}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      bottomY={bottomY}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      numRepeats={1}
+                      isPlaying={false}
                       numMeasures={numMeasures}
                       debugMode={debugMode}
                       showSettings={showSettings}

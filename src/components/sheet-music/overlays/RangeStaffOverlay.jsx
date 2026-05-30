@@ -4,6 +4,7 @@ import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
 import { getNoteValue } from '../../../utils/rangeUtils';
 import { PRESET_RANGES } from '../../../constants/ranges';
 import { PADS } from '../../../audio/drumKits';
+import { TICKS_PER_WHOLE } from '../../../constants/timing';
 
 /**
  * RangeStaffOverlay — in-SVG range selector (sheet/bladmuziek variant).
@@ -32,8 +33,15 @@ import { PADS } from '../../../audio/drumKits';
  */
 
 const STAFF_HEIGHT = 40;        // 5 staff lines × 10 units (matches SheetMusic)
-const WHOLE = 48;               // whole-note duration → open head, no stem/beam
-const ROW_RIGHT_GAP = 10;       // small right margin (preset chips land here, Phase 4)
+// Quarter-note duration → filled head + stem, no flag (no flag entry for this
+// value) and no beam (beaming only applies below a quarter). Derived from the
+// timing constant rather than hardcoded (CLAUDE.md §6c).
+const QUARTER = TICKS_PER_WHOLE / 4;
+// Reserved right margin for the preset chips (STANDARD / LARGE / FULL, Phase 4).
+// Also makes the note row more compact, as Han requested.
+const PRESET_AREA_WIDTH = 92;
+// Out-of-band ("lowlight") notes are dimmed further via group opacity.
+const LOWLIGHT_OPACITY = 0.35;
 
 // Natural pitch classes only — diatonic row (D1).
 const PC_TO_LETTER = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
@@ -73,7 +81,7 @@ const STATIC_LAYER_PROPS = {
 const mkMelody = (entries) => ({
     notes: entries.map(e => e.name),
     offsets: entries.map(e => e.offset),
-    durations: entries.map(() => WHOLE),
+    durations: entries.map(() => QUARTER),
     ties: entries.map(() => null),
     triplets: null,
     rhythmicGrouping: null,
@@ -106,7 +114,7 @@ const RangeStaffOverlay = ({
         // renderer's getTickX (startX + (indexOf(offset)-1)*noteWidth) puts the
         // first note exactly at startX.
         const allOffsets = Array.from({ length: N + 1 }, (_, i) => i);
-        const noteWidth = (endX - ROW_RIGHT_GAP - startX) / N;
+        const noteWidth = (endX - PRESET_AREA_WIDTH - startX) / N;
         const noteX = (offset) => startX + (offset - 1) * noteWidth;
 
         const out = [], inBand = [], boundary = [];
@@ -118,28 +126,29 @@ const RangeStaffOverlay = ({
         });
 
         const colorLayers = [
-            { key: 'out', color: 'var(--text-dim)', entries: out },
-            { key: 'in', color: 'var(--text-primary)', entries: inBand },
-            { key: 'bound', color: 'var(--accent-yellow)', entries: boundary },
+            { key: 'out', color: 'var(--text-dim)', opacity: LOWLIGHT_OPACITY, entries: out },
+            { key: 'in', color: 'var(--text-primary)', opacity: 1, entries: inBand },
+            { key: 'bound', color: 'var(--accent-yellow)', opacity: 1, entries: boundary },
         ];
 
         return (
             <g className={`range-row range-row-${staff}`} key={staff}>
                 {colorLayers.map(layer => layer.entries.length > 0 && (
-                    <MelodyNotesLayer
-                        key={layer.key}
-                        {...STATIC_LAYER_PROPS}
-                        melody={mkMelody(layer.entries)}
-                        staff={staff}
-                        staffYStart={staffStart}   // absolute: no per-staff translate here
-                        clef={clef}
-                        startX={startX}
-                        noteWidth={noteWidth}
-                        allOffsets={allOffsets}
-                        timeSignature={timeSignature}
-                        theme={theme}
-                        previewMode={layer.color}
-                    />
+                    <g key={layer.key} style={{ opacity: layer.opacity }}>
+                        <MelodyNotesLayer
+                            {...STATIC_LAYER_PROPS}
+                            melody={mkMelody(layer.entries)}
+                            staff={staff}
+                            staffYStart={staffStart}   // absolute: no per-staff translate here
+                            clef={clef}
+                            startX={startX}
+                            noteWidth={noteWidth}
+                            allOffsets={allOffsets}
+                            timeSignature={timeSignature}
+                            theme={theme}
+                            previewMode={layer.color}
+                        />
+                    </g>
                 ))}
                 {/* Boundary note-name labels in a tidy row under the staff. */}
                 {boundary.map(e => (
@@ -164,7 +173,7 @@ const RangeStaffOverlay = ({
         const M = ids.length;
         if (!M) return null;
         const allOffsets = Array.from({ length: M + 1 }, (_, i) => i);
-        const noteWidth = (endX - ROW_RIGHT_GAP - startX) / M;
+        const noteWidth = (endX - PRESET_AREA_WIDTH - startX) / M;
         return (
             <g className="range-row range-row-percussion" key="percussion">
                 <MelodyNotesLayer
