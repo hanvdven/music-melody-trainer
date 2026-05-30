@@ -208,6 +208,52 @@ const SheetMusic = ({
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
   const { trebleSettings, setTrebleSettings, bassSettings, setBassSettings,
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
+
+  // ── Range-selector write handlers (Phase 3) ──────────────────────────────
+  // Reuse RangeControls' semantics so both surfaces behave identically:
+  // clampRange enforces the 12-semitone min span + 21..108 bounds; then detect
+  // a preset match to keep rangeMode in sync. Writing through the same setters
+  // fires the existing settings→regeneration path unchanged.
+  const setMelodicBoundary = React.useCallback((staff, midi, which) => {
+    const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
+    setter(prev => {
+      const curMin = getNoteValue(prev.range.min);
+      const curMax = getNoteValue(prev.range.max);
+      // 'nearest' (tap) picks the closer boundary; a drag passes the captured
+      // boundary explicitly so it keeps following the finger.
+      const bound = which === 'nearest'
+        ? (Math.abs(midi - curMin) <= Math.abs(midi - curMax) ? 'min' : 'max')
+        : which;
+      const startMin = bound === 'min' ? midi : curMin;
+      const startMax = bound === 'max' ? midi : curMax;
+      const { min, max } = clampRange(startMin, startMax, bound);
+      const range = { min: getNoteFromValue(min), max: getNoteFromValue(max) };
+      let rangeMode = 'CUSTOM';
+      for (const m of ['STANDARD', 'LARGE', 'FULL']) {
+        const p = PRESET_RANGES[m][staff];
+        if (p.min === range.min && p.max === range.max) { rangeMode = m; break; }
+      }
+      return { ...prev, range, rangeMode };
+    });
+  }, [setTrebleSettings, setBassSettings]);
+
+  const applyMelodicPreset = React.useCallback((staff, mode) => {
+    const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
+    const p = PRESET_RANGES[mode][staff];
+    setter(prev => ({ ...prev, range: { ...p }, rangeMode: mode }));
+  }, [setTrebleSettings, setBassSettings]);
+
+  const togglePad = React.useCallback((padId) => {
+    setPercussionSettings(prev => {
+      const cur = Array.isArray(prev.enabledPads) ? prev.enabledPads : [];
+      const next = cur.includes(padId) ? cur.filter(p => p !== padId) : [...cur, padId];
+      return { ...prev, enabledPads: next };
+    });
+  }, [setPercussionSettings]);
+
+  const applyPercussionPreset = React.useCallback((mode) => {
+    setPercussionSettings(prev => ({ ...prev, enabledPads: [...PERCUSSION_PRESETS[mode]] }));
+  }, [setPercussionSettings]);
   const { noteColoringMode, setNoteColoringMode, debugMode, lyricsMode,
     chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
     animationMode, courtesyAccidentals = true, percussionVoiceSplit = false } = useDisplaySettings();
