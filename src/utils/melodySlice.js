@@ -15,6 +15,12 @@
  * @returns {(object|null)[]}
  */
 export function sliceMelodyByMeasure(melody, measureLengthTicks, numMeasures) {
+  // Fermata semantics (Han 2026-05-29 round 13): song-level events of shape
+  // { tick, hold }. Per-measure slicing carries the SAME tick-based events
+  // unchanged — they're global by definition, so a slice doesn't need to
+  // translate them. Renderers that want to show a glyph compare tick against
+  // the slice's absolute measure-start to decide if the glyph belongs in
+  // this measure.
   return Array.from({ length: numMeasures }, (_, m) => {
     const lo = m * measureLengthTicks;
     const hi = (m + 1) * measureLengthTicks;
@@ -34,6 +40,7 @@ export function sliceMelodyByMeasure(melody, measureLengthTicks, numMeasures) {
       triplets:         melody.triplets ? idx.map(i => melody.triplets[i] ?? null) : null,
       rhythmicGrouping: melody.rhythmicGrouping ?? null,
       rhythmicDNA:      melody.rhythmicDNA ?? null,
+      fermatas:         melody.fermatas ?? null,
     };
   });
 }
@@ -77,6 +84,7 @@ export function sliceToMelodyLike(slice, measureLengthTicks) {
       triplets:         slice.triplets ?? null,
       rhythmicGrouping: slice.rhythmicGrouping ?? null,
       rhythmicDNA:      slice.rhythmicDNA ?? null,
+      fermatas:         slice.fermatas ?? null,
     };
   }
   // Empty measure: single whole-rest spanning the full measure

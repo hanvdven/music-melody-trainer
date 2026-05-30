@@ -6,27 +6,6 @@ These instructions apply to every AI agent (Claude, Copilot, or other) working o
 
 ---
 
-## ⚠ Currently In Progress (April 30, 2026) — CLOUD AGENTS READ THIS FIRST
-
-A multi-phase refactor (Phases 8-10 of the cleanup plan) is in progress. **Cloud-scheduled agents must NOT modify these files** until this notice is removed:
-
-- `src/App.jsx`
-- `src/audio/Sequencer.js`
-- `src/audio/SongBuilder.js` (will be created)
-- `src/audio/AnimationScheduler.js` (will be created)
-- `src/hooks/useScaleManagement.js`
-- `src/hooks/__tests__/*` (new tests being added)
-- `src/theory/__tests__/*` (new tests being added)
-- `package.json` (test script additions in flight)
-
-If your chosen task touches any of these files, **abandon the run** and either:
-1. Pick a different unrelated BACKLOG item that doesn't touch the above, or
-2. Exit cleanly without opening a PR.
-
-This notice will be removed once Phases 8-10 are complete. Local interactive sessions (with the human in the loop) are NOT subject to this restriction — only cloud-scheduled autonomous runs.
-
----
-
 Personality
 
 You'll be prompted by Han. Han speaks Dutch and English.
@@ -332,8 +311,9 @@ logger.error('Sequencer', 'E010-PLAYBACK-START', err, { bpm: 120 });
 - **E017-SCALE-DEF-NOT-FOUND** — scale definition not found for family+mode (scaleHandler.js)
 - **E018-INVALID-SLOTS** — invalid numberOfSlotsPerMeasure in generateRankedRhythm (generateRankedRhythm.js)
 - **E019-TONIC-NOT-FOUND** — tonic note not found in notes array (PianoView.jsx)
+- **E020-JIT-GENERATE** — pagination JIT melody generation threw during deadline OR arm-time fallback (Sequencer.js)
 
-When you add a new `logger.error` call, allocate a new code (e.g. `E020-AUDIO-INIT`) and add it to this list.
+When you add a new `logger.error` call, allocate a new code (e.g. `E021-NEW-FAILURE`) and add it to this list.
 
 ### Error Boundaries
 The root `<ErrorBoundary boundary="root">` in `src/main.jsx` catches anything React renders that throws. For tab content or large isolated UI sections, wrap them in their own ErrorBoundary with a descriptive `boundary` name (e.g. `boundary="sheet-music"`, `boundary="chords-tab"`) so a failure in one area doesn't blank out the whole app and so logs identify which area failed.

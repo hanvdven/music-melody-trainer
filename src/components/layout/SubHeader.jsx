@@ -117,6 +117,14 @@ const SubHeader = ({
 
     return (
         <div
+            // Han 2026-05-29: mark the SubHeader as a settings-keepalive zone
+            // so pointerdown here doesn't trigger useSettingsOverlay's
+            // click-outside-to-close. The buttons still receive their clicks
+            // (renderButton stops propagation), but without this marker the
+            // capture-phase listener would close the overlay first and the
+            // user's tap would feel like it dismissed everything instead of
+            // toggling the intended option (note coloring, highlights, ...).
+            data-settings-keepalive=""
             onClick={onActivateAdjustments}
             style={{
                 width: '100%',
@@ -198,10 +206,10 @@ const SubHeader = ({
                 </div>
 
                 {/* LEFT: 2*BW*btnScale from padded edge — animation mode + pagination variant.
-                    Single cycle through 5 states: pag-snel → pag-mid → pag-lang → wipe → scroll.
-                    The pagination variant is set together with the mode so the user can pick
-                    a crossfade speed without an extra interaction. Long-press behaviour can
-                    be added later (popup) once the basic redesign is verified. */}
+                    Cycle: pag-snel → pag-mid → wipe → scroll. The 'lang' pagination variant
+                    was removed 2026-05-28 (Han: no use case). If a user has 'lang' saved in
+                    localStorage from a previous session it falls through to 'wipe' on the
+                    next cycle press; legacy state isn't actively scrubbed. */}
                 <div style={{ position: 'absolute', left: Math.round(BW * 2 * btnScale), top: '50%', transform: 'translateY(-50%)' }}>
                     {renderButton(
                         animationMode === 'wipe' ? <ArrowRightFromLine size={22} /> : animationMode === 'scroll' ? <ArrowLeft size={22} /> : <BookOpenCheck size={22} />,
@@ -209,13 +217,13 @@ const SubHeader = ({
                             : animationMode === 'scroll' ? 'SCROLL'
                             : `PAG · ${(paginationVariant ?? 'mid').toUpperCase()}`,
                         () => {
-                            // Cycle: pag/snel → pag/mid → pag/lang → wipe → scroll → pag/snel
+                            // Cycle: pag/snel → pag/mid → wipe → scroll → pag/snel.
                             if (animationMode !== 'pagination') {
                                 if (animationMode === 'wipe') setAnimationMode('scroll');
                                 else { setAnimationMode('pagination'); setPaginationVariant('snel'); }
                                 return;
                             }
-                            const next = { snel: 'mid', mid: 'lang', lang: null }[paginationVariant ?? 'mid'];
+                            const next = { snel: 'mid', mid: null }[paginationVariant ?? 'mid'];
                             if (next) setPaginationVariant(next);
                             else setAnimationMode('wipe');
                         },

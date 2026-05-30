@@ -2,6 +2,7 @@ import Melody from '../model/Melody.js';
 import Chord from '../model/Chord.js';
 import { transposeNoteBySemitones } from '../theory/musicUtils.js';
 import { getNoteSemitone } from '../theory/noteUtils.js';
+import { chooseGrouping } from '../generation/rhythmicPriorities.js';
 
 /**
  * Converts a song definition + optional transposition into the Melody objects
@@ -63,6 +64,28 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
     return transposeNoteBySemitones(note, shift);
   };
 
+  // Fallback rhythmic grouping derived from the time signature when the song
+  // doesn't provide one (Han 2026-05-28). Reuses `chooseGrouping` (which the
+  // generator already uses for its own meters) so we keep one source of truth
+  // for "prefer 3s then 2s" decomposition. Works for regular and irregular
+  // meters: 3/4 → [3], 4/4 → [2,2], 5/4 → [3,2], 6/8 → [3,3], 7/8 → [3,2,2],
+  // 11/8 → [3,3,3,2], 13/16 → [3,3,3,2,2]. The result is at the BEAT level
+  // (= denominator-unit count); finer subdivisions are handled by downstream
+  // beaming logic.
+  const fallbackGrouping = chooseGrouping(songDef.timeSignature[0]);
+  const groupingForSong = songDef.rhythmicGrouping ?? fallbackGrouping;
+
+  // Song-level fermatas (Han 2026-05-29 round 13). Tick-based format:
+  // { tick, hold } where `tick` is the absolute tick of the fermata note and
+  // `hold` is how many extra ticks every subsequent note gets delayed by.
+  // Propagated to ALL track melodies (treble, bass, percussion, chordMelody)
+  // so audio shifts uniformly — the previous per-track-treble-only design
+  // left the chord and bass tracks playing on the natural timeline while the
+  // treble shifted, which Han correctly flagged as "alleen op treble melodie".
+  const songFermatas = Array.isArray(diffData.fermatas)
+    ? diffData.fermatas.filter(f => f && typeof f.tick === 'number' && typeof f.hold === 'number' && f.hold > 0)
+    : [];
+
   // ── Treble melody ─────────────────────────────────────────────────────────
   let treble = null;
   if (diffData.treble) {
@@ -73,9 +96,8 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       [...td.offsets],
     );
     if (td.lyrics) treble.lyrics = [...td.lyrics];
-    // Songs never use automatic rhythmic-grouping derivation; supply the
-    // measure-grouping explicitly so beam calculations work correctly.
-    treble.rhythmicGrouping = songDef.rhythmicGrouping ?? null;
+    treble.rhythmicGrouping = groupingForSong;
+    if (songFermatas.length > 0) treble.fermatas = songFermatas.map(f => ({ ...f }));
   }
 
   // ── Bass melody ───────────────────────────────────────────────────────────
@@ -87,7 +109,8 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       [...bd.durations],
       [...bd.offsets],
     );
-    bass.rhythmicGrouping = songDef.rhythmicGrouping ?? null;
+    bass.rhythmicGrouping = groupingForSong;
+    if (songFermatas.length > 0) bass.fermatas = songFermatas.map(f => ({ ...f }));
   }
 
   // ── Percussion melody ─────────────────────────────────────────────────────
@@ -101,7 +124,8 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       [...pd.durations],
       [...pd.offsets],
     );
-    percussion.rhythmicGrouping = songDef.rhythmicGrouping ?? null;
+    percussion.rhythmicGrouping = groupingForSong;
+    if (songFermatas.length > 0) percussion.fermatas = songFermatas.map(f => ({ ...f }));
   }
 
   // ── Chord melody ──────────────────────────────────────────────────────────
@@ -112,16 +136,32 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
   //   .durations[i]   = tick duration
   let chordMelody = null;
   if (diffData.chords) {
-    const chordNotes      = diffData.chords.map(c => c.notes.map(transpose));
+    // N.C. (no chord) entries have type 'nc' + empty notes/root. They participate
+    // in the chord-progression timeline but are not transposed and play silently
+    // (the audio scheduler sees an empty notes array → schedules nothing). The
+    // visual layer renders "N.C." instead of a root + suffix (Han 2026-05-28).
+    const chordNotes      = diffData.chords.map(c => c.type === 'nc' ? [] : c.notes.map(transpose));
     const chordDurations  = diffData.chords.map(c => c.duration);
     const chordOffsets    = diffData.chords.map(c => c.offset);
     const chordDisplays   = diffData.chords.map((c, i) => {
+      if (c.type === 'nc') {
+        // Construct a placeholder Chord with type='nc'. Root is empty; the
+        // label layer detects this and renders "N.C." instead of root+suffix.
+        return new Chord('', 'nc', [], c.name || 'N.C.', '', '', '', [], []);
+      }
       const newRoot  = shift !== 0 ? transposeNoteBySemitones(c.root, shift) : c.root;
       const newNotes = chordNotes[i];
       const rootPC   = newRoot.replace(/-?\d+$/, '');
-      return new Chord(newRoot, c.type, newNotes, c.name, rootPC, '', '', [], []);
+      // c.suffix (Han 2026-05-29) is the explicit chord suffix for display,
+      // e.g. "maj9", "dim", "7♭5". Without it, ChordLabelsLayer just shows the
+      // root letter — fine for the easy progression but not for the jazz
+      // arrangement on hard. Falls back to the empty string when the JSON
+      // doesn't provide one. c.meta carries flags like isPassing so the
+      // smaller-font + arrow rendering kicks in for passing chords.
+      return new Chord(newRoot, c.type, newNotes, c.name, rootPC, c.suffix || '', '', [], [], c.meta || {});
     });
     chordMelody = new Melody(chordNotes, chordDurations, chordOffsets, chordDisplays);
+    if (songFermatas.length > 0) chordMelody.fermatas = songFermatas.map(f => ({ ...f }));
   }
 
   return {

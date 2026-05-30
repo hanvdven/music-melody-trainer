@@ -49,6 +49,11 @@ const iterMeasureLines = ({
   showSettings,
   measureLengthSlots,
   onMeasureNumberClick,
+  // Anacrusis support (Han 2026-05-28): when the loaded song's first measure
+  // has a leading rest (= trebleMelody.offsets[0] > 0), pass the global index
+  // of that pickup measure here so its number label is suppressed in the
+  // pickup-measure convention. null = no anacrusis to hide.
+  anacrusisMeasureIndex = null,
 }) => {
   // bmsOverride / bpsOverride: pagination crossfade overlay passes the FUTURE
   // blockMeasureStart and blockPlayStart so the preview's measure-number labels
@@ -105,31 +110,47 @@ const iterMeasureLines = ({
         ? Math.max(1, Math.floor((startIdx - bps) / numMeasures) + 1)
         : 1;
       // Returns "N" (first play) or "N . R" (repeat R, R≥2) where N = song measure number.
+      // Anacrusis offset (Han 2026-05-29): when the song has a pickup measure,
+      // the pickup is m0 (suppressed below) and the FIRST FULL measure should
+      // be labeled "1", not "2". Subtract 1 from N for all labels when an
+      // anacrusis is present in this displayed sequence block (= bms-1 matches
+      // the anacrusis index). This shifts the entire numbering down by one so
+      // m1 reads "1", m2 reads "2", etc.
+      const hasAnacrusisInBlock = anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
       const measureLabel = (localIndex) => {
-        const N = bms + localIndex;
+        const N = bms + localIndex - (hasAnacrusisInBlock ? 1 : 0);
         return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
       };
 
       if (numRepeats > 1) {
         if (isStart) {
           if (mode === 'regular') {
-            // Show measure number label above the start barline even when repeats > 1
+            // Anacrusis suppression: when the leftmost displayed measure IS the
+            // song's pickup measure, omit the number entirely (Han 2026-05-28).
+            // The empty <g> keeps the click target so onMeasureNumberClick still
+            // works for jump-to-measure interactions.
+            // bms is 1-indexed (e.g. 1 for the first measure of the song); anacrusisMeasureIndex
+// is 0-indexed (= the global measureIndex of the song's pickup), so we compare with
+// (bms - 1). For HBD song-load: bms=1, anacrusisMeasureIndex=0 → match → suppress.
+const isAnacrusisStart = anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
             return (
               <g key={`measure-line-${index}`}
                 onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx); } : undefined}
                 style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
               >
                 <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
-                <text
-                  x={startX}
-                  y={trebleStart - 14}
-                  fontSize="15"
-                  fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
-                  fontFamily="Georgia, 'Times New Roman', serif"
-                  style={{ userSelect: 'none' }}
-                >
-                  {measureLabel(0)}
-                </text>
+                {!isAnacrusisStart && (
+                  <text
+                    x={startX}
+                    y={trebleStart - 14}
+                    fontSize="15"
+                    fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                    fontFamily="Georgia, 'Times New Roman', serif"
+                    style={{ userSelect: 'none' }}
+                  >
+                    {measureLabel(0)}
+                  </text>
+                )}
                 {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
               </g>
             );
@@ -178,13 +199,20 @@ const iterMeasureLines = ({
 
       // For the opening barline (numRepeats <= 1): suppress the barline itself but
       // still render the "1" measure label above startX (the first note position).
+      // Anacrusis: when the leftmost displayed measure is the song's pickup, omit
+      // the label entirely (Han 2026-05-28).
       if (isStart && numRepeats <= 1) {
+        // bms is 1-indexed (e.g. 1 for the first measure of the song); anacrusisMeasureIndex
+// is 0-indexed (= the global measureIndex of the song's pickup), so we compare with
+// (bms - 1). For HBD song-load: bms=1, anacrusisMeasureIndex=0 → match → suppress.
+const isAnacrusisStart = anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
         return (
           <g key={`measure-line-${index}`}
             onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}
             style={{ cursor: onMeasureNumberClick ? 'pointer' : 'default' }}
           >
             <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="transparent" />
+            {!isAnacrusisStart && (
             <text
               x={startX}
               y={trebleStart - 14}
@@ -195,6 +223,7 @@ const iterMeasureLines = ({
             >
               {measureLabel(measureNumForLabel)}
             </text>
+            )}
             {debugMode && <rect x={startX - 10} y={trebleStart - 28} width={60} height={18} fill="magenta" fillOpacity={0.3} stroke="magenta" strokeWidth={1} style={{ pointerEvents: 'none' }} />}
           </g>
         );

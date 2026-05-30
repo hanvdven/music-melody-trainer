@@ -22,7 +22,7 @@ import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
 import { getNoteSemitone, getKodalySolfege } from '../../theory/noteUtils';
 import { getNoteIndex } from '../../theory/musicUtils';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
-import { isCompoundMeter, getEffectiveBeatDuration, getTakadimiSyllable, getTakadimiSyllableGrouped, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
+import { isCompoundMeter, getEffectiveBeatDuration, getBeatDurationTicks, getTakadimiSyllable, getTakadimiSyllableGrouped, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
 
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
@@ -150,6 +150,12 @@ const SheetMusic = ({
   onTimeSignatureChange,
   bpm,
   onBpmChange,
+  isRubato = false,
+  onToggleRubato,
+  // Anacrusis handling (Han 2026-05-28): the global measureIndex of the song's
+  // pickup measure, or null if no song with anacrusis is loaded. BarlinesLayer
+  // uses this to suppress the number label on that one measure.
+  anacrusisMeasureIndex = null,
   numRepeats,
   onNumRepeatsChange,
   numAccidentals,
@@ -193,7 +199,7 @@ const SheetMusic = ({
   const { wipeTransitionRef, scrollTransitionRef, paginationFadeRef,
           transitionRef,
           clearHighlightStateRef, showNoteHighlightRef, setCurrentMeasureIndex,
-          sequencerRef, context } = useAnimationRefs();
+          sequencerRef, context, rubatoScrollAnchorRef } = useAnimationRefs();
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
   const { trebleSettings, setTrebleSettings, bassSettings, setBassSettings,
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
@@ -220,6 +226,7 @@ const SheetMusic = ({
     scrollTransitionRef,
     paginationFadeRef,
     transitionRef,
+    rubatoScrollAnchorRef,
   });
 
   useSheetMusicTransitions(nextLayer, layoutRef, svgRef);
@@ -245,7 +252,17 @@ const SheetMusic = ({
     : 'bass';
 
   const measureLengthSlots = (TICKS_PER_WHOLE * timeSignature[0]) / timeSignature[1];
-  const noteGroupSize = measureLengthSlots % 18 === 0 ? 18 : 12;
+  // noteGroupSize = ticks per BEAT (= one count). processMelodyAndCalculateSlots
+  // splits any note that crosses a beat boundary. Delegated to the shared
+  // getBeatDurationTicks helper (theory/rhythmicSolfege.js) which already
+  // knows the compound-vs-simple rule. Replaces the legacy heuristic
+  //   measureLengthSlots % 18 === 0 ? 18 : 12
+  // that mis-classified 3/4 as compound (36 % 18 === 0 picked 18 = dotted-
+  // quarter, but 3/4 is simple — beat is the quarter, 12 ticks). Han observed
+  // this on HBD bass m1: three quarters rendered as q + (e tied to e) + q.
+  // Consolidated 2026-05-29 so SheetMusic and rhythmic-solfege agree on what
+  // a "beat" is.
+  const noteGroupSize = getBeatDurationTicks(timeSignature);
 
   // --- Vertical Layout Constants (Responsive) ---
   const baseGap = 70;
@@ -1294,6 +1311,36 @@ const SheetMusic = ({
     });
   };
 
+  // Renders fermata glyphs above the treble staff. Tick-based format (Han
+  // 2026-05-29 round 13): each fermata is { tick, hold } at the song level.
+  // The glyph sits above whichever note happens to land on that tick.
+  // Maestro 'U' (SHIFT+u) is the arc-down fermata for stem-down notes;
+  // stem-direction-aware swap to 'u' is a follow-up refinement.
+  const renderFermataGlyphs = (melody, glyphY, offsets = allOffsets, nw = noteWidth) => {
+    if (!melody?.fermatas || melody.fermatas.length === 0) return null;
+    if (!melody.offsets) return null;
+    const getXLocal = (index) => startX + (index - 1) * nw;
+    return melody.fermatas.map((f, fi) => {
+      if (typeof f?.tick !== 'number') return null;
+      const idx = offsets.indexOf(f.tick);
+      if (idx < 0) return null;
+      const x = getXLocal(idx) + 5;
+      return (
+        <text
+          key={`fermata-${fi}`}
+          x={x} y={glyphY}
+          fontSize={24}
+          fontFamily="Maestro"
+          fill="var(--text-primary)"
+          textAnchor="middle"
+          style={{ userSelect: 'none' }}
+        >
+          U
+        </text>
+      );
+    });
+  };
+
   // Renders song text lyrics (from melody.lyrics[]) below the treble staff.
   // Used when a song is loaded; independent of the solfège lyricsMode setting.
   const renderTextLyricsRow = (melody, lyricsY, offsets = allOffsets, nw = noteWidth) => {
@@ -1509,7 +1556,7 @@ const SheetMusic = ({
                 const next = tempoTerms[i + 1];
                 const rangeLo = t.bpm;
                 const rangeHi = next ? next.bpm - 1 : '∞';
-                const isCurrent = bpm >= t.bpm && (next ? bpm < next.bpm : true);
+                const isCurrent = !isRubato && bpm >= t.bpm && (next ? bpm < next.bpm : true);
                 return (
                   <button
                     key={t.term + i}
@@ -1518,6 +1565,8 @@ const SheetMusic = ({
                       // Use explicit target if set (e.g. Larghissimo=30, Prestissimo=210),
                       // otherwise midpoint of [bpm[i], bpm[i+1]).
                       const mid = t.target ?? (next ? Math.round((rangeLo + next.bpm) / 2) : rangeLo);
+                      // Picking a regular tempo also exits rubato mode (Han 2026-05-29).
+                      if (isRubato && onToggleRubato) onToggleRubato();
                       handleBpmChangeWrapper(mid);
                       setTempoPicker(false);
                     }}
@@ -1532,6 +1581,27 @@ const SheetMusic = ({
                   </button>
                 );
               })}
+              {/* Rubato entry — Han 2026-05-29: appended to the tempo list so picking
+                  it switches the display to q = T (Maestro SHIFT+T) and the term "rubato".
+                  Re-clicking it while already in rubato is a no-op. */}
+              {onToggleRubato && (
+                <button
+                  key="rubato"
+                  className={`gs-popup-option${isRubato ? ' selected' : ''}`}
+                  onClick={() => {
+                    if (!isRubato) onToggleRubato();
+                    setTempoPicker(false);
+                  }}
+                >
+                  <div className="gs-popup-option-icon" style={{ fontFamily: 'Maestro', fontSize: '18px', minWidth: '28px' }}>
+                    T
+                  </div>
+                  <span style={{ flex: 1 }}>rubato</span>
+                  <span style={{ fontSize: '11px', opacity: 0.5, marginLeft: '6px', whiteSpace: 'nowrap' }}>
+                    free time
+                  </span>
+                </button>
+              )}
             </div>
           </div>
         </>
@@ -1640,6 +1710,8 @@ const SheetMusic = ({
             openSettingsIfClosed={openSettingsIfClosed}
             onSettingsInteraction={onSettingsInteraction}
             setTempoPicker={setTempoPicker}
+            isRubato={isRubato}
+            onToggleRubato={onToggleRubato}
           />
 
           {/* Draw Repeats Controls - always visible, shows 4x outside adjustments */}
@@ -1966,6 +2038,14 @@ const SheetMusic = ({
                           {renderTextLyricsRow(trebleMelody, trebleStart + staffHeight + 39)}
                         </g>
                       )}
+                      {/* Fermata glyphs just above the top staff line. Han 2026-05-29
+                          said the previous trebleStart-18 was unnecessarily high; tightened
+                          to -2 so the glyph sits right above the staff. */}
+                      {actualTreble && trebleMelody?.fermatas && trebleMelody.fermatas.length > 0 && (
+                        <g className="fermata-glyphs-group">
+                          {renderFermataGlyphs(trebleMelody, trebleStart - 2)}
+                        </g>
+                      )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>
                         {actualBass && <MelodyNotesLayer
                           melody={adjustedBassMelody}
@@ -2090,6 +2170,16 @@ const SheetMusic = ({
                         filter: showSettings ? 'blur(1.5px)' : 'none',
                       }}
                     >
+                      {/* Leading barline at startX for scroll-mode main panel
+                          (Han 2026-05-28). Scroll-mode overlay panels already draw
+                          their own leading barline so every visual block is delimited;
+                          main was missing one (the clef + signature act as visual start
+                          in static notation, but scroll mode treats main as a block
+                          like any other). Suppressed for wipe/pagination — those modes
+                          keep the no-leading-barline convention since main never moves. */}
+                      {animationMode === 'scroll' && (
+                        <path d={`M ${startX} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.4" />
+                      )}
                       <BarlinesLayer
                         mode="regular"
                         offsets={allOffsets}
@@ -2117,6 +2207,7 @@ const SheetMusic = ({
                         showSettings={showSettings}
                         measureLengthSlots={measureLengthSlots}
                         onMeasureNumberClick={onMeasureNumberClick}
+                        anacrusisMeasureIndex={anacrusisMeasureIndex}
                       />
                     </g>
 
@@ -2186,26 +2277,43 @@ const SheetMusic = ({
                       (animationMode === 'scroll' && isPlaying)) && (() => {
                       // Round config:
                       //   wipe/pagination yellow = OPPOSITE round (this overlay previews the next repeat).
-                      //   scroll = CURRENT round (all panels show the round that's playing now).
+                      //   scroll = PER-PANEL round (Han 2026-05-28). Each panel represents a
+                      //     specific rep — its visibility must match THAT rep's round. The
+                      //     master round is the one that's currently PLAYING; for any other
+                      //     panel offset i, the round alternates per rep relative to master.
+                      //     See per-panel calculation in the offsets.map below.
                       const roundKey = animationMode === 'scroll'
                         ? (isOddRound ? 'oddRounds' : 'evenRounds')
                         : (isOddRound ? 'evenRounds' : 'oddRounds');
-                      const nextCfg = playbackConfig?.[roundKey] ?? {};
-                      const nextNotesVisible = !!nextCfg.notes;
-                      const nextTreble = nextCfg.trebleEye !== false;
-                      const nextBass = nextCfg.bassEye !== false;
-                      const nextPerc = nextCfg.percussionEye === true;
-                      const nextMetro = nextCfg.percussionEye === 'metronome';
+                      const defaultCfg = playbackConfig?.[roundKey] ?? {};
                       // In debug mode: tint yellow so the overlay is visually distinct.
                       // In normal mode: render with default note colors (null = no tint).
                       const YCOL = debugMode ? 'var(--accent-yellow)' : null;
 
                       // Inner content shared across all overlay panels (chord labels + 3 staves + barlines).
+                      // panelCfg is the playbackConfig.{odd,even}Rounds object for THIS panel.
                       // MelodyNotesLayer is React.memo'd, so rendering it K times with identical props
                       // results in K-1 cache hits (only one fresh paint per round).
-                      const renderContent = () => (<>
+                      const renderContent = (panelCfg) => {
+                        const nextNotesVisible = !!panelCfg.notes;
+                        const nextTreble = panelCfg.trebleEye !== false;
+                        const nextBass = panelCfg.bassEye !== false;
+                        const nextPerc = panelCfg.percussionEye === true;
+                        const nextMetro = panelCfg.percussionEye === 'metronome';
+                        const nextChords = panelCfg.chordsEye !== false;
+                        return (<>
+                          {/* Leading barline at the panel's startX so each scroll-mode
+                              visual block is delimited (Han 2026-05-28). The end barline
+                              at endX is drawn outside renderContent at world coords for
+                              the main/preview boundary only; right-side overlay panels
+                              would otherwise look like one continuous run with no
+                              block delimiter. Suppressed for wipe/pagination since the
+                              transition already replaces the whole staff in place. */}
+                          {animationMode === 'scroll' && (
+                            <path d={`M ${startX} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.4" />
+                          )}
                           {/* Chord labels above treble staff — shown if next round has chords visible */}
-                          {nextCfg.chordsEye !== false && chordProgression && processedChords?.length > 0 &&
+                          {nextChords && chordProgression && processedChords?.length > 0 &&
                             <ChordLabelsLayer
                               chordProgression={chordProgression}
                               chords={null}
@@ -2372,9 +2480,11 @@ const SheetMusic = ({
                               showSettings={showSettings}
                               measureLengthSlots={measureLengthSlots}
                               onMeasureNumberClick={onMeasureNumberClick}
+                              anacrusisMeasureIndex={anacrusisMeasureIndex}
                             />
                           </g>
                       </>);
+                      };
 
                       // Non-scroll modes (wipe / pagination): single overlay at no translate offset.
                       if (animationMode !== 'scroll') {
@@ -2392,7 +2502,7 @@ const SheetMusic = ({
                               pointerEvents: 'none',
                             }}
                           >
-                            {renderContent()}
+                            {renderContent(defaultCfg)}
                           </g>
                         );
                       }
@@ -2423,21 +2533,44 @@ const SheetMusic = ({
                         if (i > 0 && i > itersRemaining) continue; // beyond series boundary → red path
                         offsets.push(i);
                       }
-                      return offsets.map(i => (
+                      return offsets.map(i => {
+                        // Per-panel round (Han 2026-05-28, refined): the panel at offset i
+                        // represents the rep at (iterInCurrentSeries + i). Within a series,
+                        // round alternates per rep (iteration % 2). Master `isOddRound` is
+                        // (iter % 2 === 0). For HISTORY panels (i < 0, especially early in
+                        // a new series where iter+i can be NEGATIVE), the panel represents
+                        // a rep in the PREVIOUS series; iteration resets to 0 at series-flip
+                        // so we wrap modulo numRepeats. For ODD numRepeats this matters —
+                        // without the wraparound the history panel's round disagreed with
+                        // the just-played rep, producing a visible "flip" right after the
+                        // series boundary. For infinite repeat (numRepeats=-1) no wrap.
+                        const globalRep = iterInCurrentSeries + i;
+                        const localRep = (numRepeats > 0)
+                          ? (((globalRep % numRepeats) + numRepeats) % numRepeats)
+                          : globalRep;
+                        const panelOddRound = (((localRep % 2) + 2) % 2) === 0;
+                        const panelRoundKey = panelOddRound ? 'oddRounds' : 'evenRounds';
+                        const panelCfg = playbackConfig?.[panelRoundKey] ?? {};
+                        return (
                         <g
                           key={`scroll-yellow-${i}`}
                           data-wipe-role={i === 1 ? "new" : undefined}
                           data-pagination-new={i === 1 ? "" : undefined}
                           transform={`translate(${i * mw}, 0)`}
                           style={{
-                            opacity: 0.55,
+                            // Scroll-mode yellow panels render at full opacity (Han
+                            // 2026-05-28). Previously dimmed to 0.55 to distinguish
+                            // "overlay" from main; Han finds the dim distracting since
+                            // these panels show real upcoming/just-played content.
+                            opacity: 1,
                             filter: showSettings ? 'blur(1.5px)' : 'none',
                             pointerEvents: 'none',
                           }}
                         >
-                          {renderContent()}
+                          {renderContent(panelCfg)}
                         </g>
-                      ));
+                        );
+                      });
                     })()}
                     {/* Red/crossfade overlay (NEW melody preview).
                         - wipe/pagination: gated on showWipePreview; one overlay at translate(melodyWidth).
@@ -2478,26 +2611,38 @@ const SheetMusic = ({
                       for (let i = Math.max(1, itersRemaining + 1); i <= K_right; i++) {
                         offsets.push(i);
                       }
-                      return offsets.map(i => (
-                        <PreviewOverlay key={`scroll-red-${i}`} {...commonProps} panelOffset={i * mw} />
-                      ));
+                      // Per-panel round (Han 2026-05-28, refined): red panel at offset i
+                      // represents next-series rep (i - itersRemaining - 1). At every
+                      // series-flip the applyResult sets isOddRound=true, so next-series
+                      // rep 0 is always 'oddRounds'. Round alternates per rep. For
+                      // K_right > itersRemaining + numRepeats the panel would represent
+                      // a rep in the series AFTER next — wrap modulo numRepeats to be
+                      // consistent with the yellow-panel wraparound semantics.
+                      return offsets.map(i => {
+                        const nextSeriesRep = i - (Number.isFinite(itersRemaining) ? itersRemaining : 0) - 1;
+                        const localRep = (numRepeats > 0)
+                          ? (((nextSeriesRep % numRepeats) + numRepeats) % numRepeats)
+                          : nextSeriesRep;
+                        const panelOddRound = (((localRep % 2) + 2) % 2) === 0;
+                        const panelRoundKey = panelOddRound ? 'oddRounds' : 'evenRounds';
+                        return (
+                          <PreviewOverlay
+                            key={`scroll-red-${i}`}
+                            {...commonProps}
+                            panelOffset={i * mw}
+                            roundKeyOverride={panelRoundKey}
+                          />
+                        );
+                      });
                     })()}
                   </g>
                   </g>{/* end scroll-content-clip wrapper */}
 
-                  {/* Scroll mode playhead — fixed vertical line at 25% from left, outside the scroll group */}
-                  {animationMode === 'scroll' && isPlaying && startX != null && endX != null && (
-                    <line
-                      x1={startX + 0.25 * (endX - startX)}
-                      y1={trebleStart - 20}
-                      x2={startX + 0.25 * (endX - startX)}
-                      y2={bottomY + 10}
-                      stroke="var(--accent-yellow)"
-                      strokeWidth={2}
-                      opacity={0.75}
-                      pointerEvents="none"
-                    />
-                  )}
+                  {/* Scroll mode playhead REMOVED (Han 2026-05-28). The fixed yellow line
+                      at 25% was visually inexact (didn't align cleanly with the active note
+                      head) and felt redundant — the active-note highlight already shows where
+                      playback is. The 25% position is still the conceptual playhead anchor
+                      for the scroll formula; only the visual marker is gone. */}
 
                   {/* Scroll mode right fade overlay: covers melodies AND staff lines near endX.
                       Placed here (inside layer-a, after staff-groups) so it paints on top of both.
@@ -2542,6 +2687,7 @@ const SheetMusic = ({
                       showSettings={showSettings}
                       measureLengthSlots={measureLengthSlots}
                       onMeasureNumberClick={onMeasureNumberClick}
+                      anacrusisMeasureIndex={anacrusisMeasureIndex}
                     />
                   )}
 

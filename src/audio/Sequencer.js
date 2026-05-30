@@ -42,6 +42,12 @@ class Sequencer {
     this.playbackState = null;
     this.scheduledNotes = null;
     this.pregenResult = null; // pre-generated next melody for scroll/wipe advance preview
+    // Tracks the animation mode currently applied to the playback loop.
+    // When this differs from `animationModeRef.current` at the start of a
+    // measure, the inner loop performs a hard reset of all transition refs
+    // before adopting the new mode — prevents stale wipe/scroll/pagination
+    // state from leaking across a mid-playback mode change (Han 2026-05-28).
+    this.activeAnimationMode = null;
   }
 
   async start(initialMelodies, once = false, initialMeasureIndex = 0, repeatForever = false) {
@@ -413,18 +419,34 @@ class Sequencer {
 
           // Precompute exact audio timestamps for each note so the rAF loop
           // can compare context.currentTime directly — no rounding via Math.floor.
+          // Fermata-aware (Han 2026-05-29 round 17): if a melody carries
+          // song-level fermatas {tick, hold}, the cumulative shift up to each
+          // note's offset is added to the audio time, and any note that sits
+          // AT a fermata tick gets its duration extended by hold. This keeps
+          // scheduledNotes aligned with what playMelodies actually scheduled,
+          // so the moving-cursor highlight pauses on the fermata note for the
+          // full hold instead of racing ahead on natural time.
           const schedNotes = [];
           // All modes use Song-based rendering: DOM data-measure-index = Song's measure.measureIndex
           // = globalMeasureIndex. schedNotes must match.
           const schedMeasureIndex = this.globalMeasureIndex;
           for (const [mel, melName] of [[treble, 'treble'], [bass, 'bass'], [percussion, 'percussion']]) {
             if (!mel?.offsets) continue;
+            const fermataEvents = Array.isArray(mel.fermatas)
+              ? mel.fermatas.filter(f => f && typeof f.tick === 'number' && typeof f.hold === 'number' && f.hold > 0)
+              : [];
             for (let i = 0; i < mel.offsets.length; i++) {
               const slot = mel.offsets[i];
               if (slot >= m * measureLengthTicks && slot < (m + 1) * measureLengthTicks) {
+                let shift = 0;
+                let extraHold = 0;
+                for (const f of fermataEvents) {
+                  if (slot > f.tick) shift += f.hold;
+                  if (slot === f.tick) extraHold += f.hold;
+                }
                 schedNotes.push({
-                  audioTime: nextStartTime + (slot - m * measureLengthTicks) * timeFactor,
-                  duration: mel.durations[i] * timeFactor,
+                  audioTime: nextStartTime + (slot - m * measureLengthTicks + shift) * timeFactor,
+                  duration: (mel.durations[i] + extraHold) * timeFactor,
                   slot,
                   mel: melName,
                   measureIndex: schedMeasureIndex,
@@ -456,6 +478,24 @@ class Sequencer {
 
           const mode = this.refs.animationModeRef?.current ?? 'pagination';
 
+          // Mid-playback animation-mode change: when the user toggles mode
+          // (e.g. scroll → wipe) during playback, the new mode's render path
+          // would otherwise be driven by the previous mode's transition refs,
+          // producing broken / glitchy animations (Han 2026-05-28: "wipe is
+          // terug gebroken"). At the start of each measure, detect the change
+          // and HARD RESET: clear every transition ref + overlay state so the
+          // next iteration starts from a clean slate. The user accepts a brief
+          // visual reset at the boundary as the cost of the mode switch.
+          if (this.activeAnimationMode !== mode) {
+            if (this.refs.wipeTransitionRef) this.refs.wipeTransitionRef.current = null;
+            if (this.refs.scrollTransitionRef) this.refs.scrollTransitionRef.current = null;
+            if (this.refs.transitionRef) this.refs.transitionRef.current = null;
+            if (this.refs.paginationFadeRef) this.refs.paginationFadeRef.current = null;
+            if (this.setters.setNextLayer) this.setters.setNextLayer(null);
+            if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
+            this.activeAnimationMode = mode;
+          }
+
           // === Continuous scroll bookkeeping (per measure) ============================
           // Maintains scrollTransitionRef = { startTime, startPageFraction, secondsPerPage }.
           // rAF reads this and computes
@@ -478,10 +518,16 @@ class Sequencer {
             const newSecondsPerPage = currentNumMeasures * measureDuration;
             const cur = this.refs.scrollTransitionRef.current;
             if (!cur) {
+              // Intro delay (Han 2026-05-28): keep notes still for the first 0.25
+              // measures of playback so the listener can take in the first few notes
+              // before the scroll engages. introDelaySeconds is consumed by the rAF
+              // (see useSheetMusicHighlight scroll formula) and is a one-shot — once
+              // wall-clock elapsed exceeds it the formula behaves normally.
               this.refs.scrollTransitionRef.current = {
                 startTime: T,
                 startPageFraction: 0,
                 secondsPerPage: newSecondsPerPage,
+                introDelaySeconds: 0.25 * newSecondsPerPage,
               };
             } else if (cur.secondsPerPage !== newSecondsPerPage) {
               const elapsed = Math.max(0, T - cur.startTime);
@@ -490,23 +536,64 @@ class Sequencer {
                 startTime: T,
                 startPageFraction: fractionAtT,
                 secondsPerPage: newSecondsPerPage,
+                // Preserve introDelaySeconds across BPM re-tunes. If the previous anchor
+                // had one, keep it (already-elapsed time still counts against it).
+                introDelaySeconds: cur.introDelaySeconds ?? 0,
               };
             }
             // Populate the right-side overlay at the start of each iteration so the ribbon
             // is never empty to the right of the playhead. 'yellow' = same-melody copy.
             // The penultimate-measure pregen below upgrades this to 'red' (new-melody preview).
+            //
+            // Publish iter index so SheetMusic knows how many reps remain in the series.
+            // Used by scroll-mode per-panel content selection (current-series panels render
+            // currentMelody, next-series panels render previewMelody).
+            //
+            // Tier 1.1 (2026-05-28, Bug 3 frame-flash fix): both setters MUST go in the
+            // same scheduleTimeout callback. Two scheduleTimeout calls at identical
+            // setLayerDelay are queued as separate macrotasks; React 18 auto-batching
+            // only batches setters within the SAME callback. Separate callbacks can
+            // commit in two paints, producing one frame where nextLayer='yellow' but
+            // iterInCurrentSeries still holds the previous value — the K-panel scroll
+            // overlay then renders the wrong offsets that frame (visible as a flash).
             if (m === 0) {
+              const iterToSet = iteration;
+              // Tier 1.1+ (Han 2026-05-28, residual 1-frame flit fix): when this m=0
+              // is the START of the LAST rep in a multi-measure scroll-mode series,
+              // pregen the next-series melody NOW (synchronous) and bundle
+              // setNextLayer('red') + setPreviewMelody into the SAME callback as
+              // the yellow + iter setter. Without this bundling there was a 1-frame
+              // window between the yellow+iter render and the separate red+preview
+              // render where right-side panels (filtered to i <= itersRemaining = 0)
+              // showed no content — visible as a flash.
+              const isLastRepStartForScrollPregen =
+                !this.isOnceMode &&
+                (this.refs.animationModeRef?.current ?? 'pagination') === 'scroll' &&
+                isLastRepNow &&
+                currentNumMeasures >= 2;
+              let pregenForBatch = null;
+              if (isLastRepStartForScrollPregen) {
+                // Pregen synchronously. Cost (~10-50ms) happens here, BEFORE we
+                // recompute setLayerDelay so the timeout still fires at audio time T.
+                // Result is held on `this` so the outer-loop poll (line ~660) finds
+                // it instead of generating again. applyResult clears pregenResult.
+                pregenForBatch = this.randomizeScaleAndGenerate(
+                  this.refs.numMeasuresRef.current,
+                  this.refs.timeSignatureRef.current,
+                  { treble, bass, percussion }
+                );
+                this.pregenResult = pregenForBatch;
+              }
               const setLayerDelay = Math.max(0, (T - this.context.currentTime) * 1000);
               this.scheduleTimeout(() => {
-                if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
+                if (isLastRepStartForScrollPregen && pregenForBatch) {
+                  if (this.setters.setNextLayer) this.setters.setNextLayer('red');
+                  if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(pregenForBatch);
+                } else {
+                  if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
+                }
+                if (this.setters.setIterInCurrentSeries) this.setters.setIterInCurrentSeries(iterToSet);
               }, setLayerDelay);
-              // Publish iter index so SheetMusic knows how many reps remain in the series.
-              // Used by scroll-mode per-panel content selection (current-series panels render
-              // currentMelody, next-series panels render previewMelody).
-              if (this.setters.setIterInCurrentSeries) {
-                const iterToSet = iteration;
-                this.scheduleTimeout(() => this.setters.setIterInCurrentSeries(iterToSet), setLayerDelay);
-              }
             }
             // Repeat-boundary decrement: schedule startPageFraction-=1 at the END of this
             // iteration for non-last reps. The series-boundary applyResult callback handles
@@ -541,36 +628,17 @@ class Sequencer {
             }
           }
 
-          // Scroll: pregen + setPreviewMelody at the START of the last rep (m=0 of last rep),
-          // so panels representing the next series have correct content from the moment the
-          // last rep begins playing. Was previously at penultimate measure (= 2 m before
-          // boundary), which meant rightmost scroll panels showed CURRENT melody for most
-          // of the last rep and only switched to NEW content with 2 m remaining — visible
-          // "jump" in panel content. Now the switch happens at the iter boundary (still
-          // visually invisible because per-panel selection determines which panels show
-          // current vs next series).
+          // Scroll: pregen + setNextLayer('red') + setPreviewMelody at the START of the
+          // LAST rep (m=0 of last rep) is now BUNDLED INTO the m=0 setLayer+iter
+          // timeout above (Han 2026-05-28 residual flit fix). Previously this lived
+          // in a separate scheduleTimeout firing at the same delay, which React
+          // committed in a separate render — that 1-frame window had iter=LAST and
+          // previewMelody=null, so right-side panels (filtered to i > itersRemaining = 0)
+          // were empty. Bundling eliminates the gap. See line ~510.
           //
-          // For currentNumMeasures === 1 (one-measure melody): m=0 IS the only measure of
-          // the last rep, so this fires at the same audio time as the series boundary
-          // approaches. The N=1 special-case in the outer loop (around line ~720) still
-          // schedules setPreviewMelody at boundary − 0.25 m so the previewMelody is
-          // populated even earlier; this inner-loop trigger covers the multi-measure case.
-          if (!this.isOnceMode && mode === 'scroll' && isLastRepNow && m === 0 && currentNumMeasures >= 2) {
-            const fadeInDelay = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
-            this.scheduleTimeout(() => {
-              // Pregen first so content is available when React renders the overlay.
-              const pregenResult = this.randomizeScaleAndGenerate(
-                this.refs.numMeasuresRef.current,
-                this.refs.timeSignatureRef.current,
-                { treble, bass, percussion }
-              );
-              this.pregenResult = pregenResult;
-              // setNextLayer + setPreviewMelody batch into one React render;
-              // overlay mounts with opacity:0 and fades in via scrollPreviewFadeIn.
-              if (this.setters.setNextLayer) this.setters.setNextLayer('red');
-              if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(pregenResult);
-            }, fadeInDelay);
-          }
+          // For currentNumMeasures === 1 (one-measure melody): the N=1 special-case in
+          // the outer loop (around line ~720) schedules setNextLayer('red') +
+          // setPreviewMelody at boundary − 0.25 m. Multi-measure case is covered above.
 
           if (!skipSleep) {
             const sleepUntil = nextStartTime + measureDuration - lookahead;
@@ -586,6 +654,23 @@ class Sequencer {
         }
 
         if (sessionController.signal.aborted) break;
+
+        // Iteration-wide fermata extension (Han 2026-05-29 round 17). The
+        // inner loop advances nextStartTime by measureDuration per measure (=
+        // natural iteration duration). Fermata events delay subsequent notes
+        // inside the iteration via playMelodies' internal shift logic, but the
+        // OUTER iteration boundary stayed at the natural time — so the next
+        // iteration's m=0 would start while the previous iteration's last
+        // note (extended by the fermata hold) was still ringing into the
+        // future. Sum the song-level fermata holds and push nextStartTime
+        // forward so iteration 2 begins at the actual audio-end of iteration 1.
+        const trebleFermatas = Array.isArray(treble?.fermatas) ? treble.fermatas : [];
+        const totalIterationFermataHold = trebleFermatas.reduce(
+          (acc, f) => acc + (f?.hold > 0 ? f.hold : 0), 0
+        );
+        if (totalIterationFermataHold > 0) {
+          nextStartTime += totalIterationFermataHold * timeFactor;
+        }
 
         iteration++;
 
@@ -1413,6 +1498,12 @@ class Sequencer {
     if (!chordProgression?.offsets) return schedChords;
 
     const _RDEG = { I:1, II:2, III:3, IV:4, V:5, VI:6, VII:7 };
+    // Fermata-aware (Han 2026-05-29 round 17): mirror the schedNotes treatment
+    // so chord highlights also pause on the fermata chord and shift on later
+    // chords. The chord progression carries the same song-level fermatas array.
+    const fermataEvents = Array.isArray(chordProgression.fermatas)
+      ? chordProgression.fermatas.filter(f => f && typeof f.tick === 'number' && typeof f.hold === 'number' && f.hold > 0)
+      : [];
     for (let i = 0; i < chordProgression.offsets.length; i++) {
       const slot = chordProgression.offsets[i];
       if (slot >= m * measureLengthTicks && slot < (m + 1) * measureLengthTicks) {
@@ -1421,9 +1512,15 @@ class Sequencer {
         const chord = chordProgression.displayNotes?.[i];
         const romanBase = chord?.meta?.romanBaseRaw ?? '';
         const degree = _RDEG[String(romanBase).toUpperCase()] ?? null;
+        let shift = 0;
+        let extraHold = 0;
+        for (const f of fermataEvents) {
+          if (slot > f.tick) shift += f.hold;
+          if (slot === f.tick) extraHold += f.hold;
+        }
         schedChords.push({
-          audioTime: nextStartTime + (slot - m * measureLengthTicks) * timeFactor,
-          duration: chordProgression.durations[i] * timeFactor,
+          audioTime: nextStartTime + (slot - m * measureLengthTicks + shift) * timeFactor,
+          duration: (chordProgression.durations[i] + extraHold) * timeFactor,
           measureIndex: schedMeasureIndex,
           localSlot: slot - m * measureLengthTicks,
           degree,
@@ -1608,6 +1705,14 @@ class Sequencer {
     for (const { boundary, fade } of events) {
       // Skip boundaries that already happened (mid-block start case).
       if (boundary.atTick <= startSkipTick) continue;
+
+      // Han 2026-05-29: in once-mode ("Play This Melody") the playback ends
+      // after the last note. The planner still emits a series-flip event for
+      // the final block boundary (it's structural — every block ends with a
+      // flip kind); without this guard we'd JIT-generate a new melody,
+      // schedule a preview overlay, and animate a crossfade that no one
+      // ever sees the resolution of (playback already stopped). Skip those.
+      if (this.isOnceMode && boundary.kind === 'series-flip') continue;
 
       const atTime        = tickToTime(boundary.atTick);
       const fadeStartTime = tickToTime(fade.fadeStartTick);
@@ -1821,22 +1926,20 @@ class Sequencer {
     }
     if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
 
-    // smplr's voice.stop() applies a release envelope on each playing note —
-    // gain linearly ramps from 1 → 0 over the soundfont's `ampRelease` (often
-    // 0.3–1.0s for sustained samples). That tail is what users perceive as
-    // "stop doesn't stop immediately". Hard-mute each instrument's output
-    // channel BEFORE calling .stop() so the release plays silently. Sequencer
-    // .start() restores the channel volume on next play.
-    const SILENCE = ['treble', 'bass', 'chords', 'percussion', 'metronome'];
-    SILENCE.forEach(name => {
-      try { this.instruments[name]?.output?.setVolume(0); } catch { /* output API absent */ }
-    });
-
+    // Han 2026-05-29: previously we hard-muted each instrument's output
+    // channel (setVolume(0)) before calling .stop() so the release envelope
+    // played silently — but that left the channels muted afterwards, which
+    // killed every subsequent click-to-play (the note got dispatched into a
+    // muted channel and the user heard nothing). It also amputated the
+    // natural tail of the last melody note when playback ended on its own
+    // — a "brute" cutoff Han specifically called out. Now we just call
+    // instrument.stop() and let smplr's per-voice release envelope ring
+    // naturally (~0.3–1.0s tail). Note: instrument.stop() also prevents
+    // new scheduled-but-not-yet-started notes from sounding, so the
+    // abortController + this call together honour the "no new notes" intent.
     try { this.instruments.treble?.stop(); } catch { /* instrument may not be started */ }
     try { this.instruments.bass?.stop(); } catch { /* instrument may not be started */ }
     try { this.instruments.chords?.stop(); } catch { /* instrument may not be started */ }
-    // percussion and metronome were missing here — they must be stopped too or
-    // their scheduled audio continues playing after the user presses Stop.
     try { this.instruments.percussion?.stop(); } catch { /* instrument may not be started */ }
     try { this.instruments.metronome?.stop(); } catch { /* instrument may not be started */ }
 

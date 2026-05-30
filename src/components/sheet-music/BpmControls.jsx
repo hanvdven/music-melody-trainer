@@ -22,6 +22,12 @@ const BpmControls = ({
     openSettingsIfClosed,
     onSettingsInteraction,
     setTempoPicker,
+    // Rubato mode (Han 2026-05-28 PR-B): when true the BPM number is replaced
+    // by the Maestro rubato glyph (SHIFT+T → 'Å'? — Maestro mapping TBD)
+    // and the tempo term becomes "rubato". Long-press on the value area
+    // toggles between BPM and rubato.
+    isRubato = false,
+    onToggleRubato,
 }) => {
     // TAP BPM — accumulate up to 4 tap timestamps; use the last 4 intervals to derive BPM.
     // Taps older than 3 s reset the sequence (stale tap).
@@ -83,7 +89,10 @@ const BpmControls = ({
     };
 
     const x = 25;
-    const term = getTempoTerm(bpm);
+    // Tempo term: "rubato" in rubato mode (Han 2026-05-28), otherwise the
+    // BPM-derived term ("Andante" etc.). The italic-text styling stays the
+    // same so the visual position doesn't shift.
+    const term = isRubato ? 'rubato' : getTempoTerm(bpm);
     const headerY = trebleStart - 89;
     const valueY = trebleStart - 59;
 
@@ -117,7 +126,7 @@ const BpmControls = ({
     );
 
     return (
-        <g>
+        <g data-settings-keepalive="">
             {/* Tempo term — clickable to open tempo word picker */}
             <text x={x + 10} y={headerY} className="tempo-term" fontSize="14"
                 style={{ cursor: 'pointer', fill: showSettings ? 'var(--accent-yellow)' : undefined }}
@@ -131,10 +140,24 @@ const BpmControls = ({
                 onClick={(e) => { e.stopPropagation(); setTempoPicker(p => !p); openSettingsIfClosed(); onSettingsInteraction?.(10000); }}
             />
 
-            {/* q = BPM */}
+            {/* q = BPM, or in rubato mode: q = T (Maestro SHIFT+T glyph for free-time).
+                Rubato glyph in Maestro: capital T = the tempo-libero symbol commonly
+                used as q = T (Han 2026-05-28). The numeric BPM is hidden in rubato. */}
             <text x={x} y={valueY} className="bpm-note" fill={showSettings ? 'var(--accent-yellow)' : undefined}>q</text>
             <text x={x + 15} y={valueY} className="bpm-equals" fill={showSettings ? 'var(--accent-yellow)' : undefined}>=</text>
-            <text x={x + 30} y={valueY - 8} className="bpm-value" fontFamily="Maestro" fill={showSettings ? 'var(--accent-yellow)' : undefined}>{bpm}</text>
+            {isRubato ? (
+                <text
+                    x={x + 30}
+                    y={valueY - 8}
+                    className="bpm-value"
+                    fontFamily="Maestro"
+                    fill={showSettings ? 'var(--accent-yellow)' : undefined}
+                >
+                    T
+                </text>
+            ) : (
+                <text x={x + 30} y={valueY - 8} className="bpm-value" fontFamily="Maestro" fill={showSettings ? 'var(--accent-yellow)' : undefined}>{bpm}</text>
+            )}
 
             {/* -- / - / + / ++ indicators */}
             {(showBpmControls || showSettings) && (

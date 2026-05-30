@@ -76,6 +76,15 @@ const useSheetMusicHighlight = ({
     scrollTransitionRef,
     paginationFadeRef,
     transitionRef,
+    // Rubato scroll anchor (Han 2026-05-29 round 18). When the user is in
+    // rubato + scroll mode, the scroll position no longer follows audio time
+    // — it follows the user's note advance. The ref shape is:
+    //   { pageFraction: 0..1, isActive: boolean }
+    // When isActive is true, runScrollAnimation reads pageFraction directly
+    // and bypasses the time-based formula. The natural scroll-anchor remains
+    // populated so flipping out of rubato resumes smoothly from whatever
+    // pageFraction the audio engine reports.
+    rubatoScrollAnchorRef = null,
 }) => {
 
     // ── Main rAF loop ──────────────────────────────────────────────────────────
@@ -188,7 +197,12 @@ const useSheetMusicHighlight = ({
                     const now = context.currentTime;
                     const raw = (now - wipeT.startTime) / (wipeT.endTime - wipeT.startTime);
                     const p = Math.max(0, Math.min(1, raw));
-                    const eased = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+                    // Quadratic ease-out curve (Han 2026-05-28): first half fast,
+                    // last quarter slow, so the wipe finishes with a "settle" instead
+                    // of an abrupt cut. At p=0.5 → 75% done; at p=0.75 → 94%; p=1 → 100%.
+                    // The previous symmetric ease-in-out spent equal time at both ends,
+                    // which felt sluggish at the start where the user expects motion.
+                    const eased = 1 - (1 - p) * (1 - p);
                     // Sweep from -4% to 104% so the wipe fully clears notes near the edges.
                     const sweepPct = -4 + eased * 108;
                     const edge1 = `${(sweepPct - 4).toFixed(4)}%`;
@@ -416,6 +430,29 @@ const useSheetMusicHighlight = ({
         const runScrollAnimation = () => {
             const scrollGroup = getScrollGroup();
             if (!scrollGroup) return;
+            // Rubato scroll branch (Han 2026-05-29 round 18): pageFraction is
+            // user-driven, not time-driven. Each correct-note advance writes
+            // the new fraction to rubatoScrollAnchorRef. We ease toward it
+            // here so the scroll glides rather than snapping (~150ms ease-out).
+            const r = rubatoScrollAnchorRef?.current;
+            if (r && r.isActive) {
+                const pageWidth = layoutRef.current?.pageWidth;
+                const melodyWidth = layoutRef.current?.melodyWidth ?? pageWidth;
+                if (pageWidth && melodyWidth) {
+                    // Smooth interpolation: every frame we move 12% of the gap
+                    // toward the target. Gives a critically-damped feel that
+                    // settles in ~10 frames (= ~170ms at 60fps) regardless of
+                    // gap size, without rAF math gymnastics.
+                    if (typeof r.currentFraction !== 'number') r.currentFraction = r.pageFraction;
+                    r.currentFraction += (r.pageFraction - r.currentFraction) * 0.12;
+                    if (Math.abs(r.pageFraction - r.currentFraction) < 0.0005) {
+                        r.currentFraction = r.pageFraction;
+                    }
+                    const tx = (0.25 * pageWidth - r.currentFraction * melodyWidth).toFixed(2);
+                    scrollGroup.setAttribute('transform', `translate(${tx}, 0)`);
+                }
+                return;
+            }
             const s = scrollTransitionRef?.current;
             if (s && s.secondsPerPage > 0) {
                 const pageWidth = layoutRef.current?.pageWidth;
@@ -423,7 +460,13 @@ const useSheetMusicHighlight = ({
                 if (pageWidth && melodyWidth) {
                     const now = context.currentTime;
                     const elapsed = Math.max(0, now - s.startTime);
-                    const pageFraction = s.startPageFraction + elapsed / s.secondsPerPage;
+                    // Intro delay (Han 2026-05-28): subtract introDelaySeconds from elapsed
+                    // so the first introDelaySeconds of playback keeps tx at its starting
+                    // position (notes stand still). After the delay is consumed, the
+                    // adjusted elapsed grows linearly and scroll proceeds normally. The
+                    // delay is a one-shot — subsequent series-flips don't pause again.
+                    const adjustedElapsed = Math.max(0, elapsed - (s.introDelaySeconds ?? 0));
+                    const pageFraction = s.startPageFraction + adjustedElapsed / s.secondsPerPage;
                     const tx = (0.25 * pageWidth - pageFraction * melodyWidth).toFixed(2);
                     scrollGroup.setAttribute('transform', `translate(${tx}, 0)`);
                 }

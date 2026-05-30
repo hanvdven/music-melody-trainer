@@ -37,7 +37,11 @@
 export const PAGINATION_VARIANTS = {
     snel: { generationLeadMeasures: 0.5, fadeDurationMeasures: 0.25, fadeOvershootMeasures: 0,    label: 'kort' },
     mid:  { generationLeadMeasures: 1.0, fadeDurationMeasures: 0.5,  fadeOvershootMeasures: 0,    label: 'mid'  },
-    lang: { generationLeadMeasures: 2.0, fadeDurationMeasures: 2.0,  fadeOvershootMeasures: 0.25, label: 'lang' },
+    // 'lang' variant removed 2026-05-28 (Han: "heeft geen use case"). The
+    // overshoot machinery in Sequencer (`hasOvershoot`, fadeEnd cleanup
+    // branches) is kept as defensive dead code — no live variant triggers it,
+    // but the branches stay so reintroducing a long-fade variant later is a
+    // one-line edit here rather than a re-plumbing job.
 };
 
 // When the fade-duration would exceed the size of the visual block being left,
@@ -154,7 +158,7 @@ export function computeSequenceBoundaries({ numMeasures, repsPerMelody, measureL
  *
  * @param {object}   args
  * @param {Boundary} args.boundary
- * @param {string}   args.variant            — 'snel' | 'mid' | 'lang'
+ * @param {string}   args.variant            — 'snel' | 'mid'
  * @param {number}   args.measureLengthTicks
  *
  * @returns {FadeTiming}
@@ -202,7 +206,7 @@ export function planPaginationFade({ boundary, variant, measureLengthTicks }) {
  *
  * @param {object} args
  * @param {object} args.plan     — see computeSequenceBoundaries
- * @param {string} args.variant  — 'snel' | 'mid' | 'lang'
+ * @param {string} args.variant  — 'snel' | 'mid'
  *
  * @returns {Array<{ boundary, fade }>}
  */

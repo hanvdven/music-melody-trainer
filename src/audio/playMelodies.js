@@ -38,6 +38,31 @@ const playMelodies = (
     const defaultInstrument = instruments[index];
     if (!defaultInstrument) continue;
 
+    // Fermata hold + cumulative shift (Han 2026-05-29 round 13). Fermatas
+    // are tick-based events on the SONG level: { tick, hold }. For each note,
+    // shift = sum of holds whose tick < this note's offset (the fermata
+    // itself doesn't shift its own start, only later notes). The note AT
+    // tick === fermata.tick gets its duration extended by hold so it rings
+    // through the held time. Uniformly applied across treble, bass,
+    // percussion, and chord tracks via loadSong's song-level propagation.
+    const fermataEvents = Array.isArray(melody.fermatas)
+      ? melody.fermatas.filter(f => f && typeof f.tick === 'number' && typeof f.hold === 'number' && f.hold > 0)
+      : [];
+    const shiftForOffset = (offset) => {
+      let s = 0;
+      for (const f of fermataEvents) {
+        if (offset > f.tick) s += f.hold;
+      }
+      return s;
+    };
+    const holdAtOffset = (offset) => {
+      let h = 0;
+      for (const f of fermataEvents) {
+        if (offset === f.tick) h += f.hold;
+      }
+      return h;
+    };
+
     // Identify track name to apply trackGains if provided.
     let trackName = 'treble';
     if (namedInstruments) {
@@ -83,13 +108,18 @@ const playMelodies = (
 
           const interruptGroup = PERCUSSION_INTERRUPT_GROUP[id] ?? null;
 
+          const fermataShift = fermataEvents.length > 0 ? shiftForOffset(timestamp) : 0;
+          const fermataHold = fermataEvents.length > 0 ? holdAtOffset(timestamp) : 0;
           queue.push({
             pitch,
             instrument: noteInstrument,
-            time: adjustedStart + relativeTick * timeFactor + stagger,
+            // fermataShift delays this note's audio start; the note that lives
+            // AT a fermata tick has shift=0 (no self-delay) and gets its duration
+            // extended by fermataHold so the held note rings through.
+            time: adjustedStart + (relativeTick + fermataShift) * timeFactor + stagger,
             // Percussion samples play to their natural end; use a large duration so smplr
             // never forces an early cutoff. Choke happens via stopId (see playback loop).
-            duration: interruptGroup ? 60 : durations[i] * timeFactor,
+            duration: interruptGroup ? 60 : (durations[i] + fermataHold) * timeFactor,
             gain,
             interruptGroup,
           });

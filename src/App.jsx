@@ -8,6 +8,7 @@ import './styles/App.css';
 import './styles/AppLayout.css';
 import { modulateMelody } from './theory/musicUtils';
 import Sequencer from './audio/Sequencer';
+import playMelodies from './audio/playMelodies';
 import Melody from './model/Melody';
 import ChordProgression from './model/ChordProgression';
 import ErrorBoundary from './components/error/ErrorBoundary';
@@ -155,6 +156,7 @@ const App = () => {
         currentMeasureIndex, setCurrentMeasureIndex,
         animationMode, setAnimationMode, animationModeRef,
         paginationVariant, setPaginationVariant, paginationVariantRef,
+        isRubato, setIsRubato, isRubatoRef,
         lyricsMode, setLyricsMode,
         nextLayer, setNextLayer,
         previewMelody, setPreviewMelody,
@@ -437,33 +439,44 @@ const App = () => {
 
         if (loaded.chordMelody) {
             setChordProgression(loaded.chordMelody);
-            // Preserve the song's chord progression on the user's next
-            // randomize-on-play. Toggling it back to true is how the user
-            // opts into "match style only" — regenerate chords with the song's
-            // chord strategy instead of replaying the exact progression.
+            // Preserve BOTH the song's chord progression AND its melody on the
+            // user's next randomize-on-play (Han 2026-05-29). Loading a song
+            // should mean "play THIS song verbatim until I say otherwise" —
+            // turning melody pinning back on is how the user opts into
+            // "generate variations on this song's harmony". chords=false pins
+            // the harmony; melody=false pins the treble/bass content.
             setPlaybackConfig(prev => ({
                 ...prev,
-                randomize: { ...(prev.randomize || {}), chords: false },
+                randomize: { ...(prev.randomize || {}), chords: false, melody: false },
             }));
         } else {
             // No chord progression provided — let the next randomize regenerate
-            // using the song's chord strategy (or the app defaults).
+            // using the song's chord strategy (or the app defaults). Still pin
+            // the melody so the loaded version plays as-is until the user
+            // explicitly opts in to variations.
             setPlaybackConfig(prev => ({
                 ...prev,
-                randomize: { ...(prev.randomize || {}), chords: true },
+                randomize: { ...(prev.randomize || {}), chords: true, melody: false },
             }));
         }
 
         setTimeSignature(loaded.timeSignature);
         setNumMeasures(loaded.numMeasures);
         setBpm(loaded.defaultTempo);
+        // Reset the on-screen measure index to 0 so the song starts from its
+        // first measure visually + behaviorally (Han 2026-05-28). Without this,
+        // a song loaded mid-session inherits the previous melody's index, so
+        // its first measure is mislabeled and the highlighter/scheduler line up
+        // against stale state.
+        setStartMeasureIndex(0);
         // Keep the user's current bottom-view tab; loading a song should not
         // hijack the layout. Reported by Han 2026-05-22.
     }, [scale, setTonic, setSelectedMode,
         setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings,
         setTrebleMelody, setBassMelody, setPercussionMelody, setChordProgression,
         setReferenceMelody, setReferenceBassMelody, setReferenceScale,
-        setTimeSignature, setNumMeasures, setBpm, setPlaybackConfig]);
+        setTimeSignature, setNumMeasures, setBpm, setPlaybackConfig,
+        setStartMeasureIndex]);
 
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
     const randomizeAll = randomizeAllLogic;
@@ -513,26 +526,110 @@ const App = () => {
         setIsPlayingMelody, setIsPlayingContinuously, melodies,
     });
 
+    // Rubato playback engage hook (PR-C wave 1, Han 2026-05-29).
+    // When rubato is active, the Play buttons hand control to input-test mode
+    // instead of starting the Sequencer's audio-time loop — the user advances
+    // note-by-note from the bottom-pane keyboard. The ref is populated by a
+    // useEffect AFTER useInputTest mounts; until then it's a no-op.
+    const rubatoEngageRef = useRef(null);
+
     const handlePlayMelody = useCallback(() => {
+        if (isRubatoRef.current && rubatoEngageRef.current) {
+            rubatoEngageRef.current('once');
+            setHeaderPlayMode('once');
+            return;
+        }
         handlePlayMelodyLogic();
         setHeaderPlayMode('once');
-    }, [handlePlayMelodyLogic]);
+    }, [handlePlayMelodyLogic, isRubatoRef]);
 
     const handlePlayContinuously = useCallback(() => {
+        if (isRubatoRef.current && rubatoEngageRef.current) {
+            rubatoEngageRef.current('continuous');
+            setHeaderPlayMode('continuous');
+            return;
+        }
         handlePlayContinuouslyLogic();
         setHeaderPlayMode('continuous');
-    }, [handlePlayContinuouslyLogic]);
+    }, [handlePlayContinuouslyLogic, isRubatoRef]);
 
     const handlePlayRepeat = useCallback(() => {
+        if (isRubatoRef.current && rubatoEngageRef.current) {
+            rubatoEngageRef.current('repeat');
+            setHeaderPlayMode('repeat');
+            return;
+        }
         handlePlayRepeatLogic();
         setHeaderPlayMode('repeat');
-    }, [handlePlayRepeatLogic]);
+    }, [handlePlayRepeatLogic, isRubatoRef]);
+
+    // PR-D wave 2 (Han 2026-05-29): predictive accompaniment for rubato.
+    // Track recent advance events to estimate ticks-per-second (TPS) via EWMA;
+    // when the user advances a treble note in rubato mode, schedule the
+    // bass / chord / percussion notes whose offsets fall in
+    // [currentTrebleOffset, nextTrebleOffset) using the estimated TPS so the
+    // background tracks "catch up" with the user's tempo. Until 2 advances
+    // have happened we fall back to the configured BPM.
+    const rubatoEventHistoryRef = useRef([]);
+    // Forwarder for inputTestStateRef — populated after useInputTest mounts so
+    // onNoteCorrect can read the latest activeIndex without circular TDZ.
+    const rubatoInputStateRefForwarderRef = useRef(null);
+    // Scroll anchor for rubato (PR-E round 18). When isActive=true, the scroll
+    // animation in useSheetMusicHighlight uses pageFraction directly instead
+    // of the audio-time formula. Updated on each correct-note advance to
+    // point at the NEXT expected note's tick offset so the user sees the
+    // cursor glide forward into the upcoming note position.
+    const rubatoScrollAnchorRef = useRef({ pageFraction: 0, isActive: false, currentFraction: 0 });
+    const RUBATO_HISTORY_LIMIT = 8;
+    const RUBATO_EWMA_ALPHA = 0.6; // higher → more reactive to recent intervals
+
+    const estimateRubatoTps = useCallback(() => {
+        const hist = rubatoEventHistoryRef.current;
+        if (hist.length < 2) return bpmRef.current / 5; // BPM/5 = ticks/sec (since 5/bpm sec/tick)
+        let ewma = null;
+        for (let i = 1; i < hist.length; i++) {
+            const dt = hist[i].wallTime - hist[i - 1].wallTime;
+            const dTicks = hist[i].offset - hist[i - 1].offset;
+            if (dt <= 0 || dTicks <= 0) continue;
+            const tps = dTicks / dt;
+            ewma = ewma === null ? tps : RUBATO_EWMA_ALPHA * tps + (1 - RUBATO_EWMA_ALPHA) * ewma;
+        }
+        return ewma ?? bpmRef.current / 5;
+    }, []);
+
+    const scheduleRubatoAccompaniment = useCallback((currentOffset, nextOffset) => {
+        if (!context || nextOffset <= currentOffset) return;
+        const tps = estimateRubatoTps();
+        const bpm = tps * 5;
+        const m = melodiesRef.current || {};
+        const playList = [];
+        const instList = [];
+        if (m.bass && instruments.bass) { playList.push(m.bass); instList.push(instruments.bass); }
+        if (m.percussion && instruments.percussion) { playList.push(m.percussion); instList.push(instruments.percussion); }
+        if (m.chordProgression && instruments.chords) { playList.push(m.chordProgression); instList.push(instruments.chords); }
+        if (playList.length === 0) return;
+        // Filter [currentOffset+1, nextOffset) — exclude notes at currentOffset because the
+        // treble onset already played, and we want bass/chord that synced WITH the treble note
+        // to play at the same tap. Actually keep currentOffset INCLUSIVE so simultaneous
+        // bass/chord notes do fire alongside the treble tap.
+        playMelodies(
+            playList,
+            instList,
+            context,
+            bpm,
+            context.currentTime,
+            null,
+            [currentOffset, nextOffset],
+            instruments,
+            customPercussionMappingRef.current ?? null,
+        );
+    }, [context, instruments, estimateRubatoTps]);
 
     const {
         isInputTestMode, setIsInputTestMode,
         inputTestState, setInputTestState,
         inputTestSubMode, setInputTestSubMode,
-        isInputTestModeRef, inputTestSubModeRef,
+        isInputTestModeRef, inputTestStateRef, inputTestSubModeRef,
         handleToggleInputTest,
         handleInputTestNote,
     } = useInputTest({
@@ -552,7 +649,39 @@ const App = () => {
             if (!instruments.treble) return;
             const durationMs = (durationTicks || 12) * (5000 / bpmRef.current);
             setTimeout(() => instruments.treble.stop({ note }), durationMs);
-        }, [instruments.treble]),
+            // PR-D rubato accompaniment hook. inputTestStateRef is read via the
+            // ref captured from the input-test-state-ref forwarder below — at
+            // call time (= when the user taps), the forwarder ref has been
+            // populated by the useEffect after useInputTest mounts. Pulling it
+            // from the closure would TDZ-explode because the destructure for
+            // inputTestStateRef happens AFTER this useCallback's render pass.
+            const stateRef = rubatoInputStateRefForwarderRef.current;
+            if (isRubatoRef.current && stateRef?.current?.activeStaff === 'treble') {
+                const treble = melodiesRef.current?.treble;
+                const idx = stateRef.current.activeIndex;
+                if (treble?.offsets && idx >= 0 && idx < treble.offsets.length) {
+                    const currentOffset = treble.offsets[idx];
+                    const nextOffset = treble.offsets[idx + 1] ?? (currentOffset + (durationTicks || 12));
+                    const now = context?.currentTime ?? 0;
+                    rubatoEventHistoryRef.current.push({ wallTime: now, offset: currentOffset });
+                    if (rubatoEventHistoryRef.current.length > RUBATO_HISTORY_LIMIT) {
+                        rubatoEventHistoryRef.current.shift();
+                    }
+                    scheduleRubatoAccompaniment(currentOffset, nextOffset);
+                    // PR-E round 18: drive the scroll-mode cursor to the NEXT
+                    // expected note so the user sees what's coming. Linear
+                    // pageFraction = nextOffset / total iteration ticks. The
+                    // rAF in useSheetMusicHighlight eases from currentFraction
+                    // toward this target. isActive flips on so the hook
+                    // bypasses its time-based formula.
+                    const total = (nmRef.current || 1) * (TICKS_PER_WHOLE * tsRef.current[0] / tsRef.current[1]);
+                    if (total > 0) {
+                        rubatoScrollAnchorRef.current.pageFraction = nextOffset / total;
+                        rubatoScrollAnchorRef.current.isActive = true;
+                    }
+                }
+            }
+        }, [instruments.treble, context, scheduleRubatoAccompaniment]),
         onNoteWrong: useCallback((note) => {
             instruments.treble?.stop({ note });
         }, [instruments.treble]),
@@ -563,6 +692,27 @@ const App = () => {
         // Keyboard is only active in 'note' (Piano) mode
         setQwertyKeyboardActive(mode === 'note');
     }, [setInputTestSubMode]);
+
+    // Populate the rubato-play interceptor now that useInputTest is mounted.
+    // The Play buttons (handlePlayMelody/Repeat/Continuously) consult this ref
+    // when isRubato is true and call into here instead of starting the
+    // Sequencer. Wave 1 just flips the user into input-test 'note' sub-mode
+    // (= the existing user-driven note advance with red-flash on wrong input)
+    // and treats Play/Repeat/Continuously identically — no audio scheduling.
+    // Wave 2 (PR-D) will add background-track accompaniment.
+    useEffect(() => {
+        rubatoEngageRef.current = () => {
+            if (!isInputTestModeRef.current) handleToggleInputTest();
+            handleSetInputTestSubMode('note');
+        };
+        return () => { rubatoEngageRef.current = null; };
+    }, [handleToggleInputTest, handleSetInputTestSubMode, isInputTestModeRef]);
+
+    // Forward inputTestStateRef so onNoteCorrect (defined earlier, before
+    // useInputTest's destructure ran) can reach the latest input-test state.
+    useEffect(() => {
+        rubatoInputStateRefForwarderRef.current = inputTestStateRef;
+    }, [inputTestStateRef]);
 
     // Update onPlaybackStart logic to use state from useInputTest
     useEffect(() => {
@@ -704,11 +854,24 @@ const App = () => {
     // Refs (svgRef, animationModeRef, etc.) have stable identity — no dep needed.
     const sequencerSetters = useMemo(() => ({
         onStop: () => {
+            // Han 2026-05-29: reset all visual playback state on stop so the next
+            // play starts from a clean slate. Without this, leftover state like
+            // an advanced startMeasureIndex (= where the previous session left off)
+            // makes the sheet-music render diverge from a freshly-loaded melody —
+            // suspected root cause of the "sheet-music ≠ audio after sequence
+            // block 2" report (item 6). Resetting here also kills any in-flight
+            // pagination/wipe transition that would otherwise animate after the
+            // last audio note of a "Play This" run.
             setIsPlayingContinuously(false);
             setIsPlayingScale(false);
             setIsPlayingMelody(false);
             setNextLayer(null);
             setPreviewMelody(null);
+            setCurrentMeasureIndex(null);
+            setStartMeasureIndex(0);
+            setBlockMeasureStart(1);
+            setBlockPlayStart(0);
+            setIterInCurrentSeries(0);
             wipeTransitionRef.current = null;
             scrollTransitionRef.current = null;
         },
@@ -900,11 +1063,34 @@ const App = () => {
 
     // Shared props for both SheetMusic instances (primary + tab view).
     // containerHeight and visibleMeasures differ between instances and are passed inline.
+    // Anacrusis detection (Han 2026-05-28): when the loaded melody's first note
+    // sits AFTER tick 0 of measure 0, that measure is a pickup. We treat its
+    // global index as the anacrusis marker so BarlinesLayer can suppress the
+    // measure-number label. Re-runs whenever trebleMelody flips identity, e.g.
+    // after song-load or after a regen that produced a non-anacrusis melody.
+    const anacrusisMeasureIndex = useMemo(() => {
+        const firstOffset = trebleMelody?.offsets?.[0];
+        if (firstOffset == null || firstOffset <= 0) return null;
+        return 0;
+    }, [trebleMelody]);
+
     const sheetMusicCommonProps = useMemo(() => ({
         timeSignature,
         onTimeSignatureChange: handleTimeSignatureChange,
         bpm,
         onBpmChange: setBpm,
+        isRubato,
+        onToggleRubato: () => setIsRubato(p => {
+            // Flipping OFF rubato also clears the scroll anchor so the next
+            // (audio-time-driven) scroll resumes cleanly without a stale
+            // pageFraction holding the playhead in place.
+            if (p) {
+                rubatoScrollAnchorRef.current.isActive = false;
+                rubatoEventHistoryRef.current = [];
+            }
+            return !p;
+        }),
+        anacrusisMeasureIndex,
         numRepeats: playbackConfig.repsPerMelody,
         onNumRepeatsChange: (val) => setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val })),
         numMeasures,
@@ -935,7 +1121,9 @@ const App = () => {
         onEnharmonicToggle: handleEnharmonicToggle,
         onMeasureNumberClick: null,
         onNoteEnharmonicToggle: handleNoteEnharmonicToggle,
-    }), [timeSignature, handleTimeSignatureChange, bpm, setBpm, playbackConfig, setPlaybackConfig,
+    }), [timeSignature, handleTimeSignatureChange, bpm, setBpm, isRubato, setIsRubato,
+        anacrusisMeasureIndex,
+        playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
         windowSize.width, randomizeMeasure, showSheetMusicSettings, toggleSheetMusicSettings,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
@@ -982,6 +1170,7 @@ const App = () => {
             setCurrentMeasureIndex={setCurrentMeasureIndex}
             sequencerRef={sequencerRef}
             context={context}
+            rubatoScrollAnchorRef={rubatoScrollAnchorRef}
         >
         <div className="app-root">
             {/* TOP AREA WRAPPER (Preserves app theme for header/sheet) */}
