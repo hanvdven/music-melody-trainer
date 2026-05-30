@@ -7,6 +7,7 @@ import {
     ArrowLeft,
     PencilOff,
     MicVocal,
+    MoveHorizontal,
 } from 'lucide-react';
 import { ChordNotationIcon } from '../common/CustomIcons';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
@@ -21,6 +22,7 @@ const SubHeader = ({
     isInputTestMode,
     inputTestState,
     onActivateAdjustments,
+    onOpenRange,
     windowWidth,
     difficultyMultiplier,
 }) => {
@@ -258,6 +260,22 @@ const SubHeader = ({
                 </div>
 
             </div>
+
+            {/* RANGE button — TEMPORARY entry point for the visual settings re-haul.
+                Lives OUTSIDE the opacity:show wrapper above so it stays visible even
+                when the adjustment buttons are faded out (Han: "altijd zichtbaar").
+                Will be replaced by tap-on-element context overlays later. */}
+            {onOpenRange && (
+                <div style={{ position: 'absolute', right: SIDE_PAD, top: '50%', transform: 'translateY(-50%)', zIndex: 2 }}>
+                    {renderButton(
+                        <MoveHorizontal size={22} />,
+                        'RANGE',
+                        onOpenRange,
+                        false,
+                        '#88ccff'
+                    )}
+                </div>
+            )}
 
             {/* Debug info: centered over everything else, visible only in debug mode */}
             {debugMode && (
