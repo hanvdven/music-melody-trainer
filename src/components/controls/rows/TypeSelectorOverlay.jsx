@@ -6,6 +6,7 @@ import {
     PROGRESSION_STRATEGIES,
     getProgressionDefaultLength,
 } from '../../../theory/progressionDefinitions';
+import { PERCUSSION_PRESETS } from '../../../audio/drumKits';
 
 const TypeSelectorOverlay = ({
     activeRandTypeSelector,
@@ -40,11 +41,13 @@ const TypeSelectorOverlay = ({
             'Chromatic': 'chromatic'
         };
     } else if (instrument === 'percussion') {
-        options = ['Claves', 'Kick & Snare', 'All Percussion'];
+        // Pad-pool presets (Han 2026-05-31) — write enabledPads, the same set the
+        // staff range selector edits. Replaces the old claves/kick_snare/all.
+        options = ['Basic', 'Standard', 'Full'];
         optionValues = {
-            'Claves': 'claves',
-            'Kick & Snare': 'kick_snare',
-            'All Percussion': 'all'
+            'Basic': 'BASIC',
+            'Standard': 'STANDARD',
+            'Full': 'FULL'
         };
     } else if (instrument === 'chords') {
         // Derived from progressionDefinitions — single source of truth.
@@ -68,7 +71,8 @@ const TypeSelectorOverlay = ({
         if (instrument === 'bass' && setBassSettings)
             setBassSettings((p) => ({ ...p, notePool: nextRule }));
         if (instrument === 'percussion' && setPercussionSettings)
-            setPercussionSettings((p) => ({ ...p, notePool: nextRule }));
+            // nextRule is a preset key (BASIC/STANDARD/FULL) → set the pad pool.
+            setPercussionSettings((p) => ({ ...p, enabledPads: [...PERCUSSION_PRESETS[nextRule]] }));
         if (instrument === 'chords') {
             let chordRandomizationValue = nextRule;
             if (nextRule === 'tonic-tonic-tonic') {
