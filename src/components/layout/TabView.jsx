@@ -1,6 +1,7 @@
 import React from 'react';
 import SheetMusic from '../sheet-music/SheetMusic';
 import PianoView from '../controls/PianoView';
+import KeyboardRangeSetter from '../controls/KeyboardRangeSetter';
 import RangeControls from '../controls/RangeControls';
 import ToneRecognizer from '../controls/ToneRecognizer';
 import DrumPad from '../controls/DrumPad';
@@ -113,7 +114,7 @@ const TabView = ({
         chordSettings, setChordSettings,
     } = useInstrumentSettings();
 
-    const { noteColoringMode, setNoteColoringMode, chordDisplayMode, setChordDisplayMode } = useDisplaySettings();
+    const { noteColoringMode, setNoteColoringMode, chordDisplayMode, setChordDisplayMode, debugMode } = useDisplaySettings();
     const { isPlaying } = usePlaybackTransport();
     const { inputTestSubMode } = useRoundState();
 
@@ -136,45 +137,62 @@ const TabView = ({
                 <div className="app-instrument-panel" style={{ display: 'flex', flexDirection: 'column' }}>
                     {instruments.treble ? (
                         <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'visible' }}>
-                            <PianoView
-                                scale={scale}
-                                trebleInstrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
-                                activeClef={activeClef}
-                                minNote={activeClef === 'treble' ? trebleSettings?.range?.min : bassSettings?.range?.min}
-                                maxNote={activeClef === 'treble' ? trebleSettings?.range?.max : bassSettings?.range?.max}
-                                noteColoringMode={noteColoringMode}
-                                onNoteInput={handleInputTestNote}
-                                qwertyKeyboardActive={qwertyKeyboardActive}
-                            />
-                            {/* Open on settings overlay OR range-edit mode. In range-edit
-                                mode the control is stripped (no palette/instrument) via
-                                rangeOnly. data-settings-keepalive stops the overlay's
-                                click-outside-to-close from firing when the user taps a
-                                range stepper here (bug #7, Han 2026-05-30). */}
-                            {(showSheetMusicSettings || rangeEditMode) && (
-                                <div data-settings-keepalive="" style={{
-                                    position: 'absolute',
-                                    top: 0, left: 0, right: 0,
-                                    background: 'var(--panel-bg)',
-                                    zIndex: 20,
-                                    padding: '4px 8px 20px 8px',
-                                }}>
-                                    <RangeControls
-                                        activeSettings={activeClef === 'treble' ? trebleSettings : bassSettings}
-                                        setSettings={activeClef === 'treble' ? setTrebleSettings : setBassSettings}
-                                        tonic={scale.tonic}
+                            {/* Range-edit swaps the playable piano for the graphical
+                                range setter (windowed keyboard + band + handles +
+                                preset buttons). Settings-only mode keeps the playable
+                                piano + the full RangeControls overlay. */}
+                            {rangeEditMode ? (
+                                <KeyboardRangeSetter
+                                    scale={scale}
+                                    instrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
+                                    activeClef={activeClef}
+                                    settings={activeClef === 'treble' ? trebleSettings : bassSettings}
+                                    setSettings={activeClef === 'treble' ? setTrebleSettings : setBassSettings}
+                                    noteColoringMode={noteColoringMode}
+                                    qwertyKeyboardActive={qwertyKeyboardActive}
+                                    debugMode={debugMode}
+                                />
+                            ) : (
+                                <>
+                                    <PianoView
+                                        scale={scale}
+                                        trebleInstrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
                                         activeClef={activeClef}
-                                        instrumentOptions={instrumentOptions}
-                                        setInstrument={(slug) => {
-                                            if (activeClef === 'treble') setTrebleSettings(p => ({ ...p, instrument: slug }));
-                                            else setBassSettings(p => ({ ...p, instrument: slug }));
-                                        }}
+                                        minNote={activeClef === 'treble' ? trebleSettings?.range?.min : bassSettings?.range?.min}
+                                        maxNote={activeClef === 'treble' ? trebleSettings?.range?.max : bassSettings?.range?.max}
                                         noteColoringMode={noteColoringMode}
-                                        setNoteColoringMode={setNoteColoringMode}
-                                        onSettingsInteraction={resetSettingsTimer}
-                                        rangeOnly={rangeEditMode}
+                                        onNoteInput={handleInputTestNote}
+                                        qwertyKeyboardActive={qwertyKeyboardActive}
                                     />
-                                </div>
+                                    {/* data-settings-keepalive stops the overlay's
+                                        click-outside-to-close from firing when the user
+                                        taps a control here (bug #7, Han 2026-05-30). */}
+                                    {showSheetMusicSettings && (
+                                        <div data-settings-keepalive="" style={{
+                                            position: 'absolute',
+                                            top: 0, left: 0, right: 0,
+                                            background: 'var(--panel-bg)',
+                                            zIndex: 20,
+                                            padding: '4px 8px 20px 8px',
+                                        }}>
+                                            <RangeControls
+                                                activeSettings={activeClef === 'treble' ? trebleSettings : bassSettings}
+                                                setSettings={activeClef === 'treble' ? setTrebleSettings : setBassSettings}
+                                                tonic={scale.tonic}
+                                                activeClef={activeClef}
+                                                instrumentOptions={instrumentOptions}
+                                                setInstrument={(slug) => {
+                                                    if (activeClef === 'treble') setTrebleSettings(p => ({ ...p, instrument: slug }));
+                                                    else setBassSettings(p => ({ ...p, instrument: slug }));
+                                                }}
+                                                noteColoringMode={noteColoringMode}
+                                                setNoteColoringMode={setNoteColoringMode}
+                                                onSettingsInteraction={resetSettingsTimer}
+                                                rangeOnly={false}
+                                            />
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     ) : (
@@ -199,39 +217,53 @@ const TabView = ({
                 <div className="app-instrument-panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {instruments.bass ? (
                         <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'visible' }}>
-                            <PianoView
-                                scale={scale}
-                                trebleInstrument={manualInstruments.bass}
-                                activeClef={'bass'}
-                                minNote={bassSettings?.range?.min}
-                                maxNote={bassSettings?.range?.max}
-                                noteColoringMode={noteColoringMode}
-                                onNoteInput={handleInputTestNote}
-                                qwertyKeyboardActive={qwertyKeyboardActive}
-                            />
-                            {/* See piano-tab note: open on settings or range-edit;
-                                keepalive prevents the overlay closing on stepper taps. */}
-                            {(showSheetMusicSettings || rangeEditMode) && (
-                                <div data-settings-keepalive="" style={{
-                                    position: 'absolute',
-                                    top: 0, left: 0, right: 0,
-                                    background: 'var(--panel-bg)',
-                                    zIndex: 20,
-                                    padding: '4px 8px 20px 8px',
-                                }}>
-                                    <RangeControls
-                                        activeSettings={bassSettings}
-                                        setSettings={setBassSettings}
-                                        tonic={scale.tonic}
+                            {/* See piano-tab: range-edit swaps in the graphical setter. */}
+                            {rangeEditMode ? (
+                                <KeyboardRangeSetter
+                                    scale={scale}
+                                    instrument={manualInstruments.bass}
+                                    activeClef={'bass'}
+                                    settings={bassSettings}
+                                    setSettings={setBassSettings}
+                                    noteColoringMode={noteColoringMode}
+                                    qwertyKeyboardActive={qwertyKeyboardActive}
+                                    debugMode={debugMode}
+                                />
+                            ) : (
+                                <>
+                                    <PianoView
+                                        scale={scale}
+                                        trebleInstrument={manualInstruments.bass}
                                         activeClef={'bass'}
-                                        instrumentOptions={instrumentOptions}
-                                        setInstrument={(slug) => setBassSettings(p => ({ ...p, instrument: slug }))}
+                                        minNote={bassSettings?.range?.min}
+                                        maxNote={bassSettings?.range?.max}
                                         noteColoringMode={noteColoringMode}
-                                        setNoteColoringMode={setNoteColoringMode}
-                                        onSettingsInteraction={resetSettingsTimer}
-                                        rangeOnly={rangeEditMode}
+                                        onNoteInput={handleInputTestNote}
+                                        qwertyKeyboardActive={qwertyKeyboardActive}
                                     />
-                                </div>
+                                    {showSheetMusicSettings && (
+                                        <div data-settings-keepalive="" style={{
+                                            position: 'absolute',
+                                            top: 0, left: 0, right: 0,
+                                            background: 'var(--panel-bg)',
+                                            zIndex: 20,
+                                            padding: '4px 8px 20px 8px',
+                                        }}>
+                                            <RangeControls
+                                                activeSettings={bassSettings}
+                                                setSettings={setBassSettings}
+                                                tonic={scale.tonic}
+                                                activeClef={'bass'}
+                                                instrumentOptions={instrumentOptions}
+                                                setInstrument={(slug) => setBassSettings(p => ({ ...p, instrument: slug }))}
+                                                noteColoringMode={noteColoringMode}
+                                                setNoteColoringMode={setNoteColoringMode}
+                                                onSettingsInteraction={resetSettingsTimer}
+                                                rangeOnly={false}
+                                            />
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     ) : (

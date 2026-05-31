@@ -296,33 +296,60 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
     empty sheet in range mode closes range edit (not opens settings). See
     `App.handleToggleRangeEdit` + the close-on-settings effect, and
     `SheetMusic.handleSheetMusicClick` step 3a (`onCloseRangeEdit`).
-  - **Clef-aware extent + presets (points 2/3):** `SheetMusic.computeRangeFrame(clef)`
+  - **Clef-aware presets (points 2/3):** `SheetMusic.computeRangeFrame(clef)`
     returns `{rowLow, rowHigh, presets:[{label,min,max}]}` per staff, following the
     CLEF SHOWN (not the staff slot). Bass clef on the top staff offers bass
     notes/presets; vocal clefs centre the clef's default voice (pad ±voice-span)
-    with the individual voices (Bass…Soprano) as presets. Melodic extent is FULL
-    ±1 octave. Boundary/preset write-backs take the clef-aware preset list so
-    `rangeMode` matching works for any clef incl. vocal.
+    with the individual voices (Bass…Soprano) as presets. Boundary/preset
+    write-backs take the clef-aware preset list so `rangeMode` matching works for
+    any clef incl. vocal. (`rowLow/rowHigh` is now superseded by the
+    boundary-relative window — see below — and kept only for the preset list.)
   - **Diagonal hit band:** each staff's drag zone is a parallelogram `<polygon>`
     following the note-row slant (not a full-height rect), so treble/bass zones
     no longer overlap. Percussion pads get per-pad boxes centred on each notehead.
   - **Bracket-only presets:** no text labels (UI-overhaul NFRs). Melodic AND
     percussion presets render as nested right-brackets; active one highlighted.
-  - **Diagonal ellipsis (narrow screens):** `buildRangeRow(notes, selMin, selMax,
-    avail, frozenSplit)` (pure, tested) collapses the IN-BAND MIDDLE — the notes
-    deep between the boundaries, never the drag target — into a diagonal "…" (3
-    dots along the slant) when `avail/N < MIN_NOTE_WIDTH`. The gap is dummy slots
-    in `allOffsets`, so the index-based renderer (`x = startX + (idx-1)*noteWidth`)
-    draws it for free. `colMidi` maps x→pitch across the gap; a drag freezes the
-    split (`dragRef.split`) so kept notes don't jump under the finger. Edge zones
-    around min/max always stay visible.
+  - **Boundary-relative window + balance (Han 2026-05-31):** the row is a
+    two-thumb range slider. `buildRangeRow` shows a WINDOW that always includes
+    `CONTEXT_NOTES` (3) naturals beyond each boundary, capped to the piano
+    (A0–C8). This makes the row symmetric by construction (3 below min · min · …
+    · max · 3 above max) — fixing the old imbalance (5-1-2-…-2-1-5) caused by the
+    fixed ±octave extent — and lets the user drag a boundary OUTWARD past the old
+    ±octave limit: on release the window re-anchors and reveals fresh context
+    (replaces a separate "extreme range" feature). `clampRange` (min span 12,
+    bounds 21–108) is the only hard limit. Window naturals come from the shared
+    `windowNaturals` in `rangeUtils.js`.
+  - **Diagonal ellipsis (narrow screens):** when the window is still too cramped
+    to fit (`avail/W < MIN_NOTE_WIDTH`), `buildRangeRow` COLLAPSES the in-band
+    middle — the notes deep between the boundaries, never the drag target —
+    keeping `KEEP_IN` (3) naturals beside each boundary and drawing a diagonal
+    "…" (3 dots along the slant). The gap is dummy slots in `allOffsets`, so the
+    index-based renderer (`x = startX + (idx-1)*noteWidth`) draws it for free;
+    `colMidi` maps x→pitch across the gap. The whole layout is frozen during a
+    drag (`dragRef.layout`) so notes don't jump under the finger; only colouring
+    updates live. `MAX_NOTE_WIDTH` caps spacing so a small window isn't sparse.
   - **Debug hit boxes:** every interactive region draws its hit box in `debugMode`
     (CLAUDE.md §3a).
   - **Percussion-style→`enabledPads`** tech-debt resolved: BASIC/STANDARD/FULL.
-- **Still parked:** klavier (keyboard) range setter — **context-bound, per
-  keyboard** (treble-setter at the treble keyboard, etc.), reusing
-  `computeRangeFrame` + a shared write hook; "extreme range" 15mb–15ma (cap
-  A0–C8) with release-to-reveal; lyrics/label spacing; mode-indicator text TBD.
+- **Phase 6 — Keyboard range setter (Han 2026-05-31):** context-bound, per
+  keyboard. `KeyboardRangeSetter.jsx` is the range-edit variant of the keyboard
+  (TabView swaps it in for the playable `PianoView` when `rangeEditMode`, on the
+  treble/active piano tab AND the bass `keys-bottom` tab — one component reused
+  per keyboard). It renders a windowed `PianoView` (via the shared
+  `windowNaturals`, so the keyboard shows the SAME context-beyond-boundary window
+  as the staff), a translucent band over the selected range with drag handles at
+  the edges, and preset BUTTONS (STANDARD/LARGE/FULL per clef) above. Geometry:
+  white keys are uniform width, so the overlay SVG uses `viewBox="0 0 nWhite 100"`
+  (1 unit/white key) and maps pointer x→white-key index via its bounding rect.
+  Tap or drag sets the nearest boundary through the SHARED `applyRangeBoundary`
+  write path (one clamp/preset-match rule for staff, keyboard, and steppers,
+  §6c); the window freezes during a drag and re-anchors on release. Boundaries
+  snap to naturals (white keys), matching the staff. Settings-only mode keeps the
+  playable piano + full `RangeControls`.
+- **Still parked:** keyboard ellipsis for very narrow screens (the staff has it;
+  the keyboard caps spacing instead); black-key boundary precision on the
+  keyboard (currently snaps to white keys); percussion keyboard setter (DrumPad —
+  separate slice); lyrics/label spacing; mode-indicator text TBD.
 - **Phase 5 — polish:** lyrics/label spacing so boundary names can return without
   overlapping noteheads; 8vb/8va extent tuning.
 - **Phase 6 — morph animation:** fade real notes ↔ selectable row on enter/exit;

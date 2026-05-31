@@ -1,48 +1,52 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
-import RangeStaffOverlay, { buildRangeRow, MIN_NOTE_WIDTH } from '../RangeStaffOverlay';
+import RangeStaffOverlay, { buildRangeRow, MIN_NOTE_WIDTH, CONTEXT_NOTES } from '../RangeStaffOverlay';
 import { PERCUSSION_PRESETS } from '../../../../audio/drumKits';
 
-// Naturals C4..C6 (15 notes) for the layout helper.
-const mkNotes = () => {
+// Full piano naturals (A0..C8) for the layout helper.
+const PIANO_NATURALS = (() => {
     const out = [];
-    for (let m = 60; m <= 84; m++) {
-        const pc = ((m % 12) + 12) % 12;
-        const letter = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' }[pc];
+    for (let m = 21; m <= 108; m++) {
+        const letter = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' }[((m % 12) + 12) % 12];
         if (letter) out.push({ midi: m, name: `${letter}${Math.floor(m / 12) - 1}` });
     }
     return out;
-};
+})();
+const countNaturals = (lo, hi) => PIANO_NATURALS.filter(n => n.midi >= lo && n.midi <= hi).length;
 
-describe('buildRangeRow (diagonal-ellipsis layout)', () => {
-    const notes = mkNotes(); // 15 naturals
-
-    it('stays linear when there is room', () => {
-        const wide = notes.length * (MIN_NOTE_WIDTH + 5);
-        const l = buildRangeRow(notes, 60, 84, wide);
+describe('buildRangeRow (boundary-relative window + diagonal ellipsis)', () => {
+    it('windows to CONTEXT_NOTES naturals beyond each boundary (balanced)', () => {
+        // C4..C5 selection on a wide row: window = 3 below C4 .. 3 above C5.
+        const l = buildRangeRow(PIANO_NATURALS, 60, 72, 9999);
         expect(l.collapsed).toBe(false);
-        expect(l.entries.length).toBe(notes.length);
-        expect(l.gap).toBeNull();
+        const midis = l.entries.map(e => e.midi);
+        // 3 naturals below C4 (A3,B3 + the one before) and 3 above C5 (D5,E5,F5).
+        const belowMin = midis.filter(m => m < 60).length;
+        const aboveMax = midis.filter(m => m > 72).length;
+        expect(belowMin).toBe(CONTEXT_NOTES);
+        expect(aboveMax).toBe(CONTEXT_NOTES);
+        // Far-away notes are NOT in the window.
+        expect(midis.some(m => m < 50 || m > 84)).toBe(false);
     });
 
-    it('collapses the in-band middle into a gap when cramped', () => {
-        const tight = notes.length * (MIN_NOTE_WIDTH - 6); // forces collapse
-        // Wide selection so the in-band middle is large enough to collapse.
-        const l = buildRangeRow(notes, 62, 81, tight);
+    it('collapses the in-band middle into a diagonal gap when cramped', () => {
+        const tight = countNaturals(57, 84) * (MIN_NOTE_WIDTH - 7); // wide range, narrow row
+        const l = buildRangeRow(PIANO_NATURALS, 60, 81, tight);
         expect(l.collapsed).toBe(true);
-        expect(l.entries.length).toBeLessThan(notes.length);
         expect(l.gap).not.toBeNull();
-        expect(l.colMidi.length).toBeGreaterThan(0);
-        // Both boundary pitches survive (you can still drag them).
-        const keptMidis = l.entries.map(e => e.midi);
-        expect(keptMidis).toContain(62);
-        expect(keptMidis).toContain(81);
+        const kept = l.entries.map(e => e.midi);
+        expect(kept).toContain(60); // min survives
+        expect(kept).toContain(81); // max survives
+        // Symmetry: same count of kept naturals inside each boundary.
+        const insideLow = kept.filter(m => m > 60 && m < 81).filter(m => m - 60 <= 6).length;
+        const insideHigh = kept.filter(m => m > 60 && m < 81).filter(m => 81 - m <= 6).length;
+        expect(insideLow).toBe(insideHigh);
     });
 
-    it('does not collapse when the middle is too small', () => {
-        const tight = notes.length * (MIN_NOTE_WIDTH - 6);
-        const l = buildRangeRow(notes, 71, 72, tight); // narrow selection → tiny middle
+    it('does not collapse when the in-band middle is too small', () => {
+        const tight = 8 * (MIN_NOTE_WIDTH - 7);
+        const l = buildRangeRow(PIANO_NATURALS, 71, 72, tight); // tiny range
         expect(l.collapsed).toBe(false);
     });
 });
