@@ -257,6 +257,13 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
   - Percussion: tap a pad to toggle it in/out of the pool; disabled pads dimmed.
   - Presets clickable: melodic right-brackets apply `PRESET_RANGES`; percussion
     `BASIC/STANDARD/FULL` labels apply `PERCUSSION_PRESETS`; active highlighted.
+  - **Percussion order (Han 2026-05-31):** kick → snare → hi-hat → hi-hat-pedal →
+    crash → ride → toms(high→low) → rest(high→low), variants behind their base
+    (`PERCUSSION_DISPLAY_FAMILIES` in `drumKits.js`). The ride bell (`cr_bell`)
+    now has a staff position + a Maestro filled-diamond notehead (`â`, glyph
+    U+F0E2) so it appears on the staff and in the selector; audio already mapped
+    (`RideBell_*`). Disabled percussion contrast strengthened: 0.12 dim in the
+    selector, 0.15 on the DrumPad board.
   - Handlers live in `SheetMusic` (already holds the settings setters via
     context) and pass to the overlay as optional callbacks.
   - **Percussion pool model + generation (done):** `enabledPads: string[]` on

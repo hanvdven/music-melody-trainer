@@ -217,11 +217,12 @@ export const PERCUSSION_INTERRUPT_GROUP = {
 export const PERCUSSION_DISPLAY_FAMILIES = [
     ['k'],                              // kick
     ['s', 'sg', 'sr'],                  // snare: base, ghost, rim
-    ['tl', 'tm', 'th'],                 // toms: floor, mid, high
-    ['hh', 'ho', 'hp'],                 // hi-hat: closed, open, pedal
-    ['cr', 'crt', 'cr_bell'],           // ride: base, tip, bell
+    ['hh', 'ho'],                       // hi-hat: closed, open
+    ['hp'],                             // hi-hat pedal (Han 2026-05-31: own slot after hi-hat)
     ['cc', 'cct', 'cc_bell'],           // crash: base, tip, bell
-    ['cb', 'wh', 'wm', 'wl', 'other'],  // other percussion
+    ['cr', 'crt', 'cr_bell'],           // ride: base, tip, bell
+    ['th', 'tm', 'tl'],                 // toms: high → low
+    ['cb', 'wh', 'wm', 'wl', 'other'],  // rest: high → low pitch
 ];
 export const PERCUSSION_DISPLAY_ORDER = PERCUSSION_DISPLAY_FAMILIES.flat();
 
