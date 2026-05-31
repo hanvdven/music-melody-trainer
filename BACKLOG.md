@@ -162,6 +162,39 @@ keyboard (`KeyboardRangeSetter.jsx`; TabView wisselt 'm in voor de speelbare Pia
   blijft tikbaar, ook buiten het selector-venster. Consistent met de bladmuziek-marge.
 - ⬜ **Parked follow-ups**: klavier-ellips bij zéér smal venster; zwarte-toets-precisie
   (snapt nu naar wit); percussie-klavier-setter (DrumPad, aparte slice).
+
+[Han 2026-05-31 — feedback batch op de range setter]:
+- ✅ "Letters op range setter keyboard zijn niet mooi; te groot." [Claude 2026-05-31]:
+  `PianoView` heeft nu een `hideLabels`-prop; het compacte selector-klavier verbergt de
+  noot-labels (het echte klavier eronder houdt ze).
+- ⬜ **Preset-blokhaken moeten het keyboard MATCHEN** + **omwisselen: groot boven, klein
+  beneden** + **reageren op schaalverandering van de selector**. Vandaag is het een vaste
+  geneste legenda (smal→breed, niet uitgelijnd). Han wil ze uitgelijnd/meeschalend met het
+  selector-klavier. ⚠ spanning met de eerder gevraagde "altijd bereikbaar" (presets buiten
+  het venster) — interview nodig.
+- ⬜ **Sleutel (clef) wisselen via de range selector op het klavier**: treble/bass-blokhaken
+  bóven het klavier, zodat je van sleutel kunt wisselen vanaf de keyboard-range-setter.
+  NIEUWE feature; bouwt voort op de bracket-uitlijning hierboven.
+- ⬜ **Groot scherm → meer noten** toestaan (selector én/of bladmuziek-venster mogen meer
+  context tonen op brede schermen).
+- 🐞 **Mini-klavier: zwarte toetsen te smal** bij hele krappe squeezing (veel toetsen op
+  smal scherm). Mogelijk samen met "meer noten op groot scherm" / een min. toetsbreedte.
+
+🐞 **Overbodige/dubbele 8va·8vb in de range-overlay** [Han 2026-05-31]: noten worden in
+aparte gekleurde lagen gerenderd (range-geselecteerd / tonic / range-edge / unselected),
+en ELKE laag berekent zijn eigen ottava-markering. Daardoor verschijnen meerdere 8va/8vb's
+waar één gegroepeerde markering hoort. Root cause: `RangeStaffOverlay` splitst de in-band
+noten in per-kleur `MelodyNotesLayer`-instances (elk eigen ottava). Fix-richting: ottava
+één keer bepalen over de hele rij en delen, of de kleuring binnen één laag doen i.p.v.
+aparte lagen.
+
+🎯 **FR (Han 2026-05-31): gepolijste selectie-animatie (bladmuziek treble/bass).** De
+huidige selectie is hakkelig — het hele beeld verspringt bij her-centreren. Gewenst:
+animaties met "ticks". Voorbeeld: tik/hou je helemaal rechts, dan komt er **elke 1s een
+noot bij**, en de noten **schuiven van rechts naar links in**, zodat de range-setter
+grosso modo op zijn plek blijft. **Plan (Han)**: maak eerst een 1s-transitieanimatie.
+Edge case: ellips nodig. ⚠ Raakt het rAF/animatie-systeem (CLAUDE.md §6-invarianten:
+opacity via `element.style`, geen `setTimeout`-gedreven state). Interview + ontwerp nodig.
 - ❓ Mode-indicator "◆ RANGE SELECTOR" op de bladmuziek: laten staan of weg?
 
 ---

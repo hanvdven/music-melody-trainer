@@ -32,6 +32,9 @@ const PianoView = ({
   noteColoringMode = 'none', // 'none', 'tonic_keys', 'tonic', 'chromatone_keys', 'chromatone', 'subtle-chroma'
   onNoteInput = null,
   qwertyKeyboardActive = false,
+  // Compact mode (e.g. the range-setter selector): suppress the note-name labels,
+  // which are too large/cluttered on a small windowed keyboard.
+  hideLabels = false,
   // Tone Recognizer: highlights a single detected note (e.g. 'A4') or
   // a set of pitch-class indices (0-11) for chord mode
   activeNote = null,
@@ -568,7 +571,7 @@ const PianoView = ({
             {qwertyKeyboardActive && noteQwertyLabel[note] && (
               <span style={qwertyLabelStyle}>{noteQwertyLabel[note]}</span>
             )}
-            {formatNoteLabel(getNoteLabel(note), false)}
+            {!hideLabels && formatNoteLabel(getNoteLabel(note), false)}
           </div>
         ))}
       </div>
@@ -586,7 +589,7 @@ const PianoView = ({
             {qwertyKeyboardActive && noteQwertyLabel[note] && (
               <span style={qwertyLabelStyle}>{noteQwertyLabel[note]}</span>
             )}
-            {formatNoteLabel(getNoteLabel(note), true)}
+            {!hideLabels && formatNoteLabel(getNoteLabel(note), true)}
           </div>
         ))}
       </div>

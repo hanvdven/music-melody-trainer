@@ -162,6 +162,7 @@ const KeyboardRangeSetter = ({
                     minNote={win[0].name}
                     maxNote={win[nWhite - 1].name}
                     noteColoringMode={noteColoringMode}
+                    hideLabels
                 />
                 <svg ref={selSvgRef} className="kbd-range-overlay"
                     viewBox={`0 0 ${nWhite} 100`} preserveAspectRatio="none"
