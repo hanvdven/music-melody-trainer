@@ -1,4 +1,4 @@
-/* Keyboard range setter — see KeyboardRangeSetter.jsx for the design notes. */
+/* Keyboard range setter (split layout) — see KeyboardRangeSetter.jsx. */
 .kbd-range-setter {
   display: flex;
   flex-direction: column;
@@ -6,40 +6,34 @@
   height: 100%;
   flex: 1;
   min-height: 0;
+  gap: 6px;
 }
 
-.kbd-range-presets {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  flex-wrap: wrap;
-  padding: 8px;
-}
-
-.kbd-range-preset {
-  padding: var(--button-small-padding, 6px 14px);
-  font-size: var(--button-small-font, 13px);
-  border: 1px solid var(--text-dim);
-  border-radius: 6px;
-  background: var(--button-passive);
-  color: var(--button-text);
-  cursor: pointer;
-}
-
-.kbd-range-preset.is-active {
-  background: var(--button-active);
-  border-color: var(--accent-yellow);
-}
-
-.kbd-range-keyboard {
-  position: relative;
-  flex: 1;
-  min-height: 0;
+/* Preset brackets above the selector. */
+.kbd-range-presets-row {
   width: 100%;
+  flex: 0 0 auto;
+  height: 92px;
 }
 
-/* Overlay sits on top of the keys and owns the pointer interaction (so a tap
-   sets a boundary instead of playing the key). */
+/* Compact selector keyboard — where the range is chosen. */
+.kbd-range-selector {
+  position: relative;
+  width: 100%;
+  flex: 0 0 32%;
+  min-height: 0;
+}
+
+/* The real playable keyboard, limited to the selection. */
+.kbd-range-real {
+  position: relative;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Overlay owns the selector's pointer interaction (a tap sets a boundary
+   instead of playing the key). */
 .kbd-range-overlay {
   position: absolute;
   inset: 0;

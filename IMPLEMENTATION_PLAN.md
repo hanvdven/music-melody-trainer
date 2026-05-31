@@ -51,13 +51,13 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
   subsumes the "extreme range" FR). When still cramped, collapses the in-band
   middle into a diagonal "…" keeping 3 inside each boundary. Whole layout freezes
   during drag. `MAX_NOTE_WIDTH` caps sparse spacing. **Verify visually.**
-- ✅ FR — **Keyboard range setter (treble + bass).** `KeyboardRangeSetter.jsx`:
-  windowed PianoView + translucent band + drag handles + preset BUTTONS, swapped
-  in for the playable piano in range-edit (TabView, both keyboards). Shares
-  `windowNaturals` + `applyRangeBoundary` with the staff (§6c). Tap/drag sets
-  nearest boundary, snaps to white keys, window freezes during drag. **Verify
-  visually.** Follow-ups parked: keyboard ellipsis, black-key precision,
-  percussion keyboard setter.
+- 🔨 FR — **Keyboard range setter v2 — SPLIT layout (Han 2026-05-31).** Redesign:
+  (top→bottom) preset BLOKHAKEN (brackets, no text, consistent w/ sheet) → COMPACT
+  windowed SELECTOR keyboard (width-adaptive: ~20px/white key, e.g. 300px→15 keys,
+  symmetric around the selection like the sheet) → REAL playable keyboard limited
+  to the selection (shows the impact). Selector: band + handles + tap, freeze
+  during drag, re-anchor on release. Shares windowNaturals + applyRangeBoundary.
+  v1 started; preset-bracket alignment to selector keys is approximate.
 - ⏳ FR — **Extreme range** up to 15mb–15ma (capped A0–C8); interaction idea:
   after releasing the drag, 3 more notes appear left & right (progressive reveal).
   Likely pairs with the ellipsis windowing.
