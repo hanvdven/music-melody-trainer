@@ -28,36 +28,37 @@ const nearestIdx = (win, midi) => {
     return bi;
 };
 
-// Preset-bracket legend geometry (a FIXED nested legend, always reachable).
-export const PRESET_VIEW_W = 100;
-const PRESET_ROW_H = 26, PRESET_PAD = 7;
-export const PRESET_TICK = 15;
+// Preset-bracket legend geometry.
+const PRESET_ROW_H = 22, PRESET_PAD = 6;
+export const PRESET_TICK = 13;
 
-// One ⊓ bracket per preset, centred in a 0..PRESET_VIEW_W strip with width ∝ the
-// preset's pitch span (widest = FULL), stacked narrowest-first. Pure + tested:
-// EVERY preset always yields a bracket (reachability invariant — the old
-// key-aligned version hid presets outside the selector window).
-export const buildPresetBracketRows = (presets, selRange) => {
-    const maxSpan = Math.max(1, ...presets.map(p => getNoteValue(p.max) - getNoteValue(p.min)));
+// One ⊓ bracket per preset, ALIGNED to the selector's white-key grid (x in
+// white-key-index units, 0..win.length) and scaling with it. Widest preset on
+// top (Han 2026-05-31). Presets that fall entirely outside the current window are
+// hidden (the window will reveal them as the selection moves). Pure + tested.
+export const buildPresetBracketRows = (presets, selRange, win) => {
+    if (!win?.length) return [];
+    const loMidi = win[0].midi, hiMidi = win[win.length - 1].midi;
     return presets
-        .map(p => ({ p, span: getNoteValue(p.max) - getNoteValue(p.min) }))
-        .sort((a, b) => a.span - b.span)
-        .map(({ p, span }, k) => {
-            const halfW = 9 + (span / maxSpan) * 39;
-            return {
-                p,
-                x0: PRESET_VIEW_W / 2 - halfW,
-                x1: PRESET_VIEW_W / 2 + halfW,
-                yTop: PRESET_PAD + k * PRESET_ROW_H,
-                isActive: selRange?.min === p.min && selRange?.max === p.max,
-            };
-        });
+        .map(p => ({ p, lo: getNoteValue(p.min), hi: getNoteValue(p.max) }))
+        .filter(({ lo, hi }) => hi >= loMidi && lo <= hiMidi)   // hide fully-outside
+        .sort((a, b) => (b.hi - b.lo) - (a.hi - a.lo))          // widest first → big on top
+        .map(({ p, lo, hi }, k) => ({
+            p,
+            x0: nearestIdx(win, lo),
+            x1: nearestIdx(win, hi) + 1,
+            yTop: PRESET_PAD + k * PRESET_ROW_H,
+            isActive: selRange?.min === p.min && selRange?.max === p.max,
+        }));
 };
 export const presetViewHeight = (n) => PRESET_PAD * 2 + n * PRESET_ROW_H;
 
 const KeyboardRangeSetter = ({
     scale, instrument, activeClef, settings, setSettings,
     noteColoringMode = 'none', qwertyKeyboardActive = false, onNoteInput = null, debugMode = false,
+    // When provided, render treble/bass clef-switch brackets above the keyboard
+    // so the user can switch the clef being edited from here (piano tab only).
+    onSwitchClef = null,
 }) => {
     // Layout frozen during a drag so the selector keys don't shift under the
     // finger; forceReanchor re-renders on release so the window re-centres.
@@ -121,29 +122,55 @@ const KeyboardRangeSetter = ({
     };
     const onUp = () => { dragRef.current = null; forceReanchor(); };
 
-    // Preset brackets — a FIXED nested legend (always visible & tappable, no
-    // matter where the selector window sits), consistent with the sheet-music
-    // bracket presets. See buildPresetBracketRows.
-    const bracketRows = buildPresetBracketRows(presets, range);
+    // Preset brackets — aligned to the selector key grid, big-on-top, hidden when
+    // fully outside the window. See buildPresetBracketRows.
+    const bracketRows = buildPresetBracketRows(presets, range, win);
     const presetViewH = presetViewHeight(presets.length);
 
     return (
         <div className="kbd-range-setter" data-settings-keepalive="" ref={wrapRef}>
-            {/* 1. Preset brackets — fixed nested legend (always reachable). */}
+            {/* 0. Clef-switch brackets (piano tab only): treble on top, bass below
+                — position conveys the clef (high vs low); tap switches which clef
+                you're editing. Active clef highlighted. */}
+            {onSwitchClef && (
+                <div className="kbd-range-clefs">
+                    <svg viewBox="0 0 100 56" preserveAspectRatio="none"
+                        style={{ width: '100%', height: '100%', display: 'block' }}>
+                        {[{ clef: 'treble', yTop: 8 }, { clef: 'bass', yTop: 32 }].map(({ clef, yTop }) => {
+                            const active = activeClef === clef;
+                            const color = active ? 'var(--accent-yellow)' : 'var(--text-dim)';
+                            return (
+                                <g key={clef} style={{ cursor: 'pointer' }} onClick={() => onSwitchClef(clef)}>
+                                    <rect x={22} y={yTop - 4} width={56} height={22} fill="transparent" />
+                                    <path d={`M 25 ${yTop + 14} V ${yTop} H 75 V ${yTop + 14}`}
+                                        fill="none" stroke={color} strokeWidth={active ? 2.4 : 1.2}
+                                        vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
+                                    {debugMode && (
+                                        <rect x={22} y={yTop - 4} width={56} height={22}
+                                            fill="orange" fillOpacity={0.2} stroke="orange" strokeWidth={0.3}
+                                            style={{ pointerEvents: 'none' }} />
+                                    )}
+                                </g>
+                            );
+                        })}
+                    </svg>
+                </div>
+            )}
+            {/* 1. Preset brackets — aligned to the selector keys, big-on-top. */}
             <div className="kbd-range-presets-row">
-                <svg viewBox={`0 0 ${PRESET_VIEW_W} ${presetViewH}`} preserveAspectRatio="none"
+                <svg viewBox={`0 0 ${nWhite} ${presetViewH}`} preserveAspectRatio="none"
                     style={{ width: '100%', height: '100%', display: 'block' }}>
                     {bracketRows.map(({ p, x0, x1, isActive, yTop }) => {
                         const color = isActive ? 'var(--accent-yellow)' : 'var(--text-dim)';
                         return (
                             <g key={p.label} style={{ cursor: 'pointer' }} onClick={() => applyPreset(p)}>
-                                <rect x={x0 - 3} y={yTop - 3} width={(x1 - x0) + 6} height={PRESET_ROW_H}
+                                <rect x={x0 - 0.3} y={yTop - 3} width={(x1 - x0) + 0.6} height={PRESET_ROW_H}
                                     fill="transparent" />
                                 <path d={`M ${x0} ${yTop + PRESET_TICK} V ${yTop} H ${x1} V ${yTop + PRESET_TICK}`}
                                     fill="none" stroke={color} strokeWidth={isActive ? 2 : 1.2}
                                     vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
                                 {debugMode && (
-                                    <rect x={x0 - 3} y={yTop - 3} width={(x1 - x0) + 6} height={PRESET_ROW_H}
+                                    <rect x={x0 - 0.3} y={yTop - 3} width={(x1 - x0) + 0.6} height={PRESET_ROW_H}
                                         fill="orange" fillOpacity={0.2} stroke="orange" strokeWidth={0.3}
                                         style={{ pointerEvents: 'none' }} />
                                 )}

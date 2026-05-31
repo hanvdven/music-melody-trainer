@@ -1392,6 +1392,7 @@ const App = () => {
                     context={context}
                     scale={scale}
                     activeClef={activeClef}
+                    setActiveClef={setActiveClef}
                     handleInputTestNote={handleInputTestNote}
                     qwertyKeyboardActive={qwertyKeyboardActive}
                     showSheetMusicSettings={showSheetMusicSettings}
