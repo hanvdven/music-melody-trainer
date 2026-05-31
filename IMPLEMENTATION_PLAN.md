@@ -36,15 +36,30 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
   (pad ±voice-span). **Verify visually with Han.**
 
 ### Backlog / next phase
-- ⏳ FR — Narrow screens: render an **ellipsis (…) between notes** when the row
-  is too tight to show all noteheads.
-- ⏳ FR — **Extreme range** selection up to 15mb–15ma (i.e. extend the selectable
-  extent), capped at A0–C8. Interaction idea: after releasing the drag button, 3
-  more notes appear on the left and right (progressive reveal).
-- ⏳ FR — **Klavier (keyboard) range setter** — alternative range UI on a piano
-  keyboard. Needs the reference image from Han (to be re-shared).
-- 🐞/⏳ Backlog — **Drum-notation stems**: adjust stem direction/length in the
-  percussion notation.
+- 🔨 FR — **Klavier (keyboard) range setter** (design phase, mockup received
+  2026-05-31). In RANGE mode, show a range setter on top of the piano too (mirror
+  of the sheet-music one), both live-bound to the same state. Per-clef coloured
+  key-bands with ↔ drag handles at min/max; preset **buttons** on top (bordered
+  for button-feel). Responsive: large screen shows keys ±3 beyond range (or full
+  if it fits); small screen "takes out the middle" with an ellipsis. Reuse
+  `computeRangeFrame` + the range-edit write path (extract to shared util/hook,
+  §6c). Percussion-in-keyboard = open question. *Interview before building.*
+- ⏳ FR — Narrow screens: render an **ellipsis (…) between notes** when the row is
+  too tight (sheet-music setter) — unify with the keyboard "take out middle".
+- ⏳ FR — **Extreme range** up to 15mb–15ma (capped A0–C8); interaction idea:
+  after releasing the drag, 3 more notes appear left & right (progressive reveal).
+- 🐞/⏳ Backlog — **Drum-notation stems**: adjust stem direction/length.
+
+### Broader app-IA redesign (mockup 2026-05-31) — LOGGED, not scheduled
+Full navigation/settings vision from the wireframe. Captured for later; recommend
+finishing the range-setter feature (sheet + keyboard) before opening this. Items:
+clef picker (clefs slide from left, per-bar clef select incl. disable; percussion
+chord vs two-melody notation); "Exercise" settings (difficulty/level-up);
+"Visualisation" (note coloring, animation, multi-line, theme); Instrument setting;
+"Advanced song generation" (#measures, #repeats, playback, odd/even volume); Scale
+selector (bottom view); Header (melody type/key/scale, playback, scoring, settings
+nav); NAV (icon main-cat ↔ sub-cat: Input|instrument, Settings|profiel,
+Muziek|Toonladder).
 
 ---
 
