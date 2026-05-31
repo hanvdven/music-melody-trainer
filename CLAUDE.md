@@ -127,6 +127,32 @@ Do not comment every line. Comment things that would confuse a competent develop
 
 ---
 
+## 3a. Always Visualise Click/Hit Boxes in Debug Mode
+
+Every interactive component — anything with a click/tap/drag/pointer handler —
+MUST render its hit box (the actual clickable/draggable region) as a visible
+overlay when `debugMode` is on. This is mandatory for all interactive components,
+existing and new (Han 2026-05-31).
+
+Use the established convention: a semi-transparent `<rect>` (or shape matching the
+hit region) gated on `debugMode`, with `pointerEvents: 'none'` so it never
+intercepts the interaction it visualises:
+
+```jsx
+{debugMode && (
+  <rect x={hitX} y={hitY} width={hitW} height={hitH}
+    fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
+    style={{ pointerEvents: 'none' }} />
+)}
+```
+
+The debug rect must match the REAL hit region (same coordinates/size as the
+transparent hit target), so debug mode reveals exactly where taps register —
+this is how overlap/misalignment bugs are spotted. When adding any new
+interactive element, add its debug hit box in the same PR.
+
+---
+
 ## 4. Never Remove Comments Without Asking
 
 Do not delete or shorten existing comments. If you believe a comment is wrong, outdated, or misleading, flag it explicitly:

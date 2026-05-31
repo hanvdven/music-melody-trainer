@@ -2,7 +2,6 @@ import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
 import { getNoteValue } from '../../../utils/rangeUtils';
-import { PRESET_RANGES } from '../../../constants/ranges';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
 
@@ -105,10 +104,14 @@ const RangeStaffOverlay = ({
     trebleStart, bassStart, percussionStart,
     isTrebleVisible, isBassVisible, isPercussionVisible,
     clefTreble, clefBass,
+    // Clef-aware frames from SheetMusic.computeRangeFrame: { rowLow, rowHigh,
+    // presets:[{label,min,max}] }. The selectable extent + presets follow the
+    // CLEF shown on the staff, not the staff slot (Han 2026-05-31).
+    trebleFrame, bassFrame,
     trebleRange, bassRange,
     enabledPads,
     onSetMelodicBoundary, onApplyMelodicPreset, onTogglePad, onApplyPercussionPreset,
-    timeSignature, theme,
+    timeSignature, theme, debugMode = false,
 }) => {
     // Active boundary being dragged: { staff, boundary:'min'|'max' } | null.
     const dragRef = React.useRef(null);
@@ -126,11 +129,13 @@ const RangeStaffOverlay = ({
     };
 
     // ── Melodic staff (treble/bass) ──────────────────────────────────────────
-    const melodicStaff = (staff, staffStart, clef, range) => {
-        const preset = PRESET_RANGES.FULL[staff];
-        // Extent = FULL ± 1 octave (D2), clamped to the app's hard bounds.
-        const rowLow = Math.max(21, getNoteValue(preset.min) - 12);
-        const rowHigh = Math.min(108, getNoteValue(preset.max) + 12);
+    const melodicStaff = (staff, staffStart, clef, range, frame) => {
+        if (!frame) return null;
+        // Extent = exactly the clef's widest preset (no ±octave padding, which
+        // previously made treble dip to A2 and overlap the bass staff). Clamped
+        // to the app's hard bounds.
+        const rowLow = Math.max(21, getNoteValue(frame.rowLow));
+        const rowHigh = Math.min(108, getNoteValue(frame.rowHigh));
         const notes = naturalsInRange(rowLow, rowHigh);
         const N = notes.length;
         if (!N) return null;
@@ -166,13 +171,13 @@ const RangeStaffOverlay = ({
             const which = Math.abs(midi - selMin) <= Math.abs(midi - selMax) ? 'min' : 'max';
             dragRef.current = { staff, boundary: which };
             try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not all envs */ }
-            onSetMelodicBoundary(staff, midi, which);
+            onSetMelodicBoundary(staff, midi, which, frame.presets);
         };
         const onMove = (e) => {
             const d = dragRef.current;
             if (!d || d.staff !== staff || !onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
-            onSetMelodicBoundary(staff, notes[colAt(x)].midi, d.boundary);
+            onSetMelodicBoundary(staff, notes[colAt(x)].midi, d.boundary, frame.presets);
         };
         const onUp = () => { dragRef.current = null; };
 
@@ -212,20 +217,30 @@ const RangeStaffOverlay = ({
                         onPointerCancel={onUp}
                     />
                 )}
+                {/* Debug: visualise the drag hit zone (CLAUDE.md §3a). */}
+                {debugMode && (
+                    <rect
+                        x={startX - noteWidth / 2}
+                        y={staffStart - HIT_PAD_Y}
+                        width={N * noteWidth}
+                        height={STAFF_HEIGHT + 2 * HIT_PAD_Y}
+                        fill="orange" fillOpacity={0.25} stroke="orange" strokeWidth={1}
+                        style={{ pointerEvents: 'none' }}
+                    />
+                )}
             </g>
         );
     };
 
     // ── Melodic preset brackets (right margin, clickable) ─────────────────────
-    const melodicPresetBrackets = (staff, staffStart, clef, range) => {
+    const melodicPresetBrackets = (staff, staffStart, clef, range, frame) => {
+        if (!frame) return null;
         const selMin = getNoteValue(range?.min);
         const selMax = getNoteValue(range?.max);
         const presetX0 = endX - PRESET_AREA_WIDTH + BRACKET_TICK + 4;
-        const modes = ['STANDARD', 'LARGE', 'FULL'];
         return (
             <g className={`range-presets range-presets-${staff}`}>
-                {modes.map((mode, i) => {
-                    const p = PRESET_RANGES[mode][staff];
+                {frame.presets.map((p, i) => {
                     const yTop = getNoteAbsoluteY(p.max, staffStart, clef, staff);
                     const yBottom = getNoteAbsoluteY(p.min, staffStart, clef, staff);
                     if (yTop == null || yBottom == null) return null;
@@ -233,14 +248,20 @@ const RangeStaffOverlay = ({
                     const isActive = getNoteValue(p.min) === selMin && getNoteValue(p.max) === selMax;
                     const color = isActive ? 'var(--accent-yellow)' : 'var(--text-dim)';
                     const midY = (yTop + yBottom) / 2;
+                    const hitX = x - BRACKET_TICK - 12, hitY = yTop - 4;
+                    const hitW = BRACKET_TICK + 18, hitH = yBottom - yTop + 8;
                     return (
-                        <g key={mode}
+                        <g key={p.label}
                             style={{ cursor: onApplyMelodicPreset ? 'pointer' : 'default' }}
-                            onClick={onApplyMelodicPreset ? () => onApplyMelodicPreset(staff, mode) : undefined}>
+                            onClick={onApplyMelodicPreset ? () => onApplyMelodicPreset(staff, p) : undefined}>
                             {/* invisible wide hit target around the thin bracket */}
-                            <rect x={x - BRACKET_TICK - 12} y={yTop - 4}
-                                width={BRACKET_TICK + 18} height={yBottom - yTop + 8}
-                                fill="transparent" />
+                            <rect x={hitX} y={hitY} width={hitW} height={hitH} fill="transparent" />
+                            {/* Debug: visualise the preset hit box (CLAUDE.md §3a). */}
+                            {debugMode && (
+                                <rect x={hitX} y={hitY} width={hitW} height={hitH}
+                                    fill="orange" fillOpacity={0.25} stroke="orange" strokeWidth={1}
+                                    style={{ pointerEvents: 'none' }} />
+                            )}
                             <path d={rightBracketPath(x, yTop, yBottom, BRACKET_TICK)}
                                 fill="none" stroke={color} strokeWidth={isActive ? 1.6 : 1}
                                 style={{ pointerEvents: 'none' }} />
@@ -250,7 +271,7 @@ const RangeStaffOverlay = ({
                                 dominantBaseline="middle"
                                 transform={`rotate(-90 ${x - BRACKET_TICK - 2} ${midY})`}
                                 style={{ pointerEvents: 'none' }}>
-                                {mode}
+                                {p.label}
                             </text>
                         </g>
                     );
@@ -297,17 +318,24 @@ const RangeStaffOverlay = ({
                         />
                     </g>
                 ))}
-                {/* Per-pad transparent hit rects → toggle. */}
-                {onTogglePad && ids.map((id, i) => (
-                    <rect key={`hit-${id}`}
-                        x={startX + i * noteWidth - noteWidth / 2}
-                        y={percussionStart - HIT_PAD_Y}
-                        width={noteWidth}
-                        height={STAFF_HEIGHT + 2 * HIT_PAD_Y}
-                        fill="transparent"
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => onTogglePad(id)} />
-                ))}
+                {/* Per-pad transparent hit rects → toggle (+ debug box, §3a). */}
+                {onTogglePad && ids.map((id, i) => {
+                    const hx = startX + i * noteWidth - noteWidth / 2;
+                    const hy = percussionStart - HIT_PAD_Y;
+                    const hh = STAFF_HEIGHT + 2 * HIT_PAD_Y;
+                    return (
+                        <g key={`hit-${id}`}>
+                            <rect x={hx} y={hy} width={noteWidth} height={hh}
+                                fill="transparent" style={{ cursor: 'pointer' }}
+                                onClick={() => onTogglePad(id)} />
+                            {debugMode && (
+                                <rect x={hx} y={hy} width={noteWidth} height={hh}
+                                    fill="orange" fillOpacity={0.25} stroke="orange" strokeWidth={1}
+                                    style={{ pointerEvents: 'none' }} />
+                            )}
+                        </g>
+                    );
+                })}
             </g>
         );
     };
@@ -316,20 +344,30 @@ const RangeStaffOverlay = ({
     const percussionPresets = () => {
         const modes = ['BASIC', 'STANDARD', 'FULL'];
         const x = endX - PRESET_AREA_WIDTH + 10;
+        const rowH = 13;
         return (
             <g className="range-presets range-presets-percussion">
                 {modes.map((mode, i) => {
                     const isActive = sameSet(enabledPads, PERCUSSION_PRESETS[mode]);
                     const color = isActive ? 'var(--accent-yellow)' : 'var(--text-dim)';
-                    const y = percussionStart + 4 + i * 13;
+                    const y = percussionStart + 4 + i * rowH;
+                    const hx = x - 2, hy = y - rowH + 3, hw = PRESET_AREA_WIDTH - 12, hh = rowH;
                     return (
-                        <text key={mode}
-                            x={x} y={y} fill={color}
-                            fontSize={BRACKET_LABEL_SIZE} fontFamily="Georgia, serif"
+                        <g key={mode}
                             style={{ cursor: onApplyPercussionPreset ? 'pointer' : 'default' }}
                             onClick={onApplyPercussionPreset ? () => onApplyPercussionPreset(mode) : undefined}>
-                            {mode}
-                        </text>
+                            <rect x={hx} y={hy} width={hw} height={hh} fill="transparent" />
+                            {debugMode && (
+                                <rect x={hx} y={hy} width={hw} height={hh}
+                                    fill="orange" fillOpacity={0.25} stroke="orange" strokeWidth={1}
+                                    style={{ pointerEvents: 'none' }} />
+                            )}
+                            <text x={x} y={y} fill={color}
+                                fontSize={BRACKET_LABEL_SIZE} fontFamily="Georgia, serif"
+                                style={{ pointerEvents: 'none' }}>
+                                {mode}
+                            </text>
+                        </g>
                     );
                 })}
             </g>
@@ -350,10 +388,10 @@ const RangeStaffOverlay = ({
     return (
         <g className="range-overlay" onClick={(e) => e.stopPropagation()}>
             {modeIndicator()}
-            {isTrebleVisible && melodicStaff('treble', trebleStart, clefTreble, trebleRange)}
-            {isBassVisible && melodicStaff('bass', bassStart, clefBass, bassRange)}
-            {isTrebleVisible && melodicPresetBrackets('treble', trebleStart, clefTreble, trebleRange)}
-            {isBassVisible && melodicPresetBrackets('bass', bassStart, clefBass, bassRange)}
+            {isTrebleVisible && melodicStaff('treble', trebleStart, clefTreble, trebleRange, trebleFrame)}
+            {isBassVisible && melodicStaff('bass', bassStart, clefBass, bassRange, bassFrame)}
+            {isTrebleVisible && melodicPresetBrackets('treble', trebleStart, clefTreble, trebleRange, trebleFrame)}
+            {isBassVisible && melodicPresetBrackets('bass', bassStart, clefBass, bassRange, bassFrame)}
             {isPercussionVisible && percussionStaffRow()}
             {isPercussionVisible && percussionPresets()}
         </g>

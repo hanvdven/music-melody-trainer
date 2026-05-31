@@ -105,6 +105,48 @@ const getCurrentRangeValue = (settings, activeClef) => {
   return mode; // vocal label
 };
 
+// Set of vocal clef strings (module scope; mirrors the per-instance set used by
+// calculateOptimalClef).
+const VOCAL_CLEFS = new Set(['soprano', 'mezzo-soprano', 'alto', 'tenor']);
+
+/**
+ * computeRangeFrame — the clef-aware "frame" the in-staff range selector needs:
+ * the selectable note extent (rowLow/rowHigh as note names) plus the list of
+ * applicable presets ({label, min, max}) for the right-margin brackets.
+ *
+ * Why this lives here (Han 2026-05-31): the selectable extent and presets must
+ * follow the CLEF SHOWN on the staff, not the staff slot. A bass clef on the top
+ * staff must offer bass notes/presets, and vice versa; vocal clefs centre on
+ * their voice's range with room above and below. SheetMusic already owns all
+ * clef + vocal knowledge (CLEF_VOCAL_RANGES, PRESET_RANGES), so we derive the
+ * frame here and hand it to the overlay rather than duplicating tables there
+ * (§6c). The extent is exactly the clef's widest preset — no ±octave padding,
+ * which previously made treble extend down to A2 and overlap the bass staff.
+ */
+const computeRangeFrame = (clef) => {
+  if (VOCAL_CLEFS.has(clef)) {
+    // Vocal: the extent spans the lowest..highest across ALL vocal ranges so any
+    // voice (and notes above/below the clef's default voice) is reachable; the
+    // presets are the individual voices. Lowest/highest picked by pitch index.
+    const rowLow = CLEF_VOCAL_RANGES.reduce((a, v) => getNoteIndex(v.min) < getNoteIndex(a) ? v.min : a, CLEF_VOCAL_RANGES[0].min);
+    const rowHigh = CLEF_VOCAL_RANGES.reduce((a, v) => getNoteIndex(v.max) > getNoteIndex(a) ? v.max : a, CLEF_VOCAL_RANGES[0].max);
+    return {
+      rowLow,
+      rowHigh,
+      presets: CLEF_VOCAL_RANGES.map(v => ({ label: v.label.toUpperCase(), min: v.min, max: v.max })),
+    };
+  }
+  // Melodic (treble/bass and their ottava variants): pick the base family by clef.
+  const base = clef && clef.startsWith('bass') ? 'bass' : 'treble';
+  return {
+    rowLow: CLEF_RANGE_PRESET_RANGES.FULL[base].min,
+    rowHigh: CLEF_RANGE_PRESET_RANGES.FULL[base].max,
+    presets: ['STANDARD', 'LARGE', 'FULL'].map(m => ({
+      label: m, min: CLEF_RANGE_PRESET_RANGES[m][base].min, max: CLEF_RANGE_PRESET_RANGES[m][base].max,
+    })),
+  };
+};
+
 const clefSymbols = {
   treble: { char: '&', yOffset: 0 },
   alto: { char: 'B', yOffset: -10.0 },
@@ -215,7 +257,9 @@ const SheetMusic = ({
   // clampRange enforces the 12-semitone min span + 21..108 bounds; then detect
   // a preset match to keep rangeMode in sync. Writing through the same setters
   // fires the existing settings→regeneration path unchanged.
-  const setMelodicBoundary = React.useCallback((staff, midi, which) => {
+  // `presets` is the clef-aware list ({label,min,max}) from computeRangeFrame, so
+  // the rangeMode match works for whichever clef (incl. vocal) is on the staff.
+  const setMelodicBoundary = React.useCallback((staff, midi, which, presets = []) => {
     const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
     setter(prev => {
       const curMin = getNoteValue(prev.range.min);
@@ -229,19 +273,16 @@ const SheetMusic = ({
       const startMax = bound === 'max' ? midi : curMax;
       const { min, max } = clampRange(startMin, startMax, bound);
       const range = { min: getNoteFromValue(min), max: getNoteFromValue(max) };
-      let rangeMode = 'CUSTOM';
-      for (const m of ['STANDARD', 'LARGE', 'FULL']) {
-        const p = PRESET_RANGES[m][staff];
-        if (p.min === range.min && p.max === range.max) { rangeMode = m; break; }
-      }
-      return { ...prev, range, rangeMode };
+      const hit = presets.find(p => p.min === range.min && p.max === range.max);
+      return { ...prev, range, rangeMode: hit ? hit.label : 'CUSTOM' };
     });
   }, [setTrebleSettings, setBassSettings]);
 
-  const applyMelodicPreset = React.useCallback((staff, mode) => {
+  // `preset` is a clef-aware {label,min,max} from the overlay's frame, so this
+  // works for treble/bass presets AND vocal voices (which aren't in PRESET_RANGES).
+  const applyMelodicPreset = React.useCallback((staff, preset) => {
     const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
-    const p = PRESET_RANGES[mode][staff];
-    setter(prev => ({ ...prev, range: { ...p }, rangeMode: mode }));
+    setter(prev => ({ ...prev, range: { min: preset.min, max: preset.max }, rangeMode: preset.label }));
   }, [setTrebleSettings, setBassSettings]);
 
   const togglePad = React.useCallback((padId) => {
@@ -843,6 +884,12 @@ const SheetMusic = ({
     () => calculateOptimalClef(bassActiveClef, currentBass?.notes, 'bass', bassSettings?.rangeMode),
     [bassActiveClef, currentBass, bassSettings?.rangeMode],
   );
+
+  // Clef-aware frames for the range selector: extent + presets follow the clef
+  // shown on each staff (Han 2026-05-31), so a bass clef on the top staff offers
+  // bass notes/presets and vocal clefs centre on their voice.
+  const trebleFrame = useMemo(() => computeRangeFrame(clefTreble), [clefTreble]);
+  const bassFrame = useMemo(() => computeRangeFrame(clefBass), [clefBass]);
 
   const adjustedTrebleMelody = useMemo(() => processMelodyAndCalculateSlots(
     currentTreble,
@@ -2831,6 +2878,8 @@ const SheetMusic = ({
                       isPercussionVisible={isPercussionVisible}
                       clefTreble={clefTreble}
                       clefBass={clefBass}
+                      trebleFrame={trebleFrame}
+                      bassFrame={bassFrame}
                       trebleRange={trebleSettings?.range}
                       bassRange={bassSettings?.range}
                       enabledPads={percussionSettings?.enabledPads}
@@ -2840,6 +2889,7 @@ const SheetMusic = ({
                       onApplyPercussionPreset={applyPercussionPreset}
                       timeSignature={timeSignature}
                       theme={theme}
+                      debugMode={debugMode}
                     />
                   )}
                 </>
