@@ -168,6 +168,26 @@ export const getNoteSemitone = (note) => {
     return map[pc] ?? 0;
 };
 
+// Note-coloring color for a melodic notehead, for the modes that color NOTES
+// (not keyboard keys). Returns a CSS color string, or null when the active mode
+// doesn't color noteheads (caller falls back to the default text color). Shared
+// so the sheet-music range overlay colors selected notes the same way the staff
+// does (CLAUDE.md §6c). `chords` mode needs chord context the caller has, so it
+// is handled at the call site, not here.
+export const melodicNoteColor = (note, { noteColoringMode, tonic, scaleNotes = [], theme = 'dark' } = {}) => {
+    if (noteColoringMode === 'chromatone') return `var(--chromatone-${getNoteSemitone(note)})`;
+    if (noteColoringMode === 'subtle-chroma') {
+        const mix = theme === 'light' ? 'black' : 'white';
+        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(note)}), ${mix} 60%)`;
+    }
+    if (noteColoringMode === 'tonic_scale_keys') {
+        const pc = getNoteSemitone(note);
+        if (pc === getNoteSemitone(tonic)) return 'var(--note-tonic)';
+        if (scaleNotes.some(s => getNoteSemitone(s) === pc)) return 'var(--note-scale)';
+    }
+    return null;
+};
+
 // ── Solfège utilities ────────────────────────────────────────────────────
 
 // Traditional do-re-mi: { base, acc } for each semitone from tonic.

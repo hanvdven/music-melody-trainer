@@ -2900,8 +2900,6 @@ const SheetMusic = ({
                       noteColoringMode={noteColoringMode}
                       scaleNotes={scaleNotes}
                       tonic={tonic}
-                      trebleTransSemitones={trebleTransSemitones}
-                      bassTransSemitones={bassTransSemitones}
                     />
                   )}
                 </>

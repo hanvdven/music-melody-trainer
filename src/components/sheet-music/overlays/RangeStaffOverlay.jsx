@@ -1,6 +1,7 @@
 import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
-import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
+import { noteYMap, getNoteAbsoluteY, percussionStemUp } from '../renderMelodyNotes';
+import { melodicNoteColor } from '../../../theory/noteUtils';
 import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
@@ -38,14 +39,11 @@ import { TICKS_PER_WHOLE } from '../../../constants/timing';
 
 const QUARTER = TICKS_PER_WHOLE / 4;   // quarter-note → filled head + stem, no flag/beam
 // The melodic row is a straight diagonal (pitch rises left→right, so Y falls).
-// Hit-zone shaping (point 2, Han 2026-05-31): the treble/bass zones are taller
-// and meet on a shared diagonal midline between the two note rows so their edges
-// touch exactly. BAND_COVER is how far the OUTER edge extends past the note row
-// (up for treble, down for bass) to cover the 8va/8vb markers + ledger lines.
-// BAND_SOLO_H is the half-height used when only one melodic staff is visible
-// (no counterpart to share a midline with).
+// Hit-zone shaping (point 2, Han 2026-05-31): the treble/bass zones are tall with
+// a HORIZONTAL outer edge (less diagonal) and a shared diagonal divider as the
+// inner edge, so the two zones meet exactly. BAND_COVER is how far the outer edge
+// clears the topmost/bottommost notehead (covering the 8va/8vb markers).
 const BAND_COVER = 30;
-const BAND_SOLO_H = 30;
 // Percussion pads: each pad gets its own box centred on its notehead. The box is
 // tall and biased UPWARD (point 3) so it also covers the upward stems.
 const PERC_HIT_H = 56;
@@ -207,10 +205,13 @@ const RangeStaffOverlay = ({
     // Coloring props (point 1): the in-band/selected notes follow the same note
     // coloring as the rendered sheet music; boundary + out-of-band keep flat colors.
     noteColoringMode = 'none', scaleNotes = [], tonic = '',
-    trebleTransSemitones = 0, bassTransSemitones = 0,
 }) => {
-    // Active boundary being dragged: { staff, boundary:'min'|'max' } | null.
+    // Active boundary being dragged: { staff, boundary, layout } | null. The layout
+    // is frozen for the drag so notes don't jump; on release we force a re-render
+    // so the window re-anchors and 3 fresh context notes reappear on each side
+    // (Han 2026-05-31) — clearing the ref alone wouldn't re-render.
     const dragRef = React.useRef(null);
+    const [, forceReanchor] = React.useReducer((n) => n + 1, 0);
 
     if (startX == null || endX == null) return null;
 
@@ -251,7 +252,6 @@ const RangeStaffOverlay = ({
         if (!frame) return null;
         const selMin = getNoteValue(range?.min);
         const selMax = getNoteValue(range?.max);
-        const transpositionSemitones = staff === 'treble' ? trebleTransSemitones : bassTransSemitones;
 
         const layout = getMelodicLayout(staff, selMin, selMax);
         const { noteWidth, entries, allOffsets, colMidi, gap } = layout;
@@ -267,12 +267,19 @@ const RangeStaffOverlay = ({
             else out.push(e);
         });
 
-        // `colored` layers follow the live note coloring (point 1) instead of a
-        // flat preview color; boundary stays yellow (the drag handles), out-of-band
-        // stays dimmed.
+        // Selected (in-band) notes follow the live note coloring (point 1): group
+        // them by their melodic color and render one layer per color (the proven
+        // previewMode=<color> path). Modes that don't color noteheads fall back to
+        // the default text color. Boundary stays yellow (drag handles); out dimmed.
+        const inByColor = new Map();
+        inBand.forEach((e) => {
+            const c = melodicNoteColor(e.name, { noteColoringMode, tonic, scaleNotes, theme }) ?? 'var(--text-primary)';
+            if (!inByColor.has(c)) inByColor.set(c, []);
+            inByColor.get(c).push(e);
+        });
         const colorLayers = [
             { key: 'out', color: 'var(--text-dim)', opacity: LOWLIGHT_OPACITY, entries: out },
-            { key: 'in', colored: true, opacity: 1, entries: inBand },
+            ...[...inByColor.entries()].map(([c, es], i) => ({ key: `in-${i}`, color: c, opacity: 1, entries: es })),
             { key: 'bound', color: 'var(--accent-yellow)', opacity: 1, entries: boundary },
         ];
 
@@ -294,31 +301,30 @@ const RangeStaffOverlay = ({
             const x = svgX(e); if (x == null) return;
             onSetMelodicBoundary(staff, colAt(x), d.boundary, frame.presets);
         };
-        const onUp = () => { dragRef.current = null; };
+        const onUp = () => { dragRef.current = null; forceReanchor(); };
 
-        // Hit band (point 2): a taller quad covering the note row + its 8va/8vb.
-        // The OUTER edge follows the note row offset by BAND_COVER (up for treble,
-        // down for bass); the INNER edge is the shared `divider` so the treble and
-        // bass zones meet exactly. yLeft/yRight from the real pitch→Y map (lowest
-        // note left, highest right). Common left/right x so both quads' inner edges
-        // align exactly. When solo (no divider), the band is symmetric.
+        // Hit band (point 2): a tall quad covering the note row + its 8va/8vb.
+        // yLeft/yRight = the row's first (lowest) / last (highest) note Y. Common
+        // left/right x so the treble & bass inner edges align exactly.
         const yLeft = getNoteAbsoluteY(entries[0].name, staffStart, clef, staff);
         const yRight = getNoteAbsoluteY(entries[entries.length - 1].name, staffStart, clef, staff);
         const xL = startX;
         const xR = endX - PRESET_AREA_WIDTH;
+        // The OUTER edge is horizontal (less diagonal — point 2) at the row's
+        // topmost/bottommost note ± BAND_COVER, so it clears the highest/lowest
+        // noteheads AND their 8va/8vb markers (ottava only ever shifts notes toward
+        // the staff, never past the raw extreme). The INNER edge is the shared
+        // divider so the treble & bass zones meet exactly. Solo → cover both sides.
+        const topY = Math.min(yLeft, yRight) - BAND_COVER;
+        const botY = Math.max(yLeft, yRight) + BAND_COVER;
         let bandPoints;
         if (divider) {
             bandPoints = (staff === 'treble'
-                ? [`${xL},${yLeft - BAND_COVER}`, `${xR},${yRight - BAND_COVER}`,
-                    `${xR},${divider.dR}`, `${xL},${divider.dL}`]
-                : [`${xL},${divider.dL}`, `${xR},${divider.dR}`,
-                    `${xR},${yRight + BAND_COVER}`, `${xL},${yLeft + BAND_COVER}`]
+                ? [`${xL},${topY}`, `${xR},${topY}`, `${xR},${divider.dR}`, `${xL},${divider.dL}`]
+                : [`${xL},${divider.dL}`, `${xR},${divider.dR}`, `${xR},${botY}`, `${xL},${botY}`]
             ).join(' ');
         } else {
-            bandPoints = [
-                `${xL},${yLeft - BAND_SOLO_H}`, `${xR},${yRight - BAND_SOLO_H}`,
-                `${xR},${yRight + BAND_SOLO_H}`, `${xL},${yLeft + BAND_SOLO_H}`,
-            ].join(' ');
+            bandPoints = [`${xL},${topY}`, `${xR},${topY}`, `${xR},${botY}`, `${xL},${botY}`].join(' ');
         }
 
         return (
@@ -336,11 +342,7 @@ const RangeStaffOverlay = ({
                             allOffsets={allOffsets}
                             timeSignature={timeSignature}
                             theme={theme}
-                            {...(layer.colored
-                                // Selected notes follow the live coloring: previewMode
-                                // off so noteColor falls through to the coloring path.
-                                ? { previewMode: false, noteColoringMode, scaleNotes, tonic, transpositionSemitones }
-                                : { previewMode: layer.color })}
+                            previewMode={layer.color}
                         />
                     </g>
                 ))}
@@ -468,8 +470,10 @@ const RangeStaffOverlay = ({
                 {onTogglePad && ids.map((id, i) => {
                     const cy = getNoteAbsoluteY(id, percussionStart, null, 'percussion');
                     const hx = startX + i * noteWidth - noteWidth / 2;
-                    // Bias the box upward so it also covers the upward stem (point 3).
-                    const hy = (cy ?? percussionStart) - PERC_HIT_H * PERC_HIT_UP_BIAS;
+                    // Bias the box toward the stem so it covers it (point 3): up for
+                    // stem-up pads, down for stem-down pads.
+                    const bias = percussionStemUp(id) ? PERC_HIT_UP_BIAS : (1 - PERC_HIT_UP_BIAS);
+                    const hy = (cy ?? percussionStart) - PERC_HIT_H * bias;
                     return (
                         <g key={`hit-${id}`}>
                             <rect x={hx} y={hy} width={noteWidth} height={PERC_HIT_H}
