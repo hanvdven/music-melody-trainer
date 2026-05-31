@@ -1,7 +1,7 @@
 import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
-import { getNoteValue } from '../../../utils/rangeUtils';
+import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
 
@@ -55,19 +55,6 @@ const PERC_DISABLED_OPACITY = 0.12;
 const BRACKET_TICK = 7;
 const BRACKET_GAP = 26;
 
-// Natural pitch classes only — diatonic row (D1).
-const PC_TO_LETTER = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' };
-
-const naturalsInRange = (lowMidi, highMidi) => {
-    const out = [];
-    for (let m = lowMidi; m <= highMidi; m++) {
-        const letter = PC_TO_LETTER[((m % 12) + 12) % 12];
-        if (!letter) continue;
-        out.push({ midi: m, name: `${letter}${Math.floor(m / 12) - 1}` });
-    }
-    return out;
-};
-
 const STATIC_LAYER_PROPS = {
     numAccidentals: 0,
     noteGroupSize: 1,
@@ -106,16 +93,26 @@ const sameSet = (a, b) => {
     return b.every(x => s.has(x));
 };
 
-// ── Diagonal-ellipsis row layout ────────────────────────────────────────────
-// When the natural row is too cramped (would-be noteWidth < MIN_NOTE_WIDTH) we
-// COLLAPSE the in-band middle — the notes deep between the two boundaries, which
-// are never the drag target — into a diagonal "…" gap, giving the kept edge
-// notes more room (Han 2026-05-31). The gap is expressed as dummy slots in
-// allOffsets so the existing index-based renderer (renderMelodyNotes:
-// x = startX + (indexInAllOffsets - 1)*noteWidth) draws it for free. A drag
-// passes its frozen `split` back so the kept notes don't jump under the finger.
+// ── Range-row layout: boundary-relative window + diagonal ellipsis ──────────
+// The row is a two-thumb range slider drawn on the staff. We show a WINDOW that
+// always includes CONTEXT_NOTES naturals beyond each boundary (capped to the
+// piano), so the view is symmetric by construction (3 below min · min · … · max
+// · 3 above max) and the user can always drag a boundary OUTWARD past the old
+// ±8va limit — on release the window re-anchors and reveals fresh context, up to
+// A0–C8. When the window is still too cramped to fit (noteWidth < MIN_NOTE_WIDTH)
+// we COLLAPSE the in-band middle — the notes deep between the boundaries, never
+// the drag target — keeping KEEP_IN naturals beside each boundary and drawing a
+// diagonal "…" for the elided run (Han 2026-05-31). The gap is expressed as
+// dummy slots in allOffsets so the index-based renderer (renderMelodyNotes:
+// x = startX + (indexInAllOffsets - 1)*noteWidth) draws it for free.
+//
+// `notes` is the FULL piano natural list (21..108); the window is sliced here.
+// During a drag the caller freezes the whole layout (so notes don't jump under
+// the finger); buildRangeRow itself is only called for a fresh, non-drag render.
 export const MIN_NOTE_WIDTH = 13;  // below this (px/SVG units) the row collapses
-const EDGE_KEEP = 2;               // in-band notes kept beside each boundary
+export const MAX_NOTE_WIDTH = 34;  // cap spacing so a small window isn't sparse
+export const CONTEXT_NOTES = 3;    // naturals shown beyond each boundary
+const KEEP_IN = 3;                 // in-band naturals kept beside each boundary
 const GAP_SLOTS = 2;               // dummy slots reserved for the "…" gap
 const MIN_COLLAPSE = 3;            // only collapse if ≥ this many middle notes
 
@@ -125,33 +122,41 @@ const nearestIdx = (notes, midi) => {
     return bi;
 };
 
-export const buildRangeRow = (notes, selMin, selMax, avail, frozenSplit = null) => {
-    const N = notes.length;
+const fit = (count, avail) => Math.min(MAX_NOTE_WIDTH, avail / Math.max(1, count));
+
+export const buildRangeRow = (notes, selMin, selMax, avail) => {
+    const M = notes.length;
+    if (M === 0) return { collapsed: false, noteWidth: avail, entries: [], allOffsets: [0], colMidi: [], gap: null, extent: { loIdx: 0, hiIdx: 0 } };
+
+    const iMin = nearestIdx(notes, Math.min(selMin, selMax));
+    const iMax = nearestIdx(notes, Math.max(selMin, selMax));
+    // Boundary-relative window: CONTEXT_NOTES beyond each boundary, capped to piano.
+    const loIdx = Math.max(0, iMin - CONTEXT_NOTES);
+    const hiIdx = Math.min(M - 1, iMax + CONTEXT_NOTES);
+    const win = notes.slice(loIdx, hiIdx + 1);
+    const W = win.length;
+    const extent = { loIdx, hiIdx };
+
     const linear = () => ({
         collapsed: false,
-        noteWidth: avail / Math.max(1, N),
-        entries: notes.map((n, i) => ({ name: n.name, midi: n.midi, offset: i + 1 })),
-        allOffsets: Array.from({ length: N + 1 }, (_, i) => i),
-        colMidi: notes.map(n => n.midi),
-        gap: null, split: null,
+        noteWidth: fit(W, avail),
+        entries: win.map((n, i) => ({ name: n.name, midi: n.midi, offset: i + 1 })),
+        allOffsets: Array.from({ length: W + 1 }, (_, i) => i),
+        colMidi: win.map(n => n.midi),
+        gap: null, extent,
     });
-    if (N === 0 || avail / N >= MIN_NOTE_WIDTH) return linear();
+    if (avail / W >= MIN_NOTE_WIDTH) return linear();
 
-    let lowEnd, highStart;
-    if (frozenSplit) {
-        ({ lowEnd, highStart } = frozenSplit);
-    } else {
-        const iLo = nearestIdx(notes, Math.min(selMin, selMax));
-        const iHi = nearestIdx(notes, Math.max(selMin, selMax));
-        lowEnd = Math.min(iLo + EDGE_KEEP, N - 1);
-        highStart = Math.max(iHi - EDGE_KEEP, 0);
-    }
+    // Keep KEEP_IN naturals inside each boundary; collapse the deep middle.
+    const rMin = iMin - loIdx, rMax = iMax - loIdx;
+    const lowEnd = Math.min(rMin + KEEP_IN, W - 1);
+    const highStart = Math.max(rMax - KEEP_IN, 0);
     if (highStart - lowEnd - 1 < MIN_COLLAPSE) return linear();
 
-    const low = notes.slice(0, lowEnd + 1);
-    const high = notes.slice(highStart);
+    const low = win.slice(0, lowEnd + 1);
+    const high = win.slice(highStart);
     const total = low.length + GAP_SLOTS + high.length;
-    const noteWidth = avail / total;
+    const noteWidth = fit(total, avail);
 
     const entries = [];
     low.forEach((n, i) => entries.push({ name: n.name, midi: n.midi, offset: i + 1 }));
@@ -167,14 +172,13 @@ export const buildRangeRow = (notes, selMin, selMax, avail, frozenSplit = null) 
     }
 
     return {
-        collapsed: true, noteWidth, entries, colMidi,
+        collapsed: true, noteWidth, entries, colMidi, extent,
         allOffsets: Array.from({ length: total + 1 }, (_, i) => i),
         // x relative to startX of the last-low and first-high note centres.
         gap: {
             lowName: low[low.length - 1].name, highName: high[0].name,
             x0: (low.length - 1) * noteWidth, x1: highBase * noteWidth,
         },
-        split: { lowEnd, highStart },
     };
 };
 
@@ -210,22 +214,23 @@ const RangeStaffOverlay = ({
     // ── Melodic staff (treble/bass) ──────────────────────────────────────────
     const melodicStaff = (staff, staffStart, clef, range, frame) => {
         if (!frame) return null;
-        // Extent comes pre-computed (clef-aware, incl. ±octave headroom) from
-        // SheetMusic.computeRangeFrame; here we just clamp to the hard bounds.
-        const rowLow = Math.max(21, getNoteValue(frame.rowLow));
-        const rowHigh = Math.min(108, getNoteValue(frame.rowHigh));
-        const notes = naturalsInRange(rowLow, rowHigh);
-        const N = notes.length;
-        if (!N) return null;
+        // The visible row is a boundary-relative WINDOW into the full piano (A0..C8),
+        // not the clef extent: buildRangeRow centres CONTEXT_NOTES naturals beyond
+        // each boundary. frame is still used for clef-aware preset matching.
+        const notes = naturalsInRange(21, 108);
 
         const selMin = getNoteValue(range?.min);
         const selMax = getNoteValue(range?.max);
         const avail = endX - PRESET_AREA_WIDTH - startX;
 
-        // Cramped rows collapse their in-band middle into a diagonal "…". During a
-        // drag we reuse the split captured at press-time so notes don't jump.
-        const frozen = (dragRef.current?.staff === staff) ? dragRef.current.split : null;
-        const { noteWidth, entries, allOffsets, colMidi, gap } = buildRangeRow(notes, selMin, selMax, avail, frozen);
+        // During a drag we reuse the WHOLE layout captured at press-time so the
+        // window/notes don't shift under the finger; only the colouring (which
+        // note is the boundary) updates live. On release the window re-anchors and
+        // reveals fresh context beyond the new boundary.
+        const active = dragRef.current?.staff === staff ? dragRef.current : null;
+        const layout = active?.layout ?? buildRangeRow(notes, selMin, selMax, avail);
+        const { noteWidth, entries, allOffsets, colMidi, gap } = layout;
+        if (!entries.length) return null;
 
         // Column → midi under an SVG x (handles the collapsed gap via colMidi).
         const colAt = (x) => colMidi[Math.max(0, Math.min(colMidi.length - 1, Math.round((x - startX) / noteWidth)))];
@@ -244,15 +249,14 @@ const RangeStaffOverlay = ({
         ];
 
         // Press = begin dragging the boundary nearest the pressed column, and
-        // move it there immediately (so a plain tap also sets it). The current
-        // collapse `split` is frozen on the drag so the layout stays put.
+        // move it there immediately (so a plain tap also sets it). Freeze the
+        // current layout for the duration of the drag so notes stay put.
         const onDown = (e) => {
             if (!onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
             const midi = colAt(x);
             const which = Math.abs(midi - selMin) <= Math.abs(midi - selMax) ? 'min' : 'max';
-            // Freeze the current collapse split for the duration of the drag.
-            dragRef.current = { staff, boundary: which, split: buildRangeRow(notes, selMin, selMax, avail).split };
+            dragRef.current = { staff, boundary: which, layout };
             try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not all envs */ }
             onSetMelodicBoundary(staff, midi, which, frame.presets);
         };

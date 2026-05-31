@@ -36,20 +36,28 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
   (pad ±voice-span). **Verify visually with Han.**
 
 ### Backlog / next phase
-- 🔨 FR — **Klavier (keyboard) range setter** (design phase, mockup received
-  2026-05-31; answers 2026-05-31). **Context-bound & per-instrument**: each clef's
-  setter lives at its OWN keyboard (treble-setter at the treble keyboard, bass at
-  bass, percussion at percussion) — NOT stacked bands on one piano. Per keyboard:
-  a coloured key-band over the selectable range with ↔ drag handles at min/max,
-  and preset **buttons** on top (bordered for button-feel). Both this and the
-  sheet-music setter live-bind to the same state. Responsive: large = keys ±3
-  beyond range (or full if it fits); small = "take out the middle". Reuse
-  `computeRangeFrame` + write path (extract to shared util/hook, §6c).
-- ✅ FR — **Diagonal ellipsis on the sheet-music setter.** `buildRangeRow`
-  (pure, tested) collapses the in-band middle into a diagonal "…" (3 dots along
-  the slant) when cramped (auto: noteWidth < MIN_NOTE_WIDTH). Edge zones around
-  min/max stay visible; the gap is dummy slots in `allOffsets` so the renderer
-  draws it. Drag freezes the split so notes don't jump. **Verify visually.**
+- 🔨 FR — **Klavier (keyboard) range setter** (building, answers 2026-05-31).
+  Context-bound & per-keyboard (treble-setter at treble kbd, bass at bass).
+  Decisions: (1) range-edit shows a boundary-relative WINDOW with context keys
+  beyond min/max; band = selection, drag-handles + tap-to-set-nearest, release
+  re-anchors → extend up to A0–C8; (2) drag-handles AND tap (mirror bladmuziek);
+  (3) REPLACE the RangeControls steppers with the graphical setter + preset
+  BUTTONS; (4) scope = treble + bass (shared PianoView); percussion later.
+  Reuse the boundary-relative window logic + clampRange write path.
+- ✅ FR — **Boundary-relative window + balance + diagonal ellipsis (sheet music).**
+  `buildRangeRow` now shows a WINDOW with 3 naturals beyond each boundary (capped
+  A0–C8) → symmetric by construction (fixes 5-1-2 imbalance) AND lets you drag a
+  boundary past the old ±8va limit (release re-anchors, reveals fresh context;
+  subsumes the "extreme range" FR). When still cramped, collapses the in-band
+  middle into a diagonal "…" keeping 3 inside each boundary. Whole layout freezes
+  during drag. `MAX_NOTE_WIDTH` caps sparse spacing. **Verify visually.**
+- ✅ FR — **Keyboard range setter (treble + bass).** `KeyboardRangeSetter.jsx`:
+  windowed PianoView + translucent band + drag handles + preset BUTTONS, swapped
+  in for the playable piano in range-edit (TabView, both keyboards). Shares
+  `windowNaturals` + `applyRangeBoundary` with the staff (§6c). Tap/drag sets
+  nearest boundary, snaps to white keys, window freezes during drag. **Verify
+  visually.** Follow-ups parked: keyboard ellipsis, black-key precision,
+  percussion keyboard setter.
 - ⏳ FR — **Extreme range** up to 15mb–15ma (capped A0–C8); interaction idea:
   after releasing the drag, 3 more notes appear left & right (progressive reveal).
   Likely pairs with the ellipsis windowing.

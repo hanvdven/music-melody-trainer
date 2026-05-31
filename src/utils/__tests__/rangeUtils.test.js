@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getNoteValue, getNoteFromValue, clampRange } from '../rangeUtils';
+import { getNoteValue, getNoteFromValue, clampRange, naturalsInRange, windowNaturals, applyRangeBoundary } from '../rangeUtils';
 
 describe('rangeUtils', () => {
     describe('getNoteValue', () => {
@@ -28,6 +28,40 @@ describe('rangeUtils', () => {
         });
         it('leaves a valid range untouched', () => {
             expect(clampRange(60, 76, 'max')).toEqual({ min: 60, max: 76 });
+        });
+    });
+
+    describe('naturalsInRange', () => {
+        it('returns only white-key naturals in order', () => {
+            const ns = naturalsInRange(60, 72); // C4..C5
+            expect(ns.map(n => n.name)).toEqual(['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']);
+        });
+    });
+
+    describe('windowNaturals', () => {
+        it('includes `context` naturals beyond each boundary, balanced', () => {
+            const win = windowNaturals(60, 72, 3); // C4..C5 + 3 context each side
+            const midis = win.map(n => n.midi);
+            expect(midis.filter(m => m < 60).length).toBe(3);
+            expect(midis.filter(m => m > 72).length).toBe(3);
+        });
+        it('caps at the piano edges (A0..C8)', () => {
+            const win = windowNaturals(getNoteValue('A0'), getNoteValue('C2'), 3);
+            expect(win[0].midi).toBe(getNoteValue('A0')); // no naturals below A0
+        });
+    });
+
+    describe('applyRangeBoundary', () => {
+        it('moves the requested boundary and clamps the span', () => {
+            const { range } = applyRangeBoundary({ min: 'C4', max: 'E5' }, getNoteValue('G4'), 'min');
+            // min moved to G4 (67); span < 12 → max pushed to G5 (79).
+            expect(range.min).toBe('G4');
+            expect(getNoteValue(range.max)).toBe(79);
+        });
+        it('labels a matching preset, else CUSTOM', () => {
+            const presets = [{ label: 'STANDARD', min: 'C4', max: 'E5' }];
+            expect(applyRangeBoundary({ min: 'C4', max: 'D5' }, getNoteValue('E5'), 'max', presets).rangeMode).toBe('STANDARD');
+            expect(applyRangeBoundary({ min: 'C4', max: 'D5' }, getNoteValue('F5'), 'max', presets).rangeMode).toBe('CUSTOM');
         });
     });
 });
