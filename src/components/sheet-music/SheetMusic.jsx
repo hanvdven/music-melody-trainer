@@ -169,6 +169,7 @@ const SheetMusic = ({
   showSettings,
   rangeEditMode,
   onToggleSettings,
+  onCloseRangeEdit,
   onSettingsInteraction,
   viewMode,    // 'melody' | 'repeat' — see viewMode prop in App.jsx for the source-of-truth computation
   numMeasures, // Added prop
@@ -1144,7 +1145,16 @@ const SheetMusic = ({
       } catch { /* audio context may not be ready */ }
     }
 
-    // 3. Settings toggle
+    // 3a. Range-edit mode is itself an overlay (Han 2026-05-31): clicking empty
+    // sheet area closes range edit rather than opening the general settings
+    // overlay — the two are mutually exclusive. The in-overlay controls
+    // stopPropagation, so this only fires for clicks outside them.
+    if (rangeEditMode) {
+      if (onCloseRangeEdit) onCloseRangeEdit();
+      return;
+    }
+
+    // 3b. Settings toggle
     if (showSettings) {
       if (onToggleSettings) onToggleSettings();
       return;
