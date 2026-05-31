@@ -290,9 +290,28 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
     bottom-view range stepper was tapped. The bottom `RangeControls` wrappers now
     carry `data-settings-keepalive=""`, the existing escape hatch that the close
     handler already checks (`closest('[data-settings-keepalive]')`).
-- **Phase 5 — polish:** lyrics/label spacing so boundary names can return without
-  overlapping noteheads; 8vb/8va extent tuning; + the percussion-style→
-  `randomizationRule` tech-debt (see BACKLOG).
+- **Phase 5 (in progress, Han 2026-05-31):**
+  - **Mutual exclusivity:** range edit IS a settings overlay, so it never stacks
+    with the general settings overlay. Opening one closes the other; clicking
+    empty sheet in range mode closes range edit (not opens settings). See
+    `App.handleToggleRangeEdit` + the close-on-settings effect, and
+    `SheetMusic.handleSheetMusicClick` step 3a (`onCloseRangeEdit`).
+  - **Clef-aware extent + presets (points 2/3):** `SheetMusic.computeRangeFrame(clef)`
+    returns `{rowLow, rowHigh, presets:[{label,min,max}]}` per staff, following the
+    CLEF SHOWN (not the staff slot). A bass clef on the top staff offers bass
+    notes/presets; vocal clefs span the whole vocal table with the individual
+    voices (Bass…Soprano) as presets. The ±octave padding was dropped, which also
+    fixes the treble↔bass overlap (treble no longer extends down to A2). The
+    boundary/preset write-backs take the clef-aware preset list so `rangeMode`
+    matching works for any clef incl. vocal.
+  - **Debug hit boxes:** every interactive region in the overlay (boundary drag
+    zone, preset brackets, percussion pads, percussion preset labels) draws its
+    hit box in `debugMode` (CLAUDE.md §3a).
+  - **Percussion-style→`randomizationRule`** tech-debt resolved earlier: the coarse
+    claves/kick_snare/all chooser now sets `enabledPads` presets (BASIC/STANDARD/FULL).
+- **Still parked:** lyrics/label spacing (boundary names); klavier (keyboard) range
+  setter (needs the shared image); responsive scaling for small screens (≤390px:
+  scale the staff, inner notes as an ellipsis).
 - **Phase 5 — polish:** lyrics/label spacing so boundary names can return without
   overlapping noteheads; 8vb/8va extent tuning.
 - **Phase 6 — morph animation:** fade real notes ↔ selectable row on enter/exit;

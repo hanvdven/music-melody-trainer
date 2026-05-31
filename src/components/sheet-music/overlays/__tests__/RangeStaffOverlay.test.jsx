@@ -22,6 +22,16 @@ const renderOverlay = (props = {}) => render(
             isPercussionVisible
             clefTreble="treble"
             clefBass="bass"
+            trebleFrame={{ rowLow: 'A3', rowHigh: 'C6', presets: [
+                { label: 'STANDARD', min: 'C4', max: 'E5' },
+                { label: 'LARGE', min: 'C4', max: 'G5' },
+                { label: 'FULL', min: 'A3', max: 'C6' },
+            ] }}
+            bassFrame={{ rowLow: 'C2', rowHigh: 'E4', presets: [
+                { label: 'STANDARD', min: 'A2', max: 'C4' },
+                { label: 'LARGE', min: 'G2', max: 'C4' },
+                { label: 'FULL', min: 'C2', max: 'E4' },
+            ] }}
             trebleRange={{ min: 'C4', max: 'E5' }}
             bassRange={{ min: 'A2', max: 'C4' }}
             timeSignature={{ numerator: 4, denominator: 4 }}
@@ -73,7 +83,10 @@ describe('RangeStaffOverlay', () => {
         const { container } = renderOverlay({ onApplyMelodicPreset });
         const presetGroup = container.querySelector('.range-presets-treble g');
         fireEvent.click(presetGroup);
-        expect(onApplyMelodicPreset).toHaveBeenCalledWith('treble', expect.any(String));
+        // Callback now receives the clef-aware preset object {label,min,max}.
+        expect(onApplyMelodicPreset).toHaveBeenCalledWith('treble', expect.objectContaining({
+            label: expect.any(String), min: expect.any(String), max: expect.any(String),
+        }));
     });
 
     it('renders nothing when geometry is missing', () => {
