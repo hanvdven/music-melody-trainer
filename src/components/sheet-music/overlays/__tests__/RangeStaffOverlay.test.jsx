@@ -50,12 +50,12 @@ describe('RangeStaffOverlay', () => {
         expect(container.querySelectorAll('text').length).toBeGreaterThan(10);
     });
 
-    it('draws preset groups for melodic staves + percussion', () => {
+    it('draws preset brackets (no text) for melodic staves + percussion', () => {
         const { container } = renderOverlay();
         expect(container.querySelectorAll('.range-presets').length).toBe(3); // treble + bass + percussion
-        expect(container.textContent).toContain('STANDARD');
-        expect(container.textContent).toContain('LARGE');
-        expect(container.textContent).toContain('BASIC'); // percussion preset
+        // Presets render as bracket <path>s now, not text labels (Han 2026-05-31).
+        expect(container.querySelectorAll('.range-presets-treble path').length).toBe(3);
+        expect(container.querySelectorAll('.range-presets-percussion path').length).toBe(3);
     });
 
     it('shows the range-selector mode indicator', () => {

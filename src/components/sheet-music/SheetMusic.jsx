@@ -125,22 +125,29 @@ const VOCAL_CLEFS = new Set(['soprano', 'mezzo-soprano', 'alto', 'tenor']);
  */
 const computeRangeFrame = (clef) => {
   if (VOCAL_CLEFS.has(clef)) {
-    // Vocal: the extent spans the lowest..highest across ALL vocal ranges so any
-    // voice (and notes above/below the clef's default voice) is reachable; the
-    // presets are the individual voices. Lowest/highest picked by pitch index.
-    const rowLow = CLEF_VOCAL_RANGES.reduce((a, v) => getNoteIndex(v.min) < getNoteIndex(a) ? v.min : a, CLEF_VOCAL_RANGES[0].min);
-    const rowHigh = CLEF_VOCAL_RANGES.reduce((a, v) => getNoteIndex(v.max) > getNoteIndex(a) ? v.max : a, CLEF_VOCAL_RANGES[0].max);
+    // Vocal: CENTRE the clef's default voice (tenor/alto/…) by padding its own
+    // range by one voice-span on each side (capped 21..108). The voice's notes
+    // then sit in the middle third with room to pick above and below (Han
+    // 2026-05-31). Presets are the individual voices (Bass…Soprano).
+    const voice = CLEF_VOCAL_RANGES.find(v => v.clef === clef)
+      || CLEF_VOCAL_RANGES.find(v => v.label === 'Alto');
+    const lo = getNoteValue(voice.min), hi = getNoteValue(voice.max);
+    const span = Math.max(12, hi - lo);
     return {
-      rowLow,
-      rowHigh,
+      rowLow: getNoteFromValue(Math.max(21, lo - span)),
+      rowHigh: getNoteFromValue(Math.min(108, hi + span)),
       presets: CLEF_VOCAL_RANGES.map(v => ({ label: v.label.toUpperCase(), min: v.min, max: v.max })),
     };
   }
   // Melodic (treble/bass and their ottava variants): pick the base family by clef.
+  // Extent = the clef's FULL preset ± one octave (the "original" note set — there
+  // is room for it on wider screens; narrow-screen scaling is a later phase),
+  // clamped to the app's hard bounds.
   const base = clef && clef.startsWith('bass') ? 'bass' : 'treble';
+  const full = CLEF_RANGE_PRESET_RANGES.FULL[base];
   return {
-    rowLow: CLEF_RANGE_PRESET_RANGES.FULL[base].min,
-    rowHigh: CLEF_RANGE_PRESET_RANGES.FULL[base].max,
+    rowLow: getNoteFromValue(Math.max(21, getNoteValue(full.min) - 12)),
+    rowHigh: getNoteFromValue(Math.min(108, getNoteValue(full.max) + 12)),
     presets: ['STANDARD', 'LARGE', 'FULL'].map(m => ({
       label: m, min: CLEF_RANGE_PRESET_RANGES[m][base].min, max: CLEF_RANGE_PRESET_RANGES[m][base].max,
     })),

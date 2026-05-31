@@ -41,6 +41,13 @@ Skipping these files will cause you to reproduce known bugs, break invariants al
 
 When the user gives a general instruction in chat (e.g., "always do X", "never do Y", "when Z happens, do W"), add it to this file immediately after completing the current task. Do not rely on memory or conversation context across sessions — only what is written here persists reliably.
 
+**Always log plans/CRs/FRs/bugs immediately (Han 2026-05-31).** The moment Han
+states a plan, change request, feature request, or bug — even mid-conversation —
+record it as a short entry in `IMPLEMENTATION_PLAN.md` (the running scratch-plan)
+*before or while* implementing, not after. Keep entries terse with a status key
+(✅ done · 🔨 in progress · ⏳ backlog · 🐞 bug). BACKLOG.md remains the user's
+source-of-truth feature text; `IMPLEMENTATION_PLAN.md` is the live working plan.
+
 ---
 
 ## 1b. BACKLOG.md — Editing Rules (mandatory)
