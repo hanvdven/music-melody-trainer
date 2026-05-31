@@ -28,6 +28,33 @@ const nearestIdx = (win, midi) => {
     return bi;
 };
 
+// Preset-bracket legend geometry (a FIXED nested legend, always reachable).
+export const PRESET_VIEW_W = 100;
+const PRESET_ROW_H = 26, PRESET_PAD = 7;
+export const PRESET_TICK = 15;
+
+// One ⊓ bracket per preset, centred in a 0..PRESET_VIEW_W strip with width ∝ the
+// preset's pitch span (widest = FULL), stacked narrowest-first. Pure + tested:
+// EVERY preset always yields a bracket (reachability invariant — the old
+// key-aligned version hid presets outside the selector window).
+export const buildPresetBracketRows = (presets, selRange) => {
+    const maxSpan = Math.max(1, ...presets.map(p => getNoteValue(p.max) - getNoteValue(p.min)));
+    return presets
+        .map(p => ({ p, span: getNoteValue(p.max) - getNoteValue(p.min) }))
+        .sort((a, b) => a.span - b.span)
+        .map(({ p, span }, k) => {
+            const halfW = 9 + (span / maxSpan) * 39;
+            return {
+                p,
+                x0: PRESET_VIEW_W / 2 - halfW,
+                x1: PRESET_VIEW_W / 2 + halfW,
+                yTop: PRESET_PAD + k * PRESET_ROW_H,
+                isActive: selRange?.min === p.min && selRange?.max === p.max,
+            };
+        });
+};
+export const presetViewHeight = (n) => PRESET_PAD * 2 + n * PRESET_ROW_H;
+
 const KeyboardRangeSetter = ({
     scale, instrument, activeClef, settings, setSettings,
     noteColoringMode = 'none', qwertyKeyboardActive = false, onNoteInput = null, debugMode = false,
@@ -94,37 +121,30 @@ const KeyboardRangeSetter = ({
     };
     const onUp = () => { dragRef.current = null; forceReanchor(); };
 
-    // Preset brackets, aligned to the selector's white-key grid (clamped to the
-    // window; skipped only when the preset lies fully outside it). Nested ⊓ shapes
-    // opening down toward the keys, active one highlighted (no text labels).
-    const bracketRows = presets.map((p, i) => {
-        const lo = getNoteValue(p.min), hi = getNoteValue(p.max);
-        if (hi < win[0].midi || lo > win[nWhite - 1].midi) return null;
-        const x0 = clamp(nearestIdx(win, lo), 0, nWhite - 1);
-        const x1 = clamp(nearestIdx(win, hi), 0, nWhite - 1) + 1;
-        const isActive = range.min === p.min && range.max === p.max;
-        const yTop = 8 + i * 28;
-        return { p, x0, x1, isActive, yTop };
-    }).filter(Boolean);
+    // Preset brackets — a FIXED nested legend (always visible & tappable, no
+    // matter where the selector window sits), consistent with the sheet-music
+    // bracket presets. See buildPresetBracketRows.
+    const bracketRows = buildPresetBracketRows(presets, range);
+    const presetViewH = presetViewHeight(presets.length);
 
     return (
         <div className="kbd-range-setter" data-settings-keepalive="" ref={wrapRef}>
-            {/* 1. Preset brackets, aligned to the selector grid below. */}
+            {/* 1. Preset brackets — fixed nested legend (always reachable). */}
             <div className="kbd-range-presets-row">
-                <svg viewBox={`0 0 ${nWhite} ${8 + presets.length * 28}`} preserveAspectRatio="none"
+                <svg viewBox={`0 0 ${PRESET_VIEW_W} ${presetViewH}`} preserveAspectRatio="none"
                     style={{ width: '100%', height: '100%', display: 'block' }}>
                     {bracketRows.map(({ p, x0, x1, isActive, yTop }) => {
                         const color = isActive ? 'var(--accent-yellow)' : 'var(--text-dim)';
                         return (
                             <g key={p.label} style={{ cursor: 'pointer' }} onClick={() => applyPreset(p)}>
-                                <rect x={x0} y={yTop - 4} width={Math.max(0.001, x1 - x0)} height={24}
+                                <rect x={x0 - 3} y={yTop - 3} width={(x1 - x0) + 6} height={PRESET_ROW_H}
                                     fill="transparent" />
-                                <path d={`M ${x0} ${yTop + 14} V ${yTop} H ${x1} V ${yTop + 14}`}
+                                <path d={`M ${x0} ${yTop + PRESET_TICK} V ${yTop} H ${x1} V ${yTop + PRESET_TICK}`}
                                     fill="none" stroke={color} strokeWidth={isActive ? 2 : 1.2}
                                     vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
                                 {debugMode && (
-                                    <rect x={x0} y={yTop - 4} width={Math.max(0.001, x1 - x0)} height={24}
-                                        fill="orange" fillOpacity={0.2} stroke="orange" strokeWidth={0.04}
+                                    <rect x={x0 - 3} y={yTop - 3} width={(x1 - x0) + 6} height={PRESET_ROW_H}
+                                        fill="orange" fillOpacity={0.2} stroke="orange" strokeWidth={0.3}
                                         style={{ pointerEvents: 'none' }} />
                                 )}
                             </g>
