@@ -11,6 +11,20 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ## Range Selector (in-SVG, RANGE mode)
 
+### 🔨→✅ Boundary SLIDE animation (sheet overlay) — Han 2026-05-31
+Decisions (interview): sheet overlay only · all behaviours at once · all 4
+directions mirrored · 0.25 s/note constant (chained, no pause).
+- ✅ `rangeSlide.js` pure helpers (`nextNaturalToward`, `nextNaturalInDir`,
+  `classifyStep`, `STEP_MS`, `easeOutCubic`) + test (11 cases).
+- ✅ Stepper in `RangeStaffOverlay`: tap = burst to target (finishes after
+  release); hold = extend outward at 250 ms/note until release; >8u move = live
+  drag (old behaviour). Shared `setMelodicBoundary`/`clampRange` write path.
+- ✅ Slide tween: body `<g>` scales about the anchored edge; one context note
+  swipes+fades in/out at the far edge; 8va rides along. rAF sets transform/opacity
+  (never JSX, §6). Presets / drag-jumps / ellipsis layouts snap instantly.
+- ✅ Docs (architecture §37.1), 187 tests green, build + lint clean.
+- ⏳ Parked: keyboard-setter equivalent; enter/exit morph (separate phase).
+
 ### Done
 - ✅ Tech-debt: percussion coarse style → presets. BASIC/STANDARD/FULL set
   `enabledPads` (single source for "which drums"). `RangeStaffOverlay` +

@@ -5,6 +5,7 @@ import { melodicNoteColor } from '../../../theory/noteUtils';
 import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
+import { nextNaturalToward, nextNaturalInDir, classifyStep, STEP_MS, easeOutCubic } from './rangeSlide';
 
 /**
  * RangeStaffOverlay — in-SVG range selector (sheet/bladmuziek variant).
@@ -213,6 +214,90 @@ const RangeStaffOverlay = ({
     const dragRef = React.useRef(null);
     const [, forceReanchor] = React.useReducer((n) => n + 1, 0);
 
+    // ── Boundary SLIDE animation (Han 2026-05-31) ─────────────────────────────
+    // A tap/hold steps the boundary one natural per STEP_MS (0.25 s) toward the
+    // target instead of jumping. Each ±1 step reveals/hides exactly ONE context
+    // note at the far edge; we animate that note sliding in/out + fading, while
+    // the row body scales about the anchored boundary so any re-spacing (and the
+    // 8va, which lives inside the body) rides along. See rangeSlide.js.
+    const prevExtentRef = React.useRef({});   // per-staff { loIdx, hiIdx, noteWidth }
+    const bodyRefs = React.useRef({});        // per-staff <g> scaled about the anchor
+    const edgeRefs = React.useRef({});        // per-staff <g> for the entering/leaving note
+    const rafRefs = React.useRef({});         // per-staff rAF id
+    const stepperRef = React.useRef(null);    // active stepper { staff, which, presets, target, dir, live, pressed, dragged, ticks }
+    const stepTimerRef = React.useRef(null);  // setTimeout id for the step cadence
+    const downRef = React.useRef(null);       // { x, staff } at pointer-down (drag detection)
+    // Latest boundary writer captured in a ref so the timer-driven loop never
+    // calls a stale closure across re-renders (§6 spirit).
+    const onStepRef = React.useRef(null);
+    onStepRef.current = onSetMelodicBoundary;
+
+    const DRAG_THRESHOLD = 8;   // SVG units of movement → it's a drag, not a tap/hold
+
+    const stopStepper = () => {
+        if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
+        stepperRef.current = null;
+    };
+    // One cadence tick: advance the boundary one natural toward the target; once
+    // the target is reached, keep extending OUTWARD while still pressed (hold),
+    // or stop once released (a tap completes its burst then stops).
+    const tick = () => {
+        const s = stepperRef.current;
+        if (!s || s.dragged) return;
+        let next = null;
+        if (s.live !== s.target) next = nextNaturalToward(PIANO_NATURALS, s.live, s.target);
+        else if (s.pressed && s.ticks > 0) next = nextNaturalInDir(PIANO_NATURALS, s.live, s.dir); // not on the first tick (a tap on the boundary shouldn't nudge it)
+        s.ticks += 1;
+        if (next == null) {
+            if (!s.pressed) { stopStepper(); return; }      // released + nothing left → stop
+            stepTimerRef.current = setTimeout(tick, STEP_MS); // held at target/edge → idle until release
+            return;
+        }
+        s.live = next;
+        onStepRef.current?.(s.staff, next, s.which, s.presets);
+        stepTimerRef.current = setTimeout(tick, STEP_MS);
+    };
+    const beginStepper = (staff, which, fromMidi, targetMidi, dir, presets) => {
+        stopStepper();
+        stepperRef.current = { staff, which, presets, target: targetMidi, dir, live: fromMidi, pressed: true, dragged: false, ticks: 0 };
+        tick(); // immediate first step so a single adjacent tap moves at once
+    };
+
+    // rAF tween for one staff: body scales s0→1 about anchorX; the edge note
+    // translates edgeDx0→edgeDx1 and fades edgeOp0→edgeOp1. Opacity/transform are
+    // set via element.style/attr in the rAF callback (never JSX props) per §6.
+    const animate = (staff, { bodyAx, s0, edgeDx0, edgeDx1, edgeOp0, edgeOp1 }) => {
+        if (rafRefs.current[staff]) cancelAnimationFrame(rafRefs.current[staff]);
+        const body = bodyRefs.current[staff];
+        const edge = edgeRefs.current[staff];
+        const t0 = performance.now();
+        const frame = (now) => {
+            const p = Math.min(1, (now - t0) / STEP_MS);
+            const e = easeOutCubic(p);
+            if (body) {
+                const s = s0 + (1 - s0) * e;
+                body.setAttribute('transform', `translate(${bodyAx} 0) scale(${s} 1) translate(${-bodyAx} 0)`);
+            }
+            if (edge) {
+                const dx = edgeDx0 + (edgeDx1 - edgeDx0) * e;
+                edge.setAttribute('transform', `translate(${dx} 0)`);
+                edge.style.opacity = String(edgeOp0 + (edgeOp1 - edgeOp0) * e);
+            }
+            if (p < 1) { rafRefs.current[staff] = requestAnimationFrame(frame); return; }
+            rafRefs.current[staff] = null;
+            if (body) body.removeAttribute('transform');
+            if (edge) { edge.setAttribute('transform', 'translate(0 0)'); edge.style.opacity = String(edgeOp1); }
+        };
+        frame(t0);                                          // set initial state pre-paint (no flash)
+        rafRefs.current[staff] = requestAnimationFrame(frame);
+    };
+
+    // Stop all timers/rAF on unmount.
+    React.useEffect(() => () => {
+        stopStepper();
+        Object.values(rafRefs.current).forEach(id => id && cancelAnimationFrame(id));
+    }, []);
+
     if (startX == null || endX == null) return null;
 
     // Screen → SVG x (robust for mouse + touch; handles the viewBox scale).
@@ -260,8 +345,26 @@ const RangeStaffOverlay = ({
         // Column → midi under an SVG x (handles the collapsed gap via colMidi).
         const colAt = (x) => colMidi[Math.max(0, Math.min(colMidi.length - 1, Math.round((x - startX) / noteWidth)))];
 
+        // Is this render a single ±1 slide vs the previous window? If so, one edge
+        // note enters (in `entries`, far context, dim) or leaves (synthesised from
+        // the piano list). Collapsed (ellipsis) layouts snap instantly.
+        const step = gap ? { kind: 'none' } : classifyStep(prevExtentRef.current[staff], layout.extent);
+        const enterMidi = step.kind === 'enter' ? PIANO_NATURALS[step.edgeIdx]?.midi : null;
+        let edgeEntry = null, edgeAllOffsets = allOffsets;
+        if (step.kind === 'enter') {
+            edgeEntry = entries.find(e => e.midi === enterMidi) || null; // far context note, slides in
+        } else if (step.kind === 'leave') {
+            const n = PIANO_NATURALS[step.edgeIdx];
+            const lastOff = allOffsets[allOffsets.length - 1];           // = W (linear layout)
+            // The hidden note sits one slot beyond the current edge and slides out.
+            const off = step.anchor === 'left' ? lastOff : 0;
+            edgeEntry = n ? { name: n.name, midi: n.midi, offset: off } : null;
+            if (step.anchor === 'left') edgeAllOffsets = [...allOffsets, lastOff + 1];
+        }
+
         const out = [], inBand = [], boundary = [];
         entries.forEach((e) => {
+            if (e.midi === enterMidi) return;   // entering note is drawn in the edge group
             if (e.midi === selMin || e.midi === selMax) boundary.push(e);
             else if (e.midi > selMin && e.midi < selMax) inBand.push(e);
             else out.push(e);
@@ -283,25 +386,44 @@ const RangeStaffOverlay = ({
             { key: 'bound', color: 'var(--accent-yellow)', opacity: 1, entries: boundary },
         ];
 
-        // Press = begin dragging the boundary nearest the pressed column, and
-        // move it there immediately (so a plain tap also sets it). Freeze the
-        // current layout for the duration of the drag so notes stay put.
+        // Press = start STEPPING the nearest boundary one natural per 0.25 s toward
+        // the pressed column (tap = burst that finishes after release; hold = keep
+        // extending outward until release). Moving past DRAG_THRESHOLD promotes the
+        // gesture to a live drag (today's behaviour): the layout freezes and the
+        // boundary follows the finger, re-anchoring on release.
         const onDown = (e) => {
             if (!onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
-            const midi = colAt(x);
-            const which = Math.abs(midi - selMin) <= Math.abs(midi - selMax) ? 'min' : 'max';
-            dragRef.current = { staff, boundary: which, layout };
+            const target = colAt(x);
+            const which = Math.abs(target - selMin) <= Math.abs(target - selMax) ? 'min' : 'max';
+            const fromMidi = which === 'min' ? selMin : selMax;
+            // Direction toward the press; pressing ON the boundary → extend outward.
+            const dir = target > fromMidi ? 1 : (target < fromMidi ? -1 : (which === 'max' ? 1 : -1));
+            downRef.current = { x, staff };
             try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not all envs */ }
-            onSetMelodicBoundary(staff, midi, which, frame.presets);
+            beginStepper(staff, which, fromMidi, target, dir, frame.presets);
         };
         const onMove = (e) => {
-            const d = dragRef.current;
-            if (!d || d.staff !== staff || !onSetMelodicBoundary) return;
+            const d = downRef.current, s = stepperRef.current;
+            if (!d || !s || d.staff !== staff || !onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
-            onSetMelodicBoundary(staff, colAt(x), d.boundary, frame.presets);
+            if (!s.dragged && Math.abs(x - d.x) > DRAG_THRESHOLD) {
+                s.dragged = true;                                  // promote to live drag
+                if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
+                dragRef.current = { staff, boundary: s.which, layout }; // freeze layout
+            }
+            if (s.dragged) {
+                const midi = colAt(x);
+                s.live = midi;
+                onSetMelodicBoundary(staff, midi, s.which, frame.presets);
+            }
         };
-        const onUp = () => { dragRef.current = null; forceReanchor(); };
+        const onUp = () => {
+            const s = stepperRef.current;
+            if (s?.dragged) { stopStepper(); dragRef.current = null; forceReanchor(); }
+            else if (s) { s.pressed = false; if (s.live === s.target) stopStepper(); } // let a burst finish; hold stops now
+            downRef.current = null;
+        };
 
         // Hit band (point 2): a tall quad covering the note row + its 8va/8vb.
         // yLeft/yRight = the row's first (lowest) / last (highest) note Y. Common
@@ -329,23 +451,65 @@ const RangeStaffOverlay = ({
 
         return (
             <g className={`range-row range-row-${staff}`} key={staff}>
-                {colorLayers.map(layer => layer.entries.length > 0 && (
-                    <g key={layer.key} style={{ opacity: layer.opacity, pointerEvents: 'none' }}>
-                        <MelodyNotesLayer
-                            {...STATIC_LAYER_PROPS}
-                            melody={mkMelody(layer.entries)}
-                            staff={staff}
-                            staffYStart={staffStart}
-                            clef={clef}
-                            startX={startX}
-                            noteWidth={noteWidth}
-                            allOffsets={allOffsets}
-                            timeSignature={timeSignature}
-                            theme={theme}
-                            previewMode={layer.color}
-                        />
+                {/* Body: the stable notes (+ ellipsis). The slide animation scales
+                    this group about the anchored boundary; the 8va lives inside it
+                    so it rides along. */}
+                <g ref={(el) => { bodyRefs.current[staff] = el; }}>
+                    {colorLayers.map(layer => layer.entries.length > 0 && (
+                        <g key={layer.key} style={{ opacity: layer.opacity, pointerEvents: 'none' }}>
+                            <MelodyNotesLayer
+                                {...STATIC_LAYER_PROPS}
+                                melody={mkMelody(layer.entries)}
+                                staff={staff}
+                                staffYStart={staffStart}
+                                clef={clef}
+                                startX={startX}
+                                noteWidth={noteWidth}
+                                allOffsets={allOffsets}
+                                timeSignature={timeSignature}
+                                theme={theme}
+                                previewMode={layer.color}
+                            />
+                        </g>
+                    ))}
+                    {/* Diagonal "…" marking the collapsed in-band middle: 3 dots
+                        interpolated along the slant between the last-low and first-high
+                        kept notes, so the ellipsis follows the row's diagonal. */}
+                    {gap && [0.3, 0.5, 0.7].map((t, k) => {
+                        const yLo = getNoteAbsoluteY(gap.lowName, staffStart, clef, staff);
+                        const yHi = getNoteAbsoluteY(gap.highName, staffStart, clef, staff);
+                        return (
+                            <circle key={`ell-${k}`}
+                                cx={startX + gap.x0 + (gap.x1 - gap.x0) * t}
+                                cy={yLo + (yHi - yLo) * t}
+                                r={1.6} fill="var(--text-dim)"
+                                style={{ pointerEvents: 'none' }} />
+                        );
+                    })}
+                </g>
+                {/* Edge note: the single context note entering (slide+fade in) or
+                    leaving (slide+fade out) on a ±1 step. Its outer <g> gets the
+                    animated transform/opacity (set via rAF, never JSX — §6); the
+                    inner <g> carries the static out-of-band dim. */}
+                {edgeEntry && (
+                    <g ref={(el) => { edgeRefs.current[staff] = el; }} style={{ pointerEvents: 'none' }}>
+                        <g style={{ opacity: LOWLIGHT_OPACITY }}>
+                            <MelodyNotesLayer
+                                {...STATIC_LAYER_PROPS}
+                                melody={mkMelody([edgeEntry])}
+                                staff={staff}
+                                staffYStart={staffStart}
+                                clef={clef}
+                                startX={startX}
+                                noteWidth={noteWidth}
+                                allOffsets={edgeAllOffsets}
+                                timeSignature={timeSignature}
+                                theme={theme}
+                                previewMode="var(--text-dim)"
+                            />
+                        </g>
                     </g>
-                ))}
+                )}
                 {/* Hit band covering the note row + 8va/8vb. Pointer-capture +
                     colAt() map any x to the target column, so a tap or drag anywhere
                     in the zone moves the nearest boundary. Treble & bass zones meet
@@ -360,20 +524,6 @@ const RangeStaffOverlay = ({
                         onPointerCancel={onUp}
                     />
                 )}
-                {/* Diagonal "…" marking the collapsed in-band middle: 3 dots
-                    interpolated along the slant between the last-low and first-high
-                    kept notes, so the ellipsis follows the row's diagonal. */}
-                {gap && [0.3, 0.5, 0.7].map((t, k) => {
-                    const yLo = getNoteAbsoluteY(gap.lowName, staffStart, clef, staff);
-                    const yHi = getNoteAbsoluteY(gap.highName, staffStart, clef, staff);
-                    return (
-                        <circle key={`ell-${k}`}
-                            cx={startX + gap.x0 + (gap.x1 - gap.x0) * t}
-                            cy={yLo + (yHi - yLo) * t}
-                            r={1.6} fill="var(--text-dim)"
-                            style={{ pointerEvents: 'none' }} />
-                    );
-                })}
                 {/* Debug: visualise the diagonal hit band (CLAUDE.md §3a). */}
                 {debugMode && (
                     <polygon points={bandPoints}
@@ -551,6 +701,36 @@ const RangeStaffOverlay = ({
     const divider = (tEnds && bEnds)
         ? { dL: (tEnds.yL + bEnds.yL) / 2, dR: (tEnds.yR + bEnds.yR) / 2 }
         : null;
+
+    // After every render: detect a single ±1 step vs the remembered window and
+    // run the slide tween; then remember the current window. Cheap when nothing
+    // moved (just a classify); animate() only fires on a real step. useLayoutEffect
+    // so initial transform/opacity are set before paint (no flash).
+    React.useLayoutEffect(() => {
+        const run = (staff, clef, staffStart, range, frame) => {
+            if (!frame) return;
+            const layout = getMelodicLayout(staff, getNoteValue(range?.min), getNoteValue(range?.max));
+            if (!layout.entries.length) return;
+            const cur = layout.extent;
+            const prev = prevExtentRef.current[staff];
+            const step = layout.gap ? { kind: 'none' } : classifyStep(prev, cur);
+            if (step.kind !== 'none') {
+                const nw = layout.noteWidth;
+                const enter = step.kind === 'enter';
+                animate(staff, {
+                    bodyAx: step.anchor === 'left' ? startX : (endX - PRESET_AREA_WIDTH),
+                    s0: (prev?.noteWidth || nw) / nw,
+                    edgeDx0: enter ? step.dir * nw : 0,
+                    edgeDx1: enter ? 0 : step.dir * nw,
+                    edgeOp0: enter ? 0 : 1,
+                    edgeOp1: enter ? 1 : 0,
+                });
+            }
+            prevExtentRef.current[staff] = { loIdx: cur.loIdx, hiIdx: cur.hiIdx, noteWidth: layout.noteWidth };
+        };
+        if (isTrebleVisible) run('treble', clefTreble, trebleStart, trebleRange, trebleFrame);
+        if (isBassVisible) run('bass', clefBass, bassStart, bassRange, bassFrame);
+    });
 
     return (
         <g className="range-overlay" onClick={(e) => e.stopPropagation()}>
