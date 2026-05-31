@@ -270,10 +270,22 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
     (swing / backbeat / kick&snare / claves) currently lives on `notePool`. It
     should move onto `randomizationRule`, freeing `notePool` and removing the
     awkward `notePool`(style) vs `enabledPads`(pool) split.
-- **Phase 4 — bottom-view (re)integration:** open the bottom range settings when
-  range mode is active (stripped copy: no note-coloring, no instrument selector,
-  treble/bass only) + fix the `useSettingsOverlay` capture-pointerdown that closes
-  the overlay when bottom-view range setters are clicked. See BACKLOG.
+- **Phase 4 (done, Han 2026-05-30):** bottom-view (re)integration.
+  - The bottom-view `RangeControls` (piano + keys-bottom tabs) now also opens when
+    `rangeEditMode` is on, not only on the settings overlay. Threaded App →
+    `TabView` as `rangeEditMode`.
+  - A `rangeOnly` prop on `RangeControls` produces the stripped variant: the
+    note-coloring (palette) and instrument columns are hidden, leaving
+    min / clef / range-mode / max. CSS `.range-controls-range-only` switches the
+    grid to 4 columns. The full control is unchanged everywhere else.
+  - **Bug #7 fixed:** the settings-overlay click-outside-to-close
+    (`useSettingsOverlay` capture-phase pointerdown) closed the overlay when a
+    bottom-view range stepper was tapped. The bottom `RangeControls` wrappers now
+    carry `data-settings-keepalive=""`, the existing escape hatch that the close
+    handler already checks (`closest('[data-settings-keepalive]')`).
+- **Phase 5 — polish:** lyrics/label spacing so boundary names can return without
+  overlapping noteheads; 8vb/8va extent tuning; + the percussion-style→
+  `randomizationRule` tech-debt (see BACKLOG).
 - **Phase 5 — polish:** lyrics/label spacing so boundary names can return without
   overlapping noteheads; 8vb/8va extent tuning.
 - **Phase 6 — morph animation:** fade real notes ↔ selectable row on enter/exit;

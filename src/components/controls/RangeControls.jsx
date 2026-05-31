@@ -33,6 +33,11 @@ const RangeControls = ({
     noteColoringMode,
     setNoteColoringMode,
     onSettingsInteraction,
+    // rangeOnly (Han 2026-05-30): the range-edit-mode variant of this control —
+    // hides the note-coloring (palette) and instrument columns so only the
+    // min / clef / range-mode / max range setters remain. Used when the in-staff
+    // range selector is active; the full control is unchanged elsewhere.
+    rangeOnly = false,
 }) => {
     const range = activeSettings?.range || { min: 'C4', max: 'E5' };
     const rangeMode = activeSettings?.rangeMode || 'STANDARD';
@@ -151,7 +156,9 @@ const RangeControls = ({
         : VOCAL_STEPPER;
 
     return (
-        <div className="range-controls">
+        // rangeOnly drops two columns (palette + instrument); the modifier class
+        // switches the grid template to a 4-column layout (see RangeControls.css).
+        <div className={`range-controls${rangeOnly ? ' range-controls-range-only' : ''}`}>
             {/* 1. Lower Bound */}
             <div className="rc-col">
                 <DoubleStepper
@@ -163,7 +170,8 @@ const RangeControls = ({
                 />
             </div>
 
-            {/* 1b. Palette Toggler (between lower bound and clef) */}
+            {/* 1b. Palette Toggler (between lower bound and clef) — hidden in rangeOnly */}
+            {!rangeOnly && (
             <div className="rc-col">
                 {setNoteColoringMode && (
                     <button
@@ -207,6 +215,7 @@ const RangeControls = ({
                     </button>
                 )}
             </div>
+            )}
 
             {/* 2. Clef Selector (Reduced height) */}
             <div className="rc-col">
@@ -288,7 +297,8 @@ const RangeControls = ({
                 />
             </div>
 
-            {/* 4. Instrument Selector */}
+            {/* 4. Instrument Selector — hidden in rangeOnly */}
+            {!rangeOnly && (
             <div className="rc-col-padded">
                 <GenericStepper
                     value={currentInstrument}
@@ -305,6 +315,7 @@ const RangeControls = ({
                     background="none"
                 />
             </div>
+            )}
 
             {/* 5. Upper Bound */}
             <div className="rc-col">

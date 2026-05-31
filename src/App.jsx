@@ -1375,6 +1375,7 @@ const App = () => {
                     handleInputTestNote={handleInputTestNote}
                     qwertyKeyboardActive={qwertyKeyboardActive}
                     showSheetMusicSettings={showSheetMusicSettings}
+                    rangeEditMode={rangeEditMode}
                     resetSettingsTimer={resetSettingsTimer}
                     customPercussionMapping={customPercussionMapping}
                     setCustomPercussionMapping={setCustomPercussionMapping}
