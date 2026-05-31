@@ -38,13 +38,18 @@ import { TICKS_PER_WHOLE } from '../../../constants/timing';
 
 const QUARTER = TICKS_PER_WHOLE / 4;   // quarter-note → filled head + stem, no flag/beam
 // The melodic row is a straight diagonal (pitch rises left→right, so Y falls).
-// The drag hit zone is a parallelogram band of this thickness that FOLLOWS that
-// diagonal, instead of one full-height rect per staff — the old rects spanned the
-// whole ledger area and overlapped between treble and bass (Han 2026-05-31).
-const BAND_H = 34;
-// Percussion pads sit at fixed per-pad Ys; each pad gets its own box centred on
-// its notehead rather than a full-height column (same overlap fix).
-const PERC_HIT_H = 30;
+// Hit-zone shaping (point 2, Han 2026-05-31): the treble/bass zones are taller
+// and meet on a shared diagonal midline between the two note rows so their edges
+// touch exactly. BAND_COVER is how far the OUTER edge extends past the note row
+// (up for treble, down for bass) to cover the 8va/8vb markers + ledger lines.
+// BAND_SOLO_H is the half-height used when only one melodic staff is visible
+// (no counterpart to share a midline with).
+const BAND_COVER = 30;
+const BAND_SOLO_H = 30;
+// Percussion pads: each pad gets its own box centred on its notehead. The box is
+// tall and biased UPWARD (point 3) so it also covers the upward stems.
+const PERC_HIT_H = 56;
+const PERC_HIT_UP_BIAS = 0.66;   // fraction of the box above the notehead centre
 // Reserved right margin holding the preset brackets; also compacts the row.
 const PRESET_AREA_WIDTH = 92;
 const LOWLIGHT_OPACITY = 0.3;          // dim for melodic out-of-band notes
@@ -54,6 +59,10 @@ const PERC_DISABLED_OPACITY = 0.12;
 // Preset-bracket geometry (right margin).
 const BRACKET_TICK = 7;
 const BRACKET_GAP = 26;
+
+// Full piano white-key naturals — the melodic row windows into this (computed
+// once; the window is sliced per render by buildRangeRow).
+const PIANO_NATURALS = naturalsInRange(21, 108);
 
 const STATIC_LAYER_PROPS = {
     numAccidentals: 0,
@@ -195,6 +204,10 @@ const RangeStaffOverlay = ({
     enabledPads,
     onSetMelodicBoundary, onApplyMelodicPreset, onTogglePad, onApplyPercussionPreset,
     timeSignature, theme, debugMode = false,
+    // Coloring props (point 1): the in-band/selected notes follow the same note
+    // coloring as the rendered sheet music; boundary + out-of-band keep flat colors.
+    noteColoringMode = 'none', scaleNotes = [], tonic = '',
+    trebleTransSemitones = 0, bassTransSemitones = 0,
 }) => {
     // Active boundary being dragged: { staff, boundary:'min'|'max' } | null.
     const dragRef = React.useRef(null);
@@ -211,24 +224,36 @@ const RangeStaffOverlay = ({
         return loc.x;
     };
 
-    // ── Melodic staff (treble/bass) ──────────────────────────────────────────
-    const melodicStaff = (staff, staffStart, clef, range, frame) => {
-        if (!frame) return null;
-        // The visible row is a boundary-relative WINDOW into the full piano (A0..C8),
-        // not the clef extent: buildRangeRow centres CONTEXT_NOTES naturals beyond
-        // each boundary. frame is still used for clef-aware preset matching.
-        const notes = naturalsInRange(21, 108);
+    // The visible row is a boundary-relative WINDOW into the full piano (A0..C8),
+    // not the clef extent: buildRangeRow centres CONTEXT_NOTES naturals beyond
+    // each boundary. During a drag we reuse the WHOLE layout captured at
+    // press-time so the window/notes don't shift under the finger.
+    const MEL_AVAIL = endX - PRESET_AREA_WIDTH - startX;
+    const getMelodicLayout = (staff, selMin, selMax) => {
+        const active = dragRef.current?.staff === staff ? dragRef.current : null;
+        return active?.layout ?? buildRangeRow(PIANO_NATURALS, selMin, selMax, MEL_AVAIL);
+    };
+    // Note-row Y at the row's left/right ends (lowest note left, highest right),
+    // used to derive the shared divider between the treble and bass hit zones.
+    const melodicEnds = (staff, staffStart, clef, range) => {
+        const { entries } = getMelodicLayout(staff, getNoteValue(range?.min), getNoteValue(range?.max));
+        if (!entries.length) return null;
+        return {
+            yL: getNoteAbsoluteY(entries[0].name, staffStart, clef, staff),
+            yR: getNoteAbsoluteY(entries[entries.length - 1].name, staffStart, clef, staff),
+        };
+    };
 
+    // ── Melodic staff (treble/bass) ──────────────────────────────────────────
+    // `divider` (shared edge between the treble & bass zones) is `{ dL, dR }` (Y at
+    // the row's left/right ends) when both melodic staves are visible, else null.
+    const melodicStaff = (staff, staffStart, clef, range, frame, divider) => {
+        if (!frame) return null;
         const selMin = getNoteValue(range?.min);
         const selMax = getNoteValue(range?.max);
-        const avail = endX - PRESET_AREA_WIDTH - startX;
+        const transpositionSemitones = staff === 'treble' ? trebleTransSemitones : bassTransSemitones;
 
-        // During a drag we reuse the WHOLE layout captured at press-time so the
-        // window/notes don't shift under the finger; only the colouring (which
-        // note is the boundary) updates live. On release the window re-anchors and
-        // reveals fresh context beyond the new boundary.
-        const active = dragRef.current?.staff === staff ? dragRef.current : null;
-        const layout = active?.layout ?? buildRangeRow(notes, selMin, selMax, avail);
+        const layout = getMelodicLayout(staff, selMin, selMax);
         const { noteWidth, entries, allOffsets, colMidi, gap } = layout;
         if (!entries.length) return null;
 
@@ -242,9 +267,12 @@ const RangeStaffOverlay = ({
             else out.push(e);
         });
 
+        // `colored` layers follow the live note coloring (point 1) instead of a
+        // flat preview color; boundary stays yellow (the drag handles), out-of-band
+        // stays dimmed.
         const colorLayers = [
             { key: 'out', color: 'var(--text-dim)', opacity: LOWLIGHT_OPACITY, entries: out },
-            { key: 'in', color: 'var(--text-primary)', opacity: 1, entries: inBand },
+            { key: 'in', colored: true, opacity: 1, entries: inBand },
             { key: 'bound', color: 'var(--accent-yellow)', opacity: 1, entries: boundary },
         ];
 
@@ -268,18 +296,30 @@ const RangeStaffOverlay = ({
         };
         const onUp = () => { dragRef.current = null; };
 
-        // Parallelogram band following the diagonal note row, from the first kept
-        // note (left, high Y) to the last (right, low Y). yLeft/yRight from the
-        // real pitch→Y map; the slant keeps treble and bass zones from overlapping.
-        const first = entries[0], last = entries[entries.length - 1];
-        const yLeft = getNoteAbsoluteY(first.name, staffStart, clef, staff);
-        const yRight = getNoteAbsoluteY(last.name, staffStart, clef, staff);
-        const xL = startX + (first.offset - 1) * noteWidth - noteWidth / 2;
-        const xR = startX + (last.offset - 1) * noteWidth + noteWidth / 2;
-        const bandPoints = [
-            `${xL},${yLeft - BAND_H / 2}`, `${xR},${yRight - BAND_H / 2}`,
-            `${xR},${yRight + BAND_H / 2}`, `${xL},${yLeft + BAND_H / 2}`,
-        ].join(' ');
+        // Hit band (point 2): a taller quad covering the note row + its 8va/8vb.
+        // The OUTER edge follows the note row offset by BAND_COVER (up for treble,
+        // down for bass); the INNER edge is the shared `divider` so the treble and
+        // bass zones meet exactly. yLeft/yRight from the real pitch→Y map (lowest
+        // note left, highest right). Common left/right x so both quads' inner edges
+        // align exactly. When solo (no divider), the band is symmetric.
+        const yLeft = getNoteAbsoluteY(entries[0].name, staffStart, clef, staff);
+        const yRight = getNoteAbsoluteY(entries[entries.length - 1].name, staffStart, clef, staff);
+        const xL = startX;
+        const xR = endX - PRESET_AREA_WIDTH;
+        let bandPoints;
+        if (divider) {
+            bandPoints = (staff === 'treble'
+                ? [`${xL},${yLeft - BAND_COVER}`, `${xR},${yRight - BAND_COVER}`,
+                    `${xR},${divider.dR}`, `${xL},${divider.dL}`]
+                : [`${xL},${divider.dL}`, `${xR},${divider.dR}`,
+                    `${xR},${yRight + BAND_COVER}`, `${xL},${yLeft + BAND_COVER}`]
+            ).join(' ');
+        } else {
+            bandPoints = [
+                `${xL},${yLeft - BAND_SOLO_H}`, `${xR},${yRight - BAND_SOLO_H}`,
+                `${xR},${yRight + BAND_SOLO_H}`, `${xL},${yLeft + BAND_SOLO_H}`,
+            ].join(' ');
+        }
 
         return (
             <g className={`range-row range-row-${staff}`} key={staff}>
@@ -296,15 +336,18 @@ const RangeStaffOverlay = ({
                             allOffsets={allOffsets}
                             timeSignature={timeSignature}
                             theme={theme}
-                            previewMode={layer.color}
+                            {...(layer.colored
+                                // Selected notes follow the live coloring: previewMode
+                                // off so noteColor falls through to the coloring path.
+                                ? { previewMode: false, noteColoringMode, scaleNotes, tonic, transpositionSemitones }
+                                : { previewMode: layer.color })}
                         />
                     </g>
                 ))}
-                {/* Diagonal hit band following the note row: a parallelogram from
-                    the lowest note (left, high Y) to the highest (right, low Y).
-                    Pointer-capture + colAt() map any x to the target column, so a
-                    tap or drag along the slant moves the nearest boundary. The
-                    slant keeps the treble and bass zones from overlapping. */}
+                {/* Hit band covering the note row + 8va/8vb. Pointer-capture +
+                    colAt() map any x to the target column, so a tap or drag anywhere
+                    in the zone moves the nearest boundary. Treble & bass zones meet
+                    exactly on the shared divider so neither overlaps the other. */}
                 {onSetMelodicBoundary && (
                     <polygon points={bandPoints}
                         fill="transparent"
@@ -425,7 +468,8 @@ const RangeStaffOverlay = ({
                 {onTogglePad && ids.map((id, i) => {
                     const cy = getNoteAbsoluteY(id, percussionStart, null, 'percussion');
                     const hx = startX + i * noteWidth - noteWidth / 2;
-                    const hy = (cy ?? percussionStart) - PERC_HIT_H / 2;
+                    // Bias the box upward so it also covers the upward stem (point 3).
+                    const hy = (cy ?? percussionStart) - PERC_HIT_H * PERC_HIT_UP_BIAS;
                     return (
                         <g key={`hit-${id}`}>
                             <rect x={hx} y={hy} width={noteWidth} height={PERC_HIT_H}
@@ -495,11 +539,20 @@ const RangeStaffOverlay = ({
         </g>
     );
 
+    // Shared divider between the treble & bass hit zones: the midpoint of the two
+    // note rows at the left/right ends, so the zones meet exactly (point 2). Null
+    // unless both melodic staves are visible.
+    const tEnds = isTrebleVisible && trebleFrame ? melodicEnds('treble', trebleStart, clefTreble, trebleRange) : null;
+    const bEnds = isBassVisible && bassFrame ? melodicEnds('bass', bassStart, clefBass, bassRange) : null;
+    const divider = (tEnds && bEnds)
+        ? { dL: (tEnds.yL + bEnds.yL) / 2, dR: (tEnds.yR + bEnds.yR) / 2 }
+        : null;
+
     return (
         <g className="range-overlay" onClick={(e) => e.stopPropagation()}>
             {modeIndicator()}
-            {isTrebleVisible && melodicStaff('treble', trebleStart, clefTreble, trebleRange, trebleFrame)}
-            {isBassVisible && melodicStaff('bass', bassStart, clefBass, bassRange, bassFrame)}
+            {isTrebleVisible && melodicStaff('treble', trebleStart, clefTreble, trebleRange, trebleFrame, divider)}
+            {isBassVisible && melodicStaff('bass', bassStart, clefBass, bassRange, bassFrame, divider)}
             {isTrebleVisible && melodicPresetBrackets('treble', trebleStart, clefTreble, trebleRange, trebleFrame)}
             {isBassVisible && melodicPresetBrackets('bass', bassStart, clefBass, bassRange, bassFrame)}
             {isPercussionVisible && percussionStaffRow()}
