@@ -1,8 +1,51 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
-import RangeStaffOverlay from '../RangeStaffOverlay';
+import RangeStaffOverlay, { buildRangeRow, MIN_NOTE_WIDTH } from '../RangeStaffOverlay';
 import { PERCUSSION_PRESETS } from '../../../../audio/drumKits';
+
+// Naturals C4..C6 (15 notes) for the layout helper.
+const mkNotes = () => {
+    const out = [];
+    for (let m = 60; m <= 84; m++) {
+        const pc = ((m % 12) + 12) % 12;
+        const letter = { 0: 'C', 2: 'D', 4: 'E', 5: 'F', 7: 'G', 9: 'A', 11: 'B' }[pc];
+        if (letter) out.push({ midi: m, name: `${letter}${Math.floor(m / 12) - 1}` });
+    }
+    return out;
+};
+
+describe('buildRangeRow (diagonal-ellipsis layout)', () => {
+    const notes = mkNotes(); // 15 naturals
+
+    it('stays linear when there is room', () => {
+        const wide = notes.length * (MIN_NOTE_WIDTH + 5);
+        const l = buildRangeRow(notes, 60, 84, wide);
+        expect(l.collapsed).toBe(false);
+        expect(l.entries.length).toBe(notes.length);
+        expect(l.gap).toBeNull();
+    });
+
+    it('collapses the in-band middle into a gap when cramped', () => {
+        const tight = notes.length * (MIN_NOTE_WIDTH - 6); // forces collapse
+        // Wide selection so the in-band middle is large enough to collapse.
+        const l = buildRangeRow(notes, 62, 81, tight);
+        expect(l.collapsed).toBe(true);
+        expect(l.entries.length).toBeLessThan(notes.length);
+        expect(l.gap).not.toBeNull();
+        expect(l.colMidi.length).toBeGreaterThan(0);
+        // Both boundary pitches survive (you can still drag them).
+        const keptMidis = l.entries.map(e => e.midi);
+        expect(keptMidis).toContain(62);
+        expect(keptMidis).toContain(81);
+    });
+
+    it('does not collapse when the middle is too small', () => {
+        const tight = notes.length * (MIN_NOTE_WIDTH - 6);
+        const l = buildRangeRow(notes, 71, 72, tight); // narrow selection → tiny middle
+        expect(l.collapsed).toBe(false);
+    });
+});
 
 // Smoke test for the in-SVG range selector. It renders the WHOLE path
 // (RangeStaffOverlay → MelodyNotesLayer → renderMelodyNotes) so it catches

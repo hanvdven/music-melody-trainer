@@ -298,20 +298,31 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
     `SheetMusic.handleSheetMusicClick` step 3a (`onCloseRangeEdit`).
   - **Clef-aware extent + presets (points 2/3):** `SheetMusic.computeRangeFrame(clef)`
     returns `{rowLow, rowHigh, presets:[{label,min,max}]}` per staff, following the
-    CLEF SHOWN (not the staff slot). A bass clef on the top staff offers bass
-    notes/presets; vocal clefs span the whole vocal table with the individual
-    voices (Bass…Soprano) as presets. The ±octave padding was dropped, which also
-    fixes the treble↔bass overlap (treble no longer extends down to A2). The
-    boundary/preset write-backs take the clef-aware preset list so `rangeMode`
-    matching works for any clef incl. vocal.
-  - **Debug hit boxes:** every interactive region in the overlay (boundary drag
-    zone, preset brackets, percussion pads, percussion preset labels) draws its
-    hit box in `debugMode` (CLAUDE.md §3a).
-  - **Percussion-style→`randomizationRule`** tech-debt resolved earlier: the coarse
-    claves/kick_snare/all chooser now sets `enabledPads` presets (BASIC/STANDARD/FULL).
-- **Still parked:** lyrics/label spacing (boundary names); klavier (keyboard) range
-  setter (needs the shared image); responsive scaling for small screens (≤390px:
-  scale the staff, inner notes as an ellipsis).
+    CLEF SHOWN (not the staff slot). Bass clef on the top staff offers bass
+    notes/presets; vocal clefs centre the clef's default voice (pad ±voice-span)
+    with the individual voices (Bass…Soprano) as presets. Melodic extent is FULL
+    ±1 octave. Boundary/preset write-backs take the clef-aware preset list so
+    `rangeMode` matching works for any clef incl. vocal.
+  - **Diagonal hit band:** each staff's drag zone is a parallelogram `<polygon>`
+    following the note-row slant (not a full-height rect), so treble/bass zones
+    no longer overlap. Percussion pads get per-pad boxes centred on each notehead.
+  - **Bracket-only presets:** no text labels (UI-overhaul NFRs). Melodic AND
+    percussion presets render as nested right-brackets; active one highlighted.
+  - **Diagonal ellipsis (narrow screens):** `buildRangeRow(notes, selMin, selMax,
+    avail, frozenSplit)` (pure, tested) collapses the IN-BAND MIDDLE — the notes
+    deep between the boundaries, never the drag target — into a diagonal "…" (3
+    dots along the slant) when `avail/N < MIN_NOTE_WIDTH`. The gap is dummy slots
+    in `allOffsets`, so the index-based renderer (`x = startX + (idx-1)*noteWidth`)
+    draws it for free. `colMidi` maps x→pitch across the gap; a drag freezes the
+    split (`dragRef.split`) so kept notes don't jump under the finger. Edge zones
+    around min/max always stay visible.
+  - **Debug hit boxes:** every interactive region draws its hit box in `debugMode`
+    (CLAUDE.md §3a).
+  - **Percussion-style→`enabledPads`** tech-debt resolved: BASIC/STANDARD/FULL.
+- **Still parked:** klavier (keyboard) range setter — **context-bound, per
+  keyboard** (treble-setter at the treble keyboard, etc.), reusing
+  `computeRangeFrame` + a shared write hook; "extreme range" 15mb–15ma (cap
+  A0–C8) with release-to-reveal; lyrics/label spacing; mode-indicator text TBD.
 - **Phase 5 — polish:** lyrics/label spacing so boundary names can return without
   overlapping noteheads; 8vb/8va extent tuning.
 - **Phase 6 — morph animation:** fade real notes ↔ selectable row on enter/exit;

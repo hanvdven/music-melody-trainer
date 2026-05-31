@@ -106,6 +106,78 @@ const sameSet = (a, b) => {
     return b.every(x => s.has(x));
 };
 
+// ── Diagonal-ellipsis row layout ────────────────────────────────────────────
+// When the natural row is too cramped (would-be noteWidth < MIN_NOTE_WIDTH) we
+// COLLAPSE the in-band middle — the notes deep between the two boundaries, which
+// are never the drag target — into a diagonal "…" gap, giving the kept edge
+// notes more room (Han 2026-05-31). The gap is expressed as dummy slots in
+// allOffsets so the existing index-based renderer (renderMelodyNotes:
+// x = startX + (indexInAllOffsets - 1)*noteWidth) draws it for free. A drag
+// passes its frozen `split` back so the kept notes don't jump under the finger.
+export const MIN_NOTE_WIDTH = 13;  // below this (px/SVG units) the row collapses
+const EDGE_KEEP = 2;               // in-band notes kept beside each boundary
+const GAP_SLOTS = 2;               // dummy slots reserved for the "…" gap
+const MIN_COLLAPSE = 3;            // only collapse if ≥ this many middle notes
+
+const nearestIdx = (notes, midi) => {
+    let bi = 0, bd = Infinity;
+    notes.forEach((n, i) => { const d = Math.abs(n.midi - midi); if (d < bd) { bd = d; bi = i; } });
+    return bi;
+};
+
+export const buildRangeRow = (notes, selMin, selMax, avail, frozenSplit = null) => {
+    const N = notes.length;
+    const linear = () => ({
+        collapsed: false,
+        noteWidth: avail / Math.max(1, N),
+        entries: notes.map((n, i) => ({ name: n.name, midi: n.midi, offset: i + 1 })),
+        allOffsets: Array.from({ length: N + 1 }, (_, i) => i),
+        colMidi: notes.map(n => n.midi),
+        gap: null, split: null,
+    });
+    if (N === 0 || avail / N >= MIN_NOTE_WIDTH) return linear();
+
+    let lowEnd, highStart;
+    if (frozenSplit) {
+        ({ lowEnd, highStart } = frozenSplit);
+    } else {
+        const iLo = nearestIdx(notes, Math.min(selMin, selMax));
+        const iHi = nearestIdx(notes, Math.max(selMin, selMax));
+        lowEnd = Math.min(iLo + EDGE_KEEP, N - 1);
+        highStart = Math.max(iHi - EDGE_KEEP, 0);
+    }
+    if (highStart - lowEnd - 1 < MIN_COLLAPSE) return linear();
+
+    const low = notes.slice(0, lowEnd + 1);
+    const high = notes.slice(highStart);
+    const total = low.length + GAP_SLOTS + high.length;
+    const noteWidth = avail / total;
+
+    const entries = [];
+    low.forEach((n, i) => entries.push({ name: n.name, midi: n.midi, offset: i + 1 }));
+    const highBase = low.length + GAP_SLOTS; // first high note offset = highBase + 1
+    high.forEach((n, i) => entries.push({ name: n.name, midi: n.midi, offset: highBase + i + 1 }));
+
+    // slot s (x = startX + s*noteWidth) → nearest kept note's midi; gap slots snap
+    // to the adjacent cluster edge so a stray tap on the "…" still does something.
+    const colMidi = [];
+    for (let s = 0; s < total; s++) {
+        const e = entries.find(en => en.offset === s + 1);
+        colMidi.push(e ? e.midi : (s + 1 <= low.length ? low[low.length - 1].midi : high[0].midi));
+    }
+
+    return {
+        collapsed: true, noteWidth, entries, colMidi,
+        allOffsets: Array.from({ length: total + 1 }, (_, i) => i),
+        // x relative to startX of the last-low and first-high note centres.
+        gap: {
+            lowName: low[low.length - 1].name, highName: high[0].name,
+            x0: (low.length - 1) * noteWidth, x1: highBase * noteWidth,
+        },
+        split: { lowEnd, highStart },
+    };
+};
+
 const RangeStaffOverlay = ({
     startX, endX,
     trebleStart, bassStart, percussionStart,
@@ -148,18 +220,21 @@ const RangeStaffOverlay = ({
 
         const selMin = getNoteValue(range?.min);
         const selMax = getNoteValue(range?.max);
-        const noteWidth = (endX - PRESET_AREA_WIDTH - startX) / N;
-        const allOffsets = Array.from({ length: N + 1 }, (_, i) => i);
+        const avail = endX - PRESET_AREA_WIDTH - startX;
 
-        // Column index under an SVG x-coordinate (note i sits at startX+i*noteWidth).
-        const colAt = (x) => Math.max(0, Math.min(N - 1, Math.round((x - startX) / noteWidth)));
+        // Cramped rows collapse their in-band middle into a diagonal "…". During a
+        // drag we reuse the split captured at press-time so notes don't jump.
+        const frozen = (dragRef.current?.staff === staff) ? dragRef.current.split : null;
+        const { noteWidth, entries, allOffsets, colMidi, gap } = buildRangeRow(notes, selMin, selMax, avail, frozen);
+
+        // Column → midi under an SVG x (handles the collapsed gap via colMidi).
+        const colAt = (x) => colMidi[Math.max(0, Math.min(colMidi.length - 1, Math.round((x - startX) / noteWidth)))];
 
         const out = [], inBand = [], boundary = [];
-        notes.forEach((n, i) => {
-            const entry = { name: n.name, offset: i + 1, midi: n.midi };
-            if (n.midi === selMin || n.midi === selMax) boundary.push(entry);
-            else if (n.midi > selMin && n.midi < selMax) inBand.push(entry);
-            else out.push(entry);
+        entries.forEach((e) => {
+            if (e.midi === selMin || e.midi === selMax) boundary.push(e);
+            else if (e.midi > selMin && e.midi < selMax) inBand.push(e);
+            else out.push(e);
         });
 
         const colorLayers = [
@@ -169,13 +244,15 @@ const RangeStaffOverlay = ({
         ];
 
         // Press = begin dragging the boundary nearest the pressed column, and
-        // move it there immediately (so a plain tap also sets it).
+        // move it there immediately (so a plain tap also sets it). The current
+        // collapse `split` is frozen on the drag so the layout stays put.
         const onDown = (e) => {
             if (!onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
-            const midi = notes[colAt(x)].midi;
+            const midi = colAt(x);
             const which = Math.abs(midi - selMin) <= Math.abs(midi - selMax) ? 'min' : 'max';
-            dragRef.current = { staff, boundary: which };
+            // Freeze the current collapse split for the duration of the drag.
+            dragRef.current = { staff, boundary: which, split: buildRangeRow(notes, selMin, selMax, avail).split };
             try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not all envs */ }
             onSetMelodicBoundary(staff, midi, which, frame.presets);
         };
@@ -183,16 +260,18 @@ const RangeStaffOverlay = ({
             const d = dragRef.current;
             if (!d || d.staff !== staff || !onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
-            onSetMelodicBoundary(staff, notes[colAt(x)].midi, d.boundary, frame.presets);
+            onSetMelodicBoundary(staff, colAt(x), d.boundary, frame.presets);
         };
         const onUp = () => { dragRef.current = null; };
 
-        // Parallelogram band following the diagonal note row. yLeft = lowest note
-        // (high Y), yRight = highest note (low Y); both from the real pitch→Y map.
-        const yLeft = getNoteAbsoluteY(notes[0].name, staffStart, clef, staff);
-        const yRight = getNoteAbsoluteY(notes[N - 1].name, staffStart, clef, staff);
-        const xL = startX - noteWidth / 2;
-        const xR = startX + (N - 1) * noteWidth + noteWidth / 2;
+        // Parallelogram band following the diagonal note row, from the first kept
+        // note (left, high Y) to the last (right, low Y). yLeft/yRight from the
+        // real pitch→Y map; the slant keeps treble and bass zones from overlapping.
+        const first = entries[0], last = entries[entries.length - 1];
+        const yLeft = getNoteAbsoluteY(first.name, staffStart, clef, staff);
+        const yRight = getNoteAbsoluteY(last.name, staffStart, clef, staff);
+        const xL = startX + (first.offset - 1) * noteWidth - noteWidth / 2;
+        const xR = startX + (last.offset - 1) * noteWidth + noteWidth / 2;
         const bandPoints = [
             `${xL},${yLeft - BAND_H / 2}`, `${xR},${yRight - BAND_H / 2}`,
             `${xR},${yRight + BAND_H / 2}`, `${xL},${yLeft + BAND_H / 2}`,
@@ -232,6 +311,20 @@ const RangeStaffOverlay = ({
                         onPointerCancel={onUp}
                     />
                 )}
+                {/* Diagonal "…" marking the collapsed in-band middle: 3 dots
+                    interpolated along the slant between the last-low and first-high
+                    kept notes, so the ellipsis follows the row's diagonal. */}
+                {gap && [0.3, 0.5, 0.7].map((t, k) => {
+                    const yLo = getNoteAbsoluteY(gap.lowName, staffStart, clef, staff);
+                    const yHi = getNoteAbsoluteY(gap.highName, staffStart, clef, staff);
+                    return (
+                        <circle key={`ell-${k}`}
+                            cx={startX + gap.x0 + (gap.x1 - gap.x0) * t}
+                            cy={yLo + (yHi - yLo) * t}
+                            r={1.6} fill="var(--text-dim)"
+                            style={{ pointerEvents: 'none' }} />
+                    );
+                })}
                 {/* Debug: visualise the diagonal hit band (CLAUDE.md §3a). */}
                 {debugMode && (
                     <polygon points={bandPoints}

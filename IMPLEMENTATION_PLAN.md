@@ -37,17 +37,22 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ### Backlog / next phase
 - 🔨 FR — **Klavier (keyboard) range setter** (design phase, mockup received
-  2026-05-31). In RANGE mode, show a range setter on top of the piano too (mirror
-  of the sheet-music one), both live-bound to the same state. Per-clef coloured
-  key-bands with ↔ drag handles at min/max; preset **buttons** on top (bordered
-  for button-feel). Responsive: large screen shows keys ±3 beyond range (or full
-  if it fits); small screen "takes out the middle" with an ellipsis. Reuse
-  `computeRangeFrame` + the range-edit write path (extract to shared util/hook,
-  §6c). Percussion-in-keyboard = open question. *Interview before building.*
-- ⏳ FR — Narrow screens: render an **ellipsis (…) between notes** when the row is
-  too tight (sheet-music setter) — unify with the keyboard "take out middle".
+  2026-05-31; answers 2026-05-31). **Context-bound & per-instrument**: each clef's
+  setter lives at its OWN keyboard (treble-setter at the treble keyboard, bass at
+  bass, percussion at percussion) — NOT stacked bands on one piano. Per keyboard:
+  a coloured key-band over the selectable range with ↔ drag handles at min/max,
+  and preset **buttons** on top (bordered for button-feel). Both this and the
+  sheet-music setter live-bind to the same state. Responsive: large = keys ±3
+  beyond range (or full if it fits); small = "take out the middle". Reuse
+  `computeRangeFrame` + write path (extract to shared util/hook, §6c).
+- ✅ FR — **Diagonal ellipsis on the sheet-music setter.** `buildRangeRow`
+  (pure, tested) collapses the in-band middle into a diagonal "…" (3 dots along
+  the slant) when cramped (auto: noteWidth < MIN_NOTE_WIDTH). Edge zones around
+  min/max stay visible; the gap is dummy slots in `allOffsets` so the renderer
+  draws it. Drag freezes the split so notes don't jump. **Verify visually.**
 - ⏳ FR — **Extreme range** up to 15mb–15ma (capped A0–C8); interaction idea:
   after releasing the drag, 3 more notes appear left & right (progressive reveal).
+  Likely pairs with the ellipsis windowing.
 - 🐞/⏳ Backlog — **Drum-notation stems**: adjust stem direction/length.
 
 ### Broader app-IA redesign (mockup 2026-05-31) — LOGGED, not scheduled
