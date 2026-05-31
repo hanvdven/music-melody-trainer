@@ -119,6 +119,7 @@ export const noteYMap = {
   hh: 166, // Hi-hat
   ho: 166, // Hi-hat (open)
   cr: 171, // Ride Cymbal
+  cr_bell: 171, // Ride bell — same staff line as ride, drawn with a filled-diamond head
   th: 176, // High Tom
   tm: 181, // Med Tom
   s: 186,  // Snare drum
@@ -152,6 +153,7 @@ const percussionNoteHeads = {
   hh: 'À', // Hi-hat
   ho: 'À', // Hi-hat (open)
   cr: 'À', // Ride Cymbal
+  cr_bell: 'â', // Ride bell — Maestro filled-diamond notehead (U+F0E2 rhombus glyph)
   th: 'Ï', // High Tom
   tm: 'Ï', // Med Tom
   s: 'Ï', // Snare drum
@@ -173,6 +175,7 @@ const percussionChromatoneColors = {
   cct: 'var(--chromatone-percussion-crash-tip)',
   cr: 'var(--chromatone-percussion-ride)',
   crt: 'var(--chromatone-percussion-ride-tip)',
+  cr_bell: 'var(--chromatone-percussion-ride-bell)',
   hh: 'var(--chromatone-percussion-hihat-closed)',
   ho: 'var(--chromatone-percussion-hihat-open)',
   hp: 'var(--chromatone-percussion-hihat-pedal)',

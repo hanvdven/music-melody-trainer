@@ -18,11 +18,12 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
     // Han CR 2026-05-30: disabled pads (not in the user's enabledPads pool) must be
     // lowlighted everywhere on the drum board, not just in the range-selector view.
     // enabledPads lives on percussionSettings; when it is null/undefined we treat ALL
-    // pads as enabled (back-compat). Dim level 0.3 matches the range overlay concept.
-    // This is purely visual — pads stay clickable/playable (play() is never gated).
+    // pads as enabled (back-compat). Stronger dim (0.15) so the active/inactive
+    // contrast is clear (Han 2026-05-31). Purely visual — pads stay clickable
+    // (play() is never gated).
     const enabledPads = percussionSettings?.enabledPads;
     const padOpacity = (note) =>
-        Array.isArray(enabledPads) && !enabledPads.includes(note) ? 0.3 : 1;
+        Array.isArray(enabledPads) && !enabledPads.includes(note) ? 0.15 : 1;
 
     const play = (note) => {
         setLastPlayed(note);

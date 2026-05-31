@@ -40,7 +40,10 @@ const STAFF_HEIGHT = 40;               // 5 lines × 10 units (matches SheetMusi
 const HIT_PAD_Y = 55;                  // vertical padding of the per-row hit zone (covers ledger area)
 // Reserved right margin holding the preset brackets/labels; also compacts the row.
 const PRESET_AREA_WIDTH = 92;
-const LOWLIGHT_OPACITY = 0.3;          // dim for out-of-band / disabled
+const LOWLIGHT_OPACITY = 0.3;          // dim for melodic out-of-band notes
+// Disabled percussion pads use a stronger dim so the active/inactive contrast
+// reads clearly at a glance (Han 2026-05-31).
+const PERC_DISABLED_OPACITY = 0.12;
 // Preset-bracket geometry (right margin).
 const BRACKET_TICK = 7;
 const BRACKET_GAP = 26;
@@ -271,7 +274,7 @@ const RangeStaffOverlay = ({
         });
 
         const layers = [
-            { key: 'off', color: 'var(--text-dim)', opacity: LOWLIGHT_OPACITY, entries: disabledEntries },
+            { key: 'off', color: 'var(--text-dim)', opacity: PERC_DISABLED_OPACITY, entries: disabledEntries },
             { key: 'on', color: 'var(--text-primary)', opacity: 1, entries: enabledEntries },
         ];
 
