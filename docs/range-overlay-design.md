@@ -304,9 +304,20 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
     write-backs take the clef-aware preset list so `rangeMode` matching works for
     any clef incl. vocal. (`rowLow/rowHigh` is now superseded by the
     boundary-relative window — see below — and kept only for the preset list.)
-  - **Diagonal hit band:** each staff's drag zone is a parallelogram `<polygon>`
-    following the note-row slant (not a full-height rect), so treble/bass zones
-    no longer overlap. Percussion pads get per-pad boxes centred on each notehead.
+  - **Hit zones meet on a shared divider (Han 2026-05-31):** each melodic staff's
+    drag zone is a tall `<polygon>` whose OUTER edge follows the note row offset by
+    `BAND_COVER` (up for treble, down for bass — covers the 8va/8vb markers) and
+    whose INNER edge is a shared `divider` = the midpoint of the two note rows at
+    the row's left/right ends. Both zones use the SAME divider + common left/right
+    x, so their edges touch exactly and neither overlaps. Solo staff → symmetric
+    band (`BAND_SOLO_H`). `colAt` only uses x, so the taller shape only enlarges
+    the clickable area. Percussion pads get per-pad boxes centred on each notehead,
+    biased UPWARD (`PERC_HIT_UP_BIAS`) and tall (`PERC_HIT_H`) so they cover stems.
+  - **Selected notes follow note coloring (Han 2026-05-31):** the in-band layer
+    renders with `previewMode:false` + the live `noteColoringMode`/`scaleNotes`/
+    `tonic`/`transpositionSemitones` (threaded from SheetMusic), so selected notes
+    match the sheet-music coloring. Boundary notes stay yellow (drag handles);
+    out-of-band stays dimmed.
   - **Bracket-only presets:** no text labels (UI-overhaul NFRs). Melodic AND
     percussion presets render as nested right-brackets; active one highlighted.
   - **Boundary-relative window + balance (Han 2026-05-31):** the row is a
