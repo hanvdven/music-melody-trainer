@@ -156,9 +156,12 @@ keyboard (`KeyboardRangeSetter.jsx`; TabView wisselt 'm in voor de speelbare Pia
   loslaten.
 - ✅ Schrijft via de gedeelde `applyRangeBoundary` (één clamp/preset-regel voor balk,
   klavier én steppers — §6c). Grenzen snappen naar witte toetsen.
+- ✅ **Preset-blokhaken altijd bereikbaar** [Claude 2026-05-31]: vervangen door een
+  VASTE geneste blokhaak-legenda (`buildPresetBracketRows`, pure + getest), centraal
+  en breedte ∝ bereik, niet meer uitgelijnd op de venstertoetsen — dus elke preset
+  blijft tikbaar, ook buiten het selector-venster. Consistent met de bladmuziek-marge.
 - ⬜ **Parked follow-ups**: klavier-ellips bij zéér smal venster; zwarte-toets-precisie
-  (snapt nu naar wit); percussie-klavier-setter (DrumPad, aparte slice); preset-blokhaak-
-  uitlijning op de selector is v1 (klemt/verbergt presets buiten het venster).
+  (snapt nu naar wit); percussie-klavier-setter (DrumPad, aparte slice).
 - ❓ Mode-indicator "◆ RANGE SELECTOR" op de bladmuziek: laten staan of weg?
 
 ---

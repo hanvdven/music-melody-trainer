@@ -348,8 +348,11 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
   treble/active piano tab AND the bass `keys-bottom` tab — one component reused per
   keyboard). Three stacked pieces, top→bottom:
   1. **Preset brackets** — `⊓` shapes (no text, consistent with the sheet-music
-     bracket presets), aligned to the selector's white-key grid (clamped to the
-     window, skipped only when a preset lies fully outside it); active highlighted.
+     bracket presets) as a FIXED nested legend (`buildPresetBracketRows`, pure +
+     tested): one per preset, centred and sized by pitch span (widest = FULL),
+     stacked narrowest-first; active highlighted. NOT aligned to the selector keys,
+     so every preset stays reachable even when it lies outside the current window
+     (the earlier key-aligned version hid those).
   2. **Compact windowed selector** — a small `PianoView` that windows symmetrically
      around the selection (shared `windowNaturals`), sized so each white key is
      ≈ `KEY_PX` (20px) wide — the visible key count adapts to the panel width (via

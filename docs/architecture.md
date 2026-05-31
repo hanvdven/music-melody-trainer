@@ -2202,8 +2202,11 @@ glyphs — §6c; no hand-rolled pitch→Y). Key behaviours:
 **Keyboard variant — `KeyboardRangeSetter.jsx`** (TabView swaps it in for the
 playable `PianoView` in rangeEditMode, on the treble/active piano tab AND the bass
 `keys-bottom` tab — one component per keyboard). A **split layout**, top→bottom:
-1. Preset brackets (`⊓`, no text, consistent with the sheet brackets), aligned to
-   the selector's white-key grid.
+1. Preset brackets (`⊓`, no text, consistent with the sheet brackets) — a FIXED
+   nested legend (`buildPresetBracketRows`, pure + tested): one bracket per preset,
+   centred and sized by its pitch span (widest = FULL), stacked narrowest-first.
+   NOT aligned to the selector keys, so every preset stays reachable even when it
+   lies outside the current window (the earlier key-aligned version hid those).
 2. A COMPACT windowed **selector** keyboard (a small `PianoView` over
    `windowNaturals`), sized so each white key is ≈ `KEY_PX` (20px) — the key count
    adapts to the panel width via a `ResizeObserver`. A band + edge handles mark the
