@@ -167,14 +167,15 @@ keyboard (`KeyboardRangeSetter.jsx`; TabView wisselt 'm in voor de speelbare Pia
 - ✅ "Letters op range setter keyboard zijn niet mooi; te groot." [Claude 2026-05-31]:
   `PianoView` heeft nu een `hideLabels`-prop; het compacte selector-klavier verbergt de
   noot-labels (het echte klavier eronder houdt ze).
-- ⬜ **Preset-blokhaken moeten het keyboard MATCHEN** + **omwisselen: groot boven, klein
-  beneden** + **reageren op schaalverandering van de selector**. Vandaag is het een vaste
-  geneste legenda (smal→breed, niet uitgelijnd). Han wil ze uitgelijnd/meeschalend met het
-  selector-klavier. ⚠ spanning met de eerder gevraagde "altijd bereikbaar" (presets buiten
-  het venster) — interview nodig.
-- ⬜ **Sleutel (clef) wisselen via de range selector op het klavier**: treble/bass-blokhaken
-  bóven het klavier, zodat je van sleutel kunt wisselen vanaf de keyboard-range-setter.
-  NIEUWE feature; bouwt voort op de bracket-uitlijning hierboven.
+- ✅ **Preset-blokhaken matchen het keyboard** [Claude 2026-05-31]: uitgelijnd op het
+  selector-toetsenraster en meeschalend met het venster, **groot boven, klein beneden**.
+  Presets volledig buiten het venster worden verborgen (komen terug als de selectie
+  verschuift) — keuze Han: uitlijnen + verbergen i.p.v. rand-pijltje.
+- ✅ **Sleutel (clef) wisselen via blokhaken boven het klavier** [Claude 2026-05-31]:
+  `onSwitchClef`-prop op `KeyboardRangeSetter` (piano-tab); treble-blokhaak boven,
+  bass eronder (positie = sleutel), tik wisselt `activeClef`. `setActiveClef` doorgezet
+  App → TabView. ⬜ verfijning: nog geen sleutel-glyph (onderscheid nu via positie +
+  highlight).
 - ⬜ **Groot scherm → meer noten** toestaan (selector én/of bladmuziek-venster mogen meer
   context tonen op brede schermen).
 - 🐞 **Mini-klavier: zwarte toetsen te smal** bij hele krappe squeezing (veel toetsen op

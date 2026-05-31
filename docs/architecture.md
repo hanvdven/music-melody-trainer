@@ -2202,11 +2202,16 @@ glyphs — §6c; no hand-rolled pitch→Y). Key behaviours:
 **Keyboard variant — `KeyboardRangeSetter.jsx`** (TabView swaps it in for the
 playable `PianoView` in rangeEditMode, on the treble/active piano tab AND the bass
 `keys-bottom` tab — one component per keyboard). A **split layout**, top→bottom:
-1. Preset brackets (`⊓`, no text, consistent with the sheet brackets) — a FIXED
-   nested legend (`buildPresetBracketRows`, pure + tested): one bracket per preset,
-   centred and sized by its pitch span (widest = FULL), stacked narrowest-first.
-   NOT aligned to the selector keys, so every preset stays reachable even when it
-   lies outside the current window (the earlier key-aligned version hid those).
+0. Optional **clef-switch brackets** (`onSwitchClef`, piano tab only): treble on
+   top, bass below — position conveys the clef; tapping switches `activeClef` (the
+   clef whose range you're editing). `setActiveClef` is plumbed App → TabView.
+1. Preset brackets (`⊓`, no text, consistent with the sheet brackets) —
+   `buildPresetBracketRows` (pure + tested): one per preset, ALIGNED to the
+   selector white-key grid (x in white-key-index units, scales with the window),
+   widest-on-top; a preset entirely outside the window is hidden (the window
+   reveals it as the selection moves).
+   The compact selector PianoView is rendered with `hideLabels` (note-name labels
+   would be too large on the small windowed keyboard; the real keyboard keeps them).
 2. A COMPACT windowed **selector** keyboard (a small `PianoView` over
    `windowNaturals`), sized so each white key is ≈ `KEY_PX` (20px) — the key count
    adapts to the panel width via a `ResizeObserver`. A band + edge handles mark the
