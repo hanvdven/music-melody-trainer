@@ -111,6 +111,55 @@ Volledige ontwerpdoc: `docs/range-overlay-design.md`. Status:
   claves) zit nu op `notePool`; verhuis naar `randomizationRule` zodat `notePool` vrij
   komt en de notePool(stijl)-vs-enabledPads(pool) split verdwijnt. Raakt
   `generateBackbeat.js`, `RuleSelector.jsx`, `melodyGenerator.js`; herlees §3 (§6b).
+  [Claude 2026-05-31]: ✅ deels — de coarse stijl-chooser zet nu `enabledPads`-presets
+  (BASIC/STANDARD/FULL). De volledige `notePool`→`randomizationRule` verhuizing staat
+  nog open.
+
+[Claude 2026-05-31 — CHECKPOINT, bladmuziek range selector verder afgebouwd].
+Volledige detail: `docs/architecture.md` §37.1 + `docs/range-overlay-design.md`.
+Sinds Fase 2-4 toegevoegd/gewijzigd:
+- ✅ **Boundary-relatief venster** (`windowNaturals` in `rangeUtils.js`, gedeeld met het
+  klavier): toont altijd 3 naturals voorbij elke grens (gecapt A0–C8). Hierdoor
+  symmetrisch (3 onder min … 3 boven max) — fixt de oude onbalans (5-1-2-…-2-1-5) — én
+  je kunt een grens voorbij het oude ±octaaf slepen; bij loslaten her-centreert het
+  venster (vervangt de aparte "extreme range"-FR).
+- ✅ **Diagonale ellips** (`buildRangeRow`, pure + getest): bij krapte (`avail/W <
+  MIN_NOTE_WIDTH`) klapt het in-band MIDDEN in tot een diagonale "…" (3 stippen langs de
+  helling), met 3 noten zichtbaar binnen elke grens. Gat = dummy-slots in `allOffsets`.
+  `MAX_NOTE_WIDTH` voorkomt te ijle spacing.
+- ✅ **Hitzones treble/bass raken elkaar exact**: horizontale buitenrand (minder
+  diagonaal) op de hoogste/laagste noot ± `BAND_COVER` (dekt 8va/8vb), binnenrand =
+  gedeelde diagonale divider (middelpunt van de twee notenrijen).
+- ✅ **Geselecteerde noten volgen note-coloring** (gedeelde `melodicNoteColor` in
+  `noteUtils.js`; in-band per kleur gegroepeerd via `previewMode`). Grenzen blijven geel
+  (handvatten), buiten-bereik gedimd.
+- ✅ **Percussie-hitboxes** per pad naar de stem-richting gebogen (`percussionStemUp`),
+  zodat ze ook over de stem lopen.
+- ✅ **Re-reveal na slepen**: `onUp` forceert re-render zodat het venster her-centreert
+  en weer 3 noten links/rechts selecteerbaar zijn.
+- ⬜ **Open**: lyrics/label-ruimte (grensnamen terug zonder overlap); dual-surface
+  live-sync + enter/exit-morph (principes 3-4 van §37) nog niet gebouwd.
+
+---
+
+### Klavier (keyboard) range setter
+
+[Claude 2026-05-31]: Nieuwe input-variant van de range setter, context-gebonden per
+keyboard (`KeyboardRangeSetter.jsx`; TabView wisselt 'm in voor de speelbare PianoView in
+`rangeEditMode`, op de piano- én bass-tab). Detail: `docs/architecture.md` §37.1.
+- ✅ **Split layout** (Han 2026-05-31): boven→onder = preset-BLOKHAKEN (geen tekst,
+  consistent met de bladmuziek) → COMPACT gevensterd SELECTOR-klavier → ECHT speelbaar
+  klavier beperkt tot de selectie (toont de impact).
+- ✅ Selector is **breedte-adaptief** (~`KEY_PX`=20px per witte toets, via `ResizeObserver`;
+  300px → 15 toetsen), symmetrisch rond de selectie (`windowNaturals`). Band + handvatten;
+  tik/sleep zet dichtstbijzijnde grens; venster bevriest tijdens slepen, her-centreert bij
+  loslaten.
+- ✅ Schrijft via de gedeelde `applyRangeBoundary` (één clamp/preset-regel voor balk,
+  klavier én steppers — §6c). Grenzen snappen naar witte toetsen.
+- ⬜ **Parked follow-ups**: klavier-ellips bij zéér smal venster; zwarte-toets-precisie
+  (snapt nu naar wit); percussie-klavier-setter (DrumPad, aparte slice); preset-blokhaak-
+  uitlijning op de selector is v1 (klemt/verbergt presets buiten het venster).
+- ❓ Mode-indicator "◆ RANGE SELECTOR" op de bladmuziek: laten staan of weg?
 
 ---
 
