@@ -269,7 +269,7 @@ const LH_PERC_NOTES = new Set(['k', 's', 'sg', 'sr', 'th', 'tm', 'tl', 'hp']);
 
 // Returns true (stem up) when the note or chord belongs to the right-hand voice.
 // For mixed chords, RH majority wins; ties go UP (cymbals sit above drums on the staff).
-const percussionStemUp = (noteOrChord) => {
+export const percussionStemUp = (noteOrChord) => {
   if (Array.isArray(noteOrChord)) {
     let rh = 0, lh = 0;
     noteOrChord.forEach(n => { if (RH_PERC_NOTES.has(n)) rh++; else lh++; });

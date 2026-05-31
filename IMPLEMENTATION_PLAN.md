@@ -61,7 +61,7 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 - ⏳ FR — **Extreme range** up to 15mb–15ma (capped A0–C8); interaction idea:
   after releasing the drag, 3 more notes appear left & right (progressive reveal).
   Likely pairs with the ellipsis windowing.
-- ✅ FR (range-selector polish, Han 2026-05-31) — **Verify visually.**
+- ✅ FR (range-selector polish v2, Han 2026-05-31) — **Verify visually.**
   1. In-band (selected) notes follow note-coloring (previewMode off + live
      coloring props); boundary notes stay YELLOW handles; out-of-band dimmed.
   2. Treble/bass hit zones: taller, cover 8va/8vb, outer edge follows note row
