@@ -44,6 +44,7 @@ const TabView = ({
     handleInputTestNote,
     qwertyKeyboardActive,
     showSheetMusicSettings,
+    rangeEditMode,
     resetSettingsTimer,
     // Percussion custom mapping
     customPercussionMapping,
@@ -145,8 +146,13 @@ const TabView = ({
                                 onNoteInput={handleInputTestNote}
                                 qwertyKeyboardActive={qwertyKeyboardActive}
                             />
-                            {showSheetMusicSettings && (
-                                <div style={{
+                            {/* Open on settings overlay OR range-edit mode. In range-edit
+                                mode the control is stripped (no palette/instrument) via
+                                rangeOnly. data-settings-keepalive stops the overlay's
+                                click-outside-to-close from firing when the user taps a
+                                range stepper here (bug #7, Han 2026-05-30). */}
+                            {(showSheetMusicSettings || rangeEditMode) && (
+                                <div data-settings-keepalive="" style={{
                                     position: 'absolute',
                                     top: 0, left: 0, right: 0,
                                     background: 'var(--panel-bg)',
@@ -166,6 +172,7 @@ const TabView = ({
                                         noteColoringMode={noteColoringMode}
                                         setNoteColoringMode={setNoteColoringMode}
                                         onSettingsInteraction={resetSettingsTimer}
+                                        rangeOnly={rangeEditMode}
                                     />
                                 </div>
                             )}
@@ -202,8 +209,10 @@ const TabView = ({
                                 onNoteInput={handleInputTestNote}
                                 qwertyKeyboardActive={qwertyKeyboardActive}
                             />
-                            {showSheetMusicSettings && (
-                                <div style={{
+                            {/* See piano-tab note: open on settings or range-edit;
+                                keepalive prevents the overlay closing on stepper taps. */}
+                            {(showSheetMusicSettings || rangeEditMode) && (
+                                <div data-settings-keepalive="" style={{
                                     position: 'absolute',
                                     top: 0, left: 0, right: 0,
                                     background: 'var(--panel-bg)',
@@ -220,6 +229,7 @@ const TabView = ({
                                         noteColoringMode={noteColoringMode}
                                         setNoteColoringMode={setNoteColoringMode}
                                         onSettingsInteraction={resetSettingsTimer}
+                                        rangeOnly={rangeEditMode}
                                     />
                                 </div>
                             )}

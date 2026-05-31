@@ -89,6 +89,31 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
 
 ---
 
+### In-staff range selector (bladmuziek)
+
+[Claude 2026-05-31]: Voortgang van de in-SVG range selector (RANGE-knop → `rangeEditMode`).
+Volledige ontwerpdoc: `docs/range-overlay-design.md`. Status:
+- ✅ **Fase 2** (static render): selecteerbare noten als synthetische melodie door de
+  echte renderer (ledger lines/ottava/noteheads hergebruikt); kwartnoten; treble/bass/
+  percussie; out-of-band gedimd; rechter blokhaken per preset; "◆ RANGE SELECTOR"-
+  indicator; geen tussenmaatstreepjes, één gewone eind-maatlijn.
+- ✅ **Fase 3** (interactie): treble/bass tikken+slepen om grens te zetten; percussie tik
+  pad aan/uit (`percussionSettings.enabledPads`, default STANDARD); presets aantikbaar.
+  Generatie filtert percussie via `filterPercussionByEnabledPads`. Disabled pads ook
+  gelowlight in het DrumPad-board.
+- ✅ **Fase 4** (bottom-view herintegratie): bottom `RangeControls` opent nu ook bij
+  `rangeEditMode`, gestript (geen palette/instrument) via `rangeOnly`. Bug #7 gefixt:
+  bottom-view range-steppers sluiten de settings-overlay niet meer
+  (`data-settings-keepalive` op de wrappers).
+- ⬜ **Fase 5 polish**: lyrics/label-ruimte (zodat grensnamen terug kunnen zonder
+  overlap met noten); 8vb/8va-extent afstemmen.
+- ⬜ **Fase 5 TECHNICAL DEBT (Han)**: de percussie-STIJL (swing/backbeat/kick&snare/
+  claves) zit nu op `notePool`; verhuis naar `randomizationRule` zodat `notePool` vrij
+  komt en de notePool(stijl)-vs-enabledPads(pool) split verdwijnt. Raakt
+  `generateBackbeat.js`, `RuleSelector.jsx`, `melodyGenerator.js`; herlees §3 (§6b).
+
+---
+
 
 
 ### ✅ Bestaande liedjes
