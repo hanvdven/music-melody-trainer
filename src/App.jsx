@@ -181,6 +181,14 @@ const App = () => {
     // SubHeader RANGE button; drives RangeStaffOverlay inside the SheetMusic SVG.
     const [rangeEditMode, setRangeEditMode] = useState(false);
 
+    // Range-edit and the general settings overlay are mutually exclusive
+    // (Han 2026-05-31). This effect is the catch-all: whenever the settings
+    // overlay becomes visible (by any path — sheet click, SubHeader, …) close
+    // range edit so the two never stack.
+    useEffect(() => {
+        if (showSheetMusicSettings && rangeEditMode) setRangeEditMode(false);
+    }, [showSheetMusicSettings, rangeEditMode]);
+
     // Input Test Mode — wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available
 
     const { isFullscreen, toggleFullscreen, isTouch } = useDeviceState();
@@ -559,10 +567,20 @@ const App = () => {
 
     // Range-edit and playback are mutually exclusive (Han 2026-05-30): opening
     // the range overlay stops playback; see also the close-on-play effect below.
+    // Range-edit and the general settings overlay are ALSO mutually exclusive
+    // (Han 2026-05-31): opening range closes settings, and vice versa, so the two
+    // overlays never stack.
     const handleToggleRangeEdit = useCallback(() => {
-        if (!rangeEditMode) handleStopAllPlayback();
+        if (!rangeEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+        }
         setRangeEditMode(v => !v);
-    }, [rangeEditMode, handleStopAllPlayback]);
+    }, [rangeEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
+    // Closing range edit (e.g. clicking outside the bottom range settings, or
+    // tapping empty sheet area while in range mode).
+    const handleCloseRangeEdit = useCallback(() => setRangeEditMode(false), []);
 
     const handlePlayRepeat = useCallback(() => {
         if (isRubatoRef.current && rubatoEngageRef.current) {
@@ -1121,6 +1139,7 @@ const App = () => {
         showSettings: showSheetMusicSettings,
         rangeEditMode: rangeEditMode,
         onToggleSettings: toggleSheetMusicSettings,
+        onCloseRangeEdit: handleCloseRangeEdit,
         onSettingsInteraction: resetSettingsTimer,
         tonic: scale.tonic,
         svgRef,
@@ -1145,6 +1164,7 @@ const App = () => {
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
         windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, toggleSheetMusicSettings,
+        handleCloseRangeEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
         showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
