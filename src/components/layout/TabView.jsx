@@ -150,6 +150,7 @@ const TabView = ({
                                     setSettings={activeClef === 'treble' ? setTrebleSettings : setBassSettings}
                                     noteColoringMode={noteColoringMode}
                                     qwertyKeyboardActive={qwertyKeyboardActive}
+                                    onNoteInput={handleInputTestNote}
                                     debugMode={debugMode}
                                 />
                             ) : (
@@ -227,6 +228,7 @@ const TabView = ({
                                     setSettings={setBassSettings}
                                     noteColoringMode={noteColoringMode}
                                     qwertyKeyboardActive={qwertyKeyboardActive}
+                                    onNoteInput={handleInputTestNote}
                                     debugMode={debugMode}
                                 />
                             ) : (

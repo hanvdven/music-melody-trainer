@@ -342,21 +342,29 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
   - **Debug hit boxes:** every interactive region draws its hit box in `debugMode`
     (CLAUDE.md §3a).
   - **Percussion-style→`enabledPads`** tech-debt resolved: BASIC/STANDARD/FULL.
-- **Phase 6 — Keyboard range setter (Han 2026-05-31):** context-bound, per
-  keyboard. `KeyboardRangeSetter.jsx` is the range-edit variant of the keyboard
+- **Phase 6 — Keyboard range setter, SPLIT layout (Han 2026-05-31):**
+  context-bound, per keyboard. `KeyboardRangeSetter.jsx` is the range-edit variant
   (TabView swaps it in for the playable `PianoView` when `rangeEditMode`, on the
-  treble/active piano tab AND the bass `keys-bottom` tab — one component reused
-  per keyboard). It renders a windowed `PianoView` (via the shared
-  `windowNaturals`, so the keyboard shows the SAME context-beyond-boundary window
-  as the staff), a translucent band over the selected range with drag handles at
-  the edges, and preset BUTTONS (STANDARD/LARGE/FULL per clef) above. Geometry:
-  white keys are uniform width, so the overlay SVG uses `viewBox="0 0 nWhite 100"`
-  (1 unit/white key) and maps pointer x→white-key index via its bounding rect.
-  Tap or drag sets the nearest boundary through the SHARED `applyRangeBoundary`
-  write path (one clamp/preset-match rule for staff, keyboard, and steppers,
-  §6c); the window freezes during a drag and re-anchors on release. Boundaries
-  snap to naturals (white keys), matching the staff. Settings-only mode keeps the
-  playable piano + full `RangeControls`.
+  treble/active piano tab AND the bass `keys-bottom` tab — one component reused per
+  keyboard). Three stacked pieces, top→bottom:
+  1. **Preset brackets** — `⊓` shapes (no text, consistent with the sheet-music
+     bracket presets), aligned to the selector's white-key grid (clamped to the
+     window, skipped only when a preset lies fully outside it); active highlighted.
+  2. **Compact windowed selector** — a small `PianoView` that windows symmetrically
+     around the selection (shared `windowNaturals`), sized so each white key is
+     ≈ `KEY_PX` (20px) wide — the visible key count adapts to the panel width (via
+     a `ResizeObserver`), e.g. 300px → 15 keys. A translucent band + edge handles
+     mark the selection. An SVG overlay (`viewBox="0 0 nWhite 100"`, 1 unit/white
+     key) owns the pointer interaction; pointer x → white-key index via its
+     bounding rect. Tap/drag sets the nearest boundary (white-key snap) through the
+     SHARED `applyRangeBoundary`; the window freezes during a drag and re-anchors
+     on release (forceReanchor) so 3 fresh context keys reappear each side.
+  3. **Real playable keyboard** — a normal `PianoView` limited to the selected
+     min–max, so you see & hear the actual keys the selection produces.
+
+  Rationale: a fixed-width selector keeps the choosing UI compact regardless of
+  how wide the selected range is, while the bottom keyboard shows the true on-screen
+  impact. Settings-only mode keeps the playable piano + full `RangeControls`.
 - **Still parked:** keyboard ellipsis for very narrow screens (the staff has it;
   the keyboard caps spacing instead); black-key boundary precision on the
   keyboard (currently snaps to white keys); percussion keyboard setter (DrumPad —
