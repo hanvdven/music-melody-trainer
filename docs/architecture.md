@@ -2138,26 +2138,6 @@ exercise score), top half = sheet music, bottom half = input/keyboard.
 serves as the blueprint pattern for all later settings (clef/instrument → scale →
 exercise/song → advanced generation → visualization).
 
-**Current status (Phase 2 — static in-SVG row).** The always-visible `RANGE`
-button on the right of the `SubHeader` toggles `rangeEditMode` (D4), which drives
-`RangeStaffOverlay` — a `<g>` rendered inside the SheetMusic SVG (sibling of
-`SettingsOverlay`). It shows the selectable pitches as a **synthetic
-rhythm-less melody rendered through the real `MelodyNotesLayer`/
-`renderMelodyNotes`** (reusing ledger lines, ottava shifting and notehead glyphs
-— §6c; no hand-rolled pitch→Y). Treble, bass **and percussion** each get a
-horizontal row (low→high), laid out via a private slot grid. The current
-`{min,max}` band is colour-coded entirely with theme vars via the renderer's
-`previewMode` override: boundary notes `--accent-yellow`, in-band
-`--text-primary`, out-of-band `--text-dim`; boundary note names are labelled.
-Percussion shows every kit pad with a staff position (from `PADS`). Notes render
-as quarter notes (`TICKS_PER_WHOLE/4`); out-of-band notes are dimmed further via
-group opacity. A right margin (`PRESET_AREA_WIDTH`) is reserved for the preset
-chips (Phase 4) and makes the row more compact. In rangeEditMode the repeat
-barlines + `RepeatsControls` (the "4×") are suppressed and a dedicated
-`mode="regular"`, `numRepeats=1` `BarlinesLayer` is rendered so the staves show
-plain barlines ending in a normal vertical barline. The earlier HTML scaffold
-(`RangeOverlay.jsx`) was retired (D4).
-
 **Range-edit ↔ playback are mutually exclusive (Han 2026-05-30).** While
 `rangeEditMode` is on, the staves are blank canvases: the entire
 `notes-transition` group is hidden via `display:none` (kept mounted so transition
@@ -2169,18 +2149,89 @@ is no feedback loop because closing range-edit never starts playback.
 **File organisation.** All sheet-music context overlays live under
 `src/components/sheet-music/overlays/`. New context overlays go there too.
 
-**Not yet built:** interaction (drag/tap, Phase 3), preset chips (Phase 4),
-percussion pool toggling (Phase 5), enter/exit morph (Phase 6). The legacy
-stepper `RangeControls` is untouched. See `docs/range-overlay-design.md`.
+### 37.1 Range selector — current implementation (first proven slice)
 
-**Files:** `src/components/sheet-music/overlays/RangeStaffOverlay.jsx` (in-SVG
-row, reuses `MelodyNotesLayer`) + its smoke test under `overlays/__tests__/`,
-`src/components/sheet-music/overlays/SettingsOverlay.jsx` (moved here),
-`src/components/sheet-music/renderMelodyNotes.jsx` (exported `noteYMap`,
-`clefOffsets`, `stripAccidentals`, `getNoteAbsoluteY`; `clefOffsets` lifted to
-module scope), `src/components/sheet-music/SheetMusic.jsx` (`rangeEditMode` prop
-+ overlay render + staff keep-alive + notes hidden), `src/utils/rangeUtils.js`
-(shared note↔MIDI + clamp helpers, with test),
-`src/components/controls/RangeControls.jsx` (now reuses `rangeUtils`),
-`src/App.jsx` (`rangeEditMode` state + playback wiring).
+The range selector is the first fully-built vertical slice and the blueprint for
+later settings. It has **two surfaces** (per principle 1), both driven by the same
+range state and the same shared write path. Full detail (with rationale and known
+rough edges) lives in `docs/range-overlay-design.md`; this is the authoritative
+high-level summary.
+
+**Shared model (`src/utils/rangeUtils.js`).** One source of truth for every range
+surface (sheet, keyboard, steppers), §6c:
+- `naturalsInRange(lo,hi)` — white-key naturals in a MIDI span.
+- `windowNaturals(selMin,selMax,context)` — a **boundary-relative window**: every
+  natural between the boundaries plus `context` naturals beyond each side, capped
+  to the piano (A0–C8). This is what makes both surfaces symmetric (N below min …
+  N above max) and lets a boundary be dragged *outward past the old ±octave
+  limit* — on release the window re-anchors and reveals fresh context.
+- `applyRangeBoundary(prevRange,midi,bound,presets)` — clamp (`clampRange`: min
+  span 12, bounds 21–108) + preset-mode match. The ONE boundary write path.
+
+**Sheet variant — `RangeStaffOverlay.jsx`** (a `<g>` in the SheetMusic SVG). The
+selectable pitches are a synthetic rhythm-less melody rendered through the real
+`MelodyNotesLayer`/`renderMelodyNotes` (reuses ledger lines, ottava, notehead
+glyphs — §6c; no hand-rolled pitch→Y). Key behaviours:
+- **`buildRangeRow`** (pure, tested) lays out the row from `windowNaturals`. When
+  the window is too cramped (`avail/W < MIN_NOTE_WIDTH`) it COLLAPSES the in-band
+  middle (the notes deep between the boundaries, never the drag target) into a
+  diagonal "…", keeping `KEEP_IN` naturals beside each boundary. The gap is
+  expressed as dummy slots in `allOffsets` so the index-based renderer
+  (`x = startX + (idx-1)*noteWidth`) draws it for free; `colMidi` maps x→pitch
+  across the gap. `MAX_NOTE_WIDTH` caps spacing so a small window isn't sparse.
+- **Interaction:** the whole hit band is a `<polygon>` with pointer-capture; a tap
+  or drag sets the nearest boundary (white-key snap) via `setMelodicBoundary` →
+  `applyRangeBoundary`. The layout is frozen in `dragRef` during a drag so notes
+  don't jump; `onUp` calls `forceReanchor()` (a `useReducer` bump) so the window
+  re-anchors and 3 fresh context notes reappear each side.
+- **Hit zones meet exactly:** each staff's zone has a HORIZONTAL outer edge at the
+  topmost/bottommost note ± `BAND_COVER` (covers the 8va/8vb markers) and a shared
+  diagonal `divider` (midpoint of the two note rows) as the inner edge, so the
+  treble and bass zones touch without overlapping.
+- **Coloring:** in-band (selected) notes follow the live note coloring — grouped
+  by `noteUtils.melodicNoteColor` and rendered via per-color `previewMode` layers.
+  Boundary notes stay `--accent-yellow` (drag handles); out-of-band `--text-dim`.
+- **Presets:** bracket-only (no text), nested `]` shapes in the reserved right
+  margin (`PRESET_AREA_WIDTH`); active one highlighted. Percussion shows every kit
+  pad as its own per-pad hit box (biased toward the stem so it covers it) and
+  BASIC/STANDARD/FULL preset brackets that toggle `enabledPads`.
+- In rangeEditMode the repeat barlines + `RepeatsControls` are suppressed and a
+  plain `mode="regular"`, `numRepeats=1` `BarlinesLayer` is rendered. The earlier
+  HTML scaffold (`RangeOverlay.jsx`) was retired (D4).
+
+**Keyboard variant — `KeyboardRangeSetter.jsx`** (TabView swaps it in for the
+playable `PianoView` in rangeEditMode, on the treble/active piano tab AND the bass
+`keys-bottom` tab — one component per keyboard). A **split layout**, top→bottom:
+1. Preset brackets (`⊓`, no text, consistent with the sheet brackets), aligned to
+   the selector's white-key grid.
+2. A COMPACT windowed **selector** keyboard (a small `PianoView` over
+   `windowNaturals`), sized so each white key is ≈ `KEY_PX` (20px) — the key count
+   adapts to the panel width via a `ResizeObserver`. A band + edge handles mark the
+   selection; an SVG overlay (`viewBox="0 0 nWhite 100"`, 1 unit/white key) owns
+   the pointer interaction (x → white-key index via its bounding rect). Same
+   freeze-during-drag + re-anchor-on-release as the sheet.
+3. The REAL playable keyboard limited to the selected min–max (shows & plays the
+   actual keys).
+
+**Invariants.** Both surfaces bind to the same range state and write via
+`applyRangeBoundary` only — never re-implement the clamp/preset rules. The window
+is the only thing that defines "how far you can drag in one grab"; never re-add a
+fixed ±octave extent. Boundaries snap to naturals (white keys) on both surfaces.
+
+**Still open / parked:** dual-surface live sync + enter/exit morph (principles
+3–4) are not built yet — the two surfaces are bound to the same state but don't
+animate into each other; keyboard ellipsis for very narrow windows; black-key
+boundary precision; percussion keyboard setter; preset-bracket alignment on the
+keyboard is approximate (clamps/hides presets outside the window). The legacy
+stepper `RangeControls` is still used in settings-only mode (not range-edit).
+
+**Files:** `overlays/RangeStaffOverlay.jsx` (+ smoke test), `overlays/
+SettingsOverlay.jsx`, `controls/KeyboardRangeSetter.jsx` (+ `styles/
+KeyboardRangeSetter.css`), `renderMelodyNotes.jsx` (exports `noteYMap`,
+`getNoteAbsoluteY`, `percussionStemUp`, …), `SheetMusic.jsx` (`rangeEditMode` +
+overlay render + staff keep-alive + coloring props), `theory/noteUtils.js`
+(`melodicNoteColor`), `utils/rangeUtils.js` (`naturalsInRange`, `windowNaturals`,
+`applyRangeBoundary`, `clampRange` — with tests), `controls/RangeControls.jsx`
+(reuses `rangeUtils`), `layout/TabView.jsx` (swaps in `KeyboardRangeSetter`),
+`App.jsx` (`rangeEditMode` state + playback wiring).
 
