@@ -198,6 +198,17 @@ Edge case: ellips nodig. ⚠ Raakt het rAF/animatie-systeem (CLAUDE.md §6-invar
 opacity via `element.style`, geen `setTimeout`-gedreven state). Interview + ontwerp nodig.
 - ❓ Mode-indicator "◆ RANGE SELECTOR" op de bladmuziek: laten staan of weg?
 
+[Claude 2026-05-31]: ✅ **Gebouwd** (bladmuziek-overlay). Beslissingen uit interview:
+bladmuziek-only · alle gedragingen ineens · alle 4 richtingen · **0,25 s/noot constant,
+geketend** (niet 1 s — "hoe verder hoe sneller" = de ketting, niet kortere duur per
+noot). De gele grensnoot blijft ~op z'n plek; per stap schuift de rij bij en swipet
+er één gedimde context-noot in/uit; 8va animeert mee (zit in de geanimeerde body-groep).
+Tik = burst naar doel (loopt door na loslaten); ingedrukt = blijven doorschuiven naar
+buiten tot loslaten (loslaten = direct stop); slepen (>8u) = live volgen (oud gedrag).
+Ellips/preset/sleep-sprongen = directe snap (geen tussenstap-animatie). `rangeSlide.js`
+(pure, getest) + `RangeStaffOverlay.jsx`. Zie architecture §37.1. Geparkeerd: zelfde
+animatie op de keyboard-setter; in/uit-morph bij openen/sluiten.
+
 ---
 
 

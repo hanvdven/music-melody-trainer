@@ -2226,12 +2226,38 @@ playable `PianoView` in rangeEditMode, on the treble/active piano tab AND the ba
 is the only thing that defines "how far you can drag in one grab"; never re-add a
 fixed ±octave extent. Boundaries snap to naturals (white keys) on both surfaces.
 
+**Boundary slide animation (sheet, Han 2026-05-31).** Moving a melodic boundary
+no longer jumps — it *slides*. The yellow boundary note stays roughly in place
+while the row rebalances and a fresh context note swipes in/out at the far edge;
+8va/8vb ride along (they live inside the animated body group). Pure step logic in
+`overlays/rangeSlide.js` (+ test); driven from `RangeStaffOverlay.jsx`.
+- **Stepper** (replaces the instant `forceReanchor` snap): a press starts a
+  cadence of one natural per `STEP_MS` (250 ms) toward the pressed column
+  (`nextNaturalToward`). A **tap** fires a burst that finishes even after release;
+  **press-and-hold** keeps extending the boundary OUTWARD (`nextNaturalInDir`)
+  until release (release = stop now). Moving past `DRAG_THRESHOLD` (8 SVG units)
+  promotes to the existing live **drag** (layout freezes, follows the finger,
+  re-anchors on release). All writes still go through the shared
+  `setMelodicBoundary` → `clampRange` path (§6c). 250 ms cadence + 250 ms tween =
+  back-to-back chain, no pause ("faster when further" = the chain, not a shorter
+  per-note duration).
+- **Slide** (`classifyStep` + a `useLayoutEffect` rAF tween): each render compares
+  the window extent `{loIdx,hiIdx}` to the remembered one. A clean ±1 change →
+  `enter` (one context note revealed) or `leave` (one hidden), opposite side
+  `anchor`ed; anything else (presets, drag-release jumps, collapsed-ellipsis
+  layouts) → instant snap. On a step the body `<g>` scales `prevWidth/newWidth → 1`
+  about the anchored edge while the single edge note translates ±`noteWidth` and
+  fades. **All transform/opacity is set via `element.setAttribute`/`element.style`
+  in the rAF callback, never JSX props (§6).** Timers + rAF cancel on unmount;
+  the committed `{min,max}` is identical to the old instant path at every step.
+
 **Still open / parked:** dual-surface live sync + enter/exit morph (principles
 3–4) are not built yet — the two surfaces are bound to the same state but don't
-animate into each other; keyboard ellipsis for very narrow windows; black-key
-boundary precision; percussion keyboard setter; preset-bracket alignment on the
-keyboard is approximate (clamps/hides presets outside the window). The legacy
-stepper `RangeControls` is still used in settings-only mode (not range-edit).
+animate into each other; the same slide animation on the keyboard setter; keyboard
+ellipsis for very narrow windows; black-key boundary precision; percussion keyboard
+setter; preset-bracket alignment on the keyboard is approximate (clamps/hides
+presets outside the window). The legacy stepper `RangeControls` is still used in
+settings-only mode (not range-edit).
 
 **Files:** `overlays/RangeStaffOverlay.jsx` (+ smoke test), `overlays/
 SettingsOverlay.jsx`, `controls/KeyboardRangeSetter.jsx` (+ `styles/
