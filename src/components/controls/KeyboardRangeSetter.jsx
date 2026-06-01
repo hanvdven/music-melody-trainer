@@ -28,41 +28,64 @@ const nearestIdx = (win, midi) => {
 };
 
 // Preset-bracket legend geometry. Six brackets total (G-clef STD/LARGE/FULL +
-// F-clef STD/LARGE/FULL), grouped into two vertical bands: treble band on top
-// (higher pitch), bass band below — so the bracket's VERTICAL position conveys
-// the clef (this replaces the old separate clef-switch row), while its
-// HORIZONTAL extent stays aligned to the real key positions.
-const PRESET_ROW_H = 15, PRESET_PAD = 5;
+// F-clef STD/LARGE/FULL). To save vertical space (Han 2026-06-01) the brackets
+// share THREE rows by SIZE (FULL on top, then LARGE, then STANDARD) — both clefs'
+// same-size brackets sit on one row. On each row the CURRENT clef's bracket is
+// the "front" (highlighted, drawn last); the other clef's is "behind" (dimmed,
+// drawn first). Where the behind bracket would overlap the front one it is
+// INTERRUPTED just before the overlap and an "…" is drawn, so it reads as passing
+// behind. Horizontal extent stays aligned to the real key positions.
+const PRESET_ROW_H = 16, PRESET_PAD = 5;
 export const PRESET_TICK = 9;
-const SIZE_RANK = { FULL: 0, LARGE: 1, STANDARD: 2 };   // big-on-top within a clef band
-const NUM_PRESET_ROWS = 6;                              // 3 sizes × 2 clefs
+const SIZE_RANK = { FULL: 0, LARGE: 1, STANDARD: 2 };   // big-on-top
+const NUM_PRESET_ROWS = 3;                              // 3 sizes (clefs share rows)
+const OVERLAP_GAP = 0.6;                                // white-key gap left for the "…"
 
 // One ⊓ bracket per preset, ALIGNED to the selector's white-key grid (x in
-// white-key-index units, 0..win.length) and scaling with it. Each preset carries
-// its `clef` ('treble'|'bass'); the clef picks the vertical BAND (treble rows
-// 0–2, bass rows 3–5) and the size picks the row within it (FULL on top). A
-// preset entirely outside the current window is dropped; partial ones clamp to
-// the edge (so brackets can fall partly out of view when the window is centred on
-// the OTHER clef — Han 2026-05-31). Pure + tested.
+// white-key-index units). A preset entirely outside the current window is
+// dropped; partial ones clamp to the edge (so brackets can fall partly out of
+// view when the window is centred elsewhere). Returns BEHIND brackets first then
+// FRONT, so painting in array order layers them correctly. The behind bracket of
+// each row is truncated + given an `ellipsisX` where it meets the front bracket.
+// Pure + tested.
 export const buildPresetBracketRows = (presets, selRange, selClef, win) => {
     if (!win?.length) return [];
     const loMidi = win[0].midi, hiMidi = win[win.length - 1].midi;
-    return presets
-        .map(p => ({ p, lo: getNoteValue(p.min), hi: getNoteValue(p.max) }))
-        .filter(({ lo, hi }) => hi >= loMidi && lo <= hiMidi)   // drop fully-outside
-        .map(({ p, lo, hi }) => {
-            const band = p.clef === 'treble' ? 0 : 3;           // treble band on top
-            const row = band + (SIZE_RANK[p.label] ?? 0);
-            return {
-                p,
-                x0: nearestIdx(win, lo),
-                x1: nearestIdx(win, hi) + 1,
-                yTop: PRESET_PAD + row * PRESET_ROW_H,
-                // Active = this exact preset of the staff's CURRENT clef is selected.
-                isActive: p.clef === selClef && selRange?.min === p.min && selRange?.max === p.max,
-                isCurrentClef: p.clef === selClef,
-            };
-        });
+    const clampX = (idx) => Math.max(0, Math.min(win.length, idx));
+    const geom = (p) => {
+        const lo = getNoteValue(p.min), hi = getNoteValue(p.max);
+        if (hi < loMidi || lo > hiMidi) return null;            // fully outside
+        return {
+            p,
+            x0: clampX(nearestIdx(win, lo)),
+            x1: clampX(nearestIdx(win, hi) + 1),
+            yTop: PRESET_PAD + (SIZE_RANK[p.label] ?? 0) * PRESET_ROW_H,
+            isActive: p.clef === selClef && selRange?.min === p.min && selRange?.max === p.max,
+            isCurrentClef: p.clef === selClef,
+            ellipsisX: null,
+        };
+    };
+
+    const out = [];
+    ['FULL', 'LARGE', 'STANDARD'].forEach((label) => {
+        const front = geom(presets.find(p => p.label === label && p.clef === selClef));
+        const otherClef = selClef === 'treble' ? 'bass' : 'treble';
+        const behind = geom(presets.find(p => p.label === label && p.clef === otherClef));
+        if (behind && front) {
+            // Truncate the behind bracket just before it overlaps the front one and
+            // mark the cut with an "…". Treble sits to the RIGHT (higher), bass LEFT.
+            if (selClef === 'treble' && behind.x1 > front.x0 - OVERLAP_GAP) {
+                behind.x1 = Math.max(behind.x0, front.x0 - OVERLAP_GAP);
+                behind.ellipsisX = behind.x1 + OVERLAP_GAP / 2;
+            } else if (selClef === 'bass' && behind.x0 < front.x1 + OVERLAP_GAP) {
+                behind.x0 = Math.min(behind.x1, front.x1 + OVERLAP_GAP);
+                behind.ellipsisX = behind.x0 - OVERLAP_GAP / 2;
+            }
+        }
+        if (behind && behind.x1 > behind.x0) out.push(behind);   // behind first (under)
+        if (front) out.push(front);                              // front last (on top)
+    });
+    return out;
 };
 export const presetViewHeight = () => PRESET_PAD * 2 + NUM_PRESET_ROWS * PRESET_ROW_H;
 
@@ -102,16 +125,17 @@ const KeyboardRangeSetter = ({
     // rangeMode label stays meaningful for the clef being edited).
     const clefPresets = presets.filter(p => p.clef === selClef);
 
-    // Width-adaptive symmetric window: aim for ~KEY_PX per white key. The window
-    // is CENTRED ON THE ACTIVE CLEF'S home note (B4 treble / D3 bass) rather than
-    // on the selection, so the six clef-grouped brackets sit at stable, readable
-    // key positions; brackets for the other clef may fall partly/fully out of view
-    // (Han 2026-05-31). During a drag the frozen window is reused.
-    const CLEF_CENTER = selClef === 'treble' ? getNoteValue('B4') : getNoteValue('D3');
+    // Width-adaptive window: aim for ~KEY_PX per white key, so a wider panel shows
+    // MORE keys (responsive — Han 2026-06-01). The window is CENTRED ON THE
+    // SELECTION (Han corrected his earlier "centre on clef"): when you switch clef
+    // via a bracket the selection jumps to that clef's range, so the window slides
+    // to keep the selected notes central. The six clef-grouped brackets then align
+    // to whatever keys are on screen; off-clef brackets may fall out of view. The
+    // window holds CONTEXT naturals beyond each boundary, filling the target width.
     const targetKeys = Math.max(7, Math.floor((width || 300) / KEY_PX));
-    const halfSpan = Math.floor(targetKeys / 2);
-    const win = dragRef.current?.window
-        ?? windowNaturals(CLEF_CENTER, CLEF_CENTER, halfSpan);
+    const inBand = naturalsInRange(Math.min(selMin, selMax), Math.max(selMin, selMax)).length;
+    const context = Math.max(2, Math.ceil((targetKeys - inBand) / 2));
+    const win = dragRef.current?.window ?? windowNaturals(selMin, selMax, context);
     const nWhite = win.length;
     const minIdx = nearestIdx(win, selMin);
     const maxIdx = nearestIdx(win, selMax);
@@ -148,25 +172,28 @@ const KeyboardRangeSetter = ({
     };
     const onUp = () => { dragRef.current = null; forceReanchor(); };
 
-    // Six preset brackets — clef-grouped (treble band on top), aligned to the
-    // selector key grid; big-on-top within each band. See buildPresetBracketRows.
+    // Preset brackets — three shared rows by size (FULL/LARGE/STANDARD); on each
+    // row the current clef's bracket is "front" (highlighted), the other clef's
+    // "behind" (dimmed, interrupted with "…" at the overlap). buildPresetBracketRows
+    // returns behind-then-front so paint order layers them. See that helper.
     const bracketRows = buildPresetBracketRows(presets, range, selClef, win);
     const presetViewH = presetViewHeight();
 
     return (
         <div className="kbd-range-setter" data-settings-keepalive="" ref={wrapRef}>
-            {/* 1. Six preset brackets, clef-grouped (treble band on top, bass below).
-                Each bracket spans its preset's real key positions and, when tapped,
-                sets BOTH the clef and the range on this staff. The current clef's
-                band is drawn brighter; the other clef's brackets are dimmer (they
-                also drive a clef switch on tap). Replaces the old clef-switch row. */}
+            {/* 1. Preset brackets: 3 rows by size, both clefs sharing each row. The
+                current clef's bracket is highlighted (front); the other clef's is
+                dimmed and passes "behind", interrupted by "…" at the overlap. Tapping
+                any bracket sets BOTH the clef and the range on this staff. Selecting
+                the other clef swaps which set is front/highlighted. */}
             <div className="kbd-range-presets-row">
                 <svg viewBox={`0 0 ${nWhite} ${presetViewH}`} preserveAspectRatio="none"
                     style={{ width: '100%', height: '100%', display: 'block' }}>
-                    {bracketRows.map(({ p, x0, x1, isActive, isCurrentClef, yTop }) => {
-                        const color = isActive ? 'var(--accent-yellow)' : 'var(--text-dim)';
-                        // Off-clef brackets sit faded so the active clef's three read first.
-                        const groupOpacity = isCurrentClef ? 1 : 0.45;
+                    {bracketRows.map(({ p, x0, x1, isActive, isCurrentClef, yTop, ellipsisX }) => {
+                        const color = isActive ? 'var(--accent-yellow)'
+                            : (isCurrentClef ? 'var(--text-primary)' : 'var(--text-dim)');
+                        // Behind (off-clef) brackets sit faded so the front three read first.
+                        const groupOpacity = isCurrentClef ? 1 : 0.5;
                         return (
                             <g key={`${p.clef}-${p.label}`} style={{ cursor: 'pointer', opacity: groupOpacity }}
                                 onClick={() => applyPreset(p)}>
@@ -175,6 +202,11 @@ const KeyboardRangeSetter = ({
                                 <path d={`M ${x0} ${yTop + PRESET_TICK} V ${yTop} H ${x1} V ${yTop + PRESET_TICK}`}
                                     fill="none" stroke={color} strokeWidth={isActive ? 2 : 1.2}
                                     vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
+                                {/* "…" where a behind bracket is cut off by the front one. */}
+                                {ellipsisX != null && (
+                                    <text x={ellipsisX} y={yTop + 2} fontSize={6} fill={color}
+                                        textAnchor="middle" style={{ pointerEvents: 'none' }}>…</text>
+                                )}
                                 {debugMode && (
                                     <rect x={x0 - 0.3} y={yTop - 2} width={(x1 - x0) + 0.6} height={PRESET_ROW_H}
                                         fill="orange" fillOpacity={0.2} stroke="orange" strokeWidth={0.3}

@@ -235,7 +235,9 @@ export const PERCUSSION_DISPLAY_ORDER = PERCUSSION_DISPLAY_FAMILIES.flat();
  */
 export const PERCUSSION_PRESETS = {
     BASIC: ['k', 's', 'hh'],
-    STANDARD: ['k', 's', 'hh', 'cc', 'cr', 'tl'],
+    // Han 2026-06-01: open hi-hat (ho) added to the middle preset (Han calls it
+    // "large"; percussion's middle tier is STANDARD).
+    STANDARD: ['k', 's', 'hh', 'ho', 'cc', 'cr', 'tl'],
     FULL: PERCUSSION_DISPLAY_ORDER,
 };
 

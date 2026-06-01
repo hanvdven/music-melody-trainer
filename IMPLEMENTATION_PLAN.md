@@ -11,6 +11,52 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ## Range Selector (in-SVG, RANGE mode)
 
+### ✅ Feedback batch (Han 2026-06-01) — done this round
+A ✅ Slide tween now LINEAR (constant velocity) → a burst glides instead of pulsing.
+B ✅ Hold-extend fixed: advance `target` with `live` while extending so it keeps
+   going outward instead of wobbling back.
+C ✅ 8va bug: row now renders as ONE MelodyNotesLayer with a per-note color
+   override (`previewColorFn`) → ottava computed once (§6b). New renderer prop
+   threaded through MelodyNotesLayer.
+D ✅ Keyboard responsive again: window key count is width-adaptive (ResizeObserver)
+   instead of a fixed half-span.
+E ✅ Window centres on the SELECTION again (Han corrected his earlier note) → clef
+   switch slides the window so selected notes stay central.
+F ✅ Bass-clef bracket highlights identically (active = yellow regardless of clef).
+G ✅ Brackets compressed to 3 shared rows (FULL/LARGE/STANDARD); current clef front
+   (bright), other clef behind (dim) + interrupted with "…" at the overlap; clef
+   select swaps front/behind. `buildPresetBracketRows` reworked + test (7 cases).
+H ✅ Percussion deselect via lowlight COLOUR (var(--text-lowlight)) not opacity, so
+   ghost/rim/open-hihat glyphs stay crisp. DrumPad board left as-is (visual only).
+- ✅ CR: open hi-hat (ho) added to STANDARD percussion preset.
+- ✅ CR: cowbell notehead → triangle (Ñ).
+- ✅ CR: snare-rim notehead → snare head + diagonal slash overlay.
+- Also fixed a latent rules-of-hooks bug (useLayoutEffect after early return).
+- 190 tests green; build + lint clean.
+
+### (orig request) Feedback batch (Han 2026-06-01)
+A. **Animation smoothness**: 1 click on an extreme note reads as a chain of
+   discrete shifts. Make it flow (continuous, no per-step start/stop pause).
+B. **Hold on extreme**: currently notes wobble back-and-forth instead of keep
+   extending the range outward (new notes sliding in). Fix the hold-extend.
+C. **8va still per-group** (see screenshot): the colored layers each compute their
+   own ottava bracket → multiple 8vb. Bug §6b — render ottava once over the row.
+D. **Keyboard not responsive**: widening the panel should add keys (regressed when
+   I centred on a fixed half-span). Restore ResizeObserver-driven key count.
+E. **Clef switch → window should slide so the SELECTED notes are centred** (Han
+   corrects his earlier "centre on clef" — centre on selection).
+F. **Top-keyboard bass-clef preset not yellow** when selected: bass brackets must
+   highlight/behave identically to treble brackets.
+G. **Bracket height compression**: align FULL/LARGE/STANDARD on shared heights
+   (3 rows, not 6). When treble active, just before the overlap (~A4,C5,C5)
+   interrupt the bass bracket with "…". Off-clef dimmed; on selecting bass clef,
+   SWAP highlight: bass brackets highlighted, treble brackets drawn "behind".
+H. **Percussion deselect = colour, not opacity**: ghost/rim/open-hihat unclear if
+   selected because opacity dims the glyph. Use lowlight COLOUR (grey), not opacity.
+- CR: add **hi-hat open (ho)** to LARGE percussion preset.
+- CR: **cowbell (cb)** notehead = triangle (not cross).
+- CR: **snare rim (sr)** notehead = snare head with a diagonal slash through it.
+
 ### ✅ Keyboard preset brackets = 6 clef+range presets (Han 2026-05-31)
 Six brackets (G-clef STD/LARGE/FULL + F-clef STD/LARGE/FULL), clef-grouped
 (treble band on top), x-aligned to real key positions (larges overlap). Tap sets

@@ -669,7 +669,12 @@ class Sequencer {
           (acc, f) => acc + (f?.hold > 0 ? f.hold : 0), 0
         );
         if (totalIterationFermataHold > 0) {
-          nextStartTime += totalIterationFermataHold * timeFactor;
+          // `timeFactor` from the m===0 block above is out of scope here (it lives
+          // in the per-measure loop body); recompute it from the same bpm ref using
+          // the canonical 5/bpm seconds-per-tick convention used throughout. Without
+          // this the line threw a ReferenceError whenever a fermata song repeated.
+          const iterTimeFactor = 5 / this.refs.bpmRef.current;
+          nextStartTime += totalIterationFermataHold * iterTimeFactor;
         }
 
         iteration++;
