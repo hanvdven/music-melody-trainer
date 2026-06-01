@@ -61,51 +61,9 @@ const CLEF_VOCAL_RANGES = [
   { label: 'Mezzo-soprano', min: 'A3', max: 'G5', clef: 'mezzo-soprano' },
   { label: 'Soprano',       min: 'C4', max: 'G6', clef: 'soprano' },
 ];
-// Ordered top-to-bottom: treble options, then bass, then vocals (Soprano first)
-const CLEF_RANGE_OPTIONS = [
-  { label: 'TREBLE 8VA',      value: 'TREBLE_RELATIVE',     clefType: 'g' },
-  { label: 'TREBLE 15MA',     value: 'TREBLE_RELATIVE_15A', clefType: 'g' },
-  { label: 'TREBLE FULL',     value: 'FULL_TREBLE',         clefType: 'g' },
-  { label: 'TREBLE LARGE',    value: 'LARGE_TREBLE',        clefType: 'g' },
-  { label: 'TREBLE STANDARD', value: 'STANDARD_TREBLE',     clefType: 'g' },
-  { label: 'BASS 8VB',        value: 'BASS_RELATIVE',       clefType: 'f' },
-  { label: 'BASS LOW',        value: 'BASS_RELATIVE_LOW',   clefType: 'f' },
-  { label: 'BASS FULL',       value: 'FULL_BASS',           clefType: 'f' },
-  { label: 'BASS LARGE',      value: 'LARGE_BASS',          clefType: 'f' },
-  { label: 'BASS STANDARD',   value: 'STANDARD_BASS',       clefType: 'f' },
-  ...([...CLEF_VOCAL_RANGES].reverse().map(v => ({
-    label: v.label.toUpperCase(), value: v.label, clefType: 'v',
-  }))),
-];
-
-/** Apply a range-option value (matching CLEF_RANGE_OPTIONS) to an InstrumentSettings setter. */
-const applyRangeOption = (val, setter) => {
-  if (val === 'TREBLE_RELATIVE')     return setter(p => ({ ...p, rangeMode: 'relative',     preferredClef: 'treble' }));
-  if (val === 'TREBLE_RELATIVE_15A') return setter(p => ({ ...p, rangeMode: 'relative_15a', preferredClef: 'treble' }));
-  if (val === 'BASS_RELATIVE')       return setter(p => ({ ...p, rangeMode: 'relative',     preferredClef: 'bass'   }));
-  if (val === 'BASS_RELATIVE_LOW')   return setter(p => ({ ...p, rangeMode: 'relative_low', preferredClef: 'bass'   }));
-  if (val.includes('_')) {
-    const parts  = val.split('_');
-    const clef   = parts[parts.length - 1].toLowerCase(); // 'treble' | 'bass'
-    const mode   = parts.slice(0, -1).join('_');
-    const preset = CLEF_RANGE_PRESET_RANGES[mode]?.[clef];
-    if (preset) setter(p => ({ ...p, rangeMode: mode, range: preset, preferredClef: clef }));
-    return;
-  }
-  const vocal = CLEF_VOCAL_RANGES.find(v => v.label === val);
-  if (vocal) setter(p => ({ ...p, range: { min: vocal.min, max: vocal.max }, preferredClef: vocal.clef, rangeMode: vocal.label }));
-};
-
-/** Map current settings back to the matching CLEF_RANGE_OPTIONS value for selection highlight. */
-const getCurrentRangeValue = (settings, activeClef) => {
-  const mode = settings?.rangeMode;
-  const pref = settings?.preferredClef || activeClef;
-  if (mode === 'relative')     return pref === 'bass' ? 'BASS_RELATIVE'       : 'TREBLE_RELATIVE';
-  if (mode === 'relative_15a') return 'TREBLE_RELATIVE_15A';
-  if (mode === 'relative_low') return 'BASS_RELATIVE_LOW';
-  if (['STANDARD', 'LARGE', 'FULL'].includes(mode)) return `${mode}_${pref.toUpperCase()}`;
-  return mode; // vocal label
-};
+// The old in-popup clef+range list (CLEF_RANGE_OPTIONS / applyRangeOption /
+// getCurrentRangeValue) was removed when clicking a clef started opening the
+// in-staff clef selector (Han 2026-06-01); see overlays/ClefStaffOverlay.jsx.
 
 // Set of vocal clef strings (module scope; mirrors the per-instance set used by
 // calculateOptimalClef).
@@ -223,6 +181,7 @@ const SheetMusic = ({
   onToggleSettings,
   onCloseRangeEdit,
   onCloseClefEdit,
+  onOpenClefEdit,
   onSettingsInteraction,
   viewMode,    // 'melody' | 'repeat' — see viewMode prop in App.jsx for the source-of-truth computation
   numMeasures, // Added prop
@@ -299,7 +258,11 @@ const SheetMusic = ({
   const togglePad = React.useCallback((padId) => {
     setPercussionSettings(prev => {
       const cur = Array.isArray(prev.enabledPads) ? prev.enabledPads : [];
-      const next = cur.includes(padId) ? cur.filter(p => p !== padId) : [...cur, padId];
+      const isOn = cur.includes(padId);
+      // Percussion must always keep ≥1 enabled pad (Han 2026-06-01): refuse to turn
+      // off the last remaining one (a tap on the sole active pad is a no-op).
+      if (isOn && cur.length <= 1) return prev;
+      const next = isOn ? cur.filter(p => p !== padId) : [...cur, padId];
       return { ...prev, enabledPads: next };
     });
   }, [setPercussionSettings]);
@@ -351,7 +314,9 @@ const SheetMusic = ({
   // When the user taps to cycle clef, setTrebleSettings/setBassSettings updates preferredClef
   // and these values follow in the same React render (React 18 automatic batching).
   const trebleActiveClef = trebleSettings?.preferredClef ?? 'treble';
-  const bassActiveClef = ACTIVE_CLEF_TYPES.includes(bassSettings?.preferredClef)
+  // 'off' (disabled staff) is allowed through for both staves alongside the
+  // ACTIVE_CLEF_TYPES; the bass staff otherwise defaults to 'bass'.
+  const bassActiveClef = (bassSettings?.preferredClef === 'off' || ACTIVE_CLEF_TYPES.includes(bassSettings?.preferredClef))
     ? bassSettings.preferredClef
     : 'bass';
 
@@ -531,6 +496,9 @@ const SheetMusic = ({
   const VOCAL_RANGE_MODES = new Set(['Bass', 'Baritone', 'Tenor', 'Alto', 'Mezzo-soprano', 'Soprano']);
 
   const calculateOptimalClef = (activeClef, melodyNotes, staff = 'treble', rangeMode = null) => {
+    // 'off' = disabled staff (Han 2026-06-01): never compute an ottava/optimal clef
+    // for it; the sentinel flows through so the render can grey it out / show a cross.
+    if (activeClef === 'off') return 'off';
     // Vocal clefs never use ottava markings — range selection already constrains their register.
     if (VOCAL_CLEF_TYPES.has(activeClef) || VOCAL_RANGE_MODES.has(rangeMode)) return activeClef;
 
@@ -598,7 +566,6 @@ const SheetMusic = ({
 
   // 'treble' | 'bass' | null — which staff's picker is open
   const [transPicker, setTransPicker] = useState(null);  // transposition key picker
-  const [clefPicker,  setClefPicker]  = useState(null);  // clef + range picker
   const [tempoPicker, setTempoPicker] = useState(false); // tempo word picker
 
   const longPress = useLongPressTimer();
@@ -611,40 +578,9 @@ const SheetMusic = ({
     onSettingsInteraction?.();
   };
 
-  // Short tap → cycle clef; long press OR 3rd consecutive short tap → open clef+range list.
-  const clefLongPress = useLongPressTimer();
-  const clefTapCountRef = useRef({ treble: 0, bass: 0 });
-  const clefTapTimerRef = useRef({ treble: null, bass: null });
-
-  const handleClefTap = (staff) => {
-    openSettingsIfClosed();
-    const count = (clefTapCountRef.current[staff] || 0) + 1;
-    clefTapCountRef.current[staff] = count;
-    clearTimeout(clefTapTimerRef.current[staff]);
-
-    if (count >= 3) {
-      // 3rd consecutive tap → open list
-      clefTapCountRef.current[staff] = 0;
-      setClefPicker(prev => prev === staff ? null : staff);
-      return;
-    }
-
-    // 1st or 2nd tap → cycle clef after a short debounce (in case a 3rd tap follows)
-    clefTapTimerRef.current[staff] = setTimeout(() => {
-      clefTapCountRef.current[staff] = 0;
-      const isT = staff === 'treble';
-      const activeClef = isT ? trebleActiveClef : bassActiveClef;
-      const idx = ACTIVE_CLEF_TYPES.indexOf(activeClef);
-      const nextClef = ACTIVE_CLEF_TYPES[(idx + 1) % ACTIVE_CLEF_TYPES.length];
-      const setter = isT ? setTrebleSettings : setBassSettings;
-      if (setter) {
-        const defMin = nextClef === 'bass' ? (isT ? 'A2' : 'E2') : (nextClef === 'alto' ? 'F3' : 'C4');
-        const defMax = nextClef === 'bass' ? (isT ? 'C4' : 'E4') : (nextClef === 'alto' ? 'C5' : 'E5');
-        const rMode  = nextClef === 'alto' ? 'Alto' : 'STANDARD';
-        setter(prev => ({ ...prev, preferredClef: nextClef, rangeMode: rMode, range: { min: defMin, max: defMax } }));
-      }
-    }, 300);
-  };
+  // Clicking a clef glyph OPENS the in-staff clef selector (Han 2026-06-01),
+  // replacing the old tap-cycle + 3-tap-popup behaviour.
+  const handleClefTap = () => { onOpenClefEdit?.(); };
 
   const handleTopLongPress = () => {
     // Reset timer before prompt to keep numeric display active
@@ -1599,42 +1535,6 @@ const SheetMusic = ({
     <div
       style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%', height: '100%', position: 'relative' }}
     >
-      {/* Clef + range picker — same visual style as GenericStepper's list popup.
-          Opens when the user clicks the clef symbol in the sheet music. */}
-      {clefPicker && (
-        <>
-          <div className="gs-popup-overlay" onClick={() => setClefPicker(null)} />
-          <div className="gs-popup" onClick={e => e.stopPropagation()}>
-            <div className="gs-popup-options">
-              {CLEF_RANGE_OPTIONS.map(opt => {
-                const activeSettings = clefPicker === 'treble' ? trebleSettings : bassSettings;
-                const activeClef     = clefPicker === 'treble' ? trebleActiveClef : bassActiveClef;
-                const current        = getCurrentRangeValue(activeSettings, activeClef);
-                const isSelected     = current === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    className={`gs-popup-option${isSelected ? ' selected' : ''}`}
-                    onClick={() => {
-                      const setter = clefPicker === 'treble' ? setTrebleSettings : setBassSettings;
-                      if (setter) applyRangeOption(opt.value, setter);
-                      setClefPicker(null);
-                    }}
-                  >
-                    <div className="gs-popup-option-icon">
-                      {/* Clef glyph using Maestro font — g=treble, f=bass, B=vocal */}
-                      <span style={{ fontFamily: 'Maestro', fontSize: '20px', lineHeight: 1 }}>
-                        {opt.clefType === 'g' ? '&' : opt.clefType === 'f' ? '?' : 'B'}
-                      </span>
-                    </div>
-                    <span>{opt.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Transposition instrument picker — same gs-popup style as clef picker.
           Opens when the user clicks the (B♭ inst) label above the staff.
@@ -1892,25 +1792,13 @@ const SheetMusic = ({
                 {/* Always-active transparent hit rect for treble clef — intercepts clicks
                     regardless of showSettings, preventing accidental settings-close. */}
                 {debugMode && <rect x={5} y={-8} width={40} height={65} fill="blue" fillOpacity={0.4} stroke="blue" strokeWidth={1} />}
+                {/* Click opens the in-staff clef selector (Han 2026-06-01). */}
                 <rect
                   x={5} y={-8} width={40} height={65}
                   fill="transparent"
                   style={{ cursor: 'pointer' }}
-                  onMouseDown={() => clefLongPress.start(() => {
-                    clefTapCountRef.current.treble = 0;
-                    clearTimeout(clefTapTimerRef.current.treble);
-                    setClefPicker(prev => prev === 'treble' ? null : 'treble');
-                    onSettingsInteraction?.(10000);
-                  })}
-                  onMouseUp={(e) => { e.stopPropagation(); clefLongPress.end(e, () => handleClefTap('treble')); }}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseLeave={() => clefLongPress.cancel()}
-                  onTouchStart={() => clefLongPress.start(() => {
-                    clefTapCountRef.current.treble = 0;
-                    clearTimeout(clefTapTimerRef.current.treble);
-                    setClefPicker(prev => prev === 'treble' ? null : 'treble');
-                  })}
-                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); clefLongPress.end(e, () => handleClefTap('treble')); }}
+                  onClick={(e) => { e.stopPropagation(); handleClefTap('treble'); }}
+                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleClefTap('treble'); }}
                 />
                 {cfT.ottava && (
                   <text
@@ -1996,26 +1884,13 @@ const SheetMusic = ({
                 </text>
                 {/* Always-active transparent hit rect for bass clef */}
                 {debugMode && <rect x={5} y={5} width={35} height={30} fill="blue" fillOpacity={0.4} stroke="blue" strokeWidth={1} />}
+                {/* Click opens the in-staff clef selector (Han 2026-06-01). */}
                 <rect
                   x={5} y={5} width={35} height={30}
                   fill="transparent"
                   style={{ cursor: 'pointer' }}
-                  onMouseDown={() => clefLongPress.start(() => {
-                    clefTapCountRef.current.bass = 0;
-                    clearTimeout(clefTapTimerRef.current.bass);
-                    setClefPicker(prev => prev === 'bass' ? null : 'bass');
-                    onSettingsInteraction?.(10000);
-                  })}
-                  onMouseUp={(e) => { e.stopPropagation(); clefLongPress.end(e, () => handleClefTap('bass')); }}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseLeave={() => clefLongPress.cancel()}
-                  onTouchStart={() => clefLongPress.start(() => {
-                    clefTapCountRef.current.bass = 0;
-                    clearTimeout(clefTapTimerRef.current.bass);
-                    setClefPicker(prev => prev === 'bass' ? null : 'bass');
-                    onSettingsInteraction?.(10000);
-                  })}
-                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); clefLongPress.end(e, () => handleClefTap('bass')); }}
+                  onClick={(e) => { e.stopPropagation(); handleClefTap('bass'); }}
+                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleClefTap('bass'); }}
                 />
                 {cfB.ottava && (
                   <text

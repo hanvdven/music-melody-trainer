@@ -15,21 +15,32 @@
 
 import { TRANSPOSING_INSTRUMENTS } from '../../../constants/transposingInstruments';
 
-// The three families, in carousel order. `clef` is the default concrete clef the
-// family resolves to when first selected.
+// The clef families, in carousel order. `clef` is the default concrete clef the
+// family resolves to when first selected. The 4th, 'off', is a DISABLE option: a
+// large cross that turns the staff off (Han 2026-06-01); it has no variants.
 export const CLEF_FAMILIES = [
     { id: 'g', label: 'Treble', clef: 'treble', glyph: '&' },
     { id: 'f', label: 'Bass', clef: 'bass', glyph: '?' },
     { id: 'vocal', label: 'Vocal', clef: 'alto', glyph: 'B' },
+    { id: 'off', label: 'Off', clef: 'off', glyph: '✕' },
 ];
 
-// Vocal clefs, low→high (used as the vocal family's variants).
+// Sentinel clef value meaning "this staff is disabled" (grey/hidden bar).
+export const CLEF_OFF = 'off';
+
+// Vocal voices, low→high (the vocal family's variants). Each carries the clef
+// string it notates in AND the glyph to draw, so the selector shows the real clef
+// (Han 2026-06-01: show clefs, not names). The vocal BASS/BARITONE notate in the
+// F-clef but are distinct VOICES from the instrumental bass clef (Han); the C-clef
+// voices (tenor/alto/mezzo/soprano) share the C-clef glyph at different staff
+// positions. `rangeMode` is the per-voice label the rest of the app already knows.
 export const VOCAL_VARIANTS = [
-    { clef: 'bass', label: 'Bass' },
-    { clef: 'tenor', label: 'Tenor' },
-    { clef: 'alto', label: 'Alto' },
-    { clef: 'mezzo-soprano', label: 'Mezzo' },
-    { clef: 'soprano', label: 'Soprano' },
+    { clef: 'bass', rangeMode: 'Bass', label: 'Bass', glyph: '?', glyphClef: 'f' },
+    { clef: 'bass', rangeMode: 'Baritone', label: 'Baritone', glyph: '?', glyphClef: 'f' },
+    { clef: 'tenor', rangeMode: 'Tenor', label: 'Tenor', glyph: 'B', glyphClef: 'c' },
+    { clef: 'alto', rangeMode: 'Alto', label: 'Alto', glyph: 'B', glyphClef: 'c' },
+    { clef: 'mezzo-soprano', rangeMode: 'Mezzo-soprano', label: 'Mezzo', glyph: 'B', glyphClef: 'c' },
+    { clef: 'soprano', rangeMode: 'Soprano', label: 'Soprano', glyph: 'B', glyphClef: 'c' },
 ];
 
 // Octave variants per melodic family. `rangeMode` mirrors the existing
@@ -50,6 +61,7 @@ export const OCTAVE_VARIANTS = {
 
 // Which family a concrete clef belongs to.
 export const familyOfClef = (clef) => {
+    if (clef === CLEF_OFF) return 'off';
     if (clef === 'treble') return 'g';
     if (clef === 'bass') return 'f';
     return 'vocal';   // alto/tenor/soprano/mezzo-soprano
@@ -76,8 +88,10 @@ export const carouselOrder = (currentFamilyId) => {
 
 // Settings patch for selecting a FAMILY (left carousel). Resolves to the family's
 // default clef and resets to the plain octave variant; keeps transpositionKey.
+// 'off' disables the staff (no rangeMode change needed).
 export const patchForFamily = (familyId) => {
     const fam = CLEF_FAMILIES.find(f => f.id === familyId) || CLEF_FAMILIES[0];
+    if (fam.id === 'off') return { preferredClef: CLEF_OFF };
     return { preferredClef: fam.clef, rangeMode: familyId === 'vocal' ? 'Alto' : 'STANDARD' };
 };
 
@@ -89,8 +103,16 @@ export const patchForOctave = (familyId, variantId) => {
     return { preferredClef: base, rangeMode: v.rangeMode ?? 'STANDARD' };
 };
 
-// Settings patch for selecting a VOCAL variant clef.
-export const patchForVocal = (clef) => ({ preferredClef: clef, rangeMode: 'Alto' });
+// Settings patch for selecting a VOCAL voice. `voice` is a VOCAL_VARIANTS entry
+// (or a clef string for back-compat). Sets the notating clef + the voice's
+// rangeMode so Bass vs Baritone (both F-clef) stay distinct.
+export const patchForVocal = (voice) => {
+    if (typeof voice === 'string') {
+        const v = VOCAL_VARIANTS.find(x => x.clef === voice) || { clef: voice, rangeMode: 'Alto' };
+        return { preferredClef: v.clef, rangeMode: v.rangeMode };
+    }
+    return { preferredClef: voice.clef, rangeMode: voice.rangeMode };
+};
 
 // Settings patch for a transposition chip.
 export const patchForTransposition = (key) => ({ transpositionKey: key || 'C' });

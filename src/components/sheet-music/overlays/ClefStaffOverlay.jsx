@@ -53,26 +53,39 @@ const ClefStaffOverlay = ({
         const transKey = settings?.transpositionKey || 'C';
 
         // ── Left: family carousel ────────────────────────────────────────────
-        // Glyphs laid out left→right; current (order[0]) bright, others lowlit.
-        // Each glyph is KEYED by family id and positioned via a CSS-transitioned
-        // transform, so when the order changes React keeps the same node and it
-        // SLIDES to its new slot (carousel L→R, Han 2026-06-01) instead of jumping.
-        const famSlotW = (splitX - startX) / 3;
+        // Show the current family (bright, leftmost) + the next 3 in carousel order
+        // lowlit (G/F/Vocal/Off — the cross 'Off' disables the staff). Each glyph is
+        // KEYED by family id and positioned via a CSS-transitioned transform, so when
+        // the order changes React keeps the same node and it SLIDES to its new slot
+        // (carousel L→R, Han 2026-06-01) instead of jumping.
+        const NUM_VISIBLE_FAMILIES = 4;
+        const famSlotW = (splitX - startX) / NUM_VISIBLE_FAMILIES;
         const familyGlyphs = order.map((fam, i) => {
             const isCurrent = i === 0;
             const cx = startX + famSlotW * (i + 0.5);
+            const isOff = fam.id === 'off';
             return (
                 <g key={fam.id} className="clef-family-glyph"
                     style={{ cursor: onApplyClefPatch ? 'pointer' : 'default', transform: `translateX(${cx}px)` }}
                     onClick={onApplyClefPatch ? () => onApplyClefPatch(staff, patchForFamily(fam.id)) : undefined}>
                     <rect x={-famSlotW / 2} y={staffStart - 14} width={famSlotW} height={48}
                         fill="transparent" />
-                    <text x={0} y={staffStart + 22} fontSize={FAMILY_GLYPH_SIZE} fontFamily="Maestro"
-                        textAnchor="middle"
-                        fill={isCurrent ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
-                        style={{ pointerEvents: 'none' }}>
-                        {fam.glyph}
-                    </text>
+                    {/* 'off' = a large cross (drawn as strokes, not a font glyph, so it
+                        reads clearly at any size); other families use their clef glyph. */}
+                    {isOff ? (
+                        <g stroke={isCurrent ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                            strokeWidth={2.4} strokeLinecap="round" style={{ pointerEvents: 'none' }}>
+                            <path d={`M -8 ${staffStart + 2} L 8 ${staffStart + 18}`} />
+                            <path d={`M 8 ${staffStart + 2} L -8 ${staffStart + 18}`} />
+                        </g>
+                    ) : (
+                        <text x={0} y={staffStart + 22} fontSize={FAMILY_GLYPH_SIZE} fontFamily="Maestro"
+                            textAnchor="middle"
+                            fill={isCurrent ? 'var(--accent-yellow)' : 'var(--text-lowlight)'}
+                            style={{ pointerEvents: 'none' }}>
+                            {fam.glyph}
+                        </text>
+                    )}
                     {debugMode && (
                         <rect x={-famSlotW / 2} y={staffStart - 14} width={famSlotW} height={48}
                             fill="orange" fillOpacity={0.18} stroke="orange" strokeWidth={0.5}
@@ -83,12 +96,19 @@ const ClefStaffOverlay = ({
         });
 
         // ── Right: variant chips ──────────────────────────────────────────────
+        // 'off' (disabled staff) has no variants.
+        const rangeMode = settings?.rangeMode;
         const chips = [];
-        if (famId === 'vocal') {
+        if (famId === 'off') {
+            // no chips
+        } else if (famId === 'vocal') {
+            // Show the actual clef GLYPH per voice (Han 2026-06-01: clefs, not names).
+            // Bass & Baritone share the F-clef glyph but are distinct voices, matched
+            // on rangeMode so the right one highlights.
             VOCAL_VARIANTS.forEach(v => chips.push({
-                key: `voc-${v.clef}`, label: v.label,
-                active: clef === v.clef,
-                onTap: () => onApplyClefPatch?.(staff, patchForVocal(v.clef)),
+                key: `voc-${v.rangeMode}`, glyph: v.glyph,
+                active: rangeMode === v.rangeMode,
+                onTap: () => onApplyClefPatch?.(staff, patchForVocal(v)),
             }));
         } else {
             // Octave variants first, then transposition chips, then the "…" full list.
@@ -121,11 +141,19 @@ const ClefStaffOverlay = ({
                     <rect x={x} y={y} width={CHIP_W} height={CHIP_H} rx={3}
                         fill="transparent" stroke={color} strokeWidth={c.active ? 1.6 : 0.8}
                         vectorEffect="non-scaling-stroke" />
-                    <text x={x + CHIP_W / 2} y={y + CHIP_H / 2 + 4} fontSize={10}
-                        fontFamily="Georgia, serif" textAnchor="middle" fill={color}
-                        style={{ pointerEvents: 'none' }}>
-                        {c.label}
-                    </text>
+                    {c.glyph ? (
+                        <text x={x + CHIP_W / 2} y={y + CHIP_H / 2 + 6} fontSize={20}
+                            fontFamily="Maestro" textAnchor="middle" fill={color}
+                            style={{ pointerEvents: 'none' }}>
+                            {c.glyph}
+                        </text>
+                    ) : (
+                        <text x={x + CHIP_W / 2} y={y + CHIP_H / 2 + 4} fontSize={10}
+                            fontFamily="Georgia, serif" textAnchor="middle" fill={color}
+                            style={{ pointerEvents: 'none' }}>
+                            {c.label}
+                        </text>
+                    )}
                 </g>
             );
         });

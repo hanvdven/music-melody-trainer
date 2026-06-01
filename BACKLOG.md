@@ -107,8 +107,39 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
   "…" die de volledige instrumentenlijst opent (hergebruikt de bestaande popup).
 - Sleutel (`preferredClef`) en instrument (`transpositionKey`) blijven **aparte
   velden**; pure logica + test in `clefSelector.js`. Hergebruikt de morph-animatie.
-- ⏳ Parked: de exacte gekozen variant-glyph helemaal links tonen (nu generieke
-  familie-glyph links; de gekozen variant blijkt uit de gehighlighte chip rechts).
+
+[Han 2026-06-01 — CR-batch op de clef-selector]:
+> klik op de sleutel opent de clef-selector; 4e sleutel = groot kruis dat de balk
+> uitschakelt (in andere modi grijs tonen, klikbaar); percussie: links perc/uit,
+> rechts ritme [[k,c],hh,[s,hh],hh]×2 als together/split-toggler (nu in settings);
+> zorg dat percussie altijd ≥1 noot heeft. Verder: carrousel helemaal links van
+> startX, maatsoort weg, sleutels op ware grootte + echt carrousel-gevoel (oude
+> sleutel mee naar links + uitfaden, nieuwe infaden van rechts); minimale tekst —
+> toon de volledige 8va/8vb/15vb/15mb sleutels; toon vioolsleutel-met-C-label en de
+> zang-sleutels als glyphs i.p.v. namen; vocal-bass ≠ bass clef; vocal-bariton mist.
+
+[Claude 2026-06-01]: ✅ gedaan deze ronde:
+- Klik op de sleutel in de bladmuziek opent nu de **clef-selector** (oude tap-cycle
+  + long-press-popup verwijderd; `onOpenClefEdit` → `App.handleOpenClefEdit`).
+- 4e familie = **groot kruis** (`CLEF_OFF`); `preferredClef:'off'` veilig door
+  `calculateOptimalClef`/`bassActiveClef` geleid (geen crash).
+- **≥1 percussie-noot** afgedwongen: `togglePad` weigert de laatste uit te zetten.
+- **Vocal voices** hersteld: **Bariton** toegevoegd; elke voice toont z'n **echte
+  clef-glyph** (F-clef voor Bass+Bariton, C-clef voor de rest); vocal-Bass ≠
+  instrumentele bassleutel (gematcht op `rangeMode`). Pure helpers + tests bijgewerkt.
+- ⏳ Volgende polish-ronde (zie §37.2 "next polish wave"): carrousel links van
+  startX + maatsoort weg + ware grootte + slide/fade-carrousel; octaafvarianten als
+  volledige ottava-clef-**glyphs**; uitgeschakelde balk grijs-maar-zichtbaar met
+  klikbaar kruis; percussie-clef-blok met mini-ritme-toggler.
+
+---
+
+### Range setter — vervolg-feedback (Han 2026-06-01) — ⏳ volgende ronde
+- **Bladmuziek**: bij weinig geselecteerde noten vullen ze niet de volle breedte;
+  verdeel de noten altijd netjes over de beschikbare ruimte (zie screenshot).
+- **Klavier**: bass kiezen op het top-keyboard → blokhaak wordt niet gehighlight /
+  wisselt niet van laag; "achter"-blokhaak oogt niet mooi; haakjes/ellipsen
+  overlappen. Gewenst beeld: `⌜- - - - - ... ⌜- - - - - - - ⌝`.
 
 ---
 
