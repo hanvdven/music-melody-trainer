@@ -370,9 +370,11 @@ const SheetMusic = ({
     (!trebleOff && (playbackConfig?.oddRounds?.trebleEye !== false || playbackConfig?.evenRounds?.trebleEye !== false));
   const isBassVisible = showSettings || rangeEditMode || clefEditMode ||
     (!bassOff && (playbackConfig?.oddRounds?.bassEye !== false || playbackConfig?.evenRounds?.bassEye !== false));
-  const isPercussionVisible = showSettings || rangeEditMode ||
-    (playbackConfig?.oddRounds?.percussionEye === true || playbackConfig?.evenRounds?.percussionEye === true ||
-      playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome');
+  // Percussion staff disabled via the clef selector's X (preferredClef==='off').
+  const percOff = percussionSettings?.preferredClef === 'off';
+  const isPercussionVisible = showSettings || rangeEditMode || clefEditMode ||
+    (!percOff && (playbackConfig?.oddRounds?.percussionEye === true || playbackConfig?.evenRounds?.percussionEye === true ||
+      playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome'));
 
   const numVisibleStaves = (isTrebleVisible ? 1 : 0) + (isBassVisible ? 1 : 0) + (isPercussionVisible ? 1 : 0);
   const numGaps = Math.max(1, numVisibleStaves - 1);
@@ -833,8 +835,8 @@ const SheetMusic = ({
     [trebleOff, EMPTY_MELODY, trebleMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
   const currentBass = useMemo(() => bassOff ? EMPTY_MELODY : sliceMelodyForPagination(bassMelody),
     [bassOff, EMPTY_MELODY, bassMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
-  const currentPercussion = useMemo(() => sliceMelodyForPagination(percussionMelody),
-    [percussionMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  const currentPercussion = useMemo(() => percOff ? EMPTY_MELODY : sliceMelodyForPagination(percussionMelody),
+    [percOff, EMPTY_MELODY, percussionMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
   const currentMetronome = useMemo(() => sliceMelodyForPagination(metronomeMelody),
     [metronomeMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
   const currentChordProgression = chordProgression; // ChordProgression is not a Melody — no slicing
@@ -2827,12 +2829,18 @@ const SheetMusic = ({
                       trebleSettings={trebleSettings}
                       bassSettings={bassSettings}
                       percussionVoiceSplit={percussionVoiceSplit}
+                      percussionDisabled={percOff}
+                      timeSignature={timeSignature}
+                      theme={theme}
                       onApplyClefPatch={(staff, patch) => {
                         const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
                         if (setter) setter(prev => ({ ...prev, ...patch }));
                       }}
                       onOpenInstrumentList={(staff) => setTransPicker(staff)}
                       onToggleVoiceSplit={() => setPercussionVoiceSplit?.(v => !v)}
+                      onTogglePercussionDisabled={() => setPercussionSettings(prev => ({
+                        ...prev, preferredClef: prev?.preferredClef === 'off' ? null : 'off',
+                      }))}
                       debugMode={debugMode}
                     />
                   )}

@@ -21,7 +21,8 @@ import { useRef, useState, useLayoutEffect } from 'react';
 export const MORPH_MS = 1500;
 const ELEM_MS = 1000;      // how long one element's slide lasts
 const STAGGER_MS = 500;    // delay between the first and last element starting
-const GROUP_FADE_MS = 700; // group-level fade for the non-note elements
+const GROUP_FADE_MS = 700; // group fade-IN for the non-note elements
+const FADE_OUT_MS = 250;   // OLD group fade-OUT — very short (Han 2026-06-01 #5)
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 // Subtle ease-in/ease-out so each element accelerates and decelerates rather than
@@ -89,8 +90,9 @@ export default function useRangeMorph(rangeEditMode, svgRef, flyDist) {
     const frame = (now) => {
       const t = now - t0;
       const p = Math.min(1, t / MORPH_MS);
-      // Subtle ease-in/out on the fades + slides (start/stop feel).
-      if (oldEl) oldEl.style.opacity = String(1 - easeInOut(p));
+      // Subtle ease-in/out on the fades + slides (start/stop feel). The OLD group
+      // fades out FAST (FADE_OUT_MS) so it's gone almost immediately.
+      if (oldEl) oldEl.style.opacity = String(1 - easeInOut(clamp01(t / FADE_OUT_MS)));
       if (newEl) {
         // Group fades in (covers clefs/lines/barlines — "fade in any other elements").
         newEl.style.opacity = String(easeInOut(clamp01(t / GROUP_FADE_MS)));

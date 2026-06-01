@@ -4,6 +4,9 @@ import {
     patchForFamily, patchForOctave, patchForVocal, patchForTransposition, transpositionChips,
 } from './clefSelector';
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
+import ClefCarousel from './ClefCarousel';
+import MelodyNotesLayer from '../MelodyNotesLayer';
+import { TICKS_PER_WHOLE } from '../../../constants/timing';
 
 /**
  * ClefStaffOverlay — in-SVG CLEF selector (Han 2026-06-01), sibling of
@@ -31,7 +34,21 @@ import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
 const CHIP_GAP = 6;                // gap between variant chips (SVG units)
 const CHIP_W = 34, CHIP_H = 18;    // variant chip box
 const FAMILY_GLYPH_SIZE = 36;      // clefs at ~true staff size (Han 2026-06-01)
-const FAMILY_SLOT_W = 26;          // horizontal step between carousel glyphs
+const FAMILY_SLOT_W = 36;          // horizontal step between carousel glyphs (Han #5: more space)
+const QUARTER = TICKS_PER_WHOLE / 4;
+const mkMelody = (entries) => ({
+    notes: entries.map(e => e.name),
+    offsets: entries.map(e => e.offset),
+    durations: entries.map(() => QUARTER),
+    ties: entries.map(() => null),
+    triplets: null, rhythmicGrouping: null,
+});
+const PERC_LAYER_PROPS = {
+    numAccidentals: 0, noteGroupSize: 1, measureLengthSlots: 9999, scaleNotes: [],
+    tonic: '', processedChords: [], inputTestState: null, pixelsPerTick: null,
+    startMeasureIndex: 0, transpositionSemitones: 0, debugMode: false, interactive: false,
+    courtesyAccidentals: false, percussionVoiceSplit: false, noteColoringMode: 'none',
+};
 
 const ClefStaffOverlay = ({
     startX, endX,
@@ -40,9 +57,12 @@ const ClefStaffOverlay = ({
     clefTreble, clefBass,
     trebleSettings, bassSettings,
     percussionVoiceSplit = false,
+    percussionDisabled = false,
+    timeSignature = [4, 4], theme,
     onApplyClefPatch,            // (staff, patch) => void
     onOpenInstrumentList,        // (staff) => void  (full transposing list)
     onToggleVoiceSplit,          // () => void  (percussion together↔split)
+    onTogglePercussionDisabled,  // () => void  (percussion clef on↔off)
     debugMode = false,
 }) => {
     if (startX == null || endX == null) return null;
@@ -51,7 +71,6 @@ const ClefStaffOverlay = ({
     // 2026-06-01): the current clef sits where the real clef glyph normally is
     // (~x=13) and neighbours peek/scroll to its right up to startX. Variant chips
     // occupy the staff body from startX onward.
-    const GUTTER_X = CLEF_GLYPH_X;     // current carousel glyph at the real clef pos
     const splitX = startX;
 
     // One staff block: family carousel (left) + variants (right).
@@ -60,36 +79,23 @@ const ClefStaffOverlay = ({
         const order = carouselOrder(famId);            // current first
         const transKey = settings?.transpositionKey || 'C';
 
-        // ── Left: family carousel (in the clef gutter, LEFT of startX) ───────
+        // ── Left: family carousel (a true loop carousel in the clef gutter) ───
         // The CURRENT family sits at the EXACT sheet clef position (CLEF_GLYPH_X) and
         // shows the EXACT clef glyph via ClefGlyph (reused from the sheet, incl.
-        // ottava + correct height). Neighbours step right by FAMILY_SLOT_W, filling
-        // the gutter all the way up to startX. Each glyph is KEYED by family id and
-        // positioned via a CSS-transitioned transform, so a family change SLIDES the
-        // carousel L→R; glyphs entering from the right slide in (no fade — Han
-        // 2026-06-01 #4). The current slot's symbol is the concrete current clef;
-        // neighbours use their family's default clef glyph.
-        const slotX = (i) => CLEF_GLYPH_X + i * FAMILY_SLOT_W;
-        const lastX = slotX(order.length - 1);
-        const familyGlyphs = order.map((fam, i) => {
-            const isCurrent = i === 0;
+        // ottava + correct height). ClefCarousel handles the loop animation: picking
+        // a glyph slides the strip left and re-enters glyphs from the right under a
+        // fade mask (Han 2026-06-01 #5). The current slot shows the concrete current
+        // clef; neighbours show their family default.
+        const clipId = `clef-gutter-clip-${staff}`;
+        const renderFamily = (fam, { isActive }) => {
             const isOff = fam.id === 'off';
-            const colr = isCurrent ? 'var(--accent-yellow)' : 'var(--text-lowlight)';
-            // current slot → the actual concrete clef symbol; others → family default.
-            const symbolKey = isCurrent ? variantToSymbolKey(clef) : fam.clef;
-            // baseY positions ClefGlyph on the staff: sheet uses 30 at staffYStart 0,
-            // so add staffStart. x is relative (group translated to slotX).
+            const colr = isActive ? 'var(--accent-yellow)' : 'var(--text-lowlight)';
+            const symbolKey = isActive ? variantToSymbolKey(clef) : fam.clef;
             return (
-                <g key={fam.id} className="clef-family-glyph"
-                    style={{
-                        cursor: onApplyClefPatch ? 'pointer' : 'default',
-                        transform: `translateX(${slotX(i)}px)`,
-                    }}
-                    onClick={onApplyClefPatch ? () => onApplyClefPatch(staff, patchForFamily(fam.id)) : undefined}>
-                    <rect x={-FAMILY_SLOT_W / 2} y={staffStart - 14} width={FAMILY_SLOT_W} height={48}
+                <>
+                    <rect x={-FAMILY_SLOT_W / 2} y={staffStart - 18} width={FAMILY_SLOT_W} height={60}
                         fill="transparent" />
                     {isOff ? (
-                        // 'off' = a large cross drawn as strokes (clear at any size).
                         <g stroke={colr} strokeWidth={2.4} strokeLinecap="round" style={{ pointerEvents: 'none' }}>
                             <path d={`M -9 ${staffStart + 11} L 9 ${staffStart + 29}`} />
                             <path d={`M 9 ${staffStart + 11} L -9 ${staffStart + 29}`} />
@@ -98,17 +104,25 @@ const ClefStaffOverlay = ({
                         <ClefGlyph symbolKey={symbolKey} x={0} baseY={staffStart + 30} fill={colr} />
                     )}
                     {debugMode && (
-                        <rect x={-FAMILY_SLOT_W / 2} y={staffStart - 14} width={FAMILY_SLOT_W} height={48}
+                        <rect x={-FAMILY_SLOT_W / 2} y={staffStart - 18} width={FAMILY_SLOT_W} height={60}
                             fill="orange" fillOpacity={0.18} stroke="orange" strokeWidth={0.5}
                             style={{ pointerEvents: 'none' }} />
                     )}
-                </g>
+                </>
             );
-        });
-        // A clip so glyphs sliding in from the right don't spill past startX into the
-        // variant chips (they appear to slide in from behind the chips area).
-        const clipId = `clef-gutter-clip-${staff}`;
-        void lastX;
+        };
+        const familyCarousel = (
+            <ClefCarousel
+                items={order}
+                startX={CLEF_GLYPH_X}
+                stepX={FAMILY_SLOT_W}
+                visible={Math.max(2, Math.floor((startX - CLEF_GLYPH_X) / FAMILY_SLOT_W))}
+                renderItem={renderFamily}
+                onPick={(fam) => onApplyClefPatch?.(staff, patchForFamily(fam.id))}
+                clipId={clipId}
+                clipRect={{ x: 0, y: staffStart - 18, width: startX, height: 64 }}
+            />
+        );
 
         // ── Right: variant chips ──────────────────────────────────────────────
         // 'off' (disabled staff) has no variants.
@@ -186,81 +200,105 @@ const ClefStaffOverlay = ({
 
         return (
             <g className={`clef-row clef-row-${staff}`} key={staff}>
-                {/* Clip the carousel to the gutter [0, startX] so glyphs sliding in
-                    from the right are revealed within the gutter, not over the chips. */}
-                <clipPath id={clipId}>
-                    <rect x={0} y={staffStart - 16} width={startX} height={52} />
-                </clipPath>
-                {/* Carousel slides L→R when the family order changes (CSS transition
-                    on each glyph's transform — set declaratively so React owns it). */}
-                <g className="clef-family-carousel" clipPath={`url(#${clipId})`}>{familyGlyphs}</g>
+                {/* The family carousel (loop animation + fade mask) lives in the
+                    gutter; ClefCarousel owns its own clip + right-edge fade. */}
+                {familyCarousel}
                 <g className="clef-variant-chips">{chipRow}</g>
             </g>
         );
     };
 
-    // Percussion block: left = a percussion-clef indicator (the ‖ neutral clef);
-    // right = a `[[k,c],hh,[s,hh],hh]` ×2 mini-rhythm acting as a TOGGLER between the
-    // two staff modes — TOGETHER (one voice, all stems one way) and SPLIT (RH↑/LH↓
-    // parallel voices, = `percussionVoiceSplit`). Han 2026-06-01: this toggler used
-    // to live in SettingsPanel; localized here. We draw a compact glyph-free sketch
-    // (dots + stems) rather than the full renderer to keep it light.
+    // Percussion block (Han 2026-06-01 #5):
+    //   LEFT  = a 2-item carousel (percussion clef `/` ↔ X disable), in the gutter at
+    //           the EXACT same x as the sheet percussion clef (CLEF_GLYPH_X).
+    //   RIGHT = the `[[k,c],hh,[s,hh],hh]` ×2 pattern rendered TWICE (together / split)
+    //           with the REAL note renderer (MelodyNotesLayer) as a TOGGLER for
+    //           percussionVoiceSplit. Together = one voice (no split); split = RH↑/LH↓.
     const percussionBlock = () => {
         const y = percussionStart;
-        // Eighth-note x positions for one bar of the pattern, repeated ×2 (8 onsets).
-        const pat = [['k', 'c'], ['hh'], ['s', 'hh'], ['hh']];
+        // The pattern as MelodyNotesLayer entries: chord stacks become arrays.
+        const pat = [['k', 'c'], 'hh', ['s', 'hh'], 'hh'];
         const onsets = [...pat, ...pat];
-        const mid = y + 20;
+        const entries = onsets.map((stack, i) => ({ name: stack, offset: i + 1 }));
+        const allOffsets = Array.from({ length: onsets.length + 1 }, (_, i) => i);
 
-        // A compact rendering of one option (split = stems both ways; together =
-        // all stems up). Returns a <g> spanning [ox, ox+optW].
-        const option = (label, split, active, ox, optW, onTap) => {
-            const color = active ? 'var(--accent-yellow)' : 'var(--text-lowlight)';
-            const step = optW / onsets.length;
-            const dots = onsets.map((stack, i) => {
-                const cx = ox + step * (i + 0.5);
-                // top voice (hi-hat/cymbal) sits high; bottom voice (kick/snare) low.
-                const hasTop = stack.some(n => n === 'hh' || n === 'c');
-                const hasBot = stack.some(n => n === 'k' || n === 's');
-                return (
-                    <g key={i}>
-                        {hasTop && <circle cx={cx} cy={mid - 9} r={1.6} fill={color} />}
-                        {hasBot && <circle cx={cx} cy={mid + 4} r={1.8} fill={color} />}
-                        {/* stems: split → top up / bottom down; together → all up */}
-                        {hasTop && <path d={`M ${cx + 1.6} ${mid - 9} V ${mid - 18}`} stroke={color} strokeWidth={0.8} />}
-                        {hasBot && <path d={`M ${cx + (split ? -1.6 : 1.6)} ${mid + 4} V ${split ? mid + 13 : mid - 18}`}
-                            stroke={color} strokeWidth={0.8} />}
-                    </g>
-                );
-            });
+        const bodyX = splitX + CHIP_GAP;
+        const bodyW = endX - bodyX;
+        const optW = (bodyW - CHIP_GAP) / 2;
+
+        // One option = a real percussion render (so noteheads use the proper assets,
+        // not tiny font). `split` toggles percussionVoiceSplit on that layer.
+        const option = (key, split, active, ox, onTap) => {
+            const color = active ? 'var(--accent-yellow)' : 'var(--range-lowlight)';
+            const noteWidth = (optW - 12) / onsets.length;
             return (
-                <g key={label} style={{ cursor: onToggleVoiceSplit ? 'pointer' : 'default' }} onClick={onTap}>
-                    <rect x={ox} y={y - 2} width={optW} height={40} rx={3}
+                <g key={key} style={{ cursor: onToggleVoiceSplit ? 'pointer' : 'default' }} onClick={onTap}>
+                    <rect x={ox} y={y - 4} width={optW} height={46} rx={3}
                         fill="transparent" stroke={color} strokeWidth={active ? 1.6 : 0.8}
                         vectorEffect="non-scaling-stroke" />
-                    {dots}
+                    <g style={{ pointerEvents: 'none' }}>
+                        <MelodyNotesLayer
+                            {...PERC_LAYER_PROPS}
+                            percussionVoiceSplit={split}
+                            melody={mkMelody(entries)}
+                            staff="percussion"
+                            staffYStart={y}
+                            clef={null}
+                            startX={ox + 8}
+                            noteWidth={noteWidth}
+                            allOffsets={allOffsets}
+                            timeSignature={timeSignature}
+                            theme={theme}
+                            previewMode={color}
+                        />
+                    </g>
                     {debugMode && (
-                        <rect x={ox} y={y - 2} width={optW} height={40}
-                            fill="orange" fillOpacity={0.15} stroke="orange" strokeWidth={0.5}
+                        <rect x={ox} y={y - 4} width={optW} height={46}
+                            fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
                             style={{ pointerEvents: 'none' }} />
                     )}
                 </g>
             );
         };
 
-        const bodyX = splitX + CHIP_GAP;
-        const bodyW = (endX - bodyX);
-        const optW = (bodyW - CHIP_GAP) / 2;
-        return (
-            <g className="clef-row clef-row-percussion" key="percussion">
-                {/* Neutral percussion clef glyph in the gutter (not switchable here). */}
-                <text x={GUTTER_X} y={y + 30} fontSize={FAMILY_GLYPH_SIZE} fontFamily="Maestro"
-                    textAnchor="middle" fill="var(--text-primary)" style={{ pointerEvents: 'none' }}>
+        // Left clef carousel: 2 items — percussion clef glyph `/` and X (disable).
+        const clipId = 'clef-gutter-clip-percussion';
+        const renderPercClef = (item, { isActive }) => {
+            const colr = isActive ? 'var(--accent-yellow)' : 'var(--text-lowlight)';
+            if (item === 'off') {
+                return (
+                    <g stroke={colr} strokeWidth={2.4} strokeLinecap="round" style={{ pointerEvents: 'none' }}>
+                        <path d={`M -9 ${y + 11} L 9 ${y + 29}`} />
+                        <path d={`M 9 ${y + 11} L -9 ${y + 29}`} />
+                    </g>
+                );
+            }
+            return (
+                <text x={0} y={y + 30} fontSize={FAMILY_GLYPH_SIZE} fontFamily="Maestro"
+                    textAnchor="middle" fill={colr} style={{ pointerEvents: 'none' }}>
                     {'/'}
                 </text>
-                {option('together', false, !percussionVoiceSplit, bodyX, optW,
+            );
+        };
+        // current first: if disabled, 'off' is active; else the clef.
+        const percOrder = percussionDisabled ? ['off', 'perc'] : ['perc', 'off'];
+
+        return (
+            <g className="clef-row clef-row-percussion" key="percussion">
+                <ClefCarousel
+                    items={percOrder}
+                    startX={CLEF_GLYPH_X}
+                    stepX={FAMILY_SLOT_W}
+                    visible={2}
+                    renderItem={renderPercClef}
+                    onPick={() => onTogglePercussionDisabled?.()}
+                    clipId={clipId}
+                    clipRect={{ x: 0, y: y - 6, width: startX, height: 56 }}
+                />
+                {/* Right: together / split toggler, only when the staff is enabled. */}
+                {!percussionDisabled && option('together', false, !percussionVoiceSplit, bodyX,
                     () => { if (percussionVoiceSplit) onToggleVoiceSplit?.(); })}
-                {option('split', true, percussionVoiceSplit, bodyX + optW + CHIP_GAP, optW,
+                {!percussionDisabled && option('split', true, percussionVoiceSplit, bodyX + optW + CHIP_GAP,
                     () => { if (!percussionVoiceSplit) onToggleVoiceSplit?.(); })}
             </g>
         );

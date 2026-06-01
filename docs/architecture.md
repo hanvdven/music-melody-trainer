@@ -2360,6 +2360,24 @@ via pure helpers in `overlays/clefSelector.js` (no hardcoded option tables in th
 view; §6c). All option logic is pure + tested
 (`overlays/__tests__/clefSelector.test.js`).
 
+**Polish wave 3 (Han 2026-06-01 #5) — done:**
+- The family carousel is now a true LOOP carousel (`overlays/ClefCarousel.jsx`):
+  picking slot k slides the whole strip k steps left over an rAF tween; the strip
+  renders the window + a lookahead copy so glyphs re-enter from the right, revealed
+  under a right-edge linear-gradient **fade mask**; on completion `onPick` re-roots
+  the order (picked item becomes active) and the strip resets. Carousel step widened
+  to 36 units (clefs were too close) and the gutter clip/glyph hit rects are taller
+  so bass clef descenders aren't clipped.
+- Percussion clef block: the clef is now a 2-item carousel (percussion `/` ↔ X
+  disable) at the SAME x as the sheet/melodic clef (`CLEF_GLYPH_X`); the X writes
+  `percussionSettings.preferredClef='off'`, which hides the percussion staff in
+  melody mode, feeds it an empty melody (no notes), and skips its generation
+  (mirrors the melodic 'off'). The together/split toggler now renders the
+  `[[k,c],hh,[s,hh],hh]×2` pattern with the REAL `MelodyNotesLayer` (proper
+  notehead assets), not a tiny-font sketch.
+- The morph OLD-group fade-out is now very short (`FADE_OUT_MS`=250 ms) while the
+  staggered fly-in keeps its 1.5 s timing.
+
 **Polish wave 2 (Han 2026-06-01 #4) — done:**
 - Carousel glyphs are now the EXACT sheet clefs via the shared `<ClefGlyph>`
   (`sheet-music/clefGlyphs.jsx`, which also owns `clefSymbols` as the single source
