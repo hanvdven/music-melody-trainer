@@ -135,9 +135,15 @@ export const buildRangeRow = (notes, selMin, selMax, avail) => {
 
     const iMin = nearestIdx(notes, Math.min(selMin, selMax));
     const iMax = nearestIdx(notes, Math.max(selMin, selMax));
-    // Boundary-relative window: CONTEXT_NOTES beyond each boundary, capped to piano.
-    const loIdx = Math.max(0, iMin - CONTEXT_NOTES);
-    const hiIdx = Math.min(M - 1, iMax + CONTEXT_NOTES);
+    // Boundary-relative window: at least CONTEXT_NOTES beyond each boundary, but
+    // GROWN so the row fills the available width at a comfortable spacing rather
+    // than bunching capped-width notes at the left (Han 2026-06-01). We pick the
+    // context that makes total naturals ≈ avail / MAX_NOTE_WIDTH, split evenly.
+    const inBand = (iMax - iMin) + 1;
+    const wantTotal = Math.max(inBand + 2 * CONTEXT_NOTES, Math.floor(avail / MAX_NOTE_WIDTH));
+    const context = Math.max(CONTEXT_NOTES, Math.ceil((wantTotal - inBand) / 2));
+    const loIdx = Math.max(0, iMin - context);
+    const hiIdx = Math.min(M - 1, iMax + context);
     const win = notes.slice(loIdx, hiIdx + 1);
     const W = win.length;
     const extent = { loIdx, hiIdx };
