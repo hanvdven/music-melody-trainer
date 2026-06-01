@@ -367,10 +367,14 @@ const SheetMusic = ({
   // showSettings keeps all staves alive so overlay buttons stay correctly anchored.
   // rangeEditMode also keeps the treble/bass staves alive so the range overlay's
   // selectable note rows have a staff to anchor to even if a staff is hidden.
+  // A staff whose clef is disabled ('off') is HIDDEN in melody mode (Han 2026-06-01)
+  // — but stays visible in clef-edit / settings so the user can re-enable it.
+  const trebleOff = trebleActiveClef === 'off';
+  const bassOff = bassActiveClef === 'off';
   const isTrebleVisible = showSettings || rangeEditMode || clefEditMode ||
-    (playbackConfig?.oddRounds?.trebleEye !== false || playbackConfig?.evenRounds?.trebleEye !== false);
+    (!trebleOff && (playbackConfig?.oddRounds?.trebleEye !== false || playbackConfig?.evenRounds?.trebleEye !== false));
   const isBassVisible = showSettings || rangeEditMode || clefEditMode ||
-    (playbackConfig?.oddRounds?.bassEye !== false || playbackConfig?.evenRounds?.bassEye !== false);
+    (!bassOff && (playbackConfig?.oddRounds?.bassEye !== false || playbackConfig?.evenRounds?.bassEye !== false));
   const isPercussionVisible = showSettings || rangeEditMode ||
     (playbackConfig?.oddRounds?.percussionEye === true || playbackConfig?.evenRounds?.percussionEye === true ||
       playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome');
@@ -825,10 +829,14 @@ const SheetMusic = ({
   // isOddRound flip, nextLayer, previewMelody, etc.) don't re-run sliceMelodyByRange and
   // the heavier processMelodyAndCalculateSlots downstream. Deps cover everything that
   // affects the slice; if all stay equal-by-reference the cached result is returned.
-  const currentTreble = useMemo(() => sliceMelodyForPagination(trebleMelody),
-    [trebleMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
-  const currentBass = useMemo(() => sliceMelodyForPagination(bassMelody),
-    [bassMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  // A disabled ('off') staff shows NO elements (Han 2026-06-01): feed an empty
+  // melody so the staff renders normally (lines/clef) but with no notes — in every
+  // mode, even before a regen replaces the staff's melody.
+  const EMPTY_MELODY = useMemo(() => ({ notes: [], durations: [], offsets: [], displayNotes: [] }), []);
+  const currentTreble = useMemo(() => trebleOff ? EMPTY_MELODY : sliceMelodyForPagination(trebleMelody),
+    [trebleOff, EMPTY_MELODY, trebleMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  const currentBass = useMemo(() => bassOff ? EMPTY_MELODY : sliceMelodyForPagination(bassMelody),
+    [bassOff, EMPTY_MELODY, bassMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
   const currentPercussion = useMemo(() => sliceMelodyForPagination(percussionMelody),
     [percussionMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
   const currentMetronome = useMemo(() => sliceMelodyForPagination(metronomeMelody),

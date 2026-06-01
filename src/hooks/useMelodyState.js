@@ -237,13 +237,17 @@ const useMelodyState = (
     }
 
     const bassSc = scale.generateBassScale();
-    const newTreble = resolveVoice({
+    // A staff whose clef is disabled ('off') generates nothing — its melody is an
+    // empty Melody so downstream rendering/playback simply have no notes for it
+    // (Han 2026-06-01: disable generation of a disabled staff).
+    const EMPTY = () => new Melody([], [], [], []);
+    const newTreble = trebleSettings?.preferredClef === 'off' ? EMPTY() : resolveVoice({
       isFixed: trebleSettings?.randomizationRule === 'fixed',
       currentMelody: treble, refMelody: referenceMelody, refScale: referenceScale, targetScale: scale,
       canRandomize: canRandomizeMelody, voiceType: 'treble', settings: trebleSettings,
       nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
-    const newBass = resolveVoice({
+    const newBass = bassSettings?.preferredClef === 'off' ? EMPTY() : resolveVoice({
       isFixed: bassSettings?.randomizationRule === 'fixed',
       currentMelody: bass, refMelody: referenceBassMelody, refScale: referenceScale.generateBassScale(), targetScale: bassSc,
       canRandomize: canRandomizeMelody, voiceType: 'bass', settings: bassSettings,

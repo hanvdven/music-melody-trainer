@@ -9,7 +9,26 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
-## Clef selector — CR batch (Han 2026-06-01 #2)
+## Transition + disabled-staff (Han 2026-06-01 #3)
+✅ done:
+- Staggered per-element fly-in in `useRangeMorph` (notes stream in by x, rightmost
+  starts at 0.5s, each slides 1s → total 1.5s; group fades for non-note elements;
+  falls back to block-slide if no `[data-mel]`/`[data-fly]` markers). Clef chips get
+  `data-fly`; real melody already has `data-mel`.
+- 'off' staff: empty generation (`useMelodyState`), no elements rendered
+  (`EMPTY_MELODY`), hidden in melody mode (visibility excludes off staves).
+- NOTE: sheet overlays being migrated → not extending them for new CRs.
+🔨 (original notes below)
+- Staggered fly-in: rework `useRangeMorph` so EACH element between startX..endX flies
+  in individually with a slight per-element delay (notes look like they fly in, not a
+  block). Other elements fade. Total 1.5s (anim ~1s, rightmost starts ~0.5s).
+  Applies to melody, range setter, clef setter.
+- Disabled staff (`preferredClef:'off'`): render the staff normally but with NO
+  elements on it.
+- Melody mode: HIDE a staff whose clef is disabled; also SKIP its melody generation.
+- NOTE: sheet-music range/clef overlays are being migrated to separate overlays —
+  do NOT keep updating them for new CRs (Han).
+
 Decisions: new `preferredClef:'off'` field · clef-click = open selector (replace old)
 · perc toggler = mini-rhythm · last pad not removable.
 - ✅ clicking the clef glyph opens the CLEF selector (old tap-cycle + popup removed).

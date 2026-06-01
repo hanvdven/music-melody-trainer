@@ -151,7 +151,7 @@ const ClefStaffOverlay = ({
             const y = staffStart + 2;
             const color = c.active ? 'var(--accent-yellow)' : 'var(--text-primary)';
             return (
-                <g key={c.key}
+                <g key={c.key} data-fly=""
                     style={{ cursor: onApplyClefPatch ? 'pointer' : 'default' }}
                     onClick={c.onTap}>
                     <rect x={x} y={y} width={CHIP_W} height={CHIP_H} rx={3}
