@@ -347,22 +347,32 @@ SVG, added the same way `SettingsOverlay` is (it already receives `startX`,
   (TabView swaps it in for the playable `PianoView` when `rangeEditMode`, on the
   treble/active piano tab AND the bass `keys-bottom` tab — one component reused per
   keyboard). Three stacked pieces, top→bottom:
-  0. **Clef-switch brackets** (optional `onSwitchClef`, piano tab only): treble on
-     top, bass below — position conveys the clef; tapping switches `activeClef`.
-  1. **Preset brackets** — `⊓` shapes (no text), `buildPresetBracketRows` (pure +
-     tested): one per preset, ALIGNED to the selector white-key grid and scaling
-     with the window, widest-on-top; active highlighted. A preset entirely outside
-     the window is hidden (revealed as the selection moves). The selector PianoView
-     uses `hideLabels` (labels too large on the compact keyboard).
-  2. **Compact windowed selector** — a small `PianoView` that windows symmetrically
-     around the selection (shared `windowNaturals`), sized so each white key is
-     ≈ `KEY_PX` (20px) wide — the visible key count adapts to the panel width (via
-     a `ResizeObserver`), e.g. 300px → 15 keys. A translucent band + edge handles
-     mark the selection. An SVG overlay (`viewBox="0 0 nWhite 100"`, 1 unit/white
-     key) owns the pointer interaction; pointer x → white-key index via its
-     bounding rect. Tap/drag sets the nearest boundary (white-key snap) through the
-     SHARED `applyRangeBoundary`; the window freezes during a drag and re-anchors
-     on release (forceReanchor) so 3 fresh context keys reappear each side.
+  1. **Six clef-grouped preset brackets** (Han 2026-05-31) — `⊓` shapes (no text),
+     `buildPresetBracketRows` (pure + tested). ALL SIX presets are shown: G-clef
+     (STD C4–E5, LARGE C4–G5, FULL A3–C6) and F-clef (STD A2–C4, LARGE G2–C4,
+     FULL C2–E4). Each is tagged with its `clef`, which picks the vertical BAND
+     (treble band on top = rows 0–2, bass band below = rows 3–5); size picks the
+     row within a band (FULL on top). Each bracket's HORIZONTAL extent is aligned
+     to the selector white-key grid at its real pitch range (larges overlap), so
+     the brackets sit exactly above the keys they select. **Tapping a bracket sets
+     BOTH `preferredClef` AND `range`** on THIS staff (the per-staff clef field the
+     sheet renderer reads) — so a G-bracket makes the staff a treble staff, an
+     F-bracket a bass staff. This **replaces the old separate clef-switch row**.
+     The current clef's three brackets render bright; the other clef's three are
+     dimmed (still tappable → clef switch). Active = current-clef preset whose
+     min/max equals the selection. Presets fully outside the window are dropped;
+     partial ones clamp to the edge (brackets can sit partly off-screen when the
+     window is centred on the other clef). The selector PianoView uses `hideLabels`.
+  2. **Compact windowed selector** — a small `PianoView` CENTRED ON THE ACTIVE
+     CLEF'S home note (B4 treble / D3 bass) via shared `windowNaturals`, sized so
+     each white key is ≈ `KEY_PX` (20px) wide — the visible key count adapts to the
+     panel width (via a `ResizeObserver`). Centring on the clef (not the selection)
+     keeps the six brackets at stable key positions. A translucent band + edge
+     handles mark the selection. An SVG overlay (`viewBox="0 0 nWhite 100"`, 1
+     unit/white key) owns the pointer interaction; pointer x → white-key index via
+     its bounding rect. Tap/drag sets the nearest boundary (white-key snap) through
+     the SHARED `applyRangeBoundary` (matched against the CURRENT clef's presets);
+     the window freezes during a drag and re-anchors on release (forceReanchor).
   3. **Real playable keyboard** — a normal `PianoView` limited to the selected
      min–max, so you see & hear the actual keys the selection produces.
 

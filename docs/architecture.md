@@ -2202,22 +2202,26 @@ glyphs — §6c; no hand-rolled pitch→Y). Key behaviours:
 **Keyboard variant — `KeyboardRangeSetter.jsx`** (TabView swaps it in for the
 playable `PianoView` in rangeEditMode, on the treble/active piano tab AND the bass
 `keys-bottom` tab — one component per keyboard). A **split layout**, top→bottom:
-0. Optional **clef-switch brackets** (`onSwitchClef`, piano tab only): treble on
-   top, bass below — position conveys the clef; tapping switches `activeClef` (the
-   clef whose range you're editing). `setActiveClef` is plumbed App → TabView.
-1. Preset brackets (`⊓`, no text, consistent with the sheet brackets) —
-   `buildPresetBracketRows` (pure + tested): one per preset, ALIGNED to the
-   selector white-key grid (x in white-key-index units, scales with the window),
-   widest-on-top; a preset entirely outside the window is hidden (the window
-   reveals it as the selection moves).
-   The compact selector PianoView is rendered with `hideLabels` (note-name labels
-   would be too large on the small windowed keyboard; the real keyboard keeps them).
+1. **Six clef-grouped preset brackets** (`⊓`, no text) — `buildPresetBracketRows`
+   (pure + tested). All six presets are shown: G-clef STD/LARGE/FULL and F-clef
+   STD/LARGE/FULL. Each preset is tagged with its `clef`, which picks the vertical
+   BAND (treble band on top, bass below); size picks the row within the band (FULL
+   on top). Horizontal extent is ALIGNED to the selector white-key grid at the
+   preset's real pitch range (larges overlap). **Tapping a bracket sets BOTH
+   `preferredClef` and `range`** on THIS staff — so the bracket IS the clef switcher
+   (replaces the old separate `onSwitchClef` row). The current clef's three render
+   bright; the other clef's three dimmed (still tappable). Presets fully outside the
+   window are dropped; partial ones clamp to the edge. Selector PianoView uses
+   `hideLabels`.
 2. A COMPACT windowed **selector** keyboard (a small `PianoView` over
-   `windowNaturals`), sized so each white key is ≈ `KEY_PX` (20px) — the key count
-   adapts to the panel width via a `ResizeObserver`. A band + edge handles mark the
-   selection; an SVG overlay (`viewBox="0 0 nWhite 100"`, 1 unit/white key) owns
-   the pointer interaction (x → white-key index via its bounding rect). Same
-   freeze-during-drag + re-anchor-on-release as the sheet.
+   `windowNaturals`) CENTRED ON THE ACTIVE CLEF'S home note (B4 treble / D3 bass),
+   sized so each white key is ≈ `KEY_PX` (20px) — the key count adapts to the panel
+   width via a `ResizeObserver`. Centring on the clef (not the selection) keeps the
+   six brackets at stable key positions. A band + edge handles mark the selection;
+   an SVG overlay (`viewBox="0 0 nWhite 100"`, 1 unit/white key) owns the pointer
+   interaction (x → white-key index via its bounding rect). Same freeze-during-drag
+   + re-anchor-on-release as the sheet. Boundary drags match the CURRENT clef's
+   presets for the `rangeMode` label.
 3. The REAL playable keyboard limited to the selected min–max (shows & plays the
    actual keys).
 
