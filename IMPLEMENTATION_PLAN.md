@@ -9,6 +9,16 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
+## Feedback batch (Han 2026-06-01 #6)
+✅ done:
+- CHORD X already = hide + mute + KEEP generation (confirmed; no change needed).
+- Chord selector moved INTO clef-edit mode; removed standalone CHORDS button +
+  all chordEditMode plumbing (App/SheetMusic/SubHeader). §37.3.
+- 22ma/22mb: Maestro = a custom TrueType music font (ASCII→PUA F0xx), pre-composited
+  ottava glyphs only to 15 (no 22). Added `Ottava22` composite (font digits "22" +
+  superscript ma/mb at 15ma style) + treble/bass22va/vb in clefSymbols. Renderable
+  asset ready; not yet a selectable option (gen maxes at 15ma). §37.4.
+
 ## Feedback batch (Han 2026-06-01 #5)
 ✅ done: fade-out 0.25s (FADE_OUT_MS); clef clip taller (no bottom clipping) +
    step 36u (more space); loop carousel (ClefCarousel: slide-left + re-enter from

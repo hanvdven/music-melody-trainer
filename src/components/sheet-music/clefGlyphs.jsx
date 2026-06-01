@@ -22,6 +22,13 @@ export const clefSymbols = {
   bass8vb: { char: 't', yOffset: -10 },
   bass15va: { char: '?', yOffset: -20, ottava: '15' },
   bass15vb: { char: '?', yOffset: -10, ottava: '15', below: true },
+  // 22ma / 22mb (3 octaves): Maestro has no glyph past 15, so the marker is a
+  // CUSTOM composite (see Ottava22 / ClefGlyph) drawn from the font's own digits +
+  // a superscript "ma"/"mb", matching the 15ma size & style (Han 2026-06-01 #6).
+  treble22va: { char: '&', yOffset: 0, ottava: '22' },
+  treble22vb: { char: '&', yOffset: 0, ottava: '22', below: true },
+  bass22va: { char: '?', yOffset: -20, ottava: '22' },
+  bass22vb: { char: '?', yOffset: -10, ottava: '22', below: true },
 };
 
 // The sheet draws the clef glyph at x=13, y=30+yOffset, fontSize 36. We expose the
@@ -31,6 +38,22 @@ export const CLEF_GLYPH_BASE_Y = 30;
 export const CLEF_GLYPH_SIZE = 36;
 
 /**
+ * Ottava22 — a CUSTOM 22ma / 22mb marker (Maestro has no glyph past 15). Composed
+ * from the font's own digits "22" plus a small superscript "ma"/"mb", sized to
+ * match the 15ma marker. `cx`/`cy` is the marker centre; `below` swaps ma→mb.
+ */
+export const Ottava22 = ({ cx, cy, fill = 'var(--text-primary)', below = false }) => (
+  <g style={{ pointerEvents: 'none' }} fill={fill} fontFamily="Maestro">
+    {/* "22" at the ottava digit size (matches Maestro's 15 numerals). */}
+    <text x={cx} y={cy} fontSize={18} textAnchor="middle">22</text>
+    {/* superscript ma / mb, raised like the baked-in 15ma ligature. */}
+    <text x={cx + 11} y={cy - 7} fontSize={10} textAnchor="start">
+      {below ? 'mb' : 'ma'}
+    </text>
+  </g>
+);
+
+/**
  * ClefGlyph — renders a clef (with its ottava marker) exactly as the sheet does
  * (same char/x/y/fontSize/anchor — default `start` anchor at x, like the staff).
  * `symbolKey` is a key into clefSymbols (e.g. 'treble', 'bass8vb', 'treble15va').
@@ -38,6 +61,7 @@ export const CLEF_GLYPH_SIZE = 36;
  */
 export const ClefGlyph = ({ symbolKey, x = CLEF_GLYPH_X, baseY = CLEF_GLYPH_BASE_Y, fill = 'var(--text-primary)' }) => {
   const cf = clefSymbols[symbolKey] || clefSymbols.treble;
+  const markerY = baseY + cf.yOffset + (cf.below ? 30 : -46);
   return (
     <>
       <text x={x} y={baseY + (cf.yOffset || 0)} fontSize={CLEF_GLYPH_SIZE}
@@ -45,8 +69,12 @@ export const ClefGlyph = ({ symbolKey, x = CLEF_GLYPH_X, baseY = CLEF_GLYPH_BASE
         style={{ pointerEvents: 'none' }}>
         {cf.char}
       </text>
-      {cf.ottava && (
-        <text x={x} y={baseY + cf.yOffset + (cf.below ? 30 : -46)}
+      {cf.ottava === '22' && (
+        // Custom composite (no Maestro glyph for 22) — see Ottava22.
+        <Ottava22 cx={x + 12} cy={markerY} fill={fill} below={cf.below} />
+      )}
+      {cf.ottava && cf.ottava !== '22' && (
+        <text x={x} y={markerY}
           fontSize={cf.ottava === '15' ? 23 : 14}
           fill={cf.ottava === '15' ? '#ffffff' : fill}
           fontFamily="Maestro" textAnchor="middle"
