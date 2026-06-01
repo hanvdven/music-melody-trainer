@@ -24,6 +24,7 @@ const SubHeader = ({
     onActivateAdjustments,
     onOpenRange,
     onOpenClef,
+    onOpenChord,
     windowWidth,
     difficultyMultiplier,
 }) => {
@@ -266,8 +267,15 @@ const SubHeader = ({
                 Lives OUTSIDE the opacity:show wrapper above so it stays visible even
                 when the adjustment buttons are faded out (Han: "altijd zichtbaar").
                 Will be replaced by tap-on-element context overlays later. */}
-            {(onOpenRange || onOpenClef) && (
+            {(onOpenRange || onOpenClef || onOpenChord) && (
                 <div style={{ position: 'absolute', right: SIDE_PAD, top: '50%', transform: 'translateY(-50%)', zIndex: 2, display: 'flex', gap: 8 }}>
+                    {onOpenChord && renderButton(
+                        <ChordNotationIcon mode="letters" size={22} />,
+                        'CHORDS',
+                        onOpenChord,
+                        false,
+                        '#ffcc88'
+                    )}
                     {onOpenClef && renderButton(
                         <Music2 size={22} />,
                         'CLEF',

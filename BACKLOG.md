@@ -173,7 +173,13 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
 - Range-sheet lowlight → `--range-lowlight` (als percussie + iets lichter).
 - Keyboard-blokhaak: passief = doorgetrokken; gestippelde lijn overbrugt de gap.
 - Bass-te-hoog: venstergroei begrensd (`MAX_CONTEXT`) + spacing ongecapt.
-- ⏳ Nog open (interview): chord type selector + chord-disable (X).
+- ✅ **Chord-selector** (in-staff CHORD-mode, CHORDS-knop): X / letters / romeins
+  boven de akkoord-rij (hergebruikt de bestaande akkoordnotatie). **X** =
+  `chordDisplayMode 'off'` → labels verborgen + audio gedempt (`chordsDisabledRef`
+  → Sequencer `chordVolume=0`). Generatie-uitschakeling geparkeerd (akkoorden voeden
+  nog de melodie-pitchpool). Maatsoort nu verborgen in elke overlay-mode. §37.3.
+  ⏳ Follow-up: klik op de akkoord-rij zelf opent de mode (nu via CHORDS-knop);
+  generatie volledig uitschakelen bij X indien gewenst.
 
 ---
 
