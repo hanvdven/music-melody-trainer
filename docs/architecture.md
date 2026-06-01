@@ -2306,8 +2306,10 @@ overlay render + staff keep-alive + coloring props), `theory/noteUtils.js`
 ### 37.2 Clef selector — in-staff CLEF mode (Han 2026-06-01)
 
 A second in-staff selector, sibling of the range selector, for choosing the clef
-and transposing instrument **directly on the staff**. Toggled by a `CLEF` button in
-`SubHeader` (`onOpenClef` → `App.handleToggleClefEdit`), driving `clefEditMode`.
+and transposing instrument **directly on the staff**. Opened by the `CLEF` button in
+`SubHeader` (`onOpenClef`) OR by **clicking a clef glyph in the sheet**
+(`onOpenClefEdit` → `App.handleOpenClefEdit`; this replaced the old tap-cycle +
+long-press popup, which was deleted — Han 2026-06-01). Drives `clefEditMode`.
 Mutually exclusive with range-edit and the settings overlay (each toggle clears the
 others); opening stops playback. Reuses the **enter/exit morph** (`useRangeMorph`,
 now triggered by `rangeEditMode || clefEditMode`) — the melody fades out and the
@@ -2315,18 +2317,25 @@ overlay flies in (and back on close). `SheetMusic` tracks `lastOverlayKind` so t
 correct overlay stays mounted during an exit morph.
 
 **Per visible melodic staff** (`ClefStaffOverlay.jsx`):
-- **Left 20% — family carousel.** The three clef FAMILIES (G / F / Vocal) as
-  glyphs: the current family leftmost + bright (`--accent-yellow`), the other two
-  lowlit (`--text-lowlight`) to its right. Each glyph is keyed by family id and
-  positioned by a CSS-transitioned `transform: translateX` (`.clef-family-glyph`,
-  0.3s), so picking another family SLIDES the carousel L→R rather than jumping.
-  Tapping a family writes `patchForFamily` (default clef + range mode).
+- **Left ~20% — family carousel.** FOUR clef FAMILIES (G / F / Vocal / Off) as
+  glyphs: the current family leftmost + bright (`--accent-yellow`), the others lowlit
+  (`--text-lowlight`). Each glyph is keyed by family id and positioned by a
+  CSS-transitioned `transform: translateX` (`.clef-family-glyph`, 0.3s), so picking
+  another family SLIDES the carousel L→R rather than jumping. Tapping a family writes
+  `patchForFamily`. **Off** (a large drawn cross, `CLEF_OFF` sentinel) DISABLES the
+  staff — `patchForFamily('off')` sets `preferredClef:'off'`; `calculateOptimalClef`
+  short-circuits to `'off'` and `bassActiveClef` lets the sentinel through.
 - **Right 80% — variants of the current family.** Melodic (G/F): octave chips
   (8 / 8va / 8vb / 15ma → `patchForOctave`, mapping to the existing
   `relative`/`relative_15a`/`relative_low` rangeModes) + transposition chips
   (B♭, E♭, F → `patchForTransposition`) and a final `…` chip opening the full
   transposing-instrument list (reuses the existing `transPicker` popup). Vocal:
-  the voice clefs Bass…Soprano (`patchForVocal`). The active variant is highlighted.
+  the six VOICES Bass / Baritone / Tenor / Alto / Mezzo / Soprano, each drawn as its
+  real clef GLYPH (F-clef for Bass+Baritone, C-clef for the rest — Han: show clefs,
+  not names). Bass and Baritone share the F-clef glyph but are distinct voices
+  (different range), matched on `rangeMode` so the right one highlights;
+  `patchForVocal(voice)` writes both `preferredClef` and the voice `rangeMode`. The
+  vocal Bass voice is NOT the same as the instrumental bass clef family.
 
 **Invariants.** Clef and transposing instrument stay **separate per-staff fields**
 (`preferredClef`, `transpositionKey`) — the selector only writes patches onto them
@@ -2334,13 +2343,19 @@ via pure helpers in `overlays/clefSelector.js` (no hardcoded option tables in th
 view; §6c). All option logic is pure + tested
 (`overlays/__tests__/clefSelector.test.js`).
 
-**Parked:** showing the exact selected *variant* glyph (e.g. the C-clef at its
-vocal position) leftmost in the carousel — currently the generic family glyph is
-shown leftmost and the precise variant reads from the highlighted right-hand chip.
+**Parked / next polish wave (Han 2026-06-01 feedback):** carousel should sit fully
+LEFT of `startX` and hide the time signature in clef mode; clef glyphs at true size;
+true carousel feel (old glyph slides off-left + fades, new fades in from the right);
+octave variants shown as the full ottava clef GLYPHS (8va/8vb/15ma/15vb) rather than
+text; the disabled ('off') staff drawn greyed-out (still visible) in other modes with
+its crossed clef clickable to open the selector; percussion clef block (perc/off left
++ a `[[k,c],hh,[s,hh],hh]`×2 mini-rhythm toggling `percussionVoiceSplit`).
 
 **Files:** `overlays/ClefStaffOverlay.jsx`, `overlays/clefSelector.js` (+ test),
-`SheetMusic.jsx` (`clefEditMode`, overlay render, `lastOverlayKind`),
-`hooks/useRangeMorph.js` (queries `.range-overlay, .clef-overlay`),
-`layout/SubHeader.jsx` (CLEF button), `App.jsx` (`clefEditMode` + toggle),
+`SheetMusic.jsx` (`clefEditMode`, clef-click → `onOpenClefEdit`, overlay render,
+`lastOverlayKind`, `'off'` in `calculateOptimalClef`/`bassActiveClef`; the old
+in-popup clef list + `CLEF_RANGE_OPTIONS`/`applyRangeOption`/`getCurrentRangeValue`
+were removed), `hooks/useRangeMorph.js` (queries `.range-overlay, .clef-overlay`),
+`layout/SubHeader.jsx` (CLEF button), `App.jsx` (`clefEditMode` + toggle/open),
 `styles/App.css` (`.clef-family-glyph` transition).
 

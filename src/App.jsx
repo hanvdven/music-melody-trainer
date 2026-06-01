@@ -597,6 +597,14 @@ const App = () => {
     // tapping empty sheet area while in range mode).
     const handleCloseRangeEdit = useCallback(() => setRangeEditMode(false), []);
     const handleCloseClefEdit = useCallback(() => setClefEditMode(false), []);
+    // Pure OPEN (not toggle) for clicking a clef glyph in the sheet — always lands
+    // in clef-edit (Han 2026-06-01: clicking the clef opens the selector).
+    const handleOpenClefEdit = useCallback(() => {
+        handleStopAllPlayback();
+        if (showSheetMusicSettings) toggleSheetMusicSettings();
+        setRangeEditMode(false);
+        setClefEditMode(true);
+    }, [handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
 
     const handlePlayRepeat = useCallback(() => {
         if (isRubatoRef.current && rubatoEngageRef.current) {
@@ -1158,6 +1166,7 @@ const App = () => {
         onToggleSettings: toggleSheetMusicSettings,
         onCloseRangeEdit: handleCloseRangeEdit,
         onCloseClefEdit: handleCloseClefEdit,
+        onOpenClefEdit: handleOpenClefEdit,
         onSettingsInteraction: resetSettingsTimer,
         tonic: scale.tonic,
         svgRef,
@@ -1182,7 +1191,7 @@ const App = () => {
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
         windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, toggleSheetMusicSettings,
-        handleCloseRangeEdit, handleCloseClefEdit,
+        handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
         showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
