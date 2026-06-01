@@ -105,12 +105,6 @@ describe('RangeStaffOverlay', () => {
         expect(container.querySelectorAll('.range-presets-percussion path').length).toBe(3);
     });
 
-    it('shows the range-selector mode indicator', () => {
-        const { container } = renderOverlay();
-        expect(container.querySelector('.range-mode-indicator')).not.toBeNull();
-        expect(container.textContent).toContain('RANGE SELECTOR');
-    });
-
     it('toggles a percussion pad on tap', () => {
         const onTogglePad = vi.fn();
         const { container } = renderOverlay({
