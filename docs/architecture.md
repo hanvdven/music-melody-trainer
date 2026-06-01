@@ -2188,9 +2188,12 @@ glyphs — §6c; no hand-rolled pitch→Y). Key behaviours:
   topmost/bottommost note ± `BAND_COVER` (covers the 8va/8vb markers) and a shared
   diagonal `divider` (midpoint of the two note rows) as the inner edge, so the
   treble and bass zones touch without overlapping.
-- **Coloring:** in-band (selected) notes follow the live note coloring — grouped
-  by `noteUtils.melodicNoteColor` and rendered via per-color `previewMode` layers.
-  Boundary notes stay `--accent-yellow` (drag handles); out-of-band `--text-dim`.
+- **Coloring (single layer, one ottava — Han 2026-06-01):** the whole row renders
+  as ONE `MelodyNotesLayer` with a per-note color override (`previewColorFn` prop on
+  `renderMelodyNotes`): boundary → `--accent-yellow`, in-band → live
+  `noteUtils.melodicNoteColor`, out-of-band → `--text-dim`. Rendering one layer (not
+  one per color) means the ottava (8va/8vb) is computed ONCE over the row — fixes the
+  earlier multi-ottava bug (§6b) where per-color layers each drew their own bracket.
 - **Presets:** bracket-only (no text), nested `]` shapes in the reserved right
   margin (`PRESET_AREA_WIDTH`); active one highlighted. Percussion shows every kit
   pad as its own per-pad hit box (biased toward the stem so it covers it) and
@@ -2202,26 +2205,29 @@ glyphs — §6c; no hand-rolled pitch→Y). Key behaviours:
 **Keyboard variant — `KeyboardRangeSetter.jsx`** (TabView swaps it in for the
 playable `PianoView` in rangeEditMode, on the treble/active piano tab AND the bass
 `keys-bottom` tab — one component per keyboard). A **split layout**, top→bottom:
-1. **Six clef-grouped preset brackets** (`⊓`, no text) — `buildPresetBracketRows`
-   (pure + tested). All six presets are shown: G-clef STD/LARGE/FULL and F-clef
-   STD/LARGE/FULL. Each preset is tagged with its `clef`, which picks the vertical
-   BAND (treble band on top, bass below); size picks the row within the band (FULL
-   on top). Horizontal extent is ALIGNED to the selector white-key grid at the
+1. **Six preset brackets on three shared rows** (`⊓`, no text) —
+   `buildPresetBracketRows` (pure + tested). All six presets are shown: G-clef
+   STD/LARGE/FULL and F-clef STD/LARGE/FULL. To save vertical space (Han 2026-06-01)
+   the two clefs SHARE three rows by SIZE (FULL on top, then LARGE, then STANDARD).
+   On each row the CURRENT clef's bracket is "front" (highlighted: active=yellow,
+   else `--text-primary`), the other clef's is "behind" (dimmed `--text-dim`,
+   opacity 0.5, drawn first); where the behind bracket would overlap the front one
+   it is truncated and an "…" drawn at the cut. Selecting the other clef swaps
+   front/behind. Horizontal extent is ALIGNED to the selector white-key grid at the
    preset's real pitch range (larges overlap). **Tapping a bracket sets BOTH
    `preferredClef` and `range`** on THIS staff — so the bracket IS the clef switcher
-   (replaces the old separate `onSwitchClef` row). The current clef's three render
-   bright; the other clef's three dimmed (still tappable). Presets fully outside the
-   window are dropped; partial ones clamp to the edge. Selector PianoView uses
-   `hideLabels`.
+   (replaces the old separate `onSwitchClef` row). Presets fully outside the window
+   are dropped; partial ones clamp to the edge. Selector PianoView uses `hideLabels`.
 2. A COMPACT windowed **selector** keyboard (a small `PianoView` over
-   `windowNaturals`) CENTRED ON THE ACTIVE CLEF'S home note (B4 treble / D3 bass),
-   sized so each white key is ≈ `KEY_PX` (20px) — the key count adapts to the panel
-   width via a `ResizeObserver`. Centring on the clef (not the selection) keeps the
-   six brackets at stable key positions. A band + edge handles mark the selection;
-   an SVG overlay (`viewBox="0 0 nWhite 100"`, 1 unit/white key) owns the pointer
-   interaction (x → white-key index via its bounding rect). Same freeze-during-drag
-   + re-anchor-on-release as the sheet. Boundary drags match the CURRENT clef's
-   presets for the `rangeMode` label.
+   `windowNaturals`) CENTRED ON THE SELECTION, sized so each white key is ≈ `KEY_PX`
+   (20px) — the key count is width-adaptive via a `ResizeObserver` (wider panel =
+   more keys; Han 2026-06-01). Centring on the selection means a clef switch (via a
+   bracket) slides the window so the newly-selected notes stay central; off-clef
+   brackets may then fall partly/fully off-screen. A band + edge handles mark the
+   selection; an SVG overlay (`viewBox="0 0 nWhite 100"`, 1 unit/white key) owns the
+   pointer interaction (x → white-key index via its bounding rect). Same
+   freeze-during-drag + re-anchor-on-release as the sheet. Boundary drags match the
+   CURRENT clef's presets for the `rangeMode` label.
 3. The REAL playable keyboard limited to the selected min–max (shows & plays the
    actual keys).
 
@@ -2239,9 +2245,11 @@ while the row rebalances and a fresh context note swipes in/out at the far edge;
   cadence of one natural per `STEP_MS` (250 ms) toward the pressed column
   (`nextNaturalToward`). A **tap** fires a burst that finishes even after release;
   **press-and-hold** keeps extending the boundary OUTWARD (`nextNaturalInDir`)
-  until release (release = stop now). Moving past `DRAG_THRESHOLD` (8 SVG units)
-  promotes to the existing live **drag** (layout freezes, follows the finger,
-  re-anchors on release). All writes still go through the shared
+  until release (release = stop now). While holding, the stepper advances its
+  `target` together with `live` so it keeps moving outward instead of wobbling back
+  toward the original pressed note (Han 2026-06-01 fix). Moving past `DRAG_THRESHOLD`
+  (8 SVG units) promotes to the existing live **drag** (layout freezes, follows the
+  finger, re-anchors on release). All writes still go through the shared
   `setMelodicBoundary` → `clampRange` path (§6c). 250 ms cadence + 250 ms tween =
   back-to-back chain, no pause ("faster when further" = the chain, not a shorter
   per-note duration).
@@ -2251,9 +2259,12 @@ while the row rebalances and a fresh context note swipes in/out at the far edge;
   `anchor`ed; anything else (presets, drag-release jumps, collapsed-ellipsis
   layouts) → instant snap. On a step the body `<g>` scales `prevWidth/newWidth → 1`
   about the anchored edge while the single edge note translates ±`noteWidth` and
-  fades. **All transform/opacity is set via `element.setAttribute`/`element.style`
-  in the rAF callback, never JSX props (§6).** Timers + rAF cancel on unmount;
-  the committed `{min,max}` is identical to the old instant path at every step.
+  fades. The tween is **linear** (constant velocity) so a multi-step burst reads as
+  one continuous glide rather than a pulsing chain of ease-out steps (Han 2026-06-01).
+  **All transform/opacity is set via `element.setAttribute`/`element.style` in the
+  rAF callback, never JSX props (§6).** The effect runs in a `useLayoutEffect` placed
+  BEFORE the component's early `return null` (rules-of-hooks). Timers + rAF cancel on
+  unmount; the committed `{min,max}` is identical to the old instant path at every step.
 
 **Still open / parked:** dual-surface live sync + enter/exit morph (principles
 3–4) are not built yet — the two surfaces are bound to the same state but don't

@@ -158,14 +158,14 @@ const percussionNoteHeads = {
   tm: 'Ï', // Med Tom
   s: 'Ï', // Snare drum
   sg: 'Ï', // Ghost snare (rendered with parentheses)
-  sr: 'À', // Rim click — cross notehead
+  sr: 'Ï', // Rim click — snare head with a diagonal slash (slash drawn separately)
   tl: 'Ï', // Floor Tom
   k: 'Ï', // Bass drum
   hp: 'À', // Hi-hat pedal
   wh: 'Ñ', // High Woodblock
   wm: 'Ñ', // Mid Woodblock
   wl: 'Ñ', // Low Woodblock
-  cb: 'À', // Cowbell
+  cb: 'Ñ', // Cowbell — triangle notehead (Han 2026-06-01)
   c: 'Ñ', // Legacy
 };
 
@@ -303,7 +303,13 @@ const renderMelodyNotes = (
   debugMode = false,
   interactive = true,  // set false for non-playable layers (metronome, previews)
   courtesyAccidentals = true,
-  percussionVoiceSplit = false
+  percussionVoiceSplit = false,
+  // Optional PER-NOTE color override: (noteName) => cssColor | null. When set it
+  // wins over previewColor/getMelodicColor for each head+stem. Lets a caller paint
+  // a single rendered row in multiple colors WITHOUT splitting it into separate
+  // MelodyNotesLayer instances — so ottava (8va/8vb) is still computed ONCE over
+  // the whole row (fixes the multi-ottava bug, §6b). Used by RangeStaffOverlay.
+  previewColorFn = null
 ) => {
   // previewMode can be: false (normal), true (yellow, for input test), or a CSS color string (e.g. 'rgba(220,30,30,0.85)' for wipe preview)
   const previewColor = typeof previewMode === 'string' ? previewMode : (previewMode ? 'var(--accent-yellow)' : null);
@@ -1316,8 +1322,11 @@ const renderMelodyNotes = (
           : 'var(--text-primary)')
         : getMelodicColor(noteWithAccidental);
       // Stem/flag/ledger color: follows head in preview mode, otherwise default.
-      const noteColor = previewColor ?? 'var(--text-primary)';
+      let noteColor = previewColor ?? 'var(--text-primary)';
       if (previewColor) headColor = previewColor;
+      // Per-note override (single rendered row, multi-colored) — see previewColorFn.
+      const perNote = previewColorFn ? previewColorFn(noteWithAccidental || note) : null;
+      if (perNote) { headColor = perNote; noteColor = perNote; }
       const finalFlagX = stemIsAbove
         ? (staff === 'percussion' ? flagX - 1 : flagX - 2) // Green: pos+11, Yellow: pos+10
         : (flagX - 1); // Blue/Red identical: pos-0.5
@@ -1373,6 +1382,16 @@ const renderMelodyNotes = (
             >
               o
             </text>
+          )}
+          {/* Rim click (sr): a snare notehead with a diagonal slash through it
+              (Han 2026-06-01). The slash is drawn over the round head glyph. */}
+          {staff === 'percussion' && note === 'sr' && (
+            <path
+              d={`M ${positionX - 3} ${positionY + 6} L ${positionX + 12} ${positionY - 7}`}
+              stroke={headColor}
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
           )}
           {staff === 'percussion' && note === 'sg' && (
             <>

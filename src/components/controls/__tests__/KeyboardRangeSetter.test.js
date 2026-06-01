@@ -12,46 +12,62 @@ const PRESETS = [
     { label: 'FULL', clef: 'bass', min: 'C2', max: 'E4' },
 ];
 
+const find = (rows, label, clef) => rows.find(r => r.p.label === label && r.p.clef === clef);
+
 describe('buildPresetBracketRows', () => {
     it('aligns bracket x to the selector white-key grid', () => {
-        const win = windowNaturals(getNoteValue('B4'), getNoteValue('B4'), 14);
+        const win = windowNaturals(getNoteValue('C4'), getNoteValue('E5'), 6);
         const rows = buildPresetBracketRows(PRESETS, { min: 'C4', max: 'E5' }, 'treble', win);
-        const std = rows.find(r => r.p.label === 'STANDARD' && r.p.clef === 'treble');
+        const std = find(rows, 'STANDARD', 'treble');
         const c4Idx = win.findIndex(n => n.midi === getNoteValue('C4'));
         const e5Idx = win.findIndex(n => n.midi === getNoteValue('E5'));
         expect(std.x0).toBe(c4Idx);
         expect(std.x1).toBe(e5Idx + 1);
     });
 
-    it('groups treble band above bass band, big-on-top within each', () => {
-        // Wide window so all six survive the cull.
+    it('shares three rows by size (both clefs same y per size)', () => {
         const win = windowNaturals(getNoteValue('C2'), getNoteValue('C6'), 4);
         const rows = buildPresetBracketRows(PRESETS, { min: 'C4', max: 'E5' }, 'treble', win);
-        const y = (label, clef) => rows.find(r => r.p.label === label && r.p.clef === clef).yTop;
-        // Treble band (rows 0-2) entirely above the bass band (rows 3-5).
-        expect(Math.max(y('STANDARD', 'treble'), y('FULL', 'treble')))
-            .toBeLessThan(Math.min(y('FULL', 'bass'), y('STANDARD', 'bass')));
-        // FULL (widest) sits above LARGE above STANDARD within the treble band.
-        expect(y('FULL', 'treble')).toBeLessThan(y('LARGE', 'treble'));
-        expect(y('LARGE', 'treble')).toBeLessThan(y('STANDARD', 'treble'));
+        // Same-size brackets of different clefs sit on the same row.
+        expect(find(rows, 'FULL', 'treble').yTop).toBe(find(rows, 'FULL', 'bass').yTop);
+        expect(find(rows, 'STANDARD', 'treble').yTop).toBe(find(rows, 'STANDARD', 'bass').yTop);
+        // FULL above LARGE above STANDARD.
+        expect(find(rows, 'FULL', 'treble').yTop).toBeLessThan(find(rows, 'LARGE', 'treble').yTop);
+        expect(find(rows, 'LARGE', 'treble').yTop).toBeLessThan(find(rows, 'STANDARD', 'treble').yTop);
+    });
+
+    it('paints behind (off-clef) before front (current clef) within a size', () => {
+        const win = windowNaturals(getNoteValue('C2'), getNoteValue('C6'), 4);
+        const rows = buildPresetBracketRows(PRESETS, { min: 'C4', max: 'E5' }, 'treble', win);
+        const fullBassIdx = rows.indexOf(find(rows, 'FULL', 'bass'));
+        const fullTrebleIdx = rows.indexOf(find(rows, 'FULL', 'treble'));
+        expect(fullBassIdx).toBeLessThan(fullTrebleIdx);   // behind drawn first
+    });
+
+    it('interrupts the behind bracket with an ellipsis at the overlap', () => {
+        const win = windowNaturals(getNoteValue('C2'), getNoteValue('C6'), 4);
+        const rows = buildPresetBracketRows(PRESETS, { min: 'C4', max: 'E5' }, 'treble', win);
+        // FULL treble A3–C6 overlaps FULL bass C2–E4; the bass one is cut + marked.
+        const fullBass = find(rows, 'FULL', 'bass');
+        expect(fullBass.ellipsisX).not.toBeNull();
+        expect(fullBass.x1).toBeLessThanOrEqual(find(rows, 'FULL', 'treble').x0);
     });
 
     it('flags only the active clef + matching preset', () => {
-        const win = windowNaturals(getNoteValue('B4'), getNoteValue('B4'), 18);
+        const win = windowNaturals(getNoteValue('C4'), getNoteValue('G5'), 8);
         const rows = buildPresetBracketRows(PRESETS, { min: 'C4', max: 'G5' }, 'treble', win);
-        expect(rows.find(r => r.p.label === 'LARGE' && r.p.clef === 'treble').isActive).toBe(true);
-        // Same min/max on a bass preset would NOT be active (wrong clef).
+        expect(find(rows, 'LARGE', 'treble').isActive).toBe(true);
         expect(rows.every(r => r.p.clef === 'bass' ? !r.isActive : true)).toBe(true);
     });
 
-    it('marks current-clef brackets so off-clef ones can be dimmed', () => {
-        const win = windowNaturals(getNoteValue('D3'), getNoteValue('D3'), 14);
+    it('swaps front/behind when the bass clef is active', () => {
+        const win = windowNaturals(getNoteValue('A2'), getNoteValue('C4'), 6);
         const rows = buildPresetBracketRows(PRESETS, { min: 'A2', max: 'C4' }, 'bass', win);
-        expect(rows.filter(r => r.isCurrentClef).every(r => r.p.clef === 'bass')).toBe(true);
+        expect(find(rows, 'STANDARD', 'bass').isCurrentClef).toBe(true);
+        expect(find(rows, 'STANDARD', 'treble').isCurrentClef).toBe(false);
     });
 
     it('drops presets fully outside the window', () => {
-        // Narrow window high up: bass presets (≤ E4) are entirely below it.
         const win = windowNaturals(getNoteValue('C6'), getNoteValue('C6'), 3);
         const rows = buildPresetBracketRows(PRESETS, { min: 'C4', max: 'E5' }, 'treble', win);
         expect(rows.some(r => r.p.clef === 'bass')).toBe(false);

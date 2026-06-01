@@ -101,6 +101,13 @@ Volledige ontwerpdoc: `docs/range-overlay-design.md`. Status:
   pad aan/uit (`percussionSettings.enabledPads`, default STANDARD); presets aantikbaar.
   Generatie filtert percussie via `filterPercussionByEnabledPads`. Disabled pads ook
   gelowlight in het DrumPad-board.
+  [Claude 2026-06-01 — percussie-feedback batch]:
+  - ✅ **Deselect = kleur, niet opacity**: gedeselecteerde pads in de selector zijn nu
+    een lowlight-grijs (`var(--text-lowlight)`) op volle opacity, i.p.v. opacity-fade.
+    Ghost-snare (haakjes), rim (schuine streep) en open-hi-hat ('o') blijven scherp.
+  - ✅ CR: **open hi-hat (ho)** toegevoegd aan de STANDARD percussie-preset.
+  - ✅ CR: **cowbell** krijgt een driehoek-notehead (Ñ) i.p.v. kruis.
+  - ✅ CR: **snare rim** = snare-notehead met een schuine streep erdoor (los pad-overlay).
 - ✅ **Fase 4** (bottom-view herintegratie): bottom `RangeControls` opent nu ook bij
   `rangeEditMode`, gestript (geen palette/instrument) via `rangeOnly`. Bug #7 gefixt:
   bottom-view range-steppers sluiten de settings-overlay niet meer
@@ -190,8 +197,19 @@ keyboard (`KeyboardRangeSetter.jsx`; TabView wisselt 'm in voor de speelbare Pia
   beeld vallen. De aparte `onSwitchClef`-rij is verwijderd. Ook op de BOTTOM-tab.
 - ⬜ **Groot scherm → meer noten** toestaan (selector én/of bladmuziek-venster mogen meer
   context tonen op brede schermen).
+  [Claude 2026-06-01]: ✅ deels — het selector-klavier is weer breedte-adaptief
+  (ResizeObserver-gestuurd toetsaantal), dus breder maken = meer toetsen.
 - 🐞 **Mini-klavier: zwarte toetsen te smal** bij hele krappe squeezing (veel toetsen op
   smal scherm). Mogelijk samen met "meer noten op groot scherm" / een min. toetsbreedte.
+
+[Claude 2026-06-01 — feedback batch op de 6-blokhaken]:
+- ✅ **Blokhaken samengedrukt tot 3 gedeelde hoogtes** (FULL/LARGE/STANDARD i.p.v. 6
+  rijen). Huidige sleutel = vóór (gehighlight), andere sleutel = áchter (gedimd) en
+  onderbroken met "…" waar hij de voorste kruist. Bassleutel selecteren wisselt
+  voor/achter om. Actieve preset altijd geel, ongeacht sleutel (fix F).
+- ✅ **Venster centreert weer op de SELECTIE** (Han corrigeerde z'n eerdere opmerking):
+  sleutelwissel schuift het venster zodat de geselecteerde noten centraal staan.
+- ✅ **Klavier weer responsief** (D): breder = meer toetsen.
 
 🐞 **Overbodige/dubbele 8va·8vb in de range-overlay** [Han 2026-05-31]: noten worden in
 aparte gekleurde lagen gerenderd (range-geselecteerd / tonic / range-edge / unselected),
@@ -200,6 +218,10 @@ waar één gegroepeerde markering hoort. Root cause: `RangeStaffOverlay` splitst
 noten in per-kleur `MelodyNotesLayer`-instances (elk eigen ottava). Fix-richting: ottava
 één keer bepalen over de hele rij en delen, of de kleuring binnen één laag doen i.p.v.
 aparte lagen.
+[Claude 2026-06-01]: ✅ Opgelost — de hele rij rendert nu als ÉÉN `MelodyNotesLayer`
+met een per-noot kleur-override (`previewColorFn`-prop op de renderer), i.p.v. een
+laag per kleur. Ottava wordt dus één keer over de rij berekend. Grens=geel,
+in-band=note-coloring, buiten-bereik=dim — allemaal binnen die ene laag.
 
 🎯 **FR (Han 2026-05-31): gepolijste selectie-animatie (bladmuziek treble/bass).** De
 huidige selectie is hakkelig — het hele beeld verspringt bij her-centreren. Gewenst:
@@ -220,6 +242,11 @@ buiten tot loslaten (loslaten = direct stop); slepen (>8u) = live volgen (oud ge
 Ellips/preset/sleep-sprongen = directe snap (geen tussenstap-animatie). `rangeSlide.js`
 (pure, getest) + `RangeStaffOverlay.jsx`. Zie architecture §37.1. Geparkeerd: zelfde
 animatie op de keyboard-setter; in/uit-morph bij openen/sluiten.
+
+[Claude 2026-06-01 — vervolg-feedback]: ✅ **Vloeiender** — de tween is nu LINEAIR
+(constante snelheid) i.p.v. ease-out per stap, zodat een burst als één glijdende
+beweging leest i.p.v. een keten losse schokjes. ✅ **Ingedrukt houden** schuift nu
+écht door naar buiten (target schuift mee met live) i.p.v. heen-en-weer wiebelen.
 
 ---
 

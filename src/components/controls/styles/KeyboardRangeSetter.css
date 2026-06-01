@@ -9,12 +9,12 @@
   gap: 6px;
 }
 
-/* Six clef-grouped preset brackets above the selector (treble band on top, bass
-   below). Taller than before since it now stacks 6 rows. */
+/* Preset brackets above the selector: three shared rows (FULL/LARGE/STANDARD),
+   both clefs per row (front highlighted, other behind). Compact (Han 2026-06-01). */
 .kbd-range-presets-row {
   width: 100%;
   flex: 0 0 auto;
-  height: 104px;
+  height: 58px;
 }
 
 /* Compact selector keyboard — where the range is chosen. */

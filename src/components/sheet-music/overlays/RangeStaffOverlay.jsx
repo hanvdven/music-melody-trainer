@@ -5,7 +5,7 @@ import { melodicNoteColor } from '../../../theory/noteUtils';
 import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
-import { nextNaturalToward, nextNaturalInDir, classifyStep, STEP_MS, easeOutCubic } from './rangeSlide';
+import { nextNaturalToward, nextNaturalInDir, classifyStep, STEP_MS } from './rangeSlide';
 
 /**
  * RangeStaffOverlay — in-SVG range selector (sheet/bladmuziek variant).
@@ -52,9 +52,6 @@ const PERC_HIT_UP_BIAS = 0.66;   // fraction of the box above the notehead centr
 // Reserved right margin holding the preset brackets; also compacts the row.
 const PRESET_AREA_WIDTH = 92;
 const LOWLIGHT_OPACITY = 0.3;          // dim for melodic out-of-band notes
-// Disabled percussion pads use a stronger dim so the active/inactive contrast
-// reads clearly at a glance (Han 2026-05-31).
-const PERC_DISABLED_OPACITY = 0.12;
 // Preset-bracket geometry (right margin).
 const BRACKET_TICK = 7;
 const BRACKET_GAP = 26;
@@ -245,8 +242,15 @@ const RangeStaffOverlay = ({
         const s = stepperRef.current;
         if (!s || s.dragged) return;
         let next = null;
-        if (s.live !== s.target) next = nextNaturalToward(PIANO_NATURALS, s.live, s.target);
-        else if (s.pressed && s.ticks > 0) next = nextNaturalInDir(PIANO_NATURALS, s.live, s.dir); // not on the first tick (a tap on the boundary shouldn't nudge it)
+        if (s.live !== s.target) {
+            next = nextNaturalToward(PIANO_NATURALS, s.live, s.target);
+        } else if (s.pressed && s.ticks > 0) {
+            // Held at the target → keep extending OUTWARD. Advance the target too so
+            // the next tick still reads live===target and keeps extending in `dir`
+            // instead of stepping back toward the old target (the wobble bug).
+            next = nextNaturalInDir(PIANO_NATURALS, s.live, s.dir);
+            if (next != null) s.target = next;
+        }
         s.ticks += 1;
         if (next == null) {
             if (!s.pressed) { stopStepper(); return; }      // released + nothing left → stop
@@ -273,7 +277,11 @@ const RangeStaffOverlay = ({
         const t0 = performance.now();
         const frame = (now) => {
             const p = Math.min(1, (now - t0) / STEP_MS);
-            const e = easeOutCubic(p);
+            // LINEAR within a step (Han 2026-06-01): a burst chains many steps
+            // back-to-back, and per-step ease-out made each step decelerate → a
+            // pulsing "chain of discrete shifts". Constant velocity reads as one
+            // continuous glide across the whole burst.
+            const e = p;
             if (body) {
                 const s = s0 + (1 - s0) * e;
                 body.setAttribute('transform', `translate(${bodyAx} 0) scale(${s} 1) translate(${-bodyAx} 0)`);
@@ -298,6 +306,49 @@ const RangeStaffOverlay = ({
         Object.values(rafRefs.current).forEach(id => id && cancelAnimationFrame(id));
     }, []);
 
+    // The visible row is a boundary-relative WINDOW into the full piano (A0..C8),
+    // not the clef extent: buildRangeRow centres CONTEXT_NOTES naturals beyond
+    // each boundary. During a drag we reuse the WHOLE layout captured at
+    // press-time so the window/notes don't shift under the finger. Defined before
+    // the early return + the slide effect so both can use it (and so no hook is
+    // called conditionally — rules-of-hooks).
+    const MEL_AVAIL = endX - PRESET_AREA_WIDTH - startX;
+    const getMelodicLayout = (staff, selMin, selMax) => {
+        const active = dragRef.current?.staff === staff ? dragRef.current : null;
+        return active?.layout ?? buildRangeRow(PIANO_NATURALS, selMin, selMax, MEL_AVAIL);
+    };
+
+    // After every render: detect a single ±1 step vs the remembered window and run
+    // the slide tween; then remember the current window. Cheap when nothing moved.
+    // useLayoutEffect so initial transform/opacity are set before paint (no flash).
+    // Must sit BEFORE the early return so it's never called conditionally.
+    React.useLayoutEffect(() => {
+        if (startX == null || endX == null) return;
+        const run = (staff, range, frame) => {
+            if (!frame) return;
+            const layout = getMelodicLayout(staff, getNoteValue(range?.min), getNoteValue(range?.max));
+            if (!layout.entries.length) return;
+            const cur = layout.extent;
+            const prev = prevExtentRef.current[staff];
+            const step = layout.gap ? { kind: 'none' } : classifyStep(prev, cur);
+            if (step.kind !== 'none') {
+                const nw = layout.noteWidth;
+                const enter = step.kind === 'enter';
+                animate(staff, {
+                    bodyAx: step.anchor === 'left' ? startX : (endX - PRESET_AREA_WIDTH),
+                    s0: (prev?.noteWidth || nw) / nw,
+                    edgeDx0: enter ? step.dir * nw : 0,
+                    edgeDx1: enter ? 0 : step.dir * nw,
+                    edgeOp0: enter ? 0 : 1,
+                    edgeOp1: enter ? 1 : 0,
+                });
+            }
+            prevExtentRef.current[staff] = { loIdx: cur.loIdx, hiIdx: cur.hiIdx, noteWidth: layout.noteWidth };
+        };
+        if (isTrebleVisible) run('treble', trebleRange, trebleFrame);
+        if (isBassVisible) run('bass', bassRange, bassFrame);
+    });
+
     if (startX == null || endX == null) return null;
 
     // Screen → SVG x (robust for mouse + touch; handles the viewBox scale).
@@ -308,16 +359,6 @@ const RangeStaffOverlay = ({
         pt.x = e.clientX; pt.y = e.clientY;
         const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
         return loc.x;
-    };
-
-    // The visible row is a boundary-relative WINDOW into the full piano (A0..C8),
-    // not the clef extent: buildRangeRow centres CONTEXT_NOTES naturals beyond
-    // each boundary. During a drag we reuse the WHOLE layout captured at
-    // press-time so the window/notes don't shift under the finger.
-    const MEL_AVAIL = endX - PRESET_AREA_WIDTH - startX;
-    const getMelodicLayout = (staff, selMin, selMax) => {
-        const active = dragRef.current?.staff === staff ? dragRef.current : null;
-        return active?.layout ?? buildRangeRow(PIANO_NATURALS, selMin, selMax, MEL_AVAIL);
     };
     // Note-row Y at the row's left/right ends (lowest note left, highest right),
     // used to derive the shared divider between the treble and bass hit zones.
@@ -362,29 +403,25 @@ const RangeStaffOverlay = ({
             if (step.anchor === 'left') edgeAllOffsets = [...allOffsets, lastOff + 1];
         }
 
-        const out = [], inBand = [], boundary = [];
-        entries.forEach((e) => {
-            if (e.midi === enterMidi) return;   // entering note is drawn in the edge group
-            if (e.midi === selMin || e.midi === selMax) boundary.push(e);
-            else if (e.midi > selMin && e.midi < selMax) inBand.push(e);
-            else out.push(e);
-        });
-
-        // Selected (in-band) notes follow the live note coloring (point 1): group
-        // them by their melodic color and render one layer per color (the proven
-        // previewMode=<color> path). Modes that don't color noteheads fall back to
-        // the default text color. Boundary stays yellow (drag handles); out dimmed.
-        const inByColor = new Map();
-        inBand.forEach((e) => {
-            const c = melodicNoteColor(e.name, { noteColoringMode, tonic, scaleNotes, theme }) ?? 'var(--text-primary)';
-            if (!inByColor.has(c)) inByColor.set(c, []);
-            inByColor.get(c).push(e);
-        });
-        const colorLayers = [
-            { key: 'out', color: 'var(--text-dim)', opacity: LOWLIGHT_OPACITY, entries: out },
-            ...[...inByColor.entries()].map(([c, es], i) => ({ key: `in-${i}`, color: c, opacity: 1, entries: es })),
-            { key: 'bound', color: 'var(--accent-yellow)', opacity: 1, entries: boundary },
-        ];
+        // The whole row is rendered as ONE MelodyNotesLayer (so ottava is computed
+        // ONCE — fixes the multi-8va bug §6b) with a PER-NOTE color override:
+        //   boundary notes → yellow (drag handles)
+        //   in-band notes  → the live melodic coloring (point 1)
+        //   out-of-band    → dim
+        // The entering note is excluded (it animates in the edge group below).
+        const bodyEntries = entries.filter(e => e.midi !== enterMidi);
+        const colorFor = (midi, name) => {
+            if (midi === selMin || midi === selMax) return 'var(--accent-yellow)';
+            if (midi > selMin && midi < selMax)
+                return melodicNoteColor(name, { noteColoringMode, tonic, scaleNotes, theme }) ?? 'var(--text-primary)';
+            return 'var(--text-dim)';
+        };
+        // previewColorFn receives a note NAME; map name→midi via the entries we built.
+        const midiByName = new Map(bodyEntries.map(e => [e.name, e.midi]));
+        const bodyColorFn = (name) => {
+            const midi = midiByName.get(name);
+            return midi == null ? null : colorFor(midi, name);
+        };
 
         // Press = start STEPPING the nearest boundary one natural per 0.25 s toward
         // the pressed column (tap = burst that finishes after release; hold = keep
@@ -454,24 +491,26 @@ const RangeStaffOverlay = ({
                 {/* Body: the stable notes (+ ellipsis). The slide animation scales
                     this group about the anchored boundary; the 8va lives inside it
                     so it rides along. */}
-                <g ref={(el) => { bodyRefs.current[staff] = el; }}>
-                    {colorLayers.map(layer => layer.entries.length > 0 && (
-                        <g key={layer.key} style={{ opacity: layer.opacity, pointerEvents: 'none' }}>
-                            <MelodyNotesLayer
-                                {...STATIC_LAYER_PROPS}
-                                melody={mkMelody(layer.entries)}
-                                staff={staff}
-                                staffYStart={staffStart}
-                                clef={clef}
-                                startX={startX}
-                                noteWidth={noteWidth}
-                                allOffsets={allOffsets}
-                                timeSignature={timeSignature}
-                                theme={theme}
-                                previewMode={layer.color}
-                            />
-                        </g>
-                    ))}
+                <g ref={(el) => { bodyRefs.current[staff] = el; }} style={{ pointerEvents: 'none' }}>
+                    {bodyEntries.length > 0 && (
+                        // ONE layer for the whole row → ottava computed once (§6b).
+                        // previewMode='var(--text-primary)' keeps non-coloring modes
+                        // readable; previewColorFn paints each head per its band.
+                        <MelodyNotesLayer
+                            {...STATIC_LAYER_PROPS}
+                            melody={mkMelody(bodyEntries)}
+                            staff={staff}
+                            staffYStart={staffStart}
+                            clef={clef}
+                            startX={startX}
+                            noteWidth={noteWidth}
+                            allOffsets={allOffsets}
+                            timeSignature={timeSignature}
+                            theme={theme}
+                            previewMode="var(--text-primary)"
+                            previewColorFn={bodyColorFn}
+                        />
+                    )}
                     {/* Diagonal "…" marking the collapsed in-band middle: 3 dots
                         interpolated along the slant between the last-low and first-high
                         kept notes, so the ellipsis follows the row's diagonal. */}
@@ -590,8 +629,12 @@ const RangeStaffOverlay = ({
             (isEnabled(id) ? enabledEntries : disabledEntries).push({ name: id, offset: i + 1 });
         });
 
+        // Deselected pads are dimmed by COLOUR, not opacity (Han 2026-06-01):
+        // opacity fading made multi-stroke glyphs (ghost snare's parens, rim slash,
+        // open-hihat 'o') hard to read as on/off. A flat lowlight grey at full
+        // opacity keeps the glyph crisp while clearly reading as deselected.
         const layers = [
-            { key: 'off', color: 'var(--text-dim)', opacity: PERC_DISABLED_OPACITY, entries: disabledEntries },
+            { key: 'off', color: 'var(--text-lowlight)', opacity: 1, entries: disabledEntries },
             { key: 'on', color: 'var(--text-primary)', opacity: 1, entries: enabledEntries },
         ];
 
@@ -701,36 +744,6 @@ const RangeStaffOverlay = ({
     const divider = (tEnds && bEnds)
         ? { dL: (tEnds.yL + bEnds.yL) / 2, dR: (tEnds.yR + bEnds.yR) / 2 }
         : null;
-
-    // After every render: detect a single ±1 step vs the remembered window and
-    // run the slide tween; then remember the current window. Cheap when nothing
-    // moved (just a classify); animate() only fires on a real step. useLayoutEffect
-    // so initial transform/opacity are set before paint (no flash).
-    React.useLayoutEffect(() => {
-        const run = (staff, clef, staffStart, range, frame) => {
-            if (!frame) return;
-            const layout = getMelodicLayout(staff, getNoteValue(range?.min), getNoteValue(range?.max));
-            if (!layout.entries.length) return;
-            const cur = layout.extent;
-            const prev = prevExtentRef.current[staff];
-            const step = layout.gap ? { kind: 'none' } : classifyStep(prev, cur);
-            if (step.kind !== 'none') {
-                const nw = layout.noteWidth;
-                const enter = step.kind === 'enter';
-                animate(staff, {
-                    bodyAx: step.anchor === 'left' ? startX : (endX - PRESET_AREA_WIDTH),
-                    s0: (prev?.noteWidth || nw) / nw,
-                    edgeDx0: enter ? step.dir * nw : 0,
-                    edgeDx1: enter ? 0 : step.dir * nw,
-                    edgeOp0: enter ? 0 : 1,
-                    edgeOp1: enter ? 1 : 0,
-                });
-            }
-            prevExtentRef.current[staff] = { loIdx: cur.loIdx, hiIdx: cur.hiIdx, noteWidth: layout.noteWidth };
-        };
-        if (isTrebleVisible) run('treble', clefTreble, trebleStart, trebleRange, trebleFrame);
-        if (isBassVisible) run('bass', clefBass, bassStart, bassRange, bassFrame);
-    });
 
     return (
         <g className="range-overlay" onClick={(e) => e.stopPropagation()}>

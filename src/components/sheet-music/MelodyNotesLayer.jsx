@@ -50,6 +50,7 @@ const MelodyNotesLayer = ({
   interactive,
   courtesyAccidentals,
   percussionVoiceSplit,
+  previewColorFn,
 }) => {
   if (!melody) return null;
   return (
@@ -80,6 +81,7 @@ const MelodyNotesLayer = ({
         interactive,
         courtesyAccidentals,
         percussionVoiceSplit,
+        previewColorFn,
       )}
     </>
   );
