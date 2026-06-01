@@ -2420,26 +2420,34 @@ wiring + `setPercussionVoiceSplit`), `hooks/useRangeMorph.js` (queries
 (`clefEditMode` + toggle/open), `styles/App.css` (`.clef-family-glyph`
 transform+opacity transition).
 
-### 37.3 Chord selector — in-staff CHORD mode (Han 2026-06-01)
+### 37.3 Chord selector — the chord row, INSIDE clef mode (Han 2026-06-01 #6)
 
-A third in-staff selector, sibling of clef/range, for the chord ROW (above the
-treble staff). Opened by a `CHORDS` button in `SubHeader` (`onOpenChord` →
-`App.handleToggleChordEdit`), driving `chordEditMode`. Mutually exclusive with
-range/clef/settings; reuses the morph (`useRangeMorph` now triggered by
-`range||clef||chord`; queries `.chord-overlay` too). `ChordStaffOverlay.jsx` shows
-three options reusing the existing chord notation:
-- **X** → chords fully OFF: `chordDisplayMode='off'`. Hides the labels
-  (`chordsHidden` gates `actualChords`) AND mutes the audio (a `chordsDisabledRef`
-  mirrors the mode into the Sequencer, which sets `chordVolume=0`). NOTE: generation
-  still runs (chords still inform the melody pitch pools); a full generation-disable
-  is a follow-up if needed.
+The chord-row X/letters/roman selector lives INSIDE clef-edit mode — enabling/
+disabling chords is part of the CLEF settings (Han). There is NO standalone chord
+mode or CHORDS button: `ChordStaffOverlay` renders whenever `clefEditMode` is on,
+in the chord row (above the treble staff), alongside the clef carousels.
+`ChordStaffOverlay.jsx` shows three options reusing the existing chord notation:
+- **X** → `chordDisplayMode='off'`: hides the labels (`chordsHidden` gates
+  `actualChords`) AND mutes the audio (a `chordsDisabledRef` mirrors the mode into
+  the Sequencer, which sets `chordVolume=0`). Chords are **still generated** (they
+  inform the melody pitch pools) — Han confirmed: hide + don't play, but keep
+  generating.
 - **letters** → letter chords (D−, G7, C); **roman** → roman numerals (ii, V7, I).
 The active option is highlighted; picking one writes `chordDisplayMode`. The
-time-signature is hidden in any overlay mode now (`!overlayEditMode`), per Han
-(remove the measure type when clef/range/chord selector is active).
+time-signature is hidden in any overlay mode (`!overlayEditMode`).
 
-**Files:** `overlays/ChordStaffOverlay.jsx`, `SheetMusic.jsx` (`chordEditMode`,
-overlay render, `chordsHidden`), `App.jsx` (`chordEditMode` + toggle/open +
-`chordsDisabledRef`), `audio/Sequencer.js` (chord-audio gate), `layout/SubHeader.jsx`
-(CHORDS button), `hooks/useRangeMorph.js` (`.chord-overlay`).
+**Files:** `overlays/ChordStaffOverlay.jsx`, `SheetMusic.jsx` (renders the chord
+overlay in `clefEditMode`; `chordsHidden`), `App.jsx` (`chordsDisabledRef`),
+`audio/Sequencer.js` (chord-audio gate). `chordEditMode` + the CHORDS button were
+removed.
+
+### 37.4 Custom 22ma / 22mb clef marker (Han 2026-06-01 #6)
+
+Maestro's font has pre-composited ottava glyphs only up to 15 (`Û`=15ma etc.) — no
+22. So `clefGlyphs.jsx` adds `treble22va/22vb` + `bass22va/22vb` to `clefSymbols`
+(`ottava:'22'`) and a CUSTOM `<Ottava22>` composite: the font's own "22" digits at
+the ottava size + a small superscript "ma"/"mb", matching the 15ma size/style.
+`ClefGlyph` renders `ottava:'22'` via `Ottava22` (other ottavas keep the baked-in
+font glyph). The 22 clefs aren't wired as a selectable option yet (generation maxes
+at 15ma) — this provides the renderable ASSET for when ±22 is added.
 

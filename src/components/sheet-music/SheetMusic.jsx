@@ -166,13 +166,10 @@ const SheetMusic = ({
   showSettings,
   rangeEditMode,
   clefEditMode,
-  chordEditMode,
   onToggleSettings,
   onCloseRangeEdit,
   onCloseClefEdit,
   onOpenClefEdit,
-  onCloseChordEdit,
-  onOpenChordEdit,
   onSettingsInteraction,
   viewMode,    // 'melody' | 'repeat' — see viewMode prop in App.jsx for the source-of-truth computation
   numMeasures, // Added prop
@@ -348,10 +345,11 @@ const SheetMusic = ({
     ? (playbackConfig?.[roundKey]?.percussionEye === 'metronome')
     : (playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome');
 
-  // chordDisplayMode==='off' (the chord-selector X) fully hides the chord labels
-  // (Han 2026-06-01). But keep them visible while the chord selector is open so the
-  // user still sees the row context they're toggling.
-  const chordsHidden = chordDisplayMode === 'off' && !chordEditMode;
+  // chordDisplayMode==='off' (the chord-selector X) hides the chord labels and mutes
+  // the audio, but chords are STILL generated (Han 2026-06-01 #6). Keep the labels
+  // visible while the clef selector (which hosts the chord row) is open so the user
+  // sees the context they're toggling.
+  const chordsHidden = chordDisplayMode === 'off' && !clefEditMode;
   const actualChords = !chordsHidden && (isPlaying
     ? (playbackConfig?.[roundKey]?.chordsEye !== false)
     : (playbackConfig?.oddRounds?.chordsEye !== false || playbackConfig?.evenRounds?.chordsEye !== false));
@@ -411,14 +409,14 @@ const SheetMusic = ({
   // new flies in from the right. Either RANGE or CLEF mode triggers it (both replace
   // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
   // the duration. Fly distance = content width (user units). See useRangeMorph.
-  const overlayEditMode = rangeEditMode || clefEditMode || chordEditMode;
+  const overlayEditMode = rangeEditMode || clefEditMode;
   const { morphing: rangeMorphing } = useRangeMorph(overlayEditMode, svgRef, endX);
   // Which overlay was last shown — so during an EXIT morph (overlayEditMode already
   // false) we keep the RIGHT overlay mounted to fade out. Updated while in a mode.
+  // The chord-row selector renders inside clef mode, so 'clef' covers it too.
   const lastOverlayKindRef = useRef('range');
   if (rangeEditMode) lastOverlayKindRef.current = 'range';
   else if (clefEditMode) lastOverlayKindRef.current = 'clef';
-  else if (chordEditMode) lastOverlayKindRef.current = 'chord';
   const lastOverlayKind = lastOverlayKindRef.current;
 
   const staffLines = [];
@@ -2845,8 +2843,10 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* Chord overlay — the chord-row X/letters/roman selector. */}
-                  {(chordEditMode || (rangeMorphing && lastOverlayKind === 'chord')) && (
+                  {/* Chord overlay — the chord-row X/letters/roman selector. Enabling/
+                      disabling chords is part of CLEF settings (Han 2026-06-01 #6), so
+                      it lives INSIDE clef-edit mode (no standalone chord mode). */}
+                  {(clefEditMode || (rangeMorphing && lastOverlayKind === 'clef')) && (
                     <ChordStaffOverlay
                       startX={startX}
                       trebleStart={trebleStart}

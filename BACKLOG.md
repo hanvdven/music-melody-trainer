@@ -192,8 +192,21 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
 - `ClefCarousel.jsx`: rAF loop-carousel met re-enter van rechts onder een fade-mask.
 - Percussie: noten via echte `MelodyNotesLayer`; X-disable (2-carousel) →
   `preferredClef:'off'` verbergt/leegt/skipt-generatie; clef op `CLEF_GLYPH_X`.
-- ⏳ **Backlog (klein):** custom **22mb/22ma** gecombineerde clef-glyph nodig — dit
-  vereist een nieuw Maestro-font-asset (bestaat nog niet); kan niet puur in code.
+- **Backlog (klein):** custom **22mb/22ma** gecombineerde clef-glyph nodig.
+
+[Han 2026-06-01 #6]:
+> chord X = akkoorden verbergen + niet spelen, maar WEL genereren. Klik op chord-rij
+> opent géén aparte mode — enabling/disabling van akkoorden hoort bij de clef-
+> settings. Maak een custom 22ma/22mb-asset in Maestro-stijl/grootte.
+[Claude 2026-06-01]: ✅
+- Chord X bleek al exact goed (verbergen + dempen, generatie behouden) — bevestigd.
+- Chord-selector verhuisd NAAR de clef-edit-mode; losse CHORDS-knop + alle
+  `chordEditMode`-plumbing verwijderd (App/SheetMusic/SubHeader). §37.3.
+- ✅ **22ma/22mb-asset gemaakt**: Maestro is een TrueType-muziekfont (ASCII→PUA
+  F0xx) met voorgecomponeerde ottava-glyphs t/m 15 (géén 22). Toegevoegd:
+  `Ottava22`-composite (font-cijfers "22" + superscript ma/mb in 15ma-stijl) +
+  `treble/bass22va/vb` in `clefSymbols`. Renderbaar asset klaar; nog niet als
+  keuze-optie gekoppeld (generatie max 15ma). §37.4.
 
 ---
 
