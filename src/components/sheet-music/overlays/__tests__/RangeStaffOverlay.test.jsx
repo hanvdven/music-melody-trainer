@@ -16,18 +16,28 @@ const PIANO_NATURALS = (() => {
 const countNaturals = (lo, hi) => PIANO_NATURALS.filter(n => n.midi >= lo && n.midi <= hi).length;
 
 describe('buildRangeRow (boundary-relative window + diagonal ellipsis)', () => {
-    it('windows to CONTEXT_NOTES naturals beyond each boundary (balanced)', () => {
-        // C4..C5 selection on a wide row: window = 3 below C4 .. 3 above C5.
-        const l = buildRangeRow(PIANO_NATURALS, 60, 72, 9999);
+    it('windows to ≥CONTEXT_NOTES naturals beyond each boundary (balanced)', () => {
+        // C4..C5 = 8 in-band naturals; size avail to exactly fit in-band + 2×CONTEXT
+        // at MAX_NOTE_WIDTH so the width-fill growth (Han 2026-06-01) does NOT kick
+        // in and we validate the minimum balanced window.
+        const inBand = countNaturals(60, 72);           // 8
+        const avail = (inBand + 2 * CONTEXT_NOTES) * 34; // 14 × MAX_NOTE_WIDTH
+        const l = buildRangeRow(PIANO_NATURALS, 60, 72, avail);
         expect(l.collapsed).toBe(false);
         const midis = l.entries.map(e => e.midi);
-        // 3 naturals below C4 (A3,B3 + the one before) and 3 above C5 (D5,E5,F5).
         const belowMin = midis.filter(m => m < 60).length;
         const aboveMax = midis.filter(m => m > 72).length;
         expect(belowMin).toBe(CONTEXT_NOTES);
         expect(aboveMax).toBe(CONTEXT_NOTES);
-        // Far-away notes are NOT in the window.
-        expect(midis.some(m => m < 50 || m > 84)).toBe(false);
+    });
+
+    it('GROWS the window so a narrow selection fills a wide row', () => {
+        // Same selection on a much wider row: context grows symmetrically to fill
+        // the width instead of bunching MAX_NOTE_WIDTH notes at the left.
+        const l = buildRangeRow(PIANO_NATURALS, 60, 72, 9999);
+        const midis = l.entries.map(e => e.midi);
+        expect(midis.filter(m => m < 60).length).toBeGreaterThan(CONTEXT_NOTES);
+        expect(midis.filter(m => m > 72).length).toBeGreaterThan(CONTEXT_NOTES);
     });
 
     it('collapses the in-band middle into a diagonal gap when cramped', () => {
