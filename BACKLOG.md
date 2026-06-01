@@ -176,6 +176,18 @@ keyboard (`KeyboardRangeSetter.jsx`; TabView wisselt 'm in voor de speelbare Pia
   bass eronder (positie = sleutel), tik wisselt `activeClef`. `setActiveClef` doorgezet
   App → TabView. ⬜ verfijning: nog geen sleutel-glyph (onderscheid nu via positie +
   highlight).
+- ✅ **6 sleutel-gegroepeerde preset-blokhaken (vervangt de losse sleutelrij)** [Claude
+  2026-05-31]: nu ALLE zes presets zichtbaar — G-sleutel (STD C4–E5, LARGE C4–G5, FULL
+  A3–C6) + F-sleutel (STD A2–C4, LARGE G2–C4, FULL C2–E4), elk horizontaal uitgelijnd
+  boven hun echte toetsen (larges overlappen). Treble-band boven, bass-band eronder
+  (positie = sleutel). **Tik op een blokhaak zet zowel de sleutel (`preferredClef`)
+  ALS de range op DEZE notenbalk** — fixt de bug dat F-blokhaken de middelste balk
+  bewerkten: ze bewerken nu altijd de balk van de actieve tab (TOP→treble-settings,
+  BOTTOM→bass-settings; een balk mag elke sleutel dragen, dus bass-melodie kan
+  vioolsleutel krijgen indien hoog, en omgekeerd). Huidige sleutel = felle blokhaken,
+  andere sleutel = gedimd (toch tikbaar). Venster centreert op B4 (treble) / D3 (bass)
+  zodat de zes blokhaken op stabiele toetsposities staan; brackets mogen deels buiten
+  beeld vallen. De aparte `onSwitchClef`-rij is verwijderd. Ook op de BOTTOM-tab.
 - ⬜ **Groot scherm → meer noten** toestaan (selector én/of bladmuziek-venster mogen meer
   context tonen op brede schermen).
 - 🐞 **Mini-klavier: zwarte toetsen te smal** bij hele krappe squeezing (veel toetsen op

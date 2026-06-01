@@ -42,7 +42,6 @@ const TabView = ({
     // Scale/playback
     scale,
     activeClef,
-    setActiveClef,
     handleInputTestNote,
     qwertyKeyboardActive,
     showSheetMusicSettings,
@@ -152,7 +151,6 @@ const TabView = ({
                                     noteColoringMode={noteColoringMode}
                                     qwertyKeyboardActive={qwertyKeyboardActive}
                                     onNoteInput={handleInputTestNote}
-                                    onSwitchClef={setActiveClef}
                                     debugMode={debugMode}
                                 />
                             ) : (

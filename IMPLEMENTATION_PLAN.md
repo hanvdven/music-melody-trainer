@@ -11,6 +11,17 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ## Range Selector (in-SVG, RANGE mode)
 
+### ✅ Keyboard preset brackets = 6 clef+range presets (Han 2026-05-31)
+Six brackets (G-clef STD/LARGE/FULL + F-clef STD/LARGE/FULL), clef-grouped
+(treble band on top), x-aligned to real key positions (larges overlap). Tap sets
+BOTH `preferredClef` + `range` on the CURRENT staff (fixes the bug where F-brackets
+wrote to the middle staff). Separate `onSwitchClef` row removed. Window centres on
+the active clef's home note (B4/D3) so brackets sit at stable positions; off-clef
+brackets dimmed & may fall off-screen. Applies to BOTH tabs (each edits its own
+staff; a staff may carry either clef). `buildPresetBracketRows` reworked + test
+(5 cases). 188 tests green; build + lint clean. Decisions from interview:
+clef-centred window (off-screen OK) · remove clef row · apply to both tabs.
+
 ### 🔨→✅ Boundary SLIDE animation (sheet overlay) — Han 2026-05-31
 Decisions (interview): sheet overlay only · all behaviours at once · all 4
 directions mirrored · 0.25 s/note constant (chained, no pause).

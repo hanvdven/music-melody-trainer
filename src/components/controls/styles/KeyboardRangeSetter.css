@@ -9,18 +9,12 @@
   gap: 6px;
 }
 
-/* Clef-switch brackets (treble/bass) at the very top, piano tab only. */
-.kbd-range-clefs {
-  width: 100%;
-  flex: 0 0 auto;
-  height: 52px;
-}
-
-/* Preset brackets above the selector. */
+/* Six clef-grouped preset brackets above the selector (treble band on top, bass
+   below). Taller than before since it now stacks 6 rows. */
 .kbd-range-presets-row {
   width: 100%;
   flex: 0 0 auto;
-  height: 78px;
+  height: 104px;
 }
 
 /* Compact selector keyboard — where the range is chosen. */
