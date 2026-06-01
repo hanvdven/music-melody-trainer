@@ -134,12 +134,13 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
 
 ---
 
-### Range setter — vervolg-feedback (Han 2026-06-01) — ⏳ volgende ronde
-- **Bladmuziek**: bij weinig geselecteerde noten vullen ze niet de volle breedte;
-  verdeel de noten altijd netjes over de beschikbare ruimte (zie screenshot).
-- **Klavier**: bass kiezen op het top-keyboard → blokhaak wordt niet gehighlight /
-  wisselt niet van laag; "achter"-blokhaak oogt niet mooi; haakjes/ellipsen
-  overlappen. Gewenst beeld: `⌜- - - - - ... ⌜- - - - - - - ⌝`.
+### Range setter — vervolg-feedback (Han 2026-06-01)
+- ✅ **Bladmuziek**: bij weinig geselecteerde noten verdeelt `buildRangeRow` ze nu
+  over de volle breedte (venster groeit symmetrisch i.p.v. noten links ophopen).
+- ✅ **Klavier**: `selClef` leest nu de **staff's eigen `preferredClef`** (niet de
+  tab) → bass kiezen op het top-keyboard highlight nu de juiste blokhaak en wisselt
+  voor/achter correct. "Achter"-blokhaak is nu gestreept + alleen linkerhoek (leest
+  als 'onderdoor'); front solide ⊓; ellips bij de snijlijn — beeld `⌜- - - … ⌜- - - ⌝`.
 
 ---
 

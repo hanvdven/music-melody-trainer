@@ -127,9 +127,15 @@ const KeyboardRangeSetter = ({
     const range = settings?.range || { min: 'C4', max: 'E5' };
     const selMin = getNoteValue(range.min);
     const selMax = getNoteValue(range.max);
-    // The clef CURRENTLY on this staff (a staff can carry either clef — a high
-    // bass line may use treble, etc.). Drives bracket-active + window centring.
-    const selClef = activeClef === 'treble' ? 'treble' : 'bass';
+    // The clef CURRENTLY on this staff — read from the STAFF's own preferredClef,
+    // not the tab's activeClef (Han 2026-06-01 fix): picking a bass preset on the
+    // top keyboard sets preferredClef='bass', and the bracket highlight + which
+    // band is "front" must follow that, not which keyboard tab you're on. Falls back
+    // to the tab clef when preferredClef isn't a melodic clef (e.g. vocal/off).
+    const prefClef = settings?.preferredClef;
+    const selClef = (prefClef === 'treble' || prefClef === 'bass')
+        ? prefClef
+        : (activeClef === 'treble' ? 'treble' : 'bass');
     // All SIX presets (both clefs) — each bracket sets that clef AND its range on
     // THIS staff (Han 2026-05-31). `clef` tags which vertical band it lands in.
     const presets = ['treble', 'bass'].flatMap(clef =>
@@ -268,23 +274,33 @@ const KeyboardRangeSetter = ({
                     {bracketRows.map(({ p, x0, x1, isActive, isCurrentClef, yTop, ellipsisX }) => {
                         const color = isActive ? 'var(--accent-yellow)'
                             : (isCurrentClef ? 'var(--text-primary)' : 'var(--text-dim)');
-                        // Behind (off-clef) brackets sit faded so the front three read first.
-                        const groupOpacity = isCurrentClef ? 1 : 0.5;
+                        // Behind (off-clef) brackets are faded + DASHED with only a left
+                        // corner (no closing right tick) so they read as passing UNDER the
+                        // current clef's solid bracket — the look Han asked for:
+                        //   ⌜- - - - - …  ⌜- - - - - - - ⌝
+                        const isBehind = !isCurrentClef;
+                        const groupOpacity = isBehind ? 0.55 : 1;
+                        const yb = yTop + PRESET_TICK;
+                        // Front: full ⊓ (both ticks). Behind: left tick + top only.
+                        const d = isBehind
+                            ? `M ${x0} ${yb} V ${yTop} H ${x1}`
+                            : `M ${x0} ${yb} V ${yTop} H ${x1} V ${yb}`;
                         return (
                             <g key={`${p.clef}-${p.label}`} style={{ cursor: 'pointer', opacity: groupOpacity }}
                                 onClick={() => applyPreset(p)}>
-                                <rect x={x0 - 0.3} y={yTop - 2} width={(x1 - x0) + 0.6} height={PRESET_ROW_H}
+                                <rect x={x0 - 0.3} y={yTop - 2} width={Math.max(0.6, (x1 - x0) + 0.6)} height={PRESET_ROW_H}
                                     fill="transparent" />
-                                <path d={`M ${x0} ${yTop + PRESET_TICK} V ${yTop} H ${x1} V ${yTop + PRESET_TICK}`}
+                                <path d={d}
                                     fill="none" stroke={color} strokeWidth={isActive ? 2 : 1.2}
+                                    strokeDasharray={isBehind ? '1.6 1.2' : undefined}
                                     vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
                                 {/* "…" where a behind bracket is cut off by the front one. */}
                                 {ellipsisX != null && (
-                                    <text x={ellipsisX} y={yTop + 2} fontSize={6} fill={color}
+                                    <text x={ellipsisX} y={yTop + 2.5} fontSize={6} fill={color}
                                         textAnchor="middle" style={{ pointerEvents: 'none' }}>…</text>
                                 )}
                                 {debugMode && (
-                                    <rect x={x0 - 0.3} y={yTop - 2} width={(x1 - x0) + 0.6} height={PRESET_ROW_H}
+                                    <rect x={x0 - 0.3} y={yTop - 2} width={Math.max(0.6, (x1 - x0) + 0.6)} height={PRESET_ROW_H}
                                         fill="orange" fillOpacity={0.2} stroke="orange" strokeWidth={0.3}
                                         style={{ pointerEvents: 'none' }} />
                                 )}
