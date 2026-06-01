@@ -2266,13 +2266,32 @@ while the row rebalances and a fresh context note swipes in/out at the far edge;
   BEFORE the component's early `return null` (rules-of-hooks). Timers + rAF cancel on
   unmount; the committed `{min,max}` is identical to the old instant path at every step.
 
-**Still open / parked:** dual-surface live sync + enter/exit morph (principles
-3–4) are not built yet — the two surfaces are bound to the same state but don't
-animate into each other; the same slide animation on the keyboard setter; keyboard
-ellipsis for very narrow windows; black-key boundary precision; percussion keyboard
-setter; preset-bracket alignment on the keyboard is approximate (clamps/hides
-presets outside the window). The legacy stepper `RangeControls` is still used in
-settings-only mode (not range-edit).
+**Keyboard slide-stepper (Han 2026-06-01).** The keyboard setter's selection band
+now animates like the sheet: it reuses `rangeSlide.js` (`nextNaturalToward`,
+`nextNaturalInDir`, `STEP_MS`). A tap bursts one white key per 250 ms toward the
+pressed column; a hold keeps extending outward (target advances with live so it
+doesn't wobble); moving > `KBD_DRAG_PX` (10 px) promotes to a live drag. The window
+freezes for the whole gesture and re-anchors when the burst finishes / on release.
+The yellow band + handle rects carry a CSS `transition: x/width 0.25s linear`
+(`.kbd-range-band`) so each step GLIDES between key positions instead of snapping.
+
+**Enter/exit morph (Han 2026-06-01) — `useRangeMorph.js`.** Toggling RANGE plays a
+1.5 s (`MORPH_MS`) morph between the sheet melody (`.notes-transition`) and the
+range overlay (`.range-overlay`): the OLD group just fades (opacity 1→0); the NEW
+group FLIES IN from the right (translateX `endX`→0, opacity 0→1). Entering:
+old=melody, new=overlay; exiting: reversed. The hook detects the `rangeEditMode`
+flip in a `useLayoutEffect`, returns `morphing` so SheetMusic keeps BOTH groups
+mounted+visible during the morph (the melody group's `display:none`-in-edit-mode is
+suppressed while morphing; the overlay mounts when `rangeEditMode || morphing`),
+then runs a single rAF tween. **opacity/transform via `element.style` only (§6)**,
+and the inline styles are cleared at the end so the scroll/wipe systems own those
+properties again. Safe because opening range stops playback (no scroll/wipe active).
+
+**Still open / parked:** dual-surface live sync (the two surfaces share state but
+don't live-mirror); keyboard ellipsis for very narrow windows; black-key boundary
+precision; percussion keyboard setter; preset-bracket alignment on the keyboard is
+approximate (clamps/hides presets outside the window). The legacy stepper
+`RangeControls` is still used in settings-only mode (not range-edit).
 
 **Files:** `overlays/RangeStaffOverlay.jsx` (+ smoke test), `overlays/
 SettingsOverlay.jsx`, `controls/KeyboardRangeSetter.jsx` (+ `styles/

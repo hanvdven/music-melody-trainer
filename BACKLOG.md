@@ -211,6 +211,17 @@ keyboard (`KeyboardRangeSetter.jsx`; TabView wisselt 'm in voor de speelbare Pia
   sleutelwissel schuift het venster zodat de geselecteerde noten centraal staan.
 - ✅ **Klavier weer responsief** (D): breder = meer toetsen.
 
+[Claude 2026-06-01 — anim-batch #2]:
+- ✅ CR: **LARGE-preset verbreed** — treble C4–A5, bass E2–C4.
+- ✅ **Klavier-slide-animatie**: de klavier-setter gebruikt nu dezelfde slide-stepper
+  als de bladmuziek (`rangeSlide.js`): tik = burst, ingedrukt = doorschuiven, slepen =
+  live. De gele band/handvatten glijden via een CSS-transitie (0,25s) i.p.v.
+  verspringen; het toetsvenster bevriest tijdens het gebaar en her-ankert daarna.
+- ✅ **Overgangsanimatie (1,5s, `useRangeMorph.js`)**: RANGE openen faded de melodie
+  uit terwijl de range-rijen van rechts invliegen; sluiten faded de range uit en de
+  melodie vliegt in. Oud faded, nieuw vliegt (Han). Beide groepen blijven gemount +
+  zichtbaar tijdens de morph; opacity/transform via element.style in rAF (§6).
+
 🐞 **Overbodige/dubbele 8va·8vb in de range-overlay** [Han 2026-05-31]: noten worden in
 aparte gekleurde lagen gerenderd (range-geselecteerd / tonic / range-edge / unselected),
 en ELKE laag berekent zijn eigen ottava-markering. Daardoor verschijnen meerdere 8va/8vb's

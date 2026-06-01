@@ -11,6 +11,17 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ## Range Selector (in-SVG, RANGE mode)
 
+### ✅ Anim batch (Han 2026-06-01 #2)
+- ✅ CR: LARGE preset widened — treble C4–A5, bass E2–C4.
+- ✅ Keyboard slide-stepper: reuses `rangeSlide.js` (tap-burst / hold-extend / drag);
+  window freezes during the gesture, band/handles glide via CSS transition
+  (`.kbd-range-band`, x/width 0.25s linear).
+- ✅ Enter/exit MORPH (1.5s, `useRangeMorph.js`): RANGE fades melody OUT, range rows
+  FLY IN from the right; closing reverses. Old fades, new flies. Both groups kept
+  mounted+visible via `morphing`. opacity/transform via element.style in rAF (§6),
+  cleared at end. 190 tests green; build + lint clean.
+
+
 ### ✅ Feedback batch (Han 2026-06-01) — done this round
 A ✅ Slide tween now LINEAR (constant velocity) → a burst glides instead of pulsing.
 B ✅ Hold-extend fixed: advance `target` with `live` while extending so it keeps

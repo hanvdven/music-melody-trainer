@@ -44,3 +44,9 @@
   touch-action: none;
   cursor: ew-resize;
 }
+
+/* Selection band + handles glide between key positions during a stepper burst
+   (Han 2026-06-01). 0.25s matches STEP_MS so steps chain into one motion. */
+.kbd-range-band {
+  transition: x 0.25s linear, width 0.25s linear;
+}
