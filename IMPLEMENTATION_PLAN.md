@@ -17,17 +17,14 @@ Decisions: new `preferredClef:'off'` field · clef-click = open selector (replac
 - ✅ 4th family = large CROSS (`CLEF_OFF`); patch/clef-calc/visibility plumbed safe.
 - ✅ vocal voices fixed: added Baritone, each shows its real clef GLYPH, Bass≠
   instrumental bass (matched on rangeMode). Pure helpers + tests updated (10 cases).
-- 🔨 NEXT WAVE (visual polish, see §37.2 "next polish wave"):
-  - carousel fully left of startX; hide time-sig in clef mode; real-size clefs;
-    true carousel slide+fade (old off-left, new in-right).
-  - octave variants as full ottava clef GLYPHS (8va/8vb/15ma/15vb), minimal text.
-  - disabled ('off') staff: greyed-out-but-visible in other modes; crossed clef
-    clickable → opens selector.
-  - percussion clef block: perc/off left + `[[k,c],hh,[s,hh],hh]`×2 toggler for
-    `percussionVoiceSplit` (localize from SettingsPanel).
-  - range setter sheet: distribute notes across full width when few selected.
-  - range setter keys: bass-on-top-keyboard bracket highlight/layer; nicer behind
-    bracket; fix overlapping brackets/ellipses → `⌜- - - ... ⌜- - - - ⌝`.
+- ✅ Polish wave done: carousel left of startX + real-size + slide/fade; time-sig &
+  static clef hidden in clef mode; octave variants as full ottava clef GLYPHS;
+  percussion clef block with together↔split mini-rhythm toggler.
+- ✅ range setter sheet: notes distribute across full width when few selected.
+- ✅ range setter keys: bracket highlight follows staff clef; behind bracket dashed
+  + left-corner-only (`⌜- - - … ⌜- - - ⌝`).
+- ⏳ Still open: disabled ('off') staff greyed-out-but-visible in other modes with
+  clickable cross (now 'off' only short-circuits clef calc).
 
 ## Clef selector (in-staff, CLEF mode) — Han 2026-06-01
 ✅ Built. `ClefStaffOverlay` + pure `clefSelector.js` (+ test, 8 cases). CLEF button

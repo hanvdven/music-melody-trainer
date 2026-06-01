@@ -45,17 +45,20 @@ export const VOCAL_VARIANTS = [
 
 // Octave variants per melodic family. `rangeMode` mirrors the existing
 // applyRangeOption values so the rest of the app (clef calc, generation) keeps
-// working unchanged. `default:true` marks the plain (non-ottava) variant.
+// working unchanged. `default:true` marks the plain (non-ottava) variant. Each
+// carries the GLYPH (Maestro clef char) + the ottava marker (`ott`: number + side)
+// so the selector can draw the full ottava CLEF (clef + 8/15 above/below) rather
+// than a text label (Han 2026-06-01: show the clefs, minimal text).
 export const OCTAVE_VARIANTS = {
     g: [
-        { id: 'treble', label: '8', rangeMode: null, default: true },
-        { id: 'treble8va', label: '8va', rangeMode: 'relative' },
-        { id: 'treble15ma', label: '15ma', rangeMode: 'relative_15a' },
+        { id: 'treble', glyph: '&', ott: null, rangeMode: null, default: true },
+        { id: 'treble8va', glyph: '&', ott: { n: '8', above: true }, rangeMode: 'relative' },
+        { id: 'treble15ma', glyph: '&', ott: { n: '15', above: true }, rangeMode: 'relative_15a' },
     ],
     f: [
-        { id: 'bass', label: '8', rangeMode: null, default: true },
-        { id: 'bass8vb', label: '8vb', rangeMode: 'relative_low' },
-        { id: 'bass8va', label: '8va', rangeMode: 'relative' },
+        { id: 'bass', glyph: '?', ott: null, rangeMode: null, default: true },
+        { id: 'bass8vb', glyph: '?', ott: { n: '8', above: false }, rangeMode: 'relative_low' },
+        { id: 'bass8va', glyph: '?', ott: { n: '8', above: true }, rangeMode: 'relative' },
     ],
 };
 

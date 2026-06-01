@@ -127,10 +127,18 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
 - **Vocal voices** hersteld: **Bariton** toegevoegd; elke voice toont z'n **echte
   clef-glyph** (F-clef voor Bass+Bariton, C-clef voor de rest); vocal-Bass ≠
   instrumentele bassleutel (gematcht op `rangeMode`). Pure helpers + tests bijgewerkt.
-- ⏳ Volgende polish-ronde (zie §37.2 "next polish wave"): carrousel links van
-  startX + maatsoort weg + ware grootte + slide/fade-carrousel; octaafvarianten als
-  volledige ottava-clef-**glyphs**; uitgeschakelde balk grijs-maar-zichtbaar met
-  klikbaar kruis; percussie-clef-blok met mini-ritme-toggler.
+[Claude 2026-06-01 — polish-ronde]: ✅
+- Carrousel staat nu in de **sleutel-goot, volledig links van startX**; huidige
+  sleutel op de echte clef-positie, buren schuiven rechts tot startX en faden uit.
+  Familiewissel = slide + fade (transform+opacity), echt carrousel-gevoel.
+- Sleutels op **ware grootte**; statische sleutel-glyph **én maatsoort verborgen in
+  clef-mode** (carrousel tekent de sleutel).
+- Octaafvarianten als **volledige ottava-clef-glyphs** (clef + 8/15 marker), geen tekst.
+- **Percussie-clef-blok**: perc-clef links + `[[k,c],hh,[s,hh],hh]`×2 mini-ritme
+  als together↔split-toggler (stuurt `percussionVoiceSplit`). Settings-toggle blijft
+  bestaan en deelt dezelfde state.
+- ⏳ Nog open: uitgeschakelde ('off') balk grijs-maar-zichtbaar tonen in andere modi
+  met klikbaar kruis (nu kort-sluit 'off' alleen de clef-berekening).
 
 ---
 

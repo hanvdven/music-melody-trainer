@@ -2343,19 +2343,35 @@ via pure helpers in `overlays/clefSelector.js` (no hardcoded option tables in th
 view; §6c). All option logic is pure + tested
 (`overlays/__tests__/clefSelector.test.js`).
 
-**Parked / next polish wave (Han 2026-06-01 feedback):** carousel should sit fully
-LEFT of `startX` and hide the time signature in clef mode; clef glyphs at true size;
-true carousel feel (old glyph slides off-left + fades, new fades in from the right);
-octave variants shown as the full ottava clef GLYPHS (8va/8vb/15ma/15vb) rather than
-text; the disabled ('off') staff drawn greyed-out (still visible) in other modes with
-its crossed clef clickable to open the selector; percussion clef block (perc/off left
-+ a `[[k,c],hh,[s,hh],hh]`×2 mini-rhythm toggling `percussionVoiceSplit`).
+**Polish wave (Han 2026-06-01) — done:**
+- The family carousel now lives in the **clef gutter, fully LEFT of `startX`**: the
+  current family glyph sits at `GUTTER_X` (≈ the real clef position) and neighbours
+  step right by `FAMILY_SLOT_W` up to `startX`, fading out as they approach it.
+  Picking another family slides + fades (transform+opacity transition) for a true
+  carousel feel (old glyph slides off-left & fades, new fades in from the right).
+- Clef glyphs render at **true staff size** (`FAMILY_GLYPH_SIZE` 36). The static
+  staff clef glyph AND the time signature are **hidden in clef-edit mode** (the
+  carousel draws the clef in the gutter; `renderStaffMeasureTexts` is gated on
+  `!clefEditMode` for all three staves).
+- Octave variants render as the **full ottava CLEF GLYPHS** (clef + an italic 8/15
+  marker above/below), not text chips (`OCTAVE_VARIANTS[*].glyph/ott`).
+- **Percussion clef block**: the percussion clef glyph in the gutter (left) + a
+  `[[k,c],hh,[s,hh],hh]`×2 mini-rhythm sketch rendered TWICE as a **together↔split
+  toggler** (dots + stems; together = all stems up, split = RH↑/LH↓), driving
+  `percussionVoiceSplit` via `onToggleVoiceSplit` (`setPercussionVoiceSplit` from
+  `useDisplaySettings`). The SettingsPanel toggle still exists and shares the state.
+
+**Still parked:** the disabled ('off') staff drawn greyed-out-but-visible in OTHER
+modes (e.g. range) with its crossed clef clickable to open the selector — currently
+'off' only short-circuits clef calc; full grey rendering is not built yet.
 
 **Files:** `overlays/ClefStaffOverlay.jsx`, `overlays/clefSelector.js` (+ test),
 `SheetMusic.jsx` (`clefEditMode`, clef-click → `onOpenClefEdit`, overlay render,
 `lastOverlayKind`, `'off'` in `calculateOptimalClef`/`bassActiveClef`; the old
 in-popup clef list + `CLEF_RANGE_OPTIONS`/`applyRangeOption`/`getCurrentRangeValue`
-were removed), `hooks/useRangeMorph.js` (queries `.range-overlay, .clef-overlay`),
-`layout/SubHeader.jsx` (CLEF button), `App.jsx` (`clefEditMode` + toggle/open),
-`styles/App.css` (`.clef-family-glyph` transition).
+were removed; clef glyph + time-sig hidden in clef mode; percussion clef block
+wiring + `setPercussionVoiceSplit`), `hooks/useRangeMorph.js` (queries
+`.range-overlay, .clef-overlay`), `layout/SubHeader.jsx` (CLEF button), `App.jsx`
+(`clefEditMode` + toggle/open), `styles/App.css` (`.clef-family-glyph`
+transform+opacity transition).
 
