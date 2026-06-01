@@ -35,7 +35,7 @@ import { nextNaturalToward, nextNaturalInDir, classifyStep, STEP_MS } from './ra
  *
  * Writes go through optional callbacks (onSetMelodicBoundary / onApplyMelodicPreset
  * / onTogglePad / onApplyPercussionPreset). Without them the overlay is a static
- * render (used by the smoke test). A "◆ RANGE SELECTOR" indicator marks the mode.
+ * render (used by the smoke test).
  */
 
 const QUARTER = TICKS_PER_WHOLE / 4;   // quarter-note → filled head + stem, no flag/beam
@@ -725,17 +725,6 @@ const RangeStaffOverlay = ({
         );
     };
 
-    // Clear "you are in range-selector mode" indicator (Han 2026-05-30).
-    const modeIndicator = () => (
-        <g className="range-mode-indicator" style={{ pointerEvents: 'none' }}>
-            <text x={startX} y={trebleStart - 30}
-                fill="var(--accent-yellow)" fontSize={12}
-                fontFamily="Georgia, serif" fontWeight="bold" letterSpacing="1">
-                ◆ RANGE SELECTOR
-            </text>
-        </g>
-    );
-
     // Shared divider between the treble & bass hit zones: the midpoint of the two
     // note rows at the left/right ends, so the zones meet exactly (point 2). Null
     // unless both melodic staves are visible.
@@ -747,7 +736,6 @@ const RangeStaffOverlay = ({
 
     return (
         <g className="range-overlay" onClick={(e) => e.stopPropagation()}>
-            {modeIndicator()}
             {isTrebleVisible && melodicStaff('treble', trebleStart, clefTreble, trebleRange, trebleFrame, divider)}
             {isBassVisible && melodicStaff('bass', bassStart, clefBass, bassRange, bassFrame, divider)}
             {isTrebleVisible && melodicPresetBrackets('treble', trebleStart, clefTreble, trebleRange, trebleFrame)}
