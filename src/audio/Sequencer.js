@@ -373,7 +373,9 @@ class Sequencer {
             // and .displayNotes = Chord[] (for SheetMusic labels).
             // Read chordSettings fresh from ref — NOT from randomizeScaleAndGenerate's scope
             const liveChordSettings = this.refs.instrumentSettingsRef.current?.chords;
-            const chordVolume = activeConfig.chords;
+            // chordDisplayMode==='off' (chord-selector X) fully disables chord audio.
+            const chordsDisabled = this.refs.chordsDisabledRef?.current === true;
+            const chordVolume = chordsDisabled ? 0 : activeConfig.chords;
             if (chordVolume > 0 && chordProgression.notes && chordProgression.offsets && chordProgression.notes.length > 0) {
               const chordMelodyWithGain = {
                 ...chordProgression,

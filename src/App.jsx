@@ -172,6 +172,12 @@ const App = () => {
         chordDisplayMode, setChordDisplayMode,
     } = useAppUIState();
 
+    // The chord-selector X (chordDisplayMode==='off') fully disables chords: the
+    // Sequencer reads this ref to skip chord scheduling (audio off), mirroring the
+    // hidden labels (Han 2026-06-01). Kept in a ref so the audio loop sees it live.
+    const chordsDisabledRef = useRef(chordDisplayMode === 'off');
+    useEffect(() => { chordsDisabledRef.current = chordDisplayMode === 'off'; }, [chordDisplayMode]);
+
     const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
 
     // Sheet Music Settings state (Lifted)
@@ -183,6 +189,9 @@ const App = () => {
     // In-SVG clef-edit mode (Han 2026-06-01): drives ClefStaffOverlay. Sibling of
     // rangeEditMode; the two are mutually exclusive (and exclusive with settings).
     const [clefEditMode, setClefEditMode] = useState(false);
+    // In-SVG chord-edit mode (Han 2026-06-01): the chord-row selector (X/letters/
+    // roman). Sibling of range/clef; mutually exclusive with them + settings.
+    const [chordEditMode, setChordEditMode] = useState(false);
 
     // Range-edit and the general settings overlay are mutually exclusive
     // (Han 2026-05-31). This effect is the catch-all: whenever the settings
@@ -191,7 +200,8 @@ const App = () => {
     useEffect(() => {
         if (showSheetMusicSettings && rangeEditMode) setRangeEditMode(false);
         if (showSheetMusicSettings && clefEditMode) setClefEditMode(false);
-    }, [showSheetMusicSettings, rangeEditMode, clefEditMode]);
+        if (showSheetMusicSettings && chordEditMode) setChordEditMode(false);
+    }, [showSheetMusicSettings, rangeEditMode, clefEditMode, chordEditMode]);
 
     // Input Test Mode — wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available
 
@@ -578,7 +588,8 @@ const App = () => {
         if (!rangeEditMode) {
             handleStopAllPlayback();
             if (showSheetMusicSettings) toggleSheetMusicSettings();
-            setClefEditMode(false);   // range & clef modes are mutually exclusive
+            setClefEditMode(false);   // range/clef/chord modes are mutually exclusive
+            setChordEditMode(false);
         }
         setRangeEditMode(v => !v);
     }, [rangeEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -589,14 +600,34 @@ const App = () => {
             handleStopAllPlayback();
             if (showSheetMusicSettings) toggleSheetMusicSettings();
             setRangeEditMode(false);
+            setChordEditMode(false);
         }
         setClefEditMode(v => !v);
     }, [clefEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
+    // Chord-edit toggle — mirrors clef-edit (the chord-row X/letters/roman selector).
+    const handleToggleChordEdit = useCallback(() => {
+        if (!chordEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setRangeEditMode(false);
+            setClefEditMode(false);
+        }
+        setChordEditMode(v => !v);
+    }, [chordEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+    const handleOpenChordEdit = useCallback(() => {
+        handleStopAllPlayback();
+        if (showSheetMusicSettings) toggleSheetMusicSettings();
+        setRangeEditMode(false);
+        setClefEditMode(false);
+        setChordEditMode(true);
+    }, [handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
 
     // Closing range edit (e.g. clicking outside the bottom range settings, or
     // tapping empty sheet area while in range mode).
     const handleCloseRangeEdit = useCallback(() => setRangeEditMode(false), []);
     const handleCloseClefEdit = useCallback(() => setClefEditMode(false), []);
+    const handleCloseChordEdit = useCallback(() => setChordEditMode(false), []);
     // Pure OPEN (not toggle) for clicking a clef glyph in the sheet — always lands
     // in clef-edit (Han 2026-06-01: clicking the clef opens the selector).
     const handleOpenClefEdit = useCallback(() => {
@@ -1004,6 +1035,7 @@ const App = () => {
                 melodiesRef,
                 instrumentSettingsRef,
                 chordProgressionRef,
+                chordsDisabledRef,
                 showChordsOddRoundsRef,
                 showChordsEvenRoundsRef,
                 percussionCustomMappingRef: customPercussionMappingRef,
@@ -1163,10 +1195,13 @@ const App = () => {
         showSettings: showSheetMusicSettings,
         rangeEditMode: rangeEditMode,
         clefEditMode: clefEditMode,
+        chordEditMode: chordEditMode,
         onToggleSettings: toggleSheetMusicSettings,
         onCloseRangeEdit: handleCloseRangeEdit,
         onCloseClefEdit: handleCloseClefEdit,
         onOpenClefEdit: handleOpenClefEdit,
+        onCloseChordEdit: handleCloseChordEdit,
+        onOpenChordEdit: handleOpenChordEdit,
         onSettingsInteraction: resetSettingsTimer,
         tonic: scale.tonic,
         svgRef,
@@ -1190,8 +1225,8 @@ const App = () => {
         anacrusisMeasureIndex,
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
-        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, toggleSheetMusicSettings,
-        handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit,
+        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, chordEditMode, toggleSheetMusicSettings,
+        handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit, handleCloseChordEdit, handleOpenChordEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
         showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
@@ -1288,6 +1323,7 @@ const App = () => {
                     onActivateAdjustments={!showSheetMusicSettings ? toggleSheetMusicSettings : undefined}
                     onOpenRange={handleToggleRangeEdit}
                     onOpenClef={handleToggleClefEdit}
+                    onOpenChord={handleToggleChordEdit}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}
                 />

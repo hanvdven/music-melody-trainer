@@ -2402,3 +2402,26 @@ wiring + `setPercussionVoiceSplit`), `hooks/useRangeMorph.js` (queries
 (`clefEditMode` + toggle/open), `styles/App.css` (`.clef-family-glyph`
 transform+opacity transition).
 
+### 37.3 Chord selector — in-staff CHORD mode (Han 2026-06-01)
+
+A third in-staff selector, sibling of clef/range, for the chord ROW (above the
+treble staff). Opened by a `CHORDS` button in `SubHeader` (`onOpenChord` →
+`App.handleToggleChordEdit`), driving `chordEditMode`. Mutually exclusive with
+range/clef/settings; reuses the morph (`useRangeMorph` now triggered by
+`range||clef||chord`; queries `.chord-overlay` too). `ChordStaffOverlay.jsx` shows
+three options reusing the existing chord notation:
+- **X** → chords fully OFF: `chordDisplayMode='off'`. Hides the labels
+  (`chordsHidden` gates `actualChords`) AND mutes the audio (a `chordsDisabledRef`
+  mirrors the mode into the Sequencer, which sets `chordVolume=0`). NOTE: generation
+  still runs (chords still inform the melody pitch pools); a full generation-disable
+  is a follow-up if needed.
+- **letters** → letter chords (D−, G7, C); **roman** → roman numerals (ii, V7, I).
+The active option is highlighted; picking one writes `chordDisplayMode`. The
+time-signature is hidden in any overlay mode now (`!overlayEditMode`), per Han
+(remove the measure type when clef/range/chord selector is active).
+
+**Files:** `overlays/ChordStaffOverlay.jsx`, `SheetMusic.jsx` (`chordEditMode`,
+overlay render, `chordsHidden`), `App.jsx` (`chordEditMode` + toggle/open +
+`chordsDisabledRef`), `audio/Sequencer.js` (chord-audio gate), `layout/SubHeader.jsx`
+(CHORDS button), `hooks/useRangeMorph.js` (`.chord-overlay`).
+

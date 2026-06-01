@@ -17,7 +17,10 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 - range sheet lowlight → `--range-lowlight` (match percussion + slightly lighter).
 - keyboard bracket: passive=solid, dotted line bridges the gap (no stretched "…").
 - bass-too-high: capped window growth (MAX_CONTEXT) + uncapped spacing.
-🔨 remaining (need interview): chord type selector + chord-disable (X).
+✅ chord selector: in-staff CHORD mode (CHORDS button → chordEditMode), X/letters/
+   roman over the chord row. X = chordDisplayMode 'off' → hides labels + mutes audio
+   (chordsDisabledRef → Sequencer chordVolume=0). Generation-disable parked. Time-sig
+   now hidden in any overlay mode. §37.3.
 🔨 original list:
 - ANIM: range-overlay notes still fly as one block (no per-note markers) → thread
   data-fly through the range overlay note layer so they stagger like the melody.
