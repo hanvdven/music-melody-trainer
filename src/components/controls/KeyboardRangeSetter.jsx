@@ -2,7 +2,12 @@ import React, { useRef, useReducer, useState, useLayoutEffect } from 'react';
 import PianoView from './PianoView';
 import { getNoteValue, naturalsInRange, windowNaturals, applyRangeBoundary } from '../../utils/rangeUtils';
 import { PRESET_RANGES } from '../../constants/ranges';
+import { nextNaturalToward, nextNaturalInDir, STEP_MS } from '../sheet-music/overlays/rangeSlide';
 import './styles/KeyboardRangeSetter.css';
+
+// Full piano naturals — the stepper walks this to advance one white key per tick
+// (shared 21..108 list, same as the sheet overlay).
+const PIANO_NATURALS_KBD = naturalsInRange(21, 108);
 
 // ── Keyboard range setter (split layout, context-bound per keyboard) ────────
 // Range-edit replaces the playable piano with three stacked pieces (Han
@@ -100,6 +105,14 @@ const KeyboardRangeSetter = ({
     const wrapRef = useRef(null);
     const selSvgRef = useRef(null);
     const [width, setWidth] = useState(0);
+    // Slide-stepper state (same model as the sheet overlay, Han 2026-06-01): a tap
+    // bursts toward the target one white key per STEP_MS, a hold keeps extending
+    // outward, a drag follows the finger live. The CSS transition on the band makes
+    // each step glide instead of snapping.
+    const stepperRef = useRef(null);   // { which, target, dir, live, pressed, dragged, ticks }
+    const stepTimerRef = useRef(null);
+    const downRef = useRef(null);      // { clientX } at pointer-down (drag detection)
+    const setBoundaryRef = useRef(null);
 
     // Track the panel width so the selector key count adapts to the screen.
     useLayoutEffect(() => {
@@ -146,6 +159,7 @@ const KeyboardRangeSetter = ({
             return { ...prev, range: next, rangeMode };
         });
     };
+    setBoundaryRef.current = setBoundary;   // latest writer for the timer-driven loop
     // A bracket tap sets BOTH the clef and the range on this staff. preferredClef
     // is the per-staff clef field the sheet renderer reads (SheetMusic.jsx).
     const applyPreset = (p) => setSettings(prev => ({
@@ -158,19 +172,81 @@ const KeyboardRangeSetter = ({
         if (!r || !r.width) return 0;
         return clamp(Math.floor((clientX - r.left) / (r.width / nWhite)), 0, nWhite - 1);
     };
+    const KBD_DRAG_PX = 10;   // pointer movement (px) that promotes a tap to a drag
+
+    const stopStepper = () => {
+        if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
+        stepperRef.current = null;
+    };
+    // One cadence tick: advance the dragged boundary one white key toward target;
+    // held past the target → keep extending outward (advance target with it so it
+    // doesn't wobble back — same fix as the sheet). Released → finish burst, stop.
+    const tickKbd = () => {
+        const s = stepperRef.current;
+        if (!s || s.dragged) return;
+        let next = null;
+        if (s.live !== s.target) {
+            next = nextNaturalToward(PIANO_NATURALS_KBD, s.live, s.target);
+        } else if (s.pressed && s.ticks > 0) {
+            next = nextNaturalInDir(PIANO_NATURALS_KBD, s.live, s.dir);
+            if (next != null) s.target = next;
+        }
+        s.ticks += 1;
+        if (next == null) {
+            if (!s.pressed) {
+                // Burst finished after release → unfreeze + re-anchor the window.
+                stopStepper();
+                dragRef.current = null;
+                forceReanchor();
+                return;
+            }
+            stepTimerRef.current = setTimeout(tickKbd, STEP_MS);
+            return;
+        }
+        s.live = next;
+        setBoundaryRef.current?.(next, s.which);
+        stepTimerRef.current = setTimeout(tickKbd, STEP_MS);
+    };
+
     const onDown = (e) => {
-        const midi = win[idxAt(e.clientX)].midi;
-        const which = Math.abs(midi - selMin) <= Math.abs(midi - selMax) ? 'min' : 'max';
+        const target = win[idxAt(e.clientX)].midi;
+        const which = Math.abs(target - selMin) <= Math.abs(target - selMax) ? 'min' : 'max';
+        const fromMidi = which === 'min' ? selMin : selMax;
+        const dir = target > fromMidi ? 1 : (target < fromMidi ? -1 : (which === 'max' ? 1 : -1));
+        // Freeze the window for the whole gesture so keys don't shift mid-step.
         dragRef.current = { boundary: which, window: win };
+        downRef.current = { clientX: e.clientX };
+        stopStepper();
+        stepperRef.current = { which, target, dir, live: fromMidi, pressed: true, dragged: false, ticks: 0 };
         try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not all envs */ }
-        setBoundary(midi, which);
+        tickKbd();   // immediate first step (adjacent tap moves at once)
     };
     const onMove = (e) => {
-        const d = dragRef.current;
-        if (!d) return;
-        setBoundary(d.window[idxAt(e.clientX)].midi, d.boundary);
+        const s = stepperRef.current, d = downRef.current;
+        if (!s || !d) return;
+        if (!s.dragged && Math.abs(e.clientX - d.clientX) > KBD_DRAG_PX) {
+            s.dragged = true;   // promote to live drag
+            if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
+        }
+        if (s.dragged) {
+            const midi = dragRef.current.window[idxAt(e.clientX)].midi;
+            s.live = midi;
+            setBoundary(midi, s.which);
+        }
     };
-    const onUp = () => { dragRef.current = null; forceReanchor(); };
+    const onUp = () => {
+        const s = stepperRef.current;
+        if (s?.dragged) { stopStepper(); dragRef.current = null; downRef.current = null; forceReanchor(); }
+        else if (s) {
+            // Tap/hold released: let an in-flight burst finish; a hold stops now. The
+            // window re-anchors once the stepper is fully done (in stopStepper path).
+            s.pressed = false;
+            downRef.current = null;
+            if (s.live === s.target) { stopStepper(); dragRef.current = null; forceReanchor(); }
+        }
+    };
+    // Cancel timers on unmount.
+    React.useEffect(() => () => stopStepper(), []);
 
     // Preset brackets — three shared rows by size (FULL/LARGE/STANDARD); on each
     // row the current clef's bracket is "front" (highlighted), the other clef's
@@ -232,11 +308,15 @@ const KeyboardRangeSetter = ({
                 <svg ref={selSvgRef} className="kbd-range-overlay"
                     viewBox={`0 0 ${nWhite} 100`} preserveAspectRatio="none"
                     onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
-                    <rect x={minIdx} y={0} width={Math.max(0, maxIdx + 1 - minIdx)} height={100}
+                    {/* The band + handles transition their x/width over STEP_MS so a
+                        stepper burst GLIDES between key positions instead of snapping
+                        (Han 2026-06-01). SVG geometry props animate via CSS in modern
+                        browsers; a frozen window keeps the key grid stable underneath. */}
+                    <rect className="kbd-range-band" x={minIdx} y={0} width={Math.max(0, maxIdx + 1 - minIdx)} height={100}
                         fill="var(--accent-yellow)" fillOpacity={0.18} style={{ pointerEvents: 'none' }} />
-                    <rect x={minIdx - 0.07} y={0} width={0.14} height={100}
+                    <rect className="kbd-range-band" x={minIdx - 0.07} y={0} width={0.14} height={100}
                         fill="var(--accent-yellow)" style={{ pointerEvents: 'none' }} />
-                    <rect x={maxIdx + 1 - 0.07} y={0} width={0.14} height={100}
+                    <rect className="kbd-range-band" x={maxIdx + 1 - 0.07} y={0} width={0.14} height={100}
                         fill="var(--accent-yellow)" style={{ pointerEvents: 'none' }} />
                     {debugMode && (
                         <rect x={0} y={0} width={nWhite} height={100}

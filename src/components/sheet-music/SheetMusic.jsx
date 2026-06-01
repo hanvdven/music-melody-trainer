@@ -3,6 +3,7 @@
 import React, { useRef, useState, useMemo } from 'react';
 import useSheetMusicHighlight from '../../hooks/useSheetMusicHighlight';
 import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
+import useRangeMorph from '../../hooks/useRangeMorph';
 import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
 import { processMelodyAndCalculateFlags } from './processMelodyAndCalculateFlags';
@@ -435,6 +436,11 @@ const SheetMusic = ({
 
   const endX = logicalScreenWidth - 10; // 5 unit margin on each side (Starts at 0, viewBox starts at -5)
   const systemEndX = endX + 5;
+
+  // Enter/exit morph between the melody and the range overlay (1.5 s): old fades,
+  // new flies in from the right. `morphing` keeps BOTH groups mounted+visible for
+  // the duration. Fly distance = content width (user units). See useRangeMorph.
+  const { morphing: rangeMorphing } = useRangeMorph(rangeEditMode, svgRef, endX);
 
   const staffLines = [];
   if (isTrebleVisible) {
@@ -2103,7 +2109,9 @@ const SheetMusic = ({
                     // In rangeEditMode the staves are blank canvases for the range
                     // selector — hide ALL melodic content (notes/chords/lyrics) but
                     // keep the node mounted so transition refs stay valid on exit.
-                    display: rangeEditMode ? 'none' : undefined }}>
+                    // During the enter/exit morph it stays VISIBLE so it can fade
+                    // out / fly in (useRangeMorph drives style.opacity+transform).
+                    display: (rangeEditMode && !rangeMorphing) ? 'none' : undefined }}>
                     {/* Melody notes: visible in 'melody' viewMode */}
                     {/* In pagination mode, opacity is driven by the rAF loop via data-pagination-old.
                         CSS classes set the resting state; rAF sets style.opacity during the crossfade.
@@ -2872,8 +2880,10 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* Range overlay — in-SVG selectable note rows (Phase 2: static). */}
-                  {rangeEditMode && (
+                  {/* Range overlay — in-SVG selectable note rows. Kept mounted during
+                      the exit morph (rangeMorphing) so it can fade out / the melody
+                      can fly in over it. */}
+                  {(rangeEditMode || rangeMorphing) && (
                     <RangeStaffOverlay
                       startX={startX}
                       endX={endX}
