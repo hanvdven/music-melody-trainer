@@ -137,8 +137,22 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
 - **Percussie-clef-blok**: perc-clef links + `[[k,c],hh,[s,hh],hh]`×2 mini-ritme
   als together↔split-toggler (stuurt `percussionVoiceSplit`). Settings-toggle blijft
   bestaan en deelt dezelfde state.
-- ⏳ Nog open: uitgeschakelde ('off') balk grijs-maar-zichtbaar tonen in andere modi
-  met klikbaar kruis (nu kort-sluit 'off' alleen de clef-berekening).
+[Han 2026-06-01 #3]:
+> fly-in animatie (melody/range/clef): laat elk element tussen startX..endX
+> individueel invliegen met een kleine vertraging ertussen, andere elementen faden
+> in — zodat het lijkt alsof alle noten invliegen, niet één blok. Totaal 1,5s
+> (anim ~1s, rechtse element start op 0,5s). Uitgeschakelde balk: normaal renderen
+> maar zonder elementen. In melody-mode: balk met uitgeschakelde clef verbergen +
+> melodie-generatie van die balk uitschakelen. Sheet-overlay wordt vervangen door
+> aparte overlays → niet meer bijwerken voor CR's.
+
+[Claude 2026-06-01]: ✅
+- **Staggered fly-in** in `useRangeMorph`: elk note-element (`[data-mel]` op de echte
+  melodie, `[data-fly]` op overlay-elementen) vliegt individueel in, gesorteerd op x
+  (links eerst, rechts laatst op 0,5s; elk schuift 1s → totaal 1,5s). De groep faden
+  voor niet-noot-elementen (sleutels/lijnen/maatstrepen). Fallback = blok-slide.
+- **Uitgeschakelde ('off') balk**: geen generatie (`useMelodyState` → lege Melody),
+  geen elementen gerenderd (`EMPTY_MELODY`), en **verborgen in melody-mode**.
 
 ---
 

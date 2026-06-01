@@ -2275,17 +2275,30 @@ freezes for the whole gesture and re-anchors when the burst finishes / on releas
 The yellow band + handle rects carry a CSS `transition: x/width 0.25s linear`
 (`.kbd-range-band`) so each step GLIDES between key positions instead of snapping.
 
-**Enter/exit morph (Han 2026-06-01) — `useRangeMorph.js`.** Toggling RANGE plays a
-1.5 s (`MORPH_MS`) morph between the sheet melody (`.notes-transition`) and the
-range overlay (`.range-overlay`): the OLD group just fades (opacity 1→0); the NEW
-group FLIES IN from the right (translateX `endX`→0, opacity 0→1). Entering:
-old=melody, new=overlay; exiting: reversed. The hook detects the `rangeEditMode`
-flip in a `useLayoutEffect`, returns `morphing` so SheetMusic keeps BOTH groups
-mounted+visible during the morph (the melody group's `display:none`-in-edit-mode is
-suppressed while morphing; the overlay mounts when `rangeEditMode || morphing`),
+**Enter/exit morph (Han 2026-06-01) — `useRangeMorph.js`.** Toggling RANGE or CLEF
+plays a 1.5 s (`MORPH_MS`) morph between the sheet melody (`.notes-transition`) and
+the active overlay (`.range-overlay` / `.clef-overlay`): the OLD group just fades
+(opacity 1→0); the NEW group FLIES IN from the right. **Staggered per-element fly-in
+(Han 2026-06-01 #3):** instead of sliding the new group as one block, the hook
+collects each note-like element (`[data-mel]` on the real melody; `[data-fly]` on
+overlay elements), orders them by `getBBox().x`, and gives each a start delay from
+its x (leftmost at 0, rightmost at `STAGGER_MS`=500 ms); each element slides
+`ELEM_MS`=1000 ms (translateX `endX`→0). The group itself fades in over
+`GROUP_FADE_MS` so non-note elements (clefs/lines/barlines) just fade. Total =
+`STAGGER_MS + ELEM_MS` = 1.5 s. If no per-element markers are found it falls back to
+the old whole-group slide. The hook detects the mode flip in a `useLayoutEffect`,
+returns `morphing` so SheetMusic keeps BOTH groups mounted+visible during the morph,
 then runs a single rAF tween. **opacity/transform via `element.style` only (§6)**,
-and the inline styles are cleared at the end so the scroll/wipe systems own those
-properties again. Safe because opening range stops playback (no scroll/wipe active).
+cleared at the end so the scroll/wipe systems own those properties again. Safe
+because opening an overlay stops playback.
+
+**Disabled staff (`preferredClef:'off'`, Han 2026-06-01 #3).** A staff whose clef
+is the `off` sentinel: (a) generates NOTHING — `useMelodyState` returns an empty
+`Melody` for that voice (skips `resolveVoice`); (b) shows NO elements — SheetMusic
+feeds an EMPTY melody to its notes layer (`currentTreble/Bass` → `EMPTY_MELODY` when
+off) so the staff renders normally (lines + clef) but with no notes, in every mode;
+(c) is HIDDEN entirely in melody mode (`isTrebleVisible/isBassVisible` exclude an
+off staff unless settings/clef/range mode keeps it visible so it can be re-enabled).
 
 **Still open / parked:** dual-surface live sync (the two surfaces share state but
 don't live-mirror); keyboard ellipsis for very narrow windows; black-key boundary
@@ -2361,9 +2374,9 @@ view; §6c). All option logic is pure + tested
   `percussionVoiceSplit` via `onToggleVoiceSplit` (`setPercussionVoiceSplit` from
   `useDisplaySettings`). The SettingsPanel toggle still exists and shares the state.
 
-**Still parked:** the disabled ('off') staff drawn greyed-out-but-visible in OTHER
-modes (e.g. range) with its crossed clef clickable to open the selector — currently
-'off' only short-circuits clef calc; full grey rendering is not built yet.
+**Disabled-staff rendering (resolved Han 2026-06-01 #3):** an 'off' staff now
+renders normally but with no elements (empty melody), is hidden in melody mode, and
+its generation is skipped — see the "Disabled staff" paragraph above.
 
 **Files:** `overlays/ClefStaffOverlay.jsx`, `overlays/clefSelector.js` (+ test),
 `SheetMusic.jsx` (`clefEditMode`, clef-click → `onOpenClefEdit`, overlay render,
