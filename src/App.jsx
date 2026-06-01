@@ -180,14 +180,18 @@ const App = () => {
     // In-SVG range-edit mode for the visual settings re-haul. Toggled by the
     // SubHeader RANGE button; drives RangeStaffOverlay inside the SheetMusic SVG.
     const [rangeEditMode, setRangeEditMode] = useState(false);
+    // In-SVG clef-edit mode (Han 2026-06-01): drives ClefStaffOverlay. Sibling of
+    // rangeEditMode; the two are mutually exclusive (and exclusive with settings).
+    const [clefEditMode, setClefEditMode] = useState(false);
 
     // Range-edit and the general settings overlay are mutually exclusive
     // (Han 2026-05-31). This effect is the catch-all: whenever the settings
     // overlay becomes visible (by any path — sheet click, SubHeader, …) close
-    // range edit so the two never stack.
+    // range edit so the two never stack. Clef-edit follows the same rule.
     useEffect(() => {
         if (showSheetMusicSettings && rangeEditMode) setRangeEditMode(false);
-    }, [showSheetMusicSettings, rangeEditMode]);
+        if (showSheetMusicSettings && clefEditMode) setClefEditMode(false);
+    }, [showSheetMusicSettings, rangeEditMode, clefEditMode]);
 
     // Input Test Mode — wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available
 
@@ -574,13 +578,25 @@ const App = () => {
         if (!rangeEditMode) {
             handleStopAllPlayback();
             if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setClefEditMode(false);   // range & clef modes are mutually exclusive
         }
         setRangeEditMode(v => !v);
     }, [rangeEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
 
+    // Clef-edit toggle — mirrors range-edit (stop playback, close settings/range).
+    const handleToggleClefEdit = useCallback(() => {
+        if (!clefEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setRangeEditMode(false);
+        }
+        setClefEditMode(v => !v);
+    }, [clefEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
     // Closing range edit (e.g. clicking outside the bottom range settings, or
     // tapping empty sheet area while in range mode).
     const handleCloseRangeEdit = useCallback(() => setRangeEditMode(false), []);
+    const handleCloseClefEdit = useCallback(() => setClefEditMode(false), []);
 
     const handlePlayRepeat = useCallback(() => {
         if (isRubatoRef.current && rubatoEngageRef.current) {
@@ -1138,8 +1154,10 @@ const App = () => {
         onRandomizeMeasure: randomizeMeasure,
         showSettings: showSheetMusicSettings,
         rangeEditMode: rangeEditMode,
+        clefEditMode: clefEditMode,
         onToggleSettings: toggleSheetMusicSettings,
         onCloseRangeEdit: handleCloseRangeEdit,
+        onCloseClefEdit: handleCloseClefEdit,
         onSettingsInteraction: resetSettingsTimer,
         tonic: scale.tonic,
         svgRef,
@@ -1163,8 +1181,8 @@ const App = () => {
         anacrusisMeasureIndex,
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
-        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, toggleSheetMusicSettings,
-        handleCloseRangeEdit,
+        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, toggleSheetMusicSettings,
+        handleCloseRangeEdit, handleCloseClefEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
         showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
@@ -1260,6 +1278,7 @@ const App = () => {
                     handlePlayContinuously={handlePlayContinuously}
                     onActivateAdjustments={!showSheetMusicSettings ? toggleSheetMusicSettings : undefined}
                     onOpenRange={handleToggleRangeEdit}
+                    onOpenClef={handleToggleClefEdit}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}
                 />

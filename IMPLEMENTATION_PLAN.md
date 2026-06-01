@@ -9,6 +9,26 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
+## Clef selector (in-staff, CLEF mode) — Han 2026-06-01
+✅ Built. `ClefStaffOverlay` + pure `clefSelector.js` (+ test, 8 cases). CLEF button
+in SubHeader → `clefEditMode` (mutually exclusive with range/settings, stops
+playback). Left 20% = G/F/Vocal carousel (current bright leftmost, others lowlit,
+CSS-transition slide L→R). Right 80% = octave chips + transposition chips + "…"
+(opens existing transPicker). Reuses the morph (now `range||clef`). preferredClef +
+transpositionKey kept separate. 197 tests green; build + lint clean.
+⏳ Parked: exact selected-variant glyph leftmost (now generic family glyph + the
+highlighted right chip conveys the variant).
+
+### (orig) Clef selector — Han 2026-06-01
+New in-SVG clef selector, parallel to the range selector. Decisions (interview):
+own mode + CLEF subheader button · left 20% = G/F/Vocal family carousel (current
+left, other two lowlit; pick → carousel slide L→R) · right 80% = variants of the
+family: octave (8va/8vb/15ma) AND transposition chips (G^B♭, G^E♭, …, G^x → full
+list) · keep `preferredClef` + `transpositionKey` as separate fields (selector
+writes both). Selected variant shows leftmost; cycling reverts to default variant.
+Reuse morph transition. Pure logic in `clefSelector.js` (+ test).
+- ✅ Removed "◆ RANGE SELECTOR" text indicator.
+
 ## Range Selector (in-SVG, RANGE mode)
 
 ### ✅ Anim batch (Han 2026-06-01 #2)
