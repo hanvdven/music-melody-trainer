@@ -272,7 +272,8 @@ const SheetMusic = ({
   }, [setPercussionSettings]);
   const { noteColoringMode, setNoteColoringMode, debugMode, lyricsMode,
     chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
-    animationMode, courtesyAccidentals = true, percussionVoiceSplit = false } = useDisplaySettings();
+    animationMode, courtesyAccidentals = true, percussionVoiceSplit = false,
+    setPercussionVoiceSplit } = useDisplaySettings();
   const svgRefInternal = useRef(null);
   // Use the ref passed from App.jsx if provided (so Sequencer callbacks can access the SVG),
   // otherwise fall back to an internal ref.
@@ -1779,6 +1780,9 @@ const SheetMusic = ({
             ))}
             {isTrebleVisible && (
               <>
+                {/* The static clef glyph is hidden in clef-edit mode — the clef
+                    selector's carousel draws the clef in the gutter instead. */}
+                {!clefEditMode && (
                 <text
                   x="13"
                   y={30 + (cfT.yOffset || 0)}
@@ -1789,6 +1793,7 @@ const SheetMusic = ({
                 >
                   {cfT.char}
                 </text>
+                )}
                 {/* Always-active transparent hit rect for treble clef — intercepts clicks
                     regardless of showSettings, preventing accidental settings-close. */}
                 {debugMode && <rect x={5} y={-8} width={40} height={65} fill="blue" fillOpacity={0.4} stroke="blue" strokeWidth={1} />}
@@ -1831,7 +1836,7 @@ const SheetMusic = ({
                 })()}
               </>
             )}
-            {renderStaffMeasureTexts(0)}
+            {!clefEditMode && renderStaffMeasureTexts(0)}
             {/* Transposition label — rendered AFTER renderStaffMeasureTexts so it sits on top
                 of the time-signature hitbox rects in SVG z-order, preventing overlap stealing clicks.
                 Always visible when non-concert-pitch; shown in settings mode as a click target.
@@ -1872,6 +1877,7 @@ const SheetMusic = ({
             ))}
             {isBassVisible && (
               <>
+                {!clefEditMode && (
                 <text
                   x="13"
                   y={30 + (cfB.yOffset || 0)}
@@ -1882,6 +1888,7 @@ const SheetMusic = ({
                 >
                   {cfB.char}
                 </text>
+                )}
                 {/* Always-active transparent hit rect for bass clef */}
                 {debugMode && <rect x={5} y={5} width={35} height={30} fill="blue" fillOpacity={0.4} stroke="blue" strokeWidth={1} />}
                 {/* Click opens the in-staff clef selector (Han 2026-06-01). */}
@@ -1923,7 +1930,7 @@ const SheetMusic = ({
                 })()}
               </>
             )}
-            {renderStaffMeasureTexts(0)}
+            {!clefEditMode && renderStaffMeasureTexts(0)}
             {/* Bass transposition label — same z-order fix as treble: rendered after measure hitboxes */}
             {isBassVisible && (bassTransSemitones !== 0 || showSettings) && (
               <>
@@ -1959,7 +1966,7 @@ const SheetMusic = ({
             {[0, 10, 20, 30, 40].map(y => (
               <path key={`p-line-${y}`} d={`M 0 ${y} H ${endX}`} stroke="var(--text-primary)" strokeWidth="0.5" />
             ))}
-            {isPercussionVisible && (
+            {isPercussionVisible && !clefEditMode && (
               <text
                 x="18"
                 y={30}
@@ -1970,7 +1977,7 @@ const SheetMusic = ({
                 /
               </text>
             )}
-            {renderStaffMeasureTexts(0)}
+            {!clefEditMode && renderStaffMeasureTexts(0)}
           </g>
           <g>
             <g className="layer-a">
@@ -2807,17 +2814,21 @@ const SheetMusic = ({
                       endX={endX}
                       trebleStart={trebleStart}
                       bassStart={bassStart}
+                      percussionStart={percussionStart}
                       isTrebleVisible={isTrebleVisible}
                       isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
                       clefTreble={clefTreble}
                       clefBass={clefBass}
                       trebleSettings={trebleSettings}
                       bassSettings={bassSettings}
+                      percussionVoiceSplit={percussionVoiceSplit}
                       onApplyClefPatch={(staff, patch) => {
                         const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
                         if (setter) setter(prev => ({ ...prev, ...patch }));
                       }}
                       onOpenInstrumentList={(staff) => setTransPicker(staff)}
+                      onToggleVoiceSplit={() => setPercussionVoiceSplit?.(v => !v)}
                       debugMode={debugMode}
                     />
                   )}
