@@ -3,6 +3,7 @@ import {
     CLEF_FAMILIES, VOCAL_VARIANTS, OCTAVE_VARIANTS, familyOfClef, carouselOrder,
     patchForFamily, patchForOctave, patchForVocal, patchForTransposition, transpositionChips,
 } from './clefSelector';
+import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
 
 /**
  * ClefStaffOverlay — in-SVG CLEF selector (Han 2026-06-01), sibling of
@@ -50,7 +51,7 @@ const ClefStaffOverlay = ({
     // 2026-06-01): the current clef sits where the real clef glyph normally is
     // (~x=13) and neighbours peek/scroll to its right up to startX. Variant chips
     // occupy the staff body from startX onward.
-    const GUTTER_X = 13;               // x of the "current" carousel glyph (real clef pos)
+    const GUTTER_X = CLEF_GLYPH_X;     // current carousel glyph at the real clef pos
     const splitX = startX;
 
     // One staff block: family carousel (left) + variants (right).
@@ -60,47 +61,41 @@ const ClefStaffOverlay = ({
         const transKey = settings?.transpositionKey || 'C';
 
         // ── Left: family carousel (in the clef gutter, LEFT of startX) ───────
-        // The CURRENT family sits at GUTTER_X (where the real clef is); the next
-        // families peek to its right up to startX. Each glyph is KEYED by family id
-        // and positioned via a CSS-transitioned transform, so when the order changes
-        // React keeps the same node and it SLIDES to its new slot (true carousel
-        // feel — old glyph slides off-left + fades, new fades in from the right;
-        // Han 2026-06-01). Slot 0 is current (bright, opaque); slots beyond what fits
-        // before startX fade out, and a glyph leaving to the left (negative slot)
-        // fades too.
-        const maxVisible = Math.max(1, Math.floor((startX - GUTTER_X) / FAMILY_SLOT_W) + 1);
+        // The CURRENT family sits at the EXACT sheet clef position (CLEF_GLYPH_X) and
+        // shows the EXACT clef glyph via ClefGlyph (reused from the sheet, incl.
+        // ottava + correct height). Neighbours step right by FAMILY_SLOT_W, filling
+        // the gutter all the way up to startX. Each glyph is KEYED by family id and
+        // positioned via a CSS-transitioned transform, so a family change SLIDES the
+        // carousel L→R; glyphs entering from the right slide in (no fade — Han
+        // 2026-06-01 #4). The current slot's symbol is the concrete current clef;
+        // neighbours use their family's default clef glyph.
+        const slotX = (i) => CLEF_GLYPH_X + i * FAMILY_SLOT_W;
+        const lastX = slotX(order.length - 1);
         const familyGlyphs = order.map((fam, i) => {
             const isCurrent = i === 0;
-            const cx = GUTTER_X + i * FAMILY_SLOT_W;
-            // Fade glyphs that run past the gutter (near/over startX) so neighbours
-            // peek then fade rather than colliding with the variant chips.
-            const slotOpacity = i === 0 ? 1 : (i < maxVisible ? 0.5 : 0);
             const isOff = fam.id === 'off';
             const colr = isCurrent ? 'var(--accent-yellow)' : 'var(--text-lowlight)';
+            // current slot → the actual concrete clef symbol; others → family default.
+            const symbolKey = isCurrent ? variantToSymbolKey(clef) : fam.clef;
+            // baseY positions ClefGlyph on the staff: sheet uses 30 at staffYStart 0,
+            // so add staffStart. x is relative (group translated to slotX).
             return (
                 <g key={fam.id} className="clef-family-glyph"
                     style={{
                         cursor: onApplyClefPatch ? 'pointer' : 'default',
-                        transform: `translateX(${cx}px)`,
-                        opacity: slotOpacity,
-                        pointerEvents: slotOpacity === 0 ? 'none' : undefined,
+                        transform: `translateX(${slotX(i)}px)`,
                     }}
                     onClick={onApplyClefPatch ? () => onApplyClefPatch(staff, patchForFamily(fam.id)) : undefined}>
                     <rect x={-FAMILY_SLOT_W / 2} y={staffStart - 14} width={FAMILY_SLOT_W} height={48}
                         fill="transparent" />
-                    {/* 'off' = a large cross (drawn as strokes, not a font glyph, so it
-                        reads clearly at any size); other families use their clef glyph. */}
                     {isOff ? (
+                        // 'off' = a large cross drawn as strokes (clear at any size).
                         <g stroke={colr} strokeWidth={2.4} strokeLinecap="round" style={{ pointerEvents: 'none' }}>
-                            <path d={`M -9 ${staffStart + 1} L 9 ${staffStart + 19}`} />
-                            <path d={`M 9 ${staffStart + 1} L -9 ${staffStart + 19}`} />
+                            <path d={`M -9 ${staffStart + 11} L 9 ${staffStart + 29}`} />
+                            <path d={`M 9 ${staffStart + 11} L -9 ${staffStart + 29}`} />
                         </g>
                     ) : (
-                        <text x={0} y={staffStart + 22} fontSize={FAMILY_GLYPH_SIZE} fontFamily="Maestro"
-                            textAnchor="middle" fill={colr}
-                            style={{ pointerEvents: 'none' }}>
-                            {fam.glyph}
-                        </text>
+                        <ClefGlyph symbolKey={symbolKey} x={0} baseY={staffStart + 30} fill={colr} />
                     )}
                     {debugMode && (
                         <rect x={-FAMILY_SLOT_W / 2} y={staffStart - 14} width={FAMILY_SLOT_W} height={48}
@@ -110,6 +105,10 @@ const ClefStaffOverlay = ({
                 </g>
             );
         });
+        // A clip so glyphs sliding in from the right don't spill past startX into the
+        // variant chips (they appear to slide in from behind the chips area).
+        const clipId = `clef-gutter-clip-${staff}`;
+        void lastX;
 
         // ── Right: variant chips ──────────────────────────────────────────────
         // 'off' (disabled staff) has no variants.
@@ -187,9 +186,14 @@ const ClefStaffOverlay = ({
 
         return (
             <g className={`clef-row clef-row-${staff}`} key={staff}>
+                {/* Clip the carousel to the gutter [0, startX] so glyphs sliding in
+                    from the right are revealed within the gutter, not over the chips. */}
+                <clipPath id={clipId}>
+                    <rect x={0} y={staffStart - 16} width={startX} height={52} />
+                </clipPath>
                 {/* Carousel slides L→R when the family order changes (CSS transition
-                    on the group's transform — set declaratively so React owns it). */}
-                <g className="clef-family-carousel">{familyGlyphs}</g>
+                    on each glyph's transform — set declaratively so React owns it). */}
+                <g className="clef-family-carousel" clipPath={`url(#${clipId})`}>{familyGlyphs}</g>
                 <g className="clef-variant-chips">{chipRow}</g>
             </g>
         );

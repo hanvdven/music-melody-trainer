@@ -44,12 +44,14 @@ describe('buildPresetBracketRows', () => {
         expect(fullBassIdx).toBeLessThan(fullTrebleIdx);   // behind drawn first
     });
 
-    it('interrupts the behind bracket with an ellipsis at the overlap', () => {
+    it('records a gap (for the dotted bridge) where the behind bracket is cut', () => {
         const win = windowNaturals(getNoteValue('C2'), getNoteValue('C6'), 4);
         const rows = buildPresetBracketRows(PRESETS, { min: 'C4', max: 'E5' }, 'treble', win);
-        // FULL treble A3–C6 overlaps FULL bass C2–E4; the bass one is cut + marked.
+        // FULL treble A3–C6 overlaps FULL bass C2–E4; the bass one is cut + a gap to
+        // the front bracket is recorded for the dotted line.
         const fullBass = find(rows, 'FULL', 'bass');
-        expect(fullBass.ellipsisX).not.toBeNull();
+        expect(fullBass.gap).not.toBeNull();
+        expect(fullBass.gap.x1).toBe(find(rows, 'FULL', 'treble').x0);
         expect(fullBass.x1).toBeLessThanOrEqual(find(rows, 'FULL', 'treble').x0);
     });
 

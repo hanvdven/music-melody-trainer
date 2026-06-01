@@ -67,7 +67,7 @@ export const buildPresetBracketRows = (presets, selRange, selClef, win) => {
             yTop: PRESET_PAD + (SIZE_RANK[p.label] ?? 0) * PRESET_ROW_H,
             isActive: p.clef === selClef && selRange?.min === p.min && selRange?.max === p.max,
             isCurrentClef: p.clef === selClef,
-            ellipsisX: null,
+            gap: null,   // { x0, x1 } where a dotted line bridges behind→front
         };
     };
 
@@ -77,14 +77,17 @@ export const buildPresetBracketRows = (presets, selRange, selClef, win) => {
         const otherClef = selClef === 'treble' ? 'bass' : 'treble';
         const behind = geom(presets.find(p => p.label === label && p.clef === otherClef));
         if (behind && front) {
-            // Truncate the behind bracket just before it overlaps the front one and
-            // mark the cut with an "…". Treble sits to the RIGHT (higher), bass LEFT.
+            // Truncate the behind bracket before it overlaps the front one and record
+            // the GAP between them; the view draws a dotted line across it (Han
+            // 2026-06-01 #4). Treble sits to the RIGHT (higher), bass to the LEFT.
             if (selClef === 'treble' && behind.x1 > front.x0 - OVERLAP_GAP) {
-                behind.x1 = Math.max(behind.x0, front.x0 - OVERLAP_GAP);
-                behind.ellipsisX = behind.x1 + OVERLAP_GAP / 2;
+                const cut = Math.max(behind.x0, front.x0 - OVERLAP_GAP);
+                behind.gap = { x0: cut, x1: front.x0 };
+                behind.x1 = cut;
             } else if (selClef === 'bass' && behind.x0 < front.x1 + OVERLAP_GAP) {
-                behind.x0 = Math.min(behind.x1, front.x1 + OVERLAP_GAP);
-                behind.ellipsisX = behind.x0 - OVERLAP_GAP / 2;
+                const cut = Math.min(behind.x1, front.x1 + OVERLAP_GAP);
+                behind.gap = { x0: front.x1, x1: cut };
+                behind.x0 = cut;
             }
         }
         if (behind && behind.x1 > behind.x0) out.push(behind);   // behind first (under)
@@ -271,17 +274,16 @@ const KeyboardRangeSetter = ({
             <div className="kbd-range-presets-row">
                 <svg viewBox={`0 0 ${nWhite} ${presetViewH}`} preserveAspectRatio="none"
                     style={{ width: '100%', height: '100%', display: 'block' }}>
-                    {bracketRows.map(({ p, x0, x1, isActive, isCurrentClef, yTop, ellipsisX }) => {
+                    {bracketRows.map(({ p, x0, x1, isActive, isCurrentClef, yTop, gap }) => {
                         const color = isActive ? 'var(--accent-yellow)'
                             : (isCurrentClef ? 'var(--text-primary)' : 'var(--text-dim)');
-                        // Behind (off-clef) brackets are faded + DASHED with only a left
-                        // corner (no closing right tick) so they read as passing UNDER the
-                        // current clef's solid bracket — the look Han asked for:
-                        //   ⌜- - - - - …  ⌜- - - - - - - ⌝
                         const isBehind = !isCurrentClef;
-                        const groupOpacity = isBehind ? 0.55 : 1;
+                        const groupOpacity = isBehind ? 0.6 : 1;
                         const yb = yTop + PRESET_TICK;
-                        // Front: full ⊓ (both ticks). Behind: left tick + top only.
+                        // Both clefs draw SOLID corner brackets (Han 2026-06-01 #4: the
+                        // passive/behind bracket is a solid line, not dotted). Front gets
+                        // the full ⊓ (both ticks); behind gets a left corner + top (no
+                        // closing tick, since the front bracket continues past it).
                         const d = isBehind
                             ? `M ${x0} ${yb} V ${yTop} H ${x1}`
                             : `M ${x0} ${yb} V ${yTop} H ${x1} V ${yb}`;
@@ -292,12 +294,13 @@ const KeyboardRangeSetter = ({
                                     fill="transparent" />
                                 <path d={d}
                                     fill="none" stroke={color} strokeWidth={isActive ? 2 : 1.2}
-                                    strokeDasharray={isBehind ? '1.6 1.2' : undefined}
                                     vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
-                                {/* "…" where a behind bracket is cut off by the front one. */}
-                                {ellipsisX != null && (
-                                    <text x={ellipsisX} y={yTop + 2.5} fontSize={6} fill={color}
-                                        textAnchor="middle" style={{ pointerEvents: 'none' }}>…</text>
+                                {/* Dotted line bridging the gap to the front bracket
+                                    (replaces the stretched ellipsis). */}
+                                {gap && (
+                                    <line x1={gap.x0} y1={yTop} x2={gap.x1} y2={yTop}
+                                        stroke={color} strokeWidth={1} strokeDasharray="1.5 1.5"
+                                        vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
                                 )}
                                 {debugMode && (
                                     <rect x={x0 - 0.3} y={yTop - 2} width={Math.max(0.6, (x1 - x0) + 0.6)} height={PRESET_ROW_H}

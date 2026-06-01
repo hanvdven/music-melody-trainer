@@ -154,6 +154,27 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
 - **Uitgeschakelde ('off') balk**: geen generatie (`useMelodyState` → lege Melody),
   geen elementen gerenderd (`EMPTY_MELODY`), en **verborgen in melody-mode**.
 
+[Han 2026-06-01 #4]:
+> range-noten vliegen nog als één blok in → fix; alle animaties subtiele start/stop;
+> clef-selector: hergebruik exacte sheet-clef-glyphs (incl. hoogte-offset + custom
+> combinatie-glyphs); verwijder de dubbele sheet-clef, plaats huidige clef op exacte
+> sheet-positie, nieuwe carrousel-clefs schuiven van rechts in (niet faden), gebruik
+> ruimte tot startX; maatsoort weg bij clef/range; keyboard passieve blokhaak =
+> doorgetrokken lijn, vervang gerekte "…" door gestippelde lijn in de tussenruimte;
+> range lowlight-noten te licht → kleur als percussie + alles iets lichter; bass-
+> range-selector gaat veel te hoog (box rekte tot chord-rij, overlap met treble);
+> chord-selector mist nog; voeg chord-visualisatie X (disabled) toe.
+
+[Claude 2026-06-01]: ✅ deze ronde:
+- Range-noten staggeren nu (`data-fly` op alle note-groepen); morph heeft ease-in/out.
+- Clef-glyphs hergebruikt uit de sheet (`clefGlyphs.jsx`: `ClefGlyph` + `clefSymbols`
+  als single source); huidige clef op exacte sheet-positie, schuift in (geclipt tot
+  de goot); statische sheet-clef verborgen in clef-mode (geen dubbel).
+- Range-sheet lowlight → `--range-lowlight` (als percussie + iets lichter).
+- Keyboard-blokhaak: passief = doorgetrokken; gestippelde lijn overbrugt de gap.
+- Bass-te-hoog: venstergroei begrensd (`MAX_CONTEXT`) + spacing ongecapt.
+- ⏳ Nog open (interview): chord type selector + chord-disable (X).
+
 ---
 
 ### Range setter — vervolg-feedback (Han 2026-06-01)

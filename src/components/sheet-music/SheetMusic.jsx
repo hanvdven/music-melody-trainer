@@ -10,6 +10,7 @@ import { processMelodyAndCalculateFlags } from './processMelodyAndCalculateFlags
 import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
 import RangeStaffOverlay from './overlays/RangeStaffOverlay';
 import ClefStaffOverlay from './overlays/ClefStaffOverlay';
+import { clefSymbols } from './clefGlyphs';
 import GenericTypeSelector from '../common/GenericTypeSelector';
 import SvgSetter from './SvgSetter';
 
@@ -114,22 +115,8 @@ const computeRangeFrame = (clef) => {
   };
 };
 
-const clefSymbols = {
-  treble: { char: '&', yOffset: 0 },
-  alto: { char: 'B', yOffset: -10.0 },
-  tenor: { char: 'B', yOffset: -20.0 },
-  soprano: { char: 'B', yOffset: 10.0 },
-  'mezzo-soprano': { char: 'B', yOffset: 0.0 },
-  treble8va: { char: ' ', yOffset: 0 },
-  treble8vb: { char: 'V', yOffset: 0 },
-  treble15va: { char: '&', yOffset: 0, ottava: '15' },
-  treble15vb: { char: '&', yOffset: 0, ottava: '15', below: true },
-  bass: { char: '?', yOffset: -20 },
-  bass8va: { char: 'æ', yOffset: -20 },
-  bass8vb: { char: 't', yOffset: -10 },
-  bass15va: { char: '?', yOffset: -20, ottava: '15' },
-  bass15vb: { char: '?', yOffset: -10, ottava: '15', below: true },
-};
+// clefSymbols is now the single source of truth in ./clefGlyphs (shared with the
+// clef selector so its glyphs match the sheet exactly — Han 2026-06-01 #4).
 
 
 // Maximum extent (offset + duration) across all notes in a melody.

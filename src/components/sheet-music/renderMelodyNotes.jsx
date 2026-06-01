@@ -1030,7 +1030,7 @@ const renderMelodyNotes = (
       const finalFlagY = stemIsAbove ? flagY + 3 : flagY - 4;
 
       return (
-        <g key={index} {...(!previewMode && interactive ? { 'data-measure-index': measureIndex, 'data-local-slot': localSlot, 'data-mel': staff, 'data-duration': duration, 'data-notes': JSON.stringify(chordNotes.map(p => p.n)) } : {})} className={inputTestClass.trim() || undefined} style={!previewMode && interactive ? { cursor: 'pointer' } : undefined}>
+        <g key={index} data-fly="" {...(!previewMode && interactive ? { 'data-measure-index': measureIndex, 'data-local-slot': localSlot, 'data-mel': staff, 'data-duration': duration, 'data-notes': JSON.stringify(chordNotes.map(p => p.n)) } : {})} className={inputTestClass.trim() || undefined} style={!previewMode && interactive ? { cursor: 'pointer' } : undefined}>
           {/* Ledger lines — extend left/right to cover any displaced noteheads */}
           {Array.from(chordLedgerSet).map((ly, li) => {
             const maxXOff = Math.max(0, ...chordNotes.map(p => p.xOffset || 0));
@@ -1337,6 +1337,7 @@ const renderMelodyNotes = (
       return (
         <g
           key={index}
+          data-fly=""
           {...(!previewMode && interactive ? { 'data-measure-index': measureIndex, 'data-local-slot': localSlot, 'data-mel': staff, 'data-duration': duration, 'data-notes': JSON.stringify([noteWithAccidental || note]) } : {})}
           className={inputTestClass.trim() || undefined}
           style={!previewMode && interactive ? { cursor: 'pointer' } : undefined}

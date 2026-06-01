@@ -24,6 +24,9 @@ const STAGGER_MS = 500;    // delay between the first and last element starting
 const GROUP_FADE_MS = 700; // group-level fade for the non-note elements
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
+// Subtle ease-in/ease-out so each element accelerates and decelerates rather than
+// moving at a constant rate (Han 2026-06-01 #4). smoothstep keeps it gentle.
+const easeInOut = (t) => t * t * (3 - 2 * t);
 
 export default function useRangeMorph(rangeEditMode, svgRef, flyDist) {
   // morph = { id, entering } | null. `id` forces the animation effect to re-run
@@ -86,17 +89,18 @@ export default function useRangeMorph(rangeEditMode, svgRef, flyDist) {
     const frame = (now) => {
       const t = now - t0;
       const p = Math.min(1, t / MORPH_MS);
-      if (oldEl) oldEl.style.opacity = String(1 - p);
+      // Subtle ease-in/out on the fades + slides (start/stop feel).
+      if (oldEl) oldEl.style.opacity = String(1 - easeInOut(p));
       if (newEl) {
         // Group fades in (covers clefs/lines/barlines — "fade in any other elements").
-        newEl.style.opacity = String(clamp01(t / GROUP_FADE_MS));
+        newEl.style.opacity = String(easeInOut(clamp01(t / GROUP_FADE_MS)));
         if (flyEls.length) {
           for (const el of flyEls) {
-            const ep = clamp01((t - delayOf(el)) / ELEM_MS);
+            const ep = easeInOut(clamp01((t - delayOf(el)) / ELEM_MS));
             el.style.transform = `translateX(${flyDist * (1 - ep)}px)`;
           }
         } else {
-          newEl.style.transform = `translateX(${flyDist * (1 - p)}px)`;
+          newEl.style.transform = `translateX(${flyDist * (1 - easeInOut(p))}px)`;
         }
       }
       if (p < 1) { rafRef.current = requestAnimationFrame(frame); return; }
