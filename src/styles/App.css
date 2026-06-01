@@ -712,12 +712,8 @@ path {
   transition: opacity 0.2s ease-in-out;
 }
 
-/* Clef-selector family carousel: each glyph slides to its new slot AND fades
-   in/out when the family order changes (Han 2026-06-01) — old glyph slides
-   off-left + fades, new fades in from the right (true carousel feel). */
-.clef-family-glyph {
-  transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
-}
+/* The clef-selector family carousel is now a JS-driven rAF loop (ClefCarousel.jsx),
+   so the old CSS .clef-family-glyph transition was removed (Han 2026-06-01 #5). */
 
 /* ============================================================
  * RUNTIME STATE & HIGHLIGHTS

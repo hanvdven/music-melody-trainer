@@ -181,6 +181,20 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
   ⏳ Follow-up: klik op de akkoord-rij zelf opent de mode (nu via CHORDS-knop);
   generatie volledig uitschakelen bij X indien gewenst.
 
+[Han 2026-06-01 #5 — clef-selector polish]:
+> fade-out heel kort (0,25s, alle transities); clef-clipping aan de onderkant fixen;
+> clefs verder uit elkaar (~10u); echte loop-carousel (klik 3 → alles 2 naar links,
+> 1&2 schuiven van rechts opnieuw in met fade/masking); drumnoten + clefs met de
+> ECHTE asset (niet mini-font); X voor percussie (carousel van 2); percussiesleutel
+> op exact dezelfde x als de carousel.
+[Claude 2026-06-01]: ✅ Allemaal gedaan — zie §37.2/§37.3 "Polish wave 3":
+- Fade-out 0,25s (`FADE_OUT_MS`); clip + hitrect hoger (geen clipping); stap 36u.
+- `ClefCarousel.jsx`: rAF loop-carousel met re-enter van rechts onder een fade-mask.
+- Percussie: noten via echte `MelodyNotesLayer`; X-disable (2-carousel) →
+  `preferredClef:'off'` verbergt/leegt/skipt-generatie; clef op `CLEF_GLYPH_X`.
+- ⏳ **Backlog (klein):** custom **22mb/22ma** gecombineerde clef-glyph nodig — dit
+  vereist een nieuw Maestro-font-asset (bestaat nog niet); kan niet puur in code.
+
 ---
 
 ### Range setter — vervolg-feedback (Han 2026-06-01)

@@ -9,6 +9,26 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
+## Feedback batch (Han 2026-06-01 #5)
+✅ done: fade-out 0.25s (FADE_OUT_MS); clef clip taller (no bottom clipping) +
+   step 36u (more space); loop carousel (ClefCarousel: slide-left + re-enter from
+   right under a fade mask); percussion notes use real MelodyNotesLayer; percussion
+   X disable (2-item carousel) → preferredClef 'off' hides/empties/skips-gen; perc
+   clef aligned to CLEF_GLYPH_X.
+⏳ BACKLOG (small): custom 22mb/22ma combined clef glyph — needs a Maestro asset
+   (no font glyph exists); logged in BACKLOG.
+- ANIM: make the FADE-OUT very short — 0.25s for all transitions.
+- CLEF: clipping at the BOTTOM of the clefs (clip rect too short) → fix.
+- CLEF: clefs too close together → more space (~10 units between).
+- CAROUSEL rework: label clefs 1-2-3-4, 1 active. Click 3 → slide ALL glyphs 2 steps
+  left; 1 & 2 leave the screen; meanwhile fresh 1 & 2 slide in from the right with a
+  fade-in (masking fade where they emerge). True loop carousel.
+- CLEF PERCUSSION: the drum notes + clefs in the clef selector use TINY font, not the
+  real assets → render them like the melody (real MelodyNotesLayer noteheads/glyphs).
+- CLEF PERCUSSION: add an X (disable) for percussion too — a carousel of 2 (perc / off).
+- CLEF PERCUSSION: the percussion clef is NOT at the exact same x as in the carousel
+  / sheet → align it.
+
 ## Feedback batch (Han 2026-06-01 #4)
 ✅ done this round:
 - range notes now stagger (data-fly on all note groups); morph has ease-in/out.

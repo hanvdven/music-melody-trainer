@@ -253,7 +253,7 @@ const useMelodyState = (
       canRandomize: canRandomizeMelody, voiceType: 'bass', settings: bassSettings,
       nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
-    const newPercussion = resolveVoice({
+    const newPercussion = percussionSettings?.preferredClef === 'off' ? EMPTY() : resolveVoice({
       isFixed: percussionSettings?.randomizationRule === 'fixed',
       currentMelody: percussion, refMelody: null, refScale: null, targetScale: percussionScale,
       canRandomize: canRandomizeMelody, voiceType: null, settings: percussionSettings,
