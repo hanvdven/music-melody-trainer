@@ -9,6 +9,7 @@ import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots
 import { processMelodyAndCalculateFlags } from './processMelodyAndCalculateFlags';
 import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
 import RangeStaffOverlay from './overlays/RangeStaffOverlay';
+import ClefStaffOverlay from './overlays/ClefStaffOverlay';
 import GenericTypeSelector from '../common/GenericTypeSelector';
 import SvgSetter from './SvgSetter';
 
@@ -218,8 +219,10 @@ const SheetMusic = ({
   showChords,
   showSettings,
   rangeEditMode,
+  clefEditMode,
   onToggleSettings,
   onCloseRangeEdit,
+  onCloseClefEdit,
   onSettingsInteraction,
   viewMode,    // 'melody' | 'repeat' — see viewMode prop in App.jsx for the source-of-truth computation
   numMeasures, // Added prop
@@ -398,9 +401,9 @@ const SheetMusic = ({
   // showSettings keeps all staves alive so overlay buttons stay correctly anchored.
   // rangeEditMode also keeps the treble/bass staves alive so the range overlay's
   // selectable note rows have a staff to anchor to even if a staff is hidden.
-  const isTrebleVisible = showSettings || rangeEditMode ||
+  const isTrebleVisible = showSettings || rangeEditMode || clefEditMode ||
     (playbackConfig?.oddRounds?.trebleEye !== false || playbackConfig?.evenRounds?.trebleEye !== false);
-  const isBassVisible = showSettings || rangeEditMode ||
+  const isBassVisible = showSettings || rangeEditMode || clefEditMode ||
     (playbackConfig?.oddRounds?.bassEye !== false || playbackConfig?.evenRounds?.bassEye !== false);
   const isPercussionVisible = showSettings || rangeEditMode ||
     (playbackConfig?.oddRounds?.percussionEye === true || playbackConfig?.evenRounds?.percussionEye === true ||
@@ -437,10 +440,18 @@ const SheetMusic = ({
   const endX = logicalScreenWidth - 10; // 5 unit margin on each side (Starts at 0, viewBox starts at -5)
   const systemEndX = endX + 5;
 
-  // Enter/exit morph between the melody and the range overlay (1.5 s): old fades,
-  // new flies in from the right. `morphing` keeps BOTH groups mounted+visible for
+  // Enter/exit morph between the melody and an in-staff overlay (1.5 s): old fades,
+  // new flies in from the right. Either RANGE or CLEF mode triggers it (both replace
+  // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
   // the duration. Fly distance = content width (user units). See useRangeMorph.
-  const { morphing: rangeMorphing } = useRangeMorph(rangeEditMode, svgRef, endX);
+  const overlayEditMode = rangeEditMode || clefEditMode;
+  const { morphing: rangeMorphing } = useRangeMorph(overlayEditMode, svgRef, endX);
+  // Which overlay was last shown — so during an EXIT morph (overlayEditMode already
+  // false) we keep the RIGHT overlay mounted to fade out. Updated while in a mode.
+  const lastOverlayKindRef = useRef('range');
+  if (rangeEditMode) lastOverlayKindRef.current = 'range';
+  else if (clefEditMode) lastOverlayKindRef.current = 'clef';
+  const lastOverlayKind = lastOverlayKindRef.current;
 
   const staffLines = [];
   if (isTrebleVisible) {
@@ -1838,9 +1849,9 @@ const SheetMusic = ({
           />
 
           {/* Draw Repeats Controls - always visible, shows 4x outside adjustments.
-              Hidden in rangeEditMode: the range selector wants plain staves with
-              no repeat affordances. */}
-          {!rangeEditMode && (
+              Hidden in range/clef edit: the in-staff selectors want plain staves
+              with no repeat affordances. */}
+          {!overlayEditMode && (
             <RepeatsControls
               numRepeats={numRepeats}
               onNumRepeatsChange={onNumRepeatsChange}
@@ -2111,7 +2122,7 @@ const SheetMusic = ({
                     // keep the node mounted so transition refs stay valid on exit.
                     // During the enter/exit morph it stays VISIBLE so it can fade
                     // out / fly in (useRangeMorph drives style.opacity+transform).
-                    display: (rangeEditMode && !rangeMorphing) ? 'none' : undefined }}>
+                    display: (overlayEditMode && !rangeMorphing) ? 'none' : undefined }}>
                     {/* Melody notes: visible in 'melody' viewMode */}
                     {/* In pagination mode, opacity is driven by the rAF loop via data-pagination-old.
                         CSS classes set the resting state; rAF sets style.opacity during the crossfade.
@@ -2814,7 +2825,7 @@ const SheetMusic = ({
                       isTrebleVisible={isTrebleVisible}
                       isBassVisible={isBassVisible}
                       isPercussionVisible={isPercussionVisible}
-                      numRepeats={rangeEditMode ? 1 : numRepeats}
+                      numRepeats={overlayEditMode ? 1 : numRepeats}
                       isPlaying={isPlaying}
                       numMeasures={numMeasures}
                       debugMode={debugMode}
@@ -2881,9 +2892,9 @@ const SheetMusic = ({
                   )}
 
                   {/* Range overlay — in-SVG selectable note rows. Kept mounted during
-                      the exit morph (rangeMorphing) so it can fade out / the melody
-                      can fly in over it. */}
-                  {(rangeEditMode || rangeMorphing) && (
+                      the exit morph (when the range overlay was the one showing) so it
+                      can fade out / the melody can fly in over it. */}
+                  {(rangeEditMode || (rangeMorphing && lastOverlayKind === 'range')) && (
                     <RangeStaffOverlay
                       startX={startX}
                       endX={endX}
@@ -2910,6 +2921,29 @@ const SheetMusic = ({
                       noteColoringMode={noteColoringMode}
                       scaleNotes={scaleNotes}
                       tonic={tonic}
+                    />
+                  )}
+
+                  {/* Clef overlay — in-staff clef/instrument selector (Han 2026-06-01).
+                      Kept mounted during its exit morph the same way. */}
+                  {(clefEditMode || (rangeMorphing && lastOverlayKind === 'clef')) && (
+                    <ClefStaffOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      clefTreble={clefTreble}
+                      clefBass={clefBass}
+                      trebleSettings={trebleSettings}
+                      bassSettings={bassSettings}
+                      onApplyClefPatch={(staff, patch) => {
+                        const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
+                        if (setter) setter(prev => ({ ...prev, ...patch }));
+                      }}
+                      onOpenInstrumentList={(staff) => setTransPicker(staff)}
+                      debugMode={debugMode}
                     />
                   )}
                 </>

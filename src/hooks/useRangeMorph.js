@@ -39,7 +39,8 @@ export default function useRangeMorph(rangeEditMode, svgRef, flyDist) {
     const svg = svgRef.current;
     if (!svg) { setMorph(null); return undefined; }
     const melody = svg.querySelector('.notes-transition');
-    const overlay = svg.querySelector('.range-overlay');
+    // Either the range or the clef overlay is the "new" group (only one is mounted).
+    const overlay = svg.querySelector('.range-overlay, .clef-overlay');
     const oldEl = morph.entering ? melody : overlay;   // old just fades
     const newEl = morph.entering ? overlay : melody;   // new flies in from the right
 

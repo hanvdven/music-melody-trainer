@@ -707,6 +707,13 @@ path {
   transition: opacity 0.2s ease-in-out;
 }
 
+/* Clef-selector family carousel: each glyph slides to its new slot when the
+   family order changes (Han 2026-06-01). transform-box/​origin keep the SVG
+   translateX in user-space units. */
+.clef-family-glyph {
+  transition: transform 0.3s ease-in-out;
+}
+
 /* ============================================================
  * RUNTIME STATE & HIGHLIGHTS
  * ============================================================ */

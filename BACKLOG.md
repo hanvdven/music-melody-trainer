@@ -89,6 +89,29 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
 
 ---
 
+### In-staff clef-selector (bladmuziek) — Han 2026-06-01
+
+> selectie van 'clef'. bladmuziek ligt voor de hand: vul de notenbalk met alle
+> mogelijke sleutels. Wisselen van g-f-vocal, én van instrument (bv. B♭). Linker
+> 20%: basis-clef (huidige links, andere twee gelowlight; carrousel-animatie L→R).
+> Rechter 80%: varianten (G-8va, G^B♭, G^x → opent alle opties). Transitie-
+> animaties. Geselecteerde variant helemaal links; na doorcyclen revert naar
+> standaardvariant.
+
+[Claude 2026-06-01]: ✅ Gebouwd. Eigen modus + **CLEF-knop** in de subheader
+(`clefEditMode`, wederzijds exclusief met range/settings, stopt playback).
+`ClefStaffOverlay.jsx` per zichtbare melodische balk:
+- **Links 20%**: G/F/Vocal-carrousel, huidige fel + links, andere twee gelowlight;
+  kiezen schuift L→R via CSS-transitie (`.clef-family-glyph`).
+- **Rechts 80%**: octaaf-chips (8/8va/8vb/15ma) + transpositie-chips (B♭/E♭/F) +
+  "…" die de volledige instrumentenlijst opent (hergebruikt de bestaande popup).
+- Sleutel (`preferredClef`) en instrument (`transpositionKey`) blijven **aparte
+  velden**; pure logica + test in `clefSelector.js`. Hergebruikt de morph-animatie.
+- ⏳ Parked: de exacte gekozen variant-glyph helemaal links tonen (nu generieke
+  familie-glyph links; de gekozen variant blijkt uit de gehighlighte chip rechts).
+
+---
+
 ### In-staff range selector (bladmuziek)
 
 [Claude 2026-05-31]: Voortgang van de in-SVG range selector (RANGE-knop → `rangeEditMode`).
