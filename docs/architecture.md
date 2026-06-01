@@ -2285,8 +2285,12 @@ overlay elements), orders them by `getBBox().x`, and gives each a start delay fr
 its x (leftmost at 0, rightmost at `STAGGER_MS`=500 ms); each element slides
 `ELEM_MS`=1000 ms (translateX `endX`→0). The group itself fades in over
 `GROUP_FADE_MS` so non-note elements (clefs/lines/barlines) just fade. Total =
-`STAGGER_MS + ELEM_MS` = 1.5 s. If no per-element markers are found it falls back to
-the old whole-group slide. The hook detects the mode flip in a `useLayoutEffect`,
+`STAGGER_MS + ELEM_MS` = 1.5 s. Every fade + slide runs through a subtle
+ease-in-out (`smoothstep`) for a soft start/stop (Han 2026-06-01 #4). The real
+melody note groups AND the overlay note groups carry `data-fly` (added
+unconditionally in `renderMelodyNotes`), so the range overlay's notes stagger too
+(previously they slid as one block). If no per-element markers are found it falls
+back to the old whole-group slide. The hook detects the mode flip in a `useLayoutEffect`,
 returns `morphing` so SheetMusic keeps BOTH groups mounted+visible during the morph,
 then runs a single rAF tween. **opacity/transform via `element.style` only (§6)**,
 cleared at the end so the scroll/wipe systems own those properties again. Safe
@@ -2355,6 +2359,16 @@ correct overlay stays mounted during an exit morph.
 via pure helpers in `overlays/clefSelector.js` (no hardcoded option tables in the
 view; §6c). All option logic is pure + tested
 (`overlays/__tests__/clefSelector.test.js`).
+
+**Polish wave 2 (Han 2026-06-01 #4) — done:**
+- Carousel glyphs are now the EXACT sheet clefs via the shared `<ClefGlyph>`
+  (`sheet-music/clefGlyphs.jsx`, which also owns `clefSymbols` as the single source
+  of truth — SheetMusic imports it). The current slot draws the concrete current
+  clef (incl. ottava / `treble15va` etc.) at the real sheet position
+  (`CLEF_GLYPH_X`, `baseY = staffStart+30`, fontSize 36); neighbours draw their
+  family default clef. The static sheet clef is hidden in clef mode (no doubling).
+  Glyphs entering on a family change SLIDE in from the right (transform transition),
+  clipped to the gutter `[0, startX]` so they don't spill over the variant chips.
 
 **Polish wave (Han 2026-06-01) — done:**
 - The family carousel now lives in the **clef gutter, fully LEFT of `startX`**: the

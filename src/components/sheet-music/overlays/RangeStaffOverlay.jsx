@@ -51,7 +51,6 @@ const PERC_HIT_H = 56;
 const PERC_HIT_UP_BIAS = 0.66;   // fraction of the box above the notehead centre
 // Reserved right margin holding the preset brackets; also compacts the row.
 const PRESET_AREA_WIDTH = 92;
-const LOWLIGHT_OPACITY = 0.3;          // dim for melodic out-of-band notes
 // Preset-bracket geometry (right margin).
 const BRACKET_TICK = 7;
 const BRACKET_GAP = 26;
@@ -127,7 +126,12 @@ const nearestIdx = (notes, midi) => {
     return bi;
 };
 
-const fit = (count, avail) => Math.min(MAX_NOTE_WIDTH, avail / Math.max(1, count));
+// Spread the notes across the FULL available width: divide evenly with no upper
+// cap, so a small selection's notes fan out instead of bunching at the left (Han
+// 2026-06-01). The window grows only modestly (capped via MAX_CONTEXT below) to
+// avoid the diagonal row climbing into the neighbouring staff.
+const fit = (count, avail) => avail / Math.max(1, count);
+const MAX_CONTEXT = 5;   // hard cap on naturals added beyond each boundary
 
 export const buildRangeRow = (notes, selMin, selMax, avail) => {
     const M = notes.length;
@@ -135,13 +139,13 @@ export const buildRangeRow = (notes, selMin, selMax, avail) => {
 
     const iMin = nearestIdx(notes, Math.min(selMin, selMax));
     const iMax = nearestIdx(notes, Math.max(selMin, selMax));
-    // Boundary-relative window: at least CONTEXT_NOTES beyond each boundary, but
-    // GROWN so the row fills the available width at a comfortable spacing rather
-    // than bunching capped-width notes at the left (Han 2026-06-01). We pick the
-    // context that makes total naturals ≈ avail / MAX_NOTE_WIDTH, split evenly.
+    // Boundary-relative window: CONTEXT_NOTES beyond each boundary, grown a little
+    // toward filling the width but CAPPED at MAX_CONTEXT so the diagonal row never
+    // climbs into the adjacent staff (the bass-too-high bug, Han 2026-06-01 #4).
+    // Remaining width is absorbed by wider note spacing (fit has no upper cap).
     const inBand = (iMax - iMin) + 1;
     const wantTotal = Math.max(inBand + 2 * CONTEXT_NOTES, Math.floor(avail / MAX_NOTE_WIDTH));
-    const context = Math.max(CONTEXT_NOTES, Math.ceil((wantTotal - inBand) / 2));
+    const context = Math.min(MAX_CONTEXT, Math.max(CONTEXT_NOTES, Math.ceil((wantTotal - inBand) / 2)));
     const loIdx = Math.max(0, iMin - context);
     const hiIdx = Math.min(M - 1, iMax + context);
     const win = notes.slice(loIdx, hiIdx + 1);
@@ -420,7 +424,9 @@ const RangeStaffOverlay = ({
             if (midi === selMin || midi === selMax) return 'var(--accent-yellow)';
             if (midi > selMin && midi < selMax)
                 return melodicNoteColor(name, { noteColoringMode, tonic, scaleNotes, theme }) ?? 'var(--text-primary)';
-            return 'var(--text-dim)';
+            // Out-of-band: same grey as the percussion notes, slightly lighter so it
+            // reads on the overlay background (Han 2026-06-01 #4).
+            return 'var(--range-lowlight)';
         };
         // previewColorFn receives a note NAME; map name→midi via the entries we built.
         const midiByName = new Map(bodyEntries.map(e => [e.name, e.midi]));
@@ -538,7 +544,7 @@ const RangeStaffOverlay = ({
                     inner <g> carries the static out-of-band dim. */}
                 {edgeEntry && (
                     <g ref={(el) => { edgeRefs.current[staff] = el; }} style={{ pointerEvents: 'none' }}>
-                        <g style={{ opacity: LOWLIGHT_OPACITY }}>
+                        <g>
                             <MelodyNotesLayer
                                 {...STATIC_LAYER_PROPS}
                                 melody={mkMelody([edgeEntry])}
@@ -550,7 +556,7 @@ const RangeStaffOverlay = ({
                                 allOffsets={edgeAllOffsets}
                                 timeSignature={timeSignature}
                                 theme={theme}
-                                previewMode="var(--text-dim)"
+                                previewMode="var(--range-lowlight)"
                             />
                         </g>
                     </g>
@@ -640,7 +646,7 @@ const RangeStaffOverlay = ({
         // open-hihat 'o') hard to read as on/off. A flat lowlight grey at full
         // opacity keeps the glyph crisp while clearly reading as deselected.
         const layers = [
-            { key: 'off', color: 'var(--text-lowlight)', opacity: 1, entries: disabledEntries },
+            { key: 'off', color: 'var(--range-lowlight)', opacity: 1, entries: disabledEntries },
             { key: 'on', color: 'var(--text-primary)', opacity: 1, entries: enabledEntries },
         ];
 

@@ -9,7 +9,38 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
-## Transition + disabled-staff (Han 2026-06-01 #3)
+## Feedback batch (Han 2026-06-01 #4)
+✅ done this round:
+- range notes now stagger (data-fly on all note groups); morph has ease-in/out.
+- clef glyphs reused from sheet (`clefGlyphs.jsx` ClefGlyph + clefSymbols single
+  source); carousel current clef at exact sheet pos, slides (clipped to gutter).
+- range sheet lowlight → `--range-lowlight` (match percussion + slightly lighter).
+- keyboard bracket: passive=solid, dotted line bridges the gap (no stretched "…").
+- bass-too-high: capped window growth (MAX_CONTEXT) + uncapped spacing.
+🔨 remaining (need interview): chord type selector + chord-disable (X).
+🔨 original list:
+- ANIM: range-overlay notes still fly as one block (no per-note markers) → thread
+  data-fly through the range overlay note layer so they stagger like the melody.
+- ANIM: give all morph animations a subtle ease-in/ease-out (start/stop).
+- CLEF SELECTOR: reuse the EXACT sheet-music clef glyphs incl. baseline/height
+  offset + font size + the custom combined glyphs (clef+15 etc.); height carries
+  meaning — reuse the already-defined `clefSymbols` rather than my own glyphs.
+- CLEF SELECTOR: remove the (now doubled) sheet clef; place the selectable current
+  clef at the EXACT sheet clef position (check the left offset, ~x=13, content
+  margin ~10). New carousel clefs SLIDE IN FROM THE RIGHT (not fade). Use space all
+  the way up to startX.
+- CLEF/RANGE: remove the measure-type (4/4 or C) when either selector is active
+  (already done for clef; ensure for range too).
+- RANGE KEYBOARD: passive (behind) clef bracket = SOLID line, not dotted. The "…"
+  is stretched into 3 long lines → instead draw a DOTTED HORIZONTAL line between
+  where one bracket hook ends and the next begins; remove the stretched ellipsis.
+- RANGE SHEET: lowlighted treble/bass notes too light → match percussion-note color,
+  and make all of them slightly lighter still.
+- RANGE SHEET BUG: bass range selector goes way too high — the hit box stretched to
+  include the chords row, overlapping the treble staff. Fix the box extent.
+- CHORD SELECTOR: still missing — implement the chord type selector (as described).
+- CHORDS: add a 3rd visualisation option = X (disabled).
+
 ✅ done:
 - Staggered per-element fly-in in `useRangeMorph` (notes stream in by x, rightmost
   starts at 0.5s, each slides 1s → total 1.5s; group fades for non-note elements;

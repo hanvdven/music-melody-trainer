@@ -19,6 +19,11 @@
      animation — opacity already drives the fade, layering another opacity
      for "lowlight" would double-darken the element during transitions. */
   --text-lowlight: #8a8a8a;
+  /* Range selector out-of-band / disabled notes: same family as --text-lowlight
+     but slightly LIGHTER so faint notes read clearly on the dark/brown overlay
+     background (Han 2026-06-01). Used by RangeStaffOverlay for treble/bass
+     out-of-band and percussion disabled pads. */
+  --range-lowlight: #a8a8a8;
 
   /* Accent */
   --accent-yellow: #f2c879;
