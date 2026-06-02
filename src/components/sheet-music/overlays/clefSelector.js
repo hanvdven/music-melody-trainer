@@ -81,6 +81,19 @@ export const transpositionChips = () =>
         .filter(Boolean)
         .map(i => ({ key: i.key, label: i.label }));
 
+// The 3 INLINE instrument-clef cards for the melodic families (Han #14): Concert
+// pitch + the two most common transposing instruments (B♭, E♭). Each card renders a
+// full clef + a 3-note reference melody transposed by `semitones`, so the
+// transposition is visually obvious; `display` ('C inst' / 'B♭ inst' / 'E♭ inst') is
+// shown as a small superscript. The rest of the instruments live behind the "…" card.
+// `semitones` = add to concert pitch → written pitch (see transposingInstruments.js).
+export const INLINE_CLEF_CARDS = ['C', 'Bb', 'Eb'];
+export const instrumentClefCards = () =>
+    INLINE_CLEF_CARDS
+        .map(key => TRANSPOSING_INSTRUMENTS.find(i => i.key === key))
+        .filter(Boolean)
+        .map(i => ({ key: i.key, label: i.label, display: i.display, semitones: i.semitones }));
+
 // Carousel order starting at `currentFamilyId`: current first, then the others in
 // CLEF_FAMILIES order (wrapping). Picking a non-first item should slide the list so
 // the picked family becomes first — the view animates L→R between these orders.

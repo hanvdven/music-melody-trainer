@@ -27,10 +27,16 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 - ✅ Notation carousel: shows EXACTLY N glyphs (no resting lookahead — wrap copies fall
   outside the clip), spread evenly from CLEF_GLYPH_X (active aligns with sheet) → 90%
   of startX; gentle 5%/95% edge fade so the rightmost glyph isn't dimmed.
-- ⏳ Notation: after each clickable clef, write a short melody C4 G4 C5 in G,
-  C3 G3 C4 in F. Instrument clefs (Bb, Eb…) shown as full clef + superscript
-  "(B♭ inst.)" + the 3 transposed notes. NEEDS DESIGN — Han's msg cut off at "the 3
-  options + a…"; ambiguous which 3 + layout. ASK before implementing (§4b).
+- ✅ Notation: each clickable clef is now an "instrument clef CARD" — the family clef
+  + the 3 reference notes (C4 G4 C5 in G / C3 G3 C4 in F) rendered via MelodyNotesLayer
+  and TRANSPOSED by the instrument, so the transposition reads instantly; transposing
+  cards add a "(B♭ inst.)" superscript. Per "3 options + a …" the inline set is
+  Concert / B♭ / E♭ + a "…" card (clefSelector.instrumentClefCards).
+  ⚠ DESIGN DECISION (Han's msg was cut off at "the 3 options + a…"): inline OCTAVE
+  variants (8va/15ma) were REMOVED to make room for the cards — they should move into
+  the "…" full list. Confirm w/ Han: is Concert/B♭/E♭ the right inline trio, and is
+  losing inline octave access OK? Vocal family kept as voice-clef chips (spec only
+  addressed G/F).
 - ✅ CR: clef SUBTYPES (variant chips) slide out FROM THE CLEF ON THE LEFT — each chip
   carries `data-fly-from={startX}`; useRangeMorph emerges those elements from that x
   (negative offset → slide right into slot) instead of the default right-side fly-in.
