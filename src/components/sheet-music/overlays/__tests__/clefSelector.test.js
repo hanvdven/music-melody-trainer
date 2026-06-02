@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     familyOfClef, carouselOrder, patchForFamily, patchForOctave, patchForVocal,
-    patchForTransposition, transpositionChips, CLEF_FAMILIES, CLEF_OFF,
+    patchForTransposition, CLEF_FAMILIES, CLEF_OFF,
 } from '../clefSelector';
 
 describe('familyOfClef', () => {
@@ -58,10 +58,3 @@ describe('patch helpers', () => {
     });
 });
 
-describe('transpositionChips', () => {
-    it('returns the inline subset with Unicode labels', () => {
-        const chips = transpositionChips();
-        expect(chips.map(c => c.key)).toEqual(['Bb', 'Eb', 'F']);
-        expect(chips[0].label).toBe('B♭');
-    });
-});
