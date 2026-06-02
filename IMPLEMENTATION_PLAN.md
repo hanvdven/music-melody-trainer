@@ -10,6 +10,13 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 ---
 
 ## Feedback batch (Han 2026-06-01 #10) — REUSE rendering (§6c violation to fix)
+✅ done so far: morph re-arms on overlay switch (kind-keyed); percussion beams via
+real processMelodyAndCalculateSlots+MelodyNotesLayer; clef glyphs centered
+(anchor=middle); diagonal treble/bass divider; full-height percussion hitboxes;
+endX measure line.
+🔨 still open: chord row → RANGE setter + render via real stacked whole-notes; G-clef
+bottom clipping; G-ottava options missing; vocal clef spacing/margin-before-endX;
+exact clef alignment with sheet.
 🔨 Core issue: overlays re-invent note/chord rendering instead of reusing
 MelodyNotesLayer/renderMelodyNotes + ChordLabelsLayer. Fix by reuse.
 - CHORD selector belongs in the RANGE setter (not clef). Render the progression with

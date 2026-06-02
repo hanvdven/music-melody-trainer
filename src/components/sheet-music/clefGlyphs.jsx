@@ -63,26 +63,33 @@ export const Ottava22 = ({ cx, cy, fill = 'var(--text-primary)', below = false }
  * `symbolKey` is a key into clefSymbols (e.g. 'treble', 'bass8vb', 'treble15va').
  * `x`/`baseY` default to the sheet position; `fill` colors the glyph.
  */
-export const ClefGlyph = ({ symbolKey, x = CLEF_GLYPH_X, baseY = CLEF_GLYPH_BASE_Y, fill = 'var(--text-primary)' }) => {
+export const ClefGlyph = ({
+  symbolKey, x = CLEF_GLYPH_X, baseY = CLEF_GLYPH_BASE_Y, fill = 'var(--text-primary)',
+  anchor = 'start',   // sheet uses 'start' at x=13; the carousel uses 'middle' to
+                      // visually centre the glyph in its slot (Han #10).
+}) => {
   const cf = clefSymbols[symbolKey] || clefSymbols.treble;
   const markerY = baseY + cf.yOffset + (cf.below ? 30 : -46);
+  // The ottava marker offset rides with the anchor (start → to the right of the
+  // glyph; middle → just right of centre).
+  const ottDx = anchor === 'middle' ? 8 : (cf.ottava === '15' && !cf.below ? 12 : 10);
   return (
     <>
       <text x={x} y={baseY + (cf.yOffset || 0)} fontSize={CLEF_GLYPH_SIZE}
-        fill={fill} fontFamily="Maestro"
+        fill={fill} fontFamily="Maestro" textAnchor={anchor}
         style={{ pointerEvents: 'none' }}>
         {cf.char}
       </text>
       {cf.ottava === '22' && (
         // Custom composite (no Maestro glyph for 22) — see Ottava22.
-        <Ottava22 cx={x + 12} cy={markerY} fill={fill} below={cf.below} />
+        <Ottava22 cx={x + (anchor === 'middle' ? 6 : 12)} cy={markerY} fill={fill} below={cf.below} />
       )}
       {cf.ottava && cf.ottava !== '22' && (
         <text x={x} y={markerY}
           fontSize={cf.ottava === '15' ? 23 : 14}
           fill={cf.ottava === '15' ? '#ffffff' : fill}
           fontFamily="Maestro" textAnchor="middle"
-          dx={cf.ottava === '15' && !cf.below ? 12 : 10}
+          dx={ottDx}
           style={{ pointerEvents: 'none' }}>
           {cf.ottava === '15' ? String.fromCharCode(134) : cf.ottava}
         </text>

@@ -95,7 +95,7 @@ const ClefStaffOverlay = ({
                             <path d={`M 9 ${staffStart + 2} L -9 ${staffStart + 38}`} />
                         </g>
                     ) : (
-                        <ClefGlyph symbolKey={symbolKey} x={0} baseY={staffStart + 30} fill={colr} />
+                        <ClefGlyph symbolKey={symbolKey} x={0} baseY={staffStart + 30} fill={colr} anchor="middle" />
                     )}
                     {debugMode && (
                         <rect x={-FAMILY_SLOT_W / 2} y={staffStart - 18} width={FAMILY_SLOT_W} height={60}
@@ -167,7 +167,7 @@ const ClefStaffOverlay = ({
                     {/* wide invisible hit box around the true-size glyph */}
                     <rect x={cx - 16} y={staffStart - 14} width={32} height={56} fill="transparent" />
                     {c.symbolKey ? (
-                        <ClefGlyph symbolKey={c.symbolKey} x={cx} baseY={staffStart + 30} fill={color} />
+                        <ClefGlyph symbolKey={c.symbolKey} x={cx} baseY={staffStart + 30} fill={color} anchor="middle" />
                     ) : c.glyph ? (
                         <text x={cx} y={staffStart + 30} fontSize={FAMILY_GLYPH_SIZE}
                             fontFamily="Maestro" textAnchor="middle" fill={color}

@@ -2792,6 +2792,13 @@ const SheetMusic = ({
                     />
                   )}
 
+                  {/* End barline at endX spanning the visible staves, in any overlay
+                      mode (Han #10 — a vertical measure line at endX). */}
+                  {overlayEditMode && (
+                    <path d={`M ${endX} ${trebleStart} V ${bottomY}`}
+                      stroke="var(--text-primary)" strokeWidth="1" style={{ pointerEvents: 'none' }} />
+                  )}
+
                   {/* Range overlay — in-SVG selectable note rows. Kept mounted during
                       the exit morph (when the range overlay was the one showing) so it
                       can fade out / the melody can fly in over it. */}

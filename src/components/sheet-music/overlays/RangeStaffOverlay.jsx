@@ -1,6 +1,6 @@
 import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
-import { noteYMap, getNoteAbsoluteY, percussionStemUp } from '../renderMelodyNotes';
+import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
 import { melodicNoteColor } from '../../../theory/noteUtils';
 import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
@@ -45,10 +45,10 @@ const QUARTER = TICKS_PER_WHOLE / 4;   // quarter-note → filled head + stem, n
 // inner edge, so the two zones meet exactly. BAND_COVER is how far the outer edge
 // clears the topmost/bottommost notehead (covering the 8va/8vb markers).
 const BAND_COVER = 30;
-// Percussion pads: each pad gets its own box centred on its notehead. The box is
-// tall and biased UPWARD (point 3) so it also covers the upward stems.
-const PERC_HIT_H = 56;
-const PERC_HIT_UP_BIAS = 0.66;   // fraction of the box above the notehead centre
+// Percussion pads: each pad gets a FULL-HEIGHT clickable column (Han #10) — from
+// PERC_HIT_TOP above the staff down PERC_HIT_FULL_H, covering stems + ledger lines.
+const PERC_HIT_TOP = 18;
+const PERC_HIT_FULL_H = 76;
 // Reserved right margin holding the preset brackets; also compacts the row.
 const PRESET_AREA_WIDTH = 92;
 // Preset-bracket geometry (right margin).
@@ -658,23 +658,21 @@ const RangeStaffOverlay = ({
                         />
                     </g>
                 ))}
-                {/* Per-pad hit boxes → toggle. Each box is centred on its pad's
-                    notehead Y (not a full-height column) so pads don't pile into
-                    one overlapping block (+ debug box, §3a). */}
+                {/* Per-pad hit boxes → toggle. FULL-HEIGHT columns (Han #10): each box
+                    spans from just above the percussion staff down past it, so the whole
+                    vertical strip for a pad is clickable (covers stems + ledger lines).
+                    Per-pad columns side by side, so they don't overlap horizontally. */}
                 {onTogglePad && ids.map((id, i) => {
-                    const cy = getNoteAbsoluteY(id, percussionStart, null, 'percussion');
                     const hx = startX + i * noteWidth - noteWidth / 2;
-                    // Bias the box toward the stem so it covers it (point 3): up for
-                    // stem-up pads, down for stem-down pads.
-                    const bias = percussionStemUp(id) ? PERC_HIT_UP_BIAS : (1 - PERC_HIT_UP_BIAS);
-                    const hy = (cy ?? percussionStart) - PERC_HIT_H * bias;
+                    const hy = percussionStart - PERC_HIT_TOP;   // just above the staff
+                    const hh = PERC_HIT_FULL_H;                  // down to below the staff
                     return (
                         <g key={`hit-${id}`}>
-                            <rect x={hx} y={hy} width={noteWidth} height={PERC_HIT_H}
+                            <rect x={hx} y={hy} width={noteWidth} height={hh}
                                 fill="transparent" style={{ cursor: 'pointer' }}
                                 onClick={() => onTogglePad(id)} />
                             {debugMode && (
-                                <rect x={hx} y={hy} width={noteWidth} height={PERC_HIT_H}
+                                <rect x={hx} y={hy} width={noteWidth} height={hh}
                                     fill="orange" fillOpacity={0.25} stroke="orange" strokeWidth={1}
                                     style={{ pointerEvents: 'none' }} />
                             )}
@@ -737,8 +735,12 @@ const RangeStaffOverlay = ({
     // in the gap between the staves regardless of where the notes sit.
     const STAFF_H = 40;
     const dividerY = (trebleStart + STAFF_H + bassStart) / 2;
+    // Slightly DIAGONAL (Han #10): the note rows ascend left→right, so a gently
+    // downward-left → upward-right divider follows them while staying anchored to the
+    // staff gap (no overlap). ±6 units of slope across the row width.
+    const DIVIDER_SLOPE = 6;
     const divider = (isTrebleVisible && trebleFrame && isBassVisible && bassFrame)
-        ? { dL: dividerY, dR: dividerY }
+        ? { dL: dividerY + DIVIDER_SLOPE, dR: dividerY - DIVIDER_SLOPE }
         : null;
 
     return (
