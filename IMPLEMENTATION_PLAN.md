@@ -9,6 +9,16 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
+## Feedback batch (Han 2026-06-01 #9)
+✅ done:
+- range overlap fixed: the treble/bass hit-zone divider is now anchored to the GAP
+  between the staves (fixed midpoint), not the moving note rows — a high bass range
+  no longer pulls the bass zone up into the treble staff.
+- chord row: added a CHORD COMPLEXITY sub-row — 5 stacked-notehead chords (tonic,
+  power, triad, seventh, extended) spread across startX→endX; writes
+  chordSettings.complexity (tonic→root, extended→ninth, canonical so the existing
+  complexity stepper + generator agree). Generator aliases 'tonic'/'extended' too.
+
 ## Feedback batch (Han 2026-06-01 #8)
 ✅ done:
 - 22ma/22mb: was rendered in Maestro (→ music glyphs, unreadable). Now `Ottava22`

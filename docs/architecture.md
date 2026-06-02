@@ -2471,6 +2471,22 @@ baked-in font glyph). The 22 clefs aren't wired as a selectable option yet
 - The disable **cross** is 2× taller than wide (spans the staff) everywhere
   (clef gutter, percussion, chord row).
 
+### 37.7 Chord complexity row + range divider fix (Han 2026-06-01 #9)
+
+- **Chord complexity row** (`ChordStaffOverlay`): a second sub-row above the
+  visualisation row offers 5 chords drawn as stacked Maestro noteheads —
+  **tonic / power / triad / seventh / extended** — spread across `startX…endX`.
+  Picking one writes `chordSettings.complexity` using CANONICAL values
+  (tonic→`root`, extended→`ninth`) so the existing PlaybackSettings complexity
+  stepper and the generator agree; `generateChordOnDegree` also aliases
+  `'tonic'`→root and `'extended'`→ninth defensively.
+- **Range hit-zone divider fix**: the treble/bass drag zones previously met at the
+  midpoint of the two NOTE ROWS, which move with the selection — a high bass range
+  pulled the divider (and the bass zone's top edge) up INTO the treble staff
+  (overlap, Han #9). The divider is now anchored to the fixed gap between the staves
+  (`(trebleStart + STAFF_H + bassStart) / 2`), so the zones always meet between the
+  staves regardless of the selection.
+
 ### 37.4a Dual-surface + ghost staff (Han 2026-06-01 #7)
 
 - **Clef-on-sheet ⇄ range-on-keyboard.** When the SHEET clef selector is active

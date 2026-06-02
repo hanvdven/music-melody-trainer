@@ -244,6 +244,19 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
   aantal getoonde glyphs (fix "4 percussiesleutels"); percussie-clef op x=18 +
   klikbaar (hit-rect toegevoegd).
 
+[Han 2026-06-01 #9]:
+> range setter overlapt nog (bass-hitzone klimt in treble); akkoordrij: voeg
+> chord-complexity toe (5 klikbare akkoorden: tonic/power/triad/seventh/extended),
+> render als echte bladmuziek-noten.
+[Claude 2026-06-01]: ✅
+- Range-overlap gefixt: de treble/bass-hitzone-divider is nu verankerd in de GAP
+  tussen de balken (vaste midpoint), niet de meebewegende notenrijen — een hoge
+  bass-range trekt de zone niet meer omhoog de treble in.
+- Akkoord-complexity-rij toegevoegd: 5 gestapelde-nootkop-akkoorden (tonic, power,
+  triad, seventh, extended) verdeeld over startX→endX; schrijft
+  `chordSettings.complexity` (tonic→root, extended→ninth — canoniek zodat de
+  bestaande complexity-stepper + generator overeenkomen).
+
 ---
 
 ### Range setter — vervolg-feedback (Han 2026-06-01)

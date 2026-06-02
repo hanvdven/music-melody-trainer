@@ -126,6 +126,15 @@ const generateChordOnDegree = (
     if (chordType === 'sus') {
         selectedType = 'exotic';
     }
+    // 'extended' (chord-row complexity, Han 2026-06-01 #9) = a rich upper-structure
+    // chord; map it to a ninth (0-2-4-6-1) which reads clearly as "beyond seventh".
+    if (chordType === 'extended') {
+        selectedType = 'ninth';
+    }
+    // 'tonic' is an alias the chord-row uses for the single-root chord.
+    if (chordType === 'tonic') {
+        selectedType = 'root';
+    }
 
     let structure;
     if (customStructure) {
