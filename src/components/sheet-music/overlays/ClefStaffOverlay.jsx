@@ -1,7 +1,7 @@
 import React from 'react';
 import {
-    VOCAL_VARIANTS, OCTAVE_VARIANTS, familyOfClef, carouselOrder,
-    patchForFamily, patchForOctave, patchForVocal, patchForTransposition, transpositionChips,
+    VOCAL_VARIANTS, familyOfClef, carouselOrder,
+    patchForFamily, patchForVocal, patchForTransposition, instrumentClefCards,
 } from './clefSelector';
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
 import ClefCarousel from './ClefCarousel';
@@ -40,6 +40,57 @@ const PERC_LAYER_PROPS = {
     tonic: '', processedChords: [], inputTestState: null, pixelsPerTick: null,
     startMeasureIndex: 0, transpositionSemitones: 0, debugMode: false, interactive: false,
     courtesyAccidentals: false, percussionVoiceSplit: false, noteColoringMode: 'none',
+};
+
+// The 3-note reference melody drawn after each clickable clef so the transposition /
+// clef reads instantly (Han #14): C4 G4 C5 in the G family, C3 G3 C4 in the F family.
+const Q = TICKS_PER_WHOLE / 4;
+const REF_NOTES = { g: ['C4', 'G4', 'C5'], f: ['C3', 'G3', 'C4'] };
+const REF_LAYER_PROPS = {
+    numAccidentals: 0, scaleNotes: [], tonic: '', processedChords: [], inputTestState: null,
+    pixelsPerTick: null, startMeasureIndex: 0, debugMode: false, interactive: false,
+    courtesyAccidentals: false, percussionVoiceSplit: false, noteColoringMode: 'none',
+    noteGroupSize: TICKS_PER_WHOLE, measureLengthSlots: TICKS_PER_WHOLE,
+};
+
+// ClefCard — one instrument-clef option: the family clef on the LEFT, then the 3
+// reference notes TRANSPOSED by the instrument (so the transposition is visible), and
+// a small "(B♭ inst.)" superscript for transposing instruments. The notes are the
+// REAL renderer (MelodyNotesLayer) — §6c, never hand-drawn noteheads.
+const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, color, theme }) => {
+    const noteW = Math.max(12, (cardW || 60) * 0.14);
+    const refMelody = {
+        notes, offsets: [0, Q, 2 * Q], durations: [Q, Q, Q],
+        displayNotes: notes, ties: [null, null, null], triplets: null, rhythmicGrouping: null,
+    };
+    // Leading sentinel (−1) so the first note lands at the layer's startX (getTickX
+    // uses indexOf − 1), trailing marker closes the row.
+    const allOffsets = [-1, 0, Q, 2 * Q, 2 * Q + 1];
+    return (
+        <g style={{ pointerEvents: 'none' }}>
+            <ClefGlyph symbolKey={symbolKey} x={x} baseY={staffStart + 30} fill={color} anchor="start" />
+            {inst && (
+                <text x={x} y={staffStart - 6} fontSize={9} fontStyle="italic"
+                    fontFamily="Georgia, serif" fill={color} textAnchor="start">
+                    {`(${inst}.)`}
+                </text>
+            )}
+            <MelodyNotesLayer
+                {...REF_LAYER_PROPS}
+                melody={refMelody}
+                staff="treble"
+                clef={clef}
+                staffYStart={staffStart}
+                startX={x + 22}
+                noteWidth={noteW}
+                allOffsets={allOffsets}
+                timeSignature={[3, 4]}
+                transpositionSemitones={trans}
+                theme={theme}
+                previewMode={color}
+            />
+        </g>
+    );
 };
 
 const ClefStaffOverlay = ({
@@ -130,6 +181,8 @@ const ClefStaffOverlay = ({
         // ── Right: variant chips ──────────────────────────────────────────────
         // 'off' (disabled staff) has no variants.
         const rangeMode = settings?.rangeMode;
+        const baseClef = famId === 'g' ? 'treble' : 'bass';
+        const refNotes = REF_NOTES[famId];          // 3-note reference melody (G/F only)
         const chips = [];
         if (famId === 'off') {
             // no chips
@@ -142,32 +195,31 @@ const ClefStaffOverlay = ({
                 onTap: () => onApplyClefPatch?.(staff, patchForVocal(v)),
             }));
         } else {
-            // Octave variants as full ottava CLEFS at true size (via ClefGlyph).
-            (OCTAVE_VARIANTS[famId] || []).forEach(o => chips.push({
-                key: `oct-${o.id}`, symbolKey: variantToSymbolKey(o.id),
-                active: clefMatchesOctave(clef, settings, famId, o),
-                onTap: () => { const p = patchForOctave(famId, o.id); if (p) onApplyClefPatch?.(staff, p); },
+            // 3 instrument-clef CARDS (Concert / B♭ / E♭) + a "…" card (Han #14). Each
+            // card = the family clef + the 3 reference notes, TRANSPOSED by the
+            // instrument so the transposition reads instantly; transposing cards add a
+            // small "(B♭ inst.)" superscript. The octave variants + full instrument
+            // list live behind "…" (onOpenInstrumentList). §6c: cards come from
+            // clefSelector.instrumentClefCards (no hardcoded table here).
+            instrumentClefCards().forEach(card => chips.push({
+                key: `inst-${card.key}`, symbolKey: baseClef,
+                notes: refNotes, trans: card.semitones,
+                inst: card.semitones !== 0 ? card.display : null,
+                active: transKey === card.key,
+                onTap: () => onApplyClefPatch?.(staff, patchForTransposition(card.key)),
             }));
-            transpositionChips().forEach(t => chips.push({
-                key: `tr-${t.key}`, label: t.label,
-                active: transKey === t.key,
-                onTap: () => onApplyClefPatch?.(staff, patchForTransposition(t.key)),
-            }));
-            chips.push({
-                key: 'more', label: '…',
-                active: false,
-                onTap: () => onOpenInstrumentList?.(staff),
-            });
+            chips.push({ key: 'more', label: '…', isMore: true, active: false,
+                onTap: () => onOpenInstrumentList?.(staff) });
         }
 
-        // Variant clefs render at TRUE size (no small boxes), distributed evenly
-        // across the staff body [startX … endX] (Han #8). Each is a real ClefGlyph
-        // (octave variants) / clef glyph (vocal voices) with a wide invisible hit box.
-        const VAR_X0 = splitX + 18;
-        const VAR_X1 = endX - 10;
-        const varStep = chips.length > 1 ? (VAR_X1 - VAR_X0) / (chips.length - 1) : 0;
+        // Cards distributed evenly across the staff body [startX … endX]. A card draws
+        // its clef on the LEFT and the 3 reference notes to its right (or, for vocal /
+        // "…", just the glyph/label centred). Han #14.
+        const VAR_X0 = splitX + 24;
+        const VAR_X1 = endX - 24;
+        const cardW = chips.length > 1 ? (VAR_X1 - VAR_X0) / (chips.length - 1) : 0;
         const chipRow = chips.map((c, i) => {
-            const cx = chips.length > 1 ? VAR_X0 + i * varStep : (VAR_X0 + VAR_X1) / 2;
+            const cx = chips.length > 1 ? VAR_X0 + i * cardW : (VAR_X0 + VAR_X1) / 2;
             // Active = normal colour; passive = lowlight at opacity 1 (Han #14).
             const color = c.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
             return (
@@ -176,25 +228,25 @@ const ClefStaffOverlay = ({
                 <g key={c.key} data-fly="" data-fly-from={startX}
                     style={{ cursor: onApplyClefPatch ? 'pointer' : 'default' }}
                     onClick={c.onTap}>
-                    {/* wide invisible hit box around the true-size glyph */}
-                    <rect x={cx - 16} y={staffStart - 14} width={32} height={56} fill="transparent" />
-                    {c.symbolKey ? (
+                    {/* wide invisible hit box around the whole card */}
+                    <rect x={cx - 18} y={staffStart - 22} width={Math.max(40, cardW * 0.9)} height={70} fill="transparent" />
+                    {c.notes ? (
+                        // Instrument clef CARD: clef on the left + the 3 reference notes
+                        // (transposed) to its right; transposing cards get a superscript.
+                        <ClefCard symbolKey={c.symbolKey} clef={baseClef} notes={c.notes}
+                            trans={c.trans} inst={c.inst} x={cx - 14} staffStart={staffStart}
+                            cardW={cardW} color={color} theme={theme} />
+                    ) : c.symbolKey ? (
                         <ClefGlyph symbolKey={c.symbolKey} x={cx} baseY={staffStart + 30} fill={color} anchor="middle" />
-                    ) : c.glyph ? (
-                        <text x={cx} y={staffStart + 30} fontSize={FAMILY_GLYPH_SIZE}
-                            fontFamily="Maestro" textAnchor="middle" fill={color}
-                            style={{ pointerEvents: 'none' }}>
-                            {c.glyph}
-                        </text>
                     ) : (
-                        <text x={cx} y={staffStart + 24} fontSize={13}
+                        <text x={cx} y={staffStart + 24} fontSize={c.isMore ? 28 : 13}
                             fontFamily="Georgia, serif" textAnchor="middle" fill={color}
                             style={{ pointerEvents: 'none' }}>
                             {c.label}
                         </text>
                     )}
                     {debugMode && (
-                        <rect x={cx - 16} y={staffStart - 14} width={32} height={56}
+                        <rect x={cx - 18} y={staffStart - 22} width={Math.max(40, cardW * 0.9)} height={70}
                             fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
                             style={{ pointerEvents: 'none' }} />
                     )}
@@ -371,14 +423,5 @@ const ClefStaffOverlay = ({
         </g>
     );
 };
-
-// Whether the staff's current clef+rangeMode corresponds to a given octave variant.
-function clefMatchesOctave(clef, settings, famId, octaveVariant) {
-    const base = famId === 'g' ? 'treble' : 'bass';
-    if (clef !== base) return false;
-    const mode = settings?.rangeMode;
-    if (octaveVariant.default) return mode !== 'relative' && mode !== 'relative_15a' && mode !== 'relative_low';
-    return mode === octaveVariant.rangeMode;
-}
 
 export default ClefStaffOverlay;

@@ -2360,6 +2360,40 @@ via pure helpers in `overlays/clefSelector.js` (no hardcoded option tables in th
 view; §6c). All option logic is pure + tested
 (`overlays/__tests__/clefSelector.test.js`).
 
+**Polish wave 4 (Han 2026-06-01 #14) — done:**
+- **NOTATION** is the new name of the CLEF setter (SubHeader button label).
+- **Active/passive colours unified across all setters.** ACTIVE option = NORMAL colour
+  (`--text-primary`), PASSIVE = `--text-lowlight` at opacity 1 (greyed but solid) —
+  replacing the old `--accent-yellow` active highlight. Applies to the clef
+  families/variants/percussion options, `ChordStaffOverlay`, `ChordStyleOverlay`, and
+  the `RangeStaffOverlay` preset brackets. The range boundary DRAG HANDLES stay
+  `--accent-yellow` (they are handles, not a selectable option).
+- **Instrument clef CARDS** replace the plain variant chips for melodic G/F families.
+  Each card = the family clef (`<ClefGlyph>`) + the 3-note reference melody
+  (`REF_NOTES`: C4 G4 C5 in G, C3 G3 C4 in F) rendered via `MelodyNotesLayer` and
+  TRANSPOSED by the instrument (`transpositionSemitones`), so the transposition reads
+  instantly; transposing cards add a small `(B♭ inst.)` superscript. The inline set is
+  Concert / B♭ / E♭ (`clefSelector.instrumentClefCards`) + a `…` card opening the full
+  list. NOTE: inline octave variants (8va/15ma) were dropped to make room — they
+  belong in the `…` list (follow-up). Vocal family keeps its voice-clef chips.
+- **Clef carousel** shows EXACTLY N glyphs at rest (no resting lookahead — wrap copies
+  for the slide live OUTSIDE the clip), spread evenly from `CLEF_GLYPH_X` (the active
+  clef aligns with the sheet) to 90% of `startX`; a gentle 5%/95% edge fade replaces
+  the old ~68% fade that dimmed the rightmost glyph.
+- **Percussion preview** is centred (a leading sentinel offset in `allOffsets` puts the
+  first note at the layer `startX`), the box around the notes is removed, and the
+  SPLIT option is now true parallel-voice notation: hi-hats = 4 beamed eighths (RH/up)
+  + kick+snare = QUARTER notes (LH/down), rendered as TWO `MelodyNotesLayer` voices on
+  a shared x-grid with `percussionVoiceSplit` (the single-note RH/LH classifier forces
+  each voice's stem direction).
+- **Subtypes slide from the LEFT.** Variant chips carry `data-fly-from={startX}`;
+  `useRangeMorph` emerges those elements from that x (a negative initial offset that
+  slides them right into their slots) so the subtypes appear from UNDER the just-
+  selected clef, instead of the default right-side fly-in.
+- **Range extended chord** now shows ♭/♯ on its altered tensions (`D♭`/`A♯` — the
+  renderer draws the accidental to the left of the notehead) and the chord row was
+  raised (−86 → −108) so it clears the range-setter notes/handles below.
+
 **Polish wave 3 (Han 2026-06-01 #5) — done:**
 - The family carousel is now a true LOOP carousel (`overlays/ClefCarousel.jsx`):
   picking slot k slides the whole strip k steps left over an rAF tween; the strip
