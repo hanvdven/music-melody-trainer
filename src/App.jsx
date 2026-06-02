@@ -602,6 +602,18 @@ const App = () => {
         setClefEditMode(v => !v);
     }, [clefEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
 
+    // Toggle the legacy SETTINGS surface from its own SubHeader button (Han #13).
+    // Mutually exclusive with clef/range (the catch-all effect closes those when
+    // settings opens, but close them here too so the morph arms cleanly).
+    const handleToggleSettings = useCallback(() => {
+        if (!showSheetMusicSettings) {
+            handleStopAllPlayback();
+            setRangeEditMode(false);
+            setClefEditMode(false);
+        }
+        toggleSheetMusicSettings();
+    }, [showSheetMusicSettings, handleStopAllPlayback, toggleSheetMusicSettings]);
+
     // Closing range edit (e.g. clicking outside the bottom range settings, or
     // tapping empty sheet area while in range mode).
     const handleCloseRangeEdit = useCallback(() => setRangeEditMode(false), []);
@@ -1295,7 +1307,7 @@ const App = () => {
                     isPlayingContinuously={isPlayingContinuously}
                     handlePlayMelody={handlePlayMelody}
                     handlePlayContinuously={handlePlayContinuously}
-                    onActivateAdjustments={!showSheetMusicSettings ? toggleSheetMusicSettings : undefined}
+                    onOpenSettings={handleToggleSettings}
                     onOpenRange={handleToggleRangeEdit}
                     onOpenClef={handleToggleClefEdit}
                     windowWidth={windowSize.width}

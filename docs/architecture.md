@@ -2511,6 +2511,16 @@ baked-in font glyph). The 22 clefs aren't wired as a selectable option yet
   when `showSettings`; it's gated on `legacyMounted` and animates exactly like
   clef/range (the melody flies out, the settings rows fly in). It shares the
   `overlayEditMode` treatment (melody hidden, time-sig hidden, end barline at endX).
+  **It opens ONLY via its own SubHeader `SETTINGS` button** (`onOpenSettings` →
+  `App.handleToggleSettings`, mutually exclusive with clef/range). Clicking the sheet
+  no longer opens it (`openSettingsIfClosed` is now a timer-only no-op;
+  `handleSheetMusicClick` only CLOSES it) — Han #13, goal: deprecate later.
+- **Chord-style sample** matches the sheet chord label exactly (`ChordStyleOverlay`):
+  plain serif (NOT italic), with the minor "−"/"7" as a raised superscript tspan
+  (root + super), mirroring `ChordLabelsLayer`.
+- **Percussion clef bundle beaming**: rendered through `processMelodyAndCalculate
+  Slots` + `MelodyNotesLayer` with a `[1,2]` (odd-numerator) measure so the beam-span
+  logic keeps all 4 eighths in ONE beam instead of splitting an even measure 2+2.
 
 ### 37.4a Dual-surface + ghost staff (Han 2026-06-01 #7)
 

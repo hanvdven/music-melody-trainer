@@ -9,26 +9,28 @@ import React from 'react';
  * Writes `chordDisplayMode` ('off' | 'letters' | 'roman').
  */
 
-// Sheet chord-label metrics (mirror ChordLabelsLayer).
+// Sheet chord-label metrics (mirror ChordLabelsLayer's non-passing chord).
 const ROOT_FS = 26;
 const SUP_FS = 16;
 const SUP_DY = 12;
 
-// A short chord-label progression sample (letters or roman) in the sheet style.
+// A short chord-label progression sample matching the SHEET chord labels EXACTLY
+// (ChordLabelsLayer): plain serif (NOT italic), root letter + the suffix — incl. the
+// minor "−" — as a raised superscript tspan (Han #13).
 const ProgressionSample = ({ cx, cy, kind, color }) => {
     const items = kind === 'roman'
-        ? [{ r: 'ii' }, { r: 'V', sup: '7' }, { r: 'I' }]
-        : [{ r: 'D−' }, { r: 'G', sup: '7' }, { r: 'C' }];
+        ? [{ root: 'ii', sup: '' }, { root: 'V', sup: '7' }, { root: 'I', sup: '' }]
+        : [{ root: 'D', sup: '−' }, { root: 'G', sup: '7' }, { root: 'C', sup: '' }];
     const GAP = 34;                 // spacing between chords (room for the 26px roots)
     const x0 = cx - GAP;            // 3 chords centred on cx
     return (
         <g style={{ pointerEvents: 'none' }} fill={color}
-            fontFamily="Georgia, 'Times New Roman', serif" fontStyle="italic">
+            fontFamily="Georgia, 'Times New Roman', serif">
             {items.map((it, i) => {
                 const x = x0 + i * GAP;
                 return (
                     <text key={i} x={x} y={cy + 8} fontSize={ROOT_FS} textAnchor="middle">
-                        {it.r}
+                        {it.root}
                         {it.sup && <tspan fontSize={SUP_FS} dy={-SUP_DY} dx="1">{it.sup}</tspan>}
                     </text>
                 );

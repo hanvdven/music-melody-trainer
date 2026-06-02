@@ -587,10 +587,11 @@ const SheetMusic = ({
   const longPress = useLongPressTimer();
   // Dedicated long-press handler for clef glyphs.
   // Open settings overlay if not already open, then reset the auto-hide timer.
-  // Called from all responsive sheet-music elements (clef, time-sig, BPM, tempo) so
-  // that a single tap on any of these both performs the action AND opens the overlay.
+  // Called from responsive sheet-music elements (time-sig, BPM, tempo). It NO LONGER
+  // opens the settings surface (Han #13 — settings opens only via its own SubHeader
+  // button now; clicking anywhere on the sheet must not auto-open it). It only keeps
+  // the interaction timer alive while the surface is already open.
   const openSettingsIfClosed = () => {
-    if (!showSettings && onToggleSettings) onToggleSettings();
     onSettingsInteraction?.();
   };
 
@@ -1181,15 +1182,14 @@ const SheetMusic = ({
       return;
     }
 
-    // 3b. Settings toggle
+    // 3b. The legacy SETTINGS surface now opens ONLY via its own SubHeader button
+    // (Han #13 — clicking the sheet no longer opens settings; goal: deprecate later).
+    // Clicking empty sheet while it's open CLOSES it (like the range/clef surfaces).
     if (showSettings) {
       if (onToggleSettings) onToggleSettings();
       return;
     }
-    if (onToggleSettings) onToggleSettings();
-    resetNumericTimer();
-    resetBpmTimer();
-    resetRepeatsTimer();
+    // Otherwise: a plain sheet click does nothing (no settings auto-open).
   };
 
   const renderRandomizeIcons = () => {
@@ -2854,7 +2854,6 @@ const SheetMusic = ({
                       bassSettings={bassSettings}
                       percussionVoiceSplit={percussionVoiceSplit}
                       percussionDisabled={percOff}
-                      timeSignature={timeSignature}
                       theme={theme}
                       onApplyClefPatch={(staff, patch) => {
                         const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
