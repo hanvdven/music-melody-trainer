@@ -1,8 +1,10 @@
 import React from 'react';
 import {
-    VOCAL_VARIANTS, familyOfClef, carouselOrder,
-    patchForFamily, patchForVocal, patchForTransposition, instrumentClefCards,
+    VOCAL_VARIANTS, OCTAVE_VARIANTS, familyOfClef, carouselOrder,
+    patchForFamily, patchForOctave, patchForVocal, patchForTransposition,
 } from './clefSelector';
+import { TRANSPOSING_INSTRUMENTS } from '../../../constants/transposingInstruments';
+import ClefCardCarousel from './ClefCardCarousel';
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
 import ClefCarousel from './ClefCarousel';
 import MelodyNotesLayer from '../MelodyNotesLayer';
@@ -27,9 +29,9 @@ import { TICKS_PER_WHOLE } from '../../../constants/timing';
  *               back to the plain octave variant reverts transposition implicitly via
  *               the family default.
  *
- * Writes go through optional callbacks (onApplyClefPatch / onOpenInstrumentList) so
- * a static render (smoke test) is possible. Pure presentation; all option logic is
- * in clefSelector.js (§6c — no hardcoded tables here).
+ * Writes go through the optional `onApplyClefPatch` callback so a static render
+ * (smoke test) is possible. Pure presentation; all option logic is in clefSelector.js
+ * (§6c — no hardcoded tables here).
  */
 
 const FAMILY_GLYPH_SIZE = 36;      // clefs at ~true staff size (Han 2026-06-01)
@@ -103,7 +105,6 @@ const ClefStaffOverlay = ({
     percussionDisabled = false,
     theme,
     onApplyClefPatch,            // (staff, patch) => void
-    onOpenInstrumentList,        // (staff) => void  (full transposing list)
     onToggleVoiceSplit,          // () => void  (percussion together↔split)
     onTogglePercussionDisabled,  // () => void  (percussion clef on↔off)
     debugMode = false,
@@ -178,88 +179,110 @@ const ClefStaffOverlay = ({
             />
         );
 
-        // ── Right: variant chips ──────────────────────────────────────────────
+        // ── Right: variant cards / chips ──────────────────────────────────────
         // 'off' (disabled staff) has no variants.
         const rangeMode = settings?.rangeMode;
         const baseClef = famId === 'g' ? 'treble' : 'bass';
         const refNotes = REF_NOTES[famId];          // 3-note reference melody (G/F only)
-        const chips = [];
-        if (famId === 'off') {
-            // no chips
-        } else if (famId === 'vocal') {
-            // Each voice as its REAL clef glyph at true size (Han #8). Bass & Baritone
-            // share the F-clef but are distinct voices, matched on rangeMode.
-            VOCAL_VARIANTS.forEach(v => chips.push({
+        const VAR_X0 = splitX + 20;
+        const VAR_X1 = endX - 10;
+        const viewWidth = VAR_X1 - VAR_X0;
+
+        let variantContent = null;
+        if (famId === 'vocal') {
+            // Vocal voices: each as its REAL clef glyph (Han #8), evenly spread (a small
+            // fixed set — no swipe needed). Bass & Baritone share the F-clef glyph but
+            // are distinct voices, matched on rangeMode.
+            const chips = VOCAL_VARIANTS.map(v => ({
                 key: `voc-${v.rangeMode}`, symbolKey: v.clef,
                 active: rangeMode === v.rangeMode,
                 onTap: () => onApplyClefPatch?.(staff, patchForVocal(v)),
             }));
-        } else {
-            // 3 instrument-clef CARDS (Concert / B♭ / E♭) + a "…" card (Han #14). Each
-            // card = the family clef + the 3 reference notes, TRANSPOSED by the
-            // instrument so the transposition reads instantly; transposing cards add a
-            // small "(B♭ inst.)" superscript. The octave variants + full instrument
-            // list live behind "…" (onOpenInstrumentList). §6c: cards come from
-            // clefSelector.instrumentClefCards (no hardcoded table here).
-            instrumentClefCards().forEach(card => chips.push({
-                key: `inst-${card.key}`, symbolKey: baseClef,
-                notes: refNotes, trans: card.semitones,
-                inst: card.semitones !== 0 ? card.display : null,
-                active: transKey === card.key,
-                onTap: () => onApplyClefPatch?.(staff, patchForTransposition(card.key)),
-            }));
-            chips.push({ key: 'more', label: '…', isMore: true, active: false,
-                onTap: () => onOpenInstrumentList?.(staff) });
-        }
-
-        // Cards distributed evenly across the staff body [startX … endX]. A card draws
-        // its clef on the LEFT and the 3 reference notes to its right (or, for vocal /
-        // "…", just the glyph/label centred). Han #14.
-        const VAR_X0 = splitX + 24;
-        const VAR_X1 = endX - 24;
-        const cardW = chips.length > 1 ? (VAR_X1 - VAR_X0) / (chips.length - 1) : 0;
-        const chipRow = chips.map((c, i) => {
-            const cx = chips.length > 1 ? VAR_X0 + i * cardW : (VAR_X0 + VAR_X1) / 2;
-            // Active = normal colour; passive = lowlight at opacity 1 (Han #14).
-            const color = c.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
-            return (
-                // data-fly-from = the clef gutter x (startX): the chip slides OUT from
-                // under the just-selected clef on the left, not in from the right (CR).
-                <g key={c.key} data-fly="" data-fly-from={startX}
-                    style={{ cursor: onApplyClefPatch ? 'pointer' : 'default' }}
-                    onClick={c.onTap}>
-                    {/* wide invisible hit box around the whole card */}
-                    <rect x={cx - 18} y={staffStart - 22} width={Math.max(40, cardW * 0.9)} height={70} fill="transparent" />
-                    {c.notes ? (
-                        // Instrument clef CARD: clef on the left + the 3 reference notes
-                        // (transposed) to its right; transposing cards get a superscript.
-                        <ClefCard symbolKey={c.symbolKey} clef={baseClef} notes={c.notes}
-                            trans={c.trans} inst={c.inst} x={cx - 14} staffStart={staffStart}
-                            cardW={cardW} color={color} theme={theme} />
-                    ) : c.symbolKey ? (
-                        <ClefGlyph symbolKey={c.symbolKey} x={cx} baseY={staffStart + 30} fill={color} anchor="middle" />
-                    ) : (
-                        <text x={cx} y={staffStart + 24} fontSize={c.isMore ? 28 : 13}
-                            fontFamily="Georgia, serif" textAnchor="middle" fill={color}
-                            style={{ pointerEvents: 'none' }}>
-                            {c.label}
-                        </text>
-                    )}
-                    {debugMode && (
-                        <rect x={cx - 18} y={staffStart - 22} width={Math.max(40, cardW * 0.9)} height={70}
-                            fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
-                            style={{ pointerEvents: 'none' }} />
-                    )}
+            const step = chips.length > 1 ? viewWidth / (chips.length - 1) : 0;
+            variantContent = (
+                <g className="clef-variant-chips">
+                    {chips.map((c, i) => {
+                        const cx = chips.length > 1 ? VAR_X0 + i * step : VAR_X0 + viewWidth / 2;
+                        const color = c.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
+                        return (
+                            <g key={c.key} data-fly="" data-fly-from={startX}
+                                style={{ cursor: onApplyClefPatch ? 'pointer' : 'default' }}
+                                onClick={c.onTap}>
+                                <rect x={cx - 16} y={staffStart - 14} width={32} height={56} fill="transparent" />
+                                <ClefGlyph symbolKey={c.symbolKey} x={cx} baseY={staffStart + 30} fill={color} anchor="middle" />
+                                {debugMode && (
+                                    <rect x={cx - 16} y={staffStart - 14} width={32} height={56}
+                                        fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
+                                        style={{ pointerEvents: 'none' }} />
+                                )}
+                            </g>
+                        );
+                    })}
                 </g>
             );
-        });
+        } else if (famId !== 'off') {
+            // Melodic G/F: a SWIPEABLE strip of clef CARDS (Han 2026-06-02). Order:
+            // octave cards (normal · 8va · 15ma — set rangeMode only) then ALL
+            // transposing instruments except concert C (set transpositionKey only).
+            // Octave and transposition stay ORTHOGONAL fields (clefSelector invariant),
+            // so up to two cards can read active at once. Cards beyond the window sit
+            // off-screen and slide in on drag. §6c: octave list + instruments come from
+            // OCTAVE_VARIANTS / TRANSPOSING_INSTRUMENTS, not a table here.
+            const octaveActive = (o) => o.default
+                ? (rangeMode !== 'relative' && rangeMode !== 'relative_15a' && rangeMode !== 'relative_low')
+                : rangeMode === o.rangeMode;
+            const cards = [];
+            (OCTAVE_VARIANTS[famId] || []).forEach(o => cards.push({
+                key: `oct-${o.id}`, symbolKey: variantToSymbolKey(o.id), trans: 0, inst: null,
+                active: octaveActive(o),
+                onTap: () => { const p = patchForOctave(famId, o.id); if (p) onApplyClefPatch?.(staff, p); },
+            }));
+            // Concert C is the default; a transposing card tapped while ALREADY active
+            // toggles back to C — that is the only way to reset transposition from the
+            // strip (there is no dedicated C card, per Han's order).
+            TRANSPOSING_INSTRUMENTS.filter(i => i.key !== 'C').forEach(i => cards.push({
+                key: `tr-${i.key}`, symbolKey: baseClef, trans: i.semitones, inst: i.display,
+                active: transKey === i.key,
+                onTap: () => onApplyClefPatch?.(staff, patchForTransposition(transKey === i.key ? 'C' : i.key)),
+            }));
+
+            const CARD_W = 92;
+            const renderCard = (card, slotX) => {
+                const color = card.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
+                return (
+                    <g>
+                        <ClefCard symbolKey={card.symbolKey} clef={baseClef} notes={refNotes}
+                            trans={card.trans} inst={card.inst} x={slotX} staffStart={staffStart}
+                            cardW={CARD_W} color={color} theme={theme} />
+                        {/* Debug: per-card tap region (§3a) — taps route to the card whose
+                            [slotX … slotX+CARD_W] slot the pointer lands in. */}
+                        {debugMode && (
+                            <rect x={slotX - 4} y={staffStart - 24} width={CARD_W} height={74}
+                                fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
+                                style={{ pointerEvents: 'none' }} />
+                        )}
+                    </g>
+                );
+            };
+            variantContent = (
+                // data-fly on the OUTER group so the enter-morph flies the whole strip in
+                // from the clef; the carousel's INNER strip owns the drag transform (no
+                // conflict: morph uses style.transform on this <g>, drag uses the SVG
+                // transform attr on the inner strip).
+                <g className="clef-variant-cards" data-fly="" data-fly-from={startX}>
+                    <ClefCardCarousel cards={cards} x0={VAR_X0} y={staffStart - 24}
+                        viewWidth={viewWidth} height={74} cardW={CARD_W}
+                        clipId={`clefcards-${staff}`} renderCard={renderCard} />
+                </g>
+            );
+        }
 
         return (
             <g className={`clef-row clef-row-${staff}`} key={staff}>
                 {/* The family carousel (loop animation + fade mask) lives in the
                     gutter; ClefCarousel owns its own clip + right-edge fade. */}
                 {familyCarousel}
-                <g className="clef-variant-chips">{chipRow}</g>
+                {variantContent}
             </g>
         );
     };

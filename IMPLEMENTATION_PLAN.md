@@ -37,6 +37,19 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
   the "…" full list. Confirm w/ Han: is Concert/B♭/E♭ the right inline trio, and is
   losing inline octave access OK? Vocal family kept as voice-clef chips (spec only
   addressed G/F).
+  [Han 2026-06-02 answers] (a) inline trio → Concert / B♭ / E♭ / **F** + … (add F).
+  (b) octaves come BACK — the variant row should be a horizontal **SWIPE carousel** of
+  clef cards (same feel as the family carousel). g-clef order: Concert, 8va, 15ma, B♭,
+  E♭, F, … then the more obscure transposing instruments OFF-SCREEN (swipe left to
+  reveal); wider screens show more cards at rest.
+- ✅ FR — **Notation variant-card SWIPE carousel (Han 2026-06-02).** `ClefCardCarousel.jsx`
+  — free horizontal drag (tap=select, drag=scroll, disambiguated by movement; px→SVG via
+  screen CTM; clamped, no loop, right-edge fade). Strip = octave cards (normal/8va/15ma)
+  + all transposing instruments except C. Octave & transposition stay orthogonal fields;
+  tapping an active transposing card toggles back to concert C. Vocal kept as evenly-
+  spread chips. Tests + build green; documented in architecture.md wave 4.
+  ⏳ Follow-up: remove the now-dead `transPicker`/`onOpenInstrumentList` popup wiring in
+  SheetMusic; confirm CARD_W (92) / visible count looks right on real device widths.
 - ✅ CR: clef SUBTYPES (variant chips) slide out FROM THE CLEF ON THE LEFT — each chip
   carries `data-fly-from={startX}`; useRangeMorph emerges those elements from that x
   (negative offset → slide right into slot) instead of the default right-side fly-in.
