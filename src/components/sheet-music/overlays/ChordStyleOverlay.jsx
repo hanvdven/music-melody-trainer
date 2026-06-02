@@ -52,9 +52,10 @@ const ChordStyleOverlay = ({
     const cx66 = startX + span * 0.66;
     const isLetters = chordDisplayMode !== 'off' && chordDisplayMode !== 'roman';
 
-    const offColor = chordDisplayMode === 'off' ? 'var(--accent-yellow)' : 'var(--text-primary)';
-    const lettersColor = isLetters ? 'var(--accent-yellow)' : 'var(--text-primary)';
-    const romanColor = chordDisplayMode === 'roman' ? 'var(--accent-yellow)' : 'var(--text-primary)';
+    // Active = normal colour (NOT yellow); passive = lowlight, opacity 1 (Han #14).
+    const offColor = chordDisplayMode === 'off' ? 'var(--text-primary)' : 'var(--text-lowlight)';
+    const lettersColor = isLetters ? 'var(--text-primary)' : 'var(--text-lowlight)';
+    const romanColor = chordDisplayMode === 'roman' ? 'var(--text-primary)' : 'var(--text-lowlight)';
 
     const hit = (key, node, hitX, hitW, onTap) => (
         <g key={key} data-fly="" style={{ cursor: 'pointer' }} onClick={onTap}>

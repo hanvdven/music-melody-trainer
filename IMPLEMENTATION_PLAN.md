@@ -9,6 +9,31 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
+## Feedback batch (Han 2026-06-01 #14)
+🔨
+- ✅ Rename "CLEF" settings → "NOTATION" settings (button label).
+- ✅ Percussion notation: (1) centred (first note now lands at startX via a leading
+  sentinel offset, bundles centred on 30%/70%) (2) box removed (only an invisible hit
+  rect remains) (3) SPLIT now real parallel-voice notation — hi-hats = 4 beamed
+  eighths (RH, up), kick+snare = QUARTER notes (LH, down), via two MelodyNotesLayer
+  voices on a shared x-grid + percussionVoiceSplit. (#2 "stems wrong side" addressed
+  by the proper split classifier — verify visually.)
+- ✅ ALL setters: ACTIVE = normal colour (`--text-primary`); PASSIVE = `--text-lowlight`
+  at opacity 1. Applied to Clef families/variants/perc, ChordStaff, ChordStyle, and
+  Range preset brackets. (Range boundary DRAG HANDLES kept yellow — they're handles,
+  not a passive/active option; legacy SettingsOverlay left as-is, slated to deprecate.)
+- ✅ Range: extended-chord tensions carry ♭/♯ (D♭ 9th, A♯ 13th) so the renderer draws
+  the accidental to their left; chord row raised (−86 → −108) to clear the setter.
+- ✅ Notation carousel: shows EXACTLY N glyphs (no resting lookahead — wrap copies fall
+  outside the clip), spread evenly from CLEF_GLYPH_X (active aligns with sheet) → 90%
+  of startX; gentle 5%/95% edge fade so the rightmost glyph isn't dimmed.
+- ⏳ Notation: after each clickable clef, write a short melody C4 G4 C5 in G,
+  C3 G3 C4 in F. Instrument clefs (Bb, Eb…) shown as full clef + superscript
+  "(B♭ inst.)" + the 3 transposed notes. NEEDS DESIGN — Han's msg cut off at "the 3
+  options + a…"; ambiguous which 3 + layout. ASK before implementing (§4b).
+- ⏳ CR: settable clef SUBTYPES (variant chips) should slide out FROM THE CLEF ON THE
+  LEFT (as if appearing from underneath the just-clicked clef), not from the right.
+
 ## Feedback batch (Han 2026-06-01 #13)
 ✅ done:
 - Chord-style sample now matches the SHEET label exactly: plain serif (NOT italic),

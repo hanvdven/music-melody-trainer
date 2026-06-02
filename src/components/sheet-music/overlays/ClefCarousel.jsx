@@ -40,14 +40,18 @@ export default function ClefCarousel({
 
     React.useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
 
-    // How many slots actually FIT in the gutter (so we never show more glyphs than
-    // there's room for — fixes "4 percussion clefs but only 2 options", Han #8).
+    // Show EXACTLY the requested number of glyphs at rest (Han #14: caller passes
+    // visible = items.length, evenly spread across the gutter so the rightmost lands
+    // near startX·0.9 — NOT squeezed against the edge). No fit-clamp: the even-spread
+    // geometry guarantees all N land inside the gutter.
     const n = items.length;
-    const fit = clipRect ? Math.max(1, Math.floor((clipRect.x + clipRect.width - startX) / stepX) + 1) : visible;
-    const shown = Math.min(n, fit, Math.max(1, visible));   // visible glyphs on screen
-    // One lookahead copy beyond the right edge, so a slide has something to reveal.
+    const shown = Math.min(n, Math.max(1, visible));
+    // Wrap copies for the slide reveal: items beyond slot `shown−1` sit PAST the
+    // even-spread 90% mark, i.e. OUTSIDE the clip — so they're invisible at rest and
+    // only scroll into view DURING a pick (fixes the "half-visible next clef", Han #14).
+    const wrap = Math.max(0, shown - 1);
     const strip = [];
-    for (let s = 0; s < shown + 1; s++) {
+    for (let s = 0; s < shown + wrap; s++) {
         strip.push({ item: items[s % n], slot: s, key: `${s}` });
     }
 
@@ -74,13 +78,13 @@ export default function ClefCarousel({
         rafRef.current = requestAnimationFrame(frame);
     };
 
-    // A horizontal fade mask: soft fade at BOTH edges so glyphs ease in from the
-    // right AND don't hard-clip at the sheet's left start (Han #8). Edge fades are a
-    // fraction of the gutter width.
+    // A GENTLE edge fade: the N resting glyphs (spread ~10%–90%) stay full opacity;
+    // only the extreme edges soften, so wrap copies scrolling in/out of the clip ease
+    // rather than hard-cut. (Earlier the fade started at ~68% and dimmed the rightmost
+    // resting glyph — Han #14.)
     const maskId = `${clipId}-fade`;
-    const w = clipRect ? clipRect.width : 1;
-    const leftFade = Math.min(0.18, (stepX * 0.5) / w);
-    const rightFade = Math.max(0.6, (w - stepX * 1.2) / w);
+    const leftFade = 0.05;
+    const rightFade = 0.95;
 
     return (
         <g>
