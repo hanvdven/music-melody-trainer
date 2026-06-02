@@ -171,7 +171,9 @@ const ClefStaffOverlay = ({
             // Active = normal colour; passive = lowlight at opacity 1 (Han #14).
             const color = c.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
             return (
-                <g key={c.key} data-fly=""
+                // data-fly-from = the clef gutter x (startX): the chip slides OUT from
+                // under the just-selected clef on the left, not in from the right (CR).
+                <g key={c.key} data-fly="" data-fly-from={startX}
                     style={{ cursor: onApplyClefPatch ? 'pointer' : 'default' }}
                     onClick={c.onTap}>
                     {/* wide invisible hit box around the true-size glyph */}

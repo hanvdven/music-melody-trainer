@@ -31,8 +31,9 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
   C3 G3 C4 in F. Instrument clefs (Bb, Eb…) shown as full clef + superscript
   "(B♭ inst.)" + the 3 transposed notes. NEEDS DESIGN — Han's msg cut off at "the 3
   options + a…"; ambiguous which 3 + layout. ASK before implementing (§4b).
-- ⏳ CR: settable clef SUBTYPES (variant chips) should slide out FROM THE CLEF ON THE
-  LEFT (as if appearing from underneath the just-clicked clef), not from the right.
+- ✅ CR: clef SUBTYPES (variant chips) slide out FROM THE CLEF ON THE LEFT — each chip
+  carries `data-fly-from={startX}`; useRangeMorph emerges those elements from that x
+  (negative offset → slide right into slot) instead of the default right-side fly-in.
 
 ## Feedback batch (Han 2026-06-01 #13)
 ✅ done:
