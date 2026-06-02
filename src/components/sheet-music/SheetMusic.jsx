@@ -2867,6 +2867,8 @@ const SheetMusic = ({
                       trebleStart={trebleStart}
                       chordDisplayMode={chordDisplayMode}
                       onSetChordDisplayMode={setChordDisplayMode}
+                      chordComplexity={chordSettings?.complexity || 'triad'}
+                      onSetChordComplexity={(c) => setChordSettings(prev => ({ ...prev, complexity: c }))}
                       debugMode={debugMode}
                     />
                   )}

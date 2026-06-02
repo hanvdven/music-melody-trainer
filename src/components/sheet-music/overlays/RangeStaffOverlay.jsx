@@ -370,17 +370,6 @@ const RangeStaffOverlay = ({
         const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
         return loc.x;
     };
-    // Note-row Y at the row's left/right ends (lowest note left, highest right),
-    // used to derive the shared divider between the treble and bass hit zones.
-    const melodicEnds = (staff, staffStart, clef, range) => {
-        const { entries } = getMelodicLayout(staff, getNoteValue(range?.min), getNoteValue(range?.max));
-        if (!entries.length) return null;
-        return {
-            yL: getNoteAbsoluteY(entries[0].name, staffStart, clef, staff),
-            yR: getNoteAbsoluteY(entries[entries.length - 1].name, staffStart, clef, staff),
-        };
-    };
-
     // ── Melodic staff (treble/bass) ──────────────────────────────────────────
     // `divider` (shared edge between the treble & bass zones) is `{ dL, dR }` (Y at
     // the row's left/right ends) when both melodic staves are visible, else null.
@@ -740,10 +729,16 @@ const RangeStaffOverlay = ({
     // Shared divider between the treble & bass hit zones: the midpoint of the two
     // note rows at the left/right ends, so the zones meet exactly (point 2). Null
     // unless both melodic staves are visible.
-    const tEnds = isTrebleVisible && trebleFrame ? melodicEnds('treble', trebleStart, clefTreble, trebleRange) : null;
-    const bEnds = isBassVisible && bassFrame ? melodicEnds('bass', bassStart, clefBass, bassRange) : null;
-    const divider = (tEnds && bEnds)
-        ? { dL: (tEnds.yL + bEnds.yL) / 2, dR: (tEnds.yR + bEnds.yR) / 2 }
+    // Shared divider between the treble & bass hit zones. Previously the midpoint of
+    // the two NOTE ROWS, but those move with the selection — a high bass range pulled
+    // the divider (and the bass zone's top edge) up into the treble staff, causing the
+    // overlap Han saw (#9). Anchor it to the STAVES instead: the fixed midpoint
+    // between the treble staff bottom and the bass staff top, so the zones always meet
+    // in the gap between the staves regardless of where the notes sit.
+    const STAFF_H = 40;
+    const dividerY = (trebleStart + STAFF_H + bassStart) / 2;
+    const divider = (isTrebleVisible && trebleFrame && isBassVisible && bassFrame)
+        ? { dL: dividerY, dR: dividerY }
         : null;
 
     return (
