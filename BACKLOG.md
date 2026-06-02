@@ -288,6 +288,22 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
 - Clef-setter percussie: twee 4-noot-bundels die 20–40% en 60–80% van de span vullen,
   gebeamd via de echte pipeline.
 
+[Han 2026-06-01 #13]:
+> akkoorden in clef-setter zijn italic (sheet niet) + de mineur-"−" is niet
+> superscript; consistentie-check + zoveel mogelijk renderMelodyNotes hergebruiken;
+> percussienoten herschrijven via renderMelodyNotes zodat beaming werkt; settings-
+> overlay-trigger naar een eigen knop (naast clef), klikken op de sheet opent settings
+> niet meer (later deprecaten).
+[Claude 2026-06-01]: ✅
+- Chord-style-sample matcht nu de sheet: plain serif (geen italic), "−"/"7" als
+  superscript-tspan (root + super, zoals ChordLabelsLayer).
+- Percussie-bundel beamt als één groep: echte pipeline (processMelodyAndCalculate
+  Slots + MelodyNotesLayer) met een [1,2]-maat (oneven teller → één beam-span i.p.v.
+  2+2-split). ClefStaffOverlay-smoketest toegevoegd.
+- SETTINGS-trigger → eigen SubHeader-knop (Settings2, naast CLEF). Klikken op de
+  sheet opent settings niet meer; `openSettingsIfClosed` opent niet meer;
+  `handleToggleSettings` is wederzijds exclusief met clef/range.
+
 ---
 
 ### Range setter — vervolg-feedback (Han 2026-06-01)

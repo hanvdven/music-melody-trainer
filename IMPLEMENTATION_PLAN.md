@@ -9,6 +9,18 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
+## Feedback batch (Han 2026-06-01 #13)
+✅ done:
+- Chord-style sample now matches the SHEET label exactly: plain serif (NOT italic),
+  minor "−" + "7" as a raised superscript tspan (root + super, like ChordLabelsLayer).
+- Percussion clef bundle beams as ONE group: rendered via processMelodyAndCalculate
+  Slots + MelodyNotesLayer with a [1,2] (odd-numerator) measure so the beam-span
+  logic doesn't split it 2+2. Added a ClefStaffOverlay smoke test.
+- SETTINGS trigger moved to its OWN SubHeader button (Settings2 icon, next to CLEF).
+  Clicking the sheet no longer opens settings (openSettingsIfClosed no longer opens;
+  handleSheetMusicClick only CLOSES the legacy surface). handleToggleSettings is
+  mutually exclusive with clef/range. Goal: deprecate the legacy surface later.
+
 ## Feedback batch (Han 2026-06-01 #12)
 ✅ done:
 - Chord STYLE (off/letters/roman) → CLEF setter (new ChordStyleOverlay), rendered in

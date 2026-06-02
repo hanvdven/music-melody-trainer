@@ -8,6 +8,7 @@ import {
     PencilOff,
     MicVocal,
     MoveHorizontal,
+    Settings2,
 } from 'lucide-react';
 import { ChordNotationIcon } from '../common/CustomIcons';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
@@ -24,6 +25,7 @@ const SubHeader = ({
     onActivateAdjustments,
     onOpenRange,
     onOpenClef,
+    onOpenSettings,
     windowWidth,
     difficultyMultiplier,
 }) => {
@@ -266,8 +268,18 @@ const SubHeader = ({
                 Lives OUTSIDE the opacity:show wrapper above so it stays visible even
                 when the adjustment buttons are faded out (Han: "altijd zichtbaar").
                 Will be replaced by tap-on-element context overlays later. */}
-            {(onOpenRange || onOpenClef) && (
+            {(onOpenRange || onOpenClef || onOpenSettings) && (
                 <div style={{ position: 'absolute', right: SIDE_PAD, top: '50%', transform: 'translateY(-50%)', zIndex: 2, display: 'flex', gap: 8 }}>
+                    {/* SETTINGS button — the ONLY entry point for the legacy settings
+                        surface now (Han #13: clicking the sheet no longer opens it).
+                        Goal: deprecate once its options migrate to in-staff setters. */}
+                    {onOpenSettings && renderButton(
+                        <Settings2 size={22} />,
+                        'SETTINGS',
+                        onOpenSettings,
+                        false,
+                        '#9aa0a6'
+                    )}
                     {/* Chords are enabled/disabled inside the CLEF selector (Han #6) —
                         no standalone CHORDS button. */}
                     {onOpenClef && renderButton(

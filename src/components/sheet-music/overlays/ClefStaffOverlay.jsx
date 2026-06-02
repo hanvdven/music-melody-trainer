@@ -50,7 +50,7 @@ const ClefStaffOverlay = ({
     trebleSettings, bassSettings,
     percussionVoiceSplit = false,
     percussionDisabled = false,
-    timeSignature = [4, 4], theme,
+    theme,
     onApplyClefPatch,            // (staff, patch) => void
     onOpenInstrumentList,        // (staff) => void  (full transposing list)
     onToggleVoiceSplit,          // () => void  (percussion together↔split)
@@ -220,11 +220,13 @@ const ClefStaffOverlay = ({
             offsets: pat.map((_, i) => i * EIGHTH),   // tick positions: 0,6,12,18
             displayNotes: pat,
         };
-        // One beat = the whole 4-eighth bundle (so all 4 beam together); measure =
-        // the same span. processMelodyAndCalculateSlots assigns slots; the renderer
-        // beams within noteGroupSize.
-        const BUNDLE_TICKS = pat.length * EIGHTH;       // 24
-        const procMelody = processMelodyAndCalculateSlots(rawMelody, timeSignature, BUNDLE_TICKS, BUNDLE_TICKS);
+        // The 4 eighths must beam as ONE group. renderMelodyNotes' beam-span logic
+        // splits an even-numerator measure at its midpoint, so a [4,8]/[2,4] measure
+        // would beam 2+2. We give it a 1-numerator measure ([1,2] = one half-note =
+        // 24 ticks): odd numerator → a SINGLE beam span covers all 4 eighths (Han #13).
+        const BUNDLE_TICKS = pat.length * EIGHTH;       // 24 = one half note
+        const PERC_TS = [1, 2];
+        const procMelody = processMelodyAndCalculateSlots(rawMelody, PERC_TS, BUNDLE_TICKS, BUNDLE_TICKS);
         const procOffsets = procMelody.offsets || [];
         const allOffsets = [...procOffsets, (procOffsets[procOffsets.length - 1] ?? 0) + 1];
 
@@ -257,7 +259,7 @@ const ClefStaffOverlay = ({
                             startX={ox}
                             noteWidth={NOTE_W}
                             allOffsets={allOffsets}
-                            timeSignature={timeSignature}
+                            timeSignature={PERC_TS}
                             theme={theme}
                             previewMode={color}
                         />
