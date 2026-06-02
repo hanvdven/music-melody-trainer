@@ -208,6 +208,24 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
   `treble/bass22va/vb` in `clefSymbols`. Renderbaar asset klaar; nog niet als
   keuze-optie gekoppeld (generatie max 15ma). §37.4.
 
+[Han 2026-06-01 #7]:
+> 1) clef-setter op bladmuziek → toon range-setter op keyboard. 2) ontwerp de
+> volgende setters: playback/exercise (#maten, #herhalingen, per-repeat
+> zichtbaarheid+hoorbaarheid, volume). 3) ghost-staff: toon alle balken, grijs
+> uitgeschakelde opties (opacity 0.4), interactie heractiveert + herstelt recente
+> settings; maatstrepen normaal. 4) welke opties horen bij repeat vs playback?
+[Claude 2026-06-01]: 
+- ✅ (1) Keyboard toont de range-setter wanneer clef-setter actief is (TabView
+  swap op `rangeEditMode || clefEditMode`; `clefEditMode` doorgezet).
+- ✅ (3) Ghost-staff veralgemeend: uitgeschakelde balk blijft zichtbaar in elke
+  settings-view; noten + clef-glyph op opacity 0.4 (`GHOST_OPACITY`), lijnen +
+  maatstrepen normaal; interactie heractiveert. ⏳ exact-vorige-clef onthouden = nog
+  een verfijning (nu sensible default bij heractivatie). §37.4a.
+- 📐 (2+4) ONTWERP in §37.5: EXERCISE-setter (globaal: #maten/#herhalingen/total)
+  boven het systeem; PLAYBACK-setter (per-balk × per-ronde: oog=zichtbaarheid,
+  volume=hoorbaarheid, ronde-schakelaar odd/even). ❓ open vragen: 1 of 2 knoppen;
+  ronde-schakelaar-UI; volume-control-stijl.
+
 ---
 
 ### Range setter — vervolg-feedback (Han 2026-06-01)

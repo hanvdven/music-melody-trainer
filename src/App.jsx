@@ -1434,6 +1434,7 @@ const App = () => {
                     qwertyKeyboardActive={qwertyKeyboardActive}
                     showSheetMusicSettings={showSheetMusicSettings}
                     rangeEditMode={rangeEditMode}
+                    clefEditMode={clefEditMode}
                     resetSettingsTimer={resetSettingsTimer}
                     customPercussionMapping={customPercussionMapping}
                     setCustomPercussionMapping={setCustomPercussionMapping}

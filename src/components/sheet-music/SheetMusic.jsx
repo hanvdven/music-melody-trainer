@@ -374,6 +374,17 @@ const SheetMusic = ({
     (!percOff && (playbackConfig?.oddRounds?.percussionEye === true || playbackConfig?.evenRounds?.percussionEye === true ||
       playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome'));
 
+  // GHOST STAFF (Han 2026-06-01 #7): in any settings/edit view a DISABLED staff is
+  // still shown, but its notes + interactive "settings" are dimmed to opacity 0.4
+  // (barlines/staff-lines stay normal). Interacting re-enables it (the clef X /
+  // eye toggles restore the most recent settings). Outside settings views a disabled
+  // staff stays hidden, so ghosting only applies when an overlay/settings view is up.
+  const inSettingsView = showSettings || rangeEditMode || clefEditMode;
+  const GHOST_OPACITY = 0.4;
+  const trebleGhost = inSettingsView && trebleOff;
+  const bassGhost = inSettingsView && bassOff;
+  const percGhost = inSettingsView && percOff;
+
   const numVisibleStaves = (isTrebleVisible ? 1 : 0) + (isBassVisible ? 1 : 0) + (isPercussionVisible ? 1 : 0);
   const numGaps = Math.max(1, numVisibleStaves - 1);
 
@@ -1793,6 +1804,7 @@ const SheetMusic = ({
                   fontSize="36"
                   fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
                   fontFamily="Maestro"
+                  opacity={trebleGhost ? GHOST_OPACITY : 1}
                   style={{ transition: 'fill 0.2s', pointerEvents: 'none' }}
                 >
                   {cfT.char}
@@ -1888,6 +1900,7 @@ const SheetMusic = ({
                   fontSize="36"
                   fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
                   fontFamily="Maestro"
+                  opacity={bassGhost ? GHOST_OPACITY : 1}
                   style={{ transition: 'fill 0.2s', pointerEvents: 'none' }}
                 >
                   {cfB.char}
@@ -1977,6 +1990,7 @@ const SheetMusic = ({
                 fontSize="36"
                 fill="var(--text-primary)"
                 fontFamily="Maestro"
+                opacity={percGhost ? GHOST_OPACITY : 1}
               >
                 /
               </text>
@@ -2027,7 +2041,7 @@ const SheetMusic = ({
                       }}
                     >
                       {/* CHORD MELODY BLURRED BACKGROUND REMOVED */}
-                      <g style={{ transform: `translateY(${trebleStart}px)`, transition: 'transform 1s ease-in-out' }}>
+                      <g style={{ transform: `translateY(${trebleStart}px)`, transition: 'transform 1s ease-in-out', opacity: trebleGhost ? GHOST_OPACITY : 1 }}>
                         {actualTreble && <MelodyNotesLayer
                           melody={adjustedTrebleMelody}
                           numAccidentals={numAccidentals}
@@ -2076,7 +2090,7 @@ const SheetMusic = ({
                           {renderFermataGlyphs(trebleMelody, trebleStart - 2)}
                         </g>
                       )}
-                      <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>
+                      <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out', opacity: bassGhost ? GHOST_OPACITY : 1 }}>
                         {actualBass && <MelodyNotesLayer
                           melody={adjustedBassMelody}
                           numAccidentals={numAccidentals}
@@ -2106,7 +2120,7 @@ const SheetMusic = ({
                         />}
                         {isBassVisible && !actualBass && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
-                      <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>
+                      <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out', opacity: percGhost ? GHOST_OPACITY : 1 }}>
                         {actualPerc && <MelodyNotesLayer
                           melody={adjustedPercussionMelody}
                           numAccidentals={numAccidentals}
