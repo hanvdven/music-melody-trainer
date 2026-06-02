@@ -2859,7 +2859,6 @@ const SheetMusic = ({
                         const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
                         if (setter) setter(prev => ({ ...prev, ...patch }));
                       }}
-                      onOpenInstrumentList={(staff) => setTransPicker(staff)}
                       onToggleVoiceSplit={() => setPercussionVoiceSplit?.(v => !v)}
                       onTogglePercussionDisabled={() => setPercussionSettings(prev => ({
                         ...prev, preferredClef: prev?.preferredClef === 'off' ? null : 'off',
