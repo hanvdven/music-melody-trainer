@@ -226,6 +226,24 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
   volume=hoorbaarheid, ronde-schakelaar odd/even). ❓ open vragen: 1 of 2 knoppen;
   ronde-schakelaar-UI; volume-control-stijl.
 
+[Han 2026-06-01 #8 — feedback ronde]:
+> 22mb onleesbaar; morph triggert soms niet na herhaaldelijk klikken; rim-shot
+> diagonaal verkeerde richting (moet top-left→bottom-right); percussie-mini-melodie
+> moet [[k,hh],hh,[s,hh],hh] in achtsten + compact op 33/66%; akkoordrij X op startX
+> + groepjes op 33/66 als echte akkoorden; selecteerbare sleutels op ware grootte
+> (geen boxjes); carousel fade links; kruis 2× hoger; sleutels horizontaal verdelen;
+> clipping links; percussie toont 4 sleutels (max 2), niet uitgelijnd, niet klikbaar.
+[Claude 2026-06-01]: ✅ Alles gedaan deze ronde —
+- 22ma/22mb: `Ottava22` rendert nu in serif (Maestro-cijfers waren muzieksymbolen).
+- Morph re-arm-bug: cleanup reset nu de inline-styles bij onderbreking.
+- Rim-shot slash → top-left→bottom-right.
+- Percussie-mini-melodie → [[k,hh],hh,[s,hh],hh] achtsten, compacte bundels 33/66%.
+- Akkoordrij: X-kruis op startX, letters@33%/romeins@66% als echte akkoorden.
+- Variant-sleutels op ware grootte, verdeeld over startX→endX (geen boxjes).
+- Carousel: zachte fade aan beide randen; kruis 2× hoger; ClefCarousel capt het
+  aantal getoonde glyphs (fix "4 percussiesleutels"); percussie-clef op x=18 +
+  klikbaar (hit-rect toegevoegd).
+
 ---
 
 ### Range setter — vervolg-feedback (Han 2026-06-01)

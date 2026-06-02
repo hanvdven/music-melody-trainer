@@ -1384,11 +1384,11 @@ const renderMelodyNotes = (
               o
             </text>
           )}
-          {/* Rim click (sr): a snare notehead with a diagonal slash through it
-              (Han 2026-06-01). The slash is drawn over the round head glyph. */}
+          {/* Rim click (sr): a snare notehead with a diagonal slash running
+              TOP-LEFT → BOTTOM-RIGHT ("\", Han 2026-06-01 #8). Centred on the head. */}
           {staff === 'percussion' && note === 'sr' && (
             <path
-              d={`M ${positionX - 3} ${positionY + 6} L ${positionX + 12} ${positionY - 7}`}
+              d={`M ${positionX - 4} ${positionY - 8} L ${positionX + 13} ${positionY + 7}`}
               stroke={headColor}
               strokeWidth="1.6"
               strokeLinecap="round"

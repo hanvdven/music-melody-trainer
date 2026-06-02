@@ -107,18 +107,24 @@ export default function useRangeMorph(rangeEditMode, svgRef, flyDist) {
       }
       if (p < 1) { rafRef.current = requestAnimationFrame(frame); return; }
       rafRef.current = null;
-      // Hand the properties back to React / the scroll-wipe systems.
-      if (oldEl) { oldEl.style.opacity = ''; oldEl.style.transform = ''; }
-      if (newEl) {
-        newEl.style.opacity = '';
-        newEl.style.transform = '';
-        for (const el of flyEls) { el.style.transform = ''; el.style.willChange = ''; }
-      }
+      resetStyles();
       setMorph(null);
+    };
+    // Hand the inline props back to React / the scroll-wipe systems. Called on
+    // normal completion AND on interrupt (cleanup), so a rapid re-toggle never
+    // leaves a group stuck at partial opacity/transform (the "animation sometimes
+    // doesn't trigger after repeated clicking" bug, Han #8).
+    const resetStyles = () => {
+      if (oldEl) { oldEl.style.opacity = ''; oldEl.style.transform = ''; }
+      if (newEl) { newEl.style.opacity = ''; newEl.style.transform = ''; }
+      for (const el of flyEls) { el.style.transform = ''; el.style.willChange = ''; }
     };
     frame(t0);
     rafRef.current = requestAnimationFrame(frame);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    return () => {
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+      resetStyles();   // restore styles if this morph was interrupted mid-flight
+    };
   }, [morph, svgRef, flyDist]);
 
   return { morphing: morph != null };
