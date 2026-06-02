@@ -29,38 +29,46 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 // moving at a constant rate (Han 2026-06-01 #4). smoothstep keeps it gentle.
 const easeInOut = (t) => t * t * (3 - 2 * t);
 
-export default function useRangeMorph(rangeEditMode, svgRef, flyDist) {
-  // morph = { id, entering } | null. `id` forces the animation effect to re-run
-  // even on a rapid re-toggle (phase change) before the previous morph finished.
+// Resolve the SVG group(s) for a given overlay kind, as an ARRAY (clef mode shows
+// the clef overlay AND the chord-row overlay as siblings, so both must fade/fly).
+const groupsForKind = (svg, kind) => {
+  if (kind === 'melody') return [svg.querySelector('.notes-transition')].filter(Boolean);
+  if (kind === 'range') return [svg.querySelector('.range-overlay')].filter(Boolean);
+  if (kind === 'clef') return [svg.querySelector('.clef-overlay'), svg.querySelector('.chord-overlay')].filter(Boolean);
+  return [];
+};
+
+// `kind` is the CURRENTLY-shown surface: 'range' | 'clef' | 'melody' (no overlay).
+// A morph is armed whenever the kind CHANGES — including switching directly between
+// overlays (clef→range), which previously didn't animate because the
+// rangeEditMode||clefEditMode boolean never flipped (Han 2026-06-01 #10). Switching
+// treats the previous surface as the OLD (fades out) and the new as NEW (flies in).
+export default function useRangeMorph(kind, svgRef, flyDist) {
   const [morph, setMorph] = useState(null);
-  const prevModeRef = useRef(rangeEditMode);
+  const prevKindRef = useRef(kind);
   const seqRef = useRef(0);
   const rafRef = useRef(null);
 
-  // Detect the rangeEditMode flip and arm a morph (before paint, so the consumer's
-  // mount/display gating commits in the same frame the styles are initialised).
+  // Detect the kind change and arm a morph (before paint).
   useLayoutEffect(() => {
-    if (prevModeRef.current === rangeEditMode) return;
-    prevModeRef.current = rangeEditMode;
+    if (prevKindRef.current === kind) return;
+    const from = prevKindRef.current;
+    prevKindRef.current = kind;
     seqRef.current += 1;
-    setMorph({ id: seqRef.current, entering: rangeEditMode });
-  }, [rangeEditMode]);
+    setMorph({ id: seqRef.current, from, to: kind });
+  }, [kind]);
 
   // Run the tween once the morphing render has committed (both groups present).
   useLayoutEffect(() => {
     if (!morph) return undefined;
     const svg = svgRef.current;
     if (!svg) { setMorph(null); return undefined; }
-    const melody = svg.querySelector('.notes-transition');
-    // Only one selector overlay is mounted at a time (range / clef / chord).
-    const overlay = svg.querySelector('.range-overlay, .clef-overlay, .chord-overlay');
-    const oldEl = morph.entering ? melody : overlay;   // old just fades out
-    const newEl = morph.entering ? overlay : melody;   // new flies in (staggered)
+    const oldEls = groupsForKind(svg, morph.from);   // old just fades out
+    const newEls = groupsForKind(svg, morph.to);     // new flies in (staggered)
 
-    // Collect the individually-flying note elements in the new group and assign each
-    // a start delay from its x position (leftmost first, rightmost last). getBBox().x
-    // is in the group's user space, which is what we order by.
-    const flyEls = newEl ? Array.from(newEl.querySelectorAll('[data-mel], [data-fly]')) : [];
+    // Collect the individually-flying note elements across the new group(s) and give
+    // each a start delay from its x (leftmost first). getBBox().x is in user space.
+    const flyEls = newEls.flatMap(g => Array.from(g.querySelectorAll('[data-mel], [data-fly]')));
     let minX = Infinity, maxX = -Infinity;
     const xs = new Map();
     for (const el of flyEls) {
@@ -74,49 +82,42 @@ export default function useRangeMorph(rangeEditMode, svgRef, flyDist) {
     const delayOf = (el) => ((xs.get(el) - minX) / span) * STAGGER_MS;
 
     // Initial state, set before paint so there's no flash.
-    if (oldEl) { oldEl.style.opacity = '1'; oldEl.style.transform = 'none'; }
-    if (newEl) {
-      newEl.style.opacity = '0';
-      newEl.style.transform = 'none';
-      if (flyEls.length) {
-        for (const el of flyEls) { el.style.transform = `translateX(${flyDist}px)`; el.style.willChange = 'transform'; }
-      } else {
-        // Fallback: no per-note elements → slide the whole group as one block.
-        newEl.style.transform = `translateX(${flyDist}px)`;
-      }
+    for (const el of oldEls) { el.style.opacity = '1'; el.style.transform = 'none'; }
+    for (const el of newEls) { el.style.opacity = '0'; el.style.transform = 'none'; }
+    if (flyEls.length) {
+      for (const el of flyEls) { el.style.transform = `translateX(${flyDist}px)`; el.style.willChange = 'transform'; }
+    } else {
+      // Fallback: no per-note elements → slide each new group as one block.
+      for (const el of newEls) el.style.transform = `translateX(${flyDist}px)`;
     }
 
     const t0 = performance.now();
     const frame = (now) => {
       const t = now - t0;
       const p = Math.min(1, t / MORPH_MS);
-      // Subtle ease-in/out on the fades + slides (start/stop feel). The OLD group
-      // fades out FAST (FADE_OUT_MS) so it's gone almost immediately.
-      if (oldEl) oldEl.style.opacity = String(1 - easeInOut(clamp01(t / FADE_OUT_MS)));
-      if (newEl) {
-        // Group fades in (covers clefs/lines/barlines — "fade in any other elements").
-        newEl.style.opacity = String(easeInOut(clamp01(t / GROUP_FADE_MS)));
-        if (flyEls.length) {
-          for (const el of flyEls) {
-            const ep = easeInOut(clamp01((t - delayOf(el)) / ELEM_MS));
-            el.style.transform = `translateX(${flyDist * (1 - ep)}px)`;
-          }
-        } else {
-          newEl.style.transform = `translateX(${flyDist * (1 - easeInOut(p))}px)`;
+      // OLD fades out FAST (FADE_OUT_MS); NEW group(s) fade in over GROUP_FADE_MS.
+      const oldOp = String(1 - easeInOut(clamp01(t / FADE_OUT_MS)));
+      for (const el of oldEls) el.style.opacity = oldOp;
+      const newOp = String(easeInOut(clamp01(t / GROUP_FADE_MS)));
+      for (const el of newEls) el.style.opacity = newOp;
+      if (flyEls.length) {
+        for (const el of flyEls) {
+          const ep = easeInOut(clamp01((t - delayOf(el)) / ELEM_MS));
+          el.style.transform = `translateX(${flyDist * (1 - ep)}px)`;
         }
+      } else {
+        for (const el of newEls) el.style.transform = `translateX(${flyDist * (1 - easeInOut(p))}px)`;
       }
       if (p < 1) { rafRef.current = requestAnimationFrame(frame); return; }
       rafRef.current = null;
       resetStyles();
       setMorph(null);
     };
-    // Hand the inline props back to React / the scroll-wipe systems. Called on
-    // normal completion AND on interrupt (cleanup), so a rapid re-toggle never
-    // leaves a group stuck at partial opacity/transform (the "animation sometimes
-    // doesn't trigger after repeated clicking" bug, Han #8).
+    // Hand the inline props back; called on completion AND interrupt so a rapid
+    // re-toggle never leaves a group stuck (Han #8).
     const resetStyles = () => {
-      if (oldEl) { oldEl.style.opacity = ''; oldEl.style.transform = ''; }
-      if (newEl) { newEl.style.opacity = ''; newEl.style.transform = ''; }
+      for (const el of oldEls) { el.style.opacity = ''; el.style.transform = ''; }
+      for (const el of newEls) { el.style.opacity = ''; el.style.transform = ''; }
       for (const el of flyEls) { el.style.transform = ''; el.style.willChange = ''; }
     };
     frame(t0);
@@ -127,5 +128,5 @@ export default function useRangeMorph(rangeEditMode, svgRef, flyDist) {
     };
   }, [morph, svgRef, flyDist]);
 
-  return { morphing: morph != null };
+  return { morphing: morph != null, morphFrom: morph?.from ?? null, morphTo: morph?.to ?? null };
 }

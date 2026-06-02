@@ -6,6 +6,7 @@ import {
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
 import ClefCarousel from './ClefCarousel';
 import MelodyNotesLayer from '../MelodyNotesLayer';
+import { processMelodyAndCalculateSlots } from '../processMelodyAndCalculateSlots';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
 
 /**
@@ -33,15 +34,7 @@ import { TICKS_PER_WHOLE } from '../../../constants/timing';
 
 const FAMILY_GLYPH_SIZE = 36;      // clefs at ~true staff size (Han 2026-06-01)
 const FAMILY_SLOT_W = 36;          // horizontal step between carousel glyphs (Han #5: more space)
-const QUARTER = TICKS_PER_WHOLE / 4;
 const EIGHTH = TICKS_PER_WHOLE / 8;
-const mkMelody = (entries, dur = QUARTER) => ({
-    notes: entries.map(e => e.name),
-    offsets: entries.map(e => e.offset),
-    durations: entries.map(() => dur),
-    ties: entries.map(() => null),
-    triplets: null, rhythmicGrouping: null,
-});
 const PERC_LAYER_PROPS = {
     numAccidentals: 0, noteGroupSize: 1, measureLengthSlots: 9999, scaleNotes: [],
     tonic: '', processedChords: [], inputTestState: null, pixelsPerTick: null,
@@ -215,20 +208,34 @@ const ClefStaffOverlay = ({
     //           percussionVoiceSplit. Together = one voice (no split); split = RH↑/LH↓.
     const percussionBlock = () => {
         const y = percussionStart;
-        // Pattern: [[k,hh], hh, [s,hh], hh] in EIGHTH notes (Han #8). Chord stacks =
-        // arrays. Rendered through the real renderer so noteheads use proper assets.
+        // Pattern: [[k,hh], hh, [s,hh], hh] — 4 EIGHTH notes (Han #8/#10). Build it as
+        // a real tick-based melody and run it through processMelodyAndCalculateSlots,
+        // exactly like the sheet does, so MelodyNotesLayer BEAMS the 4 eighths into one
+        // group (the previous noteGroupSize:1/measureLengthSlots:9999 path gave each
+        // note its own flag — §6c: reuse the real pipeline, don't re-invent).
         const pat = [['k', 'hh'], 'hh', ['s', 'hh'], 'hh'];
-        const entries = pat.map((stack, i) => ({ name: stack, offset: i + 1 }));
-        const allOffsets = Array.from({ length: pat.length + 1 }, (_, i) => i);
+        const rawMelody = {
+            notes: pat,
+            durations: pat.map(() => EIGHTH),
+            offsets: pat.map((_, i) => i * EIGHTH),   // tick positions: 0,6,12,18
+            displayNotes: pat,
+        };
+        // One beat = the whole 4-eighth bundle (so all 4 beam together); measure =
+        // the same span. processMelodyAndCalculateSlots assigns slots; the renderer
+        // beams within noteGroupSize.
+        const BUNDLE_TICKS = pat.length * EIGHTH;       // 24
+        const procMelody = processMelodyAndCalculateSlots(rawMelody, timeSignature, BUNDLE_TICKS, BUNDLE_TICKS);
+        const procOffsets = procMelody.offsets || [];
+        const allOffsets = [...procOffsets, (procOffsets[procOffsets.length - 1] ?? 0) + 1];
 
         // Two compact bundles centred at ~33% and ~66% of [startX … endX] (Han #8).
         const span = endX - startX;
-        const NOTE_W = 11;                     // tight eighth spacing → small group
+        const NOTE_W = 10;                     // tight eighth spacing → small group
         const bundleW = pat.length * NOTE_W;
         const centers = [startX + span * 0.33, startX + span * 0.66];
 
-        // One option = a real percussion render (proper notehead assets); `split`
-        // toggles percussionVoiceSplit on that layer.
+        // One option = a real percussion render (proper notehead assets + beaming);
+        // `split` toggles percussionVoiceSplit on that layer.
         const option = (key, split, active, cx, onTap) => {
             const color = active ? 'var(--accent-yellow)' : 'var(--range-lowlight)';
             const ox = cx - bundleW / 2;
@@ -240,8 +247,10 @@ const ClefStaffOverlay = ({
                     <g style={{ pointerEvents: 'none' }}>
                         <MelodyNotesLayer
                             {...PERC_LAYER_PROPS}
+                            noteGroupSize={BUNDLE_TICKS}
+                            measureLengthSlots={BUNDLE_TICKS}
                             percussionVoiceSplit={split}
-                            melody={mkMelody(entries, EIGHTH)}
+                            melody={procMelody}
                             staff="percussion"
                             staffYStart={y}
                             clef={null}

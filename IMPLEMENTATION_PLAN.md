@@ -9,7 +9,29 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
-## Feedback batch (Han 2026-06-01 #9)
+## Feedback batch (Han 2026-06-01 #10) — REUSE rendering (§6c violation to fix)
+🔨 Core issue: overlays re-invent note/chord rendering instead of reusing
+MelodyNotesLayer/renderMelodyNotes + ChordLabelsLayer. Fix by reuse.
+- CHORD selector belongs in the RANGE setter (not clef). Render the progression with
+  REAL sheet rendering: D^- G^7 C  /  ii V^7 I — compact block, ~15u apart, SAME font
+  size as the melody.
+- Complexity chords: render real whole-notes at chord-rule height like the GENERATOR
+  chord-complexity setter: [C4,E4,G4,B4] etc. The "extended" = [C4,G4] + lowlit
+  [E4,B4] same span, right-offset [D4,F4,A4] lowlit, with ♭ and ♯ left at D4/A4 lowlit.
+- Percussion notes in clef view: use MelodyNotesLayer with proper noteGroupSize/
+  measureLengthSlots so the 4 eighths BEAM into a group (not separate flags); tighter.
+- Animation: clef→range→clef→range later transitions don't animate. Switching overlay
+  must treat the previous as CLOSED so re-clicking re-opens + re-animates.
+- Clefs not visually centered in their click area → ugly spacing.
+- Still clipping at bottom of G-clef.
+- G-ottava (8va/15ma) options missing.
+- Vocal clefs: too much spacing, not balanced; need margin before endX.
+- Render a vertical measure line at endX.
+- percussion + bass clef in clef view not EXACTLY aligned with sheet clefs.
+- range setter: line between bass & treble slightly DIAGONAL.
+- range setter: percussion click boxes FULL height (just below staff → bottom of
+  treble click area).
+- clef/range: why are chords not flying in from the right? (stagger/data-fly)
 ✅ done:
 - range overlap fixed: the treble/bass hit-zone divider is now anchored to the GAP
   between the staves (fixed midpoint), not the moving note rows — a high bass range

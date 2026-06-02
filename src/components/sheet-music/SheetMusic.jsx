@@ -421,14 +421,15 @@ const SheetMusic = ({
   // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
   // the duration. Fly distance = content width (user units). See useRangeMorph.
   const overlayEditMode = rangeEditMode || clefEditMode;
-  const { morphing: rangeMorphing } = useRangeMorph(overlayEditMode, svgRef, endX);
-  // Which overlay was last shown — so during an EXIT morph (overlayEditMode already
-  // false) we keep the RIGHT overlay mounted to fade out. Updated while in a mode.
-  // The chord-row selector renders inside clef mode, so 'clef' covers it too.
-  const lastOverlayKindRef = useRef('range');
-  if (rangeEditMode) lastOverlayKindRef.current = 'range';
-  else if (clefEditMode) lastOverlayKindRef.current = 'clef';
-  const lastOverlayKind = lastOverlayKindRef.current;
+  // The currently-shown SURFACE drives the morph: switching range↔clef (or to/from
+  // the melody) re-arms the animation (Han #10 — previously a clef→range switch
+  // didn't animate because the boolean never flipped).
+  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : 'melody';
+  const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
+  // While morphing, BOTH the leaving and arriving surfaces must stay mounted. These
+  // flags say whether each overlay must render right now (active OR part of the morph).
+  const rangeMounted = rangeEditMode || (rangeMorphing && (morphFrom === 'range' || morphTo === 'range'));
+  const clefMounted = clefEditMode || (rangeMorphing && (morphFrom === 'clef' || morphTo === 'clef'));
 
   const staffLines = [];
   if (isTrebleVisible) {
@@ -2794,7 +2795,7 @@ const SheetMusic = ({
                   {/* Range overlay — in-SVG selectable note rows. Kept mounted during
                       the exit morph (when the range overlay was the one showing) so it
                       can fade out / the melody can fly in over it. */}
-                  {(rangeEditMode || (rangeMorphing && lastOverlayKind === 'range')) && (
+                  {rangeMounted && (
                     <RangeStaffOverlay
                       startX={startX}
                       endX={endX}
@@ -2826,7 +2827,7 @@ const SheetMusic = ({
 
                   {/* Clef overlay — in-staff clef/instrument selector (Han 2026-06-01).
                       Kept mounted during its exit morph the same way. */}
-                  {(clefEditMode || (rangeMorphing && lastOverlayKind === 'clef')) && (
+                  {clefMounted && (
                     <ClefStaffOverlay
                       startX={startX}
                       endX={endX}
@@ -2860,7 +2861,7 @@ const SheetMusic = ({
                   {/* Chord overlay — the chord-row X/letters/roman selector. Enabling/
                       disabling chords is part of CLEF settings (Han 2026-06-01 #6), so
                       it lives INSIDE clef-edit mode (no standalone chord mode). */}
-                  {(clefEditMode || (rangeMorphing && lastOverlayKind === 'clef')) && (
+                  {clefMounted && (
                     <ChordStaffOverlay
                       startX={startX}
                       endX={endX}
