@@ -46,6 +46,7 @@ const TabView = ({
     qwertyKeyboardActive,
     showSheetMusicSettings,
     rangeEditMode,
+    clefEditMode,
     resetSettingsTimer,
     // Percussion custom mapping
     customPercussionMapping,
@@ -141,7 +142,7 @@ const TabView = ({
                                 range setter (windowed keyboard + band + handles +
                                 preset buttons). Settings-only mode keeps the playable
                                 piano + the full RangeControls overlay. */}
-                            {rangeEditMode ? (
+                            {(rangeEditMode || clefEditMode) ? (
                                 <KeyboardRangeSetter
                                     scale={scale}
                                     instrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
@@ -219,7 +220,7 @@ const TabView = ({
                     {instruments.bass ? (
                         <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'visible' }}>
                             {/* See piano-tab: range-edit swaps in the graphical setter. */}
-                            {rangeEditMode ? (
+                            {(rangeEditMode || clefEditMode) ? (
                                 <KeyboardRangeSetter
                                     scale={scale}
                                     instrument={manualInstruments.bass}

@@ -2451,3 +2451,51 @@ the ottava size + a small superscript "ma"/"mb", matching the 15ma size/style.
 font glyph). The 22 clefs aren't wired as a selectable option yet (generation maxes
 at 15ma) — this provides the renderable ASSET for when ±22 is added.
 
+### 37.4a Dual-surface + ghost staff (Han 2026-06-01 #7)
+
+- **Clef-on-sheet ⇄ range-on-keyboard.** When the SHEET clef selector is active
+  (`clefEditMode`), the bottom keyboard tabs show the `KeyboardRangeSetter` (TabView
+  swaps it in for `rangeEditMode || clefEditMode`), so editing the clef on the sheet
+  pairs with editing the range on the keyboard.
+- **Ghost staff.** In any settings/edit view (`showSettings || rangeEditMode ||
+  clefEditMode`) a DISABLED staff (`preferredClef==='off'`) is STILL shown, but its
+  notes + clef glyph render at `GHOST_OPACITY` (0.4) while the staff lines + barlines
+  stay at full opacity. Interacting with the staff's options (the clef carousel / the
+  percussion X) re-enables it. Outside settings views a disabled staff stays hidden,
+  so ghosting only applies while a setter is open. (Restoring the EXACT prior clef on
+  re-enable is a refinement; re-enable currently sets a sensible default clef.)
+
+### 37.5 Playback / Exercise setters — DESIGN (Han 2026-06-01 #7, not yet built)
+
+Two further in-staff setter modes, mirroring clef/range and ghost-aware. They
+surface the existing `playbackConfig` (App `configRef`) which holds: global
+`repsPerMelody`, `totalMelodies`; and PER-ROUND (`oddRounds`/`evenRounds`)
+per-voice **volume** (`treble`/`bass`/`percussion`/`chords`/`metronome`, 0–1) +
+**visibility** (`trebleEye`/`bassEye`/`percussionEye`/`chordsEye`) + a `notes` flag.
+`numMeasures` + `musicalBlocks` are App-level.
+
+**EXERCISE setter (global / song-level)** — values that aren't per-staff, drawn
+above the system (or in a header strip), not in a staff gutter:
+- **#measures** (`numMeasures`) — a stepper / number picker.
+- **#repeats** (`repsPerMelody`) — stepper.
+- **total melodies** (`totalMelodies`, −1 = endless) — stepper / ∞ toggle.
+- (later) difficulty level / progression already live in their own tab.
+
+**PLAYBACK setter (per-staff × per-round)** — each staff (treble, bass, percussion,
++ chords & metronome as pseudo-rows) gets, in its gutter / right margin:
+- an **eye** toggle (visibility = `*Eye`),
+- a **volume** control (audibility = the 0–1 number) — a small vertical slider or a
+  stepped speaker (mute / soft / mid / loud), reusing the existing volume-picker.
+- A **round switch** (odd ↔ even, i.e. "round 1 / round 2") picks which round's
+  values you're editing — the in-staff equivalent of the two columns in the current
+  `PlaybackSettings` grid.
+- Ghost-aware: a disabled staff shows its eye/volume at 0.4; toggling re-enables.
+
+**Why this split:** measures/repeats/total are GLOBAL (one value for the whole
+exercise) so they don't belong in a per-staff gutter; visibility/volume are
+inherently PER-STAFF and PER-ROUND, so they map onto the staff rows exactly like the
+clef/range setters. This keeps every in-staff setter "one concern per staff row".
+
+**Open questions for Han before building:** (a) one combined PLAYBACK+EXERCISE
+button or two? (b) round switch UI: a single odd/even toggle, or a per-round column
+like today? (c) volume control style: vertical mini-slider vs stepped speaker icon?

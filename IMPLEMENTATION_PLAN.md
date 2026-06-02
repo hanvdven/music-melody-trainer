@@ -9,6 +9,35 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
+## Feedback batch (Han 2026-06-01 #7)
+1. ✅ Clef setter active on SHEET → keyboard shows the RANGE setter (TabView swaps
+   KeyboardRangeSetter when rangeEditMode || clefEditMode; clefEditMode threaded).
+3. ✅ GHOST STAFF generalised: disabled staff shown in any settings view, notes +
+   clef glyph at opacity 0.4 (GHOST_OPACITY), staff lines/barlines normal;
+   interacting (clef carousel / X toggle) re-enables. (Restore-exact-prior-clef is a
+   refinement; re-enable currently sets a sensible default clef.)
+2+4. DESIGN proposed below — see docs §37.5 (PLAYBACK / EXERCISE setters design).
+
+### Design (items 2+4): playback/exercise in-staff setters
+Two new in-staff overlay modes, both ghost-aware, mirroring clef/range:
+- EXERCISE setter (global, song-level): #measures, #repeats (`repsPerMelody`),
+  total-melodies. Rendered above the system (not per-staff) since they're global.
+- PLAYBACK setter (per-staff × per-round): visibility (eye), audibility (volume
+  0–1), per round (odd/even). Each staff gets an eye + a volume control in its
+  gutter; a round toggle (odd/even, or "round 1 / round 2…") switches which round
+  you're editing. Chords + metronome are pseudo-staves with the same controls.
+See §37.5 for the full option→overlay mapping.
+
+1. When clef setter active on the SHEET → show the RANGE setter on the keyboard
+   (dual-surface: clef-on-sheet pairs with range-on-keyboard).
+2. DESIGN the next setters: migrate playback / exercise settings — #measures,
+   #repeats, per-repeat visibility + audibility, volume — into in-staff overlays.
+3. GHOST STAFF (generalise): in every settings view show ALL staves, grey out
+   options for disabled staves; interacting re-enables the staff (restoring most
+   recent settings). Barlines render normally; notes + other "settings" at
+   opacity 0.4.
+4. Propose which options logically suit the repeat vs playback overlays.
+
 ## Feedback batch (Han 2026-06-01 #6)
 ✅ done:
 - CHORD X already = hide + mute + KEEP generation (confirmed; no change needed).
