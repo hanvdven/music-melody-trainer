@@ -81,7 +81,9 @@ const ClefStaffOverlay = ({
         const clipId = `clef-gutter-clip-${staff}`;
         const renderFamily = (fam, { isActive }) => {
             const isOff = fam.id === 'off';
-            const colr = isActive ? 'var(--accent-yellow)' : 'var(--text-lowlight)';
+            // Active = NORMAL sheet colour (NOT yellow); passive = lowlight but solid
+            // (opacity 1) so it reads as greyed, not faded (Han #14).
+            const colr = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
             const symbolKey = isActive ? variantToSymbolKey(clef) : fam.clef;
             return (
                 <>
@@ -105,12 +107,19 @@ const ClefStaffOverlay = ({
                 </>
             );
         };
+        // Spread the N family glyphs evenly across the clef gutter: leftmost at the
+        // sheet clef position (CLEF_GLYPH_X — so the ACTIVE clef sits exactly where the
+        // sheet draws it, visual continuity) and rightmost at 90% of startX (a right
+        // margin so it isn't squeezed against the staff). Han #14.
+        const famN = order.length;
+        const FAM_X1 = startX * 0.90;
+        const famStepX = famN > 1 ? (FAM_X1 - CLEF_GLYPH_X) / (famN - 1) : 0;
         const familyCarousel = (
             <ClefCarousel
                 items={order}
                 startX={CLEF_GLYPH_X}
-                stepX={FAMILY_SLOT_W}
-                visible={Math.max(2, Math.floor((startX - CLEF_GLYPH_X) / FAMILY_SLOT_W))}
+                stepX={famStepX}
+                visible={famN}
                 renderItem={renderFamily}
                 onPick={(fam) => onApplyClefPatch?.(staff, patchForFamily(fam.id))}
                 clipId={clipId}
@@ -159,7 +168,8 @@ const ClefStaffOverlay = ({
         const varStep = chips.length > 1 ? (VAR_X1 - VAR_X0) / (chips.length - 1) : 0;
         const chipRow = chips.map((c, i) => {
             const cx = chips.length > 1 ? VAR_X0 + i * varStep : (VAR_X0 + VAR_X1) / 2;
-            const color = c.active ? 'var(--accent-yellow)' : 'var(--text-primary)';
+            // Active = normal colour; passive = lowlight at opacity 1 (Han #14).
+            const color = c.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
             return (
                 <g key={c.key} data-fly=""
                     style={{ cursor: onApplyClefPatch ? 'pointer' : 'default' }}
@@ -208,64 +218,84 @@ const ClefStaffOverlay = ({
     //           percussionVoiceSplit. Together = one voice (no split); split = RH↑/LH↓.
     const percussionBlock = () => {
         const y = percussionStart;
-        // Pattern: [[k,hh], hh, [s,hh], hh] — 4 EIGHTH notes (Han #8/#10). Build it as
-        // a real tick-based melody and run it through processMelodyAndCalculateSlots,
-        // exactly like the sheet does, so MelodyNotesLayer BEAMS the 4 eighths into one
-        // group (the previous noteGroupSize:1/measureLengthSlots:9999 path gave each
-        // note its own flag — §6c: reuse the real pipeline, don't re-invent).
-        const pat = [['k', 'hh'], 'hh', ['s', 'hh'], 'hh'];
-        const rawMelody = {
-            notes: pat,
-            durations: pat.map(() => EIGHTH),
-            offsets: pat.map((_, i) => i * EIGHTH),   // tick positions: 0,6,12,18
-            displayNotes: pat,
-        };
-        // The 4 eighths must beam as ONE group. renderMelodyNotes' beam-span logic
-        // splits an even-numerator measure at its midpoint, so a [4,8]/[2,4] measure
-        // would beam 2+2. We give it a 1-numerator measure ([1,2] = one half-note =
-        // 24 ticks): odd numerator → a SINGLE beam span covers all 4 eighths (Han #13).
-        const BUNDLE_TICKS = pat.length * EIGHTH;       // 24 = one half note
-        const PERC_TS = [1, 2];
-        const procMelody = processMelodyAndCalculateSlots(rawMelody, PERC_TS, BUNDLE_TICKS, BUNDLE_TICKS);
-        const procOffsets = procMelody.offsets || [];
-        const allOffsets = [...procOffsets, (procOffsets[procOffsets.length - 1] ?? 0) + 1];
-
-        // Two bundles, each filling a 20%-wide span of [startX … endX]: the first over
-        // 20–40%, the second over 60–80% (Han #12). The 4 notes spread evenly inside.
         const span = endX - startX;
-        const BUNDLE_SPAN = span * 0.20;
-        const NOTE_W = BUNDLE_SPAN / pat.length;
-        const bundleOx = [startX + span * 0.20, startX + span * 0.60];
 
-        // One option = a real percussion render (proper notehead assets + beaming);
-        // `split` toggles percussionVoiceSplit on that layer.
-        const option = (key, split, active, ox, onTap) => {
-            const color = active ? 'var(--accent-yellow)' : 'var(--range-lowlight)';
+        // The two options are real percussion renders via MelodyNotesLayer (§6c —
+        // reuse the sheet's renderer, never re-invent). We give each a [1,2]
+        // (odd-numerator) measure so the beam-span logic produces ONE beam over the
+        // 4 eighths instead of splitting them 2+2 (Han #13).
+        const PERC_TS = [1, 2];                  // one half note = 24 ticks
+        const BUNDLE_TICKS = 4 * EIGHTH;         // 24
+        const QUARTER = 2 * EIGHTH;              // 12
+        const proc = (raw) => processMelodyAndCalculateSlots(raw, PERC_TS, BUNDLE_TICKS, BUNDLE_TICKS);
+
+        // TOGETHER = a single voice: the full pattern [[k,hh], hh, [s,hh], hh] as 4
+        // eighth-note chords, beamed as one group.
+        const togetherPat = [['k', 'hh'], 'hh', ['s', 'hh'], 'hh'];
+        const togetherMel = proc({
+            notes: togetherPat, durations: togetherPat.map(() => EIGHTH),
+            offsets: togetherPat.map((_, i) => i * EIGHTH), displayNotes: togetherPat,
+        });
+
+        // SPLIT = real parallel-voice drum notation (Han #14): the hi-hats are 4
+        // beamed eighths (RH, stems UP) and the kick+snare are QUARTER notes (LH,
+        // stems DOWN) — kick on beat 1, snare on beat 2. Two voices = two melodies
+        // run through the SAME renderer with percussionVoiceSplit on (so the single-
+        // note RH/LH classifier forces the correct stem direction per voice).
+        const hhMel = proc({
+            notes: ['hh', 'hh', 'hh', 'hh'], durations: [EIGHTH, EIGHTH, EIGHTH, EIGHTH],
+            offsets: [0, EIGHTH, 2 * EIGHTH, 3 * EIGHTH], displayNotes: ['hh', 'hh', 'hh', 'hh'],
+        });
+        const ksMel = proc({
+            notes: ['k', 's'], durations: [QUARTER, QUARTER],
+            offsets: [0, QUARTER], displayNotes: ['k', 's'],
+        });
+
+        // Shared x-grid for ALL voices so split RH/LH align vertically: the union of
+        // every voice's processed offsets, sorted. A leading sentinel (< all offsets)
+        // makes the FIRST note land exactly at the layer's startX — getTickX uses
+        // (indexOf − 1), so without it the bundle was shoved one slot LEFT (the
+        // "not centered" bug, Han #14).
+        const gridOffsets = Array.from(new Set([
+            ...togetherMel.offsets, ...hhMel.offsets, ...ksMel.offsets,
+        ])).sort((a, b) => a - b);
+        const lastOff = gridOffsets[gridOffsets.length - 1] ?? 0;
+        const allOffsets = [-1, ...gridOffsets, lastOff + 1];
+        const slots = Math.max(1, gridOffsets.length - 1);   // gaps between notes
+        const NOTE_W = (span * 0.15) / slots;                // bundle ≈ 15% of the width
+
+        // One option, CENTRED on cx: the first note sits at cx − (slots/2)·NOTE_W so the
+        // whole bundle is symmetric about cx. `layers` = one or more voices (split = 2).
+        const renderOption = (key, cx, active, layers, onTap) => {
+            const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
+            const ox = cx - (slots / 2) * NOTE_W;
+            const hitX = ox - 10, hitW = slots * NOTE_W + 20;
             return (
                 <g key={key} style={{ cursor: onToggleVoiceSplit ? 'pointer' : 'default' }} onClick={onTap}>
-                    <rect x={ox - 6} y={y - 6} width={BUNDLE_SPAN + 12} height={48} rx={3}
-                        fill="transparent" stroke={color} strokeWidth={active ? 1.6 : 0.8}
-                        vectorEffect="non-scaling-stroke" />
+                    {/* invisible hit target — no visible box around the notes (Han #14) */}
+                    <rect x={hitX} y={y - 6} width={hitW} height={48} fill="transparent" />
                     <g style={{ pointerEvents: 'none' }}>
-                        <MelodyNotesLayer
-                            {...PERC_LAYER_PROPS}
-                            noteGroupSize={BUNDLE_TICKS}
-                            measureLengthSlots={BUNDLE_TICKS}
-                            percussionVoiceSplit={split}
-                            melody={procMelody}
-                            staff="percussion"
-                            staffYStart={y}
-                            clef={null}
-                            startX={ox}
-                            noteWidth={NOTE_W}
-                            allOffsets={allOffsets}
-                            timeSignature={PERC_TS}
-                            theme={theme}
-                            previewMode={color}
-                        />
+                        {layers.map((L, i) => (
+                            <MelodyNotesLayer key={i}
+                                {...PERC_LAYER_PROPS}
+                                noteGroupSize={BUNDLE_TICKS}
+                                measureLengthSlots={BUNDLE_TICKS}
+                                percussionVoiceSplit={L.split}
+                                melody={L.melody}
+                                staff="percussion"
+                                staffYStart={y}
+                                clef={null}
+                                startX={ox}
+                                noteWidth={NOTE_W}
+                                allOffsets={allOffsets}
+                                timeSignature={PERC_TS}
+                                theme={theme}
+                                previewMode={color}
+                            />
+                        ))}
                     </g>
                     {debugMode && (
-                        <rect x={ox - 6} y={y - 6} width={BUNDLE_SPAN + 12} height={48}
+                        <rect x={hitX} y={y - 6} width={hitW} height={48}
                             fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
                             style={{ pointerEvents: 'none' }} />
                     )}
@@ -278,7 +308,7 @@ const ClefStaffOverlay = ({
         // clefs weren't clickable because the bare <text> had pointerEvents:none).
         const clipId = 'clef-gutter-clip-percussion';
         const renderPercClef = (item, { isActive }) => {
-            const colr = isActive ? 'var(--accent-yellow)' : 'var(--text-lowlight)';
+            const colr = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
             return (
                 <>
                     <rect x={-FAMILY_SLOT_W / 2} y={y - 6} width={FAMILY_SLOT_W} height={52} fill="transparent" />
@@ -298,27 +328,34 @@ const ClefStaffOverlay = ({
                 </>
             );
         };
-        // Sheet percussion clef sits at x=18 (not CLEF_GLYPH_X=13); align the carousel.
+        // Sheet percussion clef sits at x=18 (not CLEF_GLYPH_X=13); align the leftmost
+        // (active) glyph there and spread to 90% of startX, same as the melodic
+        // families (Han #14 — 2 glyphs evenly spread, no resting lookahead).
         const PERC_CLEF_X = 18;
         // current first: if disabled, 'off' is active; else the clef.
         const percOrder = percussionDisabled ? ['off', 'perc'] : ['perc', 'off'];
+        const percStepX = (startX * 0.90) - PERC_CLEF_X;   // 2 items → one step
 
         return (
             <g className="clef-row clef-row-percussion" key="percussion">
                 <ClefCarousel
                     items={percOrder}
                     startX={PERC_CLEF_X}
-                    stepX={FAMILY_SLOT_W}
+                    stepX={percStepX}
                     visible={2}
                     renderItem={renderPercClef}
                     onPick={() => onTogglePercussionDisabled?.()}
                     clipId={clipId}
                     clipRect={{ x: 0, y: y - 6, width: startX, height: 56 }}
                 />
-                {/* Right: together / split toggler bundles over 20–40% / 60–80%, enabled only. */}
-                {!percussionDisabled && option('together', false, !percussionVoiceSplit, bundleOx[0],
+                {/* Right: together / split toggler bundles CENTRED at 30% / 70% of the
+                    staff body, enabled only. Together = one voice; split = RH hi-hats
+                    (beamed, up) + LH kick/snare (quarters, down). */}
+                {!percussionDisabled && renderOption('together', startX + span * 0.30, !percussionVoiceSplit,
+                    [{ melody: togetherMel, split: false }],
                     () => { if (percussionVoiceSplit) onToggleVoiceSplit?.(); })}
-                {!percussionDisabled && option('split', true, percussionVoiceSplit, bundleOx[1],
+                {!percussionDisabled && renderOption('split', startX + span * 0.70, percussionVoiceSplit,
+                    [{ melody: hhMel, split: true }, { melody: ksMel, split: true }],
                     () => { if (!percussionVoiceSplit) onToggleVoiceSplit?.(); })}
             </g>
         );

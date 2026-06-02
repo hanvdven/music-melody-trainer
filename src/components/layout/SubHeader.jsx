@@ -284,7 +284,7 @@ const SubHeader = ({
                         no standalone CHORDS button. */}
                     {onOpenClef && renderButton(
                         <Music2 size={22} />,
-                        'CLEF',
+                        'NOTATION',
                         onOpenClef,
                         false,
                         '#c0a0ff'

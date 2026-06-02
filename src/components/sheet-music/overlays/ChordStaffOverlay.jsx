@@ -58,7 +58,8 @@ const LOWLIGHT = 'var(--range-lowlight)';
 // A complexity chord rendered as real whole-notes at the chord-row staff position.
 // `baseY` is the staff top fed to MelodyNotesLayer; `cx` is the chord centre.
 const ChordNotes = ({ id, cx, baseY, active }) => {
-    const color = active ? 'var(--accent-yellow)' : 'var(--text-primary)';
+    // Active = normal colour (NOT yellow); passive = lowlight, opacity 1 (Han #14).
+    const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
     const common = {
         ...LAYER_PROPS, staff: 'treble', clef: 'treble', staffYStart: baseY,
         startX: cx, noteWidth: 0, allOffsets: [0, 1], timeSignature: [4, 4],
@@ -72,12 +73,17 @@ const ChordNotes = ({ id, cx, baseY, active }) => {
     }
     // extended: bright [C4,G4] + lowlit [E4,B4] in the same column, then a lowlit
     // right-offset [D4,F4,A4] with ♭/♯ to their left (lowlit) — Han's spec.
+    // The right-offset tension stack carries its OWN accidentals (♭ on the 9th, ♯ on
+    // the 13th) so the renderer draws ♭/♯ to the LEFT of those noteheads — signalling
+    // the altered extensions (Han #14). 'D♭4'/'A♯4' position on the D4/A4 line (the
+    // accidental is stripped for placement) with a flat/sharp glyph in front; 'F4'
+    // stays natural (no accidental in C). §6c: real renderer draws the accidentals.
     return (
         <g style={{ pointerEvents: 'none' }}>
             <MelodyNotesLayer {...common} melody={chordMelody(['C4', 'G4'])} previewMode={color} />
             <MelodyNotesLayer {...common} melody={chordMelody(['E4', 'B4'])} previewMode={LOWLIGHT} />
             <g transform="translate(8 0)">
-                <MelodyNotesLayer {...common} melody={chordMelody(['D4', 'F4', 'A4'])} previewMode={LOWLIGHT} />
+                <MelodyNotesLayer {...common} melody={chordMelody(['D♭4', 'F4', 'A♯4'])} previewMode={LOWLIGHT} />
             </g>
         </g>
     );
@@ -94,7 +100,9 @@ const ChordStaffOverlay = ({
     debugMode = false,
 }) => {
     if (startX == null || trebleStart == null) return null;
-    const cplxStaffY = trebleStart - 86;    // staff top fed to MelodyNotesLayer
+    // Raised (was −86) so the chord row clears the range-setter notes/handles drawn
+    // on the treble staff below (Han #14 — chords were overlapping the setter).
+    const cplxStaffY = trebleStart - 108;   // staff top fed to MelodyNotesLayer
     const span = (endX ?? startX) - startX;
     const cplxRowY = cplxStaffY + 20;       // approx visual centre for the hit box
 

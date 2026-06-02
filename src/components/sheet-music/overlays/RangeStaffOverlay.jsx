@@ -589,7 +589,8 @@ const RangeStaffOverlay = ({
                     if (yTop == null || yBottom == null) return null;
                     const x = presetX0 + i * BRACKET_GAP;
                     const isActive = getNoteValue(p.min) === selMin && getNoteValue(p.max) === selMax;
-                    const color = isActive ? 'var(--accent-yellow)' : 'var(--text-dim)';
+                    // Active preset = normal colour; passive = lowlight, opacity 1 (Han #14).
+                    const color = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
                     const hitX = x - BRACKET_TICK - 12, hitY = yTop - 4;
                     const hitW = BRACKET_TICK + 18, hitH = yBottom - yTop + 8;
                     // No text label (Han 2026-05-31 — text clashed with the UI-overhaul
@@ -701,7 +702,8 @@ const RangeStaffOverlay = ({
                     const yTop = Math.min(...ys), yBottom = Math.max(...ys);
                     const x = presetX0 + i * BRACKET_GAP;
                     const isActive = sameSet(enabledPads, PERCUSSION_PRESETS[mode]);
-                    const color = isActive ? 'var(--accent-yellow)' : 'var(--text-dim)';
+                    // Active preset = normal colour; passive = lowlight, opacity 1 (Han #14).
+                    const color = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
                     const hitX = x - BRACKET_TICK - 12, hitY = yTop - 4;
                     const hitW = BRACKET_TICK + 18, hitH = yBottom - yTop + 8;
                     return (
