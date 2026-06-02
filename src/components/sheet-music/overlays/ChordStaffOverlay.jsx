@@ -27,8 +27,10 @@ const LAYER_PROPS = {
     courtesyAccidentals: false, percussionVoiceSplit: false, noteColoringMode: 'none',
 };
 // One whole-note chord (array of note names) as a MelodyNotesLayer melody.
+// `ties` is required by renderMelodyNotes (it reads melody.ties[index] unguarded).
 const chordMelody = (notes) => ({
     notes: [notes], offsets: [0], durations: [WHOLE], displayNotes: [notes],
+    ties: [null], triplets: null, rhythmicGrouping: null,
 });
 
 // Note stacks per complexity option (real pitches, like the generator setter).

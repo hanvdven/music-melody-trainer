@@ -2420,13 +2420,21 @@ wiring + `setPercussionVoiceSplit`), `hooks/useRangeMorph.js` (queries
 (`clefEditMode` + toggle/open), `styles/App.css` (`.clef-family-glyph`
 transform+opacity transition).
 
-### 37.3 Chord selector — the chord row, INSIDE clef mode (Han 2026-06-01 #6)
+### 37.3 Chord selector — the chord row, INSIDE the RANGE setter (Han #6→#11)
 
-The chord-row X/letters/roman selector lives INSIDE clef-edit mode — enabling/
-disabling chords is part of the CLEF settings (Han). There is NO standalone chord
-mode or CHORDS button: `ChordStaffOverlay` renders whenever `clefEditMode` is on,
-in the chord row (above the treble staff), alongside the clef carousels.
-`ChordStaffOverlay.jsx` shows three options reusing the existing chord notation:
+The chord-row selector lives INSIDE the RANGE setter (moved there in #11; it was
+briefly in clef mode in #6). `ChordStaffOverlay` renders whenever `rangeMounted`,
+in the chord row above the treble staff. Two sub-rows:
+- **Complexity** (`chordSettings.complexity`): 5 chords drawn as REAL stacked
+  whole-notes via `MelodyNotesLayer` (§6c reuse — NOT hand-rolled glyphs): tonic
+  `[C4]`, power `[C4,G4]`, triad `[C4,E4,G4]`, seventh `[C4,E4,G4,B4]`, and
+  "extended" = bright `[C4,G4]` + lowlit `[E4,B4]` (same column) + a right-offset
+  lowlit `[D4,F4,A4]`. Stored canonically (tonic→`root`, extended→`ninth`).
+- **Visualisation** (`chordDisplayMode`): X disable at startX, then a short real
+  progression sample — letters `D− G7 C` @33%, roman `ii V7 I` @66% (~15u apart).
+The morph treats `.chord-overlay` as part of the 'range' surface so it fades/flies
+with the range overlay.
+Reuse: `chordDisplayMode='off'` (X) options below:
 - **X** → `chordDisplayMode='off'`: hides the labels (`chordsHidden` gates
   `actualChords`) AND mutes the audio (a `chordsDisabledRef` mirrors the mode into
   the Sequencer, which sets `chordVolume=0`). Chords are **still generated** (they
@@ -2486,6 +2494,22 @@ baked-in font glyph). The 22 clefs aren't wired as a selectable option yet
   (overlap, Han #9). The divider is now anchored to the fixed gap between the staves
   (`(trebleStart + STAFF_H + bassStart) / 2`), so the zones always meet between the
   staves regardless of the selection.
+
+### 37.8 Real-notehead chords + sliding 'legacy' settings (Han 2026-06-01 #10/#11)
+
+- **§6c reuse**: the chord complexity row now renders via `MelodyNotesLayer`
+  whole-note chords (see §37.3) instead of hand-rolled glyphs; the clef-view
+  percussion mini-melody runs through `processMelodyAndCalculateSlots` +
+  `MelodyNotesLayer` so its 4 eighths BEAM into one group.
+- **Morph re-arm on surface switch**: `useRangeMorph` is keyed on the current
+  SURFACE kind (`'range' | 'clef' | 'legacy' | 'melody'`), so switching directly
+  between overlays re-animates each time. `groupsForKind` maps each kind to its
+  group(s) — range = `.range-overlay` + `.chord-overlay`; legacy = `.settings-overlay`.
+- **Legacy settings surface**: the old settings overlay is no longer a floating
+  overlay — it's the sliding **'legacy'** surface. `overlayKind` becomes `'legacy'`
+  when `showSettings`; it's gated on `legacyMounted` and animates exactly like
+  clef/range (the melody flies out, the settings rows fly in). It shares the
+  `overlayEditMode` treatment (melody hidden, time-sig hidden, end barline at endX).
 
 ### 37.4a Dual-surface + ghost staff (Han 2026-06-01 #7)
 

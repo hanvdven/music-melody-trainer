@@ -37,6 +37,8 @@ const groupsForKind = (svg, kind) => {
   // so both fade/fly together (Han #10/#11 — chords live in the range setter).
   if (kind === 'range') return [svg.querySelector('.range-overlay'), svg.querySelector('.chord-overlay')].filter(Boolean);
   if (kind === 'clef') return [svg.querySelector('.clef-overlay')].filter(Boolean);
+  // The old settings overlay is now a sliding 'legacy' surface (Han #11).
+  if (kind === 'legacy') return [svg.querySelector('.settings-overlay')].filter(Boolean);
   return [];
 };
 

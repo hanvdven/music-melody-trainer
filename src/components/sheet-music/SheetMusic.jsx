@@ -420,16 +420,18 @@ const SheetMusic = ({
   // new flies in from the right. Either RANGE or CLEF mode triggers it (both replace
   // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
   // the duration. Fly distance = content width (user units). See useRangeMorph.
-  const overlayEditMode = rangeEditMode || clefEditMode;
-  // The currently-shown SURFACE drives the morph: switching range↔clef (or to/from
-  // the melody) re-arms the animation (Han #10 — previously a clef→range switch
-  // didn't animate because the boolean never flipped).
-  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : 'melody';
+  const overlayEditMode = rangeEditMode || clefEditMode || showSettings;
+  // The currently-shown SURFACE drives the morph: switching between range / clef /
+  // legacy-settings / melody re-arms the animation each time (Han #10/#11). The old
+  // settings overlay is now the sliding 'legacy' surface.
+  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : showSettings ? 'legacy' : 'melody';
   const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
   // While morphing, BOTH the leaving and arriving surfaces must stay mounted. These
   // flags say whether each overlay must render right now (active OR part of the morph).
-  const rangeMounted = rangeEditMode || (rangeMorphing && (morphFrom === 'range' || morphTo === 'range'));
-  const clefMounted = clefEditMode || (rangeMorphing && (morphFrom === 'clef' || morphTo === 'clef'));
+  const mountedFor = (k, active) => active || (rangeMorphing && (morphFrom === k || morphTo === k));
+  const rangeMounted = mountedFor('range', rangeEditMode);
+  const clefMounted = mountedFor('clef', clefEditMode);
+  const legacyMounted = mountedFor('legacy', showSettings);
 
   const staffLines = [];
   if (isTrebleVisible) {
@@ -2752,8 +2754,9 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* Settings overlay — rendered LAST so it sits above blurred content */}
-                  {showSettings && (
+                  {/* Legacy settings surface — now slides in like clef/range (Han #11),
+                      kept mounted during its morph. */}
+                  {legacyMounted && (
                     <SettingsOverlay
                       startX={startX}
                       endX={endX}
