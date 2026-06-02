@@ -2368,14 +2368,24 @@ view; §6c). All option logic is pure + tested
   families/variants/percussion options, `ChordStaffOverlay`, `ChordStyleOverlay`, and
   the `RangeStaffOverlay` preset brackets. The range boundary DRAG HANDLES stay
   `--accent-yellow` (they are handles, not a selectable option).
-- **Instrument clef CARDS** replace the plain variant chips for melodic G/F families.
-  Each card = the family clef (`<ClefGlyph>`) + the 3-note reference melody
-  (`REF_NOTES`: C4 G4 C5 in G, C3 G3 C4 in F) rendered via `MelodyNotesLayer` and
-  TRANSPOSED by the instrument (`transpositionSemitones`), so the transposition reads
-  instantly; transposing cards add a small `(B♭ inst.)` superscript. The inline set is
-  Concert / B♭ / E♭ (`clefSelector.instrumentClefCards`) + a `…` card opening the full
-  list. NOTE: inline octave variants (8va/15ma) were dropped to make room — they
-  belong in the `…` list (follow-up). Vocal family keeps its voice-clef chips.
+- **Clef CARDS in a SWIPE carousel** replace the plain variant chips for melodic G/F
+  families (`ClefCardCarousel.jsx`). Each card = the family clef (`<ClefGlyph>`) + the
+  3-note reference melody (`REF_NOTES`: C4 G4 C5 in G, C3 G3 C4 in F) rendered via
+  `MelodyNotesLayer`; transposing cards TRANSPOSE the notes by `transpositionSemitones`
+  (so the transposition reads instantly) and add a small `(B♭ inst.)` superscript. The
+  strip order is octave cards (normal · 8va · 15ma) then every transposing instrument
+  except concert C; cards past the window sit off-screen and SLIDE in on a horizontal
+  drag. **Tap = select; drag = scroll** — disambiguated by movement (< `TAP_SLOP` user
+  units = tap, routed to the card under the pointer). Offset is clamped (no loop);
+  client px → SVG units via the owning `<svg>`'s screen CTM so drag tracks the finger
+  1:1. Octave (`rangeMode`) and transposition (`transpositionKey`) stay ORTHOGONAL
+  fields, so up to two cards read active at once; tapping an already-active transposing
+  card toggles it back to concert C (the only strip path to reset transposition, since
+  there is no dedicated C card). The old `…` full-list popup is superseded by the strip
+  (the `onOpenInstrumentList` prop is now unused — `transPicker` removal is a follow-up).
+  Vocal family keeps its evenly-spread voice-clef chips. **Files:** `ClefCardCarousel.jsx`
+  (new), `ClefStaffOverlay.jsx` (card build + `ClefCard` + renderCard), `clefSelector.js`
+  (`instrumentClefCards` now unused).
 - **Clef carousel** shows EXACTLY N glyphs at rest (no resting lookahead — wrap copies
   for the slide live OUTSIDE the clip), spread evenly from `CLEF_GLYPH_X` (the active
   clef aligns with the sheet) to 90% of `startX`; a gentle 5%/95% edge fade replaces

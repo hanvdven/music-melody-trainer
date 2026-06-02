@@ -31,6 +31,17 @@ describe('ClefStaffOverlay', () => {
         expect(container.querySelectorAll('text').length).toBeGreaterThan(0);
     });
 
+    it('renders the swipeable clef-card carousel for a melodic staff', () => {
+        const { container } = renderClef();
+        // The treble row's variants are now a SWIPE carousel of clef cards (Han
+        // 2026-06-02), with a transparent drag/tap surface rather than per-chip groups.
+        const cards = container.querySelector('.clef-variant-cards');
+        expect(cards).not.toBeNull();
+        // Cards beyond the window exist off-screen (octaves + every transposing
+        // instrument except concert C) → the rendered notehead text count is high.
+        expect(cards.querySelectorAll('text').length).toBeGreaterThan(3);
+    });
+
     it('renders nothing without geometry', () => {
         const { container } = renderClef({ startX: null });
         expect(container.querySelector('.clef-overlay')).toBeNull();
