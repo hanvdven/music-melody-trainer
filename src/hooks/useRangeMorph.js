@@ -33,8 +33,10 @@ const easeInOut = (t) => t * t * (3 - 2 * t);
 // the clef overlay AND the chord-row overlay as siblings, so both must fade/fly).
 const groupsForKind = (svg, kind) => {
   if (kind === 'melody') return [svg.querySelector('.notes-transition')].filter(Boolean);
-  if (kind === 'range') return [svg.querySelector('.range-overlay')].filter(Boolean);
-  if (kind === 'clef') return [svg.querySelector('.clef-overlay'), svg.querySelector('.chord-overlay')].filter(Boolean);
+  // The range setter shows the range overlay AND the chord-row overlay as siblings,
+  // so both fade/fly together (Han #10/#11 — chords live in the range setter).
+  if (kind === 'range') return [svg.querySelector('.range-overlay'), svg.querySelector('.chord-overlay')].filter(Boolean);
+  if (kind === 'clef') return [svg.querySelector('.clef-overlay')].filter(Boolean);
   return [];
 };
 

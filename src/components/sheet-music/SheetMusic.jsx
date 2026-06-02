@@ -346,10 +346,10 @@ const SheetMusic = ({
     : (playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome');
 
   // chordDisplayMode==='off' (the chord-selector X) hides the chord labels and mutes
-  // the audio, but chords are STILL generated (Han 2026-06-01 #6). Keep the labels
-  // visible while the clef selector (which hosts the chord row) is open so the user
-  // sees the context they're toggling.
-  const chordsHidden = chordDisplayMode === 'off' && !clefEditMode;
+  // the audio, but chords are STILL generated (Han #6). Keep the labels visible while
+  // the RANGE setter (which hosts the chord row, Han #11) is open so the user sees
+  // the context they're toggling.
+  const chordsHidden = chordDisplayMode === 'off' && !rangeEditMode;
   const actualChords = !chordsHidden && (isPlaying
     ? (playbackConfig?.[roundKey]?.chordsEye !== false)
     : (playbackConfig?.oddRounds?.chordsEye !== false || playbackConfig?.evenRounds?.chordsEye !== false));
@@ -2865,10 +2865,9 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* Chord overlay — the chord-row X/letters/roman selector. Enabling/
-                      disabling chords is part of CLEF settings (Han 2026-06-01 #6), so
-                      it lives INSIDE clef-edit mode (no standalone chord mode). */}
-                  {clefMounted && (
+                  {/* Chord overlay — the chord-row selector (visualisation + complexity).
+                      Lives inside the RANGE setter (Han 2026-06-01 #10/#11). */}
+                  {rangeMounted && (
                     <ChordStaffOverlay
                       startX={startX}
                       endX={endX}
