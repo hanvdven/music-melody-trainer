@@ -15,6 +15,11 @@ import { useRef, useState, useLayoutEffect } from 'react';
 // note/glyph elements with data-fly). If none are found we fall back to sliding the
 // whole group as one block.
 //
+// By default flyable elements slide in from the RIGHT (translateX flyDist → 0). An
+// element may instead carry `data-fly-from="<userSpaceX>"` to emerge from a specific
+// x — the clef variant chips use this so subtypes slide out from UNDER the clef on
+// the left (Han 2026-06-01 CR), rather than streaming in from the right.
+//
 // All opacity/transform is set via `element.style` in the rAF callback — never JSX
 // props — per §6. Inline styles are cleared at the end so the scroll/wipe systems
 // own those properties again afterwards.
@@ -86,11 +91,22 @@ export default function useRangeMorph(kind, svgRef, flyDist) {
     const span = maxX - minX || 1;
     const delayOf = (el) => ((xs.get(el) - minX) / span) * STAGGER_MS;
 
+    // Per-element initial translateX. Default = flyDist (slide in from the RIGHT).
+    // An element carrying `data-fly-from="<x>"` instead emerges FROM that user-space
+    // x — used by the clef variant chips so the subtypes appear to slide out from
+    // UNDER the clef on the left (Han 2026-06-01 CR): each chip starts at the clef
+    // anchor (x left of itself ⇒ negative offset) and slides right to its slot.
+    const startOf = new Map();
+    for (const el of flyEls) {
+      const fromAttr = el.getAttribute('data-fly-from');
+      startOf.set(el, fromAttr != null ? (parseFloat(fromAttr) - (xs.get(el) ?? 0)) : flyDist);
+    }
+
     // Initial state, set before paint so there's no flash.
     for (const el of oldEls) { el.style.opacity = '1'; el.style.transform = 'none'; }
     for (const el of newEls) { el.style.opacity = '0'; el.style.transform = 'none'; }
     if (flyEls.length) {
-      for (const el of flyEls) { el.style.transform = `translateX(${flyDist}px)`; el.style.willChange = 'transform'; }
+      for (const el of flyEls) { el.style.transform = `translateX(${startOf.get(el)}px)`; el.style.willChange = 'transform'; }
     } else {
       // Fallback: no per-note elements → slide each new group as one block.
       for (const el of newEls) el.style.transform = `translateX(${flyDist}px)`;
@@ -108,7 +124,7 @@ export default function useRangeMorph(kind, svgRef, flyDist) {
       if (flyEls.length) {
         for (const el of flyEls) {
           const ep = easeInOut(clamp01((t - delayOf(el)) / ELEM_MS));
-          el.style.transform = `translateX(${flyDist * (1 - ep)}px)`;
+          el.style.transform = `translateX(${startOf.get(el) * (1 - ep)}px)`;
         }
       } else {
         for (const el of newEls) el.style.transform = `translateX(${flyDist * (1 - easeInOut(p))}px)`;
