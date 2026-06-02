@@ -277,6 +277,17 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
 - ⏳ Nog open van #10: G-clef bottom-clipping; G-ottava-opties ontbreken; vocal-clef
   spacing + marge vóór endX; exacte clef-uitlijning met de sheet.
 
+[Han 2026-06-01 #12]:
+> chord-stijl (aan/uit-letters-romeins) naar CLEF, met sheet-stijl/grootte (was te
+> klein); chord-types omlaag → 10/30/50/70/90% (clipping bij 0/25/…/100); clef-setter
+> percussie: 8 noten netjes over 20-40% en 60-80%.
+[Claude 2026-06-01]: ✅
+- Chord-STIJL → CLEF-setter (nieuwe `ChordStyleOverlay`) in de sheet-chordlabel-font
+  (root 26 / super 16 Georgia italic). Chord-COMPLEXITY blijft in de RANGE-setter.
+- Complexity-akkoorden op 10/30/50/70/90% van de rijbreedte (geen clipping).
+- Clef-setter percussie: twee 4-noot-bundels die 20–40% en 60–80% van de span vullen,
+  gebeamd via de echte pipeline.
+
 ---
 
 ### Range setter — vervolg-feedback (Han 2026-06-01)

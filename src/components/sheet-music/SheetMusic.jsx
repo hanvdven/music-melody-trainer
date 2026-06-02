@@ -11,6 +11,7 @@ import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
 import RangeStaffOverlay from './overlays/RangeStaffOverlay';
 import ClefStaffOverlay from './overlays/ClefStaffOverlay';
 import ChordStaffOverlay from './overlays/ChordStaffOverlay';
+import ChordStyleOverlay from './overlays/ChordStyleOverlay';
 import { clefSymbols } from './clefGlyphs';
 import GenericTypeSelector from '../common/GenericTypeSelector';
 import SvgSetter from './SvgSetter';
@@ -345,11 +346,11 @@ const SheetMusic = ({
     ? (playbackConfig?.[roundKey]?.percussionEye === 'metronome')
     : (playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome');
 
-  // chordDisplayMode==='off' (the chord-selector X) hides the chord labels and mutes
-  // the audio, but chords are STILL generated (Han #6). Keep the labels visible while
-  // the RANGE setter (which hosts the chord row, Han #11) is open so the user sees
+  // chordDisplayMode==='off' (the chord-style X) hides the chord labels and mutes the
+  // audio, but chords are STILL generated (Han #6). Keep the labels visible while the
+  // CLEF setter (which hosts the chord-STYLE row, Han #12) is open so the user sees
   // the context they're toggling.
-  const chordsHidden = chordDisplayMode === 'off' && !rangeEditMode;
+  const chordsHidden = chordDisplayMode === 'off' && !clefEditMode;
   const actualChords = !chordsHidden && (isPlaying
     ? (playbackConfig?.[roundKey]?.chordsEye !== false)
     : (playbackConfig?.oddRounds?.chordsEye !== false || playbackConfig?.evenRounds?.chordsEye !== false));
@@ -2868,17 +2869,27 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* Chord overlay — the chord-row selector (visualisation + complexity).
-                      Lives inside the RANGE setter (Han 2026-06-01 #10/#11). */}
+                  {/* Chord COMPLEXITY selector — chord row, RANGE setter (Han #11/#12). */}
                   {rangeMounted && (
                     <ChordStaffOverlay
                       startX={startX}
                       endX={endX}
                       trebleStart={trebleStart}
-                      chordDisplayMode={chordDisplayMode}
-                      onSetChordDisplayMode={setChordDisplayMode}
                       chordComplexity={chordSettings?.complexity || 'triad'}
                       onSetChordComplexity={(c) => setChordSettings(prev => ({ ...prev, complexity: c }))}
+                      debugMode={debugMode}
+                    />
+                  )}
+
+                  {/* Chord STYLE selector (off/letters/roman) — chord row, CLEF setter
+                      (Han #12). Uses the sheet chord-label font size/style. */}
+                  {clefMounted && (
+                    <ChordStyleOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      chordDisplayMode={chordDisplayMode}
+                      onSetChordDisplayMode={setChordDisplayMode}
                       debugMode={debugMode}
                     />
                   )}
