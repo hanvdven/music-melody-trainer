@@ -10,14 +10,13 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 ---
 
 ## Feedback batch (Han 2026-06-01 #11)
-🔨
-- Chord row + noteheads: move the chord selector to the RANGE setter; render the
-  progression (D⁻ G⁷ C / ii V⁷ I) AND the 5 complexity chords as REAL stacked
-  whole-notes via MelodyNotesLayer (reuse — like the generator complexity setter).
-  extended = [C4,G4] + lowlit [E4,B4] same span, right-offset [D4,F4,A4] lowlit,
-  ♭/♯ left at D4/A4 lowlit.
-- Make the SETTINGS overlay a separate 'legacy' SURFACE that slides in like clef/
-  range (morph), no longer a floating overlay.
+✅ done:
+- Chord row moved to the RANGE setter; complexity chords render as REAL whole-notes
+  via MelodyNotesLayer (tonic/power/triad/seventh + the layered "extended"); letters/
+  roman show a real progression sample (D⁻ G⁷ C / ii V⁷ I, ~15u apart).
+- SETTINGS overlay is now the sliding 'legacy' surface: a 4th morph kind ('legacy'),
+  overlayKind/overlayEditMode include it, gated on legacyMounted, animates like
+  clef/range (melody flies out, settings flies in). ♭/♯ on extended still TODO-fine.
 
 ## Feedback batch (Han 2026-06-01 #10) — REUSE rendering (§6c violation to fix)
 ✅ done so far: morph re-arms on overlay switch (kind-keyed); percussion beams via

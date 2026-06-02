@@ -257,6 +257,26 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
   `chordSettings.complexity` (tonic→root, extended→ninth — canoniek zodat de
   bestaande complexity-stepper + generator overeenkomen).
 
+[Han 2026-06-01 #10/#11 — §6c herstel + legacy-surface]:
+> overlays vonden note/chord-rendering opnieuw uit i.p.v. MelodyNotesLayer te
+> hergebruiken; animatie triggert niet bij overlay→overlay-wissel; percussie-noten
+> moeten gebeamd; chord-rij naar de RANGE-setter + echte noten; maak van de settings-
+> overlay een aparte 'legacy'-surface die inschuift zoals clef/range.
+[Claude 2026-06-01]: ✅
+- Animatie: `useRangeMorph` keyed op SURFACE-kind ('range'/'clef'/'legacy'/'melody')
+  → wisselen tussen overlays re-armt de morph elke keer.
+- Percussie clef-view: echte pipeline (processMelodyAndCalculateSlots +
+  MelodyNotesLayer) → 4 achtsten beamen als groep.
+- Chord-rij → RANGE-setter; complexity-akkoorden als ECHTE hele noten via
+  MelodyNotesLayer (tonic/power/triad/seventh + gelaagde 'extended'); letters/romeins
+  als echte progressie-sample (D⁻ G⁷ C / ii V⁷ I).
+- Clef-glyphs gecentreerd (anchor=middle); diagonale treble/bass-divider; full-height
+  percussie-hitboxen; verticale maatlijn op endX.
+- **Settings-overlay = sliding 'legacy'-surface**: 4e morph-kind, schuift in zoals
+  clef/range (melodie vliegt uit, settings vliegt in). §37.8.
+- ⏳ Nog open van #10: G-clef bottom-clipping; G-ottava-opties ontbreken; vocal-clef
+  spacing + marge vóór endX; exacte clef-uitlijning met de sheet.
+
 ---
 
 ### Range setter — vervolg-feedback (Han 2026-06-01)
