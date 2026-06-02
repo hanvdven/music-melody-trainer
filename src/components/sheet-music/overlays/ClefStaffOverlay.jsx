@@ -228,20 +228,20 @@ const ClefStaffOverlay = ({
         const procOffsets = procMelody.offsets || [];
         const allOffsets = [...procOffsets, (procOffsets[procOffsets.length - 1] ?? 0) + 1];
 
-        // Two compact bundles centred at ~33% and ~66% of [startX … endX] (Han #8).
+        // Two bundles, each filling a 20%-wide span of [startX … endX]: the first over
+        // 20–40%, the second over 60–80% (Han #12). The 4 notes spread evenly inside.
         const span = endX - startX;
-        const NOTE_W = 10;                     // tight eighth spacing → small group
-        const bundleW = pat.length * NOTE_W;
-        const centers = [startX + span * 0.33, startX + span * 0.66];
+        const BUNDLE_SPAN = span * 0.20;
+        const NOTE_W = BUNDLE_SPAN / pat.length;
+        const bundleOx = [startX + span * 0.20, startX + span * 0.60];
 
         // One option = a real percussion render (proper notehead assets + beaming);
         // `split` toggles percussionVoiceSplit on that layer.
-        const option = (key, split, active, cx, onTap) => {
+        const option = (key, split, active, ox, onTap) => {
             const color = active ? 'var(--accent-yellow)' : 'var(--range-lowlight)';
-            const ox = cx - bundleW / 2;
             return (
                 <g key={key} style={{ cursor: onToggleVoiceSplit ? 'pointer' : 'default' }} onClick={onTap}>
-                    <rect x={ox - 6} y={y - 6} width={bundleW + 12} height={48} rx={3}
+                    <rect x={ox - 6} y={y - 6} width={BUNDLE_SPAN + 12} height={48} rx={3}
                         fill="transparent" stroke={color} strokeWidth={active ? 1.6 : 0.8}
                         vectorEffect="non-scaling-stroke" />
                     <g style={{ pointerEvents: 'none' }}>
@@ -263,7 +263,7 @@ const ClefStaffOverlay = ({
                         />
                     </g>
                     {debugMode && (
-                        <rect x={ox - 6} y={y - 6} width={bundleW + 12} height={48}
+                        <rect x={ox - 6} y={y - 6} width={BUNDLE_SPAN + 12} height={48}
                             fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
                             style={{ pointerEvents: 'none' }} />
                     )}
@@ -313,10 +313,10 @@ const ClefStaffOverlay = ({
                     clipId={clipId}
                     clipRect={{ x: 0, y: y - 6, width: startX, height: 56 }}
                 />
-                {/* Right: together / split toggler bundles at ~33% / ~66%, enabled only. */}
-                {!percussionDisabled && option('together', false, !percussionVoiceSplit, centers[0],
+                {/* Right: together / split toggler bundles over 20–40% / 60–80%, enabled only. */}
+                {!percussionDisabled && option('together', false, !percussionVoiceSplit, bundleOx[0],
                     () => { if (percussionVoiceSplit) onToggleVoiceSplit?.(); })}
-                {!percussionDisabled && option('split', true, percussionVoiceSplit, centers[1],
+                {!percussionDisabled && option('split', true, percussionVoiceSplit, bundleOx[1],
                     () => { if (!percussionVoiceSplit) onToggleVoiceSplit?.(); })}
             </g>
         );

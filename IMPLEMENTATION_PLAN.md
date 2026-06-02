@@ -9,6 +9,15 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
+## Feedback batch (Han 2026-06-01 #12)
+✅ done:
+- Chord STYLE (off/letters/roman) → CLEF setter (new ChordStyleOverlay), rendered in
+  the sheet chord-label font (root 26 / super 16 Georgia italic). Chord COMPLEXITY
+  stays in the RANGE setter (ChordStaffOverlay).
+- Complexity chords repositioned to 10/30/50/70/90% of the row width (no clipping).
+- Clef-setter percussion: two 4-note bundles filling 20–40% and 60–80% of the span
+  (NOTE_W = 20%-span / 4), beamed via the real pipeline.
+
 ## Feedback batch (Han 2026-06-01 #11)
 ✅ done:
 - Chord row moved to the RANGE setter; complexity chords render as REAL whole-notes

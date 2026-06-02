@@ -2420,20 +2420,21 @@ wiring + `setPercussionVoiceSplit`), `hooks/useRangeMorph.js` (queries
 (`clefEditMode` + toggle/open), `styles/App.css` (`.clef-family-glyph`
 transform+opacity transition).
 
-### 37.3 Chord selector — the chord row, INSIDE the RANGE setter (Han #6→#11)
+### 37.3 Chord selector — split across RANGE + CLEF (Han #6→#12)
 
-The chord-row selector lives INSIDE the RANGE setter (moved there in #11; it was
-briefly in clef mode in #6). `ChordStaffOverlay` renders whenever `rangeMounted`,
-in the chord row above the treble staff. Two sub-rows:
-- **Complexity** (`chordSettings.complexity`): 5 chords drawn as REAL stacked
-  whole-notes via `MelodyNotesLayer` (§6c reuse — NOT hand-rolled glyphs): tonic
-  `[C4]`, power `[C4,G4]`, triad `[C4,E4,G4]`, seventh `[C4,E4,G4,B4]`, and
-  "extended" = bright `[C4,G4]` + lowlit `[E4,B4]` (same column) + a right-offset
-  lowlit `[D4,F4,A4]`. Stored canonically (tonic→`root`, extended→`ninth`).
-- **Visualisation** (`chordDisplayMode`): X disable at startX, then a short real
-  progression sample — letters `D− G7 C` @33%, roman `ii V7 I` @66% (~15u apart).
-The morph treats `.chord-overlay` as part of the 'range' surface so it fades/flies
-with the range overlay.
+The chord controls split into two pieces, each in the chord row above the treble
+staff but in different setters (Han #12):
+- **Complexity** → the RANGE setter (`ChordStaffOverlay`, rendered on `rangeMounted`;
+  `.chord-overlay` is part of the 'range' morph surface). 5 chords drawn as REAL
+  stacked whole-notes via `MelodyNotesLayer` (§6c reuse — NOT hand-rolled glyphs):
+  tonic `[C4]`, power `[C4,G4]`, triad `[C4,E4,G4]`, seventh `[C4,E4,G4,B4]`, and
+  "extended" = bright `[C4,G4]` + lowlit `[E4,B4]` (same column) + right-offset lowlit
+  `[D4,F4,A4]`. Stored canonically (tonic→`root`, extended→`ninth`). Positioned at
+  10/30/50/70/90% of the row width (avoids clipping).
+- **Style/visualisation** → the CLEF setter (`ChordStyleOverlay`, on `clefMounted`;
+  `.chord-style-overlay` is part of the 'clef' morph surface). X disable at startX,
+  then real progression samples — letters `D− G7 C` @33%, roman `ii V7 I` @66% — in
+  the SHEET chord-label font (root 26 / super 16 Georgia italic).
 Reuse: `chordDisplayMode='off'` (X) options below:
 - **X** → `chordDisplayMode='off'`: hides the labels (`chordsHidden` gates
   `actualChords`) AND mutes the audio (a `chordsDisabledRef` mirrors the mode into

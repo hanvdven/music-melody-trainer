@@ -83,90 +83,46 @@ const ChordNotes = ({ id, cx, baseY, active }) => {
     );
 };
 
-// A short chord-label progression sample (letters or roman), real chord-label style.
-const ProgressionSample = ({ cx, cy, kind, color }) => {
-    const items = kind === 'roman'
-        ? [{ r: 'ii' }, { r: 'V', sup: '7' }, { r: 'I' }]
-        : [{ r: 'D−' }, { r: 'G', sup: '7' }, { r: 'C' }];
-    const GAP = 15;   // ~15 units apart (Han)
-    const x0 = cx - GAP;
-    return (
-        <g style={{ pointerEvents: 'none' }} fill={color} fontFamily="Georgia, serif">
-            {items.map((it, i) => (
-                <g key={i}>
-                    <text x={x0 + i * GAP} y={cy + 5} fontSize={15} textAnchor="middle">{it.r}</text>
-                    {it.sup && <text x={x0 + i * GAP + 8} y={cy - 3} fontSize={9} textAnchor="start">{it.sup}</text>}
-                </g>
-            ))}
-        </g>
-    );
-};
-
+// ChordStaffOverlay — the chord-COMPLEXITY selector (range setter). 5 chords drawn
+// as real whole-notes at 10/30/50/70/90% of the width (Han #12 — avoids the clipping
+// the old 0/25/…/100% layout caused). The chord STYLE (off/letters/roman) moved to
+// the CLEF setter (see ChordStyleOverlay).
 const ChordStaffOverlay = ({
     startX, endX, trebleStart,
-    chordDisplayMode = 'letters',
     chordComplexity = 'triad',
-    onSetChordDisplayMode,
     onSetChordComplexity,
     debugMode = false,
 }) => {
     if (startX == null || trebleStart == null) return null;
-    // Two sub-rows above the treble staff: complexity (higher) + visualisation.
-    const vizY = trebleStart - 44;
-    const cplxStaffY = trebleStart - 120;   // staff top fed to MelodyNotesLayer
+    const cplxStaffY = trebleStart - 86;    // staff top fed to MelodyNotesLayer
     const span = (endX ?? startX) - startX;
-    const cx33 = startX + span * 0.33;
-    const cx66 = startX + span * 0.66;
+    const cplxRowY = cplxStaffY + 20;       // approx visual centre for the hit box
 
-    const isLetters = chordDisplayMode !== 'off' && chordDisplayMode !== 'roman';
-    const hit = (key, rowY, node, hitX, hitW, onTap) => (
-        <g key={key} data-fly=""
-            style={{ cursor: onTap ? 'pointer' : 'default' }}
-            onClick={onTap}>
-            <rect x={hitX} y={rowY - 24} width={hitW} height={48} fill="transparent" />
-            {node}
-            {debugMode && (
-                <rect x={hitX} y={rowY - 24} width={hitW} height={48}
-                    fill="orange" fillOpacity={0.15} stroke="orange" strokeWidth={0.5}
-                    style={{ pointerEvents: 'none' }} />
-            )}
-        </g>
-    );
-
-    const offColor = chordDisplayMode === 'off' ? 'var(--accent-yellow)' : 'var(--text-primary)';
-    const lettersColor = isLetters ? 'var(--accent-yellow)' : 'var(--text-primary)';
-    const romanColor = chordDisplayMode === 'roman' ? 'var(--accent-yellow)' : 'var(--text-primary)';
-
-    const cplxStep = (span - 36) / (COMPLEXITY_OPTS.length - 1);
-    const cplxX0 = startX + 24;
-    const cplxRowY = cplxStaffY + 20;   // approx visual centre for the hit box
     const activeCplx = ({ root: 'tonic', tonic: 'tonic', power: 'power', triad: 'triad',
         seventh: 'seventh', ninth: 'extended', eleventh: 'extended', thirteenth: 'extended',
         extended: 'extended' })[chordComplexity] || 'triad';
 
+    // Centres at 10/30/50/70/90% of the row width (Han #12).
+    const PCTS = [0.10, 0.30, 0.50, 0.70, 0.90];
+
     return (
         <g className="chord-overlay" onClick={(e) => e.stopPropagation()}>
-            {/* ── Complexity row: 5 real whole-note chords ── */}
             {onSetChordComplexity && COMPLEXITY_OPTS.map((opt, i) => {
-                const cx = cplxX0 + i * cplxStep;
-                return hit(`cplx-${opt.id}`, cplxRowY,
-                    <ChordNotes id={opt.id} cx={cx} baseY={cplxStaffY} active={activeCplx === opt.id} />,
-                    cx - 14, 30, () => onSetChordComplexity(opt.value));
+                const cx = startX + span * PCTS[i];
+                return (
+                    <g key={`cplx-${opt.id}`} data-fly=""
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => onSetChordComplexity(opt.value)}>
+                        <rect x={cx - 14} y={cplxRowY - 24} width={30} height={48} fill="transparent" />
+                        <ChordNotes id={opt.id} cx={cx} baseY={cplxStaffY} active={activeCplx === opt.id} />
+                        {debugMode && (
+                            <rect x={cx - 14} y={cplxRowY - 24} width={30} height={48}
+                                fill="orange" fillOpacity={0.15} stroke="orange" strokeWidth={0.5}
+                                style={{ pointerEvents: 'none' }} />
+                        )}
+                    </g>
+                );
             })}
-
-            {/* ── Visualisation row: X at startX, letters@33%, roman@66% ── */}
-            {hit('off', vizY, (
-                <g stroke={offColor} strokeWidth={2.4} strokeLinecap="round" style={{ pointerEvents: 'none' }}>
-                    <path d={`M ${startX - 8} ${vizY - 16} L ${startX + 8} ${vizY + 16}`} />
-                    <path d={`M ${startX + 8} ${vizY - 16} L ${startX - 8} ${vizY + 16}`} />
-                </g>
-            ), startX - 12, 24, () => onSetChordDisplayMode?.('off'))}
-            {hit('letters', vizY,
-                <ProgressionSample cx={cx33} cy={vizY} kind="letters" color={lettersColor} />,
-                cx33 - 28, 56, () => onSetChordDisplayMode?.('letters'))}
-            {hit('roman', vizY,
-                <ProgressionSample cx={cx66} cy={vizY} kind="roman" color={romanColor} />,
-                cx66 - 28, 56, () => onSetChordDisplayMode?.('roman'))}
         </g>
     );
 };
