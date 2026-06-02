@@ -40,14 +40,15 @@ export default function ClefCarousel({
 
     React.useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
 
-    // Render the visible items plus `visible` extra copies (looped) so glyphs are
-    // available to slide in from the right.
+    // How many slots actually FIT in the gutter (so we never show more glyphs than
+    // there's room for — fixes "4 percussion clefs but only 2 options", Han #8).
     const n = items.length;
-    const total = Math.min(n, visible) + visible;   // visible window + lookahead
+    const fit = clipRect ? Math.max(1, Math.floor((clipRect.x + clipRect.width - startX) / stepX) + 1) : visible;
+    const shown = Math.min(n, fit, Math.max(1, visible));   // visible glyphs on screen
+    // One lookahead copy beyond the right edge, so a slide has something to reveal.
     const strip = [];
-    for (let s = 0; s < total; s++) {
-        const item = items[s % n];
-        strip.push({ item, slot: s, key: `${s}` });
+    for (let s = 0; s < shown + 1; s++) {
+        strip.push({ item: items[s % n], slot: s, key: `${s}` });
     }
 
     const handlePick = (relIndex) => {
@@ -73,9 +74,13 @@ export default function ClefCarousel({
         rafRef.current = requestAnimationFrame(frame);
     };
 
-    // A horizontal fade mask at the RIGHT edge so glyphs "appear from under" it.
+    // A horizontal fade mask: soft fade at BOTH edges so glyphs ease in from the
+    // right AND don't hard-clip at the sheet's left start (Han #8). Edge fades are a
+    // fraction of the gutter width.
     const maskId = `${clipId}-fade`;
-    const fadeStartFrac = clipRect ? Math.max(0, (clipRect.width - stepX * 1.5) / clipRect.width) : 0.7;
+    const w = clipRect ? clipRect.width : 1;
+    const leftFade = Math.min(0.18, (stepX * 0.5) / w);
+    const rightFade = Math.max(0.6, (w - stepX * 1.2) / w);
 
     return (
         <g>
@@ -84,8 +89,9 @@ export default function ClefCarousel({
                     <rect x={clipRect.x} y={clipRect.y} width={clipRect.width} height={clipRect.height} />
                 </clipPath>
                 <linearGradient id={maskId} x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0" stopColor="white" stopOpacity="1" />
-                    <stop offset={fadeStartFrac} stopColor="white" stopOpacity="1" />
+                    <stop offset="0" stopColor="white" stopOpacity="0" />
+                    <stop offset={leftFade} stopColor="white" stopOpacity="1" />
+                    <stop offset={rightFade} stopColor="white" stopOpacity="1" />
                     <stop offset="1" stopColor="white" stopOpacity="0" />
                 </linearGradient>
                 <mask id={`${maskId}-m`}>

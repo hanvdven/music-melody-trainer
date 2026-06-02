@@ -43,11 +43,15 @@ export const CLEF_GLYPH_SIZE = 36;
  * match the 15ma marker. `cx`/`cy` is the marker centre; `below` swaps ma→mb.
  */
 export const Ottava22 = ({ cx, cy, fill = 'var(--text-primary)', below = false }) => (
-  <g style={{ pointerEvents: 'none' }} fill={fill} fontFamily="Maestro">
-    {/* "22" at the ottava digit size (matches Maestro's 15 numerals). */}
-    <text x={cx} y={cy} fontSize={18} textAnchor="middle">22</text>
-    {/* superscript ma / mb, raised like the baked-in 15ma ligature. */}
-    <text x={cx + 11} y={cy - 7} fontSize={10} textAnchor="start">
+  // IMPORTANT: the Maestro font maps ASCII digits/letters to MUSIC glyphs (PUA), so
+  // "22ma" must be drawn in a normal text font — using fontFamily="Maestro" here
+  // rendered unreadable symbols (the 22mb-invisible bug, Han 2026-06-01 #8). We use
+  // the same italic serif as ottava lines, bold for legibility at small size.
+  <g style={{ pointerEvents: 'none' }} fill={fill} fontFamily="Georgia, serif"
+    fontStyle="italic" fontWeight="bold">
+    <text x={cx} y={cy} fontSize={15} textAnchor="middle">22</text>
+    {/* superscript ma / mb, raised + smaller, like the 8ᵛᵃ / 15ᵐᵃ ligature. */}
+    <text x={cx + 9} y={cy - 6} fontSize={9} textAnchor="start">
       {below ? 'mb' : 'ma'}
     </text>
   </g>

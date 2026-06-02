@@ -2863,6 +2863,7 @@ const SheetMusic = ({
                   {(clefEditMode || (rangeMorphing && lastOverlayKind === 'clef')) && (
                     <ChordStaffOverlay
                       startX={startX}
+                      endX={endX}
                       trebleStart={trebleStart}
                       chordDisplayMode={chordDisplayMode}
                       onSetChordDisplayMode={setChordDisplayMode}

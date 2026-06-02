@@ -2445,11 +2445,31 @@ removed.
 
 Maestro's font has pre-composited ottava glyphs only up to 15 (`Û`=15ma etc.) — no
 22. So `clefGlyphs.jsx` adds `treble22va/22vb` + `bass22va/22vb` to `clefSymbols`
-(`ottava:'22'`) and a CUSTOM `<Ottava22>` composite: the font's own "22" digits at
-the ottava size + a small superscript "ma"/"mb", matching the 15ma size/style.
-`ClefGlyph` renders `ottava:'22'` via `Ottava22` (other ottavas keep the baked-in
-font glyph). The 22 clefs aren't wired as a selectable option yet (generation maxes
-at 15ma) — this provides the renderable ASSET for when ±22 is added.
+(`ottava:'22'`) and a CUSTOM `<Ottava22>` composite: an italic-bold serif "22" + a
+small superscript "ma"/"mb". IMPORTANT: it must NOT use `fontFamily="Maestro"` —
+Maestro maps ASCII digits/letters to MUSIC glyphs (PUA), so "22ma" in Maestro
+rendered unreadable symbols (the 22mb-invisible bug, Han #8); a normal text font is
+required. `ClefGlyph` renders `ottava:'22'` via `Ottava22` (other ottavas keep the
+baked-in font glyph). The 22 clefs aren't wired as a selectable option yet
+(generation maxes at 15ma) — this provides the renderable ASSET for when ±22 is added.
+
+### 37.6 Selector layout polish (Han 2026-06-01 #8)
+
+- **ClefCarousel** now fades at BOTH edges (a left+right linear-gradient mask) so
+  glyphs ease in from the right without hard-clipping at the sheet's left start, and
+  it caps the number of shown glyphs to the gutter's capacity (fixes "4 percussion
+  clefs shown for a 2-option toggle"). The morph hook (`useRangeMorph`) resets inline
+  styles on interrupt so rapid re-toggling never leaves a group stuck (re-arm bug).
+- **Variant clefs** (octave/vocal options) render as TRUE-SIZE `ClefGlyph`s
+  distributed evenly across `startX…endX`, not small boxed chips.
+- **Chord row**: an X disable cross at `startX`, then letters@33% / roman@66%
+  rendered like real chord labels (no boxes).
+- **Percussion block**: the clef is a 2-item carousel (`/` ↔ X) aligned to the sheet
+  percussion clef x (18) and clickable (transparent hit rect); the together/split
+  toggler renders the `[[k,hh],hh,[s,hh],hh]` EIGHTH-note pattern as two compact
+  bundles centred at ~33%/66%.
+- The disable **cross** is 2× taller than wide (spans the staff) everywhere
+  (clef gutter, percussion, chord row).
 
 ### 37.4a Dual-surface + ghost staff (Han 2026-06-01 #7)
 

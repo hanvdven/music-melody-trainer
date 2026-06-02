@@ -9,6 +9,21 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
+## Feedback batch (Han 2026-06-01 #8)
+✅ done:
+- 22ma/22mb: was rendered in Maestro (→ music glyphs, unreadable). Now `Ottava22`
+  uses an italic-bold serif "22" + superscript ma/mb → legible.
+- 🐞 morph re-arm: cleanup now resetStyles() on interrupt, so a rapid re-toggle
+  never leaves a group stuck (the "doesn't trigger after repeated clicking" bug).
+- rim-shot slash → TOP-LEFT→BOTTOM-RIGHT ("\", Han corrected mid-round).
+- percussion mini-melody → [[k,hh],hh,[s,hh],hh] EIGHTHS, compact bundles at 33/66%.
+- chord row: X (tall cross) at startX; letters@33% / roman@66% as real chords (no box).
+- variant clefs → true-size ClefGlyph, distributed across startX→endX (no boxes).
+- carousel: soft fade at BOTH edges (no hard left clip).
+- disable cross 2× taller (same width) — clef gutter, percussion, chord.
+- ClefCarousel caps shown glyphs to gutter capacity (fixes "4 perc clefs, 2 options").
+- percussion clef aligned to sheet x=18 + clickable (added hit rect).
+
 ## Feedback batch (Han 2026-06-01 #7)
 1. ✅ Clef setter active on SHEET → keyboard shows the RANGE setter (TabView swaps
    KeyboardRangeSetter when rangeEditMode || clefEditMode; clefEditMode threaded).
