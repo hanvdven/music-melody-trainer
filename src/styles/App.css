@@ -921,3 +921,14 @@ path {
 .chord-note-hit {
   filter: drop-shadow(0 0 8px #00FF00) drop-shadow(0 0 4px #00FF00) !important;
 }
+/* Clef setter: when a different clef FAMILY is selected, the new variant cards slide
+   in from the left + fade in (Han B1, 2026-06-03). Triggered by remounting the variant
+   group with key={famId}. During the OPEN morph the cards' inline transform (set by
+   useRangeMorph on the data-fly elements) overrides this, so there's no double-anim. */
+@keyframes clefVariantEnter {
+  from { transform: translateX(-28px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+.clef-variant-enter {
+  animation: clefVariantEnter 0.4s ease-out;
+}

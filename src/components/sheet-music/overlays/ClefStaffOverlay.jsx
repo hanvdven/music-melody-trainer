@@ -323,7 +323,8 @@ const ClefStaffOverlay = ({
                 );
             };
             variantContent = (
-                <g className="clef-variant-cards" data-fly="" data-fly-from={startX}>
+                <g key={`clefvar-${famId}`} className="clef-variant-cards clef-variant-enter"
+                    data-fly="" data-fly-from={startX}>
                     <ClefCardCarousel cards={cards} x0={VAR_X0} y={staffStart - 24}
                         viewWidth={viewWidth} height={74} cardW={VOC_CARD_W}
                         cardWidths={cards.map(cardWidth)}
@@ -375,7 +376,8 @@ const ClefStaffOverlay = ({
                 // from the clef; the carousel's INNER strip owns the drag transform (no
                 // conflict: morph uses style.transform on this <g>, drag uses the SVG
                 // transform attr on the inner strip).
-                <g className="clef-variant-cards" data-fly="" data-fly-from={startX}>
+                <g key={`clefvar-${famId}`} className="clef-variant-cards clef-variant-enter"
+                    data-fly="" data-fly-from={startX}>
                     <ClefCardCarousel cards={cards} x0={VAR_X0} y={staffStart - 24}
                         viewWidth={viewWidth} height={74} cardW={CARD_W}
                         cardWidths={cards.map(cardWidth)}
