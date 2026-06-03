@@ -27,7 +27,7 @@
   /* Setter non-selection grey: a DARKER lowlight used by the in-SVG settings
      setters (clef / notation / range) so the unselected options recede clearly
      behind the yellow active one (Han 2026-06-03). Per-theme below. */
-  --setter-lowlight: #4a4a4a;
+  --setter-lowlight: #3a3a3a;
 
   /* Accent */
   --accent-yellow: #f2c879;
@@ -170,7 +170,7 @@
   --text-tonic: #0b1020;
   --text-highlight: #e6e8ef;
   --text-lowlight: #8a90a8;
-  --setter-lowlight: #474b61;
+  --setter-lowlight: #383c4e;
 
   --accent-yellow: #d4af37;
   --button-active: var(--accent-yellow);
@@ -197,7 +197,7 @@
   --text-tonic: #3a2e1f;
   --text-highlight: #4a5f73;
   --text-lowlight: #7b6a55;
-  --setter-lowlight: #43392c;
+  --setter-lowlight: #342d23;
 
   --accent-yellow: #b08a5a;
   --button-active: var(--accent-yellow);
@@ -224,7 +224,7 @@
   --text-tonic: #2b3a42;
   --text-highlight: #445a6b;
   --text-lowlight: #7d8e9c;
-  --setter-lowlight: #414d56;
+  --setter-lowlight: #333d45;
 
   --accent-yellow: #c97b4b;
   /* strong enough to read on light bg */

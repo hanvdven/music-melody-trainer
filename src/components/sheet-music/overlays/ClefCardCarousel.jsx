@@ -94,10 +94,11 @@ export default function ClefCardCarousel({
     // Gentle edge fade so off-screen cards ease in/out of the window rather than
     // hard-cutting; left edge only softens when actually scrolled away from the start.
     const maskId = `${clipId}-fade`;
-    // Fades sit right at the window edges only — a wider fade reads as the cards being
-    // "clipped early" (Han 2026-06-03). They exist solely to hint there's more to swipe.
-    const leftSoft = offsetRef.current < -1 ? 0.015 : 0;
-    const rightSoft = scrollable ? 0.985 : 1;
+    // Edge fades each span 10% of the window (0–10% left, 90–100% right) — Han 2026-06-03.
+    // Left only fades once actually scrolled away from the start; right only when there's
+    // more to reveal.
+    const leftSoft = offsetRef.current < -1 ? 0.10 : 0;
+    const rightSoft = scrollable ? 0.90 : 1;
     // Clip HORIZONTALLY only: cards must never be cut at the top or bottom (Han
     // 2026-06-03, "clip gewoon NIET"). Tall clefs, 8va/15ma markers and notes above
     // the staff all need to render fully; only off-window cards (left/right of the
