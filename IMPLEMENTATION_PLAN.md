@@ -603,3 +603,40 @@ Muziek|Toonladder).
     (fade-out/slide-in on clef select; 8va & the 15-above-treble not animated/coloured;
     melody flashes between overlay transitions), add/ext chord 3-column spacing (range
     selector). Grouped as a TRANSITIONS/ANIMATION batch next.
+
+============================================================
+## MASTER PLAN (Han 2026-06-03 "maak een plan") — clef setter first, finish it 100%
+============================================================
+Working method now: render harness (npm run render:overlay) → I self-verify geometry
+before sending. Per CLAUDE.md: finish the clef setter fully before chord line / range.
+
+BATCH A — CLEF SETTER polish (all self-verifiable via render):
+  A1 ✅/🔨 #8: family-carousel ACTIVE clef must sit at EXACT real-staff position.
+     Fix: renderFamily ClefGlyph anchor 'middle'→'start' at CLEF_GLYPH_X (matches sheet).
+  A2 🔨 #11 redo: 8va treble must use the real MAESTRO ottava glyph, not '&' + drawn
+     serif '8' (Han: ALT+0160 was wrong; use the font glyph).
+  A3 🔨 reference notes must COLOUR per the note-colour scheme (tonic/scale), not one
+     flat colour — wire noteColoringMode + tonic + scaleNotes into the card layer.
+  A4 ✅/🔨 non-selection lowlight a touch darker still (dark mode).
+  A5 🔨 carousel clip → 5%/95% of [startX,endX]; edge fade = 10% of width (0–10%,90–100%).
+  A6 🔨 responsive: on narrow screens render ONLY the selected clef's notes (space).
+  A7 ❓ "akkoorden iets verder uit elkaar in notation setter" — clarify (chords in clef
+     setter?) — likely chord LINE (Batch C).
+
+BATCH B — TRANSITIONS/ANIMATION (clef setter):
+  B1 fade-out / slide-in (from the left) of the new clefs when a clef is selected.
+  B2 8va + 15 markers animate WITH the morph (currently left behind).
+  B3 #1 ottava glyphs + brackets ("blokhaken") slide in with the morph.
+  B4 melody FLASHES through during transitions between two settings overlays → hide it.
+
+BATCH C — CHORD LINE (akkoordlijn): #2 chords not neatly in block, #3 3-col spacing,
+  #4 transpose up to kill C4 ledger, #13 chord height, chords a bit further apart,
+  chord clickzone too narrow.
+
+BATCH D — RANGE SETTER: #5 two-zone drag, #16 transpose for G-(F inst), add/ext chord
+  3-column spacing too tight, chord-type clickzones misaligned.
+
+BATCH E — CLICKZONES sweep: percussion (too small), chords (too narrow), range chord
+  types (misaligned). (Fold into C/D where they live.)
+
+BATCH F — REAL STAFF: #7 percussion beam is yellow → should follow note colour.

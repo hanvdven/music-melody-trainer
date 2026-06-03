@@ -216,7 +216,10 @@ const ClefStaffOverlay = ({
                             <path d={`M 9 ${staffStart + 2} L -9 ${staffStart + 38}`} />
                         </g>
                     ) : (
-                        <ClefGlyph symbolKey={symbolKey} x={0} baseY={staffStart + 30} fill={colr} anchor="middle" />
+                        // anchor='start' at CLEF_GLYPH_X so the ACTIVE family clef (slot 0,
+                        // at x=CLEF_GLYPH_X) sits at the EXACT same position as the real
+                        // staff clef and the range setter (Han #8, 2026-06-03).
+                        <ClefGlyph symbolKey={symbolKey} x={0} baseY={staffStart + 30} fill={colr} anchor="start" />
                     )}
                     {debugMode && (
                         <rect x={-FAMILY_SLOT_W / 2} y={staffStart - 18} width={FAMILY_SLOT_W} height={60}
@@ -257,10 +260,11 @@ const ClefStaffOverlay = ({
         const refNotes = refTriadNotes(tonicName, tonicSemi, fifthName, fifthSemi, refLo, refHi);
         // Distribute the variant clefs across 12%→86% of the staff body [startX…endX]
         // (Han 2026-06-03): the 12% left inset clears the family clef-setter in the
-        // gutter, the 86% right cap keeps the last clef off the staff's right edge.
+        // Variant carousel window spans 5%→95% of the staff body [startX…endX]; the edge
+        // fades each take 10% of that width (0–10% and 90–100%) — Han 2026-06-03.
         const W = endX - startX;
-        const VAR_X0 = startX + 0.12 * W;
-        const VAR_X1 = startX + 0.86 * W;
+        const VAR_X0 = startX + 0.05 * W;
+        const VAR_X1 = startX + 0.95 * W;
         const viewWidth = VAR_X1 - VAR_X0;
 
         let variantContent = null;
