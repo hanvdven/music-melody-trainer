@@ -44,6 +44,24 @@ REMAINING — staged batches:
     for future consolidation). Result: Bass/Bari/Tenor C3-G3-C4, Alto/Mezzo C4-G4-C5,
     Soprano C5-G5-C6.
   · BATCH 2 COMPLETE pending Han's visual verification.
+
+- 🔨 CR (Han 2026-06-03, supersedes fixed C-G-C): clef-setter reference notes should be
+  TONIC + FIFTH + OCTAVE, RESPONSIVE to the tonic setter (not fixed C-G-C). Implies:
+  (a) pass `tonic` into ClefStaffOverlay (currently not passed; SheetMusic has it).
+  (b) transposing-instrument cards may need per-note accidentals (♯/♭) on the shifted
+      notes — Han expects this logic doesn't exist yet for the setter. REUSE the real
+      staff's transposition/spelling path (§6c), don't reinvent.
+  (c) write all voortekens at NOTE level (accidental before each note), NOT as a key
+      signature on the staff — to avoid clutter.
+  ✅ DONE. Interview answers: both melodic+vocal · ACTUAL 5th scale degree (not always
+     P5) · reuse real-staff transpose/spelling · centred octave.
+  Impl: refTriadNotes(tonicName,tonicSemi,fifthName,fifthSemi,lo,hi) — octave-centred,
+  scale-spelled names; tonicAndFifth() reads tonic + scaleNotes[4] (fallback P5).
+  tonic+scaleNotes threaded SheetMusic→ClefStaffOverlay. Accidentals: free via existing
+  numAccidentals:0 + generateAccidentalMap (naturals in-key, ♯/♭ drawn per note,
+  octave-distinct); transposition via existing transposeMelodyBySemitones. REF_NOTES
+  const removed. 207 tests + build green. Verified triads: C→C4-G4-C5, E♭→E♭4-B♭4-E♭5,
+  F♯→F♯3-C♯4-F♯4, etc. ⏳ needs Han visual verification.
   · ⏳ #13 chord height → belongs with Batch 3 (chord line).
 - BATCH 3 (chord line / ext-add chord editor): #2 chords not neatly in block, #3 3-column
   spacing too tight, #4 transpose chord-line notes up to start at D4 (kill C4 ledger).
