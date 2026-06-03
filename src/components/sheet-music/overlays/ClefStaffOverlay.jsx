@@ -11,28 +11,56 @@ import MelodyNotesLayer from '../MelodyNotesLayer';
 import { processMelodyAndCalculateSlots } from '../processMelodyAndCalculateSlots';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
 import { getNoteValue, getNoteFromValue } from '../../../utils/rangeUtils';
+import { getNoteSemitone } from '../../../theory/noteUtils';
 
-// vocalRefTriad — the C-G-C reference notes for a vocal voice, chosen to sit inside
-// that voice's singing range (Han #14, 2026-06-03). We pick the octave whose triad
-// [C_o, G_o, C_{o+1}] falls most inside [min,max] (fewest semitones spilling past
-// either end), tie-broken toward the centre of the range. Derived from the range —
-// no per-voice note table (§6c).
-const vocalRefTriad = (min, max) => {
-    const lo = getNoteValue(min), hi = getNoteValue(max);
-    const rangeCentre = (lo + hi) / 2;
+const stripOctave = (n) => (n ? n.replace(/-?\d+$/, '') : n);
+
+// refTriadNotes — the [tonic, 5th-degree, octave] reference notes for a clef card
+// (Han 2026-06-03, supersedes fixed C-G-C). RESPONSIVE to the tonic setter and the
+// current scale's 5th DEGREE (not a fixed perfect fifth — Han's choice). The note
+// NAMES carry the scale's ♯/♭ spelling so they render as NOTE-LEVEL accidentals
+// (no key signature; the card uses numAccidentals:0). The octave is chosen so the
+// triad centres in [lo,hi] (MIDI) — fewest semitones spilling past either end, then
+// nearest the centre — giving minimal ledger lines (§6c: derived, no note table).
+//   tonicName/fifthName: pitch-class spellings (no octave) for display.
+//   tonicSemi/fifthSemi: their pitch classes (0–11) for octave maths.
+const refTriadNotes = (tonicName, tonicSemi, fifthName, fifthSemi, lo, hi) => {
+    const centre = (lo + hi) / 2;
+    // Interval (semitones) from the tonic UP to the 5th degree, within one octave.
+    const fifthInterval = (((fifthSemi - tonicSemi) % 12) + 12) % 12;
     let best = null;
-    // C_o has MIDI (o+1)*12; scan every octave whose root C could be near the range.
-    for (let o = 0; o <= 8; o++) {
-        const root = (o + 1) * 12;          // C_o
-        const top = root + 12;              // C_{o+1}
+    // Candidate tonic MIDI values = the tonic pitch class in each octave.
+    for (let o = 0; o <= 9; o++) {
+        const root = tonicSemi + 12 * o;
+        if (root < 12 || root > 119) continue;
+        const top = root + 12;
         const spill = Math.max(0, lo - root) + Math.max(0, top - hi);
-        const offCentre = Math.abs((root + top) / 2 - rangeCentre);
+        const offCentre = Math.abs((root + top) / 2 - centre);
         if (!best || spill < best.spill || (spill === best.spill && offCentre < best.offCentre)) {
             best = { root, spill, offCentre };
         }
     }
-    // G_o is a perfect fifth (7 semitones) above C_o; top note is the octave C.
-    return [getNoteFromValue(best.root), getNoteFromValue(best.root + 7), getNoteFromValue(best.root + 12)];
+    const octDigit = (v) => Math.floor(v / 12) - 1;   // scientific-pitch octave number
+    const root = best.root;
+    return [
+        `${tonicName}${octDigit(root)}`,
+        `${fifthName}${octDigit(root + fifthInterval)}`,
+        `${tonicName}${octDigit(root + 12)}`,
+    ];
+};
+
+// Resolve the tonic pitch-class spelling + the scale's 5th-degree spelling from the
+// current key. Falls back to a perfect fifth (sharp spelling) when the scale isn't
+// available (e.g. chromatic / unset) so the card still renders something sensible.
+const tonicAndFifth = (tonic, scaleNotes) => {
+    const tonicName = stripOctave(tonic) || 'C';
+    const tonicSemi = getNoteSemitone(tonicName);
+    if (scaleNotes && scaleNotes.length >= 5) {
+        const fifthName = stripOctave(scaleNotes[4]);
+        return { tonicName, tonicSemi, fifthName, fifthSemi: getNoteSemitone(fifthName) };
+    }
+    const fifthSemi = (tonicSemi + 7) % 12;
+    return { tonicName, tonicSemi, fifthName: stripOctave(getNoteFromValue(60 + fifthSemi)), fifthSemi };
 };
 
 /**
@@ -69,9 +97,9 @@ const PERC_LAYER_PROPS = {
 };
 
 // The 3-note reference melody drawn after each clickable clef so the transposition /
-// clef reads instantly (Han #14): C4 G4 C5 in the G family, C3 G3 C4 in the F family.
+// clef reads instantly (Han #14). The notes are tonic + 5th scale degree + octave,
+// responsive to the tonic setter (see refTriadNotes above), octave-placed per card.
 const Q = TICKS_PER_WHOLE / 4;
-const REF_NOTES = { g: ['C4', 'G4', 'C5'], f: ['C3', 'G3', 'C4'] };
 const REF_LAYER_PROPS = {
     numAccidentals: 0, scaleNotes: [], tonic: '', processedChords: [], inputTestState: null,
     pixelsPerTick: null, startMeasureIndex: 0, debugMode: false, interactive: false,
@@ -135,6 +163,7 @@ const ClefStaffOverlay = ({
     isTrebleVisible, isBassVisible, isPercussionVisible,
     clefTreble, clefBass,
     trebleSettings, bassSettings,
+    tonic, scaleNotes,           // current key — reference notes are tonic+5th+octave
     percussionVoiceSplit = false,
     percussionDisabled = false,
     theme,
@@ -150,6 +179,10 @@ const ClefStaffOverlay = ({
     // (~x=13) and neighbours peek/scroll to its right up to startX. Variant chips
     // occupy the staff body from startX onward.
     const splitX = startX;
+
+    // Reference notes for every card = tonic + 5th scale degree + octave, in the
+    // current key (Han 2026-06-03). Computed once; octave-placed per card below.
+    const { tonicName, tonicSemi, fifthName, fifthSemi } = tonicAndFifth(tonic, scaleNotes);
 
     // One staff block: family carousel (left) + variants (right).
     const staffBlock = (staff, staffStart, clef, settings) => {
@@ -217,7 +250,11 @@ const ClefStaffOverlay = ({
         // 'off' (disabled staff) has no variants.
         const rangeMode = settings?.rangeMode;
         const baseClef = famId === 'g' ? 'treble' : 'bass';
-        const refNotes = REF_NOTES[famId];          // 3-note reference melody (G/F only)
+        // Melodic G/F reference triad, centred on the clef's comfortable octave
+        // (treble ≈ C4–C5, bass ≈ C3–C4) so it reads like the old fixed C-G-C but
+        // now follows the tonic. The 5th degree comes from the current scale.
+        const [refLo, refHi] = baseClef === 'treble' ? [60, 72] : [48, 60];
+        const refNotes = refTriadNotes(tonicName, tonicSemi, fifthName, fifthSemi, refLo, refHi);
         // Distribute the variant clefs across 12%→86% of the staff body [startX…endX]
         // (Han 2026-06-03): the 12% left inset clears the family clef-setter in the
         // gutter, the 86% right cap keeps the last clef off the staff's right edge.
@@ -235,7 +272,8 @@ const ClefStaffOverlay = ({
             const VOC_CARD_W = 72;
             const cards = VOCAL_VARIANTS.map(v => ({
                 key: `voc-${v.rangeMode}`, clef: v.clef,
-                notes: vocalRefTriad(v.min, v.max),
+                notes: refTriadNotes(tonicName, tonicSemi, fifthName, fifthSemi,
+                    getNoteValue(v.min), getNoteValue(v.max)),
                 active: rangeMode === v.rangeMode,
                 onTap: () => onApplyClefPatch?.(staff, patchForVocal(v)),
             }));
