@@ -590,3 +590,16 @@ Muziek|Toonladder).
     (= sheet's accidentalStartX−10), notes at x+48 (just past clef, no key-sig gap).
   · ✅ vocal row converted to the SAME swipe carousel as melodic (double-width 184 cards
     overflow → scroll instead of overlap).
+
+- Batch 2 round 6 (Han 2026-06-03 — CONSISTENCY focus + frustration):
+  · ✅ COLOR spec fix: selected clef+notes = var(--text-primary) (NORMAL, not yellow);
+    cards were wrongly accent-yellow. Now matches the family column.
+  · ✅ lowlight UNIFIED: family column was --text-lowlight, cards --setter-lowlight →
+    both now --setter-lowlight (one token). Darkened --setter-lowlight in all 4 themes.
+  · ✅ #9 nudges: first note +8 (NOTES_X x+48→x+56), noteW 33→26 (third ~8 left),
+    CARD_W/VOC_CARD_W 184→158 (right margin ~40% smaller).
+  · ✅ #10 family-clef bottom clipping: ClefCarousel now clips horizontal-only.
+  · ⏳ STILL OPEN (see reply): #8 position mismatch (asked precisely), transitions
+    (fade-out/slide-in on clef select; 8va & the 15-above-treble not animated/coloured;
+    melody flashes between overlay transitions), add/ext chord 3-column spacing (range
+    selector). Grouped as a TRANSITIONS/ANIMATION batch next.
