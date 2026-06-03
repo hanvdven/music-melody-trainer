@@ -187,8 +187,12 @@ const ClefStaffOverlay = ({
         const rangeMode = settings?.rangeMode;
         const baseClef = famId === 'g' ? 'treble' : 'bass';
         const refNotes = REF_NOTES[famId];          // 3-note reference melody (G/F only)
-        const VAR_X0 = splitX + 20;
-        const VAR_X1 = endX - 10;
+        // Distribute the variant clefs across 12%→86% of the staff body [startX…endX]
+        // (Han 2026-06-03): the 12% left inset clears the family clef-setter in the
+        // gutter, the 86% right cap keeps the last clef off the staff's right edge.
+        const W = endX - startX;
+        const VAR_X0 = startX + 0.12 * W;
+        const VAR_X1 = startX + 0.86 * W;
         const viewWidth = VAR_X1 - VAR_X0;
 
         let variantContent = null;
@@ -277,7 +281,7 @@ const ClefStaffOverlay = ({
                 // transform attr on the inner strip).
                 <g className="clef-variant-cards" data-fly="" data-fly-from={startX}>
                     <ClefCardCarousel cards={cards} x0={VAR_X0} y={staffStart - 24}
-                        viewWidth={viewWidth} height={74} cardW={CARD_W}
+                        viewWidth={viewWidth} height={74} clipHeight={108} cardW={CARD_W}
                         clipId={`clefcards-${staff}`} renderCard={renderCard} />
                 </g>
             );
