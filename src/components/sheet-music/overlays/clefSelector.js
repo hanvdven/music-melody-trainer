@@ -33,15 +33,19 @@ export const CLEF_OFF = 'off';
 // F-clef but are distinct VOICES from the instrumental bass clef (Han); the C-clef
 // voices (tenor/alto/mezzo/soprano) share the C-clef glyph at different staff
 // positions. `rangeMode` is the per-voice label the rest of the app already knows.
+// min/max = each voice's singing range; the setter derives its C-G-C reference
+// notes from this range (Han #14, 2026-06-03). NOTE: these ranges mirror
+// VOCAL_RANGES (RangeControls.jsx) / CLEF_VOCAL_RANGES (SheetMusic.jsx); the three
+// copies should be consolidated into one shared constant in a future cleanup.
 export const VOCAL_VARIANTS = [
-    { clef: 'bass', rangeMode: 'Bass', label: 'Bass', glyph: '?', glyphClef: 'f' },
+    { clef: 'bass', rangeMode: 'Bass', label: 'Bass', glyph: '?', glyphClef: 'f', min: 'G2', max: 'C4' },
     // Baritone notates in the F-clef with F on the MIDDLE line (its own 'baritone-f'
     // clef), distinct from the instrumental/Bass F-clef (Han 2026-06-03).
-    { clef: 'baritone-f', rangeMode: 'Baritone', label: 'Baritone', glyph: '?', glyphClef: 'f' },
-    { clef: 'tenor', rangeMode: 'Tenor', label: 'Tenor', glyph: 'B', glyphClef: 'c' },
-    { clef: 'alto', rangeMode: 'Alto', label: 'Alto', glyph: 'B', glyphClef: 'c' },
-    { clef: 'mezzo-soprano', rangeMode: 'Mezzo-soprano', label: 'Mezzo', glyph: 'B', glyphClef: 'c' },
-    { clef: 'soprano', rangeMode: 'Soprano', label: 'Soprano', glyph: 'B', glyphClef: 'c' },
+    { clef: 'baritone-f', rangeMode: 'Baritone', label: 'Baritone', glyph: '?', glyphClef: 'f', min: 'B2', max: 'F4' },
+    { clef: 'tenor', rangeMode: 'Tenor', label: 'Tenor', glyph: 'B', glyphClef: 'c', min: 'D3', max: 'A4' },
+    { clef: 'alto', rangeMode: 'Alto', label: 'Alto', glyph: 'B', glyphClef: 'c', min: 'F3', max: 'C5' },
+    { clef: 'mezzo-soprano', rangeMode: 'Mezzo-soprano', label: 'Mezzo', glyph: 'B', glyphClef: 'c', min: 'A3', max: 'G5' },
+    { clef: 'soprano', rangeMode: 'Soprano', label: 'Soprano', glyph: 'B', glyphClef: 'c', min: 'C4', max: 'G6' },
 ];
 
 // Octave variants per melodic family. `rangeMode` mirrors the existing
