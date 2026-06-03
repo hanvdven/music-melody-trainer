@@ -30,7 +30,7 @@ const TAP_SLOP = 5;                       // < this much movement (user units) =
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export default function ClefCardCarousel({
-    cards, x0, y, viewWidth, height, cardW, renderCard, clipId,
+    cards, x0, y, viewWidth, height, cardW, renderCard, clipId, clipHeight,
 }) {
     const stripRef = React.useRef(null);
     const offsetRef = React.useRef(0);    // committed scroll offset, ≤ 0
@@ -96,12 +96,16 @@ export default function ClefCardCarousel({
     const maskId = `${clipId}-fade`;
     const leftSoft = offsetRef.current < -1 ? 0.04 : 0;
     const rightSoft = scrollable ? 0.96 : 1;
+    // The VISUAL clip can be taller than the tap surface so noteheads/ledger lines
+    // below the staff (e.g. the C4 ledger) aren't cut off, WITHOUT the gesture rect
+    // bleeding into the staff row beneath it (Han 2026-06-03, bottom-clipping bug).
+    const ch = clipHeight || height;
 
     return (
         <g>
             <defs>
                 <clipPath id={clipId}>
-                    <rect x={x0} y={y} width={viewWidth} height={height} />
+                    <rect x={x0} y={y} width={viewWidth} height={ch} />
                 </clipPath>
                 <linearGradient id={maskId} x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0" stopColor="white" stopOpacity={leftSoft ? 0 : 1} />
@@ -110,7 +114,7 @@ export default function ClefCardCarousel({
                     <stop offset="1" stopColor="white" stopOpacity={rightSoft < 1 ? 0 : 1} />
                 </linearGradient>
                 <mask id={`${maskId}-m`}>
-                    <rect x={x0} y={y} width={viewWidth} height={height} fill={`url(#${maskId})`} />
+                    <rect x={x0} y={y} width={viewWidth} height={ch} fill={`url(#${maskId})`} />
                 </mask>
             </defs>
             <g clipPath={`url(#${clipId})`} mask={`url(#${maskId}-m)`}>

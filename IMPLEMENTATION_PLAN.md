@@ -22,10 +22,14 @@ Surfaces clarified (Han 2026-06-03): "range setter" = RangeStaffOverlay (SEPARAT
 clef setter); C4-ledger #4 = chords in the akkoordlijn (chord line), not clef-setter notes.
 
 REMAINING — staged batches:
-- BATCH 2 (clef-setter GEOMETRY refactor, approved "reuse real staff geometry"): #8 clef
-  too far right, #9 roomier blocks, #10 bottom clipping at C-ledger, #13 chord height,
-  #14 vocal C-G-C notes + distribute ALL clefs 12%→86%, #15 baritone = F-clef w/ F on
-  middle line (10u lower) + transposition.
+- BATCH 2 (clef-setter GEOMETRY refactor, approved "reuse real staff geometry"):
+  · ✅ #14 distribute variant clefs across 12%→86% of [startX,endX] (carousel + vocal).
+  · ✅ #10 bottom clipping: decoupled carousel clipHeight(108) from tap height(74) so
+    the C4 ledger shows without the gesture rect bleeding into the row below.
+  · ⏳ PIXEL-CALIBRATION (need fresh screenshot to do right, no blind guessing):
+    #8 clef too far right, #9 roomier blocks/spacing, #14 vocal C-G-C note octaves,
+    #15 baritone = F-clef w/ F on middle line (needs a clef added to note-positioning).
+  · ⏳ #13 chord height → belongs with Batch 3 (chord line).
 - BATCH 3 (chord line / ext-add chord editor): #2 chords not neatly in block, #3 3-column
   spacing too tight, #4 transpose chord-line notes up to start at D4 (kill C4 ledger).
 - BATCH 4 (RangeStaffOverlay): #5 two-zone drag (outside-right drag-left = raise; on
