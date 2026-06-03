@@ -114,11 +114,14 @@ const REF_LAYER_PROPS = {
 const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, color, theme }) => {
     // Roomier than the old 0.14 so the 3 reference notes don't crowd (Han #9, 2026-06-03).
     const noteW = Math.max(16, (cardW || 60) * 0.18);
-    // Clef sits inset from the card's left edge so (a) the leftmost card's clef is never
-    // clipped by the swipe window and (b) it reads closer to its melody, matching the
-    // real staff where the clef hugs the notes rather than the page edge (Han #8/#10).
-    const CLEF_X = x + 8;
-    const NOTES_X = x + 24;        // just right of the ~14-wide clef glyph (small gap)
+    // EXACT real-staff geometry (Han #8, 2026-06-03 "exact als echte balk"): the clef
+    // sits at the same CLEF_GLYPH_X (13) the sheet uses, drawn by the SAME ClefGlyph, so
+    // its ottava marker (8/15) lands identically. The card treats `x` as the staff
+    // origin, mirroring SheetMusic's staff group.
+    const CLEF_X = x + CLEF_GLYPH_X;
+    // First note just past the clef glyph (~x=43 on the sheet) — no key-signature gap,
+    // since the setter shows accidentals per-note, not as a key sig.
+    const NOTES_X = x + 48;
     const refMelody = {
         notes, offsets: [0, Q, 2 * Q], durations: [Q, Q, Q],
         displayNotes: notes, ties: [null, null, null], triplets: null, rhythmicGrouping: null,
@@ -130,11 +133,10 @@ const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, c
         <g style={{ pointerEvents: 'none' }}>
             <ClefGlyph symbolKey={symbolKey} x={CLEF_X} baseY={staffStart + 30} fill={color} anchor="start" />
             {inst && (
-                // Match the REAL staff's transposition label exactly (SheetMusic.jsx
-                // staff group): fontSize 12, plain serif, NOT italic — so the setter
-                // reads identically to the sheet (Han 2026-06-03, consistency). Placed
-                // to the UPPER-RIGHT of the clef, not directly above it (Han 2026-06-03).
-                <text x={CLEF_X + 14} y={staffStart - 8} fontSize={12}
+                // Match the REAL staff's transposition label EXACTLY (SheetMusic.jsx staff
+                // group: x = accidentalStartX − 10 ≈ clef + 25, y = −8, fontSize 12, plain
+                // serif, NOT italic). So setter and sheet read identically (Han 2026-06-03).
+                <text x={CLEF_X + 25} y={staffStart - 8} fontSize={12}
                     fontFamily="serif" fill={color} textAnchor="start">
                     {`(${inst}.)`}
                 </text>
@@ -265,11 +267,12 @@ const ClefStaffOverlay = ({
 
         let variantContent = null;
         if (famId === 'vocal') {
-            // Vocal voices: each as a CARD — its REAL clef plus a C-G-C reference triad
-            // sitting inside that voice's range (Han #14, 2026-06-03). A small fixed set,
-            // so they're evenly spread (no swipe). Bass & Baritone are distinct voices on
-            // their own clefs, matched on rangeMode.
-            const VOC_CARD_W = 144;
+            // Vocal voices: a SWIPEABLE strip of clef CARDS — same carousel as the melodic
+            // families (Han 2026-06-03). Each card = the voice's REAL clef + a tonic/5th/
+            // octave triad inside that voice's range. Doubled card width (#9) makes the 6
+            // voices overflow the window, so they scroll rather than overlap. Bass &
+            // Baritone are distinct voices on their own clefs, matched on rangeMode.
+            const VOC_CARD_W = 184;
             const cards = VOCAL_VARIANTS.map(v => ({
                 key: `voc-${v.rangeMode}`, clef: v.clef,
                 notes: refTriadNotes(tonicName, tonicSemi, fifthName, fifthSemi,
@@ -277,34 +280,26 @@ const ClefStaffOverlay = ({
                 active: rangeMode === v.rangeMode,
                 onTap: () => onApplyClefPatch?.(staff, patchForVocal(v)),
             }));
-            // Spread the card LEFT edges so the first sits at VAR_X0 and the last's right
-            // edge lands on VAR_X1 (keeps every card inside the 12%→86% band).
-            const step = cards.length > 1 ? (viewWidth - VOC_CARD_W) / (cards.length - 1) : 0;
+            const renderCard = (card, slotX) => {
+                const color = card.active ? 'var(--accent-yellow)' : 'var(--setter-lowlight)';
+                return (
+                    <g>
+                        <ClefCard symbolKey={card.clef} clef={card.clef} notes={card.notes}
+                            trans={0} inst={null} x={slotX} staffStart={staffStart}
+                            cardW={VOC_CARD_W} color={color} theme={theme} />
+                        {debugMode && (
+                            <rect x={slotX - 4} y={staffStart - 24} width={VOC_CARD_W} height={74}
+                                fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
+                                style={{ pointerEvents: 'none' }} />
+                        )}
+                    </g>
+                );
+            };
             variantContent = (
-                <g className="clef-variant-chips">
-                    {cards.map((c, i) => {
-                        const cardX = cards.length > 1 ? VAR_X0 + i * step : VAR_X0 + (viewWidth - VOC_CARD_W) / 2;
-                        // Active = accent yellow (matches the sheet's settings highlight);
-                        // non-selected = the darker setter-lowlight grey (Han 2026-06-03).
-                        const color = c.active ? 'var(--accent-yellow)' : 'var(--setter-lowlight)';
-                        return (
-                            <g key={c.key} data-fly="" data-fly-from={startX}
-                                style={{ cursor: onApplyClefPatch ? 'pointer' : 'default' }}
-                                onClick={c.onTap}>
-                                {/* Transparent tap target over the card (ClefCard is
-                                    pointerEvents:none); §3a debug rect matches it. */}
-                                <rect x={cardX} y={staffStart - 24} width={VOC_CARD_W} height={74} fill="transparent" />
-                                <ClefCard symbolKey={c.clef} clef={c.clef} notes={c.notes}
-                                    trans={0} inst={null} x={cardX} staffStart={staffStart}
-                                    cardW={VOC_CARD_W} color={color} theme={theme} />
-                                {debugMode && (
-                                    <rect x={cardX} y={staffStart - 24} width={VOC_CARD_W} height={74}
-                                        fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
-                                        style={{ pointerEvents: 'none' }} />
-                                )}
-                            </g>
-                        );
-                    })}
+                <g className="clef-variant-cards" data-fly="" data-fly-from={startX}>
+                    <ClefCardCarousel cards={cards} x0={VAR_X0} y={staffStart - 24}
+                        viewWidth={viewWidth} height={74} cardW={VOC_CARD_W}
+                        clipId={`clefcards-${staff}`} renderCard={renderCard} />
                 </g>
             );
         } else if (famId !== 'off') {
