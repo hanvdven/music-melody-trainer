@@ -9,6 +9,29 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
+## Cleanup round (Han 2026-06-03)
+- ✅ Dead code removed (verified zero refs, tests+build green):
+  · clefSelector: `instrumentClefCards`/`INLINE_CLEF_CARDS`/`transpositionChips`/
+    `INLINE_TRANSPOSITIONS` + now-unused import (superseded by the swipe carousel).
+  · SheetMusic: dead `onOpenInstrumentList` wiring (transPicker still reachable via
+    the staff label — kept).
+  · progressionDefinitions: `getProgressionDegrees`, `RANDOM_STRATEGIES`.
+  · TrebleSettings: duplicate `instrumentOptions` export (canonical in
+    controls/instrumentOptions.js).
+  · drumKits: `CATEGORIES`/`DEFAULT_DRUM_KIT`/`KIT_SAMPLES`/`PADS` (superseded by
+    DRUM_KITS + KIT_NOTE_MAPPINGS; imported nowhere).
+  · Kept (NOT dead): `getTraditionalSolfege`, `computeSequenceBoundaries`,
+    `planPaginationFade`, `PAGINATION_CLAMP_FALLBACK_MEASURES` (test-covered);
+    `ALL_SAMPLES`, `PERCUSSION_DISPLAY_*`, `PREDETERMINED_STRATEGIES` (used).
+- 🔎 Performance review — ran a hot-path sweep; findings VETTED and mostly rejected:
+  · pagination effect `.map()` is in the body, not deps → no spurious re-runs.
+  · dry-run `calculateAllOffsets` (full melody) ≠ windowed useMemo → not redundant;
+    effect is debounced during playback, not per-frame.
+  · highlight rAF already caches DOM lookups (Map) + uses `style.opacity` per §6
+    invariant; "CSS-class opacity" suggestion would VIOLATE §6 → rejected.
+  Conclusion: hot paths already optimized; no safe high-value change found. Any future
+  perf work in Sequencer/highlight/pagination needs an interview (§4b, §6).
+
 ## Feedback batch (Han 2026-06-01 #14)
 🔨
 - ✅ Rename "CLEF" settings → "NOTATION" settings (button label).
