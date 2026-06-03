@@ -21,6 +21,19 @@
 
 Deel deze features in bij de juiste categorie.
 
+### Instrument selector (Han 2026-06-03)
+
+instrument selector: https://icons8.com/icons/set/music--style-ios--static--black (with correct attribution: icons by icons8)
+Rij instrumenten: logo, naam erboven, eventueel transpositie eronder; gebruikelijke highlight, lowlight. On click: speel de C4 af op het instrument. Implementeer de instrumenten die beschikbaar zijn op keyboard
+
+[Claude 2026-06-03]: Genoteerd, nog niet geïmplementeerd. Aandachtspunten voor later:
+- **Attributie verplicht**: "Icons by Icons8" zichtbaar opnemen (gratis-licentie vereist credit/link). About/credits-sectie + evt. naast de selector.
+- Iconen uit icons8 set "music" (iOS static, black); per instrument één SVG/PNG, bundelen in src/assets.
+- Layout per item: logo (midden), naam erboven, transpositie eronder; highlight = accent/--text-primary, lowlight = --setter-lowlight (consistent met clef-setter).
+- On click: speel C4 via bestaande audio-routing (useInstruments / playSound) op het gekozen instrument.
+- "Instrumenten beschikbaar op keyboard" = de smplr-instrumenten die useInstruments/InstrumentSettings al kan laden → afleiden uit die lijst, niet hardcoden (§6c).
+- ⚠ Interview bij Han vóór implementatie (§4b): plaatsing (welke tab/overlay), wel/niet transpositie-rij, vervangt dit de bestaande instrument-picker?
+
 ---
 
 ### Rondes 16/17/18 — afgesloten + open
