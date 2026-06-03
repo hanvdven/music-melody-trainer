@@ -87,8 +87,11 @@ export default function ClefCarousel({
     return (
         <g>
             <defs>
+                {/* Clip HORIZONTALLY only: tall clefs must never be cut at the bottom
+                    (Han #10, 2026-06-03). A huge vertical span makes the clip a vertical
+                    no-op; only glyphs scrolled out the right edge get hidden/faded. */}
                 <clipPath id={clipId}>
-                    <rect x={clipRect.x} y={clipRect.y} width={clipRect.width} height={clipRect.height} />
+                    <rect x={clipRect.x} y={-9999} width={clipRect.width} height={19998} />
                 </clipPath>
                 <linearGradient id={maskId} x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0" stopColor="white" stopOpacity="1" />
@@ -96,7 +99,7 @@ export default function ClefCarousel({
                     <stop offset="1" stopColor="white" stopOpacity="0" />
                 </linearGradient>
                 <mask id={`${maskId}-m`}>
-                    <rect x={clipRect.x} y={clipRect.y} width={clipRect.width} height={clipRect.height}
+                    <rect x={clipRect.x} y={-9999} width={clipRect.width} height={19998}
                         fill={`url(#${maskId})`} />
                 </mask>
             </defs>

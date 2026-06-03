@@ -112,16 +112,13 @@ const REF_LAYER_PROPS = {
 // a small "(B♭ inst.)" superscript for transposing instruments. The notes are the
 // REAL renderer (MelodyNotesLayer) — §6c, never hand-drawn noteheads.
 const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, color, theme }) => {
-    // Roomier than the old 0.14 so the 3 reference notes don't crowd (Han #9, 2026-06-03).
-    const noteW = Math.max(16, (cardW || 60) * 0.18);
-    // EXACT real-staff geometry (Han #8, 2026-06-03 "exact als echte balk"): the clef
-    // sits at the same CLEF_GLYPH_X (13) the sheet uses, drawn by the SAME ClefGlyph, so
-    // its ottava marker (8/15) lands identically. The card treats `x` as the staff
-    // origin, mirroring SheetMusic's staff group.
+    // Note spacing tuned to Han's nudges (2026-06-03): first note +8 right, third −8 left
+    // vs the doubled-width render → a tighter, centred triad. Fixed (not cardW-scaled) so
+    // the nudge is predictable.
+    const noteW = 26;
     const CLEF_X = x + CLEF_GLYPH_X;
-    // First note just past the clef glyph (~x=43 on the sheet) — no key-signature gap,
-    // since the setter shows accidentals per-note, not as a key sig.
-    const NOTES_X = x + 48;
+    // First note +8 further right than before (x+48 → x+56) per Han's nudge.
+    const NOTES_X = x + 56;
     const refMelody = {
         notes, offsets: [0, Q, 2 * Q], durations: [Q, Q, Q],
         displayNotes: notes, ties: [null, null, null], triplets: null, rhythmicGrouping: null,
@@ -202,9 +199,10 @@ const ClefStaffOverlay = ({
         const clipId = `clef-gutter-clip-${staff}`;
         const renderFamily = (fam, { isActive }) => {
             const isOff = fam.id === 'off';
-            // Active = NORMAL sheet colour (NOT yellow); passive = lowlight but solid
-            // (opacity 1) so it reads as greyed, not faded (Han #14).
-            const colr = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
+            // Active = NORMAL sheet colour (NOT yellow); passive = the SHARED setter
+            // lowlight — same token the variant cards use, so the family clefs and the
+            // card clefs are the exact same grey (Han 2026-06-03 consistency).
+            const colr = isActive ? 'var(--text-primary)' : 'var(--setter-lowlight)';
             const symbolKey = isActive ? variantToSymbolKey(clef) : fam.clef;
             return (
                 <>
@@ -272,7 +270,7 @@ const ClefStaffOverlay = ({
             // octave triad inside that voice's range. Doubled card width (#9) makes the 6
             // voices overflow the window, so they scroll rather than overlap. Bass &
             // Baritone are distinct voices on their own clefs, matched on rangeMode.
-            const VOC_CARD_W = 184;
+            const VOC_CARD_W = 158;
             const cards = VOCAL_VARIANTS.map(v => ({
                 key: `voc-${v.rangeMode}`, clef: v.clef,
                 notes: refTriadNotes(tonicName, tonicSemi, fifthName, fifthSemi,
@@ -281,7 +279,8 @@ const ClefStaffOverlay = ({
                 onTap: () => onApplyClefPatch?.(staff, patchForVocal(v)),
             }));
             const renderCard = (card, slotX) => {
-                const color = card.active ? 'var(--accent-yellow)' : 'var(--setter-lowlight)';
+                // Selected = normal colour (not yellow); non-selected = shared lowlight.
+                const color = card.active ? 'var(--text-primary)' : 'var(--setter-lowlight)';
                 return (
                     <g>
                         <ClefCard symbolKey={card.clef} clef={card.clef} notes={card.notes}
@@ -328,12 +327,13 @@ const ClefStaffOverlay = ({
                 onTap: () => onApplyClefPatch?.(staff, patchForTransposition(transKey === i.key ? 'C' : i.key)),
             }));
 
-            // Doubled from 92 → roomier note spacing (noteW scales with cardW) so the
-            // reference notes breathe (Han #9, 2026-06-03).
-            const CARD_W = 184;
+            // Wider block (#9); right margin trimmed ~40% vs 184 per Han's nudge.
+            const CARD_W = 158;
             const renderCard = (card, slotX) => {
-                // Active = accent yellow; non-selected = darker setter-lowlight (Han 2026-06-03).
-                const color = card.active ? 'var(--accent-yellow)' : 'var(--setter-lowlight)';
+                // Selected = NORMAL sheet colour (Han 2026-06-03: NOT yellow — the preview
+                // must show the clef/notes as they really look); non-selected = the shared
+                // setter lowlight (same token as the family column, for consistency).
+                const color = card.active ? 'var(--text-primary)' : 'var(--setter-lowlight)';
                 return (
                     <g>
                         <ClefCard symbolKey={card.symbolKey} clef={baseClef} notes={refNotes}
