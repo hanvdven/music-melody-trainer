@@ -507,7 +507,8 @@ const SheetMusic = ({
   };
 
   // Clef types that are inherently vocal — these never receive 8va/8vb markings.
-  // Bass and Baritone vocal ranges share the 'bass' clef type but are identified by rangeMode.
+  // The vocal Bass voice uses the 'bass' clef; Baritone uses its own 'baritone-f'
+  // clef (F on the middle line); both are identified by rangeMode.
   const VOCAL_CLEF_TYPES = new Set(['soprano', 'mezzo-soprano', 'alto', 'tenor']);
   const VOCAL_RANGE_MODES = new Set(['Bass', 'Baritone', 'Tenor', 'Alto', 'Mezzo-soprano', 'Soprano']);
 

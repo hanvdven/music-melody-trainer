@@ -22,6 +22,10 @@ export const stripAccidentals = n => n ? n.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '
 export const clefOffsets = {
   treble: -11,
   bass: -71,
+  // Baritone F-clef: F sits on the MIDDLE line (one line / 2 diatonic steps = 10
+  // units lower on the page than the bass clef's 4th-line F), so notes render 10
+  // lower than bass (Han 2026-06-03). 5 units per diatonic step.
+  'baritone-f': -61,
   alto: -41,
   tenor: -51,
   soprano: -21,

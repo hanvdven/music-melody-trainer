@@ -35,7 +35,9 @@ export const CLEF_OFF = 'off';
 // positions. `rangeMode` is the per-voice label the rest of the app already knows.
 export const VOCAL_VARIANTS = [
     { clef: 'bass', rangeMode: 'Bass', label: 'Bass', glyph: '?', glyphClef: 'f' },
-    { clef: 'bass', rangeMode: 'Baritone', label: 'Baritone', glyph: '?', glyphClef: 'f' },
+    // Baritone notates in the F-clef with F on the MIDDLE line (its own 'baritone-f'
+    // clef), distinct from the instrumental/Bass F-clef (Han 2026-06-03).
+    { clef: 'baritone-f', rangeMode: 'Baritone', label: 'Baritone', glyph: '?', glyphClef: 'f' },
     { clef: 'tenor', rangeMode: 'Tenor', label: 'Tenor', glyph: 'B', glyphClef: 'c' },
     { clef: 'alto', rangeMode: 'Alto', label: 'Alto', glyph: 'B', glyphClef: 'c' },
     { clef: 'mezzo-soprano', rangeMode: 'Mezzo-soprano', label: 'Mezzo', glyph: 'B', glyphClef: 'c' },

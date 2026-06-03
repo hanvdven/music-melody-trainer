@@ -22,6 +22,10 @@ export const clefSymbols = {
   treble15va: { char: '&', yOffset: 0, ottava: '15' },
   treble15vb: { char: '&', yOffset: 0, ottava: '15', below: true },
   bass: { char: '?', yOffset: -20 },
+  // Baritone clef: the F-clef glyph, but with its F on the MIDDLE line instead of
+  // the 4th line — i.e. drawn 10 units lower than bass (Han 2026-06-03). Pairs with
+  // clefOffsets['baritone-f'] in renderMelodyNotes so the notes shift to match.
+  'baritone-f': { char: '?', yOffset: -10 },
   bass8va: { char: 'æ', yOffset: -20 },
   bass8vb: { char: 't', yOffset: -10 },
   bass15va: { char: '?', yOffset: -20, ottava: '15' },

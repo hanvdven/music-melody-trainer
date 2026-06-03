@@ -26,9 +26,12 @@ REMAINING — staged batches:
   · ✅ #14 distribute variant clefs across 12%→86% of [startX,endX] (carousel + vocal).
   · ✅ #10 bottom clipping: decoupled carousel clipHeight(108) from tap height(74) so
     the C4 ledger shows without the gesture rect bleeding into the row below.
+  · ✅ #15 baritone = full 'baritone-f' clef (Han: setter + sheet). New clef in
+    clefSymbols (char '?', yOffset -10), renderMelodyNotes clefOffsets (-61 = bass+10),
+    renderAccidentals (10, ≈bass — FLAGGED for visual key-sig check), VOCAL_VARIANTS
+    baritone → 'baritone-f'. Flows through calculateOptimalClef (Baritone rangeMode).
   · ⏳ PIXEL-CALIBRATION (need fresh screenshot to do right, no blind guessing):
-    #8 clef too far right, #9 roomier blocks/spacing, #14 vocal C-G-C note octaves,
-    #15 baritone = F-clef w/ F on middle line (needs a clef added to note-positioning).
+    #8 clef too far right, #9 roomier blocks/spacing, #14 vocal C-G-C note octaves.
   · ⏳ #13 chord height → belongs with Batch 3 (chord line).
 - BATCH 3 (chord line / ext-add chord editor): #2 chords not neatly in block, #3 3-column
   spacing too tight, #4 transpose chord-line notes up to start at D4 (kill C4 ledger).
