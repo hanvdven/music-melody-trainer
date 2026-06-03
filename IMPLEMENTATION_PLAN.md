@@ -30,8 +30,15 @@ REMAINING — staged batches:
     clefSymbols (char '?', yOffset -10), renderMelodyNotes clefOffsets (-61 = bass+10),
     renderAccidentals (10, ≈bass — FLAGGED for visual key-sig check), VOCAL_VARIANTS
     baritone → 'baritone-f'. Flows through calculateOptimalClef (Baritone rangeMode).
-  · ⏳ PIXEL-CALIBRATION (need fresh screenshot to do right, no blind guessing):
-    #8 clef too far right, #9 roomier blocks/spacing, #14 vocal C-G-C note octaves.
+  · ✅ #10 v2 "clip gewoon NIET": carousel clips HORIZONTALLY only (huge vertical span)
+    so no top/bottom cut; fades pulled to the very edges (0.015/0.985) so right no longer
+    looks clipped early; clef inset (+8) so leftmost clef isn't cut.
+  · ✅ #8: clef inset +8 (CLEF_X) sits closer to its melody / off the card edge.
+  · ✅ #9: roomier note spacing (noteW 0.14→0.18, min 16).
+  · ✅ label "(B♭ inst.)" moved to UPPER-RIGHT of clef (CLEF_X+14) not directly above.
+  · ✅ CR: subheader button hit-zone now covers the label text too (hit-extender div).
+  · ⏳ #14 vocal C-G-C NOTES: still TODO — need octave rule confirmed (centre triad on
+    each voice clef, derive octave from clefOffsets/voice range; no hardcoded table §6c).
   · ⏳ #13 chord height → belongs with Batch 3 (chord line).
 - BATCH 3 (chord line / ext-add chord editor): #2 chords not neatly in block, #3 3-column
   spacing too tight, #4 transpose chord-line notes up to start at D4 (kill C4 ledger).

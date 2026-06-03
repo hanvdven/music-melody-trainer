@@ -91,9 +91,18 @@ const SubHeader = ({
                     boxSizing: 'border-box',
                     transform: `scale(${btnScale})`,
                     transformOrigin: 'center center',
-                    outline: debugMode ? '2px solid cyan' : undefined,
                 }}
             >
+                {/* Hit-extender: the label sits at top:100% with pointerEvents:none, so
+                    without this the tap only registered on the icon, not the text (Han CR
+                    2026-06-03). This transparent child stretches the clickable region down
+                    over the label; clicks bubble to the container's onClick. Debug outline
+                    moved here so it shows the REAL hit region (§3a). */}
+                <div style={{
+                    position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                    width: BW, height: 54,
+                    outline: debugMode ? '2px solid cyan' : undefined,
+                }} />
                 <div style={{ color: color, height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {icon}
                 </div>
