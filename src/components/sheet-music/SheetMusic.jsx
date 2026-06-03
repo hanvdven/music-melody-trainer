@@ -2028,8 +2028,10 @@ const SheetMusic = ({
                     // selector — hide ALL melodic content (notes/chords/lyrics) but
                     // keep the node mounted so transition refs stay valid on exit.
                     // During the enter/exit morph it stays VISIBLE so it can fade
-                    // out / fly in (useRangeMorph drives style.opacity+transform).
-                    display: (overlayEditMode && !rangeMorphing) ? 'none' : undefined }}>
+                    // out / fly in — but ONLY when the morph actually involves the melody
+                    // (melody↔overlay). On an overlay→overlay morph (e.g. clef→range) the
+                    // melody must stay hidden, otherwise it FLASHES through (Han B4, 2026-06-03).
+                    display: (overlayEditMode && !(rangeMorphing && (morphFrom === 'melody' || morphTo === 'melody'))) ? 'none' : undefined }}>
                     {/* Melody notes: visible in 'melody' viewMode */}
                     {/* In pagination mode, opacity is driven by the rAF loop via data-pagination-old.
                         CSS classes set the resting state; rAF sets style.opacity during the crossfade.
