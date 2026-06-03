@@ -30,13 +30,20 @@ const TAP_SLOP = 5;                       // < this much movement (user units) =
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export default function ClefCardCarousel({
-    cards, x0, y, viewWidth, height, cardW, renderCard, clipId,
+    cards, x0, y, viewWidth, height, cardW, renderCard, clipId, cardWidths,
 }) {
     const stripRef = React.useRef(null);
     const offsetRef = React.useRef(0);    // committed scroll offset, ≤ 0
     const dragRef = React.useRef(null);   // { startX, startOffset, moved }
 
-    const contentW = cards.length * cardW;
+    // Per-card widths (A7: narrow screens shrink non-selected cards to clef-only); falls
+    // back to a uniform cardW. `slotStarts[i]` = left x of card i within the strip.
+    const widths = cardWidths && cardWidths.length === cards.length
+        ? cardWidths : cards.map(() => cardW);
+    const slotStarts = [];
+    let acc = 0;
+    for (const w of widths) { slotStarts.push(acc); acc += w; }
+    const contentW = acc;
     const minOffset = Math.min(0, viewWidth - contentW);   // most-negative scroll
     const scrollable = minOffset < 0;
 
@@ -84,9 +91,10 @@ export default function ClefCardCarousel({
         e.currentTarget.releasePointerCapture?.(e.pointerId);
         if (!d) return;
         if (d.moved < TAP_SLOP) {
-            // It was a tap, not a drag → select the card under the down point.
+            // It was a tap, not a drag → select the card whose [start … start+width] slot
+            // the down point lands in (per-card widths, A7).
             const localX = d.downSvgX - x0 - offsetRef.current;
-            const idx = Math.floor(localX / cardW);
+            const idx = slotStarts.findIndex((s, i) => localX >= s && localX < s + widths[i]);
             if (idx >= 0 && idx < cards.length) cards[idx].onTap?.();
         }
     };
@@ -126,7 +134,7 @@ export default function ClefCardCarousel({
                 {/* visual strip — pointerEvents off; the drag surface below routes taps */}
                 <g ref={stripRef} style={{ pointerEvents: 'none' }}>
                     {cards.map((card, i) => (
-                        <g key={card.key}>{renderCard(card, x0 + i * cardW, i)}</g>
+                        <g key={card.key}>{renderCard(card, x0 + slotStarts[i], i)}</g>
                     ))}
                 </g>
                 {/* full-window transparent drag/tap surface (captures the gesture) */}
