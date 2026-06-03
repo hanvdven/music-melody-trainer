@@ -269,7 +269,7 @@ const ClefStaffOverlay = ({
             // sitting inside that voice's range (Han #14, 2026-06-03). A small fixed set,
             // so they're evenly spread (no swipe). Bass & Baritone are distinct voices on
             // their own clefs, matched on rangeMode.
-            const VOC_CARD_W = 72;
+            const VOC_CARD_W = 144;
             const cards = VOCAL_VARIANTS.map(v => ({
                 key: `voc-${v.rangeMode}`, clef: v.clef,
                 notes: refTriadNotes(tonicName, tonicSemi, fifthName, fifthSemi,
@@ -333,7 +333,9 @@ const ClefStaffOverlay = ({
                 onTap: () => onApplyClefPatch?.(staff, patchForTransposition(transKey === i.key ? 'C' : i.key)),
             }));
 
-            const CARD_W = 92;
+            // Doubled from 92 → roomier note spacing (noteW scales with cardW) so the
+            // reference notes breathe (Han #9, 2026-06-03).
+            const CARD_W = 184;
             const renderCard = (card, slotX) => {
                 // Active = accent yellow; non-selected = darker setter-lowlight (Han 2026-06-03).
                 const color = card.active ? 'var(--accent-yellow)' : 'var(--setter-lowlight)';
