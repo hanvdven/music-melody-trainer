@@ -1,7 +1,7 @@
 import React from 'react';
 import {
-    VOCAL_VARIANTS, OCTAVE_VARIANTS, familyOfClef, carouselOrder,
-    patchForFamily, patchForOctave, patchForVocal, patchForTransposition,
+    VOCAL_VARIANTS, familyOfClef, carouselOrder,
+    patchForFamily, patchForVocal, patchForTransposition,
 } from './clefSelector';
 import { TRANSPOSING_INSTRUMENTS } from '../../../constants/transposingInstruments';
 import ClefCardCarousel from './ClefCardCarousel';
@@ -204,16 +204,20 @@ const ClefStaffOverlay = ({
             // card clefs are the exact same grey (Han 2026-06-03 consistency).
             const colr = isActive ? 'var(--text-primary)' : 'var(--setter-lowlight)';
             const symbolKey = isActive ? variantToSymbolKey(clef) : fam.clef;
+            // Glyphs are anchor='start' (left edge at the slot x), so the selection/hit
+            // box brackets [slotX−4 … slotX−4+SLOT_W] instead of being centred — keeps
+            // it aligned with the glyph after the anchor change (Han 2026-06-03).
+            const BOX_X = -4;
             return (
                 <>
-                    <rect x={-FAMILY_SLOT_W / 2} y={staffStart - 18} width={FAMILY_SLOT_W} height={60}
+                    <rect x={BOX_X} y={staffStart - 18} width={FAMILY_SLOT_W} height={60}
                         fill="transparent" />
                     {isOff ? (
-                        // Disable cross: 2× taller than wide so it spans the staff
-                        // (Han #8). Width ±9, height ±18 around the staff centre (y+20).
+                        // Disable cross, START-aligned like the clef glyphs: spans x=0…18,
+                        // 2× taller than wide so it reads across the staff (Han #8).
                         <g stroke={colr} strokeWidth={2.4} strokeLinecap="round" style={{ pointerEvents: 'none' }}>
-                            <path d={`M -9 ${staffStart + 2} L 9 ${staffStart + 38}`} />
-                            <path d={`M 9 ${staffStart + 2} L -9 ${staffStart + 38}`} />
+                            <path d={`M 0 ${staffStart + 2} L 18 ${staffStart + 38}`} />
+                            <path d={`M 18 ${staffStart + 2} L 0 ${staffStart + 38}`} />
                         </g>
                     ) : (
                         // anchor='start' at CLEF_GLYPH_X so the ACTIVE family clef (slot 0,
@@ -222,7 +226,7 @@ const ClefStaffOverlay = ({
                         <ClefGlyph symbolKey={symbolKey} x={0} baseY={staffStart + 30} fill={colr} anchor="start" />
                     )}
                     {debugMode && (
-                        <rect x={-FAMILY_SLOT_W / 2} y={staffStart - 18} width={FAMILY_SLOT_W} height={60}
+                        <rect x={BOX_X} y={staffStart - 18} width={FAMILY_SLOT_W} height={60}
                             fill="orange" fillOpacity={0.18} stroke="orange" strokeWidth={0.5}
                             style={{ pointerEvents: 'none' }} />
                     )}
@@ -306,25 +310,13 @@ const ClefStaffOverlay = ({
                 </g>
             );
         } else if (famId !== 'off') {
-            // Melodic G/F: a SWIPEABLE strip of clef CARDS (Han 2026-06-02). Order:
-            // octave cards (normal · 8va · 15ma — set rangeMode only) then ALL
-            // transposing instruments except concert C (set transpositionKey only).
-            // Octave and transposition stay ORTHOGONAL fields (clefSelector invariant),
-            // so up to two cards can read active at once. Cards beyond the window sit
-            // off-screen and slide in on drag. §6c: octave list + instruments come from
-            // OCTAVE_VARIANTS / TRANSPOSING_INSTRUMENTS, not a table here.
-            const octaveActive = (o) => o.default
-                ? (rangeMode !== 'relative' && rangeMode !== 'relative_15a' && rangeMode !== 'relative_low')
-                : rangeMode === o.rangeMode;
-            const cards = [];
-            (OCTAVE_VARIANTS[famId] || []).forEach(o => cards.push({
-                key: `oct-${o.id}`, symbolKey: variantToSymbolKey(o.id), trans: 0, inst: null,
-                active: octaveActive(o),
-                onTap: () => { const p = patchForOctave(famId, o.id); if (p) onApplyClefPatch?.(staff, p); },
-            }));
+            // Melodic G/F: a SWIPEABLE strip of clef CARDS — ONLY transposing instruments
+            // now; the 8va/15ma octave cards were removed (Han 2026-06-03, "enkel
+            // transposities"). §6c: instruments come from TRANSPOSING_INSTRUMENTS.
             // Concert C is the default; a transposing card tapped while ALREADY active
             // toggles back to C — that is the only way to reset transposition from the
             // strip (there is no dedicated C card, per Han's order).
+            const cards = [];
             TRANSPOSING_INSTRUMENTS.filter(i => i.key !== 'C').forEach(i => cards.push({
                 key: `tr-${i.key}`, symbolKey: baseClef, trans: i.semitones, inst: i.display,
                 active: transKey === i.key,
