@@ -22,20 +22,6 @@ export const ALL_SAMPLES = [
     'snare/sd2500', 'snare/sd2510', 'snare/sd2525', 'snare/sd2550', 'snare/sd2575', 'snare/sd5000', 'snare/sd5010', 'snare/sd5025', 'snare/sd5050'
 ];
 
-/** Sample categories for pad sample selection */
-export const CATEGORIES = {
-    KICKS: ALL_SAMPLES.filter(s => s.startsWith('kick/')),
-    SNARES: ALL_SAMPLES.filter(s => s.startsWith('snare/')),
-    CYMBALS: ALL_SAMPLES.filter(s => s.startsWith('cymbal/') || s.startsWith('hihat-')),
-    TOMS: ALL_SAMPLES.filter(s => s.startsWith('mid-tom/')),
-    PERC: ALL_SAMPLES.filter(s => s.startsWith('conga-') || ['cowbell/cb'].includes(s)),
-    OTHER: ALL_SAMPLES.filter(
-        s => !s.startsWith('kick/') && !s.startsWith('snare/') && !s.startsWith('cymbal/') &&
-            !s.startsWith('hihat-') && !s.startsWith('mid-tom/') && !s.startsWith('conga-') &&
-            !['cowbell/cb'].includes(s)
-    )
-};
-
 /**
  * Valid smplr DrumMachine instrument IDs mapped from display name.
  * Only these names are accepted by smplr's DrumMachine constructor.
@@ -49,9 +35,6 @@ export const DRUM_KITS = {
     'MFB-512': 'MFB-512',
     'Roland CR-8000': 'Roland CR-8000',
 };
-
-/** Default smplr instrument ID used when none is selected */
-export const DEFAULT_DRUM_KIT = 'FreePats Percussion';
 
 /**
  * Buffer map for the local FreePats Percussion kit.
@@ -332,58 +315,3 @@ export const KIT_NOTE_MAPPINGS = {
     },
 };
 
-/**
- * All available smplr sample names per drum kit (for the per-kit sample selector).
- * TR-808 reuses ALL_SAMPLES (category/variant format).
- * All other kits use flat sample name strings exactly as they appear in the upstream dm.json.
- */
-export const KIT_SAMPLES = {
-    'FreePats Percussion': Object.keys(LOCAL_PERCUSSION_BUFFERS),
-    'TR-808': ALL_SAMPLES,
-    'Casio-RZ1': [
-        'clap', 'clave', 'cowbell', 'crash', 'hihat-closed', 'hihat-open',
-        'kick', 'ride', 'snare', 'tom-1', 'tom-2', 'tom-3',
-    ],
-    'LM-2': [
-        'cabasa', 'clap', 'conga-h', 'conga-hh', 'conga-l', 'conga-ll', 'conga-lll', 'conga-m',
-        'cowbell', 'crash', 'hhclosed', 'hhclosed-long', 'hhclosed-short', 'hhopen',
-        'kick', 'kick-alt', 'ride',
-        'snare-h', 'snare-l', 'snare-m',
-        'stick-h', 'stick-l', 'stick-m',
-        'tambourine',
-        'tom-h', 'tom-hh', 'tom-l', 'tom-ll', 'tom-m',
-    ],
-    'MFB-512': [
-        'clap', 'cymbal', 'hihat-closed', 'hihat-open', 'kick', 'snare',
-        'tom-hi', 'tom-low', 'tom-mid',
-    ],
-    'Roland CR-8000': [
-        'clap', 'clave', 'conga-high', 'conga-low', 'cowbell', 'cymball',
-        'hihat-closed', 'hihat-open', 'kick', 'rimshot', 'snare', 'tom-high', 'tom-low',
-    ],
-};
-
-/** Drum pad layout definitions used by DrumPad.jsx */
-export const PADS = [
-    { id: 'cc', label: 'crash', category: 'CYMBALS', color: 'var(--chromatone-percussion-crash)' },
-    { id: 'cct', label: 'crash tip', category: 'CYMBALS', color: 'var(--chromatone-percussion-crash-tip)' },
-    { id: 'cc_bell', label: 'crash bell', category: 'CYMBALS', color: 'var(--chromatone-percussion-crash-bell)' },
-    { id: 'cr', label: 'ride', category: 'CYMBALS', color: 'var(--chromatone-percussion-ride)' },
-    { id: 'crt', label: 'ride tip', category: 'CYMBALS', color: 'var(--chromatone-percussion-ride-tip)' },
-    { id: 'cr_bell', label: 'ride bell', category: 'CYMBALS', color: 'var(--chromatone-percussion-ride-bell)' },
-    { id: 'ho', label: 'hi-hat open', category: 'CYMBALS', color: 'var(--chromatone-percussion-hihat-open)' },
-    { id: 'hh', label: 'hi-hat closed', category: 'CYMBALS', color: 'var(--chromatone-percussion-hihat-closed)' },
-    { id: 'hp', label: 'hi-hat pedal', category: 'CYMBALS', color: 'var(--chromatone-percussion-hihat-pedal)' },
-    { id: 'th', label: 'tom high', category: 'TOMS', color: 'var(--chromatone-percussion-tom-high)' },
-    { id: 'tm', label: 'mid tom', category: 'TOMS', color: 'var(--chromatone-percussion-tom-mid)' },
-    { id: 'tl', label: 'floor tom', category: 'TOMS', color: 'var(--chromatone-percussion-tom-floor)' },
-    { id: 's', label: 'snare', category: 'SNARES', color: 'var(--chromatone-percussion-snare)' },
-    { id: 'sr', label: 'rim click', category: 'SNARES', color: 'var(--chromatone-percussion-snare-rim)' },
-    { id: 'sg', label: 'ghost snare', category: 'SNARES', color: 'var(--chromatone-percussion-snare-ghost)' },
-    { id: 'k', label: 'bass drum', category: 'KICKS', color: 'var(--chromatone-percussion-kick)' },
-    { id: 'wh', label: 'woodblock hi', category: 'OTHER', color: 'var(--chromatone-percussion-woodblock-hi)' },
-    { id: 'wm', label: 'woodblock mid', category: 'OTHER', color: 'var(--chromatone-percussion-woodblock-mid)' },
-    { id: 'wl', label: 'woodblock lo', category: 'OTHER', color: 'var(--chromatone-percussion-woodblock-lo)' },
-    { id: 'cb', label: 'cowbell', category: 'PERC', color: 'var(--chromatone-percussion-cowbell)' },
-    { id: 'other', label: 'other', category: 'OTHER', color: 'var(--chromatone-percussion-other)' },
-];
