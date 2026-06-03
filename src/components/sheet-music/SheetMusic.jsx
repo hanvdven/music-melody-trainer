@@ -2857,6 +2857,7 @@ const SheetMusic = ({
                       bassSettings={bassSettings}
                       tonic={tonic}
                       scaleNotes={scaleNotes}
+                      noteColoringMode={noteColoringMode}
                       percussionVoiceSplit={percussionVoiceSplit}
                       percussionDisabled={percOff}
                       theme={theme}

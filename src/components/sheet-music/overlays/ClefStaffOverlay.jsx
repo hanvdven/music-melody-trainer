@@ -111,7 +111,8 @@ const REF_LAYER_PROPS = {
 // reference notes TRANSPOSED by the instrument (so the transposition is visible), and
 // a small "(B♭ inst.)" superscript for transposing instruments. The notes are the
 // REAL renderer (MelodyNotesLayer) — §6c, never hand-drawn noteheads.
-const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, color, theme }) => {
+const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, color, theme,
+    active, noteColoringMode, tonic, scaleNotes }) => {
     // Note spacing tuned to Han's nudges (2026-06-03): first note +8 right, third −8 left
     // vs the doubled-width render → a tighter, centred triad. Fixed (not cardW-scaled) so
     // the nudge is predictable.
@@ -119,6 +120,12 @@ const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, c
     const CLEF_X = x + CLEF_GLYPH_X;
     // First note +8 further right than before (x+48 → x+56) per Han's nudge.
     const NOTES_X = x + 56;
+    // SELECTED card: notes follow the real note-colour scheme (tonic/scale/chromatone),
+    // exactly like the sheet (Han A3, 2026-06-03) — so previewMode is OFF and the real
+    // colouring props flow in. NON-selected: flat lowlight so the card reads as greyed.
+    const noteColourProps = active
+        ? { previewMode: false, noteColoringMode, tonic, scaleNotes }
+        : { previewMode: color, noteColoringMode: 'none', tonic: '', scaleNotes: [] };
     const refMelody = {
         notes, offsets: [0, Q, 2 * Q], durations: [Q, Q, Q],
         displayNotes: notes, ties: [null, null, null], triplets: null, rhythmicGrouping: null,
@@ -140,6 +147,7 @@ const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, c
             )}
             <MelodyNotesLayer
                 {...REF_LAYER_PROPS}
+                {...noteColourProps}
                 melody={refMelody}
                 staff="treble"
                 clef={clef}
@@ -150,7 +158,6 @@ const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, c
                 timeSignature={[3, 4]}
                 transpositionSemitones={trans}
                 theme={theme}
-                previewMode={color}
             />
         </g>
     );
@@ -163,6 +170,7 @@ const ClefStaffOverlay = ({
     clefTreble, clefBass,
     trebleSettings, bassSettings,
     tonic, scaleNotes,           // current key — reference notes are tonic+5th+octave
+    noteColoringMode,            // selected card colours its notes per this scheme (A3)
     percussionVoiceSplit = false,
     percussionDisabled = false,
     theme,
@@ -293,7 +301,9 @@ const ClefStaffOverlay = ({
                     <g>
                         <ClefCard symbolKey={card.clef} clef={card.clef} notes={card.notes}
                             trans={0} inst={null} x={slotX} staffStart={staffStart}
-                            cardW={VOC_CARD_W} color={color} theme={theme} />
+                            cardW={VOC_CARD_W} color={color} theme={theme}
+                            active={card.active} noteColoringMode={noteColoringMode}
+                            tonic={tonic} scaleNotes={scaleNotes} />
                         {debugMode && (
                             <rect x={slotX - 4} y={staffStart - 24} width={VOC_CARD_W} height={74}
                                 fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
@@ -334,7 +344,9 @@ const ClefStaffOverlay = ({
                     <g>
                         <ClefCard symbolKey={card.symbolKey} clef={baseClef} notes={refNotes}
                             trans={card.trans} inst={card.inst} x={slotX} staffStart={staffStart}
-                            cardW={CARD_W} color={color} theme={theme} />
+                            cardW={CARD_W} color={color} theme={theme}
+                            active={card.active} noteColoringMode={noteColoringMode}
+                            tonic={tonic} scaleNotes={scaleNotes} />
                         {/* Debug: per-card tap region (§3a) — taps route to the card whose
                             [slotX … slotX+CARD_W] slot the pointer lands in. */}
                         {debugMode && (

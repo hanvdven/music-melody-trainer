@@ -24,10 +24,13 @@ const inner = renderToStaticMarkup(
     trebleStart: 45, bassStart: 150, percussionStart: 260,
     isTrebleVisible: true, isBassVisible: true, isPercussionVisible: false,
     clefTreble: 'treble', clefBass: 'bass',
-    trebleSettings: { transpositionKey: 'C', rangeMode: 'STANDARD' },
+    // B♭ transposition active on treble so we can see A3 (selected card colours its
+    // notes per the scheme); bass stays concert C (all cards dimmed).
+    trebleSettings: { transpositionKey: 'Bb', rangeMode: 'STANDARD' },
     bassSettings: { transpositionKey: 'C', rangeMode: 'STANDARD' },
     tonic: 'B♭4',
     scaleNotes: ['B♭4', 'C5', 'D5', 'E♭5', 'F5', 'G5', 'A5'],
+    noteColoringMode: 'tonic_scale_keys',
     theme: 'dark', onApplyClefPatch: () => {}, debugMode: false,
   }),
 );
