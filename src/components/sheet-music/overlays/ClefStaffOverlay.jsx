@@ -88,6 +88,9 @@ const tonicAndFifth = (tonic, scaleNotes) => {
 
 const FAMILY_GLYPH_SIZE = 36;      // clefs at ~true staff size (Han 2026-06-01)
 const FAMILY_SLOT_W = 36;          // horizontal step between carousel glyphs (Han #5: more space)
+// Narrow-screen slot width for a clef-only card (A7): no reference notes, but wide
+// enough to keep the clef + the "(B♭ inst.)" label that identifies the transposition.
+const CLEF_ONLY_W = 92;
 const EIGHTH = TICKS_PER_WHOLE / 8;
 const PERC_LAYER_PROPS = {
     numAccidentals: 0, noteGroupSize: 1, measureLengthSlots: 9999, scaleNotes: [],
@@ -112,7 +115,7 @@ const REF_LAYER_PROPS = {
 // a small "(B♭ inst.)" superscript for transposing instruments. The notes are the
 // REAL renderer (MelodyNotesLayer) — §6c, never hand-drawn noteheads.
 const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, color, theme,
-    active, noteColoringMode, tonic, scaleNotes }) => {
+    active, noteColoringMode, tonic, scaleNotes, showNotes = true }) => {
     // Note spacing tuned to Han's nudges (2026-06-03): first note +8 right, third −8 left
     // vs the doubled-width render → a tighter, centred triad. Fixed (not cardW-scaled) so
     // the nudge is predictable.
@@ -145,20 +148,24 @@ const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, c
                     {`(${inst}.)`}
                 </text>
             )}
-            <MelodyNotesLayer
-                {...REF_LAYER_PROPS}
-                {...noteColourProps}
-                melody={refMelody}
-                staff="treble"
-                clef={clef}
-                staffYStart={staffStart}
-                startX={NOTES_X}
-                noteWidth={noteW}
-                allOffsets={allOffsets}
-                timeSignature={[3, 4]}
-                transpositionSemitones={trans}
-                theme={theme}
-            />
+            {/* showNotes=false (narrow screens, non-selected cards) → clef only, to make
+                room for more clefs (Han A7, 2026-06-03). */}
+            {showNotes && (
+                <MelodyNotesLayer
+                    {...REF_LAYER_PROPS}
+                    {...noteColourProps}
+                    melody={refMelody}
+                    staff="treble"
+                    clef={clef}
+                    staffYStart={staffStart}
+                    startX={NOTES_X}
+                    noteWidth={noteW}
+                    allOffsets={allOffsets}
+                    timeSignature={[3, 4]}
+                    transpositionSemitones={trans}
+                    theme={theme}
+                />
+            )}
         </g>
     );
 };
@@ -171,6 +178,7 @@ const ClefStaffOverlay = ({
     trebleSettings, bassSettings,
     tonic, scaleNotes,           // current key — reference notes are tonic+5th+octave
     noteColoringMode,            // selected card colours its notes per this scheme (A3)
+    isNarrow = false,            // narrow screens: only the selected card shows notes (A7)
     percussionVoiceSplit = false,
     percussionDisabled = false,
     theme,
@@ -294,18 +302,20 @@ const ClefStaffOverlay = ({
                 active: rangeMode === v.rangeMode,
                 onTap: () => onApplyClefPatch?.(staff, patchForVocal(v)),
             }));
+            const cardWidth = (card) => (isNarrow && !card.active) ? CLEF_ONLY_W : VOC_CARD_W;
             const renderCard = (card, slotX) => {
                 // Selected = normal colour (not yellow); non-selected = shared lowlight.
                 const color = card.active ? 'var(--text-primary)' : 'var(--setter-lowlight)';
+                const showNotes = card.active || !isNarrow;   // A7
                 return (
                     <g>
                         <ClefCard symbolKey={card.clef} clef={card.clef} notes={card.notes}
                             trans={0} inst={null} x={slotX} staffStart={staffStart}
                             cardW={VOC_CARD_W} color={color} theme={theme}
                             active={card.active} noteColoringMode={noteColoringMode}
-                            tonic={tonic} scaleNotes={scaleNotes} />
+                            tonic={tonic} scaleNotes={scaleNotes} showNotes={showNotes} />
                         {debugMode && (
-                            <rect x={slotX - 4} y={staffStart - 24} width={VOC_CARD_W} height={74}
+                            <rect x={slotX - 4} y={staffStart - 24} width={cardWidth(card)} height={74}
                                 fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
                                 style={{ pointerEvents: 'none' }} />
                         )}
@@ -316,6 +326,7 @@ const ClefStaffOverlay = ({
                 <g className="clef-variant-cards" data-fly="" data-fly-from={startX}>
                     <ClefCardCarousel cards={cards} x0={VAR_X0} y={staffStart - 24}
                         viewWidth={viewWidth} height={74} cardW={VOC_CARD_W}
+                        cardWidths={cards.map(cardWidth)}
                         clipId={`clefcards-${staff}`} renderCard={renderCard} />
                 </g>
             );
@@ -335,22 +346,24 @@ const ClefStaffOverlay = ({
 
             // Wider block (#9); right margin trimmed ~40% vs 184 per Han's nudge.
             const CARD_W = 158;
+            // A7: on narrow screens only the SELECTED card shows notes; the rest shrink to
+            // a clef-only slot so more clefs fit.
+            const cardWidth = (card) => (isNarrow && !card.active) ? CLEF_ONLY_W : CARD_W;
             const renderCard = (card, slotX) => {
                 // Selected = NORMAL sheet colour (Han 2026-06-03: NOT yellow — the preview
                 // must show the clef/notes as they really look); non-selected = the shared
                 // setter lowlight (same token as the family column, for consistency).
                 const color = card.active ? 'var(--text-primary)' : 'var(--setter-lowlight)';
+                const showNotes = card.active || !isNarrow;
                 return (
                     <g>
                         <ClefCard symbolKey={card.symbolKey} clef={baseClef} notes={refNotes}
                             trans={card.trans} inst={card.inst} x={slotX} staffStart={staffStart}
                             cardW={CARD_W} color={color} theme={theme}
                             active={card.active} noteColoringMode={noteColoringMode}
-                            tonic={tonic} scaleNotes={scaleNotes} />
-                        {/* Debug: per-card tap region (§3a) — taps route to the card whose
-                            [slotX … slotX+CARD_W] slot the pointer lands in. */}
+                            tonic={tonic} scaleNotes={scaleNotes} showNotes={showNotes} />
                         {debugMode && (
-                            <rect x={slotX - 4} y={staffStart - 24} width={CARD_W} height={74}
+                            <rect x={slotX - 4} y={staffStart - 24} width={cardWidth(card)} height={74}
                                 fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
                                 style={{ pointerEvents: 'none' }} />
                         )}
@@ -365,6 +378,7 @@ const ClefStaffOverlay = ({
                 <g className="clef-variant-cards" data-fly="" data-fly-from={startX}>
                     <ClefCardCarousel cards={cards} x0={VAR_X0} y={staffStart - 24}
                         viewWidth={viewWidth} height={74} cardW={CARD_W}
+                        cardWidths={cards.map(cardWidth)}
                         clipId={`clefcards-${staff}`} renderCard={renderCard} />
                 </g>
             );

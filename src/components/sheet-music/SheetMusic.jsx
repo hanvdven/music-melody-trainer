@@ -2858,6 +2858,7 @@ const SheetMusic = ({
                       tonic={tonic}
                       scaleNotes={scaleNotes}
                       noteColoringMode={noteColoringMode}
+                      isNarrow={logicalScreenWidth < 500}
                       percussionVoiceSplit={percussionVoiceSplit}
                       percussionDisabled={percOff}
                       theme={theme}
