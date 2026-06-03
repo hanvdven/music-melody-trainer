@@ -143,10 +143,6 @@ export const getProgressionStrategy = (key) =>
 export const getProgressionLabel = (key) =>
     getProgressionStrategy(key)?.shortLabel ?? key;
 
-/** Degree sequence for a predetermined progression (or null for random ones). */
-export const getProgressionDegrees = (key) =>
-    getProgressionStrategy(key)?.degrees ?? null;
-
 /** Default number of chords for a given strategy. */
 export const getProgressionDefaultLength = (key) =>
     getProgressionStrategy(key)?.defaultLength ?? 4;
@@ -154,9 +150,4 @@ export const getProgressionDefaultLength = (key) =>
 /** All predetermined strategies in definition order. */
 export const PREDETERMINED_STRATEGIES = PROGRESSION_STRATEGIES.filter(
     (s) => s.category === 'predetermined'
-);
-
-/** All random/generative strategies in definition order. */
-export const RANDOM_STRATEGIES = PROGRESSION_STRATEGIES.filter(
-    (s) => s.category === 'random'
 );

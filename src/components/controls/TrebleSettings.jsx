@@ -5,27 +5,6 @@ import { Snowflake, Flame } from 'lucide-react';
 import ThemeToggle from '../common/ThemeToggle';
 import RangeControls from './RangeControls';
 
-export const instrumentOptions = {
-  'Acoustic Grand Piano': 'acoustic_grand_piano',
-  Harp: 'orchestral_harp',
-  'Acoustic Guitar (Nylon)': 'acoustic_guitar_nylon',
-  'Acoustic Guitar (Steel)': 'acoustic_guitar_steel',
-  'Electric Guitar (Clean)': 'electric_guitar_clean',
-  'Electric Bass (Picked)': 'electric_bass_pick',
-  'Synth Bass': 'synth_bass_1',
-  'Slap Bass': 'slap_bass_2',
-  Violin: 'violin',
-  'String Ensemble': 'string_ensemble_1',
-  Trumpet: 'trumpet',
-  Saxophone: 'tenor_sax',
-  Flute: 'flute',
-  Marimba: 'marimba',
-  'Voice Oohs': 'voice_oohs',
-  'Standard Drums (GM)': 'standard',
-  'Electronic Drums (GM)': 'electronic',
-  'Jazz Drums (GM)': 'jazz',
-};
-
 const TrebleSettings = ({
   trebleInstrumentSettings,
   setTrebleInstrumentSettings,
