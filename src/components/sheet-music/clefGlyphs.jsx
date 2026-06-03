@@ -93,8 +93,10 @@ export const ClefGlyph = ({
         <Ottava22 cx={x + (anchor === 'middle' ? 6 : 12)} cy={markerY} fill={fill} below={cf.below} />
       )}
       {cf.ottava === '15' && (
-        // Maestro char 134 is the engraved "15" ligature (drawn white at size 23).
-        <text x={x} y={markerY} fontSize={23} fill="#ffffff"
+        // Maestro char 134 is the engraved "15" ligature. Uses the passed `fill` so it
+        // dims/colours WITH its clef (Han 2026-06-03: the 15 must follow the selection,
+        // not stay hardcoded white).
+        <text x={x} y={markerY} fontSize={23} fill={fill}
           fontFamily="Maestro" textAnchor="middle" dx={ottDx}
           style={{ pointerEvents: 'none' }}>
           {String.fromCharCode(134)}
