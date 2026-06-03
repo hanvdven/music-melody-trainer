@@ -583,3 +583,10 @@ Muziek|Toonladder).
   · ✅ #10 left clipping = family carousel LEFT FADE dimmed the active clef at
     CLEF_GLYPH_X; removed left fade (right fade kept for scroll).
   · ⏳ #8 clef position + 8/15/(inst) label alignment — ASKING Han (ambiguous 3×).
+
+- Batch 2 round 5 (Han: #8 + labels "exact als echte balk"):
+  · ✅ #8: ClefCard now uses EXACT real-staff geometry — clef at CLEF_GLYPH_X (13) via
+    the same ClefGlyph (so 8/15 ottava lands identically), inst label at clef+25 / y−8
+    (= sheet's accidentalStartX−10), notes at x+48 (just past clef, no key-sig gap).
+  · ✅ vocal row converted to the SAME swipe carousel as melodic (double-width 184 cards
+    overflow → scroll instead of overlap).
