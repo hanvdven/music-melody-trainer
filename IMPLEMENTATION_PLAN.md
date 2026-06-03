@@ -9,7 +9,74 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
-## Cleanup round (Han 2026-06-03)
+## Feedback batch (Han 2026-06-03 #15) — INTERVIEW PENDING, no code yet
+
+BATCH 1 done (clef setter, isolated/safe):
+- ✅ #11 treble8va blank glyph fixed — was `char:' '`; now plain treble + serif '8'
+  ottava marker (clefGlyphs.jsx; new numeric-ottava render path, '15' path untouched).
+- ✅ #12 instrument-name now matches the real staff label (fontSize 12, plain serif,
+  non-italic) instead of italic size-9 Georgia.
+- ✅ #6/#17 active option = `--accent-yellow`, non-selected = new darker
+  `--setter-lowlight` token (added to all 4 themes in App.css).
+Surfaces clarified (Han 2026-06-03): "range setter" = RangeStaffOverlay (SEPARATE from
+clef setter); C4-ledger #4 = chords in the akkoordlijn (chord line), not clef-setter notes.
+
+REMAINING — staged batches:
+- BATCH 2 (clef-setter GEOMETRY refactor, approved "reuse real staff geometry"): #8 clef
+  too far right, #9 roomier blocks, #10 bottom clipping at C-ledger, #13 chord height,
+  #14 vocal C-G-C notes + distribute ALL clefs 12%→86%, #15 baritone = F-clef w/ F on
+  middle line (10u lower) + transposition.
+- BATCH 3 (chord line / ext-add chord editor): #2 chords not neatly in block, #3 3-column
+  spacing too tight, #4 transpose chord-line notes up to start at D4 (kill C4 ledger).
+- BATCH 4 (RangeStaffOverlay): #5 two-zone drag (outside-right drag-left = raise; on
+  setter drag-left = lower), #16 range notes not transposed for G-(F inst).
+- SMALL: #7 percussion beam is yellow (real notation), #1 transition: ottava glyphs +
+  brackets don't slide in with morph.
+
+RANGE / clef-card carousel:
+- 🐞 Transition: 8vb-etc ottava glyphs + the brackets ("blokhaken") don't slide in
+  with the morph (left behind / not animated).
+- 🐞 Chords don't sit neatly inside the card block (see screenshot).
+- 🐞 ext/add chord: the 3 columns (accidentals · middle notes · right notes) are too
+  cramped → widen column spacing.
+- 🔨 Remove the C4 ledger ("streepje"): transpose REF_NOTES up so they start at D4.
+- 🐞 Drag is confusing. Desired: clicking/dragging to the RIGHT of the range (outside)
+  → drag-left = "pull notes from the right" = RAISE range. On the range setter itself
+  → drag-left = LOWER range. (Need to map this to carousel vs note-range surfaces.)
+- 🔨 Make lowlight colour for ALL non-selections a bit darker grey (dark mode).
+
+NOTATION (sheet music rendering):
+- 🐞 Percussion beam is yellow (should match note colour, not yellow).
+- 🐞 Clefs sit too far right — don't match real sheet-music clef x-position.
+- 🔨 Notes too close to clef & each other → make blocks roomier.
+- 🐞 Clipping at the bottom of notes/clefs around the C-ledger height.
+- 🐞 8va treble clef doesn't render (ALT+0160 = nbsp → wrong/missing ottava glyph char).
+- 🐞 Instrument name: wrong position rel. to clef vs sheet music + different font size +
+  italic. MUST be consistent (Han frustrated — prioritise).
+- 🐞 Chords too close together + not at same height as in sheet music.
+
+CLEFS distribution / vocal:
+- 🔨 Add C-G-C reference notes to the vocal (zang) clefs too.
+- 🔨 Distribute ALL clefs (incl. vocal) across startX→endX from 12%→86% so they don't
+  overlap the edge or the left clef-setter.
+- 🐞 Baritone clef = F-clef with the F on the MIDDLE line → render 10 units lower; fix
+  note transposition accordingly.
+- ❓ Selecting G-(F inst): range-setter notes are NOT transposed. Are these rendered or
+  hardcoded? → ANSWER: REF_NOTES are a fixed array, transposed via the card's `trans`
+  (semitones) prop in ClefCard. Octave cards pass trans=0; transposition cards pass the
+  instrument semitones. If a card shows untransposed, the card's trans wiring is wrong
+  → BUG to fix (likely octave vs transposition orthogonality on that card).
+
+SETTINGS:
+- 🔨 settings / notation / range: make ACTIVE settings clearly yellow, rest lowlight.
+
+ROOT-CAUSE HYPOTHESIS (to validate): the ClefCard renders its own bespoke clef/note/
+label layout instead of reusing the real SheetMusic clef-glyph + note-layer + instrument-
+label primitives → explains clef x-pos, spacing, clipping, ottava glyph, instrument-name
+font/position, chord height all being inconsistent. §6c: prefer reusing existing
+rendering logic over a parallel implementation.
+
+
 - ✅ Dead code removed (verified zero refs, tests+build green):
   · clefSelector: `instrumentClefCards`/`INLINE_CLEF_CARDS`/`transpositionChips`/
     `INLINE_TRANSPOSITIONS` + now-unused import (superseded by the swipe carousel).

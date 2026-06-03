@@ -13,7 +13,11 @@ export const clefSymbols = {
   tenor: { char: 'B', yOffset: -20.0 },
   soprano: { char: 'B', yOffset: 10.0 },
   'mezzo-soprano': { char: 'B', yOffset: 0.0 },
-  treble8va: { char: ' ', yOffset: 0 },
+  // treble8va: Maestro has no single clean "treble + 8 above" glyph here (the slot
+  // was blank — the 8va clef rendered as nothing, Han 2026-06-03). We compose it like
+  // 15va/22ma: the plain treble glyph + a separate ottava '8' marker (drawn in a
+  // readable serif by ClefGlyph, since Maestro maps digits to music glyphs).
+  treble8va: { char: '&', yOffset: 0, ottava: '8' },
   treble8vb: { char: 'V', yOffset: 0 },
   treble15va: { char: '&', yOffset: 0, ottava: '15' },
   treble15vb: { char: '&', yOffset: 0, ottava: '15', below: true },
@@ -84,14 +88,22 @@ export const ClefGlyph = ({
         // Custom composite (no Maestro glyph for 22) — see Ottava22.
         <Ottava22 cx={x + (anchor === 'middle' ? 6 : 12)} cy={markerY} fill={fill} below={cf.below} />
       )}
-      {cf.ottava && cf.ottava !== '22' && (
-        <text x={x} y={markerY}
-          fontSize={cf.ottava === '15' ? 23 : 14}
-          fill={cf.ottava === '15' ? '#ffffff' : fill}
-          fontFamily="Maestro" textAnchor="middle"
-          dx={ottDx}
+      {cf.ottava === '15' && (
+        // Maestro char 134 is the engraved "15" ligature (drawn white at size 23).
+        <text x={x} y={markerY} fontSize={23} fill="#ffffff"
+          fontFamily="Maestro" textAnchor="middle" dx={ottDx}
           style={{ pointerEvents: 'none' }}>
-          {cf.ottava === '15' ? String.fromCharCode(134) : cf.ottava}
+          {String.fromCharCode(134)}
+        </text>
+      )}
+      {cf.ottava && cf.ottava !== '22' && cf.ottava !== '15' && (
+        // Plain numeric ottava ('8'): Maestro maps digits to MUSIC glyphs, so the
+        // number must be drawn in a normal font (same italic serif as Ottava22).
+        <text x={x} y={markerY} fontSize={14} fill={fill}
+          fontFamily="Georgia, serif" fontStyle="italic" fontWeight="bold"
+          textAnchor="middle" dx={ottDx}
+          style={{ pointerEvents: 'none' }}>
+          {cf.ottava}
         </text>
       )}
     </>
