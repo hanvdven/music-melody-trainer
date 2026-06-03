@@ -60,7 +60,13 @@ const REF_LAYER_PROPS = {
 // a small "(B♭ inst.)" superscript for transposing instruments. The notes are the
 // REAL renderer (MelodyNotesLayer) — §6c, never hand-drawn noteheads.
 const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, color, theme }) => {
-    const noteW = Math.max(12, (cardW || 60) * 0.14);
+    // Roomier than the old 0.14 so the 3 reference notes don't crowd (Han #9, 2026-06-03).
+    const noteW = Math.max(16, (cardW || 60) * 0.18);
+    // Clef sits inset from the card's left edge so (a) the leftmost card's clef is never
+    // clipped by the swipe window and (b) it reads closer to its melody, matching the
+    // real staff where the clef hugs the notes rather than the page edge (Han #8/#10).
+    const CLEF_X = x + 8;
+    const NOTES_X = x + 24;        // just right of the ~14-wide clef glyph (small gap)
     const refMelody = {
         notes, offsets: [0, Q, 2 * Q], durations: [Q, Q, Q],
         displayNotes: notes, ties: [null, null, null], triplets: null, rhythmicGrouping: null,
@@ -70,12 +76,13 @@ const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, c
     const allOffsets = [-1, 0, Q, 2 * Q, 2 * Q + 1];
     return (
         <g style={{ pointerEvents: 'none' }}>
-            <ClefGlyph symbolKey={symbolKey} x={x} baseY={staffStart + 30} fill={color} anchor="start" />
+            <ClefGlyph symbolKey={symbolKey} x={CLEF_X} baseY={staffStart + 30} fill={color} anchor="start" />
             {inst && (
                 // Match the REAL staff's transposition label exactly (SheetMusic.jsx
                 // staff group): fontSize 12, plain serif, NOT italic — so the setter
-                // reads identically to the sheet (Han 2026-06-03, consistency).
-                <text x={x} y={staffStart - 8} fontSize={12}
+                // reads identically to the sheet (Han 2026-06-03, consistency). Placed
+                // to the UPPER-RIGHT of the clef, not directly above it (Han 2026-06-03).
+                <text x={CLEF_X + 14} y={staffStart - 8} fontSize={12}
                     fontFamily="serif" fill={color} textAnchor="start">
                     {`(${inst}.)`}
                 </text>
@@ -86,7 +93,7 @@ const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, c
                 staff="treble"
                 clef={clef}
                 staffYStart={staffStart}
-                startX={x + 22}
+                startX={NOTES_X}
                 noteWidth={noteW}
                 allOffsets={allOffsets}
                 timeSignature={[3, 4]}
@@ -281,7 +288,7 @@ const ClefStaffOverlay = ({
                 // transform attr on the inner strip).
                 <g className="clef-variant-cards" data-fly="" data-fly-from={startX}>
                     <ClefCardCarousel cards={cards} x0={VAR_X0} y={staffStart - 24}
-                        viewWidth={viewWidth} height={74} clipHeight={108} cardW={CARD_W}
+                        viewWidth={viewWidth} height={74} cardW={CARD_W}
                         clipId={`clefcards-${staff}`} renderCard={renderCard} />
                 </g>
             );
