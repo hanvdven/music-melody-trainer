@@ -72,8 +72,11 @@ const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, c
         <g style={{ pointerEvents: 'none' }}>
             <ClefGlyph symbolKey={symbolKey} x={x} baseY={staffStart + 30} fill={color} anchor="start" />
             {inst && (
-                <text x={x} y={staffStart - 6} fontSize={9} fontStyle="italic"
-                    fontFamily="Georgia, serif" fill={color} textAnchor="start">
+                // Match the REAL staff's transposition label exactly (SheetMusic.jsx
+                // staff group): fontSize 12, plain serif, NOT italic — so the setter
+                // reads identically to the sheet (Han 2026-06-03, consistency).
+                <text x={x} y={staffStart - 8} fontSize={12}
+                    fontFamily="serif" fill={color} textAnchor="start">
                     {`(${inst}.)`}
                 </text>
             )}
@@ -203,7 +206,9 @@ const ClefStaffOverlay = ({
                 <g className="clef-variant-chips">
                     {chips.map((c, i) => {
                         const cx = chips.length > 1 ? VAR_X0 + i * step : VAR_X0 + viewWidth / 2;
-                        const color = c.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
+                        // Active = accent yellow (matches the sheet's settings highlight);
+                        // non-selected = the darker setter-lowlight grey (Han 2026-06-03).
+                        const color = c.active ? 'var(--accent-yellow)' : 'var(--setter-lowlight)';
                         return (
                             <g key={c.key} data-fly="" data-fly-from={startX}
                                 style={{ cursor: onApplyClefPatch ? 'pointer' : 'default' }}
@@ -248,7 +253,8 @@ const ClefStaffOverlay = ({
 
             const CARD_W = 92;
             const renderCard = (card, slotX) => {
-                const color = card.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
+                // Active = accent yellow; non-selected = darker setter-lowlight (Han 2026-06-03).
+                const color = card.active ? 'var(--accent-yellow)' : 'var(--setter-lowlight)';
                 return (
                     <g>
                         <ClefCard symbolKey={card.symbolKey} clef={baseClef} notes={refNotes}
