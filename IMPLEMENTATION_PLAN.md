@@ -574,3 +574,12 @@ Muziek|Toonladder).
 - CLAUDE.md §3a — every interactive component must draw its hit box in
   `debugMode` (orange rect, `pointerEvents:'none'`).
 - CLAUDE.md §1a addendum — log all plans/CRs/FRs/bugs into this file immediately.
+
+- Batch 2 round 4 (Han 2026-06-03 screenshot in B♭ = notes/accidentals CORRECT):
+  · ✅ tonic+5th+octave + per-note accidentals confirmed correct in B♭.
+  · ✅ #9 cards DOUBLED width (CARD_W 92→184, VOC_CARD_W 72→144) — roomier note spacing.
+  · ✅ CR: staff-level key signature BLOCKED in clef-edit mode (gated renderAccidentals +
+    enharmonic toggle on !clefEditMode, both staves) — accidentals only per-note now.
+  · ✅ #10 left clipping = family carousel LEFT FADE dimmed the active clef at
+    CLEF_GLYPH_X; removed left fade (right fade kept for scroll).
+  · ⏳ #8 clef position + 8/15/(inst) label alignment — ASKING Han (ambiguous 3×).

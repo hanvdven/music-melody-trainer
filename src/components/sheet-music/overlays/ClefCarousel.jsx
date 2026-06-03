@@ -78,12 +78,10 @@ export default function ClefCarousel({
         rafRef.current = requestAnimationFrame(frame);
     };
 
-    // A GENTLE edge fade: the N resting glyphs (spread ~10%–90%) stay full opacity;
-    // only the extreme edges soften, so wrap copies scrolling in/out of the clip ease
-    // rather than hard-cut. (Earlier the fade started at ~68% and dimmed the rightmost
-    // resting glyph — Han #14.)
+    // Only the RIGHT edge softens (for wrap copies scrolling out). The LEFT stays full
+    // opacity: the active clef rests at the leftmost slot (CLEF_GLYPH_X), so a left fade
+    // dimmed/"clipped" it (Han #10, 2026-06-03).
     const maskId = `${clipId}-fade`;
-    const leftFade = 0.05;
     const rightFade = 0.95;
 
     return (
@@ -93,8 +91,7 @@ export default function ClefCarousel({
                     <rect x={clipRect.x} y={clipRect.y} width={clipRect.width} height={clipRect.height} />
                 </clipPath>
                 <linearGradient id={maskId} x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0" stopColor="white" stopOpacity="0" />
-                    <stop offset={leftFade} stopColor="white" stopOpacity="1" />
+                    <stop offset="0" stopColor="white" stopOpacity="1" />
                     <stop offset={rightFade} stopColor="white" stopOpacity="1" />
                     <stop offset="1" stopColor="white" stopOpacity="0" />
                 </linearGradient>

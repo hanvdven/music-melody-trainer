@@ -1839,9 +1839,11 @@ const SheetMusic = ({
                     {cfT.ottava === '15' ? String.fromCharCode(134) : cfT.ottava}
                   </text>
                 )}
-                {renderAccidentals(numAccidentals, clefTreble, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
+                {/* No staff-level key signature in the CLEF setter — accidentals there
+                    are shown per-note on the reference notes instead (Han 2026-06-03). */}
+                {!clefEditMode && renderAccidentals(numAccidentals, clefTreble, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
                 {/* Clickable overlay on key-signature accidentals: toggles tonic to enharmonic equivalent */}
-                {numAccidentals !== 0 && onEnharmonicToggle && (() => {
+                {!clefEditMode && numAccidentals !== 0 && onEnharmonicToggle && (() => {
                   const n = Math.min(Math.abs(numAccidentals), 7);
                   const rw = accidentalSpacing * (n - 1) + 18;
                   return (
@@ -1934,9 +1936,9 @@ const SheetMusic = ({
                     {cfB.ottava === '15' ? String.fromCharCode(134) : cfB.ottava}
                   </text>
                 )}
-                {renderAccidentals(numAccidentals, clefBass, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
+                {!clefEditMode && renderAccidentals(numAccidentals, clefBass, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
                 {/* Clickable overlay on bass key-signature accidentals */}
-                {numAccidentals !== 0 && onEnharmonicToggle && (() => {
+                {!clefEditMode && numAccidentals !== 0 && onEnharmonicToggle && (() => {
                   const n = Math.min(Math.abs(numAccidentals), 7);
                   const rw = accidentalSpacing * (n - 1) + 18;
                   return (
