@@ -10,6 +10,30 @@ import ClefCarousel from './ClefCarousel';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { processMelodyAndCalculateSlots } from '../processMelodyAndCalculateSlots';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
+import { getNoteValue, getNoteFromValue } from '../../../utils/rangeUtils';
+
+// vocalRefTriad — the C-G-C reference notes for a vocal voice, chosen to sit inside
+// that voice's singing range (Han #14, 2026-06-03). We pick the octave whose triad
+// [C_o, G_o, C_{o+1}] falls most inside [min,max] (fewest semitones spilling past
+// either end), tie-broken toward the centre of the range. Derived from the range —
+// no per-voice note table (§6c).
+const vocalRefTriad = (min, max) => {
+    const lo = getNoteValue(min), hi = getNoteValue(max);
+    const rangeCentre = (lo + hi) / 2;
+    let best = null;
+    // C_o has MIDI (o+1)*12; scan every octave whose root C could be near the range.
+    for (let o = 0; o <= 8; o++) {
+        const root = (o + 1) * 12;          // C_o
+        const top = root + 12;              // C_{o+1}
+        const spill = Math.max(0, lo - root) + Math.max(0, top - hi);
+        const offCentre = Math.abs((root + top) / 2 - rangeCentre);
+        if (!best || spill < best.spill || (spill === best.spill && offCentre < best.offCentre)) {
+            best = { root, spill, offCentre };
+        }
+    }
+    // G_o is a perfect fifth (7 semitones) above C_o; top note is the octave C.
+    return [getNoteFromValue(best.root), getNoteFromValue(best.root + 7), getNoteFromValue(best.root + 12)];
+};
 
 /**
  * ClefStaffOverlay — in-SVG CLEF selector (Han 2026-06-01), sibling of
@@ -204,19 +228,24 @@ const ClefStaffOverlay = ({
 
         let variantContent = null;
         if (famId === 'vocal') {
-            // Vocal voices: each as its REAL clef glyph (Han #8), evenly spread (a small
-            // fixed set — no swipe needed). Bass & Baritone share the F-clef glyph but
-            // are distinct voices, matched on rangeMode.
-            const chips = VOCAL_VARIANTS.map(v => ({
-                key: `voc-${v.rangeMode}`, symbolKey: v.clef,
+            // Vocal voices: each as a CARD — its REAL clef plus a C-G-C reference triad
+            // sitting inside that voice's range (Han #14, 2026-06-03). A small fixed set,
+            // so they're evenly spread (no swipe). Bass & Baritone are distinct voices on
+            // their own clefs, matched on rangeMode.
+            const VOC_CARD_W = 72;
+            const cards = VOCAL_VARIANTS.map(v => ({
+                key: `voc-${v.rangeMode}`, clef: v.clef,
+                notes: vocalRefTriad(v.min, v.max),
                 active: rangeMode === v.rangeMode,
                 onTap: () => onApplyClefPatch?.(staff, patchForVocal(v)),
             }));
-            const step = chips.length > 1 ? viewWidth / (chips.length - 1) : 0;
+            // Spread the card LEFT edges so the first sits at VAR_X0 and the last's right
+            // edge lands on VAR_X1 (keeps every card inside the 12%→86% band).
+            const step = cards.length > 1 ? (viewWidth - VOC_CARD_W) / (cards.length - 1) : 0;
             variantContent = (
                 <g className="clef-variant-chips">
-                    {chips.map((c, i) => {
-                        const cx = chips.length > 1 ? VAR_X0 + i * step : VAR_X0 + viewWidth / 2;
+                    {cards.map((c, i) => {
+                        const cardX = cards.length > 1 ? VAR_X0 + i * step : VAR_X0 + (viewWidth - VOC_CARD_W) / 2;
                         // Active = accent yellow (matches the sheet's settings highlight);
                         // non-selected = the darker setter-lowlight grey (Han 2026-06-03).
                         const color = c.active ? 'var(--accent-yellow)' : 'var(--setter-lowlight)';
@@ -224,10 +253,14 @@ const ClefStaffOverlay = ({
                             <g key={c.key} data-fly="" data-fly-from={startX}
                                 style={{ cursor: onApplyClefPatch ? 'pointer' : 'default' }}
                                 onClick={c.onTap}>
-                                <rect x={cx - 16} y={staffStart - 14} width={32} height={56} fill="transparent" />
-                                <ClefGlyph symbolKey={c.symbolKey} x={cx} baseY={staffStart + 30} fill={color} anchor="middle" />
+                                {/* Transparent tap target over the card (ClefCard is
+                                    pointerEvents:none); §3a debug rect matches it. */}
+                                <rect x={cardX} y={staffStart - 24} width={VOC_CARD_W} height={74} fill="transparent" />
+                                <ClefCard symbolKey={c.clef} clef={c.clef} notes={c.notes}
+                                    trans={0} inst={null} x={cardX} staffStart={staffStart}
+                                    cardW={VOC_CARD_W} color={color} theme={theme} />
                                 {debugMode && (
-                                    <rect x={cx - 16} y={staffStart - 14} width={32} height={56}
+                                    <rect x={cardX} y={staffStart - 24} width={VOC_CARD_W} height={74}
                                         fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
                                         style={{ pointerEvents: 'none' }} />
                                 )}

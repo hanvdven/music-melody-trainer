@@ -37,8 +37,13 @@ REMAINING — staged batches:
   · ✅ #9: roomier note spacing (noteW 0.14→0.18, min 16).
   · ✅ label "(B♭ inst.)" moved to UPPER-RIGHT of clef (CLEF_X+14) not directly above.
   · ✅ CR: subheader button hit-zone now covers the label text too (hit-extender div).
-  · ⏳ #14 vocal C-G-C NOTES: still TODO — need octave rule confirmed (centre triad on
-    each voice clef, derive octave from clefOffsets/voice range; no hardcoded table §6c).
+  · ✅ #14 vocal C-G-C NOTES: each voice now a ClefCard (real renderer) with a C-G-C
+    triad derived from the voice's range (Han: "from each voice's range"). vocalRefTriad()
+    picks the octave with least range-spill, tie-broken to centre — no per-voice table
+    (§6c). Ranges added to VOCAL_VARIANTS (mirror VOCAL_RANGES/CLEF_VOCAL_RANGES; flagged
+    for future consolidation). Result: Bass/Bari/Tenor C3-G3-C4, Alto/Mezzo C4-G4-C5,
+    Soprano C5-G5-C6.
+  · BATCH 2 COMPLETE pending Han's visual verification.
   · ⏳ #13 chord height → belongs with Batch 3 (chord line).
 - BATCH 3 (chord line / ext-add chord editor): #2 chords not neatly in block, #3 3-column
   spacing too tight, #4 transpose chord-line notes up to start at D4 (kill C4 ledger).
