@@ -218,7 +218,7 @@ const ClefStaffOverlay = ({
             // Active = NORMAL sheet colour (NOT yellow); passive = the SHARED setter
             // lowlight — same token the variant cards use, so the family clefs and the
             // card clefs are the exact same grey (Han 2026-06-03 consistency).
-            const colr = isActive ? 'var(--text-primary)' : 'var(--setter-lowlight)';
+            const colr = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
             const symbolKey = isActive ? variantToSymbolKey(clef) : fam.clef;
             // Glyphs are anchor='start' (left edge at the slot x), so the selection/hit
             // box brackets [slotX−4 … slotX−4+SLOT_W] instead of being centred — keeps
@@ -277,7 +277,12 @@ const ClefStaffOverlay = ({
         // (treble ≈ C4–C5, bass ≈ C3–C4) so it reads like the old fixed C-G-C but
         // now follows the tonic. The 5th degree comes from the current scale.
         const [refLo, refHi] = baseClef === 'treble' ? [60, 72] : [48, 60];
-        const refNotes = refTriadNotes(tonicName, tonicSemi, fifthName, fifthSemi, refLo, refHi);
+        // PER-CARD reference notes (Han #14, 2026-06-03): a transposing card displays
+        // its notes shifted by `trans`, so we centre the CONCERT notes in [lo−trans,
+        // hi−trans] → after the +trans shift they land back in the comfortable on-staff
+        // range. Fixes off-staff results (e.g. an 8va on E♭ bass, 3 ledger lines on F).
+        const cardNotesFor = (trans) =>
+            refTriadNotes(tonicName, tonicSemi, fifthName, fifthSemi, refLo - trans, refHi - trans);
         // Distribute the variant clefs across 12%→86% of the staff body [startX…endX]
         // (Han 2026-06-03): the 12% left inset clears the family clef-setter in the
         // Variant carousel window spans 5%→95% of the staff body [startX…endX]; the edge
@@ -305,7 +310,7 @@ const ClefStaffOverlay = ({
             const cardWidth = (card) => (isNarrow && !card.active) ? CLEF_ONLY_W : VOC_CARD_W;
             const renderCard = (card, slotX) => {
                 // Selected = normal colour (not yellow); non-selected = shared lowlight.
-                const color = card.active ? 'var(--text-primary)' : 'var(--setter-lowlight)';
+                const color = card.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
                 const showNotes = card.active || !isNarrow;   // A7
                 return (
                     <g>
@@ -332,21 +337,24 @@ const ClefStaffOverlay = ({
                 </g>
             );
         } else if (famId !== 'off') {
-            // Melodic G/F: a SWIPEABLE strip of clef CARDS — ONLY transposing instruments
-            // now; the 8va/15ma octave cards were removed (Han 2026-06-03, "enkel
-            // transposities"). §6c: instruments come from TRANSPOSING_INSTRUMENTS.
-            // Concert C is the default; a transposing card tapped while ALREADY active
-            // toggles back to C — that is the only way to reset transposition from the
-            // strip (there is no dedicated C card, per Han's order).
-            const cards = [];
+            // Melodic G/F: a SWIPEABLE strip of clef CARDS — concert C first (no label,
+            // leftmost) then every transposing instrument (Han 2026-06-03). 8va/15ma
+            // octave cards were removed ("enkel transposities"). §6c: instruments come
+            // from TRANSPOSING_INSTRUMENTS. Each card carries its OWN trans-centred notes.
+            const cards = [{
+                key: 'tr-C', symbolKey: baseClef, trans: 0, inst: null, notes: cardNotesFor(0),
+                active: transKey === 'C',
+                onTap: () => onApplyClefPatch?.(staff, patchForTransposition('C')),
+            }];
             TRANSPOSING_INSTRUMENTS.filter(i => i.key !== 'C').forEach(i => cards.push({
                 key: `tr-${i.key}`, symbolKey: baseClef, trans: i.semitones, inst: i.display,
+                notes: cardNotesFor(i.semitones),
                 active: transKey === i.key,
                 onTap: () => onApplyClefPatch?.(staff, patchForTransposition(transKey === i.key ? 'C' : i.key)),
             }));
 
-            // Wider block (#9); right margin trimmed ~40% vs 184 per Han's nudge.
-            const CARD_W = 158;
+            // Block (clef + 3 notes) 10 units shorter on the right (Han 2026-06-03).
+            const CARD_W = 148;
             // A7: on narrow screens only the SELECTED card shows notes; the rest shrink to
             // a clef-only slot so more clefs fit.
             const cardWidth = (card) => (isNarrow && !card.active) ? CLEF_ONLY_W : CARD_W;
@@ -354,11 +362,11 @@ const ClefStaffOverlay = ({
                 // Selected = NORMAL sheet colour (Han 2026-06-03: NOT yellow — the preview
                 // must show the clef/notes as they really look); non-selected = the shared
                 // setter lowlight (same token as the family column, for consistency).
-                const color = card.active ? 'var(--text-primary)' : 'var(--setter-lowlight)';
+                const color = card.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
                 const showNotes = card.active || !isNarrow;
                 return (
                     <g>
-                        <ClefCard symbolKey={card.symbolKey} clef={baseClef} notes={refNotes}
+                        <ClefCard symbolKey={card.symbolKey} clef={baseClef} notes={card.notes}
                             trans={card.trans} inst={card.inst} x={slotX} staffStart={staffStart}
                             cardW={CARD_W} color={color} theme={theme}
                             active={card.active} noteColoringMode={noteColoringMode}
