@@ -71,6 +71,10 @@ const CLEF_VOCAL_RANGES = [
 // Set of vocal clef strings (module scope; mirrors the per-instance set used by
 // calculateOptimalClef).
 const VOCAL_CLEFS = new Set(['soprano', 'mezzo-soprano', 'alto', 'tenor']);
+// Vocal voice rangeModes — a staff counts as "vocal" (→ vocal range presets) when it
+// shows a vocal clef OR carries a vocal voice rangeMode, so Bass/Baritone (F-clef
+// voices) also get the 6 voice presets (Han #12, 2026-06-03).
+const VOCAL_RANGE_MODES_SET = new Set(CLEF_VOCAL_RANGES.map(v => v.label));
 
 /**
  * computeRangeFrame — the clef-aware "frame" the in-staff range selector needs:
@@ -86,20 +90,23 @@ const VOCAL_CLEFS = new Set(['soprano', 'mezzo-soprano', 'alto', 'tenor']);
  * (§6c). The extent is exactly the clef's widest preset — no ±octave padding,
  * which previously made treble extend down to A2 and overlap the bass staff.
  */
-const computeRangeFrame = (clef) => {
-  if (VOCAL_CLEFS.has(clef)) {
-    // Vocal: CENTRE the clef's default voice (tenor/alto/…) by padding its own
-    // range by one voice-span on each side (capped 21..108). The voice's notes
-    // then sit in the middle third with room to pick above and below (Han
-    // 2026-05-31). Presets are the individual voices (Bass…Soprano).
-    const voice = CLEF_VOCAL_RANGES.find(v => v.clef === clef)
+const computeRangeFrame = (clef, rangeMode = null) => {
+  if (VOCAL_CLEFS.has(clef) || VOCAL_RANGE_MODES_SET.has(rangeMode)) {
+    // Vocal: CENTRE the current voice by padding its own range by one voice-span on
+    // each side (capped 21..108). The voice's notes then sit in the middle third with
+    // room above and below (Han 2026-05-31). Presets are ALL 6 voices (Bass…Soprano);
+    // each carries its clef so picking a preset also activates the matching clef (#12).
+    const voice = CLEF_VOCAL_RANGES.find(v => v.label === rangeMode)
+      || CLEF_VOCAL_RANGES.find(v => v.clef === clef)
       || CLEF_VOCAL_RANGES.find(v => v.label === 'Alto');
     const lo = getNoteValue(voice.min), hi = getNoteValue(voice.max);
     const span = Math.max(12, hi - lo);
     return {
       rowLow: getNoteFromValue(Math.max(21, lo - span)),
       rowHigh: getNoteFromValue(Math.min(108, hi + span)),
-      presets: CLEF_VOCAL_RANGES.map(v => ({ label: v.label.toUpperCase(), min: v.min, max: v.max })),
+      presets: CLEF_VOCAL_RANGES.map(v => ({
+        label: v.label.toUpperCase(), rangeMode: v.label, clef: v.clef, min: v.min, max: v.max,
+      })),
     };
   }
   // Melodic (treble/bass and their ottava variants): pick the base family by clef.
@@ -241,7 +248,14 @@ const SheetMusic = ({
   // works for treble/bass presets AND vocal voices (which aren't in PRESET_RANGES).
   const applyMelodicPreset = React.useCallback((staff, preset) => {
     const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
-    setter(prev => ({ ...prev, range: { min: preset.min, max: preset.max }, rangeMode: preset.label }));
+    // A vocal preset also activates the matching voice clef + proper-case voice rangeMode
+    // (Han #12, 2026-06-03); melodic presets just set the range + their label rangeMode.
+    setter(prev => ({
+      ...prev,
+      range: { min: preset.min, max: preset.max },
+      rangeMode: preset.rangeMode ?? preset.label,
+      ...(preset.clef ? { preferredClef: preset.clef } : {}),
+    }));
   }, [setTrebleSettings, setBassSettings]);
 
   const togglePad = React.useCallback((padId) => {
@@ -870,8 +884,8 @@ const SheetMusic = ({
   // Clef-aware frames for the range selector: extent + presets follow the clef
   // shown on each staff (Han 2026-05-31), so a bass clef on the top staff offers
   // bass notes/presets and vocal clefs centre on their voice.
-  const trebleFrame = useMemo(() => computeRangeFrame(clefTreble), [clefTreble]);
-  const bassFrame = useMemo(() => computeRangeFrame(clefBass), [clefBass]);
+  const trebleFrame = useMemo(() => computeRangeFrame(clefTreble, trebleSettings?.rangeMode), [clefTreble, trebleSettings?.rangeMode]);
+  const bassFrame = useMemo(() => computeRangeFrame(clefBass, bassSettings?.rangeMode), [clefBass, bassSettings?.rangeMode]);
 
   const adjustedTrebleMelody = useMemo(() => processMelodyAndCalculateSlots(
     currentTreble,

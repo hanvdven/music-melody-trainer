@@ -581,13 +581,18 @@ const RangeStaffOverlay = ({
         const selMin = getNoteValue(range?.min);
         const selMax = getNoteValue(range?.max);
         const presetX0 = endX - PRESET_AREA_WIDTH + BRACKET_TICK + 4;
+        // Shrink the gap so EVERY preset fits the reserved area — vocal has 6 brackets,
+        // which overflowed at the fixed 26 (Han #12, 2026-06-03).
+        const gap = frame.presets.length > 1
+            ? Math.min(BRACKET_GAP, (PRESET_AREA_WIDTH - BRACKET_TICK - 8) / (frame.presets.length - 1))
+            : 0;
         return (
             <g className={`range-presets range-presets-${staff}`}>
                 {frame.presets.map((p, i) => {
                     const yTop = getNoteAbsoluteY(p.max, staffStart, clef, staff);
                     const yBottom = getNoteAbsoluteY(p.min, staffStart, clef, staff);
                     if (yTop == null || yBottom == null) return null;
-                    const x = presetX0 + i * BRACKET_GAP;
+                    const x = presetX0 + i * gap;
                     const isActive = getNoteValue(p.min) === selMin && getNoteValue(p.max) === selMax;
                     // Active preset = normal colour; passive = lowlight, opacity 1 (Han #14).
                     const color = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
