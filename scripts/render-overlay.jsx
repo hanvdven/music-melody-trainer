@@ -22,11 +22,11 @@ const inner = renderToStaticMarkup(
   React.createElement(ClefStaffOverlay, {
     startX: 150, endX: 920,
     trebleStart: 45, bassStart: 150, percussionStart: 260,
-    isTrebleVisible: true, isBassVisible: true, isPercussionVisible: false,
-    clefTreble: 'treble', clefBass: 'bass',
+    isTrebleVisible: true, isBassVisible: true, isPercussionVisible: true,
+    clefTreble: 'alto', clefBass: 'bass',
     // B♭ transposition active on treble so we can see A3 (selected card colours its
     // notes per the scheme); bass stays concert C (all cards dimmed).
-    trebleSettings: { transpositionKey: 'C', rangeMode: 'STANDARD' },
+    trebleSettings: { transpositionKey: 'C', rangeMode: 'Alto' },
     bassSettings: { transpositionKey: 'C', rangeMode: 'STANDARD' },
     tonic: 'B♭4',
     scaleNotes: ['B♭4', 'C5', 'D5', 'E♭5', 'F5', 'G5', 'A5'],
@@ -35,7 +35,7 @@ const inner = renderToStaticMarkup(
   }),
 );
 
-const W = 960, H = 240;
+const W = 960, H = 340;
 const svg = resolveVars(
   `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
   + `<rect width="${W}" height="${H}" fill="#161616"/>`
