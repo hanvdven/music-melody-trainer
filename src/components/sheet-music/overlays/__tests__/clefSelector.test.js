@@ -34,10 +34,12 @@ describe('carouselOrder', () => {
 });
 
 describe('patch helpers', () => {
-    it('family patch resolves the default clef + range mode, keeps transposition', () => {
+    it('family patch resolves the default clef + range mode; vocal resets transposition to C', () => {
         expect(patchForFamily('g')).toEqual({ preferredClef: 'treble', rangeMode: 'STANDARD' });
         expect(patchForFamily('f')).toEqual({ preferredClef: 'bass', rangeMode: 'STANDARD' });
-        expect(patchForFamily('vocal')).toEqual({ preferredClef: 'alto', rangeMode: 'Alto' });
+        // Vocal clefs are never transposing → switching into vocal resets to concert C.
+        expect(patchForFamily('vocal')).toEqual({ preferredClef: 'alto', rangeMode: 'Alto', transpositionKey: 'C' });
+        // Melodic families leave transposition untouched.
         expect(patchForFamily('g').transpositionKey).toBeUndefined();
     });
     it('octave patch maps to the relative rangeModes', () => {
@@ -46,11 +48,11 @@ describe('patch helpers', () => {
         expect(patchForOctave('g', 'treble')).toEqual({ preferredClef: 'treble', rangeMode: 'STANDARD' });
         expect(patchForOctave('g', 'nope')).toBeNull();
     });
-    it('vocal patch sets the chosen voice clef + rangeMode', () => {
-        expect(patchForVocal('tenor')).toEqual({ preferredClef: 'tenor', rangeMode: 'Tenor' });
+    it('vocal patch sets the chosen voice clef + rangeMode, resetting transposition to C', () => {
+        expect(patchForVocal('tenor')).toEqual({ preferredClef: 'tenor', rangeMode: 'Tenor', transpositionKey: 'C' });
         // Bass vs Baritone share the F-clef but stay distinct voices.
         expect(patchForVocal({ clef: 'bass', rangeMode: 'Baritone' }))
-            .toEqual({ preferredClef: 'bass', rangeMode: 'Baritone' });
+            .toEqual({ preferredClef: 'bass', rangeMode: 'Baritone', transpositionKey: 'C' });
     });
     it('transposition patch sets the key (defaults to C)', () => {
         expect(patchForTransposition('Bb')).toEqual({ transpositionKey: 'Bb' });

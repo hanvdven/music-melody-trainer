@@ -89,7 +89,10 @@ export const carouselOrder = (currentFamilyId) => {
 export const patchForFamily = (familyId) => {
     const fam = CLEF_FAMILIES.find(f => f.id === familyId) || CLEF_FAMILIES[0];
     if (fam.id === 'off') return { preferredClef: CLEF_OFF };
-    return { preferredClef: fam.clef, rangeMode: familyId === 'vocal' ? 'Alto' : 'STANDARD' };
+    // Switching INTO the vocal family resets transposition to concert C — vocal clefs
+    // are never transposing (Han 2026-06-03).
+    if (familyId === 'vocal') return { preferredClef: fam.clef, rangeMode: 'Alto', transpositionKey: 'C' };
+    return { preferredClef: fam.clef, rangeMode: 'STANDARD' };
 };
 
 // Settings patch for selecting an OCTAVE variant (melodic families only).
@@ -102,13 +105,14 @@ export const patchForOctave = (familyId, variantId) => {
 
 // Settings patch for selecting a VOCAL voice. `voice` is a VOCAL_VARIANTS entry
 // (or a clef string for back-compat). Sets the notating clef + the voice's
-// rangeMode so Bass vs Baritone (both F-clef) stay distinct.
+// rangeMode so Bass vs Baritone (both F-clef) stay distinct. ALWAYS resets the
+// transposition to concert C — vocal clefs are never transposing (Han 2026-06-03).
 export const patchForVocal = (voice) => {
     if (typeof voice === 'string') {
         const v = VOCAL_VARIANTS.find(x => x.clef === voice) || { clef: voice, rangeMode: 'Alto' };
-        return { preferredClef: v.clef, rangeMode: v.rangeMode };
+        return { preferredClef: v.clef, rangeMode: v.rangeMode, transpositionKey: 'C' };
     }
-    return { preferredClef: voice.clef, rangeMode: voice.rangeMode };
+    return { preferredClef: voice.clef, rangeMode: voice.rangeMode, transpositionKey: 'C' };
 };
 
 // Settings patch for a transposition chip.
