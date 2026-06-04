@@ -37,8 +37,19 @@ export default function ClefCarousel({
     const stripRef = React.useRef(null);
     const rafRef = React.useRef(null);
     const animatingRef = React.useRef(false);
+    // The slot currently being picked (in the CURRENT order). While set, THIS glyph reads
+    // as active (highlight) — so on a pick the colours swap to the picked clef BEFORE the
+    // slide, not after (Han #13, 2026-06-03: no one-frame old-active flash).
+    const [picking, setPicking] = React.useState(null);
 
     React.useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
+
+    // After the parent re-roots the order (onPick → new `items`), clear the leftover
+    // inline slide transform BEFORE paint, so the new order draws at translateX 0 with
+    // no intermediate frame at the old offset (Han #13). Skipped during the slide.
+    React.useLayoutEffect(() => {
+        if (!animatingRef.current && stripRef.current) stripRef.current.removeAttribute('transform');
+    });
 
     // Show EXACTLY the requested number of glyphs at rest (Han #14: caller passes
     // visible = items.length, evenly spread across the gutter so the rightmost lands
@@ -63,6 +74,8 @@ export default function ClefCarousel({
         const el = stripRef.current;
         if (!el) { onPick(items[relIndex % n], relIndex); return; }
         animatingRef.current = true;
+        // Highlight the picked clef NOW (before the slide); the old active goes lowlight.
+        setPicking(relIndex);
         const dist = relIndex * stepX;
         const t0 = performance.now();
         const dur = durationMs * Math.min(relIndex, 3); // longer for bigger jumps, capped
@@ -72,8 +85,12 @@ export default function ClefCarousel({
             if (p < 1) { rafRef.current = requestAnimationFrame(frame); return; }
             rafRef.current = null;
             animatingRef.current = false;
-            el.removeAttribute('transform');           // reset for the re-rooted order
-            onPick(items[relIndex % n], relIndex);     // parent makes picked item active
+            // Re-root the order (picked → slot 0). The leftover transform (−dist) is left in
+            // place and cleared by the layout effect on the new order's commit, BEFORE paint
+            // — so the swap is seamless: the picked clef stays highlighted at slot 0 with no
+            // intermediate frame (Han #13).
+            onPick(items[relIndex % n], relIndex);
+            setPicking(null);
         };
         rafRef.current = requestAnimationFrame(frame);
     };
@@ -109,7 +126,9 @@ export default function ClefCarousel({
                         <g key={key} transform={`translate(${startX + slot * stepX} 0)`}
                             style={{ cursor: onPick ? 'pointer' : 'default' }}
                             onClick={() => handlePick(slot % n)}>
-                            {renderItem(item, { isActive: slot === 0, index: slot })}
+                            {/* While picking, the picked slot is the active (highlight) one
+                                so colours swap BEFORE the slide; otherwise slot 0 (Han #13). */}
+                            {renderItem(item, { isActive: picking != null ? (slot === picking) : (slot === 0), index: slot })}
                         </g>
                     ))}
                 </g>
