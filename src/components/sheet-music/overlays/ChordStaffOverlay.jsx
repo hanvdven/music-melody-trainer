@@ -82,7 +82,10 @@ const ChordNotes = ({ id, cx, baseY, active }) => {
         <g style={{ pointerEvents: 'none' }}>
             <MelodyNotesLayer {...common} melody={chordMelody(['C4', 'G4'])} previewMode={color} />
             <MelodyNotesLayer {...common} melody={chordMelody(['E4', 'B4'])} previewMode={LOWLIGHT} />
-            <g transform="translate(8 0)">
+            {/* Tension stack offset further right (8→24) so its ♭/♯ accidentals (drawn to
+                the LEFT of these noteheads) clear the ~14px-wide middle noteheads — the 3
+                columns were too cramped (Han 2026-06-03). */}
+            <g transform="translate(24 0)">
                 <MelodyNotesLayer {...common} melody={chordMelody(['D♭4', 'F4', 'A♯4'])} previewMode={LOWLIGHT} />
             </g>
         </g>
