@@ -476,11 +476,13 @@ const ClefStaffOverlay = ({
         const renderOption = (key, cx, active, layers, onTap) => {
             const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
             const ox = cx - (slots / 2) * NOTE_W;
-            const hitX = ox - 10, hitW = slots * NOTE_W + 20;
+            // Taller + a touch wider hit target so the percussion together/split toggles
+            // aren't fiddly (Han 2026-06-03 "percussion clickzone too small").
+            const hitX = ox - 16, hitW = slots * NOTE_W + 32;
             return (
                 <g key={key} style={{ cursor: onToggleVoiceSplit ? 'pointer' : 'default' }} onClick={onTap}>
                     {/* invisible hit target — no visible box around the notes (Han #14) */}
-                    <rect x={hitX} y={y - 6} width={hitW} height={48} fill="transparent" />
+                    <rect x={hitX} y={y - 18} width={hitW} height={62} fill="transparent" />
                     <g style={{ pointerEvents: 'none' }}>
                         {layers.map((L, i) => (
                             <MelodyNotesLayer key={i}
@@ -502,7 +504,7 @@ const ClefStaffOverlay = ({
                         ))}
                     </g>
                     {debugMode && (
-                        <rect x={hitX} y={y - 6} width={hitW} height={48}
+                        <rect x={hitX} y={y - 18} width={hitW} height={62}
                             fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
                             style={{ pointerEvents: 'none' }} />
                     )}
@@ -518,7 +520,7 @@ const ClefStaffOverlay = ({
             const colr = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
             return (
                 <>
-                    <rect x={-FAMILY_SLOT_W / 2} y={y - 6} width={FAMILY_SLOT_W} height={52} fill="transparent" />
+                    <rect x={-FAMILY_SLOT_W / 2} y={y - 18} width={FAMILY_SLOT_W} height={62} fill="transparent" />
                     {item === 'off' ? (
                         <g stroke={colr} strokeWidth={2.4} strokeLinecap="round" style={{ pointerEvents: 'none' }}>
                             <path d={`M -9 ${y + 2} L 9 ${y + 38}`} />
