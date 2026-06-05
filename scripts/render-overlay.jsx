@@ -31,7 +31,7 @@ const inner = renderToStaticMarkup(
     tonic: 'B♭4',
     scaleNotes: ['B♭4', 'C5', 'D5', 'E♭5', 'F5', 'G5', 'A5'],
     noteColoringMode: 'tonic_scale_keys', isNarrow: false,
-    theme: 'dark', onApplyClefPatch: () => {}, debugMode: true,
+    theme: 'dark', onApplyClefPatch: () => {}, debugMode: false,
   }),
 );
 

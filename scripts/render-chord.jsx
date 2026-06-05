@@ -16,7 +16,7 @@ const resolveVars = (svg) => svg.replace(/var\(\s*(--[a-z-]+)\s*(?:,[^)]*)?\)/g,
 const inner = renderToStaticMarkup(
   React.createElement(ChordStaffOverlay, {
     startX: 60, endX: 900, trebleStart: 140, chordComplexity: 'extended',
-    onSetChordComplexity: () => {}, debugMode: true,
+    onSetChordComplexity: () => {}, debugMode: false,
   }),
 );
 const W = 940, H = 130;
