@@ -1543,7 +1543,11 @@ const renderMelodyNotes = (
     const beamThickness = 4.5;
     const beamYDir = stemIsAbove ? 1 : -1;
 
-    const beamColor = previewMode ? 'var(--accent-yellow)' : 'var(--text-primary)';
+    // Beam follows the note colour: a previewMode COLOUR STRING (e.g. the clef-setter's
+    // percussion preview) tints the beam to match its notes instead of being hardcoded
+    // yellow (Han #7, 2026-06-03). Boolean previewMode (input test) still flags yellow
+    // via previewColor; the real staff falls back to text-primary.
+    const beamColor = previewColor ?? 'var(--text-primary)';
 
     const renderTrapezoid = (x1, y1, x2, y2, keyPrefix) => {
       const y1b = y1 + beamYDir * beamThickness;
