@@ -28,6 +28,9 @@ import React from 'react';
  */
 const TAP_SLOP = 5;                       // < this much movement (user units) = a tap
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const easeInOut = (t) => t * t * (3 - 2 * t);
+const RECENTER_DELAY_MS = 3000;           // after a scroll, re-centre the selection (#4)
+const CENTER_ANIM_MS = 500;               // glide-to-centre duration (Han #2/#4)
 
 export default function ClefCardCarousel({
     cards, x0, y, viewWidth, height, cardW, renderCard, clipId, cardWidths,
@@ -35,6 +38,8 @@ export default function ClefCardCarousel({
     const stripRef = React.useRef(null);
     const offsetRef = React.useRef(0);    // committed scroll offset, ≤ 0
     const dragRef = React.useRef(null);   // { startX, startOffset, moved }
+    const animRef = React.useRef(null);   // glide-to-centre rAF
+    const recenterTimerRef = React.useRef(null);  // 3 s post-scroll re-centre timer
 
     // Per-card widths (A7: narrow screens shrink non-selected cards to clef-only); falls
     // back to a uniform cardW. `slotStarts[i]` = left x of card i within the strip.
@@ -62,6 +67,43 @@ export default function ClefCardCarousel({
         if (stripRef.current) stripRef.current.setAttribute('transform', `translate(${o} 0)`);
     };
 
+    // Scroll offset that puts card `idx` in the centre of the window (clamped).
+    const activeIdx = cards.findIndex(c => c.active);
+    const centerOffsetFor = (idx) => clamp(viewWidth / 2 - slotStarts[idx] - widths[idx] / 2, minOffset, 0);
+
+    // Glide the scroll offset to `target` over `durationMs` (Han #2/#4). Cancels any
+    // in-flight glide. No-op for tiny deltas so it doesn't fight a resting strip.
+    const animateOffsetTo = (target, durationMs) => {
+        if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
+        const from = offsetRef.current;
+        if (Math.abs(target - from) < 0.5) return;
+        const t0 = performance.now();
+        const step = (now) => {
+            const p = Math.min(1, (now - t0) / durationMs);
+            applyOffset(from + (target - from) * easeInOut(p));
+            animRef.current = p < 1 ? requestAnimationFrame(step) : null;
+        };
+        animRef.current = requestAnimationFrame(step);
+    };
+
+    // #2: when the selection CHANGES to a card that sits RIGHT of the window centre,
+    // glide it to the centre (0.5 s) — revealing that more cards live behind the strip.
+    const prevActiveRef = React.useRef(activeIdx);
+    React.useEffect(() => {
+        if (!scrollable || activeIdx < 0) { prevActiveRef.current = activeIdx; return; }
+        if (activeIdx === prevActiveRef.current) return;
+        prevActiveRef.current = activeIdx;
+        const curCentre = slotStarts[activeIdx] + widths[activeIdx] / 2 + offsetRef.current;
+        if (curCentre > viewWidth / 2) animateOffsetTo(centerOffsetFor(activeIdx), CENTER_ANIM_MS);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeIdx, scrollable]);
+
+    // Cleanup timers/raf on unmount.
+    React.useEffect(() => () => {
+        if (animRef.current) cancelAnimationFrame(animRef.current);
+        if (recenterTimerRef.current) clearTimeout(recenterTimerRef.current);
+    }, []);
+
     // client (px) → SVG user-space x via the owning svg's screen CTM.
     const toSvgX = (el, clientX) => {
         const svg = el.ownerSVGElement || el;
@@ -73,6 +115,9 @@ export default function ClefCardCarousel({
     };
 
     const onPointerDown = (e) => {
+        // Interacting cancels any in-flight glide and the pending re-centre (#2/#4).
+        if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
+        if (recenterTimerRef.current) { clearTimeout(recenterTimerRef.current); recenterTimerRef.current = null; }
         const sx = toSvgX(e.currentTarget, e.clientX);
         dragRef.current = { startX: sx, startOffset: offsetRef.current, moved: 0, downSvgX: sx };
         e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -96,6 +141,11 @@ export default function ClefCardCarousel({
             const localX = d.downSvgX - x0 - offsetRef.current;
             const idx = slotStarts.findIndex((s, i) => localX >= s && localX < s + widths[i]);
             if (idx >= 0 && idx < cards.length) cards[idx].onTap?.();
+        } else if (scrollable && activeIdx >= 0) {
+            // It was a drag/scroll → after 3 s of rest, glide the selection back to the
+            // centre (Han #4, 2026-06-03).
+            recenterTimerRef.current = setTimeout(
+                () => animateOffsetTo(centerOffsetFor(activeIdx), CENTER_ANIM_MS), RECENTER_DELAY_MS);
         }
     };
 
