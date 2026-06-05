@@ -16,12 +16,12 @@ const resolveVars = (svg) => svg.replace(/var\(\s*(--[a-z-]+)\s*(?:,[^)]*)?\)/g,
 const inner = renderToStaticMarkup(
   React.createElement(ChordStaffOverlay, {
     startX: 60, endX: 900, trebleStart: 140, chordComplexity: 'extended',
-    onSetChordComplexity: () => {}, debugMode: false,
+    onSetChordComplexity: () => {}, debugMode: true,
   }),
 );
 const W = 940, H = 130;
 const svg = resolveVars(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="550" height="450" viewBox="788 18 110 90">`
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
   + `<rect width="${W}" height="${H}" fill="#161616"/>`
   + [0, 1, 2, 3, 4].map(i => `<line x1="60" y1="${43 + i * 7.5}" x2="900" y2="${43 + i * 7.5}" stroke="#333" stroke-width="1"/>`).join('')
   + inner + `</svg>`,

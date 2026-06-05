@@ -115,19 +115,25 @@ const ChordStaffOverlay = ({
 
     // Centres at 10/30/50/70/90% of the row width (Han #12).
     const PCTS = [0.10, 0.30, 0.50, 0.70, 0.90];
+    // Hit box wider (was a fixed 30) so chords aren't fiddly to tap and the box covers
+    // the chord's noteheads, incl. the extended chord's 3 columns (Han 2026-06-03). Sized
+    // to ~80% of the inter-chord slot; shifted right a touch so it brackets the notes
+    // (which extend right of cx) rather than sitting left of them.
+    const HIT_W = Math.max(44, span * 0.20 * 0.8);
 
     return (
         <g className="chord-overlay" onClick={(e) => e.stopPropagation()}>
             {onSetChordComplexity && COMPLEXITY_OPTS.map((opt, i) => {
                 const cx = startX + span * PCTS[i];
+                const hitX = cx - 12;            // notes start at cx and extend right
                 return (
                     <g key={`cplx-${opt.id}`} data-fly=""
                         style={{ cursor: 'pointer' }}
                         onClick={() => onSetChordComplexity(opt.value)}>
-                        <rect x={cx - 14} y={cplxRowY - 24} width={30} height={48} fill="transparent" />
+                        <rect x={hitX} y={cplxRowY - 24} width={HIT_W} height={48} fill="transparent" />
                         <ChordNotes id={opt.id} cx={cx} baseY={cplxStaffY} active={activeCplx === opt.id} />
                         {debugMode && (
-                            <rect x={cx - 14} y={cplxRowY - 24} width={30} height={48}
+                            <rect x={hitX} y={cplxRowY - 24} width={HIT_W} height={48}
                                 fill="orange" fillOpacity={0.15} stroke="orange" strokeWidth={0.5}
                                 style={{ pointerEvents: 'none' }} />
                         )}
