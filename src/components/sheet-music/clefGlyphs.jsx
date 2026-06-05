@@ -103,11 +103,11 @@ export const ClefGlyph = ({
         </text>
       )}
       {cf.ottava && cf.ottava !== '22' && cf.ottava !== '15' && (
-        // Plain numeric ottava ('8'): Maestro maps digits to MUSIC glyphs, so the
-        // number must be drawn in a normal font (same italic serif as Ottava22).
-        <text x={x} y={markerY} fontSize={14} fill={fill}
-          fontFamily="Georgia, serif" fontStyle="italic" fontWeight="bold"
-          textAnchor="middle" dx={ottDx}
+        // Plain numeric ottava ('8' above the treble clef): use the MAESTRO numeral
+        // (the font's engraved time-signature digit) so the 8va reads as the real music
+        // glyph, not a serif text digit (Han #11, 2026-06-03).
+        <text x={x} y={markerY} fontSize={18} fill={fill}
+          fontFamily="Maestro" textAnchor="middle" dx={ottDx}
           style={{ pointerEvents: 'none' }}>
           {cf.ottava}
         </text>
