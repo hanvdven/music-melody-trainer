@@ -10,10 +10,11 @@ import { TICKS_PER_WHOLE } from '../../../constants/timing';
  *    sample at ~33% (letters: D⁻ G⁷ C) and ~66% (roman: ii V⁷ I), rendered as real
  *    chord-LABEL text (the sheet's chord-label style).
  *  COMPLEXITY (chordSettings.complexity): 5 clickable chords drawn as REAL stacked
- *    whole-notes via MelodyNotesLayer (§6c reuse — not hand-rolled glyphs):
- *    tonic [C4] · power [C4,G4] · triad [C4,E4,G4] · seventh [C4,E4,G4,B4] ·
- *    extended = [C4,G4] bright + [E4,B4] lowlit (same span) + right-offset [D4,F4,A4]
- *    lowlit with ♭/♯ to their left at D4/A4 (lowlit).
+ *    whole-notes via MelodyNotesLayer (§6c reuse — not hand-rolled glyphs). Shifted to
+ *    start at D4 so the lowest note has no C4 ledger (Han 2026-06-03):
+ *    tonic [D4] · power [D4,A4] · triad [D4,F4,A4] · seventh [D4,F4,A4,C5] ·
+ *    extended = [D4,A4] bright + [F4,C5] lowlit (same span) + right-offset [E♭4,G4,B4]
+ *    lowlit with ♭ to their left (lowlit).
  *
  * The active option in each row is highlighted. Picks write chordDisplayMode /
  * chordSettings.complexity.
@@ -33,13 +34,15 @@ const chordMelody = (notes) => ({
     ties: [null], triplets: null, rhythmicGrouping: null,
 });
 
-// Note stacks per complexity option (real pitches, like the generator setter).
+// Note stacks per complexity option. Shifted up a step to start at D4 (was C4) so the
+// lowest note hangs just below the staff with NO ledger line (Han 2026-06-03 "D4
+// onderaan"). These are illustrative complexity shapes, so the exact root doesn't matter.
 const CHORD_NOTES = {
-    tonic: ['C4'],
-    power: ['C4', 'G4'],
-    triad: ['C4', 'E4', 'G4'],
-    seventh: ['C4', 'E4', 'G4', 'B4'],
-    // extended is rendered specially (see ExtendedChord).
+    tonic: ['D4'],
+    power: ['D4', 'A4'],
+    triad: ['D4', 'F4', 'A4'],
+    seventh: ['D4', 'F4', 'A4', 'C5'],
+    // extended is rendered specially (see below).
 };
 
 // The 5 chord-row options. `value` is the canonical complexity stored in
@@ -80,13 +83,14 @@ const ChordNotes = ({ id, cx, baseY, active }) => {
     // stays natural (no accidental in C). §6c: real renderer draws the accidentals.
     return (
         <g style={{ pointerEvents: 'none' }}>
-            <MelodyNotesLayer {...common} melody={chordMelody(['C4', 'G4'])} previewMode={color} />
-            <MelodyNotesLayer {...common} melody={chordMelody(['E4', 'B4'])} previewMode={LOWLIGHT} />
+            {/* Shifted up a step to start at D4 (no C4 ledger, Han 2026-06-03). */}
+            <MelodyNotesLayer {...common} melody={chordMelody(['D4', 'A4'])} previewMode={color} />
+            <MelodyNotesLayer {...common} melody={chordMelody(['F4', 'C5'])} previewMode={LOWLIGHT} />
             {/* Tension stack offset further right (8→24) so its ♭/♯ accidentals (drawn to
                 the LEFT of these noteheads) clear the ~14px-wide middle noteheads — the 3
                 columns were too cramped (Han 2026-06-03). */}
             <g transform="translate(24 0)">
-                <MelodyNotesLayer {...common} melody={chordMelody(['D♭4', 'F4', 'A♯4'])} previewMode={LOWLIGHT} />
+                <MelodyNotesLayer {...common} melody={chordMelody(['E♭4', 'G4', 'B4'])} previewMode={LOWLIGHT} />
             </g>
         </g>
     );
