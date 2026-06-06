@@ -126,6 +126,13 @@ const nearestIdx = (notes, midi) => {
     return bi;
 };
 
+// Shift a midi by `n` NATURAL steps along `notes` (clamped). Used by the two-zone drag
+// (Han #5) to move a boundary relative to where it was at press-time.
+const shiftNatural = (notes, midi, n) => {
+    const i = Math.max(0, Math.min(notes.length - 1, nearestIdx(notes, midi) + n));
+    return notes[i].midi;
+};
+
 // Spread the notes across the FULL available width: divide evenly with no upper
 // cap, so a small selection's notes fan out instead of bunching at the left (Han
 // 2026-06-01). The window grows only modestly (capped via MAX_CONTEXT below) to
@@ -432,12 +439,17 @@ const RangeStaffOverlay = ({
         const onDown = (e) => {
             if (!onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
+            // Two zones (Han #5, 2026-06-03): RIGHT of the highest selected note → this
+            // gesture controls the MAX boundary; anywhere on the setter (≤ max note) →
+            // it controls the MIN boundary. Drag is relative + 1:1 (see onMove).
+            const maxCol = colMidi.indexOf(selMax);
+            const maxNoteX = maxCol >= 0 ? startX + maxCol * noteWidth : (endX - PRESET_AREA_WIDTH);
+            const which = x > maxNoteX + noteWidth / 2 ? 'max' : 'min';
             const target = colAt(x);
-            const which = Math.abs(target - selMin) <= Math.abs(target - selMax) ? 'min' : 'max';
             const fromMidi = which === 'min' ? selMin : selMax;
-            // Direction toward the press; pressing ON the boundary → extend outward.
+            // Tap/hold still steps the zone's boundary toward the pressed column.
             const dir = target > fromMidi ? 1 : (target < fromMidi ? -1 : (which === 'max' ? 1 : -1));
-            downRef.current = { x, staff };
+            downRef.current = { x, staff, zone: which, minAtPress: selMin, maxAtPress: selMax };
             try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not all envs */ }
             beginStepper(staff, which, fromMidi, target, dir, frame.presets);
         };
@@ -451,9 +463,20 @@ const RangeStaffOverlay = ({
                 dragRef.current = { staff, boundary: s.which, layout }; // freeze layout
             }
             if (s.dragged) {
-                const midi = colAt(x);
+                // Relative 1:1 drag from the press point (Han #5). One note-width of drag
+                // = one natural step. MAX zone: drag-LEFT raises max ("pull notes in from
+                // the right"). MIN zone: drag-LEFT lowers min. The other boundary holds.
+                const steps = Math.round((x - d.x) / noteWidth);
+                let midi;
+                if (d.zone === 'max') {
+                    midi = shiftNatural(PIANO_NATURALS, d.maxAtPress, -steps);
+                    if (midi <= d.minAtPress) midi = shiftNatural(PIANO_NATURALS, d.minAtPress, 1);
+                } else {
+                    midi = shiftNatural(PIANO_NATURALS, d.minAtPress, steps);
+                    if (midi >= d.maxAtPress) midi = shiftNatural(PIANO_NATURALS, d.maxAtPress, -1);
+                }
                 s.live = midi;
-                onSetMelodicBoundary(staff, midi, s.which, frame.presets);
+                onSetMelodicBoundary(staff, midi, d.zone, frame.presets);
             }
         };
         const onUp = () => {
