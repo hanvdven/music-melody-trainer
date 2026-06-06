@@ -21,7 +21,7 @@ const ProgressionSample = ({ cx, cy, kind, color }) => {
     const items = kind === 'roman'
         ? [{ root: 'ii', sup: '' }, { root: 'V', sup: '7' }, { root: 'I', sup: '' }]
         : [{ root: 'D', sup: '−' }, { root: 'G', sup: '7' }, { root: 'C', sup: '' }];
-    const GAP = 34;                 // spacing between chords (room for the 26px roots)
+    const GAP = 42;                 // spacing between the 3 sample chords (Han: further apart)
     const x0 = cx - GAP;            // 3 chords centred on cx
     return (
         <g style={{ pointerEvents: 'none' }} fill={color}
@@ -29,7 +29,7 @@ const ProgressionSample = ({ cx, cy, kind, color }) => {
             {items.map((it, i) => {
                 const x = x0 + i * GAP;
                 return (
-                    <text key={i} x={x} y={cy + 8} fontSize={ROOT_FS} textAnchor="middle">
+                    <text key={i} x={x} y={cy} fontSize={ROOT_FS} textAnchor="middle">
                         {it.root}
                         {it.sup && <tspan fontSize={SUP_FS} dy={-SUP_DY} dx="1">{it.sup}</tspan>}
                     </text>
@@ -38,6 +38,9 @@ const ProgressionSample = ({ cx, cy, kind, color }) => {
         </g>
     );
 };
+// Width spanned by the 3-chord sample (2 gaps + a root glyph on each end) — used to size
+// the hit box so it brackets the chords (Han: clickzone too narrow).
+const SAMPLE_W = 2 * 42 + 36;
 
 const ChordStyleOverlay = ({
     startX, endX, trebleStart,
@@ -46,7 +49,10 @@ const ChordStyleOverlay = ({
     debugMode = false,
 }) => {
     if (startX == null || trebleStart == null) return null;
-    const rowY = trebleStart - 50;                 // chord row, above the treble staff
+    // Match the SHEET chord-label baseline (ChordLabelsLayer CHORD_ROOT_Y = trebleStart−58)
+    // so the setter row sits at the SAME height as the real chord labels (Han Batch C).
+    const labelBase = trebleStart - 58;
+    const visCentre = labelBase - 9;               // ~centre of the 26px text, for the off-cross
     const span = (endX ?? startX) - startX;
     const cx33 = startX + span * 0.33;
     const cx66 = startX + span * 0.66;
@@ -59,10 +65,10 @@ const ChordStyleOverlay = ({
 
     const hit = (key, node, hitX, hitW, onTap) => (
         <g key={key} data-fly="" style={{ cursor: 'pointer' }} onClick={onTap}>
-            <rect x={hitX} y={rowY - 24} width={hitW} height={48} fill="transparent" />
+            <rect x={hitX} y={visCentre - 22} width={hitW} height={44} fill="transparent" />
             {node}
             {debugMode && (
-                <rect x={hitX} y={rowY - 24} width={hitW} height={48}
+                <rect x={hitX} y={visCentre - 22} width={hitW} height={44}
                     fill="orange" fillOpacity={0.15} stroke="orange" strokeWidth={0.5}
                     style={{ pointerEvents: 'none' }} />
             )}
@@ -73,16 +79,16 @@ const ChordStyleOverlay = ({
         <g className="chord-style-overlay" onClick={(e) => e.stopPropagation()}>
             {hit('off', (
                 <g stroke={offColor} strokeWidth={2.4} strokeLinecap="round" style={{ pointerEvents: 'none' }}>
-                    <path d={`M ${startX - 8} ${rowY - 16} L ${startX + 8} ${rowY + 16}`} />
-                    <path d={`M ${startX + 8} ${rowY - 16} L ${startX - 8} ${rowY + 16}`} />
+                    <path d={`M ${startX - 8} ${visCentre - 12} L ${startX + 8} ${visCentre + 12}`} />
+                    <path d={`M ${startX + 8} ${visCentre - 12} L ${startX - 8} ${visCentre + 12}`} />
                 </g>
-            ), startX - 12, 24, () => onSetChordDisplayMode?.('off'))}
+            ), startX - 14, 28, () => onSetChordDisplayMode?.('off'))}
             {hit('letters',
-                <ProgressionSample cx={cx33} cy={rowY} kind="letters" color={lettersColor} />,
-                cx33 - 44, 88, () => onSetChordDisplayMode?.('letters'))}
+                <ProgressionSample cx={cx33} cy={labelBase} kind="letters" color={lettersColor} />,
+                cx33 - SAMPLE_W / 2, SAMPLE_W, () => onSetChordDisplayMode?.('letters'))}
             {hit('roman',
-                <ProgressionSample cx={cx66} cy={rowY} kind="roman" color={romanColor} />,
-                cx66 - 44, 88, () => onSetChordDisplayMode?.('roman'))}
+                <ProgressionSample cx={cx66} cy={labelBase} kind="roman" color={romanColor} />,
+                cx66 - SAMPLE_W / 2, SAMPLE_W, () => onSetChordDisplayMode?.('roman'))}
         </g>
     );
 };
