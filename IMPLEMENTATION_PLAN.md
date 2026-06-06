@@ -640,3 +640,30 @@ BATCH E — CLICKZONES sweep: percussion (too small), chords (too narrow), range
   types (misaligned). (Fold into C/D where they live.)
 
 BATCH F — REAL STAFF: #7 percussion beam is yellow → should follow note colour.
+
+============================================================
+## OPEN ITEMS (Han 2026-06-03, order: feedback → #5 → Batch C)
+============================================================
+A. AWAITING LIVE VERIFICATION (implemented this session, may need tweaks):
+   - #13 family-cycle flash fix (swap highlight, then slide)
+   - #2 glide selected card to centre (0.5s) when picked past the middle
+   - #4 after a scroll, 3s → glide selection back to centre
+   - #12b vocal range preset activates the matching vocal clef
+   - #7-clef transposed-note COLOUR (should be colour of the transposed note)
+
+B. RANGE-SETTER:
+   - #5 two-zone drag (outside-right drag-left = raise; on setter drag-left = lower)  <-- NEXT
+   - #16 range notes not transposed for transposing instruments (RangeStaffOverlay
+     applies no transposition anywhere — broad change)
+
+C. CHORD LINE (Batch C):
+   - chords not neatly inside the block
+   - chord height not matching the real sheet music
+   - transpose chord-line notes up to kill the C4 ledger
+   - chords a bit further apart
+   - "chords too narrow" — chord-line label clickzones
+
+D. SMALLER / TRANSITIONS:
+   - #1 ottava glyphs + brackets don't slide in with the morph
+
+E. BACKLOG (separate feature, needs interview): instrument selector (icons8).
