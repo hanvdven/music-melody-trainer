@@ -667,3 +667,9 @@ D. SMALLER / TRANSITIONS:
    - #1 ottava glyphs + brackets don't slide in with the morph
 
 E. BACKLOG (separate feature, needs interview): instrument selector (icons8).
+
+- ✅ #5 two-zone range drag DONE (one boundary per zone, relative 1:1; needs live test).
+- ✅ Batch C DONE: chord-style row matches sheet height (trebleStart-58), GAP 34→42,
+  wider/centred clickzones; complexity chords shifted to D4 (no C4 ledger).
+- STILL OPEN: #16 range transpose (broad), #1 ottava/brackets slide in morph (transition),
+  + live-verify backlog (#13/#2/#4/#5/#12b/#7-clef), instrument selector (backlog).
