@@ -2304,6 +2304,17 @@ off) so the staff renders normally (lines + clef) but with no notes, in every mo
 (c) is HIDDEN entirely in melody mode (`isTrebleVisible/isBassVisible` exclude an
 off staff unless settings/clef/range mode keeps it visible so it can be re-enabled).
 
+**Transposing-instrument colouring (Han 2026-06-07, #16):** the range-setter note
+POSITIONS stay at concert pitch (height is correct as-is), but the chromatone/scale
+COLOUR must follow the WRITTEN (transposed) note — exactly as the sheet, which
+transposes note names (`renderMelodyNotes` → `transposeMelodyBySemitones`) and then
+colours by `getNoteSemitone` of the transposed name. `RangeStaffOverlay` therefore
+receives `trebleTrans`/`bassTrans` (the same `getTranspositionSemitones` value the
+sheet's `MelodyNotesLayer` gets) and, for in-band notes only, colours via the
+concert→written name map (`transposeMelodyBySemitones`). The yellow boundary handles
+and grey out-of-band notes are NOT transposed (they're handles/context, not pitches
+the learner reads). `trans=0` → no shift (unchanged behaviour).
+
 **Still open / parked:** dual-surface live sync (the two surfaces share state but
 don't live-mirror); keyboard ellipsis for very narrow windows; black-key boundary
 precision; percussion keyboard setter; preset-bracket alignment on the keyboard is

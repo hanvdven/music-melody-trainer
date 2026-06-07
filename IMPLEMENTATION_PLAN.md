@@ -673,3 +673,9 @@ E. BACKLOG (separate feature, needs interview): instrument selector (icons8).
   wider/centred clickzones; complexity chords shifted to D4 (no C4 ledger).
 - STILL OPEN: #16 range transpose (broad), #1 ottava/brackets slide in morph (transition),
   + live-verify backlog (#13/#2/#4/#5/#12b/#7-clef), instrument selector (backlog).
+
+- ✅ #16 DONE: range-setter chromatone/scale colour now follows the WRITTEN
+  (transposed) note like the sheet. Positions stay concert (height correct, Han
+  2026-06-07). RangeStaffOverlay gets trebleTrans/bassTrans; in-band notes coloured via
+  concert→written map (transposeMelodyBySemitones). Boundary/out-of-band unchanged.
+  Sanity: concert C4 -> written D4(+2) -> chromatone-2 (matches sheet). 207 tests+build.

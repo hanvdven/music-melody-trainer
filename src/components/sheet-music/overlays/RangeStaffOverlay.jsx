@@ -3,6 +3,7 @@ import MelodyNotesLayer from '../MelodyNotesLayer';
 import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
 import { melodicNoteColor } from '../../../theory/noteUtils';
 import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
+import { transposeMelodyBySemitones } from '../../../theory/musicUtils';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
 import { nextNaturalToward, nextNaturalInDir, classifyStep, STEP_MS } from './rangeSlide';
@@ -215,6 +216,12 @@ const RangeStaffOverlay = ({
     trebleFrame, bassFrame,
     trebleRange, bassRange,
     enabledPads,
+    // Display-only transposition per melodic staff (same value the SHEET passes to its
+    // MelodyNotesLayer). The note POSITIONS stay at concert pitch (Han 2026-06-07: "de
+    // hoogte op de notenbalk is correct") — only the chromatone/scale COLOURING must
+    // account for transposition, exactly as the sheet colours by the TRANSPOSED note
+    // name (renderMelodyNotes transposes names before colouring). 0 = no shift.
+    trebleTrans = 0, bassTrans = 0,
     onSetMelodicBoundary, onApplyMelodicPreset, onTogglePad, onApplyPercussionPreset,
     timeSignature, theme, debugMode = false,
     // Coloring props (point 1): the in-band/selected notes follow the same note
@@ -416,10 +423,18 @@ const RangeStaffOverlay = ({
         //   out-of-band    → dim
         // The entering note is excluded (it animates in the edge group below).
         const bodyEntries = entries.filter(e => e.midi !== enterMidi);
+        // Chromatone/scale colour must follow the WRITTEN (transposed) note, like the
+        // sheet (renderMelodyNotes transposes names, then colours by getNoteSemitone of
+        // the transposed name). We keep the concert NAME for position (height stays
+        // correct) but colour by the transposed name. Concert→written map, built once.
+        const trans = staff === 'treble' ? trebleTrans : bassTrans;
+        const concertNames = entries.map(e => e.name);
+        const writtenNames = trans !== 0 ? transposeMelodyBySemitones(concertNames, trans) : concertNames;
+        const writtenByConcert = new Map(entries.map((e, i) => [e.name, writtenNames[i]]));
         const colorFor = (midi, name) => {
             if (midi === selMin || midi === selMax) return 'var(--accent-yellow)';
             if (midi > selMin && midi < selMax)
-                return melodicNoteColor(name, { noteColoringMode, tonic, scaleNotes, theme }) ?? 'var(--text-primary)';
+                return melodicNoteColor(writtenByConcert.get(name) ?? name, { noteColoringMode, tonic, scaleNotes, theme }) ?? 'var(--text-primary)';
             // Out-of-band: same grey as the percussion notes, slightly lighter so it
             // reads on the overlay background (Han 2026-06-01 #4).
             return 'var(--range-lowlight)';
