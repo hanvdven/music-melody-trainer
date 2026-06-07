@@ -1121,6 +1121,8 @@ Voorgestelde semantiek: een fermata-noot duurt 50% langer dan zijn geschreven du
 
 ✅ clef in sheet music: cycle bij korte klik (of 2×), open lijst bij lange klik of 3× klikken. Noten en akkoorden klikbaar met visuele flash-feedback.
 
+[Claude 2026-06-07]: ✅ #16 — range-setter kleurde noten op klinkende (concert) toonhoogte, waardoor de chromatone/scale-kleur niet matchte met de bladmuziek voor een transponerend instrument. De hoogte op de balk klopte al (concert, bewust); enkel de kleur moest de transpositie meenemen. Fix: `RangeStaffOverlay` krijgt nu `trebleTrans`/`bassTrans` en kleurt in-band noten op hun GESCHREVEN naam (concert→geschreven via `transposeMelodyBySemitones`), exact zoals de bladmuziek. Gele grensnoten + grijze buiten-band blijven ongewijzigd. Zie `docs/architecture.md` (range-selector sectie) + `RangeStaffOverlay.jsx`.
+
 ### Maatsoort & ritme
 
 ✅ bug: handmatige invoer van maatsoort (numeriek typen in het veld) had geen effect — handleTimeSignatureChange in App.jsx miste de 'setTop' case. Fix: parseInt(value) + clamp [1,32] toegevoegd. Aanname: alleen de teller (numerator) is via tekst invoerbaar; de noemer is via klik-cycle.
