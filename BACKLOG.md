@@ -36,6 +36,41 @@ Rij instrumenten: logo, naam erboven, eventueel transpositie eronder; gebruikeli
 
 ---
 
+### Transpositie-setter revisie — compacte dubbele verticale carousel (Han 2026-06-08)
+
+> ik wil een revisie van transpositie setter (als deel van notatie. dat kan veeel compacter
+>
+> idee: op de top en middle notenbalk, wanneer treble of bass clef is geselecteerd:
+> twee setters:
+> toon sleutel^(C inst). en de noot die C4 is in C instrument. dan een = teken. en dan een verticale carousel [..., A3, Bb3, B3, C4, C#4, D4, Eb4, ...]. de noot namen worden steeds kleiner naar de uitersten van de carousel toe.
+>
+> de tweede setter is andersom: toon
+> sleutel
+> de tekst: C4 =
+> en dan een verticale carousel met noten die je ook kan slepen. ik stel voor dat de noten op een soort 'tangens' staan. dat kan ik het beste tekenen.
+> een niet lineaire carousel is ook 'de oplossing' voor de range setter!! interview / afbeeldingen nodig
+>
+> De twee carousels moeten 'verbonden' zijn, dus ik denk dat de letternote. dan in ongekeerde volgorde moeten staan.
+
+[Claude 2026-06-08]: Genoteerd, NIET geïmplementeerd (Han: "interview / afbeeldingen nodig").
+Mijn begrip op hoofdlijnen (te verifiëren in interview):
+- Twee gekoppelde verticale carousels op de treble/bass notenbalk (alleen bij treble/bass clef):
+  - Setter 1: `sleutel^(C inst.) [welke concert-noot klinkt als geschreven C4] =` + verticale
+    carousel van concert-noten (…A3, B♭3, B3, **C4**, C♯4, D4, E♭4…); namen krimpen naar de
+    randen (perspectief/diepte).
+  - Setter 2: omgekeerd — `sleutel` + `C4 =` + verticale, **sleepbare** carousel waarbij de
+    noten op een niet-lineaire 'tangens'-curve staan.
+  - De twee carousels zijn gekoppeld (de letter-noten in omgekeerde volgorde t.o.v. elkaar).
+- ⭐ Belangrijk neven-idee: een **niet-lineaire carousel** is óók de voorgestelde oplossing
+  voor de RANGE-setter → behandelen als gedeeld carousel-primitief.
+- ❓ Interview-vragen voor later: exacte betekenis van beide setters (klinkende-C ↔ geschreven-C,
+  welke kant is welke transpositierichting?); curve-vorm (tangens) + hoe sleepbaar mapt op
+  semitonen; hergebruik voor range-setter; gedrag bij vocale/percussie clefs; ♯/♭ Unicode (§5b);
+  vervangt dit de huidige transpositie-kaart-carousel in de notatie-setter?
+- ⚠ Han levert nog AFBEELDINGEN/tekeningen aan vóór implementatie (§4b hard stop).
+
+---
+
 ### Rondes 16/17/18 — afgesloten + open
 
 [Claude 2026-05-29]: korte index van wat in rondes 16-18 is opgepakt:

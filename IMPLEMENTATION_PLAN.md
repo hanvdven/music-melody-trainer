@@ -722,12 +722,18 @@ P2 — ARCHITECTURE / CONVENTIONS:
      TabView.jsx:126/329/356 → tab-specific) per §7a.
   ⏳ ARCH-2 Add debugMode hit-boxes (§3a) to DrumPad, ChordGrid, ScaleSelectorWheel,
      PianoView. CONFIRM §3a scope (SVG-overlap components vs all) with Han.
+     [Claude 2026-06-08] DEFERRED — investigated: all four are "hit == visible element"
+     (DrumPad SVG pads, ScaleSelectorWheel segments, PianoView HTML keys, ChordGrid HTML
+     buttons); none use the transparent OFFSET hit-rect pattern §3a's debug box exists to
+     expose, so the value is low and the nightly's scope question is real. Needs Han's call
+     on whether §3a applies to self-evident button/key components before doing it.
 
 P3 — DOC HYGIENE:
   ⏳ DOC-1 CLAUDE.md §7a example uses non-existent E010-PLAYBACK-START; real code is
      E010-PLAY-MELODY. (Touches CLAUDE.md → needs Han's OK.)
-  ⏳ DOC-2 §12 still lists ghost PlaybackControls.jsx (line 786); repoint to real play/stop
-     UI. §12 also omits contexts/, most hooks, overlays — mark non-exhaustive or append.
+  ✅ DOC-2 DONE §12: replaced the ghost `src/components/playback/PlaybackControls.jsx`
+     entry (dir doesn't exist) with the real play/stop UI (AppHeader + BpmControls +
+     RepeatsControls); added a "non-exhaustive" note covering omitted contexts/hooks/overlays.
 
 ============================================================
 ## CR/BUG BATCH (Han 2026-06-08) — range/clef setter polish
@@ -812,6 +818,12 @@ all morphs · hide melody whole transition):
      except during a melody-involving morph (SheetMusic.jsx:2047). Confirmed, no change.
   ✅ B1 clef-select slide — covered by CR-A2 single-staff family refly (sub-clef changes
      intentionally don't animate). No further change.
+
+FR LOGGED (Han 2026-06-08) — NOT started, needs interview + Han's drawings (§4b):
+  ⏳ Transposition-setter revision: two coupled VERTICAL non-linear ("tangens") carousels
+     on treble/bass staves replacing the compact transposition cards. Non-linear carousel
+     is also proposed as the RANGE-setter solution → treat as a shared primitive. Full
+     text + my open questions captured in BACKLOG.md ("Transpositie-setter revisie").
 
 N — NEW:
   ✅ N6 RangeStaffOverlay body+edge layers now pass transpositionSemitones={trans} → notes
