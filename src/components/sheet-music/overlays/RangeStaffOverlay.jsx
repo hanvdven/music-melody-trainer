@@ -254,6 +254,12 @@ const RangeStaffOverlay = ({
     onStepRef.current = onSetMelodicBoundary;
 
     const DRAG_THRESHOLD = 8;   // SVG units of movement → it's a drag, not a tap/hold
+    // CR-A1 (Han 2026-06-08): a tap on a far note fires a long burst (one natural per
+    // STEP_MS). Cap the WHOLE burst at MAX_BURST_MS so distant moves "speed up" — short
+    // moves (whose natural total is already < the cap) are untouched. MIN_STEP_MS is a
+    // floor so an extreme far tap still renders at least ~1 frame per step.
+    const MAX_BURST_MS = 1000;
+    const MIN_STEP_MS = 24;
 
     const stopStepper = () => {
         if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
@@ -274,6 +280,7 @@ const RangeStaffOverlay = ({
             // instead of stepping back toward the old target (the wobble bug).
             next = nextNaturalInDir(PIANO_NATURALS, s.live, s.dir);
             if (next != null) s.target = next;
+            s.stepMs = STEP_MS; // hold-extension runs at the normal cadence, not the burst speed
         }
         s.ticks += 1;
         if (next == null) {
@@ -283,24 +290,34 @@ const RangeStaffOverlay = ({
         }
         s.live = next;
         onStepRef.current?.(s.staff, next, s.which, s.presets);
-        stepTimerRef.current = setTimeout(tick, STEP_MS);
+        stepTimerRef.current = setTimeout(tick, s.stepMs);  // s.stepMs = burst speed (capped) while approaching target
     };
     const beginStepper = (staff, which, fromMidi, targetMidi, dir, presets) => {
         stopStepper();
-        stepperRef.current = { staff, which, presets, target: targetMidi, dir, live: fromMidi, pressed: true, dragged: false, ticks: 0 };
+        // Per-step duration for THIS burst: distance (in naturals) determines whether we
+        // compress. dist ≤ ~4 keeps STEP_MS (total already < MAX_BURST_MS); a far tap
+        // shrinks per-step time so dist × stepMs ≈ MAX_BURST_MS (CR-A1).
+        const fi = PIANO_NATURALS.indexOf(fromMidi);
+        const ti = PIANO_NATURALS.indexOf(targetMidi);
+        const dist = (fi >= 0 && ti >= 0) ? Math.abs(ti - fi) : 1;
+        const stepMs = dist > 1 ? Math.max(MIN_STEP_MS, Math.min(STEP_MS, MAX_BURST_MS / dist)) : STEP_MS;
+        stepperRef.current = { staff, which, presets, target: targetMidi, dir, live: fromMidi, pressed: true, dragged: false, ticks: 0, stepMs };
         tick(); // immediate first step so a single adjacent tap moves at once
     };
 
     // rAF tween for one staff: body scales s0→1 about anchorX; the edge note
     // translates edgeDx0→edgeDx1 and fades edgeOp0→edgeOp1. Opacity/transform are
     // set via element.style/attr in the rAF callback (never JSX props) per §6.
-    const animate = (staff, { bodyAx, s0, edgeDx0, edgeDx1, edgeOp0, edgeOp1 }) => {
+    const animate = (staff, durMs, { bodyAx, s0, edgeDx0, edgeDx1, edgeOp0, edgeOp1 }) => {
         if (rafRefs.current[staff]) cancelAnimationFrame(rafRefs.current[staff]);
         const body = bodyRefs.current[staff];
         const edge = edgeRefs.current[staff];
         const t0 = performance.now();
         const frame = (now) => {
-            const p = Math.min(1, (now - t0) / STEP_MS);
+            // durMs matches the cadence of the step that triggered this tween (burst speed
+            // when approaching a far tap target, STEP_MS otherwise) so the glide stays
+            // back-to-back continuous instead of lagging behind a compressed burst (CR-A1).
+            const p = Math.min(1, (now - t0) / durMs);
             // LINEAR within a step (Han 2026-06-01): a burst chains many steps
             // back-to-back, and per-step ease-out made each step decelerate → a
             // pulsing "chain of discrete shifts". Constant velocity reads as one
@@ -358,7 +375,7 @@ const RangeStaffOverlay = ({
             if (step.kind !== 'none') {
                 const nw = layout.noteWidth;
                 const enter = step.kind === 'enter';
-                animate(staff, {
+                animate(staff, stepperRef.current?.stepMs ?? STEP_MS, {
                     bodyAx: step.anchor === 'left' ? startX : (endX - PRESET_AREA_WIDTH),
                     s0: (prev?.noteWidth || nw) / nw,
                     edgeDx0: enter ? step.dir * nw : 0,

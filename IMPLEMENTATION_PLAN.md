@@ -728,3 +728,40 @@ P3 — DOC HYGIENE:
      E010-PLAY-MELODY. (Touches CLAUDE.md → needs Han's OK.)
   ⏳ DOC-2 §12 still lists ghost PlaybackControls.jsx (line 786); repoint to real play/stop
      UI. §12 also omits contexts/, most hooks, overlays — mark non-exhaustive or append.
+
+============================================================
+## CR/BUG BATCH (Han 2026-06-08) — range/clef setter polish
+============================================================
+ALL ⏳ pending §4b interview before implementing. Source = Han chat.
+
+ANIMATION / TRANSITION:
+  ✅ CR-A1 DONE (cap-only) Range slide anim too long for far clicks. Speed up with distance, cap TOTAL at 1s.
+  ⏳ CR-A2 Clef changed WHILE range/notation settings open → trigger transition for THAT
+     staff only: fade out its notes + wipe in from right (single-staff version of range-open).
+  ⏳ CR-A3 8va/15ma don't fly in (ok). On ANY notes transition AND on range-update anim,
+     fade out (0.5s) → wait (0.5s) → fade in (0.5s) any CHANGED 8va/8vb/15ma. (Existing
+     fade-in is too quick.)
+
+NOTATION MENU (percussion / clef carousel):
+  ⏳ BUG-N1 Percussion X-clef not perfectly aligned with the X on treble/bass staff.
+  ⏳ BUG-N2 Percussion clef carousel: partial copy of active clef bleeds past the right mask
+     ([X(active), perc clef, X partially behind mask]).
+  ⏳ BUG-N3 Percussion note click area doesn't match note height (screenshot).
+  ⏳ BUG-N4 Percussion clef setter has no debugMode hit-box (§3a).
+  ⏳ BUG-N5 Clef-select anim: clicked clef correctly becomes active, but its GLYPH morphs
+     mid-animation (click V on [G F V X] → shows G* during anim). Keep the CLICKED glyph the
+     whole time; only the active STATE should move, not the glyph identity.
+
+VISUAL CONSISTENCY:
+  ⏳ BUG-V1 The X that disables the chords row ≠ the X on the staffs. Make consistent.
+  ⏳ BUG-V2 Range setter: complex-chord columns vertically misaligned. Want columns:
+     [accidentals , 4 notes (D F A C) , 3 notes (E G B)].
+  ⏳ BUG-V3 End-of-staff barline looks thicker/brighter than the left one (notation + range
+     settings). Make them visually consistent.
+
+NEW (Han 2026-06-08, second batch):
+  ⏳ BUG-N6 Chromatone transposition bug STILL NOT solved (despite #16). Re-investigate —
+     the range-setter colour does not (correctly) account for transposition per Han.
+  ⏳ BUG-N7 Vocal-clef selector doesn't use available space maximally — expect the SAME
+     distribution as violin/bass clef when space allows.
+  ⏳ BUG-N8 Selecting a vocal 'sub'-clef wrongly activates the BASS clef.
