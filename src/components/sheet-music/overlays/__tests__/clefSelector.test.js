@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    familyOfClef, carouselOrder, patchForFamily, patchForOctave, patchForVocal,
+    familyOfClef, clefFamilyKey, carouselOrder, patchForFamily, patchForOctave, patchForVocal,
     patchForTransposition, CLEF_FAMILIES, CLEF_OFF,
 } from '../clefSelector';
 
@@ -11,6 +11,43 @@ describe('familyOfClef', () => {
         expect(familyOfClef('alto')).toBe('vocal');
         expect(familyOfClef('soprano')).toBe('vocal');
         expect(familyOfClef(CLEF_OFF)).toBe('off');
+    });
+});
+
+// clefFamilyKey gates the CR-A2 refly: only a left-carousel FAMILY change animates;
+// sub-clef variants (octave / transposition / vocal voice) keep the same key.
+describe('clefFamilyKey', () => {
+    it('returns the base family for instrumental clefs', () => {
+        expect(clefFamilyKey({ preferredClef: 'treble', rangeMode: 'STANDARD' })).toBe('g');
+        expect(clefFamilyKey({ preferredClef: 'bass', rangeMode: 'STANDARD' })).toBe('f');
+        expect(clefFamilyKey({ preferredClef: CLEF_OFF })).toBe('off');
+    });
+
+    it('is stable across OCTAVE sub-clef changes (rangeMode only)', () => {
+        // treble → treble8va keeps preferredClef 'treble' and switches rangeMode.
+        expect(clefFamilyKey({ preferredClef: 'treble', rangeMode: 'STANDARD' }))
+            .toBe(clefFamilyKey({ preferredClef: 'treble', rangeMode: 'relative' }));
+    });
+
+    it('is stable across TRANSPOSITION changes', () => {
+        expect(clefFamilyKey({ preferredClef: 'treble', rangeMode: 'STANDARD', transpositionKey: 'C' }))
+            .toBe(clefFamilyKey({ preferredClef: 'treble', rangeMode: 'STANDARD', transpositionKey: 'Bb' }));
+    });
+
+    it('treats ALL vocal voices as the vocal family — even Bass voice (reuses bass clef)', () => {
+        expect(clefFamilyKey({ preferredClef: 'bass', rangeMode: 'Bass' })).toBe('vocal');
+        expect(clefFamilyKey({ preferredClef: 'baritone-f', rangeMode: 'Baritone' })).toBe('vocal');
+        expect(clefFamilyKey({ preferredClef: 'alto', rangeMode: 'Alto' })).toBe('vocal');
+        // So switching between vocal voices does NOT change the family key.
+        expect(clefFamilyKey({ preferredClef: 'bass', rangeMode: 'Bass' }))
+            .toBe(clefFamilyKey({ preferredClef: 'soprano', rangeMode: 'Soprano' }));
+    });
+
+    it('DOES change when the base family changes (so the refly fires)', () => {
+        expect(clefFamilyKey({ preferredClef: 'treble', rangeMode: 'STANDARD' }))
+            .not.toBe(clefFamilyKey({ preferredClef: 'bass', rangeMode: 'STANDARD' }));
+        expect(clefFamilyKey({ preferredClef: 'bass', rangeMode: 'STANDARD' }))
+            .not.toBe(clefFamilyKey({ preferredClef: 'alto', rangeMode: 'Alto' }));
     });
 });
 

@@ -75,6 +75,18 @@ export const familyOfClef = (clef) => {
     return 'vocal';   // alto/tenor/soprano/mezzo-soprano
 };
 
+// The LEFT-carousel family a staff currently shows: 'g' | 'f' | 'vocal' | 'off'.
+// Unlike familyOfClef (which only sees the concrete clef glyph), this treats ALL vocal
+// voices — including vocal Bass/Baritone, which reuse the 'bass'/'tenor' clef — as the
+// vocal family, by checking whether the rangeMode is a vocal voice. Used to gate the
+// clef-edit refly (CR-A2, Han 2026-06-08): only a FAMILY change animates; sub-clef
+// variants (octave, transposition, vocal voice) must NOT re-trigger the transition.
+export const clefFamilyKey = (settings) => {
+    if ((settings?.preferredClef ?? 'treble') === CLEF_OFF) return 'off';
+    if (VOCAL_VARIANTS.some(v => v.rangeMode === settings?.rangeMode)) return 'vocal';
+    return familyOfClef(settings?.preferredClef ?? 'treble');
+};
+
 // Carousel order starting at `currentFamilyId`: current first, then the others in
 // CLEF_FAMILIES order (wrapping). Picking a non-first item should slide the list so
 // the picked family becomes first — the view animates L→R between these orders.
