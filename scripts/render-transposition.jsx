@@ -15,22 +15,23 @@ const resolveVars = (s) => s.replace(/var\(\s*(--[a-z-]+)\s*(?:,[^)]*)?\)/g, (_,
 
 const startX = 150, endX = 920;
 const trebleStart = 70, bassStart = 230;
-const panel = (staff, clef, staffStart, trans) => renderToStaticMarkup(
+const panel = (staff, clef, staffStart, trans, dragDelta = 0) => renderToStaticMarkup(
   React.createElement(TranspositionSetter, {
-    staff, clef, staffStart, startX, endX, transSemitones: trans, theme: 'dark', debugMode: false,
+    staff, clef, staffStart, startX, endX, transSemitones: trans,
+    debugDragDelta: dragDelta, theme: 'dark', debugMode: false,
   }),
 );
 
-const W = 960, H = 340;
+const W = 960, H = 360;
 const staffLines = (s) => [0, 1, 2, 3, 4].map(i =>
   `<line x1="${startX}" y1="${s + i * 10}" x2="${endX}" y2="${s + i * 10}" stroke="#3a3a3a" stroke-width="1"/>`).join('');
 const svg = resolveVars(
   `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
   + `<rect width="${W}" height="${H}" fill="#161616"/>`
-  + `<text x="20" y="20" fill="#bbb" font-size="12" font-family="serif">treble · trans 0 (concert) — symmetric tangens fan</text>`
+  + `<text x="20" y="20" fill="#bbb" font-size="12" font-family="serif">treble · trans 0 (concert) — quarter notes + quick-picks (left)</text>`
   + staffLines(trebleStart) + panel('treble', 'treble', trebleStart, 0)
-  + `<text x="20" y="200" fill="#bbb" font-size="12" font-family="serif">bass · trans +4 (concert C4 → written E4 = A♭ inst.) — shifted</text>`
-  + staffLines(bassStart) + panel('bass', 'bass', bassStart, 4)
+  + `<text x="20" y="210" fill="#bbb" font-size="12" font-family="serif">treble · mid-drag (fractional t=+2.4, taller mask) — heads slide + ledger lines off-staff</text>`
+  + staffLines(bassStart) + panel('treble', 'treble', bassStart, 0, 2.4)
   + `</svg>`,
 );
 fs.writeFileSync('/tmp/transposition.svg', svg);

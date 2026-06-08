@@ -1116,17 +1116,24 @@ controls** side by side ("4 in totaal" across treble + bass):
   Spelling follows the keyboard (sharps: C, C♯, D…); names use Unicode ♯ (§17), noteheads draw
   a Maestro ♯ accidental.
 
-A tap on either carousel reports `onSelectTrans(newTrans)` (RIGHT note at +d → `trans + d`;
-LEFT name at +d → `trans − d`, the inverse coupling). `ClefStaffOverlay.keyForTrans` maps the
-offset back to a `transpositionKey` via `TRANSPOSING_INSTRUMENTS` (§6c — derived, no table);
-offsets with no key (e.g. −1, +12) clamp to the nearest available instrument.
+**Interaction:** TAP a head/name (or a quick-pick) to jump; or DRAG either carousel. A drag
+tracks a *fractional* `dragDelta` (half-steps; `PX_PER_STEP` screen px each, vertical) so both
+carousels slide together along the curve, snapping to the nearest half-step on release.
+`onSelectTrans(newTrans)` reports the absolute new offset; `ClefStaffOverlay.keyForTrans` maps
+it to a `transpositionKey` via `TRANSPOSING_INSTRUMENTS` (§6c — derived, no table). The offset
+is clamped to `[MIN_TRANS, MAX_TRANS] = [−5, 11]` (the keyed range). Heads render as Maestro
+quarter notes (`Ï`) with **ledger lines** for near-active heads off the staff; a **vertical
+clip mask** (taller while dragging) shows more heads when active. Per §3a all tap targets show
+hit boxes in `debugMode`.
 
-**Status:** the RIGHT carousel uses the non-linear 'tangens' curve above (Han 2026-06-08); the
-visible window is capped at `±STEPS` (=5) with an opacity fade at the edges. The LEFT name
-carousel is still a linear vertical perspective list. **TODO:** smooth drag-to-slide (track a
-*fractional* active `t` during a pointer drag, snap to nearest on release) — the math already
-animates cheaply; intended to become a shared primitive with the range setter. Per §3a both
-carousels render their tap hit boxes in `debugMode`.
+**Quick-picks:** a column of clickable CONCERT-note rects (the concert sound of written C4 per
+common instrument) sits left of the name carousel: C5, E♭4, C4, B♭3, F3, E♭3, C3, B♭2.
+
+**STAGED (TODO — needs the clef-octave system expanded):** on release, when a drag runs
+>~octave off the staff, switch to an 8va/15ma/8vb/15vb clef (fade) so the head returns near
+the staff; and the octave-shifted quick-picks (C3, C5, B♭2). Today `OCTAVE_VARIANTS` has no
+treble 8vb/15vb (or bass 15va/15vb), so those octave variants must be added first. Until then
+the octave quick-picks are drawn dim + inert and the carousel is bounded to `[−5, 11]`.
 
 **Invariants:** writes go only through `onApplyClefPatch(staff, patchForTransposition(key))`;
 the setter never mutates settings directly. The clef passed in is the *concrete* current clef
