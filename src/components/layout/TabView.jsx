@@ -123,7 +123,7 @@ const TabView = ({
         <div className="app-content-area">
             {activeTab === 'sheet-music' && (
                 <div className="app-tab-sheet">
-                    <ErrorBoundary>
+                    <ErrorBoundary boundary="sheet-music-tab">
                         <SheetMusic
                             {...sheetMusicCommonProps}
                             visibleMeasures={idealVisibleMeasures}
@@ -326,7 +326,7 @@ const TabView = ({
                 </div>
             )}
             {activeTab === 'scale' && (
-                <ErrorBoundary>
+                <ErrorBoundary boundary="scale-tab">
                     <ScaleSelector
                         trebleInstrument={manualInstruments.treble}
                         windowSize={windowSize}
@@ -353,7 +353,7 @@ const TabView = ({
             )}
             {activeTab === 'playback' && (
                 <div className="app-tab-playback">
-                    <ErrorBoundary>
+                    <ErrorBoundary boundary="playback-tab">
                         <PlaybackSettings
                             numMeasures={numMeasures}
                             musicalBlocks={musicalBlocks}
