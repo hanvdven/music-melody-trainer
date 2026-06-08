@@ -679,3 +679,52 @@ E. BACKLOG (separate feature, needs interview): instrument selector (icons8).
   2026-06-07). RangeStaffOverlay gets trebleTrans/bassTrans; in-band notes coloured via
   concert→written map (transposeMelodyBySemitones). Boundary/out-of-band unchanged.
   Sanity: concert C4 -> written D4(+2) -> chromatone-2 (matches sheet). 207 tests+build.
+
+============================================================
+## NIGHTLY REVIEW 2026-06-08 (auto /loop run) — PLAN FOR APPROVAL
+============================================================
+Bookkeeping done this run: architecture now documents #5 two-zone drag, Batch C
+chord-row + D4, #7 beam colour, #16 colour; §12 ghost refs fixed (TabView, drumKits).
+Per §4b every item below needs an interview before implementing — this is a menu.
+
+P0 — CORRECTNESS (silent-bug risk, §6 invariant):
+  ⏳ DEBT-1 Enharmonic comparison reimplemented locally instead of getNoteSemitone():
+     - melodyGenerator.js:166-191 (ALL_PCS_CALC + .replace chain — single-accidental only)
+     - melodyDifficultyTable.js:112-125 (_PC_ORDER/_ENHARMONICS, contains WRONG map 'Db'→'E♭')
+     Fix: route both through getNoteSemitone(); delete the local tables. Add a test.
+
+P1 — PERFORMANCE (real wins, respect §6/§10 opacity+timing invariants):
+  ⏳ PERF-1 Delete dead processMelodyAndCalculateFlags call (SheetMusic.jsx:9,897) —
+     computed every render in the hottest component, never read. Low-risk.
+  ⏳ PERF-2 Stabilise MelodyNotesLayer memo props (inputTestState / previewColorFn /
+     previewMode identity) so the memo actually hits — biggest win, ×K worse in scroll
+     mode (SheetMusic.jsx:2362-2517). Needs profiling first.
+  ⏳ PERF-3 Highlight rAF builds a sorted+joined string key every frame
+     (useSheetMusicHighlight.js:519-524) — replace with size+hash diff.
+  ⏳ PERF-4 (low) rAF dispatch on active mode only; in-place array mutation at Sequencer
+     boundary (Sequencer.js:471-475).
+
+P1 — TEST DEBT (§7b):
+  ⏳ DEBT-2 Generation pipeline has ZERO unit tests. Add rhythmicPriorities.test.js for
+     odd meters (5/4,7/8,11/8,15/8): decomposeNumeratorToBeatGroups offsets +
+     generateRhythmicDNA integer-rank/slot invariants. De-risks DEBT-3/4.
+
+P2 — TECH DEBT (§6c/§7):
+  ⏳ DEBT-3 Hardcoded [8,4,2,1] subdivision table (rhythmicPriorities.js:285) — derive
+     from numberOfSlotsPerMeasure / existing divisor generator.
+  ⏳ DEBT-4 Duplicated numerator decomposition (rhythmicPriorities.js:29-57 vs 66-83) —
+     extract shared decomposeToGroupSizes(n).
+  ⏳ DEBT-5 Tombstone comments + dead 'lang' overshoot machinery (Sequencer.js:1064;
+     transitionPlanner.js:40-44). NOTE: 'lang' removal is a deliberate Han call — confirm.
+
+P2 — ARCHITECTURE / CONVENTIONS:
+  ⏳ ARCH-1 Name 4 anonymous ErrorBoundaries (App.jsx:1330 → "sheet-music";
+     TabView.jsx:126/329/356 → tab-specific) per §7a.
+  ⏳ ARCH-2 Add debugMode hit-boxes (§3a) to DrumPad, ChordGrid, ScaleSelectorWheel,
+     PianoView. CONFIRM §3a scope (SVG-overlap components vs all) with Han.
+
+P3 — DOC HYGIENE:
+  ⏳ DOC-1 CLAUDE.md §7a example uses non-existent E010-PLAYBACK-START; real code is
+     E010-PLAY-MELODY. (Touches CLAUDE.md → needs Han's OK.)
+  ⏳ DOC-2 §12 still lists ghost PlaybackControls.jsx (line 786); repoint to real play/stop
+     UI. §12 also omits contexts/, most hooks, overlays — mark non-exhaustive or append.
