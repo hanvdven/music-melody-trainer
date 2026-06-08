@@ -820,10 +820,17 @@ all morphs · hide melody whole transition):
      intentionally don't animate). No further change.
 
 FR LOGGED (Han 2026-06-08) — NOT started, needs interview + Han's drawings (§4b):
-  ⏳ Transposition-setter revision: two coupled VERTICAL non-linear ("tangens") carousels
-     on treble/bass staves replacing the compact transposition cards. Non-linear carousel
-     is also proposed as the RANGE-setter solution → treat as a shared primitive. Full
-     text + my open questions captured in BACKLOG.md ("Transpositie-setter revisie").
+  🔨 Transposition-setter revision — INTERVIEW DONE (2026-06-08): semantics = concert C4
+     is WRITTEN as the chosen note (trans = writtenMidi − 60, maps to transpositionKey via
+     TRANSPOSING_INSTRUMENTS — all 0..11 offsets + negatives have keys). Layout = 4 controls
+     total: per staff (treble + bass) TWO side-by-side vertical half-step carousels —
+     (A) "C4 = [variable written notehead/name]" and (B) "[variable concert name] = C4"
+     (inverse, coupled; letter order reversed). REPLACES the horizontal transposition cards.
+     Start = LINEAR placeholder now; non-linear 'tangens' curve later from Han's drawing
+     (also the proposed range-setter solution → shared primitive eventually).
+     STAGING: build a visual v1 mockup (TranspositionSetter.jsx + render harness), show Han,
+     get the drawing, THEN wire into ClefStaffOverlay replacing the cards. Not wired live yet
+     (don't break the working cards before the design is confirmed).
 
 N — NEW:
   ✅ N6 RangeStaffOverlay body+edge layers now pass transpositionSemitones={trans} → notes
