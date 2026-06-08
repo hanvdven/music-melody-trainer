@@ -688,7 +688,7 @@ chord-row + D4, #7 beam colour, #16 colour; §12 ghost refs fixed (TabView, drum
 Per §4b every item below needs an interview before implementing — this is a menu.
 
 P0 — CORRECTNESS (silent-bug risk, §6 invariant):
-  ⏳ DEBT-1 Enharmonic comparison reimplemented locally instead of getNoteSemitone():
+  ✅ DEBT-1 DONE Routed both sites through getNoteSemitone() instead of getNoteSemitone():
      - melodyGenerator.js:166-191 (ALL_PCS_CALC + .replace chain — single-accidental only)
      - melodyDifficultyTable.js:112-125 (_PC_ORDER/_ENHARMONICS, contains WRONG map 'Db'→'E♭')
      Fix: route both through getNoteSemitone(); delete the local tables. Add a test.

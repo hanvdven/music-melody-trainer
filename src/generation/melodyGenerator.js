@@ -5,6 +5,7 @@ import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
 import { generateBackbeat, generateBackbeat2, generateSwing, generateMetronome, filterPercussionByEnabledPads } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
+import { getNoteSemitone } from '../theory/noteUtils.js';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults.js';
 
@@ -163,10 +164,18 @@ class MelodyGenerator {
 
         // Pre-calculate allowed notes based on Range
         let effectiveScale = this.scale;
-        // ASCII sharps used as pitch-class keys for the range-expansion loop below.
-        const ALL_PCS_CALC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
         if (this.range) {
+            // Map each scale pitch-class (0-11, chromatic C=0) to its spelling, via the
+            // canonical getNoteSemitone (§6 invariant) — replaces a local ASCII pitch-class
+            // table + .replace() enharmonic chain that only handled single accidentals.
+            // First spelling wins (matches the old indexOf semantics); scales don't repeat PCs.
+            const scalePCSpelling = new Map();
+            for (const n of this.scale) {
+                const pc = getNoteSemitone(n);
+                if (!scalePCSpelling.has(pc)) scalePCSpelling.set(pc, n.replace(/\d+$/, ''));
+            }
+
             // getNoteIndex returns position in allNotes where A0=0 (9 semitones above C0=0).
             // noteVal = oct*12+i uses chromatic MIDI convention (C0=0). Add 9 to align origins.
             const rawMin = getNoteIndex(this.range.min);
@@ -178,23 +187,9 @@ class MelodyGenerator {
 
             for (let oct = 0; oct <= 8; oct++) {
                 for (let i = 0; i < 12; i++) {
-                    const pc = ALL_PCS_CALC[i];
-                    const noteVal = oct * 12 + i;
-
-                    if (noteVal >= minVal && noteVal <= maxVal) {
-                        const scalePCs = this.scale.map(n => (n.replace(/\d+$/, '')));
-                        const normalizedScalePCs = scalePCs.map(n =>
-                            n.replace('♭', 'b').replace('♯', '#')
-                                .replace('Db', 'C#').replace('Eb', 'D#')
-                                .replace('Gb', 'F#').replace('Ab', 'G#')
-                                .replace('Bb', 'A#')
-                        );
-
-                        if (normalizedScalePCs.includes(pc)) {
-                            const matchIndex = normalizedScalePCs.indexOf(pc);
-                            const spellPC = scalePCs[matchIndex];
-                            expanded.push(`${spellPC}${oct}`);
-                        }
+                    const noteVal = oct * 12 + i; // i is the chromatic pitch-class
+                    if (noteVal >= minVal && noteVal <= maxVal && scalePCSpelling.has(i)) {
+                        expanded.push(`${scalePCSpelling.get(i)}${oct}`);
                     }
                 }
             }
