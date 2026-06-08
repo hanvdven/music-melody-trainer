@@ -765,3 +765,7 @@ NEW (Han 2026-06-08, second batch):
   ⏳ BUG-N7 Vocal-clef selector doesn't use available space maximally — expect the SAME
      distribution as violin/bass clef when space allows.
   ⏳ BUG-N8 Selecting a vocal 'sub'-clef wrongly activates the BASS clef.
+
+  ↳ CR-A2 refinement (Han 2026-06-08): refly fires ONLY on left-carousel FAMILY change
+    (clefFamilyKey). Sub-clef changes — octave, transposition, vocal voice — no longer
+    animate. clefFamilyKey treats all vocal voices (incl. Bass) as 'vocal'. Tests added.

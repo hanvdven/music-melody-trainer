@@ -11,6 +11,7 @@ import OttavaMarker from './OttavaMarker';
 import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
 import RangeStaffOverlay from './overlays/RangeStaffOverlay';
 import ClefStaffOverlay from './overlays/ClefStaffOverlay';
+import { clefFamilyKey } from './overlays/clefSelector';
 import ChordStaffOverlay from './overlays/ChordStaffOverlay';
 import ChordStyleOverlay from './overlays/ChordStyleOverlay';
 import { clefSymbols } from './clefGlyphs';
@@ -442,12 +443,13 @@ const SheetMusic = ({
   // settings overlay is now the sliding 'legacy' surface.
   const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : showSettings ? 'legacy' : 'melody';
   const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
-  // CR-A2: re-fly a single staff's clef row when its clef identity changes while the
-  // clef-edit overlay is open (fade old out + wipe new in from the right). Identity =
-  // family/octave (preferredClef) + transposition + vocal sub-clef (rangeMode).
+  // CR-A2: re-fly a single staff's clef row when its clef FAMILY changes while the
+  // clef-edit overlay is open (fade old out + wipe new in from the right). Keyed on the
+  // left-carousel family only (clefFamilyKey) — sub-clef variants (octave, transposition,
+  // vocal voice) must NOT re-trigger the animation (Han 2026-06-08).
   const clefReflyKeys = {
-    treble: `${trebleSettings?.preferredClef ?? ''}|${trebleSettings?.transpositionKey ?? ''}|${trebleSettings?.rangeMode ?? ''}`,
-    bass: `${bassSettings?.preferredClef ?? ''}|${bassSettings?.transpositionKey ?? ''}|${bassSettings?.rangeMode ?? ''}`,
+    treble: clefFamilyKey(trebleSettings),
+    bass: clefFamilyKey(bassSettings),
   };
   useClefRefly(svgRef, clefReflyKeys, clefEditMode, endX);
   // While morphing, BOTH the leaving and arriving surfaces must stay mounted. These

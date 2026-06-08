@@ -2334,13 +2334,17 @@ because opening an overlay stops playback.
   compress. Hold-extension reverts to `STEP_MS`. The slide tween reads the same
   per-burst `stepMs` so each step's glide stays back-to-back continuous.
 - **Single-staff clef refly (CR-A2) — `useClefRefly.js`.** While the clef-edit overlay
-  is open, changing ONE staff's clef re-plays the open transition for that staff only:
-  the old `.clef-row-<staff>` (kept as a clone from the previous commit) fades out while
-  the live row's `[data-fly]/[data-mel]` elements stream in from the right (same stagger
-  as the morph). The other staff is untouched. Identity key = `preferredClef` (family +
-  octave variant) + `transpositionKey` + `rangeMode` (vocal sub-clef). The hook snapshots
-  each row's resting state per commit (only while active) so it always has the "old" to
-  fade; opacity/transform via `element.style` only (§6), cleared on completion/interrupt.
+  is open, changing ONE staff's clef FAMILY re-plays the open transition for that staff
+  only: the old `.clef-row-<staff>` (kept as a clone from the previous commit) fades out
+  while the live row's `[data-fly]/[data-mel]` elements stream in from the right (same
+  stagger as the morph). The other staff is untouched. The trigger key is the
+  LEFT-carousel family via `clefFamilyKey(settings)` — **only a G/F/Vocal family change
+  animates**; sub-clef variants must NOT re-fire it (Han 2026-06-08): octave (rangeMode),
+  transposition (transpositionKey), and vocal voice (rangeMode — incl. vocal Bass, which
+  `clefFamilyKey` maps to `vocal` even though it reuses the `bass` clef) all keep the same
+  key. The hook snapshots each row's resting state per commit (only while active) so it
+  always has the "old" to fade; opacity/transform via `element.style` only (§6), cleared
+  on completion/interrupt.
 - **Ottava cross-fade (CR-A3) — `OttavaMarker.jsx`.** The 8va/8vb/15ma marker used to
   swap instantly. It now cross-fades on VALUE change (ottava + above/below) — which is
   what a notes transition or a range-driven clef change produces: fade-out 0.5 s → hold
