@@ -4,6 +4,7 @@ import React, { useRef, useState, useMemo } from 'react';
 import useSheetMusicHighlight from '../../hooks/useSheetMusicHighlight';
 import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
 import useRangeMorph from '../../hooks/useRangeMorph';
+import useClefRefly from '../../hooks/useClefRefly';
 import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
 import OttavaMarker from './OttavaMarker';
@@ -441,6 +442,14 @@ const SheetMusic = ({
   // settings overlay is now the sliding 'legacy' surface.
   const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : showSettings ? 'legacy' : 'melody';
   const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
+  // CR-A2: re-fly a single staff's clef row when its clef identity changes while the
+  // clef-edit overlay is open (fade old out + wipe new in from the right). Identity =
+  // family/octave (preferredClef) + transposition + vocal sub-clef (rangeMode).
+  const clefReflyKeys = {
+    treble: `${trebleSettings?.preferredClef ?? ''}|${trebleSettings?.transpositionKey ?? ''}|${trebleSettings?.rangeMode ?? ''}`,
+    bass: `${bassSettings?.preferredClef ?? ''}|${bassSettings?.transpositionKey ?? ''}|${bassSettings?.rangeMode ?? ''}`,
+  };
+  useClefRefly(svgRef, clefReflyKeys, clefEditMode, endX);
   // While morphing, BOTH the leaving and arriving surfaces must stay mounted. These
   // flags say whether each overlay must render right now (active OR part of the morph).
   const mountedFor = (k, active) => active || (rangeMorphing && (morphFrom === k || morphTo === k));

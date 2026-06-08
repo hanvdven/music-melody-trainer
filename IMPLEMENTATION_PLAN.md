@@ -736,7 +736,7 @@ ALL ⏳ pending §4b interview before implementing. Source = Han chat.
 
 ANIMATION / TRANSITION:
   ✅ CR-A1 DONE (cap-only) Range slide anim too long for far clicks. Speed up with distance, cap TOTAL at 1s.
-  ⏳ CR-A2 Clef changed WHILE range/notation settings open → trigger transition for THAT
+  ✅ CR-A2 DONE (single-staff refly) Clef changed WHILE range/notation settings open → trigger transition for THAT
      staff only: fade out its notes + wipe in from right (single-staff version of range-open).
   ✅ CR-A3 DONE (value-driven 0.5/0.5/0.5) 8va/15ma don't fly in (ok). On ANY notes transition AND on range-update anim,
      fade out (0.5s) → wait (0.5s) → fade in (0.5s) any CHANGED 8va/8vb/15ma. (Existing
