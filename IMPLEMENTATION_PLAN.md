@@ -827,10 +827,17 @@ FR LOGGED (Han 2026-06-08) — NOT started, needs interview + Han's drawings (§
      ClefCardCarousel in ClefStaffOverlay's melodic (G/F) branch. Tap-to-select interaction;
      debug hit boxes (§3a). Build/lint/tests green; smoke test added.
      ✅ TANGENS CURVE (Han 2026-06-08): RIGHT noteheads placed at origin + f(t),
-        x=−3·tanh(t/3)·30, y=(x³/20)·10 → links-boven→rechts-onder fan, clear of stems.
-        Capped ±5 visible w/ fade. Build/tests green (232).
-     ⏳ STILL TODO: smooth drag-to-slide (fractional t during pointer drag, snap on release);
-        ledger lines per notehead; apply shared curve primitive to the range setter.
+        x=−3·tanh(t/3)·25, y=(t³/20)·10 (Han chose +t³, the S-wave). X_SPACING→25.
+     ✅ STAGE 2a (Han 2026-06-08 "go!"): X_SPACING→25. Heads = QUARTER notes (Maestro 'Ï') with
+        ledger lines for near-active off-staff heads. DRAG on BOTH carousels (fractional
+        dragDelta, PX_PER_STEP) → snap to nearest half-step on release; tap still jumps.
+        Vertical clip mask (taller while dragging = more notes). Quick-pick concert-note rects
+        left of the name carousel (C5,E♭4,C4,B♭3,F3,E♭3,C3,B♭2). Clamp [−5,11]. Build/tests green.
+        Answers: octave→octave-clef (toonklasse + 8va/15ma/8vb/15vb, fade); quick-picks=concert
+        sounds, beside LEFT carousel (mirror intervals on right).
+     ⏳ STAGE 2b (STAGED — needs clef-octave system expanded): octave-clef-on-release fade
+        (OCTAVE_VARIANTS lacks treble8vb/15vb + bass15va/15vb → add them first) and the
+        octave quick-picks (C3/C5/B♭2, now dim+inert). Drag interactivity needs LIVE test.
 
 N — NEW:
   ✅ N6 RangeStaffOverlay body+edge layers now pass transpositionSemitones={trans} → notes
