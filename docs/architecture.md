@@ -2325,6 +2325,30 @@ then runs a single rAF tween. **opacity/transform via `element.style` only (§6)
 cleared at the end so the scroll/wipe systems own those properties again. Safe
 because opening an overlay stops playback.
 
+**Setter animation refinements (Han 2026-06-08 — Group A).**
+- **Range-slide burst cap (CR-A1) — `RangeStaffOverlay.jsx`.** A tap on a far note
+  fires a stepper burst of one natural per `STEP_MS` (250 ms), so a distant move took
+  several seconds. `beginStepper` now derives a per-burst step duration from the natural
+  distance: `dist × stepMs` is capped at `MAX_BURST_MS` (1 s), floored at `MIN_STEP_MS`
+  (24 ms). Short/medium moves (already under the cap) keep 250 ms; only far taps
+  compress. Hold-extension reverts to `STEP_MS`. The slide tween reads the same
+  per-burst `stepMs` so each step's glide stays back-to-back continuous.
+- **Single-staff clef refly (CR-A2) — `useClefRefly.js`.** While the clef-edit overlay
+  is open, changing ONE staff's clef re-plays the open transition for that staff only:
+  the old `.clef-row-<staff>` (kept as a clone from the previous commit) fades out while
+  the live row's `[data-fly]/[data-mel]` elements stream in from the right (same stagger
+  as the morph). The other staff is untouched. Identity key = `preferredClef` (family +
+  octave variant) + `transpositionKey` + `rangeMode` (vocal sub-clef). The hook snapshots
+  each row's resting state per commit (only while active) so it always has the "old" to
+  fade; opacity/transform via `element.style` only (§6), cleared on completion/interrupt.
+- **Ottava cross-fade (CR-A3) — `OttavaMarker.jsx`.** The 8va/8vb/15ma marker used to
+  swap instantly. It now cross-fades on VALUE change (ottava + above/below) — which is
+  what a notes transition or a range-driven clef change produces: fade-out 0.5 s → hold
+  0.5 s → fade-in 0.5 s. A new marker skips the fade-out; a removed marker fades out then
+  unmounts; colour-only changes (showSettings yellow) refresh live without a fade. Opacity
+  is driven via the element's `style.opacity` in an rAF (§6) because the transition/morph
+  systems own the surrounding group opacity.
+
 **Disabled staff (`preferredClef:'off'`, Han 2026-06-01 #3).** A staff whose clef
 is the `off` sentinel: (a) generates NOTHING — `useMelodyState` returns an empty
 `Melody` for that voice (skips `resolveVoice`); (b) shows NO elements — SheetMusic
