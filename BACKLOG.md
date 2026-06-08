@@ -69,6 +69,15 @@ Mijn begrip op hoofdlijnen (te verifiëren in interview):
   vervangt dit de huidige transpositie-kaart-carousel in de notatie-setter?
 - ⚠ Han levert nog AFBEELDINGEN/tekeningen aan vóór implementatie (§4b hard stop).
 
+✅ [Claude 2026-06-08]: Interview afgerond + WIRED LIVE. Bevestigde semantiek: concert C4
+wordt GESCHREVEN als de gekozen noot (trans = writtenMidi − 60). Per balk twee gekoppelde
+halve-stap-carousels: LINKS concert-nootnamen, RECHTS bladmuziek-noten op een DIAGONAAL
+(actieve noot op vaste X + juiste balkpositie; doorschuiven verschuift de diagonaal). Klavier-
+spelling (♯). Vervangt de horizontale transpositie-kaarten in de melodische (G/F) tak van
+ClefStaffOverlay. Tik-om-te-kiezen; debug-hitboxes (§3a). Zie architecture.md §15.1.
+NOG OPEN (jouw input): de niet-lineaire 'tangens'-curve (nu lineaire placeholder; tekening
+gewenst) → gedeeld primitief met range-setter; sleep/scroll-gebaar; hulplijntjes per noot.
+
 ---
 
 ### Rondes 16/17/18 — afgesloten + open

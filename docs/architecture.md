@@ -1089,6 +1089,44 @@ Allows a musician practicing on a transposing instrument (Bb clarinet, French Ho
 | `src/components/sheet-music/renderMelodyNotes.jsx` | `transpositionSemitones = 0` param; applies `transposeMelodyBySemitones` before accidental map |
 | `src/components/sheet-music/SheetMusic.jsx` | Computes semitones from settings; renders transposition label and pickers; passes semitones to all renderMelodyNotes calls |
 
+### 15.1 In-staff Transposition Setter (clef-edit mode)
+
+**Purpose / What it does:** In the notation setter (`clefEditMode`), each melodic (G/F) staff
+shows a `TranspositionSetter` instead of the old horizontal swipe-strip of clef cards
+(`ClefCardCarousel`). It lets the user set the instrument transposition directly on the staff,
+in **half steps**, by reading concert C4 against the written note.
+
+**How it works:** The setter expresses *"concert C4 is **written** as the chosen note"*, so
+`transpositionSemitones = writtenMidi − 60`. Per staff there are **two coupled, inverse
+controls** side by side ("4 in totaal" across treble + bass):
+
+- **LEFT — concert note-NAME carousel:** a vertical half-step list of CONCERT note names
+  ("… = C4"), centred on `C4 − trans` (the concert pitch written at C4), running in the
+  OPPOSITE order to the right carousel.
+- **RIGHT — sheet-music NOTEHEAD carousel:** `[clef]  "C4 ="  [noteheads on a DIAGONAL]`.
+  Each half-step right also moves up the staff (`noteYMap` = 5 units per diatonic step), so
+  the notes trace the staff's own pitch gradient. The SELECTED note is pinned at a FIXED x
+  (`anchorX`) and its CORRECT staff position; the neighbours fan out along the diagonal and
+  fade. Spelling follows the keyboard (sharps: C, C♯, D…); names use Unicode ♯ (§17),
+  noteheads draw a Maestro ♯ accidental.
+
+A tap on either carousel reports `onSelectTrans(newTrans)` (RIGHT note at +d → `trans + d`;
+LEFT name at +d → `trans − d`, the inverse coupling). `ClefStaffOverlay.keyForTrans` maps the
+offset back to a `transpositionKey` via `TRANSPOSING_INSTRUMENTS` (§6c — derived, no table);
+offsets with no key (e.g. −1, +12) clamp to the nearest available instrument.
+
+**Status:** the carousel spread is currently a **LINEAR placeholder**; the final spacing is a
+non-linear ("tangens") curve Han will supply, intended to become a shared primitive with the
+range setter. Per §3a both carousels render their tap hit boxes in `debugMode`.
+
+**Invariants:** writes go only through `onApplyClefPatch(staff, patchForTransposition(key))`;
+the setter never mutates settings directly. The clef passed in is the *concrete* current clef
+(incl. octave variant) so `getNoteAbsoluteY` places the noteheads correctly.
+
+**Files:** `src/components/sheet-music/overlays/TranspositionSetter.jsx` (the control),
+`src/components/sheet-music/overlays/ClefStaffOverlay.jsx` (melodic branch wiring +
+`keyForTrans`), `scripts/render-transposition.jsx` (dev mockup render).
+
 ---
 
 ## 16. Passing Chords

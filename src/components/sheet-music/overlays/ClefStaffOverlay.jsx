@@ -3,8 +3,9 @@ import {
     VOCAL_VARIANTS, clefFamilyKey, carouselOrder,
     patchForFamily, patchForVocal, patchForTransposition,
 } from './clefSelector';
-import { TRANSPOSING_INSTRUMENTS } from '../../../constants/transposingInstruments';
+import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones } from '../../../constants/transposingInstruments';
 import ClefCardCarousel from './ClefCardCarousel';
+import TranspositionSetter from './TranspositionSetter';
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
 import ClefCarousel from './ClefCarousel';
 import DisableCross from './DisableCross';
@@ -15,6 +16,18 @@ import { getNoteValue, getNoteFromValue } from '../../../utils/rangeUtils';
 import { getNoteSemitone } from '../../../theory/noteUtils';
 
 const stripOctave = (n) => (n ? n.replace(/-?\d+$/, '') : n);
+
+// transposition-offset (semitones) → instrument key, for the TranspositionSetter. Built
+// from TRANSPOSING_INSTRUMENTS (§6c — no hardcoded table). Offsets without a key (e.g. −1,
+// +12) clamp to the NEAREST available offset so a tap always lands on a real instrument.
+const TRANS_BY_SEMI = new Map(TRANSPOSING_INSTRUMENTS.map(i => [i.semitones, i.key]));
+const TRANS_SEMIS = [...TRANS_BY_SEMI.keys()].sort((a, b) => a - b);
+const keyForTrans = (t) => {
+    if (TRANS_BY_SEMI.has(t)) return TRANS_BY_SEMI.get(t);
+    const nearest = TRANS_SEMIS.reduce(
+        (best, s) => (Math.abs(s - t) < Math.abs(best - t) ? s : best), TRANS_SEMIS[0]);
+    return TRANS_BY_SEMI.get(nearest);
+};
 
 // refTriadNotes — the [tonic, 5th-degree, octave] reference notes for a clef card
 // (Han 2026-06-03, supersedes fixed C-G-C). RESPONSIVE to the tonic setter and the
@@ -89,9 +102,6 @@ const tonicAndFifth = (tonic, scaleNotes) => {
 
 const FAMILY_GLYPH_SIZE = 36;      // clefs at ~true staff size (Han 2026-06-01)
 const FAMILY_SLOT_W = 36;          // horizontal step between carousel glyphs (Han #5: more space)
-// Narrow-screen slot width for a clef-only card (A7): no reference notes, but wide
-// enough to keep the clef + the "(B♭ inst.)" label that identifies the transposition.
-const CLEF_ONLY_W = 92;
 // Family clefs cluster a bit tighter so the rightmost sits just OUTSIDE the 95% fader
 // zone (Han #9, 2026-06-03). Shared so the percussion 'off' cross can align to a slot.
 const FAMILY_RIGHT_FRAC = 0.80;
@@ -284,17 +294,6 @@ const ClefStaffOverlay = ({
         // ── Right: variant cards / chips ──────────────────────────────────────
         // 'off' (disabled staff) has no variants.
         const rangeMode = settings?.rangeMode;
-        const baseClef = famId === 'g' ? 'treble' : 'bass';
-        // Melodic G/F reference triad, centred on the clef's comfortable octave
-        // (treble ≈ C4–C5, bass ≈ C3–C4) so it reads like the old fixed C-G-C but
-        // now follows the tonic. The 5th degree comes from the current scale.
-        const [refLo, refHi] = baseClef === 'treble' ? [60, 72] : [48, 60];
-        // PER-CARD reference notes (Han #14, 2026-06-03): a transposing card displays
-        // its notes shifted by `trans`, so we centre the CONCERT notes in [lo−trans,
-        // hi−trans] → after the +trans shift they land back in the comfortable on-staff
-        // range. Fixes off-staff results (e.g. an 8va on E♭ bass, 3 ledger lines on F).
-        const cardNotesFor = (trans) =>
-            refTriadNotes(tonicName, tonicSemi, fifthName, fifthSemi, refLo - trans, refHi - trans);
         // Distribute the variant clefs across 12%→86% of the staff body [startX…endX]
         // (Han 2026-06-03): the 12% left inset clears the family clef-setter in the
         // Variant carousel window spans 5%→95% of the staff body [startX…endX]; the edge
@@ -356,59 +355,20 @@ const ClefStaffOverlay = ({
                 </g>
             );
         } else if (famId !== 'off') {
-            // Melodic G/F: a SWIPEABLE strip of clef CARDS — concert C first (no label,
-            // leftmost) then every transposing instrument (Han 2026-06-03). 8va/15ma
-            // octave cards were removed ("enkel transposities"). §6c: instruments come
-            // from TRANSPOSING_INSTRUMENTS. Each card carries its OWN trans-centred notes.
-            const cards = [{
-                key: 'tr-C', symbolKey: baseClef, trans: 0, inst: null, notes: cardNotesFor(0),
-                active: transKey === 'C',
-                onTap: () => onApplyClefPatch?.(staff, patchForTransposition('C')),
-            }];
-            TRANSPOSING_INSTRUMENTS.filter(i => i.key !== 'C').forEach(i => cards.push({
-                key: `tr-${i.key}`, symbolKey: baseClef, trans: i.semitones, inst: i.display,
-                notes: cardNotesFor(i.semitones),
-                active: transKey === i.key,
-                onTap: () => onApplyClefPatch?.(staff, patchForTransposition(transKey === i.key ? 'C' : i.key)),
-            }));
-
-            // Block (clef + 3 notes) 10 units shorter on the right (Han 2026-06-03).
-            const CARD_W = 148;
-            // A7: on narrow screens only the SELECTED card shows notes; the rest shrink to
-            // a clef-only slot so more clefs fit.
-            const cardWidth = (card) => (isNarrow && !card.active) ? CLEF_ONLY_W : CARD_W;
-            const renderCard = (card, slotX) => {
-                // Selected = NORMAL sheet colour (Han 2026-06-03: NOT yellow — the preview
-                // must show the clef/notes as they really look); non-selected = the shared
-                // setter lowlight (same token as the family column, for consistency).
-                const color = card.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
-                const showNotes = card.active || !isNarrow;
-                return (
-                    <g>
-                        <ClefCard symbolKey={card.symbolKey} clef={baseClef} notes={card.notes}
-                            trans={card.trans} inst={card.inst} x={slotX} staffStart={staffStart}
-                            cardW={CARD_W} color={color} theme={theme}
-                            active={card.active} noteColoringMode={noteColoringMode}
-                            tonic={tonic} scaleNotes={scaleNotes} showNotes={showNotes} />
-                        {debugMode && (
-                            <rect x={slotX - 4} y={staffStart - 24} width={cardWidth(card)} height={74}
-                                fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
-                                style={{ pointerEvents: 'none' }} />
-                        )}
-                    </g>
-                );
-            };
+            // Melodic G/F: the TranspositionSetter (Han 2026-06-08) — two coupled half-step
+            // carousels (LEFT concert note names, RIGHT diagonal noteheads) replacing the old
+            // swipe-strip of clef cards. The setter expresses "concert C4 is WRITTEN as the
+            // chosen note"; a tap reports the new offset, which we map back to an instrument
+            // key (keyForTrans, §6c — derived from TRANSPOSING_INSTRUMENTS, no table here).
             variantContent = (
-                // data-fly on the OUTER group so the enter-morph flies the whole strip in
-                // from the clef; the carousel's INNER strip owns the drag transform (no
-                // conflict: morph uses style.transform on this <g>, drag uses the SVG
-                // transform attr on the inner strip).
                 <g key={`clefvar-${famId}`} className="clef-variant-cards clef-variant-enter"
                     data-fly="" data-fly-from={startX}>
-                    <ClefCardCarousel cards={cards} x0={VAR_X0} y={staffStart - 24}
-                        viewWidth={viewWidth} height={74} cardW={CARD_W}
-                        cardWidths={cards.map(cardWidth)}
-                        clipId={`clefcards-${staff}`} renderCard={renderCard} />
+                    <TranspositionSetter
+                        staff={staff} clef={clef} staffStart={staffStart}
+                        startX={startX} endX={endX}
+                        transSemitones={getTranspositionSemitones(transKey)}
+                        onSelectTrans={(t) => onApplyClefPatch?.(staff, patchForTransposition(keyForTrans(t)))}
+                        debugMode={debugMode} />
                 </g>
             );
         }
