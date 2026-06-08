@@ -705,7 +705,7 @@ P1 — PERFORMANCE (real wins, respect §6/§10 opacity+timing invariants):
      boundary (Sequencer.js:471-475).
 
 P1 — TEST DEBT (§7b):
-  ⏳ DEBT-2 Generation pipeline has ZERO unit tests. Add rhythmicPriorities.test.js for
+  ✅ DEBT-2 DONE Added rhythmicPriorities.test.js (decompose/chooseGrouping/DNA, odd meters). Add rhythmicPriorities.test.js for
      odd meters (5/4,7/8,11/8,15/8): decomposeNumeratorToBeatGroups offsets +
      generateRhythmicDNA integer-rank/slot invariants. De-risks DEBT-3/4.
 
