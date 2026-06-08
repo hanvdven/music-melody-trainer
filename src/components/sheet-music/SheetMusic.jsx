@@ -6,6 +6,7 @@ import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
 import useRangeMorph from '../../hooks/useRangeMorph';
 import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
+import OttavaMarker from './OttavaMarker';
 import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
 import RangeStaffOverlay from './overlays/RangeStaffOverlay';
 import ClefStaffOverlay from './overlays/ClefStaffOverlay';
@@ -1833,19 +1834,16 @@ const SheetMusic = ({
                   onClick={(e) => { e.stopPropagation(); handleClefTap('treble'); }}
                   onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleClefTap('treble'); }}
                 />
-                {cfT.ottava && (
-                  <text
-                    x="13"
-                    y={30 + cfT.yOffset + (cfT.below ? 30 : -46)}
-                    fontSize={cfT.ottava === '15' ? "23" : "14"}
-                    fill={showSettings ? 'var(--accent-yellow)' : (cfT.ottava === '15' ? '#ffffff' : 'var(--text-primary)')}
-                    fontFamily="Maestro"
-                    textAnchor="middle"
-                    dx={cfT.ottava === '15' && !cfT.below ? "12" : "10"}
-                  >
-                    {cfT.ottava === '15' ? String.fromCharCode(134) : cfT.ottava}
-                  </text>
-                )}
+                {/* Ottava marker cross-fades on value change (CR-A3) via OttavaMarker. */}
+                <OttavaMarker desc={cfT.ottava ? {
+                  token: `${cfT.ottava}|${cfT.below ? 'b' : 'a'}`,
+                  x: 13,
+                  y: 30 + cfT.yOffset + (cfT.below ? 30 : -46),
+                  fontSize: cfT.ottava === '15' ? '23' : '14',
+                  fill: showSettings ? 'var(--accent-yellow)' : (cfT.ottava === '15' ? '#ffffff' : 'var(--text-primary)'),
+                  dx: cfT.ottava === '15' && !cfT.below ? '12' : '10',
+                  glyph: cfT.ottava === '15' ? String.fromCharCode(134) : cfT.ottava,
+                } : null} />
                 {/* No staff-level key signature in the CLEF setter — accidentals there
                     are shown per-note on the reference notes instead (Han 2026-06-03). */}
                 {!clefEditMode && renderAccidentals(numAccidentals, clefTreble, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
@@ -1930,19 +1928,16 @@ const SheetMusic = ({
                   onClick={(e) => { e.stopPropagation(); handleClefTap('bass'); }}
                   onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleClefTap('bass'); }}
                 />
-                {cfB.ottava && (
-                  <text
-                    x="13"
-                    y={30 + cfB.yOffset + (cfB.below ? 43 : -17)}
-                    fontSize={cfB.ottava === '15' ? "23" : "14"}
-                    fill={showSettings ? 'var(--accent-yellow)' : (cfB.ottava === '15' ? '#ffffff' : 'var(--text-primary)')}
-                    fontFamily="Maestro"
-                    textAnchor="middle"
-                    dx="10"
-                  >
-                    {cfB.ottava === '15' ? String.fromCharCode(134) : cfB.ottava}
-                  </text>
-                )}
+                {/* Ottava marker cross-fades on value change (CR-A3) via OttavaMarker. */}
+                <OttavaMarker desc={cfB.ottava ? {
+                  token: `${cfB.ottava}|${cfB.below ? 'b' : 'a'}`,
+                  x: 13,
+                  y: 30 + cfB.yOffset + (cfB.below ? 43 : -17),
+                  fontSize: cfB.ottava === '15' ? '23' : '14',
+                  fill: showSettings ? 'var(--accent-yellow)' : (cfB.ottava === '15' ? '#ffffff' : 'var(--text-primary)'),
+                  dx: '10',
+                  glyph: cfB.ottava === '15' ? String.fromCharCode(134) : cfB.ottava,
+                } : null} />
                 {!clefEditMode && renderAccidentals(numAccidentals, clefBass, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
                 {/* Clickable overlay on bass key-signature accidentals */}
                 {!clefEditMode && numAccidentals !== 0 && onEnharmonicToggle && (() => {
