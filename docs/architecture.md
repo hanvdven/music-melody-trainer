@@ -803,7 +803,7 @@ Purpose of every significant file in the codebase. One-sentence description + re
 | `DoubleStepper.jsx` | Paired steppers sharing a label — used for range (min/max) controls. |
 | `NumberControl.jsx` | Numeric input field with validation; falls back to stepper on mobile. |
 | `GenericTypeSelector.jsx` | Horizontal pill/tab selector for a fixed set of string options. |
-| `TabNavigation.jsx` | Bottom tab bar navigating between major app sections. |
+| `layout/TabView.jsx` | Bottom tab bar navigating between major app sections (formerly mislabeled `TabNavigation.jsx`). |
 | `CustomIcons.jsx` | SVG icon definitions used throughout the UI. |
 | `ThemeToggle.jsx` | Dark/light mode toggle button. |
 
@@ -893,7 +893,7 @@ Purpose of every significant file in the codebase. One-sentence description + re
 | File | Purpose |
 |---|---|
 | `timing.js` | `TICKS_PER_WHOLE = 48` and derived tick constants (quarter = 12, eighth = 6, sixteenth = 3). |
-| `percussionNotes.js` | MIDI note number ↔ percussion instrument name mapping for the metronome Soundfont. |
+| `audio/drumKits.js` | Drum-kit sample names + `METRONOME_NOTE_IDS` (metronome vs percussion routing). Owns the note↔percussion mapping; there is no separate `percussionNotes.js`. |
 
 ---
 
