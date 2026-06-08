@@ -709,6 +709,11 @@ Key invariant: **React never sets `style.opacity` on `[data-pagination-old]` or 
 
 Purpose of every significant file in the codebase. One-sentence description + responsibility boundary.
 
+> **Non-exhaustive.** This table is a curated map of the most significant files, not a
+> complete index. It does not list every file under `src/contexts/`, `src/hooks/`, or
+> `src/components/sheet-music/overlays/`; for those, browse the directory (each file has a
+> header doc-comment). When you add a major file, append it here.
+
 ### `src/App.jsx`
 **Main application orchestrator.** Owns all top-level state (melody, playback config, instrument settings, UI mode), instantiates all hooks, wires refs between the Sequencer and the UI, and renders the full layout tree.
 
@@ -779,11 +784,16 @@ Purpose of every significant file in the codebase. One-sentence description + re
 
 ---
 
-### Playback (`src/components/playback/`)
+### Playback controls
+
+There is no `src/components/playback/` directory; the play/stop and tempo UI lives with
+the header and the sheet:
 
 | File | Purpose |
 |---|---|
-| `PlaybackControls.jsx` | Play/stop button bar; shows BPM, current measure, tempo tap. |
+| `layout/AppHeader.jsx` | Top-bar play/stop + mode controls (drives `usePlayback`). |
+| `sheet-music/BpmControls.jsx` | BPM display + tempo stepper/tap. |
+| `sheet-music/RepeatsControls.jsx` | Repeat-count control. |
 
 ---
 
