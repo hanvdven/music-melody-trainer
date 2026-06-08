@@ -769,3 +769,40 @@ NEW (Han 2026-06-08, second batch):
   ↳ CR-A2 refinement (Han 2026-06-08): refly fires ONLY on left-carousel FAMILY change
     (clefFamilyKey). Sub-clef changes — octave, transposition, vocal voice — no longer
     animate. clefFamilyKey treats all vocal voices (incl. Bass) as 'vocal'. Tests added.
+
+============================================================
+## GROUP B/C/N (Han 2026-06-08 "Do B, C, N") — interview answers locked
+============================================================
+Interview (§4b) done. Answers: N6=BOTH position+colour (match sheet, overrides 06-07
+"concert position"); V2=keep current bright/lowlight intent in [acc · DFAC · EGB] cols;
+N7=spread full-width like melodic, compact to C-G-C-on-active when tight.
+
+B — NOTATION MENU (percussion / clef carousel):
+  ✅ N1 perc disable-X aligned with treble/bass staff X via shared DisableCross at the
+     −5 (CLEF_GLYPH_X−PERC_CLEF_X) offset → identical 13…31 span.
+  ✅ N2 perc carousel even-spread stepX (FAMILY_RIGHT_FRAC·startX) like melodic → wrap
+     copy lands at 2·step (past startX), no longer bleeds past the right fade mask.
+  ✅ N3 perc together/split clickzone → y−30, h84 covers the split hi-hat beam (above)
+     and the together stems+beam (below). Verified via debug render.
+  ✅ N4 perc clef carousel slot now draws its debugMode hit-box (§3a).
+  ✅ N5 ClefCarousel/renderFamily: active glyph = variant only when fam.id===famId, so a
+     picked slot keeps its OWN family glyph through the slide (no mid-anim morph).
+  ✅ N8 staffBlock famId = clefFamilyKey(settings) (rangeMode-aware) → vocal Bass now
+     activates the VOCAL family, not instrumental bass. Verified via render.
+  ✅ N7 vocal carousel rewritten to the melodic full-width swipe strip (VAR_X0/viewWidth,
+     scroll on overflow); narrow → only active card shows C-G-C notes. Verified.
+
+C — VISUAL CONSISTENCY:
+  ✅ V1 new shared DisableCross component (overlays/DisableCross.jsx) — staff-off,
+     perc-off and chord-off crosses now identical (start-aligned, 18×36, 2× taller, 2.4).
+  ✅ V2 ChordStaffOverlay extended chord → 3 columns [accidentals · DFAC · EGB]; D+A
+     bright, F+C+EGB lowlit; accidentals (♭/♯) hand-drawn in their own left column (the
+     auto-renderer can't isolate them). Verified via render-chord.
+  ✅ V3 SheetMusic overlay frame now draws MATCHING left+end barlines (both strokeWidth 1)
+     in any overlayEditMode; removed the redundant rangeEditMode-only end barline.
+
+N — NEW:
+  ✅ N6 RangeStaffOverlay body+edge layers now pass transpositionSemitones={trans} → notes
+     render at WRITTEN position AND colour (concert→written map + concertMidiByWritten for
+     boundary/in-band; writtenName() for band+ellipsis Y). Verified via render-range-trans
+     (trans=+2 moves notes up + recolours, boundaries stay yellow). Supersedes #16.

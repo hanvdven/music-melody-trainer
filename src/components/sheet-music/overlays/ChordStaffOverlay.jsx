@@ -1,5 +1,6 @@
 import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
+import { getNoteAbsoluteY } from '../renderMelodyNotes';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
 
 /**
@@ -57,6 +58,10 @@ const COMPLEXITY_OPTS = [
 ];
 
 const LOWLIGHT = 'var(--range-lowlight)';
+// Extended-chord column offsets (Han BUG-V2): the accidentals column sits EXT_ACC_DX
+// left of the D-F-A-C core, the E-G-B tension column EXT_COL_DX to its right.
+const EXT_ACC_DX = 16;
+const EXT_COL_DX = 22;
 
 // A complexity chord rendered as real whole-notes at the chord-row staff position.
 // `baseY` is the staff top fed to MelodyNotesLayer; `cx` is the chord centre.
@@ -74,24 +79,30 @@ const ChordNotes = ({ id, cx, baseY, active }) => {
             </g>
         );
     }
-    // extended: bright [C4,G4] + lowlit [E4,B4] in the same column, then a lowlit
-    // right-offset [D4,F4,A4] with ♭/♯ to their left (lowlit) — Han's spec.
-    // The right-offset tension stack carries its OWN accidentals (♭ on the 9th, ♯ on
-    // the 13th) so the renderer draws ♭/♯ to the LEFT of those noteheads — signalling
-    // the altered extensions (Han #14). 'D♭4'/'A♯4' position on the D4/A4 line (the
-    // accidental is stripped for placement) with a flat/sharp glyph in front; 'F4'
-    // stays natural (no accidental in C). §6c: real renderer draws the accidentals.
+    // extended: THREE clean columns, left→right (Han BUG-V2, 2026-06-08):
+    //   1. ACCIDENTALS — the altered-tension ♭/♯ pulled into their OWN leftmost column.
+    //      The auto-renderer can only draw an accidental hugging its own notehead, so it
+    //      could never sit in a separate column; these two glyphs are therefore drawn by
+    //      hand (the noteheads themselves stay on the real renderer). Aligned to the E
+    //      (♭9) and B (13) rows so they read as a tidy vertical pair.
+    //   2. D F A C — the seventh-chord core: D + A bright (tonic + fifth, "current
+    //      bright/lowlight intent"), F + C lowlit.
+    //   3. E G B — the 9 / 11 / 13 tensions, lowlit, offset to the right.
+    const flatY = getNoteAbsoluteY('E4', baseY, 'treble', 'treble');
+    const sharpY = getNoteAbsoluteY('B4', baseY, 'treble', 'treble');
+    const tensionCol = { ...common, startX: cx + EXT_COL_DX };
     return (
         <g style={{ pointerEvents: 'none' }}>
-            {/* Shifted up a step to start at D4 (no C4 ledger, Han 2026-06-03). */}
+            {/* col 1 — accidentals (hand-drawn; see note above). Unicode per §5b. */}
+            <text x={cx - EXT_ACC_DX} y={flatY + 6} fontSize={20} fontFamily="serif"
+                fill={LOWLIGHT} textAnchor="middle">♭</text>
+            <text x={cx - EXT_ACC_DX} y={sharpY + 6} fontSize={18} fontFamily="serif"
+                fill={LOWLIGHT} textAnchor="middle">♯</text>
+            {/* col 2 — D F A C (start at D4, no C4 ledger; D+A bright, F+C lowlit). */}
             <MelodyNotesLayer {...common} melody={chordMelody(['D4', 'A4'])} previewMode={color} />
             <MelodyNotesLayer {...common} melody={chordMelody(['F4', 'C5'])} previewMode={LOWLIGHT} />
-            {/* Tension stack offset further right (8→24) so its ♭/♯ accidentals (drawn to
-                the LEFT of these noteheads) clear the ~14px-wide middle noteheads — the 3
-                columns were too cramped (Han 2026-06-03). */}
-            <g transform="translate(24 0)">
-                <MelodyNotesLayer {...common} melody={chordMelody(['E♭4', 'G4', 'B4'])} previewMode={LOWLIGHT} />
-            </g>
+            {/* col 3 — E G B tensions, offset right into their own column. */}
+            <MelodyNotesLayer {...tensionCol} melody={chordMelody(['E4', 'G4', 'B4'])} previewMode={LOWLIGHT} />
         </g>
     );
 };
@@ -123,13 +134,15 @@ const ChordStaffOverlay = ({
     // the chord's noteheads, incl. the extended chord's 3 columns (Han 2026-06-03). Sized
     // to ~80% of the inter-chord slot; shifted right a touch so it brackets the notes
     // (which extend right of cx) rather than sitting left of them.
-    const HIT_W = Math.max(44, span * 0.20 * 0.8);
+    // Wide enough to bracket the extended chord's three columns incl. the leftmost
+    // accidentals column (which extends EXT_ACC_DX left of cx) — Han BUG-V2.
+    const HIT_W = Math.max(52, span * 0.20 * 0.85);
 
     return (
         <g className="chord-overlay" onClick={(e) => e.stopPropagation()}>
             {onSetChordComplexity && COMPLEXITY_OPTS.map((opt, i) => {
                 const cx = startX + span * PCTS[i];
-                const hitX = cx - 12;            // notes start at cx and extend right
+                const hitX = cx - 20;            // covers the extended chord's accidentals column
                 return (
                     <g key={`cplx-${opt.id}`} data-fly=""
                         style={{ cursor: 'pointer' }}

@@ -440,27 +440,34 @@ const RangeStaffOverlay = ({
         //   out-of-band    → dim
         // The entering note is excluded (it animates in the edge group below).
         const bodyEntries = entries.filter(e => e.midi !== enterMidi);
-        // Chromatone/scale colour must follow the WRITTEN (transposed) note, like the
-        // sheet (renderMelodyNotes transposes names, then colours by getNoteSemitone of
-        // the transposed name). We keep the concert NAME for position (height stays
-        // correct) but colour by the transposed name. Concert→written map, built once.
+        // Han BUG-N6 (2026-06-08): a transposing staff must render its notes EXACTLY like
+        // the sheet — at the WRITTEN (transposed) position AND coloured by the written
+        // note (e.g. on an E♭ instrument concert B4 is written D5 and coloured as D). We
+        // therefore pass transpositionSemitones to the note layers (so the renderer
+        // transposes both position and name), and previewColorFn now receives the WRITTEN
+        // name. We still need the CONCERT midi to detect the boundary handles (selMin/
+        // selMax are concert) and the in/out-of-band split, so map written name → concert
+        // midi. (Supersedes the #16 "concert position, written colour" approach.)
         const trans = staff === 'treble' ? trebleTrans : bassTrans;
         const concertNames = entries.map(e => e.name);
         const writtenNames = trans !== 0 ? transposeMelodyBySemitones(concertNames, trans) : concertNames;
         const writtenByConcert = new Map(entries.map((e, i) => [e.name, writtenNames[i]]));
-        const colorFor = (midi, name) => {
-            if (midi === selMin || midi === selMax) return 'var(--accent-yellow)';
-            if (midi > selMin && midi < selMax)
-                return melodicNoteColor(writtenByConcert.get(name) ?? name, { noteColoringMode, tonic, scaleNotes, theme }) ?? 'var(--text-primary)';
+        const concertMidiByWritten = new Map(entries.map((e, i) => [writtenNames[i], e.midi]));
+        // Concert name → written name, for the Y-position helpers (hit band, ellipsis)
+        // so they track the transposed noteheads.
+        const writtenName = (concertNm) => writtenByConcert.get(concertNm) ?? concertNm;
+        const colorFor = (concertMidi, writtenNm) => {
+            if (concertMidi === selMin || concertMidi === selMax) return 'var(--accent-yellow)';
+            if (concertMidi > selMin && concertMidi < selMax)
+                return melodicNoteColor(writtenNm, { noteColoringMode, tonic, scaleNotes, theme }) ?? 'var(--text-primary)';
             // Out-of-band: same grey as the percussion notes, slightly lighter so it
             // reads on the overlay background (Han 2026-06-01 #4).
             return 'var(--range-lowlight)';
         };
-        // previewColorFn receives a note NAME; map name→midi via the entries we built.
-        const midiByName = new Map(bodyEntries.map(e => [e.name, e.midi]));
-        const bodyColorFn = (name) => {
-            const midi = midiByName.get(name);
-            return midi == null ? null : colorFor(midi, name);
+        // previewColorFn receives the WRITTEN note NAME (the layer is transposed).
+        const bodyColorFn = (writtenNm) => {
+            const cm = concertMidiByWritten.get(writtenNm);
+            return cm == null ? null : colorFor(cm, writtenNm);
         };
 
         // Press = start STEPPING the nearest boundary one natural per 0.25 s toward
@@ -521,8 +528,9 @@ const RangeStaffOverlay = ({
         // Hit band (point 2): a tall quad covering the note row + its 8va/8vb.
         // yLeft/yRight = the row's first (lowest) / last (highest) note Y. Common
         // left/right x so the treble & bass inner edges align exactly.
-        const yLeft = getNoteAbsoluteY(entries[0].name, staffStart, clef, staff);
-        const yRight = getNoteAbsoluteY(entries[entries.length - 1].name, staffStart, clef, staff);
+        // Band extent follows the WRITTEN (transposed) noteheads (Han BUG-N6).
+        const yLeft = getNoteAbsoluteY(writtenName(entries[0].name), staffStart, clef, staff);
+        const yRight = getNoteAbsoluteY(writtenName(entries[entries.length - 1].name), staffStart, clef, staff);
         const xL = startX;
         const xR = endX - PRESET_AREA_WIDTH;
         // The OUTER edge is horizontal (less diagonal — point 2) at the row's
@@ -563,6 +571,7 @@ const RangeStaffOverlay = ({
                             allOffsets={allOffsets}
                             timeSignature={timeSignature}
                             theme={theme}
+                            transpositionSemitones={trans}
                             previewMode="var(--text-primary)"
                             previewColorFn={bodyColorFn}
                         />
@@ -571,8 +580,8 @@ const RangeStaffOverlay = ({
                         interpolated along the slant between the last-low and first-high
                         kept notes, so the ellipsis follows the row's diagonal. */}
                     {gap && [0.3, 0.5, 0.7].map((t, k) => {
-                        const yLo = getNoteAbsoluteY(gap.lowName, staffStart, clef, staff);
-                        const yHi = getNoteAbsoluteY(gap.highName, staffStart, clef, staff);
+                        const yLo = getNoteAbsoluteY(writtenName(gap.lowName), staffStart, clef, staff);
+                        const yHi = getNoteAbsoluteY(writtenName(gap.highName), staffStart, clef, staff);
                         return (
                             <circle key={`ell-${k}`}
                                 cx={startX + gap.x0 + (gap.x1 - gap.x0) * t}
@@ -600,6 +609,7 @@ const RangeStaffOverlay = ({
                                 allOffsets={edgeAllOffsets}
                                 timeSignature={timeSignature}
                                 theme={theme}
+                                transpositionSemitones={trans}
                                 previewMode="var(--range-lowlight)"
                             />
                         </g>

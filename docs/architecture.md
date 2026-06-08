@@ -2353,6 +2353,64 @@ because opening an overlay stops playback.
   is driven via the element's `style.opacity` in an rAF (§6) because the transition/morph
   systems own the surrounding group opacity.
 
+**Setter bug batch (Han 2026-06-08 — Groups B/C/N).**
+
+*Purpose:* a sweep of notation-/range-setter inconsistencies reported from screenshots.
+
+- **Shared disable cross (V1, N1) — `overlays/DisableCross.jsx` (new).** The "off"
+  cross was drawn three different ways (clef-family off, percussion off, chord-row off)
+  with different size/anchor, so they looked inconsistent. One component now draws them
+  all: START-aligned at `x`, 2× taller than wide (18×36), strokeWidth 2.4, round caps.
+  The percussion cross is placed at a `CLEF_GLYPH_X − PERC_CLEF_X` (−5) offset so its
+  absolute span (13…31) matches the treble/bass staff cross exactly (N1).
+- **Percussion carousel even-spread (N2) — `ClefStaffOverlay.jsx`.** The 2-item perc
+  carousel used `familySlotX(2)` as its step, leaving the loop's wrap copy at ~startX
+  where it bled past the right fade mask. It now uses the melodic even-spread step
+  (`FAMILY_RIGHT_FRAC·startX − PERC_CLEF_X`), pushing the wrap copy to 2·step (well past
+  startX, fully clipped). `familySlotX` is now dead and removed.
+- **Percussion clickzone + debug box (N3, N4) — `ClefStaffOverlay.jsx`.** The together/
+  split toggle hit-rect (was y−18, h62) clipped the split voice's hi-hat beam (above the
+  staff) and the together voice's stems+beam (below); now y−30, h84 covers the full
+  bundle. The perc clef carousel slot now also renders its `debugMode` hit-box (§3a).
+- **Stable picked glyph (N5) — `ClefStaffOverlay.jsx renderFamily`.** The active slot
+  shows the current clef's concrete VARIANT glyph only when `fam.id === famId`; during a
+  carousel pick the picked slot (a different family) keeps its own family glyph through
+  the slide instead of morphing into the current clef's glyph.
+- **Vocal family + full-width strip (N8, N7) — `ClefStaffOverlay.jsx`.** `staffBlock`
+  now derives `famId` from `clefFamilyKey(settings)` (rangeMode-aware) instead of
+  `familyOfClef(clef)`, so a vocal voice that notates in the F-clef (vocal Bass/Baritone)
+  activates the VOCAL family, not instrumental bass (N8). The vocal variant row is now
+  the SAME full-width `ClefCardCarousel` as the melodic families (left-pack across the
+  staff body, scroll on overflow); on narrow screens only the selected voice shows its
+  C-G-C notes (N7).
+- **Extended-chord columns (V2) — `ChordStaffOverlay.jsx`.** The range-setter "extended"
+  complexity chord is now three clean columns left→right: an ACCIDENTALS column (the
+  ♭/♯ for the altered tensions, hand-drawn since the auto-renderer can only attach an
+  accidental to its own notehead — §6c deviation, commented), the D-F-A-C core (D+A
+  bright = tonic+fifth, F+C lowlit), and the E-G-B tension column offset right (lowlit).
+- **Consistent setter barlines (V3) — `SheetMusic.jsx`.** Any `overlayEditMode` now draws
+  a MATCHING opening (startX) and closing (endX) barline at the same weight (strokeWidth
+  1); previously only the end barline existed, so it read as thicker/brighter than the
+  staff's left edge. The redundant `rangeEditMode`-only end barline was removed
+  (`overlayEditMode ⊇ rangeEditMode`).
+- **Transposed range notes (N6) — `RangeStaffOverlay.jsx`.** A transposing staff now
+  renders its range notes EXACTLY like the sheet — at the WRITTEN (transposed) position
+  AND coloured by the written note (e.g. on an E♭ instrument concert B4 → written D5,
+  coloured as D). The body + edge note layers receive `transpositionSemitones={trans}`;
+  `previewColorFn` now receives the WRITTEN name and maps it back to the concert MIDI
+  (`concertMidiByWritten`) to keep the yellow boundary handles and in/out-of-band split
+  correct; the hit-band and ellipsis Y-helpers use `writtenName()` so they track the
+  transposed noteheads. The divider stays anchored to the fixed staff-gap midpoint.
+  Supersedes the #16 "concert position, written colour" approach (Han approved the move).
+
+*Invariants:* all "off" crosses MUST go through `DisableCross`; any new setter cross too.
+Note colouring in EVERY context follows the WRITTEN (transposed) note (§6 — never a local
+reimplementation; reuse `transposeMelodyBySemitones` + `melodicNoteColor`/`getNoteSemitone`).
+
+*Files:* `overlays/DisableCross.jsx` (new), `overlays/ClefStaffOverlay.jsx`,
+`overlays/ChordStyleOverlay.jsx`, `overlays/ChordStaffOverlay.jsx`,
+`overlays/RangeStaffOverlay.jsx`, `SheetMusic.jsx`.
+
 **Disabled staff (`preferredClef:'off'`, Han 2026-06-01 #3).** A staff whose clef
 is the `off` sentinel: (a) generates NOTHING — `useMelodyState` returns an empty
 `Melody` for that voice (skips `resolveVoice`); (b) shows NO elements — SheetMusic
