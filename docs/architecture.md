@@ -1103,21 +1103,29 @@ controls** side by side ("4 in totaal" across treble + bass):
 - **LEFT — concert note-NAME carousel:** a vertical half-step list of CONCERT note names
   ("… = C4"), centred on `C4 − trans` (the concert pitch written at C4), running in the
   OPPOSITE order to the right carousel.
-- **RIGHT — sheet-music NOTEHEAD carousel:** `[clef]  "C4 ="  [noteheads on a DIAGONAL]`.
-  Each half-step right also moves up the staff (`noteYMap` = 5 units per diatonic step), so
-  the notes trace the staff's own pitch gradient. The SELECTED note is pinned at a FIXED x
-  (`anchorX`) and its CORRECT staff position; the neighbours fan out along the diagonal and
-  fade. Spelling follows the keyboard (sharps: C, C♯, D…); names use Unicode ♯ (§17),
-  noteheads draw a Maestro ♯ accidental.
+- **RIGHT — sheet-music NOTEHEAD carousel:** `[clef]  "C4 ="  [noteheads on a 'tangens' curve]`.
+  Each head is drawn at its true staff **origin** (same x = `anchorX` for all; y = its staff
+  position, so C4/C♯4 share a y and D4 is 5 units higher) PLUS a curve offset `f(t)`, where
+  `t` = half-steps from the active selection:
+  `x_units = −3·tanh(t/3)`, `f(t) = ( x_units·X_SPACING , (x_units³/20)·Y_SPACING )`
+  (`X_SPACING=30`, `Y_SPACING=10`). The active note (`t=0`) → `f(0)=(0,0)`, so it sits exactly
+  on its target at the fixed `anchorX`. The sign makes the fan run **links-boven** (higher
+  notes, `t>0` → left+up) to **rechts-onder** (lower notes), keeping the heads clear of note
+  stems; `tanh` saturates the horizontal spread (±3·`X_SPACING`) while the cubic gives the
+  gentle S ('tangens'). Spelling follows the keyboard (sharps: C, C♯, D…); names use Unicode
+  ♯ (§17), noteheads draw a Maestro ♯ accidental.
 
 A tap on either carousel reports `onSelectTrans(newTrans)` (RIGHT note at +d → `trans + d`;
 LEFT name at +d → `trans − d`, the inverse coupling). `ClefStaffOverlay.keyForTrans` maps the
 offset back to a `transpositionKey` via `TRANSPOSING_INSTRUMENTS` (§6c — derived, no table);
 offsets with no key (e.g. −1, +12) clamp to the nearest available instrument.
 
-**Status:** the carousel spread is currently a **LINEAR placeholder**; the final spacing is a
-non-linear ("tangens") curve Han will supply, intended to become a shared primitive with the
-range setter. Per §3a both carousels render their tap hit boxes in `debugMode`.
+**Status:** the RIGHT carousel uses the non-linear 'tangens' curve above (Han 2026-06-08); the
+visible window is capped at `±STEPS` (=5) with an opacity fade at the edges. The LEFT name
+carousel is still a linear vertical perspective list. **TODO:** smooth drag-to-slide (track a
+*fractional* active `t` during a pointer drag, snap to nearest on release) — the math already
+animates cheaply; intended to become a shared primitive with the range setter. Per §3a both
+carousels render their tap hit boxes in `debugMode`.
 
 **Invariants:** writes go only through `onApplyClefPatch(staff, patchForTransposition(key))`;
 the setter never mutates settings directly. The clef passed in is the *concrete* current clef

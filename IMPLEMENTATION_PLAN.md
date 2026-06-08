@@ -826,8 +826,11 @@ FR LOGGED (Han 2026-06-08) — NOT started, needs interview + Han's drawings (§
      NOTEHEADS (active pinned at fixed x + correct staff position). Replaces the horizontal
      ClefCardCarousel in ClefStaffOverlay's melodic (G/F) branch. Tap-to-select interaction;
      debug hit boxes (§3a). Build/lint/tests green; smoke test added.
-     ⏳ STILL TODO: LINEAR spread is a placeholder → swap for Han's non-linear 'tangens' curve
-        (shared primitive with range setter); drag/scroll gesture; ledger lines per notehead.
+     ✅ TANGENS CURVE (Han 2026-06-08): RIGHT noteheads placed at origin + f(t),
+        x=−3·tanh(t/3)·30, y=(x³/20)·10 → links-boven→rechts-onder fan, clear of stems.
+        Capped ±5 visible w/ fade. Build/tests green (232).
+     ⏳ STILL TODO: smooth drag-to-slide (fractional t during pointer drag, snap on release);
+        ledger lines per notehead; apply shared curve primitive to the range setter.
 
 N — NEW:
   ✅ N6 RangeStaffOverlay body+edge layers now pass transpositionSemitones={trans} → notes

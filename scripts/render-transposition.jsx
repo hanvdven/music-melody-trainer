@@ -27,10 +27,10 @@ const staffLines = (s) => [0, 1, 2, 3, 4].map(i =>
 const svg = resolveVars(
   `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`
   + `<rect width="${W}" height="${H}" fill="#161616"/>`
-  + `<text x="20" y="20" fill="#bbb" font-size="12" font-family="serif">treble · trans +2 (concert C4 → written D4 = B♭ inst.)</text>`
-  + staffLines(trebleStart) + panel('treble', 'treble', trebleStart, 2)
-  + `<text x="20" y="200" fill="#bbb" font-size="12" font-family="serif">bass · trans 0 (concert / C inst.)</text>`
-  + staffLines(bassStart) + panel('bass', 'bass', bassStart, 0)
+  + `<text x="20" y="20" fill="#bbb" font-size="12" font-family="serif">treble · trans 0 (concert) — symmetric tangens fan</text>`
+  + staffLines(trebleStart) + panel('treble', 'treble', trebleStart, 0)
+  + `<text x="20" y="200" fill="#bbb" font-size="12" font-family="serif">bass · trans +4 (concert C4 → written E4 = A♭ inst.) — shifted</text>`
+  + staffLines(bassStart) + panel('bass', 'bass', bassStart, 4)
   + `</svg>`,
 );
 fs.writeFileSync('/tmp/transposition.svg', svg);
