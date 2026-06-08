@@ -1107,13 +1107,14 @@ controls** side by side ("4 in totaal" across treble + bass):
   Each head is drawn at its true staff **origin** (same x = `anchorX` for all; y = its staff
   position, so C4/C♯4 share a y and D4 is 5 units higher) PLUS a curve offset `f(t)`, where
   `t` = half-steps from the active selection:
-  `x_units = −3·tanh(t/3)`, `f(t) = ( x_units·X_SPACING , (x_units³/20)·Y_SPACING )`
-  (`X_SPACING=30`, `Y_SPACING=10`). The active note (`t=0`) → `f(0)=(0,0)`, so it sits exactly
-  on its target at the fixed `anchorX`. The sign makes the fan run **links-boven** (higher
-  notes, `t>0` → left+up) to **rechts-onder** (lower notes), keeping the heads clear of note
-  stems; `tanh` saturates the horizontal spread (±3·`X_SPACING`) while the cubic gives the
-  gentle S ('tangens'). Spelling follows the keyboard (sharps: C, C♯, D…); names use Unicode
-  ♯ (§17), noteheads draw a Maestro ♯ accidental.
+  `f(t) = ( −3·tanh(t/3)·X_SPACING , (t³/20)·Y_SPACING )` (`X_SPACING=30`, `Y_SPACING=10`).
+  The active note (`t=0`) → `f(0)=(0,0)`, so it sits exactly on its target at the fixed
+  `anchorX`. The horizontal term `tanh` saturates the spread (±3·`X_SPACING`) so the fan can't
+  run off sideways; the vertical term is a **pure cubic in t** (Han 2026-06-08 chose `+t³`,
+  the S-wave) — flat near the centre, the ends curl into an S, giving the 'tangens' feel.
+  Because `t³` is unbounded the visible window must be capped (`t=5` is already 62 units).
+  Spelling follows the keyboard (sharps: C, C♯, D…); names use Unicode ♯ (§17), noteheads draw
+  a Maestro ♯ accidental.
 
 A tap on either carousel reports `onSelectTrans(newTrans)` (RIGHT note at +d → `trans + d`;
 LEFT name at +d → `trans − d`, the inverse coupling). `ClefStaffOverlay.keyForTrans` maps the
