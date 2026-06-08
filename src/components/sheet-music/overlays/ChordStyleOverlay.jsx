@@ -1,4 +1,5 @@
 import React from 'react';
+import DisableCross from './DisableCross';
 
 /**
  * ChordStyleOverlay — the chord STYLE selector (Han #12): X (disable) / letters /
@@ -78,11 +79,11 @@ const ChordStyleOverlay = ({
     return (
         <g className="chord-style-overlay" onClick={(e) => e.stopPropagation()}>
             {hit('off', (
-                <g stroke={offColor} strokeWidth={2.4} strokeLinecap="round" style={{ pointerEvents: 'none' }}>
-                    <path d={`M ${startX - 8} ${visCentre - 12} L ${startX + 8} ${visCentre + 12}`} />
-                    <path d={`M ${startX + 8} ${visCentre - 12} L ${startX - 8} ${visCentre + 12}`} />
-                </g>
-            ), startX - 14, 28, () => onSetChordDisplayMode?.('off'))}
+                // Shared DisableCross so the chord-row OFF reads identically to the staff
+                // + percussion OFF crosses (Han BUG-V1, 2026-06-08): start-aligned at the
+                // row-left, 18×36, 2× taller than wide. Centred vertically on the label.
+                <DisableCross x={startX} topY={visCentre - 18} color={offColor} />
+            ), startX - 6, 30, () => onSetChordDisplayMode?.('off'))}
             {hit('letters',
                 <ProgressionSample cx={cx33} cy={labelBase} kind="letters" color={lettersColor} />,
                 cx33 - SAMPLE_W / 2, SAMPLE_W, () => onSetChordDisplayMode?.('letters'))}

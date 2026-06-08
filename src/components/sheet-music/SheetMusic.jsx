@@ -2758,20 +2758,9 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* Range-edit: the usual mode="regular" barlines live inside the
-                      hidden notes-transition group, so render a dedicated visible copy
-                      here with numRepeats=1 → plain barlines ending in a normal vertical
-                      barline, no repeats (Han 2026-05-30). */}
-                  {/* Range-edit: no intermediate barlines (ignore measure count);
-                      just a single normal vertical end barline closing the staff
-                      (Han 2026-05-30). */}
-                  {rangeEditMode && (
-                    <path
-                      d={`M ${endX} ${trebleStart} V ${bottomY}`}
-                      stroke="var(--text-primary)"
-                      strokeWidth="1"
-                    />
-                  )}
+                  {/* Range-edit's end barline is now drawn by the shared overlay frame
+                      below (overlayEditMode ⊇ rangeEditMode), together with a matching
+                      LEFT barline so both edges read at the same weight (Han BUG-V3). */}
 
                   {/* Legacy settings surface — now slides in like clef/range (Han #11),
                       kept mounted during its morph. */}
@@ -2814,11 +2803,18 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* End barline at endX spanning the visible staves, in any overlay
-                      mode (Han #10 — a vertical measure line at endX). */}
+                  {/* Opening + closing barlines framing the staff body in ANY overlay
+                      mode (Han #10 — a vertical measure line at endX). Both edges are
+                      drawn at the SAME weight so the end barline no longer looks
+                      thicker/brighter than the left edge (Han BUG-V3, 2026-06-08): the
+                      end barline previously had no left counterpart at all. */}
                   {overlayEditMode && (
-                    <path d={`M ${endX} ${trebleStart} V ${bottomY}`}
-                      stroke="var(--text-primary)" strokeWidth="1" style={{ pointerEvents: 'none' }} />
+                    <>
+                      <path d={`M ${startX} ${trebleStart} V ${bottomY}`}
+                        stroke="var(--text-primary)" strokeWidth="1" style={{ pointerEvents: 'none' }} />
+                      <path d={`M ${endX} ${trebleStart} V ${bottomY}`}
+                        stroke="var(--text-primary)" strokeWidth="1" style={{ pointerEvents: 'none' }} />
+                    </>
                   )}
 
                   {/* Range overlay — in-SVG selectable note rows. Kept mounted during

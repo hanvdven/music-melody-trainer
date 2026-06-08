@@ -1,12 +1,13 @@
 import React from 'react';
 import {
-    VOCAL_VARIANTS, familyOfClef, carouselOrder,
+    VOCAL_VARIANTS, clefFamilyKey, carouselOrder,
     patchForFamily, patchForVocal, patchForTransposition,
 } from './clefSelector';
 import { TRANSPOSING_INSTRUMENTS } from '../../../constants/transposingInstruments';
 import ClefCardCarousel from './ClefCardCarousel';
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
 import ClefCarousel from './ClefCarousel';
+import DisableCross from './DisableCross';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { processMelodyAndCalculateSlots } from '../processMelodyAndCalculateSlots';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
@@ -94,9 +95,6 @@ const CLEF_ONLY_W = 92;
 // Family clefs cluster a bit tighter so the rightmost sits just OUTSIDE the 95% fader
 // zone (Han #9, 2026-06-03). Shared so the percussion 'off' cross can align to a slot.
 const FAMILY_RIGHT_FRAC = 0.80;
-// x of family slot `i` (0-based) in the gutter — melody/bass have 4 slots
-// (g/f/vocal/off). The percussion cross aligns to slot 2, i.e. under the 3rd clef (#10).
-const familySlotX = (slot, startX) => CLEF_GLYPH_X + slot * ((startX * FAMILY_RIGHT_FRAC - CLEF_GLYPH_X) / 3);
 const EIGHTH = TICKS_PER_WHOLE / 8;
 const PERC_LAYER_PROPS = {
     numAccidentals: 0, noteGroupSize: 1, measureLengthSlots: 9999, scaleNotes: [],
@@ -207,7 +205,12 @@ const ClefStaffOverlay = ({
 
     // One staff block: family carousel (left) + variants (right).
     const staffBlock = (staff, staffStart, clef, settings) => {
-        const famId = familyOfClef(clef);
+        // Family the LEFT carousel shows must be rangeMode-aware so a VOCAL voice that
+        // notates in the F-clef (vocal Bass/Baritone) reads as the 'vocal' family, not
+        // 'f'. Using familyOfClef(clef) here made selecting a vocal sub-clef wrongly
+        // activate the Bass family (Han BUG-N8, 2026-06-08); clefFamilyKey inspects the
+        // rangeMode, familyOfClef only sees the concrete clef glyph.
+        const famId = clefFamilyKey(settings);
         const order = carouselOrder(famId);            // current first
         const transKey = settings?.transpositionKey || 'C';
 
@@ -225,7 +228,12 @@ const ClefStaffOverlay = ({
             // lowlight — same token the variant cards use, so the family clefs and the
             // card clefs are the exact same grey (Han 2026-06-03 consistency).
             const colr = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
-            const symbolKey = isActive ? variantToSymbolKey(clef) : fam.clef;
+            // The ACTIVE slot shows the current clef's concrete variant glyph ONLY when
+            // it really is the current family (fam.id === famId). During a pick the
+            // carousel flags the PICKED slot active mid-slide; that slot belongs to a
+            // DIFFERENT family, so it must keep its OWN family glyph (fam.clef) the whole
+            // time rather than morphing into the current clef's glyph (Han BUG-N5).
+            const symbolKey = (isActive && fam.id === famId) ? variantToSymbolKey(clef) : fam.clef;
             // Glyphs are anchor='start' (left edge at the slot x), so the selection/hit
             // box brackets [slotX−4 … slotX−4+SLOT_W] instead of being centred — keeps
             // it aligned with the glyph after the anchor change (Han 2026-06-03).
@@ -236,11 +244,9 @@ const ClefStaffOverlay = ({
                         fill="transparent" />
                     {isOff ? (
                         // Disable cross, START-aligned like the clef glyphs: spans x=0…18,
-                        // 2× taller than wide so it reads across the staff (Han #8).
-                        <g stroke={colr} strokeWidth={2.4} strokeLinecap="round" style={{ pointerEvents: 'none' }}>
-                            <path d={`M 0 ${staffStart + 2} L 18 ${staffStart + 38}`} />
-                            <path d={`M 18 ${staffStart + 2} L 0 ${staffStart + 38}`} />
-                        </g>
+                        // 2× taller than wide so it reads across the staff (Han #8). Shared
+                        // DisableCross so it matches the percussion + chord OFF crosses (V1).
+                        <DisableCross x={0} topY={staffStart + 2} color={colr} />
                     ) : (
                         // anchor='start' at CLEF_GLYPH_X so the ACTIVE family clef (slot 0,
                         // at x=CLEF_GLYPH_X) sits at the EXACT same position as the real
@@ -300,12 +306,14 @@ const ClefStaffOverlay = ({
 
         let variantContent = null;
         if (famId === 'vocal') {
-            // Vocal voices: ALL 6 always in view (Han #5, 2026-06-03) — only the SELECTED
-            // voice shows its tonic/5th/octave notes; the rest are clef-only. The vocal
-            // clefs are each visually distinct (C-clef on different lines, F-clefs), so a
-            // clef-only card is still identifiable. Non-active cards shrink to a narrow
-            // clef slot so the whole set fits the window with no scrolling (effectively no
-            // carousel). Vocal is never transposing.
+            // Vocal voices: a full-width SWIPE strip, identical in behaviour to the
+            // melodic carousel (Han BUG-N7, 2026-06-08) — the 6 voices spread left→right
+            // across the staff body and scroll when they don't fit, rather than a centred
+            // fixed cluster. The vocal clefs are each visually distinct (C-clef on
+            // different lines, F-clefs), so a clef-only card is still identifiable. When
+            // space is tight (narrow screens) only the SELECTED voice shows its C-G-C
+            // notes; the rest compact to a clef-only slot so more voices fit. Vocal is
+            // never transposing.
             const VOC_CARD_W = 148;
             const VOC_CLEF_ONLY_W = 46;   // clef only (no label/notes) — vocal has no inst label
             const cards = VOCAL_VARIANTS.map(v => ({
@@ -315,11 +323,12 @@ const ClefStaffOverlay = ({
                 active: rangeMode === v.rangeMode,
                 onTap: () => onApplyClefPatch?.(staff, patchForVocal(v)),
             }));
-            const cardWidth = (card) => card.active ? VOC_CARD_W : VOC_CLEF_ONLY_W;
+            // Narrow → only the selected card keeps full width + notes (matches melodic).
+            const cardWidth = (card) => (isNarrow && !card.active) ? VOC_CLEF_ONLY_W : VOC_CARD_W;
             const renderCard = (card, slotX) => {
                 // Selected = normal colour (not yellow); non-selected = shared lowlight.
                 const color = card.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
-                const showNotes = card.active;   // only the selected voice shows notes (#5)
+                const showNotes = card.active || !isNarrow;
                 return (
                     <g>
                         <ClefCard symbolKey={card.clef} clef={card.clef} notes={card.notes}
@@ -335,17 +344,14 @@ const ClefStaffOverlay = ({
                     </g>
                 );
             };
-            // All 6 fit, so centre the (non-scrolling) group in the window instead of
-            // left-packing it (Han #5 — no carousel feel).
-            const vocWidths = cards.map(cardWidth);
-            const vocContentW = vocWidths.reduce((a, b) => a + b, 0);
-            const vocX0 = VAR_X0 + Math.max(0, (viewWidth - vocContentW) / 2);
+            // Full window like the melodic strip: left-pack from VAR_X0 across viewWidth
+            // and scroll the overflow (no centred cluster).
             variantContent = (
                 <g key={`clefvar-${famId}`} className="clef-variant-cards clef-variant-enter"
                     data-fly="" data-fly-from={startX}>
-                    <ClefCardCarousel cards={cards} x0={vocX0} y={staffStart - 24}
-                        viewWidth={vocContentW} height={74} cardW={VOC_CARD_W}
-                        cardWidths={vocWidths}
+                    <ClefCardCarousel cards={cards} x0={VAR_X0} y={staffStart - 24}
+                        viewWidth={viewWidth} height={74} cardW={VOC_CARD_W}
+                        cardWidths={cards.map(cardWidth)}
                         clipId={`clefcards-${staff}`} renderCard={renderCard} />
                 </g>
             );
@@ -479,10 +485,15 @@ const ClefStaffOverlay = ({
             // Taller + a touch wider hit target so the percussion together/split toggles
             // aren't fiddly (Han 2026-06-03 "percussion clickzone too small").
             const hitX = ox - 16, hitW = slots * NOTE_W + 32;
+            // Cover the FULL note bundle (Han BUG-N3, 2026-06-08): the split voice's
+            // hi-hat beam rides above the staff (≈ y−28) and the together voice's
+            // stems+beam hang below it (≈ y+50); the old y−18…y+44 box clipped both
+            // ends, so the clickzone didn't match the visible note height.
+            const HIT_Y = y - 30, HIT_H = 84;
             return (
                 <g key={key} style={{ cursor: onToggleVoiceSplit ? 'pointer' : 'default' }} onClick={onTap}>
                     {/* invisible hit target — no visible box around the notes (Han #14) */}
-                    <rect x={hitX} y={y - 18} width={hitW} height={62} fill="transparent" />
+                    <rect x={hitX} y={HIT_Y} width={hitW} height={HIT_H} fill="transparent" />
                     <g style={{ pointerEvents: 'none' }}>
                         {layers.map((L, i) => (
                             <MelodyNotesLayer key={i}
@@ -504,7 +515,7 @@ const ClefStaffOverlay = ({
                         ))}
                     </g>
                     {debugMode && (
-                        <rect x={hitX} y={y - 18} width={hitW} height={62}
+                        <rect x={hitX} y={HIT_Y} width={hitW} height={HIT_H}
                             fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
                             style={{ pointerEvents: 'none' }} />
                     )}
@@ -518,14 +529,24 @@ const ClefStaffOverlay = ({
         const clipId = 'clef-gutter-clip-percussion';
         const renderPercClef = (item, { isActive }) => {
             const colr = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
+            // The disable cross must align EXACTLY with the treble/bass staff 'off'
+            // cross (Han BUG-N1, 2026-06-08). Those are START-aligned at CLEF_GLYPH_X
+            // (=13), spanning x=13…31; the percussion carousel slot sits at
+            // PERC_CLEF_X (=18), so we draw the cross with a local offset of
+            // CLEF_GLYPH_X − PERC_CLEF_X (= −5) → identical absolute span 13…31.
+            const CROSS_DX = CLEF_GLYPH_X - PERC_CLEF_X;   // −5
             return (
                 <>
                     <rect x={-FAMILY_SLOT_W / 2} y={y - 18} width={FAMILY_SLOT_W} height={62} fill="transparent" />
+                    {debugMode && (
+                        <rect x={-FAMILY_SLOT_W / 2} y={y - 18} width={FAMILY_SLOT_W} height={62}
+                            fill="orange" fillOpacity={0.18} stroke="orange" strokeWidth={0.5}
+                            style={{ pointerEvents: 'none' }} />
+                    )}
                     {item === 'off' ? (
-                        <g stroke={colr} strokeWidth={2.4} strokeLinecap="round" style={{ pointerEvents: 'none' }}>
-                            <path d={`M -9 ${y + 2} L 9 ${y + 38}`} />
-                            <path d={`M 9 ${y + 2} L -9 ${y + 38}`} />
-                        </g>
+                        // Shared DisableCross at the −5 offset so it lands at the SAME
+                        // absolute span (13…31) as the treble/bass staff OFF cross (N1/V1).
+                        <DisableCross x={CROSS_DX} topY={y + 2} color={colr} />
                     ) : (
                         // The sheet percussion clef is drawn at x=18 — match it so the
                         // carousel's active clef aligns exactly with the sheet (Han #8).
@@ -543,9 +564,12 @@ const ClefStaffOverlay = ({
         const PERC_CLEF_X = 18;
         // current first: if disabled, 'off' is active; else the clef.
         const percOrder = percussionDisabled ? ['off', 'perc'] : ['perc', 'off'];
-        // Align the 'off' cross (2nd perc item) to family slot 2 — under the 3rd clef of
-        // the melody/bass carousels (Han #10, 2026-06-03), not the far-right slot 3.
-        const percStepX = familySlotX(2, startX) - PERC_CLEF_X;
+        // Even-spread the 2 items (active clef at PERC_CLEF_X, alternative at
+        // FAMILY_RIGHT_FRAC·startX) exactly like the melodic family carousels. The old
+        // familySlotX(2) step left the wrap copy at ~startX, so a partial copy of the
+        // active clef bled past the right fade mask (Han BUG-N2, 2026-06-08); with this
+        // wider step the wrap copy sits at 2·step (well beyond startX) and is clipped.
+        const percStepX = startX * FAMILY_RIGHT_FRAC - PERC_CLEF_X;
 
         return (
             <g className="clef-row clef-row-percussion" key="percussion">
