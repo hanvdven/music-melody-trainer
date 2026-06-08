@@ -694,7 +694,7 @@ P0 — CORRECTNESS (silent-bug risk, §6 invariant):
      Fix: route both through getNoteSemitone(); delete the local tables. Add a test.
 
 P1 — PERFORMANCE (real wins, respect §6/§10 opacity+timing invariants):
-  ⏳ PERF-1 Delete dead processMelodyAndCalculateFlags call (SheetMusic.jsx:9,897) —
+  ✅ PERF-1 DONE Deleted dead processMelodyAndCalculateFlags call (SheetMusic.jsx:9,897) —
      computed every render in the hottest component, never read. Low-risk.
   ⏳ PERF-2 Stabilise MelodyNotesLayer memo props (inputTestState / previewColorFn /
      previewMode identity) so the memo actually hits — biggest win, ×K worse in scroll
@@ -718,7 +718,7 @@ P2 — TECH DEBT (§6c/§7):
      transitionPlanner.js:40-44). NOTE: 'lang' removal is a deliberate Han call — confirm.
 
 P2 — ARCHITECTURE / CONVENTIONS:
-  ⏳ ARCH-1 Name 4 anonymous ErrorBoundaries (App.jsx:1330 → "sheet-music";
+  ✅ ARCH-1 DONE Named 4 ErrorBoundaries (App.jsx:1330 → "sheet-music";
      TabView.jsx:126/329/356 → tab-specific) per §7a.
   ⏳ ARCH-2 Add debugMode hit-boxes (§3a) to DrumPad, ChordGrid, ScaleSelectorWheel,
      PianoView. CONFIRM §3a scope (SVG-overlap components vs all) with Han.

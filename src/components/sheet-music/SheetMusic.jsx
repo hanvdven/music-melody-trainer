@@ -6,7 +6,6 @@ import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
 import useRangeMorph from '../../hooks/useRangeMorph';
 import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
-import { processMelodyAndCalculateFlags } from './processMelodyAndCalculateFlags';
 import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
 import RangeStaffOverlay from './overlays/RangeStaffOverlay';
 import ClefStaffOverlay from './overlays/ClefStaffOverlay';
@@ -893,12 +892,6 @@ const SheetMusic = ({
     noteGroupSize,
     displayNumMeasures * measureLengthSlots,
   ), [currentTreble, timeSignature, noteGroupSize, displayNumMeasures, measureLengthSlots]);
-
-  const trebleMelodyFlags = processMelodyAndCalculateFlags(
-    adjustedTrebleMelody,
-    timeSignature,
-    noteGroupSize
-  );
 
   const adjustedBassMelody = useMemo(() => processMelodyAndCalculateSlots(
     currentBass,

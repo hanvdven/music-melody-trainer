@@ -1327,7 +1327,7 @@ const App = () => {
                         position: 'relative'
                     }}
                 >
-                    <ErrorBoundary>
+                    <ErrorBoundary boundary="sheet-music">
                         <SheetMusic
                             {...sheetMusicCommonProps}
                             containerHeight={sheetHeight}
