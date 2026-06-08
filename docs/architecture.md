@@ -2266,6 +2266,35 @@ while the row rebalances and a fresh context note swipes in/out at the far edge;
   BEFORE the component's early `return null` (rules-of-hooks). Timers + rAF cancel on
   unmount; the committed `{min,max}` is identical to the old instant path at every step.
 
+**Two-zone boundary drag (Han 2026-06-03, #5) — `RangeStaffOverlay.jsx`.** A single
+melodic staff edits BOTH its min and max boundary, with no separate handle hit-targets:
+the pointer-down x decides which boundary the gesture owns. RIGHT of the highest
+selected note (`x > maxNoteX + noteWidth/2`) → the gesture controls the **MAX**
+boundary; anywhere on the setter at/left of the top note → it controls the **MIN**
+boundary (`zone = 'max' | 'min'`, captured in `downRef`). The drag is **relative and
+1:1**: one note-width of travel = one natural step from the press-time value
+(`steps = round((x − downX) / noteWidth)`, applied via `shiftNatural` on
+`PIANO_NATURALS`). Convention: **drag-LEFT raises max** ("pull notes in from the
+right") and **drag-LEFT lowers min**; the other boundary holds. The dragged boundary
+can't cross the held one (clamped to one natural inside it). Tap/hold still steps the
+zone's boundary toward the pressed column via the shared stepper; > `DRAG_THRESHOLD`
+promotes to the live drag. All writes go through `onSetMelodicBoundary` → `clampRange`.
+
+**Chord-style row + complexity chords (Han 2026-06-03, Batch C).** The chord-line
+preview row is rendered at the SAME vertical height as the real sheet chords (anchored
+`trebleStart − 58`) with a wider inter-chord gap and centred, wider label clickzones so
+taps register cleanly. The chord-complexity selector's example chords start at **D4**
+(not C4) so the C4 ledger line never appears under the row — chosen because D4 is the
+lowest natural that sits on the staff without a ledger for the treble preview. Pure
+layout; no generation change.
+
+**Percussion beam colour follows the note (Han 2026-06-03, #7).** Drum beams used a
+hardcoded yellow; they now inherit the note's colour. When `noteColoringMode` is
+`chromatone`/`subtle-chroma`, `drumColors[pos.n]` (per-pad chromatone, dimmed 60% for
+subtle-chroma) drives both the notehead and its beam (`finalDrumColor`), so a coloured
+percussion staff reads as one consistent hue per pad instead of yellow beams over
+coloured heads. See `renderMelodyNotes.jsx` (`drumColors`, `finalDrumColor`).
+
 **Keyboard slide-stepper (Han 2026-06-01).** The keyboard setter's selection band
 now animates like the sheet: it reuses `rangeSlide.js` (`nextNaturalToward`,
 `nextNaturalInDir`, `STEP_MS`). A tap bursts one white key per 250 ms toward the
