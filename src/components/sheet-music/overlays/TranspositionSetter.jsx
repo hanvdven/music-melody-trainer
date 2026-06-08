@@ -7,9 +7,9 @@ import { ClefGlyph, variantToSymbolKey } from '../clefGlyphs';
 /**
  * TranspositionSetter — compact in-staff transposition control (Han 2026-06-08).
  *
- * ⚠ VISUAL v1 MOCKUP — LINEAR placeholder, not yet wired into the live app. It exists to
- * agree the layout with Han before it REPLACES the horizontal transposition cards in the
- * notation setter. The final carousels are NON-LINEAR (a "tangens" curve Han will draw).
+ * Wired into ClefStaffOverlay's melodic (G/F) branch, REPLACING the old horizontal clef
+ * cards. The RIGHT carousel uses the non-linear 'tangens' curve (see below); the LEFT name
+ * carousel is a linear vertical perspective list. TODO: smooth drag-to-slide (fractional t).
  *
  * Semantics (Han's interview): the setter expresses **concert C4 is WRITTEN as the chosen
  * note** → transpositionSemitones = writtenMidi − 60 (maps to a transpositionKey via
@@ -20,11 +20,10 @@ import { ClefGlyph, variantToSymbolKey } from '../clefGlyphs';
  *   LEFT  — note-NAME carousel: a vertical list of CONCERT note names ("… = C4"). Centred
  *           on C4 − trans (the concert pitch that is written at C4). Runs in the OPPOSITE
  *           order to the right carousel (the coupled inverse).
- *   RIGHT — sheet-music NOTEHEAD carousel: [clef] "C4 =" [noteheads on a DIAGONAL]. Each
- *           half-step right also moves up the staff (noteYMap = 5 units per diatonic step),
- *           so the notes trace the staff's pitch gradient. The SELECTED note sits at a
- *           FIXED x (anchorX) and its CORRECT staff position; scrolling slides the whole
- *           diagonal so notes travel left↔right AND up↕down together.
+ *   RIGHT — sheet-music NOTEHEAD carousel: [clef] "C4 =" [noteheads on the 'tangens' curve].
+ *           Each head sits at its true staff ORIGIN + f(t) (see curve block below). The
+ *           SELECTED note (t=0) is pinned at a FIXED x (anchorX) and its CORRECT staff
+ *           position; the fan runs links-boven (high) → rechts-onder (low), clear of stems.
  * Spelling follows the keyboard (sharps: C, C♯, D, D♯…); names use Unicode ♯ (§5b),
  * noteheads draw a Maestro ♯ accidental.
  *
@@ -37,10 +36,24 @@ import { ClefGlyph, variantToSymbolKey } from '../clefGlyphs';
  */
 
 const C4_MIDI = 60;
-const STEPS = 5;     // ± half-steps shown around the selection
-const DX = 30;       // horizontal spacing per half-step on the diagonal (its run)
+const STEPS = 5;     // ± half-steps shown around the selection (visible cap; fades at edges)
 const ROW_H = 15;    // vertical spacing between name-carousel rows
 const nameOf = (midi) => normalizeNoteChars(getNoteFromValue(midi));
+
+// ── The 'tangens' curve (Han 2026-06-08) ────────────────────────────────────────────────
+// Every notehead is placed at its true staff ORIGIN (same x for all = anchorX, y = its
+// staff position) PLUS an offset f(t), where t = half-steps from the active selection:
+//     x_units = −3·tanh(t/3)            (horizontal, in X_SPACING units — SATURATES at ±3)
+//     f(t)    = ( x_units·X_SPACING , (x_units³ / 20)·Y_SPACING )
+// The active note (t=0) → f(0)=(0,0), so it sits exactly on its target. The sign makes the
+// fan run LINKS-BOVEN (high notes, t>0 → left+up) to RECHTS-ONDER (low notes) so the heads
+// stay clear of the note stems (Han's flip). tanh saturates the horizontal spread; the cubic
+// gives the gentle S ('tangens') feel. ~11 heads, Math.tanh is cheap → animates smoothly.
+const X_SPACING = 30;   // horizontal scale of the tanh fan (≈ px between adjacent heads near t=0)
+const Y_SPACING = 10;   // vertical scale of the cubic term (Han's "ik denk 10 units")
+const curveUnits = (t) => -3 * Math.tanh(t / 3);                 // x in X_SPACING units
+const curveX = (t) => curveUnits(t) * X_SPACING;                 // horizontal offset (px)
+const curveY = (t) => (Math.pow(curveUnits(t), 3) / 20) * Y_SPACING;   // vertical offset (px)
 
 // LEFT control — vertical half-step carousel of note NAMES centred on `centerMidi`. Rows
 // shrink and fade toward the edges (perspective; LINEAR placeholder for the tangens curve).
@@ -88,9 +101,11 @@ const DiagonalNotes = ({ anchorX, centerMidi, staffStart, clef, staff, color, lo
     const linePts = [];
     for (let d = -STEPS; d <= STEPS; d++) {
         const name = getNoteFromValue(centerMidi + d);   // keyboard/sharp spelling, e.g. 'C#4'
-        const y = getNoteAbsoluteY(name, staffStart, clef, staff);
-        if (y == null) continue;
-        const x = anchorX + d * DX;
+        const originY = getNoteAbsoluteY(name, staffStart, clef, staff);   // note's true staff position
+        if (originY == null) continue;
+        // Place at origin + f(t): the curve fans the heads out; t = d (half-steps from active).
+        const x = anchorX + curveX(d);
+        const y = originY + curveY(d);
         const dist = Math.abs(d);
         const op = d === 0 ? 1 : Math.max(0.18, 0.75 - dist * 0.12);
         const fill = d === 0 ? color : lowColor;
@@ -106,15 +121,18 @@ const DiagonalNotes = ({ anchorX, centerMidi, staffStart, clef, staff, color, lo
                     textAnchor="middle" fill={fill}>w</text>
             </g>,
         );
+        // Hit box centred on the head. Fixed size (the curve spacing varies; a constant box
+        // keeps every head comfortably tappable — §3a draws the same rect in debugMode).
+        const HW = 22, HH = 18;
         if (d !== 0) {
             hits.push(
-                <rect key={`h${d}`} x={x - DX / 2} y={y - 9} width={DX} height={18}
+                <rect key={`h${d}`} x={x - HW / 2} y={y - HH / 2} width={HW} height={HH}
                     fill="transparent" style={{ cursor: 'pointer' }} onClick={() => onPick?.(d)} />,
             );
         }
         if (debugMode) {
             hits.push(
-                <rect key={`d${d}`} x={x - DX / 2} y={y - 9} width={DX} height={18}
+                <rect key={`d${d}`} x={x - HW / 2} y={y - HH / 2} width={HW} height={HH}
                     fill="lime" fillOpacity={0.16} stroke="lime" strokeWidth={0.5}
                     style={{ pointerEvents: 'none' }} />,
             );
@@ -152,7 +170,9 @@ const TranspositionSetter = ({
     // RIGHT notehead diagonal: clef, "C4 =", then the fixed anchor.
     const clefX = startX + W * 0.42;
     const rightLabelX = clefX + 40;
-    const anchorX = clefX + 110;
+    // anchorX sits well right of the "C4 =" label: the curve fans high notes up-LEFT (toward
+    // the label), so it needs ≈ 3·X_SPACING (=90) of clearance on the left before the heads.
+    const anchorX = clefX + 160;
 
     // A tap on either carousel reports the resulting concert→written offset; the parent
     // maps it to a transpositionKey and clamps to the available range.
