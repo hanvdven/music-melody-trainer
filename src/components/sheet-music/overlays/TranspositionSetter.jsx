@@ -23,7 +23,8 @@ import { ClefGlyph, variantToSymbolKey } from '../clefGlyphs';
  *   RIGHT — sheet-music NOTEHEAD carousel: [clef] "C4 =" [noteheads on the 'tangens' curve].
  *           Each head sits at its true staff ORIGIN + f(t) (see curve block below). The
  *           SELECTED note (t=0) is pinned at a FIXED x (anchorX) and its CORRECT staff
- *           position; the fan runs links-boven (high) → rechts-onder (low), clear of stems.
+ *           position; heads fan gently near the centre and the cubic-in-t vertical term
+ *           curls the ends into an S ('tangens'). tanh keeps the fan from running off sideways.
  * Spelling follows the keyboard (sharps: C, C♯, D, D♯…); names use Unicode ♯ (§5b),
  * noteheads draw a Maestro ♯ accidental.
  *
@@ -43,17 +44,16 @@ const nameOf = (midi) => normalizeNoteChars(getNoteFromValue(midi));
 // ── The 'tangens' curve (Han 2026-06-08) ────────────────────────────────────────────────
 // Every notehead is placed at its true staff ORIGIN (same x for all = anchorX, y = its
 // staff position) PLUS an offset f(t), where t = half-steps from the active selection:
-//     x_units = −3·tanh(t/3)            (horizontal, in X_SPACING units — SATURATES at ±3)
-//     f(t)    = ( x_units·X_SPACING , (x_units³ / 20)·Y_SPACING )
-// The active note (t=0) → f(0)=(0,0), so it sits exactly on its target. The sign makes the
-// fan run LINKS-BOVEN (high notes, t>0 → left+up) to RECHTS-ONDER (low notes) so the heads
-// stay clear of the note stems (Han's flip). tanh saturates the horizontal spread; the cubic
-// gives the gentle S ('tangens') feel. ~11 heads, Math.tanh is cheap → animates smoothly.
+//     f(t) = ( −3·tanh(t/3)·X_SPACING , (t³ / 20)·Y_SPACING )
+// The active note (t=0) → f(0)=(0,0), so it sits exactly on its target. The horizontal term
+// SATURATES (tanh, ±3·X_SPACING) so the fan can't run off sideways; the VERTICAL term is a
+// pure cubic in t (Han 2026-06-08 fix: t³, not the saturated x³) → it steepens fast toward
+// the edges, giving the dramatic 'tangens' shoot-off (so capping the window matters — t=5 is
+// already 62 units). ~11 heads, Math.tanh is cheap → animates smoothly.
 const X_SPACING = 30;   // horizontal scale of the tanh fan (≈ px between adjacent heads near t=0)
 const Y_SPACING = 10;   // vertical scale of the cubic term (Han's "ik denk 10 units")
-const curveUnits = (t) => -3 * Math.tanh(t / 3);                 // x in X_SPACING units
-const curveX = (t) => curveUnits(t) * X_SPACING;                 // horizontal offset (px)
-const curveY = (t) => (Math.pow(curveUnits(t), 3) / 20) * Y_SPACING;   // vertical offset (px)
+const curveX = (t) => -3 * Math.tanh(t / 3) * X_SPACING;        // horizontal offset (px), saturating
+const curveY = (t) => (Math.pow(t, 3) / 20) * Y_SPACING;       // vertical offset (px), cubic in t
 
 // LEFT control — vertical half-step carousel of note NAMES centred on `centerMidi`. Rows
 // shrink and fade toward the edges (perspective; LINEAR placeholder for the tangens curve).
