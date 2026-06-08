@@ -801,6 +801,18 @@ C — VISUAL CONSISTENCY:
   ✅ V3 SheetMusic overlay frame now draws MATCHING left+end barlines (both strokeWidth 1)
      in any overlayEditMode; removed the redundant rangeEditMode-only end barline.
 
+TRANSITIONS batch (Han 2026-06-08 "yes!!", interview locked: slide attached to note ·
+all morphs · hide melody whole transition):
+  ✅ #1/B2/B3 ottava marker + bracket ("blokhaken") now stream in WITH the notes:
+     added data-fly="" to the `octave-${groupIdx}` group in renderMelodyNotes so
+     useRangeMorph/useClefRefly treat it as a flyEl (bbox.x = its leftmost note → same
+     x-staggered delay → slides in attached to that note). Applies to ALL morphs
+     (melody↔setter + overlay→overlay) since data-fly is unconditional. ⏳ live-verify.
+  ✅ B4 melody flash — ALREADY fixed: notes-transition is display:none in overlayEditMode
+     except during a melody-involving morph (SheetMusic.jsx:2047). Confirmed, no change.
+  ✅ B1 clef-select slide — covered by CR-A2 single-staff family refly (sub-clef changes
+     intentionally don't animate). No further change.
+
 N — NEW:
   ✅ N6 RangeStaffOverlay body+edge layers now pass transpositionSemitones={trans} → notes
      render at WRITTEN position AND colour (concert→written map + concertMidiByWritten for

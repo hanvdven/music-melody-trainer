@@ -2403,6 +2403,16 @@ because opening an overlay stops playback.
   transposed noteheads. The divider stays anchored to the fixed staff-gap midpoint.
   Supersedes the #16 "concert position, written colour" approach (Han approved the move).
 
+- **Ottava marker flies with the morph (#1) — `renderMelodyNotes.jsx`.** The
+  `octave-${groupIdx}` group (the 8va/8vb/15ma glyph + dashed "blokhaken" bracket) now
+  carries `data-fly=""`, so `useRangeMorph`/`useClefRefly` include it in the staggered
+  fly-in instead of leaving it behind while the notes slide. Its bbox.x equals its label
+  x (= its leftmost covered note), so it gets that note's x-staggered delay and slides in
+  *attached to it*. `data-fly` is unconditional → applies to every morph (melody↔setter
+  and overlay→overlay). The melody-flash on overlay→overlay was already prevented by
+  `notes-transition`'s `display:none` gate (`SheetMusic.jsx`, overlayEditMode minus a
+  melody-involving morph); the clef-select slide is handled by CR-A2's family refly.
+
 *Invariants:* all "off" crosses MUST go through `DisableCross`; any new setter cross too.
 Note colouring in EVERY context follows the WRITTEN (transposed) note (§6 — never a local
 reimplementation; reuse `transposeMelodyBySemitones` + `melodicNoteColor`/`getNoteSemitone`).

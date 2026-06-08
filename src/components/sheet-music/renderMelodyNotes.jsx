@@ -1657,7 +1657,11 @@ const renderMelodyNotes = (
     const hookYEnd = isAbove ? markerY + hookLen : markerY - hookLen;
 
     return (
-      <g key={`octave-${groupIdx}`}>
+      // data-fly so the ottava marker + bracket ("blokhaken") stream in WITH the notes
+      // during the enter/exit morph instead of being left behind (Han #1, 2026-06-08).
+      // The group's bbox.x is its label x (= its leftmost covered note), so useRangeMorph
+      // gives it the same x-staggered delay as that note — it slides in attached to it.
+      <g key={`octave-${groupIdx}`} data-fly="">
         <text
           x={labelX}
           y={markerY}
