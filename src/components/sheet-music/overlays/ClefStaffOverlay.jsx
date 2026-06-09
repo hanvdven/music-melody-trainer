@@ -3,7 +3,7 @@ import {
     VOCAL_VARIANTS, clefFamilyKey, carouselOrder,
     patchForFamily, patchForVocal, patchForTransposition,
 } from './clefSelector';
-import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones } from '../../../constants/transposingInstruments';
+import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionDisplay } from '../../../constants/transposingInstruments';
 import ClefCardCarousel from './ClefCardCarousel';
 import TranspositionSetter from './TranspositionSetter';
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
@@ -367,6 +367,9 @@ const ClefStaffOverlay = ({
                         staff={staff} clef={clef} staffStart={staffStart}
                         startX={startX} endX={endX}
                         transSemitones={getTranspositionSemitones(transKey)}
+                        instLabel={getTranspositionDisplay(transKey)}
+                        noteColoringMode={noteColoringMode} tonic={tonic}
+                        scaleNotes={scaleNotes} theme={theme}
                         onSelectTrans={(t) => onApplyClefPatch?.(staff, patchForTransposition(keyForTrans(t)))}
                         debugMode={debugMode} />
                 </g>

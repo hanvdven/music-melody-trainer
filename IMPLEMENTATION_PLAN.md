@@ -878,3 +878,21 @@ STAGE 2c BATCH (Han 2026-06-09) — transposition setter polish + transposed key
        accidentals. SheetMusic header + renderMelodyNotes per-staff. Tests + build green.
   ⏳ NEW (Han 2026-06-09, mid-task): left setter — render a fixed C4 note (C-inst) and SWAP so
        it reads [C4 note] = [name carousel]. Layout ambiguous → confirm before building.
+
+## TRANSPOSITION "PROPER IMPL" BATCH (Han 2026-06-09) — INTERVIEW PENDING
+Main sheet music:
+  ✅(verify) #1 accidentals: numAccidentals + getTranspositionFifths already wired (F→1,Bb→2),
+      shown in NORMAL view, hidden in clef-edit by design. Confirm with Han it's actually wrong.
+  ❓ #2 coloring reference: getMelodicColor already colours by WRITTEN note name PC. Han wants
+      "tied to note name" — need: concert (sounding) vs written PC? tonic/scale/chord refs are
+      concert → under transposition written notes mismatch concert tonic/chord. DECISION NEEDED.
+  ⏳ chord active-colour when paused: tonic chord if it's the LAST melody chord, else FIRST melody
+      chord; in Notation+Range setters use C major triad as active chord.
+Notation setter:
+  ⏳ both repeated clefs get "(X inst)" label (even C → "(C inst)").
+  ⏳ active/highlighted head always coloured as C4 (green chromatone / tonic|chord colour);
+      lowlights stay lowlight; fixed concert-C4 head uses (transposed) colouring.
+  ⏳ percussion notes + chord letters in setter not coloured → use existing colour fns. SCOPE?
+  ⏳ quick-picks: move to RIGHT of carousel; highlight only active, others lowlight.
+  ⏳ spacing: left elements too far apart, right setter overlaps; left "=" at same height as C-note.
+Then: D (octave clefs / 2-oct) + E (animation).

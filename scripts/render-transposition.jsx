@@ -9,7 +9,8 @@ import TranspositionSetter from '../src/components/sheet-music/overlays/Transpos
 
 const VARS = {
   '--text-primary': '#e8e8e8', '--text-lowlight': '#8a8a8a', '--setter-lowlight': '#5a5a5a',
-  '--accent-yellow': '#ffd24a',
+  '--accent-yellow': '#ffd24a', '--chromatone-0': '#3fb53f', '--note-tonic': '#3fb53f',
+  '--note-scale': '#5aa0ff',
 };
 const resolveVars = (s) => s.replace(/var\(\s*(--[a-z-]+)\s*(?:,[^)]*)?\)/g, (_, n) => VARS[n] || '#ccc');
 
@@ -18,6 +19,8 @@ const trebleStart = 70, bassStart = 230;
 const panel = (staff, clef, staffStart, trans, dragDelta = 0) => renderToStaticMarkup(
   React.createElement(TranspositionSetter, {
     staff, clef, staffStart, startX, endX, transSemitones: trans,
+    instLabel: trans === 0 ? 'C inst' : trans === 9 ? 'E♭ inst' : 'B♭ inst',
+    noteColoringMode: 'chromatone', tonic: 'C4', scaleNotes: [],
     debugDragDelta: dragDelta, theme: 'dark', debugMode: false,
   }),
 );
