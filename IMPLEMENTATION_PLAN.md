@@ -896,3 +896,14 @@ Notation setter:
   ⏳ quick-picks: move to RIGHT of carousel; highlight only active, others lowlight.
   ⏳ spacing: left elements too far apart, right setter overlaps; left "=" at same height as C-note.
 Then: D (octave clefs / 2-oct) + E (animation).
+
+## TRANSPOSITION MODEL + TOGGLES (Han 2026-06-09)
+Interview outcome:
+  - Notes SHIFT to written display (current display is correct), BUT identity/colour/melody/
+    playback stay concert (C4 stays C4). VERIFIED: transposition is display-only (no audio/gen
+    leak); colour now concert (last batch). => "bug" already satisfied, no code change needed.
+  ⏳ Toggle 1 LINK: keep same transposition on both staves (set one → other follows).
+  ⏳ Toggle 2 INSTRUMENT→TONIC: selecting inst sets tonic to sounding key
+     (newTonic = oldTonic − getTranspositionSemitones(key); Bb→ C→Bb, G→F). SEMANTICS to confirm:
+     does it REPLACE the display-shift with a tonic change (reset transKey→C), or stack with it?
+  Then: D (octave clefs / 2-oct) + E (animation).

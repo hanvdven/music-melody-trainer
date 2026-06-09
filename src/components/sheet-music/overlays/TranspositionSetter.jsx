@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { getNoteFromValue } from '../../../utils/rangeUtils';
-import { normalizeNoteChars, melodicNoteColor } from '../../../theory/noteUtils';
+import { normalizeNoteChars, melodicNoteColor, getNoteSemitone } from '../../../theory/noteUtils';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
 import { StaffQuarterNote } from '../staffNoteGlyph';
 import { ClefGlyph, variantToSymbolKey } from '../clefGlyphs';
@@ -47,11 +47,11 @@ const accidentalGlyph = (name) => (name.includes('♯') ? '#' : name.includes('�
 const LABEL_FONT = "Georgia, 'Times New Roman', serif";
 const LABEL_SIZE = 16;   // shared size for the "=" label AND the active carousel name (Han #4)
 
-// "(X inst)" label under a clef in the setter — shown on BOTH repeated clefs, even for C
-// ("(C inst)") so the two staves read consistently (Han 2026-06-09).
-const InstLabel = ({ label, x, staffStart, color }) => (
-    <text x={x + 2} y={staffStart + 56} fontSize={11} fontFamily={LABEL_FONT}
-        textAnchor="start" fill={color} style={{ pointerEvents: 'none' }}>
+// "(X inst)" label at the TOP-RIGHT of the staff (Han 2026-06-09 — was under each clef, wrong
+// position). Even for C it reads "(C inst)" so the staves stay consistent.
+const InstLabel = ({ label, endX, staffStart, color }) => (
+    <text x={endX - 4} y={staffStart - 5} fontSize={11} fontFamily={LABEL_FONT}
+        textAnchor="end" fill={color} style={{ pointerEvents: 'none' }}>
         ({label})
     </text>
 );
@@ -137,19 +137,23 @@ const TranspositionSetter = ({
     // --setter-lowlight was never defined, so inactive heads/names fell back to black
     // (Han 2026-06-09 "lowlighted notes are now black, use lowlight color").
     const low = 'var(--text-lowlight)';
-    // Every ACTIVE/reference notehead represents concert C4, so it is coloured as C4 in the
-    // current colour mode (green in chromatone, tonic/chord colour if applicable) — Han 2026-06-09.
-    // Inactive heads stay lowlight. melodicNoteColor covers chromatone/subtle/tonic-scale; chords
-    // mode uses the setter's fixed "active chord" = C major triad (C4 is its root → root colour).
-    const c4Color = (() => {
-        const base = melodicNoteColor('C4', { noteColoringMode, tonic, scaleNotes, theme });
+    // Notes are coloured by their SOUNDING (concert) pitch (Han 2026-06-09). colorForConcert maps
+    // a concert note name → its colour in the current mode (chromatone/subtle/tonic-scale via the
+    // shared helper; chords mode uses the setter's fixed "active chord" = C major triad, pc 0/4/7).
+    const colorForConcert = (note) => {
+        const base = melodicNoteColor(note, { noteColoringMode, tonic, scaleNotes, theme });
         if (base) return base;
         if (noteColoringMode === 'chords') {
-            const mix = theme === 'light' ? 'black' : 'white';
-            return `color-mix(in srgb, var(--chromatone-0), ${mix} 30%)`;
+            // Setter active chord = C major triad; root C → root colour for any chord tone.
+            if ([0, 4, 7].includes(getNoteSemitone(note))) {
+                const mix = theme === 'light' ? 'black' : 'white';
+                return `color-mix(in srgb, var(--chromatone-0), ${mix} 30%)`;
+            }
         }
         return color;
-    })();
+    };
+    // The RIGHT active head represents concert C4 (it sounds C4) → coloured as C4.
+    const c4Color = colorForConcert('C4');
     const W = endX - startX;
     const midY = staffStart + 20;
 
@@ -192,6 +196,10 @@ const TranspositionSetter = ({
     const leftLabelX = startX + W * 0.245;         // "=" sits between the note and the names
     const nameX = startX + W * 0.32;
     const fixedC4Y = getNoteAbsoluteY('C4', staffStart, clef, staff);
+    // The fixed written-C4 head SOUNDS the concert pitch (C4 − trans), so it is coloured by that
+    // sounding pitch (Han 2026-06-09: "C4 on a B♭ inst should be orange, the B♭ colour").
+    const fixedSoundingNote = nameOf(C4_MIDI - Math.round(effTrans));
+    const fixedColor = colorForConcert(fixedSoundingNote);
     const nameRows = [];
     for (let c = Math.round(concertFloat) - 6; c <= Math.round(concertFloat) + 6; c++) {
         const off = c - concertFloat;              // rows>0 are higher concert pitches
@@ -319,10 +327,9 @@ const TranspositionSetter = ({
                     the old "C4" text (Han #7). */}
                 <ClefGlyph symbolKey={variantToSymbolKey(clef)} x={leftClefX} baseY={staffStart + 30}
                     fill={color} anchor="start" />
-                <InstLabel label={instLabel} x={leftClefX} staffStart={staffStart} color={low} />
                 {fixedC4Y != null && (
                     <StaffQuarterNote x={fixedNoteX} positionY={fixedC4Y} staffYStart={staffStart}
-                        ledgerYs={ledgerYs(fixedC4Y, staffStart)} color={c4Color} />
+                        ledgerYs={ledgerYs(fixedC4Y, staffStart)} color={fixedColor} />
                 )}
                 {/* "=" sits at the same height as the fixed C4 note (Han 2026-06-09). */}
                 <text x={leftLabelX} y={(fixedC4Y ?? midY) + 5} fontSize={LABEL_SIZE} fontFamily={LABEL_FONT}
@@ -338,7 +345,6 @@ const TranspositionSetter = ({
                 {/* RIGHT notehead carousel — clef, label, drag surface, curve + heads */}
                 <ClefGlyph symbolKey={variantToSymbolKey(clef)} x={clefX} baseY={staffStart + 30}
                     fill={color} anchor="start" />
-                <InstLabel label={instLabel} x={clefX} staffStart={staffStart} color={low} />
                 <text x={rightLabelX} y={midY + 6} fontSize={LABEL_SIZE} fontFamily={LABEL_FONT}
                     textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
                     C<tspan fontSize={Math.round(LABEL_SIZE * 0.7)} dy={LABEL_SIZE * 0.22}>4</tspan>
@@ -354,6 +360,9 @@ const TranspositionSetter = ({
                 {notes}
                 {hits}
             </g>
+
+            {/* "(X inst)" at the staff's top-right corner (outside the clip so it always shows). */}
+            <InstLabel label={instLabel} endX={endX} staffStart={staffStart} color={low} />
 
             {debugMode && (
                 <rect x={startX} y={bandTop} width={W} height={bandH}
