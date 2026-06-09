@@ -9,6 +9,26 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ---
 
+## CONSISTENCY BATCH (Han 2026-06-09) — notation settings menu
+
+Root cause: setter hand-rolled notation instead of reusing the staff renderer → drift.
+Process fix: new CLAUDE.md §6d (reuse canonical renderers; single source of truth).
+
+- ✅ A Shared `staffNoteGlyph.jsx` (`StaffQuarterNote` + geometry constants). Setter heads,
+     fixed C4 note, accidentals now use it (head fs36 at positionY, stem +11/+0.5 len27,
+     accidental fs36 anchor=end). renderMelodyNotes imports the same constants → single source.
+     Fixes: head 6px-off, tiny accidentals, hand-drawn stems, wrong stem dir, font size.
+- ✅ B Frame lines: removed startX vertical line in ALL overlay menus; endX line thinned to
+     0.5 (staff-line weight) — was 1.0. (#8 all menus, #9 incl. range setter.)
+- ✅ C Left setter: removed "C4" text → just [rendered C4 note] "=" [carousel] (#7). Carousel +
+     quick-pick names use subscript octave (C₄) via NoteLabel (#3); active name = label size 16 (#4).
+- ⏳ D #5 Two-octave range (C2→C6): wire octave clefs (8va/15ma/8vb/15vb) + transpositionOctave;
+     decompose total trans → key+octave; auto-switch clef so far heads return near staff. BIG.
+- ⏳ E #6 Carousel animation: clicking a preset/quick-pick TWEENS the carousels to the value
+     (not instant); highlight only the active preset.
+
+---
+
 ## Feedback batch (Han 2026-06-03 #15) — INTERVIEW PENDING, no code yet
 
 BATCH 1 done (clef setter, isolated/safe):

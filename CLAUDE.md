@@ -299,6 +299,43 @@ Whenever you need to play a percussion note interactively (e.g. click-to-play in
 
 ---
 
+## 6d. Reuse Canonical Renderers — Never Hand-Roll Notation or Chrome (Han 2026-06-09)
+
+**Why this rule exists:** the in-staff transposition setter drew its own noteheads, stems and
+accidentals with bespoke glyph offsets (`fontSize 34`, head at `y+6`, stem at `x+6`, accidental
+`fontSize 20` centred) while the real staff used different values (`fontSize 36`, head at
+`positionY`, stem at `positionX+11`, accidental `fontSize 36` `textAnchor="end"`). Two parallel
+implementations of the same thing **guarantee** visual drift — the setter ended up 6px off, with
+tiny accidentals and wrong stems, even though "it looked done". Han, rightly: *"How can we make
+sure you are more consistent with other screens?"*
+
+**The rule — applies to ANY visual element that also appears elsewhere in the app:**
+
+1. **Find the canonical renderer first.** Before drawing a notehead, stem, accidental, clef,
+   ledger line, barline, key signature, label, or any staff/keyboard glyph, locate the component
+   or helper that already draws it on the main surface (the file-ownership table in §8 and
+   `docs/architecture.md` §12 point you there). Noteheads → `staffNoteGlyph.jsx`
+   (`StaffQuarterNote` + the geometry constants) / `renderMelodyNotes.jsx`. Clefs →
+   `clefGlyphs.jsx`. Accidentals → `renderAccidentals.jsx` / `generateAccidentalMap.js`.
+
+2. **Reuse it, or share its constants.** Either call the existing component, or import the shared
+   geometry constants so there is a **single source of truth**. Do not copy magic numbers into a
+   new file. If the canonical drawing isn't yet extractable, extract it (a small shared module)
+   rather than re-implementing — and have BOTH sites consume the extraction.
+
+3. **Match chrome too.** Frame lines, barlines, dividers, fonts and colours in a menu/overlay must
+   match the surface they sit on (same CSS var, same `strokeWidth`). Staff lines are
+   `var(--text-primary)` `strokeWidth="0.5"`; an overlay's frame line must be the same, not heavier.
+
+4. **Verify against the real thing.** When building an in-staff/in-keyboard overlay, render it
+   over (or beside) the real component and confirm pixel alignment — don't eyeball the overlay in
+   isolation. The dev render harnesses under `scripts/render-*.jsx` exist for this.
+
+5. **If you catch yourself typing a glyph offset, font size, or stroke width literal for notation,
+   STOP** — that number almost certainly already lives in a canonical renderer. Import it.
+
+---
+
 ## 7. Coding Style
 
 - **React 19 + classic JSX transform**: always `import React from 'react'` at the top of every `.jsx` file.

@@ -1164,21 +1164,32 @@ hit boxes in `debugMode`.
 **Quick-picks:** a column of clickable CONCERT-note rects (the concert sound of written C4 per
 common instrument) sits left of the name carousel: C5, E♭4, C4, B♭3, F3, E♭3, C3, B♭2.
 
-### 15.1a Setter notehead rendering (stage-2c polish, Han 2026-06-09)
+### 15.1a Setter notehead rendering — shared with the staff (Han 2026-06-09)
 
-The right carousel's heads were bare noteheads with no way to read them. Four fixes:
-- **Stems.** `Ï` (`durationNoteMap[12]`) is a notehead-ONLY glyph — the main renderer draws stems
-  as a separate `<path>`, so the setter does too. Direction follows standard notation from the
-  note's TRUE pitch (`originY` vs the staff middle line `staffStart+20`): on/below → stem up
-  (right side), above → stem down (left side); length `STEM_LEN=27`.
-- **Accidentals in front.** A Maestro `#`/`b` glyph is drawn left of the head whenever the
-  spelled name (`getNoteFromValue`, Unicode ♯/♭) carries an accidental, so C and C♯/D♭ are
-  distinguishable. The old code tested `name.includes('#')` (ASCII) which never matched the
-  Unicode spelling, so no accidental ever rendered.
-- **Always-one-highlight.** The active head is the one CLOSEST to centre (`m === writtenActive`,
-  the rounded selection), not only an exactly-centred one — so a head stays highlighted mid-drag.
-- **Lowlight colour.** Inactive heads/names use `var(--text-lowlight)` (the real dimmed-text var);
-  the previous `--setter-lowlight` was undefined and fell back to black.
+The setter originally hand-rolled its noteheads and drifted from the real staff (heads 6px low,
+tiny accidentals, bespoke stems). It now draws every note through the **shared**
+`StaffQuarterNote` (`src/components/sheet-music/staffNoteGlyph.jsx`), the single source of truth
+for melodic-note geometry, which `renderMelodyNotes` also imports. See CLAUDE.md §6d.
+- **Shared geometry.** Head `fontSize 36` at `positionY` (no offset); stem `x+11`/`x+0.5`,
+  length 27, width 1.5; accidental `fontSize 36`, `x−4`, `y−3`, `textAnchor="end"`; ledger
+  `originX−7 … +19`, width 0.5. Stem direction = `positionY > staffYStart+20` (canonical rule).
+- **Accidentals in front.** A Maestro `#`/`b` glyph (from the spelled name, Unicode ♯/♭ →
+  glyph) is handed to `StaffQuarterNote`, so C and C♯/D♭ are distinguishable. The old code
+  tested `name.includes('#')` (ASCII) which never matched the Unicode spelling.
+- **Always-one-highlight.** The active head is the one CLOSEST to centre (`m === writtenActive`),
+  so a head stays highlighted mid-drag.
+- **Lowlight colour.** Inactive heads/names use `var(--text-lowlight)`; `--setter-lowlight` was
+  undefined and fell back to black.
+- **Names.** The name carousel + quick-picks render through `NoteLabel`, which puts the octave
+  digit in a subscript `<tspan>` (C₄) and sizes the active row to the `=` label size (16).
+- **Left layout.** `[clef] [fixed C4 head via StaffQuarterNote] "=" [concert-name carousel]` —
+  the rendered note replaces the old "C4" text.
+
+### 15.1b Overlay frame lines (Han 2026-06-09)
+
+Overlay menus (clef/transposition/range) are framed by a single vertical line at `endX`, drawn
+at staff-line weight (`var(--text-primary)` `strokeWidth="0.5"`) so it matches the horizontal
+staff lines. The earlier left line at `startX` and the heavier `strokeWidth="1"` were removed.
 
 **STAGED (TODO — needs the clef-octave system expanded):** on release, when a drag runs
 >~octave off the staff, switch to an 8va/15ma/8vb/15vb clef (fade) so the head returns near

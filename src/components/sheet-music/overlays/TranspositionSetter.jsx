@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { getNoteFromValue } from '../../../utils/rangeUtils';
 import { normalizeNoteChars } from '../../../theory/noteUtils';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
+import { StaffQuarterNote, NOTE_FONT_SIZE } from '../staffNoteGlyph';
 import { ClefGlyph, variantToSymbolKey } from '../clefGlyphs';
 
 /**
@@ -35,15 +36,30 @@ import { ClefGlyph, variantToSymbolKey } from '../clefGlyphs';
  */
 
 const C4_MIDI = 60;
-// Maestro NOTEHEAD glyph (durationNoteMap[12]). NB: this is a bare filled head only — the main
-// renderer draws the stem as a SEPARATE <path> (renderMelodyNotes ~line 1358), so we must too,
-// else the heads look stemless (Han 2026-06-09 "I only see noteheads"). Stem drawn below.
-const NOTEHEAD = 'Ï';
-const STEM_LEN = 27;        // matches the main renderer's quarter-note stem length
-const MIDDLE_OFFSET = 20;   // staff middle line = staffStart + 20 (drives stem direction)
-// Maestro accidental glyphs (same font codepoints renderAccidentals uses): '#'→sharp, 'b'→flat.
-// getNoteFromValue spells black keys with Unicode ♯/♭ (ALL_NOTES), so we map those to the glyphs.
+// Heads are drawn with the shared <StaffQuarterNote> (src/components/sheet-music/staffNoteGlyph)
+// so the setter matches the real staff pixel-for-pixel — head size/position, stem direction &
+// length, and accidental placement all come from the canonical constants, never hand-rolled.
+// Maestro accidental glyphs (same font codepoints renderAccidentals / generateAccidentalMap use):
+// '#'→sharp, 'b'→flat. getNoteFromValue spells black keys with Unicode ♯/♭ (ALL_NOTES), so we
+// map those to the glyphs and hand the result to StaffQuarterNote.
 const accidentalGlyph = (name) => (name.includes('♯') ? '#' : name.includes('♭') ? 'b' : null);
+
+const LABEL_FONT = "Georgia, 'Times New Roman', serif";
+const LABEL_SIZE = 16;   // shared size for the "=" label AND the active carousel name (Han #4)
+
+// Scientific-pitch note label with the octave digit as a SUBSCRIPT (Han 2026-06-09 #3),
+// e.g. C₄ / D♭₅. Used by both the name carousel and the quick-picks so they read consistently.
+const NoteLabel = ({ name, x, y, size = LABEL_SIZE, fill, opacity = 1, anchor = 'middle' }) => {
+    const m = name.match(/^(.*?)(-?\d+)$/);
+    const letter = m ? m[1] : name;
+    const oct = m ? m[2] : '';
+    return (
+        <text x={x} y={y} fontSize={size} fontFamily={LABEL_FONT} textAnchor={anchor}
+            fill={fill} opacity={opacity} style={{ pointerEvents: 'none' }}>
+            {letter}{oct && <tspan fontSize={Math.round(size * 0.7)} dy={size * 0.22}>{oct}</tspan>}
+        </text>
+    );
+};
 const ROW_H = 15;      // vertical spacing between name-carousel rows
 const PX_PER_STEP = 14;   // drag sensitivity: screen px per half-step (tuned live)
 // Available transposition offsets without an octave clef (TRANSPOSING_INSTRUMENTS span).
@@ -137,20 +153,17 @@ const TranspositionSetter = ({
 
     // ── LEFT: fixed written-C4 note + concert note-NAME carousel ────────────────────────
     // Mirrors the RIGHT setter (Han 2026-06-09 "switch around the carousel and the C4 note"):
-    //   [clef] [fixed C4 head]  "C4 ="  [concert-sound names]
+    //   [clef] [fixed C4 head]  "="  [concert-sound names]
     // The fixed head is WRITTEN C4 (always on the staff's C4 line, in this staff's clef — the
     // C-instrument/concert reference); the carousel shows the CONCERT pitch that sounds when
-    // C4 is written, so it reads "written C4 = [concert sound]". The head never moves; dragging
-    // the names changes the transposition (inverse of the right carousel).
+    // C4 is written, so it reads "[written C4] = [concert sound]". The rendered note replaces the
+    // old "C4 =" text (Han 2026-06-09 #7). The head never moves; dragging the names transposes.
     const concertFloat = C4_MIDI - effTrans;       // concert pitch written at C4 (fractional)
     const leftClefX = startX + W * 0.13;
     const fixedNoteX = startX + W * 0.22;
-    const leftLabelX = startX + W * 0.30;          // "C4 =" sits LEFT of the names now
+    const leftLabelX = startX + W * 0.30;          // "=" sits between the note and the names
     const nameX = startX + W * 0.40;
     const fixedC4Y = getNoteAbsoluteY('C4', staffStart, clef, staff);
-    // C4 sits below the treble staff (or above the bass staff) → may need ledger lines + a stem.
-    const fixedStemUp = fixedC4Y == null ? true : fixedC4Y >= staffStart + MIDDLE_OFFSET;
-    const fixedStemX = fixedStemUp ? fixedNoteX + 6 : fixedNoteX - 4.5;
     const nameRows = [];
     for (let c = Math.round(concertFloat) - 6; c <= Math.round(concertFloat) + 6; c++) {
         const off = c - concertFloat;              // rows>0 are higher concert pitches
@@ -159,15 +172,13 @@ const TranspositionSetter = ({
         // Highlight the row CLOSEST to centre at all times — even mid-drag when no row is exactly
         // centred — so there is always exactly one active note (Han 2026-06-09).
         const isActive = c === Math.round(concertFloat);
-        const size = Math.max(8, 19 - dist * 2.0);
+        // Active row matches the "=" label size (LABEL_SIZE, Han #4); neighbours shrink slightly.
+        const size = Math.max(8, LABEL_SIZE - dist * 2.0);
         const op = Math.max(0.18, (isActive ? 1 : 0.8) - dist * 0.12);
         nameRows.push(
             <g key={c}>
-                <text x={nameX} y={ry} fontSize={size} fontFamily="Georgia, 'Times New Roman', serif"
-                    textAnchor="middle" fill={isActive ? color : low} opacity={op}
-                    style={{ pointerEvents: 'none' }}>
-                    {nameOf(c)}
-                </text>
+                <NoteLabel name={nameOf(c)} x={nameX} y={ry} size={size}
+                    fill={isActive ? color : low} opacity={op} />
                 {!isActive && (
                     <rect x={nameX - 22} y={ry - ROW_H / 2 - 1} width={44} height={ROW_H}
                         fill="transparent" style={{ cursor: 'pointer' }}
@@ -211,34 +222,21 @@ const TranspositionSetter = ({
         // far fanned heads are visual context only — drawing ledgers to their curve-displaced
         // positions would be noisy and not real notation (Han 2026-06-08).
         const showLedgers = dist < 1.5;
-        // Stem: 'Ï' is a bare head, so draw the stem ourselves (req 2). Direction follows
-        // standard notation — heads on/below the middle line stem UP, above it stem DOWN — using
-        // the note's TRUE pitch (originY) not the curve-displaced y, so the fan reads musically.
-        const stemUp = originY >= staffStart + MIDDLE_OFFSET;
-        const stemX = stemUp ? x + 6 : x - 4.5;
         const acc = accidentalGlyph(name);   // ♯/♭ glyph in front of the head, or null (req 5)
+        // Canonical staff notehead — same head/stem/accidental geometry as the real staff.
         notes.push(
-            <g key={m} opacity={op} style={{ pointerEvents: 'none' }}>
-                {showLedgers && ledgerYs(y, staffStart).map((ly, i) => (
-                    <line key={i} x1={x - 8} y1={ly} x2={x + 8} y2={ly} stroke={fill} strokeWidth={0.6} />
-                ))}
-                {acc && (
-                    <text x={x - 13} y={y + 1} fontSize={20} fontFamily="Maestro"
-                        textAnchor="middle" fill={fill}>{acc}</text>
-                )}
-                <path d={`M ${stemX} ${y} V ${stemUp ? y - STEM_LEN : y + STEM_LEN}`}
-                    stroke={fill} strokeWidth={1.5} />
-                {/* Notehead ('Ï', bare filled head); offsets align it on (x, staff Y). */}
-                <text x={x - 5} y={y + 6} fontSize={34} fontFamily="Maestro" fill={fill}>{NOTEHEAD}</text>
-            </g>,
+            <StaffQuarterNote key={m} x={x} positionY={y} staffYStart={staffStart}
+                accidental={acc} ledgerYs={showLedgers ? ledgerYs(y, staffStart) : []}
+                color={fill} opacity={op} />,
         );
+        // Hit box centred on the notehead body (head origin x … x+12).
         if (!isActive) {
-            hits.push(<rect key={`h${m}`} x={x - 11} y={y - 9} width={22} height={18}
+            hits.push(<rect key={`h${m}`} x={x - 5} y={y - 11} width={22} height={20}
                 fill="transparent" style={{ cursor: 'pointer' }}
                 onClick={() => onSelectTrans?.(clampTrans(m - C4_MIDI))} />);
         }
         if (debugMode) {
-            hits.push(<rect key={`d${m}`} x={x - 11} y={y - 9} width={22} height={18}
+            hits.push(<rect key={`d${m}`} x={x - 5} y={y - 11} width={22} height={20}
                 fill="lime" fillOpacity={0.16} stroke="lime" strokeWidth={0.5}
                 style={{ pointerEvents: 'none' }} />);
         }
@@ -265,11 +263,8 @@ const TranspositionSetter = ({
                 const inert = q.oct;
                 return (
                     <g key={q.label}>
-                        <text x={startX + 4} y={qy} fontSize={11} fontFamily="Georgia, serif"
-                            textAnchor="start" fill={inert ? low : color} opacity={inert ? 0.5 : 1}
-                            style={{ pointerEvents: 'none' }}>
-                            {q.label}
-                        </text>
+                        <NoteLabel name={q.label} x={startX + 4} y={qy} size={11} anchor="start"
+                            fill={inert ? low : color} opacity={inert ? 0.5 : 1} />
                         {!inert && (
                             <rect x={startX} y={qy - 10} width={W * 0.12} height={13}
                                 fill="transparent" style={{ cursor: 'pointer' }}
@@ -285,26 +280,19 @@ const TranspositionSetter = ({
             })}
 
             <g clipPath={`url(#${clipId})`}>
-                {/* LEFT — fixed clef + WRITTEN-C4 reference head, then "C4 =", then the name
-                    carousel (drag surface over the names). The head is concert C-instrument: it
-                    never transposes, so it sits permanently on the C4 line. */}
+                {/* LEFT — fixed clef + WRITTEN-C4 reference head, then "=", then the name carousel
+                    (drag surface over the names). The head is concert C-instrument: it never
+                    transposes, so it sits permanently on the C4 line; the rendered note replaces
+                    the old "C4" text (Han #7). */}
                 <ClefGlyph symbolKey={variantToSymbolKey(clef)} x={leftClefX} baseY={staffStart + 30}
                     fill={color} anchor="start" />
                 {fixedC4Y != null && (
-                    <g style={{ pointerEvents: 'none' }}>
-                        {ledgerYs(fixedC4Y, staffStart).map((ly, i) => (
-                            <line key={i} x1={fixedNoteX - 8} y1={ly} x2={fixedNoteX + 8} y2={ly}
-                                stroke={color} strokeWidth={0.6} />
-                        ))}
-                        <path d={`M ${fixedStemX} ${fixedC4Y} V ${fixedStemUp ? fixedC4Y - STEM_LEN : fixedC4Y + STEM_LEN}`}
-                            stroke={color} strokeWidth={1.5} />
-                        <text x={fixedNoteX - 5} y={fixedC4Y + 6} fontSize={34} fontFamily="Maestro"
-                            fill={color}>{NOTEHEAD}</text>
-                    </g>
+                    <StaffQuarterNote x={fixedNoteX} positionY={fixedC4Y} staffYStart={staffStart}
+                        ledgerYs={ledgerYs(fixedC4Y, staffStart)} color={color} />
                 )}
-                <text x={leftLabelX} y={midY + 6} fontSize={16} fontFamily="Georgia, serif"
+                <text x={leftLabelX} y={midY + 6} fontSize={LABEL_SIZE} fontFamily={LABEL_FONT}
                     textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
-                    C4 =
+                    =
                 </text>
                 <rect x={nameX - W * 0.06} y={bandTop} width={W * 0.12} height={bandH}
                     fill="transparent" style={{ cursor: 'ns-resize', touchAction: 'none' }}
@@ -315,9 +303,10 @@ const TranspositionSetter = ({
                 {/* RIGHT notehead carousel — clef, label, drag surface, curve + heads */}
                 <ClefGlyph symbolKey={variantToSymbolKey(clef)} x={clefX} baseY={staffStart + 30}
                     fill={color} anchor="start" />
-                <text x={rightLabelX} y={midY + 6} fontSize={16} fontFamily="Georgia, serif"
+                <text x={rightLabelX} y={midY + 6} fontSize={LABEL_SIZE} fontFamily={LABEL_FONT}
                     textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
-                    C4 =
+                    C<tspan fontSize={Math.round(LABEL_SIZE * 0.7)} dy={LABEL_SIZE * 0.22}>4</tspan>
+                    <tspan dy={-LABEL_SIZE * 0.22}> =</tspan>
                 </text>
                 <rect x={anchorX - 3 * X_SPACING - 12} y={bandTop} width={6 * X_SPACING + 24} height={bandH}
                     fill="transparent" style={{ cursor: 'ns-resize', touchAction: 'none' }}

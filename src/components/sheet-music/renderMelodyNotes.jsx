@@ -1,6 +1,7 @@
 import React from 'react';
 import logger from '../../utils/logger';
 import { generateAccidentalMap } from './generateAccidentalMap';
+import { NOTE_FONT_SIZE, STEM_DX_UP, STEM_DX_DOWN, STEM_LENGTH } from './staffNoteGlyph';
 import { getNoteSemitone, getCanonicalNote, respellToKeySignature } from '../../theory/noteUtils';
 import { transposeMelodyBySemitones } from '../../theory/musicUtils';
 
@@ -1242,9 +1243,10 @@ const renderMelodyNotes = (
         stemIsAbove = forcedTupletStemDir.get(tripletInfo.id);
       }
 
-      const lineX = stemIsAbove ? positionX + 11 : positionX + 0.5;
+      // Stem geometry shared with the in-staff overlays via staffNoteGlyph (single source).
+      const lineX = stemIsAbove ? positionX + STEM_DX_UP : positionX + STEM_DX_DOWN;
       const lineYstart = stemIsAbove ? positionY - 1 : positionY + 1;
-      let lineYend = stemIsAbove ? positionY - 27 : positionY + 27; // -10% length
+      let lineYend = stemIsAbove ? positionY - STEM_LENGTH : positionY + STEM_LENGTH; // -10% length
 
       let lineYstartAdj = lineYstart;
       const percHead = staff === 'percussion' ? percussionNoteHeads[note] : null;
@@ -1375,7 +1377,7 @@ const renderMelodyNotes = (
           <text
             x={noteSymbol === 'w' ? positionX - 1 : positionX}
             y={noteSymbol === 'w' ? positionY : positionY}
-            fontSize="36"
+            fontSize={NOTE_FONT_SIZE}
             fill={headColor}
             fontFamily="Maestro"
           >
@@ -1451,7 +1453,7 @@ const renderMelodyNotes = (
           <text
             x={positionX - 4}
             y={positionY - 3}
-            fontSize="36"
+            fontSize={NOTE_FONT_SIZE}
             fill={headColor}
             fontFamily="Maestro"
             textAnchor="end"

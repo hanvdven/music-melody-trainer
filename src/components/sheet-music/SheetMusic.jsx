@@ -2815,18 +2815,13 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* Opening + closing barlines framing the staff body in ANY overlay
-                      mode (Han #10 — a vertical measure line at endX). Both edges are
-                      drawn at the SAME weight so the end barline no longer looks
-                      thicker/brighter than the left edge (Han BUG-V3, 2026-06-08): the
-                      end barline previously had no left counterpart at all. */}
+                  {/* Closing barline framing the staff body in ANY overlay mode. The LEFT
+                      (startX) line was removed (Han 2026-06-09 #8 — applies to all overlay
+                      menus); the right edge is drawn at staff-line weight (0.5, matching the
+                      horizontal staff lines) rather than the old heavier 1.0 (Han #9). */}
                   {overlayEditMode && (
-                    <>
-                      <path d={`M ${startX} ${trebleStart} V ${bottomY}`}
-                        stroke="var(--text-primary)" strokeWidth="1" style={{ pointerEvents: 'none' }} />
-                      <path d={`M ${endX} ${trebleStart} V ${bottomY}`}
-                        stroke="var(--text-primary)" strokeWidth="1" style={{ pointerEvents: 'none' }} />
-                    </>
+                    <path d={`M ${endX} ${trebleStart} V ${bottomY}`}
+                      stroke="var(--text-primary)" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
                   )}
 
                   {/* Range overlay — in-SVG selectable note rows. Kept mounted during
