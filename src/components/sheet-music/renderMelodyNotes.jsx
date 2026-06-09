@@ -1,7 +1,7 @@
 import React from 'react';
 import logger from '../../utils/logger';
 import { generateAccidentalMap } from './generateAccidentalMap';
-import { getNoteSemitone, getCanonicalNote } from '../../theory/noteUtils';
+import { getNoteSemitone, getCanonicalNote, respellToKeySignature } from '../../theory/noteUtils';
 import { transposeMelodyBySemitones } from '../../theory/musicUtils';
 
 const normalizePC = (note) => {
@@ -321,8 +321,13 @@ const renderMelodyNotes = (
   // Apply display-only transposition (audio always plays concert pitch).
   // transpositionSemitones > 0 → instrument sounds below written (e.g. Bb clarinet: +2).
   // transpositionSemitones < 0 → instrument sounds above written (e.g. D trumpet: -2).
+  // After the (chromatic, fixed-spelling) shift, respell each note to the WRITTEN key signature
+  // (numAccidentals is already the written count) so in-key notes match the key signature and
+  // don't pick up redundant inline accidentals (Han 2026-06-09). Chord arrays are left as-is,
+  // mirroring transposeMelodyBySemitones, which doesn't transpose array entries.
   const melodyNotes = transpositionSemitones !== 0
     ? transposeMelodyBySemitones(melody.notes, transpositionSemitones)
+        .map(n => (typeof n === 'string' ? respellToKeySignature(n, numAccidentals) : n))
     : melody.notes;
   const melodyDurations = melody.durations;
   const melodyOffsets = melody.offsets;
