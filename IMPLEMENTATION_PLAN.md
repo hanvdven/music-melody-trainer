@@ -907,3 +907,21 @@ Interview outcome:
      (newTonic = oldTonic − getTranspositionSemitones(key); Bb→ C→Bb, G→F). SEMANTICS to confirm:
      does it REPLACE the display-shift with a tonic change (reset transKey→C), or stack with it?
   Then: D (octave clefs / 2-oct) + E (animation).
+
+## GLOBAL TRANSPOSITION (item 5, Han 2026-06-09) — model locked, build next
+Trigger: AUTO — when BOTH staves carry the SAME transposition (key+octave) → global mode.
+In global mode the WHOLE display moves to the WRITTEN domain (concert Bb denoted as C):
+  - Header KEY shows the WRITTEN key (concert C major + Bb inst → "D Major") + a
+    "(Bb instrument)" line right below the "Random Melody in <key>" header.
+  - Chord labels → transposed to written (ChordLabelsLayer).
+  - Note-name lyrics / solfège → transposed to written.
+  - Tonic/key in header → written.
+Notes positions + key signature already render written per-staff (done). Audio stays concert.
+Touch points: header (App/SheetMusic title), ChordLabelsLayer, lyrics/solfège renderer,
+a global-mode detector (treble.trans === bass.trans && !== 0).
+
+## STILL OPEN after items 1/2/D (this turn):
+  ⏳ Stage I: render perc-pattern + chord letters in the notation setter as NORMAL melodies
+     (Han: "why don't you just render them as normal melodies?") so colour fns apply.
+  ⏳ Item 5 global transposition (model above).
+  ⏳ Stage E: carousel animation (tween on preset click instead of jump).
