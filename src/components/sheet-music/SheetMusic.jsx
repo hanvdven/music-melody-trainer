@@ -35,7 +35,7 @@ import { isCompoundMeter, getEffectiveBeatDuration, getBeatDurationTicks, getTak
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
 import { PRESET_RANGES as CLEF_RANGE_PRESET_RANGES } from '../../constants/ranges';
-import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionDisplay } from '../../constants/transposingInstruments';
+import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionDisplay, getTranspositionFifths } from '../../constants/transposingInstruments';
 import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange } from '../../utils/melodySlice';
 import { calculateMusicalBlocks } from '../../utils/pagination';
 import useLongPressTimer from '../../hooks/useLongPressTimer';
@@ -489,6 +489,18 @@ const SheetMusic = ({
     : logicalScreenWidth <= 400 ? 1.0
     : 1.0 + 0.3 * (logicalScreenWidth - 400) / 100;
 
+  // Per-staff WRITTEN key signatures (Han 2026-06-09). A transposing instrument shifts the
+  // displayed key signature by a fixed number of circle-of-fifths steps, so each staff can show
+  // a different signature (e.g. concert C major reads as E major on an A♭ instrument). The
+  // concert `numAccidentals` prop is unchanged; these derive the written counts the staff and its
+  // inline-accidental map use. See getTranspositionFifths + §15 of docs/architecture.md.
+  const trebleWrittenAccidentals = numAccidentals + getTranspositionFifths(trebleSettings?.transpositionKey);
+  const bassWrittenAccidentals   = numAccidentals + getTranspositionFifths(bassSettings?.transpositionKey);
+  // Header spacing reserves room for the WIDER of the two signatures so both staves' time
+  // signatures stay vertically aligned regardless of differing transpositions.
+  const maxWrittenAccidentals = Math.abs(trebleWrittenAccidentals) >= Math.abs(bassWrittenAccidentals)
+    ? trebleWrittenAccidentals : bassWrittenAccidentals;
+
   // --- Horizontal Layout Constants ---
   // Minimum gap between clef, accidentals, and time sig reduced by 5 units (was 42/38 → now 37/33).
   const accidentalStartX  = Math.round(37 * headerMult);
@@ -499,9 +511,9 @@ const SheetMusic = ({
   //   enabled by the 5-unit reduction in minimum gap above.
   // - measurePositionX is centred between the last header element (accidental or clef) and startX,
   //   so the time signature sits equidistant between content and notes regardless of key signature.
-  const accidentalEndX   = accidentalStartX + Math.min(Math.abs(numAccidentals), 7) * accidentalSpacing;
+  const accidentalEndX   = accidentalStartX + Math.min(Math.abs(maxWrittenAccidentals), 7) * accidentalSpacing;
   const clefEndX         = Math.round(33 * headerMult); // approximate right edge of clef glyph (−5 vs. previous)
-  const headerContentEnd = numAccidentals !== 0 ? accidentalEndX : clefEndX;
+  const headerContentEnd = maxWrittenAccidentals !== 0 ? accidentalEndX : clefEndX;
   const extraHeaderPadding = logicalScreenWidth >= 700 ? Math.round(8 * headerMult) : 0;
   // startX shifted +10 units right (more breathing room before notes).
   // measurePositionX is computed against the startX WITHOUT the +10 offset so the
@@ -1857,10 +1869,10 @@ const SheetMusic = ({
                 } : null} />
                 {/* No staff-level key signature in the CLEF setter — accidentals there
                     are shown per-note on the reference notes instead (Han 2026-06-03). */}
-                {!clefEditMode && renderAccidentals(numAccidentals, clefTreble, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
+                {!clefEditMode && renderAccidentals(trebleWrittenAccidentals, clefTreble, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
                 {/* Clickable overlay on key-signature accidentals: toggles tonic to enharmonic equivalent */}
-                {!clefEditMode && numAccidentals !== 0 && onEnharmonicToggle && (() => {
-                  const n = Math.min(Math.abs(numAccidentals), 7);
+                {!clefEditMode && trebleWrittenAccidentals !== 0 && onEnharmonicToggle && (() => {
+                  const n = Math.min(Math.abs(trebleWrittenAccidentals), 7);
                   const rw = accidentalSpacing * (n - 1) + 18;
                   return (
                     <>
@@ -1949,10 +1961,10 @@ const SheetMusic = ({
                   dx: '10',
                   glyph: cfB.ottava === '15' ? String.fromCharCode(134) : cfB.ottava,
                 } : null} />
-                {!clefEditMode && renderAccidentals(numAccidentals, clefBass, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
+                {!clefEditMode && renderAccidentals(bassWrittenAccidentals, clefBass, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
                 {/* Clickable overlay on bass key-signature accidentals */}
-                {!clefEditMode && numAccidentals !== 0 && onEnharmonicToggle && (() => {
-                  const n = Math.min(Math.abs(numAccidentals), 7);
+                {!clefEditMode && bassWrittenAccidentals !== 0 && onEnharmonicToggle && (() => {
+                  const n = Math.min(Math.abs(bassWrittenAccidentals), 7);
                   const rw = accidentalSpacing * (n - 1) + 18;
                   return (
                     <>
@@ -2066,7 +2078,7 @@ const SheetMusic = ({
                       <g style={{ transform: `translateY(${trebleStart}px)`, transition: 'transform 1s ease-in-out', opacity: trebleGhost ? GHOST_OPACITY : 1 }}>
                         {actualTreble && <MelodyNotesLayer
                           melody={adjustedTrebleMelody}
-                          numAccidentals={numAccidentals}
+                          numAccidentals={trebleWrittenAccidentals}
                           startX={startX}
                           noteWidth={noteWidth}
                           allOffsets={allOffsets}
@@ -2115,7 +2127,7 @@ const SheetMusic = ({
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out', opacity: bassGhost ? GHOST_OPACITY : 1 }}>
                         {actualBass && <MelodyNotesLayer
                           melody={adjustedBassMelody}
-                          numAccidentals={numAccidentals}
+                          numAccidentals={bassWrittenAccidentals}
                           startX={startX}
                           noteWidth={noteWidth}
                           allOffsets={allOffsets}
@@ -2403,7 +2415,7 @@ const SheetMusic = ({
                             {isTrebleVisible && nextTreble && nextNotesVisible && adjustedTrebleMelody &&
                               <MelodyNotesLayer
                                 melody={adjustedTrebleMelody}
-                                numAccidentals={numAccidentals}
+                                numAccidentals={trebleWrittenAccidentals}
                                 startX={startX}
                                 noteWidth={noteWidth}
                                 allOffsets={allOffsets}
@@ -2431,7 +2443,7 @@ const SheetMusic = ({
                             {isBassVisible && nextBass && nextNotesVisible && adjustedBassMelody &&
                               <MelodyNotesLayer
                                 melody={adjustedBassMelody}
-                                numAccidentals={numAccidentals}
+                                numAccidentals={bassWrittenAccidentals}
                                 startX={startX}
                                 noteWidth={noteWidth}
                                 allOffsets={allOffsets}

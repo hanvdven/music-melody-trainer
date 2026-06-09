@@ -168,6 +168,46 @@ export const getNoteSemitone = (note) => {
     return map[pc] ?? 0;
 };
 
+// Circle-of-fifths LETTER order — the order accidentals are added to a key signature.
+const SHARP_LETTER_ORDER = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+const FLAT_LETTER_ORDER  = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+const LETTER_SEMITONE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
+/**
+ * Respell a note so its enharmonic spelling matches a key signature with `numAccidentals`
+ * (signed: positive = sharps, negative = flats). Returns the diatonic spelling of the note's
+ * pitch class in that key, preserving sounding pitch (octave is re-derived so MIDI is unchanged).
+ * A note whose pitch class is NOT diatonic to the key keeps its incoming spelling.
+ *
+ * Why this exists: transposing a melody for a transposing instrument shifts notes CHROMATICALLY
+ * with a fixed (mostly-flat) spelling. Against a sharp written key signature that clash makes
+ * every in-key note pick up a redundant inline accidental (e.g. A♭ instr. in C major writes
+ * E major but spells G♯ as A♭). Respelling to the written key removes them (Han 2026-06-09).
+ */
+export const respellToKeySignature = (note, numAccidentals) => {
+    if (!note || typeof note !== 'string' || !/^[A-G]/.test(note)) return note;
+    const octMatch = note.match(/(-?\d+)$/);
+    if (!octMatch) return note;                       // no octave → leave untouched
+    const pc = getNoteSemitone(note);
+
+    const k = Math.max(-7, Math.min(7, numAccidentals));
+    const sharps = k > 0 ? SHARP_LETTER_ORDER.slice(0, k) : [];
+    const flats  = k < 0 ? FLAT_LETTER_ORDER.slice(0, -k) : [];
+
+    // Walk the seven letters; the one whose key-signature pitch class equals `pc` is the
+    // diatonic spelling. (At most one letter per pitch class within a single key signature.)
+    for (const L of ['C', 'D', 'E', 'F', 'G', 'A', 'B']) {
+        const accVal = sharps.includes(L) ? 1 : flats.includes(L) ? -1 : 0;
+        if ((((LETTER_SEMITONE[L] + accVal) % 12) + 12) % 12 !== pc) continue;
+        const accChar = accVal === 1 ? '♯' : accVal === -1 ? '♭' : '';
+        // Keep the original octave digit. The app labels octave by the digit independently of
+        // pitch class (getNoteValue = (digit+1)*12 + pc), and respelling preserves pitch class,
+        // so the same digit preserves the sounding pitch AND places the head on the right line.
+        return `${L}${accChar}${octMatch[1]}`;
+    }
+    return note;   // chromatic to the key → keep the incoming spelling
+};
+
 // Note-coloring color for a melodic notehead, for the modes that color NOTES
 // (not keyboard keys). Returns a CSS color string, or null when the active mode
 // doesn't color noteheads (caller falls back to the default text color). Shared

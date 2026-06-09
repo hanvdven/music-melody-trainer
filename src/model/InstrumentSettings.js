@@ -42,6 +42,12 @@ class InstrumentSettings {
     this.preferredClef = preferredClef;
     this.rangeMode = rangeMode;
     this.transpositionKey = transpositionKey;
+    // Display-only octave shift that PAIRS with transpositionKey (Han 2026-06-08): the total
+    // written-pitch shift = getTranspositionSemitones(transpositionKey) + 12*transpositionOctave.
+    // Lets the in-staff transposition setter scroll past an octave (e.g. bass clarinet B♭2,
+    // piccolo C5); the optimal-clef logic then picks an 8va/15ma/8vb/15vb clef. Audio is
+    // unaffected (always concert). Non-constructor field to keep the positional signature stable.
+    this.transpositionOctave = 0;
     // Max melodic leap between adjacent notes (semitones). null = unlimited.
     // For chord voicing (fullchord/pairedchord): max span between lowest and highest note.
     this.maxLeap = maxLeap;

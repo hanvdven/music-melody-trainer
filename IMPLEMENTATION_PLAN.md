@@ -844,3 +844,17 @@ N — NEW:
      render at WRITTEN position AND colour (concert→written map + concertMidiByWritten for
      boundary/in-band; writtenName() for band+ellipsis Y). Verified via render-range-trans
      (trans=+2 moves notes up + recolours, boundaries stay yellow). Supersedes #16.
+
+STAGE 2c BATCH (Han 2026-06-09) — transposition setter polish + transposed key sig:
+  ✅ 1 curveY flipped to −t³ (higher written notes fan up). TranspositionSetter.jsx.
+  ✅ 2 Heads now drawn WITH stems ('Ï' is notehead-only → stem path added, std direction).
+  ✅ 3 Active = head CLOSEST to centre (m===writtenActive), always one lit. Both carousels.
+  ✅ 4 Inactive heads/names use var(--text-lowlight) (was undefined --setter-lowlight → black).
+  ✅ 5 Maestro #/b accidental drawn in front of head when name carries one (was ASCII '#'
+       includes() check vs Unicode spelling → never rendered). Distinguishes C from C♯/D♭.
+  ✅ 6 BUG FIXED (per-staff, interview-confirmed): WRITTEN key signature per staff =
+       numAccidentals + getTranspositionFifths(key) (circle-of-fifths shift, formula not table).
+       Notes respelled to written key via respellToKeySignature so in-key notes drop inline
+       accidentals. SheetMusic header + renderMelodyNotes per-staff. Tests + build green.
+  ⏳ NEW (Han 2026-06-09, mid-task): left setter — render a fixed C4 note (C-inst) and SWAP so
+       it reads [C4 note] = [name carousel]. Layout ambiguous → confirm before building.

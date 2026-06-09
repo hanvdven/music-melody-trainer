@@ -1075,19 +1075,54 @@ Allows a musician practicing on a transposing instrument (Bb clarinet, French Ho
 7. Both pickers use the `gs-popup` / `gs-popup-option` CSS classes from `GenericStepper` for visual consistency.
 8. The transposition label is rendered **after** `renderStaffMeasureTexts` in the SVG group so it sits on top of the time-signature hitbox rects in z-order, preventing accidental time-sig activation when the label is clicked.
 
+### 15.0a Transposed key signature (per-staff written key) — Han 2026-06-09
+
+**Purpose / Symptom:** On a transposing instrument the written notes are shifted off the concert
+key, so against the (concert) key signature *every* in-key note picked up a redundant inline
+accidental — e.g. an A♭ instrument in C major showed "tons of inline accidentals" instead of the
+expected E-major key signature in front of the staff.
+
+**How it works:** Two coordinated steps, both per-staff (treble and bass can carry different
+transpositions, hence different written signatures):
+1. **Written key signature.** `getTranspositionFifths(key)` (in `transposingInstruments.js`)
+   returns the circle-of-fifths shift the instrument applies to the signature
+   (`writtenSignature = concertSignature + shift`). It is derived from the key's letter+accidental
+   via `LETTER_FIFTHS` — **not** a lookup table (§6c). `SheetMusic` computes
+   `trebleWrittenAccidentals` / `bassWrittenAccidentals = numAccidentals + getTranspositionFifths(...)`
+   and uses them for (a) the header `renderAccidentals`, (b) the enharmonic-toggle hitbox width,
+   and (c) the `numAccidentals` prop passed to each staff's `renderMelodyNotes`. Header spacing
+   reserves room for `maxWrittenAccidentals` (the wider of the two) so both staves' time signatures
+   stay aligned.
+2. **Note respelling.** `transposeMelodyBySemitones` shifts chromatically with a fixed (mostly-flat)
+   spelling, which clashes with a sharp written signature. `renderMelodyNotes` therefore pipes each
+   transposed note through `respellToKeySignature(note, numAccidentals)` (in `noteUtils.js`), which
+   re-spells the pitch class to its diatonic name in the written key (G♯ not A♭ in E major),
+   preserving octave/sounding pitch. In-key notes then match the signature and drop their inline
+   accidentals.
+
+**Invariants / Fix:** The concert `numAccidentals` prop is never mutated. Respelling preserves
+pitch class (so audio/highlight/Y-position are unchanged) and keeps the original octave digit.
+Pitch classes that are chromatic to the written key keep their incoming spelling. Extreme
+combinations (|written signature| > 7) clip at 7 in `renderAccidentals`, a pre-existing limit.
+
+**Files:** `transposingInstruments.js` (`getTranspositionFifths`), `noteUtils.js`
+(`respellToKeySignature`), `SheetMusic.jsx` (per-staff written counts + layout),
+`renderMelodyNotes.jsx` (respell after transpose).
+
 ### Invariants
 - Audio always plays concert pitch — `transpositionKey` never touches `Melody`, `Sequencer`, or generation code.
 - `transposeMelodyBySemitones` passes percussion note strings (`'k'`, `'s'`, etc.) through unchanged.
-- Accidental map is generated from the **transposed** display notes, so the key signature context is correct for the written key.
-- All `renderMelodyNotes` call sites (main, next-layer, preview overlays) receive the same transposition value so notes look identical across animation transitions.
+- Accidental map is generated from the **transposed + respelled** display notes against the **written** (per-staff) key signature, so in-key notes carry no inline accidental.
+- All `renderMelodyNotes` call sites (main, next-layer, preview overlays) receive the same per-staff transposition value AND written `numAccidentals` so notes look identical across animation transitions.
 
 ### Files
 | File | Role |
 |---|---|
-| `src/constants/transposingInstruments.js` | `TRANSPOSING_INSTRUMENTS` array (with `label`, `display`, `instruments` fields), `getTranspositionSemitones`, `getTranspositionDisplay` |
-| `src/model/InstrumentSettings.js` | `transpositionKey = 'C'` field (last constructor param) |
-| `src/components/sheet-music/renderMelodyNotes.jsx` | `transpositionSemitones = 0` param; applies `transposeMelodyBySemitones` before accidental map |
-| `src/components/sheet-music/SheetMusic.jsx` | Computes semitones from settings; renders transposition label and pickers; passes semitones to all renderMelodyNotes calls |
+| `src/constants/transposingInstruments.js` | `TRANSPOSING_INSTRUMENTS` array (with `label`, `display`, `instruments` fields), `getTranspositionSemitones`, `getTranspositionDisplay`, `getTranspositionFifths` (written-key-signature shift) |
+| `src/theory/noteUtils.js` | `respellToKeySignature(note, numAccidentals)` — diatonic respelling of transposed notes to the written key |
+| `src/model/InstrumentSettings.js` | `transpositionKey = 'C'` field; `transpositionOctave = 0` (display-only octave shift) |
+| `src/components/sheet-music/renderMelodyNotes.jsx` | `transpositionSemitones = 0` param; applies `transposeMelodyBySemitones` then `respellToKeySignature` before the accidental map |
+| `src/components/sheet-music/SheetMusic.jsx` | Computes semitones + per-staff written key signatures from settings; renders transposition label and pickers; passes semitones + written `numAccidentals` to all renderMelodyNotes calls |
 
 ### 15.1 In-staff Transposition Setter (clef-edit mode)
 
@@ -1107,14 +1142,14 @@ controls** side by side ("4 in totaal" across treble + bass):
   Each head is drawn at its true staff **origin** (same x = `anchorX` for all; y = its staff
   position, so C4/C♯4 share a y and D4 is 5 units higher) PLUS a curve offset `f(t)`, where
   `t` = half-steps from the active selection:
-  `f(t) = ( −3·tanh(t/3)·X_SPACING , (t³/20)·Y_SPACING )` (`X_SPACING=30`, `Y_SPACING=10`).
+  `f(t) = ( −3·tanh(t/3)·X_SPACING , −(t³/20)·Y_SPACING )` (`X_SPACING=25`, `Y_SPACING=10`).
   The active note (`t=0`) → `f(0)=(0,0)`, so it sits exactly on its target at the fixed
   `anchorX`. The horizontal term `tanh` saturates the spread (±3·`X_SPACING`) so the fan can't
-  run off sideways; the vertical term is a **pure cubic in t** (Han 2026-06-08 chose `+t³`,
-  the S-wave) — flat near the centre, the ends curl into an S, giving the 'tangens' feel.
-  Because `t³` is unbounded the visible window must be capped (`t=5` is already 62 units).
-  Spelling follows the keyboard (sharps: C, C♯, D…); names use Unicode ♯ (§17), noteheads draw
-  a Maestro ♯ accidental.
+  run off sideways; the vertical term is a **pure cubic in t** (Han 2026-06-09 reverted to `−t³`
+  so higher written notes — `t>0` — fan upward, toward smaller screen-y) — flat near the centre,
+  the ends curl into an S, giving the 'tangens' feel.
+  Spelling follows `getNoteFromValue` (`ALL_NOTES`: flats + F♯); noteheads draw a Maestro
+  accidental (`#`/`b`) in front of the head whenever the spelled name carries one (§15.1a).
 
 **Interaction:** TAP a head/name (or a quick-pick) to jump; or DRAG either carousel. A drag
 tracks a *fractional* `dragDelta` (half-steps; `PX_PER_STEP` screen px each, vertical) so both
@@ -1128,6 +1163,22 @@ hit boxes in `debugMode`.
 
 **Quick-picks:** a column of clickable CONCERT-note rects (the concert sound of written C4 per
 common instrument) sits left of the name carousel: C5, E♭4, C4, B♭3, F3, E♭3, C3, B♭2.
+
+### 15.1a Setter notehead rendering (stage-2c polish, Han 2026-06-09)
+
+The right carousel's heads were bare noteheads with no way to read them. Four fixes:
+- **Stems.** `Ï` (`durationNoteMap[12]`) is a notehead-ONLY glyph — the main renderer draws stems
+  as a separate `<path>`, so the setter does too. Direction follows standard notation from the
+  note's TRUE pitch (`originY` vs the staff middle line `staffStart+20`): on/below → stem up
+  (right side), above → stem down (left side); length `STEM_LEN=27`.
+- **Accidentals in front.** A Maestro `#`/`b` glyph is drawn left of the head whenever the
+  spelled name (`getNoteFromValue`, Unicode ♯/♭) carries an accidental, so C and C♯/D♭ are
+  distinguishable. The old code tested `name.includes('#')` (ASCII) which never matched the
+  Unicode spelling, so no accidental ever rendered.
+- **Always-one-highlight.** The active head is the one CLOSEST to centre (`m === writtenActive`,
+  the rounded selection), not only an exactly-centred one — so a head stays highlighted mid-drag.
+- **Lowlight colour.** Inactive heads/names use `var(--text-lowlight)` (the real dimmed-text var);
+  the previous `--setter-lowlight` was undefined and fell back to black.
 
 **STAGED (TODO — needs the clef-octave system expanded):** on release, when a drag runs
 >~octave off the staff, switch to an 8va/15ma/8vb/15vb clef (fade) so the head returns near

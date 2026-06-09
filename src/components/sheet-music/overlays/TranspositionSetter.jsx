@@ -32,7 +32,15 @@ import { ClefGlyph, variantToSymbolKey } from '../clefGlyphs';
  */
 
 const C4_MIDI = 60;
-const QUARTER = 'Ï';   // Maestro quarter-note glyph (durationNoteMap[12]) — stemmed head
+// Maestro NOTEHEAD glyph (durationNoteMap[12]). NB: this is a bare filled head only — the main
+// renderer draws the stem as a SEPARATE <path> (renderMelodyNotes ~line 1358), so we must too,
+// else the heads look stemless (Han 2026-06-09 "I only see noteheads"). Stem drawn below.
+const NOTEHEAD = 'Ï';
+const STEM_LEN = 27;        // matches the main renderer's quarter-note stem length
+const MIDDLE_OFFSET = 20;   // staff middle line = staffStart + 20 (drives stem direction)
+// Maestro accidental glyphs (same font codepoints renderAccidentals uses): '#'→sharp, 'b'→flat.
+// getNoteFromValue spells black keys with Unicode ♯/♭ (ALL_NOTES), so we map those to the glyphs.
+const accidentalGlyph = (name) => (name.includes('♯') ? '#' : name.includes('♭') ? 'b' : null);
 const ROW_H = 15;      // vertical spacing between name-carousel rows
 const PX_PER_STEP = 14;   // drag sensitivity: screen px per half-step (tuned live)
 // Available transposition offsets without an octave clef (TRANSPOSING_INSTRUMENTS span).
@@ -45,12 +53,13 @@ const clampTrans = (t) => Math.max(MIN_TRANS, Math.min(MAX_TRANS, t));
 // t = half-steps from the active selection (fractional while dragging):
 //     f(t) = ( −3·tanh(t/3)·X_SPACING , (t³/20)·Y_SPACING )
 // Active note (t=0) → f(0)=(0,0) → sits exactly on target. Horizontal SATURATES (tanh) so the
-// fan can't run off sideways; vertical is a pure cubic in t (Han chose +t³, the S-wave) that
-// steepens fast toward the edges → the 'tangens' feel. ~17 heads, Math.tanh is cheap.
+// fan can't run off sideways; vertical is a pure cubic in t (Han 2026-06-09 reverted to −t³, the
+// original S-wave: higher written notes — t>0 — must fan UPWARD, i.e. toward smaller screen-y,
+// hence the minus) that steepens fast toward the edges → the 'tangens' feel. Math.tanh is cheap.
 const X_SPACING = 25;   // horizontal scale of the tanh fan (Han 2026-06-08: 30 → 25)
 const Y_SPACING = 10;   // vertical scale of the cubic term
 const curveX = (t) => -3 * Math.tanh(t / 3) * X_SPACING;
-const curveY = (t) => (Math.pow(t, 3) / 20) * Y_SPACING;
+const curveY = (t) => -(Math.pow(t, 3) / 20) * Y_SPACING;
 
 // Grid Ys (staff lines, every 10 units from staffStart) between the staff and a notehead at
 // drawn `y`, so heads off the staff get ledger lines (Han 2026-06-08 "ver buiten de balk").
@@ -92,7 +101,10 @@ const TranspositionSetter = ({
     // Effective (possibly fractional) offset that drives BOTH carousels so they slide together.
     const effTrans = clampTrans(transSemitones + liveDelta);
     const color = 'var(--text-primary)';
-    const low = 'var(--setter-lowlight)';
+    // --text-lowlight is the app's dimmed-but-readable text colour (App.css). The old
+    // --setter-lowlight was never defined, so inactive heads/names fell back to black
+    // (Han 2026-06-09 "lowlighted notes are now black, use lowlight color").
+    const low = 'var(--text-lowlight)';
     const W = endX - startX;
     const midY = staffStart + 20;
 
@@ -129,7 +141,9 @@ const TranspositionSetter = ({
         const off = c - concertFloat;              // rows>0 are higher concert pitches
         const ry = midY + 6 + off * ROW_H;         // higher pitch sits HIGHER on screen
         const dist = Math.abs(off);
-        const isActive = c === Math.round(concertFloat) && Math.abs(c - concertFloat) < 0.001;
+        // Highlight the row CLOSEST to centre at all times — even mid-drag when no row is exactly
+        // centred — so there is always exactly one active note (Han 2026-06-09).
+        const isActive = c === Math.round(concertFloat);
         const size = Math.max(8, 19 - dist * 2.0);
         const op = Math.max(0.18, (isActive ? 1 : 0.8) - dist * 0.12);
         nameRows.push(
@@ -171,7 +185,9 @@ const TranspositionSetter = ({
         const x = anchorX + curveX(t);
         const y = originY + curveY(t);
         const dist = Math.abs(t);
-        const isActive = m === writtenActive && Math.abs(t) < 0.001;
+        // Highlight the head CLOSEST to centre at all times (nearest rounded half-step), so one
+        // head is always active — even mid-drag when none is exactly centred (Han 2026-06-09).
+        const isActive = m === writtenActive;
         const op = Math.max(0.15, (isActive ? 1 : 0.7) - dist * 0.1);
         const fill = isActive ? color : low;
         linePts.push(`${x},${y}`);
@@ -180,17 +196,25 @@ const TranspositionSetter = ({
         // far fanned heads are visual context only — drawing ledgers to their curve-displaced
         // positions would be noisy and not real notation (Han 2026-06-08).
         const showLedgers = dist < 1.5;
+        // Stem: 'Ï' is a bare head, so draw the stem ourselves (req 2). Direction follows
+        // standard notation — heads on/below the middle line stem UP, above it stem DOWN — using
+        // the note's TRUE pitch (originY) not the curve-displaced y, so the fan reads musically.
+        const stemUp = originY >= staffStart + MIDDLE_OFFSET;
+        const stemX = stemUp ? x + 6 : x - 4.5;
+        const acc = accidentalGlyph(name);   // ♯/♭ glyph in front of the head, or null (req 5)
         notes.push(
             <g key={m} opacity={op} style={{ pointerEvents: 'none' }}>
                 {showLedgers && ledgerYs(y, staffStart).map((ly, i) => (
                     <line key={i} x1={x - 8} y1={ly} x2={x + 8} y2={ly} stroke={fill} strokeWidth={0.6} />
                 ))}
-                {name.includes('#') && (
+                {acc && (
                     <text x={x - 13} y={y + 1} fontSize={20} fontFamily="Maestro"
-                        textAnchor="middle" fill={fill}>#</text>
+                        textAnchor="middle" fill={fill}>{acc}</text>
                 )}
-                {/* Quarter-note head ('Ï'); offsets align the notehead on (x, staff Y). */}
-                <text x={x - 5} y={y + 6} fontSize={34} fontFamily="Maestro" fill={fill}>{QUARTER}</text>
+                <path d={`M ${stemX} ${y} V ${stemUp ? y - STEM_LEN : y + STEM_LEN}`}
+                    stroke={fill} strokeWidth={1.5} />
+                {/* Notehead ('Ï', bare filled head); offsets align it on (x, staff Y). */}
+                <text x={x - 5} y={y + 6} fontSize={34} fontFamily="Maestro" fill={fill}>{NOTEHEAD}</text>
             </g>,
         );
         if (!isActive) {

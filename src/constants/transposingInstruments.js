@@ -133,6 +133,36 @@ export const getTranspositionSemitones = (key) => {
     return entry ? entry.semitones : 0;
 };
 
+// Circle-of-fifths position of each natural letter (C=0, moving by perfect fifths).
+const LETTER_FIFTHS = { C: 0, G: 1, D: 2, A: 3, E: 4, B: 5, F: -1 };
+
+/**
+ * Circle-of-fifths SHIFT a transposing instrument applies to the WRITTEN key signature,
+ * relative to concert pitch:  writtenSignature = concertSignature + getTranspositionFifths(key).
+ *
+ * Why this exists: notating a concert-pitch piece for a transposing instrument shifts every
+ * note by a fixed interval, which moves the WHOLE key signature by a constant number of steps
+ * on the circle of fifths. Without it the written notes fall outside the (concert) key signature
+ * and every one picks up an inline accidental (Han 2026-06-09 "A♭ inst in C major → tons of
+ * inline accidentals; expected a key signature in front of the staff").
+ *
+ * Derivation (no lookup table — §6c): writing concert pitch for an instrument "in K" transposes
+ * up by the interval that maps K→C, i.e. by −fifths(K). A natural letter's fifths come from
+ * LETTER_FIFTHS; ♯ adds 7, ♭ subtracts 7. Verified against TRANSPOSING_INSTRUMENTS:
+ *   B♭ (−2) → +2 sharps · E♭ (−3) → +3 · A♭ (−4) → +4 (concert C → written E major) ·
+ *   F (−1) → +1 · A (+3) → −3 · G (+1) → −1.
+ * Rare enharmonic-ambiguous keys (F♯, B) get a valid spelling of the correct magnitude.
+ */
+export const getTranspositionFifths = (key) => {
+    if (!key || key === 'C') return 0;
+    const m = key.match(/^([A-G])(b|#|♭|♯)?$/);
+    if (!m) return 0;
+    let f = LETTER_FIFTHS[m[1]] ?? 0;
+    if (m[2] === '#' || m[2] === '♯') f += 7;
+    if (m[2] === 'b' || m[2] === '♭') f -= 7;
+    return -f;
+};
+
 /**
  * Returns the short display label for a given instrument key string, e.g. "B♭ inst"
  * Returns "C inst" for unknown / concert-pitch keys.
