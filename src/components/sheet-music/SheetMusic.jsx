@@ -28,7 +28,7 @@ import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
 import { getNoteSemitone, getKodalySolfege } from '../../theory/noteUtils';
-import { getNoteIndex } from '../../theory/musicUtils';
+import { getNoteIndex, transposeMelodyBySemitones } from '../../theory/musicUtils';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import { isCompoundMeter, getEffectiveBeatDuration, getBeatDurationTicks, getTakadimiSyllable, getTakadimiSyllableGrouped, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
 
@@ -609,13 +609,16 @@ const SheetMusic = ({
 
   // Display-only transposition: how many semitones to shift written notes up/down.
   // Audio always plays concert pitch; only the sheet music notation changes.
+  // Total written-pitch shift = instrument pitch-class part + whole-octave part (Stage D, Han
+  // 2026-06-09). The octave part drives the optimal-clef ottava so a 2-octave transposition keeps
+  // the heads near the staff. transpositionOctave defaults to 0 (no-op for existing settings).
   const trebleTransSemitones = useMemo(
-    () => getTranspositionSemitones(trebleSettings?.transpositionKey),
-    [trebleSettings?.transpositionKey],
+    () => getTranspositionSemitones(trebleSettings?.transpositionKey) + 12 * (trebleSettings?.transpositionOctave || 0),
+    [trebleSettings?.transpositionKey, trebleSettings?.transpositionOctave],
   );
   const bassTransSemitones = useMemo(
-    () => getTranspositionSemitones(bassSettings?.transpositionKey),
-    [bassSettings?.transpositionKey],
+    () => getTranspositionSemitones(bassSettings?.transpositionKey) + 12 * (bassSettings?.transpositionOctave || 0),
+    [bassSettings?.transpositionKey, bassSettings?.transpositionOctave],
   );
 
   // 'treble' | 'bass' | null — which staff's picker is open
@@ -895,13 +898,16 @@ const SheetMusic = ({
 
   // Clef selection is per visible block (not full melody) so that a passage that sits in a
   // different register than the rest of the piece doesn't force an ottava on every other block.
+  // Optimal clef is computed from the WRITTEN (transposed) notes so a 2-octave transposition
+  // auto-selects an 8va/15ma/8vb/15vb clef and the heads return near the staff (Stage D). The
+  // shift includes the octave part (trebleTransSemitones); 0 = concert, an identity transpose.
   const clefTreble = useMemo(
-    () => calculateOptimalClef(trebleActiveClef, currentTreble?.notes, 'treble', trebleSettings?.rangeMode),
-    [trebleActiveClef, currentTreble, trebleSettings?.rangeMode],
+    () => calculateOptimalClef(trebleActiveClef, transposeMelodyBySemitones(currentTreble?.notes || [], trebleTransSemitones), 'treble', trebleSettings?.rangeMode),
+    [trebleActiveClef, currentTreble, trebleSettings?.rangeMode, trebleTransSemitones],
   );
   const clefBass = useMemo(
-    () => calculateOptimalClef(bassActiveClef, currentBass?.notes, 'bass', bassSettings?.rangeMode),
-    [bassActiveClef, currentBass, bassSettings?.rangeMode],
+    () => calculateOptimalClef(bassActiveClef, transposeMelodyBySemitones(currentBass?.notes || [], bassTransSemitones), 'bass', bassSettings?.rangeMode),
+    [bassActiveClef, currentBass, bassSettings?.rangeMode, bassTransSemitones],
   );
 
   // Clef-aware frames for the range selector: extent + presets follow the clef

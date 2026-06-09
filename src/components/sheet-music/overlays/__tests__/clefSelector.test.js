@@ -75,7 +75,7 @@ describe('patch helpers', () => {
         expect(patchForFamily('g')).toEqual({ preferredClef: 'treble', rangeMode: 'STANDARD' });
         expect(patchForFamily('f')).toEqual({ preferredClef: 'bass', rangeMode: 'STANDARD' });
         // Vocal clefs are never transposing → switching into vocal resets to concert C.
-        expect(patchForFamily('vocal')).toEqual({ preferredClef: 'alto', rangeMode: 'Alto', transpositionKey: 'C' });
+        expect(patchForFamily('vocal')).toEqual({ preferredClef: 'alto', rangeMode: 'Alto', transpositionKey: 'C', transpositionOctave: 0 });
         // Melodic families leave transposition untouched.
         expect(patchForFamily('g').transpositionKey).toBeUndefined();
     });
@@ -91,9 +91,10 @@ describe('patch helpers', () => {
         expect(patchForVocal({ clef: 'bass', rangeMode: 'Baritone' }))
             .toEqual({ preferredClef: 'bass', rangeMode: 'Baritone', transpositionKey: 'C' });
     });
-    it('transposition patch sets the key (defaults to C)', () => {
-        expect(patchForTransposition('Bb')).toEqual({ transpositionKey: 'Bb' });
-        expect(patchForTransposition(null)).toEqual({ transpositionKey: 'C' });
+    it('transposition patch sets the key + octave (defaults to C, octave 0)', () => {
+        expect(patchForTransposition('Bb')).toEqual({ transpositionKey: 'Bb', transpositionOctave: 0 });
+        expect(patchForTransposition(null)).toEqual({ transpositionKey: 'C', transpositionOctave: 0 });
+        expect(patchForTransposition('C', -1)).toEqual({ transpositionKey: 'C', transpositionOctave: -1 });
     });
 });
 

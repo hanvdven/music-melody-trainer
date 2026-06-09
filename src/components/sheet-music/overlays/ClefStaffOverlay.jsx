@@ -29,6 +29,18 @@ const keyForTrans = (t) => {
     return TRANS_BY_SEMI.get(nearest);
 };
 
+// Decompose a total written-pitch offset (semitones, up to ±2 octaves) into an instrument key
+// (pitch-class part, in [−5,11] where the keys live) + a whole-octave part (Han 2026-06-09,
+// Stage D). The optimal-clef logic then picks an 8va/15ma/8vb/15vb clef for the octave part so
+// far heads return near the staff. total = getTranspositionSemitones(key) + 12*octave.
+const decomposeTrans = (total) => {
+    let octave = 0;
+    let r = total;
+    while (r > 11) { r -= 12; octave += 1; }
+    while (r < -5) { r += 12; octave -= 1; }
+    return { key: keyForTrans(r), octave };
+};
+
 // refTriadNotes — the [tonic, 5th-degree, octave] reference notes for a clef card
 // (Han 2026-06-03, supersedes fixed C-G-C). RESPONSIVE to the tonic setter and the
 // current scale's 5th DEGREE (not a fixed perfect fifth — Han's choice). The note
@@ -223,6 +235,9 @@ const ClefStaffOverlay = ({
         const famId = clefFamilyKey(settings);
         const order = carouselOrder(famId);            // current first
         const transKey = settings?.transpositionKey || 'C';
+        // Total written-pitch offset = instrument pitch-class part + whole-octave part (Stage D).
+        const transOctave = settings?.transpositionOctave || 0;
+        const totalTrans = getTranspositionSemitones(transKey) + 12 * transOctave;
 
         // ── Left: family carousel (a true loop carousel in the clef gutter) ───
         // The CURRENT family sits at the EXACT sheet clef position (CLEF_GLYPH_X) and
@@ -366,11 +381,14 @@ const ClefStaffOverlay = ({
                     <TranspositionSetter
                         staff={staff} clef={clef} staffStart={staffStart}
                         startX={startX} endX={endX}
-                        transSemitones={getTranspositionSemitones(transKey)}
+                        transSemitones={totalTrans}
                         instLabel={getTranspositionDisplay(transKey)}
                         noteColoringMode={noteColoringMode} tonic={tonic}
                         scaleNotes={scaleNotes} theme={theme}
-                        onSelectTrans={(t) => onApplyClefPatch?.(staff, patchForTransposition(keyForTrans(t)))}
+                        onSelectTrans={(t) => {
+                            const { key, octave } = decomposeTrans(t);
+                            onApplyClefPatch?.(staff, patchForTransposition(key, octave));
+                        }}
                         debugMode={debugMode} />
                 </g>
             );
