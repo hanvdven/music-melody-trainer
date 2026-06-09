@@ -9,9 +9,12 @@ import { ClefGlyph, variantToSymbolKey } from '../clefGlyphs';
  *
  * Wired into ClefStaffOverlay's melodic (G/F) branch, REPLACING the old horizontal clef
  * cards. Two coupled half-step carousels per staff:
- *   LEFT  — note-NAME carousel: CONCERT note names ("… = C4"), centred on C4 − trans (the
- *           concert pitch written at C4). Beside it sit quick-pick concert-note rects for the
- *           common instruments. Reversed order vs the right (the coupled inverse).
+ *   LEFT  — fixed reference + concert note-NAME carousel: [clef] [fixed WRITTEN-C4 head]
+ *           "C4 =" [CONCERT note names], centred on C4 − trans (the concert pitch sounding at
+ *           written C4). The head is the C-instrument/concert reference — it never moves; the
+ *           names scroll. Quick-pick concert-note rects sit far left. Reversed order vs the
+ *           right (the coupled inverse). Han 2026-06-09: head added + order swapped to mirror
+ *           the right setter.
  *   RIGHT — sheet-music NOTEHEAD carousel: [clef] "C4 =" [quarter-note heads on the 'tangens'
  *           curve]. Each head sits at its true staff ORIGIN + f(t) (curve block below). The
  *           SELECTED note (t=0) is pinned at a FIXED x (anchorX) and its CORRECT staff
@@ -132,10 +135,22 @@ const TranspositionSetter = ({
         if (snapped !== transSemitones) onSelectTrans?.(snapped);
     };
 
-    // ── LEFT: concert note-name carousel ────────────────────────────────────────────────
+    // ── LEFT: fixed written-C4 note + concert note-NAME carousel ────────────────────────
+    // Mirrors the RIGHT setter (Han 2026-06-09 "switch around the carousel and the C4 note"):
+    //   [clef] [fixed C4 head]  "C4 ="  [concert-sound names]
+    // The fixed head is WRITTEN C4 (always on the staff's C4 line, in this staff's clef — the
+    // C-instrument/concert reference); the carousel shows the CONCERT pitch that sounds when
+    // C4 is written, so it reads "written C4 = [concert sound]". The head never moves; dragging
+    // the names changes the transposition (inverse of the right carousel).
     const concertFloat = C4_MIDI - effTrans;       // concert pitch written at C4 (fractional)
-    const nameX = startX + W * 0.20;
-    const leftLabelX = startX + W * 0.30;
+    const leftClefX = startX + W * 0.13;
+    const fixedNoteX = startX + W * 0.22;
+    const leftLabelX = startX + W * 0.30;          // "C4 =" sits LEFT of the names now
+    const nameX = startX + W * 0.40;
+    const fixedC4Y = getNoteAbsoluteY('C4', staffStart, clef, staff);
+    // C4 sits below the treble staff (or above the bass staff) → may need ledger lines + a stem.
+    const fixedStemUp = fixedC4Y == null ? true : fixedC4Y >= staffStart + MIDDLE_OFFSET;
+    const fixedStemX = fixedStemUp ? fixedNoteX + 6 : fixedNoteX - 4.5;
     const nameRows = [];
     for (let c = Math.round(concertFloat) - 6; c <= Math.round(concertFloat) + 6; c++) {
         const off = c - concertFloat;              // rows>0 are higher concert pitches
@@ -270,16 +285,32 @@ const TranspositionSetter = ({
             })}
 
             <g clipPath={`url(#${clipId})`}>
-                {/* LEFT name carousel — drag surface + rows */}
-                <rect x={startX + W * 0.14} y={bandTop} width={W * 0.16} height={bandH}
+                {/* LEFT — fixed clef + WRITTEN-C4 reference head, then "C4 =", then the name
+                    carousel (drag surface over the names). The head is concert C-instrument: it
+                    never transposes, so it sits permanently on the C4 line. */}
+                <ClefGlyph symbolKey={variantToSymbolKey(clef)} x={leftClefX} baseY={staffStart + 30}
+                    fill={color} anchor="start" />
+                {fixedC4Y != null && (
+                    <g style={{ pointerEvents: 'none' }}>
+                        {ledgerYs(fixedC4Y, staffStart).map((ly, i) => (
+                            <line key={i} x1={fixedNoteX - 8} y1={ly} x2={fixedNoteX + 8} y2={ly}
+                                stroke={color} strokeWidth={0.6} />
+                        ))}
+                        <path d={`M ${fixedStemX} ${fixedC4Y} V ${fixedStemUp ? fixedC4Y - STEM_LEN : fixedC4Y + STEM_LEN}`}
+                            stroke={color} strokeWidth={1.5} />
+                        <text x={fixedNoteX - 5} y={fixedC4Y + 6} fontSize={34} fontFamily="Maestro"
+                            fill={color}>{NOTEHEAD}</text>
+                    </g>
+                )}
+                <text x={leftLabelX} y={midY + 6} fontSize={16} fontFamily="Georgia, serif"
+                    textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
+                    C4 =
+                </text>
+                <rect x={nameX - W * 0.06} y={bandTop} width={W * 0.12} height={bandH}
                     fill="transparent" style={{ cursor: 'ns-resize', touchAction: 'none' }}
                     onPointerDown={onPointerDown('left')} onPointerMove={onPointerMove}
                     onPointerUp={endDrag} onPointerCancel={endDrag} />
                 {nameRows}
-                <text x={leftLabelX} y={midY + 6} fontSize={16} fontFamily="Georgia, serif"
-                    textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
-                    = C4
-                </text>
 
                 {/* RIGHT notehead carousel — clef, label, drag surface, curve + heads */}
                 <ClefGlyph symbolKey={variantToSymbolKey(clef)} x={clefX} baseY={staffStart + 30}
