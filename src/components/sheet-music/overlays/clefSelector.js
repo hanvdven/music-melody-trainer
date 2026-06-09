@@ -103,7 +103,7 @@ export const patchForFamily = (familyId) => {
     if (fam.id === 'off') return { preferredClef: CLEF_OFF };
     // Switching INTO the vocal family resets transposition to concert C — vocal clefs
     // are never transposing (Han 2026-06-03).
-    if (familyId === 'vocal') return { preferredClef: fam.clef, rangeMode: 'Alto', transpositionKey: 'C' };
+    if (familyId === 'vocal') return { preferredClef: fam.clef, rangeMode: 'Alto', transpositionKey: 'C', transpositionOctave: 0 };
     return { preferredClef: fam.clef, rangeMode: 'STANDARD' };
 };
 
@@ -127,5 +127,10 @@ export const patchForVocal = (voice) => {
     return { preferredClef: voice.clef, rangeMode: voice.rangeMode, transpositionKey: 'C' };
 };
 
-// Settings patch for a transposition chip.
-export const patchForTransposition = (key) => ({ transpositionKey: key || 'C' });
+// Settings patch for a transposition selection. `octave` carries the whole-octave part of a
+// 2-octave transposition (Han 2026-06-09, Stage D); total written shift =
+// getTranspositionSemitones(key) + 12*octave. Defaults to 0 so existing callers are unaffected.
+export const patchForTransposition = (key, octave = 0) => ({
+    transpositionKey: key || 'C',
+    transpositionOctave: octave,
+});

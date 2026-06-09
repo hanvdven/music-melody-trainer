@@ -71,8 +71,10 @@ const NoteLabel = ({ name, x, y, size = LABEL_SIZE, fill, opacity = 1, anchor = 
 };
 const ROW_H = 15;      // vertical spacing between name-carousel rows
 const PX_PER_STEP = 14;   // drag sensitivity: screen px per half-step (tuned live)
-// Available transposition offsets without an octave clef (TRANSPOSING_INSTRUMENTS span).
-const MIN_TRANS = -5, MAX_TRANS = 11;
+// Settable transposition range: up to ±2 octaves (Han 2026-06-09, Stage D — "C4 → [C2..C6]").
+// The pitch-class part maps to an instrument key; the whole-octave part becomes an 8va/15ma/
+// 8vb/15vb clef (decomposed by the parent), so far heads return near the staff after release.
+const MIN_TRANS = -24, MAX_TRANS = 24;
 const nameOf = (midi) => normalizeNoteChars(getNoteFromValue(midi));
 const clampTrans = (t) => Math.max(MIN_TRANS, Math.min(MAX_TRANS, t));
 
@@ -100,16 +102,16 @@ const ledgerYs = (y, staffStart) => {
 };
 
 // Quick-pick CONCERT notes (Han 2026-06-08): the concert sound of written C4 per common
-// instrument. `oct:true` ones need the octave clef (staged) → drawn dim + inert for now.
+// instrument. The octave ones (C5/C3/B♭2) are now active — Stage D wired the octave clefs.
 const QUICK_PICKS = [
-    { midi: 72, label: 'C5', oct: true },   // C inst 8va
-    { midi: 63, label: 'E♭4' },             // E♭ clarinet (−3)
-    { midi: 60, label: 'C4' },              // C instrument (0)
-    { midi: 58, label: 'B♭3' },             // B♭ clarinet/trumpet (+2)
-    { midi: 53, label: 'F3' },              // F horn (+7)
-    { midi: 51, label: 'E♭3' },             // E♭ alto/bari sax (+9)
-    { midi: 48, label: 'C3', oct: true },   // C inst 8vb
-    { midi: 46, label: 'B♭2', oct: true },  // bass B♭ (8vb)
+    { midi: 72, label: 'C5' },   // C inst 8va
+    { midi: 63, label: 'E♭4' },  // E♭ clarinet (−3)
+    { midi: 60, label: 'C4' },   // C instrument (0)
+    { midi: 58, label: 'B♭3' },  // B♭ clarinet/trumpet (+2)
+    { midi: 53, label: 'F3' },   // F horn (+7)
+    { midi: 51, label: 'E♭3' },  // E♭ alto/bari sax (+9)
+    { midi: 48, label: 'C3' },   // C inst 8vb
+    { midi: 46, label: 'B♭2' },  // bass B♭ (8vb)
 ];
 
 const TranspositionSetter = ({
@@ -295,23 +297,19 @@ const TranspositionSetter = ({
 
             {/* Quick-pick concert notes — a column to the RIGHT of the notehead carousel
                 (Han 2026-06-09). Only the ACTIVE pick (its concert pitch == the current
-                selection) is highlighted; the rest are lowlight. Octave-needing ones stay dim +
-                inert until the octave clef is wired (Stage D). */}
+                selection) is highlighted; the rest are lowlight. */}
             {QUICK_PICKS.map((q, i) => {
                 const qy = staffStart - 14 + i * 13;
-                const inert = q.oct;
                 const qpActive = q.midi === Math.round(concertFloat);
                 const qpX = startX + W * 0.90;
                 return (
                     <g key={q.label}>
                         <NoteLabel name={q.label} x={qpX} y={qy} size={11} anchor="start"
-                            fill={qpActive ? color : low} opacity={inert ? 0.5 : (qpActive ? 1 : 0.85)} />
-                        {!inert && (
-                            <rect x={qpX - 2} y={qy - 10} width={W * 0.10} height={13}
-                                fill="transparent" style={{ cursor: 'pointer' }}
-                                onClick={() => onSelectTrans?.(clampTrans(C4_MIDI - q.midi))} />
-                        )}
-                        {debugMode && !inert && (
+                            fill={qpActive ? color : low} opacity={qpActive ? 1 : 0.85} />
+                        <rect x={qpX - 2} y={qy - 10} width={W * 0.10} height={13}
+                            fill="transparent" style={{ cursor: 'pointer' }}
+                            onClick={() => onSelectTrans?.(clampTrans(C4_MIDI - q.midi))} />
+                        {debugMode && (
                             <rect x={qpX - 2} y={qy - 10} width={W * 0.10} height={13}
                                 fill="magenta" fillOpacity={0.16} stroke="magenta" strokeWidth={0.5}
                                 style={{ pointerEvents: 'none' }} />
