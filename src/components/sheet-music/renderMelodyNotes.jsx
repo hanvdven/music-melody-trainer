@@ -1325,13 +1325,19 @@ const renderMelodyNotes = (
       const beatIndexWithinMeasure = Math.floor(relativeOffset / noteGroupSize);
 
       // Head color: percussion uses the chromatone map directly; melodic staves use getMelodicColor.
+      // Colour follows the CONCERT (sounding) pitch, not the written one (Han 2026-06-09): under a
+      // transposing instrument the written note is a transposition of melody.notes[index], but the
+      // colour must reflect the sounding pitch class (so chromatone + tonic/scale/chord colours
+      // track the real harmony). melody.notes is the untransposed concert array; for non-transposed
+      // staves it equals the written note, so this is a no-op there.
+      const concertNote = melody.notes[index] ?? noteWithAccidental;
       let headColor = staff === 'percussion'
         ? ((noteColoringMode === 'chromatone' || noteColoringMode === 'subtle-chroma')
           ? (noteColoringMode === 'subtle-chroma'
             ? `color-mix(in srgb, ${percussionChromatoneColors[normalizePC(noteWithAccidental)] || 'var(--text-primary)'}, ${theme === 'light' ? 'black' : 'white'} 60%)`
             : (percussionChromatoneColors[normalizePC(noteWithAccidental)] || 'var(--text-primary)'))
           : 'var(--text-primary)')
-        : getMelodicColor(noteWithAccidental);
+        : getMelodicColor(concertNote);
       // Stem/flag/ledger color: follows head in preview mode, otherwise default.
       let noteColor = previewColor ?? 'var(--text-primary)';
       if (previewColor) headColor = previewColor;
