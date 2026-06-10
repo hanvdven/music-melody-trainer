@@ -35,7 +35,7 @@ import { isCompoundMeter, getEffectiveBeatDuration, getBeatDurationTicks, getTak
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
 import { PRESET_RANGES as CLEF_RANGE_PRESET_RANGES } from '../../constants/ranges';
-import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionDisplay, getTranspositionFifths } from '../../constants/transposingInstruments';
+import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionInstLabel, getTranspositionFifths } from '../../constants/transposingInstruments';
 import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange } from '../../utils/melodySlice';
 import { calculateMusicalBlocks } from '../../utils/pagination';
 import useLongPressTimer from '../../hooks/useLongPressTimer';
@@ -923,28 +923,26 @@ const SheetMusic = ({
     if (base !== 'treble' && base !== 'bass') return activeClef;
     return base + OCTAVE_CLEF_SUFFIX[String(o)];
   };
-  // Clef octave matches the SCREEN being shown (Han 2026-06-09 "het octaaf moet overeenkomen met
-  // het scherm dat getoond wordt"):
-  //   • CLEF setter  → octave from the transposition (clef settings); melody IGNORED, so both
-  //     staves show the SAME clef for the same transposition.
+  // Clef octave matches the SCREEN being shown (Han 2026-06-09/10):
   //   • RANGE setter → octave fits the (written) RANGE being shown (very low range → 8vb).
-  //   • Normal view  → octave fits the written MELODY (Stage D).
-  const clefForScreen = (activeClef, settings, staffName, melodyNotes, transSemis) => {
-    if (clefEditMode) return octaveAdjustedClef(activeClef, settings?.transpositionOctave || 0, settings?.rangeMode);
+  //   • CLEF setter AND normal notation → octave from the TRANSPOSITION only. The MELODY NEVER
+  //     drives an 8va/8vb (Han: "nooooi 8va of 8vb ook al is de melodie 8vb"); both staves also
+  //     show the SAME clef for the same transposition.
+  const clefForScreen = (activeClef, settings, staffName, transSemis) => {
     if (rangeEditMode) {
       const r = settings?.range;
       const rangeNotes = r ? [r.min, r.max] : [];
       return calculateOptimalClef(activeClef, transposeMelodyBySemitones(rangeNotes, transSemis), staffName, settings?.rangeMode);
     }
-    return calculateOptimalClef(activeClef, transposeMelodyBySemitones(melodyNotes || [], transSemis), staffName, settings?.rangeMode);
+    return octaveAdjustedClef(activeClef, settings?.transpositionOctave || 0, settings?.rangeMode);
   };
   const clefTreble = useMemo(
-    () => clefForScreen(trebleActiveClef, trebleSettings, 'treble', currentTreble?.notes, trebleTransSemitones),
-    [clefEditMode, rangeEditMode, trebleActiveClef, trebleSettings, currentTreble, trebleTransSemitones],
+    () => clefForScreen(trebleActiveClef, trebleSettings, 'treble', trebleTransSemitones),
+    [rangeEditMode, trebleActiveClef, trebleSettings, trebleTransSemitones],
   );
   const clefBass = useMemo(
-    () => clefForScreen(bassActiveClef, bassSettings, 'bass', currentBass?.notes, bassTransSemitones),
-    [clefEditMode, rangeEditMode, bassActiveClef, bassSettings, currentBass, bassTransSemitones],
+    () => clefForScreen(bassActiveClef, bassSettings, 'bass', bassTransSemitones),
+    [rangeEditMode, bassActiveClef, bassSettings, bassTransSemitones],
   );
 
   // Clef-aware frames for the range selector: extent + presets follow the clef
@@ -1965,7 +1963,7 @@ const SheetMusic = ({
                   }}
                   style={{ cursor: 'pointer' }}
                 >
-                  ({getTranspositionDisplay(trebleSettings?.transpositionKey || 'C')})
+                  ({getTranspositionInstLabel(trebleSettings?.transpositionKey || 'C', trebleSettings?.transpositionOctave || 0)})
                 </text>
               </>
             )}
@@ -2054,7 +2052,7 @@ const SheetMusic = ({
                   }}
                   style={{ cursor: 'pointer' }}
                 >
-                  ({getTranspositionDisplay(bassSettings?.transpositionKey || 'C')})
+                  ({getTranspositionInstLabel(bassSettings?.transpositionKey || 'C', bassSettings?.transpositionOctave || 0)})
                 </text>
               </>
             )}
