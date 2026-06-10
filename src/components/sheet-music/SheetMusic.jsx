@@ -621,6 +621,13 @@ const SheetMusic = ({
     [bassSettings?.transpositionKey, bassSettings?.transpositionOctave],
   );
 
+  // GLOBAL transposition (item 5): when BOTH staves share the same transposition, chord LETTER
+  // names + lyrics move to the written domain. 0 = staff-level/concert (names stay concert).
+  const globalSameTrans = trebleSettings?.transpositionKey === bassSettings?.transpositionKey
+    && (trebleSettings?.transpositionOctave || 0) === (bassSettings?.transpositionOctave || 0);
+  const chordTransSemitones = globalSameTrans ? trebleTransSemitones : 0;
+  const chordWrittenAccidentals = globalSameTrans ? trebleWrittenAccidentals : numAccidentals;
+
   // 'treble' | 'bass' | null — which staff's picker is open
   const [transPicker, setTransPicker] = useState(null);  // transposition key picker
   const [tempoPicker, setTempoPicker] = useState(false); // tempo word picker
@@ -2332,6 +2339,8 @@ const SheetMusic = ({
                         theme={theme}
                         debugMode={debugMode}
                         overrideColor={null}
+                        chordTransSemitones={chordTransSemitones}
+                        chordWrittenAccidentals={chordWrittenAccidentals}
                         inputTestState={inputTestState}
                       />}
                       {renderDNADebug()}
@@ -2415,6 +2424,8 @@ const SheetMusic = ({
                               theme={theme}
                               debugMode={debugMode}
                               overrideColor={YCOL}
+                              chordTransSemitones={chordTransSemitones}
+                              chordWrittenAccidentals={chordWrittenAccidentals}
                               inputTestState={null}
                             />}
                           <g style={{ transform: `translateY(${trebleStart}px)` }}>
