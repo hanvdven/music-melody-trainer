@@ -1,7 +1,7 @@
 import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
-import { melodicNoteColor } from '../../../theory/noteUtils';
+import { melodicNoteColor, getNoteSemitone } from '../../../theory/noteUtils';
 import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
 import { transposeMelodyBySemitones } from '../../../theory/musicUtils';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
@@ -226,7 +226,7 @@ const RangeStaffOverlay = ({
     timeSignature, theme, debugMode = false,
     // Coloring props (point 1): the in-band/selected notes follow the same note
     // coloring as the rendered sheet music; boundary + out-of-band keep flat colors.
-    noteColoringMode = 'none', scaleNotes = [], tonic = '',
+    noteColoringMode = 'none', scaleNotes = [], tonic = '', activeChord = null,
 }) => {
     // Active boundary being dragged: { staff, boundary, layout } | null. The layout
     // is frozen for the drag so notes don't jump; on release we force a re-render
@@ -458,8 +458,19 @@ const RangeStaffOverlay = ({
         const writtenName = (concertNm) => writtenByConcert.get(concertNm) ?? concertNm;
         const colorFor = (concertMidi, writtenNm) => {
             if (concertMidi === selMin || concertMidi === selMax) return 'var(--accent-yellow)';
-            if (concertMidi > selMin && concertMidi < selMax)
-                return melodicNoteColor(writtenNm, { noteColoringMode, tonic, scaleNotes, theme }) ?? 'var(--text-primary)';
+            if (concertMidi > selMin && concertMidi < selMax) {
+                const base = melodicNoteColor(writtenNm, { noteColoringMode, tonic, scaleNotes, theme });
+                if (base) return base;
+                // Chords mode: colour by the paused active chord (sounding pitch) — Han 2026-06-10.
+                if (noteColoringMode === 'chords' && activeChord?.notes?.length) {
+                    const pc = ((concertMidi % 12) + 12) % 12;
+                    if (activeChord.notes.some(cn => getNoteSemitone(cn) === pc)) {
+                        const mix = theme === 'light' ? 'black' : 'white';
+                        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(activeChord.root)}), ${mix} 30%)`;
+                    }
+                }
+                return 'var(--text-primary)';
+            }
             // Out-of-band: same grey as the percussion notes, slightly lighter so it
             // reads on the overlay background (Han 2026-06-01 #4).
             return 'var(--range-lowlight)';

@@ -2935,6 +2935,7 @@ const SheetMusic = ({
                       theme={theme}
                       debugMode={debugMode}
                       noteColoringMode={noteColoringMode}
+                      activeChord={pausedActiveChord}
                       scaleNotes={scaleNotes}
                       tonic={tonic}
                     />
