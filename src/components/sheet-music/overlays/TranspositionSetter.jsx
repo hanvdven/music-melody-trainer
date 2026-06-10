@@ -36,7 +36,8 @@ const C4_MIDI = 60;
 const accidentalGlyph = (name) => (name.includes('♯') ? '#' : name.includes('♭') ? 'b' : null);
 
 const LABEL_FONT = "Georgia, 'Times New Roman', serif";
-const LABEL_SIZE = 16;   // shared size for the "=" label AND the active carousel name (Han #4)
+const LABEL_SIZE = 18;   // size for "=", "C4 =" and the active carousel name (Han 2026-06-09: 16→18)
+const PRESET_FONT = 13;  // preset label size (Han 2026-06-09: 11→13, bigger)
 
 // "(X inst)" label at the TOP-RIGHT of the staff (Han 2026-06-09 — was under each clef, wrong
 // position). Even for C it reads "(C inst)" so the staves stay consistent.
@@ -99,7 +100,7 @@ const ledgerYs = (y, staffStart) => {
 // each placed at a vertical position proportional to pitch (PRESET_SEMI px per semitone). F4 added.
 const PRESETS_LEFT = [72, 65, 60, 53, 48];   // C5, F4, C4, F3, C3
 const PRESETS_RIGHT = [63, 58, 51, 46];      // E♭4, B♭3, E♭3, B♭2
-const PRESET_SEMI = 4;                        // vertical px per semitone (≈ half-step distance)
+const PRESET_SEMI = 2.5;                      // vertical px per semitone (compacter, Han 2026-06-09)
 
 const TranspositionSetter = ({
     staff, clef, staffStart, startX, endX,
@@ -213,12 +214,14 @@ const TranspositionSetter = ({
     // old "C4 =" text (Han 2026-06-09 #7). The head never moves; dragging the names transposes.
     // Tighter left spacing (Han 2026-06-09: "elements left are very far apart"): clef, fixed C4
     // head, "=" and the names sit closer together.
+    // Tight left layout (Han 2026-06-09: "zeer veel dichter bij elkaar"): presets, then the fixed
+    // C4 note SNUG against "=", and "=" SNUG against the names carousel.
     const concertFloat = C4_MIDI - effTrans;       // concert pitch written at C4 (fractional)
-    const presetColL = startX + W * 0.03;          // C+F column
-    const presetColR = startX + W * 0.09;          // B♭+E♭ column
-    const fixedNoteX = startX + W * 0.17;
-    const leftLabelX = startX + W * 0.22;          // "=" sits between the note and the names
-    const nameX = startX + W * 0.31;
+    const presetColL = startX + W * 0.025;         // C+F column
+    const presetColR = startX + W * 0.075;         // B♭+E♭ column
+    const nameX = startX + W * 0.235;              // names carousel
+    const leftLabelX = nameX - 24;                 // "=" snug to the left of the names
+    const fixedNoteX = leftLabelX - 26;            // fixed C4 head snug to the left of "="
     const fixedC4Y = getNoteAbsoluteY('C4', staffStart, baseClef, staff);
     // The fixed written-C4 head SOUNDS the concert pitch (C4 − trans), so it is coloured by that
     // sounding pitch (Han 2026-06-09: "C4 on a B♭ inst should be orange, the B♭ colour").
@@ -257,8 +260,8 @@ const TranspositionSetter = ({
     }
 
     // ── RIGHT: notehead carousel on the tangens curve ──────────────────────────────────
-    const rightLabelX = startX + W * 0.46;          // "C4 =" (no clef glyph any more)
-    const anchorX = startX + W * 0.64;              // fixed x of the active head (room for the fan)
+    const rightLabelX = startX + W * 0.44;          // "C4 =" — closer to the carousel (Han +20)
+    const anchorX = startX + W * 0.62;              // fixed x of the active head (room for the fan)
     const writtenFloat = C4_MIDI + effTrans;
     const writtenActive = Math.round(writtenFloat);
     const notes = [];
@@ -334,7 +337,7 @@ const TranspositionSetter = ({
                     const qpActive = midi === Math.round(concertFloat);
                     return (
                         <g key={`qp${midi}`}>
-                            <NoteLabel name={nameOf(midi)} x={cx} y={qy} size={11} anchor="middle"
+                            <NoteLabel name={nameOf(midi)} x={cx} y={qy} size={PRESET_FONT} anchor="middle"
                                 fill={qpActive ? color : low} opacity={qpActive ? 1 : 0.85} />
                             <rect x={cx - 15} y={qy - 9} width={30} height={14}
                                 fill="transparent" style={{ cursor: 'pointer' }}

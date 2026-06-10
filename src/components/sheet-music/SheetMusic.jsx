@@ -908,13 +908,43 @@ const SheetMusic = ({
   // Optimal clef is computed from the WRITTEN (transposed) notes so a 2-octave transposition
   // auto-selects an 8va/15ma/8vb/15vb clef and the heads return near the staff (Stage D). The
   // shift includes the octave part (trebleTransSemitones); 0 = concert, an identity transpose.
+  // Octave clef is now DETERMINISTIC from the TRANSPOSITION octave (Han 2026-06-09: "hoe kan het
+  // dat de bovenste en middelste balk anders reageren op de 8va?"). The old melody-range-based
+  // optimal clef made the two staves differ under transposition because their melodies differ;
+  // driving the octave from transpositionOctave instead makes both staves show the SAME clef for
+  // the same transposition. Base family keeps the user's selection; vocal/off pass through.
+  const OCTAVE_CLEF_SUFFIX = { '-2': '15vb', '-1': '8vb', '0': '', '1': '8va', '2': '15va' };
+  const octaveAdjustedClef = (activeClef, octave, rangeMode) => {
+    if (activeClef === 'off') return 'off';
+    if (VOCAL_CLEF_TYPES.has(activeClef) || VOCAL_RANGE_MODES.has(rangeMode)) return activeClef;
+    const o = Math.max(-2, Math.min(2, octave || 0));
+    if (o === 0) return activeClef;
+    const base = String(activeClef).replace(/(8|15|22)v[ab]$/, '');
+    if (base !== 'treble' && base !== 'bass') return activeClef;
+    return base + OCTAVE_CLEF_SUFFIX[String(o)];
+  };
+  // Clef octave matches the SCREEN being shown (Han 2026-06-09 "het octaaf moet overeenkomen met
+  // het scherm dat getoond wordt"):
+  //   • CLEF setter  → octave from the transposition (clef settings); melody IGNORED, so both
+  //     staves show the SAME clef for the same transposition.
+  //   • RANGE setter → octave fits the (written) RANGE being shown (very low range → 8vb).
+  //   • Normal view  → octave fits the written MELODY (Stage D).
+  const clefForScreen = (activeClef, settings, staffName, melodyNotes, transSemis) => {
+    if (clefEditMode) return octaveAdjustedClef(activeClef, settings?.transpositionOctave || 0, settings?.rangeMode);
+    if (rangeEditMode) {
+      const r = settings?.range;
+      const rangeNotes = r ? [r.min, r.max] : [];
+      return calculateOptimalClef(activeClef, transposeMelodyBySemitones(rangeNotes, transSemis), staffName, settings?.rangeMode);
+    }
+    return calculateOptimalClef(activeClef, transposeMelodyBySemitones(melodyNotes || [], transSemis), staffName, settings?.rangeMode);
+  };
   const clefTreble = useMemo(
-    () => calculateOptimalClef(trebleActiveClef, transposeMelodyBySemitones(currentTreble?.notes || [], trebleTransSemitones), 'treble', trebleSettings?.rangeMode),
-    [trebleActiveClef, currentTreble, trebleSettings?.rangeMode, trebleTransSemitones],
+    () => clefForScreen(trebleActiveClef, trebleSettings, 'treble', currentTreble?.notes, trebleTransSemitones),
+    [clefEditMode, rangeEditMode, trebleActiveClef, trebleSettings, currentTreble, trebleTransSemitones],
   );
   const clefBass = useMemo(
-    () => calculateOptimalClef(bassActiveClef, transposeMelodyBySemitones(currentBass?.notes || [], bassTransSemitones), 'bass', bassSettings?.rangeMode),
-    [bassActiveClef, currentBass, bassSettings?.rangeMode, bassTransSemitones],
+    () => clefForScreen(bassActiveClef, bassSettings, 'bass', currentBass?.notes, bassTransSemitones),
+    [clefEditMode, rangeEditMode, bassActiveClef, bassSettings, currentBass, bassTransSemitones],
   );
 
   // Clef-aware frames for the range selector: extent + presets follow the clef
