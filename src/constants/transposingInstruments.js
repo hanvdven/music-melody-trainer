@@ -164,6 +164,16 @@ export const getTranspositionFifths = (key) => {
 };
 
 /**
+ * Returns the short pitch label (Unicode accidental), e.g. "B♭", for a transposition key.
+ * Used for the global "(X instrument)" header line. Returns "C" for concert/unknown.
+ */
+export const getTranspositionLabel = (key) => {
+    if (!key) return 'C';
+    const entry = TRANSPOSING_INSTRUMENTS.find(i => i.key === key);
+    return entry ? entry.label : 'C';
+};
+
+/**
  * Returns the short display label for a given instrument key string, e.g. "B♭ inst"
  * Returns "C inst" for unknown / concert-pitch keys.
  */

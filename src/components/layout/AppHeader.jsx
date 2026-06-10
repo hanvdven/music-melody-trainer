@@ -18,6 +18,8 @@ import { IconOne } from '../common/CustomIcons';
 
 const AppHeader = ({
     scale,
+    displayTonic = null,        // written tonic when global transposition is active (item 5)
+    globalInstLabel = null,     // "(B♭ instrument)" line under the title when global-transposed
     showSheetMusicSettings,
     toggleSheetMusicSettings,
     isInputTestMode,
@@ -121,9 +123,15 @@ const AppHeader = ({
                         }}
                         onClick={(e) => { e.stopPropagation(); onScaleClick?.(); }}
                     >
-                        {formatScaleName(scale.tonic, scale.name, scale.family, customScaleLabel)}
+                        {formatScaleName(displayTonic ?? scale.tonic, scale.name, scale.family, customScaleLabel)}
                     </span>
                     </div>
+                    {/* Global-transposition instrument line (item 5): shown only when both staves
+                        share a non-concert transposition; the title above already shows the
+                        WRITTEN key (e.g. "in D Major" for a concert-C piece on a B♭ instrument). */}
+                    {globalInstLabel && (
+                        <div className="app-header-subtitle">({globalInstLabel})</div>
+                    )}
                 </div>
             </div>
 

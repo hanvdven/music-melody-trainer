@@ -6,7 +6,9 @@ import {
 import { getProgressionLabel } from './theory/progressionDefinitions';
 import './styles/App.css';
 import './styles/AppLayout.css';
-import { modulateMelody } from './theory/musicUtils';
+import { modulateMelody, transposeNoteBySemitones } from './theory/musicUtils';
+import { respellToKeySignature } from './theory/noteUtils';
+import { getTranspositionSemitones, getTranspositionFifths, getTranspositionLabel } from './constants/transposingInstruments';
 import Sequencer from './audio/Sequencer';
 import playMelodies from './audio/playMelodies';
 import Melody from './model/Melody';
@@ -1088,6 +1090,31 @@ const App = () => {
     }, [displayChordProgression, chordProgression]);
 
 
+    // GLOBAL transposition (Han 2026-06-09, item 5): when BOTH staves carry the SAME transposition
+    // (key + octave) and it isn't concert, the whole piece is treated as transposed — the displayed
+    // KEY/NAMES move to the written domain (concert B♭ denoted as C). Per-staff note positions + key
+    // signatures already render written; this drives the header key, the "(X instrument)" line, and
+    // (downstream) the chord-label + lyrics name adjustment. null = staff-level / concert.
+    const globalTransposition = useMemo(() => {
+        const tk = trebleSettings?.transpositionKey || 'C';
+        const bk = bassSettings?.transpositionKey || 'C';
+        const to = trebleSettings?.transpositionOctave || 0;
+        const bo = bassSettings?.transpositionOctave || 0;
+        if (tk !== bk || to !== bo) return null;                 // staves differ → staff-level only
+        const semis = getTranspositionSemitones(tk) + 12 * to;
+        if (semis === 0) return null;                            // concert
+        return { semis, key: tk, label: getTranspositionLabel(tk) };
+    }, [trebleSettings, bassSettings]);
+
+    // Written tonic shown in the header when global: concert tonic transposed + respelled to the
+    // written key signature (reuses respellToKeySignature). Octave stripped for the label.
+    const displayTonic = useMemo(() => {
+        if (!globalTransposition) return scale.tonic;
+        const writtenAcc = (scale.numAccidentals || 0) + getTranspositionFifths(globalTransposition.key);
+        const raw = transposeNoteBySemitones(`${scale.tonic}4`, globalTransposition.semis);
+        return respellToKeySignature(raw, writtenAcc).replace(/-?\d+$/, '');
+    }, [globalTransposition, scale.tonic, scale.numAccidentals]);
+
     // Mount Effect: Build harmony table on startup so runtime scale/chord changes are reflected
     useEffect(() => { buildHarmonyTable(); }, []);
 
@@ -1265,6 +1292,8 @@ const App = () => {
             <div className="App app-top-wrapper">
                 <AppHeader
                     scale={scale}
+                    displayTonic={displayTonic}
+                    globalInstLabel={globalTransposition ? `${globalTransposition.label} instrument` : null}
                     showSheetMusicSettings={showSheetMusicSettings}
                     toggleSheetMusicSettings={toggleSheetMusicSettings}
                     isInputTestMode={isInputTestMode}
