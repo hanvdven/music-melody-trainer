@@ -934,15 +934,22 @@ const SheetMusic = ({
       const rangeNotes = r ? [r.min, r.max] : [];
       return calculateOptimalClef(activeClef, transposeMelodyBySemitones(rangeNotes, transSemis), staffName, settings?.rangeMode);
     }
+    if (clefEditMode) {
+      // Clefs in the TRANSPOSITION setter are NEVER octave-transposed (Han 2026-06-10): the octave
+      // is communicated by the (X inst) ↑/↓ arrows, not an 8va/8vb glyph. Use the BASE family clef.
+      if (activeClef === 'off') return 'off';
+      if (VOCAL_CLEF_TYPES.has(activeClef) || VOCAL_RANGE_MODES.has(settings?.rangeMode)) return activeClef;
+      return String(activeClef).replace(/(8|15|22)v[ab]$/, '');
+    }
     return octaveAdjustedClef(activeClef, settings?.transpositionOctave || 0, settings?.rangeMode);
   };
   const clefTreble = useMemo(
     () => clefForScreen(trebleActiveClef, trebleSettings, 'treble', trebleTransSemitones),
-    [rangeEditMode, trebleActiveClef, trebleSettings, trebleTransSemitones],
+    [clefEditMode, rangeEditMode, trebleActiveClef, trebleSettings, trebleTransSemitones],
   );
   const clefBass = useMemo(
     () => clefForScreen(bassActiveClef, bassSettings, 'bass', bassTransSemitones),
-    [rangeEditMode, bassActiveClef, bassSettings, bassTransSemitones],
+    [clefEditMode, rangeEditMode, bassActiveClef, bassSettings, bassTransSemitones],
   );
 
   // Clef-aware frames for the range selector: extent + presets follow the clef
@@ -988,19 +995,22 @@ const SheetMusic = ({
     : processedChordsRaw,
     [processedChordsRaw, animationMode, musicalBlocks, localMeasureStart, displayNumMeasures, measureLengthSlots]);
 
-  // Chords that drive the NOTE colouring (chord-colour mode). While PLAYING, each note follows the
-  // chord at its own offset (per-note). When PAUSED there is no "now-playing" chord, so the whole
-  // melody is coloured by a single ACTIVE chord (Han 2026-06-10): the TONIC chord if it is the
-  // LAST chord of the progression, otherwise the FIRST chord. The chord LABELS keep the full
-  // progression (this only redirects the melody-layer colouring source).
-  const coloringChords = useMemo(() => {
-    if (isPlaying) return processedChords;
+  // The ACTIVE chord used to colour notes when PAUSED (Han 2026-06-10): the TONIC chord if it is
+  // the LAST chord of the progression, otherwise the FIRST chord. Shared by the melody layers AND
+  // the in-staff setters (transposition/range) + keyboard so they all colour consistently.
+  const pausedActiveChord = useMemo(() => {
     const real = (processedChords || []).filter(c => !c.isSlash && c.chord?.notes?.length);
-    if (real.length === 0) return processedChords;
+    if (real.length === 0) return null;
     const lastChord = real[real.length - 1].chord;
-    const active = getNoteSemitone(lastChord.root) === getNoteSemitone(tonic) ? lastChord : real[0].chord;
-    return [{ chord: active, absoluteOffset: 0, isSlash: false }];
-  }, [isPlaying, processedChords, tonic]);
+    return getNoteSemitone(lastChord.root) === getNoteSemitone(tonic) ? lastChord : real[0].chord;
+  }, [processedChords, tonic]);
+  // Chords that drive the melody NOTE colouring. While PLAYING each note follows the chord at its
+  // own offset (per-note, full progression); when PAUSED the whole melody is coloured by the single
+  // pausedActiveChord. Chord LABELS keep the full progression (this only redirects colouring).
+  const coloringChords = useMemo(() => {
+    if (isPlaying || !pausedActiveChord) return processedChords;
+    return [{ chord: pausedActiveChord, absoluteOffset: 0, isSlash: false }];
+  }, [isPlaying, processedChords, pausedActiveChord]);
 
   const trebleAccidentals = useMemo(() => generateAccidentalMap(adjustedTrebleMelody.notes, numAccidentals),
     [adjustedTrebleMelody, numAccidentals]);
@@ -2949,6 +2959,7 @@ const SheetMusic = ({
                       tonic={tonic}
                       scaleNotes={scaleNotes}
                       noteColoringMode={noteColoringMode}
+                      activeChord={pausedActiveChord}
                       isNarrow={logicalScreenWidth < 500}
                       percussionVoiceSplit={percussionVoiceSplit}
                       percussionDisabled={percOff}

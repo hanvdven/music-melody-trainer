@@ -109,6 +109,8 @@ const TranspositionSetter = ({
     instLabel = 'C inst',         // transposing-instrument display label (getTranspositionDisplay)
     noteColoringMode = 'off',     // colouring context — active/reference heads colour as concert C4
     tonic = 'C', scaleNotes = [], theme = 'dark',
+    activeChord = null,           // paused active chord (last-if-tonic-else-first) for chord colour
+
     debugMode = false,
     debugDragDelta = 0,           // dev-only: render a fractional drag state in the harness
 }) => {
@@ -162,11 +164,12 @@ const TranspositionSetter = ({
     const colorForConcert = (note) => {
         const base = melodicNoteColor(note, { noteColoringMode, tonic, scaleNotes, theme });
         if (base) return base;
-        if (noteColoringMode === 'chords') {
-            // Setter active chord = C major triad; root C → root colour for any chord tone.
-            if ([0, 4, 7].includes(getNoteSemitone(note))) {
+        // Chords mode: colour by the PAUSED active chord (last-if-tonic-else-first), same as the
+        // main staff (Han 2026-06-10). A note in the active chord → the chord's root colour.
+        if (noteColoringMode === 'chords' && activeChord?.notes?.length) {
+            if (activeChord.notes.some(cn => getNoteSemitone(cn) === getNoteSemitone(note))) {
                 const mix = theme === 'light' ? 'black' : 'white';
-                return `color-mix(in srgb, var(--chromatone-0), ${mix} 30%)`;
+                return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(activeChord.root)}), ${mix} 30%)`;
             }
         }
         return color;
