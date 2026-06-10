@@ -988,6 +988,20 @@ const SheetMusic = ({
     : processedChordsRaw,
     [processedChordsRaw, animationMode, musicalBlocks, localMeasureStart, displayNumMeasures, measureLengthSlots]);
 
+  // Chords that drive the NOTE colouring (chord-colour mode). While PLAYING, each note follows the
+  // chord at its own offset (per-note). When PAUSED there is no "now-playing" chord, so the whole
+  // melody is coloured by a single ACTIVE chord (Han 2026-06-10): the TONIC chord if it is the
+  // LAST chord of the progression, otherwise the FIRST chord. The chord LABELS keep the full
+  // progression (this only redirects the melody-layer colouring source).
+  const coloringChords = useMemo(() => {
+    if (isPlaying) return processedChords;
+    const real = (processedChords || []).filter(c => !c.isSlash && c.chord?.notes?.length);
+    if (real.length === 0) return processedChords;
+    const lastChord = real[real.length - 1].chord;
+    const active = getNoteSemitone(lastChord.root) === getNoteSemitone(tonic) ? lastChord : real[0].chord;
+    return [{ chord: active, absoluteOffset: 0, isSlash: false }];
+  }, [isPlaying, processedChords, tonic]);
+
   const trebleAccidentals = useMemo(() => generateAccidentalMap(adjustedTrebleMelody.notes, numAccidentals),
     [adjustedTrebleMelody, numAccidentals]);
   const bassAccidentals = useMemo(() => generateAccidentalMap(adjustedBassMelody.notes, numAccidentals),
@@ -2144,7 +2158,7 @@ const SheetMusic = ({
                           noteColoringMode={noteColoringMode}
                           tonic={tonic}
                           scaleNotes={scaleNotes}
-                          processedChords={processedChords}
+                          processedChords={coloringChords}
                           theme={theme}
                           inputTestState={inputTestState}
                           previewMode={false}
@@ -2193,7 +2207,7 @@ const SheetMusic = ({
                           noteColoringMode={noteColoringMode}
                           tonic={tonic}
                           scaleNotes={scaleNotes}
-                          processedChords={processedChords}
+                          processedChords={coloringChords}
                           theme={theme}
                           inputTestState={inputTestState}
                           previewMode={false}
