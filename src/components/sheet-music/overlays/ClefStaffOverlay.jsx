@@ -204,6 +204,7 @@ const ClefStaffOverlay = ({
     trebleSettings, bassSettings,
     tonic, scaleNotes,           // current key — reference notes are tonic+5th+octave
     noteColoringMode,            // selected card colours its notes per this scheme (A3)
+    activeChord = null,          // paused active chord (last-if-tonic-else-first) for chord colour
     isNarrow = false,            // narrow screens: only the selected card shows notes (A7)
     percussionVoiceSplit = false,
     percussionDisabled = false,
@@ -384,7 +385,7 @@ const ClefStaffOverlay = ({
                         transSemitones={totalTrans}
                         instLabel={getTranspositionInstLabel(transKey, transOctave)}
                         noteColoringMode={noteColoringMode} tonic={tonic}
-                        scaleNotes={scaleNotes} theme={theme}
+                        scaleNotes={scaleNotes} theme={theme} activeChord={activeChord}
                         onSelectTrans={(t) => {
                             const { key, octave } = decomposeTrans(t);
                             onApplyClefPatch?.(staff, patchForTransposition(key, octave));

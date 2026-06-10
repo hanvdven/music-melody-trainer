@@ -170,7 +170,9 @@ export const getTranspositionFifths = (key) => {
  */
 export const getTranspositionInstLabel = (key, octave = 0) => {
     if (!octave) return getTranspositionDisplay(key);
-    const arrows = (octave > 0 ? '↑' : '↓').repeat(Math.min(Math.abs(octave), 2));
+    // Arrow reflects the CONCERT octave (Han 2026-06-10 swap): low concert sound → ↓, high → ↑.
+    // octave is the WRITTEN-octave part, so it inverts: octave > 0 (written up) ⇒ concert down ⇒ ↓.
+    const arrows = (octave > 0 ? '↓' : '↑').repeat(Math.min(Math.abs(octave), 2));
     return `${getTranspositionLabel(key)}${arrows} inst`;
 };
 
