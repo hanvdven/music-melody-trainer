@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { getNoteFromValue } from '../../../utils/rangeUtils';
 import { normalizeNoteChars, melodicNoteColor, getNoteSemitone } from '../../../theory/noteUtils';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
@@ -128,10 +128,39 @@ const TranspositionSetter = ({
     const [dragDelta, setDragDelta] = useState(null);
     const dragRef = useRef(null);   // { side, startClientY }
 
+    // Tween state (Han 2026-06-09, Stage E): when transSemitones changes via a TAP (preset/head/
+    // name), the carousels scroll to the new value instead of jumping. animOffset starts at
+    // (old−new) and eases to 0, so effTrans glides from old to new. A drag-release skips this
+    // (the drag already moved the carousel) via skipAnimRef.
+    const [animOffset, setAnimOffset] = useState(0);
+    const prevTransRef = useRef(transSemitones);
+    const animRef = useRef(0);
+    const skipAnimRef = useRef(false);
+    useEffect(() => {
+        const prev = prevTransRef.current;
+        prevTransRef.current = transSemitones;
+        if (prev === transSemitones) return;
+        if (skipAnimRef.current) { skipAnimRef.current = false; setAnimOffset(0); return; }
+        const startOffset = prev - transSemitones;   // effTrans starts at `prev`, eases to new
+        const DURATION = 280;
+        const t0 = performance.now();
+        cancelAnimationFrame(animRef.current);
+        const tick = (now) => {
+            const p = Math.min(1, (now - t0) / DURATION);
+            const eased = 1 - Math.pow(1 - p, 3);    // easeOutCubic
+            setAnimOffset(startOffset * (1 - eased));
+            if (p < 1) animRef.current = requestAnimationFrame(tick);
+            else setAnimOffset(0);
+        };
+        animRef.current = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(animRef.current);
+    }, [transSemitones]);
+
     if (startX == null || endX == null) return null;
 
+    // Live delta = an in-progress drag (fractional) OR the tween offset; the two never overlap.
     const dragging = dragDelta != null || debugDragDelta !== 0;
-    const liveDelta = dragDelta != null ? dragDelta : debugDragDelta;
+    const liveDelta = (dragDelta != null ? dragDelta : debugDragDelta) + animOffset;
     // Effective (possibly fractional) offset that drives BOTH carousels so they slide together.
     const effTrans = clampTrans(transSemitones + liveDelta);
     const color = 'var(--text-primary)';
@@ -180,7 +209,8 @@ const TranspositionSetter = ({
         const snapped = clampTrans(Math.round(transSemitones + (dragDelta || 0)));
         dragRef.current = null;
         setDragDelta(null);
-        if (snapped !== transSemitones) onSelectTrans?.(snapped);
+        // Don't tween after a drag — the carousel already followed the finger to `snapped`.
+        if (snapped !== transSemitones) { skipAnimRef.current = true; onSelectTrans?.(snapped); }
     };
 
     // ── LEFT: fixed written-C4 note + concert note-NAME carousel ────────────────────────

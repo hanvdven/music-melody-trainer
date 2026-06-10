@@ -1184,6 +1184,18 @@ for melodic-note geometry, which `renderMelodyNotes` also imports. See CLAUDE.md
   digit in a subscript `<tspan>` (C₄) and sizes the active row to the `=` label size (16).
 - **Left layout.** `[clef] [fixed C4 head via StaffQuarterNote] "=" [concert-name carousel]` —
   the rendered note replaces the old "C4" text.
+- **Colour.** Heads are coloured by their SOUNDING (concert) pitch: the active head + fixed C4 use
+  the C4 colour (the active selection represents concert C4); the fixed written-C4 head specifically
+  uses the colour of the pitch it sounds (`C4 − trans`), so on a B♭ instrument it shows the B♭
+  colour. `(X inst)` label sits at the staff's top-right. Quick-picks are a right-hand column,
+  only the active one highlighted.
+- **Range + octave clefs (Stage D).** The carousel spans ±2 octaves (C2…C6). The selected total is
+  decomposed into an instrument key + `transpositionOctave`; the optimal clef is computed from the
+  written notes, so an octave transposition auto-selects an 8va/15ma/8vb/15vb clef and the head
+  returns near the staff. The vertical clip masks fanned heads above/below.
+- **Tween (Stage E).** When `transSemitones` changes via a TAP (preset/head/name), an `animOffset`
+  eases (easeOutCubic, 280 ms) from old→new so the carousels scroll to the value instead of
+  jumping. A drag-release skips the tween (the finger already moved it).
 
 ### 15.2 Global transposition (item 5, Han 2026-06-09)
 

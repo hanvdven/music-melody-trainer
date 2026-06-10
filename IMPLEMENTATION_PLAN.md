@@ -925,3 +925,11 @@ a global-mode detector (treble.trans === bass.trans && !== 0).
      (Han: "why don't you just render them as normal melodies?") so colour fns apply.
   ⏳ Item 5 global transposition (model above).
   ⏳ Stage E: carousel animation (tween on preset click instead of jump).
+
+## DONE (Han 2026-06-09 session): items 1,2, D, 5(a/b/c), I, E
+  ✅ 1 (X inst) top-right · 2 fixed C4 coloured by sounding pitch
+  ✅ D 2-octave range via auto octave-clefs (transpositionOctave + decompose + written-note clef)
+  ✅ 5 GLOBAL transposition: header written key + (X instrument) line; chord LETTER labels
+       transposed; absolute solfège transposed (relative invariant). Auto when both staves match.
+  ✅ I percussion pattern in notation setter coloured via real colour mode (active option)
+  ✅ E carousel tween on tap (easeOutCubic, 280ms); drag-release skips the tween
