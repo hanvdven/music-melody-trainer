@@ -27,8 +27,8 @@ import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
-import { getNoteSemitone, getKodalySolfege } from '../../theory/noteUtils';
-import { getNoteIndex, transposeMelodyBySemitones } from '../../theory/musicUtils';
+import { getNoteSemitone, getKodalySolfege, respellToKeySignature } from '../../theory/noteUtils';
+import { getNoteIndex, transposeMelodyBySemitones, transposeNoteBySemitones } from '../../theory/musicUtils';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import { isCompoundMeter, getEffectiveBeatDuration, getBeatDurationTicks, getTakadimiSyllable, getTakadimiSyllableGrouped, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
 
@@ -1368,13 +1368,20 @@ const SheetMusic = ({
   // Font size for individual chord notes — slightly smaller to fit multiple stacked syllables
   const LYRIC_CHORD_FONT_SIZE = 13;
 
-  // Returns {base, acc} solfège pair for a single note string.
+  // Returns {base, acc} solfège pair for a single note string. RELATIVE solfège (doremi-rel,
+  // kodaly) is invariant under global transposition — the note↔tonic relationship is the same in
+  // either domain — so those modes need no adjustment. ABSOLUTE doremi (Do=C) does: under a global
+  // transposition the shown note is the written one, so transpose+respell before reading it
+  // (item 5, 5c). chordTransSemitones is 0 unless both staves share a transposition.
   const getSolfegeForNote = (rawNote) => {
     if (lyricsMode === 'doremi-rel') {
       const tonicLetter = (tonic || 'C').replace(/[♯♭𝄪𝄫]/gu, '').replace(/-?\d+$/, '')[0] || 'C';
       return spellingToSolfege(rawNote, tonicLetter);
     } else if (lyricsMode === 'doremi-abs') {
-      return spellingToSolfege(rawNote, 'C');
+      const written = chordTransSemitones
+        ? respellToKeySignature(transposeNoteBySemitones(rawNote, chordTransSemitones), chordWrittenAccidentals)
+        : rawNote;
+      return spellingToSolfege(written, 'C');
     } else {
       return getKodalySolfege(rawNote, tonic);
     }

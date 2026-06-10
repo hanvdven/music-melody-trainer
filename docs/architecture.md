@@ -1185,6 +1185,34 @@ for melodic-note geometry, which `renderMelodyNotes` also imports. See CLAUDE.md
 - **Left layout.** `[clef] [fixed C4 head via StaffQuarterNote] "=" [concert-name carousel]` —
   the rendered note replaces the old "C4" text.
 
+### 15.2 Global transposition (item 5, Han 2026-06-09)
+
+**Purpose:** Two transposition *types*. **Staff-level** (default): each staff transposes
+independently — only that staff's note positions + key signature move to the written pitch.
+**Global**: triggered automatically when BOTH staves carry the **same** transposition (key +
+octave) and it isn't concert. In global mode the whole *naming* domain moves to the written pitch
+("concert B♭ denoted as C") — on top of the per-staff position/key-signature shift that already
+happens.
+
+**What moves in global mode:**
+- **Header key** (`AppHeader`): the title shows the WRITTEN key. `App` computes `displayTonic` =
+  concert tonic transposed by the global interval and respelled to the written key signature
+  (`respellToKeySignature`), and a `(X instrument)` subtitle line.
+- **Chord LETTER labels** (`ChordLabelsLayer`): the root letter is transposed + respelled to the
+  written key (`chordTransSemitones`/`chordWrittenAccidentals` from `SheetMusic`). Roman numerals
+  are tonic-relative → unchanged. Chord COLOUR stays on the concert (sounding) root.
+- **Absolute solfège** (`doremi-abs`): the note is transposed+respelled before reading its Do=C
+  syllable. **Relative** solfège (`doremi-rel`, `kodaly`) is invariant (note↔tonic relationship is
+  the same in either domain) — no change.
+
+**Invariants:** Audio always plays concert pitch. Roman numerals and relative solfège never change
+under transposition. Note colour follows the **sounding** (concert) pitch even when the name shown
+is the written one.
+
+**Files:** `App.jsx` (`globalTransposition`, `displayTonic`), `AppHeader.jsx` (+ `.css` subtitle),
+`SheetMusic.jsx` (`globalSameTrans`, `chordTransSemitones`, `chordWrittenAccidentals`, abs-solfège),
+`ChordLabelsLayer.jsx`, `transposingInstruments.js` (`getTranspositionLabel`).
+
 ### 15.1b Overlay frame lines (Han 2026-06-09)
 
 Overlay menus (clef/transposition/range) are framed by a single vertical line at `endX`, drawn
