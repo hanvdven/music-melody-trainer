@@ -3,16 +3,7 @@ import {
     VOCAL_VARIANTS, clefFamilyKey, carouselOrder,
     patchForFamily, patchForVocal, patchForTransposition,
 } from './clefSelector';
-import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionDisplay, getTranspositionLabel } from '../../../constants/transposingInstruments';
-
-// "(X inst)" label with octave ARROWS for an octave-shifted notation (Han 2026-06-09): the octave
-// part of the transposition is shown as ↑ / ↓ (one per octave), e.g. concert C4 = C3 → "C↓ inst",
-// C4 = C2 → "C↓↓ inst". Octave 0 → the plain display label.
-const instLabelWithOctave = (key, octave) => {
-    if (!octave) return getTranspositionDisplay(key);
-    const arrows = (octave > 0 ? '↑' : '↓').repeat(Math.min(Math.abs(octave), 2));
-    return `${getTranspositionLabel(key)}${arrows} inst`;
-};
+import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionInstLabel } from '../../../constants/transposingInstruments';
 import ClefCardCarousel from './ClefCardCarousel';
 import TranspositionSetter from './TranspositionSetter';
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
@@ -391,7 +382,7 @@ const ClefStaffOverlay = ({
                         staff={staff} clef={clef} staffStart={staffStart}
                         startX={startX} endX={endX}
                         transSemitones={totalTrans}
-                        instLabel={instLabelWithOctave(transKey, transOctave)}
+                        instLabel={getTranspositionInstLabel(transKey, transOctave)}
                         noteColoringMode={noteColoringMode} tonic={tonic}
                         scaleNotes={scaleNotes} theme={theme}
                         onSelectTrans={(t) => {

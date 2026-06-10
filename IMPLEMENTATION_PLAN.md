@@ -94,8 +94,8 @@ RANGE / clef-card carousel:
 - 🐞 Transition: 8vb-etc ottava glyphs + the brackets ("blokhaken") don't slide in
   with the morph (left behind / not animated).
 - 🐞 Chords don't sit neatly inside the card block (see screenshot).
-- 🐞 ext/add chord: the 3 columns (accidentals · middle notes · right notes) are too
-  cramped → widen column spacing.
+- ✅ 🐞 ext/add chord: the 3 columns (accidentals · middle notes · right notes) are too
+  cramped → widen column spacing. [Han verified fixed 2026-06-10]
 - 🔨 Remove the C4 ledger ("streepje"): transpose REF_NOTES up so they start at D4.
 - 🐞 Drag is confusing. Desired: clicking/dragging to the RIGHT of the range (outside)
   → drag-left = "pull notes from the right" = RAISE range. On the range setter itself
@@ -103,13 +103,13 @@ RANGE / clef-card carousel:
 - 🔨 Make lowlight colour for ALL non-selections a bit darker grey (dark mode).
 
 NOTATION (sheet music rendering):
-- 🐞 Percussion beam is yellow (should match note colour, not yellow).
-- 🐞 Clefs sit too far right — don't match real sheet-music clef x-position.
+- ✅ 🐞 Percussion beam is yellow (should match note colour, not yellow). [Han verified 2026-06-10]
+- ✅ 🐞 Clefs sit too far right — don't match real sheet-music clef x-position. [Han verified 2026-06-10]
 - 🔨 Notes too close to clef & each other → make blocks roomier.
 - 🐞 Clipping at the bottom of notes/clefs around the C-ledger height.
 - 🐞 8va treble clef doesn't render (ALT+0160 = nbsp → wrong/missing ottava glyph char).
-- 🐞 Instrument name: wrong position rel. to clef vs sheet music + different font size +
-  italic. MUST be consistent (Han frustrated — prioritise).
+- ✅ 🐞 Instrument name: wrong position rel. to clef vs sheet music + different font size +
+  italic. MUST be consistent. [Han verified 2026-06-10 — "(X inst)" now top-right]
 - 🐞 Chords too close together + not at same height as in sheet music.
 
 CLEFS distribution / vocal:

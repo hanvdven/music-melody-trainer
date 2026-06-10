@@ -164,6 +164,17 @@ export const getTranspositionFifths = (key) => {
 };
 
 /**
+ * Instrument label with octave ARROWS (Han 2026-06-10), shown above the clef and in the setter.
+ * The octave part of the transposition is rendered as ↑ / ↓ (one per octave, lower-notated = ↓),
+ * e.g. concert C4 = C3 → "C↓ inst", C4 = C2 → "C↓↓ inst". Octave 0 → the plain display label.
+ */
+export const getTranspositionInstLabel = (key, octave = 0) => {
+    if (!octave) return getTranspositionDisplay(key);
+    const arrows = (octave > 0 ? '↑' : '↓').repeat(Math.min(Math.abs(octave), 2));
+    return `${getTranspositionLabel(key)}${arrows} inst`;
+};
+
+/**
  * Returns the short pitch label (Unicode accidental), e.g. "B♭", for a transposition key.
  * Used for the global "(X instrument)" header line. Returns "C" for concert/unknown.
  */
