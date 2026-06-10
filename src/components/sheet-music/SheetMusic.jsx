@@ -1197,9 +1197,14 @@ const SheetMusic = ({
       try {
         const notes = JSON.parse(noteGroup.getAttribute('data-notes'));
         const staff = noteGroup.getAttribute('data-mel') || 'treble';
-        if (onNoteClick && notes?.length) {
+        // data-notes holds the WRITTEN (transposed) note; audio must play CONCERT pitch, so
+        // un-transpose by the staff's display transposition before sounding it (Han 2026-06-09 bug:
+        // clicking a note on a transposed staff played the written pitch, not the sounding one).
+        const staffTrans = staff === 'bass' ? bassTransSemitones : (staff === 'treble' ? trebleTransSemitones : 0);
+        const concertNotes = staffTrans ? notes.map(n => transposeNoteBySemitones(n, -staffTrans)) : notes;
+        if (onNoteClick && concertNotes?.length) {
           flashElement(noteGroup);
-          onNoteClick(notes, staff);
+          onNoteClick(concertNotes, staff);
         }
       } catch { /* audio context may not be ready */ }
       return;
