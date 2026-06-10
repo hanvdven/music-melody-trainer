@@ -476,6 +476,9 @@ const ClefStaffOverlay = ({
                     {/* invisible hit target — no visible box around the notes (Han #14) */}
                     <rect x={hitX} y={HIT_Y} width={hitW} height={HIT_H} fill="transparent" />
                     <g style={{ pointerEvents: 'none' }}>
+                        {/* Stage I (Han 2026-06-09): the ACTIVE option colours its percussion heads
+                            through the real colour mode (chromatone) like the live staff; the
+                            inactive option stays a flat lowlight via previewMode. */}
                         {layers.map((L, i) => (
                             <MelodyNotesLayer key={i}
                                 {...PERC_LAYER_PROPS}
@@ -491,7 +494,8 @@ const ClefStaffOverlay = ({
                                 allOffsets={allOffsets}
                                 timeSignature={PERC_TS}
                                 theme={theme}
-                                previewMode={color}
+                                noteColoringMode={active ? noteColoringMode : 'none'}
+                                previewMode={active ? false : color}
                             />
                         ))}
                     </g>
