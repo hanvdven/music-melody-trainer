@@ -1,6 +1,7 @@
 import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
+import { StaffQuarterNote } from '../staffNoteGlyph';
 import { melodicNoteColor, getNoteSemitone } from '../../../theory/noteUtils';
 import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
 import { transposeMelodyBySemitones } from '../../../theory/musicUtils';
@@ -120,6 +121,32 @@ export const CONTEXT_NOTES = 3;    // naturals shown beyond each boundary
 const KEEP_IN = 3;                 // in-band naturals kept beside each boundary
 const GAP_SLOTS = 2;               // dummy slots reserved for the "…" gap
 const MIN_COLLAPSE = 3;            // only collapse if ≥ this many middle notes
+
+// ── Range-row x(t): the selected min/max sit at FIXED x (X_L / X_R) via a sigmoid ramp; notes
+// outside the range ride saturating tanh tails so NO ellipsis is ever needed (Han 2026-06-12).
+// t = note MIDI; Tl/Tr = selMin/selMax; Xl/Xr = fixed screen x; Al/Ar = tail amplitude.
+const SIGMOID = (z) => 1 / (1 + Math.exp(-z));
+const RANGE_K = 8;            // sigmoid steepness inside the active band (tune live)
+const RANGE_TAU = 4;          // tanh tail rate, in semitones (tune live)
+const RANGE_XL_FRAC = 0.30;   // min boundary x (fraction of the available width)
+const RANGE_XR_FRAC = 0.70;   // max boundary x
+const RANGE_CONTEXT = 17;     // semitones of out-of-range context shown each side
+const DRAG_PX_PER_STEP = 16;  // relative drag sensitivity: px per natural step
+const rangeX = (t, Tl, Tr, Xl, Xr, Al, Ar) => {
+    if (t < Tl) return Xl + Al * Math.tanh((t - Tl) / RANGE_TAU);
+    if (t > Tr) return Xr + Ar * Math.tanh((t - Tr) / RANGE_TAU);
+    if (Tr === Tl) return Xl;
+    const u = (t - Tl) / (Tr - Tl);
+    const s0 = SIGMOID(-RANGE_K / 2), s1 = SIGMOID(RANGE_K / 2);
+    return Xl + (Xr - Xl) * (SIGMOID(RANGE_K * (u - 0.5)) - s0) / (s1 - s0);
+};
+// Ledger-line Ys (every 10 units) between the 5-line staff and a notehead at drawn `y`.
+const rangeLedgerYs = (y, staffStart) => {
+    const out = [];
+    for (let g = staffStart - 10; y <= g; g -= 10) out.push(g);   // above the staff
+    for (let g = staffStart + 50; y >= g; g += 10) out.push(g);   // below the staff
+    return out;
+};
 
 const nearestIdx = (notes, midi) => {
     let bi = 0, bd = Infinity;
@@ -365,6 +392,9 @@ const RangeStaffOverlay = ({
     // Must sit BEFORE the early return so it's never called conditionally.
     React.useLayoutEffect(() => {
         if (startX == null || endX == null) return;
+        // Disabled (Han 2026-06-12): the ±1 slide tween belonged to the index-based layout; the
+        // x(t) layout is continuous (notes glide via re-render), so no body-scale/edge tween.
+        return; // eslint-disable-line no-unreachable
         const run = (staff, range, frame) => {
             if (!frame) return;
             const layout = getMelodicLayout(staff, getNoteValue(range?.min), getNoteValue(range?.max));
@@ -409,59 +439,36 @@ const RangeStaffOverlay = ({
         const selMin = getNoteValue(range?.min);
         const selMax = getNoteValue(range?.max);
 
-        const layout = getMelodicLayout(staff, selMin, selMax);
-        const { noteWidth, entries, allOffsets, colMidi, gap } = layout;
-        if (!entries.length) return null;
+        // x(t) layout (Han 2026-06-12): min/max at FIXED x; out-of-range notes on tanh tails →
+        // no window/ellipsis. Xl/Xr fixed; Al/Ar saturate the tails within the available width.
+        const Xl = startX + MEL_AVAIL * RANGE_XL_FRAC;
+        const Xr = startX + MEL_AVAIL * RANGE_XR_FRAC;
+        const Al = (Xl - startX) * 0.92;
+        const Ar = (endX - PRESET_AREA_WIDTH - Xr) * 0.92;
+        const rxFor = (midi) => rangeX(midi, selMin, selMax, Xl, Xr, Al, Ar);
+        // Visible naturals: the selection ± RANGE_CONTEXT semitones of saturating context.
+        const winNotes = PIANO_NATURALS.filter(n => n.midi >= selMin - RANGE_CONTEXT && n.midi <= selMax + RANGE_CONTEXT);
+        if (!winNotes.length) return null;
 
-        // Column → midi under an SVG x (handles the collapsed gap via colMidi).
-        const colAt = (x) => colMidi[Math.max(0, Math.min(colMidi.length - 1, Math.round((x - startX) / noteWidth)))];
+        // Nearest visible natural under an SVG x, using the x(t) positions.
+        const colAt = (x) => {
+            let best = winNotes[0].midi, bd = Infinity;
+            for (const n of winNotes) { const d = Math.abs(rxFor(n.midi) - x); if (d < bd) { bd = d; best = n.midi; } }
+            return best;
+        };
 
-        // Is this render a single ±1 slide vs the previous window? If so, one edge
-        // note enters (in `entries`, far context, dim) or leaves (synthesised from
-        // the piano list). Collapsed (ellipsis) layouts snap instantly.
-        const step = gap ? { kind: 'none' } : classifyStep(prevExtentRef.current[staff], layout.extent);
-        const enterMidi = step.kind === 'enter' ? PIANO_NATURALS[step.edgeIdx]?.midi : null;
-        let edgeEntry = null, edgeAllOffsets = allOffsets;
-        if (step.kind === 'enter') {
-            edgeEntry = entries.find(e => e.midi === enterMidi) || null; // far context note, slides in
-        } else if (step.kind === 'leave') {
-            const n = PIANO_NATURALS[step.edgeIdx];
-            const lastOff = allOffsets[allOffsets.length - 1];           // = W (linear layout)
-            // The hidden note sits one slot beyond the current edge and slides out.
-            const off = step.anchor === 'left' ? lastOff : 0;
-            edgeEntry = n ? { name: n.name, midi: n.midi, offset: off } : null;
-            if (step.anchor === 'left') edgeAllOffsets = [...allOffsets, lastOff + 1];
-        }
-
-        // The whole row is rendered as ONE MelodyNotesLayer (so ottava is computed
-        // ONCE — fixes the multi-8va bug §6b) with a PER-NOTE color override:
-        //   boundary notes → yellow (drag handles)
-        //   in-band notes  → the live melodic coloring (point 1)
-        //   out-of-band    → dim
-        // The entering note is excluded (it animates in the edge group below).
-        const bodyEntries = entries.filter(e => e.midi !== enterMidi);
-        // Han BUG-N6 (2026-06-08): a transposing staff must render its notes EXACTLY like
-        // the sheet — at the WRITTEN (transposed) position AND coloured by the written
-        // note (e.g. on an E♭ instrument concert B4 is written D5 and coloured as D). We
-        // therefore pass transpositionSemitones to the note layers (so the renderer
-        // transposes both position and name), and previewColorFn now receives the WRITTEN
-        // name. We still need the CONCERT midi to detect the boundary handles (selMin/
-        // selMax are concert) and the in/out-of-band split, so map written name → concert
-        // midi. (Supersedes the #16 "concert position, written colour" approach.)
+        // Transposed display (BUG-N6): render each natural at its WRITTEN position + WRITTEN colour,
+        // but key the boundary/in-band split off the CONCERT midi (selMin/selMax are concert).
         const trans = staff === 'treble' ? trebleTrans : bassTrans;
-        const concertNames = entries.map(e => e.name);
+        const concertNames = winNotes.map(n => n.name);
         const writtenNames = trans !== 0 ? transposeMelodyBySemitones(concertNames, trans) : concertNames;
-        const writtenByConcert = new Map(entries.map((e, i) => [e.name, writtenNames[i]]));
-        const concertMidiByWritten = new Map(entries.map((e, i) => [writtenNames[i], e.midi]));
-        // Concert name → written name, for the Y-position helpers (hit band, ellipsis)
-        // so they track the transposed noteheads.
+        const writtenByConcert = new Map(winNotes.map((n, i) => [n.name, writtenNames[i]]));
         const writtenName = (concertNm) => writtenByConcert.get(concertNm) ?? concertNm;
         const colorFor = (concertMidi, writtenNm) => {
             if (concertMidi === selMin || concertMidi === selMax) return 'var(--accent-yellow)';
             if (concertMidi > selMin && concertMidi < selMax) {
                 const base = melodicNoteColor(writtenNm, { noteColoringMode, tonic, scaleNotes, theme });
                 if (base) return base;
-                // Chords mode: colour by the paused active chord (sounding pitch) — Han 2026-06-10.
                 if (noteColoringMode === 'chords' && activeChord?.notes?.length) {
                     const pc = ((concertMidi % 12) + 12) % 12;
                     if (activeChord.notes.some(cn => getNoteSemitone(cn) === pc)) {
@@ -471,14 +478,7 @@ const RangeStaffOverlay = ({
                 }
                 return 'var(--text-primary)';
             }
-            // Out-of-band: same grey as the percussion notes, slightly lighter so it
-            // reads on the overlay background (Han 2026-06-01 #4).
             return 'var(--range-lowlight)';
-        };
-        // previewColorFn receives the WRITTEN note NAME (the layer is transposed).
-        const bodyColorFn = (writtenNm) => {
-            const cm = concertMidiByWritten.get(writtenNm);
-            return cm == null ? null : colorFor(cm, writtenNm);
         };
 
         // Press = start STEPPING the nearest boundary one natural per 0.25 s toward
@@ -489,12 +489,9 @@ const RangeStaffOverlay = ({
         const onDown = (e) => {
             if (!onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
-            // Two zones (Han #5, 2026-06-03): RIGHT of the highest selected note → this
-            // gesture controls the MAX boundary; anywhere on the setter (≤ max note) →
-            // it controls the MIN boundary. Drag is relative + 1:1 (see onMove).
-            const maxCol = colMidi.indexOf(selMax);
-            const maxNoteX = maxCol >= 0 ? startX + maxCol * noteWidth : (endX - PRESET_AREA_WIDTH);
-            const which = x > maxNoteX + noteWidth / 2 ? 'max' : 'min';
+            // Two zones: pick the NEAREST fixed boundary handle (min at Xl, max at Xr). Drag is
+            // relative + fixed-sensitivity (see onMove); min/max stay on their fixed x.
+            const which = Math.abs(x - Xl) <= Math.abs(x - Xr) ? 'min' : 'max';
             const target = colAt(x);
             const fromMidi = which === 'min' ? selMin : selMax;
             // Tap/hold still steps the zone's boundary toward the pressed column.
@@ -510,13 +507,11 @@ const RangeStaffOverlay = ({
             if (!s.dragged && Math.abs(x - d.x) > DRAG_THRESHOLD) {
                 s.dragged = true;                                  // promote to live drag
                 if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
-                dragRef.current = { staff, boundary: s.which, layout }; // freeze layout
             }
             if (s.dragged) {
-                // Relative 1:1 drag from the press point (Han #5). One note-width of drag
-                // = one natural step. MAX zone: drag-LEFT raises max ("pull notes in from
-                // the right"). MIN zone: drag-LEFT lowers min. The other boundary holds.
-                const steps = Math.round((x - d.x) / noteWidth);
+                // Relative drag from the press point (fixed sensitivity — the x(t) layout has no
+                // uniform note width). MAX zone: drag-LEFT raises max; MIN zone: drag-LEFT lowers min.
+                const steps = Math.round((x - d.x) / DRAG_PX_PER_STEP);
                 let midi;
                 if (d.zone === 'max') {
                     midi = shiftNatural(PIANO_NATURALS, d.maxAtPress, -steps);
@@ -540,8 +535,8 @@ const RangeStaffOverlay = ({
         // yLeft/yRight = the row's first (lowest) / last (highest) note Y. Common
         // left/right x so the treble & bass inner edges align exactly.
         // Band extent follows the WRITTEN (transposed) noteheads (Han BUG-N6).
-        const yLeft = getNoteAbsoluteY(writtenName(entries[0].name), staffStart, clef, staff);
-        const yRight = getNoteAbsoluteY(writtenName(entries[entries.length - 1].name), staffStart, clef, staff);
+        const yLeft = getNoteAbsoluteY(writtenName(winNotes[0].name), staffStart, clef, staff);
+        const yRight = getNoteAbsoluteY(writtenName(winNotes[winNotes.length - 1].name), staffStart, clef, staff);
         const xL = startX;
         const xR = endX - PRESET_AREA_WIDTH;
         // The OUTER edge is horizontal (less diagonal — point 2) at the row's
@@ -563,69 +558,28 @@ const RangeStaffOverlay = ({
 
         return (
             <g className={`range-row range-row-${staff}`} key={staff}>
-                {/* Body: the stable notes (+ ellipsis). The slide animation scales
-                    this group about the anchored boundary; the 8va lives inside it
-                    so it rides along. */}
-                <g ref={(el) => { bodyRefs.current[staff] = el; }} style={{ pointerEvents: 'none' }}>
-                    {bodyEntries.length > 0 && (
-                        // ONE layer for the whole row → ottava computed once (§6b).
-                        // previewMode='var(--text-primary)' keeps non-coloring modes
-                        // readable; previewColorFn paints each head per its band.
-                        <MelodyNotesLayer
-                            {...STATIC_LAYER_PROPS}
-                            melody={mkMelody(bodyEntries)}
-                            staff={staff}
-                            staffYStart={staffStart}
-                            clef={clef}
-                            startX={startX}
-                            noteWidth={noteWidth}
-                            allOffsets={allOffsets}
-                            timeSignature={timeSignature}
-                            theme={theme}
-                            transpositionSemitones={trans}
-                            previewMode="var(--text-primary)"
-                            previewColorFn={bodyColorFn}
-                        />
-                    )}
-                    {/* Diagonal "…" marking the collapsed in-band middle: 3 dots
-                        interpolated along the slant between the last-low and first-high
-                        kept notes, so the ellipsis follows the row's diagonal. */}
-                    {gap && [0.3, 0.5, 0.7].map((t, k) => {
-                        const yLo = getNoteAbsoluteY(writtenName(gap.lowName), staffStart, clef, staff);
-                        const yHi = getNoteAbsoluteY(writtenName(gap.highName), staffStart, clef, staff);
+                {/* Notes drawn at their x(t) positions (Han 2026-06-12): min/max at fixed Xl/Xr,
+                    context notes on the tanh tails. Out-of-range notes FADE + SHRINK with distance
+                    (like the transposition setter); in-range keep natural staff-y, opacity, size. */}
+                <g style={{ pointerEvents: 'none' }}>
+                    {winNotes.map((n) => {
+                        const wn = writtenName(n.name);
+                        const y = getNoteAbsoluteY(wn, staffStart, clef, staff);
+                        if (y == null) return null;
+                        const x = rxFor(n.midi);
+                        const inBand = n.midi >= selMin && n.midi <= selMax;
+                        const d = inBand ? 0 : (n.midi < selMin ? selMin - n.midi : n.midi - selMax);
+                        const opacity = inBand ? 1 : Math.max(0.15, 1 - d * 0.045);
+                        const s = inBand ? 1 : Math.max(0.5, 1 - d * 0.05);
                         return (
-                            <circle key={`ell-${k}`}
-                                cx={startX + gap.x0 + (gap.x1 - gap.x0) * t}
-                                cy={yLo + (yHi - yLo) * t}
-                                r={1.6} fill="var(--text-dim)"
-                                style={{ pointerEvents: 'none' }} />
+                            <g key={n.midi} opacity={opacity}
+                                transform={`translate(${x} ${y}) scale(${s}) translate(${-x} ${-y})`}>
+                                <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
+                                    ledgerYs={rangeLedgerYs(y, staffStart)} color={colorFor(n.midi, wn)} />
+                            </g>
                         );
                     })}
                 </g>
-                {/* Edge note: the single context note entering (slide+fade in) or
-                    leaving (slide+fade out) on a ±1 step. Its outer <g> gets the
-                    animated transform/opacity (set via rAF, never JSX — §6); the
-                    inner <g> carries the static out-of-band dim. */}
-                {edgeEntry && (
-                    <g ref={(el) => { edgeRefs.current[staff] = el; }} style={{ pointerEvents: 'none' }}>
-                        <g>
-                            <MelodyNotesLayer
-                                {...STATIC_LAYER_PROPS}
-                                melody={mkMelody([edgeEntry])}
-                                staff={staff}
-                                staffYStart={staffStart}
-                                clef={clef}
-                                startX={startX}
-                                noteWidth={noteWidth}
-                                allOffsets={edgeAllOffsets}
-                                timeSignature={timeSignature}
-                                theme={theme}
-                                transpositionSemitones={trans}
-                                previewMode="var(--range-lowlight)"
-                            />
-                        </g>
-                    </g>
-                )}
                 {/* Hit band covering the note row + 8va/8vb. Pointer-capture +
                     colAt() map any x to the target column, so a tap or drag anywhere
                     in the zone moves the nearest boundary. Treble & bass zones meet
