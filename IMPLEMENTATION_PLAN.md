@@ -729,13 +729,16 @@ P0 — CORRECTNESS (silent-bug risk, §6 invariant):
 P1 — PERFORMANCE (real wins, respect §6/§10 opacity+timing invariants):
   ✅ PERF-1 DONE Deleted dead processMelodyAndCalculateFlags call (SheetMusic.jsx:9,897) —
      computed every render in the hottest component, never read. Low-risk.
-  ⏳ PERF-2 Stabilise MelodyNotesLayer memo props (inputTestState / previewColorFn /
-     previewMode identity) so the memo actually hits — biggest win, ×K worse in scroll
-     mode (SheetMusic.jsx:2362-2517). Needs profiling first.
-  ⏳ PERF-3 Highlight rAF builds a sorted+joined string key every frame
-     (useSheetMusicHighlight.js:519-524) — replace with size+hash diff.
-  ⏳ PERF-4 (low) rAF dispatch on active mode only; in-place array mutation at Sequencer
-     boundary (Sequencer.js:471-475).
+  ⏳ PERF-2 DEFERRED (needs profiling) — the obvious derived props (scaleNotes,
+     coloringChords, allOffsets) are ALREADY useMemo'd; previewMode={false}/ppt are literals.
+     The real memo-breaker needs the React profiler to pinpoint (can't run headless), and a
+     blind useMemo sweep risks stale-render bugs in the hottest component (§6/§10). Park until
+     it can be profiled in a real browser.
+  ✅ PERF-3 DONE Replaced the per-frame [...set].sort().join(',') string alloc (note + chord
+     blocks) with a tiny size+membership setsDiffer(). Highlight behaviour unchanged.
+  ⏳ PERF-4 SKIPPED (low value, real risk) — the array rebuild at Sequencer.js:471-475 runs
+     ONCE PER MEASURE (not per frame), so it's not a hot path; mutating scheduledNotes in
+     place would jeopardise the append-only + lookahead-window invariant (§6) for ~nothing.
 
 P1 — TEST DEBT (§7b):
   ✅ DEBT-2 DONE Added rhythmicPriorities.test.js (decompose/chooseGrouping/DNA, odd meters). Add rhythmicPriorities.test.js for
@@ -743,12 +746,13 @@ P1 — TEST DEBT (§7b):
      generateRhythmicDNA integer-rank/slot invariants. De-risks DEBT-3/4.
 
 P2 — TECH DEBT (§6c/§7):
-  ⏳ DEBT-3 Hardcoded [8,4,2,1] subdivision table (rhythmicPriorities.js:285) — derive
-     from numberOfSlotsPerMeasure / existing divisor generator.
-  ⏳ DEBT-4 Duplicated numerator decomposition (rhythmicPriorities.js:29-57 vs 66-83) —
-     extract shared decomposeToGroupSizes(n).
-  ⏳ DEBT-5 Tombstone comments + dead 'lang' overshoot machinery (Sequencer.js:1064;
-     transitionPlanner.js:40-44). NOTE: 'lang' removal is a deliberate Han call — confirm.
+  ✅ DEBT-3 DONE Derive the [8,4,2,1] final-fallback rank divisions from
+     numberOfSlotsPerMeasure (right-shift halving). Byte-identical for 16 slots; generalises
+     (§6c). 240 tests green.
+  ✅ DEBT-4 DONE Extracted shared decomposeToGroupSizes(n); decomposeNumeratorToBeatGroups
+     + chooseGrouping now call it. Pure refactor, zero behaviour change.
+  ⏳ DEBT-5 DEFERRED — needs Han confirm: 'lang' overshoot removal is flagged a "deliberate
+     Han call", and CLAUDE.md §4 forbids removing comments (the tombstones) without asking.
 
 P2 — ARCHITECTURE / CONVENTIONS:
   ✅ ARCH-1 DONE Named 4 ErrorBoundaries (App.jsx:1330 → "sheet-music";
