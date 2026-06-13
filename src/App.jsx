@@ -191,6 +191,11 @@ const App = () => {
     // In-SVG clef-edit mode (Han 2026-06-01): drives ClefStaffOverlay. Sibling of
     // rangeEditMode; the two are mutually exclusive (and exclusive with settings).
     const [clefEditMode, setClefEditMode] = useState(false);
+    // Keyboard transposition (Han 2026-06-13): pitch-class offset 0-11 (0 = concert) that
+    // relabels/resounds/re-highlights the playable keyboard. Independent of the staff
+    // transposition (which transposes the NOTATION); this transposes the KEYS only. Set in
+    // TRANSPOSITION mode (clefEditMode) via the keyboard's "concert C =" control.
+    const [keyboardTranspose, setKeyboardTranspose] = useState(0);
     // In-SVG chord-edit mode (Han 2026-06-01): the chord-row selector (X/letters/
     // roman). Sibling of range/clef; mutually exclusive with them + settings.
 
@@ -1476,6 +1481,8 @@ const App = () => {
                     showSheetMusicSettings={showSheetMusicSettings}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}
+                    keyboardTranspose={keyboardTranspose}
+                    setKeyboardTranspose={setKeyboardTranspose}
                     resetSettingsTimer={resetSettingsTimer}
                     customPercussionMapping={customPercussionMapping}
                     setCustomPercussionMapping={setCustomPercussionMapping}
