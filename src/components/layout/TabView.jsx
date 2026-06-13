@@ -2,6 +2,7 @@ import React from 'react';
 import SheetMusic from '../sheet-music/SheetMusic';
 import PianoView from '../controls/PianoView';
 import KeyboardRangeSetter from '../controls/KeyboardRangeSetter';
+import KeyboardTransposeSetter from '../controls/KeyboardTransposeSetter';
 import RangeControls from '../controls/RangeControls';
 import ToneRecognizer from '../controls/ToneRecognizer';
 import DrumPad from '../controls/DrumPad';
@@ -144,7 +145,14 @@ const TabView = ({
                                 range setter (windowed keyboard + band + handles +
                                 preset buttons). Settings-only mode keeps the playable
                                 piano + the full RangeControls overlay. */}
-                            {(rangeEditMode || clefEditMode) ? (
+                            {clefEditMode ? (
+                                <KeyboardTransposeSetter
+                                    scale={scale}
+                                    instrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
+                                    keyboardTranspose={keyboardTranspose}
+                                    setKeyboardTranspose={setKeyboardTranspose}
+                                />
+                            ) : rangeEditMode ? (
                                 <KeyboardRangeSetter
                                     scale={scale}
                                     instrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
@@ -155,9 +163,6 @@ const TabView = ({
                                     qwertyKeyboardActive={qwertyKeyboardActive}
                                     onNoteInput={handleInputTestNote}
                                     debugMode={debugMode}
-                                    keyboardTranspose={keyboardTranspose}
-                                    setKeyboardTranspose={setKeyboardTranspose}
-                                    clefMode={clefEditMode}
                                 />
                             ) : (
                                 <>

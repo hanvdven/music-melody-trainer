@@ -97,16 +97,9 @@ export const buildPresetBracketRows = (presets, selRange, selClef, win) => {
 };
 export const presetViewHeight = () => PRESET_PAD * 2 + NUM_PRESET_ROWS * PRESET_ROW_H;
 
-// Pitch-class names for the "concert C =" keyboard-transpose stepper. Flat spellings match the
-// usual transposing-instrument keys (B♭, E♭, A♭…). Unicode accidentals only (CLAUDE.md §5b).
-const TRANSPOSE_PC_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
-
 const KeyboardRangeSetter = ({
     scale, instrument, activeClef, settings, setSettings,
     noteColoringMode = 'none', qwertyKeyboardActive = false, onNoteInput = null, debugMode = false,
-    // Keyboard transposition (Han 2026-06-13): the "concert C =" control shows only in clefMode
-    // (TRANSPOSITION mode); it rotates the real keyboard's pitch classes by `keyboardTranspose`.
-    keyboardTranspose = 0, setKeyboardTranspose = null, clefMode = false,
 }) => {
     // Layout frozen during a drag so the selector keys don't shift under the
     // finger; forceReanchor re-renders on release so the window re-centres.
@@ -271,33 +264,8 @@ const KeyboardRangeSetter = ({
     const bracketRows = buildPresetBracketRows(presets, range, selClef, win);
     const presetViewH = presetViewHeight();
 
-    // "concert C =" keyboard-transpose stepper — only in TRANSPOSITION mode. Steps the pitch-class
-    // offset 0-11; the displayed note is the key that concert C now lands on. ◀/▶ wrap mod 12; the
-    // ⟲ resets to concert (Han 2026-06-13). Mirrors the staff's "concert C4 =" setter conceptually.
-    const stepTranspose = (delta) =>
-        setKeyboardTranspose && setKeyboardTranspose((keyboardTranspose + delta + 12) % 12);
-    const transposeControl = clefMode && setKeyboardTranspose ? (
-        <div className="kbd-range-transpose" data-settings-keepalive=""
-            style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                padding: '4px 0', color: 'var(--text-primary)', fontSize: 14,
-            }}>
-            <span>concert C =</span>
-            <button onClick={() => stepTranspose(-1)} style={{ cursor: 'pointer', minWidth: 24 }}>◀</button>
-            <span style={{
-                minWidth: 28, textAlign: 'center', fontWeight: 'bold',
-                color: keyboardTranspose ? 'var(--accent-yellow)' : 'var(--text-primary)',
-            }}>{TRANSPOSE_PC_NAMES[keyboardTranspose]}</span>
-            <button onClick={() => stepTranspose(1)} style={{ cursor: 'pointer', minWidth: 24 }}>▶</button>
-            <button onClick={() => setKeyboardTranspose(0)} disabled={!keyboardTranspose}
-                title="reset to concert"
-                style={{ cursor: keyboardTranspose ? 'pointer' : 'default', marginLeft: 4, opacity: keyboardTranspose ? 1 : 0.4 }}>⟲</button>
-        </div>
-    ) : null;
-
     return (
         <div className="kbd-range-setter" data-settings-keepalive="" ref={wrapRef}>
-            {transposeControl}
             {/* 1. Preset brackets: 3 rows by size, both clefs sharing each row. The
                 current clef's bracket is highlighted (front); the other clef's is
                 dimmed and passes "behind", interrupted by "…" at the overlap. Tapping
@@ -377,7 +345,7 @@ const KeyboardRangeSetter = ({
                 </svg>
             </div>
 
-            {/* 3. Real playable keyboard — the impact of the selection (transposed in clefMode). */}
+            {/* 3. Real playable keyboard — the impact of the selection. */}
             <div className="kbd-range-real">
                 <PianoView
                     scale={scale}
@@ -388,7 +356,6 @@ const KeyboardRangeSetter = ({
                     noteColoringMode={noteColoringMode}
                     onNoteInput={onNoteInput}
                     qwertyKeyboardActive={qwertyKeyboardActive}
-                    transpose={clefMode ? keyboardTranspose : 0}
                 />
             </div>
         </div>

@@ -7,6 +7,26 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-13 (pm) — setter polish batch (Han)
+- ✅ R1 CHECK: does the RANGE setter apply note-GROUPING? NO. Melodic range notes are drawn
+  by `winNotes.map` → `StaffQuarterNote` at `rxFor(midi)` = pure PITCH spacing (the cosine
+  x(t)); the percussion row uses MelodyNotesLayer with STATIC_LAYER_PROPS
+  (noteGroupSize:1, measureLengthSlots:9999, rhythmicGrouping:null) → grouping disabled.
+  Nothing to fix — the uneven spacing Han sees is the intended cosine pitch-spacing.
+- ✅ R2 DONE: keyboard setters MIRROR the sheet-music setter modes — RANGE mode → keyboard
+  range setter; NOTATION mode → keyboard notation/transposition setter (NOT both at once;
+  today KeyboardRangeSetter shows for both + my −/+ stepper → both visible). Remove the
+  −/+ stepper; reuse the staff's transposition setter style; unify with the per-staff
+  transposition value (settings.transpositionKey / trebleTransSemitones). ⚠ sound semantics
+  fork — interview.
+- ⏳ 3a: setter-menu buttons (SubHeader RANGE/TRANSPOSITION/SETTINGS/…): all same highlight
+  colour, lowlight when inactive, GLOW when active — reuse the current-note highlight glow
+  (the note-active box-shadow). Reuse code.
+- ⏳ 3b: NEW "note colouring" settings menu. Staff-rendered, staff-independent (no clefs).
+  One row of 8 notes C4–C5 per colour scheme (COLOR_MODES = none, tonic_scale_keys, chords,
+  chromatone, subtle-chroma), click a row to select. ⚠ interview entry-point/scope.
+
+
 ## 2026-06-13 — Range setter spacing + debug tuner + keyboard transposition
 - ✅ Range x(t): sigmoid → **cosine-integral** ramp (uniform spacing near the range
   edges, compressing toward the middle). Tunable `compress` param.
