@@ -22,7 +22,7 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 - ✅ 3a DONE: setter-menu buttons (SubHeader RANGE/TRANSPOSITION/SETTINGS/…): all same highlight
   colour, lowlight when inactive, GLOW when active — reuse the current-note highlight glow
   (the note-active box-shadow). Reuse code.
-- ⏳ 3b: NEW "note colouring" settings menu. Staff-rendered, staff-independent (no clefs).
+- ✅ 3b DONE: NEW "note colouring" settings menu. Staff-rendered, staff-independent (no clefs).
   One row of 8 notes C4–C5 per colour scheme (COLOR_MODES = none, tonic_scale_keys, chords,
   chromatone, subtle-chroma), click a row to select. ⚠ interview entry-point/scope.
 

@@ -26,8 +26,10 @@ const SubHeader = ({
     onOpenRange,
     onOpenClef,
     onOpenSettings,
+    onOpenColor,
     rangeEditMode = false,
     clefEditMode = false,
+    colorEditMode = false,
     showSheetMusicSettings = false,
     windowWidth,
     difficultyMultiplier,
@@ -319,6 +321,14 @@ const SubHeader = ({
                         'RANGE',
                         onOpenRange,
                         rangeEditMode,
+                        null,
+                        true
+                    )}
+                    {onOpenColor && renderButton(
+                        <Palette size={22} />,
+                        'COLOUR',
+                        onOpenColor,
+                        colorEditMode,
                         null,
                         true
                     )}

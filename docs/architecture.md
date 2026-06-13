@@ -2943,12 +2943,34 @@ note is folded to the nearest octave (`foldShift → [-6,+6]`) so a key never ju
   highlight** comparisons (`getKeyClass`/`getKeyStyle` compute their pitch class
   from `tn(note)`; `isBlack`/key-shape stay on the PHYSICAL note). `tn` is the
   identity at `T=0`, so the normal keyboard is byte-for-byte unchanged.
-- The "concert C =" control is an HTML stepper in `KeyboardRangeSetter.jsx`, shown
-  only in TRANSPOSITION mode (`clefMode = clefEditMode`). ◀/▶ rotate mod 12, ⟲
-  resets to concert. The displayed note is the key concert C lands on
-  (`TRANSPOSE_PC_NAMES[T]`). The real playable keyboard (piece #3) receives
-  `transpose={clefMode ? keyboardTranspose : 0}`; the play-tab keyboards receive
-  `transpose={keyboardTranspose}` so the choice persists outside edit mode.
+- The setter is `KeyboardTransposeSetter.jsx` — a single C4–C5 octave (PianoView with
+  `interactionMode='set-transpose'`, no octave-number labels). Clicking any key makes THAT
+  key the new C, i.e. sets `keyboardTranspose` to the clicked key's pitch class (clicking C
+  resets to 0). It plays no sound. The keyboard is **mode-exclusive** (Han 2026-06-13,
+  superseded the −/+ stepper): TabView shows `KeyboardTransposeSetter` in NOTATION mode
+  (`clefEditMode`) and `KeyboardRangeSetter` in RANGE mode — mirroring the staff's
+  range-vs-notation setter split. The keyboard/input transposition is INDEPENDENT of the
+  staff NOTATION transposition (`transpositionKey`); both are visible/settable at once. The
+  play-tab keyboards receive `transpose={keyboardTranspose}` so the choice persists outside
+  edit mode.
+
+## 39. Note-colouring menu + setter-button styling (2026-06)
+
+**Note-colouring menu** (`overlays/NoteColoringStaffOverlay.jsx`, Han 2026-06-13). A new
+COLOUR setter mode (`colorEditMode` in App, sibling of range/clef/settings — mutually
+exclusive). It renders a staff-independent overlay: one self-contained row per colour scheme
+(`none, tonic_scale_keys, chords, chromatone, subtle-chroma`), each a 5-line staff segment
+(no clef) with 8 notes C4–C5 coloured by THAT scheme; tap a row to select it
+(`setNoteColoringMode`), active row highlighted. Reuses the canonical renderers (§6d):
+`StaffQuarterNote`, `getNoteAbsoluteY`, `melodicNoteColor`. Mounted simply on `colorEditMode`
+(not via the range/clef morph machinery); `overlayEditMode` includes it so the normal melody
+hides. Known limit: the `chords` row has no active chord here, so it falls back to neutral.
+
+**Setter-button styling** (`SubHeader.jsx`, Han 2026-06-13). The menu-toggle buttons
+(SETTINGS / TRANSPOSITION / RANGE / COLOUR) now share ONE highlight colour
+(`--accent-yellow`) via `renderButton(..., isMenuToggle=true)`: lowlit (opacity 0.4) when
+their menu is closed, full + a glow when active (the glow reuses the note-highlight triple
+drop-shadow). The real mode flags are passed from App as each button's `isActive`.
 
 **Invariants.**
 - `tn` MUST be the only place the physical→concert mapping happens; never re-derive
