@@ -196,6 +196,9 @@ const App = () => {
     // transposition (which transposes the NOTATION); this transposes the KEYS only. Set in
     // TRANSPOSITION mode (clefEditMode) via the keyboard's "concert C =" control.
     const [keyboardTranspose, setKeyboardTranspose] = useState(0);
+    // Note-colouring menu (Han 2026-06-13): a staff overlay showing every colour scheme as a
+    // row of C4–C5 notes. Sibling of range/clef; mutually exclusive with them + settings.
+    const [colorEditMode, setColorEditMode] = useState(false);
     // In-SVG chord-edit mode (Han 2026-06-01): the chord-row selector (X/letters/
     // roman). Sibling of range/clef; mutually exclusive with them + settings.
 
@@ -594,6 +597,7 @@ const App = () => {
             handleStopAllPlayback();
             if (showSheetMusicSettings) toggleSheetMusicSettings();
             setClefEditMode(false);   // range & clef modes are mutually exclusive
+            setColorEditMode(false);
         }
         setRangeEditMode(v => !v);
     }, [rangeEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -605,9 +609,21 @@ const App = () => {
             handleStopAllPlayback();
             if (showSheetMusicSettings) toggleSheetMusicSettings();
             setRangeEditMode(false);
+            setColorEditMode(false);
         }
         setClefEditMode(v => !v);
     }, [clefEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
+    // Note-colouring menu toggle — mirrors range/clef (stop playback, close the others).
+    const handleToggleColorEdit = useCallback(() => {
+        if (!colorEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setRangeEditMode(false);
+            setClefEditMode(false);
+        }
+        setColorEditMode(v => !v);
+    }, [colorEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
 
     // Toggle the legacy SETTINGS surface from its own SubHeader button (Han #13).
     // Mutually exclusive with clef/range (the catch-all effect closes those when
@@ -617,6 +633,7 @@ const App = () => {
             handleStopAllPlayback();
             setRangeEditMode(false);
             setClefEditMode(false);
+            setColorEditMode(false);
         }
         toggleSheetMusicSettings();
     }, [showSheetMusicSettings, handleStopAllPlayback, toggleSheetMusicSettings]);
@@ -1217,6 +1234,7 @@ const App = () => {
         showSettings: showSheetMusicSettings,
         rangeEditMode: rangeEditMode,
         clefEditMode: clefEditMode,
+        colorEditMode: colorEditMode,
         onToggleSettings: toggleSheetMusicSettings,
         onCloseRangeEdit: handleCloseRangeEdit,
         onCloseClefEdit: handleCloseClefEdit,
@@ -1244,7 +1262,7 @@ const App = () => {
         anacrusisMeasureIndex,
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
-        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, toggleSheetMusicSettings,
+        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, toggleSheetMusicSettings,
         handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
@@ -1344,8 +1362,10 @@ const App = () => {
                     onOpenSettings={handleToggleSettings}
                     onOpenRange={handleToggleRangeEdit}
                     onOpenClef={handleToggleClefEdit}
+                    onOpenColor={handleToggleColorEdit}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}
+                    colorEditMode={colorEditMode}
                     showSheetMusicSettings={showSheetMusicSettings}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}

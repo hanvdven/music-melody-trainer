@@ -11,6 +11,7 @@ import OttavaMarker from './OttavaMarker';
 import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
 import RangeStaffOverlay from './overlays/RangeStaffOverlay';
 import ClefStaffOverlay from './overlays/ClefStaffOverlay';
+import NoteColoringStaffOverlay from './overlays/NoteColoringStaffOverlay';
 import { clefFamilyKey } from './overlays/clefSelector';
 import ChordStaffOverlay from './overlays/ChordStaffOverlay';
 import ChordStyleOverlay from './overlays/ChordStyleOverlay';
@@ -176,6 +177,7 @@ const SheetMusic = ({
   showSettings,
   rangeEditMode,
   clefEditMode,
+  colorEditMode,
   onToggleSettings,
   onCloseRangeEdit,
   onCloseClefEdit,
@@ -437,7 +439,7 @@ const SheetMusic = ({
   // new flies in from the right. Either RANGE or CLEF mode triggers it (both replace
   // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
   // the duration. Fly distance = content width (user units). See useRangeMorph.
-  const overlayEditMode = rangeEditMode || clefEditMode || showSettings;
+  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || showSettings;
   // The currently-shown SURFACE drives the morph: switching between range / clef /
   // legacy-settings / melody re-arms the animation each time (Han #10/#11). The old
   // settings overlay is now the sliding 'legacy' surface.
@@ -2903,6 +2905,23 @@ const SheetMusic = ({
                   {overlayEditMode && (
                     <path d={`M ${endX} ${trebleStart} V ${bottomY}`}
                       stroke="var(--text-primary)" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
+                  )}
+
+                  {/* Note-colouring overlay — staff-independent: one self-contained row of
+                      C4–C5 notes per colour scheme, no clefs. Click a row to pick the scheme. */}
+                  {colorEditMode && (
+                    <NoteColoringStaffOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bottomY={bottomY}
+                      noteColoringMode={noteColoringMode}
+                      setNoteColoringMode={setNoteColoringMode}
+                      tonic={tonic}
+                      scaleNotes={scaleNotes}
+                      theme={theme}
+                      debugMode={debugMode}
+                    />
                   )}
 
                   {/* Range overlay — in-SVG selectable note rows. Kept mounted during
