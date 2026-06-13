@@ -103,10 +103,16 @@ const useSheetMusicHighlight = ({
 
         let rafId;
         let lastActiveKeys = new Set();
-        let lastActiveKey = '';
         let lastChordActiveKeys = new Set();
-        let lastChordActiveKey = '';
         let lastSetMeasureIndex = -1;
+        // Cheap "did this active-key set change?" check — replaces a per-frame
+        // [...set].sort().join(',') string allocation in the rAF hot loop (PERF-3). Sets here are
+        // tiny (notes/chords sounding at one instant), so size + membership is effectively O(1).
+        const setsDiffer = (a, b) => {
+            if (a.size !== b.size) return true;
+            for (const k of a) if (!b.has(k)) return true;
+            return false;
+        };
 
         // ── DOM lookup cache for note + chord highlighting ────────────────────
         // Before: every diff frame did a 3-attribute querySelectorAll per key
@@ -483,8 +489,8 @@ const useSheetMusicHighlight = ({
             if (!showNoteHighlightRef.current) {
                 if (lastActiveKeys.size > 0 || lastChordActiveKeys.size > 0) {
                     clearActive();
-                    lastActiveKeys = new Set(); lastActiveKey = '';
-                    lastChordActiveKeys = new Set(); lastChordActiveKey = '';
+                    lastActiveKeys = new Set();
+                    lastChordActiveKeys = new Set();
                 }
                 runWipeAnimation(svg);
                 runScrollAnimation();
@@ -496,13 +502,11 @@ const useSheetMusicHighlight = ({
             // ── NOTE-ACTIVE HIGHLIGHTING ──────────────────────────────────────────
             if (clearHighlightStateRef.current) {
                 lastActiveKeys = new Set();
-                lastActiveKey = '';
                 // Also reset chord tracking so the chord diff re-evaluates from scratch
                 // after a melody transition. Without this, stale lastChordActiveKeys entries
                 // will attempt to deactivate elements that may no longer exist in the DOM,
                 // silently skipping any chord that should be deactivated.
                 lastChordActiveKeys = new Set();
-                lastChordActiveKey = '';
                 // DOM elements were rebuilt; drop cached lookups so the next diff
                 // does a fresh query rather than relying on stale (disconnected) nodes.
                 noteElCache.clear();
@@ -521,8 +525,7 @@ const useSheetMusicHighlight = ({
                     if (now >= n.audioTime && now < n.audioTime + n.duration)
                         activeKeys.add(`${n.measureIndex}:${n.mel}:${n.localSlot}`);
                 }
-                const key = [...activeKeys].sort().join(',');
-                if (key !== lastActiveKey) {
+                if (setsDiffer(activeKeys, lastActiveKeys)) {
                     for (const k of lastActiveKeys) {
                         if (!activeKeys.has(k)) {
                             getNoteEls(k).forEach(el => el.classList.remove('note-active'));
@@ -534,7 +537,6 @@ const useSheetMusicHighlight = ({
                         }
                     }
                     lastActiveKeys = activeKeys;
-                    lastActiveKey = key;
                 }
             }
 
@@ -576,8 +578,7 @@ const useSheetMusicHighlight = ({
                         if (nowC >= c.audioTime && nowC < c.audioTime + c.duration)
                             chordActiveKeys.add(`${c.measureIndex}:${c.localSlot}`);
                     }
-                    const chordKey = [...chordActiveKeys].sort().join(',');
-                    if (chordKey !== lastChordActiveKey) {
+                    if (setsDiffer(chordActiveKeys, lastChordActiveKeys)) {
                         for (const k of lastChordActiveKeys) {
                             if (!chordActiveKeys.has(k)) {
                                 getChordEls(k).forEach(el => el.classList.remove('chord-label-active'));
@@ -589,7 +590,6 @@ const useSheetMusicHighlight = ({
                             }
                         }
                         lastChordActiveKeys = chordActiveKeys;
-                        lastChordActiveKey = chordKey;
                     }
                 }
             }
