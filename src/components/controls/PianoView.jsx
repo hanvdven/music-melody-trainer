@@ -33,6 +33,9 @@ const PianoView = ({
   trebleInstrument = null,
   interactionMode = 'play',
   onTonicSelect = null,
+  // 'set-transpose' interaction (keyboard transposition setter): clicking a key makes THAT key
+  // the new C — i.e. sets the transposition to the clicked key's pitch class (Han 2026-06-13).
+  onTransposeSelect = null,
   minNote = null, // optional
   maxNote = null, // optional
   isHighlightActive = true,
@@ -88,9 +91,10 @@ const PianoView = ({
 
     const src = tn(note);
     const notePC = src.replace(/\d+$/, '');
-    // Transposed keyboard shows pitch-class labels only — "C, D♭, D…" without the octave number,
-    // since the octave is fixed by the range setter (Han 2026-06-13).
-    const octave = tShift ? '' : (src.match(/\d+$/)?.[0] || '');
+    // Transposed keyboard + the transposition setter show pitch-class labels only — "C, D♭, D…"
+    // without the octave number, since the octave is fixed by the range setter (Han 2026-06-13).
+    const dropOctave = tShift !== 0 || interactionMode === 'set-transpose';
+    const octave = dropOctave ? '' : (src.match(/\d+$/)?.[0] || '');
 
     // Find index in internal scale by pitch class
     const idx = scale.notes.findIndex(s => s.replace(/\d+$/, '') === notePC);
@@ -484,6 +488,11 @@ const PianoView = ({
 
   const handlePointerDown = async (note, e) => {
     if (note === 'halfKey' || note === 'placeholder') return;
+    // Transposition setter: a click sets the transposition (clicked key → C) and plays nothing.
+    if (interactionMode === 'set-transpose') {
+      if (onTransposeSelect) onTransposeSelect(getNotePc(note));
+      return;
+    }
     if (activeKeysRef.current.has(note)) return;
     if (e && e.currentTarget) e.currentTarget.setPointerCapture(e.pointerId);
 
