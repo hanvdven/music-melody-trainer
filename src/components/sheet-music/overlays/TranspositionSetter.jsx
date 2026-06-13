@@ -378,7 +378,7 @@ const TranspositionSetter = ({
                 {/* RIGHT notehead carousel — "C4 =" label, drag surface, curve + heads (no clef) */}
                 <text x={rightLabelX} y={midY + 6} fontSize={LABEL_SIZE} fontFamily={LABEL_FONT}
                     textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
-                    C<tspan fontSize={Math.round(LABEL_SIZE * 0.7)} dy={LABEL_SIZE * 0.22}>4</tspan>
+                    concert C<tspan fontSize={Math.round(LABEL_SIZE * 0.7)} dy={LABEL_SIZE * 0.22}>4</tspan>
                     <tspan dy={-LABEL_SIZE * 0.22}> =</tspan>
                 </text>
                 <rect x={anchorX - 3 * X_SPACING - 12} y={bandTop} width={6 * X_SPACING + 24} height={bandH}
