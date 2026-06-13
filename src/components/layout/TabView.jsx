@@ -47,6 +47,8 @@ const TabView = ({
     showSheetMusicSettings,
     rangeEditMode,
     clefEditMode,
+    keyboardTranspose = 0,
+    setKeyboardTranspose,
     resetSettingsTimer,
     // Percussion custom mapping
     customPercussionMapping,
@@ -153,6 +155,9 @@ const TabView = ({
                                     qwertyKeyboardActive={qwertyKeyboardActive}
                                     onNoteInput={handleInputTestNote}
                                     debugMode={debugMode}
+                                    keyboardTranspose={keyboardTranspose}
+                                    setKeyboardTranspose={setKeyboardTranspose}
+                                    clefMode={clefEditMode}
                                 />
                             ) : (
                                 <>
@@ -165,6 +170,7 @@ const TabView = ({
                                         noteColoringMode={noteColoringMode}
                                         onNoteInput={handleInputTestNote}
                                         qwertyKeyboardActive={qwertyKeyboardActive}
+                                        transpose={keyboardTranspose}
                                     />
                                     {/* data-settings-keepalive stops the overlay's
                                         click-outside-to-close from firing when the user
@@ -231,6 +237,9 @@ const TabView = ({
                                     qwertyKeyboardActive={qwertyKeyboardActive}
                                     onNoteInput={handleInputTestNote}
                                     debugMode={debugMode}
+                                    keyboardTranspose={keyboardTranspose}
+                                    setKeyboardTranspose={setKeyboardTranspose}
+                                    clefMode={clefEditMode}
                                 />
                             ) : (
                                 <>
@@ -243,6 +252,7 @@ const TabView = ({
                                         noteColoringMode={noteColoringMode}
                                         onNoteInput={handleInputTestNote}
                                         qwertyKeyboardActive={qwertyKeyboardActive}
+                                        transpose={keyboardTranspose}
                                     />
                                     {showSheetMusicSettings && (
                                         <div data-settings-keepalive="" style={{

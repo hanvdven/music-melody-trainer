@@ -7,6 +7,19 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-13 — Range setter spacing + debug tuner + keyboard transposition
+- ✅ Range x(t): sigmoid → **cosine-integral** ramp (uniform spacing near the range
+  edges, compressing toward the middle). Tunable `compress` param.
+- ✅ Debug-mode **live tuner** in the range setter (sliders: compress, tanh τ,
+  Xl/Xr frac, context, drag px + reset).
+- ✅ Rename NOTATION button → **TRANSPOSITION**; staff setter label → "concert C =".
+- ✅ **Keyboard transposition** (pitch-class 0-11, no octave; −1≡+11): `tn()` in
+  PianoView shifts label/sound/highlight; "concert C =" stepper in
+  KeyboardRangeSetter (clefMode) + reset. State in App, drilled via TabView. See
+  docs/architecture.md §38.
+- ⏳ Verify in-app: keyboard sound/highlight/label shift + the stepper UI (couldn't
+  test interactively here).
+
 ---
 
 ## CONSISTENCY BATCH (Han 2026-06-09) — notation settings menu

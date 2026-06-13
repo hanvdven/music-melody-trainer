@@ -2916,3 +2916,49 @@ clef/range setters. This keeps every in-staff setter "one concern per staff row"
 **Open questions for Han before building:** (a) one combined PLAYBACK+EXERCISE
 button or two? (b) round switch UI: a single odd/even toggle, or a per-round column
 like today? (c) volume control style: vertical mini-slider vs stepped speaker icon?
+
+## 38. Keyboard Transposition — pitch-class relabelling of the playable keyboard (2026-06)
+
+**Purpose.** A transposing-instrument player (B♭ trumpet, E♭ alto, …) wants the
+on-screen piano to match THEIR fingering: the keys relabelled to their written
+note names, and pressing/highlighting follows. This is the keyboard analogue of
+the staff "concert C4 =" transposition setter — but it transposes the **KEYS**,
+not the notation (Han 2026-06-13: *"transpositie van de toetsen, níet van de
+notatie"*).
+
+**It is a pitch-CLASS rotation, not a semitone shift.** Han: *"klavier C – C is
+genoeg, zonder nummer. Want −1 en +11 is hetzelfde — de hoogte wordt al bepaald
+door de range setter."* So the value is a pitch class `keyboardTranspose ∈ 0..11`
+(0 = concert), the relabelled keys show **no octave number**, and the sounded
+note is folded to the nearest octave (`foldShift → [-6,+6]`) so a key never jumps
+~an octave away from its physical position.
+
+**How it works.**
+- State lives in `App.jsx` (`keyboardTranspose`, default 0) — global, independent
+  of the per-staff `transpositionKey/Octave` that transposes the notation.
+- A single transform `tn(physicalNote) = transposeNoteBySemitones(note,
+  foldShift(-T))` in `PianoView.jsx` maps each physical key to the **concert note**
+  it now represents. It drives, in lock-step: the **label** (pitch-class only when
+  `T≠0`), the **sound** (`playSound(tn(note))`), and the **scale/tonic/active
+  highlight** comparisons (`getKeyClass`/`getKeyStyle` compute their pitch class
+  from `tn(note)`; `isBlack`/key-shape stay on the PHYSICAL note). `tn` is the
+  identity at `T=0`, so the normal keyboard is byte-for-byte unchanged.
+- The "concert C =" control is an HTML stepper in `KeyboardRangeSetter.jsx`, shown
+  only in TRANSPOSITION mode (`clefMode = clefEditMode`). ◀/▶ rotate mod 12, ⟲
+  resets to concert. The displayed note is the key concert C lands on
+  (`TRANSPOSE_PC_NAMES[T]`). The real playable keyboard (piece #3) receives
+  `transpose={clefMode ? keyboardTranspose : 0}`; the play-tab keyboards receive
+  `transpose={keyboardTranspose}` so the choice persists outside edit mode.
+
+**Invariants.**
+- `tn` MUST be the only place the physical→concert mapping happens; never re-derive
+  it inline. Reuses `transposeNoteBySemitones` (musicUtils) — the same engine the
+  staff renderer uses (CLAUDE.md §6c). Do not hand-roll a second transposer.
+- Key SHAPE/colour (`isBlack`, white/black class) stays on the physical note; only
+  the highlight DECISION and the label use the concert note.
+- Pitch-class only: never surface an octave number on the transposed keyboard.
+
+**Files.** `App.jsx` (state + prop), `components/layout/TabView.jsx` (prop-drill to
+both PianoViews + both KeyboardRangeSetters), `components/controls/PianoView.jsx`
+(`transpose` prop, `tn`, `foldShift`), `components/controls/KeyboardRangeSetter.jsx`
+(the "concert C =" stepper + transposed real keyboard).
