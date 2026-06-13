@@ -729,11 +729,19 @@ P0 — CORRECTNESS (silent-bug risk, §6 invariant):
 P1 — PERFORMANCE (real wins, respect §6/§10 opacity+timing invariants):
   ✅ PERF-1 DONE Deleted dead processMelodyAndCalculateFlags call (SheetMusic.jsx:9,897) —
      computed every render in the hottest component, never read. Low-risk.
-  ⏳ PERF-2 DEFERRED (needs profiling) — the obvious derived props (scaleNotes,
-     coloringChords, allOffsets) are ALREADY useMemo'd; previewMode={false}/ppt are literals.
-     The real memo-breaker needs the React profiler to pinpoint (can't run headless), and a
-     blind useMemo sweep risks stale-render bugs in the hottest component (§6/§10). Park until
-     it can be profiled in a real browser.
+  ✅ PERF-2 INVESTIGATED → NO ACTION (Han asked "kun jij dat doen?", 2026-06-13). Did the
+     full static identity analysis the "needs profiling" note was guarding. Finding: EVERY
+     object/array/fn prop to the main MelodyNotesLayers is ALREADY referentially stable
+     (melody/allOffsets/scaleNotes/processedChords/clefs/transSemitones = useMemo;
+     inputTestState = useState; timeSignature = stable prop; previewMode = literal;
+     previewColorFn never passed). So the main memo already hits. The framed win doesn't
+     exist because (a) nothing to stabilise, and (b) the line-2452 "K-1 cache hits" comment
+     is a React.memo misconception — memo compares an element to ITS OWN previous render at
+     the same tree position, it does NOT dedupe K sibling panels. SheetMusic also doesn't
+     re-render per frame (currentMeasureIndex not read in render; highlight is pure-DOM rAF;
+     re-renders only at transition boundaries), so cost is bounded. SVG <use> dedup is ruled
+     out — incompatible with the data-attr highlight queries. ⚠ Misleading comment at
+     SheetMusic.jsx:2452-2453 flagged (§4) — correct or delete it on Han's OK.
   ✅ PERF-3 DONE Replaced the per-frame [...set].sort().join(',') string alloc (note + chord
      blocks) with a tiny size+membership setsDiffer(). Highlight behaviour unchanged.
   ⏳ PERF-4 SKIPPED (low value, real risk) — the array rebuild at Sequencer.js:471-475 runs
