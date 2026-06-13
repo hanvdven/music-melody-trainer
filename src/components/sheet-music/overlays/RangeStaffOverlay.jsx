@@ -125,21 +125,34 @@ const MIN_COLLAPSE = 3;            // only collapse if ≥ this many middle note
 // ── Range-row x(t): the selected min/max sit at FIXED x (X_L / X_R) via a sigmoid ramp; notes
 // outside the range ride saturating tanh tails so NO ellipsis is ever needed (Han 2026-06-12).
 // t = note MIDI; Tl/Tr = selMin/selMax; Xl/Xr = fixed screen x; Al/Ar = tail amplitude.
-const SIGMOID = (z) => 1 / (1 + Math.exp(-z));
-const RANGE_K = 8;            // sigmoid steepness inside the active band (tune live)
+// Middle ramp `g(u)` = integral of a cosine-shaped density (Han 2026-06-13): its derivative is
+// FLAT near the boundaries (u=0,1) → uniform spacing for the notes straddling each edge, and DIPS
+// in the middle → notes bunch up toward the centre. `a`∈[0,1): 0 = perfectly uniform (linear),
+// →1 = strong middle compression. g(0)=0, g(0.5)=0.5, g(1)=1 (symmetric).
+const rampG = (u, a) => (u - a * (u / 2 - Math.sin(2 * Math.PI * u) / (4 * Math.PI))) / (1 - a / 2);
+const RANGE_COMPRESS = 0.6;   // middle-compression amount (0..~0.95), tune live
 const RANGE_TAU = 4;          // tanh tail rate, in semitones (tune live)
 const RANGE_XL_FRAC = 0.30;   // min boundary x (fraction of the available width)
 const RANGE_XR_FRAC = 0.70;   // max boundary x
 const RANGE_CONTEXT = 17;     // semitones of out-of-range context shown each side
 const DRAG_PX_PER_STEP = 16;  // relative drag sensitivity: px per natural step
-const rangeX = (t, Tl, Tr, Xl, Xr, Al, Ar) => {
-    if (t < Tl) return Xl + Al * Math.tanh((t - Tl) / RANGE_TAU);
-    if (t > Tr) return Xr + Ar * Math.tanh((t - Tr) / RANGE_TAU);
+const rangeX = (t, Tl, Tr, Xl, Xr, Al, Ar, A = RANGE_COMPRESS, TAU = RANGE_TAU) => {
+    if (t < Tl) return Xl + Al * Math.tanh((t - Tl) / TAU);
+    if (t > Tr) return Xr + Ar * Math.tanh((t - Tr) / TAU);
     if (Tr === Tl) return Xl;
-    const u = (t - Tl) / (Tr - Tl);
-    const s0 = SIGMOID(-RANGE_K / 2), s1 = SIGMOID(RANGE_K / 2);
-    return Xl + (Xr - Xl) * (SIGMOID(RANGE_K * (u - 0.5)) - s0) / (s1 - s0);
+    return Xl + (Xr - Xl) * rampG((t - Tl) / (Tr - Tl), A);
 };
+
+// Debug-tunable range-layout parameters (Han 2026-06-13): each entry is [key, label, min, max,
+// step]. The live values live in component state; the constants above are the defaults.
+const RANGE_PARAM_DEFS = [
+    ['COMPRESS', 'compress', 0, 0.95, 0.05],
+    ['TAU', 'tanh τ', 1, 12, 0.5],
+    ['XL', 'Xl frac', 0.1, 0.45, 0.01],
+    ['XR', 'Xr frac', 0.55, 0.9, 0.01],
+    ['CONTEXT', 'context', 4, 30, 1],
+    ['DRAG', 'drag px', 6, 30, 1],
+];
 // Ledger-line Ys (every 10 units) between the 5-line staff and a notehead at drawn `y`.
 const rangeLedgerYs = (y, staffStart) => {
     const out = [];
@@ -261,6 +274,11 @@ const RangeStaffOverlay = ({
     // (Han 2026-05-31) — clearing the ref alone wouldn't re-render.
     const dragRef = React.useRef(null);
     const [, forceReanchor] = React.useReducer((n) => n + 1, 0);
+    // Live (debug-tunable) range-layout params; defaults from the module constants.
+    const [rp, setRp] = React.useState({
+        COMPRESS: RANGE_COMPRESS, TAU: RANGE_TAU, XL: RANGE_XL_FRAC, XR: RANGE_XR_FRAC,
+        CONTEXT: RANGE_CONTEXT, DRAG: DRAG_PX_PER_STEP,
+    });
 
     // ── Boundary SLIDE animation (Han 2026-05-31) ─────────────────────────────
     // A tap/hold steps the boundary one natural per STEP_MS (0.25 s) toward the
@@ -441,13 +459,13 @@ const RangeStaffOverlay = ({
 
         // x(t) layout (Han 2026-06-12): min/max at FIXED x; out-of-range notes on tanh tails →
         // no window/ellipsis. Xl/Xr fixed; Al/Ar saturate the tails within the available width.
-        const Xl = startX + MEL_AVAIL * RANGE_XL_FRAC;
-        const Xr = startX + MEL_AVAIL * RANGE_XR_FRAC;
+        const Xl = startX + MEL_AVAIL * rp.XL;
+        const Xr = startX + MEL_AVAIL * rp.XR;
         const Al = (Xl - startX) * 0.92;
         const Ar = (endX - PRESET_AREA_WIDTH - Xr) * 0.92;
-        const rxFor = (midi) => rangeX(midi, selMin, selMax, Xl, Xr, Al, Ar);
-        // Visible naturals: the selection ± RANGE_CONTEXT semitones of saturating context.
-        const winNotes = PIANO_NATURALS.filter(n => n.midi >= selMin - RANGE_CONTEXT && n.midi <= selMax + RANGE_CONTEXT);
+        const rxFor = (midi) => rangeX(midi, selMin, selMax, Xl, Xr, Al, Ar, rp.COMPRESS, rp.TAU);
+        // Visible naturals: the selection ± rp.CONTEXT semitones of saturating context.
+        const winNotes = PIANO_NATURALS.filter(n => n.midi >= selMin - rp.CONTEXT && n.midi <= selMax + rp.CONTEXT);
         if (!winNotes.length) return null;
 
         // Nearest visible natural under an SVG x, using the x(t) positions.
@@ -511,7 +529,7 @@ const RangeStaffOverlay = ({
             if (s.dragged) {
                 // Relative drag from the press point (fixed sensitivity — the x(t) layout has no
                 // uniform note width). MAX zone: drag-LEFT raises max; MIN zone: drag-LEFT lowers min.
-                const steps = Math.round((x - d.x) / DRAG_PX_PER_STEP);
+                const steps = Math.round((x - d.x) / rp.DRAG);
                 let midi;
                 if (d.zone === 'max') {
                     midi = shiftNatural(PIANO_NATURALS, d.maxAtPress, -steps);
@@ -788,6 +806,33 @@ const RangeStaffOverlay = ({
             {isBassVisible && melodicPresetBrackets('bass', bassStart, clefBass, bassRange, bassFrame)}
             {isPercussionVisible && percussionStaffRow()}
             {isPercussionVisible && percussionPresets()}
+            {/* Debug-only live tuner for the x(t) range-layout params (Han 2026-06-13). */}
+            {debugMode && (
+                <foreignObject x={startX} y={2} width={236} height={158}>
+                    <div xmlns="http://www.w3.org/1999/xhtml" style={{
+                        font: '10px monospace', color: 'var(--text-primary)',
+                        background: 'rgba(0,0,0,0.72)', padding: '4px 6px', borderRadius: 4,
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', marginBottom: 2 }}>
+                            <span>range x(t)</span>
+                            <button style={{ font: '9px monospace', cursor: 'pointer' }}
+                                onClick={() => setRp({
+                                    COMPRESS: RANGE_COMPRESS, TAU: RANGE_TAU, XL: RANGE_XL_FRAC,
+                                    XR: RANGE_XR_FRAC, CONTEXT: RANGE_CONTEXT, DRAG: DRAG_PX_PER_STEP,
+                                })}>reset</button>
+                        </div>
+                        {RANGE_PARAM_DEFS.map(([key, label, min, max, step]) => (
+                            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <span style={{ width: 52 }}>{label}</span>
+                                <input type="range" min={min} max={max} step={step} value={rp[key]}
+                                    onChange={(e) => setRp(p => ({ ...p, [key]: parseFloat(e.target.value) }))}
+                                    style={{ flex: 1, minWidth: 0 }} />
+                                <span style={{ width: 30, textAlign: 'right' }}>{rp[key]}</span>
+                            </div>
+                        ))}
+                    </div>
+                </foreignObject>
+            )}
         </g>
     );
 };
