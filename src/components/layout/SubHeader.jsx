@@ -26,6 +26,9 @@ const SubHeader = ({
     onOpenRange,
     onOpenClef,
     onOpenSettings,
+    rangeEditMode = false,
+    clefEditMode = false,
+    showSheetMusicSettings = false,
     windowWidth,
     difficultyMultiplier,
 }) => {
@@ -75,8 +78,18 @@ const SubHeader = ({
                     noteColoringMode === 'chords' ? '#90EE90' :
                         'var(--note-tonic)';
 
-    const renderButton = (icon, label, onClick, isActive, forceColor) => {
-        const color = forceColor || (isActive ? 'var(--accent-yellow)' : '#88ccff');
+    const renderButton = (icon, label, onClick, isActive, forceColor, isMenuToggle = false) => {
+        // Menu-toggle buttons (SETTINGS / TRANSPOSITION / RANGE / COLOUR) all share ONE highlight
+        // colour: lowlit (dimmed) when their menu is closed, full + a GLOW when active. The glow
+        // reuses the current-note highlight pattern already used by the note-highlight button
+        // below (triple drop-shadow), tinted to the highlight colour (Han 2026-06-13).
+        const color = isMenuToggle
+            ? 'var(--accent-yellow)'
+            : (forceColor || (isActive ? 'var(--accent-yellow)' : '#88ccff'));
+        const glow = isMenuToggle && isActive
+            ? 'drop-shadow(0 0 8px var(--accent-yellow)) drop-shadow(0 0 4px var(--accent-yellow)) drop-shadow(0 0 2px var(--accent-yellow))'
+            : undefined;
+        const dim = isMenuToggle && !isActive ? 0.4 : 1;
         return (
             <div
                 onClick={(e) => { e.stopPropagation(); onClick(); }}
@@ -89,6 +102,7 @@ const SubHeader = ({
                     width: BW,
                     height: '30px',
                     boxSizing: 'border-box',
+                    opacity: dim,
                     transform: `scale(${btnScale})`,
                     transformOrigin: 'center center',
                 }}
@@ -103,7 +117,7 @@ const SubHeader = ({
                     width: BW, height: 54,
                     outline: debugMode ? '2px solid cyan' : undefined,
                 }} />
-                <div style={{ color: color, height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ color: color, filter: glow, height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {icon}
                 </div>
                 <span style={{
@@ -286,8 +300,9 @@ const SubHeader = ({
                         <Settings2 size={22} />,
                         'SETTINGS',
                         onOpenSettings,
-                        false,
-                        '#9aa0a6'
+                        showSheetMusicSettings,
+                        null,
+                        true
                     )}
                     {/* Chords are enabled/disabled inside the CLEF selector (Han #6) —
                         no standalone CHORDS button. */}
@@ -295,15 +310,17 @@ const SubHeader = ({
                         <Music2 size={22} />,
                         'TRANSPOSITION',
                         onOpenClef,
-                        false,
-                        '#c0a0ff'
+                        clefEditMode,
+                        null,
+                        true
                     )}
                     {onOpenRange && renderButton(
                         <MoveHorizontal size={22} />,
                         'RANGE',
                         onOpenRange,
-                        false,
-                        '#88ccff'
+                        rangeEditMode,
+                        null,
+                        true
                     )}
                 </div>
             )}
