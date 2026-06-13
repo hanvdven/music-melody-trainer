@@ -1344,6 +1344,9 @@ const App = () => {
                     onOpenSettings={handleToggleSettings}
                     onOpenRange={handleToggleRangeEdit}
                     onOpenClef={handleToggleClefEdit}
+                    rangeEditMode={rangeEditMode}
+                    clefEditMode={clefEditMode}
+                    showSheetMusicSettings={showSheetMusicSettings}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}
                 />

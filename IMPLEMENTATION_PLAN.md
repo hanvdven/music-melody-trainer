@@ -19,7 +19,7 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
   −/+ stepper; reuse the staff's transposition setter style; unify with the per-staff
   transposition value (settings.transpositionKey / trebleTransSemitones). ⚠ sound semantics
   fork — interview.
-- ⏳ 3a: setter-menu buttons (SubHeader RANGE/TRANSPOSITION/SETTINGS/…): all same highlight
+- ✅ 3a DONE: setter-menu buttons (SubHeader RANGE/TRANSPOSITION/SETTINGS/…): all same highlight
   colour, lowlight when inactive, GLOW when active — reuse the current-note highlight glow
   (the note-active box-shadow). Reuse code.
 - ⏳ 3b: NEW "note colouring" settings menu. Staff-rendered, staff-independent (no clefs).
