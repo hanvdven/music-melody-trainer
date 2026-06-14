@@ -2999,3 +2999,38 @@ drop-shadow). The real mode flags are passed from App as each button's `isActive
 both PianoViews + both KeyboardRangeSetters), `components/controls/PianoView.jsx`
 (`transpose` prop, `tn`, `foldShift`), `components/controls/KeyboardRangeSetter.jsx`
 (the "concert C =" stepper + transposed real keyboard).
+
+---
+
+## 40. Anacrusis REPEAT — pickup flows out of the last bar (Han 2026-06-14, in progress)
+
+**Purpose / Symptom.** A pickup (anacrusis) song that REPEATS replayed its pickup as a separate
+padded measure with a dead rest before each repeat. Musically the pickup of repeat *n+1* should sound
+at the END of repeat *n*'s last bar: the final note shortens to free the pickup beat on non-final
+repeats and rings full only on the very last repeat. Agreed rule (Han): **shorten the final note if
+possible; clip on overlap** — any note that starts inside the last bar's pickup region is disregarded,
+a note that overlaps it is clipped back to the pickup onset. The mechanism is **general / runtime** —
+the anacrusis is detected and the pieces are built at playback time, so it works for any pickup song.
+
+**How it works.** `src/utils/anacrusisRepeat.js` → `buildAnacrusisRepeatParts(melody, measureLen)`
+is the pure core. It splits a melody whose measure 0 is an anacrusis into three pieces:
+- `intro` — the pickup notes alone, offsets unchanged. Played ONCE, before repeat 1.
+- `loopClean` — the body (measures after the anacrusis) rebased to offset 0. The FINAL repeat; the
+  last note keeps its full length (clean ending).
+- `loopMerged` — the body with the anacrusis merged into the end of its last bar: notes starting at
+  or after `mergePoint` (= last-bar-start + pickup onset) are dropped, a note overlapping it is
+  clipped to `mergePoint`, then the pickup notes are appended at the pickup beat. Used for repeats
+  1..N-1 so each repeat ends on the next pickup.
+
+Playback order: `intro` → `loopMerged ×(reps-1)` → `loopClean ×1`.
+
+**Invariants.** Pure function, no scheduling/render side effects. Offsets/durations in ticks. Returns
+`hasAnacrusis:false` (loopClean = the melody unchanged) when the first note is on the downbeat. The
+canonical anacrusis detector stays `offsets[0] > 0` (§34) — this module reuses the same notion.
+
+**Status.** Phase 1 (transform + unit tests) DONE. Phase 2 (Sequencer: iteration-dependent melody —
+intro once, merged vs clean per iteration) and Phase 3 (pagination renders merged vs clean blocks +
+the one-time intro bar) are pending; both touch the §6/§7 scheduling and §11 pagination invariants
+and need interactive verification.
+
+**Files.** `src/utils/anacrusisRepeat.js`, `src/utils/__tests__/anacrusisRepeat.test.js`.

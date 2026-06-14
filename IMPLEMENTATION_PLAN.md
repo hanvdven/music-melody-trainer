@@ -995,3 +995,18 @@ a global-mode detector (treble.trans === bass.trans && !== 0).
        transposed; absolute solfège transposed (relative invariant). Auto when both staves match.
   ✅ I percussion pattern in notation setter coloured via real colour mode (active option)
   ✅ E carousel tween on tap (easeOutCubic, 280ms); drag-release skips the tween
+
+## ANACRUSIS REPEAT (Han 2026-06-14) — pickup flows out of the last bar on repeats
+Design agreed: SHORTEN the final note if possible; CLIP on overlap (notes starting inside the
+pickup region of the last bar are disregarded). GENERAL runtime mechanism — detect the anacrusis
+and build the pieces at runtime; works for any pickup song, not just HBD.
+  🔨 Phase 1 (DONE): pure transform `src/utils/anacrusisRepeat.js`
+       buildAnacrusisRepeatParts(melody, measureLen) → { hasAnacrusis, intro, loopClean, loopMerged }.
+       intro = pickup notes alone (play ONCE). loopClean = body rebased to 0 (FINAL repeat, full last
+       note). loopMerged = body with pickup merged into the last bar, overlapping note clipped to the
+       pickup start (repeats 1..N-1). Unit-tested.
+  ⏳ Phase 2: Sequencer integration — play intro once, then loopMerged ×(reps-1) + loopClean ×1.
+       Iteration-dependent melody content (Sequencer currently reuses one melody per iteration).
+       RISK: touches §6/§7 scheduling invariants — do with interactive verification.
+  ⏳ Phase 3: visual blocks — pagination must render loopMerged for non-final blocks and loopClean
+       for the final block, plus the one-time intro pickup bar.
