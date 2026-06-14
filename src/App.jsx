@@ -384,6 +384,7 @@ const App = () => {
         setReferenceMelody,
         setReferenceBassMelody,
         setReferenceScale,
+        setGlobalMeasureOffset,
     } = melodySetters;
 
     const { handleNoteClick, handleChordClick, handleNoteEnharmonicToggle } = useNoteInteraction({
@@ -503,6 +504,11 @@ const App = () => {
         // its first measure is mislabeled and the highlighter/scheduler line up
         // against stale state.
         setStartMeasureIndex(0);
+        // Also reset the cumulative history offset (Han 2026-06-14 bug): play start uses
+        // `melodies.globalMeasureOffset` as the initial measure index. After generating a few
+        // exercise blocks this offset is non-zero, so a freshly-loaded song would start mid-song
+        // ("halfway"). Reset it so the song begins at measure 0 / its anacrusis.
+        setGlobalMeasureOffset(0);
         // Keep the user's current bottom-view tab; loading a song should not
         // hijack the layout. Reported by Han 2026-05-22.
     }, [scale, setTonic, setSelectedMode,
@@ -510,7 +516,7 @@ const App = () => {
         setTrebleMelody, setBassMelody, setPercussionMelody, setChordProgression,
         setReferenceMelody, setReferenceBassMelody, setReferenceScale,
         setTimeSignature, setNumMeasures, setBpm, setPlaybackConfig,
-        setStartMeasureIndex]);
+        setStartMeasureIndex, setGlobalMeasureOffset]);
 
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
     const randomizeAll = randomizeAllLogic;
