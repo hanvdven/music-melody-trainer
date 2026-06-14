@@ -125,29 +125,28 @@ const MIN_COLLAPSE = 3;            // only collapse if ≥ this many middle note
 // ── Range-row x(t): the selected min/max sit at FIXED x (X_L / X_R) via a sigmoid ramp; notes
 // outside the range ride saturating tanh tails so NO ellipsis is ever needed (Han 2026-06-12).
 // t = note MIDI; Tl/Tr = selMin/selMax; Xl/Xr = fixed screen x; Al/Ar = tail amplitude.
-// Middle ramp = a normalised SIGMOID (Han restored 2026-06-14). σ(k(u-½)) is steepest in the
-// MIDDLE, so x moves fastest there → notes SPREAD toward the centre and bunch near the boundaries.
-// Higher k = steeper. σ(z) = 1/(1+e^{-z}); the ramp is normalised so g(0)=0, g(1)=1.
-const SIGMOID = (z) => 1 / (1 + Math.exp(-z));
-const RANGE_K = 8;            // sigmoid steepness inside the active band (tune live)
+// In-range ramp (Han 2026-06-14): x = Xl + (Xr−Xl)·(u − β·sin(πu)), u=(t−Tl)/(Tr−Tl). The
+// −β·sin(πu) term bows the linear map below the diagonal. Its derivative 1 − βπ·cos(πu) runs from
+// 1−βπ at the min edge (u=0) up to 1+βπ at the max edge (u=1), so notes pack TIGHTER toward Tl and
+// LOOSER toward Tr. Keep β < 1/π ≈ 0.318 so the spacing never reaches 0 (no overlapping notes).
+const RANGE_BETA = 0.2;       // in-range bow amount (0..~0.3), tune live
 const RANGE_TAU = 4;          // tanh tail rate, in semitones (tune live)
 const RANGE_XL_FRAC = 0.30;   // min boundary x (fraction of the available width)
 const RANGE_XR_FRAC = 0.70;   // max boundary x
 const RANGE_CONTEXT = 17;     // semitones of out-of-range context shown each side
 const DRAG_PX_PER_STEP = 16;  // relative drag sensitivity: px per natural step
-const rangeX = (t, Tl, Tr, Xl, Xr, Al, Ar, K = RANGE_K, TAU = RANGE_TAU) => {
+const rangeX = (t, Tl, Tr, Xl, Xr, Al, Ar, B = RANGE_BETA, TAU = RANGE_TAU) => {
     if (t < Tl) return Xl + Al * Math.tanh((t - Tl) / TAU);
     if (t > Tr) return Xr + Ar * Math.tanh((t - Tr) / TAU);
     if (Tr === Tl) return Xl;
     const u = (t - Tl) / (Tr - Tl);
-    const s0 = SIGMOID(-K / 2), s1 = SIGMOID(K / 2);
-    return Xl + (Xr - Xl) * (SIGMOID(K * (u - 0.5)) - s0) / (s1 - s0);
+    return Xl + (Xr - Xl) * (u - B * Math.sin(Math.PI * u));
 };
 
 // Debug-tunable range-layout parameters (Han 2026-06-13): each entry is [key, label, min, max,
 // step]. The live values live in component state; the constants above are the defaults.
 const RANGE_PARAM_DEFS = [
-    ['K', 'sigmoid k', 0.5, 16, 0.5],
+    ['BETA', 'β bow', 0, 0.3, 0.02],
     ['TAU', 'tanh τ', 1, 12, 0.5],
     ['XL', 'Xl frac', 0.1, 0.45, 0.01],
     ['XR', 'Xr frac', 0.55, 0.9, 0.01],
@@ -305,7 +304,7 @@ const RangeStaffOverlay = ({
     const [, forceReanchor] = React.useReducer((n) => n + 1, 0);
     // Live (debug-tunable) range-layout params; defaults from the module constants.
     const [rp, setRp] = React.useState({
-        K: RANGE_K, TAU: RANGE_TAU, XL: RANGE_XL_FRAC, XR: RANGE_XR_FRAC,
+        BETA: RANGE_BETA, TAU: RANGE_TAU, XL: RANGE_XL_FRAC, XR: RANGE_XR_FRAC,
         CONTEXT: RANGE_CONTEXT, DRAG: DRAG_PX_PER_STEP,
     });
 
@@ -492,7 +491,7 @@ const RangeStaffOverlay = ({
         const Xr = startX + MEL_AVAIL * rp.XR;
         const Al = (Xl - startX) * 0.92;
         const Ar = (endX - PRESET_AREA_WIDTH - Xr) * 0.92;
-        const rxFor = (midi) => rangeX(midi, selMin, selMax, Xl, Xr, Al, Ar, rp.K, rp.TAU);
+        const rxFor = (midi) => rangeX(midi, selMin, selMax, Xl, Xr, Al, Ar, rp.BETA, rp.TAU);
         // Visible naturals: the selection ± rp.CONTEXT semitones of saturating context.
         const winNotes = PIANO_NATURALS.filter(n => n.midi >= selMin - rp.CONTEXT && n.midi <= selMax + rp.CONTEXT);
         if (!winNotes.length) return null;
@@ -876,7 +875,7 @@ const RangeStaffOverlay = ({
                             <span>range x(t)</span>
                             <button style={{ font: '9px monospace', cursor: 'pointer' }}
                                 onClick={() => setRp({
-                                    K: RANGE_K, TAU: RANGE_TAU, XL: RANGE_XL_FRAC,
+                                    BETA: RANGE_BETA, TAU: RANGE_TAU, XL: RANGE_XL_FRAC,
                                     XR: RANGE_XR_FRAC, CONTEXT: RANGE_CONTEXT, DRAG: DRAG_PX_PER_STEP,
                                 })}>reset</button>
                         </div>
