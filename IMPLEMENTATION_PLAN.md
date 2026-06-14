@@ -7,6 +7,23 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-14 (pm) — range tuning + keyboard/transpose + chord names (Han, post-merge of #29)
+- ✅ 🐞 TabView bass-tab keyboard showed range setter in clefEditMode → KeyboardTransposeSetter.
+- ✅ 🐞 Octave index labels suppressed on ALL transposed keyboards → only suppress in the
+  transpose setter.
+- ✅ Transpose-setter keyboard now follows note-colouring (noteColoringMode/activeChord/theme).
+- 🔨 Range setter spacing (Han "help me tune"): densest near (Xl+Xr)/2, ~linear (~(Xr−Xl)/8),
+  first out-of-range note at (Xr−Xl)/8. Preset: τ=3, Xl=0.2, Xr=0.8, context=10, drag=6.
+  Use dense-middle bow g(u)=u+(β/2π)·sin(2πu) on the ordinal map.
+- 🔨 Range setter 8va/8vb triggers too eagerly → fold ONLY out-of-range context notes
+  (in-range notes stay true pitch); the 8va rules consider in-range notes only.
+- ⏳ Range setter 8va/8vb GLYPH style must match the melody's ottava (consistency).
+- ⏳ 🐞 Transposed keyboard: displayed RANGE still uses concert min/max. With Concert C=E +
+  range c4–e5 it shows A♭3–c5; should show c4–f5 (keys keep physical positions; e5→f5 since
+  the transposed boundary lands on a black key). Range labels must follow the transposition.
+- 🔨 Chord NAME labels not coloured → colour each chord label by its ROOT (chromatone/tonic).
+- ⏳ BACKLOG (song bugs) — see BACKLOG.md.
+
 ## 2026-06-13 (pm) — setter polish batch (Han)
 - ✅ R1 CHECK: does the RANGE setter apply note-GROUPING? NO. Melodic range notes are drawn
   by `winNotes.map` → `StaffQuarterNote` at `rxFor(midi)` = pure PITCH spacing (the cosine

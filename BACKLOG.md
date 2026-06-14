@@ -805,6 +805,27 @@ Echter: er bestaat momenteel **geen song met N.C.** om tegen te implementeren. Z
 
 ---
 
+### Song-load bugs (Han 2026-06-14)
+
+- Wanneer ik een paar maten genereer en dan Happy Birthday laad, begint het pas
+  halverwege het lied te spelen.
+- Wanneer ik een nieuw sequence-block genereer (via de "generate next sequence block"-knop),
+  vallen num measures / measure type / etc. terug naar de normale exercise-settings i.p.v.
+  de Happy-Birthday-settings.
+- Wanneer een lied geladen is, moet dat in de header weerspiegeld worden (bv. "Happy
+  Birthday in G major").
+- Bij een opmaat én herhaling: speel de opmaat tegelijk met de laatste maat van het vorige
+  repeat-block — indien herhaling. Render ze ook. Dat betekent dat de eerste paar
+  herhalingen en de laatste herhaling verschillen. Dit is complex; de visual blocks moeten
+  dit waarschijnlijk reflecteren. Er zijn noten van het volgende repeat-block die niet in
+  het repeat-block vallen. Heeft invloed op veel.
+  - Voorstel (Han): los dit op in de bladmuziek van het lied. Je hebt een `1 - repeats - 1`
+    block en een `repeats`-block voor de laatste maat; in de eerste zijn de opmaat-noten
+    verwerkt, in de tweede niet.
+
+[Claude 2026-06-14]: Gelogd vanuit chat. Nog niet geïmplementeerd — backlog (§4b interview
+vóór implementatie, m.n. het opmaat/herhaling-blok dat de Sequencer + visual blocks raakt).
+
 ### HBD/Song-load: reset measure number + fixed chord progression
 
 **Han 2026-05-28**: Bij song-load:
