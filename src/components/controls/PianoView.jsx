@@ -4,7 +4,14 @@ import logger from '../../utils/logger';
 import playSound from '../../audio/playSound';
 import { standardizeTonic, getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import generateAllNotesArray from '../../theory/allNotesArray';
-import { getCanonicalNote, ENHARMONIC_PAIRS, getNoteSemitone } from '../../theory/noteUtils';
+import { getCanonicalNote, ENHARMONIC_PAIRS, getNoteSemitone, chordNoteColor } from '../../theory/noteUtils';
+import { transposeNoteBySemitones } from '../../theory/musicUtils';
+
+// Fold a semitone offset into the nearest octave, range [-6, +6]. Keyboard transposition is a
+// PITCH-CLASS rotation (Han 2026-06-13: "−1 and +11 are the same — the height comes from the range
+// setter"), so we keep the sounded/relabelled note close to the physical key instead of jumping a
+// whole octave for large offsets.
+const foldShift = (s) => { const r = ((s % 12) + 12) % 12; return r > 6 ? r - 12 : r; };
 
 
 // QWERTY → piano key mapping (standard GarageBand/DAW layout)
@@ -26,16 +33,29 @@ const PianoView = ({
   trebleInstrument = null,
   interactionMode = 'play',
   onTonicSelect = null,
+  // 'set-transpose' interaction (keyboard transposition setter): clicking a key makes THAT key
+  // the new C — i.e. sets the transposition to the clicked key's pitch class (Han 2026-06-13).
+  onTransposeSelect = null,
   minNote = null, // optional
   maxNote = null, // optional
   isHighlightActive = true,
-  noteColoringMode = 'none', // 'none', 'tonic_keys', 'tonic', 'chromatone_keys', 'chromatone', 'subtle-chroma'
+  noteColoringMode = 'none', // 'none', 'tonic_keys', 'tonic', 'chromatone_keys', 'chromatone', 'subtle-chroma', 'chords'
+  // 'chords' colouring with no playback: the representative chord ({ root, notes }) + theme.
+  activeChord = null,
+  theme = 'dark',
   onNoteInput = null,
   qwertyKeyboardActive = false,
+  // Compact mode (e.g. the range-setter selector): suppress the note-name labels,
+  // which are too large/cluttered on a small windowed keyboard.
+  hideLabels = false,
   // Tone Recognizer: highlights a single detected note (e.g. 'A4') or
   // a set of pitch-class indices (0-11) for chord mode
   activeNote = null,
   activePitchClasses = null,
+  // Keyboard transposition: pitch-class offset 0-11 (0 = concert). When non-zero the whole
+  // keyboard is relabelled (pitch-class only, no octave number), and click/QWERTY sound + scale
+  // highlights shift with it, so a transposing-instrument player sees & hears their own keys.
+  transpose = 0,
 }) => {
   const tonic = scale?.tonic ? standardizeTonic(scale.tonic) : 'C4';
 
@@ -61,12 +81,23 @@ const PianoView = ({
   /* =========================
      NOTE DISPLAY
   ========================= */
+  // Concert→physical mapping for keyboard transposition. `tn(physicalNote)` returns the CONCERT
+  // note shown on / sounded by / highlighted at that physical key. Identity when transpose=0, so
+  // the normal keyboard is untouched (no regression). One shared transform keeps the label, sound
+  // and highlight sites in lock-step (Han 2026-06-13).
+  const tShift = transpose ? foldShift(-transpose) : 0;
+  const tn = (note) => (tShift && note !== 'halfKey' && note !== 'placeholder')
+    ? transposeNoteBySemitones(note, tShift) : note;
+
   const getNoteLabel = (note) => {
     if (note === 'placeholder' || note === 'halfKey') return '';
 
-    // Octave-aware label lookup
-    const notePC = note.replace(/\d+$/, '');
-    const octave = note.match(/\d+$/)?.[0] || '';
+    const src = tn(note);
+    const notePC = src.replace(/\d+$/, '');
+    // Transposed keyboard + the transposition setter show pitch-class labels only — "C, D♭, D…"
+    // without the octave number, since the octave is fixed by the range setter (Han 2026-06-13).
+    const dropOctave = tShift !== 0 || interactionMode === 'set-transpose';
+    const octave = dropOctave ? '' : (src.match(/\d+$/)?.[0] || '');
 
     // Find index in internal scale by pitch class
     const idx = scale.notes.findIndex(s => s.replace(/\d+$/, '') === notePC);
@@ -76,7 +107,8 @@ const PianoView = ({
       return displayPC + octave;
     }
 
-    return getRelativeNoteName(note, scale.tonic);
+    const rel = getRelativeNoteName(src, scale.tonic);
+    return tShift ? rel.replace(/-?\d+$/, '') : rel;
   };
 
   const formatNoteLabel = (label, isBlack = false) => {
@@ -343,16 +375,17 @@ const PianoView = ({
     if (note === 'halfKey') return 'half-key';
     if (note === 'placeholder') return 'placeholder-key';
 
-    const isBlack = note.includes('♯') || note.includes('♭');
+    const isBlack = note.includes('♯') || note.includes('♭');   // physical key shape (untransposed)
 
-    const notePC = note.replace(/\d+$/, '');
+    const cmp = tn(note);   // concert note this key represents — drives all highlight decisions
+    const notePC = cmp.replace(/\d+$/, '');
     const tonicPC = getCanonicalNote(scale.tonic).replace(/\d+$/, '');
     const isTonic = notePC === tonicPC;
     const isInScale = scale.notes.some(s => s.replace(/\d+$/, '') === notePC);
 
     // Tone Recognizer active classes take priority
-    if (isActiveNote(note)) return isBlack ? 'black-key tone-active-key' : 'white-key tone-active-key';
-    if (isActivePc(note)) return isBlack ? 'black-key tone-chord-key' : 'white-key tone-chord-key';
+    if (isActiveNote(cmp)) return isBlack ? 'black-key tone-active-key' : 'white-key tone-active-key';
+    if (isActivePc(cmp)) return isBlack ? 'black-key tone-chord-key' : 'white-key tone-chord-key';
 
     const highlightTonic = isHighlightActive && isTonic;
     const highlightScale = isHighlightActive && isInScale;
@@ -381,7 +414,8 @@ const PianoView = ({
     if (note === 'halfKey' || note === 'placeholder') return {};
 
     const isBlack = note.includes('♯') || note.includes('♭');
-    const notePC = note.replace(/\d+$/, '');
+    const cmp = tn(note);   // concert note this key represents — drives all highlight decisions
+    const notePC = cmp.replace(/\d+$/, '');
     const tonicPC = getCanonicalNote(scale.tonic).replace(/\d+$/, '');
     const isTonic = notePC === tonicPC;
     const isInScale = scale.notes.some(s => s.replace(/\d+$/, '') === notePC);
@@ -390,7 +424,7 @@ const PianoView = ({
     const defaultTextColor = isBlack ? '#fff' : '#000';
 
     // Tone Recognizer highlighted keys
-    if (isActiveNote(note)) {
+    if (isActiveNote(cmp)) {
       return {
         background: 'linear-gradient(to bottom, #f2c879, #e6a030)',
         color: '#000',
@@ -398,7 +432,7 @@ const PianoView = ({
         zIndex: 10,
       };
     }
-    if (isActivePc(note)) {
+    if (isActivePc(cmp)) {
       return {
         background: isBlack
           ? 'linear-gradient(to bottom, #6a4400, #3a2700)'
@@ -406,6 +440,13 @@ const PianoView = ({
         color: '#fff',
         boxShadow: '0 0 8px 2px rgba(192,128,64,0.5)',
       };
+    }
+
+    // CHORDS MODE (no playback): tint keys belonging to the representative chord with the chord
+    // root's colour. Uses the CONCERT note (cmp) so it stays correct under keyboard transposition.
+    if (noteColoringMode === 'chords') {
+      const c = chordNoteColor(cmp, activeChord, theme);
+      return c ? { background: c, color: defaultTextColor } : { color: defaultTextColor };
     }
 
     // CHROMATONE MODE
@@ -457,6 +498,11 @@ const PianoView = ({
 
   const handlePointerDown = async (note, e) => {
     if (note === 'halfKey' || note === 'placeholder') return;
+    // Transposition setter: a click sets the transposition (clicked key → C) and plays nothing.
+    if (interactionMode === 'set-transpose') {
+      if (onTransposeSelect) onTransposeSelect(getNotePc(note));
+      return;
+    }
     if (activeKeysRef.current.has(note)) return;
     if (e && e.currentTarget) e.currentTarget.setPointerCapture(e.pointerId);
 
@@ -474,8 +520,9 @@ const PianoView = ({
 
     pressTimesRef.current[note] = Date.now();
     activeKeysRef.current.add(note);
-    // Start with long sustain (null duration), store the stop function!
-    const stopFn = playSound(note, trebleInstrument, ctx, ctx.currentTime, null);
+    // Start with long sustain (null duration), store the stop function! Sound the CONCERT note
+    // (tn) so a transposed key plays what its label says; press-tracking still keys off `note`.
+    const stopFn = playSound(tn(note), trebleInstrument, ctx, ctx.currentTime, null);
     if (stopFn) {
       activeStopsRef.current[note] = stopFn;
     }
@@ -568,7 +615,7 @@ const PianoView = ({
             {qwertyKeyboardActive && noteQwertyLabel[note] && (
               <span style={qwertyLabelStyle}>{noteQwertyLabel[note]}</span>
             )}
-            {formatNoteLabel(getNoteLabel(note), false)}
+            {!hideLabels && formatNoteLabel(getNoteLabel(note), false)}
           </div>
         ))}
       </div>
@@ -586,7 +633,7 @@ const PianoView = ({
             {qwertyKeyboardActive && noteQwertyLabel[note] && (
               <span style={qwertyLabelStyle}>{noteQwertyLabel[note]}</span>
             )}
-            {formatNoteLabel(getNoteLabel(note), true)}
+            {!hideLabels && formatNoteLabel(getNoteLabel(note), true)}
           </div>
         ))}
       </div>

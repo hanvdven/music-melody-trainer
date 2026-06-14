@@ -77,6 +77,33 @@ const PERC_POOLS = {
     'all': ['k', 's', 'sg', 'sr', 'hh', 'ho', 'hp', 'th', 'tm', 'tl', 'cr', 'cc', 'wh', 'wm', 'wl', 'cb']
 };
 
+/**
+ * Post-process a generated percussion melody, dropping any pad id that is NOT in
+ * `enabledPads` (the user's drum-pool selection from the range selector). A slot
+ * whose pads are ALL removed becomes a rest ('r'), so offsets/durations — and
+ * therefore the rhythm — stay byte-for-byte intact. This is the single point
+ * where the pool selection influences generation, applied uniformly to every
+ * percussion pattern (backbeat/backbeat2/swing) by the MelodyGenerator.
+ *
+ * `enabledPads == null` → no filtering (back-compat: every pad allowed). This is
+ * intentionally separate from `notePool` (which still selects the STYLE; moving
+ * style onto randomizationRule is Phase-5 technical debt per Han 2026-05-30).
+ */
+export function filterPercussionByEnabledPads(melody, enabledPads) {
+    if (!enabledPads || !Array.isArray(enabledPads)) return melody;
+    const allowed = new Set(enabledPads);
+    const keep = (id) => allowed.has(id);
+    const notes = melody.notes.map(entry => {
+        if (entry === 'r' || entry == null) return entry;
+        if (Array.isArray(entry)) {
+            const kept = entry.filter(keep);
+            return kept.length === 0 ? 'r' : (kept.length === 1 ? kept[0] : kept);
+        }
+        return keep(entry) ? entry : 'r';
+    });
+    return { ...melody, notes };
+}
+
 const SWING_PREFILL = ['cr', null, ['cr', 'hp'], 'cr'];
 
 /**

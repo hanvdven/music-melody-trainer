@@ -709,6 +709,11 @@ Key invariant: **React never sets `style.opacity` on `[data-pagination-old]` or 
 
 Purpose of every significant file in the codebase. One-sentence description + responsibility boundary.
 
+> **Non-exhaustive.** This table is a curated map of the most significant files, not a
+> complete index. It does not list every file under `src/contexts/`, `src/hooks/`, or
+> `src/components/sheet-music/overlays/`; for those, browse the directory (each file has a
+> header doc-comment). When you add a major file, append it here.
+
 ### `src/App.jsx`
 **Main application orchestrator.** Owns all top-level state (melody, playback config, instrument settings, UI mode), instantiates all hooks, wires refs between the Sequencer and the UI, and renders the full layout tree.
 
@@ -779,11 +784,16 @@ Purpose of every significant file in the codebase. One-sentence description + re
 
 ---
 
-### Playback (`src/components/playback/`)
+### Playback controls
+
+There is no `src/components/playback/` directory; the play/stop and tempo UI lives with
+the header and the sheet:
 
 | File | Purpose |
 |---|---|
-| `PlaybackControls.jsx` | Play/stop button bar; shows BPM, current measure, tempo tap. |
+| `layout/AppHeader.jsx` | Top-bar play/stop + mode controls (drives `usePlayback`). |
+| `sheet-music/BpmControls.jsx` | BPM display + tempo stepper/tap. |
+| `sheet-music/RepeatsControls.jsx` | Repeat-count control. |
 
 ---
 
@@ -803,7 +813,7 @@ Purpose of every significant file in the codebase. One-sentence description + re
 | `DoubleStepper.jsx` | Paired steppers sharing a label — used for range (min/max) controls. |
 | `NumberControl.jsx` | Numeric input field with validation; falls back to stepper on mobile. |
 | `GenericTypeSelector.jsx` | Horizontal pill/tab selector for a fixed set of string options. |
-| `TabNavigation.jsx` | Bottom tab bar navigating between major app sections. |
+| `layout/TabView.jsx` | Bottom tab bar navigating between major app sections (formerly mislabeled `TabNavigation.jsx`). |
 | `CustomIcons.jsx` | SVG icon definitions used throughout the UI. |
 | `ThemeToggle.jsx` | Dark/light mode toggle button. |
 
@@ -893,7 +903,7 @@ Purpose of every significant file in the codebase. One-sentence description + re
 | File | Purpose |
 |---|---|
 | `timing.js` | `TICKS_PER_WHOLE = 48` and derived tick constants (quarter = 12, eighth = 6, sixteenth = 3). |
-| `percussionNotes.js` | MIDI note number ↔ percussion instrument name mapping for the metronome Soundfont. |
+| `audio/drumKits.js` | Drum-kit sample names + `METRONOME_NOTE_IDS` (metronome vs percussion routing). Owns the note↔percussion mapping; there is no separate `percussionNotes.js`. |
 
 ---
 
@@ -1065,19 +1075,175 @@ Allows a musician practicing on a transposing instrument (Bb clarinet, French Ho
 7. Both pickers use the `gs-popup` / `gs-popup-option` CSS classes from `GenericStepper` for visual consistency.
 8. The transposition label is rendered **after** `renderStaffMeasureTexts` in the SVG group so it sits on top of the time-signature hitbox rects in z-order, preventing accidental time-sig activation when the label is clicked.
 
+### 15.0a Transposed key signature (per-staff written key) — Han 2026-06-09
+
+**Purpose / Symptom:** On a transposing instrument the written notes are shifted off the concert
+key, so against the (concert) key signature *every* in-key note picked up a redundant inline
+accidental — e.g. an A♭ instrument in C major showed "tons of inline accidentals" instead of the
+expected E-major key signature in front of the staff.
+
+**How it works:** Two coordinated steps, both per-staff (treble and bass can carry different
+transpositions, hence different written signatures):
+1. **Written key signature.** `getTranspositionFifths(key)` (in `transposingInstruments.js`)
+   returns the circle-of-fifths shift the instrument applies to the signature
+   (`writtenSignature = concertSignature + shift`). It is derived from the key's letter+accidental
+   via `LETTER_FIFTHS` — **not** a lookup table (§6c). `SheetMusic` computes
+   `trebleWrittenAccidentals` / `bassWrittenAccidentals = numAccidentals + getTranspositionFifths(...)`
+   and uses them for (a) the header `renderAccidentals`, (b) the enharmonic-toggle hitbox width,
+   and (c) the `numAccidentals` prop passed to each staff's `renderMelodyNotes`. Header spacing
+   reserves room for `maxWrittenAccidentals` (the wider of the two) so both staves' time signatures
+   stay aligned.
+2. **Note respelling.** `transposeMelodyBySemitones` shifts chromatically with a fixed (mostly-flat)
+   spelling, which clashes with a sharp written signature. `renderMelodyNotes` therefore pipes each
+   transposed note through `respellToKeySignature(note, numAccidentals)` (in `noteUtils.js`), which
+   re-spells the pitch class to its diatonic name in the written key (G♯ not A♭ in E major),
+   preserving octave/sounding pitch. In-key notes then match the signature and drop their inline
+   accidentals.
+
+**Invariants / Fix:** The concert `numAccidentals` prop is never mutated. Respelling preserves
+pitch class (so audio/highlight/Y-position are unchanged) and keeps the original octave digit.
+Pitch classes that are chromatic to the written key keep their incoming spelling. Extreme
+combinations (|written signature| > 7) clip at 7 in `renderAccidentals`, a pre-existing limit.
+
+**Files:** `transposingInstruments.js` (`getTranspositionFifths`), `noteUtils.js`
+(`respellToKeySignature`), `SheetMusic.jsx` (per-staff written counts + layout),
+`renderMelodyNotes.jsx` (respell after transpose).
+
 ### Invariants
 - Audio always plays concert pitch — `transpositionKey` never touches `Melody`, `Sequencer`, or generation code.
 - `transposeMelodyBySemitones` passes percussion note strings (`'k'`, `'s'`, etc.) through unchanged.
-- Accidental map is generated from the **transposed** display notes, so the key signature context is correct for the written key.
-- All `renderMelodyNotes` call sites (main, next-layer, preview overlays) receive the same transposition value so notes look identical across animation transitions.
+- Accidental map is generated from the **transposed + respelled** display notes against the **written** (per-staff) key signature, so in-key notes carry no inline accidental.
+- All `renderMelodyNotes` call sites (main, next-layer, preview overlays) receive the same per-staff transposition value AND written `numAccidentals` so notes look identical across animation transitions.
 
 ### Files
 | File | Role |
 |---|---|
-| `src/constants/transposingInstruments.js` | `TRANSPOSING_INSTRUMENTS` array (with `label`, `display`, `instruments` fields), `getTranspositionSemitones`, `getTranspositionDisplay` |
-| `src/model/InstrumentSettings.js` | `transpositionKey = 'C'` field (last constructor param) |
-| `src/components/sheet-music/renderMelodyNotes.jsx` | `transpositionSemitones = 0` param; applies `transposeMelodyBySemitones` before accidental map |
-| `src/components/sheet-music/SheetMusic.jsx` | Computes semitones from settings; renders transposition label and pickers; passes semitones to all renderMelodyNotes calls |
+| `src/constants/transposingInstruments.js` | `TRANSPOSING_INSTRUMENTS` array (with `label`, `display`, `instruments` fields), `getTranspositionSemitones`, `getTranspositionDisplay`, `getTranspositionFifths` (written-key-signature shift) |
+| `src/theory/noteUtils.js` | `respellToKeySignature(note, numAccidentals)` — diatonic respelling of transposed notes to the written key |
+| `src/model/InstrumentSettings.js` | `transpositionKey = 'C'` field; `transpositionOctave = 0` (display-only octave shift) |
+| `src/components/sheet-music/renderMelodyNotes.jsx` | `transpositionSemitones = 0` param; applies `transposeMelodyBySemitones` then `respellToKeySignature` before the accidental map |
+| `src/components/sheet-music/SheetMusic.jsx` | Computes semitones + per-staff written key signatures from settings; renders transposition label and pickers; passes semitones + written `numAccidentals` to all renderMelodyNotes calls |
+
+### 15.1 In-staff Transposition Setter (clef-edit mode)
+
+**Purpose / What it does:** In the notation setter (`clefEditMode`), each melodic (G/F) staff
+shows a `TranspositionSetter` instead of the old horizontal swipe-strip of clef cards
+(`ClefCardCarousel`). It lets the user set the instrument transposition directly on the staff,
+in **half steps**, by reading concert C4 against the written note.
+
+**How it works:** The setter expresses *"concert C4 is **written** as the chosen note"*, so
+`transpositionSemitones = writtenMidi − 60`. Per staff there are **two coupled, inverse
+controls** side by side ("4 in totaal" across treble + bass):
+
+- **LEFT — concert note-NAME carousel:** a vertical half-step list of CONCERT note names
+  ("… = C4"), centred on `C4 − trans` (the concert pitch written at C4), running in the
+  OPPOSITE order to the right carousel.
+- **RIGHT — sheet-music NOTEHEAD carousel:** `[clef]  "C4 ="  [noteheads on a 'tangens' curve]`.
+  Each head is drawn at its true staff **origin** (same x = `anchorX` for all; y = its staff
+  position, so C4/C♯4 share a y and D4 is 5 units higher) PLUS a curve offset `f(t)`, where
+  `t` = half-steps from the active selection:
+  `f(t) = ( −3·tanh(t/3)·X_SPACING , −(t³/20)·Y_SPACING )` (`X_SPACING=25`, `Y_SPACING=10`).
+  The active note (`t=0`) → `f(0)=(0,0)`, so it sits exactly on its target at the fixed
+  `anchorX`. The horizontal term `tanh` saturates the spread (±3·`X_SPACING`) so the fan can't
+  run off sideways; the vertical term is a **pure cubic in t** (Han 2026-06-09 reverted to `−t³`
+  so higher written notes — `t>0` — fan upward, toward smaller screen-y) — flat near the centre,
+  the ends curl into an S, giving the 'tangens' feel.
+  Spelling follows `getNoteFromValue` (`ALL_NOTES`: flats + F♯); noteheads draw a Maestro
+  accidental (`#`/`b`) in front of the head whenever the spelled name carries one (§15.1a).
+
+**Interaction:** TAP a head/name (or a quick-pick) to jump; or DRAG either carousel. A drag
+tracks a *fractional* `dragDelta` (half-steps; `PX_PER_STEP` screen px each, vertical) so both
+carousels slide together along the curve, snapping to the nearest half-step on release.
+`onSelectTrans(newTrans)` reports the absolute new offset; `ClefStaffOverlay.keyForTrans` maps
+it to a `transpositionKey` via `TRANSPOSING_INSTRUMENTS` (§6c — derived, no table). The offset
+is clamped to `[MIN_TRANS, MAX_TRANS] = [−5, 11]` (the keyed range). Heads render as Maestro
+quarter notes (`Ï`) with **ledger lines** for near-active heads off the staff; a **vertical
+clip mask** (taller while dragging) shows more heads when active. Per §3a all tap targets show
+hit boxes in `debugMode`.
+
+**Quick-picks:** a column of clickable CONCERT-note rects (the concert sound of written C4 per
+common instrument) sits left of the name carousel: C5, E♭4, C4, B♭3, F3, E♭3, C3, B♭2.
+
+### 15.1a Setter notehead rendering — shared with the staff (Han 2026-06-09)
+
+The setter originally hand-rolled its noteheads and drifted from the real staff (heads 6px low,
+tiny accidentals, bespoke stems). It now draws every note through the **shared**
+`StaffQuarterNote` (`src/components/sheet-music/staffNoteGlyph.jsx`), the single source of truth
+for melodic-note geometry, which `renderMelodyNotes` also imports. See CLAUDE.md §6d.
+- **Shared geometry.** Head `fontSize 36` at `positionY` (no offset); stem `x+11`/`x+0.5`,
+  length 27, width 1.5; accidental `fontSize 36`, `x−4`, `y−3`, `textAnchor="end"`; ledger
+  `originX−7 … +19`, width 0.5. Stem direction = `positionY > staffYStart+20` (canonical rule).
+- **Accidentals in front.** A Maestro `#`/`b` glyph (from the spelled name, Unicode ♯/♭ →
+  glyph) is handed to `StaffQuarterNote`, so C and C♯/D♭ are distinguishable. The old code
+  tested `name.includes('#')` (ASCII) which never matched the Unicode spelling.
+- **Always-one-highlight.** The active head is the one CLOSEST to centre (`m === writtenActive`),
+  so a head stays highlighted mid-drag.
+- **Lowlight colour.** Inactive heads/names use `var(--text-lowlight)`; `--setter-lowlight` was
+  undefined and fell back to black.
+- **Names.** The name carousel + quick-picks render through `NoteLabel`, which puts the octave
+  digit in a subscript `<tspan>` (C₄) and sizes the active row to the `=` label size (16).
+- **Left layout.** `[clef] [fixed C4 head via StaffQuarterNote] "=" [concert-name carousel]` —
+  the rendered note replaces the old "C4" text.
+- **Colour.** Heads are coloured by their SOUNDING (concert) pitch: the active head + fixed C4 use
+  the C4 colour (the active selection represents concert C4); the fixed written-C4 head specifically
+  uses the colour of the pitch it sounds (`C4 − trans`), so on a B♭ instrument it shows the B♭
+  colour. `(X inst)` label sits at the staff's top-right. Quick-picks are a right-hand column,
+  only the active one highlighted.
+- **Range + octave clefs (Stage D).** The carousel spans ±2 octaves (C2…C6). The selected total is
+  decomposed into an instrument key + `transpositionOctave`; the optimal clef is computed from the
+  written notes, so an octave transposition auto-selects an 8va/15ma/8vb/15vb clef and the head
+  returns near the staff. The vertical clip masks fanned heads above/below.
+- **Tween (Stage E).** When `transSemitones` changes via a TAP (preset/head/name), an `animOffset`
+  eases (easeOutCubic, 280 ms) from old→new so the carousels scroll to the value instead of
+  jumping. A drag-release skips the tween (the finger already moved it).
+
+### 15.2 Global transposition (item 5, Han 2026-06-09)
+
+**Purpose:** Two transposition *types*. **Staff-level** (default): each staff transposes
+independently — only that staff's note positions + key signature move to the written pitch.
+**Global**: triggered automatically when BOTH staves carry the **same** transposition (key +
+octave) and it isn't concert. In global mode the whole *naming* domain moves to the written pitch
+("concert B♭ denoted as C") — on top of the per-staff position/key-signature shift that already
+happens.
+
+**What moves in global mode:**
+- **Header key** (`AppHeader`): the title shows the WRITTEN key. `App` computes `displayTonic` =
+  concert tonic transposed by the global interval and respelled to the written key signature
+  (`respellToKeySignature`), and a `(X instrument)` subtitle line.
+- **Chord LETTER labels** (`ChordLabelsLayer`): the root letter is transposed + respelled to the
+  written key (`chordTransSemitones`/`chordWrittenAccidentals` from `SheetMusic`). Roman numerals
+  are tonic-relative → unchanged. Chord COLOUR stays on the concert (sounding) root.
+- **Absolute solfège** (`doremi-abs`): the note is transposed+respelled before reading its Do=C
+  syllable. **Relative** solfège (`doremi-rel`, `kodaly`) is invariant (note↔tonic relationship is
+  the same in either domain) — no change.
+
+**Invariants:** Audio always plays concert pitch. Roman numerals and relative solfège never change
+under transposition. Note colour follows the **sounding** (concert) pitch even when the name shown
+is the written one.
+
+**Files:** `App.jsx` (`globalTransposition`, `displayTonic`), `AppHeader.jsx` (+ `.css` subtitle),
+`SheetMusic.jsx` (`globalSameTrans`, `chordTransSemitones`, `chordWrittenAccidentals`, abs-solfège),
+`ChordLabelsLayer.jsx`, `transposingInstruments.js` (`getTranspositionLabel`).
+
+### 15.1b Overlay frame lines (Han 2026-06-09)
+
+Overlay menus (clef/transposition/range) are framed by a single vertical line at `endX`, drawn
+at staff-line weight (`var(--text-primary)` `strokeWidth="0.5"`) so it matches the horizontal
+staff lines. The earlier left line at `startX` and the heavier `strokeWidth="1"` were removed.
+
+**STAGED (TODO — needs the clef-octave system expanded):** on release, when a drag runs
+>~octave off the staff, switch to an 8va/15ma/8vb/15vb clef (fade) so the head returns near
+the staff; and the octave-shifted quick-picks (C3, C5, B♭2). Today `OCTAVE_VARIANTS` has no
+treble 8vb/15vb (or bass 15va/15vb), so those octave variants must be added first. Until then
+the octave quick-picks are drawn dim + inert and the carousel is bounded to `[−5, 11]`.
+
+**Invariants:** writes go only through `onApplyClefPatch(staff, patchForTransposition(key))`;
+the setter never mutates settings directly. The clef passed in is the *concrete* current clef
+(incl. octave variant) so `getNoteAbsoluteY` places the noteheads correctly.
+
+**Files:** `src/components/sheet-music/overlays/TranspositionSetter.jsx` (the control),
+`src/components/sheet-music/overlays/ClefStaffOverlay.jsx` (melodic branch wiring +
+`keyForTrans`), `scripts/render-transposition.jsx` (dev mockup render).
 
 ---
 
@@ -2091,3 +2257,745 @@ The `abortController` + `instrument.stop()` combination still honours the "no ne
 
 **Files:** `src/audio/Sequencer.js`.
 
+---
+
+## 37. Visual Settings Re-haul — Context Overlays (2026-05, in progress)
+
+**Purpose.** Han is migrating the app away from a central settings panel toward
+**context overlays**: every setting is adjusted in-place by interacting with the
+element it affects (tap a clef → clef overlay, tap the staff → range overlay,
+tap a key → keyboard-side overlay), with minimal text. GSM-portrait is the first
+(and currently only) target layout: three stacked panels — header (title + nav +
+exercise score), top half = sheet music, bottom half = input/keyboard.
+
+**Decided principles (validated with Han, treat as invariants for this work):**
+
+1. **Two UIs per setting where meaningful.** Each setting gets a *bladmuziek*
+   (sheet) variant and an *input* (keyboard) variant. Intrinsically abstract
+   settings (theme, BPM, generation, animation mode) have no natural sheet/key
+   representation and live in a neutral HTML chrome panel instead — do not force
+   a fake "note version" for those.
+2. **Spatially-anchored selectors render in their native coordinate space, not
+   in a floating HTML layer.** The range/clef/scale selectors must align exactly
+   with staff lines / piano keys, so:
+   - the **sheet variant renders inside the SheetMusic SVG** (same pattern as the
+     existing `SettingsOverlay` `<g>`, reusing the functions that place real
+     noteheads), and
+   - the **input variant renders inside the keyboard component** (reusing key
+     positions).
+   A thin HTML overlay is used **only for chrome** (title, preset chips, close,
+   coach-tour) that floats above and needs no pixel alignment.
+3. **Dual-surface live sync.** On GSM-portrait the staff (top) and keyboard
+   (bottom) are both on screen. While editing a spatial setting, *both* surfaces
+   are in edit mode simultaneously and stay synchronised: dragging the range on
+   the staff lights up the matching keys, and vice-versa. This is what makes the
+   transition seamless — the staff and keyboard *become* the selector and return
+   to normal afterwards, rather than being covered by a panel.
+4. **Animation respects existing invariants.** Morphs between "real notes" and
+   "selectable notes" happen in the same SVG coordinate space via
+   `element.style.opacity` in rAF (per §6), never via JSX opacity props, and must
+   not interfere with the pagination/wipe/scroll transition system.
+5. **Discoverability via a one-time coach-tour** (Han's choice) plus subtle
+   affordances, given the minimal-text goal. The old central settings panel is
+   removed **last**, only after each setting's new variant(s) are proven — no
+   feature is lost mid-migration.
+
+**Build order.** Range is the first vertical slice (clearest spatial example) and
+serves as the blueprint pattern for all later settings (clef/instrument → scale →
+exercise/song → advanced generation → visualization).
+
+**Range-edit ↔ playback are mutually exclusive (Han 2026-05-30).** While
+`rangeEditMode` is on, the staves are blank canvases: the entire
+`notes-transition` group is hidden via `display:none` (kept mounted so transition
+refs stay valid), so NO melody notes / chords / lyrics render. Opening the
+overlay (`handleToggleRangeEdit` in App.jsx) calls `handleStopAllPlayback`;
+starting any playback closes the overlay via a `useEffect` on `isPlaying`. There
+is no feedback loop because closing range-edit never starts playback.
+
+**File organisation.** All sheet-music context overlays live under
+`src/components/sheet-music/overlays/`. New context overlays go there too.
+
+### 37.1 Range selector — current implementation (first proven slice)
+
+The range selector is the first fully-built vertical slice and the blueprint for
+later settings. It has **two surfaces** (per principle 1), both driven by the same
+range state and the same shared write path. Full detail (with rationale and known
+rough edges) lives in `docs/range-overlay-design.md`; this is the authoritative
+high-level summary.
+
+**Shared model (`src/utils/rangeUtils.js`).** One source of truth for every range
+surface (sheet, keyboard, steppers), §6c:
+- `naturalsInRange(lo,hi)` — white-key naturals in a MIDI span.
+- `windowNaturals(selMin,selMax,context)` — a **boundary-relative window**: every
+  natural between the boundaries plus `context` naturals beyond each side, capped
+  to the piano (A0–C8). This is what makes both surfaces symmetric (N below min …
+  N above max) and lets a boundary be dragged *outward past the old ±octave
+  limit* — on release the window re-anchors and reveals fresh context.
+- `applyRangeBoundary(prevRange,midi,bound,presets)` — clamp (`clampRange`: min
+  span 12, bounds 21–108) + preset-mode match. The ONE boundary write path.
+
+**Sheet variant — `RangeStaffOverlay.jsx`** (a `<g>` in the SheetMusic SVG). The
+selectable pitches are a synthetic rhythm-less melody rendered through the real
+`MelodyNotesLayer`/`renderMelodyNotes` (reuses ledger lines, ottava, notehead
+glyphs — §6c; no hand-rolled pitch→Y). Key behaviours:
+- **`buildRangeRow`** (pure, tested) lays out the row from `windowNaturals`. When
+  the window is too cramped (`avail/W < MIN_NOTE_WIDTH`) it COLLAPSES the in-band
+  middle (the notes deep between the boundaries, never the drag target) into a
+  diagonal "…", keeping `KEEP_IN` naturals beside each boundary. The gap is
+  expressed as dummy slots in `allOffsets` so the index-based renderer
+  (`x = startX + (idx-1)*noteWidth`) draws it for free; `colMidi` maps x→pitch
+  across the gap. `MAX_NOTE_WIDTH` caps spacing so a small window isn't sparse.
+- **Interaction:** the whole hit band is a `<polygon>` with pointer-capture; a tap
+  or drag sets the nearest boundary (white-key snap) via `setMelodicBoundary` →
+  `applyRangeBoundary`. The layout is frozen in `dragRef` during a drag so notes
+  don't jump; `onUp` calls `forceReanchor()` (a `useReducer` bump) so the window
+  re-anchors and 3 fresh context notes reappear each side.
+- **Hit zones meet exactly:** each staff's zone has a HORIZONTAL outer edge at the
+  topmost/bottommost note ± `BAND_COVER` (covers the 8va/8vb markers) and a shared
+  diagonal `divider` (midpoint of the two note rows) as the inner edge, so the
+  treble and bass zones touch without overlapping.
+- **Coloring (single layer, one ottava — Han 2026-06-01):** the whole row renders
+  as ONE `MelodyNotesLayer` with a per-note color override (`previewColorFn` prop on
+  `renderMelodyNotes`): boundary → `--accent-yellow`, in-band → live
+  `noteUtils.melodicNoteColor`, out-of-band → `--text-dim`. Rendering one layer (not
+  one per color) means the ottava (8va/8vb) is computed ONCE over the row — fixes the
+  earlier multi-ottava bug (§6b) where per-color layers each drew their own bracket.
+- **Presets:** bracket-only (no text), nested `]` shapes in the reserved right
+  margin (`PRESET_AREA_WIDTH`); active one highlighted. Percussion shows every kit
+  pad as its own per-pad hit box (biased toward the stem so it covers it) and
+  BASIC/STANDARD/FULL preset brackets that toggle `enabledPads`.
+- In rangeEditMode the repeat barlines + `RepeatsControls` are suppressed and a
+  plain `mode="regular"`, `numRepeats=1` `BarlinesLayer` is rendered. The earlier
+  HTML scaffold (`RangeOverlay.jsx`) was retired (D4).
+
+**Keyboard variant — `KeyboardRangeSetter.jsx`** (TabView swaps it in for the
+playable `PianoView` in rangeEditMode, on the treble/active piano tab AND the bass
+`keys-bottom` tab — one component per keyboard). A **split layout**, top→bottom:
+1. **Six preset brackets on three shared rows** (`⊓`, no text) —
+   `buildPresetBracketRows` (pure + tested). All six presets are shown: G-clef
+   STD/LARGE/FULL and F-clef STD/LARGE/FULL. To save vertical space (Han 2026-06-01)
+   the two clefs SHARE three rows by SIZE (FULL on top, then LARGE, then STANDARD).
+   On each row the CURRENT clef's bracket is "front" (highlighted: active=yellow,
+   else `--text-primary`), the other clef's is "behind" (dimmed `--text-dim`,
+   opacity 0.5, drawn first); where the behind bracket would overlap the front one
+   it is truncated and an "…" drawn at the cut. Selecting the other clef swaps
+   front/behind. Horizontal extent is ALIGNED to the selector white-key grid at the
+   preset's real pitch range (larges overlap). **Tapping a bracket sets BOTH
+   `preferredClef` and `range`** on THIS staff — so the bracket IS the clef switcher
+   (replaces the old separate `onSwitchClef` row). Presets fully outside the window
+   are dropped; partial ones clamp to the edge. Selector PianoView uses `hideLabels`.
+2. A COMPACT windowed **selector** keyboard (a small `PianoView` over
+   `windowNaturals`) CENTRED ON THE SELECTION, sized so each white key is ≈ `KEY_PX`
+   (20px) — the key count is width-adaptive via a `ResizeObserver` (wider panel =
+   more keys; Han 2026-06-01). Centring on the selection means a clef switch (via a
+   bracket) slides the window so the newly-selected notes stay central; off-clef
+   brackets may then fall partly/fully off-screen. A band + edge handles mark the
+   selection; an SVG overlay (`viewBox="0 0 nWhite 100"`, 1 unit/white key) owns the
+   pointer interaction (x → white-key index via its bounding rect). Same
+   freeze-during-drag + re-anchor-on-release as the sheet. Boundary drags match the
+   CURRENT clef's presets for the `rangeMode` label.
+3. The REAL playable keyboard limited to the selected min–max (shows & plays the
+   actual keys).
+
+**Invariants.** Both surfaces bind to the same range state and write via
+`applyRangeBoundary` only — never re-implement the clamp/preset rules. The window
+is the only thing that defines "how far you can drag in one grab"; never re-add a
+fixed ±octave extent. Boundaries snap to naturals (white keys) on both surfaces.
+
+**Boundary slide animation (sheet, Han 2026-05-31).** Moving a melodic boundary
+no longer jumps — it *slides*. The yellow boundary note stays roughly in place
+while the row rebalances and a fresh context note swipes in/out at the far edge;
+8va/8vb ride along (they live inside the animated body group). Pure step logic in
+`overlays/rangeSlide.js` (+ test); driven from `RangeStaffOverlay.jsx`.
+- **Stepper** (replaces the instant `forceReanchor` snap): a press starts a
+  cadence of one natural per `STEP_MS` (250 ms) toward the pressed column
+  (`nextNaturalToward`). A **tap** fires a burst that finishes even after release;
+  **press-and-hold** keeps extending the boundary OUTWARD (`nextNaturalInDir`)
+  until release (release = stop now). While holding, the stepper advances its
+  `target` together with `live` so it keeps moving outward instead of wobbling back
+  toward the original pressed note (Han 2026-06-01 fix). Moving past `DRAG_THRESHOLD`
+  (8 SVG units) promotes to the existing live **drag** (layout freezes, follows the
+  finger, re-anchors on release). All writes still go through the shared
+  `setMelodicBoundary` → `clampRange` path (§6c). 250 ms cadence + 250 ms tween =
+  back-to-back chain, no pause ("faster when further" = the chain, not a shorter
+  per-note duration).
+- **Slide** (`classifyStep` + a `useLayoutEffect` rAF tween): each render compares
+  the window extent `{loIdx,hiIdx}` to the remembered one. A clean ±1 change →
+  `enter` (one context note revealed) or `leave` (one hidden), opposite side
+  `anchor`ed; anything else (presets, drag-release jumps, collapsed-ellipsis
+  layouts) → instant snap. On a step the body `<g>` scales `prevWidth/newWidth → 1`
+  about the anchored edge while the single edge note translates ±`noteWidth` and
+  fades. The tween is **linear** (constant velocity) so a multi-step burst reads as
+  one continuous glide rather than a pulsing chain of ease-out steps (Han 2026-06-01).
+  **All transform/opacity is set via `element.setAttribute`/`element.style` in the
+  rAF callback, never JSX props (§6).** The effect runs in a `useLayoutEffect` placed
+  BEFORE the component's early `return null` (rules-of-hooks). Timers + rAF cancel on
+  unmount; the committed `{min,max}` is identical to the old instant path at every step.
+
+**Two-zone boundary drag (Han 2026-06-03, #5) — `RangeStaffOverlay.jsx`.** A single
+melodic staff edits BOTH its min and max boundary, with no separate handle hit-targets:
+the pointer-down x decides which boundary the gesture owns. RIGHT of the highest
+selected note (`x > maxNoteX + noteWidth/2`) → the gesture controls the **MAX**
+boundary; anywhere on the setter at/left of the top note → it controls the **MIN**
+boundary (`zone = 'max' | 'min'`, captured in `downRef`). The drag is **relative and
+1:1**: one note-width of travel = one natural step from the press-time value
+(`steps = round((x − downX) / noteWidth)`, applied via `shiftNatural` on
+`PIANO_NATURALS`). Convention: **drag-LEFT raises max** ("pull notes in from the
+right") and **drag-LEFT lowers min**; the other boundary holds. The dragged boundary
+can't cross the held one (clamped to one natural inside it). Tap/hold still steps the
+zone's boundary toward the pressed column via the shared stepper; > `DRAG_THRESHOLD`
+promotes to the live drag. All writes go through `onSetMelodicBoundary` → `clampRange`.
+
+**Chord-style row + complexity chords (Han 2026-06-03, Batch C).** The chord-line
+preview row is rendered at the SAME vertical height as the real sheet chords (anchored
+`trebleStart − 58`) with a wider inter-chord gap and centred, wider label clickzones so
+taps register cleanly. The chord-complexity selector's example chords start at **D4**
+(not C4) so the C4 ledger line never appears under the row — chosen because D4 is the
+lowest natural that sits on the staff without a ledger for the treble preview. Pure
+layout; no generation change.
+
+**Percussion beam colour follows the note (Han 2026-06-03, #7).** Drum beams used a
+hardcoded yellow; they now inherit the note's colour. When `noteColoringMode` is
+`chromatone`/`subtle-chroma`, `drumColors[pos.n]` (per-pad chromatone, dimmed 60% for
+subtle-chroma) drives both the notehead and its beam (`finalDrumColor`), so a coloured
+percussion staff reads as one consistent hue per pad instead of yellow beams over
+coloured heads. See `renderMelodyNotes.jsx` (`drumColors`, `finalDrumColor`).
+
+**Keyboard slide-stepper (Han 2026-06-01).** The keyboard setter's selection band
+now animates like the sheet: it reuses `rangeSlide.js` (`nextNaturalToward`,
+`nextNaturalInDir`, `STEP_MS`). A tap bursts one white key per 250 ms toward the
+pressed column; a hold keeps extending outward (target advances with live so it
+doesn't wobble); moving > `KBD_DRAG_PX` (10 px) promotes to a live drag. The window
+freezes for the whole gesture and re-anchors when the burst finishes / on release.
+The yellow band + handle rects carry a CSS `transition: x/width 0.25s linear`
+(`.kbd-range-band`) so each step GLIDES between key positions instead of snapping.
+
+**Enter/exit morph (Han 2026-06-01) — `useRangeMorph.js`.** Toggling RANGE or CLEF
+plays a 1.5 s (`MORPH_MS`) morph between the sheet melody (`.notes-transition`) and
+the active overlay (`.range-overlay` / `.clef-overlay`): the OLD group just fades
+(opacity 1→0); the NEW group FLIES IN from the right. **Staggered per-element fly-in
+(Han 2026-06-01 #3):** instead of sliding the new group as one block, the hook
+collects each note-like element (`[data-mel]` on the real melody; `[data-fly]` on
+overlay elements), orders them by `getBBox().x`, and gives each a start delay from
+its x (leftmost at 0, rightmost at `STAGGER_MS`=500 ms); each element slides
+`ELEM_MS`=1000 ms (translateX `endX`→0). The group itself fades in over
+`GROUP_FADE_MS` so non-note elements (clefs/lines/barlines) just fade. Total =
+`STAGGER_MS + ELEM_MS` = 1.5 s. Every fade + slide runs through a subtle
+ease-in-out (`smoothstep`) for a soft start/stop (Han 2026-06-01 #4). The real
+melody note groups AND the overlay note groups carry `data-fly` (added
+unconditionally in `renderMelodyNotes`), so the range overlay's notes stagger too
+(previously they slid as one block). If no per-element markers are found it falls
+back to the old whole-group slide. The hook detects the mode flip in a `useLayoutEffect`,
+returns `morphing` so SheetMusic keeps BOTH groups mounted+visible during the morph,
+then runs a single rAF tween. **opacity/transform via `element.style` only (§6)**,
+cleared at the end so the scroll/wipe systems own those properties again. Safe
+because opening an overlay stops playback.
+
+**Setter animation refinements (Han 2026-06-08 — Group A).**
+- **Range-slide burst cap (CR-A1) — `RangeStaffOverlay.jsx`.** A tap on a far note
+  fires a stepper burst of one natural per `STEP_MS` (250 ms), so a distant move took
+  several seconds. `beginStepper` now derives a per-burst step duration from the natural
+  distance: `dist × stepMs` is capped at `MAX_BURST_MS` (1 s), floored at `MIN_STEP_MS`
+  (24 ms). Short/medium moves (already under the cap) keep 250 ms; only far taps
+  compress. Hold-extension reverts to `STEP_MS`. The slide tween reads the same
+  per-burst `stepMs` so each step's glide stays back-to-back continuous.
+- **Single-staff clef refly (CR-A2) — `useClefRefly.js`.** While the clef-edit overlay
+  is open, changing ONE staff's clef FAMILY re-plays the open transition for that staff
+  only: the old `.clef-row-<staff>` (kept as a clone from the previous commit) fades out
+  while the live row's `[data-fly]/[data-mel]` elements stream in from the right (same
+  stagger as the morph). The other staff is untouched. The trigger key is the
+  LEFT-carousel family via `clefFamilyKey(settings)` — **only a G/F/Vocal family change
+  animates**; sub-clef variants must NOT re-fire it (Han 2026-06-08): octave (rangeMode),
+  transposition (transpositionKey), and vocal voice (rangeMode — incl. vocal Bass, which
+  `clefFamilyKey` maps to `vocal` even though it reuses the `bass` clef) all keep the same
+  key. The hook snapshots each row's resting state per commit (only while active) so it
+  always has the "old" to fade; opacity/transform via `element.style` only (§6), cleared
+  on completion/interrupt.
+- **Ottava cross-fade (CR-A3) — `OttavaMarker.jsx`.** The 8va/8vb/15ma marker used to
+  swap instantly. It now cross-fades on VALUE change (ottava + above/below) — which is
+  what a notes transition or a range-driven clef change produces: fade-out 0.5 s → hold
+  0.5 s → fade-in 0.5 s. A new marker skips the fade-out; a removed marker fades out then
+  unmounts; colour-only changes (showSettings yellow) refresh live without a fade. Opacity
+  is driven via the element's `style.opacity` in an rAF (§6) because the transition/morph
+  systems own the surrounding group opacity.
+
+**Setter bug batch (Han 2026-06-08 — Groups B/C/N).**
+
+*Purpose:* a sweep of notation-/range-setter inconsistencies reported from screenshots.
+
+- **Shared disable cross (V1, N1) — `overlays/DisableCross.jsx` (new).** The "off"
+  cross was drawn three different ways (clef-family off, percussion off, chord-row off)
+  with different size/anchor, so they looked inconsistent. One component now draws them
+  all: START-aligned at `x`, 2× taller than wide (18×36), strokeWidth 2.4, round caps.
+  The percussion cross is placed at a `CLEF_GLYPH_X − PERC_CLEF_X` (−5) offset so its
+  absolute span (13…31) matches the treble/bass staff cross exactly (N1).
+- **Percussion carousel even-spread (N2) — `ClefStaffOverlay.jsx`.** The 2-item perc
+  carousel used `familySlotX(2)` as its step, leaving the loop's wrap copy at ~startX
+  where it bled past the right fade mask. It now uses the melodic even-spread step
+  (`FAMILY_RIGHT_FRAC·startX − PERC_CLEF_X`), pushing the wrap copy to 2·step (well past
+  startX, fully clipped). `familySlotX` is now dead and removed.
+- **Percussion clickzone + debug box (N3, N4) — `ClefStaffOverlay.jsx`.** The together/
+  split toggle hit-rect (was y−18, h62) clipped the split voice's hi-hat beam (above the
+  staff) and the together voice's stems+beam (below); now y−30, h84 covers the full
+  bundle. The perc clef carousel slot now also renders its `debugMode` hit-box (§3a).
+- **Stable picked glyph (N5) — `ClefStaffOverlay.jsx renderFamily`.** The active slot
+  shows the current clef's concrete VARIANT glyph only when `fam.id === famId`; during a
+  carousel pick the picked slot (a different family) keeps its own family glyph through
+  the slide instead of morphing into the current clef's glyph.
+- **Vocal family + full-width strip (N8, N7) — `ClefStaffOverlay.jsx`.** `staffBlock`
+  now derives `famId` from `clefFamilyKey(settings)` (rangeMode-aware) instead of
+  `familyOfClef(clef)`, so a vocal voice that notates in the F-clef (vocal Bass/Baritone)
+  activates the VOCAL family, not instrumental bass (N8). The vocal variant row is now
+  the SAME full-width `ClefCardCarousel` as the melodic families (left-pack across the
+  staff body, scroll on overflow); on narrow screens only the selected voice shows its
+  C-G-C notes (N7).
+- **Extended-chord columns (V2) — `ChordStaffOverlay.jsx`.** The range-setter "extended"
+  complexity chord is now three clean columns left→right: an ACCIDENTALS column (the
+  ♭/♯ for the altered tensions, hand-drawn since the auto-renderer can only attach an
+  accidental to its own notehead — §6c deviation, commented), the D-F-A-C core (D+A
+  bright = tonic+fifth, F+C lowlit), and the E-G-B tension column offset right (lowlit).
+- **Consistent setter barlines (V3) — `SheetMusic.jsx`.** Any `overlayEditMode` now draws
+  a MATCHING opening (startX) and closing (endX) barline at the same weight (strokeWidth
+  1); previously only the end barline existed, so it read as thicker/brighter than the
+  staff's left edge. The redundant `rangeEditMode`-only end barline was removed
+  (`overlayEditMode ⊇ rangeEditMode`).
+- **Transposed range notes (N6) — `RangeStaffOverlay.jsx`.** A transposing staff now
+  renders its range notes EXACTLY like the sheet — at the WRITTEN (transposed) position
+  AND coloured by the written note (e.g. on an E♭ instrument concert B4 → written D5,
+  coloured as D). The body + edge note layers receive `transpositionSemitones={trans}`;
+  `previewColorFn` now receives the WRITTEN name and maps it back to the concert MIDI
+  (`concertMidiByWritten`) to keep the yellow boundary handles and in/out-of-band split
+  correct; the hit-band and ellipsis Y-helpers use `writtenName()` so they track the
+  transposed noteheads. The divider stays anchored to the fixed staff-gap midpoint.
+  Supersedes the #16 "concert position, written colour" approach (Han approved the move).
+
+- **Ottava marker flies with the morph (#1) — `renderMelodyNotes.jsx`.** The
+  `octave-${groupIdx}` group (the 8va/8vb/15ma glyph + dashed "blokhaken" bracket) now
+  carries `data-fly=""`, so `useRangeMorph`/`useClefRefly` include it in the staggered
+  fly-in instead of leaving it behind while the notes slide. Its bbox.x equals its label
+  x (= its leftmost covered note), so it gets that note's x-staggered delay and slides in
+  *attached to it*. `data-fly` is unconditional → applies to every morph (melody↔setter
+  and overlay→overlay). The melody-flash on overlay→overlay was already prevented by
+  `notes-transition`'s `display:none` gate (`SheetMusic.jsx`, overlayEditMode minus a
+  melody-involving morph); the clef-select slide is handled by CR-A2's family refly.
+
+*Invariants:* all "off" crosses MUST go through `DisableCross`; any new setter cross too.
+Note colouring in EVERY context follows the WRITTEN (transposed) note (§6 — never a local
+reimplementation; reuse `transposeMelodyBySemitones` + `melodicNoteColor`/`getNoteSemitone`).
+
+*Files:* `overlays/DisableCross.jsx` (new), `overlays/ClefStaffOverlay.jsx`,
+`overlays/ChordStyleOverlay.jsx`, `overlays/ChordStaffOverlay.jsx`,
+`overlays/RangeStaffOverlay.jsx`, `SheetMusic.jsx`.
+
+**Disabled staff (`preferredClef:'off'`, Han 2026-06-01 #3).** A staff whose clef
+is the `off` sentinel: (a) generates NOTHING — `useMelodyState` returns an empty
+`Melody` for that voice (skips `resolveVoice`); (b) shows NO elements — SheetMusic
+feeds an EMPTY melody to its notes layer (`currentTreble/Bass` → `EMPTY_MELODY` when
+off) so the staff renders normally (lines + clef) but with no notes, in every mode;
+(c) is HIDDEN entirely in melody mode (`isTrebleVisible/isBassVisible` exclude an
+off staff unless settings/clef/range mode keeps it visible so it can be re-enabled).
+
+**Transposing-instrument colouring (Han 2026-06-07, #16):** the range-setter note
+POSITIONS stay at concert pitch (height is correct as-is), but the chromatone/scale
+COLOUR must follow the WRITTEN (transposed) note — exactly as the sheet, which
+transposes note names (`renderMelodyNotes` → `transposeMelodyBySemitones`) and then
+colours by `getNoteSemitone` of the transposed name. `RangeStaffOverlay` therefore
+receives `trebleTrans`/`bassTrans` (the same `getTranspositionSemitones` value the
+sheet's `MelodyNotesLayer` gets) and, for in-band notes only, colours via the
+concert→written name map (`transposeMelodyBySemitones`). The yellow boundary handles
+and grey out-of-band notes are NOT transposed (they're handles/context, not pitches
+the learner reads). `trans=0` → no shift (unchanged behaviour).
+
+**Still open / parked:** dual-surface live sync (the two surfaces share state but
+don't live-mirror); keyboard ellipsis for very narrow windows; black-key boundary
+precision; percussion keyboard setter; preset-bracket alignment on the keyboard is
+approximate (clamps/hides presets outside the window). The legacy stepper
+`RangeControls` is still used in settings-only mode (not range-edit).
+
+**Files:** `overlays/RangeStaffOverlay.jsx` (+ smoke test), `overlays/
+SettingsOverlay.jsx`, `controls/KeyboardRangeSetter.jsx` (+ `styles/
+KeyboardRangeSetter.css`), `renderMelodyNotes.jsx` (exports `noteYMap`,
+`getNoteAbsoluteY`, `percussionStemUp`, …), `SheetMusic.jsx` (`rangeEditMode` +
+overlay render + staff keep-alive + coloring props), `theory/noteUtils.js`
+(`melodicNoteColor`), `utils/rangeUtils.js` (`naturalsInRange`, `windowNaturals`,
+`applyRangeBoundary`, `clampRange` — with tests), `controls/RangeControls.jsx`
+(reuses `rangeUtils`), `layout/TabView.jsx` (swaps in `KeyboardRangeSetter`),
+`App.jsx` (`rangeEditMode` state + playback wiring).
+
+### 37.2 Clef selector — in-staff CLEF mode (Han 2026-06-01)
+
+A second in-staff selector, sibling of the range selector, for choosing the clef
+and transposing instrument **directly on the staff**. Opened by the `CLEF` button in
+`SubHeader` (`onOpenClef`) OR by **clicking a clef glyph in the sheet**
+(`onOpenClefEdit` → `App.handleOpenClefEdit`; this replaced the old tap-cycle +
+long-press popup, which was deleted — Han 2026-06-01). Drives `clefEditMode`.
+Mutually exclusive with range-edit and the settings overlay (each toggle clears the
+others); opening stops playback. Reuses the **enter/exit morph** (`useRangeMorph`,
+now triggered by `rangeEditMode || clefEditMode`) — the melody fades out and the
+overlay flies in (and back on close). `SheetMusic` tracks `lastOverlayKind` so the
+correct overlay stays mounted during an exit morph.
+
+**Per visible melodic staff** (`ClefStaffOverlay.jsx`):
+- **Left ~20% — family carousel.** FOUR clef FAMILIES (G / F / Vocal / Off) as
+  glyphs: the current family leftmost + bright (`--accent-yellow`), the others lowlit
+  (`--text-lowlight`). Each glyph is keyed by family id and positioned by a
+  CSS-transitioned `transform: translateX` (`.clef-family-glyph`, 0.3s), so picking
+  another family SLIDES the carousel L→R rather than jumping. Tapping a family writes
+  `patchForFamily`. **Off** (a large drawn cross, `CLEF_OFF` sentinel) DISABLES the
+  staff — `patchForFamily('off')` sets `preferredClef:'off'`; `calculateOptimalClef`
+  short-circuits to `'off'` and `bassActiveClef` lets the sentinel through.
+- **Right 80% — variants of the current family.** Melodic (G/F): octave chips
+  (8 / 8va / 8vb / 15ma → `patchForOctave`, mapping to the existing
+  `relative`/`relative_15a`/`relative_low` rangeModes) + transposition chips
+  (B♭, E♭, F → `patchForTransposition`) and a final `…` chip opening the full
+  transposing-instrument list (reuses the existing `transPicker` popup). Vocal:
+  the six VOICES Bass / Baritone / Tenor / Alto / Mezzo / Soprano, each drawn as its
+  real clef GLYPH (F-clef for Bass+Baritone, C-clef for the rest — Han: show clefs,
+  not names). Bass and Baritone share the F-clef glyph but are distinct voices
+  (different range), matched on `rangeMode` so the right one highlights;
+  `patchForVocal(voice)` writes both `preferredClef` and the voice `rangeMode`. The
+  vocal Bass voice is NOT the same as the instrumental bass clef family.
+
+**Invariants.** Clef and transposing instrument stay **separate per-staff fields**
+(`preferredClef`, `transpositionKey`) — the selector only writes patches onto them
+via pure helpers in `overlays/clefSelector.js` (no hardcoded option tables in the
+view; §6c). All option logic is pure + tested
+(`overlays/__tests__/clefSelector.test.js`).
+
+**Polish wave 4 (Han 2026-06-01 #14) — done:**
+- **NOTATION** is the new name of the CLEF setter (SubHeader button label).
+- **Active/passive colours unified across all setters.** ACTIVE option = NORMAL colour
+  (`--text-primary`), PASSIVE = `--text-lowlight` at opacity 1 (greyed but solid) —
+  replacing the old `--accent-yellow` active highlight. Applies to the clef
+  families/variants/percussion options, `ChordStaffOverlay`, `ChordStyleOverlay`, and
+  the `RangeStaffOverlay` preset brackets. The range boundary DRAG HANDLES stay
+  `--accent-yellow` (they are handles, not a selectable option).
+- **Clef CARDS in a SWIPE carousel** replace the plain variant chips for melodic G/F
+  families (`ClefCardCarousel.jsx`). Each card = the family clef (`<ClefGlyph>`) + the
+  3-note reference melody (`REF_NOTES`: C4 G4 C5 in G, C3 G3 C4 in F) rendered via
+  `MelodyNotesLayer`; transposing cards TRANSPOSE the notes by `transpositionSemitones`
+  (so the transposition reads instantly) and add a small `(B♭ inst.)` superscript. The
+  strip order is octave cards (normal · 8va · 15ma) then every transposing instrument
+  except concert C; cards past the window sit off-screen and SLIDE in on a horizontal
+  drag. **Tap = select; drag = scroll** — disambiguated by movement (< `TAP_SLOP` user
+  units = tap, routed to the card under the pointer). Offset is clamped (no loop);
+  client px → SVG units via the owning `<svg>`'s screen CTM so drag tracks the finger
+  1:1. Octave (`rangeMode`) and transposition (`transpositionKey`) stay ORTHOGONAL
+  fields, so up to two cards read active at once; tapping an already-active transposing
+  card toggles it back to concert C (the only strip path to reset transposition, since
+  there is no dedicated C card). The old `…` full-list popup is superseded by the strip
+  (the `onOpenInstrumentList` prop is now unused — `transPicker` removal is a follow-up).
+  Vocal family keeps its evenly-spread voice-clef chips. **Files:** `ClefCardCarousel.jsx`
+  (new), `ClefStaffOverlay.jsx` (card build + `ClefCard` + renderCard), `clefSelector.js`
+  (`instrumentClefCards` now unused).
+- **Clef carousel** shows EXACTLY N glyphs at rest (no resting lookahead — wrap copies
+  for the slide live OUTSIDE the clip), spread evenly from `CLEF_GLYPH_X` (the active
+  clef aligns with the sheet) to 90% of `startX`; a gentle 5%/95% edge fade replaces
+  the old ~68% fade that dimmed the rightmost glyph.
+- **Percussion preview** is centred (a leading sentinel offset in `allOffsets` puts the
+  first note at the layer `startX`), the box around the notes is removed, and the
+  SPLIT option is now true parallel-voice notation: hi-hats = 4 beamed eighths (RH/up)
+  + kick+snare = QUARTER notes (LH/down), rendered as TWO `MelodyNotesLayer` voices on
+  a shared x-grid with `percussionVoiceSplit` (the single-note RH/LH classifier forces
+  each voice's stem direction).
+- **Subtypes slide from the LEFT.** Variant chips carry `data-fly-from={startX}`;
+  `useRangeMorph` emerges those elements from that x (a negative initial offset that
+  slides them right into their slots) so the subtypes appear from UNDER the just-
+  selected clef, instead of the default right-side fly-in.
+- **Range extended chord** now shows ♭/♯ on its altered tensions (`D♭`/`A♯` — the
+  renderer draws the accidental to the left of the notehead) and the chord row was
+  raised (−86 → −108) so it clears the range-setter notes/handles below.
+
+**Polish wave 3 (Han 2026-06-01 #5) — done:**
+- The family carousel is now a true LOOP carousel (`overlays/ClefCarousel.jsx`):
+  picking slot k slides the whole strip k steps left over an rAF tween; the strip
+  renders the window + a lookahead copy so glyphs re-enter from the right, revealed
+  under a right-edge linear-gradient **fade mask**; on completion `onPick` re-roots
+  the order (picked item becomes active) and the strip resets. Carousel step widened
+  to 36 units (clefs were too close) and the gutter clip/glyph hit rects are taller
+  so bass clef descenders aren't clipped.
+- Percussion clef block: the clef is now a 2-item carousel (percussion `/` ↔ X
+  disable) at the SAME x as the sheet/melodic clef (`CLEF_GLYPH_X`); the X writes
+  `percussionSettings.preferredClef='off'`, which hides the percussion staff in
+  melody mode, feeds it an empty melody (no notes), and skips its generation
+  (mirrors the melodic 'off'). The together/split toggler now renders the
+  `[[k,c],hh,[s,hh],hh]×2` pattern with the REAL `MelodyNotesLayer` (proper
+  notehead assets), not a tiny-font sketch.
+- The morph OLD-group fade-out is now very short (`FADE_OUT_MS`=250 ms) while the
+  staggered fly-in keeps its 1.5 s timing.
+
+**Polish wave 2 (Han 2026-06-01 #4) — done:**
+- Carousel glyphs are now the EXACT sheet clefs via the shared `<ClefGlyph>`
+  (`sheet-music/clefGlyphs.jsx`, which also owns `clefSymbols` as the single source
+  of truth — SheetMusic imports it). The current slot draws the concrete current
+  clef (incl. ottava / `treble15va` etc.) at the real sheet position
+  (`CLEF_GLYPH_X`, `baseY = staffStart+30`, fontSize 36); neighbours draw their
+  family default clef. The static sheet clef is hidden in clef mode (no doubling).
+  Glyphs entering on a family change SLIDE in from the right (transform transition),
+  clipped to the gutter `[0, startX]` so they don't spill over the variant chips.
+
+**Polish wave (Han 2026-06-01) — done:**
+- The family carousel now lives in the **clef gutter, fully LEFT of `startX`**: the
+  current family glyph sits at `GUTTER_X` (≈ the real clef position) and neighbours
+  step right by `FAMILY_SLOT_W` up to `startX`, fading out as they approach it.
+  Picking another family slides + fades (transform+opacity transition) for a true
+  carousel feel (old glyph slides off-left & fades, new fades in from the right).
+- Clef glyphs render at **true staff size** (`FAMILY_GLYPH_SIZE` 36). The static
+  staff clef glyph AND the time signature are **hidden in clef-edit mode** (the
+  carousel draws the clef in the gutter; `renderStaffMeasureTexts` is gated on
+  `!clefEditMode` for all three staves).
+- Octave variants render as the **full ottava CLEF GLYPHS** (clef + an italic 8/15
+  marker above/below), not text chips (`OCTAVE_VARIANTS[*].glyph/ott`).
+- **Percussion clef block**: the percussion clef glyph in the gutter (left) + a
+  `[[k,c],hh,[s,hh],hh]`×2 mini-rhythm sketch rendered TWICE as a **together↔split
+  toggler** (dots + stems; together = all stems up, split = RH↑/LH↓), driving
+  `percussionVoiceSplit` via `onToggleVoiceSplit` (`setPercussionVoiceSplit` from
+  `useDisplaySettings`). The SettingsPanel toggle still exists and shares the state.
+
+**Disabled-staff rendering (resolved Han 2026-06-01 #3):** an 'off' staff now
+renders normally but with no elements (empty melody), is hidden in melody mode, and
+its generation is skipped — see the "Disabled staff" paragraph above.
+
+**Files:** `overlays/ClefStaffOverlay.jsx`, `overlays/clefSelector.js` (+ test),
+`SheetMusic.jsx` (`clefEditMode`, clef-click → `onOpenClefEdit`, overlay render,
+`lastOverlayKind`, `'off'` in `calculateOptimalClef`/`bassActiveClef`; the old
+in-popup clef list + `CLEF_RANGE_OPTIONS`/`applyRangeOption`/`getCurrentRangeValue`
+were removed; clef glyph + time-sig hidden in clef mode; percussion clef block
+wiring + `setPercussionVoiceSplit`), `hooks/useRangeMorph.js` (queries
+`.range-overlay, .clef-overlay`), `layout/SubHeader.jsx` (CLEF button), `App.jsx`
+(`clefEditMode` + toggle/open), `styles/App.css` (`.clef-family-glyph`
+transform+opacity transition).
+
+### 37.3 Chord selector — split across RANGE + CLEF (Han #6→#12)
+
+The chord controls split into two pieces, each in the chord row above the treble
+staff but in different setters (Han #12):
+- **Complexity** → the RANGE setter (`ChordStaffOverlay`, rendered on `rangeMounted`;
+  `.chord-overlay` is part of the 'range' morph surface). 5 chords drawn as REAL
+  stacked whole-notes via `MelodyNotesLayer` (§6c reuse — NOT hand-rolled glyphs):
+  tonic `[C4]`, power `[C4,G4]`, triad `[C4,E4,G4]`, seventh `[C4,E4,G4,B4]`, and
+  "extended" = bright `[C4,G4]` + lowlit `[E4,B4]` (same column) + right-offset lowlit
+  `[D4,F4,A4]`. Stored canonically (tonic→`root`, extended→`ninth`). Positioned at
+  10/30/50/70/90% of the row width (avoids clipping).
+- **Style/visualisation** → the CLEF setter (`ChordStyleOverlay`, on `clefMounted`;
+  `.chord-style-overlay` is part of the 'clef' morph surface). X disable at startX,
+  then real progression samples — letters `D− G7 C` @33%, roman `ii V7 I` @66% — in
+  the SHEET chord-label font (root 26 / super 16 Georgia italic).
+Reuse: `chordDisplayMode='off'` (X) options below:
+- **X** → `chordDisplayMode='off'`: hides the labels (`chordsHidden` gates
+  `actualChords`) AND mutes the audio (a `chordsDisabledRef` mirrors the mode into
+  the Sequencer, which sets `chordVolume=0`). Chords are **still generated** (they
+  inform the melody pitch pools) — Han confirmed: hide + don't play, but keep
+  generating.
+- **letters** → letter chords (D−, G7, C); **roman** → roman numerals (ii, V7, I).
+The active option is highlighted; picking one writes `chordDisplayMode`. The
+time-signature is hidden in any overlay mode (`!overlayEditMode`).
+
+**Files:** `overlays/ChordStaffOverlay.jsx`, `SheetMusic.jsx` (renders the chord
+overlay in `clefEditMode`; `chordsHidden`), `App.jsx` (`chordsDisabledRef`),
+`audio/Sequencer.js` (chord-audio gate). `chordEditMode` + the CHORDS button were
+removed.
+
+### 37.4 Custom 22ma / 22mb clef marker (Han 2026-06-01 #6)
+
+Maestro's font has pre-composited ottava glyphs only up to 15 (`Û`=15ma etc.) — no
+22. So `clefGlyphs.jsx` adds `treble22va/22vb` + `bass22va/22vb` to `clefSymbols`
+(`ottava:'22'`) and a CUSTOM `<Ottava22>` composite: an italic-bold serif "22" + a
+small superscript "ma"/"mb". IMPORTANT: it must NOT use `fontFamily="Maestro"` —
+Maestro maps ASCII digits/letters to MUSIC glyphs (PUA), so "22ma" in Maestro
+rendered unreadable symbols (the 22mb-invisible bug, Han #8); a normal text font is
+required. `ClefGlyph` renders `ottava:'22'` via `Ottava22` (other ottavas keep the
+baked-in font glyph). The 22 clefs aren't wired as a selectable option yet
+(generation maxes at 15ma) — this provides the renderable ASSET for when ±22 is added.
+
+### 37.6 Selector layout polish (Han 2026-06-01 #8)
+
+- **ClefCarousel** now fades at BOTH edges (a left+right linear-gradient mask) so
+  glyphs ease in from the right without hard-clipping at the sheet's left start, and
+  it caps the number of shown glyphs to the gutter's capacity (fixes "4 percussion
+  clefs shown for a 2-option toggle"). The morph hook (`useRangeMorph`) resets inline
+  styles on interrupt so rapid re-toggling never leaves a group stuck (re-arm bug).
+- **Variant clefs** (octave/vocal options) render as TRUE-SIZE `ClefGlyph`s
+  distributed evenly across `startX…endX`, not small boxed chips.
+- **Chord row**: an X disable cross at `startX`, then letters@33% / roman@66%
+  rendered like real chord labels (no boxes).
+- **Percussion block**: the clef is a 2-item carousel (`/` ↔ X) aligned to the sheet
+  percussion clef x (18) and clickable (transparent hit rect); the together/split
+  toggler renders the `[[k,hh],hh,[s,hh],hh]` EIGHTH-note pattern as two compact
+  bundles centred at ~33%/66%.
+- The disable **cross** is 2× taller than wide (spans the staff) everywhere
+  (clef gutter, percussion, chord row).
+
+### 37.7 Chord complexity row + range divider fix (Han 2026-06-01 #9)
+
+- **Chord complexity row** (`ChordStaffOverlay`): a second sub-row above the
+  visualisation row offers 5 chords drawn as stacked Maestro noteheads —
+  **tonic / power / triad / seventh / extended** — spread across `startX…endX`.
+  Picking one writes `chordSettings.complexity` using CANONICAL values
+  (tonic→`root`, extended→`ninth`) so the existing PlaybackSettings complexity
+  stepper and the generator agree; `generateChordOnDegree` also aliases
+  `'tonic'`→root and `'extended'`→ninth defensively.
+- **Range hit-zone divider fix**: the treble/bass drag zones previously met at the
+  midpoint of the two NOTE ROWS, which move with the selection — a high bass range
+  pulled the divider (and the bass zone's top edge) up INTO the treble staff
+  (overlap, Han #9). The divider is now anchored to the fixed gap between the staves
+  (`(trebleStart + STAFF_H + bassStart) / 2`), so the zones always meet between the
+  staves regardless of the selection.
+
+### 37.8 Real-notehead chords + sliding 'legacy' settings (Han 2026-06-01 #10/#11)
+
+- **§6c reuse**: the chord complexity row now renders via `MelodyNotesLayer`
+  whole-note chords (see §37.3) instead of hand-rolled glyphs; the clef-view
+  percussion mini-melody runs through `processMelodyAndCalculateSlots` +
+  `MelodyNotesLayer` so its 4 eighths BEAM into one group.
+- **Morph re-arm on surface switch**: `useRangeMorph` is keyed on the current
+  SURFACE kind (`'range' | 'clef' | 'legacy' | 'melody'`), so switching directly
+  between overlays re-animates each time. `groupsForKind` maps each kind to its
+  group(s) — range = `.range-overlay` + `.chord-overlay`; legacy = `.settings-overlay`.
+- **Legacy settings surface**: the old settings overlay is no longer a floating
+  overlay — it's the sliding **'legacy'** surface. `overlayKind` becomes `'legacy'`
+  when `showSettings`; it's gated on `legacyMounted` and animates exactly like
+  clef/range (the melody flies out, the settings rows fly in). It shares the
+  `overlayEditMode` treatment (melody hidden, time-sig hidden, end barline at endX).
+  **It opens ONLY via its own SubHeader `SETTINGS` button** (`onOpenSettings` →
+  `App.handleToggleSettings`, mutually exclusive with clef/range). Clicking the sheet
+  no longer opens it (`openSettingsIfClosed` is now a timer-only no-op;
+  `handleSheetMusicClick` only CLOSES it) — Han #13, goal: deprecate later.
+- **Chord-style sample** matches the sheet chord label exactly (`ChordStyleOverlay`):
+  plain serif (NOT italic), with the minor "−"/"7" as a raised superscript tspan
+  (root + super), mirroring `ChordLabelsLayer`.
+- **Percussion clef bundle beaming**: rendered through `processMelodyAndCalculate
+  Slots` + `MelodyNotesLayer` with a `[1,2]` (odd-numerator) measure so the beam-span
+  logic keeps all 4 eighths in ONE beam instead of splitting an even measure 2+2.
+
+### 37.4a Dual-surface + ghost staff (Han 2026-06-01 #7)
+
+- **Clef-on-sheet ⇄ range-on-keyboard.** When the SHEET clef selector is active
+  (`clefEditMode`), the bottom keyboard tabs show the `KeyboardRangeSetter` (TabView
+  swaps it in for `rangeEditMode || clefEditMode`), so editing the clef on the sheet
+  pairs with editing the range on the keyboard.
+- **Ghost staff.** In any settings/edit view (`showSettings || rangeEditMode ||
+  clefEditMode`) a DISABLED staff (`preferredClef==='off'`) is STILL shown, but its
+  notes + clef glyph render at `GHOST_OPACITY` (0.4) while the staff lines + barlines
+  stay at full opacity. Interacting with the staff's options (the clef carousel / the
+  percussion X) re-enables it. Outside settings views a disabled staff stays hidden,
+  so ghosting only applies while a setter is open. (Restoring the EXACT prior clef on
+  re-enable is a refinement; re-enable currently sets a sensible default clef.)
+
+### 37.5 Playback / Exercise setters — DESIGN (Han 2026-06-01 #7, not yet built)
+
+Two further in-staff setter modes, mirroring clef/range and ghost-aware. They
+surface the existing `playbackConfig` (App `configRef`) which holds: global
+`repsPerMelody`, `totalMelodies`; and PER-ROUND (`oddRounds`/`evenRounds`)
+per-voice **volume** (`treble`/`bass`/`percussion`/`chords`/`metronome`, 0–1) +
+**visibility** (`trebleEye`/`bassEye`/`percussionEye`/`chordsEye`) + a `notes` flag.
+`numMeasures` + `musicalBlocks` are App-level.
+
+**EXERCISE setter (global / song-level)** — values that aren't per-staff, drawn
+above the system (or in a header strip), not in a staff gutter:
+- **#measures** (`numMeasures`) — a stepper / number picker.
+- **#repeats** (`repsPerMelody`) — stepper.
+- **total melodies** (`totalMelodies`, −1 = endless) — stepper / ∞ toggle.
+- (later) difficulty level / progression already live in their own tab.
+
+**PLAYBACK setter (per-staff × per-round)** — each staff (treble, bass, percussion,
++ chords & metronome as pseudo-rows) gets, in its gutter / right margin:
+- an **eye** toggle (visibility = `*Eye`),
+- a **volume** control (audibility = the 0–1 number) — a small vertical slider or a
+  stepped speaker (mute / soft / mid / loud), reusing the existing volume-picker.
+- A **round switch** (odd ↔ even, i.e. "round 1 / round 2") picks which round's
+  values you're editing — the in-staff equivalent of the two columns in the current
+  `PlaybackSettings` grid.
+- Ghost-aware: a disabled staff shows its eye/volume at 0.4; toggling re-enables.
+
+**Why this split:** measures/repeats/total are GLOBAL (one value for the whole
+exercise) so they don't belong in a per-staff gutter; visibility/volume are
+inherently PER-STAFF and PER-ROUND, so they map onto the staff rows exactly like the
+clef/range setters. This keeps every in-staff setter "one concern per staff row".
+
+**Open questions for Han before building:** (a) one combined PLAYBACK+EXERCISE
+button or two? (b) round switch UI: a single odd/even toggle, or a per-round column
+like today? (c) volume control style: vertical mini-slider vs stepped speaker icon?
+
+## 38. Keyboard Transposition — pitch-class relabelling of the playable keyboard (2026-06)
+
+**Purpose.** A transposing-instrument player (B♭ trumpet, E♭ alto, …) wants the
+on-screen piano to match THEIR fingering: the keys relabelled to their written
+note names, and pressing/highlighting follows. This is the keyboard analogue of
+the staff "concert C4 =" transposition setter — but it transposes the **KEYS**,
+not the notation (Han 2026-06-13: *"transpositie van de toetsen, níet van de
+notatie"*).
+
+**It is a pitch-CLASS rotation, not a semitone shift.** Han: *"klavier C – C is
+genoeg, zonder nummer. Want −1 en +11 is hetzelfde — de hoogte wordt al bepaald
+door de range setter."* So the value is a pitch class `keyboardTranspose ∈ 0..11`
+(0 = concert), the relabelled keys show **no octave number**, and the sounded
+note is folded to the nearest octave (`foldShift → [-6,+6]`) so a key never jumps
+~an octave away from its physical position.
+
+**How it works.**
+- State lives in `App.jsx` (`keyboardTranspose`, default 0) — global, independent
+  of the per-staff `transpositionKey/Octave` that transposes the notation.
+- A single transform `tn(physicalNote) = transposeNoteBySemitones(note,
+  foldShift(-T))` in `PianoView.jsx` maps each physical key to the **concert note**
+  it now represents. It drives, in lock-step: the **label** (pitch-class only when
+  `T≠0`), the **sound** (`playSound(tn(note))`), and the **scale/tonic/active
+  highlight** comparisons (`getKeyClass`/`getKeyStyle` compute their pitch class
+  from `tn(note)`; `isBlack`/key-shape stay on the PHYSICAL note). `tn` is the
+  identity at `T=0`, so the normal keyboard is byte-for-byte unchanged.
+- The setter is `KeyboardTransposeSetter.jsx` — a single C4–C5 octave (PianoView with
+  `interactionMode='set-transpose'`, no octave-number labels). Clicking any key makes THAT
+  key the new C, i.e. sets `keyboardTranspose` to the clicked key's pitch class (clicking C
+  resets to 0). It plays no sound. The keyboard is **mode-exclusive** (Han 2026-06-13,
+  superseded the −/+ stepper): TabView shows `KeyboardTransposeSetter` in NOTATION mode
+  (`clefEditMode`) and `KeyboardRangeSetter` in RANGE mode — mirroring the staff's
+  range-vs-notation setter split. The keyboard/input transposition is INDEPENDENT of the
+  staff NOTATION transposition (`transpositionKey`); both are visible/settable at once. The
+  play-tab keyboards receive `transpose={keyboardTranspose}` so the choice persists outside
+  edit mode.
+
+## 39. Note-colouring menu + setter-button styling (2026-06)
+
+**Note-colouring menu** (`overlays/NoteColoringStaffOverlay.jsx`, Han 2026-06-13; redesigned
+on-staff 2026-06-14). A new COLOUR setter mode (`colorEditMode` in App, sibling of
+range/clef/settings — mutually exclusive). Per the visual-redesign principle (§37 #2) it
+renders IN the SheetMusic SVG, directly on the EXISTING top staff (no HTML cards, no extra
+mini-staves, no clef — the static clef glyph is suppressed in `colorEditMode`). The 5 scheme
+sets (`none, tonic_scale_keys, chords, chromatone, subtle-chroma`) sit side by side along the
+real staff; each is 8 notes C4–C5 coloured by THAT scheme, placed with the same
+`getNoteAbsoluteY`/`StaffQuarterNote`/`melodicNoteColor` the real notes use, so they land on
+the staff lines. Tap a set to select it (`setNoteColoringMode`); active set highlighted.
+Mounted simply on `colorEditMode`; `overlayEditMode` includes it so the melody hides. The
+`chords` set colours against the representative chord (`pausedActiveChord`) via the shared
+`chordNoteColor`. Note: the sets fit-to-width in the SVG (no HTML side-scroll — that would
+break the on-staff requirement).
+
+**Chord colouring — timed vs untimed surfaces (Han 2026-06-14).** `chordNoteColor(note,
+chord, theme)` in `noteUtils` is the single source for 'chords'-mode colour (chord tones get
+the root's chromatone colour). The **sheet melody is always per-timing**: `coloringChords ===
+processedChords` so each note follows the chord at its own offset, playing OR paused (the old
+paused single-chord collapse was removed). **Untimed surfaces** (in-staff range/transposition
+setters, the colour menu, and the keyboard `PianoView`) have no per-note offset, so they
+colour against ONE representative chord — the tonic chord if it's the progression's last, else
+the first (`pausedActiveChord` in SheetMusic; the matching `keyboardActiveChord` in App for the
+keyboard). `PianoView` gains an `activeChord`+`theme` prop and a `chords` branch in
+`getKeyStyle` (using the concert note so it's correct under keyboard transposition).
+
+**Setter-button styling** (`SubHeader.jsx`, Han 2026-06-13). The menu-toggle buttons
+(SETTINGS / TRANSPOSITION / RANGE / COLOUR) now share ONE highlight colour
+(`--accent-yellow`) via `renderButton(..., isMenuToggle=true)`: lowlit (opacity 0.4) when
+their menu is closed, full + a glow when active (the glow reuses the note-highlight triple
+drop-shadow). The real mode flags are passed from App as each button's `isActive`.
+
+**Invariants.**
+- `tn` MUST be the only place the physical→concert mapping happens; never re-derive
+  it inline. Reuses `transposeNoteBySemitones` (musicUtils) — the same engine the
+  staff renderer uses (CLAUDE.md §6c). Do not hand-roll a second transposer.
+- Key SHAPE/colour (`isBlack`, white/black class) stays on the physical note; only
+  the highlight DECISION and the label use the concert note.
+- Pitch-class only: never surface an octave number on the transposed keyboard.
+
+**Files.** `App.jsx` (state + prop), `components/layout/TabView.jsx` (prop-drill to
+both PianoViews + both KeyboardRangeSetters), `components/controls/PianoView.jsx`
+(`transpose` prop, `tn`, `foldShift`), `components/controls/KeyboardRangeSetter.jsx`
+(the "concert C =" stepper + transposed real keyboard).

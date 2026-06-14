@@ -26,27 +26,25 @@
  * @param {number} n - Meter numerator
  * @returns {number[]} Beat offsets (in denominator-unit beats) of each group's first beat
  */
-export const decomposeNumeratorToBeatGroups = (n) => {
-    if (n < 2) return [];
-    // Prefer 3s; handle the remainder:
-    //   n%3 === 0 → all 3s
-    //   n%3 === 2 → (n-2)/3 threes + one 2
-    //   n%3 === 1 → replace one hypothetical 3 with two 2s: (n-4)/3 threes + two 2s
+// Decompose a meter numerator into group SIZES of 2 and 3 (prefer 3s first):
+//   n%3 === 0 → all 3s            (6→[3,3], 9→[3,3,3])
+//   n%3 === 2 → (n-2)/3 threes + one 2   (5→[3,2], 8→[3,3,2])
+//   n%3 === 1 → (n-4)/3 threes + two 2s  (7→[3,2,2], 10→[3,3,2,2]; needs n ≥ 4)
+// Shared by decomposeNumeratorToBeatGroups (→ beat offsets) and chooseGrouping (→ shuffled order).
+// Callers guard their own small-n edge cases (n<2, and rem===1 with n<4) before calling.
+const decomposeToGroupSizes = (n) => {
     const rem = n % 3;
     let threes, twos;
-    if (rem === 0) {
-        threes = n / 3;
-        twos = 0;
-    } else if (rem === 2) {
-        threes = (n - 2) / 3;
-        twos = 1;
-    } else {
-        // rem === 1 — need n ≥ 4 to form the two extra 2s
-        if (n < 4) return [];
-        threes = (n - 4) / 3;
-        twos = 2;
-    }
-    const groups = [...Array(threes).fill(3), ...Array(twos).fill(2)];
+    if (rem === 0) { threes = n / 3; twos = 0; }
+    else if (rem === 2) { threes = (n - 2) / 3; twos = 1; }
+    else { threes = (n - 4) / 3; twos = 2; }   // rem === 1 (caller guarantees n ≥ 4)
+    return [...Array(threes).fill(3), ...Array(twos).fill(2)];
+};
+
+export const decomposeNumeratorToBeatGroups = (n) => {
+    if (n < 2) return [];
+    if (n % 3 === 1 && n < 4) return [];   // rem === 1 needs n ≥ 4 to form the two extra 2s
+    const groups = decomposeToGroupSizes(n);
     const starts = [];
     let offset = 0;
     for (const g of groups) {
@@ -65,15 +63,8 @@ export const decomposeNumeratorToBeatGroups = (n) => {
  */
 export const chooseGrouping = (numerator) => {
     if (numerator < 2) return [numerator];
-    const rem = numerator % 3;
-    let threes, twos;
-    if (rem === 0) { threes = numerator / 3; twos = 0; }
-    else if (rem === 2) { threes = (numerator - 2) / 3; twos = 1; }
-    else {
-        if (numerator < 4) return [numerator];
-        threes = (numerator - 4) / 3; twos = 2;
-    }
-    const groups = [...Array(threes).fill(3), ...Array(twos).fill(2)];
+    if (numerator % 3 === 1 && numerator < 4) return [numerator];
+    const groups = decomposeToGroupSizes(numerator);
     // Fisher-Yates shuffle — equal probability for every permutation.
     for (let i = groups.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -282,7 +273,12 @@ export const generateDeterministicRhythm = (
                     }
                 }
             }
-            for (let div of [8, 4, 2, 1]) {
+            // Final fallback: rank any still-null slots by power-of-two coarseness. Halve the
+            // division from numberOfSlotsPerMeasure/2 down to 1 (8,4,2,1 for the common 16-slot
+            // measure) — derived from the slot count so it generalises instead of a hardcoded table
+            // that silently assumes 16 (§6c). Higher-coarseness passes land on structural slots
+            // already ranked above, so they no-op; the meaningful fills are the fine div=2,1 passes.
+            for (let div = numberOfSlotsPerMeasure >> 1; div >= 1; div >>= 1) {
                 let rank = numberOfSlotsPerMeasure / div;
                 for (let j = 0; j < numberOfSlotsPerMeasure; j++) {
                     if (measureSlots[j] === null && ((j % div) * timeSignature[1]) / measureNoteResolution === 0) {

@@ -3,10 +3,19 @@
 import React, { useRef, useState, useMemo } from 'react';
 import useSheetMusicHighlight from '../../hooks/useSheetMusicHighlight';
 import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
+import useRangeMorph from '../../hooks/useRangeMorph';
+import useClefRefly from '../../hooks/useClefRefly';
 import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
-import { processMelodyAndCalculateFlags } from './processMelodyAndCalculateFlags';
-import SettingsOverlay, { VOL_STEPS } from './SettingsOverlay';
+import OttavaMarker from './OttavaMarker';
+import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
+import RangeStaffOverlay from './overlays/RangeStaffOverlay';
+import ClefStaffOverlay from './overlays/ClefStaffOverlay';
+import NoteColoringStaffOverlay from './overlays/NoteColoringStaffOverlay';
+import { clefFamilyKey } from './overlays/clefSelector';
+import ChordStaffOverlay from './overlays/ChordStaffOverlay';
+import ChordStyleOverlay from './overlays/ChordStyleOverlay';
+import { clefSymbols } from './clefGlyphs';
 import GenericTypeSelector from '../common/GenericTypeSelector';
 import SvgSetter from './SvgSetter';
 
@@ -19,15 +28,15 @@ import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
-import { getNoteSemitone, getKodalySolfege } from '../../theory/noteUtils';
-import { getNoteIndex } from '../../theory/musicUtils';
+import { getNoteSemitone, getKodalySolfege, respellToKeySignature } from '../../theory/noteUtils';
+import { getNoteIndex, transposeMelodyBySemitones, transposeNoteBySemitones } from '../../theory/musicUtils';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import { isCompoundMeter, getEffectiveBeatDuration, getBeatDurationTicks, getTakadimiSyllable, getTakadimiSyllableGrouped, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
 
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
 import { PRESET_RANGES as CLEF_RANGE_PRESET_RANGES } from '../../constants/ranges';
-import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionDisplay } from '../../constants/transposingInstruments';
+import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionInstLabel, getTranspositionFifths } from '../../constants/transposingInstruments';
 import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange } from '../../utils/melodySlice';
 import { calculateMusicalBlocks } from '../../utils/pagination';
 import useLongPressTimer from '../../hooks/useLongPressTimer';
@@ -35,6 +44,9 @@ import BpmControls from './BpmControls';
 import RepeatsControls from './RepeatsControls';
 import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
+import { clampRange, getNoteValue, getNoteFromValue } from '../../utils/rangeUtils';
+import { PRESET_RANGES } from '../../constants/ranges';
+import { PERCUSSION_PRESETS } from '../../audio/drumKits';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { useMelodies } from '../../contexts/MelodyContext';
 import { usePlaybackTransport } from '../../contexts/PlaybackTransportContext';
@@ -55,68 +67,68 @@ const CLEF_VOCAL_RANGES = [
   { label: 'Mezzo-soprano', min: 'A3', max: 'G5', clef: 'mezzo-soprano' },
   { label: 'Soprano',       min: 'C4', max: 'G6', clef: 'soprano' },
 ];
-// Ordered top-to-bottom: treble options, then bass, then vocals (Soprano first)
-const CLEF_RANGE_OPTIONS = [
-  { label: 'TREBLE 8VA',      value: 'TREBLE_RELATIVE',     clefType: 'g' },
-  { label: 'TREBLE 15MA',     value: 'TREBLE_RELATIVE_15A', clefType: 'g' },
-  { label: 'TREBLE FULL',     value: 'FULL_TREBLE',         clefType: 'g' },
-  { label: 'TREBLE LARGE',    value: 'LARGE_TREBLE',        clefType: 'g' },
-  { label: 'TREBLE STANDARD', value: 'STANDARD_TREBLE',     clefType: 'g' },
-  { label: 'BASS 8VB',        value: 'BASS_RELATIVE',       clefType: 'f' },
-  { label: 'BASS LOW',        value: 'BASS_RELATIVE_LOW',   clefType: 'f' },
-  { label: 'BASS FULL',       value: 'FULL_BASS',           clefType: 'f' },
-  { label: 'BASS LARGE',      value: 'LARGE_BASS',          clefType: 'f' },
-  { label: 'BASS STANDARD',   value: 'STANDARD_BASS',       clefType: 'f' },
-  ...([...CLEF_VOCAL_RANGES].reverse().map(v => ({
-    label: v.label.toUpperCase(), value: v.label, clefType: 'v',
-  }))),
-];
+// The old in-popup clef+range list (CLEF_RANGE_OPTIONS / applyRangeOption /
+// getCurrentRangeValue) was removed when clicking a clef started opening the
+// in-staff clef selector (Han 2026-06-01); see overlays/ClefStaffOverlay.jsx.
 
-/** Apply a range-option value (matching CLEF_RANGE_OPTIONS) to an InstrumentSettings setter. */
-const applyRangeOption = (val, setter) => {
-  if (val === 'TREBLE_RELATIVE')     return setter(p => ({ ...p, rangeMode: 'relative',     preferredClef: 'treble' }));
-  if (val === 'TREBLE_RELATIVE_15A') return setter(p => ({ ...p, rangeMode: 'relative_15a', preferredClef: 'treble' }));
-  if (val === 'BASS_RELATIVE')       return setter(p => ({ ...p, rangeMode: 'relative',     preferredClef: 'bass'   }));
-  if (val === 'BASS_RELATIVE_LOW')   return setter(p => ({ ...p, rangeMode: 'relative_low', preferredClef: 'bass'   }));
-  if (val.includes('_')) {
-    const parts  = val.split('_');
-    const clef   = parts[parts.length - 1].toLowerCase(); // 'treble' | 'bass'
-    const mode   = parts.slice(0, -1).join('_');
-    const preset = CLEF_RANGE_PRESET_RANGES[mode]?.[clef];
-    if (preset) setter(p => ({ ...p, rangeMode: mode, range: preset, preferredClef: clef }));
-    return;
+// Set of vocal clef strings (module scope; mirrors the per-instance set used by
+// calculateOptimalClef).
+const VOCAL_CLEFS = new Set(['soprano', 'mezzo-soprano', 'alto', 'tenor']);
+// Vocal voice rangeModes — a staff counts as "vocal" (→ vocal range presets) when it
+// shows a vocal clef OR carries a vocal voice rangeMode, so Bass/Baritone (F-clef
+// voices) also get the 6 voice presets (Han #12, 2026-06-03).
+const VOCAL_RANGE_MODES_SET = new Set(CLEF_VOCAL_RANGES.map(v => v.label));
+
+/**
+ * computeRangeFrame — the clef-aware "frame" the in-staff range selector needs:
+ * the selectable note extent (rowLow/rowHigh as note names) plus the list of
+ * applicable presets ({label, min, max}) for the right-margin brackets.
+ *
+ * Why this lives here (Han 2026-05-31): the selectable extent and presets must
+ * follow the CLEF SHOWN on the staff, not the staff slot. A bass clef on the top
+ * staff must offer bass notes/presets, and vice versa; vocal clefs centre on
+ * their voice's range with room above and below. SheetMusic already owns all
+ * clef + vocal knowledge (CLEF_VOCAL_RANGES, PRESET_RANGES), so we derive the
+ * frame here and hand it to the overlay rather than duplicating tables there
+ * (§6c). The extent is exactly the clef's widest preset — no ±octave padding,
+ * which previously made treble extend down to A2 and overlap the bass staff.
+ */
+const computeRangeFrame = (clef, rangeMode = null) => {
+  if (VOCAL_CLEFS.has(clef) || VOCAL_RANGE_MODES_SET.has(rangeMode)) {
+    // Vocal: CENTRE the current voice by padding its own range by one voice-span on
+    // each side (capped 21..108). The voice's notes then sit in the middle third with
+    // room above and below (Han 2026-05-31). Presets are ALL 6 voices (Bass…Soprano);
+    // each carries its clef so picking a preset also activates the matching clef (#12).
+    const voice = CLEF_VOCAL_RANGES.find(v => v.label === rangeMode)
+      || CLEF_VOCAL_RANGES.find(v => v.clef === clef)
+      || CLEF_VOCAL_RANGES.find(v => v.label === 'Alto');
+    const lo = getNoteValue(voice.min), hi = getNoteValue(voice.max);
+    const span = Math.max(12, hi - lo);
+    return {
+      rowLow: getNoteFromValue(Math.max(21, lo - span)),
+      rowHigh: getNoteFromValue(Math.min(108, hi + span)),
+      presets: CLEF_VOCAL_RANGES.map(v => ({
+        label: v.label.toUpperCase(), rangeMode: v.label, clef: v.clef, min: v.min, max: v.max,
+      })),
+    };
   }
-  const vocal = CLEF_VOCAL_RANGES.find(v => v.label === val);
-  if (vocal) setter(p => ({ ...p, range: { min: vocal.min, max: vocal.max }, preferredClef: vocal.clef, rangeMode: vocal.label }));
+  // Melodic (treble/bass and their ottava variants): pick the base family by clef.
+  // Extent = the clef's FULL preset ± one octave (the "original" note set — there
+  // is room for it on wider screens; narrow-screen scaling is a later phase),
+  // clamped to the app's hard bounds.
+  const base = clef && clef.startsWith('bass') ? 'bass' : 'treble';
+  const full = CLEF_RANGE_PRESET_RANGES.FULL[base];
+  return {
+    rowLow: getNoteFromValue(Math.max(21, getNoteValue(full.min) - 12)),
+    rowHigh: getNoteFromValue(Math.min(108, getNoteValue(full.max) + 12)),
+    presets: ['STANDARD', 'LARGE', 'FULL'].map(m => ({
+      label: m, min: CLEF_RANGE_PRESET_RANGES[m][base].min, max: CLEF_RANGE_PRESET_RANGES[m][base].max,
+    })),
+  };
 };
 
-/** Map current settings back to the matching CLEF_RANGE_OPTIONS value for selection highlight. */
-const getCurrentRangeValue = (settings, activeClef) => {
-  const mode = settings?.rangeMode;
-  const pref = settings?.preferredClef || activeClef;
-  if (mode === 'relative')     return pref === 'bass' ? 'BASS_RELATIVE'       : 'TREBLE_RELATIVE';
-  if (mode === 'relative_15a') return 'TREBLE_RELATIVE_15A';
-  if (mode === 'relative_low') return 'BASS_RELATIVE_LOW';
-  if (['STANDARD', 'LARGE', 'FULL'].includes(mode)) return `${mode}_${pref.toUpperCase()}`;
-  return mode; // vocal label
-};
-
-const clefSymbols = {
-  treble: { char: '&', yOffset: 0 },
-  alto: { char: 'B', yOffset: -10.0 },
-  tenor: { char: 'B', yOffset: -20.0 },
-  soprano: { char: 'B', yOffset: 10.0 },
-  'mezzo-soprano': { char: 'B', yOffset: 0.0 },
-  treble8va: { char: ' ', yOffset: 0 },
-  treble8vb: { char: 'V', yOffset: 0 },
-  treble15va: { char: '&', yOffset: 0, ottava: '15' },
-  treble15vb: { char: '&', yOffset: 0, ottava: '15', below: true },
-  bass: { char: '?', yOffset: -20 },
-  bass8va: { char: 'æ', yOffset: -20 },
-  bass8vb: { char: 't', yOffset: -10 },
-  bass15va: { char: '?', yOffset: -20, ottava: '15' },
-  bass15vb: { char: '?', yOffset: -10, ottava: '15', below: true },
-};
+// clefSymbols is now the single source of truth in ./clefGlyphs (shared with the
+// clef selector so its glyphs match the sheet exactly — Han 2026-06-01 #4).
 
 
 // Maximum extent (offset + duration) across all notes in a melody.
@@ -163,7 +175,13 @@ const SheetMusic = ({
   onRandomizeMeasure,
   showChords,
   showSettings,
+  rangeEditMode,
+  clefEditMode,
+  colorEditMode,
   onToggleSettings,
+  onCloseRangeEdit,
+  onCloseClefEdit,
+  onOpenClefEdit,
   onSettingsInteraction,
   viewMode,    // 'melody' | 'repeat' — see viewMode prop in App.jsx for the source-of-truth computation
   numMeasures, // Added prop
@@ -203,9 +221,66 @@ const SheetMusic = ({
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
   const { trebleSettings, setTrebleSettings, bassSettings, setBassSettings,
     percussionSettings, setPercussionSettings, chordSettings, setChordSettings } = useInstrumentSettings();
+
+  // ── Range-selector write handlers (Phase 3) ──────────────────────────────
+  // Reuse RangeControls' semantics so both surfaces behave identically:
+  // clampRange enforces the 12-semitone min span + 21..108 bounds; then detect
+  // a preset match to keep rangeMode in sync. Writing through the same setters
+  // fires the existing settings→regeneration path unchanged.
+  // `presets` is the clef-aware list ({label,min,max}) from computeRangeFrame, so
+  // the rangeMode match works for whichever clef (incl. vocal) is on the staff.
+  const setMelodicBoundary = React.useCallback((staff, midi, which, presets = []) => {
+    const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
+    setter(prev => {
+      const curMin = getNoteValue(prev.range.min);
+      const curMax = getNoteValue(prev.range.max);
+      // 'nearest' (tap) picks the closer boundary; a drag passes the captured
+      // boundary explicitly so it keeps following the finger.
+      const bound = which === 'nearest'
+        ? (Math.abs(midi - curMin) <= Math.abs(midi - curMax) ? 'min' : 'max')
+        : which;
+      const startMin = bound === 'min' ? midi : curMin;
+      const startMax = bound === 'max' ? midi : curMax;
+      const { min, max } = clampRange(startMin, startMax, bound);
+      const range = { min: getNoteFromValue(min), max: getNoteFromValue(max) };
+      const hit = presets.find(p => p.min === range.min && p.max === range.max);
+      return { ...prev, range, rangeMode: hit ? hit.label : 'CUSTOM' };
+    });
+  }, [setTrebleSettings, setBassSettings]);
+
+  // `preset` is a clef-aware {label,min,max} from the overlay's frame, so this
+  // works for treble/bass presets AND vocal voices (which aren't in PRESET_RANGES).
+  const applyMelodicPreset = React.useCallback((staff, preset) => {
+    const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
+    // A vocal preset also activates the matching voice clef + proper-case voice rangeMode
+    // (Han #12, 2026-06-03); melodic presets just set the range + their label rangeMode.
+    setter(prev => ({
+      ...prev,
+      range: { min: preset.min, max: preset.max },
+      rangeMode: preset.rangeMode ?? preset.label,
+      ...(preset.clef ? { preferredClef: preset.clef } : {}),
+    }));
+  }, [setTrebleSettings, setBassSettings]);
+
+  const togglePad = React.useCallback((padId) => {
+    setPercussionSettings(prev => {
+      const cur = Array.isArray(prev.enabledPads) ? prev.enabledPads : [];
+      const isOn = cur.includes(padId);
+      // Percussion must always keep ≥1 enabled pad (Han 2026-06-01): refuse to turn
+      // off the last remaining one (a tap on the sole active pad is a no-op).
+      if (isOn && cur.length <= 1) return prev;
+      const next = isOn ? cur.filter(p => p !== padId) : [...cur, padId];
+      return { ...prev, enabledPads: next };
+    });
+  }, [setPercussionSettings]);
+
+  const applyPercussionPreset = React.useCallback((mode) => {
+    setPercussionSettings(prev => ({ ...prev, enabledPads: [...PERCUSSION_PRESETS[mode]] }));
+  }, [setPercussionSettings]);
   const { noteColoringMode, setNoteColoringMode, debugMode, lyricsMode,
     chordDisplayMode, setChordDisplayMode, showNoteHighlight, setShowNoteHighlight,
-    animationMode, courtesyAccidentals = true, percussionVoiceSplit = false } = useDisplaySettings();
+    animationMode, courtesyAccidentals = true, percussionVoiceSplit = false,
+    setPercussionVoiceSplit } = useDisplaySettings();
   const svgRefInternal = useRef(null);
   // Use the ref passed from App.jsx if provided (so Sequencer callbacks can access the SVG),
   // otherwise fall back to an internal ref.
@@ -247,7 +322,9 @@ const SheetMusic = ({
   // When the user taps to cycle clef, setTrebleSettings/setBassSettings updates preferredClef
   // and these values follow in the same React render (React 18 automatic batching).
   const trebleActiveClef = trebleSettings?.preferredClef ?? 'treble';
-  const bassActiveClef = ACTIVE_CLEF_TYPES.includes(bassSettings?.preferredClef)
+  // 'off' (disabled staff) is allowed through for both staves alongside the
+  // ACTIVE_CLEF_TYPES; the bass staff otherwise defaults to 'bass'.
+  const bassActiveClef = (bassSettings?.preferredClef === 'off' || ACTIVE_CLEF_TYPES.includes(bassSettings?.preferredClef))
     ? bassSettings.preferredClef
     : 'bass';
 
@@ -287,21 +364,45 @@ const SheetMusic = ({
     ? (playbackConfig?.[roundKey]?.percussionEye === 'metronome')
     : (playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome');
 
-  const actualChords = isPlaying
+  // chordDisplayMode==='off' (the chord-style X) hides the chord labels and mutes the
+  // audio, but chords are STILL generated (Han #6). Keep the labels visible while the
+  // CLEF setter (which hosts the chord-STYLE row, Han #12) is open so the user sees
+  // the context they're toggling.
+  const chordsHidden = chordDisplayMode === 'off' && !clefEditMode;
+  const actualChords = !chordsHidden && (isPlaying
     ? (playbackConfig?.[roundKey]?.chordsEye !== false)
-    : (playbackConfig?.oddRounds?.chordsEye !== false || playbackConfig?.evenRounds?.chordsEye !== false);
+    : (playbackConfig?.oddRounds?.chordsEye !== false || playbackConfig?.evenRounds?.chordsEye !== false));
 
   // Layout visibility: staff stays visible if ANY round has it active, keeping layout stable across
   // rounds. When the current round has a staff hidden (actualTreble/Bass/Perc = false), the staff
   // stays but shows a repeat symbol instead of notes (see per-staff repeats in the render section).
   // showSettings keeps all staves alive so overlay buttons stay correctly anchored.
-  const isTrebleVisible = showSettings ||
-    (playbackConfig?.oddRounds?.trebleEye !== false || playbackConfig?.evenRounds?.trebleEye !== false);
-  const isBassVisible = showSettings ||
-    (playbackConfig?.oddRounds?.bassEye !== false || playbackConfig?.evenRounds?.bassEye !== false);
-  const isPercussionVisible = showSettings ||
-    (playbackConfig?.oddRounds?.percussionEye === true || playbackConfig?.evenRounds?.percussionEye === true ||
-      playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome');
+  // rangeEditMode also keeps the treble/bass staves alive so the range overlay's
+  // selectable note rows have a staff to anchor to even if a staff is hidden.
+  // A staff whose clef is disabled ('off') is HIDDEN in melody mode (Han 2026-06-01)
+  // — but stays visible in clef-edit / settings so the user can re-enable it.
+  const trebleOff = trebleActiveClef === 'off';
+  const bassOff = bassActiveClef === 'off';
+  const isTrebleVisible = showSettings || rangeEditMode || clefEditMode ||
+    (!trebleOff && (playbackConfig?.oddRounds?.trebleEye !== false || playbackConfig?.evenRounds?.trebleEye !== false));
+  const isBassVisible = showSettings || rangeEditMode || clefEditMode ||
+    (!bassOff && (playbackConfig?.oddRounds?.bassEye !== false || playbackConfig?.evenRounds?.bassEye !== false));
+  // Percussion staff disabled via the clef selector's X (preferredClef==='off').
+  const percOff = percussionSettings?.preferredClef === 'off';
+  const isPercussionVisible = showSettings || rangeEditMode || clefEditMode ||
+    (!percOff && (playbackConfig?.oddRounds?.percussionEye === true || playbackConfig?.evenRounds?.percussionEye === true ||
+      playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome'));
+
+  // GHOST STAFF (Han 2026-06-01 #7): in any settings/edit view a DISABLED staff is
+  // still shown, but its notes + interactive "settings" are dimmed to opacity 0.4
+  // (barlines/staff-lines stay normal). Interacting re-enables it (the clef X /
+  // eye toggles restore the most recent settings). Outside settings views a disabled
+  // staff stays hidden, so ghosting only applies when an overlay/settings view is up.
+  const inSettingsView = showSettings || rangeEditMode || clefEditMode;
+  const GHOST_OPACITY = 0.4;
+  const trebleGhost = inSettingsView && trebleOff;
+  const bassGhost = inSettingsView && bassOff;
+  const percGhost = inSettingsView && percOff;
 
   const numVisibleStaves = (isTrebleVisible ? 1 : 0) + (isBassVisible ? 1 : 0) + (isPercussionVisible ? 1 : 0);
   const numGaps = Math.max(1, numVisibleStaves - 1);
@@ -334,6 +435,32 @@ const SheetMusic = ({
   const endX = logicalScreenWidth - 10; // 5 unit margin on each side (Starts at 0, viewBox starts at -5)
   const systemEndX = endX + 5;
 
+  // Enter/exit morph between the melody and an in-staff overlay (1.5 s): old fades,
+  // new flies in from the right. Either RANGE or CLEF mode triggers it (both replace
+  // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
+  // the duration. Fly distance = content width (user units). See useRangeMorph.
+  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || showSettings;
+  // The currently-shown SURFACE drives the morph: switching between range / clef /
+  // legacy-settings / melody re-arms the animation each time (Han #10/#11). The old
+  // settings overlay is now the sliding 'legacy' surface.
+  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : showSettings ? 'legacy' : 'melody';
+  const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
+  // CR-A2: re-fly a single staff's clef row when its clef FAMILY changes while the
+  // clef-edit overlay is open (fade old out + wipe new in from the right). Keyed on the
+  // left-carousel family only (clefFamilyKey) — sub-clef variants (octave, transposition,
+  // vocal voice) must NOT re-trigger the animation (Han 2026-06-08).
+  const clefReflyKeys = {
+    treble: clefFamilyKey(trebleSettings),
+    bass: clefFamilyKey(bassSettings),
+  };
+  useClefRefly(svgRef, clefReflyKeys, clefEditMode, endX);
+  // While morphing, BOTH the leaving and arriving surfaces must stay mounted. These
+  // flags say whether each overlay must render right now (active OR part of the morph).
+  const mountedFor = (k, active) => active || (rangeMorphing && (morphFrom === k || morphTo === k));
+  const rangeMounted = mountedFor('range', rangeEditMode);
+  const clefMounted = mountedFor('clef', clefEditMode);
+  const legacyMounted = mountedFor('legacy', showSettings);
+
   const staffLines = [];
   if (isTrebleVisible) {
     for (let i = 0; i < 5; i++) staffLines.push(trebleStart + i * 10);
@@ -364,6 +491,18 @@ const SheetMusic = ({
     : logicalScreenWidth <= 400 ? 1.0
     : 1.0 + 0.3 * (logicalScreenWidth - 400) / 100;
 
+  // Per-staff WRITTEN key signatures (Han 2026-06-09). A transposing instrument shifts the
+  // displayed key signature by a fixed number of circle-of-fifths steps, so each staff can show
+  // a different signature (e.g. concert C major reads as E major on an A♭ instrument). The
+  // concert `numAccidentals` prop is unchanged; these derive the written counts the staff and its
+  // inline-accidental map use. See getTranspositionFifths + §15 of docs/architecture.md.
+  const trebleWrittenAccidentals = numAccidentals + getTranspositionFifths(trebleSettings?.transpositionKey);
+  const bassWrittenAccidentals   = numAccidentals + getTranspositionFifths(bassSettings?.transpositionKey);
+  // Header spacing reserves room for the WIDER of the two signatures so both staves' time
+  // signatures stay vertically aligned regardless of differing transpositions.
+  const maxWrittenAccidentals = Math.abs(trebleWrittenAccidentals) >= Math.abs(bassWrittenAccidentals)
+    ? trebleWrittenAccidentals : bassWrittenAccidentals;
+
   // --- Horizontal Layout Constants ---
   // Minimum gap between clef, accidentals, and time sig reduced by 5 units (was 42/38 → now 37/33).
   const accidentalStartX  = Math.round(37 * headerMult);
@@ -374,9 +513,9 @@ const SheetMusic = ({
   //   enabled by the 5-unit reduction in minimum gap above.
   // - measurePositionX is centred between the last header element (accidental or clef) and startX,
   //   so the time signature sits equidistant between content and notes regardless of key signature.
-  const accidentalEndX   = accidentalStartX + Math.min(Math.abs(numAccidentals), 7) * accidentalSpacing;
+  const accidentalEndX   = accidentalStartX + Math.min(Math.abs(maxWrittenAccidentals), 7) * accidentalSpacing;
   const clefEndX         = Math.round(33 * headerMult); // approximate right edge of clef glyph (−5 vs. previous)
-  const headerContentEnd = numAccidentals !== 0 ? accidentalEndX : clefEndX;
+  const headerContentEnd = maxWrittenAccidentals !== 0 ? accidentalEndX : clefEndX;
   const extraHeaderPadding = logicalScreenWidth >= 700 ? Math.round(8 * headerMult) : 0;
   // startX shifted +10 units right (more breathing room before notes).
   // measurePositionX is computed against the startX WITHOUT the +10 offset so the
@@ -407,11 +546,15 @@ const SheetMusic = ({
   };
 
   // Clef types that are inherently vocal — these never receive 8va/8vb markings.
-  // Bass and Baritone vocal ranges share the 'bass' clef type but are identified by rangeMode.
+  // The vocal Bass voice uses the 'bass' clef; Baritone uses its own 'baritone-f'
+  // clef (F on the middle line); both are identified by rangeMode.
   const VOCAL_CLEF_TYPES = new Set(['soprano', 'mezzo-soprano', 'alto', 'tenor']);
   const VOCAL_RANGE_MODES = new Set(['Bass', 'Baritone', 'Tenor', 'Alto', 'Mezzo-soprano', 'Soprano']);
 
   const calculateOptimalClef = (activeClef, melodyNotes, staff = 'treble', rangeMode = null) => {
+    // 'off' = disabled staff (Han 2026-06-01): never compute an ottava/optimal clef
+    // for it; the sentinel flows through so the render can grey it out / show a cross.
+    if (activeClef === 'off') return 'off';
     // Vocal clefs never use ottava markings — range selection already constrains their register.
     if (VOCAL_CLEF_TYPES.has(activeClef) || VOCAL_RANGE_MODES.has(rangeMode)) return activeClef;
 
@@ -468,64 +611,43 @@ const SheetMusic = ({
 
   // Display-only transposition: how many semitones to shift written notes up/down.
   // Audio always plays concert pitch; only the sheet music notation changes.
+  // Total written-pitch shift = instrument pitch-class part + whole-octave part (Stage D, Han
+  // 2026-06-09). The octave part drives the optimal-clef ottava so a 2-octave transposition keeps
+  // the heads near the staff. transpositionOctave defaults to 0 (no-op for existing settings).
   const trebleTransSemitones = useMemo(
-    () => getTranspositionSemitones(trebleSettings?.transpositionKey),
-    [trebleSettings?.transpositionKey],
+    () => getTranspositionSemitones(trebleSettings?.transpositionKey) + 12 * (trebleSettings?.transpositionOctave || 0),
+    [trebleSettings?.transpositionKey, trebleSettings?.transpositionOctave],
   );
   const bassTransSemitones = useMemo(
-    () => getTranspositionSemitones(bassSettings?.transpositionKey),
-    [bassSettings?.transpositionKey],
+    () => getTranspositionSemitones(bassSettings?.transpositionKey) + 12 * (bassSettings?.transpositionOctave || 0),
+    [bassSettings?.transpositionKey, bassSettings?.transpositionOctave],
   );
+
+  // GLOBAL transposition (item 5): when BOTH staves share the same transposition, chord LETTER
+  // names + lyrics move to the written domain. 0 = staff-level/concert (names stay concert).
+  const globalSameTrans = trebleSettings?.transpositionKey === bassSettings?.transpositionKey
+    && (trebleSettings?.transpositionOctave || 0) === (bassSettings?.transpositionOctave || 0);
+  const chordTransSemitones = globalSameTrans ? trebleTransSemitones : 0;
+  const chordWrittenAccidentals = globalSameTrans ? trebleWrittenAccidentals : numAccidentals;
 
   // 'treble' | 'bass' | null — which staff's picker is open
   const [transPicker, setTransPicker] = useState(null);  // transposition key picker
-  const [clefPicker,  setClefPicker]  = useState(null);  // clef + range picker
   const [tempoPicker, setTempoPicker] = useState(false); // tempo word picker
 
   const longPress = useLongPressTimer();
   // Dedicated long-press handler for clef glyphs.
   // Open settings overlay if not already open, then reset the auto-hide timer.
-  // Called from all responsive sheet-music elements (clef, time-sig, BPM, tempo) so
-  // that a single tap on any of these both performs the action AND opens the overlay.
+  // Called from responsive sheet-music elements (time-sig, BPM, tempo). It NO LONGER
+  // opens the settings surface (Han #13 — settings opens only via its own SubHeader
+  // button now; clicking anywhere on the sheet must not auto-open it). It only keeps
+  // the interaction timer alive while the surface is already open.
   const openSettingsIfClosed = () => {
-    if (!showSettings && onToggleSettings) onToggleSettings();
     onSettingsInteraction?.();
   };
 
-  // Short tap → cycle clef; long press OR 3rd consecutive short tap → open clef+range list.
-  const clefLongPress = useLongPressTimer();
-  const clefTapCountRef = useRef({ treble: 0, bass: 0 });
-  const clefTapTimerRef = useRef({ treble: null, bass: null });
-
-  const handleClefTap = (staff) => {
-    openSettingsIfClosed();
-    const count = (clefTapCountRef.current[staff] || 0) + 1;
-    clefTapCountRef.current[staff] = count;
-    clearTimeout(clefTapTimerRef.current[staff]);
-
-    if (count >= 3) {
-      // 3rd consecutive tap → open list
-      clefTapCountRef.current[staff] = 0;
-      setClefPicker(prev => prev === staff ? null : staff);
-      return;
-    }
-
-    // 1st or 2nd tap → cycle clef after a short debounce (in case a 3rd tap follows)
-    clefTapTimerRef.current[staff] = setTimeout(() => {
-      clefTapCountRef.current[staff] = 0;
-      const isT = staff === 'treble';
-      const activeClef = isT ? trebleActiveClef : bassActiveClef;
-      const idx = ACTIVE_CLEF_TYPES.indexOf(activeClef);
-      const nextClef = ACTIVE_CLEF_TYPES[(idx + 1) % ACTIVE_CLEF_TYPES.length];
-      const setter = isT ? setTrebleSettings : setBassSettings;
-      if (setter) {
-        const defMin = nextClef === 'bass' ? (isT ? 'A2' : 'E2') : (nextClef === 'alto' ? 'F3' : 'C4');
-        const defMax = nextClef === 'bass' ? (isT ? 'C4' : 'E4') : (nextClef === 'alto' ? 'C5' : 'E5');
-        const rMode  = nextClef === 'alto' ? 'Alto' : 'STANDARD';
-        setter(prev => ({ ...prev, preferredClef: nextClef, rangeMode: rMode, range: { min: defMin, max: defMax } }));
-      }
-    }, 300);
-  };
+  // Clicking a clef glyph OPENS the in-staff clef selector (Han 2026-06-01),
+  // replacing the old tap-cycle + 3-tap-popup behaviour.
+  const handleClefTap = () => { onOpenClefEdit?.(); };
 
   const handleTopLongPress = () => {
     // Reset timer before prompt to keep numeric display active
@@ -769,26 +891,74 @@ const SheetMusic = ({
   // isOddRound flip, nextLayer, previewMelody, etc.) don't re-run sliceMelodyByRange and
   // the heavier processMelodyAndCalculateSlots downstream. Deps cover everything that
   // affects the slice; if all stay equal-by-reference the cached result is returned.
-  const currentTreble = useMemo(() => sliceMelodyForPagination(trebleMelody),
-    [trebleMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
-  const currentBass = useMemo(() => sliceMelodyForPagination(bassMelody),
-    [bassMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
-  const currentPercussion = useMemo(() => sliceMelodyForPagination(percussionMelody),
-    [percussionMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  // A disabled ('off') staff shows NO elements (Han 2026-06-01): feed an empty
+  // melody so the staff renders normally (lines/clef) but with no notes — in every
+  // mode, even before a regen replaces the staff's melody.
+  const EMPTY_MELODY = useMemo(() => ({ notes: [], durations: [], offsets: [], displayNotes: [] }), []);
+  const currentTreble = useMemo(() => trebleOff ? EMPTY_MELODY : sliceMelodyForPagination(trebleMelody),
+    [trebleOff, EMPTY_MELODY, trebleMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  const currentBass = useMemo(() => bassOff ? EMPTY_MELODY : sliceMelodyForPagination(bassMelody),
+    [bassOff, EMPTY_MELODY, bassMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  const currentPercussion = useMemo(() => percOff ? EMPTY_MELODY : sliceMelodyForPagination(percussionMelody),
+    [percOff, EMPTY_MELODY, percussionMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
   const currentMetronome = useMemo(() => sliceMelodyForPagination(metronomeMelody),
     [metronomeMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
   const currentChordProgression = chordProgression; // ChordProgression is not a Melody — no slicing
 
   // Clef selection is per visible block (not full melody) so that a passage that sits in a
   // different register than the rest of the piece doesn't force an ottava on every other block.
+  // Optimal clef is computed from the WRITTEN (transposed) notes so a 2-octave transposition
+  // auto-selects an 8va/15ma/8vb/15vb clef and the heads return near the staff (Stage D). The
+  // shift includes the octave part (trebleTransSemitones); 0 = concert, an identity transpose.
+  // Octave clef is now DETERMINISTIC from the TRANSPOSITION octave (Han 2026-06-09: "hoe kan het
+  // dat de bovenste en middelste balk anders reageren op de 8va?"). The old melody-range-based
+  // optimal clef made the two staves differ under transposition because their melodies differ;
+  // driving the octave from transpositionOctave instead makes both staves show the SAME clef for
+  // the same transposition. Base family keeps the user's selection; vocal/off pass through.
+  const OCTAVE_CLEF_SUFFIX = { '-2': '15vb', '-1': '8vb', '0': '', '1': '8va', '2': '15va' };
+  const octaveAdjustedClef = (activeClef, octave, rangeMode) => {
+    if (activeClef === 'off') return 'off';
+    if (VOCAL_CLEF_TYPES.has(activeClef) || VOCAL_RANGE_MODES.has(rangeMode)) return activeClef;
+    const o = Math.max(-2, Math.min(2, octave || 0));
+    if (o === 0) return activeClef;
+    const base = String(activeClef).replace(/(8|15|22)v[ab]$/, '');
+    if (base !== 'treble' && base !== 'bass') return activeClef;
+    return base + OCTAVE_CLEF_SUFFIX[String(o)];
+  };
+  // Clef octave matches the SCREEN being shown (Han 2026-06-09/10):
+  //   • RANGE setter → octave fits the (written) RANGE being shown (very low range → 8vb).
+  //   • CLEF setter AND normal notation → octave from the TRANSPOSITION only. The MELODY NEVER
+  //     drives an 8va/8vb (Han: "nooooi 8va of 8vb ook al is de melodie 8vb"); both staves also
+  //     show the SAME clef for the same transposition.
+  const clefForScreen = (activeClef, settings, staffName, transSemis) => {
+    if (rangeEditMode) {
+      const r = settings?.range;
+      const rangeNotes = r ? [r.min, r.max] : [];
+      return calculateOptimalClef(activeClef, transposeMelodyBySemitones(rangeNotes, transSemis), staffName, settings?.rangeMode);
+    }
+    if (clefEditMode) {
+      // Clefs in the TRANSPOSITION setter are NEVER octave-transposed (Han 2026-06-10): the octave
+      // is communicated by the (X inst) ↑/↓ arrows, not an 8va/8vb glyph. Use the BASE family clef.
+      if (activeClef === 'off') return 'off';
+      if (VOCAL_CLEF_TYPES.has(activeClef) || VOCAL_RANGE_MODES.has(settings?.rangeMode)) return activeClef;
+      return String(activeClef).replace(/(8|15|22)v[ab]$/, '');
+    }
+    return octaveAdjustedClef(activeClef, settings?.transpositionOctave || 0, settings?.rangeMode);
+  };
   const clefTreble = useMemo(
-    () => calculateOptimalClef(trebleActiveClef, currentTreble?.notes, 'treble', trebleSettings?.rangeMode),
-    [trebleActiveClef, currentTreble, trebleSettings?.rangeMode],
+    () => clefForScreen(trebleActiveClef, trebleSettings, 'treble', trebleTransSemitones),
+    [clefEditMode, rangeEditMode, trebleActiveClef, trebleSettings, trebleTransSemitones],
   );
   const clefBass = useMemo(
-    () => calculateOptimalClef(bassActiveClef, currentBass?.notes, 'bass', bassSettings?.rangeMode),
-    [bassActiveClef, currentBass, bassSettings?.rangeMode],
+    () => clefForScreen(bassActiveClef, bassSettings, 'bass', bassTransSemitones),
+    [clefEditMode, rangeEditMode, bassActiveClef, bassSettings, bassTransSemitones],
   );
+
+  // Clef-aware frames for the range selector: extent + presets follow the clef
+  // shown on each staff (Han 2026-05-31), so a bass clef on the top staff offers
+  // bass notes/presets and vocal clefs centre on their voice.
+  const trebleFrame = useMemo(() => computeRangeFrame(clefTreble, trebleSettings?.rangeMode), [clefTreble, trebleSettings?.rangeMode]);
+  const bassFrame = useMemo(() => computeRangeFrame(clefBass, bassSettings?.rangeMode), [clefBass, bassSettings?.rangeMode]);
 
   const adjustedTrebleMelody = useMemo(() => processMelodyAndCalculateSlots(
     currentTreble,
@@ -796,12 +966,6 @@ const SheetMusic = ({
     noteGroupSize,
     displayNumMeasures * measureLengthSlots,
   ), [currentTreble, timeSignature, noteGroupSize, displayNumMeasures, measureLengthSlots]);
-
-  const trebleMelodyFlags = processMelodyAndCalculateFlags(
-    adjustedTrebleMelody,
-    timeSignature,
-    noteGroupSize
-  );
 
   const adjustedBassMelody = useMemo(() => processMelodyAndCalculateSlots(
     currentBass,
@@ -832,6 +996,21 @@ const SheetMusic = ({
     ? sliceChordsByRange(processedChordsRaw, localMeasureStart, displayNumMeasures, measureLengthSlots)
     : processedChordsRaw,
     [processedChordsRaw, animationMode, musicalBlocks, localMeasureStart, displayNumMeasures, measureLengthSlots]);
+
+  // The ACTIVE chord used to colour notes when PAUSED (Han 2026-06-10): the TONIC chord if it is
+  // the LAST chord of the progression, otherwise the FIRST chord. Shared by the melody layers AND
+  // the in-staff setters (transposition/range) + keyboard so they all colour consistently.
+  const pausedActiveChord = useMemo(() => {
+    const real = (processedChords || []).filter(c => !c.isSlash && c.chord?.notes?.length);
+    if (real.length === 0) return null;
+    const lastChord = real[real.length - 1].chord;
+    return getNoteSemitone(lastChord.root) === getNoteSemitone(tonic) ? lastChord : real[0].chord;
+  }, [processedChords, tonic]);
+  // Chords that drive the melody NOTE colouring: ALWAYS the full progression, so each note follows
+  // the chord at its own offset whether playing or paused (Han 2026-06-14 — the old paused single-
+  // chord collapse was not intended; the sheet must always reflect the per-timing chord). The
+  // single pausedActiveChord is only for the UNtimed surfaces (in-staff setters + keyboard).
+  const coloringChords = processedChords;
 
   const trebleAccidentals = useMemo(() => generateAccidentalMap(adjustedTrebleMelody.notes, numAccidentals),
     [adjustedTrebleMelody, numAccidentals]);
@@ -1070,9 +1249,14 @@ const SheetMusic = ({
       try {
         const notes = JSON.parse(noteGroup.getAttribute('data-notes'));
         const staff = noteGroup.getAttribute('data-mel') || 'treble';
-        if (onNoteClick && notes?.length) {
+        // data-notes holds the WRITTEN (transposed) note; audio must play CONCERT pitch, so
+        // un-transpose by the staff's display transposition before sounding it (Han 2026-06-09 bug:
+        // clicking a note on a transposed staff played the written pitch, not the sounding one).
+        const staffTrans = staff === 'bass' ? bassTransSemitones : (staff === 'treble' ? trebleTransSemitones : 0);
+        const concertNotes = staffTrans ? notes.map(n => transposeNoteBySemitones(n, -staffTrans)) : notes;
+        if (onNoteClick && concertNotes?.length) {
           flashElement(noteGroup);
-          onNoteClick(notes, staff);
+          onNoteClick(concertNotes, staff);
         }
       } catch { /* audio context may not be ready */ }
       return;
@@ -1091,15 +1275,23 @@ const SheetMusic = ({
       } catch { /* audio context may not be ready */ }
     }
 
-    // 3. Settings toggle
+    // 3a. Range-edit mode is itself an overlay (Han 2026-05-31): clicking empty
+    // sheet area closes range edit rather than opening the general settings
+    // overlay — the two are mutually exclusive. The in-overlay controls
+    // stopPropagation, so this only fires for clicks outside them.
+    if (rangeEditMode) {
+      if (onCloseRangeEdit) onCloseRangeEdit();
+      return;
+    }
+
+    // 3b. The legacy SETTINGS surface now opens ONLY via its own SubHeader button
+    // (Han #13 — clicking the sheet no longer opens settings; goal: deprecate later).
+    // Clicking empty sheet while it's open CLOSES it (like the range/clef surfaces).
     if (showSettings) {
       if (onToggleSettings) onToggleSettings();
       return;
     }
-    if (onToggleSettings) onToggleSettings();
-    resetNumericTimer();
-    resetBpmTimer();
-    resetRepeatsTimer();
+    // Otherwise: a plain sheet click does nothing (no settings auto-open).
   };
 
   const renderRandomizeIcons = () => {
@@ -1233,13 +1425,20 @@ const SheetMusic = ({
   // Font size for individual chord notes — slightly smaller to fit multiple stacked syllables
   const LYRIC_CHORD_FONT_SIZE = 13;
 
-  // Returns {base, acc} solfège pair for a single note string.
+  // Returns {base, acc} solfège pair for a single note string. RELATIVE solfège (doremi-rel,
+  // kodaly) is invariant under global transposition — the note↔tonic relationship is the same in
+  // either domain — so those modes need no adjustment. ABSOLUTE doremi (Do=C) does: under a global
+  // transposition the shown note is the written one, so transpose+respell before reading it
+  // (item 5, 5c). chordTransSemitones is 0 unless both staves share a transposition.
   const getSolfegeForNote = (rawNote) => {
     if (lyricsMode === 'doremi-rel') {
       const tonicLetter = (tonic || 'C').replace(/[♯♭𝄪𝄫]/gu, '').replace(/-?\d+$/, '')[0] || 'C';
       return spellingToSolfege(rawNote, tonicLetter);
     } else if (lyricsMode === 'doremi-abs') {
-      return spellingToSolfege(rawNote, 'C');
+      const written = chordTransSemitones
+        ? respellToKeySignature(transposeNoteBySemitones(rawNote, chordTransSemitones), chordWrittenAccidentals)
+        : rawNote;
+      return spellingToSolfege(written, 'C');
     } else {
       return getKodalySolfege(rawNote, tonic);
     }
@@ -1465,42 +1664,6 @@ const SheetMusic = ({
     <div
       style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', width: '100%', height: '100%', position: 'relative' }}
     >
-      {/* Clef + range picker — same visual style as GenericStepper's list popup.
-          Opens when the user clicks the clef symbol in the sheet music. */}
-      {clefPicker && (
-        <>
-          <div className="gs-popup-overlay" onClick={() => setClefPicker(null)} />
-          <div className="gs-popup" onClick={e => e.stopPropagation()}>
-            <div className="gs-popup-options">
-              {CLEF_RANGE_OPTIONS.map(opt => {
-                const activeSettings = clefPicker === 'treble' ? trebleSettings : bassSettings;
-                const activeClef     = clefPicker === 'treble' ? trebleActiveClef : bassActiveClef;
-                const current        = getCurrentRangeValue(activeSettings, activeClef);
-                const isSelected     = current === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    className={`gs-popup-option${isSelected ? ' selected' : ''}`}
-                    onClick={() => {
-                      const setter = clefPicker === 'treble' ? setTrebleSettings : setBassSettings;
-                      if (setter) applyRangeOption(opt.value, setter);
-                      setClefPicker(null);
-                    }}
-                  >
-                    <div className="gs-popup-option-icon">
-                      {/* Clef glyph using Maestro font — g=treble, f=bass, B=vocal */}
-                      <span style={{ fontFamily: 'Maestro', fontSize: '20px', lineHeight: 1 }}>
-                        {opt.clefType === 'g' ? '&' : opt.clefType === 'f' ? '?' : 'B'}
-                      </span>
-                    </div>
-                    <span>{opt.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Transposition instrument picker — same gs-popup style as clef picker.
           Opens when the user clicks the (B♭ inst) label above the staff.
@@ -1714,17 +1877,21 @@ const SheetMusic = ({
             onToggleRubato={onToggleRubato}
           />
 
-          {/* Draw Repeats Controls - always visible, shows 4x outside adjustments */}
-          <RepeatsControls
-            numRepeats={numRepeats}
-            onNumRepeatsChange={onNumRepeatsChange}
-            trebleStart={trebleStart}
-            systemEndX={systemEndX}
-            showSettings={showSettings}
-            debugMode={debugMode}
-            onSettingsInteraction={onSettingsInteraction}
-            onResetRepeatsTimer={resetRepeatsTimer}
-          />
+          {/* Draw Repeats Controls - always visible, shows 4x outside adjustments.
+              Hidden in range/clef edit: the in-staff selectors want plain staves
+              with no repeat affordances. */}
+          {!overlayEditMode && (
+            <RepeatsControls
+              numRepeats={numRepeats}
+              onNumRepeatsChange={onNumRepeatsChange}
+              trebleStart={trebleStart}
+              systemEndX={systemEndX}
+              showSettings={showSettings}
+              debugMode={debugMode}
+              onSettingsInteraction={onSettingsInteraction}
+              onResetRepeatsTimer={resetRepeatsTimer}
+            />
+          )}
 
           {/* Randomize Icons */}
           {renderRandomizeIcons()}
@@ -1741,56 +1908,49 @@ const SheetMusic = ({
             ))}
             {isTrebleVisible && (
               <>
+                {/* The static clef glyph is hidden in clef-edit mode — the clef
+                    selector's carousel draws the clef in the gutter instead. Also hidden in
+                    colour-edit mode, which lays its scheme sets across the bare staff. */}
+                {!clefEditMode && !colorEditMode && (
                 <text
                   x="13"
                   y={30 + (cfT.yOffset || 0)}
                   fontSize="36"
                   fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
                   fontFamily="Maestro"
+                  opacity={trebleGhost ? GHOST_OPACITY : 1}
                   style={{ transition: 'fill 0.2s', pointerEvents: 'none' }}
                 >
                   {cfT.char}
                 </text>
+                )}
                 {/* Always-active transparent hit rect for treble clef — intercepts clicks
                     regardless of showSettings, preventing accidental settings-close. */}
                 {debugMode && <rect x={5} y={-8} width={40} height={65} fill="blue" fillOpacity={0.4} stroke="blue" strokeWidth={1} />}
+                {/* Click opens the in-staff clef selector (Han 2026-06-01). */}
                 <rect
                   x={5} y={-8} width={40} height={65}
                   fill="transparent"
                   style={{ cursor: 'pointer' }}
-                  onMouseDown={() => clefLongPress.start(() => {
-                    clefTapCountRef.current.treble = 0;
-                    clearTimeout(clefTapTimerRef.current.treble);
-                    setClefPicker(prev => prev === 'treble' ? null : 'treble');
-                    onSettingsInteraction?.(10000);
-                  })}
-                  onMouseUp={(e) => { e.stopPropagation(); clefLongPress.end(e, () => handleClefTap('treble')); }}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseLeave={() => clefLongPress.cancel()}
-                  onTouchStart={() => clefLongPress.start(() => {
-                    clefTapCountRef.current.treble = 0;
-                    clearTimeout(clefTapTimerRef.current.treble);
-                    setClefPicker(prev => prev === 'treble' ? null : 'treble');
-                  })}
-                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); clefLongPress.end(e, () => handleClefTap('treble')); }}
+                  onClick={(e) => { e.stopPropagation(); handleClefTap('treble'); }}
+                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleClefTap('treble'); }}
                 />
-                {cfT.ottava && (
-                  <text
-                    x="13"
-                    y={30 + cfT.yOffset + (cfT.below ? 30 : -46)}
-                    fontSize={cfT.ottava === '15' ? "23" : "14"}
-                    fill={showSettings ? 'var(--accent-yellow)' : (cfT.ottava === '15' ? '#ffffff' : 'var(--text-primary)')}
-                    fontFamily="Maestro"
-                    textAnchor="middle"
-                    dx={cfT.ottava === '15' && !cfT.below ? "12" : "10"}
-                  >
-                    {cfT.ottava === '15' ? String.fromCharCode(134) : cfT.ottava}
-                  </text>
-                )}
-                {renderAccidentals(numAccidentals, clefTreble, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
+                {/* Ottava marker cross-fades on value change (CR-A3) via OttavaMarker. */}
+                <OttavaMarker desc={cfT.ottava ? {
+                  token: `${cfT.ottava}|${cfT.below ? 'b' : 'a'}`,
+                  x: 13,
+                  y: 30 + cfT.yOffset + (cfT.below ? 30 : -46),
+                  fontSize: cfT.ottava === '15' ? '23' : '14',
+                  fill: showSettings ? 'var(--accent-yellow)' : (cfT.ottava === '15' ? '#ffffff' : 'var(--text-primary)'),
+                  dx: cfT.ottava === '15' && !cfT.below ? '12' : '10',
+                  glyph: cfT.ottava === '15' ? String.fromCharCode(134) : cfT.ottava,
+                } : null} />
+                {/* No staff-level key signature in the CLEF setter — accidentals there
+                    are shown per-note on the reference notes instead (Han 2026-06-03). */}
+                {!clefEditMode && renderAccidentals(trebleWrittenAccidentals, clefTreble, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
                 {/* Clickable overlay on key-signature accidentals: toggles tonic to enharmonic equivalent */}
-                {numAccidentals !== 0 && onEnharmonicToggle && (() => {
-                  const n = Math.min(Math.abs(numAccidentals), 7);
+                {!clefEditMode && trebleWrittenAccidentals !== 0 && onEnharmonicToggle && (() => {
+                  const n = Math.min(Math.abs(trebleWrittenAccidentals), 7);
                   const rw = accidentalSpacing * (n - 1) + 18;
                   return (
                     <>
@@ -1805,7 +1965,7 @@ const SheetMusic = ({
                 })()}
               </>
             )}
-            {renderStaffMeasureTexts(0)}
+            {!overlayEditMode && renderStaffMeasureTexts(0)}
             {/* Transposition label — rendered AFTER renderStaffMeasureTexts so it sits on top
                 of the time-signature hitbox rects in SVG z-order, preventing overlap stealing clicks.
                 Always visible when non-concert-pitch; shown in settings mode as a click target.
@@ -1828,7 +1988,7 @@ const SheetMusic = ({
                   }}
                   style={{ cursor: 'pointer' }}
                 >
-                  ({getTranspositionDisplay(trebleSettings?.transpositionKey || 'C')})
+                  ({getTranspositionInstLabel(trebleSettings?.transpositionKey || 'C', trebleSettings?.transpositionOctave || 0)})
                 </text>
               </>
             )}
@@ -1846,56 +2006,43 @@ const SheetMusic = ({
             ))}
             {isBassVisible && (
               <>
+                {!clefEditMode && (
                 <text
                   x="13"
                   y={30 + (cfB.yOffset || 0)}
                   fontSize="36"
                   fill={showSettings ? 'var(--accent-yellow)' : 'var(--text-primary)'}
                   fontFamily="Maestro"
+                  opacity={bassGhost ? GHOST_OPACITY : 1}
                   style={{ transition: 'fill 0.2s', pointerEvents: 'none' }}
                 >
                   {cfB.char}
                 </text>
+                )}
                 {/* Always-active transparent hit rect for bass clef */}
                 {debugMode && <rect x={5} y={5} width={35} height={30} fill="blue" fillOpacity={0.4} stroke="blue" strokeWidth={1} />}
+                {/* Click opens the in-staff clef selector (Han 2026-06-01). */}
                 <rect
                   x={5} y={5} width={35} height={30}
                   fill="transparent"
                   style={{ cursor: 'pointer' }}
-                  onMouseDown={() => clefLongPress.start(() => {
-                    clefTapCountRef.current.bass = 0;
-                    clearTimeout(clefTapTimerRef.current.bass);
-                    setClefPicker(prev => prev === 'bass' ? null : 'bass');
-                    onSettingsInteraction?.(10000);
-                  })}
-                  onMouseUp={(e) => { e.stopPropagation(); clefLongPress.end(e, () => handleClefTap('bass')); }}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseLeave={() => clefLongPress.cancel()}
-                  onTouchStart={() => clefLongPress.start(() => {
-                    clefTapCountRef.current.bass = 0;
-                    clearTimeout(clefTapTimerRef.current.bass);
-                    setClefPicker(prev => prev === 'bass' ? null : 'bass');
-                    onSettingsInteraction?.(10000);
-                  })}
-                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); clefLongPress.end(e, () => handleClefTap('bass')); }}
+                  onClick={(e) => { e.stopPropagation(); handleClefTap('bass'); }}
+                  onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); handleClefTap('bass'); }}
                 />
-                {cfB.ottava && (
-                  <text
-                    x="13"
-                    y={30 + cfB.yOffset + (cfB.below ? 43 : -17)}
-                    fontSize={cfB.ottava === '15' ? "23" : "14"}
-                    fill={showSettings ? 'var(--accent-yellow)' : (cfB.ottava === '15' ? '#ffffff' : 'var(--text-primary)')}
-                    fontFamily="Maestro"
-                    textAnchor="middle"
-                    dx="10"
-                  >
-                    {cfB.ottava === '15' ? String.fromCharCode(134) : cfB.ottava}
-                  </text>
-                )}
-                {renderAccidentals(numAccidentals, clefBass, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
+                {/* Ottava marker cross-fades on value change (CR-A3) via OttavaMarker. */}
+                <OttavaMarker desc={cfB.ottava ? {
+                  token: `${cfB.ottava}|${cfB.below ? 'b' : 'a'}`,
+                  x: 13,
+                  y: 30 + cfB.yOffset + (cfB.below ? 43 : -17),
+                  fontSize: cfB.ottava === '15' ? '23' : '14',
+                  fill: showSettings ? 'var(--accent-yellow)' : (cfB.ottava === '15' ? '#ffffff' : 'var(--text-primary)'),
+                  dx: '10',
+                  glyph: cfB.ottava === '15' ? String.fromCharCode(134) : cfB.ottava,
+                } : null} />
+                {!clefEditMode && renderAccidentals(bassWrittenAccidentals, clefBass, 0, noteColoringMode, accidentalStartX, accidentalSpacing)}
                 {/* Clickable overlay on bass key-signature accidentals */}
-                {numAccidentals !== 0 && onEnharmonicToggle && (() => {
-                  const n = Math.min(Math.abs(numAccidentals), 7);
+                {!clefEditMode && bassWrittenAccidentals !== 0 && onEnharmonicToggle && (() => {
+                  const n = Math.min(Math.abs(bassWrittenAccidentals), 7);
                   const rw = accidentalSpacing * (n - 1) + 18;
                   return (
                     <>
@@ -1910,7 +2057,7 @@ const SheetMusic = ({
                 })()}
               </>
             )}
-            {renderStaffMeasureTexts(0)}
+            {!overlayEditMode && renderStaffMeasureTexts(0)}
             {/* Bass transposition label — same z-order fix as treble: rendered after measure hitboxes */}
             {isBassVisible && (bassTransSemitones !== 0 || showSettings) && (
               <>
@@ -1930,7 +2077,7 @@ const SheetMusic = ({
                   }}
                   style={{ cursor: 'pointer' }}
                 >
-                  ({getTranspositionDisplay(bassSettings?.transpositionKey || 'C')})
+                  ({getTranspositionInstLabel(bassSettings?.transpositionKey || 'C', bassSettings?.transpositionOctave || 0)})
                 </text>
               </>
             )}
@@ -1946,18 +2093,19 @@ const SheetMusic = ({
             {[0, 10, 20, 30, 40].map(y => (
               <path key={`p-line-${y}`} d={`M 0 ${y} H ${endX}`} stroke="var(--text-primary)" strokeWidth="0.5" />
             ))}
-            {isPercussionVisible && (
+            {isPercussionVisible && !clefEditMode && (
               <text
                 x="18"
                 y={30}
                 fontSize="36"
                 fill="var(--text-primary)"
                 fontFamily="Maestro"
+                opacity={percGhost ? GHOST_OPACITY : 1}
               >
                 /
               </text>
             )}
-            {renderStaffMeasureTexts(0)}
+            {!overlayEditMode && renderStaffMeasureTexts(0)}
           </g>
           <g>
             <g className="layer-a">
@@ -1978,7 +2126,15 @@ const SheetMusic = ({
                     clipPath={animationMode === 'scroll' && !isPlaying ? 'url(#scroll-content-clip)' : undefined}
                     mask={animationMode === 'scroll' && isPlaying ? 'url(#scroll-left-mask)' : undefined}
                   >
-                  <g className="notes-transition" data-scroll-group style={{ willChange: animationMode === 'scroll' ? 'transform' : 'auto' }}>
+                  <g className="notes-transition" data-scroll-group style={{ willChange: animationMode === 'scroll' ? 'transform' : 'auto',
+                    // In rangeEditMode the staves are blank canvases for the range
+                    // selector — hide ALL melodic content (notes/chords/lyrics) but
+                    // keep the node mounted so transition refs stay valid on exit.
+                    // During the enter/exit morph it stays VISIBLE so it can fade
+                    // out / fly in — but ONLY when the morph actually involves the melody
+                    // (melody↔overlay). On an overlay→overlay morph (e.g. clef→range) the
+                    // melody must stay hidden, otherwise it FLASHES through (Han B4, 2026-06-03).
+                    display: (overlayEditMode && !(rangeMorphing && (morphFrom === 'melody' || morphTo === 'melody'))) ? 'none' : undefined }}>
                     {/* Melody notes: visible in 'melody' viewMode */}
                     {/* In pagination mode, opacity is driven by the rAF loop via data-pagination-old.
                         CSS classes set the resting state; rAF sets style.opacity during the crossfade.
@@ -1997,10 +2153,10 @@ const SheetMusic = ({
                       }}
                     >
                       {/* CHORD MELODY BLURRED BACKGROUND REMOVED */}
-                      <g style={{ transform: `translateY(${trebleStart}px)`, transition: 'transform 1s ease-in-out' }}>
+                      <g style={{ transform: `translateY(${trebleStart}px)`, transition: 'transform 1s ease-in-out', opacity: trebleGhost ? GHOST_OPACITY : 1 }}>
                         {actualTreble && <MelodyNotesLayer
                           melody={adjustedTrebleMelody}
-                          numAccidentals={numAccidentals}
+                          numAccidentals={trebleWrittenAccidentals}
                           startX={startX}
                           noteWidth={noteWidth}
                           allOffsets={allOffsets}
@@ -2013,7 +2169,7 @@ const SheetMusic = ({
                           noteColoringMode={noteColoringMode}
                           tonic={tonic}
                           scaleNotes={scaleNotes}
-                          processedChords={processedChords}
+                          processedChords={coloringChords}
                           theme={theme}
                           inputTestState={inputTestState}
                           previewMode={false}
@@ -2046,10 +2202,10 @@ const SheetMusic = ({
                           {renderFermataGlyphs(trebleMelody, trebleStart - 2)}
                         </g>
                       )}
-                      <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out' }}>
+                      <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out', opacity: bassGhost ? GHOST_OPACITY : 1 }}>
                         {actualBass && <MelodyNotesLayer
                           melody={adjustedBassMelody}
-                          numAccidentals={numAccidentals}
+                          numAccidentals={bassWrittenAccidentals}
                           startX={startX}
                           noteWidth={noteWidth}
                           allOffsets={allOffsets}
@@ -2062,7 +2218,7 @@ const SheetMusic = ({
                           noteColoringMode={noteColoringMode}
                           tonic={tonic}
                           scaleNotes={scaleNotes}
-                          processedChords={processedChords}
+                          processedChords={coloringChords}
                           theme={theme}
                           inputTestState={inputTestState}
                           previewMode={false}
@@ -2076,7 +2232,7 @@ const SheetMusic = ({
                         />}
                         {isBassVisible && !actualBass && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
-                      <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out' }}>
+                      <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out', opacity: percGhost ? GHOST_OPACITY : 1 }}>
                         {actualPerc && <MelodyNotesLayer
                           melody={adjustedPercussionMelody}
                           numAccidentals={numAccidentals}
@@ -2248,6 +2404,8 @@ const SheetMusic = ({
                         theme={theme}
                         debugMode={debugMode}
                         overrideColor={null}
+                        chordTransSemitones={chordTransSemitones}
+                        chordWrittenAccidentals={chordWrittenAccidentals}
                         inputTestState={inputTestState}
                       />}
                       {renderDNADebug()}
@@ -2331,13 +2489,15 @@ const SheetMusic = ({
                               theme={theme}
                               debugMode={debugMode}
                               overrideColor={YCOL}
+                              chordTransSemitones={chordTransSemitones}
+                              chordWrittenAccidentals={chordWrittenAccidentals}
                               inputTestState={null}
                             />}
                           <g style={{ transform: `translateY(${trebleStart}px)` }}>
                             {isTrebleVisible && nextTreble && nextNotesVisible && adjustedTrebleMelody &&
                               <MelodyNotesLayer
                                 melody={adjustedTrebleMelody}
-                                numAccidentals={numAccidentals}
+                                numAccidentals={trebleWrittenAccidentals}
                                 startX={startX}
                                 noteWidth={noteWidth}
                                 allOffsets={allOffsets}
@@ -2365,7 +2525,7 @@ const SheetMusic = ({
                             {isBassVisible && nextBass && nextNotesVisible && adjustedBassMelody &&
                               <MelodyNotesLayer
                                 melody={adjustedBassMelody}
-                                numAccidentals={numAccidentals}
+                                numAccidentals={bassWrittenAccidentals}
                                 startX={startX}
                                 noteWidth={noteWidth}
                                 allOffsets={allOffsets}
@@ -2658,7 +2818,8 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* Thick repeat barlines — hidden in scroll+playing (no start/end repeat signs in scroll mode) */}
+                  {/* Thick repeat barlines — hidden in scroll+playing (no start/end repeat signs in scroll mode).
+                      In rangeEditMode we force numRepeats=1 so this layer draws nothing (no repeat signs). */}
                   {!(animationMode === 'scroll' && isPlaying) && (
                     <BarlinesLayer
                       mode="repeat"
@@ -2680,7 +2841,7 @@ const SheetMusic = ({
                       isTrebleVisible={isTrebleVisible}
                       isBassVisible={isBassVisible}
                       isPercussionVisible={isPercussionVisible}
-                      numRepeats={numRepeats}
+                      numRepeats={overlayEditMode ? 1 : numRepeats}
                       isPlaying={isPlaying}
                       numMeasures={numMeasures}
                       debugMode={debugMode}
@@ -2691,8 +2852,13 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* Settings overlay — rendered LAST so it sits above blurred content */}
-                  {showSettings && (
+                  {/* Range-edit's end barline is now drawn by the shared overlay frame
+                      below (overlayEditMode ⊇ rangeEditMode), together with a matching
+                      LEFT barline so both edges read at the same weight (Han BUG-V3). */}
+
+                  {/* Legacy settings surface — now slides in like clef/range (Han #11),
+                      kept mounted during its morph. */}
+                  {legacyMounted && (
                     <SettingsOverlay
                       startX={startX}
                       endX={endX}
@@ -2728,6 +2894,130 @@ const SheetMusic = ({
                       chordProgression={chordProgression}
                       processedChords={processedChords}
                       onSettingsInteraction={onSettingsInteraction}
+                    />
+                  )}
+
+                  {/* Closing barline framing the staff body in ANY overlay mode. The LEFT
+                      (startX) line was removed (Han 2026-06-09 #8 — applies to all overlay
+                      menus); the right edge is drawn at staff-line weight (0.5, matching the
+                      horizontal staff lines) rather than the old heavier 1.0 (Han #9). */}
+                  {overlayEditMode && (
+                    <path d={`M ${endX} ${trebleStart} V ${bottomY}`}
+                      stroke="var(--text-primary)" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
+                  )}
+
+                  {/* Note-colouring overlay — laid out directly on the existing top staff
+                      (docs §37 #2): 5 scheme sets side by side, no clef. Tap a set to pick it. */}
+                  {colorEditMode && (
+                    <NoteColoringStaffOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      clefTreble={clefTreble}
+                      noteColoringMode={noteColoringMode}
+                      setNoteColoringMode={setNoteColoringMode}
+                      tonic={tonic}
+                      scaleNotes={scaleNotes}
+                      activeChord={pausedActiveChord}
+                      theme={theme}
+                      debugMode={debugMode}
+                    />
+                  )}
+
+                  {/* Range overlay — in-SVG selectable note rows. Kept mounted during
+                      the exit morph (when the range overlay was the one showing) so it
+                      can fade out / the melody can fly in over it. */}
+                  {rangeMounted && (
+                    <RangeStaffOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      clefTreble={clefTreble}
+                      clefBass={clefBass}
+                      trebleFrame={trebleFrame}
+                      bassFrame={bassFrame}
+                      trebleRange={trebleSettings?.range}
+                      bassRange={bassSettings?.range}
+                      trebleTrans={trebleTransSemitones}
+                      bassTrans={bassTransSemitones}
+                      enabledPads={percussionSettings?.enabledPads}
+                      onSetMelodicBoundary={setMelodicBoundary}
+                      onApplyMelodicPreset={applyMelodicPreset}
+                      onTogglePad={togglePad}
+                      onApplyPercussionPreset={applyPercussionPreset}
+                      timeSignature={timeSignature}
+                      theme={theme}
+                      debugMode={debugMode}
+                      noteColoringMode={noteColoringMode}
+                      activeChord={pausedActiveChord}
+                      scaleNotes={scaleNotes}
+                      tonic={tonic}
+                    />
+                  )}
+
+                  {/* Clef overlay — in-staff clef/instrument selector (Han 2026-06-01).
+                      Kept mounted during its exit morph the same way. */}
+                  {clefMounted && (
+                    <ClefStaffOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      clefTreble={clefTreble}
+                      clefBass={clefBass}
+                      trebleSettings={trebleSettings}
+                      bassSettings={bassSettings}
+                      tonic={tonic}
+                      scaleNotes={scaleNotes}
+                      noteColoringMode={noteColoringMode}
+                      activeChord={pausedActiveChord}
+                      isNarrow={logicalScreenWidth < 500}
+                      percussionVoiceSplit={percussionVoiceSplit}
+                      percussionDisabled={percOff}
+                      theme={theme}
+                      onApplyClefPatch={(staff, patch) => {
+                        const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
+                        if (setter) setter(prev => ({ ...prev, ...patch }));
+                      }}
+                      onToggleVoiceSplit={() => setPercussionVoiceSplit?.(v => !v)}
+                      onTogglePercussionDisabled={() => setPercussionSettings(prev => ({
+                        ...prev, preferredClef: prev?.preferredClef === 'off' ? null : 'off',
+                      }))}
+                      debugMode={debugMode}
+                    />
+                  )}
+
+                  {/* Chord COMPLEXITY selector — chord row, RANGE setter (Han #11/#12). */}
+                  {rangeMounted && (
+                    <ChordStaffOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      chordComplexity={chordSettings?.complexity || 'triad'}
+                      onSetChordComplexity={(c) => setChordSettings(prev => ({ ...prev, complexity: c }))}
+                      debugMode={debugMode}
+                    />
+                  )}
+
+                  {/* Chord STYLE selector (off/letters/roman) — chord row, CLEF setter
+                      (Han #12). Uses the sheet chord-label font size/style. */}
+                  {clefMounted && (
+                    <ChordStyleOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      chordDisplayMode={chordDisplayMode}
+                      onSetChordDisplayMode={setChordDisplayMode}
+                      debugMode={debugMode}
                     />
                   )}
                 </>

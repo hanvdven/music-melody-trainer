@@ -1,0 +1,52 @@
+/* Keyboard range setter (split layout) — see KeyboardRangeSetter.jsx. */
+.kbd-range-setter {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
+}
+
+/* Preset brackets above the selector: three shared rows (FULL/LARGE/STANDARD),
+   both clefs per row (front highlighted, other behind). Compact (Han 2026-06-01). */
+.kbd-range-presets-row {
+  width: 100%;
+  flex: 0 0 auto;
+  height: 58px;
+}
+
+/* Compact selector keyboard — where the range is chosen. */
+.kbd-range-selector {
+  position: relative;
+  width: 100%;
+  flex: 0 0 32%;
+  min-height: 0;
+}
+
+/* The real playable keyboard, limited to the selection. */
+.kbd-range-real {
+  position: relative;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Overlay owns the selector's pointer interaction (a tap sets a boundary
+   instead of playing the key). */
+.kbd-range-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  touch-action: none;
+  cursor: ew-resize;
+}
+
+/* Selection band + handles glide between key positions during a stepper burst
+   (Han 2026-06-01). 0.25s matches STEP_MS so steps chain into one motion. */
+.kbd-range-band {
+  transition: x 0.25s linear, width 0.25s linear;
+}

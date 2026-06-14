@@ -1,7 +1,8 @@
 import React from 'react';
 import logger from '../../utils/logger';
 import { generateAccidentalMap } from './generateAccidentalMap';
-import { getNoteSemitone, getCanonicalNote } from '../../theory/noteUtils';
+import { NOTE_FONT_SIZE, STEM_DX_UP, STEM_DX_DOWN, STEM_LENGTH } from './staffNoteGlyph';
+import { getNoteSemitone, getCanonicalNote, respellToKeySignature } from '../../theory/noteUtils';
 import { transposeMelodyBySemitones } from '../../theory/musicUtils';
 
 const normalizePC = (note) => {
@@ -14,10 +15,49 @@ const normalizePC = (note) => {
 };
 
 // Strip accidentals for noteYMap lookup — map only has natural note names (C, D, E…)
-const stripAccidentals = n => n ? n.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '') : n;
+export const stripAccidentals = n => n ? n.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '') : n;
+
+// Per-clef vertical offset (in SVG units) applied on top of noteYMap. Lifted to
+// module scope (and exported) so the in-SVG range overlay can position
+// selectable noteheads with the SAME math the renderer uses (CLAUDE.md §6c).
+export const clefOffsets = {
+  treble: -11,
+  bass: -71,
+  // Baritone F-clef: F sits on the MIDDLE line (one line / 2 diatonic steps = 10
+  // units lower on the page than the bass clef's 4th-line F), so notes render 10
+  // lower than bass (Han 2026-06-03). 5 units per diatonic step.
+  'baritone-f': -61,
+  alto: -41,
+  tenor: -51,
+  soprano: -21,
+  'mezzo-soprano': -31,
+  treble8va: 24,
+  treble8vb: -46,
+  treble15va: 59,
+  treble15vb: -81,
+  bass8va: -36,
+  bass8vb: -106,
+  bass15va: -1,
+  bass15vb: -141,
+  alto8va: -6,
+  alto8vb: -76
+};
+
+// Absolute SVG Y of a note on a given staff, matching how renderMelodyNotes
+// places real noteheads (notes render at noteYMap[name] + combinedShift inside a
+// group translated to staffStart, with staffYStart always 0). Returns null for
+// notes not in noteYMap. `staff === 'percussion'` uses the fixed -171 baseline.
+export const getNoteAbsoluteY = (note, staffStart, clef, staff) => {
+  const base = noteYMap[stripAccidentals(note)];
+  if (base == null) return null;
+  const off = staff === 'percussion'
+    ? -171
+    : (clefOffsets[clef] !== undefined ? clefOffsets[clef] : -11);
+  return staffStart + base + off;
+};
 
 // Melody Notes
-const noteYMap = {
+export const noteYMap = {
   // Octave 0
   A0: 176,
   B0: 171,
@@ -84,6 +124,7 @@ const noteYMap = {
   hh: 166, // Hi-hat
   ho: 166, // Hi-hat (open)
   cr: 171, // Ride Cymbal
+  cr_bell: 171, // Ride bell — same staff line as ride, drawn with a filled-diamond head
   th: 176, // High Tom
   tm: 181, // Med Tom
   s: 186,  // Snare drum
@@ -117,18 +158,19 @@ const percussionNoteHeads = {
   hh: 'À', // Hi-hat
   ho: 'À', // Hi-hat (open)
   cr: 'À', // Ride Cymbal
+  cr_bell: 'â', // Ride bell — Maestro filled-diamond notehead (U+F0E2 rhombus glyph)
   th: 'Ï', // High Tom
   tm: 'Ï', // Med Tom
   s: 'Ï', // Snare drum
   sg: 'Ï', // Ghost snare (rendered with parentheses)
-  sr: 'À', // Rim click — cross notehead
+  sr: 'Ï', // Rim click — snare head with a diagonal slash (slash drawn separately)
   tl: 'Ï', // Floor Tom
   k: 'Ï', // Bass drum
   hp: 'À', // Hi-hat pedal
   wh: 'Ñ', // High Woodblock
   wm: 'Ñ', // Mid Woodblock
   wl: 'Ñ', // Low Woodblock
-  cb: 'À', // Cowbell
+  cb: 'Ñ', // Cowbell — triangle notehead (Han 2026-06-01)
   c: 'Ñ', // Legacy
 };
 
@@ -138,6 +180,7 @@ const percussionChromatoneColors = {
   cct: 'var(--chromatone-percussion-crash-tip)',
   cr: 'var(--chromatone-percussion-ride)',
   crt: 'var(--chromatone-percussion-ride-tip)',
+  cr_bell: 'var(--chromatone-percussion-ride-bell)',
   hh: 'var(--chromatone-percussion-hihat-closed)',
   ho: 'var(--chromatone-percussion-hihat-open)',
   hp: 'var(--chromatone-percussion-hihat-pedal)',
@@ -231,7 +274,7 @@ const LH_PERC_NOTES = new Set(['k', 's', 'sg', 'sr', 'th', 'tm', 'tl', 'hp']);
 
 // Returns true (stem up) when the note or chord belongs to the right-hand voice.
 // For mixed chords, RH majority wins; ties go UP (cymbals sit above drums on the staff).
-const percussionStemUp = (noteOrChord) => {
+export const percussionStemUp = (noteOrChord) => {
   if (Array.isArray(noteOrChord)) {
     let rh = 0, lh = 0;
     noteOrChord.forEach(n => { if (RH_PERC_NOTES.has(n)) rh++; else lh++; });
@@ -265,7 +308,13 @@ const renderMelodyNotes = (
   debugMode = false,
   interactive = true,  // set false for non-playable layers (metronome, previews)
   courtesyAccidentals = true,
-  percussionVoiceSplit = false
+  percussionVoiceSplit = false,
+  // Optional PER-NOTE color override: (noteName) => cssColor | null. When set it
+  // wins over previewColor/getMelodicColor for each head+stem. Lets a caller paint
+  // a single rendered row in multiple colors WITHOUT splitting it into separate
+  // MelodyNotesLayer instances — so ottava (8va/8vb) is still computed ONCE over
+  // the whole row (fixes the multi-ottava bug, §6b). Used by RangeStaffOverlay.
+  previewColorFn = null
 ) => {
   // previewMode can be: false (normal), true (yellow, for input test), or a CSS color string (e.g. 'rgba(220,30,30,0.85)' for wipe preview)
   const previewColor = typeof previewMode === 'string' ? previewMode : (previewMode ? 'var(--accent-yellow)' : null);
@@ -273,8 +322,13 @@ const renderMelodyNotes = (
   // Apply display-only transposition (audio always plays concert pitch).
   // transpositionSemitones > 0 → instrument sounds below written (e.g. Bb clarinet: +2).
   // transpositionSemitones < 0 → instrument sounds above written (e.g. D trumpet: -2).
+  // After the (chromatic, fixed-spelling) shift, respell each note to the WRITTEN key signature
+  // (numAccidentals is already the written count) so in-key notes match the key signature and
+  // don't pick up redundant inline accidentals (Han 2026-06-09). Chord arrays are left as-is,
+  // mirroring transposeMelodyBySemitones, which doesn't transpose array entries.
   const melodyNotes = transpositionSemitones !== 0
     ? transposeMelodyBySemitones(melody.notes, transpositionSemitones)
+        .map(n => (typeof n === 'string' ? respellToKeySignature(n, numAccidentals) : n))
     : melody.notes;
   const melodyDurations = melody.durations;
   const melodyOffsets = melody.offsets;
@@ -288,25 +342,8 @@ const renderMelodyNotes = (
   const accidentals = generateAccidentalMap(melodyNotes, numAccidentals, melodyOffsets, measureLengthSlots, courtesyAccidentals);
 
   // --- UNIFIED Y-SHIFT CALCULATION ---
-  const clefOffsets = {
-    treble: -11,
-    bass: -71,
-    alto: -41,
-    tenor: -51,
-    soprano: -21,
-    'mezzo-soprano': -31,
-    treble8va: 24,
-    treble8vb: -46,
-    treble15va: 59,
-    treble15vb: -81,
-    bass8va: -36,
-    bass8vb: -106,
-    bass15va: -1,
-    bass15vb: -141,
-    alto8va: -6,
-    alto8vb: -76
-  };
-
+  // clefOffsets is now module-scoped (see top of file) and shared with the
+  // range overlay; do not redefine it here.
   const dynamicClefOffset = clefOffsets[clef] !== undefined ? clefOffsets[clef] : -11;
   const combinedShift = staff === 'percussion' ? (staffYStart - 171) : (staffYStart + dynamicClefOffset);
 
@@ -1003,7 +1040,7 @@ const renderMelodyNotes = (
       const finalFlagY = stemIsAbove ? flagY + 3 : flagY - 4;
 
       return (
-        <g key={index} {...(!previewMode && interactive ? { 'data-measure-index': measureIndex, 'data-local-slot': localSlot, 'data-mel': staff, 'data-duration': duration, 'data-notes': JSON.stringify(chordNotes.map(p => p.n)) } : {})} className={inputTestClass.trim() || undefined} style={!previewMode && interactive ? { cursor: 'pointer' } : undefined}>
+        <g key={index} data-fly="" {...(!previewMode && interactive ? { 'data-measure-index': measureIndex, 'data-local-slot': localSlot, 'data-mel': staff, 'data-duration': duration, 'data-notes': JSON.stringify(chordNotes.map(p => p.n)) } : {})} className={inputTestClass.trim() || undefined} style={!previewMode && interactive ? { cursor: 'pointer' } : undefined}>
           {/* Ledger lines — extend left/right to cover any displaced noteheads */}
           {Array.from(chordLedgerSet).map((ly, li) => {
             const maxXOff = Math.max(0, ...chordNotes.map(p => p.xOffset || 0));
@@ -1206,9 +1243,10 @@ const renderMelodyNotes = (
         stemIsAbove = forcedTupletStemDir.get(tripletInfo.id);
       }
 
-      const lineX = stemIsAbove ? positionX + 11 : positionX + 0.5;
+      // Stem geometry shared with the in-staff overlays via staffNoteGlyph (single source).
+      const lineX = stemIsAbove ? positionX + STEM_DX_UP : positionX + STEM_DX_DOWN;
       const lineYstart = stemIsAbove ? positionY - 1 : positionY + 1;
-      let lineYend = stemIsAbove ? positionY - 27 : positionY + 27; // -10% length
+      let lineYend = stemIsAbove ? positionY - STEM_LENGTH : positionY + STEM_LENGTH; // -10% length
 
       let lineYstartAdj = lineYstart;
       const percHead = staff === 'percussion' ? percussionNoteHeads[note] : null;
@@ -1287,16 +1325,25 @@ const renderMelodyNotes = (
       const beatIndexWithinMeasure = Math.floor(relativeOffset / noteGroupSize);
 
       // Head color: percussion uses the chromatone map directly; melodic staves use getMelodicColor.
+      // Colour follows the CONCERT (sounding) pitch, not the written one (Han 2026-06-09): under a
+      // transposing instrument the written note is a transposition of melody.notes[index], but the
+      // colour must reflect the sounding pitch class (so chromatone + tonic/scale/chord colours
+      // track the real harmony). melody.notes is the untransposed concert array; for non-transposed
+      // staves it equals the written note, so this is a no-op there.
+      const concertNote = melody.notes[index] ?? noteWithAccidental;
       let headColor = staff === 'percussion'
         ? ((noteColoringMode === 'chromatone' || noteColoringMode === 'subtle-chroma')
           ? (noteColoringMode === 'subtle-chroma'
             ? `color-mix(in srgb, ${percussionChromatoneColors[normalizePC(noteWithAccidental)] || 'var(--text-primary)'}, ${theme === 'light' ? 'black' : 'white'} 60%)`
             : (percussionChromatoneColors[normalizePC(noteWithAccidental)] || 'var(--text-primary)'))
           : 'var(--text-primary)')
-        : getMelodicColor(noteWithAccidental);
+        : getMelodicColor(concertNote);
       // Stem/flag/ledger color: follows head in preview mode, otherwise default.
-      const noteColor = previewColor ?? 'var(--text-primary)';
+      let noteColor = previewColor ?? 'var(--text-primary)';
       if (previewColor) headColor = previewColor;
+      // Per-note override (single rendered row, multi-colored) — see previewColorFn.
+      const perNote = previewColorFn ? previewColorFn(noteWithAccidental || note) : null;
+      if (perNote) { headColor = perNote; noteColor = perNote; }
       const finalFlagX = stemIsAbove
         ? (staff === 'percussion' ? flagX - 1 : flagX - 2) // Green: pos+11, Yellow: pos+10
         : (flagX - 1); // Blue/Red identical: pos-0.5
@@ -1307,6 +1354,7 @@ const renderMelodyNotes = (
       return (
         <g
           key={index}
+          data-fly=""
           {...(!previewMode && interactive ? { 'data-measure-index': measureIndex, 'data-local-slot': localSlot, 'data-mel': staff, 'data-duration': duration, 'data-notes': JSON.stringify([noteWithAccidental || note]) } : {})}
           className={inputTestClass.trim() || undefined}
           style={!previewMode && interactive ? { cursor: 'pointer' } : undefined}
@@ -1335,7 +1383,7 @@ const renderMelodyNotes = (
           <text
             x={noteSymbol === 'w' ? positionX - 1 : positionX}
             y={noteSymbol === 'w' ? positionY : positionY}
-            fontSize="36"
+            fontSize={NOTE_FONT_SIZE}
             fill={headColor}
             fontFamily="Maestro"
           >
@@ -1352,6 +1400,16 @@ const renderMelodyNotes = (
             >
               o
             </text>
+          )}
+          {/* Rim click (sr): a snare notehead with a diagonal slash running
+              TOP-LEFT → BOTTOM-RIGHT ("\", Han 2026-06-01 #8). Centred on the head. */}
+          {staff === 'percussion' && note === 'sr' && (
+            <path
+              d={`M ${positionX - 4} ${positionY - 8} L ${positionX + 13} ${positionY + 7}`}
+              stroke={headColor}
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
           )}
           {staff === 'percussion' && note === 'sg' && (
             <>
@@ -1401,7 +1459,7 @@ const renderMelodyNotes = (
           <text
             x={positionX - 4}
             y={positionY - 3}
-            fontSize="36"
+            fontSize={NOTE_FONT_SIZE}
             fill={headColor}
             fontFamily="Maestro"
             textAnchor="end"
@@ -1498,7 +1556,11 @@ const renderMelodyNotes = (
     const beamThickness = 4.5;
     const beamYDir = stemIsAbove ? 1 : -1;
 
-    const beamColor = previewMode ? 'var(--accent-yellow)' : 'var(--text-primary)';
+    // Beam follows the note colour: a previewMode COLOUR STRING (e.g. the clef-setter's
+    // percussion preview) tints the beam to match its notes instead of being hardcoded
+    // yellow (Han #7, 2026-06-03). Boolean previewMode (input test) still flags yellow
+    // via previewColor; the real staff falls back to text-primary.
+    const beamColor = previewColor ?? 'var(--text-primary)';
 
     const renderTrapezoid = (x1, y1, x2, y2, keyPrefix) => {
       const y1b = y1 + beamYDir * beamThickness;
@@ -1608,7 +1670,11 @@ const renderMelodyNotes = (
     const hookYEnd = isAbove ? markerY + hookLen : markerY - hookLen;
 
     return (
-      <g key={`octave-${groupIdx}`}>
+      // data-fly so the ottava marker + bracket ("blokhaken") stream in WITH the notes
+      // during the enter/exit morph instead of being left behind (Han #1, 2026-06-08).
+      // The group's bbox.x is its label x (= its leftmost covered note), so useRangeMorph
+      // gives it the same x-staggered delay as that note — it slides in attached to it.
+      <g key={`octave-${groupIdx}`} data-fly="">
         <text
           x={labelX}
           y={markerY}

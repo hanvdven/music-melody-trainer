@@ -18,6 +18,7 @@
  *
  *   Total range: 6 (easiest) – 38.5 (hardest)
  */
+import { getNoteSemitone } from '../theory/noteUtils';
 
 const NOTES_PER_MEASURE_ENTRIES = [
     { value: 1, score: 1 },
@@ -109,19 +110,14 @@ export const MELODY_DIFFICULTY_RANGE = {
  * @param {object} settings - treble InstrumentSettings
  * @returns {number} integer difficulty score
  */
-// ALL_NOTES pitch classes in order (C, C#/Db, D, ...)
-const _PC_ORDER = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
-const _ENHARMONICS = { 'C#': 'C♯', 'Db': 'E♭', 'D#': 'E♭', 'Eb': 'E♭', 'F#': 'F♯',
-    'Gb': 'F♯', 'G#': 'A♭', 'Ab': 'A♭', 'A#': 'B♭', 'Bb': 'B♭' };
-
+// Absolute semitone (C-1 = 0) from a note name. Pitch class comes from the canonical
+// getNoteSemitone (§6 invariant) — the old local _PC_ORDER/_ENHARMONICS table had a
+// wrong entry ('Db'→'E♭') and returned null for C♭/F♭/E♯/B♯; getNoteSemitone handles
+// all enharmonics (incl. double accidentals). Octave is parsed separately.
 function _noteToSemitone(note) {
     const m = note?.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
     if (!m) return null;
-    let pc = m[1].replace('#', '♯').replace('b', '♭');
-    if (_ENHARMONICS[m[1]]) pc = _ENHARMONICS[m[1]];
-    const pcIdx = _PC_ORDER.indexOf(pc);
-    if (pcIdx === -1) return null;
-    return (parseInt(m[2], 10) + 1) * 12 + pcIdx;
+    return (parseInt(m[2], 10) + 1) * 12 + getNoteSemitone(m[1]);
 }
 
 /**

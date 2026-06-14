@@ -1,5 +1,6 @@
 import React from 'react';
-import { getNoteSemitone } from '../../theory/noteUtils';
+import { getNoteSemitone, respellToKeySignature } from '../../theory/noteUtils';
+import { transposeNoteBySemitones } from '../../theory/musicUtils';
 
 /**
  * ChordLabelsLayer — memoised wrapper around chord-label rendering.
@@ -40,6 +41,8 @@ const renderSingleChordLabel = ({
   measureLengthSlots,
   startMeasureIndex,
   debugMode,
+  chordTransSemitones = 0,        // global transposition: written chord names (letters mode)
+  chordWrittenAccidentals = 0,
 }) => {
   const CHORD_ROOT_Y = trebleStart - 58;  // root text baseline
   const CHORD_SUPER_DY = 12;              // units above root for superscript
@@ -50,7 +53,12 @@ const renderSingleChordLabel = ({
 
   const internalRoot = (chord.internalRoot || chord.root || '').replace(/\d+/g, '');
   // internalRoot is now key-spelled at generation time (e.g. G♭ in C Locrian, not F♯)
-  const spelledRoot = internalRoot;
+  // Global transposition (item 5): the LETTER name moves to the written domain (concert B♭ → C),
+  // respelled to the written key signature. Roman numerals are tonic-relative so they don't change;
+  // the chord COLOUR stays on the concert root (sounding pitch). Octave stripped after respell.
+  const spelledRoot = chordTransSemitones && internalRoot
+    ? respellToKeySignature(transposeNoteBySemitones(`${internalRoot}4`, chordTransSemitones), chordWrittenAccidentals).replace(/\d+/g, '')
+    : internalRoot;
   const isSlash = chord.type === 'slash';
   // N.C. (no chord) — Han 2026-05-28: render literal "N.C." in italic serif,
   // no root/suffix layout. Comes from loaded songs (e.g. HBD anacrusis) where
@@ -218,6 +226,9 @@ const ChordLabelsLayer = ({
   theme,
   debugMode,
   overrideColor,
+  // global transposition (item 5)
+  chordTransSemitones = 0,
+  chordWrittenAccidentals = 0,
   // interaction
   inputTestState,
 }) => {
@@ -267,6 +278,8 @@ const ChordLabelsLayer = ({
       measureLengthSlots,
       startMeasureIndex,
       debugMode,
+      chordTransSemitones,
+      chordWrittenAccidentals,
     }));
   });
 

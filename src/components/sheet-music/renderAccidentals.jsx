@@ -18,6 +18,10 @@ const renderAccidentals = (numAccidentals, clef = 'treble', startY = 11, noteCol
   const clefOffsets = {
     treble: 0,
     bass: 10,
+    // Baritone F-clef: key-signature accidentals follow the bass family. Approximated
+    // to bass here — VERIFY visually if a key signature is shown with baritone (Han
+    // 2026-06-03); the exact line offset may need a one-line tweak.
+    'baritone-f': 10,
     alto: 5,
     tenor: -5,
     soprano: 25,

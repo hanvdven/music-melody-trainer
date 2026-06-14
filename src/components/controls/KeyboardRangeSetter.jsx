@@ -1,0 +1,368 @@
+import React, { useRef, useReducer, useState, useLayoutEffect } from 'react';
+import PianoView from './PianoView';
+import { getNoteValue, naturalsInRange, windowNaturals, applyRangeBoundary } from '../../utils/rangeUtils';
+import { PRESET_RANGES } from '../../constants/ranges';
+import { nextNaturalToward, nextNaturalInDir, STEP_MS } from '../sheet-music/overlays/rangeSlide';
+import './styles/KeyboardRangeSetter.css';
+
+// Full piano naturals — the stepper walks this to advance one white key per tick
+// (shared 21..108 list, same as the sheet overlay).
+const PIANO_NATURALS_KBD = naturalsInRange(21, 108);
+
+// ── Keyboard range setter (split layout, context-bound per keyboard) ────────
+// Range-edit replaces the playable piano with three stacked pieces (Han
+// 2026-05-31):
+//   1. Preset BRACKETS (no text, consistent with the sheet-music setter), above
+//   2. A COMPACT windowed SELECTOR keyboard — where you choose the range. It
+//      windows symmetrically around the current selection (like the sheet row),
+//      sized so each white key is ≈ KEY_PX wide (e.g. 300px → 15 keys); the band
+//      + handles mark the selection. Tap/drag sets the nearest boundary (white-key
+//      snap), the window freezes during a drag and re-anchors on release so 3
+//      fresh context keys reappear on each side.
+//   3. The REAL playable keyboard, limited to the selected min–max, so you see &
+//      hear the actual keys the selection produces.
+// All boundary writes go through the shared applyRangeBoundary (CLAUDE.md §6c).
+const KEY_PX = 20;                 // target width of one selector white key
+const PRESET_LABELS = ['STANDARD', 'LARGE', 'FULL'];
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const nearestIdx = (win, midi) => {
+    let bi = 0, bd = Infinity;
+    win.forEach((n, i) => { const d = Math.abs(n.midi - midi); if (d < bd) { bd = d; bi = i; } });
+    return bi;
+};
+
+// Preset-bracket legend geometry. Six brackets total (G-clef STD/LARGE/FULL +
+// F-clef STD/LARGE/FULL). To save vertical space (Han 2026-06-01) the brackets
+// share THREE rows by SIZE (FULL on top, then LARGE, then STANDARD) — both clefs'
+// same-size brackets sit on one row. On each row the CURRENT clef's bracket is
+// the "front" (highlighted, drawn last); the other clef's is "behind" (dimmed,
+// drawn first). Where the behind bracket would overlap the front one it is
+// INTERRUPTED just before the overlap and an "…" is drawn, so it reads as passing
+// behind. Horizontal extent stays aligned to the real key positions.
+const PRESET_ROW_H = 16, PRESET_PAD = 5;
+export const PRESET_TICK = 9;
+const SIZE_RANK = { FULL: 0, LARGE: 1, STANDARD: 2 };   // big-on-top
+const NUM_PRESET_ROWS = 3;                              // 3 sizes (clefs share rows)
+const OVERLAP_GAP = 0.6;                                // white-key gap left for the "…"
+
+// One ⊓ bracket per preset, ALIGNED to the selector's white-key grid (x in
+// white-key-index units). A preset entirely outside the current window is
+// dropped; partial ones clamp to the edge (so brackets can fall partly out of
+// view when the window is centred elsewhere). Returns BEHIND brackets first then
+// FRONT, so painting in array order layers them correctly. The behind bracket of
+// each row is truncated + given an `ellipsisX` where it meets the front bracket.
+// Pure + tested.
+export const buildPresetBracketRows = (presets, selRange, selClef, win) => {
+    if (!win?.length) return [];
+    const loMidi = win[0].midi, hiMidi = win[win.length - 1].midi;
+    const clampX = (idx) => Math.max(0, Math.min(win.length, idx));
+    const geom = (p) => {
+        const lo = getNoteValue(p.min), hi = getNoteValue(p.max);
+        if (hi < loMidi || lo > hiMidi) return null;            // fully outside
+        return {
+            p,
+            x0: clampX(nearestIdx(win, lo)),
+            x1: clampX(nearestIdx(win, hi) + 1),
+            yTop: PRESET_PAD + (SIZE_RANK[p.label] ?? 0) * PRESET_ROW_H,
+            isActive: p.clef === selClef && selRange?.min === p.min && selRange?.max === p.max,
+            isCurrentClef: p.clef === selClef,
+            gap: null,   // { x0, x1 } where a dotted line bridges behind→front
+        };
+    };
+
+    const out = [];
+    ['FULL', 'LARGE', 'STANDARD'].forEach((label) => {
+        const front = geom(presets.find(p => p.label === label && p.clef === selClef));
+        const otherClef = selClef === 'treble' ? 'bass' : 'treble';
+        const behind = geom(presets.find(p => p.label === label && p.clef === otherClef));
+        if (behind && front) {
+            // Truncate the behind bracket before it overlaps the front one and record
+            // the GAP between them; the view draws a dotted line across it (Han
+            // 2026-06-01 #4). Treble sits to the RIGHT (higher), bass to the LEFT.
+            if (selClef === 'treble' && behind.x1 > front.x0 - OVERLAP_GAP) {
+                const cut = Math.max(behind.x0, front.x0 - OVERLAP_GAP);
+                behind.gap = { x0: cut, x1: front.x0 };
+                behind.x1 = cut;
+            } else if (selClef === 'bass' && behind.x0 < front.x1 + OVERLAP_GAP) {
+                const cut = Math.min(behind.x1, front.x1 + OVERLAP_GAP);
+                behind.gap = { x0: front.x1, x1: cut };
+                behind.x0 = cut;
+            }
+        }
+        if (behind && behind.x1 > behind.x0) out.push(behind);   // behind first (under)
+        if (front) out.push(front);                              // front last (on top)
+    });
+    return out;
+};
+export const presetViewHeight = () => PRESET_PAD * 2 + NUM_PRESET_ROWS * PRESET_ROW_H;
+
+const KeyboardRangeSetter = ({
+    scale, instrument, activeClef, settings, setSettings,
+    noteColoringMode = 'none', qwertyKeyboardActive = false, onNoteInput = null, debugMode = false,
+    activeChord = null, theme = 'dark',
+}) => {
+    // Layout frozen during a drag so the selector keys don't shift under the
+    // finger; forceReanchor re-renders on release so the window re-centres.
+    const dragRef = useRef(null);
+    const [, forceReanchor] = useReducer((n) => n + 1, 0);
+    const wrapRef = useRef(null);
+    const selSvgRef = useRef(null);
+    const [width, setWidth] = useState(0);
+    // Slide-stepper state (same model as the sheet overlay, Han 2026-06-01): a tap
+    // bursts toward the target one white key per STEP_MS, a hold keeps extending
+    // outward, a drag follows the finger live. The CSS transition on the band makes
+    // each step glide instead of snapping.
+    const stepperRef = useRef(null);   // { which, target, dir, live, pressed, dragged, ticks }
+    const stepTimerRef = useRef(null);
+    const downRef = useRef(null);      // { clientX } at pointer-down (drag detection)
+    const setBoundaryRef = useRef(null);
+
+    // Track the panel width so the selector key count adapts to the screen.
+    useLayoutEffect(() => {
+        const el = wrapRef.current;
+        if (!el) return undefined;
+        setWidth(el.getBoundingClientRect().width);
+        const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width));
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
+    const range = settings?.range || { min: 'C4', max: 'E5' };
+    const selMin = getNoteValue(range.min);
+    const selMax = getNoteValue(range.max);
+    // The clef CURRENTLY on this staff — read from the STAFF's own preferredClef,
+    // not the tab's activeClef (Han 2026-06-01 fix): picking a bass preset on the
+    // top keyboard sets preferredClef='bass', and the bracket highlight + which
+    // band is "front" must follow that, not which keyboard tab you're on. Falls back
+    // to the tab clef when preferredClef isn't a melodic clef (e.g. vocal/off).
+    const prefClef = settings?.preferredClef;
+    const selClef = (prefClef === 'treble' || prefClef === 'bass')
+        ? prefClef
+        : (activeClef === 'treble' ? 'treble' : 'bass');
+    // All SIX presets (both clefs) — each bracket sets that clef AND its range on
+    // THIS staff (Han 2026-05-31). `clef` tags which vertical band it lands in.
+    const presets = ['treble', 'bass'].flatMap(clef =>
+        PRESET_LABELS.map(label => ({ label, clef, ...PRESET_RANGES[label][clef] })));
+    // Boundary drags still match against the current clef's presets only (so the
+    // rangeMode label stays meaningful for the clef being edited).
+    const clefPresets = presets.filter(p => p.clef === selClef);
+
+    // Width-adaptive window: aim for ~KEY_PX per white key, so a wider panel shows
+    // MORE keys (responsive — Han 2026-06-01). The window is CENTRED ON THE
+    // SELECTION (Han corrected his earlier "centre on clef"): when you switch clef
+    // via a bracket the selection jumps to that clef's range, so the window slides
+    // to keep the selected notes central. The six clef-grouped brackets then align
+    // to whatever keys are on screen; off-clef brackets may fall out of view. The
+    // window holds CONTEXT naturals beyond each boundary, filling the target width.
+    const targetKeys = Math.max(7, Math.floor((width || 300) / KEY_PX));
+    const inBand = naturalsInRange(Math.min(selMin, selMax), Math.max(selMin, selMax)).length;
+    const context = Math.max(2, Math.ceil((targetKeys - inBand) / 2));
+    const win = dragRef.current?.window ?? windowNaturals(selMin, selMax, context);
+    const nWhite = win.length;
+    const minIdx = nearestIdx(win, selMin);
+    const maxIdx = nearestIdx(win, selMax);
+
+    const setBoundary = (midi, bound) => {
+        setSettings(prev => {
+            const { range: next, rangeMode } = applyRangeBoundary(prev?.range || range, midi, bound, clefPresets);
+            return { ...prev, range: next, rangeMode };
+        });
+    };
+    setBoundaryRef.current = setBoundary;   // latest writer for the timer-driven loop
+    // A bracket tap sets BOTH the clef and the range on this staff. preferredClef
+    // is the per-staff clef field the sheet renderer reads (SheetMusic.jsx).
+    const applyPreset = (p) => setSettings(prev => ({
+        ...prev, preferredClef: p.clef, range: { min: p.min, max: p.max }, rangeMode: p.label,
+    }));
+
+    // SVG white-key index under a clientX, via the selector overlay's bounding rect.
+    const idxAt = (clientX) => {
+        const r = selSvgRef.current?.getBoundingClientRect();
+        if (!r || !r.width) return 0;
+        return clamp(Math.floor((clientX - r.left) / (r.width / nWhite)), 0, nWhite - 1);
+    };
+    const KBD_DRAG_PX = 10;   // pointer movement (px) that promotes a tap to a drag
+
+    const stopStepper = () => {
+        if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
+        stepperRef.current = null;
+    };
+    // One cadence tick: advance the dragged boundary one white key toward target;
+    // held past the target → keep extending outward (advance target with it so it
+    // doesn't wobble back — same fix as the sheet). Released → finish burst, stop.
+    const tickKbd = () => {
+        const s = stepperRef.current;
+        if (!s || s.dragged) return;
+        let next = null;
+        if (s.live !== s.target) {
+            next = nextNaturalToward(PIANO_NATURALS_KBD, s.live, s.target);
+        } else if (s.pressed && s.ticks > 0) {
+            next = nextNaturalInDir(PIANO_NATURALS_KBD, s.live, s.dir);
+            if (next != null) s.target = next;
+        }
+        s.ticks += 1;
+        if (next == null) {
+            if (!s.pressed) {
+                // Burst finished after release → unfreeze + re-anchor the window.
+                stopStepper();
+                dragRef.current = null;
+                forceReanchor();
+                return;
+            }
+            stepTimerRef.current = setTimeout(tickKbd, STEP_MS);
+            return;
+        }
+        s.live = next;
+        setBoundaryRef.current?.(next, s.which);
+        stepTimerRef.current = setTimeout(tickKbd, STEP_MS);
+    };
+
+    const onDown = (e) => {
+        const target = win[idxAt(e.clientX)].midi;
+        const which = Math.abs(target - selMin) <= Math.abs(target - selMax) ? 'min' : 'max';
+        const fromMidi = which === 'min' ? selMin : selMax;
+        const dir = target > fromMidi ? 1 : (target < fromMidi ? -1 : (which === 'max' ? 1 : -1));
+        // Freeze the window for the whole gesture so keys don't shift mid-step.
+        dragRef.current = { boundary: which, window: win };
+        downRef.current = { clientX: e.clientX };
+        stopStepper();
+        stepperRef.current = { which, target, dir, live: fromMidi, pressed: true, dragged: false, ticks: 0 };
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not all envs */ }
+        tickKbd();   // immediate first step (adjacent tap moves at once)
+    };
+    const onMove = (e) => {
+        const s = stepperRef.current, d = downRef.current;
+        if (!s || !d) return;
+        if (!s.dragged && Math.abs(e.clientX - d.clientX) > KBD_DRAG_PX) {
+            s.dragged = true;   // promote to live drag
+            if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
+        }
+        if (s.dragged) {
+            const midi = dragRef.current.window[idxAt(e.clientX)].midi;
+            s.live = midi;
+            setBoundary(midi, s.which);
+        }
+    };
+    const onUp = () => {
+        const s = stepperRef.current;
+        if (s?.dragged) { stopStepper(); dragRef.current = null; downRef.current = null; forceReanchor(); }
+        else if (s) {
+            // Tap/hold released: let an in-flight burst finish; a hold stops now. The
+            // window re-anchors once the stepper is fully done (in stopStepper path).
+            s.pressed = false;
+            downRef.current = null;
+            if (s.live === s.target) { stopStepper(); dragRef.current = null; forceReanchor(); }
+        }
+    };
+    // Cancel timers on unmount.
+    React.useEffect(() => () => stopStepper(), []);
+
+    // Preset brackets — three shared rows by size (FULL/LARGE/STANDARD); on each
+    // row the current clef's bracket is "front" (highlighted), the other clef's
+    // "behind" (dimmed, interrupted with "…" at the overlap). buildPresetBracketRows
+    // returns behind-then-front so paint order layers them. See that helper.
+    const bracketRows = buildPresetBracketRows(presets, range, selClef, win);
+    const presetViewH = presetViewHeight();
+
+    return (
+        <div className="kbd-range-setter" data-settings-keepalive="" ref={wrapRef}>
+            {/* 1. Preset brackets: 3 rows by size, both clefs sharing each row. The
+                current clef's bracket is highlighted (front); the other clef's is
+                dimmed and passes "behind", interrupted by "…" at the overlap. Tapping
+                any bracket sets BOTH the clef and the range on this staff. Selecting
+                the other clef swaps which set is front/highlighted. */}
+            <div className="kbd-range-presets-row">
+                <svg viewBox={`0 0 ${nWhite} ${presetViewH}`} preserveAspectRatio="none"
+                    style={{ width: '100%', height: '100%', display: 'block' }}>
+                    {bracketRows.map(({ p, x0, x1, isActive, isCurrentClef, yTop, gap }) => {
+                        const color = isActive ? 'var(--accent-yellow)'
+                            : (isCurrentClef ? 'var(--text-primary)' : 'var(--text-dim)');
+                        const isBehind = !isCurrentClef;
+                        const groupOpacity = isBehind ? 0.6 : 1;
+                        const yb = yTop + PRESET_TICK;
+                        // Both clefs draw SOLID corner brackets (Han 2026-06-01 #4: the
+                        // passive/behind bracket is a solid line, not dotted). Front gets
+                        // the full ⊓ (both ticks); behind gets a left corner + top (no
+                        // closing tick, since the front bracket continues past it).
+                        const d = isBehind
+                            ? `M ${x0} ${yb} V ${yTop} H ${x1}`
+                            : `M ${x0} ${yb} V ${yTop} H ${x1} V ${yb}`;
+                        return (
+                            <g key={`${p.clef}-${p.label}`} style={{ cursor: 'pointer', opacity: groupOpacity }}
+                                onClick={() => applyPreset(p)}>
+                                <rect x={x0 - 0.3} y={yTop - 2} width={Math.max(0.6, (x1 - x0) + 0.6)} height={PRESET_ROW_H}
+                                    fill="transparent" />
+                                <path d={d}
+                                    fill="none" stroke={color} strokeWidth={isActive ? 2 : 1.2}
+                                    vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
+                                {/* Dotted line bridging the gap to the front bracket
+                                    (replaces the stretched ellipsis). */}
+                                {gap && (
+                                    <line x1={gap.x0} y1={yTop} x2={gap.x1} y2={yTop}
+                                        stroke={color} strokeWidth={1} strokeDasharray="1.5 1.5"
+                                        vectorEffect="non-scaling-stroke" style={{ pointerEvents: 'none' }} />
+                                )}
+                                {debugMode && (
+                                    <rect x={x0 - 0.3} y={yTop - 2} width={Math.max(0.6, (x1 - x0) + 0.6)} height={PRESET_ROW_H}
+                                        fill="orange" fillOpacity={0.2} stroke="orange" strokeWidth={0.3}
+                                        style={{ pointerEvents: 'none' }} />
+                                )}
+                            </g>
+                        );
+                    })}
+                </svg>
+            </div>
+
+            {/* 2. Compact windowed selector — where you choose the range. */}
+            <div className="kbd-range-selector">
+                <PianoView
+                    scale={scale}
+                    trebleInstrument={instrument}
+                    activeClef={activeClef}
+                    minNote={win[0].name}
+                    maxNote={win[nWhite - 1].name}
+                    noteColoringMode={noteColoringMode}
+                    hideLabels
+                />
+                <svg ref={selSvgRef} className="kbd-range-overlay"
+                    viewBox={`0 0 ${nWhite} 100`} preserveAspectRatio="none"
+                    onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+                    {/* The band + handles transition their x/width over STEP_MS so a
+                        stepper burst GLIDES between key positions instead of snapping
+                        (Han 2026-06-01). SVG geometry props animate via CSS in modern
+                        browsers; a frozen window keeps the key grid stable underneath. */}
+                    <rect className="kbd-range-band" x={minIdx} y={0} width={Math.max(0, maxIdx + 1 - minIdx)} height={100}
+                        fill="var(--accent-yellow)" fillOpacity={0.18} style={{ pointerEvents: 'none' }} />
+                    <rect className="kbd-range-band" x={minIdx - 0.07} y={0} width={0.14} height={100}
+                        fill="var(--accent-yellow)" style={{ pointerEvents: 'none' }} />
+                    <rect className="kbd-range-band" x={maxIdx + 1 - 0.07} y={0} width={0.14} height={100}
+                        fill="var(--accent-yellow)" style={{ pointerEvents: 'none' }} />
+                    {debugMode && (
+                        <rect x={0} y={0} width={nWhite} height={100}
+                            fill="orange" fillOpacity={0.18} stroke="orange" strokeWidth={0.05}
+                            style={{ pointerEvents: 'none' }} />
+                    )}
+                </svg>
+            </div>
+
+            {/* 3. Real playable keyboard — the impact of the selection. */}
+            <div className="kbd-range-real">
+                <PianoView
+                    scale={scale}
+                    trebleInstrument={instrument}
+                    activeClef={activeClef}
+                    minNote={range.min}
+                    maxNote={range.max}
+                    noteColoringMode={noteColoringMode}
+                    onNoteInput={onNoteInput}
+                    qwertyKeyboardActive={qwertyKeyboardActive}
+                    activeChord={activeChord}
+                    theme={theme}
+                />
+            </div>
+        </div>
+    );
+};
+
+export default KeyboardRangeSetter;

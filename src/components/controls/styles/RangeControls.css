@@ -9,6 +9,12 @@
   background-color: transparent;
 }
 
+/* range-edit-mode variant: palette + instrument columns removed, so only
+   lower-bound / clef / range-mode / upper-bound remain (Han 2026-05-30). */
+.range-controls-range-only {
+  grid-template-columns: 28% 16% 28% 28%;
+}
+
 .rc-col {
   display: flex;
   justify-content: center;
