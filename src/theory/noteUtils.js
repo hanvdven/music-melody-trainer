@@ -214,12 +214,27 @@ export const respellToKeySignature = (note, numAccidentals) => {
 // so the sheet-music range overlay colors selected notes the same way the staff
 // does (CLAUDE.md §6c). `chords` mode needs chord context the caller has, so it
 // is handled at the call site, not here.
-export const melodicNoteColor = (note, { noteColoringMode, tonic, scaleNotes = [], theme = 'dark' } = {}) => {
+// 'chords'-mode colour for a single note against ONE chord: notes that belong to the chord get
+// the chord ROOT's chromatone colour (mixed 30% toward the page so it stays legible); others null.
+// Shared by the staff renderer, the range/colour setters and the keyboard so they all match
+// (CLAUDE.md §6c/§6d). `activeChord` = { root, notes:[...] }.
+export const chordNoteColor = (note, activeChord, theme = 'dark') => {
+    if (!activeChord?.notes?.length) return null;
+    const pc = getNoteSemitone(note);
+    if (activeChord.notes.some(cn => getNoteSemitone(cn) === pc)) {
+        const mix = theme === 'light' ? 'black' : 'white';
+        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(activeChord.root)}), ${mix} 30%)`;
+    }
+    return null;
+};
+
+export const melodicNoteColor = (note, { noteColoringMode, tonic, scaleNotes = [], theme = 'dark', activeChord = null } = {}) => {
     if (noteColoringMode === 'chromatone') return `var(--chromatone-${getNoteSemitone(note)})`;
     if (noteColoringMode === 'subtle-chroma') {
         const mix = theme === 'light' ? 'black' : 'white';
         return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(note)}), ${mix} 60%)`;
     }
+    if (noteColoringMode === 'chords') return chordNoteColor(note, activeChord, theme);
     if (noteColoringMode === 'tonic_scale_keys') {
         const pc = getNoteSemitone(note);
         if (pc === getNoteSemitone(tonic)) return 'var(--note-tonic)';

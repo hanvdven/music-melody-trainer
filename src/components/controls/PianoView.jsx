@@ -4,7 +4,7 @@ import logger from '../../utils/logger';
 import playSound from '../../audio/playSound';
 import { standardizeTonic, getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import generateAllNotesArray from '../../theory/allNotesArray';
-import { getCanonicalNote, ENHARMONIC_PAIRS, getNoteSemitone } from '../../theory/noteUtils';
+import { getCanonicalNote, ENHARMONIC_PAIRS, getNoteSemitone, chordNoteColor } from '../../theory/noteUtils';
 import { transposeNoteBySemitones } from '../../theory/musicUtils';
 
 // Fold a semitone offset into the nearest octave, range [-6, +6]. Keyboard transposition is a
@@ -39,7 +39,10 @@ const PianoView = ({
   minNote = null, // optional
   maxNote = null, // optional
   isHighlightActive = true,
-  noteColoringMode = 'none', // 'none', 'tonic_keys', 'tonic', 'chromatone_keys', 'chromatone', 'subtle-chroma'
+  noteColoringMode = 'none', // 'none', 'tonic_keys', 'tonic', 'chromatone_keys', 'chromatone', 'subtle-chroma', 'chords'
+  // 'chords' colouring with no playback: the representative chord ({ root, notes }) + theme.
+  activeChord = null,
+  theme = 'dark',
   onNoteInput = null,
   qwertyKeyboardActive = false,
   // Compact mode (e.g. the range-setter selector): suppress the note-name labels,
@@ -437,6 +440,13 @@ const PianoView = ({
         color: '#fff',
         boxShadow: '0 0 8px 2px rgba(192,128,64,0.5)',
       };
+    }
+
+    // CHORDS MODE (no playback): tint keys belonging to the representative chord with the chord
+    // root's colour. Uses the CONCERT note (cmp) so it stays correct under keyboard transposition.
+    if (noteColoringMode === 'chords') {
+      const c = chordNoteColor(cmp, activeChord, theme);
+      return c ? { background: c, color: defaultTextColor } : { color: defaultTextColor };
     }
 
     // CHROMATONE MODE
