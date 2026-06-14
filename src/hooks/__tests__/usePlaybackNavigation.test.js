@@ -110,7 +110,7 @@ describe('usePlaybackNavigation', () => {
             const { result } = renderHook(() => usePlaybackNavigation(deps));
 
             act(() => result.current.handleSkipForward());
-            expect(deps.navigateHistory).toHaveBeenCalledWith('forward');
+            expect(deps.navigateHistory).toHaveBeenCalledWith('forward', null);
         });
 
         it('handles multi-block configurations', () => {

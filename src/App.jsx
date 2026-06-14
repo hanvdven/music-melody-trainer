@@ -575,6 +575,8 @@ const App = () => {
         navigateHistory, setScale, _setTonic,
         isPlayingContinuously, isPlayingMelody, handleStopAllPlayback, startSequencer,
         setIsPlayingMelody, setIsPlayingContinuously, melodies,
+        // So a loaded song's pin/settings carry into the next generated block (bug 2).
+        randomizeConfig: playbackConfig.randomize,
     });
 
     // Rubato playback engage hook (PR-C wave 1, Han 2026-05-29).
