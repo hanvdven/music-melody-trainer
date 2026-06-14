@@ -7,7 +7,7 @@ import { getProgressionLabel } from './theory/progressionDefinitions';
 import './styles/App.css';
 import './styles/AppLayout.css';
 import { modulateMelody, transposeNoteBySemitones } from './theory/musicUtils';
-import { respellToKeySignature } from './theory/noteUtils';
+import { respellToKeySignature, getNoteSemitone } from './theory/noteUtils';
 import { getTranspositionSemitones, getTranspositionFifths, getTranspositionLabel } from './constants/transposingInstruments';
 import Sequencer from './audio/Sequencer';
 import playMelodies from './audio/playMelodies';
@@ -1111,6 +1111,17 @@ const App = () => {
         return label;
     }, [displayChordProgression, chordProgression]);
 
+    // Representative chord for the KEYBOARD's 'chords' colouring with no playback (Han 2026-06-14):
+    // the tonic chord if it is the LAST chord of the progression, else the FIRST — same rule the
+    // sheet's in-staff setters use (SheetMusic `pausedActiveChord`), so all untimed surfaces match.
+    const keyboardActiveChord = useMemo(() => {
+        const prog = displayChordProgression ?? chordProgression;
+        const chords = (prog?.chords || []).filter(c => c?.notes?.length);
+        if (!chords.length) return null;
+        const last = chords[chords.length - 1];
+        return getNoteSemitone(last.root) === getNoteSemitone(scale.tonic) ? last : chords[0];
+    }, [displayChordProgression, chordProgression, scale.tonic]);
+
 
     // GLOBAL transposition (Han 2026-06-09, item 5): when BOTH staves carry the SAME transposition
     // (key + octave) and it isn't concert, the whole piece is treated as transposed — the displayed
@@ -1506,6 +1517,7 @@ const App = () => {
                     clefEditMode={clefEditMode}
                     keyboardTranspose={keyboardTranspose}
                     setKeyboardTranspose={setKeyboardTranspose}
+                    keyboardActiveChord={keyboardActiveChord}
                     resetSettingsTimer={resetSettingsTimer}
                     customPercussionMapping={customPercussionMapping}
                     setCustomPercussionMapping={setCustomPercussionMapping}

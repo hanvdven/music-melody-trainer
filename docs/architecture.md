@@ -2965,9 +2965,21 @@ sets (`none, tonic_scale_keys, chords, chromatone, subtle-chroma`) sit side by s
 real staff; each is 8 notes C4–C5 coloured by THAT scheme, placed with the same
 `getNoteAbsoluteY`/`StaffQuarterNote`/`melodicNoteColor` the real notes use, so they land on
 the staff lines. Tap a set to select it (`setNoteColoringMode`); active set highlighted.
-Mounted simply on `colorEditMode`; `overlayEditMode` includes it so the melody hides. Known
-limits: the `chords` set has no active chord here (falls back to neutral); the sets fit-to-
-width in the SVG (no HTML side-scroll — that would break the on-staff requirement).
+Mounted simply on `colorEditMode`; `overlayEditMode` includes it so the melody hides. The
+`chords` set colours against the representative chord (`pausedActiveChord`) via the shared
+`chordNoteColor`. Note: the sets fit-to-width in the SVG (no HTML side-scroll — that would
+break the on-staff requirement).
+
+**Chord colouring — timed vs untimed surfaces (Han 2026-06-14).** `chordNoteColor(note,
+chord, theme)` in `noteUtils` is the single source for 'chords'-mode colour (chord tones get
+the root's chromatone colour). The **sheet melody is always per-timing**: `coloringChords ===
+processedChords` so each note follows the chord at its own offset, playing OR paused (the old
+paused single-chord collapse was removed). **Untimed surfaces** (in-staff range/transposition
+setters, the colour menu, and the keyboard `PianoView`) have no per-note offset, so they
+colour against ONE representative chord — the tonic chord if it's the progression's last, else
+the first (`pausedActiveChord` in SheetMusic; the matching `keyboardActiveChord` in App for the
+keyboard). `PianoView` gains an `activeChord`+`theme` prop and a `chords` branch in
+`getKeyStyle` (using the concert note so it's correct under keyboard transposition).
 
 **Setter-button styling** (`SubHeader.jsx`, Han 2026-06-13). The menu-toggle buttons
 (SETTINGS / TRANSPOSITION / RANGE / COLOUR) now share ONE highlight colour

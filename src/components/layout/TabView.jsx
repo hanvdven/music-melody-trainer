@@ -50,6 +50,7 @@ const TabView = ({
     clefEditMode,
     keyboardTranspose = 0,
     setKeyboardTranspose,
+    keyboardActiveChord = null,
     resetSettingsTimer,
     // Percussion custom mapping
     customPercussionMapping,
@@ -163,6 +164,8 @@ const TabView = ({
                                     qwertyKeyboardActive={qwertyKeyboardActive}
                                     onNoteInput={handleInputTestNote}
                                     debugMode={debugMode}
+                                    activeChord={keyboardActiveChord}
+                                    theme={theme}
                                 />
                             ) : (
                                 <>
@@ -176,6 +179,8 @@ const TabView = ({
                                         onNoteInput={handleInputTestNote}
                                         qwertyKeyboardActive={qwertyKeyboardActive}
                                         transpose={keyboardTranspose}
+                                        activeChord={keyboardActiveChord}
+                                        theme={theme}
                                     />
                                     {/* data-settings-keepalive stops the overlay's
                                         click-outside-to-close from firing when the user
@@ -258,6 +263,8 @@ const TabView = ({
                                         onNoteInput={handleInputTestNote}
                                         qwertyKeyboardActive={qwertyKeyboardActive}
                                         transpose={keyboardTranspose}
+                                        activeChord={keyboardActiveChord}
+                                        theme={theme}
                                     />
                                     {showSheetMusicSettings && (
                                         <div data-settings-keepalive="" style={{

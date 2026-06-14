@@ -100,6 +100,7 @@ export const presetViewHeight = () => PRESET_PAD * 2 + NUM_PRESET_ROWS * PRESET_
 const KeyboardRangeSetter = ({
     scale, instrument, activeClef, settings, setSettings,
     noteColoringMode = 'none', qwertyKeyboardActive = false, onNoteInput = null, debugMode = false,
+    activeChord = null, theme = 'dark',
 }) => {
     // Layout frozen during a drag so the selector keys don't shift under the
     // finger; forceReanchor re-renders on release so the window re-centres.
@@ -356,6 +357,8 @@ const KeyboardRangeSetter = ({
                     noteColoringMode={noteColoringMode}
                     onNoteInput={onNoteInput}
                     qwertyKeyboardActive={qwertyKeyboardActive}
+                    activeChord={activeChord}
+                    theme={theme}
                 />
             </div>
         </div>

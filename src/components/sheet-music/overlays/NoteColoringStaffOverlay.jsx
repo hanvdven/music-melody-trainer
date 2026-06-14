@@ -29,11 +29,12 @@ const ledgerYs = (y, staffStart) => {
 
 const NoteColoringStaffOverlay = ({
     startX, endX, trebleStart, clefTreble = 'treble',
-    noteColoringMode, setNoteColoringMode, tonic, scaleNotes, theme, debugMode = false,
+    noteColoringMode, setNoteColoringMode, tonic, scaleNotes, activeChord = null, theme, debugMode = false,
 }) => {
     const W = endX - startX;
     const setW = W / SCHEMES.length;
-    const ctx = { tonic, scaleNotes, theme };
+    // activeChord drives the 'chords' set's colouring (no playback → the representative chord).
+    const ctx = { tonic, scaleNotes, theme, activeChord };
     return (
         <g className="note-coloring-overlay">
             {SCHEMES.map((s, si) => {

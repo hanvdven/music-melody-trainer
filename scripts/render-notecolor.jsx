@@ -21,8 +21,8 @@ const startX = 150, endX = 920;
 const overlay = renderToStaticMarkup(
   React.createElement(NoteColoringStaffOverlay, {
     startX, endX, trebleStart, clefTreble: 'treble',
-    noteColoringMode: 'chromatone', setNoteColoringMode: () => {},
-    tonic: 'C4', scaleNotes: ['C','D','E','F','G','A','B'], theme: 'dark', debugMode: false,
+    noteColoringMode: 'chords', setNoteColoringMode: () => {},
+    tonic: 'C4', scaleNotes: ['C','D','E','F','G','A','B'], activeChord: { root: 'C4', notes: ['C4','E4','G4'] }, theme: 'dark', debugMode: false,
   }),
 );
 // Existing top staff lines (what the real SheetMusic draws) so we can confirm alignment.

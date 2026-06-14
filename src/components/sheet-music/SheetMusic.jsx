@@ -1006,13 +1006,11 @@ const SheetMusic = ({
     const lastChord = real[real.length - 1].chord;
     return getNoteSemitone(lastChord.root) === getNoteSemitone(tonic) ? lastChord : real[0].chord;
   }, [processedChords, tonic]);
-  // Chords that drive the melody NOTE colouring. While PLAYING each note follows the chord at its
-  // own offset (per-note, full progression); when PAUSED the whole melody is coloured by the single
-  // pausedActiveChord. Chord LABELS keep the full progression (this only redirects colouring).
-  const coloringChords = useMemo(() => {
-    if (isPlaying || !pausedActiveChord) return processedChords;
-    return [{ chord: pausedActiveChord, absoluteOffset: 0, isSlash: false }];
-  }, [isPlaying, processedChords, pausedActiveChord]);
+  // Chords that drive the melody NOTE colouring: ALWAYS the full progression, so each note follows
+  // the chord at its own offset whether playing or paused (Han 2026-06-14 — the old paused single-
+  // chord collapse was not intended; the sheet must always reflect the per-timing chord). The
+  // single pausedActiveChord is only for the UNtimed surfaces (in-staff setters + keyboard).
+  const coloringChords = processedChords;
 
   const trebleAccidentals = useMemo(() => generateAccidentalMap(adjustedTrebleMelody.notes, numAccidentals),
     [adjustedTrebleMelody, numAccidentals]);
@@ -2920,6 +2918,7 @@ const SheetMusic = ({
                       setNoteColoringMode={setNoteColoringMode}
                       tonic={tonic}
                       scaleNotes={scaleNotes}
+                      activeChord={pausedActiveChord}
                       theme={theme}
                       debugMode={debugMode}
                     />
