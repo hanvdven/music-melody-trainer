@@ -199,6 +199,9 @@ const App = () => {
     // Note-colouring menu (Han 2026-06-13): a staff overlay showing every colour scheme as a
     // row of C4–C5 notes. Sibling of range/clef; mutually exclusive with them + settings.
     const [colorEditMode, setColorEditMode] = useState(false);
+    // Loaded-song title for the header (Han 2026-06-14): "Happy Birthday in G major". Set on song
+    // load; cleared when the user generates a fresh exercise (un-pins the melody) — see effect below.
+    const [loadedSongTitle, setLoadedSongTitle] = useState(null);
     // In-SVG chord-edit mode (Han 2026-06-01): the chord-row selector (X/letters/
     // roman). Sibling of range/clef; mutually exclusive with them + settings.
 
@@ -504,6 +507,7 @@ const App = () => {
         // its first measure is mislabeled and the highlighter/scheduler line up
         // against stale state.
         setStartMeasureIndex(0);
+        setLoadedSongTitle(songDef.title || null);   // header shows "<title> in <key>" until a fresh exercise
         // Also reset the cumulative history offset (Han 2026-06-14 bug): play start uses
         // `melodies.globalMeasureOffset` as the initial measure index. After generating a few
         // exercise blocks this offset is non-zero, so a freshly-loaded song would start mid-song
@@ -517,6 +521,13 @@ const App = () => {
         setReferenceMelody, setReferenceBassMelody, setReferenceScale,
         setTimeSignature, setNumMeasures, setBpm, setPlaybackConfig,
         setStartMeasureIndex, setGlobalMeasureOffset]);
+
+    // Clear the loaded-song header label once the user generates a FRESH exercise melody — i.e. when
+    // they un-pin the melody (randomize.melody === true). Loading a song pins it (melody=false); the
+    // label persists through the song's own repeats/next-blocks, and a different song sets a new one.
+    useEffect(() => {
+        if (playbackConfig?.randomize?.melody === true) setLoadedSongTitle(null);
+    }, [playbackConfig?.randomize?.melody]);
 
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
     const randomizeAll = randomizeAllLogic;
@@ -1363,6 +1374,7 @@ const App = () => {
                     onScaleClick={handleScaleClick}
                     isScalePlaying={isScalePlaying}
                     progressionLabel={headerProgressionLabel}
+                    songTitle={loadedSongTitle}
                 />
 
                 <SubHeader
