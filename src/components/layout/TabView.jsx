@@ -1,6 +1,6 @@
 import React from 'react';
 import SheetMusic from '../sheet-music/SheetMusic';
-import PianoView from '../controls/PianoView';
+import PianoView, { foldShift } from '../controls/PianoView';
 import KeyboardRangeSetter from '../controls/KeyboardRangeSetter';
 import KeyboardTransposeSetter from '../controls/KeyboardTransposeSetter';
 import RangeControls from '../controls/RangeControls';
@@ -10,6 +10,7 @@ import ScaleSelector from '../scale/ScaleSelector';
 import PlaybackSettings from '../controls/PlaybackSettings';
 import SettingsPanel from '../controls/SettingsPanel';
 import ChordGrid from '../controls/ChordGrid';
+import { getNoteValue, getNoteFromValue } from '../../utils/rangeUtils';
 import ProfileTab from '../profile/ProfileTab';
 import SongsTab from '../songs/SongsTab';
 import InstrumentRow from '../controls/rows/InstrumentRow';
@@ -123,6 +124,24 @@ const TabView = ({
     const { isPlaying } = usePlaybackTransport();
     const { inputTestSubMode } = useRoundState();
 
+    // Transposed play keyboard (Han 2026-06-14 #7): the range is the WRITTEN/labelled domain, so a
+    // transposed keyboard must show the physical keys whose LABELS cover the set range. Labels are
+    // physical + tShift (tShift = foldShift(−keyboardTranspose), matching PianoView's tn), so the
+    // physical boundary = range − tShift; snap min DOWN / max UP to the nearest white key so the
+    // boundary never lands on a black key (e.g. range c4–e5 with Concert C=E → shows c4–f5).
+    const BLACK_PC = new Set([1, 3, 6, 8, 10]);
+    const snapNatural = (midi, dir) => { while (BLACK_PC.has(((midi % 12) + 12) % 12)) midi += dir; return midi; };
+    const displayRange = (minName, maxName) => {
+        if (!keyboardTranspose || !minName || !maxName) return { min: minName, max: maxName };
+        const tShift = foldShift(-keyboardTranspose);
+        return {
+            min: getNoteFromValue(snapNatural(getNoteValue(minName) - tShift, -1)),
+            max: getNoteFromValue(snapNatural(getNoteValue(maxName) - tShift, 1)),
+        };
+    };
+    const trebleDisp = displayRange(trebleSettings?.range?.min, trebleSettings?.range?.max);
+    const bassDisp = displayRange(bassSettings?.range?.min, bassSettings?.range?.max);
+
     return (
         <div className="app-content-area">
             {activeTab === 'sheet-music' && (
@@ -176,8 +195,8 @@ const TabView = ({
                                         scale={scale}
                                         trebleInstrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
                                         activeClef={activeClef}
-                                        minNote={activeClef === 'treble' ? trebleSettings?.range?.min : bassSettings?.range?.min}
-                                        maxNote={activeClef === 'treble' ? trebleSettings?.range?.max : bassSettings?.range?.max}
+                                        minNote={activeClef === 'treble' ? trebleDisp.min : bassDisp.min}
+                                        maxNote={activeClef === 'treble' ? trebleDisp.max : bassDisp.max}
                                         noteColoringMode={noteColoringMode}
                                         onNoteInput={handleInputTestNote}
                                         qwertyKeyboardActive={qwertyKeyboardActive}
@@ -269,8 +288,8 @@ const TabView = ({
                                         scale={scale}
                                         trebleInstrument={manualInstruments.bass}
                                         activeClef={'bass'}
-                                        minNote={bassSettings?.range?.min}
-                                        maxNote={bassSettings?.range?.max}
+                                        minNote={bassDisp.min}
+                                        maxNote={bassDisp.max}
                                         noteColoringMode={noteColoringMode}
                                         onNoteInput={handleInputTestNote}
                                         qwertyKeyboardActive={qwertyKeyboardActive}
