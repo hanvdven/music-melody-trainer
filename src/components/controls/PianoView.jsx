@@ -11,7 +11,7 @@ import { transposeNoteBySemitones } from '../../theory/musicUtils';
 // PITCH-CLASS rotation (Han 2026-06-13: "−1 and +11 are the same — the height comes from the range
 // setter"), so we keep the sounded/relabelled note close to the physical key instead of jumping a
 // whole octave for large offsets.
-const foldShift = (s) => { const r = ((s % 12) + 12) % 12; return r > 6 ? r - 12 : r; };
+export const foldShift = (s) => { const r = ((s % 12) + 12) % 12; return r > 6 ? r - 12 : r; };
 
 
 // QWERTY → piano key mapping (standard GarageBand/DAW layout)

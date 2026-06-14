@@ -18,7 +18,7 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 - 🔨 Range setter 8va/8vb triggers too eagerly → fold ONLY out-of-range context notes
   (in-range notes stay true pitch); the 8va rules consider in-range notes only.
 - ⏳ Range setter 8va/8vb GLYPH style must match the melody's ottava (consistency).
-- ⏳ 🐞 Transposed keyboard: displayed RANGE still uses concert min/max. With Concert C=E +
+- ✅ Transposed keyboard: displayed RANGE still uses concert min/max. With Concert C=E +
   range c4–e5 it shows A♭3–c5; should show c4–f5 (keys keep physical positions; e5→f5 since
   the transposed boundary lands on a black key). Range labels must follow the transposition.
 - 🔨 Chord NAME labels not coloured → colour each chord label by its ROOT (chromatone/tonic).
