@@ -198,7 +198,10 @@ const foldNoteToStaff = (name, staffStart, clef, staff) => {
     }
     return { name: n, shift, y };
 };
-const OTTAVA_LABEL = { 1: '8va', 2: '15ma', '-1': '8vb', '-2': '15mb' };
+// Maestro-font ottava glyphs — MUST match the melody renderer (renderMelodyNotes getOttavaChar)
+// for visual consistency (Han 2026-06-14). Our shift sign is the melody's negated: our shift>0 =
+// above (8va/15ma), <0 = below (8vb/15mb).
+const OTTAVA_GLYPH = { 1: 'Ã', 2: 'Û', '-1': '×', '-2': '`' };
 
 
 const nearestIdx = (notes, midi) => {
@@ -662,16 +665,26 @@ const RangeStaffOverlay = ({
                     {/* Ottava brackets — one per contiguous run that folded by the same octave.
                         Above the group for 8va/15ma (shift>0), below for 8vb/15mb (shift<0). */}
                     {ottavaGroups.map((g, gi) => {
+                        // Same geometry as the melody renderer: Maestro glyph at markerY (outside the
+                        // staff, clear of the group's extreme notehead), dashed line + end hook.
                         const above = g.shift > 0;
-                        const by = above ? g.yExtreme - 14 : g.yExtreme + 16;   // bracket baseline
-                        const tick = above ? 6 : -6;
+                        const markerY = above
+                            ? Math.min(staffStart - 18, g.yExtreme - 18)
+                            : Math.max(staffStart + 58, g.yExtreme + 18);
+                        const lineY = markerY - 8;
+                        const hookYEnd = (above ? markerY + 8 : markerY - 8) - 8;
                         return (
                             <g key={`ott-${gi}`} style={{ pointerEvents: 'none' }}>
-                                <text x={g.x0 - 2} y={by + (above ? -1 : 8)} fontSize={10} fontStyle="italic"
-                                    fontFamily="serif" fill="var(--text-primary)">{OTTAVA_LABEL[g.shift]}</text>
-                                <path d={`M ${g.x0 + 18} ${by} H ${g.x1 + 4} V ${by + tick}`}
-                                    fill="none" stroke="var(--text-primary)" strokeWidth={0.6}
-                                    strokeDasharray="3 2" />
+                                <text x={g.x0} y={markerY} fontSize={30} fontFamily="Maestro"
+                                    fill="var(--text-primary)">{OTTAVA_GLYPH[g.shift]}</text>
+                                {g.x1 > g.x0 && (
+                                    <>
+                                        <line x1={g.x0 + 22} y1={lineY} x2={g.x1 + 12} y2={lineY}
+                                            stroke="var(--text-primary)" strokeWidth={1} strokeDasharray="4,3" />
+                                        <line x1={g.x1 + 12} y1={lineY} x2={g.x1 + 12} y2={hookYEnd}
+                                            stroke="var(--text-primary)" strokeWidth={1} />
+                                    </>
+                                )}
                             </g>
                         );
                     })}
