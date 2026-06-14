@@ -161,6 +161,34 @@ const rangeLedgerYs = (y, staffStart) => {
     return out;
 };
 
+// ── Grouped ottava for the range row (Han 2026-06-14) ───────────────────────
+// The 2026-06-12 x(t) rewrite started drawing every range note at its TRUE pitch, so
+// out-of-staff context notes sprawled with long ledger stacks and looked clustered.
+// Restore the melody/previous-range-setter behaviour: fold each note toward the staff by
+// whole octaves, then bracket the CONTIGUOUS runs that share a shift so a GROUP jumps an
+// octave together (8va/15ma above, 8vb/15mb below) instead of per-note ledger sprawl.
+// READ_PAD = how far above/below the staff a notehead may sit before it folds.
+const READ_PAD_TOP = 26, READ_PAD_BOT = 30;          // units beyond the staff edges
+const shiftOctaveName = (name, d) => {
+    const m = String(name).match(/^(.*?)(-?\d+)$/);   // split pitch-class (incl. accidental) + octave
+    return m ? `${m[1]}${parseInt(m[2], 10) + d}` : name;
+};
+// Fold one note toward the staff; returns the WRITTEN name, its octave `shift`, and drawn `y`.
+// shift > 0 = written lower than sounding (8va/15ma above); shift < 0 = written higher (8vb/15mb).
+const foldNoteToStaff = (name, staffStart, clef, staff) => {
+    let n = name, shift = 0, y = getNoteAbsoluteY(n, staffStart, clef, staff), guard = 0;
+    while (y != null && y < staffStart - READ_PAD_TOP && guard++ < 6) {       // too high → 8va
+        n = shiftOctaveName(n, -1); shift += 1; y = getNoteAbsoluteY(n, staffStart, clef, staff);
+    }
+    guard = 0;
+    while (y != null && y > staffStart + 40 + READ_PAD_BOT && guard++ < 6) {  // too low → 8vb
+        n = shiftOctaveName(n, 1); shift -= 1; y = getNoteAbsoluteY(n, staffStart, clef, staff);
+    }
+    return { name: n, shift, y };
+};
+const OTTAVA_LABEL = { 1: '8va', 2: '15ma', '-1': '8vb', '-2': '15mb' };
+
+
 const nearestIdx = (notes, midi) => {
     let bi = 0, bd = Infinity;
     notes.forEach((n, i) => { const d = Math.abs(n.midi - midi); if (d < bd) { bd = d; bi = i; } });
@@ -574,17 +602,31 @@ const RangeStaffOverlay = ({
             bandPoints = [`${xL},${topY}`, `${xR},${topY}`, `${xR},${botY}`, `${xL},${botY}`].join(' ');
         }
 
+        // Grouped ottava: fold every note toward the staff, then collect CONTIGUOUS runs that
+        // share a non-zero shift into bracket groups (Han 2026-06-14). Notes are drawn at their
+        // folded (written) octave; each group gets one 8va/8vb bracket spanning its x-range.
+        const folded = winNotes.map((n) => ({
+            n, x: rxFor(n.midi), ...foldNoteToStaff(writtenName(n.name), staffStart, clef, staff),
+        }));
+        const ottavaGroups = [];
+        folded.forEach((f, i) => {
+            if (f.shift === 0 || f.y == null) return;
+            const prev = ottavaGroups[ottavaGroups.length - 1];
+            if (prev && prev.shift === f.shift && prev.lastIdx === i - 1) {
+                prev.x1 = f.x; prev.lastIdx = i; prev.yExtreme = f.shift > 0 ? Math.min(prev.yExtreme, f.y) : Math.max(prev.yExtreme, f.y);
+            } else {
+                ottavaGroups.push({ shift: f.shift, x0: f.x, x1: f.x, lastIdx: i, yExtreme: f.y });
+            }
+        });
+
         return (
             <g className={`range-row range-row-${staff}`} key={staff}>
                 {/* Notes drawn at their x(t) positions (Han 2026-06-12): min/max at fixed Xl/Xr,
                     context notes on the tanh tails. Out-of-range notes FADE + SHRINK with distance
                     (like the transposition setter); in-range keep natural staff-y, opacity, size. */}
                 <g style={{ pointerEvents: 'none' }}>
-                    {winNotes.map((n) => {
-                        const wn = writtenName(n.name);
-                        const y = getNoteAbsoluteY(wn, staffStart, clef, staff);
+                    {folded.map(({ n, x, name: wn, y }) => {
                         if (y == null) return null;
-                        const x = rxFor(n.midi);
                         const inBand = n.midi >= selMin && n.midi <= selMax;
                         const d = inBand ? 0 : (n.midi < selMin ? selMin - n.midi : n.midi - selMax);
                         const opacity = inBand ? 1 : Math.max(0.15, 1 - d * 0.045);
@@ -594,6 +636,22 @@ const RangeStaffOverlay = ({
                                 transform={`translate(${x} ${y}) scale(${s}) translate(${-x} ${-y})`}>
                                 <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
                                     ledgerYs={rangeLedgerYs(y, staffStart)} color={colorFor(n.midi, wn)} />
+                            </g>
+                        );
+                    })}
+                    {/* Ottava brackets — one per contiguous run that folded by the same octave.
+                        Above the group for 8va/15ma (shift>0), below for 8vb/15mb (shift<0). */}
+                    {ottavaGroups.map((g, gi) => {
+                        const above = g.shift > 0;
+                        const by = above ? g.yExtreme - 14 : g.yExtreme + 16;   // bracket baseline
+                        const tick = above ? 6 : -6;
+                        return (
+                            <g key={`ott-${gi}`} style={{ pointerEvents: 'none' }}>
+                                <text x={g.x0 - 2} y={by + (above ? -1 : 8)} fontSize={10} fontStyle="italic"
+                                    fontFamily="serif" fill="var(--text-primary)">{OTTAVA_LABEL[g.shift]}</text>
+                                <path d={`M ${g.x0 + 18} ${by} H ${g.x1 + 4} V ${by + tick}`}
+                                    fill="none" stroke="var(--text-primary)" strokeWidth={0.6}
+                                    strokeDasharray="3 2" />
                             </g>
                         );
                     })}
