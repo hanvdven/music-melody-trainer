@@ -136,29 +136,29 @@ const MIN_COLLAPSE = 3;            // only collapse if ≥ this many middle note
 // ── Range-row x(t): the selected min/max sit at FIXED x (X_L / X_R) via a sigmoid ramp; notes
 // outside the range ride saturating tanh tails so NO ellipsis is ever needed (Han 2026-06-12).
 // t = note MIDI; Tl/Tr = selMin/selMax; Xl/Xr = fixed screen x; Al/Ar = tail amplitude.
-// In-range ramp (Han 2026-06-14): x = Xl + (Xr−Xl)·(u + β·sin(πu)), u=(t−Tl)/(Tr−Tl) where t is
-// the natural ORDINAL (even white-key steps), not MIDI. The +β·sin(πu) term bows the map above the
-// diagonal; its derivative 1 + βπ·cos(πu) runs from 1+βπ at the min edge (u=0, looser) down to
-// 1−βπ at the max edge (u=1, TIGHTER) — so notes pile up toward Tr/Xr (Han: gewenst bij Xr). Keep
-// β < 1/π ≈ 0.318 so the spacing never reaches 0 (no overlapping notes).
-const RANGE_BETA = 0.2;       // in-range bow amount (0..~0.3), tune live
-const RANGE_TAU = 4;          // tanh tail rate, in semitones (tune live)
-const RANGE_XL_FRAC = 0.30;   // min boundary x (fraction of the available width)
-const RANGE_XR_FRAC = 0.70;   // max boundary x
-const RANGE_CONTEXT = 17;     // semitones of out-of-range context shown each side
-const DRAG_PX_PER_STEP = 16;  // relative drag sensitivity: px per natural step
+// In-range ramp (Han 2026-06-14 #2): x = Xl + (Xr−Xl)·(u + (β/2π)·sin(2πu)), u=(t−Tl)/(Tr−Tl) with
+// t = natural ORDINAL (even white-key steps). This is SYMMETRIC and dense in the MIDDLE: its
+// derivative 1 + β·cos(2πu) is 1−β at the centre (u=½ → tightest) and 1+β at both edges (loosest),
+// so notes pack closest near (Xl+Xr)/2 and stay almost-linear elsewhere (Han: closest near the
+// middle, ~linear ≈ (Xr−Xl)/8). β small (<1). g(0)=0, g(½)=½, g(1)=1.
+const RANGE_BETA = 0.3;       // in-range middle-bow amount (0..~0.8), tune live
+const RANGE_TAU = 3;          // tanh tail rate, in naturals (tune live)
+const RANGE_XL_FRAC = 0.20;   // min boundary x (fraction of the available width)
+const RANGE_XR_FRAC = 0.80;   // max boundary x
+const RANGE_CONTEXT = 10;     // semitones of out-of-range context shown each side
+const DRAG_PX_PER_STEP = 6;   // relative drag sensitivity: px per natural step
 const rangeX = (t, Tl, Tr, Xl, Xr, Al, Ar, B = RANGE_BETA, TAU = RANGE_TAU) => {
     if (t < Tl) return Xl + Al * Math.tanh((t - Tl) / TAU);
     if (t > Tr) return Xr + Ar * Math.tanh((t - Tr) / TAU);
     if (Tr === Tl) return Xl;
     const u = (t - Tl) / (Tr - Tl);
-    return Xl + (Xr - Xl) * (u + B * Math.sin(Math.PI * u));
+    return Xl + (Xr - Xl) * (u + (B / (2 * Math.PI)) * Math.sin(2 * Math.PI * u));
 };
 
 // Debug-tunable range-layout parameters (Han 2026-06-13): each entry is [key, label, min, max,
 // step]. The live values live in component state; the constants above are the defaults.
 const RANGE_PARAM_DEFS = [
-    ['BETA', 'β bow', 0, 0.3, 0.02],
+    ['BETA', 'β mid-bow', 0, 0.8, 0.02],
     ['TAU', 'tanh τ', 1, 12, 0.5],
     ['XL', 'Xl frac', 0.1, 0.45, 0.01],
     ['XR', 'Xr frac', 0.55, 0.9, 0.01],
@@ -616,12 +616,18 @@ const RangeStaffOverlay = ({
             bandPoints = [`${xL},${topY}`, `${xR},${topY}`, `${xR},${botY}`, `${xL},${botY}`].join(' ');
         }
 
-        // Grouped ottava: fold every note toward the staff, then collect CONTIGUOUS runs that
-        // share a non-zero shift into bracket groups (Han 2026-06-14). Notes are drawn at their
-        // folded (written) octave; each group gets one 8va/8vb bracket spanning its x-range.
-        const folded = winNotes.map((n) => ({
-            n, x: rxFor(n.midi), ...foldNoteToStaff(writtenName(n.name), staffStart, clef, staff),
-        }));
+        // Grouped ottava: fold ONLY the out-of-range CONTEXT notes toward the staff (Han 2026-06-14
+        // #2: the 8va/8vb rules consider only the in-range notes, so the staff fits the selection
+        // and in-range notes never fold). In-range notes stay at true pitch (shift 0); contiguous
+        // context runs that share a shift get one 8va/8vb bracket.
+        const folded = winNotes.map((n) => {
+            const x = rxFor(n.midi);
+            const wn = writtenName(n.name);
+            if (n.midi >= selMin && n.midi <= selMax) {
+                return { n, x, name: wn, shift: 0, y: getNoteAbsoluteY(wn, staffStart, clef, staff) };
+            }
+            return { n, x, ...foldNoteToStaff(wn, staffStart, clef, staff) };
+        });
         const ottavaGroups = [];
         folded.forEach((f, i) => {
             if (f.shift === 0 || f.y == null) return;
