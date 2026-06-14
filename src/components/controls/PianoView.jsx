@@ -94,9 +94,9 @@ const PianoView = ({
 
     const src = tn(note);
     const notePC = src.replace(/\d+$/, '');
-    // Transposed keyboard + the transposition setter show pitch-class labels only — "C, D♭, D…"
-    // without the octave number, since the octave is fixed by the range setter (Han 2026-06-13).
-    const dropOctave = tShift !== 0 || interactionMode === 'set-transpose';
+    // Octave numbers show on ALL keyboards EXCEPT the transposition setter (Han 2026-06-14:
+    // "_index visible always on the keys, except in the transposition keyboard").
+    const dropOctave = interactionMode === 'set-transpose';
     const octave = dropOctave ? '' : (src.match(/\d+$/)?.[0] || '');
 
     // Find index in internal scale by pitch class

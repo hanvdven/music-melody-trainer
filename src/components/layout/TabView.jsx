@@ -152,6 +152,9 @@ const TabView = ({
                                     instrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
                                     keyboardTranspose={keyboardTranspose}
                                     setKeyboardTranspose={setKeyboardTranspose}
+                                    noteColoringMode={noteColoringMode}
+                                    activeChord={keyboardActiveChord}
+                                    theme={theme}
                                 />
                             ) : rangeEditMode ? (
                                 <KeyboardRangeSetter
@@ -236,7 +239,17 @@ const TabView = ({
                     {instruments.bass ? (
                         <div style={{ flex: 1, position: 'relative', width: '100%', overflow: 'visible' }}>
                             {/* See piano-tab: range-edit swaps in the graphical setter. */}
-                            {(rangeEditMode || clefEditMode) ? (
+                            {clefEditMode ? (
+                                <KeyboardTransposeSetter
+                                    scale={scale}
+                                    instrument={manualInstruments.bass}
+                                    keyboardTranspose={keyboardTranspose}
+                                    setKeyboardTranspose={setKeyboardTranspose}
+                                    noteColoringMode={noteColoringMode}
+                                    activeChord={keyboardActiveChord}
+                                    theme={theme}
+                                />
+                            ) : rangeEditMode ? (
                                 <KeyboardRangeSetter
                                     scale={scale}
                                     instrument={manualInstruments.bass}
@@ -247,9 +260,8 @@ const TabView = ({
                                     qwertyKeyboardActive={qwertyKeyboardActive}
                                     onNoteInput={handleInputTestNote}
                                     debugMode={debugMode}
-                                    keyboardTranspose={keyboardTranspose}
-                                    setKeyboardTranspose={setKeyboardTranspose}
-                                    clefMode={clefEditMode}
+                                    activeChord={keyboardActiveChord}
+                                    theme={theme}
                                 />
                             ) : (
                                 <>
