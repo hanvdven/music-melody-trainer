@@ -1116,7 +1116,10 @@ const App = () => {
     // sheet's in-staff setters use (SheetMusic `pausedActiveChord`), so all untimed surfaces match.
     const keyboardActiveChord = useMemo(() => {
         const prog = displayChordProgression ?? chordProgression;
-        const chords = (prog?.chords || []).filter(c => c?.notes?.length);
+        // ChordProgression stores Chord objects in .chords; a Melody-style progression stores them
+        // in .displayNotes (what getChordsWithSlashes reads). Both have { root, notes }.
+        const list = (prog?.chords?.length ? prog.chords : prog?.displayNotes) || [];
+        const chords = list.filter(c => c?.notes?.length && c?.root);
         if (!chords.length) return null;
         const last = chords[chords.length - 1];
         return getNoteSemitone(last.root) === getNoteSemitone(scale.tonic) ? last : chords[0];
