@@ -1,5 +1,5 @@
 import React from 'react';
-import { getNoteSemitone, respellToKeySignature } from '../../theory/noteUtils';
+import { getNoteSemitone, respellToKeySignature, melodicNoteColor } from '../../theory/noteUtils';
 import { transposeNoteBySemitones } from '../../theory/musicUtils';
 
 /**
@@ -37,6 +37,8 @@ const renderSingleChordLabel = ({
   chordDisplayMode,
   noteColoringMode,
   theme,
+  tonic,
+  scaleNotes = [],
   inputTestState,
   measureLengthSlots,
   startMeasureIndex,
@@ -76,9 +78,15 @@ const renderSingleChordLabel = ({
   const slashIdx = displaySuffix.indexOf('/');
   const superPart = slashIdx === -1 ? displaySuffix : displaySuffix.slice(0, slashIdx);
   const slashPart = slashIdx === -1 ? '' : displaySuffix.slice(slashIdx);
-  const chordColor = overrideColor ?? (noteColoringMode === 'chords'
-    ? `color-mix(in srgb, var(--chromatone-${getNoteSemitone(internalRoot)}), ${theme === 'light' ? 'black' : 'white'} 30%)`
-    : 'var(--text-primary)');
+  // Chord NAME colour = the chord ROOT coloured by the active scheme (Han 2026-06-14): chromatone →
+  // root's chromatone colour, tonic/scale → root's tonic/scale colour, chords → root's chord tint.
+  // Colour stays on the CONCERT root (internalRoot), not the written spelling. overrideColor wins
+  // (yellow/red transition previews).
+  const chordColor = overrideColor ?? (
+    melodicNoteColor(internalRoot, {
+      noteColoringMode, tonic, scaleNotes, theme,
+      activeChord: noteColoringMode === 'chords' ? { root: internalRoot, notes: [internalRoot] } : null,
+    }) || 'var(--text-primary)');
 
   // Passing chords use a 20% smaller font so they visually subordinate to structural chords
   const rootFontSize = isPassing ? 21 : 26;
@@ -224,6 +232,8 @@ const ChordLabelsLayer = ({
   chordDisplayMode,
   noteColoringMode,
   theme,
+  tonic,
+  scaleNotes = [],
   debugMode,
   overrideColor,
   // global transposition (item 5)
@@ -274,6 +284,8 @@ const ChordLabelsLayer = ({
       chordDisplayMode,
       noteColoringMode,
       theme,
+      tonic,
+      scaleNotes,
       inputTestState,
       measureLengthSlots,
       startMeasureIndex,
