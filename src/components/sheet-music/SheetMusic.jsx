@@ -1911,8 +1911,9 @@ const SheetMusic = ({
             {isTrebleVisible && (
               <>
                 {/* The static clef glyph is hidden in clef-edit mode — the clef
-                    selector's carousel draws the clef in the gutter instead. */}
-                {!clefEditMode && (
+                    selector's carousel draws the clef in the gutter instead. Also hidden in
+                    colour-edit mode, which lays its scheme sets across the bare staff. */}
+                {!clefEditMode && !colorEditMode && (
                 <text
                   x="13"
                   y={30 + (cfT.yOffset || 0)}
@@ -2907,14 +2908,14 @@ const SheetMusic = ({
                       stroke="var(--text-primary)" strokeWidth="0.5" style={{ pointerEvents: 'none' }} />
                   )}
 
-                  {/* Note-colouring overlay — staff-independent: one self-contained row of
-                      C4–C5 notes per colour scheme, no clefs. Click a row to pick the scheme. */}
+                  {/* Note-colouring overlay — laid out directly on the existing top staff
+                      (docs §37 #2): 5 scheme sets side by side, no clef. Tap a set to pick it. */}
                   {colorEditMode && (
                     <NoteColoringStaffOverlay
                       startX={startX}
                       endX={endX}
                       trebleStart={trebleStart}
-                      bottomY={bottomY}
+                      clefTreble={clefTreble}
                       noteColoringMode={noteColoringMode}
                       setNoteColoringMode={setNoteColoringMode}
                       tonic={tonic}

@@ -2956,15 +2956,18 @@ note is folded to the nearest octave (`foldShift → [-6,+6]`) so a key never ju
 
 ## 39. Note-colouring menu + setter-button styling (2026-06)
 
-**Note-colouring menu** (`overlays/NoteColoringStaffOverlay.jsx`, Han 2026-06-13). A new
-COLOUR setter mode (`colorEditMode` in App, sibling of range/clef/settings — mutually
-exclusive). It renders a staff-independent overlay: one self-contained row per colour scheme
-(`none, tonic_scale_keys, chords, chromatone, subtle-chroma`), each a 5-line staff segment
-(no clef) with 8 notes C4–C5 coloured by THAT scheme; tap a row to select it
-(`setNoteColoringMode`), active row highlighted. Reuses the canonical renderers (§6d):
-`StaffQuarterNote`, `getNoteAbsoluteY`, `melodicNoteColor`. Mounted simply on `colorEditMode`
-(not via the range/clef morph machinery); `overlayEditMode` includes it so the normal melody
-hides. Known limit: the `chords` row has no active chord here, so it falls back to neutral.
+**Note-colouring menu** (`overlays/NoteColoringStaffOverlay.jsx`, Han 2026-06-13; redesigned
+on-staff 2026-06-14). A new COLOUR setter mode (`colorEditMode` in App, sibling of
+range/clef/settings — mutually exclusive). Per the visual-redesign principle (§37 #2) it
+renders IN the SheetMusic SVG, directly on the EXISTING top staff (no HTML cards, no extra
+mini-staves, no clef — the static clef glyph is suppressed in `colorEditMode`). The 5 scheme
+sets (`none, tonic_scale_keys, chords, chromatone, subtle-chroma`) sit side by side along the
+real staff; each is 8 notes C4–C5 coloured by THAT scheme, placed with the same
+`getNoteAbsoluteY`/`StaffQuarterNote`/`melodicNoteColor` the real notes use, so they land on
+the staff lines. Tap a set to select it (`setNoteColoringMode`); active set highlighted.
+Mounted simply on `colorEditMode`; `overlayEditMode` includes it so the melody hides. Known
+limits: the `chords` set has no active chord here (falls back to neutral); the sets fit-to-
+width in the SVG (no HTML side-scroll — that would break the on-staff requirement).
 
 **Setter-button styling** (`SubHeader.jsx`, Han 2026-06-13). The menu-toggle buttons
 (SETTINGS / TRANSPOSITION / RANGE / COLOUR) now share ONE highlight colour
