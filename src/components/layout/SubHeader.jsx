@@ -7,6 +7,8 @@ import {
     ArrowLeft,
     PencilOff,
     MicVocal,
+    MoveHorizontal,
+    Settings2,
 } from 'lucide-react';
 import { ChordNotationIcon } from '../common/CustomIcons';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
@@ -21,6 +23,14 @@ const SubHeader = ({
     isInputTestMode,
     inputTestState,
     onActivateAdjustments,
+    onOpenRange,
+    onOpenClef,
+    onOpenSettings,
+    onOpenColor,
+    rangeEditMode = false,
+    clefEditMode = false,
+    colorEditMode = false,
+    showSheetMusicSettings = false,
     windowWidth,
     difficultyMultiplier,
 }) => {
@@ -70,8 +80,18 @@ const SubHeader = ({
                     noteColoringMode === 'chords' ? '#90EE90' :
                         'var(--note-tonic)';
 
-    const renderButton = (icon, label, onClick, isActive, forceColor) => {
-        const color = forceColor || (isActive ? 'var(--accent-yellow)' : '#88ccff');
+    const renderButton = (icon, label, onClick, isActive, forceColor, isMenuToggle = false) => {
+        // Menu-toggle buttons (SETTINGS / TRANSPOSITION / RANGE / COLOUR) all share ONE highlight
+        // colour: lowlit (dimmed) when their menu is closed, full + a GLOW when active. The glow
+        // reuses the current-note highlight pattern already used by the note-highlight button
+        // below (triple drop-shadow), tinted to the highlight colour (Han 2026-06-13).
+        const color = isMenuToggle
+            ? 'var(--accent-yellow)'
+            : (forceColor || (isActive ? 'var(--accent-yellow)' : '#88ccff'));
+        const glow = isMenuToggle && isActive
+            ? 'drop-shadow(0 0 8px var(--accent-yellow)) drop-shadow(0 0 4px var(--accent-yellow)) drop-shadow(0 0 2px var(--accent-yellow))'
+            : undefined;
+        const dim = isMenuToggle && !isActive ? 0.4 : 1;
         return (
             <div
                 onClick={(e) => { e.stopPropagation(); onClick(); }}
@@ -84,12 +104,22 @@ const SubHeader = ({
                     width: BW,
                     height: '30px',
                     boxSizing: 'border-box',
+                    opacity: dim,
                     transform: `scale(${btnScale})`,
                     transformOrigin: 'center center',
-                    outline: debugMode ? '2px solid cyan' : undefined,
                 }}
             >
-                <div style={{ color: color, height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {/* Hit-extender: the label sits at top:100% with pointerEvents:none, so
+                    without this the tap only registered on the icon, not the text (Han CR
+                    2026-06-03). This transparent child stretches the clickable region down
+                    over the label; clicks bubble to the container's onClick. Debug outline
+                    moved here so it shows the REAL hit region (§3a). */}
+                <div style={{
+                    position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
+                    width: BW, height: 54,
+                    outline: debugMode ? '2px solid cyan' : undefined,
+                }} />
+                <div style={{ color: color, filter: glow, height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {icon}
                 </div>
                 <span style={{
@@ -258,6 +288,52 @@ const SubHeader = ({
                 </div>
 
             </div>
+
+            {/* RANGE button — TEMPORARY entry point for the visual settings re-haul.
+                Lives OUTSIDE the opacity:show wrapper above so it stays visible even
+                when the adjustment buttons are faded out (Han: "altijd zichtbaar").
+                Will be replaced by tap-on-element context overlays later. */}
+            {(onOpenRange || onOpenClef || onOpenSettings) && (
+                <div style={{ position: 'absolute', right: SIDE_PAD, top: '50%', transform: 'translateY(-50%)', zIndex: 2, display: 'flex', gap: 8 }}>
+                    {/* SETTINGS button — the ONLY entry point for the legacy settings
+                        surface now (Han #13: clicking the sheet no longer opens it).
+                        Goal: deprecate once its options migrate to in-staff setters. */}
+                    {onOpenSettings && renderButton(
+                        <Settings2 size={22} />,
+                        'SETTINGS',
+                        onOpenSettings,
+                        showSheetMusicSettings,
+                        null,
+                        true
+                    )}
+                    {/* Chords are enabled/disabled inside the CLEF selector (Han #6) —
+                        no standalone CHORDS button. */}
+                    {onOpenClef && renderButton(
+                        <Music2 size={22} />,
+                        'TRANSPOSITION',
+                        onOpenClef,
+                        clefEditMode,
+                        null,
+                        true
+                    )}
+                    {onOpenRange && renderButton(
+                        <MoveHorizontal size={22} />,
+                        'RANGE',
+                        onOpenRange,
+                        rangeEditMode,
+                        null,
+                        true
+                    )}
+                    {onOpenColor && renderButton(
+                        <Palette size={22} />,
+                        'COLOUR',
+                        onOpenColor,
+                        colorEditMode,
+                        null,
+                        true
+                    )}
+                </div>
+            )}
 
             {/* Debug info: centered over everything else, visible only in debug mode */}
             {debugMode && (

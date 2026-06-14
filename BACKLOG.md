@@ -21,6 +21,63 @@
 
 Deel deze features in bij de juiste categorie.
 
+### Instrument selector (Han 2026-06-03)
+
+instrument selector: https://icons8.com/icons/set/music--style-ios--static--black (with correct attribution: icons by icons8)
+Rij instrumenten: logo, naam erboven, eventueel transpositie eronder; gebruikelijke highlight, lowlight. On click: speel de C4 af op het instrument. Implementeer de instrumenten die beschikbaar zijn op keyboard
+
+[Claude 2026-06-03]: Genoteerd, nog niet geïmplementeerd. Aandachtspunten voor later:
+- **Attributie verplicht**: "Icons by Icons8" zichtbaar opnemen (gratis-licentie vereist credit/link). About/credits-sectie + evt. naast de selector.
+- Iconen uit icons8 set "music" (iOS static, black); per instrument één SVG/PNG, bundelen in src/assets.
+- Layout per item: logo (midden), naam erboven, transpositie eronder; highlight = accent/--text-primary, lowlight = --setter-lowlight (consistent met clef-setter).
+- On click: speel C4 via bestaande audio-routing (useInstruments / playSound) op het gekozen instrument.
+- "Instrumenten beschikbaar op keyboard" = de smplr-instrumenten die useInstruments/InstrumentSettings al kan laden → afleiden uit die lijst, niet hardcoden (§6c).
+- ⚠ Interview bij Han vóór implementatie (§4b): plaatsing (welke tab/overlay), wel/niet transpositie-rij, vervangt dit de bestaande instrument-picker?
+
+---
+
+### Transpositie-setter revisie — compacte dubbele verticale carousel (Han 2026-06-08)
+
+> ik wil een revisie van transpositie setter (als deel van notatie. dat kan veeel compacter
+>
+> idee: op de top en middle notenbalk, wanneer treble of bass clef is geselecteerd:
+> twee setters:
+> toon sleutel^(C inst). en de noot die C4 is in C instrument. dan een = teken. en dan een verticale carousel [..., A3, Bb3, B3, C4, C#4, D4, Eb4, ...]. de noot namen worden steeds kleiner naar de uitersten van de carousel toe.
+>
+> de tweede setter is andersom: toon
+> sleutel
+> de tekst: C4 =
+> en dan een verticale carousel met noten die je ook kan slepen. ik stel voor dat de noten op een soort 'tangens' staan. dat kan ik het beste tekenen.
+> een niet lineaire carousel is ook 'de oplossing' voor de range setter!! interview / afbeeldingen nodig
+>
+> De twee carousels moeten 'verbonden' zijn, dus ik denk dat de letternote. dan in ongekeerde volgorde moeten staan.
+
+[Claude 2026-06-08]: Genoteerd, NIET geïmplementeerd (Han: "interview / afbeeldingen nodig").
+Mijn begrip op hoofdlijnen (te verifiëren in interview):
+- Twee gekoppelde verticale carousels op de treble/bass notenbalk (alleen bij treble/bass clef):
+  - Setter 1: `sleutel^(C inst.) [welke concert-noot klinkt als geschreven C4] =` + verticale
+    carousel van concert-noten (…A3, B♭3, B3, **C4**, C♯4, D4, E♭4…); namen krimpen naar de
+    randen (perspectief/diepte).
+  - Setter 2: omgekeerd — `sleutel` + `C4 =` + verticale, **sleepbare** carousel waarbij de
+    noten op een niet-lineaire 'tangens'-curve staan.
+  - De twee carousels zijn gekoppeld (de letter-noten in omgekeerde volgorde t.o.v. elkaar).
+- ⭐ Belangrijk neven-idee: een **niet-lineaire carousel** is óók de voorgestelde oplossing
+  voor de RANGE-setter → behandelen als gedeeld carousel-primitief.
+- ❓ Interview-vragen voor later: exacte betekenis van beide setters (klinkende-C ↔ geschreven-C,
+  welke kant is welke transpositierichting?); curve-vorm (tangens) + hoe sleepbaar mapt op
+  semitonen; hergebruik voor range-setter; gedrag bij vocale/percussie clefs; ♯/♭ Unicode (§5b);
+  vervangt dit de huidige transpositie-kaart-carousel in de notatie-setter?
+- ⚠ Han levert nog AFBEELDINGEN/tekeningen aan vóór implementatie (§4b hard stop).
+
+✅ [Claude 2026-06-08]: Interview afgerond + WIRED LIVE. Bevestigde semantiek: concert C4
+wordt GESCHREVEN als de gekozen noot (trans = writtenMidi − 60). Per balk twee gekoppelde
+halve-stap-carousels: LINKS concert-nootnamen, RECHTS bladmuziek-noten op een DIAGONAAL
+(actieve noot op vaste X + juiste balkpositie; doorschuiven verschuift de diagonaal). Klavier-
+spelling (♯). Vervangt de horizontale transpositie-kaarten in de melodische (G/F) tak van
+ClefStaffOverlay. Tik-om-te-kiezen; debug-hitboxes (§3a). Zie architecture.md §15.1.
+NOG OPEN (jouw input): de niet-lineaire 'tangens'-curve (nu lineaire placeholder; tekening
+gewenst) → gedeeld primitief met range-setter; sleep/scroll-gebaar; hulplijntjes per noot.
+
 ---
 
 ### Rondes 16/17/18 — afgesloten + open
@@ -86,6 +143,405 @@ Het huidige hard.bass heeft 19 onsets (offsets 24, 36, 48, 60, 72, 96, 108, 120,
 > closing settings overlay is in conflict met de knoppen op het scherm: ik kan niet klikken op note coloring, highlights, etc. in de subheader. Wanneer ik op een knop klik, moet de close settings overlay niet triggeren.
 
 [Claude 2026-05-29 ronde 11 ✅ geïmplementeerd]: `SubHeader.jsx` heeft nu `data-settings-keepalive=""` op zijn outer `<div>`. `useSettingsOverlay`'s click-outside-to-close handler (`pointerdown` in capture phase) checkt al op `closest('[data-settings-keepalive]')` als escape hatch; daarmee blijft de overlay open bij subheader-klikken. De renderButton's `e.stopPropagation()` stopt al onClick-propagation, dus de actie zelf (note coloring togglen, etc.) werkt onveranderd.
+
+---
+
+### In-staff clef-selector (bladmuziek) — Han 2026-06-01
+
+> selectie van 'clef'. bladmuziek ligt voor de hand: vul de notenbalk met alle
+> mogelijke sleutels. Wisselen van g-f-vocal, én van instrument (bv. B♭). Linker
+> 20%: basis-clef (huidige links, andere twee gelowlight; carrousel-animatie L→R).
+> Rechter 80%: varianten (G-8va, G^B♭, G^x → opent alle opties). Transitie-
+> animaties. Geselecteerde variant helemaal links; na doorcyclen revert naar
+> standaardvariant.
+
+[Claude 2026-06-01]: ✅ Gebouwd. Eigen modus + **CLEF-knop** in de subheader
+(`clefEditMode`, wederzijds exclusief met range/settings, stopt playback).
+`ClefStaffOverlay.jsx` per zichtbare melodische balk:
+- **Links 20%**: G/F/Vocal-carrousel, huidige fel + links, andere twee gelowlight;
+  kiezen schuift L→R via CSS-transitie (`.clef-family-glyph`).
+- **Rechts 80%**: octaaf-chips (8/8va/8vb/15ma) + transpositie-chips (B♭/E♭/F) +
+  "…" die de volledige instrumentenlijst opent (hergebruikt de bestaande popup).
+- Sleutel (`preferredClef`) en instrument (`transpositionKey`) blijven **aparte
+  velden**; pure logica + test in `clefSelector.js`. Hergebruikt de morph-animatie.
+
+[Han 2026-06-01 — CR-batch op de clef-selector]:
+> klik op de sleutel opent de clef-selector; 4e sleutel = groot kruis dat de balk
+> uitschakelt (in andere modi grijs tonen, klikbaar); percussie: links perc/uit,
+> rechts ritme [[k,c],hh,[s,hh],hh]×2 als together/split-toggler (nu in settings);
+> zorg dat percussie altijd ≥1 noot heeft. Verder: carrousel helemaal links van
+> startX, maatsoort weg, sleutels op ware grootte + echt carrousel-gevoel (oude
+> sleutel mee naar links + uitfaden, nieuwe infaden van rechts); minimale tekst —
+> toon de volledige 8va/8vb/15vb/15mb sleutels; toon vioolsleutel-met-C-label en de
+> zang-sleutels als glyphs i.p.v. namen; vocal-bass ≠ bass clef; vocal-bariton mist.
+
+[Claude 2026-06-01]: ✅ gedaan deze ronde:
+- Klik op de sleutel in de bladmuziek opent nu de **clef-selector** (oude tap-cycle
+  + long-press-popup verwijderd; `onOpenClefEdit` → `App.handleOpenClefEdit`).
+- 4e familie = **groot kruis** (`CLEF_OFF`); `preferredClef:'off'` veilig door
+  `calculateOptimalClef`/`bassActiveClef` geleid (geen crash).
+- **≥1 percussie-noot** afgedwongen: `togglePad` weigert de laatste uit te zetten.
+- **Vocal voices** hersteld: **Bariton** toegevoegd; elke voice toont z'n **echte
+  clef-glyph** (F-clef voor Bass+Bariton, C-clef voor de rest); vocal-Bass ≠
+  instrumentele bassleutel (gematcht op `rangeMode`). Pure helpers + tests bijgewerkt.
+[Claude 2026-06-01 — polish-ronde]: ✅
+- Carrousel staat nu in de **sleutel-goot, volledig links van startX**; huidige
+  sleutel op de echte clef-positie, buren schuiven rechts tot startX en faden uit.
+  Familiewissel = slide + fade (transform+opacity), echt carrousel-gevoel.
+- Sleutels op **ware grootte**; statische sleutel-glyph **én maatsoort verborgen in
+  clef-mode** (carrousel tekent de sleutel).
+- Octaafvarianten als **volledige ottava-clef-glyphs** (clef + 8/15 marker), geen tekst.
+- **Percussie-clef-blok**: perc-clef links + `[[k,c],hh,[s,hh],hh]`×2 mini-ritme
+  als together↔split-toggler (stuurt `percussionVoiceSplit`). Settings-toggle blijft
+  bestaan en deelt dezelfde state.
+[Han 2026-06-01 #3]:
+> fly-in animatie (melody/range/clef): laat elk element tussen startX..endX
+> individueel invliegen met een kleine vertraging ertussen, andere elementen faden
+> in — zodat het lijkt alsof alle noten invliegen, niet één blok. Totaal 1,5s
+> (anim ~1s, rechtse element start op 0,5s). Uitgeschakelde balk: normaal renderen
+> maar zonder elementen. In melody-mode: balk met uitgeschakelde clef verbergen +
+> melodie-generatie van die balk uitschakelen. Sheet-overlay wordt vervangen door
+> aparte overlays → niet meer bijwerken voor CR's.
+
+[Claude 2026-06-01]: ✅
+- **Staggered fly-in** in `useRangeMorph`: elk note-element (`[data-mel]` op de echte
+  melodie, `[data-fly]` op overlay-elementen) vliegt individueel in, gesorteerd op x
+  (links eerst, rechts laatst op 0,5s; elk schuift 1s → totaal 1,5s). De groep faden
+  voor niet-noot-elementen (sleutels/lijnen/maatstrepen). Fallback = blok-slide.
+- **Uitgeschakelde ('off') balk**: geen generatie (`useMelodyState` → lege Melody),
+  geen elementen gerenderd (`EMPTY_MELODY`), en **verborgen in melody-mode**.
+
+[Han 2026-06-01 #4]:
+> range-noten vliegen nog als één blok in → fix; alle animaties subtiele start/stop;
+> clef-selector: hergebruik exacte sheet-clef-glyphs (incl. hoogte-offset + custom
+> combinatie-glyphs); verwijder de dubbele sheet-clef, plaats huidige clef op exacte
+> sheet-positie, nieuwe carrousel-clefs schuiven van rechts in (niet faden), gebruik
+> ruimte tot startX; maatsoort weg bij clef/range; keyboard passieve blokhaak =
+> doorgetrokken lijn, vervang gerekte "…" door gestippelde lijn in de tussenruimte;
+> range lowlight-noten te licht → kleur als percussie + alles iets lichter; bass-
+> range-selector gaat veel te hoog (box rekte tot chord-rij, overlap met treble);
+> chord-selector mist nog; voeg chord-visualisatie X (disabled) toe.
+
+[Claude 2026-06-01]: ✅ deze ronde:
+- Range-noten staggeren nu (`data-fly` op alle note-groepen); morph heeft ease-in/out.
+- Clef-glyphs hergebruikt uit de sheet (`clefGlyphs.jsx`: `ClefGlyph` + `clefSymbols`
+  als single source); huidige clef op exacte sheet-positie, schuift in (geclipt tot
+  de goot); statische sheet-clef verborgen in clef-mode (geen dubbel).
+- Range-sheet lowlight → `--range-lowlight` (als percussie + iets lichter).
+- Keyboard-blokhaak: passief = doorgetrokken; gestippelde lijn overbrugt de gap.
+- Bass-te-hoog: venstergroei begrensd (`MAX_CONTEXT`) + spacing ongecapt.
+- ✅ **Chord-selector** (in-staff CHORD-mode, CHORDS-knop): X / letters / romeins
+  boven de akkoord-rij (hergebruikt de bestaande akkoordnotatie). **X** =
+  `chordDisplayMode 'off'` → labels verborgen + audio gedempt (`chordsDisabledRef`
+  → Sequencer `chordVolume=0`). Generatie-uitschakeling geparkeerd (akkoorden voeden
+  nog de melodie-pitchpool). Maatsoort nu verborgen in elke overlay-mode. §37.3.
+  ⏳ Follow-up: klik op de akkoord-rij zelf opent de mode (nu via CHORDS-knop);
+  generatie volledig uitschakelen bij X indien gewenst.
+
+[Han 2026-06-01 #5 — clef-selector polish]:
+> fade-out heel kort (0,25s, alle transities); clef-clipping aan de onderkant fixen;
+> clefs verder uit elkaar (~10u); echte loop-carousel (klik 3 → alles 2 naar links,
+> 1&2 schuiven van rechts opnieuw in met fade/masking); drumnoten + clefs met de
+> ECHTE asset (niet mini-font); X voor percussie (carousel van 2); percussiesleutel
+> op exact dezelfde x als de carousel.
+[Claude 2026-06-01]: ✅ Allemaal gedaan — zie §37.2/§37.3 "Polish wave 3":
+- Fade-out 0,25s (`FADE_OUT_MS`); clip + hitrect hoger (geen clipping); stap 36u.
+- `ClefCarousel.jsx`: rAF loop-carousel met re-enter van rechts onder een fade-mask.
+- Percussie: noten via echte `MelodyNotesLayer`; X-disable (2-carousel) →
+  `preferredClef:'off'` verbergt/leegt/skipt-generatie; clef op `CLEF_GLYPH_X`.
+- **Backlog (klein):** custom **22mb/22ma** gecombineerde clef-glyph nodig.
+
+[Han 2026-06-01 #6]:
+> chord X = akkoorden verbergen + niet spelen, maar WEL genereren. Klik op chord-rij
+> opent géén aparte mode — enabling/disabling van akkoorden hoort bij de clef-
+> settings. Maak een custom 22ma/22mb-asset in Maestro-stijl/grootte.
+[Claude 2026-06-01]: ✅
+- Chord X bleek al exact goed (verbergen + dempen, generatie behouden) — bevestigd.
+- Chord-selector verhuisd NAAR de clef-edit-mode; losse CHORDS-knop + alle
+  `chordEditMode`-plumbing verwijderd (App/SheetMusic/SubHeader). §37.3.
+- ✅ **22ma/22mb-asset gemaakt**: Maestro is een TrueType-muziekfont (ASCII→PUA
+  F0xx) met voorgecomponeerde ottava-glyphs t/m 15 (géén 22). Toegevoegd:
+  `Ottava22`-composite (font-cijfers "22" + superscript ma/mb in 15ma-stijl) +
+  `treble/bass22va/vb` in `clefSymbols`. Renderbaar asset klaar; nog niet als
+  keuze-optie gekoppeld (generatie max 15ma). §37.4.
+
+[Han 2026-06-01 #7]:
+> 1) clef-setter op bladmuziek → toon range-setter op keyboard. 2) ontwerp de
+> volgende setters: playback/exercise (#maten, #herhalingen, per-repeat
+> zichtbaarheid+hoorbaarheid, volume). 3) ghost-staff: toon alle balken, grijs
+> uitgeschakelde opties (opacity 0.4), interactie heractiveert + herstelt recente
+> settings; maatstrepen normaal. 4) welke opties horen bij repeat vs playback?
+[Claude 2026-06-01]: 
+- ✅ (1) Keyboard toont de range-setter wanneer clef-setter actief is (TabView
+  swap op `rangeEditMode || clefEditMode`; `clefEditMode` doorgezet).
+- ✅ (3) Ghost-staff veralgemeend: uitgeschakelde balk blijft zichtbaar in elke
+  settings-view; noten + clef-glyph op opacity 0.4 (`GHOST_OPACITY`), lijnen +
+  maatstrepen normaal; interactie heractiveert. ⏳ exact-vorige-clef onthouden = nog
+  een verfijning (nu sensible default bij heractivatie). §37.4a.
+- 📐 (2+4) ONTWERP in §37.5: EXERCISE-setter (globaal: #maten/#herhalingen/total)
+  boven het systeem; PLAYBACK-setter (per-balk × per-ronde: oog=zichtbaarheid,
+  volume=hoorbaarheid, ronde-schakelaar odd/even). ❓ open vragen: 1 of 2 knoppen;
+  ronde-schakelaar-UI; volume-control-stijl.
+
+[Han 2026-06-01 #8 — feedback ronde]:
+> 22mb onleesbaar; morph triggert soms niet na herhaaldelijk klikken; rim-shot
+> diagonaal verkeerde richting (moet top-left→bottom-right); percussie-mini-melodie
+> moet [[k,hh],hh,[s,hh],hh] in achtsten + compact op 33/66%; akkoordrij X op startX
+> + groepjes op 33/66 als echte akkoorden; selecteerbare sleutels op ware grootte
+> (geen boxjes); carousel fade links; kruis 2× hoger; sleutels horizontaal verdelen;
+> clipping links; percussie toont 4 sleutels (max 2), niet uitgelijnd, niet klikbaar.
+[Claude 2026-06-01]: ✅ Alles gedaan deze ronde —
+- 22ma/22mb: `Ottava22` rendert nu in serif (Maestro-cijfers waren muzieksymbolen).
+- Morph re-arm-bug: cleanup reset nu de inline-styles bij onderbreking.
+- Rim-shot slash → top-left→bottom-right.
+- Percussie-mini-melodie → [[k,hh],hh,[s,hh],hh] achtsten, compacte bundels 33/66%.
+- Akkoordrij: X-kruis op startX, letters@33%/romeins@66% als echte akkoorden.
+- Variant-sleutels op ware grootte, verdeeld over startX→endX (geen boxjes).
+- Carousel: zachte fade aan beide randen; kruis 2× hoger; ClefCarousel capt het
+  aantal getoonde glyphs (fix "4 percussiesleutels"); percussie-clef op x=18 +
+  klikbaar (hit-rect toegevoegd).
+
+[Han 2026-06-01 #9]:
+> range setter overlapt nog (bass-hitzone klimt in treble); akkoordrij: voeg
+> chord-complexity toe (5 klikbare akkoorden: tonic/power/triad/seventh/extended),
+> render als echte bladmuziek-noten.
+[Claude 2026-06-01]: ✅
+- Range-overlap gefixt: de treble/bass-hitzone-divider is nu verankerd in de GAP
+  tussen de balken (vaste midpoint), niet de meebewegende notenrijen — een hoge
+  bass-range trekt de zone niet meer omhoog de treble in.
+- Akkoord-complexity-rij toegevoegd: 5 gestapelde-nootkop-akkoorden (tonic, power,
+  triad, seventh, extended) verdeeld over startX→endX; schrijft
+  `chordSettings.complexity` (tonic→root, extended→ninth — canoniek zodat de
+  bestaande complexity-stepper + generator overeenkomen).
+
+[Han 2026-06-01 #10/#11 — §6c herstel + legacy-surface]:
+> overlays vonden note/chord-rendering opnieuw uit i.p.v. MelodyNotesLayer te
+> hergebruiken; animatie triggert niet bij overlay→overlay-wissel; percussie-noten
+> moeten gebeamd; chord-rij naar de RANGE-setter + echte noten; maak van de settings-
+> overlay een aparte 'legacy'-surface die inschuift zoals clef/range.
+[Claude 2026-06-01]: ✅
+- Animatie: `useRangeMorph` keyed op SURFACE-kind ('range'/'clef'/'legacy'/'melody')
+  → wisselen tussen overlays re-armt de morph elke keer.
+- Percussie clef-view: echte pipeline (processMelodyAndCalculateSlots +
+  MelodyNotesLayer) → 4 achtsten beamen als groep.
+- Chord-rij → RANGE-setter; complexity-akkoorden als ECHTE hele noten via
+  MelodyNotesLayer (tonic/power/triad/seventh + gelaagde 'extended'); letters/romeins
+  als echte progressie-sample (D⁻ G⁷ C / ii V⁷ I).
+- Clef-glyphs gecentreerd (anchor=middle); diagonale treble/bass-divider; full-height
+  percussie-hitboxen; verticale maatlijn op endX.
+- **Settings-overlay = sliding 'legacy'-surface**: 4e morph-kind, schuift in zoals
+  clef/range (melodie vliegt uit, settings vliegt in). §37.8.
+- ⏳ Nog open van #10: G-clef bottom-clipping; G-ottava-opties ontbreken; vocal-clef
+  spacing + marge vóór endX; exacte clef-uitlijning met de sheet.
+
+[Han 2026-06-01 #12]:
+> chord-stijl (aan/uit-letters-romeins) naar CLEF, met sheet-stijl/grootte (was te
+> klein); chord-types omlaag → 10/30/50/70/90% (clipping bij 0/25/…/100); clef-setter
+> percussie: 8 noten netjes over 20-40% en 60-80%.
+[Claude 2026-06-01]: ✅
+- Chord-STIJL → CLEF-setter (nieuwe `ChordStyleOverlay`) in de sheet-chordlabel-font
+  (root 26 / super 16 Georgia italic). Chord-COMPLEXITY blijft in de RANGE-setter.
+- Complexity-akkoorden op 10/30/50/70/90% van de rijbreedte (geen clipping).
+- Clef-setter percussie: twee 4-noot-bundels die 20–40% en 60–80% van de span vullen,
+  gebeamd via de echte pipeline.
+
+[Han 2026-06-01 #13]:
+> akkoorden in clef-setter zijn italic (sheet niet) + de mineur-"−" is niet
+> superscript; consistentie-check + zoveel mogelijk renderMelodyNotes hergebruiken;
+> percussienoten herschrijven via renderMelodyNotes zodat beaming werkt; settings-
+> overlay-trigger naar een eigen knop (naast clef), klikken op de sheet opent settings
+> niet meer (later deprecaten).
+[Claude 2026-06-01]: ✅
+- Chord-style-sample matcht nu de sheet: plain serif (geen italic), "−"/"7" als
+  superscript-tspan (root + super, zoals ChordLabelsLayer).
+- Percussie-bundel beamt als één groep: echte pipeline (processMelodyAndCalculate
+  Slots + MelodyNotesLayer) met een [1,2]-maat (oneven teller → één beam-span i.p.v.
+  2+2-split). ClefStaffOverlay-smoketest toegevoegd.
+- SETTINGS-trigger → eigen SubHeader-knop (Settings2, naast CLEF). Klikken op de
+  sheet opent settings niet meer; `openSettingsIfClosed` opent niet meer;
+  `handleToggleSettings` is wederzijds exclusief met clef/range.
+
+---
+
+### Range setter — vervolg-feedback (Han 2026-06-01)
+- ✅ **Bladmuziek**: bij weinig geselecteerde noten verdeelt `buildRangeRow` ze nu
+  over de volle breedte (venster groeit symmetrisch i.p.v. noten links ophopen).
+- ✅ **Klavier**: `selClef` leest nu de **staff's eigen `preferredClef`** (niet de
+  tab) → bass kiezen op het top-keyboard highlight nu de juiste blokhaak en wisselt
+  voor/achter correct. "Achter"-blokhaak is nu gestreept + alleen linkerhoek (leest
+  als 'onderdoor'); front solide ⊓; ellips bij de snijlijn — beeld `⌜- - - … ⌜- - - ⌝`.
+
+---
+
+### In-staff range selector (bladmuziek)
+
+[Claude 2026-05-31]: Voortgang van de in-SVG range selector (RANGE-knop → `rangeEditMode`).
+Volledige ontwerpdoc: `docs/range-overlay-design.md`. Status:
+- ✅ **Fase 2** (static render): selecteerbare noten als synthetische melodie door de
+  echte renderer (ledger lines/ottava/noteheads hergebruikt); kwartnoten; treble/bass/
+  percussie; out-of-band gedimd; rechter blokhaken per preset; "◆ RANGE SELECTOR"-
+  indicator; geen tussenmaatstreepjes, één gewone eind-maatlijn.
+- ✅ **Fase 3** (interactie): treble/bass tikken+slepen om grens te zetten; percussie tik
+  pad aan/uit (`percussionSettings.enabledPads`, default STANDARD); presets aantikbaar.
+  Generatie filtert percussie via `filterPercussionByEnabledPads`. Disabled pads ook
+  gelowlight in het DrumPad-board.
+  [Claude 2026-06-01 — percussie-feedback batch]:
+  - ✅ **Deselect = kleur, niet opacity**: gedeselecteerde pads in de selector zijn nu
+    een lowlight-grijs (`var(--text-lowlight)`) op volle opacity, i.p.v. opacity-fade.
+    Ghost-snare (haakjes), rim (schuine streep) en open-hi-hat ('o') blijven scherp.
+  - ✅ CR: **open hi-hat (ho)** toegevoegd aan de STANDARD percussie-preset.
+  - ✅ CR: **cowbell** krijgt een driehoek-notehead (Ñ) i.p.v. kruis.
+  - ✅ CR: **snare rim** = snare-notehead met een schuine streep erdoor (los pad-overlay).
+- ✅ **Fase 4** (bottom-view herintegratie): bottom `RangeControls` opent nu ook bij
+  `rangeEditMode`, gestript (geen palette/instrument) via `rangeOnly`. Bug #7 gefixt:
+  bottom-view range-steppers sluiten de settings-overlay niet meer
+  (`data-settings-keepalive` op de wrappers).
+- ⬜ **Fase 5 polish**: lyrics/label-ruimte (zodat grensnamen terug kunnen zonder
+  overlap met noten); 8vb/8va-extent afstemmen.
+- ⬜ **Fase 5 TECHNICAL DEBT (Han)**: de percussie-STIJL (swing/backbeat/kick&snare/
+  claves) zit nu op `notePool`; verhuis naar `randomizationRule` zodat `notePool` vrij
+  komt en de notePool(stijl)-vs-enabledPads(pool) split verdwijnt. Raakt
+  `generateBackbeat.js`, `RuleSelector.jsx`, `melodyGenerator.js`; herlees §3 (§6b).
+  [Claude 2026-05-31]: ✅ deels — de coarse stijl-chooser zet nu `enabledPads`-presets
+  (BASIC/STANDARD/FULL). De volledige `notePool`→`randomizationRule` verhuizing staat
+  nog open.
+
+[Claude 2026-05-31 — CHECKPOINT, bladmuziek range selector verder afgebouwd].
+Volledige detail: `docs/architecture.md` §37.1 + `docs/range-overlay-design.md`.
+Sinds Fase 2-4 toegevoegd/gewijzigd:
+- ✅ **Boundary-relatief venster** (`windowNaturals` in `rangeUtils.js`, gedeeld met het
+  klavier): toont altijd 3 naturals voorbij elke grens (gecapt A0–C8). Hierdoor
+  symmetrisch (3 onder min … 3 boven max) — fixt de oude onbalans (5-1-2-…-2-1-5) — én
+  je kunt een grens voorbij het oude ±octaaf slepen; bij loslaten her-centreert het
+  venster (vervangt de aparte "extreme range"-FR).
+- ✅ **Diagonale ellips** (`buildRangeRow`, pure + getest): bij krapte (`avail/W <
+  MIN_NOTE_WIDTH`) klapt het in-band MIDDEN in tot een diagonale "…" (3 stippen langs de
+  helling), met 3 noten zichtbaar binnen elke grens. Gat = dummy-slots in `allOffsets`.
+  `MAX_NOTE_WIDTH` voorkomt te ijle spacing.
+- ✅ **Hitzones treble/bass raken elkaar exact**: horizontale buitenrand (minder
+  diagonaal) op de hoogste/laagste noot ± `BAND_COVER` (dekt 8va/8vb), binnenrand =
+  gedeelde diagonale divider (middelpunt van de twee notenrijen).
+- ✅ **Geselecteerde noten volgen note-coloring** (gedeelde `melodicNoteColor` in
+  `noteUtils.js`; in-band per kleur gegroepeerd via `previewMode`). Grenzen blijven geel
+  (handvatten), buiten-bereik gedimd.
+- ✅ **Percussie-hitboxes** per pad naar de stem-richting gebogen (`percussionStemUp`),
+  zodat ze ook over de stem lopen.
+- ✅ **Re-reveal na slepen**: `onUp` forceert re-render zodat het venster her-centreert
+  en weer 3 noten links/rechts selecteerbaar zijn.
+- ⬜ **Open**: lyrics/label-ruimte (grensnamen terug zonder overlap); dual-surface
+  live-sync + enter/exit-morph (principes 3-4 van §37) nog niet gebouwd.
+
+---
+
+### Klavier (keyboard) range setter
+
+[Claude 2026-05-31]: Nieuwe input-variant van de range setter, context-gebonden per
+keyboard (`KeyboardRangeSetter.jsx`; TabView wisselt 'm in voor de speelbare PianoView in
+`rangeEditMode`, op de piano- én bass-tab). Detail: `docs/architecture.md` §37.1.
+- ✅ **Split layout** (Han 2026-05-31): boven→onder = preset-BLOKHAKEN (geen tekst,
+  consistent met de bladmuziek) → COMPACT gevensterd SELECTOR-klavier → ECHT speelbaar
+  klavier beperkt tot de selectie (toont de impact).
+- ✅ Selector is **breedte-adaptief** (~`KEY_PX`=20px per witte toets, via `ResizeObserver`;
+  300px → 15 toetsen), symmetrisch rond de selectie (`windowNaturals`). Band + handvatten;
+  tik/sleep zet dichtstbijzijnde grens; venster bevriest tijdens slepen, her-centreert bij
+  loslaten.
+- ✅ Schrijft via de gedeelde `applyRangeBoundary` (één clamp/preset-regel voor balk,
+  klavier én steppers — §6c). Grenzen snappen naar witte toetsen.
+- ✅ **Preset-blokhaken altijd bereikbaar** [Claude 2026-05-31]: vervangen door een
+  VASTE geneste blokhaak-legenda (`buildPresetBracketRows`, pure + getest), centraal
+  en breedte ∝ bereik, niet meer uitgelijnd op de venstertoetsen — dus elke preset
+  blijft tikbaar, ook buiten het selector-venster. Consistent met de bladmuziek-marge.
+- ⬜ **Parked follow-ups**: klavier-ellips bij zéér smal venster; zwarte-toets-precisie
+  (snapt nu naar wit); percussie-klavier-setter (DrumPad, aparte slice).
+
+[Han 2026-05-31 — feedback batch op de range setter]:
+- ✅ "Letters op range setter keyboard zijn niet mooi; te groot." [Claude 2026-05-31]:
+  `PianoView` heeft nu een `hideLabels`-prop; het compacte selector-klavier verbergt de
+  noot-labels (het echte klavier eronder houdt ze).
+- ✅ **Preset-blokhaken matchen het keyboard** [Claude 2026-05-31]: uitgelijnd op het
+  selector-toetsenraster en meeschalend met het venster, **groot boven, klein beneden**.
+  Presets volledig buiten het venster worden verborgen (komen terug als de selectie
+  verschuift) — keuze Han: uitlijnen + verbergen i.p.v. rand-pijltje.
+- ✅ **Sleutel (clef) wisselen via blokhaken boven het klavier** [Claude 2026-05-31]:
+  `onSwitchClef`-prop op `KeyboardRangeSetter` (piano-tab); treble-blokhaak boven,
+  bass eronder (positie = sleutel), tik wisselt `activeClef`. `setActiveClef` doorgezet
+  App → TabView. ⬜ verfijning: nog geen sleutel-glyph (onderscheid nu via positie +
+  highlight).
+- ✅ **6 sleutel-gegroepeerde preset-blokhaken (vervangt de losse sleutelrij)** [Claude
+  2026-05-31]: nu ALLE zes presets zichtbaar — G-sleutel (STD C4–E5, LARGE C4–G5, FULL
+  A3–C6) + F-sleutel (STD A2–C4, LARGE G2–C4, FULL C2–E4), elk horizontaal uitgelijnd
+  boven hun echte toetsen (larges overlappen). Treble-band boven, bass-band eronder
+  (positie = sleutel). **Tik op een blokhaak zet zowel de sleutel (`preferredClef`)
+  ALS de range op DEZE notenbalk** — fixt de bug dat F-blokhaken de middelste balk
+  bewerkten: ze bewerken nu altijd de balk van de actieve tab (TOP→treble-settings,
+  BOTTOM→bass-settings; een balk mag elke sleutel dragen, dus bass-melodie kan
+  vioolsleutel krijgen indien hoog, en omgekeerd). Huidige sleutel = felle blokhaken,
+  andere sleutel = gedimd (toch tikbaar). Venster centreert op B4 (treble) / D3 (bass)
+  zodat de zes blokhaken op stabiele toetsposities staan; brackets mogen deels buiten
+  beeld vallen. De aparte `onSwitchClef`-rij is verwijderd. Ook op de BOTTOM-tab.
+- ⬜ **Groot scherm → meer noten** toestaan (selector én/of bladmuziek-venster mogen meer
+  context tonen op brede schermen).
+  [Claude 2026-06-01]: ✅ deels — het selector-klavier is weer breedte-adaptief
+  (ResizeObserver-gestuurd toetsaantal), dus breder maken = meer toetsen.
+- 🐞 **Mini-klavier: zwarte toetsen te smal** bij hele krappe squeezing (veel toetsen op
+  smal scherm). Mogelijk samen met "meer noten op groot scherm" / een min. toetsbreedte.
+
+[Claude 2026-06-01 — feedback batch op de 6-blokhaken]:
+- ✅ **Blokhaken samengedrukt tot 3 gedeelde hoogtes** (FULL/LARGE/STANDARD i.p.v. 6
+  rijen). Huidige sleutel = vóór (gehighlight), andere sleutel = áchter (gedimd) en
+  onderbroken met "…" waar hij de voorste kruist. Bassleutel selecteren wisselt
+  voor/achter om. Actieve preset altijd geel, ongeacht sleutel (fix F).
+- ✅ **Venster centreert weer op de SELECTIE** (Han corrigeerde z'n eerdere opmerking):
+  sleutelwissel schuift het venster zodat de geselecteerde noten centraal staan.
+- ✅ **Klavier weer responsief** (D): breder = meer toetsen.
+
+[Claude 2026-06-01 — anim-batch #2]:
+- ✅ CR: **LARGE-preset verbreed** — treble C4–A5, bass E2–C4.
+- ✅ **Klavier-slide-animatie**: de klavier-setter gebruikt nu dezelfde slide-stepper
+  als de bladmuziek (`rangeSlide.js`): tik = burst, ingedrukt = doorschuiven, slepen =
+  live. De gele band/handvatten glijden via een CSS-transitie (0,25s) i.p.v.
+  verspringen; het toetsvenster bevriest tijdens het gebaar en her-ankert daarna.
+- ✅ **Overgangsanimatie (1,5s, `useRangeMorph.js`)**: RANGE openen faded de melodie
+  uit terwijl de range-rijen van rechts invliegen; sluiten faded de range uit en de
+  melodie vliegt in. Oud faded, nieuw vliegt (Han). Beide groepen blijven gemount +
+  zichtbaar tijdens de morph; opacity/transform via element.style in rAF (§6).
+
+🐞 **Overbodige/dubbele 8va·8vb in de range-overlay** [Han 2026-05-31]: noten worden in
+aparte gekleurde lagen gerenderd (range-geselecteerd / tonic / range-edge / unselected),
+en ELKE laag berekent zijn eigen ottava-markering. Daardoor verschijnen meerdere 8va/8vb's
+waar één gegroepeerde markering hoort. Root cause: `RangeStaffOverlay` splitst de in-band
+noten in per-kleur `MelodyNotesLayer`-instances (elk eigen ottava). Fix-richting: ottava
+één keer bepalen over de hele rij en delen, of de kleuring binnen één laag doen i.p.v.
+aparte lagen.
+[Claude 2026-06-01]: ✅ Opgelost — de hele rij rendert nu als ÉÉN `MelodyNotesLayer`
+met een per-noot kleur-override (`previewColorFn`-prop op de renderer), i.p.v. een
+laag per kleur. Ottava wordt dus één keer over de rij berekend. Grens=geel,
+in-band=note-coloring, buiten-bereik=dim — allemaal binnen die ene laag.
+
+🎯 **FR (Han 2026-05-31): gepolijste selectie-animatie (bladmuziek treble/bass).** De
+huidige selectie is hakkelig — het hele beeld verspringt bij her-centreren. Gewenst:
+animaties met "ticks". Voorbeeld: tik/hou je helemaal rechts, dan komt er **elke 1s een
+noot bij**, en de noten **schuiven van rechts naar links in**, zodat de range-setter
+grosso modo op zijn plek blijft. **Plan (Han)**: maak eerst een 1s-transitieanimatie.
+Edge case: ellips nodig. ⚠ Raakt het rAF/animatie-systeem (CLAUDE.md §6-invarianten:
+opacity via `element.style`, geen `setTimeout`-gedreven state). Interview + ontwerp nodig.
+- ❓ Mode-indicator "◆ RANGE SELECTOR" op de bladmuziek: laten staan of weg?
+
+[Claude 2026-05-31]: ✅ **Gebouwd** (bladmuziek-overlay). Beslissingen uit interview:
+bladmuziek-only · alle gedragingen ineens · alle 4 richtingen · **0,25 s/noot constant,
+geketend** (niet 1 s — "hoe verder hoe sneller" = de ketting, niet kortere duur per
+noot). De gele grensnoot blijft ~op z'n plek; per stap schuift de rij bij en swipet
+er één gedimde context-noot in/uit; 8va animeert mee (zit in de geanimeerde body-groep).
+Tik = burst naar doel (loopt door na loslaten); ingedrukt = blijven doorschuiven naar
+buiten tot loslaten (loslaten = direct stop); slepen (>8u) = live volgen (oud gedrag).
+Ellips/preset/sleep-sprongen = directe snap (geen tussenstap-animatie). `rangeSlide.js`
+(pure, getest) + `RangeStaffOverlay.jsx`. Zie architecture §37.1. Geparkeerd: zelfde
+animatie op de keyboard-setter; in/uit-morph bij openen/sluiten.
+
+[Claude 2026-06-01 — vervolg-feedback]: ✅ **Vloeiender** — de tween is nu LINEAIR
+(constante snelheid) i.p.v. ease-out per stap, zodat een burst als één glijdende
+beweging leest i.p.v. een keten losse schokjes. ✅ **Ingedrukt houden** schuift nu
+écht door naar buiten (target schuift mee met live) i.p.v. heen-en-weer wiebelen.
 
 ---
 
@@ -708,6 +1164,8 @@ Voorgestelde semantiek: een fermata-noot duurt 50% langer dan zijn geschreven du
 ### Sleutel & transponerend instrument
 
 ✅ clef in sheet music: cycle bij korte klik (of 2×), open lijst bij lange klik of 3× klikken. Noten en akkoorden klikbaar met visuele flash-feedback.
+
+[Claude 2026-06-07]: ✅ #16 — range-setter kleurde noten op klinkende (concert) toonhoogte, waardoor de chromatone/scale-kleur niet matchte met de bladmuziek voor een transponerend instrument. De hoogte op de balk klopte al (concert, bewust); enkel de kleur moest de transpositie meenemen. Fix: `RangeStaffOverlay` krijgt nu `trebleTrans`/`bassTrans` en kleurt in-band noten op hun GESCHREVEN naam (concert→geschreven via `transposeMelodyBySemitones`), exact zoals de bladmuziek. Gele grensnoten + grijze buiten-band blijven ongewijzigd. Zie `docs/architecture.md` (range-selector sectie) + `RangeStaffOverlay.jsx`.
 
 ### Maatsoort & ritme
 

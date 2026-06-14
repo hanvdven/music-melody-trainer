@@ -373,7 +373,9 @@ class Sequencer {
             // and .displayNotes = Chord[] (for SheetMusic labels).
             // Read chordSettings fresh from ref — NOT from randomizeScaleAndGenerate's scope
             const liveChordSettings = this.refs.instrumentSettingsRef.current?.chords;
-            const chordVolume = activeConfig.chords;
+            // chordDisplayMode==='off' (chord-selector X) fully disables chord audio.
+            const chordsDisabled = this.refs.chordsDisabledRef?.current === true;
+            const chordVolume = chordsDisabled ? 0 : activeConfig.chords;
             if (chordVolume > 0 && chordProgression.notes && chordProgression.offsets && chordProgression.notes.length > 0) {
               const chordMelodyWithGain = {
                 ...chordProgression,
@@ -669,7 +671,12 @@ class Sequencer {
           (acc, f) => acc + (f?.hold > 0 ? f.hold : 0), 0
         );
         if (totalIterationFermataHold > 0) {
-          nextStartTime += totalIterationFermataHold * timeFactor;
+          // `timeFactor` from the m===0 block above is out of scope here (it lives
+          // in the per-measure loop body); recompute it from the same bpm ref using
+          // the canonical 5/bpm seconds-per-tick convention used throughout. Without
+          // this the line threw a ReferenceError whenever a fermata song repeated.
+          const iterTimeFactor = 5 / this.refs.bpmRef.current;
+          nextStartTime += totalIterationFermataHold * iterTimeFactor;
         }
 
         iteration++;

@@ -8,7 +8,9 @@ import {
     ENHARMONIC_PAIRS,
     getTraditionalSolfege,
     getKodalySolfege,
+    respellToKeySignature,
 } from '../noteUtils';
+import { getTranspositionFifths } from '../../constants/transposingInstruments';
 
 describe('getNoteSemitone', () => {
     it('returns 0-11 for natural notes', () => {
@@ -217,5 +219,51 @@ describe('getKodalySolfege', () => {
         for (const note of ['C4', 'D♭4', 'D4', 'E♭4', 'E4', 'F4', 'F♯4', 'G4', 'A♭4', 'A4', 'B♭4', 'B4']) {
             expect(getKodalySolfege(note, 'C4').acc).toBe('');
         }
+    });
+});
+
+describe('getTranspositionFifths', () => {
+    it('returns 0 for concert / unknown', () => {
+        expect(getTranspositionFifths('C')).toBe(0);
+        expect(getTranspositionFifths(null)).toBe(0);
+        expect(getTranspositionFifths('Z')).toBe(0);
+    });
+    it('matches the standard transposing-instrument key-signature shifts', () => {
+        expect(getTranspositionFifths('Bb')).toBe(2);   // B♭ inst: +2 sharps
+        expect(getTranspositionFifths('Eb')).toBe(3);   // E♭ inst: +3
+        expect(getTranspositionFifths('Ab')).toBe(4);   // A♭ inst: +4 (concert C → written E major)
+        expect(getTranspositionFifths('F')).toBe(1);    // F horn: +1
+        expect(getTranspositionFifths('A')).toBe(-3);   // A clarinet: −3
+        expect(getTranspositionFifths('G')).toBe(-1);   // alto flute: −1
+    });
+});
+
+describe('respellToKeySignature', () => {
+    it('leaves notes already matching the key signature untouched', () => {
+        expect(respellToKeySignature('F♯4', 4)).toBe('F♯4');   // E major has F♯
+        expect(respellToKeySignature('C4', 0)).toBe('C4');
+    });
+    it('respells flats to sharps for a sharp key (A♭ instr. in C major → E major)', () => {
+        // C major (C D E F G A B) up a major third = E F♯ G♯ A B C♯ D♯; the chromatic shift
+        // spells the black keys as flats, which must respell to the E-major sharp spellings.
+        expect(respellToKeySignature('A♭4', 4)).toBe('G♯4');
+        expect(respellToKeySignature('D♭5', 4)).toBe('C♯5');
+        expect(respellToKeySignature('E♭4', 4)).toBe('D♯4');
+    });
+    it('respells sharps to flats for a flat key (A♯ → B♭ in E♭ major)', () => {
+        // E♭ major (−3) flats B,E,A → B♭ is diatonic; the F♯-spelled black key A♯ becomes B♭.
+        expect(respellToKeySignature('A♯4', -3)).toBe('B♭4');
+    });
+    it('keeps the original octave digit and sounding pitch', () => {
+        expect(respellToKeySignature('C♭4', -7)).toBe('C♭4'); // C♭ major has C♭, octave digit kept
+        expect(getNoteSemitone(respellToKeySignature('A♭4', 4))).toBe(getNoteSemitone('A♭4'));
+    });
+    it('keeps pitch classes not diatonic to the key with their incoming spelling', () => {
+        // C♯/D♭ is not in C major → unchanged.
+        expect(respellToKeySignature('D♭4', 0)).toBe('D♭4');
+    });
+    it('does not touch percussion / non-pitched tokens', () => {
+        expect(respellToKeySignature('r', 4)).toBe('r');
+        expect(respellToKeySignature('hh', 4)).toBe('hh');
     });
 });

@@ -6,7 +6,9 @@ import {
 import { getProgressionLabel } from './theory/progressionDefinitions';
 import './styles/App.css';
 import './styles/AppLayout.css';
-import { modulateMelody } from './theory/musicUtils';
+import { modulateMelody, transposeNoteBySemitones } from './theory/musicUtils';
+import { respellToKeySignature, getNoteSemitone } from './theory/noteUtils';
+import { getTranspositionSemitones, getTranspositionFifths, getTranspositionLabel } from './constants/transposingInstruments';
 import Sequencer from './audio/Sequencer';
 import playMelodies from './audio/playMelodies';
 import Melody from './model/Melody';
@@ -172,10 +174,42 @@ const App = () => {
         chordDisplayMode, setChordDisplayMode,
     } = useAppUIState();
 
+    // The chord-selector X (chordDisplayMode==='off') fully disables chords: the
+    // Sequencer reads this ref to skip chord scheduling (audio off), mirroring the
+    // hidden labels (Han 2026-06-01). Kept in a ref so the audio loop sees it live.
+    const chordsDisabledRef = useRef(chordDisplayMode === 'off');
+    useEffect(() => { chordsDisabledRef.current = chordDisplayMode === 'off'; }, [chordDisplayMode]);
+
     const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
 
     // Sheet Music Settings state (Lifted)
     const { showSheetMusicSettings, toggleSheetMusicSettings, resetSettingsTimer } = useSettingsOverlay();
+
+    // In-SVG range-edit mode for the visual settings re-haul. Toggled by the
+    // SubHeader RANGE button; drives RangeStaffOverlay inside the SheetMusic SVG.
+    const [rangeEditMode, setRangeEditMode] = useState(false);
+    // In-SVG clef-edit mode (Han 2026-06-01): drives ClefStaffOverlay. Sibling of
+    // rangeEditMode; the two are mutually exclusive (and exclusive with settings).
+    const [clefEditMode, setClefEditMode] = useState(false);
+    // Keyboard transposition (Han 2026-06-13): pitch-class offset 0-11 (0 = concert) that
+    // relabels/resounds/re-highlights the playable keyboard. Independent of the staff
+    // transposition (which transposes the NOTATION); this transposes the KEYS only. Set in
+    // TRANSPOSITION mode (clefEditMode) via the keyboard's "concert C =" control.
+    const [keyboardTranspose, setKeyboardTranspose] = useState(0);
+    // Note-colouring menu (Han 2026-06-13): a staff overlay showing every colour scheme as a
+    // row of C4–C5 notes. Sibling of range/clef; mutually exclusive with them + settings.
+    const [colorEditMode, setColorEditMode] = useState(false);
+    // In-SVG chord-edit mode (Han 2026-06-01): the chord-row selector (X/letters/
+    // roman). Sibling of range/clef; mutually exclusive with them + settings.
+
+    // Range-edit and the general settings overlay are mutually exclusive
+    // (Han 2026-05-31). This effect is the catch-all: whenever the settings
+    // overlay becomes visible (by any path — sheet click, SubHeader, …) close
+    // range edit so the two never stack. Clef-edit follows the same rule.
+    useEffect(() => {
+        if (showSheetMusicSettings && rangeEditMode) setRangeEditMode(false);
+        if (showSheetMusicSettings && clefEditMode) setClefEditMode(false);
+    }, [showSheetMusicSettings, rangeEditMode, clefEditMode]);
 
     // Input Test Mode — wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available
 
@@ -553,6 +587,70 @@ const App = () => {
         setHeaderPlayMode('continuous');
     }, [handlePlayContinuouslyLogic, isRubatoRef]);
 
+    // Range-edit and playback are mutually exclusive (Han 2026-05-30): opening
+    // the range overlay stops playback; see also the close-on-play effect below.
+    // Range-edit and the general settings overlay are ALSO mutually exclusive
+    // (Han 2026-05-31): opening range closes settings, and vice versa, so the two
+    // overlays never stack.
+    const handleToggleRangeEdit = useCallback(() => {
+        if (!rangeEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setClefEditMode(false);   // range & clef modes are mutually exclusive
+            setColorEditMode(false);
+        }
+        setRangeEditMode(v => !v);
+    }, [rangeEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
+    // Clef-edit toggle — mirrors range-edit (stop playback, close settings/range).
+    // The chord-row X/letters/roman selector lives inside this mode (Han #6).
+    const handleToggleClefEdit = useCallback(() => {
+        if (!clefEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setRangeEditMode(false);
+            setColorEditMode(false);
+        }
+        setClefEditMode(v => !v);
+    }, [clefEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
+    // Note-colouring menu toggle — mirrors range/clef (stop playback, close the others).
+    const handleToggleColorEdit = useCallback(() => {
+        if (!colorEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setRangeEditMode(false);
+            setClefEditMode(false);
+        }
+        setColorEditMode(v => !v);
+    }, [colorEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
+    // Toggle the legacy SETTINGS surface from its own SubHeader button (Han #13).
+    // Mutually exclusive with clef/range (the catch-all effect closes those when
+    // settings opens, but close them here too so the morph arms cleanly).
+    const handleToggleSettings = useCallback(() => {
+        if (!showSheetMusicSettings) {
+            handleStopAllPlayback();
+            setRangeEditMode(false);
+            setClefEditMode(false);
+            setColorEditMode(false);
+        }
+        toggleSheetMusicSettings();
+    }, [showSheetMusicSettings, handleStopAllPlayback, toggleSheetMusicSettings]);
+
+    // Closing range edit (e.g. clicking outside the bottom range settings, or
+    // tapping empty sheet area while in range mode).
+    const handleCloseRangeEdit = useCallback(() => setRangeEditMode(false), []);
+    const handleCloseClefEdit = useCallback(() => setClefEditMode(false), []);
+    // Pure OPEN (not toggle) for clicking a clef glyph in the sheet — always lands
+    // in clef-edit (Han 2026-06-01: clicking the clef opens the selector).
+    const handleOpenClefEdit = useCallback(() => {
+        handleStopAllPlayback();
+        if (showSheetMusicSettings) toggleSheetMusicSettings();
+        setRangeEditMode(false);
+        setClefEditMode(true);
+    }, [handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
     const handlePlayRepeat = useCallback(() => {
         if (isRubatoRef.current && rubatoEngageRef.current) {
             rubatoEngageRef.current('repeat');
@@ -732,6 +830,13 @@ const App = () => {
     // Manual instrument playing (UI keys/pads) will still use default volumes or respect their individual velocity handling.
 
     const isPlaying = isPlayingContinuously || isPlayingScale || isPlayingMelody;
+
+    // Starting any playback closes the range overlay (mutually exclusive with
+    // range-edit). Covers every play entry point in one place. Closing range-edit
+    // never starts playback, so no feedback loop with handleToggleRangeEdit.
+    useEffect(() => {
+        if (isPlaying) setRangeEditMode(false);
+    }, [isPlaying]);
 
     // Block display state: which song-level measure number the current block starts at,
     // and which sequence position it first appeared at (for computing the repeat suffix R).
@@ -944,6 +1049,7 @@ const App = () => {
                 melodiesRef,
                 instrumentSettingsRef,
                 chordProgressionRef,
+                chordsDisabledRef,
                 showChordsOddRoundsRef,
                 showChordsEvenRoundsRef,
                 percussionCustomMappingRef: customPercussionMappingRef,
@@ -1005,6 +1111,45 @@ const App = () => {
         return label;
     }, [displayChordProgression, chordProgression]);
 
+    // Representative chord for the KEYBOARD's 'chords' colouring with no playback (Han 2026-06-14):
+    // the tonic chord if it is the LAST chord of the progression, else the FIRST — same rule the
+    // sheet's in-staff setters use (SheetMusic `pausedActiveChord`), so all untimed surfaces match.
+    const keyboardActiveChord = useMemo(() => {
+        const prog = displayChordProgression ?? chordProgression;
+        // ChordProgression stores Chord objects in .chords; a Melody-style progression stores them
+        // in .displayNotes (what getChordsWithSlashes reads). Both have { root, notes }.
+        const list = (prog?.chords?.length ? prog.chords : prog?.displayNotes) || [];
+        const chords = list.filter(c => c?.notes?.length && c?.root);
+        if (!chords.length) return null;
+        const last = chords[chords.length - 1];
+        return getNoteSemitone(last.root) === getNoteSemitone(scale.tonic) ? last : chords[0];
+    }, [displayChordProgression, chordProgression, scale.tonic]);
+
+
+    // GLOBAL transposition (Han 2026-06-09, item 5): when BOTH staves carry the SAME transposition
+    // (key + octave) and it isn't concert, the whole piece is treated as transposed — the displayed
+    // KEY/NAMES move to the written domain (concert B♭ denoted as C). Per-staff note positions + key
+    // signatures already render written; this drives the header key, the "(X instrument)" line, and
+    // (downstream) the chord-label + lyrics name adjustment. null = staff-level / concert.
+    const globalTransposition = useMemo(() => {
+        const tk = trebleSettings?.transpositionKey || 'C';
+        const bk = bassSettings?.transpositionKey || 'C';
+        const to = trebleSettings?.transpositionOctave || 0;
+        const bo = bassSettings?.transpositionOctave || 0;
+        if (tk !== bk || to !== bo) return null;                 // staves differ → staff-level only
+        const semis = getTranspositionSemitones(tk) + 12 * to;
+        if (semis === 0) return null;                            // concert
+        return { semis, key: tk, label: getTranspositionLabel(tk) };
+    }, [trebleSettings, bassSettings]);
+
+    // Written tonic shown in the header when global: concert tonic transposed + respelled to the
+    // written key signature (reuses respellToKeySignature). Octave stripped for the label.
+    const displayTonic = useMemo(() => {
+        if (!globalTransposition) return scale.tonic;
+        const writtenAcc = (scale.numAccidentals || 0) + getTranspositionFifths(globalTransposition.key);
+        const raw = transposeNoteBySemitones(`${scale.tonic}4`, globalTransposition.semis);
+        return respellToKeySignature(raw, writtenAcc).replace(/-?\d+$/, '');
+    }, [globalTransposition, scale.tonic, scale.numAccidentals]);
 
     // Mount Effect: Build harmony table on startup so runtime scale/chord changes are reflected
     useEffect(() => { buildHarmonyTable(); }, []);
@@ -1101,7 +1246,13 @@ const App = () => {
         screenWidth: windowSize.width,
         onRandomizeMeasure: randomizeMeasure,
         showSettings: showSheetMusicSettings,
+        rangeEditMode: rangeEditMode,
+        clefEditMode: clefEditMode,
+        colorEditMode: colorEditMode,
         onToggleSettings: toggleSheetMusicSettings,
+        onCloseRangeEdit: handleCloseRangeEdit,
+        onCloseClefEdit: handleCloseClefEdit,
+        onOpenClefEdit: handleOpenClefEdit,
         onSettingsInteraction: resetSettingsTimer,
         tonic: scale.tonic,
         svgRef,
@@ -1125,7 +1276,8 @@ const App = () => {
         anacrusisMeasureIndex,
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
-        windowSize.width, randomizeMeasure, showSheetMusicSettings, toggleSheetMusicSettings,
+        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, toggleSheetMusicSettings,
+        handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
         showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
@@ -1177,6 +1329,8 @@ const App = () => {
             <div className="App app-top-wrapper">
                 <AppHeader
                     scale={scale}
+                    displayTonic={displayTonic}
+                    globalInstLabel={globalTransposition ? `${globalTransposition.label} instrument` : null}
                     showSheetMusicSettings={showSheetMusicSettings}
                     toggleSheetMusicSettings={toggleSheetMusicSettings}
                     isInputTestMode={isInputTestMode}
@@ -1219,7 +1373,14 @@ const App = () => {
                     isPlayingContinuously={isPlayingContinuously}
                     handlePlayMelody={handlePlayMelody}
                     handlePlayContinuously={handlePlayContinuously}
-                    onActivateAdjustments={!showSheetMusicSettings ? toggleSheetMusicSettings : undefined}
+                    onOpenSettings={handleToggleSettings}
+                    onOpenRange={handleToggleRangeEdit}
+                    onOpenClef={handleToggleClefEdit}
+                    onOpenColor={handleToggleColorEdit}
+                    rangeEditMode={rangeEditMode}
+                    clefEditMode={clefEditMode}
+                    colorEditMode={colorEditMode}
+                    showSheetMusicSettings={showSheetMusicSettings}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}
                 />
@@ -1237,7 +1398,7 @@ const App = () => {
                         position: 'relative'
                     }}
                 >
-                    <ErrorBoundary>
+                    <ErrorBoundary boundary="sheet-music">
                         <SheetMusic
                             {...sheetMusicCommonProps}
                             containerHeight={sheetHeight}
@@ -1355,6 +1516,11 @@ const App = () => {
                     handleInputTestNote={handleInputTestNote}
                     qwertyKeyboardActive={qwertyKeyboardActive}
                     showSheetMusicSettings={showSheetMusicSettings}
+                    rangeEditMode={rangeEditMode}
+                    clefEditMode={clefEditMode}
+                    keyboardTranspose={keyboardTranspose}
+                    setKeyboardTranspose={setKeyboardTranspose}
+                    keyboardActiveChord={keyboardActiveChord}
                     resetSettingsTimer={resetSettingsTimer}
                     customPercussionMapping={customPercussionMapping}
                     setCustomPercussionMapping={setCustomPercussionMapping}

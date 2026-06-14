@@ -1,3 +1,5 @@
+import { PERCUSSION_PRESETS } from '../audio/drumKits.js';
+
 class InstrumentSettings {
   /**
    * @param {string} instrument - Sound/instrument name (e.g. 'acoustic_grand_piano')
@@ -40,6 +42,12 @@ class InstrumentSettings {
     this.preferredClef = preferredClef;
     this.rangeMode = rangeMode;
     this.transpositionKey = transpositionKey;
+    // Display-only octave shift that PAIRS with transpositionKey (Han 2026-06-08): the total
+    // written-pitch shift = getTranspositionSemitones(transpositionKey) + 12*transpositionOctave.
+    // Lets the in-staff transposition setter scroll past an octave (e.g. bass clarinet B♭2,
+    // piccolo C5); the optimal-clef logic then picks an 8va/15ma/8vb/15vb clef. Audio is
+    // unaffected (always concert). Non-constructor field to keep the positional signature stable.
+    this.transpositionOctave = 0;
     // Max melodic leap between adjacent notes (semitones). null = unlimited.
     // For chord voicing (fullchord/pairedchord): max span between lowest and highest note.
     this.maxLeap = maxLeap;
@@ -47,6 +55,13 @@ class InstrumentSettings {
     // 1 = normal (default); higher values make tuplets dramatically more frequent.
     // Set by the global Polyrhythm control in PlaybackSettings — same value on all instruments.
     this.polyMultiplier = 1;
+    // Percussion only: the user's drum-pool selection — array of pad ids (e.g.
+    // ['k','s','hh']) that are allowed to sound. Set via the in-staff range
+    // selector. null = every pad allowed (back-compat). Distinct from notePool,
+    // which selects the percussion STYLE. The generator post-filters output by
+    // this list (see filterPercussionByEnabledPads). Defaulted for the
+    // percussion instrument below.
+    this.enabledPads = null;
   }
 
   static defaultTrebleInstrumentSettings() {
@@ -88,7 +103,7 @@ class InstrumentSettings {
   }
 
   static defaultPercussionInstrumentSettings() {
-    return new InstrumentSettings(
+    const settings = new InstrumentSettings(
       'FreePats Percussion',        // instrument (default kit)
       'percussion',           // type
       4,                      // notesPerMeasure
@@ -100,6 +115,11 @@ class InstrumentSettings {
       false,                  // strummingEnabled
       null                    // range
     );
+    // Default drum pool = STANDARD preset (kick, snare, hi-hat, crash, ride,
+    // floor tom). Han 2026-05-30. Defined in drumKits.js so presets stay in one
+    // place; imported lazily to avoid a model→audio import cycle.
+    settings.enabledPads = [...PERCUSSION_PRESETS.STANDARD];
+    return settings;
   }
 
   static defaultMetronomeInstrumentSettings() {

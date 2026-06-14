@@ -41,6 +41,13 @@ Skipping these files will cause you to reproduce known bugs, break invariants al
 
 When the user gives a general instruction in chat (e.g., "always do X", "never do Y", "when Z happens, do W"), add it to this file immediately after completing the current task. Do not rely on memory or conversation context across sessions — only what is written here persists reliably.
 
+**Always log plans/CRs/FRs/bugs immediately (Han 2026-05-31).** The moment Han
+states a plan, change request, feature request, or bug — even mid-conversation —
+record it as a short entry in `IMPLEMENTATION_PLAN.md` (the running scratch-plan)
+*before or while* implementing, not after. Keep entries terse with a status key
+(✅ done · 🔨 in progress · ⏳ backlog · 🐞 bug). BACKLOG.md remains the user's
+source-of-truth feature text; `IMPLEMENTATION_PLAN.md` is the live working plan.
+
 ---
 
 ## 1b. BACKLOG.md — Editing Rules (mandatory)
@@ -124,6 +131,32 @@ if (!paginationNewCached) return;
 - Any place where a value is derived from another in a non-obvious way.
 
 Do not comment every line. Comment things that would confuse a competent developer reading the code for the first time.
+
+---
+
+## 3a. Always Visualise Click/Hit Boxes in Debug Mode
+
+Every interactive component — anything with a click/tap/drag/pointer handler —
+MUST render its hit box (the actual clickable/draggable region) as a visible
+overlay when `debugMode` is on. This is mandatory for all interactive components,
+existing and new (Han 2026-05-31).
+
+Use the established convention: a semi-transparent `<rect>` (or shape matching the
+hit region) gated on `debugMode`, with `pointerEvents: 'none'` so it never
+intercepts the interaction it visualises:
+
+```jsx
+{debugMode && (
+  <rect x={hitX} y={hitY} width={hitW} height={hitH}
+    fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
+    style={{ pointerEvents: 'none' }} />
+)}
+```
+
+The debug rect must match the REAL hit region (same coordinates/size as the
+transparent hit target), so debug mode reveals exactly where taps register —
+this is how overlap/misalignment bugs are spotted. When adding any new
+interactive element, add its debug hit box in the same PR.
 
 ---
 
@@ -266,6 +299,43 @@ Whenever you need to play a percussion note interactively (e.g. click-to-play in
 
 ---
 
+## 6d. Reuse Canonical Renderers — Never Hand-Roll Notation or Chrome (Han 2026-06-09)
+
+**Why this rule exists:** the in-staff transposition setter drew its own noteheads, stems and
+accidentals with bespoke glyph offsets (`fontSize 34`, head at `y+6`, stem at `x+6`, accidental
+`fontSize 20` centred) while the real staff used different values (`fontSize 36`, head at
+`positionY`, stem at `positionX+11`, accidental `fontSize 36` `textAnchor="end"`). Two parallel
+implementations of the same thing **guarantee** visual drift — the setter ended up 6px off, with
+tiny accidentals and wrong stems, even though "it looked done". Han, rightly: *"How can we make
+sure you are more consistent with other screens?"*
+
+**The rule — applies to ANY visual element that also appears elsewhere in the app:**
+
+1. **Find the canonical renderer first.** Before drawing a notehead, stem, accidental, clef,
+   ledger line, barline, key signature, label, or any staff/keyboard glyph, locate the component
+   or helper that already draws it on the main surface (the file-ownership table in §8 and
+   `docs/architecture.md` §12 point you there). Noteheads → `staffNoteGlyph.jsx`
+   (`StaffQuarterNote` + the geometry constants) / `renderMelodyNotes.jsx`. Clefs →
+   `clefGlyphs.jsx`. Accidentals → `renderAccidentals.jsx` / `generateAccidentalMap.js`.
+
+2. **Reuse it, or share its constants.** Either call the existing component, or import the shared
+   geometry constants so there is a **single source of truth**. Do not copy magic numbers into a
+   new file. If the canonical drawing isn't yet extractable, extract it (a small shared module)
+   rather than re-implementing — and have BOTH sites consume the extraction.
+
+3. **Match chrome too.** Frame lines, barlines, dividers, fonts and colours in a menu/overlay must
+   match the surface they sit on (same CSS var, same `strokeWidth`). Staff lines are
+   `var(--text-primary)` `strokeWidth="0.5"`; an overlay's frame line must be the same, not heavier.
+
+4. **Verify against the real thing.** When building an in-staff/in-keyboard overlay, render it
+   over (or beside) the real component and confirm pixel alignment — don't eyeball the overlay in
+   isolation. The dev render harnesses under `scripts/render-*.jsx` exist for this.
+
+5. **If you catch yourself typing a glyph offset, font size, or stroke width literal for notation,
+   STOP** — that number almost certainly already lives in a canonical renderer. Import it.
+
+---
+
 ## 7. Coding Style
 
 - **React 19 + classic JSX transform**: always `import React from 'react'` at the top of every `.jsx` file.
@@ -363,7 +433,13 @@ Quick guide to which file owns which concern:
 | Playback scheduling | `src/audio/Sequencer.js` |
 | Note + measure highlighting | `src/hooks/useSheetMusicHighlight.js` |
 | SVG rendering | `src/components/sheet-music/SheetMusic.jsx` + `renderMelodyNotes.jsx` |
+| Sheet-music context overlays | `src/components/sheet-music/overlays/` |
 | Melody generation | `src/generation/melodyGenerator.js` |
 | App-level state orchestration | `src/App.jsx` |
 
 For a full file-by-file reference see **Section 12** of `docs/architecture.md`.
+
+**Overlay file convention (Han 2026-05-30):** every sheet-music context overlay
+(settings, range, and future ones) lives in its own file under
+`src/components/sheet-music/overlays/`. Never cram multiple overlays into one
+file.
