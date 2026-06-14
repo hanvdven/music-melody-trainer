@@ -60,6 +60,17 @@ const BRACKET_GAP = 26;
 // Full piano white-key naturals — the melodic row windows into this (computed
 // once; the window is sliced per render by buildRangeRow).
 const PIANO_NATURALS = naturalsInRange(21, 108);
+// Natural ORDINAL (white-key index): map x(t) by this, not by MIDI, so every natural is one EVEN
+// step apart (Han 2026-06-14). Mapping by MIDI made E–F and B–C — only 1 semitone apart — bunch
+// into visible "pairs". Black keys land halfway between their neighbouring naturals.
+const NATURAL_ORDINAL = new Map(PIANO_NATURALS.map((n, i) => [n.midi, i]));
+const ordinalOf = (midi) => {
+    const exact = NATURAL_ORDINAL.get(midi);
+    if (exact !== undefined) return exact;
+    let lo = -1;
+    for (let i = 0; i < PIANO_NATURALS.length && PIANO_NATURALS[i].midi < midi; i++) lo = i;
+    return lo + 0.5;   // black key → halfway between the naturals below/above
+};
 
 const STATIC_LAYER_PROPS = {
     numAccidentals: 0,
@@ -125,10 +136,11 @@ const MIN_COLLAPSE = 3;            // only collapse if ≥ this many middle note
 // ── Range-row x(t): the selected min/max sit at FIXED x (X_L / X_R) via a sigmoid ramp; notes
 // outside the range ride saturating tanh tails so NO ellipsis is ever needed (Han 2026-06-12).
 // t = note MIDI; Tl/Tr = selMin/selMax; Xl/Xr = fixed screen x; Al/Ar = tail amplitude.
-// In-range ramp (Han 2026-06-14): x = Xl + (Xr−Xl)·(u − β·sin(πu)), u=(t−Tl)/(Tr−Tl). The
-// −β·sin(πu) term bows the linear map below the diagonal. Its derivative 1 − βπ·cos(πu) runs from
-// 1−βπ at the min edge (u=0) up to 1+βπ at the max edge (u=1), so notes pack TIGHTER toward Tl and
-// LOOSER toward Tr. Keep β < 1/π ≈ 0.318 so the spacing never reaches 0 (no overlapping notes).
+// In-range ramp (Han 2026-06-14): x = Xl + (Xr−Xl)·(u + β·sin(πu)), u=(t−Tl)/(Tr−Tl) where t is
+// the natural ORDINAL (even white-key steps), not MIDI. The +β·sin(πu) term bows the map above the
+// diagonal; its derivative 1 + βπ·cos(πu) runs from 1+βπ at the min edge (u=0, looser) down to
+// 1−βπ at the max edge (u=1, TIGHTER) — so notes pile up toward Tr/Xr (Han: gewenst bij Xr). Keep
+// β < 1/π ≈ 0.318 so the spacing never reaches 0 (no overlapping notes).
 const RANGE_BETA = 0.2;       // in-range bow amount (0..~0.3), tune live
 const RANGE_TAU = 4;          // tanh tail rate, in semitones (tune live)
 const RANGE_XL_FRAC = 0.30;   // min boundary x (fraction of the available width)
@@ -140,7 +152,7 @@ const rangeX = (t, Tl, Tr, Xl, Xr, Al, Ar, B = RANGE_BETA, TAU = RANGE_TAU) => {
     if (t > Tr) return Xr + Ar * Math.tanh((t - Tr) / TAU);
     if (Tr === Tl) return Xl;
     const u = (t - Tl) / (Tr - Tl);
-    return Xl + (Xr - Xl) * (u - B * Math.sin(Math.PI * u));
+    return Xl + (Xr - Xl) * (u + B * Math.sin(Math.PI * u));
 };
 
 // Debug-tunable range-layout parameters (Han 2026-06-13): each entry is [key, label, min, max,
@@ -491,7 +503,9 @@ const RangeStaffOverlay = ({
         const Xr = startX + MEL_AVAIL * rp.XR;
         const Al = (Xl - startX) * 0.92;
         const Ar = (endX - PRESET_AREA_WIDTH - Xr) * 0.92;
-        const rxFor = (midi) => rangeX(midi, selMin, selMax, Xl, Xr, Al, Ar, rp.BETA, rp.TAU);
+        // Map by natural ordinal (even white-key steps), not MIDI, so naturals are evenly spaced.
+        const oMin = ordinalOf(selMin), oMax = ordinalOf(selMax);
+        const rxFor = (midi) => rangeX(ordinalOf(midi), oMin, oMax, Xl, Xr, Al, Ar, rp.BETA, rp.TAU);
         // Visible naturals: the selection ± rp.CONTEXT semitones of saturating context.
         const winNotes = PIANO_NATURALS.filter(n => n.midi >= selMin - rp.CONTEXT && n.midi <= selMax + rp.CONTEXT);
         if (!winNotes.length) return null;
