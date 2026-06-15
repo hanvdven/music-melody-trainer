@@ -135,16 +135,16 @@ const renderSingleChordLabel = ({
       ) : isSlash ? (
         <text
           x={xPos}
-          y={CHORD_ROOT_Y}
+          y={CHORD_ROOT_Y - 10}
           fontSize="32"
           fontFamily="Maestro"
           fill="var(--text-primary)"
           textAnchor="start"
           style={{ opacity: 0.4 }}
         >
-          {/* Empty-count rhythm slash. Aligned to the chord-label baseline (CHORD_ROOT_Y)
-              (Han 2026-06-15): previously sat CHORD_SUPER_DY+5 = 17 units ABOVE the labels,
-              which read as "too high". Now on the same baseline as the chord names. */}
+          {/* Empty-count rhythm slash, 10 units above the chord-label baseline (Han 2026-06-15
+              round 2). Was 17 above ("too high"), briefly aligned to the baseline, then nudged
+              back up to 10 above so it reads as a rhythm mark hovering over the chord row. */}
           Ë
         </text>
       ) : (
