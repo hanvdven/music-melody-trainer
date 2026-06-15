@@ -112,9 +112,13 @@ const App = () => {
             notes: true
         },
         evenRounds: {
-            treble: 0, trebleEye: false,
-            bass: 0, bassEye: false,
-            percussion: 0, percussionEye: false,
+            // Visibility (the *Eye flags) defaults to ON, same as oddRounds — the per-staff eye
+            // TOGGLE is the single control for hiding notes (Han 2026-06-15 V3). Previously these
+            // defaulted to false, hard-coding an invisible even round that duplicated/contradicted
+            // the existing visibility toggle, so a repeating song's even rounds rendered no notes.
+            treble: 0, trebleEye: true,
+            bass: 0, bassEye: true,
+            percussion: 0, percussionEye: true,
             chords: 0.6, chordsEye: true,
             metronome: 1,
             notes: true

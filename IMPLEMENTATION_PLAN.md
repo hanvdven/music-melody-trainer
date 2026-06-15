@@ -20,6 +20,29 @@ hardcoding; analyse the NORMAL-melody render/repeat logic and REUSE it (consiste
   V1/V4. CAVEAT: loopMerged (the audio merged-pickup) is audio-ONLY and never reaches the sheet,
   so if V2 ("anacrusis notes not shown in last bar of the repeat block during playback") persists,
   it needs separate work to RENDER the merged pickup there. ⏳ awaiting Han re-test.
+
+## 2026-06-15 (night) — Item 2 deep root-cause (2 agents). Han: audio incl. repeats now CORRECT.
+ROOT CAUSE shared by highlight-lag + V2: **DUAL REPRESENTATION**. Sequencer loops the BODY-MERGED
+melody (pickup lifted, body rebased to 0, 8 bars) for audio + highlight, but SheetMusic renders the
+ORIGINAL PADDED melody (pickup at m0, 9 bars). Sequencer even builds an abstract Song via setSong()
+— but SheetMusic NEVER consumes it (dead path). No HBD string-literal special-casing exists; the
+problems are representation divergence + mode-gating.
+- 🐞 HIGHLIGHT off-by-one: render measure-index (padded, pickup=m0) lags the schedule (merged,
+  body=0) by exactly the pickup bar. Fix = renderer consumes the SAME merged body the Sequencer
+  loops (Option A: push loopMerged melodies to the melody state the sheet reads). Song-agnostic.
+- 🐞 V2: loopMerged places the next loop's pickup at the END of the last bar — audio-only today.
+  Same Option-A fix surfaces it on the sheet. (anacrusisRepeat.js:49 is pure + handles overlap.)
+- 🐞 V3: NOT a layout bug. evenRounds DEFAULT config (App.jsx:114-121) sets trebleEye/bassEye/
+  percussionEye=false → even round intentionally hides note staves (round eye-toggle feature). To
+  show notes = flip the evenRounds eye defaults. PRODUCT DECISION (ask Han).
+- 🐞 NUMBERING (BarlinesLayer.jsx:109-123): measureLabel = `${N} . ${repeatNum}`; repeatNum =
+  floor((startIdx-bps)/numMeasures)+1 = the loop-PASS count (the "·5" = 5th pass) appended to EVERY
+  measure. Two defects: (i) suffix leaks onto per-measure numbers; (ii) `repeatNum>1 ? … : N`
+  SUPPRESSES pass 1 → first repeat shows "1" not "1.1", second "1.1" not "1.2" (off-by-one); (iii)
+  divisor numMeasures=9 includes the pickup while the body loops over 8 → drift. Grammar = ASK Han.
+- 🧹 REDUNDANCY catalogue (agent): dead setSong-for-render; anacrusis handled only in repeatForever
+  mode (continuous replays a dead m0); anacrusis detected twice (App.jsx:1235 + Sequencer.js:82);
+  numRepeats==repsPerMelody (two names, App.jsx:1258). All to unify — scope = ASK Han.
 - ✅ M1 Metronome now follows the song's meter + holds through fermatas (Sequencer.js).
   Regenerate currentMetronome for currentTS/currentNumMeasures + attach treble.fermatas.
 - ✅ CHORD-ROW-Y [Han 19:51]: moved the whole chord row up 15 (trebleStart−58 → −73) via a
