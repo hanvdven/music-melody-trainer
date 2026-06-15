@@ -39,4 +39,16 @@ describe('buildAnacrusisRepeatParts', () => {
         // no note may start at or after 288 (the bar end) — the tail was clipped/replaced.
         expect(Math.max(...loopMerged.offsets)).toBeLessThan(288);
     });
+
+    it('keeps lyrics bound to their notes through the merge', () => {
+        const withLyrics = { ...melody, lyrics: ['Hap-', 'py', 'birth', 'day', 'you!'] };
+        const { intro, loopMerged } = buildAnacrusisRepeatParts(withLyrics, measureLen);
+        // intro carries the pickup words.
+        expect(intro.lyrics).toEqual(['Hap-', 'py']);
+        // in the merged body the appended pickup must still read 'Hap-' / 'py' at 276 / 285.
+        const wordAt = (o) => loopMerged.lyrics[loopMerged.offsets.indexOf(o)];
+        expect(wordAt(276)).toBe('Hap-');
+        expect(wordAt(285)).toBe('py');
+        expect(wordAt(252)).toBe('you!');   // clipped note keeps its own word
+    });
 });

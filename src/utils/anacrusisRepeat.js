@@ -20,14 +20,18 @@
 
 const sliceArr = (arr, idxs) => (Array.isArray(arr) ? idxs.map(i => arr[i]) : undefined);
 
+// Parallel per-note arrays that must travel WITH the notes when we slice/merge a melody.
+// lyrics (HBD's words) and displayNotes (chord objects) are the ones that silently desync
+// if forgotten — the words/labels would stick to the wrong notes after a merge.
+const PARALLEL_KEYS = ['ties', 'triplets', 'lyrics', 'displayNotes'];
+
 // Rebuild a melody-like object keeping only the given indices (preserves any parallel arrays).
 const pick = (mel, idxs) => {
     const out = { ...mel };
     out.notes = idxs.map(i => mel.notes[i]);
     out.offsets = idxs.map(i => mel.offsets[i]);
     out.durations = idxs.map(i => mel.durations[i]);
-    if (mel.ties) out.ties = sliceArr(mel.ties, idxs);
-    if (mel.triplets) out.triplets = sliceArr(mel.triplets, idxs);
+    for (const k of PARALLEL_KEYS) if (mel[k]) out[k] = sliceArr(mel[k], idxs);
     return out;
 };
 
@@ -66,27 +70,28 @@ export const buildAnacrusisRepeatParts = (melody, measureLen) => {
     const loopClean = body;
 
     // loopMerged: clip the body at mergePoint, then append the anacrusis at the pickup beat.
+    // `keep` records the surviving BODY indices; the appended pickup is taken from the ORIGINAL
+    // melody at anacrusisIdx. All parallel arrays follow their note via these index lists.
     const keep = [];
     for (let i = 0; i < body.offsets.length; i++) {
         const o = body.offsets[i], d = body.durations[i];
         if (o >= mergePoint) continue;                       // starts inside the pickup region → drop
-        keep.push({ note: body.notes[i], offset: o, duration: Math.min(d, mergePoint - o), idx: i });
+        keep.push({ offset: o, duration: Math.min(d, mergePoint - o), idx: i });
     }
-    const mergedNotes = keep.map(k => k.note);
-    const mergedOffsets = keep.map(k => k.offset);
-    const mergedDurations = keep.map(k => k.duration);
-    const mergedTies = body.ties ? keep.map(k => body.ties[k.idx]) : undefined;
-    const mergedTriplets = body.triplets ? keep.map(k => body.triplets[k.idx]) : undefined;
-    anacrusisIdx.forEach((i) => {
-        mergedNotes.push(melody.notes[i]);
-        mergedOffsets.push(lastMeasureStart + melody.offsets[i]);   // same beat, in the last measure
-        mergedDurations.push(melody.durations[i]);
-        if (mergedTies) mergedTies.push(melody.ties?.[i] ?? null);
-        if (mergedTriplets) mergedTriplets.push(melody.triplets?.[i] ?? null);
-    });
-    const loopMerged = { ...body, notes: mergedNotes, offsets: mergedOffsets, durations: mergedDurations };
-    if (mergedTies) loopMerged.ties = mergedTies;
-    if (mergedTriplets) loopMerged.triplets = mergedTriplets;
+    const loopMerged = { ...body };
+    loopMerged.notes = [...keep.map(k => body.notes[k.idx]), ...anacrusisIdx.map(i => melody.notes[i])];
+    loopMerged.offsets = [
+        ...keep.map(k => k.offset),
+        ...anacrusisIdx.map(i => lastMeasureStart + melody.offsets[i]),  // same beat, in the last bar
+    ];
+    loopMerged.durations = [...keep.map(k => k.duration), ...anacrusisIdx.map(i => melody.durations[i])];
+    for (const k of PARALLEL_KEYS) {
+        if (!body[k] && !melody[k]) continue;
+        loopMerged[k] = [
+            ...keep.map(kk => body[k]?.[kk.idx] ?? null),
+            ...anacrusisIdx.map(i => melody[k]?.[i] ?? null),
+        ];
+    }
 
     return { hasAnacrusis: true, intro, loopClean, loopMerged, bodyMeasures };
 };

@@ -3029,9 +3029,34 @@ Playback order: `intro` → `loopMerged ×(reps-1)` → `loopClean ×1`.
 `hasAnacrusis:false` (loopClean = the melody unchanged) when the first note is on the downbeat. The
 canonical anacrusis detector stays `offsets[0] > 0` (§34) — this module reuses the same notion.
 
-**Status.** Phase 1 (transform + unit tests) DONE. Phase 2 (Sequencer: iteration-dependent melody —
-intro once, merged vs clean per iteration) and Phase 3 (pagination renders merged vs clean blocks +
-the one-time intro bar) are pending; both touch the §6/§7 scheduling and §11 pagination invariants
-and need interactive verification.
+The pure transform preserves all per-note parallel arrays through the slice/merge —
+`ties`, `triplets`, `lyrics` (HBD's words) and `displayNotes` (chord objects) — so words and chord
+labels stay bound to their notes. (`fermatas` are song-level tick events, NOT per-note; the wiring
+layer must re-base them by `-measureLen`, see §34/§ fermata section — the util does not touch them.)
 
-**Files.** `src/utils/anacrusisRepeat.js`, `src/utils/__tests__/anacrusisRepeat.test.js`.
+**Wiring discovery (Han 2026-06-15) — why the repeat unit MUST be the body, not the padded bar.**
+A loaded song (HBD) plays via `handlePlayRepeat` → `Sequencer.start(..., repeatForever=true)` =
+`isRepeatMode`, NO regeneration, `numMeasures` constant (9 for HBD) per iteration, `globalMeasureIndex`
+growing 0–8, 9–17, … The naive "keep 9 bars, just empty m0 on repeats" fix is **musically broken**:
+the pickup merged into bar 8 (beat 3) would be followed by the next iteration's empty m0 — a FULL
+empty bar between the pickup and the downbeat it must lead into. The pickup-to-downbeat distance is
+one beat, but a bar is three; so the repeating unit has to be the **body** (`bodyMeasures` = 8), not
+the 9-bar padded melody. Hence the chosen shape:
+
+- **Repeat (infinite) mode** — play `intro` ONCE as a one-beat lead-in (advance `nextStartTime` by
+  the pickup span), then loop `loopMerged` (`numMeasures = bodyMeasures`). Every pass is merged; there
+  is no "last" pass, so `loopClean` is unused here. The pickup is visible at the END of each block
+  (beat 3 of bar 8) rather than as a separate leading anacrusis bar.
+- **Once mode** — play the ORIGINAL melody unchanged (leading pickup in m0, clean final note). No
+  merge: a single pass has no repeat to flow into.
+- **Finite repeats** (if ever exposed for loaded songs) — `loopMerged ×(reps-1)` + `loopClean ×1`.
+
+**Status.** Phase 1 (pure transform + unit tests, lyrics/labels preserved) DONE. Phase 2 wiring is
+multi-subsystem (`loadSong`/`App` produce body+intro and set `numMeasures = bodyMeasures`; `Sequencer`
+schedules the intro once before the `isRepeatMode` loop; `fermatas` re-based; chord-melody rebased) and
+touches §6/§7 scheduling + §11 pagination invariants — to be done WITH live verification (the existing
+repeat path already had render-vs-audio divergence per BACKLOG, so headless changes here are unsafe).
+Phase 3 = pagination polish for the leading-pickup bar on the first pass.
+
+**Files.** `src/utils/anacrusisRepeat.js`, `src/utils/__tests__/anacrusisRepeat.test.js`. (Phase 2
+will add: `src/songs/loadSong.js`, `src/App.jsx`, `src/audio/Sequencer.js`.)
