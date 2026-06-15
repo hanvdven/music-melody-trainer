@@ -51,4 +51,23 @@ describe('buildAnacrusisRepeatParts', () => {
         expect(wordAt(285)).toBe('py');
         expect(wordAt(252)).toBe('you!');   // clipped note keeps its own word
     });
+
+    it('clips a chord that straddles the dropped pickup bar instead of dropping it', () => {
+        // A chord track has no leading rest (offset 0) but its first chord spans m0→m1 (HBD-style).
+        // The body must KEEP that chord, clipped to its m1 portion, and rebase the rest.
+        const chords = {
+            notes:     [['G3', 'B3'], ['C4', 'E4'], ['D4', 'F4']],
+            offsets:   [0,            108,          288],   // first chord spans bars 0-2
+            durations: [108,          180,          36],
+        };
+        const { hasAnacrusis, intro, loopClean, loopMerged } = buildAnacrusisRepeatParts(chords, measureLen);
+        expect(hasAnacrusis).toBe(false);                 // chord track has no leading rest of its own
+        expect(intro).toBeNull();                         // nothing lies purely inside m0
+        // straddler clipped: starts at 0, loses one bar (36) of duration; rest rebased by -36.
+        expect(loopClean.offsets).toEqual([0, 72, 252]);
+        expect(loopClean.durations).toEqual([72, 180, 36]);
+        expect(loopClean.notes[0]).toEqual(['G3', 'B3']);
+        // no pickup to merge → merged body is the clean body unchanged.
+        expect(loopMerged.offsets).toEqual(loopClean.offsets);
+    });
 });
