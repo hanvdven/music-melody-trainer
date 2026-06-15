@@ -1005,8 +1005,16 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
        intro = pickup notes alone (play ONCE). loopClean = body rebased to 0 (FINAL repeat, full last
        note). loopMerged = body with pickup merged into the last bar, overlapping note clipped to the
        pickup start (repeats 1..N-1). Unit-tested.
-  ⏳ Phase 2: Sequencer integration — play intro once, then loopMerged ×(reps-1) + loopClean ×1.
-       Iteration-dependent melody content (Sequencer currently reuses one melody per iteration).
-       RISK: touches §6/§7 scheduling invariants — do with interactive verification.
-  ⏳ Phase 3: visual blocks — pagination must render loopMerged for non-final blocks and loopClean
-       for the final block, plus the one-time intro pickup bar.
+       Now also preserves lyrics + chord displayNotes through the merge (HBD words stay bound).
+  🔍 WIRING DISCOVERY (2026-06-15): loaded songs play via handlePlayRepeat → repeatForever=true =
+       isRepeatMode, no regen, numMeasures constant (9). "Keep 9 bars, empty m0 on repeats" is
+       BROKEN (a full empty bar between pickup and downbeat). Repeat unit MUST be the body
+       (bodyMeasures=8). Chosen shape: REPEAT mode = play intro ONCE (1-beat lead-in) then loop
+       loopMerged forever (loopClean unused, no last pass). ONCE mode = original melody unchanged.
+       repsPerMelody==numRepeats (one value, two names — config field vs render prop; arch §0). See §40.
+  ⏳ Phase 2 wiring (multi-subsystem, do WITH live verification): loadSong/App produce body+intro &
+       set numMeasures=bodyMeasures; rebase fermatas (-measureLen) + chord melody; Sequencer schedules
+       intro once before isRepeatMode loop. Touches §6/§7 + §11 — headless changes unsafe here.
+  ❓ OPEN for Han: (a) OK that on repeats the pickup shows at END of each block (not a leading bar),
+       refined in phase 3? (b) Confirm once-mode plays unchanged + repeat-mode is always-merged.
+  ⏳ Phase 3: pagination polish — leading-pickup bar on the first pass.
