@@ -3014,14 +3014,22 @@ a note that overlaps it is clipped back to the pickup onset. The mechanism is **
 the anacrusis is detected and the pieces are built at playback time, so it works for any pickup song.
 
 **How it works.** `src/utils/anacrusisRepeat.js` → `buildAnacrusisRepeatParts(melody, measureLen)`
-is the pure core. It splits a melody whose measure 0 is an anacrusis into three pieces:
-- `intro` — the pickup notes alone, offsets unchanged. Played ONCE, before repeat 1.
-- `loopClean` — the body (measures after the anacrusis) rebased to offset 0. The FINAL repeat; the
+is the pure core. It treats measure 0 as the anacrusis bar to lift out of the loop and returns:
+- `intro` — notes lying ENTIRELY within m0 (the pickup), offsets unchanged. Played ONCE, before
+  repeat 1.
+- `loopClean` — the body (everything from m1 on) rebased to offset 0. A note that **straddles** the
+  m0→m1 boundary (HBD's first chord starts in the pickup bar and holds into m1) is clipped to its m1
+  portion so chords/bass survive the bar removal — it is NOT dropped. The FINAL repeat uses this; the
   last note keeps its full length (clean ending).
-- `loopMerged` — the body with the anacrusis merged into the end of its last bar: notes starting at
-  or after `mergePoint` (= last-bar-start + pickup onset) are dropped, a note overlapping it is
-  clipped to `mergePoint`, then the pickup notes are appended at the pickup beat. Used for repeats
-  1..N-1 so each repeat ends on the next pickup.
+- `loopMerged` — `loopClean` with the pickup merged into the end of its last bar: a note overlapping
+  the pickup beat (= `mergePoint` = last-bar-start + pickup onset) is clipped to `mergePoint`, then the
+  pickup notes are appended there. A track with NO pickup notes (chords, pickup-less bass) loops its
+  body unchanged (`loopMerged === loopClean`). Used for repeats 1..N-1 so each repeat ends on the
+  next pickup.
+
+The function assumes m0 IS an anacrusis bar; the **caller gates on the SONG's treble** (`hasAnacrusis
+= offsets[0] ∈ (0, measureLen)`) and then applies the parts to EVERY track — a chord that merely
+straddles m0 has no leading rest of its own (`hasAnacrusis=false`) yet still needs the same rebasing.
 
 Playback order: `intro` → `loopMerged ×(reps-1)` → `loopClean ×1`.
 
