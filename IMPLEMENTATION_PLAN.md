@@ -7,6 +7,24 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-15 (pm) — HBD song restructure (Han item 1A) + B2 root cause found
+- ✅ 1A HBD difficulty restructure (data only, src/songs/data/happyBirthday.json):
+  - EASY: added bass (chord ROOT on beat 1 only, dur 12, m1–m8, rests through m0 pickup)
+    + percussion (waltz: kick `k` on beat 1, closed hi-hat `hh` on beats 2 & 3, m1–m8).
+    Treble + chords unchanged. (Han answers: root-on-1 bass; kick(1)+hihat(2,3); keep
+    chords; backing from m1.)
+  - MEDIUM (new): treble + bass copied verbatim from the former HARD chorale. No chords/
+    percussion (path B will generate chords on load later). Carries the [name] fermata.
+  - HARD: now treble + chords only; its bass moved to MEDIUM.
+  - SongsTab derives available diffs from the data → medium auto-surfaces, no UI wiring.
+- ⏳ 1B (generate missing staves on load from chords/melody) — DEFERRED until item 3 is set
+  (Han: "B means apply 3 upon loading for missing staffs").
+- 🐞 B2 (item 2 — playback) root cause FOUND (agent), DEFERRED per Han "song first":
+  HBD fermata {tick:216,hold:18}=1.5 beats shifts melody/chords but NOT the metronome
+  (which is also STALE/wrong-meter on every song load — never regenerated, App.jsx:443-499).
+  → perceived "extra count" at the end, in BOTH once + repeat. NOT the anacrusis-repeat path.
+  Fix (later): make the song's metronome honor the fermata (+ regenerate metronome on load).
+
 ## 2026-06-15 — bug batch (Han) — interview done; B1/B3/B4 implemented
 - ✅ 🐞 B1 Colour setter spurious melody fly-in. FIX: registered 'color' as its own
   morph surface (`overlayKind`), added `colorMounted` (mountedFor) so it survives the exit
