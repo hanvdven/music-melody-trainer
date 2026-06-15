@@ -116,21 +116,23 @@ const processMelodyAndCalculateSlots = (melody, timeSignature, noteGroupSize, gl
   const lastNonNullIndex = findLastNonNullIndex(offsets);
   if (lastNonNullIndex >= 0) {
     const lastTimestamp = offsets[lastNonNullIndex] + durations[lastNonNullIndex];
-    // BUGFIX 2026-05-29: startRestDuration was added inside the reduce — so for
-    // a melody with a leading rest of 24 ticks and 19 notes, totalDuration came
-    // out as 24 × 19 + Σdurations (= 456 + content) instead of 24 + Σdurations.
-    // This made totalDuration always look LARGER than globalMaxDuration, so the
-    // trailing-rest padding never fired for melodies that needed it. Pull
-    // startRestDuration out of the loop — it's the LEADING rest, counted once.
-    const totalDuration = startRestDuration + offsets.reduce(
-      (acc, _timestamp, index) =>
-        acc + (durations[index] !== null ? durations[index] : 0),
-      0
-    );
-    // ADAPTIVE PADDING: Pad to match the song's global end (fixing percussion alignment)
-    // but RESPECT the adaptive end (don't force full measure if global end is partial).
-    if (globalMaxDuration && totalDuration < globalMaxDuration) {
-      const missingDuration = globalMaxDuration - totalDuration;
+    // ADAPTIVE PADDING: pad a trailing rest so the track reaches the song's global end, but
+    // RESPECT a partial final bar (don't force a full measure when the global end is mid-bar).
+    //
+    // BUGFIX 2026-06-15 (Han V1/V4): measure the trailing gap from the track's TRUE end
+    // (lastTimestamp = last onset + its duration), NOT from Σdurations. Summing durations
+    // UNDERCOUNTS a SPARSE track — one whose notes have gaps between them, e.g. HBD's easy bass
+    // (a single root on beat 1 of each bar, nothing on beats 2–3). The previous
+    // `startRestDuration + Σdurations` (itself the 2026-05-29 fix that pulled the LEADING rest
+    // out of a reduce so it was counted once) came out far below the real span, so
+    // `globalMaxDuration − that` padded a giant rest that pushed the bass out to ~measure 13 —
+    // phantom empty measures + a rendered-vs-displayNumMeasures mismatch that misplaced the
+    // repeat preview. Internal gaps are already turned into rests by the slot splitter, so here
+    // we only fill from the last note's end to the global end. For a CONTIGUOUS track
+    // lastTimestamp === startRestDuration + Σdurations, so normal generated melodies are
+    // unaffected (instrument-agnostic; no song/HBD special-casing).
+    if (globalMaxDuration && lastTimestamp < globalMaxDuration) {
+      const missingDuration = globalMaxDuration - lastTimestamp;
       if (missingDuration > 0.01) { // Filter tiny gaps
         paddedNotes.push('r');
         paddedDurations.push(missingDuration);

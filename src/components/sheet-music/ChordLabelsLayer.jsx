@@ -25,6 +25,12 @@ import { transposeNoteBySemitones } from '../../theory/musicUtils';
  * `useSheetMusicHighlight` and `handleSheetMusicClick` rely on.
  */
 
+// Canonical chord-row baseline Y (Han 2026-06-15): the chord row sits this far above the
+// treble staff top. SINGLE SOURCE OF TRUTH (§6d) — ChordStyleOverlay imports this so the
+// setter's sample labels share the exact baseline and can never drift. Raised from −58 to
+// −73 (Han: "move the whole chord row up ~15") so the row sits higher, away from the staff.
+export const chordRootY = (trebleStart) => trebleStart - 73;
+
 const renderSingleChordLabel = ({
   chord,
   xPos,
@@ -46,7 +52,7 @@ const renderSingleChordLabel = ({
   chordTransSemitones = 0,        // global transposition: written chord names (letters mode)
   chordWrittenAccidentals = 0,
 }) => {
-  const CHORD_ROOT_Y = trebleStart - 58;  // root text baseline
+  const CHORD_ROOT_Y = chordRootY(trebleStart);  // root text baseline (shared §6d)
   const CHORD_SUPER_DY = 12;              // units above root for superscript
 
   const rawRomanBase = chord.romanBaseRaw || chord.romanBase || '';
@@ -129,13 +135,16 @@ const renderSingleChordLabel = ({
       ) : isSlash ? (
         <text
           x={xPos}
-          y={CHORD_ROOT_Y - CHORD_SUPER_DY - 5}
+          y={CHORD_ROOT_Y}
           fontSize="32"
           fontFamily="Maestro"
           fill="var(--text-primary)"
           textAnchor="start"
           style={{ opacity: 0.4 }}
         >
+          {/* Empty-count rhythm slash. Aligned to the chord-label baseline (CHORD_ROOT_Y)
+              (Han 2026-06-15): previously sat CHORD_SUPER_DY+5 = 17 units ABOVE the labels,
+              which read as "too high". Now on the same baseline as the chord names. */}
           Ë
         </text>
       ) : (
