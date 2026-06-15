@@ -43,6 +43,9 @@ const groupsForKind = (svg, kind) => {
   if (kind === 'range') return [svg.querySelector('.range-overlay'), svg.querySelector('.chord-overlay')].filter(Boolean);
   // The clef setter shows the clef overlay + the chord-STYLE row as siblings.
   if (kind === 'clef') return [svg.querySelector('.clef-overlay'), svg.querySelector('.chord-style-overlay')].filter(Boolean);
+  // The colour setter lays its scheme rows directly on the top staff — a single group,
+  // no sibling chord row (Han 2026-06-15 B1).
+  if (kind === 'color') return [svg.querySelector('.note-coloring-overlay')].filter(Boolean);
   // The old settings overlay is now a sliding 'legacy' surface (Han #11).
   if (kind === 'legacy') return [svg.querySelector('.settings-overlay')].filter(Boolean);
   return [];

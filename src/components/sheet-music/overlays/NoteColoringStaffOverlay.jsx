@@ -68,9 +68,14 @@ const NoteColoringStaffOverlay = ({
                                 if (y == null) return null;
                                 const color = melodicNoteColor(n, { noteColoringMode: s.mode, ...ctx })
                                     || 'var(--text-primary)';
+                                // data-fly = the overlay's flyable note tag (useRangeMorph): each
+                                // notehead streams in from the right, staggered by x, when the
+                                // colour surface morphs in — same as range/clef (Han 2026-06-15 B1).
                                 return (
-                                    <StaffQuarterNote key={n} x={x} positionY={y} staffYStart={trebleStart}
-                                        ledgerYs={ledgerYs(y, trebleStart)} color={color} />
+                                    <g key={n} data-fly="">
+                                        <StaffQuarterNote x={x} positionY={y} staffYStart={trebleStart}
+                                            ledgerYs={ledgerYs(y, trebleStart)} color={color} />
+                                    </g>
                                 );
                             })}
                         </g>

@@ -619,16 +619,15 @@ const RangeStaffOverlay = ({
             bandPoints = [`${xL},${topY}`, `${xR},${topY}`, `${xR},${botY}`, `${xL},${botY}`].join(' ');
         }
 
-        // Grouped ottava: fold ONLY the out-of-range CONTEXT notes toward the staff (Han 2026-06-14
-        // #2: the 8va/8vb rules consider only the in-range notes, so the staff fits the selection
-        // and in-range notes never fold). In-range notes stay at true pitch (shift 0); contiguous
-        // context runs that share a shift get one 8va/8vb bracket.
+        // Grouped ottava: fold EVERY note toward the staff — in-range notes included (Han
+        // 2026-06-15 B4). This REVERSES the 2026-06-14 #2 rule that pinned in-range notes to
+        // true pitch (shift 0, never fold): a wide selection (e.g. >2 octaves) then sprawled
+        // its high/low in-range notes into long ledger stacks. Now a contiguous in-range run
+        // that climbs past the staff folds by whole octaves and gets ONE 8va/8vb bracket, the
+        // same as the melody renderer and the out-of-range context notes.
         const folded = winNotes.map((n) => {
             const x = rxFor(n.midi);
             const wn = writtenName(n.name);
-            if (n.midi >= selMin && n.midi <= selMax) {
-                return { n, x, name: wn, shift: 0, y: getNoteAbsoluteY(wn, staffStart, clef, staff) };
-            }
             return { n, x, ...foldNoteToStaff(wn, staffStart, clef, staff) };
         });
         const ottavaGroups = [];
@@ -654,11 +653,17 @@ const RangeStaffOverlay = ({
                         const d = inBand ? 0 : (n.midi < selMin ? selMin - n.midi : n.midi - selMax);
                         const opacity = inBand ? 1 : Math.max(0.15, 1 - d * 0.045);
                         const s = inBand ? 1 : Math.max(0.5, 1 - d * 0.05);
+                        // data-fly = flyable note tag (useRangeMorph): the range rows stream in
+                        // from the right on the morph like the clef/colour overlays (Han 2026-06-15
+                        // B3). The OUTER <g> is what the morph translateX-es; the INNER <g> keeps the
+                        // per-note scale/opacity transform so the fly translate never clobbers it.
                         return (
-                            <g key={n.midi} opacity={opacity}
-                                transform={`translate(${x} ${y}) scale(${s}) translate(${-x} ${-y})`}>
-                                <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
-                                    ledgerYs={rangeLedgerYs(y, staffStart)} color={colorFor(n.midi, wn)} />
+                            <g key={n.midi} data-fly="">
+                                <g opacity={opacity}
+                                    transform={`translate(${x} ${y}) scale(${s}) translate(${-x} ${-y})`}>
+                                    <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
+                                        ledgerYs={rangeLedgerYs(y, staffStart)} color={colorFor(n.midi, wn)} />
+                                </g>
                             </g>
                         );
                     })}
