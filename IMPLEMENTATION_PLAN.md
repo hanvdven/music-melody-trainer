@@ -1012,9 +1012,15 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
        (bodyMeasures=8). Chosen shape: REPEAT mode = play intro ONCE (1-beat lead-in) then loop
        loopMerged forever (loopClean unused, no last pass). ONCE mode = original melody unchanged.
        repsPerMelody==numRepeats (one value, two names — config field vs render prop; arch §0). See §40.
-  ⏳ Phase 2 wiring (multi-subsystem, do WITH live verification): loadSong/App produce body+intro &
-       set numMeasures=bodyMeasures; rebase fermatas (-measureLen) + chord melody; Sequencer schedules
-       intro once before isRepeatMode loop. Touches §6/§7 + §11 — headless changes unsafe here.
+  🔨 Phase 2 wiring STEP 1 (AUDIO) — DONE in Sequencer.start(), gated on repeatForever + anacrusis:
+       builds merged body for all tracks (chords straddling m0 clipped), rebases fermatas (-ml),
+       sets currentNumMeasures=bodyMeasures, regenerates metronome, plays the pickup ONCE as a lead-in
+       (playMelodies tickRange=[pickupStart,ml]) then advances nextStartTime to the downbeat.
+       ⚠ NEEDS HAN LIVE-CHECK: play HBD in REPEAT mode — pickup should flow out of the last bar with
+       no dead bar; chords/bass aligned. Visual measure NUMBERING may be off (React state still holds
+       the 9-bar original) — that's wiring step 2.
+  ⏳ Phase 2 wiring STEP 2 (NOTATION): sync the displayed melody/numbering to the body so sheet
+       matches audio (App trebleMelody vs Sequencer body divergence).
   ❓ OPEN for Han: (a) OK that on repeats the pickup shows at END of each block (not a leading bar),
        refined in phase 3? (b) Confirm once-mode plays unchanged + repeat-mode is always-merged.
   ⏳ Phase 3: pagination polish — leading-pickup bar on the first pass.
