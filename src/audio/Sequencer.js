@@ -146,10 +146,6 @@ class Sequencer {
     // Anacrusis repeat shortens the loop to the body (the pickup bar is removed and played once).
     if (anacrusisBodyMeasures != null) {
       currentNumMeasures = anacrusisBodyMeasures;
-      currentMetronome = Melody.updateMetronome(
-        currentTS, currentNumMeasures,
-        this.refs.instrumentSettingsRef.current.metronome?.smallestNoteDenom || 4
-      );
     }
 
     // If a harmony difficulty target is active, regenerate initial melodies so that
@@ -168,6 +164,24 @@ class Sequencer {
         currentNumMeasures = firstResult.generatedNumMeasures;
       }
     }
+
+    // Metronome must follow the SONG actually being played, not the stale value left in
+    // state. (1) Regenerate it for the current meter + measure count so a loaded song (e.g.
+    // HBD in 3/4) doesn't click on the leftover 4/4 default that was never refreshed on
+    // song-load. (2) Attach the active fermatas so the click grid is HELD through a fermata
+    // in lockstep with the melody/chords (Han 2026-06-15 M1: "keep the hold, sync the rest").
+    // playMelodies shifts a track only when it carries `.fermatas`; the metronome never did,
+    // so its clicks ran on the un-shifted grid and drifted ~1.5 beats after the [name] hold.
+    // (The continuous-generation path re-derives the metronome per round at its own site,
+    // line ~851, where generated melodies carry no fermatas — nothing to sync there.)
+    currentMetronome = Melody.updateMetronome(
+      currentTS, currentNumMeasures,
+      this.refs.instrumentSettingsRef.current.metronome?.smallestNoteDenom || 4
+    );
+    if (Array.isArray(treble?.fermatas) && treble.fermatas.length) {
+      currentMetronome.fermatas = treble.fermatas.map(f => ({ ...f }));
+    }
+
     // Initialize displayChordProgression for App state / sheet-music labels.
     // Must be done unconditionally — previous session's value may be stale.
     // chordProgressionRef lags React async state, so use initialMelodies directly.

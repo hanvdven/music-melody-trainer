@@ -7,6 +7,21 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-15 (eve) — Item 2: playback & repeat behaviour (Han, interview done)
+Mostly VISUAL bugs + metronome/fermata sync. Han directive: STOP any HBD/repeat-specific
+hardcoding; analyse the NORMAL-melody render/repeat logic and REUSE it (consistency, §6c).
+- 🐞 V1 Wrong measure count on screen: wide screen shows measures 0–13 when only 0–8
+  exist → extra empty measures padded with rests. "Rests seem to live in the BASS only" (V4).
+- 🐞 V2 Anacrusis notes show in the LAST measure of the repeat block when NOT playing
+  (should be playback-only — the merged-pickup preview is leaking into the static page).
+- 🐞 V3 The EVEN repeat block does not show melody notes.
+- 🐞 M1 Metronome not held through the [name] fermata. Han: KEEP the hold, sync the rest.
+  Root cause (confirmed): currentMetronome is stale (4/4) in once-mode (Sequencer.js:71) and,
+  where regenerated (L149 anacrusis, L851 continuous), never gets the song's `fermatas` →
+  clicks run on the un-shifted grid, drifting 1.5 beats from the fermata-shifted melody.
+- 🔨 INVESTIGATING root causes (display measure count / pagination, anacrusis preview render,
+  even/odd repeat-block notes, rest padding source).
+
 ## 2026-06-15 (pm) — HBD song restructure (Han item 1A) + B2 root cause found
 - ✅ 1A HBD difficulty restructure (data only, src/songs/data/happyBirthday.json):
   - EASY: added bass (chord ROOT on beat 1 only, dur 12, m1–m8, rests through m0 pickup)
