@@ -42,7 +42,7 @@
   },
   "difficulties": {
     "easy": {
-      "_comment": "Single melodic top-line (24 notes) + a beginner backing (Han 2026-06-15 1A). Bass = chord ROOT on beat 1 only (quarter, dur 12), resting through the m0 pickup and starting on the m1 downbeat (offsets 36..288). Percussion = waltz pattern: kick (k) on beat 1, closed hi-hat (hh) on beats 2 & 3, for m1–m8. Chords unchanged. Anacrusis = dotted-eighth + sixteenth (dur 9 + 3). [name] stretched to half-note (dur 24) to approximate the fermata, plus the fermata array below.",
+      "_comment": "Single melodic top-line (24 notes) + a beginner backing (Han 2026-06-15 1A). Bass = chord ROOT on beat 1 only (quarter, dur 12), resting through the m0 pickup and starting on the m1 downbeat (offsets 36..288). Percussion = waltz pattern: kick (k) on beat 1, snare RIM CLICK (sr) on beats 2 & 3, for m1–m7 — NO rim clicks in the last bar (m8 is kick only) (Han 2026-06-15). Chords: added a C in measure 5 (G m4 shortened to one bar; C now spans m5–m6). Anacrusis = dotted-eighth + sixteenth (dur 9 + 3). [name] stretched to half-note (dur 24) to approximate the fermata, plus the fermata array below.",
       "fermatas": [{ "tick": 216, "hold": 18 }],
       "treble": {
         "notes":     ["D4","D4","E4","D4","G4","F#4","D4","D4","E4","D4","A4","G4","D4","D4","D5","B4","G4","F#4","C5","C5","B4","G4","A4","G4"],
@@ -51,21 +51,22 @@
         "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","Hap-","py","Birth-","day","to","you!"]
       },
       "bass": {
-        "notes":     ["G2","D3","D3","G2","G2","C3","G2","G2"],
+        "notes":     ["G2","D3","D3","G2","C3","C3","G2","G2"],
         "durations": [12,  12,  12,  12,  12,  12,  12,  12],
         "offsets":   [36,  72,  108, 144, 180, 216, 252, 288]
       },
       "percussion": {
-        "notes":     ["k","hh","hh","k","hh","hh","k","hh","hh","k","hh","hh","k","hh","hh","k","hh","hh","k","hh","hh","k","hh","hh"],
-        "durations": [12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12],
-        "offsets":   [36, 48,  60,  72, 84,  96,  108,120, 132, 144,156, 168, 180,192, 204, 216,228, 240, 252,264, 276, 288,300, 312]
+        "notes":     ["k","sr","sr","k","sr","sr","k","sr","sr","k","sr","sr","k","sr","sr","k","sr","sr","k","sr","sr","k"],
+        "durations": [12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12],
+        "offsets":   [36, 48,  60,  72, 84,  96,  108,120, 132, 144,156, 168, 180,192, 204, 216,228, 240, 252,264, 276, 288]
       },
       "chords": [
         { "offset": 0,   "notes": [],                       "root": "",   "type": "nc",       "name": "N.C.", "duration": 36 },
         { "offset": 36,  "notes": ["G3","B3","D4"],         "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
         { "offset": 72,  "notes": ["D3","F#3","A3"],        "root": "D3", "type": "major",    "name": "D",  "duration": 36 },
         { "offset": 108, "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 36 },
-        { "offset": 144, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 72 },
+        { "offset": 144, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
+        { "offset": 180, "notes": ["C3","E3","G3"],        "root": "C3", "type": "major",    "name": "C",  "duration": 36 },
         { "offset": 216, "notes": ["C3","E3","G3"],        "root": "C3", "type": "major",    "name": "C",  "duration": 36 },
         { "offset": 252, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 24 },
         { "offset": 276, "notes": ["D3","F#3","A3","C4"], "root": "D3", "type": "dominant", "name": "D7", "duration": 12 },
