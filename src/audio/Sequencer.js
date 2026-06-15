@@ -26,6 +26,7 @@ import { getHarmonyAtDifficulty } from '../utils/harmonyTable';
 import { getMelodyAtDifficulty } from '../utils/melodyDifficultyTable';
 import { PRESET_RANGES } from '../constants/musicLayout';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
+import { buildAnacrusisRepeatParts } from '../utils/anacrusisRepeat';
 
 class Sequencer {
   constructor(config) {
@@ -69,6 +70,70 @@ class Sequencer {
     let currentTS = [...this.refs.timeSignatureRef.current];
     let currentMetronome = this.refs.metronomeRef.current;
 
+    // ── Anacrusis REPEAT (arch §40) ────────────────────────────────────────────
+    // In infinite-repeat mode a pickup song must loop its BODY (the measures after the
+    // pickup bar) with the pickup merged into the last bar, and sound the leading pickup
+    // exactly ONCE. Replaying the padded m0 each loop would re-insert a full dead bar
+    // between the merged pickup (end of the last bar) and the downbeat it leads into.
+    // Gated to repeatForever + a treble that starts after the downbeat, so nothing else
+    // (once/continuous/non-pickup songs) is touched.
+    let anacrusisIntro = null;          // { melodies, instruments, pickupStart, measureLen } | null
+    let anacrusisBodyMeasures = null;
+    if (repeatForever && treble?.offsets?.length && treble.offsets[0] > 0) {
+      const ml = (TICKS_PER_WHOLE * currentTS[0]) / currentTS[1];
+      const trebleParts = buildAnacrusisRepeatParts(treble, ml);
+      if (trebleParts.hasAnacrusis) {
+        const pickupStart = treble.offsets[0];
+        // Convert a util body-part (plain object, offsets already rebased to 0) back into a Melody.
+        // `fermatas` are absolute song ticks on the ORIGINAL padded melody → shift by -ml and drop
+        // any that fell inside the removed pickup bar (the util leaves fermatas untouched).
+        const toBody = (orig, part) => {
+          if (!part) return null;
+          const m = new Melody(
+            [...part.notes], [...part.durations], [...part.offsets],
+            part.displayNotes ? [...part.displayNotes] : undefined
+          );
+          if (part.lyrics) m.lyrics = [...part.lyrics];
+          if (orig?.rhythmicGrouping) m.rhythmicGrouping = orig.rhythmicGrouping;
+          if (Array.isArray(orig?.fermatas)) {
+            m.fermatas = orig.fermatas.map(f => ({ ...f, tick: f.tick - ml })).filter(f => f.tick >= 0);
+          }
+          return m;
+        };
+
+        const parts = {
+          bass: bass?.offsets?.length ? buildAnacrusisRepeatParts(bass, ml) : null,
+          percussion: percussion?.offsets?.length ? buildAnacrusisRepeatParts(percussion, ml) : null,
+          chords: chordProgression?.offsets?.length ? buildAnacrusisRepeatParts(chordProgression, ml) : null,
+        };
+
+        // Capture the one-time intro (pickup) from the ORIGINAL tracks BEFORE overwriting them.
+        // The intro is scheduled via playMelodies with tickRange = [pickupStart, ml] so only the
+        // pickup notes sound; only tracks that actually have a pickup note contribute.
+        const introMelodies = [];
+        const introInstruments = [];
+        if (trebleParts.intro) { introMelodies.push(treble); introInstruments.push(this.instruments.treble); }
+        if (parts.bass?.intro) { introMelodies.push(bass); introInstruments.push(this.instruments.bass); }
+        if (parts.percussion?.intro) { introMelodies.push(percussion); introInstruments.push(this.instruments.percussion); }
+        if (parts.chords?.intro && chordProgression?.notes) { introMelodies.push(chordProgression); introInstruments.push(this.instruments.chords); }
+        anacrusisIntro = { melodies: introMelodies, instruments: introInstruments, pickupStart, measureLen: ml };
+
+        // Swap each track to its merged body. Chords/bass with no pickup still rebase via loopMerged
+        // (=== loopClean for them, straddlers clipped), so they stay aligned with the shortened loop.
+        treble = toBody(treble, trebleParts.loopMerged);
+        if (parts.bass) bass = toBody(bass, parts.bass.loopMerged);
+        if (parts.percussion) percussion = toBody(percussion, parts.percussion.loopMerged);
+        if (parts.chords && chordProgression?.notes) {
+          const cBody = toBody(chordProgression, parts.chords.loopMerged);
+          cBody.type = chordProgression.type;
+          cBody.complexity = chordProgression.complexity;
+          cBody.modality = chordProgression.modality;
+          chordProgression = cBody;
+        }
+        anacrusisBodyMeasures = trebleParts.bodyMeasures;
+      }
+    }
+
     let currentNumMeasures = once ? Math.max(
       this._measureSpan(treble, currentTS),
       this._measureSpan(bass, currentTS),
@@ -77,6 +142,15 @@ class Sequencer {
     ) : this.refs.numMeasuresRef.current;
 
     if (currentNumMeasures === 0) currentNumMeasures = this.refs.numMeasuresRef.current;
+
+    // Anacrusis repeat shortens the loop to the body (the pickup bar is removed and played once).
+    if (anacrusisBodyMeasures != null) {
+      currentNumMeasures = anacrusisBodyMeasures;
+      currentMetronome = Melody.updateMetronome(
+        currentTS, currentNumMeasures,
+        this.refs.instrumentSettingsRef.current.metronome?.smallestNoteDenom || 4
+      );
+    }
 
     // If a harmony difficulty target is active, regenerate initial melodies so that
     // the first round obeys the target (subsequent rounds go through randomizeScaleAndGenerate).
@@ -149,6 +223,24 @@ class Sequencer {
     }
 
     let nextStartTime = this.context.currentTime + 0.1;
+
+    // Anacrusis repeat: sound the leading pickup ONCE as a lead-in, then begin the loop on the
+    // downbeat. tickRange = [pickupStart, ml] means only the pickup notes play; advancing
+    // nextStartTime by the pickup span lands the loop's first downbeat right after the pickup.
+    if (anacrusisIntro && anacrusisIntro.melodies.length > 0) {
+      const introBpm = this.refs.bpmRef.current;
+      const introTf = 5 / introBpm;
+      playMelodies(
+        anacrusisIntro.melodies, anacrusisIntro.instruments, this.context, introBpm,
+        nextStartTime, { current: sessionController },
+        [anacrusisIntro.pickupStart, anacrusisIntro.measureLen],
+        this.instruments,
+        this.refs.percussionCustomMappingRef?.current ?? null,
+        null
+      );
+      nextStartTime += (anacrusisIntro.measureLen - anacrusisIntro.pickupStart) * introTf;
+    }
+
     this.melodyCount = 0;
     let iteration = 0;
     this.globalMeasureIndex = initialMeasureIndex;
