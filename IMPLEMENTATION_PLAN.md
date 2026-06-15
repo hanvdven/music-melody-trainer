@@ -7,6 +7,26 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-15 — bug batch (Han) — interview done; B1/B3/B4 implemented
+- ✅ 🐞 B1 Colour setter spurious melody fly-in. FIX: registered 'color' as its own
+  morph surface (`overlayKind`), added `colorMounted` (mountedFor) so it survives the exit
+  morph, `groupsForKind('color')→.note-coloring-overlay`, and `data-fly` on each scheme
+  notehead. Now the scheme rows fly in like range/clef; the melody no longer flies in.
+  Files: SheetMusic.jsx, hooks/useRangeMorph.js, overlays/NoteColoringStaffOverlay.jsx.
+  (Han B1 answer: own fly-in like range/clef.)
+- 🐞 B2 Happy Birthday end: a single extra count at the end — Han: BOTH single + repeat.
+  Single play does NOT hit the anacrusis-repeat path → root cause is in the BASE
+  playback/metronome/song-length path. Background agent tracing root cause. ⏳
+- ✅ 🐞 B3 Range setter notes now fly in (from the RIGHT, match others — Han B3 answer).
+  FIX: wrapped each melodic note in an outer `<g data-fly>` (inner `<g>` keeps the
+  scale/opacity transform so the fly translate doesn't clobber it).
+  File: overlays/RangeStaffOverlay.jsx.
+- ✅ 🐞 B4 Range setter in-range 8va. Han confirmed REVERSING the 2026-06-14 #2 rule:
+  fold EVERY note (in-range included) so a wide selection's high/low in-range runs get an
+  8va/8vb bracket instead of ledger sprawl. FIX: `folded` now always calls
+  `foldNoteToStaff`. File: overlays/RangeStaffOverlay.jsx.
+  NOTE: supersedes the 2026-06-14 (pm) entries "fold ONLY out-of-range context notes".
+
 ## 2026-06-14 (pm) — range tuning + keyboard/transpose + chord names (Han, post-merge of #29)
 - ✅ 🐞 TabView bass-tab keyboard showed range setter in clefEditMode → KeyboardTransposeSetter.
 - ✅ 🐞 Octave index labels suppressed on ALL transposed keyboards → only suppress in the

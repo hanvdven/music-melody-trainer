@@ -443,7 +443,12 @@ const SheetMusic = ({
   // The currently-shown SURFACE drives the morph: switching between range / clef /
   // legacy-settings / melody re-arms the animation each time (Han #10/#11). The old
   // settings overlay is now the sliding 'legacy' surface.
-  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : showSettings ? 'legacy' : 'melody';
+  // colorEditMode is its OWN morph surface (Han 2026-06-15 B1). Without a 'color' case the
+  // colour setter read as a return to 'melody', so useRangeMorph flew the MELODY in (notes
+  // streaming from the right) only for colorEditMode to immediately hide it again. Treating
+  // colour as a surface makes its scheme rows fly in like range/clef and stops the bogus
+  // melody fly-in. Mutually exclusive with range/clef/settings (App.handleToggleColorEdit).
+  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : showSettings ? 'legacy' : 'melody';
   const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
   // CR-A2: re-fly a single staff's clef row when its clef FAMILY changes while the
   // clef-edit overlay is open (fade old out + wipe new in from the right). Keyed on the
@@ -460,6 +465,9 @@ const SheetMusic = ({
   const rangeMounted = mountedFor('range', rangeEditMode);
   const clefMounted = mountedFor('clef', clefEditMode);
   const legacyMounted = mountedFor('legacy', showSettings);
+  // Keep the colour overlay mounted through its EXIT morph too (color→melody), so its
+  // scheme rows can fade/fly out instead of vanishing instantly (Han 2026-06-15 B1).
+  const colorMounted = mountedFor('color', colorEditMode);
 
   const staffLines = [];
   if (isTrebleVisible) {
@@ -2912,7 +2920,7 @@ const SheetMusic = ({
 
                   {/* Note-colouring overlay — laid out directly on the existing top staff
                       (docs §37 #2): 5 scheme sets side by side, no clef. Tap a set to pick it. */}
-                  {colorEditMode && (
+                  {colorMounted && (
                     <NoteColoringStaffOverlay
                       startX={startX}
                       endX={endX}
