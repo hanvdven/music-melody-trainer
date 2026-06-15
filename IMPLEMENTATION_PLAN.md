@@ -10,17 +10,21 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 ## 2026-06-15 (eve) — Item 2: playback & repeat behaviour (Han, interview done)
 Mostly VISUAL bugs + metronome/fermata sync. Han directive: STOP any HBD/repeat-specific
 hardcoding; analyse the NORMAL-melody render/repeat logic and REUSE it (consistency, §6c).
-- 🐞 V1 Wrong measure count on screen: wide screen shows measures 0–13 when only 0–8
-  exist → extra empty measures padded with rests. "Rests seem to live in the BASS only" (V4).
-- 🐞 V2 Anacrusis notes show in the LAST measure of the repeat block when NOT playing
-  (should be playback-only — the merged-pickup preview is leaking into the static page).
-- 🐞 V3 The EVEN repeat block does not show melody notes.
-- 🐞 M1 Metronome not held through the [name] fermata. Han: KEEP the hold, sync the rest.
-  Root cause (confirmed): currentMetronome is stale (4/4) in once-mode (Sequencer.js:71) and,
-  where regenerated (L149 anacrusis, L851 continuous), never gets the song's `fermatas` →
-  clicks run on the un-shifted grid, drifting 1.5 beats from the fermata-shifted melody.
-- 🔨 INVESTIGATING root causes (display measure count / pagination, anacrusis preview render,
-  even/odd repeat-block notes, rest padding source).
+- ✅ V1 + V4 (SAME root cause). processMelodyAndCalculateSlots.js trailing-rest padding measured
+  the gap from Σdurations — which UNDERCOUNTS a SPARSE track with note gaps (e.g. HBD's root-on-1
+  bass) → padded a giant rest pushing the bass to ~measure 13 (phantom measures, rests bass-only).
+  FIX: measure from the track's TRUE end (lastTimestamp). Instrument-agnostic; contiguous tracks
+  unchanged. Removed the old 2026-05-29 reduce + its comment (flagged to Han).
+- 🔁 V2 + V3 likely DOWNSTREAM of V1/V4 (agent: the 14-vs-9 measure mismatch misplaced the
+  repeat-preview / even-round overlay via `mw = displayNumMeasures*measureWidth`). Re-test after
+  V1/V4. CAVEAT: loopMerged (the audio merged-pickup) is audio-ONLY and never reaches the sheet,
+  so if V2 ("anacrusis notes not shown in last bar of the repeat block during playback") persists,
+  it needs separate work to RENDER the merged pickup there. ⏳ awaiting Han re-test.
+- ✅ M1 Metronome now follows the song's meter + holds through fermatas (Sequencer.js).
+  Regenerate currentMetronome for currentTS/currentNumMeasures + attach treble.fermatas.
+- ✅ CHORD-ROW-Y [Han 19:51]: moved the whole chord row up 15 (trebleStart−58 → −73) via a
+  shared `chordRootY(trebleStart)` constant (ChordLabelsLayer, imported by ChordStyleOverlay,
+  §6d) so it applies in ALL places; empty-count slashes aligned to the label baseline.
 
 ## 2026-06-15 (pm) — HBD song restructure (Han item 1A) + B2 root cause found
 - ✅ 1A HBD difficulty restructure (data only, src/songs/data/happyBirthday.json):
