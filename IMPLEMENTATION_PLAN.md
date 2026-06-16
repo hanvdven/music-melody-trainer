@@ -57,6 +57,13 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 - ✅ Range setter — in-range notes SHRINK toward the middle (Han "symmetric, eased", in-range only):
   100% at boundaries → ~50% at exact middle, eased, by natural ordinal; scales head+stem+ledgers.
   Docs: architecture.md "Both-axes drag + middle-shrink". 261 tests green, build clean.
+- 🔨 Instrument selector IN SHEET MUSIC (Han 2026-06-16). New in-staff setter (sibling of clef/
+  range/colour), PER-STAFF. Decisions: per-staff treble+bass; open as a new setter mode like the
+  others; extend the instrument list; icons = lucide placeholders + name (can't fetch icons8),
+  structured for icons8 drop-in + attribution line shown while open. Reuse: setTrebleSettings/
+  setBassSettings instrument slug; ClefCardCarousel (scroll/center/off-screen); shared
+  src/constants/instruments.js (grouped). Plumbing mirrors colorEditMode (App/SubHeader/SheetMusic/
+  useRangeMorph groupsForKind 'instrument'). Delegated to an impl agent; review pending.
 (All recorded verbatim in BACKLOG.md per §1b.)
 
 ## 2026-06-15 (night) — Small CRs (Han, parallel to core anacrusis refactor)
