@@ -71,6 +71,9 @@
   /* Sheet music notes */
   --note-tonic: #d27ffb;
   --note-scale: #7fa0c8;
+  /* Chromatic "blue note" colour for the 'scale' colouring mode (Han 2026-06-16):
+     slate grayish-blue, desaturated vs --note-scale so out-of-scale notes read as muted. */
+  --note-blue: #6b7a99;
 
   /* Chromatone Color System (pitch classes 0–11) */
   --chromatone-0: #88FF00;
@@ -206,6 +209,8 @@
 
   --note-tonic: #7c2bb3;
   --note-scale: #4c6b95;
+  /* Chromatic "blue note" colour (Han 2026-06-16): muted slate for this warm/light theme. */
+  --note-blue: #5a677f;
 
   --soft-mix-target: #ffffff;
 }
@@ -235,6 +240,8 @@
 
   --note-tonic: #8a3fd1;
   --note-scale: #4e6fa3;
+  /* Chromatic "blue note" colour (Han 2026-06-16): muted slate for the light theme. */
+  --note-blue: #5a677f;
 
   --soft-mix-target: var(--panel-bg);
 }

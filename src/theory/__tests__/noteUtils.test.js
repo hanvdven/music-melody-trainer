@@ -9,6 +9,7 @@ import {
     getTraditionalSolfege,
     getKodalySolfege,
     respellToKeySignature,
+    melodicNoteColor,
 } from '../noteUtils';
 import { getTranspositionFifths } from '../../constants/transposingInstruments';
 
@@ -265,5 +266,31 @@ describe('respellToKeySignature', () => {
     it('does not touch percussion / non-pitched tokens', () => {
         expect(respellToKeySignature('r', 4)).toBe('r');
         expect(respellToKeySignature('hh', 4)).toBe('hh');
+    });
+});
+
+describe("melodicNoteColor — 'scale' mode (Han 2026-06-16)", () => {
+    // C major: tonic C, scale notes C D E F G A B. F♯ is the chromatic blue note.
+    const tonic = 'C';
+    const scaleNotes = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+
+    it('colours the tonic pitch-class with --note-tonic', () => {
+        expect(melodicNoteColor('C4', { noteColoringMode: 'scale', tonic, scaleNotes }))
+            .toBe('var(--note-tonic)');
+    });
+
+    it('colours an in-scale (non-tonic) pitch-class with --note-scale', () => {
+        expect(melodicNoteColor('G4', { noteColoringMode: 'scale', tonic, scaleNotes }))
+            .toBe('var(--note-scale)');
+    });
+
+    it('colours an out-of-scale chromatic blue note with --note-blue', () => {
+        expect(melodicNoteColor('F♯4', { noteColoringMode: 'scale', tonic, scaleNotes }))
+            .toBe('var(--note-blue)');
+    });
+
+    it('uses enharmonic-correct comparison (G♭ == F♯ → blue note)', () => {
+        expect(melodicNoteColor('G♭4', { noteColoringMode: 'scale', tonic, scaleNotes }))
+            .toBe('var(--note-blue)');
     });
 });

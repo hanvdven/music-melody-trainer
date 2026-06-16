@@ -1415,6 +1415,13 @@ const SheetMusic = ({
       if (pc === getNoteSemitone(tonic)) return 'var(--note-tonic)';
       if (scaleNotes.some(s => getNoteSemitone(s) === pc)) return 'var(--note-scale)';
     }
+    // 'scale' mode (Han 2026-06-16): like tonic_scale_keys but chromatic blue notes
+    // (neither tonic nor in-scale) get --note-blue instead of the default text colour.
+    if (noteColoringMode === 'scale') {
+      if (pc === getNoteSemitone(tonic)) return 'var(--note-tonic)';
+      if (scaleNotes.some(s => getNoteSemitone(s) === pc)) return 'var(--note-scale)';
+      return 'var(--note-blue)';
+    }
     return 'var(--text-primary)';
   };
 

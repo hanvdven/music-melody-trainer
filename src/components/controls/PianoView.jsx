@@ -4,7 +4,7 @@ import logger from '../../utils/logger';
 import playSound from '../../audio/playSound';
 import { standardizeTonic, getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import generateAllNotesArray from '../../theory/allNotesArray';
-import { getCanonicalNote, ENHARMONIC_PAIRS, getNoteSemitone, chordNoteColor } from '../../theory/noteUtils';
+import { getCanonicalNote, ENHARMONIC_PAIRS, getNoteSemitone, chordNoteColor, melodicNoteColor } from '../../theory/noteUtils';
 import { transposeNoteBySemitones } from '../../theory/musicUtils';
 
 // Fold a semitone offset into the nearest octave, range [-6, +6]. Keyboard transposition is a
@@ -39,7 +39,7 @@ const PianoView = ({
   minNote = null, // optional
   maxNote = null, // optional
   isHighlightActive = true,
-  noteColoringMode = 'none', // 'none', 'tonic_keys', 'tonic', 'chromatone_keys', 'chromatone', 'subtle-chroma', 'chords'
+  noteColoringMode = 'none', // 'none', 'tonic_keys', 'tonic', 'chromatone_keys', 'chromatone', 'subtle-chroma', 'chords', 'scale'
   // 'chords' colouring with no playback: the representative chord ({ root, notes }) + theme.
   activeChord = null,
   theme = 'dark',
@@ -447,6 +447,25 @@ const PianoView = ({
     if (noteColoringMode === 'chords') {
       const c = chordNoteColor(cmp, activeChord, theme);
       return c ? { background: c, color: defaultTextColor } : { color: defaultTextColor };
+    }
+
+    // SCALE MODE (Han 2026-06-16): colour every key by the scale-degree scheme — in-scale notes
+    // get --note-tonic/--note-scale, chromatic blue notes get --note-blue. The colour comes from
+    // the single source of truth melodicNoteColor (CLAUDE.md §6c/§6d) using the CONCERT note (cmp)
+    // so it stays correct under keyboard transposition. We mix the base toward black/white the same
+    // way the chromatone branch does, so the key stays legible.
+    if (noteColoringMode === 'scale') {
+      const baseColor = melodicNoteColor(cmp, {
+        noteColoringMode: 'scale', tonic: scale.tonic, scaleNotes: scale.notes, theme,
+      });
+      if (!baseColor) return { color: defaultTextColor };
+      const mixTarget = isBlack ? 'black' : 'white';
+      const topColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} 20%)`;
+      const bottomColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} 75%)`;
+      return {
+        background: `linear-gradient(to bottom, ${topColor}, ${bottomColor})`,
+        color: defaultTextColor,
+      };
     }
 
     // CHROMATONE MODE
