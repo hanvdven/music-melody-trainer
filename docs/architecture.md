@@ -2433,6 +2433,41 @@ while the row rebalances and a fresh context note swipes in/out at the far edge;
   BEFORE the component's early `return null` (rules-of-hooks). Timers + rAF cancel on
   unmount; the committed `{min,max}` is identical to the old instant path at every step.
 
+**Continuous tap-slide (sheet, Han 2026-06-16) — supersedes the stepper for taps.**
+*Symptom:* with the 2026-06-12 x(t) layout, clicking a note to set a boundary moved
+the notes in CHOPPY discrete jumps, not a smooth slide. *Root cause:* the tap path
+still used the per-natural STEPPER (`beginStepper`/`tick`), which advanced the
+boundary one natural per `STEP_MS` and called `onSetMelodicBoundary` each step →
+one React re-render per natural → the x(t) layout repositioned notes in N discrete
+jumps. *Fix:* the x(t) layout is already continuous in the boundary **ordinals**
+(`rangeX`'s `Tl`/`Tr` are `ordinalOf(selMin/selMax)`). `beginSlide` now glides a
+**fractional ordinal** of the moved boundary from its current value to the tapped
+target over an eased duration (`easeInOut`, `SLIDE_MIN_MS`..`SLIDE_MAX_MS`, scaled
+by distance), re-rendering each frame via `forceReanchor()`. `melodicStaff`
+overrides `oMin`/`oMax` with `slideRef.current[staff].ord` during the slide, so
+`rxFor` positions every note at the in-between layout and they glide smoothly. The
+committed boundary midi (`selMin`/`selMax`) still drives in-band/colour
+classification, so notes keep their identity mid-slide.
+- **Commit once at the end (snap).** App state is written via `onSetMelodicBoundary`
+  exactly once — when the tween lands on the integer target (released tap) — never
+  per natural. This is what removes the choppiness AND avoids leaving a fractional
+  boundary in state. The moved boundary commits exactly at the tapped midi, so
+  `clampRange` adjusting the OPPOSITE boundary causes no pop on the moved note.
+- **Hold-extend preserved.** If the pointer is still down when the tween reaches the
+  target, the same rAF loop keeps advancing the fractional ordinal OUTWARD at
+  `HOLD_ORD_PER_SEC` (= one natural / `STEP_MS`, matching the old hold cadence but
+  smooth), committing each whole-natural crossing, until release or the piano edge.
+- **Drag preserved.** Moving past `DRAG_THRESHOLD` sets `downRef.dragged`, calls
+  `stopSlide(staff)` (the tween cedes to the finger) and runs the unchanged relative
+  drag (`DRAG_PX_PER_STEP`, snap on release). `dragged` now lives in `downRef` (not
+  the stepper) so the slide tween and drag never read each other's state.
+- **§6 compliance.** `slideRef`/`slideRafRef` are refs (not state) so the rAF loop
+  reads the latest values without a stale closure; the visible re-render is driven
+  explicitly by `forceReanchor()` once per frame. Slide rAFs cancel on unmount.
+- The per-natural STEPPER (`beginStepper`/`tick`) is now **dead for taps** but
+  retained (with a NOTE comment) so its CR-A1 burst-cap and hold-wobble design
+  comments aren't lost; `stopStepper` is still called defensively by `beginSlide`.
+
 **Two-zone boundary drag (Han 2026-06-03, #5) — `RangeStaffOverlay.jsx`.** A single
 melodic staff edits BOTH its min and max boundary, with no separate handle hit-targets:
 the pointer-down x decides which boundary the gesture owns. RIGHT of the highest
