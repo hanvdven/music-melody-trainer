@@ -7,6 +7,15 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-16 — New backlog (Han) + quick wins
+- ✅ Range setter defaults: β mid-bow 0.3→0.6, drag px 6→10 (RangeStaffOverlay.jsx 144/149).
+- ⏳ Note-click animation smoother — needs interview.
+- ⏳ Universal 1.5s settings/song transition (fade-out 0.25s → notes fly in from right →
+  others fade/slide in; apply to song load + screen changes incl HBD, NOT manual regen) — big, interview.
+- ⏳ Coloring: add 'scale' mode (scale notes normal, non-scale "blue notes" grayish-blue) everywhere
+  incl keyboard — route via melodicNoteColor (§6c) — quick interview.
+(All recorded verbatim in BACKLOG.md per §1b.)
+
 ## 2026-06-15 (night) — Small CRs (Han, parallel to core anacrusis refactor)
 - 🔨 EASY percussion: replace hi-hat `hh` (beats 2&3) with snare RIM CLICK `sr`. (happyBirthday.json)
 - 🔨 HBD EASY: add a C chord in measure 5. (happyBirthday.json easy chords)
