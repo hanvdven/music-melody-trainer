@@ -341,6 +341,110 @@ const RangeStaffOverlay = ({
     const onStepRef = React.useRef(null);
     onStepRef.current = onSetMelodicBoundary;
 
+    // ── Continuous TAP slide (Han 2026-06-16) ─────────────────────────────────
+    // Replaces the per-natural stepper for a TAP-to-set: the x(t) layout is
+    // already continuous in the boundary ORDINALS (rangeX's Tl/Tr are the moved
+    // boundary's ordinal — see melodicStaff), so we glide a FRACTIONAL ordinal
+    // from the boundary's current value to the tapped target over a short eased
+    // duration and re-render each frame. Notes slide smoothly because rxFor reads
+    // the fractional ordinal; we commit the INTEGER target to app state exactly
+    // ONCE at the end (snap), avoiding one React re-render per natural (the choppy
+    // discrete jumps Han reported). Mirrors TranspositionSetter's animOffset glide.
+    //
+    // slideRef holds, per staff: the live fractional ordinal + the tween/hold
+    // plan. A ref (not state) so the rAF loop reads the latest values without a
+    // stale closure and a render isn't forced per field write (§6); the visible
+    // re-render is driven explicitly by forceReanchor() once per frame.
+    //   which      — 'min' | 'max' (which boundary the gesture owns)
+    //   ord        — live fractional ordinal of the moved boundary (drives rxFor)
+    //   fromOrd    — ordinal at gesture start (tween source)
+    //   targetOrd  — integer ordinal to settle on (tween destination + commit value)
+    //   t0,durMs   — tween start time + duration (ease-in-out)
+    //   pressed    — pointer still down? (true → hold-extend past target)
+    //   dir        — +1/-1 outward direction for hold-extend
+    //   targetMidi — integer midi committed on tween completion
+    const slideRef = React.useRef({});        // per-staff continuous slide state
+    const slideRafRef = React.useRef({});      // per-staff rAF id for the slide
+    // Hold-extend speed once a held tap has reached its target: ordinals/second.
+    // One natural per STEP_MS (250 ms) matches the old stepper's hold cadence but
+    // reads as a smooth continuous glide because we advance a fractional ordinal.
+    const HOLD_ORD_PER_SEC = 1000 / STEP_MS;
+    // Tap-slide duration: scale gently with distance so a near tap is quick and a
+    // far tap doesn't feel instant, but cap both ends so it always feels smooth.
+    const SLIDE_MIN_MS = 150, SLIDE_MAX_MS = 320, SLIDE_MS_PER_ORD = 22;
+    const easeInOut = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+
+    const stopSlide = (staff) => {
+        if (slideRafRef.current[staff]) { cancelAnimationFrame(slideRafRef.current[staff]); slideRafRef.current[staff] = null; }
+        slideRef.current[staff] = null;
+    };
+    // One rAF frame of the continuous slide for `staff`. While the tween runs
+    // (now < t0+durMs) the fractional ordinal eases fromOrd→targetOrd. Once it
+    // lands: if still pressed → keep extending OUTWARD at HOLD_ORD_PER_SEC (the
+    // hold-extend behaviour); else commit the integer target ONCE and stop. The
+    // commit happens at the END so app state only updates a single time per tap,
+    // and the snap-to-integer at end avoids leaving a fractional boundary in state.
+    const slideFrame = (staff) => (now) => {
+        const s = slideRef.current[staff];
+        if (!s) return;
+        if (now < s.t0 + s.durMs) {
+            const p = (now - s.t0) / s.durMs;
+            s.ord = s.fromOrd + (s.targetOrd - s.fromOrd) * easeInOut(p);
+            forceReanchor();
+            slideRafRef.current[staff] = requestAnimationFrame(slideFrame(staff));
+            return;
+        }
+        // Tween reached the target.
+        if (s.pressed) {
+            // HOLD-extend: keep gliding outward past the target until release. We
+            // advance the fractional ordinal at a steady velocity (dt since the
+            // last frame), so a long hold reads as one continuous outward slide.
+            // First hold frame: pin to the exact integer target (the tween ended a
+            // hair short of it) so the outward extension starts from a clean value.
+            if (s.lastNow == null) s.ord = s.targetOrd;
+            const last = s.lastNow ?? now;
+            s.lastNow = now;
+            const nextOrd = s.ord + s.dir * HOLD_ORD_PER_SEC * ((now - last) / 1000);
+            const maxOrd = PIANO_NATURALS.length - 1;
+            s.ord = Math.max(0, Math.min(maxOrd, nextOrd));
+            // Commit each whole-natural crossing so app state follows the hold
+            // outward (the boundary really moves), keyed off the integer ordinal.
+            const intOrd = Math.round(s.ord);
+            if (intOrd !== s.committedOrd) {
+                s.committedOrd = intOrd;
+                const midi = PIANO_NATURALS[intOrd]?.midi;
+                if (midi != null) onStepRef.current?.(staff, midi, s.which, s.presets);
+            }
+            forceReanchor();
+            if (s.ord <= 0 || s.ord >= maxOrd) { stopSlide(staff); return; }  // piano edge → stop
+            slideRafRef.current[staff] = requestAnimationFrame(slideFrame(staff));
+            return;
+        }
+        // Released (a tap): snap to the integer target and commit once.
+        s.ord = s.targetOrd;
+        if (s.committedOrd !== s.targetOrd) {
+            onStepRef.current?.(staff, s.targetMidi, s.which, s.presets);
+        }
+        stopSlide(staff);
+        forceReanchor();   // final render at the committed integer state
+    };
+    // Begin a continuous tap-slide of `staff`'s `which` boundary from its current
+    // ordinal to `targetMidi`'s ordinal. dir = outward direction for hold-extend.
+    const beginSlide = (staff, which, fromMidi, targetMidi, dir, presets) => {
+        stopSlide(staff);
+        stopStepper();   // the continuous slide replaces the per-natural stepper for taps
+        const fromOrd = ordinalOf(fromMidi);
+        const targetOrd = ordinalOf(targetMidi);
+        const dist = Math.abs(targetOrd - fromOrd);
+        const durMs = Math.max(SLIDE_MIN_MS, Math.min(SLIDE_MAX_MS, dist * SLIDE_MS_PER_ORD));
+        slideRef.current[staff] = {
+            which, presets, dir, fromOrd, targetOrd, ord: fromOrd,
+            targetMidi, committedOrd: fromOrd === targetOrd ? targetOrd : null,
+            t0: performance.now(), durMs, pressed: true, lastNow: null,
+        };
+        slideRafRef.current[staff] = requestAnimationFrame(slideFrame(staff));
+    };
+
     const DRAG_THRESHOLD = 8;   // SVG units of movement → it's a drag, not a tap/hold
     // CR-A1 (Han 2026-06-08): a tap on a far note fires a long burst (one natural per
     // STEP_MS). Cap the WHOLE burst at MAX_BURST_MS so distant moves "speed up" — short
@@ -349,6 +453,13 @@ const RangeStaffOverlay = ({
     const MAX_BURST_MS = 1000;
     const MIN_STEP_MS = 24;
 
+    // NOTE (Han 2026-06-16): the per-natural STEPPER below (beginStepper/tick) is
+    // SUPERSEDED for tap-to-set by the continuous beginSlide tween above — stepping
+    // one natural per STEP_MS caused one React re-render per natural, so the x(t)
+    // layout repositioned notes in discrete jumps (the choppy slide Han reported).
+    // stopStepper is still used (beginSlide/unmount call it to defensively kill any
+    // stray stepper); the rest is retained pending removal so its design comments
+    // (CR-A1 burst cap, hold-extend wobble fix) aren't lost.
     const stopStepper = () => {
         if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
         stepperRef.current = null;
@@ -433,6 +544,7 @@ const RangeStaffOverlay = ({
     React.useEffect(() => () => {
         stopStepper();
         Object.values(rafRefs.current).forEach(id => id && cancelAnimationFrame(id));
+        Object.values(slideRafRef.current).forEach(id => id && cancelAnimationFrame(id));
     }, []);
 
     // The visible row is a boundary-relative WINDOW into the full piano (A0..C8),
@@ -507,7 +619,14 @@ const RangeStaffOverlay = ({
         const Al = (Xl - startX) * 0.92;
         const Ar = (endX - PRESET_AREA_WIDTH - Xr) * 0.92;
         // Map by natural ordinal (even white-key steps), not MIDI, so naturals are evenly spaced.
-        const oMin = ordinalOf(selMin), oMax = ordinalOf(selMax);
+        // During a TAP slide the moved boundary's ordinal is the live FRACTIONAL value from the
+        // tween (slideRef.ord), so rangeX positions every note at the in-between layout for this
+        // frame → the notes glide smoothly toward the target instead of jumping per natural. The
+        // committed boundary midi (selMin/selMax) still drives in-band/colour classification, so
+        // notes keep their identity while the spacing slides (Han 2026-06-16).
+        const slide = slideRef.current[staff];
+        const oMin = slide?.which === 'min' ? slide.ord : ordinalOf(selMin);
+        const oMax = slide?.which === 'max' ? slide.ord : ordinalOf(selMax);
         const rxFor = (midi) => rangeX(ordinalOf(midi), oMin, oMax, Xl, Xr, Al, Ar, rp.BETA, rp.TAU);
         // Visible naturals: the selection ± rp.CONTEXT semitones of saturating context.
         const winNotes = PIANO_NATURALS.filter(n => n.midi >= selMin - rp.CONTEXT && n.midi <= selMax + rp.CONTEXT);
@@ -544,11 +663,13 @@ const RangeStaffOverlay = ({
             return 'var(--range-lowlight)';
         };
 
-        // Press = start STEPPING the nearest boundary one natural per 0.25 s toward
-        // the pressed column (tap = burst that finishes after release; hold = keep
-        // extending outward until release). Moving past DRAG_THRESHOLD promotes the
-        // gesture to a live drag (today's behaviour): the layout freezes and the
-        // boundary follows the finger, re-anchoring on release.
+        // Press = start a continuous SLIDE of the nearest boundary toward the
+        // pressed column (tap = the row glides to the target then commits once;
+        // hold = the slide reaches the target then keeps extending outward until
+        // release). Moving past DRAG_THRESHOLD promotes the gesture to a live drag
+        // (today's behaviour): the boundary follows the finger relative to the
+        // press point, re-anchoring on release. `dragged` lives in downRef so the
+        // drag and the slide tween never read each other's state.
         const onDown = (e) => {
             if (!onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
@@ -557,21 +678,21 @@ const RangeStaffOverlay = ({
             const which = Math.abs(x - Xl) <= Math.abs(x - Xr) ? 'min' : 'max';
             const target = colAt(x);
             const fromMidi = which === 'min' ? selMin : selMax;
-            // Tap/hold still steps the zone's boundary toward the pressed column.
+            // Outward direction for hold-extend once the slide reaches the target.
             const dir = target > fromMidi ? 1 : (target < fromMidi ? -1 : (which === 'max' ? 1 : -1));
-            downRef.current = { x, staff, zone: which, minAtPress: selMin, maxAtPress: selMax };
+            downRef.current = { x, staff, zone: which, minAtPress: selMin, maxAtPress: selMax, dragged: false };
             try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not all envs */ }
-            beginStepper(staff, which, fromMidi, target, dir, frame.presets);
+            beginSlide(staff, which, fromMidi, target, dir, frame.presets);
         };
         const onMove = (e) => {
-            const d = downRef.current, s = stepperRef.current;
-            if (!d || !s || d.staff !== staff || !onSetMelodicBoundary) return;
+            const d = downRef.current;
+            if (!d || d.staff !== staff || !onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
-            if (!s.dragged && Math.abs(x - d.x) > DRAG_THRESHOLD) {
-                s.dragged = true;                                  // promote to live drag
-                if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
+            if (!d.dragged && Math.abs(x - d.x) > DRAG_THRESHOLD) {
+                d.dragged = true;                                  // promote to live drag
+                stopSlide(staff);                                  // the tween cedes to the finger
             }
-            if (s.dragged) {
+            if (d.dragged) {
                 // Relative drag from the press point (fixed sensitivity — the x(t) layout has no
                 // uniform note width). MAX zone: drag-LEFT raises max; MIN zone: drag-LEFT lowers min.
                 const steps = Math.round((x - d.x) / rp.DRAG);
@@ -583,14 +704,14 @@ const RangeStaffOverlay = ({
                     midi = shiftNatural(PIANO_NATURALS, d.minAtPress, steps);
                     if (midi >= d.maxAtPress) midi = shiftNatural(PIANO_NATURALS, d.maxAtPress, -1);
                 }
-                s.live = midi;
                 onSetMelodicBoundary(staff, midi, d.zone, frame.presets);
             }
         };
         const onUp = () => {
-            const s = stepperRef.current;
-            if (s?.dragged) { stopStepper(); dragRef.current = null; forceReanchor(); }
-            else if (s) { s.pressed = false; if (s.live === s.target) stopStepper(); } // let a burst finish; hold stops now
+            const d = downRef.current;
+            const s = slideRef.current[staff];
+            if (d?.dragged) { dragRef.current = null; forceReanchor(); }   // drag already committed live
+            else if (s) { s.pressed = false; }   // tap: clear pressed so the slide commits + stops once it lands
             downRef.current = null;
         };
 

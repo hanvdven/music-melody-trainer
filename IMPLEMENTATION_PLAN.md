@@ -9,7 +9,12 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ## 2026-06-16 — New backlog (Han) + quick wins
 - ✅ Range setter defaults: β mid-bow 0.3→0.6, drag px 6→10 (RangeStaffOverlay.jsx 144/149).
-- ⏳ Note-click animation smoother — needs interview.
+- ✅ Note-click animation smoother (range setter): tap-to-set now SLIDES the boundary
+  notes continuously (eased rAF tween of a FRACTIONAL ordinal feeding the x(t) layout),
+  instead of the per-natural stepper that re-rendered per natural (choppy jumps). Commit
+  to app state ONCE at tween end. Drag + hold-extend preserved. `beginSlide`/`slideFrame`
+  + `slideRef` in RangeStaffOverlay.jsx; old stepper retained as dead-for-taps. Docs:
+  architecture.md "Continuous tap-slide". 253 tests green, build clean.
 - ⏳ Universal 1.5s settings/song transition (fade-out 0.25s → notes fly in from right →
   others fade/slide in; apply to song load + screen changes incl HBD, NOT manual regen) — big, interview.
 - ⏳ Coloring: add 'scale' mode (scale notes normal, non-scale "blue notes" grayish-blue) everywhere
