@@ -2547,13 +2547,62 @@ because opening an overlay stops playback.
   key. The hook snapshots each row's resting state per commit (only while active) so it
   always has the "old" to fade; opacity/transform via `element.style` only (§6), cleared
   on completion/interrupt.
-- **Ottava cross-fade (CR-A3) — `OttavaMarker.jsx`.** The 8va/8vb/15ma marker used to
-  swap instantly. It now cross-fades on VALUE change (ottava + above/below) — which is
+- **Ottava cross-fade + slide (CR-A3 / Phase 4) — `OttavaMarker.jsx`.** The 8va/8vb/15ma
+  marker used to swap instantly. It now cross-fades on VALUE change (ottava + above/below) —
   what a notes transition or a range-driven clef change produces: fade-out 0.5 s → hold
-  0.5 s → fade-in 0.5 s. A new marker skips the fade-out; a removed marker fades out then
-  unmounts; colour-only changes (showSettings yellow) refresh live without a fade. Opacity
-  is driven via the element's `style.opacity` in an rAF (§6) because the transition/morph
-  systems own the surrounding group opacity.
+  0.5 s → fade-in 0.5 s. **Phase 4 (Han 2026-06-16):** the NEW marker also **slides in from
+  the right** (`SLIDE_IN` px, `easeInOut`) during its fade-in, so it streams in like the
+  universal cascade's trailing "other" elements (the fade-in already runs in the ~1.0–1.5 s
+  window). The OLD marker still fades out IN PLACE (a slide-out would read as fleeing); fade
+  remains the fallback when a marker is simply removed. A new marker skips the fade-out;
+  colour-only changes (showSettings yellow) refresh live without a fade. Opacity **and
+  transform** are driven via the element's `style` in an rAF (§6) because the transition/morph
+  systems own the surrounding group opacity; both are cleared on completion.
+
+**Universal 1.5s transition (Han 2026-06-16).**
+
+*Purpose:* play ONE consistent 1.5 s choreographed transition — fade the current sheet out
+(0.25 s) then stream the new content in from the right as a staggered, left-to-right cascade
+— whenever the app swaps what's on the sheet, so song loads / difficulty changes / screen
+changes all feel the same as opening a setter overlay.
+
+*How it works / reuse:* the exact cascade primitive already existed in the overlay enter/exit
+morph, so it was **extracted** rather than reinvented (§6c/§6d):
+
+- **`src/utils/flyInCascade.js` — `runFlyInCascade(svg, { oldEls, newEls, flyDist, onDone })`.**
+  The single source of truth for the tween: OLD groups fade out fast (`FADE_OUT_MS` 250), each
+  `[data-mel],[data-fly]` element in the NEW group flies `translateX(flyDist→0)` with a per-element
+  delay derived from its x (`STAGGER_MS` 500), each slide lasting `ELEM_MS` 1000 → `MORPH_MS`
+  1500 total. `easeInOut` smoothstep; `data-fly-from` overrides the start x. Opacity/transform via
+  `element.style` in the rAF only (§6); cleared on completion/cancel. **`useRangeMorph` and
+  `useUniversalTransition` both call it** so the overlay morph and the universal transition can
+  never drift apart. (Extraction also dropped a latent double-rAF that fired completion twice.)
+- **`useUniversalTransition(svgRef, transitionKey, flyDist)` — `src/hooks/`.** For IN-PLACE swaps
+  (song load, difficulty) there is no second group mounted, so — like `useClefRefly` — it keeps a
+  CLONE of `.notes-transition` from the previous commit, overlays that frozen clone as the OLD
+  (fades out) and flies the live group in, delegating the tween to `runFlyInCascade`. The clone is
+  removed in `onDone` (same rAF frame as the style reset → no flash) and on interrupt/unmount.
+- **`UniversalTransitionContext` — prop-driven key bus.** App owns `transitionKey` as state +
+  `fireTransition()` (App is the firer, so it can't consume a context it provides → the key is
+  passed DOWN, mirroring `TransitionOverlayProvider`). `SheetMusic` consumes the key and mounts the
+  runner with `flyDist = endX`.
+
+*Triggers (App.jsx):* (1) **song load** — `fireTransition()` at the end of `handleLoadSong`,
+batched into the load commit; (2) **difficulty** — a mount-guarded effect on `difficultyLevel`
+(it feeds the next generation, so this re-flies the current notes as an acknowledgement; a song's
+TIER change already goes through `handleLoadSong`); (3) **setter overlays** — already handled by
+`useRangeMorph` (which now shares the same tween); (4) **screen/tab change** — mount-guarded effect
+firing when `activeTab === 'sheet-music'` ("sheet only", Han), i.e. when you land on the sheet view.
+
+*Participating elements (Phase 3):* anything tagged `data-mel`/`data-fly` inside the animated group
+flies; untagged chrome just fades with the group. Already tagged: noteheads, beams, chord labels,
+the ottava+bracket group. Phase 3 added: **lyrics** (solfège, text, rhythmic rows — all inside
+`.notes-transition`) and the transposition setter's **"=" / "concert C₄ =" labels + fixed C4 anchor
+head** (its dynamic carousel heads keep their own scale transform + selection tween, so they fade
+rather than fight the fly transform). Phase 4: the **ottava marker slides** in (see its entry above).
+
+*Invariants:* one tween implementation (`flyInCascade`); the runner subscribes ONLY to the trigger
+states, so manual melody (re)generation — which goes through the round/regen path — never starts it.
 
 **Setter bug batch (Han 2026-06-08 — Groups B/C/N).**
 
