@@ -49,8 +49,11 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
     branch — now carousels/heads slide, presets + "=" / "concert C₄ =" labels delayed-fade.
     Family-switch entrance covered by useClefRefly. Also removed the redundant top-right "(X inst)"
     label (covered by the clef-left transposition label). ClefStaffOverlay.jsx + TranspositionSetter.jsx.
-- ⏳ Coloring: add 'scale' mode (scale notes normal, non-scale "blue notes" grayish-blue) everywhere
-  incl keyboard — route via melodicNoteColor (§6c) — quick interview.
+- ✅ Coloring: 'scale' mode (in-scale = scale-degree colour, out-of-scale "blue notes" greyish)
+  everywhere incl keyboard — routed via melodicNoteColor (§6c). [commit "Add 'scale' note-colouring mode"]
+- ⏳ Range setter — VERTICAL (up/down) drag (Han 2026-06-16): today drag is horizontal only. ⚠ §4b interview pending.
+- ⏳ Range setter — selected notes SHRINK toward the middle: 100% near the boundaries → ~50% at
+  the middle (size perspective, complements the dense-middle β spacing). ⚠ §4b interview pending.
 (All recorded verbatim in BACKLOG.md per §1b.)
 
 ## 2026-06-15 (night) — Small CRs (Han, parallel to core anacrusis refactor)

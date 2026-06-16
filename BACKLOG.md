@@ -34,6 +34,18 @@ when clicking a note, the animation could be smoother
 [Claude 2026-06-16 05:55]: Logged. ⚠ Interview before implementing (§4b): which click animation (tap-to-play note flash/scale?), what feels rough now, target easing/duration?
 [Claude 2026-06-16 08:20]: CLARIFIED (Han): this is the RANGE SETTER. Clicking a note should make the notes SLIDE smoothly to the new positions matching the selected boundary change; that slide is not smooth today. Scope = RangeStaffOverlay click-to-set (stepper / reanchor) animation, not tap-to-play.
 
+### Range setter — vertical (up/down) drag (Han 2026-06-16)
+
+range setter: one can slide sideways now, i would also be able to slide up and down.
+
+[Claude 2026-06-16 12:25]: Logged. ⚠ Interview before implementing (§4b). Today the boundary drag is HORIZONTAL only (onMove reads x; DRAG px per natural). Open Qs: should vertical drag move the SAME boundary the press picked (up = raise pitch / outward, down = lower), combined with horizontal or as an alternative axis? sensitivity (px per natural up/down)? does the tap-to-set/hold-extend stay unchanged?
+
+### Range setter — notes shrink toward the middle (Han 2026-06-16)
+
+i would like the selected notes in the middle of the range to shrink down to 50%. (100% close to the range setter), and progressively smaller toward the middle, and progressively smaller toward the middle.
+
+[Claude 2026-06-16 12:25]: Logged. ⚠ Interview before implementing (§4b). Reading: a SIZE perspective on the selected (in-range) notes — 100% near the boundaries (the range-setter edges), shrinking to ~50% at the middle of the range; complements the existing dense-MIDDLE spacing bow (β). Open Qs: confirm 100% at BOTH boundaries → 50% at exact middle (symmetric)? linear or eased falloff? applies to selected/in-range notes only (context notes unaffected)? heads only or heads+stems+ledgers scale together?
+
 ### Universal settings/song transition — 1.5s (Han 2026-06-16)
 
 settings/song transitions.
