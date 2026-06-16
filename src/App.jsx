@@ -558,6 +558,17 @@ const App = () => {
         fireTransition();
     }, [difficultyLevel, fireTransition]);
 
+    // Universal transition on SCREEN/TAB change → cascade the SHEET when you land on it (Han
+    // 2026-06-16, "sheet only"). The sheet is toggled via display:none (not unmounted), so we
+    // fire only when the new tab actually shows it — arriving at the sheet view re-flies its
+    // content. Firing while it's hidden would animate an invisible clone (harmless but wasteful),
+    // so gate on the sheet-music tab. Mount-guarded so the initial tab doesn't fire on load.
+    const tabMountRef = useRef(true);
+    useEffect(() => {
+        if (tabMountRef.current) { tabMountRef.current = false; return; }
+        if (activeTab === 'sheet-music') fireTransition();
+    }, [activeTab, fireTransition]);
+
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
     const randomizeAll = randomizeAllLogic;
 

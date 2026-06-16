@@ -25,9 +25,10 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
   - ✅ Phase 2a: DIFFICULTY change fires it (mount-guarded effect). Note: difficulty feeds the
     NEXT generation, so this re-flies current notes (acknowledgement) — flag to Han if he wants
     difficulty to also regenerate so the cascade shows NEW content.
-  - ⏳ Phase 2b: TAB/screen change — MURKY: sheet may be unmounted on other tabs, and a fresh
-    mount skips the fire (prevKeyRef = mount key). Decide with Han whether "screen change" means
-    the sheet cascade or every view's content.
+  - ✅ Phase 2b: TAB/screen change — "sheet only" (Han): fire when landing on the sheet-music tab
+    (sheet toggles via display:none, not unmount). Setter-overlay trigger (#3) already handled by
+    useRangeMorph. NOTE: song-TIER difficulty (SongsTab) already loads-a-new-song → already fires
+    via Phase 1; the global difficultyLevel slider (Phase 2a) re-flies current notes.
   - ⏳ Phase 3: tag lyrics + "concert C=" labels + setter notes with data-fly (verify they live
     INSIDE `.notes-transition` or extend the runner's query). Pure additive.
   - ⏳ Phase 4: ottava/8va SLIDE from right (currently OttavaMarker crossfades), fade fallback.
