@@ -9,6 +9,7 @@ import {
     MicVocal,
     MoveHorizontal,
     Settings2,
+    Piano,
 } from 'lucide-react';
 import { ChordNotationIcon } from '../common/CustomIcons';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
@@ -27,9 +28,11 @@ const SubHeader = ({
     onOpenClef,
     onOpenSettings,
     onOpenColor,
+    onOpenInstrument,
     rangeEditMode = false,
     clefEditMode = false,
     colorEditMode = false,
+    instrumentEditMode = false,
     showSheetMusicSettings = false,
     windowWidth,
     difficultyMultiplier,
@@ -329,6 +332,16 @@ const SubHeader = ({
                         'COLOUR',
                         onOpenColor,
                         colorEditMode,
+                        null,
+                        true
+                    )}
+                    {/* INSTRUMENT setter — per-staff playback instrument picker (Han
+                        2026-06-16). Menu-toggle button like the others. */}
+                    {onOpenInstrument && renderButton(
+                        <Piano size={22} />,
+                        'INSTRUMENT',
+                        onOpenInstrument,
+                        instrumentEditMode,
                         null,
                         true
                     )}

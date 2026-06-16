@@ -22,6 +22,9 @@ const groupsForKind = (svg, kind) => {
   // The colour setter lays its scheme rows directly on the top staff — a single group, no
   // sibling chord row (Han 2026-06-15 B1).
   if (kind === 'color') return [svg.querySelector('.note-coloring-overlay')].filter(Boolean);
+  // The instrument setter lays its per-staff card strips directly on the staves — a single
+  // group, no sibling chord row (mirrors colour, Han 2026-06-16).
+  if (kind === 'instrument') return [svg.querySelector('.instrument-overlay')].filter(Boolean);
   // The old settings overlay is now a sliding 'legacy' surface (Han #11).
   if (kind === 'legacy') return [svg.querySelector('.settings-overlay')].filter(Boolean);
   return [];
