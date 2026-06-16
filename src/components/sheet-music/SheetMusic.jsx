@@ -5,6 +5,8 @@ import useSheetMusicHighlight from '../../hooks/useSheetMusicHighlight';
 import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
 import useRangeMorph from '../../hooks/useRangeMorph';
 import useClefRefly from '../../hooks/useClefRefly';
+import useUniversalTransition from '../../hooks/useUniversalTransition';
+import { useUniversalTransitionKey } from '../../contexts/UniversalTransitionContext';
 import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
 import OttavaMarker from './OttavaMarker';
@@ -455,6 +457,13 @@ const SheetMusic = ({
   // melody fly-in. Mutually exclusive with range/clef/settings (App.handleToggleColorEdit).
   const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : showSettings ? 'legacy' : 'melody';
   const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
+  // Universal transition: replay the SAME 1.5s cascade when the app swaps the sheet content
+  // IN PLACE (song load, difficulty, …) rather than via an overlay surface change. App bumps
+  // `transitionKey` on each trigger; the runner clones the pre-swap `.notes-transition` as the
+  // OLD (fades out) and flies the live group in. Phase 1 wires only the song-load trigger; it
+  // shares flyInCascade with useRangeMorph so the two never need to agree on constants. Same
+  // flyDist (endX) as the morph.
+  useUniversalTransition(svgRef, useUniversalTransitionKey(), endX);
   // CR-A2: re-fly a single staff's clef row when its clef FAMILY changes while the
   // clef-edit overlay is open (fade old out + wipe new in from the right). Keyed on the
   // left-carousel family only (clefFamilyKey) — sub-clef variants (octave, transposition,
