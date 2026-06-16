@@ -51,9 +51,12 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
     label (covered by the clef-left transposition label). ClefStaffOverlay.jsx + TranspositionSetter.jsx.
 - ✅ Coloring: 'scale' mode (in-scale = scale-degree colour, out-of-scale "blue notes" greyish)
   everywhere incl keyboard — routed via melodicNoteColor (§6c). [commit "Add 'scale' note-colouring mode"]
-- ⏳ Range setter — VERTICAL (up/down) drag (Han 2026-06-16): today drag is horizontal only. ⚠ §4b interview pending.
-- ⏳ Range setter — selected notes SHRINK toward the middle: 100% near the boundaries → ~50% at
-  the middle (size perspective, complements the dense-middle β spacing). ⚠ §4b interview pending.
+- ✅ Range setter — VERTICAL (up/down) drag (Han 2026-06-16, "both axes move it"): boundary drag
+  now sums horizontal + vertical into a unified raise (UP = raise pitch); diagonal combines.
+  svgY() + downRef.y + radial DRAG_THRESHOLD. RangeStaffOverlay.jsx onMove.
+- ✅ Range setter — in-range notes SHRINK toward the middle (Han "symmetric, eased", in-range only):
+  100% at boundaries → ~50% at exact middle, eased, by natural ordinal; scales head+stem+ledgers.
+  Docs: architecture.md "Both-axes drag + middle-shrink". 261 tests green, build clean.
 (All recorded verbatim in BACKLOG.md per §1b.)
 
 ## 2026-06-15 (night) — Small CRs (Han, parallel to core anacrusis refactor)

@@ -604,6 +604,16 @@ const RangeStaffOverlay = ({
         const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
         return loc.x;
     };
+    // Screen → SVG y (same transform as svgX) — used by the boundary drag's VERTICAL axis
+    // (Han 2026-06-16: drag up/down also moves the boundary, up = raise pitch).
+    const svgY = (e) => {
+        const svg = e.currentTarget?.ownerSVGElement;
+        if (!svg?.getScreenCTM) return null;
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX; pt.y = e.clientY;
+        const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+        return loc.y;
+    };
     // ── Melodic staff (treble/bass) ──────────────────────────────────────────
     // `divider` (shared edge between the treble & bass zones) is `{ dL, dR }` (Y at
     // the row's left/right ends) when both melodic staves are visible, else null.
@@ -680,7 +690,7 @@ const RangeStaffOverlay = ({
             const fromMidi = which === 'min' ? selMin : selMax;
             // Outward direction for hold-extend once the slide reaches the target.
             const dir = target > fromMidi ? 1 : (target < fromMidi ? -1 : (which === 'max' ? 1 : -1));
-            downRef.current = { x, staff, zone: which, minAtPress: selMin, maxAtPress: selMax, dragged: false };
+            downRef.current = { x, y: svgY(e), staff, zone: which, minAtPress: selMin, maxAtPress: selMax, dragged: false };
             try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not all envs */ }
             beginSlide(staff, which, fromMidi, target, dir, frame.presets);
         };
@@ -688,20 +698,27 @@ const RangeStaffOverlay = ({
             const d = downRef.current;
             if (!d || d.staff !== staff || !onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
-            if (!d.dragged && Math.abs(x - d.x) > DRAG_THRESHOLD) {
-                d.dragged = true;                                  // promote to live drag
+            const y = svgY(e) ?? d.y;
+            if (!d.dragged && Math.hypot(x - d.x, y - d.y) > DRAG_THRESHOLD) {
+                d.dragged = true;                                  // promote to live drag (any direction)
                 stopSlide(staff);                                  // the tween cedes to the finger
             }
             if (d.dragged) {
                 // Relative drag from the press point (fixed sensitivity — the x(t) layout has no
-                // uniform note width). MAX zone: drag-LEFT raises max; MIN zone: drag-LEFT lowers min.
-                const steps = Math.round((x - d.x) / rp.DRAG);
+                // uniform note width). BOTH axes move the picked boundary (Han 2026-06-16): we sum a
+                // unified "RAISE the boundary by N naturals" from horizontal + vertical drag. Up
+                // (y decreases) always RAISES; horizontal keeps its per-zone sense (MAX: drag-LEFT
+                // raises max; MIN: drag-RIGHT raises min), so a diagonal drag combines naturally.
+                const stepsX = (x - d.x) / rp.DRAG;                // +ve = rightward
+                const stepsY = (d.y - y) / rp.DRAG;                // +ve = upward (raise)
+                const hRaise = d.zone === 'max' ? -stepsX : stepsX; // map horizontal → raise amount
+                const raise = Math.round(hRaise + stepsY);          // total naturals to raise the boundary
                 let midi;
                 if (d.zone === 'max') {
-                    midi = shiftNatural(PIANO_NATURALS, d.maxAtPress, -steps);
+                    midi = shiftNatural(PIANO_NATURALS, d.maxAtPress, raise);
                     if (midi <= d.minAtPress) midi = shiftNatural(PIANO_NATURALS, d.minAtPress, 1);
                 } else {
-                    midi = shiftNatural(PIANO_NATURALS, d.minAtPress, steps);
+                    midi = shiftNatural(PIANO_NATURALS, d.minAtPress, raise);
                     if (midi >= d.maxAtPress) midi = shiftNatural(PIANO_NATURALS, d.maxAtPress, -1);
                 }
                 onSetMelodicBoundary(staff, midi, d.zone, frame.presets);
@@ -773,7 +790,15 @@ const RangeStaffOverlay = ({
                         const inBand = n.midi >= selMin && n.midi <= selMax;
                         const d = inBand ? 0 : (n.midi < selMin ? selMin - n.midi : n.midi - selMax);
                         const opacity = inBand ? 1 : Math.max(0.15, 1 - d * 0.045);
-                        const s = inBand ? 1 : Math.max(0.5, 1 - d * 0.05);
+                        // In-range notes SHRINK toward the MIDDLE of the range (Han 2026-06-16):
+                        // 100% at the boundaries → ~50% at the exact middle, symmetric + eased.
+                        // Position by NATURAL ORDINAL (even white-key steps) so the curve is smooth;
+                        // uMid = 0 at the middle … 1 at either boundary. Out-of-range context notes
+                        // keep their fade + shrink-with-distance. Heads/stems/ledgers scale together
+                        // (the scale() wraps the whole StaffQuarterNote).
+                        const oSpan = ordinalOf(selMax) - ordinalOf(selMin);
+                        const uMid = oSpan > 0 ? Math.abs((ordinalOf(n.midi) - ordinalOf(selMin)) / oSpan - 0.5) * 2 : 1;
+                        const s = inBand ? (0.5 + 0.5 * easeInOut(uMid)) : Math.max(0.5, 1 - d * 0.05);
                         // data-fly = flyable note tag (useRangeMorph): the range rows stream in
                         // from the right on the morph like the clef/colour overlays (Han 2026-06-15
                         // B3). The OUTER <g> is what the morph translateX-es; the INNER <g> keeps the
