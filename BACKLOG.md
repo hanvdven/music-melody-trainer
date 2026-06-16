@@ -32,6 +32,7 @@ range setter: set beta mid bow to 0.6 by default, drag px to 10.
 when clicking a note, the animation could be smoother
 
 [Claude 2026-06-16 05:55]: Logged. ⚠ Interview before implementing (§4b): which click animation (tap-to-play note flash/scale?), what feels rough now, target easing/duration?
+[Claude 2026-06-16 08:20]: CLARIFIED (Han): this is the RANGE SETTER. Clicking a note should make the notes SLIDE smoothly to the new positions matching the selected boundary change; that slide is not smooth today. Scope = RangeStaffOverlay click-to-set (stepper / reanchor) animation, not tap-to-play.
 
 ### Universal settings/song transition — 1.5s (Han 2026-06-16)
 
@@ -46,6 +47,7 @@ it takes 1.5 s.
 apply this consistently, so also to elements of hbd, but not when a new melody is generated manually.
 
 [Claude 2026-06-16 05:55]: Logged. Big cross-cutting feature. ⚠ Interview before implementing (§4b). ❓ Open Qs: (a) exact triggers = {song load, screen/tab change, settings open/close?} — list all; (b) "notes fly in from the right" — per-note stagger or whole-staff slide? distance? (c) is the fade-then-slide the FALLBACK only when fly-in isn't possible — what determines that? (d) confirm EXCLUDED: manual melody (re)generation keeps its current animation. Relates to existing pagination/wipe/scroll animation system (arch §2/§7) — must not collide.
+[Claude 2026-06-16 08:20]: INTERVIEW ANSWERS (Han): Triggers = ALL of {song load, screen/tab change, setter overlays open/close, difficulty change}. Manual melody (re)generation EXCLUDED. Fly-in = STAGGERED CASCADE (each note/label/element flies in from the right, left-to-right stagger). Phase-2 "other elements" (8va, brackets) = SLIDE in from the right, fade as fallback ONLY for elements that can't sensibly slide. Timeline: 1.5s total — fade-out current 0.25s → notes cascade in → others slide/fade [start ~1.0s, 0.5s].
 
 ### Coloring — add 'scale' coloring option (Han 2026-06-16)
 
