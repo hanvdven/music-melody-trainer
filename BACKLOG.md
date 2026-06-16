@@ -81,6 +81,9 @@ Rij instrumenten: logo, naam erboven, eventueel transpositie eronder; gebruikeli
 - "Instrumenten beschikbaar op keyboard" = de smplr-instrumenten die useInstruments/InstrumentSettings al kan laden → afleiden uit die lijst, niet hardcoden (§6c).
 - ⚠ Interview bij Han vóór implementatie (§4b): plaatsing (welke tab/overlay), wel/niet transpositie-rij, vervangt dit de bestaande instrument-picker?
 
+[Han 2026-06-16]: lets' make one in the SHEET MUSIC first. Idea: instrument image + name ON the staff, scrollable sideways, grouped by instrument type. Whenever the view is open, print the appropriate copyright/licence. Changing the instrument sets the playback instrument (this function already exists — in the old deprecated range setter for the keys). More instruments than space → scrollable off-screen; selected instrument is centered.
+[Claude 2026-06-16 17:15]: ⚠ §4b interview in progress. FINDINGS: reusable setter = `setTrebleSettings/setBassSettings(p=>({...p, instrument: slug}))` (current = activeSettings.instrument); instrument list = curated 13-slug `INSTRUMENTS` map in RangeControls.jsx (smplr Soundfont), implicitly grouped (keys/guitars+bass/strings/winds/voice). BLOCKER: NO icons8 image assets in repo (src/assets only has fonts); current icons are lucide-react family glyphs. I won't fetch/scrape icons8 (licensing/network). Plan: reuse ClefCardCarousel (horizontal scroll) + the cascade animation + a new instrument-edit overlay under overlays/ (§8). Open Qs → see interview.
+
 ---
 
 ### Transpositie-setter revisie — compacte dubbele verticale carousel (Han 2026-06-08)
