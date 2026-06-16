@@ -2482,6 +2482,20 @@ can't cross the held one (clamped to one natural inside it). Tap/hold still step
 zone's boundary toward the pressed column via the shared stepper; > `DRAG_THRESHOLD`
 promotes to the live drag. All writes go through `onSetMelodicBoundary` → `clampRange`.
 
+**Both-axes drag + middle-shrink (Han 2026-06-16) — `RangeStaffOverlay.jsx`.**
+- *Vertical drag.* The boundary drag now moves on BOTH axes: a unified "raise the picked
+  boundary by N naturals" is summed from horizontal + vertical travel. UP (y decreases) always
+  RAISES the pitch; horizontal keeps its per-zone sense (MAX: drag-LEFT raises; MIN: drag-RIGHT
+  raises), so a diagonal drag combines naturally. Same `rp.DRAG` px/natural sensitivity on each
+  axis; `downRef` now stores press `y`; promotion to drag uses the radial distance
+  `hypot(dx,dy) > DRAG_THRESHOLD`. `svgY()` mirrors `svgX()` for the viewBox-correct y.
+- *Middle-shrink.* In-range (selected) noteheads shrink toward the MIDDLE of the range: 100% at
+  the boundaries → ~50% at the exact middle, symmetric and eased (`0.5 + 0.5·easeInOut(uMid)`,
+  `uMid = |ordinal-fraction − 0.5|·2`, positioned by natural ordinal for even steps). Scales the
+  whole `StaffQuarterNote` (head+stem+ledgers) via the existing `scale(s)` wrapper. Out-of-range
+  context notes keep their fade + shrink-with-distance. Complements the dense-MIDDLE β SPACING bow
+  (spacing AND size both compress toward the middle).
+
 **Chord-style row + complexity chords (Han 2026-06-03, Batch C).** The chord-line
 preview row is rendered at the SAME vertical height as the real sheet chords (anchored
 `trebleStart − 58`) with a wider inter-chord gap and centred, wider label clickzones so
