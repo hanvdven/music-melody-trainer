@@ -15,8 +15,22 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
   to app state ONCE at tween end. Drag + hold-extend preserved. `beginSlide`/`slideFrame`
   + `slideRef` in RangeStaffOverlay.jsx; old stepper retained as dead-for-taps. Docs:
   architecture.md "Continuous tap-slide". 253 tests green, build clean.
-- ⏳ Universal 1.5s settings/song transition (fade-out 0.25s → notes fly in from right →
-  others fade/slide in; apply to song load + screen changes incl HBD, NOT manual regen) — big, interview.
+- 🔨 Universal 1.5s transition (fade-out 0.25s → staggered notes fly in from right → others
+  slide/fade). Interview done; decisions: difficulty=fires (distinct from manual regen),
+  always plays even during playback. Reuses the EXISTING cascade primitive.
+  - ✅ Phase 0: extract shared `flyInCascade` runner from useRangeMorph (one source of truth;
+    dropped a latent double-rAF). +smoke test. (`src/utils/flyInCascade.js`)
+  - ✅ Phase 1: `useUniversalTransition` (clone-overlay + flyInCascade) + `UniversalTransitionContext`
+    (prop key bus); wired SONG LOAD (fireTransition at end of handleLoadSong). Sheet mounts it.
+  - ✅ Phase 2a: DIFFICULTY change fires it (mount-guarded effect). Note: difficulty feeds the
+    NEXT generation, so this re-flies current notes (acknowledgement) — flag to Han if he wants
+    difficulty to also regenerate so the cascade shows NEW content.
+  - ⏳ Phase 2b: TAB/screen change — MURKY: sheet may be unmounted on other tabs, and a fresh
+    mount skips the fire (prevKeyRef = mount key). Decide with Han whether "screen change" means
+    the sheet cascade or every view's content.
+  - ⏳ Phase 3: tag lyrics + "concert C=" labels + setter notes with data-fly (verify they live
+    INSIDE `.notes-transition` or extend the runner's query). Pure additive.
+  - ⏳ Phase 4: ottava/8va SLIDE from right (currently OttavaMarker crossfades), fade fallback.
 - ⏳ Coloring: add 'scale' mode (scale notes normal, non-scale "blue notes" grayish-blue) everywhere
   incl keyboard — route via melodicNoteColor (§6c) — quick interview.
 (All recorded verbatim in BACKLOG.md per §1b.)
