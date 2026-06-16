@@ -35,6 +35,7 @@ import useScaleManagement from './hooks/useScaleManagement';
 import useDifficultySettings from './hooks/useDifficultySettings';
 import { buildHarmonyTable } from './utils/harmonyTable';
 import { resizeMelody } from './utils/melodySlice';
+import { buildMergedRenderMelodies, hasAnacrusis } from './utils/anacrusisRepeat';
 import { TICKS_PER_WHOLE } from './constants/timing';
 import {
     DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
@@ -1231,16 +1232,40 @@ const App = () => {
 
     // Shared props for both SheetMusic instances (primary + tab view).
     // containerHeight and visibleMeasures differ between instances and are passed inline.
-    // Anacrusis detection (Han 2026-05-28): when the loaded melody's first note
-    // sits AFTER tick 0 of measure 0, that measure is a pickup. We treat its
-    // global index as the anacrusis marker so BarlinesLayer can suppress the
-    // measure-number label. Re-runs whenever trebleMelody flips identity, e.g.
-    // after song-load or after a regen that produced a non-anacrusis melody.
+    // measureLen (ticks/measure) for the active meter — shared by anacrusis detection AND the
+    // looping body-merge below so both agree on what "measure 0" is.
+    const anacrusisMeasureLen = (TICKS_PER_WHOLE * timeSignature[0]) / timeSignature[1];
+
+    // Anacrusis detection (Han 2026-05-28; unified 2026-06-15): when the loaded melody's first note
+    // sits AFTER tick 0 of measure 0, that measure is a pickup. We treat its global index as the
+    // anacrusis marker so BarlinesLayer can suppress the measure-number label. Detection is the
+    // SHARED `hasAnacrusis(melody, measureLen)` predicate (src/utils/anacrusisRepeat.js) — the SAME
+    // one the Sequencer/render body-merge gates on — so the label-suppression and the merge can never
+    // disagree about whether a song is a pickup (arch §34/§40). Re-runs whenever trebleMelody flips
+    // identity, e.g. after song-load or after a regen that produced a non-anacrusis melody.
     const anacrusisMeasureIndex = useMemo(() => {
-        const firstOffset = trebleMelody?.offsets?.[0];
-        if (firstOffset == null || firstOffset <= 0) return null;
-        return 0;
-    }, [trebleMelody]);
+        return hasAnacrusis(trebleMelody, anacrusisMeasureLen) ? 0 : null;
+    }, [trebleMelody, anacrusisMeasureLen]);
+
+    // ── Looping body-merge for RENDER (arch §40 render-merge, Han 2026-06-15) ───────────────────
+    // During LOOPING playback (repeat OR continuous — i.e. playing and NOT once-mode) of a pickup
+    // song, the Sequencer loops the BODY-MERGED melody (pickup relocated to the end of the last body
+    // bar; body = bodyMeasures bars) and keys its highlight schedule off that merged, rebased body.
+    // The sheet must render the SAME representation, otherwise every body note's highlight resolves
+    // one measure below where it is drawn (the old one-bar highlight lag) and the next-loop pickup is
+    // never visible. We compute the merged body HERE and feed it to MelodyProvider so SheetMusic —
+    // which just renders whatever the context gives it — automatically shows the merged body. When
+    // stopped or in once-mode this is null → the original padded melodies render unchanged. For a
+    // non-anacrusis melody buildMergedRenderMelodies returns null (a no-op), so generated/continuous
+    // rounds after series 1 (which carry no pickup) are untouched.
+    const isLoopingPlayback = isPlaying && headerPlayMode !== 'once';
+    const mergedRenderMelodies = useMemo(() => {
+        if (!isLoopingPlayback) return null;
+        return buildMergedRenderMelodies(
+            { treble: trebleMelody, bass: bassMelody, percussion: melodies.percussion, chordProgression },
+            anacrusisMeasureLen,
+        );
+    }, [isLoopingPlayback, trebleMelody, bassMelody, melodies.percussion, chordProgression, anacrusisMeasureLen]);
 
     const sheetMusicCommonProps = useMemo(() => ({
         timeSignature,
@@ -1259,6 +1284,11 @@ const App = () => {
             return !p;
         }),
         anacrusisMeasureIndex,
+        // When the looping body-merge is active the sheet renders the merged BODY (no separate pickup
+        // measure), so BarlinesLayer must number plainly from bar 1 and compute the repeat-pass count
+        // from bodyMeasures, not the padded numMeasures (arch §40 numbering). null when not merging →
+        // BarlinesLayer keeps its original anacrusis-aware numbering.
+        mergedBodyMeasures: mergedRenderMelodies ? mergedRenderMelodies.bodyMeasures : null,
         numRepeats: playbackConfig.repsPerMelody,
         onNumRepeatsChange: (val) => setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val })),
         numMeasures,
@@ -1296,7 +1326,7 @@ const App = () => {
         onMeasureNumberClick: null,
         onNoteEnharmonicToggle: handleNoteEnharmonicToggle,
     }), [timeSignature, handleTimeSignatureChange, bpm, setBpm, isRubato, setIsRubato,
-        anacrusisMeasureIndex,
+        anacrusisMeasureIndex, mergedRenderMelodies,
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
         windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, toggleSheetMusicSettings,
@@ -1313,11 +1343,11 @@ const App = () => {
         <InstrumentSettingsProvider value={instrumentSettingsCtx}>
         <DisplaySettingsProvider value={displaySettingsCtx}>
         <MelodyProvider
-            treble={melodies.treble}
-            bass={melodies.bass}
-            percussion={melodies.percussion}
+            treble={mergedRenderMelodies ? mergedRenderMelodies.treble : melodies.treble}
+            bass={mergedRenderMelodies ? mergedRenderMelodies.bass : melodies.bass}
+            percussion={mergedRenderMelodies ? mergedRenderMelodies.percussion : melodies.percussion}
             metronome={melodies.metronome}
-            chordProgression={chordProgression}
+            chordProgression={mergedRenderMelodies ? mergedRenderMelodies.chordProgression : chordProgression}
         >
         <PlaybackTransportProvider
             isPlaying={isPlaying}

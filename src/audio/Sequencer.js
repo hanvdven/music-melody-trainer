@@ -26,7 +26,7 @@ import { getHarmonyAtDifficulty } from '../utils/harmonyTable';
 import { getMelodyAtDifficulty } from '../utils/melodyDifficultyTable';
 import { PRESET_RANGES } from '../constants/musicLayout';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
-import { buildAnacrusisRepeatParts } from '../utils/anacrusisRepeat';
+import { buildAnacrusisRepeatParts, hasAnacrusis } from '../utils/anacrusisRepeat';
 
 class Sequencer {
   constructor(config) {
@@ -71,16 +71,20 @@ class Sequencer {
     let currentMetronome = this.refs.metronomeRef.current;
 
     // ── Anacrusis REPEAT (arch §40) ────────────────────────────────────────────
-    // In infinite-repeat mode a pickup song must loop its BODY (the measures after the
+    // In any LOOPING mode a pickup song must loop its BODY (the measures after the
     // pickup bar) with the pickup merged into the last bar, and sound the leading pickup
     // exactly ONCE. Replaying the padded m0 each loop would re-insert a full dead bar
     // between the merged pickup (end of the last bar) and the downbeat it leads into.
-    // Gated to repeatForever + a treble that starts after the downbeat, so nothing else
-    // (once/continuous/non-pickup songs) is touched.
+    // Gated to LOOPING playback (= !once: repeat OR continuous; Han 2026-06-15) + a treble
+    // carrying a real pickup, so once-mode and non-pickup songs are untouched. The detection is
+    // the SHARED `hasAnacrusis` predicate (anacrusisRepeat.js) — the SAME one App.jsx's
+    // label-suppression + render body-merge gate on, so audio and render never disagree (item 4).
+    // For continuous mode this fires only for the FIRST (loaded) series; later series are
+    // regenerated with no pickup, so hasAnacrusis is false there and nothing is merged.
+    const ml = (TICKS_PER_WHOLE * currentTS[0]) / currentTS[1];
     let anacrusisIntro = null;          // { melodies, instruments, pickupStart, measureLen } | null
     let anacrusisBodyMeasures = null;
-    if (repeatForever && treble?.offsets?.length && treble.offsets[0] > 0) {
-      const ml = (TICKS_PER_WHOLE * currentTS[0]) / currentTS[1];
+    if (!once && hasAnacrusis(treble, ml)) {
       const trebleParts = buildAnacrusisRepeatParts(treble, ml);
       if (trebleParts.hasAnacrusis) {
         const pickupStart = treble.offsets[0];
