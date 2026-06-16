@@ -71,6 +71,7 @@ import { MelodyProvider } from './contexts/MelodyContext';
 import { PlaybackTransportProvider } from './contexts/PlaybackTransportContext';
 import { RoundStateProvider } from './contexts/RoundStateContext';
 import { TransitionOverlayProvider } from './contexts/TransitionOverlayContext';
+import { UniversalTransitionProvider } from './contexts/UniversalTransitionContext';
 import { ProfileProvider } from './contexts/ProfileContext';
 import { AnimationRefsProvider } from './contexts/AnimationRefsContext';
 
@@ -400,6 +401,14 @@ const App = () => {
         trebleMelody, bassMelody, setTrebleMelody, setBassMelody,
     });
 
+    // Universal transition key (Han 2026-06-16). Bumped by `fireTransition` on each
+    // transition TRIGGER; the sheet-music surface watches it (via UniversalTransitionContext)
+    // and replays the 1.5s fly-in cascade. App owns the key as state and passes it DOWN through
+    // the provider, so App — which is also the firer (e.g. handleLoadSong) — never consumes a
+    // context it provides. Phase 1 wires only the song-load trigger.
+    const [transitionKey, setTransitionKey] = useState(0);
+    const fireTransition = useCallback(() => setTransitionKey(k => k + 1), []);
+
     // Load a static song definition into the active melody state.
     // useOriginalTonic=true: load in the song's written key and update the app tonic to match.
     // useOriginalTonic=false (default): transpose the song to the user's current tonic.
@@ -520,7 +529,11 @@ const App = () => {
         setGlobalMeasureOffset(0);
         // Keep the user's current bottom-view tab; loading a song should not
         // hijack the layout. Reported by Han 2026-05-22.
-    }, [scale, setTonic, setSelectedMode,
+        // Replay the universal 1.5s cascade for the freshly-loaded melody. This setState
+        // batches with the melody swaps above into ONE commit, so the runner sees the new
+        // content live while its clone still holds the pre-load melody (the OLD that fades).
+        fireTransition();
+    }, [scale, setTonic, setSelectedMode, fireTransition,
         setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings,
         setTrebleMelody, setBassMelody, setPercussionMelody, setChordProgression,
         setReferenceMelody, setReferenceBassMelody, setReferenceScale,
@@ -1360,6 +1373,7 @@ const App = () => {
             inputTestSubMode={inputTestSubMode}
             setInputTestSubMode={handleSetInputTestSubMode}
         >
+        <UniversalTransitionProvider transitionKey={transitionKey}>
         <TransitionOverlayProvider
             nextLayer={nextLayer}
             previewMelody={previewMelody}
@@ -1632,6 +1646,7 @@ const App = () => {
         </div >
         </AnimationRefsProvider>
         </TransitionOverlayProvider>
+        </UniversalTransitionProvider>
         </RoundStateProvider>
         </PlaybackTransportProvider>
         </MelodyProvider>
