@@ -141,12 +141,12 @@ const MIN_COLLAPSE = 3;            // only collapse if ≥ this many middle note
 // derivative 1 + β·cos(2πu) is 1−β at the centre (u=½ → tightest) and 1+β at both edges (loosest),
 // so notes pack closest near (Xl+Xr)/2 and stay almost-linear elsewhere (Han: closest near the
 // middle, ~linear ≈ (Xr−Xl)/8). β small (<1). g(0)=0, g(½)=½, g(1)=1.
-const RANGE_BETA = 0.3;       // in-range middle-bow amount (0..~0.8), tune live
+const RANGE_BETA = 0.6;       // in-range middle-bow amount (0..~0.8), tune live (Han 2026-06-16: 0.3→0.6)
 const RANGE_TAU = 3;          // tanh tail rate, in naturals (tune live)
 const RANGE_XL_FRAC = 0.20;   // min boundary x (fraction of the available width)
 const RANGE_XR_FRAC = 0.80;   // max boundary x
 const RANGE_CONTEXT = 10;     // semitones of out-of-range context shown each side
-const DRAG_PX_PER_STEP = 6;   // relative drag sensitivity: px per natural step
+const DRAG_PX_PER_STEP = 10;  // relative drag sensitivity: px per natural step (Han 2026-06-16: 6→10)
 const rangeX = (t, Tl, Tr, Xl, Xr, Al, Ar, B = RANGE_BETA, TAU = RANGE_TAU) => {
     if (t < Tl) return Xl + Al * Math.tanh((t - Tl) / TAU);
     if (t > Tr) return Xr + Ar * Math.tanh((t - Tr) / TAU);

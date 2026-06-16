@@ -21,6 +21,38 @@
 
 Deel deze features in bij de juiste categorie.
 
+### Range setter — beta/drag default tuning (Han 2026-06-16)
+
+range setter: set beta mid bow to 0.6 by default, drag px to 10.
+
+[Claude 2026-06-16 05:55]: Fully-specified default change — implementing directly (§5 obviously-scoped). β (dense-middle bow) default → 0.6, drag px default → 10.
+
+### Note click animation smoother (Han 2026-06-16)
+
+when clicking a note, the animation could be smoother
+
+[Claude 2026-06-16 05:55]: Logged. ⚠ Interview before implementing (§4b): which click animation (tap-to-play note flash/scale?), what feels rough now, target easing/duration?
+
+### Universal settings/song transition — 1.5s (Han 2026-06-16)
+
+settings/song transitions.
+
+When loading a new song; when changing screens, etc. I would the same type of transition ALWAYS:
+it takes 1.5 s.
+0 current content fades out quickly (0,25s)
+1 notes fly in the from the right (prefered - also apply to lyrics, labels like "concert C4 =", and any other setters (individual notes from transposition etc.))
+2 any other elements fade [wait 1s, fade in 0.5s] (e.g., 8va blocks) -> however I would like them to slide in too..! This should be a fall back for
+
+apply this consistently, so also to elements of hbd, but not when a new melody is generated manually.
+
+[Claude 2026-06-16 05:55]: Logged. Big cross-cutting feature. ⚠ Interview before implementing (§4b). ❓ Open Qs: (a) exact triggers = {song load, screen/tab change, settings open/close?} — list all; (b) "notes fly in from the right" — per-note stagger or whole-staff slide? distance? (c) is the fade-then-slide the FALLBACK only when fly-in isn't possible — what determines that? (d) confirm EXCLUDED: manual melody (re)generation keeps its current animation. Relates to existing pagination/wipe/scroll animation system (arch §2/§7) — must not collide.
+
+### Coloring — add 'scale' coloring option (Han 2026-06-16)
+
+coloring: next to chords - add 'scale' as coloring option; coloring all scale notes normally, coloring non-scale notes (i.e., blue notes) grayish blue. Of course apply to all places where notes are colored, including keyboard.
+
+[Claude 2026-06-16 05:55]: Logged. Well-specified. ⚠ Quick interview (§4b). ❓ "normally" for scale notes = the active scheme's normal colour, or a fixed neutral? Exact grayish-blue value/CSS var? New `noteColoringMode: 'scale'` routed via `melodicNoteColor` (noteUtils) so all surfaces incl. keyboard inherit it (§6c/§6d).
+
 ### Instrument selector (Han 2026-06-03)
 
 instrument selector: https://icons8.com/icons/set/music--style-ios--static--black (with correct attribution: icons by icons8)
