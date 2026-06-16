@@ -547,6 +547,17 @@ const App = () => {
         if (playbackConfig?.randomize?.melody === true) setLoadedSongTitle(null);
     }, [playbackConfig?.randomize?.melody]);
 
+    // Universal transition on DIFFICULTY change (Han 2026-06-16). difficultyLevel feeds the
+    // NEXT generation rather than swapping the on-screen melody, so the cascade re-flies the
+    // current notes as a deliberate acknowledgement of the change — a chosen trigger, distinct
+    // from a manual randomize/regenerate (which keeps its own animation). The mount guard skips
+    // the initial value so we only fire on a genuine user change.
+    const difficultyMountRef = useRef(true);
+    useEffect(() => {
+        if (difficultyMountRef.current) { difficultyMountRef.current = false; return; }
+        fireTransition();
+    }, [difficultyLevel, fireTransition]);
+
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
     const randomizeAll = randomizeAllLogic;
 
