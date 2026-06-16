@@ -240,6 +240,16 @@ export const melodicNoteColor = (note, { noteColoringMode, tonic, scaleNotes = [
         if (pc === getNoteSemitone(tonic)) return 'var(--note-tonic)';
         if (scaleNotes.some(s => getNoteSemitone(s) === pc)) return 'var(--note-scale)';
     }
+    // 'scale' mode (Han 2026-06-16): in-scale notes use the SAME scale-degree scheme as
+    // tonic_scale_keys (tonic → --note-tonic, other scale pitch-classes → --note-scale), but
+    // chromatic "blue notes" (pitch classes neither the tonic nor in scaleNotes) are coloured a
+    // distinct slate grayish-blue (--note-blue) so out-of-scale notes are visible at a glance.
+    if (noteColoringMode === 'scale') {
+        const pc = getNoteSemitone(note);
+        if (pc === getNoteSemitone(tonic)) return 'var(--note-tonic)';
+        if (scaleNotes.some(s => getNoteSemitone(s) === pc)) return 'var(--note-scale)';
+        return 'var(--note-blue)';
+    }
     return null;
 };
 

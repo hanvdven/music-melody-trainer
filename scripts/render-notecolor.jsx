@@ -9,7 +9,7 @@ import NoteColoringStaffOverlay from '../src/components/sheet-music/overlays/Not
 const out = '/tmp/notecolor.png';
 const VARS = {
   '--text-primary': '#e8e8e8', '--text-dim': '#666', '--accent-yellow': '#ffd24a',
-  '--note-tonic': '#ff8a8a', '--note-scale': '#8ab4ff',
+  '--note-tonic': '#ff8a8a', '--note-scale': '#8ab4ff', '--note-blue': '#6b7a99',
   '--chromatone-0': '#ff4a4a', '--chromatone-1': '#ff8a3a', '--chromatone-2': '#ffd24a',
   '--chromatone-3': '#bfe04a', '--chromatone-4': '#6fe06a', '--chromatone-5': '#4ae0a8',
   '--chromatone-6': '#4ad2e0', '--chromatone-7': '#4a9ae0', '--chromatone-8': '#5a6ae0',

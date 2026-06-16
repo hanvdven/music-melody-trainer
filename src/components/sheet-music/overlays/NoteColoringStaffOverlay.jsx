@@ -14,6 +14,9 @@ const SCHEMES = [
     { mode: 'none', label: 'None' },
     { mode: 'tonic_scale_keys', label: 'Tonic / Scale' },
     { mode: 'chords', label: 'Chords' },
+    // 'scale' (Han 2026-06-16): in-scale notes coloured like Tonic/Scale, chromatic blue notes
+    // get --note-blue. Positioned next to 'chords' per Han's request.
+    { mode: 'scale', label: 'Scale' },
     { mode: 'chromatone', label: 'Chromatone' },
     { mode: 'subtle-chroma', label: 'Subtle chroma' },
 ];
