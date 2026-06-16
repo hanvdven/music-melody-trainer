@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAnacrusisRepeatParts } from '../anacrusisRepeat.js';
+import { buildAnacrusisRepeatParts, buildMergedRenderMelodies, hasAnacrusis } from '../anacrusisRepeat.js';
 
 // Happy-Birthday-shaped fixture: measureLen 36 (3/4, 12 ticks/beat). m0 is an anacrusis with the
 // pickup "Hap-py" on beat 3 (offsets 24, 33). m1..m8 are full bars; m8 ("you!") is a dotted-half
@@ -52,6 +52,14 @@ describe('buildAnacrusisRepeatParts', () => {
         expect(wordAt(252)).toBe('you!');   // clipped note keeps its own word
     });
 
+    it('hasAnacrusis is true only when the first onset lies strictly inside m0', () => {
+        expect(hasAnacrusis(melody, measureLen)).toBe(true);                       // first onset 24 ∈ (0,36)
+        expect(hasAnacrusis({ offsets: [0] }, measureLen)).toBe(false);            // downbeat → no pickup
+        expect(hasAnacrusis({ offsets: [36] }, measureLen)).toBe(false);           // = bar end → not inside m0
+        expect(hasAnacrusis(null, measureLen)).toBe(false);
+        expect(hasAnacrusis({ offsets: [] }, measureLen)).toBe(false);
+    });
+
     it('clips a chord that straddles the dropped pickup bar instead of dropping it', () => {
         // A chord track has no leading rest (offset 0) but its first chord spans m0→m1 (HBD-style).
         // The body must KEEP that chord, clipped to its m1 portion, and rebase the rest.
@@ -69,5 +77,49 @@ describe('buildAnacrusisRepeatParts', () => {
         expect(loopClean.notes[0]).toEqual(['G3', 'B3']);
         // no pickup to merge → merged body is the clean body unchanged.
         expect(loopMerged.offsets).toEqual(loopClean.offsets);
+    });
+});
+
+describe('buildMergedRenderMelodies', () => {
+    it('returns the merged HBD body with the pickup at the end and bodyMeasures=8', () => {
+        // HBD-shaped treble (same fixture as above): pickup at 24/33, body m1..m8, last note "you!".
+        const merged = buildMergedRenderMelodies({ treble: melody }, measureLen);
+        expect(merged).not.toBeNull();
+        // 9-bar padded song (m0 pickup + 8 body bars) → body loop is 8 bars.
+        expect(merged.bodyMeasures).toBe(8);
+        // The merged treble matches the canonical util's loopMerged: pickup relocated to the END of
+        // the last body bar (252 + 24 = 276, 285), 'you!' clipped to free that beat. No note at/after
+        // the bar end (288) — the pickup now leads into the NEXT loop, not a dead m0.
+        const { loopMerged } = buildAnacrusisRepeatParts(melody, measureLen);
+        expect(merged.treble.offsets).toEqual(loopMerged.offsets);
+        expect(merged.treble.notes).toEqual(loopMerged.notes);
+        expect(Math.max(...merged.treble.offsets)).toBeLessThan(288);
+        // pickup 'D4' appears at the end of the body (276/285), not at the front.
+        expect(merged.treble.offsets).toContain(276);
+        expect(merged.treble.offsets).toContain(285);
+    });
+
+    it('preserves rhythmicGrouping and chord identity fields on the merged bodies', () => {
+        const treble = { ...melody, rhythmicGrouping: [3] };
+        const chords = {
+            notes:     [['G3', 'B3'], ['C4', 'E4'], ['D4', 'F4']],
+            offsets:   [0,            108,          288],
+            durations: [108,          180,          36],
+            type: 'modal-random', complexity: 'triad', modality: 'modal',
+        };
+        const merged = buildMergedRenderMelodies({ treble, chordProgression: chords }, measureLen);
+        expect(merged.treble.rhythmicGrouping).toEqual([3]);
+        // chord straddler kept + rebased; identity fields carried for the label renderer.
+        expect(merged.chordProgression.offsets).toEqual([0, 72, 252]);
+        expect(merged.chordProgression.type).toBe('modal-random');
+        expect(merged.chordProgression.complexity).toBe('triad');
+        expect(merged.chordProgression.modality).toBe('modal');
+    });
+
+    it('is a no-op (returns null) for a melody with no anacrusis', () => {
+        const noPickup = { notes: ['C4', 'D4'], offsets: [0, 36], durations: [36, 36] };
+        expect(buildMergedRenderMelodies({ treble: noPickup }, measureLen)).toBeNull();
+        // also null when there is no treble at all.
+        expect(buildMergedRenderMelodies({}, measureLen)).toBeNull();
     });
 });

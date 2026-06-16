@@ -93,3 +93,87 @@ export const buildAnacrusisRepeatParts = (melody, measureLen) => {
 
     return { hasAnacrusis, intro, loopClean, loopMerged, bodyMeasures };
 };
+
+/**
+ * Shared anacrusis predicate (single source of truth — see §34/§40). A melody has a leading
+ * anacrusis when its first note onset sits strictly inside measure 0 (after the downbeat, before
+ * the bar end). App.jsx (label suppression) and the Sequencer/render merge both consume THIS so
+ * the two cannot disagree about whether a melody is a pickup song.
+ *
+ * @param {object} melody { offsets }
+ * @param {number} measureLen ticks per measure
+ * @returns {boolean}
+ */
+export const hasAnacrusis = (melody, measureLen) => {
+    const first = melody?.offsets?.[0];
+    return first != null && first > 0 && first < measureLen;
+};
+
+/**
+ * Build the BODY-MERGED render representation of a loaded song for LOOPING playback (repeat /
+ * continuous-first-series). This is the renderer's counterpart to the Sequencer's body-merge
+ * (Sequencer.start) — both consume the SAME pure core `buildAnacrusisRepeatParts`, so the sheet
+ * shows EXACTLY the bars the scheduler loops (pickup relocated to the end of the last body bar,
+ * body = `bodyMeasures` bars). That agreement is what fixes the one-measure highlight lag and makes
+ * the next-loop pickup visible (arch §40 render-merge).
+ *
+ * Gating mirrors the Sequencer: the merge applies ONLY when the TREBLE carries a real anacrusis.
+ * For a melody with no pickup this is a NO-OP — returns null so the caller falls back to the
+ * original padded melodies (once-mode, stopped, and regenerated continuous rounds are all unaffected).
+ *
+ * NOTE: this returns plain melody-like objects for RENDERING only (offsets/durations/notes plus the
+ * parallel arrays SheetMusic reads). It does NOT wrap in `Melody` or rebase `fermatas` — that extra
+ * wiring lives in the Sequencer's audio path, which has different needs (intro lead-in, metronome
+ * sync). The merge MATH is identical because both go through `buildAnacrusisRepeatParts`.
+ *
+ * @param {{treble?:object,bass?:object,percussion?:object,chordProgression?:object}} melodies
+ * @param {number} measureLen ticks per measure
+ * @returns {null | {bodyMeasures:number, treble:object|null, bass:object|null, percussion:object|null, chordProgression:object|null}}
+ */
+export const buildMergedRenderMelodies = (melodies, measureLen) => {
+    const treble = melodies?.treble;
+    // Gate on the SONG's treble exactly like the Sequencer (arch §40): the body-merge only happens
+    // for a genuine pickup song. No anacrusis → null → caller renders the original padded melody.
+    if (!hasAnacrusis(treble, measureLen)) return null;
+
+    const trebleParts = buildAnacrusisRepeatParts(treble, measureLen);
+    if (!trebleParts.hasAnacrusis || trebleParts.bodyMeasures == null) return null;
+
+    // Convert one util body-part (plain object, offsets already rebased to 0 + pickup merged into the
+    // last bar) into the render melody. Carry rhythmicGrouping so beaming/grouping survives; the
+    // parallel arrays (ties/triplets/lyrics/displayNotes) already travel inside the part via build().
+    const toRenderBody = (orig, part) => {
+        if (!part) return null;
+        const body = { ...part };
+        if (orig?.rhythmicGrouping) body.rhythmicGrouping = orig.rhythmicGrouping;
+        return body;
+    };
+
+    // Every track gets the SAME parts: a chord/bass track that merely straddles m0 (no leading rest
+    // of its own → hasAnacrusis=false, loopMerged===loopClean) still needs the bar-0 removal + rebase
+    // so it stays aligned with the shortened body the treble defines.
+    const partFor = (m) => (m?.offsets?.length ? buildAnacrusisRepeatParts(m, measureLen) : null);
+    const bassParts = partFor(melodies?.bass);
+    const percParts = partFor(melodies?.percussion);
+    const chordParts = partFor(melodies?.chordProgression);
+
+    let chordProgression = null;
+    if (chordParts && melodies?.chordProgression?.notes) {
+        const cBody = toRenderBody(melodies.chordProgression, chordParts.loopMerged);
+        if (cBody) {
+            // Preserve chord-progression identity fields the label renderer reads.
+            cBody.type = melodies.chordProgression.type;
+            cBody.complexity = melodies.chordProgression.complexity;
+            cBody.modality = melodies.chordProgression.modality;
+            chordProgression = cBody;
+        }
+    }
+
+    return {
+        bodyMeasures: trebleParts.bodyMeasures,
+        treble: toRenderBody(treble, trebleParts.loopMerged),
+        bass: bassParts ? toRenderBody(melodies.bass, bassParts.loopMerged) : null,
+        percussion: percParts ? toRenderBody(melodies.percussion, percParts.loopMerged) : null,
+        chordProgression,
+    };
+};

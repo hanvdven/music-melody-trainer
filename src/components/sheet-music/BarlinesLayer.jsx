@@ -54,6 +54,13 @@ const iterMeasureLines = ({
   // of that pickup measure here so its number label is suppressed in the
   // pickup-measure convention. null = no anacrusis to hide.
   anacrusisMeasureIndex = null,
+  // Looping body-merge (arch §40): when non-null the rendered melody is the merged BODY of a pickup
+  // song (pickup relocated to the end of the last body bar; this is the bar count of that body, e.g.
+  // 8 for HBD). There is NO separate pickup measure on screen, so the pickup-measure conventions
+  // (label suppression + the -1 number shift) must be DISABLED, and the repeat-pass suffix must be
+  // computed from THIS body count, not the padded numMeasures. null = not merging → original
+  // anacrusis-aware behaviour below is unchanged.
+  mergedBodyMeasures = null,
 }) => {
   // bmsOverride / bpsOverride: pagination crossfade overlay passes the FUTURE
   // blockMeasureStart and blockPlayStart so the preview's measure-number labels
@@ -104,19 +111,26 @@ const iterMeasureLines = ({
       const isStart = index === (numRepeats > 1 ? 1 : 0);
       const isEnd = index === lastIdx;
 
-      // R = how many times the current block has been played in this session.
+      // R = how many times the current block has been played in this session (= the repeat pass).
       // Only shown during active playback (isPlaying=true). Resets per block via blockPlayStart.
+      // Pass count divides by the LENGTH OF THE LOOPED UNIT. When the merged body is rendered the
+      // looped unit is bodyMeasures (e.g. 8 for HBD) — the Sequencer advances globalMeasureIndex by
+      // bodyMeasures per pass — NOT the padded numMeasures (9), so dividing by numMeasures would
+      // mis-count the pass (arch §40 numbering). Fall back to numMeasures when not merging.
+      const passSpan = mergedBodyMeasures != null ? mergedBodyMeasures : numMeasures;
       const repeatNum = isPlaying
-        ? Math.max(1, Math.floor((startIdx - bps) / numMeasures) + 1)
+        ? Math.max(1, Math.floor((startIdx - bps) / passSpan) + 1)
         : 1;
-      // Returns "N" (first play) or "N . R" (repeat R, R≥2) where N = song measure number.
-      // Anacrusis offset (Han 2026-05-29): when the song has a pickup measure,
-      // the pickup is m0 (suppressed below) and the FIRST FULL measure should
-      // be labeled "1", not "2". Subtract 1 from N for all labels when an
-      // anacrusis is present in this displayed sequence block (= bms-1 matches
-      // the anacrusis index). This shifts the entire numbering down by one so
-      // m1 reads "1", m2 reads "2", etc.
-      const hasAnacrusisInBlock = anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
+      // Returns "N" (first pass) or "N . R" (pass R, R≥2) where N = song measure number. The suffix
+      // is suppressed for pass 1 (plain numbers on the first play-through).
+      //
+      // Anacrusis offset (Han 2026-05-29): when a pickup MEASURE is on screen (NOT the merged body),
+      // the pickup is m0 (suppressed below) and the FIRST FULL measure should be labeled "1", not
+      // "2". Subtract 1 from N for all labels when an anacrusis is present in this displayed block.
+      // With the merged body there is no pickup measure (it was relocated into the last bar), so this
+      // shift must NOT fire — the first rendered bar IS measure 1 (Han 2026-06-15).
+      const hasAnacrusisInBlock = mergedBodyMeasures == null
+        && anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
       const measureLabel = (localIndex) => {
         const N = bms + localIndex - (hasAnacrusisInBlock ? 1 : 0);
         return repeatNum > 1 ? `${N} . ${repeatNum}` : `${N}`;
@@ -132,7 +146,8 @@ const iterMeasureLines = ({
             // bms is 1-indexed (e.g. 1 for the first measure of the song); anacrusisMeasureIndex
 // is 0-indexed (= the global measureIndex of the song's pickup), so we compare with
 // (bms - 1). For HBD song-load: bms=1, anacrusisMeasureIndex=0 → match → suppress.
-const isAnacrusisStart = anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
+// mergedBodyMeasures != null → the merged body is on screen (no pickup measure), so never suppress.
+const isAnacrusisStart = mergedBodyMeasures == null && anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
             return (
               <g key={`measure-line-${index}`}
                 onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx); } : undefined}
@@ -205,7 +220,8 @@ const isAnacrusisStart = anacrusisMeasureIndex !== null && (bms - 1) === anacrus
         // bms is 1-indexed (e.g. 1 for the first measure of the song); anacrusisMeasureIndex
 // is 0-indexed (= the global measureIndex of the song's pickup), so we compare with
 // (bms - 1). For HBD song-load: bms=1, anacrusisMeasureIndex=0 → match → suppress.
-const isAnacrusisStart = anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
+// mergedBodyMeasures != null → the merged body is on screen (no pickup measure), so never suppress.
+const isAnacrusisStart = mergedBodyMeasures == null && anacrusisMeasureIndex !== null && (bms - 1) === anacrusisMeasureIndex;
         return (
           <g key={`measure-line-${index}`}
             onClick={onMeasureNumberClick ? (e) => { e.stopPropagation(); onMeasureNumberClick(startIdx + measureNumForLabel); } : undefined}

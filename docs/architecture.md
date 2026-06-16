@@ -3068,3 +3068,54 @@ Phase 3 = pagination polish for the leading-pickup bar on the first pass.
 
 **Files.** `src/utils/anacrusisRepeat.js`, `src/utils/__tests__/anacrusisRepeat.test.js`. (Phase 2
 will add: `src/songs/loadSong.js`, `src/App.jsx`, `src/audio/Sequencer.js`.)
+
+### 40a. Unified render/loop representation — the sheet renders what the Sequencer loops (Han 2026-06-15)
+
+**Purpose / Symptom.** During looping playback of a pickup song the AUDIO + HIGHLIGHT used the
+BODY-MERGED melody (pickup lifted out of m0 and appended to the end of the last body bar; body =
+`bodyMeasures` bars, rebased to 0) while the RENDER drew the ORIGINAL padded melody (pickup still at
+m0, full `numMeasures` bars). The two representations disagreed by exactly one bar: the highlight
+schedule keyed measure indices off the 8-bar merged body while the sheet drew the 9-bar padded
+melody, so every body note's active-highlight resolved ONE MEASURE BELOW where it was drawn (the
+note-highlight trailed the audio by a measure), and the pickup that leads into the next loop was
+never visible.
+
+**How it works.** The renderer now obtains the SAME merged body the Sequencer loops, so the two
+always agree (that agreement is the whole fix):
+
+- **Single merge source.** `buildAnacrusisRepeatParts(track, measureLen)` is the only place the
+  pickup→last-bar merge math lives. Both the Sequencer (`Sequencer.start`) and the render helper
+  `buildMergedRenderMelodies(melodies, measureLen)` (anacrusisRepeat.js) consume it — no parallel
+  merge implementation.
+- **Render wiring (App.jsx).** When `isPlaying && headerPlayMode !== 'once'` (= LOOPING: repeat OR
+  continuous) and the treble has a real anacrusis, App computes `mergedRenderMelodies` and feeds the
+  merged bodies into `MelodyProvider`. `SheetMusic` renders whatever the melody context gives it, so
+  it shows the merged body automatically. When stopped / in once-mode the memo is null and the
+  ORIGINAL padded melodies render unchanged. For a non-pickup melody the helper returns null (no-op),
+  so continuous rounds AFTER series 1 (regenerated, no pickup) are untouched.
+- **Gating parity (Sequencer.js).** The Sequencer's anacrusis block is gated on `!once &&
+  hasAnacrusis(treble, ml)` (was `repeatForever`-only), so continuous mode no longer replays a dead
+  m0 on its first (loaded) series. The render gate (`isPlaying && headerPlayMode !== 'once' &&
+  hasAnacrusis`) mirrors it, so the schedule and the sheet are always the same representation.
+- **Numbering (BarlinesLayer.jsx).** A new `mergedBodyMeasures` prop signals "the merged body is on
+  screen — there is NO separate pickup measure." When set: (1) the pickup-measure label suppression
+  and the `-1` number shift are DISABLED (the first rendered bar IS measure 1), and (2) the
+  repeat-pass suffix divides `(startIdx - blockPlayStart)` by `mergedBodyMeasures` (the looped unit
+  the Sequencer advances `globalMeasureIndex` by each pass), NOT the padded `numMeasures`. Pass 1
+  shows plain numbers `1..N`; passes ≥2 append ` . R`.
+- **Unified detection (item 4).** App's `anacrusisMeasureIndex` and both merge gates consume the one
+  shared `hasAnacrusis(melody, measureLen)` predicate — no two independent detections that can drift.
+
+**Invariants.** (1) The renderer and the highlight schedule MUST be gated identically so they always
+view the same representation — that equality is what keeps the highlight on the right bar. (2) No
+song/string-literal special-casing: everything is data-driven through `buildAnacrusisRepeatParts` /
+`hasAnacrusis` and works for any meter and any pickup song; a no-pickup melody is a strict no-op.
+(3) The merge math has a single home (`buildAnacrusisRepeatParts`); the render helper and the
+Sequencer only differ in wrapping (the audio path wraps in `Melody`, rebases `fermatas`, and builds
+the one-time intro; the render path returns plain melody-like objects for SheetMusic).
+
+**Files.** `src/utils/anacrusisRepeat.js` (`buildMergedRenderMelodies`, `hasAnacrusis`), `src/App.jsx`
+(merged-body memo + MelodyProvider wiring + unified detection), `src/audio/Sequencer.js` (gate
+relaxed to `!once`, shared `hasAnacrusis`), `src/components/sheet-music/SheetMusic.jsx`
+(`mergedBodyMeasures` prop threaded to BarlinesLayer), `src/components/sheet-music/BarlinesLayer.jsx`
+(merged-body numbering), `src/utils/__tests__/anacrusisRepeat.test.js`.

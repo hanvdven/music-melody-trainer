@@ -168,6 +168,11 @@ const SheetMusic = ({
   // pickup measure, or null if no song with anacrusis is loaded. BarlinesLayer
   // uses this to suppress the number label on that one measure.
   anacrusisMeasureIndex = null,
+  // Looping body-merge (arch §40): when the sheet is rendering the merged BODY (pickup relocated to
+  // the end of the last body bar) during repeat/continuous playback, this is the body's measure count
+  // (e.g. 8 for HBD). BarlinesLayer uses it to number plainly (no pickup measure) and to compute the
+  // repeat-pass suffix from bodyMeasures rather than the padded numMeasures. null when not merging.
+  mergedBodyMeasures = null,
   numRepeats,
   onNumRepeatsChange,
   numAccidentals,
@@ -2372,6 +2377,7 @@ const SheetMusic = ({
                         measureLengthSlots={measureLengthSlots}
                         onMeasureNumberClick={onMeasureNumberClick}
                         anacrusisMeasureIndex={anacrusisMeasureIndex}
+                        mergedBodyMeasures={mergedBodyMeasures}
                       />
                     </g>
 
@@ -2653,6 +2659,7 @@ const SheetMusic = ({
                               measureLengthSlots={measureLengthSlots}
                               onMeasureNumberClick={onMeasureNumberClick}
                               anacrusisMeasureIndex={anacrusisMeasureIndex}
+                              mergedBodyMeasures={mergedBodyMeasures}
                             />
                           </g>
                       </>);
@@ -2861,6 +2868,7 @@ const SheetMusic = ({
                       measureLengthSlots={measureLengthSlots}
                       onMeasureNumberClick={onMeasureNumberClick}
                       anacrusisMeasureIndex={anacrusisMeasureIndex}
+                      mergedBodyMeasures={mergedBodyMeasures}
                     />
                   )}
 

@@ -7,6 +7,11 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-15 (night) — Small CRs (Han, parallel to core anacrusis refactor)
+- 🔨 EASY percussion: replace hi-hat `hh` (beats 2&3) with snare RIM CLICK `sr`. (happyBirthday.json)
+- 🔨 HBD EASY: add a C chord in measure 5. (happyBirthday.json easy chords)
+- 🔨 Chord slash: lower by 2 units (CHORD_ROOT_Y−10 → −8). (ChordLabelsLayer.jsx)
+
 ## 2026-06-15 (eve) — Item 2: playback & repeat behaviour (Han, interview done)
 Mostly VISUAL bugs + metronome/fermata sync. Han directive: STOP any HBD/repeat-specific
 hardcoding; analyse the NORMAL-melody render/repeat logic and REUSE it (consistency, §6c).
