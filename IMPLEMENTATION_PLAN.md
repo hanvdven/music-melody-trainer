@@ -41,6 +41,14 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
     carousel (outer-wrap to keep scale) + name carousel, range preset brackets + 8va group. Untagged
     the "=" / "concert C₄ =" labels (→ delayed fade). Colour heads already slide; labels delayed-fade.
   Docs: architecture.md "Universal 1.5s transition" + Ottava entry. 261 tests green, build clean.
+  - ✅ CR2 (Han 2026-06-16): transposition menu presets + "concert C₄" label followed OLD logic
+    (the clef-variant-enter CSS slide-from-left+fade), inconsistent with the sliding carousels.
+    Root cause: the whole setter was one `clef-variant-cards clef-variant-enter data-fly` block, so
+    collectFadeEls skipped its children + the nested data-fly conflicted. Fix: made the setter
+    wrapper a PLAIN container (drop clef-variant-enter + block data-fly) ONLY for the transposition
+    branch — now carousels/heads slide, presets + "=" / "concert C₄ =" labels delayed-fade.
+    Family-switch entrance covered by useClefRefly. Also removed the redundant top-right "(X inst)"
+    label (covered by the clef-left transposition label). ClefStaffOverlay.jsx + TranspositionSetter.jsx.
 - ⏳ Coloring: add 'scale' mode (scale notes normal, non-scale "blue notes" grayish-blue) everywhere
   incl keyboard — route via melodicNoteColor (§6c) — quick interview.
 (All recorded verbatim in BACKLOG.md per §1b.)

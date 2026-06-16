@@ -2606,11 +2606,20 @@ slide: noteheads, beams, chord labels, the ottava+bracket group, **lyrics** (sol
 rows, inside `.notes-transition`), the transposition setter's **notehead carousel** (a `data-fly`
 OUTER wrapper so the slide doesn't clobber the inner shrink-with-distance scale), its **name
 carousel** + **fixed C4 anchor head**, and the range setter's **preset brackets** + **8va group**.
-Left to delayed-fade (text/chrome): the **"=" / "concert C₄ ="** labels, the colour-scheme **name
-labels** + dividers. Phase 4: the melody **ottava marker** also slides in on a value change (see its
-entry above). When tagging a new element that already has a transform attribute (e.g. a scaled
-head), wrap it in an OUTER `data-fly` `<g>` so the cascade's translateX composes instead of
-overwriting.
+Left to delayed-fade (text/chrome): the **"=" / "concert C₄ ="** labels, the transposition **preset
+quick-picks**, the colour-scheme **name labels** + dividers. Phase 4: the melody **ottava marker**
+also slides in on a value change (see its entry above). When tagging a new element that already has a
+transform attribute (e.g. a scaled head), wrap it in an OUTER `data-fly` `<g>` so the cascade's
+translateX composes instead of overwriting.
+
+**Gotcha (Han 2026-06-16):** the transposition setter used to be wrapped in a SINGLE
+`clef-variant-cards clef-variant-enter` `data-fly` block (shared with the clef-variant cards). That
+made the whole setter slide-from-left + fade as one unit (a `clefVariantEnter` CSS keyframe), which
+(a) `collectFadeEls` skipped, so its presets/labels rode the old CSS animation, and (b) conflicted
+with the per-element `data-fly` tags nested inside. The setter's wrapper is now a PLAIN container so
+its own children animate individually; family-switch entrance is covered by `useClefRefly` re-flying
+the clef row. The clef-VARIANT-CARDS branch keeps the block wrapper. The redundant top-right
+"(X inst)" label was also removed — the transposition label at the clef (left) already shows it.
 
 *Invariants:* one tween implementation (`flyInCascade`); the runner subscribes ONLY to the trigger
 states, so manual melody (re)generation — which goes through the round/regen path — never starts it.

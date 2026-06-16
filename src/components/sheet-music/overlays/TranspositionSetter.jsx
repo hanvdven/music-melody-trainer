@@ -39,15 +39,6 @@ const LABEL_FONT = "Georgia, 'Times New Roman', serif";
 const LABEL_SIZE = 18;   // size for "=", "C4 =" and the active carousel name (Han 2026-06-09: 16→18)
 const PRESET_FONT = 13;  // preset label size (Han 2026-06-09: 11→13, bigger)
 
-// "(X inst)" label at the TOP-RIGHT of the staff (Han 2026-06-09 — was under each clef, wrong
-// position). Even for C it reads "(C inst)" so the staves stay consistent.
-const InstLabel = ({ label, endX, staffStart, color }) => (
-    <text x={endX - 4} y={staffStart - 5} fontSize={11} fontFamily={LABEL_FONT}
-        textAnchor="end" fill={color} style={{ pointerEvents: 'none' }}>
-        ({label})
-    </text>
-);
-
 // Scientific-pitch note label with the octave digit as a SUBSCRIPT (Han 2026-06-09 #3),
 // e.g. C₄ / D♭₅. Used by both the name carousel and the quick-picks so they read consistently.
 const NoteLabel = ({ name, x, y, size = LABEL_SIZE, fill, opacity = 1, anchor = 'middle' }) => {
@@ -106,7 +97,6 @@ const TranspositionSetter = ({
     staff, clef, staffStart, startX, endX,
     transSemitones = 0,           // current concert→written offset
     onSelectTrans,                // (newTrans) => void — parent maps to key + clamps
-    instLabel = 'C inst',         // transposing-instrument display label (getTranspositionDisplay)
     noteColoringMode = 'off',     // colouring context — active/reference heads colour as concert C4
     tonic = 'C', scaleNotes = [], theme = 'dark',
     activeChord = null,           // paused active chord (last-if-tonic-else-first) for chord colour
@@ -402,8 +392,8 @@ const TranspositionSetter = ({
                 {hits}
             </g>
 
-            {/* "(X inst)" at the staff's top-right corner (outside the clip so it always shows). */}
-            <InstLabel label={instLabel} endX={endX} staffStart={staffStart} color={low} />
+            {/* The top-right "(X inst)" label was removed (Han 2026-06-16): redundant with the
+                transposition label on the LEFT at the clef (SheetMusic.jsx). */}
 
             {debugMode && (
                 <rect x={startX} y={bandTop} width={W} height={bandH}
