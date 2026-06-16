@@ -29,9 +29,12 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
     (sheet toggles via display:none, not unmount). Setter-overlay trigger (#3) already handled by
     useRangeMorph. NOTE: song-TIER difficulty (SongsTab) already loads-a-new-song → already fires
     via Phase 1; the global difficultyLevel slider (Phase 2a) re-flies current notes.
-  - ⏳ Phase 3: tag lyrics + "concert C=" labels + setter notes with data-fly (verify they live
-    INSIDE `.notes-transition` or extend the runner's query). Pure additive.
-  - ⏳ Phase 4: ottava/8va SLIDE from right (currently OttavaMarker crossfades), fade fallback.
+  - ✅ Phase 3: tagged lyrics (solfège/text/rhythmic rows — all inside `.notes-transition`) +
+    TranspositionSetter "=" / "concert C₄ =" labels + fixed C4 anchor head with data-fly. Dynamic
+    carousel heads left to fade (own scale transform + selection tween — avoid fly conflict).
+  - ✅ Phase 4: OttavaMarker NEW marker SLIDES in from right (SLIDE_IN px, easeInOut) during its
+    fade-in; OLD fades in place; fade fallback on removal. style.transform via rAF (§6), cleared.
+  Docs: architecture.md "Universal 1.5s transition" section + updated Ottava entry.
 - ⏳ Coloring: add 'scale' mode (scale notes normal, non-scale "blue notes" grayish-blue) everywhere
   incl keyboard — route via melodicNoteColor (§6c) — quick interview.
 (All recorded verbatim in BACKLOG.md per §1b.)

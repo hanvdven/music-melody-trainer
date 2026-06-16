@@ -360,13 +360,19 @@ const TranspositionSetter = ({
                     surface over the names). The head is the concert C-instrument anchor: it never
                     transposes and ignores any octave clef, sitting permanently 1 ledger off the
                     BASE staff. No clef glyph (Han 2026-06-09 "haal de sleutels weg"). */}
+                {/* data-fly: the stable anchor head + labels stream in from the right with the
+                    notes when the setter overlay opens (Han 2026-06-16 Phase 3). The dynamic
+                    carousel heads already carry their own scale transform + selection tween, so
+                    they're left to fade with the group rather than fight the fly transform. */}
                 {fixedC4Y != null && (
-                    <StaffQuarterNote x={fixedNoteX} positionY={fixedC4Y} staffYStart={staffStart}
-                        ledgerYs={ledgerYs(fixedC4Y, staffStart)} color={fixedColor} />
+                    <g data-fly="">
+                        <StaffQuarterNote x={fixedNoteX} positionY={fixedC4Y} staffYStart={staffStart}
+                            ledgerYs={ledgerYs(fixedC4Y, staffStart)} color={fixedColor} />
+                    </g>
                 )}
                 {/* "=" sits at the same height as the fixed C4 note (Han 2026-06-09). */}
                 <text x={leftLabelX} y={(fixedC4Y ?? midY) + 5} fontSize={LABEL_SIZE} fontFamily={LABEL_FONT}
-                    textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
+                    data-fly="" textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
                     =
                 </text>
                 <rect x={nameX - W * 0.06} y={bandTop} width={W * 0.12} height={bandH}
@@ -377,7 +383,7 @@ const TranspositionSetter = ({
 
                 {/* RIGHT notehead carousel — "C4 =" label, drag surface, curve + heads (no clef) */}
                 <text x={rightLabelX} y={midY + 6} fontSize={LABEL_SIZE} fontFamily={LABEL_FONT}
-                    textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
+                    data-fly="" textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
                     concert C<tspan fontSize={Math.round(LABEL_SIZE * 0.7)} dy={LABEL_SIZE * 0.22}>4</tspan>
                     <tspan dy={-LABEL_SIZE * 0.22}> =</tspan>
                 </text>

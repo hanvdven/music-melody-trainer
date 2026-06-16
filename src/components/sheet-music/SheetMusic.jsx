@@ -1505,7 +1505,7 @@ const SheetMusic = ({
       if (isTieContinuation) {
         const fill = getLyricFill(note, tickOffset, false);
         return (
-          <text key={`lyric-${i}`} x={x} y={lyricsY} textAnchor="middle"
+          <text key={`lyric-${i}`} x={x} y={lyricsY} textAnchor="middle" data-fly=""
             fontSize={LYRIC_FONT_SIZE} fontFamily="serif" fill={fill} opacity={0.45}>
             {'—'}
           </text>
@@ -1519,7 +1519,7 @@ const SheetMusic = ({
       const spacing = fontSize + 1;
 
       return (
-        <g key={`lyric-${i}`} style={{ cursor: 'pointer' }}
+        <g key={`lyric-${i}`} data-fly="" style={{ cursor: 'pointer' }}
           onClick={(e) => { e.stopPropagation(); if (onNoteClick) onNoteClick(chordNotes, 'treble'); }}>
           <rect x={x - 14} y={lyricsY - spacing * chordNotes.length} width={28} height={spacing * chordNotes.length + 4} fill="transparent" />
           {chordNotes.map((singleNote, ni) => {
@@ -1592,6 +1592,7 @@ const SheetMusic = ({
       return (
         <text
           key={`tlyric-${i}`}
+          data-fly=""
           x={x} y={lyricsY}
           textAnchor="middle"
           fontSize={FONT_SIZE}
@@ -1669,7 +1670,7 @@ const SheetMusic = ({
 
       const percNotes = Array.isArray(note) ? note : [note];
       return (
-        <g key={`rlyric-${i}`} style={{ cursor: 'pointer' }}
+        <g key={`rlyric-${i}`} data-fly="" style={{ cursor: 'pointer' }}
           onClick={(e) => { e.stopPropagation(); if (onNoteClick) onNoteClick(percNotes, 'percussion'); }}>
           <rect x={x - 12} y={lyricsY - LYRIC_FONT_SIZE} width={24} height={LYRIC_FONT_SIZE + 6} fill="transparent" />
           <text
