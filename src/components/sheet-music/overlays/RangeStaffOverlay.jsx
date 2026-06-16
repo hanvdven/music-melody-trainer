@@ -800,7 +800,7 @@ const RangeStaffOverlay = ({
                         const lineY = markerY - 8;
                         const hookYEnd = (above ? markerY + 8 : markerY - 8) - 8;
                         return (
-                            <g key={`ott-${gi}`} style={{ pointerEvents: 'none' }}>
+                            <g key={`ott-${gi}`} data-fly="" style={{ pointerEvents: 'none' }}>
                                 <text x={g.x0} y={markerY} fontSize={30} fontFamily="Maestro"
                                     fill="var(--text-primary)">{OTTAVA_GLYPH[g.shift]}</text>
                                 {g.x1 > g.x0 && (
@@ -866,7 +866,7 @@ const RangeStaffOverlay = ({
                     // No text label (Han 2026-05-31 — text clashed with the UI-overhaul
                     // style); presets read as nested brackets, active one highlighted.
                     return (
-                        <g key={p.label}
+                        <g key={p.label} data-fly=""
                             style={{ cursor: onApplyMelodicPreset ? 'pointer' : 'default' }}
                             onClick={onApplyMelodicPreset ? () => onApplyMelodicPreset(staff, p) : undefined}>
                             {/* invisible wide hit target around the thin bracket */}

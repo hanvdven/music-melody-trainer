@@ -11,31 +11,35 @@ const buildSvg = () => {
   const newG = document.createElementNS(NS, 'g');
   const fly = document.createElementNS(NS, 'rect');
   fly.setAttribute('data-fly', '');
+  const label = document.createElementNS(NS, 'text'); // non-fly → delayed fade
   newG.appendChild(fly);
+  newG.appendChild(label);
   svg.appendChild(oldG);
   svg.appendChild(newG);
   document.body.appendChild(svg);
-  return { svg, oldG, newG, fly };
+  return { svg, oldG, newG, fly, label };
 };
 
 describe('runFlyInCascade', () => {
-  it('sets the pre-paint initial state: OLD opaque, NEW transparent, flyable offset right', () => {
-    const { svg, oldG, newG, fly } = buildSvg();
+  it('initial state: OLD opaque, NEW group opaque (container), fly shifted right, non-fly hidden', () => {
+    const { svg, oldG, newG, fly, label } = buildSvg();
     const cancel = runFlyInCascade(svg, { oldEls: [oldG], newEls: [newG], flyDist: 200 });
     expect(oldG.style.opacity).toBe('1');
-    expect(newG.style.opacity).toBe('0');
+    expect(newG.style.opacity).toBe('1'); // group is just a container now — never gates the notes
     expect(fly.style.transform).toBe('translateX(200px)'); // starts shifted right, slides to 0
+    expect(label.style.opacity).toBe('0'); // non-sliding element waits, then fades in
     cancel();
   });
 
   it('cancel() clears all inline styles so the scroll/wipe systems own them again', () => {
-    const { svg, oldG, newG, fly } = buildSvg();
+    const { svg, oldG, newG, fly, label } = buildSvg();
     const cancel = runFlyInCascade(svg, { oldEls: [oldG], newEls: [newG], flyDist: 120 });
     cancel();
     expect(oldG.style.opacity).toBe('');
     expect(newG.style.opacity).toBe('');
     expect(fly.style.transform).toBe('');
     expect(fly.style.willChange).toBe('');
+    expect(label.style.opacity).toBe('');
   });
 
   it('fires onDone once the cascade reaches MORPH_MS and resets styles', () => {

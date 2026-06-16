@@ -245,7 +245,8 @@ const TranspositionSetter = ({
         const size = Math.max(8, LABEL_SIZE - dist * 2.0);
         const op = Math.max(0.18, (isActive ? 1 : 0.8) - dist * 0.12);
         nameRows.push(
-            <g key={c}>
+            // data-fly: the name carousel is a SELECTOR carousel (Han wants it to slide, not fade).
+            <g key={c} data-fly="">
                 <NoteLabel name={nameOf(c)} x={nx} y={ry} size={size}
                     fill={isActive ? color : low} opacity={op} />
                 {!isActive && (
@@ -297,11 +298,15 @@ const TranspositionSetter = ({
         // effect), scaled about the head origin (x, y).
         const scale = Math.max(0.5, 1 - dist * 0.09);
         notes.push(
-            <g key={m} opacity={op}
-                transform={`translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`}>
-                <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
-                    accidental={acc} ledgerYs={showLedgers ? ledgerYs(y, staffStart) : []}
-                    color={fill} />
+            // data-fly on an OUTER wrapper so the cascade's translateX slides the head in without
+            // clobbering the inner scale transform (heads shrink with distance) — Han 2026-06-16.
+            <g key={m} data-fly="">
+                <g opacity={op}
+                    transform={`translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`}>
+                    <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
+                        accidental={acc} ledgerYs={showLedgers ? ledgerYs(y, staffStart) : []}
+                        color={fill} />
+                </g>
             </g>,
         );
         // Hit box centred on the notehead body (head origin x … x+12).
@@ -360,10 +365,9 @@ const TranspositionSetter = ({
                     surface over the names). The head is the concert C-instrument anchor: it never
                     transposes and ignores any octave clef, sitting permanently 1 ledger off the
                     BASE staff. No clef glyph (Han 2026-06-09 "haal de sleutels weg"). */}
-                {/* data-fly: the stable anchor head + labels stream in from the right with the
-                    notes when the setter overlay opens (Han 2026-06-16 Phase 3). The dynamic
-                    carousel heads already carry their own scale transform + selection tween, so
-                    they're left to fade with the group rather than fight the fly transform. */}
+                {/* data-fly: the fixed C4 anchor HEAD slides in with the notes (Han 2026-06-16).
+                    The "=" / "concert C₄ =" TEXT labels are NOT tagged → they do the cascade's
+                    delayed fade (wait 1 s, fade 0.5 s), per Han "slide notes, fade labels". */}
                 {fixedC4Y != null && (
                     <g data-fly="">
                         <StaffQuarterNote x={fixedNoteX} positionY={fixedC4Y} staffYStart={staffStart}
@@ -372,7 +376,7 @@ const TranspositionSetter = ({
                 )}
                 {/* "=" sits at the same height as the fixed C4 note (Han 2026-06-09). */}
                 <text x={leftLabelX} y={(fixedC4Y ?? midY) + 5} fontSize={LABEL_SIZE} fontFamily={LABEL_FONT}
-                    data-fly="" textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
+                    textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
                     =
                 </text>
                 <rect x={nameX - W * 0.06} y={bandTop} width={W * 0.12} height={bandH}
@@ -383,7 +387,7 @@ const TranspositionSetter = ({
 
                 {/* RIGHT notehead carousel — "C4 =" label, drag surface, curve + heads (no clef) */}
                 <text x={rightLabelX} y={midY + 6} fontSize={LABEL_SIZE} fontFamily={LABEL_FONT}
-                    data-fly="" textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
+                    textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
                     concert C<tspan fontSize={Math.round(LABEL_SIZE * 0.7)} dy={LABEL_SIZE * 0.22}>4</tspan>
                     <tspan dy={-LABEL_SIZE * 0.22}> =</tspan>
                 </text>
