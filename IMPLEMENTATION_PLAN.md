@@ -1177,3 +1177,15 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
    renderers (renderMelodyNotes, SheetMusic) + keyboard (PianoView routes through melodicNoteColor).
    Added to colour menu next to 'chords', and to SubHeader/RangeControls palette cycles (label SCALE).
    4 smoke tests added; 253 tests green; build clean. Documented in architecture.md §note-colouring.
+
+### Instrument selector in the sheet music (Han 2026-06-16)
+🔨 New in-staff INSTRUMENT setter (sibling of clef/range/colour). Per-staff (treble row →
+   treble instrument, bass row → bass). Horizontally-scrollable strip of instrument cards
+   (lucide icon + name) grouped by family, active centered, via reused ClefCardCarousel.
+   - NEW src/constants/instruments.js: grouped GM-slug list (extended +10), getInstrumentIcon,
+     flat INSTRUMENTS map (RangeControls imports it — single source of truth), ICON_ATTRIBUTION.
+   - NEW src/components/sheet-music/overlays/InstrumentStaffOverlay.jsx (data-fly cascade wrapper,
+     group-label separator cards, attribution line; placeholder lucide icons → icons8 swap TODO).
+   - PLUMB instrumentEditMode mirroring colorEditMode: App.jsx, SubHeader.jsx, SheetMusic.jsx,
+     useRangeMorph.js groupsForKind('instrument').
+   - onSelect → setTrebleSettings/setBassSettings({...,instrument}).
