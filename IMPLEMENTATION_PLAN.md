@@ -34,7 +34,13 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
     carousel heads left to fade (own scale transform + selection tween — avoid fly conflict).
   - ✅ Phase 4: OttavaMarker NEW marker SLIDES in from right (SLIDE_IN px, easeInOut) during its
     fade-in; OLD fades in place; fade fallback on removal. style.transform via rAF (§6), cleared.
-  Docs: architecture.md "Universal 1.5s transition" section + updated Ottava entry.
+  - ✅ CR (Han 2026-06-16): more elements must SLIDE not fade + fix fade timing. Decisions: GLOBAL
+    "wait 1s → fade 0.5s" for non-sliding elements; "slide notes, fade labels". Redesigned
+    flyInCascade: group no longer fades (would hide sliding notes); fly elements slide visible;
+    non-fly subtrees (collectFadeEls) do the delayed fade. Tagged data-fly: transposition notehead
+    carousel (outer-wrap to keep scale) + name carousel, range preset brackets + 8va group. Untagged
+    the "=" / "concert C₄ =" labels (→ delayed fade). Colour heads already slide; labels delayed-fade.
+  Docs: architecture.md "Universal 1.5s transition" + Ottava entry. 261 tests green, build clean.
 - ⏳ Coloring: add 'scale' mode (scale notes normal, non-scale "blue notes" grayish-blue) everywhere
   incl keyboard — route via melodicNoteColor (§6c) — quick interview.
 (All recorded verbatim in BACKLOG.md per §1b.)

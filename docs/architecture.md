@@ -2570,10 +2570,16 @@ changes all feel the same as opening a setter overlay.
 morph, so it was **extracted** rather than reinvented (§6c/§6d):
 
 - **`src/utils/flyInCascade.js` — `runFlyInCascade(svg, { oldEls, newEls, flyDist, onDone })`.**
-  The single source of truth for the tween: OLD groups fade out fast (`FADE_OUT_MS` 250), each
-  `[data-mel],[data-fly]` element in the NEW group flies `translateX(flyDist→0)` with a per-element
-  delay derived from its x (`STAGGER_MS` 500), each slide lasting `ELEM_MS` 1000 → `MORPH_MS`
-  1500 total. `easeInOut` smoothstep; `data-fly-from` overrides the start x. Opacity/transform via
+  The single source of truth for the tween. Timeline (Han 2026-06-16, `MORPH_MS` 1500 total):
+  OLD groups fade out fast (`FADE_OUT_MS` 250); each `[data-mel],[data-fly]` element in the NEW
+  group SLIDES `translateX(flyDist→0)`, staggered by x (`STAGGER_MS` 500, each slide `ELEM_MS`
+  1000) and stays fully opaque the whole slide (it enters from off-screen, so no fade); every
+  NON-sliding element (text labels, dividers, washes) does a DELAYED fade — it WAITS `FADE_DELAY_MS`
+  1000 then fades in over `FADE_DUR_MS` 500, landing with the last notes ("wait 1 s, then fade
+  0.5 s", Han). **The group opacity is NOT used to fade** — that would also hide the sliding notes
+  until 1 s; the group stays opaque (a container) and `collectFadeEls` walks it for the highest
+  non-fly subtrees to fade individually (fades a `<text>`+`<tspan>` as one unit, never partially).
+  `easeInOut` smoothstep; `data-fly-from` overrides the start x. Opacity/transform via
   `element.style` in the rAF only (§6); cleared on completion/cancel. **`useRangeMorph` and
   `useUniversalTransition` both call it** so the overlay morph and the universal transition can
   never drift apart. (Extraction also dropped a latent double-rAF that fired completion twice.)
@@ -2594,12 +2600,17 @@ TIER change already goes through `handleLoadSong`); (3) **setter overlays** — 
 `useRangeMorph` (which now shares the same tween); (4) **screen/tab change** — mount-guarded effect
 firing when `activeTab === 'sheet-music'` ("sheet only", Han), i.e. when you land on the sheet view.
 
-*Participating elements (Phase 3):* anything tagged `data-mel`/`data-fly` inside the animated group
-flies; untagged chrome just fades with the group. Already tagged: noteheads, beams, chord labels,
-the ottava+bracket group. Phase 3 added: **lyrics** (solfège, text, rhythmic rows — all inside
-`.notes-transition`) and the transposition setter's **"=" / "concert C₄ =" labels + fixed C4 anchor
-head** (its dynamic carousel heads keep their own scale transform + selection tween, so they fade
-rather than fight the fly transform). Phase 4: the **ottava marker slides** in (see its entry above).
+*Participating elements:* anything tagged `data-mel`/`data-fly` SLIDES; everything else does the
+delayed fade. The rule (Han 2026-06-16) is **slide the note-like things, fade the text**. Tagged to
+slide: noteheads, beams, chord labels, the ottava+bracket group, **lyrics** (solfège/text/rhythmic
+rows, inside `.notes-transition`), the transposition setter's **notehead carousel** (a `data-fly`
+OUTER wrapper so the slide doesn't clobber the inner shrink-with-distance scale), its **name
+carousel** + **fixed C4 anchor head**, and the range setter's **preset brackets** + **8va group**.
+Left to delayed-fade (text/chrome): the **"=" / "concert C₄ ="** labels, the colour-scheme **name
+labels** + dividers. Phase 4: the melody **ottava marker** also slides in on a value change (see its
+entry above). When tagging a new element that already has a transform attribute (e.g. a scaled
+head), wrap it in an OUTER `data-fly` `<g>` so the cascade's translateX composes instead of
+overwriting.
 
 *Invariants:* one tween implementation (`flyInCascade`); the runner subscribes ONLY to the trigger
 states, so manual melody (re)generation — which goes through the round/regen path — never starts it.

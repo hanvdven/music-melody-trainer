@@ -1,50 +1,62 @@
-// flyInCascade — the shared "fade OLD out, fly NEW in from the right (staggered by x)"
-// cascade tween. Extracted from useRangeMorph (Han 2026-06-16) so the overlay enter/exit
-// morph AND the universal app transition (song load / tab change / difficulty / overlay)
-// run the EXACT same choreography and constants — a single source of truth (§6c/§6d:
-// never duplicate magic numbers across two parallel implementations).
+// flyInCascade — the shared transition choreography. Extracted from useRangeMorph (Han
+// 2026-06-16) so the overlay enter/exit morph AND the universal app transition run the EXACT
+// same animation/constants — one source of truth (§6c/§6d: never duplicate magic numbers).
 //
-// To avoid a "massive block sliding in", each NOTE-like element flies in INDIVIDUALLY
-// with a slight per-element delay staggered by x (Han 2026-06-01): the leftmost element
-// starts at 0 s, the rightmost at STAGGER_MS, and each element's slide lasts ELEM_MS — so
-// the whole thing reads as notes streaming in. Non-note elements (clefs, staff lines,
-// barlines) just fade in with the group.
+// Timeline (Han 2026-06-16, total 1.5 s):
+//   0.00–0.25 s  OLD content fades out (fast).
+//   0.00–1.50 s  NEW note-like elements ([data-mel],[data-fly]) SLIDE in from the right,
+//                staggered by x (leftmost starts at 0, rightmost at STAGGER_MS; each slide
+//                lasts ELEM_MS). They are VISIBLE the whole slide — they enter from off-screen
+//                right, so no fade is needed.
+//   1.00–1.50 s  NEW non-sliding elements (text labels, dividers, washes — anything WITHOUT a
+//                data-fly/data-mel tag) WAIT, then fade in. This is the "fade fallback": it must
+//                arrive WITH the notes, not pop in immediately (Han: "wait 1 s, then fade 0.5 s").
 //
-// Total = STAGGER_MS + ELEM_MS = 1.5 s (rightmost begins at 0.5 s, animates 1 s).
+// WHY the group opacity is NOT used for the fade: the flying notes are children of the group, so
+// a delayed GROUP fade would also hide the notes until 1 s and break their slide. Instead the
+// group stays fully opaque (a container) and the delayed fade is applied to the individual
+// non-fly elements; the fly elements keep full opacity and just translate.
 //
-// Flyable elements are found via `[data-mel], [data-fly]` inside the new group (the real
-// melody marks notes/chords/barlines with data-mel; overlays mark their note/glyph
-// elements with data-fly). If none are found we fall back to sliding the whole group as
-// one block.
+// By default flyable elements slide in from the RIGHT (translateX flyDist → 0). An element may
+// carry `data-fly-from="<userSpaceX>"` to emerge from a specific x instead (clef variant chips).
 //
-// By default flyable elements slide in from the RIGHT (translateX flyDist → 0). An element
-// may instead carry `data-fly-from="<userSpaceX>"` to emerge from a specific x — the clef
-// variant chips use this so subtypes slide out from UNDER the clef on the left (Han
-// 2026-06-01 CR), rather than streaming in from the right.
-//
-// All opacity/transform is set via `element.style` in the rAF callback — never JSX props —
-// per §6. Inline styles are cleared at the end so the scroll/wipe systems own those
-// properties again afterwards.
+// All opacity/transform is set via `element.style` in the rAF callback — never JSX props (§6).
+// Inline styles are cleared at the end so the scroll/wipe systems own those properties again.
 export const MORPH_MS = 1500;
-const ELEM_MS = 1000;      // how long one element's slide lasts
-const STAGGER_MS = 500;    // delay between the first and last element starting
-const GROUP_FADE_MS = 700; // group fade-IN for the non-note elements
-const FADE_OUT_MS = 250;   // OLD group fade-OUT — very short (Han 2026-06-01 #5)
+const ELEM_MS = 1000;        // how long one note-like element's slide lasts
+const STAGGER_MS = 500;      // delay between the first and last sliding element starting
+const FADE_OUT_MS = 250;     // OLD content fade-OUT — very short (Han 2026-06-01 #5)
+const FADE_DELAY_MS = 1000;  // non-sliding elements WAIT this long before fading in (Han 2026-06-16)
+const FADE_DUR_MS = 500;     // ...then fade in over this (lands at MORPH_MS, with the last notes)
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
-// Subtle ease-in/ease-out so each element accelerates and decelerates rather than moving
-// at a constant rate (Han 2026-06-01 #4). smoothstep keeps it gentle.
+// Subtle ease-in/ease-out so motion accelerates and decelerates rather than moving at a constant
+// rate (Han 2026-06-01 #4). smoothstep keeps it gentle.
 const easeInOut = (t) => t * t * (3 - 2 * t);
 
-// Run ONE cascade. `oldEls` fade out (fast); `newEls` fly/fade in (staggered). Returns a
-// `cancel()` that stops the rAF and resets all inline styles — call it on interrupt so a
-// rapid re-trigger never leaves a group stuck (Han #8). `onDone` fires once on natural
-// completion (not on cancel).
+// Collect the HIGHEST non-fly subtrees of `group` — the elements that should do the delayed fade.
+// We descend only into containers that hold a fly element (so we never fade a notehead's wrapper);
+// any element with no fly descendant is faded WHOLE (so a <text> with <tspan> children fades as one
+// unit, never partially). This avoids both partial fades and double-dimming nested elements.
+const collectFadeEls = (group, out) => {
+  for (const child of group.children) {
+    if (child.matches?.('[data-fly], [data-mel]')) continue;      // fly subtree → it slides, skip
+    if (child.querySelector?.('[data-fly], [data-mel]')) {
+      collectFadeEls(child, out);                                 // mixed → recurse into it
+    } else {
+      out.push(child);                                            // pure non-fly → fade as a unit
+    }
+  }
+};
+
+// Run ONE cascade. Returns a `cancel()` that stops the rAF and resets all inline styles — call it
+// on interrupt so a rapid re-trigger never leaves anything stuck (Han #8). `onDone` fires once on
+// natural completion (not on cancel).
 export function runFlyInCascade(svg, { oldEls = [], newEls = [], flyDist, onDone } = {}) {
   if (!svg) { onDone?.(); return () => {}; }
 
-  // Collect the individually-flying note elements across the new group(s) and give each a
-  // start delay from its x (leftmost first). getBBox().x is in user space.
+  // Sliding elements across the new group(s): each delayed by its x (leftmost first). getBBox().x
+  // is in user space.
   const flyEls = newEls.flatMap(g => Array.from(g.querySelectorAll('[data-mel], [data-fly]')));
   let minX = Infinity, maxX = -Infinity;
   const xs = new Map();
@@ -58,67 +70,60 @@ export function runFlyInCascade(svg, { oldEls = [], newEls = [], flyDist, onDone
   const span = maxX - minX || 1;
   const delayOf = (el) => ((xs.get(el) - minX) / span) * STAGGER_MS;
 
-  // Per-element initial translateX. Default = flyDist (slide in from the RIGHT). An element
-  // carrying `data-fly-from="<x>"` instead emerges FROM that user-space x — used by the clef
-  // variant chips so the subtypes appear to slide out from UNDER the clef on the left (Han
-  // 2026-06-01 CR): each chip starts at the clef anchor (x left of itself ⇒ negative offset)
-  // and slides right to its slot.
+  // Per-element initial translateX. Default = flyDist (slide in from the RIGHT). `data-fly-from`
+  // overrides the start x (clef variant chips emerge from under the clef on the left).
   const startOf = new Map();
   for (const el of flyEls) {
     const fromAttr = el.getAttribute('data-fly-from');
     startOf.set(el, fromAttr != null ? (parseFloat(fromAttr) - (xs.get(el) ?? 0)) : flyDist);
   }
 
-  // Initial state, set before paint so there's no flash.
+  // Non-sliding elements that do the delayed fade.
+  const fadeEls = [];
+  for (const g of newEls) collectFadeEls(g, fadeEls);
+
+  // Initial state, set before paint so there's no flash. The group is a fully-opaque container;
+  // fly elements start shifted off to the right (visible once they slide in); fade elements start
+  // invisible (they wait).
   for (const el of oldEls) { el.style.opacity = '1'; el.style.transform = 'none'; }
-  for (const el of newEls) { el.style.opacity = '0'; el.style.transform = 'none'; }
-  if (flyEls.length) {
-    for (const el of flyEls) { el.style.transform = `translateX(${startOf.get(el)}px)`; el.style.willChange = 'transform'; }
-  } else {
-    // Fallback: no per-note elements → slide each new group as one block.
-    for (const el of newEls) el.style.transform = `translateX(${flyDist}px)`;
-  }
+  for (const el of newEls) { el.style.opacity = '1'; el.style.transform = 'none'; }
+  for (const el of flyEls) { el.style.transform = `translateX(${startOf.get(el)}px)`; el.style.willChange = 'transform'; }
+  for (const el of fadeEls) el.style.opacity = '0';
 
   let rafId = null;
-  // Hand the inline props back; called on completion AND interrupt so a rapid re-toggle
-  // never leaves a group stuck (Han #8).
   const resetStyles = () => {
     for (const el of oldEls) { el.style.opacity = ''; el.style.transform = ''; }
     for (const el of newEls) { el.style.opacity = ''; el.style.transform = ''; }
     for (const el of flyEls) { el.style.transform = ''; el.style.willChange = ''; }
+    for (const el of fadeEls) el.style.opacity = '';
   };
 
   const t0 = performance.now();
   const frame = (now) => {
     const t = now - t0;
     const p = Math.min(1, t / MORPH_MS);
-    // OLD fades out FAST (FADE_OUT_MS); NEW group(s) fade in over GROUP_FADE_MS.
+    // OLD fades out fast.
     const oldOp = String(1 - easeInOut(clamp01(t / FADE_OUT_MS)));
     for (const el of oldEls) el.style.opacity = oldOp;
-    const newOp = String(easeInOut(clamp01(t / GROUP_FADE_MS)));
-    for (const el of newEls) el.style.opacity = newOp;
-    if (flyEls.length) {
-      for (const el of flyEls) {
-        const ep = easeInOut(clamp01((t - delayOf(el)) / ELEM_MS));
-        el.style.transform = `translateX(${startOf.get(el) * (1 - ep)}px)`;
-      }
-    } else {
-      for (const el of newEls) el.style.transform = `translateX(${flyDist * (1 - easeInOut(p))}px)`;
+    // Sliding elements translate toward 0 (full opacity throughout — they enter from off-screen).
+    for (const el of flyEls) {
+      const ep = easeInOut(clamp01((t - delayOf(el)) / ELEM_MS));
+      el.style.transform = `translateX(${startOf.get(el) * (1 - ep)}px)`;
     }
+    // Non-sliding elements wait FADE_DELAY_MS, then fade in over FADE_DUR_MS.
+    const fadeOp = String(easeInOut(clamp01((t - FADE_DELAY_MS) / FADE_DUR_MS)));
+    for (const el of fadeEls) el.style.opacity = fadeOp;
     if (p < 1) { rafId = requestAnimationFrame(frame); return; }
     rafId = null;
     resetStyles();
     onDone?.();
   };
-  // frame(t0) paints the initial state synchronously at t=0 (no flash) AND, while p<1,
-  // schedules the rAF loop itself — so we must NOT also schedule a second rAF here. The
-  // original useRangeMorph did both, running two parallel loops that fired the completion
-  // twice; harmless when onDone was an idempotent setMorph(null), but the universal
-  // transition's onDone does real work and must run exactly once.
+  // frame(t0) paints the initial state synchronously AND, while p<1, schedules the rAF loop itself —
+  // so we must NOT also schedule a second rAF (that would run two loops and fire onDone twice).
   frame(t0);
 
   return () => {
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-    resetStyles();                 // restore styles if this cascade was interrupted mid-flight
+    resetStyles();
   };
 }
