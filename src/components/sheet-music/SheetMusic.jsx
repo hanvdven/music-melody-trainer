@@ -14,6 +14,7 @@ import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
 import RangeStaffOverlay from './overlays/RangeStaffOverlay';
 import ClefStaffOverlay from './overlays/ClefStaffOverlay';
 import NoteColoringStaffOverlay from './overlays/NoteColoringStaffOverlay';
+import InstrumentStaffOverlay from './overlays/InstrumentStaffOverlay';
 import { clefFamilyKey } from './overlays/clefSelector';
 import ChordStaffOverlay from './overlays/ChordStaffOverlay';
 import ChordStyleOverlay from './overlays/ChordStyleOverlay';
@@ -185,6 +186,7 @@ const SheetMusic = ({
   rangeEditMode,
   clefEditMode,
   colorEditMode,
+  instrumentEditMode,
   onToggleSettings,
   onCloseRangeEdit,
   onCloseClefEdit,
@@ -446,7 +448,7 @@ const SheetMusic = ({
   // new flies in from the right. Either RANGE or CLEF mode triggers it (both replace
   // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
   // the duration. Fly distance = content width (user units). See useRangeMorph.
-  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || showSettings;
+  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || instrumentEditMode || showSettings;
   // The currently-shown SURFACE drives the morph: switching between range / clef /
   // legacy-settings / melody re-arms the animation each time (Han #10/#11). The old
   // settings overlay is now the sliding 'legacy' surface.
@@ -455,7 +457,7 @@ const SheetMusic = ({
   // streaming from the right) only for colorEditMode to immediately hide it again. Treating
   // colour as a surface makes its scheme rows fly in like range/clef and stops the bogus
   // melody fly-in. Mutually exclusive with range/clef/settings (App.handleToggleColorEdit).
-  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : showSettings ? 'legacy' : 'melody';
+  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : instrumentEditMode ? 'instrument' : showSettings ? 'legacy' : 'melody';
   const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
   // Universal transition: replay the SAME 1.5s cascade when the app swaps the sheet content
   // IN PLACE (song load, difficulty, …) rather than via an overlay surface change. App bumps
@@ -482,6 +484,9 @@ const SheetMusic = ({
   // Keep the colour overlay mounted through its EXIT morph too (color→melody), so its
   // scheme rows can fade/fly out instead of vanishing instantly (Han 2026-06-15 B1).
   const colorMounted = mountedFor('color', colorEditMode);
+  // Keep the instrument overlay mounted through its EXIT morph too (instrument→melody),
+  // so its card strip can fade/fly out instead of vanishing instantly (mirrors colour).
+  const instrumentMounted = mountedFor('instrument', instrumentEditMode);
 
   const staffLines = [];
   if (isTrebleVisible) {
@@ -2957,6 +2962,28 @@ const SheetMusic = ({
                       scaleNotes={scaleNotes}
                       activeChord={pausedActiveChord}
                       theme={theme}
+                      debugMode={debugMode}
+                    />
+                  )}
+
+                  {/* Instrument overlay — per-staff playback-instrument picker (Han
+                      2026-06-16): a horizontally-scrollable strip of instrument cards
+                      grouped by family, the active one auto-centred (ClefCardCarousel).
+                      Kept mounted through its exit morph the same way the colour one is. */}
+                  {instrumentMounted && (
+                    <InstrumentStaffOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      trebleInstrument={trebleSettings?.instrument || 'acoustic_grand_piano'}
+                      bassInstrument={bassSettings?.instrument || 'acoustic_grand_piano'}
+                      onSetInstrument={(staff, slug) => {
+                        const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
+                        if (setter) setter(prev => ({ ...prev, instrument: slug }));
+                      }}
                       debugMode={debugMode}
                     />
                   )}

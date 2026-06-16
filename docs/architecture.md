@@ -3260,3 +3260,70 @@ the one-time intro; the render path returns plain melody-like objects for SheetM
 relaxed to `!once`, shared `hasAnacrusis`), `src/components/sheet-music/SheetMusic.jsx`
 (`mergedBodyMeasures` prop threaded to BarlinesLayer), `src/components/sheet-music/BarlinesLayer.jsx`
 (merged-body numbering), `src/utils/__tests__/anacrusisRepeat.test.js`.
+
+---
+
+## 41. Instrument selector — in-staff INSTRUMENT mode (Han 2026-06-16)
+
+**Purpose.** A new in-staff setter (sibling of the range / clef / colour setters) that lets the
+user pick the PLAYBACK instrument PER STAFF: the treble row sets the treble instrument, the bass
+row sets the bass. It is shown ON the staff as a horizontally-scrollable strip of instrument
+cards (icon + name), GROUPED by instrument family, with the SELECTED instrument auto-centred and
+the rest scrollable off-screen.
+
+**How it works.**
+- A new mode flag `instrumentEditMode` (App, `useState`) mirrors `colorEditMode` EXACTLY —
+  mutually exclusive with range / clef / colour / legacy-settings. `handleToggleInstrumentEdit`
+  stops playback, closes the others; the sibling toggles + the settings toggle all
+  `setInstrumentEditMode(false)`. Toggled from a new SubHeader menu-button (`Piano` glyph,
+  label `INSTRUMENT`, `onOpenInstrument`).
+- It is a morph surface like the others: `overlayKind` resolves to `'instrument'`, and
+  `useRangeMorph.groupsForKind('instrument')` returns the `.instrument-overlay` group (a single
+  group, no sibling chord row — same as colour). The melody hides because
+  `overlayEditMode` now includes `instrumentEditMode`.
+- `overlays/InstrumentStaffOverlay.jsx` is pure layout. Per visible staff it renders ONE
+  `ClefCardCarousel` (REUSED — it already auto-centres the active card via `centerOffsetFor` +
+  the selection-change glide, disambiguates tap-vs-drag, and draws edge fades / clip). The card
+  list is built group-by-group with a **non-tappable GROUP-LABEL separator card** before each
+  group (so the strip reads "grouped by type"); group cards carry no `onTap` so a tap on them is
+  a no-op. Instrument cards render the placeholder icon + name in a `<foreignObject>` (so the
+  exact same lucide glyph the rest of the app uses appears); the active card is
+  `--text-primary`, the rest `--text-lowlight` — the shared setter highlight convention.
+- **Selection reuse (§6c).** A tap calls `onSetInstrument(staff, slug)` → SheetMusic routes it to
+  `setTrebleSettings`/`setBassSettings(prev => ({ ...prev, instrument: slug }))`, the EXISTING
+  instrument-write path. Current instrument = `trebleSettings.instrument` / `bassSettings.instrument`.
+- **Cascade.** Each staff's carousel is wrapped in a `<g className="instrument-cards" data-fly>`
+  block (mirrors the clef-cards `data-fly` wrapper, WITHOUT the `clef-variant-enter` CSS) so the
+  whole strip slides in from the right as a unit (`flyInCascade`). The attribution line and the
+  group-label cards stay UNtagged so they do the cascade's delayed fade.
+- **Instrument list (§6c — single source of truth).** `constants/instruments.jsx` exports the
+  grouped list (`INSTRUMENT_GROUPS`: Keys / Guitars & Bass / Strings / Winds / Tuned Percussion /
+  Voice), a derived flat `INSTRUMENTS` name→slug map, `INSTRUMENT_LIST`, `getInstrumentIcon(slug)`
+  (lucide glyph picked by family — no per-instrument table), `instrumentNameForSlug`, and
+  `ICON_ATTRIBUTION`. The original 13 instruments are extended with Electric Piano, Organ, Cello,
+  Clarinet, Oboe, French Horn, Marimba, Vibraphone, Acoustic Bass, Choir (all valid GM smplr
+  slugs). `RangeControls.jsx` now IMPORTS `INSTRUMENTS` + `getInstrumentIcon` from here (its
+  inline duplicate was removed), so the stepper and the in-staff setter can never drift.
+
+**Icon attribution / future icons8 swap.** While the setter is open an attribution line
+(`ICON_ATTRIBUTION`, currently `"Instrument icons: placeholder (lucide-react, ISC)"`) is drawn
+below the bottom staff. Icons are deliberately resolved in ONE place: `getInstrumentIcon(slug)`.
+To switch to real icons8 art, return an `<image href=…/>` per slug from `getInstrumentIcon` and
+flip `ICON_ATTRIBUTION` to `"Icons by Icons8 — icons8.com"` — nothing else changes (both TODOs
+are marked in `constants/instruments.jsx`).
+
+**Invariants.**
+- The instrument LIST + icon mapping live only in `constants/instruments.jsx`. Never re-declare
+  them in a consuming component.
+- `instrumentEditMode` is mutually exclusive with range / clef / colour / legacy-settings (it
+  mirrors `colorEditMode` everywhere that flag appears).
+- §3a: the carousel's tap/drag surface is inside `ClefCardCarousel`; the overlay additionally
+  draws an orange debug rect over each staff's hit window in `debugMode`.
+
+**Files.** `src/constants/instruments.jsx` (new), `src/constants/__tests__/instruments.test.js`
+(new), `src/components/sheet-music/overlays/InstrumentStaffOverlay.jsx` (new),
+`src/components/sheet-music/overlays/__tests__/InstrumentStaffOverlay.test.jsx` (new),
+`src/components/sheet-music/SheetMusic.jsx` (prop + mount + overlayKind/overlayEditMode + render),
+`src/hooks/useRangeMorph.js` (`groupsForKind('instrument')`), `src/App.jsx` (state + toggle +
+sibling resets + SheetMusic/SubHeader wiring), `src/components/layout/SubHeader.jsx` (INSTRUMENT
+button), `src/components/controls/RangeControls.jsx` (imports the shared instrument module).

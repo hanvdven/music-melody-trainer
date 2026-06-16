@@ -57,13 +57,16 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 - ✅ Range setter — in-range notes SHRINK toward the middle (Han "symmetric, eased", in-range only):
   100% at boundaries → ~50% at exact middle, eased, by natural ordinal; scales head+stem+ledgers.
   Docs: architecture.md "Both-axes drag + middle-shrink". 261 tests green, build clean.
-- 🔨 Instrument selector IN SHEET MUSIC (Han 2026-06-16). New in-staff setter (sibling of clef/
-  range/colour), PER-STAFF. Decisions: per-staff treble+bass; open as a new setter mode like the
-  others; extend the instrument list; icons = lucide placeholders + name (can't fetch icons8),
-  structured for icons8 drop-in + attribution line shown while open. Reuse: setTrebleSettings/
+- ✅ Instrument selector IN SHEET MUSIC (Han 2026-06-16) — built + reviewed. 271 tests green (10
+  new), build clean. New in-staff setter (sibling of clef/range/colour), PER-STAFF. Icons = lucide
+  placeholders + name (can't fetch icons8), structured for icons8 drop-in (getInstrumentIcon +
+  ICON_ATTRIBUTION, TODO(icons8) markers); attribution line shown while open. Reuse: setTreble/
   setBassSettings instrument slug; ClefCardCarousel (scroll/center/off-screen); shared
-  src/constants/instruments.js (grouped). Plumbing mirrors colorEditMode (App/SubHeader/SheetMusic/
-  useRangeMorph groupsForKind 'instrument'). Delegated to an impl agent; review pending.
+  src/constants/instruments.jsx (grouped, +10 instruments; RangeControls imports it too). Plumbing
+  mirrors colorEditMode (App/SubHeader/SheetMusic/useRangeMorph groupsForKind 'instrument'). Review
+  tweak: strip slides from the RIGHT (plain data-fly, not data-fly-from=startX which barely moved a
+  full-width strip). Docs: architecture.md §41. ⚠ visual: confirm foreignObject card placement
+  (STRIP_TOP_OFFSET) + the right-slide in dev.
 (All recorded verbatim in BACKLOG.md per §1b.)
 
 ## 2026-06-15 (night) — Small CRs (Han, parallel to core anacrusis refactor)
@@ -1179,10 +1182,11 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
    4 smoke tests added; 253 tests green; build clean. Documented in architecture.md §note-colouring.
 
 ### Instrument selector in the sheet music (Han 2026-06-16)
-🔨 New in-staff INSTRUMENT setter (sibling of clef/range/colour). Per-staff (treble row →
-   treble instrument, bass row → bass). Horizontally-scrollable strip of instrument cards
-   (lucide icon + name) grouped by family, active centered, via reused ClefCardCarousel.
-   - NEW src/constants/instruments.js: grouped GM-slug list (extended +10), getInstrumentIcon,
+✅ New in-staff INSTRUMENT setter (sibling of clef/range/colour) — 271 tests green, build clean.
+   See architecture.md §41. Per-staff (treble row → treble instrument, bass row → bass).
+   Horizontally-scrollable strip of instrument cards (lucide icon + name) grouped by family,
+   active centered, via reused ClefCardCarousel.
+   - NEW src/constants/instruments.jsx: grouped GM-slug list (extended +10), getInstrumentIcon,
      flat INSTRUMENTS map (RangeControls imports it — single source of truth), ICON_ATTRIBUTION.
    - NEW src/components/sheet-music/overlays/InstrumentStaffOverlay.jsx (data-fly cascade wrapper,
      group-label separator cards, attribution line; placeholder lucide icons → icons8 swap TODO).

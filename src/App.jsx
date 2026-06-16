@@ -205,6 +205,10 @@ const App = () => {
     // Note-colouring menu (Han 2026-06-13): a staff overlay showing every colour scheme as a
     // row of C4–C5 notes. Sibling of range/clef; mutually exclusive with them + settings.
     const [colorEditMode, setColorEditMode] = useState(false);
+    // Instrument selector (Han 2026-06-16): a staff overlay to pick the playback
+    // instrument PER STAFF (treble/bass). Sibling of range/clef/colour; mutually
+    // exclusive with them + settings (mirrors colorEditMode exactly).
+    const [instrumentEditMode, setInstrumentEditMode] = useState(false);
     // Loaded-song title for the header (Han 2026-06-14): "Happy Birthday in G major". Set on song
     // load; cleared when the user generates a fresh exercise (un-pins the melody) — see effect below.
     const [loadedSongTitle, setLoadedSongTitle] = useState(null);
@@ -657,6 +661,7 @@ const App = () => {
             if (showSheetMusicSettings) toggleSheetMusicSettings();
             setClefEditMode(false);   // range & clef modes are mutually exclusive
             setColorEditMode(false);
+            setInstrumentEditMode(false);
         }
         setRangeEditMode(v => !v);
     }, [rangeEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -669,6 +674,7 @@ const App = () => {
             if (showSheetMusicSettings) toggleSheetMusicSettings();
             setRangeEditMode(false);
             setColorEditMode(false);
+            setInstrumentEditMode(false);
         }
         setClefEditMode(v => !v);
     }, [clefEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -680,9 +686,22 @@ const App = () => {
             if (showSheetMusicSettings) toggleSheetMusicSettings();
             setRangeEditMode(false);
             setClefEditMode(false);
+            setInstrumentEditMode(false);
         }
         setColorEditMode(v => !v);
     }, [colorEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
+    // Instrument selector toggle — mirrors colour (stop playback, close the others).
+    const handleToggleInstrumentEdit = useCallback(() => {
+        if (!instrumentEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setRangeEditMode(false);
+            setClefEditMode(false);
+            setColorEditMode(false);
+        }
+        setInstrumentEditMode(v => !v);
+    }, [instrumentEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
 
     // Toggle the legacy SETTINGS surface from its own SubHeader button (Han #13).
     // Mutually exclusive with clef/range (the catch-all effect closes those when
@@ -693,6 +712,7 @@ const App = () => {
             setRangeEditMode(false);
             setClefEditMode(false);
             setColorEditMode(false);
+            setInstrumentEditMode(false);
         }
         toggleSheetMusicSettings();
     }, [showSheetMusicSettings, handleStopAllPlayback, toggleSheetMusicSettings]);
@@ -1337,6 +1357,7 @@ const App = () => {
         rangeEditMode: rangeEditMode,
         clefEditMode: clefEditMode,
         colorEditMode: colorEditMode,
+        instrumentEditMode: instrumentEditMode,
         onToggleSettings: toggleSheetMusicSettings,
         onCloseRangeEdit: handleCloseRangeEdit,
         onCloseClefEdit: handleCloseClefEdit,
@@ -1364,7 +1385,7 @@ const App = () => {
         anacrusisMeasureIndex, mergedRenderMelodies,
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
-        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, toggleSheetMusicSettings,
+        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, instrumentEditMode, toggleSheetMusicSettings,
         handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
@@ -1467,9 +1488,11 @@ const App = () => {
                     onOpenRange={handleToggleRangeEdit}
                     onOpenClef={handleToggleClefEdit}
                     onOpenColor={handleToggleColorEdit}
+                    onOpenInstrument={handleToggleInstrumentEdit}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}
                     colorEditMode={colorEditMode}
+                    instrumentEditMode={instrumentEditMode}
                     showSheetMusicSettings={showSheetMusicSettings}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}
