@@ -67,8 +67,9 @@ const signedDist = (i, pos, n) => ((i - pos + n / 2 + n) % n) - n / 2;
 const EDGE = VISIBLE_HALF + 0.5;    // distance at which an item is fully faded/shrunk
 const scaleForDist = (d) => {
     const t = clamp(Math.abs(d) / EDGE, 0, 1);
-    // 1.0 at centre → ~0.45 at the edge, eased.
-    return 1 - 0.55 * easeInOut(t);
+    // MILD taper (Han 2026-06-17: "much milder shrink" — it read as a curved dial before): only
+    // 1.0 → 0.82 at the edge, so the centre still pops but the strip reads HORIZONTAL, not a wheel.
+    return 1 - 0.18 * easeInOut(t);
 };
 const opacityForDist = (d) => {
     const t = clamp(Math.abs(d) / EDGE, 0, 1);
