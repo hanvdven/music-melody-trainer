@@ -2,10 +2,11 @@ import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import InstrumentStaffOverlay from '../InstrumentStaffOverlay';
-import { INSTRUMENT_GROUPS } from '../../../../constants/instruments';
+import { INSTRUMENT_LIST } from '../../../../constants/instruments';
 
-// Renders the instrument overlay inside an <svg>, exercising the per-staff card strips
-// (real ClefCardCarousel reuse) and the placeholder-icon cards.
+// Renders the instrument overlay inside an <svg>, exercising the per-staff NonLinearCarousel
+// (one per visible staff) and the placeholder-icon items. jsdom lacks
+// SVGSVGElement.createSVGPoint, so the gesture itself isn't simulated here.
 const renderOverlay = (props = {}) => render(
     <svg>
         <InstrumentStaffOverlay
@@ -21,25 +22,24 @@ const renderOverlay = (props = {}) => render(
 );
 
 describe('InstrumentStaffOverlay', () => {
-    it('renders treble + bass instrument card strips without crashing', () => {
+    it('renders treble + bass instrument carousels without crashing', () => {
         const { container } = renderOverlay();
         expect(container.querySelector('.instrument-overlay')).not.toBeNull();
-        // One card strip (data-fly block) per visible staff.
+        // One carousel (data-fly block) per visible staff.
         expect(container.querySelectorAll('.instrument-cards').length).toBe(2);
-        // Cards render SVG-NATIVE (icon glyph + name <text>), NOT foreignObject — foreignObject
+        // Items render SVG-NATIVE (icon glyph + name <text>), NOT foreignObject — foreignObject
         // didn't fade with the morph and broke the INSTRUMENT→COLOUR slide (Han 2026-06-17).
         expect(container.querySelectorAll('foreignObject').length).toBe(0);
+        // Every instrument item renders its name (twice — once per staff carousel).
         const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
-        expect(labels).toContain(INSTRUMENT_GROUPS[0].items[0].name);
+        expect(labels).toContain(INSTRUMENT_LIST[0].name);
     });
 
-    it('shows a group-label/separator card for every instrument family', () => {
+    it('shows a dynamic category bracket for the active category (2+ visible)', () => {
+        // Piano (Keys) is the treble active item; Keys has 3 items so its bracket shows.
         const { container } = renderOverlay();
         const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
-        // Each family label appears (uppercased) for at least the treble strip.
-        for (const g of INSTRUMENT_GROUPS) {
-            expect(labels).toContain(g.label.toUpperCase());
-        }
+        expect(labels).toContain('KEYS');
     });
 
     it('shows the icon attribution line while open', () => {
@@ -61,12 +61,11 @@ describe('InstrumentStaffOverlay', () => {
         expect(container.querySelector('.instrument-overlay')).toBeNull();
     });
 
-    it('exposes the carousel tap/drag surface per staff (tap routing is ClefCardCarousel)', () => {
+    it('exposes the carousel tap/drag surface per staff', () => {
         // The interactive surface is the carousel's full-window transparent <rect>; the
-        // actual tap→onTap routing is owned + tested by ClefCardCarousel/ClefStaffOverlay.
-        // jsdom lacks SVGSVGElement.createSVGPoint, so we don't simulate the gesture here.
+        // actual tap→onSelect routing is owned + smoke-tested by NonLinearCarousel.
         const { container } = renderOverlay();
-        const trebleStrip = container.querySelectorAll('.instrument-cards')[0];
-        expect(trebleStrip.querySelector('rect[fill="transparent"]')).not.toBeNull();
+        const trebleCarousel = container.querySelectorAll('.instrument-cards')[0];
+        expect(trebleCarousel.querySelector('rect[fill="transparent"]')).not.toBeNull();
     });
 });

@@ -1946,9 +1946,14 @@ const SheetMusic = ({
             {isTrebleVisible && (
               <>
                 {/* The static clef glyph is hidden in clef-edit mode — the clef
-                    selector's carousel draws the clef in the gutter instead. Also hidden in
-                    colour-edit mode, which lays its scheme sets across the bare staff. */}
-                {!clefEditMode && !colorEditMode && (
+                    selector's carousel draws the clef in the gutter instead. It now STAYS
+                    shown in colour-edit mode (Han 2026-06-17: "clef should always show"); the
+                    colour setter's compact carousel sits centred on the staff and leaves the
+                    clef gutter free, so the clef no longer needs hiding there. This also fixes
+                    the g-clef reported missing in F major: the clef char comes from
+                    clefSymbols[clefTreble] (key-independent), so the only thing that hid it was
+                    this colorEditMode guard — removing it un-hides the clef in every key. */}
+                {!clefEditMode && (
                 <text
                   x="13"
                   y={30 + (cfT.yOffset || 0)}

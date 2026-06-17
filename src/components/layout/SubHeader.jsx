@@ -16,7 +16,9 @@ import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { useMelodies } from '../../contexts/MelodyContext';
 
 // ── Cycling lists for button modes ───────────────────────────────────────────
-const COLOR_MODES = ['none', 'tonic_scale_keys', 'chords', 'chromatone', 'subtle-chroma'];
+// Palette-cycle order (Han 2026-06-17): none → chord → scale → chromatone → subtle chromatone
+// (matches the colour-setter carousel order). 'tonic_scale_keys' mode is now LABELLED "Scale".
+const COLOR_MODES = ['none', 'chords', 'tonic_scale_keys', 'chromatone', 'subtle-chroma'];
 const LYRICS_MODES = ['none', 'doremi-rel', 'doremi-abs', 'kodaly', 'takadimi'];
 
 const SubHeader = ({
@@ -217,7 +219,7 @@ const SubHeader = ({
                 <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)' }}>
                     {renderButton(
                         <Palette size={22} color={noteColoringMode === 'chromatone' ? 'url(#chromatone-gradient-hdr)' : noteColoringMode === 'subtle-chroma' ? 'url(#subtle-chromatone-gradient-hdr)' : paletteColor} fill="none" />,
-                        noteColoringMode === 'none' ? 'NO COLOR' : noteColoringMode === 'tonic_scale_keys' ? 'TONICS' : noteColoringMode === 'chords' ? 'CHORDS' : noteColoringMode === 'subtle-chroma' ? 'SUBTLE CHROMA' : 'CHROMATONE',
+                        noteColoringMode === 'none' ? 'NO COLOR' : noteColoringMode === 'tonic_scale_keys' ? 'SCALE' : noteColoringMode === 'chords' ? 'CHORDS' : noteColoringMode === 'subtle-chroma' ? 'SUBTLE CHROMA' : 'CHROMATONE',
                         () => {
                             const idx = COLOR_MODES.indexOf(noteColoringMode);
                             setNoteColoringMode(COLOR_MODES[(idx + 1) % COLOR_MODES.length]);

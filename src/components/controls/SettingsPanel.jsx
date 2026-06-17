@@ -2,7 +2,8 @@ import React from 'react';
 import { Palette, Maximize, Minimize } from 'lucide-react';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 
-const COLOR_MODES = ['none', 'tonic_scale_keys', 'chords', 'chromatone', 'subtle-chroma'];
+// Order (Han 2026-06-17): none → chord → scale → chromatone → subtle chromatone.
+const COLOR_MODES = ['none', 'chords', 'tonic_scale_keys', 'chromatone', 'subtle-chroma'];
 
 /** Theme swatches: each entry describes one selectable theme. */
 const THEMES = [
@@ -56,8 +57,9 @@ const SettingsPanel = ({
                     <div className="app-settings-row-body">
                         <div className="app-settings-row-title">
                             {noteColoringMode === 'none' ? 'None' :
-                                noteColoringMode === 'tonic_scale_keys' ? 'Tonic / Scale' :
-                                    noteColoringMode === 'chords' ? 'Chords' : 'Chromatone'}
+                                noteColoringMode === 'tonic_scale_keys' ? 'Scale' :
+                                    noteColoringMode === 'chords' ? 'Chords' :
+                                        noteColoringMode === 'subtle-chroma' ? 'Subtle chromatone' : 'Chromatone'}
                         </div>
                         <div className="app-settings-row-sub">Cycle coloring mode</div>
                     </div>
