@@ -54,11 +54,26 @@ describe('NonLinearCarousel', () => {
         expect(debug.getAttribute('width')).toBe(surface.getAttribute('width'));
     });
 
-    it('visibleRange returns the ~5 items around the centre', () => {
-        // Centre index 3 of 7 → indices 1..5 visible (2 each side + centre).
-        expect(visibleRange(3, 7)).toEqual({ lo: 1, hi: 5 });
-        // Clamps at the ends.
-        expect(visibleRange(0, 7)).toEqual({ lo: 0, hi: 2 });
-        expect(visibleRange(6, 7)).toEqual({ lo: 4, hi: 6 });
+    it('visibleRange returns the ~5 items around the centre as an ordered array', () => {
+        // Centre index 3 of 7 → indices 1..5 visible (2 each side + centre), in visual order.
+        expect(visibleRange(3, 7)).toEqual([1, 2, 3, 4, 5]);
+    });
+
+    it('visibleRange WRAPS across the N-1 → 0 seam (cyclical, Han 2026-06-17)', () => {
+        // Centre at index 0 → the two items "before" it wrap to the high end of the ring, in
+        // left→right visual order: [N-2, N-1, 0, 1, 2].
+        expect(visibleRange(0, 7)).toEqual([5, 6, 0, 1, 2]);
+        // Centre at the last index → the two items "after" it wrap back to the low end.
+        expect(visibleRange(6, 7)).toEqual([4, 5, 6, 0, 1]);
+    });
+
+    it('visibleRange handles a fractional (live-drag) centre', () => {
+        // Mid-drag the centre is fractional; the window is 5–6 consecutive ring indices (a 6th
+        // item peeks in at the edge while transiting between two integer centres).
+        const v = visibleRange(0.5, 7);
+        expect(v.length).toBeGreaterThanOrEqual(5);
+        expect(v.length).toBeLessThanOrEqual(6);
+        // Every entry is a real item index in [0, N).
+        for (const i of v) { expect(i).toBeGreaterThanOrEqual(0); expect(i).toBeLessThan(7); }
     });
 });

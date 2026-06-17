@@ -34,7 +34,16 @@ import React from 'react';
  *                  adjacent items at the centre.
  *  - height:       hit-surface / debug-box height.
  *  - onSelect:     (item, index) => void, fired on tap-to-centre or drag-settle commit.
+ *  - onPosChange:  (pos) => void, OPTIONAL, fired every rAF/drag frame with the LIVE fractional
+ *                  centre position (wrapped domain). Used by the instrument setter to move its
+ *                  category brackets WITH the carousel during a gesture (§6 — the consumer writes
+ *                  element.style itself; this is just the per-frame signal).
  *  - debugMode:    §3a — draw the drag/tap hit box.
+ *
+ * CYCLICAL (Han 2026-06-17): the carousel LOOPS infinitely — dragging past the last item wraps
+ * to the first and vice-versa, no hard clamp at the ends. `posRef` is a FREE fractional value
+ * kept in the wrapped domain [0, N); for rendering, each item is drawn at its NEAREST signed
+ * distance from the centre so the item set wraps around the centre seamlessly.
  */
 
 const TAP_SLOP = 5;                 // < this much movement (user units) = a tap (matches ClefCardCarousel)
@@ -42,6 +51,15 @@ const VISIBLE_HALF = 2;             // render this many items on EACH side of th
 const CENTER_ANIM_MS = 420;         // glide-to-centre duration (tap or settle snap)
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
 const easeInOut = (t) => t * t * (3 - 2 * t);   // smoothstep — matches the app's other eases
+
+// Wrap a fractional position into [0, N). Used everywhere posRef is read so the cyclical domain
+// stays canonical (the seam N-1 → 0 is invisible).
+const wrapPos = (p, n) => ((p % n) + n) % n;
+
+// NEAREST signed distance from the centre `pos` to item index `i`, accounting for the wrap: an
+// item near index 0 is drawn just to the RIGHT of an item near index N-1 (and vice-versa), so the
+// ring of items loops smoothly. Result is in (-N/2, N/2].
+const signedDist = (i, pos, n) => ((i - pos + n / 2 + n) % n) - n / 2;
 
 // Non-linear falloff by distance-from-centre `d` (0 = centred, grows toward the edges).
 // SCALE shrinks and OPACITY fades, both eased so the change is gentle near the centre and
@@ -78,12 +96,16 @@ const xOffsetForDist = (d) => {
 
 export default function NonLinearCarousel({
     items, activeIndex = 0, renderItem, centerX, y, baseWidth, height,
-    onSelect, debugMode = false,
+    onSelect, onPosChange, debugMode = false,
 }) {
     const wrapRefs = React.useRef([]);    // per-item <g> refs (we mutate style each frame)
     const posRef = React.useRef(activeIndex);  // fractional centre position (which item index sits at centerX)
     const dragRef = React.useRef(null);   // { startX, startPos, moved, downSvgX }
     const animRef = React.useRef(null);   // glide rAF
+    // Keep the live onPosChange callback in a ref so applyPos (a stable closure) always calls the
+    // latest one without us re-creating the render functions every render.
+    const onPosChangeRef = React.useRef(onPosChange);
+    onPosChangeRef.current = onPosChange;
 
     const N = items.length;
 
@@ -99,11 +121,16 @@ export default function NonLinearCarousel({
     // translateX + scale + opacity, all via element.style (§6). Items far outside the visible
     // window are hidden (opacity 0) so they don't intercept anything or paint off-staff.
     const applyPos = (pos) => {
-        posRef.current = pos;
+        // Keep posRef in the canonical wrapped domain [0, N) so the seam never drifts off to
+        // ±infinity over many loops (Han 2026-06-17: cyclical scroll).
+        const wp = wrapPos(pos, N);
+        posRef.current = wp;
         for (let i = 0; i < N; i += 1) {
             const g = wrapRefs.current[i];
             if (!g) continue;
-            const d = i - pos;                 // signed distance from the centre, in item units
+            // NEAREST signed distance accounting for the wrap, so items near index 0 sit just to the
+            // right of items near index N-1 — the ring loops with no clamp at the ends.
+            const d = signedDist(i, wp, N);
             const op = opacityForDist(d);
             if (op <= 0.001) {
                 // Fully faded — park it transparent (and don't bother positioning precisely).
@@ -118,19 +145,27 @@ export default function NonLinearCarousel({
             g.style.transformOrigin = '0px 0px';
             g.style.opacity = String(op);
         }
+        // Notify the consumer of the LIVE wrapped position every frame (drag + glide), so e.g. the
+        // instrument setter's category brackets can track the carousel during the gesture. §6: the
+        // consumer does its own element.style writes — we never set React state per frame here.
+        onPosChangeRef.current?.(wp);
     };
 
-    // Glide the fractional centre position to `target` (an index, may be fractional) over
-    // CENTER_ANIM_MS. Cancels any in-flight glide.
+    // Glide the fractional centre position to item index `target` over CENTER_ANIM_MS, taking the
+    // SHORTEST path around the loop (so tapping the right-most visible item glides forward across
+    // the seam, not all the way back). Cancels any in-flight glide. No clamp — cyclical.
     const animatePosTo = (target) => {
-        const t = clamp(target, 0, N - 1);
         if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
         const from = posRef.current;
-        if (Math.abs(t - from) < 0.001) { applyPos(t); return; }
+        // Shortest signed delta from `from` to `target` around the ring, in (-N/2, N/2]. We glide
+        // from `from` to `from + delta` (which may land outside [0,N)); applyPos wraps it back.
+        const delta = signedDist(target, from, N);
+        if (Math.abs(delta) < 0.001) { applyPos(from); return; }
+        const to = from + delta;
         const t0 = performance.now();
         const step = (now) => {
             const p = Math.min(1, (now - t0) / CENTER_ANIM_MS);
-            applyPos(from + (t - from) * easeInOut(p));
+            applyPos(from + (to - from) * easeInOut(p));
             animRef.current = p < 1 ? requestAnimationFrame(step) : null;
         };
         animRef.current = requestAnimationFrame(step);
@@ -139,7 +174,7 @@ export default function NonLinearCarousel({
     // Paint the initial layout once mounted (and whenever the item set changes) so items don't
     // flash at full size/opacity before the first rAF. useLayoutEffect → before paint.
     React.useLayoutEffect(() => {
-        applyPos(clamp(activeIndex, 0, N - 1));
+        applyPos(wrapPos(activeIndex, N));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [N]);
 
@@ -172,7 +207,8 @@ export default function NonLinearCarousel({
         d.moved = Math.max(d.moved, Math.abs(dx));
         // Dragging RIGHT (dx > 0) should bring LOWER-index items toward the centre, so the
         // position moves in the OPPOSITE direction of the finger by dx / baseWidth item-units.
-        const next = clamp(d.startPos - dx / baseWidth, 0, N - 1);
+        // No clamp — the loop wraps freely (applyPos wraps into [0,N)).
+        const next = d.startPos - dx / baseWidth;
         applyPos(next);
     };
     const onPointerUp = (e) => {
@@ -183,24 +219,25 @@ export default function NonLinearCarousel({
         if (d.moved < TAP_SLOP) {
             // TAP — figure out which visible item slot the down point landed in (nearest by the
             // laid-out x), glide it to centre and commit. We test against the SAME xOffset layout
-            // applused in applyPos so the hit maths matches the visual exactly.
+            // applied in applyPos (NEAREST signed distance, wrap-aware) so the hit maths matches the
+            // visual exactly across the loop seam.
             const localX = d.downSvgX - centerX;
             let best = Math.round(posRef.current);
             let bestErr = Infinity;
             for (let i = 0; i < N; i += 1) {
-                const dist = i - posRef.current;
+                const dist = signedDist(i, posRef.current, N);
                 if (Math.abs(dist) > VISIBLE_HALF + 0.5) continue;   // only visible items are tappable
                 const ix = xOffsetForDist(dist) * baseWidth;
                 const err = Math.abs(localX - ix);
                 if (err < bestErr) { bestErr = err; best = i; }
             }
-            best = clamp(best, 0, N - 1);
+            // `best` is already a real item index in [0,N). animatePosTo glides the shortest way.
             animatePosTo(best);
             onSelect?.(items[best], best);
         } else {
             // DRAG settle — snap to the nearest item and commit it (Han: centred item is the
-            // selection, commit on settle).
-            const snapped = clamp(Math.round(posRef.current), 0, N - 1);
+            // selection, commit on settle). Map the wrapped centre back to a real item index.
+            const snapped = wrapPos(Math.round(posRef.current), N) % N;
             animatePosTo(snapped);
             onSelect?.(items[snapped], snapped);
         }
@@ -245,12 +282,16 @@ export default function NonLinearCarousel({
     );
 }
 
-// Exported for the setters' dynamic category headers: which item indices are currently
-// VISIBLE around a centre position (within VISIBLE_HALF + 0.5). Pure, so the header layout
-// and the carousel agree on "what's on screen".
+// Exported for the setters' dynamic category headers: which item indices are currently VISIBLE
+// around a centre position (within VISIBLE_HALF + 0.5). CYCLICAL (Han 2026-06-17): returns an
+// ARRAY of real item indices in left→right VISUAL order, wrapping across the N-1 → 0 seam (so a
+// centre near index 0 returns e.g. [N-2, N-1, 0, 1, 2]). The category-header code consumes this
+// ordered list. Pure, so header layout and the carousel agree on "what's on screen".
 export const visibleRange = (centerIndex, count) => {
-    const lo = Math.max(0, Math.ceil(centerIndex - (VISIBLE_HALF + 0.5)));
-    const hi = Math.min(count - 1, Math.floor(centerIndex + (VISIBLE_HALF + 0.5)));
-    return { lo, hi };
+    const lo = Math.ceil(centerIndex - (VISIBLE_HALF + 0.5));
+    const hi = Math.floor(centerIndex + (VISIBLE_HALF + 0.5));
+    const out = [];
+    for (let k = lo; k <= hi; k += 1) out.push(((k % count) + count) % count);
+    return out;
 };
 export { xOffsetForDist, VISIBLE_HALF };

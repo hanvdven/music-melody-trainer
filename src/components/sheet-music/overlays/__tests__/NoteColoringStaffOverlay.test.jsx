@@ -34,6 +34,26 @@ describe('NoteColoringStaffOverlay', () => {
         expect(labels).not.toContain('Tonic / Scale');
     });
 
+    it('FLAT baseline: every example notehead sits on ONE horizontal y (Han 2026-06-17)', () => {
+        // "Flatten the wheel": the scheme example notes no longer ascend the staff by pitch — they
+        // form a horizontal colour swatch, so all Maestro notehead glyphs share a single y.
+        const { container } = renderOverlay();
+        const heads = [...container.querySelectorAll('text')]
+            .filter(t => t.getAttribute('font-family') === 'Maestro');
+        expect(heads.length).toBeGreaterThan(0);
+        const ys = new Set(heads.map(t => t.getAttribute('y')));
+        // All noteheads across all scheme items share exactly one baseline y.
+        expect(ys.size).toBe(1);
+    });
+
+    it('FLAT: no ledger lines are drawn (notes never leave the staff when flat)', () => {
+        // Ledger lines were <path> with strokeWidth 0.5; flattening to the middle line removes them.
+        const { container } = renderOverlay();
+        const ledgers = [...container.querySelectorAll('path')]
+            .filter(p => p.getAttribute('stroke-width') === '0.5');
+        expect(ledgers.length).toBe(0);
+    });
+
     it('wraps the carousel in a data-fly group so it slides in with the morph', () => {
         const { container } = renderOverlay();
         expect(container.querySelector('.note-coloring-overlay [data-fly]')).not.toBeNull();

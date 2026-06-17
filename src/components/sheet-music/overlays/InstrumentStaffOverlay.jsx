@@ -39,38 +39,121 @@ const HIT_H = 86;
 // Build one [{ name, slug, family }] item list (flat, in group order) — the carousel order.
 const ITEMS = INSTRUMENT_LIST;
 
-// Dynamic CATEGORY headers (Han 2026-06-17): for the run of items currently visible around the
-// centre, a header shows for each category that has 2+ visible items, CENTRED over that
-// category's own visible run. When two categories are partly visible, BOTH headers show, each
-// centred over its run. Computed from the COMMITTED centre (the resting carousel position) so
-// the headers are stable; same `xOffsetForDist` the carousel uses, so they align.
-const categoryHeaders = (activeIndex) => {
-    const { lo, hi } = visibleRange(activeIndex, ITEMS.length);
-    // Group the visible indices by their category label, preserving order.
-    const runs = new Map();   // label → [indices]
-    for (let i = lo; i <= hi; i += 1) {
-        const label = ITEMS[i].groupLabel;
-        if (!runs.has(label)) runs.set(label, []);
-        runs.get(label).push(i);
-    }
+// NEAREST signed distance from a fractional centre `pos` to item index `i` on the cyclical ring,
+// matching NonLinearCarousel.signedDist exactly so brackets align with the items pixel-for-pixel.
+// (Kept local — it's a one-line wrap formula, not worth a cross-module export.)
+const signedDist = (i, pos, n) => ((i - pos + n / 2 + n) % n) - n / 2;
+
+// Dynamic CATEGORY headers (Han 2026-06-17): for the items currently visible around the centre,
+// a bracket shows for each consecutive same-category RUN that has 2+ visible items, spanning that
+// run. CYCLICAL + LIVE (Han 2026-06-17): `pos` is the FRACTIONAL live carousel centre (wrapped),
+// and `visibleRange` now returns the visible item indices in left→right VISUAL order, wrapping
+// across the N-1 → 0 seam. We walk that ordered list, group CONSECUTIVE items sharing a category
+// (so the same category appearing on both sides of the seam stays two separate visual runs), and
+// bracket each run of 2+. Each run's x-span uses the shared `xOffsetForDist(signedDist(...))` the
+// carousel itself uses, so brackets track the items as `pos` moves during a drag.
+const categoryHeaders = (pos) => {
+    const N = ITEMS.length;
+    const visible = visibleRange(pos, N);   // ordered, wrap-aware array of real indices
     const headers = [];
-    for (const [label, idxs] of runs) {
-        if (idxs.length < 2) continue;   // a header only shows for 2+ visible of that category
-        // Bracket spans from the left edge of the first visible item to the right edge of the
-        // last, in carousel-x (distance-from-centre → x via the shared layout fn).
-        const leftD = (idxs[0] - activeIndex);
-        const rightD = (idxs[idxs.length - 1] - activeIndex);
-        const xLeft = xOffsetForDist(leftD) * BASE;
-        const xRight = xOffsetForDist(rightD) * BASE;
-        headers.push({ label, xLeft, xRight });
+    let run = null;   // { label, firstIdx, lastIdx }
+    const flush = () => {
+        if (run && run.count >= 2) {
+            const xLeft = xOffsetForDist(signedDist(run.firstIdx, pos, N)) * BASE;
+            const xRight = xOffsetForDist(signedDist(run.lastIdx, pos, N)) * BASE;
+            headers.push({ label: run.label, xLeft, xRight });
+        }
+    };
+    for (const idx of visible) {
+        const label = ITEMS[idx].groupLabel;
+        if (run && run.label === label) {
+            run.lastIdx = idx; run.count += 1;          // extend the current consecutive run
+        } else {
+            flush();                                    // close the previous run, start a new one
+            run = { label, firstIdx: idx, lastIdx: idx, count: 1 };
+        }
     }
+    flush();
+    // Two brackets with the SAME label can arise when a category straddles the seam (visually two
+    // separate runs); key collisions are avoided downstream by indexing on position, not label.
     return headers;
+};
+
+// At most this many category brackets can be visible at once (the ~5-item window spans at most a
+// few categories). We render a FIXED pool of this many bracket <g> slots and drive them
+// imperatively each frame (§6) rather than re-rendering React per drag frame.
+const MAX_HEADERS = 4;
+
+// Build the SVG geometry for one bracket from its {label, xLeft, xRight} + the staff/centre.
+// Pure — used both for the initial React render (at rest) and the per-frame imperative update
+// (during a gesture), so the two paths can never disagree.
+const bracketGeom = (h, centerX, staffStart) => {
+    const y = staffStart + HEADER_DY;
+    const x1 = centerX + h.xLeft - BASE * 0.42;   // a touch outside the first/last icon
+    const x2 = centerX + h.xRight + BASE * 0.42;
+    const mid = (x1 + x2) / 2;
+    const label = h.label.toUpperCase();          // Unicode-safe (no accidentals here)
+    // Gap in the middle of the bracket for the label (so the line frames the text):
+    // |———— STRINGS ————|. Estimate the label half-width from its length.
+    const halfText = Math.min((x2 - x1) / 2 - 6, label.length * 3.4 + 4);
+    return {
+        y, label,
+        leftPath: `M ${x1} ${y + 6} V ${y} H ${mid - halfText}`,
+        rightPath: `M ${mid + halfText} ${y} H ${x2} V ${y + 6}`,
+        mid,
+    };
 };
 
 // One staff's carousel + dynamic category brackets.
 const StaffCarousel = ({ staff, staffStart, currentSlug, centerX, onSetInstrument, debugMode }) => {
     const activeIndex = Math.max(0, ITEMS.findIndex(it => it.slug === currentSlug));
+    // At rest the brackets derive from the COMMITTED centre (stable). During a gesture they track
+    // the LIVE pos via onPosChange → updateHeaders (imperative, §6).
     const headers = categoryHeaders(activeIndex);
+
+    // Refs to each bracket slot's sub-elements so we can rewrite geometry imperatively each frame
+    // without React re-rendering (§6 — per-frame visual writes via element.style / attributes).
+    // Pre-populate the pool so the slot object exists BEFORE React runs the child (left/right/text)
+    // ref callbacks — React fires refs bottom-up (children before their parent <g>), so the slot
+    // must already be there when a child ref tries to attach itself.
+    const slotRefs = React.useRef(null);
+    if (slotRefs.current == null) {
+        slotRefs.current = Array.from({ length: MAX_HEADERS }, () => ({}));
+    }
+
+    // Recompute brackets from a LIVE fractional pos and write them into the fixed slot pool. Slots
+    // beyond the current header count are parked invisible. Geometry x is written via the path `d`
+    // attribute + the label <text> position; visibility via the slot <g>'s style.opacity (§6).
+    const updateHeaders = (pos) => {
+        const hs = categoryHeaders(pos);
+        for (let i = 0; i < MAX_HEADERS; i += 1) {
+            const slot = slotRefs.current[i];
+            if (!slot || !slot.g) continue;
+            const h = hs[i];
+            if (!h) { slot.g.style.opacity = '0'; continue; }   // unused slot → hidden
+            const geom = bracketGeom(h, centerX, staffStart);
+            slot.g.style.opacity = '1';
+            slot.left?.setAttribute('d', geom.leftPath);
+            slot.right?.setAttribute('d', geom.rightPath);
+            if (slot.text) {
+                slot.text.setAttribute('x', String(geom.mid));
+                slot.text.setAttribute('y', String(geom.y));
+                slot.text.textContent = geom.label;
+            }
+        }
+    };
+
+    // When the gesture ends and the carousel re-settles on a committed index, React re-renders the
+    // brackets from `activeIndex`. The last imperative `updateHeaders` write may have left a slot's
+    // inline opacity in a transient state, so re-assert the AT-REST opacity here (used slot → 1,
+    // unused → 0) to match the freshly-rendered `headers`. useLayout → before paint, every settle.
+    React.useLayoutEffect(() => {
+        for (let i = 0; i < MAX_HEADERS; i += 1) {
+            const slot = slotRefs.current[i];
+            if (slot?.g) slot.g.style.opacity = headers[i] ? '1' : '0';
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeIndex]);
 
     // Render ONE instrument item around the carousel origin (0,0): the carousel wrapper applies
     // translate+scale+opacity. Icon on the staff (currentColor inherited from the group color),
@@ -103,29 +186,34 @@ const StaffCarousel = ({ staff, staffStart, currentSlug, centerX, onSetInstrumen
         <g className="instrument-cards" data-fly="">
             {/* Category brackets ABOVE the staff — ottava "blokhaken" style (dashed horizontal
                 line + short end hooks, var(--text-primary)), with the UPPERCASE category label
-                centred on the line. UNtagged → delayed fade with the cascade. */}
-            {headers.map((h) => {
-                const y = staffStart + HEADER_DY;
-                const x1 = centerX + h.xLeft - BASE * 0.42;   // a touch outside the first/last icon
-                const x2 = centerX + h.xRight + BASE * 0.42;
-                const mid = (x1 + x2) / 2;
-                const label = h.label.toUpperCase();          // Unicode-safe (no accidentals here)
-                // Gap in the middle of the bracket for the label (so the line frames the text):
-                // |———— STRINGS ————|. Estimate the label half-width from its length.
-                const halfText = Math.min((x2 - x1) / 2 - 6, label.length * 3.4 + 4);
+                centred on the line. UNtagged → delayed fade with the cascade.
+
+                A FIXED POOL of MAX_HEADERS slots: at rest each slot is initialised from the
+                committed `headers` array (React render); during a gesture `updateHeaders` rewrites
+                each slot's geometry imperatively each frame (§6). Slots beyond the live header
+                count are parked transparent. Keys are by SLOT INDEX (stable, never collide even
+                when two same-label brackets straddle the seam). */}
+            {Array.from({ length: MAX_HEADERS }).map((_, i) => {
+                const h = headers[i];
+                const geom = h ? bracketGeom(h, centerX, staffStart) : null;
                 return (
-                    <g key={h.label} style={{ pointerEvents: 'none' }}>
+                    <g key={i} ref={(g) => { slotRefs.current[i].g = g; }}
+                        style={{ pointerEvents: 'none', opacity: geom ? 1 : 0 }}>
                         {/* left hook + dash up to the label */}
-                        <path d={`M ${x1} ${y + 6} V ${y} H ${mid - halfText}`}
+                        <path ref={(el) => { if (slotRefs.current[i]) slotRefs.current[i].left = el; }}
+                            d={geom ? geom.leftPath : ''}
                             stroke="var(--text-primary)" strokeWidth="1" fill="none"
                             strokeDasharray="4,3" />
                         {/* right dash from the label + right hook */}
-                        <path d={`M ${mid + halfText} ${y} H ${x2} V ${y + 6}`}
+                        <path ref={(el) => { if (slotRefs.current[i]) slotRefs.current[i].right = el; }}
+                            d={geom ? geom.rightPath : ''}
                             stroke="var(--text-primary)" strokeWidth="1" fill="none"
                             strokeDasharray="4,3" />
-                        <text x={mid} y={y} textAnchor="middle" dominantBaseline="middle"
+                        <text ref={(el) => { if (slotRefs.current[i]) slotRefs.current[i].text = el; }}
+                            x={geom ? geom.mid : 0} y={geom ? geom.y : 0}
+                            textAnchor="middle" dominantBaseline="middle"
                             fontSize={10} fontFamily="sans-serif" fontWeight="bold"
-                            letterSpacing={1} fill="var(--text-primary)">{label}</text>
+                            letterSpacing={1} fill="var(--text-primary)">{geom ? geom.label : ''}</text>
                     </g>
                 );
             })}
@@ -133,6 +221,7 @@ const StaffCarousel = ({ staff, staffStart, currentSlug, centerX, onSetInstrumen
                 items={ITEMS} activeIndex={activeIndex} renderItem={renderItem}
                 centerX={centerX} y={staffStart + HIT_TOP} baseWidth={BASE} height={HIT_H}
                 onSelect={(item) => onSetInstrument(staff, item.slug)}
+                onPosChange={updateHeaders}
                 debugMode={debugMode} />
         </g>
     );

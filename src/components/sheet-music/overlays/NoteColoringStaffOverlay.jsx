@@ -1,6 +1,5 @@
 import React from 'react';
 import NonLinearCarousel from './NonLinearCarousel';
-import { getNoteAbsoluteY } from '../renderMelodyNotes';
 import { StaffQuarterNote } from '../staffNoteGlyph';
 import { melodicNoteColor } from '../../../theory/noteUtils';
 
@@ -10,9 +9,14 @@ import { melodicNoteColor } from '../../../theory/noteUtils';
 // principle 2): IN the SheetMusic SVG, on the EXISTING top staff. The 5 schemes are now
 // CAROUSEL ITEMS (same NonLinearCarousel primitive as the instrument setter): the MIDDLE
 // scheme is the active/selected one, side schemes fade + shrink toward the edges. Each scheme
-// renders its own example notes (C4–C5) coloured by THAT scheme, placed with the same
-// getNoteAbsoluteY/StaffQuarterNote the real notes use so they land on the staff lines. Tap a
-// side scheme → it glides to centre + becomes selected; drag → the centred scheme is selected.
+// renders its own example notes (C4–C5) coloured by THAT scheme. Tap a side scheme → it glides
+// to centre + becomes selected; drag → the centred scheme is selected.
+//
+// FLAT BASELINE (Han 2026-06-17, "flatten the wheel"): the example noteheads no longer ASCEND
+// the staff by pitch — each scheme reads as a horizontal COLOUR SWATCH (the colour, not the
+// pitch, is the point), so every notehead sits on ONE horizontal baseline (the middle staff
+// line). Still drawn with the canonical StaffQuarterNote glyph (§6d) and per-note
+// melodicNoteColor; only the y is held constant. No ledger lines needed when flat.
 //
 // REORDER + RENAME (Han 2026-06-17): none → chord → scale → chromatone → subtle chromatone.
 // 'scale' is the RENAMED LABEL of the legacy 'tonic_scale_keys' mode — the mode VALUE stays
@@ -31,17 +35,13 @@ const NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
 // holds a run of example noteheads. Widened +40% (Han 2026-06-17).
 const BASE = 134;
 const NOTE_SPACING = 13;   // x-gap between the example noteheads within one scheme item
-
-// Ledger lines (every 10) between the 5-line staff [staffStart..staffStart+40] and a notehead.
-const ledgerYs = (y, staffStart) => {
-    const out = [];
-    for (let g = staffStart - 10; y <= g; g -= 10) out.push(g);
-    for (let g = staffStart + 50; y >= g; g += 10) out.push(g);
-    return out;
-};
+// The single horizontal baseline every example notehead sits on: the MIDDLE staff line. The staff
+// body spans [staffStart .. staffStart+40]; the middle line is 20 below the top (matches
+// staffNoteGlyph.stemIsUp's threshold). Holding y here is the whole "flatten the wheel" change.
+const FLAT_DY = 20;
 
 const NoteColoringStaffOverlay = ({
-    startX, endX, trebleStart, clefTreble = 'treble',
+    startX, endX, trebleStart,
     noteColoringMode, setNoteColoringMode, tonic, scaleNotes, activeChord = null, theme, debugMode = false,
 }) => {
     if (startX == null || endX == null) return null;
@@ -53,6 +53,9 @@ const NoteColoringStaffOverlay = ({
     // Render ONE scheme item around the carousel origin (0,0): its example notes coloured by
     // this scheme + the scheme label below. The carousel wrapper applies translate+scale+opacity.
     // SVG-NATIVE noteheads via the canonical StaffQuarterNote (§6d) so they match the real staff.
+    // FLAT: every notehead sits on the single middle-line baseline (FLAT_DY) — the scheme reads as
+    // a horizontal colour swatch, not a pitch ramp (Han 2026-06-17). No ledger lines when flat.
+    const y = trebleStart + FLAT_DY;
     const renderItem = (s, i) => {
         const active = i === activeIndex;
         const runW = (NOTES.length - 1) * NOTE_SPACING;
@@ -61,13 +64,11 @@ const NoteColoringStaffOverlay = ({
             <g style={{ pointerEvents: 'none' }}>
                 {NOTES.map((n, k) => {
                     const x = x0 + k * NOTE_SPACING;
-                    const y = getNoteAbsoluteY(n, trebleStart, clefTreble, 'treble');
-                    if (y == null) return null;
                     const color = melodicNoteColor(n, { noteColoringMode: s.mode, ...ctx })
                         || 'var(--text-primary)';
                     return (
                         <StaffQuarterNote key={n} x={x} positionY={y} staffYStart={trebleStart}
-                            ledgerYs={ledgerYs(y, trebleStart)} color={color} />
+                            color={color} />
                     );
                 })}
                 <text x={0} y={trebleStart + 58} textAnchor="middle" fontSize={11}
