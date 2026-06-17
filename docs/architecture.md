@@ -935,6 +935,52 @@ the header and the sheet:
 
 ---
 
+### Time-Signature Change While Stopped → Malformed Sheet (BACKLOG.md 1587)
+
+**Symptom:** Changing the TIME SIGNATURE while NOT playing produced a malformed sheet
+that persisted until the next regeneration: notes drawn past the last barline, the
+trailing partial measure's notes missing, and (in pagination mode) those notes dropped
+entirely. Open since May, high priority.
+
+**Root cause:** The melody is stored as METER-INDEPENDENT absolute ticks, so re-barring is
+just re-slicing the same notes by the new measure length — and the slot processor already
+splits + ties notes across barlines and pads the final bar. But the DISPLAYED measure
+count was computed in `SheetMusic.jsx` as
+`melodyMeasureCount = Math.max(1, Math.round(totalMelodyDuration / measureLengthSlots))`.
+After a TS change the melody almost never divides evenly into the new meter (e.g. a 4-bar
+4/4 melody = 192 ticks shown in 3/4 where `measureLengthSlots ≈ 36` → 192/36 = 5.33), so
+`Math.round` returned 5 instead of 6. `melodyMeasureCount` feeds `displayNumMeasures`,
+which drives the barline count (`calculateAllOffsets` `totalSlotsExpected`), the
+`globalMaxDuration` end-padding, the per-page slice range (`sliceMelodyByRange`, which
+keeps only notes with `offset < count*measureLength`), and the page/measure widths. With
+the count rounded DOWN, the partial final measure (offsets 180–192) was dropped or
+mislaid — the persistent malformation.
+
+**Fix (eliminated at the state level, not masked):** Round UP. Extracted a pure helper
+`melodyMeasureSpan(totalMelodyDuration, measureLengthTicks, fallbackMeasures)` in
+`melodySlice.js` that returns
+`Math.max(1, Math.ceil(totalMelodyDuration / measureLengthTicks - 1e-6))` (with the empty
+fallback), and `SheetMusic.jsx` now calls it for `melodyMeasureCount`. Even division →
+unchanged; uneven (re-barred after a TS change) → the trailing partial measure is shown,
+the slot processor pads a trailing rest into it and ties notes across the new barlines, and
+no notes are dropped. The `-1e-6` epsilon stops floating-point error inflating an exact
+multiple by a whole measure. No `rebarMelody` helper was needed: the main render path feeds
+the WHOLE (or whole-range) melody to `processMelodyAndCalculateSlots`, whose Step 2
+measure-boundary split already ties cross-barline continuations, and `sliceMelodyByRange`
+keeps notes by START offset over the full range, so nothing is bucketed-and-lost.
+
+This implements the "graceful partial-measure display" feature the comment at
+`useAppHandlers.js:114-115` referenced. When stopped, a TS change mutates ONLY
+`timeSignature` (the stopped branch never touches melody state), so the corrected render is
+a single, consistent commit by construction — no regenerate call was added to the stopped
+branch. The playing branch still calls `randomizeAll` (unchanged). Works for all meters
+including irregular ones (verified 3/4, 4/4, 5/4, 7/8) with no per-meter special-casing.
+
+**Files:** `src/utils/melodySlice.js` (new `melodyMeasureSpan`),
+`src/components/sheet-music/SheetMusic.jsx`, `src/utils/__tests__/melodySlice.test.js`.
+
+---
+
 ### Drum / Metronome Continues Playing After Stop
 
 **Symptom:** After pressing Stop, the drum and metronome tracks continue playing out their already-scheduled audio buffers.

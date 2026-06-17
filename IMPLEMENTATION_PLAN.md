@@ -70,7 +70,8 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 - ✅ BACKLOG hygiene (Han 2026-06-17): marked the seven June-16 NIEUWE FEATURE REQUESTS ✅ with
   dated completion notes (I'd left them as "Logged" — Han: "you are relisting items i told you to
   close"). Then did a full-file open-items review.
-- 🔨 BUG: malformed sheet on TIME-SIGNATURE change while stopped (BACKLOG line 1587, open since May).
+- ✅ BUG: malformed sheet on TIME-SIGNATURE change while stopped (BACKLOG line 1587, open since May)
+  — FIXED + reviewed (280 tests, +9; build clean). Final fix in the dated entry at the bottom.
   Diagnosed (read-only Plan agent + my code reads): melody is meter-independent absolute ticks, so
   re-barring = re-slicing; the processor already splits/ties across barlines. ROOT CAUSE = SheetMusic
   melodyMeasureCount uses Math.round(totalDuration/measureLengthSlots) → when old melody doesn't
@@ -1206,3 +1207,13 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
    - PLUMB instrumentEditMode mirroring colorEditMode: App.jsx, SubHeader.jsx, SheetMusic.jsx,
      useRangeMorph.js groupsForKind('instrument').
    - onSelect → setTrebleSettings/setBassSettings({...,instrument}).
+
+## TS-change-while-stopped malformed sheet (BACKLOG 1596) — 2026-06-17
+✅ Fixed. melodyMeasureCount used Math.round → dropped partial final measure after a
+   TS change (192 ticks in 3/4 = 5.33 → 5, not 6). Switched to ceil via new pure helper
+   melodyMeasureSpan(total, measureLen, fallback) in melodySlice.js (Math.ceil(x - 1e-6),
+   max 1, empty fallback). SheetMusic.jsx calls it. Processor already ties across new
+   barlines + pads partial bar, so no rebarMelody needed. Eliminated at state level:
+   stopped branch mutates only timeSignature. Tests +9 (280 green), build clean.
+   Docs: architecture.md §13 bug log. Files: melodySlice.js, SheetMusic.jsx,
+   melodySlice.test.js, architecture.md, BACKLOG.md.

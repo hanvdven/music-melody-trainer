@@ -40,7 +40,7 @@ import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
 import { PRESET_RANGES as CLEF_RANGE_PRESET_RANGES } from '../../constants/ranges';
 import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionInstLabel, getTranspositionFifths } from '../../constants/transposingInstruments';
-import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange } from '../../utils/melodySlice';
+import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange, melodyMeasureSpan } from '../../utils/melodySlice';
 import { calculateMusicalBlocks } from '../../utils/pagination';
 import useLongPressTimer from '../../hooks/useLongPressTimer';
 import BpmControls from './BpmControls';
@@ -868,9 +868,18 @@ const SheetMusic = ({
   // This is intentionally independent of the numMeasures generator setting so that
   // changing numMeasures during playback doesn't resize the current melody display.
   // Falls back to numMeasures only for the initial empty state (before first generation).
-  const melodyMeasureCount = totalMelodyDuration > 0
-    ? Math.max(1, Math.round(totalMelodyDuration / measureLengthSlots))
-    : numMeasures;
+  //
+  // melodyMeasureSpan rounds UP (ceil), not nearest, so a melody that does NOT divide
+  // evenly into the current meter still gets a trailing measure for its leftover notes.
+  // This is the normal case when the TIME SIGNATURE is changed while stopped: the melody
+  // stores METER-INDEPENDENT absolute ticks, so a 192-tick (4-bar 4/4) melody re-barred
+  // into 3/4 (measureLengthSlots ≈ 36) spans 192/36 = 5.33 measures. Math.round would give
+  // 5, dropping the partial final measure's notes (offsets 180–192) — the persistent
+  // malformed-sheet bug. Ceil gives 6: even division → unchanged; uneven (re-barred after a
+  // TS change) → the trailing partial measure is shown, with the renderer's trailing-rest
+  // padding (processMelodyAndCalculateSlots end-pad) and cross-barline ties (Step 2
+  // measure-boundary split), instead of dropping notes. See melodySlice.melodyMeasureSpan.
+  const melodyMeasureCount = melodyMeasureSpan(totalMelodyDuration, measureLengthSlots, numMeasures);
 
   // Derive displayed measure count from the actual melody so that generator setting
   // changes (numMeasures) don't immediately add/remove empty measures from the view.
