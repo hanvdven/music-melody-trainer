@@ -252,12 +252,11 @@ const InstrumentStaffOverlay = ({
                 <StaffCarousel staff="bass" staffStart={bassStart} currentSlug={bassInstrument}
                     centerX={centerX} onSetInstrument={onSetInstrument} debugMode={debugMode} />
             )}
-            {/* Attribution / licence line shown while the setter is open. UNtagged (no
-                data-fly) so it does the cascade's delayed fade-in. Sits just below the
-                bottom staff. TODO(icons8): ICON_ATTRIBUTION flips to the icons8 credit when
-                real icons replace the lucide placeholders (see constants/instruments.js). */}
-            <text x={startX} y={(isBassVisible ? bassStart : trebleStart) + 72}
-                fontSize={9} fontFamily="sans-serif" fill="var(--text-dim, #888)"
+            {/* icons8 attribution/licence (MANDATORY) — centred DIRECTLY BELOW the (bottom) carousel
+                (Han 2026-06-17), just under its name row. UNtagged (no data-fly) so it does the
+                cascade's delayed fade-in. */}
+            <text x={centerX} y={(isBassVisible ? bassStart : trebleStart) + NAME_DY + 13}
+                textAnchor="middle" fontSize={9} fontFamily="sans-serif" fill="var(--text-dim, #888)"
                 style={{ pointerEvents: 'none' }}>
                 {ICON_ATTRIBUTION}
             </text>

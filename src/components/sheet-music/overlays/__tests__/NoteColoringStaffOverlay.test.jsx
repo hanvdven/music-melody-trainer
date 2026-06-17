@@ -34,24 +34,16 @@ describe('NoteColoringStaffOverlay', () => {
         expect(labels).not.toContain('Tonic / Scale');
     });
 
-    it('FLAT baseline: every example notehead sits on ONE horizontal y (Han 2026-06-17)', () => {
-        // "Flatten the wheel": the scheme example notes no longer ascend the staff by pitch — they
-        // form a horizontal colour swatch, so all Maestro notehead glyphs share a single y.
+    it('example notes ASCEND C4→C5 at real staff positions (Han 2026-06-17, not flat)', () => {
+        // The scheme example notes keep the pitch ramp (the "flatten" was a misread — only the
+        // carousel reads horizontal, not the notes), so noteheads span MULTIPLE baseline ys.
         const { container } = renderOverlay();
         const heads = [...container.querySelectorAll('text')]
             .filter(t => t.getAttribute('font-family') === 'Maestro');
         expect(heads.length).toBeGreaterThan(0);
         const ys = new Set(heads.map(t => t.getAttribute('y')));
-        // All noteheads across all scheme items share exactly one baseline y.
-        expect(ys.size).toBe(1);
-    });
-
-    it('FLAT: no ledger lines are drawn (notes never leave the staff when flat)', () => {
-        // Ledger lines were <path> with strokeWidth 0.5; flattening to the middle line removes them.
-        const { container } = renderOverlay();
-        const ledgers = [...container.querySelectorAll('path')]
-            .filter(p => p.getAttribute('stroke-width') === '0.5');
-        expect(ledgers.length).toBe(0);
+        // A C4→C5 run uses several distinct staff heights, not a single baseline.
+        expect(ys.size).toBeGreaterThan(1);
     });
 
     it('wraps the carousel in a data-fly group so it slides in with the morph', () => {
