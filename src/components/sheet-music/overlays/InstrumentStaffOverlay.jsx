@@ -1,5 +1,5 @@
 import React from 'react';
-import NonLinearCarousel, { visibleRange, xOffsetForDist } from './NonLinearCarousel';
+import NonLinearCarousel, { visibleRange, xOffsetForDist, VISIBLE_HALF } from './NonLinearCarousel';
 import {
     INSTRUMENT_LIST, getInstrumentIconUrl, ICON_ATTRIBUTION,
 } from '../../../constants/instruments';
@@ -55,13 +55,22 @@ const signedDist = (i, pos, n) => ((i - pos + n / 2 + n) % n) - n / 2;
 const categoryHeaders = (pos) => {
     const N = ITEMS.length;
     const visible = visibleRange(pos, N);   // ordered, wrap-aware array of real indices
+    const firstVis = visible[0];
+    const lastVis = visible[visible.length - 1];
     const headers = [];
     let run = null;   // { label, firstIdx, lastIdx }
     const flush = () => {
         if (run && run.count >= 2) {
             const xLeft = xOffsetForDist(signedDist(run.firstIdx, pos, N)) * BASE;
             const xRight = xOffsetForDist(signedDist(run.lastIdx, pos, N)) * BASE;
-            headers.push({ label: run.label, xLeft, xRight });
+            // PIN-TO-EDGE (Han 2026-06-17, anti-jitter): when this run's outer item IS the
+            // outermost-visible item, its computed x jitters as it shrinks/fades scrolling off.
+            // Flag it so bracketGeom pins that end to the FIXED carousel edge instead.
+            headers.push({
+                label: run.label, xLeft, xRight,
+                pinLeft: run.firstIdx === firstVis,
+                pinRight: run.lastIdx === lastVis,
+            });
         }
     };
     for (const idx of visible) {
@@ -84,13 +93,19 @@ const categoryHeaders = (pos) => {
 // imperatively each frame (§6) rather than re-rendering React per drag frame.
 const MAX_HEADERS = 4;
 
-// Build the SVG geometry for one bracket from its {label, xLeft, xRight} + the staff/centre.
-// Pure — used both for the initial React render (at rest) and the per-frame imperative update
-// (during a gesture), so the two paths can never disagree.
+// Half-width of the carousel's visible window (matches NonLinearCarousel's hit surface:
+// centerX ± (VISIBLE_HALF + 0.5) * BASE). A pinned bracket end snaps to centerX ± EDGE_X.
+const EDGE_X = (VISIBLE_HALF + 0.5) * BASE;
+
+// Build the SVG geometry for one bracket from its {label, xLeft, xRight, pinLeft, pinRight} + the
+// staff/centre. Pure — used both for the initial React render (at rest) and the per-frame
+// imperative update (during a gesture), so the two paths can never disagree.
 const bracketGeom = (h, centerX, staffStart) => {
     const y = staffStart + HEADER_DY;
-    const x1 = centerX + h.xLeft - BASE * 0.42;   // a touch outside the first/last icon
-    const x2 = centerX + h.xRight + BASE * 0.42;
+    // Pinned ends snap to the fixed carousel edge (anti-jitter); free ends sit just outside the
+    // first/last icon of the run.
+    const x1 = h.pinLeft ? (centerX - EDGE_X) : (centerX + h.xLeft - BASE * 0.42);
+    const x2 = h.pinRight ? (centerX + EDGE_X) : (centerX + h.xRight + BASE * 0.42);
     const mid = (x1 + x2) / 2;
     const label = h.label.toUpperCase();          // Unicode-safe (no accidentals here)
     // Gap in the middle of the bracket for the label (so the line frames the text):
