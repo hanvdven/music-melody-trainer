@@ -19,7 +19,8 @@ const SongsTab = ({ onLoadSong }) => {
   );
 
   // When true: load/re-load songs in their written key and update the app tonic to match.
-  const [useOriginalKey, setUseOriginalKey] = useState(false);
+  // Default ON (Han 2026-06-17): loading a song uses its original key unless the user opts out.
+  const [useOriginalKey, setUseOriginalKey] = useState(true);
 
   // Tracks the last-loaded song so toggling "original key" ON can re-apply it immediately.
   const [lastLoaded, setLastLoaded] = useState(null);

@@ -26,6 +26,24 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
   setting. Future: each song + variant carries a 'difficulty score'. Ties into the difficulty→reload
   work above. §4b: where should the general difficulty control live (header? settings?).
 - 🐞 #1 Transition INSTRUMENT→COLOUR (now ✅ above).
+- ✅ FR original-key DEFAULT ON (Han 2026-06-17): SongsTab useOriginalKey useState(false→true).
+- Difficulty CLARIFICATION (Han 2026-06-17, supersedes "move out"): KEEP difficulty IN the song
+  selector, next to 'original key'; it should only affect SELECTED songs. (≈ no move; it's already
+  per-song in SongsTab.) Difficulty→reload-loaded-song still applies for the difficulty rework.
+- 🔨 BIG REDESIGN — instrument setter as a tight ~200px CAROUSEL (Han 2026-06-17), + same for the
+  colour setter. Spec (needs §4b interview — ambiguous): icons ~50% larger; NAME below the staff;
+  CATEGORY header above (8va-bracket style |---- GUITAR & BASS ----|), shown only when 2+ of that
+  category are visible, centered over the active selection, moving dynamically; 5 instruments
+  visible, MIDDLE = active/selected, sides fade + shrink. Re-categorise: harp → strings(other) (not
+  keys); violin/viola/cello/bass → "strings (viola)" etc; guitar → "strings (guitar)". Whole thing
+  ~200px so it can be juxtaposed. INTERVIEW before rebuilding (I just built this overlay).
+- 🔨 Colour setter: same carousel treatment + REORDER/RENAME schemes → none, chord, scale (rename of
+  tonic/scale), chromatone, subtle chromatone. (Label/order change is clear; carousel = part of the
+  redesign interview.)
+- 🐞 F-major g-clef not shown in colour settings menu (Han "suspicious of hard-coding"). FINDING:
+  SheetMusic.jsx:1950 `!clefEditMode && !colorEditMode` INTENTIONALLY hides the static clef in colour
+  mode — so no clef shows in colour mode for ANY key by design. Contradicts "shows except F major";
+  clarify whether the clef should show in the colour menu at all, vs a real F-major-specific glitch.
 - 🐞 #2 HBD anacrusis edge (anacrusis itself ✅ works!): on the VERY FIRST playthrough BOTH measure 0
   AND the anacrusis (0.2) should show; removing measure 0 puts the fermata on the wrong note. Also:
   the EVEN repeat has no anacrusis on its last measure. → maps to anacrusis Phase 3 (leading-pickup
