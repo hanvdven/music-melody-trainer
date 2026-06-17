@@ -149,7 +149,7 @@ const RangeControls = ({
                 {setNoteColoringMode && (
                     <button
                         onClick={() => {
-                            const COLOR_MODES = ['none', 'tonic_scale_keys', 'chords', 'scale', 'chromatone', 'subtle-chroma'];
+                            const COLOR_MODES = ['none', 'tonic_scale_keys', 'chords', 'chromatone', 'subtle-chroma'];
                             const idx = COLOR_MODES.indexOf(noteColoringMode);
                             setNoteColoringMode(COLOR_MODES[(idx + 1) % COLOR_MODES.length]);
                         }}
@@ -181,7 +181,6 @@ const RangeControls = ({
                                 none: 'NO COLOR',
                                 tonic_scale_keys: 'TONICS',
                                 chords: 'CHORDS',
-                                scale: 'SCALE',
                                 chromatone: 'CHROMATONE',
                                 'subtle-chroma': 'SUBTLE CHROMA'
                             }[noteColoringMode] || 'NO COLOR'}

@@ -67,12 +67,13 @@ apply this consistently, so also to elements of hbd, but not when a new melody i
 [Claude 2026-06-16 08:35]: DESIGN DONE — the cascade primitive ALREADY EXISTS (src/hooks/useRangeMorph.js + useClefRefly.js: 1.5s, 250ms fade-out, x-staggered fly-from-right; most surfaces already tagged data-fly/data-mel; trigger #3 overlay open/close already works). Plan = Phase0 extract shared runner (src/utils/flyInCascade.js) · Phase1 orchestrator + song-load + staff cascade · Phase2 tab + difficulty triggers · Phase3 tag lyrics/"concert C=" labels/setter notes · Phase4 ottava slide+fade-fallback. DECISIONS (Han 2026-06-16): difficulty change = fires the transition (distinct from a manual randomize/regen button, which keeps old anim); transition ALWAYS plays, even during active playback (no playback-suppression guard).
 [Claude 2026-06-17]: ✅ DONE — all phases + 2 CRs shipped. fade-out 0.25s → notes SLIDE in from the right → non-sliding elements delayed-fade (wait 1s, fade 0.5s). Triggers wired: song load, tab/screen change (sheet), difficulty change, setter overlays open/close. Shared runner src/utils/flyInCascade.js + useUniversalTransition + UniversalTransitionContext; ottava marker slides; lyrics/labels tagged. Docs: architecture.md "Universal 1.5s transition". ❓ One open decision (plan note): a global difficulty-slider change currently RE-flies the CURRENT notes (acknowledgement) rather than regenerating — confirm if you want difficulty to regenerate so the cascade reveals NEW content.
 
-### ✅ Coloring — add 'scale' coloring option (Han 2026-06-16)
+### 🗑️ Coloring — add 'scale' coloring option (Han 2026-06-16) — WITHDRAWN by Han 2026-06-17
 
 coloring: next to chords - add 'scale' as coloring option; coloring all scale notes normally, coloring non-scale notes (i.e., blue notes) grayish blue. Of course apply to all places where notes are colored, including keyboard.
 
 [Claude 2026-06-16 05:55]: Logged. Well-specified. ⚠ Quick interview (§4b). ❓ "normally" for scale notes = the active scheme's normal colour, or a fixed neutral? Exact grayish-blue value/CSS var? New `noteColoringMode: 'scale'` routed via `melodicNoteColor` (noteUtils) so all surfaces incl. keyboard inherit it (§6c/§6d).
 [Claude 2026-06-17]: ✅ DONE — 'scale' mode: in-scale notes get their scale-degree colour, out-of-scale "blue notes" go greyish-blue; applied everywhere incl. keyboard via the shared melodicNoteColor (§6c).
+[Claude 2026-06-17 later]: 🗑️ REMOVED at Han's request ("remove the scale color option — it is redundant, already covered by tonic/scale; my bad"). Reverted commit 20309ee: dropped the 'scale' branch from melodicNoteColor + both sheet renderers (renderMelodyNotes, SheetMusic) + PianoView, removed it from the colour menu (NoteColoringStaffOverlay) and the SubHeader/RangeControls/SettingsPanel palette cycles, removed the --note-blue theme var + the scale tests/docs. 276 tests green, build clean.
 
 ### ✅ Instrument selector (Han 2026-06-03)
 
