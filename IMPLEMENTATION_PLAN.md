@@ -1185,15 +1185,12 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
   ❓ OPEN for Han: (a) OK that on repeats the pickup shows at END of each block (not a leading bar),
        refined in phase 3? (b) Confirm once-mode plays unchanged + repeat-mode is always-merged.
   ⏳ Phase 3: pagination polish — leading-pickup bar on the first pass.
+<<<<<<< HEAD
 
-### Note-colouring 'scale' mode (Han 2026-06-16)
-✅ New `'scale'` colouring mode. In-scale notes coloured like `tonic_scale_keys`
-   (tonic→--note-tonic, scale→--note-scale); out-of-scale chromatic blue notes→--note-blue
-   (slate grayish-blue, new theme var: #6b7a99 dark, #5a677f light/meridienne, nocturne inherits).
-   Extended single source of truth `melodicNoteColor` (noteUtils.js) + the two hand-rolled sheet
-   renderers (renderMelodyNotes, SheetMusic) + keyboard (PianoView routes through melodicNoteColor).
-   Added to colour menu next to 'chords', and to SubHeader/RangeControls palette cycles (label SCALE).
-   4 smoke tests added; 253 tests green; build clean. Documented in architecture.md §note-colouring.
+### Note-colouring 'scale' mode (Han 2026-06-16) — ADDED then REMOVED (Han 2026-06-17)
+🗑️ Removed at Han's request: redundant — already covered by the existing tonic/scale colouring
+   ("my bad"). Reverted commit 20309ee (the 'scale' branch in melodicNoteColor + the two sheet
+   renderers + PianoView + the colour-menu/palette cycles + --note-blue var + tests/docs).
 
 ### Instrument selector in the sheet music (Han 2026-06-16)
 ✅ New in-staff INSTRUMENT setter (sibling of clef/range/colour) — 271 tests green, build clean.

@@ -892,14 +892,6 @@ const renderMelodyNotes = (
         if (nPC === normalizePC(tonic)) return 'var(--note-tonic)';
         if (scaleNotes.some(s => normalizePC(s) === nPC)) return 'var(--note-scale)';
       }
-      // 'scale' mode (Han 2026-06-16): like tonic_scale_keys but chromatic blue notes
-      // (neither tonic nor in-scale) get --note-blue instead of falling back to text colour.
-      if (noteColoringMode === 'scale') {
-        const nPC = normalizePC(n);
-        if (nPC === normalizePC(tonic)) return 'var(--note-tonic)';
-        if (scaleNotes.some(s => normalizePC(s) === nPC)) return 'var(--note-scale)';
-        return 'var(--note-blue)';
-      }
       return 'var(--text-primary)';
     };
 

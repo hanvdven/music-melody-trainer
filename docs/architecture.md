@@ -3125,8 +3125,8 @@ note is folded to the nearest octave (`foldShift → [-6,+6]`) so a key never ju
 on-staff 2026-06-14). A new COLOUR setter mode (`colorEditMode` in App, sibling of
 range/clef/settings — mutually exclusive). Per the visual-redesign principle (§37 #2) it
 renders IN the SheetMusic SVG, directly on the EXISTING top staff (no HTML cards, no extra
-mini-staves, no clef — the static clef glyph is suppressed in `colorEditMode`). The 6 scheme
-sets (`none, tonic_scale_keys, chords, scale, chromatone, subtle-chroma`) sit side by side along the
+mini-staves, no clef — the static clef glyph is suppressed in `colorEditMode`). The 5 scheme
+sets (`none, tonic_scale_keys, chords, chromatone, subtle-chroma`) sit side by side along the
 real staff; each is 8 notes C4–C5 coloured by THAT scheme, placed with the same
 `getNoteAbsoluteY`/`StaffQuarterNote`/`melodicNoteColor` the real notes use, so they land on
 the staff lines. Tap a set to select it (`setNoteColoringMode`); active set highlighted.
@@ -3134,29 +3134,6 @@ Mounted simply on `colorEditMode`; `overlayEditMode` includes it so the melody h
 `chords` set colours against the representative chord (`pausedActiveChord`) via the shared
 `chordNoteColor`. Note: the sets fit-to-width in the SVG (no HTML side-scroll — that would
 break the on-staff requirement).
-
-**`scale` colouring mode (Han 2026-06-16).**
-**Purpose:** highlight where a melody leaves the scale. In-scale notes are coloured by the
-scale-degree scheme (identical to `tonic_scale_keys`: tonic pitch-class → `--note-tonic`, any
-other scale pitch-class → `--note-scale`); chromatic "blue notes" — pitch classes that are
-neither the tonic nor in `scaleNotes` — get a distinct slate grayish-blue `--note-blue` so
-out-of-scale notes stand out at a glance.
-**How it works:** the single source of truth is `melodicNoteColor` in `noteUtils.js`, which
-gains a `'scale'` branch mirroring `tonic_scale_keys` plus a `return 'var(--note-blue)'`
-fallback. All comparisons use `getNoteSemitone` (enharmonic-correct, §6 invariant). The mode
-appears in the colour menu next to `chords`, and in the SubHeader / RangeControls palette
-cycle (`COLOR_MODES`, label `SCALE`). `--note-blue` is defined alongside `--note-tonic` /
-`--note-scale` in every theme block (`#6b7a99` dark, `#5a677f` light/meridienne; nocturne
-inherits the dark default).
-**Invariant:** in-scale colours stay identical to `tonic_scale_keys`; only the out-of-scale
-fallback differs. The keyboard (`PianoView.getKeyStyle`) routes its `'scale'` key backgrounds
-through `melodicNoteColor` using the CONCERT note, mixing the base toward black/white the same
-way the chromatone branch does — no per-note colour table.
-**Files:** `src/theory/noteUtils.js`, `src/styles/App.css`,
-`src/components/sheet-music/overlays/NoteColoringStaffOverlay.jsx`,
-`src/components/sheet-music/renderMelodyNotes.jsx`, `src/components/sheet-music/SheetMusic.jsx`,
-`src/components/controls/PianoView.jsx`, `src/components/controls/RangeControls.jsx`,
-`src/components/layout/SubHeader.jsx`.
 
 **Chord colouring — timed vs untimed surfaces (Han 2026-06-14).** `chordNoteColor(note,
 chord, theme)` in `noteUtils` is the single source for 'chords'-mode colour (chord tones get
