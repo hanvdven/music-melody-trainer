@@ -7,6 +7,24 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-17 (cont.) — Carousel feedback ROUND 2 (Han) + honest outstanding list
+- ✅ Colour notes: RESTORED C4→C5 ascending (the "flatten the wheel" was MY MISREAD — Han wanted
+  the CAROUSEL horizontal, not the notes). getNoteAbsoluteY + ledgers + clefTreble back.
+- ✅ Carousel "horizontal not a dial" = MUCH MILDER shrink (Han chose): scaleForDist 1.0→0.45 → 1.0→
+  0.82, both setters (shared primitive).
+- ✅ icons8 credit centred DIRECTLY BELOW the carousel (was left-aligned below the staff).
+- ✅ Category-header EDGE-PIN (anti-jitter): when a run's outer item is the outermost-visible item,
+  pin that bracket end to the fixed carousel edge (centerX±EDGE_X) instead of the shrinking item x.
+- ⚠ I OVERSTATED progress ("queue is clearing"). OUTSTANDING (honest): range R1–R4 (per-note
+  cascade, trigger-on-keys, bound-flash 🐞, yellow→white boundaries); difficulty→reload-loaded-song;
+  HBD #2/#3/#4 (DIAGNOSED — see HBD diagnosis below — pending Han's §4b answers).
+- HBD DIAGNOSIS DONE (read-only): #2 = Phase-3 first-pass pickup gap + fermata rebased for audio
+  not render (anacrusisRepeat.js toRenderBody / SheetMusic.jsx:1560 indexOf(f.tick)); #3 = repeat
+  numbering desync past numRepeats (BarlinesLayer.jsx:120-136 + skipped series-flip in isRepeatMode;
+  fix = repsPerMelody→∞/no-series-flip); #4 = App.jsx:1375 viewMode ternary keys on
+  isPlayingContinuously, but songs play via handlePlayRepeat (isPlayingMelody) → static oddRounds
+  branch. Interview questions pending (esp. #2 first-pass layout).
+
 ## 2026-06-17 (cont.) — Carousel feedback + range-selector batch (Han)
 CAROUSEL / coloration:
 - ✅ Restore colour example notes to full C4–C5 run (had dropped to 5). NoteColoringStaffOverlay NOTES.
