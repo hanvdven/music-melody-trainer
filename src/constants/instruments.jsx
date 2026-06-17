@@ -20,66 +20,61 @@ import { Piano, Guitar, Music2, Wind, MicVocal, Drum } from 'lucide-react';
 // shaped so a future drop of real icons8 <image>s only needs `getInstrumentIcon` to
 // return an <image> per slug and `ICON_ATTRIBUTION` to flip — see TODO below.
 
-// Grouped by family. `family` is the lucide glyph key used by getInstrumentIcon so the
-// icon is DERIVED from the group, never hand-mapped per instrument (§6c).
+// Grouped by CATEGORY (the header shown above the carousel). Each item carries its own
+// `family` = the lucide glyph key used by getInstrumentIcon, so the icon is DERIVED per
+// item (§6c) — this lets the STRINGS category hold both guitar-glyph and string-glyph
+// instruments without a per-instrument icon table.
+//
+// Taxonomy (Han 2026-06-17): ONE big STRINGS category folds in the guitars/basses, the
+// orchestral strings AND the harp (harp is NOT a keyboard). Categories: Keys / Strings /
+// Winds / Tuned Percussion / Voice.
 export const INSTRUMENT_GROUPS = [
     {
         label: 'Keys',
-        family: 'keys',
         items: [
-            { name: 'Piano', slug: 'acoustic_grand_piano' },
-            { name: 'Electric Piano', slug: 'electric_piano_1' },
-            { name: 'Organ', slug: 'church_organ' },
-            { name: 'Harp', slug: 'orchestral_harp' },
-        ],
-    },
-    {
-        label: 'Guitars & Bass',
-        family: 'guitar',
-        items: [
-            { name: 'Guitar Nylon', slug: 'acoustic_guitar_nylon' },
-            { name: 'Guitar Steel', slug: 'acoustic_guitar_steel' },
-            { name: 'Guitar Clean', slug: 'electric_guitar_clean' },
-            { name: 'Acoustic Bass', slug: 'acoustic_bass' },
-            { name: 'Bass Picked', slug: 'electric_bass_pick' },
-            { name: 'Synth Bass', slug: 'synth_bass_1' },
+            { name: 'Piano', slug: 'acoustic_grand_piano', family: 'keys' },
+            { name: 'Electric Piano', slug: 'electric_piano_1', family: 'keys' },
+            { name: 'Organ', slug: 'church_organ', family: 'keys' },
         ],
     },
     {
         label: 'Strings',
-        family: 'strings',
         items: [
-            { name: 'Violin', slug: 'violin' },
-            { name: 'Cello', slug: 'cello' },
-            { name: 'Ensemble', slug: 'string_ensemble_1' },
+            { name: 'Guitar Nylon', slug: 'acoustic_guitar_nylon', family: 'guitar' },
+            { name: 'Guitar Steel', slug: 'acoustic_guitar_steel', family: 'guitar' },
+            { name: 'Guitar Clean', slug: 'electric_guitar_clean', family: 'guitar' },
+            { name: 'Acoustic Bass', slug: 'acoustic_bass', family: 'guitar' },
+            { name: 'Bass Picked', slug: 'electric_bass_pick', family: 'guitar' },
+            { name: 'Synth Bass', slug: 'synth_bass_1', family: 'guitar' },
+            { name: 'Violin', slug: 'violin', family: 'strings' },
+            { name: 'Cello', slug: 'cello', family: 'strings' },
+            { name: 'Ensemble', slug: 'string_ensemble_1', family: 'strings' },
+            { name: 'Harp', slug: 'orchestral_harp', family: 'strings' },
         ],
     },
     {
         label: 'Winds',
-        family: 'winds',
         items: [
-            { name: 'Trumpet', slug: 'trumpet' },
-            { name: 'French Horn', slug: 'french_horn' },
-            { name: 'Saxophone', slug: 'tenor_sax' },
-            { name: 'Clarinet', slug: 'clarinet' },
-            { name: 'Oboe', slug: 'oboe' },
-            { name: 'Flute', slug: 'flute' },
+            { name: 'Trumpet', slug: 'trumpet', family: 'winds' },
+            { name: 'French Horn', slug: 'french_horn', family: 'winds' },
+            { name: 'Saxophone', slug: 'tenor_sax', family: 'winds' },
+            { name: 'Clarinet', slug: 'clarinet', family: 'winds' },
+            { name: 'Oboe', slug: 'oboe', family: 'winds' },
+            { name: 'Flute', slug: 'flute', family: 'winds' },
         ],
     },
     {
         label: 'Tuned Percussion',
-        family: 'percussion',
         items: [
-            { name: 'Marimba', slug: 'marimba' },
-            { name: 'Vibraphone', slug: 'vibraphone' },
+            { name: 'Marimba', slug: 'marimba', family: 'percussion' },
+            { name: 'Vibraphone', slug: 'vibraphone', family: 'percussion' },
         ],
     },
     {
         label: 'Voice',
-        family: 'voice',
         items: [
-            { name: 'Voice Oohs', slug: 'voice_oohs' },
-            { name: 'Choir', slug: 'choir_aahs' },
+            { name: 'Voice Oohs', slug: 'voice_oohs', family: 'voice' },
+            { name: 'Choir', slug: 'choir_aahs', family: 'voice' },
         ],
     },
 ];
@@ -87,7 +82,7 @@ export const INSTRUMENT_GROUPS = [
 // Flat list of every instrument row, in group order. Convenient for lookups + the
 // RangeControls stepper (which wants a flat options list).
 export const INSTRUMENT_LIST = INSTRUMENT_GROUPS.flatMap(g =>
-    g.items.map(it => ({ ...it, family: g.family, groupLabel: g.label })));
+    g.items.map(it => ({ ...it, groupLabel: g.label })));
 
 // Flat { displayName: slug } map — the legacy shape RangeControls relied on. Derived
 // from INSTRUMENT_GROUPS so it always tracks the grouped list (single source of truth).
