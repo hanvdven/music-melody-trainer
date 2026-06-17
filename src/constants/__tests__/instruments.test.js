@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     INSTRUMENT_GROUPS, INSTRUMENT_LIST, INSTRUMENTS,
-    getInstrumentIcon, instrumentNameForSlug, ICON_ATTRIBUTION,
+    getInstrumentIconUrl, instrumentNameForSlug, ICON_ATTRIBUTION,
 } from '../instruments';
 
 describe('constants/instruments', () => {
@@ -20,15 +20,22 @@ describe('constants/instruments', () => {
         expect(INSTRUMENTS['Piano']).toBe('acoustic_grand_piano');
     });
 
-    it('every slug resolves an icon node and a display name', () => {
+    it('every slug resolves an icons8 icon URL and a display name', () => {
         for (const it of INSTRUMENT_LIST) {
-            expect(getInstrumentIcon(it.slug)).toBeTruthy();
+            expect(getInstrumentIconUrl(it.slug)).toBeTruthy();
             expect(instrumentNameForSlug(it.slug)).toBe(it.name);
         }
     });
 
-    it('exposes a swappable attribution string', () => {
+    it('electric guitar + electric bass both use the Rock Music icon (Han)', () => {
+        const eg = getInstrumentIconUrl('electric_guitar_clean');
+        const eb = getInstrumentIconUrl('electric_bass_pick');
+        expect(eg).toMatch(/rock-music/);
+        expect(eb).toMatch(/rock-music/);
+    });
+
+    it('credits icons8 (mandatory licence credit)', () => {
         expect(typeof ICON_ATTRIBUTION).toBe('string');
-        expect(ICON_ATTRIBUTION.length).toBeGreaterThan(0);
+        expect(ICON_ATTRIBUTION).toMatch(/icons8/i);
     });
 });

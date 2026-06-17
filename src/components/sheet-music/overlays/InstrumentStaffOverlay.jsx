@@ -1,7 +1,7 @@
 import React from 'react';
 import NonLinearCarousel, { visibleRange, xOffsetForDist } from './NonLinearCarousel';
 import {
-    INSTRUMENT_LIST, getInstrumentIcon, ICON_ATTRIBUTION,
+    INSTRUMENT_LIST, getInstrumentIconUrl, ICON_ATTRIBUTION,
 } from '../../../constants/instruments';
 
 // ── In-staff INSTRUMENT selector (Han 2026-06-16, redesigned on the NonLinearCarousel
@@ -165,12 +165,13 @@ const StaffCarousel = ({ staff, staffStart, currentSlug, centerX, onSetInstrumen
         const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
         return (
             <g style={{ pointerEvents: 'none' }}>
-                {/* lucide glyph as a nested <g> centred on the staff; inherits `currentColor`.
-                    When icons8 <image> assets land this becomes an <image> — getInstrumentIcon
-                    is the single swap point (constants/instruments). */}
-                <g transform={`translate(${-ICON / 2}, ${staffStart + ICON_DY})`} style={{ color }}>
-                    {getInstrumentIcon(item.slug, ICON)}
-                </g>
+                {/* icons8 PNG centred on the staff (Han 2026-06-17). SVG-native <image> so it
+                    composites/fades with the morph group opacity (no <foreignObject>). The icons
+                    are flat-black, so the theme filter (--instrument-icon-filter: invert on dark
+                    themes) keeps them visible. getInstrumentIconUrl is the single swap point. */}
+                <image href={getInstrumentIconUrl(item.slug)}
+                    x={-ICON / 2} y={staffStart + ICON_DY} width={ICON} height={ICON}
+                    style={{ filter: 'var(--instrument-icon-filter, none)' }} />
                 <text x={0} y={staffStart + NAME_DY} textAnchor="middle" fontSize={11}
                     fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'} fill={color}>
                     {item.name}
