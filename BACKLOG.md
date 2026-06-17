@@ -21,32 +21,36 @@
 
 Deel deze features in bij de juiste categorie.
 
-### Range setter — beta/drag default tuning (Han 2026-06-16)
+### ✅ Range setter — beta/drag default tuning (Han 2026-06-16)
 
 range setter: set beta mid bow to 0.6 by default, drag px to 10.
 
 [Claude 2026-06-16 05:55]: Fully-specified default change — implementing directly (§5 obviously-scoped). β (dense-middle bow) default → 0.6, drag px default → 10.
+[Claude 2026-06-17]: ✅ DONE — β default 0.3→0.6, drag px 6→10 (RangeStaffOverlay.jsx). Shipped + green.
 
-### Note click animation smoother (Han 2026-06-16)
+### ✅ Note click animation smoother (Han 2026-06-16)
 
 when clicking a note, the animation could be smoother
 
 [Claude 2026-06-16 05:55]: Logged. ⚠ Interview before implementing (§4b): which click animation (tap-to-play note flash/scale?), what feels rough now, target easing/duration?
 [Claude 2026-06-16 08:20]: CLARIFIED (Han): this is the RANGE SETTER. Clicking a note should make the notes SLIDE smoothly to the new positions matching the selected boundary change; that slide is not smooth today. Scope = RangeStaffOverlay click-to-set (stepper / reanchor) animation, not tap-to-play.
+[Claude 2026-06-17]: ✅ DONE — tap-to-set now SLIDES the boundary notes continuously via an eased rAF tween of a fractional ordinal (was a per-natural stepper that re-rendered per natural = choppy). beginSlide/slideFrame in RangeStaffOverlay.jsx. Docs: architecture.md "Continuous tap-slide".
 
-### Range setter — vertical (up/down) drag (Han 2026-06-16)
+### ✅ Range setter — vertical (up/down) drag (Han 2026-06-16)
 
 range setter: one can slide sideways now, i would also be able to slide up and down.
 
 [Claude 2026-06-16 12:25]: Logged. ⚠ Interview before implementing (§4b). Today the boundary drag is HORIZONTAL only (onMove reads x; DRAG px per natural). Open Qs: should vertical drag move the SAME boundary the press picked (up = raise pitch / outward, down = lower), combined with horizontal or as an alternative axis? sensitivity (px per natural up/down)? does the tap-to-set/hold-extend stay unchanged?
+[Claude 2026-06-17]: ✅ DONE (Han: "both axes move it") — boundary drag now sums horizontal + vertical into a unified raise (UP = raise pitch); diagonal combines. svgY() + downRef.y + radial DRAG_THRESHOLD. RangeStaffOverlay.jsx onMove.
 
-### Range setter — notes shrink toward the middle (Han 2026-06-16)
+### ✅ Range setter — notes shrink toward the middle (Han 2026-06-16)
 
 i would like the selected notes in the middle of the range to shrink down to 50%. (100% close to the range setter), and progressively smaller toward the middle, and progressively smaller toward the middle.
 
 [Claude 2026-06-16 12:25]: Logged. ⚠ Interview before implementing (§4b). Reading: a SIZE perspective on the selected (in-range) notes — 100% near the boundaries (the range-setter edges), shrinking to ~50% at the middle of the range; complements the existing dense-MIDDLE spacing bow (β). Open Qs: confirm 100% at BOTH boundaries → 50% at exact middle (symmetric)? linear or eased falloff? applies to selected/in-range notes only (context notes unaffected)? heads only or heads+stems+ledgers scale together?
+[Claude 2026-06-17]: ✅ DONE (Han: "symmetric, eased", in-range only) — 100% at boundaries → ~50% at exact middle, eased, by natural ordinal; scales head+stem+ledgers together. Docs: architecture.md "Both-axes drag + middle-shrink".
 
-### Universal settings/song transition — 1.5s (Han 2026-06-16)
+### ✅ Universal settings/song transition — 1.5s (Han 2026-06-16)
 
 settings/song transitions.
 
@@ -61,14 +65,16 @@ apply this consistently, so also to elements of hbd, but not when a new melody i
 [Claude 2026-06-16 05:55]: Logged. Big cross-cutting feature. ⚠ Interview before implementing (§4b). ❓ Open Qs: (a) exact triggers = {song load, screen/tab change, settings open/close?} — list all; (b) "notes fly in from the right" — per-note stagger or whole-staff slide? distance? (c) is the fade-then-slide the FALLBACK only when fly-in isn't possible — what determines that? (d) confirm EXCLUDED: manual melody (re)generation keeps its current animation. Relates to existing pagination/wipe/scroll animation system (arch §2/§7) — must not collide.
 [Claude 2026-06-16 08:20]: INTERVIEW ANSWERS (Han): Triggers = ALL of {song load, screen/tab change, setter overlays open/close, difficulty change}. Manual melody (re)generation EXCLUDED. Fly-in = STAGGERED CASCADE (each note/label/element flies in from the right, left-to-right stagger). Phase-2 "other elements" (8va, brackets) = SLIDE in from the right, fade as fallback ONLY for elements that can't sensibly slide. Timeline: 1.5s total — fade-out current 0.25s → notes cascade in → others slide/fade [start ~1.0s, 0.5s].
 [Claude 2026-06-16 08:35]: DESIGN DONE — the cascade primitive ALREADY EXISTS (src/hooks/useRangeMorph.js + useClefRefly.js: 1.5s, 250ms fade-out, x-staggered fly-from-right; most surfaces already tagged data-fly/data-mel; trigger #3 overlay open/close already works). Plan = Phase0 extract shared runner (src/utils/flyInCascade.js) · Phase1 orchestrator + song-load + staff cascade · Phase2 tab + difficulty triggers · Phase3 tag lyrics/"concert C=" labels/setter notes · Phase4 ottava slide+fade-fallback. DECISIONS (Han 2026-06-16): difficulty change = fires the transition (distinct from a manual randomize/regen button, which keeps old anim); transition ALWAYS plays, even during active playback (no playback-suppression guard).
+[Claude 2026-06-17]: ✅ DONE — all phases + 2 CRs shipped. fade-out 0.25s → notes SLIDE in from the right → non-sliding elements delayed-fade (wait 1s, fade 0.5s). Triggers wired: song load, tab/screen change (sheet), difficulty change, setter overlays open/close. Shared runner src/utils/flyInCascade.js + useUniversalTransition + UniversalTransitionContext; ottava marker slides; lyrics/labels tagged. Docs: architecture.md "Universal 1.5s transition". ❓ One open decision (plan note): a global difficulty-slider change currently RE-flies the CURRENT notes (acknowledgement) rather than regenerating — confirm if you want difficulty to regenerate so the cascade reveals NEW content.
 
-### Coloring — add 'scale' coloring option (Han 2026-06-16)
+### ✅ Coloring — add 'scale' coloring option (Han 2026-06-16)
 
 coloring: next to chords - add 'scale' as coloring option; coloring all scale notes normally, coloring non-scale notes (i.e., blue notes) grayish blue. Of course apply to all places where notes are colored, including keyboard.
 
 [Claude 2026-06-16 05:55]: Logged. Well-specified. ⚠ Quick interview (§4b). ❓ "normally" for scale notes = the active scheme's normal colour, or a fixed neutral? Exact grayish-blue value/CSS var? New `noteColoringMode: 'scale'` routed via `melodicNoteColor` (noteUtils) so all surfaces incl. keyboard inherit it (§6c/§6d).
+[Claude 2026-06-17]: ✅ DONE — 'scale' mode: in-scale notes get their scale-degree colour, out-of-scale "blue notes" go greyish-blue; applied everywhere incl. keyboard via the shared melodicNoteColor (§6c).
 
-### Instrument selector (Han 2026-06-03)
+### ✅ Instrument selector (Han 2026-06-03)
 
 instrument selector: https://icons8.com/icons/set/music--style-ios--static--black (with correct attribution: icons by icons8)
 Rij instrumenten: logo, naam erboven, eventueel transpositie eronder; gebruikelijke highlight, lowlight. On click: speel de C4 af op het instrument. Implementeer de instrumenten die beschikbaar zijn op keyboard
@@ -83,6 +89,9 @@ Rij instrumenten: logo, naam erboven, eventueel transpositie eronder; gebruikeli
 
 [Han 2026-06-16]: lets' make one in the SHEET MUSIC first. Idea: instrument image + name ON the staff, scrollable sideways, grouped by instrument type. Whenever the view is open, print the appropriate copyright/licence. Changing the instrument sets the playback instrument (this function already exists — in the old deprecated range setter for the keys). More instruments than space → scrollable off-screen; selected instrument is centered.
 [Claude 2026-06-16 17:15]: ⚠ §4b interview in progress. FINDINGS: reusable setter = `setTrebleSettings/setBassSettings(p=>({...p, instrument: slug}))` (current = activeSettings.instrument); instrument list = curated 13-slug `INSTRUMENTS` map in RangeControls.jsx (smplr Soundfont), implicitly grouped (keys/guitars+bass/strings/winds/voice). BLOCKER: NO icons8 image assets in repo (src/assets only has fonts); current icons are lucide-react family glyphs. I won't fetch/scrape icons8 (licensing/network). Plan: reuse ClefCardCarousel (horizontal scroll) + the cascade animation + a new instrument-edit overlay under overlays/ (§8). Open Qs → see interview.
+[Claude 2026-06-17]: ✅ DONE — built the SHEET-MUSIC instrument selector Han specified (2026-06-16). New in-staff INSTRUMENT setter (sibling of clef/range/colour), PER-STAFF: each visible staff shows a horizontally-scrollable strip of instrument cards (icon + name) grouped by family, the selected instrument auto-centred, the rest scrolling off-screen (reuses ClefCardCarousel). Tapping a card sets that staff's playback instrument via the existing setTrebleSettings/setBassSettings path. Attribution/licence line shown while the view is open. Shared src/constants/instruments.jsx (grouped list, +10 common instruments; RangeControls imports it too). Plumbing mirrors colorEditMode (App/SubHeader/SheetMusic/useRangeMorph). Slides in from the right with the universal transition. 271 tests green, build clean. Docs: architecture.md §41.
+  • ICONS: lucide placeholder glyphs + names for now — I cannot fetch/scrape icons8 binaries. When Han supplies the icons8 image files (drop into src/assets/instruments/), it's a one-spot swap: getInstrumentIcon() returns an <image> and ICON_ATTRIBUTION flips to "Icons by Icons8" (TODO(icons8) markers in constants/instruments.jsx).
+  • SUPERSEDED by the 2026-06-16 sheet design (raise again if still wanted): the original 2026-06-03 ideas of "transposition row UNDER the name" and "on click play C4 on the instrument" are NOT part of the sheet selector. Easy follow-ups if desired.
 
 ---
 
