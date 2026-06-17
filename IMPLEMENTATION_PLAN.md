@@ -20,6 +20,11 @@ CAROUSEL / coloration:
   colour notes on one horizontal line instead of ascending the staff? whole-carousel horizontal?).
 - ⏳ icons8 IMAGE wiring: assets are in PR #31 (50/100px PNGs) on its branch — bring them onto this
   branch, then getInstrumentIcon returns <image> + flip ICON_ATTRIBUTION. ("didn't use icons8 yet").
+  Han 2026-06-17: use the 'Rock Music' icon8 icon for ELECTRIC GUITAR + ELECTRIC BASS; KEEP the
+  mandatory 'Icons by Icons8' credit visible while the setter is open.
+- ⏭️ NEXT after carousel-v2 + icons8 (Han 2026-06-17): continue with HAPPY BIRTHDAY song bugs
+  (#2 first-pass anacrusis/fermata + even-repeat anacrusis, #3 repeat numbering / indefinite=∞,
+  #4 song per-round visibility/audibility) — the unfinished anacrusis phases (§40).
 RANGE SELECTOR batch (separate subsystem — next focused effort):
 - ⏳ R1 After-selection animation feels cumbersome → animate/slide PER NOTE in quick succession
   (staggered cascade) instead of all-at-once. (reuse flyInCascade-style stagger in RangeStaffOverlay.)
