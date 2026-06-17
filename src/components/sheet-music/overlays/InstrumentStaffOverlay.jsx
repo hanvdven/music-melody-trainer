@@ -98,24 +98,27 @@ const StaffStrip = ({ staff, staffStart, currentSlug, startX, endX, onSetInstrum
             );
         }
         const color = card.active ? 'var(--text-primary)' : 'var(--text-lowlight)';
-        // foreignObject lets us render the SAME lucide placeholder icon the rest of the app
-        // uses (icon + name as an HTML card). Structured so a future icons8 <image> swap is
-        // a one-line change in getInstrumentIcon — see constants/instruments.js.
+        const cx = slotX + w / 2;
+        const ICON = 22;
+        // SVG-NATIVE card — NO <foreignObject> (fixes Han's bug 2026-06-17: INSTRUMENT→COLOUR
+        // notes "just appear" instead of sliding). The instrument overlay was the ONLY overlay
+        // rendered with foreignObject, and foreignObject HTML does NOT composite/fade with the
+        // SVG group opacity during the enter/exit morph. Because this overlay is painted AFTER
+        // the colour overlay (later sibling = on top), an exiting instrument→colour morph left the
+        // foreignObject visible over the colour noteheads sliding in, hiding the slide until it
+        // unmounted at the morph's end. Pure SVG fades cleanly like every other overlay. The
+        // lucide glyph is a lucide <svg> nested via a translated <g> (it inherits `currentColor`
+        // from the group's `color`); the name is a plain <text>. When the icons8 <image> assets
+        // land, the nested <g> becomes an <image> — see getInstrumentIcon (constants/instruments).
         return (
             <g style={{ pointerEvents: 'none' }}>
-                <foreignObject x={slotX} y={y} width={w} height={CARD_H}>
-                    <div xmlns="http://www.w3.org/1999/xhtml" style={{
-                        width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-                        alignItems: 'center', justifyContent: 'center', gap: 2,
-                        color, fontFamily: 'sans-serif', textAlign: 'center',
-                        fontWeight: card.active ? 'bold' : 'normal',
-                    }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 22 }}>
-                            {getInstrumentIcon(card.slug, 20)}
-                        </div>
-                        <span style={{ fontSize: 10, lineHeight: 1.1 }}>{card.name}</span>
-                    </div>
-                </foreignObject>
+                <g transform={`translate(${cx - ICON / 2}, ${y + 7})`} style={{ color }}>
+                    {getInstrumentIcon(card.slug, ICON)}
+                </g>
+                <text x={cx} y={y + CARD_H - 9} textAnchor="middle" fontSize={10}
+                    fontFamily="sans-serif" fontWeight={card.active ? 'bold' : 'normal'} fill={color}>
+                    {card.name}
+                </text>
             </g>
         );
     };
