@@ -3382,13 +3382,35 @@ later.
 - The externally-controlled `activeIndex` glides the resting centre when it changes (unless a
   drag is in progress), so a selection made elsewhere re-centres smoothly.
 
+**CYCLICAL / wrap-around (Han 2026-06-17).** The carousel LOOPS infinitely — there is no hard
+clamp at the ends; dragging past the last item wraps to the first and vice-versa. `posRef` is a
+FREE fractional value kept in the canonical wrapped domain `[0, N)` (`wrapPos = ((p%N)+N)%N`).
+For rendering, each item `i` is drawn at its NEAREST signed distance from the centre,
+`signedDist(i, pos, N) = ((i - pos + N/2 + N) % N) - N/2`, in `(-N/2, N/2]` — so an item near
+index 0 sits just to the RIGHT of an item near index `N-1`, and the ring loops with no seam.
+Only items with `|d| <= VISIBLE_HALF + 0.5` are visible. Drag updates `pos` freely (no clamp);
+`applyPos` wraps it. `animatePosTo(target)` glides the SHORTEST way around the ring: it computes
+`delta = signedDist(target, from, N)` and tweens `from → from + delta` (which may leave `[0,N)`;
+`applyPos` wraps it back), so tapping the right-most visible item glides FORWARD across the seam
+rather than spinning all the way back. Commit maps the wrapped centre back to a real item index
+(`wrapPos(round(pos), N)`).
+
+**LIVE position callback (Han 2026-06-17).** An optional `onPosChange(pos)` prop fires every
+rAF/drag frame from inside `applyPos` with the live WRAPPED centre. Consumers (the instrument
+setter's category brackets) use it to track the carousel during a gesture, writing their own
+`element.style`/attributes per frame (§6) — the carousel never sets React state per frame. The
+callback is held in a ref so `applyPos` stays a stable closure.
+
 **Props.** `items`, `activeIndex`, `renderItem(item, index)` (authors the item around the
 origin (0,0) — the wrapper applies translate/scale/opacity), `centerX`/`y`, `baseWidth`
-(per-item slot stride), `height`, `onSelect(item, index)`, `debugMode`.
+(per-item slot stride), `height`, `onSelect(item, index)`, `onPosChange(pos)` (optional, live
+per-frame centre), `debugMode`.
 
-**Exports for setters.** `visibleRange(centerIndex, count)` → `{lo, hi}` of the items currently
-visible around a centre (so category-header layout and the carousel agree on "what's on
-screen"); `xOffsetForDist` + `VISIBLE_HALF` for header positioning.
+**Exports for setters.** `visibleRange(centerIndex, count)` → an ARRAY of the real item indices
+currently visible around a centre, in left→right VISUAL order, WRAPPING across the `N-1 → 0` seam
+(e.g. a centre near index 0 returns `[N-2, N-1, 0, 1, 2]`); accepts a fractional centre (a 6th
+item can peek in mid-transit). So category-header layout and the carousel agree on "what's on
+screen" across the loop. `xOffsetForDist` + `VISIBLE_HALF` for header positioning.
 
 **Invariants.**
 - All per-item opacity/scale/x go through `element.style` in the rAF, reset on cancel/unmount
@@ -3405,12 +3427,25 @@ screen"); `xOffsetForDist` + `VISIBLE_HALF` for header positioning.
   the instrument NAME sits BELOW the staff (`<text>`).
 - **Dynamic CATEGORY header** ABOVE the staff, styled like the 8va "blokhaken" bracket (reused
   look from `renderMelodyNotes`: dashed `4,3` line + short end hooks, `var(--text-primary)`,
-  §6d) with the UPPERCASE category label centred in a gap: `|———— STRINGS ————|`. A header
-  shows ONLY when 2+ of that category are currently visible (`categoryHeaders` uses
-  `visibleRange` over the COMMITTED `activeIndex` — stable at rest), centred over that
-  category's visible run via the shared `xOffsetForDist`. When two categories are partly
-  visible, BOTH headers render, each over its own run. Categories = `INSTRUMENT_GROUPS` labels
-  (Keys / Strings / Winds / Tuned Percussion / Voice), uppercased.
+  §6d) with the UPPERCASE category label centred in a gap: `|———— STRINGS ————|`. A bracket
+  shows for each consecutive same-category RUN with 2+ visible items, spanning that run.
+  `categoryHeaders(pos)` walks the wrap-aware ordered `visibleRange(pos, N)` array, groups
+  CONSECUTIVE items by category (so a category straddling the seam stays two separate visual
+  runs), and brackets each run of 2+; each run's x-span uses the shared
+  `xOffsetForDist(signedDist(idx, pos, N))` the carousel itself uses. Categories =
+  `INSTRUMENT_GROUPS` labels (Keys / Strings / Winds / Tuned Percussion / Voice), uppercased.
+- **LIVE-MOVING brackets (Han 2026-06-17).** The brackets now MOVE WITH the carousel during a
+  drag/glide (Han confirmed it's worth the cost). At rest they derive from the COMMITTED
+  `activeIndex` (the React-rendered `headers`); during a gesture the carousel's `onPosChange`
+  drives `updateHeaders(livePos)`, which recomputes the brackets and rewrites a FIXED POOL of
+  `MAX_HEADERS` bracket `<g>` slots IMPERATIVELY each frame — path `d`, label `<text>` x/y/text,
+  and slot `style.opacity` (unused slots parked transparent). This stays §6-compliant (no
+  per-frame React state) and morph-safe (the brackets live inside the `data-fly` carousel wrapper
+  so they SLIDE in with the morph; `updateHeaders` only fires during an active gesture, never
+  during the enter/exit morph). A `useLayoutEffect` on `activeIndex` re-asserts the at-rest slot
+  opacities after every settle so the last imperative write never leaves a slot stuck. The slot
+  pool is pre-populated (`slotRefs.current` seeded with `{}` objects) so child ref callbacks
+  (fired bottom-up before the parent `<g>`) have a slot to attach to.
 - Cards are SVG-NATIVE (no `<foreignObject>` — it doesn't composite with the morph group
   opacity and broke the INSTRUMENT→COLOUR slide, Han 2026-06-17) and the whole carousel is
   wrapped in a `data-fly` `<g>` so it slides in as a unit with the enter/exit morph. Brackets +
@@ -3422,8 +3457,13 @@ screen"); `xOffsetForDist` + `VISIBLE_HALF` for header positioning.
 
 - The 5 scheme sets are now carousel ITEMS on the same primitive (middle active, sides
   fade+shrink). Each item renders its own example noteheads (C4–C5) coloured by that scheme via
-  the canonical `StaffQuarterNote` + `getNoteAbsoluteY` (§6d) so they land on the staff lines,
-  plus the scheme label below.
+  the canonical `StaffQuarterNote` (§6d), plus the scheme label below.
+- **FLAT baseline — "flatten the wheel" (Han 2026-06-17).** The example notes no longer ASCEND
+  the staff by pitch (`getNoteAbsoluteY` removed). Every notehead now sits on ONE horizontal
+  baseline — the MIDDLE staff line (`trebleStart + FLAT_DY`, `FLAT_DY = 20`) — so each scheme
+  reads as a horizontal COLOUR SWATCH: the colour (not pitch) is the point. Still the canonical
+  `StaffQuarterNote` glyph + per-note `melodicNoteColor`; only `y` is held constant. No ledger
+  lines when flat (they're only needed off-staff).
 - **Reorder + rename (Han 2026-06-17):** none → chord → scale → chromatone → subtle chromatone.
   `'scale'` is the renamed LABEL of the legacy `'tonic_scale_keys'` mode — the mode VALUE stays
   `'tonic_scale_keys'`; only the visible label changed (audio/selection wiring untouched). No

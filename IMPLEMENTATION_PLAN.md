@@ -13,11 +13,15 @@ CAROUSEL / coloration:
 - ✅ Widen both carousels +40% (instrument BASE 40→56, colour BASE 96→134).
 - ✅ Lower the category label (instrument HEADER_DY -16→-10).
 - ✅ Instrument names → "strings (guitar nylon)" etc (Han: "we agreed strings (guitar)").
-- ⏳ Carousel CYCLICAL (wrap-around / infinite). Primitive change (posRef modulo N + render wrap).
-- ⏳ Category label LIVE-MOVING with the carousel during drag (Han: not too expensive — do it).
-  Needs the header x to read the live posRef in rAF (or re-render on drag).
-- ❓ "Can the carousel be fully 'horizontal'?" — CLARIFY meaning (flat strip w/o the wheel shrink?
-  colour notes on one horizontal line instead of ascending the staff? whole-carousel horizontal?).
+- ✅ Carousel CYCLICAL (wrap-around / infinite). NonLinearCarousel: posRef free + wrapPos[0,N),
+  signedDist nearest-wrap render, no clamp on drag/glide, shortest-path animatePosTo, commit maps
+  back to real index. visibleRange now returns an ORDERED wrap-aware ARRAY. (2026-06-17)
+- ✅ Category label LIVE-MOVING with the carousel during drag (Han: worth the cost). New optional
+  onPosChange(pos) on the primitive → InstrumentStaffOverlay.updateHeaders drives a fixed pool of
+  MAX_HEADERS bracket <g> slots imperatively each frame (§6, no per-frame React state; morph-safe).
+- ✅ "Flatten the wheel" (clarified): COLOUR example notes now on ONE horizontal baseline
+  (middle staff line, FLAT_DY=20) — horizontal colour swatch, getNoteAbsoluteY + ledgers removed.
+  Instrument setter already flat (left as-is). Tests +5 (291 green), build clean, docs §38 updated.
 - ⏳ icons8 IMAGE wiring: assets are in PR #31 (50/100px PNGs) on its branch — bring them onto this
   branch, then getInstrumentIcon returns <image> + flip ICON_ATTRIBUTION. ("didn't use icons8 yet").
   Han 2026-06-17: use the 'Rock Music' icon8 icon for ELECTRIC GUITAR + ELECTRIC BASS; KEEP the

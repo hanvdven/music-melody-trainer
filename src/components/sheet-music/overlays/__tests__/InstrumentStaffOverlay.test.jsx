@@ -42,6 +42,16 @@ describe('InstrumentStaffOverlay', () => {
         expect(labels).toContain('KEYS');
     });
 
+    it('CYCLICAL: brackets wrap across the seam — Piano (index 0) shows BOTH neighbouring '
+        + 'categories (Keys after the seam + Voice before it)', () => {
+        // Piano is the first instrument; with wrap-around the visible window straddles the
+        // N-1 → 0 seam, so the trailing Voice category (last group) is visible alongside Keys.
+        const { container } = renderOverlay({ bassInstrument: 'acoustic_grand_piano' });
+        const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
+        expect(labels).toContain('KEYS');
+        expect(labels).toContain('VOICE');   // wrapped in from the far end of the ring
+    });
+
     it('shows the icon attribution line while open', () => {
         const { container } = renderOverlay();
         const texts = [...container.querySelectorAll('text')].map(t => t.textContent);
