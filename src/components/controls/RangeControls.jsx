@@ -8,8 +8,15 @@ import { getNoteValue, getNoteFromValue, clampRange } from '../../utils/rangeUti
 import { PRESET_RANGES } from '../../constants/ranges';
 // Curated instrument list + icon mapping live in the shared constants module so the
 // in-staff INSTRUMENT setter and this control never drift (single source of truth, §6c).
-import { INSTRUMENTS, getInstrumentIcon } from '../../constants/instruments';
+import { INSTRUMENTS, getInstrumentIconUrl } from '../../constants/instruments';
 import './styles/RangeControls.css';
+
+// icons8 PNG as a small HTML <img> (this stepper is HTML, unlike the SVG in-staff setter). The
+// theme filter (--instrument-icon-filter) inverts the flat-black icon on dark themes.
+const instrumentIconImg = (slug) => (
+    <img src={getInstrumentIconUrl(slug)} alt="" width={18} height={18}
+        style={{ filter: 'var(--instrument-icon-filter, none)', display: 'block' }} />
+);
 
 const formatNoteLabel = (note, baseSize = '24px', subSize = '0.7em', fontFamily = 'serif') => {
     const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
@@ -87,7 +94,7 @@ const RangeControls = ({
     const instrumentOptionsList = Object.keys(INSTRUMENTS).map(name => ({
         label: name.toUpperCase(),
         value: INSTRUMENTS[name],
-        icon: getInstrumentIcon(INSTRUMENTS[name])
+        icon: instrumentIconImg(INSTRUMENTS[name])
     }));
 
     // Clef Options for GenericStepper
@@ -285,7 +292,7 @@ const RangeControls = ({
                     shouldCycle={true}
                     height="29px"
                     onChange={(val) => setInstrument(val)}
-                    icon={getInstrumentIcon(currentInstrument)}
+                    icon={instrumentIconImg(currentInstrument)}
                     background="none"
                 />
             </div>

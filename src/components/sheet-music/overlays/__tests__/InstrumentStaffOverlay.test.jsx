@@ -55,7 +55,7 @@ describe('InstrumentStaffOverlay', () => {
     it('shows the icon attribution line while open', () => {
         const { container } = renderOverlay();
         const texts = [...container.querySelectorAll('text')].map(t => t.textContent);
-        expect(texts.some(t => /placeholder/i.test(t))).toBe(true);
+        expect(texts.some(t => /icons8/i.test(t))).toBe(true);
     });
 
     it('renders the debug hit box when debugMode is on', () => {

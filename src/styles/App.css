@@ -12,6 +12,9 @@
   /* Typography */
   --text-primary: #ffffff;
   --text-secondary: var(--white-key-color);
+  /* icons8 instrument icons render flat black: invert them on DARK themes (default + nocturne,
+     which inherit this base value) so they read as light glyphs. Light themes override to none. */
+  --instrument-icon-filter: invert(1);
   --text-dim: #cccccc;
   /* --text-lowlight is the dimmed-but-readable text variant used for
      measure numbers and tuplet denominator suffixes. Defined as a COLOR
@@ -185,6 +188,7 @@
 
 /* Warm parchment */
 :root[data-theme='meridienne'] {
+  --instrument-icon-filter: none;   /* light theme: flat-black icons read as-is */
   --app-bg: #f4e7c5;
   --panel-bg: #e3d3a2;
   --text-primary: #3a2e1f;
@@ -211,6 +215,7 @@
 }
 
 :root[data-theme='light'] {
+  --instrument-icon-filter: none;   /* light theme: flat-black icons read as-is */
   --app-bg: #eef3f7;
   --panel-bg: #bcc7d4;
   --text-primary: #2b3a42;

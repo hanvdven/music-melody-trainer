@@ -1,5 +1,7 @@
-import React from 'react';
-import { Piano, Guitar, Music2, Wind, MicVocal, Drum } from 'lucide-react';
+// icons8 instrument PNGs (Han 2026-06-17). Bundled via Vite's import.meta.glob (?url → the
+// emitted asset path) — only the icons mapped in SLUG_TO_ICON exist in src/assets, so the glob
+// pulls in exactly those. Replaces the earlier lucide placeholder glyphs.
+const ICON_URLS = import.meta.glob('../assets/icons8-*-100.png', { eager: true, query: '?url', import: 'default' });
 
 // ── Playback instruments — SINGLE SOURCE OF TRUTH (Han 2026-06-16) ───────────
 // Previously the curated instrument list + icon mapping lived inline in
@@ -20,10 +22,9 @@ import { Piano, Guitar, Music2, Wind, MicVocal, Drum } from 'lucide-react';
 // shaped so a future drop of real icons8 <image>s only needs `getInstrumentIcon` to
 // return an <image> per slug and `ICON_ATTRIBUTION` to flip — see TODO below.
 
-// Grouped by CATEGORY (the header shown above the carousel). Each item carries its own
-// `family` = the lucide glyph key used by getInstrumentIcon, so the icon is DERIVED per
-// item (§6c) — this lets the STRINGS category hold both guitar-glyph and string-glyph
-// instruments without a per-instrument icon table.
+// Grouped by CATEGORY (the header shown above the carousel). Each item also carries a `family`
+// (keys/guitar/strings/winds/percussion/voice) as descriptive metadata; the actual icon now
+// comes from SLUG_TO_ICON below (icons8 PNGs), not the family.
 //
 // Taxonomy (Han 2026-06-17): ONE big STRINGS category folds in the guitars/basses, the
 // orchestral strings AND the harp (harp is NOT a keyboard). Categories: Keys / Strings /
@@ -91,37 +92,50 @@ export const INSTRUMENT_LIST = INSTRUMENT_GROUPS.flatMap(g =>
 // from INSTRUMENT_GROUPS so it always tracks the grouped list (single source of truth).
 export const INSTRUMENTS = Object.fromEntries(INSTRUMENT_LIST.map(it => [it.name, it.slug]));
 
-// slug → lucide family glyph key. Derived from the group a slug belongs to so there is
-// no per-instrument icon table (§6c). Falls back to a generic note glyph for unknown slugs.
-const FAMILY_BY_SLUG = Object.fromEntries(INSTRUMENT_LIST.map(it => [it.slug, it.family]));
-
 // slug → display name (for the setter's card label + RangeControls' current-label lookup).
 const NAME_BY_SLUG = Object.fromEntries(INSTRUMENT_LIST.map(it => [it.slug, it.name]));
 export const instrumentNameForSlug = (slug) => NAME_BY_SLUG[slug] || 'Piano';
 
-// PLACEHOLDER icon resolver — returns a lucide glyph node for a slug, picked by family.
-// Mirrors RangeControls.getIconForInstrument's family→glyph choices so the two surfaces
-// show the same icons.
-//
-// TODO(icons8): replace the lucide glyph with an icons8 <image href=…/> per slug. When
-// that lands, also flip ICON_ATTRIBUTION below to the icons8 credit. Keeping the resolver
-// the only place that knows "what an instrument looks like" means that swap touches one
-// function + one string, nothing else.
-export const getInstrumentIcon = (slug, size = 18) => {
-    const family = FAMILY_BY_SLUG[slug];
-    switch (family) {
-        case 'keys': return <Piano size={size} />;
-        case 'guitar': return <Guitar size={size} />;
-        case 'winds': return <Wind size={size} />;
-        case 'percussion': return <Drum size={size} />;
-        case 'voice': return <MicVocal size={size} />;
-        case 'strings':
-        default: return <Music2 size={size} />;
-    }
+// slug → icons8 icon basename. A GENUINE per-instrument lookup: icons8 ships distinct art per
+// instrument, so there is no formula to derive it — this is the user-supplied "what an instrument
+// looks like" data, which §6c explicitly allows as a table. Han 2026-06-17: use the ROCK MUSIC
+// icon for the ELECTRIC GUITAR + ELECTRIC BASS. A few instruments map to the nearest available
+// icon (acoustic bass → guitar-pick, oboe → bassoon, ensemble → classic-music, marimba →
+// xylophone, vibraphone → bell-lyre, voice → microphone) — easy to retarget here.
+const SLUG_TO_ICON = {
+    acoustic_grand_piano: 'grand-piano',
+    electric_piano_1: 'piano',
+    church_organ: 'pipe-organ',
+    acoustic_guitar_nylon: 'guitar',
+    acoustic_guitar_steel: 'guitar-strings',
+    electric_guitar_clean: 'rock-music',
+    acoustic_bass: 'guitar-pick',
+    electric_bass_pick: 'rock-music',
+    synth_bass_1: 'electronic-music',
+    violin: 'violin',
+    cello: 'cello',
+    string_ensemble_1: 'classic-music',
+    orchestral_harp: 'harp',
+    trumpet: 'trumpet',
+    french_horn: 'french-horn',
+    tenor_sax: 'saxophone',
+    clarinet: 'clarinet',
+    oboe: 'bassoon',
+    flute: 'flute',
+    marimba: 'xylophone',
+    vibraphone: 'bell-lyre',
+    voice_oohs: 'microphone',
+    choir_aahs: 'choir',
 };
 
-// Attribution / licence line shown while the instrument setter is open. Data-driven so a
-// future icons8 swap only changes this string (see getInstrumentIcon TODO).
-// TODO(icons8): change to 'Icons by Icons8 — icons8.com' once real icons8 images replace
-// the lucide placeholders.
-export const ICON_ATTRIBUTION = 'Instrument icons: placeholder (lucide-react, ISC)';
+// slug → bundled icons8 PNG URL. The icons render flat-black, so consumers apply
+// `var(--instrument-icon-filter)` (invert(1) on dark themes — see App.css) so they read on any
+// theme. Falls back to the grand-piano icon for an unknown slug.
+export const getInstrumentIconUrl = (slug) => {
+    const name = SLUG_TO_ICON[slug] || 'grand-piano';
+    return ICON_URLS[`../assets/icons8-${name}-100.png`];
+};
+
+// Attribution / licence line shown while the instrument setter is open — MANDATORY for icons8's
+// free licence (Han 2026-06-17: "don't forget the mandatory credits").
+export const ICON_ATTRIBUTION = 'Icons by Icons8 — icons8.com';
