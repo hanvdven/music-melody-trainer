@@ -7,6 +7,21 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-17 (cont.) — UI redesign: NonLinearCarousel primitive + setters
+- ✅ NEW shared `NonLinearCarousel.jsx` primitive: ~5 visible items, middle = active, sides
+  fade+shrink (eased symmetric falloff); BOTH tap (glide-to-centre) and drag (settle-snap)
+  select; CTM px→user + tap-vs-drag borrowed from ClefCardCarousel; opacity/scale/x via
+  element.style in rAF (§6); §3a debug hit box. Smoke test added.
+- ✅ InstrumentStaffOverlay rebuilt on primitive, per staff; icon 22→33 on staff, name below,
+  dynamic CATEGORY bracket (8va "blokhaken" look) above — shown when 2+ of a category visible,
+  centred over its run; SVG-native + data-fly (morph kept).
+- ✅ NoteColoringStaffOverlay rebuilt on primitive; reorder+rename none→chord→scale→chromatone→
+  subtle chromatone ('tonic_scale_keys' value kept, label→Scale). COLOR_MODES order+labels
+  updated in SubHeader / RangeControls / SettingsPanel.
+- ✅ Clef now always shows in colour menu (removed colorEditMode guard in SheetMusic ~L1951);
+  F-major g-clef "missing" was just that guard — clef char is key-independent.
+- ✅ docs/architecture.md §38 added. Tests 276→286 green, build clean.
+
 ## 2026-06-17 (cont.) — Han bug batch (HBD playback) + instrument transition + difficulty/icons
 - ✅ #1 Transition INSTRUMENT→COLOUR fixed. ROOT CAUSE: InstrumentStaffOverlay cards were the only
   overlay using `<foreignObject>`; foreignObject HTML does NOT composite/fade with SVG group opacity

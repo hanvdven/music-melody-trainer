@@ -3350,3 +3350,109 @@ are marked in `constants/instruments.jsx`).
 `src/hooks/useRangeMorph.js` (`groupsForKind('instrument')`), `src/App.jsx` (state + toggle +
 sibling resets + SheetMusic/SubHeader wiring), `src/components/layout/SubHeader.jsx` (INSTRUMENT
 button), `src/components/controls/RangeControls.jsx` (imports the shared instrument module).
+
+---
+
+## 38. NonLinearCarousel Primitive + Redesigned Instrument / Colour Setters (Han 2026-06-17)
+
+**Purpose / what it does.** A redesign of the in-staff INSTRUMENT and COLOUR setters onto one
+shared, reusable carousel primitive. Instead of the flat horizontally-scrolling
+`ClefCardCarousel` strip, both setters now use a COMPACT, centre-weighted carousel: ~5 items
+are visible at once, the MIDDLE item is the active/selected one, and items to the sides FADE
+OUT and SHRINK progressively toward the edges. The whole carousel window is ~200px (user
+units) so two can be juxtaposed (treble + bass instrument carousels stack vertically). Han
+confirmed the primitive is built reusable — instrument + colour now, transposition / range
+later.
+
+### 38.1 `NonLinearCarousel.jsx` — the primitive
+
+**How it works.**
+- Renders every item wrapped in a `<g>` whose `transform` (translateX + scale) and `opacity`
+  are written PER FRAME via `element.style` in an rAF pass (§6 — never JSX props). A fractional
+  "centre position" `posRef` says which item index currently sits at `centerX`; each item's
+  signed distance `d = i - pos` from the centre drives an eased, symmetric falloff:
+  `scaleForDist` (1.0 → ~0.45 at the edge) and `opacityForDist` (1.0 → 0). `xOffsetForDist`
+  integrates the shrinking stride so neighbours stay visually packed rather than drifting.
+- **Selection — BOTH click and drag** (Han). Tap-vs-drag is disambiguated by movement
+  (`< TAP_SLOP` user units = tap), and client-px → SVG-user conversion uses the owning `<svg>`'s
+  screen CTM — both borrowed verbatim from `ClefCardCarousel` so the finger tracks 1:1 across
+  viewBox scales. A TAP on a side item glides it to the centre (`animatePosTo`, eased
+  `CENTER_ANIM_MS`) and fires `onSelect`. A DRAG moves items through the centre live; on settle
+  it snaps to the nearest index and commits that as the selection.
+- The externally-controlled `activeIndex` glides the resting centre when it changes (unless a
+  drag is in progress), so a selection made elsewhere re-centres smoothly.
+
+**Props.** `items`, `activeIndex`, `renderItem(item, index)` (authors the item around the
+origin (0,0) — the wrapper applies translate/scale/opacity), `centerX`/`y`, `baseWidth`
+(per-item slot stride), `height`, `onSelect(item, index)`, `debugMode`.
+
+**Exports for setters.** `visibleRange(centerIndex, count)` → `{lo, hi}` of the items currently
+visible around a centre (so category-header layout and the carousel agree on "what's on
+screen"); `xOffsetForDist` + `VISIBLE_HALF` for header positioning.
+
+**Invariants.**
+- All per-item opacity/scale/x go through `element.style` in the rAF, reset on cancel/unmount
+  (§6). Never via JSX props.
+- §3a: the orange debug rect EXACTLY matches the real transparent drag/tap surface
+  (same x/width/height).
+- jsdom lacks `SVGSVGElement.createSVGPoint`; `toSvgX` guards on it so render-only tests don't
+  crash (the gesture itself isn't unit-tested).
+
+### 38.2 Instrument setter rebuilt (`InstrumentStaffOverlay.jsx`)
+
+- PER STAFF (treble + bass each get their own ~200px carousel — unchanged contract).
+- The family ICON (lucide placeholder, enlarged 22 → **33**, ~50% larger) sits ON the staff;
+  the instrument NAME sits BELOW the staff (`<text>`).
+- **Dynamic CATEGORY header** ABOVE the staff, styled like the 8va "blokhaken" bracket (reused
+  look from `renderMelodyNotes`: dashed `4,3` line + short end hooks, `var(--text-primary)`,
+  §6d) with the UPPERCASE category label centred in a gap: `|———— STRINGS ————|`. A header
+  shows ONLY when 2+ of that category are currently visible (`categoryHeaders` uses
+  `visibleRange` over the COMMITTED `activeIndex` — stable at rest), centred over that
+  category's visible run via the shared `xOffsetForDist`. When two categories are partly
+  visible, BOTH headers render, each over its own run. Categories = `INSTRUMENT_GROUPS` labels
+  (Keys / Strings / Winds / Tuned Percussion / Voice), uppercased.
+- Cards are SVG-NATIVE (no `<foreignObject>` — it doesn't composite with the morph group
+  opacity and broke the INSTRUMENT→COLOUR slide, Han 2026-06-17) and the whole carousel is
+  wrapped in a `data-fly` `<g>` so it slides in as a unit with the enter/exit morph. Brackets +
+  attribution stay UNtagged → they do the cascade's delayed fade.
+- Selection wiring unchanged: `onSetInstrument(staff, slug)` → `setTrebleSettings` /
+  `setBassSettings`.
+
+### 38.3 Colour setter rebuilt (`NoteColoringStaffOverlay.jsx`)
+
+- The 5 scheme sets are now carousel ITEMS on the same primitive (middle active, sides
+  fade+shrink). Each item renders its own example noteheads (C4–C5) coloured by that scheme via
+  the canonical `StaffQuarterNote` + `getNoteAbsoluteY` (§6d) so they land on the staff lines,
+  plus the scheme label below.
+- **Reorder + rename (Han 2026-06-17):** none → chord → scale → chromatone → subtle chromatone.
+  `'scale'` is the renamed LABEL of the legacy `'tonic_scale_keys'` mode — the mode VALUE stays
+  `'tonic_scale_keys'`; only the visible label changed (audio/selection wiring untouched). No
+  category headers for colour.
+- The palette-cycle order/labels were updated to match in the three cycle sites:
+  `SubHeader.jsx` (`tonic_scale_keys` header label → `SCALE`), `RangeControls.jsx`
+  (`tonic_scale_keys` → `SCALE`), `SettingsPanel.jsx` (`Tonic / Scale` → `Scale`, + a
+  `Subtle chromatone` arm). All three `COLOR_MODES` arrays reordered to
+  `['none', 'chords', 'tonic_scale_keys', 'chromatone', 'subtle-chroma']`.
+
+### 38.4 Clef always shows in the colour menu + F-major fix
+
+**Symptom.** The static treble clef glyph was hidden in colour-edit mode; Han also reported the
+g-clef missing "specifically in F MAJOR" (1 flat).
+**Root cause.** `SheetMusic.jsx` gated the static clef on `!clefEditMode && !colorEditMode`.
+The clef CHAR comes from `clefSymbols[clefTreble]` (key-INDEPENDENT), so nothing about F major
+selects or mis-positions it — the only thing hiding it was the `colorEditMode` guard. "F major"
+was incidental to when Han happened to be in colour mode.
+**Fix.** Removed the `colorEditMode` half of the guard (now `!clefEditMode`), so the clef shows
+in colour mode in every key. The redesigned colour carousel is centred mid-staff and leaves the
+clef gutter (x≈13) free, so they don't overlap. Clef stays hidden in clef-edit mode (the clef
+selector draws its own).
+
+**Files.** `src/components/sheet-music/overlays/NonLinearCarousel.jsx` (new),
+`src/components/sheet-music/overlays/__tests__/NonLinearCarousel.test.jsx` (new),
+`src/components/sheet-music/overlays/InstrumentStaffOverlay.jsx` (rebuilt on the primitive),
+`src/components/sheet-music/overlays/NoteColoringStaffOverlay.jsx` (rebuilt + reorder/rename),
+`src/components/sheet-music/overlays/__tests__/InstrumentStaffOverlay.test.jsx` (updated),
+`src/components/sheet-music/overlays/__tests__/NoteColoringStaffOverlay.test.jsx` (new),
+`src/components/sheet-music/SheetMusic.jsx` (clef un-hidden in colour mode),
+`src/components/layout/SubHeader.jsx`, `src/components/controls/RangeControls.jsx`,
+`src/components/controls/SettingsPanel.jsx` (COLOR_MODES order + labels).
