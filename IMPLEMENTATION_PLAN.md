@@ -7,6 +7,31 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-17 (cont.) — Han bug batch (HBD playback) + instrument transition + difficulty/icons
+- 🐞 #1 Transition INSTRUMENT→COLOUR glitches: colour notes JUST APPEAR (don't slide). Other
+  X→COLOUR transitions slide fine. Likely my instrument-overlay `.instrument-cards data-fly`
+  interfering with the morph from='instrument'. Investigate useRangeMorph/flyInCascade + groupsForKind.
+- 🐞 #2 HBD anacrusis edge (anacrusis itself ✅ works!): on the VERY FIRST playthrough BOTH measure 0
+  AND the anacrusis (0.2) should show; removing measure 0 puts the fermata on the wrong note. Also:
+  the EVEN repeat has no anacrusis on its last measure. → maps to anacrusis Phase 3 (leading-pickup
+  bar on first pass) — left ⏳ in §40 work.
+- 🐞 #3 Repeat numbering bug: after exceeding numRepeats on "repeat one indefinitely", numbering is
+  wrong (sees "measure 11" → should be "1.5" etc), recurs at each multiple of numRepeats. DECISION
+  (Han): for indefinite repeats, numRepeats should be silently set to INFINITE. → maps to anacrusis
+  Phase 2 wiring STEP 2 (NOTATION sync: App melody/numbering vs Sequencer body divergence) — left ⏳.
+- 🐞 #4 Song visibility/audibility per-round not applied: in Settings the per-round visibility +
+  audibility of the melody works for NORMAL melodies but NOT for SONGS (all notes show regardless).
+  Find where the song path diverges from the exercise path.
+- ❓ #5 (Han): I omitted the outstanding SONG phases when asked for next steps. OWNED: my review swept
+  BACKLOG.md status markers and missed the in-flight phases here in the PLAN (§40 anacrusis: Phase 2
+  STEP 2 notation, Phase 3 first-pass pickup bar, open Qs). Need to clarify if "generate in same
+  style" is a separate future phase (generate fresh exercises in a loaded song's style) or = these.
+- ⏳ Difficulty change → RELOAD THE LOADED SONG (Han 2026-06-17): store the loaded songDef; on
+  difficultyLevel change, if a named song is loaded re-run handleLoadSong(storedDef, newDifficulty)
+  (fires transition); else regenerate fresh exercise. Replaces the current re-fly-current-notes.
+- ⛔ icons8 files: Han says they're in src/assets, but src/assets has only fonts/maestro.ttf on the
+  pushed branch + the tree is clean — they were NOT committed/pushed. Blocked until they land in the repo.
+
 ## 2026-06-16 — New backlog (Han) + quick wins
 - ✅ Range setter defaults: β mid-bow 0.3→0.6, drag px 6→10 (RangeStaffOverlay.jsx 144/149).
 - ✅ Note-click animation smoother (range setter): tap-to-set now SLIDES the boundary
