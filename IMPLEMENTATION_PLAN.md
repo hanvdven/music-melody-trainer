@@ -8,9 +8,24 @@
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
 ## 2026-06-17 (cont.) — Han bug batch (HBD playback) + instrument transition + difficulty/icons
-- 🐞 #1 Transition INSTRUMENT→COLOUR glitches: colour notes JUST APPEAR (don't slide). Other
-  X→COLOUR transitions slide fine. Likely my instrument-overlay `.instrument-cards data-fly`
-  interfering with the morph from='instrument'. Investigate useRangeMorph/flyInCascade + groupsForKind.
+- ✅ #1 Transition INSTRUMENT→COLOUR fixed. ROOT CAUSE: InstrumentStaffOverlay cards were the only
+  overlay using `<foreignObject>`; foreignObject HTML does NOT composite/fade with SVG group opacity
+  during the morph. The instrument overlay paints AFTER (on top of) the colour overlay, so the
+  exiting foreignObject stayed visible over the colour noteheads sliding in → they "just appeared"
+  when it finally unmounted. FIX: render cards SVG-native (lucide <svg> nested in a translated <g>
+  with currentColor + a <text> name), no foreignObject — fades cleanly like every other overlay.
+  Also pre-aligns the eventual icons8 <image> swap. 276 tests green (updated the overlay test),
+  build clean. File: InstrumentStaffOverlay.jsx.
+- ✅ icons8 files FOUND in PR #31 (full 50/100px PNG set: accordion, banjo, cello, bassoon, …) on
+  its own branch. To wire: bring those assets onto this branch, then getInstrumentIcon returns an
+  <image> + ICON_ATTRIBUTION → "Icons by Icons8". Queued (separate from the glitch fix).
+- ⏳ FR (Han 2026-06-17): enable 'original key' (original tonic) by DEFAULT on song load.
+  handleLoadSong already takes useOriginalTonic — flip the default / the SongsTab call. §4b: confirm
+  scope (all songs? the toggle's default state?).
+- ⏳ FR (Han 2026-06-17): MOVE the difficulty setting OUT of the song selector → make it a GENERAL
+  setting. Future: each song + variant carries a 'difficulty score'. Ties into the difficulty→reload
+  work above. §4b: where should the general difficulty control live (header? settings?).
+- 🐞 #1 Transition INSTRUMENT→COLOUR (now ✅ above).
 - 🐞 #2 HBD anacrusis edge (anacrusis itself ✅ works!): on the VERY FIRST playthrough BOTH measure 0
   AND the anacrusis (0.2) should show; removing measure 0 puts the fermata on the wrong note. Also:
   the EVEN repeat has no anacrusis on its last measure. → maps to anacrusis Phase 3 (leading-pickup

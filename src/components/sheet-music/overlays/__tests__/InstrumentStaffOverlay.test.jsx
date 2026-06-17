@@ -26,8 +26,11 @@ describe('InstrumentStaffOverlay', () => {
         expect(container.querySelector('.instrument-overlay')).not.toBeNull();
         // One card strip (data-fly block) per visible staff.
         expect(container.querySelectorAll('.instrument-cards').length).toBe(2);
-        // Cards render via foreignObject (icon + name).
-        expect(container.querySelectorAll('foreignObject').length).toBeGreaterThan(0);
+        // Cards render SVG-NATIVE (icon glyph + name <text>), NOT foreignObject — foreignObject
+        // didn't fade with the morph and broke the INSTRUMENT→COLOUR slide (Han 2026-06-17).
+        expect(container.querySelectorAll('foreignObject').length).toBe(0);
+        const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
+        expect(labels).toContain(INSTRUMENT_GROUPS[0].items[0].name);
     });
 
     it('shows a group-label/separator card for every instrument family', () => {
