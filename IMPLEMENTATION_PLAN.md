@@ -7,6 +7,27 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-17 (cont.) — Carousel feedback + range-selector batch (Han)
+CAROUSEL / coloration:
+- ✅ Restore colour example notes to full C4–C5 run (had dropped to 5). NoteColoringStaffOverlay NOTES.
+- ✅ Widen both carousels +40% (instrument BASE 40→56, colour BASE 96→134).
+- ✅ Lower the category label (instrument HEADER_DY -16→-10).
+- ✅ Instrument names → "strings (guitar nylon)" etc (Han: "we agreed strings (guitar)").
+- ⏳ Carousel CYCLICAL (wrap-around / infinite). Primitive change (posRef modulo N + render wrap).
+- ⏳ Category label LIVE-MOVING with the carousel during drag (Han: not too expensive — do it).
+  Needs the header x to read the live posRef in rAF (or re-render on drag).
+- ❓ "Can the carousel be fully 'horizontal'?" — CLARIFY meaning (flat strip w/o the wheel shrink?
+  colour notes on one horizontal line instead of ascending the staff? whole-carousel horizontal?).
+- ⏳ icons8 IMAGE wiring: assets are in PR #31 (50/100px PNGs) on its branch — bring them onto this
+  branch, then getInstrumentIcon returns <image> + flip ICON_ATTRIBUTION. ("didn't use icons8 yet").
+RANGE SELECTOR batch (separate subsystem — next focused effort):
+- ⏳ R1 After-selection animation feels cumbersome → animate/slide PER NOTE in quick succession
+  (staggered cascade) instead of all-at-once. (reuse flyInCascade-style stagger in RangeStaffOverlay.)
+- ⏳ R2 Trigger the SAME animation when range changed via the KEYS (keyboard range setter).
+- 🐞 R3 Keyboard range setter: the range bound FLASHES briefly when the keyboard adjusts.
+- ⏳ R4 Boundary highlight YELLOW→WHITE (chromatone visibility): keys, notes, preset brackets, the
+  selected bracket, and the boundary setter on the keys — all white.
+
 ## 2026-06-17 (cont.) — UI redesign: NonLinearCarousel primitive + setters
 - ✅ NEW shared `NonLinearCarousel.jsx` primitive: ~5 visible items, middle = active, sides
   fade+shrink (eased symmetric falloff); BOTH tap (glide-to-centre) and drag (settle-snap)
