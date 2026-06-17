@@ -24,11 +24,12 @@ const SCHEMES = [
     { mode: 'chromatone', label: 'Chromatone' },
     { mode: 'subtle-chroma', label: 'Subtle chromatone' },
 ];
-// A compact span of example notes per scheme so a whole scheme item fits the carousel slot.
-const NOTES = ['C4', 'E4', 'G4', 'B4', 'C5'];
+// The full diatonic run C4–C5 so each scheme's colouring reads clearly (Han 2026-06-17:
+// the shortened 5-note run dropped too many in-between notes).
+const NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
 // Per-item slot stride (user units) — wider than the instrument items because each scheme item
-// holds a small run of example noteheads.
-const BASE = 96;
+// holds a run of example noteheads. Widened +40% (Han 2026-06-17).
+const BASE = 134;
 const NOTE_SPACING = 13;   // x-gap between the example noteheads within one scheme item
 
 // Ledger lines (every 10) between the 5-line staff [staffStart..staffStart+40] and a notehead.

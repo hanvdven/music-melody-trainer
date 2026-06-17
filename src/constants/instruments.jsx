@@ -39,17 +39,20 @@ export const INSTRUMENT_GROUPS = [
     },
     {
         label: 'Strings',
+        // Names carry the family in parens (Han 2026-06-17: "strings (guitar)" etc) so a single
+        // visible string instrument still reads as a string even when its category bracket
+        // (shown only for 2+ visible) is absent.
         items: [
-            { name: 'Guitar Nylon', slug: 'acoustic_guitar_nylon', family: 'guitar' },
-            { name: 'Guitar Steel', slug: 'acoustic_guitar_steel', family: 'guitar' },
-            { name: 'Guitar Clean', slug: 'electric_guitar_clean', family: 'guitar' },
-            { name: 'Acoustic Bass', slug: 'acoustic_bass', family: 'guitar' },
-            { name: 'Bass Picked', slug: 'electric_bass_pick', family: 'guitar' },
-            { name: 'Synth Bass', slug: 'synth_bass_1', family: 'guitar' },
-            { name: 'Violin', slug: 'violin', family: 'strings' },
-            { name: 'Cello', slug: 'cello', family: 'strings' },
-            { name: 'Ensemble', slug: 'string_ensemble_1', family: 'strings' },
-            { name: 'Harp', slug: 'orchestral_harp', family: 'strings' },
+            { name: 'strings (guitar nylon)', slug: 'acoustic_guitar_nylon', family: 'guitar' },
+            { name: 'strings (guitar steel)', slug: 'acoustic_guitar_steel', family: 'guitar' },
+            { name: 'strings (guitar clean)', slug: 'electric_guitar_clean', family: 'guitar' },
+            { name: 'strings (acoustic bass)', slug: 'acoustic_bass', family: 'guitar' },
+            { name: 'strings (bass picked)', slug: 'electric_bass_pick', family: 'guitar' },
+            { name: 'strings (synth bass)', slug: 'synth_bass_1', family: 'guitar' },
+            { name: 'strings (violin)', slug: 'violin', family: 'strings' },
+            { name: 'strings (cello)', slug: 'cello', family: 'strings' },
+            { name: 'strings (ensemble)', slug: 'string_ensemble_1', family: 'strings' },
+            { name: 'strings (harp)', slug: 'orchestral_harp', family: 'strings' },
         ],
     },
     {

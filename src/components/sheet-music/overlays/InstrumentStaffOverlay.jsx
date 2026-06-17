@@ -26,13 +26,13 @@ import {
 
 // Icon ~50% larger than the previous 22 (Han 2026-06-17).
 const ICON = 33;
-// Per-item slot stride (user units). The whole carousel window is ~5 * BASE wide; BASE≈40
-// keeps the visible window near the requested ~200px.
-const BASE = 40;
+// Per-item slot stride (user units). Widened +40% (Han 2026-06-17): the visible window is
+// ~5 * BASE wide.
+const BASE = 56;
 // Vertical anchors relative to the staff top line (staff body spans staffStart..+40).
 const ICON_DY = 4;        // icon sits centred on the staff body
 const NAME_DY = 58;       // name below the bottom staff line
-const HEADER_DY = -16;    // category bracket above the top staff line
+const HEADER_DY = -10;    // category bracket above the top staff line (lowered, Han 2026-06-17)
 const HIT_TOP = -22;      // hit/debug box spans header..name
 const HIT_H = 86;
 
