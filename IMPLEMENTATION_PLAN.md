@@ -67,6 +67,19 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
   tweak: strip slides from the RIGHT (plain data-fly, not data-fly-from=startX which barely moved a
   full-width strip). Docs: architecture.md §41. ⚠ visual: confirm foreignObject card placement
   (STRIP_TOP_OFFSET) + the right-slide in dev.
+- ✅ BACKLOG hygiene (Han 2026-06-17): marked the seven June-16 NIEUWE FEATURE REQUESTS ✅ with
+  dated completion notes (I'd left them as "Logged" — Han: "you are relisting items i told you to
+  close"). Then did a full-file open-items review.
+- 🔨 BUG: malformed sheet on TIME-SIGNATURE change while stopped (BACKLOG line 1587, open since May).
+  Diagnosed (read-only Plan agent + my code reads): melody is meter-independent absolute ticks, so
+  re-barring = re-slicing; the processor already splits/ties across barlines. ROOT CAUSE = SheetMusic
+  melodyMeasureCount uses Math.round(totalDuration/measureLengthSlots) → when old melody doesn't
+  divide evenly into the NEW meter, rounds DOWN and the slicer DROPS the partial final measure's
+  notes (persists until regen). Han's §4b decisions: RE-BAR (don't regenerate), eliminate at state
+  level. Fix = ceil (with epsilon) so the partial measure shows with trailing-rest + cross-barline
+  ties; add rebarMelody only if the per-measure path drops tied continuations. No regen on stopped
+  TS change (state already single-commit). Implements the "graceful partial-measure display" the
+  useAppHandlers.js:114 comment promised. Delegated to impl agent; review pending. §6b re-read req'd.
 (All recorded verbatim in BACKLOG.md per §1b.)
 
 ## 2026-06-15 (night) — Small CRs (Han, parallel to core anacrusis refactor)
