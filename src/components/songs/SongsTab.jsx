@@ -27,6 +27,14 @@ const SongsTab = ({ onLoadSong }) => {
 
   const handleDifficulty = (songId, diff) => {
     setSelectedDifficulty(prev => ({ ...prev, [songId]: diff }));
+    // If this song is the one currently loaded, RELOAD it at the new difficulty immediately
+    // (Han 2026-06-17: changing the difficulty reloads the loaded song — and thus fires the
+    // universal transition — and affects ONLY the selected song). Mirrors the original-key
+    // toggle's re-apply. Songs not currently loaded just update their pending difficulty.
+    if (lastLoaded && lastLoaded.songDef.id === songId) {
+      setLastLoaded({ songDef: lastLoaded.songDef, difficulty: diff });
+      onLoadSong(lastLoaded.songDef, diff, useOriginalKey);
+    }
   };
 
   const handleLoad = (songDef) => {
