@@ -7,6 +7,33 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-18 — HBD anacrusis Phase 3 (leading pickup bar) + repeat-numbering parity (Han)
+- ✅ #2A LEADING PICKUP BAR on the FIRST pass (arch §40b). New pure helpers in anacrusisRepeat.js:
+  `mergedBodyPassIndex` (SESSION-global pass index — pickup bar shows only on pass 0, because the
+  audio lead-in plays once per session, not per block), `showsLeadingPickupBar`,
+  `buildFirstPassMergedMelodies` (prepends original m0 pickup to the merged body shifted +1 bar; same
+  buildAnacrusisRepeatParts core, fermatas at ORIGINAL ticks). App.jsx mergedRenderMelodies memo now
+  pass-aware: pass 0 → first-pass melody rendered through the ORIGINAL anacrusis path
+  (mergedBodyMeasures=null + anacrusisMeasureIndex=0 → existing pickup-suppression + 1..N numbering,
+  §6d no new barline code); pass ≥2 → plain merged body. §40a highlight invariant preserved via
+  `renderStartMeasureIndex = startMeasureIndex − 1` on pass 0 (pickup bar → unhighlighted index, body
+  realigns to schedule's globalMeasureIndex 0..N).
+- ✅ #3 REPEAT NUMBERING replicates the generated path (Han's directive: "replicate the existing
+  melody repeat logic", no new infinity mechanism). ROOT CAUSE: isRepeatMode short-circuits before
+  the series-flip so blockMeasureStart/blockPlayStart were stranded while startMeasureIndex advanced
+  → suffix overflowed ("11" instead of "1.x"). FIX: `_armPaginationSequence` initial callback now
+  refreshes both counters for isRepeatMode using applyResultToSetters' EXACT formula (§6c). Suffix
+  math extracted to pure `computeRepeatPass` (src/utils/repeatNumbering.js); BarlinesLayer uses it.
+  Result: suffix CYCLES 1..repsPerMelody per block (finite case Han reported).
+- ⚠ LIMITATION (flagged): if repsPerMelody === -1 the planner resolves it to 1 → re-arms every pass →
+  suffix pins at 1 (not growing). True indefinite-growth needs the planner to stop re-arming — the
+  directive deferred that. Finite case (the reported bug) is fixed.
+- ⚠ UNVERIFIED w/o live repro (Han to test): exact frame the pickup bar appears/disappears at the
+  pass-0→pass-1 boundary; highlight alignment on pass 1; the even-repeat anacrusis sub-report.
+- Tests +15 (294→309 green): mergedBodyPassIndex/showsLeadingPickupBar/buildFirstPassMergedMelodies
+  in anacrusisRepeat.test.js; computeRepeatPass cycling/overflow/monotonic in repeatNumbering.test.js.
+  Build clean. The two just-landed fixes (fermata rebase, #4 per-round) left intact.
+
 ## 2026-06-17 (cont.) — Carousel feedback ROUND 2 (Han) + honest outstanding list
 - ✅ Colour notes: RESTORED C4→C5 ascending (the "flatten the wheel" was MY MISREAD — Han wanted
   the CAROUSEL horizontal, not the notes). getNoteAbsoluteY + ledgers + clefTreble back.

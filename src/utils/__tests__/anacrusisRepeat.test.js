@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { buildAnacrusisRepeatParts, buildMergedRenderMelodies, hasAnacrusis } from '../anacrusisRepeat.js';
+import {
+    buildAnacrusisRepeatParts,
+    buildMergedRenderMelodies,
+    buildFirstPassMergedMelodies,
+    mergedBodyPassIndex,
+    showsLeadingPickupBar,
+    hasAnacrusis,
+} from '../anacrusisRepeat.js';
 
 // Happy-Birthday-shaped fixture: measureLen 36 (3/4, 12 ticks/beat). m0 is an anacrusis with the
 // pickup "Hap-py" on beat 3 (offsets 24, 33). m1..m8 are full bars; m8 ("you!") is a dotted-half
@@ -130,5 +137,97 @@ describe('buildMergedRenderMelodies', () => {
         expect(buildMergedRenderMelodies({ treble: noPickup }, measureLen)).toBeNull();
         // also null when there is no treble at all.
         expect(buildMergedRenderMelodies({}, measureLen)).toBeNull();
+    });
+});
+
+describe('mergedBodyPassIndex (Fix #2A pickup-bar decision — session-global)', () => {
+    it('is 0 for the very first body pass (startMeasureIndex at the origin)', () => {
+        expect(mergedBodyPassIndex({ startMeasureIndex: 0, originMeasureIndex: 0, bodyMeasures: 8 })).toBe(0);
+        // anywhere inside the first body span is still pass 0.
+        expect(mergedBodyPassIndex({ startMeasureIndex: 7, originMeasureIndex: 0, bodyMeasures: 8 })).toBe(0);
+    });
+
+    it('counts full body spans from the origin, NOT per-block', () => {
+        // HBD body = 8 bars; pass index advances every 8 measures regardless of repeat-block resets.
+        expect(mergedBodyPassIndex({ startMeasureIndex: 8, bodyMeasures: 8 })).toBe(1);
+        expect(mergedBodyPassIndex({ startMeasureIndex: 16, bodyMeasures: 8 })).toBe(2);
+        expect(mergedBodyPassIndex({ startMeasureIndex: 40, bodyMeasures: 8 })).toBe(5);
+    });
+
+    it('clamps negatives and bad bodyMeasures to pass 0 (show the pickup bar by default)', () => {
+        expect(mergedBodyPassIndex({ startMeasureIndex: -1, bodyMeasures: 8 })).toBe(0);
+        expect(mergedBodyPassIndex({ startMeasureIndex: 16, bodyMeasures: 0 })).toBe(0);
+        expect(mergedBodyPassIndex({ startMeasureIndex: 16, bodyMeasures: undefined })).toBe(0);
+    });
+
+    it('showsLeadingPickupBar is true only on pass 0', () => {
+        expect(showsLeadingPickupBar(0)).toBe(true);
+        expect(showsLeadingPickupBar(1)).toBe(false);
+        expect(showsLeadingPickupBar(5)).toBe(false);
+    });
+});
+
+describe('buildFirstPassMergedMelodies (Fix #2A leading pickup bar)', () => {
+    it('prepends the pickup bar (original m0) to the merged body, shifting the body +1 bar', () => {
+        const firstPass = buildFirstPassMergedMelodies({ treble: melody }, measureLen);
+        expect(firstPass).not.toBeNull();
+        // bodyMeasures + 1 = 8 + 1 = 9 (pickup bar + body). Caller renders via the ORIGINAL anacrusis
+        // path (mergedBodyMeasures stays null), so this count is informational only.
+        expect(firstPass.bodyMeasures).toBe(9);
+
+        // Pickup notes keep their ORIGINAL m0 offsets at the left edge (24, 33).
+        const t = firstPass.treble;
+        expect(t.offsets.slice(0, 2)).toEqual([24, 33]);
+        expect(t.notes.slice(0, 2)).toEqual(['D4', 'D4']);
+
+        // The merged body sits one bar to the RIGHT of the pickup bar: every merged-body offset is
+        // shifted +measureLen. The merge relocates the pickup to the end of the last body bar, so the
+        // end-pickup (276/285 in body space) appears at 276+36 / 285+36 here, leading into pass 2.
+        const { loopMerged } = buildAnacrusisRepeatParts(melody, measureLen);
+        const expectedBody = loopMerged.offsets.map(o => o + measureLen);
+        expect(t.offsets.slice(2)).toEqual(expectedBody);
+        // The last (relocated) pickup notes lead into the next loop, not the bar end.
+        expect(t.offsets).toContain(276 + measureLen);
+        expect(t.offsets).toContain(285 + measureLen);
+    });
+
+    it('keeps lyrics bound across the prepend (pickup words at the front AND end)', () => {
+        const withLyrics = { ...melody, lyrics: ['Hap-', 'py', 'birth', 'day', 'you!'] };
+        const firstPass = buildFirstPassMergedMelodies({ treble: withLyrics }, measureLen);
+        const t = firstPass.treble;
+        // front pickup bar carries the pickup words.
+        expect(t.lyrics.slice(0, 2)).toEqual(['Hap-', 'py']);
+        // the relocated end-pickup still reads 'Hap-'/'py' at the shifted offsets.
+        const wordAt = (o) => t.lyrics[t.offsets.indexOf(o)];
+        expect(wordAt(276 + measureLen)).toBe('Hap-');
+        expect(wordAt(285 + measureLen)).toBe('py');
+    });
+
+    it('uses ORIGINAL fermata ticks (the +measureLen shift restores the padded coordinate space)', () => {
+        const treble = { ...melody, fermatas: [{ tick: 288, hold: 2 }] };
+        const firstPass = buildFirstPassMergedMelodies({ treble }, measureLen);
+        // The 'you!' note in the first-pass body sits at its ORIGINAL offset 288 (252 body + 36 shift),
+        // so the fermata stays at tick 288 and SheetMusic's offsets.indexOf(288) still finds it.
+        expect(firstPass.treble.fermatas).toEqual([{ tick: 288, hold: 2 }]);
+        expect(firstPass.treble.offsets).toContain(288);
+    });
+
+    it('prepends a one-bar gap to a no-pickup chord track so staves stay bar-aligned', () => {
+        const chords = {
+            notes:     [['G3', 'B3'], ['C4', 'E4'], ['D4', 'F4']],
+            offsets:   [0,            108,          288],
+            durations: [108,          180,          36],
+            type: 'modal-random', complexity: 'triad', modality: 'modal',
+        };
+        const firstPass = buildFirstPassMergedMelodies({ treble: melody, chordProgression: chords }, measureLen);
+        // chord body (clean: [0, 72, 252]) shifted +36 → [36, 108, 288]; no pickup of its own to prepend.
+        expect(firstPass.chordProgression.offsets).toEqual([36, 108, 288]);
+        expect(firstPass.chordProgression.type).toBe('modal-random');
+    });
+
+    it('is a no-op (returns null) for a melody with no anacrusis', () => {
+        const noPickup = { notes: ['C4', 'D4'], offsets: [0, 36], durations: [36, 36] };
+        expect(buildFirstPassMergedMelodies({ treble: noPickup }, measureLen)).toBeNull();
+        expect(buildFirstPassMergedMelodies({}, measureLen)).toBeNull();
     });
 });

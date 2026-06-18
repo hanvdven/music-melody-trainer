@@ -35,7 +35,7 @@ import useScaleManagement from './hooks/useScaleManagement';
 import useDifficultySettings from './hooks/useDifficultySettings';
 import { buildHarmonyTable } from './utils/harmonyTable';
 import { resizeMelody } from './utils/melodySlice';
-import { buildMergedRenderMelodies, hasAnacrusis } from './utils/anacrusisRepeat';
+import { buildMergedRenderMelodies, buildFirstPassMergedMelodies, mergedBodyPassIndex, hasAnacrusis } from './utils/anacrusisRepeat';
 import { TICKS_PER_WHOLE } from './constants/timing';
 import {
     DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
@@ -1316,11 +1316,41 @@ const App = () => {
     const isLoopingPlayback = isPlaying && headerPlayMode !== 'once';
     const mergedRenderMelodies = useMemo(() => {
         if (!isLoopingPlayback) return null;
-        return buildMergedRenderMelodies(
-            { treble: trebleMelody, bass: bassMelody, percussion: melodies.percussion, chordProgression },
-            anacrusisMeasureLen,
-        );
-    }, [isLoopingPlayback, trebleMelody, bassMelody, melodies.percussion, chordProgression, anacrusisMeasureLen]);
+        const sources = { treble: trebleMelody, bass: bassMelody, percussion: melodies.percussion, chordProgression };
+        // ── Phase 3: leading pickup bar on the FIRST pass (arch §40, Han 2026-06-17) ──────────────
+        // The audio sounds the pickup ONCE as a lead-in before the looping body. On the FIRST visual
+        // pass we draw that pickup as an EXTRA LEADING BAR (original m0) glued to the left of the body;
+        // every later pass shows just the merged body (the end-pickup of each body leads into the
+        // next loop). The body-merge advances startMeasureIndex by bodyMeasures per pass from the
+        // session origin (0 for a loaded song), so the SESSION-GLOBAL pass index is
+        // startMeasureIndex / bodyMeasures — independent of the per-block blockPlayStart, because the
+        // intro lead-in plays ONCE for the whole session (not per repeat block). We need bodyMeasures
+        // up front to compute the pass index, so probe the plain merge once (cheap, pure) for it.
+        const probe = buildMergedRenderMelodies(sources, anacrusisMeasureLen);
+        if (!probe) return null;
+        const passIndex = mergedBodyPassIndex({ startMeasureIndex, originMeasureIndex: 0, bodyMeasures: probe.bodyMeasures });
+        if (passIndex === 0) {
+            // First pass: pickup bar + body. firstPass.bodyMeasures = bodyMeasures + 1, but we render it
+            // through the ORIGINAL anacrusis path (mergedBodyMeasures stays null below), so the existing
+            // pickup-measure suppression + 1..N numbering apply — no new barline code (§6d).
+            const firstPass = buildFirstPassMergedMelodies(sources, anacrusisMeasureLen);
+            if (firstPass) return { ...firstPass, isFirstPass: true };
+        }
+        return probe;
+    }, [isLoopingPlayback, trebleMelody, bassMelody, melodies.percussion, chordProgression, anacrusisMeasureLen, startMeasureIndex]);
+
+    // ── First-pass render start-index alignment (arch §40 Phase 3, §40a highlight invariant) ──────
+    // On the FIRST pass the rendered melody has an EXTRA leading pickup bar (local bar 0), so its body
+    // bars sit one bar to the RIGHT of where the highlight SCHEDULE expects them: the Sequencer plays
+    // the pickup ONCE (a one-shot lead-in, NOT in scheduledNotes) and then numbers the looping body
+    // from globalMeasureIndex 0. SheetMusic derives each note's data-measure-index as
+    // startMeasureIndex + floorBar(offset); the highlight matches that against the schedule's
+    // measureIndex (= globalMeasureIndex). To keep the body aligned (§40a: render and schedule MUST
+    // view the same measure indices) we hand SheetMusic a startMeasureIndex shifted back by ONE bar on
+    // the first pass — so the pickup bar lands on (startMeasureIndex − 1) (no schedule entry → never
+    // highlighted, correct) and the body bars realign to 0..N. On pass ≥2 (merged body, no pickup bar)
+    // the real startMeasureIndex is used unchanged.
+    const renderStartMeasureIndex = mergedRenderMelodies?.isFirstPass ? startMeasureIndex - 1 : startMeasureIndex;
 
     const sheetMusicCommonProps = useMemo(() => ({
         timeSignature,
@@ -1338,12 +1368,20 @@ const App = () => {
             }
             return !p;
         }),
-        anacrusisMeasureIndex,
+        // On the FIRST looping pass we render the pickup bar + body through the ORIGINAL anacrusis
+        // path: anacrusisMeasureIndex=0 keeps the pickup-measure label suppression + the -1 number
+        // shift, so the pickup bar at m0 is unlabeled and the body bars number 1..N (Phase 3). On
+        // pass ≥2 there is no pickup bar (it was relocated into the body's last bar), so the merged-
+        // body numbering takes over and anacrusisMeasureIndex must NOT fire (the merged-body branch in
+        // BarlinesLayer already gates the suppression on mergedBodyMeasures==null).
+        anacrusisMeasureIndex: mergedRenderMelodies?.isFirstPass ? 0 : anacrusisMeasureIndex,
         // When the looping body-merge is active the sheet renders the merged BODY (no separate pickup
         // measure), so BarlinesLayer must number plainly from bar 1 and compute the repeat-pass count
         // from bodyMeasures, not the padded numMeasures (arch §40 numbering). null when not merging →
-        // BarlinesLayer keeps its original anacrusis-aware numbering.
-        mergedBodyMeasures: mergedRenderMelodies ? mergedRenderMelodies.bodyMeasures : null,
+        // BarlinesLayer keeps its original anacrusis-aware numbering. On the FIRST pass (pickup bar
+        // shown) we ALSO pass null so the original anacrusis numbering applies — the merged-body
+        // suffix only kicks in from pass ≥2.
+        mergedBodyMeasures: (mergedRenderMelodies && !mergedRenderMelodies.isFirstPass) ? mergedRenderMelodies.bodyMeasures : null,
         numRepeats: playbackConfig.repsPerMelody,
         onNumRepeatsChange: (val) => setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val })),
         numMeasures,
@@ -1522,7 +1560,7 @@ const App = () => {
                             {...sheetMusicCommonProps}
                             containerHeight={sheetHeight}
                             visibleMeasures={effectiveVisibleMeasures}
-                            startMeasureIndex={startMeasureIndex}
+                            startMeasureIndex={renderStartMeasureIndex}
                             blockMeasureStart={blockMeasureStart}
                             blockPlayStart={blockPlayStart}
                         />
@@ -1623,7 +1661,7 @@ const App = () => {
                 <TabView
                     activeTab={activeTab}
                     sheetMusicCommonProps={sheetMusicCommonProps}
-                    startMeasureIndex={startMeasureIndex}
+                    startMeasureIndex={renderStartMeasureIndex}
                     blockMeasureStart={blockMeasureStart}
                     blockPlayStart={blockPlayStart}
                     idealVisibleMeasures={effectiveVisibleMeasures}

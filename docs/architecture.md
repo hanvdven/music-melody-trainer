@@ -3271,10 +3271,79 @@ multi-subsystem (`loadSong`/`App` produce body+intro and set `numMeasures = body
 schedules the intro once before the `isRepeatMode` loop; `fermatas` re-based; chord-melody rebased) and
 touches §6/§7 scheduling + §11 pagination invariants — to be done WITH live verification (the existing
 repeat path already had render-vs-audio divergence per BACKLOG, so headless changes here are unsafe).
-Phase 3 = pagination polish for the leading-pickup bar on the first pass.
+Phase 3 = pagination polish for the leading-pickup bar on the first pass — IMPLEMENTED (§40b below).
 
 **Files.** `src/utils/anacrusisRepeat.js`, `src/utils/__tests__/anacrusisRepeat.test.js`. (Phase 2
 will add: `src/songs/loadSong.js`, `src/App.jsx`, `src/audio/Sequencer.js`.)
+
+### 40b. Phase 3 — leading pickup bar on the FIRST pass + repeat-numbering parity (Han 2026-06-17)
+
+**Purpose / Symptom.** Two loaded-song (HBD) repeat defects:
+- **#2A (leading pickup bar).** The merged body (§40a) removes the pickup bar from m0, so from the
+  very first downbeat the user saw the 8-bar body with the pickup gone. Han wanted: keep the looping
+  8-bar body, but on the FIRST PASS draw an EXTRA LEADING PICKUP BAR glued to the left — pass 1 shows
+  `[pickup bar] + body`, pass ≥2 show just the body. (The audio already sounds the pickup once as a
+  lead-in via `Sequencer.start`; this is its render/notation counterpart.)
+- **#3 (repeat numbering overflow).** In repeat-forever mode `startMeasureIndex` advances by
+  `bodyMeasures` per pass while `blockMeasureStart`/`blockPlayStart` were STRANDED (the generated path
+  refreshes them in `applyResultToSetters` on each series boundary; the `isRepeatMode` path
+  short-circuits before that — Sequencer.js ~797). So the BarlinesLayer suffix
+  `floor((startMeasureIndex − blockPlayStart) / passSpan) + 1` grew without bound and corrupted at
+  every re-arm (Han saw "11" where a cycling number was expected).
+
+**How it works.**
+- **#2A pass index (session-global).** `mergedBodyPassIndex({startMeasureIndex, originMeasureIndex,
+  bodyMeasures})` = `floor((startMeasureIndex − origin) / bodyMeasures)`. It is SESSION-global (origin
+  0 for a loaded song), NOT per-block, because the intro lead-in plays ONCE for the whole session — so
+  the pickup bar appears only on pass 0. `showsLeadingPickupBar(passIndex)` = `passIndex === 0`.
+- **#2A first-pass melody.** `buildFirstPassMergedMelodies(melodies, measureLen)` PREPENDS the original
+  pickup bar (intro at original m0 offsets) to the merged body (every body offset shifted +measureLen,
+  one bar right). The body still carries its relocated END-pickup so it leads into pass 2 — exactly the
+  looping audio. Fermatas use ORIGINAL ticks (the +measureLen shift undoes the merge's −measureLen
+  rebase, restoring the padded coordinate space). It goes through the SAME `buildAnacrusisRepeatParts`
+  core — no parallel merge math (§40a invariant).
+- **#2A render wiring (App.jsx).** On pass 0 App feeds `buildFirstPassMergedMelodies` (tagged
+  `isFirstPass`) into `MelodyProvider` and renders it through the ORIGINAL anacrusis path:
+  `mergedBodyMeasures = null` + `anacrusisMeasureIndex = 0`, so BarlinesLayer's existing
+  pickup-measure label suppression + `1..N` numbering apply unchanged (§6d — no new barline code). On
+  pass ≥2 App feeds the plain merged body and `mergedBodyMeasures = bodyMeasures`.
+- **#2A highlight alignment (§40a invariant).** The first-pass melody has the body one bar to the
+  RIGHT, but the highlight schedule numbers the body from `globalMeasureIndex` 0 (the intro is a
+  one-shot, not in `scheduledNotes`). So App hands SheetMusic `renderStartMeasureIndex =
+  startMeasureIndex − 1` on pass 0: the pickup bar lands on measure-index `startMeasureIndex − 1` (no
+  schedule entry → never highlighted, correct) and the body realigns to 0..N. The highlight hook
+  matches DOM `data-measure-index` against the schedule's `measureIndex` and never reads
+  `startMeasureIndex` directly, so this override only affects the rendered note indices, keeping render
+  and schedule on the same bars.
+- **#3 repeat-number parity (Sequencer.js).** `_armPaginationSequence`'s initial callback (fired at
+  every repeat-block re-arm) now refreshes `blockMeasureStart`/`blockPlayStart` for `isRepeatMode`
+  using the SAME formula as `applyResultToSetters` (§6c — reuse, don't invent). With `melodyCount`
+  pinned at 0 (no regeneration) `blockMeasureStart` resolves to the loaded song's first measure and
+  `blockPlayStart` tracks each block's start, so the suffix CYCLES `1..repsPerMelody` per block
+  (finite `repsPerMelody`) — matching the generated path. The suffix math is extracted to the pure
+  `computeRepeatPass` (`src/utils/repeatNumbering.js`) so it is unit-testable against stable counters;
+  BarlinesLayer calls it (identical behaviour to the old inline expression).
+
+**Invariants.** (1) The pickup-bar decision is SESSION-global (one lead-in per session); the repeat
+NUMBER is per-block (cycles). They use different counters on purpose. (2) On the first pass the render
+must be shifted back one measure-index so the BODY stays bar-aligned with the schedule (§40a). (3)
+The `isRepeatMode` block-counter refresh reuses the generated path's exact formula — no new infinity
+mechanism. (4) Everything is data-driven through `buildAnacrusisRepeatParts`/`hasAnacrusis`; a
+no-pickup melody and once-mode are strict no-ops.
+
+**Known limitation (flagged for live verification).** The #3 cycling fix targets the FINITE
+`repsPerMelody` case Han reported. If `repsPerMelody === -1` is ever used for a loaded song, the
+pagination planner resolves it to 1 (`Math.max(1, -1)`), so the block re-arms every pass and the
+suffix would pin at 1 rather than grow 1,2,3,…; true indefinite-with-growing-numbers would need the
+planner to stop re-arming (a separate change the directive deferred). All render-timing behaviour
+(the exact frame the pickup bar appears/disappears, the highlight on pass 1) needs Han's live repro.
+
+**Files.** `src/utils/anacrusisRepeat.js` (`mergedBodyPassIndex`, `showsLeadingPickupBar`,
+`buildFirstPassMergedMelodies`), `src/utils/repeatNumbering.js` (`computeRepeatPass`), `src/App.jsx`
+(pass-aware merged memo + `renderStartMeasureIndex` + prop wiring), `src/audio/Sequencer.js`
+(`_armPaginationSequence` repeat-mode counter refresh), `src/components/sheet-music/BarlinesLayer.jsx`
+(uses `computeRepeatPass`), `src/utils/__tests__/anacrusisRepeat.test.js`,
+`src/utils/__tests__/repeatNumbering.test.js`.
 
 ### 40a. Unified render/loop representation — the sheet renders what the Sequencer loops (Han 2026-06-15)
 

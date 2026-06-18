@@ -189,3 +189,119 @@ export const buildMergedRenderMelodies = (melodies, measureLen) => {
         chordProgression,
     };
 };
+
+/**
+ * SESSION-GLOBAL pass index of the looping merged body (arch §40 Phase 3). The Sequencer advances
+ * `globalMeasureIndex` (mirrored to the render's `startMeasureIndex`) by `bodyMeasures` per pass, from
+ * the session origin (`originMeasureIndex`, = 0 for a loaded song that starts at its first measure).
+ * So the 0-based GLOBAL pass index of the body currently on screen is
+ * `(startMeasureIndex - originMeasureIndex) / bodyMeasures`.
+ *
+ * This index is for the LEADING-PICKUP-BAR decision ONLY (Fix #2A) — it must be SESSION-global, NOT
+ * per-block: the audio sounds the pickup ONCE as a lead-in for the whole session (Sequencer.start
+ * schedules the intro once before the loop, never per block), so the visual pickup bar must likewise
+ * appear ONLY on the very first body pass — not at the start of every repeat block. (The repeat-pass
+ * NUMBER, by contrast, is per-block and lives in BarlinesLayer via blockPlayStart — Fix #3.)
+ *
+ * Returns 0 when bodyMeasures is missing/invalid (treat as the first pass — safest default: show the
+ * pickup bar rather than hide it).
+ *
+ * @param {{startMeasureIndex:number, originMeasureIndex?:number, bodyMeasures:number}} args
+ * @returns {number} 0-based session-global pass index
+ */
+export const mergedBodyPassIndex = ({ startMeasureIndex, originMeasureIndex = 0, bodyMeasures }) => {
+    if (!bodyMeasures || bodyMeasures <= 0) return 0;
+    const delta = (startMeasureIndex ?? 0) - (originMeasureIndex ?? 0);
+    // Floor toward the origin; clamp negatives (stale state mid-arm) to pass 0.
+    return Math.max(0, Math.floor(delta / bodyMeasures));
+};
+
+/** True only on the FIRST (session-global) pass — the pass that renders the leading pickup bar. */
+export const showsLeadingPickupBar = (passIndex) => passIndex === 0;
+
+/**
+ * Build the FIRST-PASS render representation of a looping pickup song (arch §40 Phase 3): the
+ * leading pickup bar (original m0) PREPENDED to the merged body. This is the render counterpart of
+ * the audio lead-in — on pass 1 the user sees `[pickup bar] + body`, on pass ≥2 just the merged body
+ * (`buildMergedRenderMelodies`).
+ *
+ * Construction per track (single source of truth — same parts the body-merge uses):
+ *   - `intro`  notes keep their ORIGINAL m0 offsets (the pickup bar at the left edge).
+ *   - `loopMerged` body notes are shifted by +measureLen (one bar to the right) to sit AFTER the
+ *     restored pickup bar. The body still carries its END-pickup (relocated by the merge) so it leads
+ *     into pass 2 — exactly what the looping audio plays every pass.
+ * Fermatas use the ORIGINAL (un-rebased) ticks: with the pickup bar restored the body is back in the
+ * original padded coordinate space (a +measureLen shift of the merge's -measureLen rebase), so
+ * SheetMusic's `offsets.indexOf(f.tick)` lands on the right note. Tracks with no pickup of their own
+ * (chords/bass) still prepend a one-bar gap by shifting their merged body, so every staff stays
+ * bar-aligned with the treble.
+ *
+ * The result spans `bodyMeasures + 1` bars with the pickup at m0. The CALLER renders it through the
+ * ORIGINAL anacrusis path (mergedBodyMeasures=null + anacrusisMeasureIndex=0) so the existing
+ * pickup-measure label suppression + `1..N` numbering apply unchanged — no new barline code (§6d).
+ *
+ * @param {{treble?:object,bass?:object,percussion?:object,chordProgression?:object}} melodies
+ * @param {number} measureLen ticks per measure
+ * @returns {null | {bodyMeasures:number, treble:object|null, bass:object|null, percussion:object|null, chordProgression:object|null}}
+ */
+export const buildFirstPassMergedMelodies = (melodies, measureLen) => {
+    const treble = melodies?.treble;
+    if (!hasAnacrusis(treble, measureLen)) return null;
+    const trebleParts = buildAnacrusisRepeatParts(treble, measureLen);
+    if (!trebleParts.hasAnacrusis || trebleParts.bodyMeasures == null) return null;
+
+    // Prepend the original pickup bar (intro at original offsets) to the merged body (shifted +1 bar).
+    // The intro and merged-body parts already carry their parallel arrays (lyrics/chord-objects/ties)
+    // bound to their notes via build() — we just concatenate the two parts and shift the body offsets.
+    const prepend = (orig) => {
+        if (!orig?.offsets?.length) return null;
+        const parts = buildAnacrusisRepeatParts(orig, measureLen);
+        const introMel = parts.intro;                              // pickup notes at ORIGINAL m0 offsets
+        const merged = parts.loopMerged || parts.loopClean;        // body-rebased (0-based) merged body
+        const introLen = introMel?.notes?.length || 0;
+        const out = { ...orig };
+        out.notes = [...(introMel?.notes || []), ...merged.notes];
+        // Body offsets shift +measureLen (one bar right) to sit AFTER the restored pickup bar.
+        out.offsets = [...(introMel?.offsets || []), ...merged.offsets.map(o => o + measureLen)];
+        out.durations = [...(introMel?.durations || []), ...merged.durations];
+        // Concatenate each present parallel array from BOTH parts, padding the missing side with nulls
+        // so every parallel array stays the same length as `notes` (build() leaves a part's array
+        // undefined when the source had none — pad to keep alignment).
+        for (const k of PARALLEL_KEYS) {
+            if (introMel?.[k] || merged[k]) {
+                const introArr = introMel?.[k] || new Array(introLen).fill(null);
+                const bodyArr = merged[k] || new Array(merged.notes.length).fill(null);
+                out[k] = [...introArr, ...bodyArr];
+            }
+        }
+        if (orig.rhythmicGrouping) out.rhythmicGrouping = orig.rhythmicGrouping;
+        // Fermatas: ORIGINAL ticks. Restoring the pickup bar (+measureLen) undoes the merge's
+        // -measureLen rebase, so the body is back in the original padded coordinate space and
+        // SheetMusic's offsets.indexOf(f.tick) lands on the right note.
+        if (Array.isArray(orig.fermatas)) out.fermatas = orig.fermatas.map(f => ({ ...f }));
+        return out;
+    };
+
+    const trebleFirst = prepend(treble);
+    let chordProgression = null;
+    const cp = melodies?.chordProgression;
+    if (cp?.notes) {
+        const cBody = prepend(cp);
+        if (cBody) {
+            cBody.type = cp.type;
+            cBody.complexity = cp.complexity;
+            cBody.modality = cp.modality;
+            chordProgression = cBody;
+        }
+    }
+
+    return {
+        // bodyMeasures + 1: the pickup bar plus the body. The caller renders this through the ORIGINAL
+        // anacrusis path, so it passes mergedBodyMeasures=null (NOT this count) to BarlinesLayer.
+        bodyMeasures: trebleParts.bodyMeasures + 1,
+        treble: trebleFirst,
+        bass: melodies?.bass?.offsets?.length ? prepend(melodies.bass) : null,
+        percussion: melodies?.percussion?.offsets?.length ? prepend(melodies.percussion) : null,
+        chordProgression,
+    };
+};

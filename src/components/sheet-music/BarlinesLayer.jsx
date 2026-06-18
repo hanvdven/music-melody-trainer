@@ -1,4 +1,5 @@
 import React from 'react';
+import { computeRepeatPass } from '../../utils/repeatNumbering';
 
 /**
  * BarlinesLayer — memoised wrapper around barline + measure-number rendering.
@@ -118,9 +119,10 @@ const iterMeasureLines = ({
       // bodyMeasures per pass — NOT the padded numMeasures (9), so dividing by numMeasures would
       // mis-count the pass (arch §40 numbering). Fall back to numMeasures when not merging.
       const passSpan = mergedBodyMeasures != null ? mergedBodyMeasures : numMeasures;
-      const repeatNum = isPlaying
-        ? Math.max(1, Math.floor((startIdx - bps) / passSpan) + 1)
-        : 1;
+      // Pure helper (src/utils/repeatNumbering.js) so the pass math is unit-testable against stable
+      // counters — see Fix #3 (the loaded-song repeat path now refreshes blockPlayStart per block so
+      // this no longer overflows). Behaviour is identical to the previous inline expression.
+      const repeatNum = computeRepeatPass({ startMeasureIndex: startIdx, blockPlayStart: bps, passSpan, isPlaying });
       // Returns "N" (first pass) or "N . R" (pass R, R≥2) where N = song measure number. The suffix
       // is suppressed for pass 1 (plain numbers on the first play-through).
       //
