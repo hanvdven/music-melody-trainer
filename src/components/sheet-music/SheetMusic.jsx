@@ -3,7 +3,7 @@
 import React, { useRef, useState, useMemo } from 'react';
 import useSheetMusicHighlight from '../../hooks/useSheetMusicHighlight';
 import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
-import useRangeMorph from '../../hooks/useRangeMorph';
+import useRangeMorph, { melodyHiddenDuringOverlay } from '../../hooks/useRangeMorph';
 import useClefRefly from '../../hooks/useClefRefly';
 import useUniversalTransition from '../../hooks/useUniversalTransition';
 import { useUniversalTransitionKey } from '../../contexts/UniversalTransitionContext';
@@ -2176,7 +2176,16 @@ const SheetMusic = ({
                     // out / fly in — but ONLY when the morph actually involves the melody
                     // (melody↔overlay). On an overlay→overlay morph (e.g. clef→range) the
                     // melody must stay hidden, otherwise it FLASHES through (Han B4, 2026-06-03).
-                    display: (overlayEditMode && !(rangeMorphing && (morphFrom === 'melody' || morphTo === 'melody'))) ? 'none' : undefined }}>
+                    //
+                    // The gate decision now lives in `melodyHiddenDuringOverlay` (pure, unit-
+                    // tested). It additionally requires `overlayKind === morphTo` for the
+                    // melody-leaving fade-out, closing a one-frame flash: while the
+                    // melody→overlay ENTRY morph (1.5 s) is still running and the user switches
+                    // overlay→overlay, the STALE morph still reads morphFrom==='melody' on the
+                    // first frame after the kind change but before the new morph arms — the old
+                    // `morphFrom==='melody'` gate would expose the melody for that one frame
+                    // (Han 2026-06-18). See useRangeMorph.js for the two-stage-effect race.
+                    display: melodyHiddenDuringOverlay(overlayEditMode, rangeMorphing, morphFrom, morphTo, overlayKind) ? 'none' : undefined }}>
                     {/* Melody notes: visible in 'melody' viewMode */}
                     {/* In pagination mode, opacity is driven by the rAF loop via data-pagination-old.
                         CSS classes set the resting state; rAF sets style.opacity during the crossfade.

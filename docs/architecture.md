@@ -2787,6 +2787,33 @@ states, so manual melody (re)generation — which goes through the round/regen p
   `notes-transition`'s `display:none` gate (`SheetMusic.jsx`, overlayEditMode minus a
   melody-involving morph); the clef-select slide is handled by CR-A2's family refly.
 
+- **One-frame melody flash on overlay→overlay switch (Han 2026-06-18).**
+  **Symptom:** switching directly between setter overlays (e.g. INSTRUMENT → COLOUR →
+  RANGE) flashed the melody for a single frame.
+  **Root cause:** `useRangeMorph` arms a morph in a TWO-STAGE effect — a `useLayoutEffect`
+  detects the kind change and calls `setMorph`, then a second effect runs the tween. On the
+  FIRST render after a switch, `overlayKind` has updated but `morphFrom/morphTo` still
+  describe the PREVIOUS morph. The melody→overlay ENTRY morph lasts `MORPH_MS` (1.5 s); if
+  the user switches overlay→overlay while it is still running, that first frame has
+  `overlayKind` already on the new overlay but a STALE morph that still reads
+  `morphFrom === 'melody'`. The old gate
+  (`overlayEditMode && !(rangeMorphing && (morphFrom==='melody' || morphTo==='melody'))`)
+  therefore evaluated to SHOW the melody for that one frame, until the new morph armed on the
+  next render and hid it again.
+  **Fix:** extracted the gate into a pure, unit-tested function
+  `melodyHiddenDuringOverlay(overlayActive, morphing, morphFrom, morphTo, kind)` in
+  `useRangeMorph.js`. It force-shows the melody over an overlay ONLY for a melody→overlay
+  LEAVE fade-out (`morphFrom === 'melody'`) **and** only while that morph is still CURRENT
+  (`kind === morphTo`). Once `overlayKind` moves on to a different overlay, the
+  melody-leaving morph is stale and the melody stays hidden — closing the flash. The
+  return-to-melody fly-in is unaffected: when returning, `kind === 'melody'` so
+  `overlayActive` is false and the outer gate shows the melody. The dropped
+  `morphTo==='melody'` term was dead for its intended purpose anyway (it could only ever be
+  evaluated while `overlayActive` was true, i.e. when it was stale).
+  **Files:** `src/hooks/useRangeMorph.js` (pure helper + WHY comment),
+  `src/components/sheet-music/SheetMusic.jsx` (gate call),
+  `src/hooks/__tests__/useRangeMorph.test.js` (new, 6 tests).
+
 *Invariants:* all "off" crosses MUST go through `DisableCross`; any new setter cross too.
 Note colouring in EVERY context follows the WRITTEN (transposed) note (§6 — never a local
 reimplementation; reuse `transposeMelodyBySemitones` + `melodicNoteColor`/`getNoteSemitone`).
