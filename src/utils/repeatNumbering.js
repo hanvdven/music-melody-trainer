@@ -15,11 +15,17 @@
 // bound and R overflowed past repsPerMelody at every re-arm (Han saw "11" instead of "1.5"). The fix
 // refreshes blockPlayStart at each repeat-block re-arm (Sequencer._armPaginationSequence) using the
 // SAME bookkeeping the generated path uses, so this formula then cycles R = 1..repsPerMelody per block
-// for the FINITE repsPerMelody case Han reported. (As a pure formula, holding blockPlayStart fixed
-// makes R grow monotonically — see the -1 test — but in the live planner repsPerMelody=-1 resolves to
-// 1, so the block re-arms every pass and R pins at 1; true indefinite-growth is deferred, arch §40b.)
-// Extracting the math here lets us unit-test the numbering against stable counters without rendering
-// BarlinesLayer in jsdom.
+// for the FINITE repsPerMelody case Han reported.
+//
+// INDEFINITE repeats (repsPerMelody === -1, "repeat one indefinitely", Han 2026-06-18): R must instead
+// GROW UNBOUNDED — maat 1 on pass 7 = "1.7", pass 1000 = "1.1000"; no cap, no reset. The formula
+// already does this when blockPlayStart is held fixed; the live fix is in
+// Sequencer._armPaginationSequence, which PINS blockPlayStart to the session's first body play-start
+// (a stable origin captured on the first arm) and stops refreshing it for indefinite mode. The block
+// still re-arms every pass to schedule more measures — only the numbering ORIGIN is frozen — so
+// (startMeasureIndex - origin)/passSpan climbs without bound. Finite mode keeps refreshing (cycles).
+// Extracting the math here lets us unit-test BOTH behaviours (cycle vs unbounded) against stable
+// counters without rendering BarlinesLayer in jsdom.
 //
 // passSpan = the looped unit's measure count: bodyMeasures when the merged anacrusis body is on
 // screen (the Sequencer advances globalMeasureIndex by bodyMeasures per pass), else numMeasures.
