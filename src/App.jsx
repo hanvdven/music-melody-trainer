@@ -1372,10 +1372,16 @@ const App = () => {
         handleToggleInputTest,
         handlePlayMelody,
         handlePlayContinuously,
-        viewMode: isPlayingContinuously
+        // Live per-round note/chord visibility during ANY LOOPING playback (continuous OR a
+        // repeated SONG), gated identically to the merged-body (isLoopingPlayback = isPlaying &&
+        // headerPlayMode !== 'once'). Songs play via handlePlayRepeat → isPlayingMelody (NOT
+        // continuous), so keying these on isPlayingContinuously hid the live odd/even visibility for
+        // songs while it worked for generated melodies (Han #4, 2026-06-17). When stopped we keep
+        // the static oddRounds preview.
+        viewMode: (isPlaying && headerPlayMode !== 'once')
             ? (showNotes ? 'melody' : 'repeat')
             : (playbackConfig.oddRounds?.notes ? 'melody' : 'repeat'),
-        showChords: isPlayingContinuously ? showChordLabels : (showChordsOddRounds || showChordsEvenRounds),
+        showChords: (isPlaying && headerPlayMode !== 'once') ? showChordLabels : (showChordsOddRounds || showChordsEvenRounds),
         onNoteClick: handleNoteClick,
         onChordClick: handleChordClick,
         onEnharmonicToggle: handleEnharmonicToggle,
@@ -1388,7 +1394,7 @@ const App = () => {
         windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, instrumentEditMode, toggleSheetMusicSettings,
         handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
-        handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
+        handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously, isPlaying,
         showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
         handleNoteClick, handleChordClick, handleEnharmonicToggle, handleMeasureNumberClick,
         handleNoteEnharmonicToggle]);
