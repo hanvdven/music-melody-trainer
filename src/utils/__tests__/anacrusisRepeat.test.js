@@ -99,6 +99,15 @@ describe('buildMergedRenderMelodies', () => {
         expect(merged.treble.offsets).toContain(285);
     });
 
+    it('rebases fermatas into the body: shift -measureLen, drop pickup-bar ones (Han 2026-06-17)', () => {
+        // A fermata on the 'you!' note (tick 288) must move with it when the pickup bar is removed,
+        // so SheetMusic's offsets.indexOf(f.tick) still lands on the right note. A fermata inside the
+        // removed pickup bar (tick 24 < measureLen) is dropped.
+        const treble = { ...melody, fermatas: [{ tick: 288, hold: 2 }, { tick: 24, hold: 1 }] };
+        const merged = buildMergedRenderMelodies({ treble }, measureLen);
+        expect(merged.treble.fermatas).toEqual([{ tick: 288 - measureLen, hold: 2 }]); // 252
+    });
+
     it('preserves rhythmicGrouping and chord identity fields on the merged bodies', () => {
         const treble = { ...melody, rhythmicGrouping: [3] };
         const chords = {
