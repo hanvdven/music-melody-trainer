@@ -1335,3 +1335,20 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
    stopped branch mutates only timeSignature. Tests +9 (280 green), build clean.
    Docs: architecture.md §13 bug log. Files: melodySlice.js, SheetMusic.jsx,
    melodySlice.test.js, architecture.md, BACKLOG.md.
+
+## RANGE setter refinements R1–R4 (Han 2026-06-17)
+✅ R1 Per-note staggered re-layout cascade. After a range commits, notes glide to
+   new x in QUICK left→right succession (runRangeCascade, ~360ms, element.style
+   translateX per §6, single-commit preserved). Tap now commits immediately;
+   slideRef survives only for hold-extend (holdExtending gates cascade off).
+✅ R2 Keyboard commit drives the SAME cascade (committed-key useLayoutEffect reads
+   trebleRange/bassRange ← settings.range that KeyboardRangeSetter writes).
+✅ R3 (bug) Keyboard band flash on open fixed: bandTransition flag + .kbd-range-band
+   --instant gate the CSS x/width transition off until first real width rendered
+   (root cause: width 0→real ResizeObserver jump animated by the transition).
+✅ R4 Boundary highlight yellow→white: new theme-safe --range-boundary-highlight
+   (#fff dark themes, #2b3a42 light) on boundary notes, selected melodic+percussion
+   brackets, keyboard active bracket + band/handles. Unrelated --accent-yellow left.
+   Files: RangeStaffOverlay.jsx, KeyboardRangeSetter.jsx (+css), App.css, scripts/
+   render-range*.jsx, docs/architecture.md, RangeStaffOverlay.test.jsx (+2 tests).
+   Tests 293 green, build clean. NOT committed (Han verifies feel live).

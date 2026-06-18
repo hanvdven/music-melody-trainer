@@ -144,4 +144,45 @@ describe('RangeStaffOverlay', () => {
         const { container } = renderOverlay({ startX: null });
         expect(container.querySelector('.range-overlay')).toBeNull();
     });
+
+    it('paints boundary noteheads with --range-boundary-highlight (R4, not yellow)', () => {
+        const { container } = renderOverlay();
+        const html = container.innerHTML;
+        // Boundary notes (selMin/selMax) draw with the new theme-safe var; the old
+        // --accent-yellow must no longer appear on any boundary element.
+        expect(html).toContain('var(--range-boundary-highlight)');
+        expect(html).not.toContain('var(--accent-yellow)');
+    });
+
+    it('survives an externally-changed range (keyboard commit → R2 cascade) without crashing', () => {
+        // Re-render with a DIFFERENT treble range: the cascade layout effect detects the
+        // committed-key change and (in jsdom, where getBBox/rAF are limited) must not throw.
+        const { container, rerender } = render(
+            <svg>
+                <RangeStaffOverlay
+                    startX={40} endX={600} trebleStart={100} bassStart={210} percussionStart={320}
+                    isTrebleVisible isBassVisible isPercussionVisible
+                    clefTreble="treble" clefBass="bass"
+                    trebleFrame={{ rowLow: 'A3', rowHigh: 'C6', presets: [{ label: 'STANDARD', min: 'C4', max: 'E5' }] }}
+                    bassFrame={{ rowLow: 'C2', rowHigh: 'E4', presets: [{ label: 'STANDARD', min: 'A2', max: 'C4' }] }}
+                    trebleRange={{ min: 'C4', max: 'E5' }} bassRange={{ min: 'A2', max: 'C4' }}
+                    timeSignature={{ numerator: 4, denominator: 4 }} theme="dark"
+                />
+            </svg>,
+        );
+        expect(() => rerender(
+            <svg>
+                <RangeStaffOverlay
+                    startX={40} endX={600} trebleStart={100} bassStart={210} percussionStart={320}
+                    isTrebleVisible isBassVisible isPercussionVisible
+                    clefTreble="treble" clefBass="bass"
+                    trebleFrame={{ rowLow: 'A3', rowHigh: 'C6', presets: [{ label: 'STANDARD', min: 'C4', max: 'E5' }] }}
+                    bassFrame={{ rowLow: 'C2', rowHigh: 'E4', presets: [{ label: 'STANDARD', min: 'A2', max: 'C4' }] }}
+                    trebleRange={{ min: 'D4', max: 'G5' }} bassRange={{ min: 'A2', max: 'C4' }}
+                    timeSignature={{ numerator: 4, denominator: 4 }} theme="dark"
+                />
+            </svg>,
+        )).not.toThrow();
+        expect(container.querySelector('.range-overlay')).not.toBeNull();
+    });
 });

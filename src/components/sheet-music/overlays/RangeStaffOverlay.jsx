@@ -20,7 +20,8 @@ import { nextNaturalToward, nextNaturalInDir, classifyStep, STEP_MS } from './ra
  * ordered per instrument family (orderedPercussionPads), variants behind base.
  *
  * COLOUR (theme vars via the renderer's `previewMode` override):
- *   melodic — boundary notes --accent-yellow, in-band --text-primary,
+ *   melodic — boundary notes --range-boundary-highlight (theme-safe white-on-dark,
+ *             Han 2026-06-17 R4; was --accent-yellow), in-band --text-primary,
  *             out-of-band --text-dim (dimmed via group opacity).
  *   percussion — enabled --text-primary, disabled --text-dim (dimmed).
  *
@@ -355,47 +356,119 @@ const RangeStaffOverlay = ({
     // plan. A ref (not state) so the rAF loop reads the latest values without a
     // stale closure and a render isn't forced per field write (§6); the visible
     // re-render is driven explicitly by forceReanchor() once per frame.
-    //   which      — 'min' | 'max' (which boundary the gesture owns)
-    //   ord        — live fractional ordinal of the moved boundary (drives rxFor)
-    //   fromOrd    — ordinal at gesture start (tween source)
-    //   targetOrd  — integer ordinal to settle on (tween destination + commit value)
-    //   t0,durMs   — tween start time + duration (ease-in-out)
-    //   pressed    — pointer still down? (true → hold-extend past target)
-    //   dir        — +1/-1 outward direction for hold-extend
-    //   targetMidi — integer midi committed on tween completion
-    const slideRef = React.useRef({});        // per-staff continuous slide state
+    //   which        — 'min' | 'max' (which boundary the gesture owns)
+    //   ord          — live fractional ordinal of the moved boundary (drives rxFor; only
+    //                  moves off targetOrd during HOLD-EXTEND now — see R1 note below)
+    //   targetOrd    — integer ordinal committed on press
+    //   t0,holdDelayMs — press time + grace before a sustained press promotes to hold-extend
+    //   pressed      — pointer still down? (true → may hold-extend past target)
+    //   holdExtending — true once the hold glide started (gates the R1 cascade off)
+    //   dir          — +1/-1 outward direction for hold-extend
+    //   targetMidi   — integer midi committed on press
+    //
+    // R1 REVISION (Han 2026-06-17): the original design eased a FRACTIONAL ordinal
+    // fromOrd→targetOrd so the row re-spaced as ONE continuous all-at-once glide. Han
+    // found that "cumbersome"; the per-note staggered cascade (runRangeCascade) now owns
+    // the tap re-layout instead, so beginSlide COMMITS the target immediately and this
+    // slide record only survives to drive HOLD-EXTEND. The fromOrd / duration-tween
+    // fields are therefore gone; ord stays pinned at targetOrd until a hold begins.
+    const slideRef = React.useRef({});        // per-staff slide/hold-extend state
     const slideRafRef = React.useRef({});      // per-staff rAF id for the slide
     // Hold-extend speed once a held tap has reached its target: ordinals/second.
     // One natural per STEP_MS (250 ms) matches the old stepper's hold cadence but
     // reads as a smooth continuous glide because we advance a fractional ordinal.
     const HOLD_ORD_PER_SEC = 1000 / STEP_MS;
-    // Tap-slide duration: scale gently with distance so a near tap is quick and a
-    // far tap doesn't feel instant, but cap both ends so it always feels smooth.
-    const SLIDE_MIN_MS = 150, SLIDE_MAX_MS = 320, SLIDE_MS_PER_ORD = 22;
     const easeInOut = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+
+    // ── Per-note staggered re-layout CASCADE (R1, Han 2026-06-17) ──────────────
+    // After a range commits (the boundary settles on a new min/max), the whole row
+    // re-spaces. Moving every note to its new x AT ONCE "feels cumbersome" (Han);
+    // instead the notes should arrive in QUICK SUCCESSION — a short left→right
+    // staggered glide (the flyInCascade feel, but brief). We drive this purely on
+    // the DOM: each note's outer <g data-range-midi> is translateX-ed FROM its old
+    // x (recorded last render) TO its committed new x (this render), each delayed by
+    // its target-x order so the leftmost note lands first. §6: every per-frame
+    // transform is written via element.style in the rAF — NEVER through JSX props —
+    // and the inline transform is cleared at the end so the committed render owns the
+    // final position. The single commit-to-state already happened (selMin/selMax are
+    // the new values); this cascade is pure visual choreography over that committed
+    // layout, so it never touches app state and never fights the drag/tap tween.
+    const noteXRef = React.useRef({});         // per-staff Map(midi → target screen x) committed BEFORE this render
+    const cascadeXMapPending = React.useRef({});  // per-staff Map(midi → x) written DURING the current render
+    const cascadeRafRef = React.useRef({});    // per-staff rAF id for the cascade
+    const cascadeKeyRef = React.useRef({});    // per-staff last committed `${selMin}:${selMax}` (change detector)
+    const rowGroupRefs = React.useRef({});     // per-staff <g.range-row> DOM node (to find note <g>s)
+    // Cascade timing — short/quick (Han: "quick succession"). One note's glide lasts
+    // CASCADE_ELEM_MS; the leftmost starts at 0 and the rightmost at CASCADE_STAGGER_MS,
+    // so the whole row settles in CASCADE_STAGGER_MS + CASCADE_ELEM_MS (~360 ms total).
+    const CASCADE_ELEM_MS = 220;
+    const CASCADE_STAGGER_MS = 140;
+    const cascadeEase = (t) => t * t * (3 - 2 * t);   // smoothstep, same family as flyInCascade
+
+    const stopCascade = (staff) => {
+        if (cascadeRafRef.current[staff]) { cancelAnimationFrame(cascadeRafRef.current[staff]); cascadeRafRef.current[staff] = null; }
+    };
+    // Run ONE left→right staggered cascade for `staff`. `moves` is an array of
+    // { el, fromX, toX } — the note's outer <g>, its OLD screen x, and its NEW screen
+    // x. We translateX each el from (fromX−toX) → 0, staggered by toX rank, easing
+    // each over CASCADE_ELEM_MS. Inline transforms are cleared on completion so the
+    // committed render (which already places the note AT toX) owns the final position.
+    const runRangeCascade = (staff, moves) => {
+        stopCascade(staff);
+        if (!moves.length) return;
+        const xs = moves.map(m => m.toX);
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const span = (maxX - minX) || 1;
+        // Per-note start delay by target-x order: leftmost (rank 0) starts immediately,
+        // rightmost at CASCADE_STAGGER_MS — the "quick succession" left→right wave.
+        const delayOf = (toX) => ((toX - minX) / span) * CASCADE_STAGGER_MS;
+        // Initial offset set before paint (no flash): each note sits at its OLD x.
+        for (const m of moves) m.el.style.transform = `translateX(${m.fromX - m.toX}px)`;
+        const total = CASCADE_STAGGER_MS + CASCADE_ELEM_MS;
+        const t0 = performance.now();
+        const frame = (now) => {
+            const t = now - t0;
+            for (const m of moves) {
+                const p = cascadeEase(Math.max(0, Math.min(1, (t - delayOf(m.toX)) / CASCADE_ELEM_MS)));
+                const dx = (m.fromX - m.toX) * (1 - p);
+                m.el.style.transform = dx === 0 ? '' : `translateX(${dx}px)`;
+            }
+            if (t < total) { cascadeRafRef.current[staff] = requestAnimationFrame(frame); return; }
+            cascadeRafRef.current[staff] = null;
+            for (const m of moves) m.el.style.transform = '';   // committed render owns the final x
+        };
+        frame(t0);
+        cascadeRafRef.current[staff] = requestAnimationFrame(frame);
+    };
 
     const stopSlide = (staff) => {
         if (slideRafRef.current[staff]) { cancelAnimationFrame(slideRafRef.current[staff]); slideRafRef.current[staff] = null; }
         slideRef.current[staff] = null;
     };
-    // One rAF frame of the continuous slide for `staff`. While the tween runs
-    // (now < t0+durMs) the fractional ordinal eases fromOrd→targetOrd. Once it
-    // lands: if still pressed → keep extending OUTWARD at HOLD_ORD_PER_SEC (the
-    // hold-extend behaviour); else commit the integer target ONCE and stop. The
-    // commit happens at the END so app state only updates a single time per tap,
-    // and the snap-to-integer at end avoids leaving a fractional boundary in state.
+    // One rAF frame of the slide for `staff`.
+    //
+    // R1 (Han 2026-06-17): a TAP no longer eases the boundary ordinal fromOrd→targetOrd
+    // as one continuous all-at-once row re-space — that "felt cumbersome". Instead the
+    // tap COMMITS the target immediately (beginSlide) and the per-note staggered CASCADE
+    // (runRangeCascade) animates the re-layout left→right. So `slideFrame` only runs
+    // while the tap is still HELD past its target: the HOLD-EXTEND continuous outward
+    // glide, which we DO want smooth (and which suppresses the cascade via holdExtending).
+    // A quick tap (release before the next frame) never enters the hold branch — the
+    // immediate commit + cascade is the whole animation. Single commit-to-state still
+    // holds: beginSlide commits the target once; hold-extend commits each crossing.
     const slideFrame = (staff) => (now) => {
         const s = slideRef.current[staff];
         if (!s) return;
-        if (now < s.t0 + s.durMs) {
-            const p = (now - s.t0) / s.durMs;
-            s.ord = s.fromOrd + (s.targetOrd - s.fromOrd) * easeInOut(p);
-            forceReanchor();
+        // GRACE window after the immediate commit: while still within s.holdDelayMs of
+        // the press we do nothing but keep the rAF alive (the R1 cascade is animating
+        // the tap). Only a sustained press past the grace promotes to hold-extend, so a
+        // quick tap+release never glides — it just commits + cascades (Han 2026-06-17).
+        if (now < s.t0 + s.holdDelayMs) {
             slideRafRef.current[staff] = requestAnimationFrame(slideFrame(staff));
             return;
         }
-        // Tween reached the target.
         if (s.pressed) {
+            s.holdExtending = true;   // gate the R1 cascade off while the hold glides
             // HOLD-extend: keep gliding outward past the target until release. We
             // advance the fractional ordinal at a steady velocity (dt since the
             // last frame), so a long hold reads as one continuous outward slide.
@@ -420,27 +493,31 @@ const RangeStaffOverlay = ({
             slideRafRef.current[staff] = requestAnimationFrame(slideFrame(staff));
             return;
         }
-        // Released (a tap): snap to the integer target and commit once.
-        s.ord = s.targetOrd;
-        if (s.committedOrd !== s.targetOrd) {
-            onStepRef.current?.(staff, s.targetMidi, s.which, s.presets);
-        }
+        // Released before the grace promoted to hold-extend: the immediate commit in
+        // beginSlide already set the final state and the cascade animated it, so just
+        // tear down the slide record. (committedOrd === targetOrd already.)
         stopSlide(staff);
-        forceReanchor();   // final render at the committed integer state
+        forceReanchor();   // ensure a clean render at the committed integer state
     };
-    // Begin a continuous tap-slide of `staff`'s `which` boundary from its current
-    // ordinal to `targetMidi`'s ordinal. dir = outward direction for hold-extend.
+    // Begin a tap of `staff`'s `which` boundary to `targetMidi`. R1 (Han 2026-06-17):
+    // we COMMIT the integer target IMMEDIATELY so the row re-renders at its final
+    // positions and the per-note staggered cascade (driven by the committed-key change
+    // in the layout effect below) animates the left→right re-layout. We then keep a
+    // slide record alive purely to support HOLD-EXTEND: if the press is sustained past
+    // holdDelayMs, slideFrame glides the boundary outward continuously (suppressing the
+    // cascade). dir = outward direction for that hold-extend. holdDelayMs ~= a short
+    // grace so a quick tap never glides. The tween that used to ease the ordinal is gone.
+    const HOLD_DELAY_MS = 260;
     const beginSlide = (staff, which, fromMidi, targetMidi, dir, presets) => {
         stopSlide(staff);
         stopStepper();   // the continuous slide replaces the per-natural stepper for taps
-        const fromOrd = ordinalOf(fromMidi);
         const targetOrd = ordinalOf(targetMidi);
-        const dist = Math.abs(targetOrd - fromOrd);
-        const durMs = Math.max(SLIDE_MIN_MS, Math.min(SLIDE_MAX_MS, dist * SLIDE_MS_PER_ORD));
+        // Immediate single commit to app state → cascade animates the re-layout.
+        onStepRef.current?.(staff, targetMidi, which, presets);
         slideRef.current[staff] = {
-            which, presets, dir, fromOrd, targetOrd, ord: fromOrd,
-            targetMidi, committedOrd: fromOrd === targetOrd ? targetOrd : null,
-            t0: performance.now(), durMs, pressed: true, lastNow: null,
+            which, presets, dir, targetOrd, ord: targetOrd,
+            targetMidi, committedOrd: targetOrd, holdExtending: false,
+            t0: performance.now(), holdDelayMs: HOLD_DELAY_MS, pressed: true, lastNow: null,
         };
         slideRafRef.current[staff] = requestAnimationFrame(slideFrame(staff));
     };
@@ -545,6 +622,7 @@ const RangeStaffOverlay = ({
         stopStepper();
         Object.values(rafRefs.current).forEach(id => id && cancelAnimationFrame(id));
         Object.values(slideRafRef.current).forEach(id => id && cancelAnimationFrame(id));
+        Object.values(cascadeRafRef.current).forEach(id => id && cancelAnimationFrame(id));
     }, []);
 
     // The visible row is a boundary-relative WINDOW into the full piano (A0..C8),
@@ -588,6 +666,52 @@ const RangeStaffOverlay = ({
                 });
             }
             prevExtentRef.current[staff] = { loIdx: cur.loIdx, hiIdx: cur.hiIdx, noteWidth: layout.noteWidth };
+        };
+        if (isTrebleVisible) run('treble', trebleRange, trebleFrame);
+        if (isBassVisible) run('bass', bassRange, bassFrame);
+    });
+
+    // ── R1/R2 per-note re-layout cascade trigger (Han 2026-06-17) ──────────────
+    // After every render we (a) snapshot this render's note x-map and (b) detect a
+    // COMMITTED boundary change for each melodic staff. On a change we run the
+    // staggered cascade from the PREVIOUS positions (noteXRef) to the NEW ones
+    // (cascadeXMapPending). This fires for BOTH the in-overlay tap (beginSlide commits
+    // immediately) AND the keyboard (KeyboardRangeSetter writes the same settings.range
+    // the overlay reads as trebleRange/bassRange → R2), so the keyboard and the staff
+    // share ONE animation. We SKIP it while a live drag or a hold-extend owns the row
+    // (those follow the finger / glide continuously — a stagger would fight them).
+    // useLayoutEffect so the per-note initial offset is set before paint (no flash).
+    React.useLayoutEffect(() => {
+        if (startX == null || endX == null) return;
+        const run = (staff, range, frame) => {
+            if (!frame) return;
+            const selMin = getNoteValue(range?.min);
+            const selMax = getNoteValue(range?.max);
+            const key = `${selMin}:${selMax}`;
+            const prevKey = cascadeKeyRef.current[staff];
+            const prevXMap = noteXRef.current[staff];
+            const newXMap = cascadeXMapPending.current[staff];
+            cascadeKeyRef.current[staff] = key;
+            if (newXMap) noteXRef.current[staff] = newXMap;   // becomes "prev" for the next change
+            if (prevKey === undefined || prevKey === key) return;   // first render / no change
+            // A live drag or hold-extend owns the visual motion → no cascade.
+            if (dragRef.current?.staff === staff) return;
+            if (slideRef.current[staff]?.holdExtending) return;
+            if (!prevXMap || !newXMap) return;
+            const group = rowGroupRefs.current[staff];
+            if (!group) return;
+            // Build the per-note moves: each note that exists in BOTH maps with a real
+            // position change, paired with its outer <g data-range-midi> DOM node.
+            const moves = [];
+            group.querySelectorAll('[data-range-midi]').forEach((el) => {
+                const midi = Number(el.getAttribute('data-range-midi'));
+                const toX = newXMap.get(midi);
+                const fromX = prevXMap.get(midi);
+                if (toX == null || fromX == null) return;
+                if (Math.abs(toX - fromX) < 0.5) return;   // unmoved → nothing to animate
+                moves.push({ el, fromX, toX });
+            });
+            runRangeCascade(staff, moves);
         };
         if (isTrebleVisible) run('treble', trebleRange, trebleFrame);
         if (isBassVisible) run('bass', bassRange, bassFrame);
@@ -657,7 +781,9 @@ const RangeStaffOverlay = ({
         const writtenByConcert = new Map(winNotes.map((n, i) => [n.name, writtenNames[i]]));
         const writtenName = (concertNm) => writtenByConcert.get(concertNm) ?? concertNm;
         const colorFor = (concertMidi, writtenNm) => {
-            if (concertMidi === selMin || concertMidi === selMax) return 'var(--accent-yellow)';
+            // Boundary notes use the theme-safe range-boundary-highlight (white on dark
+            // themes) for chromatone visibility — NOT --accent-yellow (Han 2026-06-17 R4).
+            if (concertMidi === selMin || concertMidi === selMax) return 'var(--range-boundary-highlight)';
             if (concertMidi > selMin && concertMidi < selMax) {
                 const base = melodicNoteColor(writtenNm, { noteColoringMode, tonic, scaleNotes, theme });
                 if (base) return base;
@@ -728,7 +854,10 @@ const RangeStaffOverlay = ({
             const d = downRef.current;
             const s = slideRef.current[staff];
             if (d?.dragged) { dragRef.current = null; forceReanchor(); }   // drag already committed live
-            else if (s) { s.pressed = false; }   // tap: clear pressed so the slide commits + stops once it lands
+            // tap: the commit + cascade already happened on press; clear pressed so the
+            // slide won't promote to hold-extend. If it never started extending, tear the
+            // idle slide record down now (no lingering grace-window rAF).
+            else if (s) { s.pressed = false; if (!s.holdExtending) stopSlide(staff); }
             downRef.current = null;
         };
 
@@ -779,8 +908,17 @@ const RangeStaffOverlay = ({
             }
         });
 
+        // Record this render's target screen x per visible note (midi → x) so the
+        // staggered re-layout cascade (R1) can translate each note FROM its old x.
+        // Written every render; the layout effect reads it AFTER comparing against the
+        // previous map (snapshotted there before this one overwrites it).
+        const xMap = new Map();
+        folded.forEach(({ n, x, y }) => { if (y != null) xMap.set(n.midi, x); });
+        cascadeXMapPending.current[staff] = xMap;
+
         return (
-            <g className={`range-row range-row-${staff}`} key={staff}>
+            <g className={`range-row range-row-${staff}`} key={staff}
+                ref={(el) => { rowGroupRefs.current[staff] = el; }}>
                 {/* Notes drawn at their x(t) positions (Han 2026-06-12): min/max at fixed Xl/Xr,
                     context notes on the tanh tails. Out-of-range notes FADE + SHRINK with distance
                     (like the transposition setter); in-range keep natural staff-y, opacity, size. */}
@@ -804,7 +942,7 @@ const RangeStaffOverlay = ({
                         // B3). The OUTER <g> is what the morph translateX-es; the INNER <g> keeps the
                         // per-note scale/opacity transform so the fly translate never clobbers it.
                         return (
-                            <g key={n.midi} data-fly="">
+                            <g key={n.midi} data-fly="" data-range-midi={n.midi}>
                                 <g opacity={opacity}
                                     transform={`translate(${x} ${y}) scale(${s}) translate(${-x} ${-y})`}>
                                     <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
@@ -884,8 +1022,10 @@ const RangeStaffOverlay = ({
                     if (yTop == null || yBottom == null) return null;
                     const x = presetX0 + i * gap;
                     const isActive = getNoteValue(p.min) === selMin && getNoteValue(p.max) === selMax;
-                    // Active preset = normal colour; passive = lowlight, opacity 1 (Han #14).
-                    const color = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
+                    // SELECTED preset bracket = the range-boundary highlight (white on dark),
+                    // matching the boundary noteheads (Han 2026-06-17 R4: "make the selected
+                    // bracket white also"); passive = lowlight, opacity 1 (Han #14).
+                    const color = isActive ? 'var(--range-boundary-highlight)' : 'var(--text-lowlight)';
                     const hitX = x - BRACKET_TICK - 12, hitY = yTop - 4;
                     const hitW = BRACKET_TICK + 18, hitH = yBottom - yTop + 8;
                     // No text label (Han 2026-05-31 — text clashed with the UI-overhaul
@@ -997,8 +1137,10 @@ const RangeStaffOverlay = ({
                     const yTop = Math.min(...ys), yBottom = Math.max(...ys);
                     const x = presetX0 + i * BRACKET_GAP;
                     const isActive = sameSet(enabledPads, PERCUSSION_PRESETS[mode]);
-                    // Active preset = normal colour; passive = lowlight, opacity 1 (Han #14).
-                    const color = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
+                    // SELECTED pool bracket = the range-boundary highlight (white on dark),
+                    // matching the melodic selected bracket (Han 2026-06-17 R4); passive =
+                    // lowlight, opacity 1 (Han #14).
+                    const color = isActive ? 'var(--range-boundary-highlight)' : 'var(--text-lowlight)';
                     const hitX = x - BRACKET_TICK - 12, hitY = yTop - 4;
                     const hitW = BRACKET_TICK + 18, hitH = yBottom - yTop + 8;
                     return (

@@ -109,6 +109,14 @@ const KeyboardRangeSetter = ({
     const wrapRef = useRef(null);
     const selSvgRef = useRef(null);
     const [width, setWidth] = useState(0);
+    // R3 flash fix (Han 2026-06-17): the band/handle rects CSS-transition x+width so a
+    // stepper burst GLIDES. But `width` starts at 0 → the first window is a fallback
+    // 7-key one; when the ResizeObserver delivers the REAL width the window widens and
+    // minIdx/maxIdx jump, and the transition ANIMATES that 0-width→real jump = a visible
+    // band flash on open. Gate the transition OFF until the first real width has been
+    // applied (one render later), so the initial layout snaps into place instead of
+    // sliding; subsequent stepper boundary changes still glide. See the CSS class.
+    const [bandTransition, setBandTransition] = useState(false);
     // Slide-stepper state (same model as the sheet overlay, Han 2026-06-01): a tap
     // bursts toward the target one white key per STEP_MS, a hold keeps extending
     // outward, a drag follows the finger live. The CSS transition on the band makes
@@ -127,6 +135,17 @@ const KeyboardRangeSetter = ({
         ro.observe(el);
         return () => ro.disconnect();
     }, []);
+
+    // R3: once a real width has been measured AND rendered (the band rects now sit at
+    // their correct positions WITHOUT a transition), enable the transition so later
+    // stepper boundary changes glide. The double-rAF defers the class flip past the
+    // paint that placed the band, so the 0→real jump itself never animates.
+    React.useEffect(() => {
+        if (width <= 0 || bandTransition) return undefined;
+        let raf2 = 0;
+        const raf1 = requestAnimationFrame(() => { raf2 = requestAnimationFrame(() => setBandTransition(true)); });
+        return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
+    }, [width, bandTransition]);
 
     const range = settings?.range || { min: 'C4', max: 'E5' };
     const selMin = getNoteValue(range.min);
@@ -276,7 +295,9 @@ const KeyboardRangeSetter = ({
                 <svg viewBox={`0 0 ${nWhite} ${presetViewH}`} preserveAspectRatio="none"
                     style={{ width: '100%', height: '100%', display: 'block' }}>
                     {bracketRows.map(({ p, x0, x1, isActive, isCurrentClef, yTop, gap }) => {
-                        const color = isActive ? 'var(--accent-yellow)'
+                        // Active/selected bracket = the theme-safe range-boundary highlight
+                        // (white on dark, Han 2026-06-17 R4; was --accent-yellow).
+                        const color = isActive ? 'var(--range-boundary-highlight)'
                             : (isCurrentClef ? 'var(--text-primary)' : 'var(--text-dim)');
                         const isBehind = !isCurrentClef;
                         const groupOpacity = isBehind ? 0.6 : 1;
@@ -331,13 +352,20 @@ const KeyboardRangeSetter = ({
                     {/* The band + handles transition their x/width over STEP_MS so a
                         stepper burst GLIDES between key positions instead of snapping
                         (Han 2026-06-01). SVG geometry props animate via CSS in modern
-                        browsers; a frozen window keeps the key grid stable underneath. */}
-                    <rect className="kbd-range-band" x={minIdx} y={0} width={Math.max(0, maxIdx + 1 - minIdx)} height={100}
-                        fill="var(--accent-yellow)" fillOpacity={0.18} style={{ pointerEvents: 'none' }} />
-                    <rect className="kbd-range-band" x={minIdx - 0.07} y={0} width={0.14} height={100}
-                        fill="var(--accent-yellow)" style={{ pointerEvents: 'none' }} />
-                    <rect className="kbd-range-band" x={maxIdx + 1 - 0.07} y={0} width={0.14} height={100}
-                        fill="var(--accent-yellow)" style={{ pointerEvents: 'none' }} />
+                        browsers; a frozen window keeps the key grid stable underneath.
+                        R3 (Han 2026-06-17): the transition is gated OFF until the first
+                        real width has been applied (bandTransition) so the initial
+                        0-width→real layout snaps instead of flashing. The band + handles
+                        use --range-boundary-highlight (theme-safe white-on-dark) — the
+                        "boundary setter on the keys" matches the staff boundary (R4). */}
+                    {(() => { const bandCls = `kbd-range-band${bandTransition ? '' : ' kbd-range-band--instant'}`; return (<>
+                    <rect className={bandCls} x={minIdx} y={0} width={Math.max(0, maxIdx + 1 - minIdx)} height={100}
+                        fill="var(--range-boundary-highlight)" fillOpacity={0.18} style={{ pointerEvents: 'none' }} />
+                    <rect className={bandCls} x={minIdx - 0.07} y={0} width={0.14} height={100}
+                        fill="var(--range-boundary-highlight)" style={{ pointerEvents: 'none' }} />
+                    <rect className={bandCls} x={maxIdx + 1 - 0.07} y={0} width={0.14} height={100}
+                        fill="var(--range-boundary-highlight)" style={{ pointerEvents: 'none' }} />
+                    </>); })()}
                     {debugMode && (
                         <rect x={0} y={0} width={nWhite} height={100}
                             fill="orange" fillOpacity={0.18} stroke="orange" strokeWidth={0.05}

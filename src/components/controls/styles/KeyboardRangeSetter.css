@@ -50,3 +50,11 @@
 .kbd-range-band {
   transition: x 0.25s linear, width 0.25s linear;
 }
+
+/* R3 (Han 2026-06-17): the band must NOT animate the initial 0-width→real-width
+   layout jump (that caused a flash on open). The setter renders the band with this
+   modifier until the first real width has been applied, then drops it so subsequent
+   stepper steps glide normally. */
+.kbd-range-band--instant {
+  transition: none;
+}
