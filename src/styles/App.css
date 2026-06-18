@@ -28,6 +28,13 @@
      out-of-band and percussion disabled pads. */
   --range-lowlight: #a8a8a8;
 
+  /* Range BOUNDARY highlight (Han 2026-06-17 R4): the colour of the selected range's
+     boundary noteheads, the selected preset bracket, and the keyboard band/handles.
+     WHITE on DARK themes (default + nocturne inherit this) for chromatone visibility —
+     replaces --accent-yellow there; light themes override to a dark value below.
+     Mirrors the per-theme --instrument-icon-filter pattern. */
+  --range-boundary-highlight: #ffffff;
+
   /* Accent */
   --accent-yellow: #f2c879;
   /* zacht amber */
@@ -189,6 +196,8 @@
 /* Warm parchment */
 :root[data-theme='meridienne'] {
   --instrument-icon-filter: none;   /* light theme: flat-black icons read as-is */
+  /* Light theme: a dark boundary highlight stays visible on the parchment bg (R4). */
+  --range-boundary-highlight: #2b3a42;
   --app-bg: #f4e7c5;
   --panel-bg: #e3d3a2;
   --text-primary: #3a2e1f;
@@ -216,6 +225,8 @@
 
 :root[data-theme='light'] {
   --instrument-icon-filter: none;   /* light theme: flat-black icons read as-is */
+  /* Light theme: a dark boundary highlight stays visible on the light bg (R4). */
+  --range-boundary-highlight: #2b3a42;
   --app-bg: #eef3f7;
   --panel-bg: #bcc7d4;
   --text-primary: #2b3a42;

@@ -2542,6 +2542,49 @@ promotes to the live drag. All writes go through `onSetMelodicBoundary` → `cla
   context notes keep their fade + shrink-with-distance. Complements the dense-MIDDLE β SPACING bow
   (spacing AND size both compress toward the middle).
 
+**Per-note re-layout cascade + keyboard-driven cascade (Han 2026-06-17, R1/R2) — `RangeStaffOverlay.jsx`.**
+- *Purpose.* When a range is selected the whole note row re-spaces. Moving every note to its new
+  x AT ONCE "felt cumbersome" (Han); the notes now arrive in QUICK SUCCESSION — a short left→right
+  staggered glide (the `flyInCascade` feel, but brief).
+- *How it works.* Each render records a per-staff `midi → screen x` map (`cascadeXMapPending`, the
+  positions `rxFor` produced this frame) and tags every note's outer `<g>` with `data-range-midi`.
+  A `useLayoutEffect` keyed off the committed `${selMin}:${selMax}` detects a boundary change, then
+  builds `moves = {el, fromX (last render), toX (this render)}` and runs `runRangeCascade`: each
+  note's `<g>` is `translateX`-ed from `fromX−toX → 0`, **delayed by its target-x rank** (leftmost
+  starts at 0, rightmost at `CASCADE_STAGGER_MS`≈140 ms; each glide lasts `CASCADE_ELEM_MS`≈220 ms,
+  smoothstep). Total ≈ 360 ms. **§6:** every per-frame transform is set via `element.style` in the
+  rAF and cleared on completion (the committed render owns the final x); no JSX-prop opacity/transform
+  and no app-state writes — the cascade is pure choreography over the already-committed layout.
+- *Single commit-to-state preserved.* The in-overlay TAP now COMMITS its target immediately
+  (`beginSlide` → `onSetMelodicBoundary` once) instead of easing a fractional boundary ordinal, so
+  the cascade (not a continuous all-at-once row glide) animates the tap. The `slideRef`/`slideFrame`
+  machinery survives only to drive HOLD-EXTEND (a sustained press past a `HOLD_DELAY_MS` grace glides
+  the boundary outward continuously, committing each crossing); a `holdExtending` flag gates the
+  cascade OFF while a hold glides, and a live drag (`dragRef`) likewise suppresses it.
+- *R2 — keyboard drives the SAME cascade.* `KeyboardRangeSetter` commits into the same
+  `settings.range` the overlay reads as `trebleRange`/`bassRange` (via `SheetMusic.jsx`), so a
+  keyboard boundary change re-renders the overlay with new min/max and the committed-key effect runs
+  the identical cascade — one animation shared by the staff and the keyboard.
+
+**Keyboard band flash fix (Han 2026-06-17, R3) — `KeyboardRangeSetter.jsx`.**
+- *Symptom.* On opening the keyboard range setter the selection band/handles flashed/slid briefly.
+- *Root cause.* `width` state starts at 0, so the first window is a fallback 7-key one; when the
+  `ResizeObserver` delivers the real width the window widens and `minIdx`/`maxIdx` jump — and the
+  band rects' CSS `transition: x/width` ANIMATED that 0-width→real jump.
+- *Fix.* A `bandTransition` flag (default false) gates the transition OFF until the first real width
+  has been measured AND rendered (flipped true a double-rAF later, past the paint that placed the
+  band). The band rects render with `.kbd-range-band--instant` (`transition: none`) until then, so
+  the initial layout snaps; subsequent stepper steps still glide via `.kbd-range-band`.
+
+**Range boundary highlight var (Han 2026-06-17, R4) — `App.css` + `RangeStaffOverlay.jsx` + `KeyboardRangeSetter.jsx`.**
+The range BOUNDARY was drawn in `--accent-yellow`, which is hard to see against bright chromatone
+notes. A new theme-safe `--range-boundary-highlight` replaces it everywhere the boundary is drawn:
+boundary noteheads (`colorFor`), the selected melodic/percussion preset brackets, the keyboard's
+active bracket, and the keyboard band fill + handles ("the boundary setter on the keys"). It is
+`#ffffff` on the DARK themes (`:root` base, inherited by `nocturne`) and `#2b3a42` on the LIGHT
+themes (`meridienne`, `light`) so it stays visible on every theme — mirroring the per-theme
+`--instrument-icon-filter` pattern. Unrelated `--accent-yellow` usages are untouched.
+
 **Chord-style row + complexity chords (Han 2026-06-03, Batch C).** The chord-line
 preview row is rendered at the SAME vertical height as the real sheet chords (anchored
 `trebleStart − 58`) with a wider inter-chord gap and centred, wider label clickzones so
