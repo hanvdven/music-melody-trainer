@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     INSTRUMENT_GROUPS, INSTRUMENT_LIST, INSTRUMENTS,
-    getInstrumentIconUrl, instrumentNameForSlug, ICON_ATTRIBUTION,
+    getInstrumentIconUrl, instrumentNameForSlug, instrumentFullLabel, ICON_ATTRIBUTION,
 } from '../instruments';
 
 describe('constants/instruments', () => {
@@ -12,18 +12,34 @@ describe('constants/instruments', () => {
         expect(INSTRUMENT_LIST.length).toBeGreaterThan(13);
     });
 
-    it('derives the flat INSTRUMENTS name→slug map from the groups (single source)', () => {
+    it('derives the flat INSTRUMENTS label→slug map from the groups (single source)', () => {
+        // Keyed by the self-sufficient "group — name" label (Han 2026-06-18) so RangeControls'
+        // stepper reads unambiguously even though the carousel card shows only the short name.
         for (const it of INSTRUMENT_LIST) {
-            expect(INSTRUMENTS[it.name]).toBe(it.slug);
+            expect(INSTRUMENTS[instrumentFullLabel(it)]).toBe(it.slug);
         }
-        // Piano is the canonical default slug.
-        expect(INSTRUMENTS['Piano']).toBe('acoustic_grand_piano');
+        // The grand piano is the canonical default slug; its full label disambiguates the card.
+        expect(INSTRUMENTS['keys (piano) — grand']).toBe('acoustic_grand_piano');
     });
 
-    it('every slug resolves an icons8 icon URL and a display name', () => {
+    it('each item splits into a short card `name` and a "family (subgroup)" `group` bracket', () => {
+        // Card name is the short variant (e.g. 'nylon'); group is the bracket header
+        // (e.g. 'strings (guitar)'). Han 2026-06-18.
+        const nylon = INSTRUMENT_LIST.find(it => it.slug === 'acoustic_guitar_nylon');
+        expect(nylon.name).toBe('nylon');
+        expect(nylon.group).toBe('strings (guitar)');
+        // Every item carries both fields.
+        for (const it of INSTRUMENT_LIST) {
+            expect(typeof it.name).toBe('string');
+            expect(typeof it.group).toBe('string');
+        }
+    });
+
+    it('every slug resolves an icons8 icon URL and a self-sufficient display label', () => {
         for (const it of INSTRUMENT_LIST) {
             expect(getInstrumentIconUrl(it.slug)).toBeTruthy();
-            expect(instrumentNameForSlug(it.slug)).toBe(it.name);
+            // instrumentNameForSlug now returns the disambiguated "group — name" label.
+            expect(instrumentNameForSlug(it.slug)).toBe(instrumentFullLabel(it));
         }
     });
 

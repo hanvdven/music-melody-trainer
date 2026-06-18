@@ -22,9 +22,21 @@ const ICON_URLS = import.meta.glob('../assets/icons8-*-100.png', { eager: true, 
 // shaped so a future drop of real icons8 <image>s only needs `getInstrumentIcon` to
 // return an <image> per slug and `ICON_ATTRIBUTION` to flip — see TODO below.
 
-// Grouped by CATEGORY (the header shown above the carousel). Each item also carries a `family`
-// (keys/guitar/strings/winds/percussion/voice) as descriptive metadata; the actual icon now
-// comes from SLUG_TO_ICON below (icons8 PNGs), not the family.
+// Grouped by CATEGORY (`label` — the top-level family shown nowhere as a card, used only to
+// keep the list ordered). Each item carries:
+//   • `name`  — the SHORT VARIANT name shown as the carousel CARD label (e.g. 'nylon').
+//   • `group` — the "family (subgroup)" string shown as the carousel BRACKET header above the
+//     staff (e.g. 'strings (guitar)'). Consecutive items sharing a `group` are bracketed together.
+//   • `family`/`slug` — descriptive metadata + the GM Soundfont name (the icon comes from
+//     SLUG_TO_ICON below, not the family).
+//
+// Label split (Han 2026-06-18): previously each Strings card glued the whole taxonomy into the
+// card name ('strings (guitar nylon)') while the bracket showed only the bare top-level family
+// ('Strings'). Han wants the bracket to carry "family (subgroup)" — 'strings (guitar)' — and the
+// CARD to carry just the variant — 'nylon'. So we split: `group` → bracket, `name` → card. WHY
+// this split (Han 2026-06-18): the bracket already groups same-`group` runs, so the subgroup
+// ('guitar' vs 'bass' vs 'orchestral') belongs on the bracket, leaving the card free to show only
+// what distinguishes one variant from its siblings.
 //
 // Taxonomy (Han 2026-06-17): ONE big STRINGS category folds in the guitars/basses, the
 // orchestral strings AND the harp (harp is NOT a keyboard). Categories: Keys / Strings /
@@ -33,68 +45,78 @@ export const INSTRUMENT_GROUPS = [
     {
         label: 'Keys',
         items: [
-            { name: 'Piano', slug: 'acoustic_grand_piano', family: 'keys' },
-            { name: 'Electric Piano', slug: 'electric_piano_1', family: 'keys' },
-            { name: 'Organ', slug: 'church_organ', family: 'keys' },
+            { name: 'grand', group: 'keys (piano)', slug: 'acoustic_grand_piano', family: 'keys' },
+            { name: 'electric', group: 'keys (piano)', slug: 'electric_piano_1', family: 'keys' },
+            { name: 'organ', group: 'keys (organ)', slug: 'church_organ', family: 'keys' },
         ],
     },
     {
         label: 'Strings',
-        // Names carry the family in parens (Han 2026-06-17: "strings (guitar)" etc) so a single
-        // visible string instrument still reads as a string even when its category bracket
-        // (shown only for 2+ visible) is absent.
         items: [
-            { name: 'strings (guitar nylon)', slug: 'acoustic_guitar_nylon', family: 'guitar' },
-            { name: 'strings (guitar steel)', slug: 'acoustic_guitar_steel', family: 'guitar' },
-            { name: 'strings (guitar clean)', slug: 'electric_guitar_clean', family: 'guitar' },
-            { name: 'strings (acoustic bass)', slug: 'acoustic_bass', family: 'guitar' },
-            { name: 'strings (bass picked)', slug: 'electric_bass_pick', family: 'guitar' },
-            { name: 'strings (synth bass)', slug: 'synth_bass_1', family: 'guitar' },
-            { name: 'strings (violin)', slug: 'violin', family: 'strings' },
-            { name: 'strings (cello)', slug: 'cello', family: 'strings' },
-            { name: 'strings (ensemble)', slug: 'string_ensemble_1', family: 'strings' },
-            { name: 'strings (harp)', slug: 'orchestral_harp', family: 'strings' },
+            { name: 'nylon', group: 'strings (guitar)', slug: 'acoustic_guitar_nylon', family: 'guitar' },
+            { name: 'steel', group: 'strings (guitar)', slug: 'acoustic_guitar_steel', family: 'guitar' },
+            { name: 'clean', group: 'strings (guitar)', slug: 'electric_guitar_clean', family: 'guitar' },
+            { name: 'acoustic', group: 'strings (bass)', slug: 'acoustic_bass', family: 'guitar' },
+            { name: 'picked', group: 'strings (bass)', slug: 'electric_bass_pick', family: 'guitar' },
+            { name: 'synth', group: 'strings (bass)', slug: 'synth_bass_1', family: 'guitar' },
+            { name: 'violin', group: 'strings (orchestral)', slug: 'violin', family: 'strings' },
+            { name: 'cello', group: 'strings (orchestral)', slug: 'cello', family: 'strings' },
+            { name: 'ensemble', group: 'strings (orchestral)', slug: 'string_ensemble_1', family: 'strings' },
+            { name: 'harp', group: 'strings (orchestral)', slug: 'orchestral_harp', family: 'strings' },
         ],
     },
     {
         label: 'Winds',
         items: [
-            { name: 'Trumpet', slug: 'trumpet', family: 'winds' },
-            { name: 'French Horn', slug: 'french_horn', family: 'winds' },
-            { name: 'Saxophone', slug: 'tenor_sax', family: 'winds' },
-            { name: 'Clarinet', slug: 'clarinet', family: 'winds' },
-            { name: 'Oboe', slug: 'oboe', family: 'winds' },
-            { name: 'Flute', slug: 'flute', family: 'winds' },
+            { name: 'trumpet', group: 'winds (brass)', slug: 'trumpet', family: 'winds' },
+            { name: 'horn', group: 'winds (brass)', slug: 'french_horn', family: 'winds' },
+            { name: 'sax', group: 'winds (reeds)', slug: 'tenor_sax', family: 'winds' },
+            { name: 'clarinet', group: 'winds (reeds)', slug: 'clarinet', family: 'winds' },
+            { name: 'oboe', group: 'winds (reeds)', slug: 'oboe', family: 'winds' },
+            { name: 'flute', group: 'winds (flute)', slug: 'flute', family: 'winds' },
         ],
     },
     {
         label: 'Tuned Percussion',
         items: [
-            { name: 'Marimba', slug: 'marimba', family: 'percussion' },
-            { name: 'Vibraphone', slug: 'vibraphone', family: 'percussion' },
+            { name: 'marimba', group: 'percussion (tuned)', slug: 'marimba', family: 'percussion' },
+            { name: 'vibraphone', group: 'percussion (tuned)', slug: 'vibraphone', family: 'percussion' },
         ],
     },
     {
         label: 'Voice',
         items: [
-            { name: 'Voice Oohs', slug: 'voice_oohs', family: 'voice' },
-            { name: 'Choir', slug: 'choir_aahs', family: 'voice' },
+            { name: 'oohs', group: 'voice', slug: 'voice_oohs', family: 'voice' },
+            { name: 'choir', group: 'voice', slug: 'choir_aahs', family: 'voice' },
         ],
     },
 ];
 
 // Flat list of every instrument row, in group order. Convenient for lookups + the
-// RangeControls stepper (which wants a flat options list).
+// RangeControls stepper (which wants a flat options list). `groupLabel` keeps the top-level
+// category (Keys/Strings/…) as descriptive metadata.
 export const INSTRUMENT_LIST = INSTRUMENT_GROUPS.flatMap(g =>
     g.items.map(it => ({ ...it, groupLabel: g.label })));
 
-// Flat { displayName: slug } map — the legacy shape RangeControls relied on. Derived
-// from INSTRUMENT_GROUPS so it always tracks the grouped list (single source of truth).
-export const INSTRUMENTS = Object.fromEntries(INSTRUMENT_LIST.map(it => [it.name, it.slug]));
+// Self-sufficient display label "group — name" (e.g. "strings (guitar) — nylon"). The carousel
+// CARD shows only the short `name`, but RangeControls' stepper + current-instrument label show a
+// single instrument out of context, so a bare "nylon" would be ambiguous there. This combined
+// label disambiguates it. (Han 2026-06-18.)
+export const instrumentFullLabel = (it) => `${it.group} — ${it.name}`;
 
-// slug → display name (for the setter's card label + RangeControls' current-label lookup).
-const NAME_BY_SLUG = Object.fromEntries(INSTRUMENT_LIST.map(it => [it.slug, it.name]));
-export const instrumentNameForSlug = (slug) => NAME_BY_SLUG[slug] || 'Piano';
+// Flat { displayLabel: slug } map — the legacy shape RangeControls relied on (it uses the KEYS as
+// stepper option labels + to find the current instrument's label by slug). Keyed by the
+// self-sufficient `instrumentFullLabel` so RangeControls reads unambiguously; derived from
+// INSTRUMENT_GROUPS so it always tracks the grouped list (single source of truth).
+export const INSTRUMENTS = Object.fromEntries(
+    INSTRUMENT_LIST.map(it => [instrumentFullLabel(it), it.slug]));
+
+// slug → self-sufficient display label (for RangeControls' current-label lookup). The carousel
+// card uses the short `it.name` directly; this returns the disambiguated "group — name" form.
+const LABEL_BY_SLUG = Object.fromEntries(
+    INSTRUMENT_LIST.map(it => [it.slug, instrumentFullLabel(it)]));
+export const instrumentNameForSlug = (slug) =>
+    LABEL_BY_SLUG[slug] || 'keys (piano) — grand';
 
 // slug → icons8 icon basename. A GENUINE per-instrument lookup: icons8 ships distinct art per
 // instrument, so there is no formula to derive it — this is the user-supplied "what an instrument

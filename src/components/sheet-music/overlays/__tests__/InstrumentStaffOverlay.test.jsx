@@ -35,20 +35,21 @@ describe('InstrumentStaffOverlay', () => {
         expect(labels).toContain(INSTRUMENT_LIST[0].name);
     });
 
-    it('shows a dynamic category bracket for the active category (2+ visible)', () => {
-        // Piano (Keys) is the treble active item; Keys has 3 items so its bracket shows.
+    it('shows a dynamic group bracket for the active group (2+ visible)', () => {
+        // Grand piano (group 'keys (piano)') is the treble active item; that group has 2 items
+        // so its bracket shows the "family (subgroup)" header uppercased (Han 2026-06-18).
         const { container } = renderOverlay();
         const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
-        expect(labels).toContain('KEYS');
+        expect(labels).toContain('KEYS (PIANO)');
     });
 
-    it('CYCLICAL: brackets wrap across the seam — Piano (index 0) shows BOTH neighbouring '
-        + 'categories (Keys after the seam + Voice before it)', () => {
-        // Piano is the first instrument; with wrap-around the visible window straddles the
-        // N-1 → 0 seam, so the trailing Voice category (last group) is visible alongside Keys.
+    it('CYCLICAL: brackets wrap across the seam — grand piano (index 0) shows its own group '
+        + "(keys (piano)) and the trailing voice group before the seam", () => {
+        // Grand piano is the first instrument; with wrap-around the visible window straddles the
+        // N-1 → 0 seam, so the trailing voice group (last group) is visible alongside keys.
         const { container } = renderOverlay({ bassInstrument: 'acoustic_grand_piano' });
         const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
-        expect(labels).toContain('KEYS');
+        expect(labels).toContain('KEYS (PIANO)');
         expect(labels).toContain('VOICE');   // wrapped in from the far end of the ring
     });
 
