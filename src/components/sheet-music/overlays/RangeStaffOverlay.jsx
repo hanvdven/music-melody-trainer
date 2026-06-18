@@ -7,7 +7,7 @@ import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
 import { transposeMelodyBySemitones } from '../../../theory/musicUtils';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
-import { STEP_MS } from './rangeSlide';
+import { STEP_MS, easeOutCubic } from './rangeSlide';
 
 /**
  * RangeStaffOverlay — in-SVG range selector (sheet/bladmuziek variant).
@@ -386,12 +386,20 @@ const RangeStaffOverlay = ({
     const cascadeRafRef = React.useRef({});    // per-staff rAF id for the cascade
     const cascadeKeyRef = React.useRef({});    // per-staff last committed `${selMin}:${selMax}` (change detector)
     const rowGroupRefs = React.useRef({});     // per-staff <g.range-row> DOM node (to find note <g>s)
-    // Cascade timing — short/quick (Han: "quick succession"). One note's glide lasts
-    // CASCADE_ELEM_MS; the leftmost starts at 0 and the rightmost at CASCADE_STAGGER_MS,
-    // so the whole row settles in CASCADE_STAGGER_MS + CASCADE_ELEM_MS (~360 ms total).
-    const CASCADE_ELEM_MS = 220;
-    const CASCADE_STAGGER_MS = 140;
-    const cascadeEase = (t) => t * t * (3 - 2 * t);   // smoothstep, same family as flyInCascade
+    // Cascade timing — adopt the TRANSPOSITION carousel's glide feel (Han 2026-06-18):
+    // each note eases out over CASCADE_ELEM_MS (~280 ms, matching TranspositionSetter's
+    // DURATION) with easeOutCubic, NOT the old 220 ms smoothstep — so a settling note
+    // reads as the same smooth glide as the transposition carousel. The left→right
+    // stagger Han previously asked for is KEPT (CASCADE_STAGGER_MS): the leftmost note
+    // starts at 0 and the rightmost at CASCADE_STAGGER_MS, so the row still arrives in
+    // "quick succession" but each individual note glides exactly like the carousel
+    // instead of the snappier smoothstep. Whole row settles in STAGGER + ELEM (~400 ms).
+    const CASCADE_ELEM_MS = 280;
+    const CASCADE_STAGGER_MS = 120;
+    // easeOutCubic — the SAME easing the transposition carousel uses (rangeSlide.js /
+    // TranspositionSetter.jsx: 1 − (1−p)³). Single source of truth so the two animations
+    // can't drift (CLAUDE.md §6d).
+    const cascadeEase = easeOutCubic;
 
     const stopCascade = (staff) => {
         if (cascadeRafRef.current[staff]) { cancelAnimationFrame(cascadeRafRef.current[staff]); cascadeRafRef.current[staff] = null; }
@@ -403,6 +411,15 @@ const RangeStaffOverlay = ({
     // committed render (which already places the note AT toX) owns the final position.
     const runRangeCascade = (staff, moves) => {
         stopCascade(staff);
+        // ONE rAF driver per staff at a time (Han 2026-06-18). The cascade is the sole
+        // driver that WRITES note transforms here. A grace-window slide rAF may still be
+        // alive (beginSlide armed it on the same tap that triggered this cascade), but
+        // during its grace window slideFrame writes NOTHING — it only keeps its rAF alive
+        // so a sustained press can promote to hold-extend. So the two never write the same
+        // element in the same frame: cascade owns the transform until it completes, and if
+        // the press is held the cascade is already done (or suppressed via the layout
+        // effect's holdExtending guard) before hold-extend starts moving notes. We must NOT
+        // stopSlide() here — that would destroy the hold-extend the user may be arming.
         if (!moves.length) return;
         const xs = moves.map(m => m.toX);
         const minX = Math.min(...xs), maxX = Math.max(...xs);
@@ -410,7 +427,10 @@ const RangeStaffOverlay = ({
         // Per-note start delay by target-x order: leftmost (rank 0) starts immediately,
         // rightmost at CASCADE_STAGGER_MS — the "quick succession" left→right wave.
         const delayOf = (toX) => ((toX - minX) / span) * CASCADE_STAGGER_MS;
-        // Initial offset set before paint (no flash): each note sits at its OLD x.
+        // Initial offset set before paint (no flash): each note sits at its OLD x. Because
+        // runRangeCascade is called from a useLayoutEffect, this write lands BEFORE paint,
+        // so the first painted frame already shows the OLD geometry — no stale-read jump
+        // (Han 2026-06-18 (c): read/seed geometry after the layout flush that measured it).
         for (const m of moves) m.el.style.transform = `translateX(${m.fromX - m.toX}px)`;
         const total = CASCADE_STAGGER_MS + CASCADE_ELEM_MS;
         const t0 = performance.now();
@@ -425,7 +445,11 @@ const RangeStaffOverlay = ({
             cascadeRafRef.current[staff] = null;
             for (const m of moves) m.el.style.transform = '';   // committed render owns the final x
         };
-        frame(t0);
+        // ONE rAF loop only (Han 2026-06-18): the previous code called frame(t0)
+        // synchronously AND scheduled a rAF, spawning TWO concurrent loops that both wrote
+        // each note's transform every frame — a self-race that jittered the glide. The
+        // initial offset is already seeded above (before paint), so we just start a single
+        // rAF; the first frame() runs next tick and animates from there.
         cascadeRafRef.current[staff] = requestAnimationFrame(frame);
     };
 
@@ -789,10 +813,22 @@ const RangeStaffOverlay = ({
                         // from the right on the morph like the clef/colour overlays (Han 2026-06-15
                         // B3). The OUTER <g> is what the morph translateX-es; the INNER <g> keeps the
                         // per-note scale/opacity transform so the fly translate never clobbers it.
+                        // The two ACTIVE boundary notes (concert min/max) LIGHT UP like a
+                        // played note (Han 2026-06-18: "the active edges should get a note
+                        // highlight"). We reuse the MAIN staff's canonical active-note look —
+                        // the `#note-glow-subtle` SVG filter (App.css `.note-active` →
+                        // filter:url(#note-glow-subtle); defined in SheetMusic.jsx <defs>, the
+                        // same SVG this overlay renders into). NO new glow is invented (§6d).
+                        // The head is already a FILLED Maestro glyph in the boundary-highlight
+                        // colour (colorFor), so the filter makes it read as a lit/active head
+                        // rather than a mere coloured outline. Theme-safe via the existing
+                        // --range-boundary-highlight var (white on dark / dark on light).
+                        const isBoundary = n.midi === selMin || n.midi === selMax;
                         return (
                             <g key={n.midi} data-fly="" data-range-midi={n.midi}>
                                 <g opacity={opacity}
-                                    transform={`translate(${x} ${y}) scale(${s}) translate(${-x} ${-y})`}>
+                                    transform={`translate(${x} ${y}) scale(${s}) translate(${-x} ${-y})`}
+                                    style={isBoundary ? { filter: 'url(#note-glow-subtle)' } : undefined}>
                                     <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
                                         ledgerYs={rangeLedgerYs(y, staffStart)} color={colorFor(n.midi, wn)} />
                                 </g>
