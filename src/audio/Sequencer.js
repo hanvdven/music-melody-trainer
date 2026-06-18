@@ -267,6 +267,13 @@ class Sequencer {
     // The outer while stays alive (isOnceMode=false, totalMelodies=-1); after each
     // repsPerMelody passes the block below resets iteration without incrementing melodyCount.
     this.isRepeatMode = repeatForever;
+    // Repeat-numbering origin for INDEFINITE repeats (repsPerMelody === -1). In indefinite mode the
+    // BarlinesLayer suffix must GROW UNBOUNDED (maat 1 on pass 7 = "1.7", pass 1000 = "1.1000"), so
+    // blockPlayStart — the value computeRepeatPass subtracts from startMeasureIndex — must be PINNED to
+    // the session's first body play-start and NOT refreshed on each per-pass re-arm (which is what pins
+    // the suffix at 1 in finite mode). null until the first indefinite arm sets it; reset per session
+    // because start() rebuilds all playback state. Finite mode never reads this (it keeps refreshing).
+    this.repeatNumberingOrigin = null;
     this.song = Song.empty();
     this.songVersion = 0;
     this.scheduledMeasures = [];
@@ -1830,10 +1837,23 @@ class Sequencer {
       // ((historyIndex + 0) * numMeasures + 1) and blockPlayStart tracks each block's start global
       // index — so the suffix CYCLES 1..repsPerMelody per block, matching the generated path (this is
       // the FINITE repsPerMelody case Han reported: "11" → cycles correctly instead of overflowing).
-      // NOTE on the -1 case: the planner resolves repsPerMelody=-1 to 1 (Math.max(1,-1) at the arm
-      // call), so the block re-arms every pass and this refresh pins the suffix at 1 rather than
-      // growing 1,2,3,…; true indefinite-growth would need the planner to stop re-arming (deferred —
-      // see arch §40b "Known limitation").
+      //
+      // INDEFINITE repeat (repsPerMelody === -1, "repeat one indefinitely"): the suffix must instead
+      // GROW UNBOUNDED (maat 1 on pass 7 = "1.7", pass 1000 = "1.1000"; no cap, no reset — Han
+      // 2026-06-18). The planner resolves repsPerMelody=-1 to 1 (Math.max(1,-1) at the arm call), so
+      // _armPaginationSequence re-arms — and this callback fires — EVERY pass. If we refreshed
+      // blockPlayStart to sequenceStartGlobalMeasure here (as finite mode does), it would track
+      // startMeasureIndex every pass and pin the suffix at 1. So for indefinite mode we PIN
+      // blockPlayStart to a STABLE ORIGIN (the first body play-start of the session, captured on the
+      // first arm) and never refresh it again — then computeRepeatPass's
+      // floor((startMeasureIndex - origin) / passSpan) + 1 climbs without bound across passes. The
+      // re-arm itself still happens (it schedules the next pass's measures); we change only the
+      // numbering ORIGIN, not the scheduling (§6: Song stays append-only, indices monotonic). NOTE:
+      // blockMeasureStart is refreshed in BOTH modes — it drives the BASE measure number N (1..nm
+      // within one pass), which stays correct because melodyCount is pinned at 0 so it resolves to the
+      // loaded song's first measure on every pass; only the .repeatNum grows.
+      const isIndefiniteRepeat = this.isRepeatMode
+        && this.refs.playbackConfigRef.current.repsPerMelody === -1;
       if (this.isRepeatMode) {
         const hir = this.refs.historyIndexRef;
         const nm = this.refs.numMeasuresRef.current;
@@ -1841,7 +1861,17 @@ class Sequencer {
           this.setters.setBlockMeasureStart((Math.max(0, hir.current) + this.melodyCount) * nm + 1);
         }
         if (this.setters.setBlockPlayStart) {
-          this.setters.setBlockPlayStart(sequenceStartGlobalMeasure);
+          if (isIndefiniteRepeat) {
+            // Capture the session origin on the FIRST indefinite arm only, then leave it fixed so the
+            // suffix grows unbounded. Subsequent re-arms must NOT overwrite it.
+            if (this.repeatNumberingOrigin === null) {
+              this.repeatNumberingOrigin = sequenceStartGlobalMeasure;
+            }
+            this.setters.setBlockPlayStart(this.repeatNumberingOrigin);
+          } else {
+            // FINITE repsPerMelody: refresh per block so the suffix CYCLES 1..repsPerMelody.
+            this.setters.setBlockPlayStart(sequenceStartGlobalMeasure);
+          }
         }
       }
     }, initialDelayMs);

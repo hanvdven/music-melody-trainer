@@ -7,6 +7,31 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-18 (cont.) — UNBOUNDED repeat-numbering for INDEFINITE repeats (Han)
+- ✅ #3b INDEFINITE repeat suffix now GROWS UNBOUNDED (maat 1 pass 7 = "1.7", pass 1000 = "1.1000";
+  no cap, no reset). Removes the "known limitation" flagged in §40b / the 2026-06-18 entry below.
+  ROOT: planner resolves repsPerMelody=-1 to 1 → _armPaginationSequence re-arms EVERY pass; the finite
+  path refreshes blockPlayStart=sequenceStartGlobalMeasure each pass → suffix pinned at 1.
+  FIX (Sequencer.js): new per-session field `repeatNumberingOrigin` (null until first indefinite arm
+  captures sequenceStartGlobalMeasure); in the arm callback, when `isRepeatMode && repsPerMelody===-1`
+  PIN blockPlayStart to that frozen origin (never refresh) → computeRepeatPass climbs unbounded.
+  FINITE keeps refreshing (cycles 1..N — not regressed). blockMeasureStart refreshed in BOTH modes so
+  the BASE measure number N stays 1..numMeasures (only .repeatNum grows). Re-arm/scheduling untouched
+  (Song append-only, indices monotonic §6).
+- SCOPE = BOTH loaded songs AND generated melodies: both reach indefinite repeat via handlePlayRepeat →
+  start(...,repeatForever=true) looping the SAME melodies (no regen — isRepeatMode short-circuits), so
+  one signal (repsPerMelody===-1) covers both, no per-source branching.
+- ⚠ OPEN INCONSISTENCY (flagged, NOT changed): SettingsOverlay repeats stepper sets repsPerMelody=
+  Infinity ("À"), but Sequencer loop + NumberPicker use -1. Unbounded numbering keys on -1 (matches the
+  loop's `repsPerMelody !== -1`). The Infinity path also never resets iteration → needs separate
+  normalization. Raised for Han.
+- ⚠ UNVERIFIED w/o live repro (Han to test): the running suffix climbing on screen across a long
+  indefinite session.
+- Tests: replaced the stale "monotonic (deferred)" test with an UNBOUNDED-origin test (pass 7→7,
+  23→23, 998, 1000 + strict-monotone 1200-pass loop) and a FINITE-cycling guard (1..N). 309→310 green.
+  Build clean. Docs: §40b "Known limitation" replaced with #3b unbounded behaviour + the Infinity/-1
+  note. computeRepeatPass header comment updated.
+
 ## 2026-06-18 — HBD anacrusis Phase 3 (leading pickup bar) + repeat-numbering parity (Han)
 - ✅ #2A LEADING PICKUP BAR on the FIRST pass (arch §40b). New pure helpers in anacrusisRepeat.js:
   `mergedBodyPassIndex` (SESSION-global pass index — pickup bar shows only on pass 0, because the

@@ -37,14 +37,39 @@ describe('computeRepeatPass (Fix #3 repeat-pass suffix)', () => {
         expect(computeRepeatPass({ startMeasureIndex: 80, blockPlayStart: 0, passSpan: 8, isPlaying: true })).toBe(11);
     });
 
-    it('grows monotonically when blockPlayStart is held fixed (pure-formula property)', () => {
-        // FORMULA property: if a block never re-arms (blockPlayStart fixed at the session start) the
-        // pass number climbs 1, 2, 3, …. NOTE: in the live planner repsPerMelody=-1 resolves to 1 so
-        // the block DOES re-arm every pass (R pins at 1); true indefinite-growth is deferred (§40b).
-        // This test pins the formula's behaviour given stable counters, not the live -1 wiring.
-        const span = 8, bps = 0;
-        expect(computeRepeatPass({ startMeasureIndex: 24, blockPlayStart: bps, passSpan: span, isPlaying: true })).toBe(4);
-        expect(computeRepeatPass({ startMeasureIndex: 800, blockPlayStart: bps, passSpan: span, isPlaying: true })).toBe(101);
+    it('grows UNBOUNDED when blockPlayStart is PINNED to a stable origin (INDEFINITE repeat, Han 2026-06-18)', () => {
+        // INDEFINITE repeat (repsPerMelody === -1): Sequencer._armPaginationSequence PINS blockPlayStart
+        // to the session's first body play-start (the origin) and never refreshes it, so the suffix
+        // climbs without bound — maat 1 on pass 7 = "1.7", pass 23 = "1.23", pass 1000 = "1.1000". No
+        // cap, no reset. This is the live indefinite wiring (the arm site stops refreshing the origin),
+        // not just a pure-formula curiosity. span=8 (HBD merged body); origin pinned at 0.
+        const span = 8, origin = 0;
+        // pass index k → startMeasureIndex = k*span; computeRepeatPass returns k+1 (1-based).
+        expect(computeRepeatPass({ startMeasureIndex: 6 * span,   blockPlayStart: origin, passSpan: span, isPlaying: true })).toBe(7);    // "1.7"
+        expect(computeRepeatPass({ startMeasureIndex: 22 * span,  blockPlayStart: origin, passSpan: span, isPlaying: true })).toBe(23);   // "1.23"
+        expect(computeRepeatPass({ startMeasureIndex: 997 * span, blockPlayStart: origin, passSpan: span, isPlaying: true })).toBe(998);  // "1.998"
+        expect(computeRepeatPass({ startMeasureIndex: 999 * span, blockPlayStart: origin, passSpan: span, isPlaying: true })).toBe(1000); // "1.1000"
+        // Climbs strictly monotonically across consecutive passes — never wraps/caps.
+        let prev = 0;
+        for (let k = 0; k < 1200; k++) {
+            const r = computeRepeatPass({ startMeasureIndex: k * span, blockPlayStart: origin, passSpan: span, isPlaying: true });
+            expect(r).toBe(k + 1);
+            expect(r).toBeGreaterThan(prev);
+            prev = r;
+        }
+    });
+
+    it('still CYCLES 1..N when blockPlayStart is refreshed per block (FINITE — must not regress)', () => {
+        // FINITE repsPerMelody must keep cycling: the arm site still refreshes blockPlayStart to each
+        // block start, so within every block the pass resets to 1. Guards against the indefinite fix
+        // accidentally pinning the origin for finite repeats too. N=5, span=8.
+        const span = 8;
+        // block 1 (origin 0): passes 1..5
+        expect(computeRepeatPass({ startMeasureIndex: 0,  blockPlayStart: 0,  passSpan: span, isPlaying: true })).toBe(1);
+        expect(computeRepeatPass({ startMeasureIndex: 32, blockPlayStart: 0,  passSpan: span, isPlaying: true })).toBe(5);
+        // block 2 (origin refreshed to 40): cycles back to 1, NOT 6
+        expect(computeRepeatPass({ startMeasureIndex: 40, blockPlayStart: 40, passSpan: span, isPlaying: true })).toBe(1);
+        expect(computeRepeatPass({ startMeasureIndex: 72, blockPlayStart: 40, passSpan: span, isPlaying: true })).toBe(5);
     });
 
     it('falls back to 1 for invalid passSpan', () => {

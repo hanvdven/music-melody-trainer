@@ -3331,12 +3331,41 @@ The `isRepeatMode` block-counter refresh reuses the generated path's exact formu
 mechanism. (4) Everything is data-driven through `buildAnacrusisRepeatParts`/`hasAnacrusis`; a
 no-pickup melody and once-mode are strict no-ops.
 
-**Known limitation (flagged for live verification).** The #3 cycling fix targets the FINITE
-`repsPerMelody` case Han reported. If `repsPerMelody === -1` is ever used for a loaded song, the
-pagination planner resolves it to 1 (`Math.max(1, -1)`), so the block re-arms every pass and the
-suffix would pin at 1 rather than grow 1,2,3,…; true indefinite-with-growing-numbers would need the
-planner to stop re-arming (a separate change the directive deferred). All render-timing behaviour
-(the exact frame the pickup bar appears/disappears, the highlight on pass 1) needs Han's live repro.
+**#3b Unbounded repeat-numbering for INDEFINITE repeats (Han 2026-06-18).** The finite fix above
+CYCLES the suffix `1..repsPerMelody`. For an INDEFINITE repeat (`repsPerMelody === -1`, "repeat one
+indefinitely") the suffix must instead GROW UNBOUNDED: maat 1 on the 7th pass reads "1.7", the 23rd
+"1.23", the 1000th "1.1000" — no cap, no reset. This applies WHENEVER the repeat is indefinite,
+regardless of whether the looped content is a LOADED SONG or a GENERATED melody (both reach this state
+through `handlePlayRepeat` → `Sequencer.start(..., repeatForever=true)`, which loops the SAME `melodies`
+with no regeneration — `isRepeatMode` short-circuits the series-flip — so the numbering is identical
+for both sources; there is no per-source branching).
+
+The mechanism is a STABLE NUMBERING ORIGIN. The pagination planner resolves `repsPerMelody=-1` to 1
+(`Math.max(1, -1)`), so `_armPaginationSequence` re-arms — and its initial callback fires — on EVERY
+pass. The finite path refreshes `blockPlayStart` to `sequenceStartGlobalMeasure` in that callback,
+which tracks `startMeasureIndex` and pins the suffix at 1. For indefinite mode we instead PIN
+`blockPlayStart` to a session origin: `Sequencer.repeatNumberingOrigin` (a per-session field, null
+until the first indefinite arm captures `sequenceStartGlobalMeasure`) is set ONCE and never overwritten,
+and the callback feeds it to `setBlockPlayStart` on every re-arm. `computeRepeatPass`'s
+`floor((startMeasureIndex − origin) / passSpan) + 1` then climbs without bound. The re-arm itself is
+unchanged (it still schedules the next pass's measures); only the numbering ORIGIN is frozen, so Song
+stays append-only and `globalMeasureIndex` monotonic (§6). `blockMeasureStart` is still refreshed in
+BOTH modes — it drives the BASE measure number N (1..numMeasures within one pass) and resolves to the
+loaded song's first measure every pass because `melodyCount` is pinned at 0; only the `.repeatNum`
+grows. The indefinite signal reused is `repsPerMelody === -1` (the raw value before the `Math.max`
+clamp, matching the Sequencer loop's own `repsPerMelody !== -1` check) — no new flag, no per-value
+table (§6c).
+
+**Open inconsistency (flagged, NOT changed here).** The in-staff `SettingsOverlay` repeats stepper
+sets `repsPerMelody = Infinity` (the "À" option), while the Sequencer loop and the measures/repeats
+NumberPicker treat `-1` as indefinite. These are two different encodings of "indefinite"; the unbounded
+numbering keys on `-1` (consistent with the Sequencer's own loop logic). If indefinite is selected via
+the `Infinity` stepper the Sequencer's iteration-reset (`repsPerMelody !== -1`) never fires either, so
+that path needs separate normalization — out of scope for this change, raised for Han.
+
+**Needs Han's live repro.** The running suffix actually climbing on screen (1.7, 1.23, …) across a
+long indefinite session, plus all render-timing behaviour from #2A/#3 (the exact frame the pickup bar
+appears/disappears, the highlight on pass 1), needs a live verification.
 
 **Files.** `src/utils/anacrusisRepeat.js` (`mergedBodyPassIndex`, `showsLeadingPickupBar`,
 `buildFirstPassMergedMelodies`), `src/utils/repeatNumbering.js` (`computeRepeatPass`), `src/App.jsx`
