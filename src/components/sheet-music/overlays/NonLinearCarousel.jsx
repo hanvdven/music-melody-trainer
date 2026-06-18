@@ -61,39 +61,27 @@ const wrapPos = (p, n) => ((p % n) + n) % n;
 // ring of items loops smoothly. Result is in (-N/2, N/2].
 const signedDist = (i, pos, n) => ((i - pos + n / 2 + n) % n) - n / 2;
 
-// Non-linear falloff by distance-from-centre `d` (0 = centred, grows toward the edges).
-// SCALE shrinks and OPACITY fades, both eased so the change is gentle near the centre and
-// steep toward the edges. Kept as pure functions so the look is a single source of truth.
-const EDGE = VISIBLE_HALF + 0.5;    // distance at which an item is fully faded/shrunk
-const scaleForDist = (d) => {
-    const t = clamp(Math.abs(d) / EDGE, 0, 1);
-    // MILD taper (Han 2026-06-17: "much milder shrink" — it read as a curved dial before): only
-    // 1.0 → 0.82 at the edge, so the centre still pops but the strip reads HORIZONTAL, not a wheel.
-    return 1 - 0.18 * easeInOut(t);
-};
+// Falloff by distance-from-centre `d` (0 = centred, grows toward the edges).
+// OPACITY fades; SCALE is now CONSTANT 1.0. Kept as pure functions so the look is a single
+// source of truth (this primitive is shared by the instrument + colour carousels, §6d).
+const EDGE = VISIBLE_HALF + 0.5;    // distance at which an item is fully faded
+// FULLY FLAT (Han 2026-06-18): no shrink at all — every card is the SAME size. WHY: Han wants a
+// pure horizontal strip, not a curved "dial/wheel", so the only edge cue is the OPACITY fade
+// below (the "there's more" hint), never a size change. Kept as a function (not a literal at the
+// call site) so the single-source-of-truth shape is preserved and the constant can be tuned in
+// one place. Affects BOTH the instrument and colour carousels (intended — shared primitive).
+const scaleForDist = () => 1;
 const opacityForDist = (d) => {
     const t = clamp(Math.abs(d) / EDGE, 0, 1);
-    // 1.0 at centre → 0 at the edge, eased (slightly faster than scale so edges melt away).
+    // 1.0 at centre → 0 at the edge, eased — the ONLY edge cue now that scale is flat.
     return 1 - easeInOut(t);
 };
-// Horizontal position of an item at fractional distance `d` from centre. Items pack a little
-// tighter toward the edges (because they shrink), so the gap is the average of the two
-// adjacent scales — keeps neighbours visually touching rather than drifting apart.
-const xOffsetForDist = (d) => {
-    // Integrate the per-step stride from 0→d using the midpoint scale, so spacing follows the
-    // shrink. Cheap closed-ish approximation: sum stride over whole steps + the fractional tail.
-    const sign = d < 0 ? -1 : 1;
-    const ad = Math.abs(d);
-    let x = 0;
-    let i = 0;
-    while (i < ad) {
-        const step = Math.min(1, ad - i);
-        const mid = i + step / 2;
-        x += step * scaleForDist(mid);
-        i += 1;
-    }
-    return sign * x;
-};
+// Horizontal position of an item at fractional distance `d` from centre. LINEAR (Han 2026-06-18):
+// every item occupies exactly one base-width slot, evenly spaced — x === d. WHY: with the shrink
+// removed the old midpoint-scale integration would just sum 1.0 per step anyway, but a plain
+// identity makes the "even strip" intent explicit and removes the now-pointless loop. Full-size
+// cards spread WIDER than the old shrunk edges, so there is no new overlap risk.
+const xOffsetForDist = (d) => d;
 
 export default function NonLinearCarousel({
     items, activeIndex = 0, renderItem, centerX, y, baseWidth, height,

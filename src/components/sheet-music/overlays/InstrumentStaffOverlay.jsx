@@ -74,7 +74,11 @@ const categoryHeaders = (pos) => {
         }
     };
     for (const idx of visible) {
-        const label = ITEMS[idx].groupLabel;
+        // Bracket header = the item's `group` ("family (subgroup)", e.g. 'strings (guitar)'), NOT
+        // the bare top-level category. WHY (Han 2026-06-18): Han split the label so the bracket
+        // carries family+subgroup and the card carries just the variant; consecutive same-`group`
+        // items get one bracket. (The card itself renders item.name — see renderItem below.)
+        const label = ITEMS[idx].group;
         if (run && run.label === label) {
             run.lastIdx = idx; run.count += 1;          // extend the current consecutive run
         } else {

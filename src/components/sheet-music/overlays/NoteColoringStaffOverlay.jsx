@@ -32,6 +32,12 @@ const NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
 // holds a run of example noteheads. Widened +40% (Han 2026-06-17).
 const BASE = 134;
 const NOTE_SPACING = 13;   // x-gap between the example noteheads within one scheme item
+// Scheme-label vertical drop below the staff top line. LOWERED (Han 2026-06-18): the colour
+// carousel's notes ASCEND C4→C5, so the lowest example notes (C4 + its ledger lines) sit well
+// below the staff and the old +58 label crowded them. Pushed down to clear the run and to sit
+// roughly where the instrument carousel's NAME_DY (58, below the bottom staff line) reads — Han
+// will fine-tune the exact value live.
+const LABEL_DY = 78;
 
 // Ledger lines (every 10) between the 5-line staff [staffStart..staffStart+40] and a notehead.
 const ledgerYs = (y, staffStart) => {
@@ -73,7 +79,7 @@ const NoteColoringStaffOverlay = ({
                             ledgerYs={ledgerYs(y, trebleStart)} color={color} />
                     );
                 })}
-                <text x={0} y={trebleStart + 58} textAnchor="middle" fontSize={11}
+                <text x={0} y={trebleStart + LABEL_DY} textAnchor="middle" fontSize={11}
                     fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'}
                     fill={active ? 'var(--accent-yellow)' : 'var(--text-primary)'}>
                     {s.label}
