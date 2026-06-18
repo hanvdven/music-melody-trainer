@@ -122,9 +122,10 @@ export const hasAnacrusis = (melody, measureLen) => {
  * original padded melodies (once-mode, stopped, and regenerated continuous rounds are all unaffected).
  *
  * NOTE: this returns plain melody-like objects for RENDERING only (offsets/durations/notes plus the
- * parallel arrays SheetMusic reads). It does NOT wrap in `Melody` or rebase `fermatas` — that extra
- * wiring lives in the Sequencer's audio path, which has different needs (intro lead-in, metronome
- * sync). The merge MATH is identical because both go through `buildAnacrusisRepeatParts`.
+ * parallel arrays SheetMusic reads). It does NOT wrap in `Melody` (that extra audio wiring — intro
+ * lead-in, metronome sync — lives in the Sequencer), but it DOES rebase `fermatas` by -measureLen
+ * (Han 2026-06-17) so the rendered fermata matches its body note, exactly like the audio path. The
+ * merge MATH is identical because both go through `buildAnacrusisRepeatParts`.
  *
  * @param {{treble?:object,bass?:object,percussion?:object,chordProgression?:object}} melodies
  * @param {number} measureLen ticks per measure
@@ -146,6 +147,17 @@ export const buildMergedRenderMelodies = (melodies, measureLen) => {
         if (!part) return null;
         const body = { ...part };
         if (orig?.rhythmicGrouping) body.rhythmicGrouping = orig.rhythmicGrouping;
+        // Rebase fermatas into the BODY's coordinate space (Han 2026-06-17 bug fix): merging the
+        // pickup bar away shifts every body offset by -measureLen, but SheetMusic matches a fermata
+        // to its note with `offsets.indexOf(f.tick)`. A fermata left at its ORIGINAL absolute tick
+        // then lands on the wrong note (or vanishes) — exactly the "removing measure 0 puts the
+        // fermata on the wrong note" report. Mirror the Sequencer's audio rebase (Sequencer.start):
+        // shift by -measureLen and drop any that fall in the removed pickup bar (tick < 0).
+        if (Array.isArray(orig?.fermatas)) {
+            body.fermatas = orig.fermatas
+                .map(f => ({ ...f, tick: f.tick - measureLen }))
+                .filter(f => f.tick >= 0);
+        }
         return body;
     };
 
