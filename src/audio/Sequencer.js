@@ -1811,6 +1811,39 @@ class Sequencer {
       if (!this.isPlaying) return;
       if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(sequenceStartGlobalMeasure);
       if (this.setters.setIsOddRound) this.setters.setIsOddRound(true); // iter 0 is always odd
+
+      // ── Repeat-mode block-counter refresh (Fix #3, arch §40 numbering) ────────────────────────
+      // The generated continuous path keeps the BarlinesLayer repeat suffix correct by refreshing
+      // blockMeasureStart/blockPlayStart at every SERIES boundary inside applyResultToSetters
+      // (setBlockPlayStart(seriesStartMeasureIndex)). The loaded-song REPEAT path (isRepeatMode) never
+      // calls applyResultToSetters — it short-circuits before the series-flip (no regeneration) — so
+      // blockPlayStart was STRANDED at its play-start value while startMeasureIndex kept advancing by
+      // bodyMeasures every pass. BarlinesLayer computes the suffix as
+      // floor((startMeasureIndex - blockPlayStart) / passSpan) + 1, so with a stranded blockPlayStart
+      // the suffix overflowed past repsPerMelody and corrupted at each re-arm (Han saw "11" for "1.5").
+      //
+      // The repeat path re-arms _armPaginationSequence at the start of every repeat BLOCK (each set of
+      // repsPerMelody passes), so THIS callback is the repeat-mode counterpart of a series boundary.
+      // Refresh the SAME two counters with the SAME formula applyResultToSetters uses (§6c — reuse the
+      // existing bookkeeping, don't invent a new mechanism). For repeat mode melodyCount stays 0 and
+      // the song never regenerates, so blockMeasureStart resolves to the loaded song's first measure
+      // ((historyIndex + 0) * numMeasures + 1) and blockPlayStart tracks each block's start global
+      // index — so the suffix CYCLES 1..repsPerMelody per block, matching the generated path (this is
+      // the FINITE repsPerMelody case Han reported: "11" → cycles correctly instead of overflowing).
+      // NOTE on the -1 case: the planner resolves repsPerMelody=-1 to 1 (Math.max(1,-1) at the arm
+      // call), so the block re-arms every pass and this refresh pins the suffix at 1 rather than
+      // growing 1,2,3,…; true indefinite-growth would need the planner to stop re-arming (deferred —
+      // see arch §40b "Known limitation").
+      if (this.isRepeatMode) {
+        const hir = this.refs.historyIndexRef;
+        const nm = this.refs.numMeasuresRef.current;
+        if (hir && nm && this.setters.setBlockMeasureStart) {
+          this.setters.setBlockMeasureStart((Math.max(0, hir.current) + this.melodyCount) * nm + 1);
+        }
+        if (this.setters.setBlockPlayStart) {
+          this.setters.setBlockPlayStart(sequenceStartGlobalMeasure);
+        }
+      }
     }, initialDelayMs);
 
     // Variant config — same hasOvershoot flag is used by the outer loop's
