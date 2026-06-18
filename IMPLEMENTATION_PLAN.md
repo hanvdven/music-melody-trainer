@@ -7,6 +7,20 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-18 — Carousel/range/transition feedback batch (Han)
+- ✅ Carousels FULLY FLAT (both): NonLinearCarousel scaleForDist→1 (no shrink) + linear x; edge
+  opacity fade is the only "more" cue. Colour-carousel label lowered (LABEL_DY=78). (`be34da4`)
+- ✅ Instrument labels = "family (subgroup)" bracket + short "variant" card name (e.g. group
+  'strings (guitar)' + name 'nylon'); bracket groups by new `group` field; instrumentFullLabel()
+  keeps RangeControls unambiguous. Slugs/icons unchanged. (`be34da4`)
+- ✅ Range jitter killed: runRangeCascade self-raced (sync frame(t0) + its own rAF = 2 loops). Now
+  one rAF, easeOutCubic/280ms (shared curve w/ TranspositionSetter §6d), stagger kept. (`b2c92bc`)
+- ✅ Active boundary noteheads light up: reuse #note-glow-subtle (the .note-active look). (`b2c92bc`)
+- ✅ 1-frame melody flash on overlay→overlay switch fixed: pure melodyHiddenDuringOverlay() gate,
+  stale melody-leave morph no longer force-shows the melody (kind===morphTo guard). (`dcc14dd`)
+- 320 tests green, build clean. ⚠ ALL need Han's LIVE view (flatness/spacing, label split,
+  cascade smoothness, lit heads, no-flash) — none verifiable headlessly.
+
 ## 2026-06-18 — FRESH STATUS LIST (Han asked for a new list; old list was all done)
 Everything from the prior outstanding list is implemented + pushed (310 tests green). What
 genuinely remains is (A) Han's LIVE verification and (B) decisions/bugs needing Han's input.
