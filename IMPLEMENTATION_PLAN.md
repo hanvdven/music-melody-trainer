@@ -7,6 +7,28 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-18 — FRESH STATUS LIST (Han asked for a new list; old list was all done)
+Everything from the prior outstanding list is implemented + pushed (310 tests green). What
+genuinely remains is (A) Han's LIVE verification and (B) decisions/bugs needing Han's input.
+
+**A. Needs Han's live test (implemented, not verifiable headlessly):**
+- 👀 Carousel feel — horizontal shrink amount + spacing, category-header edge-pin (jitter gone?),
+  cyclical wrap (`528b46a`,`195bc96`,`9620753`).
+- 👀 icons8 — nearest-match picks readable at size + correct (`b048ef1`).
+- 👀 Range R1/R2 cascade timing (220/140ms), R3 flash gone, R4 white boundaries on LIGHT themes,
+  hold-extend grace (`13f8066`).
+- 👀 Difficulty → song reloads at new difficulty, only for selected songs (`da86de9`).
+- 👀 HBD: first-pass pickup bar shows pass 1 / gone on repeats + highlight aligned; fermata on right
+  note; even-repeat anacrusis present; numbering 1.1/1.2…; ∞ suffix climbs unbounded; per-round
+  visibility honoured (`7df8ac0`,`ab08ee1`,`b271765`,`3119a72`).
+
+**B. Needs Han's decision / open bug:**
+- 🐞 INDEFINITE-repeat encoding split: SettingsOverlay stepper sets `repsPerMelody=Infinity`, but
+  Sequencer loop + NumberPicker use `-1`. ∞-numbering + the loop's iteration reset key on `-1`, so the
+  Infinity path is broken for indefinite. Needs normalization (pick one encoding). Interview pending.
+- ❓ Carousel "horizontal, not a dial" — Han to confirm the exact intended behaviour (still open per his
+  own note) before any further carousel change.
+
 ## 2026-06-18 (cont.) — UNBOUNDED repeat-numbering for INDEFINITE repeats (Han)
 - ✅ #3b INDEFINITE repeat suffix now GROWS UNBOUNDED (maat 1 pass 7 = "1.7", pass 1000 = "1.1000";
   no cap, no reset). Removes the "known limitation" flagged in §40b / the 2026-06-18 entry below.
