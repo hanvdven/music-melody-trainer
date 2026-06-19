@@ -6,6 +6,7 @@ import { ChordNotationIcon } from '../common/CustomIcons';
 import { resolveNotePitch } from '../../audio/playSound';
 import { getNoteIndex } from '../../theory/musicUtils';
 import generateAllNotesArray from '../../theory/allNotesArray';
+import { secondsPerBeat } from '../../constants/timing.js';
 
 const ALL_NOTES_ARR = generateAllNotesArray();
 const stripOct = (s) => s ? String(s).replace(/\d+$/, '') : '?';
@@ -160,7 +161,8 @@ const ChordGrid = ({
             const scheduledChords = sequencerRef.current?.scheduledChords;
             const now = context.currentTime;
             const bpm = sequencerRef.current?.refs?.bpmRef?.current ?? 120;
-            const q = 60 / bpm;
+            // Single source of truth for beat→seconds (Han 2026-06-19); === 60/bpm.
+            const q = secondsPerBeat(bpm);
 
             let activeDeg = null, nextDeg = null, activeStart = null, activeDuration = 0;
             if (scheduledChords?.length) {

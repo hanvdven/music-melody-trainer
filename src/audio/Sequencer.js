@@ -1,5 +1,5 @@
 import playMelodies from './playMelodies';
-import { TICKS_PER_WHOLE } from '../constants/timing.js';
+import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing.js';
 import { transposeMelodyToScale, transposeMelodyBySemitones, getNoteIndex, modulateMelody, calculateRelativeRange } from '../theory/musicUtils';
 import Melody from '../model/Melody';
 import MelodyGenerator from '../generation/melodyGenerator';
@@ -356,7 +356,8 @@ class Sequencer {
             ? this.refs.playbackConfigRef.current.oddRounds
             : this.refs.playbackConfigRef.current.evenRounds;
 
-          const timeFactor = 5 / currentBpm;
+          // Single source of truth for tick→seconds (Han 2026-06-19); === 5/currentBpm.
+          const timeFactor = secondsPerTick(currentBpm);
           const measureDuration = measureLengthTicks * timeFactor;
 
           // User requested lookahead of exactly one half note (120/bpm seconds)
@@ -1797,7 +1798,8 @@ class Sequencer {
   _armPaginationSequence({ baseAudioTime, sequenceStartGlobalMeasure, plan, variant, currentMelodies, startSkipTick }) {
     const events = planPaginationSequence({ plan, variant });
     const measureLengthTicks = plan.measureLengthTicks;
-    const timeFactor = 5 / this.refs.bpmRef.current;
+    // Single source of truth for tick→seconds (Han 2026-06-19); === 5/bpm.
+    const timeFactor = secondsPerTick(this.refs.bpmRef.current);
     const tickToTime = (tick) => baseAudioTime + tick * timeFactor;
 
     // Initial setStartMeasureIndex + isOddRound for this sequence block.
