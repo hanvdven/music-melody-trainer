@@ -33,10 +33,11 @@ import useNoteInteraction from './hooks/useNoteInteraction';
 import usePlaybackNavigation from './hooks/usePlaybackNavigation';
 import useScaleManagement from './hooks/useScaleManagement';
 import useDifficultySettings from './hooks/useDifficultySettings';
+import useEditMode from './hooks/useEditMode';
 import { buildHarmonyTable } from './utils/harmonyTable';
 import { resizeMelody } from './utils/melodySlice';
 import { buildMergedRenderMelodies, buildFirstPassMergedMelodies, mergedBodyPassIndex, hasAnacrusis } from './utils/anacrusisRepeat';
-import { TICKS_PER_WHOLE } from './constants/timing';
+import { TICKS_PER_WHOLE, secondsPerTick, ticksPerSecond, secondsPerBeat } from './constants/timing';
 import {
     DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
     DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE,
@@ -191,38 +192,18 @@ const App = () => {
     // Sheet Music Settings state (Lifted)
     const { showSheetMusicSettings, toggleSheetMusicSettings, resetSettingsTimer } = useSettingsOverlay();
 
-    // In-SVG range-edit mode for the visual settings re-haul. Toggled by the
-    // SubHeader RANGE button; drives RangeStaffOverlay inside the SheetMusic SVG.
-    const [rangeEditMode, setRangeEditMode] = useState(false);
-    // In-SVG clef-edit mode (Han 2026-06-01): drives ClefStaffOverlay. Sibling of
-    // rangeEditMode; the two are mutually exclusive (and exclusive with settings).
-    const [clefEditMode, setClefEditMode] = useState(false);
+    // Edit-mode flags (range / clef / colour / instrument) + their toggle/open/close
+    // handlers + the settings catch-all effect now live in useEditMode (Han 2026-06-19,
+    // ARCHITECTURE_AUDIT.md §4). The hook is called below, after handleStopAllPlayback /
+    // showSheetMusicSettings are available — see "const { rangeEditMode, … } = useEditMode(…)".
     // Keyboard transposition (Han 2026-06-13): pitch-class offset 0-11 (0 = concert) that
     // relabels/resounds/re-highlights the playable keyboard. Independent of the staff
     // transposition (which transposes the NOTATION); this transposes the KEYS only. Set in
     // TRANSPOSITION mode (clefEditMode) via the keyboard's "concert C =" control.
     const [keyboardTranspose, setKeyboardTranspose] = useState(0);
-    // Note-colouring menu (Han 2026-06-13): a staff overlay showing every colour scheme as a
-    // row of C4–C5 notes. Sibling of range/clef; mutually exclusive with them + settings.
-    const [colorEditMode, setColorEditMode] = useState(false);
-    // Instrument selector (Han 2026-06-16): a staff overlay to pick the playback
-    // instrument PER STAFF (treble/bass). Sibling of range/clef/colour; mutually
-    // exclusive with them + settings (mirrors colorEditMode exactly).
-    const [instrumentEditMode, setInstrumentEditMode] = useState(false);
     // Loaded-song title for the header (Han 2026-06-14): "Happy Birthday in G major". Set on song
     // load; cleared when the user generates a fresh exercise (un-pins the melody) — see effect below.
     const [loadedSongTitle, setLoadedSongTitle] = useState(null);
-    // In-SVG chord-edit mode (Han 2026-06-01): the chord-row selector (X/letters/
-    // roman). Sibling of range/clef; mutually exclusive with them + settings.
-
-    // Range-edit and the general settings overlay are mutually exclusive
-    // (Han 2026-05-31). This effect is the catch-all: whenever the settings
-    // overlay becomes visible (by any path — sheet click, SubHeader, …) close
-    // range edit so the two never stack. Clef-edit follows the same rule.
-    useEffect(() => {
-        if (showSheetMusicSettings && rangeEditMode) setRangeEditMode(false);
-        if (showSheetMusicSettings && clefEditMode) setClefEditMode(false);
-    }, [showSheetMusicSettings, rangeEditMode, clefEditMode]);
 
     // Input Test Mode — wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available
 
@@ -230,7 +211,9 @@ const App = () => {
 
     // BPM-driven fade duration: 2 quarter notes
     useEffect(() => {
-        const dur = (2 * 60 / bpm).toFixed(3);
+        // 2 quarter-note beats in seconds (Han 2026-06-19): byte-identical to the
+        // previous `2 * 60 / bpm`; via the timing SSOT secondsPerBeat(bpm) = 60/bpm.
+        const dur = (2 * secondsPerBeat(bpm)).toFixed(3);
         document.documentElement.style.setProperty('--note-fade-duration', `${dur}s`);
     }, [bpm]);
 
@@ -650,85 +633,26 @@ const App = () => {
         setHeaderPlayMode('continuous');
     }, [handlePlayContinuouslyLogic, isRubatoRef]);
 
-    // Range-edit and playback are mutually exclusive (Han 2026-05-30): opening
-    // the range overlay stops playback; see also the close-on-play effect below.
-    // Range-edit and the general settings overlay are ALSO mutually exclusive
-    // (Han 2026-05-31): opening range closes settings, and vice versa, so the two
-    // overlays never stack.
-    const handleToggleRangeEdit = useCallback(() => {
-        if (!rangeEditMode) {
-            handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
-            setClefEditMode(false);   // range & clef modes are mutually exclusive
-            setColorEditMode(false);
-            setInstrumentEditMode(false);
-        }
-        setRangeEditMode(v => !v);
-    }, [rangeEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
-
-    // Clef-edit toggle — mirrors range-edit (stop playback, close settings/range).
-    // The chord-row X/letters/roman selector lives inside this mode (Han #6).
-    const handleToggleClefEdit = useCallback(() => {
-        if (!clefEditMode) {
-            handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
-            setRangeEditMode(false);
-            setColorEditMode(false);
-            setInstrumentEditMode(false);
-        }
-        setClefEditMode(v => !v);
-    }, [clefEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
-
-    // Note-colouring menu toggle — mirrors range/clef (stop playback, close the others).
-    const handleToggleColorEdit = useCallback(() => {
-        if (!colorEditMode) {
-            handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
-            setRangeEditMode(false);
-            setClefEditMode(false);
-            setInstrumentEditMode(false);
-        }
-        setColorEditMode(v => !v);
-    }, [colorEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
-
-    // Instrument selector toggle — mirrors colour (stop playback, close the others).
-    const handleToggleInstrumentEdit = useCallback(() => {
-        if (!instrumentEditMode) {
-            handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
-            setRangeEditMode(false);
-            setClefEditMode(false);
-            setColorEditMode(false);
-        }
-        setInstrumentEditMode(v => !v);
-    }, [instrumentEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
-
-    // Toggle the legacy SETTINGS surface from its own SubHeader button (Han #13).
-    // Mutually exclusive with clef/range (the catch-all effect closes those when
-    // settings opens, but close them here too so the morph arms cleanly).
-    const handleToggleSettings = useCallback(() => {
-        if (!showSheetMusicSettings) {
-            handleStopAllPlayback();
-            setRangeEditMode(false);
-            setClefEditMode(false);
-            setColorEditMode(false);
-            setInstrumentEditMode(false);
-        }
-        toggleSheetMusicSettings();
-    }, [showSheetMusicSettings, handleStopAllPlayback, toggleSheetMusicSettings]);
-
-    // Closing range edit (e.g. clicking outside the bottom range settings, or
-    // tapping empty sheet area while in range mode).
-    const handleCloseRangeEdit = useCallback(() => setRangeEditMode(false), []);
-    const handleCloseClefEdit = useCallback(() => setClefEditMode(false), []);
-    // Pure OPEN (not toggle) for clicking a clef glyph in the sheet — always lands
-    // in clef-edit (Han 2026-06-01: clicking the clef opens the selector).
-    const handleOpenClefEdit = useCallback(() => {
-        handleStopAllPlayback();
-        if (showSheetMusicSettings) toggleSheetMusicSettings();
-        setRangeEditMode(false);
-        setClefEditMode(true);
-    }, [handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+    // Edit-mode flags + toggle/open/close handlers + the settings catch-all effect
+    // (Han 2026-06-19, ARCHITECTURE_AUDIT.md §4). Behaviour-preserving extraction of the
+    // four in-SVG staff-overlay edit modes (range/clef/colour/instrument). Called here —
+    // not at the top of App — because the handlers need handleStopAllPlayback /
+    // showSheetMusicSettings / toggleSheetMusicSettings, which are only available now.
+    const {
+        rangeEditMode,
+        clefEditMode,
+        colorEditMode,
+        instrumentEditMode,
+        setRangeEditMode,
+        handleToggleRangeEdit,
+        handleToggleClefEdit,
+        handleToggleColorEdit,
+        handleToggleInstrumentEdit,
+        handleToggleSettings,
+        handleCloseRangeEdit,
+        handleCloseClefEdit,
+        handleOpenClefEdit,
+    } = useEditMode({ handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings });
 
     const handlePlayRepeat = useCallback(() => {
         if (isRubatoRef.current && rubatoEngageRef.current) {
@@ -762,7 +686,9 @@ const App = () => {
 
     const estimateRubatoTps = useCallback(() => {
         const hist = rubatoEventHistoryRef.current;
-        if (hist.length < 2) return bpmRef.current / 5; // BPM/5 = ticks/sec (since 5/bpm sec/tick)
+        // BPM/5 = ticks/sec (since 5/bpm sec/tick). ticksPerSecond(bpm) = bpm/5, byte-identical
+        // via the timing SSOT (Han 2026-06-19).
+        if (hist.length < 2) return ticksPerSecond(bpmRef.current);
         let ewma = null;
         for (let i = 1; i < hist.length; i++) {
             const dt = hist[i].wallTime - hist[i - 1].wallTime;
@@ -771,7 +697,8 @@ const App = () => {
             const tps = dTicks / dt;
             ewma = ewma === null ? tps : RUBATO_EWMA_ALPHA * tps + (1 - RUBATO_EWMA_ALPHA) * ewma;
         }
-        return ewma ?? bpmRef.current / 5;
+        // ticksPerSecond(bpm) = bpm/5, byte-identical to the prior fallback (Han 2026-06-19).
+        return ewma ?? ticksPerSecond(bpmRef.current);
     }, []);
 
     const scheduleRubatoAccompaniment = useCallback((currentOffset, nextOffset) => {
@@ -824,7 +751,9 @@ const App = () => {
         activeClef,
         onNoteCorrect: useCallback((note, durationTicks) => {
             if (!instruments.treble) return;
-            const durationMs = (durationTicks || 12) * (5000 / bpmRef.current);
+            // ms per tick = secondsPerTick(bpm) * 1000, byte-identical to the prior
+            // `5000 / bpm` via the timing SSOT (Han 2026-06-19).
+            const durationMs = (durationTicks || 12) * (secondsPerTick(bpmRef.current) * 1000);
             setTimeout(() => instruments.treble.stop({ note }), durationMs);
             // PR-D rubato accompaniment hook. inputTestStateRef is read via the
             // ref captured from the input-test-state-ref forwarder below — at
