@@ -7,7 +7,7 @@ import { getChordInfo } from './chordRecognition.js';
 import Chord from '../model/Chord.js';
 import { PREDETERMINED_STRATEGIES } from './progressionDefinitions.js';
 import { getNoteIndex, generateHeptaScaleNotes } from './musicUtils.js';
-import { getNoteSemitone, getChromaticRomanDegree } from './noteUtils.js';
+import { getNoteSemitone, getChromaticRomanDegree, stripOctave } from './noteUtils.js';
 import logger from '../utils/logger.js';
 
 const ALL_NOTES = generateAllNotesArray();
@@ -68,11 +68,6 @@ const FUNCTION_CATEGORY = {
     'VI':   'Ambiguous',
     '♭VII': 'Modal / Color',
     'VII':  'Dominant',
-};
-
-const stripOctave = (note) => {
-    const m = String(note).match(/([^0-9]+)(\d+)/);
-    return m ? m[1] : note;
 };
 
 // Build 7-note hepta scale from tonic note + interval array — delegates to musicUtils

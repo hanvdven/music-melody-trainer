@@ -41,7 +41,7 @@ const nearestIdx = (win, midi) => {
 // INTERRUPTED just before the overlap and an "…" is drawn, so it reads as passing
 // behind. Horizontal extent stays aligned to the real key positions.
 const PRESET_ROW_H = 16, PRESET_PAD = 5;
-export const PRESET_TICK = 9;
+const PRESET_TICK = 9;   // not exported: only used within this module (Han 2026-06-19)
 const SIZE_RANK = { FULL: 0, LARGE: 1, STANDARD: 2 };   // big-on-top
 const NUM_PRESET_ROWS = 3;                              // 3 sizes (clefs share rows)
 const OVERLAP_GAP = 0.6;                                // white-key gap left for the "…"
@@ -95,7 +95,8 @@ export const buildPresetBracketRows = (presets, selRange, selClef, win) => {
     });
     return out;
 };
-export const presetViewHeight = () => PRESET_PAD * 2 + NUM_PRESET_ROWS * PRESET_ROW_H;
+// Not exported: only used within this module (Han 2026-06-19).
+const presetViewHeight = () => PRESET_PAD * 2 + NUM_PRESET_ROWS * PRESET_ROW_H;
 
 const KeyboardRangeSetter = ({
     scale, instrument, activeClef, settings, setSettings,

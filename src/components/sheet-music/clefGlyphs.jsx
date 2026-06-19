@@ -49,8 +49,9 @@ export const CLEF_GLYPH_SIZE = 36;
  * Ottava22 — a CUSTOM 22ma / 22mb marker (Maestro has no glyph past 15). Composed
  * from the font's own digits "22" plus a small superscript "ma"/"mb", sized to
  * match the 15ma marker. `cx`/`cy` is the marker centre; `below` swaps ma→mb.
+ * Not exported: only used by ClefGlyph below in this module (Han 2026-06-19).
  */
-export const Ottava22 = ({ cx, cy, fill = 'var(--text-primary)', below = false }) => (
+const Ottava22 = ({ cx, cy, fill = 'var(--text-primary)', below = false }) => (
   // IMPORTANT: the Maestro font maps ASCII digits/letters to MUSIC glyphs (PUA), so
   // "22ma" must be drawn in a normal text font — using fontFamily="Maestro" here
   // rendered unreadable symbols (the 22mb-invisible bug, Han 2026-06-01 #8). We use

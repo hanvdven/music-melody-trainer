@@ -15,7 +15,8 @@ export const VOL_STEPS = [
   { value: 1.0, glyph: 'f', label: 'forte' },
 ];
 
-export function getVolStep(vol) {
+// Not exported: only used within this module (Han 2026-06-19).
+function getVolStep(vol) {
   if (vol === undefined || vol === null) return VOL_STEPS[5]; // default to forte
   const step = VOL_STEPS.find(s => Math.abs(s.value - vol) < 0.05);
   if (step) return step;

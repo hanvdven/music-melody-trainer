@@ -144,13 +144,28 @@ export const collapseAccidentals = (pitch) =>
         .replace('♭♭', '𝄫');
 
 /**
+ * Removes a trailing octave number from a note name, returning the pitch-class name.
+ * e.g. 'C4' → 'C', 'A♭-1' → 'A♭', 'F♯12' → 'F♯'. Non-strings (null/undefined/objects)
+ * pass through unchanged so callers can use it defensively on possibly-null input.
+ *
+ * Why a single canonical helper (Han 2026-06-19): the identical `.replace(/-?\d+$/, '')`
+ * was hand-copied in ~15 sites (App, Chord, chordGenerator, loadSong, overlays). One
+ * source of truth for the octave-stripping regex prevents subtle drift (e.g. a copy
+ * that forgets the optional leading sign for negative octaves like 'A-1').
+ */
+export function stripOctave(note) {
+    if (typeof note !== 'string') return note;
+    return note.replace(/-?\d+$/, '');
+}
+
+/**
  * Converts a note name to its pitch class (0–11).
  * Handles all enharmonic spellings including double accidentals.
  */
 export const getNoteSemitone = (note) => {
     if (!note) return 0;
     // Strip optional sign + trailing digits (e.g. 'A-1' → 'A', 'C4' → 'C').
-    const pc = normalizeNoteChars(note.replace(/-?\d+$/, ''));
+    const pc = normalizeNoteChars(stripOctave(note));
     const map = {
         'C': 0, 'B♯': 0, 'D𝄫': 0,
         'C♯': 1, 'D♭': 1,
@@ -218,12 +233,29 @@ export const respellToKeySignature = (note, numAccidentals) => {
 // the chord ROOT's chromatone colour (mixed 30% toward the page so it stays legible); others null.
 // Shared by the staff renderer, the range/colour setters and the keyboard so they all match
 // (CLAUDE.md §6c/§6d). `activeChord` = { root, notes:[...] }.
+/**
+ * Builds the chromatone colour-mix CSS string for a given pitch class, mixed `pct`%
+ * toward the page colour (white on dark themes, black on light) so the chromatone
+ * hue stays legible against the staff/keyboard background.
+ *
+ * Why a single helper (Han 2026-06-19): the exact string
+ * `color-mix(in srgb, var(--chromatone-${pc}), white|black ${pct}%)` was hand-written
+ * byte-for-byte in 8 sites (noteUtils chord/subtle, renderMelodyNotes, SheetMusic,
+ * RangeStaffOverlay, TranspositionSetter). All 8 used the identical
+ * `theme === 'light' ? 'black' : 'white'` choice, so unifying is behaviour-preserving.
+ * `pc` is the numeric pitch class (0–11) or a percussion CSS-var suffix already resolved
+ * by the caller — callers pass the same value they previously interpolated.
+ */
+export function chromatoneMix(pc, pct, theme = 'dark') {
+    const mix = theme === 'light' ? 'black' : 'white';
+    return `color-mix(in srgb, var(--chromatone-${pc}), ${mix} ${pct}%)`;
+}
+
 export const chordNoteColor = (note, activeChord, theme = 'dark') => {
     if (!activeChord?.notes?.length) return null;
     const pc = getNoteSemitone(note);
     if (activeChord.notes.some(cn => getNoteSemitone(cn) === pc)) {
-        const mix = theme === 'light' ? 'black' : 'white';
-        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(activeChord.root)}), ${mix} 30%)`;
+        return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
     }
     return null;
 };
@@ -231,8 +263,7 @@ export const chordNoteColor = (note, activeChord, theme = 'dark') => {
 export const melodicNoteColor = (note, { noteColoringMode, tonic, scaleNotes = [], theme = 'dark', activeChord = null } = {}) => {
     if (noteColoringMode === 'chromatone') return `var(--chromatone-${getNoteSemitone(note)})`;
     if (noteColoringMode === 'subtle-chroma') {
-        const mix = theme === 'light' ? 'black' : 'white';
-        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(note)}), ${mix} 60%)`;
+        return chromatoneMix(getNoteSemitone(note), 60, theme);
     }
     if (noteColoringMode === 'chords') return chordNoteColor(note, activeChord, theme);
     if (noteColoringMode === 'tonic_scale_keys') {
@@ -271,8 +302,9 @@ const KODALY_SOLFEGE = [
  * Chromatic Roman numerals for all 12 semitones above the tonic.
  * Uses ♭/♯ prefix (Unicode) relative to the major scale degrees.
  * Semitone 6 = ♯IV (Lydian augmented 4th convention in modern theory).
+ * Not exported: only consumed by getChromaticRomanDegree below (Han 2026-06-19).
  */
-export const CHROMATIC_ROMAN_DEGREES = [
+const CHROMATIC_ROMAN_DEGREES = [
     'I', '♭II', 'II', '♭III', 'III', 'IV', '♯IV',
     'V', '♭VI', 'VI', '♭VII', 'VII',
 ];

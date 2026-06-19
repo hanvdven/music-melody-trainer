@@ -1178,7 +1178,6 @@ class Sequencer {
             rangeUp: activeScale.rangeUp,
             rangeDown: activeScale.rangeDown,
           });
-          // this.setters.setScale(activeScale); // REMOVED
           result.scale = activeScale;
         }
       }

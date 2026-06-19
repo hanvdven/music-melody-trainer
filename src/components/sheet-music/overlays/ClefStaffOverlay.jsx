@@ -13,9 +13,7 @@ import MelodyNotesLayer from '../MelodyNotesLayer';
 import { processMelodyAndCalculateSlots } from '../processMelodyAndCalculateSlots';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
 import { getNoteValue, getNoteFromValue } from '../../../utils/rangeUtils';
-import { getNoteSemitone } from '../../../theory/noteUtils';
-
-const stripOctave = (n) => (n ? n.replace(/-?\d+$/, '') : n);
+import { getNoteSemitone, stripOctave } from '../../../theory/noteUtils';
 
 // transposition-offset (semitones) → instrument key, for the TranspositionSetter. Built
 // from TRANSPOSING_INSTRUMENTS (§6c — no hardcoded table). Offsets without a key (e.g. −1,

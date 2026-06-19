@@ -1,5 +1,5 @@
 import React from 'react';
-import { getNoteSemitone, respellToKeySignature, melodicNoteColor } from '../../theory/noteUtils';
+import { getNoteSemitone, respellToKeySignature, melodicNoteColor, stripOctave } from '../../theory/noteUtils';
 import { transposeNoteBySemitones } from '../../theory/musicUtils';
 
 /**
@@ -59,7 +59,10 @@ const renderSingleChordLabel = ({
   const isMinorish = chord.quality === 'minor' || chord.quality === 'diminished' || chord.quality === 'dim';
   const romanBaseDisplay = isMinorish ? String(rawRomanBase).toLowerCase() : rawRomanBase;
 
-  const internalRoot = (chord.internalRoot || chord.root || '').replace(/\d+/g, '');
+  // Input is always a chord-root note string with a single trailing octave (e.g. 'G♭4'),
+  // so stripping the trailing octave is identical to the previous global /\d+/g — but uses the
+  // canonical SSOT regex instead of one that would also eat mid-string digits (Han 2026-06-19).
+  const internalRoot = stripOctave(chord.internalRoot || chord.root || '');
   // internalRoot is now key-spelled at generation time (e.g. G♭ in C Locrian, not F♯)
   // Global transposition (item 5): the LETTER name moves to the written domain (concert B♭ → C),
   // respelled to the written key signature. Roman numerals are tonic-relative so they don't change;

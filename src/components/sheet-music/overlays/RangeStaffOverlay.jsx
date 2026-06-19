@@ -2,7 +2,7 @@ import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
 import { StaffQuarterNote } from '../staffNoteGlyph';
-import { melodicNoteColor, getNoteSemitone } from '../../../theory/noteUtils';
+import { melodicNoteColor, getNoteSemitone, chromatoneMix } from '../../../theory/noteUtils';
 import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
 import { transposeMelodyBySemitones } from '../../../theory/musicUtils';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
@@ -662,8 +662,7 @@ const RangeStaffOverlay = ({
                 if (noteColoringMode === 'chords' && activeChord?.notes?.length) {
                     const pc = ((concertMidi % 12) + 12) % 12;
                     if (activeChord.notes.some(cn => getNoteSemitone(cn) === pc)) {
-                        const mix = theme === 'light' ? 'black' : 'white';
-                        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(activeChord.root)}), ${mix} 30%)`;
+                        return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
                     }
                 }
                 return 'var(--text-primary)';

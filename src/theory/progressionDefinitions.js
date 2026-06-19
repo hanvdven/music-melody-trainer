@@ -135,8 +135,9 @@ export const PROGRESSION_STRATEGIES = [
     },
 ];
 
-/** Look up a strategy by key. Returns undefined if not found. */
-export const getProgressionStrategy = (key) =>
+/** Look up a strategy by key. Returns undefined if not found.
+ *  Not exported: only consumed by the two label/length helpers below (Han 2026-06-19). */
+const getProgressionStrategy = (key) =>
     PROGRESSION_STRATEGIES.find((s) => s.key === key);
 
 /** Human-readable label for a strategy key (falls back to the key itself). */

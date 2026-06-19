@@ -18,7 +18,8 @@
 const _gcd = (a, b) => (b === 0 ? a : _gcd(b, a % b));
 const _lcm = (a, b) => (a / _gcd(a, b)) * b;
 
-export const tupletWeight = (n, d) => _lcm(n, d) * Math.abs(n - d);
+// Not exported: only consumed by the TUPLET_DEFS map below (Han 2026-06-19).
+const tupletWeight = (n, d) => _lcm(n, d) * Math.abs(n - d);
 
 // Triplet (3:2) is the reference — weight 6 gives the base probability.
 export const TRIPLET_WEIGHT = 6;
