@@ -1,7 +1,7 @@
 import Melody from '../model/Melody.js';
 import Chord from '../model/Chord.js';
 import { transposeNoteBySemitones } from '../theory/musicUtils.js';
-import { getNoteSemitone } from '../theory/noteUtils.js';
+import { getNoteSemitone, stripOctave } from '../theory/noteUtils.js';
 import { chooseGrouping } from '../generation/rhythmicPriorities.js';
 
 /**
@@ -151,7 +151,7 @@ export function loadSong(songDef, difficulty = 'easy', targetTonic = null) {
       }
       const newRoot  = shift !== 0 ? transposeNoteBySemitones(c.root, shift) : c.root;
       const newNotes = chordNotes[i];
-      const rootPC   = newRoot.replace(/-?\d+$/, '');
+      const rootPC   = stripOctave(newRoot);
       // c.suffix (Han 2026-05-29) is the explicit chord suffix for display,
       // e.g. "maj9", "dim", "7♭5". Without it, ChordLabelsLayer just shows the
       // root letter — fine for the easy progression but not for the jazz

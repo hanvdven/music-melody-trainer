@@ -1,5 +1,6 @@
 
 import { transposeNoteBySemitones, transposeMelodyToScale } from '../theory/musicUtils';
+import { stripOctave } from '../theory/noteUtils';
 
 class Chord {
     /**
@@ -19,7 +20,7 @@ class Chord {
         this._displayRoot = internalRoot || null; // key-spelled root (e.g. G♭ not F♯)
         this.type = type;
         this.notes = notes || [];
-        this.name = name || `${root.replace(/-?\d+$/, '')} ${type}`;
+        this.name = name || `${stripOctave(root)} ${type}`;
 
         // Additional metadata for display/UI, often set by chordGenerator
         this.internalSuffix = internalSuffix;
@@ -49,7 +50,7 @@ class Chord {
      * @returns {string}
      */
     get rootDisplay() {
-        return this.root.replace(/-?\d+$/, '');
+        return stripOctave(this.root);
     }
 
     /**
@@ -94,9 +95,9 @@ class Chord {
         const newNotes = this.notes.map(n => transposeNoteBySemitones(n, semitones));
 
         // Recalculate internalRoot, preserve other metadata
-        const newInternalRoot = newRoot.replace(/-?\d+$/, '');
+        const newInternalRoot = stripOctave(newRoot);
         let newName = this.name;
-        const oldRootPC = this.root.replace(/-?\d+$/, '');
+        const oldRootPC = stripOctave(this.root);
         if (newName.includes(oldRootPC)) {
             newName = newName.replace(oldRootPC, newInternalRoot);
         }

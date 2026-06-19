@@ -2,7 +2,7 @@ import React from 'react';
 import logger from '../../utils/logger';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { NOTE_FONT_SIZE, STEM_DX_UP, STEM_DX_DOWN, STEM_LENGTH } from './staffNoteGlyph';
-import { getNoteSemitone, getCanonicalNote, respellToKeySignature } from '../../theory/noteUtils';
+import { getNoteSemitone, getCanonicalNote, respellToKeySignature, chromatoneMix } from '../../theory/noteUtils';
 import { transposeMelodyBySemitones } from '../../theory/musicUtils';
 
 const normalizePC = (note) => {
@@ -15,7 +15,8 @@ const normalizePC = (note) => {
 };
 
 // Strip accidentals for noteYMap lookup — map only has natural note names (C, D, E…)
-export const stripAccidentals = n => n ? n.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '') : n;
+// Not exported: only used within this module (Han 2026-06-19).
+const stripAccidentals = n => n ? n.replace(/[♭º♯Ü#b𝄫𝄪]/gu, '') : n;
 
 // Per-clef vertical offset (in SVG units) applied on top of noteYMap. Lifted to
 // module scope (and exported) so the in-SVG range overlay can position
@@ -274,7 +275,8 @@ const LH_PERC_NOTES = new Set(['k', 's', 'sg', 'sr', 'th', 'tm', 'tl', 'hp']);
 
 // Returns true (stem up) when the note or chord belongs to the right-hand voice.
 // For mixed chords, RH majority wins; ties go UP (cymbals sit above drums on the staff).
-export const percussionStemUp = (noteOrChord) => {
+// Not exported: only used within this module (Han 2026-06-19).
+const percussionStemUp = (noteOrChord) => {
   if (Array.isArray(noteOrChord)) {
     let rh = 0, lh = 0;
     noteOrChord.forEach(n => { if (RH_PERC_NOTES.has(n)) rh++; else lh++; });
@@ -872,8 +874,7 @@ const renderMelodyNotes = (
     const getMelodicColor = (n) => {
       if (noteColoringMode === 'chromatone') return `var(--chromatone-${getNoteSemitone(n)})`;
       if (noteColoringMode === 'subtle-chroma') {
-        const mixTarget = theme === 'light' ? 'black' : 'white';
-        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(n)}), ${mixTarget} 60%)`;
+        return chromatoneMix(getNoteSemitone(n), 60, theme);
       }
       if (noteColoringMode === 'chords') {
         const offset = melodyOffsets[index];
@@ -881,8 +882,7 @@ const renderMelodyNotes = (
         if (activeItem?.chord?.notes && Array.isArray(activeItem.chord.notes) && activeItem.chord.notes.length > 0) {
           const isInChord = activeItem.chord.notes.some(cn => getNoteSemitone(cn) === getNoteSemitone(n));
           if (isInChord) {
-            const mixTarget = theme === 'light' ? 'black' : 'white';
-            return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(activeItem.chord.root)}), ${mixTarget} 30%)`;
+            return chromatoneMix(getNoteSemitone(activeItem.chord.root), 30, theme);
           }
         }
         return 'var(--text-primary)';

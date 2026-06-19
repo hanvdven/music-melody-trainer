@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { getNoteFromValue } from '../../../utils/rangeUtils';
-import { normalizeNoteChars, melodicNoteColor, getNoteSemitone } from '../../../theory/noteUtils';
+import { normalizeNoteChars, melodicNoteColor, getNoteSemitone, chromatoneMix } from '../../../theory/noteUtils';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
 import { StaffQuarterNote } from '../staffNoteGlyph';
 
@@ -158,8 +158,7 @@ const TranspositionSetter = ({
         // main staff (Han 2026-06-10). A note in the active chord → the chord's root colour.
         if (noteColoringMode === 'chords' && activeChord?.notes?.length) {
             if (activeChord.notes.some(cn => getNoteSemitone(cn) === getNoteSemitone(note))) {
-                const mix = theme === 'light' ? 'black' : 'white';
-                return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(activeChord.root)}), ${mix} 30%)`;
+                return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
             }
         }
         return color;

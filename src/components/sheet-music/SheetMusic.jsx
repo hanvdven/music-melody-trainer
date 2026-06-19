@@ -31,7 +31,7 @@ import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
-import { getNoteSemitone, getKodalySolfege, respellToKeySignature } from '../../theory/noteUtils';
+import { getNoteSemitone, getKodalySolfege, respellToKeySignature, chromatoneMix } from '../../theory/noteUtils';
 import { getNoteIndex, transposeMelodyBySemitones, transposeNoteBySemitones } from '../../theory/musicUtils';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import { isCompoundMeter, getEffectiveBeatDuration, getBeatDurationTicks, getTakadimiSyllable, getTakadimiSyllableGrouped, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
@@ -1427,11 +1427,11 @@ const SheetMusic = ({
     const pc = getNoteSemitone(resolved);
     if (noteColoringMode === 'chromatone') return `var(--chromatone-${pc})`;
     if (noteColoringMode === 'subtle-chroma')
-      return `color-mix(in srgb, var(--chromatone-${pc}), ${mixTarget} 60%)`;
+      return chromatoneMix(pc, 60, theme);
     if (noteColoringMode === 'chords') {
       const active = processedChords.filter(c => !c.isSlash && c.absoluteOffset <= absoluteOffset).at(-1);
       if (active?.chord?.notes?.length > 0 && active.chord.notes.some(cn => getNoteSemitone(cn) === pc))
-        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(active.chord.root)}), ${mixTarget} 30%)`;
+        return chromatoneMix(getNoteSemitone(active.chord.root), 30, theme);
       return 'var(--text-primary)';
     }
     if (noteColoringMode === 'tonic_scale_keys') {

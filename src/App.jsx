@@ -7,7 +7,7 @@ import { getProgressionLabel } from './theory/progressionDefinitions';
 import './styles/App.css';
 import './styles/AppLayout.css';
 import { modulateMelody, transposeNoteBySemitones } from './theory/musicUtils';
-import { respellToKeySignature, getNoteSemitone } from './theory/noteUtils';
+import { respellToKeySignature, getNoteSemitone, stripOctave } from './theory/noteUtils';
 import { getTranspositionSemitones, getTranspositionFifths, getTranspositionLabel } from './constants/transposingInstruments';
 import Sequencer from './audio/Sequencer';
 import playMelodies from './audio/playMelodies';
@@ -430,7 +430,7 @@ const App = () => {
     //   5. If the song provides a chord progression: pin it on the next regen
     //      (`playbackConfig.randomize.chords = false`). Otherwise allow regen.
     const handleLoadSong = useCallback((songDef, difficulty, useOriginalTonic = false) => {
-        const currentTonic = scale?.tonic?.replace(/-?\d+$/, '') ?? null;
+        const currentTonic = stripOctave(scale?.tonic) ?? null;
         let targetTonic;
         if (useOriginalTonic) {
             // Load in written key; update the app tonic so scale/key sig aligns with the song.
@@ -481,7 +481,7 @@ const App = () => {
         // immediately if the user clicks "play continuous" right after load.
         const effectiveTonic = targetTonic ?? songDef.defaultTonic;
         let refScale = scale;
-        if (refScale && refScale.tonic.replace(/-?\d+$/, '') !== effectiveTonic) {
+        if (refScale && stripOctave(refScale.tonic) !== effectiveTonic) {
             refScale = updateScaleWithTonic({ currentScale: refScale, newTonic: effectiveTonic + '4' });
         }
         if (loaded.scaleMode && refScale && (refScale.name !== loaded.scaleMode || (loaded.scaleFamily && refScale.family !== loaded.scaleFamily))) {
@@ -1227,7 +1227,7 @@ const App = () => {
         if (!globalTransposition) return scale.tonic;
         const writtenAcc = (scale.numAccidentals || 0) + getTranspositionFifths(globalTransposition.key);
         const raw = transposeNoteBySemitones(`${scale.tonic}4`, globalTransposition.semis);
-        return respellToKeySignature(raw, writtenAcc).replace(/-?\d+$/, '');
+        return stripOctave(respellToKeySignature(raw, writtenAcc));
     }, [globalTransposition, scale.tonic, scale.numAccidentals]);
 
     // Mount Effect: Build harmony table on startup so runtime scale/chord changes are reflected
