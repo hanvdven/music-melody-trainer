@@ -357,7 +357,7 @@ Use `import logger from 'src/utils/logger'` instead of bare `console.*` for any 
 logger.debug('Sequencer', 'iteration tick', { measure: 0 });
 logger.info('App', 'audio context resumed');
 logger.warn('App', 'unexpected null melody, falling back', { staff: 'treble' });
-logger.error('Sequencer', 'E010-PLAYBACK-START', err, { bpm: 120 });
+logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
 ```
 
 `logger.error(source, code, ...)` requires a stable error code as the second argument so error reports stay grep-able across builds. Reuse codes for the same failure mode; allocate new ones for genuinely new failures. Allocated codes:
@@ -403,11 +403,11 @@ Per §7 ("No error handling for impossible states") we don't add try/catch for t
 
 ## 7b. Pre-commit Verification
 
-Before opening a PR or marking work complete, run:
+Before opening a PR or marking work complete, run ALL of the following. Each is REQUIRED and must pass:
 
 1. `npm run test:run` — runs the full vitest suite once. Must be green.
 2. `npm run build` — Vite build. Must compile without errors.
-3. `npm run lint` — optional but recommended.
+3. `npm run lint` — ESLint. Must pass (required, not optional).
 
 Test files live under `src/**/__tests__/*.test.js`. The suite includes:
 
@@ -428,7 +428,8 @@ Quick guide to which file owns which concern:
 | All note name primitives | `src/theory/noteUtils.js` |
 | Drum kit sample names | `src/audio/drumKits.js` |
 | Timing constants | `src/constants/timing.js` |
-| Visual block layout | `src/utils/pagination.js` |
+| Visual block layout (`calculateMusicalBlocks`) | `src/utils/pagination.js` |
+| Block X/Y offset computation (`calculateAllOffsets`) | `src/components/sheet-music/calculateAllOffsets.js` |
 | Melody → MeasureSlice splitting | `src/utils/melodySlice.js` |
 | Playback scheduling | `src/audio/Sequencer.js` |
 | Note + measure highlighting | `src/hooks/useSheetMusicHighlight.js` |
