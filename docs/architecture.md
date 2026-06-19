@@ -259,7 +259,7 @@ With a double-buffer of `visibleMeasures × 2 = 6` slots, slots 0–2 are visibl
 
 **How:**
 - Same-series next iteration (not the last rep): build with same `treble/bass/percussion`, incremented `iteration` counter.
-- Last rep of a series (new melody needed): generate the next melody synchronously, store in `_pregeneratedNextSeries`, build its slices.
+- Last rep of a series (new melody needed): generate the next melody synchronously, store in `pregenResult`, build its slices.
 - When the actual next iteration's `m === 0` fires: `Song._byIndex` already has those entries → skip the build (check `!song._byIndex.has(globalMeasureIndex)` before appending).
 
 #### Timing guarantee
@@ -335,12 +335,12 @@ Make `Song.appendMeasures` skip entries whose `measureIndex` already exists in `
 At `m === 0` in Sequencer's loop:
 - If `!song._byIndex.has(globalMeasureIndex)`: build current iteration slices and append.
 - Immediately after (still synchronously): if `!song._byIndex.has(globalMeasureIndex + numMeasures)`: build next iteration slices and append.
-- For next-iteration build: same melody (intra-series) or `_pregeneratedNextSeries` (cross-series).
+- For next-iteration build: same melody (intra-series) or `pregenResult` (cross-series).
 - Remove all `_preAppendedAt` / `preloadMeasures` complexity for stream mode.
 - `setSong` called once after both builds.
 
 ### Step 3 — Stream: generate next series at series boundary
-At the point where `isLastRepNow && m === 0` (or equivalent), synchronously call `randomizeScaleAndGenerate` and store in `_pregeneratedNextSeries`. This ensures the next series is available for the `m === 0` double pre-build of the last rep.
+At the point where `isLastRepNow && m === 0` (or equivalent), synchronously call `randomizeScaleAndGenerate` and store in `pregenResult`. This ensures the next series is available for the `m === 0` double pre-build of the last rep.
 
 ### Step 4 — Wipe: opacity crossfade (no scroll)
 In `useSheetMusicHighlight.js` wipe branch:
