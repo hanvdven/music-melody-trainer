@@ -2,7 +2,7 @@ import React from 'react';
 import logger from '../../utils/logger';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { NOTE_FONT_SIZE, STEM_DX_UP, STEM_DX_DOWN, STEM_LENGTH } from './staffNoteGlyph';
-import { getNoteSemitone, getCanonicalNote, respellToKeySignature, chromatoneMix } from '../../theory/noteUtils';
+import { getCanonicalNote, respellToKeySignature, melodicNoteColor } from '../../theory/noteUtils';
 import { transposeMelodyBySemitones } from '../../theory/musicUtils';
 
 const normalizePC = (note) => {
@@ -871,28 +871,35 @@ const renderMelodyNotes = (
     }
 
     // Color helper for melodic (non-percussion) notes — shared by both chord and single-note paths.
+    // chromatone / subtle-chroma / chords defer to the canonical melodicNoteColor helper so the
+    // staff matches every other surface from ONE source of truth (CLAUDE.md §6c/§6d; SSOT
+    // consolidation Han 2026-06-19). Branch mapping confirmed byte-identical:
+    //  - chromatone   → `var(--chromatone-${getNoteSemitone(n)})`            (same string)
+    //  - subtle-chroma→ chromatoneMix(getNoteSemitone(n), 60, theme)         (same string)
+    //  - chords       → per-offset active chord derived here and passed as activeChord; helper
+    //                   returns chromatoneMix(root,30,theme) for in-chord notes and null otherwise,
+    //                   so `|| 'var(--text-primary)'` reproduces the old fallback exactly.
+    // tonic_scale_keys is INTENTIONALLY left on the local normalizePC path: the canonical helper
+    // compares by pitch class (getNoteSemitone), whereas this renderer historically compared by
+    // STRING (normalizePC), so 'C♯' vs 'D♭' would match in the helper but NOT here. Routing it
+    // through the helper would change behaviour, so it stays local (Han 2026-06-19).
     const getMelodicColor = (n) => {
-      if (noteColoringMode === 'chromatone') return `var(--chromatone-${getNoteSemitone(n)})`;
-      if (noteColoringMode === 'subtle-chroma') {
-        return chromatoneMix(getNoteSemitone(n), 60, theme);
-      }
-      if (noteColoringMode === 'chords') {
-        const offset = melodyOffsets[index];
-        const activeItem = processedChords.filter(c => !c.isSlash && c.absoluteOffset <= offset).at(-1);
-        if (activeItem?.chord?.notes && Array.isArray(activeItem.chord.notes) && activeItem.chord.notes.length > 0) {
-          const isInChord = activeItem.chord.notes.some(cn => getNoteSemitone(cn) === getNoteSemitone(n));
-          if (isInChord) {
-            return chromatoneMix(getNoteSemitone(activeItem.chord.root), 30, theme);
-          }
-        }
-        return 'var(--text-primary)';
-      }
       if (noteColoringMode === 'tonic_scale_keys') {
         const nPC = normalizePC(n);
         if (nPC === normalizePC(tonic)) return 'var(--note-tonic)';
         if (scaleNotes.some(s => normalizePC(s) === nPC)) return 'var(--note-scale)';
+        return 'var(--text-primary)';
       }
-      return 'var(--text-primary)';
+      let activeChord = null;
+      if (noteColoringMode === 'chords') {
+        const offset = melodyOffsets[index];
+        const activeItem = processedChords.filter(c => !c.isSlash && c.absoluteOffset <= offset).at(-1);
+        if (activeItem?.chord?.notes && Array.isArray(activeItem.chord.notes) && activeItem.chord.notes.length > 0) {
+          activeChord = { root: activeItem.chord.root, notes: activeItem.chord.notes };
+        }
+      }
+      return melodicNoteColor(n, { noteColoringMode, tonic, scaleNotes, theme, activeChord })
+        || 'var(--text-primary)';
     };
 
     // ---------------------------------------------------------------
