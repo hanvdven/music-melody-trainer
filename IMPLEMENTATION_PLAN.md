@@ -19,12 +19,20 @@ exception); 386 tests green, build + lint (0 errors) clean.
   (tonic_scale_keys + percussion branches left per byte-identical analysis); `clefResolution.js`,
   `useEditMode.js`, `LyricsLayer.jsx`+`FermataLayer.jsx`, `useRubato.js`, `resolveLoadedSong.js`
   extracted from the god-files; generation-pipeline golden test (§6b guard).
-- ⏳ **Deferred** (flagged, NOT done): name→MIDI parser unification (off-by-12 in
-  convertRankedArrayToMelody, generation §6b — needs its own careful pass); **Phase 2** high-risk
-  splits (`Sequencer.start()`, `randomizeScaleAndGenerate()`, `computeBeamGroups` from
-  renderMelodyNotes) — do only behind a Sequencer/generation test harness.
-- ⚠ Refactors are behavior-identical by construction, but a quick LIVE sanity pass is still wise
-  (lyrics rows, rubato accompaniment, song-load, edit-mode toggles, note colours).
+- ✅ **§6b parser pass** (Han: "doel de 6b pass") — consolidated name→MIDI to `noteToMidi()`;
+  generation's off-by-12 confirmed RELATIVE-only (range bounds parsed by the same parser, cancels)
+  and preserved via `base:-12`; audit's "4 parsers" corrected to 2 (musicUtils.getNoteIndex returns
+  an array index; usePitchDetector is Hz→MIDI/MIDI→name, not a parser). Proof-test pins old numbers.
+- ✅ **Phase 2** (Han: "dan fase 2") — built characterization HARNESS first (18 tests pinning
+  armPaginationSequence schedule, sessionAbort, randomizeScaleAndGenerate shape, beamGroups), then
+  the splits behind it: `computeBeamGroups.js` (grouping math; beam-line geometry stayed),
+  `generateNextSeries.js`+`transposeDisplayNotes.js` (Sequencer −187 lines, restores §8 boundary),
+  `Sequencer.start()` → `scheduleBlock`/`scheduleTransitions` (990→517 lines; series-regen+setup
+  stayed inline; sessionController capture + batching + scheduling byte-identical). 427 tests green.
+- ⏳ **Still Phase-2-adjacent, NOT done** (entangled, left per conservative mandate): the
+  series-boundary regen + JIT inside `start()`; deeper `randomizeScaleAndGenerate` orchestration.
+- ⚠ Refactors are behavior-identical by construction + guarded by the harness, but a quick LIVE
+  sanity pass is still wise (playback/page-turns/transitions, lyrics, rubato, song-load, colours).
 
 
 ## 2026-06-18 — Carousel/range/transition feedback batch (Han)
