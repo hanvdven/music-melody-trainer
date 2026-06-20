@@ -1,5 +1,6 @@
 import React from 'react';
 import logger from '../../utils/logger';
+import { computeBeamGroups } from './computeBeamGroups';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { NOTE_FONT_SIZE, STEM_DX_UP, STEM_DX_DOWN, STEM_LENGTH } from './staffNoteGlyph';
 import { getCanonicalNote, respellToKeySignature, melodicNoteColor } from '../../theory/noteUtils';
@@ -492,226 +493,31 @@ const renderMelodyNotes = (
   // Shifts and bounds logic moved up into UNIFIED Y-SHIFT CALCULATION
 
   // --- BEAM GROUP CALCULATION ---
-  const timeSigTop = timeSignature[0];
-  const beamGroups = [];
-
-  const measures = {};
-  let nextIsTieDest = false;
-
-  for (let index = 0; index < melodyNotes.length; index++) {
-    const isTieDest = nextIsTieDest;
-    nextIsTieDest = melodyTies[index] === 'tie';
-
-    const offset = melodyOffsets[index];
-    if (offset === null) continue;
-    const measureIdx = Math.floor(offset / measureLengthSlots);
-    if (!measures[measureIdx]) measures[measureIdx] = [];
-    // Use visualDuration for beaming so triplet quarters (visualDuration=12) aren't beamed,
-    // while triplet 8ths (visualDuration=6) are correctly beamed together.
-    // tupletId is stored so the beam-group loop can isolate each tuplet from adjacent notes.
-    const tupletInfo = melodyTriplets?.[index] ?? null;
-    const tupletVis = tupletInfo?.visualDuration ?? null;
-    measures[measureIdx].push({
-      index,
-      noteWithAccidental: melodyNotes[index],
-      duration: isTieDest ? 99 : (tupletVis ?? melodyDurations[index]),
-      actualDuration: melodyDurations[index],
-      offset: offset,
-      // null for non-tuplet notes; unique id per tuplet group for isolation in beaming.
-      tupletId: tupletInfo?.id ?? null,
-    });
-  }
-
-  // Helper to determine allowed beam spans within a measure based on the RhythmicDNA grouping.
-  // When the melody carries a rhythmicGrouping (e.g. [3,2] for 5/8), each group becomes its
-  // own beam span so notes never beam across group boundaries.
-  // Falls back to the old even-split logic for melodies without a grouping (chords, metronome).
-  const getAllowedSpans = (elementsInMeasure, top) => {
-    const shortDurations = elementsInMeasure.filter(e => e.duration < 12).map(e => e.duration);
-    if (shortDurations.length === 0) return [];
-
-    const grouping = melody.rhythmicGrouping;
-    if (grouping && grouping.length > 1) {
-      const beatTicks = measureLengthSlots / top;
-      const spans = [];
-      let start = 0;
-      for (const groupSize of grouping) {
-        const end = start + groupSize * beatTicks;
-        spans.push({ start, end });
-        start = end;
-      }
-      return spans;
-    }
-
-    // Fallback: split at midpoint for even numerators, single span for odd/compound
-    const spans = [];
-    const secondaryBeatSlots = (top % 2 === 0) ? measureLengthSlots / 2 : measureLengthSlots;
-    for (let i = 0; i < measureLengthSlots; i += secondaryBeatSlots) {
-      spans.push({ start: i, end: i + secondaryBeatSlots });
-    }
-    return spans;
-  };
-
-  Object.values(measures).forEach(elements => {
-    const spans = getAllowedSpans(elements, timeSigTop);
-
-    spans.forEach(span => {
-      // Elements that fall into this span
-      const spanElements = elements.filter(e => {
-        const relativeOffset = e.offset % measureLengthSlots;
-        return relativeOffset >= span.start && relativeOffset < span.end;
-      });
-
-      let currentSubGroup = [];
-      const flushSubGroup = () => {
-        // Trim rests from start and end
-        while (currentSubGroup.length > 0 && currentSubGroup[0].isRest) currentSubGroup.shift();
-        while (currentSubGroup.length > 0 && currentSubGroup[currentSubGroup.length - 1].isRest) currentSubGroup.pop();
-
-        if (currentSubGroup.length >= 2) {
-          // Do not connect across primary groups if each primary group only has 1 note
-          const primaryBeatSlots = (timeSigTop % 3 === 0 && timeSigTop > 3) ? 18 : noteGroupSize;
-          const notesOnly = currentSubGroup.filter(n => !n.isRest);
-          const notesByBeat = {};
-          notesOnly.forEach(n => {
-            const b = Math.floor((n.offset % measureLengthSlots) / primaryBeatSlots);
-            notesByBeat[b] = (notesByBeat[b] || 0) + 1;
-          });
-
-          if (Object.keys(notesByBeat).length >= 2) {
-            const allOne = Object.values(notesByBeat).every(count => count === 1);
-            if (allOne) {
-              currentSubGroup = [];
-              return;
-            }
-          }
-
-          // Calculate master stem direction based on note furthest from middle line
-          let maxDist = -1;
-          let masterStemIsAbove = true;
-          currentSubGroup.forEach(item => {
-            if (item.isRest) return;
-            const dist = Math.abs(item.positionY - (staffYStart + 20)); // Middle line is staffYStart + 20
-            if (dist > maxDist) {
-              maxDist = dist;
-              masterStemIsAbove = item.positionY > staffYStart + 20; // Natural stem direction
-            }
-          });
-
-          // Apply master direction to all notes in subgroup.
-          // For chord entries, re-derive positionY using the master direction so that
-          // beam-clearance calculations use the correct stem-base (topY when stem is DOWN,
-          // bottomY when stem is UP).  The chord-local stemIsAbove may have been set
-          // differently (e.g. equidistant tiebreak) and would otherwise produce a wrong
-          // minYend in beamData, pushing the beam far off the staff.
-          currentSubGroup.forEach(item => {
-            if (!item.isRest && !item.voiceSplit) {
-              item.stemIsAbove = masterStemIsAbove;
-              const noteEntry = displayNotes[item.index];
-              if (Array.isArray(noteEntry)) {
-                const ys = noteEntry
-                  .map(n => { const nat = stripAccidentals(n); return noteYMap[nat] !== undefined ? noteYMap[nat] + combinedShift : null; })
-                  .filter(y => y !== null);
-                if (ys.length > 0) {
-                  const cTopY = Math.min(...ys);
-                  const cBottomY = Math.max(...ys);
-                  item.positionY = masterStemIsAbove ? cBottomY : cTopY;
-                }
-              }
-            }
-          });
-
-          beamGroups.push([...currentSubGroup]);
-        }
-        currentSubGroup = [];
-      };
-
-      for (let i = 0; i < spanElements.length; i++) {
-        const e = spanElements[i];
-        if (e.duration >= 12) {
-          flushSubGroup();
-          continue;
-        }
-
-        // Tuplet isolation: flush when crossing a tuplet-group boundary.
-        // A non-tuplet (tupletId=null) must never beam with a tuplet, and two notes
-        // from different tuplet groups (different ids) must never share a beam.
-        const lastInGroup = currentSubGroup[currentSubGroup.length - 1];
-        if (lastInGroup && lastInGroup.tupletId !== e.tupletId) {
-          flushSubGroup();
-        }
-
-        // Parallel voices isolation: RH (stem up) and LH (stem down) notes belong to
-        // separate voices and must never share a beam even when their durations match.
-        if (percussionVoiceSplit && currentSubGroup.length > 0) {
-          const curNote = displayNotes[e.index];
-          const lastNote = displayNotes[currentSubGroup[currentSubGroup.length - 1].index];
-          if (!Array.isArray(curNote) && !Array.isArray(lastNote)) {
-            if (percussionStemUp(curNote) !== percussionStemUp(lastNote)) {
-              flushSubGroup();
-            }
-          }
-        }
-
-        const note = displayNotes[e.index];
-        if (!note) continue;
-
-        const isRest = !Array.isArray(note) && note === 'r';
-        let positionY = null;
-        let stemIsAbove = true;
-
-        if (Array.isArray(note)) {
-          // Chord: gather all valid y-positions and pick the stem-base note
-          const staffMiddleY = staffYStart + 20;
-          const yPositions = note
-            .map(n => { const nat = stripAccidentals(n); return noteYMap[nat] !== undefined ? noteYMap[nat] + combinedShift : null; })
-            .filter(y => y !== null);
-          if (yPositions.length === 0) { flushSubGroup(); continue; }
-
-          const topY = Math.min(...yPositions);
-          const bottomY = Math.max(...yPositions);
-          // Direction: furthest note from staff centre drives the stem away
-          const furthestY = yPositions.reduce((prev, cur) =>
-            Math.abs(cur - staffMiddleY) >= Math.abs(prev - staffMiddleY) ? cur : prev
-          );
-          stemIsAbove = furthestY > staffMiddleY;
-          // positionY = stem-base (opposite end from where stem will go)
-          positionY = stemIsAbove ? bottomY : topY;
-        } else if (!isRest) {
-          positionY = noteYMap[note] + combinedShift;
-          if (Number.isNaN(positionY)) continue;
-          stemIsAbove = positionY > staffYStart + 20;
-        }
-
-        // Voice split: for single percussion notes, fix stem direction by RH/LH classification
-        // so it survives the masterStemIsAbove pass (guarded by voiceSplit flag below).
-        // Chord arrays are split into separate stems during the rendering pass — not here.
-        if (staff === 'percussion' && percussionVoiceSplit && !isRest && !Array.isArray(note)) {
-          stemIsAbove = percussionStemUp(note);
-        }
-
-        currentSubGroup.push({
-          index: e.index,
-          beatIndexWithinMeasure: Math.floor((e.offset % measureLengthSlots) / noteGroupSize),
-          isRest,
-          stemIsAbove,
-          // Protect RH/LH classified entries from being reset by masterStemIsAbove.
-          voiceSplit: staff === 'percussion' && percussionVoiceSplit && !Array.isArray(note),
-          positionY,
-          chordSpan: Array.isArray(note) ? (() => {
-            const ys = note.map(n => { const nat = stripAccidentals(n); return noteYMap[nat] !== undefined ? noteYMap[nat] + combinedShift : null; }).filter(y => y !== null);
-            return ys.length ? Math.max(...ys) - Math.min(...ys) : 0;
-          })() : 0,
-          duration: e.duration,
-          actualDuration: e.actualDuration,
-          offset: e.offset,
-          // Must carry tupletId so the isolation check (lastInGroup.tupletId !== e.tupletId)
-          // compares null===null correctly for non-tuplet notes.
-          tupletId: e.tupletId,
-        });
-      }
-      flushSubGroup();
-    });
+  // The rhythmic beam-grouping MATH (which consecutive notes share a beam, how the measure
+  // splits into beam spans, and each group's master stem direction) lives in the pure
+  // computeBeamGroups module (extracted Han 2026-06-19, Phase-2 per ARCHITECTURE_AUDIT §4).
+  // Everything below this call — beamData (beam-line geometry), beamedNoteIndices,
+  // forcedTupletStemDir, and the notehead/stem/flag/beam JSX — STAYS here. The pure module
+  // owns the grouping decision; this file owns the drawing. stripAccidentals / percussionStemUp
+  // / noteYMap are passed in so their definitions remain single-sourced in this file.
+  const { beamGroups } = computeBeamGroups({
+    melodyNotes,
+    melodyDurations,
+    melodyOffsets,
+    melodyTies,
+    melodyTriplets,
+    displayNotes,
+    measureLengthSlots,
+    timeSignature,
+    rhythmicGrouping: melody.rhythmicGrouping,
+    noteGroupSize,
+    staffYStart,
+    combinedShift,
+    staff,
+    percussionVoiceSplit,
+    noteYMap,
+    stripAccidentals,
+    percussionStemUp,
   });
 
   // Create lookup for notes that are beamed
