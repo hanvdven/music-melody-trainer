@@ -1,6 +1,6 @@
 import playMelodies from './playMelodies';
 import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing.js';
-import { transposeMelodyToScale, transposeMelodyBySemitones, getNoteIndex, modulateMelody, calculateRelativeRange } from '../theory/musicUtils';
+import { transposeMelodyToScale } from '../theory/musicUtils';
 import Melody from '../model/Melody';
 import MelodyGenerator from '../generation/melodyGenerator';
 import {
@@ -10,7 +10,7 @@ import {
   updateScaleWithMode,
   getBestEnharmonicTonic,
 } from '../theory/scaleHandler';
-import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
+import { generateNextSeries } from '../generation/generateNextSeries';
 
 import { generateProgression } from '../theory/chordGenerator';
 import { insertPassingChords } from '../generation/passingChords';
@@ -23,8 +23,6 @@ import { planPaginationSequence, PAGINATION_VARIANTS } from './transitionPlanner
 import logger from '../utils/logger';
 import { getChordsWithSlashes } from '../theory/chordLabelHandler';
 import { getHarmonyAtDifficulty } from '../utils/harmonyTable';
-import { getMelodyAtDifficulty } from '../utils/melodyDifficultyTable';
-import { PRESET_RANGES } from '../constants/musicLayout';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
 import { buildAnacrusisRepeatParts, hasAnacrusis } from '../utils/anacrusisRepeat';
 
@@ -1365,230 +1363,45 @@ class Sequencer {
     // Now chordProgression is a Melody object (rhythmic).
     // MelodyGenerator for Treble/Bass handles this by looking at .notes properly.
 
-    let newTreble, newBass, newPercussion;
+    // ── Per-track melody construction → pure generateNextSeries() ──────────────
+    // Han 2026-06-19 (ARCHITECTURE_AUDIT §4): the treble/bass/percussion build
+    // (transpose-without-regenerate AND full-regeneration paths) was ~220 lines of
+    // PURE generation logic living inside the audio class — violating the §8
+    // boundary (Sequencer owns scheduling, generation lives in src/generation/).
+    // It is extracted verbatim to src/generation/generateNextSeries.js. The
+    // Sequencer stays the thin orchestrator: it snapshots the refs it reads here
+    // (instrumentSettings already read above; melodiesRef / difficulty targets /
+    // percussionScale below) and passes them in. No `this`-ref read or setter side
+    // effect was moved — scale randomization, chord generation, setDisplayChordProgression,
+    // and the _measureSpan/generatedNumMeasures computation all remain in this method.
+    const series = generateNextSeries({
+      activeScale,
+      oldTonic,
+      oldMode,
+      oldFamily,
+      oldScaleNotes,
+      oldDisplayScale,
+      numMeasures,
+      timeSignature,
+      chordProgression,
+      globalTemplate,
+      randConfig,
+      currentMelodies,
+      instrumentSettings,
+      currentMelodyContext: this.refs.melodiesRef?.current || {},
+      targetTrebleDifficulty: this.refs.targetTrebleDifficultyRef?.current,
+      targetBassDifficulty: this.refs.targetBassDifficultyRef?.current,
+      percussionScale: this.percussionScale,
+    });
 
-    if (randConfig.melody === false) {
-      // Determine if only tonic changed (same mode and family)
-      const onlyTonicChanged =
-        activeScale.name === oldMode &&
-        activeScale.family === oldFamily &&
-        activeScale.tonic !== oldTonic;
-
-      // Transpose
-      if (currentMelodies.treble) {
-        let transposedNotes, transposedDisplay;
-
-        if (onlyTonicChanged) {
-          const semitoneDiff = getNoteIndex(activeScale.tonic) - getNoteIndex(oldTonic);
-          transposedNotes = transposeMelodyBySemitones(currentMelodies.treble.notes, semitoneDiff);
-          transposedDisplay = transposedNotes.map((n) => {
-            if (!n || ['k', 'c', 'b', 'hh', 's', '/'].includes(n)) return n;
-            const idx = activeScale.notes.indexOf(n);
-            if (idx !== -1) return activeScale.displayNotes[idx];
-            return getRelativeNoteName(n, activeScale.tonic);
-          });
-        } else {
-          transposedNotes = transposeMelodyToScale(
-            currentMelodies.treble.notes,
-            oldScaleNotes,
-            activeScale.notes
-          );
-          const currentDisplay = currentMelodies.treble.displayNotes || currentMelodies.treble.notes;
-          transposedDisplay = transposeMelodyToScale(
-            currentDisplay,
-            oldDisplayScale,
-            activeScale.displayNotes
-          );
-        }
-
-        newTreble = new Melody(
-          transposedNotes,
-          currentMelodies.treble.durations,
-          currentMelodies.treble.offsets,
-          transposedDisplay
-        );
-      } else {
-        newTreble = null;
-      }
-
-      if (currentMelodies.bass) {
-        const lowerOctave = (note) => {
-          const match = note.match(/([^0-9]+)(\d+)/);
-          if (!match) return note;
-          return match[1] + (parseInt(match[2]) - 1);
-        };
-
-        let transposedNotes, transposedDisplay;
-
-        if (onlyTonicChanged) {
-          const semitoneDiff = getNoteIndex(activeScale.tonic) - getNoteIndex(oldTonic);
-          transposedNotes = transposeMelodyBySemitones(currentMelodies.bass.notes, semitoneDiff);
-          const bassDisplayScale = activeScale.displayNotes.map(lowerOctave);
-          const bassNotes = activeScale.notes.map(lowerOctave);
-          const bassTonic = lowerOctave(activeScale.tonic);
-
-          transposedDisplay = transposedNotes.map((n) => {
-            if (!n || ['k', 'c', 'b', 'hh', 's', '/'].includes(n)) return n;
-            const idx = bassNotes.indexOf(n);
-            if (idx !== -1) return bassDisplayScale[idx];
-            return getRelativeNoteName(n, bassTonic);
-          });
-        } else {
-          const oldBassNotes = oldScaleNotes.map(lowerOctave);
-          const oldBassDisplay = oldDisplayScale.map(lowerOctave);
-          const newBassNotes = activeScale.notes.map(lowerOctave);
-          const newBassDisplay = activeScale.displayNotes.map(lowerOctave);
-          transposedNotes = transposeMelodyToScale(
-            currentMelodies.bass.notes,
-            oldBassNotes,
-            newBassNotes
-          );
-          const currentDisplay = currentMelodies.bass.displayNotes || currentMelodies.bass.notes;
-          transposedDisplay = transposeMelodyToScale(
-            currentDisplay,
-            oldBassDisplay,
-            newBassDisplay
-          );
-        }
-
-        newBass = new Melody(
-          transposedNotes,
-          currentMelodies.bass.durations,
-          currentMelodies.bass.offsets,
-          transposedDisplay
-        );
-      } else {
-        newBass = null;
-      }
-      newPercussion = currentMelodies.percussion;
-      result.treble = newTreble;
-      result.bass = newBass;
-      result.percussion = newPercussion;
-    } else {
-      const instrumentSettings = this.refs.instrumentSettingsRef.current;
-      const currentMelodyContext = this.refs.melodiesRef?.current || {};
-      const refScale = currentMelodyContext.referenceScale || activeScale;
-
-      // ── Treble difficulty-driven settings override ───────────────────────
-      const targetMelodyDifficulty = this.refs.targetTrebleDifficultyRef?.current;
-      let effectiveTrebleSettings = instrumentSettings.treble;
-      if (targetMelodyDifficulty != null) {
-        const melodyEntry = getMelodyAtDifficulty(targetMelodyDifficulty, 0.5);
-        if (melodyEntry) {
-          const clefKey = instrumentSettings.treble?.preferredClef === 'bass' ? 'bass' : 'treble';
-          const presetRange = PRESET_RANGES[melodyEntry.rangeMode]?.[clefKey];
-          effectiveTrebleSettings = {
-            ...instrumentSettings.treble,
-            notesPerMeasure: melodyEntry.notesPerMeasure,
-            smallestNoteDenom: melodyEntry.smallestNoteDenom,
-            rhythmVariability: melodyEntry.rhythmVariability,
-            notePool: melodyEntry.notePool,
-            randomizationRule: melodyEntry.randomizationRule,
-            rangeMode: melodyEntry.rangeMode,
-            ...(presetRange ? { range: presetRange } : {}),
-          };
-          result.trebleSettings = effectiveTrebleSettings;
-        }
-      }
-
-      // ── Bass difficulty-driven settings override ──────────────────────────
-      const targetBassDiff = this.refs.targetBassDifficultyRef?.current;
-      let effectiveBassSettings = instrumentSettings.bass;
-      if (targetBassDiff != null) {
-        const bassEntry = getMelodyAtDifficulty(targetBassDiff, 0.5);
-        if (bassEntry) {
-          const presetRange = PRESET_RANGES[bassEntry.rangeMode]?.['bass'];
-          effectiveBassSettings = {
-            ...instrumentSettings.bass,
-            notesPerMeasure: bassEntry.notesPerMeasure,
-            smallestNoteDenom: bassEntry.smallestNoteDenom,
-            rhythmVariability: bassEntry.rhythmVariability,
-            notePool: bassEntry.notePool,
-            randomizationRule: bassEntry.randomizationRule,
-            rangeMode: bassEntry.rangeMode,
-            ...(presetRange ? { range: presetRange } : {}),
-          };
-          result.bassSettings = effectiveBassSettings;
-        }
-      }
-
-      // If tonic changed (due to randomization above), recalculate relative ranges so melody
-      // generation uses the correct range for the NEW tonic — not the stale range from the ref.
-      const newTrebleRelRange = calculateRelativeRange('treble', effectiveTrebleSettings.rangeMode, activeScale.tonic);
-      if (newTrebleRelRange) effectiveTrebleSettings = { ...effectiveTrebleSettings, range: newTrebleRelRange };
-      const newBassRelRange = calculateRelativeRange('bass', effectiveBassSettings.rangeMode, activeScale.tonic);
-      if (newBassRelRange) effectiveBassSettings = { ...effectiveBassSettings, range: newBassRelRange };
-
-      // Treble
-      if (effectiveTrebleSettings.randomizationRule === 'fixed' && currentMelodyContext.referenceMelody) {
-        // ... fixed logic ... (omitted matching for brevity, keeping existing)
-        const modulatedNotes = modulateMelody(currentMelodyContext.referenceMelody.notes, refScale, activeScale);
-        const displayNotes = modulatedNotes.map(n => {
-          if (!n || ['k', 'c', 'b', 'hh', 's', '/'].includes(n)) return n;
-          const idx = activeScale.notes.indexOf(n);
-          if (idx !== -1) return activeScale.displayNotes[idx];
-          return getRelativeNoteName(n, activeScale.tonic);
-        });
-        newTreble = new Melody(modulatedNotes, currentMelodyContext.referenceMelody.durations, currentMelodyContext.referenceMelody.offsets, displayNotes);
-      } else {
-        newTreble = new MelodyGenerator(
-          activeScale,
-          numMeasures,
-          timeSignature,
-          effectiveTrebleSettings,
-          chordProgression, // PASS THE FULL MELODY OBJECT
-          effectiveTrebleSettings.range,
-          Date.now(),
-          globalTemplate // Pass Global Rhythm!
-        ).generateMelody();
-      }
-
-      // Bass
-      if (effectiveBassSettings.randomizationRule === 'fixed' && currentMelodyContext.referenceBassMelody) {
-        // ... fixed logic ...
-        const targetBassSc = activeScale.generateBassScale();
-        const refBassSc = refScale.generateBassScale();
-        const modulatedNotes = modulateMelody(currentMelodyContext.referenceBassMelody.notes, refBassSc, targetBassSc);
-        const displayNotes = modulatedNotes.map(n => {
-          if (!n || ['k', 'c', 'b', 'hh', 's', '/'].includes(n)) return n;
-          const idx = targetBassSc.notes.indexOf(n);
-          if (idx !== -1) return targetBassSc.displayNotes[idx];
-          return getRelativeNoteName(n, targetBassSc.tonic);
-        });
-        newBass = new Melody(modulatedNotes, currentMelodyContext.referenceBassMelody.durations, currentMelodyContext.referenceBassMelody.offsets, displayNotes);
-      } else {
-        newBass = new MelodyGenerator(
-          activeScale.generateBassScale(),
-          numMeasures,
-          timeSignature,
-          effectiveBassSettings,
-          chordProgression, // PASS THE FULL MELODY OBJECT
-          effectiveBassSettings.range,
-          Date.now(),
-          globalTemplate // Pass Global Rhythm!
-        ).generateMelody();
-      }
-
-      // Percussion
-      if (instrumentSettings.percussion.randomizationRule === 'fixed' && currentMelodies.percussion) {
-        newPercussion = currentMelodies.percussion;
-      } else {
-        newPercussion = new MelodyGenerator(
-          this.percussionScale,
-          numMeasures,
-          timeSignature,
-          instrumentSettings.percussion,
-          chordProgression, // PASS THE FULL MELODY OBJECT
-          null,
-          Date.now(),
-          globalTemplate // Pass Global Rhythm!
-        ).generateMelody();
-      }
-
-      result.treble = newTreble;
-      result.bass = newBass;
-      result.percussion = newPercussion;
-    }
+    result.treble = series.treble;
+    result.bass = series.bass;
+    result.percussion = series.percussion;
+    // The effective settings are surfaced ONLY when a difficulty target overrode them
+    // (preserves the old behaviour where result.trebleSettings/bassSettings were set
+    // inside the difficulty branches and otherwise left undefined).
+    if (series.trebleSettings) result.trebleSettings = series.trebleSettings;
+    if (series.bassSettings) result.bassSettings = series.bassSettings;
 
     // Calculate the TRUE measure span of the generated tracks so the sequencer loop
     // stays tied to actual content even if the UI 'num measures' slider changes.
