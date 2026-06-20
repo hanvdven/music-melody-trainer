@@ -10,7 +10,6 @@ import { modulateMelody, transposeNoteBySemitones } from './theory/musicUtils';
 import { respellToKeySignature, getNoteSemitone, stripOctave } from './theory/noteUtils';
 import { getTranspositionSemitones, getTranspositionFifths, getTranspositionLabel } from './constants/transposingInstruments';
 import Sequencer from './audio/Sequencer';
-import playMelodies from './audio/playMelodies';
 import Melody from './model/Melody';
 import ChordProgression from './model/ChordProgression';
 import ErrorBoundary from './components/error/ErrorBoundary';
@@ -34,10 +33,11 @@ import usePlaybackNavigation from './hooks/usePlaybackNavigation';
 import useScaleManagement from './hooks/useScaleManagement';
 import useDifficultySettings from './hooks/useDifficultySettings';
 import useEditMode from './hooks/useEditMode';
+import useRubato from './hooks/useRubato';
 import { buildHarmonyTable } from './utils/harmonyTable';
 import { resizeMelody } from './utils/melodySlice';
 import { buildMergedRenderMelodies, buildFirstPassMergedMelodies, mergedBodyPassIndex, hasAnacrusis } from './utils/anacrusisRepeat';
-import { TICKS_PER_WHOLE, secondsPerTick, ticksPerSecond, secondsPerBeat } from './constants/timing';
+import { TICKS_PER_WHOLE, secondsPerTick, secondsPerBeat } from './constants/timing';
 import {
     DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
     DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE,
@@ -46,8 +46,7 @@ import useAppLayout from './hooks/useAppLayout';
 import useAppUIState from './hooks/useAppUIState';
 import useAppHandlers from './hooks/useAppHandlers';
 import logger from './utils/logger';
-import { loadSong } from './songs/loadSong';
-import { updateScaleWithTonic, updateScaleWithMode } from './theory/scaleHandler';
+import { resolveLoadedSong } from './songs/resolveLoadedSong';
 
 // Icons
 import {
@@ -413,19 +412,14 @@ const App = () => {
     //   5. If the song provides a chord progression: pin it on the next regen
     //      (`playbackConfig.randomize.chords = false`). Otherwise allow regen.
     const handleLoadSong = useCallback((songDef, difficulty, useOriginalTonic = false) => {
-        const currentTonic = stripOctave(scale?.tonic) ?? null;
-        let targetTonic;
-        if (useOriginalTonic) {
-            // Load in written key; update the app tonic so scale/key sig aligns with the song.
-            targetTonic = null;
-            if (songDef.defaultTonic && currentTonic !== songDef.defaultTonic) {
-                // setTonic expects a note with octave (e.g. "F4").
-                setTonic(songDef.defaultTonic + '4');
-            }
-        } else {
-            targetTonic = currentTonic !== songDef.defaultTonic ? currentTonic : null;
-        }
-        const loaded = loadSong(songDef, difficulty, targetTonic);
+        // Pure parse/resolve half lives in resolveLoadedSong (ARCHITECTURE_AUDIT.md §4,
+        // Han 2026-06-19). This wrapper only APPLIES the resolved values via setters.
+        const { loaded, refScale, tonicToSet } =
+            resolveLoadedSong(songDef, difficulty, useOriginalTonic, scale);
+        // setTonic was previously called inside the useOriginalTonic branch before
+        // loadSong; the resolver now reports it as tonicToSet (octave-suffixed). React
+        // batches this with the other setters below, so commit order is unchanged.
+        if (tonicToSet) setTonic(tonicToSet);
 
         // Apply scale mode (e.g. 'Major' / 'Dorian') so the key signature, scale
         // wheel, and harmony all reflect the song's intended mode.
@@ -458,22 +452,10 @@ const App = () => {
         // referenceScale anchors the source-key of refMelody. resolveVoice
         // modulates from refScale to the (possibly later-changed) app scale; if
         // we leave the previous referenceScale in place, modulateMelody would
-        // double-transpose loaded melodies away from their intended key.
-        // Build the scale synchronously here because setSelectedMode / setTonic
-        // only commit on the next render — resolveVoice may need refScale
-        // immediately if the user clicks "play continuous" right after load.
-        const effectiveTonic = targetTonic ?? songDef.defaultTonic;
-        let refScale = scale;
-        if (refScale && stripOctave(refScale.tonic) !== effectiveTonic) {
-            refScale = updateScaleWithTonic({ currentScale: refScale, newTonic: effectiveTonic + '4' });
-        }
-        if (loaded.scaleMode && refScale && (refScale.name !== loaded.scaleMode || (loaded.scaleFamily && refScale.family !== loaded.scaleFamily))) {
-            refScale = updateScaleWithMode({
-                currentScale: refScale,
-                newFamily: loaded.scaleFamily ?? refScale.family,
-                newMode: loaded.scaleMode,
-            });
-        }
+        // double-transpose loaded melodies away from their intended key. refScale
+        // is computed synchronously by the resolver (see resolveLoadedSong) so
+        // resolveVoice has it immediately if the user clicks "play continuous"
+        // right after load — before setSelectedMode / setTonic commit.
         if (refScale) setReferenceScale(refScale);
 
         if (loaded.chordMelody) {
@@ -606,12 +588,18 @@ const App = () => {
         randomizeConfig: playbackConfig.randomize,
     });
 
-    // Rubato playback engage hook (PR-C wave 1, Han 2026-05-29).
-    // When rubato is active, the Play buttons hand control to input-test mode
-    // instead of starting the Sequencer's audio-time loop — the user advances
-    // note-by-note from the bottom-pane keyboard. The ref is populated by a
-    // useEffect AFTER useInputTest mounts; until then it's a no-op.
-    const rubatoEngageRef = useRef(null);
+    // Rubato engine (refs + EWMA estimator + accompaniment scheduler) extracted to
+    // useRubato (ARCHITECTURE_AUDIT.md §4, Han 2026-06-19). The entangled consumers —
+    // the Play-button interception below, the onNoteCorrect rubato branch, the two
+    // ref-population effects, and onToggleRubato — stay in App and read these exports.
+    const {
+        rubatoEngageRef,
+        rubatoEventHistoryRef,
+        rubatoInputStateRefForwarderRef,
+        rubatoScrollAnchorRef,
+        RUBATO_HISTORY_LIMIT,
+        scheduleRubatoAccompaniment,
+    } = useRubato({ context, instruments, bpmRef, melodiesRef, customPercussionMappingRef });
 
     const handlePlayMelody = useCallback(() => {
         if (isRubatoRef.current && rubatoEngageRef.current) {
@@ -663,71 +651,6 @@ const App = () => {
         handlePlayRepeatLogic();
         setHeaderPlayMode('repeat');
     }, [handlePlayRepeatLogic, isRubatoRef]);
-
-    // PR-D wave 2 (Han 2026-05-29): predictive accompaniment for rubato.
-    // Track recent advance events to estimate ticks-per-second (TPS) via EWMA;
-    // when the user advances a treble note in rubato mode, schedule the
-    // bass / chord / percussion notes whose offsets fall in
-    // [currentTrebleOffset, nextTrebleOffset) using the estimated TPS so the
-    // background tracks "catch up" with the user's tempo. Until 2 advances
-    // have happened we fall back to the configured BPM.
-    const rubatoEventHistoryRef = useRef([]);
-    // Forwarder for inputTestStateRef — populated after useInputTest mounts so
-    // onNoteCorrect can read the latest activeIndex without circular TDZ.
-    const rubatoInputStateRefForwarderRef = useRef(null);
-    // Scroll anchor for rubato (PR-E round 18). When isActive=true, the scroll
-    // animation in useSheetMusicHighlight uses pageFraction directly instead
-    // of the audio-time formula. Updated on each correct-note advance to
-    // point at the NEXT expected note's tick offset so the user sees the
-    // cursor glide forward into the upcoming note position.
-    const rubatoScrollAnchorRef = useRef({ pageFraction: 0, isActive: false, currentFraction: 0 });
-    const RUBATO_HISTORY_LIMIT = 8;
-    const RUBATO_EWMA_ALPHA = 0.6; // higher → more reactive to recent intervals
-
-    const estimateRubatoTps = useCallback(() => {
-        const hist = rubatoEventHistoryRef.current;
-        // BPM/5 = ticks/sec (since 5/bpm sec/tick). ticksPerSecond(bpm) = bpm/5, byte-identical
-        // via the timing SSOT (Han 2026-06-19).
-        if (hist.length < 2) return ticksPerSecond(bpmRef.current);
-        let ewma = null;
-        for (let i = 1; i < hist.length; i++) {
-            const dt = hist[i].wallTime - hist[i - 1].wallTime;
-            const dTicks = hist[i].offset - hist[i - 1].offset;
-            if (dt <= 0 || dTicks <= 0) continue;
-            const tps = dTicks / dt;
-            ewma = ewma === null ? tps : RUBATO_EWMA_ALPHA * tps + (1 - RUBATO_EWMA_ALPHA) * ewma;
-        }
-        // ticksPerSecond(bpm) = bpm/5, byte-identical to the prior fallback (Han 2026-06-19).
-        return ewma ?? ticksPerSecond(bpmRef.current);
-    }, []);
-
-    const scheduleRubatoAccompaniment = useCallback((currentOffset, nextOffset) => {
-        if (!context || nextOffset <= currentOffset) return;
-        const tps = estimateRubatoTps();
-        const bpm = tps * 5;
-        const m = melodiesRef.current || {};
-        const playList = [];
-        const instList = [];
-        if (m.bass && instruments.bass) { playList.push(m.bass); instList.push(instruments.bass); }
-        if (m.percussion && instruments.percussion) { playList.push(m.percussion); instList.push(instruments.percussion); }
-        if (m.chordProgression && instruments.chords) { playList.push(m.chordProgression); instList.push(instruments.chords); }
-        if (playList.length === 0) return;
-        // Filter [currentOffset+1, nextOffset) — exclude notes at currentOffset because the
-        // treble onset already played, and we want bass/chord that synced WITH the treble note
-        // to play at the same tap. Actually keep currentOffset INCLUSIVE so simultaneous
-        // bass/chord notes do fire alongside the treble tap.
-        playMelodies(
-            playList,
-            instList,
-            context,
-            bpm,
-            context.currentTime,
-            null,
-            [currentOffset, nextOffset],
-            instruments,
-            customPercussionMappingRef.current ?? null,
-        );
-    }, [context, instruments, estimateRubatoTps]);
 
     const {
         isInputTestMode, setIsInputTestMode,
