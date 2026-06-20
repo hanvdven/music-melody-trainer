@@ -1,7 +1,7 @@
 import generateAllNotesArray from '../theory/allNotesArray';
 import logger from '../utils/logger';
 import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
-import { getNoteSemitone } from '../theory/noteUtils';
+import { getNoteSemitone, noteToMidi } from '../theory/noteUtils';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
 
 /**
@@ -84,14 +84,18 @@ const convertRankedArrayToMelody = (
     // Pitch-class identity uses getNoteSemitone (0-11) — single source of truth
     // in noteUtils.js handles all enharmonic spellings including double accidentals.
 
+    // Pitch values used ONLY relatively within generation (every comparison
+    // subtracts two values from this same function, so the base cancels) — the
+    // result never escapes to an external C4=60 MIDI or to playback. Hence the
+    // historical C4=48 base (oct*12, i.e. 12 LOWER than canonical) is INTENTIONAL
+    // and preserved verbatim via base:-12 (Han 2026-06-19). Consolidated onto the
+    // canonical noteUtils.noteToMidi parser so accidental handling is shared, but
+    // the −12 base, the -1 unparseable fallback, and the percussion-→0 special
+    // case stay HERE so every number this returns is byte-identical to the old
+    // local single-accidental implementation.
     const getNoteValue = (note) => {
-        if (!note) return -1;
         if (percussionIDs.includes(note)) return 0;
-        if (typeof note !== 'string') return -1;
-        const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
-        if (!match) return -1;
-        const oct = parseInt(match[2], 10);
-        return oct * 12 + getNoteSemitone(match[1]);
+        return noteToMidi(note, { fallback: -1, base: -12 });
     };
 
     const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];

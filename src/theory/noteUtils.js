@@ -183,6 +183,45 @@ export const getNoteSemitone = (note) => {
     return map[pc] ?? 0;
 };
 
+/**
+ * Canonical note-name → MIDI parser (C4 = 60), the single source of truth for
+ * name→number conversion. Pitch-class math is delegated to getNoteSemitone, so
+ * this handles EVERY accidental spelling it does — single (♯/♭/#/b), double
+ * (𝄪/𝄫/##/bb) and stacked — which the old per-site single-accidental regexes
+ * (`[#b♯♭]?`) could not.
+ *
+ * Why one parser (Han 2026-06-19): four divergent name→MIDI parsers had drifted
+ * (rangeUtils C4=60, convertRankedArrayToMelody's local copy C4=48 i.e. off-by-12,
+ * each with its own accidental support and fallback). They are consolidated here
+ * STRICTLY behavior-preservingly: each call site still applies its OWN octave base
+ * (via the `base` offset) and its OWN fallback, so the produced number is unchanged.
+ * The generation site's −12 base is INTENTIONAL and preserved — it is only ever used
+ * for RELATIVE pitch math inside generation (every comparison subtracts two values
+ * from this same parser, so the base cancels) and the base never escapes to an
+ * external C4=60 MIDI or to playback (generation emits note-name strings, not numbers).
+ *
+ * @param {string} note  e.g. 'C4', 'F♯3', 'A♭-1', 'C𝄪4', 'D𝄫5'.
+ * @param {object} [opts]
+ * @param {number} [opts.fallback=null]  returned when the string can't be parsed.
+ * @param {number} [opts.base=0]  added to the result; pass -12 to reproduce the
+ *   generation pipeline's historical C4=48 base, or leave 0 for canonical C4=60.
+ * @returns {number} MIDI-ish number, or the fallback.
+ */
+export const noteToMidi = (note, { fallback = null, base = 0 } = {}) => {
+    if (!note || typeof note !== 'string') return fallback;
+    // Octave digits live at the end (optional leading minus for sub-MIDI octaves
+    // like 'A-1'). The pitch class is everything before them.
+    const octMatch = note.match(/(-?\d+)$/);
+    if (!octMatch) return fallback;
+    const pc = stripOctave(note);
+    // Reject non-note garbage so unparseable input hits the fallback exactly as the
+    // old per-site regexes did. After normalising ASCII accidentals, a valid pitch
+    // class is a letter A–G followed by any run of Unicode accidentals.
+    if (!/^[A-G][♯♭𝄪𝄫]*$/u.test(normalizeNoteChars(pc))) return fallback;
+    const oct = parseInt(octMatch[1], 10);
+    return (oct + 1) * 12 + getNoteSemitone(pc) + base;
+};
+
 // Circle-of-fifths LETTER order — the order accidentals are added to a key signature.
 const SHARP_LETTER_ORDER = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
 const FLAT_LETTER_ORDER  = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
