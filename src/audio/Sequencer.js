@@ -348,6 +348,261 @@ class Sequencer {
           });
         }
 
+        // WHY a helper (Han 2026-06-19): the per-measure scheduling body (notes /
+        // chords / labels / visibility + scroll & wipe overlay bookkeeping) is the
+        // single largest cohesive unit inside start(). Extracting it as scheduleBlock
+        // keeps start() a thin loop skeleton. It is a MECHANICAL move: no timing
+        // arithmetic, no AudioContext scheduling, no setTimeout delays, and no order
+        // of operations changed. The body advances nextStartTime per measure and may
+        // abort mid-block, so scheduleBlock RETURNS the updated nextStartTime + an
+        // aborted flag (a method cannot mutate the caller's local or `break` its loop).
+        // The captured sessionController (§6) is PASSED IN — scheduleBlock never
+        // re-reads this.abortController. All other inputs are loop locals passed by value.
+        const blockResult = await this.scheduleBlock({
+          sessionController,
+          startM,
+          currentNumMeasures,
+          measureLengthTicks,
+          currentTS,
+          isOddRound,
+          iteration,
+          repsPerMelody,
+          wipeRoundBatched,
+          treble,
+          bass,
+          percussion,
+          chordProgression,
+          currentMetronome,
+          nextStartTime,
+        });
+        nextStartTime = blockResult.nextStartTime;
+        if (blockResult.aborted) break;
+
+        if (sessionController.signal.aborted) break;
+
+        // Iteration-wide fermata extension (Han 2026-05-29 round 17). The
+        // inner loop advances nextStartTime by measureDuration per measure (=
+        // natural iteration duration). Fermata events delay subsequent notes
+        // inside the iteration via playMelodies' internal shift logic, but the
+        // OUTER iteration boundary stayed at the natural time — so the next
+        // iteration's m=0 would start while the previous iteration's last
+        // note (extended by the fermata hold) was still ringing into the
+        // future. Sum the song-level fermata holds and push nextStartTime
+        // forward so iteration 2 begins at the actual audio-end of iteration 1.
+        const trebleFermatas = Array.isArray(treble?.fermatas) ? treble.fermatas : [];
+        const totalIterationFermataHold = trebleFermatas.reduce(
+          (acc, f) => acc + (f?.hold > 0 ? f.hold : 0), 0
+        );
+        if (totalIterationFermataHold > 0) {
+          // `timeFactor` from the m===0 block above is out of scope here (it lives
+          // in the per-measure loop body); recompute it from the same bpm ref using
+          // the canonical 5/bpm seconds-per-tick convention used throughout. Without
+          // this the line threw a ReferenceError whenever a fermata song repeated.
+          const iterTimeFactor = 5 / this.refs.bpmRef.current;
+          nextStartTime += totalIterationFermataHold * iterTimeFactor;
+        }
+
+        iteration++;
+
+        if (repsPerMelody !== -1 && iteration >= repsPerMelody) {
+          iteration = 0; // Reset for next cycle (repeat mode) or next melody (normal mode)
+
+          if (this.isRepeatMode) {
+            // Repeat-forever: keep playing the same melody. melodyCount stays 0 so the
+            // outer while never exits due to totalMelodies. No regeneration happens.
+          } else {
+          this.melodyCount++;
+
+          if (this.isOnceMode && this.melodyCount >= 1) {
+            break;
+          }
+
+          if (
+            this.refs.playbackConfigRef.current.totalMelodies === -1 ||
+            this.melodyCount < this.refs.playbackConfigRef.current.totalMelodies
+          ) {
+            // Sync with latest manual changes if available
+            if (this.refs.melodiesRef && this.refs.melodiesRef.current) {
+              const current = this.refs.melodiesRef.current;
+              if (current.treble) treble = current.treble;
+              if (current.bass) bass = current.bass;
+              if (current.percussion) percussion = current.percussion;
+              if (current.chordProgression) chordProgression = current.chordProgression;
+            }
+
+            // USE LATEST state for generation!
+            currentTS = this.refs.timeSignatureRef.current;
+
+            // Pagination mode: AWAIT the scheduler's JIT generation rather than
+            // racing it. The JIT setTimeout fires at boundary - genLead × measure
+            // duration. The outer loop reads pregenResult at boundary - lookahead.
+            // For snel (genLead=0.5m) at 4/4 the two deadlines coincide; for
+            // larger time-sig denominators (3/4, 6/8) or low BPMs the outer loop
+            // can FIRE FIRST, generating a fresh melody that diverges from what
+            // the scheduler's arm callback will read for the overlay preview.
+            // Result: overlay shows melody Y while audio plays melody X — a
+            // visible mismatch that looks like "the overlay still shows the
+            // current melody".
+            //
+            // Wait up to 250ms (50 × 5ms polls). The JIT deadline is well within
+            // this window for all variants; if it hasn't fired, something is
+            // wrong and we fall back to inline generation below.
+            const seqMode = this.refs.animationModeRef?.current ?? 'pagination';
+            if (seqMode === 'pagination' && !this.pregenResult && !this.isOnceMode) {
+              for (let i = 0; i < 50 && !this.pregenResult && this.isPlaying; i++) {
+                if (sessionController.signal.aborted) break;
+                await new Promise(r => setTimeout(r, 5));
+              }
+            }
+
+            // If still null (await timed out, or non-pagination mode), generate
+            // fresh and STORE in pregenResult so the scheduler's arm callback
+            // reads the SAME melody. This matters for the 'snel' variant where
+            // the arm callback fires AFTER the outer code runs (arm at
+            // atTick − 0.7s vs outer at atTick − lookahead = atTick − 1s at
+            // 120 BPM 4/4). With the old code outer cleared pregenResult,
+            // then arm found null and sync-generated a DIFFERENT random
+            // melody — the overlay showed melody Y while the audio applied
+            // melody X. Bug reported by Han 2026-05-25 / 2026-05-26.
+            if (!this.pregenResult) {
+              this.pregenResult = this.randomizeScaleAndGenerate(this.refs.numMeasuresRef.current, currentTS, {
+                treble,
+                bass,
+                percussion,
+              });
+            }
+            const result = this.pregenResult;
+            // Do NOT clear pregenResult here. The applyResult closure clears
+            // it AFTER the React commit (= after arm has had its chance to
+            // read it). Cleared too early → arm sees null → sync-fallback
+            // generates a different melody → preview/applied mismatch.
+
+            currentNumMeasures = result.generatedNumMeasures || this.refs.numMeasuresRef.current;
+            currentTS = [...this.refs.timeSignatureRef.current];
+            currentMetronome = Melody.updateMetronome(
+              currentTS,
+              currentNumMeasures,
+              this.refs.instrumentSettingsRef.current.metronome?.smallestNoteDenom || 4
+            );
+
+            treble = result.treble;
+            bass = result.bass;
+            percussion = result.percussion;
+            chordProgression = result.chordProgression;
+
+            const nextFirstRoundVisible = !!(this.refs.playbackConfigRef.current.oddRounds?.notes);
+            const seriesStartMeasureIndex = this.globalMeasureIndex;
+
+            // wipeTransitionRef is intentionally NOT cleared here: the useLayoutEffect in
+            // App.jsx clears it (and removes the mask) synchronously after React commits the
+            // new melody, preventing a 1-frame flash of the old melody.
+            // Pagination scheduler owns the preview/fade lifecycle for its mode.
+            // For the LANG variant (fade overshoots 0.25m past the boundary) the
+            // applyResult must KEEP the overlay alive — the scheduler's separate
+            // fadeEnd timeout will clear it later. For snel/mid (no overshoot)
+            // applyResult clears the overlay in the same batch as the melody
+            // refs, so the swap is atomic in one React render.
+            const isPaginationOuter = (this.refs.animationModeRef?.current ?? 'pagination') === 'pagination';
+            const outerVariantSpec = isPaginationOuter
+              ? (PAGINATION_VARIANTS[this.refs.paginationVariantRef?.current ?? 'mid'] ?? PAGINATION_VARIANTS.mid)
+              : null;
+            const outerHasOvershoot = !!(outerVariantSpec && outerVariantSpec.fadeOvershootMeasures > 0);
+            const applyResult = () => {
+              this.applyResultToSetters(result, {
+                seriesStartMeasureIndex,
+                skipFadeCleanup: outerHasOvershoot,
+              });
+              // For snel/mid pagination: clear transitionRef in the same task so
+              // the rAF stops writing inline opacity once React commits. The
+              // setNextLayer(null) + setPreviewMelody(null) part is already
+              // handled by applyResultToSetters when skipFadeCleanup is false.
+              if (isPaginationOuter && !outerHasOvershoot && this.refs.transitionRef) {
+                this.refs.transitionRef.current = null;
+              }
+              // Clear pregenResult AFTER the React commit (= after both the
+              // outer-loop's read above AND the scheduler arm's read). The
+              // NEXT block's JIT will generate fresh once its timeout fires
+              // — pregenResult must be null by then so the JIT's
+              // `if (this.pregenResult) return;` guard doesn't skip it.
+              this.pregenResult = null;
+            };
+
+            // Schedule red preview overlay and apply result.
+            // WHY a helper (Han 2026-06-19): the series-boundary overlay-arming +
+            // applyResult scheduling is a cohesive unit that ONLY reads loop locals
+            // and schedules timeouts — it mutates no caller-local (nextStartTime /
+            // globalMeasureIndex are untouched here). Extracting it as a pure
+            // scheduling method keeps start() a thin loop skeleton while leaving the
+            // timing arithmetic and call order byte-for-byte identical. All values it
+            // needs are passed in; it re-reads nothing from the loop via closure.
+            this.scheduleTransitions({
+              result,
+              applyResult,
+              measureLengthTicks,
+              nextStartTime,
+              currentNumMeasures,
+              seriesStartMeasureIndex,
+              nextFirstRoundVisible,
+            });
+          }
+          } // end !isRepeatMode
+        }
+      }
+
+      // Once mode: the last measure used skipSleep so the loop exited immediately after
+      // scheduling. Wait for all scheduled audio to finish before stop() cancels instruments.
+      if (this.isOnceMode && !sessionController.signal.aborted) {
+        while (this.context.currentTime < nextStartTime) {
+          if (sessionController.signal.aborted) break;
+          await new Promise(r => setTimeout(r, 50));
+        }
+      }
+    } finally {
+      // Only stop if this session is still the active one. If a new start() was called
+      // while this loop was sleeping, this.abortController has been replaced — calling
+      // stop() here would cancel the new session's audio and reset its state.
+      if (this.isPlaying && this.abortController === sessionController) {
+        this.stop();
+      }
+    }
+  }
+
+  // ── scheduleBlock: per-measure scheduling for one repeat iteration ────────────
+  // WHY this method exists (Han 2026-06-19): this is the inner `for m` loop body
+  // lifted verbatim out of start(). It schedules notes/chords/labels/visibility per
+  // measure and maintains the scroll & wipe overlay bookkeeping. The move is purely
+  // MECHANICAL — every timing computation, scheduleTimeout delay, playMelodies call,
+  // and the order of operations are unchanged.
+  //
+  // Contract differences vs the inline loop (forced by being a method, not a change
+  // in behaviour):
+  //   • `nextStartTime` is a local that the loop advances by measureDuration each
+  //     measure; a method cannot mutate the caller's local, so it is taken as input
+  //     and the final value is RETURNED.
+  //   • `break` on abort cannot break the caller's outer while; it RETURNS
+  //     { aborted: true } so start() can break exactly where it did before.
+  //   • The captured `sessionController` (§6) is PASSED IN and used directly — this
+  //     method never reads this.abortController, preserving the §6 capture invariant.
+  // `this.globalMeasureIndex`, `this.scheduledMeasures`, `this.scheduledNotes`,
+  // `this.scheduledChords`, `this.playbackState`, `this.pregenResult` are all on
+  // `this` and mutated in place exactly as before.
+  async scheduleBlock({
+    sessionController,
+    startM,
+    currentNumMeasures,
+    measureLengthTicks,
+    currentTS,
+    isOddRound,
+    iteration,
+    repsPerMelody,
+    wipeRoundBatched,
+    treble,
+    bass,
+    percussion,
+    chordProgression,
+    currentMetronome,
+    nextStartTime,
+  }) {
         for (let m = startM; m < currentNumMeasures; m++) {
           const currentBpm = this.refs.bpmRef.current;
           const activeConfig = isOddRound
@@ -765,278 +1020,131 @@ class Sequencer {
               await new Promise((r) => setTimeout(r, 10));
             }
           }
-          if (sessionController.signal.aborted) break;
+          // Abort mid-block: return the advanced nextStartTime + aborted flag so start()
+          // breaks its outer while exactly where the inline `break` used to (§6).
+          if (sessionController.signal.aborted) return { nextStartTime, aborted: true };
 
           nextStartTime += measureDuration;
           this.globalMeasureIndex++;
         }
+        return { nextStartTime, aborted: false };
+  }
 
-        if (sessionController.signal.aborted) break;
+  // ── scheduleTransitions: series-boundary overlay arm + applyResult ────────────
+  // WHY this method exists (Han 2026-06-19): the series-boundary transition arming
+  // used to live inline at the end of start()'s outer loop. It is a pure SCHEDULING
+  // unit — it reads only the values passed in (all formerly loop closures) plus
+  // this.context/this.setters/this.refs/this.scheduledNotes, and writes nothing back
+  // to the caller's locals. The ONLY state it mutates is on `this` (scheduledNotes),
+  // and only inside the scheduled callbacks at fire-time — exactly as before. Moving
+  // it here is a mechanical statement move: every setTimeout delay, the ±200ms /
+  // 0.5m / 0.25m lead arithmetic, the wipe/scroll/pagination branching, and the order
+  // of operations are byte-for-byte identical to the inline version. start() now just
+  // calls this once per series boundary, keeping it a thin loop skeleton.
+  scheduleTransitions({
+    result,
+    applyResult,
+    measureLengthTicks,
+    nextStartTime,
+    currentNumMeasures,
+    seriesStartMeasureIndex,
+    nextFirstRoundVisible,
+  }) {
+    if (!this.isOnceMode) {
+      const previewMode = this.refs.animationModeRef?.current ?? 'pagination';
+      const lastBpm = this.refs.bpmRef.current;
+      const lastMeasureDuration = measureLengthTicks * (5 / lastBpm);
 
-        // Iteration-wide fermata extension (Han 2026-05-29 round 17). The
-        // inner loop advances nextStartTime by measureDuration per measure (=
-        // natural iteration duration). Fermata events delay subsequent notes
-        // inside the iteration via playMelodies' internal shift logic, but the
-        // OUTER iteration boundary stayed at the natural time — so the next
-        // iteration's m=0 would start while the previous iteration's last
-        // note (extended by the fermata hold) was still ringing into the
-        // future. Sum the song-level fermata holds and push nextStartTime
-        // forward so iteration 2 begins at the actual audio-end of iteration 1.
-        const trebleFermatas = Array.isArray(treble?.fermatas) ? treble.fermatas : [];
-        const totalIterationFermataHold = trebleFermatas.reduce(
-          (acc, f) => acc + (f?.hold > 0 ? f.hold : 0), 0
-        );
-        if (totalIterationFermataHold > 0) {
-          // `timeFactor` from the m===0 block above is out of scope here (it lives
-          // in the per-measure loop body); recompute it from the same bpm ref using
-          // the canonical 5/bpm seconds-per-tick convention used throughout. Without
-          // this the line threw a ReferenceError whenever a fermata song repeated.
-          const iterTimeFactor = 5 / this.refs.bpmRef.current;
-          nextStartTime += totalIterationFermataHold * iterTimeFactor;
+      if (previewMode === 'wipe') {
+        // Set preview melody immediately so it is available when the wipe starts.
+        // Include startMeasureIndex so the red overlay renders the correct measure numbers.
+        if (this.setters.setPreviewMelody) this.setters.setPreviewMelody({ ...result, startMeasureIndex: seriesStartMeasureIndex });
+        // Fire wipe animation 0.5m before block end, matching the yellow overlay timing.
+        const wipeStart = nextStartTime - 0.5 * lastMeasureDuration;
+        const wipeEnd   = nextStartTime; // animation ends at block end
+        // Set ref immediately — rAF clamps p=0 until wipeStart arrives, so no visual jump.
+        if (this.refs.wipeTransitionRef) {
+          this.refs.wipeTransitionRef.current = { startTime: wipeStart, endTime: wipeEnd };
         }
+        // Trigger React render ~200ms before wipeStart so new content is in DOM and
+        // hidden (via useLayoutEffect HIDDEN mask) before the sweep begins.
+        const setLayerMs = Math.max(0, (wipeStart - this.context.currentTime) * 1000 - 200);
+        this.scheduleTimeout(() => {
+          if (this.setters.setNextLayer) this.setters.setNextLayer('red');
+        }, setLayerMs);
+      } else if (previewMode === 'pagination') {
+        // Owned by _armPaginationSequence — no preview scheduling here.
+      } else if (previewMode === 'scroll' && currentNumMeasures === 1) {
+        // Single-measure scroll: inner loop pregen (isPenultimateMeasure) never fires,
+        // so handle here. Trigger setNextLayer('red') 0.25m before series boundary so
+        // the red overlay (with pregen melody) is in the DOM before the page-boundary
+        // swap. The continuous-scroll bookkeeping in the inner loop already maintains
+        // scrollTransitionRef — no manual {startTime,endTime} writes needed.
+        const redTriggerTime = nextStartTime - 0.25 * lastMeasureDuration;
+        const redDelay = Math.max(0, (redTriggerTime - this.context.currentTime) * 1000);
+        this.scheduleTimeout(() => {
+          if (this.setters.setNextLayer) this.setters.setNextLayer('red');
+          if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(result);
+        }, redDelay);
+      }
+      // Multi-measure scroll: inner loop already set setNextLayer + scrollTransitionRef
+      // at the correct audio time; nothing to do here.
 
-        iteration++;
-
-        if (repsPerMelody !== -1 && iteration >= repsPerMelody) {
-          iteration = 0; // Reset for next cycle (repeat mode) or next melody (normal mode)
-
-          if (this.isRepeatMode) {
-            // Repeat-forever: keep playing the same melody. melodyCount stays 0 so the
-            // outer while never exits due to totalMelodies. No regeneration happens.
-          } else {
-          this.melodyCount++;
-
-          if (this.isOnceMode && this.melodyCount >= 1) {
-            break;
-          }
-
-          if (
-            this.refs.playbackConfigRef.current.totalMelodies === -1 ||
-            this.melodyCount < this.refs.playbackConfigRef.current.totalMelodies
-          ) {
-            // Sync with latest manual changes if available
-            if (this.refs.melodiesRef && this.refs.melodiesRef.current) {
-              const current = this.refs.melodiesRef.current;
-              if (current.treble) treble = current.treble;
-              if (current.bass) bass = current.bass;
-              if (current.percussion) percussion = current.percussion;
-              if (current.chordProgression) chordProgression = current.chordProgression;
-            }
-
-            // USE LATEST state for generation!
-            currentTS = this.refs.timeSignatureRef.current;
-
-            // Pagination mode: AWAIT the scheduler's JIT generation rather than
-            // racing it. The JIT setTimeout fires at boundary - genLead × measure
-            // duration. The outer loop reads pregenResult at boundary - lookahead.
-            // For snel (genLead=0.5m) at 4/4 the two deadlines coincide; for
-            // larger time-sig denominators (3/4, 6/8) or low BPMs the outer loop
-            // can FIRE FIRST, generating a fresh melody that diverges from what
-            // the scheduler's arm callback will read for the overlay preview.
-            // Result: overlay shows melody Y while audio plays melody X — a
-            // visible mismatch that looks like "the overlay still shows the
-            // current melody".
-            //
-            // Wait up to 250ms (50 × 5ms polls). The JIT deadline is well within
-            // this window for all variants; if it hasn't fired, something is
-            // wrong and we fall back to inline generation below.
-            const seqMode = this.refs.animationModeRef?.current ?? 'pagination';
-            if (seqMode === 'pagination' && !this.pregenResult && !this.isOnceMode) {
-              for (let i = 0; i < 50 && !this.pregenResult && this.isPlaying; i++) {
-                if (sessionController.signal.aborted) break;
-                await new Promise(r => setTimeout(r, 5));
-              }
-            }
-
-            // If still null (await timed out, or non-pagination mode), generate
-            // fresh and STORE in pregenResult so the scheduler's arm callback
-            // reads the SAME melody. This matters for the 'snel' variant where
-            // the arm callback fires AFTER the outer code runs (arm at
-            // atTick − 0.7s vs outer at atTick − lookahead = atTick − 1s at
-            // 120 BPM 4/4). With the old code outer cleared pregenResult,
-            // then arm found null and sync-generated a DIFFERENT random
-            // melody — the overlay showed melody Y while the audio applied
-            // melody X. Bug reported by Han 2026-05-25 / 2026-05-26.
-            if (!this.pregenResult) {
-              this.pregenResult = this.randomizeScaleAndGenerate(this.refs.numMeasuresRef.current, currentTS, {
-                treble,
-                bass,
-                percussion,
-              });
-            }
-            const result = this.pregenResult;
-            // Do NOT clear pregenResult here. The applyResult closure clears
-            // it AFTER the React commit (= after arm has had its chance to
-            // read it). Cleared too early → arm sees null → sync-fallback
-            // generates a different melody → preview/applied mismatch.
-
-            currentNumMeasures = result.generatedNumMeasures || this.refs.numMeasuresRef.current;
-            currentTS = [...this.refs.timeSignatureRef.current];
-            currentMetronome = Melody.updateMetronome(
-              currentTS,
-              currentNumMeasures,
-              this.refs.instrumentSettingsRef.current.metronome?.smallestNoteDenom || 4
-            );
-
-            treble = result.treble;
-            bass = result.bass;
-            percussion = result.percussion;
-            chordProgression = result.chordProgression;
-
-            const nextFirstRoundVisible = !!(this.refs.playbackConfigRef.current.oddRounds?.notes);
-            const seriesStartMeasureIndex = this.globalMeasureIndex;
-
-            // wipeTransitionRef is intentionally NOT cleared here: the useLayoutEffect in
-            // App.jsx clears it (and removes the mask) synchronously after React commits the
-            // new melody, preventing a 1-frame flash of the old melody.
-            // Pagination scheduler owns the preview/fade lifecycle for its mode.
-            // For the LANG variant (fade overshoots 0.25m past the boundary) the
-            // applyResult must KEEP the overlay alive — the scheduler's separate
-            // fadeEnd timeout will clear it later. For snel/mid (no overshoot)
-            // applyResult clears the overlay in the same batch as the melody
-            // refs, so the swap is atomic in one React render.
-            const isPaginationOuter = (this.refs.animationModeRef?.current ?? 'pagination') === 'pagination';
-            const outerVariantSpec = isPaginationOuter
-              ? (PAGINATION_VARIANTS[this.refs.paginationVariantRef?.current ?? 'mid'] ?? PAGINATION_VARIANTS.mid)
-              : null;
-            const outerHasOvershoot = !!(outerVariantSpec && outerVariantSpec.fadeOvershootMeasures > 0);
-            const applyResult = () => {
-              this.applyResultToSetters(result, {
-                seriesStartMeasureIndex,
-                skipFadeCleanup: outerHasOvershoot,
-              });
-              // For snel/mid pagination: clear transitionRef in the same task so
-              // the rAF stops writing inline opacity once React commits. The
-              // setNextLayer(null) + setPreviewMelody(null) part is already
-              // handled by applyResultToSetters when skipFadeCleanup is false.
-              if (isPaginationOuter && !outerHasOvershoot && this.refs.transitionRef) {
-                this.refs.transitionRef.current = null;
-              }
-              // Clear pregenResult AFTER the React commit (= after both the
-              // outer-loop's read above AND the scheduler arm's read). The
-              // NEXT block's JIT will generate fresh once its timeout fires
-              // — pregenResult must be null by then so the JIT's
-              // `if (this.pregenResult) return;` guard doesn't skip it.
-              this.pregenResult = null;
-            };
-
-            // Schedule red preview overlay and apply result.
-            if (!this.isOnceMode) {
-              const previewMode = this.refs.animationModeRef?.current ?? 'pagination';
-              const lastBpm = this.refs.bpmRef.current;
-              const lastMeasureDuration = measureLengthTicks * (5 / lastBpm);
-
-              if (previewMode === 'wipe') {
-                // Set preview melody immediately so it is available when the wipe starts.
-                // Include startMeasureIndex so the red overlay renders the correct measure numbers.
-                if (this.setters.setPreviewMelody) this.setters.setPreviewMelody({ ...result, startMeasureIndex: seriesStartMeasureIndex });
-                // Fire wipe animation 0.5m before block end, matching the yellow overlay timing.
-                const wipeStart = nextStartTime - 0.5 * lastMeasureDuration;
-                const wipeEnd   = nextStartTime; // animation ends at block end
-                // Set ref immediately — rAF clamps p=0 until wipeStart arrives, so no visual jump.
-                if (this.refs.wipeTransitionRef) {
-                  this.refs.wipeTransitionRef.current = { startTime: wipeStart, endTime: wipeEnd };
-                }
-                // Trigger React render ~200ms before wipeStart so new content is in DOM and
-                // hidden (via useLayoutEffect HIDDEN mask) before the sweep begins.
-                const setLayerMs = Math.max(0, (wipeStart - this.context.currentTime) * 1000 - 200);
-                this.scheduleTimeout(() => {
-                  if (this.setters.setNextLayer) this.setters.setNextLayer('red');
-                }, setLayerMs);
-              } else if (previewMode === 'pagination') {
-                // Owned by _armPaginationSequence — no preview scheduling here.
-              } else if (previewMode === 'scroll' && currentNumMeasures === 1) {
-                // Single-measure scroll: inner loop pregen (isPenultimateMeasure) never fires,
-                // so handle here. Trigger setNextLayer('red') 0.25m before series boundary so
-                // the red overlay (with pregen melody) is in the DOM before the page-boundary
-                // swap. The continuous-scroll bookkeeping in the inner loop already maintains
-                // scrollTransitionRef — no manual {startTime,endTime} writes needed.
-                const redTriggerTime = nextStartTime - 0.25 * lastMeasureDuration;
-                const redDelay = Math.max(0, (redTriggerTime - this.context.currentTime) * 1000);
-                this.scheduleTimeout(() => {
-                  if (this.setters.setNextLayer) this.setters.setNextLayer('red');
-                  if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(result);
-                }, redDelay);
-              }
-              // Multi-measure scroll: inner loop already set setNextLayer + scrollTransitionRef
-              // at the correct audio time; nothing to do here.
-
-              // Apply result at series boundary. For scroll mode the swap is audio/visual sync'd
-              // at exactly nextStartTime: the just-pregen'd melody's first note (audio) plays
-              // at T_series, and the red overlay (DOM x=+pageWidth) has visually reached the
-              // 25% playhead at the same moment. The applyResult swap re-renders main with the
-              // new melody (DOM x=0) — startPageFraction-=1 in the same callback offsets the
-              // scroll formula by exactly one page so the new main first note stays at the
-              // playhead. Invisible swap.
-              const newSeriesStart = nextStartTime;
-              const applyTime = nextStartTime;
-              const scheduleTime = Math.max(0, (applyTime - this.context.currentTime) * 1000);
-              this.scheduleTimeout(() => {
-                if (this.setters.clearActiveHighlight) this.setters.clearActiveHighlight();
-                if (this.scheduledNotes) {
-                  this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
-                }
-                applyResult();
-                // Scroll-mode: shift the scroll anchor by exactly one page so that the new
-                // main's first note (now at DOM x=0) lands at the same visual position the
-                // overlay's first note (DOM x=+pageWidth) occupied just before the swap.
-                if (previewMode === 'scroll' && this.refs.scrollTransitionRef?.current) {
-                  this.refs.scrollTransitionRef.current.startPageFraction -= 1;
-                  // The overlay was 'red' (showing previewMelody = the now-applied new melody).
-                  // After the swap, the same melody is in main and previewMelody is stale —
-                  // demote nextLayer to 'yellow' (same-melody copy) and clear previewMelody so
-                  // the next iteration's m=0 yellow setter is idempotent.
-                  if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
-                  if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
-                }
-                if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
-                // Batch setIsOddRound(true) in the same callback as applyResult so it
-                // commits in the same React 18 batch as melody refs + startMeasureIndex.
-                // The inner-loop's separate setIsOddRound(true) fires moments later
-                // (same audio time, but a separate setTimeout = a separate render)
-                // which would otherwise create a 1-frame window where the preview
-                // overlay still uses the OLD round's visibility config — visible as
-                // a brief flicker when notes appear/disappear across round changes.
-                if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
-                // Reset iter-in-series counter so scroll-mode per-panel selection sees
-                // iter 0 of the new series — all right-side panels go back to current
-                // (= the just-applied melody) until the new series's last-rep pregen.
-                if (this.setters.setIterInCurrentSeries) this.setters.setIterInCurrentSeries(0);
-              }, scheduleTime);
-            } else {
-              // Once mode: apply result immediately (no preview needed).
-              const newSeriesStart = nextStartTime;
-              const scheduleTime = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
-              this.scheduleTimeout(() => {
-                if (this.setters.clearActiveHighlight) this.setters.clearActiveHighlight();
-                if (this.scheduledNotes) {
-                  this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
-                }
-                applyResult();
-                if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
-                if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
-              }, scheduleTime);
-            }
-          }
-          } // end !isRepeatMode
+      // Apply result at series boundary. For scroll mode the swap is audio/visual sync'd
+      // at exactly nextStartTime: the just-pregen'd melody's first note (audio) plays
+      // at T_series, and the red overlay (DOM x=+pageWidth) has visually reached the
+      // 25% playhead at the same moment. The applyResult swap re-renders main with the
+      // new melody (DOM x=0) — startPageFraction-=1 in the same callback offsets the
+      // scroll formula by exactly one page so the new main first note stays at the
+      // playhead. Invisible swap.
+      const newSeriesStart = nextStartTime;
+      const applyTime = nextStartTime;
+      const scheduleTime = Math.max(0, (applyTime - this.context.currentTime) * 1000);
+      this.scheduleTimeout(() => {
+        if (this.setters.clearActiveHighlight) this.setters.clearActiveHighlight();
+        if (this.scheduledNotes) {
+          this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
         }
-      }
-
-      // Once mode: the last measure used skipSleep so the loop exited immediately after
-      // scheduling. Wait for all scheduled audio to finish before stop() cancels instruments.
-      if (this.isOnceMode && !sessionController.signal.aborted) {
-        while (this.context.currentTime < nextStartTime) {
-          if (sessionController.signal.aborted) break;
-          await new Promise(r => setTimeout(r, 50));
+        applyResult();
+        // Scroll-mode: shift the scroll anchor by exactly one page so that the new
+        // main's first note (now at DOM x=0) lands at the same visual position the
+        // overlay's first note (DOM x=+pageWidth) occupied just before the swap.
+        if (previewMode === 'scroll' && this.refs.scrollTransitionRef?.current) {
+          this.refs.scrollTransitionRef.current.startPageFraction -= 1;
+          // The overlay was 'red' (showing previewMelody = the now-applied new melody).
+          // After the swap, the same melody is in main and previewMelody is stale —
+          // demote nextLayer to 'yellow' (same-melody copy) and clear previewMelody so
+          // the next iteration's m=0 yellow setter is idempotent.
+          if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
+          if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
         }
-      }
-    } finally {
-      // Only stop if this session is still the active one. If a new start() was called
-      // while this loop was sleeping, this.abortController has been replaced — calling
-      // stop() here would cancel the new session's audio and reset its state.
-      if (this.isPlaying && this.abortController === sessionController) {
-        this.stop();
-      }
+        if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
+        // Batch setIsOddRound(true) in the same callback as applyResult so it
+        // commits in the same React 18 batch as melody refs + startMeasureIndex.
+        // The inner-loop's separate setIsOddRound(true) fires moments later
+        // (same audio time, but a separate setTimeout = a separate render)
+        // which would otherwise create a 1-frame window where the preview
+        // overlay still uses the OLD round's visibility config — visible as
+        // a brief flicker when notes appear/disappear across round changes.
+        if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
+        // Reset iter-in-series counter so scroll-mode per-panel selection sees
+        // iter 0 of the new series — all right-side panels go back to current
+        // (= the just-applied melody) until the new series's last-rep pregen.
+        if (this.setters.setIterInCurrentSeries) this.setters.setIterInCurrentSeries(0);
+      }, scheduleTime);
+    } else {
+      // Once mode: apply result immediately (no preview needed).
+      const newSeriesStart = nextStartTime;
+      const scheduleTime = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
+      this.scheduleTimeout(() => {
+        if (this.setters.clearActiveHighlight) this.setters.clearActiveHighlight();
+        if (this.scheduledNotes) {
+          this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
+        }
+        applyResult();
+        if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
+        if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
+      }, scheduleTime);
     }
   }
 

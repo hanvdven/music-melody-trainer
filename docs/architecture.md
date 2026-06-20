@@ -311,6 +311,44 @@ The `Song.appendMeasures()` method is idempotent for duplicate indices: if a `me
 - `scheduledMeasures` entries use `globalMeasureIndex` and `audioTime` for rAF-driven `setCurrentMeasureIndex`.
 - Layer B note elements carry `data-layer="b"` and are EXCLUDED from highlight queries.
 
+### Sequencer method decomposition (Han 2026-06-19)
+
+**Purpose:** `Sequencer.start()` was a single ~990-line method (session setup, the
+outer repeat-iteration loop, per-measure note/chord/label scheduling, overlay
+transitions, and series-boundary regen all inline). It is now a thin loop skeleton
+that delegates the two largest cohesive units to private helper methods. This is a
+**mechanical decomposition only** — no timing arithmetic, AudioContext scheduling,
+`setTimeout` delays, batching, or order of operations changed.
+
+**How it works:**
+- `start()` keeps: session/anacrusis setup, the outer `while` over repeat iterations,
+  the `_armPaginationSequence` arm at `iteration === 0`, the iteration-wide fermata
+  extension, and the series-boundary regen (which mutates the running
+  `treble/bass/percussion/chordProgression/currentTS/currentNumMeasures` locals).
+- `async scheduleBlock({...})` is the inner `for m` loop body: it schedules the
+  per-measure visibility/notes/chords/labels and the scroll & wipe overlay
+  bookkeeping. It advances `nextStartTime` per measure and **returns**
+  `{ nextStartTime, aborted }` (a method cannot mutate the caller's local nor `break`
+  its loop). On abort it returns `{ aborted: true }`; `start()` then breaks exactly
+  where the inline `break` used to fire.
+- `scheduleTransitions({...})` arms the series-boundary red/yellow preview overlay and
+  schedules the `applyResult` swap. It is pure scheduling — it mutates no caller-local
+  (it only reads the passed-in values and writes `this.scheduledNotes` inside the
+  fire-time callbacks, as before).
+
+**Invariants that must hold:**
+- The captured `sessionController` (§6: "capture at the loop top") is **passed into**
+  `scheduleBlock`; neither helper re-reads `this.abortController`. The `finally` in
+  `start()` still compares `this.abortController === sessionController`.
+- React-18 batched callbacks (the `m === 0` wipe batch, the scroll yellow/red bundle,
+  and the `applyResult` batch) each remain a single `scheduleTimeout` callback.
+- `scheduleBlock` is `async` (it `await`s the per-measure sleep); `start()` must
+  `await` it so the outer loop only advances after the block's measures are scheduled.
+
+**Files:** `src/audio/Sequencer.js`. Guarded by
+`src/audio/__tests__/armPaginationSequence.characterization.test.js` and
+`src/audio/__tests__/sessionAbort.characterization.test.js`.
+
 ---
 
 ## 8. Component Responsibilities
@@ -833,7 +871,7 @@ the header and the sheet:
 
 | File | Purpose |
 |---|---|
-| `Sequencer.js` | The playback engine. Runs an async loop over melody measures; schedules notes via `playMelodies`; fires timing callbacks (`setters`) to synchronize UI state with the AudioContext clock; owns `scheduledNotes` and `scheduledMeasures` for rAF-driven highlighting. |
+| `Sequencer.js` | The playback engine. Runs an async loop over melody measures; schedules notes via `playMelodies`; fires timing callbacks (`setters`) to synchronize UI state with the AudioContext clock; owns `scheduledNotes` and `scheduledMeasures` for rAF-driven highlighting. `start()` is the thin loop skeleton (session setup → outer repeat-iteration `while` → series regen); it delegates the per-measure scheduling to `scheduleBlock()` and the series-boundary overlay arming to `scheduleTransitions()` (see "Sequencer method decomposition" below). |
 | `playMelodies.js` | Schedules all notes of a single `MeasureSlice` window into the Web Audio graph at a given audio start time. Accepts named smplr instrument handles and a custom percussion mapping. |
 | `playSound.js` | Plays a single note on a given instrument. Handles Soundfont vs. DrumMachine dispatch, resolves percussion note names via `resolveNotePitch`. |
 | `drumKits.js` | Single source of truth for all drum kit definitions: `ALL_SAMPLES`, `CATEGORIES`, `PADS`, `DRUM_KITS`, `DEFAULT_NOTE_MAPPING`, `KIT_NOTE_MAPPINGS`. |
