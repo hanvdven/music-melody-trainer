@@ -1,4 +1,4 @@
-import { ALL_NOTES, getNoteSemitone } from '../theory/noteUtils';
+import { ALL_NOTES, noteToMidi } from '../theory/noteUtils';
 
 // Shared range helpers — extracted from RangeControls so the new in-SVG range
 // overlay and the legacy stepper control use ONE source of truth for
@@ -6,13 +6,12 @@ import { ALL_NOTES, getNoteSemitone } from '../theory/noteUtils';
 
 // Note name (e.g. 'C4', 'F♯3') → MIDI number. Falls back to 60 (C4) when the
 // string can't be parsed, matching the previous local implementation.
-export const getNoteValue = (note) => {
-    if (!note) return 60;
-    const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
-    if (!match) return 60;
-    const oct = parseInt(match[2], 10);
-    return (oct + 1) * 12 + getNoteSemitone(match[1]);
-};
+//
+// Now a thin wrapper over the canonical noteToMidi parser (Han 2026-06-19): the
+// old inline single-accidental regex was one of four divergent name→MIDI parsers;
+// they were consolidated to noteUtils.noteToMidi. base=0 keeps C4=60; fallback=60
+// preserves this site's exact "unparseable → C4" behaviour byte-for-byte.
+export const getNoteValue = (note) => noteToMidi(note, { fallback: 60 });
 
 // MIDI number → note name using ALL_NOTES (chromatic, sharp spelling).
 export const getNoteFromValue = (val) => {
