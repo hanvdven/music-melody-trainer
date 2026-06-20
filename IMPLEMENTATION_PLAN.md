@@ -7,6 +7,26 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-19 — Architecture audit + refactor Phases 0 & 1 (Han: "doe fase 0 en 1")
+Audit report: `docs/ARCHITECTURE_AUDIT.md`. All work behavior-preserving (§4b pure-refactor
+exception); 386 tests green, build + lint (0 errors) clean.
+- ✅ **Phase 0** — doc-drift fixes (`pregenResult`, `E010-PLAY-MELODY`, `calculateAllOffsets`);
+  lint made a required gate (§7b); dead code removed (`appConfig.js`, `PlaybackStateContext`,
+  ~truly-dead exports; audit-flagged internal helpers only de-exported, not deleted); SSOT helpers
+  `stripOctave` + `chromatoneMix` (noteUtils, byte-identical); `Song` test + 2 invariant grep-guards.
+- ✅ **Phase 1** — tempo helpers `secondsPerTick/ticksPerSecond/secondsPerBeat` (timing.js) replacing
+  scattered `5/bpm`; note-colour consolidated to canonical `melodicNoteColor`/`chordNoteColor`
+  (tonic_scale_keys + percussion branches left per byte-identical analysis); `clefResolution.js`,
+  `useEditMode.js`, `LyricsLayer.jsx`+`FermataLayer.jsx`, `useRubato.js`, `resolveLoadedSong.js`
+  extracted from the god-files; generation-pipeline golden test (§6b guard).
+- ⏳ **Deferred** (flagged, NOT done): name→MIDI parser unification (off-by-12 in
+  convertRankedArrayToMelody, generation §6b — needs its own careful pass); **Phase 2** high-risk
+  splits (`Sequencer.start()`, `randomizeScaleAndGenerate()`, `computeBeamGroups` from
+  renderMelodyNotes) — do only behind a Sequencer/generation test harness.
+- ⚠ Refactors are behavior-identical by construction, but a quick LIVE sanity pass is still wise
+  (lyrics rows, rubato accompaniment, song-load, edit-mode toggles, note colours).
+
+
 ## 2026-06-18 — Carousel/range/transition feedback batch (Han)
 - ✅ Carousels FULLY FLAT (both): NonLinearCarousel scaleForDist→1 (no shrink) + linear x; edge
   opacity fade is the only "more" cue. Colour-carousel label lowered (LABEL_DY=78). (`be34da4`)
