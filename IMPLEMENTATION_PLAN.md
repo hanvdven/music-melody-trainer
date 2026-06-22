@@ -23,9 +23,13 @@ now + flag for Han to drop icons8-{accordion,contrabass,harmonica,stage,synthesi
   (distortion_guitar), contrabass, harmonica, xylophone, synth square/lead/pad. Re-icons: steel=guitar
   (nylon), acoustic bass=guitar, electric/distorted=rock-music, vibraphone=xylophone, voice oohs=choir.
   Placeholders for the 5 missing assets, flagged.
-- 🔨 (D) Percussion KIT carousel (instrument setter, percussion balk): categorized — Sampled (FreePats) /
-  Drum machines (TR-808, Casio RZ-1, LM-2, MFB-512, Roland CR-8000) / Acoustic MIDI (GM standard).
-  Writes percussionSettings.instrument; exposes GM-acoustic (standard) which was dormant.
+- 🔨 (D) Percussion KIT carousel (instrument setter, percussion balk): categorized —
+  · "Sampled" → [FreePats Percussion], icon8 basename drum-set
+  · "Drum machines" → [TR-808, Casio RZ-1, LM-2, MFB-512, Roland CR-8000], icon8 basename drums
+  · "Acoustic MIDI" → [standard, jazz, electronic] (GM Soundfont; ADD jazz per Han), icon8 basename synthesizer
+  Writes percussionSettings.instrument; exposes the dormant GM-acoustic kits. Icon assets drum-set/
+  drums/synthesizer don't exist yet → placeholder + TODO(icons8) until Han drops icons8-{drum-set,
+  drums,synthesizer}-100.png (Han 2026-06-22: "Drum Set=samples, Drums=tr808/machines, Synthesizer=midis").
 - 🔨 (E) Instrument-carousel icons +15%.
 - ⚠ §6d note: setter category-brackets reuse the NonLinearCarousel primitive; bracket-DRAW may briefly
   duplicate InstrumentStaffOverlay.bracketGeom — flag for later consolidation into a shared helper.
