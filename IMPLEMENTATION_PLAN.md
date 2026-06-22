@@ -10,14 +10,17 @@ Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 ## 2026-06-19 — Transposition setter + flash + staff-spacing batch (Han)
 Interview answers: flash at setter OPEN/CLOSE + BETWEEN setters; transpose layout = abstract 20u
 grid (C4 centred, C↔B♭ & F↔E♭ aligned); keyboard colour follows transposed note.
-- 🔨 STILL seeing a "flash" at setter open/close + between setters — fix in progress (SheetMusic
-  gate + useRangeMorph, pre-paint §6).
+- ✅ Flash at setter open/close + between setters FIXED: morph armed DURING render (prevKindRef +
+  activeMorphRef) instead of a stale useLayoutEffect setState, so the gate is correct on the same
+  render + tween initial styles land pre-paint (§6). +open/close/rapid tests. (`3b5ac50`)
 - ✅ Transposition: keyboard chromatone colour follows transposition (getKeyStyle uses tn(note)). (`42a5129`)
 - ✅ Transposition setter layout: abstract 20u grid, C4 at midY, C↔B♭/F↔E♭ aligned, carousels
   toward '=' (+25/−10), presets between, LABEL_SIZE 18→22 — consts at top for live tuning. (`c9e3004`)
 - ✅ Transposition setter keyboard: C-key glow (canonical box-shadow) + "tap a key to…" text removed
   (glow on literal C, not transpose-target C — flagged). (`42a5129`)
-- 🔨 Staff vertical MIN gap +10u (minGap 29.5→39.5) — in progress with the flash fix.
+- ✅ Staff vertical MIN gap +10u (minGap 29.5→39.5); baseGap=70 unchanged so tall screens (≥400px)
+  are unaffected — only squeezed layouts widen. ⚠ if Han wants the gap bigger on big screens too,
+  bump baseGap. (`3b5ac50`)
 
 ## 2026-06-19 — Setter-carousel + range-setter feedback batch (Han) — interview done, SHIPPED
 Interview answers: fly-in = each CAROUSEL ELEMENT one-by-one (both carousels, shared module);
