@@ -7,6 +7,68 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-22 (cont.) — Han batch: corrections, new FR, instrument feedback, parked items, research
+- ⚠ Generator setters: "balk" includes CHORDS (see corrected entry below).
+- ⏳ NEW FR "REPEAT AFTER ME" (call-and-response practice): chop a long song into chunks for repeat
+  blocks — e.g. HBD by ear: play 2 bars (teacher), player plays them back, advance to next 2 bars.
+  Captured in BACKLOG; NOT built yet (focus = the 3 setters). Touches Sequencer repeat/segmentation +
+  a new practice mode; needs §4b interview (chunk size fixed/selectable? listen-detection vs timed?).
+- ⏳ INSTRUMENT CAROUSEL feedback (rename/re-icon + new categories/instruments) — captured in BACKLOG
+  under the instrument selector; edits src/constants/instruments.jsx. NOT built this round.
+- 🐞 BUG (Han 2026-06-22): after changing the instrument MANY times, no sound. Likely smplr instrument
+  re-creation leak / AudioContext or instrument-cache issue in useInstruments.js. Captured; serious;
+  next-after-setters candidate.
+- 🅿️ PARKED at Han's request ("vink af" 2026-06-22) — removed from the active open-items list, NOT
+  implemented: (a) transposition non-linear 'tangens' curve (blocked on Han's drawing); (b) two-octave
+  range C2→C6 with octave clefs; (c) carousel preset-click tween-to-value; (d) range-setter polish
+  (lyrics/label space, 8va/8vb extent, percussion notePool→randomizationRule move).
+
+### Research answers (Han's two questions, 2026-06-22)
+- Q: "Where is the phase that generates a NEW melody from SONG-STRUCTURE / parameters?" → DOES NOT
+  EXIST in code; it's the DEFERRED backlog item "1B" (generate missing staves on load from chords/
+  melody) + "apply 3 (generation settings) upon loading". Song-load path (handleLoadSong →
+  resolveLoadedSong.js → loadSong.js) only PARSES fixed JSON staves + transposes; the generator
+  (src/generation/) runs only in random/continuous mode, NOT constrained by a loaded song's chords/
+  form/difficulty. Infrastructure exists (parsed defs + generator pipeline); the "constrain generator
+  to song structure" WIRING does not. Would live in handleLoadSong/resolveLoadedSong post-parse +
+  a constraint interface into melodyGenerator/generateBackbeat/chordGenerator. Status: ⏳ DEFERRED.
+- Q: "Where are the open tech-debt / refactor blocks?" → Per THIS plan log, Architecture-audit
+  Phases 0, 1, 2 are ✅ DONE (2026-06-19 entry); docs/ARCHITECTURE_AUDIT.md is the ORIGINAL roadmap,
+  not current state. Genuinely-OPEN tech-debt residue:
+  · ⏳ Phase-2-adjacent (left entangled): series-boundary regen + JIT inside Sequencer.start();
+    deeper randomizeScaleAndGenerate orchestration (display-note map still duplicated ~3×).
+  · 🐞 Tuplet slot/length mismatch ([3:2]q w → phantom rest) — needs "refactor to events" or targeted fix.
+  · ⏳ Percussion STYLE on notePool → move to randomizationRule (partial: coarse chooser sets enabledPads).
+  · ⏳ Anacrusis Phase 2 STEP 2 (notation/numbering sync) + Phase 3 partial (first-pass pickup/fermata rebase).
+  · 🐞 Indefinite-repeat encoding split (Infinity vs -1) — normalization pending.
+  · 🐞 Metronome stale on song load (wrong meter, ignores fermata) — root of HBD "extra count".
+  · ⏳ Range R1–R4 (per-note cascade, keyboard-trigger, bound-flash 🐞, yellow→white boundaries).
+  · ⏳ Legacy 'settings' overlay redundant once PLAYBACK setter lands — deprecate later.
+  · ⏳ icons8 image assets blocked (in PR #31, not on this branch).
+  · ⏳ Test gaps: Sequencer.js (0 direct tests beyond the Phase-2 harness), useSheetMusicHighlight pure helpers.
+
+## 2026-06-22 — In-sheet GENERATOR setters: PLAYBACK / GENERATION / GENERATION ADVANCED (Han)
+Interview done: "balk" = per STAFF (treble/bass/perc), NOT per measure (no per-measure model exists —
+confirmed); THREE separate setters/overlay-kinds; FULLY WIRED to InstrumentSettings now; field
+mappings taken verbatim from the bottom-view (InstrumentRow).
+- 🔨 PLAYBACK setter = REUSE SettingsOverlay (numMeasures, numRepeats, per odd/even-round
+  visibility+volume per staff) under a new overlay-kind via a groupClassName prop — NOT a code copy
+  (§6c). Legacy 'settings' overlay kept for now (now redundant; deprecate later — flag to Han).
+- 🔨 GENERATION setter (per staff): melody notes=notePool, melody type=randomizationRule/play-style,
+  notes per measure=notesPerMeasure.
+- 🔨 GENERATION ADVANCED setter (per staff): variability=rhythmVariability, span=maxLeap,
+  tuplets=polyMultiplier, smallest note=smallestNoteDenom.
+- ⚠ CORRECTION (Han 2026-06-22): "balk" INCLUDES the CHORDS row → chords are a 4th balk in the
+  generator setters. PLAYBACK already covers chords (SettingsOverlay renders a chords row).
+  GENERATION chords-row = complexity / strategy / chordCount; GENERATION ADVANCED chords-row =
+  passingChordTypes (other advanced melodic columns N/A for chords). Wired via chordSettings/
+  setChordSettings. Mapping flagged for Han to confirm.
+- Plumbing: 3 new overlayKinds (useRangeMorph.groupsForKind + SheetMusic overlayKind ternary +
+  mountedFor + render blocks); 3 edit-modes + mutual-exclusion toggles in useEditMode; App threading;
+  3 SubHeader buttons (lucide + active-glow). Reuse SvgSetter + Maestro glyphs (§6d); RuleSelector/
+  PlayStyleSelector can't render in-SVG (return null) so steppers rebuilt with SvgSetter. Wired via
+  useInstrumentSettings. Debug hitboxes §3a; Unicode accidentals §5b.
+
 ## 2026-06-19 — Transposition setter + flash + staff-spacing batch (Han)
 Interview answers: flash at setter OPEN/CLOSE + BETWEEN setters; transpose layout = abstract 20u
 grid (C4 centred, C↔B♭ & F↔E♭ aligned); keyboard colour follows transposed note.

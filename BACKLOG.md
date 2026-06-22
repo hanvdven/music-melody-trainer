@@ -21,6 +21,85 @@
 
 Deel deze features in bij de juiste categorie.
 
+### Generator setter in de bladmuziek — playback / generation / generation advanced (Han 2026-06-22)
+
+ik wil nu een generator setter in de bladmuziek gaan implementeren, in twee delen: "playback": nummeasures, numrepeats, odd repeats, even repeats (visibility, audibility/volume etc.) Als basis, maak een kopie van die elementen in de tijdelijke 'settings' setter:
+generation setter: zet voor elke balk settings neer voor generation. voeg placeholder setters toe voor: melody notes, melody type, notes per measure, Advanced generator settings: variability, span, tuplets, smallest note. controleer de generator settings zoals ze in de bottom view staan, en neem de setters/ waarden over. doe een voorstel dat past bij de filosofie van in-line bladmuziek setters, en die qua stijl past bij de andere settings menu's.
+
+[Claude 2026-06-22]: Interview afgerond (§4b). Antwoorden: "balk" = per NOTENBALK (treble/bass/perc),
+niet per maat (er bestaat géén per-maat generatiemodel); DRIE aparte setters (playback, generation,
+generation advanced); METEEN volledig gekoppeld aan InstrumentSettings; bottom-view veld-mappings
+overgenomen (melody notes=notePool, melody type=randomizationRule/play-style, notes per measure=
+notesPerMeasure, variability=rhythmVariability, span=maxLeap, tuplets=polyMultiplier, smallest note=
+smallestNoteDenom). Playback-setter hergebruikt SettingsOverlay (geen code-kopie, §6c); de tijdelijke
+'settings'-overlay blijft voorlopig staan en kan later gedeprecate worden.
+
+[Han 2026-06-22]: een opmerking: balk omvat ook de akkoorden!
+
+[Claude 2026-06-22]: Genoteerd — de generator-setters krijgen dus ook een AKKOORDEN-balk (4e balk).
+PLAYBACK dekt akkoorden al (SettingsOverlay heeft een chords-rij). GENERATION akkoorden-rij =
+complexity / strategy / chordCount; GENERATION ADVANCED akkoorden-rij = passingChordTypes (de overige
+advanced-melodiekolommen zijn N.v.t. voor akkoorden). Gekoppeld via chordSettings/setChordSettings.
+Mapping ter bevestiging aan Han voorgelegd.
+
+### Repeat after me — lang nummer in stukken kappen voor herhalingsblokken (Han 2026-06-22)
+
+repeat after me: lang nummer in stukken kappen voor herhaligsblokken (bijvoorbeeld HBD op gehoor: speel 2 maten voor, speler speelt na, ga naar volgende 2 maten)
+
+[Claude 2026-06-22]: Genoteerd als NIEUWE FR (call-and-response / "speel-mij-na" oefenmodus). Nog NIET
+gebouwd (focus = de 3 generator-setters). ⚠ §4b-interview nodig vóór implementatie: chunk-grootte vast
+(bv. 2 maten) of instelbaar? "speler speelt na" = getimede pauze of luister-detectie (pitch/MIDI)
+voordat doorgegaan wordt? hoort dit bij de bestaande repeat-blokken of een aparte praktijkmodus? Raakt
+Sequencer repeat/segmentatie.
+
+### Instrument-carousel — rename / re-icon + nieuwe categorieën & instrumenten (Han 2026-06-22)
+
+feedback on instrument carousel:
+rename / re-icon as per below
+catergories: instruments
+keys: grand piano, e-piano, organ OK, add accordion
+guitars: nylon , steel (use the same icon as nylon), electric OK, is there a distorted/drive electric? if so, add it, use the same icon as electric
+bass guitars: acoustic bass(use the same icon as nylon), electric (use 'rock music' as icon), synth, keep.
+strings: violin OK, cello OK, ensemble: use Stage icon, add contra bass
+wind: ok! I am missing harmonica
+percussion tuned: use xylophone icon for vibraphone. Add the xylophone.
+voice: oohs and aahs should both use the choir icon
+I am missing a synth category. It should contain: square, lead, pad
+
+[Claude 2026-06-22]: Genoteerd; NOG NIET gebouwd (capture-only, focus = generator-setters). Raakt
+`src/constants/instruments.jsx` (grouped lijst + getInstrumentIcon). Checklist bij oppakken:
+- keys: + accordion.
+- guitars: steel = nylon-icoon; check of er een distorted/drive electric is in de smplr-set → zo ja
+  toevoegen met electric-icoon.
+- bass guitars: acoustic bass = nylon-icoon; electric = 'rock music'-icoon; synth behouden.
+- strings: ensemble = Stage-icoon; + contrabas.
+- wind: + harmonica.
+- percussion tuned: vibraphone = xylophone-icoon; + xylophone toevoegen.
+- voice: oohs én aahs = choir-icoon.
+- NIEUWE categorie 'synth': square, lead, pad.
+⚠ Alle smplr-slugs moeten bestaan in de beschikbare instrument-set (§6c — niet hardcoden wat niet
+laadbaar is); per nieuw instrument de slug verifiëren vóór toevoegen.
+
+### 🐞 Bug — geen geluid na vaak van instrument wisselen (Han 2026-06-22)
+
+bug: after changing the instrument many times, no sound is heard.
+
+[Claude 2026-06-22]: Genoteerd als serieuze 🐞. Vermoedelijke oorzaak: smplr-instrumenten worden bij
+elke wissel opnieuw aangemaakt zonder de oude vrij te geven (leak / dode AudioContext-nodes), of de
+instrument-cache in `useInstruments.js` raakt in een staat zonder geladen instrument. Te onderzoeken na
+de generator-setters (kandidaat voor de eerstvolgende bugronde). E011-INSTRUMENT-CREATE is het relevante
+foutpad.
+
+### 🅿️ Geparkeerd op verzoek Han ("vink af" 2026-06-22)
+
+[Claude 2026-06-22]: Han heeft deze items van de actieve open-lijst gehaald ("vink af"). NIET
+geïmplementeerd — geparkeerd/gedeprioriteerd tot Han ze opnieuw aankaart:
+- Transpositie niet-lineaire 'tangens'-curve (geblokkeerd op Han's tekening).
+- Two-octave range (C2→C6) met octaaf-clefs (8va/15ma…).
+- Carousel: klik op preset tweent naar waarde (nu instant).
+- Range-setter polish: lyrics/label-ruimte; 8va/8vb-extent; percussie-stijl notePool→randomizationRule.
+(Indien Han met "vink af" bedoelde dat deze AF zijn i.p.v. geparkeerd: corrigeer — ze zijn niet gebouwd.)
+
 ### ✅ Range setter — beta/drag default tuning (Han 2026-06-16)
 
 range setter: set beta mid bow to 0.6 by default, drag px to 10.
