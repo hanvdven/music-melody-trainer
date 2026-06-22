@@ -7,6 +7,16 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-19 — Setter-carousel + range-setter feedback batch (Han) — INTERVIEW FIRST (§4b)
+- ⏳ Colour carousel: make inter-note spacing "iets" smaller.
+- ⏳ Instrument carousel: widen visible count 5 → 7.
+- ⏳ Instrument carousel transition: restore the "notes fly in one-by-one from the right" cascade
+  (regressed, probably by the "fully flat" carousel change).
+- ⏳ Range setter alt/ext: move the 3 chord columns closer together.
+- ⏳ Range setter chords: add a name UNDER each — root / power / triad / seventh / "altered/extended".
+- ⏳ Range setter middle-note shrink: only shrink hard when many notes in the middle. Han's proposed
+  curve: |interval|=8 → 90%, |interval|≥12 → 50%, interpolate between (clarify what "interval" is).
+
 ## 2026-06-19 — Architecture audit + refactor Phases 0 & 1 (Han: "doe fase 0 en 1")
 Audit report: `docs/ARCHITECTURE_AUDIT.md`. All work behavior-preserving (§4b pure-refactor
 exception); 386 tests green, build + lint (0 errors) clean.
