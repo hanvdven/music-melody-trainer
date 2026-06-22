@@ -4,8 +4,9 @@ import { render } from '@testing-library/react';
 import GenerationAdvancedSetterOverlay from '../GenerationAdvancedSetterOverlay';
 import { InstrumentSettingsProvider } from '../../../../contexts/InstrumentSettingsContext';
 
-// Smoke test (Han 2026-06-22): the GENERATION ADVANCED setter renders for a staff set INCLUDING the
-// chords balk (which shows the passing-chord cycler) without throwing.
+// Smoke test (Han 2026-06-22): the GENERATION ADVANCED setter (now CAROUSEL STYLE) renders for a
+// staff set INCLUDING the chords balk (which shows the passing-chord toggle carousel) without
+// throwing, and shows readable duration words for the smallest-note field.
 const ctx = {
   trebleSettings: { rhythmVariability: 30, maxLeap: 12, polyMultiplier: 1, smallestNoteDenom: 4 },
   setTrebleSettings: () => {},
@@ -31,7 +32,7 @@ const renderOverlay = (props = {}) => render(
   </InstrumentSettingsProvider>,
 );
 
-describe('GenerationAdvancedSetterOverlay', () => {
+describe('GenerationAdvancedSetterOverlay (carousel style)', () => {
   it('renders all four balks without crashing and shows the four advanced column headers', () => {
     const { container } = renderOverlay();
     expect(container.querySelector('.generation-advanced-overlay')).not.toBeNull();
@@ -42,10 +43,24 @@ describe('GenerationAdvancedSetterOverlay', () => {
     expect(headers).toContain('smallest note');
   });
 
-  it('shows the passing-chords sub-header for the chords balk', () => {
+  it('shows the passing-chords field bracket for the chords balk', () => {
+    const { container } = renderOverlay();
+    // Field-name brackets uppercase their label; the dashed bracket text reads "PASSING CHORDS".
+    const texts = [...container.querySelectorAll('text')].map(t => t.textContent);
+    expect(texts).toContain('PASSING CHORDS');
+  });
+
+  it('renders the smallest-note field with READABLE duration words (not Maestro glyphs)', () => {
     const { container } = renderOverlay();
     const texts = [...container.querySelectorAll('text')].map(t => t.textContent);
-    expect(texts).toContain('passing chords');
+    // The whole point of the rebuild — quarter/eighth/sixteenth are spelled out.
+    expect(texts).toContain('quarter');
+    expect(texts).toContain('sixteenth');
+  });
+
+  it('renders carousel item icons (lucide inline svg)', () => {
+    const { container } = renderOverlay();
+    expect(container.querySelectorAll('svg.lucide').length).toBeGreaterThan(0);
   });
 
   it('renders debug hit boxes when debugMode is on (§3a)', () => {

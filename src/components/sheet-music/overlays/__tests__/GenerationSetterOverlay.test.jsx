@@ -4,8 +4,9 @@ import { render } from '@testing-library/react';
 import GenerationSetterOverlay from '../GenerationSetterOverlay';
 import { InstrumentSettingsProvider } from '../../../../contexts/InstrumentSettingsContext';
 
-// Smoke test (Han 2026-06-22): the GENERATION setter renders for a staff set INCLUDING the chords
-// balk without throwing, draws its group + per-balk steppers, and shows its debug hit boxes.
+// Smoke test (Han 2026-06-22): the GENERATION setter (now CAROUSEL STYLE) renders for a staff set
+// INCLUDING the chords balk without throwing, draws its column headers + per-balk field carousels,
+// and shows its debug hit boxes (§3a — the NonLinearCarousel hit window).
 const ctx = {
   trebleSettings: { notePool: 'scale', randomizationRule: 'uniform', notesPerMeasure: 4 },
   setTrebleSettings: () => {},
@@ -31,22 +32,32 @@ const renderOverlay = (props = {}) => render(
   </InstrumentSettingsProvider>,
 );
 
-describe('GenerationSetterOverlay', () => {
+describe('GenerationSetterOverlay (carousel style)', () => {
   it('renders all four balks (chords + treble + bass + percussion) without crashing', () => {
     const { container } = renderOverlay();
     expect(container.querySelector('.generation-overlay')).not.toBeNull();
-    // Three column headers.
+    // Three italic column headers.
     const headers = [...container.querySelectorAll('text')].map(t => t.textContent);
     expect(headers).toContain('melody notes');
     expect(headers).toContain('melody type');
     expect(headers).toContain('notes / measure');
   });
 
-  it('omits the chords balk when showChordsRow is false', () => {
-    const { container } = renderOverlay({ showChordsRow: false });
-    // Chord complexity label ("Triad") should not appear when the chords balk is hidden.
+  it('renders carousel item icons (lucide inline svg) and labels', () => {
+    const { container } = renderOverlay();
+    // Each carousel item draws a lucide <svg> (class "lucide") inside the sheet svg.
+    expect(container.querySelectorAll('svg.lucide').length).toBeGreaterThan(0);
+    // Note-pool labels show as carousel item text.
     const texts = [...container.querySelectorAll('text')].map(t => t.textContent);
-    expect(texts).not.toContain('Triad');
+    expect(texts).toContain('Scale');
+  });
+
+  it('draws category/field brackets (blokhaken) above the carousels', () => {
+    const { container } = renderOverlay();
+    // Dashed brackets are <path stroke-dasharray="4,3">.
+    const dashed = [...container.querySelectorAll('path')].filter(
+      p => p.getAttribute('stroke-dasharray') === '4,3');
+    expect(dashed.length).toBeGreaterThan(0);
   });
 
   it('renders debug hit boxes when debugMode is on (§3a)', () => {

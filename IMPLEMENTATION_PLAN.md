@@ -7,6 +7,13 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-22 — 🔴 P0 Kanban-board (cyanluna.skills) — ⏳ backlog (tooling, NOT app feature)
+Setup runs on Han's LOCAL machine (remote container is ephemeral/unreachable). Needs Neon PostgreSQL,
+Node+pnpm, third-party skills repo (7 autonomous agents). Steps: clone → cp kanban* to ~/.claude/skills
+→ cd ~/.claude/kanban-board, cp .env.example .env, pnpm install, set DATABASE_URL → /kanban-init in
+project → ./kanban-board/start.sh (localhost:5173). 7-col pipeline Req→Plan→ReviewPlan→Impl→ReviewImpl→
+Test→Done. ❓ awaiting Han: local vs remote. See BACKLOG.md P0 entry.
+
 ## 2026-06-22 (cont.2) — Carousel batch: setters→carousel, instrument re-cat/re-icon, perc-kit carousel (Han)
 Interview answers: setters in carousel-style = FULL 5-wide carousel per field (lucide icons for now,
 icon + label below + category bracket above; maestro glyphs were unreadable); percussion-kit carousel =
