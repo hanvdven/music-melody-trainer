@@ -49,19 +49,34 @@ const CHORD_NOTES = {
 // The 5 chord-row options. `value` is the canonical complexity stored in
 // chordSettings (tonic→root, extended→ninth) so the existing PlaybackSettings
 // complexity stepper + the generator stay in agreement.
+// `label` is the discreet caption shown UNDER each chord shape (Han 2026-06-19 —
+// see CPLX_LABEL_* constants below). Exact wording chosen by Han.
 const COMPLEXITY_OPTS = [
-    { id: 'tonic', value: 'root' },
-    { id: 'power', value: 'power' },
-    { id: 'triad', value: 'triad' },
-    { id: 'seventh', value: 'seventh' },
-    { id: 'extended', value: 'ninth' },
+    { id: 'tonic', value: 'root', label: 'root' },
+    { id: 'power', value: 'power', label: 'power' },
+    { id: 'triad', value: 'triad', label: 'triad' },
+    { id: 'seventh', value: 'seventh', label: 'seventh' },
+    { id: 'extended', value: 'ninth', label: 'altered/extended' },
 ];
+
+// Discreet caption styling for the chord-type labels (Han 2026-06-19). Re-uses the
+// overlay's smallest existing caption convention — the icons8-attribution text in
+// InstrumentStaffOverlay (sans-serif, fontSize 9, var(--text-dim)). Kept small + dim
+// on purpose: the previous labels (removed 2026-05-31) clashed with the UI-overhaul
+// style by being too prominent; this revival is deliberately understated.
+const CPLX_LABEL_FS = 10;                       // a touch above the 9px attribution caption, still discreet
+const CPLX_LABEL_FILL = 'var(--text-secondary)'; // theme text var, low-emphasis
+const CPLX_LABEL_DY = 16;                       // px below the chord glyphs / hit-rect bottom edge
 
 const LOWLIGHT = 'var(--range-lowlight)';
 // Extended-chord column offsets (Han BUG-V2): the accidentals column sits EXT_ACC_DX
 // left of the D-F-A-C core, the E-G-B tension column EXT_COL_DX to its right.
-const EXT_ACC_DX = 16;
-const EXT_COL_DX = 22;
+// Tightened so the three columns read as one compact chord cluster rather than three
+// spread-out stacks (Han 2026-06-19: "3 columns closer together"). The MelodyNotesLayer
+// column startX values below still derive from these constants, so the noteheads move
+// with the offsets and keep their relative spacing — no collision after tightening.
+const EXT_ACC_DX = 12;
+const EXT_COL_DX = 16;
 
 // A complexity chord rendered as real whole-notes at the chord-row staff position.
 // `baseY` is the staff top fed to MelodyNotesLayer; `cx` is the chord centre.
@@ -111,6 +126,10 @@ const ChordNotes = ({ id, cx, baseY, active }) => {
 // as real whole-notes at 10/30/50/70/90% of the width (Han #12 — avoids the clipping
 // the old 0/25/…/100% layout caused). The chord STYLE (off/letters/roman) moved to
 // the CLEF setter (see ChordStyleOverlay).
+// Text labels under each chord were REMOVED 2026-05-31 (clashed with the UI-overhaul
+// style), but Han REVERSED that 2026-06-19 — they're back as DISCREET captions
+// (root / power / triad / seventh / altered/extended). See CPLX_LABEL_* constants and
+// the <text> render below; non-interactive (pointerEvents:none).
 const ChordStaffOverlay = ({
     startX, endX, trebleStart,
     chordComplexity = 'triad',
@@ -149,6 +168,14 @@ const ChordStaffOverlay = ({
                         onClick={() => onSetChordComplexity(opt.value)}>
                         <rect x={hitX} y={cplxRowY - 24} width={HIT_W} height={48} fill="transparent" />
                         <ChordNotes id={opt.id} cx={cx} baseY={cplxStaffY} active={activeCplx === opt.id} />
+                        {/* Discreet chord-type caption centred under the glyph, just below the
+                            hit-rect's bottom edge (cplxRowY+24). Non-interactive so it can't
+                            steal taps from the rect above it (Han 2026-06-19). */}
+                        <text x={cx} y={cplxRowY + 24 + CPLX_LABEL_DY} textAnchor="middle"
+                            fontFamily="sans-serif" fontSize={CPLX_LABEL_FS} fill={CPLX_LABEL_FILL}
+                            style={{ pointerEvents: 'none' }}>
+                            {opt.label}
+                        </text>
                         {debugMode && (
                             <rect x={hitX} y={cplxRowY - 24} width={HIT_W} height={48}
                                 fill="orange" fillOpacity={0.15} stroke="orange" strokeWidth={0.5}
