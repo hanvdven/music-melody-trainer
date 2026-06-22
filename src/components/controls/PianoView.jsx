@@ -442,16 +442,32 @@ const PianoView = ({
       };
     }
 
+    // TRANSPOSE SETTER: glow the reference C key so it reads at a glance (Han 2026-06-19).
+    // The C key here is the PHYSICAL C (chromatone 0 / the key labelled 'C' in this concert-pitch
+    // octave), which is the literal reset target ("click C resets to concert"). We reuse the same
+    // box-shadow glow the canonical Tone-Recognizer active key uses (the SVG #note-glow-subtle is
+    // scoped to the sheet-music SVG and unusable on these HTML keys). Declared before the colouring
+    // branches so it composes with whatever background each mode (chords/chromatone/scale) returns.
+    const transposeSetterCGlow = (interactionMode === 'set-transpose' && getNoteSemitone(note) === 0)
+      ? { boxShadow: '0 0 14px 4px rgba(242,200,121,0.8)', zIndex: 10 }
+      : null;
+
     // CHORDS MODE (no playback): tint keys belonging to the representative chord with the chord
     // root's colour. Uses the CONCERT note (cmp) so it stays correct under keyboard transposition.
     if (noteColoringMode === 'chords') {
       const c = chordNoteColor(cmp, activeChord, theme);
-      return c ? { background: c, color: defaultTextColor } : { color: defaultTextColor };
+      return c
+        ? { ...transposeSetterCGlow, background: c, color: defaultTextColor }
+        : { ...transposeSetterCGlow, color: defaultTextColor };
     }
 
     // CHROMATONE MODE
     if (noteColoringMode === 'chromatone' || noteColoringMode === 'chromatone_keys' || noteColoringMode === 'subtle-chroma') {
-      const semitone = getNoteSemitone(note);
+      // Colour follows the TRANSPOSED ('sounds-as') note, not the physical key (Han 2026-06-19):
+      // when the keyboard is transposed so a physical key becomes 'C', that key takes chromatone 0
+      // and the rest shift accordingly. `cmp` (= tn(note)) is the concert note this key represents;
+      // when transpose===0, cmp===note so colours are identical to concert pitch (no regression).
+      const semitone = getNoteSemitone(cmp);
       const baseColor = `var(--chromatone-${semitone})`;
       const mixTarget = isBlack ? 'black' : 'white';
 
@@ -462,6 +478,7 @@ const PianoView = ({
       const bottomColor = `color-mix(in srgb, ${baseColor}, ${mixTarget} ${mixRatioBottom})`;
 
       return {
+        ...transposeSetterCGlow,
         background: `linear-gradient(to bottom, ${topColor}, ${bottomColor})`,
         color: defaultTextColor
       };
@@ -471,19 +488,21 @@ const PianoView = ({
     if (noteColoringMode === 'tonic_scale_keys') {
       if (isTonic && isHighlightActive) {
         return {
+          ...transposeSetterCGlow,
           backgroundColor: 'var(--white-key-color-tonic)',
           color: defaultTextColor
         };
       }
       if (isInScale && isHighlightActive) {
         return {
+          ...transposeSetterCGlow,
           backgroundColor: isBlack ? 'var(--black-key-color-highlight)' : 'var(--white-key-color-highlight)',
           color: defaultTextColor
         };
       }
     }
 
-    return { color: defaultTextColor };
+    return { ...transposeSetterCGlow, color: defaultTextColor };
   };
 
   /* =========================

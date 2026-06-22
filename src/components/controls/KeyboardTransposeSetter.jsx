@@ -17,12 +17,8 @@ const KeyboardTransposeSetter = ({
 }) => (
     <div className="kbd-transpose-setter" data-settings-keepalive=""
         style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <div style={{
-            textAlign: 'center', padding: '6px 0 2px', color: 'var(--text-primary)',
-            fontSize: 13, opacity: 0.8,
-        }}>
-            tap a key to make it <strong>C</strong> (transpose the input keyboard)
-        </div>
+        {/* Instruction text removed (Han 2026-06-19): the glowing reference C key now communicates
+            "tap a key to make it C" at a glance, so the prose is redundant clutter. */}
         <div style={{ flex: 1, minHeight: 0 }}>
             <PianoView
                 scale={scale}
