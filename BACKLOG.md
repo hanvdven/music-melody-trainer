@@ -56,6 +56,20 @@ remote-omgeving te draaien (met bovenstaande beperkingen)?
 - ⏳ RESTANT (door Han, lokaal): board-UI uit upstream halen, token in `~/.claude/kanban-auth`
   (NOOIT in git), `/kanban-init` draaien. Begeleiding op aanvraag.
 
+### In-app kanban-bord (debug → kanban + terugknop) + items uit backlog/plan (Han 2026-06-22)
+
+ik wil een knop naar het kanbanbord — zodat ik in de app het kanbanbord kan openen, via debug →
+kanban, met een terugknop. En: maak op basis van de backlog en het implementatieplan kanban-items.
+
+[Claude 2026-06-22]: ⚠ §4b-interview LOOPT (vragen gesteld, wacht op Han). Architectuur-realiteit:
+de React-app draait in de browser en kan GEEN SQLite-DB of `~/.claude/kanban-dbs/...` lezen, en een
+iframe naar `localhost:5173` werkt alleen als het board lokaal draait. Enige optie die overal werkt
+én versiebeheerd "mee in de repo" is, is een gecommitte `kanban.json` die de app native rendert.
+Voorstel (afhankelijk van interview): (1) `kanban.json` in de repo als bron-van-waarheid; (2) in-app
+DEBUG → KANBAN opent een fullscreen native bord (terugknop), read-only of interactief; (3) items
+gegenereerd uit deze BACKLOG + IMPLEMENTATION_PLAN (done→Done, in-progress→Impl/Test, rest→Req).
+NIET geïmplementeerd tot Han de 4 interviewvragen beantwoordt.
+
 ### Generator setter in de bladmuziek — playback / generation / generation advanced (Han 2026-06-22)
 
 ik wil nu een generator setter in de bladmuziek gaan implementeren, in twee delen: "playback": nummeasures, numrepeats, odd repeats, even repeats (visibility, audibility/volume etc.) Als basis, maak een kopie van die elementen in de tijdelijke 'settings' setter:
