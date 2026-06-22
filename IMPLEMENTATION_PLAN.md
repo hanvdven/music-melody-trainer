@@ -7,15 +7,20 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
-## 2026-06-19 — Setter-carousel + range-setter feedback batch (Han) — INTERVIEW FIRST (§4b)
-- ⏳ Colour carousel: make inter-note spacing "iets" smaller.
-- ⏳ Instrument carousel: widen visible count 5 → 7.
-- ⏳ Instrument carousel transition: restore the "notes fly in one-by-one from the right" cascade
-  (regressed, probably by the "fully flat" carousel change).
-- ⏳ Range setter alt/ext: move the 3 chord columns closer together.
-- ⏳ Range setter chords: add a name UNDER each — root / power / triad / seventh / "altered/extended".
-- ⏳ Range setter middle-note shrink: only shrink hard when many notes in the middle. Han's proposed
-  curve: |interval|=8 → 90%, |interval|≥12 → 50%, interpolate between (clarify what "interval" is).
+## 2026-06-19 — Setter-carousel + range-setter feedback batch (Han) — interview done, SHIPPED
+Interview answers: fly-in = each CAROUSEL ELEMENT one-by-one (both carousels, shared module);
+shrink |interval| = note ORDINAL count (below 8 = no shrink); 5→7 = same card size, wider;
+chord names = yes, discreet. All behavior-correct + tested; needs Han LIVE tuning (magnitudes).
+- ✅ Colour carousel: NOTE_SPACING 13 → 11 (between example noteheads). (`f374682`)
+- ✅ Instrument carousel 5 → 7: visibleHalf now a prop, instrument passes 3, same card size. (`f374682`)
+- ✅ Per-element fly-in cascade (BOTH carousels, shared NonLinearCarousel): each item wraps in an
+  outer <g data-fly> (cascade) + inner <g ref> (carousel transform) so they compose; parent-group
+  data-fly removed. ⚠ stagger uses getBBox().x — LIVE-verify it reads as a cascade. (`f374682`)
+- ✅ Chord setter alt/ext columns closer: EXT_ACC_DX 16→12, EXT_COL_DX 22→16. (`0254839`)
+- ✅ Chord setter type labels under each: root/power/triad/seventh/altered-extended, discreet
+  (fontSize 10, --text-secondary); 2026-05-31 removal reversal documented. (`0254839`)
+- ✅ Range setter middle shrink span-aware: rangeMiddleMinScale(oSpan) — <8→1.0, 8→0.9, ≥12→0.5,
+  interp; bow generalised to minScale+(1-minScale)*easeInOut(uMid). (`c9d11f0`)
 
 ## 2026-06-19 — Architecture audit + refactor Phases 0 & 1 (Han: "doe fase 0 en 1")
 Audit report: `docs/ARCHITECTURE_AUDIT.md`. All work behavior-preserving (§4b pure-refactor
