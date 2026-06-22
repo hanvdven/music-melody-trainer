@@ -7,6 +7,29 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-22 (cont.2) — Carousel batch: setters→carousel, instrument re-cat/re-icon, perc-kit carousel (Han)
+Interview answers: setters in carousel-style = FULL 5-wide carousel per field (lucide icons for now,
+icon + label below + category bracket above; maestro glyphs were unreadable); percussion-kit carousel =
+CATEGORIZED, ALL kits; instrument-carousel icons +15%. Icon-asset reality: only 22 icons8 PNGs exist in
+src/assets; accordion/contrabass/harmonica/synth/stage are NOT in the repo → placeholder existing icons
+now + flag for Han to drop icons8-{accordion,contrabass,harmonica,stage,synthesizer}-100.png.
+- 🔨 (A) GENERATION + GENERATION ADVANCED setters rebuilt in carousel style: each field = a 5-wide
+  NonLinearCarousel, lucide icon + text label below + category/field bracket above. Replaces the
+  SvgSetter+maestro-glyph cells. Per balk (treble/bass/perc + chords). Wiring unchanged (same fields).
+- 🔨 (B) Subtle per-category CSS colouring in the instrument carousel (item text + bracket), theme-aware
+  vars in App.css keyed on the new top categories.
+- 🔨 (C) instruments.jsx re-categorise + re-icon. New top categories: keys / guitars / bass guitars /
+  strings / wind / percussion tuned / voice / synth (NEW). Adds: accordion, distorted electric guitar
+  (distortion_guitar), contrabass, harmonica, xylophone, synth square/lead/pad. Re-icons: steel=guitar
+  (nylon), acoustic bass=guitar, electric/distorted=rock-music, vibraphone=xylophone, voice oohs=choir.
+  Placeholders for the 5 missing assets, flagged.
+- 🔨 (D) Percussion KIT carousel (instrument setter, percussion balk): categorized — Sampled (FreePats) /
+  Drum machines (TR-808, Casio RZ-1, LM-2, MFB-512, Roland CR-8000) / Acoustic MIDI (GM standard).
+  Writes percussionSettings.instrument; exposes GM-acoustic (standard) which was dormant.
+- 🔨 (E) Instrument-carousel icons +15%.
+- ⚠ §6d note: setter category-brackets reuse the NonLinearCarousel primitive; bracket-DRAW may briefly
+  duplicate InstrumentStaffOverlay.bracketGeom — flag for later consolidation into a shared helper.
+
 ## 2026-06-22 (cont.) — Han batch: corrections, new FR, instrument feedback, parked items, research
 - ⚠ Generator setters: "balk" includes CHORDS (see corrected entry below).
 - ⏳ NEW FR "REPEAT AFTER ME" (call-and-response practice): chop a long song into chunks for repeat
