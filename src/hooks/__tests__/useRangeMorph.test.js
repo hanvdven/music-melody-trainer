@@ -43,4 +43,39 @@ describe('melodyHiddenDuringOverlay', () => {
     // A leftover return morph (to 'melody') must not reveal the melody if we are now in an overlay.
     expect(melodyHiddenDuringOverlay(true, true, 'instrument', 'melody', 'range')).toBe(true);
   });
+
+  // --- OPEN / CLOSE frame coverage (Han 2026-06-19) ---
+  // With render-time morph arming (no more two-stage lag), the descriptor passed to the gate is
+  // correct on the SAME render the kind changes. These assert the FIRST and LAST frame of the
+  // open/close transitions, which previously flashed.
+  describe('open/close transition frames (render-time arming, no lag)', () => {
+    it('OPEN melody→setter: first frame shows the melody so it can fade out (leave fade-out)', () => {
+      // Render-time arming makes morphFrom='melody', morphTo=kind on the change render itself.
+      expect(melodyHiddenDuringOverlay(true, true, 'melody', 'instrument', 'instrument')).toBe(false);
+      expect(melodyHiddenDuringOverlay(true, true, 'melody', 'color', 'color')).toBe(false);
+      expect(melodyHiddenDuringOverlay(true, true, 'melody', 'range', 'range')).toBe(false);
+    });
+
+    it('OPEN: once the melody fade-out completes (morph cleared) the melody stays hidden under the setter', () => {
+      // After onDone the morph is null → resting inside the overlay → hidden.
+      expect(melodyHiddenDuringOverlay(true, false, null, null, 'instrument')).toBe(true);
+    });
+
+    it('CLOSE setter→melody: every frame shows the melody (overlayActive false ⇒ fly-in visible)', () => {
+      // First frame of close: morph {from:overlay,to:melody}, kind already 'melody'.
+      expect(melodyHiddenDuringOverlay(false, true, 'instrument', 'melody', 'melody')).toBe(false);
+      expect(melodyHiddenDuringOverlay(false, true, 'range', 'melody', 'melody')).toBe(false);
+      // Last frame / rest: morph cleared, still melody.
+      expect(melodyHiddenDuringOverlay(false, false, null, null, 'melody')).toBe(false);
+    });
+
+    it('rapid OPEN→SWITCH: melody→setterA armed then switched to setterB stays hidden', () => {
+      // Render-time arming re-arms to {from:setterA,to:setterB} immediately, so morphFrom is no
+      // longer 'melody' — hidden. (The legacy "stale melody leg" frame can no longer occur, but
+      // the gate must still hide it if it ever did.)
+      expect(melodyHiddenDuringOverlay(true, true, 'instrument', 'color', 'color')).toBe(true);
+      // Defensive: even if a stale melody leg leaked (morphTo !== kind), still hidden.
+      expect(melodyHiddenDuringOverlay(true, true, 'melody', 'instrument', 'color')).toBe(true);
+    });
+  });
 });

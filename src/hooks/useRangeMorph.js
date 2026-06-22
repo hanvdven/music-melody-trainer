@@ -66,32 +66,75 @@ export function melodyHiddenDuringOverlay(overlayActive, morphing, morphFrom, mo
 // overlays (clef→range), which previously didn't animate because the
 // rangeEditMode||clefEditMode boolean never flipped (Han 2026-06-01 #10). Switching treats
 // the previous surface as the OLD (fades out) and the new as NEW (flies in).
+//
+// WHY the morph descriptor is now derived DURING RENDER, not from a layout-effect setState
+// (Han 2026-06-19): the previous TWO-STAGE design armed `morph` in a useLayoutEffect, so the
+// returned `morphFrom/morphTo/morphing` lagged `kind` by exactly one render. That lag frame
+// was the source of the OPEN and CLOSE flashes:
+//   • OPEN (melody→setter): on the change render the gate/mounting still saw `morphing=false`,
+//     so the setter content mounted at REST (no fly-in offsets) — visible un-animated for the
+//     lag frame before the tween armed.
+//   • CLOSE (setter→melody): on the change render the gate saw `morphing=false` and
+//     overlayActive=false, so the melody was shown at REST for the lag frame before the
+//     return fly-in armed and set its initial offsets.
+// React 18 does flush a layout-effect setState before paint MOST of the time, but not when the
+// triggering update is itself committed from the click handler first — leaving exactly the
+// one-frame flash Han kept seeing. Computing the descriptor in render (a ref compared against
+// the live `kind`) makes `morphFrom/morphTo/morphing` correct on the SAME render the kind
+// changes, so the gate hides the melody for the morph's FIRST and LAST frame and the cascade's
+// initial styles are applied before the first paint (§6: decide before paint, not one render
+// late). The tween itself still runs in a layout effect (it must touch the post-commit DOM),
+// keyed on the morph id so it fires exactly once per arming.
 export default function useRangeMorph(kind, svgRef, flyDist) {
-  const [morph, setMorph] = useState(null);
   const prevKindRef = useRef(kind);
   const seqRef = useRef(0);
+  // The live morph descriptor, recomputed every render from refs so it is NEVER one render
+  // stale. `activeMorphRef` holds the morph currently believed to be running (or just armed);
+  // it is mutated during render (the React-sanctioned "store info from previous renders" ref
+  // pattern) so the RETURNED values are correct on the same render the kind changes.
+  const activeMorphRef = useRef(null);
+  // Force a re-render when the tween completes (so `morphing` recomputes to false). A bumping
+  // counter is the minimal state needed; its value is never read.
+  const [, forceRerender] = useState(0);
 
-  // Detect the kind change and arm a morph (before paint).
-  useLayoutEffect(() => {
-    if (prevKindRef.current === kind) return;
+  // Render-time arming: if the kind changed since the last committed render, the descriptor is
+  // a brand-new morph. This runs in render, so the returned values reflect the change on the
+  // SAME render — no lag frame (see WHY above).
+  if (prevKindRef.current !== kind) {
     const from = prevKindRef.current;
     prevKindRef.current = kind;
     seqRef.current += 1;
-    setMorph({ id: seqRef.current, from, to: kind });
-  }, [kind]);
+    activeMorphRef.current = { id: seqRef.current, from, to: kind };
+  }
+  const morph = activeMorphRef.current;
+  const pendingId = morph?.id ?? 0;
 
-  // Run the tween once the morphing render has committed (both groups present).
+  // Run the tween once a NEW morph has been armed and the morphing render has committed (both
+  // groups present in the post-commit DOM). Keyed on the morph id so re-renders that don't
+  // change the kind do not re-fire the tween.
   useLayoutEffect(() => {
-    if (!morph) return undefined;
+    if (pendingId === 0) return undefined;
     const svg = svgRef.current;
-    if (!svg) { setMorph(null); return undefined; }
-    const oldEls = groupsForKind(svg, morph.from);   // old just fades out
-    const newEls = groupsForKind(svg, morph.to);     // new flies in (staggered)
+    if (!svg) { activeMorphRef.current = null; forceRerender((n) => n + 1); return undefined; }
+    const armed = activeMorphRef.current;
+    const oldEls = groupsForKind(svg, armed.from);   // old just fades out
+    const newEls = groupsForKind(svg, armed.to);     // new flies in (staggered)
     // runFlyInCascade returns a cancel() that also resets inline styles, so a mid-flight
-    // re-toggle (cleanup) never leaves a group stuck (Han #8).
-    const cancel = runFlyInCascade(svg, { oldEls, newEls, flyDist, onDone: () => setMorph(null) });
+    // re-toggle (cleanup) never leaves a group stuck (Han #8). On natural completion clear the
+    // active morph and force a render so `morphing` recomputes to false.
+    const cancel = runFlyInCascade(svg, {
+      oldEls, newEls, flyDist,
+      onDone: () => {
+        // Only clear if no newer morph has armed in the meantime (id still matches).
+        if (activeMorphRef.current?.id === armed.id) {
+          activeMorphRef.current = null;
+          forceRerender((n) => n + 1);
+        }
+      },
+    });
     return cancel;
-  }, [morph, svgRef, flyDist]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingId, svgRef, flyDist]);
 
   return { morphing: morph != null, morphFrom: morph?.from ?? null, morphTo: morph?.to ?? null };
 }
