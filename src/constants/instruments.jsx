@@ -25,8 +25,10 @@ const ICON_URLS = import.meta.glob('../assets/icons8-*-100.png', { eager: true, 
 // Grouped by CATEGORY (`label` — the top-level family shown nowhere as a card, used only to
 // keep the list ordered). Each item carries:
 //   • `name`  — the SHORT VARIANT name shown as the carousel CARD label (e.g. 'nylon').
-//   • `group` — the "family (subgroup)" string shown as the carousel BRACKET header above the
-//     staff (e.g. 'strings (guitar)'). Consecutive items sharing a `group` are bracketed together.
+//   • `group` — the string shown as the carousel BRACKET header above the staff. Consecutive items
+//     sharing a `group` are bracketed together. NOTE (Han 2026-06-22): with the re-categorisation
+//     below, `group` is now simply the bare TOP category (e.g. 'guitars', 'bass guitars') rather
+//     than the old "family (subgroup)" form ('strings (guitar)') described in the 2026-06-18 note.
 //   • `family`/`slug` — descriptive metadata + the GM Soundfont name (the icon comes from
 //     SLUG_TO_ICON below, not the family).
 //
@@ -41,53 +43,101 @@ const ICON_URLS = import.meta.glob('../assets/icons8-*-100.png', { eager: true, 
 // Taxonomy (Han 2026-06-17): ONE big STRINGS category folds in the guitars/basses, the
 // orchestral strings AND the harp (harp is NOT a keyboard). Categories: Keys / Strings /
 // Winds / Tuned Percussion / Voice.
+//
+// Re-categorisation (Han 2026-06-22): split the old mega-STRINGS into separate TOP categories so
+// the carousel brackets read by instrument-family the way a player thinks of them. New top
+// categories (each is both an INSTRUMENT_GROUPS .label AND the per-item bracket `group`/`family`):
+//   keys / guitars / bass guitars / strings / wind / percussion tuned / voice / synth.
+// WHY split (Han 2026-06-22): guitars, bass guitars, orchestral strings and synths are distinct
+// mental categories — folding them under one "strings" bracket made the carousel header lie about
+// what the player was scrolling through. Each item's `group`/`family` now equals its top category
+// so the bracket header (which groups consecutive same-`group` runs) shows the real family.
+// Every slug remains a standard GM Soundfont name (loadable directly by smplr).
 export const INSTRUMENT_GROUPS = [
     {
-        label: 'Keys',
+        label: 'keys',
         items: [
-            { name: 'grand', group: 'keys (piano)', slug: 'acoustic_grand_piano', family: 'keys' },
-            { name: 'electric', group: 'keys (piano)', slug: 'electric_piano_1', family: 'keys' },
-            { name: 'organ', group: 'keys (organ)', slug: 'church_organ', family: 'keys' },
+            { name: 'grand piano', group: 'keys', slug: 'acoustic_grand_piano', family: 'keys' },
+            { name: 'e-piano', group: 'keys', slug: 'electric_piano_1', family: 'keys' },
+            { name: 'organ', group: 'keys', slug: 'church_organ', family: 'keys' },
+            // accordion: GM slug 'accordion' loads fine; icon is a PLACEHOLDER until Han drops the
+            // real asset (see SLUG_TO_ICON). (Han 2026-06-22)
+            { name: 'accordion', group: 'keys', slug: 'accordion', family: 'keys' },
         ],
     },
     {
-        label: 'Strings',
+        // GUITARS is now its own top category, separate from bass guitars + orchestral strings
+        // (Han 2026-06-22).
+        label: 'guitars',
         items: [
-            { name: 'nylon', group: 'strings (guitar)', slug: 'acoustic_guitar_nylon', family: 'guitar' },
-            { name: 'steel', group: 'strings (guitar)', slug: 'acoustic_guitar_steel', family: 'guitar' },
-            { name: 'clean', group: 'strings (guitar)', slug: 'electric_guitar_clean', family: 'guitar' },
-            { name: 'acoustic', group: 'strings (bass)', slug: 'acoustic_bass', family: 'guitar' },
-            { name: 'picked', group: 'strings (bass)', slug: 'electric_bass_pick', family: 'guitar' },
-            { name: 'synth', group: 'strings (bass)', slug: 'synth_bass_1', family: 'guitar' },
-            { name: 'violin', group: 'strings (orchestral)', slug: 'violin', family: 'strings' },
-            { name: 'cello', group: 'strings (orchestral)', slug: 'cello', family: 'strings' },
-            { name: 'ensemble', group: 'strings (orchestral)', slug: 'string_ensemble_1', family: 'strings' },
-            { name: 'harp', group: 'strings (orchestral)', slug: 'orchestral_harp', family: 'strings' },
+            { name: 'nylon', group: 'guitars', slug: 'acoustic_guitar_nylon', family: 'guitars' },
+            // steel reuses the same plain 'guitar' icon as nylon — per Han 2026-06-22.
+            { name: 'steel', group: 'guitars', slug: 'acoustic_guitar_steel', family: 'guitars' },
+            { name: 'electric', group: 'guitars', slug: 'electric_guitar_clean', family: 'guitars' },
+            // distorted reuses the same 'rock-music' icon as electric — per Han 2026-06-22.
+            { name: 'distorted', group: 'guitars', slug: 'distortion_guitar', family: 'guitars' },
         ],
     },
     {
-        label: 'Winds',
+        // BASS GUITARS split out from guitars + strings (Han 2026-06-22).
+        label: 'bass guitars',
         items: [
-            { name: 'trumpet', group: 'winds (brass)', slug: 'trumpet', family: 'winds' },
-            { name: 'horn', group: 'winds (brass)', slug: 'french_horn', family: 'winds' },
-            { name: 'sax', group: 'winds (reeds)', slug: 'tenor_sax', family: 'winds' },
-            { name: 'clarinet', group: 'winds (reeds)', slug: 'clarinet', family: 'winds' },
-            { name: 'oboe', group: 'winds (reeds)', slug: 'oboe', family: 'winds' },
-            { name: 'flute', group: 'winds (flute)', slug: 'flute', family: 'winds' },
+            // acoustic bass uses the plain nylon 'guitar' icon — per Han 2026-06-22.
+            { name: 'acoustic', group: 'bass guitars', slug: 'acoustic_bass', family: 'bass guitars' },
+            { name: 'electric', group: 'bass guitars', slug: 'electric_bass_pick', family: 'bass guitars' },
+            { name: 'synth', group: 'bass guitars', slug: 'synth_bass_1', family: 'bass guitars' },
         ],
     },
     {
-        label: 'Tuned Percussion',
+        // Orchestral STRINGS — now distinct from guitars/basses (Han 2026-06-22). Harp stays here
+        // (Han didn't ask to remove it).
+        label: 'strings',
         items: [
-            { name: 'marimba', group: 'percussion (tuned)', slug: 'marimba', family: 'percussion' },
-            { name: 'vibraphone', group: 'percussion (tuned)', slug: 'vibraphone', family: 'percussion' },
+            { name: 'violin', group: 'strings', slug: 'violin', family: 'strings' },
+            { name: 'cello', group: 'strings', slug: 'cello', family: 'strings' },
+            { name: 'ensemble', group: 'strings', slug: 'string_ensemble_1', family: 'strings' },
+            { name: 'contrabass', group: 'strings', slug: 'contrabass', family: 'strings' },
+            { name: 'harp', group: 'strings', slug: 'orchestral_harp', family: 'strings' },
         ],
     },
     {
-        label: 'Voice',
+        // 'wind' (singular) per Han's target naming 2026-06-22.
+        label: 'wind',
+        items: [
+            { name: 'trumpet', group: 'wind', slug: 'trumpet', family: 'wind' },
+            { name: 'horn', group: 'wind', slug: 'french_horn', family: 'wind' },
+            { name: 'sax', group: 'wind', slug: 'tenor_sax', family: 'wind' },
+            { name: 'clarinet', group: 'wind', slug: 'clarinet', family: 'wind' },
+            { name: 'oboe', group: 'wind', slug: 'oboe', family: 'wind' },
+            { name: 'flute', group: 'wind', slug: 'flute', family: 'wind' },
+            { name: 'harmonica', group: 'wind', slug: 'harmonica', family: 'wind' },
+        ],
+    },
+    {
+        // 'percussion tuned' per Han's target naming 2026-06-22. Added xylophone (Han wanted it
+        // back as a distinct entry alongside marimba + vibraphone).
+        label: 'percussion tuned',
+        items: [
+            { name: 'marimba', group: 'percussion tuned', slug: 'marimba', family: 'percussion tuned' },
+            { name: 'vibraphone', group: 'percussion tuned', slug: 'vibraphone', family: 'percussion tuned' },
+            { name: 'xylophone', group: 'percussion tuned', slug: 'xylophone', family: 'percussion tuned' },
+        ],
+    },
+    {
+        label: 'voice',
         items: [
             { name: 'oohs', group: 'voice', slug: 'voice_oohs', family: 'voice' },
             { name: 'choir', group: 'voice', slug: 'choir_aahs', family: 'voice' },
+        ],
+    },
+    {
+        // NEW category SYNTH (Han 2026-06-22). All three slugs are standard GM synth-lead/pad
+        // names; icons are PLACEHOLDERS until a real synthesizer asset is dropped.
+        label: 'synth',
+        items: [
+            { name: 'square', group: 'synth', slug: 'lead_1_square', family: 'synth' },
+            { name: 'lead', group: 'synth', slug: 'lead_2_sawtooth', family: 'synth' },
+            { name: 'pad', group: 'synth', slug: 'pad_1_new_age', family: 'synth' },
         ],
     },
 ];
@@ -116,7 +166,7 @@ export const INSTRUMENTS = Object.fromEntries(
 const LABEL_BY_SLUG = Object.fromEntries(
     INSTRUMENT_LIST.map(it => [it.slug, instrumentFullLabel(it)]));
 export const instrumentNameForSlug = (slug) =>
-    LABEL_BY_SLUG[slug] || 'keys (piano) — grand';
+    LABEL_BY_SLUG[slug] || 'keys — grand piano'; // fallback label tracks the re-categorised default (Han 2026-06-22)
 
 // slug → icons8 icon basename. A GENUINE per-instrument lookup: icons8 ships distinct art per
 // instrument, so there is no formula to derive it — this is the user-supplied "what an instrument
@@ -124,30 +174,56 @@ export const instrumentNameForSlug = (slug) =>
 // icon for the ELECTRIC GUITAR + ELECTRIC BASS. A few instruments map to the nearest available
 // icon (acoustic bass → guitar-pick, oboe → bassoon, ensemble → classic-music, marimba →
 // xylophone, vibraphone → bell-lyre, voice → microphone) — easy to retarget here.
+//
+// Re-icon pass (Han 2026-06-22): only 22 icons8 basenames exist in src/assets (bassoon, bell-lyre,
+// cello, choir, clarinet, classic-music, electronic-music, flute, french-horn, grand-piano, guitar,
+// guitar-pick, guitar-strings, harp, microphone, piano, pipe-organ, rock-music, saxophone, trumpet,
+// violin, xylophone). Five new instruments have NO matching asset yet (accordion, ensemble/stage,
+// contrabass, harmonica, synth leads/pad) — each maps to the nearest available PLACEHOLDER below,
+// tagged `TODO(icons8)` with the real filename Han should drop into src/assets. When that asset
+// lands, just change the basename here (the glob in ICON_URLS auto-bundles any icons8-*-100.png).
+// Per Han 2026-06-22: steel reuses nylon's plain 'guitar'; distorted reuses electric's 'rock-music';
+// acoustic bass uses nylon's 'guitar'; vibraphone + xylophone use 'xylophone'; oohs + choir use 'choir'.
 const SLUG_TO_ICON = {
+    // keys
     acoustic_grand_piano: 'grand-piano',
     electric_piano_1: 'piano',
     church_organ: 'pipe-organ',
+    accordion: 'accordion',             // real asset restored from origin/main (Han 2026-06-22)
+    // guitars
     acoustic_guitar_nylon: 'guitar',
-    acoustic_guitar_steel: 'guitar-strings',
+    acoustic_guitar_steel: 'guitar',    // Han 2026-06-22: same icon as nylon
     electric_guitar_clean: 'rock-music',
-    acoustic_bass: 'guitar-pick',
+    distortion_guitar: 'rock-music',    // Han 2026-06-22: same icon as electric
+    // bass guitars
+    acoustic_bass: 'guitar',            // Han 2026-06-22: use nylon's plain guitar icon
     electric_bass_pick: 'rock-music',
     synth_bass_1: 'electronic-music',
+    // strings
     violin: 'violin',
     cello: 'cello',
-    string_ensemble_1: 'classic-music',
+    string_ensemble_1: 'classic-music', // PLACEHOLDER — TODO(icons8): "Stage" asset icons8-stage-100.png (Han wants a Stage icon)
+    contrabass: 'cello',                // PLACEHOLDER — TODO(icons8): real contrabass asset icons8-contrabass-100.png
     orchestral_harp: 'harp',
+    // wind
     trumpet: 'trumpet',
     french_horn: 'french-horn',
     tenor_sax: 'saxophone',
     clarinet: 'clarinet',
     oboe: 'bassoon',
     flute: 'flute',
+    harmonica: 'harmonica',             // real asset restored from origin/main (Han 2026-06-22)
+    // percussion tuned
     marimba: 'xylophone',
-    vibraphone: 'bell-lyre',
-    voice_oohs: 'microphone',
+    vibraphone: 'xylophone',            // Han 2026-06-22: use xylophone icon
+    xylophone: 'xylophone',
+    // voice
+    voice_oohs: 'choir',                // Han 2026-06-22: both voice items use the choir icon
     choir_aahs: 'choir',
+    // synth (NEW category, Han 2026-06-22) — all three share the synthesizer placeholder
+    lead_1_square: 'electronic-music',  // PLACEHOLDER — TODO(icons8): real synth asset icons8-synthesizer-100.png
+    lead_2_sawtooth: 'electronic-music', // PLACEHOLDER — TODO(icons8): real synth asset icons8-synthesizer-100.png
+    pad_1_new_age: 'electronic-music',  // PLACEHOLDER — TODO(icons8): real synth asset icons8-synthesizer-100.png
 };
 
 // slug → bundled icons8 PNG URL. The icons render flat-black, so consumers apply

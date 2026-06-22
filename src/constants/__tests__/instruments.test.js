@@ -19,15 +19,16 @@ describe('constants/instruments', () => {
             expect(INSTRUMENTS[instrumentFullLabel(it)]).toBe(it.slug);
         }
         // The grand piano is the canonical default slug; its full label disambiguates the card.
-        expect(INSTRUMENTS['keys (piano) — grand']).toBe('acoustic_grand_piano');
+        // Re-categorised 2026-06-22: group 'keys', card name 'grand piano'.
+        expect(INSTRUMENTS['keys — grand piano']).toBe('acoustic_grand_piano');
     });
 
-    it('each item splits into a short card `name` and a "family (subgroup)" `group` bracket', () => {
-        // Card name is the short variant (e.g. 'nylon'); group is the bracket header
-        // (e.g. 'strings (guitar)'). Han 2026-06-18.
+    it('each item splits into a short card `name` and a top-category `group` bracket', () => {
+        // Card name is the short variant (e.g. 'nylon'); group is the bracket header.
+        // Re-categorised 2026-06-22: group is now the bare top category ('guitars').
         const nylon = INSTRUMENT_LIST.find(it => it.slug === 'acoustic_guitar_nylon');
         expect(nylon.name).toBe('nylon');
-        expect(nylon.group).toBe('strings (guitar)');
+        expect(nylon.group).toBe('guitars');
         // Every item carries both fields.
         for (const it of INSTRUMENT_LIST) {
             expect(typeof it.name).toBe('string');
