@@ -32,6 +32,10 @@ describe('useEditMode', () => {
         expect(h.result.current.clefEditMode).toBe(false);
         expect(h.result.current.colorEditMode).toBe(false);
         expect(h.result.current.instrumentEditMode).toBe(false);
+        // Three new generator setters (Han 2026-06-22).
+        expect(h.result.current.playbackEditMode).toBe(false);
+        expect(h.result.current.generationEditMode).toBe(false);
+        expect(h.result.current.generationAdvancedEditMode).toBe(false);
     });
 
     it('toggleRangeEdit flips rangeEditMode on then off', () => {
@@ -45,11 +49,67 @@ describe('useEditMode', () => {
         ['handleToggleClefEdit', 'clefEditMode'],
         ['handleToggleColorEdit', 'colorEditMode'],
         ['handleToggleInstrumentEdit', 'instrumentEditMode'],
+        ['handleTogglePlaybackEdit', 'playbackEditMode'],
+        ['handleToggleGenerationEdit', 'generationEditMode'],
+        ['handleToggleGenerationAdvancedEdit', 'generationAdvancedEditMode'],
     ])('%s flips %s', (handler, flag) => {
         act(() => h.result.current[handler]());
         expect(h.result.current[flag]).toBe(true);
         act(() => h.result.current[handler]());
         expect(h.result.current[flag]).toBe(false);
+    });
+
+    // Full mutual exclusion across ALL seven in-SVG modes (Han 2026-06-22). Opening any one
+    // generator setter must close every other edit mode (the existing four + the other two new).
+    const ALL_FLAGS = [
+        'rangeEditMode', 'clefEditMode', 'colorEditMode', 'instrumentEditMode',
+        'playbackEditMode', 'generationEditMode', 'generationAdvancedEditMode',
+    ];
+    it.each([
+        ['handleTogglePlaybackEdit', 'playbackEditMode'],
+        ['handleToggleGenerationEdit', 'generationEditMode'],
+        ['handleToggleGenerationAdvancedEdit', 'generationAdvancedEditMode'],
+    ])('%s is mutually exclusive with all other edit modes', (handler, flag) => {
+        // open every OTHER mode first (sequentially), then the new one, asserting only it remains.
+        act(() => h.result.current.handleToggleRangeEdit());
+        act(() => h.result.current.handleToggleClefEdit());
+        act(() => h.result.current.handleToggleColorEdit());
+        act(() => h.result.current.handleToggleInstrumentEdit());
+        act(() => h.result.current.handleTogglePlaybackEdit());
+        act(() => h.result.current.handleToggleGenerationEdit());
+        act(() => h.result.current.handleToggleGenerationAdvancedEdit());
+        // now open the one under test — it should be the SOLE active mode.
+        act(() => {
+            // close it first if the loop above already left it open, so this is a clean OPEN.
+            if (h.result.current[flag]) h.result.current[handler]();
+        });
+        act(() => h.result.current[handler]());
+        expect(h.result.current[flag]).toBe(true);
+        for (const other of ALL_FLAGS) {
+            if (other === flag) continue;
+            expect(h.result.current[other]).toBe(false);
+        }
+    });
+
+    it('opening a new generator setter closes the four original modes', () => {
+        act(() => h.result.current.handleToggleRangeEdit());
+        expect(h.result.current.rangeEditMode).toBe(true);
+        act(() => h.result.current.handleToggleGenerationEdit());
+        expect(h.result.current.generationEditMode).toBe(true);
+        expect(h.result.current.rangeEditMode).toBe(false);
+        expect(h.result.current.clefEditMode).toBe(false);
+        expect(h.result.current.colorEditMode).toBe(false);
+        expect(h.result.current.instrumentEditMode).toBe(false);
+    });
+
+    it('opening an original mode closes the new generator setters', () => {
+        act(() => h.result.current.handleToggleGenerationAdvancedEdit());
+        expect(h.result.current.generationAdvancedEditMode).toBe(true);
+        act(() => h.result.current.handleToggleRangeEdit());
+        expect(h.result.current.rangeEditMode).toBe(true);
+        expect(h.result.current.generationAdvancedEditMode).toBe(false);
+        expect(h.result.current.playbackEditMode).toBe(false);
+        expect(h.result.current.generationEditMode).toBe(false);
     });
 
     it('opening one mode closes the other three siblings', () => {
