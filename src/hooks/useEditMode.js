@@ -34,6 +34,14 @@ export default function useEditMode({
     // instrument PER STAFF (treble/bass). Sibling of range/clef/colour; mutually
     // exclusive with them + settings (mirrors colorEditMode exactly).
     const [instrumentEditMode, setInstrumentEditMode] = useState(false);
+    // Three new generator setters (Han 2026-06-22): PLAYBACK (the legacy SettingsOverlay content
+    // shown under a distinct group class), GENERATION (per-balk melody-notes / melody-type /
+    // notes-per-measure) and GENERATION ADVANCED (per-balk variability / span / tuplets /
+    // smallest-note). Each is a sibling of range/clef/colour/instrument/legacy-settings and FULLY
+    // mutually exclusive with all of them AND with each other (mirrors instrumentEditMode exactly).
+    const [playbackEditMode, setPlaybackEditMode] = useState(false);
+    const [generationEditMode, setGenerationEditMode] = useState(false);
+    const [generationAdvancedEditMode, setGenerationAdvancedEditMode] = useState(false);
 
     // Range-edit and the general settings overlay are mutually exclusive
     // (Han 2026-05-31). This effect is the catch-all: whenever the settings
@@ -56,6 +64,9 @@ export default function useEditMode({
             setClefEditMode(false);   // range & clef modes are mutually exclusive
             setColorEditMode(false);
             setInstrumentEditMode(false);
+            setPlaybackEditMode(false);            // close the 3 generator setters too (Han 2026-06-22)
+            setGenerationEditMode(false);
+            setGenerationAdvancedEditMode(false);
         }
         setRangeEditMode(v => !v);
     }, [rangeEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -69,6 +80,9 @@ export default function useEditMode({
             setRangeEditMode(false);
             setColorEditMode(false);
             setInstrumentEditMode(false);
+            setPlaybackEditMode(false);            // Han 2026-06-22
+            setGenerationEditMode(false);
+            setGenerationAdvancedEditMode(false);
         }
         setClefEditMode(v => !v);
     }, [clefEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -81,6 +95,9 @@ export default function useEditMode({
             setRangeEditMode(false);
             setClefEditMode(false);
             setInstrumentEditMode(false);
+            setPlaybackEditMode(false);            // Han 2026-06-22
+            setGenerationEditMode(false);
+            setGenerationAdvancedEditMode(false);
         }
         setColorEditMode(v => !v);
     }, [colorEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -93,9 +110,57 @@ export default function useEditMode({
             setRangeEditMode(false);
             setClefEditMode(false);
             setColorEditMode(false);
+            setPlaybackEditMode(false);            // Han 2026-06-22
+            setGenerationEditMode(false);
+            setGenerationAdvancedEditMode(false);
         }
         setInstrumentEditMode(v => !v);
     }, [instrumentEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
+    // ── Three new generator-setter toggles (Han 2026-06-22) ───────────────────
+    // Each mirrors handleToggleInstrumentEdit EXACTLY: stop playback, close the legacy settings
+    // overlay, and close every OTHER edit mode (full mutual exclusion across all 7 in-SVG modes).
+    const handleTogglePlaybackEdit = useCallback(() => {
+        if (!playbackEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setRangeEditMode(false);
+            setClefEditMode(false);
+            setColorEditMode(false);
+            setInstrumentEditMode(false);
+            setGenerationEditMode(false);
+            setGenerationAdvancedEditMode(false);
+        }
+        setPlaybackEditMode(v => !v);
+    }, [playbackEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
+    const handleToggleGenerationEdit = useCallback(() => {
+        if (!generationEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setRangeEditMode(false);
+            setClefEditMode(false);
+            setColorEditMode(false);
+            setInstrumentEditMode(false);
+            setPlaybackEditMode(false);
+            setGenerationAdvancedEditMode(false);
+        }
+        setGenerationEditMode(v => !v);
+    }, [generationEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
+    const handleToggleGenerationAdvancedEdit = useCallback(() => {
+        if (!generationAdvancedEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setRangeEditMode(false);
+            setClefEditMode(false);
+            setColorEditMode(false);
+            setInstrumentEditMode(false);
+            setPlaybackEditMode(false);
+            setGenerationEditMode(false);
+        }
+        setGenerationAdvancedEditMode(v => !v);
+    }, [generationAdvancedEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
 
     // Toggle the legacy SETTINGS surface from its own SubHeader button (Han #13).
     // Mutually exclusive with clef/range (the catch-all effect closes those when
@@ -107,6 +172,9 @@ export default function useEditMode({
             setClefEditMode(false);
             setColorEditMode(false);
             setInstrumentEditMode(false);
+            setPlaybackEditMode(false);            // Han 2026-06-22
+            setGenerationEditMode(false);
+            setGenerationAdvancedEditMode(false);
         }
         toggleSheetMusicSettings();
     }, [showSheetMusicSettings, handleStopAllPlayback, toggleSheetMusicSettings]);
@@ -130,6 +198,9 @@ export default function useEditMode({
         clefEditMode,
         colorEditMode,
         instrumentEditMode,
+        playbackEditMode,
+        generationEditMode,
+        generationAdvancedEditMode,
         // setters needed by App-level effects (e.g. close range on playback start)
         setRangeEditMode,
         // handlers
@@ -137,6 +208,9 @@ export default function useEditMode({
         handleToggleClefEdit,
         handleToggleColorEdit,
         handleToggleInstrumentEdit,
+        handleTogglePlaybackEdit,
+        handleToggleGenerationEdit,
+        handleToggleGenerationAdvancedEdit,
         handleToggleSettings,
         handleCloseRangeEdit,
         handleCloseClefEdit,

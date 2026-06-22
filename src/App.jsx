@@ -631,11 +631,17 @@ const App = () => {
         clefEditMode,
         colorEditMode,
         instrumentEditMode,
+        playbackEditMode,
+        generationEditMode,
+        generationAdvancedEditMode,
         setRangeEditMode,
         handleToggleRangeEdit,
         handleToggleClefEdit,
         handleToggleColorEdit,
         handleToggleInstrumentEdit,
+        handleTogglePlaybackEdit,
+        handleToggleGenerationEdit,
+        handleToggleGenerationAdvancedEdit,
         handleToggleSettings,
         handleCloseRangeEdit,
         handleCloseClefEdit,
@@ -1248,6 +1254,9 @@ const App = () => {
         clefEditMode: clefEditMode,
         colorEditMode: colorEditMode,
         instrumentEditMode: instrumentEditMode,
+        playbackEditMode: playbackEditMode,
+        generationEditMode: generationEditMode,
+        generationAdvancedEditMode: generationAdvancedEditMode,
         onToggleSettings: toggleSheetMusicSettings,
         onCloseRangeEdit: handleCloseRangeEdit,
         onCloseClefEdit: handleCloseClefEdit,
@@ -1281,7 +1290,8 @@ const App = () => {
         anacrusisMeasureIndex, mergedRenderMelodies,
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
-        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, instrumentEditMode, toggleSheetMusicSettings,
+        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, instrumentEditMode,
+        playbackEditMode, generationEditMode, generationAdvancedEditMode, toggleSheetMusicSettings,
         handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously, isPlaying,
@@ -1385,10 +1395,16 @@ const App = () => {
                     onOpenClef={handleToggleClefEdit}
                     onOpenColor={handleToggleColorEdit}
                     onOpenInstrument={handleToggleInstrumentEdit}
+                    onOpenPlayback={handleTogglePlaybackEdit}
+                    onOpenGeneration={handleToggleGenerationEdit}
+                    onOpenGenerationAdvanced={handleToggleGenerationAdvancedEdit}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}
                     colorEditMode={colorEditMode}
                     instrumentEditMode={instrumentEditMode}
+                    playbackEditMode={playbackEditMode}
+                    generationEditMode={generationEditMode}
+                    generationAdvancedEditMode={generationAdvancedEditMode}
                     showSheetMusicSettings={showSheetMusicSettings}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}

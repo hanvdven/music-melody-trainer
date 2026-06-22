@@ -15,6 +15,20 @@ import { VolumeIcon, VisibilityIcon, MetronomeIcon } from '../../common/CustomIc
 import { getProgressionLabel } from '../../../utils/labelUtils';
 import GenericStepper from '../../common/GenericStepper';
 import { RULE_FAMILIES, PERC_FAMILIES } from '../../../constants/instrumentRules';
+// Shared generator-field option arrays (Han 2026-06-22). Extracted so the in-sheet-music
+// generation setters consume the SAME values/labels (§6d — single source of truth).
+import {
+    CHORD_COMPLEXITY,
+    CHORD_COUNTS,
+    NOTES_PER_MEASURE,
+    RHYTHM_VARIABILITY,
+    LEAP_OPTIONS as LEAP_FIELD_OPTIONS,
+    POLY_LEVELS as POLY_FIELD_LEVELS,
+    SMALLEST_NOTE_DENOMS,
+    SMALLEST_NOTE_GLYPHS,
+    PASSING_CHORD_TYPES,
+    PASSING_CHIP_TITLES,
+} from '../../../constants/generationFields';
 import { GRID_GENERATOR, GRID_VISIBILITY } from '../../../constants/musicLayout';
 import ChordGroupIcon from '../ChordGroupIcon';
 import ChordComplexityIcon from '../ChordComplexityIcon';
@@ -214,15 +228,10 @@ const InstrumentRow = ({
                                 fontSize="11px"
                                 fontFamily="sans-serif"
                                 uppercase={true}
-                                allowedValues={['root', 'power', 'triad', 'seventh', 'sus', 'exotic']}
-                                options={[
-                                    { label: 'ROOT', value: 'root', icon: <ChordComplexityIcon type="root" /> },
-                                    { label: 'POWER', value: 'power', icon: <ChordComplexityIcon type="power" /> },
-                                    { label: 'TRIAD', value: 'triad', icon: <ChordComplexityIcon type="triad" /> },
-                                    { label: 'SEVENTH', value: 'seventh', icon: <ChordComplexityIcon type="seventh" /> },
-                                    { label: 'SUS', value: 'sus', icon: <ChordComplexityIcon type="sus" /> },
-                                    { label: 'EXOTIC', value: 'exotic', icon: <ChordComplexityIcon type="exotic" /> }
-                                ]}
+                                allowedValues={CHORD_COMPLEXITY.map(o => o.value)}
+                                options={CHORD_COMPLEXITY.map(o => ({
+                                    label: o.label.toUpperCase(), value: o.value, icon: <ChordComplexityIcon type={o.value} />
+                                }))}
                                 shouldCycle={true}
                                 onChange={(val) => setSettings(p => ({ ...p, complexity: val }))}
                             />
@@ -350,17 +359,8 @@ const InstrumentRow = ({
                             })()}
                             fontSize="15.5px"
                             fontFamily="serif"
-                            allowedValues={[0.25, 0.5, 1, 1.5, 2, 2.5, 3, 4]}
-                            options={[
-                                { label: '¼', value: 0.25 },
-                                { label: '½', value: 0.5 },
-                                { label: '1', value: 1 },
-                                { label: '1½', value: 1.5 },
-                                { label: '2', value: 2 },
-                                { label: '2½', value: 2.5 },
-                                { label: '3', value: 3 },
-                                { label: '4', value: 4 },
-                            ]}
+                            allowedValues={CHORD_COUNTS.map(o => o.value)}
+                            options={CHORD_COUNTS.map(o => ({ label: o.label, value: o.value }))}
                             onChange={(val) => setSettings(p => ({ ...p, chordCount: val }))}
                         />
                     </div>
@@ -369,7 +369,7 @@ const InstrumentRow = ({
                         value={settings?.notesPerMeasure || 0}
                         fontSize="15.5px"
                         fontFamily="serif"
-                        allowedValues={[0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16]}
+                        allowedValues={NOTES_PER_MEASURE}
                         min={0} max={20}
                         onChange={(val) => setSettings(p => ({ ...p, notesPerMeasure: val }))}
                     />
@@ -382,15 +382,9 @@ const InstrumentRow = ({
                     // Per-type passing chord toggles. Each chip independently enables/disables
                     // one passing chord type; empty selection = no passing chords.
                     <div className="ir-passing-types">
-                        {[
-                            { key: 'secondary-dominant',   label: 'V⁷',   title: 'Secondary dominant (V7/x)' },
-                            { key: 'secondary-dim',        label: 'vii°',  title: 'Secondary diminished (vii°7/x)' },
-                            { key: 'tritone-sub',          label: '♭II⁷',  title: 'Tritone substitution (♭II7/x)' },
-                            { key: 'diatonic',             label: 'dia',   title: 'Diatonic step approach' },
-                            { key: 'sus4',                 label: 'sus',   title: 'Suspended 4th (sus4)' },
-                            { key: 'subdominant-approach', label: 'IV',    title: 'Subdominant approach (IV/x)' },
-                            { key: 'borrowed-parallel',    label: '♭bor',  title: 'Borrowed parallel chord' },
-                        ].map(({ key, label, title }) => {
+                        {/* key+label from the shared const (§6d); titles stay here (bottom-view only). */}
+                        {PASSING_CHORD_TYPES.map(({ key, label }) => {
+                            const title = PASSING_CHIP_TITLES[key];
                             const active = (settings?.passingChordTypes ?? []).includes(key);
                             return (
                                 <button
@@ -412,8 +406,8 @@ const InstrumentRow = ({
                     </div>
                 ) : !isChords && !isMetronome ? (() => {
                     const current = settings?.smallestNoteDenom || 4;
-                    const allowedValues = [16, 8, 4, 2, 1];
-                    const glyphMap = { 1: 'w', 2: 'h', 4: 'q', 8: 'e', 16: 'x' };
+                    const allowedValues = SMALLEST_NOTE_DENOMS;
+                    const glyphMap = SMALLEST_NOTE_GLYPHS;
                     const options = allowedValues.map(v => ({
                         label: <span className="ir-maestro-note-sm">{glyphMap[v]}</span>,
                         value: v
@@ -439,7 +433,7 @@ const InstrumentRow = ({
                         value={settings?.rhythmVariability || 0}
                         fontSize="15.5px"
                         fontFamily="serif"
-                        allowedValues={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
+                        allowedValues={RHYTHM_VARIABILITY}
                         min={0} max={100}
                         suffix="%"
                         onChange={(val) => setSettings(p => ({ ...p, rhythmVariability: val }))}
@@ -452,19 +446,8 @@ const InstrumentRow = ({
                 For fullchord/pairedchord: max span between lowest and highest voicing note. */}
             <div className="ir-col-center">
                 {!isMetronome && !isChords && !isPerc && (() => {
-                    const LEAP_OPTIONS = [
-                        { label: '3rd',  value: 4  },
-                        { label: '4th',  value: 5  },
-                        { label: '6th',  value: 9  },
-                        { label: '7th',  value: 11 },
-                        { label: '8ve',  value: 12 },
-                        { label: '9th',  value: 14 },
-                        { label: '10th', value: 16 },
-                        { label: '11th', value: 17 },
-                        { label: '12th', value: 19 },
-                        { label: '15th', value: 24 },
-                        { label: '∞',    value: null },
-                    ];
+                    // Shared option list (§6d) — value→label pairs identical to the in-sheet setter.
+                    const LEAP_OPTIONS = LEAP_FIELD_OPTIONS;
                     const currentLeap = settings?.maxLeap ?? null;
                     const currentLabel = LEAP_OPTIONS.find(o => o.value === currentLeap)?.label ?? '∞';
                     return (
@@ -486,13 +469,7 @@ const InstrumentRow = ({
                 Kept per-instrument so e.g. bass can stay rhythmically simple while percussion is busy. */}
             <div className="ir-col-center">
                 {!isMetronome && (() => {
-                    const POLY_LEVELS = [
-                        { label: 'none',    value: 1   },
-                        { label: 'low',     value: 5   },
-                        { label: 'med',     value: 15  },
-                        { label: 'high',    value: 50  },
-                        { label: 'xtreme',  value: 200 },
-                    ];
+                    const POLY_LEVELS = POLY_FIELD_LEVELS;
                     const curMult = settings?.polyMultiplier ?? 1;
                     // Map multiplier value to level; default 1 = 'none' (no boost).
                     const curLevel = POLY_LEVELS.find(l => l.value === curMult) ?? POLY_LEVELS[0];

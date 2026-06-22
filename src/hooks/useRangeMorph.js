@@ -7,7 +7,8 @@ import { runFlyInCascade, MORPH_MS } from '../utils/flyInCascade';
 // the EXACT same choreography (Han 2026-06-16). This hook only owns the OVERLAY trigger:
 // detecting a surface-kind change and resolving which SVG groups are the OLD vs NEW.
 //
-// `kind` is the CURRENTLY-shown surface: 'range' | 'clef' | 'color' | 'legacy' | 'melody'.
+// `kind` is the CURRENTLY-shown surface: 'range' | 'clef' | 'color' | 'instrument' | 'legacy' |
+// 'playback' | 'generation' | 'generation-advanced' | 'melody'.
 export { MORPH_MS };
 
 // Resolve the SVG group(s) for a given overlay kind, as an ARRAY (clef mode shows the clef
@@ -27,6 +28,14 @@ const groupsForKind = (svg, kind) => {
   if (kind === 'instrument') return [svg.querySelector('.instrument-overlay')].filter(Boolean);
   // The old settings overlay is now a sliding 'legacy' surface (Han #11).
   if (kind === 'legacy') return [svg.querySelector('.settings-overlay')].filter(Boolean);
+  // Three new generator setters (Han 2026-06-22). Each is its OWN morph surface (mirrors colour/
+  // instrument — a single group, no sibling chord row; the chords "balk" is rendered INSIDE the
+  // generation overlays as another row of the same group, not as a separate sibling). PLAYBACK
+  // reuses SettingsOverlay but under a distinct group class so its morph never collides with the
+  // legacy 'settings' class (they are mutually exclusive, so the classes never coexist).
+  if (kind === 'playback') return [svg.querySelector('.playback-overlay')].filter(Boolean);
+  if (kind === 'generation') return [svg.querySelector('.generation-overlay')].filter(Boolean);
+  if (kind === 'generation-advanced') return [svg.querySelector('.generation-advanced-overlay')].filter(Boolean);
   return [];
 };
 

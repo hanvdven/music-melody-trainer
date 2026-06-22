@@ -1560,3 +1560,17 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
    Files: RangeStaffOverlay.jsx, KeyboardRangeSetter.jsx (+css), App.css, scripts/
    render-range*.jsx, docs/architecture.md, RangeStaffOverlay.test.jsx (+2 tests).
    Tests 293 green, build clean. NOT committed (Han verifies feel live).
+
+✅ Three generator setters PLAYBACK / GENERATION / GEN. ADVANCED (Han 2026-06-22).
+   In-sheet-music overlays, siblings of range/clef/colour/instrument/legacy. Per-balk
+   (row/staff: treble/bass/perc + CHORDS as 4th balk). PLAYBACK reuses SettingsOverlay
+   via new groupClassName prop ('playback-overlay'); GENERATION + GEN.ADVANCED are new
+   SvgSetter-based overlays. Field option arrays extracted to src/constants/
+   generationFields.js (shared with InstrumentRow per §6d). 3 new edit-mode states +
+   toggles in useEditMode (full mutual exclusion, tested). overlayKind +
+   groupsForKind + mountedFor + render blocks in SheetMusic. App threads flags/handlers.
+   SubHeader: 3 buttons (SlidersHorizontal / Sparkles / FlaskConical). Smoke tests for
+   both new overlays + useEditMode mutual-exclusion tests. docs §42. Tests 455 green,
+   build clean, lint 0 errors. NOT committed.
+   🐞 PROVISIONAL: CHORDS-balk mapping (esp. GEN.ADVANCED passing-chords cycler in the
+      tuplets column) needs Han confirmation. Layout/spacing UNVERIFIED on a live staff.

@@ -3732,3 +3732,96 @@ selector draws its own).
 `src/components/sheet-music/SheetMusic.jsx` (clef un-hidden in colour mode),
 `src/components/layout/SubHeader.jsx`, `src/components/controls/RangeControls.jsx`,
 `src/components/controls/SettingsPanel.jsx` (COLOR_MODES order + labels).
+
+---
+
+## 42. Generator Setters — PLAYBACK / GENERATION / GENERATION ADVANCED (Han 2026-06-22)
+
+**Purpose / what it does.** Three new in-sheet-music setter overlays, siblings of the
+range / clef / colour / instrument / legacy-settings overlays. Each has its own SubHeader
+menu-button and its own morph surface, and all three are FULLY mutually exclusive with every other
+edit mode (and with each other). They expose the bottom-view generator controls directly on the
+staff, organised **per "balk"** — one row per visible STAFF (treble / bass / percussion) plus a
+4th **CHORDS** balk:
+
+1. **PLAYBACK** (`'playback'`, group class `.playback-overlay`) — the existing SettingsOverlay
+   content (global `numMeasures` + `repsPerMelody` steppers; per-staff per-odd/even-round
+   visibility + volume). It REUSES `SettingsOverlay` (§6c — no duplicate component); the only
+   change to `SettingsOverlay` is a new optional `groupClassName` prop (default `'settings-overlay'`)
+   so the PLAYBACK instance flies in under `'playback-overlay'` and its morph never collides with
+   the legacy `'settings'` surface. The two are mutually exclusive, so the classes never coexist.
+2. **GENERATION** (`'generation'`, `.generation-overlay`) — `GenerationSetterOverlay.jsx`. Per balk:
+   `melody notes`, `melody type`, `notes / measure`.
+3. **GENERATION ADVANCED** (`'generation-advanced'`, `.generation-advanced-overlay`) —
+   `GenerationAdvancedSetterOverlay.jsx`. Per balk: `variability`, `span`, `tuplets`,
+   `smallest note` (chords balk: only `passing chords`).
+
+**How it works.**
+- `useEditMode.js` adds three boolean states (`playbackEditMode`, `generationEditMode`,
+  `generationAdvancedEditMode`) + three toggles (`handleTogglePlaybackEdit`,
+  `handleToggleGenerationEdit`, `handleToggleGenerationAdvancedEdit`). Each toggle mirrors the
+  existing ones: stop playback, close the legacy settings overlay, and close EVERY other edit mode
+  on OPEN (full mutual exclusion). The existing four toggles + the legacy-settings toggle were
+  updated to also close the three new modes.
+- `useRangeMorph.groupsForKind` resolves `'playback'`/`'generation'`/`'generation-advanced'` to
+  their single group classes (no sibling chord row — the chords balk is rendered INSIDE the
+  generation overlays as another row of the same group).
+- `SheetMusic.jsx`: `overlayKind` gains the three kinds (before `'legacy'`/`'melody'`),
+  `overlayEditMode` includes them, three `mountedFor(...)` flags keep each mounted through its exit
+  morph, and three render blocks mirror the legacy SettingsOverlay block. PLAYBACK renders
+  `<SettingsOverlay groupClassName="playback-overlay" .../>`.
+- The chords balk renders only when the chord row is visible (`showChords`), passed as
+  `showChordsRow`.
+- Every stepper REUSES `SvgSetter` (§6c/§6d — no hand-rolled stepper chrome). Increment/decrement
+  cycle the field's value list. Each interactive stepper shows its debug hit box in `debugMode`
+  (§3a). Maestro note glyphs reuse `SMALLEST_NOTE_GLYPHS` (§6d). All accidentals in labels are
+  Unicode (§5b).
+
+**Field → setting mapping (single source of truth: `src/constants/generationFields.js`).**
+Both the bottom-view `InstrumentRow.jsx` and these overlays consume the SAME option arrays (§6d);
+the inline arrays previously living in `InstrumentRow.jsx` were extracted into that module.
+
+| Balk | GENERATION col | setting | values (const) |
+|---|---|---|---|
+| treble/bass | melody notes | `notePool` | `MELODIC_NOTE_POOLS` (root/chord/scale/chromatic) |
+| percussion | melody notes | `enabledPads` (preset) | `PERC_POOL_PRESETS` → `PERCUSSION_PRESETS[name]` |
+| treble/bass/perc | melody type | `randomizationRule` (+`type`) | flat play-style ring from `RULE_FAMILIES`/`PERC_FAMILIES`; label `getPlayStyleLabel` |
+| treble/bass/perc | notes / measure | `notesPerMeasure` | `NOTES_PER_MEASURE` [0..8,12,16] |
+| chords | melody notes | `complexity` | `CHORD_COMPLEXITY` (root/power/triad/seventh/sus/exotic) |
+| chords | melody type | `strategy` | `CHORD_STRATEGIES`; label `getProgressionLabel` |
+| chords | notes / measure | `chordCount` | `CHORD_COUNTS` [¼,½,1,1½,2,2½,3,4] |
+
+| Balk | GEN. ADVANCED col | setting | values (const) |
+|---|---|---|---|
+| treble/bass/perc | variability | `rhythmVariability` | `RHYTHM_VARIABILITY` [0..100], '%' suffix |
+| treble/bass | span | `maxLeap` | `LEAP_OPTIONS` (null = ∞); N/A for perc/chords |
+| treble/bass/perc | tuplets | `polyMultiplier` | `POLY_LEVELS` (none/low/med/high/xtreme) |
+| treble/bass/perc | smallest note | `smallestNoteDenom` | `SMALLEST_NOTE_DENOMS` as Maestro glyphs |
+| chords | passing chords (tuplets-position) | `passingChordTypes` (toggle set) | `PASSING_CHORD_TYPES` (7-type cycler+toggle) |
+
+The other advanced columns are omitted for the chords balk (variability/span/smallest-note are N/A).
+
+**PROVISIONAL — chords mapping.** The CHORDS-balk mapping (and especially the GEN. ADVANCED
+passing-chords single-cycler placed in the tuplets column) is a first-pass spec to be confirmed by
+Han. The cycler advances WHICH passing-chord type is shown; tapping the value TOGGLES that type in
+`passingChordTypes`; an inactive type is dimmed.
+
+**Invariants.**
+- All three setters are mutually exclusive with each other and with range/clef/colour/instrument/
+  legacy-settings (verified by `useEditMode.test.js`).
+- Option arrays live ONLY in `src/constants/generationFields.js`; never re-declare them in a
+  consuming component.
+- PLAYBACK never owns a duplicate of SettingsOverlay — it reuses it via `groupClassName`.
+
+**Files.** `src/constants/generationFields.js` (new),
+`src/components/sheet-music/overlays/GenerationSetterOverlay.jsx` (new),
+`src/components/sheet-music/overlays/GenerationAdvancedSetterOverlay.jsx` (new),
+`src/components/sheet-music/overlays/__tests__/GenerationSetterOverlay.test.jsx` (new),
+`src/components/sheet-music/overlays/__tests__/GenerationAdvancedSetterOverlay.test.jsx` (new),
+`src/components/sheet-music/overlays/SettingsOverlay.jsx` (`groupClassName` prop),
+`src/components/controls/rows/InstrumentRow.jsx` (consumes the shared consts),
+`src/hooks/useEditMode.js` (3 states + 3 toggles + mutual-exclusion), `src/hooks/useEditMode.test.js`
+(updated), `src/hooks/useRangeMorph.js` (`groupsForKind` 3 kinds),
+`src/components/sheet-music/SheetMusic.jsx` (props + overlayKind + mounted flags + render blocks),
+`src/App.jsx` (thread flags + handlers), `src/components/layout/SubHeader.jsx` (3 buttons:
+PLAYBACK `SlidersHorizontal` / GENERATION `Sparkles` / GEN. ADVANCED `FlaskConical`).

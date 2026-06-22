@@ -15,6 +15,10 @@ import RangeStaffOverlay from './overlays/RangeStaffOverlay';
 import ClefStaffOverlay from './overlays/ClefStaffOverlay';
 import NoteColoringStaffOverlay from './overlays/NoteColoringStaffOverlay';
 import InstrumentStaffOverlay from './overlays/InstrumentStaffOverlay';
+// Three generator setters (Han 2026-06-22): PLAYBACK reuses SettingsOverlay (via groupClassName),
+// GENERATION + GENERATION ADVANCED are new per-balk stepper overlays.
+import GenerationSetterOverlay from './overlays/GenerationSetterOverlay';
+import GenerationAdvancedSetterOverlay from './overlays/GenerationAdvancedSetterOverlay';
 import { clefFamilyKey } from './overlays/clefSelector';
 import ChordStaffOverlay from './overlays/ChordStaffOverlay';
 import ChordStyleOverlay from './overlays/ChordStyleOverlay';
@@ -190,6 +194,9 @@ const SheetMusic = ({
   clefEditMode,
   colorEditMode,
   instrumentEditMode,
+  playbackEditMode,                 // Han 2026-06-22 — three new generator setters
+  generationEditMode,
+  generationAdvancedEditMode,
   onToggleSettings,
   onCloseRangeEdit,
   onCloseClefEdit,
@@ -455,7 +462,7 @@ const SheetMusic = ({
   // new flies in from the right. Either RANGE or CLEF mode triggers it (both replace
   // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
   // the duration. Fly distance = content width (user units). See useRangeMorph.
-  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || instrumentEditMode || showSettings;
+  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || instrumentEditMode || showSettings || playbackEditMode || generationEditMode || generationAdvancedEditMode;
   // The currently-shown SURFACE drives the morph: switching between range / clef /
   // legacy-settings / melody re-arms the animation each time (Han #10/#11). The old
   // settings overlay is now the sliding 'legacy' surface.
@@ -464,7 +471,10 @@ const SheetMusic = ({
   // streaming from the right) only for colorEditMode to immediately hide it again. Treating
   // colour as a surface makes its scheme rows fly in like range/clef and stops the bogus
   // melody fly-in. Mutually exclusive with range/clef/settings (App.handleToggleColorEdit).
-  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : instrumentEditMode ? 'instrument' : showSettings ? 'legacy' : 'melody';
+  // The three generator setters (Han 2026-06-22) are their own morph surfaces, placed BEFORE the
+  // 'legacy'/'melody' fallbacks. PLAYBACK reuses SettingsOverlay but flies in as the 'playback'
+  // surface (distinct group class 'playback-overlay').
+  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : instrumentEditMode ? 'instrument' : playbackEditMode ? 'playback' : generationEditMode ? 'generation' : generationAdvancedEditMode ? 'generation-advanced' : showSettings ? 'legacy' : 'melody';
   const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
   // Universal transition: replay the SAME 1.5s cascade when the app swaps the sheet content
   // IN PLACE (song load, difficulty, …) rather than via an overlay surface change. App bumps
@@ -494,6 +504,10 @@ const SheetMusic = ({
   // Keep the instrument overlay mounted through its EXIT morph too (instrument→melody),
   // so its card strip can fade/fly out instead of vanishing instantly (mirrors colour).
   const instrumentMounted = mountedFor('instrument', instrumentEditMode);
+  // Generator setters — keep each mounted through its exit morph the same way (Han 2026-06-22).
+  const playbackMounted = mountedFor('playback', playbackEditMode);
+  const generationMounted = mountedFor('generation', generationEditMode);
+  const generationAdvancedMounted = mountedFor('generation-advanced', generationAdvancedEditMode);
 
   const staffLines = [];
   if (isTrebleVisible) {
@@ -2714,6 +2728,72 @@ const SheetMusic = ({
                       chordProgression={chordProgression}
                       processedChords={processedChords}
                       onSettingsInteraction={onSettingsInteraction}
+                    />
+                  )}
+
+                  {/* PLAYBACK setter (Han 2026-06-22) — REUSES SettingsOverlay (§6c: no duplicate),
+                      but under the distinct group class 'playback-overlay' so its morph never
+                      collides with the legacy 'settings-overlay' (they are mutually exclusive). */}
+                  {playbackMounted && (
+                    <SettingsOverlay
+                      groupClassName="playback-overlay"
+                      startX={startX}
+                      endX={endX}
+                      systemEndX={systemEndX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      playbackConfig={playbackConfig}
+                      setPlaybackConfig={setPlaybackConfig}
+                      toggleRoundSetting={toggleRoundSetting}
+                      setActiveVolumePicker={setActiveVolumePicker}
+                      setActiveNumberPicker={setActiveNumberPicker}
+                      numMeasures={numMeasures}
+                      setNumMeasures={onNumMeasuresChange}
+                      chordDisplayMode={chordDisplayMode}
+                      chordProgression={chordProgression}
+                      processedChords={processedChords}
+                      onSettingsInteraction={onSettingsInteraction}
+                    />
+                  )}
+
+                  {/* GENERATION setter (Han 2026-06-22) — per-balk melody-notes / melody-type /
+                      notes-per-measure steppers. Chords balk shown only when the chord row is
+                      visible (showChords mirrors the legacy chord-row gate). */}
+                  {generationMounted && (
+                    <GenerationSetterOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      showChordsRow={showChords}
+                      onSettingsInteraction={onSettingsInteraction}
+                      debugMode={debugMode}
+                    />
+                  )}
+
+                  {/* GENERATION ADVANCED setter (Han 2026-06-22) — per-balk variability / span /
+                      tuplets / smallest-note steppers; chords balk = passing-chord cycler. */}
+                  {generationAdvancedMounted && (
+                    <GenerationAdvancedSetterOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      showChordsRow={showChords}
+                      onSettingsInteraction={onSettingsInteraction}
+                      debugMode={debugMode}
                     />
                   )}
 

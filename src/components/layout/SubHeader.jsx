@@ -10,6 +10,9 @@ import {
     MoveHorizontal,
     Settings2,
     Piano,
+    SlidersHorizontal,
+    Sparkles,
+    FlaskConical,
 } from 'lucide-react';
 import { ChordNotationIcon } from '../common/CustomIcons';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
@@ -31,10 +34,16 @@ const SubHeader = ({
     onOpenSettings,
     onOpenColor,
     onOpenInstrument,
+    onOpenPlayback,
+    onOpenGeneration,
+    onOpenGenerationAdvanced,
     rangeEditMode = false,
     clefEditMode = false,
     colorEditMode = false,
     instrumentEditMode = false,
+    playbackEditMode = false,
+    generationEditMode = false,
+    generationAdvancedEditMode = false,
     showSheetMusicSettings = false,
     windowWidth,
     difficultyMultiplier,
@@ -344,6 +353,33 @@ const SubHeader = ({
                         'INSTRUMENT',
                         onOpenInstrument,
                         instrumentEditMode,
+                        null,
+                        true
+                    )}
+                    {/* PLAYBACK / GENERATION / GEN. ADVANCED setters (Han 2026-06-22). Menu-toggle
+                        buttons like the others (active glow via isMenuToggle). Distinct lucide
+                        icons consistent with the existing set. */}
+                    {onOpenPlayback && renderButton(
+                        <SlidersHorizontal size={22} />,
+                        'PLAYBACK',
+                        onOpenPlayback,
+                        playbackEditMode,
+                        null,
+                        true
+                    )}
+                    {onOpenGeneration && renderButton(
+                        <Sparkles size={22} />,
+                        'GENERATION',
+                        onOpenGeneration,
+                        generationEditMode,
+                        null,
+                        true
+                    )}
+                    {onOpenGenerationAdvanced && renderButton(
+                        <FlaskConical size={22} />,
+                        'GEN. ADVANCED',
+                        onOpenGenerationAdvanced,
+                        generationAdvancedEditMode,
                         null,
                         true
                     )}
