@@ -225,6 +225,21 @@ const shiftNatural = (notes, midi, n) => {
 const fit = (count, avail) => avail / Math.max(1, count);
 const MAX_CONTEXT = 5;   // hard cap on naturals added beyond each boundary
 
+// Span-dependent minimum scale for the in-range middle-note bow (Han 2026-06-19):
+// the previous version always pulled the middle note down to 0.5 regardless of how
+// wide the range is, which over-shrank narrow ranges where there is plenty of room.
+// Han wants the shrink to be GENTLE for small ranges and only aggressive for wide
+// ones. oSpan is the ORDINAL note-count span (white-key steps from selMin→selMax,
+// not semitones). Below 8 notes the range is small enough that notes stay FULL size
+// (no shrink at all, per Han); from 8 notes it eases down to 0.50 at ≥12 notes,
+// linear between 8 and 12.
+//   oSpan < 8  → 1.00 (no shrink)
+//   oSpan = 8  → 0.90
+//   oSpan = 10 → 0.70
+//   oSpan ≥ 12 → 0.50
+export const rangeMiddleMinScale = (oSpan) =>
+    oSpan < 8 ? 1.0 : oSpan >= 12 ? 0.5 : 0.9 - 0.4 * (oSpan - 8) / 4;
+
 export const buildRangeRow = (notes, selMin, selMax, avail) => {
     const M = notes.length;
     if (M === 0) return { collapsed: false, noteWidth: avail, entries: [], allOffsets: [0], colMidi: [], gap: null, extent: { loIdx: 0, hiIdx: 0 } };
@@ -807,7 +822,15 @@ const RangeStaffOverlay = ({
                         // (the scale() wraps the whole StaffQuarterNote).
                         const oSpan = ordinalOf(selMax) - ordinalOf(selMin);
                         const uMid = oSpan > 0 ? Math.abs((ordinalOf(n.midi) - ordinalOf(selMin)) / oSpan - 0.5) * 2 : 1;
-                        const s = inBand ? (0.5 + 0.5 * easeInOut(uMid)) : Math.max(0.5, 1 - d * 0.05);
+                        // Span-dependent middle-note shrink (Han 2026-06-19): the middle
+                        // minimum scale now depends on oSpan via rangeMiddleMinScale — small
+                        // ranges (< 8 ordinal notes) stay FULL size (minScale 1.0, no shrink),
+                        // wide ranges (≥ 12) reach 0.5. The bow is generalised so the boundary
+                        // stays full-size and the middle reaches minScale:
+                        //   uMid=0 (middle) → s=minScale ; uMid=1 (boundary) → s=1.0.
+                        // Out-of-range branch unchanged (fade + shrink-with-distance).
+                        const minScale = rangeMiddleMinScale(oSpan);
+                        const s = inBand ? (minScale + (1 - minScale) * easeInOut(uMid)) : Math.max(0.5, 1 - d * 0.05);
                         // data-fly = flyable note tag (useRangeMorph): the range rows stream in
                         // from the right on the morph like the clef/colour overlays (Han 2026-06-15
                         // B3). The OUTER <g> is what the morph translateX-es; the INNER <g> keeps the
