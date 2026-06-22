@@ -355,7 +355,11 @@ const SheetMusic = ({
 
   // --- Vertical Layout Constants (Responsive) ---
   const baseGap = 70;
-  const minGap = 29.5;
+  // Minimum inter-staff vertical gap, used as the floor of the responsive formula below when the
+  // container is short (<400px). +10 units (was 29.5) so staves never crowd as tightly on small
+  // screens; applies to BOTH the melody view and the setters (which overlay the same staves).
+  // baseGap (the large-container value) is unchanged, so tall containers are unaffected (Han 2026-06-19).
+  const minGap = 39.5;
 
   // --- Dynamic Staff Visibility & Layout ---
 
@@ -1893,6 +1897,14 @@ const SheetMusic = ({
                     // first frame after the kind change but before the new morph arms — the old
                     // `morphFrom==='melody'` gate would expose the melody for that one frame
                     // (Han 2026-06-18). See useRangeMorph.js for the two-stage-effect race.
+                    //
+                    // OPEN/CLOSE flash fix (Han 2026-06-19): useRangeMorph now arms the morph
+                    // DURING RENDER (not a layout-effect setState), so morphFrom/morphTo/morphing
+                    // are correct on the SAME render the kind changes. This gate therefore hides
+                    // the melody on the morph's FIRST and LAST frame instead of one render late —
+                    // and the cascade's initial fly/fade styles are applied before the first paint,
+                    // so neither the melody (close) nor the setter content (open) shows un-animated
+                    // for a frame. See useRangeMorph.js for the render-time-arming WHY.
                     display: melodyHiddenDuringOverlay(overlayEditMode, rangeMorphing, morphFrom, morphTo, overlayKind) ? 'none' : undefined }}>
                     {/* Melody notes: visible in 'melody' viewMode */}
                     {/* In pagination mode, opacity is driven by the rAF loop via data-pagination-old.

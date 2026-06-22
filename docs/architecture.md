@@ -2853,6 +2853,35 @@ states, so manual melody (re)generation — which goes through the round/regen p
   `src/components/sheet-music/SheetMusic.jsx` (gate call),
   `src/hooks/__tests__/useRangeMorph.test.js` (new, 6 tests).
 
+- **One-frame flash on setter OPEN and CLOSE (Han 2026-06-19).**
+  **Symptom:** the between-setter flash was closed (see 2026-06-18 above) but a one-frame flash
+  REMAINED when OPENING a setter (melody→setter) and CLOSING one (setter→melody). On open the
+  setter content briefly showed at REST (un-animated) before flying in; on close the melody
+  briefly showed at REST before the return fly-in.
+  **Root cause:** the deeper version of the same two-stage-effect lag. `useRangeMorph` armed the
+  morph in a `useLayoutEffect` that called `setMorph`, so the returned `morphing/morphFrom/morphTo`
+  lagged `overlayKind` by exactly one render, AND the cascade tween (which sets the fly/fade
+  initial styles) only armed on that SECOND render. React 18 flushes a layout-effect `setState`
+  before paint MOST of the time — but not reliably when the triggering update is itself committed
+  from the click handler first, leaving the first commit (overlay/melody mounted at rest, no
+  cascade styles yet) visible for one frame.
+  **Fix:** arm the morph DURING RENDER. `useRangeMorph` now compares a `prevKindRef` against the
+  live `kind` in the render body and writes the descriptor to a ref (the React-sanctioned
+  "remember info from previous renders" pattern). The returned `morphing/morphFrom/morphTo` are
+  thus correct on the SAME render the kind changes, so (a) the `melodyHiddenDuringOverlay` gate
+  decides the melody's `display` for the morph's FIRST and LAST frame, not one render late, and
+  (b) the tween's `useLayoutEffect` runs on the FIRST commit (after DOM mutation, before paint),
+  applying the fly-in offsets / delayed-fade opacity:0 before the first paint. No animated element
+  flips opacity/display via a JSX prop mid-morph (§6); the cascade still owns opacity/transform via
+  `element.style`. A bumping `useState` only forces the re-render that recomputes `morphing=false`
+  when the tween completes (`onDone` clears the ref iff its id still matches, so a rapid re-arm is
+  not stomped). All four transitions verified: melody→setter (open) shows melody fade-out from
+  frame 0; setter→melody (close) flies the melody in from frame 0; setterA→setterB re-arms
+  immediately so the melody never appears; rapid open→switch likewise.
+  **Files:** `src/hooks/useRangeMorph.js` (render-time arming + WHY comment),
+  `src/components/sheet-music/SheetMusic.jsx` (gate comment),
+  `src/hooks/__tests__/useRangeMorph.test.js` (open/close frame tests added).
+
 *Invariants:* all "off" crosses MUST go through `DisableCross`; any new setter cross too.
 Note colouring in EVERY context follows the WRITTEN (transposed) note (§6 — never a local
 reimplementation; reuse `transposeMelodyBySemitones` + `melodicNoteColor`/`getNoteSemitone`).
