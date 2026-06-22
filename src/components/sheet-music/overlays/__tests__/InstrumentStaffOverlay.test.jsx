@@ -25,7 +25,8 @@ describe('InstrumentStaffOverlay', () => {
     it('renders treble + bass instrument carousels without crashing', () => {
         const { container } = renderOverlay();
         expect(container.querySelector('.instrument-overlay')).not.toBeNull();
-        // One carousel (data-fly block) per visible staff.
+        // One carousel block per visible staff. (PER-ELEMENT FLY-IN, Han 2026-06-19: data-fly now
+        // lives on each card inside the carousel, not on this .instrument-cards wrapper.)
         expect(container.querySelectorAll('.instrument-cards').length).toBe(2);
         // Items render SVG-NATIVE (icon glyph + name <text>), NOT foreignObject — foreignObject
         // didn't fade with the morph and broke the INSTRUMENT→COLOUR slide (Han 2026-06-17).

@@ -39,8 +39,25 @@ describe('NonLinearCarousel', () => {
         const { container } = renderCarousel();
         const surface = container.querySelector('rect[fill="transparent"]');
         expect(surface).not.toBeNull();
-        // The hit window spans ~5 item slots wide (VISIBLE_HALF=2 each side + the centre).
+        // The hit window spans ~5 item slots wide (default visibleHalf=2 each side + the centre).
         expect(Number(surface.getAttribute('width'))).toBeGreaterThan(40 * 4);
+    });
+
+    it('tags EACH item with data-fly so the cards cascade in one-by-one (Han 2026-06-19)', () => {
+        // PER-ELEMENT FLY-IN: the data-fly moved from the parent overlay group DOWN onto each
+        // card wrapper, so flyInCascade staggers the cards by x (leftmost lands first) instead of
+        // flying the whole carousel as one unit. One data-fly wrapper per item.
+        const { container } = renderCarousel();
+        expect(container.querySelectorAll('[data-fly]').length).toBe(ITEMS.length);
+    });
+
+    it('visibleHalf prop widens the hit window (instrument carousel passes 3 → 7 visible)', () => {
+        // Default (2) → 5 slots wide; visibleHalf=3 → 7 slots wide. The colour carousel omits the
+        // prop (default 2, unchanged); the instrument carousel passes 3.
+        const { container } = renderCarousel({ visibleHalf: 3 });
+        const surface = container.querySelector('rect[fill="transparent"]');
+        // width = (2*3+1) * baseWidth(40) = 280; clearly wider than the 5-slot (200) window.
+        expect(Number(surface.getAttribute('width'))).toBeGreaterThan(40 * 6);
     });
 
     it('draws the §3a debug hit box matching the real surface', () => {
@@ -57,6 +74,12 @@ describe('NonLinearCarousel', () => {
     it('visibleRange returns the ~5 items around the centre as an ordered array', () => {
         // Centre index 3 of 7 → indices 1..5 visible (2 each side + centre), in visual order.
         expect(visibleRange(3, 7)).toEqual([1, 2, 3, 4, 5]);
+    });
+
+    it('visibleRange accepts a half-window arg (instrument carousel passes 3 → 7 wide)', () => {
+        // Default half (2) → 5 indices; half=3 → 7 indices centred on the index. The instrument
+        // setter passes the same 3 it gives the carousel so its category brackets span all 7 cards.
+        expect(visibleRange(3, 9, 3)).toEqual([0, 1, 2, 3, 4, 5, 6]);
     });
 
     it('visibleRange WRAPS across the N-1 → 0 seam (cyclical, Han 2026-06-17)', () => {
