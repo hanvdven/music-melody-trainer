@@ -47,7 +47,13 @@ import React from 'react';
  */
 
 const TAP_SLOP = 5;                 // < this much movement (user units) = a tap (matches ClefCardCarousel)
-const VISIBLE_HALF = 2;             // render this many items on EACH side of the centre (~5 total)
+// DEFAULT half-window: render this many items on EACH side of the centre (~5 total). This is now
+// only the DEFAULT — the count is a prop (`visibleHalf`) so a consumer can widen the window (Han
+// 2026-06-19: the instrument carousel passes 3 → 7 visible; the colour carousel keeps the default
+// 2). The exported `visibleRange` / `xOffsetForDist` helpers still use this constant for the
+// default-window consumers (the instrument setter's brackets pass the same 3 they give the
+// carousel, see InstrumentStaffOverlay).
+const VISIBLE_HALF = 2;
 const CENTER_ANIM_MS = 420;         // glide-to-centre duration (tap or settle snap)
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
 const easeInOut = (t) => t * t * (3 - 2 * t);   // smoothstep — matches the app's other eases
@@ -64,15 +70,19 @@ const signedDist = (i, pos, n) => ((i - pos + n / 2 + n) % n) - n / 2;
 // Falloff by distance-from-centre `d` (0 = centred, grows toward the edges).
 // OPACITY fades; SCALE is now CONSTANT 1.0. Kept as pure functions so the look is a single
 // source of truth (this primitive is shared by the instrument + colour carousels, §6d).
-const EDGE = VISIBLE_HALF + 0.5;    // distance at which an item is fully faded
+// edgeFor(half): distance at which an item is fully faded — derived from the (now variable) window
+// half-width so a wider window (Han 2026-06-19: 7-visible instruments) fades its edge cards at the
+// new outer edge, not the old 5-card edge.
+const edgeFor = (half) => half + 0.5;
 // FULLY FLAT (Han 2026-06-18): no shrink at all — every card is the SAME size. WHY: Han wants a
 // pure horizontal strip, not a curved "dial/wheel", so the only edge cue is the OPACITY fade
 // below (the "there's more" hint), never a size change. Kept as a function (not a literal at the
 // call site) so the single-source-of-truth shape is preserved and the constant can be tuned in
 // one place. Affects BOTH the instrument and colour carousels (intended — shared primitive).
 const scaleForDist = () => 1;
-const opacityForDist = (d) => {
-    const t = clamp(Math.abs(d) / EDGE, 0, 1);
+// `half` defaults to VISIBLE_HALF so the exported helper keeps working for default-window callers.
+const opacityForDist = (d, half = VISIBLE_HALF) => {
+    const t = clamp(Math.abs(d) / edgeFor(half), 0, 1);
     // 1.0 at centre → 0 at the edge, eased — the ONLY edge cue now that scale is flat.
     return 1 - easeInOut(t);
 };
@@ -86,6 +96,11 @@ const xOffsetForDist = (d) => d;
 export default function NonLinearCarousel({
     items, activeIndex = 0, renderItem, centerX, y, baseWidth, height,
     onSelect, onPosChange, debugMode = false,
+    // visibleHalf: how many items show on EACH side of the centre (window = 2*half+1). PROP, not a
+    // constant (Han 2026-06-19): the instrument carousel passes 3 → 7 visible; the colour carousel
+    // omits it → default VISIBLE_HALF (2) → 5 visible (unchanged). Drives the fade edge, the
+    // tap-hit visibility cut-off, and the hit-surface width below.
+    visibleHalf = VISIBLE_HALF,
 }) {
     const wrapRefs = React.useRef([]);    // per-item <g> refs (we mutate style each frame)
     const posRef = React.useRef(activeIndex);  // fractional centre position (which item index sits at centerX)
@@ -120,7 +135,7 @@ export default function NonLinearCarousel({
             // NEAREST signed distance accounting for the wrap, so items near index 0 sit just to the
             // right of items near index N-1 — the ring loops with no clamp at the ends.
             const d = signedDist(i, wp, N);
-            const op = opacityForDist(d);
+            const op = opacityForDist(d, visibleHalf);
             if (op <= 0.001) {
                 // Fully faded — park it transparent (and don't bother positioning precisely).
                 g.style.opacity = '0';
@@ -215,7 +230,7 @@ export default function NonLinearCarousel({
             let bestErr = Infinity;
             for (let i = 0; i < N; i += 1) {
                 const dist = signedDist(i, posRef.current, N);
-                if (Math.abs(dist) > VISIBLE_HALF + 0.5) continue;   // only visible items are tappable
+                if (Math.abs(dist) > visibleHalf + 0.5) continue;   // only visible items are tappable
                 const ix = xOffsetForDist(dist) * baseWidth;
                 const err = Math.abs(localX - ix);
                 if (err < bestErr) { bestErr = err; best = i; }
@@ -235,21 +250,35 @@ export default function NonLinearCarousel({
     return (
         <g>
             {/* Visual layer — pointerEvents off; the drag/tap surface below routes the gesture.
-                Each item is wrapped in a <g> we transform per frame (translate+scale+opacity via
-                element.style, §6). renderItem authors the item around the origin (0,0). */}
+                Each item is wrapped in TWO nested <g>s:
+                  • an OUTER `data-fly` <g> that the flyInCascade choreography translates (slides in
+                    from the right, staggered by x) on overlay morph-in, then resets;
+                  • an INNER <g> (wrapRefs[i]) that the carousel transforms per frame for the
+                    centre-weight layout (translate+scale+opacity via element.style, §6).
+                PER-ELEMENT FLY-IN (Han 2026-06-19): each card now carries its own `data-fly`, so the
+                cards cascade in one-by-one from the right (leftmost lands first — flyInCascade
+                staggers by getBBox().x), instead of the whole carousel flying as one unit. The
+                outer fly <g> and inner carousel <g> are SEPARATE elements so their transforms never
+                fight: the cascade owns the outer translateX, the carousel owns the inner
+                translate/scale/opacity, and they compose. The parent overlay groups dropped their
+                redundant `data-fly` so cards don't double-translate. renderItem authors the item
+                around the origin (0,0). */}
             <g style={{ pointerEvents: 'none' }}>
                 {items.map((item, i) => (
-                    <g key={i} ref={(el) => { wrapRefs.current[i] = el; }}>
-                        {renderItem(item, i)}
+                    <g key={i} data-fly="">
+                        <g ref={(el) => { wrapRefs.current[i] = el; }}>
+                            {renderItem(item, i)}
+                        </g>
                     </g>
                 ))}
             </g>
             {/* Full-width transparent drag/tap surface (captures the gesture). Spans the visible
-                window: VISIBLE_HALF items each side of centre, at base width. */}
+                window: `visibleHalf` items each side of centre, at base width (Han 2026-06-19: the
+                window is now a prop — 3 for the 7-card instrument carousel, default 2 elsewhere). */}
             <rect
-                x={centerX - (VISIBLE_HALF + 0.5) * baseWidth}
+                x={centerX - (visibleHalf + 0.5) * baseWidth}
                 y={y}
-                width={(2 * VISIBLE_HALF + 1) * baseWidth}
+                width={(2 * visibleHalf + 1) * baseWidth}
                 height={height}
                 fill="transparent"
                 style={{ cursor: 'grab', touchAction: 'none' }}
@@ -260,9 +289,9 @@ export default function NonLinearCarousel({
                 // §3a: the orange rect matches the REAL hit window above (same x/width/height),
                 // so debug mode shows exactly where taps/drags register.
                 <rect
-                    x={centerX - (VISIBLE_HALF + 0.5) * baseWidth}
+                    x={centerX - (visibleHalf + 0.5) * baseWidth}
                     y={y}
-                    width={(2 * VISIBLE_HALF + 1) * baseWidth}
+                    width={(2 * visibleHalf + 1) * baseWidth}
                     height={height}
                     fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
                     style={{ pointerEvents: 'none' }} />
@@ -276,9 +305,12 @@ export default function NonLinearCarousel({
 // ARRAY of real item indices in left→right VISUAL order, wrapping across the N-1 → 0 seam (so a
 // centre near index 0 returns e.g. [N-2, N-1, 0, 1, 2]). The category-header code consumes this
 // ordered list. Pure, so header layout and the carousel agree on "what's on screen".
-export const visibleRange = (centerIndex, count) => {
-    const lo = Math.ceil(centerIndex - (VISIBLE_HALF + 0.5));
-    const hi = Math.floor(centerIndex + (VISIBLE_HALF + 0.5));
+// `half` defaults to VISIBLE_HALF (5-window) so default-window callers (the colour carousel) are
+// unchanged; the instrument setter passes the SAME 3 it gives the carousel so its category brackets
+// span exactly the 7 visible cards (Han 2026-06-19).
+export const visibleRange = (centerIndex, count, half = VISIBLE_HALF) => {
+    const lo = Math.ceil(centerIndex - (half + 0.5));
+    const hi = Math.floor(centerIndex + (half + 0.5));
     const out = [];
     for (let k = lo; k <= hi; k += 1) out.push(((k % count) + count) % count);
     return out;

@@ -1,5 +1,5 @@
 import React from 'react';
-import NonLinearCarousel, { visibleRange, xOffsetForDist, VISIBLE_HALF } from './NonLinearCarousel';
+import NonLinearCarousel, { visibleRange, xOffsetForDist } from './NonLinearCarousel';
 import {
     INSTRUMENT_LIST, getInstrumentIconUrl, ICON_ATTRIBUTION,
 } from '../../../constants/instruments';
@@ -39,6 +39,12 @@ const HIT_H = 86;
 // Build one [{ name, slug, family }] item list (flat, in group order) — the carousel order.
 const ITEMS = INSTRUMENT_LIST;
 
+// How many instruments show on EACH side of the centre → 7 visible total (Han 2026-06-19). This is
+// passed BOTH to the carousel (`visibleHalf` prop) AND to the bracket geometry below (visibleRange
+// + EDGE_X), so the category brackets span exactly the visible cards. The imported VISIBLE_HALF is
+// only the carousel DEFAULT (2 → 5 visible, used by the colour carousel); here we override to 3.
+const INSTRUMENT_VISIBLE_HALF = 3;
+
 // NEAREST signed distance from a fractional centre `pos` to item index `i` on the cyclical ring,
 // matching NonLinearCarousel.signedDist exactly so brackets align with the items pixel-for-pixel.
 // (Kept local — it's a one-line wrap formula, not worth a cross-module export.)
@@ -54,7 +60,8 @@ const signedDist = (i, pos, n) => ((i - pos + n / 2 + n) % n) - n / 2;
 // carousel itself uses, so brackets track the items as `pos` moves during a drag.
 const categoryHeaders = (pos) => {
     const N = ITEMS.length;
-    const visible = visibleRange(pos, N);   // ordered, wrap-aware array of real indices
+    // Pass the 7-card half-window so the bracket visibility matches the widened carousel.
+    const visible = visibleRange(pos, N, INSTRUMENT_VISIBLE_HALF);   // ordered, wrap-aware array of real indices
     const firstVis = visible[0];
     const lastVis = visible[visible.length - 1];
     const headers = [];
@@ -98,8 +105,9 @@ const categoryHeaders = (pos) => {
 const MAX_HEADERS = 4;
 
 // Half-width of the carousel's visible window (matches NonLinearCarousel's hit surface:
-// centerX ± (VISIBLE_HALF + 0.5) * BASE). A pinned bracket end snaps to centerX ± EDGE_X.
-const EDGE_X = (VISIBLE_HALF + 0.5) * BASE;
+// centerX ± (visibleHalf + 0.5) * BASE). Uses the 7-card half-window (Han 2026-06-19) so a pinned
+// bracket end snaps to the SAME edge as the widened carousel. A pinned bracket end → centerX ± EDGE_X.
+const EDGE_X = (INSTRUMENT_VISIBLE_HALF + 0.5) * BASE;
 
 // Build the SVG geometry for one bracket from its {label, xLeft, xRight, pinLeft, pinRight} + the
 // staff/centre. Pure — used both for the initial React render (at rest) and the per-frame
@@ -200,10 +208,12 @@ const StaffCarousel = ({ staff, staffStart, currentSlug, centerX, onSetInstrumen
     };
 
     return (
-        // data-fly wrapper so the WHOLE carousel slides in from the right as a unit when the
-        // surface morphs in (mirrors the old strip's plain data-fly — no data-fly-from). The
-        // category brackets stay UNtagged so they do the cascade's delayed fade.
-        <g className="instrument-cards" data-fly="">
+        // PER-ELEMENT FLY-IN (Han 2026-06-19): the WHOLE carousel no longer flies as one unit.
+        // The `data-fly` moved DOWN onto each individual card inside NonLinearCarousel, so the cards
+        // now cascade in one-by-one from the right (leftmost lands first). This wrapper therefore
+        // drops its `data-fly` — leaving it would double-translate every card. The category brackets
+        // stay UNtagged so they still do the cascade's delayed fade.
+        <g className="instrument-cards">
             {/* Category brackets ABOVE the staff — ottava "blokhaken" style (dashed horizontal
                 line + short end hooks, var(--text-primary)), with the UPPERCASE category label
                 centred on the line. UNtagged → delayed fade with the cascade.
@@ -242,6 +252,11 @@ const StaffCarousel = ({ staff, staffStart, currentSlug, centerX, onSetInstrumen
                 centerX={centerX} y={staffStart + HIT_TOP} baseWidth={BASE} height={HIT_H}
                 onSelect={(item) => onSetInstrument(staff, item.slug)}
                 onPosChange={updateHeaders}
+                // 7 visible (3 each side + centre) — Han 2026-06-19 wanted more instruments in view.
+                // "Same card size, wider": cards keep BASE width; the extra slots just fade at the
+                // new edge (xOffset is linear d=>d, so no overlap). The colour carousel omits this
+                // prop → default VISIBLE_HALF (2) → 5 visible, unchanged.
+                visibleHalf={3}
                 debugMode={debugMode} />
         </g>
     );

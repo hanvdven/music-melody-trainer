@@ -31,7 +31,10 @@ const NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
 // Per-item slot stride (user units) — wider than the instrument items because each scheme item
 // holds a run of example noteheads. Widened +40% (Han 2026-06-17).
 const BASE = 134;
-const NOTE_SPACING = 13;   // x-gap between the example noteheads within one scheme item
+// x-gap between the example noteheads within one scheme item. Reduced 13 → 11 (Han 2026-06-19):
+// "iets" smaller so the C4→C5 run reads a touch tighter; Han will fine-tune live. BASE (the item
+// stride) is unchanged.
+const NOTE_SPACING = 11;
 // Scheme-label vertical drop below the staff top line. LOWERED (Han 2026-06-18): the colour
 // carousel's notes ASCEND C4→C5, so the lowest example notes (C4 + its ledger lines) sit well
 // below the staff and the old +58 label crowded them. Pushed down to clear the run and to sit
@@ -89,17 +92,18 @@ const NoteColoringStaffOverlay = ({
     };
 
     return (
-        // data-fly so the WHOLE carousel slides in from the right as a unit when the colour
-        // surface morphs in (same as the instrument setter; the scheme labels do the cascade's
-        // delayed fade as non-fly children of the carousel wrappers).
+        // PER-ELEMENT FLY-IN (Han 2026-06-19): the `data-fly` moved DOWN onto each scheme card
+        // inside NonLinearCarousel, so the scheme cards cascade in one-by-one from the right
+        // (leftmost lands first) instead of the whole carousel flying as one unit. The old wrapping
+        // `<g data-fly>` is gone — keeping it would double-translate every card. (The scheme labels
+        // ride inside each card's fly subtree, so they slide WITH their card now rather than doing
+        // the cascade's delayed fade.)
         <g className="note-coloring-overlay">
-            <g data-fly="">
-                <NonLinearCarousel
-                    items={SCHEMES} activeIndex={activeIndex} renderItem={renderItem}
-                    centerX={centerX} y={trebleStart - 22} baseWidth={BASE} height={104}
-                    onSelect={(s) => setNoteColoringMode(s.mode)}
-                    debugMode={debugMode} />
-            </g>
+            <NonLinearCarousel
+                items={SCHEMES} activeIndex={activeIndex} renderItem={renderItem}
+                centerX={centerX} y={trebleStart - 22} baseWidth={BASE} height={104}
+                onSelect={(s) => setNoteColoringMode(s.mode)}
+                debugMode={debugMode} />
         </g>
     );
 };

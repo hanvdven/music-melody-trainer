@@ -46,9 +46,13 @@ describe('NoteColoringStaffOverlay', () => {
         expect(ys.size).toBeGreaterThan(1);
     });
 
-    it('wraps the carousel in a data-fly group so it slides in with the morph', () => {
+    it('tags EACH scheme card with data-fly so the cards cascade in (Han 2026-06-19)', () => {
+        // PER-ELEMENT FLY-IN: data-fly moved from the old wrapping group DOWN onto each scheme card
+        // inside the carousel, so the schemes cascade in one-by-one (leftmost first) with the morph
+        // rather than the whole carousel flying as one unit. One data-fly per scheme.
         const { container } = renderOverlay();
-        expect(container.querySelector('.note-coloring-overlay [data-fly]')).not.toBeNull();
+        const flies = container.querySelectorAll('.note-coloring-overlay [data-fly]');
+        expect(flies.length).toBe(5);   // five colour schemes
     });
 
     it('renders the debug hit box when debugMode is on', () => {
