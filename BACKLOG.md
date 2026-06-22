@@ -43,6 +43,19 @@ afstemmen vóór uitvoering:
 ❓ Han: wil je dit lokaal opzetten met mijn begeleiding, of moet ik proberen het in deze
 remote-omgeving te draaien (met bovenstaande beperkingen)?
 
+[Claude 2026-06-22]: ✅ (deels) Han koos "skills VENDOREN in de repo". Gedaan:
+- De 5 skill-mappen (kanban, kanban-run, kanban-refine, kanban-init, kanban-explore) zijn
+  gekopieerd naar `.claude/skills/` (bron: cyanluna-git/cyanluna.skills@df5be37) en reizen nu mee
+  met elke clone. `.gitignore` aangepast: `.claude/*` blijft genegeerd, `!.claude/skills/` getrackt.
+- ⚠ SECURITY: de upstream `SETUP-KANBAN.md` + board-scripts bevatten een gedeelde live
+  `KANBAN_AUTH_TOKEN` en de data zit in een GEHOSTE backend (cyanlunakanban.vercel.app), NIET in een
+  lokale Neon-DB zoals de README suggereert. Dat token + de board-UI (1.4MB) + docs (2.8MB) zijn
+  BEWUST NIET gecommit. Zie `.claude/skills/VENDORED-KANBAN.md`.
+- ⚠ De taken-DATA leeft dus nog steeds extern (gehoste backend), niet in deze repo. Vendoren maakt
+  alleen de SKILLS draagbaar.
+- ⏳ RESTANT (door Han, lokaal): board-UI uit upstream halen, token in `~/.claude/kanban-auth`
+  (NOOIT in git), `/kanban-init` draaien. Begeleiding op aanvraag.
+
 ### Generator setter in de bladmuziek — playback / generation / generation advanced (Han 2026-06-22)
 
 ik wil nu een generator setter in de bladmuziek gaan implementeren, in twee delen: "playback": nummeasures, numrepeats, odd repeats, even repeats (visibility, audibility/volume etc.) Als basis, maak een kopie van die elementen in de tijdelijke 'settings' setter:
