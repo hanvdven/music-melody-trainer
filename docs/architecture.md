@@ -3756,6 +3756,66 @@ staff, organised **per "balk"** — one row per visible STAFF (treble / bass / p
    `GenerationAdvancedSetterOverlay.jsx`. Per balk: `variability`, `span`, `tuplets`,
    `smallest note` (chords balk: only `passing chords`).
 
+### 42a. GENERATION / GENERATION ADVANCED setters — CAROUSEL STYLE (Han 2026-06-22)
+
+**Purpose / Symptom.** The first version drew each field as a tiny `SvgSetter` stepper. The
+smallest-note field rendered a Maestro glyph that was UNREADABLE at that size, and the dense
+steppers were hard to read in general. Han's final interview answer: rebuild EVERY field as a full
+**5-wide `NonLinearCarousel`** (`visibleHalf=2` → 5 visible items), each item shown as a **lucide
+icon on top + text label below**, with a dashed category/field **"blokhaken" bracket** above —
+the SAME look as the in-staff instrument carousel (§37 / `InstrumentStaffOverlay`).
+
+**How it works.**
+- The carousel ENGINE is reused — `NonLinearCarousel` via a new shared wrapper
+  `src/components/sheet-music/CarouselFieldItem.jsx` (§6d — no second carousel engine). That file
+  exports: `CarouselField` (one field = one carousel + its bracket), `makeRenderItem` (lucide icon
+  over a `<text>` label, active = `var(--text-primary)` / others `var(--text-lowlight)`),
+  `FieldNameBracket` (single static bracket spanning the visible window, labelled with the field
+  name) and `FamilyBrackets` / `familyBrackets` (grouped brackets for the melody-type field).
+- Lucide icons render as inline SVG: the lucide React component is given explicit
+  `x/y/width/height` and `color="currentColor"`, nested inside the sheet `<svg>` (no
+  `<foreignObject>` — same constraint as the instrument carousel). The wrapping `<g>` sets `color`
+  so active/dim colouring is one place.
+- **Brackets.** Replicated from `InstrumentStaffOverlay.bracketGeom` / `categoryHeaders` (dashed
+  `4,3`, `var(--text-primary)`, `strokeWidth 1`, label gap in the middle) and flagged
+  `// TODO(§6d): consolidate bracket helper with InstrumentStaffOverlay` — that overlay is owned by
+  another workstream, so we replicate-and-flag rather than extract a shared module now. The
+  **melody-type** field groups its flat rule list by rule FAMILY (random / arp / walk / chords /
+  fixed) and draws one bracket per consecutive same-family run (≥2 visible), tracking the carousel
+  live via `onPosChange` (anti-jitter edge-pinning mirrors the instrument overlay). All OTHER fields
+  draw a single static field-name bracket spanning the visible window.
+- **Icon/label maps** live in `src/constants/generationFields.js` as `FIELD_ITEM_ICONS`
+  (per option value/key), `NUMERIC_ICONS` (`Hash`/`Percent` for number-as-label fields),
+  `SPAN_ICON`, `SMALLEST_NOTE_LABELS` (readable words: whole/half/quarter/eighth/sixteenth — the
+  whole point), and `MELODIC_FAMILY_OF` / `PERC_FAMILY_OF` + `FAMILY_DISPLAY_NAMES` for the family
+  brackets. These are the single source of truth — "voorlopig lucid icons" (placeholders Han may
+  swap from one place).
+- **Numeric fields** (`notesPerMeasure`, `rhythmVariability`) render the NUMBER as the label plus a
+  small generic icon. **`smallestNoteDenom`** renders a note icon + a readable duration WORD
+  (fixes the unreadable Maestro glyph).
+- **Passing chords** (GEN. ADVANCED chords balk) uses a direct `NonLinearCarousel` (not
+  `CarouselField`) because "active" is a SET, not one value: each type item is bright when ENABLED
+  in `passingChordTypes`, dim otherwise; selecting the centred type TOGGLES it. Field-name bracket
+  "passing chords" above. PROVISIONAL placement (tuplets column) — flag for Han.
+
+**Invariants / what did NOT change.**
+- **WIRING is identical** to the stepper version: each select writes the SAME field via the SAME
+  `setState` path (GENERATION: notePool / randomizationRule(+type) / notesPerMeasure;
+  perc enabledPads preset; chords complexity / strategy / chordCount. GEN. ADVANCED:
+  rhythmVariability / maxLeap / polyMultiplier / smallestNoteDenom; chords passingChordTypes).
+- Option VALUES still come ONLY from `generationFields.js` / `instrumentRules.js` (§6d).
+- All sizing/spacing are NAMED CONSTS at the top of each overlay (CAROUSEL_BASE, ICON_SIZE, ICON_DY,
+  LABEL_DY, LABEL_FONT_SIZE, BRACKET_DY, HIT_TOP, HIT_H, COL_FRACS) so Han can tune density LIVE.
+- The full-overlay transparent stopPropagation rect is retained.
+- §3a: `NonLinearCarousel` shows its own debug hit box, so debugMode reveals each carousel's hit
+  region.
+
+**Files.** `src/components/sheet-music/CarouselFieldItem.jsx` (new shared helper),
+`src/components/sheet-music/overlays/GenerationSetterOverlay.jsx` (rewritten),
+`src/components/sheet-music/overlays/GenerationAdvancedSetterOverlay.jsx` (rewritten),
+`src/constants/generationFields.js` (icon/label/family maps added),
+both overlays' `__tests__` (updated for the carousel structure).
+
 **How it works.**
 - `useEditMode.js` adds three boolean states (`playbackEditMode`, `generationEditMode`,
   `generationAdvancedEditMode`) + three toggles (`handleTogglePlaybackEdit`,

@@ -1,39 +1,68 @@
 import React from 'react';
-import SvgSetter from '../SvgSetter';
 import '../SheetMusic.css';
 import { useInstrumentSettings } from '../../../contexts/InstrumentSettingsContext';
+import NonLinearCarousel from './NonLinearCarousel';
 import {
   RHYTHM_VARIABILITY,
   LEAP_OPTIONS,
   POLY_LEVELS,
   SMALLEST_NOTE_DENOMS,
-  SMALLEST_NOTE_GLYPHS,
+  SMALLEST_NOTE_LABELS,
   PASSING_CHORD_TYPES,
+  FIELD_ITEM_ICONS,
+  NUMERIC_ICONS,
+  SPAN_ICON,
 } from '../../../constants/generationFields';
+import { CarouselField, FieldNameBracket } from '../CarouselFieldItem';
 
-// ── GENERATION ADVANCED setter (Han 2026-06-22) ──────────────────────────────────────────────
-// Sibling of the GENERATION setter. For each VISIBLE balk (treble / bass / percussion + CHORDS) it
-// draws a row of SvgSetter steppers, one column per advanced field:
-//   col 1 "variability"   → rhythmVariability (RHYTHM_VARIABILITY, '%' suffix)
+// ── GENERATION ADVANCED setter — CAROUSEL STYLE (Han 2026-06-22) ───────────────────────────────
+// Sibling of the GENERATION setter, rebuilt the same way: every field is now a full 5-wide
+// NonLinearCarousel (visibleHalf=2) with a LUCIDE ICON on top + TEXT LABEL below + a dashed field
+// "blokhaken" bracket above (matching the instrument carousel). REASON FOR THE REBUILD: the old
+// smallest-note Maestro glyph stepper was UNREADABLE — now it shows a readable duration WORD
+// (whole/half/quarter/eighth/sixteenth, §5b trivially satisfied — no accidentals).
+//
+// Per VISIBLE balk (treble / bass / percussion + CHORDS), fields laid across the staff width:
+//   col 1 "variability"   → rhythmVariability (number-as-label + Percent icon)
 //   col 2 "span"          → maxLeap (LEAP_OPTIONS; null = ∞) — melodic only (N/A for perc/chords)
-//   col 3 "tuplets"       → polyMultiplier (POLY_LEVELS) — melodic/perc
-//   col 4 "smallest note" → smallestNoteDenom (Maestro glyphs) — melodic/perc
+//   col 3 "tuplets"       → polyMultiplier (none/low/med/high/xtreme)
+//   col 4 "smallest note" → smallestNoteDenom (readable duration word + note icon)
 //
-// CHORDS balk: only the "passing chords" control is meaningful. PROVISIONAL (flag for Han): it is
-// placed in the "tuplets" column position as a single SvgSetter that CYCLES which passing-chord type
-// is shown; tapping the value TOGGLES that type in chordSettings.passingChordTypes. The other
-// advanced columns are blank for the chords balk (variability / span / smallest-note are N/A).
+// CHORDS balk: only the "passing chords" control is meaningful — a 7-type carousel in the
+// tuplets-column position where selecting a type TOGGLES it in chordSettings.passingChordTypes;
+// ENABLED types render bright, disabled dim (custom renderItem). PROVISIONAL — flag for Han.
 //
-// All option arrays/labels are imported from src/constants/generationFields.js (§6d — single source
-// of truth, shared with the bottom-view InstrumentRow.jsx). SvgSetter is reused for every stepper.
+// WIRING IS UNCHANGED from the previous stepper version: each select writes the SAME field via the
+// SAME setState path; only the presentation changed. Option arrays/labels come from
+// src/constants/generationFields.js (§6d). The carousel ENGINE is reused (NonLinearCarousel via
+// CarouselField, plus a direct NonLinearCarousel for the toggle-set passing-chords field).
 
-const cycle = (values, current, dir) => {
-  const idx = values.indexOf(current);
-  const base = idx === -1 ? 0 : idx;
-  const next = dir === 'up'
-    ? (base + 1) % values.length
-    : (base - 1 + values.length) % values.length;
-  return values[next];
+// ── SIZING / SPACING CONSTANTS (Han 2026-06-22) — tune live ────────────────────────────────────
+const CAROUSEL_BASE = 24;     // per-item slot stride (user units); 4 dense columns per balk.
+const ICON_SIZE = 16;
+const ICON_DY = -22;
+const LABEL_DY = 2;
+const LABEL_FONT_SIZE = 11;
+const BRACKET_DY = -32;
+const HIT_TOP = -30;
+const HIT_H = 56;
+// Four columns spread across the staff width.
+const COL_FRACS = [0.16, 0.40, 0.62, 0.86];
+
+// ── static item lists (icon attached from the shared maps) ──────────────────────────────────────
+const VARIABILITY_ITEMS = RHYTHM_VARIABILITY.map(v => ({ value: v, label: `${v}%`, Icon: NUMERIC_ICONS.percent }));
+const SPAN_ITEMS = LEAP_OPTIONS.map(o => ({ ...o, Icon: SPAN_ICON }));
+const POLY_ITEMS = POLY_LEVELS.map(o => ({ ...o, Icon: FIELD_ITEM_ICONS.poly[o.value] }));
+// smallest note: readable duration WORD as the label (the whole point), note glyph icon.
+const SMALLEST_NOTE_ITEMS = SMALLEST_NOTE_DENOMS.map(v => ({
+  value: v, label: SMALLEST_NOTE_LABELS[v], Icon: FIELD_ITEM_ICONS.smallestNote[v],
+}));
+// passing chords: { value (the toggle key), label, Icon }.
+const PASSING_ITEMS = PASSING_CHORD_TYPES.map(t => ({ value: t.key, label: t.label, Icon: FIELD_ITEM_ICONS.passing[t.key] }));
+
+const idxOf = (items, value) => {
+  const i = items.findIndex(it => it.value === value);
+  return i === -1 ? 0 : i;
 };
 
 const GenerationAdvancedSetterOverlay = ({
@@ -55,24 +84,15 @@ const GenerationAdvancedSetterOverlay = ({
     percussionSettings, setPercussionSettings,
     chordSettings, setChordSettings,
   } = useInstrumentSettings();
-  // For the CHORDS balk, track which passing-chord type the single cycler is currently showing.
-  // Local UI state only — the chord settings themselves hold the enabled SET (passingChordTypes).
-  // MUST be declared before any early return (rules-of-hooks).
-  const [passingIdx, setPassingIdx] = React.useState(0);
+  // The passing-chord carousel's centred type drives which type a tap toggles; track the live centre
+  // so the dashed bracket label/highlight stay coherent. MUST precede any early return (hooks rule).
+  const [passingPos, setPassingPos] = React.useState(0);
   if (startX == null || endX == null) return null;
 
-  // Four columns spread across the staff width.
+  const withInteraction = (fn) => (item, index) => { onSettingsInteraction?.(); fn(item, index); };
+
   const span = endX - startX;
-  const col1 = startX + 0.20 * span;
-  const col2 = startX + 0.45 * span;
-  const col3 = startX + 0.68 * span;
-  const col4 = startX + 0.90 * span;
-  const COLS = [
-    { x: col1, header: 'variability' },
-    { x: col2, header: 'span' },
-    { x: col3, header: 'tuplets' },
-    { x: col4, header: 'smallest note' },
-  ];
+  const cols = COL_FRACS.map(f => startX + f * span);
 
   const HEADER_Y = trebleStart - 89;
   const CHORD_ROW_Y = trebleStart - 64;
@@ -84,28 +104,11 @@ const GenerationAdvancedSetterOverlay = ({
     { key: 'percussion', centerY: percussionStart + 20, show: isPercussionVisible },
   ].filter(r => r.show);
 
-  const cellFor = (row, colIdx) => {
-    if (row.isChords) {
-      // Only the tuplets-position column carries the passing-chord cycler/toggle (provisional).
-      if (colIdx !== 2) return null;
-      const enabled = chordSettings?.passingChordTypes ?? [];
-      const type = PASSING_CHORD_TYPES[passingIdx];
-      const isOn = enabled.includes(type.key);
-      // Show the type label; an active type is brightened by appending a check-like marker is avoided
-      // (keep it tidy) — instead the value font weight conveys nothing; tap toggles. The label text
-      // itself is the type symbol. onIncrement/onDecrement cycle WHICH type is shown.
-      return {
-        value: type.label, family: 'serif', size: 13,
-        dim: !isOn, // dim when the shown type is currently disabled
-        set: (dir) => setPassingIdx(i => (i + (dir === 'up' ? 1 : -1) + PASSING_CHORD_TYPES.length) % PASSING_CHORD_TYPES.length),
-        toggle: () => {
-          const prev = chordSettings?.passingChordTypes ?? [];
-          const next = isOn ? prev.filter(t => t !== type.key) : [...prev, type.key];
-          setChordSettings(p => ({ ...p, passingChordTypes: next }));
-        },
-      };
-    }
+  const COL_HEADERS = ['variability', 'span', 'tuplets', 'smallest note'];
 
+  // Build the carousel descriptor for one melodic/perc (row, columnIndex) cell. Returns null when
+  // the field is N/A for that balk. WIRING UNCHANGED vs the stepper version.
+  const fieldFor = (row, colIdx) => {
     const set = row.key === 'treble' ? setTrebleSettings
       : row.key === 'bass' ? setBassSettings : setPercussionSettings;
     const cfg = row.key === 'treble' ? trebleSettings
@@ -113,42 +116,73 @@ const GenerationAdvancedSetterOverlay = ({
     const isPerc = row.key === 'percussion';
 
     if (colIdx === 0) {
-      // variability → rhythmVariability, '%' suffix
+      // variability → rhythmVariability
+      const items = VARIABILITY_ITEMS;
       const cur = cfg?.rhythmVariability || 0;
       return {
-        value: `${cur}%`, family: 'serif', size: 16,
-        set: (dir) => set(p => ({ ...p, rhythmVariability: cycle(RHYTHM_VARIABILITY, cur, dir) })),
+        items, activeIndex: idxOf(items, cur), fieldLabel: 'variability',
+        onSelect: (item) => set(p => ({ ...p, rhythmVariability: item.value })),
       };
     }
     if (colIdx === 1) {
       // span → maxLeap (melodic only; N/A for percussion)
       if (isPerc) return null;
-      const vals = LEAP_OPTIONS.map(o => o.value);
+      const items = SPAN_ITEMS;
       const cur = cfg?.maxLeap ?? null;
-      const label = LEAP_OPTIONS.find(o => o.value === cur)?.label ?? '∞';
       return {
-        value: label, family: 'serif', size: 13,
-        set: (dir) => set(p => ({ ...p, maxLeap: cycle(vals, cur, dir) })),
+        items, activeIndex: idxOf(items, cur), fieldLabel: 'span',
+        onSelect: (item) => set(p => ({ ...p, maxLeap: item.value })),
       };
     }
     if (colIdx === 2) {
       // tuplets → polyMultiplier
-      const vals = POLY_LEVELS.map(o => o.value);
+      const items = POLY_ITEMS;
       const cur = cfg?.polyMultiplier ?? 1;
-      const label = POLY_LEVELS.find(o => o.value === cur)?.label ?? 'none';
       return {
-        value: label, family: 'serif', size: 13,
-        set: (dir) => set(p => ({ ...p, polyMultiplier: cycle(vals, cur, dir) })),
+        items, activeIndex: idxOf(items, cur), fieldLabel: 'tuplets',
+        onSelect: (item) => set(p => ({ ...p, polyMultiplier: item.value })),
       };
     }
-    // smallest note → smallestNoteDenom, rendered as a Maestro glyph (§6d — reuse the glyph map).
+    // smallest note → smallestNoteDenom (readable word)
+    const items = SMALLEST_NOTE_ITEMS;
     const cur = cfg?.smallestNoteDenom || 4;
-    const glyph = SMALLEST_NOTE_GLYPHS[cur] || 'q';
     return {
-      value: glyph, family: 'Maestro', size: 28,
-      set: (dir) => set(p => ({ ...p, smallestNoteDenom: cycle(SMALLEST_NOTE_DENOMS, cur, dir) })),
+      items, activeIndex: idxOf(items, cur), fieldLabel: 'smallest note',
+      onSelect: (item) => set(p => ({ ...p, smallestNoteDenom: item.value })),
     };
   };
+
+  // ── CHORDS balk: passing-chord toggle-set carousel (provisional) ──────────────────────────────
+  // Direct NonLinearCarousel (not CarouselField) because the "active" state is a SET, not one value:
+  // we colour each item by whether its type is ENABLED in passingChordTypes, and a select TOGGLES
+  // the centred type. The dashed bracket above is the static field name "passing chords".
+  const renderPassingItem = (() => {
+    const enabled = new Set(chordSettings?.passingChordTypes ?? []);
+    const iconY = CHORD_ROW_Y + ICON_DY;
+    const labelY = CHORD_ROW_Y + LABEL_DY;
+    // render-PROP for NonLinearCarousel (invoked manually), not a React component.
+    const renderPassing = (item) => {
+      const on = enabled.has(item.value);
+      const color = on ? 'var(--text-primary)' : 'var(--text-lowlight)';
+      const Icon = item.Icon;
+      return (
+        <g style={{ pointerEvents: 'none', color }}>
+          {Icon && (
+            <Icon x={-ICON_SIZE / 2} y={iconY} width={ICON_SIZE} height={ICON_SIZE}
+              color="currentColor" strokeWidth={2} style={{ pointerEvents: 'none' }} />
+          )}
+          <text x={0} y={labelY} textAnchor="middle" fontSize={LABEL_FONT_SIZE}
+            fontFamily="sans-serif" fontWeight={on ? 'bold' : 'normal'} fill={color}>
+            {item.label}
+          </text>
+        </g>
+      );
+    };
+    return renderPassing;
+  })();
+
+  const passingCol = cols[2]; // tuplets-column position (provisional placement, mirrors old layout)
+  const edgeX = (2 + 0.5) * CAROUSEL_BASE; // visibleHalf=2 → fixed window half-width for the bracket.
 
   return (
     <g className="generation-advanced-overlay" onClick={(e) => e.stopPropagation()}>
@@ -162,52 +196,70 @@ const GenerationAdvancedSetterOverlay = ({
       />
 
       {/* Column headers — italic serif, var(--text-secondary), fontSize 14. */}
-      {COLS.map((c, i) => (
-        <text key={`hdr-${i}`} x={c.x} y={HEADER_Y} textAnchor="middle"
+      {COL_HEADERS.map((h, i) => (
+        <text key={`hdr-${i}`} x={cols[i]} y={HEADER_Y} textAnchor="middle"
           fontFamily="serif" fontStyle="italic" fontSize={14} fill="var(--text-secondary)"
-          style={{ userSelect: 'none', pointerEvents: 'none' }}>{c.header}</text>
+          style={{ userSelect: 'none', pointerEvents: 'none' }}>{h}</text>
       ))}
 
-      {/* Discreet header for the chords passing-chord cell so its meaning is clear. */}
-      {showChordsRow && (
-        <text x={col3} y={CHORD_ROW_Y - 24} textAnchor="middle"
-          fontFamily="serif" fontStyle="italic" fontSize={11} fill="var(--text-secondary)"
-          style={{ userSelect: 'none', pointerEvents: 'none', opacity: 0.85 }}>passing chords</text>
-      )}
-
-      {rows.map(row => (
+      {/* Melodic / percussion balks: field carousels. */}
+      {rows.filter(r => !r.isChords).map(row => (
         <g key={row.key}>
-          {COLS.map((c, colIdx) => {
-            const cell = cellFor(row, colIdx);
-            if (!cell) return null;
+          {cols.map((cx, colIdx) => {
+            const f = fieldFor(row, colIdx);
+            if (!f) return null;
             return (
-              <g key={`${row.key}-${colIdx}`} data-fly style={cell.dim ? { opacity: 0.4 } : undefined}>
-                <SvgSetter
-                  x={c.x}
-                  y={row.centerY}
-                  value={cell.value}
-                  valueFontFamily={cell.family}
-                  valueFontSize={cell.size}
-                  valueDy={-3}
-                  showLabel={false}
-                  onDecrement={() => cell.set('down')}
-                  onIncrement={() => cell.set('up')}
-                  // For the chords passing-chord cell a value-tap TOGGLES the shown type; for every
-                  // other cell it advances the value (mirrors GenerationSetterOverlay).
-                  onValueClick={() => (cell.toggle ? cell.toggle() : cell.set('up'))}
-                  onInteraction={onSettingsInteraction}
-                />
-                {/* §3a: debug hit box matching the SvgSetter hit window. */}
-                {debugMode && (
-                  <rect x={c.x - 40} y={row.centerY - 28} width={80} height={36}
-                    fill="orange" fillOpacity={0.25} stroke="orange" strokeWidth={1}
-                    style={{ pointerEvents: 'none' }} />
-                )}
-              </g>
+              <CarouselField
+                key={`${row.key}-${colIdx}`}
+                items={f.items}
+                activeIndex={f.activeIndex}
+                onSelect={withInteraction(f.onSelect)}
+                centerX={cx}
+                rowCenterY={row.centerY}
+                baseWidth={CAROUSEL_BASE}
+                hitTop={HIT_TOP}
+                hitHeight={HIT_H}
+                iconSize={ICON_SIZE}
+                iconDy={ICON_DY}
+                labelDy={LABEL_DY}
+                labelFontSize={LABEL_FONT_SIZE}
+                bracketDy={BRACKET_DY}
+                fieldLabel={f.fieldLabel}
+                debugMode={debugMode}
+              />
             );
           })}
         </g>
       ))}
+
+      {/* CHORDS balk: the passing-chord toggle-set carousel in the tuplets-column position. */}
+      {showChordsRow && (
+        <g>
+          <FieldNameBracket centerX={passingCol} bracketY={CHORD_ROW_Y + BRACKET_DY}
+            edgeX={edgeX} label="passing chords" />
+          <NonLinearCarousel
+            items={PASSING_ITEMS}
+            activeIndex={passingPos}
+            renderItem={renderPassingItem}
+            centerX={passingCol}
+            y={CHORD_ROW_Y + HIT_TOP}
+            baseWidth={CAROUSEL_BASE}
+            height={HIT_H}
+            onSelect={withInteraction((item, index) => {
+              // Toggle the SELECTED (centred) type in the set; keep the carousel centred on it.
+              setPassingPos(index);
+              const prev = chordSettings?.passingChordTypes ?? [];
+              const next = prev.includes(item.value)
+                ? prev.filter(t => t !== item.value)
+                : [...prev, item.value];
+              setChordSettings(p => ({ ...p, passingChordTypes: next }));
+            })}
+            onPosChange={(pos) => setPassingPos(Math.round(pos))}
+            visibleHalf={2}
+            debugMode={debugMode}
+          />
+        </g>
+      )}
     </g>
   );
 };

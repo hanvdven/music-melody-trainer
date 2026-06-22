@@ -21,6 +21,28 @@
 
 Deel deze features in bij de juiste categorie.
 
+### 🔴 P0 — Kanban-board opzetten (cyanluna.skills) (Han 2026-06-22)
+
+Maak een kanban-board volgens de instructies op https://github.com/cyanluna-git/cyanluna.skills
+
+[Claude 2026-06-22]: Gelogd als P0. ⚠ Dit is een PROJECT-/TOOLING-taak, geen feature in de
+muziek-app zelf — het draait náást de app. Belangrijke aandachtspunten die ik met Han wil
+afstemmen vóór uitvoering:
+- **Draaien op Han's eigen machine, niet in deze remote cloud-container.** De setup kopieert skills
+  naar `~/.claude/skills/`, serveert een board op `localhost:5173` en heeft `pnpm` + een Neon
+  PostgreSQL-DB nodig. Wat ik in deze ephemere container installeer is voor Han onbereikbaar en
+  verdwijnt na de sessie.
+- **Externe afhankelijkheden:** Neon PostgreSQL-account (gratis tier), Node+pnpm, optioneel
+  Cloudflare R2 voor image-attachments.
+- **Trust/supply-chain:** het is een third-party skills-repo die 7 autonome agents met DB-toegang
+  draait. Aanrader: de skills doorlezen vóór installatie.
+- 7-koloms pipeline: Req → Plan → Review Plan → Impl → Review Impl → Test → Done.
+- Setup (lokaal): clone repo → `cp -R kanban* ~/.claude/skills/` → `cd ~/.claude/kanban-board`,
+  `cp .env.example .env`, `pnpm install`, `DATABASE_URL` (Neon) invullen → `/kanban-init` in het
+  project → `./kanban-board/start.sh` (board op http://localhost:5173).
+❓ Han: wil je dit lokaal opzetten met mijn begeleiding, of moet ik proberen het in deze
+remote-omgeving te draaien (met bovenstaande beperkingen)?
+
 ### Generator setter in de bladmuziek — playback / generation / generation advanced (Han 2026-06-22)
 
 ik wil nu een generator setter in de bladmuziek gaan implementeren, in twee delen: "playback": nummeasures, numrepeats, odd repeats, even repeats (visibility, audibility/volume etc.) Als basis, maak een kopie van die elementen in de tijdelijke 'settings' setter:
