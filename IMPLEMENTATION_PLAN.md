@@ -7,6 +7,14 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-22 — ✅ In-app Kanban board (debug → kanban)
+Bron = repo-root `kanban.json` (110 taken, gegenereerd uit BACKLOG+PLAN). DEBUG→KANBAN knop (alleen
+debug-mode) → fullscreen `<KanbanBoard>` + terugknop, vrij slepen tussen 7 kolommen (cyanluna-model),
+verslepen schrijft via Vite `kanbanJsonApiPlugin` (/api/kanban GET/POST) → fallback localStorage.
+Clean-room React; cyanluna Postgres-board NIET hergebruikt. Agent-koppeling = LOS. Docs §43. Files:
+kanban.json, vite.config.js, components/kanban/{KanbanBoard.jsx,.css,__tests__}, useAppUIState
+(showKanban), AppHeader (knop), App.jsx (overlay). Code E021-KANBAN-PERSIST. 471 tests groen.
+
 ## 2026-06-22 — 🔴 P0 Kanban-board (cyanluna.skills) — ⏳ backlog (tooling, NOT app feature)
 Setup runs on Han's LOCAL machine (remote container is ephemeral/unreachable). Needs Neon PostgreSQL,
 Node+pnpm, third-party skills repo (7 autonomous agents). Steps: clone → cp kanban* to ~/.claude/skills

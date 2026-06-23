@@ -3951,3 +3951,39 @@ Han. The cycler advances WHICH passing-chord type is shown; tapping the value TO
 `src/components/sheet-music/SheetMusic.jsx` (props + overlayKind + mounted flags + render blocks),
 `src/App.jsx` (thread flags + handlers), `src/components/layout/SubHeader.jsx` (3 buttons:
 PLAYBACK `SlidersHorizontal` / GENERATION `Sparkles` / GEN. ADVANCED `FlaskConical`).
+
+## 43. In-app Kanban board (debug → kanban) (Han 2026-06-22)
+
+**Purpose:** A project kanban board viewable *inside the app*, opened via debug → kanban with a back
+button. It visualises the project's tasks (generated from `BACKLOG.md` + `IMPLEMENTATION_PLAN.md`) and
+lets Han drag cards between columns.
+
+**How it works:**
+- **Data source — `kanban.json` at the repo root.** Han chose "Los: bord = kanban.json": the board is a
+  standalone viewer/editor of this file, *decoupled* from the cyanluna Claude-agent pipeline (which uses
+  a separate local SQLite/Postgres store driven by the vendored `/kanban-*` skills). The two do not sync.
+- **cyanluna MODEL reuse, not code reuse.** The board follows cyanluna's 7-column pipeline
+  (Req `todo` → Plan `plan` → Review Plan `plan_review` → Impl `impl` → Review Impl `impl_review` →
+  Test `test` → Done `done`), its rank scheme (rank × 1000, append-to-bottom), and a schema-compatible
+  task shape (`id/title/status/priority/tags/description/rank/created_at`). It is a clean-room **React**
+  implementation — cyanluna's board is vanilla TS talking to Postgres (`pg`), which would contradict the
+  no-DB JSON-file choice, so none of that code is reused.
+- **Load order:** `GET /api/kanban` (dev server, authoritative live file) → `localStorage` cache →
+  the `kanban.json` bundled at build time. **Persist:** `POST /api/kanban` (dev) → else `localStorage`
+  (read-only persistence in a static build). The dev read/write endpoint is a Vite middleware plugin
+  (`kanbanJsonApiPlugin` in `vite.config.js`) that pretty-prints `kanban.json` so git diffs stay clean.
+- **Surfacing:** a `KanbanSquare` header button rendered **only when `debugMode` is on** opens a
+  fullscreen `<KanbanBoard>` overlay (`showKanban` UI state); the overlay's "← Terug" button closes it.
+
+**Invariants:**
+- Dragging is intentionally **free** (any column → any column) — cyanluna's strict transition rules
+  apply only to the agent pipeline, not this manual board.
+- `kanban.json` is the single source of truth; the board never writes to the cyanluna agent store.
+- §3a is satisfied by construction: the board is a debug-only surface whose interactive elements are
+  plain HTML cards/columns that are their own visible hit regions.
+
+**Files:** `kanban.json` (new, repo root, generated from BACKLOG + PLAN), `vite.config.js`
+(`kanbanJsonApiPlugin`), `src/components/kanban/KanbanBoard.jsx` (new) + `KanbanBoard.css` (new) +
+`__tests__/KanbanBoard.test.jsx` (new), `src/hooks/useAppUIState.js` (`showKanban`/`setShowKanban`),
+`src/components/layout/AppHeader.jsx` (debug-gated Kanban button + `onOpenKanban`), `src/App.jsx`
+(overlay mount inside `ErrorBoundary boundary="kanban"`). Error code `E021-KANBAN-PERSIST`.
