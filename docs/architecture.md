@@ -3987,3 +3987,37 @@ lets Han drag cards between columns.
 `__tests__/KanbanBoard.test.jsx` (new), `src/hooks/useAppUIState.js` (`showKanban`/`setShowKanban`),
 `src/components/layout/AppHeader.jsx` (debug-gated Kanban button + `onOpenKanban`), `src/App.jsx`
 (overlay mount inside `ErrorBoundary boundary="kanban"`). Error code `E021-KANBAN-PERSIST`.
+
+### 43a. Option B — board ↔ live cyanluna agent DB (Han 2026-06-22)
+
+**Purpose:** Couple the in-app board to the cyanluna Claude-agent pipeline. Han chose "Bord ↔ live
+agent-DB": when the cyanluna agent store exists, the board reads/writes **that** (so it mirrors what
+the agents do), with `kanban.json` as the seed + fallback.
+
+**How it works:**
+- **Single store module** `scripts/kanbanStore.mjs` (shared by the dev server, the seed CLI, and the
+  test). `readBoard()` returns the board from the SQLite DB at `~/.claude/kanban-dbs/{project}.db`
+  (the same file the vendored `/kanban-*` skills + agents use, schema per
+  `.claude/skills/kanban/schema.md`) when it exists (`store: 'db'`), else from `kanban.json`
+  (`store: 'json'`). `updateTask()` writes a card's status/rank to whichever store is active.
+- **node:sqlite, not the sqlite3 CLI.** The DB is read via Node 22's built-in `node:sqlite`, loaded
+  with `createRequire` (a static `import 'node:sqlite'` makes vite/vitest try to bundle the
+  experimental builtin and fail). This means the coupling works without the `sqlite3` CLI installed.
+- **Dev API** (`kanbanApiPlugin` in `vite.config.js`): `GET /api/kanban` → board (+ `store`);
+  `PATCH /api/kanban/task/:id` `{status, rank}` → moves a card in the active store. The board shows
+  the live source ("agent-DB (live)" vs "kanban.json") in its meta bar.
+- **Seeding:** `npm run kanban:seed` (`scripts/kanban-seed.mjs`) pushes `kanban.json` into the DB
+  once (creating it if needed; `--force` re-seeds). The DDL is byte-compatible with `/kanban-init`.
+
+**Local workflow (the pipeline itself runs in Claude Code, NOT the web app, and needs `sqlite3` for
+the skills):** `/kanban-init` → `npm run kanban:seed` → `/kanban-run <id>` (Planner→Critic→Builder→
+Shield→Inspector→Ranger work the card) → open debug → kanban to watch progress live.
+
+**Invariants:** the board never invents agent state — it only reflects/edits the active store; the DB
+(when present) is authoritative and `kanban.json` is the seed/fallback; no `sqlite3` CLI dependency in
+this repo's tooling (only the vendored skills need it).
+
+**Files:** `scripts/kanbanStore.mjs` (new) + `scripts/kanbanStore.test.js` (new),
+`scripts/kanban-seed.mjs` (new), `vite.config.js` (`kanbanApiPlugin` — DB-aware GET + PATCH),
+`src/components/kanban/KanbanBoard.jsx` (per-task PATCH + store indicator), `package.json`
+(`kanban:seed`).
