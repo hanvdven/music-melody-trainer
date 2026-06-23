@@ -1,5 +1,6 @@
 import { resolveNotePitch } from './playSound';
 import { PERCUSSION_INTERRUPT_GROUP, METRONOME_NOTE_IDS } from './drumKits';
+import { secondsPerTick } from '../constants/timing.js';
 
 const playMelodies = (
   melodies,
@@ -26,7 +27,8 @@ const playMelodies = (
     try { inst.output?.setVolume?.(100); } catch { /* output API absent */ }
   });
 
-  const timeFactor = 5 / bpm;
+  // Single source of truth for the tick→seconds conversion (Han 2026-06-19); === 5/bpm.
+  const timeFactor = secondsPerTick(bpm);
   const safetyBuffer = 0.05;
   const adjustedStart = Math.max(scheduledStart, context.currentTime + safetyBuffer);
 

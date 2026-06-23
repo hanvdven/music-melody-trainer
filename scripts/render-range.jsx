@@ -10,7 +10,8 @@ import RangeStaffOverlay from '../src/components/sheet-music/overlays/RangeStaff
 const out = '/tmp/range-setter.png';
 const VARS = {
   '--text-primary': '#e8e8e8', '--text-lowlight': '#8a8a8a', '--range-lowlight': '#a8a8a8',
-  '--accent-yellow': '#ffd24a', '--note-tonic': '#ff8a8a', '--note-scale': '#8ab4ff', '--text-dim': '#777',
+  '--accent-yellow': '#ffd24a', '--range-boundary-highlight': '#ffffff',
+  '--note-tonic': '#ff8a8a', '--note-scale': '#8ab4ff', '--text-dim': '#777',
 };
 const resolveVars = (svg) => svg.replace(/var\(\s*(--[a-z-]+)\s*(?:,[^)]*)?\)/g, (_, n) => VARS[n] || '#ccc');
 

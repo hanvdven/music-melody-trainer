@@ -44,6 +44,7 @@ const AppHeader = ({
     onScaleClick = null,
     isScalePlaying = false,
     progressionLabel = null,
+    songTitle = null,
 }) => {
     const headerScale = windowWidth >= 550 ? 1 : Math.max(0.5, windowWidth / 550);
 
@@ -111,7 +112,7 @@ const AppHeader = ({
             <div className="app-header-center">
                 <div className="app-header-center-inner">
                     <div className="app-header-title">
-                        {progressionLabel ? `${progressionLabel} in` : 'Melody in'}{' '}
+                        {songTitle ? `${songTitle} in` : (progressionLabel ? `${progressionLabel} in` : 'Melody in')}{' '}
                     <span
                         style={{
                             color: showSheetMusicSettings ? 'var(--accent-yellow)' : 'inherit',

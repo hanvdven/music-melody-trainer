@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nextNaturalToward, nextNaturalInDir, classifyStep } from '../rangeSlide';
+import { nextNaturalToward, nextNaturalInDir, classifyStep, easeOutCubic } from '../rangeSlide';
 import { naturalsInRange } from '../../../../utils/rangeUtils';
 
 const NAT = naturalsInRange(21, 108); // A0..C8 white keys
@@ -55,5 +55,28 @@ describe('classifyStep', () => {
         expect(classifyStep({ loIdx: 10, hiIdx: 20 }, { loIdx: 8, hiIdx: 25 }).kind).toBe('none');
         expect(classifyStep({ loIdx: 10, hiIdx: 20 }, { loIdx: 10, hiIdx: 20 }).kind).toBe('none');
         expect(classifyStep(null, { loIdx: 10, hiIdx: 20 }).kind).toBe('none');
+    });
+});
+
+// easeOutCubic drives BOTH the transposition carousel and the range-setter cascade
+// (Han 2026-06-18): the range overlay imports it so the two animations share one easing
+// curve and can't drift. Smoke-test the endpoints + monotonic decel shape.
+describe('easeOutCubic', () => {
+    it('pins the endpoints', () => {
+        expect(easeOutCubic(0)).toBe(0);
+        expect(easeOutCubic(1)).toBe(1);
+    });
+    it('is an ease-OUT (fast start, slow finish) — past halfway by t=0.5', () => {
+        // 1 − (1−0.5)³ = 0.875 → most of the distance is covered in the first half.
+        expect(easeOutCubic(0.5)).toBeCloseTo(0.875, 6);
+        expect(easeOutCubic(0.5)).toBeGreaterThan(0.5);
+    });
+    it('is monotonically increasing across the unit interval', () => {
+        let prev = -Infinity;
+        for (let t = 0; t <= 1.0001; t += 0.1) {
+            const v = easeOutCubic(t);
+            expect(v).toBeGreaterThanOrEqual(prev);
+            prev = v;
+        }
     });
 });

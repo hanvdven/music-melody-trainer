@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildRangeRow, CONTEXT_NOTES } from '../RangeStaffOverlay';
+import { buildRangeRow, CONTEXT_NOTES, rangeMiddleMinScale } from '../RangeStaffOverlay';
 import { naturalsInRange, getNoteValue } from '../../../../utils/rangeUtils';
 
 const NAT = naturalsInRange(21, 108);
@@ -29,5 +29,25 @@ describe('buildRangeRow — width distribution (Han 2026-06-01)', () => {
         expect(midis.filter(m => m < getNoteValue('C4')).length).toBeGreaterThanOrEqual(CONTEXT_NOTES);
         expect(midis.filter(m => m > getNoteValue('E4')).length).toBeGreaterThanOrEqual(CONTEXT_NOTES);
         expect(row.collapsed).toBe(false);
+    });
+});
+
+describe('rangeMiddleMinScale — span-dependent middle shrink (Han 2026-06-19)', () => {
+    it('keeps small ranges full size (< 8 ordinal notes → 1.0)', () => {
+        expect(rangeMiddleMinScale(4)).toBe(1.0);
+        expect(rangeMiddleMinScale(7)).toBe(1.0);
+    });
+
+    it('shrinks to 0.90 at oSpan = 8', () => {
+        expect(rangeMiddleMinScale(8)).toBeCloseTo(0.9, 10);
+    });
+
+    it('interpolates linearly between 8 and 12 (oSpan 10 → 0.70)', () => {
+        expect(rangeMiddleMinScale(10)).toBeCloseTo(0.7, 10);
+    });
+
+    it('reaches 0.50 at oSpan = 12 and stays there for wider ranges', () => {
+        expect(rangeMiddleMinScale(12)).toBeCloseTo(0.5, 10);
+        expect(rangeMiddleMinScale(16)).toBe(0.5);
     });
 });

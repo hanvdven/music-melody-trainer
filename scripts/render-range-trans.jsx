@@ -8,7 +8,7 @@ import RangeStaffOverlay from '../src/components/sheet-music/overlays/RangeStaff
 // 12 chromatone hues (approx) so colour differences are visible in the PNG.
 const CHROMA = ['#e63946','#f3722c','#f8961e','#f9c74f','#90be6d','#43aa8b','#4d908e','#577590','#277da1','#5e60ce','#9d4edd','#c9184a'];
 const VARS = Object.fromEntries(CHROMA.map((c,i)=>[`--chromatone-${i}`,c]));
-Object.assign(VARS,{'--text-primary':'#e8e8e8','--text-lowlight':'#8a8a8a','--range-lowlight':'#a8a8a8','--accent-yellow':'#ffd24a','--text-dim':'#777'});
+Object.assign(VARS,{'--text-primary':'#e8e8e8','--text-lowlight':'#8a8a8a','--range-lowlight':'#a8a8a8','--accent-yellow':'#ffd24a','--range-boundary-highlight':'#ffffff','--text-dim':'#777'});
 const resolveVars=(s)=>s.replace(/var\(\s*(--[a-z-]+)\s*(?:,[^)]*)?\)/g,(_,n)=>VARS[n]||'#ccc');
 const trebleFrame={rowLow:'C3',rowHigh:'C6',presets:[{label:'STANDARD',min:'C4',max:'C5'}]};
 const panel=(trans)=>renderToStaticMarkup(React.createElement(RangeStaffOverlay,{

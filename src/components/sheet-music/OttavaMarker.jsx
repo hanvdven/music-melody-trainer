@@ -12,6 +12,14 @@ const FADE_OUT = 500;
 const HOLD = 500;
 const FADE_IN = 500;
 const TOTAL = FADE_OUT + HOLD + FADE_IN;
+// Phase 4 (Han 2026-06-16): the NEW marker should SLIDE in from the right during its fade-in
+// (preferred over a pure crossfade), matching the universal cascade where "other" elements slide
+// in from the right. The fade-in runs in the last 500 ms — the same ~1.0–1.5 s window the cascade
+// streams its trailing elements in. The OLD marker still fades out IN PLACE (a slide-out would
+// read as the marker fleeing); fade also remains the fallback when a marker is simply removed.
+const SLIDE_IN = 60;   // user-space px the new marker travels from the right → its resting x
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const easeInOut = (t) => t * t * (3 - 2 * t);   // smoothstep — matches flyInCascade's easing
 
 // `desc` is the current ottava render descriptor, or null when no marker:
 //   { token, x, y, fontSize, fill, dx, glyph }
@@ -39,8 +47,12 @@ export default function OttavaMarker({ desc }) {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
 
     // Set the pre-paint opacity synchronously (useLayoutEffect) so a freshly mounted
-    // marker doesn't flash at full opacity for one frame before the rAF dims it.
-    if (ref.current) ref.current.style.opacity = hadOld ? '1' : '0';
+    // marker doesn't flash at full opacity for one frame before the rAF dims it. A marker
+    // with no old to fade out first starts slid to the RIGHT so its fade-in glides into place.
+    if (ref.current) {
+      ref.current.style.opacity = hadOld ? '1' : '0';
+      if (!hadOld) ref.current.style.transform = `translateX(${SLIDE_IN}px)`;
+    }
 
     const t0 = performance.now();
     const startOffset = hadOld ? 0 : FADE_OUT;   // no old marker → skip the fade-out phase
@@ -53,12 +65,21 @@ export default function OttavaMarker({ desc }) {
       if (t < FADE_OUT) op = 1 - t / FADE_OUT;                              // fade old out
       else if (t < FADE_OUT + HOLD) op = 0;                                 // hold blank
       else op = Math.min(1, (t - FADE_OUT - HOLD) / FADE_IN);               // fade new in
-      if (ref.current) ref.current.style.opacity = String(op);
+      if (ref.current) {
+        ref.current.style.opacity = String(op);
+        // Once swapped to the NEW marker, slide it in from the right as it fades in (eased).
+        // Before the fade-in (hold/fade-out) the new content is invisible, so parking it at the
+        // full offset is harmless and avoids a jump when the fade-in starts.
+        if (swapped) {
+          const fp = clamp01((t - FADE_OUT - HOLD) / FADE_IN);
+          ref.current.style.transform = `translateX(${SLIDE_IN * (1 - easeInOut(fp))}px)`;
+        }
+      }
       if (t < TOTAL) { rafRef.current = requestAnimationFrame(tick); return; }
       rafRef.current = null;
       animatingRef.current = false;
       if (desc == null) { shownRef.current = null; force(n => n + 1); }     // marker removed
-      else if (ref.current) ref.current.style.opacity = '';                 // hand opacity back
+      else if (ref.current) { ref.current.style.opacity = ''; ref.current.style.transform = ''; } // hand props back
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => {

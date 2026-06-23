@@ -1,6 +1,6 @@
 import playMelodies from './playMelodies';
-import { TICKS_PER_WHOLE } from '../constants/timing.js';
-import { transposeMelodyToScale, transposeMelodyBySemitones, getNoteIndex, modulateMelody, calculateRelativeRange } from '../theory/musicUtils';
+import { TICKS_PER_WHOLE, secondsPerTick } from '../constants/timing.js';
+import { transposeMelodyToScale } from '../theory/musicUtils';
 import Melody from '../model/Melody';
 import MelodyGenerator from '../generation/melodyGenerator';
 import {
@@ -10,7 +10,7 @@ import {
   updateScaleWithMode,
   getBestEnharmonicTonic,
 } from '../theory/scaleHandler';
-import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
+import { generateNextSeries } from '../generation/generateNextSeries';
 
 import { generateProgression } from '../theory/chordGenerator';
 import { insertPassingChords } from '../generation/passingChords';
@@ -23,9 +23,8 @@ import { planPaginationSequence, PAGINATION_VARIANTS } from './transitionPlanner
 import logger from '../utils/logger';
 import { getChordsWithSlashes } from '../theory/chordLabelHandler';
 import { getHarmonyAtDifficulty } from '../utils/harmonyTable';
-import { getMelodyAtDifficulty } from '../utils/melodyDifficultyTable';
-import { PRESET_RANGES } from '../constants/musicLayout';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
+import { buildAnacrusisRepeatParts, hasAnacrusis } from '../utils/anacrusisRepeat';
 
 class Sequencer {
   constructor(config) {
@@ -69,6 +68,74 @@ class Sequencer {
     let currentTS = [...this.refs.timeSignatureRef.current];
     let currentMetronome = this.refs.metronomeRef.current;
 
+    // ── Anacrusis REPEAT (arch §40) ────────────────────────────────────────────
+    // In any LOOPING mode a pickup song must loop its BODY (the measures after the
+    // pickup bar) with the pickup merged into the last bar, and sound the leading pickup
+    // exactly ONCE. Replaying the padded m0 each loop would re-insert a full dead bar
+    // between the merged pickup (end of the last bar) and the downbeat it leads into.
+    // Gated to LOOPING playback (= !once: repeat OR continuous; Han 2026-06-15) + a treble
+    // carrying a real pickup, so once-mode and non-pickup songs are untouched. The detection is
+    // the SHARED `hasAnacrusis` predicate (anacrusisRepeat.js) — the SAME one App.jsx's
+    // label-suppression + render body-merge gate on, so audio and render never disagree (item 4).
+    // For continuous mode this fires only for the FIRST (loaded) series; later series are
+    // regenerated with no pickup, so hasAnacrusis is false there and nothing is merged.
+    const ml = (TICKS_PER_WHOLE * currentTS[0]) / currentTS[1];
+    let anacrusisIntro = null;          // { melodies, instruments, pickupStart, measureLen } | null
+    let anacrusisBodyMeasures = null;
+    if (!once && hasAnacrusis(treble, ml)) {
+      const trebleParts = buildAnacrusisRepeatParts(treble, ml);
+      if (trebleParts.hasAnacrusis) {
+        const pickupStart = treble.offsets[0];
+        // Convert a util body-part (plain object, offsets already rebased to 0) back into a Melody.
+        // `fermatas` are absolute song ticks on the ORIGINAL padded melody → shift by -ml and drop
+        // any that fell inside the removed pickup bar (the util leaves fermatas untouched).
+        const toBody = (orig, part) => {
+          if (!part) return null;
+          const m = new Melody(
+            [...part.notes], [...part.durations], [...part.offsets],
+            part.displayNotes ? [...part.displayNotes] : undefined
+          );
+          if (part.lyrics) m.lyrics = [...part.lyrics];
+          if (orig?.rhythmicGrouping) m.rhythmicGrouping = orig.rhythmicGrouping;
+          if (Array.isArray(orig?.fermatas)) {
+            m.fermatas = orig.fermatas.map(f => ({ ...f, tick: f.tick - ml })).filter(f => f.tick >= 0);
+          }
+          return m;
+        };
+
+        const parts = {
+          bass: bass?.offsets?.length ? buildAnacrusisRepeatParts(bass, ml) : null,
+          percussion: percussion?.offsets?.length ? buildAnacrusisRepeatParts(percussion, ml) : null,
+          chords: chordProgression?.offsets?.length ? buildAnacrusisRepeatParts(chordProgression, ml) : null,
+        };
+
+        // Capture the one-time intro (pickup) from the ORIGINAL tracks BEFORE overwriting them.
+        // The intro is scheduled via playMelodies with tickRange = [pickupStart, ml] so only the
+        // pickup notes sound; only tracks that actually have a pickup note contribute.
+        const introMelodies = [];
+        const introInstruments = [];
+        if (trebleParts.intro) { introMelodies.push(treble); introInstruments.push(this.instruments.treble); }
+        if (parts.bass?.intro) { introMelodies.push(bass); introInstruments.push(this.instruments.bass); }
+        if (parts.percussion?.intro) { introMelodies.push(percussion); introInstruments.push(this.instruments.percussion); }
+        if (parts.chords?.intro && chordProgression?.notes) { introMelodies.push(chordProgression); introInstruments.push(this.instruments.chords); }
+        anacrusisIntro = { melodies: introMelodies, instruments: introInstruments, pickupStart, measureLen: ml };
+
+        // Swap each track to its merged body. Chords/bass with no pickup still rebase via loopMerged
+        // (=== loopClean for them, straddlers clipped), so they stay aligned with the shortened loop.
+        treble = toBody(treble, trebleParts.loopMerged);
+        if (parts.bass) bass = toBody(bass, parts.bass.loopMerged);
+        if (parts.percussion) percussion = toBody(percussion, parts.percussion.loopMerged);
+        if (parts.chords && chordProgression?.notes) {
+          const cBody = toBody(chordProgression, parts.chords.loopMerged);
+          cBody.type = chordProgression.type;
+          cBody.complexity = chordProgression.complexity;
+          cBody.modality = chordProgression.modality;
+          chordProgression = cBody;
+        }
+        anacrusisBodyMeasures = trebleParts.bodyMeasures;
+      }
+    }
+
     let currentNumMeasures = once ? Math.max(
       this._measureSpan(treble, currentTS),
       this._measureSpan(bass, currentTS),
@@ -77,6 +144,11 @@ class Sequencer {
     ) : this.refs.numMeasuresRef.current;
 
     if (currentNumMeasures === 0) currentNumMeasures = this.refs.numMeasuresRef.current;
+
+    // Anacrusis repeat shortens the loop to the body (the pickup bar is removed and played once).
+    if (anacrusisBodyMeasures != null) {
+      currentNumMeasures = anacrusisBodyMeasures;
+    }
 
     // If a harmony difficulty target is active, regenerate initial melodies so that
     // the first round obeys the target (subsequent rounds go through randomizeScaleAndGenerate).
@@ -94,6 +166,24 @@ class Sequencer {
         currentNumMeasures = firstResult.generatedNumMeasures;
       }
     }
+
+    // Metronome must follow the SONG actually being played, not the stale value left in
+    // state. (1) Regenerate it for the current meter + measure count so a loaded song (e.g.
+    // HBD in 3/4) doesn't click on the leftover 4/4 default that was never refreshed on
+    // song-load. (2) Attach the active fermatas so the click grid is HELD through a fermata
+    // in lockstep with the melody/chords (Han 2026-06-15 M1: "keep the hold, sync the rest").
+    // playMelodies shifts a track only when it carries `.fermatas`; the metronome never did,
+    // so its clicks ran on the un-shifted grid and drifted ~1.5 beats after the [name] hold.
+    // (The continuous-generation path re-derives the metronome per round at its own site,
+    // line ~851, where generated melodies carry no fermatas — nothing to sync there.)
+    currentMetronome = Melody.updateMetronome(
+      currentTS, currentNumMeasures,
+      this.refs.instrumentSettingsRef.current.metronome?.smallestNoteDenom || 4
+    );
+    if (Array.isArray(treble?.fermatas) && treble.fermatas.length) {
+      currentMetronome.fermatas = treble.fermatas.map(f => ({ ...f }));
+    }
+
     // Initialize displayChordProgression for App state / sheet-music labels.
     // Must be done unconditionally — previous session's value may be stale.
     // chordProgressionRef lags React async state, so use initialMelodies directly.
@@ -149,6 +239,24 @@ class Sequencer {
     }
 
     let nextStartTime = this.context.currentTime + 0.1;
+
+    // Anacrusis repeat: sound the leading pickup ONCE as a lead-in, then begin the loop on the
+    // downbeat. tickRange = [pickupStart, ml] means only the pickup notes play; advancing
+    // nextStartTime by the pickup span lands the loop's first downbeat right after the pickup.
+    if (anacrusisIntro && anacrusisIntro.melodies.length > 0) {
+      const introBpm = this.refs.bpmRef.current;
+      const introTf = 5 / introBpm;
+      playMelodies(
+        anacrusisIntro.melodies, anacrusisIntro.instruments, this.context, introBpm,
+        nextStartTime, { current: sessionController },
+        [anacrusisIntro.pickupStart, anacrusisIntro.measureLen],
+        this.instruments,
+        this.refs.percussionCustomMappingRef?.current ?? null,
+        null
+      );
+      nextStartTime += (anacrusisIntro.measureLen - anacrusisIntro.pickupStart) * introTf;
+    }
+
     this.melodyCount = 0;
     let iteration = 0;
     this.globalMeasureIndex = initialMeasureIndex;
@@ -157,6 +265,13 @@ class Sequencer {
     // The outer while stays alive (isOnceMode=false, totalMelodies=-1); after each
     // repsPerMelody passes the block below resets iteration without incrementing melodyCount.
     this.isRepeatMode = repeatForever;
+    // Repeat-numbering origin for INDEFINITE repeats (repsPerMelody === -1). In indefinite mode the
+    // BarlinesLayer suffix must GROW UNBOUNDED (maat 1 on pass 7 = "1.7", pass 1000 = "1.1000"), so
+    // blockPlayStart — the value computeRepeatPass subtracts from startMeasureIndex — must be PINNED to
+    // the session's first body play-start and NOT refreshed on each per-pass re-arm (which is what pins
+    // the suffix at 1 in finite mode). null until the first indefinite arm sets it; reset per session
+    // because start() rebuilds all playback state. Finite mode never reads this (it keeps refreshing).
+    this.repeatNumberingOrigin = null;
     this.song = Song.empty();
     this.songVersion = 0;
     this.scheduledMeasures = [];
@@ -233,13 +348,269 @@ class Sequencer {
           });
         }
 
+        // WHY a helper (Han 2026-06-19): the per-measure scheduling body (notes /
+        // chords / labels / visibility + scroll & wipe overlay bookkeeping) is the
+        // single largest cohesive unit inside start(). Extracting it as scheduleBlock
+        // keeps start() a thin loop skeleton. It is a MECHANICAL move: no timing
+        // arithmetic, no AudioContext scheduling, no setTimeout delays, and no order
+        // of operations changed. The body advances nextStartTime per measure and may
+        // abort mid-block, so scheduleBlock RETURNS the updated nextStartTime + an
+        // aborted flag (a method cannot mutate the caller's local or `break` its loop).
+        // The captured sessionController (§6) is PASSED IN — scheduleBlock never
+        // re-reads this.abortController. All other inputs are loop locals passed by value.
+        const blockResult = await this.scheduleBlock({
+          sessionController,
+          startM,
+          currentNumMeasures,
+          measureLengthTicks,
+          currentTS,
+          isOddRound,
+          iteration,
+          repsPerMelody,
+          wipeRoundBatched,
+          treble,
+          bass,
+          percussion,
+          chordProgression,
+          currentMetronome,
+          nextStartTime,
+        });
+        nextStartTime = blockResult.nextStartTime;
+        if (blockResult.aborted) break;
+
+        if (sessionController.signal.aborted) break;
+
+        // Iteration-wide fermata extension (Han 2026-05-29 round 17). The
+        // inner loop advances nextStartTime by measureDuration per measure (=
+        // natural iteration duration). Fermata events delay subsequent notes
+        // inside the iteration via playMelodies' internal shift logic, but the
+        // OUTER iteration boundary stayed at the natural time — so the next
+        // iteration's m=0 would start while the previous iteration's last
+        // note (extended by the fermata hold) was still ringing into the
+        // future. Sum the song-level fermata holds and push nextStartTime
+        // forward so iteration 2 begins at the actual audio-end of iteration 1.
+        const trebleFermatas = Array.isArray(treble?.fermatas) ? treble.fermatas : [];
+        const totalIterationFermataHold = trebleFermatas.reduce(
+          (acc, f) => acc + (f?.hold > 0 ? f.hold : 0), 0
+        );
+        if (totalIterationFermataHold > 0) {
+          // `timeFactor` from the m===0 block above is out of scope here (it lives
+          // in the per-measure loop body); recompute it from the same bpm ref using
+          // the canonical 5/bpm seconds-per-tick convention used throughout. Without
+          // this the line threw a ReferenceError whenever a fermata song repeated.
+          const iterTimeFactor = 5 / this.refs.bpmRef.current;
+          nextStartTime += totalIterationFermataHold * iterTimeFactor;
+        }
+
+        iteration++;
+
+        if (repsPerMelody !== -1 && iteration >= repsPerMelody) {
+          iteration = 0; // Reset for next cycle (repeat mode) or next melody (normal mode)
+
+          if (this.isRepeatMode) {
+            // Repeat-forever: keep playing the same melody. melodyCount stays 0 so the
+            // outer while never exits due to totalMelodies. No regeneration happens.
+          } else {
+          this.melodyCount++;
+
+          if (this.isOnceMode && this.melodyCount >= 1) {
+            break;
+          }
+
+          if (
+            this.refs.playbackConfigRef.current.totalMelodies === -1 ||
+            this.melodyCount < this.refs.playbackConfigRef.current.totalMelodies
+          ) {
+            // Sync with latest manual changes if available
+            if (this.refs.melodiesRef && this.refs.melodiesRef.current) {
+              const current = this.refs.melodiesRef.current;
+              if (current.treble) treble = current.treble;
+              if (current.bass) bass = current.bass;
+              if (current.percussion) percussion = current.percussion;
+              if (current.chordProgression) chordProgression = current.chordProgression;
+            }
+
+            // USE LATEST state for generation!
+            currentTS = this.refs.timeSignatureRef.current;
+
+            // Pagination mode: AWAIT the scheduler's JIT generation rather than
+            // racing it. The JIT setTimeout fires at boundary - genLead × measure
+            // duration. The outer loop reads pregenResult at boundary - lookahead.
+            // For snel (genLead=0.5m) at 4/4 the two deadlines coincide; for
+            // larger time-sig denominators (3/4, 6/8) or low BPMs the outer loop
+            // can FIRE FIRST, generating a fresh melody that diverges from what
+            // the scheduler's arm callback will read for the overlay preview.
+            // Result: overlay shows melody Y while audio plays melody X — a
+            // visible mismatch that looks like "the overlay still shows the
+            // current melody".
+            //
+            // Wait up to 250ms (50 × 5ms polls). The JIT deadline is well within
+            // this window for all variants; if it hasn't fired, something is
+            // wrong and we fall back to inline generation below.
+            const seqMode = this.refs.animationModeRef?.current ?? 'pagination';
+            if (seqMode === 'pagination' && !this.pregenResult && !this.isOnceMode) {
+              for (let i = 0; i < 50 && !this.pregenResult && this.isPlaying; i++) {
+                if (sessionController.signal.aborted) break;
+                await new Promise(r => setTimeout(r, 5));
+              }
+            }
+
+            // If still null (await timed out, or non-pagination mode), generate
+            // fresh and STORE in pregenResult so the scheduler's arm callback
+            // reads the SAME melody. This matters for the 'snel' variant where
+            // the arm callback fires AFTER the outer code runs (arm at
+            // atTick − 0.7s vs outer at atTick − lookahead = atTick − 1s at
+            // 120 BPM 4/4). With the old code outer cleared pregenResult,
+            // then arm found null and sync-generated a DIFFERENT random
+            // melody — the overlay showed melody Y while the audio applied
+            // melody X. Bug reported by Han 2026-05-25 / 2026-05-26.
+            if (!this.pregenResult) {
+              this.pregenResult = this.randomizeScaleAndGenerate(this.refs.numMeasuresRef.current, currentTS, {
+                treble,
+                bass,
+                percussion,
+              });
+            }
+            const result = this.pregenResult;
+            // Do NOT clear pregenResult here. The applyResult closure clears
+            // it AFTER the React commit (= after arm has had its chance to
+            // read it). Cleared too early → arm sees null → sync-fallback
+            // generates a different melody → preview/applied mismatch.
+
+            currentNumMeasures = result.generatedNumMeasures || this.refs.numMeasuresRef.current;
+            currentTS = [...this.refs.timeSignatureRef.current];
+            currentMetronome = Melody.updateMetronome(
+              currentTS,
+              currentNumMeasures,
+              this.refs.instrumentSettingsRef.current.metronome?.smallestNoteDenom || 4
+            );
+
+            treble = result.treble;
+            bass = result.bass;
+            percussion = result.percussion;
+            chordProgression = result.chordProgression;
+
+            const nextFirstRoundVisible = !!(this.refs.playbackConfigRef.current.oddRounds?.notes);
+            const seriesStartMeasureIndex = this.globalMeasureIndex;
+
+            // wipeTransitionRef is intentionally NOT cleared here: the useLayoutEffect in
+            // App.jsx clears it (and removes the mask) synchronously after React commits the
+            // new melody, preventing a 1-frame flash of the old melody.
+            // Pagination scheduler owns the preview/fade lifecycle for its mode.
+            // For the LANG variant (fade overshoots 0.25m past the boundary) the
+            // applyResult must KEEP the overlay alive — the scheduler's separate
+            // fadeEnd timeout will clear it later. For snel/mid (no overshoot)
+            // applyResult clears the overlay in the same batch as the melody
+            // refs, so the swap is atomic in one React render.
+            const isPaginationOuter = (this.refs.animationModeRef?.current ?? 'pagination') === 'pagination';
+            const outerVariantSpec = isPaginationOuter
+              ? (PAGINATION_VARIANTS[this.refs.paginationVariantRef?.current ?? 'mid'] ?? PAGINATION_VARIANTS.mid)
+              : null;
+            const outerHasOvershoot = !!(outerVariantSpec && outerVariantSpec.fadeOvershootMeasures > 0);
+            const applyResult = () => {
+              this.applyResultToSetters(result, {
+                seriesStartMeasureIndex,
+                skipFadeCleanup: outerHasOvershoot,
+              });
+              // For snel/mid pagination: clear transitionRef in the same task so
+              // the rAF stops writing inline opacity once React commits. The
+              // setNextLayer(null) + setPreviewMelody(null) part is already
+              // handled by applyResultToSetters when skipFadeCleanup is false.
+              if (isPaginationOuter && !outerHasOvershoot && this.refs.transitionRef) {
+                this.refs.transitionRef.current = null;
+              }
+              // Clear pregenResult AFTER the React commit (= after both the
+              // outer-loop's read above AND the scheduler arm's read). The
+              // NEXT block's JIT will generate fresh once its timeout fires
+              // — pregenResult must be null by then so the JIT's
+              // `if (this.pregenResult) return;` guard doesn't skip it.
+              this.pregenResult = null;
+            };
+
+            // Schedule red preview overlay and apply result.
+            // WHY a helper (Han 2026-06-19): the series-boundary overlay-arming +
+            // applyResult scheduling is a cohesive unit that ONLY reads loop locals
+            // and schedules timeouts — it mutates no caller-local (nextStartTime /
+            // globalMeasureIndex are untouched here). Extracting it as a pure
+            // scheduling method keeps start() a thin loop skeleton while leaving the
+            // timing arithmetic and call order byte-for-byte identical. All values it
+            // needs are passed in; it re-reads nothing from the loop via closure.
+            this.scheduleTransitions({
+              result,
+              applyResult,
+              measureLengthTicks,
+              nextStartTime,
+              currentNumMeasures,
+              seriesStartMeasureIndex,
+              nextFirstRoundVisible,
+            });
+          }
+          } // end !isRepeatMode
+        }
+      }
+
+      // Once mode: the last measure used skipSleep so the loop exited immediately after
+      // scheduling. Wait for all scheduled audio to finish before stop() cancels instruments.
+      if (this.isOnceMode && !sessionController.signal.aborted) {
+        while (this.context.currentTime < nextStartTime) {
+          if (sessionController.signal.aborted) break;
+          await new Promise(r => setTimeout(r, 50));
+        }
+      }
+    } finally {
+      // Only stop if this session is still the active one. If a new start() was called
+      // while this loop was sleeping, this.abortController has been replaced — calling
+      // stop() here would cancel the new session's audio and reset its state.
+      if (this.isPlaying && this.abortController === sessionController) {
+        this.stop();
+      }
+    }
+  }
+
+  // ── scheduleBlock: per-measure scheduling for one repeat iteration ────────────
+  // WHY this method exists (Han 2026-06-19): this is the inner `for m` loop body
+  // lifted verbatim out of start(). It schedules notes/chords/labels/visibility per
+  // measure and maintains the scroll & wipe overlay bookkeeping. The move is purely
+  // MECHANICAL — every timing computation, scheduleTimeout delay, playMelodies call,
+  // and the order of operations are unchanged.
+  //
+  // Contract differences vs the inline loop (forced by being a method, not a change
+  // in behaviour):
+  //   • `nextStartTime` is a local that the loop advances by measureDuration each
+  //     measure; a method cannot mutate the caller's local, so it is taken as input
+  //     and the final value is RETURNED.
+  //   • `break` on abort cannot break the caller's outer while; it RETURNS
+  //     { aborted: true } so start() can break exactly where it did before.
+  //   • The captured `sessionController` (§6) is PASSED IN and used directly — this
+  //     method never reads this.abortController, preserving the §6 capture invariant.
+  // `this.globalMeasureIndex`, `this.scheduledMeasures`, `this.scheduledNotes`,
+  // `this.scheduledChords`, `this.playbackState`, `this.pregenResult` are all on
+  // `this` and mutated in place exactly as before.
+  async scheduleBlock({
+    sessionController,
+    startM,
+    currentNumMeasures,
+    measureLengthTicks,
+    currentTS,
+    isOddRound,
+    iteration,
+    repsPerMelody,
+    wipeRoundBatched,
+    treble,
+    bass,
+    percussion,
+    chordProgression,
+    currentMetronome,
+    nextStartTime,
+  }) {
         for (let m = startM; m < currentNumMeasures; m++) {
           const currentBpm = this.refs.bpmRef.current;
           const activeConfig = isOddRound
             ? this.refs.playbackConfigRef.current.oddRounds
             : this.refs.playbackConfigRef.current.evenRounds;
 
-          const timeFactor = 5 / currentBpm;
+          // Single source of truth for tick→seconds (Han 2026-06-19); === 5/currentBpm.
+          const timeFactor = secondsPerTick(currentBpm);
           const measureDuration = measureLengthTicks * timeFactor;
 
           // User requested lookahead of exactly one half note (120/bpm seconds)
@@ -649,278 +1020,131 @@ class Sequencer {
               await new Promise((r) => setTimeout(r, 10));
             }
           }
-          if (sessionController.signal.aborted) break;
+          // Abort mid-block: return the advanced nextStartTime + aborted flag so start()
+          // breaks its outer while exactly where the inline `break` used to (§6).
+          if (sessionController.signal.aborted) return { nextStartTime, aborted: true };
 
           nextStartTime += measureDuration;
           this.globalMeasureIndex++;
         }
+        return { nextStartTime, aborted: false };
+  }
 
-        if (sessionController.signal.aborted) break;
+  // ── scheduleTransitions: series-boundary overlay arm + applyResult ────────────
+  // WHY this method exists (Han 2026-06-19): the series-boundary transition arming
+  // used to live inline at the end of start()'s outer loop. It is a pure SCHEDULING
+  // unit — it reads only the values passed in (all formerly loop closures) plus
+  // this.context/this.setters/this.refs/this.scheduledNotes, and writes nothing back
+  // to the caller's locals. The ONLY state it mutates is on `this` (scheduledNotes),
+  // and only inside the scheduled callbacks at fire-time — exactly as before. Moving
+  // it here is a mechanical statement move: every setTimeout delay, the ±200ms /
+  // 0.5m / 0.25m lead arithmetic, the wipe/scroll/pagination branching, and the order
+  // of operations are byte-for-byte identical to the inline version. start() now just
+  // calls this once per series boundary, keeping it a thin loop skeleton.
+  scheduleTransitions({
+    result,
+    applyResult,
+    measureLengthTicks,
+    nextStartTime,
+    currentNumMeasures,
+    seriesStartMeasureIndex,
+    nextFirstRoundVisible,
+  }) {
+    if (!this.isOnceMode) {
+      const previewMode = this.refs.animationModeRef?.current ?? 'pagination';
+      const lastBpm = this.refs.bpmRef.current;
+      const lastMeasureDuration = measureLengthTicks * (5 / lastBpm);
 
-        // Iteration-wide fermata extension (Han 2026-05-29 round 17). The
-        // inner loop advances nextStartTime by measureDuration per measure (=
-        // natural iteration duration). Fermata events delay subsequent notes
-        // inside the iteration via playMelodies' internal shift logic, but the
-        // OUTER iteration boundary stayed at the natural time — so the next
-        // iteration's m=0 would start while the previous iteration's last
-        // note (extended by the fermata hold) was still ringing into the
-        // future. Sum the song-level fermata holds and push nextStartTime
-        // forward so iteration 2 begins at the actual audio-end of iteration 1.
-        const trebleFermatas = Array.isArray(treble?.fermatas) ? treble.fermatas : [];
-        const totalIterationFermataHold = trebleFermatas.reduce(
-          (acc, f) => acc + (f?.hold > 0 ? f.hold : 0), 0
-        );
-        if (totalIterationFermataHold > 0) {
-          // `timeFactor` from the m===0 block above is out of scope here (it lives
-          // in the per-measure loop body); recompute it from the same bpm ref using
-          // the canonical 5/bpm seconds-per-tick convention used throughout. Without
-          // this the line threw a ReferenceError whenever a fermata song repeated.
-          const iterTimeFactor = 5 / this.refs.bpmRef.current;
-          nextStartTime += totalIterationFermataHold * iterTimeFactor;
+      if (previewMode === 'wipe') {
+        // Set preview melody immediately so it is available when the wipe starts.
+        // Include startMeasureIndex so the red overlay renders the correct measure numbers.
+        if (this.setters.setPreviewMelody) this.setters.setPreviewMelody({ ...result, startMeasureIndex: seriesStartMeasureIndex });
+        // Fire wipe animation 0.5m before block end, matching the yellow overlay timing.
+        const wipeStart = nextStartTime - 0.5 * lastMeasureDuration;
+        const wipeEnd   = nextStartTime; // animation ends at block end
+        // Set ref immediately — rAF clamps p=0 until wipeStart arrives, so no visual jump.
+        if (this.refs.wipeTransitionRef) {
+          this.refs.wipeTransitionRef.current = { startTime: wipeStart, endTime: wipeEnd };
         }
+        // Trigger React render ~200ms before wipeStart so new content is in DOM and
+        // hidden (via useLayoutEffect HIDDEN mask) before the sweep begins.
+        const setLayerMs = Math.max(0, (wipeStart - this.context.currentTime) * 1000 - 200);
+        this.scheduleTimeout(() => {
+          if (this.setters.setNextLayer) this.setters.setNextLayer('red');
+        }, setLayerMs);
+      } else if (previewMode === 'pagination') {
+        // Owned by _armPaginationSequence — no preview scheduling here.
+      } else if (previewMode === 'scroll' && currentNumMeasures === 1) {
+        // Single-measure scroll: inner loop pregen (isPenultimateMeasure) never fires,
+        // so handle here. Trigger setNextLayer('red') 0.25m before series boundary so
+        // the red overlay (with pregen melody) is in the DOM before the page-boundary
+        // swap. The continuous-scroll bookkeeping in the inner loop already maintains
+        // scrollTransitionRef — no manual {startTime,endTime} writes needed.
+        const redTriggerTime = nextStartTime - 0.25 * lastMeasureDuration;
+        const redDelay = Math.max(0, (redTriggerTime - this.context.currentTime) * 1000);
+        this.scheduleTimeout(() => {
+          if (this.setters.setNextLayer) this.setters.setNextLayer('red');
+          if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(result);
+        }, redDelay);
+      }
+      // Multi-measure scroll: inner loop already set setNextLayer + scrollTransitionRef
+      // at the correct audio time; nothing to do here.
 
-        iteration++;
-
-        if (repsPerMelody !== -1 && iteration >= repsPerMelody) {
-          iteration = 0; // Reset for next cycle (repeat mode) or next melody (normal mode)
-
-          if (this.isRepeatMode) {
-            // Repeat-forever: keep playing the same melody. melodyCount stays 0 so the
-            // outer while never exits due to totalMelodies. No regeneration happens.
-          } else {
-          this.melodyCount++;
-
-          if (this.isOnceMode && this.melodyCount >= 1) {
-            break;
-          }
-
-          if (
-            this.refs.playbackConfigRef.current.totalMelodies === -1 ||
-            this.melodyCount < this.refs.playbackConfigRef.current.totalMelodies
-          ) {
-            // Sync with latest manual changes if available
-            if (this.refs.melodiesRef && this.refs.melodiesRef.current) {
-              const current = this.refs.melodiesRef.current;
-              if (current.treble) treble = current.treble;
-              if (current.bass) bass = current.bass;
-              if (current.percussion) percussion = current.percussion;
-              if (current.chordProgression) chordProgression = current.chordProgression;
-            }
-
-            // USE LATEST state for generation!
-            currentTS = this.refs.timeSignatureRef.current;
-
-            // Pagination mode: AWAIT the scheduler's JIT generation rather than
-            // racing it. The JIT setTimeout fires at boundary - genLead × measure
-            // duration. The outer loop reads pregenResult at boundary - lookahead.
-            // For snel (genLead=0.5m) at 4/4 the two deadlines coincide; for
-            // larger time-sig denominators (3/4, 6/8) or low BPMs the outer loop
-            // can FIRE FIRST, generating a fresh melody that diverges from what
-            // the scheduler's arm callback will read for the overlay preview.
-            // Result: overlay shows melody Y while audio plays melody X — a
-            // visible mismatch that looks like "the overlay still shows the
-            // current melody".
-            //
-            // Wait up to 250ms (50 × 5ms polls). The JIT deadline is well within
-            // this window for all variants; if it hasn't fired, something is
-            // wrong and we fall back to inline generation below.
-            const seqMode = this.refs.animationModeRef?.current ?? 'pagination';
-            if (seqMode === 'pagination' && !this.pregenResult && !this.isOnceMode) {
-              for (let i = 0; i < 50 && !this.pregenResult && this.isPlaying; i++) {
-                if (sessionController.signal.aborted) break;
-                await new Promise(r => setTimeout(r, 5));
-              }
-            }
-
-            // If still null (await timed out, or non-pagination mode), generate
-            // fresh and STORE in pregenResult so the scheduler's arm callback
-            // reads the SAME melody. This matters for the 'snel' variant where
-            // the arm callback fires AFTER the outer code runs (arm at
-            // atTick − 0.7s vs outer at atTick − lookahead = atTick − 1s at
-            // 120 BPM 4/4). With the old code outer cleared pregenResult,
-            // then arm found null and sync-generated a DIFFERENT random
-            // melody — the overlay showed melody Y while the audio applied
-            // melody X. Bug reported by Han 2026-05-25 / 2026-05-26.
-            if (!this.pregenResult) {
-              this.pregenResult = this.randomizeScaleAndGenerate(this.refs.numMeasuresRef.current, currentTS, {
-                treble,
-                bass,
-                percussion,
-              });
-            }
-            const result = this.pregenResult;
-            // Do NOT clear pregenResult here. The applyResult closure clears
-            // it AFTER the React commit (= after arm has had its chance to
-            // read it). Cleared too early → arm sees null → sync-fallback
-            // generates a different melody → preview/applied mismatch.
-
-            currentNumMeasures = result.generatedNumMeasures || this.refs.numMeasuresRef.current;
-            currentTS = [...this.refs.timeSignatureRef.current];
-            currentMetronome = Melody.updateMetronome(
-              currentTS,
-              currentNumMeasures,
-              this.refs.instrumentSettingsRef.current.metronome?.smallestNoteDenom || 4
-            );
-
-            treble = result.treble;
-            bass = result.bass;
-            percussion = result.percussion;
-            chordProgression = result.chordProgression;
-
-            const nextFirstRoundVisible = !!(this.refs.playbackConfigRef.current.oddRounds?.notes);
-            const seriesStartMeasureIndex = this.globalMeasureIndex;
-
-            // wipeTransitionRef is intentionally NOT cleared here: the useLayoutEffect in
-            // App.jsx clears it (and removes the mask) synchronously after React commits the
-            // new melody, preventing a 1-frame flash of the old melody.
-            // Pagination scheduler owns the preview/fade lifecycle for its mode.
-            // For the LANG variant (fade overshoots 0.25m past the boundary) the
-            // applyResult must KEEP the overlay alive — the scheduler's separate
-            // fadeEnd timeout will clear it later. For snel/mid (no overshoot)
-            // applyResult clears the overlay in the same batch as the melody
-            // refs, so the swap is atomic in one React render.
-            const isPaginationOuter = (this.refs.animationModeRef?.current ?? 'pagination') === 'pagination';
-            const outerVariantSpec = isPaginationOuter
-              ? (PAGINATION_VARIANTS[this.refs.paginationVariantRef?.current ?? 'mid'] ?? PAGINATION_VARIANTS.mid)
-              : null;
-            const outerHasOvershoot = !!(outerVariantSpec && outerVariantSpec.fadeOvershootMeasures > 0);
-            const applyResult = () => {
-              this.applyResultToSetters(result, {
-                seriesStartMeasureIndex,
-                skipFadeCleanup: outerHasOvershoot,
-              });
-              // For snel/mid pagination: clear transitionRef in the same task so
-              // the rAF stops writing inline opacity once React commits. The
-              // setNextLayer(null) + setPreviewMelody(null) part is already
-              // handled by applyResultToSetters when skipFadeCleanup is false.
-              if (isPaginationOuter && !outerHasOvershoot && this.refs.transitionRef) {
-                this.refs.transitionRef.current = null;
-              }
-              // Clear pregenResult AFTER the React commit (= after both the
-              // outer-loop's read above AND the scheduler arm's read). The
-              // NEXT block's JIT will generate fresh once its timeout fires
-              // — pregenResult must be null by then so the JIT's
-              // `if (this.pregenResult) return;` guard doesn't skip it.
-              this.pregenResult = null;
-            };
-
-            // Schedule red preview overlay and apply result.
-            if (!this.isOnceMode) {
-              const previewMode = this.refs.animationModeRef?.current ?? 'pagination';
-              const lastBpm = this.refs.bpmRef.current;
-              const lastMeasureDuration = measureLengthTicks * (5 / lastBpm);
-
-              if (previewMode === 'wipe') {
-                // Set preview melody immediately so it is available when the wipe starts.
-                // Include startMeasureIndex so the red overlay renders the correct measure numbers.
-                if (this.setters.setPreviewMelody) this.setters.setPreviewMelody({ ...result, startMeasureIndex: seriesStartMeasureIndex });
-                // Fire wipe animation 0.5m before block end, matching the yellow overlay timing.
-                const wipeStart = nextStartTime - 0.5 * lastMeasureDuration;
-                const wipeEnd   = nextStartTime; // animation ends at block end
-                // Set ref immediately — rAF clamps p=0 until wipeStart arrives, so no visual jump.
-                if (this.refs.wipeTransitionRef) {
-                  this.refs.wipeTransitionRef.current = { startTime: wipeStart, endTime: wipeEnd };
-                }
-                // Trigger React render ~200ms before wipeStart so new content is in DOM and
-                // hidden (via useLayoutEffect HIDDEN mask) before the sweep begins.
-                const setLayerMs = Math.max(0, (wipeStart - this.context.currentTime) * 1000 - 200);
-                this.scheduleTimeout(() => {
-                  if (this.setters.setNextLayer) this.setters.setNextLayer('red');
-                }, setLayerMs);
-              } else if (previewMode === 'pagination') {
-                // Owned by _armPaginationSequence — no preview scheduling here.
-              } else if (previewMode === 'scroll' && currentNumMeasures === 1) {
-                // Single-measure scroll: inner loop pregen (isPenultimateMeasure) never fires,
-                // so handle here. Trigger setNextLayer('red') 0.25m before series boundary so
-                // the red overlay (with pregen melody) is in the DOM before the page-boundary
-                // swap. The continuous-scroll bookkeeping in the inner loop already maintains
-                // scrollTransitionRef — no manual {startTime,endTime} writes needed.
-                const redTriggerTime = nextStartTime - 0.25 * lastMeasureDuration;
-                const redDelay = Math.max(0, (redTriggerTime - this.context.currentTime) * 1000);
-                this.scheduleTimeout(() => {
-                  if (this.setters.setNextLayer) this.setters.setNextLayer('red');
-                  if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(result);
-                }, redDelay);
-              }
-              // Multi-measure scroll: inner loop already set setNextLayer + scrollTransitionRef
-              // at the correct audio time; nothing to do here.
-
-              // Apply result at series boundary. For scroll mode the swap is audio/visual sync'd
-              // at exactly nextStartTime: the just-pregen'd melody's first note (audio) plays
-              // at T_series, and the red overlay (DOM x=+pageWidth) has visually reached the
-              // 25% playhead at the same moment. The applyResult swap re-renders main with the
-              // new melody (DOM x=0) — startPageFraction-=1 in the same callback offsets the
-              // scroll formula by exactly one page so the new main first note stays at the
-              // playhead. Invisible swap.
-              const newSeriesStart = nextStartTime;
-              const applyTime = nextStartTime;
-              const scheduleTime = Math.max(0, (applyTime - this.context.currentTime) * 1000);
-              this.scheduleTimeout(() => {
-                if (this.setters.clearActiveHighlight) this.setters.clearActiveHighlight();
-                if (this.scheduledNotes) {
-                  this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
-                }
-                applyResult();
-                // Scroll-mode: shift the scroll anchor by exactly one page so that the new
-                // main's first note (now at DOM x=0) lands at the same visual position the
-                // overlay's first note (DOM x=+pageWidth) occupied just before the swap.
-                if (previewMode === 'scroll' && this.refs.scrollTransitionRef?.current) {
-                  this.refs.scrollTransitionRef.current.startPageFraction -= 1;
-                  // The overlay was 'red' (showing previewMelody = the now-applied new melody).
-                  // After the swap, the same melody is in main and previewMelody is stale —
-                  // demote nextLayer to 'yellow' (same-melody copy) and clear previewMelody so
-                  // the next iteration's m=0 yellow setter is idempotent.
-                  if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
-                  if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
-                }
-                if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
-                // Batch setIsOddRound(true) in the same callback as applyResult so it
-                // commits in the same React 18 batch as melody refs + startMeasureIndex.
-                // The inner-loop's separate setIsOddRound(true) fires moments later
-                // (same audio time, but a separate setTimeout = a separate render)
-                // which would otherwise create a 1-frame window where the preview
-                // overlay still uses the OLD round's visibility config — visible as
-                // a brief flicker when notes appear/disappear across round changes.
-                if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
-                // Reset iter-in-series counter so scroll-mode per-panel selection sees
-                // iter 0 of the new series — all right-side panels go back to current
-                // (= the just-applied melody) until the new series's last-rep pregen.
-                if (this.setters.setIterInCurrentSeries) this.setters.setIterInCurrentSeries(0);
-              }, scheduleTime);
-            } else {
-              // Once mode: apply result immediately (no preview needed).
-              const newSeriesStart = nextStartTime;
-              const scheduleTime = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
-              this.scheduleTimeout(() => {
-                if (this.setters.clearActiveHighlight) this.setters.clearActiveHighlight();
-                if (this.scheduledNotes) {
-                  this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
-                }
-                applyResult();
-                if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
-                if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
-              }, scheduleTime);
-            }
-          }
-          } // end !isRepeatMode
+      // Apply result at series boundary. For scroll mode the swap is audio/visual sync'd
+      // at exactly nextStartTime: the just-pregen'd melody's first note (audio) plays
+      // at T_series, and the red overlay (DOM x=+pageWidth) has visually reached the
+      // 25% playhead at the same moment. The applyResult swap re-renders main with the
+      // new melody (DOM x=0) — startPageFraction-=1 in the same callback offsets the
+      // scroll formula by exactly one page so the new main first note stays at the
+      // playhead. Invisible swap.
+      const newSeriesStart = nextStartTime;
+      const applyTime = nextStartTime;
+      const scheduleTime = Math.max(0, (applyTime - this.context.currentTime) * 1000);
+      this.scheduleTimeout(() => {
+        if (this.setters.clearActiveHighlight) this.setters.clearActiveHighlight();
+        if (this.scheduledNotes) {
+          this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
         }
-      }
-
-      // Once mode: the last measure used skipSleep so the loop exited immediately after
-      // scheduling. Wait for all scheduled audio to finish before stop() cancels instruments.
-      if (this.isOnceMode && !sessionController.signal.aborted) {
-        while (this.context.currentTime < nextStartTime) {
-          if (sessionController.signal.aborted) break;
-          await new Promise(r => setTimeout(r, 50));
+        applyResult();
+        // Scroll-mode: shift the scroll anchor by exactly one page so that the new
+        // main's first note (now at DOM x=0) lands at the same visual position the
+        // overlay's first note (DOM x=+pageWidth) occupied just before the swap.
+        if (previewMode === 'scroll' && this.refs.scrollTransitionRef?.current) {
+          this.refs.scrollTransitionRef.current.startPageFraction -= 1;
+          // The overlay was 'red' (showing previewMelody = the now-applied new melody).
+          // After the swap, the same melody is in main and previewMelody is stale —
+          // demote nextLayer to 'yellow' (same-melody copy) and clear previewMelody so
+          // the next iteration's m=0 yellow setter is idempotent.
+          if (this.setters.setNextLayer) this.setters.setNextLayer('yellow');
+          if (this.setters.setPreviewMelody) this.setters.setPreviewMelody(null);
         }
-      }
-    } finally {
-      // Only stop if this session is still the active one. If a new start() was called
-      // while this loop was sleeping, this.abortController has been replaced — calling
-      // stop() here would cancel the new session's audio and reset its state.
-      if (this.isPlaying && this.abortController === sessionController) {
-        this.stop();
-      }
+        if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
+        // Batch setIsOddRound(true) in the same callback as applyResult so it
+        // commits in the same React 18 batch as melody refs + startMeasureIndex.
+        // The inner-loop's separate setIsOddRound(true) fires moments later
+        // (same audio time, but a separate setTimeout = a separate render)
+        // which would otherwise create a 1-frame window where the preview
+        // overlay still uses the OLD round's visibility config — visible as
+        // a brief flicker when notes appear/disappear across round changes.
+        if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
+        // Reset iter-in-series counter so scroll-mode per-panel selection sees
+        // iter 0 of the new series — all right-side panels go back to current
+        // (= the just-applied melody) until the new series's last-rep pregen.
+        if (this.setters.setIterInCurrentSeries) this.setters.setIterInCurrentSeries(0);
+      }, scheduleTime);
+    } else {
+      // Once mode: apply result immediately (no preview needed).
+      const newSeriesStart = nextStartTime;
+      const scheduleTime = Math.max(0, (nextStartTime - this.context.currentTime) * 1000);
+      this.scheduleTimeout(() => {
+        if (this.setters.clearActiveHighlight) this.setters.clearActiveHighlight();
+        if (this.scheduledNotes) {
+          this.scheduledNotes = this.scheduledNotes.filter(n => n.audioTime >= newSeriesStart);
+        }
+        applyResult();
+        if (this.setters.setIsOddRound) this.setters.setIsOddRound(true);
+        if (this.setters.setShowNotes) this.setters.setShowNotes(nextFirstRoundVisible);
+      }, scheduleTime);
     }
   }
 
@@ -1061,7 +1285,6 @@ class Sequencer {
             rangeUp: activeScale.rangeUp,
             rangeDown: activeScale.rangeDown,
           });
-          // this.setters.setScale(activeScale); // REMOVED
           result.scale = activeScale;
         }
       }
@@ -1248,230 +1471,45 @@ class Sequencer {
     // Now chordProgression is a Melody object (rhythmic).
     // MelodyGenerator for Treble/Bass handles this by looking at .notes properly.
 
-    let newTreble, newBass, newPercussion;
+    // ── Per-track melody construction → pure generateNextSeries() ──────────────
+    // Han 2026-06-19 (ARCHITECTURE_AUDIT §4): the treble/bass/percussion build
+    // (transpose-without-regenerate AND full-regeneration paths) was ~220 lines of
+    // PURE generation logic living inside the audio class — violating the §8
+    // boundary (Sequencer owns scheduling, generation lives in src/generation/).
+    // It is extracted verbatim to src/generation/generateNextSeries.js. The
+    // Sequencer stays the thin orchestrator: it snapshots the refs it reads here
+    // (instrumentSettings already read above; melodiesRef / difficulty targets /
+    // percussionScale below) and passes them in. No `this`-ref read or setter side
+    // effect was moved — scale randomization, chord generation, setDisplayChordProgression,
+    // and the _measureSpan/generatedNumMeasures computation all remain in this method.
+    const series = generateNextSeries({
+      activeScale,
+      oldTonic,
+      oldMode,
+      oldFamily,
+      oldScaleNotes,
+      oldDisplayScale,
+      numMeasures,
+      timeSignature,
+      chordProgression,
+      globalTemplate,
+      randConfig,
+      currentMelodies,
+      instrumentSettings,
+      currentMelodyContext: this.refs.melodiesRef?.current || {},
+      targetTrebleDifficulty: this.refs.targetTrebleDifficultyRef?.current,
+      targetBassDifficulty: this.refs.targetBassDifficultyRef?.current,
+      percussionScale: this.percussionScale,
+    });
 
-    if (randConfig.melody === false) {
-      // Determine if only tonic changed (same mode and family)
-      const onlyTonicChanged =
-        activeScale.name === oldMode &&
-        activeScale.family === oldFamily &&
-        activeScale.tonic !== oldTonic;
-
-      // Transpose
-      if (currentMelodies.treble) {
-        let transposedNotes, transposedDisplay;
-
-        if (onlyTonicChanged) {
-          const semitoneDiff = getNoteIndex(activeScale.tonic) - getNoteIndex(oldTonic);
-          transposedNotes = transposeMelodyBySemitones(currentMelodies.treble.notes, semitoneDiff);
-          transposedDisplay = transposedNotes.map((n) => {
-            if (!n || ['k', 'c', 'b', 'hh', 's', '/'].includes(n)) return n;
-            const idx = activeScale.notes.indexOf(n);
-            if (idx !== -1) return activeScale.displayNotes[idx];
-            return getRelativeNoteName(n, activeScale.tonic);
-          });
-        } else {
-          transposedNotes = transposeMelodyToScale(
-            currentMelodies.treble.notes,
-            oldScaleNotes,
-            activeScale.notes
-          );
-          const currentDisplay = currentMelodies.treble.displayNotes || currentMelodies.treble.notes;
-          transposedDisplay = transposeMelodyToScale(
-            currentDisplay,
-            oldDisplayScale,
-            activeScale.displayNotes
-          );
-        }
-
-        newTreble = new Melody(
-          transposedNotes,
-          currentMelodies.treble.durations,
-          currentMelodies.treble.offsets,
-          transposedDisplay
-        );
-      } else {
-        newTreble = null;
-      }
-
-      if (currentMelodies.bass) {
-        const lowerOctave = (note) => {
-          const match = note.match(/([^0-9]+)(\d+)/);
-          if (!match) return note;
-          return match[1] + (parseInt(match[2]) - 1);
-        };
-
-        let transposedNotes, transposedDisplay;
-
-        if (onlyTonicChanged) {
-          const semitoneDiff = getNoteIndex(activeScale.tonic) - getNoteIndex(oldTonic);
-          transposedNotes = transposeMelodyBySemitones(currentMelodies.bass.notes, semitoneDiff);
-          const bassDisplayScale = activeScale.displayNotes.map(lowerOctave);
-          const bassNotes = activeScale.notes.map(lowerOctave);
-          const bassTonic = lowerOctave(activeScale.tonic);
-
-          transposedDisplay = transposedNotes.map((n) => {
-            if (!n || ['k', 'c', 'b', 'hh', 's', '/'].includes(n)) return n;
-            const idx = bassNotes.indexOf(n);
-            if (idx !== -1) return bassDisplayScale[idx];
-            return getRelativeNoteName(n, bassTonic);
-          });
-        } else {
-          const oldBassNotes = oldScaleNotes.map(lowerOctave);
-          const oldBassDisplay = oldDisplayScale.map(lowerOctave);
-          const newBassNotes = activeScale.notes.map(lowerOctave);
-          const newBassDisplay = activeScale.displayNotes.map(lowerOctave);
-          transposedNotes = transposeMelodyToScale(
-            currentMelodies.bass.notes,
-            oldBassNotes,
-            newBassNotes
-          );
-          const currentDisplay = currentMelodies.bass.displayNotes || currentMelodies.bass.notes;
-          transposedDisplay = transposeMelodyToScale(
-            currentDisplay,
-            oldBassDisplay,
-            newBassDisplay
-          );
-        }
-
-        newBass = new Melody(
-          transposedNotes,
-          currentMelodies.bass.durations,
-          currentMelodies.bass.offsets,
-          transposedDisplay
-        );
-      } else {
-        newBass = null;
-      }
-      newPercussion = currentMelodies.percussion;
-      result.treble = newTreble;
-      result.bass = newBass;
-      result.percussion = newPercussion;
-    } else {
-      const instrumentSettings = this.refs.instrumentSettingsRef.current;
-      const currentMelodyContext = this.refs.melodiesRef?.current || {};
-      const refScale = currentMelodyContext.referenceScale || activeScale;
-
-      // ── Treble difficulty-driven settings override ───────────────────────
-      const targetMelodyDifficulty = this.refs.targetTrebleDifficultyRef?.current;
-      let effectiveTrebleSettings = instrumentSettings.treble;
-      if (targetMelodyDifficulty != null) {
-        const melodyEntry = getMelodyAtDifficulty(targetMelodyDifficulty, 0.5);
-        if (melodyEntry) {
-          const clefKey = instrumentSettings.treble?.preferredClef === 'bass' ? 'bass' : 'treble';
-          const presetRange = PRESET_RANGES[melodyEntry.rangeMode]?.[clefKey];
-          effectiveTrebleSettings = {
-            ...instrumentSettings.treble,
-            notesPerMeasure: melodyEntry.notesPerMeasure,
-            smallestNoteDenom: melodyEntry.smallestNoteDenom,
-            rhythmVariability: melodyEntry.rhythmVariability,
-            notePool: melodyEntry.notePool,
-            randomizationRule: melodyEntry.randomizationRule,
-            rangeMode: melodyEntry.rangeMode,
-            ...(presetRange ? { range: presetRange } : {}),
-          };
-          result.trebleSettings = effectiveTrebleSettings;
-        }
-      }
-
-      // ── Bass difficulty-driven settings override ──────────────────────────
-      const targetBassDiff = this.refs.targetBassDifficultyRef?.current;
-      let effectiveBassSettings = instrumentSettings.bass;
-      if (targetBassDiff != null) {
-        const bassEntry = getMelodyAtDifficulty(targetBassDiff, 0.5);
-        if (bassEntry) {
-          const presetRange = PRESET_RANGES[bassEntry.rangeMode]?.['bass'];
-          effectiveBassSettings = {
-            ...instrumentSettings.bass,
-            notesPerMeasure: bassEntry.notesPerMeasure,
-            smallestNoteDenom: bassEntry.smallestNoteDenom,
-            rhythmVariability: bassEntry.rhythmVariability,
-            notePool: bassEntry.notePool,
-            randomizationRule: bassEntry.randomizationRule,
-            rangeMode: bassEntry.rangeMode,
-            ...(presetRange ? { range: presetRange } : {}),
-          };
-          result.bassSettings = effectiveBassSettings;
-        }
-      }
-
-      // If tonic changed (due to randomization above), recalculate relative ranges so melody
-      // generation uses the correct range for the NEW tonic — not the stale range from the ref.
-      const newTrebleRelRange = calculateRelativeRange('treble', effectiveTrebleSettings.rangeMode, activeScale.tonic);
-      if (newTrebleRelRange) effectiveTrebleSettings = { ...effectiveTrebleSettings, range: newTrebleRelRange };
-      const newBassRelRange = calculateRelativeRange('bass', effectiveBassSettings.rangeMode, activeScale.tonic);
-      if (newBassRelRange) effectiveBassSettings = { ...effectiveBassSettings, range: newBassRelRange };
-
-      // Treble
-      if (effectiveTrebleSettings.randomizationRule === 'fixed' && currentMelodyContext.referenceMelody) {
-        // ... fixed logic ... (omitted matching for brevity, keeping existing)
-        const modulatedNotes = modulateMelody(currentMelodyContext.referenceMelody.notes, refScale, activeScale);
-        const displayNotes = modulatedNotes.map(n => {
-          if (!n || ['k', 'c', 'b', 'hh', 's', '/'].includes(n)) return n;
-          const idx = activeScale.notes.indexOf(n);
-          if (idx !== -1) return activeScale.displayNotes[idx];
-          return getRelativeNoteName(n, activeScale.tonic);
-        });
-        newTreble = new Melody(modulatedNotes, currentMelodyContext.referenceMelody.durations, currentMelodyContext.referenceMelody.offsets, displayNotes);
-      } else {
-        newTreble = new MelodyGenerator(
-          activeScale,
-          numMeasures,
-          timeSignature,
-          effectiveTrebleSettings,
-          chordProgression, // PASS THE FULL MELODY OBJECT
-          effectiveTrebleSettings.range,
-          Date.now(),
-          globalTemplate // Pass Global Rhythm!
-        ).generateMelody();
-      }
-
-      // Bass
-      if (effectiveBassSettings.randomizationRule === 'fixed' && currentMelodyContext.referenceBassMelody) {
-        // ... fixed logic ...
-        const targetBassSc = activeScale.generateBassScale();
-        const refBassSc = refScale.generateBassScale();
-        const modulatedNotes = modulateMelody(currentMelodyContext.referenceBassMelody.notes, refBassSc, targetBassSc);
-        const displayNotes = modulatedNotes.map(n => {
-          if (!n || ['k', 'c', 'b', 'hh', 's', '/'].includes(n)) return n;
-          const idx = targetBassSc.notes.indexOf(n);
-          if (idx !== -1) return targetBassSc.displayNotes[idx];
-          return getRelativeNoteName(n, targetBassSc.tonic);
-        });
-        newBass = new Melody(modulatedNotes, currentMelodyContext.referenceBassMelody.durations, currentMelodyContext.referenceBassMelody.offsets, displayNotes);
-      } else {
-        newBass = new MelodyGenerator(
-          activeScale.generateBassScale(),
-          numMeasures,
-          timeSignature,
-          effectiveBassSettings,
-          chordProgression, // PASS THE FULL MELODY OBJECT
-          effectiveBassSettings.range,
-          Date.now(),
-          globalTemplate // Pass Global Rhythm!
-        ).generateMelody();
-      }
-
-      // Percussion
-      if (instrumentSettings.percussion.randomizationRule === 'fixed' && currentMelodies.percussion) {
-        newPercussion = currentMelodies.percussion;
-      } else {
-        newPercussion = new MelodyGenerator(
-          this.percussionScale,
-          numMeasures,
-          timeSignature,
-          instrumentSettings.percussion,
-          chordProgression, // PASS THE FULL MELODY OBJECT
-          null,
-          Date.now(),
-          globalTemplate // Pass Global Rhythm!
-        ).generateMelody();
-      }
-
-      result.treble = newTreble;
-      result.bass = newBass;
-      result.percussion = newPercussion;
-    }
+    result.treble = series.treble;
+    result.bass = series.bass;
+    result.percussion = series.percussion;
+    // The effective settings are surfaced ONLY when a difficulty target overrode them
+    // (preserves the old behaviour where result.trebleSettings/bassSettings were set
+    // inside the difficulty branches and otherwise left undefined).
+    if (series.trebleSettings) result.trebleSettings = series.trebleSettings;
+    if (series.bassSettings) result.bassSettings = series.bassSettings;
 
     // Calculate the TRUE measure span of the generated tracks so the sequencer loop
     // stays tied to actual content even if the UI 'num measures' slider changes.
@@ -1681,7 +1719,8 @@ class Sequencer {
   _armPaginationSequence({ baseAudioTime, sequenceStartGlobalMeasure, plan, variant, currentMelodies, startSkipTick }) {
     const events = planPaginationSequence({ plan, variant });
     const measureLengthTicks = plan.measureLengthTicks;
-    const timeFactor = 5 / this.refs.bpmRef.current;
+    // Single source of truth for tick→seconds (Han 2026-06-19); === 5/bpm.
+    const timeFactor = secondsPerTick(this.refs.bpmRef.current);
     const tickToTime = (tick) => baseAudioTime + tick * timeFactor;
 
     // Initial setStartMeasureIndex + isOddRound for this sequence block.
@@ -1701,6 +1740,62 @@ class Sequencer {
       if (!this.isPlaying) return;
       if (this.setters.setStartMeasureIndex) this.setters.setStartMeasureIndex(sequenceStartGlobalMeasure);
       if (this.setters.setIsOddRound) this.setters.setIsOddRound(true); // iter 0 is always odd
+
+      // ── Repeat-mode block-counter refresh (Fix #3, arch §40 numbering) ────────────────────────
+      // The generated continuous path keeps the BarlinesLayer repeat suffix correct by refreshing
+      // blockMeasureStart/blockPlayStart at every SERIES boundary inside applyResultToSetters
+      // (setBlockPlayStart(seriesStartMeasureIndex)). The loaded-song REPEAT path (isRepeatMode) never
+      // calls applyResultToSetters — it short-circuits before the series-flip (no regeneration) — so
+      // blockPlayStart was STRANDED at its play-start value while startMeasureIndex kept advancing by
+      // bodyMeasures every pass. BarlinesLayer computes the suffix as
+      // floor((startMeasureIndex - blockPlayStart) / passSpan) + 1, so with a stranded blockPlayStart
+      // the suffix overflowed past repsPerMelody and corrupted at each re-arm (Han saw "11" for "1.5").
+      //
+      // The repeat path re-arms _armPaginationSequence at the start of every repeat BLOCK (each set of
+      // repsPerMelody passes), so THIS callback is the repeat-mode counterpart of a series boundary.
+      // Refresh the SAME two counters with the SAME formula applyResultToSetters uses (§6c — reuse the
+      // existing bookkeeping, don't invent a new mechanism). For repeat mode melodyCount stays 0 and
+      // the song never regenerates, so blockMeasureStart resolves to the loaded song's first measure
+      // ((historyIndex + 0) * numMeasures + 1) and blockPlayStart tracks each block's start global
+      // index — so the suffix CYCLES 1..repsPerMelody per block, matching the generated path (this is
+      // the FINITE repsPerMelody case Han reported: "11" → cycles correctly instead of overflowing).
+      //
+      // INDEFINITE repeat (repsPerMelody === -1, "repeat one indefinitely"): the suffix must instead
+      // GROW UNBOUNDED (maat 1 on pass 7 = "1.7", pass 1000 = "1.1000"; no cap, no reset — Han
+      // 2026-06-18). The planner resolves repsPerMelody=-1 to 1 (Math.max(1,-1) at the arm call), so
+      // _armPaginationSequence re-arms — and this callback fires — EVERY pass. If we refreshed
+      // blockPlayStart to sequenceStartGlobalMeasure here (as finite mode does), it would track
+      // startMeasureIndex every pass and pin the suffix at 1. So for indefinite mode we PIN
+      // blockPlayStart to a STABLE ORIGIN (the first body play-start of the session, captured on the
+      // first arm) and never refresh it again — then computeRepeatPass's
+      // floor((startMeasureIndex - origin) / passSpan) + 1 climbs without bound across passes. The
+      // re-arm itself still happens (it schedules the next pass's measures); we change only the
+      // numbering ORIGIN, not the scheduling (§6: Song stays append-only, indices monotonic). NOTE:
+      // blockMeasureStart is refreshed in BOTH modes — it drives the BASE measure number N (1..nm
+      // within one pass), which stays correct because melodyCount is pinned at 0 so it resolves to the
+      // loaded song's first measure on every pass; only the .repeatNum grows.
+      const isIndefiniteRepeat = this.isRepeatMode
+        && this.refs.playbackConfigRef.current.repsPerMelody === -1;
+      if (this.isRepeatMode) {
+        const hir = this.refs.historyIndexRef;
+        const nm = this.refs.numMeasuresRef.current;
+        if (hir && nm && this.setters.setBlockMeasureStart) {
+          this.setters.setBlockMeasureStart((Math.max(0, hir.current) + this.melodyCount) * nm + 1);
+        }
+        if (this.setters.setBlockPlayStart) {
+          if (isIndefiniteRepeat) {
+            // Capture the session origin on the FIRST indefinite arm only, then leave it fixed so the
+            // suffix grows unbounded. Subsequent re-arms must NOT overwrite it.
+            if (this.repeatNumberingOrigin === null) {
+              this.repeatNumberingOrigin = sequenceStartGlobalMeasure;
+            }
+            this.setters.setBlockPlayStart(this.repeatNumberingOrigin);
+          } else {
+            // FINITE repsPerMelody: refresh per block so the suffix CYCLES 1..repsPerMelody.
+            this.setters.setBlockPlayStart(sequenceStartGlobalMeasure);
+          }
+        }
+      }
     }, initialDelayMs);
 
     // Variant config — same hasOvershoot flag is used by the outer loop's

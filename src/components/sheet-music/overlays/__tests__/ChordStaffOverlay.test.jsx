@@ -36,6 +36,14 @@ describe('ChordStaffOverlay', () => {
         expect(onSetChordComplexity).toHaveBeenCalled();
     });
 
+    it('renders the discreet chord-type labels under each option (Han 2026-06-19)', () => {
+        const { container } = renderChord();
+        const labels = [...container.querySelectorAll('text')].map((t) => t.textContent);
+        for (const expected of ['root', 'power', 'triad', 'seventh', 'altered/extended']) {
+            expect(labels).toContain(expected);
+        }
+    });
+
     it('renders nothing without geometry', () => {
         const { container } = renderChord({ startX: null });
         expect(container.querySelector('.chord-overlay')).toBeNull();

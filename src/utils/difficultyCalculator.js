@@ -130,7 +130,8 @@ export function calcHarmonicDifficulty(scale) {
  * Inputs: trebleSettings (InstrumentSettings for the treble track).
  * Returns: { score, breakdown }
  */
-export function calcMelodicDifficulty(trebleSettings) {
+// Not exported: only consumed internally by calcDifficulty below (Han 2026-06-19).
+function calcMelodicDifficulty(trebleSettings) {
   if (!trebleSettings) return { score: 0, breakdown: { notePool: 'scale', poolScore: 0, randRule: 'uniform', randMult: 1 } };
 
   const notePool  = trebleSettings.notePool || 'scale';
@@ -148,7 +149,8 @@ export function calcMelodicDifficulty(trebleSettings) {
  * Inputs: trebleSettings.
  * Returns: { score, breakdown }
  */
-export function calcRhythmicDifficulty(trebleSettings) {
+// Not exported: only consumed internally by calcDifficulty below (Han 2026-06-19).
+function calcRhythmicDifficulty(trebleSettings) {
   if (!trebleSettings) return { score: 0, breakdown: { variability: 0, varScore: 0, notesPerMeasure: 0, notesScore: 0 } };
 
   const variability = trebleSettings.rhythmVariability ?? 0;  // 0–100
@@ -167,7 +169,8 @@ export function calcRhythmicDifficulty(trebleSettings) {
  * Inputs: bpm (number), playbackConfig.
  * Returns: { score, breakdown }
  */
-export function calcSongDifficulty(bpm = 120 /*, playbackConfig */) {
+// Not exported: only consumed internally by calcDifficulty below (Han 2026-06-19).
+function calcSongDifficulty(bpm = 120 /*, playbackConfig */) {
   const bpmRaw   = Math.max(0, (bpm - SONG.bpmReference) / SONG.bpmDivisor);
   const bpmScore = Math.min(SONG.bpmMax, Math.sqrt(bpmRaw));
   const score    = SONG.staticBase + bpmScore;

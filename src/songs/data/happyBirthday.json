@@ -15,7 +15,9 @@
     "m6: '[name]' + anacrusis line 4 (incl. one continuation onset on hard). m7: line 4 melody.",
     "m8: 'you!' final (dotted-half).",
     "MIDI source was in G major 4/4; reinterpreted as 3/4. Lines 1-3 end with 'you' as half-note then anacrusis-in-same-measure (per MIDI). Line 4 ends with 'you!' as dotted-half.",
-    "Fermata on '[name]' (offset 216) is NOT yet encoded — fermata feature is on BACKLOG. For easy, [name] duration is stretched to 24 (half-note) to approximate the fermata feel."
+    "Fermata on '[name]' (offset 216) is NOT yet encoded — fermata feature is on BACKLOG. For easy, [name] duration is stretched to 24 (half-note) to approximate the fermata feel.",
+    "[Claude 2026-06-15] The line above is now OUTDATED: the fermata IS encoded — each difficulty carries a `fermatas:[{tick:216,hold:18}]` array (kept for the historical record per agent rules §4; flag to Han before deleting).",
+    "[Claude 2026-06-15] Difficulty restructure (Han 1A): EASY now provides ALL staves — treble + a simple bass (chord ROOT on beat 1 only, resting through the m0 pickup, starting at the m1 downbeat) + a 3/4 waltz percussion (kick on beat 1, closed hi-hat on beats 2 & 3, m1–m8) + the existing easy chords. MEDIUM is NEW: treble + bass copied verbatim from the (former) HARD chorale arrangement, NO provided chords/percussion. HARD now provides treble + chords only (its bass moved to MEDIUM). Path B (generate missing staves from chords/melody on load) is future work."
   ],
   "generator": {
     "scaleFamily": "Diatonic",
@@ -40,7 +42,7 @@
   },
   "difficulties": {
     "easy": {
-      "_comment": "Single melodic line (top notes of the MIDI's harmonised stacks). 24 notes. Anacrusis = dotted-eighth + sixteenth (dur 9 + 3). Lines 1-3 end 'you' as half-note (dur 24), line 4 ends 'you!' as dotted-half (dur 36). [name] stretched to half-note (dur 24) to approximate the traditional fermata.",
+      "_comment": "Single melodic top-line (24 notes) + a beginner backing (Han 2026-06-15 1A). Bass = chord ROOT on beat 1 only (quarter, dur 12), resting through the m0 pickup and starting on the m1 downbeat (offsets 36..288). Percussion = waltz pattern: kick (k) on beat 1, snare RIM CLICK (sr) on beats 2 & 3, for m1–m7 — NO rim clicks in the last bar (m8 is kick only) (Han 2026-06-15). Chords unchanged. Anacrusis = dotted-eighth + sixteenth (dur 9 + 3). [name] stretched to half-note (dur 24) to approximate the fermata, plus the fermata array below.",
       "fermatas": [{ "tick": 216, "hold": 18 }],
       "treble": {
         "notes":     ["D4","D4","E4","D4","G4","F#4","D4","D4","E4","D4","A4","G4","D4","D4","D5","B4","G4","F#4","C5","C5","B4","G4","A4","G4"],
@@ -48,8 +50,16 @@
         "offsets":   [24,   33,  36,  48,  60,  72,   96,  105, 108, 120, 132, 144, 168, 177, 180, 192, 204, 216,  240, 249, 252, 264, 276, 288],
         "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","Hap-","py","Birth-","day","to","you!"]
       },
-      "bass": null,
-      "percussion": null,
+      "bass": {
+        "notes":     ["G2","D3","D3","G2","G2","C3","G2","G2"],
+        "durations": [12,  12,  12,  12,  12,  12,  12,  12],
+        "offsets":   [36,  72,  108, 144, 180, 216, 252, 288]
+      },
+      "percussion": {
+        "notes":     ["k","sr","sr","k","sr","sr","k","sr","sr","k","sr","sr","k","sr","sr","k","sr","sr","k","sr","sr","k"],
+        "durations": [12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12, 12,  12,  12],
+        "offsets":   [36, 48,  60,  72, 84,  96,  108,120, 132, 144,156, 168, 180,192, 204, 216,228, 240, 252,264, 276, 288]
+      },
       "chords": [
         { "offset": 0,   "notes": [],                       "root": "",   "type": "nc",       "name": "N.C.", "duration": 36 },
         { "offset": 36,  "notes": ["G3","B3","D4"],         "root": "G3", "type": "major",    "name": "G",  "duration": 36 },
@@ -62,8 +72,8 @@
         { "offset": 288, "notes": ["G3","B3","D4"],        "root": "G3", "type": "major",    "name": "G",  "duration": 36 }
       ]
     },
-    "hard": {
-      "_comment": "Full chorale-style harmonisation: each onset carries the MIDI's full chord voicing in both staves. 25 treble onsets (incl. one continuation '—' after [name] for the MIDI's rearticulation), 19 bass onsets (consecutive same-voicing entries merged into longer durations).",
+    "medium": {
+      "_comment": "NEW (Han 2026-06-15 1A). Treble + bass copied VERBATIM from the former HARD chorale arrangement (25 treble onsets incl. one continuation '—' after [name]; 19 bass onsets). No provided chords or percussion — path B (generate on load) will fill chords later. Fermata on [name] carried over.",
       "fermatas": [{ "tick": 216, "hold": 18 }],
       "treble": {
         "notes": [
@@ -122,6 +132,45 @@
         "durations": [12, 12, 12, 12, 24, 12, 12, 12, 12, 24, 12, 12, 12, 12, 24, 12, 24, 12, 36],
         "offsets":   [24, 36, 48, 60, 72, 96, 108, 120, 132, 144, 168, 180, 192, 204, 216, 240, 252, 276, 288]
       },
+      "percussion": null,
+      "chords": null
+    },
+    "hard": {
+      "_comment": "Full chorale-style harmonisation, MELODY + CHORDS only (Han 2026-06-15 1A: the bass moved to the new MEDIUM difficulty). 25 treble onsets (incl. one continuation '—' after [name] for the MIDI's rearticulation). Jazz chord progression below.",
+      "fermatas": [{ "tick": 216, "hold": 18 }],
+      "treble": {
+        "notes": [
+          "D4",
+          "D4",
+          ["C4","E4"],
+          "D4",
+          ["D4","G4"],
+          ["D4","F#4"],
+          ["C4","D4"],
+          ["C4","D4"],
+          ["C4","E4"],
+          ["C4","D4"],
+          ["C4","F#4","A4"],
+          ["D4","G4"],
+          "D4",
+          "D4",
+          ["G4","B4","D5"],
+          ["D4","G4","B4"],
+          ["D4","G4"],
+          ["D4","F#4"],
+          ["C4","E4"],
+          ["E4","G4","C5"],
+          "C5",
+          ["D4","G4","B4"],
+          ["D4","G4"],
+          ["C4","A4"],
+          ["D4","G4"]
+        ],
+        "durations": [9, 3, 12, 12, 12, 24, 9, 3, 12, 12, 12, 24, 9, 3, 12, 12, 12, 12, 12, 9, 3, 12, 12, 12, 36],
+        "offsets":   [24, 33, 36, 48, 60, 72, 96, 105, 108, 120, 132, 144, 168, 177, 180, 192, 204, 216, 228, 240, 249, 252, 264, 276, 288],
+        "lyrics":    ["Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","to","you,","Hap-","py","Birth-","day","dear","[name]","—","Hap-","py","Birth-","day","to","you!"]
+      },
+      "bass": null,
       "percussion": null,
       "_chordNotes": "Han 2026-05-29 round 13: jazz arrangement in D major, transposed here to G major (+5 semitones). Passing chords land on beat 3 (except m5 which has chords on beats 1+2+3). Passing chords carry meta.isPassing so ChordLabelsLayer renders the smaller font + arrow.",
       "chords": [

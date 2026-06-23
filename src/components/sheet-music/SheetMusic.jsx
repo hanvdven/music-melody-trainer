@@ -3,8 +3,10 @@
 import React, { useRef, useState, useMemo } from 'react';
 import useSheetMusicHighlight from '../../hooks/useSheetMusicHighlight';
 import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
-import useRangeMorph from '../../hooks/useRangeMorph';
+import useRangeMorph, { melodyHiddenDuringOverlay } from '../../hooks/useRangeMorph';
 import useClefRefly from '../../hooks/useClefRefly';
+import useUniversalTransition from '../../hooks/useUniversalTransition';
+import { useUniversalTransitionKey } from '../../contexts/UniversalTransitionContext';
 import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
 import OttavaMarker from './OttavaMarker';
@@ -12,6 +14,11 @@ import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
 import RangeStaffOverlay from './overlays/RangeStaffOverlay';
 import ClefStaffOverlay from './overlays/ClefStaffOverlay';
 import NoteColoringStaffOverlay from './overlays/NoteColoringStaffOverlay';
+import InstrumentStaffOverlay from './overlays/InstrumentStaffOverlay';
+// Three generator setters (Han 2026-06-22): PLAYBACK reuses SettingsOverlay (via groupClassName),
+// GENERATION + GENERATION ADVANCED are new per-balk stepper overlays.
+import GenerationSetterOverlay from './overlays/GenerationSetterOverlay';
+import GenerationAdvancedSetterOverlay from './overlays/GenerationAdvancedSetterOverlay';
 import { clefFamilyKey } from './overlays/clefSelector';
 import ChordStaffOverlay from './overlays/ChordStaffOverlay';
 import ChordStyleOverlay from './overlays/ChordStyleOverlay';
@@ -22,22 +29,25 @@ import SvgSetter from './SvgSetter';
 import MelodyNotesLayer from './MelodyNotesLayer';
 import ChordLabelsLayer from './ChordLabelsLayer';
 import BarlinesLayer from './BarlinesLayer';
+import LyricsLayer from './LyricsLayer';
+import FermataLayer from './FermataLayer';
 import PreviewOverlay from './PreviewOverlay';
 import { renderOneMeasureRepeatSymbols } from './renderOneMeasureRepeatSymbols';
 import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
-import { getNoteSemitone, getKodalySolfege, respellToKeySignature } from '../../theory/noteUtils';
-import { getNoteIndex, transposeMelodyBySemitones, transposeNoteBySemitones } from '../../theory/musicUtils';
+import { getNoteSemitone, getKodalySolfege, respellToKeySignature, melodicNoteColor } from '../../theory/noteUtils';
+import { transposeNoteBySemitones } from '../../theory/musicUtils';
+import { clefForScreen } from './clefResolution';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
-import { isCompoundMeter, getEffectiveBeatDuration, getBeatDurationTicks, getTakadimiSyllable, getTakadimiSyllableGrouped, getTupletSyllable, isRest } from '../../theory/rhythmicSolfege';
+import { getBeatDurationTicks } from '../../theory/rhythmicSolfege';
 
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
 import { TICKS_PER_WHOLE } from '../../constants/timing.js';
 import { PRESET_RANGES as CLEF_RANGE_PRESET_RANGES } from '../../constants/ranges';
 import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionInstLabel, getTranspositionFifths } from '../../constants/transposingInstruments';
-import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange } from '../../utils/melodySlice';
+import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange, melodyMeasureSpan } from '../../utils/melodySlice';
 import { calculateMusicalBlocks } from '../../utils/pagination';
 import useLongPressTimer from '../../hooks/useLongPressTimer';
 import BpmControls from './BpmControls';
@@ -168,6 +178,11 @@ const SheetMusic = ({
   // pickup measure, or null if no song with anacrusis is loaded. BarlinesLayer
   // uses this to suppress the number label on that one measure.
   anacrusisMeasureIndex = null,
+  // Looping body-merge (arch §40): when the sheet is rendering the merged BODY (pickup relocated to
+  // the end of the last body bar) during repeat/continuous playback, this is the body's measure count
+  // (e.g. 8 for HBD). BarlinesLayer uses it to number plainly (no pickup measure) and to compute the
+  // repeat-pass suffix from bodyMeasures rather than the padded numMeasures. null when not merging.
+  mergedBodyMeasures = null,
   numRepeats,
   onNumRepeatsChange,
   numAccidentals,
@@ -178,6 +193,10 @@ const SheetMusic = ({
   rangeEditMode,
   clefEditMode,
   colorEditMode,
+  instrumentEditMode,
+  playbackEditMode,                 // Han 2026-06-22 — three new generator setters
+  generationEditMode,
+  generationAdvancedEditMode,
   onToggleSettings,
   onCloseRangeEdit,
   onCloseClefEdit,
@@ -343,7 +362,11 @@ const SheetMusic = ({
 
   // --- Vertical Layout Constants (Responsive) ---
   const baseGap = 70;
-  const minGap = 29.5;
+  // Minimum inter-staff vertical gap, used as the floor of the responsive formula below when the
+  // container is short (<400px). +10 units (was 29.5) so staves never crowd as tightly on small
+  // screens; applies to BOTH the melody view and the setters (which overlay the same staves).
+  // baseGap (the large-container value) is unchanged, so tall containers are unaffected (Han 2026-06-19).
+  const minGap = 39.5;
 
   // --- Dynamic Staff Visibility & Layout ---
 
@@ -439,12 +462,27 @@ const SheetMusic = ({
   // new flies in from the right. Either RANGE or CLEF mode triggers it (both replace
   // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
   // the duration. Fly distance = content width (user units). See useRangeMorph.
-  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || showSettings;
+  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || instrumentEditMode || showSettings || playbackEditMode || generationEditMode || generationAdvancedEditMode;
   // The currently-shown SURFACE drives the morph: switching between range / clef /
   // legacy-settings / melody re-arms the animation each time (Han #10/#11). The old
   // settings overlay is now the sliding 'legacy' surface.
-  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : showSettings ? 'legacy' : 'melody';
+  // colorEditMode is its OWN morph surface (Han 2026-06-15 B1). Without a 'color' case the
+  // colour setter read as a return to 'melody', so useRangeMorph flew the MELODY in (notes
+  // streaming from the right) only for colorEditMode to immediately hide it again. Treating
+  // colour as a surface makes its scheme rows fly in like range/clef and stops the bogus
+  // melody fly-in. Mutually exclusive with range/clef/settings (App.handleToggleColorEdit).
+  // The three generator setters (Han 2026-06-22) are their own morph surfaces, placed BEFORE the
+  // 'legacy'/'melody' fallbacks. PLAYBACK reuses SettingsOverlay but flies in as the 'playback'
+  // surface (distinct group class 'playback-overlay').
+  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : instrumentEditMode ? 'instrument' : playbackEditMode ? 'playback' : generationEditMode ? 'generation' : generationAdvancedEditMode ? 'generation-advanced' : showSettings ? 'legacy' : 'melody';
   const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
+  // Universal transition: replay the SAME 1.5s cascade when the app swaps the sheet content
+  // IN PLACE (song load, difficulty, …) rather than via an overlay surface change. App bumps
+  // `transitionKey` on each trigger; the runner clones the pre-swap `.notes-transition` as the
+  // OLD (fades out) and flies the live group in. Phase 1 wires only the song-load trigger; it
+  // shares flyInCascade with useRangeMorph so the two never need to agree on constants. Same
+  // flyDist (endX) as the morph.
+  useUniversalTransition(svgRef, useUniversalTransitionKey(), endX);
   // CR-A2: re-fly a single staff's clef row when its clef FAMILY changes while the
   // clef-edit overlay is open (fade old out + wipe new in from the right). Keyed on the
   // left-carousel family only (clefFamilyKey) — sub-clef variants (octave, transposition,
@@ -460,6 +498,16 @@ const SheetMusic = ({
   const rangeMounted = mountedFor('range', rangeEditMode);
   const clefMounted = mountedFor('clef', clefEditMode);
   const legacyMounted = mountedFor('legacy', showSettings);
+  // Keep the colour overlay mounted through its EXIT morph too (color→melody), so its
+  // scheme rows can fade/fly out instead of vanishing instantly (Han 2026-06-15 B1).
+  const colorMounted = mountedFor('color', colorEditMode);
+  // Keep the instrument overlay mounted through its EXIT morph too (instrument→melody),
+  // so its card strip can fade/fly out instead of vanishing instantly (mirrors colour).
+  const instrumentMounted = mountedFor('instrument', instrumentEditMode);
+  // Generator setters — keep each mounted through its exit morph the same way (Han 2026-06-22).
+  const playbackMounted = mountedFor('playback', playbackEditMode);
+  const generationMounted = mountedFor('generation', generationEditMode);
+  const generationAdvancedMounted = mountedFor('generation-advanced', generationAdvancedEditMode);
 
   const staffLines = [];
   if (isTrebleVisible) {
@@ -535,74 +583,10 @@ const SheetMusic = ({
   const measurePpt = measureLengthSlots > 0 ? measureWidth / measureLengthSlots : 0;
 
   // --- Dynamic Clef Logic ---
-  const getClefShiftValue = (c) => {
-    const shifts = {
-      treble: 0, alto: -30, tenor: -40, soprano: -10, 'mezzo-soprano': -20, bass: 0,
-      treble8va: 35, treble8vb: -35, treble15va: 70, treble15vb: -70,
-      bass8va: 35, bass8vb: -35, bass15va: 70, bass15vb: -70,
-      alto8va: 35, alto8vb: -35
-    };
-    return shifts[c] || 0;
-  };
-
-  // Clef types that are inherently vocal — these never receive 8va/8vb markings.
-  // The vocal Bass voice uses the 'bass' clef; Baritone uses its own 'baritone-f'
-  // clef (F on the middle line); both are identified by rangeMode.
-  const VOCAL_CLEF_TYPES = new Set(['soprano', 'mezzo-soprano', 'alto', 'tenor']);
-  const VOCAL_RANGE_MODES = new Set(['Bass', 'Baritone', 'Tenor', 'Alto', 'Mezzo-soprano', 'Soprano']);
-
-  const calculateOptimalClef = (activeClef, melodyNotes, staff = 'treble', rangeMode = null) => {
-    // 'off' = disabled staff (Han 2026-06-01): never compute an ottava/optimal clef
-    // for it; the sentinel flows through so the render can grey it out / show a cross.
-    if (activeClef === 'off') return 'off';
-    // Vocal clefs never use ottava markings — range selection already constrains their register.
-    if (VOCAL_CLEF_TYPES.has(activeClef) || VOCAL_RANGE_MODES.has(rangeMode)) return activeClef;
-
-    if (!melodyNotes || melodyNotes.length === 0) return activeClef;
-
-    const notes = melodyNotes
-      .map(n => {
-        if (!n) return null;
-        if (typeof n === 'string') return getNoteIndex(n);
-        if (typeof n.midi === 'number') return n.midi;
-        if (typeof n.note === 'string') return getNoteIndex(n.note);
-        return null;
-      })
-      .filter(m => typeof m === 'number');
-
-    if (notes.length === 0) return activeClef;
-    const countInRange = (min, max) => notes.filter(m => m >= min && m <= max).length;
-
-    // Ranges use getNoteIndex() indices: A0=0, each semitone = 1 step.
-    // C4 = 39 (not 48 — the old comment was wrong and caused all ranges to be off by 9).
-    const RANGES = staff === 'bass' ? {
-      base: [15, 43],   // C2-E4
-      '8vb': [0, 19],   // A0-E2
-      '15vb': [0, 0],   // DISABLED
-      '8va': [39, 55],  // C4-E5
-      '15va': [51, 87]  // C5-C8
-    } : {
-      base: [36, 63],   // A3-C6
-      '8vb': [24, 39],  // A2-C4
-      '15vb': [12, 27], // A1-C3
-      '8va': [60, 75],  // A5-C7
-      '15va': [72, 87]  // A6-C8
-    };
-
-    // Rule 1: stay in base if all notes fit
-    if (notes.every(m => m >= RANGES.base[0] && m <= RANGES.base[1])) return activeClef;
-
-    const scores = [
-      { id: activeClef + '15va', score: countInRange(...RANGES['15va']) },
-      { id: activeClef + '15vb', score: countInRange(...RANGES['15vb']) },
-      { id: activeClef + '8va', score: countInRange(...RANGES['8va']) },
-      { id: activeClef + '8vb', score: countInRange(...RANGES['8vb']) },
-      { id: activeClef, score: countInRange(...RANGES.base) }
-    ];
-
-    // Pick the one with the highest score, with precedence for later entries (Base > 8va > 15va) in case of a tie
-    return scores.reduce((max, s) => s.score >= max.score ? s : max, scores[0]).id;
-  };
+  // getClefShiftValue / calculateOptimalClef / octaveAdjustedClef / clefForScreen now live in the
+  // pure module ./clefResolution (Han 2026-06-19, ARCHITECTURE_AUDIT §4). clefForScreen used to
+  // close over the rangeEditMode/clefEditMode props; it is now called with them passed explicitly
+  // (see clefTreble/clefBass below).
 
   // Memoised so the empty-array fallback gets a stable reference across renders —
   // required for React.memo on MelodyNotesLayer to hit the cache (otherwise a
@@ -841,9 +825,18 @@ const SheetMusic = ({
   // This is intentionally independent of the numMeasures generator setting so that
   // changing numMeasures during playback doesn't resize the current melody display.
   // Falls back to numMeasures only for the initial empty state (before first generation).
-  const melodyMeasureCount = totalMelodyDuration > 0
-    ? Math.max(1, Math.round(totalMelodyDuration / measureLengthSlots))
-    : numMeasures;
+  //
+  // melodyMeasureSpan rounds UP (ceil), not nearest, so a melody that does NOT divide
+  // evenly into the current meter still gets a trailing measure for its leftover notes.
+  // This is the normal case when the TIME SIGNATURE is changed while stopped: the melody
+  // stores METER-INDEPENDENT absolute ticks, so a 192-tick (4-bar 4/4) melody re-barred
+  // into 3/4 (measureLengthSlots ≈ 36) spans 192/36 = 5.33 measures. Math.round would give
+  // 5, dropping the partial final measure's notes (offsets 180–192) — the persistent
+  // malformed-sheet bug. Ceil gives 6: even division → unchanged; uneven (re-barred after a
+  // TS change) → the trailing partial measure is shown, with the renderer's trailing-rest
+  // padding (processMelodyAndCalculateSlots end-pad) and cross-barline ties (Step 2
+  // measure-boundary split), instead of dropping notes. See melodySlice.melodyMeasureSpan.
+  const melodyMeasureCount = melodyMeasureSpan(totalMelodyDuration, measureLengthSlots, numMeasures);
 
   // Derive displayed measure count from the actual melody so that generator setting
   // changes (numMeasures) don't immediately add/remove empty measures from the view.
@@ -915,42 +908,14 @@ const SheetMusic = ({
   // optimal clef made the two staves differ under transposition because their melodies differ;
   // driving the octave from transpositionOctave instead makes both staves show the SAME clef for
   // the same transposition. Base family keeps the user's selection; vocal/off pass through.
-  const OCTAVE_CLEF_SUFFIX = { '-2': '15vb', '-1': '8vb', '0': '', '1': '8va', '2': '15va' };
-  const octaveAdjustedClef = (activeClef, octave, rangeMode) => {
-    if (activeClef === 'off') return 'off';
-    if (VOCAL_CLEF_TYPES.has(activeClef) || VOCAL_RANGE_MODES.has(rangeMode)) return activeClef;
-    const o = Math.max(-2, Math.min(2, octave || 0));
-    if (o === 0) return activeClef;
-    const base = String(activeClef).replace(/(8|15|22)v[ab]$/, '');
-    if (base !== 'treble' && base !== 'bass') return activeClef;
-    return base + OCTAVE_CLEF_SUFFIX[String(o)];
-  };
-  // Clef octave matches the SCREEN being shown (Han 2026-06-09/10):
-  //   • RANGE setter → octave fits the (written) RANGE being shown (very low range → 8vb).
-  //   • CLEF setter AND normal notation → octave from the TRANSPOSITION only. The MELODY NEVER
-  //     drives an 8va/8vb (Han: "nooooi 8va of 8vb ook al is de melodie 8vb"); both staves also
-  //     show the SAME clef for the same transposition.
-  const clefForScreen = (activeClef, settings, staffName, transSemis) => {
-    if (rangeEditMode) {
-      const r = settings?.range;
-      const rangeNotes = r ? [r.min, r.max] : [];
-      return calculateOptimalClef(activeClef, transposeMelodyBySemitones(rangeNotes, transSemis), staffName, settings?.rangeMode);
-    }
-    if (clefEditMode) {
-      // Clefs in the TRANSPOSITION setter are NEVER octave-transposed (Han 2026-06-10): the octave
-      // is communicated by the (X inst) ↑/↓ arrows, not an 8va/8vb glyph. Use the BASE family clef.
-      if (activeClef === 'off') return 'off';
-      if (VOCAL_CLEF_TYPES.has(activeClef) || VOCAL_RANGE_MODES.has(settings?.rangeMode)) return activeClef;
-      return String(activeClef).replace(/(8|15|22)v[ab]$/, '');
-    }
-    return octaveAdjustedClef(activeClef, settings?.transpositionOctave || 0, settings?.rangeMode);
-  };
+  // clefForScreen (moved to ./clefResolution) takes rangeEditMode/clefEditMode explicitly now
+  // since the module is pure; pass the props through and keep them in the memo deps as before.
   const clefTreble = useMemo(
-    () => clefForScreen(trebleActiveClef, trebleSettings, 'treble', trebleTransSemitones),
+    () => clefForScreen(trebleActiveClef, trebleSettings, 'treble', trebleTransSemitones, rangeEditMode, clefEditMode),
     [clefEditMode, rangeEditMode, trebleActiveClef, trebleSettings, trebleTransSemitones],
   );
   const clefBass = useMemo(
-    () => clefForScreen(bassActiveClef, bassSettings, 'bass', bassTransSemitones),
+    () => clefForScreen(bassActiveClef, bassSettings, 'bass', bassTransSemitones, rangeEditMode, clefEditMode),
     [clefEditMode, rangeEditMode, bassActiveClef, bassSettings, bassTransSemitones],
   );
 
@@ -1386,23 +1351,26 @@ const SheetMusic = ({
       }
       return 'var(--text-primary)';
     }
-    // Melodic — resolve chord array to lowest note
+    // Melodic — resolve chord array to lowest note, then defer to the canonical
+    // melodicNoteColor helper so the staff lyrics colour matches every other surface
+    // (keyboard, range/colour overlays) from ONE source of truth (CLAUDE.md §6c/§6d;
+    // SSOT consolidation Han 2026-06-19). Each former inline branch maps 1:1 to the
+    // helper: chromatone/subtle-chroma are byte-identical; the chords branch needs the
+    // per-offset active chord, derived here and passed as `activeChord`; tonic_scale_keys
+    // already used getNoteSemitone here, matching the helper's pitch-class comparison.
+    // The helper returns null where the old code returned 'var(--text-primary)', so the
+    // `|| 'var(--text-primary)'` fallback restores the exact original fallback string.
     const resolved = lowestNote(note);
-    const pc = getNoteSemitone(resolved);
-    if (noteColoringMode === 'chromatone') return `var(--chromatone-${pc})`;
-    if (noteColoringMode === 'subtle-chroma')
-      return `color-mix(in srgb, var(--chromatone-${pc}), ${mixTarget} 60%)`;
-    if (noteColoringMode === 'chords') {
-      const active = processedChords.filter(c => !c.isSlash && c.absoluteOffset <= absoluteOffset).at(-1);
-      if (active?.chord?.notes?.length > 0 && active.chord.notes.some(cn => getNoteSemitone(cn) === pc))
-        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(active.chord.root)}), ${mixTarget} 30%)`;
-      return 'var(--text-primary)';
-    }
-    if (noteColoringMode === 'tonic_scale_keys') {
-      if (pc === getNoteSemitone(tonic)) return 'var(--note-tonic)';
-      if (scaleNotes.some(s => getNoteSemitone(s) === pc)) return 'var(--note-scale)';
-    }
-    return 'var(--text-primary)';
+    const activeChord = noteColoringMode === 'chords'
+      ? (() => {
+          const active = processedChords.filter(c => !c.isSlash && c.absoluteOffset <= absoluteOffset).at(-1);
+          return active?.chord?.notes?.length > 0
+            ? { root: active.chord.root, notes: active.chord.notes }
+            : null;
+        })()
+      : null;
+    return melodicNoteColor(resolved, { noteColoringMode, tonic, scaleNotes, theme, activeChord })
+      || 'var(--text-primary)';
   };
 
   // Renders melodic solfège lyrics (do-re-mi / Kodály) below the treble staff.
@@ -1444,217 +1412,12 @@ const SheetMusic = ({
     }
   };
 
-  const renderLyricsRow = (melody, lyricsY, offsets = allOffsets, nw = noteWidth) => {
-    if (!melody || !tonic || !melodicLyricsActive) return null;
-    const notes = melody.notes;
-    const melOffsets = melody.offsets;
-    if (!notes || !melOffsets) return null;
-    const ties = melody.ties || [];
-
-    const getXLocal = (index) => startX + (index - 1) * nw;
-
-    // Sort a chord array low-to-high by MIDI pitch
-    const sortedChordNotes = (note) => {
-      if (!Array.isArray(note)) return [note];
-      const midiOf = (n) => {
-        const m = String(n).match(/^(.+?)(-?\d+)$/);
-        return m ? parseInt(m[2]) * 12 + getNoteSemitone(m[1]) : 0;
-      };
-      return [...note].sort((a, b) => midiOf(a) - midiOf(b));
-    };
-
-    return notes.map((note, i) => {
-      if (isRest(note)) return null;
-      const tickOffset = melOffsets[i];
-      if (tickOffset == null) return null;
-      const idx = offsets.indexOf(tickOffset);
-      if (idx < 0) return null;
-      const x = getXLocal(idx) + 5;
-
-      // Tied continuation: show em dash instead of syllable (not clickable)
-      const isTieContinuation = i > 0 && ties[i - 1] === 'tie';
-      if (isTieContinuation) {
-        const fill = getLyricFill(note, tickOffset, false);
-        return (
-          <text key={`lyric-${i}`} x={x} y={lyricsY} textAnchor="middle"
-            fontSize={LYRIC_FONT_SIZE} fontFamily="serif" fill={fill} opacity={0.45}>
-            {'—'}
-          </text>
-        );
-      }
-
-      const chordNotes = sortedChordNotes(note);
-      const isChord = chordNotes.length > 1;
-      const fontSize = isChord ? LYRIC_CHORD_FONT_SIZE : LYRIC_FONT_SIZE;
-      // Stack syllables: lowest note at lyricsY, higher notes going upward
-      const spacing = fontSize + 1;
-
-      return (
-        <g key={`lyric-${i}`} style={{ cursor: 'pointer' }}
-          onClick={(e) => { e.stopPropagation(); if (onNoteClick) onNoteClick(chordNotes, 'treble'); }}>
-          <rect x={x - 14} y={lyricsY - spacing * chordNotes.length} width={28} height={spacing * chordNotes.length + 4} fill="transparent" />
-          {chordNotes.map((singleNote, ni) => {
-            const { base, acc } = getSolfegeForNote(singleNote);
-            const fill = getLyricFill(isChord ? singleNote : note, tickOffset, false);
-            // ni=0 is the lowest note (bottom), higher indices go upward
-            const y = lyricsY - ni * spacing;
-            return (
-              <text key={ni} x={x} y={y} textAnchor="middle" fontSize={fontSize} fontFamily="serif" fill={fill} style={{ pointerEvents: 'none' }}>
-                {base.toLowerCase()}
-                {acc && <tspan fontSize={fontSize * 0.95} dy={-2} opacity={0.5}>{acc}</tspan>}
-              </text>
-            );
-          })}
-        </g>
-      );
-    });
-  };
-
-  // Renders fermata glyphs above the treble staff. Tick-based format (Han
-  // 2026-05-29 round 13): each fermata is { tick, hold } at the song level.
-  // The glyph sits above whichever note happens to land on that tick.
-  // Maestro 'U' (SHIFT+u) is the arc-down fermata for stem-down notes;
-  // stem-direction-aware swap to 'u' is a follow-up refinement.
-  const renderFermataGlyphs = (melody, glyphY, offsets = allOffsets, nw = noteWidth) => {
-    if (!melody?.fermatas || melody.fermatas.length === 0) return null;
-    if (!melody.offsets) return null;
-    const getXLocal = (index) => startX + (index - 1) * nw;
-    return melody.fermatas.map((f, fi) => {
-      if (typeof f?.tick !== 'number') return null;
-      const idx = offsets.indexOf(f.tick);
-      if (idx < 0) return null;
-      const x = getXLocal(idx) + 5;
-      return (
-        <text
-          key={`fermata-${fi}`}
-          x={x} y={glyphY}
-          fontSize={24}
-          fontFamily="Maestro"
-          fill="var(--text-primary)"
-          textAnchor="middle"
-          style={{ userSelect: 'none' }}
-        >
-          U
-        </text>
-      );
-    });
-  };
-
-  // Renders song text lyrics (from melody.lyrics[]) below the treble staff.
-  // Used when a song is loaded; independent of the solfège lyricsMode setting.
-  const renderTextLyricsRow = (melody, lyricsY, offsets = allOffsets, nw = noteWidth) => {
-    if (!melody?.lyrics || !textLyricsActive) return null;
-    const notes = melody.notes;
-    const melOffsets = melody.offsets;
-    if (!notes || !melOffsets) return null;
-
-    const getXLocal = (index) => startX + (index - 1) * nw;
-    const FONT_SIZE = 13;
-
-    return notes.map((note, i) => {
-      const syllable = melody.lyrics[i];
-      if (!syllable) return null;
-      const tickOffset = melOffsets[i];
-      if (tickOffset == null) return null;
-      const idx = offsets.indexOf(tickOffset);
-      if (idx < 0) return null;
-      const x = getXLocal(idx) + 5;
-      const fill = getLyricFill(note, tickOffset, false);
-      return (
-        <text
-          key={`tlyric-${i}`}
-          x={x} y={lyricsY}
-          textAnchor="middle"
-          fontSize={FONT_SIZE}
-          fontFamily="Georgia, 'Times New Roman', serif"
-          fill={fill}
-        >
-          {syllable}
-        </text>
-      );
-    });
-  };
-
-  // Renders Takadimi rhythmic solfège lyrics below the percussion staff.
-  const renderRhythmicLyricsRow = (melody, lyricsY, offsets = allOffsets, nw = noteWidth) => {
-    if (!melody || !rhythmicLyricsActive) return null;
-    const notes = melody.notes;
-    const melOffsets = melody.offsets;
-    if (!notes || !melOffsets) return null;
-
-    const compound = isCompoundMeter(timeSignature);
-    // Prefer smallestNoteDenom from the melody's generation settings over deriving from durations.
-    // e.g. percussion set to 16th-note grid → beat = quarter even if no 16ths were generated.
-    const beatDur = getEffectiveBeatDuration(timeSignature, melody.durations, melody.smallestNoteDenom ?? null);
-    // Group-aware Takadimi: rhythmicGrouping carries the beat-group sizes (e.g. [2,3] for 5/8).
-    // When present, each group independently determines simple (÷2) or compound (÷3) syllables.
-    const melodyGrouping = melody.rhythmicGrouping ?? null;
-    const unitTicks = TICKS_PER_WHOLE / timeSignature[1];
-    const getXLocal = (index) => startX + (index - 1) * nw;
-
-    // Pre-compute tuplet position for each note. melody.triplets[i] identifies the group
-    // (same id for all notes in a group); posInGroup is the 0-based index within it.
-    // This is more reliable than tick-based detection: Math.round(groupTicks / noteCount)
-    // produces non-integer B/N fractions that don't satisfy exact equality checks.
-    const triplets = melody.triplets ?? null;
-    const tupletPosMap = new Map(); // note index → { noteCount, posInGroup }
-    if (triplets) {
-      let lastTupletId = null;
-      let posInGroup = 0;
-      for (let ti = 0; ti < notes.length; ti++) {
-        const t = triplets[ti];
-        if (t) {
-          if (t.id === lastTupletId) {
-            posInGroup++;
-          } else {
-            posInGroup = 0;
-            lastTupletId = t.id;
-          }
-          tupletPosMap.set(ti, { noteCount: t.noteCount, posInGroup });
-        } else {
-          lastTupletId = null;
-        }
-      }
-    }
-
-    return notes.map((note, i) => {
-      // Skip rests and null slots — only annotate actual drum hits
-      if (isRest(note)) return null;
-      const tickOffset = melOffsets[i];
-      if (tickOffset == null) return null;
-      const idx = offsets.indexOf(tickOffset);
-      if (idx < 0) return null;
-      const x = getXLocal(idx) + 5;
-
-      // Tuplet notes use position-within-group syllables (ta ka di mi ti / ta va ki di da ma ti).
-      // Regular notes: when rhythmicGrouping is available, derive syllable from the beat group
-      // the note falls in (group of 3 = compound ta-ki-da, group of 2 = simple ta-di).
-      // Falls back to the single-beatDuration path for metronome / missing grouping.
-      const tupletPos = tupletPosMap.get(i);
-      const syllable = tupletPos
-          ? getTupletSyllable(tupletPos.posInGroup, tupletPos.noteCount)
-          : melodyGrouping
-              ? getTakadimiSyllableGrouped(tickOffset % measureLengthSlots, melodyGrouping, unitTicks)
-              : getTakadimiSyllable(tickOffset, beatDur, compound);
-      if (!syllable || syllable === '·') return null;
-
-      const percNotes = Array.isArray(note) ? note : [note];
-      return (
-        <g key={`rlyric-${i}`} style={{ cursor: 'pointer' }}
-          onClick={(e) => { e.stopPropagation(); if (onNoteClick) onNoteClick(percNotes, 'percussion'); }}>
-          <rect x={x - 12} y={lyricsY - LYRIC_FONT_SIZE} width={24} height={LYRIC_FONT_SIZE + 6} fill="transparent" />
-          <text
-            x={x} y={lyricsY} textAnchor="middle"
-            fontSize={LYRIC_FONT_SIZE} fontFamily="serif"
-            fill={getLyricFill(note, tickOffset, true)}
-            style={{ pointerEvents: 'none' }}
-          >
-            {syllable}
-          </text>
-        </g>
-      );
-    });
-  };
+  // The three lyric rows (melodic solfège / song-text / Takadimi rhythmic) and the
+  // fermata glyphs were extracted to LyricsLayer.jsx + FermataLayer.jsx (Han
+  // 2026-06-19, audit §4). They are rendered as <LyricsLayer …/> / <FermataLayer …/>
+  // in the JSX below; the two resolver closures `getLyricFill`/`getSolfegeForNote`
+  // (which capture this component's colour/spelling state) are passed in as props so
+  // the rendered output stays byte-identical to the former inline closures.
 
   // Resolved clef symbol data for the current melody (may differ from base clef e.g. treble8va).
   const cfT = clefSymbols[clefTreble] || clefSymbols.treble;
@@ -1909,9 +1672,14 @@ const SheetMusic = ({
             {isTrebleVisible && (
               <>
                 {/* The static clef glyph is hidden in clef-edit mode — the clef
-                    selector's carousel draws the clef in the gutter instead. Also hidden in
-                    colour-edit mode, which lays its scheme sets across the bare staff. */}
-                {!clefEditMode && !colorEditMode && (
+                    selector's carousel draws the clef in the gutter instead. It now STAYS
+                    shown in colour-edit mode (Han 2026-06-17: "clef should always show"); the
+                    colour setter's compact carousel sits centred on the staff and leaves the
+                    clef gutter free, so the clef no longer needs hiding there. This also fixes
+                    the g-clef reported missing in F major: the clef char comes from
+                    clefSymbols[clefTreble] (key-independent), so the only thing that hid it was
+                    this colorEditMode guard — removing it un-hides the clef in every key. */}
+                {!clefEditMode && (
                 <text
                   x="13"
                   y={30 + (cfT.yOffset || 0)}
@@ -2134,7 +1902,24 @@ const SheetMusic = ({
                     // out / fly in — but ONLY when the morph actually involves the melody
                     // (melody↔overlay). On an overlay→overlay morph (e.g. clef→range) the
                     // melody must stay hidden, otherwise it FLASHES through (Han B4, 2026-06-03).
-                    display: (overlayEditMode && !(rangeMorphing && (morphFrom === 'melody' || morphTo === 'melody'))) ? 'none' : undefined }}>
+                    //
+                    // The gate decision now lives in `melodyHiddenDuringOverlay` (pure, unit-
+                    // tested). It additionally requires `overlayKind === morphTo` for the
+                    // melody-leaving fade-out, closing a one-frame flash: while the
+                    // melody→overlay ENTRY morph (1.5 s) is still running and the user switches
+                    // overlay→overlay, the STALE morph still reads morphFrom==='melody' on the
+                    // first frame after the kind change but before the new morph arms — the old
+                    // `morphFrom==='melody'` gate would expose the melody for that one frame
+                    // (Han 2026-06-18). See useRangeMorph.js for the two-stage-effect race.
+                    //
+                    // OPEN/CLOSE flash fix (Han 2026-06-19): useRangeMorph now arms the morph
+                    // DURING RENDER (not a layout-effect setState), so morphFrom/morphTo/morphing
+                    // are correct on the SAME render the kind changes. This gate therefore hides
+                    // the melody on the morph's FIRST and LAST frame instead of one render late —
+                    // and the cascade's initial fly/fade styles are applied before the first paint,
+                    // so neither the melody (close) nor the setter content (open) shows un-animated
+                    // for a frame. See useRangeMorph.js for the render-time-arming WHY.
+                    display: melodyHiddenDuringOverlay(overlayEditMode, rangeMorphing, morphFrom, morphTo, overlayKind) ? 'none' : undefined }}>
                     {/* Melody notes: visible in 'melody' viewMode */}
                     {/* In pagination mode, opacity is driven by the rAF loop via data-pagination-old.
                         CSS classes set the resting state; rAF sets style.opacity during the crossfade.
@@ -2185,13 +1970,36 @@ const SheetMusic = ({
                       </g>
                       {melodicLyricsActive && actualTreble && (
                         <g className="lyrics-group">
-                          {renderLyricsRow(adjustedTrebleMelody, trebleStart + staffHeight + 39)}
+                          <LyricsLayer
+                            variant="melodic"
+                            melody={adjustedTrebleMelody}
+                            lyricsY={trebleStart + staffHeight + 39}
+                            offsets={allOffsets}
+                            nw={noteWidth}
+                            startX={startX}
+                            tonic={tonic}
+                            melodicLyricsActive={melodicLyricsActive}
+                            getLyricFill={getLyricFill}
+                            getSolfegeForNote={getSolfegeForNote}
+                            onNoteClick={onNoteClick}
+                            LYRIC_FONT_SIZE={LYRIC_FONT_SIZE}
+                            LYRIC_CHORD_FONT_SIZE={LYRIC_CHORD_FONT_SIZE}
+                          />
                         </g>
                       )}
                       {textLyricsActive && actualTreble && (
                         <g className="text-lyrics-group">
                           {/* Pass original trebleMelody so melody.lyrics indices align correctly. */}
-                          {renderTextLyricsRow(trebleMelody, trebleStart + staffHeight + 39)}
+                          <LyricsLayer
+                            variant="text"
+                            melody={trebleMelody}
+                            lyricsY={trebleStart + staffHeight + 39}
+                            offsets={allOffsets}
+                            nw={noteWidth}
+                            startX={startX}
+                            textLyricsActive={textLyricsActive}
+                            getLyricFill={getLyricFill}
+                          />
                         </g>
                       )}
                       {/* Fermata glyphs just above the top staff line. Han 2026-05-29
@@ -2199,7 +2007,13 @@ const SheetMusic = ({
                           to -2 so the glyph sits right above the staff. */}
                       {actualTreble && trebleMelody?.fermatas && trebleMelody.fermatas.length > 0 && (
                         <g className="fermata-glyphs-group">
-                          {renderFermataGlyphs(trebleMelody, trebleStart - 2)}
+                          <FermataLayer
+                            melody={trebleMelody}
+                            glyphY={trebleStart - 2}
+                            offsets={allOffsets}
+                            nw={noteWidth}
+                            startX={startX}
+                          />
                         </g>
                       )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out', opacity: bassGhost ? GHOST_OPACITY : 1 }}>
@@ -2264,7 +2078,20 @@ const SheetMusic = ({
                       </g>
                       {rhythmicLyricsActive && actualPerc && (
                         <g className="rhythmic-lyrics-group">
-                          {renderRhythmicLyricsRow(adjustedPercussionMelody, percussionStart + staffHeight + 39)}
+                          <LyricsLayer
+                            variant="rhythmic"
+                            melody={adjustedPercussionMelody}
+                            lyricsY={percussionStart + staffHeight + 39}
+                            offsets={allOffsets}
+                            nw={noteWidth}
+                            startX={startX}
+                            rhythmicLyricsActive={rhythmicLyricsActive}
+                            timeSignature={timeSignature}
+                            measureLengthSlots={measureLengthSlots}
+                            getLyricFill={getLyricFill}
+                            onNoteClick={onNoteClick}
+                            LYRIC_FONT_SIZE={LYRIC_FONT_SIZE}
+                          />
                         </g>
                       )}
                     </g>
@@ -2364,6 +2191,7 @@ const SheetMusic = ({
                         measureLengthSlots={measureLengthSlots}
                         onMeasureNumberClick={onMeasureNumberClick}
                         anacrusisMeasureIndex={anacrusisMeasureIndex}
+                        mergedBodyMeasures={mergedBodyMeasures}
                       />
                     </g>
 
@@ -2402,6 +2230,8 @@ const SheetMusic = ({
                         chordDisplayMode={chordDisplayMode}
                         noteColoringMode={noteColoringMode}
                         theme={theme}
+                        tonic={tonic}
+                        scaleNotes={scaleNotes}
                         debugMode={debugMode}
                         overrideColor={null}
                         chordTransSemitones={chordTransSemitones}
@@ -2487,6 +2317,8 @@ const SheetMusic = ({
                               chordDisplayMode={chordDisplayMode}
                               noteColoringMode={noteColoringMode}
                               theme={theme}
+                              tonic={tonic}
+                              scaleNotes={scaleNotes}
                               debugMode={debugMode}
                               overrideColor={YCOL}
                               chordTransSemitones={chordTransSemitones}
@@ -2641,6 +2473,7 @@ const SheetMusic = ({
                               measureLengthSlots={measureLengthSlots}
                               onMeasureNumberClick={onMeasureNumberClick}
                               anacrusisMeasureIndex={anacrusisMeasureIndex}
+                              mergedBodyMeasures={mergedBodyMeasures}
                             />
                           </g>
                       </>);
@@ -2849,6 +2682,7 @@ const SheetMusic = ({
                       measureLengthSlots={measureLengthSlots}
                       onMeasureNumberClick={onMeasureNumberClick}
                       anacrusisMeasureIndex={anacrusisMeasureIndex}
+                      mergedBodyMeasures={mergedBodyMeasures}
                     />
                   )}
 
@@ -2897,6 +2731,72 @@ const SheetMusic = ({
                     />
                   )}
 
+                  {/* PLAYBACK setter (Han 2026-06-22) — REUSES SettingsOverlay (§6c: no duplicate),
+                      but under the distinct group class 'playback-overlay' so its morph never
+                      collides with the legacy 'settings-overlay' (they are mutually exclusive). */}
+                  {playbackMounted && (
+                    <SettingsOverlay
+                      groupClassName="playback-overlay"
+                      startX={startX}
+                      endX={endX}
+                      systemEndX={systemEndX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      playbackConfig={playbackConfig}
+                      setPlaybackConfig={setPlaybackConfig}
+                      toggleRoundSetting={toggleRoundSetting}
+                      setActiveVolumePicker={setActiveVolumePicker}
+                      setActiveNumberPicker={setActiveNumberPicker}
+                      numMeasures={numMeasures}
+                      setNumMeasures={onNumMeasuresChange}
+                      chordDisplayMode={chordDisplayMode}
+                      chordProgression={chordProgression}
+                      processedChords={processedChords}
+                      onSettingsInteraction={onSettingsInteraction}
+                    />
+                  )}
+
+                  {/* GENERATION setter (Han 2026-06-22) — per-balk melody-notes / melody-type /
+                      notes-per-measure steppers. Chords balk shown only when the chord row is
+                      visible (showChords mirrors the legacy chord-row gate). */}
+                  {generationMounted && (
+                    <GenerationSetterOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      showChordsRow={showChords}
+                      onSettingsInteraction={onSettingsInteraction}
+                      debugMode={debugMode}
+                    />
+                  )}
+
+                  {/* GENERATION ADVANCED setter (Han 2026-06-22) — per-balk variability / span /
+                      tuplets / smallest-note steppers; chords balk = passing-chord cycler. */}
+                  {generationAdvancedMounted && (
+                    <GenerationAdvancedSetterOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      showChordsRow={showChords}
+                      onSettingsInteraction={onSettingsInteraction}
+                      debugMode={debugMode}
+                    />
+                  )}
+
                   {/* Closing barline framing the staff body in ANY overlay mode. The LEFT
                       (startX) line was removed (Han 2026-06-09 #8 — applies to all overlay
                       menus); the right edge is drawn at staff-line weight (0.5, matching the
@@ -2908,7 +2808,7 @@ const SheetMusic = ({
 
                   {/* Note-colouring overlay — laid out directly on the existing top staff
                       (docs §37 #2): 5 scheme sets side by side, no clef. Tap a set to pick it. */}
-                  {colorEditMode && (
+                  {colorMounted && (
                     <NoteColoringStaffOverlay
                       startX={startX}
                       endX={endX}
@@ -2920,6 +2820,34 @@ const SheetMusic = ({
                       scaleNotes={scaleNotes}
                       activeChord={pausedActiveChord}
                       theme={theme}
+                      debugMode={debugMode}
+                    />
+                  )}
+
+                  {/* Instrument overlay — per-staff playback-instrument picker (Han
+                      2026-06-16): a horizontally-scrollable strip of instrument cards
+                      grouped by family, the active one auto-centred (ClefCardCarousel).
+                      Kept mounted through its exit morph the same way the colour one is. */}
+                  {instrumentMounted && (
+                    <InstrumentStaffOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      percussionStart={percussionStart}
+                      isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
+                      trebleInstrument={trebleSettings?.instrument || 'acoustic_grand_piano'}
+                      bassInstrument={bassSettings?.instrument || 'acoustic_grand_piano'}
+                      percussionKit={percussionSettings?.instrument || 'FreePats Percussion'}
+                      onSetInstrument={(staff, slug) => {
+                        const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
+                        if (setter) setter(prev => ({ ...prev, instrument: slug }));
+                      }}
+                      // Percussion-kit pick (Task D): write percussionSettings.instrument via the
+                      // SAME setter the rest of the app uses (mirrors the treble/bass path above).
+                      onSetPercussionKit={(kitId) => setPercussionSettings(prev => ({ ...prev, instrument: kitId }))}
                       debugMode={debugMode}
                     />
                   )}

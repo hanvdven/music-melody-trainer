@@ -7,10 +7,9 @@ import { getProgressionLabel } from './theory/progressionDefinitions';
 import './styles/App.css';
 import './styles/AppLayout.css';
 import { modulateMelody, transposeNoteBySemitones } from './theory/musicUtils';
-import { respellToKeySignature, getNoteSemitone } from './theory/noteUtils';
+import { respellToKeySignature, getNoteSemitone, stripOctave } from './theory/noteUtils';
 import { getTranspositionSemitones, getTranspositionFifths, getTranspositionLabel } from './constants/transposingInstruments';
 import Sequencer from './audio/Sequencer';
-import playMelodies from './audio/playMelodies';
 import Melody from './model/Melody';
 import ChordProgression from './model/ChordProgression';
 import ErrorBoundary from './components/error/ErrorBoundary';
@@ -33,9 +32,12 @@ import useNoteInteraction from './hooks/useNoteInteraction';
 import usePlaybackNavigation from './hooks/usePlaybackNavigation';
 import useScaleManagement from './hooks/useScaleManagement';
 import useDifficultySettings from './hooks/useDifficultySettings';
+import useEditMode from './hooks/useEditMode';
+import useRubato from './hooks/useRubato';
 import { buildHarmonyTable } from './utils/harmonyTable';
 import { resizeMelody } from './utils/melodySlice';
-import { TICKS_PER_WHOLE } from './constants/timing';
+import { buildMergedRenderMelodies, buildFirstPassMergedMelodies, mergedBodyPassIndex, hasAnacrusis } from './utils/anacrusisRepeat';
+import { TICKS_PER_WHOLE, secondsPerTick, secondsPerBeat } from './constants/timing';
 import {
     DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
     DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE,
@@ -44,8 +46,7 @@ import useAppLayout from './hooks/useAppLayout';
 import useAppUIState from './hooks/useAppUIState';
 import useAppHandlers from './hooks/useAppHandlers';
 import logger from './utils/logger';
-import { loadSong } from './songs/loadSong';
-import { updateScaleWithTonic, updateScaleWithMode } from './theory/scaleHandler';
+import { resolveLoadedSong } from './songs/resolveLoadedSong';
 
 // Icons
 import {
@@ -70,6 +71,7 @@ import { MelodyProvider } from './contexts/MelodyContext';
 import { PlaybackTransportProvider } from './contexts/PlaybackTransportContext';
 import { RoundStateProvider } from './contexts/RoundStateContext';
 import { TransitionOverlayProvider } from './contexts/TransitionOverlayContext';
+import { UniversalTransitionProvider } from './contexts/UniversalTransitionContext';
 import { ProfileProvider } from './contexts/ProfileContext';
 import { AnimationRefsProvider } from './contexts/AnimationRefsContext';
 
@@ -112,9 +114,13 @@ const App = () => {
             notes: true
         },
         evenRounds: {
-            treble: 0, trebleEye: false,
-            bass: 0, bassEye: false,
-            percussion: 0, percussionEye: false,
+            // Visibility (the *Eye flags) defaults to ON, same as oddRounds — the per-staff eye
+            // TOGGLE is the single control for hiding notes (Han 2026-06-15 V3). Previously these
+            // defaulted to false, hard-coding an invisible even round that duplicated/contradicted
+            // the existing visibility toggle, so a repeating song's even rounds rendered no notes.
+            treble: 0, trebleEye: true,
+            bass: 0, bassEye: true,
+            percussion: 0, percussionEye: true,
             chords: 0.6, chordsEye: true,
             metronome: 1,
             notes: true
@@ -185,31 +191,18 @@ const App = () => {
     // Sheet Music Settings state (Lifted)
     const { showSheetMusicSettings, toggleSheetMusicSettings, resetSettingsTimer } = useSettingsOverlay();
 
-    // In-SVG range-edit mode for the visual settings re-haul. Toggled by the
-    // SubHeader RANGE button; drives RangeStaffOverlay inside the SheetMusic SVG.
-    const [rangeEditMode, setRangeEditMode] = useState(false);
-    // In-SVG clef-edit mode (Han 2026-06-01): drives ClefStaffOverlay. Sibling of
-    // rangeEditMode; the two are mutually exclusive (and exclusive with settings).
-    const [clefEditMode, setClefEditMode] = useState(false);
+    // Edit-mode flags (range / clef / colour / instrument) + their toggle/open/close
+    // handlers + the settings catch-all effect now live in useEditMode (Han 2026-06-19,
+    // ARCHITECTURE_AUDIT.md §4). The hook is called below, after handleStopAllPlayback /
+    // showSheetMusicSettings are available — see "const { rangeEditMode, … } = useEditMode(…)".
     // Keyboard transposition (Han 2026-06-13): pitch-class offset 0-11 (0 = concert) that
     // relabels/resounds/re-highlights the playable keyboard. Independent of the staff
     // transposition (which transposes the NOTATION); this transposes the KEYS only. Set in
     // TRANSPOSITION mode (clefEditMode) via the keyboard's "concert C =" control.
     const [keyboardTranspose, setKeyboardTranspose] = useState(0);
-    // Note-colouring menu (Han 2026-06-13): a staff overlay showing every colour scheme as a
-    // row of C4–C5 notes. Sibling of range/clef; mutually exclusive with them + settings.
-    const [colorEditMode, setColorEditMode] = useState(false);
-    // In-SVG chord-edit mode (Han 2026-06-01): the chord-row selector (X/letters/
-    // roman). Sibling of range/clef; mutually exclusive with them + settings.
-
-    // Range-edit and the general settings overlay are mutually exclusive
-    // (Han 2026-05-31). This effect is the catch-all: whenever the settings
-    // overlay becomes visible (by any path — sheet click, SubHeader, …) close
-    // range edit so the two never stack. Clef-edit follows the same rule.
-    useEffect(() => {
-        if (showSheetMusicSettings && rangeEditMode) setRangeEditMode(false);
-        if (showSheetMusicSettings && clefEditMode) setClefEditMode(false);
-    }, [showSheetMusicSettings, rangeEditMode, clefEditMode]);
+    // Loaded-song title for the header (Han 2026-06-14): "Happy Birthday in G major". Set on song
+    // load; cleared when the user generates a fresh exercise (un-pins the melody) — see effect below.
+    const [loadedSongTitle, setLoadedSongTitle] = useState(null);
 
     // Input Test Mode — wired after usePlayback so handleStopAllPlayback / handlePlayContinuously are available
 
@@ -217,7 +210,9 @@ const App = () => {
 
     // BPM-driven fade duration: 2 quarter notes
     useEffect(() => {
-        const dur = (2 * 60 / bpm).toFixed(3);
+        // 2 quarter-note beats in seconds (Han 2026-06-19): byte-identical to the
+        // previous `2 * 60 / bpm`; via the timing SSOT secondsPerBeat(bpm) = 60/bpm.
+        const dur = (2 * secondsPerBeat(bpm)).toFixed(3);
         document.documentElement.style.setProperty('--note-fade-duration', `${dur}s`);
     }, [bpm]);
 
@@ -384,12 +379,21 @@ const App = () => {
         setReferenceMelody,
         setReferenceBassMelody,
         setReferenceScale,
+        setGlobalMeasureOffset,
     } = melodySetters;
 
     const { handleNoteClick, handleChordClick, handleNoteEnharmonicToggle } = useNoteInteraction({
         context, instruments, customPercussionMappingRef, sequencerRef,
         trebleMelody, bassMelody, setTrebleMelody, setBassMelody,
     });
+
+    // Universal transition key (Han 2026-06-16). Bumped by `fireTransition` on each
+    // transition TRIGGER; the sheet-music surface watches it (via UniversalTransitionContext)
+    // and replays the 1.5s fly-in cascade. App owns the key as state and passes it DOWN through
+    // the provider, so App — which is also the firer (e.g. handleLoadSong) — never consumes a
+    // context it provides. Phase 1 wires only the song-load trigger.
+    const [transitionKey, setTransitionKey] = useState(0);
+    const fireTransition = useCallback(() => setTransitionKey(k => k + 1), []);
 
     // Load a static song definition into the active melody state.
     // useOriginalTonic=true: load in the song's written key and update the app tonic to match.
@@ -408,19 +412,14 @@ const App = () => {
     //   5. If the song provides a chord progression: pin it on the next regen
     //      (`playbackConfig.randomize.chords = false`). Otherwise allow regen.
     const handleLoadSong = useCallback((songDef, difficulty, useOriginalTonic = false) => {
-        const currentTonic = scale?.tonic?.replace(/-?\d+$/, '') ?? null;
-        let targetTonic;
-        if (useOriginalTonic) {
-            // Load in written key; update the app tonic so scale/key sig aligns with the song.
-            targetTonic = null;
-            if (songDef.defaultTonic && currentTonic !== songDef.defaultTonic) {
-                // setTonic expects a note with octave (e.g. "F4").
-                setTonic(songDef.defaultTonic + '4');
-            }
-        } else {
-            targetTonic = currentTonic !== songDef.defaultTonic ? currentTonic : null;
-        }
-        const loaded = loadSong(songDef, difficulty, targetTonic);
+        // Pure parse/resolve half lives in resolveLoadedSong (ARCHITECTURE_AUDIT.md §4,
+        // Han 2026-06-19). This wrapper only APPLIES the resolved values via setters.
+        const { loaded, refScale, tonicToSet } =
+            resolveLoadedSong(songDef, difficulty, useOriginalTonic, scale);
+        // setTonic was previously called inside the useOriginalTonic branch before
+        // loadSong; the resolver now reports it as tonicToSet (octave-suffixed). React
+        // batches this with the other setters below, so commit order is unchanged.
+        if (tonicToSet) setTonic(tonicToSet);
 
         // Apply scale mode (e.g. 'Major' / 'Dorian') so the key signature, scale
         // wheel, and harmony all reflect the song's intended mode.
@@ -453,22 +452,10 @@ const App = () => {
         // referenceScale anchors the source-key of refMelody. resolveVoice
         // modulates from refScale to the (possibly later-changed) app scale; if
         // we leave the previous referenceScale in place, modulateMelody would
-        // double-transpose loaded melodies away from their intended key.
-        // Build the scale synchronously here because setSelectedMode / setTonic
-        // only commit on the next render — resolveVoice may need refScale
-        // immediately if the user clicks "play continuous" right after load.
-        const effectiveTonic = targetTonic ?? songDef.defaultTonic;
-        let refScale = scale;
-        if (refScale && refScale.tonic.replace(/-?\d+$/, '') !== effectiveTonic) {
-            refScale = updateScaleWithTonic({ currentScale: refScale, newTonic: effectiveTonic + '4' });
-        }
-        if (loaded.scaleMode && refScale && (refScale.name !== loaded.scaleMode || (loaded.scaleFamily && refScale.family !== loaded.scaleFamily))) {
-            refScale = updateScaleWithMode({
-                currentScale: refScale,
-                newFamily: loaded.scaleFamily ?? refScale.family,
-                newMode: loaded.scaleMode,
-            });
-        }
+        // double-transpose loaded melodies away from their intended key. refScale
+        // is computed synchronously by the resolver (see resolveLoadedSong) so
+        // resolveVoice has it immediately if the user clicks "play continuous"
+        // right after load — before setSelectedMode / setTonic commit.
         if (refScale) setReferenceScale(refScale);
 
         if (loaded.chordMelody) {
@@ -503,14 +490,53 @@ const App = () => {
         // its first measure is mislabeled and the highlighter/scheduler line up
         // against stale state.
         setStartMeasureIndex(0);
+        setLoadedSongTitle(songDef.title || null);   // header shows "<title> in <key>" until a fresh exercise
+        // Also reset the cumulative history offset (Han 2026-06-14 bug): play start uses
+        // `melodies.globalMeasureOffset` as the initial measure index. After generating a few
+        // exercise blocks this offset is non-zero, so a freshly-loaded song would start mid-song
+        // ("halfway"). Reset it so the song begins at measure 0 / its anacrusis.
+        setGlobalMeasureOffset(0);
         // Keep the user's current bottom-view tab; loading a song should not
         // hijack the layout. Reported by Han 2026-05-22.
-    }, [scale, setTonic, setSelectedMode,
+        // Replay the universal 1.5s cascade for the freshly-loaded melody. This setState
+        // batches with the melody swaps above into ONE commit, so the runner sees the new
+        // content live while its clone still holds the pre-load melody (the OLD that fades).
+        fireTransition();
+    }, [scale, setTonic, setSelectedMode, fireTransition,
         setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings,
         setTrebleMelody, setBassMelody, setPercussionMelody, setChordProgression,
         setReferenceMelody, setReferenceBassMelody, setReferenceScale,
         setTimeSignature, setNumMeasures, setBpm, setPlaybackConfig,
-        setStartMeasureIndex]);
+        setStartMeasureIndex, setGlobalMeasureOffset]);
+
+    // Clear the loaded-song header label once the user generates a FRESH exercise melody — i.e. when
+    // they un-pin the melody (randomize.melody === true). Loading a song pins it (melody=false); the
+    // label persists through the song's own repeats/next-blocks, and a different song sets a new one.
+    useEffect(() => {
+        if (playbackConfig?.randomize?.melody === true) setLoadedSongTitle(null);
+    }, [playbackConfig?.randomize?.melody]);
+
+    // Universal transition on DIFFICULTY change (Han 2026-06-16). difficultyLevel feeds the
+    // NEXT generation rather than swapping the on-screen melody, so the cascade re-flies the
+    // current notes as a deliberate acknowledgement of the change — a chosen trigger, distinct
+    // from a manual randomize/regenerate (which keeps its own animation). The mount guard skips
+    // the initial value so we only fire on a genuine user change.
+    const difficultyMountRef = useRef(true);
+    useEffect(() => {
+        if (difficultyMountRef.current) { difficultyMountRef.current = false; return; }
+        fireTransition();
+    }, [difficultyLevel, fireTransition]);
+
+    // Universal transition on SCREEN/TAB change → cascade the SHEET when you land on it (Han
+    // 2026-06-16, "sheet only"). The sheet is toggled via display:none (not unmounted), so we
+    // fire only when the new tab actually shows it — arriving at the sheet view re-flies its
+    // content. Firing while it's hidden would animate an invisible clone (harmless but wasteful),
+    // so gate on the sheet-music tab. Mount-guarded so the initial tab doesn't fire on load.
+    const tabMountRef = useRef(true);
+    useEffect(() => {
+        if (tabMountRef.current) { tabMountRef.current = false; return; }
+        if (activeTab === 'sheet-music') fireTransition();
+    }, [activeTab, fireTransition]);
 
     // chordProgression is now owned by useMelodyState; no elevation wrapper needed.
     const randomizeAll = randomizeAllLogic;
@@ -558,14 +584,22 @@ const App = () => {
         navigateHistory, setScale, _setTonic,
         isPlayingContinuously, isPlayingMelody, handleStopAllPlayback, startSequencer,
         setIsPlayingMelody, setIsPlayingContinuously, melodies,
+        // So a loaded song's pin/settings carry into the next generated block (bug 2).
+        randomizeConfig: playbackConfig.randomize,
     });
 
-    // Rubato playback engage hook (PR-C wave 1, Han 2026-05-29).
-    // When rubato is active, the Play buttons hand control to input-test mode
-    // instead of starting the Sequencer's audio-time loop — the user advances
-    // note-by-note from the bottom-pane keyboard. The ref is populated by a
-    // useEffect AFTER useInputTest mounts; until then it's a no-op.
-    const rubatoEngageRef = useRef(null);
+    // Rubato engine (refs + EWMA estimator + accompaniment scheduler) extracted to
+    // useRubato (ARCHITECTURE_AUDIT.md §4, Han 2026-06-19). The entangled consumers —
+    // the Play-button interception below, the onNoteCorrect rubato branch, the two
+    // ref-population effects, and onToggleRubato — stay in App and read these exports.
+    const {
+        rubatoEngageRef,
+        rubatoEventHistoryRef,
+        rubatoInputStateRefForwarderRef,
+        rubatoScrollAnchorRef,
+        RUBATO_HISTORY_LIMIT,
+        scheduleRubatoAccompaniment,
+    } = useRubato({ context, instruments, bpmRef, melodiesRef, customPercussionMappingRef });
 
     const handlePlayMelody = useCallback(() => {
         if (isRubatoRef.current && rubatoEngageRef.current) {
@@ -587,69 +621,32 @@ const App = () => {
         setHeaderPlayMode('continuous');
     }, [handlePlayContinuouslyLogic, isRubatoRef]);
 
-    // Range-edit and playback are mutually exclusive (Han 2026-05-30): opening
-    // the range overlay stops playback; see also the close-on-play effect below.
-    // Range-edit and the general settings overlay are ALSO mutually exclusive
-    // (Han 2026-05-31): opening range closes settings, and vice versa, so the two
-    // overlays never stack.
-    const handleToggleRangeEdit = useCallback(() => {
-        if (!rangeEditMode) {
-            handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
-            setClefEditMode(false);   // range & clef modes are mutually exclusive
-            setColorEditMode(false);
-        }
-        setRangeEditMode(v => !v);
-    }, [rangeEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
-
-    // Clef-edit toggle — mirrors range-edit (stop playback, close settings/range).
-    // The chord-row X/letters/roman selector lives inside this mode (Han #6).
-    const handleToggleClefEdit = useCallback(() => {
-        if (!clefEditMode) {
-            handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
-            setRangeEditMode(false);
-            setColorEditMode(false);
-        }
-        setClefEditMode(v => !v);
-    }, [clefEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
-
-    // Note-colouring menu toggle — mirrors range/clef (stop playback, close the others).
-    const handleToggleColorEdit = useCallback(() => {
-        if (!colorEditMode) {
-            handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
-            setRangeEditMode(false);
-            setClefEditMode(false);
-        }
-        setColorEditMode(v => !v);
-    }, [colorEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
-
-    // Toggle the legacy SETTINGS surface from its own SubHeader button (Han #13).
-    // Mutually exclusive with clef/range (the catch-all effect closes those when
-    // settings opens, but close them here too so the morph arms cleanly).
-    const handleToggleSettings = useCallback(() => {
-        if (!showSheetMusicSettings) {
-            handleStopAllPlayback();
-            setRangeEditMode(false);
-            setClefEditMode(false);
-            setColorEditMode(false);
-        }
-        toggleSheetMusicSettings();
-    }, [showSheetMusicSettings, handleStopAllPlayback, toggleSheetMusicSettings]);
-
-    // Closing range edit (e.g. clicking outside the bottom range settings, or
-    // tapping empty sheet area while in range mode).
-    const handleCloseRangeEdit = useCallback(() => setRangeEditMode(false), []);
-    const handleCloseClefEdit = useCallback(() => setClefEditMode(false), []);
-    // Pure OPEN (not toggle) for clicking a clef glyph in the sheet — always lands
-    // in clef-edit (Han 2026-06-01: clicking the clef opens the selector).
-    const handleOpenClefEdit = useCallback(() => {
-        handleStopAllPlayback();
-        if (showSheetMusicSettings) toggleSheetMusicSettings();
-        setRangeEditMode(false);
-        setClefEditMode(true);
-    }, [handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+    // Edit-mode flags + toggle/open/close handlers + the settings catch-all effect
+    // (Han 2026-06-19, ARCHITECTURE_AUDIT.md §4). Behaviour-preserving extraction of the
+    // four in-SVG staff-overlay edit modes (range/clef/colour/instrument). Called here —
+    // not at the top of App — because the handlers need handleStopAllPlayback /
+    // showSheetMusicSettings / toggleSheetMusicSettings, which are only available now.
+    const {
+        rangeEditMode,
+        clefEditMode,
+        colorEditMode,
+        instrumentEditMode,
+        playbackEditMode,
+        generationEditMode,
+        generationAdvancedEditMode,
+        setRangeEditMode,
+        handleToggleRangeEdit,
+        handleToggleClefEdit,
+        handleToggleColorEdit,
+        handleToggleInstrumentEdit,
+        handleTogglePlaybackEdit,
+        handleToggleGenerationEdit,
+        handleToggleGenerationAdvancedEdit,
+        handleToggleSettings,
+        handleCloseRangeEdit,
+        handleCloseClefEdit,
+        handleOpenClefEdit,
+    } = useEditMode({ handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings });
 
     const handlePlayRepeat = useCallback(() => {
         if (isRubatoRef.current && rubatoEngageRef.current) {
@@ -660,68 +657,6 @@ const App = () => {
         handlePlayRepeatLogic();
         setHeaderPlayMode('repeat');
     }, [handlePlayRepeatLogic, isRubatoRef]);
-
-    // PR-D wave 2 (Han 2026-05-29): predictive accompaniment for rubato.
-    // Track recent advance events to estimate ticks-per-second (TPS) via EWMA;
-    // when the user advances a treble note in rubato mode, schedule the
-    // bass / chord / percussion notes whose offsets fall in
-    // [currentTrebleOffset, nextTrebleOffset) using the estimated TPS so the
-    // background tracks "catch up" with the user's tempo. Until 2 advances
-    // have happened we fall back to the configured BPM.
-    const rubatoEventHistoryRef = useRef([]);
-    // Forwarder for inputTestStateRef — populated after useInputTest mounts so
-    // onNoteCorrect can read the latest activeIndex without circular TDZ.
-    const rubatoInputStateRefForwarderRef = useRef(null);
-    // Scroll anchor for rubato (PR-E round 18). When isActive=true, the scroll
-    // animation in useSheetMusicHighlight uses pageFraction directly instead
-    // of the audio-time formula. Updated on each correct-note advance to
-    // point at the NEXT expected note's tick offset so the user sees the
-    // cursor glide forward into the upcoming note position.
-    const rubatoScrollAnchorRef = useRef({ pageFraction: 0, isActive: false, currentFraction: 0 });
-    const RUBATO_HISTORY_LIMIT = 8;
-    const RUBATO_EWMA_ALPHA = 0.6; // higher → more reactive to recent intervals
-
-    const estimateRubatoTps = useCallback(() => {
-        const hist = rubatoEventHistoryRef.current;
-        if (hist.length < 2) return bpmRef.current / 5; // BPM/5 = ticks/sec (since 5/bpm sec/tick)
-        let ewma = null;
-        for (let i = 1; i < hist.length; i++) {
-            const dt = hist[i].wallTime - hist[i - 1].wallTime;
-            const dTicks = hist[i].offset - hist[i - 1].offset;
-            if (dt <= 0 || dTicks <= 0) continue;
-            const tps = dTicks / dt;
-            ewma = ewma === null ? tps : RUBATO_EWMA_ALPHA * tps + (1 - RUBATO_EWMA_ALPHA) * ewma;
-        }
-        return ewma ?? bpmRef.current / 5;
-    }, []);
-
-    const scheduleRubatoAccompaniment = useCallback((currentOffset, nextOffset) => {
-        if (!context || nextOffset <= currentOffset) return;
-        const tps = estimateRubatoTps();
-        const bpm = tps * 5;
-        const m = melodiesRef.current || {};
-        const playList = [];
-        const instList = [];
-        if (m.bass && instruments.bass) { playList.push(m.bass); instList.push(instruments.bass); }
-        if (m.percussion && instruments.percussion) { playList.push(m.percussion); instList.push(instruments.percussion); }
-        if (m.chordProgression && instruments.chords) { playList.push(m.chordProgression); instList.push(instruments.chords); }
-        if (playList.length === 0) return;
-        // Filter [currentOffset+1, nextOffset) — exclude notes at currentOffset because the
-        // treble onset already played, and we want bass/chord that synced WITH the treble note
-        // to play at the same tap. Actually keep currentOffset INCLUSIVE so simultaneous
-        // bass/chord notes do fire alongside the treble tap.
-        playMelodies(
-            playList,
-            instList,
-            context,
-            bpm,
-            context.currentTime,
-            null,
-            [currentOffset, nextOffset],
-            instruments,
-            customPercussionMappingRef.current ?? null,
-        );
-    }, [context, instruments, estimateRubatoTps]);
 
     const {
         isInputTestMode, setIsInputTestMode,
@@ -745,7 +680,9 @@ const App = () => {
         activeClef,
         onNoteCorrect: useCallback((note, durationTicks) => {
             if (!instruments.treble) return;
-            const durationMs = (durationTicks || 12) * (5000 / bpmRef.current);
+            // ms per tick = secondsPerTick(bpm) * 1000, byte-identical to the prior
+            // `5000 / bpm` via the timing SSOT (Han 2026-06-19).
+            const durationMs = (durationTicks || 12) * (secondsPerTick(bpmRef.current) * 1000);
             setTimeout(() => instruments.treble.stop({ note }), durationMs);
             // PR-D rubato accompaniment hook. inputTestStateRef is read via the
             // ref captured from the input-test-state-ref forwarder below — at
@@ -1148,7 +1085,7 @@ const App = () => {
         if (!globalTransposition) return scale.tonic;
         const writtenAcc = (scale.numAccidentals || 0) + getTranspositionFifths(globalTransposition.key);
         const raw = transposeNoteBySemitones(`${scale.tonic}4`, globalTransposition.semis);
-        return respellToKeySignature(raw, writtenAcc).replace(/-?\d+$/, '');
+        return stripOctave(respellToKeySignature(raw, writtenAcc));
     }, [globalTransposition, scale.tonic, scale.numAccidentals]);
 
     // Mount Effect: Build harmony table on startup so runtime scale/chord changes are reflected
@@ -1208,16 +1145,70 @@ const App = () => {
 
     // Shared props for both SheetMusic instances (primary + tab view).
     // containerHeight and visibleMeasures differ between instances and are passed inline.
-    // Anacrusis detection (Han 2026-05-28): when the loaded melody's first note
-    // sits AFTER tick 0 of measure 0, that measure is a pickup. We treat its
-    // global index as the anacrusis marker so BarlinesLayer can suppress the
-    // measure-number label. Re-runs whenever trebleMelody flips identity, e.g.
-    // after song-load or after a regen that produced a non-anacrusis melody.
+    // measureLen (ticks/measure) for the active meter — shared by anacrusis detection AND the
+    // looping body-merge below so both agree on what "measure 0" is.
+    const anacrusisMeasureLen = (TICKS_PER_WHOLE * timeSignature[0]) / timeSignature[1];
+
+    // Anacrusis detection (Han 2026-05-28; unified 2026-06-15): when the loaded melody's first note
+    // sits AFTER tick 0 of measure 0, that measure is a pickup. We treat its global index as the
+    // anacrusis marker so BarlinesLayer can suppress the measure-number label. Detection is the
+    // SHARED `hasAnacrusis(melody, measureLen)` predicate (src/utils/anacrusisRepeat.js) — the SAME
+    // one the Sequencer/render body-merge gates on — so the label-suppression and the merge can never
+    // disagree about whether a song is a pickup (arch §34/§40). Re-runs whenever trebleMelody flips
+    // identity, e.g. after song-load or after a regen that produced a non-anacrusis melody.
     const anacrusisMeasureIndex = useMemo(() => {
-        const firstOffset = trebleMelody?.offsets?.[0];
-        if (firstOffset == null || firstOffset <= 0) return null;
-        return 0;
-    }, [trebleMelody]);
+        return hasAnacrusis(trebleMelody, anacrusisMeasureLen) ? 0 : null;
+    }, [trebleMelody, anacrusisMeasureLen]);
+
+    // ── Looping body-merge for RENDER (arch §40 render-merge, Han 2026-06-15) ───────────────────
+    // During LOOPING playback (repeat OR continuous — i.e. playing and NOT once-mode) of a pickup
+    // song, the Sequencer loops the BODY-MERGED melody (pickup relocated to the end of the last body
+    // bar; body = bodyMeasures bars) and keys its highlight schedule off that merged, rebased body.
+    // The sheet must render the SAME representation, otherwise every body note's highlight resolves
+    // one measure below where it is drawn (the old one-bar highlight lag) and the next-loop pickup is
+    // never visible. We compute the merged body HERE and feed it to MelodyProvider so SheetMusic —
+    // which just renders whatever the context gives it — automatically shows the merged body. When
+    // stopped or in once-mode this is null → the original padded melodies render unchanged. For a
+    // non-anacrusis melody buildMergedRenderMelodies returns null (a no-op), so generated/continuous
+    // rounds after series 1 (which carry no pickup) are untouched.
+    const isLoopingPlayback = isPlaying && headerPlayMode !== 'once';
+    const mergedRenderMelodies = useMemo(() => {
+        if (!isLoopingPlayback) return null;
+        const sources = { treble: trebleMelody, bass: bassMelody, percussion: melodies.percussion, chordProgression };
+        // ── Phase 3: leading pickup bar on the FIRST pass (arch §40, Han 2026-06-17) ──────────────
+        // The audio sounds the pickup ONCE as a lead-in before the looping body. On the FIRST visual
+        // pass we draw that pickup as an EXTRA LEADING BAR (original m0) glued to the left of the body;
+        // every later pass shows just the merged body (the end-pickup of each body leads into the
+        // next loop). The body-merge advances startMeasureIndex by bodyMeasures per pass from the
+        // session origin (0 for a loaded song), so the SESSION-GLOBAL pass index is
+        // startMeasureIndex / bodyMeasures — independent of the per-block blockPlayStart, because the
+        // intro lead-in plays ONCE for the whole session (not per repeat block). We need bodyMeasures
+        // up front to compute the pass index, so probe the plain merge once (cheap, pure) for it.
+        const probe = buildMergedRenderMelodies(sources, anacrusisMeasureLen);
+        if (!probe) return null;
+        const passIndex = mergedBodyPassIndex({ startMeasureIndex, originMeasureIndex: 0, bodyMeasures: probe.bodyMeasures });
+        if (passIndex === 0) {
+            // First pass: pickup bar + body. firstPass.bodyMeasures = bodyMeasures + 1, but we render it
+            // through the ORIGINAL anacrusis path (mergedBodyMeasures stays null below), so the existing
+            // pickup-measure suppression + 1..N numbering apply — no new barline code (§6d).
+            const firstPass = buildFirstPassMergedMelodies(sources, anacrusisMeasureLen);
+            if (firstPass) return { ...firstPass, isFirstPass: true };
+        }
+        return probe;
+    }, [isLoopingPlayback, trebleMelody, bassMelody, melodies.percussion, chordProgression, anacrusisMeasureLen, startMeasureIndex]);
+
+    // ── First-pass render start-index alignment (arch §40 Phase 3, §40a highlight invariant) ──────
+    // On the FIRST pass the rendered melody has an EXTRA leading pickup bar (local bar 0), so its body
+    // bars sit one bar to the RIGHT of where the highlight SCHEDULE expects them: the Sequencer plays
+    // the pickup ONCE (a one-shot lead-in, NOT in scheduledNotes) and then numbers the looping body
+    // from globalMeasureIndex 0. SheetMusic derives each note's data-measure-index as
+    // startMeasureIndex + floorBar(offset); the highlight matches that against the schedule's
+    // measureIndex (= globalMeasureIndex). To keep the body aligned (§40a: render and schedule MUST
+    // view the same measure indices) we hand SheetMusic a startMeasureIndex shifted back by ONE bar on
+    // the first pass — so the pickup bar lands on (startMeasureIndex − 1) (no schedule entry → never
+    // highlighted, correct) and the body bars realign to 0..N. On pass ≥2 (merged body, no pickup bar)
+    // the real startMeasureIndex is used unchanged.
+    const renderStartMeasureIndex = mergedRenderMelodies?.isFirstPass ? startMeasureIndex - 1 : startMeasureIndex;
 
     const sheetMusicCommonProps = useMemo(() => ({
         timeSignature,
@@ -1235,7 +1226,20 @@ const App = () => {
             }
             return !p;
         }),
-        anacrusisMeasureIndex,
+        // On the FIRST looping pass we render the pickup bar + body through the ORIGINAL anacrusis
+        // path: anacrusisMeasureIndex=0 keeps the pickup-measure label suppression + the -1 number
+        // shift, so the pickup bar at m0 is unlabeled and the body bars number 1..N (Phase 3). On
+        // pass ≥2 there is no pickup bar (it was relocated into the body's last bar), so the merged-
+        // body numbering takes over and anacrusisMeasureIndex must NOT fire (the merged-body branch in
+        // BarlinesLayer already gates the suppression on mergedBodyMeasures==null).
+        anacrusisMeasureIndex: mergedRenderMelodies?.isFirstPass ? 0 : anacrusisMeasureIndex,
+        // When the looping body-merge is active the sheet renders the merged BODY (no separate pickup
+        // measure), so BarlinesLayer must number plainly from bar 1 and compute the repeat-pass count
+        // from bodyMeasures, not the padded numMeasures (arch §40 numbering). null when not merging →
+        // BarlinesLayer keeps its original anacrusis-aware numbering. On the FIRST pass (pickup bar
+        // shown) we ALSO pass null so the original anacrusis numbering applies — the merged-body
+        // suffix only kicks in from pass ≥2.
+        mergedBodyMeasures: (mergedRenderMelodies && !mergedRenderMelodies.isFirstPass) ? mergedRenderMelodies.bodyMeasures : null,
         numRepeats: playbackConfig.repsPerMelody,
         onNumRepeatsChange: (val) => setPlaybackConfig((prev) => ({ ...prev, repsPerMelody: val })),
         numMeasures,
@@ -1249,6 +1253,10 @@ const App = () => {
         rangeEditMode: rangeEditMode,
         clefEditMode: clefEditMode,
         colorEditMode: colorEditMode,
+        instrumentEditMode: instrumentEditMode,
+        playbackEditMode: playbackEditMode,
+        generationEditMode: generationEditMode,
+        generationAdvancedEditMode: generationAdvancedEditMode,
         onToggleSettings: toggleSheetMusicSettings,
         onCloseRangeEdit: handleCloseRangeEdit,
         onCloseClefEdit: handleCloseClefEdit,
@@ -1263,23 +1271,30 @@ const App = () => {
         handleToggleInputTest,
         handlePlayMelody,
         handlePlayContinuously,
-        viewMode: isPlayingContinuously
+        // Live per-round note/chord visibility during ANY LOOPING playback (continuous OR a
+        // repeated SONG), gated identically to the merged-body (isLoopingPlayback = isPlaying &&
+        // headerPlayMode !== 'once'). Songs play via handlePlayRepeat → isPlayingMelody (NOT
+        // continuous), so keying these on isPlayingContinuously hid the live odd/even visibility for
+        // songs while it worked for generated melodies (Han #4, 2026-06-17). When stopped we keep
+        // the static oddRounds preview.
+        viewMode: (isPlaying && headerPlayMode !== 'once')
             ? (showNotes ? 'melody' : 'repeat')
             : (playbackConfig.oddRounds?.notes ? 'melody' : 'repeat'),
-        showChords: isPlayingContinuously ? showChordLabels : (showChordsOddRounds || showChordsEvenRounds),
+        showChords: (isPlaying && headerPlayMode !== 'once') ? showChordLabels : (showChordsOddRounds || showChordsEvenRounds),
         onNoteClick: handleNoteClick,
         onChordClick: handleChordClick,
         onEnharmonicToggle: handleEnharmonicToggle,
         onMeasureNumberClick: null,
         onNoteEnharmonicToggle: handleNoteEnharmonicToggle,
     }), [timeSignature, handleTimeSignatureChange, bpm, setBpm, isRubato, setIsRubato,
-        anacrusisMeasureIndex,
+        anacrusisMeasureIndex, mergedRenderMelodies,
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
-        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, toggleSheetMusicSettings,
+        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, instrumentEditMode,
+        playbackEditMode, generationEditMode, generationAdvancedEditMode, toggleSheetMusicSettings,
         handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
-        handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously,
+        handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously, isPlaying,
         showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
         handleNoteClick, handleChordClick, handleEnharmonicToggle, handleMeasureNumberClick,
         handleNoteEnharmonicToggle]);
@@ -1290,11 +1305,11 @@ const App = () => {
         <InstrumentSettingsProvider value={instrumentSettingsCtx}>
         <DisplaySettingsProvider value={displaySettingsCtx}>
         <MelodyProvider
-            treble={melodies.treble}
-            bass={melodies.bass}
-            percussion={melodies.percussion}
+            treble={mergedRenderMelodies ? mergedRenderMelodies.treble : melodies.treble}
+            bass={mergedRenderMelodies ? mergedRenderMelodies.bass : melodies.bass}
+            percussion={mergedRenderMelodies ? mergedRenderMelodies.percussion : melodies.percussion}
             metronome={melodies.metronome}
-            chordProgression={chordProgression}
+            chordProgression={mergedRenderMelodies ? mergedRenderMelodies.chordProgression : chordProgression}
         >
         <PlaybackTransportProvider
             isPlaying={isPlaying}
@@ -1307,6 +1322,7 @@ const App = () => {
             inputTestSubMode={inputTestSubMode}
             setInputTestSubMode={handleSetInputTestSubMode}
         >
+        <UniversalTransitionProvider transitionKey={transitionKey}>
         <TransitionOverlayProvider
             nextLayer={nextLayer}
             previewMelody={previewMelody}
@@ -1357,6 +1373,7 @@ const App = () => {
                     onScaleClick={handleScaleClick}
                     isScalePlaying={isScalePlaying}
                     progressionLabel={headerProgressionLabel}
+                    songTitle={loadedSongTitle}
                 />
 
                 <SubHeader
@@ -1377,9 +1394,17 @@ const App = () => {
                     onOpenRange={handleToggleRangeEdit}
                     onOpenClef={handleToggleClefEdit}
                     onOpenColor={handleToggleColorEdit}
+                    onOpenInstrument={handleToggleInstrumentEdit}
+                    onOpenPlayback={handleTogglePlaybackEdit}
+                    onOpenGeneration={handleToggleGenerationEdit}
+                    onOpenGenerationAdvanced={handleToggleGenerationAdvancedEdit}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}
                     colorEditMode={colorEditMode}
+                    instrumentEditMode={instrumentEditMode}
+                    playbackEditMode={playbackEditMode}
+                    generationEditMode={generationEditMode}
+                    generationAdvancedEditMode={generationAdvancedEditMode}
                     showSheetMusicSettings={showSheetMusicSettings}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}
@@ -1403,7 +1428,7 @@ const App = () => {
                             {...sheetMusicCommonProps}
                             containerHeight={sheetHeight}
                             visibleMeasures={effectiveVisibleMeasures}
-                            startMeasureIndex={startMeasureIndex}
+                            startMeasureIndex={renderStartMeasureIndex}
                             blockMeasureStart={blockMeasureStart}
                             blockPlayStart={blockPlayStart}
                         />
@@ -1504,7 +1529,7 @@ const App = () => {
                 <TabView
                     activeTab={activeTab}
                     sheetMusicCommonProps={sheetMusicCommonProps}
-                    startMeasureIndex={startMeasureIndex}
+                    startMeasureIndex={renderStartMeasureIndex}
                     blockMeasureStart={blockMeasureStart}
                     blockPlayStart={blockPlayStart}
                     idealVisibleMeasures={effectiveVisibleMeasures}
@@ -1578,6 +1603,7 @@ const App = () => {
         </div >
         </AnimationRefsProvider>
         </TransitionOverlayProvider>
+        </UniversalTransitionProvider>
         </RoundStateProvider>
         </PlaybackTransportProvider>
         </MelodyProvider>

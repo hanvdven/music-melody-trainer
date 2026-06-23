@@ -1,153 +1,149 @@
 import { useRef, useState, useLayoutEffect } from 'react';
+import { runFlyInCascade, MORPH_MS } from '../utils/flyInCascade';
 
-// Enter/exit MORPH between the sheet melody and an in-SVG overlay (range / clef).
-// Opening fades the OLD group out; the NEW group flies in from the right. To avoid
-// a "massive block sliding in", each NOTE-like element flies in INDIVIDUALLY with a
-// slight per-element delay staggered by x (Han 2026-06-01): the leftmost element
-// starts at 0 s, the rightmost at STAGGER_MS, and each element's slide lasts
-// ELEM_MS — so the whole thing reads as notes streaming in. Non-note elements
-// (clefs, staff lines, barlines) just fade in with the group.
+// Enter/exit MORPH between the sheet melody and an in-SVG overlay (range / clef). The
+// actual cascade tween (fade OLD out, fly NEW in from the right, staggered by x) lives in
+// `src/utils/flyInCascade.js` and is shared with the universal app transition so both run
+// the EXACT same choreography (Han 2026-06-16). This hook only owns the OVERLAY trigger:
+// detecting a surface-kind change and resolving which SVG groups are the OLD vs NEW.
 //
-// Total = STAGGER_MS + ELEM_MS = 1.5 s (rightmost begins at 0.5 s, animates 1 s).
-//
-// Flyable elements are found via `[data-mel], [data-fly]` inside the new group
-// (the real melody marks notes/chords/barlines with data-mel; overlays mark their
-// note/glyph elements with data-fly). If none are found we fall back to sliding the
-// whole group as one block.
-//
-// By default flyable elements slide in from the RIGHT (translateX flyDist → 0). An
-// element may instead carry `data-fly-from="<userSpaceX>"` to emerge from a specific
-// x — the clef variant chips use this so subtypes slide out from UNDER the clef on
-// the left (Han 2026-06-01 CR), rather than streaming in from the right.
-//
-// All opacity/transform is set via `element.style` in the rAF callback — never JSX
-// props — per §6. Inline styles are cleared at the end so the scroll/wipe systems
-// own those properties again afterwards.
-export const MORPH_MS = 1500;
-const ELEM_MS = 1000;      // how long one element's slide lasts
-const STAGGER_MS = 500;    // delay between the first and last element starting
-const GROUP_FADE_MS = 700; // group fade-IN for the non-note elements
-const FADE_OUT_MS = 250;   // OLD group fade-OUT — very short (Han 2026-06-01 #5)
+// `kind` is the CURRENTLY-shown surface: 'range' | 'clef' | 'color' | 'instrument' | 'legacy' |
+// 'playback' | 'generation' | 'generation-advanced' | 'melody'.
+export { MORPH_MS };
 
-const clamp01 = (v) => Math.max(0, Math.min(1, v));
-// Subtle ease-in/ease-out so each element accelerates and decelerates rather than
-// moving at a constant rate (Han 2026-06-01 #4). smoothstep keeps it gentle.
-const easeInOut = (t) => t * t * (3 - 2 * t);
-
-// Resolve the SVG group(s) for a given overlay kind, as an ARRAY (clef mode shows
-// the clef overlay AND the chord-row overlay as siblings, so both must fade/fly).
+// Resolve the SVG group(s) for a given overlay kind, as an ARRAY (clef mode shows the clef
+// overlay AND the chord-row overlay as siblings, so both must fade/fly).
 const groupsForKind = (svg, kind) => {
   if (kind === 'melody') return [svg.querySelector('.notes-transition')].filter(Boolean);
-  // The range setter shows the range overlay AND the chord-row overlay as siblings,
-  // so both fade/fly together (Han #10/#11 — chords live in the range setter).
+  // The range setter shows the range overlay AND the chord-row overlay as siblings, so both
+  // fade/fly together (Han #10/#11 — chords live in the range setter).
   if (kind === 'range') return [svg.querySelector('.range-overlay'), svg.querySelector('.chord-overlay')].filter(Boolean);
   // The clef setter shows the clef overlay + the chord-STYLE row as siblings.
   if (kind === 'clef') return [svg.querySelector('.clef-overlay'), svg.querySelector('.chord-style-overlay')].filter(Boolean);
+  // The colour setter lays its scheme rows directly on the top staff — a single group, no
+  // sibling chord row (Han 2026-06-15 B1).
+  if (kind === 'color') return [svg.querySelector('.note-coloring-overlay')].filter(Boolean);
+  // The instrument setter lays its per-staff card strips directly on the staves — a single
+  // group, no sibling chord row (mirrors colour, Han 2026-06-16).
+  if (kind === 'instrument') return [svg.querySelector('.instrument-overlay')].filter(Boolean);
   // The old settings overlay is now a sliding 'legacy' surface (Han #11).
   if (kind === 'legacy') return [svg.querySelector('.settings-overlay')].filter(Boolean);
+  // Three new generator setters (Han 2026-06-22). Each is its OWN morph surface (mirrors colour/
+  // instrument — a single group, no sibling chord row; the chords "balk" is rendered INSIDE the
+  // generation overlays as another row of the same group, not as a separate sibling). PLAYBACK
+  // reuses SettingsOverlay but under a distinct group class so its morph never collides with the
+  // legacy 'settings' class (they are mutually exclusive, so the classes never coexist).
+  if (kind === 'playback') return [svg.querySelector('.playback-overlay')].filter(Boolean);
+  if (kind === 'generation') return [svg.querySelector('.generation-overlay')].filter(Boolean);
+  if (kind === 'generation-advanced') return [svg.querySelector('.generation-advanced-overlay')].filter(Boolean);
   return [];
 };
 
-// `kind` is the CURRENTLY-shown surface: 'range' | 'clef' | 'melody' (no overlay).
+// Pure gate decision: should the sheet melody (`.notes-transition`) be HIDDEN right now,
+// given the current surface `kind` and the (possibly one-render-late) morph state?
+//
+// WHY this is its own pure function (Han 2026-06-18): `useRangeMorph` arms a morph in a
+// TWO-STAGE effect — a useLayoutEffect first detects the kind change and calls setMorph,
+// then a second effect runs the tween. So on the FIRST committed render after a switch,
+// `kind` has already updated but `morphFrom/morphTo` still describe the PREVIOUS morph.
+//
+// The one-frame flash this closes: while the melody→overlay ENTRY morph is still running
+// (it lasts MORPH_MS = 1.5 s) the user switches overlay→overlay (e.g. instrument→colour).
+// On that first frame `kind` is already 'color' but the stale morph is still
+// {from:'melody', to:'instrument'} → `morphFrom === 'melody'` is true. A naive gate
+// (hide unless a melody-involving morph is active) would therefore SHOW the melody for one
+// frame before the new morph arms and hides it again — the reported flash.
+//
+// The fix (option a — derive the gate so it's robust to morph-arming lag): the melody is
+// only force-shown over an overlay for the LEAVE fade-out (`morphFrom === 'melody'`), AND
+// only while that morph is still the CURRENT one — i.e. `kind === morphTo` (we are heading
+// into, and now resting on, the surface the melody is leaving for). Once `kind` moves on to
+// a different overlay (`kind !== morphTo`) the melody-leaving morph is STALE and must not
+// expose the melody. The RETURN-to-melody fly-in is NOT handled here: when returning,
+// `kind === 'melody'` so `overlayActive` is false and the melody is shown by the outer gate.
+//
+// `overlayActive` is true exactly when a setter overlay is the current surface
+// (kind !== 'melody'); the caller passes the same boolean it uses to blank the staves.
+export function melodyHiddenDuringOverlay(overlayActive, morphing, morphFrom, morphTo, kind) {
+  if (!overlayActive) return false;                       // resting/returning to melody → shown
+  // Force-show ONLY for a melody→overlay leave fade-out that is still current (not stale).
+  const leavingMelodyNow = morphing && morphFrom === 'melody' && morphTo === kind;
+  return !leavingMelodyNow;                               // otherwise (incl. overlay→overlay) hidden
+}
+
 // A morph is armed whenever the kind CHANGES — including switching directly between
 // overlays (clef→range), which previously didn't animate because the
-// rangeEditMode||clefEditMode boolean never flipped (Han 2026-06-01 #10). Switching
-// treats the previous surface as the OLD (fades out) and the new as NEW (flies in).
+// rangeEditMode||clefEditMode boolean never flipped (Han 2026-06-01 #10). Switching treats
+// the previous surface as the OLD (fades out) and the new as NEW (flies in).
+//
+// WHY the morph descriptor is now derived DURING RENDER, not from a layout-effect setState
+// (Han 2026-06-19): the previous TWO-STAGE design armed `morph` in a useLayoutEffect, so the
+// returned `morphFrom/morphTo/morphing` lagged `kind` by exactly one render. That lag frame
+// was the source of the OPEN and CLOSE flashes:
+//   • OPEN (melody→setter): on the change render the gate/mounting still saw `morphing=false`,
+//     so the setter content mounted at REST (no fly-in offsets) — visible un-animated for the
+//     lag frame before the tween armed.
+//   • CLOSE (setter→melody): on the change render the gate saw `morphing=false` and
+//     overlayActive=false, so the melody was shown at REST for the lag frame before the
+//     return fly-in armed and set its initial offsets.
+// React 18 does flush a layout-effect setState before paint MOST of the time, but not when the
+// triggering update is itself committed from the click handler first — leaving exactly the
+// one-frame flash Han kept seeing. Computing the descriptor in render (a ref compared against
+// the live `kind`) makes `morphFrom/morphTo/morphing` correct on the SAME render the kind
+// changes, so the gate hides the melody for the morph's FIRST and LAST frame and the cascade's
+// initial styles are applied before the first paint (§6: decide before paint, not one render
+// late). The tween itself still runs in a layout effect (it must touch the post-commit DOM),
+// keyed on the morph id so it fires exactly once per arming.
 export default function useRangeMorph(kind, svgRef, flyDist) {
-  const [morph, setMorph] = useState(null);
   const prevKindRef = useRef(kind);
   const seqRef = useRef(0);
-  const rafRef = useRef(null);
+  // The live morph descriptor, recomputed every render from refs so it is NEVER one render
+  // stale. `activeMorphRef` holds the morph currently believed to be running (or just armed);
+  // it is mutated during render (the React-sanctioned "store info from previous renders" ref
+  // pattern) so the RETURNED values are correct on the same render the kind changes.
+  const activeMorphRef = useRef(null);
+  // Force a re-render when the tween completes (so `morphing` recomputes to false). A bumping
+  // counter is the minimal state needed; its value is never read.
+  const [, forceRerender] = useState(0);
 
-  // Detect the kind change and arm a morph (before paint).
-  useLayoutEffect(() => {
-    if (prevKindRef.current === kind) return;
+  // Render-time arming: if the kind changed since the last committed render, the descriptor is
+  // a brand-new morph. This runs in render, so the returned values reflect the change on the
+  // SAME render — no lag frame (see WHY above).
+  if (prevKindRef.current !== kind) {
     const from = prevKindRef.current;
     prevKindRef.current = kind;
     seqRef.current += 1;
-    setMorph({ id: seqRef.current, from, to: kind });
-  }, [kind]);
+    activeMorphRef.current = { id: seqRef.current, from, to: kind };
+  }
+  const morph = activeMorphRef.current;
+  const pendingId = morph?.id ?? 0;
 
-  // Run the tween once the morphing render has committed (both groups present).
+  // Run the tween once a NEW morph has been armed and the morphing render has committed (both
+  // groups present in the post-commit DOM). Keyed on the morph id so re-renders that don't
+  // change the kind do not re-fire the tween.
   useLayoutEffect(() => {
-    if (!morph) return undefined;
+    if (pendingId === 0) return undefined;
     const svg = svgRef.current;
-    if (!svg) { setMorph(null); return undefined; }
-    const oldEls = groupsForKind(svg, morph.from);   // old just fades out
-    const newEls = groupsForKind(svg, morph.to);     // new flies in (staggered)
-
-    // Collect the individually-flying note elements across the new group(s) and give
-    // each a start delay from its x (leftmost first). getBBox().x is in user space.
-    const flyEls = newEls.flatMap(g => Array.from(g.querySelectorAll('[data-mel], [data-fly]')));
-    let minX = Infinity, maxX = -Infinity;
-    const xs = new Map();
-    for (const el of flyEls) {
-      let bx = 0;
-      try { bx = el.getBBox().x; } catch { bx = 0; } // getBBox throws on display:none
-      xs.set(el, bx);
-      if (bx < minX) minX = bx;
-      if (bx > maxX) maxX = bx;
-    }
-    const span = maxX - minX || 1;
-    const delayOf = (el) => ((xs.get(el) - minX) / span) * STAGGER_MS;
-
-    // Per-element initial translateX. Default = flyDist (slide in from the RIGHT).
-    // An element carrying `data-fly-from="<x>"` instead emerges FROM that user-space
-    // x — used by the clef variant chips so the subtypes appear to slide out from
-    // UNDER the clef on the left (Han 2026-06-01 CR): each chip starts at the clef
-    // anchor (x left of itself ⇒ negative offset) and slides right to its slot.
-    const startOf = new Map();
-    for (const el of flyEls) {
-      const fromAttr = el.getAttribute('data-fly-from');
-      startOf.set(el, fromAttr != null ? (parseFloat(fromAttr) - (xs.get(el) ?? 0)) : flyDist);
-    }
-
-    // Initial state, set before paint so there's no flash.
-    for (const el of oldEls) { el.style.opacity = '1'; el.style.transform = 'none'; }
-    for (const el of newEls) { el.style.opacity = '0'; el.style.transform = 'none'; }
-    if (flyEls.length) {
-      for (const el of flyEls) { el.style.transform = `translateX(${startOf.get(el)}px)`; el.style.willChange = 'transform'; }
-    } else {
-      // Fallback: no per-note elements → slide each new group as one block.
-      for (const el of newEls) el.style.transform = `translateX(${flyDist}px)`;
-    }
-
-    const t0 = performance.now();
-    const frame = (now) => {
-      const t = now - t0;
-      const p = Math.min(1, t / MORPH_MS);
-      // OLD fades out FAST (FADE_OUT_MS); NEW group(s) fade in over GROUP_FADE_MS.
-      const oldOp = String(1 - easeInOut(clamp01(t / FADE_OUT_MS)));
-      for (const el of oldEls) el.style.opacity = oldOp;
-      const newOp = String(easeInOut(clamp01(t / GROUP_FADE_MS)));
-      for (const el of newEls) el.style.opacity = newOp;
-      if (flyEls.length) {
-        for (const el of flyEls) {
-          const ep = easeInOut(clamp01((t - delayOf(el)) / ELEM_MS));
-          el.style.transform = `translateX(${startOf.get(el) * (1 - ep)}px)`;
+    if (!svg) { activeMorphRef.current = null; forceRerender((n) => n + 1); return undefined; }
+    const armed = activeMorphRef.current;
+    const oldEls = groupsForKind(svg, armed.from);   // old just fades out
+    const newEls = groupsForKind(svg, armed.to);     // new flies in (staggered)
+    // runFlyInCascade returns a cancel() that also resets inline styles, so a mid-flight
+    // re-toggle (cleanup) never leaves a group stuck (Han #8). On natural completion clear the
+    // active morph and force a render so `morphing` recomputes to false.
+    const cancel = runFlyInCascade(svg, {
+      oldEls, newEls, flyDist,
+      onDone: () => {
+        // Only clear if no newer morph has armed in the meantime (id still matches).
+        if (activeMorphRef.current?.id === armed.id) {
+          activeMorphRef.current = null;
+          forceRerender((n) => n + 1);
         }
-      } else {
-        for (const el of newEls) el.style.transform = `translateX(${flyDist * (1 - easeInOut(p))}px)`;
-      }
-      if (p < 1) { rafRef.current = requestAnimationFrame(frame); return; }
-      rafRef.current = null;
-      resetStyles();
-      setMorph(null);
-    };
-    // Hand the inline props back; called on completion AND interrupt so a rapid
-    // re-toggle never leaves a group stuck (Han #8).
-    const resetStyles = () => {
-      for (const el of oldEls) { el.style.opacity = ''; el.style.transform = ''; }
-      for (const el of newEls) { el.style.opacity = ''; el.style.transform = ''; }
-      for (const el of flyEls) { el.style.transform = ''; el.style.willChange = ''; }
-    };
-    frame(t0);
-    rafRef.current = requestAnimationFrame(frame);
-    return () => {
-      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
-      resetStyles();   // restore styles if this morph was interrupted mid-flight
-    };
-  }, [morph, svgRef, flyDist]);
+      },
+    });
+    return cancel;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingId, svgRef, flyDist]);
 
   return { morphing: morph != null, morphFrom: morph?.from ?? null, morphTo: morph?.to ?? null };
 }

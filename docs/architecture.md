@@ -11,6 +11,7 @@ This document is the **authoritative specification** for the entire application:
 | **visual block** | The measures currently visible on screen at one time. In pagination: one "page" = `musicalBlocks[b]` measures (may be < `numMeasures` if note slots would be too narrow). In scroll/wipe: always `visibleMeasures` (= 3) measures. |
 | **repeat block** | One full pass through all `numMeasures` measures of a melody. The Sequencer plays one repeat block per outer `for m = 0..numMeasures-1` iteration. A sequence block contains `repsPerMelody` repeat blocks. |
 | **sequence block** | All measures in one complete series = `numMeasures × repsPerMelody`. A new melody is generated (via `randomizeScaleAndGenerate`) after every sequence block. The `melodyCount` counter increments once per sequence block. |
+| **`repsPerMelody` ↔ `numRepeats`** | The SAME value under two names — there is ONE source of truth, no redundant state. `repsPerMelody` is the canonical config field on `playbackConfig` (App state; read in the Sequencer via `playbackConfigRef.current.repsPerMelody`). `numRepeats` is the **prop name** that same value travels under once it enters the SheetMusic render tree (`SheetMusic`, `PreviewOverlay`, `BarlinesLayer`, `RepeatsControls`, `calculateAllOffsets`). The rename happens at one place — `App.jsx`: `numRepeats: playbackConfig.repsPerMelody` — and writes back via `onNumRepeatsChange → setPlaybackConfig({ repsPerMelody })`. `-1` = infinite repeat. Do NOT add a second state field; if renaming, rename the prop to match the config field, not the reverse. |
 | **visual block count** | Number of visual blocks per repeat block = `musicalBlocks.length` (always ≥ 1). `musicalBlocks` is computed by `calculateMusicalBlocks` from `numMeasures` and note slot width. |
 | **block boundary** | The audio moment when one visual block ends and the next begins. Triggers a page-turn event. |
 | **block end** | The audio moment when the last measure of a repeat block finishes = start of the next repeat block or series. |
@@ -258,7 +259,7 @@ With a double-buffer of `visibleMeasures × 2 = 6` slots, slots 0–2 are visibl
 
 **How:**
 - Same-series next iteration (not the last rep): build with same `treble/bass/percussion`, incremented `iteration` counter.
-- Last rep of a series (new melody needed): generate the next melody synchronously, store in `_pregeneratedNextSeries`, build its slices.
+- Last rep of a series (new melody needed): generate the next melody synchronously, store in `pregenResult`, build its slices.
 - When the actual next iteration's `m === 0` fires: `Song._byIndex` already has those entries → skip the build (check `!song._byIndex.has(globalMeasureIndex)` before appending).
 
 #### Timing guarantee
@@ -310,6 +311,44 @@ The `Song.appendMeasures()` method is idempotent for duplicate indices: if a `me
 - `scheduledMeasures` entries use `globalMeasureIndex` and `audioTime` for rAF-driven `setCurrentMeasureIndex`.
 - Layer B note elements carry `data-layer="b"` and are EXCLUDED from highlight queries.
 
+### Sequencer method decomposition (Han 2026-06-19)
+
+**Purpose:** `Sequencer.start()` was a single ~990-line method (session setup, the
+outer repeat-iteration loop, per-measure note/chord/label scheduling, overlay
+transitions, and series-boundary regen all inline). It is now a thin loop skeleton
+that delegates the two largest cohesive units to private helper methods. This is a
+**mechanical decomposition only** — no timing arithmetic, AudioContext scheduling,
+`setTimeout` delays, batching, or order of operations changed.
+
+**How it works:**
+- `start()` keeps: session/anacrusis setup, the outer `while` over repeat iterations,
+  the `_armPaginationSequence` arm at `iteration === 0`, the iteration-wide fermata
+  extension, and the series-boundary regen (which mutates the running
+  `treble/bass/percussion/chordProgression/currentTS/currentNumMeasures` locals).
+- `async scheduleBlock({...})` is the inner `for m` loop body: it schedules the
+  per-measure visibility/notes/chords/labels and the scroll & wipe overlay
+  bookkeeping. It advances `nextStartTime` per measure and **returns**
+  `{ nextStartTime, aborted }` (a method cannot mutate the caller's local nor `break`
+  its loop). On abort it returns `{ aborted: true }`; `start()` then breaks exactly
+  where the inline `break` used to fire.
+- `scheduleTransitions({...})` arms the series-boundary red/yellow preview overlay and
+  schedules the `applyResult` swap. It is pure scheduling — it mutates no caller-local
+  (it only reads the passed-in values and writes `this.scheduledNotes` inside the
+  fire-time callbacks, as before).
+
+**Invariants that must hold:**
+- The captured `sessionController` (§6: "capture at the loop top") is **passed into**
+  `scheduleBlock`; neither helper re-reads `this.abortController`. The `finally` in
+  `start()` still compares `this.abortController === sessionController`.
+- React-18 batched callbacks (the `m === 0` wipe batch, the scroll yellow/red bundle,
+  and the `applyResult` batch) each remain a single `scheduleTimeout` callback.
+- `scheduleBlock` is `async` (it `await`s the per-measure sleep); `start()` must
+  `await` it so the outer loop only advances after the block's measures are scheduled.
+
+**Files:** `src/audio/Sequencer.js`. Guarded by
+`src/audio/__tests__/armPaginationSequence.characterization.test.js` and
+`src/audio/__tests__/sessionAbort.characterization.test.js`.
+
 ---
 
 ## 8. Component Responsibilities
@@ -334,12 +373,12 @@ Make `Song.appendMeasures` skip entries whose `measureIndex` already exists in `
 At `m === 0` in Sequencer's loop:
 - If `!song._byIndex.has(globalMeasureIndex)`: build current iteration slices and append.
 - Immediately after (still synchronously): if `!song._byIndex.has(globalMeasureIndex + numMeasures)`: build next iteration slices and append.
-- For next-iteration build: same melody (intra-series) or `_pregeneratedNextSeries` (cross-series).
+- For next-iteration build: same melody (intra-series) or `pregenResult` (cross-series).
 - Remove all `_preAppendedAt` / `preloadMeasures` complexity for stream mode.
 - `setSong` called once after both builds.
 
 ### Step 3 — Stream: generate next series at series boundary
-At the point where `isLastRepNow && m === 0` (or equivalent), synchronously call `randomizeScaleAndGenerate` and store in `_pregeneratedNextSeries`. This ensures the next series is available for the `m === 0` double pre-build of the last rep.
+At the point where `isLastRepNow && m === 0` (or equivalent), synchronously call `randomizeScaleAndGenerate` and store in `pregenResult`. This ensures the next series is available for the `m === 0` double pre-build of the last rep.
 
 ### Step 4 — Wipe: opacity crossfade (no scroll)
 In `useSheetMusicHighlight.js` wipe branch:
@@ -744,7 +783,8 @@ Purpose of every significant file in the codebase. One-sentence description + re
 | `ChordLabelsLayer.jsx` | `React.memo`-wrapped chord-label renderer. Contains the per-chord builder (`renderSingleChordLabel`) as a pure function so the JSX is deterministic from props. Replaces 3 inline calls in `SheetMusic`. See §29. |
 | `BarlinesLayer.jsx` | `React.memo`-wrapped barline + measure-number renderer. Holds the pure `iterMeasureLines` iterator (the iterator depends on ~20 layout/visibility values that were previously closure-captured in `SheetMusic`). `mode="regular"` for thin inner barlines, `mode="repeat"` for thick start/end repeat lines. See §29. |
 | `PreviewOverlay.jsx` | `React.memo`-wrapped RED/crossfade overlay (the "incoming melody" preview during a pagination transition). Lazy-mounted from `SheetMusic` only when `showWipePreview === 'red'` or `'crossfade'`, so absent from the DOM ~90% of the session. See §29. |
-| `renderMelodyNotes.jsx` | Pure rendering function — given a `SlicedMelody` and layout parameters, returns SVG note heads, stems, beams, flags, accidentals, and chord labels. |
+| `renderMelodyNotes.jsx` | Pure rendering function — given a `SlicedMelody` and layout parameters, returns SVG note heads, stems, beams, flags, accidentals, and chord labels. Delegates the rhythmic beam-GROUPING decision to `computeBeamGroups.js`; keeps all beam-line geometry (`beamData`) and note/stem/flag/tuplet/ledger drawing. |
+| `computeBeamGroups.js` | Pure function (no React/component state) that decides the beam GROUPING: which consecutive notes share a beam, how each measure splits into beam spans (rhythmic-grouping aware, e.g. 6/8 `[3,3]`; even-numerator midpoint fallback), tuplet/voice isolation, and each group's master stem direction. Extracted from `renderMelodyNotes.jsx` (Han 2026-06-19, Phase-2 per ARCHITECTURE_AUDIT §4). Geometry helpers (`noteYMap`, `stripAccidentals`, `percussionStemUp`) are passed in so their definitions stay single-sourced in `renderMelodyNotes.jsx`. Tested directly by `__tests__/computeBeamGroups.test.js`; the rendered `beamGroups.characterization.test.jsx` is the E2E guard. |
 | `renderOneMeasureRepeatSymbols.jsx` | Pure helper that renders the Maestro "Ô" one-measure-repeat glyph centred between barlines. Shared between `SheetMusic` (existing closure delegates here) and `PreviewOverlay` (calls it directly). |
 | `renderAccidentals.jsx` | Renders key-signature accidentals (sharps/flats) at the start of each staff. |
 | `processMelodyAndCalculateSlots.js` | Lays out note horizontal positions ("slots") across a measure, handling beaming groups and spacing. |
@@ -831,7 +871,7 @@ the header and the sheet:
 
 | File | Purpose |
 |---|---|
-| `Sequencer.js` | The playback engine. Runs an async loop over melody measures; schedules notes via `playMelodies`; fires timing callbacks (`setters`) to synchronize UI state with the AudioContext clock; owns `scheduledNotes` and `scheduledMeasures` for rAF-driven highlighting. |
+| `Sequencer.js` | The playback engine. Runs an async loop over melody measures; schedules notes via `playMelodies`; fires timing callbacks (`setters`) to synchronize UI state with the AudioContext clock; owns `scheduledNotes` and `scheduledMeasures` for rAF-driven highlighting. `start()` is the thin loop skeleton (session setup → outer repeat-iteration `while` → series regen); it delegates the per-measure scheduling to `scheduleBlock()` and the series-boundary overlay arming to `scheduleTransitions()` (see "Sequencer method decomposition" below). |
 | `playMelodies.js` | Schedules all notes of a single `MeasureSlice` window into the Web Audio graph at a given audio start time. Accepts named smplr instrument handles and a custom percussion mapping. |
 | `playSound.js` | Plays a single note on a given instrument. Handles Soundfont vs. DrumMachine dispatch, resolves percussion note names via `resolveNotePitch`. |
 | `drumKits.js` | Single source of truth for all drum kit definitions: `ALL_SAMPLES`, `CATEGORIES`, `PADS`, `DRUM_KITS`, `DEFAULT_NOTE_MAPPING`, `KIT_NOTE_MAPPINGS`. |
@@ -931,6 +971,52 @@ the header and the sheet:
 - Changing `numMeasures` during playback has no effect on the current melody display; it takes effect at the next series boundary.
 
 **Files:** `src/components/sheet-music/SheetMusic.jsx`, `src/utils/melodySlice.js`, `src/App.jsx`
+
+---
+
+### Time-Signature Change While Stopped → Malformed Sheet (BACKLOG.md 1587)
+
+**Symptom:** Changing the TIME SIGNATURE while NOT playing produced a malformed sheet
+that persisted until the next regeneration: notes drawn past the last barline, the
+trailing partial measure's notes missing, and (in pagination mode) those notes dropped
+entirely. Open since May, high priority.
+
+**Root cause:** The melody is stored as METER-INDEPENDENT absolute ticks, so re-barring is
+just re-slicing the same notes by the new measure length — and the slot processor already
+splits + ties notes across barlines and pads the final bar. But the DISPLAYED measure
+count was computed in `SheetMusic.jsx` as
+`melodyMeasureCount = Math.max(1, Math.round(totalMelodyDuration / measureLengthSlots))`.
+After a TS change the melody almost never divides evenly into the new meter (e.g. a 4-bar
+4/4 melody = 192 ticks shown in 3/4 where `measureLengthSlots ≈ 36` → 192/36 = 5.33), so
+`Math.round` returned 5 instead of 6. `melodyMeasureCount` feeds `displayNumMeasures`,
+which drives the barline count (`calculateAllOffsets` `totalSlotsExpected`), the
+`globalMaxDuration` end-padding, the per-page slice range (`sliceMelodyByRange`, which
+keeps only notes with `offset < count*measureLength`), and the page/measure widths. With
+the count rounded DOWN, the partial final measure (offsets 180–192) was dropped or
+mislaid — the persistent malformation.
+
+**Fix (eliminated at the state level, not masked):** Round UP. Extracted a pure helper
+`melodyMeasureSpan(totalMelodyDuration, measureLengthTicks, fallbackMeasures)` in
+`melodySlice.js` that returns
+`Math.max(1, Math.ceil(totalMelodyDuration / measureLengthTicks - 1e-6))` (with the empty
+fallback), and `SheetMusic.jsx` now calls it for `melodyMeasureCount`. Even division →
+unchanged; uneven (re-barred after a TS change) → the trailing partial measure is shown,
+the slot processor pads a trailing rest into it and ties notes across the new barlines, and
+no notes are dropped. The `-1e-6` epsilon stops floating-point error inflating an exact
+multiple by a whole measure. No `rebarMelody` helper was needed: the main render path feeds
+the WHOLE (or whole-range) melody to `processMelodyAndCalculateSlots`, whose Step 2
+measure-boundary split already ties cross-barline continuations, and `sliceMelodyByRange`
+keeps notes by START offset over the full range, so nothing is bucketed-and-lost.
+
+This implements the "graceful partial-measure display" feature the comment at
+`useAppHandlers.js:114-115` referenced. When stopped, a TS change mutates ONLY
+`timeSignature` (the stopped branch never touches melody state), so the corrected render is
+a single, consistent commit by construction — no regenerate call was added to the stopped
+branch. The playing branch still calls `randomizeAll` (unchanged). Works for all meters
+including irregular ones (verified 3/4, 4/4, 5/4, 7/8) with no per-meter special-casing.
+
+**Files:** `src/utils/melodySlice.js` (new `melodyMeasureSpan`),
+`src/components/sheet-music/SheetMusic.jsx`, `src/utils/__tests__/melodySlice.test.js`.
 
 ---
 
@@ -2432,6 +2518,41 @@ while the row rebalances and a fresh context note swipes in/out at the far edge;
   BEFORE the component's early `return null` (rules-of-hooks). Timers + rAF cancel on
   unmount; the committed `{min,max}` is identical to the old instant path at every step.
 
+**Continuous tap-slide (sheet, Han 2026-06-16) — supersedes the stepper for taps.**
+*Symptom:* with the 2026-06-12 x(t) layout, clicking a note to set a boundary moved
+the notes in CHOPPY discrete jumps, not a smooth slide. *Root cause:* the tap path
+still used the per-natural STEPPER (`beginStepper`/`tick`), which advanced the
+boundary one natural per `STEP_MS` and called `onSetMelodicBoundary` each step →
+one React re-render per natural → the x(t) layout repositioned notes in N discrete
+jumps. *Fix:* the x(t) layout is already continuous in the boundary **ordinals**
+(`rangeX`'s `Tl`/`Tr` are `ordinalOf(selMin/selMax)`). `beginSlide` now glides a
+**fractional ordinal** of the moved boundary from its current value to the tapped
+target over an eased duration (`easeInOut`, `SLIDE_MIN_MS`..`SLIDE_MAX_MS`, scaled
+by distance), re-rendering each frame via `forceReanchor()`. `melodicStaff`
+overrides `oMin`/`oMax` with `slideRef.current[staff].ord` during the slide, so
+`rxFor` positions every note at the in-between layout and they glide smoothly. The
+committed boundary midi (`selMin`/`selMax`) still drives in-band/colour
+classification, so notes keep their identity mid-slide.
+- **Commit once at the end (snap).** App state is written via `onSetMelodicBoundary`
+  exactly once — when the tween lands on the integer target (released tap) — never
+  per natural. This is what removes the choppiness AND avoids leaving a fractional
+  boundary in state. The moved boundary commits exactly at the tapped midi, so
+  `clampRange` adjusting the OPPOSITE boundary causes no pop on the moved note.
+- **Hold-extend preserved.** If the pointer is still down when the tween reaches the
+  target, the same rAF loop keeps advancing the fractional ordinal OUTWARD at
+  `HOLD_ORD_PER_SEC` (= one natural / `STEP_MS`, matching the old hold cadence but
+  smooth), committing each whole-natural crossing, until release or the piano edge.
+- **Drag preserved.** Moving past `DRAG_THRESHOLD` sets `downRef.dragged`, calls
+  `stopSlide(staff)` (the tween cedes to the finger) and runs the unchanged relative
+  drag (`DRAG_PX_PER_STEP`, snap on release). `dragged` now lives in `downRef` (not
+  the stepper) so the slide tween and drag never read each other's state.
+- **§6 compliance.** `slideRef`/`slideRafRef` are refs (not state) so the rAF loop
+  reads the latest values without a stale closure; the visible re-render is driven
+  explicitly by `forceReanchor()` once per frame. Slide rAFs cancel on unmount.
+- The per-natural STEPPER (`beginStepper`/`tick`) is now **dead for taps** but
+  retained (with a NOTE comment) so its CR-A1 burst-cap and hold-wobble design
+  comments aren't lost; `stopStepper` is still called defensively by `beginSlide`.
+
 **Two-zone boundary drag (Han 2026-06-03, #5) — `RangeStaffOverlay.jsx`.** A single
 melodic staff edits BOTH its min and max boundary, with no separate handle hit-targets:
 the pointer-down x decides which boundary the gesture owns. RIGHT of the highest
@@ -2445,6 +2566,63 @@ right") and **drag-LEFT lowers min**; the other boundary holds. The dragged boun
 can't cross the held one (clamped to one natural inside it). Tap/hold still steps the
 zone's boundary toward the pressed column via the shared stepper; > `DRAG_THRESHOLD`
 promotes to the live drag. All writes go through `onSetMelodicBoundary` → `clampRange`.
+
+**Both-axes drag + middle-shrink (Han 2026-06-16) — `RangeStaffOverlay.jsx`.**
+- *Vertical drag.* The boundary drag now moves on BOTH axes: a unified "raise the picked
+  boundary by N naturals" is summed from horizontal + vertical travel. UP (y decreases) always
+  RAISES the pitch; horizontal keeps its per-zone sense (MAX: drag-LEFT raises; MIN: drag-RIGHT
+  raises), so a diagonal drag combines naturally. Same `rp.DRAG` px/natural sensitivity on each
+  axis; `downRef` now stores press `y`; promotion to drag uses the radial distance
+  `hypot(dx,dy) > DRAG_THRESHOLD`. `svgY()` mirrors `svgX()` for the viewBox-correct y.
+- *Middle-shrink.* In-range (selected) noteheads shrink toward the MIDDLE of the range: 100% at
+  the boundaries → ~50% at the exact middle, symmetric and eased (`0.5 + 0.5·easeInOut(uMid)`,
+  `uMid = |ordinal-fraction − 0.5|·2`, positioned by natural ordinal for even steps). Scales the
+  whole `StaffQuarterNote` (head+stem+ledgers) via the existing `scale(s)` wrapper. Out-of-range
+  context notes keep their fade + shrink-with-distance. Complements the dense-MIDDLE β SPACING bow
+  (spacing AND size both compress toward the middle).
+
+**Per-note re-layout cascade + keyboard-driven cascade (Han 2026-06-17, R1/R2) — `RangeStaffOverlay.jsx`.**
+- *Purpose.* When a range is selected the whole note row re-spaces. Moving every note to its new
+  x AT ONCE "felt cumbersome" (Han); the notes now arrive in QUICK SUCCESSION — a short left→right
+  staggered glide (the `flyInCascade` feel, but brief).
+- *How it works.* Each render records a per-staff `midi → screen x` map (`cascadeXMapPending`, the
+  positions `rxFor` produced this frame) and tags every note's outer `<g>` with `data-range-midi`.
+  A `useLayoutEffect` keyed off the committed `${selMin}:${selMax}` detects a boundary change, then
+  builds `moves = {el, fromX (last render), toX (this render)}` and runs `runRangeCascade`: each
+  note's `<g>` is `translateX`-ed from `fromX−toX → 0`, **delayed by its target-x rank** (leftmost
+  starts at 0, rightmost at `CASCADE_STAGGER_MS`≈140 ms; each glide lasts `CASCADE_ELEM_MS`≈220 ms,
+  smoothstep). Total ≈ 360 ms. **§6:** every per-frame transform is set via `element.style` in the
+  rAF and cleared on completion (the committed render owns the final x); no JSX-prop opacity/transform
+  and no app-state writes — the cascade is pure choreography over the already-committed layout.
+- *Single commit-to-state preserved.* The in-overlay TAP now COMMITS its target immediately
+  (`beginSlide` → `onSetMelodicBoundary` once) instead of easing a fractional boundary ordinal, so
+  the cascade (not a continuous all-at-once row glide) animates the tap. The `slideRef`/`slideFrame`
+  machinery survives only to drive HOLD-EXTEND (a sustained press past a `HOLD_DELAY_MS` grace glides
+  the boundary outward continuously, committing each crossing); a `holdExtending` flag gates the
+  cascade OFF while a hold glides, and a live drag (`dragRef`) likewise suppresses it.
+- *R2 — keyboard drives the SAME cascade.* `KeyboardRangeSetter` commits into the same
+  `settings.range` the overlay reads as `trebleRange`/`bassRange` (via `SheetMusic.jsx`), so a
+  keyboard boundary change re-renders the overlay with new min/max and the committed-key effect runs
+  the identical cascade — one animation shared by the staff and the keyboard.
+
+**Keyboard band flash fix (Han 2026-06-17, R3) — `KeyboardRangeSetter.jsx`.**
+- *Symptom.* On opening the keyboard range setter the selection band/handles flashed/slid briefly.
+- *Root cause.* `width` state starts at 0, so the first window is a fallback 7-key one; when the
+  `ResizeObserver` delivers the real width the window widens and `minIdx`/`maxIdx` jump — and the
+  band rects' CSS `transition: x/width` ANIMATED that 0-width→real jump.
+- *Fix.* A `bandTransition` flag (default false) gates the transition OFF until the first real width
+  has been measured AND rendered (flipped true a double-rAF later, past the paint that placed the
+  band). The band rects render with `.kbd-range-band--instant` (`transition: none`) until then, so
+  the initial layout snaps; subsequent stepper steps still glide via `.kbd-range-band`.
+
+**Range boundary highlight var (Han 2026-06-17, R4) — `App.css` + `RangeStaffOverlay.jsx` + `KeyboardRangeSetter.jsx`.**
+The range BOUNDARY was drawn in `--accent-yellow`, which is hard to see against bright chromatone
+notes. A new theme-safe `--range-boundary-highlight` replaces it everywhere the boundary is drawn:
+boundary noteheads (`colorFor`), the selected melodic/percussion preset brackets, the keyboard's
+active bracket, and the keyboard band fill + handles ("the boundary setter on the keys"). It is
+`#ffffff` on the DARK themes (`:root` base, inherited by `nocturne`) and `#2b3a42` on the LIGHT
+themes (`meridienne`, `light`) so it stays visible on every theme — mirroring the per-theme
+`--instrument-icon-filter` pattern. Unrelated `--accent-yellow` usages are untouched.
 
 **Chord-style row + complexity chords (Han 2026-06-03, Batch C).** The chord-line
 preview row is rendered at the SAME vertical height as the real sheet chords (anchored
@@ -2511,13 +2689,82 @@ because opening an overlay stops playback.
   key. The hook snapshots each row's resting state per commit (only while active) so it
   always has the "old" to fade; opacity/transform via `element.style` only (§6), cleared
   on completion/interrupt.
-- **Ottava cross-fade (CR-A3) — `OttavaMarker.jsx`.** The 8va/8vb/15ma marker used to
-  swap instantly. It now cross-fades on VALUE change (ottava + above/below) — which is
+- **Ottava cross-fade + slide (CR-A3 / Phase 4) — `OttavaMarker.jsx`.** The 8va/8vb/15ma
+  marker used to swap instantly. It now cross-fades on VALUE change (ottava + above/below) —
   what a notes transition or a range-driven clef change produces: fade-out 0.5 s → hold
-  0.5 s → fade-in 0.5 s. A new marker skips the fade-out; a removed marker fades out then
-  unmounts; colour-only changes (showSettings yellow) refresh live without a fade. Opacity
-  is driven via the element's `style.opacity` in an rAF (§6) because the transition/morph
-  systems own the surrounding group opacity.
+  0.5 s → fade-in 0.5 s. **Phase 4 (Han 2026-06-16):** the NEW marker also **slides in from
+  the right** (`SLIDE_IN` px, `easeInOut`) during its fade-in, so it streams in like the
+  universal cascade's trailing "other" elements (the fade-in already runs in the ~1.0–1.5 s
+  window). The OLD marker still fades out IN PLACE (a slide-out would read as fleeing); fade
+  remains the fallback when a marker is simply removed. A new marker skips the fade-out;
+  colour-only changes (showSettings yellow) refresh live without a fade. Opacity **and
+  transform** are driven via the element's `style` in an rAF (§6) because the transition/morph
+  systems own the surrounding group opacity; both are cleared on completion.
+
+**Universal 1.5s transition (Han 2026-06-16).**
+
+*Purpose:* play ONE consistent 1.5 s choreographed transition — fade the current sheet out
+(0.25 s) then stream the new content in from the right as a staggered, left-to-right cascade
+— whenever the app swaps what's on the sheet, so song loads / difficulty changes / screen
+changes all feel the same as opening a setter overlay.
+
+*How it works / reuse:* the exact cascade primitive already existed in the overlay enter/exit
+morph, so it was **extracted** rather than reinvented (§6c/§6d):
+
+- **`src/utils/flyInCascade.js` — `runFlyInCascade(svg, { oldEls, newEls, flyDist, onDone })`.**
+  The single source of truth for the tween. Timeline (Han 2026-06-16, `MORPH_MS` 1500 total):
+  OLD groups fade out fast (`FADE_OUT_MS` 250); each `[data-mel],[data-fly]` element in the NEW
+  group SLIDES `translateX(flyDist→0)`, staggered by x (`STAGGER_MS` 500, each slide `ELEM_MS`
+  1000) and stays fully opaque the whole slide (it enters from off-screen, so no fade); every
+  NON-sliding element (text labels, dividers, washes) does a DELAYED fade — it WAITS `FADE_DELAY_MS`
+  1000 then fades in over `FADE_DUR_MS` 500, landing with the last notes ("wait 1 s, then fade
+  0.5 s", Han). **The group opacity is NOT used to fade** — that would also hide the sliding notes
+  until 1 s; the group stays opaque (a container) and `collectFadeEls` walks it for the highest
+  non-fly subtrees to fade individually (fades a `<text>`+`<tspan>` as one unit, never partially).
+  `easeInOut` smoothstep; `data-fly-from` overrides the start x. Opacity/transform via
+  `element.style` in the rAF only (§6); cleared on completion/cancel. **`useRangeMorph` and
+  `useUniversalTransition` both call it** so the overlay morph and the universal transition can
+  never drift apart. (Extraction also dropped a latent double-rAF that fired completion twice.)
+- **`useUniversalTransition(svgRef, transitionKey, flyDist)` — `src/hooks/`.** For IN-PLACE swaps
+  (song load, difficulty) there is no second group mounted, so — like `useClefRefly` — it keeps a
+  CLONE of `.notes-transition` from the previous commit, overlays that frozen clone as the OLD
+  (fades out) and flies the live group in, delegating the tween to `runFlyInCascade`. The clone is
+  removed in `onDone` (same rAF frame as the style reset → no flash) and on interrupt/unmount.
+- **`UniversalTransitionContext` — prop-driven key bus.** App owns `transitionKey` as state +
+  `fireTransition()` (App is the firer, so it can't consume a context it provides → the key is
+  passed DOWN, mirroring `TransitionOverlayProvider`). `SheetMusic` consumes the key and mounts the
+  runner with `flyDist = endX`.
+
+*Triggers (App.jsx):* (1) **song load** — `fireTransition()` at the end of `handleLoadSong`,
+batched into the load commit; (2) **difficulty** — a mount-guarded effect on `difficultyLevel`
+(it feeds the next generation, so this re-flies the current notes as an acknowledgement; a song's
+TIER change already goes through `handleLoadSong`); (3) **setter overlays** — already handled by
+`useRangeMorph` (which now shares the same tween); (4) **screen/tab change** — mount-guarded effect
+firing when `activeTab === 'sheet-music'` ("sheet only", Han), i.e. when you land on the sheet view.
+
+*Participating elements:* anything tagged `data-mel`/`data-fly` SLIDES; everything else does the
+delayed fade. The rule (Han 2026-06-16) is **slide the note-like things, fade the text**. Tagged to
+slide: noteheads, beams, chord labels, the ottava+bracket group, **lyrics** (solfège/text/rhythmic
+rows, inside `.notes-transition`), the transposition setter's **notehead carousel** (a `data-fly`
+OUTER wrapper so the slide doesn't clobber the inner shrink-with-distance scale), its **name
+carousel** + **fixed C4 anchor head**, and the range setter's **preset brackets** + **8va group**.
+Left to delayed-fade (text/chrome): the **"=" / "concert C₄ ="** labels, the transposition **preset
+quick-picks**, the colour-scheme **name labels** + dividers. Phase 4: the melody **ottava marker**
+also slides in on a value change (see its entry above). When tagging a new element that already has a
+transform attribute (e.g. a scaled head), wrap it in an OUTER `data-fly` `<g>` so the cascade's
+translateX composes instead of overwriting.
+
+**Gotcha (Han 2026-06-16):** the transposition setter used to be wrapped in a SINGLE
+`clef-variant-cards clef-variant-enter` `data-fly` block (shared with the clef-variant cards). That
+made the whole setter slide-from-left + fade as one unit (a `clefVariantEnter` CSS keyframe), which
+(a) `collectFadeEls` skipped, so its presets/labels rode the old CSS animation, and (b) conflicted
+with the per-element `data-fly` tags nested inside. The setter's wrapper is now a PLAIN container so
+its own children animate individually; family-switch entrance is covered by `useClefRefly` re-flying
+the clef row. The clef-VARIANT-CARDS branch keeps the block wrapper. The redundant top-right
+"(X inst)" label was also removed — the transposition label at the clef (left) already shows it.
+
+*Invariants:* one tween implementation (`flyInCascade`); the runner subscribes ONLY to the trigger
+states, so manual melody (re)generation — which goes through the round/regen path — never starts it.
 
 **Setter bug batch (Han 2026-06-08 — Groups B/C/N).**
 
@@ -2578,6 +2825,62 @@ because opening an overlay stops playback.
   and overlay→overlay). The melody-flash on overlay→overlay was already prevented by
   `notes-transition`'s `display:none` gate (`SheetMusic.jsx`, overlayEditMode minus a
   melody-involving morph); the clef-select slide is handled by CR-A2's family refly.
+
+- **One-frame melody flash on overlay→overlay switch (Han 2026-06-18).**
+  **Symptom:** switching directly between setter overlays (e.g. INSTRUMENT → COLOUR →
+  RANGE) flashed the melody for a single frame.
+  **Root cause:** `useRangeMorph` arms a morph in a TWO-STAGE effect — a `useLayoutEffect`
+  detects the kind change and calls `setMorph`, then a second effect runs the tween. On the
+  FIRST render after a switch, `overlayKind` has updated but `morphFrom/morphTo` still
+  describe the PREVIOUS morph. The melody→overlay ENTRY morph lasts `MORPH_MS` (1.5 s); if
+  the user switches overlay→overlay while it is still running, that first frame has
+  `overlayKind` already on the new overlay but a STALE morph that still reads
+  `morphFrom === 'melody'`. The old gate
+  (`overlayEditMode && !(rangeMorphing && (morphFrom==='melody' || morphTo==='melody'))`)
+  therefore evaluated to SHOW the melody for that one frame, until the new morph armed on the
+  next render and hid it again.
+  **Fix:** extracted the gate into a pure, unit-tested function
+  `melodyHiddenDuringOverlay(overlayActive, morphing, morphFrom, morphTo, kind)` in
+  `useRangeMorph.js`. It force-shows the melody over an overlay ONLY for a melody→overlay
+  LEAVE fade-out (`morphFrom === 'melody'`) **and** only while that morph is still CURRENT
+  (`kind === morphTo`). Once `overlayKind` moves on to a different overlay, the
+  melody-leaving morph is stale and the melody stays hidden — closing the flash. The
+  return-to-melody fly-in is unaffected: when returning, `kind === 'melody'` so
+  `overlayActive` is false and the outer gate shows the melody. The dropped
+  `morphTo==='melody'` term was dead for its intended purpose anyway (it could only ever be
+  evaluated while `overlayActive` was true, i.e. when it was stale).
+  **Files:** `src/hooks/useRangeMorph.js` (pure helper + WHY comment),
+  `src/components/sheet-music/SheetMusic.jsx` (gate call),
+  `src/hooks/__tests__/useRangeMorph.test.js` (new, 6 tests).
+
+- **One-frame flash on setter OPEN and CLOSE (Han 2026-06-19).**
+  **Symptom:** the between-setter flash was closed (see 2026-06-18 above) but a one-frame flash
+  REMAINED when OPENING a setter (melody→setter) and CLOSING one (setter→melody). On open the
+  setter content briefly showed at REST (un-animated) before flying in; on close the melody
+  briefly showed at REST before the return fly-in.
+  **Root cause:** the deeper version of the same two-stage-effect lag. `useRangeMorph` armed the
+  morph in a `useLayoutEffect` that called `setMorph`, so the returned `morphing/morphFrom/morphTo`
+  lagged `overlayKind` by exactly one render, AND the cascade tween (which sets the fly/fade
+  initial styles) only armed on that SECOND render. React 18 flushes a layout-effect `setState`
+  before paint MOST of the time — but not reliably when the triggering update is itself committed
+  from the click handler first, leaving the first commit (overlay/melody mounted at rest, no
+  cascade styles yet) visible for one frame.
+  **Fix:** arm the morph DURING RENDER. `useRangeMorph` now compares a `prevKindRef` against the
+  live `kind` in the render body and writes the descriptor to a ref (the React-sanctioned
+  "remember info from previous renders" pattern). The returned `morphing/morphFrom/morphTo` are
+  thus correct on the SAME render the kind changes, so (a) the `melodyHiddenDuringOverlay` gate
+  decides the melody's `display` for the morph's FIRST and LAST frame, not one render late, and
+  (b) the tween's `useLayoutEffect` runs on the FIRST commit (after DOM mutation, before paint),
+  applying the fly-in offsets / delayed-fade opacity:0 before the first paint. No animated element
+  flips opacity/display via a JSX prop mid-morph (§6); the cascade still owns opacity/transform via
+  `element.style`. A bumping `useState` only forces the re-render that recomputes `morphing=false`
+  when the tween completes (`onDone` clears the ref iff its id still matches, so a rapid re-arm is
+  not stomped). All four transitions verified: melody→setter (open) shows melody fade-out from
+  frame 0; setter→melody (close) flies the melody in from frame 0; setterA→setterB re-arms
+  immediately so the melody never appears; rapid open→switch likewise.
+  **Files:** `src/hooks/useRangeMorph.js` (render-time arming + WHY comment),
+  `src/components/sheet-music/SheetMusic.jsx` (gate comment),
+  `src/hooks/__tests__/useRangeMorph.test.js` (open/close frame tests added).
 
 *Invariants:* all "off" crosses MUST go through `DisableCross`; any new setter cross too.
 Note colouring in EVERY context follows the WRITTEN (transposed) note (§6 — never a local
@@ -2999,3 +3302,652 @@ drop-shadow). The real mode flags are passed from App as each button's `isActive
 both PianoViews + both KeyboardRangeSetters), `components/controls/PianoView.jsx`
 (`transpose` prop, `tn`, `foldShift`), `components/controls/KeyboardRangeSetter.jsx`
 (the "concert C =" stepper + transposed real keyboard).
+
+---
+
+## 40. Anacrusis REPEAT — pickup flows out of the last bar (Han 2026-06-14, in progress)
+
+**Purpose / Symptom.** A pickup (anacrusis) song that REPEATS replayed its pickup as a separate
+padded measure with a dead rest before each repeat. Musically the pickup of repeat *n+1* should sound
+at the END of repeat *n*'s last bar: the final note shortens to free the pickup beat on non-final
+repeats and rings full only on the very last repeat. Agreed rule (Han): **shorten the final note if
+possible; clip on overlap** — any note that starts inside the last bar's pickup region is disregarded,
+a note that overlaps it is clipped back to the pickup onset. The mechanism is **general / runtime** —
+the anacrusis is detected and the pieces are built at playback time, so it works for any pickup song.
+
+**How it works.** `src/utils/anacrusisRepeat.js` → `buildAnacrusisRepeatParts(melody, measureLen)`
+is the pure core. It treats measure 0 as the anacrusis bar to lift out of the loop and returns:
+- `intro` — notes lying ENTIRELY within m0 (the pickup), offsets unchanged. Played ONCE, before
+  repeat 1.
+- `loopClean` — the body (everything from m1 on) rebased to offset 0. A note that **straddles** the
+  m0→m1 boundary (HBD's first chord starts in the pickup bar and holds into m1) is clipped to its m1
+  portion so chords/bass survive the bar removal — it is NOT dropped. The FINAL repeat uses this; the
+  last note keeps its full length (clean ending).
+- `loopMerged` — `loopClean` with the pickup merged into the end of its last bar: a note overlapping
+  the pickup beat (= `mergePoint` = last-bar-start + pickup onset) is clipped to `mergePoint`, then the
+  pickup notes are appended there. A track with NO pickup notes (chords, pickup-less bass) loops its
+  body unchanged (`loopMerged === loopClean`). Used for repeats 1..N-1 so each repeat ends on the
+  next pickup.
+
+The function assumes m0 IS an anacrusis bar; the **caller gates on the SONG's treble** (`hasAnacrusis
+= offsets[0] ∈ (0, measureLen)`) and then applies the parts to EVERY track — a chord that merely
+straddles m0 has no leading rest of its own (`hasAnacrusis=false`) yet still needs the same rebasing.
+
+Playback order: `intro` → `loopMerged ×(reps-1)` → `loopClean ×1`.
+
+**Invariants.** Pure function, no scheduling/render side effects. Offsets/durations in ticks. Returns
+`hasAnacrusis:false` (loopClean = the melody unchanged) when the first note is on the downbeat. The
+canonical anacrusis detector stays `offsets[0] > 0` (§34) — this module reuses the same notion.
+
+The pure transform preserves all per-note parallel arrays through the slice/merge —
+`ties`, `triplets`, `lyrics` (HBD's words) and `displayNotes` (chord objects) — so words and chord
+labels stay bound to their notes. (`fermatas` are song-level tick events, NOT per-note; the wiring
+layer must re-base them by `-measureLen`, see §34/§ fermata section — the util does not touch them.)
+
+**Wiring discovery (Han 2026-06-15) — why the repeat unit MUST be the body, not the padded bar.**
+A loaded song (HBD) plays via `handlePlayRepeat` → `Sequencer.start(..., repeatForever=true)` =
+`isRepeatMode`, NO regeneration, `numMeasures` constant (9 for HBD) per iteration, `globalMeasureIndex`
+growing 0–8, 9–17, … The naive "keep 9 bars, just empty m0 on repeats" fix is **musically broken**:
+the pickup merged into bar 8 (beat 3) would be followed by the next iteration's empty m0 — a FULL
+empty bar between the pickup and the downbeat it must lead into. The pickup-to-downbeat distance is
+one beat, but a bar is three; so the repeating unit has to be the **body** (`bodyMeasures` = 8), not
+the 9-bar padded melody. Hence the chosen shape:
+
+- **Repeat (infinite) mode** — play `intro` ONCE as a one-beat lead-in (advance `nextStartTime` by
+  the pickup span), then loop `loopMerged` (`numMeasures = bodyMeasures`). Every pass is merged; there
+  is no "last" pass, so `loopClean` is unused here. The pickup is visible at the END of each block
+  (beat 3 of bar 8) rather than as a separate leading anacrusis bar.
+- **Once mode** — play the ORIGINAL melody unchanged (leading pickup in m0, clean final note). No
+  merge: a single pass has no repeat to flow into.
+- **Finite repeats** (if ever exposed for loaded songs) — `loopMerged ×(reps-1)` + `loopClean ×1`.
+
+**Status.** Phase 1 (pure transform + unit tests, lyrics/labels preserved) DONE. Phase 2 wiring is
+multi-subsystem (`loadSong`/`App` produce body+intro and set `numMeasures = bodyMeasures`; `Sequencer`
+schedules the intro once before the `isRepeatMode` loop; `fermatas` re-based; chord-melody rebased) and
+touches §6/§7 scheduling + §11 pagination invariants — to be done WITH live verification (the existing
+repeat path already had render-vs-audio divergence per BACKLOG, so headless changes here are unsafe).
+Phase 3 = pagination polish for the leading-pickup bar on the first pass — IMPLEMENTED (§40b below).
+
+**Files.** `src/utils/anacrusisRepeat.js`, `src/utils/__tests__/anacrusisRepeat.test.js`. (Phase 2
+will add: `src/songs/loadSong.js`, `src/App.jsx`, `src/audio/Sequencer.js`.)
+
+### 40b. Phase 3 — leading pickup bar on the FIRST pass + repeat-numbering parity (Han 2026-06-17)
+
+**Purpose / Symptom.** Two loaded-song (HBD) repeat defects:
+- **#2A (leading pickup bar).** The merged body (§40a) removes the pickup bar from m0, so from the
+  very first downbeat the user saw the 8-bar body with the pickup gone. Han wanted: keep the looping
+  8-bar body, but on the FIRST PASS draw an EXTRA LEADING PICKUP BAR glued to the left — pass 1 shows
+  `[pickup bar] + body`, pass ≥2 show just the body. (The audio already sounds the pickup once as a
+  lead-in via `Sequencer.start`; this is its render/notation counterpart.)
+- **#3 (repeat numbering overflow).** In repeat-forever mode `startMeasureIndex` advances by
+  `bodyMeasures` per pass while `blockMeasureStart`/`blockPlayStart` were STRANDED (the generated path
+  refreshes them in `applyResultToSetters` on each series boundary; the `isRepeatMode` path
+  short-circuits before that — Sequencer.js ~797). So the BarlinesLayer suffix
+  `floor((startMeasureIndex − blockPlayStart) / passSpan) + 1` grew without bound and corrupted at
+  every re-arm (Han saw "11" where a cycling number was expected).
+
+**How it works.**
+- **#2A pass index (session-global).** `mergedBodyPassIndex({startMeasureIndex, originMeasureIndex,
+  bodyMeasures})` = `floor((startMeasureIndex − origin) / bodyMeasures)`. It is SESSION-global (origin
+  0 for a loaded song), NOT per-block, because the intro lead-in plays ONCE for the whole session — so
+  the pickup bar appears only on pass 0. `showsLeadingPickupBar(passIndex)` = `passIndex === 0`.
+- **#2A first-pass melody.** `buildFirstPassMergedMelodies(melodies, measureLen)` PREPENDS the original
+  pickup bar (intro at original m0 offsets) to the merged body (every body offset shifted +measureLen,
+  one bar right). The body still carries its relocated END-pickup so it leads into pass 2 — exactly the
+  looping audio. Fermatas use ORIGINAL ticks (the +measureLen shift undoes the merge's −measureLen
+  rebase, restoring the padded coordinate space). It goes through the SAME `buildAnacrusisRepeatParts`
+  core — no parallel merge math (§40a invariant).
+- **#2A render wiring (App.jsx).** On pass 0 App feeds `buildFirstPassMergedMelodies` (tagged
+  `isFirstPass`) into `MelodyProvider` and renders it through the ORIGINAL anacrusis path:
+  `mergedBodyMeasures = null` + `anacrusisMeasureIndex = 0`, so BarlinesLayer's existing
+  pickup-measure label suppression + `1..N` numbering apply unchanged (§6d — no new barline code). On
+  pass ≥2 App feeds the plain merged body and `mergedBodyMeasures = bodyMeasures`.
+- **#2A highlight alignment (§40a invariant).** The first-pass melody has the body one bar to the
+  RIGHT, but the highlight schedule numbers the body from `globalMeasureIndex` 0 (the intro is a
+  one-shot, not in `scheduledNotes`). So App hands SheetMusic `renderStartMeasureIndex =
+  startMeasureIndex − 1` on pass 0: the pickup bar lands on measure-index `startMeasureIndex − 1` (no
+  schedule entry → never highlighted, correct) and the body realigns to 0..N. The highlight hook
+  matches DOM `data-measure-index` against the schedule's `measureIndex` and never reads
+  `startMeasureIndex` directly, so this override only affects the rendered note indices, keeping render
+  and schedule on the same bars.
+- **#3 repeat-number parity (Sequencer.js).** `_armPaginationSequence`'s initial callback (fired at
+  every repeat-block re-arm) now refreshes `blockMeasureStart`/`blockPlayStart` for `isRepeatMode`
+  using the SAME formula as `applyResultToSetters` (§6c — reuse, don't invent). With `melodyCount`
+  pinned at 0 (no regeneration) `blockMeasureStart` resolves to the loaded song's first measure and
+  `blockPlayStart` tracks each block's start, so the suffix CYCLES `1..repsPerMelody` per block
+  (finite `repsPerMelody`) — matching the generated path. The suffix math is extracted to the pure
+  `computeRepeatPass` (`src/utils/repeatNumbering.js`) so it is unit-testable against stable counters;
+  BarlinesLayer calls it (identical behaviour to the old inline expression).
+
+**Invariants.** (1) The pickup-bar decision is SESSION-global (one lead-in per session); the repeat
+NUMBER is per-block (cycles). They use different counters on purpose. (2) On the first pass the render
+must be shifted back one measure-index so the BODY stays bar-aligned with the schedule (§40a). (3)
+The `isRepeatMode` block-counter refresh reuses the generated path's exact formula — no new infinity
+mechanism. (4) Everything is data-driven through `buildAnacrusisRepeatParts`/`hasAnacrusis`; a
+no-pickup melody and once-mode are strict no-ops.
+
+**#3b Unbounded repeat-numbering for INDEFINITE repeats (Han 2026-06-18).** The finite fix above
+CYCLES the suffix `1..repsPerMelody`. For an INDEFINITE repeat (`repsPerMelody === -1`, "repeat one
+indefinitely") the suffix must instead GROW UNBOUNDED: maat 1 on the 7th pass reads "1.7", the 23rd
+"1.23", the 1000th "1.1000" — no cap, no reset. This applies WHENEVER the repeat is indefinite,
+regardless of whether the looped content is a LOADED SONG or a GENERATED melody (both reach this state
+through `handlePlayRepeat` → `Sequencer.start(..., repeatForever=true)`, which loops the SAME `melodies`
+with no regeneration — `isRepeatMode` short-circuits the series-flip — so the numbering is identical
+for both sources; there is no per-source branching).
+
+The mechanism is a STABLE NUMBERING ORIGIN. The pagination planner resolves `repsPerMelody=-1` to 1
+(`Math.max(1, -1)`), so `_armPaginationSequence` re-arms — and its initial callback fires — on EVERY
+pass. The finite path refreshes `blockPlayStart` to `sequenceStartGlobalMeasure` in that callback,
+which tracks `startMeasureIndex` and pins the suffix at 1. For indefinite mode we instead PIN
+`blockPlayStart` to a session origin: `Sequencer.repeatNumberingOrigin` (a per-session field, null
+until the first indefinite arm captures `sequenceStartGlobalMeasure`) is set ONCE and never overwritten,
+and the callback feeds it to `setBlockPlayStart` on every re-arm. `computeRepeatPass`'s
+`floor((startMeasureIndex − origin) / passSpan) + 1` then climbs without bound. The re-arm itself is
+unchanged (it still schedules the next pass's measures); only the numbering ORIGIN is frozen, so Song
+stays append-only and `globalMeasureIndex` monotonic (§6). `blockMeasureStart` is still refreshed in
+BOTH modes — it drives the BASE measure number N (1..numMeasures within one pass) and resolves to the
+loaded song's first measure every pass because `melodyCount` is pinned at 0; only the `.repeatNum`
+grows. The indefinite signal reused is `repsPerMelody === -1` (the raw value before the `Math.max`
+clamp, matching the Sequencer loop's own `repsPerMelody !== -1` check) — no new flag, no per-value
+table (§6c).
+
+**Open inconsistency (flagged, NOT changed here).** The in-staff `SettingsOverlay` repeats stepper
+sets `repsPerMelody = Infinity` (the "À" option), while the Sequencer loop and the measures/repeats
+NumberPicker treat `-1` as indefinite. These are two different encodings of "indefinite"; the unbounded
+numbering keys on `-1` (consistent with the Sequencer's own loop logic). If indefinite is selected via
+the `Infinity` stepper the Sequencer's iteration-reset (`repsPerMelody !== -1`) never fires either, so
+that path needs separate normalization — out of scope for this change, raised for Han.
+
+**Needs Han's live repro.** The running suffix actually climbing on screen (1.7, 1.23, …) across a
+long indefinite session, plus all render-timing behaviour from #2A/#3 (the exact frame the pickup bar
+appears/disappears, the highlight on pass 1), needs a live verification.
+
+**Files.** `src/utils/anacrusisRepeat.js` (`mergedBodyPassIndex`, `showsLeadingPickupBar`,
+`buildFirstPassMergedMelodies`), `src/utils/repeatNumbering.js` (`computeRepeatPass`), `src/App.jsx`
+(pass-aware merged memo + `renderStartMeasureIndex` + prop wiring), `src/audio/Sequencer.js`
+(`_armPaginationSequence` repeat-mode counter refresh), `src/components/sheet-music/BarlinesLayer.jsx`
+(uses `computeRepeatPass`), `src/utils/__tests__/anacrusisRepeat.test.js`,
+`src/utils/__tests__/repeatNumbering.test.js`.
+
+### 40a. Unified render/loop representation — the sheet renders what the Sequencer loops (Han 2026-06-15)
+
+**Purpose / Symptom.** During looping playback of a pickup song the AUDIO + HIGHLIGHT used the
+BODY-MERGED melody (pickup lifted out of m0 and appended to the end of the last body bar; body =
+`bodyMeasures` bars, rebased to 0) while the RENDER drew the ORIGINAL padded melody (pickup still at
+m0, full `numMeasures` bars). The two representations disagreed by exactly one bar: the highlight
+schedule keyed measure indices off the 8-bar merged body while the sheet drew the 9-bar padded
+melody, so every body note's active-highlight resolved ONE MEASURE BELOW where it was drawn (the
+note-highlight trailed the audio by a measure), and the pickup that leads into the next loop was
+never visible.
+
+**How it works.** The renderer now obtains the SAME merged body the Sequencer loops, so the two
+always agree (that agreement is the whole fix):
+
+- **Single merge source.** `buildAnacrusisRepeatParts(track, measureLen)` is the only place the
+  pickup→last-bar merge math lives. Both the Sequencer (`Sequencer.start`) and the render helper
+  `buildMergedRenderMelodies(melodies, measureLen)` (anacrusisRepeat.js) consume it — no parallel
+  merge implementation.
+- **Render wiring (App.jsx).** When `isPlaying && headerPlayMode !== 'once'` (= LOOPING: repeat OR
+  continuous) and the treble has a real anacrusis, App computes `mergedRenderMelodies` and feeds the
+  merged bodies into `MelodyProvider`. `SheetMusic` renders whatever the melody context gives it, so
+  it shows the merged body automatically. When stopped / in once-mode the memo is null and the
+  ORIGINAL padded melodies render unchanged. For a non-pickup melody the helper returns null (no-op),
+  so continuous rounds AFTER series 1 (regenerated, no pickup) are untouched.
+- **Gating parity (Sequencer.js).** The Sequencer's anacrusis block is gated on `!once &&
+  hasAnacrusis(treble, ml)` (was `repeatForever`-only), so continuous mode no longer replays a dead
+  m0 on its first (loaded) series. The render gate (`isPlaying && headerPlayMode !== 'once' &&
+  hasAnacrusis`) mirrors it, so the schedule and the sheet are always the same representation.
+- **Numbering (BarlinesLayer.jsx).** A new `mergedBodyMeasures` prop signals "the merged body is on
+  screen — there is NO separate pickup measure." When set: (1) the pickup-measure label suppression
+  and the `-1` number shift are DISABLED (the first rendered bar IS measure 1), and (2) the
+  repeat-pass suffix divides `(startIdx - blockPlayStart)` by `mergedBodyMeasures` (the looped unit
+  the Sequencer advances `globalMeasureIndex` by each pass), NOT the padded `numMeasures`. Pass 1
+  shows plain numbers `1..N`; passes ≥2 append ` . R`.
+- **Unified detection (item 4).** App's `anacrusisMeasureIndex` and both merge gates consume the one
+  shared `hasAnacrusis(melody, measureLen)` predicate — no two independent detections that can drift.
+
+**Invariants.** (1) The renderer and the highlight schedule MUST be gated identically so they always
+view the same representation — that equality is what keeps the highlight on the right bar. (2) No
+song/string-literal special-casing: everything is data-driven through `buildAnacrusisRepeatParts` /
+`hasAnacrusis` and works for any meter and any pickup song; a no-pickup melody is a strict no-op.
+(3) The merge math has a single home (`buildAnacrusisRepeatParts`); the render helper and the
+Sequencer only differ in wrapping (the audio path wraps in `Melody`, rebases `fermatas`, and builds
+the one-time intro; the render path returns plain melody-like objects for SheetMusic).
+
+**Files.** `src/utils/anacrusisRepeat.js` (`buildMergedRenderMelodies`, `hasAnacrusis`), `src/App.jsx`
+(merged-body memo + MelodyProvider wiring + unified detection), `src/audio/Sequencer.js` (gate
+relaxed to `!once`, shared `hasAnacrusis`), `src/components/sheet-music/SheetMusic.jsx`
+(`mergedBodyMeasures` prop threaded to BarlinesLayer), `src/components/sheet-music/BarlinesLayer.jsx`
+(merged-body numbering), `src/utils/__tests__/anacrusisRepeat.test.js`.
+
+---
+
+## 41. Instrument selector — in-staff INSTRUMENT mode (Han 2026-06-16)
+
+**Purpose.** A new in-staff setter (sibling of the range / clef / colour setters) that lets the
+user pick the PLAYBACK instrument PER STAFF: the treble row sets the treble instrument, the bass
+row sets the bass. It is shown ON the staff as a horizontally-scrollable strip of instrument
+cards (icon + name), GROUPED by instrument family, with the SELECTED instrument auto-centred and
+the rest scrollable off-screen.
+
+**How it works.**
+- A new mode flag `instrumentEditMode` (App, `useState`) mirrors `colorEditMode` EXACTLY —
+  mutually exclusive with range / clef / colour / legacy-settings. `handleToggleInstrumentEdit`
+  stops playback, closes the others; the sibling toggles + the settings toggle all
+  `setInstrumentEditMode(false)`. Toggled from a new SubHeader menu-button (`Piano` glyph,
+  label `INSTRUMENT`, `onOpenInstrument`).
+- It is a morph surface like the others: `overlayKind` resolves to `'instrument'`, and
+  `useRangeMorph.groupsForKind('instrument')` returns the `.instrument-overlay` group (a single
+  group, no sibling chord row — same as colour). The melody hides because
+  `overlayEditMode` now includes `instrumentEditMode`.
+- `overlays/InstrumentStaffOverlay.jsx` is pure layout. Per visible staff it renders ONE
+  `ClefCardCarousel` (REUSED — it already auto-centres the active card via `centerOffsetFor` +
+  the selection-change glide, disambiguates tap-vs-drag, and draws edge fades / clip). The card
+  list is built group-by-group with a **non-tappable GROUP-LABEL separator card** before each
+  group (so the strip reads "grouped by type"); group cards carry no `onTap` so a tap on them is
+  a no-op. Instrument cards render the placeholder icon + name in a `<foreignObject>` (so the
+  exact same lucide glyph the rest of the app uses appears); the active card is
+  `--text-primary`, the rest `--text-lowlight` — the shared setter highlight convention.
+- **Selection reuse (§6c).** A tap calls `onSetInstrument(staff, slug)` → SheetMusic routes it to
+  `setTrebleSettings`/`setBassSettings(prev => ({ ...prev, instrument: slug }))`, the EXISTING
+  instrument-write path. Current instrument = `trebleSettings.instrument` / `bassSettings.instrument`.
+- **Cascade.** Each staff's carousel is wrapped in a `<g className="instrument-cards" data-fly>`
+  block (mirrors the clef-cards `data-fly` wrapper, WITHOUT the `clef-variant-enter` CSS) so the
+  whole strip slides in from the right as a unit (`flyInCascade`). The attribution line and the
+  group-label cards stay UNtagged so they do the cascade's delayed fade.
+- **Instrument list (§6c — single source of truth).** `constants/instruments.jsx` exports the
+  grouped list (`INSTRUMENT_GROUPS`: Keys / Guitars & Bass / Strings / Winds / Tuned Percussion /
+  Voice), a derived flat `INSTRUMENTS` name→slug map, `INSTRUMENT_LIST`, `getInstrumentIcon(slug)`
+  (lucide glyph picked by family — no per-instrument table), `instrumentNameForSlug`, and
+  `ICON_ATTRIBUTION`. The original 13 instruments are extended with Electric Piano, Organ, Cello,
+  Clarinet, Oboe, French Horn, Marimba, Vibraphone, Acoustic Bass, Choir (all valid GM smplr
+  slugs). `RangeControls.jsx` now IMPORTS `INSTRUMENTS` + `getInstrumentIcon` from here (its
+  inline duplicate was removed), so the stepper and the in-staff setter can never drift.
+
+**Icon attribution / future icons8 swap.** While the setter is open an attribution line
+(`ICON_ATTRIBUTION`, currently `"Instrument icons: placeholder (lucide-react, ISC)"`) is drawn
+below the bottom staff. Icons are deliberately resolved in ONE place: `getInstrumentIcon(slug)`.
+To switch to real icons8 art, return an `<image href=…/>` per slug from `getInstrumentIcon` and
+flip `ICON_ATTRIBUTION` to `"Icons by Icons8 — icons8.com"` — nothing else changes (both TODOs
+are marked in `constants/instruments.jsx`).
+
+**Invariants.**
+- The instrument LIST + icon mapping live only in `constants/instruments.jsx`. Never re-declare
+  them in a consuming component.
+- `instrumentEditMode` is mutually exclusive with range / clef / colour / legacy-settings (it
+  mirrors `colorEditMode` everywhere that flag appears).
+- §3a: the carousel's tap/drag surface is inside `ClefCardCarousel`; the overlay additionally
+  draws an orange debug rect over each staff's hit window in `debugMode`.
+
+**Files.** `src/constants/instruments.jsx` (new), `src/constants/__tests__/instruments.test.js`
+(new), `src/components/sheet-music/overlays/InstrumentStaffOverlay.jsx` (new),
+`src/components/sheet-music/overlays/__tests__/InstrumentStaffOverlay.test.jsx` (new),
+`src/components/sheet-music/SheetMusic.jsx` (prop + mount + overlayKind/overlayEditMode + render),
+`src/hooks/useRangeMorph.js` (`groupsForKind('instrument')`), `src/App.jsx` (state + toggle +
+sibling resets + SheetMusic/SubHeader wiring), `src/components/layout/SubHeader.jsx` (INSTRUMENT
+button), `src/components/controls/RangeControls.jsx` (imports the shared instrument module).
+
+### 41a. Carousel wave-2: icons +15%, per-category colouring, percussion-kit carousel (Han 2026-06-22)
+
+Three additions to the in-staff instrument carousel (`InstrumentStaffOverlay.jsx`). All three reuse
+the existing `NonLinearCarousel` primitive + the existing category-bracket machinery (§6d).
+
+**(E) Icons +15%.**
+- **Purpose:** larger, more legible instrument icons.
+- **How:** the named icon-size constant `ICON` in `InstrumentStaffOverlay.jsx` was changed from `33`
+  to `33 * 1.15` (≈ 37.95). Kept as the product so the +15% intent and the 33 base stay visible.
+- **Invariants:** card spacing (`BASE = 56`) is unchanged — the ~38px icon still clears the 56px
+  slot stride, so no clipping. Icon stays centred (`x = -ICON/2`).
+- **Files:** `InstrumentStaffOverlay.jsx`.
+
+**(B) Subtle per-category colouring.**
+- **Purpose:** a glance tells the player which family they're scrolling — the active card label and
+  the category bracket take a SUBTLE colour keyed on the instrument's top category.
+- **How it works:** one theme-aware CSS var per top category (`--cat-keys`, `--cat-guitars`,
+  `--cat-bass-guitars`, `--cat-strings`, `--cat-wind`, `--cat-percussion-tuned`, `--cat-voice`,
+  `--cat-synth`) is defined in `src/styles/App.css` — in `:root` (dark base, inherited by
+  `nocturne`) and overridden in the two light themes (`meridienne`, `light`), exactly mirroring the
+  existing `--instrument-icon-filter` / `--range-boundary-highlight` per-theme pattern. The values
+  are desaturated tints so they read on staff lines without fighting the notation.
+  `categoryColorVar(category, fallback)` in `constants/instruments.jsx` maps a category STRING
+  (read straight off the item's `family`, which the 2026-06-22 re-cat made equal to the top
+  category) to its `var(--cat-…)` — a string→var map, NOT a slug→colour table (§6c). The ACTIVE
+  card name uses the tint; inactive cards stay `--text-lowlight` (the shared setter highlight
+  convention). The bracket (both dashed paths + the label) takes the tint too; per §6d it KEEPS its
+  `strokeWidth 1` + dash — only the colour changes from `--text-primary` to the category var. The
+  bracket colour is written both at the React rest render AND imperatively each frame in
+  `updateHeaders` (the category can change as runs scroll).
+- **Invariants:** colours live ONLY in `App.css` (one block per theme); the category→var map lives
+  ONLY in `instruments.jsx`. Adding a category = one `--cat-*` block per theme + one map entry.
+- **Files:** `src/styles/App.css` (`--cat-*` in `:root` + `meridienne` + `light`),
+  `src/constants/instruments.jsx` (`CATEGORY_CSS_VAR`, `categoryColorVar`),
+  `InstrumentStaffOverlay.jsx` (card + bracket fill/stroke).
+
+**(D) Percussion-kit carousel.**
+- **Purpose:** when the PERCUSSION staff is shown in the instrument setter, the in-staff carousel
+  lets the user pick a drum KIT (writes `percussionSettings.instrument`).
+- **How it works:** `StaffCarousel` was generalised (item list + `idOf`/`labelOf`/`groupOf`/
+  `iconUrlOf`/`colorCategoryOf`/`onSelect` accessor props, defaulting to the instrument behaviour)
+  so the SAME carousel + bracket code drives both. The kit catalog `PERCUSSION_KIT_CATEGORIES` is
+  DERIVED in `drumKits.js` from the existing `DRUM_KITS` (FreePats → "Sampled"; the 5 DrumMachine
+  kits → "Drum machines") + `GM_ACOUSTIC_KITS` (→ "Acoustic MIDI") — no hardcoded kit list (§6c).
+  Each category carries an icons8 BASENAME resolved via the shared `getIconUrlByBasename` (reuses
+  the instrument carousel's icon path — `drum-set` + `drums` assets EXIST; `synthesizer` is a
+  `electronic-music` PLACEHOLDER + `TODO(icons8)`). Selecting a kit calls
+  `onSetPercussionKit(id) → setPercussionSettings(prev => ({...prev, instrument: id}))` — the SAME
+  setter path the rest of the app uses; `id` is the exact value `useInstruments.js` branches on.
+- **⚠ HONEST GAP — Acoustic MIDI (GM) kits are NOT offered yet.** smplr's Soundfont set
+  (gleitz/MusyngKite + FluidR3_GM) contains NO GM-percussion bank: `standard`/`jazz`/`electronic`
+  are not valid Soundfont instrument names, and there is no `KIT_NOTE_MAPPINGS` entry mapping the
+  app's pad ids to GM-percussion MIDI notes. The dormant `isGMKit` branch in `useInstruments.js`
+  therefore cannot produce audio. Per §6c we did NOT fabricate mappings/soundfont names: the
+  "Acoustic MIDI" category is flagged `available: false` in `PERCUSSION_KIT_CATEGORIES` and the
+  carousel SKIPS unavailable categories (offering silent kits would be a regression). To enable it,
+  add a valid GM-percussion soundfont source + a pad→GM-MIDI mapping, then flip `available` to true.
+- **Invariants:** kit catalog + labels live ONLY in `drumKits.js`; the carousel derives its items
+  from it. §3a debug hit box is drawn (inside `NonLinearCarousel`). §5b: kit labels are display
+  strings (Unicode-ready; no accidentals in current ids).
+- **Files:** `src/audio/drumKits.js` (`GM_ACOUSTIC_KITS`, `PERCUSSION_KIT_CATEGORIES`,
+  `percussionKitLabel`), `src/constants/instruments.jsx` (`getIconUrlByBasename`),
+  `InstrumentStaffOverlay.jsx` (generalised `StaffCarousel` + percussion carousel mount),
+  `SheetMusic.jsx` (percussion props + `onSetPercussionKit`),
+  `overlays/__tests__/InstrumentStaffOverlay.test.jsx`, `constants/__tests__/instruments.test.js`.
+
+---
+
+## 38. NonLinearCarousel Primitive + Redesigned Instrument / Colour Setters (Han 2026-06-17)
+
+**Purpose / what it does.** A redesign of the in-staff INSTRUMENT and COLOUR setters onto one
+shared, reusable carousel primitive. Instead of the flat horizontally-scrolling
+`ClefCardCarousel` strip, both setters now use a COMPACT, centre-weighted carousel: ~5 items
+are visible at once, the MIDDLE item is the active/selected one, and items to the sides FADE
+OUT and SHRINK progressively toward the edges. The whole carousel window is ~200px (user
+units) so two can be juxtaposed (treble + bass instrument carousels stack vertically). Han
+confirmed the primitive is built reusable — instrument + colour now, transposition / range
+later.
+
+### 38.1 `NonLinearCarousel.jsx` — the primitive
+
+**How it works.**
+- Renders every item wrapped in a `<g>` whose `transform` (translateX + scale) and `opacity`
+  are written PER FRAME via `element.style` in an rAF pass (§6 — never JSX props). A fractional
+  "centre position" `posRef` says which item index currently sits at `centerX`; each item's
+  signed distance `d = i - pos` from the centre drives an eased, symmetric falloff:
+  `scaleForDist` (1.0 → ~0.45 at the edge) and `opacityForDist` (1.0 → 0). `xOffsetForDist`
+  integrates the shrinking stride so neighbours stay visually packed rather than drifting.
+- **Selection — BOTH click and drag** (Han). Tap-vs-drag is disambiguated by movement
+  (`< TAP_SLOP` user units = tap), and client-px → SVG-user conversion uses the owning `<svg>`'s
+  screen CTM — both borrowed verbatim from `ClefCardCarousel` so the finger tracks 1:1 across
+  viewBox scales. A TAP on a side item glides it to the centre (`animatePosTo`, eased
+  `CENTER_ANIM_MS`) and fires `onSelect`. A DRAG moves items through the centre live; on settle
+  it snaps to the nearest index and commits that as the selection.
+- The externally-controlled `activeIndex` glides the resting centre when it changes (unless a
+  drag is in progress), so a selection made elsewhere re-centres smoothly.
+
+**CYCLICAL / wrap-around (Han 2026-06-17).** The carousel LOOPS infinitely — there is no hard
+clamp at the ends; dragging past the last item wraps to the first and vice-versa. `posRef` is a
+FREE fractional value kept in the canonical wrapped domain `[0, N)` (`wrapPos = ((p%N)+N)%N`).
+For rendering, each item `i` is drawn at its NEAREST signed distance from the centre,
+`signedDist(i, pos, N) = ((i - pos + N/2 + N) % N) - N/2`, in `(-N/2, N/2]` — so an item near
+index 0 sits just to the RIGHT of an item near index `N-1`, and the ring loops with no seam.
+Only items with `|d| <= VISIBLE_HALF + 0.5` are visible. Drag updates `pos` freely (no clamp);
+`applyPos` wraps it. `animatePosTo(target)` glides the SHORTEST way around the ring: it computes
+`delta = signedDist(target, from, N)` and tweens `from → from + delta` (which may leave `[0,N)`;
+`applyPos` wraps it back), so tapping the right-most visible item glides FORWARD across the seam
+rather than spinning all the way back. Commit maps the wrapped centre back to a real item index
+(`wrapPos(round(pos), N)`).
+
+**LIVE position callback (Han 2026-06-17).** An optional `onPosChange(pos)` prop fires every
+rAF/drag frame from inside `applyPos` with the live WRAPPED centre. Consumers (the instrument
+setter's category brackets) use it to track the carousel during a gesture, writing their own
+`element.style`/attributes per frame (§6) — the carousel never sets React state per frame. The
+callback is held in a ref so `applyPos` stays a stable closure.
+
+**Props.** `items`, `activeIndex`, `renderItem(item, index)` (authors the item around the
+origin (0,0) — the wrapper applies translate/scale/opacity), `centerX`/`y`, `baseWidth`
+(per-item slot stride), `height`, `onSelect(item, index)`, `onPosChange(pos)` (optional, live
+per-frame centre), `debugMode`.
+
+**Exports for setters.** `visibleRange(centerIndex, count)` → an ARRAY of the real item indices
+currently visible around a centre, in left→right VISUAL order, WRAPPING across the `N-1 → 0` seam
+(e.g. a centre near index 0 returns `[N-2, N-1, 0, 1, 2]`); accepts a fractional centre (a 6th
+item can peek in mid-transit). So category-header layout and the carousel agree on "what's on
+screen" across the loop. `xOffsetForDist` + `VISIBLE_HALF` for header positioning.
+
+**Invariants.**
+- All per-item opacity/scale/x go through `element.style` in the rAF, reset on cancel/unmount
+  (§6). Never via JSX props.
+- §3a: the orange debug rect EXACTLY matches the real transparent drag/tap surface
+  (same x/width/height).
+- jsdom lacks `SVGSVGElement.createSVGPoint`; `toSvgX` guards on it so render-only tests don't
+  crash (the gesture itself isn't unit-tested).
+
+### 38.2 Instrument setter rebuilt (`InstrumentStaffOverlay.jsx`)
+
+- PER STAFF (treble + bass each get their own ~200px carousel — unchanged contract).
+- The family ICON (lucide placeholder, enlarged 22 → **33**, ~50% larger) sits ON the staff;
+  the instrument NAME sits BELOW the staff (`<text>`).
+- **Dynamic CATEGORY header** ABOVE the staff, styled like the 8va "blokhaken" bracket (reused
+  look from `renderMelodyNotes`: dashed `4,3` line + short end hooks, `var(--text-primary)`,
+  §6d) with the UPPERCASE category label centred in a gap: `|———— STRINGS ————|`. A bracket
+  shows for each consecutive same-category RUN with 2+ visible items, spanning that run.
+  `categoryHeaders(pos)` walks the wrap-aware ordered `visibleRange(pos, N)` array, groups
+  CONSECUTIVE items by category (so a category straddling the seam stays two separate visual
+  runs), and brackets each run of 2+; each run's x-span uses the shared
+  `xOffsetForDist(signedDist(idx, pos, N))` the carousel itself uses. Categories =
+  `INSTRUMENT_GROUPS` labels (Keys / Strings / Winds / Tuned Percussion / Voice), uppercased.
+- **LIVE-MOVING brackets (Han 2026-06-17).** The brackets now MOVE WITH the carousel during a
+  drag/glide (Han confirmed it's worth the cost). At rest they derive from the COMMITTED
+  `activeIndex` (the React-rendered `headers`); during a gesture the carousel's `onPosChange`
+  drives `updateHeaders(livePos)`, which recomputes the brackets and rewrites a FIXED POOL of
+  `MAX_HEADERS` bracket `<g>` slots IMPERATIVELY each frame — path `d`, label `<text>` x/y/text,
+  and slot `style.opacity` (unused slots parked transparent). This stays §6-compliant (no
+  per-frame React state) and morph-safe (the brackets live inside the `data-fly` carousel wrapper
+  so they SLIDE in with the morph; `updateHeaders` only fires during an active gesture, never
+  during the enter/exit morph). A `useLayoutEffect` on `activeIndex` re-asserts the at-rest slot
+  opacities after every settle so the last imperative write never leaves a slot stuck. The slot
+  pool is pre-populated (`slotRefs.current` seeded with `{}` objects) so child ref callbacks
+  (fired bottom-up before the parent `<g>`) have a slot to attach to.
+- Cards are SVG-NATIVE (no `<foreignObject>` — it doesn't composite with the morph group
+  opacity and broke the INSTRUMENT→COLOUR slide, Han 2026-06-17) and the whole carousel is
+  wrapped in a `data-fly` `<g>` so it slides in as a unit with the enter/exit morph. Brackets +
+  attribution stay UNtagged → they do the cascade's delayed fade.
+- Selection wiring unchanged: `onSetInstrument(staff, slug)` → `setTrebleSettings` /
+  `setBassSettings`.
+
+### 38.3 Colour setter rebuilt (`NoteColoringStaffOverlay.jsx`)
+
+- The 5 scheme sets are now carousel ITEMS on the same primitive (middle active, sides
+  fade+shrink). Each item renders its own example noteheads (C4–C5) coloured by that scheme via
+  the canonical `StaffQuarterNote` (§6d), plus the scheme label below.
+- **FLAT baseline — "flatten the wheel" (Han 2026-06-17).** The example notes no longer ASCEND
+  the staff by pitch (`getNoteAbsoluteY` removed). Every notehead now sits on ONE horizontal
+  baseline — the MIDDLE staff line (`trebleStart + FLAT_DY`, `FLAT_DY = 20`) — so each scheme
+  reads as a horizontal COLOUR SWATCH: the colour (not pitch) is the point. Still the canonical
+  `StaffQuarterNote` glyph + per-note `melodicNoteColor`; only `y` is held constant. No ledger
+  lines when flat (they're only needed off-staff).
+- **Reorder + rename (Han 2026-06-17):** none → chord → scale → chromatone → subtle chromatone.
+  `'scale'` is the renamed LABEL of the legacy `'tonic_scale_keys'` mode — the mode VALUE stays
+  `'tonic_scale_keys'`; only the visible label changed (audio/selection wiring untouched). No
+  category headers for colour.
+- The palette-cycle order/labels were updated to match in the three cycle sites:
+  `SubHeader.jsx` (`tonic_scale_keys` header label → `SCALE`), `RangeControls.jsx`
+  (`tonic_scale_keys` → `SCALE`), `SettingsPanel.jsx` (`Tonic / Scale` → `Scale`, + a
+  `Subtle chromatone` arm). All three `COLOR_MODES` arrays reordered to
+  `['none', 'chords', 'tonic_scale_keys', 'chromatone', 'subtle-chroma']`.
+
+### 38.4 Clef always shows in the colour menu + F-major fix
+
+**Symptom.** The static treble clef glyph was hidden in colour-edit mode; Han also reported the
+g-clef missing "specifically in F MAJOR" (1 flat).
+**Root cause.** `SheetMusic.jsx` gated the static clef on `!clefEditMode && !colorEditMode`.
+The clef CHAR comes from `clefSymbols[clefTreble]` (key-INDEPENDENT), so nothing about F major
+selects or mis-positions it — the only thing hiding it was the `colorEditMode` guard. "F major"
+was incidental to when Han happened to be in colour mode.
+**Fix.** Removed the `colorEditMode` half of the guard (now `!clefEditMode`), so the clef shows
+in colour mode in every key. The redesigned colour carousel is centred mid-staff and leaves the
+clef gutter (x≈13) free, so they don't overlap. Clef stays hidden in clef-edit mode (the clef
+selector draws its own).
+
+**Files.** `src/components/sheet-music/overlays/NonLinearCarousel.jsx` (new),
+`src/components/sheet-music/overlays/__tests__/NonLinearCarousel.test.jsx` (new),
+`src/components/sheet-music/overlays/InstrumentStaffOverlay.jsx` (rebuilt on the primitive),
+`src/components/sheet-music/overlays/NoteColoringStaffOverlay.jsx` (rebuilt + reorder/rename),
+`src/components/sheet-music/overlays/__tests__/InstrumentStaffOverlay.test.jsx` (updated),
+`src/components/sheet-music/overlays/__tests__/NoteColoringStaffOverlay.test.jsx` (new),
+`src/components/sheet-music/SheetMusic.jsx` (clef un-hidden in colour mode),
+`src/components/layout/SubHeader.jsx`, `src/components/controls/RangeControls.jsx`,
+`src/components/controls/SettingsPanel.jsx` (COLOR_MODES order + labels).
+
+---
+
+## 42. Generator Setters — PLAYBACK / GENERATION / GENERATION ADVANCED (Han 2026-06-22)
+
+**Purpose / what it does.** Three new in-sheet-music setter overlays, siblings of the
+range / clef / colour / instrument / legacy-settings overlays. Each has its own SubHeader
+menu-button and its own morph surface, and all three are FULLY mutually exclusive with every other
+edit mode (and with each other). They expose the bottom-view generator controls directly on the
+staff, organised **per "balk"** — one row per visible STAFF (treble / bass / percussion) plus a
+4th **CHORDS** balk:
+
+1. **PLAYBACK** (`'playback'`, group class `.playback-overlay`) — the existing SettingsOverlay
+   content (global `numMeasures` + `repsPerMelody` steppers; per-staff per-odd/even-round
+   visibility + volume). It REUSES `SettingsOverlay` (§6c — no duplicate component); the only
+   change to `SettingsOverlay` is a new optional `groupClassName` prop (default `'settings-overlay'`)
+   so the PLAYBACK instance flies in under `'playback-overlay'` and its morph never collides with
+   the legacy `'settings'` surface. The two are mutually exclusive, so the classes never coexist.
+2. **GENERATION** (`'generation'`, `.generation-overlay`) — `GenerationSetterOverlay.jsx`. Per balk:
+   `melody notes`, `melody type`, `notes / measure`.
+3. **GENERATION ADVANCED** (`'generation-advanced'`, `.generation-advanced-overlay`) —
+   `GenerationAdvancedSetterOverlay.jsx`. Per balk: `variability`, `span`, `tuplets`,
+   `smallest note` (chords balk: only `passing chords`).
+
+### 42a. GENERATION / GENERATION ADVANCED setters — CAROUSEL STYLE (Han 2026-06-22)
+
+**Purpose / Symptom.** The first version drew each field as a tiny `SvgSetter` stepper. The
+smallest-note field rendered a Maestro glyph that was UNREADABLE at that size, and the dense
+steppers were hard to read in general. Han's final interview answer: rebuild EVERY field as a full
+**5-wide `NonLinearCarousel`** (`visibleHalf=2` → 5 visible items), each item shown as a **lucide
+icon on top + text label below**, with a dashed category/field **"blokhaken" bracket** above —
+the SAME look as the in-staff instrument carousel (§37 / `InstrumentStaffOverlay`).
+
+**How it works.**
+- The carousel ENGINE is reused — `NonLinearCarousel` via a new shared wrapper
+  `src/components/sheet-music/CarouselFieldItem.jsx` (§6d — no second carousel engine). That file
+  exports: `CarouselField` (one field = one carousel + its bracket), `makeRenderItem` (lucide icon
+  over a `<text>` label, active = `var(--text-primary)` / others `var(--text-lowlight)`),
+  `FieldNameBracket` (single static bracket spanning the visible window, labelled with the field
+  name) and `FamilyBrackets` / `familyBrackets` (grouped brackets for the melody-type field).
+- Lucide icons render as inline SVG: the lucide React component is given explicit
+  `x/y/width/height` and `color="currentColor"`, nested inside the sheet `<svg>` (no
+  `<foreignObject>` — same constraint as the instrument carousel). The wrapping `<g>` sets `color`
+  so active/dim colouring is one place.
+- **Brackets.** Replicated from `InstrumentStaffOverlay.bracketGeom` / `categoryHeaders` (dashed
+  `4,3`, `var(--text-primary)`, `strokeWidth 1`, label gap in the middle) and flagged
+  `// TODO(§6d): consolidate bracket helper with InstrumentStaffOverlay` — that overlay is owned by
+  another workstream, so we replicate-and-flag rather than extract a shared module now. The
+  **melody-type** field groups its flat rule list by rule FAMILY (random / arp / walk / chords /
+  fixed) and draws one bracket per consecutive same-family run (≥2 visible), tracking the carousel
+  live via `onPosChange` (anti-jitter edge-pinning mirrors the instrument overlay). All OTHER fields
+  draw a single static field-name bracket spanning the visible window.
+- **Icon/label maps** live in `src/constants/generationFields.js` as `FIELD_ITEM_ICONS`
+  (per option value/key), `NUMERIC_ICONS` (`Hash`/`Percent` for number-as-label fields),
+  `SPAN_ICON`, `SMALLEST_NOTE_LABELS` (readable words: whole/half/quarter/eighth/sixteenth — the
+  whole point), and `MELODIC_FAMILY_OF` / `PERC_FAMILY_OF` + `FAMILY_DISPLAY_NAMES` for the family
+  brackets. These are the single source of truth — "voorlopig lucid icons" (placeholders Han may
+  swap from one place).
+- **Numeric fields** (`notesPerMeasure`, `rhythmVariability`) render the NUMBER as the label plus a
+  small generic icon. **`smallestNoteDenom`** renders a note icon + a readable duration WORD
+  (fixes the unreadable Maestro glyph).
+- **Passing chords** (GEN. ADVANCED chords balk) uses a direct `NonLinearCarousel` (not
+  `CarouselField`) because "active" is a SET, not one value: each type item is bright when ENABLED
+  in `passingChordTypes`, dim otherwise; selecting the centred type TOGGLES it. Field-name bracket
+  "passing chords" above. PROVISIONAL placement (tuplets column) — flag for Han.
+
+**Invariants / what did NOT change.**
+- **WIRING is identical** to the stepper version: each select writes the SAME field via the SAME
+  `setState` path (GENERATION: notePool / randomizationRule(+type) / notesPerMeasure;
+  perc enabledPads preset; chords complexity / strategy / chordCount. GEN. ADVANCED:
+  rhythmVariability / maxLeap / polyMultiplier / smallestNoteDenom; chords passingChordTypes).
+- Option VALUES still come ONLY from `generationFields.js` / `instrumentRules.js` (§6d).
+- All sizing/spacing are NAMED CONSTS at the top of each overlay (CAROUSEL_BASE, ICON_SIZE, ICON_DY,
+  LABEL_DY, LABEL_FONT_SIZE, BRACKET_DY, HIT_TOP, HIT_H, COL_FRACS) so Han can tune density LIVE.
+- The full-overlay transparent stopPropagation rect is retained.
+- §3a: `NonLinearCarousel` shows its own debug hit box, so debugMode reveals each carousel's hit
+  region.
+
+**Files.** `src/components/sheet-music/CarouselFieldItem.jsx` (new shared helper),
+`src/components/sheet-music/overlays/GenerationSetterOverlay.jsx` (rewritten),
+`src/components/sheet-music/overlays/GenerationAdvancedSetterOverlay.jsx` (rewritten),
+`src/constants/generationFields.js` (icon/label/family maps added),
+both overlays' `__tests__` (updated for the carousel structure).
+
+**How it works.**
+- `useEditMode.js` adds three boolean states (`playbackEditMode`, `generationEditMode`,
+  `generationAdvancedEditMode`) + three toggles (`handleTogglePlaybackEdit`,
+  `handleToggleGenerationEdit`, `handleToggleGenerationAdvancedEdit`). Each toggle mirrors the
+  existing ones: stop playback, close the legacy settings overlay, and close EVERY other edit mode
+  on OPEN (full mutual exclusion). The existing four toggles + the legacy-settings toggle were
+  updated to also close the three new modes.
+- `useRangeMorph.groupsForKind` resolves `'playback'`/`'generation'`/`'generation-advanced'` to
+  their single group classes (no sibling chord row — the chords balk is rendered INSIDE the
+  generation overlays as another row of the same group).
+- `SheetMusic.jsx`: `overlayKind` gains the three kinds (before `'legacy'`/`'melody'`),
+  `overlayEditMode` includes them, three `mountedFor(...)` flags keep each mounted through its exit
+  morph, and three render blocks mirror the legacy SettingsOverlay block. PLAYBACK renders
+  `<SettingsOverlay groupClassName="playback-overlay" .../>`.
+- The chords balk renders only when the chord row is visible (`showChords`), passed as
+  `showChordsRow`.
+- Every stepper REUSES `SvgSetter` (§6c/§6d — no hand-rolled stepper chrome). Increment/decrement
+  cycle the field's value list. Each interactive stepper shows its debug hit box in `debugMode`
+  (§3a). Maestro note glyphs reuse `SMALLEST_NOTE_GLYPHS` (§6d). All accidentals in labels are
+  Unicode (§5b).
+
+**Field → setting mapping (single source of truth: `src/constants/generationFields.js`).**
+Both the bottom-view `InstrumentRow.jsx` and these overlays consume the SAME option arrays (§6d);
+the inline arrays previously living in `InstrumentRow.jsx` were extracted into that module.
+
+| Balk | GENERATION col | setting | values (const) |
+|---|---|---|---|
+| treble/bass | melody notes | `notePool` | `MELODIC_NOTE_POOLS` (root/chord/scale/chromatic) |
+| percussion | melody notes | `enabledPads` (preset) | `PERC_POOL_PRESETS` → `PERCUSSION_PRESETS[name]` |
+| treble/bass/perc | melody type | `randomizationRule` (+`type`) | flat play-style ring from `RULE_FAMILIES`/`PERC_FAMILIES`; label `getPlayStyleLabel` |
+| treble/bass/perc | notes / measure | `notesPerMeasure` | `NOTES_PER_MEASURE` [0..8,12,16] |
+| chords | melody notes | `complexity` | `CHORD_COMPLEXITY` (root/power/triad/seventh/sus/exotic) |
+| chords | melody type | `strategy` | `CHORD_STRATEGIES`; label `getProgressionLabel` |
+| chords | notes / measure | `chordCount` | `CHORD_COUNTS` [¼,½,1,1½,2,2½,3,4] |
+
+| Balk | GEN. ADVANCED col | setting | values (const) |
+|---|---|---|---|
+| treble/bass/perc | variability | `rhythmVariability` | `RHYTHM_VARIABILITY` [0..100], '%' suffix |
+| treble/bass | span | `maxLeap` | `LEAP_OPTIONS` (null = ∞); N/A for perc/chords |
+| treble/bass/perc | tuplets | `polyMultiplier` | `POLY_LEVELS` (none/low/med/high/xtreme) |
+| treble/bass/perc | smallest note | `smallestNoteDenom` | `SMALLEST_NOTE_DENOMS` as Maestro glyphs |
+| chords | passing chords (tuplets-position) | `passingChordTypes` (toggle set) | `PASSING_CHORD_TYPES` (7-type cycler+toggle) |
+
+The other advanced columns are omitted for the chords balk (variability/span/smallest-note are N/A).
+
+**PROVISIONAL — chords mapping.** The CHORDS-balk mapping (and especially the GEN. ADVANCED
+passing-chords single-cycler placed in the tuplets column) is a first-pass spec to be confirmed by
+Han. The cycler advances WHICH passing-chord type is shown; tapping the value TOGGLES that type in
+`passingChordTypes`; an inactive type is dimmed.
+
+**Invariants.**
+- All three setters are mutually exclusive with each other and with range/clef/colour/instrument/
+  legacy-settings (verified by `useEditMode.test.js`).
+- Option arrays live ONLY in `src/constants/generationFields.js`; never re-declare them in a
+  consuming component.
+- PLAYBACK never owns a duplicate of SettingsOverlay — it reuses it via `groupClassName`.
+
+**Files.** `src/constants/generationFields.js` (new),
+`src/components/sheet-music/overlays/GenerationSetterOverlay.jsx` (new),
+`src/components/sheet-music/overlays/GenerationAdvancedSetterOverlay.jsx` (new),
+`src/components/sheet-music/overlays/__tests__/GenerationSetterOverlay.test.jsx` (new),
+`src/components/sheet-music/overlays/__tests__/GenerationAdvancedSetterOverlay.test.jsx` (new),
+`src/components/sheet-music/overlays/SettingsOverlay.jsx` (`groupClassName` prop),
+`src/components/controls/rows/InstrumentRow.jsx` (consumes the shared consts),
+`src/hooks/useEditMode.js` (3 states + 3 toggles + mutual-exclusion), `src/hooks/useEditMode.test.js`
+(updated), `src/hooks/useRangeMorph.js` (`groupsForKind` 3 kinds),
+`src/components/sheet-music/SheetMusic.jsx` (props + overlayKind + mounted flags + render blocks),
+`src/App.jsx` (thread flags + handlers), `src/components/layout/SubHeader.jsx` (3 buttons:
+PLAYBACK `SlidersHorizontal` / GENERATION `Sparkles` / GEN. ADVANCED `FlaskConical`).

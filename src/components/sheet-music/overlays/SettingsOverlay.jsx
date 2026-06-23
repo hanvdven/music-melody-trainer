@@ -15,7 +15,8 @@ export const VOL_STEPS = [
   { value: 1.0, glyph: 'f', label: 'forte' },
 ];
 
-export function getVolStep(vol) {
+// Not exported: only used within this module (Han 2026-06-19).
+function getVolStep(vol) {
   if (vol === undefined || vol === null) return VOL_STEPS[5]; // default to forte
   const step = VOL_STEPS.find(s => Math.abs(s.value - vol) < 0.05);
   if (step) return step;
@@ -106,6 +107,12 @@ const SettingsOverlay = ({
   chordProgression,
   processedChords,
   onSettingsInteraction,
+  // Group class for the root <g> (Han 2026-06-22). Defaults to 'settings-overlay' so the legacy
+  // 'settings' kind is untouched. The PLAYBACK setter reuses this same component but passes
+  // 'playback-overlay' so its morph group (useRangeMorph.groupsForKind('playback')) never collides
+  // with the legacy one — they are mutually exclusive, so the two classes never coexist (§6c: do
+  // not duplicate SettingsOverlay; reuse it with a different group class).
+  groupClassName = 'settings-overlay',
 }) => {
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
@@ -290,7 +297,7 @@ const SettingsOverlay = ({
   return (
     // stopPropagation here prevents all child-element clicks from bubbling to
     // handleSheetMusicClick, which would toggle (close) the overlay immediately.
-    <g className="settings-overlay" onClick={(e) => e.stopPropagation()}>
+    <g className={groupClassName} onClick={(e) => e.stopPropagation()}>
 
       {/* Transparent hit-zone covering the full overlay area so clicks on empty
           space inside the overlay also stop propagation instead of falling

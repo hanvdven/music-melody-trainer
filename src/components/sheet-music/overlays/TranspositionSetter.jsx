@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { getNoteFromValue } from '../../../utils/rangeUtils';
-import { normalizeNoteChars, melodicNoteColor, getNoteSemitone } from '../../../theory/noteUtils';
+import { normalizeNoteChars, melodicNoteColor, getNoteSemitone, chromatoneMix } from '../../../theory/noteUtils';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
 import { StaffQuarterNote } from '../staffNoteGlyph';
 
@@ -36,17 +36,22 @@ const C4_MIDI = 60;
 const accidentalGlyph = (name) => (name.includes('♯') ? '#' : name.includes('♭') ? 'b' : null);
 
 const LABEL_FONT = "Georgia, 'Times New Roman', serif";
-const LABEL_SIZE = 18;   // size for "=", "C4 =" and the active carousel name (Han 2026-06-09: 16→18)
+const LABEL_SIZE = 22;   // size for "=", "C4 =" and the active carousel name (Han 2026-06-09: 16→18;
+                         // Han 2026-06-19: 18→22, the note-name LETTER should read bigger)
 const PRESET_FONT = 13;  // preset label size (Han 2026-06-09: 11→13, bigger)
 
-// "(X inst)" label at the TOP-RIGHT of the staff (Han 2026-06-09 — was under each clef, wrong
-// position). Even for C it reads "(C inst)" so the staves stay consistent.
-const InstLabel = ({ label, endX, staffStart, color }) => (
-    <text x={endX - 4} y={staffStart - 5} fontSize={11} fontFamily={LABEL_FONT}
-        textAnchor="end" fill={color} style={{ pointerEvents: 'none' }}>
-        ({label})
-    </text>
-);
+// ── Layout offsets (Han 2026-06-19) ──────────────────────────────────────────────────────
+// The whole setter is a TWO-carousel comparison: LEFT concert NAMES | "=" + PRESETS (centre) |
+// RIGHT written NOTEHEADS. Han wanted the two carousels pulled toward the centre "=" so the
+// comparison reads as one tight unit, with the presets/"=" sitting BETWEEN them as the reference.
+// These are kept as named consts (not inlined) so Han can fine-tune the exact spread live.
+const LEFT_CAROUSEL_NUDGE = 25;    // move LEFT name carousel this many units RIGHT, toward "="
+const RIGHT_CAROUSEL_NUDGE = 10;   // move RIGHT notehead carousel this many units LEFT, toward "="
+// Abstract 20-unit comparison grid (Han 2026-06-19): preset rows are spaced a FIXED 20u apart
+// (= every OTHER staff line, since lines are 10u apart) and centred on C4 at the staff's vertical
+// midline (midY). This is NOT real pitch geometry — it is a comparison grid where the C↔B♭ and
+// F↔E♭ transposition pairs line up row-for-row. Replaces the old pitch-proportional PRESET_SEMI.
+const GRID_ROW_H = 20;
 
 // Scientific-pitch note label with the octave digit as a SUBSCRIPT (Han 2026-06-09 #3),
 // e.g. C₄ / D♭₅. Used by both the name carousel and the quick-picks so they read consistently.
@@ -95,18 +100,36 @@ const ledgerYs = (y, staffStart) => {
     return out;
 };
 
-// Preset CONCERT notes (the concert sound of written C4 per common instrument), in two columns to
-// keep same-ish pitches from overlapping (Han 2026-06-09): C+F on the left, B♭+E♭ on the right,
-// each placed at a vertical position proportional to pitch (PRESET_SEMI px per semitone). F4 added.
-const PRESETS_LEFT = [72, 65, 60, 53, 48];   // C5, F4, C4, F3, C3
-const PRESETS_RIGHT = [63, 58, 51, 46];      // E♭4, B♭3, E♭3, B♭2
-const PRESET_SEMI = 2.5;                      // vertical px per semitone (compacter, Han 2026-06-09)
+// Preset CONCERT notes (the concert sound of written C4 per common instrument), in two columns:
+// C+F on the LEFT, B♭+E♭ on the RIGHT (Han 2026-06-09). Each preset now carries an ABSTRACT grid
+// `row` (Han 2026-06-19) instead of a pitch — row 0 = C4 at centre, +1 = one 20u step UP, −1 =
+// one step DOWN. The rows are laid out so the transposition PAIRS line up: C (left) sits on the
+// SAME row as B♭ (right), and F (left) on the SAME row as E♭ (right). This makes the grid a
+// comparison table (C↔B♭, F↔E♭), NOT a real-pitch staff. midi is unchanged → selection logic
+// (onSelectTrans(C4_MIDI − midi)) is identical; only the y placement changed.
+//   row +2 │ C5  ·    │   ← (no right pick)
+//   row +1 │ F4  E♭4  │   F ↔ E♭
+//   row  0 │ C4  B♭3  │   C ↔ B♭   (centre, on midY)
+//   row −1 │ F3  E♭3  │   F ↔ E♭
+//   row −2 │ C3  B♭2  │   C ↔ B♭
+const PRESETS_LEFT = [                       // C+F column
+    { midi: 72, row: 2 },   // C5
+    { midi: 65, row: 1 },   // F4
+    { midi: 60, row: 0 },   // C4 (centre)
+    { midi: 53, row: -1 },  // F3
+    { midi: 48, row: -2 },  // C3
+];
+const PRESETS_RIGHT = [                       // B♭+E♭ column
+    { midi: 63, row: 1 },   // E♭4 (pairs with F4)
+    { midi: 58, row: 0 },   // B♭3 (pairs with C4)
+    { midi: 51, row: -1 },  // E♭3 (pairs with F3)
+    { midi: 46, row: -2 },  // B♭2 (pairs with C3)
+];
 
 const TranspositionSetter = ({
     staff, clef, staffStart, startX, endX,
     transSemitones = 0,           // current concert→written offset
     onSelectTrans,                // (newTrans) => void — parent maps to key + clamps
-    instLabel = 'C inst',         // transposing-instrument display label (getTranspositionDisplay)
     noteColoringMode = 'off',     // colouring context — active/reference heads colour as concert C4
     tonic = 'C', scaleNotes = [], theme = 'dark',
     activeChord = null,           // paused active chord (last-if-tonic-else-first) for chord colour
@@ -168,8 +191,7 @@ const TranspositionSetter = ({
         // main staff (Han 2026-06-10). A note in the active chord → the chord's root colour.
         if (noteColoringMode === 'chords' && activeChord?.notes?.length) {
             if (activeChord.notes.some(cn => getNoteSemitone(cn) === getNoteSemitone(note))) {
-                const mix = theme === 'light' ? 'black' : 'white';
-                return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(activeChord.root)}), ${mix} 30%)`;
+                return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
             }
         }
         return color;
@@ -220,12 +242,21 @@ const TranspositionSetter = ({
     // Tight left layout (Han 2026-06-09: "zeer veel dichter bij elkaar"): presets, then the fixed
     // C4 note SNUG against "=", and "=" SNUG against the names carousel.
     const concertFloat = C4_MIDI - effTrans;       // concert pitch written at C4 (fractional)
-    const presetColL = startX + W * 0.025;         // C+F column
-    const presetColR = startX + W * 0.075;         // B♭+E♭ column
-    const nameX = startX + W * 0.235;              // names carousel
-    const leftLabelX = nameX - 24;                 // "=" snug to the left of the names
+    // LEFT name carousel, nudged RIGHT toward the centre "=" (Han 2026-06-19: pull the two
+    // carousels together so the comparison reads as one tight unit).
+    const nameX = startX + W * 0.235 + LEFT_CAROUSEL_NUDGE;   // names carousel
+    const leftLabelX = nameX - 24;                 // "=" snug to the left of the names = CENTRE ref
     const fixedNoteX = leftLabelX - 26;            // fixed C4 head snug to the left of "="
-    const fixedC4Y = getNoteAbsoluteY('C4', staffStart, baseClef, staff);
+    // PRESET columns now sit BETWEEN the two carousels, near the centre "=" (Han 2026-06-19,
+    // moved from the far LEFT). They flank the "=" so the quick-picks are the visual centre of the
+    // comparison. presetColR is the column just LEFT of "=", presetColL one step further left.
+    const presetColR = leftLabelX - 60;            // B♭+E♭ column, just left of "="
+    const presetColL = leftLabelX - 92;            // C+F column, one step further left
+    // Abstract grid: the fixed written-C4 REFERENCE head + "=" sit at the staff's vertical centre
+    // (midY) so C4 is dead-centre of the comparison grid, NOT at its real off-staff pitch position
+    // (Han 2026-06-19: was getNoteAbsoluteY('C4',…) = staffStart+50 for treble). This anchors the
+    // 20u preset grid: row 0 == midY == this head.
+    const fixedC4Y = midY;
     // The fixed written-C4 head SOUNDS the concert pitch (C4 − trans), so it is coloured by that
     // sounding pitch (Han 2026-06-09: "C4 on a B♭ inst should be orange, the B♭ colour").
     const fixedSoundingNote = nameOf(C4_MIDI - Math.round(effTrans));
@@ -245,7 +276,8 @@ const TranspositionSetter = ({
         const size = Math.max(8, LABEL_SIZE - dist * 2.0);
         const op = Math.max(0.18, (isActive ? 1 : 0.8) - dist * 0.12);
         nameRows.push(
-            <g key={c}>
+            // data-fly: the name carousel is a SELECTOR carousel (Han wants it to slide, not fade).
+            <g key={c} data-fly="">
                 <NoteLabel name={nameOf(c)} x={nx} y={ry} size={size}
                     fill={isActive ? color : low} opacity={op} />
                 {!isActive && (
@@ -263,8 +295,9 @@ const TranspositionSetter = ({
     }
 
     // ── RIGHT: notehead carousel on the tangens curve ──────────────────────────────────
-    const rightLabelX = startX + W * 0.44;          // "C4 =" — closer to the carousel (Han +20)
-    const anchorX = startX + W * 0.62;              // fixed x of the active head (room for the fan)
+    // RIGHT notehead carousel, nudged LEFT toward the centre "=" (Han 2026-06-19).
+    const anchorX = startX + W * 0.62 - RIGHT_CAROUSEL_NUDGE;   // fixed x of the active head
+    const rightLabelX = startX + W * 0.44 - RIGHT_CAROUSEL_NUDGE; // "concert C4 =" label, follows it
     const writtenFloat = C4_MIDI + effTrans;
     const writtenActive = Math.round(writtenFloat);
     const notes = [];
@@ -297,11 +330,15 @@ const TranspositionSetter = ({
         // effect), scaled about the head origin (x, y).
         const scale = Math.max(0.5, 1 - dist * 0.09);
         notes.push(
-            <g key={m} opacity={op}
-                transform={`translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`}>
-                <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
-                    accidental={acc} ledgerYs={showLedgers ? ledgerYs(y, staffStart) : []}
-                    color={fill} />
+            // data-fly on an OUTER wrapper so the cascade's translateX slides the head in without
+            // clobbering the inner scale transform (heads shrink with distance) — Han 2026-06-16.
+            <g key={m} data-fly="">
+                <g opacity={op}
+                    transform={`translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`}>
+                    <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
+                        accidental={acc} ledgerYs={showLedgers ? ledgerYs(y, staffStart) : []}
+                        color={fill} />
+                </g>
             </g>,
         );
         // Hit box centred on the notehead body (head origin x … x+12).
@@ -331,12 +368,14 @@ const TranspositionSetter = ({
                 </clipPath>
             </defs>
 
-            {/* Preset concert notes — two columns to the LEFT of the setter (C+F | B♭+E♭), each
-                pick at a vertical position proportional to its pitch (Han 2026-06-09). Only the
-                ACTIVE pick (its concert pitch == the current selection) is highlighted. */}
+            {/* Preset concert quick-picks — two columns BETWEEN the carousels, flanking the centre
+                "=" (Han 2026-06-19: moved from far LEFT). Each pick sits on the ABSTRACT 20u grid
+                (row 0 = C4 at midY; ±1 = ±20u), so the C↔B♭ and F↔E♭ pairs line up row-for-row
+                rather than at their real pitches. Only the ACTIVE pick (its concert pitch == the
+                current selection) is highlighted. */}
             {[[PRESETS_LEFT, presetColL], [PRESETS_RIGHT, presetColR]].map(([col, cx]) =>
-                col.map((midi) => {
-                    const qy = midY - (midi - C4_MIDI) * PRESET_SEMI;
+                col.map(({ midi, row }) => {
+                    const qy = midY - row * GRID_ROW_H;   // abstract grid Y, NOT pitch-proportional
                     const qpActive = midi === Math.round(concertFloat);
                     return (
                         <g key={`qp${midi}`}>
@@ -360,9 +399,14 @@ const TranspositionSetter = ({
                     surface over the names). The head is the concert C-instrument anchor: it never
                     transposes and ignores any octave clef, sitting permanently 1 ledger off the
                     BASE staff. No clef glyph (Han 2026-06-09 "haal de sleutels weg"). */}
+                {/* data-fly: the fixed C4 anchor HEAD slides in with the notes (Han 2026-06-16).
+                    The "=" / "concert C₄ =" TEXT labels are NOT tagged → they do the cascade's
+                    delayed fade (wait 1 s, fade 0.5 s), per Han "slide notes, fade labels". */}
                 {fixedC4Y != null && (
-                    <StaffQuarterNote x={fixedNoteX} positionY={fixedC4Y} staffYStart={staffStart}
-                        ledgerYs={ledgerYs(fixedC4Y, staffStart)} color={fixedColor} />
+                    <g data-fly="">
+                        <StaffQuarterNote x={fixedNoteX} positionY={fixedC4Y} staffYStart={staffStart}
+                            ledgerYs={ledgerYs(fixedC4Y, staffStart)} color={fixedColor} />
+                    </g>
                 )}
                 {/* "=" sits at the same height as the fixed C4 note (Han 2026-06-09). */}
                 <text x={leftLabelX} y={(fixedC4Y ?? midY) + 5} fontSize={LABEL_SIZE} fontFamily={LABEL_FONT}
@@ -392,8 +436,8 @@ const TranspositionSetter = ({
                 {hits}
             </g>
 
-            {/* "(X inst)" at the staff's top-right corner (outside the clip so it always shows). */}
-            <InstLabel label={instLabel} endX={endX} staffStart={staffStart} color={low} />
+            {/* The top-right "(X inst)" label was removed (Han 2026-06-16): redundant with the
+                transposition label on the LEFT at the clef (SheetMusic.jsx). */}
 
             {debugMode && (
                 <rect x={startX} y={bandTop} width={W} height={bandH}
