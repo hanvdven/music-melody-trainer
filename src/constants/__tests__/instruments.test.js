@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
     INSTRUMENT_GROUPS, INSTRUMENT_LIST, INSTRUMENTS,
-    getInstrumentIconUrl, instrumentNameForSlug, instrumentFullLabel, ICON_ATTRIBUTION,
+    getInstrumentIconUrl, getIconUrlByBasename, categoryColorVar,
+    instrumentNameForSlug, instrumentFullLabel, ICON_ATTRIBUTION,
 } from '../instruments';
 
 describe('constants/instruments', () => {
@@ -54,5 +55,27 @@ describe('constants/instruments', () => {
     it('credits icons8 (mandatory licence credit)', () => {
         expect(typeof ICON_ATTRIBUTION).toBe('string');
         expect(ICON_ATTRIBUTION).toMatch(/icons8/i);
+    });
+
+    it('maps each top category to its --cat-* CSS var (Task B colouring)', () => {
+        // categoryColorVar reads the category STRING off an item (§6c — no slug→colour table) and
+        // returns the matching CSS var. Every top category in the data must resolve to a var.
+        const topCategories = [...new Set(INSTRUMENT_LIST.map(it => it.family))];
+        for (const cat of topCategories) {
+            const v = categoryColorVar(cat);
+            expect(v).toBe(`var(--cat-${cat.replace(/ /g, '-')})`);
+        }
+        // Unknown category → caller-supplied fallback (default --text-primary).
+        expect(categoryColorVar('nope')).toBe('var(--text-primary)');
+        expect(categoryColorVar('nope', 'var(--text-lowlight)')).toBe('var(--text-lowlight)');
+    });
+
+    it('getIconUrlByBasename resolves existing basenames + falls back for unknown', () => {
+        // The shared low-level icon resolver (reused by the kit carousel). Existing assets resolve.
+        expect(getIconUrlByBasename('grand-piano')).toBeTruthy();
+        expect(getIconUrlByBasename('drum-set')).toMatch(/drum-set/);
+        expect(getIconUrlByBasename('drums')).toMatch(/drums/);
+        // Unknown basename → grand-piano fallback (never undefined).
+        expect(getIconUrlByBasename('definitely-not-an-icon')).toBeTruthy();
     });
 });

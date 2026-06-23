@@ -19,6 +19,91 @@ export const DRUM_KITS = {
 };
 
 /**
+ * GM-soundfont "acoustic MIDI" percussion kit identifiers (Han 2026-06-22).
+ * These three names are the ones the percussion branch in useInstruments.js already
+ * special-cases (`isGMKit = ['standard','electronic','jazz']`) — i.e. the dormant
+ * GM-acoustic path. They are listed here as the SINGLE SOURCE for the kit catalog so the
+ * carousel derives them from data, not a hardcoded inline list (§6c).
+ *
+ * ⚠ KNOWN GAP (Han 2026-06-22 — surfaced honestly, NOT fabricated): smplr's Soundfont set
+ * (gleitz/MusyngKite + FluidR3_GM) contains NO GM percussion bank — `standard`/`jazz`/
+ * `electronic` are NOT valid Soundfont instrument names, and there is also no KIT_NOTE_MAPPINGS
+ * entry mapping the app's pad ids ('k','s','hh',…) to GM percussion MIDI notes for them. So these
+ * kits currently CANNOT produce audio without (a) a valid GM-percussion soundfont source and
+ * (b) a pad→GM-MIDI mapping table. Per CLAUDE.md §6c we do NOT invent those mappings here.
+ * `PERCUSSION_KIT_CATEGORIES` therefore marks this category `available: false` so the carousel
+ * can either hide it or render it disabled rather than offer silent kits. Drop a real mapping +
+ * soundfont source here and flip `available` to true to enable it.
+ */
+export const GM_ACOUSTIC_KITS = ['standard', 'jazz', 'electronic'];
+
+/**
+ * Percussion-kit CATALOG for the in-staff percussion-kit carousel (Han 2026-06-22, Task D).
+ * DERIVED from the existing kit data (DRUM_KITS) + GM_ACOUSTIC_KITS rather than a hardcoded list
+ * (§6c): the FreePats entry is the local Sampler kit, the remaining DRUM_KITS entries are the
+ * smplr DrumMachine kits, and GM_ACOUSTIC_KITS are the dormant GM soundfont kits.
+ *
+ * Each category carries:
+ *   • `label`     — bracket header (display).
+ *   • `icon`      — icons8 BASENAME (resolved via getIconUrlByBasename — reuses the instrument
+ *                   carousel's icon path, no parallel icon system). 'drum-set' + 'drums' assets
+ *                   EXIST; 'synthesizer' does NOT yet → 'electronic-music' PLACEHOLDER.
+ *   • `kits`      — array of { id } where `id` is the EXACT value written to
+ *                   percussionSettings.instrument (the same string useInstruments.js branches on).
+ *   • `available` — false ⇒ kits in this category have no working audio path yet (see GAP above).
+ *
+ * The `id` strings are the canonical identifiers already used elsewhere (DRUM_KITS keys feed the
+ * DrumMachine/Sampler constructors; the GM ids feed the isGMKit branch), so selecting one writes
+ * the SAME value the rest of the app already understands.
+ */
+const DRUM_MACHINE_IDS = Object.keys(DRUM_KITS).filter(k => k !== 'FreePats Percussion');
+export const PERCUSSION_KIT_CATEGORIES = [
+    {
+        label: 'Sampled',
+        // 'drum-set' asset EXISTS (src/assets/icons8-drum-set-100.png).
+        icon: 'drum-set',
+        available: true,
+        kits: [{ id: 'FreePats Percussion' }],
+    },
+    {
+        label: 'Drum machines',
+        // 'drums' asset EXISTS (src/assets/icons8-drums-100.png).
+        icon: 'drums',
+        available: true,
+        // Derived from DRUM_KITS (all keys except the local FreePats sampler) so a new DrumMachine
+        // kit added to DRUM_KITS appears automatically (§6c — no second list to keep in sync).
+        kits: DRUM_MACHINE_IDS.map(id => ({ id })),
+    },
+    {
+        label: 'Acoustic MIDI',
+        // PLACEHOLDER — TODO(icons8): drop src/assets/icons8-synthesizer-100.png, then change this
+        // basename to 'synthesizer'. (Han 2026-06-22: "Synthesizer=midis".) Mirrors how
+        // instruments.jsx flags its placeholder synth icons.
+        icon: 'electronic-music',
+        // ⚠ DISABLED — no working GM-percussion audio path exists yet (see GM_ACOUSTIC_KITS GAP).
+        // The carousel skips unavailable categories; flip to true once a soundfont source + a
+        // pad→GM-MIDI mapping are added (do NOT fabricate them — §6c).
+        available: false,
+        kits: GM_ACOUSTIC_KITS.map(id => ({ id })),
+    },
+];
+
+/**
+ * Kit id → SHORT carousel CARD label (Han 2026-06-22). The carousel card shows this; the category
+ * bracket shows the category label. Defaults to the id itself for kits without a nicer short name
+ * (so a newly-added DrumMachine kit still gets a sensible card label automatically). No Unicode
+ * accidentals occur in any current kit id, but if one ever did it would already be Unicode here
+ * since these are display strings (§5b).
+ */
+const PERCUSSION_KIT_LABELS = {
+    'FreePats Percussion': 'samples',
+    standard: 'standard',
+    jazz: 'jazz',
+    electronic: 'electronic',
+};
+export const percussionKitLabel = (id) => PERCUSSION_KIT_LABELS[id] || id;
+
+/**
  * Buffer map for the local FreePats Percussion kit.
  * Keys are sample names; values are paths served from public/.
  * Used to construct a smplr Sampler instance.

@@ -2834,14 +2834,20 @@ const SheetMusic = ({
                       endX={endX}
                       trebleStart={trebleStart}
                       bassStart={bassStart}
+                      percussionStart={percussionStart}
                       isTrebleVisible={isTrebleVisible}
                       isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
                       trebleInstrument={trebleSettings?.instrument || 'acoustic_grand_piano'}
                       bassInstrument={bassSettings?.instrument || 'acoustic_grand_piano'}
+                      percussionKit={percussionSettings?.instrument || 'FreePats Percussion'}
                       onSetInstrument={(staff, slug) => {
                         const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
                         if (setter) setter(prev => ({ ...prev, instrument: slug }));
                       }}
+                      // Percussion-kit pick (Task D): write percussionSettings.instrument via the
+                      // SAME setter the rest of the app uses (mirrors the treble/bass path above).
+                      onSetPercussionKit={(kitId) => setPercussionSettings(prev => ({ ...prev, instrument: kitId }))}
                       debugMode={debugMode}
                     />
                   )}
