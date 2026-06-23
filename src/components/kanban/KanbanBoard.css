@@ -9,6 +9,7 @@
   flex-direction: column;
   background: var(--bg-primary, #14171c);
   color: var(--text-primary, #e8e8e8);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
 }
 
