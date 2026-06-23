@@ -7,7 +7,13 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
-## 2026-06-22 — ✅ In-app Kanban board (debug → kanban)
+## 2026-06-22 — ↩️ Kanban VOLLEDIG uit app gehaald (Han-besluit)
+Han wil kanban niet in de app-codebase. Alles verwijderd: gevendorde skills (.claude/skills/kanban*),
+kanban.json, src/components/kanban/*, scripts/kanban*, Vite kanban-API, debug→kanban view + showKanban,
+E021, docs §43/§43a, .gitignore-uitzondering. Route voortaan: cyanluna direct (skills global / eigen
+repo). Twee-repo-werk niet mogelijk in deze 1-repo websessie → aparte sessie per repo of lokaal.
+
+## 2026-06-22 — ✅ In-app Kanban board (debug → kanban)  [↩️ teruggedraaid, zie hierboven]
 Bron = repo-root `kanban.json` (110 taken, gegenereerd uit BACKLOG+PLAN). DEBUG→KANBAN knop (alleen
 debug-mode) → fullscreen `<KanbanBoard>` + terugknop, vrij slepen tussen 7 kolommen (cyanluna-model),
 verslepen schrijft via Vite `kanbanJsonApiPlugin` (/api/kanban GET/POST) → fallback localStorage.

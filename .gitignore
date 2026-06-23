@@ -37,10 +37,7 @@ yarn-error.*
 # editor / IDE
 .idea/
 .vscode/
-# Local Claude settings stay ignored, but vendored shared skills are tracked
-# (so they travel with the repo). See .claude/skills/VENDORED-KANBAN.md.
-.claude/*
-!.claude/skills/
+.claude/
 
 # backups and scratch
 *.bak
