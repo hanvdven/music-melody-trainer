@@ -23,21 +23,27 @@ now + flag for Han to drop icons8-{accordion,contrabass,harmonica,stage,synthesi
 - 🔨 (A) GENERATION + GENERATION ADVANCED setters rebuilt in carousel style: each field = a 5-wide
   NonLinearCarousel, lucide icon + text label below + category/field bracket above. Replaces the
   SvgSetter+maestro-glyph cells. Per balk (treble/bass/perc + chords). Wiring unchanged (same fields).
-- 🔨 (B) Subtle per-category CSS colouring in the instrument carousel (item text + bracket), theme-aware
-  vars in App.css keyed on the new top categories.
+- ✅ (B) Subtle per-category CSS colouring in the instrument carousel (active card text + bracket),
+  theme-aware --cat-* vars in App.css (:root + meridienne + light) keyed on the 8 top categories;
+  categoryColorVar() maps category→var in instruments.jsx (no slug→colour table). [Wave 2, 2026-06-22]
 - 🔨 (C) instruments.jsx re-categorise + re-icon. New top categories: keys / guitars / bass guitars /
   strings / wind / percussion tuned / voice / synth (NEW). Adds: accordion, distorted electric guitar
   (distortion_guitar), contrabass, harmonica, xylophone, synth square/lead/pad. Re-icons: steel=guitar
   (nylon), acoustic bass=guitar, electric/distorted=rock-music, vibraphone=xylophone, voice oohs=choir.
   Placeholders for the 5 missing assets, flagged.
-- 🔨 (D) Percussion KIT carousel (instrument setter, percussion balk): categorized —
-  · "Sampled" → [FreePats Percussion], icon8 basename drum-set
-  · "Drum machines" → [TR-808, Casio RZ-1, LM-2, MFB-512, Roland CR-8000], icon8 basename drums
-  · "Acoustic MIDI" → [standard, jazz, electronic] (GM Soundfont; ADD jazz per Han), icon8 basename synthesizer
-  Writes percussionSettings.instrument; exposes the dormant GM-acoustic kits. Icon assets drum-set/
-  drums/synthesizer don't exist yet → placeholder + TODO(icons8) until Han drops icons8-{drum-set,
-  drums,synthesizer}-100.png (Han 2026-06-22: "Drum Set=samples, Drums=tr808/machines, Synthesizer=midis").
-- 🔨 (E) Instrument-carousel icons +15%.
+- ✅/🐞 (D) Percussion KIT carousel (instrument setter, percussion balk): categorized, derived from
+  drumKits.PERCUSSION_KIT_CATEGORIES (no hardcoded list). [Wave 2, 2026-06-22]
+  · "Sampled" → [FreePats Percussion], icon drum-set (asset EXISTS) — WORKS.
+  · "Drum machines" → [TR-808, Casio RZ-1, LM-2, MFB-512, Roland CR-8000], icon drums (EXISTS) — WORKS.
+  · "Acoustic MIDI" → [standard, jazz, electronic], icon electronic-music PLACEHOLDER (synthesizer
+    asset still missing → TODO(icons8) icons8-synthesizer-100.png).
+  Writes percussionSettings.instrument via setPercussionSettings (same path as treble/bass).
+  🐞 HONEST GAP (do NOT fabricate): smplr Soundfont has NO GM-percussion bank — standard/jazz/electronic
+  are not valid soundfont names AND have no pad→GM-MIDI mapping in KIT_NOTE_MAPPINGS. The dormant
+  isGMKit branch in useInstruments.js cannot produce audio. → Acoustic MIDI flagged available:false in
+  PERCUSSION_KIT_CATEGORIES; carousel SKIPS it (no silent kits). HAN DECISION NEEDED: supply a GM-perc
+  soundfont source + pad→MIDI map to enable, then flip available:true.
+- ✅ (E) Instrument-carousel icons +15% (ICON 33 → 33*1.15). [Wave 2, 2026-06-22]
 - ⚠ §6d note: setter category-brackets reuse the NonLinearCarousel primitive; bracket-DRAW may briefly
   duplicate InstrumentStaffOverlay.bracketGeom — flag for later consolidation into a shared helper.
 

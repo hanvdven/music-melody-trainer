@@ -162,6 +162,22 @@
   /* electric lime */
 
   --soft-mix-target: #ffffff;
+
+  /* Instrument-carousel per-category tints (Han 2026-06-22, Task B). SUBTLE, desaturated hues —
+     one per top category — used for the carousel CARD label + the category BRACKET so a glance
+     tells the player which family they're scrolling. DARK-theme values (default + nocturne inherit
+     these): light, low-saturation pastels that read on the dark staff without shouting. Light
+     themes override below with darker, equally-muted tints. Keep these subtle: they sit ON staff
+     lines, so high-chroma colours would fight the notation. Mapped category→var in
+     constants/instruments.jsx (CATEGORY_CSS_VAR). Tweak freely — Han may dial saturation. */
+  --cat-keys: #c9cdd8;             /* near-neutral cool grey-blue */
+  --cat-guitars: #d6b78a;          /* muted warm tan */
+  --cat-bass-guitars: #c9a878;     /* deeper muted tan (bass = darker guitar) */
+  --cat-strings: #b8c6a8;          /* soft sage */
+  --cat-wind: #a8c6cf;             /* dusty teal */
+  --cat-percussion-tuned: #c7b0d0; /* muted mauve */
+  --cat-voice: #d4b0b8;            /* faded rose */
+  --cat-synth: #a0bcd8;            /* desaturated periwinkle */
 }
 
 /* ============================================================
@@ -221,6 +237,17 @@
   --note-scale: #4c6b95;
 
   --soft-mix-target: #ffffff;
+
+  /* Per-category tints, LIGHT (parchment) variant: darker, still muted so they read on the warm
+     bg without competing with the notation (Task B). Same hue family as the dark values. */
+  --cat-keys: #5a6470;
+  --cat-guitars: #8a6a3e;
+  --cat-bass-guitars: #7a5a2e;
+  --cat-strings: #5f7048;
+  --cat-wind: #486a73;
+  --cat-percussion-tuned: #6a5076;
+  --cat-voice: #7a4f57;
+  --cat-synth: #44607c;
 }
 
 :root[data-theme='light'] {
@@ -253,6 +280,16 @@
   --note-scale: #4e6fa3;
 
   --soft-mix-target: var(--panel-bg);
+
+  /* Per-category tints, LIGHT (cool) variant: darker muted hues for the light-blue bg (Task B). */
+  --cat-keys: #56636e;
+  --cat-guitars: #876738;
+  --cat-bass-guitars: #76562a;
+  --cat-strings: #5b6e44;
+  --cat-wind: #44666f;
+  --cat-percussion-tuned: #664c72;
+  --cat-voice: #764b53;
+  --cat-synth: #405c78;
 }
 
 /* ============================================================

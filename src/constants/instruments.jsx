@@ -226,12 +226,44 @@ const SLUG_TO_ICON = {
     pad_1_new_age: 'electronic-music',  // PLACEHOLDER — TODO(icons8): real synth asset icons8-synthesizer-100.png
 };
 
+// icons8 basename → bundled PNG URL. The single low-level swap point: every icon consumer
+// resolves through this so they share ONE glob + path convention (§6c/§6d — no parallel icon
+// system). `getInstrumentIconUrl` (slug→basename via SLUG_TO_ICON) and the percussion-kit
+// carousel (kit→basename via KIT_TO_ICON in drumKits.js) both funnel through here. Falls back to
+// the grand-piano icon for an unknown basename. Exported so the kit carousel can reuse it.
+export const getIconUrlByBasename = (basename) =>
+    ICON_URLS[`../assets/icons8-${basename}-100.png`] || ICON_URLS['../assets/icons8-grand-piano-100.png'];
+
 // slug → bundled icons8 PNG URL. The icons render flat-black, so consumers apply
 // `var(--instrument-icon-filter)` (invert(1) on dark themes — see App.css) so they read on any
 // theme. Falls back to the grand-piano icon for an unknown slug.
-export const getInstrumentIconUrl = (slug) => {
-    const name = SLUG_TO_ICON[slug] || 'grand-piano';
-    return ICON_URLS[`../assets/icons8-${name}-100.png`];
+export const getInstrumentIconUrl = (slug) =>
+    getIconUrlByBasename(SLUG_TO_ICON[slug] || 'grand-piano');
+
+// CATEGORY → theme-aware CSS custom property (Han 2026-06-22, Task B). Each top category gets a
+// SUBTLE colour for its carousel CARD label + its bracket, keyed on the instrument's top category.
+// §6c: this maps the category STRING (read straight off the instrument object's `family`/`group`,
+// which the 2026-06-22 re-categorisation made equal to the top category) to the matching CSS var —
+// it is NOT a slug→colour table. The CSS vars live in App.css (one per category, light + dark).
+// New categories only need: (1) a new `--cat-*` block in App.css, (2) one entry here.
+const CATEGORY_CSS_VAR = {
+    'keys': '--cat-keys',
+    'guitars': '--cat-guitars',
+    'bass guitars': '--cat-bass-guitars',
+    'strings': '--cat-strings',
+    'wind': '--cat-wind',
+    'percussion tuned': '--cat-percussion-tuned',
+    'voice': '--cat-voice',
+    'synth': '--cat-synth',
+};
+
+// Resolve a category string → `var(--cat-…)` colour expression (falls back to --text-primary for
+// an unknown/percussion category so callers can always use the return value directly as a `fill`/
+// `stroke`). `fallback` lets a caller supply its own at-rest colour (e.g. --text-lowlight for the
+// non-active carousel cards) when the category has no dedicated var.
+export const categoryColorVar = (category, fallback = 'var(--text-primary)') => {
+    const v = CATEGORY_CSS_VAR[category];
+    return v ? `var(${v})` : fallback;
 };
 
 // Attribution / licence line shown while the instrument setter is open — MANDATORY for icons8's

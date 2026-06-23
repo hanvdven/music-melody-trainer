@@ -3587,6 +3587,72 @@ are marked in `constants/instruments.jsx`).
 sibling resets + SheetMusic/SubHeader wiring), `src/components/layout/SubHeader.jsx` (INSTRUMENT
 button), `src/components/controls/RangeControls.jsx` (imports the shared instrument module).
 
+### 41a. Carousel wave-2: icons +15%, per-category colouring, percussion-kit carousel (Han 2026-06-22)
+
+Three additions to the in-staff instrument carousel (`InstrumentStaffOverlay.jsx`). All three reuse
+the existing `NonLinearCarousel` primitive + the existing category-bracket machinery (§6d).
+
+**(E) Icons +15%.**
+- **Purpose:** larger, more legible instrument icons.
+- **How:** the named icon-size constant `ICON` in `InstrumentStaffOverlay.jsx` was changed from `33`
+  to `33 * 1.15` (≈ 37.95). Kept as the product so the +15% intent and the 33 base stay visible.
+- **Invariants:** card spacing (`BASE = 56`) is unchanged — the ~38px icon still clears the 56px
+  slot stride, so no clipping. Icon stays centred (`x = -ICON/2`).
+- **Files:** `InstrumentStaffOverlay.jsx`.
+
+**(B) Subtle per-category colouring.**
+- **Purpose:** a glance tells the player which family they're scrolling — the active card label and
+  the category bracket take a SUBTLE colour keyed on the instrument's top category.
+- **How it works:** one theme-aware CSS var per top category (`--cat-keys`, `--cat-guitars`,
+  `--cat-bass-guitars`, `--cat-strings`, `--cat-wind`, `--cat-percussion-tuned`, `--cat-voice`,
+  `--cat-synth`) is defined in `src/styles/App.css` — in `:root` (dark base, inherited by
+  `nocturne`) and overridden in the two light themes (`meridienne`, `light`), exactly mirroring the
+  existing `--instrument-icon-filter` / `--range-boundary-highlight` per-theme pattern. The values
+  are desaturated tints so they read on staff lines without fighting the notation.
+  `categoryColorVar(category, fallback)` in `constants/instruments.jsx` maps a category STRING
+  (read straight off the item's `family`, which the 2026-06-22 re-cat made equal to the top
+  category) to its `var(--cat-…)` — a string→var map, NOT a slug→colour table (§6c). The ACTIVE
+  card name uses the tint; inactive cards stay `--text-lowlight` (the shared setter highlight
+  convention). The bracket (both dashed paths + the label) takes the tint too; per §6d it KEEPS its
+  `strokeWidth 1` + dash — only the colour changes from `--text-primary` to the category var. The
+  bracket colour is written both at the React rest render AND imperatively each frame in
+  `updateHeaders` (the category can change as runs scroll).
+- **Invariants:** colours live ONLY in `App.css` (one block per theme); the category→var map lives
+  ONLY in `instruments.jsx`. Adding a category = one `--cat-*` block per theme + one map entry.
+- **Files:** `src/styles/App.css` (`--cat-*` in `:root` + `meridienne` + `light`),
+  `src/constants/instruments.jsx` (`CATEGORY_CSS_VAR`, `categoryColorVar`),
+  `InstrumentStaffOverlay.jsx` (card + bracket fill/stroke).
+
+**(D) Percussion-kit carousel.**
+- **Purpose:** when the PERCUSSION staff is shown in the instrument setter, the in-staff carousel
+  lets the user pick a drum KIT (writes `percussionSettings.instrument`).
+- **How it works:** `StaffCarousel` was generalised (item list + `idOf`/`labelOf`/`groupOf`/
+  `iconUrlOf`/`colorCategoryOf`/`onSelect` accessor props, defaulting to the instrument behaviour)
+  so the SAME carousel + bracket code drives both. The kit catalog `PERCUSSION_KIT_CATEGORIES` is
+  DERIVED in `drumKits.js` from the existing `DRUM_KITS` (FreePats → "Sampled"; the 5 DrumMachine
+  kits → "Drum machines") + `GM_ACOUSTIC_KITS` (→ "Acoustic MIDI") — no hardcoded kit list (§6c).
+  Each category carries an icons8 BASENAME resolved via the shared `getIconUrlByBasename` (reuses
+  the instrument carousel's icon path — `drum-set` + `drums` assets EXIST; `synthesizer` is a
+  `electronic-music` PLACEHOLDER + `TODO(icons8)`). Selecting a kit calls
+  `onSetPercussionKit(id) → setPercussionSettings(prev => ({...prev, instrument: id}))` — the SAME
+  setter path the rest of the app uses; `id` is the exact value `useInstruments.js` branches on.
+- **⚠ HONEST GAP — Acoustic MIDI (GM) kits are NOT offered yet.** smplr's Soundfont set
+  (gleitz/MusyngKite + FluidR3_GM) contains NO GM-percussion bank: `standard`/`jazz`/`electronic`
+  are not valid Soundfont instrument names, and there is no `KIT_NOTE_MAPPINGS` entry mapping the
+  app's pad ids to GM-percussion MIDI notes. The dormant `isGMKit` branch in `useInstruments.js`
+  therefore cannot produce audio. Per §6c we did NOT fabricate mappings/soundfont names: the
+  "Acoustic MIDI" category is flagged `available: false` in `PERCUSSION_KIT_CATEGORIES` and the
+  carousel SKIPS unavailable categories (offering silent kits would be a regression). To enable it,
+  add a valid GM-percussion soundfont source + a pad→GM-MIDI mapping, then flip `available` to true.
+- **Invariants:** kit catalog + labels live ONLY in `drumKits.js`; the carousel derives its items
+  from it. §3a debug hit box is drawn (inside `NonLinearCarousel`). §5b: kit labels are display
+  strings (Unicode-ready; no accidentals in current ids).
+- **Files:** `src/audio/drumKits.js` (`GM_ACOUSTIC_KITS`, `PERCUSSION_KIT_CATEGORIES`,
+  `percussionKitLabel`), `src/constants/instruments.jsx` (`getIconUrlByBasename`),
+  `InstrumentStaffOverlay.jsx` (generalised `StaffCarousel` + percussion carousel mount),
+  `SheetMusic.jsx` (percussion props + `onSetPercussionKit`),
+  `overlays/__tests__/InstrumentStaffOverlay.test.jsx`, `constants/__tests__/instruments.test.js`.
+
 ---
 
 ## 38. NonLinearCarousel Primitive + Redesigned Instrument / Colour Setters (Han 2026-06-17)
