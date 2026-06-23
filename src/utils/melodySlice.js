@@ -3,6 +3,35 @@
  */
 
 /**
+ * Number of measures an active melody actually spans, derived from its total note
+ * duration (in ticks/slots) under a given measure length.
+ *
+ * Rounds UP (ceil), not nearest, so a melody that does NOT divide evenly into the
+ * current meter still gets a trailing measure to hold its leftover notes. This is the
+ * normal case after a TIME SIGNATURE change while stopped: the melody stores
+ * METER-INDEPENDENT absolute ticks, so re-barring is just re-slicing the same notes by
+ * the new measure length. Example: a 192-tick (4-bar 4/4) melody re-barred into 3/4
+ * (measureLengthTicks ≈ 36) spans 192/36 = 5.33 measures. Math.round would give 5 and
+ * DROP the partial final measure's notes (offsets 180–192) — the persistent malformed-
+ * sheet bug. Math.ceil gives 6: the trailing partial measure is shown, and the renderer
+ * pads a trailing rest + ties notes across the new barlines.
+ *
+ * The -1e-6 epsilon stops floating-point error pushing an EXACT multiple up by a whole
+ * measure (e.g. 192/12 must be 16, not 17).
+ *
+ * @param {number} totalMelodyDuration  — last note end tick (0 when empty)
+ * @param {number} measureLengthTicks
+ * @param {number} fallbackMeasures     — used when the melody is empty (initial state)
+ * @returns {number}
+ */
+export function melodyMeasureSpan(totalMelodyDuration, measureLengthTicks, fallbackMeasures) {
+  if (totalMelodyDuration > 0) {
+    return Math.max(1, Math.ceil(totalMelodyDuration / measureLengthTicks - 1e-6));
+  }
+  return fallbackMeasures;
+}
+
+/**
  * Slice a Melody (with absolute offsets spanning 0..numMeasures*measureLengthTicks)
  * into an array of SlicedMelody objects — one per measure — with offsets made relative
  * to each measure's start (0..measureLengthTicks).

@@ -21,6 +21,7 @@ export default function usePlaybackNavigation({
     setIsPlayingMelody,
     setIsPlayingContinuously,
     melodies,
+    randomizeConfig = null,
 }) {
     // Prevents crash from rapidly clicking skip-back/forward. Each navigation call may
     // trigger randomizeAll (heavy) or startSequencer; overlapping calls corrupt history
@@ -90,7 +91,7 @@ export default function usePlaybackNavigation({
     }, [
         animationMode, musicalBlocks, startMeasureIndex, numMeasures,
         navigateHistory, setScale, isPlayingContinuously, isPlayingMelody,
-        handleStopAllPlayback, startSequencer, melodies
+        handleStopAllPlayback, startSequencer, melodies, randomizeConfig
     ]);
 
     const handleSkipForward = useCallback(() => {
@@ -128,7 +129,7 @@ export default function usePlaybackNavigation({
             }
         }
 
-        const entry = navigateHistory('forward');
+        const entry = navigateHistory('forward', randomizeConfig);
         if (entry) {
             if (entry.scale) setScale(entry.scale);
             if (entry.tonic) _setTonic(entry.tonic);
@@ -148,7 +149,7 @@ export default function usePlaybackNavigation({
     }, [
         animationMode, musicalBlocks, startMeasureIndex, numMeasures,
         navigateHistory, setScale, isPlayingContinuously, isPlayingMelody,
-        handleStopAllPlayback, startSequencer, melodies
+        handleStopAllPlayback, startSequencer, melodies, randomizeConfig
     ]);
 
     return { handleSkipBack, handleSkipForward, handleMeasureNumberClick };

@@ -2,7 +2,6 @@
 // Small presentational components extracted from PlaybackSettings.jsx to keep
 // that file focused on orchestration logic.
 import React from 'react';
-import { Disc, Dices, Pin } from 'lucide-react';
 import GenericStepper from '../common/GenericStepper';
 import './styles/PlaybackSubComponents.css';
 
@@ -17,14 +16,6 @@ export const SectionHeader = ({ label, gridTemplateColumns }) => (
         <div className="section-header-label">{label}</div>
     </div>
 );
-
-// ─── StatusIcon ───────────────────────────────────────────────────────────────
-/** Tiny inline icon indicating the current randomization mode. */
-export const StatusIcon = ({ type }) => {
-    if (type === 'wheel') return <Disc size={10} color="#888" className="status-icon" />;
-    if (type === 'dice') return <Dices size={10} color="#888" className="status-icon" />;
-    return <Pin size={10} color="#888" className="status-icon status-icon-pin" />;
-};
 
 // ─── ColumnHeaders ────────────────────────────────────────────────────────────
 /** A single header row of labels positioned in a CSS grid. */

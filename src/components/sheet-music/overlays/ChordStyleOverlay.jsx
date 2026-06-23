@@ -1,5 +1,6 @@
 import React from 'react';
 import DisableCross from './DisableCross';
+import { chordRootY } from '../ChordLabelsLayer';
 
 /**
  * ChordStyleOverlay — the chord STYLE selector (Han #12): X (disable) / letters /
@@ -50,9 +51,10 @@ const ChordStyleOverlay = ({
     debugMode = false,
 }) => {
     if (startX == null || trebleStart == null) return null;
-    // Match the SHEET chord-label baseline (ChordLabelsLayer CHORD_ROOT_Y = trebleStart−58)
-    // so the setter row sits at the SAME height as the real chord labels (Han Batch C).
-    const labelBase = trebleStart - 58;
+    // Match the SHEET chord-label baseline so the setter row sits at the SAME height as the
+    // real chord labels (Han Batch C). Imported from ChordLabelsLayer (§6d single source of
+    // truth) so a move of the chord row applies here too — no duplicated magic number.
+    const labelBase = chordRootY(trebleStart);
     const visCentre = labelBase - 9;               // ~centre of the 26px text, for the off-cross
     const span = (endX ?? startX) - startX;
     const cx33 = startX + span * 0.33;

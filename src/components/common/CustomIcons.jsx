@@ -3,16 +3,11 @@ import React from 'react';
 import {
     Shuffle,
     Music,
-    ListMusic,
     Percent,
 } from 'lucide-react';
 
 export const ShuffleIcon = ({ color = 'var(--accent-yellow)' }) => (
     <Shuffle color={color} size={18} />
-);
-
-export const NotesIcon = ({ color = 'var(--accent-yellow)' }) => (
-    <Music color={color} size={18} />
 );
 
 export const WheelIcon = ({ color = 'var(--accent-yellow)', size = 20 }) => (
@@ -64,10 +59,6 @@ export const VisibilityIcon = ({ color, crossed, low, size = 22 }) => {
     const Icon = crossed ? Percent : Music;
     return <Icon color={color} size={size} style={{ opacity: low ? 0.4 : (crossed ? 0.6 : 1) }} />;
 };
-
-export const ChordIcon = ({ color }) => (
-    <ListMusic color={color} size={18} />
-);
 
 // Chord notation mode icon — cycles letters ↔ roman numerals
 // letters mode: "D-" + superscript "7"  (D minor seventh; "-" = minor convention)

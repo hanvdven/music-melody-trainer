@@ -54,19 +54,22 @@ export const logChord = (kind, data) => {
     }
 };
 
+// Not exported: only used by the window.chordLog console helper below. No module
+// imports these, so the export keyword was dropped (Han 2026-06-19) — they stay as
+// local fns so the runtime console debug surface is unchanged.
 /** Return all logged entries. */
-export const getChordLog = () => load();
+const getChordLog = () => load();
 
 /** Clear the log. */
-export const clearChordLog = () => {
+const clearChordLog = () => {
     localStorage.removeItem(STORAGE_KEY);
 };
 
 /**
  * Download the current log as a JSON file.
- * Call from a button or browser console: import { downloadChordLog } from './utils/chordLog.js'
+ * Call from a button or browser console: window.chordLog.download()
  */
-export const downloadChordLog = () => {
+const downloadChordLog = () => {
     const entries = load();
     const blob = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);

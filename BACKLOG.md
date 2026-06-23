@@ -21,7 +21,209 @@
 
 Deel deze features in bij de juiste categorie.
 
-### Instrument selector (Han 2026-06-03)
+### 🔴 P0 — Kanban-board opzetten (cyanluna.skills) (Han 2026-06-22)
+
+Maak een kanban-board volgens de instructies op https://github.com/cyanluna-git/cyanluna.skills
+
+[Claude 2026-06-22]: Gelogd als P0. ⚠ Dit is een PROJECT-/TOOLING-taak, geen feature in de
+muziek-app zelf — het draait náást de app. Belangrijke aandachtspunten die ik met Han wil
+afstemmen vóór uitvoering:
+- **Draaien op Han's eigen machine, niet in deze remote cloud-container.** De setup kopieert skills
+  naar `~/.claude/skills/`, serveert een board op `localhost:5173` en heeft `pnpm` + een Neon
+  PostgreSQL-DB nodig. Wat ik in deze ephemere container installeer is voor Han onbereikbaar en
+  verdwijnt na de sessie.
+- **Externe afhankelijkheden:** Neon PostgreSQL-account (gratis tier), Node+pnpm, optioneel
+  Cloudflare R2 voor image-attachments.
+- **Trust/supply-chain:** het is een third-party skills-repo die 7 autonome agents met DB-toegang
+  draait. Aanrader: de skills doorlezen vóór installatie.
+- 7-koloms pipeline: Req → Plan → Review Plan → Impl → Review Impl → Test → Done.
+- Setup (lokaal): clone repo → `cp -R kanban* ~/.claude/skills/` → `cd ~/.claude/kanban-board`,
+  `cp .env.example .env`, `pnpm install`, `DATABASE_URL` (Neon) invullen → `/kanban-init` in het
+  project → `./kanban-board/start.sh` (board op http://localhost:5173).
+❓ Han: wil je dit lokaal opzetten met mijn begeleiding, of moet ik proberen het in deze
+remote-omgeving te draaien (met bovenstaande beperkingen)?
+
+[Claude 2026-06-22]: ✅ (deels) Han koos "skills VENDOREN in de repo". Gedaan:
+- De 5 skill-mappen (kanban, kanban-run, kanban-refine, kanban-init, kanban-explore) zijn
+  gekopieerd naar `.claude/skills/` (bron: cyanluna-git/cyanluna.skills@df5be37) en reizen nu mee
+  met elke clone. `.gitignore` aangepast: `.claude/*` blijft genegeerd, `!.claude/skills/` getrackt.
+- ⚠ SECURITY: de upstream `SETUP-KANBAN.md` + board-scripts bevatten een gedeelde live
+  `KANBAN_AUTH_TOKEN` en de data zit in een GEHOSTE backend (cyanlunakanban.vercel.app), NIET in een
+  lokale Neon-DB zoals de README suggereert. Dat token + de board-UI (1.4MB) + docs (2.8MB) zijn
+  BEWUST NIET gecommit. Zie `.claude/skills/VENDORED-KANBAN.md`.
+- ⚠ De taken-DATA leeft dus nog steeds extern (gehoste backend), niet in deze repo. Vendoren maakt
+  alleen de SKILLS draagbaar.
+- ⏳ RESTANT (door Han, lokaal): board-UI uit upstream halen, token in `~/.claude/kanban-auth`
+  (NOOIT in git), `/kanban-init` draaien. Begeleiding op aanvraag.
+
+### In-app kanban-bord (debug → kanban + terugknop) + items uit backlog/plan (Han 2026-06-22)
+
+ik wil een knop naar het kanbanbord — zodat ik in de app het kanbanbord kan openen, via debug →
+kanban, met een terugknop. En: maak op basis van de backlog en het implementatieplan kanban-items.
+
+[Claude 2026-06-22]: ⚠ §4b-interview LOOPT (vragen gesteld, wacht op Han). Architectuur-realiteit:
+de React-app draait in de browser en kan GEEN SQLite-DB of `~/.claude/kanban-dbs/...` lezen, en een
+iframe naar `localhost:5173` werkt alleen als het board lokaal draait. Enige optie die overal werkt
+én versiebeheerd "mee in de repo" is, is een gecommitte `kanban.json` die de app native rendert.
+Voorstel (afhankelijk van interview): (1) `kanban.json` in de repo als bron-van-waarheid; (2) in-app
+DEBUG → KANBAN opent een fullscreen native bord (terugknop), read-only of interactief; (3) items
+gegenereerd uit deze BACKLOG + IMPLEMENTATION_PLAN (done→Done, in-progress→Impl/Test, rest→Req).
+NIET geïmplementeerd tot Han de 4 interviewvragen beantwoordt.
+
+[Claude 2026-06-22]: ✅ GEÏMPLEMENTEERD. Interview-antwoorden: bron = `kanban.json` in de repo;
+7-koloms pipeline; interactief (verslepen → schrijft `kanban.json` via dev-server, statische build →
+localStorage); alle items met status-mapping; agent-koppeling = LOS (bord = kanban.json, agents draai
+je apart via /kanban-run). Gebouwd: `kanban.json` (110 taken, gegenereerd uit BACKLOG + PLAN),
+DEBUG → KANBAN knop (alleen in debug-mode), fullscreen `<KanbanBoard>` met terugknop + vrij slepen
+tussen kolommen, Vite dev-server schrijf-API (`kanbanJsonApiPlugin`). Clean-room React (cyanluna's
+Postgres-board-code NIET hergebruikt; wél hun 7-koloms model + rank-schema + schema). Docs §43.
+467→471 tests groen, build clean, 0 lint-errors. ⏳ Mogelijke vervolgjes: intra-kolom herordenen via
+sleep-positie, kaart bewerken/toevoegen in de UI (nu read+move).
+
+[Claude 2026-06-22]: ↩️ TERUGGEDRAAID op verzoek Han. Han: "ik vind het stom dat de kanban en de app
+in dezelfde codebase zitten" → besluit: **kanban helemaal uit de app**, tooling via cyanluna direct
+(skills global / hun eigen repo), én de in-app debug→kanban view óók verwijderd. Verwijderd uit de
+app-repo: `.claude/skills/kanban*` (gevendord), `kanban.json`, `src/components/kanban/*`,
+`scripts/kanban*`, de Vite kanban-API, de debug→kanban knop + `showKanban` state, error-code E021,
+docs §43/§43a, en de `.gitignore`-uitzondering. App-repo is weer puur muziek. Voor kanban-gebruik:
+zie de eerdere lokale-setup-instructies (clone cyanluna → `cp -R kanban* ~/.claude/skills/` → DB +
+`/kanban-init`). ⚠ Twee-repo-werk vanuit déze websessie kan niet (ik ben vastgezet op één repo);
+gebruik daarvoor een aparte sessie per repo of lokaal Claude Code.
+
+### Generator setter in de bladmuziek — playback / generation / generation advanced (Han 2026-06-22)
+
+ik wil nu een generator setter in de bladmuziek gaan implementeren, in twee delen: "playback": nummeasures, numrepeats, odd repeats, even repeats (visibility, audibility/volume etc.) Als basis, maak een kopie van die elementen in de tijdelijke 'settings' setter:
+generation setter: zet voor elke balk settings neer voor generation. voeg placeholder setters toe voor: melody notes, melody type, notes per measure, Advanced generator settings: variability, span, tuplets, smallest note. controleer de generator settings zoals ze in de bottom view staan, en neem de setters/ waarden over. doe een voorstel dat past bij de filosofie van in-line bladmuziek setters, en die qua stijl past bij de andere settings menu's.
+
+[Claude 2026-06-22]: Interview afgerond (§4b). Antwoorden: "balk" = per NOTENBALK (treble/bass/perc),
+niet per maat (er bestaat géén per-maat generatiemodel); DRIE aparte setters (playback, generation,
+generation advanced); METEEN volledig gekoppeld aan InstrumentSettings; bottom-view veld-mappings
+overgenomen (melody notes=notePool, melody type=randomizationRule/play-style, notes per measure=
+notesPerMeasure, variability=rhythmVariability, span=maxLeap, tuplets=polyMultiplier, smallest note=
+smallestNoteDenom). Playback-setter hergebruikt SettingsOverlay (geen code-kopie, §6c); de tijdelijke
+'settings'-overlay blijft voorlopig staan en kan later gedeprecate worden.
+
+[Han 2026-06-22]: een opmerking: balk omvat ook de akkoorden!
+
+[Claude 2026-06-22]: Genoteerd — de generator-setters krijgen dus ook een AKKOORDEN-balk (4e balk).
+PLAYBACK dekt akkoorden al (SettingsOverlay heeft een chords-rij). GENERATION akkoorden-rij =
+complexity / strategy / chordCount; GENERATION ADVANCED akkoorden-rij = passingChordTypes (de overige
+advanced-melodiekolommen zijn N.v.t. voor akkoorden). Gekoppeld via chordSettings/setChordSettings.
+Mapping ter bevestiging aan Han voorgelegd.
+
+### Repeat after me — lang nummer in stukken kappen voor herhalingsblokken (Han 2026-06-22)
+
+repeat after me: lang nummer in stukken kappen voor herhaligsblokken (bijvoorbeeld HBD op gehoor: speel 2 maten voor, speler speelt na, ga naar volgende 2 maten)
+
+[Claude 2026-06-22]: Genoteerd als NIEUWE FR (call-and-response / "speel-mij-na" oefenmodus). Nog NIET
+gebouwd (focus = de 3 generator-setters). ⚠ §4b-interview nodig vóór implementatie: chunk-grootte vast
+(bv. 2 maten) of instelbaar? "speler speelt na" = getimede pauze of luister-detectie (pitch/MIDI)
+voordat doorgegaan wordt? hoort dit bij de bestaande repeat-blokken of een aparte praktijkmodus? Raakt
+Sequencer repeat/segmentatie.
+
+### Instrument-carousel — rename / re-icon + nieuwe categorieën & instrumenten (Han 2026-06-22)
+
+feedback on instrument carousel:
+rename / re-icon as per below
+catergories: instruments
+keys: grand piano, e-piano, organ OK, add accordion
+guitars: nylon , steel (use the same icon as nylon), electric OK, is there a distorted/drive electric? if so, add it, use the same icon as electric
+bass guitars: acoustic bass(use the same icon as nylon), electric (use 'rock music' as icon), synth, keep.
+strings: violin OK, cello OK, ensemble: use Stage icon, add contra bass
+wind: ok! I am missing harmonica
+percussion tuned: use xylophone icon for vibraphone. Add the xylophone.
+voice: oohs and aahs should both use the choir icon
+I am missing a synth category. It should contain: square, lead, pad
+
+[Claude 2026-06-22]: Genoteerd; NOG NIET gebouwd (capture-only, focus = generator-setters). Raakt
+`src/constants/instruments.jsx` (grouped lijst + getInstrumentIcon). Checklist bij oppakken:
+- keys: + accordion.
+- guitars: steel = nylon-icoon; check of er een distorted/drive electric is in de smplr-set → zo ja
+  toevoegen met electric-icoon.
+- bass guitars: acoustic bass = nylon-icoon; electric = 'rock music'-icoon; synth behouden.
+- strings: ensemble = Stage-icoon; + contrabas.
+- wind: + harmonica.
+- percussion tuned: vibraphone = xylophone-icoon; + xylophone toevoegen.
+- voice: oohs én aahs = choir-icoon.
+- NIEUWE categorie 'synth': square, lead, pad.
+⚠ Alle smplr-slugs moeten bestaan in de beschikbare instrument-set (§6c — niet hardcoden wat niet
+laadbaar is); per nieuw instrument de slug verifiëren vóór toevoegen.
+
+### 🐞 Bug — geen geluid na vaak van instrument wisselen (Han 2026-06-22)
+
+bug: after changing the instrument many times, no sound is heard.
+
+[Claude 2026-06-22]: Genoteerd als serieuze 🐞. Vermoedelijke oorzaak: smplr-instrumenten worden bij
+elke wissel opnieuw aangemaakt zonder de oude vrij te geven (leak / dode AudioContext-nodes), of de
+instrument-cache in `useInstruments.js` raakt in een staat zonder geladen instrument. Te onderzoeken na
+de generator-setters (kandidaat voor de eerstvolgende bugronde). E011-INSTRUMENT-CREATE is het relevante
+foutpad.
+
+### 🅿️ Geparkeerd op verzoek Han ("vink af" 2026-06-22)
+
+[Claude 2026-06-22]: Han heeft deze items van de actieve open-lijst gehaald ("vink af"). NIET
+geïmplementeerd — geparkeerd/gedeprioriteerd tot Han ze opnieuw aankaart:
+- Transpositie niet-lineaire 'tangens'-curve (geblokkeerd op Han's tekening).
+- Two-octave range (C2→C6) met octaaf-clefs (8va/15ma…).
+- Carousel: klik op preset tweent naar waarde (nu instant).
+- Range-setter polish: lyrics/label-ruimte; 8va/8vb-extent; percussie-stijl notePool→randomizationRule.
+(Indien Han met "vink af" bedoelde dat deze AF zijn i.p.v. geparkeerd: corrigeer — ze zijn niet gebouwd.)
+
+### ✅ Range setter — beta/drag default tuning (Han 2026-06-16)
+
+range setter: set beta mid bow to 0.6 by default, drag px to 10.
+
+[Claude 2026-06-16 05:55]: Fully-specified default change — implementing directly (§5 obviously-scoped). β (dense-middle bow) default → 0.6, drag px default → 10.
+[Claude 2026-06-17]: ✅ DONE — β default 0.3→0.6, drag px 6→10 (RangeStaffOverlay.jsx). Shipped + green.
+
+### ✅ Note click animation smoother (Han 2026-06-16)
+
+when clicking a note, the animation could be smoother
+
+[Claude 2026-06-16 05:55]: Logged. ⚠ Interview before implementing (§4b): which click animation (tap-to-play note flash/scale?), what feels rough now, target easing/duration?
+[Claude 2026-06-16 08:20]: CLARIFIED (Han): this is the RANGE SETTER. Clicking a note should make the notes SLIDE smoothly to the new positions matching the selected boundary change; that slide is not smooth today. Scope = RangeStaffOverlay click-to-set (stepper / reanchor) animation, not tap-to-play.
+[Claude 2026-06-17]: ✅ DONE — tap-to-set now SLIDES the boundary notes continuously via an eased rAF tween of a fractional ordinal (was a per-natural stepper that re-rendered per natural = choppy). beginSlide/slideFrame in RangeStaffOverlay.jsx. Docs: architecture.md "Continuous tap-slide".
+
+### ✅ Range setter — vertical (up/down) drag (Han 2026-06-16)
+
+range setter: one can slide sideways now, i would also be able to slide up and down.
+
+[Claude 2026-06-16 12:25]: Logged. ⚠ Interview before implementing (§4b). Today the boundary drag is HORIZONTAL only (onMove reads x; DRAG px per natural). Open Qs: should vertical drag move the SAME boundary the press picked (up = raise pitch / outward, down = lower), combined with horizontal or as an alternative axis? sensitivity (px per natural up/down)? does the tap-to-set/hold-extend stay unchanged?
+[Claude 2026-06-17]: ✅ DONE (Han: "both axes move it") — boundary drag now sums horizontal + vertical into a unified raise (UP = raise pitch); diagonal combines. svgY() + downRef.y + radial DRAG_THRESHOLD. RangeStaffOverlay.jsx onMove.
+
+### ✅ Range setter — notes shrink toward the middle (Han 2026-06-16)
+
+i would like the selected notes in the middle of the range to shrink down to 50%. (100% close to the range setter), and progressively smaller toward the middle, and progressively smaller toward the middle.
+
+[Claude 2026-06-16 12:25]: Logged. ⚠ Interview before implementing (§4b). Reading: a SIZE perspective on the selected (in-range) notes — 100% near the boundaries (the range-setter edges), shrinking to ~50% at the middle of the range; complements the existing dense-MIDDLE spacing bow (β). Open Qs: confirm 100% at BOTH boundaries → 50% at exact middle (symmetric)? linear or eased falloff? applies to selected/in-range notes only (context notes unaffected)? heads only or heads+stems+ledgers scale together?
+[Claude 2026-06-17]: ✅ DONE (Han: "symmetric, eased", in-range only) — 100% at boundaries → ~50% at exact middle, eased, by natural ordinal; scales head+stem+ledgers together. Docs: architecture.md "Both-axes drag + middle-shrink".
+
+### ✅ Universal settings/song transition — 1.5s (Han 2026-06-16)
+
+settings/song transitions.
+
+When loading a new song; when changing screens, etc. I would the same type of transition ALWAYS:
+it takes 1.5 s.
+0 current content fades out quickly (0,25s)
+1 notes fly in the from the right (prefered - also apply to lyrics, labels like "concert C4 =", and any other setters (individual notes from transposition etc.))
+2 any other elements fade [wait 1s, fade in 0.5s] (e.g., 8va blocks) -> however I would like them to slide in too..! This should be a fall back for
+
+apply this consistently, so also to elements of hbd, but not when a new melody is generated manually.
+
+[Claude 2026-06-16 05:55]: Logged. Big cross-cutting feature. ⚠ Interview before implementing (§4b). ❓ Open Qs: (a) exact triggers = {song load, screen/tab change, settings open/close?} — list all; (b) "notes fly in from the right" — per-note stagger or whole-staff slide? distance? (c) is the fade-then-slide the FALLBACK only when fly-in isn't possible — what determines that? (d) confirm EXCLUDED: manual melody (re)generation keeps its current animation. Relates to existing pagination/wipe/scroll animation system (arch §2/§7) — must not collide.
+[Claude 2026-06-16 08:20]: INTERVIEW ANSWERS (Han): Triggers = ALL of {song load, screen/tab change, setter overlays open/close, difficulty change}. Manual melody (re)generation EXCLUDED. Fly-in = STAGGERED CASCADE (each note/label/element flies in from the right, left-to-right stagger). Phase-2 "other elements" (8va, brackets) = SLIDE in from the right, fade as fallback ONLY for elements that can't sensibly slide. Timeline: 1.5s total — fade-out current 0.25s → notes cascade in → others slide/fade [start ~1.0s, 0.5s].
+[Claude 2026-06-16 08:35]: DESIGN DONE — the cascade primitive ALREADY EXISTS (src/hooks/useRangeMorph.js + useClefRefly.js: 1.5s, 250ms fade-out, x-staggered fly-from-right; most surfaces already tagged data-fly/data-mel; trigger #3 overlay open/close already works). Plan = Phase0 extract shared runner (src/utils/flyInCascade.js) · Phase1 orchestrator + song-load + staff cascade · Phase2 tab + difficulty triggers · Phase3 tag lyrics/"concert C=" labels/setter notes · Phase4 ottava slide+fade-fallback. DECISIONS (Han 2026-06-16): difficulty change = fires the transition (distinct from a manual randomize/regen button, which keeps old anim); transition ALWAYS plays, even during active playback (no playback-suppression guard).
+[Claude 2026-06-17]: ✅ DONE — all phases + 2 CRs shipped. fade-out 0.25s → notes SLIDE in from the right → non-sliding elements delayed-fade (wait 1s, fade 0.5s). Triggers wired: song load, tab/screen change (sheet), difficulty change, setter overlays open/close. Shared runner src/utils/flyInCascade.js + useUniversalTransition + UniversalTransitionContext; ottava marker slides; lyrics/labels tagged. Docs: architecture.md "Universal 1.5s transition". ❓ One open decision (plan note): a global difficulty-slider change currently RE-flies the CURRENT notes (acknowledgement) rather than regenerating — confirm if you want difficulty to regenerate so the cascade reveals NEW content.
+
+### 🗑️ Coloring — add 'scale' coloring option (Han 2026-06-16) — WITHDRAWN by Han 2026-06-17
+
+coloring: next to chords - add 'scale' as coloring option; coloring all scale notes normally, coloring non-scale notes (i.e., blue notes) grayish blue. Of course apply to all places where notes are colored, including keyboard.
+
+[Claude 2026-06-16 05:55]: Logged. Well-specified. ⚠ Quick interview (§4b). ❓ "normally" for scale notes = the active scheme's normal colour, or a fixed neutral? Exact grayish-blue value/CSS var? New `noteColoringMode: 'scale'` routed via `melodicNoteColor` (noteUtils) so all surfaces incl. keyboard inherit it (§6c/§6d).
+[Claude 2026-06-17]: ✅ DONE — 'scale' mode: in-scale notes get their scale-degree colour, out-of-scale "blue notes" go greyish-blue; applied everywhere incl. keyboard via the shared melodicNoteColor (§6c).
+[Claude 2026-06-17 later]: 🗑️ REMOVED at Han's request ("remove the scale color option — it is redundant, already covered by tonic/scale; my bad"). Reverted commit 20309ee: dropped the 'scale' branch from melodicNoteColor + both sheet renderers (renderMelodyNotes, SheetMusic) + PianoView, removed it from the colour menu (NoteColoringStaffOverlay) and the SubHeader/RangeControls/SettingsPanel palette cycles, removed the --note-blue theme var + the scale tests/docs. 276 tests green, build clean.
+
+### ✅ Instrument selector (Han 2026-06-03)
 
 instrument selector: https://icons8.com/icons/set/music--style-ios--static--black (with correct attribution: icons by icons8)
 Rij instrumenten: logo, naam erboven, eventueel transpositie eronder; gebruikelijke highlight, lowlight. On click: speel de C4 af op het instrument. Implementeer de instrumenten die beschikbaar zijn op keyboard
@@ -33,6 +235,12 @@ Rij instrumenten: logo, naam erboven, eventueel transpositie eronder; gebruikeli
 - On click: speel C4 via bestaande audio-routing (useInstruments / playSound) op het gekozen instrument.
 - "Instrumenten beschikbaar op keyboard" = de smplr-instrumenten die useInstruments/InstrumentSettings al kan laden → afleiden uit die lijst, niet hardcoden (§6c).
 - ⚠ Interview bij Han vóór implementatie (§4b): plaatsing (welke tab/overlay), wel/niet transpositie-rij, vervangt dit de bestaande instrument-picker?
+
+[Han 2026-06-16]: lets' make one in the SHEET MUSIC first. Idea: instrument image + name ON the staff, scrollable sideways, grouped by instrument type. Whenever the view is open, print the appropriate copyright/licence. Changing the instrument sets the playback instrument (this function already exists — in the old deprecated range setter for the keys). More instruments than space → scrollable off-screen; selected instrument is centered.
+[Claude 2026-06-16 17:15]: ⚠ §4b interview in progress. FINDINGS: reusable setter = `setTrebleSettings/setBassSettings(p=>({...p, instrument: slug}))` (current = activeSettings.instrument); instrument list = curated 13-slug `INSTRUMENTS` map in RangeControls.jsx (smplr Soundfont), implicitly grouped (keys/guitars+bass/strings/winds/voice). BLOCKER: NO icons8 image assets in repo (src/assets only has fonts); current icons are lucide-react family glyphs. I won't fetch/scrape icons8 (licensing/network). Plan: reuse ClefCardCarousel (horizontal scroll) + the cascade animation + a new instrument-edit overlay under overlays/ (§8). Open Qs → see interview.
+[Claude 2026-06-17]: ✅ DONE — built the SHEET-MUSIC instrument selector Han specified (2026-06-16). New in-staff INSTRUMENT setter (sibling of clef/range/colour), PER-STAFF: each visible staff shows a horizontally-scrollable strip of instrument cards (icon + name) grouped by family, the selected instrument auto-centred, the rest scrolling off-screen (reuses ClefCardCarousel). Tapping a card sets that staff's playback instrument via the existing setTrebleSettings/setBassSettings path. Attribution/licence line shown while the view is open. Shared src/constants/instruments.jsx (grouped list, +10 common instruments; RangeControls imports it too). Plumbing mirrors colorEditMode (App/SubHeader/SheetMusic/useRangeMorph). Slides in from the right with the universal transition. 271 tests green, build clean. Docs: architecture.md §41.
+  • ICONS: lucide placeholder glyphs + names for now — I cannot fetch/scrape icons8 binaries. When Han supplies the icons8 image files (drop into src/assets/instruments/), it's a one-spot swap: getInstrumentIcon() returns an <image> and ICON_ATTRIBUTION flips to "Icons by Icons8" (TODO(icons8) markers in constants/instruments.jsx).
+  • SUPERSEDED by the 2026-06-16 sheet design (raise again if still wanted): the original 2026-06-03 ideas of "transposition row UNDER the name" and "on click play C4 on the instrument" are NOT part of the sheet selector. Easy follow-ups if desired.
 
 ---
 
@@ -805,6 +1013,27 @@ Echter: er bestaat momenteel **geen song met N.C.** om tegen te implementeren. Z
 
 ---
 
+### Song-load bugs (Han 2026-06-14)
+
+- Wanneer ik een paar maten genereer en dan Happy Birthday laad, begint het pas
+  halverwege het lied te spelen.
+- Wanneer ik een nieuw sequence-block genereer (via de "generate next sequence block"-knop),
+  vallen num measures / measure type / etc. terug naar de normale exercise-settings i.p.v.
+  de Happy-Birthday-settings.
+- Wanneer een lied geladen is, moet dat in de header weerspiegeld worden (bv. "Happy
+  Birthday in G major").
+- Bij een opmaat én herhaling: speel de opmaat tegelijk met de laatste maat van het vorige
+  repeat-block — indien herhaling. Render ze ook. Dat betekent dat de eerste paar
+  herhalingen en de laatste herhaling verschillen. Dit is complex; de visual blocks moeten
+  dit waarschijnlijk reflecteren. Er zijn noten van het volgende repeat-block die niet in
+  het repeat-block vallen. Heeft invloed op veel.
+  - Voorstel (Han): los dit op in de bladmuziek van het lied. Je hebt een `1 - repeats - 1`
+    block en een `repeats`-block voor de laatste maat; in de eerste zijn de opmaat-noten
+    verwerkt, in de tweede niet.
+
+[Claude 2026-06-14]: Gelogd vanuit chat. Nog niet geïmplementeerd — backlog (§4b interview
+vóór implementatie, m.n. het opmaat/herhaling-blok dat de Sequencer + visual blocks raakt).
+
 ### HBD/Song-load: reset measure number + fixed chord progression
 
 **Han 2026-05-28**: Bij song-load:
@@ -1515,6 +1744,7 @@ bug (backlog): span not calculated correctly for tuplets: e.g., 8va span but 3:2
 
 - oplossing voor veranderen van instellingen (num measure, maatsoort) die zorgen voor (tijdelijk) lelijke sheet music
 [Claude 2026-05-19]: ⬆ NOG NIET OPGELOST — op verzoek van Han. Hoge prioriteit. Symptoom: bij het wijzigen van maatsoort of aantal maten verschijnt er tijdelijk misvormde bladmuziek. Oorzaak nog niet vastgesteld.
+[Claude 2026-06-17 13:15]: ✅ MAATSOORT-geval opgelost (de persistente misvorming bij maatsoort-wijziging terwijl gestopt). Oorzaak: `melodyMeasureCount` in `SheetMusic.jsx` gebruikte `Math.round(totalMelodyDuration / measureLengthSlots)`. Na een maatsoort-wijziging deelt de melodie (meter-onafhankelijke absolute ticks) zelden gelijk op in de nieuwe maat (bijv. 192 ticks in 3/4 = 192/36 = 5.33), dus `round` gaf 5 → de gedeeltelijke laatste maat (noten 180–192) viel weg + verkeerde maat-telling. Fix: afronden naar BOVEN via nieuwe pure helper `melodyMeasureSpan` (`Math.ceil(... - 1e-6)`) in `melodySlice.js`; de bestaande slot-processor splitst/koppelt al over de nieuwe maatstrepen en vult de laatste maat met een rust. Geëlimineerd op state-niveau: in gestopte toestand verandert alleen `timeSignature`, dus één consistente render-commit. Geen `rebarMelody` nodig. Werkt voor alle maatsoorten incl. onregelmatige (3/4, 4/4, 5/4, 7/8). Implementeert de "graceful partial-measure display" waar `useAppHandlers.js:114-115` naar verwees. NB: de aparte (milde, zelf-herstellende) numMeasures multi-commit-flits viel buiten scope van deze fix. Tests +9 (280 groen), build schoon. Zie docs/architecture.md §13.
 
 - meer regels bladmuziek op groter scherm; of op mobile horizontal wanneer de keys uitstaan
 - optie om zowel bas als treble toetsen in beeld te hebben

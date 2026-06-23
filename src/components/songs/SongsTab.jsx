@@ -19,13 +19,22 @@ const SongsTab = ({ onLoadSong }) => {
   );
 
   // When true: load/re-load songs in their written key and update the app tonic to match.
-  const [useOriginalKey, setUseOriginalKey] = useState(false);
+  // Default ON (Han 2026-06-17): loading a song uses its original key unless the user opts out.
+  const [useOriginalKey, setUseOriginalKey] = useState(true);
 
   // Tracks the last-loaded song so toggling "original key" ON can re-apply it immediately.
   const [lastLoaded, setLastLoaded] = useState(null);
 
   const handleDifficulty = (songId, diff) => {
     setSelectedDifficulty(prev => ({ ...prev, [songId]: diff }));
+    // If this song is the one currently loaded, RELOAD it at the new difficulty immediately
+    // (Han 2026-06-17: changing the difficulty reloads the loaded song — and thus fires the
+    // universal transition — and affects ONLY the selected song). Mirrors the original-key
+    // toggle's re-apply. Songs not currently loaded just update their pending difficulty.
+    if (lastLoaded && lastLoaded.songDef.id === songId) {
+      setLastLoaded({ songDef: lastLoaded.songDef, difficulty: diff });
+      onLoadSong(lastLoaded.songDef, diff, useOriginalKey);
+    }
   };
 
   const handleLoad = (songDef) => {

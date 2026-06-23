@@ -2,12 +2,12 @@ import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { noteYMap, getNoteAbsoluteY } from '../renderMelodyNotes';
 import { StaffQuarterNote } from '../staffNoteGlyph';
-import { melodicNoteColor, getNoteSemitone } from '../../../theory/noteUtils';
+import { melodicNoteColor, getNoteSemitone, chromatoneMix } from '../../../theory/noteUtils';
 import { getNoteValue, naturalsInRange } from '../../../utils/rangeUtils';
 import { transposeMelodyBySemitones } from '../../../theory/musicUtils';
 import { orderedPercussionPads, PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
-import { nextNaturalToward, nextNaturalInDir, classifyStep, STEP_MS } from './rangeSlide';
+import { STEP_MS, easeOutCubic } from './rangeSlide';
 
 /**
  * RangeStaffOverlay — in-SVG range selector (sheet/bladmuziek variant).
@@ -20,7 +20,8 @@ import { nextNaturalToward, nextNaturalInDir, classifyStep, STEP_MS } from './ra
  * ordered per instrument family (orderedPercussionPads), variants behind base.
  *
  * COLOUR (theme vars via the renderer's `previewMode` override):
- *   melodic — boundary notes --accent-yellow, in-band --text-primary,
+ *   melodic — boundary notes --range-boundary-highlight (theme-safe white-on-dark,
+ *             Han 2026-06-17 R4; was --accent-yellow), in-band --text-primary,
  *             out-of-band --text-dim (dimmed via group opacity).
  *   percussion — enabled --text-primary, disabled --text-dim (dimmed).
  *
@@ -136,29 +137,29 @@ const MIN_COLLAPSE = 3;            // only collapse if ≥ this many middle note
 // ── Range-row x(t): the selected min/max sit at FIXED x (X_L / X_R) via a sigmoid ramp; notes
 // outside the range ride saturating tanh tails so NO ellipsis is ever needed (Han 2026-06-12).
 // t = note MIDI; Tl/Tr = selMin/selMax; Xl/Xr = fixed screen x; Al/Ar = tail amplitude.
-// In-range ramp (Han 2026-06-14): x = Xl + (Xr−Xl)·(u + β·sin(πu)), u=(t−Tl)/(Tr−Tl) where t is
-// the natural ORDINAL (even white-key steps), not MIDI. The +β·sin(πu) term bows the map above the
-// diagonal; its derivative 1 + βπ·cos(πu) runs from 1+βπ at the min edge (u=0, looser) down to
-// 1−βπ at the max edge (u=1, TIGHTER) — so notes pile up toward Tr/Xr (Han: gewenst bij Xr). Keep
-// β < 1/π ≈ 0.318 so the spacing never reaches 0 (no overlapping notes).
-const RANGE_BETA = 0.2;       // in-range bow amount (0..~0.3), tune live
-const RANGE_TAU = 4;          // tanh tail rate, in semitones (tune live)
-const RANGE_XL_FRAC = 0.30;   // min boundary x (fraction of the available width)
-const RANGE_XR_FRAC = 0.70;   // max boundary x
-const RANGE_CONTEXT = 17;     // semitones of out-of-range context shown each side
-const DRAG_PX_PER_STEP = 16;  // relative drag sensitivity: px per natural step
+// In-range ramp (Han 2026-06-14 #2): x = Xl + (Xr−Xl)·(u + (β/2π)·sin(2πu)), u=(t−Tl)/(Tr−Tl) with
+// t = natural ORDINAL (even white-key steps). This is SYMMETRIC and dense in the MIDDLE: its
+// derivative 1 + β·cos(2πu) is 1−β at the centre (u=½ → tightest) and 1+β at both edges (loosest),
+// so notes pack closest near (Xl+Xr)/2 and stay almost-linear elsewhere (Han: closest near the
+// middle, ~linear ≈ (Xr−Xl)/8). β small (<1). g(0)=0, g(½)=½, g(1)=1.
+const RANGE_BETA = 0.6;       // in-range middle-bow amount (0..~0.8), tune live (Han 2026-06-16: 0.3→0.6)
+const RANGE_TAU = 3;          // tanh tail rate, in naturals (tune live)
+const RANGE_XL_FRAC = 0.20;   // min boundary x (fraction of the available width)
+const RANGE_XR_FRAC = 0.80;   // max boundary x
+const RANGE_CONTEXT = 10;     // semitones of out-of-range context shown each side
+const DRAG_PX_PER_STEP = 10;  // relative drag sensitivity: px per natural step (Han 2026-06-16: 6→10)
 const rangeX = (t, Tl, Tr, Xl, Xr, Al, Ar, B = RANGE_BETA, TAU = RANGE_TAU) => {
     if (t < Tl) return Xl + Al * Math.tanh((t - Tl) / TAU);
     if (t > Tr) return Xr + Ar * Math.tanh((t - Tr) / TAU);
     if (Tr === Tl) return Xl;
     const u = (t - Tl) / (Tr - Tl);
-    return Xl + (Xr - Xl) * (u + B * Math.sin(Math.PI * u));
+    return Xl + (Xr - Xl) * (u + (B / (2 * Math.PI)) * Math.sin(2 * Math.PI * u));
 };
 
 // Debug-tunable range-layout parameters (Han 2026-06-13): each entry is [key, label, min, max,
 // step]. The live values live in component state; the constants above are the defaults.
 const RANGE_PARAM_DEFS = [
-    ['BETA', 'β bow', 0, 0.3, 0.02],
+    ['BETA', 'β mid-bow', 0, 0.8, 0.02],
     ['TAU', 'tanh τ', 1, 12, 0.5],
     ['XL', 'Xl frac', 0.1, 0.45, 0.01],
     ['XR', 'Xr frac', 0.55, 0.9, 0.01],
@@ -198,7 +199,10 @@ const foldNoteToStaff = (name, staffStart, clef, staff) => {
     }
     return { name: n, shift, y };
 };
-const OTTAVA_LABEL = { 1: '8va', 2: '15ma', '-1': '8vb', '-2': '15mb' };
+// Maestro-font ottava glyphs — MUST match the melody renderer (renderMelodyNotes getOttavaChar)
+// for visual consistency (Han 2026-06-14). Our shift sign is the melody's negated: our shift>0 =
+// above (8va/15ma), <0 = below (8vb/15mb).
+const OTTAVA_GLYPH = { 1: 'Ã', 2: 'Û', '-1': '×', '-2': '`' };
 
 
 const nearestIdx = (notes, midi) => {
@@ -220,6 +224,21 @@ const shiftNatural = (notes, midi, n) => {
 // avoid the diagonal row climbing into the neighbouring staff.
 const fit = (count, avail) => avail / Math.max(1, count);
 const MAX_CONTEXT = 5;   // hard cap on naturals added beyond each boundary
+
+// Span-dependent minimum scale for the in-range middle-note bow (Han 2026-06-19):
+// the previous version always pulled the middle note down to 0.5 regardless of how
+// wide the range is, which over-shrank narrow ranges where there is plenty of room.
+// Han wants the shrink to be GENTLE for small ranges and only aggressive for wide
+// ones. oSpan is the ORDINAL note-count span (white-key steps from selMin→selMax,
+// not semitones). Below 8 notes the range is small enough that notes stay FULL size
+// (no shrink at all, per Han); from 8 notes it eases down to 0.50 at ≥12 notes,
+// linear between 8 and 12.
+//   oSpan < 8  → 1.00 (no shrink)
+//   oSpan = 8  → 0.90
+//   oSpan = 10 → 0.70
+//   oSpan ≥ 12 → 0.50
+export const rangeMiddleMinScale = (oSpan) =>
+    oSpan < 8 ? 1.0 : oSpan >= 12 ? 0.5 : 0.9 - 0.4 * (oSpan - 8) / 4;
 
 export const buildRangeRow = (notes, selMin, selMax, avail) => {
     const M = notes.length;
@@ -320,159 +339,266 @@ const RangeStaffOverlay = ({
         CONTEXT: RANGE_CONTEXT, DRAG: DRAG_PX_PER_STEP,
     });
 
-    // ── Boundary SLIDE animation (Han 2026-05-31) ─────────────────────────────
-    // A tap/hold steps the boundary one natural per STEP_MS (0.25 s) toward the
-    // target instead of jumping. Each ±1 step reveals/hides exactly ONE context
-    // note at the far edge; we animate that note sliding in/out + fading, while
-    // the row body scales about the anchored boundary so any re-spacing (and the
-    // 8va, which lives inside the body) rides along. See rangeSlide.js.
-    const prevExtentRef = React.useRef({});   // per-staff { loIdx, hiIdx, noteWidth }
-    const bodyRefs = React.useRef({});        // per-staff <g> scaled about the anchor
-    const edgeRefs = React.useRef({});        // per-staff <g> for the entering/leaving note
-    const rafRefs = React.useRef({});         // per-staff rAF id
-    const stepperRef = React.useRef(null);    // active stepper { staff, which, presets, target, dir, live, pressed, dragged, ticks }
-    const stepTimerRef = React.useRef(null);  // setTimeout id for the step cadence
     const downRef = React.useRef(null);       // { x, staff } at pointer-down (drag detection)
     // Latest boundary writer captured in a ref so the timer-driven loop never
     // calls a stale closure across re-renders (§6 spirit).
     const onStepRef = React.useRef(null);
     onStepRef.current = onSetMelodicBoundary;
 
-    const DRAG_THRESHOLD = 8;   // SVG units of movement → it's a drag, not a tap/hold
-    // CR-A1 (Han 2026-06-08): a tap on a far note fires a long burst (one natural per
-    // STEP_MS). Cap the WHOLE burst at MAX_BURST_MS so distant moves "speed up" — short
-    // moves (whose natural total is already < the cap) are untouched. MIN_STEP_MS is a
-    // floor so an extreme far tap still renders at least ~1 frame per step.
-    const MAX_BURST_MS = 1000;
-    const MIN_STEP_MS = 24;
+    // ── Continuous TAP slide (Han 2026-06-16) ─────────────────────────────────
+    // Replaces the per-natural stepper for a TAP-to-set: the x(t) layout is
+    // already continuous in the boundary ORDINALS (rangeX's Tl/Tr are the moved
+    // boundary's ordinal — see melodicStaff), so we glide a FRACTIONAL ordinal
+    // from the boundary's current value to the tapped target over a short eased
+    // duration and re-render each frame. Notes slide smoothly because rxFor reads
+    // the fractional ordinal; we commit the INTEGER target to app state exactly
+    // ONCE at the end (snap), avoiding one React re-render per natural (the choppy
+    // discrete jumps Han reported). Mirrors TranspositionSetter's animOffset glide.
+    //
+    // slideRef holds, per staff: the live fractional ordinal + the tween/hold
+    // plan. A ref (not state) so the rAF loop reads the latest values without a
+    // stale closure and a render isn't forced per field write (§6); the visible
+    // re-render is driven explicitly by forceReanchor() once per frame.
+    //   which        — 'min' | 'max' (which boundary the gesture owns)
+    //   ord          — live fractional ordinal of the moved boundary (drives rxFor; only
+    //                  moves off targetOrd during HOLD-EXTEND now — see R1 note below)
+    //   targetOrd    — integer ordinal committed on press
+    //   t0,holdDelayMs — press time + grace before a sustained press promotes to hold-extend
+    //   pressed      — pointer still down? (true → may hold-extend past target)
+    //   holdExtending — true once the hold glide started (gates the R1 cascade off)
+    //   dir          — +1/-1 outward direction for hold-extend
+    //   targetMidi   — integer midi committed on press
+    //
+    // R1 REVISION (Han 2026-06-17): the original design eased a FRACTIONAL ordinal
+    // fromOrd→targetOrd so the row re-spaced as ONE continuous all-at-once glide. Han
+    // found that "cumbersome"; the per-note staggered cascade (runRangeCascade) now owns
+    // the tap re-layout instead, so beginSlide COMMITS the target immediately and this
+    // slide record only survives to drive HOLD-EXTEND. The fromOrd / duration-tween
+    // fields are therefore gone; ord stays pinned at targetOrd until a hold begins.
+    const slideRef = React.useRef({});        // per-staff slide/hold-extend state
+    const slideRafRef = React.useRef({});      // per-staff rAF id for the slide
+    // Hold-extend speed once a held tap has reached its target: ordinals/second.
+    // One natural per STEP_MS (250 ms) matches the old stepper's hold cadence but
+    // reads as a smooth continuous glide because we advance a fractional ordinal.
+    const HOLD_ORD_PER_SEC = 1000 / STEP_MS;
+    const easeInOut = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
 
-    const stopStepper = () => {
-        if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
-        stepperRef.current = null;
-    };
-    // One cadence tick: advance the boundary one natural toward the target; once
-    // the target is reached, keep extending OUTWARD while still pressed (hold),
-    // or stop once released (a tap completes its burst then stops).
-    const tick = () => {
-        const s = stepperRef.current;
-        if (!s || s.dragged) return;
-        let next = null;
-        if (s.live !== s.target) {
-            next = nextNaturalToward(PIANO_NATURALS, s.live, s.target);
-        } else if (s.pressed && s.ticks > 0) {
-            // Held at the target → keep extending OUTWARD. Advance the target too so
-            // the next tick still reads live===target and keeps extending in `dir`
-            // instead of stepping back toward the old target (the wobble bug).
-            next = nextNaturalInDir(PIANO_NATURALS, s.live, s.dir);
-            if (next != null) s.target = next;
-            s.stepMs = STEP_MS; // hold-extension runs at the normal cadence, not the burst speed
-        }
-        s.ticks += 1;
-        if (next == null) {
-            if (!s.pressed) { stopStepper(); return; }      // released + nothing left → stop
-            stepTimerRef.current = setTimeout(tick, STEP_MS); // held at target/edge → idle until release
-            return;
-        }
-        s.live = next;
-        onStepRef.current?.(s.staff, next, s.which, s.presets);
-        stepTimerRef.current = setTimeout(tick, s.stepMs);  // s.stepMs = burst speed (capped) while approaching target
-    };
-    const beginStepper = (staff, which, fromMidi, targetMidi, dir, presets) => {
-        stopStepper();
-        // Per-step duration for THIS burst: distance (in naturals) determines whether we
-        // compress. dist ≤ ~4 keeps STEP_MS (total already < MAX_BURST_MS); a far tap
-        // shrinks per-step time so dist × stepMs ≈ MAX_BURST_MS (CR-A1).
-        const fi = PIANO_NATURALS.indexOf(fromMidi);
-        const ti = PIANO_NATURALS.indexOf(targetMidi);
-        const dist = (fi >= 0 && ti >= 0) ? Math.abs(ti - fi) : 1;
-        const stepMs = dist > 1 ? Math.max(MIN_STEP_MS, Math.min(STEP_MS, MAX_BURST_MS / dist)) : STEP_MS;
-        stepperRef.current = { staff, which, presets, target: targetMidi, dir, live: fromMidi, pressed: true, dragged: false, ticks: 0, stepMs };
-        tick(); // immediate first step so a single adjacent tap moves at once
-    };
+    // ── Per-note staggered re-layout CASCADE (R1, Han 2026-06-17) ──────────────
+    // After a range commits (the boundary settles on a new min/max), the whole row
+    // re-spaces. Moving every note to its new x AT ONCE "feels cumbersome" (Han);
+    // instead the notes should arrive in QUICK SUCCESSION — a short left→right
+    // staggered glide (the flyInCascade feel, but brief). We drive this purely on
+    // the DOM: each note's outer <g data-range-midi> is translateX-ed FROM its old
+    // x (recorded last render) TO its committed new x (this render), each delayed by
+    // its target-x order so the leftmost note lands first. §6: every per-frame
+    // transform is written via element.style in the rAF — NEVER through JSX props —
+    // and the inline transform is cleared at the end so the committed render owns the
+    // final position. The single commit-to-state already happened (selMin/selMax are
+    // the new values); this cascade is pure visual choreography over that committed
+    // layout, so it never touches app state and never fights the drag/tap tween.
+    const noteXRef = React.useRef({});         // per-staff Map(midi → target screen x) committed BEFORE this render
+    const cascadeXMapPending = React.useRef({});  // per-staff Map(midi → x) written DURING the current render
+    const cascadeRafRef = React.useRef({});    // per-staff rAF id for the cascade
+    const cascadeKeyRef = React.useRef({});    // per-staff last committed `${selMin}:${selMax}` (change detector)
+    const rowGroupRefs = React.useRef({});     // per-staff <g.range-row> DOM node (to find note <g>s)
+    // Cascade timing — adopt the TRANSPOSITION carousel's glide feel (Han 2026-06-18):
+    // each note eases out over CASCADE_ELEM_MS (~280 ms, matching TranspositionSetter's
+    // DURATION) with easeOutCubic, NOT the old 220 ms smoothstep — so a settling note
+    // reads as the same smooth glide as the transposition carousel. The left→right
+    // stagger Han previously asked for is KEPT (CASCADE_STAGGER_MS): the leftmost note
+    // starts at 0 and the rightmost at CASCADE_STAGGER_MS, so the row still arrives in
+    // "quick succession" but each individual note glides exactly like the carousel
+    // instead of the snappier smoothstep. Whole row settles in STAGGER + ELEM (~400 ms).
+    const CASCADE_ELEM_MS = 280;
+    const CASCADE_STAGGER_MS = 120;
+    // easeOutCubic — the SAME easing the transposition carousel uses (rangeSlide.js /
+    // TranspositionSetter.jsx: 1 − (1−p)³). Single source of truth so the two animations
+    // can't drift (CLAUDE.md §6d).
+    const cascadeEase = easeOutCubic;
 
-    // rAF tween for one staff: body scales s0→1 about anchorX; the edge note
-    // translates edgeDx0→edgeDx1 and fades edgeOp0→edgeOp1. Opacity/transform are
-    // set via element.style/attr in the rAF callback (never JSX props) per §6.
-    const animate = (staff, durMs, { bodyAx, s0, edgeDx0, edgeDx1, edgeOp0, edgeOp1 }) => {
-        if (rafRefs.current[staff]) cancelAnimationFrame(rafRefs.current[staff]);
-        const body = bodyRefs.current[staff];
-        const edge = edgeRefs.current[staff];
+    const stopCascade = (staff) => {
+        if (cascadeRafRef.current[staff]) { cancelAnimationFrame(cascadeRafRef.current[staff]); cascadeRafRef.current[staff] = null; }
+    };
+    // Run ONE left→right staggered cascade for `staff`. `moves` is an array of
+    // { el, fromX, toX } — the note's outer <g>, its OLD screen x, and its NEW screen
+    // x. We translateX each el from (fromX−toX) → 0, staggered by toX rank, easing
+    // each over CASCADE_ELEM_MS. Inline transforms are cleared on completion so the
+    // committed render (which already places the note AT toX) owns the final position.
+    const runRangeCascade = (staff, moves) => {
+        stopCascade(staff);
+        // ONE rAF driver per staff at a time (Han 2026-06-18). The cascade is the sole
+        // driver that WRITES note transforms here. A grace-window slide rAF may still be
+        // alive (beginSlide armed it on the same tap that triggered this cascade), but
+        // during its grace window slideFrame writes NOTHING — it only keeps its rAF alive
+        // so a sustained press can promote to hold-extend. So the two never write the same
+        // element in the same frame: cascade owns the transform until it completes, and if
+        // the press is held the cascade is already done (or suppressed via the layout
+        // effect's holdExtending guard) before hold-extend starts moving notes. We must NOT
+        // stopSlide() here — that would destroy the hold-extend the user may be arming.
+        if (!moves.length) return;
+        const xs = moves.map(m => m.toX);
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const span = (maxX - minX) || 1;
+        // Per-note start delay by target-x order: leftmost (rank 0) starts immediately,
+        // rightmost at CASCADE_STAGGER_MS — the "quick succession" left→right wave.
+        const delayOf = (toX) => ((toX - minX) / span) * CASCADE_STAGGER_MS;
+        // Initial offset set before paint (no flash): each note sits at its OLD x. Because
+        // runRangeCascade is called from a useLayoutEffect, this write lands BEFORE paint,
+        // so the first painted frame already shows the OLD geometry — no stale-read jump
+        // (Han 2026-06-18 (c): read/seed geometry after the layout flush that measured it).
+        for (const m of moves) m.el.style.transform = `translateX(${m.fromX - m.toX}px)`;
+        const total = CASCADE_STAGGER_MS + CASCADE_ELEM_MS;
         const t0 = performance.now();
         const frame = (now) => {
-            // durMs matches the cadence of the step that triggered this tween (burst speed
-            // when approaching a far tap target, STEP_MS otherwise) so the glide stays
-            // back-to-back continuous instead of lagging behind a compressed burst (CR-A1).
-            const p = Math.min(1, (now - t0) / durMs);
-            // LINEAR within a step (Han 2026-06-01): a burst chains many steps
-            // back-to-back, and per-step ease-out made each step decelerate → a
-            // pulsing "chain of discrete shifts". Constant velocity reads as one
-            // continuous glide across the whole burst.
-            const e = p;
-            if (body) {
-                const s = s0 + (1 - s0) * e;
-                body.setAttribute('transform', `translate(${bodyAx} 0) scale(${s} 1) translate(${-bodyAx} 0)`);
+            const t = now - t0;
+            for (const m of moves) {
+                const p = cascadeEase(Math.max(0, Math.min(1, (t - delayOf(m.toX)) / CASCADE_ELEM_MS)));
+                const dx = (m.fromX - m.toX) * (1 - p);
+                m.el.style.transform = dx === 0 ? '' : `translateX(${dx}px)`;
             }
-            if (edge) {
-                const dx = edgeDx0 + (edgeDx1 - edgeDx0) * e;
-                edge.setAttribute('transform', `translate(${dx} 0)`);
-                edge.style.opacity = String(edgeOp0 + (edgeOp1 - edgeOp0) * e);
-            }
-            if (p < 1) { rafRefs.current[staff] = requestAnimationFrame(frame); return; }
-            rafRefs.current[staff] = null;
-            if (body) body.removeAttribute('transform');
-            if (edge) { edge.setAttribute('transform', 'translate(0 0)'); edge.style.opacity = String(edgeOp1); }
+            if (t < total) { cascadeRafRef.current[staff] = requestAnimationFrame(frame); return; }
+            cascadeRafRef.current[staff] = null;
+            for (const m of moves) m.el.style.transform = '';   // committed render owns the final x
         };
-        frame(t0);                                          // set initial state pre-paint (no flash)
-        rafRefs.current[staff] = requestAnimationFrame(frame);
+        // ONE rAF loop only (Han 2026-06-18): the previous code called frame(t0)
+        // synchronously AND scheduled a rAF, spawning TWO concurrent loops that both wrote
+        // each note's transform every frame — a self-race that jittered the glide. The
+        // initial offset is already seeded above (before paint), so we just start a single
+        // rAF; the first frame() runs next tick and animates from there.
+        cascadeRafRef.current[staff] = requestAnimationFrame(frame);
     };
+
+    const stopSlide = (staff) => {
+        if (slideRafRef.current[staff]) { cancelAnimationFrame(slideRafRef.current[staff]); slideRafRef.current[staff] = null; }
+        slideRef.current[staff] = null;
+    };
+    // One rAF frame of the slide for `staff`.
+    //
+    // R1 (Han 2026-06-17): a TAP no longer eases the boundary ordinal fromOrd→targetOrd
+    // as one continuous all-at-once row re-space — that "felt cumbersome". Instead the
+    // tap COMMITS the target immediately (beginSlide) and the per-note staggered CASCADE
+    // (runRangeCascade) animates the re-layout left→right. So `slideFrame` only runs
+    // while the tap is still HELD past its target: the HOLD-EXTEND continuous outward
+    // glide, which we DO want smooth (and which suppresses the cascade via holdExtending).
+    // A quick tap (release before the next frame) never enters the hold branch — the
+    // immediate commit + cascade is the whole animation. Single commit-to-state still
+    // holds: beginSlide commits the target once; hold-extend commits each crossing.
+    const slideFrame = (staff) => (now) => {
+        const s = slideRef.current[staff];
+        if (!s) return;
+        // GRACE window after the immediate commit: while still within s.holdDelayMs of
+        // the press we do nothing but keep the rAF alive (the R1 cascade is animating
+        // the tap). Only a sustained press past the grace promotes to hold-extend, so a
+        // quick tap+release never glides — it just commits + cascades (Han 2026-06-17).
+        if (now < s.t0 + s.holdDelayMs) {
+            slideRafRef.current[staff] = requestAnimationFrame(slideFrame(staff));
+            return;
+        }
+        if (s.pressed) {
+            s.holdExtending = true;   // gate the R1 cascade off while the hold glides
+            // HOLD-extend: keep gliding outward past the target until release. We
+            // advance the fractional ordinal at a steady velocity (dt since the
+            // last frame), so a long hold reads as one continuous outward slide.
+            // First hold frame: pin to the exact integer target (the tween ended a
+            // hair short of it) so the outward extension starts from a clean value.
+            if (s.lastNow == null) s.ord = s.targetOrd;
+            const last = s.lastNow ?? now;
+            s.lastNow = now;
+            const nextOrd = s.ord + s.dir * HOLD_ORD_PER_SEC * ((now - last) / 1000);
+            const maxOrd = PIANO_NATURALS.length - 1;
+            s.ord = Math.max(0, Math.min(maxOrd, nextOrd));
+            // Commit each whole-natural crossing so app state follows the hold
+            // outward (the boundary really moves), keyed off the integer ordinal.
+            const intOrd = Math.round(s.ord);
+            if (intOrd !== s.committedOrd) {
+                s.committedOrd = intOrd;
+                const midi = PIANO_NATURALS[intOrd]?.midi;
+                if (midi != null) onStepRef.current?.(staff, midi, s.which, s.presets);
+            }
+            forceReanchor();
+            if (s.ord <= 0 || s.ord >= maxOrd) { stopSlide(staff); return; }  // piano edge → stop
+            slideRafRef.current[staff] = requestAnimationFrame(slideFrame(staff));
+            return;
+        }
+        // Released before the grace promoted to hold-extend: the immediate commit in
+        // beginSlide already set the final state and the cascade animated it, so just
+        // tear down the slide record. (committedOrd === targetOrd already.)
+        stopSlide(staff);
+        forceReanchor();   // ensure a clean render at the committed integer state
+    };
+    // Begin a tap of `staff`'s `which` boundary to `targetMidi`. R1 (Han 2026-06-17):
+    // we COMMIT the integer target IMMEDIATELY so the row re-renders at its final
+    // positions and the per-note staggered cascade (driven by the committed-key change
+    // in the layout effect below) animates the left→right re-layout. We then keep a
+    // slide record alive purely to support HOLD-EXTEND: if the press is sustained past
+    // holdDelayMs, slideFrame glides the boundary outward continuously (suppressing the
+    // cascade). dir = outward direction for that hold-extend. holdDelayMs ~= a short
+    // grace so a quick tap never glides. The tween that used to ease the ordinal is gone.
+    const HOLD_DELAY_MS = 260;
+    const beginSlide = (staff, which, fromMidi, targetMidi, dir, presets) => {
+        stopSlide(staff);
+        const targetOrd = ordinalOf(targetMidi);
+        // Immediate single commit to app state → cascade animates the re-layout.
+        onStepRef.current?.(staff, targetMidi, which, presets);
+        slideRef.current[staff] = {
+            which, presets, dir, targetOrd, ord: targetOrd,
+            targetMidi, committedOrd: targetOrd, holdExtending: false,
+            t0: performance.now(), holdDelayMs: HOLD_DELAY_MS, pressed: true, lastNow: null,
+        };
+        slideRafRef.current[staff] = requestAnimationFrame(slideFrame(staff));
+    };
+
+    const DRAG_THRESHOLD = 8;   // SVG units of movement → it's a drag, not a tap/hold
 
     // Stop all timers/rAF on unmount.
     React.useEffect(() => () => {
-        stopStepper();
-        Object.values(rafRefs.current).forEach(id => id && cancelAnimationFrame(id));
+        Object.values(slideRafRef.current).forEach(id => id && cancelAnimationFrame(id));
+        Object.values(cascadeRafRef.current).forEach(id => id && cancelAnimationFrame(id));
     }, []);
 
-    // The visible row is a boundary-relative WINDOW into the full piano (A0..C8),
-    // not the clef extent: buildRangeRow centres CONTEXT_NOTES naturals beyond
-    // each boundary. During a drag we reuse the WHOLE layout captured at
-    // press-time so the window/notes don't shift under the finger. Defined before
-    // the early return + the slide effect so both can use it (and so no hook is
-    // called conditionally — rules-of-hooks).
     const MEL_AVAIL = endX - PRESET_AREA_WIDTH - startX;
-    const getMelodicLayout = (staff, selMin, selMax) => {
-        const active = dragRef.current?.staff === staff ? dragRef.current : null;
-        return active?.layout ?? buildRangeRow(PIANO_NATURALS, selMin, selMax, MEL_AVAIL);
-    };
 
-    // After every render: detect a single ±1 step vs the remembered window and run
-    // the slide tween; then remember the current window. Cheap when nothing moved.
-    // useLayoutEffect so initial transform/opacity are set before paint (no flash).
-    // Must sit BEFORE the early return so it's never called conditionally.
+    // ── R1/R2 per-note re-layout cascade trigger (Han 2026-06-17) ──────────────
+    // After every render we (a) snapshot this render's note x-map and (b) detect a
+    // COMMITTED boundary change for each melodic staff. On a change we run the
+    // staggered cascade from the PREVIOUS positions (noteXRef) to the NEW ones
+    // (cascadeXMapPending). This fires for BOTH the in-overlay tap (beginSlide commits
+    // immediately) AND the keyboard (KeyboardRangeSetter writes the same settings.range
+    // the overlay reads as trebleRange/bassRange → R2), so the keyboard and the staff
+    // share ONE animation. We SKIP it while a live drag or a hold-extend owns the row
+    // (those follow the finger / glide continuously — a stagger would fight them).
+    // useLayoutEffect so the per-note initial offset is set before paint (no flash).
     React.useLayoutEffect(() => {
         if (startX == null || endX == null) return;
-        // Disabled (Han 2026-06-12): the ±1 slide tween belonged to the index-based layout; the
-        // x(t) layout is continuous (notes glide via re-render), so no body-scale/edge tween.
-        return; // eslint-disable-line no-unreachable
         const run = (staff, range, frame) => {
             if (!frame) return;
-            const layout = getMelodicLayout(staff, getNoteValue(range?.min), getNoteValue(range?.max));
-            if (!layout.entries.length) return;
-            const cur = layout.extent;
-            const prev = prevExtentRef.current[staff];
-            const step = layout.gap ? { kind: 'none' } : classifyStep(prev, cur);
-            if (step.kind !== 'none') {
-                const nw = layout.noteWidth;
-                const enter = step.kind === 'enter';
-                animate(staff, stepperRef.current?.stepMs ?? STEP_MS, {
-                    bodyAx: step.anchor === 'left' ? startX : (endX - PRESET_AREA_WIDTH),
-                    s0: (prev?.noteWidth || nw) / nw,
-                    edgeDx0: enter ? step.dir * nw : 0,
-                    edgeDx1: enter ? 0 : step.dir * nw,
-                    edgeOp0: enter ? 0 : 1,
-                    edgeOp1: enter ? 1 : 0,
-                });
-            }
-            prevExtentRef.current[staff] = { loIdx: cur.loIdx, hiIdx: cur.hiIdx, noteWidth: layout.noteWidth };
+            const selMin = getNoteValue(range?.min);
+            const selMax = getNoteValue(range?.max);
+            const key = `${selMin}:${selMax}`;
+            const prevKey = cascadeKeyRef.current[staff];
+            const prevXMap = noteXRef.current[staff];
+            const newXMap = cascadeXMapPending.current[staff];
+            cascadeKeyRef.current[staff] = key;
+            if (newXMap) noteXRef.current[staff] = newXMap;   // becomes "prev" for the next change
+            if (prevKey === undefined || prevKey === key) return;   // first render / no change
+            // A live drag or hold-extend owns the visual motion → no cascade.
+            if (dragRef.current?.staff === staff) return;
+            if (slideRef.current[staff]?.holdExtending) return;
+            if (!prevXMap || !newXMap) return;
+            const group = rowGroupRefs.current[staff];
+            if (!group) return;
+            // Build the per-note moves: each note that exists in BOTH maps with a real
+            // position change, paired with its outer <g data-range-midi> DOM node.
+            const moves = [];
+            group.querySelectorAll('[data-range-midi]').forEach((el) => {
+                const midi = Number(el.getAttribute('data-range-midi'));
+                const toX = newXMap.get(midi);
+                const fromX = prevXMap.get(midi);
+                if (toX == null || fromX == null) return;
+                if (Math.abs(toX - fromX) < 0.5) return;   // unmoved → nothing to animate
+                moves.push({ el, fromX, toX });
+            });
+            runRangeCascade(staff, moves);
         };
         if (isTrebleVisible) run('treble', trebleRange, trebleFrame);
         if (isBassVisible) run('bass', bassRange, bassFrame);
@@ -489,6 +615,16 @@ const RangeStaffOverlay = ({
         const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
         return loc.x;
     };
+    // Screen → SVG y (same transform as svgX) — used by the boundary drag's VERTICAL axis
+    // (Han 2026-06-16: drag up/down also moves the boundary, up = raise pitch).
+    const svgY = (e) => {
+        const svg = e.currentTarget?.ownerSVGElement;
+        if (!svg?.getScreenCTM) return null;
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX; pt.y = e.clientY;
+        const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
+        return loc.y;
+    };
     // ── Melodic staff (treble/bass) ──────────────────────────────────────────
     // `divider` (shared edge between the treble & bass zones) is `{ dL, dR }` (Y at
     // the row's left/right ends) when both melodic staves are visible, else null.
@@ -504,7 +640,14 @@ const RangeStaffOverlay = ({
         const Al = (Xl - startX) * 0.92;
         const Ar = (endX - PRESET_AREA_WIDTH - Xr) * 0.92;
         // Map by natural ordinal (even white-key steps), not MIDI, so naturals are evenly spaced.
-        const oMin = ordinalOf(selMin), oMax = ordinalOf(selMax);
+        // During a TAP slide the moved boundary's ordinal is the live FRACTIONAL value from the
+        // tween (slideRef.ord), so rangeX positions every note at the in-between layout for this
+        // frame → the notes glide smoothly toward the target instead of jumping per natural. The
+        // committed boundary midi (selMin/selMax) still drives in-band/colour classification, so
+        // notes keep their identity while the spacing slides (Han 2026-06-16).
+        const slide = slideRef.current[staff];
+        const oMin = slide?.which === 'min' ? slide.ord : ordinalOf(selMin);
+        const oMax = slide?.which === 'max' ? slide.ord : ordinalOf(selMax);
         const rxFor = (midi) => rangeX(ordinalOf(midi), oMin, oMax, Xl, Xr, Al, Ar, rp.BETA, rp.TAU);
         // Visible naturals: the selection ± rp.CONTEXT semitones of saturating context.
         const winNotes = PIANO_NATURALS.filter(n => n.midi >= selMin - rp.CONTEXT && n.midi <= selMax + rp.CONTEXT);
@@ -525,15 +668,16 @@ const RangeStaffOverlay = ({
         const writtenByConcert = new Map(winNotes.map((n, i) => [n.name, writtenNames[i]]));
         const writtenName = (concertNm) => writtenByConcert.get(concertNm) ?? concertNm;
         const colorFor = (concertMidi, writtenNm) => {
-            if (concertMidi === selMin || concertMidi === selMax) return 'var(--accent-yellow)';
+            // Boundary notes use the theme-safe range-boundary-highlight (white on dark
+            // themes) for chromatone visibility — NOT --accent-yellow (Han 2026-06-17 R4).
+            if (concertMidi === selMin || concertMidi === selMax) return 'var(--range-boundary-highlight)';
             if (concertMidi > selMin && concertMidi < selMax) {
                 const base = melodicNoteColor(writtenNm, { noteColoringMode, tonic, scaleNotes, theme });
                 if (base) return base;
                 if (noteColoringMode === 'chords' && activeChord?.notes?.length) {
                     const pc = ((concertMidi % 12) + 12) % 12;
                     if (activeChord.notes.some(cn => getNoteSemitone(cn) === pc)) {
-                        const mix = theme === 'light' ? 'black' : 'white';
-                        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(activeChord.root)}), ${mix} 30%)`;
+                        return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
                     }
                 }
                 return 'var(--text-primary)';
@@ -541,11 +685,13 @@ const RangeStaffOverlay = ({
             return 'var(--range-lowlight)';
         };
 
-        // Press = start STEPPING the nearest boundary one natural per 0.25 s toward
-        // the pressed column (tap = burst that finishes after release; hold = keep
-        // extending outward until release). Moving past DRAG_THRESHOLD promotes the
-        // gesture to a live drag (today's behaviour): the layout freezes and the
-        // boundary follows the finger, re-anchoring on release.
+        // Press = start a continuous SLIDE of the nearest boundary toward the
+        // pressed column (tap = the row glides to the target then commits once;
+        // hold = the slide reaches the target then keeps extending outward until
+        // release). Moving past DRAG_THRESHOLD promotes the gesture to a live drag
+        // (today's behaviour): the boundary follows the finger relative to the
+        // press point, re-anchoring on release. `dragged` lives in downRef so the
+        // drag and the slide tween never read each other's state.
         const onDown = (e) => {
             if (!onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
@@ -554,40 +700,50 @@ const RangeStaffOverlay = ({
             const which = Math.abs(x - Xl) <= Math.abs(x - Xr) ? 'min' : 'max';
             const target = colAt(x);
             const fromMidi = which === 'min' ? selMin : selMax;
-            // Tap/hold still steps the zone's boundary toward the pressed column.
+            // Outward direction for hold-extend once the slide reaches the target.
             const dir = target > fromMidi ? 1 : (target < fromMidi ? -1 : (which === 'max' ? 1 : -1));
-            downRef.current = { x, staff, zone: which, minAtPress: selMin, maxAtPress: selMax };
+            downRef.current = { x, y: svgY(e), staff, zone: which, minAtPress: selMin, maxAtPress: selMax, dragged: false };
             try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not all envs */ }
-            beginStepper(staff, which, fromMidi, target, dir, frame.presets);
+            beginSlide(staff, which, fromMidi, target, dir, frame.presets);
         };
         const onMove = (e) => {
-            const d = downRef.current, s = stepperRef.current;
-            if (!d || !s || d.staff !== staff || !onSetMelodicBoundary) return;
+            const d = downRef.current;
+            if (!d || d.staff !== staff || !onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
-            if (!s.dragged && Math.abs(x - d.x) > DRAG_THRESHOLD) {
-                s.dragged = true;                                  // promote to live drag
-                if (stepTimerRef.current) { clearTimeout(stepTimerRef.current); stepTimerRef.current = null; }
+            const y = svgY(e) ?? d.y;
+            if (!d.dragged && Math.hypot(x - d.x, y - d.y) > DRAG_THRESHOLD) {
+                d.dragged = true;                                  // promote to live drag (any direction)
+                stopSlide(staff);                                  // the tween cedes to the finger
             }
-            if (s.dragged) {
+            if (d.dragged) {
                 // Relative drag from the press point (fixed sensitivity — the x(t) layout has no
-                // uniform note width). MAX zone: drag-LEFT raises max; MIN zone: drag-LEFT lowers min.
-                const steps = Math.round((x - d.x) / rp.DRAG);
+                // uniform note width). BOTH axes move the picked boundary (Han 2026-06-16): we sum a
+                // unified "RAISE the boundary by N naturals" from horizontal + vertical drag. Up
+                // (y decreases) always RAISES; horizontal keeps its per-zone sense (MAX: drag-LEFT
+                // raises max; MIN: drag-RIGHT raises min), so a diagonal drag combines naturally.
+                const stepsX = (x - d.x) / rp.DRAG;                // +ve = rightward
+                const stepsY = (d.y - y) / rp.DRAG;                // +ve = upward (raise)
+                const hRaise = d.zone === 'max' ? -stepsX : stepsX; // map horizontal → raise amount
+                const raise = Math.round(hRaise + stepsY);          // total naturals to raise the boundary
                 let midi;
                 if (d.zone === 'max') {
-                    midi = shiftNatural(PIANO_NATURALS, d.maxAtPress, -steps);
+                    midi = shiftNatural(PIANO_NATURALS, d.maxAtPress, raise);
                     if (midi <= d.minAtPress) midi = shiftNatural(PIANO_NATURALS, d.minAtPress, 1);
                 } else {
-                    midi = shiftNatural(PIANO_NATURALS, d.minAtPress, steps);
+                    midi = shiftNatural(PIANO_NATURALS, d.minAtPress, raise);
                     if (midi >= d.maxAtPress) midi = shiftNatural(PIANO_NATURALS, d.maxAtPress, -1);
                 }
-                s.live = midi;
                 onSetMelodicBoundary(staff, midi, d.zone, frame.presets);
             }
         };
         const onUp = () => {
-            const s = stepperRef.current;
-            if (s?.dragged) { stopStepper(); dragRef.current = null; forceReanchor(); }
-            else if (s) { s.pressed = false; if (s.live === s.target) stopStepper(); } // let a burst finish; hold stops now
+            const d = downRef.current;
+            const s = slideRef.current[staff];
+            if (d?.dragged) { dragRef.current = null; forceReanchor(); }   // drag already committed live
+            // tap: the commit + cascade already happened on press; clear pressed so the
+            // slide won't promote to hold-extend. If it never started extending, tear the
+            // idle slide record down now (no lingering grace-window rAF).
+            else if (s) { s.pressed = false; if (!s.holdExtending) stopSlide(staff); }
             downRef.current = null;
         };
 
@@ -616,12 +772,17 @@ const RangeStaffOverlay = ({
             bandPoints = [`${xL},${topY}`, `${xR},${topY}`, `${xR},${botY}`, `${xL},${botY}`].join(' ');
         }
 
-        // Grouped ottava: fold every note toward the staff, then collect CONTIGUOUS runs that
-        // share a non-zero shift into bracket groups (Han 2026-06-14). Notes are drawn at their
-        // folded (written) octave; each group gets one 8va/8vb bracket spanning its x-range.
-        const folded = winNotes.map((n) => ({
-            n, x: rxFor(n.midi), ...foldNoteToStaff(writtenName(n.name), staffStart, clef, staff),
-        }));
+        // Grouped ottava: fold EVERY note toward the staff — in-range notes included (Han
+        // 2026-06-15 B4). This REVERSES the 2026-06-14 #2 rule that pinned in-range notes to
+        // true pitch (shift 0, never fold): a wide selection (e.g. >2 octaves) then sprawled
+        // its high/low in-range notes into long ledger stacks. Now a contiguous in-range run
+        // that climbs past the staff folds by whole octaves and gets ONE 8va/8vb bracket, the
+        // same as the melody renderer and the out-of-range context notes.
+        const folded = winNotes.map((n) => {
+            const x = rxFor(n.midi);
+            const wn = writtenName(n.name);
+            return { n, x, ...foldNoteToStaff(wn, staffStart, clef, staff) };
+        });
         const ottavaGroups = [];
         folded.forEach((f, i) => {
             if (f.shift === 0 || f.y == null) return;
@@ -633,8 +794,17 @@ const RangeStaffOverlay = ({
             }
         });
 
+        // Record this render's target screen x per visible note (midi → x) so the
+        // staggered re-layout cascade (R1) can translate each note FROM its old x.
+        // Written every render; the layout effect reads it AFTER comparing against the
+        // previous map (snapshotted there before this one overwrites it).
+        const xMap = new Map();
+        folded.forEach(({ n, x, y }) => { if (y != null) xMap.set(n.midi, x); });
+        cascadeXMapPending.current[staff] = xMap;
+
         return (
-            <g className={`range-row range-row-${staff}`} key={staff}>
+            <g className={`range-row range-row-${staff}`} key={staff}
+                ref={(el) => { rowGroupRefs.current[staff] = el; }}>
                 {/* Notes drawn at their x(t) positions (Han 2026-06-12): min/max at fixed Xl/Xr,
                     context notes on the tanh tails. Out-of-range notes FADE + SHRINK with distance
                     (like the transposition setter); in-range keep natural staff-y, opacity, size. */}
@@ -644,28 +814,72 @@ const RangeStaffOverlay = ({
                         const inBand = n.midi >= selMin && n.midi <= selMax;
                         const d = inBand ? 0 : (n.midi < selMin ? selMin - n.midi : n.midi - selMax);
                         const opacity = inBand ? 1 : Math.max(0.15, 1 - d * 0.045);
-                        const s = inBand ? 1 : Math.max(0.5, 1 - d * 0.05);
+                        // In-range notes SHRINK toward the MIDDLE of the range (Han 2026-06-16):
+                        // 100% at the boundaries → ~50% at the exact middle, symmetric + eased.
+                        // Position by NATURAL ORDINAL (even white-key steps) so the curve is smooth;
+                        // uMid = 0 at the middle … 1 at either boundary. Out-of-range context notes
+                        // keep their fade + shrink-with-distance. Heads/stems/ledgers scale together
+                        // (the scale() wraps the whole StaffQuarterNote).
+                        const oSpan = ordinalOf(selMax) - ordinalOf(selMin);
+                        const uMid = oSpan > 0 ? Math.abs((ordinalOf(n.midi) - ordinalOf(selMin)) / oSpan - 0.5) * 2 : 1;
+                        // Span-dependent middle-note shrink (Han 2026-06-19): the middle
+                        // minimum scale now depends on oSpan via rangeMiddleMinScale — small
+                        // ranges (< 8 ordinal notes) stay FULL size (minScale 1.0, no shrink),
+                        // wide ranges (≥ 12) reach 0.5. The bow is generalised so the boundary
+                        // stays full-size and the middle reaches minScale:
+                        //   uMid=0 (middle) → s=minScale ; uMid=1 (boundary) → s=1.0.
+                        // Out-of-range branch unchanged (fade + shrink-with-distance).
+                        const minScale = rangeMiddleMinScale(oSpan);
+                        const s = inBand ? (minScale + (1 - minScale) * easeInOut(uMid)) : Math.max(0.5, 1 - d * 0.05);
+                        // data-fly = flyable note tag (useRangeMorph): the range rows stream in
+                        // from the right on the morph like the clef/colour overlays (Han 2026-06-15
+                        // B3). The OUTER <g> is what the morph translateX-es; the INNER <g> keeps the
+                        // per-note scale/opacity transform so the fly translate never clobbers it.
+                        // The two ACTIVE boundary notes (concert min/max) LIGHT UP like a
+                        // played note (Han 2026-06-18: "the active edges should get a note
+                        // highlight"). We reuse the MAIN staff's canonical active-note look —
+                        // the `#note-glow-subtle` SVG filter (App.css `.note-active` →
+                        // filter:url(#note-glow-subtle); defined in SheetMusic.jsx <defs>, the
+                        // same SVG this overlay renders into). NO new glow is invented (§6d).
+                        // The head is already a FILLED Maestro glyph in the boundary-highlight
+                        // colour (colorFor), so the filter makes it read as a lit/active head
+                        // rather than a mere coloured outline. Theme-safe via the existing
+                        // --range-boundary-highlight var (white on dark / dark on light).
+                        const isBoundary = n.midi === selMin || n.midi === selMax;
                         return (
-                            <g key={n.midi} opacity={opacity}
-                                transform={`translate(${x} ${y}) scale(${s}) translate(${-x} ${-y})`}>
-                                <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
-                                    ledgerYs={rangeLedgerYs(y, staffStart)} color={colorFor(n.midi, wn)} />
+                            <g key={n.midi} data-fly="" data-range-midi={n.midi}>
+                                <g opacity={opacity}
+                                    transform={`translate(${x} ${y}) scale(${s}) translate(${-x} ${-y})`}
+                                    style={isBoundary ? { filter: 'url(#note-glow-subtle)' } : undefined}>
+                                    <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
+                                        ledgerYs={rangeLedgerYs(y, staffStart)} color={colorFor(n.midi, wn)} />
+                                </g>
                             </g>
                         );
                     })}
                     {/* Ottava brackets — one per contiguous run that folded by the same octave.
                         Above the group for 8va/15ma (shift>0), below for 8vb/15mb (shift<0). */}
                     {ottavaGroups.map((g, gi) => {
+                        // Same geometry as the melody renderer: Maestro glyph at markerY (outside the
+                        // staff, clear of the group's extreme notehead), dashed line + end hook.
                         const above = g.shift > 0;
-                        const by = above ? g.yExtreme - 14 : g.yExtreme + 16;   // bracket baseline
-                        const tick = above ? 6 : -6;
+                        const markerY = above
+                            ? Math.min(staffStart - 18, g.yExtreme - 18)
+                            : Math.max(staffStart + 58, g.yExtreme + 18);
+                        const lineY = markerY - 8;
+                        const hookYEnd = (above ? markerY + 8 : markerY - 8) - 8;
                         return (
-                            <g key={`ott-${gi}`} style={{ pointerEvents: 'none' }}>
-                                <text x={g.x0 - 2} y={by + (above ? -1 : 8)} fontSize={10} fontStyle="italic"
-                                    fontFamily="serif" fill="var(--text-primary)">{OTTAVA_LABEL[g.shift]}</text>
-                                <path d={`M ${g.x0 + 18} ${by} H ${g.x1 + 4} V ${by + tick}`}
-                                    fill="none" stroke="var(--text-primary)" strokeWidth={0.6}
-                                    strokeDasharray="3 2" />
+                            <g key={`ott-${gi}`} data-fly="" style={{ pointerEvents: 'none' }}>
+                                <text x={g.x0} y={markerY} fontSize={30} fontFamily="Maestro"
+                                    fill="var(--text-primary)">{OTTAVA_GLYPH[g.shift]}</text>
+                                {g.x1 > g.x0 && (
+                                    <>
+                                        <line x1={g.x0 + 22} y1={lineY} x2={g.x1 + 12} y2={lineY}
+                                            stroke="var(--text-primary)" strokeWidth={1} strokeDasharray="4,3" />
+                                        <line x1={g.x1 + 12} y1={lineY} x2={g.x1 + 12} y2={hookYEnd}
+                                            stroke="var(--text-primary)" strokeWidth={1} />
+                                    </>
+                                )}
                             </g>
                         );
                     })}
@@ -714,14 +928,16 @@ const RangeStaffOverlay = ({
                     if (yTop == null || yBottom == null) return null;
                     const x = presetX0 + i * gap;
                     const isActive = getNoteValue(p.min) === selMin && getNoteValue(p.max) === selMax;
-                    // Active preset = normal colour; passive = lowlight, opacity 1 (Han #14).
-                    const color = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
+                    // SELECTED preset bracket = the range-boundary highlight (white on dark),
+                    // matching the boundary noteheads (Han 2026-06-17 R4: "make the selected
+                    // bracket white also"); passive = lowlight, opacity 1 (Han #14).
+                    const color = isActive ? 'var(--range-boundary-highlight)' : 'var(--text-lowlight)';
                     const hitX = x - BRACKET_TICK - 12, hitY = yTop - 4;
                     const hitW = BRACKET_TICK + 18, hitH = yBottom - yTop + 8;
                     // No text label (Han 2026-05-31 — text clashed with the UI-overhaul
                     // style); presets read as nested brackets, active one highlighted.
                     return (
-                        <g key={p.label}
+                        <g key={p.label} data-fly=""
                             style={{ cursor: onApplyMelodicPreset ? 'pointer' : 'default' }}
                             onClick={onApplyMelodicPreset ? () => onApplyMelodicPreset(staff, p) : undefined}>
                             {/* invisible wide hit target around the thin bracket */}
@@ -827,8 +1043,10 @@ const RangeStaffOverlay = ({
                     const yTop = Math.min(...ys), yBottom = Math.max(...ys);
                     const x = presetX0 + i * BRACKET_GAP;
                     const isActive = sameSet(enabledPads, PERCUSSION_PRESETS[mode]);
-                    // Active preset = normal colour; passive = lowlight, opacity 1 (Han #14).
-                    const color = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
+                    // SELECTED pool bracket = the range-boundary highlight (white on dark),
+                    // matching the melodic selected bracket (Han 2026-06-17 R4); passive =
+                    // lowlight, opacity 1 (Han #14).
+                    const color = isActive ? 'var(--range-boundary-highlight)' : 'var(--text-lowlight)';
                     const hitX = x - BRACKET_TICK - 12, hitY = yTop - 4;
                     const hitW = BRACKET_TICK + 18, hitH = yBottom - yTop + 8;
                     return (

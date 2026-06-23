@@ -1,17 +1,22 @@
 import React from 'react';
 import {
-    Piano,
-    Guitar,
-    Music2,
-    Wind,
-    MicVocal,
     Palette,
 } from 'lucide-react';
 import DoubleStepper from '../common/DoubleStepper';
 import GenericStepper from '../common/GenericStepper';
 import { getNoteValue, getNoteFromValue, clampRange } from '../../utils/rangeUtils';
 import { PRESET_RANGES } from '../../constants/ranges';
+// Curated instrument list + icon mapping live in the shared constants module so the
+// in-staff INSTRUMENT setter and this control never drift (single source of truth, §6c).
+import { INSTRUMENTS, getInstrumentIconUrl } from '../../constants/instruments';
 import './styles/RangeControls.css';
+
+// icons8 PNG as a small HTML <img> (this stepper is HTML, unlike the SVG in-staff setter). The
+// theme filter (--instrument-icon-filter) inverts the flat-black icon on dark themes.
+const instrumentIconImg = (slug) => (
+    <img src={getInstrumentIconUrl(slug)} alt="" width={18} height={18}
+        style={{ filter: 'var(--instrument-icon-filter, none)', display: 'block' }} />
+);
 
 const formatNoteLabel = (note, baseSize = '24px', subSize = '0.7em', fontFamily = 'serif') => {
     const match = note.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
@@ -83,38 +88,13 @@ const RangeControls = ({
         });
     };
 
-    // Filtered Instruments (No Percussion)
-    const INSTRUMENTS = {
-        'Piano': 'acoustic_grand_piano',
-        'Harp': 'orchestral_harp',
-        'Guitar Nylon': 'acoustic_guitar_nylon',
-        'Guitar Steel': 'acoustic_guitar_steel',
-        'Guitar Clean': 'electric_guitar_clean',
-        'Bass Picked': 'electric_bass_pick',
-        'Synth Bass': 'synth_bass_1',
-        'Violin': 'violin',
-        'Ensemble': 'string_ensemble_1',
-        'Trumpet': 'trumpet',
-        'Saxophone': 'tenor_sax',
-        'Flute': 'flute',
-        'Voice Oohs': 'voice_oohs',
-    };
-
-    const getIconForInstrument = (id) => {
-        const size = 18; // Increased by ~15% from 16
-        if (['acoustic_grand_piano', 'orchestral_harp'].includes(id)) return <Piano size={size} />;
-        if (['acoustic_guitar_nylon', 'acoustic_guitar_steel', 'electric_guitar_clean', 'electric_bass_pick', 'synth_bass_1'].includes(id)) return <Guitar size={size} />;
-        if (['violin', 'string_ensemble_1'].includes(id)) return <Music2 size={size} />;
-        if (['trumpet', 'tenor_sax', 'flute'].includes(id)) return <Wind size={size} />;
-        if (['voice_oohs'].includes(id)) return <MicVocal size={size} />;
-        return <Music2 size={size} />;
-    };
-
+    // Instrument list + icons come from the shared constants module (INSTRUMENTS +
+    // getInstrumentIcon) so the in-staff setter and this stepper stay identical.
     const currentInstrument = activeSettings?.instrument || 'acoustic_grand_piano';
     const instrumentOptionsList = Object.keys(INSTRUMENTS).map(name => ({
         label: name.toUpperCase(),
         value: INSTRUMENTS[name],
-        icon: getIconForInstrument(INSTRUMENTS[name])
+        icon: instrumentIconImg(INSTRUMENTS[name])
     }));
 
     // Clef Options for GenericStepper
@@ -176,7 +156,8 @@ const RangeControls = ({
                 {setNoteColoringMode && (
                     <button
                         onClick={() => {
-                            const COLOR_MODES = ['none', 'tonic_scale_keys', 'chords', 'chromatone', 'subtle-chroma'];
+                            // Order (Han 2026-06-17): none → chord → scale → chromatone → subtle chromatone.
+                            const COLOR_MODES = ['none', 'chords', 'tonic_scale_keys', 'chromatone', 'subtle-chroma'];
                             const idx = COLOR_MODES.indexOf(noteColoringMode);
                             setNoteColoringMode(COLOR_MODES[(idx + 1) % COLOR_MODES.length]);
                         }}
@@ -206,7 +187,7 @@ const RangeControls = ({
                         >
                             {{
                                 none: 'NO COLOR',
-                                tonic_scale_keys: 'TONICS',
+                                tonic_scale_keys: 'SCALE',
                                 chords: 'CHORDS',
                                 chromatone: 'CHROMATONE',
                                 'subtle-chroma': 'SUBTLE CHROMA'
@@ -311,7 +292,7 @@ const RangeControls = ({
                     shouldCycle={true}
                     height="29px"
                     onChange={(val) => setInstrument(val)}
-                    icon={getIconForInstrument(currentInstrument)}
+                    icon={instrumentIconImg(currentInstrument)}
                     background="none"
                 />
             </div>

@@ -3,7 +3,7 @@ import {
     VOCAL_VARIANTS, clefFamilyKey, carouselOrder,
     patchForFamily, patchForVocal, patchForTransposition,
 } from './clefSelector';
-import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionInstLabel } from '../../../constants/transposingInstruments';
+import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones } from '../../../constants/transposingInstruments';
 import ClefCardCarousel from './ClefCardCarousel';
 import TranspositionSetter from './TranspositionSetter';
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
@@ -13,9 +13,7 @@ import MelodyNotesLayer from '../MelodyNotesLayer';
 import { processMelodyAndCalculateSlots } from '../processMelodyAndCalculateSlots';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
 import { getNoteValue, getNoteFromValue } from '../../../utils/rangeUtils';
-import { getNoteSemitone } from '../../../theory/noteUtils';
-
-const stripOctave = (n) => (n ? n.replace(/-?\d+$/, '') : n);
+import { getNoteSemitone, stripOctave } from '../../../theory/noteUtils';
 
 // transposition-offset (semitones) → instrument key, for the TranspositionSetter. Built
 // from TRANSPOSING_INSTRUMENTS (§6c — no hardcoded table). Offsets without a key (e.g. −1,
@@ -377,13 +375,17 @@ const ClefStaffOverlay = ({
             // chosen note"; a tap reports the new offset, which we map back to an instrument
             // key (keyForTrans, §6c — derived from TRANSPOSING_INSTRUMENTS, no table here).
             variantContent = (
-                <g key={`clefvar-${famId}`} className="clef-variant-cards clef-variant-enter"
-                    data-fly="" data-fly-from={startX}>
+                // Plain container (Han 2026-06-16): NOT a single data-fly block and NO
+                // clef-variant-enter CSS — those made the whole setter slide-from-left/fade as one
+                // unit (the "old logic"), which conflicted with the per-element cascade. Now the
+                // setter's OWN tagged children animate: carousels + heads slide (data-fly), presets
+                // + "=" / "concert C₄ =" labels do the delayed fade (collectFadeEls). Family-switch
+                // entrance is covered by useClefRefly re-flying the clef row.
+                <g key={`clefvar-${famId}`} className="clef-variant-cards">
                     <TranspositionSetter
                         staff={staff} clef={clef} staffStart={staffStart}
                         startX={startX} endX={endX}
                         transSemitones={totalTrans}
-                        instLabel={getTranspositionInstLabel(transKey, transOctave)}
                         noteColoringMode={noteColoringMode} tonic={tonic}
                         scaleNotes={scaleNotes} theme={theme} activeChord={activeChord}
                         onSelectTrans={(t) => {

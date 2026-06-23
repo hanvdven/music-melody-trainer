@@ -369,7 +369,7 @@ const useMelodyState = (
     }
   }, [scale, numMeasures, timeSignature, trebleSettings, bassSettings, percussionSettings, percussionScale, chordProgression]);
 
-  const navigateHistory = useCallback((direction) => {
+  const navigateHistory = useCallback((direction, randomizeConfig = null) => {
     // Read from refs so rapid-fire clicks see the latest committed index/history,
     // not the stale closure values that React hasn't flushed yet.
     const curIdx = historyIndexRef.current;
@@ -411,10 +411,13 @@ const useMelodyState = (
         setGlobalMeasureOffset(newOffset);
         return { ...entry, globalMeasureOffset: newOffset };
       } else {
-        // Skip forward past the end of history: generate a new melody.
+        // Skip forward past the end of history: generate the next block. Pass the caller's current
+        // randomize config (Han 2026-06-14 bug 2) so a LOADED SONG's pin/settings are respected —
+        // with `null` this regenerated chords+melody from scratch, discarding the song. numMeasures
+        // / time-sig / scale / instrument settings already come from state, so they're kept too.
         const newOffset = globalMeasureOffset + numMeasures;
         setGlobalMeasureOffset(newOffset);
-        const newMelody = randomizeAll(null);
+        const newMelody = randomizeAll(randomizeConfig);
         return { ...newMelody, globalMeasureOffset: newOffset };
       }
     }

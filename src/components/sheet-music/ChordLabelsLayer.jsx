@@ -1,5 +1,5 @@
 import React from 'react';
-import { getNoteSemitone, respellToKeySignature } from '../../theory/noteUtils';
+import { getNoteSemitone, respellToKeySignature, melodicNoteColor, stripOctave } from '../../theory/noteUtils';
 import { transposeNoteBySemitones } from '../../theory/musicUtils';
 
 /**
@@ -25,6 +25,12 @@ import { transposeNoteBySemitones } from '../../theory/musicUtils';
  * `useSheetMusicHighlight` and `handleSheetMusicClick` rely on.
  */
 
+// Canonical chord-row baseline Y (Han 2026-06-15): the chord row sits this far above the
+// treble staff top. SINGLE SOURCE OF TRUTH (§6d) — ChordStyleOverlay imports this so the
+// setter's sample labels share the exact baseline and can never drift. Raised from −58 to
+// −73 (Han: "move the whole chord row up ~15") so the row sits higher, away from the staff.
+export const chordRootY = (trebleStart) => trebleStart - 73;
+
 const renderSingleChordLabel = ({
   chord,
   xPos,
@@ -37,6 +43,8 @@ const renderSingleChordLabel = ({
   chordDisplayMode,
   noteColoringMode,
   theme,
+  tonic,
+  scaleNotes = [],
   inputTestState,
   measureLengthSlots,
   startMeasureIndex,
@@ -44,14 +52,17 @@ const renderSingleChordLabel = ({
   chordTransSemitones = 0,        // global transposition: written chord names (letters mode)
   chordWrittenAccidentals = 0,
 }) => {
-  const CHORD_ROOT_Y = trebleStart - 58;  // root text baseline
+  const CHORD_ROOT_Y = chordRootY(trebleStart);  // root text baseline (shared §6d)
   const CHORD_SUPER_DY = 12;              // units above root for superscript
 
   const rawRomanBase = chord.romanBaseRaw || chord.romanBase || '';
   const isMinorish = chord.quality === 'minor' || chord.quality === 'diminished' || chord.quality === 'dim';
   const romanBaseDisplay = isMinorish ? String(rawRomanBase).toLowerCase() : rawRomanBase;
 
-  const internalRoot = (chord.internalRoot || chord.root || '').replace(/\d+/g, '');
+  // Input is always a chord-root note string with a single trailing octave (e.g. 'G♭4'),
+  // so stripping the trailing octave is identical to the previous global /\d+/g — but uses the
+  // canonical SSOT regex instead of one that would also eat mid-string digits (Han 2026-06-19).
+  const internalRoot = stripOctave(chord.internalRoot || chord.root || '');
   // internalRoot is now key-spelled at generation time (e.g. G♭ in C Locrian, not F♯)
   // Global transposition (item 5): the LETTER name moves to the written domain (concert B♭ → C),
   // respelled to the written key signature. Roman numerals are tonic-relative so they don't change;
@@ -76,9 +87,15 @@ const renderSingleChordLabel = ({
   const slashIdx = displaySuffix.indexOf('/');
   const superPart = slashIdx === -1 ? displaySuffix : displaySuffix.slice(0, slashIdx);
   const slashPart = slashIdx === -1 ? '' : displaySuffix.slice(slashIdx);
-  const chordColor = overrideColor ?? (noteColoringMode === 'chords'
-    ? `color-mix(in srgb, var(--chromatone-${getNoteSemitone(internalRoot)}), ${theme === 'light' ? 'black' : 'white'} 30%)`
-    : 'var(--text-primary)');
+  // Chord NAME colour = the chord ROOT coloured by the active scheme (Han 2026-06-14): chromatone →
+  // root's chromatone colour, tonic/scale → root's tonic/scale colour, chords → root's chord tint.
+  // Colour stays on the CONCERT root (internalRoot), not the written spelling. overrideColor wins
+  // (yellow/red transition previews).
+  const chordColor = overrideColor ?? (
+    melodicNoteColor(internalRoot, {
+      noteColoringMode, tonic, scaleNotes, theme,
+      activeChord: noteColoringMode === 'chords' ? { root: internalRoot, notes: [internalRoot] } : null,
+    }) || 'var(--text-primary)');
 
   // Passing chords use a 20% smaller font so they visually subordinate to structural chords
   const rootFontSize = isPassing ? 21 : 26;
@@ -121,13 +138,16 @@ const renderSingleChordLabel = ({
       ) : isSlash ? (
         <text
           x={xPos}
-          y={CHORD_ROOT_Y - CHORD_SUPER_DY - 5}
+          y={CHORD_ROOT_Y - 7}
           fontSize="32"
           fontFamily="Maestro"
           fill="var(--text-primary)"
           textAnchor="start"
           style={{ opacity: 0.4 }}
         >
+          {/* Empty-count rhythm slash, 7 units above the chord-label baseline (Han 2026-06-15).
+              Dialled in over a few rounds (17 above → "too high", baseline, 10, 8, now 7) so it
+              reads as a rhythm mark hovering just over the chord row. */}
           Ë
         </text>
       ) : (
@@ -224,6 +244,8 @@ const ChordLabelsLayer = ({
   chordDisplayMode,
   noteColoringMode,
   theme,
+  tonic,
+  scaleNotes = [],
   debugMode,
   overrideColor,
   // global transposition (item 5)
@@ -274,6 +296,8 @@ const ChordLabelsLayer = ({
       chordDisplayMode,
       noteColoringMode,
       theme,
+      tonic,
+      scaleNotes,
       inputTestState,
       measureLengthSlots,
       startMeasureIndex,

@@ -144,13 +144,28 @@ export const collapseAccidentals = (pitch) =>
         .replace('♭♭', '𝄫');
 
 /**
+ * Removes a trailing octave number from a note name, returning the pitch-class name.
+ * e.g. 'C4' → 'C', 'A♭-1' → 'A♭', 'F♯12' → 'F♯'. Non-strings (null/undefined/objects)
+ * pass through unchanged so callers can use it defensively on possibly-null input.
+ *
+ * Why a single canonical helper (Han 2026-06-19): the identical `.replace(/-?\d+$/, '')`
+ * was hand-copied in ~15 sites (App, Chord, chordGenerator, loadSong, overlays). One
+ * source of truth for the octave-stripping regex prevents subtle drift (e.g. a copy
+ * that forgets the optional leading sign for negative octaves like 'A-1').
+ */
+export function stripOctave(note) {
+    if (typeof note !== 'string') return note;
+    return note.replace(/-?\d+$/, '');
+}
+
+/**
  * Converts a note name to its pitch class (0–11).
  * Handles all enharmonic spellings including double accidentals.
  */
 export const getNoteSemitone = (note) => {
     if (!note) return 0;
     // Strip optional sign + trailing digits (e.g. 'A-1' → 'A', 'C4' → 'C').
-    const pc = normalizeNoteChars(note.replace(/-?\d+$/, ''));
+    const pc = normalizeNoteChars(stripOctave(note));
     const map = {
         'C': 0, 'B♯': 0, 'D𝄫': 0,
         'C♯': 1, 'D♭': 1,
@@ -166,6 +181,45 @@ export const getNoteSemitone = (note) => {
         'B': 11, 'A𝄪': 11, 'C♭': 11
     };
     return map[pc] ?? 0;
+};
+
+/**
+ * Canonical note-name → MIDI parser (C4 = 60), the single source of truth for
+ * name→number conversion. Pitch-class math is delegated to getNoteSemitone, so
+ * this handles EVERY accidental spelling it does — single (♯/♭/#/b), double
+ * (𝄪/𝄫/##/bb) and stacked — which the old per-site single-accidental regexes
+ * (`[#b♯♭]?`) could not.
+ *
+ * Why one parser (Han 2026-06-19): four divergent name→MIDI parsers had drifted
+ * (rangeUtils C4=60, convertRankedArrayToMelody's local copy C4=48 i.e. off-by-12,
+ * each with its own accidental support and fallback). They are consolidated here
+ * STRICTLY behavior-preservingly: each call site still applies its OWN octave base
+ * (via the `base` offset) and its OWN fallback, so the produced number is unchanged.
+ * The generation site's −12 base is INTENTIONAL and preserved — it is only ever used
+ * for RELATIVE pitch math inside generation (every comparison subtracts two values
+ * from this same parser, so the base cancels) and the base never escapes to an
+ * external C4=60 MIDI or to playback (generation emits note-name strings, not numbers).
+ *
+ * @param {string} note  e.g. 'C4', 'F♯3', 'A♭-1', 'C𝄪4', 'D𝄫5'.
+ * @param {object} [opts]
+ * @param {number} [opts.fallback=null]  returned when the string can't be parsed.
+ * @param {number} [opts.base=0]  added to the result; pass -12 to reproduce the
+ *   generation pipeline's historical C4=48 base, or leave 0 for canonical C4=60.
+ * @returns {number} MIDI-ish number, or the fallback.
+ */
+export const noteToMidi = (note, { fallback = null, base = 0 } = {}) => {
+    if (!note || typeof note !== 'string') return fallback;
+    // Octave digits live at the end (optional leading minus for sub-MIDI octaves
+    // like 'A-1'). The pitch class is everything before them.
+    const octMatch = note.match(/(-?\d+)$/);
+    if (!octMatch) return fallback;
+    const pc = stripOctave(note);
+    // Reject non-note garbage so unparseable input hits the fallback exactly as the
+    // old per-site regexes did. After normalising ASCII accidentals, a valid pitch
+    // class is a letter A–G followed by any run of Unicode accidentals.
+    if (!/^[A-G][♯♭𝄪𝄫]*$/u.test(normalizeNoteChars(pc))) return fallback;
+    const oct = parseInt(octMatch[1], 10);
+    return (oct + 1) * 12 + getNoteSemitone(pc) + base;
 };
 
 // Circle-of-fifths LETTER order — the order accidentals are added to a key signature.
@@ -218,12 +272,29 @@ export const respellToKeySignature = (note, numAccidentals) => {
 // the chord ROOT's chromatone colour (mixed 30% toward the page so it stays legible); others null.
 // Shared by the staff renderer, the range/colour setters and the keyboard so they all match
 // (CLAUDE.md §6c/§6d). `activeChord` = { root, notes:[...] }.
+/**
+ * Builds the chromatone colour-mix CSS string for a given pitch class, mixed `pct`%
+ * toward the page colour (white on dark themes, black on light) so the chromatone
+ * hue stays legible against the staff/keyboard background.
+ *
+ * Why a single helper (Han 2026-06-19): the exact string
+ * `color-mix(in srgb, var(--chromatone-${pc}), white|black ${pct}%)` was hand-written
+ * byte-for-byte in 8 sites (noteUtils chord/subtle, renderMelodyNotes, SheetMusic,
+ * RangeStaffOverlay, TranspositionSetter). All 8 used the identical
+ * `theme === 'light' ? 'black' : 'white'` choice, so unifying is behaviour-preserving.
+ * `pc` is the numeric pitch class (0–11) or a percussion CSS-var suffix already resolved
+ * by the caller — callers pass the same value they previously interpolated.
+ */
+export function chromatoneMix(pc, pct, theme = 'dark') {
+    const mix = theme === 'light' ? 'black' : 'white';
+    return `color-mix(in srgb, var(--chromatone-${pc}), ${mix} ${pct}%)`;
+}
+
 export const chordNoteColor = (note, activeChord, theme = 'dark') => {
     if (!activeChord?.notes?.length) return null;
     const pc = getNoteSemitone(note);
     if (activeChord.notes.some(cn => getNoteSemitone(cn) === pc)) {
-        const mix = theme === 'light' ? 'black' : 'white';
-        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(activeChord.root)}), ${mix} 30%)`;
+        return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
     }
     return null;
 };
@@ -231,8 +302,7 @@ export const chordNoteColor = (note, activeChord, theme = 'dark') => {
 export const melodicNoteColor = (note, { noteColoringMode, tonic, scaleNotes = [], theme = 'dark', activeChord = null } = {}) => {
     if (noteColoringMode === 'chromatone') return `var(--chromatone-${getNoteSemitone(note)})`;
     if (noteColoringMode === 'subtle-chroma') {
-        const mix = theme === 'light' ? 'black' : 'white';
-        return `color-mix(in srgb, var(--chromatone-${getNoteSemitone(note)}), ${mix} 60%)`;
+        return chromatoneMix(getNoteSemitone(note), 60, theme);
     }
     if (noteColoringMode === 'chords') return chordNoteColor(note, activeChord, theme);
     if (noteColoringMode === 'tonic_scale_keys') {
@@ -271,8 +341,9 @@ const KODALY_SOLFEGE = [
  * Chromatic Roman numerals for all 12 semitones above the tonic.
  * Uses ♭/♯ prefix (Unicode) relative to the major scale degrees.
  * Semitone 6 = ♯IV (Lydian augmented 4th convention in modern theory).
+ * Not exported: only consumed by getChromaticRomanDegree below (Han 2026-06-19).
  */
-export const CHROMATIC_ROMAN_DEGREES = [
+const CHROMATIC_ROMAN_DEGREES = [
     'I', '♭II', 'II', '♭III', 'III', 'IV', '♯IV',
     'V', '♭VI', 'VI', '♭VII', 'VII',
 ];
