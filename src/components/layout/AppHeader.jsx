@@ -11,7 +11,6 @@ import {
     SkipBack,
     SkipForward,
     Bug,
-    KanbanSquare,
 } from 'lucide-react';
 import './AppHeader.css';
 import { formatScaleName } from '../../theory/scaleHandler';
@@ -42,7 +41,6 @@ const AppHeader = ({
     canSkipBack,
     debugMode = false,
     setDebugMode,
-    onOpenKanban = null,        // opens the in-app kanban board; button only shown in debug mode
     onScaleClick = null,
     isScalePlaying = false,
     progressionLabel = null,
@@ -86,18 +84,6 @@ const AppHeader = ({
                 >
                     <Bug size={22} />
                 </button>
-
-                {/* Kanban board — only surfaced via debug (Han 2026-06-22: "via debug -> kanban"). */}
-                {debugMode && (
-                    <button
-                        className="tab-button secondary app-header-btn"
-                        onClick={() => onOpenKanban?.()}
-                        title="Open kanban board"
-                        style={{ color: '#88ccff', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: '2px solid cyan' }}
-                    >
-                        <KanbanSquare size={22} />
-                    </button>
-                )}
             </div>
 
             {/* Hidden SVG for gradients */}

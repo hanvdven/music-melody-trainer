@@ -80,6 +80,16 @@ Postgres-board-code NIET hergebruikt; wél hun 7-koloms model + rank-schema + sc
 467→471 tests groen, build clean, 0 lint-errors. ⏳ Mogelijke vervolgjes: intra-kolom herordenen via
 sleep-positie, kaart bewerken/toevoegen in de UI (nu read+move).
 
+[Claude 2026-06-22]: ↩️ TERUGGEDRAAID op verzoek Han. Han: "ik vind het stom dat de kanban en de app
+in dezelfde codebase zitten" → besluit: **kanban helemaal uit de app**, tooling via cyanluna direct
+(skills global / hun eigen repo), én de in-app debug→kanban view óók verwijderd. Verwijderd uit de
+app-repo: `.claude/skills/kanban*` (gevendord), `kanban.json`, `src/components/kanban/*`,
+`scripts/kanban*`, de Vite kanban-API, de debug→kanban knop + `showKanban` state, error-code E021,
+docs §43/§43a, en de `.gitignore`-uitzondering. App-repo is weer puur muziek. Voor kanban-gebruik:
+zie de eerdere lokale-setup-instructies (clone cyanluna → `cp -R kanban* ~/.claude/skills/` → DB +
+`/kanban-init`). ⚠ Twee-repo-werk vanuit déze websessie kan niet (ik ben vastgezet op één repo);
+gebruik daarvoor een aparte sessie per repo of lokaal Claude Code.
+
 ### Generator setter in de bladmuziek — playback / generation / generation advanced (Han 2026-06-22)
 
 ik wil nu een generator setter in de bladmuziek gaan implementeren, in twee delen: "playback": nummeasures, numrepeats, odd repeats, even repeats (visibility, audibility/volume etc.) Als basis, maak een kopie van die elementen in de tijdelijke 'settings' setter:
