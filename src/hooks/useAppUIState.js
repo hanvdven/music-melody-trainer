@@ -32,6 +32,7 @@ export default function useAppUIState() {
     const [percussionVoiceSplit, setPercussionVoiceSplit] = useState(false);
 
     const [debugMode, setDebugMode] = useState(false);
+    const [showKanban, setShowKanban] = useState(false);   // in-app kanban board overlay (debug → kanban)
     const [noteColoringMode, setNoteColoringMode] = useState('tonic_scale_keys');
     const [showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef] = useRefState(true);
     const clearHighlightStateRef = useRef(false);
@@ -109,6 +110,7 @@ export default function useAppUIState() {
         courtesyAccidentals, setCourtesyAccidentals,
         percussionVoiceSplit, setPercussionVoiceSplit,
         debugMode, setDebugMode,
+        showKanban, setShowKanban,
         noteColoringMode, setNoteColoringMode,
         showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef,
         clearHighlightStateRef,

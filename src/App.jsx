@@ -13,6 +13,7 @@ import Sequencer from './audio/Sequencer';
 import Melody from './model/Melody';
 import ChordProgression from './model/ChordProgression';
 import ErrorBoundary from './components/error/ErrorBoundary';
+import KanbanBoard from './components/kanban/KanbanBoard';
 import Scale from './model/Scale';
 import SheetMusic from './components/sheet-music/SheetMusic';
 import { KIT_NOTE_MAPPINGS } from './audio/drumKits';
@@ -156,6 +157,7 @@ const App = () => {
         courtesyAccidentals, setCourtesyAccidentals,
         percussionVoiceSplit, setPercussionVoiceSplit,
         debugMode, setDebugMode,
+        showKanban, setShowKanban,
         noteColoringMode, setNoteColoringMode,
         showNoteHighlight, setShowNoteHighlight, showNoteHighlightRef,
         clearHighlightStateRef,
@@ -1341,6 +1343,12 @@ const App = () => {
             rubatoScrollAnchorRef={rubatoScrollAnchorRef}
         >
         <div className="app-root">
+            {/* In-app kanban board — fullscreen overlay opened via debug → kanban (Han 2026-06-22). */}
+            {showKanban && (
+                <ErrorBoundary boundary="kanban">
+                    <KanbanBoard onBack={() => setShowKanban(false)} />
+                </ErrorBoundary>
+            )}
             {/* TOP AREA WRAPPER (Preserves app theme for header/sheet) */}
             <div className="App app-top-wrapper">
                 <AppHeader
@@ -1370,6 +1378,7 @@ const App = () => {
                     canSkipForward={true}
                     debugMode={debugMode}
                     setDebugMode={setDebugMode}
+                    onOpenKanban={() => setShowKanban(true)}
                     onScaleClick={handleScaleClick}
                     isScalePlaying={isScalePlaying}
                     progressionLabel={headerProgressionLabel}

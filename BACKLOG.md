@@ -70,6 +70,16 @@ DEBUG → KANBAN opent een fullscreen native bord (terugknop), read-only of inte
 gegenereerd uit deze BACKLOG + IMPLEMENTATION_PLAN (done→Done, in-progress→Impl/Test, rest→Req).
 NIET geïmplementeerd tot Han de 4 interviewvragen beantwoordt.
 
+[Claude 2026-06-22]: ✅ GEÏMPLEMENTEERD. Interview-antwoorden: bron = `kanban.json` in de repo;
+7-koloms pipeline; interactief (verslepen → schrijft `kanban.json` via dev-server, statische build →
+localStorage); alle items met status-mapping; agent-koppeling = LOS (bord = kanban.json, agents draai
+je apart via /kanban-run). Gebouwd: `kanban.json` (110 taken, gegenereerd uit BACKLOG + PLAN),
+DEBUG → KANBAN knop (alleen in debug-mode), fullscreen `<KanbanBoard>` met terugknop + vrij slepen
+tussen kolommen, Vite dev-server schrijf-API (`kanbanJsonApiPlugin`). Clean-room React (cyanluna's
+Postgres-board-code NIET hergebruikt; wél hun 7-koloms model + rank-schema + schema). Docs §43.
+467→471 tests groen, build clean, 0 lint-errors. ⏳ Mogelijke vervolgjes: intra-kolom herordenen via
+sleep-positie, kaart bewerken/toevoegen in de UI (nu read+move).
+
 ### Generator setter in de bladmuziek — playback / generation / generation advanced (Han 2026-06-22)
 
 ik wil nu een generator setter in de bladmuziek gaan implementeren, in twee delen: "playback": nummeasures, numrepeats, odd repeats, even repeats (visibility, audibility/volume etc.) Als basis, maak een kopie van die elementen in de tijdelijke 'settings' setter:
