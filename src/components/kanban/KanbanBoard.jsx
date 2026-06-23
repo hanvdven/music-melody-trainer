@@ -40,20 +40,25 @@ async function loadBoard() {
   return bundledData;
 }
 
-// Persist: try the dev write-API; if absent, cache locally so edits survive a reload in a static build.
-async function persistBoard(board) {
+// Persist one card move via the dev API. The server writes to the active store (cyanluna agent DB
+// when present, else kanban.json) and tells us which via `store`. If the API is absent (static
+// build) we cache the whole board to localStorage so the move survives a reload.
+async function patchTask(id, status, rank, boardForCache) {
   try {
-    const r = await fetch('/api/kanban', {
-      method: 'POST',
+    const r = await fetch(`/api/kanban/task/${id}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(board),
+      body: JSON.stringify({ status, rank }),
     });
-    if (r.ok) return 'file';
+    if (r.ok) {
+      const body = await r.json().catch(() => ({}));
+      return body.store || 'file';     // 'db' | 'json'
+    }
   } catch {
     // fall through to localStorage
   }
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(board));
+    localStorage.setItem(LS_KEY, JSON.stringify(boardForCache));
     return 'local';
   } catch (err) {
     logger.error('KanbanBoard', 'E021-KANBAN-PERSIST', err);
@@ -83,11 +88,12 @@ const KanbanBoard = ({ onBack, initialData = null }) => {
       const maxRank = prev.tasks
         .filter((t) => t.status === targetStatus)
         .reduce((m, t) => Math.max(m, t.rank || 0), 0);
+      const newRank = maxRank + RANK_GAP;
       const tasks = prev.tasks.map((t) =>
-        t.id === taskId ? { ...t, status: targetStatus, rank: maxRank + RANK_GAP } : t
+        t.id === taskId ? { ...t, status: targetStatus, rank: newRank } : t
       );
       const next = { ...prev, tasks };
-      persistBoard(next).then(setSaveState);
+      patchTask(taskId, targetStatus, newRank, next).then(setSaveState);
       return next;
     });
   }, []);
@@ -113,8 +119,9 @@ const KanbanBoard = ({ onBack, initialData = null }) => {
         <button className="kanban-back" onClick={onBack}>← Terug</button>
         <span className="kanban-title">Kanban — {board.project}</span>
         <span className="kanban-meta">
-          {tasks.length} taken
-          {saveState === 'file' && ' · opgeslagen'}
+          {tasks.length} taken · bron: {board.store === 'db' ? 'agent-DB (live)' : 'kanban.json'}
+          {saveState === 'db' && ' · opgeslagen → agent-DB'}
+          {saveState === 'json' && ' · opgeslagen → kanban.json'}
           {saveState === 'local' && ' · lokaal opgeslagen (geen dev-server)'}
           {saveState === 'error' && ' · opslaan mislukt'}
         </span>
