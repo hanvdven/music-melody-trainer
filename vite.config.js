@@ -28,6 +28,11 @@ export default defineConfig(async () => {
   const prNumber = await fetchPRNumber();
   return {
     plugins: [react()],
+    server: {
+      host: '0.0.0.0',
+      port: 5173,
+      strictPort: false,
+    },
     define: {
       // Injected at build time so debug overlays can show branch/PR without runtime git access.
       // VITE_PR_NUMBER can be overridden by CI: VITE_PR_NUMBER=42 npm run build
