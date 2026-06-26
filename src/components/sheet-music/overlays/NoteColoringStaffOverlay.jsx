@@ -28,13 +28,12 @@ const SCHEMES = [
 // The full diatonic run C4–C5 so each scheme's colouring reads clearly (Han 2026-06-17:
 // the shortened 5-note run dropped too many in-between notes).
 const NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
-// Per-item slot stride (user units) — wider than the instrument items because each scheme item
-// holds a run of example noteheads. Widened +40% (Han 2026-06-17).
-const BASE = 134;
-// x-gap between the example noteheads within one scheme item. Reduced 13 → 11 (Han 2026-06-19):
-// "iets" smaller so the C4→C5 run reads a touch tighter; Han will fine-tune live. BASE (the item
-// stride) is unchanged.
-const NOTE_SPACING = 11;
+// Per-item slot stride (user units) — narrower carousel per Han 2026-06-27 feedback.
+// Reduced from 134 → 115 (about 15%) to make carousel more compact.
+const BASE = 115;
+// x-gap between the example noteheads within one scheme item. Increased 11 → 16 (Han 2026-06-27):
+// add more horizontal space between notes for clarity while keeping carousel narrower overall.
+const NOTE_SPACING = 16;
 // Scheme-label vertical drop below the staff top line. LOWERED (Han 2026-06-18): the colour
 // carousel's notes ASCEND C4→C5, so the lowest example notes (C4 + its ledger lines) sit well
 // below the staff and the old +58 label crowded them. Pushed down to clear the run and to sit
