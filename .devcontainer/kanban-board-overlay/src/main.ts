@@ -1830,10 +1830,15 @@ async function loadChronicleView() {
     renderProjectFilter(data.projects);
     renderCategoryFilter();
 
+    // "parking" is a composed column (on_hold + cancelled) — must iterate
+    // composedOf sub-statuses rather than the synthetic "parking" key.
     const allTasks: Task[] = [];
     for (const col of COLUMNS) {
-      for (const t of data[col.key as keyof Omit<Board, "projects" | "counts">]) {
-        allTasks.push(t);
+      const sources = col.composedOf
+        ? col.composedOf.map(s => (data[s as keyof Omit<Board, "projects" | "counts">] as Task[] | undefined) ?? [])
+        : [(data[col.status as keyof Omit<Board, "projects" | "counts">] as Task[] | undefined) ?? []];
+      for (const arr of sources) {
+        for (const t of arr) allTasks.push(t);
       }
     }
 
@@ -2032,12 +2037,16 @@ async function loadGraphView() {
       fetchSummaryBoard("full"),
     ]);
 
-    // Collect all tasks across columns
+    // Collect all tasks across columns.
+    // "parking" is a composed column (on_hold + cancelled) — must iterate
+    // composedOf sub-statuses rather than the synthetic "parking" key.
     const allTasks: (Task & { _status: string })[] = [];
     for (const col of COLUMNS) {
-      const tasks = data[col.key as keyof Omit<Board, "projects" | "counts">] as Task[];
-      for (const t of tasks) {
-        allTasks.push({ ...t, _status: col.key });
+      const sources = col.composedOf
+        ? col.composedOf.map(s => ({ key: s, arr: (data[s as keyof Omit<Board, "projects" | "counts">] as Task[] | undefined) ?? [] }))
+        : [{ key: col.status ?? col.key, arr: (data[col.status as keyof Omit<Board, "projects" | "counts">] as Task[] | undefined) ?? [] }];
+      for (const { key, arr } of sources) {
+        for (const t of arr) allTasks.push({ ...t, _status: key });
       }
     }
 
@@ -2436,11 +2445,16 @@ async function loadListView() {
     renderProjectFilter(data.projects);
     renderCategoryFilter();
 
-    // Flatten all tasks from all columns
+    // Flatten all tasks from all columns.
+    // "parking" is a composed column (on_hold + cancelled) — it has no direct
+    // key on Board, so we must iterate col.composedOf instead of col.key.
     const allTasks: Task[] = [];
     for (const col of COLUMNS) {
-      for (const t of data[col.key as keyof Omit<Board, "projects" | "counts">]) {
-        allTasks.push(t);
+      const sources = col.composedOf
+        ? col.composedOf.map(s => (data[s as keyof Omit<Board, "projects" | "counts">] as Task[] | undefined) ?? [])
+        : [(data[col.status as keyof Omit<Board, "projects" | "counts">] as Task[] | undefined) ?? []];
+      for (const arr of sources) {
+        for (const t of arr) allTasks.push(t);
       }
     }
 
