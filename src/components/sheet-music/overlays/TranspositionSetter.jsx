@@ -417,6 +417,12 @@ const TranspositionSetter = ({
                     fill="transparent" style={{ cursor: 'ns-resize', touchAction: 'none' }}
                     onPointerDown={onPointerDown('left')} onPointerMove={onPointerMove}
                     onPointerUp={endDrag} onPointerCancel={endDrag} />
+                {/* Debug mode: visualise left drag target hit region (§3a) */}
+                {debugMode && (
+                    <rect x={nameX - W * 0.06} y={bandTop} width={W * 0.12} height={bandH}
+                        fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
+                        style={{ pointerEvents: 'none' }} />
+                )}
                 {nameRows}
 
                 {/* RIGHT notehead carousel — "C4 =" label, drag surface, curve + heads (no clef) */}
@@ -429,6 +435,12 @@ const TranspositionSetter = ({
                     fill="transparent" style={{ cursor: 'ns-resize', touchAction: 'none' }}
                     onPointerDown={onPointerDown('right')} onPointerMove={onPointerMove}
                     onPointerUp={endDrag} onPointerCancel={endDrag} />
+                {/* Debug mode: visualise right drag target hit region (§3a) */}
+                {debugMode && (
+                    <rect x={anchorX - 3 * X_SPACING - 12} y={bandTop} width={6 * X_SPACING + 24} height={bandH}
+                        fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
+                        style={{ pointerEvents: 'none' }} />
+                )}
                 <polyline points={linePts.join(' ')} fill="none" stroke={low}
                     strokeWidth={0.75} strokeDasharray="3 3" opacity={0.4}
                     style={{ pointerEvents: 'none' }} />
