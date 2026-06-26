@@ -495,6 +495,37 @@ Agents are selected based on **level (L1/L2/L3)** and **phase**:
 - **Periodic audits** (§9d): execute immediately (no approval gates) and create findings tickets
 - **Tech-debt fixes**: Claude can execute immediately if scope is unambiguous (no design/plan interview needed)
 
+### 9b-i. Agent Level Estimation — MANDATORY (Han 2026-06-27)
+
+**CRITICAL RULE: At EVERY phase, the current agent MUST estimate the complexity level and spawn the appropriate agent for the NEXT phase. This is NOT optional.**
+
+**During Design phase:**
+
+- Haiku (or appropriate agent) conducts interview and writes design spec
+- **MUST estimate: Is this L1/L2/L3?**
+- **MUST recommend in design notes:** "Planning agent: [Haiku/Sonnet/Opus]" based on complexity
+
+**During Plan phase:**
+
+- The planner (at correct L level) writes implementation plan
+- **MUST estimate: Is implementation L1/L2/L3?**
+- **MUST recommend in plan notes:** "Implementation agent: [Haiku/Sonnet/Opus]"
+
+**During Implementation phase:**
+
+- The implementer (at correct L level) executes the plan
+- Moves completed item to test
+
+**If agent does NOT spawn the correct next-phase agent: this is a FAILURE.**
+
+Examples:
+
+- L3 design → should recommend "Planning: Opus/high"
+- L3 plan → should recommend "Implementation: Opus/high"
+- Do NOT have Haiku plan an L3 feature. Do NOT have Sonnet implement an L3 architecture change alone.
+
+This ensures complex work gets the deep thinking it requires.
+
 ### 9c. Swimlane Routing & Approval Gates
 
 **Rule: Route by swimlane position, not phase order.**
