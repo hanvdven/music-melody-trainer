@@ -900,7 +900,7 @@ const renderMelodyNotes = (
           ))}
           {/* Flag at stem tip — suppressed when beamed */}
           {!isBeamed && duration < 12 && flagSymbol && (
-            <text x={staff === 'percussion' && !stemIsAbove && duration < 6 ? finalFlagX + 1 : finalFlagX} y={finalFlagY} fontSize="36" fill={stemColor} fontFamily="Maestro">
+            <text x={staff === 'percussion' && !stemIsAbove && duration < 6 ? finalFlagX + 1 : finalFlagX} y={finalFlagY} fontSize={NOTE_FONT_SIZE} fill={stemColor} fontFamily="Maestro">
               {flagSymbol}
             </text>
           )}
@@ -1188,7 +1188,7 @@ const renderMelodyNotes = (
             />
           )}
           {!isBeamed && visualDuration < 12 && (
-            <text x={staff === 'percussion' && !stemIsAbove && visualDuration < 6 ? finalFlagX + 1 : finalFlagX} y={finalFlagY} fontSize="34" fill={noteColor} fontFamily="Maestro">
+            <text x={staff === 'percussion' && !stemIsAbove && visualDuration < 6 ? finalFlagX + 1 : finalFlagX} y={finalFlagY} fontSize={NOTE_FONT_SIZE} fill={noteColor} fontFamily="Maestro">
               {flagSymbol}
             </text>
           )}
