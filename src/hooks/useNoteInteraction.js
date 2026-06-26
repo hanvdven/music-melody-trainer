@@ -54,6 +54,9 @@ export default function useNoteInteraction({
                 playSound(note, instrument, context, context.currentTime, 2.0, 1, mapping);
             });
         } catch { /* audio context may not be ready */ }
+    // customPercussionMappingRef is a ref — stable identity; .current is read at call-time only.
+    // Adding it to deps would re-create this callback on every mapping change, unnecessary.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [context, instruments.treble, instruments.bass, instruments.percussion, instruments.metronome]);
 
     // Play a chord label clicked in the sheet music.

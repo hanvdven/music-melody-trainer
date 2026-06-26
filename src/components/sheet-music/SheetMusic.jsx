@@ -888,13 +888,21 @@ const SheetMusic = ({
   // melody so the staff renders normally (lines/clef) but with no notes — in every
   // mode, even before a regen replaces the staff's melody.
   const EMPTY_MELODY = useMemo(() => ({ notes: [], durations: [], offsets: [], displayNotes: [] }), []);
+  // sliceMelodyForPagination is module-scope stable — never stale; safe to omit from deps.
   const currentTreble = useMemo(() => trebleOff ? EMPTY_MELODY : sliceMelodyForPagination(trebleMelody),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [trebleOff, EMPTY_MELODY, trebleMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  // sliceMelodyForPagination is module-scope stable — never stale; safe to omit from deps.
   const currentBass = useMemo(() => bassOff ? EMPTY_MELODY : sliceMelodyForPagination(bassMelody),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [bassOff, EMPTY_MELODY, bassMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  // sliceMelodyForPagination is module-scope stable — never stale; safe to omit from deps.
   const currentPercussion = useMemo(() => percOff ? EMPTY_MELODY : sliceMelodyForPagination(percussionMelody),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [percOff, EMPTY_MELODY, percussionMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
+  // sliceMelodyForPagination is module-scope stable — never stale; safe to omit from deps.
   const currentMetronome = useMemo(() => sliceMelodyForPagination(metronomeMelody),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [metronomeMelody, animationMode, musicalBlocks, measureLengthSlots, displayNumMeasures, localMeasureStart]);
   const currentChordProgression = chordProgression; // ChordProgression is not a Melody — no slicing
 

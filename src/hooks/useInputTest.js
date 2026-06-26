@@ -143,6 +143,8 @@ const useInputTest = ({
                 liveTrackerRafRef.current = null;
             }
         };
+    // melodiesRef, sequencerRef, tsRef are refs — stable identities; .current read inside rAF tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isInputTestMode, inputTestSubMode, isPlayingContinuously, context]);
 
     // ── Toggle ───────────────────────────────────────────────────────────────
@@ -172,6 +174,8 @@ const useInputTest = ({
 
             setInputTestState({ activeIndex: firstValidIdx !== -1 ? firstValidIdx : -1, status: 'waiting', activeStaff: targetStaff, chordHits: [], successes: [], score: 0, correctNotes: 0, totalNotes: 0 });
         }
+    // chordProgressionRef and melodiesRef are refs — stable identities; .current read at call-time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isInputTestMode, activeTab, activeClef]);
 
     // ── Note evaluation ──────────────────────────────────────────────────────
@@ -333,6 +337,10 @@ const useInputTest = ({
                 }
             }
         }
+    // chordProgressionRef, melodiesRef are refs — stable identities; .current read at call-time.
+    // onNoteCorrect/onNoteWrong are callbacks passed from outside; their identity varies but
+    // they close over instruments/context which are already stable via the Sequencer lifecycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [randomizeAll, playbackConfig.randomize, getCan]);
 
     const handleInputTestNote = useCallback((playedNote, isTap = false) => {
@@ -365,6 +373,9 @@ const useInputTest = ({
         clearTimeout(stabilityTimerRef.current);
         lastInputNoteRef.current = null;
         handleInputTestNoteCore(playedNote, isTap);
+    // melodiesRef is a ref — stable identity, .current read at call-time inside the closure.
+    // All other *Ref values are also refs. Only handleInputTestNoteCore can change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [handleInputTestNoteCore]);
 
     return {

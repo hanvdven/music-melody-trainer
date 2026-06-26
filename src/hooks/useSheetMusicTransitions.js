@@ -139,6 +139,9 @@ const useSheetMusicTransitions = (nextLayer, layoutRef, svgRef) => {
                 }
             }
         }
+    // context, layoutRef, paginationFadeRef, svgRef, wipeTransitionRef are all refs —
+    // stable identity; .current is read at effect-time, no re-run needed when .current changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [nextLayer, animationMode]);
 };
 

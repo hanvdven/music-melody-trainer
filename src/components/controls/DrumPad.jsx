@@ -102,6 +102,10 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
+    // `play` is defined in the component body and would need useCallback to be stable.
+    // Its deps (instruments, context, effectiveMapping) are already in this list, so play
+    // cannot go stale relative to what is listed here. Omitting play is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [instruments, context, effectiveMapping, qwertyKeyboardActive]);
 
     useEffect(() => () => { if (lastPlayedTimerRef.current) clearTimeout(lastPlayedTimerRef.current); }, []);

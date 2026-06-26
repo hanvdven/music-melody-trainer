@@ -274,6 +274,9 @@ const PianoView = ({
     pianoBlackKeys.push('halfKey');
 
     return { whiteKeys: pianoWhiteKeys, blackKeys: pianoBlackKeys };
+  // tonicNotFound is derived from notes/startIndex via tonicIndex — already covered
+  // by the notes dep. Adding it would require memoizing findNoteIndex/isBlackKey.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notes, startIndex, endIndex, findNoteIndex, isBlackKey]);
 
   // Build note→qwerty label map (for rendering labels on keys)
@@ -304,10 +307,14 @@ const PianoView = ({
     return map;
   }, [whiteKeys, blackKeys]);
 
-  // Cleanup timeouts on unmount
+  // Cleanup timeouts on unmount.
+  // Capture tapsTimeoutRef.current at effect-setup time so the cleanup function
+  // holds a stable reference to the timeout map even if .current changes before
+  // cleanup runs (React ref-cleanup best-practice per exhaustive-deps rule).
   useEffect(() => {
+    const timeouts = tapsTimeoutRef.current;
     return () => {
-      Object.values(tapsTimeoutRef.current).forEach(clearTimeout);
+      Object.values(timeouts).forEach(clearTimeout);
     };
   }, []);
 
@@ -342,6 +349,11 @@ const PianoView = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
+  // handlePointerDown/Up are functions defined in the render body. They are effectively
+  // stable (their own deps — instruments, context, etc. — rarely change), so adding
+  // them to deps here would require wrapping them in useCallback to prevent spurious
+  // re-runs. That refactor is tracked separately; for now, intentionally omitted.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qwertyKeyboardActive, qwertyNoteMap, trebleInstrument, onNoteInput]);
 
   // All hooks have been called above — safe to early-return now

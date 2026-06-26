@@ -359,6 +359,8 @@ const App = () => {
         if (chordSettings?.complexity) {
             setPlaybackConfig(p => ({ ...p, chordComplexity: chordSettings.complexity }));
         }
+    // setPlaybackConfig is a stable useState setter — identity never changes (React 18).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chordSettings?.complexity]);
 
     // Sync melodies to ref for Sequencer access
@@ -583,7 +585,10 @@ const App = () => {
             metronome: metronomeSettings
         },
         headerPlayMode,
-        onPlaybackStart: useCallback(() => onPlaybackStartRef.current(), [])
+        // onPlaybackStartRef is a ref — stable identity; .current is read at call-time. Adding it
+    // would re-memoize the callback on every render, defeating the purpose of useCallback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    onPlaybackStart: useCallback(() => onPlaybackStartRef.current(), [])
     });
 
     // Skip-back/forward and measure-number-click navigation. Placed after usePlayback
@@ -618,6 +623,8 @@ const App = () => {
         }
         handlePlayMelodyLogic();
         setHeaderPlayMode('once');
+    // rubatoEngageRef is a ref (stable identity); setHeaderPlayMode is a stable useState setter. Neither can go stale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [handlePlayMelodyLogic, isRubatoRef]);
 
     const handlePlayContinuously = useCallback(() => {
@@ -628,6 +635,8 @@ const App = () => {
         }
         handlePlayContinuouslyLogic();
         setHeaderPlayMode('continuous');
+    // rubatoEngageRef is a ref (stable identity); setHeaderPlayMode is a stable useState setter. Neither can go stale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [handlePlayContinuouslyLogic, isRubatoRef]);
 
     // Edit-mode flags + toggle/open/close handlers + the settings catch-all effect
@@ -665,6 +674,8 @@ const App = () => {
         }
         handlePlayRepeatLogic();
         setHeaderPlayMode('repeat');
+    // rubatoEngageRef is a ref (stable identity); setHeaderPlayMode is a stable useState setter. Neither can go stale.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [handlePlayRepeatLogic, isRubatoRef]);
 
     const {
@@ -725,6 +736,10 @@ const App = () => {
                     }
                 }
             }
+        // All *Ref values (bpmRef, isRubatoRef, nmRef, tsRef, rubatoEventHistoryRef,
+        // rubatoInputStateRefForwarderRef, rubatoScrollAnchorRef) are refs — stable identities.
+        // RUBATO_HISTORY_LIMIT is a module-level constant; it never changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [instruments.treble, context, scheduleRubatoAccompaniment]),
         onNoteWrong: useCallback((note) => {
             instruments.treble?.stop({ note });
@@ -735,6 +750,8 @@ const App = () => {
         setInputTestSubMode(mode);
         // Keyboard is only active in 'note' (Piano) mode
         setQwertyKeyboardActive(mode === 'note');
+    // setQwertyKeyboardActive is a stable useState setter — identity never changes (React 18).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [setInputTestSubMode]);
 
     // Populate the rubato-play interceptor now that useInputTest is mounted.
@@ -750,12 +767,16 @@ const App = () => {
             handleSetInputTestSubMode('note');
         };
         return () => { rubatoEngageRef.current = null; };
+    // rubatoEngageRef is a ref — stable identity; its .current is mutated here intentionally.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [handleToggleInputTest, handleSetInputTestSubMode, isInputTestModeRef]);
 
     // Forward inputTestStateRef so onNoteCorrect (defined earlier, before
     // useInputTest's destructure ran) can reach the latest input-test state.
     useEffect(() => {
         rubatoInputStateRefForwarderRef.current = inputTestStateRef;
+    // rubatoInputStateRefForwarderRef is a ref — stable identity; .current is mutated here intentionally.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [inputTestStateRef]);
 
     // Update onPlaybackStart logic to use state from useInputTest
@@ -767,6 +788,8 @@ const App = () => {
                 setInputTestState(prev => ({ ...prev, activeIndex: -1, status: 'waiting', chordHits: [], successes: [], score: 0, correctNotes: 0, totalNotes: 0 }));
             }
         };
+    // onPlaybackStartRef is a ref — stable identity; .current is mutated here intentionally.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isInputTestModeRef, inputTestSubModeRef, setIsInputTestMode, setInputTestState]);
 
     // Master Volume Automation removed.
@@ -782,6 +805,8 @@ const App = () => {
     // never starts playback, so no feedback loop with handleToggleRangeEdit.
     useEffect(() => {
         if (isPlaying) setRangeEditMode(false);
+    // setRangeEditMode is a stable useState setter — identity never changes (React 18).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPlaying]);
 
     // Block display state: which song-level measure number the current block starts at,
@@ -908,6 +933,11 @@ const App = () => {
             }
         }
         prevScaleRef.current = scale;
+    // isModulationEnabled, isPlayingContinuously, playbackConfig, referenceBassMelody,
+    // referenceMelody, referenceScale, setBassMelody, setTrebleMelody are intentionally omitted:
+    // the effect fires ONLY on scale changes; reading reference melodies as current values
+    // avoids double-transposition. Setter identity is stable (React 18 useState guarantee).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [scale, playbackConfig.randomize.melody, trebleMelody, bassMelody, trebleSettings, bassSettings]);
     // Canonical setters object passed to the Sequencer on init and kept fresh by the
     // refresh effect below. Memoized so the refresh effect only fires when a setter
@@ -981,6 +1011,10 @@ const App = () => {
                 g.style.webkitMaskImage = TRANSPARENT;
             });
         },
+    // animationModeRef, clearHighlightStateRef, scrollTransitionRef, wipeTransitionRef, svgRef
+    // are all refs — stable identities; .current is read inside closures at call-time.
+    // setIsPlayingContinuously, setIsPlayingMelody, setIsPlayingScale are stable useState setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [setTonic, setScale, setTrebleSettings, setBassSettings, setChordProgression,
         generateChords, setTrebleMelody, setBassMelody, setPercussionMelody,
         setShowNotes, setShowChordLabels, setReferenceMelody, setReferenceBassMelody,
@@ -1041,6 +1075,11 @@ const App = () => {
         return () => {
             if (sequencerRef.current) sequencerRef.current.stop();
         };
+    // All *Ref values are refs — stable identities; excluded from deps intentionally.
+    // instruments/percussionScale/randomizeAll/sequencerSetters are excluded because Sequencer
+    // is ONLY re-created on context/instruments init. Mid-session changes are handled by the
+    // keep-fresh effect below; recreating on those would cause audio glitches via stop+restart.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [context, !!instruments.treble]);
 
     // Keep Sequencer fresh when instruments or any setter identity changes.
@@ -1305,6 +1344,9 @@ const App = () => {
         onEnharmonicToggle: handleEnharmonicToggle,
         onMeasureNumberClick: null,
         onNoteEnharmonicToggle: handleNoteEnharmonicToggle,
+    // rubatoEventHistoryRef and rubatoScrollAnchorRef are refs — stable identities; .current
+    // written inside closures at call-time only. Adding them re-creates this memo on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [timeSignature, handleTimeSignatureChange, bpm, setBpm, isRubato, setIsRubato,
         anacrusisMeasureIndex, mergedRenderMelodies,
         playbackConfig, setPlaybackConfig,
