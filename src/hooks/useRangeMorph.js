@@ -142,6 +142,11 @@ export default function useRangeMorph(kind, svgRef, flyDist) {
       },
     });
     return cancel;
+    // svgRef and flyDist are stable refs/constants passed from the parent, and runFlyInCascade
+    // is pure (no closure over stale vars). The only true dependency is pendingId (the morph
+    // sequence ID). Including svgRef/flyDist would cause the effect to re-run on every parent
+    // render even if the ID hasn't changed, re-starting the tween unnecessarily. The effect
+    // MUST fire only when a new morph is armed (pendingId incremented); stale refs are safe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingId, svgRef, flyDist]);
 

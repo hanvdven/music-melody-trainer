@@ -69,6 +69,11 @@ const ChordGrid = ({
     useEffect(() => {
         if (!isPlaying) setStableScale(scale);
     }, [isPlaying, scale]);
+    // Force a scale update when the chord progression changes (typically at series start).
+    // scale may not change (we are mid-series using the previous round's scale), so we can't
+    // rely on scale as a dep. Instead, chordProgression (which starts fresh each series) is
+    // the trigger. This ensures stableScale is never stale by more than one progression change.
+    // Omit scale from deps to avoid double-updates (once here, once from isPlaying above).
     useEffect(() => {
         setStableScale(scale);
         // eslint-disable-next-line react-hooks/exhaustive-deps

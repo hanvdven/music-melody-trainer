@@ -39,6 +39,11 @@ const useSheetMusicTransitions = (nextLayer, layoutRef, svgRef) => {
     //                  Clear it now so the new melody content (just committed by React) is
     //                  visible at full opacity. The CSS class takes over after clearing.
     //   • scroll    : reset scroll-group transform synchronously if no animation is queued.
+    // This useLayoutEffect has no deps because it must fire on EVERY render (every change to
+    // nextLayer or animationMode) to keep the DOM in sync before paint. Intentionally omitting
+    // deps so the effect runs after every commit; this is the correct behaviour for synchronous
+    // DOM attribute cleanup that must precede the paint cycle (§3: useLayoutEffect is for
+    // attributes/styles that the next frame MUST see, with no lag).
     useLayoutEffect(() => {
         if (!svgRef.current) return;
 
