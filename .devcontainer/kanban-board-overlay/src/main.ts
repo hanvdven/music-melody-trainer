@@ -1,6 +1,10 @@
+// Underlying DB statuses. Two display-only renames vs the DB column:
+//   `todo` shows as "Backlog", `test` shows as "UAT".
+// `preplan` and `impl_review` were dropped (folded into `design` and `test`
+// respectively) per Han's simplification on 2026-06-26.
 type ColumnKey =
-  | "todo" | "preplan" | "design" | "design_review"
-  | "plan" | "plan_review" | "impl" | "impl_review" | "test" | "done"
+  | "todo" | "design" | "design_review"
+  | "plan" | "plan_review" | "impl" | "test" | "done"
   | "on_hold" | "cancelled";
 
 interface Task {
@@ -44,13 +48,11 @@ interface Board {
   total?: number;
   counts?: Partial<Record<ColumnKey, number>>;
   todo: Task[];
-  preplan: Task[];
   design: Task[];
   design_review: Task[];
   plan: Task[];
   plan_review: Task[];
   impl: Task[];
-  impl_review: Task[];
   test: Task[];
   done: Task[];
   on_hold: Task[];
@@ -67,30 +69,42 @@ interface AuthSessionState {
   error?: string | null;
 }
 
-const COLUMNS = [
-  { key: "todo",          label: "Requirements", icon: "\u{1F4CB}" },
-  { key: "preplan",       label: "Pre-plan",     icon: "\u{1F50E}" },
-  { key: "design",        label: "Design",       icon: "\u{1F3A8}" },
-  { key: "design_review", label: "Review Design",icon: "\u{1F4D0}" },
-  { key: "plan",          label: "Plan",         icon: "\u{1F5FA}\uFE0F" },
-  { key: "plan_review",   label: "Review Plan",  icon: "\u{1F50D}" },
-  { key: "impl",          label: "Implement",    icon: "\u{1F528}" },
-  { key: "impl_review",   label: "Review Impl",  icon: "\u{1F4DD}" },
-  { key: "test",          label: "Test",         icon: "\u{1F9EA}" },
-  { key: "done",          label: "Done",         icon: "\u2705" },
-  { key: "on_hold",       label: "On hold",      icon: "\u23F8\uFE0F" },
-  { key: "cancelled",     label: "Cancelled",    icon: "\u{1F6AB}" },
+// Han's 2D layout (2026-06-26): 6 visual columns \u00D7 2 rows. Top row = my work
+// (Claude), bottom row = his approvals. Backlog / Done / Parking span 2 rows.
+// Parking is a composed column showing on_hold + cancelled tasks together;
+// dropping into it defaults to on_hold (a card explicitly cancelled gets that
+// status via the detail modal).
+interface ColumnDef {
+  key: string;                     // synthetic key for composed columns ("parking")
+  status?: string;                 // underlying DB status; omitted for composed
+  composedOf?: string[];           // for composed columns
+  defaultDropStatus?: string;      // for composed columns: where drop lands
+  label: string;
+  icon: string;
+  gridColumn: number;
+  gridRow: string;                 // e.g. "1", "2", "1 / span 2"
+}
+
+const COLUMNS: ColumnDef[] = [
+  { key: "todo",          status: "todo",          label: "Backlog",       icon: "\u{1F4CB}",        gridColumn: 1, gridRow: "1 / span 2" },
+  { key: "design",        status: "design",        label: "Design",        icon: "\u{1F3A8}",        gridColumn: 2, gridRow: "1" },
+  { key: "design_review", status: "design_review", label: "Review Design", icon: "\u{1F4D0}",        gridColumn: 2, gridRow: "2" },
+  { key: "plan",          status: "plan",          label: "Plan",          icon: "\u{1F5FA}\uFE0F",  gridColumn: 3, gridRow: "1" },
+  { key: "plan_review",   status: "plan_review",   label: "Review Plan",   icon: "\u{1F50D}",        gridColumn: 3, gridRow: "2" },
+  { key: "impl",          status: "impl",          label: "Implement",     icon: "\u{1F528}",        gridColumn: 4, gridRow: "1" },
+  { key: "test",          status: "test",          label: "UAT",           icon: "\u{1F9EA}",        gridColumn: 4, gridRow: "2" },
+  { key: "done",          status: "done",          label: "Done",          icon: "\u2705",           gridColumn: 5, gridRow: "1 / span 2" },
+  { key: "parking", composedOf: ["on_hold", "cancelled"], defaultDropStatus: "on_hold",
+                                                  label: "Parking",       icon: "\u23F8\uFE0F",     gridColumn: 6, gridRow: "1 / span 2" },
 ];
 
 const STATUS_BADGES: Record<string, string> = {
-  preplan:       "Pre-planning",
   design:        "Designing",
   design_review: "Design Review",
   plan:          "Planning",
   plan_review:   "Plan Review",
   impl:          "Implementing",
-  impl_review:   "Impl Review",
-  test:          "Testing",
+  test:          "UAT",
   on_hold:       "On hold",
   cancelled:     "Cancelled",
 };
@@ -99,8 +113,11 @@ const AUTH_STORAGE_KEY = "kanban-auth-token";
 const VIEW_STORAGE_KEY = "kanban-current-view";
 const MOBILE_BOARD_COLUMNS_KEY = "kanban-mobile-board-columns";
 const BOARD_VERSION_POLL_MS = 30000;
-const BOARD_TODO_LIMIT = 10;
-const BOARD_DONE_LIMIT = 10;
+// Han wants every item visible in every column (with per-column scroll), so we
+// fetch everything and rely on column-body's overflow-y. 1000 is "effectively
+// unlimited" for any solo project.
+const BOARD_TODO_LIMIT = 1000;
+const BOARD_DONE_LIMIT = 1000;
 const SUMMARY_CACHE_PREFIX = "kanban-summary-cache";
 const SUMMARY_TTL_MS: Record<SummaryMode, number> = {
   board: 30_000,
@@ -663,31 +680,17 @@ function getStatusLabel(status: string): string {
   return COLUMNS.find((column) => column.key === status)?.label || status;
 }
 
-// Mirror of getTransitions() in plugins/kanban-api.ts. Keep in sync.
-// All tickets walk the same pipeline regardless of level (preplan estimates L,
-// it only influences agent/effort, not which stages exist). Forward or one
-// step back per state. on_hold/cancelled = universal escape hatches.
+// Mirror of getTransitions() in plugins/kanban-api.ts. Han wants tickets to
+// move back to ANY previous stage at any time, so we collapse the map: every
+// state can transition to every other state. Forward flow is communicated by
+// visual order, not enforced.
 function getAllowedTransitions(_level: number, status: string): string[] {
-  const PARKING = ["on_hold", "cancelled"];
-  const ALL_ACTIVE = [
-    "todo", "preplan", "design", "design_review",
-    "plan", "plan_review", "impl", "impl_review", "test", "done",
+  const ALL = [
+    "todo", "design", "design_review",
+    "plan", "plan_review", "impl", "test", "done",
+    "on_hold", "cancelled",
   ];
-  const transitions: Record<string, string[]> = {
-    todo:          ["preplan",       ...PARKING],
-    preplan:       ["design",        "todo",          ...PARKING],
-    design:        ["design_review", "preplan",       ...PARKING],
-    design_review: ["plan",          "design",        ...PARKING],
-    plan:          ["plan_review",   "design_review", ...PARKING],
-    plan_review:   ["impl",          "plan",          ...PARKING],
-    impl:          ["impl_review",   "plan_review",   ...PARKING],
-    impl_review:   ["test",          "impl",          ...PARKING],
-    test:          ["done",          "impl",          ...PARKING],
-    done:          ["test",          "on_hold"],
-    on_hold:       [...ALL_ACTIVE,   "cancelled"],
-    cancelled:     ["todo"],
-  };
-  return transitions[status] || [];
+  return ALL.filter((s) => s !== status);
 }
 
 async function moveTaskStatus(task: Pick<Task, "id" | "project" | "status">, nextStatus: string) {
@@ -957,7 +960,8 @@ function renderColumn(
   label: string,
   icon: string,
   tasks: Task[],
-  totalCount: number = tasks.length
+  totalCount: number = tasks.length,
+  layout?: { gridColumn: number; gridRow: string; dropStatus?: string }
 ): string {
   const expanded = isMobileColumnExpanded(key);
   const cardsHtml = sortTasks(tasks, key).map(renderCard).join("");
@@ -965,8 +969,15 @@ function renderColumn(
     ? `<button class="add-card-btn" id="add-card-btn" title="Add card">+</button>`
     : "";
   const countLabel = totalCount !== tasks.length ? `${tasks.length}/${totalCount}` : `${totalCount}`;
+  // Inline grid placement so the new 6-col × 2-row layout works without
+  // touching the per-column class. data-drop-status tells the drop handler
+  // which underlying status a composed column ("parking") should land in.
+  const placement = layout
+    ? `style="grid-column:${layout.gridColumn};grid-row:${layout.gridRow}"`
+    : "";
+  const dropAttr = layout?.dropStatus ? ` data-drop-status="${layout.dropStatus}"` : "";
   return `
-    <div class="column ${key}" data-column="${key}" data-mobile-expanded="${expanded}" data-total-count="${totalCount}">
+    <div class="column ${key}" data-column="${key}"${dropAttr} data-mobile-expanded="${expanded}" data-total-count="${totalCount}" ${placement}>
       <div class="column-header">
         <button class="column-toggle-btn" type="button" data-column-toggle="${key}" aria-expanded="${expanded}">
           <span class="column-toggle-label">${icon} ${label}</span>
@@ -979,7 +990,7 @@ function renderColumn(
           ${addBtn}
         </div>
       </div>
-      <div class="column-body" data-column="${key}">
+      <div class="column-body" data-column="${key}"${dropAttr}>
         ${cardsHtml || '<div class="empty">No items</div>'}
       </div>
     </div>
@@ -2291,25 +2302,32 @@ async function loadBoard() {
       renderCategoryFilter();
     }
 
-    board.innerHTML = COLUMNS.map((col) =>
-      renderColumn(
-        col.key,
-        col.label,
-        col.icon,
-        data[col.key as keyof Omit<Board, "projects" | "counts">],
-        data.counts?.[col.key as ColumnKey] ?? data[col.key as keyof Omit<Board, "projects" | "counts">].length
-      )
-    ).join("");
+    // Each ColumnDef either points at a single underlying status or is a
+    // composed column (e.g. "parking" gathers on_hold + cancelled).
+    board.innerHTML = COLUMNS.map((col) => {
+      let colTasks: Task[] = [];
+      let colCount = 0;
+      if (col.composedOf) {
+        for (const s of col.composedOf) {
+          const arr = (data[s as keyof Omit<Board, "projects" | "counts">] as Task[] | undefined) || [];
+          colTasks = colTasks.concat(arr);
+          colCount += data.counts?.[s as ColumnKey] ?? arr.length;
+        }
+      } else if (col.status) {
+        colTasks = (data[col.status as keyof Omit<Board, "projects" | "counts">] as Task[] | undefined) || [];
+        colCount = data.counts?.[col.status as ColumnKey] ?? colTasks.length;
+      }
+      return renderColumn(col.key, col.label, col.icon, colTasks, colCount, {
+        gridColumn: col.gridColumn,
+        gridRow: col.gridRow,
+        dropStatus: col.defaultDropStatus,
+      });
+    }).join("");
 
-    const doneCount = data.counts?.done ?? data.done.length;
-    const total = data.total ?? (
-      (data.counts?.todo ?? data.todo.length) +
-      (data.counts?.plan ?? data.plan.length) +
-      (data.counts?.plan_review ?? data.plan_review.length) +
-      (data.counts?.impl ?? data.impl.length) +
-      (data.counts?.impl_review ?? data.impl_review.length) +
-      (data.counts?.test ?? data.test.length) +
-      (data.counts?.done ?? data.done.length)
+    const doneCount = data.counts?.done ?? data.done?.length ?? 0;
+    const total = data.total ?? Object.keys(data.counts || {}).reduce(
+      (sum, k) => sum + ((data.counts as Record<string, number>)[k] || 0),
+      0
     );
     document.getElementById("count-summary")!.textContent =
       `${doneCount}/${total} completed`;
@@ -2356,10 +2374,15 @@ async function loadBoard() {
       });
     }
   } catch (err) {
+    // Upstream cyanluna's hard-coded fallback said "Cannot find .claude/kanban.db",
+    // which was misleading after we swapped to PGlite. Show the real error instead.
     console.error("loadBoard failed:", err);
+    const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     board.innerHTML = `
-      <div style="grid-column:1/-1;display:flex;align-items:center;justify-content:center;color:#ef4444;font-size:0.9rem;padding:48px">
-        Cannot find .claude/kanban.db
+      <div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#ef4444;font-size:0.9rem;padding:48px;gap:8px">
+        <div><b>Board failed to load.</b></div>
+        <div style="font-family:monospace;font-size:0.8rem;max-width:80ch;text-align:center">${msg.replace(/</g, "&lt;")}</div>
+        <div style="color:#999;font-size:0.75rem">Full stack in DevTools console.</div>
       </div>
     `;
   }
@@ -2735,7 +2758,10 @@ function setupDragAndDrop() {
       const colonIdx = dragData.lastIndexOf(":");
       const dragProject = colonIdx >= 0 ? dragData.slice(0, colonIdx) : "";
       const id = parseInt(colonIdx >= 0 ? dragData.slice(colonIdx + 1) : dragData);
-      const newStatus = colEl.dataset.column!;
+      // For composed columns ("parking"), data-column is synthetic and the
+      // API rejects it as an unknown status. data-drop-status (set by
+      // renderColumn) names the underlying DB status to use instead.
+      const newStatus = colEl.dataset.dropStatus || colEl.dataset.column!;
       const beforeCard = getInsertBeforeCard(colEl, ev.clientY);
 
       // Find afterId and beforeId
