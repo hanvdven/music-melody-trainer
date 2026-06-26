@@ -159,6 +159,21 @@ export function stripOctave(note) {
 }
 
 /**
+ * Pitch-class display name: octave stripped AND ASCII accidentals normalised to
+ * Unicode (♯/♭/𝄪/𝄫). One step past stripOctave (Han 2026-06-19, AC1 of #152):
+ * stripOctave leaves '#'/'b' intact for identity keys, but any pitch class shown
+ * to the user must carry Unicode accidentals (§5b). Use this for display, not
+ * stripOctave, whenever the result is rendered.
+ *
+ * @param {string} note  e.g. 'F#4' → 'F♯', 'Bb3' → 'B♭', 'C4' → 'C'.
+ * @returns {string} normalised pitch-class name (non-strings returned unchanged).
+ */
+export function pitchClassName(note) {
+    if (typeof note !== 'string') return note;
+    return normalizeNoteChars(stripOctave(note));
+}
+
+/**
  * Converts a note name to its pitch class (0–11).
  * Handles all enharmonic spellings including double accidentals.
  */
