@@ -52,6 +52,10 @@ class MelodyGenerator {
         let randomizationNotes = this.InstrumentSettings.notePool;
         let instrumentType = this.InstrumentSettings.type;
         let randomizationRule = this.InstrumentSettings.randomizationRule;
+        // Whether to fill empty on-beat slots with explicit rests (step 4f). Previously
+        // keyed off instrumentType === 'percussion'; now a settings field so the pipeline
+        // is identical for all instrument types (CLAUDE.md §6b).
+        let insertBeatRests = this.InstrumentSettings.insertBeatRests;
 
         logger.debug('MelodyGen', 'start', {
             instrumentType, tonic, numMeasures, timeSignature,
@@ -436,12 +440,12 @@ class MelodyGenerator {
 
                 return melodyArray.map((note, index) => {
                     const isBeat = (index % numMeasureSlots) % numBeatSlots === 0;
-                    if (isBeat && note === null && instrumentType === 'percussion') return 'r';
+                    if (isBeat && note === null && insertBeatRests) return 'r';
                     return note;
                 });
             };
 
-            if (instrumentType === 'percussion') {
+            if (insertBeatRests) {
                 generatedMelodyWithRests = insertRestsAtBeats(generatedMelody, numMeasures, timeSignature);
             } else {
                 generatedMelodyWithRests = generatedMelody;

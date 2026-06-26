@@ -182,7 +182,7 @@ Walks the ranked array and assigns notes to active slots:
 - `fullchord` / `pairedchord`: chord-voicing modes that replace note strings with `string[]` arrays.
 
 #### 4f — Rest insertion & melody construction (`melodyGenerator.js` → `Melody.fromFlattenedNotes`)
-- **Percussion rest insertion:** `insertRestsAtBeats` ensures every beat-aligned null slot becomes an explicit rest `'r'` (so the sheet renderer never shows a beat-length empty gap).
+- **Beat rest insertion:** when `InstrumentSettings.insertBeatRests` is `true`, `insertRestsAtBeats` turns every beat-aligned null slot into an explicit rest `'r'` (so the sheet renderer never shows a beat-length empty gap). This is gated on the `insertBeatRests` settings field — **not** on `instrumentType === 'percussion'` — so the pipeline stays identical for all instrument types per §6b of `CLAUDE.md`; only `defaultPercussionInstrumentSettings()` enables the field. Any instrument whose settings set `insertBeatRests = true` gets the same behaviour.
 - **`Melody.fromFlattenedNotes`:** converts the flat slot array into `(notes, durations, offsets)` triplets. Consecutive null slots after an active note extend that note's duration (`timeScale × count`). The `timeScale` is derived from `notes.length` and `numMeasures`, so it matches the actual slot resolution.
 - **Metadata attachment:** `melody.rhythmicGrouping = rhythmicGrouping`, `melody.rhythmicDNA = dnaMeasureForDebug` — used by the renderer for beaming and debug display.
 
