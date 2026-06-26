@@ -41,15 +41,14 @@ async function deleteFromR2(key: string): Promise<void> {
 // ON CONFLICT, json_agg, FILTER, window fns) works unchanged. The only swap is
 // in getSql() below. Local-only DB; no DATABASE_URL or pg connection needed.
 type Sql = PGlite;
-// Han's expanded pipeline: every ticket traverses every stage (no L-based
-// short-circuit). L (preplan-estimated) only influences model/effort per phase.
-// preplan estimates L + records chosen model/effort. design produces ACs +
-// interview questions + UI specs. design/plan/impl reviews are user-approved.
-// on_hold and cancelled are parking/escape hatches reachable from any active
-// state; rendered together in one combined "Inactive" column on the board.
+// Han's pipeline (2026-06-26, post-merge): preplan is folded into design
+// (model/effort logged as the first step of design); impl_review is folded
+// into test (renamed "UAT" in the UI). 10 underlying statuses; the board
+// renders 6 visual columns (top row = my work, bottom row = Han's reviews).
+// on_hold + cancelled share a "Parking" column with per-card labels.
 const BOARD_STATUSES = [
-  "todo", "preplan", "design", "design_review",
-  "plan", "plan_review", "impl", "impl_review", "test", "done",
+  "todo", "design", "design_review",
+  "plan", "plan_review", "impl", "test", "done",
   "on_hold", "cancelled",
 ] as const;
 
@@ -178,31 +177,15 @@ function sortBoardGroup<T extends { completed_at?: string | null; rank?: number;
   );
 }
 
-// Valid status transitions. Every ticket walks the same pipeline regardless of
-// level. Each state can advance forward OR step back to the immediately
-// preceding state (so a reviewer can send something back without dragging it
-// across the board). on_hold/cancelled are universal escape hatches.
-const PARKING: readonly string[] = ["on_hold", "cancelled"];
-const ALL_ACTIVE: readonly string[] = [
-  "todo", "preplan", "design", "design_review",
-  "plan", "plan_review", "impl", "impl_review", "test", "done",
-];
+// Han's rule (2026-06-26): tickets can move back to ANY previous stage at
+// any time. So we collapse the transition map: every state can transition to
+// every other state. Forward flow is encouraged by the visual ordering, not
+// enforced. Drag-accidents are accepted as the cost of full freedom.
+const ALL_STATUSES: readonly string[] = [...BOARD_STATUSES];
 function getTransitions(_level: number): Record<string, string[]> {
-  return {
-    todo:          ["preplan",       ...PARKING],
-    preplan:       ["design",        "todo",          ...PARKING],
-    design:        ["design_review", "preplan",       ...PARKING],
-    design_review: ["plan",          "design",        ...PARKING],
-    plan:          ["plan_review",   "design_review", ...PARKING],
-    plan_review:   ["impl",          "plan",          ...PARKING],
-    impl:          ["impl_review",   "plan_review",   ...PARKING],
-    impl_review:   ["test",          "impl",          ...PARKING],
-    test:          ["done",          "impl",          ...PARKING],
-    done:          ["test",          "on_hold"],
-    // From parking, allow revival to any active state — user decides where.
-    on_hold:       [...ALL_ACTIVE, "cancelled"],
-    cancelled:     ["todo"],
-  };
+  return Object.fromEntries(
+    ALL_STATUSES.map((s) => [s, ALL_STATUSES.filter((other) => other !== s)])
+  ) as Record<string, string[]>;
 }
 
 const STATUS_ALIASES: Record<string, string> = {
@@ -428,13 +411,11 @@ interface Board {
   total?: number;
   counts?: Partial<Record<typeof BOARD_STATUSES[number], number>>;
   todo: Task[];
-  preplan: Task[];
   design: Task[];
   design_review: Task[];
   plan: Task[];
   plan_review: Task[];
   impl: Task[];
-  impl_review: Task[];
   test: Task[];
   done: Task[];
   on_hold: Task[];
@@ -595,13 +576,11 @@ export function kanbanApiPlugin(): Plugin {
             total: meta.total,
             counts,
             todo: groupedBoard.todo || [],
-            preplan: groupedBoard.preplan || [],
             design: groupedBoard.design || [],
             design_review: groupedBoard.design_review || [],
             plan: groupedBoard.plan || [],
             plan_review: groupedBoard.plan_review || [],
             impl: groupedBoard.impl || [],
-            impl_review: groupedBoard.impl_review || [],
             test: groupedBoard.test || [],
             done: groupedBoard.done || [],
             on_hold: groupedBoard.on_hold || [],
@@ -683,9 +662,9 @@ export function kanbanApiPlugin(): Plugin {
 
             if (body.status !== undefined) {
               sets.push(`status = $${p++}`); vals.push(body.status);
-              // Timestamp side-effects: work starts at preplan (was plan in
-              // the original cyanluna schema); plan_review/test/done unchanged.
-              if (body.status === "preplan")          sets.push("started_at = COALESCE(started_at, NOW())");
+              // Timestamp side-effects: work starts at design (preplan merged in);
+              // plan_review/test/done unchanged.
+              if (body.status === "design")           sets.push("started_at = COALESCE(started_at, NOW())");
               else if (body.status === "plan_review") sets.push("planned_at = NOW()");
               else if (body.status === "test")        sets.push("tested_at = NOW()");
               else if (body.status === "done")        sets.push("completed_at = NOW()");
@@ -783,7 +762,7 @@ export function kanbanApiPlugin(): Plugin {
               return;
             }
             const sets = [`status = $1`];
-            if (targetStatus === "preplan")           sets.push("started_at = COALESCE(started_at, NOW())");
+            if (targetStatus === "design")            sets.push("started_at = COALESCE(started_at, NOW())");
             else if (targetStatus === "plan_review")  sets.push("planned_at = NOW()");
             else if (targetStatus === "test")         sets.push("tested_at = NOW()");
             else if (targetStatus === "done")         sets.push("completed_at = NOW()");
