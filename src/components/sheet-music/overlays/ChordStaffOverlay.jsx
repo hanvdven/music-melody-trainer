@@ -2,6 +2,7 @@ import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
 import { TICKS_PER_WHOLE } from '../../../constants/timing';
+import { NOTE_FONT_SIZE, ACC_DY } from '../staffNoteGlyph';
 
 /**
  * ChordStaffOverlay — in-SVG CHORD selector, shown in the chord row (above the treble
@@ -108,11 +109,11 @@ const ChordNotes = ({ id, cx, baseY, active }) => {
     const tensionCol = { ...common, startX: cx + EXT_COL_DX };
     return (
         <g style={{ pointerEvents: 'none' }}>
-            {/* col 1 — accidentals (hand-drawn; see note above). Unicode per §5b. */}
-            <text x={cx - EXT_ACC_DX} y={flatY + 6} fontSize={20} fontFamily="serif"
-                fill={LOWLIGHT} textAnchor="middle">♭</text>
-            <text x={cx - EXT_ACC_DX} y={sharpY + 6} fontSize={18} fontFamily="serif"
-                fill={LOWLIGHT} textAnchor="middle">♯</text>
+            {/* col 1 — accidentals (canonical Maestro from staffNoteGlyph). Unicode per §5b. */}
+            <text x={cx - EXT_ACC_DX} y={flatY + ACC_DY} fontSize={NOTE_FONT_SIZE} fontFamily="Maestro"
+                fill={LOWLIGHT} textAnchor="end">♭</text>
+            <text x={cx - EXT_ACC_DX} y={sharpY + ACC_DY} fontSize={NOTE_FONT_SIZE} fontFamily="Maestro"
+                fill={LOWLIGHT} textAnchor="end">♯</text>
             {/* col 2 — D F A C (start at D4, no C4 ledger; D+A bright, F+C lowlit). */}
             <MelodyNotesLayer {...common} melody={chordMelody(['D4', 'A4'])} previewMode={color} />
             <MelodyNotesLayer {...common} melody={chordMelody(['F4', 'C5'])} previewMode={LOWLIGHT} />
