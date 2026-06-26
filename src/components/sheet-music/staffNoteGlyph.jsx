@@ -64,3 +64,26 @@ export const StaffQuarterNote = ({
     </g>
   );
 };
+
+/**
+ * Render a SELF-CONTAINED duration glyph (whole/half/quarter/eighth/sixteenth) at a staff
+ * position. Unlike StaffQuarterNote (a bare head whose stem is drawn separately to match the live
+ * staff), these glyphs are the Maestro single-character durations that already include their own
+ * stem + flag(s) — the same glyphs InstrumentRow's smallest-note stepper shows
+ * (SMALLEST_NOTE_GLYPHS: 'w'/'h'/'q'/'e'/'x'). Used by the GenerationAdvancedSetterOverlay's
+ * smallest-note tangens carousel so the menu's duration glyphs match the bottom-view picker
+ * (§6d — one source for the glyph chars; the chars come from generationFields).
+ *
+ * `x`/`positionY` are the glyph origin (text baseline anchor), same convention as StaffQuarterNote.
+ * `scale` shrinks the glyph about its origin for the fanned (non-active) carousel neighbours.
+ */
+export const StaffDurationNote = ({
+  glyphChar, x, positionY, color = 'var(--text-primary)', opacity = 1, scale = 1,
+}) => (
+  <g opacity={opacity} style={{ pointerEvents: 'none' }}
+    transform={scale === 1 ? undefined : `translate(${x} ${positionY}) scale(${scale}) translate(${-x} ${-positionY})`}>
+    {/* Maestro glyphs MUST render at normal weight (per ChordComplexityIcon note). */}
+    <text x={x} y={positionY} fontSize={NOTE_FONT_SIZE} fill={color} fontFamily="Maestro"
+      fontWeight="normal">{glyphChar}</text>
+  </g>
+);

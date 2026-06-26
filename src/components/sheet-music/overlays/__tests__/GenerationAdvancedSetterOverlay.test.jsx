@@ -4,9 +4,10 @@ import { render } from '@testing-library/react';
 import GenerationAdvancedSetterOverlay from '../GenerationAdvancedSetterOverlay';
 import { InstrumentSettingsProvider } from '../../../../contexts/InstrumentSettingsContext';
 
-// Smoke test (Han 2026-06-22): the GENERATION ADVANCED setter (now CAROUSEL STYLE) renders for a
-// staff set INCLUDING the chords balk (which shows the passing-chord toggle carousel) without
-// throwing, and shows readable duration words for the smallest-note field.
+// Smoke test (#162): the GENERATION ADVANCED setter (now IN-STAFF MAESTRO / TANGENS style) renders
+// for a staff set INCLUDING the chords balk (passing-chord toggle carousel) without throwing, shows
+// the four column headers + the per-field labels below the staff, the ∞ span entry, and the §3a
+// debug hit-boxes.
 const ctx = {
   trebleSettings: { rhythmVariability: 30, maxLeap: 12, polyMultiplier: 1, smallestNoteDenom: 4 },
   setTrebleSettings: () => {},
@@ -32,35 +33,45 @@ const renderOverlay = (props = {}) => render(
   </InstrumentSettingsProvider>,
 );
 
-describe('GenerationAdvancedSetterOverlay (carousel style)', () => {
-  it('renders all four balks without crashing and shows the four advanced column headers', () => {
+const allText = (container) => [...container.querySelectorAll('text, tspan')].map(t => t.textContent);
+
+describe('GenerationAdvancedSetterOverlay (in-staff tangens style)', () => {
+  it('renders the overlay root and the four advanced column headers', () => {
     const { container } = renderOverlay();
     expect(container.querySelector('.generation-advanced-overlay')).not.toBeNull();
-    const headers = [...container.querySelectorAll('text')].map(t => t.textContent);
-    expect(headers).toContain('variability');
-    expect(headers).toContain('span');
-    expect(headers).toContain('tuplets');
-    expect(headers).toContain('smallest note');
+    const texts = allText(container);
+    expect(texts).toContain('variability');
+    expect(texts).toContain('span');
+    expect(texts).toContain('tuplets');
+    expect(texts).toContain('smallest note');
   });
 
-  it('shows the passing-chords field bracket for the chords balk', () => {
+  it('renders the field labels below the staff (rhythmic variability / tuplet frequency / smallest)', () => {
     const { container } = renderOverlay();
-    // Field-name brackets uppercase their label; the dashed bracket text reads "PASSING CHORDS".
-    const texts = [...container.querySelectorAll('text')].map(t => t.textContent);
-    expect(texts).toContain('PASSING CHORDS');
+    const texts = allText(container);
+    expect(texts).toContain('rhythmic');
+    // variability label embeds the live value, no literal quotes (Han Q6).
+    expect(texts.some(t => t === 'variability = 30')).toBe(true);
+    expect(texts).toContain('tuplet');
+    expect(texts).toContain('frequency');
+    expect(texts).toContain('smallest');
+    expect(texts).toContain('note');
   });
 
-  it('renders the smallest-note field with READABLE duration words (not Maestro glyphs)', () => {
+  it('renders the ∞ span entry as a serif infinity glyph (Han Q1/Q2)', () => {
     const { container } = renderOverlay();
-    const texts = [...container.querySelectorAll('text')].map(t => t.textContent);
-    // The whole point of the rebuild — quarter/eighth/sixteenth are spelled out.
-    expect(texts).toContain('quarter');
-    expect(texts).toContain('sixteenth');
+    const texts = allText(container);
+    expect(texts).toContain('∞');
+    // and a real interval name from LEAP_OPTIONS is shown too.
+    expect(texts.some(t => /8ve|15th|4th/.test(t))).toBe(true);
   });
 
-  it('renders carousel item icons (lucide inline svg)', () => {
+  it('preserves the passing-chords toggle set on the chords balk', () => {
     const { container } = renderOverlay();
-    expect(container.querySelectorAll('svg.lucide').length).toBeGreaterThan(0);
+    const texts = allText(container);
+    expect(texts).toContain('passing chords');
+    // at least one passing-chord label is rendered (e.g. the 'dia' diatonic type).
+    expect(texts.some(t => ['V⁷', 'vii°', 'dia', 'sus', 'IV'].includes(t))).toBe(true);
   });
 
   it('renders debug hit boxes when debugMode is on (§3a)', () => {
