@@ -11,14 +11,41 @@ npm install
 
 echo "→ Installing kanban tooling (global, outside the repo)…"
 sudo apt-get update && sudo apt-get install -y sqlite3
-npm install -g @anthropic-ai/claude-code
+npm install -g @anthropic-ai/claude-code pnpm
 
 if [ ! -d "$HOME/cyanluna.skills" ]; then
   git clone https://github.com/cyanluna-git/cyanluna.skills.git "$HOME/cyanluna.skills"
 fi
+
+# Skill folders go under ~/.claude/skills/ — but kanban-board is a Vite app, not a
+# skill, so it must be installed separately at ~/.claude/kanban-board/ (sibling of
+# skills/) where `npm run kanban` and per-project start.sh scripts look for it.
 mkdir -p "$HOME/.claude/skills"
-cp -R "$HOME"/cyanluna.skills/kanban* "$HOME/.claude/skills/"
+for d in "$HOME"/cyanluna.skills/kanban*; do
+  name=$(basename "$d")
+  [ "$name" = "kanban-board" ] && continue
+  cp -R "$d" "$HOME/.claude/skills/"
+done
+
+# Install the kanban-board UI app (Vite + PGlite). Skip if already present so
+# local patches (e.g. pg -> PGlite swap in plugins/kanban-api.ts) survive reruns.
+# To force a clean reinstall, delete ~/.claude/kanban-board first.
+if [ ! -d "$HOME/.claude/kanban-board" ]; then
+  cp -R "$HOME/cyanluna.skills/kanban-board" "$HOME/.claude/kanban-board"
+  pnpm --dir "$HOME/.claude/kanban-board" install
+else
+  echo "   kanban-board already installed - leaving as-is (delete the folder to force reinstall)."
+fi
+
+# The kanban API needs ~/.claude/kanban-auth (KANBAN_BASE_URL + KANBAN_AUTH_TOKEN).
+# Token is shared across projects, so it is NOT baked into this script — see
+# cyanluna.skills/SETUP-KANBAN.md for the exact contents.
+if [ ! -f "$HOME/.claude/kanban-auth" ]; then
+  echo "⚠  ~/.claude/kanban-auth not found — create it before running /kanban-init."
+  echo "   See $HOME/cyanluna.skills/SETUP-KANBAN.md for the required contents."
+fi
 
 echo "✅ Codespace ready."
-echo "   • App:    npm run dev   (Vite on port 5173)"
+echo "   • App:    npm run dev      (Vite on port 5173)"
+echo "   • Board:  npm run kanban   (kanban-board UI)"
 echo "   • Kanban: run 'claude', then '/kanban-init' → '/kanban add …' → '/kanban-run <id>'"
