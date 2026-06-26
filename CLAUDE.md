@@ -499,32 +499,35 @@ Agents are selected based on **level (L1/L2/L3)** and **phase**:
 
 **CRITICAL RULE: At EVERY phase, the current agent MUST estimate the complexity level and spawn the appropriate agent for the NEXT phase. This is NOT optional.**
 
-**During Design phase:**
+**Haiku's Role (Design phase — ALWAYS):**
 
-- Haiku (or appropriate agent) conducts interview and writes design spec
+- Haiku conducts interview and writes design spec
 - **MUST estimate: Is this L1/L2/L3?**
-- **MUST recommend in design notes:** "Planning agent: [Haiku/Sonnet/Opus]" based on complexity
+- **MUST write in design notes:** "Planning: [Sonnet/medium]" or "Planning: [Opus/high]"
+- **MUST spawn that agent** for the planning phase
+- **Each spawned agent makes their OWN commits** with model name visible: `[Opus/high]` or `[Sonnet/medium]`
 
-**During Plan phase:**
+**Planning Agent (Sonnet or Opus based on level):**
 
-- The planner (at correct L level) writes implementation plan
+- Writes step-by-step implementation plan
 - **MUST estimate: Is implementation L1/L2/L3?**
-- **MUST recommend in plan notes:** "Implementation agent: [Haiku/Sonnet/Opus]"
+- **MUST write in plan notes:** "Implementation: [Sonnet/medium]" or "Implementation: [Opus/high]"
+- **MUST spawn that agent** for the implementation phase (or implement if it's their level)
 
-**During Implementation phase:**
+**Implementation Agent (Sonnet or Opus):**
 
-- The implementer (at correct L level) executes the plan
-- Moves completed item to test
+- **MUST make commits with their model name visible**
+- Commit message format: `[#NNN-impl-Opus/high]` or `[#NNN-impl-Sonnet/medium]`
+- Ensures Han can audit the work trail: see exactly which agent did what
 
-**If agent does NOT spawn the correct next-phase agent: this is a FAILURE.**
+**Visibility & Auditability:**
 
-Examples:
+- Every commit clearly shows which model/effort executed the work
+- Kanban notes show which agent is assigned next
+- Git history provides complete proof of agent assignments
+- Han can verify: "Did Opus actually do the L3 work, or did Haiku sneak it in?"
 
-- L3 design → should recommend "Planning: Opus/high"
-- L3 plan → should recommend "Implementation: Opus/high"
-- Do NOT have Haiku plan an L3 feature. Do NOT have Sonnet implement an L3 architecture change alone.
-
-This ensures complex work gets the deep thinking it requires.
+**If agent does NOT spawn the correct next-agent: this is a FAILURE.**
 
 ### 9c. Swimlane Routing & Approval Gates
 

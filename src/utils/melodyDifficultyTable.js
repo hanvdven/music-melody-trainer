@@ -18,7 +18,7 @@
  *
  *   Total range: 6 (easiest) – 38.5 (hardest)
  */
-import { getNoteSemitone } from '../theory/noteUtils';
+import { noteToMidi } from '../theory/noteUtils';
 
 const NOTES_PER_MEASURE_ENTRIES = [
     { value: 1, score: 1 },
@@ -110,15 +110,12 @@ export const MELODY_DIFFICULTY_RANGE = {
  * @param {object} settings - treble InstrumentSettings
  * @returns {number} integer difficulty score
  */
-// Absolute semitone (C-1 = 0) from a note name. Pitch class comes from the canonical
-// getNoteSemitone (§6 invariant) — the old local _PC_ORDER/_ENHARMONICS table had a
-// wrong entry ('Db'→'E♭') and returned null for C♭/F♭/E♯/B♯; getNoteSemitone handles
-// all enharmonics (incl. double accidentals). Octave is parsed separately.
-function _noteToSemitone(note) {
-    const m = note?.match(/^([A-G][#b♯♭]?)(-?\d+)$/);
-    if (!m) return null;
-    return (parseInt(m[2], 10) + 1) * 12 + getNoteSemitone(m[1]);
-}
+// Absolute semitone (C-1 = 0) from a note name via the canonical SSOT parser
+// (§6 invariant; #152 consolidation). noteToMidi with default base=0 yields
+// (oct+1)*12 + pitchClass — identical to the old local _noteToSemitone — and
+// returns the {fallback:null} sentinel on unparseable input, so getRangeScore's
+// `!= null` guard behaves exactly as before. noteToMidi handles all enharmonics
+// incl. double accidentals (the old single-accidental regex did not).
 
 /**
  * Returns the range difficulty score for the given settings.
@@ -133,8 +130,8 @@ export function getRangeScore(settings) {
     // For custom/vocal/relative, compute from actual range if available
     const range = settings?.range;
     if (range?.min && range?.max) {
-        const minS = _noteToSemitone(range.min);
-        const maxS = _noteToSemitone(range.max);
+        const minS = noteToMidi(range.min, { fallback: null });
+        const maxS = noteToMidi(range.max, { fallback: null });
         if (minS != null && maxS != null) return Math.max(0, (maxS - minS - 12) / 2);
     }
     return 2; // default: STANDARD equivalent

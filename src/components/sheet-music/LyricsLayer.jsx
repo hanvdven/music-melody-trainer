@@ -1,5 +1,5 @@
 import React from 'react';
-import { getNoteSemitone } from '../../theory/noteUtils';
+import { noteToMidi } from '../../theory/noteUtils';
 import {
   isCompoundMeter,
   getEffectiveBeatDuration,
@@ -52,10 +52,9 @@ const renderMelodic = ({
   // Sort a chord array low-to-high by MIDI pitch
   const sortedChordNotes = (note) => {
     if (!Array.isArray(note)) return [note];
-    const midiOf = (n) => {
-      const m = String(n).match(/^(.+?)(-?\d+)$/);
-      return m ? parseInt(m[2]) * 12 + getNoteSemitone(m[1]) : 0;
-    };
+    // Canonical SSOT parser (#152). base:-12 matches the old local midiOf's
+    // oct*12 base; only relative order matters here so the constant is moot.
+    const midiOf = (n) => noteToMidi(String(n), { fallback: 0, base: -12 });
     return [...note].sort((a, b) => midiOf(a) - midiOf(b));
   };
 

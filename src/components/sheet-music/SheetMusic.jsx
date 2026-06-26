@@ -37,7 +37,7 @@ import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
-import { getNoteSemitone, getKodalySolfege, respellToKeySignature, melodicNoteColor } from '../../theory/noteUtils';
+import { getNoteSemitone, noteToMidi, getKodalySolfege, respellToKeySignature, melodicNoteColor } from '../../theory/noteUtils';
 import { transposeNoteBySemitones } from '../../theory/musicUtils';
 import { clefForScreen } from './clefResolution';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
@@ -1332,10 +1332,10 @@ const SheetMusic = ({
   // For a chord array, returns the note with the lowest absolute pitch (octave * 12 + pc).
   const lowestNote = (note) => {
     if (!Array.isArray(note)) return note;
-    const midiOf = (n) => {
-      const m = String(n).match(/^(.+?)(-?\d+)$/);
-      return m ? parseInt(m[2]) * 12 + getNoteSemitone(m[1]) : 0;
-    };
+    // Canonical SSOT parser (#152). base:-12 reproduces the old local midiOf's
+    // oct*12 (vs noteToMidi's default (oct+1)*12); the constant offset is
+    // irrelevant here since this is only used to compare pitches relatively.
+    const midiOf = (n) => noteToMidi(String(n), { fallback: 0, base: -12 });
     return note.reduce((low, n) => midiOf(n) < midiOf(low) ? n : low, note[0]);
   };
 
