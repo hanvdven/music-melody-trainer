@@ -983,6 +983,7 @@ main#board.hidden {
   letter-spacing: 0.03em;
 }
 .phase-requirement .phase-header { color: #60a5fa; }
+.phase-interview .phase-header { color: #e879f9; }
 .phase-plan .phase-header { color: #fbbf24; }
 .phase-decision-log .phase-header { color: #34d399; }
 .phase-plan-review .phase-header { color: #fb923c; }
@@ -996,6 +997,81 @@ main#board.hidden {
   font-size: 0.65rem;
   font-weight: 400;
   color: #64748b;
+}
+
+/* #244: Interview section styles */
+.interview-count {
+  margin-left: auto;
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: #c084fc;
+}
+.interview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 14px;
+}
+.interview-question {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.interview-q-text {
+  font-size: 0.85rem;
+  color: #e2e8f0;
+  line-height: 1.4;
+}
+.interview-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.interview-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: #94a3b8;
+}
+.interview-option input[type="radio"] {
+  margin-top: 2px;
+  accent-color: #e879f9;
+  flex-shrink: 0;
+}
+.interview-option:has(input:checked) span {
+  color: #e879f9;
+  font-weight: 500;
+}
+.interview-free-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.interview-textarea {
+  width: 100%;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  padding: 6px 8px;
+  font-size: 0.82rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.interview-textarea:focus {
+  outline: none;
+  border-color: #e879f9;
+}
+.interview-answer-saved {
+  font-size: 0.75rem;
+  color: #34d399;
+  margin-top: 4px;
 }
 
 /* Phase edit button */

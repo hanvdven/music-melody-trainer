@@ -30,6 +30,8 @@ interface Task {
   notes: string | null;
   decision_log: string | null;
   done_when: string | null;
+  // #244: interview questions; JSON array of { id, question, options[], selectedOption?, freeText? }
+  interviews?: string | null;
   created_at: string;
   started_at: string | null;
   planned_at: string | null;
@@ -1381,6 +1383,55 @@ async function showTaskDetail(id: number, project?: string) {
       </div>
     `;
 
+    // Interview section (#244): Claude's design-phase questions, answered inline by Han.
+    // Questions are stored as JSON: { id, question, options[], selectedOption?, freeText? }
+    // Visible when there are interview questions; allows Han to pick options and type free text.
+    const interviews = parseJsonArray(task.interviews);
+    let interviewSection = '';
+    if (interviews.length > 0) {
+      const questionsHtml = interviews.map((q: any, qi: number) => {
+        const optionsHtml = (q.options || []).map((opt: string, _oi: number) => {
+          const checked = q.selectedOption === opt ? 'checked' : '';
+          return `<label class="interview-option">
+            <input type="radio" name="interview-q${qi}" value="${opt.replace(/"/g, '&quot;')}" ${checked}
+              data-q-id="${q.id}" data-q-idx="${qi}" class="interview-radio" />
+            <span>${opt}</span>
+          </label>`;
+        }).join('');
+        const freeTextVal = (q.freeText || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        return `
+          <div class="interview-question" data-q-id="${q.id}" data-q-idx="${qi}">
+            <div class="interview-q-text"><strong>Q${qi + 1}:</strong> ${q.question}</div>
+            <div class="interview-options">${optionsHtml}</div>
+            <div class="interview-free-text">
+              <label class="interview-option">
+                <input type="radio" name="interview-q${qi}" value="__other__"
+                  ${!q.selectedOption || q.freeText ? 'checked' : ''}
+                  data-q-id="${q.id}" data-q-idx="${qi}" class="interview-radio" />
+                <span>Other (please explain):</span>
+              </label>
+              <textarea class="interview-textarea" data-q-id="${q.id}" data-q-idx="${qi}"
+                rows="2" placeholder="Your answer...">${freeTextVal}</textarea>
+            </div>
+            ${q.selectedOption ? `<div class="interview-answer-saved">\u2713 Saved: ${q.selectedOption}${q.freeText ? ' \u2014 ' + q.freeText : ''}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+      interviewSection = `
+        <div class="lifecycle-phase phase-interview active" id="interview-section">
+          <div class="phase-header">
+            <span class="phase-icon">\u2753</span>
+            <span class="phase-label">Design Interview</span>
+            <span class="interview-count">${interviews.length} question${interviews.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div class="phase-body interview-body">
+            ${questionsHtml}
+            <button class="phase-save-btn" id="interview-save-btn">Save Answers</button>
+          </div>
+        </div>
+      `;
+    }
+
     // Plan section
     const planSection = renderLifecycleSection(
       'Plan', '\u{1F5FA}\uFE0F', 'phase-plan',
@@ -1545,6 +1596,7 @@ async function showTaskDetail(id: number, project?: string) {
       ${progressHtml}
       <div class="lifecycle-sections">
         ${requirementSection}
+        ${interviewSection}
         ${planSection}
         ${decisionLogSection}
         ${doneWhenSection}
@@ -1593,6 +1645,37 @@ async function showTaskDetail(id: number, project?: string) {
       document.getElementById("modal-overlay")!.classList.add("hidden");
       refreshCurrentView();
     });
+
+    // Interview save handler (#244): reads current radio + textarea state for each question,
+    // merges back into the interviews array, and PATCHes the task.
+    const interviewSaveBtn = document.getElementById("interview-save-btn");
+    if (interviewSaveBtn && interviews.length > 0) {
+      interviewSaveBtn.addEventListener("click", async () => {
+        const updatedInterviews = interviews.map((q: any, qi: number) => {
+          const checkedRadio = content.querySelector<HTMLInputElement>(
+            `input[name="interview-q${qi}"]:checked`
+          );
+          const textarea = content.querySelector<HTMLTextAreaElement>(
+            `.interview-textarea[data-q-idx="${qi}"]`
+          );
+          const selectedVal = checkedRadio?.value ?? null;
+          const freeText = textarea?.value.trim() || null;
+          return {
+            ...q,
+            selectedOption: selectedVal === '__other__' ? null : selectedVal,
+            freeText: (selectedVal === '__other__' || !selectedVal) ? freeText : null,
+          };
+        });
+        interviewSaveBtn.textContent = "Saving...";
+        await apiFetch(`/api/task/${id}?project=${encodeURIComponent(task.project)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ interviews: updatedInterviews }),
+        });
+        invalidateSummaryCaches(task.project);
+        showTaskDetail(id, task.project);
+      });
+    }
 
     // Requirements edit handlers
     const reqEditBtn = document.getElementById("req-edit-btn")!;
