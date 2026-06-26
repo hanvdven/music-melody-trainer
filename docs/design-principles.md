@@ -1,6 +1,6 @@
-# Visual Design & Style Principles
+# Design Principles
 
-This document is the source of truth for visual design decisions in the Music Melody Trainer app. Every UI ticket must be reviewed against these principles before implementation.
+This document is the source of truth for design decisions in the Music Melody Trainer app. Every UI ticket must be reviewed against these principles before implementation. The kanban `design` phase references this file as part of its NFR check.
 
 ---
 

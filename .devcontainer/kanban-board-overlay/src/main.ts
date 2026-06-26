@@ -1,4 +1,7 @@
-type ColumnKey = "todo" | "plan" | "plan_review" | "impl" | "impl_review" | "test" | "done";
+type ColumnKey =
+  | "todo" | "preplan" | "design" | "design_review"
+  | "plan" | "plan_review" | "impl" | "impl_review" | "test" | "done"
+  | "on_hold" | "cancelled";
 
 interface Task {
   id: number;
@@ -41,12 +44,17 @@ interface Board {
   total?: number;
   counts?: Partial<Record<ColumnKey, number>>;
   todo: Task[];
+  preplan: Task[];
+  design: Task[];
+  design_review: Task[];
   plan: Task[];
   plan_review: Task[];
   impl: Task[];
   impl_review: Task[];
   test: Task[];
   done: Task[];
+  on_hold: Task[];
+  cancelled: Task[];
   projects: string[];
 }
 
@@ -60,21 +68,31 @@ interface AuthSessionState {
 }
 
 const COLUMNS = [
-  { key: "todo",        label: "Requirements", icon: "\u{1F4CB}" },
-  { key: "plan",        label: "Plan",         icon: "\u{1F5FA}\uFE0F" },
-  { key: "plan_review", label: "Review Plan",  icon: "\u{1F50D}" },
-  { key: "impl",        label: "Implement",    icon: "\u{1F528}" },
-  { key: "impl_review", label: "Review Impl",  icon: "\u{1F4DD}" },
-  { key: "test",        label: "Test",         icon: "\u{1F9EA}" },
-  { key: "done",        label: "Done",         icon: "\u2705" },
+  { key: "todo",          label: "Requirements", icon: "\u{1F4CB}" },
+  { key: "preplan",       label: "Pre-plan",     icon: "\u{1F50E}" },
+  { key: "design",        label: "Design",       icon: "\u{1F3A8}" },
+  { key: "design_review", label: "Review Design",icon: "\u{1F4D0}" },
+  { key: "plan",          label: "Plan",         icon: "\u{1F5FA}\uFE0F" },
+  { key: "plan_review",   label: "Review Plan",  icon: "\u{1F50D}" },
+  { key: "impl",          label: "Implement",    icon: "\u{1F528}" },
+  { key: "impl_review",   label: "Review Impl",  icon: "\u{1F4DD}" },
+  { key: "test",          label: "Test",         icon: "\u{1F9EA}" },
+  { key: "done",          label: "Done",         icon: "\u2705" },
+  { key: "on_hold",       label: "On hold",      icon: "\u23F8\uFE0F" },
+  { key: "cancelled",     label: "Cancelled",    icon: "\u{1F6AB}" },
 ];
 
 const STATUS_BADGES: Record<string, string> = {
-  plan:        "Planning",
-  plan_review: "Plan Review",
-  impl:        "Implementing",
-  impl_review: "Impl Review",
-  test:        "Testing",
+  preplan:       "Pre-planning",
+  design:        "Designing",
+  design_review: "Design Review",
+  plan:          "Planning",
+  plan_review:   "Plan Review",
+  impl:          "Implementing",
+  impl_review:   "Impl Review",
+  test:          "Testing",
+  on_hold:       "On hold",
+  cancelled:     "Cancelled",
 };
 
 const AUTH_STORAGE_KEY = "kanban-auth-token";
@@ -645,33 +663,29 @@ function getStatusLabel(status: string): string {
   return COLUMNS.find((column) => column.key === status)?.label || status;
 }
 
-function getAllowedTransitions(level: number, status: string): string[] {
-  if (level === 1) {
-    const transitions: Record<string, string[]> = {
-      todo: ["impl"],
-      impl: ["done"],
-      done: [],
-    };
-    return transitions[status] || [];
-  }
-  if (level === 2) {
-    const transitions: Record<string, string[]> = {
-      todo: ["plan"],
-      plan: ["impl", "todo"],
-      impl: ["impl_review"],
-      impl_review: ["done", "impl"],
-      done: [],
-    };
-    return transitions[status] || [];
-  }
+// Mirror of getTransitions() in plugins/kanban-api.ts. Keep in sync.
+// All tickets walk the same pipeline regardless of level (preplan estimates L,
+// it only influences agent/effort, not which stages exist). Forward or one
+// step back per state. on_hold/cancelled = universal escape hatches.
+function getAllowedTransitions(_level: number, status: string): string[] {
+  const PARKING = ["on_hold", "cancelled"];
+  const ALL_ACTIVE = [
+    "todo", "preplan", "design", "design_review",
+    "plan", "plan_review", "impl", "impl_review", "test", "done",
+  ];
   const transitions: Record<string, string[]> = {
-    todo: ["plan"],
-    plan: ["plan_review", "todo"],
-    plan_review: ["impl", "plan"],
-    impl: ["impl_review"],
-    impl_review: ["test", "impl"],
-    test: ["done", "impl"],
-    done: [],
+    todo:          ["preplan",       ...PARKING],
+    preplan:       ["design",        "todo",          ...PARKING],
+    design:        ["design_review", "preplan",       ...PARKING],
+    design_review: ["plan",          "design",        ...PARKING],
+    plan:          ["plan_review",   "design_review", ...PARKING],
+    plan_review:   ["impl",          "plan",          ...PARKING],
+    impl:          ["impl_review",   "plan_review",   ...PARKING],
+    impl_review:   ["test",          "impl",          ...PARKING],
+    test:          ["done",          "impl",          ...PARKING],
+    done:          ["test",          "on_hold"],
+    on_hold:       [...ALL_ACTIVE,   "cancelled"],
+    cancelled:     ["todo"],
   };
   return transitions[status] || [];
 }
