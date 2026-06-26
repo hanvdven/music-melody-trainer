@@ -542,6 +542,27 @@ When a phase completes, the item moves to the NEXT swimlane, not the next phase:
 5. **Claude completes impl** → move to `test` (Han's row) ✋ STOP for UAT
 6. **Han approves test** → move to `done`
 
+### Split Oversized Tickets in PLAN (Han 2026-06-27)
+
+**If, during the PLAN phase, a ticket turns out to be too large** — i.e. the plan
+would span many unrelated concerns, touch multiple subsystems, or be too big to
+land in one reviewable impl commit — **split it into sub-tickets before
+implementing.** Do not attempt to implement an oversized ticket in one pass.
+
+How to split:
+
+1. Keep the original ticket as the **epic / umbrella** (or mark it `on_hold` if it
+   becomes purely a tracker). Never delete the user's original text.
+2. Create one sub-ticket per cohesive, independently-shippable slice. Each
+   sub-ticket gets its own design/plan/impl/test cycle.
+3. Wire the ordering with **dependencies** (see §9j): if sub-ticket B must wait on
+   A, add an `f-f` (or `s-f`) dependency from B to A.
+4. Note the split decision on the original ticket (`POST /api/task/:id/note`,
+   author `plan`) listing the child ticket IDs.
+
+A ticket is "too big" if its plan exceeds ~12 steps spanning unrelated files, or
+if you cannot describe its acceptance in a single coherent `done_when`.
+
 ### Plan Review Gate — Architectural Impact Only
 
 `plan_review` is NOT automatic. Route to `plan_review` **only if the plan has architectural impact:**
@@ -654,3 +675,34 @@ Each review swimlane has a clear, documented purpose:
 - Before signing off, Han verifies: Feature works end-to-end? Edge cases handled? Regressions checked?
 
 **Rule: Each swimlane has ONE clear owner (Han) and ONE clear action (read/approve/test).**
+
+### 9j. Task Dependencies — s-f / f-f (Han 2026-06-27, ticket #246)
+
+Kanban tasks can declare **dependencies** on other tasks. A dependency is stored
+on the dependent task and points at a target task with a relationship type:
+
+| Type | Name | Meaning |
+| --- | --- | --- |
+| `s-f` | start-finish | This task **cannot finish** until the target task has **started**. |
+| `f-f` | finish-finish | This task **cannot finish** until the target task has **finished**. |
+
+Dependencies are **advisory** — movement between statuses is still unrestricted
+(§9c "movement is unrestricted"). They surface ordering in the UI and remind
+Claude/Han not to mark a dependent task `done` before its prerequisite condition
+holds. They pair naturally with ticket-splitting (§ "Split Oversized Tickets"):
+when an epic is split, wire the child ordering with `f-f`/`s-f` dependencies.
+
+**Data model:** `tasks.dependencies` (TEXT, JSON) =
+`Array<{ id, targetId, type, createdAt }>`, `type ∈ {'s-f','f-f'}`.
+
+**API** (all take `?project=music-melody-trainer`):
+
+- `POST /api/task/:id/dependency` — body `{ targetId, type }`. Validates type,
+  rejects self-reference, requires the target to exist; idempotent on
+  (targetId, type). Returns the updated `dependencies` array.
+- `DELETE /api/task/:id/dependency/:depId` — removes one dependency by its `id`.
+- `GET /api/task/:id` returns the `dependencies` field; the board summary returns
+  a `dependency_count`.
+
+Implementation: `~/.claude/kanban-board/plugins/kanban-api.ts` (schema column +
+migration, GET allow-list, POST/DELETE handlers, summary `dependency_count`).
