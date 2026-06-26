@@ -3,6 +3,8 @@ import { getNoteFromValue } from '../../../utils/rangeUtils';
 import { normalizeNoteChars, melodicNoteColor, getNoteSemitone, chromatoneMix } from '../../../theory/noteUtils';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
 import { StaffQuarterNote } from '../staffNoteGlyph';
+// §6d single source of truth for the 'tangens' fan curve — shared with GenerationAdvancedSetterOverlay.
+import { X_SPACING, curveX, curveY, leftCurveX } from './tangensCurve';
 
 /**
  * TranspositionSetter — compact in-staff transposition control (Han 2026-06-08).
@@ -75,21 +77,10 @@ const MIN_TRANS = -24, MAX_TRANS = 24;
 const nameOf = (midi) => normalizeNoteChars(getNoteFromValue(midi));
 const clampTrans = (t) => Math.max(MIN_TRANS, Math.min(MAX_TRANS, t));
 
-// ── The 'tangens' curve (Han 2026-06-08) ────────────────────────────────────────────────
-// Each notehead = its true staff ORIGIN (same x = anchorX; y = staff position) + f(t), where
-// t = half-steps from the active selection (fractional while dragging):
-//     f(t) = ( −3·tanh(t/3)·X_SPACING , (t³/20)·Y_SPACING )
-// Active note (t=0) → f(0)=(0,0) → sits exactly on target. Horizontal SATURATES (tanh) so the
-// fan can't run off sideways; vertical is a pure cubic in t (Han 2026-06-09 reverted to −t³, the
-// original S-wave: higher written notes — t>0 — must fan UPWARD, i.e. toward smaller screen-y,
-// hence the minus) that steepens fast toward the edges → the 'tangens' feel. Math.tanh is cheap.
-const X_SPACING = 30;   // horizontal scale of the tanh fan (Han 2026-06-09: 25 → 30, heads are now
-                        // full staff size so they need more spread to stop overlapping)
-const Y_SPACING = 10;   // vertical scale of the cubic term
-const LEFT_X_SPACING = 14;   // gentler tanh fan for the LEFT name carousel (Han 2026-06-09)
-const curveX = (t) => -3 * Math.tanh(t / 3) * X_SPACING;
-const curveY = (t) => -(Math.pow(t, 3) / 20) * Y_SPACING;
-const leftCurveX = (t) => -3 * Math.tanh(t / 3) * LEFT_X_SPACING;   // tanh-x for the names
+// ── The 'tangens' curve (Han 2026-06-08; extracted to ./tangensCurve.js 2026-06-27) ──────────
+// X_SPACING / curveX / curveY / leftCurveX now live in the shared tangensCurve module so this
+// setter and the GenerationAdvancedSetterOverlay use ONE fan geometry (§6d). See that file for the
+// full f(t) derivation. (X_SPACING is still referenced below for the right drag-band width.)
 
 // Grid Ys (staff lines, every 10 units from staffStart) between the staff and a notehead at
 // drawn `y`, so heads off the staff get ledger lines (Han 2026-06-08 "ver buiten de balk").
