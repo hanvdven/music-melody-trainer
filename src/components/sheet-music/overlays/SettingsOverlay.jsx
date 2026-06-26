@@ -267,6 +267,11 @@ const SettingsOverlay = ({
           fill="transparent" className="svg-pointer"
           onClick={(e) => { e.stopPropagation(); toggleRoundSetting?.(round, row.key, 'visual'); }}
         />
+        {debugMode && (
+          <rect x={vx - HIT} y={vy - HIT} width={HIT * 2} height={HIT * 2}
+            fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
+            style={{ pointerEvents: 'none' }} />
+        )}
       </g>
     );
   };
@@ -308,6 +313,12 @@ const SettingsOverlay = ({
         fill="transparent"
         style={{ cursor: 'default' }}
       />
+      {debugMode && (
+        <rect x={overlayLeft} y={overlayTop}
+          width={overlayRight - overlayLeft} height={overlayBottom - overlayTop}
+          fill="cyan" fillOpacity={0.15} stroke="cyan" strokeWidth={0.5}
+          style={{ pointerEvents: 'none' }} />
+      )}
 
       {/* ── COLUMN HEADERS ─────────────────────────────────── */}
       <text x={oddCol} y={HEADER_Y} textAnchor="middle" fontFamily="serif" fontStyle="italic"
