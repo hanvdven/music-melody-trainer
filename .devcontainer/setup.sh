@@ -28,13 +28,27 @@ for d in "$HOME"/cyanluna.skills/kanban*; do
 done
 
 # Install the kanban-board UI app (Vite + PGlite). Skip if already present so
-# local patches (e.g. pg -> PGlite swap in plugins/kanban-api.ts) survive reruns.
-# To force a clean reinstall, delete ~/.claude/kanban-board first.
+# local patches survive reruns. To force a clean reinstall, delete
+# ~/.claude/kanban-board first.
+SCRIPT_DIR="$( cd -- "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 ; pwd -P )"
 if [ ! -d "$HOME/.claude/kanban-board" ]; then
   cp -R "$HOME/cyanluna.skills/kanban-board" "$HOME/.claude/kanban-board"
   pnpm --dir "$HOME/.claude/kanban-board" install
 else
   echo "   kanban-board already installed - leaving as-is (delete the folder to force reinstall)."
+fi
+
+# Apply our overlay: port pin, pg->PGlite swap, project auto-select. See
+# .devcontainer/kanban-board-overlay/README.md for the patch summary and
+# how to reconcile when upstream updates.
+if [ -d "$SCRIPT_DIR/kanban-board-overlay" ]; then
+  echo "   applying kanban-board overlay (PGlite, port 5500, auto-select project)..."
+  cp -R "$SCRIPT_DIR/kanban-board-overlay/vite.config.ts" "$HOME/.claude/kanban-board/vite.config.ts"
+  cp -R "$SCRIPT_DIR/kanban-board-overlay/plugins/." "$HOME/.claude/kanban-board/plugins/"
+  cp -R "$SCRIPT_DIR/kanban-board-overlay/src/." "$HOME/.claude/kanban-board/src/"
+  # The overlay's kanban-api.ts uses PGlite; upstream kanban-board only ships
+  # `pg`. Idempotent add.
+  pnpm --dir "$HOME/.claude/kanban-board" add @electric-sql/pglite
 fi
 
 # The kanban API needs ~/.claude/kanban-auth (KANBAN_BASE_URL + KANBAN_AUTH_TOKEN).

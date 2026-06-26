@@ -61,15 +61,30 @@ Get-ChildItem -Path $skillsRepo -Directory -Filter 'kanban*' |
     }
 
 # Install the kanban-board UI app (Vite + PGlite). Skip if already present so
-# local patches (e.g. pg -> PGlite swap in plugins/kanban-api.ts) survive reruns.
-# To force a clean reinstall, delete ~/.claude/kanban-board first.
+# local patches survive reruns. To force a clean reinstall, delete
+# ~/.claude/kanban-board first.
 $boardDest = Join-Path $HOME '.claude\kanban-board'
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 if (-not (Test-Path $boardDest)) {
     Copy-Item -Recurse -Force (Join-Path $skillsRepo 'kanban-board') $boardDest
     pnpm --dir $boardDest install
     if ($LASTEXITCODE -ne 0) { throw "kanban-board pnpm install failed" }
 } else {
     Write-Host "   kanban-board already installed - leaving as-is (delete the folder to force reinstall)."
+}
+
+# Apply our overlay: port pin, pg->PGlite swap, project auto-select. See
+# .devcontainer/kanban-board-overlay/README.md for the patch summary and
+# how to reconcile when upstream updates.
+$overlay = Join-Path $scriptDir 'kanban-board-overlay'
+if (Test-Path $overlay) {
+    Write-Host "   applying kanban-board overlay (PGlite, port 5500, auto-select project)..."
+    Copy-Item -Force (Join-Path $overlay 'vite.config.ts') (Join-Path $boardDest 'vite.config.ts')
+    Copy-Item -Recurse -Force (Join-Path $overlay 'plugins\*') (Join-Path $boardDest 'plugins')
+    Copy-Item -Recurse -Force (Join-Path $overlay 'src\*') (Join-Path $boardDest 'src')
+    # The overlay's kanban-api.ts uses PGlite; upstream kanban-board only ships
+    # `pg`. Idempotent add.
+    pnpm --dir $boardDest add @electric-sql/pglite
 }
 
 # The kanban API needs ~/.claude/kanban-auth (KANBAN_BASE_URL + KANBAN_AUTH_TOKEN).
