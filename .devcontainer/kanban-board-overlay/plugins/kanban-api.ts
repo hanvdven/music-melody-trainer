@@ -249,6 +249,12 @@ async function initializeSchema(sql: Sql): Promise<void> {
       notes TEXT,
       decision_log TEXT,
       done_when TEXT,
+      -- #246: task dependencies (s-f / f-f). Additive; existing rows get NULL.
+      dependencies TEXT,
+      -- #244: interview questions set by Claude during design phase.
+      -- JSON array of { id, question, options[], selectedOption?, freeText? }.
+      -- Han answers inline in the task card during design_review.
+      interviews TEXT,
       rank INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -280,6 +286,10 @@ async function initializeSchema(sql: Sql): Promise<void> {
     `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS decision_log TEXT`,
     `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS done_when TEXT`,
     `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`,
+    // #246: task dependencies (s-f / f-f). Additive; existing rows get NULL.
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS dependencies TEXT`,
+    // #244: interview questions. JSON array; answered inline in design_review.
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS interviews TEXT`,
   ];
   for (const m of migrations) await sql.query(m);
 
@@ -396,6 +406,9 @@ interface Task {
   notes: string | null;
   decision_log: string | null;
   done_when: string | null;
+  dependencies: string | null;
+  // #244: interview questions; JSON array of { id, question, options[], selectedOption?, freeText? }
+  interviews: string | null;
   created_at: string;
   started_at: string | null;
   planned_at: string | null;
@@ -608,7 +621,7 @@ export function kanbanApiPlugin(): Plugin {
               "implementation_notes","tags","review_comments","plan_review_comments",
               "test_results","agent_log","current_agent","plan_review_count",
               "impl_review_count","level","attachments","notes","decision_log",
-              "done_when","rank","created_at","started_at","planned_at",
+              "done_when","dependencies","interviews","rank","created_at","started_at","planned_at",
               "reviewed_at","tested_at","completed_at","updated_at",
             ]);
             const fieldsParam = reqUrl.searchParams.get("fields");
@@ -687,6 +700,8 @@ export function kanbanApiPlugin(): Plugin {
             if (body.level !== undefined)         { sets.push(`level = $${p++}`); vals.push(body.level); }
             if (body.decision_log !== undefined)  { sets.push(`decision_log = $${p++}`); vals.push(body.decision_log); }
             if (body.done_when !== undefined)     { sets.push(`done_when = $${p++}`); vals.push(body.done_when); }
+            if (body.dependencies !== undefined)  { sets.push(`dependencies = $${p++}`); vals.push(j(body.dependencies)); }
+            if (body.interviews !== undefined)    { sets.push(`interviews = $${p++}`); vals.push(j(body.interviews)); }
 
             if (sets.length > 0) {
               sets.push("updated_at = NOW()");
