@@ -62,6 +62,12 @@ class InstrumentSettings {
     // this list (see filterPercussionByEnabledPads). Defaulted for the
     // percussion instrument below.
     this.enabledPads = null;
+    // When true, the generator fills any empty on-beat slot with an explicit rest
+    // ('r') in the rest-insertion pass (see melodyGenerator.js step 4f). This was
+    // previously hardcoded to the percussion instrument type; it is now a settings
+    // field so the generation pipeline stays identical for ALL instrument types
+    // (see CLAUDE.md §6b). Only the percussion default enables it.
+    this.insertBeatRests = false;
   }
 
   static defaultTrebleInstrumentSettings() {
@@ -119,6 +125,9 @@ class InstrumentSettings {
     // floor tom). Han 2026-05-30. Defined in drumKits.js so presets stay in one
     // place; imported lazily to avoid a model→audio import cycle.
     settings.enabledPads = [...PERCUSSION_PRESETS.STANDARD];
+    // Percussion fills empty on-beat slots with explicit rests so drum notation
+    // shows beat anchors. See melodyGenerator.js step 4f.
+    settings.insertBeatRests = true;
     return settings;
   }
 
