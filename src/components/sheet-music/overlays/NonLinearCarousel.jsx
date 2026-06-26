@@ -115,6 +115,11 @@ export default function NonLinearCarousel({
 
     // Keep the resting position in sync with the externally-controlled activeIndex (e.g. the
     // setter committed a new selection): glide to it unless the user is mid-drag.
+    // Omit animatePosTo from deps. It is a stable closure (rAF-based tween, no external capture
+    // except the refs and constants). Including it would cause a redundant effect run every render,
+    // re-starting the animation unnecessarily. The true deps are activeIndex (selection change)
+    // and N (item count change → wrap domain changes). If both change together, we animate once
+    // to the new active position in the new wrapped domain.
     React.useEffect(() => {
         if (dragRef.current) return;          // don't fight an in-progress gesture
         animatePosTo(activeIndex);
@@ -177,6 +182,11 @@ export default function NonLinearCarousel({
 
     // Paint the initial layout once mounted (and whenever the item set changes) so items don't
     // flash at full size/opacity before the first rAF. useLayoutEffect → before paint.
+    // Omit applyPos/wrapPos from deps and ALSO activeIndex. applyPos is stable (only touches
+    // wrapRefs and DOM style). wrapPos is a pure function. activeIndex changes are already
+    // handled by the useEffect above (animatePosTo). This effect is ONLY for re-painting the
+    // initial layout when N changes (the item count); it would be redundant to also re-run on
+    // activeIndex changes since the previous effect already animates there. Fire on N only.
     React.useLayoutEffect(() => {
         applyPos(wrapPos(activeIndex, N));
         // eslint-disable-next-line react-hooks/exhaustive-deps

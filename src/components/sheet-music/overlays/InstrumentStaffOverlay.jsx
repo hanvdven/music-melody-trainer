@@ -227,6 +227,10 @@ const StaffCarousel = ({
     // brackets from `activeIndex`. The last imperative `updateHeaders` write may have left a slot's
     // inline opacity in a transient state, so re-assert the AT-REST opacity here (used slot → 1,
     // unused → 0) to match the freshly-rendered `headers`. useLayout → before paint, every settle.
+    // Omit headers from deps. `headers` is derived from activeIndex + pos (both captured refs),
+    // so it changes whenever activeIndex changes. Including headers would cause the effect to
+    // re-run twice per update (once when headers changes, once when activeIndex changes), causing
+    // race flicker in the opacity animation. We only care about activeIndex; headers follows.
     React.useLayoutEffect(() => {
         for (let i = 0; i < MAX_HEADERS; i += 1) {
             const slot = slotRefs.current[i];

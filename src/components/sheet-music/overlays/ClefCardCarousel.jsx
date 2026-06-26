@@ -54,6 +54,10 @@ export default function ClefCardCarousel({
 
     // Clamp once the content/measurements change (e.g. fewer cards after a family
     // switch) so a stale offset can't leave the strip scrolled past its new end.
+    // Omit widths/slotStarts/scrollable from deps. They are derived every render from immutable
+    // input (cards array, viewWidth, cardW). Changing them does not require a clamp — only the
+    // MIN offset (which depends on viewWidth and contentW) does. Changes to derived values are
+    // redundant because minOffset is already in the array; only use minOffset.
     React.useEffect(() => {
         const clamped = clamp(offsetRef.current, minOffset, 0);
         if (clamped !== offsetRef.current) applyOffset(clamped);
@@ -89,6 +93,13 @@ export default function ClefCardCarousel({
     // #2: when the selection CHANGES to a card that sits RIGHT of the window centre,
     // glide it to the centre (0.5 s) — revealing that more cards live behind the strip.
     const prevActiveRef = React.useRef(activeIdx);
+    // Omit centerOffsetFor and animateOffsetTo from deps. They are stable closures that
+    // capture minOffset, viewWidth, slotStarts, widths — all of which are derived from props
+    // (cards, viewWidth, cardW) and therefore "pure" for dep-array purposes. Including them
+    // would cause an effect re-run every render even if activeIdx/scrollable haven't changed.
+    // The race this prevents: if scrollable toggles (content width crosses viewport width
+    // boundary) and activeIdx has ALSO changed, we want EXACTLY ONE animation, not a queued
+    // race. The single run on [activeIdx, scrollable] ensures that.
     React.useEffect(() => {
         if (!scrollable || activeIdx < 0) { prevActiveRef.current = activeIdx; return; }
         if (activeIdx === prevActiveRef.current) return;
