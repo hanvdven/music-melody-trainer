@@ -444,3 +444,157 @@ For a full file-by-file reference see **Section 12** of `docs/architecture.md`.
 (settings, range, and future ones) lives in its own file under
 `src/components/sheet-music/overlays/`. Never cram multiple overlays into one
 file.
+
+---
+
+## 9. Kanban Workflow & Agent Orchestration
+
+The project uses a kanban board at `~/.claude/kanban-board/` (PGlite-backed, port 5500) to pipeline features and bugs through a multi-agent workflow. This section documents the agent selection strategy, swimlane routing, and approval gates.
+
+### 9a. Kanban Board Layout & Pipeline
+
+**2D layout (6 columns × 2 rows):**
+
+```text
+Row 1 (Claude's work):      design  →  plan  →  impl
+Row 2 (Han's approvals):            design_review  plan_review  test (UAT)
+Spanning both:              todo (backlog)     done     parking (on_hold + cancelled)
+```
+
+**Pipeline states:**
+
+- `todo` (backlog) — new, unstarted items
+- `design` — Claude designs the feature; produces spec, ACs, interview Qs for Han
+- `design_review` — Han reviews the design; approves or sends back with feedback
+- `plan` — Claude writes a step-by-step implementation plan
+- `plan_review` — Han approves the plan (architecture gate only; see §9c)
+- `impl` — Claude or another agent implements the feature
+- `test` (UAT) — Han accepts/rejects the implementation
+- `done` — feature complete
+- `on_hold` / `cancelled` (parking) — deferred or rejected
+
+### 9b. Agent Selection per Phase & Complexity Level
+
+Agents are selected based on **level (L1/L2/L3)** and **phase**:
+
+| Level | Design | Plan | Impl | Test |
+| --- | --- | --- | --- | --- |
+| **L1** | Haiku/low | Haiku/low | Sonnet/low | Haiku/low |
+| **L2** | Sonnet/medium | Sonnet/medium | Sonnet/high | Sonnet/medium |
+| **L3** | Opus/high | Opus/high | Opus/high | Sonnet/medium |
+
+**Rationale:**
+
+- **Haiku** (L1): fast classification, mechanical refactors, no decisions
+- **Sonnet** (L2): medium-effort features, balanced thinking, good at code review
+- **Opus** (L3): deep design, arch understanding, multi-system coordination, invariant verification
+
+**Special cases:**
+
+- **Preplan phase** (always Haiku/low): fast L/effort classification, no deep thinking
+- **Periodic audits** (§9d): execute immediately (no approval gates) and create findings tickets
+- **Tech-debt fixes**: Claude can execute immediately if scope is unambiguous (no design/plan interview needed)
+
+### 9c. Swimlane Routing & Approval Gates
+
+**Rule: Route by swimlane position, not phase order.**
+
+When a phase completes, the item moves to the NEXT swimlane, not the next phase:
+
+1. **Claude completes design** → move to `design_review` (Han's row) ✋ STOP
+2. **Han approves design** → move to `plan` (Claude's row) — Claude writes plan
+3. **Claude completes plan** → move to `plan_review` (Han's row) IF architectural impact, else proceed to `impl` (§9c rule below)
+4. **Han approves plan** (if review needed) → move to `impl` (Claude's row)
+5. **Claude completes impl** → move to `test` (Han's row) ✋ STOP for UAT
+6. **Han approves test** → move to `done`
+
+### Plan Review Gate — Architectural Impact Only
+
+`plan_review` is NOT automatic. Route to `plan_review` **only if the plan has architectural impact:**
+
+**Route to plan_review if:**
+
+- New data structures or settings fields added to core models
+- Invariants from §6 (timing, Song append-only, etc.) are touched
+- Rendering pipeline or animation orchestration changes
+- New dependencies between modules or new cross-cutting concerns
+- Breaking changes to existing API/contract
+
+**Skip plan_review and go straight to impl if:**
+
+- Mechanical refactors (rename, extract, move code)
+- Bug fixes that don't change architecture (localized fix)
+- UI tweaks or styling changes
+- Adding new leaf components (no parent/module rewiring)
+- Audit findings (tech-debt cleanup, dead-code deletion)
+
+### Claude's Self-Check for plan_review Skip
+
+Before moving `plan` → `impl`, Claude must verify:
+
+1. **No new fields or breaking changes** in core data models (check `src/model/`, `InstrumentSettings`, `Song`, etc.)
+2. **Invariants untouched** (re-read §6 and confirm the plan doesn't violate timing, append-only, `setCurrentMeasureIndex`, animation opacity, etc.)
+3. **Function reuse** (check that the plan leverages existing helpers instead of reimplementing; grep for prior art)
+4. **Single responsibility** (confirm each file/module still owns one concern; no new cross-cutting branches in shared code)
+5. **No per-instrument special-cases in shared pipelines** (§6b guard: if the plan has `if (type === 'percussion')` or `if (instrument === X)` in generation/animation code, STOP and route to plan_review)
+
+If all 5 checks pass: **move directly to `impl`**. If any check fails: **route to `plan_review`**.
+
+### 9d. Audit Findings & Immediate Execution
+
+Tickets from periodic audits (e.g., #158) are processed immediately **without design/plan approval gates**:
+
+1. Design phase: Claude identifies violations (read CLAUDE.md invariants + architecture.md)
+2. Plan phase: Claude writes fix steps
+3. Impl phase: Claude executes immediately (no Han approval for each phase)
+4. Test phase: Claude runs full test suite (`npm run test:run`, `npm run lint`, `npm run build`)
+5. Done: audit findings stay as completed tickets; new sub-tickets created in backlog for each major finding
+
+**Interview before impl (§4b) is WAIVED for audit findings** — the violation is documented, not ambiguous.
+
+
+### 9e. Interview Questions & Blocking Gates
+
+When design produces interview questions:
+
+1. **Design → design_review**: Han answers Qs in kanban ticket notes (format: "Q1: answer, Q2: answer")
+2. **If answers pending**: design remains in `design_review` (Claude re-checks for new notes before proceeding)
+3. **Once answered**: Claude locks design, moves to `plan` (no re-review of Q&A)
+
+**No re-interview in later phases** — all user input happens at design approval.
+
+### 9f. Test (UAT) Acceptance Criteria
+
+Items in `test` must have **concrete acceptance criteria** in the ticket's `done_when` field. Han's UAT checks:
+
+1. Feature behaves as spec'd (visual, functional, audio)
+2. No regressions in other features (spot-check a few)
+3. Type checking, linting, tests all green (Claude should have already done §7b)
+4. Edge cases work (empty states, error states, boundary values)
+
+If Han rejects → drag back to `impl` with feedback. Claude re-works and returns to `test`.
+
+### 9g. Commit Discipline
+
+Every phase transition commits a git commit:
+- **After design** (before design_review): no commit needed (spec-only)
+- **After plan** (before plan_review): no commit needed (spec-only)
+- **After impl** (before test): commit with title `[PHASE] short description` (e.g., `[#162-impl] advanced generator settings — span/variability/tuplets carousels`)
+- **After test approval** (moving to done): final commit or squash if multiple fixes during UAT
+
+Commits include:
+- What changed (files, line count)
+- Why (reference ticket #NNN, invariants touched, tech-debt addressed)
+- Co-Authored-By trailer (if agent was significant contributor)
+
+### 9h. Parallel Work & Agent Model Variation
+
+Multiple tickets can be in flight simultaneously:
+
+- **Spawn 2–3 agents in parallel** when independent (e.g., two L1 bugs, one L3 feature)
+- **Use different models per ticket** to provide evidence of multi-agent thinking (haiku for one, sonnet for another)
+- **Build in background** with `run_in_background: true` for long waits; monitorwith `Monitor` tool
+
+When Han is AFK (timeboxed): execute audit findings, preplans, and low-risk mechanical fixes immediately. High-impact design decisions wait for Han.
+
+---
