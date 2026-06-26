@@ -597,4 +597,26 @@ Multiple tickets can be in flight simultaneously:
 
 When Han is AFK (timeboxed): execute audit findings, preplans, and low-risk mechanical fixes immediately. High-impact design decisions wait for Han.
 
----
+### 9i. Review Swimlane Clarifications
+
+Each review swimlane has a clear, documented purpose:
+
+**design_review (Han's design approval gate):**
+
+- Claude has written a design spec with acceptance criteria and interview questions
+- Han should: review the spec, answer interview questions, approve or send back for rework
+- Before approving, Han verifies: Does this solve the problem? Are the AC's realistic?
+
+**plan_review (Han's architecture approval gate):**
+
+- Claude has written a step-by-step implementation plan
+- Han should: understand the solution strategy, verify key functions/modules are identified, approve or send back
+- Before approving, Han verifies: Does the plan respect invariants (§6)? Are new invariants documented?
+
+**test (UAT — Han's acceptance testing):**
+
+- Claude has implemented the feature and run full test suite (`npm run test:run`, `npm run lint`, `npm run build`)
+- Han should: test acceptance criteria manually, verify no regressions, sign off or send back for fixes
+- Before signing off, Han verifies: Feature works end-to-end? Edge cases handled? Regressions checked?
+
+**Rule: Each swimlane has ONE clear owner (Han) and ONE clear action (read/approve/test).**
