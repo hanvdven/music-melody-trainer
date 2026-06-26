@@ -16,7 +16,8 @@
     "test:run": "vitest run",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "render:overlay": "vite-node scripts/render-overlay.jsx"
+    "render:overlay": "vite-node scripts/render-overlay.jsx",
+    "kanban": "pnpm --dir ~/.claude/kanban-board dev"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
