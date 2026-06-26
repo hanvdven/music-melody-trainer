@@ -2728,6 +2728,7 @@ const SheetMusic = ({
                       chordProgression={chordProgression}
                       processedChords={processedChords}
                       onSettingsInteraction={onSettingsInteraction}
+                      debugMode={debugMode}
                     />
                   )}
 
@@ -2757,6 +2758,7 @@ const SheetMusic = ({
                       chordProgression={chordProgression}
                       processedChords={processedChords}
                       onSettingsInteraction={onSettingsInteraction}
+                      debugMode={debugMode}
                     />
                   )}
 

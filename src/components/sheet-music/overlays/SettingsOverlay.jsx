@@ -113,6 +113,11 @@ const SettingsOverlay = ({
   // with the legacy one — they are mutually exclusive, so the two classes never coexist (§6c: do
   // not duplicate SettingsOverlay; reuse it with a different group class).
   groupClassName = 'settings-overlay',
+  // §3a debug hit-box visualisation. Was referenced in the body (lines ~270/316) but never
+  // declared as a prop nor passed by callers → a no-undef lint error AND the hit-boxes never
+  // rendered. Declared here (default false) and now wired from both SheetMusic call sites so
+  // the §3a orange overlays actually appear in debug mode. (#153 lint-gate fix.)
+  debugMode = false,
 }) => {
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { playbackConfig, setPlaybackConfig, toggleRoundSetting } = usePlaybackConfig();
