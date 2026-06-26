@@ -478,6 +478,12 @@ const ClefStaffOverlay = ({
                 <g key={key} style={{ cursor: onToggleVoiceSplit ? 'pointer' : 'default' }} onClick={onTap}>
                     {/* invisible hit target — no visible box around the notes (Han #14) */}
                     <rect x={hitX} y={HIT_Y} width={hitW} height={HIT_H} fill="transparent" />
+                    {/* Debug mode: visualise the actual hit region (§3a) */}
+                    {debugMode && (
+                        <rect x={hitX} y={HIT_Y} width={hitW} height={HIT_H}
+                            fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
+                            style={{ pointerEvents: 'none' }} />
+                    )}
                     <g style={{ pointerEvents: 'none' }}>
                         {/* Stage I (Han 2026-06-09): the ACTIVE option colours its percussion heads
                             through the real colour mode (chromatone) like the live staff; the
