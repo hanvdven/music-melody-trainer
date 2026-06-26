@@ -15,22 +15,22 @@
  */
 
 import { scaleDefinitions, generateNumAccidentals } from '../theory/scaleHandler';
-import { getNoteSemitone } from '../theory/noteUtils';
+import { getNoteSemitone, ENHARMONIC_PAIRS, ALL_NOTES } from '../theory/noteUtils';
 import { calcHarmonicDifficulty } from './difficultyCalculator';
 
 // ─── All tonic spellings to enumerate ────────────────────────────────────────
-// Natural notes + both enharmonic spellings for each altered pitch.
+// Derived from ALL_NOTES (natural + preferred spellings) + ENHARMONIC_PAIRS
+// (both enharmonic spellings for each altered pitch).
 // Deduplication (below) removes strictly harder spellings but keeps both when
-// they tie — e.g. F# Lydian and Gb Lydian both survive if |acc| is equal.
-const TONICS = [
-  'C', 'C#', 'Db',
-  'D', 'D#', 'Eb',
-  'E',
-  'F', 'F#', 'Gb',
-  'G', 'G#', 'Ab',
-  'A', 'A#', 'Bb',
-  'B',
-];
+// they tie — e.g. F♯ Lydian and G♭ Lydian both survive if |acc| is equal.
+const TONICS = (() => {
+  const tonics = [...ALL_NOTES];   // natural + preferred flat-heavy spellings
+  // Add the sharp alternative for each enharmonic pair (when not already included).
+  for (const [sharp, flat] of Object.entries(ENHARMONIC_PAIRS)) {
+    if (sharp.includes('♯') && !tonics.includes(sharp)) tonics.push(sharp);
+  }
+  return tonics;
+})();
 
 // ─── Build the raw table ──────────────────────────────────────────────────────
 
