@@ -103,6 +103,10 @@ const ScaleSelector = ({
         // wheelFamily already synced above
       }
     }
+  // listFamilies, scaleModeUI, selectedFamily, wheelFamilies are intentionally omitted:
+  // they are read for COMPARISON only (not to compute new values). Adding them would create
+  // an infinite loop — the effect sets scaleModeUI/selectedFamily, which would re-trigger it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scale, isSimpleView]);
 
 

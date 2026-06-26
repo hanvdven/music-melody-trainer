@@ -149,6 +149,10 @@ const ScaleSelectorWheel = ({ family = 'Diatonic', activeMode = null, onSelect, 
                 return prev + shortest;
             });
         }
+    // activeIndices, angle, findActiveIndex are derived from family/modes at render time
+    // and do NOT need to trigger a re-sync independently — only activeMode/family changes
+    // should trigger a re-sync. Adding them would cause spurious re-runs on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeMode, family]);
 
     const handleClick = (i) => {

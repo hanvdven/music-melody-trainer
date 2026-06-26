@@ -88,6 +88,9 @@ export default function usePlaybackNavigation({
                 }, 50);
             }
         }
+    // _setTonic, setIsPlayingContinuously, setIsPlayingMelody, setStartMeasureIndex are
+    // stable useState setters — their identity never changes (React 18 guarantee).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         animationMode, musicalBlocks, startMeasureIndex, numMeasures,
         navigateHistory, setScale, isPlayingContinuously, isPlayingMelody,
@@ -146,6 +149,9 @@ export default function usePlaybackNavigation({
                 }, 50);
             }
         }
+    // _setTonic, setIsPlayingContinuously, setIsPlayingMelody, setStartMeasureIndex are
+    // stable useState setters — their identity never changes (React 18 guarantee).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         animationMode, musicalBlocks, startMeasureIndex, numMeasures,
         navigateHistory, setScale, isPlayingContinuously, isPlayingMelody,

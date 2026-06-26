@@ -83,8 +83,12 @@ const useMelodyState = (
     if (strategyKey === true || strategyKey === 'random') {
       strategy = 'modal-random';
     } else if (strategyKey === false || strategyKey === undefined) {
-      if (chordProgression && chordProgression.type && chordProgression.type !== 'tonic-tonic-tonic') {
-        strategy = chordProgression.type;
+      // Read via ref so generateChords doesn't need chordProgression in its dep array.
+      // Adding it would cause re-creation every time a progression is set, triggering
+      // a cascade of re-renders. chordProgressionRef.current is always current at call-time.
+      const currentProgression = chordProgressionRef?.current;
+      if (currentProgression && currentProgression.type && currentProgression.type !== 'tonic-tonic-tonic') {
+        strategy = currentProgression.type;
       } else {
         strategy = 'tonic-tonic-tonic';
       }
@@ -127,6 +131,9 @@ const useMelodyState = (
         return ChordProgression.default();
       }
     }
+  // chordProgressionRef is a ref — stable identity; .current is read at call-time so the
+  // callback doesn't need to re-create every time the progression changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scale, numMeasures, chordComplexity, chordSettings]);
 
   const randomizeAll = useCallback((randomizeConfig) => {
@@ -328,6 +335,12 @@ const useMelodyState = (
 
     const result = { ...historyEntry, globalMeasureOffset };
     return result;
+  // globalMeasureOffset omitted: it changes on every measure and would force constant re-creation of
+  //   randomizeAll; callers that need the current value can read it from props directly.
+  // numMeasuresRef / timeSignatureRef omitted: they are refs — read via .current at call-time so that
+  //   callers can update refs synchronously before calling randomizeAll in the same event handler.
+  // setChordProgression omitted: stable useState setter — identity never changes across renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scale, numMeasures, timeSignature, trebleSettings, bassSettings, percussionSettings, metronomeSettings, chordSettings, percussionScale, generateChords, chordProgression, treble, bass, percussion, referenceMelody, referenceBassMelody, referenceScale]);
 
   const randomizeMeasure = useCallback((measureIndex, trackType) => {
@@ -422,6 +435,9 @@ const useMelodyState = (
       }
     }
     return null;
+  // setChordProgression (and other set* calls in restoreEntry) are stable useState setters —
+  // React guarantees identity stability, so omitting them from deps is safe.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [randomizeAll, globalMeasureOffset, numMeasures]);
 
   const memoizedMelodies = useMemo(() => ({

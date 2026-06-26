@@ -126,6 +126,10 @@ const useInstruments = (context) => {
     updateInstrument('chords', chordSettings, setChords, null, Reverb, 0.15);
     updateInstrument('metronome', metronomeSettings, setMetronome, setManualMetronome);
 
+  // Only the instrument name (`.instrument`) is a dep — intentionally narrow to avoid
+  // re-creating smplr instances on every settings change (e.g. volume, reverb).
+  // ESLint flags the full objects (bassSettings etc.) but the full objects are not needed.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [context,
     trebleSettings.instrument,
     bassSettings.instrument,

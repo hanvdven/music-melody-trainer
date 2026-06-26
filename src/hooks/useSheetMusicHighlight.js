@@ -604,6 +604,9 @@ const useSheetMusicHighlight = ({
 
         rafId = requestAnimationFrame(tick);
         return () => { cancelAnimationFrame(rafId); clearActive(); };
+    // All *Ref values are refs — stable identities; .current is read inside the rAF tick
+    // at call-time. setCurrentMeasureIndex is a stable useState setter (React 18 guarantee).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPlaying, context]);
 
     // ── Scrub stale highlights after every melody commit ──────────────────────
@@ -617,6 +620,8 @@ const useSheetMusicHighlight = ({
         svg.querySelectorAll('.note-active').forEach(el => el.classList.remove('note-active'));
         svg.querySelectorAll('.chord-label-active').forEach(el => el.classList.remove('chord-label-active'));
         clearHighlightStateRef.current = true;
+    // svgRef and clearHighlightStateRef are refs — stable identities; .current read inside body.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [melodies, isPlaying]);
 };
 
