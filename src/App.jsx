@@ -1370,6 +1370,7 @@ const App = () => {
                     canSkipForward={true}
                     debugMode={debugMode}
                     setDebugMode={setDebugMode}
+                    onOpenKanban={() => window.open('http://localhost:5174', '_blank')}
                     onScaleClick={handleScaleClick}
                     isScalePlaying={isScalePlaying}
                     progressionLabel={headerProgressionLabel}

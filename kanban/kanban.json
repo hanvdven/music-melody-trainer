@@ -1,0 +1,2344 @@
+{
+  "project": "music-melody-trainer",
+  "columns": [
+    {
+      "id": "todo",
+      "title": "Req"
+    },
+    {
+      "id": "plan",
+      "title": "Plan"
+    },
+    {
+      "id": "plan_review",
+      "title": "Review Plan"
+    },
+    {
+      "id": "impl",
+      "title": "Impl"
+    },
+    {
+      "id": "impl_review",
+      "title": "Review Impl"
+    },
+    {
+      "id": "test",
+      "title": "Test"
+    },
+    {
+      "id": "done",
+      "title": "Done"
+    }
+  ],
+  "tasks": [
+    {
+      "id": 152,
+      "title": "SSOT helpers \u2014 stripOctave/pitchClassName + chromatoneMix + unify name\u2192MIDI parsers",
+      "status": "plan",
+      "priority": "medium",
+      "level": 3,
+      "description": "Phase 0/1 audit: export stripOctave/pitchClassName and chromatoneMix from noteUtils and replace ~15 inline strip-octave copies + 5 hand-written color-mix strings; consolidate the 4 divergent name\u2192MIDI parsers into one.",
+      "tags": [
+        "refactor",
+        "tech-debt",
+        "generation"
+      ],
+      "rank": -3000,
+      "created_at": "2026-06-19T00:00:00.000Z"
+    },
+    {
+      "id": 144,
+      "title": "configDifficulty adaptive-difficulty engine",
+      "status": "plan",
+      "priority": "medium",
+      "level": 3,
+      "description": "Combined-difficulty score (geometric mean of dimension hardness) driving an adaptive engine that targets the 0.25\u20130.45 challenge zone; reconcile with the simpler 10-measure BPM/notes stepper.",
+      "tags": [
+        "gamification",
+        "feature"
+      ],
+      "rank": -2000,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 153,
+      "title": "Dead-code deletie + doc-drift fixes (audit Phase 0)",
+      "status": "plan",
+      "priority": "medium",
+      "level": 3,
+      "description": "Delete appConfig.js, the usePlaybackState shim and ~16 unused exports; fix doc drift (_pregeneratedNextSeries\u2192pregenResult, E010 code, calculateAllOffsets location); make lint a required gate.",
+      "tags": [
+        "refactor",
+        "tech-debt"
+      ],
+      "rank": -1000,
+      "created_at": "2026-06-19T00:00:00.000Z"
+    },
+    {
+      "id": 162,
+      "title": "Advanced Generator Settings",
+      "status": "plan",
+      "priority": "medium",
+      "level": 3,
+      "description": "Update all setters to match 'in line' sheet music style.\n\nTo be detailed / interview needed.",
+      "tags": null,
+      "rank": 0,
+      "created_at": "2026-06-24T13:18:06.828Z"
+    },
+    {
+      "id": 1,
+      "title": "P0 \u2014 Kanban-board opzetten (cyanluna.skills)",
+      "status": "impl",
+      "priority": "high",
+      "level": 3,
+      "description": "Set up a kanban board per the cyanluna.skills repo. Han chose to vendor the 5 skills into .claude/skills/; remaining board-UI/token setup is local to Han.",
+      "tags": [
+        "feature",
+        "ui",
+        "p0",
+        "tooling"
+      ],
+      "rank": 1,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 4,
+      "title": "Bug \u2014 geen geluid na vaak van instrument wisselen",
+      "status": "todo",
+      "priority": "high",
+      "level": 3,
+      "description": "After changing the instrument many times no sound is heard; suspected smplr re-creation leak / dead AudioContext nodes in useInstruments.js.",
+      "tags": [
+        "bug",
+        "audio"
+      ],
+      "rank": 4,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 10,
+      "title": "Bug \u2014 Verkeerde noot bij passing chords (geparkeerd)",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Accidental/note mistake in progressions with passing chords; parked awaiting a reproducible example.",
+      "tags": [
+        "bug",
+        "parked",
+        "chords"
+      ],
+      "rank": 10,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 12,
+      "title": "Repeat after me \u2014 lang nummer in stukken kappen voor herhalingsblokken",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Call-and-response practice mode: chop a long song into chunks (e.g. 2 bars), teacher plays, player plays back, advance. Touches Sequencer repeat/segmentation.",
+      "tags": [
+        "feature",
+        "generation",
+        "audio"
+      ],
+      "rank": 12,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 65,
+      "title": "Tech-debt \u2014 deprecate legacy 'settings' overlay + test gaps",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Deprecate the redundant legacy 'settings' overlay once PLAYBACK setter lands; close test gaps (Sequencer.js, useSheetMusicHighlight pure helpers); icons8 assets blocked in PR #31.",
+      "tags": [
+        "refactor",
+        "parked"
+      ],
+      "rank": 65,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 66,
+      "title": "Instrument-carousel \u2014 rename / re-icon + nieuwe categorie\u00ebn & instrumenten",
+      "status": "done",
+      "priority": "high",
+      "level": 3,
+      "description": "Re-categorise/re-icon the instrument carousel into 8 categories incl. new synth category, plus added instruments. Done in Wave 2.",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 66,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 111,
+      "title": "Instrument-carousel \u2014 rename / re-icon + nieuwe categorie\u00ebn & instrumenten",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Detailed instrument-carousel rework: re-icon keys/guitars/bass/strings/wind/tuned-perc/voice and add accordion, contrabass, harmonica, xylophone, plus a new synth category (square/lead/pad). Verify every smplr slug loads.",
+      "tags": [
+        "feature",
+        "ui",
+        "tech-debt"
+      ],
+      "rank": 111,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 113,
+      "title": "Fermata-glyph stem-richting (boven/onder)",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "renderFermataGlyphs always draws the arc-down fermata above the staff; should detect stem direction and use the lowercase glyph below for stem-up notes.",
+      "tags": [
+        "notation"
+      ],
+      "rank": 113,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 124,
+      "title": "Keyboard range setter \u2014 narrow-screen ellipsis + black-key precision + percussion variant",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Parked keyboard range-setter refinements: ellipsis collapse on very narrow screens, black-key boundary precision (currently snaps to white keys), and a percussion DrumPad range setter slice.",
+      "tags": [
+        "range-setter",
+        "parked",
+        "input"
+      ],
+      "rank": 124,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 130,
+      "title": "Daily streak + freeze tokens",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Day counts if \u22651 melody is practiced; auto-earned freeze tokens (max 2) protect the streak.",
+      "tags": [
+        "gamification",
+        "feature"
+      ],
+      "rank": 130,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 158,
+      "title": "Periodieke technical-debt & architectuur-audit",
+      "status": "plan",
+      "priority": "medium",
+      "level": 3,
+      "description": "A RECURRING/periodic audit of the whole app. Each run, produce a findings list with concrete refactor/merge suggestions, checking:\n\n- [ ] Correct implementation (behaviour matches spec/docs)\n- [ ] Class/type definitions are sound and consistent\n- [ ] Separation of concerns (each module owns one responsibility)\n- [ ] Single source of truth \u2014 no duplicated state/logic\n- [ ] MERGE opportunities \u2014 similar functionality with parallel/duplicate implementations to unify\n- [ ] NFRs met: performance/frame-rate, maintainability, accessibility, reliability, test coverage, bundle size",
+      "tags": [
+        "tech-debt",
+        "audit",
+        "architecture",
+        "nfr",
+        "recurring"
+      ],
+      "rank": 1000,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 159,
+      "title": "P0 Bug \u2014 kanban board \"select project first\" fout (project niet in projects-tabel)",
+      "status": "plan",
+      "priority": "high",
+      "level": 2,
+      "description": "When opening the kanban board at port 5173, the board shows \"select project first\" because the music-melody-trainer project was not registered in the Neon projects table. Fixed by inserting the project row via kanban-db. Root cause: /kanban-init only writes to the local SQLite projects table, not to Neon. The Neon board reads from its own projects table which was empty.\n\nError-bericht komt misschien omdat er geen project wordt meegegeven bij aanmaak kaartje. Zorg voor een setter in het kaartje, of geef autom. een project mee, of stel nog een andere oplossing voor.",
+      "tags": [
+        "bug",
+        "kanban",
+        "p0"
+      ],
+      "rank": 1000,
+      "created_at": "2026-06-24T08:53:44.174Z"
+    },
+    {
+      "id": 2,
+      "title": "In-app kanban-bord (debug \u2192 kanban + terugknop) + items uit backlog/plan",
+      "status": "impl",
+      "priority": "high",
+      "level": 3,
+      "description": "Add a button to open a native in-app kanban board via debug \u2192 kanban with a back button, sourced from a committed kanban.json generated from BACKLOG + IMPLEMENTATION_PLAN.",
+      "tags": [
+        "feature",
+        "ui",
+        "p0"
+      ],
+      "rank": 1002,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 5,
+      "title": "Bug \u2014 tuplet slot/length mismatch",
+      "status": "todo",
+      "priority": "high",
+      "level": 3,
+      "description": "[3:2]q w gets a phantom quarter-rest; tuplet generation corrupts note planning so durations/offsets do not align with measure length. Likely needs the events refactor.",
+      "tags": [
+        "bug",
+        "generation",
+        "notation"
+      ],
+      "rank": 1005,
+      "created_at": "2026-05-29T00:00:00.000Z"
+    },
+    {
+      "id": 11,
+      "title": "Geparkeerd batch \u2014 transpositie-curve, two-octave range, preset-tween, range polish",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Items Han parked: non-linear tangens transposition curve, two-octave C2\u2192C6 range with octave clefs, carousel preset-click tween-to-value, and range-setter polish.",
+      "tags": [
+        "parked",
+        "range-setter",
+        "notation"
+      ],
+      "rank": 1011,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 13,
+      "title": "Transpositie-setter revisie \u2014 compacte dubbele verticale carousel",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Two coupled vertical half-step carousels on treble/bass staff (concert names + sheet notes on a non-linear curve); the non-linear primitive is also proposed for the range setter. Core wired; tangens curve still open.",
+      "tags": [
+        "feature",
+        "notation",
+        "range-setter"
+      ],
+      "rank": 1013,
+      "created_at": "2026-06-08T00:00:00.000Z"
+    },
+    {
+      "id": 67,
+      "title": "Range setter \u2014 beta/drag default tuning",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Set mid-bow beta default to 0.6 and drag px to 10. Done.",
+      "tags": [
+        "range-setter"
+      ],
+      "rank": 1067,
+      "created_at": "2026-06-16T00:00:00.000Z"
+    },
+    {
+      "id": 112,
+      "title": "Clef octave-variant system voor transpositie-setter (8va/15ma/8vb/15vb)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "On drag past ~1 octave off-staff the transposition setter should switch to 8va/15ma/8vb/15vb octave clefs and offer octave-shifted quick-picks. Blocked on OCTAVE_VARIANTS missing treble 8vb/15vb and bass 15va/15vb.",
+      "tags": [
+        "notation",
+        "range-setter",
+        "feature"
+      ],
+      "rank": 1112,
+      "created_at": "2026-06-08T00:00:00.000Z"
+    },
+    {
+      "id": 114,
+      "title": "N.C. generator pitch-pool fallback",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Implement the melody pitch-pool fallback during N.C. passages (previous chord \u2192 next chord \u2192 tonic 1-3-5 triad). Deferred because no current song uses N.C.",
+      "tags": [
+        "chords",
+        "generation"
+      ],
+      "rank": 1114,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 126,
+      "title": "Passing chords \u2014 sus2 (kleur-doorgangsakkoord)",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "sus2 passing chord explicitly 'Not implemented in this version'; deferred until a colour-passing-chord category exists.",
+      "tags": [
+        "chords",
+        "generation",
+        "parked"
+      ],
+      "rank": 1126,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 132,
+      "title": "Daily challenge + weekly boss-measure",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Auto-generated daily challenge (3\u00d7 XP) based on level, plus one harder week-long 'boss' melody with an exclusive badge and XP bonus.",
+      "tags": [
+        "gamification",
+        "feature"
+      ],
+      "rank": 1132,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "title": "Generator setter in de bladmuziek \u2014 playback / generation / generation advanced",
+      "status": "impl",
+      "priority": "high",
+      "level": 3,
+      "description": "Three in-staff generator setters (playback, generation, generation advanced) per staff incl. a chords balk, wired to InstrumentSettings/chordSettings. Rebuilt in carousel style.\n\nGenerator settings overlay:\n- Zorg dat de dimensies van de 3 carousels hetzelfde zijn als die in de instrument setter.\n- Zorg, in lijn met de note colouring setter, voor de note pools:\nroots: noten C4 C5  (treble) of C3 C4  (bass).\nchords: noten C4 E4 G4 C5 (en octaaf lager voor bass)\nscale: de volledige toonladder\nchromatic: de volledige toonladder, met 3 voortekens ervoor (mol, kruis, herstel) (zoals het add/ext akkoord)\n- voeg setters toe voor de akkoorden\n- notes / measure: ik wil daadwerkelijk noten zien, maak een maat, met maatstreepjes. Print een hele noot (1), twee halve noten (2), 3 kwartnoten en een rust (3), etc. tot en met 16 16-den noten. De carousel is breed genoeg om een maat in te passen, en nog net de vorige en volgende setting te tonen.",
+      "tags": [
+        "feature",
+        "generation",
+        "ui",
+        "notation"
+      ],
+      "rank": 2003,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 6,
+      "title": "Bug \u2014 chord melody komt uit generator i.p.v. song-definitie",
+      "status": "todo",
+      "priority": "high",
+      "level": 3,
+      "description": "HBD chord progression follows the generator strategy instead of the chords supplied in happyBirthday.json during playback/regen.",
+      "tags": [
+        "bug",
+        "chords"
+      ],
+      "rank": 2006,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 14,
+      "title": "HBD hard bass \u2014 alle MIDI bass-noten",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Hard-mode HBD bass is missing finer MIDI bass figuration; awaiting Han to supply the MIDI source or a per-bar spec.",
+      "tags": [
+        "feature",
+        "song-load"
+      ],
+      "rank": 2014,
+      "created_at": "2026-05-29T00:00:00.000Z"
+    },
+    {
+      "id": 68,
+      "title": "Note click animation smoother",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Tap-to-set in the range setter now slides boundary notes continuously via an eased rAF tween. Done.",
+      "tags": [
+        "range-setter",
+        "animation"
+      ],
+      "rank": 2068,
+      "created_at": "2026-06-16T00:00:00.000Z"
+    },
+    {
+      "id": 115,
+      "title": "Microfoon- en MIDI-keyboard input (rubato/live)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Wire microphone input (reuse usePitchDetector) and MIDI keyboard (Web MIDI API) into the existing handleInputTestNote path for rubato and live play.",
+      "tags": [
+        "input",
+        "feature",
+        "audio"
+      ],
+      "rank": 2115,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 116,
+      "title": "Restore exact prior clef on staff re-enable",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Re-enabling a disabled (preferredClef:'off') staff currently picks a sensible default instead of restoring the exact previously-selected clef.",
+      "tags": [
+        "notation",
+        "ui"
+      ],
+      "rank": 2116,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 119,
+      "title": "Acoustic-MIDI (GM) percussiekits beschikbaar maken",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "The 'Acoustic MIDI' (GM) kit category is available:false \u2014 smplr soundfont has no GM-percussion bank and no pad\u2192GM-MIDI mapping. Needs a valid GM-percussion source + mapping, then flip available to true.",
+      "tags": [
+        "percussion",
+        "audio",
+        "feature"
+      ],
+      "rank": 2119,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 133,
+      "title": "Achievements / Badges (incl. hidden)",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Permanent milestone badges plus hidden secret badges.",
+      "tags": [
+        "gamification",
+        "feature"
+      ],
+      "rank": 2133,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 7,
+      "title": "Song-load bugs (start halverwege, etc.)",
+      "status": "todo",
+      "priority": "high",
+      "level": 3,
+      "description": "Generating a few bars then loading Happy Birthday starts playback halfway through the song; assorted song-load defects.",
+      "tags": [
+        "bug",
+        "song-load"
+      ],
+      "rank": 3007,
+      "created_at": "2026-06-14T00:00:00.000Z"
+    },
+    {
+      "id": 15,
+      "title": "HBD/Song-load \u2014 reset measure number + fixed chord progression",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "On song-load reset measure index to 0/anacrusis and use the song's fixed chord progression.",
+      "tags": [
+        "feature",
+        "song-load",
+        "chords"
+      ],
+      "rank": 3015,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 69,
+      "title": "Range setter \u2014 vertical (up/down) drag",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Boundary drag now combines horizontal + vertical into a unified raise (up = raise pitch). Done.",
+      "tags": [
+        "range-setter"
+      ],
+      "rank": 3069,
+      "created_at": "2026-06-16T00:00:00.000Z"
+    },
+    {
+      "id": 117,
+      "title": "Playback & Exercise in-staff setters (design, not built)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Two designed-but-unbuilt in-staff setter modes: Exercise (#measures/#repeats/total melodies) and Playback (per-staff\u00d7per-round eye + volume + round switch). Has open design questions for Han.",
+      "tags": [
+        "feature",
+        "ui",
+        "playback",
+        "generation"
+      ],
+      "rank": 3117,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 118,
+      "title": "icons8 art-swap voor instrument-iconen",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Instrument icons use placeholder lucide glyphs; swap getInstrumentIcon to return <image href> per slug and flip ICON_ATTRIBUTION to the icons8 credit. Assets were blocked in PR #31.",
+      "tags": [
+        "ui",
+        "tech-debt"
+      ],
+      "rank": 3118,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 134,
+      "title": "Gamification opt-out + integration hooks",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Toggle to disable gamification (keeping the session summary), plus wiring gamification events into useInputTest/usePlayback/useScaleManagement and app mount.",
+      "tags": [
+        "gamification",
+        "feature",
+        "refactor"
+      ],
+      "rank": 3134,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 8,
+      "title": "Bug \u2014 Kwartnoot-tuplets verkeerde maatindeling in weergave",
+      "status": "todo",
+      "priority": "high",
+      "level": 3,
+      "description": "Quarter-note tuplets sometimes misplace notes in the sheet music due to wrong note attribution across measures.",
+      "tags": [
+        "bug",
+        "notation"
+      ],
+      "rank": 4008,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 16,
+      "title": "Profiel-icoon & submenu (navigatie)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Replace profile-settings icon with Lucide user; submenu with kennisbank (graduation-cap) and settings.",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 4016,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 70,
+      "title": "Range setter \u2014 notes shrink toward the middle",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "In-range notes scale 100% at boundaries to ~50% at the exact middle, eased; heads+stems+ledgers. Done.",
+      "tags": [
+        "range-setter",
+        "notation"
+      ],
+      "rank": 4070,
+      "created_at": "2026-06-16T00:00:00.000Z"
+    },
+    {
+      "id": 120,
+      "title": "Synthesizer percussion-kit echte icoon (placeholder vervangen)",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "The synthesizer percussion-kit category uses an electronic-music placeholder icon; replace with a real icons8 asset.",
+      "tags": [
+        "percussion",
+        "ui",
+        "tech-debt"
+      ],
+      "rank": 4120,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 136,
+      "title": "World map screen",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Post-placement map showing the reached world and the highlighted next lesson (open question: decorative vs interactive).",
+      "tags": [
+        "gamification",
+        "lessons",
+        "ui",
+        "feature"
+      ],
+      "rank": 4136,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 9,
+      "title": "Bug \u2014 Span onjuist berekend voor tuplets",
+      "status": "todo",
+      "priority": "high",
+      "level": 3,
+      "description": "Melodic span is computed incorrectly inside tuplets; 8va span limit is violated by tuplet notes (e.g. a5 f4 a6).",
+      "tags": [
+        "bug",
+        "notation",
+        "generation"
+      ],
+      "rank": 5009,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 17,
+      "title": "Afgesloten items \u2014 slot-icoon vervangen + klikgedrag",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Replace lock emoji on locked components with Lucide graduation-cap; clicking a locked item offers 'take a lesson' or 'practice this'.",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 5017,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 71,
+      "title": "Universal settings/song transition \u2014 1.5s",
+      "status": "done",
+      "priority": "high",
+      "level": 3,
+      "description": "Consistent 1.5s transition (fade-out 0.25s, notes slide in from the right, others delayed-fade) on song load, tab/screen change, difficulty change, overlay open/close. Done.",
+      "tags": [
+        "feature",
+        "animation"
+      ],
+      "rank": 5071,
+      "created_at": "2026-06-16T00:00:00.000Z"
+    },
+    {
+      "id": 121,
+      "title": "Bracket-helper consolideren met InstrumentStaffOverlay (\u00a76d)",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Bracket-drawing geometry was replicated from InstrumentStaffOverlay.bracketGeom/categoryHeaders instead of extracted to a shared module; consolidate to a single source per \u00a76d.",
+      "tags": [
+        "refactor",
+        "tech-debt",
+        "notation"
+      ],
+      "rank": 5121,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 137,
+      "title": "First-time Exercise-Mode tutorial + restart in settings",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "A 5-step coach-mark sequence (once per install) with an optional interactive 'play the lit note' step (+10 XP), plus profile\u2192settings entries to replay tutorials.",
+      "tags": [
+        "gamification",
+        "ui",
+        "feature"
+      ],
+      "rank": 5137,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 18,
+      "title": "Vrij tempo / Tempo ad libitum / Tempo rubato",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Add symbols and a play mode for free time / rubato.",
+      "tags": [
+        "feature",
+        "notation",
+        "animation"
+      ],
+      "rank": 6018,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 72,
+      "title": "Coloring \u2014 add 'scale' coloring option (WITHDRAWN)",
+      "status": "done",
+      "priority": "low",
+      "level": 3,
+      "description": "Implemented then withdrawn by Han as redundant with tonic/scale colouring; reverted.",
+      "tags": [
+        "withdrawn",
+        "notation"
+      ],
+      "rank": 6072,
+      "created_at": "2026-06-16T00:00:00.000Z"
+    },
+    {
+      "id": 122,
+      "title": "Range setter Phase 6 \u2014 morph-animatie (notes \u2194 selectable row)",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Fade real notes \u2194 the selectable range row on enter/exit, and retire the remaining HTML scaffold for the sheet variant.",
+      "tags": [
+        "range-setter",
+        "animation"
+      ],
+      "rank": 6122,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 125,
+      "title": "Passing chords \u2014 sus4 & secondary-iiv types verifi\u00ebren/afmaken",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Theory doc tags sus4 and secondary-iiv (mini ii-V toward target) passing-chord types as new; verify whether they ship in code and finish if not.",
+      "tags": [
+        "chords",
+        "generation",
+        "feature"
+      ],
+      "rank": 6125,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 141,
+      "title": "Locked-settings UI treatment in lessons",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Grey-out/lock indicators on settings a lesson forbids changing (open question: greyed vs hidden).",
+      "tags": [
+        "lessons",
+        "ui",
+        "feature"
+      ],
+      "rank": 6141,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 19,
+      "title": "Visual block-definitie in rubato \u2014 to-review",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Review visual block definition in rubato mode (based on best visual spacing).",
+      "tags": [
+        "animation",
+        "notation"
+      ],
+      "rank": 7019,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 73,
+      "title": "Instrument selector",
+      "status": "done",
+      "priority": "high",
+      "level": 3,
+      "description": "In-staff per-staff instrument selector (icon + name, scrollable, grouped by family, selected centred) that sets the playback instrument. Done; icons8 binaries still pending.",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 7073,
+      "created_at": "2026-06-03T00:00:00.000Z"
+    },
+    {
+      "id": 123,
+      "title": "Range setter Phase 7 \u2014 polish + coach-tour hook",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Later polish phase, shared with other settings overlays, plus a coach-tour hook.",
+      "tags": [
+        "range-setter",
+        "ui"
+      ],
+      "rank": 7123,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 145,
+      "title": "Debug 'Woordenlijst' skill-mastery UI",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Debug-only searchable per-dimension mastery list with editable 20-slot rows.",
+      "tags": [
+        "gamification",
+        "ui",
+        "tech-debt"
+      ],
+      "rank": 7145,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 20,
+      "title": "RhythmicDNA \u2014 beat-groepering voor melodiegeneratie",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Split the beat into groups before melody generation (e.g. 5 = 2+3 or 3+2); define where beats and back-beats sit.",
+      "tags": [
+        "generation"
+      ],
+      "rank": 8020,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 74,
+      "title": "Bug \u2014 subheader knoppen sluiten settings overlay",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Subheader buttons no longer close the settings overlay (data-settings-keepalive). Done.",
+      "tags": [
+        "bug",
+        "ui"
+      ],
+      "rank": 8074,
+      "created_at": "2026-05-29T00:00:00.000Z"
+    },
+    {
+      "id": 127,
+      "title": "Beaming-engine conformance aan Grade-1 regels",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Verify/implement that the beaming engine satisfies the Grade-1 beaming rules (no beam across barline, no beam across beats 2-3 in 4/4, off-beat start restriction, mixed-stem master direction, rests inside beams).",
+      "tags": [
+        "notation",
+        "tech-debt"
+      ],
+      "rank": 8127,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 149,
+      "title": "Checkpoint card (every 10 measures) + adaptive stepper + exerciseHistory",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Non-blocking slide-up checkpoint card every 10 measures, a simple difficulty_up/down stepper from rolling accuracy, and per-topic exerciseHistory memory so the player resumes at the right level.",
+      "tags": [
+        "gamification",
+        "feature"
+      ],
+      "rank": 8149,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 21,
+      "title": "RhythmicGrouping \u2014 edge case bij maatsoortwijziging en geschiedenisnavigatie",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Edge case in rhythmic grouping on time-signature change and history navigation; interview required first.",
+      "tags": [
+        "generation",
+        "notation"
+      ],
+      "rank": 9021,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 75,
+      "title": "In-staff clef-selector (bladmuziek)",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "In-SVG clef selector filling the staff with selectable clefs (G/F/vocal + transposing instruments). Done.",
+      "tags": [
+        "feature",
+        "notation"
+      ],
+      "rank": 9075,
+      "created_at": "2026-06-01T00:00:00.000Z"
+    },
+    {
+      "id": 150,
+      "title": "Session-end summary screen + ear-training mode variant",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Positive-framed end card (measures, accuracy, best streak, XP, skill deltas, day streak) and an ear-training variant that hides sheet music, plays then asks the player to replay from memory.",
+      "tags": [
+        "gamification",
+        "audio",
+        "feature"
+      ],
+      "rank": 9150,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 22,
+      "title": "Tuplets \u2014 visuele en notatie-bugs (Han 2026-05-22)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Collected block of tuplet visual/notation bugs; interview required before implementing.",
+      "tags": [
+        "bug",
+        "notation",
+        "generation"
+      ],
+      "rank": 10022,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 76,
+      "title": "Range setter \u2014 vervolg-feedback",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Follow-up range-setter feedback (full-width distribution for few notes; keyboard reads staff preferredClef; back-bracket styling). Done.",
+      "tags": [
+        "range-setter",
+        "notation"
+      ],
+      "rank": 10076,
+      "created_at": "2026-06-01T00:00:00.000Z"
+    },
+    {
+      "id": 151,
+      "title": "Curriculum content \u2014 180 lessen / 6 werelden / examens + unlock-tabel",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Author the full lesson curriculum (only World 1 / les 1\u201330 detailed; Worlds 2\u20136 milestone-level), 6 'diploma' exam configs with weighted pass criteria, the per-exam unlock table, and retry/recommend logic.",
+      "tags": [
+        "lessons",
+        "gamification",
+        "feature"
+      ],
+      "rank": 10151,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 23,
+      "title": "Percussie beams \u2014 schuine staan",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Limit or fix beam angle to horizontal for percussion (no melodic up/down), improving tuplet/dual-voice readability.",
+      "tags": [
+        "notation",
+        "percussion"
+      ],
+      "rank": 11023,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 77,
+      "title": "In-staff range selector (bladmuziek)",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "In-SVG range selector (static render + interaction + bottom-view reintegration). Done.",
+      "tags": [
+        "feature",
+        "range-setter",
+        "notation"
+      ],
+      "rank": 11077,
+      "created_at": "2026-05-31T00:00:00.000Z"
+    },
+    {
+      "id": 155,
+      "title": "God-file splits \u2014 Sequencer/renderMelodyNotes/App/SheetMusic (Phase 2)",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "High-value/high-risk audit Phase 2: split Sequencer.start() + randomizeScaleAndGenerate(), extract computeBeamGroups from renderMelodyNotes, useEditMode/clefResolution/useRubato/LyricsLayer extractions \u2014 only after a test harness protects them.",
+      "tags": [
+        "refactor",
+        "tech-debt"
+      ],
+      "rank": 11155,
+      "created_at": "2026-06-19T00:00:00.000Z"
+    },
+    {
+      "id": 24,
+      "title": "Rusten \u2014 beter balanceren",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Too many repeated quarter rests in generated melodies; want better distribution / less predictability, possibly tied to variability.",
+      "tags": [
+        "generation"
+      ],
+      "rank": 12024,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 78,
+      "title": "Klavier (keyboard) range setter",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Keyboard-context range setter variant (KeyboardRangeSetter). Done.",
+      "tags": [
+        "feature",
+        "range-setter",
+        "input"
+      ],
+      "rank": 12078,
+      "created_at": "2026-05-31T00:00:00.000Z"
+    },
+    {
+      "id": 156,
+      "title": "Tonic range-clamping (C4\u2013B5) ambigu\u00efteit oplossen",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Confirm whether 'C4\u2013B5' means the tonic must stay within a 2-octave range or exactly 1 octave (C4\u2013B4), then implement consistently.",
+      "tags": [
+        "generation",
+        "notation"
+      ],
+      "rank": 12156,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 25,
+      "title": "Feature \u2014 rusten binnen tuplets bij hogere variability",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Allow some tuplet slots to be rests at higher variability instead of always filling all slots.",
+      "tags": [
+        "feature",
+        "generation",
+        "notation"
+      ],
+      "rank": 13025,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 79,
+      "title": "Bestaande liedjes (song-load infra)",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Existing-songs / song-load infrastructure. Done.",
+      "tags": [
+        "feature",
+        "song-load"
+      ],
+      "rank": 13079,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 157,
+      "title": "Tune APPROX_PX_PER_MEASURE per maatsoort",
+      "status": "todo",
+      "priority": "low",
+      "level": 3,
+      "description": "Hardcoded APPROX_PX_PER_MEASURE=120 in App.jsx may need tuning when measure widths vary significantly (e.g. 7/8 vs 4/4).",
+      "tags": [
+        "tech-debt",
+        "animation",
+        "notation"
+      ],
+      "rank": 13157,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 26,
+      "title": "Nootgroepering \u2014 geen splitsing over groepsgrenzen",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Do not split a note across full note groups when it fits a group (e.g. a whole note instead of two tied halves; dotted half on beat 2).",
+      "tags": [
+        "notation"
+      ],
+      "rank": 14026,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 80,
+      "title": "HBD/Song-load \u2014 measure grouping fallback per maatsoort",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Per-time-signature measure grouping fallback on song load. Done.",
+      "tags": [
+        "bug",
+        "song-load",
+        "notation"
+      ],
+      "rank": 14080,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 27,
+      "title": "Robuust animatie-systeem \u2014 post-PR-#27 stabilisatie",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Make a robust failsafe plan for animations after PR #27 regressions (empty staves on wipe, double hard cut on long pagination, 1-frame fade flashes).",
+      "tags": [
+        "animation"
+      ],
+      "rank": 15027,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 81,
+      "title": "HBD/Generic \u2014 anacrusis (measure 0)",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Anacrusis / pickup measure (measure 0) support. Done.",
+      "tags": [
+        "feature",
+        "song-load",
+        "notation"
+      ],
+      "rank": 15081,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 28,
+      "title": "Pagination redesign \u2014 vervolgwerk (na PR #26)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Follow-up work on the redesigned pagination animation (transitionPlanner + event-driven scheduler, 3 variants, JIT generation).",
+      "tags": [
+        "animation"
+      ],
+      "rank": 16028,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 82,
+      "title": "HBD/Generic \u2014 N.C. (no chord) passages",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "N.C. (no chord) passage support. Done.",
+      "tags": [
+        "feature",
+        "chords"
+      ],
+      "rank": 16082,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 29,
+      "title": "Performance \u2014 frame drops bij continuous playback",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Continuous playback feels slow; Lighthouse measurement shows frame drops to investigate.",
+      "tags": [
+        "bug",
+        "animation"
+      ],
+      "rank": 17029,
+      "created_at": "2026-05-25T00:00:00.000Z"
+    },
+    {
+      "id": 83,
+      "title": "CRITICAL HBD Bug \u2014 verkeerde sheet music na song-load (2e sequence block)",
+      "status": "done",
+      "priority": "high",
+      "level": 3,
+      "description": "Wrong sheet music in the second sequence block after song load. Done.",
+      "tags": [
+        "bug",
+        "song-load",
+        "notation"
+      ],
+      "rank": 17083,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 30,
+      "title": "Header \u2014 split play button",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Split the header play button into two actions (replay last melody vs. generate-and-play new).",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 18030,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 84,
+      "title": "Fermata (robust) + [name] lyric (separate)",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Robust song-level fermata plus separate [name] lyric support. Done.",
+      "tags": [
+        "feature",
+        "notation"
+      ],
+      "rank": 18084,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 31,
+      "title": "Startup screen & tooltips",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "First-use intro screen explaining key UI zones, plus tooltips; scope to be set via interview.",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 19031,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 85,
+      "title": "Sleutel & transponerend instrument",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Clef in sheet music: cycle on short click, open list on long click; clickable notes/chords with flash feedback. Done.",
+      "tags": [
+        "feature",
+        "notation"
+      ],
+      "rank": 19085,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 32,
+      "title": "Settings overlay",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Settings overlay menu behaviour (opens on click, stays open a few seconds).",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 20032,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 86,
+      "title": "Maatsoort & ritme \u2014 handmatige invoer fix",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Manual numeric time-signature entry now works (setTop case added, parseInt + clamp). Done.",
+      "tags": [
+        "bug",
+        "notation"
+      ],
+      "rank": 20086,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 33,
+      "title": "Actief instrument highlight",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Visually indicate which instrument is currently active (subtle glow / border / background on the InstrumentRow or generator block).",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 21033,
+      "created_at": "2026-05-21T00:00:00.000Z"
+    },
+    {
+      "id": 87,
+      "title": "Splitsregels (note splitting)",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Note-splitting rules. Done.",
+      "tags": [
+        "notation"
+      ],
+      "rank": 21087,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 34,
+      "title": "Unieke look & feel \u2014 tweekleurige achtergrond + Thronefall-achtige nootshadow",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Two-tone background gradient and a hard offset drop-shadow on noteheads (feDropShadow, zero blur) for a distinctive sheet-music style.",
+      "tags": [
+        "feature",
+        "ui",
+        "notation"
+      ],
+      "rank": 22034,
+      "created_at": "2026-05-21T00:00:00.000Z"
+    },
+    {
+      "id": 88,
+      "title": "Bug \u2014 'g'-markeringen op verkeerde groepsgrensposities",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Group-boundary 'g' markers were placed on wrong positions. Done.",
+      "tags": [
+        "bug",
+        "generation"
+      ],
+      "rank": 22088,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 35,
+      "title": "Progressie-strategie\u00ebn \u2014 intermodale generator",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Intermodal progression generator based on building and resolving tension (light/dark). Longlist.",
+      "tags": [
+        "feature",
+        "chords",
+        "generation"
+      ],
+      "rank": 23035,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 89,
+      "title": "Tuplets & polyritmiek \u2014 triolen",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Triplets replace a half/quarter/eighth (per smallestNoteDenom), all slots filled. Done.",
+      "tags": [
+        "feature",
+        "generation",
+        "notation"
+      ],
+      "rank": 23089,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 36,
+      "title": "Passing chords \u2014 notatie bV7/ii in Romeinse cijfers",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Roman-numeral notation for passing chords (e.g. bV7/ii); interview needed.",
+      "tags": [
+        "feature",
+        "chords",
+        "notation"
+      ],
+      "rank": 24036,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 90,
+      "title": "Bug \u2014 arp_group volgt variatie i.p.v. smallestNoteDenom",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "arp_group followed variation instead of smallestNoteDenom. Done.",
+      "tags": [
+        "bug",
+        "generation"
+      ],
+      "rank": 24090,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 37,
+      "title": "Akkoord-taxonomie \u2014 uitbreiden",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Review chord taxonomy completeness and add extra passing-chord types; interview needed for desired expansion.",
+      "tags": [
+        "feature",
+        "chords"
+      ],
+      "rank": 25037,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 91,
+      "title": "Bug & Verbetering \u2014 Tuplet-kansen en dichtheid",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Tuplet probabilities and density fixed/improved. Done.",
+      "tags": [
+        "bug",
+        "generation"
+      ],
+      "rank": 25091,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 38,
+      "title": "Muziektheorie (akkoorden) \u2014 strookt met theorie",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Ensure chord notation and progression logic align with music theory.",
+      "tags": [
+        "chords",
+        "generation"
+      ],
+      "rank": 26038,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 92,
+      "title": "Verbetering \u2014 Tuplet-label uiterlijk",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Tuplet label appearance improved. Done.",
+      "tags": [
+        "notation"
+      ],
+      "rank": 26092,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 39,
+      "title": "Generatie \u2014 muzikaal logische random lijnen",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Musical random-generation setting that produces musically logical lines. Longlist (generation overhaul).",
+      "tags": [
+        "feature",
+        "generation"
+      ],
+      "rank": 27039,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 93,
+      "title": "Klikzones & interactiviteit",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Click zones and interactivity on the sheet music. Done.",
+      "tags": [
+        "feature",
+        "ui",
+        "notation"
+      ],
+      "rank": 27093,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 40,
+      "title": "UI overhaul generator settings (PlaybackSettings)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Full UI revision of generator settings (column widths, correct labels, per-instrument expand, consistent spacing). Not until feature-set is stable.",
+      "tags": [
+        "feature",
+        "ui",
+        "generation"
+      ],
+      "rank": 28040,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 94,
+      "title": "Bug \u2014 Overmatig gebruik van 8vb in de treblesleutel",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Excessive 8vb use in treble clef fixed. Done.",
+      "tags": [
+        "bug",
+        "notation"
+      ],
+      "rank": 28094,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 41,
+      "title": "Overig \u2014 humanization in playback",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Humanization of playback (volume and timing variation). Longlist.",
+      "tags": [
+        "feature",
+        "generation",
+        "audio"
+      ],
+      "rank": 29041,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 95,
+      "title": "Bug \u2014 Beams renderen niet juist in parallel voices mode",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Beams render correctly in parallel voices mode. Done.",
+      "tags": [
+        "bug",
+        "notation"
+      ],
+      "rank": 29095,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 42,
+      "title": "Rusten en staccato in treble en bass melody",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Add rests and staccato handling to treble and bass melody.",
+      "tags": [
+        "feature",
+        "generation",
+        "notation"
+      ],
+      "rank": 30042,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 96,
+      "title": "Bug \u2014 Beams gaan over groepsgrenzen in 5/4",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Beams no longer cross group boundaries in 5/4. Done.",
+      "tags": [
+        "bug",
+        "notation"
+      ],
+      "rank": 30096,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 43,
+      "title": "Takadimi / Rhythmisch solf\u00e8ge",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Sync rhythmicDNA and percussion notation by passing smallestNoteDenom into getEffectiveBeatDuration for Takadimi/Konnakol beat-level.",
+      "tags": [
+        "feature",
+        "notation",
+        "percussion"
+      ],
+      "rank": 31043,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 97,
+      "title": "Weergave & layout \u2014 startX + headers",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Fixed startX; clef/time-sig/accidentals distributed in the space to its left. Done.",
+      "tags": [
+        "notation"
+      ],
+      "rank": 31097,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 44,
+      "title": "Input \u2014 keyboard/microfoon captatie met validatie + MIDI",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Input capture (keyboard or microphone) with validation, plus MIDI input.",
+      "tags": [
+        "feature",
+        "input"
+      ],
+      "rank": 32044,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 98,
+      "title": "Lyrics / Solf\u00e8ge",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Lyrics toggle (pencil-off / music-2 / remove konnakol). Done.",
+      "tags": [
+        "notation"
+      ],
+      "rank": 32098,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 45,
+      "title": "Gamification / Validatie \u2014 timing modes",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Timing-free mode (play correct next note) and fixed-timing mode (with a reasonable buffer).",
+      "tags": [
+        "feature",
+        "input"
+      ],
+      "rank": 33045,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 99,
+      "title": "Animatie \u2014 ideal visible measures",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "idealVisibleMeasures used across all animation modes (replaced hardcoded 3). Done.",
+      "tags": [
+        "animation"
+      ],
+      "rank": 33099,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 46,
+      "title": "Session progress bar, XP, levels & badges",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Session progress bar, XP bar, levels and badges.",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 34046,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 100,
+      "title": "Happy Birthday \u2014 status na ronde 3 onderzoek",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Investigation/status pass over all Happy Birthday backlog items. Done.",
+      "tags": [
+        "song-load"
+      ],
+      "rank": 34100,
+      "created_at": "2026-05-28T00:00:00.000Z"
+    },
+    {
+      "id": 47,
+      "title": "Auditieve feedback",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Auditory feedback (sparkles/chimes, vocal 'nice!'/'beautiful!' with temperaments).",
+      "tags": [
+        "feature",
+        "audio"
+      ],
+      "rank": 35047,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 101,
+      "title": "Bug \u2014 click anywhere should close settings overlay",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Clicking anywhere closes the settings overlay. Done.",
+      "tags": [
+        "bug",
+        "ui"
+      ],
+      "rank": 35101,
+      "created_at": "2026-05-25T00:00:00.000Z"
+    },
+    {
+      "id": 48,
+      "title": "Input achter een submenu",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Tuck input (treble, vocal/mic, bass, percussion, guitar neck) behind a submenu.",
+      "tags": [
+        "feature",
+        "ui",
+        "input"
+      ],
+      "rank": 36048,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 102,
+      "title": "Header & knoppen \u2014 progressienaam in titel",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "When chords are on, prepend the progression name to the title. Done.",
+      "tags": [
+        "ui"
+      ],
+      "rank": 36102,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 49,
+      "title": "Scale en Chords achter een submenu",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Tuck scale and chords selection behind a submenu.",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 37049,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 103,
+      "title": "Iconen & stijl (consistency check)",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Extensive consistency check of icons/fonts/sizes with harmonization proposals. Done.",
+      "tags": [
+        "ui"
+      ],
+      "rank": 37103,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 50,
+      "title": "Generator opsplitsen in simpel / advanced / debug",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Split the generator into simple (difficulty, playback, presets), advanced and debug.",
+      "tags": [
+        "feature",
+        "ui",
+        "generation"
+      ],
+      "rank": 38050,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 104,
+      "title": "BPM controls",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "BPM -- / ++ and - / + buttons with snapping, min 12 max 360, numeric input. Done.",
+      "tags": [
+        "ui"
+      ],
+      "rank": 38104,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 51,
+      "title": "Profiel \u2014 interface, preferences, kennisbank",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Add a profile with interface, preferences and a knowledge base.",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 39051,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 105,
+      "title": "Scale Selection Wheel",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "12-segment chromatic donut wheel with rotation and mode lookup. Done.",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 39105,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 52,
+      "title": "Generatorsettings en playback duidelijker splitsen",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "More clearly separate generator settings from playback in the sheet-music settings overlay.",
+      "tags": [
+        "feature",
+        "ui",
+        "generation"
+      ],
+      "rank": 40052,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 106,
+      "title": "Tonica & bereik",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Adjust range after tonic change before generation; keep tonic within C4\u2013B5. Done.",
+      "tags": [
+        "generation"
+      ],
+      "rank": 40106,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 53,
+      "title": "Kleuren harmoniseren",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Harmonize colours (two accent colours blue+yellow into one).",
+      "tags": [
+        "feature",
+        "ui"
+      ],
+      "rank": 41053,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 107,
+      "title": "Bass range bug",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Bass generator ignored range due to a 9-semitone origin offset; fixed. Done.",
+      "tags": [
+        "bug",
+        "generation"
+      ],
+      "rank": 41107,
+      "created_at": "2026-05-07T00:00:00.000Z"
+    },
+    {
+      "id": 54,
+      "title": "Preset \u2014 Schaalloopjes (Scale Runs)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Practice preset: scale notePool, arp_group, classic cadence, 8ths/16ths.",
+      "tags": [
+        "feature",
+        "generation"
+      ],
+      "rank": 42054,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 108,
+      "title": "Quarter note span (melodische sprong-beperking)",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "Added a quarter-note span parameter (default 1 octave) limiting melodic leaps. Done.",
+      "tags": [
+        "feature",
+        "generation"
+      ],
+      "rank": 42108,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 128,
+      "title": "XP & Levels-systeem",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Per-session XP awards with multipliers (difficulty/streak/tempo/blind), a level curve and level-tier names.",
+      "tags": [
+        "gamification",
+        "feature"
+      ],
+      "rank": 42128,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 55,
+      "title": "Preset \u2014 Gebroken Akkoorden (Broken Chords)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Practice preset: chord notePool, arp_group, free progression, 8ths.",
+      "tags": [
+        "feature",
+        "generation",
+        "chords"
+      ],
+      "rank": 43055,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 109,
+      "title": "Ritme-generatie & beat-structuur \u2014 5/8 chord grouping",
+      "status": "done",
+      "priority": "medium",
+      "level": 3,
+      "description": "5/8 chord grouping C///C \u2192 C//C/ (3+2). Done.",
+      "tags": [
+        "bug",
+        "generation",
+        "chords"
+      ],
+      "rank": 43109,
+      "created_at": "2026-05-22T00:00:00.000Z"
+    },
+    {
+      "id": 129,
+      "title": "Skill tree \u2014 5 branches (Ear, Sight Reading, Rhythm, Harmony, Consistency)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Five skill branches each 0\u2013100, rising as the matching practice style is used.",
+      "tags": [
+        "gamification",
+        "feature"
+      ],
+      "rank": 43129,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 56,
+      "title": "Preset \u2014 Vingervlugheid (Dexterity)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Practice preset: scale/chromatic notePool, arp_var, 16ths, max notes per measure.",
+      "tags": [
+        "feature",
+        "generation"
+      ],
+      "rank": 44056,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 110,
+      "title": "Bugs percussie / playback \u2014 heptatonic crash",
+      "status": "done",
+      "priority": "high",
+      "level": 3,
+      "description": "'Scale must be a heptatonic collection' crash when chords on; added secondary fallback in chordGenerator. Done.",
+      "tags": [
+        "bug",
+        "percussion",
+        "chords"
+      ],
+      "rank": 44110,
+      "created_at": "2026-05-12T00:00:00.000Z"
+    },
+    {
+      "id": 131,
+      "title": "Session summary card",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Post-session feedback card (measures played, accuracy, best streak, XP, skill deltas), always shown even with gamification off.",
+      "tags": [
+        "gamification",
+        "ui",
+        "feature"
+      ],
+      "rank": 44131,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 57,
+      "title": "Preset \u2014 Syncope / Polyritme",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Practice preset: chord/scale notePool, arp_var, 16ths, high variability.",
+      "tags": [
+        "feature",
+        "generation"
+      ],
+      "rank": 45057,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 135,
+      "title": "Onboarding self-assessment + placement quiz/exam",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "4-level self-rating then a branching placement quiz; run the matching exam, fall back on fail, unlock content and seed skills on pass.",
+      "tags": [
+        "gamification",
+        "lessons",
+        "feature"
+      ],
+      "rank": 45135,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 58,
+      "title": "Preset \u2014 Gehoortraining (Ear Training)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Practice preset: chord notePool, uniform, R1 music only then R2 music+notes, low variability.",
+      "tags": [
+        "feature",
+        "generation",
+        "audio"
+      ],
+      "rank": 46058,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 138,
+      "title": "Lesson engine \u2014 config schema + lessonData",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Plain-JS lesson config schema and lessonData files (world1\u20136, examens, index with getLessonById/getWorld).",
+      "tags": [
+        "lessons",
+        "feature",
+        "generation"
+      ],
+      "rank": 46138,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 59,
+      "title": "Preset \u2014 Bladmuziek (Sight-reading)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Practice preset: scale notePool, weighted, R1 notes visible no audio then R2 audio, medium variability.",
+      "tags": [
+        "feature",
+        "generation",
+        "notation"
+      ],
+      "rank": 47059,
+      "created_at": "2026-05-19T00:00:00.000Z"
+    },
+    {
+      "id": 139,
+      "title": "useLessonEngine hook + applyLessonConfig + success evaluator",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Orchestration hook that applies a lesson's appConfig like a preset, locks forbidden settings, watches the success condition (5 types: listen_reps, input_test_score, ear_correct, free_play_duration, exam_pass).",
+      "tags": [
+        "lessons",
+        "feature"
+      ],
+      "rank": 47139,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 60,
+      "title": "Refactor \u2014 parallel arrays \u2192 events",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Refactor from parallel arrays to an event model (also the suspected fix path for tuplet slot/length issues).",
+      "tags": [
+        "refactor",
+        "generation"
+      ],
+      "rank": 48060,
+      "created_at": "2026-05-27T00:00:00.000Z"
+    },
+    {
+      "id": 140,
+      "title": "LessonOverlay + LessonContext UI",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Instruction UI (title/instruction/tip/progress) plus a completion card with XP/skill deltas and next-lesson actions, exposed via LessonContext.",
+      "tags": [
+        "lessons",
+        "ui",
+        "feature"
+      ],
+      "rank": 48140,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 61,
+      "title": "Tech-debt \u2014 series-boundary regen + JIT inside Sequencer.start()",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Phase-2-adjacent entanglement left open: series-boundary regen + JIT inside Sequencer.start(); deeper randomizeScaleAndGenerate orchestration (display-note map duplicated ~3x).",
+      "tags": [
+        "refactor",
+        "generation"
+      ],
+      "rank": 49061,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 142,
+      "title": "Profiel-schema + useProfile (localStorage)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Versioned localStorage profile under mmt_profile with useProfile hook (read/write, completeLesson(), passExam()).",
+      "tags": [
+        "lessons",
+        "gamification",
+        "feature"
+      ],
+      "rank": 49142,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 62,
+      "title": "Tech-debt \u2014 indefinite-repeat encoding split (Infinity vs -1)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Indefinite-repeat encoding is split between Infinity and -1; normalization pending.",
+      "tags": [
+        "bug",
+        "generation"
+      ],
+      "rank": 50062,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 143,
+      "title": "Granular skill-tracking model + recordAttempt + read API",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Rolling 20-result windows across 11 dimensions with a proportional credit/blame recordAttempt algorithm and read helpers (mastery/display/hardness/proficient).",
+      "tags": [
+        "gamification",
+        "feature"
+      ],
+      "rank": 50143,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 63,
+      "title": "Tech-debt \u2014 metronome stale on song load",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Metronome stays stale on song load (wrong meter, ignores fermata); root of HBD extra-count issue.",
+      "tags": [
+        "bug",
+        "song-load",
+        "audio"
+      ],
+      "rank": 51063,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 64,
+      "title": "Tech-debt \u2014 Range R1\u2013R4 refinements",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Range setter R1\u2013R4: per-note cascade, keyboard-trigger, bound-flash bug, yellow\u2192white boundaries.",
+      "tags": [
+        "range-setter",
+        "notation"
+      ],
+      "rank": 52064,
+      "created_at": "2026-06-22T00:00:00.000Z"
+    },
+    {
+      "id": 146,
+      "title": "Practice Hub start screen + recommendation engine",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Exercise Mode landing screen with a 'Recommended for you' card and topic buttons (Scales/Rhythm/Chords/Ear/Surprise), driven by a recommendation engine reading the profile.",
+      "tags": [
+        "lessons",
+        "gamification",
+        "ui",
+        "feature"
+      ],
+      "rank": 52146,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 147,
+      "title": "Exercise-mode topic filter sub-screens + content unlock filter",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Per-topic picker showing the user's unlocked content (shuffle default) via a useExerciseMode filter; plus advanced settings overlay (unlocked-only) and an Expert Mode toggle that disables the filter.",
+      "tags": [
+        "lessons",
+        "gamification",
+        "ui",
+        "feature"
+      ],
+      "rank": 53147,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 148,
+      "title": "In-session HUD + per-note feedback + perfect-measure flash",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "During-play overlay (key\u00b7BPM auto-hide, measure counter, streak, accuracy bar, pause) with non-blocking green/red notehead feedback and a gold flash for a 100%-correct measure.",
+      "tags": [
+        "gamification",
+        "ui",
+        "feature"
+      ],
+      "rank": 54148,
+      "created_at": "2026-06-24T00:00:00.000Z"
+    },
+    {
+      "id": 154,
+      "title": "Test-harness voor fragile core (Sequencer/Song/generation/highlight)",
+      "status": "todo",
+      "priority": "medium",
+      "level": 3,
+      "description": "Add direct tests for the least-covered core: Song append/getWindow, generation-pipeline golden test (\u00a76b), convertRankedArrayToMelody rules, useSheetMusicHighlight pure helpers, Sequencer abort-after-stop; add the two \u00a76 grep guards and coverage thresholds.",
+      "tags": [
+        "tech-debt",
+        "test",
+        "generation",
+        "playback"
+      ],
+      "rank": 57154,
+      "created_at": "2026-06-19T00:00:00.000Z"
+    },
+    {
+      "id": 160,
+      "title": "Sync notesPerMeasure=0 met staff disablement",
+      "status": "todo",
+      "priority": "medium",
+      "level": 2,
+      "description": "When notesPerMeasure is set to 0 in GenerationSetterOverlay, the staff should be visually disabled (dimmed/crossed out) and no notes generated. Currently 0 means \"don't generate\" but the staff is not visually synced to this state. Align the disabled state in the UI with the 0-value in InstrumentSettings.",
+      "tags": [
+        "feature",
+        "ui",
+        "generation"
+      ],
+      "rank": 160000,
+      "created_at": "2026-06-24T08:57:45.602Z"
+    }
+  ]
+}
