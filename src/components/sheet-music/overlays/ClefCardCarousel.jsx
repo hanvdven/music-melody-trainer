@@ -57,7 +57,10 @@ export default function ClefCardCarousel({
     // Omit widths/slotStarts/scrollable from deps. They are derived every render from immutable
     // input (cards array, viewWidth, cardW). Changing them does not require a clamp — only the
     // MIN offset (which depends on viewWidth and contentW) does. Changes to derived values are
-    // redundant because minOffset is already in the array; only use minOffset.
+    // Omit maxOffset from deps: minOffset captures all constraint changes; adding maxOffset would
+    // cause redundant re-clamps. The invariant is: offsetRef tracks the clamped value, recalculated
+    // whenever minOffset changes (which implies maxOffset availability). maxOffset changes alone
+    // do not require re-clamp because offset is within its previous valid range.
     React.useEffect(() => {
         const clamped = clamp(offsetRef.current, minOffset, 0);
         if (clamped !== offsetRef.current) applyOffset(clamped);

@@ -236,6 +236,10 @@ const StaffCarousel = ({
             const slot = slotRefs.current[i];
             if (slot?.g) slot.g.style.opacity = headers[i] ? '1' : '0';
         }
+        // Omit headers array from deps: headers is computed deterministically from activeIndex
+        // (the carousel's current selection). Depending on the array object itself would cause
+        // unnecessary re-renders on every parent state change. The invariant is: opacity reflects
+        // the selection; if activeIndex changes, the headers[i] values change with it.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeIndex]);
 
