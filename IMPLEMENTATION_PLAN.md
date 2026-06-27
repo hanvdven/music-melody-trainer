@@ -1658,3 +1658,21 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
    build clean, lint 0 errors. NOT committed.
    🐞 PROVISIONAL: CHORDS-balk mapping (esp. GEN.ADVANCED passing-chords cycler in the
       tuplets column) needs Han confirmation. Layout/spacing UNVERIFIED on a live staff.
+
+## #163 — Instrument setter tweaks (rework) ✅ [Opus/high]
+   Restored NonLinearCarousel non-linearity (was flattened 2026-06-18 → UAT "no
+   spacing impact"). Single source of truth in NonLinearCarousel.jsx pure fns +
+   named consts: SIZE 100→70%(edge)→50%(overflow); SPACING/gap 100→70→40%
+   (integrated into xOffsetForDist → compresses toward edges); OPACITY 100→50→30%
+   →hard cut. Exactly ONE overflow element each side. SVG linearGradient edge mask
+   (outer 5% → 0.5 opacity) on the visual <g>, not the hit rect. Debug boundaries:
+   orange hit rect + cyan visible-window lines + magenta dashed overflow lines +
+   5% mask bands. All 3 consumers inherit (instrument/colour/generation, §6d).
+   InstrumentStaffOverlay: removed category PILL rect; restored coloured GLOW
+   (drop-shadow in category var) + label CAPS + category tint, ALL live during drag
+   via updateActiveCard imperative per-frame (§6). Chord row Y now one staff-stride
+   below bottom staff (derived from layout, not hardcoded). Bracket x calls now pass
+   `half` (xOffsetForDist became half-dependent). gen-advanced/gen-setter audited —
+   already per-row anchored, no stacked-below bug. Preview already used new slug.
+   Tests: 488 green (NonLinearCarousel +5 curve/mask/debug tests; 2 InstrumentStaff
+   tests updated for CAPS). Lint 0 errors, build clean.

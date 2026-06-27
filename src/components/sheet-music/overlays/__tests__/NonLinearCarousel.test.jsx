@@ -1,7 +1,10 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
-import NonLinearCarousel, { visibleRange } from '../NonLinearCarousel';
+import NonLinearCarousel, {
+    visibleRange, scaleForDist, opacityForDist, xOffsetForDist, gapAtDist, edgeFor,
+    SIZE_EDGE, SIZE_OVERFLOW, OPACITY_EDGE, OPACITY_OVERFLOW, GAP_CENTER, GAP_EDGE,
+} from '../NonLinearCarousel';
 
 const ITEMS = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
 
@@ -88,6 +91,71 @@ describe('NonLinearCarousel', () => {
         expect(visibleRange(0, 7)).toEqual([5, 6, 0, 1, 2]);
         // Centre at the last index → the two items "after" it wrap back to the low end.
         expect(visibleRange(6, 7)).toEqual([4, 5, 6, 0, 1]);
+    });
+
+    // ── NON-LINEAR FALLOFF CURVES (Han #163 rework, I1) ──────────────────────────────────────────
+    describe('non-linear falloff curves (Han #163)', () => {
+        const HALF = 2;            // default window; edge = 2
+        const edge = edgeFor(HALF);
+
+        it('scaleForDist: 1.0 at centre, 0.70 at edge, ~0.50 at the overflow element', () => {
+            expect(scaleForDist(0, HALF)).toBeCloseTo(1.0, 5);
+            expect(scaleForDist(edge, HALF)).toBeCloseTo(SIZE_EDGE, 5);          // 0.70
+            expect(scaleForDist(edge + 1, HALF)).toBeCloseTo(SIZE_OVERFLOW, 5);  // 0.50
+            expect(scaleForDist(1, HALF)).toBeGreaterThan(scaleForDist(2, HALF));
+            expect(scaleForDist(edge, HALF)).toBeGreaterThan(scaleForDist(edge + 1, HALF));
+        });
+
+        it('opacityForDist: 1.0 centre → 0.50 edge → 0.30 overflow → hard cut to 0 beyond', () => {
+            expect(opacityForDist(0, HALF)).toBeCloseTo(1.0, 5);
+            expect(opacityForDist(edge, HALF)).toBeCloseTo(OPACITY_EDGE, 5);          // 0.50
+            expect(opacityForDist(edge + 1, HALF)).toBeCloseTo(OPACITY_OVERFLOW, 5);  // 0.30
+            expect(opacityForDist(edge + 1.01, HALF)).toBe(0);
+            expect(opacityForDist(edge + 2, HALF)).toBe(0);
+        });
+
+        it('gapAtDist: 1.0 at centre, 0.70 at edge — spacing compresses toward the edges', () => {
+            expect(gapAtDist(0, HALF)).toBeCloseTo(GAP_CENTER, 5);
+            expect(gapAtDist(edge, HALF)).toBeCloseTo(GAP_EDGE, 5);
+            expect(gapAtDist(edge, HALF)).toBeLessThan(gapAtDist(0, HALF));
+        });
+
+        it('xOffsetForDist: monotonic, odd-symmetric, and compresses (edge gap < centre gap)', () => {
+            expect(xOffsetForDist(0, HALF)).toBeCloseTo(0, 5);
+            expect(xOffsetForDist(2, HALF)).toBeGreaterThan(xOffsetForDist(1, HALF));
+            expect(xOffsetForDist(3, HALF)).toBeGreaterThan(xOffsetForDist(2, HALF));
+            expect(xOffsetForDist(-2, HALF)).toBeCloseTo(-xOffsetForDist(2, HALF), 5);
+            const gapCentreToFirst = xOffsetForDist(1, HALF) - xOffsetForDist(0, HALF);
+            const gapEdgeToOverflow = xOffsetForDist(edge + 1, HALF) - xOffsetForDist(edge, HALF);
+            expect(gapEdgeToOverflow).toBeLessThan(gapCentreToFirst);
+        });
+
+        it('lays out EXACTLY ONE overflow element each side (opacity > 0 just past the edge)', () => {
+            expect(opacityForDist(3, HALF)).toBeGreaterThan(0);
+            expect(opacityForDist(3, HALF)).toBeLessThan(OPACITY_EDGE);
+            expect(opacityForDist(4, HALF)).toBe(0);
+        });
+    });
+
+    // ── EDGE OPACITY MASK (Han #163 B, I3) ───────────────────────────────────────────────────────
+    describe('edge opacity mask', () => {
+        it('renders a <linearGradient> + <mask> in <defs> and applies the mask to the VISUAL <g>', () => {
+            const { container } = renderCarousel();
+            expect(container.querySelector('defs linearGradient')).not.toBeNull();
+            expect(container.querySelector('defs mask')).not.toBeNull();
+            const maskedG = [...container.querySelectorAll('g')].find(g => g.getAttribute('mask'));
+            expect(maskedG).not.toBeNull();
+            const hitRect = container.querySelector('rect[fill="transparent"]');
+            expect(hitRect.getAttribute('mask')).toBeNull();
+        });
+    });
+
+    it('draws the cyan visible-window + magenta overflow debug boundaries (Han #163 C)', () => {
+        const { container } = renderCarousel({ debugMode: true });
+        const cyan = [...container.querySelectorAll('line')].filter(l => l.getAttribute('stroke') === 'cyan');
+        const magenta = [...container.querySelectorAll('line')].filter(l => l.getAttribute('stroke') === 'magenta');
+        expect(cyan.length).toBe(2);
+        expect(magenta.length).toBe(2);
     });
 
     it('visibleRange handles a fractional (live-drag) centre', () => {

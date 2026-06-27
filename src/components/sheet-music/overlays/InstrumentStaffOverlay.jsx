@@ -93,8 +93,12 @@ const categoryHeaders = (pos, items = ITEMS, groupOf = (it) => it.group, half = 
     let run = null;   // { label, firstIdx, lastIdx }
     const flush = () => {
         if (run && run.count >= 2) {
-            const xLeft = xOffsetForDist(signedDist(run.firstIdx, pos, N)) * BASE;
-            const xRight = xOffsetForDist(signedDist(run.lastIdx, pos, N)) * BASE;
+            // Pass `half` so the bracket x matches the carousel's NON-LINEAR layout exactly (Han
+            // #163: xOffsetForDist now depends on the window half — the instrument carousel uses 3,
+            // the kit carousel 2). Omitting it would default to VISIBLE_HALF(2) and the brackets
+            // would drift off the wider 7-card instrument carousel.
+            const xLeft = xOffsetForDist(signedDist(run.firstIdx, pos, N), half) * BASE;
+            const xRight = xOffsetForDist(signedDist(run.lastIdx, pos, N), half) * BASE;
             // PIN-TO-EDGE (Han 2026-06-17, anti-jitter): when this run's outer item IS the
             // outermost-visible item, its computed x jitters as it shrinks/fades scrolling off.
             // Flag it so bracketGeom pins that end to the FIXED carousel edge instead.
@@ -198,6 +202,16 @@ const StaffCarousel = ({
         slotRefs.current = Array.from({ length: MAX_HEADERS }, () => ({}));
     }
 
+    // Per-card refs for the LIVE glow + label tint (Han #163 D/E). Each card's inner <g> (cardG)
+    // gets a coloured drop-shadow glow when it is the nearest-to-centre card; its label <text>
+    // (cardLabel) is recoloured to the category tint + UPPERCASED. Driven imperatively from
+    // onPosChange so the highlight follows the LIVE fractional centre during a drag (§6 — per-frame
+    // visual writes via element.style / attributes, never React state which settles late).
+    const cardRefs = React.useRef([]);
+    // Resolve a card's category-tint CSS var once (used for both glow + label fill). Reuses
+    // categoryColorVar (§6c — no slug→colour table) so colours match the brackets exactly.
+    const cardColor = (item) => categoryColorVar(colorCategoryOf(item), 'var(--text-primary)');
+
     // Recompute brackets from a LIVE fractional pos and write them into the fixed slot pool. Slots
     // beyond the current header count are parked invisible. Geometry x is written via the path `d`
     // attribute + the label <text> position; visibility via the slot <g>'s style.opacity (§6).
@@ -226,6 +240,37 @@ const StaffCarousel = ({
         }
     };
 
+    // LIVE active-card highlight (Han #163 D/E): the card NEAREST the live fractional centre gets a
+    // coloured GLOW (drop-shadow in its category tint) + its label recoloured to that tint and
+    // UPPERCASED; every other card resets to the dim inactive look. Driven each frame from
+    // onPosChange so the highlight tracks the drag, not the late-settling React `activeIndex` (§6 —
+    // we write element.style / attributes directly, never setState per frame). The nearest card is
+    // the wrapped round of pos, matching the carousel's own snap target.
+    const updateActiveCard = (pos) => {
+        const n = items.length;
+        const nearest = ((Math.round(pos) % n) + n) % n;
+        for (let i = 0; i < n; i += 1) {
+            const c = cardRefs.current[i];
+            if (!c || !c.cardG) continue;
+            const active = i === nearest;
+            const color = active ? cardColor(items[i]) : 'var(--text-lowlight)';
+            // GLOW via CSS drop-shadow in the category var — CSS vars resolve inside drop-shadow().
+            // Inactive cards clear the filter so only the centred card glows (Han: glow, not a box).
+            c.cardG.style.filter = active
+                ? `drop-shadow(0 0 3px ${color}) drop-shadow(0 0 6px ${color})`
+                : 'none';
+            if (c.label) {
+                c.label.setAttribute('fill', color);
+                c.label.setAttribute('font-weight', active ? 'bold' : 'normal');
+                // CAPS for the active label (Han #163 E2), normal case otherwise.
+                c.label.textContent = active ? c.labelRaw.toUpperCase() : c.labelRaw;
+            }
+        }
+    };
+
+    // Combined per-frame handler fed to the carousel's onPosChange: brackets + active-card glow.
+    const onPos = (pos) => { updateHeaders(pos); updateActiveCard(pos); };
+
     // When the gesture ends and the carousel re-settles on a committed index, React re-renders the
     // brackets from `activeIndex`. The last imperative `updateHeaders` write may have left a slot's
     // inline opacity in a transient state, so re-assert the AT-REST opacity here (used slot → 1,
@@ -239,6 +284,11 @@ const StaffCarousel = ({
             const slot = slotRefs.current[i];
             if (slot?.g) slot.g.style.opacity = headers[i] ? '1' : '0';
         }
+        // Re-assert the AT-REST active-card glow + label tint to match the committed activeIndex
+        // (Han #163 D/E). The last imperative updateActiveCard write (during the gesture) may have
+        // left the previously-active card glowing; re-running the same logic at the settled centre
+        // clears stale state so only the committed selection glows. useLayout → before paint.
+        updateActiveCard(activeIndex);
         // Omit headers array from deps: headers is computed deterministically from activeIndex
         // (the carousel's current selection). Depending on the array object itself would cause
         // unnecessary re-renders on every parent state change. The invariant is: opacity reflects
@@ -253,32 +303,24 @@ const StaffCarousel = ({
     // (--text-primary); others lowlit — same highlight convention as the other setters.
     const renderItem = (item, i) => {
         const active = i === activeIndex;
-        // CATEGORY TINT (Han 2026-06-22, Task B): the ACTIVE card's name takes its top-category
-        // colour (categoryColorVar reads the category off the item — item.family equals the top
-        // category after the 2026-06-22 re-cat; §6c, no slug→colour table). Inactive cards stay
-        // --text-lowlight so the centre selection still reads as "the chosen one" (the shared
-        // setter highlight convention) — only the active label is tinted, keeping it subtle.
-        const color = active
-            ? categoryColorVar(colorCategoryOf(item), 'var(--text-primary)')
-            : 'var(--text-lowlight)';
-        // ACTIVE CATEGORY PILL (Han #163 AC1): a rounded-rect behind the active card's icon+label
-        // filled with the category colour at low opacity. Per design spec: x offset inside the slot
-        // by 4px each side; y spans from the hit-top region through the name row; fillOpacity 0.18,
-        // strokeOpacity 0.5, strokeWidth 0.5. Zero hardcoded hex — all via categoryColorVar (§6c).
-        const pillColor = active
-            ? categoryColorVar(colorCategoryOf(item), 'var(--button-passive)')
-            : null;
-        const pillW = BASE - 8;
-        const pillH = HIT_H - 8;
-        const pillX = -pillW / 2;
-        const pillY = staffStart + HIT_TOP + 4;
+        // CATEGORY TINT (Han 2026-06-22, Task B; Han #163 D/E): the ACTIVE card's name takes its
+        // top-category colour (§6c — categoryColorVar, no slug→colour table); inactive cards stay
+        // --text-lowlight. The REST-STATE values are React-rendered here from activeIndex; during a
+        // gesture updateActiveCard rewrites them imperatively per frame (glow + tint follow the live
+        // centre). The label below is CAPS when active (Han #163 E2).
+        const color = active ? cardColor(item) : 'var(--text-lowlight)';
+        const rawLabel = labelOf(item);
         return (
-            <g style={{ pointerEvents: 'none' }}>
-                {active && pillColor && (
-                    <rect x={pillX} y={pillY} width={pillW} height={pillH} rx={4}
-                        fill={pillColor} fillOpacity={0.18}
-                        stroke={pillColor} strokeOpacity={0.5} strokeWidth={0.5} />
-                )}
+            // Inner <g> (cardG): the GLOW target (Han #163 D — coloured drop-shadow, NOT a box). At
+            // rest the active card glows; updateActiveCard rewrites the filter live during a drag.
+            <g ref={(el) => { (cardRefs.current[i] ||= {}).cardG = el;
+                cardRefs.current[i].labelRaw = rawLabel; }}
+                style={{
+                    pointerEvents: 'none',
+                    filter: active
+                        ? `drop-shadow(0 0 3px ${color}) drop-shadow(0 0 6px ${color})`
+                        : 'none',
+                }}>
                 {/* icons8 PNG centred on the staff (Han 2026-06-17). SVG-native <image> so it
                     composites/fades with the morph group opacity (no <foreignObject>). The icons
                     are flat-black, so the theme filter (--instrument-icon-filter: invert on dark
@@ -287,9 +329,10 @@ const StaffCarousel = ({
                 <image href={iconUrlOf(item)}
                     x={-ICON / 2} y={staffStart + ICON_DY} width={ICON} height={ICON}
                     style={{ filter: 'var(--instrument-icon-filter, none)' }} />
-                <text x={0} y={staffStart + NAME_DY} textAnchor="middle" fontSize={11}
+                <text ref={(el) => { (cardRefs.current[i] ||= {}).label = el; }}
+                    x={0} y={staffStart + NAME_DY} textAnchor="middle" fontSize={11}
                     fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'} fill={color}>
-                    {labelOf(item)}
+                    {active ? rawLabel.toUpperCase() : rawLabel}
                 </text>
             </g>
         );
@@ -345,7 +388,7 @@ const StaffCarousel = ({
                     // Fires after onSelect so the instrument state is updated before the preview plays.
                     onPreview?.(item);
                 }}
-                onPosChange={updateHeaders}
+                onPosChange={onPos}
                 // 7 visible (3 each side + centre) for instruments — Han 2026-06-19 wanted more in
                 // view. The kit carousel passes a smaller half (fewer kits). "Same card size,
                 // wider": cards keep BASE width; the extra slots just fade at the edge (xOffset is
@@ -362,11 +405,6 @@ const StaffCarousel = ({
 // special-casing — the SAME StaffCarousel + ITEMS drives all four rows (§6d, §6c).
 // Default instrument: acoustic_guitar_nylon (per defaultChordInstrumentSettings).
 const DEFAULT_CHORD_INSTRUMENT = 'acoustic_guitar_nylon';
-
-// Artificial staff Y for the chord carousel: sits below the bottom-most staff in the overlay.
-// The caller passes `chordCarouselY` (derived from the overlay layout). We fall back to a fixed
-// offset below the attribution line if the caller doesn't provide it — safe default.
-const CHORD_STAFF_EXTRA_OFFSET = 80; // user-units below the last staff's NAME_DY + attribution
 
 const InstrumentStaffOverlay = ({
     startX, endX,
@@ -396,9 +434,23 @@ const InstrumentStaffOverlay = ({
     const bottomStart = isPercussionVisible && percussionStart != null ? percussionStart
         : isBassVisible ? bassStart : trebleStart;
 
-    // The chord carousel lives below the attribution text of the last staff.
-    // We place it at bottomStart + NAME_DY + attribution height + gap.
-    const chordCarouselStart = bottomStart + NAME_DY + 13 + 20;
+    // CHORD ROW PLACEMENT (Han #163 F): previously the chord carousel was jammed just below the
+    // attribution text (bottomStart + NAME_DY + 13 + 20), so it sat cramped under the last staff's
+    // NAME row instead of reading as its OWN row. Fix: place it ONE STAFF STRIDE below the bottom
+    // staff — the SAME spacing the real staves use among themselves (§6c — derive the stride from
+    // the existing layout, don't hardcode). The stride is read from the gap between two adjacent
+    // VISIBLE staves; if only one staff is visible we fall back to a sensible content-height stride
+    // (the per-staff carousel content spans ~NAME_DY+attribution below its staffStart).
+    const staffStride = (() => {
+        if (isPercussionVisible && isBassVisible && percussionStart != null) return percussionStart - bassStart;
+        if (isBassVisible && isTrebleVisible) return bassStart - trebleStart;
+        if (isPercussionVisible && isTrebleVisible && percussionStart != null) return percussionStart - trebleStart;
+        // Single-staff fallback: one carousel's full content height + a small gap. NAME_DY (58) is
+        // the name row; +13 attribution; +20 breathing gap — matches the old offset magnitude so a
+        // single-staff layout keeps a comparable chord-row position.
+        return NAME_DY + 13 + 20;
+    })();
+    const chordCarouselStart = bottomStart + staffStride;
 
     return (
         <g className="instrument-overlay" onClick={(e) => e.stopPropagation()}>

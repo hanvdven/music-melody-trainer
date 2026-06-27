@@ -67,60 +67,96 @@ const wrapPos = (p, n) => ((p % n) + n) % n;
 // ring of items loops smoothly. Result is in (-N/2, N/2].
 const signedDist = (i, pos, n) => ((i - pos + n / 2 + n) % n) - n / 2;
 
-// Falloff by distance-from-centre `d` (0 = centred, grows toward the edges).
-// OPACITY fades; SCALE is now CONSTANT 1.0. Kept as pure functions so the look is a single
-// source of truth (this primitive is shared by the instrument + colour carousels, §6d).
-// edgeFor(half): distance at which an item is fully faded — derived from the (now variable) window
-// half-width so a wider window (Han 2026-06-19: 7-visible instruments) fades its edge cards at the
-// new outer edge, not the old 5-card edge.
-const edgeFor = (half) => half + 0.5;
-// FULLY FLAT (Han 2026-06-18): no shrink at all — every card is the SAME size. WHY: Han wants a
-// pure horizontal strip, not a curved "dial/wheel", so the only edge cue is the OPACITY fade
-// below (the "there's more" hint), never a size change. Kept as a function (not a literal at the
-// call site) so the single-source-of-truth shape is preserved and the constant can be tuned in
-// one place. Affects BOTH the instrument and colour carousels (intended — shared primitive).
-const scaleForDist = () => 1;
-// OPACITY FLOOR (Han #163): items at the carousel edge fade to MIN 0.5 opacity (not 0) so they
-// remain visible as a "there's more" cue. Items outside the visible window stay fully hidden.
-// THIN FADE BORDER (Han #163 Q5 answer "dunne fade rand"): fade starts close to the window edge
-// (FADE_WIDTH item-slots inward) and ramps from 1→MIN_OPACITY over that narrow zone only.
-// `half` defaults to VISIBLE_HALF so the exported helper keeps working for default-window callers.
-const MIN_OPACITY = 0.5;
-// Fade zone width (item-units), as a function of the window half-width.
-//   • Large window (half ≥ 3, e.g. instrument carousel 7-items): fade zone = half-1 item-units.
-//     For half=3 this gives fadeWidth=2, fadeStart=1.5 — items at d=3 fade to ~67% opacity
-//     (clearly visible), items at d=2 fade to ~95% (subtle). WHY: a 0.7-wide zone at half=3
-//     only dimmed outermost items by ~6% (opacity ~0.94) — imperceptible, Han UAT "no fade".
-//   • Medium window (half = 2, e.g. colour/percussion-kit carousels): keep the 0.7 "dunne rand"
-//     (Han #163) — only the OUTERMOST cards dim; the inner cards stay at full opacity.
-//   • Small window (half = 1, e.g. the colour carousel's 3-item layout, Han 2026-06-27 UAT): the
-//     ONLY non-centre slots sit at d=±1, and a 0.7-wide zone left them at opacity ~0.9 → "no fade".
-//     Here the fade must reach almost to the CENTRE slot, leaving just a ~0.5-unit full-opacity
-//     core, so the single peeking neighbour on each side dims toward MIN_OPACITY. edge-0.5 = 1.0
-//     for half=1 (d=1 → ~0.75). Scoped to half ≤ 1 so wider windows are untouched.
-const fadeWidthFor = (half) => {
-    if (half >= 3) return half - 1;          // large windows: fade covers outer (half-1) item-units
-    if (half >= 2) return 0.7;               // medium windows: keep the "dunne rand" (Han #163)
-    return edgeFor(half) - 0.5;             // small windows: wide fade so single neighbour dims
+// ── NON-LINEAR FALLOFF — AUTHORITATIVE CURVE CONSTANTS (Han #163 rework, 2026-06-27) ────────────
+// The carousel is a centre-weighted "wheel" again (the 2026-06-18 flatten — scale≡1, x≡d — read as
+// a flat even strip with no edge cue, UAT "no spacing impact"). These constants are the SINGLE
+// SOURCE OF TRUTH for the look; ALL three consumers (instrument, colour, generation) inherit them
+// (§6c/§6d — no per-overlay copies). Targets, from the ticket `interviews` field (Han, authoritative):
+//   centre (d=0) → visible-window EDGE (d=edge) → the ONE overflow element just past the edge.
+//   SIZE:    100% → 70% at edge → ~50% overflow
+//   SPACING: 100% → 70% at edge → 40% overflow (per-step gap, integrated into x)
+//   OPACITY: 100% → 50% at edge → 30% overflow → hard cut (0) beyond.
+// Falloff is EASED (smoothstep), not linear. Exactly ONE element renders past the visible edge,
+// then a hard cut. An additional SVG edge mask (EDGE_MASK_FRAC) ramps the outer 5% to 50%.
+const SIZE_EDGE      = 0.70;   // card scale at the visible-window edge
+const SIZE_OVERFLOW  = 0.50;   // card scale of the single peeking overflow element
+const GAP_CENTER     = 1.00;   // per-step horizontal gap at the centre (× baseWidth)
+const GAP_EDGE       = 0.70;   // per-step gap at the visible-window edge
+const GAP_OVERFLOW   = 0.40;   // per-step gap for the overflow step (edge → edge+1)
+const OPACITY_EDGE     = 0.50; // opacity at the visible-window edge
+const OPACITY_OVERFLOW = 0.30; // opacity of the single peeking overflow element
+const EDGE_MASK_FRAC = 0.05;   // edge opacity-mask ramp width = 5% of the visible window each side
+
+// edgeFor(half): the integer distance of the OUTERMOST in-window item — the "edge". A wider window
+// (Han 2026-06-19: 7-visible instruments) pushes the edge out so the falloff stretches to the new
+// outer card, not the old 5-card edge. (Was half+0.5; now `half` exactly — the edge is the last
+// FULLY-VISIBLE item, and the overflow element sits one step beyond at half+1.)
+const edgeFor = (half) => half;
+
+// SCALE falloff by distance-from-centre `d`. Eased ramp 1.0 (centre) → SIZE_EDGE (0.70) at the
+// window edge, continuing to SIZE_OVERFLOW (0.50) for the single overflow element (edge < |d| ≤
+// edge+1). Pure → single source of truth, shared by all three consumers (§6d).
+const scaleForDist = (d, half = VISIBLE_HALF) => {
+    const abs = Math.abs(d);
+    const edge = edgeFor(half);
+    if (abs <= edge) {
+        const t = edge > 0 ? abs / edge : 0;                 // 0 at centre → 1 at edge
+        return 1 - (1 - SIZE_EDGE) * easeInOut(t);
+    }
+    // Overflow zone (edge < |d| ≤ edge+1): ramp SIZE_EDGE → SIZE_OVERFLOW.
+    const t = Math.min(1, abs - edge);
+    return SIZE_EDGE - (SIZE_EDGE - SIZE_OVERFLOW) * easeInOut(t);
 };
+
+// OPACITY falloff by distance `d`. Eased ramp 1.0 (centre) → OPACITY_EDGE (0.50) at the window edge,
+// then the single overflow element (edge < |d| ≤ edge+1) ramps OPACITY_EDGE → OPACITY_OVERFLOW
+// (0.30); beyond that a hard cut to 0 (off-screen items must not paint or intercept). `half`
+// defaults to VISIBLE_HALF so the exported helper keeps working for default-window callers.
 const opacityForDist = (d, half = VISIBLE_HALF) => {
     const abs = Math.abs(d);
     const edge = edgeFor(half);
-    // Outside the visible window: fully hidden so off-screen items don't intercept anything.
-    if (abs >= edge) return 0;
-    // Within the fade zone: ramp smoothly from 1 → MIN_OPACITY. Outside it: stay at 1.
-    const fadeWidth = fadeWidthFor(half);
-    const fadeStart = edge - fadeWidth;
-    if (abs <= fadeStart) return 1;
-    const t = (abs - fadeStart) / fadeWidth;
-    return MIN_OPACITY + (1 - MIN_OPACITY) * (1 - easeInOut(t));
+    if (abs <= edge) {
+        const t = edge > 0 ? abs / edge : 0;
+        return 1 - (1 - OPACITY_EDGE) * easeInOut(t);
+    }
+    if (abs <= edge + 1) {
+        const t = abs - edge;                                 // 0 at edge → 1 at overflow
+        return OPACITY_EDGE - (OPACITY_EDGE - OPACITY_OVERFLOW) * easeInOut(t);
+    }
+    return 0;                                                 // hard cut past the overflow element
 };
-// Horizontal position of an item at fractional distance `d` from centre. LINEAR (Han 2026-06-18):
-// every item occupies exactly one base-width slot, evenly spaced — x === d. WHY: with the shrink
-// removed the old midpoint-scale integration would just sum 1.0 per step anyway, but a plain
-// identity makes the "even strip" intent explicit and removes the now-pointless loop. Full-size
-// cards spread WIDER than the old shrunk edges, so there is no new overlap risk.
-const xOffsetForDist = (d) => d;
+
+// Per-step GAP (× baseWidth) at fractional distance `d` from centre. Eased GAP_CENTER (1.0) →
+// GAP_EDGE (0.70) over the visible window, then GAP_OVERFLOW (0.40) for the overflow step. This is
+// the DERIVATIVE of the x layout; xOffsetForDist integrates it so spacing COMPRESSES toward the
+// edges (the centre-weight cue Han wants), instead of the old even d===d strip.
+const gapAtDist = (d, half = VISIBLE_HALF) => {
+    const abs = Math.abs(d);
+    const edge = edgeFor(half);
+    if (abs <= edge) {
+        const t = edge > 0 ? abs / edge : 0;
+        return GAP_CENTER - (GAP_CENTER - GAP_EDGE) * easeInOut(t);
+    }
+    const t = Math.min(1, abs - edge);
+    return GAP_EDGE - (GAP_EDGE - GAP_OVERFLOW) * easeInOut(t);
+};
+
+// Horizontal position (in baseWidth units) of an item at fractional distance `d` from centre.
+// NON-LINEAR (Han #163 rework): the signed INTEGRAL of gapAtDist from 0..|d|, so per-step gaps
+// shrink toward the edges and the strip compresses. Numerically integrated in small steps (the
+// function is smooth and monotonic, so a fine fixed step is exact enough for layout). MUST stay
+// monotonic in d (brackets in InstrumentStaffOverlay/CarouselFieldItem rely on it). Exported.
+const X_INTEGRATION_STEP = 0.05;   // fine enough that bracket pixel alignment is sub-px
+const xOffsetForDist = (d, half = VISIBLE_HALF) => {
+    const abs = Math.abs(d);
+    let x = 0;
+    // Midpoint accumulation: sum gapAt at the MIDPOINT of each sub-step.
+    for (let s = 0; s < abs; s += X_INTEGRATION_STEP) {
+        const step = Math.min(X_INTEGRATION_STEP, abs - s);
+        x += gapAtDist(s + step / 2, half) * step;
+    }
+    return d < 0 ? -x : x;
+};
 
 export default function NonLinearCarousel({
     items, activeIndex = 0, renderItem, centerX, y, baseWidth, height,
@@ -131,6 +167,10 @@ export default function NonLinearCarousel({
     // tap-hit visibility cut-off, and the hit-surface width below.
     visibleHalf = VISIBLE_HALF,
 }) {
+    // Unique id per instance for the SVG edge-mask <defs> (multiple carousels coexist on one staff
+    // surface, so a shared id would collide). React.useId is stable across renders + SSR-safe.
+    const rawId = React.useId();
+    const maskId = `nlc-edge-mask-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
     const wrapRefs = React.useRef([]);    // per-item <g> refs (we mutate style each frame)
     const posRef = React.useRef(activeIndex);  // fractional centre position (which item index sits at centerX)
     const dragRef = React.useRef(null);   // { startX, startPos, moved, downSvgX }
@@ -171,12 +211,14 @@ export default function NonLinearCarousel({
             const d = signedDist(i, wp, N);
             const op = opacityForDist(d, visibleHalf);
             if (op <= 0) {
-                // Outside the visible window — park it transparent so it never intercepts anything.
+                // Beyond the single overflow element — park it transparent so it never paints
+                // off-staff or intercepts anything. The ONE overflow element each side (edge <
+                // |d| ≤ edge+1) returns op>0 (0.30 → 0) above, so it IS positioned below.
                 g.style.opacity = '0';
                 continue;
             }
-            const s = scaleForDist(d);
-            const x = centerX + xOffsetForDist(d) * baseWidth;
+            const s = scaleForDist(d, visibleHalf);
+            const x = centerX + xOffsetForDist(d, visibleHalf) * baseWidth;
             // transform-box/origin: the item is authored around its own origin, so scale about
             // the item centre by translating to x then scaling. translateX is in px (user units).
             g.style.transform = `translate(${x}px, 0px) scale(${s})`;
@@ -270,7 +312,7 @@ export default function NonLinearCarousel({
             for (let i = 0; i < N; i += 1) {
                 const dist = signedDist(i, posRef.current, N);
                 if (Math.abs(dist) > visibleHalf + 0.5) continue;   // only visible items are tappable
-                const ix = xOffsetForDist(dist) * baseWidth;
+                const ix = xOffsetForDist(dist, visibleHalf) * baseWidth;
                 const err = Math.abs(localX - ix);
                 if (err < bestErr) { bestErr = err; best = i; }
             }
@@ -286,8 +328,41 @@ export default function NonLinearCarousel({
         }
     };
 
+    // ── Geometry shared by the hit surface, the edge mask, and the debug boundaries ──────────────
+    // VISIBLE window: the in-window items span centerX ± (visibleHalf+0.5)*baseWidth (the hit rect).
+    const winLeft = centerX - (visibleHalf + 0.5) * baseWidth;
+    const winW = (2 * visibleHalf + 1) * baseWidth;
+    // OVERFLOW boundary: one item beyond the edge sits at distance up to edge+1; in x-units that is
+    // xOffsetForDist(visibleHalf+1) (slightly more than the window half because the overflow step is
+    // 0.40*baseWidth). Used only for the debug dashed boundary (the element itself is masked/faded).
+    const overflowHalfX = xOffsetForDist(visibleHalf + 1, visibleHalf) * baseWidth;
+    // EDGE MASK gradient stops (B1): opacity 0.5 at each outer edge, ramping to 1.0 over the outer
+    // EDGE_MASK_FRAC (5%) of the window, full (1.0) across the middle. So edge items get an EXTRA
+    // soft fade ON TOP of their per-item opacity falloff, for a clean "fading into the frame" look.
+    const f = EDGE_MASK_FRAC;
+
     return (
         <g>
+            {/* SVG edge opacity mask (Han #163 B): a horizontal gradient that dims the outer 5% of
+                the carousel window to 0.5, so items fade softly INTO the carousel frame rather than
+                cutting off hard. Applied to the VISUAL <g> only (NOT the transparent hit rect — the
+                gesture must still register at the edges, §3a). White = visible, black = hidden;
+                we ramp white→grey at the edges. maskUnits userSpaceOnUse so the gradient maps to the
+                same SVG user coords as the carousel. */}
+            <defs>
+                <linearGradient id={`${maskId}-grad`} gradientUnits="userSpaceOnUse"
+                    x1={winLeft} y1={0} x2={winLeft + winW} y2={0}>
+                    <stop offset="0" stopColor="white" stopOpacity={OPACITY_EDGE} />
+                    <stop offset={f} stopColor="white" stopOpacity={1} />
+                    <stop offset={1 - f} stopColor="white" stopOpacity={1} />
+                    <stop offset="1" stopColor="white" stopOpacity={OPACITY_EDGE} />
+                </linearGradient>
+                <mask id={maskId} maskUnits="userSpaceOnUse"
+                    x={winLeft} y={y} width={winW} height={height}>
+                    <rect x={winLeft} y={y} width={winW} height={height}
+                        fill={`url(#${maskId}-grad)`} />
+                </mask>
+            </defs>
             {/* Visual layer — pointerEvents off; the drag/tap surface below routes the gesture.
                 Each item is wrapped in TWO nested <g>s:
                   • an OUTER `data-fly` <g> that the flyInCascade choreography translates (slides in
@@ -302,7 +377,7 @@ export default function NonLinearCarousel({
                 translate/scale/opacity, and they compose. The parent overlay groups dropped their
                 redundant `data-fly` so cards don't double-translate. renderItem authors the item
                 around the origin (0,0). */}
-            <g style={{ pointerEvents: 'none' }}>
+            <g style={{ pointerEvents: 'none' }} mask={`url(#${maskId})`}>
                 {items.map((item, i) => (
                     <g key={i} data-fly="">
                         <g ref={(el) => { wrapRefs.current[i] = el; }}>
@@ -325,15 +400,33 @@ export default function NonLinearCarousel({
                 onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
             />
             {debugMode && (
-                // §3a: the orange rect matches the REAL hit window above (same x/width/height),
-                // so debug mode shows exactly where taps/drags register.
-                <rect
-                    x={centerX - (visibleHalf + 0.5) * baseWidth}
-                    y={y}
-                    width={(2 * visibleHalf + 1) * baseWidth}
-                    height={height}
-                    fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
-                    style={{ pointerEvents: 'none' }} />
+                <g style={{ pointerEvents: 'none' }}>
+                    {/* §3a: the orange rect matches the REAL hit window (same x/width/height), so
+                        debug mode shows exactly where taps/drags register. */}
+                    <rect x={winLeft} y={y} width={winW} height={height}
+                        fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5} />
+                    {/* CYAN: the VISIBLE-window boundary (centerX ± edge*baseWidth) — the last
+                        FULLY-laid-out item edge. Distinct from the orange hit rect (Han #163 C1). */}
+                    <line x1={centerX - edgeFor(visibleHalf) * baseWidth} y1={y}
+                        x2={centerX - edgeFor(visibleHalf) * baseWidth} y2={y + height}
+                        stroke="cyan" strokeWidth={0.75} />
+                    <line x1={centerX + edgeFor(visibleHalf) * baseWidth} y1={y}
+                        x2={centerX + edgeFor(visibleHalf) * baseWidth} y2={y + height}
+                        stroke="cyan" strokeWidth={0.75} />
+                    {/* DASHED magenta: the OVERFLOW boundary (one item beyond the edge). Han verifies
+                        EXACTLY ONE element renders between the cyan and the dashed line (Han #163 C2). */}
+                    <line x1={centerX - overflowHalfX} y1={y}
+                        x2={centerX - overflowHalfX} y2={y + height}
+                        stroke="magenta" strokeWidth={0.75} strokeDasharray="3,2" />
+                    <line x1={centerX + overflowHalfX} y1={y}
+                        x2={centerX + overflowHalfX} y2={y + height}
+                        stroke="magenta" strokeWidth={0.75} strokeDasharray="3,2" />
+                    {/* Thin bands marking the 5% edge-mask ramp zone each side (Han #163 C3). */}
+                    <rect x={winLeft} y={y} width={winW * f} height={height}
+                        fill="cyan" fillOpacity={0.08} />
+                    <rect x={winLeft + winW * (1 - f)} y={y} width={winW * f} height={height}
+                        fill="cyan" fillOpacity={0.08} />
+                </g>
             )}
         </g>
     );
@@ -354,4 +447,11 @@ export const visibleRange = (centerIndex, count, half = VISIBLE_HALF) => {
     for (let k = lo; k <= hi; k += 1) out.push(((k % count) + count) % count);
     return out;
 };
-export { xOffsetForDist, VISIBLE_HALF };
+// Pure falloff fns + curve constants exported for unit tests (Han #163 I) and any consumer that
+// needs to reason about the curve (e.g. the instrument brackets reuse xOffsetForDist for alignment).
+export {
+    xOffsetForDist, VISIBLE_HALF,
+    scaleForDist, opacityForDist, gapAtDist, edgeFor,
+    SIZE_EDGE, SIZE_OVERFLOW, GAP_CENTER, GAP_EDGE, GAP_OVERFLOW,
+    OPACITY_EDGE, OPACITY_OVERFLOW, EDGE_MASK_FRAC,
+};
