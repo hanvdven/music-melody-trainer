@@ -87,3 +87,79 @@ export const StaffDurationNote = ({
       fontWeight="normal">{glyphChar}</text>
   </g>
 );
+
+// ── Duration → glyph maps — SINGLE SOURCE OF TRUTH (§6c/§6d) ──────────────────────────────────────
+// These were authored INLINE inside renderMelodyNotes' main loop. StaffMelodyNote (below) draws a
+// stand-alone melody note exactly the way that loop does, so the maps now live HERE and
+// renderMelodyNotes IMPORTS them — one home for the notehead/flag/dot glyph chars, no second copy.
+// Keyed by VISUAL DURATION in ticks (3=16th, 6=8th, 12=quarter, 24=half, 48=whole, plus dotted).
+export const durationNoteMap = {
+  3: 'Ï', 6: 'Ï', 9: 'Ï', 12: 'Ï', 18: 'Ï', 21: 'Ï',
+  24: 'ú', 36: 'ú', 42: 'ú',
+  48: 'w', 72: 'w',
+};
+export const durationDotMap = {
+  72: 'k', 42: 'kk', 36: 'k', 21: 'kk', 18: 'k', 9: 'k',
+};
+export const durationFlagMapDown = {
+  9: 'J', 6: 'J', 3: 'R',   // 8th flag (down), 16th flag (down)
+};
+export const durationFlagMapUp = {
+  9: 'j', 6: 'j', 3: 'r',   // 8th flag (up), 16th flag (up)
+};
+
+/**
+ * StaffMelodyNote — render ONE stand-alone melodic note (head + stem + flag + dot + ledger lines)
+ * for a given VISUAL DURATION, exactly the way `renderMelodyNotes`' main loop draws a melodic note
+ * (§6d: "use the existing melody-note function"). Used by the GenerationAdvancedSetterOverlay's
+ * smallest-note carousel so the duration sample reads as a REAL staff note (filled/open head, real
+ * stem, real flag), not a bare Maestro single-glyph.
+ *
+ * Geometry mirrors renderMelodyNotes verbatim:
+ *   stem:   x = origin + (up ? STEM_DX_UP : STEM_DX_DOWN); from positionY∓1 to positionY∓STEM_LENGTH;
+ *           drawn only for visualDuration < 48 (whole notes have no stem). width 1.5.
+ *   flag:   unbeamed + visualDuration < 12 → durationFlagMap{Up,Down}; flagX = origin+(up?11:0.5),
+ *           flagY = positionY∓27. Maestro, NOTE_FONT_SIZE.
+ *   head:   whole 'w' shifted x−1; else durationNoteMap glyph at the origin. Maestro, NOTE_FONT_SIZE.
+ *   dot:    durationDotMap at origin+13, y snapped to the staff line as renderMelodyNotes does.
+ *   ledger: caller passes absolute ledgerYs (head off the staff gets ledger lines).
+ *
+ * `x`/`positionY` are the head ORIGIN (same convention as StaffQuarterNote). `scale` shrinks the
+ * whole note about its origin for fanned (non-active) carousel neighbours.
+ */
+export const StaffMelodyNote = ({
+  visualDuration, x, positionY, staffYStart, ledgerYs = [],
+  color = 'var(--text-primary)', opacity = 1, scale = 1,
+}) => {
+  const up = stemIsUp(positionY, staffYStart);
+  const stemX = up ? x + STEM_DX_UP : x + STEM_DX_DOWN;
+  const stemStartY = up ? positionY - 1 : positionY + 1;
+  const stemEndY = up ? positionY - STEM_LENGTH : positionY + STEM_LENGTH;
+  const head = durationNoteMap[visualDuration];
+  const dot = durationDotMap[visualDuration];
+  const flag = up ? durationFlagMapUp[visualDuration] : durationFlagMapDown[visualDuration];
+  const flagX = up ? x + STEM_DX_UP : x + STEM_DX_DOWN;
+  const flagY = up ? positionY - STEM_LENGTH : positionY + STEM_LENGTH;
+  // Dot baseline snaps to the staff line exactly as renderMelodyNotes (line 1255).
+  const dotY = (Math.round(positionY) - 1) % 10 === 0 ? positionY + 1 : positionY + 6;
+  return (
+    <g opacity={opacity} style={{ pointerEvents: 'none' }}
+      transform={scale === 1 ? undefined : `translate(${x} ${positionY}) scale(${scale}) translate(${-x} ${-positionY})`}>
+      {ledgerYs.map((ly, i) => (
+        <path key={i} d={`M ${x + LEDGER_DX_LEFT} ${ly} H ${x + LEDGER_DX_RIGHT}`}
+          stroke={color} strokeWidth={LEDGER_WIDTH} />
+      ))}
+      {visualDuration < 48 && (
+        <path d={`M ${stemX} ${stemStartY} V ${stemEndY}`} stroke={color} strokeWidth={STEM_WIDTH} />
+      )}
+      {visualDuration < 12 && flag && (
+        <text x={flagX} y={flagY} fontSize={NOTE_FONT_SIZE} fill={color} fontFamily="Maestro">{flag}</text>
+      )}
+      <text x={head === 'w' ? x - 1 : x} y={positionY} fontSize={NOTE_FONT_SIZE} fill={color}
+        fontFamily="Maestro">{head}</text>
+      {dot && (
+        <text x={x + 13} y={dotY} fontSize={NOTE_FONT_SIZE} fill={color} fontFamily="Maestro">{dot}</text>
+      )}
+    </g>
+  );
+};

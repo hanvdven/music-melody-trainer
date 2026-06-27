@@ -7,6 +7,36 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-06-27 — ✅ #162 Advanced Generator Settings — rework (Opus/high)
+
+Tweede rework na 2× UAT. Han bevestigde (kanban-notes): tangentiële setter voor in-line noten
+(GEEN NonLinearCarousel-pivot), nonlinear is nooit cyclical, 5th toevoegen aan LEAP_OPTIONS OK.
+Toegepast op `GenerationAdvancedSetterOverlay.jsx`:
+- ✅ 5th `{value:7,label:'5th'}` toegevoegd aan `LEAP_OPTIONS` (SSOT) → span begint nu bij 5th.
+- ✅ Span: natuurlijke oplopende volgorde (GEEN reverse meer → niet meer geflipt voor treble);
+  vaste C4-anker-noot geclampt BINNEN het carousel-venster (was off-canvas → nu zichtbaar);
+  ALLEEN de actieve interval-naam gelabeld (onder balk treble / boven bas).
+- ✅ Variability: redundant `rhythmic variability = NN` label verwijderd (kolomheader + getal volstaat).
+- ✅ Tuplets: X geïnverteerd → low linksonder, xtreme rechtsboven; 3-regelig label verwijderd.
+- ✅ Smallest note: ECHTE melody-noot render via nieuwe `StaffMelodyNote` (kop+stok+vlag+punt,
+  geëxtraheerd uit renderMelodyNotes; duur-glyph-maps verhuisd naar `staffNoteGlyph.jsx` als SSOT),
+  i.p.v. losse Maestro-glyph. Alle noten op middenlijn (B4 treble / D3 bass).
+- ✅ Akkoordinstellingen losgekoppeld van `showChordsRow` → passing-chords toggle nu altijd zichtbaar.
+Gates: test/lint/build groen. NB: tijdens dit werk stond ongerelateerde #163-WIP (NonLinearCarousel
+glow-rework, met `N is not defined`-bug) ongecommit op schijf; teruggezet naar HEAD zodat dit commit
+alleen #162 bevat — #163-eigenaar her-derivt die WIP.
+
+## 2026-06-27 — 🐞 #231 carousel outer-item opacity niet zichtbaar (→ DESIGN)
+
+UAT-feedback Han: buitenste 2 items kleurcarousel hebben geen zichtbaar lagere opacity; overlap mag
+kleiner. Diagnose: opacityForDist math voor half=1 laat d=±1 op **0.75** landen (niet de 0.5 floor) —
+0.75 over een gekleurde noot leest als vol. MIN_OPACITY floor wordt pas bij d→1.5 bereikt, waar item al
+verborgen is. Geen CSS/flyInCascade override. Voorstel: floor 0.5→0.30-0.40 en d=1 echt naar floor laten
+zakken (vlakke dim voor half≤1), guarded op half≤1 zodat instrument-carousel (half=3) ongemoeid blijft.
+BASE-overlap apart tunen. #231 terug naar design_review met diagnostische spec + vragen aan Han (welk
+opacity-niveau? vlak of curve? overlap dichter of verder?). Planning na akkoord: Opus/high (gedeeld
+primitive + §6 invariant). Files (verwacht): NonLinearCarousel.jsx, NoteColoringStaffOverlay.jsx (BASE).
+
 ## 2026-06-22 — ↩️ Kanban VOLLEDIG uit app gehaald (Han-besluit)
 Han wil kanban niet in de app-codebase. Alles verwijderd: gevendorde skills (.claude/skills/kanban*),
 kanban.json, src/components/kanban/*, scripts/kanban*, Vite kanban-API, debug→kanban view + showKanban,

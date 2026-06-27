@@ -2,7 +2,12 @@ import React from 'react';
 import logger from '../../utils/logger';
 import { computeBeamGroups } from './computeBeamGroups';
 import { generateAccidentalMap } from './generateAccidentalMap';
-import { NOTE_FONT_SIZE, STEM_DX_UP, STEM_DX_DOWN, STEM_LENGTH } from './staffNoteGlyph';
+import {
+  NOTE_FONT_SIZE, STEM_DX_UP, STEM_DX_DOWN, STEM_LENGTH,
+  // Duration → glyph maps now live in staffNoteGlyph (single source — §6c/§6d). StaffMelodyNote
+  // there draws a stand-alone note from the SAME maps the loop below uses.
+  durationNoteMap, durationDotMap, durationFlagMapDown, durationFlagMapUp,
+} from './staffNoteGlyph';
 import { getCanonicalNote, respellToKeySignature, melodicNoteColor } from '../../theory/noteUtils';
 import { transposeMelodyBySemitones } from '../../theory/musicUtils';
 
@@ -141,19 +146,7 @@ export const noteYMap = {
   cb: 176, // Cowbell
 };
 
-const durationNoteMap = {
-  3: 'Ï',
-  6: 'Ï',
-  9: 'Ï',
-  12: 'Ï',
-  18: 'Ï',
-  21: 'Ï',
-  24: 'ú',
-  36: 'ú',
-  42: 'ú',
-  48: 'w',
-  72: 'w',
-};
+// durationNoteMap now imported from staffNoteGlyph (single source — §6c/§6d).
 
 const percussionNoteHeads = {
   cc: 'À', // Crash Cymbal
@@ -200,26 +193,8 @@ const percussionChromatoneColors = {
   other: '#4CAF50',
 };
 
-const durationDotMap = {
-  72: 'k',
-  42: 'kk',
-  36: 'k',
-  21: 'kk',
-  18: 'k',
-  9: 'k',
-};
-
-const durationFlagMapDown = {
-  9: 'J', // Eighth flag
-  6: 'J', // Eighth flag
-  3: 'R', // Sixteenth flag
-};
-
-const durationFlagMapUp = {
-  9: 'j', // Eighth flag
-  6: 'j', // Eighth flag
-  3: 'r', // Sixteenth flag
-};
+// durationDotMap / durationFlagMapDown / durationFlagMapUp now imported from staffNoteGlyph
+// (single source — §6c/§6d).
 
 // Rests
 const restMap = {

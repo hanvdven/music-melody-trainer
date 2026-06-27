@@ -46,28 +46,37 @@ describe('GenerationAdvancedSetterOverlay (in-staff tangens style)', () => {
     expect(texts).toContain('smallest note');
   });
 
-  it('renders the field labels below the staff (rhythmic variability / tuplet frequency / smallest)', () => {
+  it('does NOT render the redundant below-staff field labels (Han UAT: column header suffices)', () => {
     const { container } = renderOverlay();
     const texts = allText(container);
-    expect(texts).toContain('rhythmic');
-    // variability label embeds the live value, no literal quotes (Han Q6).
-    expect(texts.some(t => t === 'variability = 30')).toBe(true);
-    expect(texts).toContain('tuplet');
-    expect(texts).toContain('frequency');
-    expect(texts).toContain('smallest');
-    expect(texts).toContain('note');
+    // The redundant 'rhythmic variability = NN' / 'tuplet'/'frequency' / 'smallest'/'note' labels are
+    // removed; the column headers above name each field instead.
+    expect(texts).not.toContain('rhythmic');
+    expect(texts.some(t => /variability = \d/.test(t))).toBe(false);
+    expect(texts).not.toContain('frequency');
+  });
+
+  it('labels ONLY the active span interval name, not every head (Han UAT)', () => {
+    const { container } = renderOverlay();
+    const texts = allText(container);
+    // treble maxLeap=12 → '8ve' is the active interval label (exactly one such interval-name label).
+    const intervalLabels = texts.filter(t => ['5th', '6th', '7th', '8ve', '9th', '10th', '11th', '12th', '15th'].includes(t));
+    // One active interval label per visible melodic balk (treble + bass) — far fewer than the full fan.
+    expect(intervalLabels.length).toBeGreaterThanOrEqual(1);
+    expect(intervalLabels.length).toBeLessThanOrEqual(2);
+    expect(intervalLabels).toContain('8ve');
   });
 
   it('renders the ∞ span entry as a serif infinity glyph (Han Q1/Q2)', () => {
     const { container } = renderOverlay();
     const texts = allText(container);
+    // bass maxLeap=null (∞) → the ∞ glyph is the active head; treble fan also shows ∞ as a head.
     expect(texts).toContain('∞');
-    // and a real interval name from LEAP_OPTIONS is shown too.
-    expect(texts.some(t => /8ve|15th|4th/.test(t))).toBe(true);
   });
 
-  it('preserves the passing-chords toggle set on the chords balk', () => {
-    const { container } = renderOverlay();
+  it('preserves the passing-chords toggle set, visible even without showChordsRow (Han UAT)', () => {
+    // Decoupled from showChordsRow — the chord setter must show whenever the overlay is mounted.
+    const { container } = renderOverlay({ showChordsRow: false });
     const texts = allText(container);
     expect(texts).toContain('passing chords');
     // at least one passing-chord label is rendered (e.g. the 'dia' diatonic type).
