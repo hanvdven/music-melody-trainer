@@ -87,10 +87,11 @@ describe('InstrumentStaffOverlay', () => {
     it('tints the ACTIVE card name with its category CSS var (Task B)', () => {
         // Grand piano (treble active) is category 'keys' → its name <text> fill resolves to the
         // --cat-keys var via categoryColorVar (§6c — read off the item, no slug→colour table).
+        // ACTIVE label is UPPERCASED (Han #163 E2), so the active card text is 'GRAND PIANO'.
         const { container } = renderOverlay();
         const expected = categoryColorVar('keys');           // 'var(--cat-keys)'
         const grandPiano = [...container.querySelectorAll('text')]
-            .find(t => t.textContent === 'grand piano');
+            .find(t => t.textContent === 'GRAND PIANO');
         expect(grandPiano).not.toBeUndefined();
         expect(grandPiano.getAttribute('fill')).toBe(expected);
     });
@@ -135,10 +136,12 @@ describe('InstrumentStaffOverlay — percussion-kit carousel', () => {
 
     it('renders a card for every kit in the available categories', () => {
         const { container } = renderPerc();
-        const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
+        // The ACTIVE card's label is UPPERCASED (Han #163 E2), so compare case-insensitively: every
+        // kit appears as a card (active one in CAPS, the rest in their normal label case).
+        const labels = [...container.querySelectorAll('text')].map(t => (t.textContent || '').toUpperCase());
         for (const cat of availableCats) {
             for (const k of cat.kits) {
-                expect(labels).toContain(percussionKitLabel(k.id));
+                expect(labels).toContain(percussionKitLabel(k.id).toUpperCase());
             }
         }
     });

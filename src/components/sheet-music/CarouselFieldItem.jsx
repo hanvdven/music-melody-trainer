@@ -145,8 +145,11 @@ export const familyBrackets = (
   // Build geometry per run. Pin an outer end to the FIXED carousel edge when that run's outer item
   // is the outermost-visible item (anti-jitter, mirrors InstrumentStaffOverlay's pinLeft/pinRight).
   return runs.map((r) => {
-    const xLeftRaw = xOffsetForDist(signedDist(r.firstIdx, pos, N)) * baseWidth;
-    const xRightRaw = xOffsetForDist(signedDist(r.lastIdx, pos, N)) * baseWidth;
+    // Pass visibleHalf so the bracket x tracks the carousel's NON-LINEAR layout (Han #163:
+    // xOffsetForDist now depends on the window half). These field carousels use the default
+    // half (2), but we pass it explicitly so it stays correct if the window ever widens.
+    const xLeftRaw = xOffsetForDist(signedDist(r.firstIdx, pos, N), visibleHalf) * baseWidth;
+    const xRightRaw = xOffsetForDist(signedDist(r.lastIdx, pos, N), visibleHalf) * baseWidth;
     const x1 = r.firstIdx === firstVis ? (centerX - edgeX) : (centerX + xLeftRaw - baseWidth * 0.42);
     const x2 = r.lastIdx === lastVis ? (centerX + edgeX) : (centerX + xRightRaw + baseWidth * 0.42);
     return buildBracket(x1, x2, bracketY, familyName(r.family));
