@@ -53,6 +53,7 @@ export const RHYTHM_VARIABILITY = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
 export const LEAP_OPTIONS = [
   { value: 4, label: '3rd' },
   { value: 5, label: '4th' },
+  { value: 7, label: '5th' }, // added (#162) so the span setter can truly start at a 5th (was missing → list began at 6th)
   { value: 9, label: '6th' },
   { value: 11, label: '7th' },
   { value: 12, label: '8ve' },

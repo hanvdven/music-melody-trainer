@@ -6,11 +6,10 @@ import {
   LEAP_OPTIONS,
   POLY_LEVELS,
   SMALLEST_NOTE_DENOMS,
-  SMALLEST_NOTE_GLYPHS,
   PASSING_CHORD_TYPES,
 } from '../../../constants/generationFields';
 // §6d — canonical renderers / curve math, NEVER hand-rolled here:
-import { StaffQuarterNote, StaffDurationNote } from '../staffNoteGlyph';
+import { StaffQuarterNote, StaffMelodyNote } from '../staffNoteGlyph';
 import { getNoteFromValue } from '../../../utils/rangeUtils';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
 import { curveX, curveY, leftCurveX, X_SPACING, useTangensDrag } from './tangensCurve';
@@ -27,17 +26,19 @@ import { curveX, curveY, leftCurveX, X_SPACING, useTangensDrag } from './tangens
 //   variability  → LEFT-fan NUMERIC carousel: RHYTHM_VARIABILITY 0..100 in steps of 10.
 //   tuplets      → RIGHT-fan WORD carousel: POLY_LEVELS none..xtreme (Han UAT: tuplets fan
 //                  LEFT-to-RIGHT — i.e. the notehead-style RIGHT fan direction — with a smaller font).
-//   smallest note→ FLAT tangens carousel of real duration glyphs (StaffDurationNote: 16/8/q/h/w), all
-//                  glyphs anchored on the staff middle line (B4 treble / D3 bass); only the X fans.
+//   smallest note→ FLAT tangens carousel of REAL melody notes (StaffMelodyNote — head+stem+flag+dot,
+//                  the existing melody-note renderer, Han UAT 2026-06-27 "gebruik bestaande melody-note
+//                  functie"), all anchored on the staff middle line (B4 treble / D3 bass); only X fans.
 //   CHORDS balk  → passing-chords TOGGLE-SET (chordSettings.passingChordTypes).
 //
 // CONSISTENCY WITH TranspositionSetter (Han UAT 2026-06-27 "ernstige zorgen over consistentie"):
 //   - Span heads use the SAME StaffQuarterNote + curveX/curveY fan, the SAME ledger geometry, and the
 //     SAME `data-fly` note-by-note slide-in as the TranspositionSetter's right carousel.
-//   - LEAP/span option order is FLIPPED to [∞, 15th, …, 5th] so the LOWEST option renders at the
-//     lowest Y and the highest at the highest Y (Han: "noten worden steeds lager" → flip the list).
-//   - Interval-name labels sit BELOW the staff for treble, ABOVE for bass (Han: "'6th' onder de span,
-//     boven voor bas-sleutel").
+//   - LEAP/span option order is NATURAL ASCENDING [5th, …, 15th, ∞] — NO flip (Han UAT 2026-06-27:
+//     "de span is nu ook geflipt voor treble — ongevraagd"). Each head sits at its TRUE staff Y, so
+//     treble ascends from C4 / bass descends — clef-correct, never a list reversal.
+//   - ONLY the active/centre interval name is labelled (Han UAT: "toon alleen de naam van de gekozen
+//     afstand"), BELOW the staff for treble / ABOVE for bass.
 //
 // WIRING IS UNCHANGED vs the old overlay: each setter writes the SAME InstrumentSettings field via
 // the SAME setState path. The PROPS CONTRACT is identical (zero call-site change in SheetMusic.jsx).
@@ -64,16 +65,18 @@ const SECONDARY = 'var(--text-secondary)';
 // Column anchors across the staff width (variability | span | tuplets | smallest note).
 const COL_FRACS = [0.16, 0.42, 0.64, 0.87];
 
-// SPAN options: discrete intervals from the SSOT LEAP_OPTIONS, but (Han UAT) constrained to a
-// minimum of a 5th (≥7 semitones) plus the ∞ (value null) entry, then REVERSED so the array reads
-// [∞, 15th, …, 5th]. Reversing means index 0 = ∞ (highest pitch / smallest screen-Y) and the last
-// index = 5th (lowest pitch / largest screen-Y) — so dragging UP raises the option AND raises the
-// head on screen, exactly like the TranspositionSetter (fixes "noten worden steeds lager"). §6c:
-// derived from the shared array by filter+reverse, never a forked hand-written table.
-const SPAN_OPTIONS = LEAP_OPTIONS
-  .filter(o => o.value == null || o.value >= 7)
-  .slice()
-  .reverse();
+// SPAN options: discrete intervals from the SSOT LEAP_OPTIONS, constrained to a minimum of a 5th
+// (≥7 semitones — a 5th now EXISTS in LEAP_OPTIONS, added #162) plus the ∞ (value null) entry.
+// NATURAL ASCENDING order — NO reverse (Han UAT 2026-06-27: "de span is nu ook geflipt voor treble
+// — ongevraagd"). Index increases with interval size; each head is placed at its TRUE staff Y via
+// getNoteAbsoluteY, so treble heads ascend from C4 and bass heads descend — clef-correct, never a
+// list flip. §6c: derived from the shared array by filter, never a forked hand-written table.
+const SPAN_OPTIONS = LEAP_OPTIONS.filter(o => o.value == null || o.value >= 7);
+
+// smallest-note denom → VISUAL DURATION in ticks (the value StaffMelodyNote / the renderer's glyph
+// maps are keyed on). 16th=3, 8th=6, quarter=12, half=24, whole=48. Derived arithmetically from the
+// denom (48 ticks = whole) — §6c, not a hand-written table.
+const denomToTicks = (denom) => 48 / denom;
 
 // Maestro accidental glyph for a (Unicode-spelled) note name — same mapping the TranspositionSetter
 // uses for its span heads. '#'/'b' here are MAESTRO FONT GLYPH chars, not display text, so §5b's
@@ -100,14 +103,18 @@ const idxOf = (items, value) => {
   return i === -1 ? 0 : i;
 };
 
-// Field name below the staff (sans, --text-secondary, possibly multi-line).
+// Field name below the staff (sans, --text-secondary, possibly multi-line). Renders nothing for an
+// empty `lines` array — the column HEADER already names every field, so the redundant below-staff
+// labels were removed (Han UAT 2026-06-27: "overdadig gebruik van labels … volledig redundant").
 const FieldLabel = ({ cx, topY, lines }) => (
-  <text x={cx} y={topY} textAnchor="middle" fontSize={FIELD_LABEL_SIZE} fontFamily="sans-serif"
-    fill={SECONDARY} style={{ userSelect: 'none', pointerEvents: 'none' }}>
-    {lines.map((ln, i) => (
-      <tspan key={i} x={cx} dy={i === 0 ? 0 : FIELD_LABEL_SIZE + 1}>{ln}</tspan>
-    ))}
-  </text>
+  (!lines || lines.length === 0) ? null : (
+    <text x={cx} y={topY} textAnchor="middle" fontSize={FIELD_LABEL_SIZE} fontFamily="sans-serif"
+      fill={SECONDARY} style={{ userSelect: 'none', pointerEvents: 'none' }}>
+      {lines.map((ln, i) => (
+        <tspan key={i} x={cx} dy={i === 0 ? 0 : FIELD_LABEL_SIZE + 1}>{ln}</tspan>
+      ))}
+    </text>
+  )
 );
 
 // Shared invisible drag band + its §3a debug mirror.
@@ -158,19 +165,22 @@ const LeftFanCarousel = ({ cx, centerY, items, activeIndex, onCommit, renderLabe
   );
 };
 
-// ── RIGHT-fan WORD carousel (tuplets) ──────────────────────────────────────────────────────────────
-// Han UAT: tuplets must fan LEFT-to-RIGHT (the notehead-style RIGHT fan via curveX/curveY), NOT the
-// gentle left-fan, and read in a SMALLER font. Same drag mechanics + data-fly slide-in as the heads.
-const RightWordFanCarousel = ({ cx, centerY, items, activeIndex, onCommit, renderLabel, fieldLines, debugMode }) => {
+// ── HORIZONTAL WORD carousel (tuplets) — low LEFT-down → xtreme RIGHT-up ───────────────────────────
+// Han UAT 2026-06-27: "tuplet, ik wil de x inverteren, dus ik wil low 'linksonder' en 'xtreme'
+// rechtsboven." So a higher value (higher index) fans to the RIGHT and slightly UP, a lower value to
+// the LEFT and slightly DOWN — the INVERSE X of the notehead RIGHT-fan. We negate curveX (higher
+// index → +x → RIGHT) and use curveY so higher index fans up. Smaller font (Han UAT earlier).
+const TupletWordFanCarousel = ({ cx, centerY, items, activeIndex, onCommit, renderLabel, fieldLines, debugMode }) => {
   const { effIndex, dragging, bind } = useTangensDrag(activeIndex, items.length - 1, onCommit, PX_PER_STEP, 1);
   const rowsOut = [];
   for (let i = Math.floor(effIndex) - 4; i <= Math.ceil(effIndex) + 4; i++) {
     if (i < 0 || i > items.length - 1) continue;
-    const t = i - effIndex;                    // t>0 = higher value, fans UP via curveY
+    const t = i - effIndex;                    // t>0 = higher value → fans RIGHT + UP
     const isActive = i === Math.round(effIndex);
     const dist = Math.abs(t);
-    // RIGHT-fan: horizontal tanh spread (curveX) + cubic vertical (curveY), like the noteheads.
-    const nx = cx + curveX(t) * (SPAN_X_SPACING / X_SPACING);
+    // INVERTED X (Han UAT): negate curveX so higher index reads to the RIGHT; curveY fans higher
+    // index UP → "xtreme rechtsboven", "low linksonder".
+    const nx = cx - curveX(t) * (SPAN_X_SPACING / X_SPACING);
     const ry = centerY + 6 + curveY(t);
     const size = Math.max(7, TUPLET_LABEL_SIZE - dist * 1.6);
     const op = Math.max(0.18, (isActive ? 1 : 0.8) - dist * 0.12);
@@ -203,21 +213,26 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
   const { effIndex, dragging, bind } = useTangensDrag(activeIndex, SPAN_OPTIONS.length - 1, onCommit, PX_PER_STEP, 1);
   // Interval-name label band: BELOW the staff for treble, ABOVE for bass (Han UAT).
   const labelY = ascending ? staffStart + 64 : staffStart - 18;
-  // C4 anchor head sits one column to the LEFT of the fan centre, on the staff's true C4 line.
-  const anchorX = cx - 4 * SPAN_X_SPACING;
+  // FIXED C4 anchor head — sits to the LEFT of the fan centre but CLAMPED inside the carousel region
+  // so it is ALWAYS on screen (Han UAT 2× "ik mis/zie de gerenderde C4 noot": the old anchorX =
+  // cx − 4·SPAN_X_SPACING landed left of startX → clipped off-canvas). We anchor it at a fixed offset
+  // left of the column centre but never let it cross the left edge of the fan window.
+  const bandW = 6 * SPAN_X_SPACING + 24;
+  const anchorX = cx - bandW / 2 + 10;       // just inside the left edge of the drag window → on screen
   const c4Y = getNoteAbsoluteY('C4', staffStart, clef, staff);
-  // The ∞ entry draws where the 15th head would be (largest interval = top of the fan). We resolve the
-  // 15th's pitch once so ∞ aligns with it (Han UAT: "infinity mag op dezelfde hoogte als de 15th").
+  // The ∞ entry draws where the 15th head would be (top of the fan). Resolve the 15th's pitch once
+  // so ∞ aligns with it (Han UAT: "infinity mag op dezelfde hoogte als de 15th").
   const fifteenth = LEAP_OPTIONS.find(o => o.label === '15th');
   const infMidi = C4_MIDI + (ascending ? fifteenth.value : -fifteenth.value);
   const infBaseY = getNoteAbsoluteY(getNoteFromValue(infMidi), staffStart, clef, staff);
+  const activeIdxRounded = Math.round(effIndex);
 
   const out = [];
   for (let i = Math.floor(effIndex) - 5; i <= Math.ceil(effIndex) + 5; i++) {
     if (i < 0 || i > SPAN_OPTIONS.length - 1) continue;
     const opt = SPAN_OPTIONS[i];
     const t = i - effIndex;
-    const isActive = i === Math.round(effIndex);
+    const isActive = i === activeIdxRounded;
     const dist = Math.abs(t);
     const op = Math.max(0.15, (isActive ? 1 : 0.7) - dist * 0.1);
     const fill = isActive ? COLOR : LOW;
@@ -232,54 +247,47 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
             fill={fill} opacity={op} style={{ pointerEvents: 'none' }}>∞</text>
         </g>,
       );
+    } else {
+      const targetMidi = C4_MIDI + (ascending ? opt.value : -opt.value);
+      const name = getNoteFromValue(targetMidi);
+      const originY = getNoteAbsoluteY(name, staffStart, clef, staff);
+      if (originY == null) continue;
+      const y = originY + curveY(t);
+      const scale = Math.max(0.5, 1 - dist * 0.09);
       out.push(
-        <text key={`lbl-${i}`} x={x} y={labelY} textAnchor="middle" fontFamily={LABEL_FONT}
-          fontSize={INTERVAL_LABEL_SIZE} fill={SECONDARY} opacity={op}
-          style={{ pointerEvents: 'none' }}>{opt.label}</text>,
+        // data-fly OUTER wrapper so the cascade's translateX slides the head in without clobbering the
+        // inner scale transform — same pattern as TranspositionSetter (consistency).
+        <g key={i} data-fly="">
+          <g opacity={op}
+            transform={`translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`}>
+            <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
+              accidental={accidentalGlyph(name)}
+              ledgerYs={dist < 1.5 ? ledgerYs(y, staffStart) : []} color={fill} />
+          </g>
+        </g>,
       );
-      continue;
     }
-    const targetMidi = C4_MIDI + (ascending ? opt.value : -opt.value);
-    const name = getNoteFromValue(targetMidi);
-    const originY = getNoteAbsoluteY(name, staffStart, clef, staff);
-    if (originY == null) continue;
-    const y = originY + curveY(t);
-    const scale = Math.max(0.5, 1 - dist * 0.09);
-    out.push(
-      // data-fly OUTER wrapper so the cascade's translateX slides the head in without clobbering the
-      // inner scale transform — same pattern as TranspositionSetter (consistency).
-      <g key={i} data-fly="">
-        <g opacity={op}
-          transform={`translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`}>
-          <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
-            accidental={accidentalGlyph(name)}
-            ledgerYs={dist < 1.5 ? ledgerYs(y, staffStart) : []} color={fill} />
-        </g>
-      </g>,
-    );
-    out.push(
-      <text key={`lbl-${i}`} x={x} y={labelY} textAnchor="middle" fontFamily={LABEL_FONT}
-        fontSize={INTERVAL_LABEL_SIZE} fill={SECONDARY} opacity={op}
-        style={{ pointerEvents: 'none' }}>{opt.label}</text>,
-    );
+    // Interval-name label: ONLY for the ACTIVE/centre option (Han UAT: "toon alleen de naam van de
+    // gekozen afstand" — no per-head label spam).
+    if (isActive) {
+      out.push(
+        <text key={`lbl-${i}`} x={cx} y={labelY} textAnchor="middle" fontFamily={LABEL_FONT}
+          fontSize={INTERVAL_LABEL_SIZE} fill={SECONDARY} style={{ pointerEvents: 'none' }}>
+          {opt.label}
+        </text>,
+      );
+    }
   }
   const bandH = dragging ? 150 : 110;
   const bandTop = staffStart + 20 + 6 - bandH / 2;
-  const bandW = 6 * SPAN_X_SPACING + 24;
   return (
     <g>
-      {/* Fixed C4 reference head (anchor) — the interval is read as "C4 → target" (Han UAT). */}
+      {/* Fixed C4 reference head (anchor) — clamped on screen; the interval reads "C4 → target". */}
       {c4Y != null && (
         <g data-fly="">
           <StaffQuarterNote x={anchorX} positionY={c4Y} staffYStart={staffStart}
             ledgerYs={ledgerYs(c4Y, staffStart)} color={COLOR} />
         </g>
-      )}
-      {c4Y != null && (
-        <text x={anchorX + 6} y={labelY} textAnchor="middle" fontFamily={LABEL_FONT}
-          fontSize={INTERVAL_LABEL_SIZE} fill={SECONDARY} style={{ pointerEvents: 'none' }}>
-          C<tspan fontSize={Math.round(INTERVAL_LABEL_SIZE * 0.7)} dy={2}>4</tspan>
-        </text>
       )}
       {out}
       <DragBand x={cx - bandW / 2} y={bandTop} w={bandW} h={bandH} bind={bind} debugMode={debugMode} />
@@ -287,10 +295,12 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
   );
 };
 
-// ── SMALLEST NOTE — FLAT tangens carousel of real duration glyphs ─────────────────────────────────
-// All glyphs sit on the staff's middle line (B4 treble / D3 bass) — only the X fans (Han UAT: "smallest
-// note staan niet allemaal op b4 hoogte"). Active glyph full size; neighbours shrink + dim. Glyph chars
-// come from SMALLEST_NOTE_GLYPHS (§6d single source).
+// ── SMALLEST NOTE — FLAT tangens carousel of REAL melody notes ────────────────────────────────────
+// Renders each duration as a FULL melody note (head+stem+flag+dot via StaffMelodyNote — the existing
+// melody-note renderer, Han UAT 2026-06-27: "gebruik bestaande melody-note functie (zoals in de color
+// setter carousel)"), NOT a single Maestro glyph. All notes sit on the staff's middle line
+// (B4 treble / D3 bass) — only the X fans (Han UAT: "smallest note staan niet allemaal op b4 hoogte").
+// Active note full size; neighbours shrink + dim. Durations (ticks) derived from SMALLEST_NOTE_DENOMS.
 const SmallestNoteFanCarousel = ({ cx, staffStart, clef, staff, anchorMidi, activeIndex, onCommit, fieldLines, debugMode }) => {
   const { effIndex, dragging, bind } = useTangensDrag(activeIndex, SMALLEST_NOTE_DENOMS.length - 1, onCommit, PX_PER_STEP, 1);
   const anchorY = getNoteAbsoluteY(getNoteFromValue(anchorMidi), staffStart, clef, staff);
@@ -303,12 +313,12 @@ const SmallestNoteFanCarousel = ({ cx, staffStart, clef, staff, anchorMidi, acti
     const dist = Math.abs(t);
     const op = Math.max(0.15, (isActive ? 1 : 0.7) - dist * 0.1);
     const x = cx + curveX(t) * (SPAN_X_SPACING / X_SPACING);
-    const y = anchorY;   // FLAT — all glyphs on the middle line (Han UAT)
+    const y = anchorY;   // FLAT — all notes on the middle line (Han UAT)
     const scale = Math.max(0.5, 1 - dist * 0.09);
     out.push(
       <g key={i} data-fly="">
-        <StaffDurationNote glyphChar={SMALLEST_NOTE_GLYPHS[denom]} x={x} positionY={y}
-          color={isActive ? COLOR : LOW} opacity={op} scale={scale} />
+        <StaffMelodyNote visualDuration={denomToTicks(denom)} x={x} positionY={y}
+          staffYStart={staffStart} color={isActive ? COLOR : LOW} opacity={op} scale={scale} />
       </g>,
     );
   }
@@ -393,7 +403,9 @@ const GenerationAdvancedSetterOverlay = ({
   isTrebleVisible,
   isBassVisible,
   isPercussionVisible,
-  showChordsRow = true,
+  // NOTE: the former `showChordsRow` prop is intentionally NOT destructured/used anymore — the
+  // passing-chords toggle is DECOUPLED from it (Han UAT 2026-06-27) and always renders. The caller
+  // may still pass it; it is simply ignored.
   onSettingsInteraction,
   debugMode = false,
 }) => {
@@ -460,7 +472,7 @@ const GenerationAdvancedSetterOverlay = ({
               activeIndex={variabilityIdx}
               onCommit={(i) => { fireInteraction(); set(p => ({ ...p, rhythmVariability: RHYTHM_VARIABILITY[i] })); }}
               renderLabel={(v) => String(v)}
-              fieldLines={['rhythmic', `variability = ${cfg?.rhythmVariability ?? 0}`]}
+              fieldLines={[]} /* header 'variability' + the centred number suffice (Han UAT: redundant) */
               debugMode={debugMode}
             />
 
@@ -474,13 +486,13 @@ const GenerationAdvancedSetterOverlay = ({
               />
             )}
 
-            <RightWordFanCarousel
+            <TupletWordFanCarousel
               cx={cols[2]} centerY={row.centerY}
               items={POLY_LEVELS}
               activeIndex={polyIdx}
               onCommit={(i) => { fireInteraction(); set(p => ({ ...p, polyMultiplier: POLY_LEVELS[i].value })); }}
               renderLabel={(it) => it.label}
-              fieldLines={['tuplet', 'frequency', `= ${POLY_LEVELS[polyIdx].label}`]}
+              fieldLines={[]} /* header 'tuplets' + the centred word suffice (Han UAT: redundant 3-line label) */
               debugMode={debugMode}
             />
 
@@ -489,15 +501,19 @@ const GenerationAdvancedSetterOverlay = ({
               anchorMidi={row.smallestMidi}
               activeIndex={idxOf(SMALLEST_NOTE_DENOMS, cfg?.smallestNoteDenom ?? 4)}
               onCommit={(i) => { fireInteraction(); set(p => ({ ...p, smallestNoteDenom: SMALLEST_NOTE_DENOMS[i] })); }}
-              fieldLines={['smallest', 'note']}
+              fieldLines={[]} /* header 'smallest note' suffices (Han UAT: redundant) */
               debugMode={debugMode}
             />
           </g>
         );
       })}
 
-      {/* CHORDS balk — passing-chords toggle set (behaviour preserved, restyled). */}
-      {showChordsRow && (
+      {/* CHORDS balk — passing-chords toggle set. DECOUPLED from showChordsRow (Han UAT 2026-06-27
+          "ik zie geen instellingen voor de akkoorden"): the row was gated on showChordsRow, which is
+          usually FALSE in generation-advanced edit mode, so the whole chord setter vanished. The
+          passing-chords toggle is part of THIS overlay's contract, so it renders whenever the overlay
+          is mounted. */}
+      {(
         <PassingChordsFan
           cx={cols[2]} centerY={CHORD_ROW_Y}
           enabled={chordSettings?.passingChordTypes ?? []}
