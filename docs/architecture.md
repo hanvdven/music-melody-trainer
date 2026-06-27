@@ -3927,6 +3927,43 @@ the inline arrays previously living in `InstrumentRow.jsx` were extracted into t
 
 The other advanced columns are omitted for the chords balk (variability/span/smallest-note are N/A).
 
+### 42a-bis. GEN. ADVANCED — in-staff TANGENS rework + UAT consistency fixes (#162, Han 2026-06-27)
+
+**Purpose:** every GEN. ADVANCED field is an in-staff "tangens" carousel built from the SAME fan
+curve + drag hook (`tangensCurve.js`, §6d) as the `TranspositionSetter`. Han's first UAT flagged a
+list of inconsistencies vs that setter; the rework below makes the two pixel- and behaviour-consistent.
+
+**How it works / fixes applied:**
+- **Span option order FLIPPED + min 5th.** `SPAN_OPTIONS` is derived from the SSOT `LEAP_OPTIONS`
+  by `filter(value==null || value>=7)` (drops 3rd/4th — min is a 5th) then `.reverse()`, giving
+  `[∞, 15th, …, 5th]`. Reversed so index 0 (∞, highest pitch) renders at the smallest screen-Y and
+  the last index (5th) at the largest — dragging UP raises both the option and the head, matching the
+  TranspositionSetter (fixes Han "noten worden steeds lager"). §6c: derived, never a forked table.
+- **Fixed C4 anchor head.** The span carousel draws a fixed `StaffQuarterNote` at C4 to the left of
+  the fan with a small "C4" label, so the interval reads "C4 → target" (Han "ik mis de C4 noot").
+- **∞ aligns with the 15th.** The ∞ serif glyph is drawn at the 15th's pitch (top of the fan), not at
+  C4 (Han "infinity mag op dezelfde hoogte als de 15th").
+- **Interval label position.** Interval names sit BELOW the staff for treble / ABOVE for bass
+  (`labelY = ascending ? staffStart+64 : staffStart-18`) — Han "'6th' onder de span, boven voor bas".
+- **Tighter spacing.** Span + smallest-note + tuplets use `SPAN_X_SPACING=18` instead of the
+  transposition `X_SPACING=30` (Han "afstand tussen noten is groter").
+- **Tuplets fan RIGHT + smaller font.** Tuplet words now use the RIGHT (notehead-style) fan
+  (`curveX`/`curveY`) left-to-right at `TUPLET_LABEL_SIZE=15` (Han "flip x… lettertype mag kleiner").
+- **Smallest note FLAT.** All duration glyphs sit on the staff middle line (B4 treble / D3 bass) — only
+  the X fans (`y = anchorY`), fixing "smallest note staan niet allemaal op b4/d3 hoogte".
+- **Note-by-note fly-in.** Every head/label wrapper carries `data-fly` so the shared `flyInCascade`
+  slides them in from the right one-by-one, matching the TranspositionSetter (Han "fly in werkt niet
+  hetzelfde").
+- **Chord row present.** The passing-chords toggle-set (`chordSettings.passingChordTypes`) renders when
+  `showChordsRow` is true (Han "waar zijn de akkoordinstellingen?").
+
+**Invariants / Fix:** §6d (reuse canonical renderers): all heads via `StaffQuarterNote`/
+`StaffDurationNote`, all fan math from `tangensCurve.js`; zero hand-rolled glyph offsets. §6c: span
+options derived from `LEAP_OPTIONS` by filter+reverse, never a hardcoded list. §5b: ∞ is U+221E,
+interval/duration labels carry no ASCII b/#.
+
+**Files:** `src/components/sheet-music/overlays/GenerationAdvancedSetterOverlay.jsx`.
+
 **PROVISIONAL — chords mapping.** The CHORDS-balk mapping (and especially the GEN. ADVANCED
 passing-chords single-cycler placed in the tuplets column) is a first-pass spec to be confirmed by
 Han. The cycler advances WHICH passing-chord type is shown; tapping the value TOGGLES that type in
