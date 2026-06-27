@@ -26,9 +26,10 @@ describe('InstrumentStaffOverlay', () => {
     it('renders treble + bass instrument carousels without crashing', () => {
         const { container } = renderOverlay();
         expect(container.querySelector('.instrument-overlay')).not.toBeNull();
-        // One carousel block per visible staff. (PER-ELEMENT FLY-IN, Han 2026-06-19: data-fly now
-        // lives on each card inside the carousel, not on this .instrument-cards wrapper.)
-        expect(container.querySelectorAll('.instrument-cards').length).toBe(2);
+        // One carousel block per visible staff + one chord row (Han #163 AC3: chord carousel
+        // always visible in all settings). PER-ELEMENT FLY-IN, Han 2026-06-19: data-fly now
+        // lives on each card inside the carousel, not on this .instrument-cards wrapper.
+        expect(container.querySelectorAll('.instrument-cards').length).toBe(3);
         // Items render SVG-NATIVE (icon glyph + name <text>), NOT foreignObject — foreignObject
         // didn't fade with the morph and broke the INSTRUMENT→COLOUR slide (Han 2026-06-17).
         expect(container.querySelectorAll('foreignObject').length).toBe(0);
@@ -125,7 +126,8 @@ describe('InstrumentStaffOverlay — percussion-kit carousel', () => {
 
     it('renders the percussion-kit carousel with kit category brackets', () => {
         const { container } = renderPerc();
-        expect(container.querySelectorAll('.instrument-cards').length).toBe(1);
+        // 1 percussion carousel + 1 chord row (Han #163 AC3: chord row always visible in all settings).
+        expect(container.querySelectorAll('.instrument-cards').length).toBe(2);
         const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
         // 'Drum machines' has 2+ kits so its bracket shows (uppercased).
         expect(labels).toContain('DRUM MACHINES');

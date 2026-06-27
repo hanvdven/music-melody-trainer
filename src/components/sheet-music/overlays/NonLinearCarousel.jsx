@@ -87,15 +87,22 @@ const scaleForDist = () => 1;
 // `half` defaults to VISIBLE_HALF so the exported helper keeps working for default-window callers.
 const MIN_OPACITY = 0.5;
 // Fade zone width (item-units), as a function of the window half-width.
-//   • Wide windows (half ≥ 2): a narrow 0.7 "dunne rand" (Han #163) — only the OUTERMOST cards
-//     dim; the inner visible cards stay at full opacity. This is the approved instrument-carousel
-//     look and MUST stay unchanged.
+//   • Large window (half ≥ 3, e.g. instrument carousel 7-items): fade zone = half-1 item-units.
+//     For half=3 this gives fadeWidth=2, fadeStart=1.5 — items at d=3 fade to ~67% opacity
+//     (clearly visible), items at d=2 fade to ~95% (subtle). WHY: a 0.7-wide zone at half=3
+//     only dimmed outermost items by ~6% (opacity ~0.94) — imperceptible, Han UAT "no fade".
+//   • Medium window (half = 2, e.g. colour/percussion-kit carousels): keep the 0.7 "dunne rand"
+//     (Han #163) — only the OUTERMOST cards dim; the inner cards stay at full opacity.
 //   • Small window (half = 1, e.g. the colour carousel's 3-item layout, Han 2026-06-27 UAT): the
 //     ONLY non-centre slots sit at d=±1, and a 0.7-wide zone left them at opacity ~0.9 → "no fade".
 //     Here the fade must reach almost to the CENTRE slot, leaving just a ~0.5-unit full-opacity
 //     core, so the single peeking neighbour on each side dims toward MIN_OPACITY. edge-0.5 = 1.0
 //     for half=1 (d=1 → ~0.75). Scoped to half ≤ 1 so wider windows are untouched.
-const fadeWidthFor = (half) => (half >= 2 ? 0.7 : edgeFor(half) - 0.5);
+const fadeWidthFor = (half) => {
+    if (half >= 3) return half - 1;          // large windows: fade covers outer (half-1) item-units
+    if (half >= 2) return 0.7;               // medium windows: keep the "dunne rand" (Han #163)
+    return edgeFor(half) - 0.5;             // small windows: wide fade so single neighbour dims
+};
 const opacityForDist = (d, half = VISIBLE_HALF) => {
     const abs = Math.abs(d);
     const edge = edgeFor(half);

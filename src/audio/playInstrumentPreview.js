@@ -17,6 +17,7 @@
  * (MEMORY: AudioContext eager init, play handlers call resume before scheduling).
  */
 
+import { Soundfont, Reverb } from 'smplr';
 import playMelodies from './playMelodies';
 import Melody from '../model/Melody';
 
@@ -59,8 +60,14 @@ const playInstrumentPreview = async (staff, slug, instruments, scale, context, b
                 context.currentTime,
             );
         } else {
-            // Pitched preview: 2× speed scale (eighth notes) through the matching track instrument.
-            // Bass staff gets a bass-octave scale (one octave lower) to match its normal range.
+            // Pitched preview: 2× speed scale (eighth notes) through the NEWLY selected instrument.
+            // We create a temporary Soundfont instance with the new slug so the preview plays via
+            // the SELECTED instrument, not the old one still loaded in the track instrument instance.
+            // smplr Soundfont loads samples lazily on play, so this is fire-and-forget safe.
+            // WHY a temporary instance: the track instrument (instruments.treble/bass/chords) still
+            // holds the PREVIOUS slug at this point — setSettings has been called but the new
+            // Soundfont isn't created until the React effect fires (async). A temporary instance
+            // ensures the user hears the instrument they just selected. (Han #163 UAT feedback.)
             let melody;
             if (staff === 'bass') {
                 // generateBassScale() lowers the scale by one octave — same as the bass staff does.
@@ -68,21 +75,19 @@ const playInstrumentPreview = async (staff, slug, instruments, scale, context, b
             } else {
                 melody = scale.toMelodyFast();
             }
-            // Instrument routing: treble → instruments.treble; bass → instruments.bass;
-            // chords → instruments.chords. The NEWLY selected slug isn't loaded yet into the
-            // instrument instance (that fires asynchronously after setSettings), so we play through
-            // the CURRENT instance — the user hears the previous instrument briefly, which is fine
-            // because the new one loads quickly and the next selection will sound correct.
-            const instrument = staff === 'bass'
-                ? instruments.bass
-                : staff === 'chords'
-                    ? instruments.chords
-                    : instruments.treble;
-            if (!instrument) return;
+            // Create a short-lived Soundfont for the preview — same construction pattern as
+            // useInstruments.js but with a small reverb for a polished preview sound. We connect
+            // directly to context.destination (not through the fader) because this is a transient
+            // preview, not a sequenced track instrument. Reverb matches treble/chords mix (0.1).
+            const previewInst = new Soundfont(context, {
+                instrument: slug,
+                destination: context.destination,
+            });
+            previewInst.output.addEffect('reverb', new Reverb(context), 0.1);
 
             playMelodies(
                 [melody],
-                [instrument],
+                [previewInst],
                 context,
                 bpm,
                 context.currentTime,
