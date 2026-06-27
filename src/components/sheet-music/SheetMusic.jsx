@@ -226,6 +226,10 @@ const SheetMusic = ({
   onNoteEnharmonicToggle = null, // (staff: string, absoluteOffset: number) => void — toggles a note's accidental spelling
   blockMeasureStart = 1,   // 1-indexed song measure number of the first measure in this block
   blockPlayStart = 0,      // sequence startMeasureIndex when this block was first played (for repeat suffix R)
+  // INSTRUMENT PREVIEW (Han #163 AC2): fires on every instrument carousel select.
+  // App provides this callback — it plays a 2×-speed scale or percussion pattern
+  // through the matching instrument instance. Passed through to InstrumentStaffOverlay.
+  onPreviewInstrument = null, // (staff: string, slug: string) => void
 }) => {
   // ── Context-provided values (formerly props) ──────────────────────────────
   const { treble: trebleMelody, bass: bassMelody, percussion: percussionMelody,
@@ -2851,6 +2855,7 @@ const SheetMusic = ({
                       trebleInstrument={trebleSettings?.instrument || 'acoustic_grand_piano'}
                       bassInstrument={bassSettings?.instrument || 'acoustic_grand_piano'}
                       percussionKit={percussionSettings?.instrument || 'FreePats Percussion'}
+                      chordInstrument={chordSettings?.instrument || 'acoustic_guitar_nylon'}
                       onSetInstrument={(staff, slug) => {
                         const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
                         if (setter) setter(prev => ({ ...prev, instrument: slug }));
@@ -2858,6 +2863,9 @@ const SheetMusic = ({
                       // Percussion-kit pick (Task D): write percussionSettings.instrument via the
                       // SAME setter the rest of the app uses (mirrors the treble/bass path above).
                       onSetPercussionKit={(kitId) => setPercussionSettings(prev => ({ ...prev, instrument: kitId }))}
+                      // Chord instrument row (Han #163 AC3): writes chordSettings.instrument.
+                      onSetChordInstrument={(slug) => setChordSettings(prev => ({ ...prev, instrument: slug }))}
+                      onPreviewInstrument={onPreviewInstrument}
                       debugMode={debugMode}
                     />
                   )}

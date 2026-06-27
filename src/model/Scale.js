@@ -51,6 +51,23 @@ class Scale {
     );
   }
 
+  /**
+   * Creates a Melody from the scale notes with uniform EIGHTH-note durations (2× speed).
+   * Used by the instrument preview (Han #163 AC2) — plays the scale fast so the user
+   * hears the instrument timbre immediately on carousel select.
+   * Duration = 6 ticks (half of the 12-tick quarter note), keeping the same BPM reference.
+   */
+  toMelodyFast() {
+    const n = this.notes.length;
+    const duration = 6; // eighth note in 48th-note units (2× speed of toMelody())
+    return new Melody(
+      this.notes,
+      new Array(n).fill(duration),
+      Array.from({ length: n }, (_, i) => i * duration),
+      this.displayNotes
+    );
+  }
+
   generateBassScale() {
     function lowerOctave(note) {
       const noteParts = note.match(/([^0-9]+)(\d+)/);

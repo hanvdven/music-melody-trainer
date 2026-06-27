@@ -30,9 +30,9 @@ import { PERCUSSION_KIT_CATEGORIES, percussionKitLabel } from '../../../audio/dr
 // the base (33) is still visible for future tweaks. Card spacing (BASE) is unchanged — the larger
 // icon (~38) still clears the BASE=56 slot stride comfortably, so no clipping.
 const ICON = 33 * 1.15;
-// Per-item slot stride (user units). Widened +40% (Han 2026-06-17): the visible window is
-// ~5 * BASE wide.
-const BASE = 56;
+// Per-item slot stride (user units). Widened from 56 → 64 (Han #163): +14%, conservative step,
+// multiple of 4 per design-principles §3. Adds a bit more breathing room between cards.
+const BASE = 64;
 // Vertical anchors relative to the staff top line (staff body spans staffStart..+40).
 const ICON_DY = 4;        // icon sits centred on the staff body
 const NAME_DY = 58;       // name below the bottom staff line
@@ -177,6 +177,9 @@ const StaffCarousel = ({
     iconUrlOf = (it) => getInstrumentIconUrl(it.slug),
     colorCategoryOf = (it) => it.family,         // category → tint var
     onSelect,                                    // (item) => void
+    // AUDIO PREVIEW (Han #163 Q1: "a" — fires on every carousel select / drag-settle).
+    // Caller (InstrumentStaffOverlay) passes onPreview down from App via SheetMusic.
+    onPreview,                                   // (item) => void, optional
     visibleHalf = INSTRUMENT_VISIBLE_HALF,
 }) => {
     const edgeX = edgeXFor(visibleHalf);
@@ -258,8 +261,24 @@ const StaffCarousel = ({
         const color = active
             ? categoryColorVar(colorCategoryOf(item), 'var(--text-primary)')
             : 'var(--text-lowlight)';
+        // ACTIVE CATEGORY PILL (Han #163 AC1): a rounded-rect behind the active card's icon+label
+        // filled with the category colour at low opacity. Per design spec: x offset inside the slot
+        // by 4px each side; y spans from the hit-top region through the name row; fillOpacity 0.18,
+        // strokeOpacity 0.5, strokeWidth 0.5. Zero hardcoded hex — all via categoryColorVar (§6c).
+        const pillColor = active
+            ? categoryColorVar(colorCategoryOf(item), 'var(--button-passive)')
+            : null;
+        const pillW = BASE - 8;
+        const pillH = HIT_H - 8;
+        const pillX = -pillW / 2;
+        const pillY = staffStart + HIT_TOP + 4;
         return (
             <g style={{ pointerEvents: 'none' }}>
+                {active && pillColor && (
+                    <rect x={pillX} y={pillY} width={pillW} height={pillH} rx={4}
+                        fill={pillColor} fillOpacity={0.18}
+                        stroke={pillColor} strokeOpacity={0.5} strokeWidth={0.5} />
+                )}
                 {/* icons8 PNG centred on the staff (Han 2026-06-17). SVG-native <image> so it
                     composites/fades with the morph group opacity (no <foreignObject>). The icons
                     are flat-black, so the theme filter (--instrument-icon-filter: invert on dark
@@ -320,7 +339,12 @@ const StaffCarousel = ({
             <NonLinearCarousel
                 items={items} activeIndex={activeIndex} renderItem={renderItem}
                 centerX={centerX} y={staffStart + HIT_TOP} baseWidth={BASE} height={HIT_H}
-                onSelect={(item) => onSelect?.(item)}
+                onSelect={(item) => {
+                    onSelect?.(item);
+                    // AUDIO PREVIEW (Han #163 Q1: fires on every select — tap OR drag-settle).
+                    // Fires after onSelect so the instrument state is updated before the preview plays.
+                    onPreview?.(item);
+                }}
                 onPosChange={updateHeaders}
                 // 7 visible (3 each side + centre) for instruments — Han 2026-06-19 wanted more in
                 // view. The kit carousel passes a smaller half (fewer kits). "Same card size,
@@ -332,14 +356,32 @@ const StaffCarousel = ({
     );
 };
 
+// CHORD INSTRUMENT ROW (Han #163 AC3): flat item list for the chord track carousel.
+// Uses the same ITEMS as the pitched staves (same GM Soundfont slug set) so the same
+// instruments that work for treble/bass can be selected for chords. No per-consumer
+// special-casing — the SAME StaffCarousel + ITEMS drives all four rows (§6d, §6c).
+// Default instrument: acoustic_guitar_nylon (per defaultChordInstrumentSettings).
+const DEFAULT_CHORD_INSTRUMENT = 'acoustic_guitar_nylon';
+
+// Artificial staff Y for the chord carousel: sits below the bottom-most staff in the overlay.
+// The caller passes `chordCarouselY` (derived from the overlay layout). We fall back to a fixed
+// offset below the attribution line if the caller doesn't provide it — safe default.
+const CHORD_STAFF_EXTRA_OFFSET = 80; // user-units below the last staff's NAME_DY + attribution
+
 const InstrumentStaffOverlay = ({
     startX, endX,
     trebleStart, bassStart, percussionStart,
     isTrebleVisible, isBassVisible, isPercussionVisible = false,
     trebleInstrument, bassInstrument,
     percussionKit,              // percussionSettings.instrument (the active kit id)
+    // CHORD INSTRUMENT ROW (Han #163 AC3): always visible in all settings views.
+    chordInstrument,            // chordSettings.instrument (the active chord instrument slug)
+    onSetChordInstrument,       // (slug) => void
     onSetInstrument,            // (staff, slug) => void
     onSetPercussionKit,         // (kitId) => void
+    // AUDIO PREVIEW (Han #163 AC2 + Q1: fires on carousel select — drag settle OR tap).
+    // App provides this callback; it plays a 2x-speed scale or percussion pattern for the item.
+    onPreviewInstrument,        // (staff, slug) => void, optional
     debugMode = false,
 }) => {
     if (startX == null || endX == null) return null;
@@ -349,20 +391,27 @@ const InstrumentStaffOverlay = ({
     const centerX = startX + (endX - startX) / 2;
 
     // The attribution line sits under the bottom-most visible carousel. Percussion is below bass,
-    // bass below treble — pick the lowest visible staff start.
+    // bass below treble — pick the lowest visible staff start. The chord row sits below all of
+    // them, always visible (Han #163 Q3 correction: chord row always visible in all settings).
     const bottomStart = isPercussionVisible && percussionStart != null ? percussionStart
         : isBassVisible ? bassStart : trebleStart;
+
+    // The chord carousel lives below the attribution text of the last staff.
+    // We place it at bottomStart + NAME_DY + attribution height + gap.
+    const chordCarouselStart = bottomStart + NAME_DY + 13 + 20;
 
     return (
         <g className="instrument-overlay" onClick={(e) => e.stopPropagation()}>
             {isTrebleVisible && (
                 <StaffCarousel staffStart={trebleStart} currentId={trebleInstrument}
                     centerX={centerX} onSelect={(item) => onSetInstrument('treble', item.slug)}
+                    onPreview={(item) => onPreviewInstrument?.('treble', item.slug)}
                     debugMode={debugMode} />
             )}
             {isBassVisible && (
                 <StaffCarousel staffStart={bassStart} currentId={bassInstrument}
                     centerX={centerX} onSelect={(item) => onSetInstrument('bass', item.slug)}
+                    onPreview={(item) => onPreviewInstrument?.('bass', item.slug)}
                     debugMode={debugMode} />
             )}
             {/* PERCUSSION-KIT carousel (Han 2026-06-22, Task D): same NonLinearCarousel + bracket
@@ -382,6 +431,7 @@ const InstrumentStaffOverlay = ({
                     colorCategoryOf={(it) => it.family}
                     visibleHalf={PERC_KIT_VISIBLE_HALF}
                     centerX={centerX} onSelect={(item) => onSetPercussionKit?.(item.id)}
+                    onPreview={(item) => onPreviewInstrument?.('percussion', item.id)}
                     debugMode={debugMode} />
             )}
             {/* icons8 attribution/licence (MANDATORY) — centred DIRECTLY BELOW the (bottom) carousel
@@ -392,6 +442,22 @@ const InstrumentStaffOverlay = ({
                 style={{ pointerEvents: 'none' }}>
                 {ICON_ATTRIBUTION}
             </text>
+            {/* CHORD INSTRUMENT ROW (Han #163 AC3): always visible — the chord staff carousel sits
+                below the attribution line, regardless of chord-staff visibility. Han Q3 correction:
+                "chord row altijd zichtbaar in alle settings". Uses the same ITEMS + StaffCarousel
+                as the other rows (§6d, no per-row hacks). A "Chords" label sits above it. */}
+            <text x={centerX} y={chordCarouselStart - 6}
+                textAnchor="middle" fontSize={9} fontFamily="sans-serif" fontWeight="bold"
+                fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
+                CHORDS
+            </text>
+            <StaffCarousel
+                staffStart={chordCarouselStart}
+                currentId={chordInstrument || DEFAULT_CHORD_INSTRUMENT}
+                centerX={centerX}
+                onSelect={(item) => onSetChordInstrument?.(item.slug)}
+                onPreview={(item) => onPreviewInstrument?.('chords', item.slug)}
+                debugMode={debugMode} />
         </g>
     );
 };
