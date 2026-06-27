@@ -32,6 +32,8 @@ interface Task {
   done_when: string | null;
   // #244: interview questions; JSON array of { id, question, options[], selectedOption?, freeText? }
   interviews?: string | null;
+  // #246: task dependencies; JSON array of { id, targetId, type, createdAt }
+  dependencies?: string | null;
   created_at: string;
   started_at: string | null;
   planned_at: string | null;
@@ -2080,6 +2082,29 @@ async function loadGraphView() {
     euv:             "#e11d48",
     plc:             "#e11d48",
     schema:          "#64748b",
+    // music-melody-trainer domain tags
+    feature:         "#818cf8",
+    generation:      "#a78bfa",
+    notation:        "#34d399",
+    "sheet-music":   "#34d399",
+    audio:           "#f59e0b",
+    playback:        "#fb923c",
+    animation:       "#38bdf8",
+    gamification:    "#f472b6",
+    lessons:         "#c084fc",
+    chords:          "#4ade80",
+    "range-setter":  "#22d3ee",
+    "tech-debt":     "#94a3b8",
+    "audit-finding": "#64748b",
+    "arch-violation":"#ef4444",
+    "song-load":     "#fbbf24",
+    percussion:      "#f97316",
+    input:           "#a3e635",
+    "react-hooks":   "#61dafb",
+    timing:          "#e879f9",
+    "error-handling":"#f87171",
+    "test-coverage": "#86efac",
+    debug:           "#fdba74",
   };
   // Priority weight for dominant topic selection
   const TOPIC_PRIORITY_ORDER = [
@@ -2094,6 +2119,11 @@ async function loadGraphView() {
     "performance","cache","migration","maps","gps",
     "visualization","dashboard","canvas","graph","chart","modal",
     "refactor","kanban","obsidian","cycling-data","euv","plc","schema",
+    // music-melody-trainer domain tags (ordered: most differentiating first)
+    "arch-violation","p0","audio","playback","animation","generation","notation",
+    "sheet-music","chords","range-setter","gamification","lessons","percussion",
+    "input","timing","song-load","tech-debt","audit-finding","feature",
+    "react-hooks","error-handling","test-coverage","debug",
   ];
   function dominantTopic(tags: string[]): string | null {
     const lower = tags.map((t) => t.toLowerCase());
@@ -2161,6 +2191,8 @@ async function loadGraphView() {
       target: number;
       tag: string;
       sharedCount: number;
+      // dependency links have depType set ('s-f' or 'f-f'); tag-based links have depType null
+      depType?: string | null;
     }
 
     const q = currentSearch.toLowerCase().replace(/^#/, "");
@@ -2208,8 +2240,32 @@ async function loadGraphView() {
           const key = `${a}-${b}`;
           if (!linkSet.has(key)) {
             linkSet.add(key);
-            links.push({ source: a, target: b, tag, sharedCount: pairTagCount.get(key) || 1 });
+            links.push({ source: a, target: b, tag, sharedCount: pairTagCount.get(key) || 1, depType: null });
           }
+        }
+      }
+    }
+
+    // Build dependency edges (#246): explicit s-f / f-f links between tasks.
+    // These override or supplement tag-based edges and are drawn in a distinct color.
+    const nodeIds = new Set(nodes.map((n) => n.id));
+    for (const task of tasksForGraph) {
+      if (!task.dependencies) continue;
+      let deps: Array<{ id: number | string; targetId: number; type: string }>;
+      try {
+        deps = JSON.parse(task.dependencies);
+      } catch {
+        continue;
+      }
+      for (const dep of deps) {
+        const from = task.id;
+        const to = dep.targetId;
+        // Only draw if both ends are in the current graph view
+        if (!nodeIds.has(from) || !nodeIds.has(to)) continue;
+        const depKey = `dep-${from}-${to}`;
+        if (!linkSet.has(depKey)) {
+          linkSet.add(depKey);
+          links.push({ source: from, target: to, tag: dep.type, sharedCount: 1, depType: dep.type });
         }
       }
     }
@@ -2334,8 +2390,20 @@ async function loadGraphView() {
           ${tagsHtml}`;
         tooltip.style.display = "block";
       })
-      .linkColor((link: GraphLink) => TOPIC_COLORS[link.tag.toLowerCase()] ?? "#334155")
-      .linkWidth((link: GraphLink) => Math.min(1.5 + (link.sharedCount - 1) * 0.8, 4))
+      .linkColor((link: GraphLink) => {
+        // Dependency links: bright amber (s-f) or rose (f-f) so they stand out
+        if (link.depType === "s-f") return "#f59e0b";
+        if (link.depType === "f-f") return "#f43f5e";
+        // Tag-based links: use topic color if known, else a visible mid-slate
+        return TOPIC_COLORS[link.tag.toLowerCase()] ?? "#475569";
+      })
+      .linkWidth((link: GraphLink) => {
+        // Dependency links are thicker and always visible
+        if (link.depType) return 2.5;
+        return Math.min(1.5 + (link.sharedCount - 1) * 0.8, 4);
+      })
+      .linkDirectionalArrowLength((link: GraphLink) => link.depType ? 6 : 0)
+      .linkDirectionalArrowRelPos(1)
       .d3AlphaDecay(0.02)
       .d3VelocityDecay(0.3)
       .warmupTicks(100)
@@ -2346,17 +2414,23 @@ async function loadGraphView() {
 
     graphInstance = graph as unknown as GraphInstanceAPI;
 
-    // Topic legend — show only topics actually present in this graph
+    // Legend: topic colors + dependency link types (always show if any dep links exist)
     const presentTopics = new Set(nodes.flatMap((n) => n.tags.map((t) => t.toLowerCase())));
     const legendTopics = TOPIC_PRIORITY_ORDER
       .filter((t) => presentTopics.has(t) && t in TOPIC_COLORS)
-      .slice(0, 16);
-    if (legendTopics.length > 0) {
+      .slice(0, 14);
+    const hasSF = links.some((l) => l.depType === "s-f");
+    const hasFF = links.some((l) => l.depType === "f-f");
+    if (legendTopics.length > 0 || hasSF || hasFF) {
       const legend = document.createElement("div");
       legend.className = "graph-legend";
-      legend.innerHTML = legendTopics
+      let legendHtml = legendTopics
         .map((t) => `<div class="graph-legend-item"><span style="background:${TOPIC_COLORS[t]}"></span>${t}</div>`)
         .join("");
+      // Dependency link type legend entries use a line swatch instead of a dot
+      if (hasSF) legendHtml += `<div class="graph-legend-item"><span style="background:#f59e0b"></span>s-f dep</div>`;
+      if (hasFF) legendHtml += `<div class="graph-legend-item"><span style="background:#f43f5e"></span>f-f dep</div>`;
+      legend.innerHTML = legendHtml;
       el.appendChild(legend);
     }
 
