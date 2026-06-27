@@ -31,9 +31,12 @@ const NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
 // Per-item slot stride (user units) — narrower carousel per Han 2026-06-27 feedback.
 // Reduced from 134 → 115 (about 15%) to make carousel more compact.
 // Further reduced to 100 (Han 2026-06-27): to show exactly 3 color schemes (left peek + center + right peek),
-// we pass visibleHalf={1} to NonLinearCarousel (3 total). The 100px stride keeps items well-spaced
-// within the typical 350px window while maintaining compact layout.
-const BASE = 100;
+// we pass visibleHalf={1} to NonLinearCarousel (3 total).
+// Bumped back to 115 (Han 2026-06-27 UAT: "maak de overlap wat kleiner"): each scheme's example
+// run is (8-1)*NOTE_SPACING = 112px wide, so a 100px stride OVERLAPPED adjacent items by ~12px.
+// A 115px stride spaces the item centres just past the run width → visible separation while still
+// peeking the two neighbours (3 schemes on screen).
+const BASE = 115;
 // x-gap between the example noteheads within one scheme item. Increased 11 → 16 (Han 2026-06-27):
 // add more horizontal space between notes for clarity while keeping carousel narrower overall.
 const NOTE_SPACING = 16;
