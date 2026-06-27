@@ -10,6 +10,7 @@ import { modulateMelody, transposeNoteBySemitones } from './theory/musicUtils';
 import { respellToKeySignature, getNoteSemitone, stripOctave } from './theory/noteUtils';
 import { getTranspositionSemitones, getTranspositionFifths, getTranspositionLabel } from './constants/transposingInstruments';
 import Sequencer from './audio/Sequencer';
+import playInstrumentPreview from './audio/playInstrumentPreview';
 import Melody from './model/Melody';
 import ChordProgression from './model/ChordProgression';
 import ErrorBoundary from './components/error/ErrorBoundary';
@@ -397,6 +398,20 @@ const App = () => {
         context, instruments, customPercussionMappingRef, sequencerRef,
         trebleMelody, bassMelody, setTrebleMelody, setBassMelody,
     });
+
+    // INSTRUMENT PREVIEW (Han #163 AC2): plays a short 2×-speed scale or drum pattern
+    // when the user selects a new instrument in the carousel. scale + bpm + instruments
+    // are all live values captured at call time (via refs for the closure). The callback is
+    // memoized on stable refs so sheetMusicCommonProps doesn't re-create on every render.
+    const scaleRef_preview = scaleRef;  // alias to be explicit in the memo deps comment below
+    const handlePreviewInstrument = useCallback((staff, slug) => {
+        // `scale` is captured via scaleRef so this callback never goes stale without needing
+        // to be recreated. Same pattern as other sequencer callbacks that read scaleRef.current.
+        playInstrumentPreview(staff, slug, instruments, scaleRef_preview.current, context, bpm);
+    // instruments and context are stable references (created once, never replaced); bpm and
+    // scaleRef_preview.current are read at call time from stable refs — no stale closure risk.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [instruments, context, bpm]);
 
     // Universal transition key (Han 2026-06-16). Bumped by `fireTransition` on each
     // transition TRIGGER; the sheet-music surface watches it (via UniversalTransitionContext)
@@ -1344,6 +1359,8 @@ const App = () => {
         onEnharmonicToggle: handleEnharmonicToggle,
         onMeasureNumberClick: null,
         onNoteEnharmonicToggle: handleNoteEnharmonicToggle,
+        // INSTRUMENT PREVIEW (Han #163): fires on every instrument carousel select.
+        onPreviewInstrument: handlePreviewInstrument,
     // rubatoEventHistoryRef and rubatoScrollAnchorRef are refs — stable identities; .current
     // written inside closures at call-time only. Adding them re-creates this memo on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1358,7 +1375,7 @@ const App = () => {
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously, isPlaying,
         showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
         handleNoteClick, handleChordClick, handleEnharmonicToggle, handleMeasureNumberClick,
-        handleNoteEnharmonicToggle]);
+        handleNoteEnharmonicToggle, handlePreviewInstrument]);
 
     return (
         <ProfileProvider>

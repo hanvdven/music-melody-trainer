@@ -80,11 +80,23 @@ const edgeFor = (half) => half + 0.5;
 // call site) so the single-source-of-truth shape is preserved and the constant can be tuned in
 // one place. Affects BOTH the instrument and colour carousels (intended — shared primitive).
 const scaleForDist = () => 1;
+// OPACITY FLOOR (Han #163): items at the carousel edge fade to MIN 0.5 opacity (not 0) so they
+// remain visible as a "there's more" cue. Items outside the visible window stay fully hidden.
+// THIN FADE BORDER (Han #163 Q5 answer "dunne fade rand"): fade starts close to the window edge
+// (FADE_WIDTH item-slots inward) and ramps from 1→MIN_OPACITY over that narrow zone only.
 // `half` defaults to VISIBLE_HALF so the exported helper keeps working for default-window callers.
+const MIN_OPACITY = 0.5;
+const FADE_WIDTH = 0.7; // narrow fade zone (item-units) — "dunne rand"
 const opacityForDist = (d, half = VISIBLE_HALF) => {
-    const t = clamp(Math.abs(d) / edgeFor(half), 0, 1);
-    // 1.0 at centre → 0 at the edge, eased — the ONLY edge cue now that scale is flat.
-    return 1 - easeInOut(t);
+    const abs = Math.abs(d);
+    const edge = edgeFor(half);
+    // Outside the visible window: fully hidden so off-screen items don't intercept anything.
+    if (abs >= edge) return 0;
+    // Within the fade zone: ramp smoothly from 1 → MIN_OPACITY. Outside it: stay at 1.
+    const fadeStart = edge - FADE_WIDTH;
+    if (abs <= fadeStart) return 1;
+    const t = (abs - fadeStart) / FADE_WIDTH;
+    return MIN_OPACITY + (1 - MIN_OPACITY) * (1 - easeInOut(t));
 };
 // Horizontal position of an item at fractional distance `d` from centre. LINEAR (Han 2026-06-18):
 // every item occupies exactly one base-width slot, evenly spaced — x === d. WHY: with the shrink
@@ -141,8 +153,8 @@ export default function NonLinearCarousel({
             // right of items near index N-1 — the ring loops with no clamp at the ends.
             const d = signedDist(i, wp, N);
             const op = opacityForDist(d, visibleHalf);
-            if (op <= 0.001) {
-                // Fully faded — park it transparent (and don't bother positioning precisely).
+            if (op <= 0) {
+                // Outside the visible window — park it transparent so it never intercepts anything.
                 g.style.opacity = '0';
                 continue;
             }
