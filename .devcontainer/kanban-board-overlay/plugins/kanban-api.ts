@@ -103,6 +103,7 @@ function summarizeBoardTask(task: Task) {
     created_at: task.created_at,
     completed_at: task.completed_at,
     note_count: parseJsonArray(task.notes).length,
+    dependency_count: parseJsonArray(task.dependencies).length,
     last_review_status: getLastStatus(task.review_comments),
     last_plan_review_status: getLastStatus(task.plan_review_comments),
   };
