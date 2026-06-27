@@ -1408,14 +1408,14 @@ async function showTaskDetail(id: number, project?: string) {
             <div class="interview-free-text">
               <label class="interview-option">
                 <input type="radio" name="interview-q${qi}" value="__other__"
-                  ${!q.selectedOption || q.freeText ? 'checked' : ''}
+                  ${!q.selectedOption && q.freeText ? 'checked' : ''}
                   data-q-id="${q.id}" data-q-idx="${qi}" class="interview-radio" />
                 <span>Other (please explain):</span>
               </label>
               <textarea class="interview-textarea" data-q-id="${q.id}" data-q-idx="${qi}"
                 rows="2" placeholder="Your answer...">${freeTextVal}</textarea>
             </div>
-            ${q.selectedOption ? `<div class="interview-answer-saved">\u2713 Saved: ${q.selectedOption}${q.freeText ? ' \u2014 ' + q.freeText : ''}</div>` : ''}
+            ${(q.selectedOption || q.freeText) ? `<div class="interview-answer-saved">\u2713 Saved: ${q.selectedOption || 'Other'}${q.freeText ? ' \u2014 ' + q.freeText : ''}</div>` : ''}
           </div>
         `;
       }).join('');
