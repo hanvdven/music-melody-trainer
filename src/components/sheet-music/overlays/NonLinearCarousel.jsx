@@ -86,16 +86,26 @@ const scaleForDist = () => 1;
 // (FADE_WIDTH item-slots inward) and ramps from 1→MIN_OPACITY over that narrow zone only.
 // `half` defaults to VISIBLE_HALF so the exported helper keeps working for default-window callers.
 const MIN_OPACITY = 0.5;
-const FADE_WIDTH = 0.7; // narrow fade zone (item-units) — "dunne rand"
+// Fade zone width (item-units), as a function of the window half-width.
+//   • Wide windows (half ≥ 2): a narrow 0.7 "dunne rand" (Han #163) — only the OUTERMOST cards
+//     dim; the inner visible cards stay at full opacity. This is the approved instrument-carousel
+//     look and MUST stay unchanged.
+//   • Small window (half = 1, e.g. the colour carousel's 3-item layout, Han 2026-06-27 UAT): the
+//     ONLY non-centre slots sit at d=±1, and a 0.7-wide zone left them at opacity ~0.9 → "no fade".
+//     Here the fade must reach almost to the CENTRE slot, leaving just a ~0.5-unit full-opacity
+//     core, so the single peeking neighbour on each side dims toward MIN_OPACITY. edge-0.5 = 1.0
+//     for half=1 (d=1 → ~0.75). Scoped to half ≤ 1 so wider windows are untouched.
+const fadeWidthFor = (half) => (half >= 2 ? 0.7 : edgeFor(half) - 0.5);
 const opacityForDist = (d, half = VISIBLE_HALF) => {
     const abs = Math.abs(d);
     const edge = edgeFor(half);
     // Outside the visible window: fully hidden so off-screen items don't intercept anything.
     if (abs >= edge) return 0;
     // Within the fade zone: ramp smoothly from 1 → MIN_OPACITY. Outside it: stay at 1.
-    const fadeStart = edge - FADE_WIDTH;
+    const fadeWidth = fadeWidthFor(half);
+    const fadeStart = edge - fadeWidth;
     if (abs <= fadeStart) return 1;
-    const t = (abs - fadeStart) / FADE_WIDTH;
+    const t = (abs - fadeStart) / fadeWidth;
     return MIN_OPACITY + (1 - MIN_OPACITY) * (1 - easeInOut(t));
 };
 // Horizontal position of an item at fractional distance `d` from centre. LINEAR (Han 2026-06-18):
