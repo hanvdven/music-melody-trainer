@@ -4168,3 +4168,33 @@ isAxisOptionEnabled, configFromAxes; presets now axes+extra; rubato-ear entry re
 `overlays/ExerciseStaffOverlay.jsx` (icon cards, 4 axis rows w/ §3a hit boxes, START),
 `src/App.jsx` (exerciseAxes state, handleExerciseAxisChange, handleStartExercise),
 `SheetMusic.jsx` (prop pass-through).
+
+### §44b. Exercise setter rework 2 — carousels everywhere, header START, 'until correct' (Han 2026-07-02)
+
+**Symptom (UAT on §44a):** the axis rows were hand-rolled flat tap-option lists — "heel
+klassiek… niet in lijn met claude.md en style guide" — a §6d violation; START only lived in the
+overlay; 'until correct' was a private evaluation value instead of part of the repeats parameter.
+
+**Changes:**
+- **Every axis is a `NonLinearCarousel`** (the §6d canonical primitive) — MELODY, INPUT, TEMPO,
+  REPEAT stacked vertically, all text ALL CAPS.
+- **Input axis reduced to READ | HEAR** (Han: "schrap 'hear'; hernoem 'replay' → hear") — READ =
+  notes visible, HEAR = play back by ear (notes hidden). Pure listening is gone, so START always
+  enters input-test 'note' mode, and the HEAR×RUBATO/HEAR×UNTIL constraints disappeared
+  (`normalizeAxes`/`isAxisOptionEnabled` deleted).
+- **REPEAT axis = the existing repsPerMelody option list** `['until', 1, 2, 4, 6, 8, ∞]` with
+  'until correct' LEFTMOST as a **BadgeCheck** icon (Han asked for lucide `star-check`; it does
+  not exist in the installed lucide-react 0.563 — BadgeCheck approved as replacement).
+- **'until correct' storage:** `playbackConfig.untilCorrect: true` + `repsPerMelody: Infinity` —
+  the Sequencer's repeat arithmetic stays numeric (Infinity already means "never stop" at its
+  iteration check; NO Sequencer edits). The PLAYBACK setter's repeats stepper cycles the same
+  extended list and shows ✓ for 'until'. In the input test, `useInputTest` tracks
+  `melodyHadErrorRef`: with untilCorrect on, finishing a melody that had ANY wrong note restarts
+  the SAME melody from its first note; only a flawless pass regenerates. `melodyComplete` is
+  still emitted per pass, so the ELO rating counts every attempt. Full scored run: #267.
+- **START also in the AppHeader** (Dumbbell, accent-yellow, always visible — Han's call), next to
+  the generate button; both START buttons call `App.handleStartExercise`.
+
+**Files:** `src/exercises/exerciseIndex.js`, `overlays/ExerciseStaffOverlay.jsx`,
+`overlays/SettingsOverlay.jsx` (repeats cycle + ✓), `src/hooks/useInputTest.js`
+(melodyHadErrorRef + restart branch), `src/components/layout/AppHeader.jsx`, `src/App.jsx`.

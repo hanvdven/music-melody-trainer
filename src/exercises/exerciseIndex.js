@@ -3,18 +3,20 @@
  *
  * Han's model (chat 2026-07-02): an exercise is defined by four AXES —
  *   melodyType  — what gets generated: scales | melodies | chords
- *   input       — what the user does:  read (sight) | hear (listen) | replay (play back)
+ *   input       — what the user does: read (sight, notes visible) | hear (play
+ *                 back by ear, notes hidden). Pure listening was dropped.
  *   tempo       — fixed | rubato ("rubato is instelbaar via tempo")
- *   evaluation  — 'until' (tot het goed is) | 1 | 2 | 4 (repeat count)
+ *   evaluation  — 'until' (tot het goed is) | 1 | 2 | 4 | 6 | 8 | ∞ — the SAME
+ *                 option list as the PLAYBACK repeats setter (repsPerMelody)
  * The named exercises below are PRESETS: choosing one sets the axes (plus an
  * `extra` fine-tune patch); every axis stays individually adjustable in the
  * setter afterwards, so e.g. a "rubato scale run" = Scale Runs + tempo RUBATO.
  *
  * `configFromAxes` maps axes onto EXISTING settings only (CLAUDE.md §6b/§6c):
- * notePool/randomizationRule on trebleSettings, repsPerMelody + round eyes on
- * playbackConfig, and the isRubato play-mode flag. No new generation logic.
- * START behaviour (hear → continuous playback, read/replay → input test) lives
- * in App.handleStartExercise, not here — the registry stays data-only.
+ * notePool/randomizationRule on trebleSettings, repsPerMelody/untilCorrect +
+ * round eyes on playbackConfig, and the isRubato play-mode flag. No new
+ * generation logic. START behaviour (input test 'note' mode for both inputs)
+ * lives in App.handleStartExercise, not here — the registry stays data-only.
  */
 import {
     AudioLines, Layers, Zap, Activity, Ear, BookOpenCheck,
@@ -27,20 +29,27 @@ export const AXES = {
         { value: 'melodies', label: 'MELODIES' },
         { value: 'chords', label: 'CHORDS' },
     ],
+    // Han 2026-07-02: pure listening dropped as an input; 'hear' = play back BY
+    // EAR (blind input test) — the old 'replay'.
     input: [
         { value: 'read', label: 'READ' },
         { value: 'hear', label: 'HEAR' },
-        { value: 'replay', label: 'REPLAY' },
     ],
     tempo: [
         { value: 'fixed', label: 'FIXED' },
         { value: 'rubato', label: 'RUBATO' },
     ],
+    // Same option list as the PLAYBACK repeats setter (repsPerMelody), with
+    // 'until correct' LEFTMOST (Han 2026-07-02, BadgeCheck icon — star-check
+    // does not exist in the installed lucide version).
     evaluation: [
-        { value: 'until', label: 'UNTIL CORRECT' },
+        { value: 'until', label: null, isUntil: true },
         { value: 1, label: '×1' },
         { value: 2, label: '×2' },
         { value: 4, label: '×4' },
+        { value: 6, label: '×6' },
+        { value: 8, label: '×8' },
+        { value: Infinity, label: '∞' },
     ],
 };
 
@@ -48,28 +57,6 @@ export const AXIS_ORDER = ['melodyType', 'input', 'tempo', 'evaluation'];
 export const AXIS_LABELS = {
     melodyType: 'MELODY', input: 'INPUT', tempo: 'TEMPO', evaluation: 'REPEAT',
 };
-
-/**
- * Axis-combination constraints (v1): listening can be neither rubato (the
- * accompaniment follows YOUR playing — there is nothing to follow when only
- * listening) nor "until correct" (nothing is evaluated). Returns a corrected
- * copy rather than rejecting, so the UI can simply apply and re-render.
- */
-export function normalizeAxes(axes) {
-    const next = { ...axes };
-    if (next.input === 'hear') {
-        if (next.tempo === 'rubato') next.tempo = 'fixed';
-        if (next.evaluation === 'until') next.evaluation = 2;
-    }
-    return next;
-}
-
-// Which options are selectable given the other axes — the setter dims the rest.
-export function isAxisOptionEnabled(axes, axis, value) {
-    if (axes.input === 'hear' && axis === 'tempo' && value === 'rubato') return false;
-    if (axes.input === 'hear' && axis === 'evaluation' && value === 'until') return false;
-    return true;
-}
 
 // melodyType → generator settings. 'melodies' = free weighted melody;
 // 'scales' = stepwise runs (arp_group walks the pool in lines);
@@ -82,20 +69,23 @@ const MELODY_TYPE_TREBLE = {
 
 /**
  * Axes → declarative config patch (same shape applyExerciseConfig consumes).
- * input: READ shows notes; REPLAY hides them (play by ear — blind mode);
- * HEAR keeps notes visible while listening.
+ * input: READ shows the notes (sight); HEAR hides them (play back by ear).
+ * evaluation 'until' → repsPerMelody: Infinity + untilCorrect flag: the
+ * Sequencer's repeat arithmetic stays purely numeric (Infinity already means
+ * "never stop" at the iteration check); the input test reads untilCorrect to
+ * regenerate only after a flawless completion. Full scoring: ticket #267.
  */
-export function configFromAxes(rawAxes) {
-    const axes = normalizeAxes(rawAxes);
-    const reps = axes.evaluation === 'until' ? 2 : axes.evaluation;
+export function configFromAxes(axes) {
+    const until = axes.evaluation === 'until';
     return {
         isRubato: axes.tempo === 'rubato',
         treble: { ...MELODY_TYPE_TREBLE[axes.melodyType] },
         playback: {
-            repsPerMelody: reps,
+            repsPerMelody: until ? Infinity : axes.evaluation,
+            untilCorrect: until,
             randomize: { melody: true },
-            oddRounds: { treble: axes.input === 'read' ? 0 : 1, trebleEye: true, notes: axes.input !== 'replay' },
-            evenRounds: { treble: 1, trebleEye: true, notes: axes.input !== 'replay' },
+            oddRounds: { treble: 1, trebleEye: true, notes: axes.input === 'read' },
+            evenRounds: { treble: 1, trebleEye: true, notes: axes.input === 'read' },
         },
     };
 }
@@ -141,7 +131,7 @@ export const EXERCISES = [
         title: 'EAR TRAINING',
         description: 'Hear it, then play it back by ear.',
         Icon: Ear,
-        axes: { melodyType: 'chords', input: 'replay', tempo: 'fixed', evaluation: 2 },
+        axes: { melodyType: 'chords', input: 'hear', tempo: 'fixed', evaluation: 2 },
         extra: { bpm: 80, treble: { randomizationRule: 'uniform', rhythmVariability: 10, notesPerMeasure: 4 } },
     },
     {

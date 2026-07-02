@@ -374,19 +374,27 @@ const SettingsOverlay = ({
           x={0}
           y={0}
           valueDy={-3}
-          value={playbackConfig.repsPerMelody === Infinity ? 'À' : playbackConfig.repsPerMelody}
+          // 'until correct' (#266, Han 2026-07-02) is the LEFTMOST repeat option:
+          // stored as { untilCorrect: true, repsPerMelody: Infinity } so the
+          // Sequencer's repeat arithmetic stays numeric. Shown as ✓ here; the
+          // exercise setter's carousel shows the BadgeCheck icon.
+          value={playbackConfig.untilCorrect ? '✓' : playbackConfig.repsPerMelody === Infinity ? 'À' : playbackConfig.repsPerMelody}
           onValueClick={() => setActiveNumberPicker?.('repeats')}
           onDecrement={() => {
-            const options = [1, 2, 4, 6, 8, Infinity];
-            const currentIndex = options.indexOf(playbackConfig.repsPerMelody);
+            const options = ['until', 1, 2, 4, 6, 8, Infinity];
+            const current = playbackConfig.untilCorrect ? 'until' : playbackConfig.repsPerMelody;
+            const currentIndex = options.indexOf(current);
             let nextIndex = currentIndex === -1 ? options.indexOf(4) : (currentIndex - 1 + options.length) % options.length;
-            setPlaybackConfig(p => ({ ...p, repsPerMelody: options[nextIndex] }));
+            const next = options[nextIndex];
+            setPlaybackConfig(p => ({ ...p, repsPerMelody: next === 'until' ? Infinity : next, untilCorrect: next === 'until' }));
           }}
           onIncrement={() => {
-            const options = [1, 2, 4, 6, 8, Infinity];
-            const currentIndex = options.indexOf(playbackConfig.repsPerMelody);
+            const options = ['until', 1, 2, 4, 6, 8, Infinity];
+            const current = playbackConfig.untilCorrect ? 'until' : playbackConfig.repsPerMelody;
+            const currentIndex = options.indexOf(current);
             let nextIndex = currentIndex === -1 ? options.indexOf(4) : (currentIndex + 1) % options.length;
-            setPlaybackConfig(p => ({ ...p, repsPerMelody: options[nextIndex] }));
+            const next = options[nextIndex];
+            setPlaybackConfig(p => ({ ...p, repsPerMelody: next === 'until' ? Infinity : next, untilCorrect: next === 'until' }));
           }}
           onInteraction={onSettingsInteraction}
         />

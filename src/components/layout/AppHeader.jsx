@@ -12,6 +12,7 @@ import {
     SkipForward,
     Bug,
     KanbanSquare,
+    Dumbbell,
 } from 'lucide-react';
 import './AppHeader.css';
 import { formatScaleName } from '../../theory/scaleHandler';
@@ -47,6 +48,7 @@ const AppHeader = ({
     isScalePlaying = false,
     progressionLabel = null,
     songTitle = null,
+    onStartExercise = null,     // #266 rework 2 (Han 2026-07-02): START always in the header
 }) => {
     const headerScale = windowWidth >= 550 ? 1 : Math.max(0.5, windowWidth / 550);
 
@@ -226,6 +228,20 @@ const AppHeader = ({
                         <Cog size={24} />
                     )}
                 </button>
+
+                {/* START EXERCISE (#266 rework 2, Han 2026-07-02: "de startknop moet
+                    óók in de header staan", always visible). Starts the currently
+                    selected exercise (input-test note mode; rubato per its tempo axis). */}
+                {onStartExercise && (
+                    <button
+                        className="tab-button secondary app-header-btn"
+                        onClick={onStartExercise}
+                        title="Start exercise"
+                        style={{ color: 'var(--accent-yellow)', outline: debugMode ? '2px solid cyan' : undefined }}
+                    >
+                        <Dumbbell size={22} />
+                    </button>
+                )}
             </div>
 
         </div>

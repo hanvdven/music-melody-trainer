@@ -1,37 +1,37 @@
 import React from 'react';
+import { BadgeCheck } from 'lucide-react';
 import NonLinearCarousel from './NonLinearCarousel';
-import { EXERCISES, AXES, AXIS_ORDER, AXIS_LABELS, isAxisOptionEnabled } from '../../../exercises/exerciseIndex';
+import { EXERCISES, AXES, AXIS_ORDER, AXIS_LABELS } from '../../../exercises/exerciseIndex';
 
-// ── In-staff EXERCISE setter (#266 rework, epic #245, Han 2026-07-02) ────────
+// ── In-staff EXERCISE setter (#266 rework 2, epic #245, Han 2026-07-02) ──────
 //
-// Layout uses the setter's full HEIGHT (Han: "gebruik de hoogte om de
-// verschillende assen instelbaar te maken"):
+// EVERYTHING here is a NonLinearCarousel (§6d — Han: "Gebruik carousels. Niet
+// in lijn met claude.md en style guide!" after the first pass hand-rolled flat
+// option rows):
 //   1. preset carousel on the top staff — lucide placeholder icon with the
-//      ALL-CAPS title below it (Han: "plaatje + tekst eronder", all carousel
-//      text all-caps per the standing CR);
-//   2. four axis rows (MELODY / INPUT / TEMPO / REPEAT) — tap an option to set
-//      that axis; options that the current combination forbids are dimmed
-//      (isAxisOptionEnabled, e.g. HEAR × RUBATO);
-//   3. a prominent START button — App decides what starting means per the
-//      input axis (hear → continuous playback, read/replay → input test).
+//      ALL-CAPS title below it;
+//   2. one carousel PER AXIS (MELODY / INPUT / TEMPO / REPEAT), stacked
+//      vertically. The REPEAT carousel reuses the PLAYBACK repeats option list
+//      (repsPerMelody) with 'until correct' LEFTMOST, shown as a BadgeCheck
+//      icon (star-check does not exist in the installed lucide version — Han
+//      approved BadgeCheck);
+//   3. a prominent START button (also mirrored in the AppHeader).
 //
-// The carousel is the shared NonLinearCarousel primitive (§6d); each axis
-// option and the START button carry §3a debug hit boxes.
+// All carousel text is ALL CAPS (standing CR). §3a hit boxes come from
+// NonLinearCarousel for the carousels and are drawn explicitly for START.
 
 // Vertical geometry relative to the host staff's top line.
 const ICON_SIZE = 20;
-const ICON_DY = 4;      // icon top, on the staff
-const TITLE_DY = 36;    // ALL-CAPS title baseline, below the icon
-const AXES_DY = 58;     // first axis row baseline
-const AXIS_ROW_H = 16;  // per-axis row spacing
-const START_DY = 126;   // START button top
+const ICON_DY = 4;       // preset icon top, on the staff
+const TITLE_DY = 36;     // preset ALL-CAPS title baseline, below the icon
+const AXES_DY = 52;      // first axis carousel centre-baseline offset
+const AXIS_ROW_H = 20;   // per-axis row spacing (carousel needs more than flat text)
+const AXIS_HIT_H = 14;   // axis carousel hit-surface height
+const START_DY = 138;    // START button top
 const START_W = 72;
 const START_H = 18;
-const BASE = 74;        // carousel slot stride at full scale
-
-const AXIS_LABEL_FS = 7;   // axis name (left column)
-const AXIS_OPTION_FS = 8;  // option labels
-const OPTION_HIT_H = 12;   // §3a hit rect height around each option
+const PRESET_BASE = 74;  // preset carousel slot stride
+const AXIS_BASE = 46;    // axis carousel slot stride (short CAPS labels)
 
 const ExerciseStaffOverlay = ({
     startX,
@@ -53,10 +53,10 @@ const ExerciseStaffOverlay = ({
 
     const activeIndex = Math.max(0, EXERCISES.findIndex(e => e.id === activeExerciseId));
 
-    // Card = lucide icon (nested <svg> — composites with the morph group
+    // Preset card = lucide icon (nested <svg> — composites with the morph group
     // opacity, unlike foreignObject) + ALL-CAPS title below. Active card
     // bright + glow, same highlight convention as the instrument setter.
-    const renderItem = (item, i) => {
+    const renderPreset = (item, i) => {
         const active = i === activeIndex;
         const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
         const Icon = item.Icon;
@@ -77,19 +77,41 @@ const ExerciseStaffOverlay = ({
         );
     };
 
-    // Axis option columns spread over the width right of the axis-name column.
-    const optionsLeft = startX + 62;
-    const optionsRight = endX - 8;
+    // Axis option card: ALL-CAPS label, or the BadgeCheck 'until correct' icon
+    // for the leftmost REPEAT option. Same active-highlight convention.
+    const renderAxisOption = (item, active, rowY) => {
+        const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
+        return (
+            <g style={{
+                pointerEvents: 'none',
+                color,
+                filter: active ? `drop-shadow(0 0 3px ${color})` : 'none',
+            }}>
+                {item.isUntil ? (
+                    <BadgeCheck size={12} x={-6} y={rowY - 10} />
+                ) : (
+                    <text x={0} y={rowY} textAnchor="middle" fontSize={8}
+                        fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'}
+                        fill={color} letterSpacing={0.5}>
+                        {item.label}
+                    </text>
+                )}
+            </g>
+        );
+    };
+
+    // Axis carousels centred in the area right of the axis-name column.
+    const axisCenterX = startX + 40 + (endX - startX - 40) / 2;
 
     return (
         <g className="exercise-overlay">
             <NonLinearCarousel
                 items={EXERCISES}
                 activeIndex={activeIndex}
-                renderItem={renderItem}
+                renderItem={renderPreset}
                 centerX={centerX}
                 y={staffStart - 4}
-                baseWidth={BASE}
+                baseWidth={PRESET_BASE}
                 height={TITLE_DY + 8}
                 visibleHalf={2}
                 onSelect={(item) => {
@@ -99,62 +121,40 @@ const ExerciseStaffOverlay = ({
                 debugMode={debugMode}
             />
 
-            {/* Axis rows — one per AXIS_ORDER entry. */}
+            {/* One carousel per axis (§6d — the shared primitive, not bespoke rows). */}
             {AXIS_ORDER.map((axis, rowIdx) => {
-                const y = staffStart + AXES_DY + rowIdx * AXIS_ROW_H;
+                const rowY = staffStart + AXES_DY + rowIdx * AXIS_ROW_H;
                 const options = AXES[axis];
-                const step = (optionsRight - optionsLeft) / options.length;
+                const current = Math.max(0, options.findIndex(o => o.value === axes?.[axis]));
                 return (
                     <g key={axis}>
-                        <text x={startX + 4} y={y} fontSize={AXIS_LABEL_FS} fontFamily="sans-serif"
+                        <text x={startX + 4} y={rowY} fontSize={7} fontFamily="sans-serif"
                             fill="var(--text-secondary, #888)" letterSpacing={1}
                             style={{ pointerEvents: 'none' }}>
                             {AXIS_LABELS[axis]}
                         </text>
-                        {options.map((opt, oi) => {
-                            const x = optionsLeft + step * (oi + 0.5);
-                            const selected = axes?.[axis] === opt.value;
-                            const enabled = isAxisOptionEnabled(axes || {}, axis, opt.value);
-                            const color = !enabled ? 'var(--text-lowlight)'
-                                : selected ? 'var(--text-primary)' : 'var(--text-secondary, #888)';
-                            return (
-                                <g key={String(opt.value)}
-                                    onClick={() => {
-                                        if (!enabled) return;
-                                        onSettingsInteraction?.();
-                                        onAxisChange?.(axis, opt.value);
-                                    }}
-                                    style={{ cursor: enabled ? 'pointer' : 'default' }}>
-                                    {/* transparent hit target — sized to the option slot */}
-                                    <rect x={x - step / 2} y={y - OPTION_HIT_H + 3} width={step} height={OPTION_HIT_H}
-                                        fill="transparent" />
-                                    <text x={x} y={y} textAnchor="middle" fontSize={AXIS_OPTION_FS}
-                                        fontFamily="sans-serif" fontWeight={selected ? 'bold' : 'normal'}
-                                        fill={color} letterSpacing={0.5}
-                                        opacity={enabled ? 1 : 0.35}
-                                        style={{ pointerEvents: 'none' }}>
-                                        {opt.label}
-                                    </text>
-                                    {/* selected underline — matches staff-line chrome (0.5 weight) */}
-                                    {selected && (
-                                        <line x1={x - step / 2 + 6} y1={y + 3} x2={x + step / 2 - 6} y2={y + 3}
-                                            stroke="var(--text-primary)" strokeWidth="0.5"
-                                            style={{ pointerEvents: 'none' }} />
-                                    )}
-                                    {debugMode && (
-                                        <rect x={x - step / 2} y={y - OPTION_HIT_H + 3} width={step} height={OPTION_HIT_H}
-                                            fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
-                                            style={{ pointerEvents: 'none' }} />
-                                    )}
-                                </g>
-                            );
-                        })}
+                        <NonLinearCarousel
+                            items={options}
+                            activeIndex={current}
+                            renderItem={(item, i) => renderAxisOption(item, i === current, rowY)}
+                            centerX={axisCenterX}
+                            y={rowY - AXIS_HIT_H + 4}
+                            baseWidth={AXIS_BASE}
+                            height={AXIS_HIT_H}
+                            visibleHalf={options.length > 4 ? 3 : 1}
+                            onSelect={(item) => {
+                                onSettingsInteraction?.();
+                                onAxisChange?.(axis, item.value);
+                            }}
+                            debugMode={debugMode}
+                        />
                     </g>
                 );
             })}
 
             {/* START — the prominent one-tap entry point (Han 2026-07-02:
-                "maak het starten van een oefening prominenter"). */}
+                "maak het starten van een oefening prominenter"; also mirrored
+                in the AppHeader). */}
             <g onClick={() => { onSettingsInteraction?.(); onStartExercise?.(); }}
                 style={{ cursor: 'pointer' }}>
                 <rect x={centerX - START_W / 2} y={staffStart + START_DY} width={START_W} height={START_H}

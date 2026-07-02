@@ -7,6 +7,31 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-02 — ✅ CR: Exercise-assen → carousels + header-START + 'until correct' GEBOUWD
+
+Interview-antwoorden: BadgeCheck (star-check bestaat niet in lucide 0.563) ✓;
+START in AppHeader, altijd zichtbaar ✓; input-as = READ | HEAR (oud 'replay'
+hernoemd, puur luisteren geschrapt) ✓; until-correct v1 akkoord ✓. GEBOUWD:
+alle assen zijn nu NonLinearCarousels (§6d-fix); REPEAT-as hergebruikt de
+repsPerMelody-optielijst ['until',1,2,4,6,8,∞] met BadgeCheck helemaal links;
+opslag = untilCorrect:true + repsPerMelody:Infinity (Sequencer-rekenen blijft
+numeriek, 0 Sequencer-edits); PLAYBACK-repeats-stepper cyclet dezelfde lijst
+(✓-weergave); useInputTest herstart bij untilCorrect dezelfde melodie na fouten
+(alleen foutloos → regenereren; melodyComplete blijft per poging voor ELO);
+START-knop (Dumbbell) in de AppHeader naast de generate-knop. §7b groen.
+architecture.md §44b. ⏳ PLAYBACK-repeats-stepper → carousel = nieuw ticket.
+
+### Oorspronkelijke CR-log
+
+Han (chat, UAT #266-rework): (1) as-rijen zijn "klassiek", NIET conform §6d/style
+guide → elke as moet een carousel zijn (NonLinearCarousel); (2) START-knop moet
+óók in de header; (3) vraag: verschil hear vs replay?; (4) 'until correct'
+reflecteren in de BESTAANDE num-repeats parameter (`playbackConfig.repsPerMelody`,
+opties [1,2,4,6,8,∞]) — hergebruik die setter als carousel, 'helemaal links' een
+correct-symbool ('star-check' lucide → BESTAAT NIET in lucide-react 0.563;
+alternatief vragen). Geldt ook voor de 'aantal repeats'-setter zelf. Interview
+loopt (Han: "stel vragen indien niet duidelijk").
+
 ## 2026-07-02 — ✅ CR: Exercise setter met assen + START-knop GEBOUWD
 
 Han (chat, na #265/#266): "Hoe start ik nu een oefening? Maak het starten

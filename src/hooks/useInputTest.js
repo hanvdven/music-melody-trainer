@@ -54,6 +54,11 @@ const useInputTest = ({
     // measure boundary. Chords-staff targets are excluded (their offsets live on
     // the progression, not the melody — v1 scopes cleanMeasure to melody staffs).
     const measureHadErrorRef = useRef(false);
+    // #266 'until correct' (Han 2026-07-02): true once ANY wrong note happened in
+    // the current melody pass. With playbackConfig.untilCorrect on, finishing a
+    // melody that had errors RESTARTS the same melody instead of regenerating —
+    // only a flawless pass advances. Full scored version: ticket #267.
+    const melodyHadErrorRef = useRef(false);
 
     useEffect(() => { isInputTestModeRef.current = isInputTestMode; }, [isInputTestMode]);
     useEffect(() => { inputTestStateRef.current = inputTestState; }, [inputTestState]);
@@ -166,6 +171,7 @@ const useInputTest = ({
         } else {
             setIsInputTestMode(true);
             measureHadErrorRef.current = false; // fresh test — clean-measure tracking restarts
+            melodyHadErrorRef.current = false;
             const currentMelodies = melodiesRef.current;
             const currentChords = chordProgressionRef.current;
 
@@ -284,7 +290,34 @@ const useInputTest = ({
                     correctNotes: prev.correctNotes + addedCorrect,
                     totalNotes: prev.totalNotes + addedTotal,
                 }));
+            } else if (playbackConfig.untilCorrect && melodyHadErrorRef.current) {
+                // #266 'until correct' (Han 2026-07-02): this pass had errors — restart
+                // the SAME melody from its first note instead of regenerating. Only a
+                // flawless pass falls through to the regenerate branch below.
+                melodyHadErrorRef.current = false;
+                measureHadErrorRef.current = false;
+                let restartIdx = -1;
+                if (activeStaff === 'chords') {
+                    const prog = chordProgressionRef.current || [];
+                    restartIdx = prog.findIndex(c => c && c.chord && c.chord.notes && c.chord.notes.length > 0);
+                } else {
+                    const notes = melodiesRef.current?.[activeStaff]?.notes || [];
+                    const tiesArr = melodiesRef.current?.[activeStaff]?.ties || [];
+                    restartIdx = notes.findIndex((n, i) => n && n !== 'r' && (i === 0 || tiesArr[i - 1] !== 'tie'));
+                }
+                setInputTestState(prev => ({
+                    ...prev,
+                    activeIndex: restartIdx !== -1 ? restartIdx : -1,
+                    status: 'waiting',
+                    activeStaff,
+                    chordHits: [],
+                    successes: [],
+                    score: prev.score + addedScore,
+                    correctNotes: prev.correctNotes + addedCorrect,
+                    totalNotes: prev.totalNotes + addedTotal,
+                }));
             } else {
+                melodyHadErrorRef.current = false; // fresh melody — error tracking restarts
                 const regenerated = randomizeAll(playbackConfig.randomize);
                 let firstIdx = -1;
                 if (activeStaff === 'chords') {
@@ -311,9 +344,10 @@ const useInputTest = ({
 
         const triggerError = (errorNote) => {
             // #134 gamification: count the miss and poison the current measure's
-            // clean-measure bonus.
+            // clean-measure bonus (and, for 'until correct', the whole melody pass).
             emitScore('noteWrong');
             measureHadErrorRef.current = true;
+            melodyHadErrorRef.current = true;
             if (isTap && onNoteWrong && errorNote) onNoteWrong(errorNote);
             setInputTestState(prev => ({ ...prev, status: 'error', score: prev.score - 1, totalNotes: prev.totalNotes + 1, chordHits: [], wrongNote: errorNote || null }));
             clearTimeout(errorTimeoutRef.current);
@@ -398,7 +432,7 @@ const useInputTest = ({
     // onNoteCorrect/onNoteWrong are callbacks passed from outside; their identity varies but
     // they close over instruments/context which are already stable via the Sequencer lifecycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [randomizeAll, playbackConfig.randomize, getCan]);
+    }, [randomizeAll, playbackConfig.randomize, playbackConfig.untilCorrect, getCan]);
 
     const handleInputTestNote = useCallback((playedNote, isTap = false) => {
         const st = inputTestStateRef.current.status;

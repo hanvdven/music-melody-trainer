@@ -75,7 +75,7 @@ import { TransitionOverlayProvider } from './contexts/TransitionOverlayContext';
 import { UniversalTransitionProvider } from './contexts/UniversalTransitionContext';
 import { useProfile } from './contexts/ProfileContext';
 import SessionSummaryCard from './components/profile/SessionSummaryCard';
-import { applyExerciseConfig, configFromAxes, normalizeAxes, EXERCISES } from './exercises/exerciseIndex';
+import { applyExerciseConfig, configFromAxes, EXERCISES } from './exercises/exerciseIndex';
 import { AnimationRefsProvider } from './contexts/AnimationRefsContext';
 
 
@@ -726,20 +726,20 @@ const App = () => {
     // through the existing setters. Opening the selector flips the bottom view
     // to the songs tab.
     const [activeExerciseId, setActiveExerciseId] = useState(EXERCISES[0].id);
-    const [exerciseAxes, setExerciseAxes] = useState(() => normalizeAxes(EXERCISES[0].axes));
+    const [exerciseAxes, setExerciseAxes] = useState(() => ({ ...EXERCISES[0].axes }));
     const exerciseSetters = useMemo(() => ({
         setPlaybackConfig, setTrebleSettings, setBpm, setNumMeasures, setIsRubato,
     }), [setPlaybackConfig, setTrebleSettings, setBpm, setNumMeasures, setIsRubato]);
     const handleSelectExercise = useCallback((exercise) => {
         setActiveExerciseId(exercise.id);
-        const ax = normalizeAxes(exercise.axes);
+        const ax = { ...exercise.axes };
         setExerciseAxes(ax);
         applyExerciseConfig(configFromAxes(ax), exerciseSetters);
         // Preset fine-tune patch (variability, note density, bpm …) on top of the axes.
         if (exercise.extra) applyExerciseConfig(exercise.extra, exerciseSetters);
     }, [exerciseSetters]);
     const handleExerciseAxisChange = useCallback((axis, value) => {
-        const ax = normalizeAxes({ ...exerciseAxes, [axis]: value });
+        const ax = { ...exerciseAxes, [axis]: value };
         setExerciseAxes(ax);
         applyExerciseConfig(configFromAxes(ax), exerciseSetters);
     }, [exerciseAxes, exerciseSetters]);
@@ -843,28 +843,21 @@ const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [setInputTestSubMode]);
 
-    // START an exercise (#266 rework, Han 2026-07-02: "maak het starten
-    // prominenter"). What starting MEANS follows the input axis:
-    //   hear         → continuous playback (repeat count already applied via config)
-    //   read/replay  → input test in 'note' mode (replay plays blind — notes were
-    //                  hidden by the axes config). With tempo=rubato, isRubato is
-    //                  already ON, which is exactly the state the rubato Play
-    //                  interception produces — input test 'note' mode IS the
-    //                  rubato entry point (see rubatoEngageRef above).
-    // Defined here (not with the axes handlers) because it needs playback +
-    // input-test handlers that only exist after usePlayback/useInputTest.
+    // START an exercise (#266 rework 2, Han 2026-07-02: "maak het starten
+    // prominenter" + START also in the AppHeader). Both input-axis values are
+    // input-test activities now (READ = notes visible, HEAR = play back by ear,
+    // notes hidden — pure listening was dropped), so START always enters input
+    // test 'note' mode. With tempo=rubato, isRubato is already ON — input-test
+    // note mode IS the rubato entry point (see rubatoEngageRef above).
+    // Defined here (not with the axes handlers) because it needs the input-test
+    // handlers that only exist after useInputTest.
     const handleStartExercise = useCallback(() => {
-        const ax = normalizeAxes(exerciseAxes);
         setExerciseEditMode(false); // close the setter; the songs tab stays below
-        if (ax.input === 'hear') {
-            handlePlayContinuously();
-            return;
-        }
         if (!isInputTestModeRef.current) handleToggleInputTest();
         handleSetInputTestSubMode('note');
     // isInputTestModeRef is a ref — stable identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [exerciseAxes, setExerciseEditMode, handlePlayContinuously, handleToggleInputTest, handleSetInputTestSubMode]);
+    }, [setExerciseEditMode, handleToggleInputTest, handleSetInputTestSubMode]);
 
     // Populate the rubato-play interceptor now that useInputTest is mounted.
     // The Play buttons (handlePlayMelody/Repeat/Continuously) consult this ref
@@ -1558,6 +1551,7 @@ const App = () => {
             <div className="App app-top-wrapper">
                 <AppHeader
                     scale={scale}
+                    onStartExercise={handleStartExercise}
                     displayTonic={displayTonic}
                     globalInstLabel={globalTransposition ? `${globalTransposition.label} instrument` : null}
                     showSheetMusicSettings={showSheetMusicSettings}
