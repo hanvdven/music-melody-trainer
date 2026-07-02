@@ -706,3 +706,76 @@ when an epic is split, wire the child ordering with `f-f`/`s-f` dependencies.
 
 Implementation: `~/.claude/kanban-board/plugins/kanban-api.ts` (schema column +
 migration, GET allow-list, POST/DELETE handlers, summary `dependency_count`).
+
+---
+
+### ⚠ 9k. Closed-Loop Feedback — Rework Is NEVER Skipped (Han 2026-06-27, ticket #269) — HARD STOP
+
+> Han's #1 recurring failure: he sends a ticket back with feedback, the feedback
+> is buried in `notes`, the next agent reads the latest *plan* instead, and the
+> ticket sails through every stage again — wasting his money — without addressing
+> what he asked. This section makes that **structurally impossible**. Read it
+> before touching ANY ticket.
+
+**The kanban now has dedicated, non-`notes` channels for the rework loop:**
+
+| Field | Owner | Purpose |
+|---|---|---|
+| `needs_reanalysis` (bool) | system | Auto-set TRUE on any BACKWARD move out of `design_review`/`plan_review`/`test`. Board shows a red ⚠ REWORK badge. |
+| `rework_feedback` (JSON) | Han | His bounce-back comments — each `{ text, addressed, addressedNote, addressedBy }`. NOT in notes. |
+| `acceptance_criteria` (JSON) | design agent seeds, Han checks | `{ text, verified }` checklist Han ticks during UAT. |
+| `test_report` (text) | Han | His own UAT write-up field. |
+| `consistency_requirements` (JSON) | design/plan agent | `{ text, confirmed }` — the canonical renderers/fonts/constants this ticket MUST reuse (see §6d). Impl agent confirms each. |
+
+**MANDATORY protocol when you pick up ANY ticket:**
+
+1. **FIRST call** `GET /api/task/:id` and check `needs_reanalysis`. If it is `true`,
+   you are forbidden from writing design/plan/impl content until you have:
+   - read EVERY item in `rework_feedback` and EVERY unmet `acceptance_criteria`;
+   - re-analysed the request against them (the prior plan is now suspect — Han
+     rejected its result);
+   - posted `POST /api/task/:id/reanalyzed` `{ by, summary }` summarising what he
+     asked for and how your new approach addresses it. This clears the flag and
+     leaves an audit note.
+2. **As you do the work**, for each `rework_feedback` item you resolve, call
+   `POST /api/task/:id/feedback/:fid/address` `{ addressedBy, addressedNote }`
+   stating concretely HOW you addressed it (file + change). A ticket with ANY
+   open feedback item MUST NOT be moved to `test`.
+3. **Before moving to `test`**, every `acceptance_criteria` must be satisfiable and
+   every `consistency_requirements` item `confirmed`. State this in the impl note.
+
+**Design phase MUST seed `acceptance_criteria` and `consistency_requirements`**
+(PATCH them as JSON arrays). Acceptance criteria are concrete, user-verifiable
+("span carousel shows C4 anchor head + interval name only"). Consistency
+requirements name the exact prior art to reuse ("noteheads via
+`renderMelodyNotes`/`StaffQuarterNote`, NOT hand-rolled Maestro glyphs; font sizes
+imported from `staffNoteGlyph.jsx`, never literals" — this is the §6d rule made
+per-ticket and checkable).
+
+**When in doubt: ASK IN THE TICKET, NOT IN CHAT.** Post an interview question
+(`interviews` field, §9e) or a `rework_feedback`-style note ON THE TICKET and STOP.
+Never guess UI/UX, font, layout, or direction decisions — every one of Han's
+consistency complaints (Maestro vs renderMelodyNote, wrong font sizes, vertical vs
+horizontal carousel) came from an agent guessing instead of asking. Guessing costs
+Han real money.
+
+**Branch rule (the #163 disaster):** work MUST land on the branch Han tests
+(`claude/codespace-devcontainer` or current working branch). If you are forced into
+a worktree/throwaway branch, your FINAL step is to merge/cherry-pick back. A ticket
+is NEVER "impl complete" while its commit is unreachable from Han's branch.
+
+**API summary** (all take `?project=music-melody-trainer`):
+- `PATCH /api/task/:id` with `{ status, rework_reason? }` — a backward move sets
+  `needs_reanalysis`; optional `rework_reason` is captured into `rework_feedback`.
+  Also accepts `acceptance_criteria`, `rework_feedback`, `test_report`,
+  `consistency_requirements`, `needs_reanalysis`.
+- `POST /api/task/:id/feedback` `{ text, author?, fromStatus?, toStatus? }`
+- `POST /api/task/:id/feedback/:fid/address` `{ addressedBy, addressedNote }`
+- `POST /api/task/:id/reanalyzed` `{ by, summary }`
+
+Implementation: `~/.claude/kanban-board/{plugins/kanban-api.ts, src/main.ts,
+src/style.css}` (5 columns + migrations, bounce detection in PATCH **and** reorder,
+3 endpoints, board badge + modal sections: re-analysis banner, rework-feedback
+list, acceptance-criteria checklist, test-report textarea, consistency checklist).
+Mirror any change to `.devcontainer/kanban-board-overlay/` so the two copies never
+drift (drift caused real bugs).
