@@ -34,6 +34,14 @@ interface Task {
   interviews?: string | null;
   // #246: task dependencies; JSON array of { id, targetId, type, createdAt }
   dependencies?: string | null;
+  // #269: closed-loop feedback so rework is never ignored
+  acceptance_criteria?: string | null;
+  rework_feedback?: string | null;
+  test_report?: string | null;
+  consistency_requirements?: string | null;
+  needs_reanalysis?: boolean;
+  open_feedback_count?: number;
+  unmet_criteria_count?: number;
   created_at: string;
   started_at: string | null;
   planned_at: string | null;
@@ -668,7 +676,16 @@ function ensureMobileBoardExpanded(board: Board) {
   if (!isMobileViewport || mobileBoardExpanded.size > 0) return;
 
   const defaults = COLUMNS
-    .filter((column) => column.key === "todo" || column.key === "impl" || (column.key !== "done" && board[column.key as keyof Omit<Board, "projects">].length > 0))
+    .filter((column) => {
+      if (column.key === "todo" || column.key === "impl") return true;
+      if (column.key === "done") return false;
+      // A composed column (e.g. "parking") has no board[key] array — its tasks
+      // live under its composedOf sub-statuses (on_hold/cancelled). Reading
+      // board["parking"].length crashed the whole board on mobile. Resolve the
+      // real underlying status arrays and guard for undefined. (#269 hardening.)
+      const statuses = column.composedOf ?? (column.status ? [column.status] : []);
+      return statuses.some((s) => ((board[s as keyof Omit<Board, "projects">] as Task[] | undefined)?.length ?? 0) > 0);
+    })
     .map((column) => column.key);
 
   mobileBoardExpanded = new Set(defaults.length > 0 ? defaults : ["todo"]);
@@ -918,6 +935,11 @@ function renderCard(task: Task): string {
   const notesBadge = noteCount > 0
     ? `<span class="badge notes-count" title="${noteCount} note(s)">\u{1F4AC} ${noteCount}</span>`
     : "";
+  // #269: unmissable rework badge on the board card itself.
+  const openFb = task.open_feedback_count ?? parseJsonArray(task.rework_feedback).filter((f: any) => !f.addressed).length;
+  const reanalysisBadge = task.needs_reanalysis
+    ? `<span class="card-reanalysis-badge" title="Han sent this back — ${openFb} open feedback item(s)">⚠ REWORK${openFb ? ` ${openFb}` : ''}</span>`
+    : "";
   const mobileMoveOptions = getAllowedTransitions(task.level, task.status)
     .map((status) => `<option value="${status}">${getStatusLabel(status)}</option>`)
     .join("");
@@ -946,6 +968,7 @@ function renderCard(task: Task): string {
         <button class="card-copy-btn" data-copy="#${task.id} ${task.title}" title="Copy to clipboard">⎘</button>
       </div>
       <div class="card-title">${task.title}</div>
+      ${reanalysisBadge ? `<div class="card-reanalysis-row">${reanalysisBadge}</div>` : ""}
       <div class="card-footer">
         ${projectBadge}
         ${planReviewBadge}
@@ -1591,12 +1614,105 @@ async function showTaskDetail(id: number, project?: string) {
       </div>
     `;
 
+    // ── #269: closed-loop feedback UI ─────────────────────────────────────────
+    const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const reworkItems = parseJsonArray(task.rework_feedback);
+    const openFeedback = reworkItems.filter((f: any) => !f.addressed);
+    const acItems = parseJsonArray(task.acceptance_criteria);
+    const consItems = parseJsonArray(task.consistency_requirements);
+
+    // (1) RE-ANALYSIS BANNER — unmissable red bar at the very top when Han has
+    // bounced the ticket back. Forces the next agent to read feedback first.
+    let reanalysisBanner = '';
+    if (task.needs_reanalysis) {
+      reanalysisBanner = `
+        <div class="reanalysis-banner">
+          <span class="reanalysis-icon">⚠️</span>
+          <div class="reanalysis-text">
+            <strong>NEEDS RE-ANALYSIS</strong> — Han sent this back.
+            ${openFeedback.length} open feedback item${openFeedback.length !== 1 ? 's' : ''} must be addressed before this returns to test.
+          </div>
+          <button class="reanalysis-clear-btn" id="reanalysis-clear-btn">Mark re-analysed</button>
+        </div>`;
+    }
+
+    // (2) REWORK FEEDBACK — Han's bounce-back comments live HERE, not in notes.
+    const feedbackItemsHtml = reworkItems.map((f: any) => `
+      <div class="feedback-item ${f.addressed ? 'addressed' : 'open'}">
+        <div class="feedback-item-head">
+          <span class="feedback-status">${f.addressed ? '✓ addressed' : '● open'}</span>
+          <span class="feedback-meta">${esc(f.author || 'han')}${f.fromStatus ? ` · ${esc(f.fromStatus)}→${esc(f.toStatus)}` : ''}</span>
+        </div>
+        <div class="feedback-text">${esc(f.text)}</div>
+        ${f.addressed && f.addressedNote ? `<div class="feedback-addressed-note">↳ ${esc(f.addressedBy || 'claude')}: ${esc(f.addressedNote)}</div>` : ''}
+      </div>`).join('');
+    const reworkSection = (reworkItems.length > 0 || true) ? `
+      <div class="lifecycle-phase phase-feedback ${openFeedback.length > 0 ? 'active' : ''}" id="feedback-section">
+        <div class="phase-header">
+          <span class="phase-icon">\u{1F501}</span>
+          <span class="phase-label">Rework Feedback</span>
+          ${reworkItems.length > 0 ? `<span class="interview-count">${openFeedback.length} open / ${reworkItems.length}</span>` : ''}
+        </div>
+        <div class="phase-body">
+          ${feedbackItemsHtml || '<div class="feedback-empty">No rework feedback yet. When you send this ticket back, write WHY here so it is never missed.</div>'}
+          <textarea class="feedback-textarea" id="feedback-input" rows="2" placeholder="Add feedback (sets needs-reanalysis)..."></textarea>
+          <button class="phase-save-btn" id="feedback-add-btn">Add feedback</button>
+        </div>
+      </div>` : '';
+
+    // (3) ACCEPTANCE CRITERIA — Han's own checklist + test report field.
+    const acHtml = acItems.map((c: any) => `
+      <label class="ac-item">
+        <input type="checkbox" class="ac-check" data-ac-id="${c.id}" ${c.verified ? 'checked' : ''} />
+        <span class="ac-text ${c.verified ? 'done' : ''}">${esc(c.text)}</span>
+      </label>`).join('');
+    const acceptanceSection = `
+      <div class="lifecycle-phase phase-acceptance" id="acceptance-section">
+        <div class="phase-header">
+          <span class="phase-icon">✅</span>
+          <span class="phase-label">Acceptance Criteria</span>
+          ${acItems.length > 0 ? `<span class="interview-count">${acItems.filter((c: any) => c.verified).length}/${acItems.length} verified</span>` : ''}
+        </div>
+        <div class="phase-body">
+          ${acHtml || '<div class="feedback-empty">No acceptance criteria yet. The design agent should seed these; you tick them off during UAT.</div>'}
+          <div class="ac-add-row">
+            <input type="text" class="ac-add-input" id="ac-add-input" placeholder="Add a criterion..." />
+            <button class="phase-save-btn" id="ac-add-btn">Add</button>
+          </div>
+          <div class="test-report-block">
+            <label class="test-report-label">\u{1F4DD} Your test report (UAT):</label>
+            <textarea class="test-report-textarea" id="test-report-input" rows="3" placeholder="Write your UAT findings here...">${esc(task.test_report)}</textarea>
+            <button class="phase-save-btn" id="test-report-save-btn">Save report</button>
+          </div>
+        </div>
+      </div>`;
+
+    // (4) CONSISTENCY REQUIREMENTS — canonical renderers/fonts this ticket must reuse.
+    const consHtml = consItems.map((c: any) => `
+      <label class="ac-item">
+        <input type="checkbox" class="cons-check" data-cons-id="${c.id}" ${c.confirmed ? 'checked' : ''} />
+        <span class="ac-text ${c.confirmed ? 'done' : ''}">${esc(c.text)}</span>
+      </label>`).join('');
+    const consistencySection = consItems.length > 0 ? `
+      <div class="lifecycle-phase phase-consistency" id="consistency-section">
+        <div class="phase-header">
+          <span class="phase-icon">\u{1F9E9}</span>
+          <span class="phase-label">Consistency Requirements</span>
+          <span class="interview-count">${consItems.filter((c: any) => c.confirmed).length}/${consItems.length} confirmed</span>
+        </div>
+        <div class="phase-body">${consHtml}</div>
+      </div>` : '';
+
     content.innerHTML = `
       <h1>#${task.id} ${task.title}</h1>
       <div class="modal-meta">${meta}</div>
+      ${reanalysisBanner}
       ${tagsHtml}
       ${progressHtml}
       <div class="lifecycle-sections">
+        ${reworkSection}
+        ${acceptanceSection}
+        ${consistencySection}
         ${requirementSection}
         ${interviewSection}
         ${planSection}
@@ -1678,6 +1794,74 @@ async function showTaskDetail(id: number, project?: string) {
         showTaskDetail(id, task.project);
       });
     }
+
+    // ── #269: closed-loop feedback handlers ───────────────────────────────────
+    const reanalyzePatch = async (extra: Record<string, unknown>) => {
+      await apiFetch(`/api/task/${id}?project=${encodeURIComponent(task.project)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(extra),
+      });
+      invalidateSummaryCaches(task.project);
+      showTaskDetail(id, task.project);
+    };
+
+    // Add rework feedback (sets needs_reanalysis via the dedicated endpoint).
+    document.getElementById("feedback-add-btn")?.addEventListener("click", async () => {
+      const ta = document.getElementById("feedback-input") as HTMLTextAreaElement | null;
+      const text = ta?.value.trim();
+      if (!text) return;
+      await apiFetch(`/api/task/${id}/feedback?project=${encodeURIComponent(task.project)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, author: "han" }),
+      });
+      invalidateSummaryCaches(task.project);
+      showTaskDetail(id, task.project);
+    });
+
+    // Clear re-analysis flag.
+    document.getElementById("reanalysis-clear-btn")?.addEventListener("click", async () => {
+      await apiFetch(`/api/task/${id}/reanalyzed?project=${encodeURIComponent(task.project)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ by: "han", summary: "Han cleared re-analysis flag from the board." }),
+      });
+      invalidateSummaryCaches(task.project);
+      showTaskDetail(id, task.project);
+    });
+
+    // Acceptance-criteria checkboxes: toggle verified, save whole array.
+    content.querySelectorAll<HTMLInputElement>(".ac-check").forEach((cb) => {
+      cb.addEventListener("change", async () => {
+        const acId = Number(cb.getAttribute("data-ac-id"));
+        const updated = acItems.map((c: any) => c.id === acId
+          ? { ...c, verified: cb.checked, verifiedAt: cb.checked ? new Date().toISOString() : null }
+          : c);
+        await reanalyzePatch({ acceptance_criteria: updated });
+      });
+    });
+
+    // Add an acceptance criterion.
+    document.getElementById("ac-add-btn")?.addEventListener("click", async () => {
+      const inp = document.getElementById("ac-add-input") as HTMLInputElement | null;
+      const text = inp?.value.trim();
+      if (!text) return;
+      const updated = [...acItems, { id: Date.now(), text, verified: false, comment: null, verifiedAt: null }];
+      await reanalyzePatch({ acceptance_criteria: updated });
+    });
+
+    // Save the UAT test report.
+    document.getElementById("test-report-save-btn")?.addEventListener("click", async () => {
+      const ta = document.getElementById("test-report-input") as HTMLTextAreaElement | null;
+      await reanalyzePatch({ test_report: ta?.value ?? "" });
+    });
+
+    // Consistency-requirement confirm checkboxes.
+    content.querySelectorAll<HTMLInputElement>(".cons-check").forEach((cb) => {
+      cb.addEventListener("change", async () => {
+        const cId = Number(cb.getAttribute("data-cons-id"));
+        const updated = consItems.map((c: any) => c.id === cId ? { ...c, confirmed: cb.checked } : c);
+        await reanalyzePatch({ consistency_requirements: updated });
+      });
+    });
 
     // Requirements edit handlers
     const reqEditBtn = document.getElementById("req-edit-btn")!;
@@ -1915,8 +2099,7 @@ async function loadChronicleView() {
     renderProjectFilter(data.projects);
     renderCategoryFilter();
 
-    // "parking" is a composed column (on_hold + cancelled) — must iterate
-    // composedOf sub-statuses rather than the synthetic "parking" key.
+    // "parking" is a composed column — must iterate composedOf, not col.key directly.
     const allTasks: Task[] = [];
     for (const col of COLUMNS) {
       const sources = col.composedOf

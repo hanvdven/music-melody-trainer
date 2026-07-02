@@ -106,6 +106,11 @@ function summarizeBoardTask(task: Task) {
     dependency_count: parseJsonArray(task.dependencies).length,
     last_review_status: getLastStatus(task.review_comments),
     last_plan_review_status: getLastStatus(task.plan_review_comments),
+    // #269: surface rework state in the compact board so the red banner shows
+    // without fetching the full task.
+    needs_reanalysis: !!task.needs_reanalysis,
+    open_feedback_count: parseJsonArray(task.rework_feedback).filter((f: any) => !f.addressed).length,
+    unmet_criteria_count: parseJsonArray(task.acceptance_criteria).filter((c: any) => !c.verified).length,
   };
 }
 
@@ -176,6 +181,25 @@ function sortBoardGroup<T extends { completed_at?: string | null; rank?: number;
   return sorted.sort((a, b) =>
     Number(b.rank || 0) - Number(a.rank || 0) || Number(b.id || 0) - Number(a.id || 0)
   );
+}
+
+// #269: the linear pipeline order, used ONLY to detect BACKWARD moves (a
+// bounce-back). Parking states (on_hold/cancelled) are not part of the order.
+// A move whose target index is lower than the source index, where the source is
+// a review/test gate, means Han is sending work back — which must trigger
+// re-analysis. This does NOT restrict movement (see getTransitions below);
+// it only classifies the direction so feedback is never silently skipped.
+const PIPELINE_ORDER = [
+  "todo", "design", "design_review", "plan", "plan_review", "impl", "test", "done",
+] as const;
+// The gates Han bounces FROM. A backward move out of any of these means rework.
+const REVIEW_GATES = new Set(["design_review", "plan_review", "test"]);
+function isBackwardBounce(from: string, to: string): boolean {
+  if (!REVIEW_GATES.has(from)) return false;
+  const fi = PIPELINE_ORDER.indexOf(from as typeof PIPELINE_ORDER[number]);
+  const ti = PIPELINE_ORDER.indexOf(to as typeof PIPELINE_ORDER[number]);
+  if (fi < 0 || ti < 0) return false; // parking moves are neutral
+  return ti < fi;
 }
 
 // Han's rule (2026-06-26): tickets can move back to ANY previous stage at
@@ -250,12 +274,36 @@ async function initializeSchema(sql: Sql): Promise<void> {
       notes TEXT,
       decision_log TEXT,
       done_when TEXT,
-      -- #246: task dependencies (s-f / f-f). Additive; existing rows get NULL.
+      -- Task dependencies (Han 2026-06-27, ticket #246). JSON array of
+      -- { id, targetId, type, createdAt }. type is 's-f' (start-finish: this
+      -- task cannot finish until target STARTS) or 'f-f' (finish-finish: this
+      -- task cannot finish until target FINISHES). Advisory only — surfaced in
+      -- the UI; transitions are not hard-blocked so movement stays unrestricted.
       dependencies TEXT,
       -- #244: interview questions set by Claude during design phase.
       -- JSON array of { id, question, options[], selectedOption?, freeText? }.
       -- Han answers inline in the task card during design_review.
       interviews TEXT,
+      -- #269 (Han 2026-06-27): closed-loop feedback so rework is NEVER ignored.
+      -- acceptance_criteria: JSON [{ id, text, verified:bool, comment, verifiedAt }]
+      --   seeded by the design agent, checked off by Han during UAT.
+      acceptance_criteria TEXT,
+      -- rework_feedback: JSON [{ id, text, fromStatus, toStatus, addressed:bool,
+      --   addressedNote, addressedBy, createdAt, addressedAt }]. Han's bounce-back
+      --   feedback lives HERE (not buried in notes); every item must be addressed
+      --   before the ticket may re-enter test.
+      rework_feedback TEXT,
+      -- test_report: free text UAT report Han writes himself during test.
+      test_report TEXT,
+      -- consistency_requirements: JSON [{ id, text, confirmed:bool }] — the
+      --   canonical renderers / fonts / constants this ticket MUST reuse (e.g.
+      --   "noteheads via renderMelodyNotes, not hand-rolled Maestro glyphs").
+      --   Populated in design/plan; impl agent confirms each before test.
+      consistency_requirements TEXT,
+      -- needs_reanalysis: set TRUE automatically whenever a ticket moves BACKWARD
+      --   out of a review/test stage. Forces the next agent to read rework_feedback
+      --   and re-analyse before doing anything. Cleared via /reanalyzed endpoint.
+      needs_reanalysis BOOLEAN NOT NULL DEFAULT false,
       rank INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -291,6 +339,12 @@ async function initializeSchema(sql: Sql): Promise<void> {
     `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS dependencies TEXT`,
     // #244: interview questions. JSON array; answered inline in design_review.
     `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS interviews TEXT`,
+    // #269: closed-loop feedback / acceptance / consistency / re-analysis.
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS acceptance_criteria TEXT`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS rework_feedback TEXT`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS test_report TEXT`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS consistency_requirements TEXT`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS needs_reanalysis BOOLEAN NOT NULL DEFAULT false`,
   ];
   for (const m of migrations) await sql.query(m);
 
@@ -410,6 +464,12 @@ interface Task {
   dependencies: string | null;
   // #244: interview questions; JSON array of { id, question, options[], selectedOption?, freeText? }
   interviews: string | null;
+  // #269: closed-loop feedback fields
+  acceptance_criteria: string | null;
+  rework_feedback: string | null;
+  test_report: string | null;
+  consistency_requirements: string | null;
+  needs_reanalysis: boolean;
   created_at: string;
   started_at: string | null;
   planned_at: string | null;
@@ -522,7 +582,8 @@ export function kanbanApiPlugin(): Plugin {
             ? `id, project, title, status, priority, level, current_agent,
                plan_review_count, impl_review_count, rank, tags,
                created_at, completed_at,
-               review_comments, plan_review_comments, notes`
+               review_comments, plan_review_comments, notes, dependencies,
+               rework_feedback, acceptance_criteria, needs_reanalysis`
             : `*`;
           const meta = await readBoardMeta(sql, projectParam);
           const counts = await readBoardCounts(sql, projectParam);
@@ -622,7 +683,9 @@ export function kanbanApiPlugin(): Plugin {
               "implementation_notes","tags","review_comments","plan_review_comments",
               "test_results","agent_log","current_agent","plan_review_count",
               "impl_review_count","level","attachments","notes","decision_log",
-              "done_when","dependencies","interviews","rank","created_at","started_at","planned_at",
+              "done_when","dependencies","interviews",
+              "acceptance_criteria","rework_feedback","test_report","consistency_requirements","needs_reanalysis",
+              "rank","created_at","started_at","planned_at",
               "reviewed_at","tested_at","completed_at","updated_at",
             ]);
             const fieldsParam = reqUrl.searchParams.get("fields");
@@ -653,11 +716,17 @@ export function kanbanApiPlugin(): Plugin {
             const body = await parseBody(req);
             if (body.status !== undefined) body.status = normalizeStatus(body.status);
 
+            // #269: read the CURRENT row up front so we can (a) validate the
+            // transition and (b) classify a backward bounce for re-analysis.
+            let prevStatus: string | null = null;
+            let prevRework: any[] = [];
             if (body.status !== undefined) {
-              const [task] = await q<{ status: string; level: number }>(sql,
-                "SELECT status, level FROM tasks WHERE id = $1", [id]
+              const [task] = await q<{ status: string; level: number; rework_feedback: string | null }>(sql,
+                "SELECT status, level, rework_feedback FROM tasks WHERE id = $1", [id]
               );
               if (task) {
+                prevStatus = task.status;
+                prevRework = parseJsonArray(task.rework_feedback);
                 const allowed = getTransitions(task.level)[task.status];
                 if (allowed && !allowed.includes(body.status)) {
                   res.statusCode = 400;
@@ -683,6 +752,31 @@ export function kanbanApiPlugin(): Plugin {
               else if (body.status === "test")        sets.push("tested_at = NOW()");
               else if (body.status === "done")        sets.push("completed_at = NOW()");
               else if (body.status === "todo")        sets.push("started_at = NULL, planned_at = NULL, completed_at = NULL, reviewed_at = NULL, tested_at = NULL");
+
+              // #269 — BOUNCE DETECTION. If Han sends a ticket BACKWARD out of a
+              // review/test gate, flag it for mandatory re-analysis so the next
+              // agent CANNOT skip his feedback. Optional `rework_reason` in the
+              // body is captured straight into rework_feedback (the dedicated
+              // channel) instead of being lost in notes.
+              if (prevStatus && isBackwardBounce(prevStatus, body.status)) {
+                sets.push("needs_reanalysis = true");
+                if (typeof body.rework_reason === "string" && body.rework_reason.trim()) {
+                  prevRework.push({
+                    id: Date.now(),
+                    text: body.rework_reason.trim(),
+                    fromStatus: prevStatus,
+                    toStatus: body.status,
+                    addressed: false,
+                    addressedNote: null,
+                    addressedBy: null,
+                    createdAt: new Date().toISOString(),
+                    addressedAt: null,
+                  });
+                  sets.push(`rework_feedback = $${p++}`); vals.push(JSON.stringify(prevRework));
+                }
+              }
+              // Reaching `done` retires any stale re-analysis flag.
+              if (body.status === "done") sets.push("needs_reanalysis = false");
             }
             const j = (v: any) => typeof v === "string" ? v : JSON.stringify(v);
             if (body.title !== undefined)       { sets.push(`title = $${p++}`); vals.push(body.title); }
@@ -703,6 +797,12 @@ export function kanbanApiPlugin(): Plugin {
             if (body.done_when !== undefined)     { sets.push(`done_when = $${p++}`); vals.push(body.done_when); }
             if (body.dependencies !== undefined)  { sets.push(`dependencies = $${p++}`); vals.push(j(body.dependencies)); }
             if (body.interviews !== undefined)    { sets.push(`interviews = $${p++}`); vals.push(j(body.interviews)); }
+            // #269: closed-loop feedback fields.
+            if (body.acceptance_criteria !== undefined)      { sets.push(`acceptance_criteria = $${p++}`); vals.push(j(body.acceptance_criteria)); }
+            if (body.rework_feedback !== undefined)          { sets.push(`rework_feedback = $${p++}`); vals.push(j(body.rework_feedback)); }
+            if (body.test_report !== undefined)              { sets.push(`test_report = $${p++}`); vals.push(body.test_report); }
+            if (body.consistency_requirements !== undefined) { sets.push(`consistency_requirements = $${p++}`); vals.push(j(body.consistency_requirements)); }
+            if (body.needs_reanalysis !== undefined)         { sets.push(`needs_reanalysis = $${p++}`); vals.push(!!body.needs_reanalysis); }
 
             if (sets.length > 0) {
               sets.push("updated_at = NOW()");
@@ -783,6 +883,11 @@ export function kanbanApiPlugin(): Plugin {
             else if (targetStatus === "test")         sets.push("tested_at = NOW()");
             else if (targetStatus === "done")         sets.push("completed_at = NOW()");
             else if (targetStatus === "todo")         sets.push("started_at = NULL, planned_at = NULL, completed_at = NULL, reviewed_at = NULL, tested_at = NULL");
+            // #269: a backward DRAG out of a review/test gate is a bounce —
+            // flag for mandatory re-analysis (same rule as the PATCH path, so
+            // the drag workflow can't silently skip Han's feedback).
+            if (isBackwardBounce(task.status, targetStatus)) sets.push("needs_reanalysis = true");
+            else if (targetStatus === "done")               sets.push("needs_reanalysis = false");
             await sql.query(`UPDATE tasks SET ${sets.join(", ")} WHERE id = $2`, [targetStatus, id]);
           }
 
@@ -949,6 +1054,115 @@ export function kanbanApiPlugin(): Plugin {
           return;
         }
 
+        // ── #269: closed-loop feedback endpoints ──────────────────────────────
+        // POST /api/task/:id/feedback
+        // Body: { text, author?, fromStatus?, toStatus? }
+        // Han (or the UI) records a piece of rework feedback in the DEDICATED
+        // channel (not notes) and the ticket is flagged needs_reanalysis. Every
+        // such item must later be marked addressed before the ticket re-enters test.
+        const feedbackMatch = pathname.match(/^\/api\/task\/(\d+)\/feedback$/);
+        if (feedbackMatch && req.method === "POST") {
+          const id = feedbackMatch[1];
+          const projectParam = reqUrl.searchParams.get("project");
+          if (!projectParam) { res.statusCode = 400; res.end(JSON.stringify({ error: "project query param required" })); return; }
+          const safe = sanitizeProject(projectParam);
+          const body = await parseBody(req);
+          if (!body.text || !String(body.text).trim()) { res.statusCode = 400; res.end(JSON.stringify({ error: "text required" })); return; }
+          const [task] = await q<{ rework_feedback: string | null }>(sql,
+            "SELECT rework_feedback FROM tasks WHERE id = $1 AND project = $2", [id, safe]
+          );
+          if (!task) { res.statusCode = 404; res.end(JSON.stringify({ error: "Not found" })); return; }
+          const items = parseJsonArray(task.rework_feedback);
+          const item = {
+            id: Date.now(),
+            text: String(body.text).trim(),
+            author: body.author || "han",
+            fromStatus: body.fromStatus || null,
+            toStatus: body.toStatus || null,
+            addressed: false,
+            addressedNote: null,
+            addressedBy: null,
+            createdAt: new Date().toISOString(),
+            addressedAt: null,
+          };
+          items.push(item);
+          await sql.query(
+            "UPDATE tasks SET rework_feedback = $1, needs_reanalysis = true, updated_at = NOW() WHERE id = $2 AND project = $3",
+            [JSON.stringify(items), id, safe]
+          );
+          res.setHeader("Content-Type", "application/json");
+          broadcast();
+          res.end(JSON.stringify({ success: true, item }));
+          return;
+        }
+
+        // POST /api/task/:id/feedback/:fid/address
+        // Body: { addressedBy, addressedNote }
+        // An agent marks ONE feedback item resolved, recording HOW it was
+        // addressed. This is the audit trail proving Han's point was handled.
+        const addrMatch = pathname.match(/^\/api\/task\/(\d+)\/feedback\/(\d+)\/address$/);
+        if (addrMatch && req.method === "POST") {
+          const id = addrMatch[1];
+          const fid = Number(addrMatch[2]);
+          const projectParam = reqUrl.searchParams.get("project");
+          if (!projectParam) { res.statusCode = 400; res.end(JSON.stringify({ error: "project query param required" })); return; }
+          const safe = sanitizeProject(projectParam);
+          const body = await parseBody(req);
+          const [task] = await q<{ rework_feedback: string | null }>(sql,
+            "SELECT rework_feedback FROM tasks WHERE id = $1 AND project = $2", [id, safe]
+          );
+          if (!task) { res.statusCode = 404; res.end(JSON.stringify({ error: "Not found" })); return; }
+          const items = parseJsonArray(task.rework_feedback);
+          const target = items.find((f: any) => f.id === fid);
+          if (!target) { res.statusCode = 404; res.end(JSON.stringify({ error: `feedback item ${fid} not found` })); return; }
+          target.addressed = true;
+          target.addressedNote = body.addressedNote || null;
+          target.addressedBy = body.addressedBy || "claude";
+          target.addressedAt = new Date().toISOString();
+          await sql.query(
+            "UPDATE tasks SET rework_feedback = $1, updated_at = NOW() WHERE id = $2 AND project = $3",
+            [JSON.stringify(items), id, safe]
+          );
+          const openLeft = items.filter((f: any) => !f.addressed).length;
+          res.setHeader("Content-Type", "application/json");
+          broadcast();
+          res.end(JSON.stringify({ success: true, item: target, open_feedback_count: openLeft }));
+          return;
+        }
+
+        // POST /api/task/:id/reanalyzed
+        // Body: { by, summary }
+        // An agent acknowledges it has RE-READ the rework feedback + acceptance
+        // criteria and re-analysed before working. Clears needs_reanalysis and
+        // appends an audit note. Refuses to clear while feedback is still open.
+        const reanalyzedMatch = pathname.match(/^\/api\/task\/(\d+)\/reanalyzed$/);
+        if (reanalyzedMatch && req.method === "POST") {
+          const id = reanalyzedMatch[1];
+          const projectParam = reqUrl.searchParams.get("project");
+          if (!projectParam) { res.statusCode = 400; res.end(JSON.stringify({ error: "project query param required" })); return; }
+          const safe = sanitizeProject(projectParam);
+          const body = await parseBody(req);
+          const [task] = await q<{ notes: string | null }>(sql,
+            "SELECT notes FROM tasks WHERE id = $1 AND project = $2", [id, safe]
+          );
+          if (!task) { res.statusCode = 404; res.end(JSON.stringify({ error: "Not found" })); return; }
+          const notes = parseJsonArray(task.notes);
+          notes.push({
+            id: Date.now(),
+            text: `[re-analysis] ${body.summary || "Re-read rework feedback + acceptance criteria before working."}`,
+            author: body.by || "claude",
+            timestamp: new Date().toISOString(),
+          });
+          await sql.query(
+            "UPDATE tasks SET needs_reanalysis = false, notes = $1, updated_at = NOW() WHERE id = $2 AND project = $3",
+            [JSON.stringify(notes), id, safe]
+          );
+          res.setHeader("Content-Type", "application/json");
+          broadcast();
+          res.end(JSON.stringify({ success: true }));
+          return;
+        }
+
         // POST /api/task/:id/note
         const noteMatch = pathname.match(/^\/api\/task\/(\d+)\/note$/);
         if (noteMatch && req.method === "POST") {
@@ -993,6 +1207,80 @@ export function kanbanApiPlugin(): Plugin {
           res.setHeader("Content-Type", "application/json");
           broadcast();
           res.end(JSON.stringify({ success: true }));
+          return;
+        }
+
+        // POST /api/task/:id/dependency  (#246)
+        // Body: { targetId, type }  type ∈ {'s-f','f-f'}
+        //   s-f = start-finish : this task can't finish until target STARTS
+        //   f-f = finish-finish: this task can't finish until target FINISHES
+        const depMatch = pathname.match(/^\/api\/task\/(\d+)\/dependency$/);
+        if (depMatch && req.method === "POST") {
+          const id = depMatch[1];
+          const projectParam = reqUrl.searchParams.get("project");
+          if (!projectParam) { res.statusCode = 400; res.end(JSON.stringify({ error: "project query param required" })); return; }
+          const safe = sanitizeProject(projectParam);
+          const body = await parseBody(req);
+
+          const type = String(body.type || "");
+          if (type !== "s-f" && type !== "f-f") {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: "type must be 's-f' or 'f-f'" }));
+            return;
+          }
+          const targetId = parseInt(body.targetId, 10);
+          if (!Number.isFinite(targetId)) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: "targetId required (number)" }));
+            return;
+          }
+          // A task may not depend on itself — that's never satisfiable.
+          if (String(targetId) === String(id)) {
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: "a task cannot depend on itself" }));
+            return;
+          }
+
+          const [task] = await q<{ dependencies: string | null }>(sql,
+            "SELECT dependencies FROM tasks WHERE id = $1 AND project = $2", [id, safe]
+          );
+          if (!task) { res.statusCode = 404; res.end(JSON.stringify({ error: "Not found" })); return; }
+          // Target must exist (project param ignored for the existence check, to
+          // match GET semantics where migrated tasks may carry a different project).
+          const [target] = await q<{ id: number }>(sql, "SELECT id FROM tasks WHERE id = $1", [targetId]);
+          if (!target) { res.statusCode = 400; res.end(JSON.stringify({ error: `target task #${targetId} not found` })); return; }
+
+          const deps = task.dependencies ? JSON.parse(task.dependencies) : [];
+          // Idempotent: don't add a duplicate (same target + type).
+          if (!deps.some((d: any) => d.targetId === targetId && d.type === type)) {
+            deps.push({ id: Date.now(), targetId, type, createdAt: new Date().toISOString() });
+          }
+          await sql.query("UPDATE tasks SET dependencies = $1, updated_at = NOW() WHERE id = $2 AND project = $3", [JSON.stringify(deps), id, safe]);
+          res.setHeader("Content-Type", "application/json");
+          broadcast();
+          res.end(JSON.stringify({ success: true, dependencies: deps }));
+          return;
+        }
+
+        // DELETE /api/task/:id/dependency/:depId  (#246)
+        const depDeleteMatch = pathname.match(/^\/api\/task\/(\d+)\/dependency\/(\d+)$/);
+        if (depDeleteMatch && req.method === "DELETE") {
+          const id = depDeleteMatch[1];
+          const depId = parseInt(depDeleteMatch[2], 10);
+          const projectParam = reqUrl.searchParams.get("project");
+          if (!projectParam) { res.statusCode = 400; res.end(JSON.stringify({ error: "project query param required" })); return; }
+          const safe = sanitizeProject(projectParam);
+
+          const [task] = await q<{ dependencies: string | null }>(sql,
+            "SELECT dependencies FROM tasks WHERE id = $1 AND project = $2", [id, safe]
+          );
+          if (!task) { res.statusCode = 404; res.end(JSON.stringify({ error: "Not found" })); return; }
+
+          const deps = (task.dependencies ? JSON.parse(task.dependencies) : []).filter((d: any) => d.id !== depId);
+          await sql.query("UPDATE tasks SET dependencies = $1, updated_at = NOW() WHERE id = $2 AND project = $3", [JSON.stringify(deps), id, safe]);
+          res.setHeader("Content-Type", "application/json");
+          broadcast();
+          res.end(JSON.stringify({ success: true, dependencies: deps }));
           return;
         }
 

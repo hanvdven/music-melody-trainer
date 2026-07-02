@@ -219,10 +219,20 @@ export default function NonLinearCarousel({
             }
             const s = scaleForDist(d, visibleHalf);
             const x = centerX + xOffsetForDist(d, visibleHalf) * baseWidth;
-            // transform-box/origin: the item is authored around its own origin, so scale about
-            // the item centre by translating to x then scaling. translateX is in px (user units).
+            // CENTRE-WEIGHTED, BUT EVERYTHING ON A HORIZONTAL LINE (Han 2026-06-27):
+            // Items must SHRINK toward the edges (the centre-weight cue) while their visual
+            // baseline NEVER moves — every card stays on the same horizontal line regardless of
+            // its scale. The item content is authored FAR from y=0 (consumers draw at
+            // `staffStart + …`, e.g. icon ~staffStart+23, label ~staffStart+58). With a y=0 scale
+            // origin, scale(s) multiplies those large Y values, so a shrinking card visibly drifts
+            // UPWARD (icon at y≈150 jumps to ≈105 at 0.7×). The fix: scale about a CONSTANT
+            // vertical baseline shared by every item — the carousel's own vertical centre
+            // `y + height/2`. Because that Y is identical for all items, scaling compresses each
+            // card toward the SAME horizontal line; no item drifts vertically as it shrinks.
+            // X origin stays 0 (the item's authored horizontal origin, where translate(x) places it).
+            const baselineY = y + height / 2;
             g.style.transform = `translate(${x}px, 0px) scale(${s})`;
-            g.style.transformOrigin = '0px 0px';
+            g.style.transformOrigin = `0px ${baselineY}px`;
             g.style.opacity = String(op);
         }
         // Notify the consumer of the LIVE wrapped position every frame (drag + glide), so e.g. the

@@ -991,6 +991,64 @@ main#board.hidden {
 .phase-review .phase-header { color: #a78bfa; }
 .phase-test .phase-header { color: #2dd4bf; }
 .phase-agent-log .phase-header { color: #94a3b8; }
+.phase-feedback .phase-header { color: #f87171; }
+.phase-acceptance .phase-header { color: #4ade80; }
+.phase-consistency .phase-header { color: #c084fc; }
+
+/* #269: closed-loop feedback UI */
+.reanalysis-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0;
+  padding: 12px 16px;
+  background: #450a0a;
+  border: 2px solid #ef4444;
+  border-radius: 8px;
+  color: #fecaca;
+}
+.reanalysis-icon { font-size: 1.4rem; }
+.reanalysis-text { flex: 1; font-size: 0.85rem; line-height: 1.4; }
+.reanalysis-text strong { color: #fca5a5; letter-spacing: 0.04em; }
+.reanalysis-clear-btn {
+  padding: 6px 12px; border: 1px solid #ef4444; border-radius: 6px;
+  background: transparent; color: #fca5a5; cursor: pointer; font-size: 0.75rem; white-space: nowrap;
+}
+.reanalysis-clear-btn:hover { background: #7f1d1d; }
+
+.phase-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.feedback-item {
+  border-left: 3px solid #475569; padding: 8px 12px; border-radius: 4px; background: #0f172a;
+}
+.feedback-item.open { border-left-color: #ef4444; }
+.feedback-item.addressed { border-left-color: #22c55e; opacity: 0.8; }
+.feedback-item-head { display: flex; gap: 10px; font-size: 0.68rem; margin-bottom: 4px; }
+.feedback-status { font-weight: 600; }
+.feedback-item.open .feedback-status { color: #f87171; }
+.feedback-item.addressed .feedback-status { color: #4ade80; }
+.feedback-meta { color: #64748b; }
+.feedback-text { font-size: 0.85rem; color: #e2e8f0; white-space: pre-wrap; }
+.feedback-addressed-note { font-size: 0.75rem; color: #86efac; margin-top: 4px; }
+.feedback-empty { font-size: 0.78rem; color: #64748b; font-style: italic; }
+.feedback-textarea, .test-report-textarea, .ac-add-input {
+  width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid #334155;
+  border-radius: 6px; color: #e2e8f0; padding: 8px; font-size: 0.82rem; font-family: inherit;
+}
+
+.ac-item { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; cursor: pointer; }
+.ac-check, .cons-check { margin-top: 3px; }
+.ac-text { font-size: 0.85rem; color: #e2e8f0; }
+.ac-text.done { text-decoration: line-through; color: #64748b; }
+.ac-add-row { display: flex; gap: 8px; }
+.ac-add-row .ac-add-input { flex: 1; }
+.test-report-block { margin-top: 8px; padding-top: 10px; border-top: 1px solid #1e293b; display: flex; flex-direction: column; gap: 6px; }
+.test-report-label { font-size: 0.72rem; color: #2dd4bf; font-weight: 600; }
+
+/* board card badges (#269) */
+.card-reanalysis-badge {
+  display: inline-flex; align-items: center; gap: 3px; font-size: 0.6rem; font-weight: 700;
+  color: #fca5a5; background: #450a0a; border: 1px solid #ef4444; border-radius: 4px; padding: 1px 5px;
+}
 
 .review-count {
   margin-left: auto;
