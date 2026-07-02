@@ -4,6 +4,13 @@
 **Datum:** 2026-04-30  
 **Auteur:** Claude (aanzet voor review door Han)
 
+> [Claude 2026-07-02]: **Slice 1 geïmplementeerd** (tickets #128/#129/#130/#131/#134/#142):
+> XP-kern (§3, alléén difficulty-multiplier — tempo/blind/streak-multipliers uitgesteld),
+> skill-boom (§4, curve `100×(1−e^(−xp/2000))`), streak + freeze tokens (§5.1), session
+> summary (§5.2, met ≥1-melodie drempel), opt-out (§9.2). Engels als UI-taal; passieve
+> luister-XP zonder dagcap (Han's keuze, chat 2026-07-02). Zie `docs/architecture.md` §43.
+> Badges (§7), challenges (§6), onboarding (§12) en tutorial (§13) zijn NIET gebouwd.
+
 ---
 
 ## 1. Visie

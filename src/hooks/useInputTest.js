@@ -25,6 +25,8 @@ const useInputTest = ({
     activeClef,
     onNoteCorrect,  // optional: (note, durationTicks) => void — schedule stop after note duration
     onNoteWrong,    // optional: (note) => void — stop note immediately on wrong tap
+    onScoreEvent,   // optional: (type, detail) => void — gamification events (#134):
+                    //   'noteCorrect' | 'noteWrong' | 'cleanMeasure' | 'melodyComplete'
 }) => {
     // ── State ────────────────────────────────────────────────────────────────
     const [isInputTestMode, setIsInputTestMode] = useState(false);
@@ -43,6 +45,15 @@ const useInputTest = ({
     const lastInputNoteRef = useRef(null);
     const isTapRef = useRef(false);
     const errorTimeoutRef = useRef(null);
+    // #134 gamification: latest onScoreEvent in a ref so callback identity changes
+    // don't re-create handleInputTestNoteCore (same pattern as the other refs above).
+    const onScoreEventRef = useRef(onScoreEvent);
+    useEffect(() => { onScoreEventRef.current = onScoreEvent; }, [onScoreEvent]);
+    // #134 clean-measure tracking: true once any wrong note happened inside the
+    // measure currently being answered; reset when the active index crosses a
+    // measure boundary. Chords-staff targets are excluded (their offsets live on
+    // the progression, not the melody — v1 scopes cleanMeasure to melody staffs).
+    const measureHadErrorRef = useRef(false);
 
     useEffect(() => { isInputTestModeRef.current = isInputTestMode; }, [isInputTestMode]);
     useEffect(() => { inputTestStateRef.current = inputTestState; }, [inputTestState]);
@@ -154,6 +165,7 @@ const useInputTest = ({
             setInputTestState({ activeIndex: -1, status: 'waiting', activeStaff: 'treble', chordHits: [], successes: [], score: 0, correctNotes: 0, totalNotes: 0 });
         } else {
             setIsInputTestMode(true);
+            measureHadErrorRef.current = false; // fresh test — clean-measure tracking restarts
             const currentMelodies = melodiesRef.current;
             const currentChords = chordProgressionRef.current;
 
@@ -192,6 +204,20 @@ const useInputTest = ({
         const currentState = inputTestStateRef.current;
         const activeStaff = currentState.activeStaff || 'treble';
 
+        // #134: forward a gamification score event. isChordTarget computed at emit
+        // time from the note just answered so harmony attribution is accurate.
+        const emitScore = (type, detail = {}) => {
+            if (!onScoreEventRef.current) return;
+            const isChordTarget = activeStaff === 'chords' ||
+                Array.isArray(melodiesRef.current?.[activeStaff]?.notes?.[currentState.activeIndex]);
+            onScoreEventRef.current(type, {
+                staff: activeStaff,
+                subMode: inputTestSubModeRef.current,
+                isChordTarget,
+                ...detail,
+            });
+        };
+
         const advanceToNext = (isSuccess, addedScore = 0, addedCorrect = 0, addedTotal = 0) => {
             const nextSuccesses = isSuccess ? [...(currentState.successes || []), currentState.activeIndex] : (currentState.successes || []);
 
@@ -220,6 +246,30 @@ const useInputTest = ({
                     const n = targetMelody[i];
                     if (n && n !== 'r' && ties[i - 1] !== 'tie') { nextIdx = i; break; }
                 }
+            }
+
+            // #134 gamification emissions. addedCorrect > 0 = a newly correct note;
+            // the error-recovery advance passes 0 (already counted as wrong).
+            if (addedCorrect > 0) emitScore('noteCorrect');
+            if (activeStaff !== 'chords') {
+                const mel = melodiesRef.current?.[activeStaff];
+                const offset = mel?.offsets?.[currentState.activeIndex];
+                if (offset != null) {
+                    // Same measure-length formula as the live tracker above.
+                    const measureLengthTicks = (48 * (tsRef.current?.[0] ?? 4)) / (tsRef.current?.[1] ?? 4);
+                    const crossedBoundary = nextIdx === -1 ||
+                        Math.floor((mel.offsets[nextIdx] ?? 0) / measureLengthTicks) > Math.floor(offset / measureLengthTicks);
+                    if (crossedBoundary) {
+                        if (!measureHadErrorRef.current) emitScore('cleanMeasure');
+                        measureHadErrorRef.current = false;
+                    }
+                }
+            }
+            if (nextIdx === -1) {
+                emitScore('melodyComplete', {
+                    correct: currentState.correctNotes + addedCorrect,
+                    total: currentState.totalNotes + addedTotal,
+                });
             }
 
             if (nextIdx !== -1) {
@@ -260,6 +310,10 @@ const useInputTest = ({
         };
 
         const triggerError = (errorNote) => {
+            // #134 gamification: count the miss and poison the current measure's
+            // clean-measure bonus.
+            emitScore('noteWrong');
+            measureHadErrorRef.current = true;
             if (isTap && onNoteWrong && errorNote) onNoteWrong(errorNote);
             setInputTestState(prev => ({ ...prev, status: 'error', score: prev.score - 1, totalNotes: prev.totalNotes + 1, chordHits: [], wrongNote: errorNote || null }));
             clearTimeout(errorTimeoutRef.current);
@@ -300,8 +354,11 @@ const useInputTest = ({
             newHits.push(playedCan);
             if (isTap && onNoteCorrect) onNoteCorrect(playedNote, dur || 12);
             if (newHits.length >= targetNotes.length) {
-                advanceToNext(true, 1, 1, 1);
+                advanceToNext(true, 1, 1, 1); // final hit — advanceToNext emits noteCorrect
             } else {
+                // #134: partial chord hit is a correct note too (matches the
+                // correctNotes increment below).
+                emitScore('noteCorrect');
                 setInputTestState(prev => ({
                     ...prev, chordHits: newHits,
                     score: prev.score + 1, correctNotes: prev.correctNotes + 1, totalNotes: prev.totalNotes + 1,

@@ -73,7 +73,8 @@ import { PlaybackTransportProvider } from './contexts/PlaybackTransportContext';
 import { RoundStateProvider } from './contexts/RoundStateContext';
 import { TransitionOverlayProvider } from './contexts/TransitionOverlayContext';
 import { UniversalTransitionProvider } from './contexts/UniversalTransitionContext';
-import { ProfileProvider } from './contexts/ProfileContext';
+import { useProfile } from './contexts/ProfileContext';
+import SessionSummaryCard from './components/profile/SessionSummaryCard';
 import { AnimationRefsProvider } from './contexts/AnimationRefsContext';
 
 
@@ -187,6 +188,16 @@ const App = () => {
     const chordsDisabledRef = useRef(chordDisplayMode === 'off');
     useEffect(() => { chordsDisabledRef.current = chordDisplayMode === 'off'; }, [chordDisplayMode]);
 
+    // Gamification (#134): ProfileProvider now wraps <App/> in main.jsx, so the
+    // event sink is consumed here. recordEvent/beginSession/endSession are
+    // memoised with stable deps in ProfileContext. recordEventRef lets
+    // sequencerSetters (memoised, long-lived) emit without adding a dep.
+    const { recordEvent, beginSession, endSession } = useProfile();
+    const recordEventRef = useRef(recordEvent);
+    useEffect(() => { recordEventRef.current = recordEvent; }, [recordEvent]);
+    // Post-session summary card data (#131); null = hidden.
+    const [sessionSummary, setSessionSummary] = useState(null);
+
     const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
 
     // Sheet Music Settings state (Lifted)
@@ -295,6 +306,28 @@ const App = () => {
         targetBassDifficulty, setTargetBassDifficulty, targetBassDifficultyRef,
         actualDifficulty,
     } = useDifficultySettings({ scale, trebleSettings, bpm, playbackConfig });
+
+    // Gamification (#128): live difficulty multiplier (harmNorm + trebleNorm, 0–2)
+    // in a ref so score-event payload builders read it without memo churn.
+    const actualDifficultyRef = useRef(0);
+    useEffect(() => { actualDifficultyRef.current = actualDifficulty?.multiplier ?? 0; }, [actualDifficulty]);
+
+    // Enriches a gamification event with the musical context the scoring math
+    // needs (attribution + multipliers + novelty detection). Reads refs only —
+    // stable identity for the callbacks below.
+    const buildScorePayload = useCallback(() => {
+        const s = scaleRef.current;
+        return {
+            tonicPC: (s?.tonic || '').replace(/-?\d+$/, ''),
+            family: s?.family,
+            mode: s?.name,
+            meterNumerator: tsRef.current?.[0],
+            bpm: bpmRef.current,
+            difficultyMultiplier: actualDifficultyRef.current,
+        };
+    // All inputs are refs — stable identities.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Owns scale-related state (tonic, selectedMode) and handlers (setTonic,
     // setSelectedMode, applyHarmonyAtDifficulty, handleScaleClick,
@@ -759,6 +792,12 @@ const App = () => {
         onNoteWrong: useCallback((note) => {
             instruments.treble?.stop({ note });
         }, [instruments.treble]),
+        // #134 gamification: enrich input-test score events with musical context
+        // and forward to the profile. buildScorePayload/recordEventRef read refs
+        // only, so this callback is stable.
+        onScoreEvent: useCallback((type, detail) => {
+            recordEventRef.current(type, { ...detail, ...buildScorePayload() });
+        }, [buildScorePayload]),
     });
 
     const handleSetInputTestSubMode = useCallback((mode) => {
@@ -814,6 +853,26 @@ const App = () => {
     // Manual instrument playing (UI keys/pads) will still use default volumes or respect their individual velocity handling.
 
     const isPlaying = isPlayingContinuously || isPlayingScale || isPlayingMelody;
+
+    // Gamification session boundaries (#134). A "session" is any continuous
+    // stretch of playback and/or input-test activity; watching the combined
+    // flag here means NO wrapping of handleStopAllPlayback (which a dozen
+    // consumers hold) and no onPlaybackStart coupling. Rapid stop→start while
+    // configuring produces tiny sessions that the ≥1-completed-melody gate in
+    // endSession() filters out (Han 2026-07-02).
+    const sessionActiveRef = useRef(false);
+    useEffect(() => {
+        const active = isPlaying || isInputTestMode;
+        if (active && !sessionActiveRef.current) {
+            sessionActiveRef.current = true;
+            setSessionSummary(null); // starting new activity dismisses a lingering card
+            beginSession();
+        } else if (!active && sessionActiveRef.current) {
+            sessionActiveRef.current = false;
+            const summary = endSession();
+            if (summary) setSessionSummary(summary);
+        }
+    }, [isPlaying, isInputTestMode, beginSession, endSession]);
 
     // Starting any playback closes the range overlay (mutually exclusive with
     // range-edit). Covers every play entry point in one place. Closing range-edit
@@ -1004,7 +1063,17 @@ const App = () => {
         setDisplayChordProgression,
         setNextLayer,
         setPreviewMelody,
-        setIterInCurrentSeries,
+        // #134 gamification: the Sequencer calls this at every repetition boundary
+        // (n ≥ 1 per rep, n === 0 at each series flip), which is exactly the
+        // "listened to a full melody / full series" signal — no Sequencer edits
+        // needed. Gate on isPlaying so App's own resets (onStop above passes
+        // through the raw setter) and mount-time calls don't award listen XP.
+        setIterInCurrentSeries: (n) => {
+            setIterInCurrentSeries(n);
+            if (sequencerRef.current?.isPlaying) {
+                recordEventRef.current(n === 0 ? 'seriesComplete' : 'melodyListened', buildScorePayload());
+            }
+        },
         clearActiveHighlight: () => {
             const svg = svgRef.current;
             if (svg) {
@@ -1034,7 +1103,8 @@ const App = () => {
         generateChords, setTrebleMelody, setBassMelody, setPercussionMelody,
         setShowNotes, setShowChordLabels, setReferenceMelody, setReferenceBassMelody,
         setReferenceScale, setStartMeasureIndex, setBlockMeasureStart, setBlockPlayStart, setIsOddRound, setVolume,
-        setCurrentMeasureIndex, setDisplayChordProgression, setNextLayer, setPreviewMelody, setIterInCurrentSeries]);
+        setCurrentMeasureIndex, setDisplayChordProgression, setNextLayer, setPreviewMelody, setIterInCurrentSeries,
+        buildScorePayload]);
 
     useEffect(() => {
         if (!context || !instruments.treble) return;
@@ -1378,7 +1448,6 @@ const App = () => {
         handleNoteEnharmonicToggle, handlePreviewInstrument]);
 
     return (
-        <ProfileProvider>
         <PlaybackConfigProvider value={playbackConfigCtx}>
         <InstrumentSettingsProvider value={instrumentSettingsCtx}>
         <DisplaySettingsProvider value={displaySettingsCtx}>
@@ -1679,6 +1748,16 @@ const App = () => {
                     onLoadSong={handleLoadSong}
                 />
             </div>
+
+            {/* Post-session summary (#131). Rendered only when endSession()
+                returned a gated summary; starting new activity clears it. */}
+            {sessionSummary && (
+                <SessionSummaryCard
+                    summary={sessionSummary}
+                    onDismiss={() => setSessionSummary(null)}
+                    debugMode={debugMode}
+                />
+            )}
         </div >
         </AnimationRefsProvider>
         </TransitionOverlayProvider>
@@ -1689,7 +1768,6 @@ const App = () => {
         </DisplaySettingsProvider>
         </InstrumentSettingsProvider>
         </PlaybackConfigProvider>
-        </ProfileProvider>
     );
 };
 

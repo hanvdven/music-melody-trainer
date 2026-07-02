@@ -3988,3 +3988,70 @@ Han. The cycler advances WHICH passing-chord type is shown; tapping the value TO
 `src/components/sheet-music/SheetMusic.jsx` (props + overlayKind + mounted flags + render blocks),
 `src/App.jsx` (thread flags + handlers), `src/components/layout/SubHeader.jsx` (3 buttons:
 PLAYBACK `SlidersHorizontal` / GENERATION `Sparkles` / GEN. ADVANCED `FlaskConical`).
+
+---
+
+## 43. Gamification — XP core, skills, streak, session summary (Han 2026-07-02)
+
+**Purpose:** motivational layer per `docs/gamification.md` (slice 1 of the design: XP/levels,
+5-branch skill tree, daily streak + freeze tokens, session summary card, opt-out). Kanban
+tickets #128, #129, #130, #131, #134, #142. NOT in this slice: badges/challenges (#133),
+lesson engine (#138–141), the 11-dimension skill model of `docs/profile-schema.md` (#143).
+
+**How it works — three layers:**
+
+1. **Pure math** — `src/utils/gamification.js`. XP table, level curve
+   (`XP_needed(L) = 100 × L^1.4`, tier names Beginner→Maestro), skill curve
+   (`score = 100 × (1 − e^(−branchXP/2000))`, K=2000 per Han 2026-07-02), difficulty→XP
+   multiplier (`actualDifficulty.multiplier` 0–2 → 0.5×–2.0× linear), event→branch
+   attribution, and the streak evaluator (local calendar days; 1 freeze token earned per
+   7-day multiple, max 2; a missed day consumes a token, else reset — tokens survive resets).
+   Fully unit-tested (`src/utils/__tests__/gamification.test.js`).
+
+2. **State + scoring** — `src/contexts/ProfileContext.jsx`. Versioned profile v1 under the
+   pre-existing `music-trainer-profile` localStorage key (legacy `{unlockedFamilies, debugMode}`
+   shape migrates losslessly). The ONLY write path is `recordEvent(type, payload)`;
+   `beginSession()`/`endSession()` bracket a session. **The live profile lives in a ref, not
+   state** — `recordEvent` fires per correct note, and the provider wraps `<App/>` (hoisted to
+   `main.jsx`), so a state write per note would re-render the whole app. A `snapshot` state is
+   flushed (and persisted) only at melodyComplete/seriesComplete/session end/toggles;
+   `beforeunload` persists any tail. Passive listening XP has NO daily cap (Han's explicit
+   call, 2026-07-02). Novelty XP (newKey/newScale) is tracked by semitone pitch class
+   (enharmonics count once) and `family:mode` keys.
+
+3. **Wiring** — `src/hooks/useInputTest.js` takes an optional `onScoreEvent(type, detail)`
+   and emits `noteCorrect` / `noteWrong` / `cleanMeasure` / `melodyComplete` from
+   `advanceToNext`/`triggerError` (clean-measure = no wrong note since the last measure
+   boundary, computed from `melody.offsets` with the same measure-length formula as the live
+   tracker; chords staff excluded in v1). `App.jsx` enriches events with musical context
+   (tonic, family/mode, meter, BPM, difficulty) read from refs, and detects **sessions** with
+   a single effect watching `isPlaying || isInputTestMode` — deliberately NOT by wrapping
+   `handleStopAllPlayback` (a dozen consumers hold it). Listening XP: the Sequencer already
+   calls the `setIterInCurrentSeries` setter at every repetition/series boundary, so App wraps
+   that setter in `sequencerSetters` (`n===0` → seriesComplete, else melodyListened), gated on
+   `sequencerRef.current.isPlaying` — **zero Sequencer.js edits**.
+
+**UI:** `ProfileTab.jsx` (level/tier/XP bar, five skill bars, streak + tokens, gamification
+ON/OFF toggle) and `SessionSummaryCard.jsx` (bottom toast; auto-fade 8s or tap to dismiss;
+whole card is the dismiss hit region, outlined in debug mode per CLAUDE.md §3a).
+
+**Invariants:**
+- ALL scoring math lives in `gamification.js` + `ProfileContext.recordEvent` — never scatter
+  XP arithmetic into hooks/components.
+- No gamification calls inside Sequencer scheduling loops or rAF callbacks — only existing
+  React event/effect paths.
+- The session summary card renders ONLY when `endSession()` returns non-null (gate: ≥1
+  completed melody or ≥1 fully listened series) — stop/start while configuring must never
+  spawn a card.
+- With gamification opted out, `recordEvent` still accumulates session stats (the summary
+  stays useful) but awards no XP.
+- One storage layer: future lesson/exercise progress (#268, #138+) must extend this profile,
+  not add a parallel localStorage key.
+
+**Files:** `src/utils/gamification.js` (new), `src/utils/__tests__/gamification.test.js` (new),
+`src/contexts/ProfileContext.jsx` (v1 schema + recordEvent/session API),
+`src/contexts/__tests__/ProfileContext.test.jsx` (new), `src/hooks/useInputTest.js`
+(onScoreEvent emissions), `src/App.jsx` (session effect, payload builder, setter wrap, card
+render), `src/main.jsx` (ProfileProvider hoisted above App),
+`src/components/profile/ProfileTab.jsx/.css` (gamification sections),
+`src/components/profile/SessionSummaryCard.jsx/.css` (new).

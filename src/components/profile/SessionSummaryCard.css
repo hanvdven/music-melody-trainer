@@ -1,0 +1,82 @@
+/* Session summary card (#131) — bottom-centred toast-style card. Colour
+   palette matches ProfileTab.css (dark panel chrome, gold XP accent). */
+
+.session-summary-card {
+    position: fixed;
+    left: 50%;
+    bottom: 76px; /* clears the bottom tab bar */
+    transform: translateX(-50%);
+    z-index: 1200;
+    min-width: 240px;
+    max-width: 320px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    background: #1c1c1cf2;
+    border: 1px solid #3a3a3a;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+    color: #ddd;
+    font-family: sans-serif;
+    cursor: pointer;
+    animation: session-summary-in 0.25s ease-out;
+}
+
+@keyframes session-summary-in {
+    from { opacity: 0; transform: translate(-50%, 12px); }
+    to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.session-summary-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #aaa;
+    margin-bottom: 10px;
+}
+
+.session-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    font-size: 13px;
+    padding: 2px 0;
+}
+
+.session-summary-label {
+    color: #888;
+}
+
+.session-summary-value {
+    color: #e8e8e8;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.session-summary-dim {
+    color: #888;
+    font-weight: 400;
+}
+
+.session-summary-xp {
+    color: #e0b64d;
+    font-weight: 700;
+}
+
+.session-summary-skill {
+    color: #5a9a5a;
+}
+
+.session-summary-streak {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #333;
+    font-size: 13px;
+    font-weight: 600;
+    color: #ff9a4d;
+}

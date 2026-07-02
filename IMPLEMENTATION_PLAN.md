@@ -7,6 +7,33 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-02 — ✅ FR: Gamification layer — slice 1 GEBOUWD (wacht op UAT)
+
+Impl klaar (Fable-5, main session): `src/utils/gamification.js` (+23 tests),
+ProfileContext v1 (ref-based profiel, `recordEvent`, sessies, migratie, +5 tests),
+`useInputTest` onScoreEvent-emissies (noteCorrect/noteWrong/cleanMeasure/melodyComplete),
+App session-effect op `isPlaying||isInputTestMode`, luister-XP via gewrapte
+`setIterInCurrentSeries` setter (0 Sequencer-edits), ProfileTab (level/tier/XP-bar,
+5 skill-bars, streak+tokens, opt-out toggle), `SessionSummaryCard` (toast, ≥1-melodie
+gate, auto-fade 8s). §7b: 517 tests groen, lint 0 errors, build OK. Docs:
+architecture.md §43 + status-note in gamification.md. Tickets #142/#134/#128/#129/#130/#131
+→ test (UAT Han). Plan-afwijking gelogd: series-detectie via setter-wrap i.p.v.
+randomizeAll-wrap (Sequencer krijgt randomizeAll niet — regenereert intern).
+
+### Oorspronkelijke design-fase log
+
+Han: "add a gamification layer". Interview (§4b) afgenomen; Han koos:
+**XP-kern + session summary + simpele 5-tak skill tree**, docs behandelen als
+draft (kritische review), via kanban-pipeline. Bestaande on_hold tickets
+gereactiveerd → design_review: #142 (profile schema, fundament) → #134
+(opt-out + event-wiring) → #128 (XP/levels, v1 alléén difficulty-multiplier) →
+#129 (skill tree, asymptotische 0–100 formule voorgesteld) + #130 (streak +
+freeze tokens) → #131 (session summary, met ≥1-melodie drempel tegen popup-spam).
+Dependencies f-f gewired; AC's + consistency_requirements per ticket geseed (§9k).
+NIET in deze slice: badges/challenges (#133), lesson engine (#138–141),
+11-dimensie skill-model (#143 blijft on_hold). ✋ Wacht op Han: design_review
++ 4 interview-vragen (sessiedrempel, formule K, passieve-XP cap, UI-taal).
+
 ## 2026-06-27 — ✅ #162 Advanced Generator Settings — rework (Opus/high)
 
 Tweede rework na 2× UAT. Han bevestigde (kanban-notes): tangentiële setter voor in-line noten

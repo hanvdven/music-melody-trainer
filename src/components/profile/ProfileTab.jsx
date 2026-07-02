@@ -1,7 +1,17 @@
 import React from 'react';
-import { Lock, Unlock, Bug } from 'lucide-react';
+import { Lock, Unlock, Bug, Flame, Snowflake, Trophy } from 'lucide-react';
 import { useProfile, ALL_SCALE_FAMILIES } from '../../contexts/ProfileContext';
+import { SKILL_BRANCHES } from '../../utils/gamification';
 import './ProfileTab.css';
+
+// Display labels for the five skill branches (docs/gamification.md §4).
+const SKILL_LABELS = {
+    ear: 'Ear',
+    sightReading: 'Sight Reading',
+    rhythm: 'Rhythm',
+    harmony: 'Harmony',
+    consistency: 'Consistency',
+};
 
 // Human-readable descriptions shown next to each scale family
 const FAMILY_DESCRIPTIONS = {
@@ -18,11 +28,99 @@ const FAMILY_DESCRIPTIONS = {
 };
 
 export default function ProfileTab() {
-    const { unlockedFamilies, debugMode, setDebugMode, toggleFamily, isFamilyUnlocked } = useProfile();
+    const {
+        unlockedFamilies, debugMode, setDebugMode, toggleFamily,
+        gamification, gamificationEnabled, setGamificationEnabled,
+    } = useProfile();
 
     return (
         <div className="profile-tab">
             <h2 className="profile-title">Profile</h2>
+
+            {/* Level & XP (#128) */}
+            {gamificationEnabled && (
+                <section className="profile-section">
+                    <div className="profile-section-header">
+                        <Trophy size={16} />
+                        <span>Level</span>
+                    </div>
+                    <div className="profile-level-row">
+                        <span className="profile-level-number">Lv {gamification.level}</span>
+                        <span className="profile-level-tier">{gamification.tier}</span>
+                        <span className="profile-level-xp">{gamification.totalXP} XP</span>
+                    </div>
+                    <div className="profile-xp-bar" title={`${gamification.intoLevel} / ${gamification.needed} XP to next level`}>
+                        <div
+                            className="profile-xp-bar-fill"
+                            style={{ width: `${Math.min(100, (gamification.intoLevel / gamification.needed) * 100)}%` }}
+                        />
+                    </div>
+                    <p className="profile-section-hint">
+                        {gamification.needed - gamification.intoLevel} XP to level {gamification.level + 1}
+                    </p>
+                </section>
+            )}
+
+            {/* Skill branches (#129) */}
+            {gamificationEnabled && (
+                <section className="profile-section">
+                    <div className="profile-section-header">
+                        <span>Skills</span>
+                    </div>
+                    <ul className="profile-skill-list">
+                        {SKILL_BRANCHES.map(branch => (
+                            <li key={branch} className="profile-skill-item">
+                                <span className="profile-skill-name">{SKILL_LABELS[branch]}</span>
+                                <div className="profile-skill-bar">
+                                    <div
+                                        className="profile-skill-bar-fill"
+                                        style={{ width: `${gamification.skills[branch]}%` }}
+                                    />
+                                </div>
+                                <span className="profile-skill-score">{gamification.skills[branch]}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
+
+            {/* Daily streak (#130) */}
+            {gamificationEnabled && (
+                <section className="profile-section">
+                    <div className="profile-section-header">
+                        <Flame size={16} />
+                        <span>Streak</span>
+                    </div>
+                    <div className="profile-streak-row">
+                        <span className="profile-streak-days">
+                            {gamification.streakDays} {gamification.streakDays === 1 ? 'day' : 'days'}
+                        </span>
+                        <span className="profile-streak-tokens" title="Freeze tokens protect your streak on a missed day">
+                            <Snowflake size={14} /> ×{gamification.freezeTokens}
+                        </span>
+                    </div>
+                    <p className="profile-section-desc">
+                        A day counts when you complete at least one melody. Every 7 days earns a freeze token (max 2).
+                    </p>
+                </section>
+            )}
+
+            {/* Gamification opt-out (#134) */}
+            <section className="profile-section">
+                <div className="profile-section-header">
+                    <span>Gamification</span>
+                </div>
+                <p className="profile-section-desc">
+                    XP, levels, skills and streaks. When off, only the session summary remains.
+                </p>
+                <button
+                    className={`profile-debug-toggle${gamificationEnabled ? ' active' : ''}`}
+                    onClick={() => setGamificationEnabled(!gamificationEnabled)}
+                    aria-pressed={gamificationEnabled}
+                >
+                    {gamificationEnabled ? 'ON' : 'OFF'}
+                </button>
+            </section>
 
             {/* Debug mode toggle */}
             <section className="profile-section">
