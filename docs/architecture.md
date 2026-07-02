@@ -4140,3 +4140,31 @@ selection flows through the existing session/event machinery.
 `src/components/sheet-music/overlays/ExerciseStaffOverlay.jsx` (new), `src/hooks/useEditMode.js`,
 `src/hooks/useRangeMorph.js`, `src/components/layout/SubHeader.jsx`,
 `src/components/sheet-music/SheetMusic.jsx`, `src/App.jsx`.
+
+### §44a. Exercise setter rework — axes + START (Han 2026-07-02, same day)
+
+**Symptom:** after #266 landed, Han: "Hoe start ik nu een oefening? Maak het starten
+prominenter. Hoe start ik een rubato scale run?" — selection only configured the generator
+(no explicit start), and rubato was a separate exercise instead of a combinable property.
+
+**How it works now (Han's spec, chat):** exercises are PRESETS over four axes, all
+individually adjustable in the setter, laid out vertically ("gebruik de hoogte"):
+- **MELODY** (scales | melodies | chords) → notePool/randomizationRule via `MELODY_TYPE_TREBLE`
+- **INPUT** (read | hear | replay) → round eyes/notes visibility (replay = blind)
+- **TEMPO** (fixed | rubato) → `isRubato` ("rubato instelbaar via tempo")
+- **REPEAT** (until correct | ×1 | ×2 | ×4) → `repsPerMelody`
+`configFromAxes` (pure, in the registry) derives the declarative patch; a preset's `extra`
+fine-tunes on top. `normalizeAxes`/`isAxisOptionEnabled` forbid meaningless combos
+(HEAR × RUBATO, HEAR × UNTIL) — corrected, and dimmed in the UI. Carousel cards are now
+lucide placeholder icon + ALL-CAPS title below (Han: "plaatje + tekst eronder"; all carousel
+text all-caps). A prominent **START** button (accent-yellow) closes the setter and starts per
+the input axis: hear → `handlePlayContinuously`; read/replay → input test 'note' mode (with
+tempo=rubato, `isRubato` is already on — input-test note mode IS the rubato entry point,
+identical to `rubatoEngageRef`). "Until correct" is v1-approximated (input test inherently
+blocks per note); the full scored until-correct run is ticket #267.
+
+**Files:** `src/exercises/exerciseIndex.js` (AXES/AXIS_ORDER/AXIS_LABELS, normalizeAxes,
+isAxisOptionEnabled, configFromAxes; presets now axes+extra; rubato-ear entry removed),
+`overlays/ExerciseStaffOverlay.jsx` (icon cards, 4 axis rows w/ §3a hit boxes, START),
+`src/App.jsx` (exerciseAxes state, handleExerciseAxisChange, handleStartExercise),
+`SheetMusic.jsx` (prop pass-through).

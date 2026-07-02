@@ -198,9 +198,12 @@ const SheetMusic = ({
   playbackEditMode,                 // Han 2026-06-22 — three new generator setters
   generationEditMode,
   generationAdvancedEditMode,
-  exerciseEditMode,                 // #266 Han 2026-07-02 — exercise selector
+  exerciseEditMode,                 // #266 Han 2026-07-02 — exercise setter (presets + axes + START)
   onSelectExercise,
   activeExerciseId,
+  exerciseAxes,
+  onExerciseAxisChange,
+  onStartExercise,
   onToggleSettings,
   onCloseRangeEdit,
   onCloseClefEdit,
@@ -2827,7 +2830,10 @@ const SheetMusic = ({
                       bassStart={bassStart}
                       isTrebleVisible={isTrebleVisible}
                       activeExerciseId={activeExerciseId}
+                      axes={exerciseAxes}
                       onSelectExercise={onSelectExercise}
+                      onAxisChange={onExerciseAxisChange}
+                      onStartExercise={onStartExercise}
                       onSettingsInteraction={onSettingsInteraction}
                       debugMode={debugMode}
                     />

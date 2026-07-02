@@ -75,7 +75,7 @@ import { TransitionOverlayProvider } from './contexts/TransitionOverlayContext';
 import { UniversalTransitionProvider } from './contexts/UniversalTransitionContext';
 import { useProfile } from './contexts/ProfileContext';
 import SessionSummaryCard from './components/profile/SessionSummaryCard';
-import { applyExerciseConfig } from './exercises/exerciseIndex';
+import { applyExerciseConfig, configFromAxes, normalizeAxes, EXERCISES } from './exercises/exerciseIndex';
 import { AnimationRefsProvider } from './contexts/AnimationRefsContext';
 
 
@@ -703,6 +703,7 @@ const App = () => {
         generationAdvancedEditMode,
         exerciseEditMode,
         setRangeEditMode,
+        setExerciseEditMode,
         handleToggleRangeEdit,
         handleToggleClefEdit,
         handleToggleColorEdit,
@@ -717,18 +718,31 @@ const App = () => {
         handleOpenClefEdit,
     } = useEditMode({ handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings });
 
-    // ── Exercise view (#265/#266, epic #245, Han 2026-07-02) ──────────────────
-    // Selecting an exercise applies its declarative config through the existing
-    // setters; opening the exercise selector flips the bottom view to the songs
-    // tab (Han: "opens the songs on the bottom view and an exercise selector on
-    // the top view").
-    const [activeExerciseId, setActiveExerciseId] = useState(null);
+    // ── Exercise view (#265/#266 rework, epic #245, Han 2026-07-02) ───────────
+    // Exercises are PRESETS over four axes (melodyType / input / tempo /
+    // evaluation); selecting one seeds the axes, and each axis stays
+    // individually adjustable in the setter (Han: "de oefeningen zijn presets;
+    // rubato instelbaar via tempo"). Every change applies the derived config
+    // through the existing setters. Opening the selector flips the bottom view
+    // to the songs tab.
+    const [activeExerciseId, setActiveExerciseId] = useState(EXERCISES[0].id);
+    const [exerciseAxes, setExerciseAxes] = useState(() => normalizeAxes(EXERCISES[0].axes));
+    const exerciseSetters = useMemo(() => ({
+        setPlaybackConfig, setTrebleSettings, setBpm, setNumMeasures, setIsRubato,
+    }), [setPlaybackConfig, setTrebleSettings, setBpm, setNumMeasures, setIsRubato]);
     const handleSelectExercise = useCallback((exercise) => {
         setActiveExerciseId(exercise.id);
-        applyExerciseConfig(exercise, {
-            setPlaybackConfig, setTrebleSettings, setBpm, setNumMeasures, setIsRubato,
-        });
-    }, [setPlaybackConfig, setTrebleSettings, setBpm, setNumMeasures, setIsRubato]);
+        const ax = normalizeAxes(exercise.axes);
+        setExerciseAxes(ax);
+        applyExerciseConfig(configFromAxes(ax), exerciseSetters);
+        // Preset fine-tune patch (variability, note density, bpm …) on top of the axes.
+        if (exercise.extra) applyExerciseConfig(exercise.extra, exerciseSetters);
+    }, [exerciseSetters]);
+    const handleExerciseAxisChange = useCallback((axis, value) => {
+        const ax = normalizeAxes({ ...exerciseAxes, [axis]: value });
+        setExerciseAxes(ax);
+        applyExerciseConfig(configFromAxes(ax), exerciseSetters);
+    }, [exerciseAxes, exerciseSetters]);
     useEffect(() => {
         if (exerciseEditMode) setActiveTab('songs');
     // setActiveTab is a stable useState setter.
@@ -828,6 +842,29 @@ const App = () => {
     // setQwertyKeyboardActive is a stable useState setter — identity never changes (React 18).
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [setInputTestSubMode]);
+
+    // START an exercise (#266 rework, Han 2026-07-02: "maak het starten
+    // prominenter"). What starting MEANS follows the input axis:
+    //   hear         → continuous playback (repeat count already applied via config)
+    //   read/replay  → input test in 'note' mode (replay plays blind — notes were
+    //                  hidden by the axes config). With tempo=rubato, isRubato is
+    //                  already ON, which is exactly the state the rubato Play
+    //                  interception produces — input test 'note' mode IS the
+    //                  rubato entry point (see rubatoEngageRef above).
+    // Defined here (not with the axes handlers) because it needs playback +
+    // input-test handlers that only exist after usePlayback/useInputTest.
+    const handleStartExercise = useCallback(() => {
+        const ax = normalizeAxes(exerciseAxes);
+        setExerciseEditMode(false); // close the setter; the songs tab stays below
+        if (ax.input === 'hear') {
+            handlePlayContinuously();
+            return;
+        }
+        if (!isInputTestModeRef.current) handleToggleInputTest();
+        handleSetInputTestSubMode('note');
+    // isInputTestModeRef is a ref — stable identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [exerciseAxes, setExerciseEditMode, handlePlayContinuously, handleToggleInputTest, handleSetInputTestSubMode]);
 
     // Populate the rubato-play interceptor now that useInputTest is mounted.
     // The Play buttons (handlePlayMelody/Repeat/Continuously) consult this ref
@@ -1424,6 +1461,9 @@ const App = () => {
         exerciseEditMode: exerciseEditMode,
         onSelectExercise: handleSelectExercise,
         activeExerciseId: activeExerciseId,
+        exerciseAxes: exerciseAxes,
+        onExerciseAxisChange: handleExerciseAxisChange,
+        onStartExercise: handleStartExercise,
         onToggleSettings: toggleSheetMusicSettings,
         onCloseRangeEdit: handleCloseRangeEdit,
         onCloseClefEdit: handleCloseClefEdit,
@@ -1464,7 +1504,8 @@ const App = () => {
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
         windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, instrumentEditMode,
         playbackEditMode, generationEditMode, generationAdvancedEditMode, exerciseEditMode,
-        handleSelectExercise, activeExerciseId, toggleSheetMusicSettings,
+        handleSelectExercise, activeExerciseId, exerciseAxes, handleExerciseAxisChange,
+        handleStartExercise, toggleSheetMusicSettings,
         handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously, isPlaying,

@@ -7,6 +7,21 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-02 — ✅ CR: Exercise setter met assen + START-knop GEBOUWD
+
+Han (chat, na #265/#266): "Hoe start ik nu een oefening? Maak het starten
+prominenter. Bijvoorbeeld: hoe start ik een rubato scale run?" Interview-
+antwoorden: START-knop ✓; oefeningen = presets over VIER ASSEN (melodie-type /
+input lezen-horen-naspelen / tempo vast-rubato / herhaling tot-goed-×1-×2-×4),
+verticaal in de setter ✓; carousel = plaatje (lucide placeholder) + ALL-CAPS
+tekst eronder ✓. GEBOUWD: registry-assenmodel (`AXES`, `configFromAxes`,
+`normalizeAxes` — HEAR×RUBATO en HEAR×UNTIL uitgesloten/gedimd; rubato-ear als
+aparte entry verwijderd), overlay met icon-kaarten + 4 asrijen (§3a hitboxes) +
+gele START-knop, `handleStartExercise` (hear→continuous play; read/replay→
+input-test note-mode, rubato via tempo-as). Rubato scale run = preset SCALE
+RUNS + tempo RUBATO + START. §7b: 527 tests groen, lint 0, build OK.
+architecture.md §44a. ⏳ 'until correct' volwaardig scoren = #267.
+
 ## 2026-07-02 — ✅ CR: Skill = adaptief (ELO/MMR-achtig) — #129 rework GEBOUWD (wacht op UAT)
 
 Han (chat, na slice-1 UAT-blik): XP goed zo, maar skill 0–100 moet ADAPTIEF:
