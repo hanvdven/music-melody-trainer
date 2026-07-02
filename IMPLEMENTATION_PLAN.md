@@ -7,6 +7,33 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-02 — ✅ CR: Skill = adaptief (ELO/MMR-achtig) — #129 rework GEBOUWD (wacht op UAT)
+
+Han (chat, na slice-1 UAT-blik): XP goed zo, maar skill 0–100 moet ADAPTIEF:
+100 = de moeilijkste difficulty foutloos kunnen spelen (chess-ELO / win-loss MMR),
+niet cumulatieve XP. Interview-antwoorden: skill mag dalen ✓, graded outcome
+(100%→1.0, 95%→0.5, ≤90%→0) ✓, passief luisteren telt NIET ✓, Consistency blijft
+XP-curve ✓. GEBOUWD: `gamification.js` ELO-helpers (difficultyToRating 50×mult,
+spread 15, K=6, length-weight notes/8, min 4 noten), ProfileContext v2
+(skillRatings + consistencyXP, v1→v2-migratie seedt ratings via skillScore),
+SessionSummaryCard toont ↓ rood bij daling, ProfileTab rating-uitleg.
+§7b: 527 tests groen, lint 0 errors, build OK. #129 → test (UAT Han).
+
+## 2026-07-02 — ✅ FR: Exercise view (top selector + bottom songs) — #265/#266 GEBOUWD
+
+Han: "create an exercise view, opens songs on the bottom view and an exercise
+selector on the top view; presets op kanban als startpunt." Dekt bestaand epic
+#245 (design_review) + subtickets #265 registry / #266 in-staff tab+carousel /
+#267 rubato-run / #268 progress; presets #54–59 als registry-seed. Interview:
+7 oefeningen (6 presets + rubato) ✓, view+registry eerst ✓. GEBOUWD:
+`src/exercises/exerciseIndex.js` (registry + applyExerciseConfig, declaratieve
+patches à la PresetPicker), `ExerciseStaffOverlay.jsx` (NonLinearCarousel op de
+bovenste balk, actieve beschrijving als caption), `exerciseEditMode` in
+useEditMode (8e sibling, volledige mutual exclusion), EXERCISES-knop (Dumbbell)
+in SubHeader, morph-surface 'exercise' in useRangeMorph, App-effect →
+bottom view naar songs-tab bij openen. §7b groen. #265/#266 → test (UAT Han).
+⏳ #267 rubato-run met scoring = volgende slice.
+
 ## 2026-07-02 — ✅ FR: Gamification layer — slice 1 GEBOUWD (wacht op UAT)
 
 Impl klaar (Fable-5, main session): `src/utils/gamification.js` (+23 tests),

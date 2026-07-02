@@ -6,7 +6,7 @@ import { ProfileProvider, useProfile } from '../ProfileContext';
 const STORAGE_KEY = 'music-trainer-profile';
 const wrapper = ({ children }) => <ProfileProvider>{children}</ProfileProvider>;
 
-describe('ProfileContext v1 schema', () => {
+describe('ProfileContext schema (v2)', () => {
     beforeEach(() => {
         localStorage.clear();
     });
@@ -21,6 +21,64 @@ describe('ProfileContext v1 schema', () => {
         expect(result.current.isFamilyUnlocked('Pentatonic')).toBe(true);
         expect(result.current.gamification.totalXP).toBe(0);
         expect(result.current.gamification.level).toBe(1);
+    });
+
+    it('migrates v1 branchXP into starting skill ratings (v2, #129 rework)', () => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            version: 1,
+            unlockedFamilies: ['Diatonic', 'Simple'],
+            debugMode: false,
+            totalXP: 500,
+            branchXP: { ear: 2000, sightReading: 0, rhythm: 0, harmony: 0, consistency: 700 },
+            streak: { days: 3, lastActiveDate: '2026-07-01', freezeTokens: 1 },
+            lifetime: { keys: {}, scales: {} },
+        }));
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        // skillScore(2000) = 63 becomes the starting Ear rating
+        expect(result.current.gamification.skills.ear).toBe(63);
+        expect(result.current.gamification.skills.sightReading).toBe(0);
+        // consistency keeps its XP curve
+        expect(result.current.gamification.skills.consistency).toBeGreaterThan(0);
+        expect(result.current.gamification.totalXP).toBe(500);
+    });
+
+    it('moves ratings by performance: flawless raises, poor accuracy drops', () => {
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        // Flawless 12-note melody at difficulty 1.0 (rating 50) from rating 0 → rises
+        act(() => {
+            result.current.beginSession();
+            result.current.recordEvent('melodyComplete', {
+                subMode: 'note', staff: 'treble', difficultyMultiplier: 1.0,
+                correct: 12, total: 12, tonicPC: 'C', family: 'Diatonic', mode: 'Major',
+            });
+        });
+        const afterWin = result.current.endSession();
+        expect(afterWin.skillDeltas.sightReading).toBeGreaterThan(0);
+
+        // Now fail badly at trivial difficulty → rating drops
+        act(() => {
+            result.current.beginSession();
+            result.current.recordEvent('melodyComplete', {
+                subMode: 'note', staff: 'treble', difficultyMultiplier: 0,
+                correct: 6, total: 12, tonicPC: 'C', family: 'Diatonic', mode: 'Major',
+            });
+        });
+        const afterLoss = result.current.endSession();
+        expect(afterLoss.skillDeltas.sightReading).toBeLessThan(0);
+    });
+
+    it('listening (seriesComplete) never moves skill ratings', () => {
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        act(() => {
+            result.current.beginSession();
+            result.current.recordEvent('seriesComplete', { staff: 'treble', tonicPC: 'C', family: 'Diatonic', mode: 'Major' });
+        });
+        let summary;
+        act(() => { summary = result.current.endSession(); });
+        expect(summary).not.toBeNull();
+        ['ear', 'sightReading', 'rhythm', 'harmony'].forEach(b => {
+            expect(result.current.gamification.skills[b]).toBe(0);
+        });
     });
 
     it('falls back to defaults on corrupt JSON', () => {
@@ -51,7 +109,7 @@ describe('ProfileContext v1 schema', () => {
         expect(summary.streakDays).toBe(1);
         // Persisted at the melodyComplete flush
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        expect(saved.version).toBe(1);
+        expect(saved.version).toBe(2);
         expect(saved.totalXP).toBeGreaterThan(0);
         expect(Object.keys(saved.lifetime.scales)).toContain('Diatonic:Major');
     });

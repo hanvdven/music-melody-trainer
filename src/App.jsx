@@ -75,6 +75,7 @@ import { TransitionOverlayProvider } from './contexts/TransitionOverlayContext';
 import { UniversalTransitionProvider } from './contexts/UniversalTransitionContext';
 import { useProfile } from './contexts/ProfileContext';
 import SessionSummaryCard from './components/profile/SessionSummaryCard';
+import { applyExerciseConfig } from './exercises/exerciseIndex';
 import { AnimationRefsProvider } from './contexts/AnimationRefsContext';
 
 
@@ -700,6 +701,7 @@ const App = () => {
         playbackEditMode,
         generationEditMode,
         generationAdvancedEditMode,
+        exerciseEditMode,
         setRangeEditMode,
         handleToggleRangeEdit,
         handleToggleClefEdit,
@@ -708,11 +710,30 @@ const App = () => {
         handleTogglePlaybackEdit,
         handleToggleGenerationEdit,
         handleToggleGenerationAdvancedEdit,
+        handleToggleExerciseEdit,
         handleToggleSettings,
         handleCloseRangeEdit,
         handleCloseClefEdit,
         handleOpenClefEdit,
     } = useEditMode({ handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings });
+
+    // ── Exercise view (#265/#266, epic #245, Han 2026-07-02) ──────────────────
+    // Selecting an exercise applies its declarative config through the existing
+    // setters; opening the exercise selector flips the bottom view to the songs
+    // tab (Han: "opens the songs on the bottom view and an exercise selector on
+    // the top view").
+    const [activeExerciseId, setActiveExerciseId] = useState(null);
+    const handleSelectExercise = useCallback((exercise) => {
+        setActiveExerciseId(exercise.id);
+        applyExerciseConfig(exercise, {
+            setPlaybackConfig, setTrebleSettings, setBpm, setNumMeasures, setIsRubato,
+        });
+    }, [setPlaybackConfig, setTrebleSettings, setBpm, setNumMeasures, setIsRubato]);
+    useEffect(() => {
+        if (exerciseEditMode) setActiveTab('songs');
+    // setActiveTab is a stable useState setter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [exerciseEditMode]);
 
     const handlePlayRepeat = useCallback(() => {
         if (isRubatoRef.current && rubatoEngageRef.current) {
@@ -1400,6 +1421,9 @@ const App = () => {
         playbackEditMode: playbackEditMode,
         generationEditMode: generationEditMode,
         generationAdvancedEditMode: generationAdvancedEditMode,
+        exerciseEditMode: exerciseEditMode,
+        onSelectExercise: handleSelectExercise,
+        activeExerciseId: activeExerciseId,
         onToggleSettings: toggleSheetMusicSettings,
         onCloseRangeEdit: handleCloseRangeEdit,
         onCloseClefEdit: handleCloseClefEdit,
@@ -1439,7 +1463,8 @@ const App = () => {
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
         windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, instrumentEditMode,
-        playbackEditMode, generationEditMode, generationAdvancedEditMode, toggleSheetMusicSettings,
+        playbackEditMode, generationEditMode, generationAdvancedEditMode, exerciseEditMode,
+        handleSelectExercise, activeExerciseId, toggleSheetMusicSettings,
         handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit,
         resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously, isPlaying,
@@ -1546,6 +1571,7 @@ const App = () => {
                     onOpenPlayback={handleTogglePlaybackEdit}
                     onOpenGeneration={handleToggleGenerationEdit}
                     onOpenGenerationAdvanced={handleToggleGenerationAdvancedEdit}
+                    onOpenExercises={handleToggleExerciseEdit}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}
                     colorEditMode={colorEditMode}
@@ -1553,6 +1579,7 @@ const App = () => {
                     playbackEditMode={playbackEditMode}
                     generationEditMode={generationEditMode}
                     generationAdvancedEditMode={generationAdvancedEditMode}
+                    exerciseEditMode={exerciseEditMode}
                     showSheetMusicSettings={showSheetMusicSettings}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}

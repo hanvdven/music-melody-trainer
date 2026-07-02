@@ -4001,16 +4001,40 @@ lesson engine (#138–141), the 11-dimension skill model of `docs/profile-schema
 **How it works — three layers:**
 
 1. **Pure math** — `src/utils/gamification.js`. XP table, level curve
-   (`XP_needed(L) = 100 × L^1.4`, tier names Beginner→Maestro), skill curve
-   (`score = 100 × (1 − e^(−branchXP/2000))`, K=2000 per Han 2026-07-02), difficulty→XP
+   (`XP_needed(L) = 100 × L^1.4`, tier names Beginner→Maestro), difficulty→XP
    multiplier (`actualDifficulty.multiplier` 0–2 → 0.5×–2.0× linear), event→branch
    attribution, and the streak evaluator (local calendar days; 1 freeze token earned per
    7-day multiple, max 2; a missed day consumes a token, else reset — tokens survive resets).
    Fully unit-tested (`src/utils/__tests__/gamification.test.js`).
 
-2. **State + scoring** — `src/contexts/ProfileContext.jsx`. Versioned profile v1 under the
+   **Adaptive skill ratings (#129 rework, Han 2026-07-02).** Han rejected the original
+   volume-based skill curve ("it measures effort, not ability"): skill 0–100 must be
+   ADAPTIVE — 100 = plays the hardest difficulty flawlessly, like chess ELO / win-loss MMR.
+   The four performance branches (Ear, Sight Reading, Rhythm, Harmony) each carry an
+   ELO-style rating; every completed **input-test** melody is a rated match against the
+   settings' difficulty:
+   - `difficultyToRating(m)` = `50 × actualDifficulty.multiplier` clamped 0–100
+     (multiplier 2 = both harmonic and melodic difficulty at table max = rating 100).
+   - `gradedOutcome(correct, total)` — graded, not binary (Han's choice): 100% accuracy
+     → 1.0, 95% → 0.5, ≤90% → 0. Integer arithmetic `(10·correct − 9·total)/total`
+     avoids float artifacts at exactly 100%.
+   - `expectedOutcome(rating, difficulty)` — standard ELO logistic with `RATING_SPREAD=15`
+     as the divisor (15 rating points above the difficulty ≈ 0.76 expected).
+   - `updateRating` — `K=6`, weighted by melody length (`min(1, scoredNotes/8)`); melodies
+     under `RATING_MIN_NOTES=4` scored notes are ignored (can't farm or tank ratings with
+     2-note melodies). Clamped 0–100, stored **unrounded** so slow progress survives.
+   - Ratings CAN drop (Han confirmed). Passive listening NEVER moves ratings — listening
+     events carry no `correct/total` and never reach the rating block. XP is volume/effort
+     only and no longer feeds the four performance branches.
+   - **Consistency is the exception**: not a win/loss skill, it keeps the asymptotic XP
+     curve `score = 100 × (1 − e^(−consistencyXP/2000))` (K=2000), fed by streak days
+     (+100) and ≥20-minute sessions (+50).
+
+2. **State + scoring** — `src/contexts/ProfileContext.jsx`. Versioned profile **v2** under the
    pre-existing `music-trainer-profile` localStorage key (legacy `{unlockedFamilies, debugMode}`
-   shape migrates losslessly). The ONLY write path is `recordEvent(type, payload)`;
+   shape migrates losslessly; v1's `branchXP` migrates to v2 by seeding each `skillRatings`
+   entry from the old displayed score `skillScore(branchXP[b])` and carrying
+   `branchXP.consistency` into the `consistencyXP` scalar). The ONLY write path is `recordEvent(type, payload)`;
    `beginSession()`/`endSession()` bracket a session. **The live profile lives in a ref, not
    state** — `recordEvent` fires per correct note, and the provider wraps `<App/>` (hoisted to
    `main.jsx`), so a state write per note would re-render the whole app. A `snapshot` state is
@@ -4033,7 +4057,9 @@ lesson engine (#138–141), the 11-dimension skill model of `docs/profile-schema
 
 **UI:** `ProfileTab.jsx` (level/tier/XP bar, five skill bars, streak + tokens, gamification
 ON/OFF toggle) and `SessionSummaryCard.jsx` (bottom toast; auto-fade 8s or tap to dismiss;
-whole card is the dismiss hit region, outlined in debug mode per CLAUDE.md §3a).
+whole card is the dismiss hit region, outlined in debug mode per CLAUDE.md §3a). Since the
+#129 rework the summary's skill deltas can be negative: drops render with a red ↓
+(`TrendingDown`) next to the green ↑ rises.
 
 **Invariants:**
 - ALL scoring math lives in `gamification.js` + `ProfileContext.recordEvent` — never scatter
@@ -4055,3 +4081,62 @@ whole card is the dismiss hit region, outlined in debug mode per CLAUDE.md §3a)
 render), `src/main.jsx` (ProfileProvider hoisted above App),
 `src/components/profile/ProfileTab.jsx/.css` (gamification sections),
 `src/components/profile/SessionSummaryCard.jsx/.css` (new).
+
+### §43a. Adaptive skill ratings — ELO rework (#129, Han 2026-07-02)
+
+**Symptom:** the slice-1 skill tree was volume-based (asymptotic branchXP curve) — it only ever
+rose with practice volume. Han: skill must be ADAPTIVE — "100 means the player is able to play
+the hardest difficulty flawlessly, like chess ELO / win-loss MMR."
+
+**How it works:** every completed INPUT-TEST melody is a rated match. In `gamification.js`:
+`difficultyToRating` (50 × `actualDifficulty.multiplier`, 0–100 — 100 = harmonic + melodic
+difficulty at their table maxima), `gradedOutcome` (accuracy → 0–1: 100%→1.0, 95%→0.5, ≤90%→0,
+integer arithmetic to avoid float artifacts — Han chose graded over binary), `expectedOutcome`
+(logistic, spread 15), `updateRating` (K=6, length-weighted `min(1, notes/8)`, melodies with <4
+scored notes ignored, clamp 0–100, stored unrounded). Ratings CAN drop (Han confirmed).
+Attribution (live→Ear, note→Sight Reading, percussion/odd meter→Rhythm, chords→Harmony) decides
+which of the four RATING_BRANCHES the match counts for. **Consistency is exempt** — it keeps the
+asymptotic XP curve (streak days +100, ≥20-min sessions +50) since win/loss doesn't apply.
+
+**Invariants / schema:** profile v2: `skillRatings {ear, sightReading, rhythm, harmony}` +
+`consistencyXP`; migration v1→v2 seeds ratings from the old displayed scores. XP no longer feeds
+the four performance branches; listening events NEVER move ratings (passive play is not evidence
+of ability). Session summary shows ↓ (red) as well as ↑ deltas.
+
+**Files:** `src/utils/gamification.js`, `src/contexts/ProfileContext.jsx`,
+`src/components/profile/SessionSummaryCard.jsx/.css`, `ProfileTab.jsx`, tests updated.
+
+---
+
+## 44. Exercise view — registry + in-staff selector (#265/#266, epic #245, Han 2026-07-02)
+
+**Purpose:** an explicit exercise entry point: an EXERCISES button (SubHeader, Dumbbell icon)
+opens an in-staff carousel of exercises on the top view while the bottom view flips to the songs
+tab (Han: "opens the songs on the bottom view and an exercise selector on the top view").
+
+**How it works:**
+- **Registry** `src/exercises/exerciseIndex.js` (mirrors `songIndex.js`): 7 entries — the six
+  kanban practice presets (#54 Scale Runs `arp_group`/8ths, #55 Broken Chords, #56 Dexterity
+  `arp_var`/16ths, #57 Syncopation high-variability, #58 Ear Training R1-audio-only→R2-with-notes,
+  #59 Sight-reading R1-notes-no-audio→R2-audio) + Rubato Ear-training (#245; applies config and
+  switches `isRubato` on — the dedicated 10-melody scored run is ticket #267). Each config is a
+  DECLARATIVE patch (bpm / numMeasures / isRubato / treble / playback) applied by
+  `applyExerciseConfig` through the existing setters, PresetPicker merge semantics — no new
+  generation logic (§6b/§6c). Exercises that don't declare `isRubato` switch it OFF so leaving
+  the rubato exercise never traps the user in rubato mode.
+- **View**: `exerciseEditMode` in `useEditMode` (8th sibling, full mutual exclusion),
+  `overlays/ExerciseStaffOverlay.jsx` — a `NonLinearCarousel` (§6d: the canonical carousel
+  primitive, no bespoke falloff) of title cards on the top visible staff, active card bold CAPS +
+  glow (same convention as the instrument setter), active description as a caption below
+  (fontSize 9, --text-secondary). SheetMusic wiring mirrors the generator setters: overlayKind
+  'exercise', mounted-through-morph flag, `groupsForKind` entry `.exercise-overlay` in
+  `useRangeMorph`. An App effect sets `activeTab` to 'songs' while the selector is open.
+
+**Invariants:** selection → `handleSelectExercise` in App (applies config + stores
+`activeExerciseId`); the overlay stays dumb. Gamification needs no special wiring — playing after
+selection flows through the existing session/event machinery.
+
+**Files:** `src/exercises/exerciseIndex.js` (new),
+`src/components/sheet-music/overlays/ExerciseStaffOverlay.jsx` (new), `src/hooks/useEditMode.js`,
+`src/hooks/useRangeMorph.js`, `src/components/layout/SubHeader.jsx`,
+`src/components/sheet-music/SheetMusic.jsx`, `src/App.jsx`.

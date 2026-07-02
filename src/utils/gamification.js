@@ -74,14 +74,72 @@ export function tierName(level) {
 // ─── Skill branches ────────────────────────────────────────────────────────
 
 export const SKILL_BRANCHES = ['ear', 'sightReading', 'rhythm', 'harmony', 'consistency'];
+// The four PERFORMANCE branches carry an ELO-style rating (see below).
+// Consistency is not a win/loss skill — it stays XP-curve based.
+export const RATING_BRANCHES = ['ear', 'sightReading', 'rhythm', 'harmony'];
 
-// Asymptotic curve constant: ~50 pts at ~1400 branch-XP, 90 pts at ~4600.
-// Chosen so 90+ in a branch is a months-long achievement (Han 2026-07-02).
+// Asymptotic curve constant for the CONSISTENCY branch only (#129 rework kept
+// it XP-based): ~50 pts at ~1400 XP, 90 at ~4600.
 export const SKILL_CURVE_K = 2000;
 
-// Branch XP → displayed 0–100 score. Monotone, fast early, asymptotic to 100.
+// Consistency XP → displayed 0–100 score. Monotone, fast early, asymptotic to 100.
 export function skillScore(branchXP) {
     return Math.round(100 * (1 - Math.exp(-Math.max(0, branchXP) / SKILL_CURVE_K)));
+}
+
+// ─── Adaptive skill ratings — ELO-style (#129 rework, Han 2026-07-02) ──────
+//
+// Han: "100 means the player is able to play the hardest difficulty flawlessly,
+// like chess ELO / win-loss MMR." Each completed input-test melody is a rated
+// MATCH against the difficulty of the current settings. Ratings can DROP
+// (Han confirmed). Listening never moves ratings — it is not evidence of
+// ability. XP is untouched by this system.
+
+// How many rating points of gap halve/double the expected outcome. 15 means a
+// player rated 15 above the difficulty is expected to score ~0.76.
+export const RATING_SPREAD = 15;
+// Max rating movement per melody (scaled by outcome−expected and length weight).
+export const RATING_K = 6;
+// Melodies with fewer scored notes than this are ignored — a 2-note melody
+// proves nothing and would let ratings be farmed or tanked trivially.
+export const RATING_MIN_NOTES = 4;
+
+// actualDifficulty.multiplier (harmNorm + trebleNorm, 0–2) → difficulty rating
+// 0–100. 100 = both harmonic and melodic difficulty at their table maxima,
+// i.e. "the hardest difficulty" on Han's scale.
+export function difficultyToRating(difficultyMultiplier) {
+    return Math.min(100, Math.max(0, 50 * (difficultyMultiplier ?? 0)));
+}
+
+/**
+ * Graded match outcome from accuracy (Han chose graded over binary):
+ * 100% → 1.0, 95% → 0.5, ≤90% → 0. Returns null when there is nothing to
+ * grade (no scored notes).
+ */
+export function gradedOutcome(correct, total) {
+    if (!total || total <= 0) return null;
+    // Integer arithmetic: (acc − 0.90) / 0.10 = (10·correct − 9·total) / total,
+    // exact for whole note counts (avoids 0.999… float artifacts at 100%).
+    return Math.min(1, Math.max(0, (10 * correct - 9 * total) / total));
+}
+
+// Expected outcome for a player at `rating` facing `difficulty` — standard
+// logistic (chess ELO with divisor RATING_SPREAD instead of 400).
+export function expectedOutcome(rating, difficulty) {
+    return 1 / (1 + Math.pow(10, (difficulty - rating) / RATING_SPREAD));
+}
+
+/**
+ * One rating update after a completed melody.
+ * `scoredNotes` weights the K-factor: short melodies move the rating less
+ * (full weight from 8 notes), and below RATING_MIN_NOTES nothing happens.
+ * Clamped to 0–100; stored unrounded so slow progress is not lost to rounding.
+ */
+export function updateRating(rating, difficulty, outcome, scoredNotes) {
+    if (outcome == null || scoredNotes < RATING_MIN_NOTES) return rating;
+    const lengthWeight = Math.min(1, scoredNotes / 8);
+    const next = rating + RATING_K * lengthWeight * (outcome - expectedOutcome(rating, difficulty));
+    return Math.min(100, Math.max(0, next));
 }
 
 /**

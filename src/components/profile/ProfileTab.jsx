@@ -67,6 +67,11 @@ export default function ProfileTab() {
                     <div className="profile-section-header">
                         <span>Skills</span>
                     </div>
+                    <p className="profile-section-desc">
+                        Adaptive ratings: play a melody flawlessly at a difficulty above your
+                        rating and it rises; miss notes below it and it falls. 100 = flawless
+                        at the hardest difficulty.
+                    </p>
                     <ul className="profile-skill-list">
                         {SKILL_BRANCHES.map(branch => (
                             <li key={branch} className="profile-skill-item">

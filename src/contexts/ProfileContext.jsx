@@ -5,6 +5,7 @@ import {
     XP_TABLE,
     MULTIPLIED_EVENTS,
     SKILL_BRANCHES,
+    RATING_BRANCHES,
     levelFromXP,
     tierName,
     skillScore,
@@ -13,10 +14,14 @@ import {
     evaluateStreak,
     effectiveStreakDays,
     localDateISO,
+    difficultyToRating,
+    gradedOutcome,
+    updateRating,
 } from '../utils/gamification';
 
 const STORAGE_KEY = 'music-trainer-profile';
-const PROFILE_VERSION = 1;
+// v2 (#129 rework): branchXP → ELO-style skillRatings + consistencyXP scalar.
+const PROFILE_VERSION = 2;
 
 // Scale families in display order (matches scaleDefinitions keys + Simple)
 export const ALL_SCALE_FAMILIES = [
@@ -44,8 +49,13 @@ function defaultProfile() {
         debugMode: false,
         gamificationEnabled: true,
         totalXP: 0,
-        // Raw XP pools per skill branch; displayed 0–100 via skillScore().
-        branchXP: { ear: 0, sightReading: 0, rhythm: 0, harmony: 0, consistency: 0 },
+        // ELO-style ratings 0–100 per performance branch (#129 rework): updated
+        // per completed input-test melody vs the settings' difficulty; can drop.
+        // Stored unrounded; display rounds.
+        skillRatings: { ear: 0, sightReading: 0, rhythm: 0, harmony: 0 },
+        // Consistency is not a win/loss skill — it keeps the asymptotic XP curve
+        // (fed by streak days and long sessions).
+        consistencyXP: 0,
         streak: { days: 0, lastActiveDate: null, freezeTokens: 0 },
         // Novelty tracking for newKey/newScale XP: keys by semitone pitch class
         // (enharmonics count once), scales by 'family:mode'.
@@ -74,18 +84,36 @@ function loadProfile() {
     // Spreading saved over defaults migrates it AND forward-fills any field
     // added in later versions — per-field merge for the nested objects so a
     // partial save never drops siblings.
-    return {
+    const merged = {
         ...base,
         ...saved,
         version: PROFILE_VERSION,
         unlockedFamilies: saved.unlockedFamilies ?? base.unlockedFamilies,
-        branchXP: { ...base.branchXP, ...(saved.branchXP || {}) },
+        skillRatings: { ...base.skillRatings, ...(saved.skillRatings || {}) },
         streak: { ...base.streak, ...(saved.streak || {}) },
         lifetime: {
             keys: { ...(saved.lifetime?.keys || {}) },
             scales: { ...(saved.lifetime?.scales || {}) },
         },
     };
+    // v1 → v2 (#129 rework): the old volume-based branchXP becomes the STARTING
+    // rating (its displayed score carries over); consistency keeps its XP pool.
+    if (saved.version === 1 && saved.branchXP) {
+        for (const b of RATING_BRANCHES) {
+            merged.skillRatings[b] = skillScore(saved.branchXP[b] ?? 0);
+        }
+        merged.consistencyXP = saved.branchXP.consistency ?? 0;
+        delete merged.branchXP; // v2 has no branchXP field
+    }
+    return merged;
+}
+
+// Displayed 0–100 skill scores for all five branches from a profile object.
+function currentSkills(p) {
+    const skills = {};
+    for (const b of RATING_BRANCHES) skills[b] = Math.round(p.skillRatings[b]);
+    skills.consistency = skillScore(p.consistencyXP);
+    return skills;
 }
 
 function saveProfile(profile) {
@@ -155,8 +183,9 @@ export function ProfileProvider({ children }) {
             melodiesCompleted: 0,
             seriesListened: 0,
             xpEarned: 0,
-            // Skill scores at session start, to compute the summary's ↑ deltas.
-            skillsAtStart: Object.fromEntries(SKILL_BRANCHES.map(b => [b, skillScore(p.branchXP[b])])),
+            // Skill scores at session start, to compute the summary's ↑/↓ deltas
+            // (ratings can DROP since the #129 ELO rework).
+            skillsAtStart: currentSkills(p),
         };
     }, []);
 
@@ -176,18 +205,16 @@ export function ProfileProvider({ children }) {
         // recordEvent's melodyComplete path.
         const sessionMinutes = (Date.now() - s.startedAt) / 60000;
         if (p.gamificationEnabled && sessionMinutes >= 20) {
-            profileRef.current = {
-                ...p,
-                branchXP: { ...p.branchXP, consistency: p.branchXP.consistency + 50 },
-            };
+            profileRef.current = { ...p, consistencyXP: p.consistencyXP + 50 };
         }
         flush();
 
         if (s.melodiesCompleted < 1 && s.seriesListened < 1) return null;
 
         const final = profileRef.current;
+        const finalSkills = currentSkills(final);
         const skillDeltas = Object.fromEntries(SKILL_BRANCHES.map(b => [
-            b, skillScore(final.branchXP[b]) - s.skillsAtStart[b],
+            b, finalSkills[b] - s.skillsAtStart[b],
         ]));
         return {
             notesCorrect: s.notesCorrect,
@@ -240,6 +267,24 @@ export function ProfileProvider({ children }) {
 
         let next = { ...p };
 
+        // ELO rating update (#129 rework): a completed INPUT-TEST melody is a
+        // rated match vs the settings' difficulty. Only input-test completions
+        // carry correct/total; listening events never reach this block, so
+        // passive play cannot move ratings. Attribution decides which of the
+        // four performance branches the match counts for.
+        if (type === 'melodyComplete' && payload.total > 0) {
+            const difficulty = difficultyToRating(payload.difficultyMultiplier);
+            const outcome = gradedOutcome(payload.correct, payload.total);
+            const weights = attributeBranches(payload);
+            const ratings = { ...next.skillRatings };
+            for (const branch of RATING_BRANCHES) {
+                if (weights[branch]) {
+                    ratings[branch] = updateRating(ratings[branch], difficulty, outcome, payload.total);
+                }
+            }
+            next.skillRatings = ratings;
+        }
+
         // Novelty + streak only on "a whole musical unit finished" events —
         // per-note checks would be wasted work.
         if (type === 'melodyComplete' || type === 'seriesComplete') {
@@ -262,19 +307,15 @@ export function ProfileProvider({ children }) {
             next.streak = evaluateStreak(next.streak, today);
             // A streak day extended = consistency progress (docs/gamification.md §4.5).
             if (next.streak.days > prevDays) {
-                next.branchXP = { ...next.branchXP, consistency: next.branchXP.consistency + 100 };
+                next.consistencyXP += 100;
             }
         }
 
         if (xp > 0) {
+            // XP is volume/effort only (#129 rework): it no longer feeds the four
+            // performance branches — those move exclusively via the rating match above.
             next.totalXP = p.totalXP + xp;
             if (s) s.xpEarned += xp;
-            const weights = attributeBranches(payload);
-            const branchXP = { ...next.branchXP };
-            for (const [branch, w] of Object.entries(weights)) {
-                branchXP[branch] += xp * w;
-            }
-            next.branchXP = branchXP;
         }
 
         profileRef.current = next;
@@ -307,7 +348,7 @@ export function ProfileProvider({ children }) {
             intoLevel: Math.round(intoLevel),
             needed,
             tier: tierName(level),
-            skills: Object.fromEntries(SKILL_BRANCHES.map(b => [b, skillScore(snapshot.branchXP[b])])),
+            skills: currentSkills(snapshot),
             streakDays: effectiveStreakDays(snapshot.streak, localDateISO()),
             freezeTokens: snapshot.streak.freezeTokens,
         };

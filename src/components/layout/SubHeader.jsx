@@ -13,6 +13,7 @@ import {
     SlidersHorizontal,
     Sparkles,
     FlaskConical,
+    Dumbbell,
 } from 'lucide-react';
 import { ChordNotationIcon } from '../common/CustomIcons';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
@@ -37,6 +38,7 @@ const SubHeader = ({
     onOpenPlayback,
     onOpenGeneration,
     onOpenGenerationAdvanced,
+    onOpenExercises,
     rangeEditMode = false,
     clefEditMode = false,
     colorEditMode = false,
@@ -44,6 +46,7 @@ const SubHeader = ({
     playbackEditMode = false,
     generationEditMode = false,
     generationAdvancedEditMode = false,
+    exerciseEditMode = false,
     showSheetMusicSettings = false,
     windowWidth,
     difficultyMultiplier,
@@ -380,6 +383,16 @@ const SubHeader = ({
                         'GEN. ADVANCED',
                         onOpenGenerationAdvanced,
                         generationAdvancedEditMode,
+                        null,
+                        true
+                    )}
+                    {/* EXERCISES selector (#266, Han 2026-07-02) — in-staff exercise
+                        carousel; opening it also flips the bottom view to songs. */}
+                    {onOpenExercises && renderButton(
+                        <Dumbbell size={22} />,
+                        'EXERCISES',
+                        onOpenExercises,
+                        exerciseEditMode,
                         null,
                         true
                     )}

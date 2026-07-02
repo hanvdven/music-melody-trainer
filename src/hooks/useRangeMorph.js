@@ -36,6 +36,8 @@ const groupsForKind = (svg, kind) => {
   if (kind === 'playback') return [svg.querySelector('.playback-overlay')].filter(Boolean);
   if (kind === 'generation') return [svg.querySelector('.generation-overlay')].filter(Boolean);
   if (kind === 'generation-advanced') return [svg.querySelector('.generation-advanced-overlay')].filter(Boolean);
+  // Exercise selector (#266, Han 2026-07-02) — single group, mirrors colour/instrument.
+  if (kind === 'exercise') return [svg.querySelector('.exercise-overlay')].filter(Boolean);
   return [];
 };
 

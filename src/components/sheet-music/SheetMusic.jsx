@@ -18,6 +18,7 @@ import InstrumentStaffOverlay from './overlays/InstrumentStaffOverlay';
 // Three generator setters (Han 2026-06-22): PLAYBACK reuses SettingsOverlay (via groupClassName),
 // GENERATION + GENERATION ADVANCED are new per-balk stepper overlays.
 import GenerationSetterOverlay from './overlays/GenerationSetterOverlay';
+import ExerciseStaffOverlay from './overlays/ExerciseStaffOverlay';
 import GenerationAdvancedSetterOverlay from './overlays/GenerationAdvancedSetterOverlay';
 import { clefFamilyKey } from './overlays/clefSelector';
 import ChordStaffOverlay from './overlays/ChordStaffOverlay';
@@ -197,6 +198,9 @@ const SheetMusic = ({
   playbackEditMode,                 // Han 2026-06-22 — three new generator setters
   generationEditMode,
   generationAdvancedEditMode,
+  exerciseEditMode,                 // #266 Han 2026-07-02 — exercise selector
+  onSelectExercise,
+  activeExerciseId,
   onToggleSettings,
   onCloseRangeEdit,
   onCloseClefEdit,
@@ -466,7 +470,7 @@ const SheetMusic = ({
   // new flies in from the right. Either RANGE or CLEF mode triggers it (both replace
   // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
   // the duration. Fly distance = content width (user units). See useRangeMorph.
-  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || instrumentEditMode || showSettings || playbackEditMode || generationEditMode || generationAdvancedEditMode;
+  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || instrumentEditMode || showSettings || playbackEditMode || generationEditMode || generationAdvancedEditMode || exerciseEditMode;
   // The currently-shown SURFACE drives the morph: switching between range / clef /
   // legacy-settings / melody re-arms the animation each time (Han #10/#11). The old
   // settings overlay is now the sliding 'legacy' surface.
@@ -478,7 +482,7 @@ const SheetMusic = ({
   // The three generator setters (Han 2026-06-22) are their own morph surfaces, placed BEFORE the
   // 'legacy'/'melody' fallbacks. PLAYBACK reuses SettingsOverlay but flies in as the 'playback'
   // surface (distinct group class 'playback-overlay').
-  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : instrumentEditMode ? 'instrument' : playbackEditMode ? 'playback' : generationEditMode ? 'generation' : generationAdvancedEditMode ? 'generation-advanced' : showSettings ? 'legacy' : 'melody';
+  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : instrumentEditMode ? 'instrument' : playbackEditMode ? 'playback' : generationEditMode ? 'generation' : generationAdvancedEditMode ? 'generation-advanced' : exerciseEditMode ? 'exercise' : showSettings ? 'legacy' : 'melody';
   const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
   // Universal transition: replay the SAME 1.5s cascade when the app swaps the sheet content
   // IN PLACE (song load, difficulty, …) rather than via an overlay surface change. App bumps
@@ -512,6 +516,7 @@ const SheetMusic = ({
   const playbackMounted = mountedFor('playback', playbackEditMode);
   const generationMounted = mountedFor('generation', generationEditMode);
   const generationAdvancedMounted = mountedFor('generation-advanced', generationAdvancedEditMode);
+  const exerciseMounted = mountedFor('exercise', exerciseEditMode);
 
   const staffLines = [];
   if (isTrebleVisible) {
@@ -2806,6 +2811,23 @@ const SheetMusic = ({
                       isBassVisible={isBassVisible}
                       isPercussionVisible={isPercussionVisible}
                       showChordsRow={showChords}
+                      onSettingsInteraction={onSettingsInteraction}
+                      debugMode={debugMode}
+                    />
+                  )}
+
+                  {/* EXERCISE selector (#266, Han 2026-07-02) — carousel of the exercise
+                      registry on the top staff; selection applies the exercise config in
+                      App and flips the bottom view to the songs tab. */}
+                  {exerciseMounted && (
+                    <ExerciseStaffOverlay
+                      startX={startX}
+                      endX={endX}
+                      trebleStart={trebleStart}
+                      bassStart={bassStart}
+                      isTrebleVisible={isTrebleVisible}
+                      activeExerciseId={activeExerciseId}
+                      onSelectExercise={onSelectExercise}
                       onSettingsInteraction={onSettingsInteraction}
                       debugMode={debugMode}
                     />

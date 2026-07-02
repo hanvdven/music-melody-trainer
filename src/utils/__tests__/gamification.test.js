@@ -12,6 +12,11 @@ import {
     evaluateStreak,
     effectiveStreakDays,
     localDateISO,
+    difficultyToRating,
+    gradedOutcome,
+    expectedOutcome,
+    updateRating,
+    RATING_MIN_NOTES,
 } from '../gamification';
 
 describe('levels', () => {
@@ -106,6 +111,56 @@ describe('XP table', () => {
         expect(MULTIPLIED_EVENTS.has('melodyListened')).toBe(false);
         expect(MULTIPLIED_EVENTS.has('seriesComplete')).toBe(false);
         expect(XP_TABLE.melodyComplete).toBe(25);
+    });
+});
+
+describe('adaptive skill ratings (ELO)', () => {
+    it('maps actualDifficulty.multiplier 0–2 onto difficulty rating 0–100', () => {
+        expect(difficultyToRating(0)).toBe(0);
+        expect(difficultyToRating(1)).toBe(50);
+        expect(difficultyToRating(2)).toBe(100);
+        expect(difficultyToRating(5)).toBe(100);
+        expect(difficultyToRating(null)).toBe(0);
+    });
+
+    it('grades outcomes: 100%→1, 95%→0.5, ≤90%→0', () => {
+        expect(gradedOutcome(20, 20)).toBe(1);
+        expect(gradedOutcome(19, 20)).toBe(0.5); // 95%
+        expect(gradedOutcome(18, 20)).toBe(0);   // 90%
+        expect(gradedOutcome(10, 20)).toBe(0);
+        expect(gradedOutcome(0, 0)).toBeNull();
+    });
+
+    it('expected outcome is 0.5 at equal rating and rises with the gap', () => {
+        expect(expectedOutcome(50, 50)).toBeCloseTo(0.5);
+        expect(expectedOutcome(65, 50)).toBeGreaterThan(0.7);
+        expect(expectedOutcome(35, 50)).toBeLessThan(0.3);
+    });
+
+    it('flawless play above your rating raises it; failing below drops it', () => {
+        const up = updateRating(30, 50, 1, 12);
+        expect(up).toBeGreaterThan(30);
+        const down = updateRating(50, 20, 0, 12); // failed an easy melody
+        expect(down).toBeLessThan(50);
+    });
+
+    it('is roughly zero-sum at the expected outcome', () => {
+        // Scoring exactly the expected value should barely move the rating.
+        const e = expectedOutcome(40, 50);
+        const next = updateRating(40, 50, e, 12);
+        expect(next).toBeCloseTo(40, 5);
+    });
+
+    it('ignores melodies with too few scored notes and weights short ones down', () => {
+        expect(updateRating(30, 50, 1, RATING_MIN_NOTES - 1)).toBe(30);
+        const short = updateRating(30, 50, 1, 4);
+        const long = updateRating(30, 50, 1, 16);
+        expect(long - 30).toBeGreaterThan(short - 30);
+    });
+
+    it('clamps to 0–100', () => {
+        expect(updateRating(99.9, 100, 1, 20)).toBeLessThanOrEqual(100);
+        expect(updateRating(0.1, 0, 0, 20)).toBeGreaterThanOrEqual(0);
     });
 });
 

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Flame, TrendingUp } from 'lucide-react';
+import { Flame, TrendingUp, TrendingDown } from 'lucide-react';
 import { SKILL_BRANCHES } from '../../utils/gamification';
 import './SessionSummaryCard.css';
 
@@ -33,7 +33,8 @@ export default function SessionSummaryCard({ summary, onDismiss, debugMode = fal
 
     if (!summary) return null;
 
-    const risenSkills = SKILL_BRANCHES.filter(b => (summary.skillDeltas?.[b] ?? 0) > 0);
+    // Ratings can DROP since the #129 ELO rework — show both directions.
+    const changedSkills = SKILL_BRANCHES.filter(b => (summary.skillDeltas?.[b] ?? 0) !== 0);
 
     return (
         <div
@@ -77,14 +78,17 @@ export default function SessionSummaryCard({ summary, onDismiss, debugMode = fal
                 </div>
             )}
 
-            {summary.gamificationEnabled && risenSkills.map(b => (
-                <div className="session-summary-row" key={b}>
-                    <span className="session-summary-label">{SKILL_LABELS[b]}</span>
-                    <span className="session-summary-value session-summary-skill">
-                        <TrendingUp size={12} /> +{summary.skillDeltas[b]}
-                    </span>
-                </div>
-            ))}
+            {summary.gamificationEnabled && changedSkills.map(b => {
+                const delta = summary.skillDeltas[b];
+                return (
+                    <div className="session-summary-row" key={b}>
+                        <span className="session-summary-label">{SKILL_LABELS[b]}</span>
+                        <span className={`session-summary-value ${delta > 0 ? 'session-summary-skill' : 'session-summary-skill-down'}`}>
+                            {delta > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />} {delta > 0 ? `+${delta}` : delta}
+                        </span>
+                    </div>
+                );
+            })}
 
             {summary.gamificationEnabled && summary.streakDays > 0 && (
                 <div className="session-summary-streak">

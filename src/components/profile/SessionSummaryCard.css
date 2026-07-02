@@ -69,6 +69,10 @@
     color: #5a9a5a;
 }
 
+.session-summary-skill-down {
+    color: #c96a5a;
+}
+
 .session-summary-streak {
     display: flex;
     align-items: center;

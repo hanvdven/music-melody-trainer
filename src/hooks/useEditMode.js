@@ -42,6 +42,10 @@ export default function useEditMode({
     const [playbackEditMode, setPlaybackEditMode] = useState(false);
     const [generationEditMode, setGenerationEditMode] = useState(false);
     const [generationAdvancedEditMode, setGenerationAdvancedEditMode] = useState(false);
+    // Exercise selector (#266, Han 2026-07-02): in-staff carousel of the exercise
+    // registry; while open the bottom view shows the songs tab (App effect).
+    // Sibling of all the above — fully mutually exclusive.
+    const [exerciseEditMode, setExerciseEditMode] = useState(false);
 
     // Range-edit and the general settings overlay are mutually exclusive
     // (Han 2026-05-31). This effect is the catch-all: whenever the settings
@@ -67,6 +71,7 @@ export default function useEditMode({
             setPlaybackEditMode(false);            // close the 3 generator setters too (Han 2026-06-22)
             setGenerationEditMode(false);
             setGenerationAdvancedEditMode(false);
+            setExerciseEditMode(false);
         }
         setRangeEditMode(v => !v);
     }, [rangeEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -83,6 +88,7 @@ export default function useEditMode({
             setPlaybackEditMode(false);            // Han 2026-06-22
             setGenerationEditMode(false);
             setGenerationAdvancedEditMode(false);
+            setExerciseEditMode(false);
         }
         setClefEditMode(v => !v);
     }, [clefEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -98,6 +104,7 @@ export default function useEditMode({
             setPlaybackEditMode(false);            // Han 2026-06-22
             setGenerationEditMode(false);
             setGenerationAdvancedEditMode(false);
+            setExerciseEditMode(false);
         }
         setColorEditMode(v => !v);
     }, [colorEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -113,6 +120,7 @@ export default function useEditMode({
             setPlaybackEditMode(false);            // Han 2026-06-22
             setGenerationEditMode(false);
             setGenerationAdvancedEditMode(false);
+            setExerciseEditMode(false);
         }
         setInstrumentEditMode(v => !v);
     }, [instrumentEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -130,6 +138,7 @@ export default function useEditMode({
             setInstrumentEditMode(false);
             setGenerationEditMode(false);
             setGenerationAdvancedEditMode(false);
+            setExerciseEditMode(false);
         }
         setPlaybackEditMode(v => !v);
     }, [playbackEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -144,6 +153,7 @@ export default function useEditMode({
             setInstrumentEditMode(false);
             setPlaybackEditMode(false);
             setGenerationAdvancedEditMode(false);
+            setExerciseEditMode(false);
         }
         setGenerationEditMode(v => !v);
     }, [generationEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
@@ -158,9 +168,27 @@ export default function useEditMode({
             setInstrumentEditMode(false);
             setPlaybackEditMode(false);
             setGenerationEditMode(false);
+            setExerciseEditMode(false);
         }
         setGenerationAdvancedEditMode(v => !v);
     }, [generationAdvancedEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+
+    // EXERCISES selector toggle (#266, Han 2026-07-02) — mirrors the other
+    // setter toggles exactly (stop playback, close settings + every sibling).
+    const handleToggleExerciseEdit = useCallback(() => {
+        if (!exerciseEditMode) {
+            handleStopAllPlayback();
+            if (showSheetMusicSettings) toggleSheetMusicSettings();
+            setRangeEditMode(false);
+            setClefEditMode(false);
+            setColorEditMode(false);
+            setInstrumentEditMode(false);
+            setPlaybackEditMode(false);
+            setGenerationEditMode(false);
+            setGenerationAdvancedEditMode(false);
+        }
+        setExerciseEditMode(v => !v);
+    }, [exerciseEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
 
     // Toggle the legacy SETTINGS surface from its own SubHeader button (Han #13).
     // Mutually exclusive with clef/range (the catch-all effect closes those when
@@ -175,6 +203,7 @@ export default function useEditMode({
             setPlaybackEditMode(false);            // Han 2026-06-22
             setGenerationEditMode(false);
             setGenerationAdvancedEditMode(false);
+            setExerciseEditMode(false);
         }
         toggleSheetMusicSettings();
     }, [showSheetMusicSettings, handleStopAllPlayback, toggleSheetMusicSettings]);
@@ -201,8 +230,10 @@ export default function useEditMode({
         playbackEditMode,
         generationEditMode,
         generationAdvancedEditMode,
+        exerciseEditMode,
         // setters needed by App-level effects (e.g. close range on playback start)
         setRangeEditMode,
+        setExerciseEditMode,
         // handlers
         handleToggleRangeEdit,
         handleToggleClefEdit,
@@ -211,6 +242,7 @@ export default function useEditMode({
         handleTogglePlaybackEdit,
         handleToggleGenerationEdit,
         handleToggleGenerationAdvancedEdit,
+        handleToggleExerciseEdit,
         handleToggleSettings,
         handleCloseRangeEdit,
         handleCloseClefEdit,
