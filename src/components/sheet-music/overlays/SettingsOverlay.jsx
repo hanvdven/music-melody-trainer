@@ -1,5 +1,8 @@
 import React from 'react';
 import SvgSetter from '../SvgSetter';
+import NonLinearCarousel from './NonLinearCarousel';
+import { renderCarouselOptionGlyph } from './carouselOptionGlyph';
+import { AXES } from '../../../exercises/exerciseIndex';
 import '../SheetMusic.css';
 import { usePlaybackConfig } from '../../../contexts/PlaybackConfigContext';
 import { useDisplaySettings } from '../../../contexts/DisplaySettingsContext';
@@ -367,36 +370,40 @@ const SettingsOverlay = ({
         />
       </g>
 
-      {/* ── REPEAT COUNT AREA ── */}
+      {/* ── REPEAT COUNT AREA (#298, Han 2026-07-02: "hergebruik die setter; het
+          zal een carousel zijn met de reeds bestaande parameter") ──
+          The stepper became the SAME NonLinearCarousel as the exercise setter's
+          REPEAT axis: options from AXES.evaluation (§6c SSOT — ['until',1,2,4,
+          6,8,∞]) with the BadgeCheck 'until correct' glyph LEFTMOST. Stored as
+          { untilCorrect, repsPerMelody } so the Sequencer's repeat arithmetic
+          stays numeric ('until' plays as Infinity). */}
       <g transform={`translate(${startX + 0.85 * (systemEndX - startX)}, ${CHORD_ROW_Y})`}>
         <text x="0" y={-25} fontFamily="serif" fontStyle="italic" fontSize="14" fill="var(--text-secondary)" textAnchor="middle" className="svg-no-interact">repeats</text>
-        <SvgSetter
-          x={0}
-          y={0}
-          valueDy={-3}
-          // 'until correct' (#266, Han 2026-07-02) is the LEFTMOST repeat option:
-          // stored as { untilCorrect: true, repsPerMelody: Infinity } so the
-          // Sequencer's repeat arithmetic stays numeric. Shown as ✓ here; the
-          // exercise setter's carousel shows the BadgeCheck icon.
-          value={playbackConfig.untilCorrect ? '✓' : playbackConfig.repsPerMelody === Infinity ? 'À' : playbackConfig.repsPerMelody}
-          onValueClick={() => setActiveNumberPicker?.('repeats')}
-          onDecrement={() => {
-            const options = ['until', 1, 2, 4, 6, 8, Infinity];
+        <NonLinearCarousel
+          items={AXES.evaluation}
+          activeIndex={(() => {
             const current = playbackConfig.untilCorrect ? 'until' : playbackConfig.repsPerMelody;
-            const currentIndex = options.indexOf(current);
-            let nextIndex = currentIndex === -1 ? options.indexOf(4) : (currentIndex - 1 + options.length) % options.length;
-            const next = options[nextIndex];
-            setPlaybackConfig(p => ({ ...p, repsPerMelody: next === 'until' ? Infinity : next, untilCorrect: next === 'until' }));
-          }}
-          onIncrement={() => {
-            const options = ['until', 1, 2, 4, 6, 8, Infinity];
+            const idx = AXES.evaluation.findIndex(o => o.value === current);
+            return idx === -1 ? AXES.evaluation.findIndex(o => o.value === 4) : idx;
+          })()}
+          renderItem={(item, i) => {
             const current = playbackConfig.untilCorrect ? 'until' : playbackConfig.repsPerMelody;
-            const currentIndex = options.indexOf(current);
-            let nextIndex = currentIndex === -1 ? options.indexOf(4) : (currentIndex + 1) % options.length;
-            const next = options[nextIndex];
-            setPlaybackConfig(p => ({ ...p, repsPerMelody: next === 'until' ? Infinity : next, untilCorrect: next === 'until' }));
+            return renderCarouselOptionGlyph(item, AXES.evaluation[i]?.value === current, 0);
           }}
-          onInteraction={onSettingsInteraction}
+          centerX={0}
+          y={-12}
+          baseWidth={30}
+          height={16}
+          visibleHalf={2}
+          onSelect={(item) => {
+            onSettingsInteraction?.();
+            setPlaybackConfig(p => ({
+              ...p,
+              repsPerMelody: item.value === 'until' ? Infinity : item.value,
+              untilCorrect: item.value === 'until',
+            }));
+          }}
+          debugMode={debugMode}
         />
       </g>
 

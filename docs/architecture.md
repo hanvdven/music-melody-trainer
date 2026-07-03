@@ -4198,3 +4198,24 @@ overlay; 'until correct' was a private evaluation value instead of part of the r
 **Files:** `src/exercises/exerciseIndex.js`, `overlays/ExerciseStaffOverlay.jsx`,
 `overlays/SettingsOverlay.jsx` (repeats cycle + ✓), `src/hooks/useInputTest.js`
 (melodyHadErrorRef + restart branch), `src/components/layout/AppHeader.jsx`, `src/App.jsx`.
+
+### §44c. Shared carousel option glyph + PLAYBACK repeats carousel (#298, 2026-07-03)
+
+**Purpose:** Han's follow-up on §44b ("Hergebruik die setter… noteer dat ook voor aantal
+repeats"): the PLAYBACK setter's repeats stepper (SvgSetter cycle) is now the SAME
+NonLinearCarousel as the exercise setter's REPEAT axis.
+
+**How it works:** `overlays/carouselOptionGlyph.jsx` is the single source of truth (§6d) for
+how a setting-carousel option renders (ALL-CAPS label, or BadgeCheck for `isUntil` items) —
+consumed by BOTH the exercise axis carousels and the PLAYBACK repeats carousel, whose option
+list comes from `AXES.evaluation` in the exercise registry (§6c — one list, two surfaces).
+Selection writes `{ repsPerMelody, untilCorrect }` exactly like the exercise REPEAT axis.
+The repeats number-picker entry (`setActiveNumberPicker('repeats')`) was dropped — the carousel
+exposes every option directly ('measures' keeps its picker).
+
+**Tests:** `src/exercises/__tests__/exerciseIndex.test.js` (registry/axes/config math, 11) and
+`overlays/__tests__/ExerciseStaffOverlay.test.jsx` (smoke: morph group, ALL-CAPS, START click,
+BadgeCheck, §3a debug boxes, 5) — the §7b smoke tests the earlier passes missed.
+
+**Files:** `overlays/carouselOptionGlyph.jsx` (new), `overlays/SettingsOverlay.jsx`,
+`overlays/ExerciseStaffOverlay.jsx`, plus the two new test files.

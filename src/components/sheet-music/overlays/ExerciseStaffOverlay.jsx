@@ -1,6 +1,6 @@
 import React from 'react';
-import { BadgeCheck } from 'lucide-react';
 import NonLinearCarousel from './NonLinearCarousel';
+import { renderCarouselOptionGlyph } from './carouselOptionGlyph';
 import { EXERCISES, AXES, AXIS_ORDER, AXIS_LABELS } from '../../../exercises/exerciseIndex';
 
 // ── In-staff EXERCISE setter (#266 rework 2, epic #245, Han 2026-07-02) ──────
@@ -77,30 +77,9 @@ const ExerciseStaffOverlay = ({
         );
     };
 
-    // Axis option card: ALL-CAPS label, or the BadgeCheck 'until correct' icon
-    // for the leftmost REPEAT option. Same active-highlight convention.
-    const renderAxisOption = (item, active, rowY) => {
-        const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
-        return (
-            <g style={{
-                pointerEvents: 'none',
-                color,
-                filter: active ? `drop-shadow(0 0 3px ${color})` : 'none',
-            }}>
-                {item.isUntil ? (
-                    <BadgeCheck size={12} x={-6} y={rowY - 10} />
-                ) : (
-                    <text x={0} y={rowY} textAnchor="middle" fontSize={8}
-                        fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'}
-                        fill={color} letterSpacing={0.5}>
-                        {item.label}
-                    </text>
-                )}
-            </g>
-        );
-    };
-
     // Axis carousels centred in the area right of the axis-name column.
+    // Option cards come from the SHARED glyph renderer (carouselOptionGlyph,
+    // §6d) — the PLAYBACK repeats carousel (#298) uses the same one.
     const axisCenterX = startX + 40 + (endX - startX - 40) / 2;
 
     return (
@@ -136,7 +115,7 @@ const ExerciseStaffOverlay = ({
                         <NonLinearCarousel
                             items={options}
                             activeIndex={current}
-                            renderItem={(item, i) => renderAxisOption(item, i === current, rowY)}
+                            renderItem={(item, i) => renderCarouselOptionGlyph(item, i === current, rowY)}
                             centerX={axisCenterX}
                             y={rowY - AXIS_HIT_H + 4}
                             baseWidth={AXIS_BASE}

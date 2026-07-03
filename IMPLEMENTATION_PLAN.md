@@ -7,6 +7,18 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-03 — ✅ Vervolgwerk: tests + #298 repeats-carousel + #267-design
+
+"Werk verder" (Han): (1) ontbrekende §7b-tests toegevoegd — exerciseIndex
+(11: registry/assen/configFromAxes/applyExerciseConfig-merge) + ExerciseStaffOverlay
+smoke (5: morph-group, ALL-CAPS, START-click, BadgeCheck, §3a) → 543 tests totaal.
+(2) #298 GEBOUWD: PLAYBACK repeats-stepper → zelfde NonLinearCarousel als de
+exercise REPEAT-as; gedeelde glyph-renderer `carouselOptionGlyph.jsx` (§6d SSOT),
+optielijst uit `AXES.evaluation` (§6c); repeats-numberpicker vervallen. → test (UAT).
+(3) #267 design geüpdatet voor het assen-model + 4 interviewvragen OP HET TICKET
+(run-lengte vast/instelbaar, auto-stop+summary, geldt bound voor alle oefeningen,
+until-correct-telling) → design_review, wacht op Han. architecture.md §44c.
+
 ## 2026-07-02 — ✅ CR: Exercise-assen → carousels + header-START + 'until correct' GEBOUWD
 
 Interview-antwoorden: BadgeCheck (star-check bestaat niet in lucide 0.563) ✓;
