@@ -4280,3 +4280,19 @@ session-scoped only. Plan assumptions A1–A4 are recorded on the ticket and rev
 **Files:** `src/hooks/useInputTest.js` (flawless flag), `src/App.jsx` (run state/refs, counter,
 stopper, session-end clear), `src/components/layout/SubHeader.jsx` (chip),
 `src/components/profile/SessionSummaryCard.jsx` (Melodies row).
+
+### §45a. Generate-after-last-repeat toggle (#230e, 2026-07-05)
+
+**Purpose:** Han (#230): "toggle: generate after last repeat on/off" — with the toggle OFF a
+finished repeat cycle keeps replaying the SAME melody instead of generating a fresh one.
+
+**How it works:** `playbackConfig.generateAfterLastRepeat` — absent or `true` = current
+behaviour; `false` = the Sequencer's series boundary (the `iteration >= repsPerMelody` block)
+takes the EXISTING repeat-forever short-circuit (`isRepeatMode ||`): no regeneration,
+`melodyCount` untouched. Read from the config ref AT the boundary so flipping mid-playback
+applies at the next series edge. UI: the AUTO NEW caps-text toggle under the repeats carousel
+in the PLAYBACK overlay (§3a debug box included). Always test `!== false` — existing stored
+configs lack the field and must stay ON.
+
+**Files:** `src/audio/Sequencer.js` (one gate in the series-boundary branch),
+`overlays/SettingsOverlay.jsx` (AUTO NEW toggle).
