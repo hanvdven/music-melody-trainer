@@ -297,6 +297,9 @@ const useInputTest = ({
                 emitScore('melodyComplete', {
                     correct: currentState.correctNotes + addedCorrect,
                     total: currentState.totalNotes + addedTotal,
+                    // #267 run counter: whether THIS melody pass had zero wrong notes.
+                    // Read here — the restart/regenerate branches below reset the ref.
+                    flawless: !melodyHadErrorRef.current,
                 });
             }
 

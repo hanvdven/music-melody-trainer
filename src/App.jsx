@@ -199,6 +199,17 @@ const App = () => {
     // Post-session summary card data (#131); null = hidden.
     const [sessionSummary, setSessionSummary] = useState(null);
 
+    // Exercise RUN (#267): a bounded run of N melodies started by START.
+    // State drives the SubHeader "melody N/10" chip; the ref is the source the
+    // score-event callback reads/writes (it fires from input-test internals —
+    // reading state there would go stale). endExerciseRunRef is populated after
+    // useInputTest mounts (it needs handleToggleInputTest, which doesn't exist
+    // yet at this point in the component body).
+    const EXERCISE_RUN_TARGET = 10; // fixed 10 per the original #245 spec (A1 in the #267 plan)
+    const [exerciseRun, setExerciseRun] = useState(null);
+    const exerciseRunRef = useRef(null);
+    const endExerciseRunRef = useRef(null);
+
     const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
 
     // Sheet Music Settings state (Lifted)
@@ -832,6 +843,25 @@ const App = () => {
         // only, so this callback is stable.
         onScoreEvent: useCallback((type, detail) => {
             recordEventRef.current(type, { ...detail, ...buildScorePayload() });
+            // #267 run counter: with untilCorrect only a FLAWLESS pass advances
+            // the run (matches the restart-until-flawless loop); otherwise every
+            // completion counts. Ending the run is deferred a tick — this event
+            // fires from inside advanceToNext, and stopping the input test
+            // mid-handler would race its own setState calls.
+            const run = exerciseRunRef.current;
+            if (run && type === 'melodyComplete') {
+                const counts = configRef.current?.untilCorrect ? detail.flawless === true : true;
+                if (counts) {
+                    const next = { ...run, completed: run.completed + 1 };
+                    exerciseRunRef.current = next;
+                    setExerciseRun(next);
+                    if (next.completed >= next.target) {
+                        setTimeout(() => endExerciseRunRef.current?.(), 0);
+                    }
+                }
+            }
+        // configRef, exerciseRunRef, endExerciseRunRef are refs — stable identities.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [buildScorePayload]),
     });
 
@@ -856,6 +886,10 @@ const App = () => {
     // input-test handlers that only exist after usePlayback/useInputTest.
     const handleStartExercise = useCallback(() => {
         setExerciseEditMode(false); // close the setter; the songs tab stays below
+        // #267: every START opens a bounded run (A3 in the plan) — the score-event
+        // wrapper counts completions and ends the run at the target.
+        exerciseRunRef.current = { target: EXERCISE_RUN_TARGET, completed: 0 };
+        setExerciseRun(exerciseRunRef.current);
         if (!isInputTestModeRef.current) handleToggleInputTest();
         if (exerciseAxes.tempo === 'rubato') {
             handleSetInputTestSubMode('note');
@@ -891,6 +925,22 @@ const App = () => {
     // rubatoEngageRef is a ref — stable identity; its .current is mutated here intentionally.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [handleToggleInputTest, handleSetInputTestSubMode, isInputTestModeRef]);
+
+    // #267: end-of-run stopper — populated here because it needs
+    // handleStopAllPlayback + handleToggleInputTest, which don't exist where the
+    // run refs are declared. Stops playback AND the input test; the session-end
+    // effect then fires and shows the summary card (gate already satisfied by
+    // the completed melodies).
+    useEffect(() => {
+        endExerciseRunRef.current = () => {
+            exerciseRunRef.current = null;
+            handleStopAllPlayback();
+            if (isInputTestModeRef.current) handleToggleInputTest();
+        };
+        return () => { endExerciseRunRef.current = null; };
+    // endExerciseRunRef/exerciseRunRef/isInputTestModeRef are refs — stable identities.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [handleStopAllPlayback, handleToggleInputTest]);
 
     // Forward inputTestStateRef so onNoteCorrect (defined earlier, before
     // useInputTest's destructure ran) can reach the latest input-test state.
@@ -936,6 +986,10 @@ const App = () => {
             beginSession();
         } else if (!active && sessionActiveRef.current) {
             sessionActiveRef.current = false;
+            // #267: a session end also ends any exercise run (user stopped early,
+            // or the run stopper just fired — either way the chip must clear).
+            exerciseRunRef.current = null;
+            setExerciseRun(null);
             const summary = endSession();
             if (summary) setSessionSummary(summary);
         }
@@ -1631,6 +1685,7 @@ const App = () => {
                     generationEditMode={generationEditMode}
                     generationAdvancedEditMode={generationAdvancedEditMode}
                     exerciseEditMode={exerciseEditMode}
+                    exerciseRun={exerciseRun}
                     showSheetMusicSettings={showSheetMusicSettings}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}

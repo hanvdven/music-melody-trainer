@@ -4257,3 +4257,26 @@ START didn't actually start anything musical at fixed tempo.
 (caps labels + test), `src/exercises/exerciseIndex.js` (option icons, play-along round
 volumes), `src/hooks/useInputTest.js` (live-tracker miss detection),
 `src/components/layout/SubHeader.jsx` (TOO SLOW flash), `src/App.jsx` (tempo-dependent START).
+
+### §45. Exercise run — bounded 10-melody run with HUD + auto-stop (#267, 2026-07-05)
+
+**Purpose:** the scored exercise RUN from epic #245: START opens a run of 10 melodies; progress
+shows as a "melody N/10" chip; the run auto-stops and hands off to the session summary card.
+
+**How it works:** `useInputTest` adds a `flawless` flag to the `melodyComplete` payload (read
+from `melodyHadErrorRef` at emit time, before the until-correct branches reset it). App keeps
+the run in a ref + mirrored state (`exerciseRun {target, completed}`): `handleStartExercise`
+seeds it (every START is run-bound — plan assumption A3), the `onScoreEvent` wrapper counts
+qualifying completions (with `untilCorrect` on, only flawless passes count — A4), and at the
+target a deferred (`setTimeout 0` — the event fires inside `advanceToNext`, stopping the input
+test mid-handler would race its own setState) `endExerciseRunRef` stops playback + input test.
+The session-end effect then clears the run and shows the summary card, which now has a
+"Melodies" row. SubHeader renders the run chip from the mirrored state.
+
+**Invariants:** no Sequencer edits; no storage (persistence is #268); run state is
+session-scoped only. Plan assumptions A1–A4 are recorded on the ticket and reversible in UAT
+(fixed 10; auto-stop; all exercises run-bound; flawless-only under until-correct).
+
+**Files:** `src/hooks/useInputTest.js` (flawless flag), `src/App.jsx` (run state/refs, counter,
+stopper, session-end clear), `src/components/layout/SubHeader.jsx` (chip),
+`src/components/profile/SessionSummaryCard.jsx` (Melodies row).

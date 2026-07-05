@@ -7,6 +7,34 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-05 — ✅ Swimlane-ronde: #267 run GEBOUWD + lane opgeruimd
+
+Han: "pak de tickets in jouw swimlane op." ✅ #267: begrensde run van 10
+melodieën — `flawless`-vlag op melodyComplete, run-teller in de score-wrapper
+(bij until-correct telt alléén foutloos), "melody N/10"-chip in SubHeader,
+auto-stop bij 10 → summary card (nu met Melodies-rij); aannames A1–A4 op het
+ticket (omkeerbaar in UAT). 0 Sequencer-edits, geen opslag (#268). → test.
+✅ Admin: #54–59 (presets) → test — geleverd via de exercise-registry;
+#157 → design_review (analysevraag wacht op Han); #296 (Thronefall) + #297
+(ram-mascotte) design-interviews op ticket → design_review; #245 paraplu-nota.
+⏳ #230 (in impl, plan goedgekeurd door verplaatsing): volgende bouwslice —
+tangens-selectors, dynamics-stappen, measure groups (PlaybackSettings-klasse).
+
+## 2026-07-05 — ✅ UI-tweaks feedbackronde: #163 + #231 + #264 (commit df51a99)
+
+Han: "lees de ui tweaks in plan en design, check de feedback, pak die op."
+✅ #163 rework-trio: actief icoon in categoriekleur (SVG feFlood-tintfilter —
+PNG's zijn niet CSS-herkleurbaar; live bijgewerkt tijdens drag), glow 50%
+subtieler via GEDEELDE `activeGlowFilter` (globaal: instrument + exercise +
+compacte glyphs), álle labels caps (render + gesture-pad). ✅ #231: label
+78→66, vlak onder de C4 (caps zat al in rework 3). ✅ #264: `toMelodyFast`
+voegt octaaftop toe → preview altijd volledige run (8 noten heptatonisch);
+"wisselende noten" = bewust de huidige toonladder (genoteerd op ticket).
+Alle drie → test (UAT). §9k: reanalyzed + feedback-items formeel geadresseerd.
+⏳ Volgende slices genoteerd op tickets: #295 (inline noten in generator-
+carousels — grote render-taak), #230 (tangens-selectors + measure groups —
+plan_review), #262 (clef-carousel consistent + Italiaanse namen).
+
 ## 2026-07-05 — ✅ CR: Exercise setter geïntegreerd + functionele play-along GEBOUWD
 
 Interview: presets op treble + assen op bas ✓; too slow = doorspelen + fout

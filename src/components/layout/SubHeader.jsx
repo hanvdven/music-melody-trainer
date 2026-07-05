@@ -47,6 +47,7 @@ const SubHeader = ({
     generationEditMode = false,
     generationAdvancedEditMode = false,
     exerciseEditMode = false,
+    exerciseRun = null,          // #267: { target, completed } while a bounded run is active
     showSheetMusicSettings = false,
     windowWidth,
     difficultyMultiplier,
@@ -214,6 +215,14 @@ const SubHeader = ({
                     accuracy: {inputTestState?.totalNotes ? Math.round(((inputTestState?.correctNotes || 0) / inputTestState?.totalNotes) * 100) : 0}%
                     &nbsp;|&nbsp; score: {inputTestState?.score || 0}
                     &nbsp;|&nbsp; difficulty: {difficultyMultiplier != null ? difficultyMultiplier.toFixed(2) : '–'}×
+                    {/* Exercise-run progress (#267): melody counter while a bounded
+                        run is active. completed+1 = the melody currently being played
+                        (capped at the target for the final one). */}
+                    {exerciseRun && (
+                        <span style={{ color: 'var(--accent-yellow)', fontWeight: 600 }}>
+                            &nbsp;|&nbsp;melody {Math.min(exerciseRun.completed + 1, exerciseRun.target)}/{exerciseRun.target}
+                        </span>
+                    )}
                     {/* TOO SLOW flash (#266 rework 3): set by the live-tracker miss in
                         useInputTest; clears on the next state update (every tracked
                         note advances the state during fixed-tempo play-along). */}

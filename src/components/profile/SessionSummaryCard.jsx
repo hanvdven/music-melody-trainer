@@ -64,6 +64,13 @@ export default function SessionSummaryCard({ summary, onDismiss, debugMode = fal
                 </div>
             )}
 
+            {summary.melodiesCompleted > 0 && (
+                <div className="session-summary-row">
+                    <span className="session-summary-label">Melodies</span>
+                    <span className="session-summary-value">{summary.melodiesCompleted}</span>
+                </div>
+            )}
+
             {summary.seriesListened > 0 && (
                 <div className="session-summary-row">
                     <span className="session-summary-label">Series listened</span>
