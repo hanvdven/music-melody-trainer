@@ -214,6 +214,14 @@ const SubHeader = ({
                     accuracy: {inputTestState?.totalNotes ? Math.round(((inputTestState?.correctNotes || 0) / inputTestState?.totalNotes) * 100) : 0}%
                     &nbsp;|&nbsp; score: {inputTestState?.score || 0}
                     &nbsp;|&nbsp; difficulty: {difficultyMultiplier != null ? difficultyMultiplier.toFixed(2) : '–'}×
+                    {/* TOO SLOW flash (#266 rework 3): set by the live-tracker miss in
+                        useInputTest; clears on the next state update (every tracked
+                        note advances the state during fixed-tempo play-along). */}
+                    {inputTestState?.lastMissAt && Date.now() - inputTestState.lastMissAt < 2000 && (
+                        <span style={{ color: '#c96a5a', fontWeight: 700 }}>
+                            &nbsp;|&nbsp;TOO SLOW
+                        </span>
+                    )}
                 </div>
             </div>
 

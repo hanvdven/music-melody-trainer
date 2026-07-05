@@ -23,15 +23,16 @@ describe('NoteColoringStaffOverlay', () => {
         expect(container.querySelectorAll('foreignObject').length).toBe(0);
     });
 
-    it('renders the renamed/reordered scheme labels (Scale, Chord, Subtle chromatone)', () => {
+    it('renders the renamed/reordered scheme labels in ALL CAPS (standing carousel CR)', () => {
         const { container } = renderOverlay();
         const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
         // 'tonic_scale_keys' mode is now LABELLED "Scale"; 'chords' → "Chord".
-        expect(labels).toContain('Scale');
-        expect(labels).toContain('Chord');
-        expect(labels).toContain('Subtle chromatone');
-        // The legacy 'Tonic / Scale' label is gone.
-        expect(labels).not.toContain('Tonic / Scale');
+        // ALL CAPS since 2026-07-03 (Han: carousel text conventions must not
+        // drift per consumer).
+        expect(labels).toContain('SCALE');
+        expect(labels).toContain('CHORD');
+        expect(labels).toContain('SUBTLE CHROMATONE');
+        expect(labels).not.toContain('Scale');
     });
 
     it('example notes ASCEND C4→C5 at real staff positions (Han 2026-06-17, not flat)', () => {

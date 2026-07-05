@@ -7,6 +7,35 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-05 — ✅ CR: Exercise setter geïntegreerd + functionele play-along GEBOUWD
+
+Interview: presets op treble + assen op bas ✓; too slow = doorspelen + fout
+tellen ✓; demping actieve input-balk bevestigd ✓. GEBOUWD: presets als
+balk-hoge icon-kaarten op de bovenste balk; MELODY+INPUT icon-carousels naast
+elkaar op de tweede balk; TEMPO-carousel op de BPM-positie (trebleStart−59);
+REPEAT-carousel op de repeat-teken-positie (trebleStart−25, rechts); caps- en
+kaartconventies verplaatst naar de GEDEELDE glyph-laag (`renderStaffCardGlyph`;
+colour-setter-labels nu ook caps). FUNCTIONEEL: START bij fixed → live-submode
++ continuous playback, actieve input-balk gedempt via round-config (READ =
+beide rondes gedempt/zichtbaar; HEAR = R1 hoorbaar, R2 gedempt+blind);
+live-tracker telt gemiste noten (vooruit-passeren zonder antwoord) als fout +
+TOO SLOW-flash in SubHeader; rubato → note-submode (bestaand). §7b: 543 tests
+groen, lint 0, build OK. architecture.md §44d. #266 → test (UAT).
+
+### Oorspronkelijke CR-log (2026-07-03)
+
+Han (UAT #266 rework 2, met screenshot): (1) setters te klein/"tekstjes" — wil
+grote carousels met iconen, colour-setter-HOOGTE is "PERFECTO"; (2) all-caps
+ontbreekt in colour setter → presentatieconventie moet in de GEDEELDE laag
+(carouselOptionGlyph), niet per consumer; (3) integratie-filosofie: REPEAT-setter
+op de plaats van het repeat-teken (rechtsboven, RepeatsControls-positie),
+TEMPO-setter op de BPM-plek (linksboven, BpmControls), MELODY = balk-hoge iconen
+met tekst eronder, INPUT ook iconen; (4) FUNCTIONEEL: START bij tempo=fixed →
+playback van alle melodieën (rond-volumes) behalve de actieve input-balk +
+'too slow'-feedback bij te late input (live-tracker); rubato per bestaande
+beschrijving. #266 test→impl gebounced met rework_reason. Interview loopt
+(preset-plaats, too-slow-semantiek, muting-bevestiging).
+
 ## 2026-07-03 — ✅ Vervolgwerk: tests + #298 repeats-carousel + #267-design
 
 "Werk verder" (Han): (1) ontbrekende §7b-tests toegevoegd — exerciseIndex

@@ -90,7 +90,9 @@ const NoteColoringStaffOverlay = ({
                 <text x={0} y={trebleStart + LABEL_DY} textAnchor="middle" fontSize={11}
                     fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'}
                     fill={active ? 'var(--accent-yellow)' : 'var(--text-primary)'}>
-                    {s.label}
+                    {/* ALL CAPS — standing carousel-text CR (Han 2026-07-03: the caps
+                        convention was drifting per consumer; see carouselOptionGlyph). */}
+                    {s.label.toUpperCase()}
                 </text>
             </g>
         );

@@ -19,21 +19,21 @@
  * lives in App.handleStartExercise, not here — the registry stays data-only.
  */
 import {
-    AudioLines, Layers, Zap, Activity, Ear, BookOpenCheck,
+    AudioLines, Layers, Zap, Activity, Ear, BookOpenCheck, Music2,
 } from 'lucide-react';
 
 // ── Axis vocabularies (order = display order in the setter rows) ────────────
 export const AXES = {
     melodyType: [
-        { value: 'scales', label: 'SCALES' },
-        { value: 'melodies', label: 'MELODIES' },
-        { value: 'chords', label: 'CHORDS' },
+        { value: 'scales', label: 'SCALES', Icon: AudioLines },
+        { value: 'melodies', label: 'MELODIES', Icon: Music2 },
+        { value: 'chords', label: 'CHORDS', Icon: Layers },
     ],
     // Han 2026-07-02: pure listening dropped as an input; 'hear' = play back BY
     // EAR (blind input test) — the old 'replay'.
     input: [
-        { value: 'read', label: 'READ' },
-        { value: 'hear', label: 'HEAR' },
+        { value: 'read', label: 'READ', Icon: BookOpenCheck },
+        { value: 'hear', label: 'HEAR', Icon: Ear },
     ],
     tempo: [
         { value: 'fixed', label: 'FIXED' },
@@ -77,6 +77,7 @@ const MELODY_TYPE_TREBLE = {
  */
 export function configFromAxes(axes) {
     const until = axes.evaluation === 'until';
+    const read = axes.input === 'read';
     return {
         isRubato: axes.tempo === 'rubato',
         treble: { ...MELODY_TYPE_TREBLE[axes.melodyType] },
@@ -84,8 +85,17 @@ export function configFromAxes(axes) {
             repsPerMelody: until ? Infinity : axes.evaluation,
             untilCorrect: until,
             randomize: { melody: true },
-            oddRounds: { treble: 1, trebleEye: true, notes: axes.input === 'read' },
-            evenRounds: { treble: 1, trebleEye: true, notes: axes.input === 'read' },
+            // The ACTIVE INPUT staff (treble) is muted while the player plays —
+            // "alle melodieën op het gegeven volume, behalve die van de actieve
+            // input" (Han 2026-07-03/05). READ: you play every round from sight
+            // (treble muted both rounds, notes visible). HEAR: round 1 plays the
+            // target audibly (listen), round 2 is your blind play-back turn.
+            oddRounds: read
+                ? { treble: 0, trebleEye: true, notes: true }
+                : { treble: 1, trebleEye: false, notes: false },
+            evenRounds: read
+                ? { treble: 0, trebleEye: true, notes: true }
+                : { treble: 0, trebleEye: false, notes: false },
         },
     };
 }

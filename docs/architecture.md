@@ -4219,3 +4219,41 @@ BadgeCheck, §3a debug boxes, 5) — the §7b smoke tests the earlier passes mis
 
 **Files:** `overlays/carouselOptionGlyph.jsx` (new), `overlays/SettingsOverlay.jsx`,
 `overlays/ExerciseStaffOverlay.jsx`, plus the two new test files.
+
+### §44d. Exercise setter rework 3 — staff-integrated layout + functional play-along (Han 2026-07-03/05)
+
+**Symptom (UAT with screenshot):** the axis carousels were "kleine tekstjes", not integrated
+into the sheet; the colour setter's labels weren't caps (convention drift across consumers);
+START didn't actually start anything musical at fixed tempo.
+
+**Layout (Han's integration philosophy — settings live WHERE their subject lives):**
+- PRESETS: staff-height icon cards + ALL-CAPS label below on the TOP staff (colour-setter
+  height is the reference).
+- MELODY (left) + INPUT (right): icon cards side-by-side on the SECOND staff.
+- TEMPO (FIXED/RUBATO): at the BPM display position (BpmControls value line, trebleStart−59).
+- REPEAT: at the repeat-sign position (RepeatsControls baseline, trebleStart−25, right side),
+  BadgeCheck 'until' leftmost.
+- Card conventions (caps enforcement, icon+label-below shape) moved INTO the shared layer:
+  `carouselOptionGlyph.jsx` now exports `renderStaffCardGlyph` besides the compact glyph, and
+  upper-cases every label itself. The colour setter's scheme labels are caps now too.
+
+**Functional play-along (fixed tempo):** START →
+- axes config already muted the ACTIVE INPUT staff (treble): READ = muted both rounds, notes
+  visible (play from sight every round); HEAR = round 1 audible (listen), round 2 muted + blind
+  (play back by ear) — rounds carry the hear-then-play pattern.
+- input test enters **'live'** submode + continuous playback starts (the plain
+  `handlePlayContinuouslyLogic`, NOT the rubato-intercepting wrapper). The subMode ref is
+  written synchronously before playback so `onPlaybackStartRef` doesn't kill the test (the
+  state-sync effect lands a render too late).
+- **TOO SLOW**: the live rAF tracker in `useInputTest` counts a miss when it moves FORWARD past
+  an unanswered note (backward wrap jumps don't count): emits `noteWrong {tooSlow}` (feeds
+  accuracy/ELO via the session machinery), decrements score, sets `lastMissAt`; the SubHeader
+  score strip flashes red "TOO SLOW". Playback never pauses (Han: "doorspelen + fout tellen") —
+  pausing-for-the-right-note is exactly what rubato mode is.
+- rubato → input-test 'note' mode as before.
+
+**Files:** `overlays/carouselOptionGlyph.jsx` (caps + `renderStaffCardGlyph`),
+`overlays/ExerciseStaffOverlay.jsx` (full relayout), `overlays/NoteColoringStaffOverlay.jsx`
+(caps labels + test), `src/exercises/exerciseIndex.js` (option icons, play-along round
+volumes), `src/hooks/useInputTest.js` (live-tracker miss detection),
+`src/components/layout/SubHeader.jsx` (TOO SLOW flash), `src/App.jsx` (tempo-dependent START).

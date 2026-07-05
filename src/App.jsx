@@ -843,21 +843,37 @@ const App = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [setInputTestSubMode]);
 
-    // START an exercise (#266 rework 2, Han 2026-07-02: "maak het starten
-    // prominenter" + START also in the AppHeader). Both input-axis values are
-    // input-test activities now (READ = notes visible, HEAR = play back by ear,
-    // notes hidden — pure listening was dropped), so START always enters input
-    // test 'note' mode. With tempo=rubato, isRubato is already ON — input-test
-    // note mode IS the rubato entry point (see rubatoEngageRef above).
-    // Defined here (not with the axes handlers) because it needs the input-test
-    // handlers that only exist after useInputTest.
+    // START an exercise (#266 rework 3, Han 2026-07-05: the exercise must be
+    // FUNCTIONAL). What starting means follows the TEMPO axis:
+    //   fixed  → the music PLAYS (continuous playback; the active input staff is
+    //            muted by the axes config) and the input test runs in 'live'
+    //            submode — the rAF tracker follows the sounding note and a note
+    //            you don't answer in time counts as a miss + TOO SLOW flash.
+    //   rubato → input-test 'note' mode: no fixed clock, the accompaniment
+    //            follows YOUR tempo (isRubato is already ON via the tempo axis —
+    //            note mode IS the rubato entry point, see rubatoEngageRef).
+    // Defined here (not with the axes handlers) because it needs the playback +
+    // input-test handlers that only exist after usePlayback/useInputTest.
     const handleStartExercise = useCallback(() => {
         setExerciseEditMode(false); // close the setter; the songs tab stays below
         if (!isInputTestModeRef.current) handleToggleInputTest();
-        handleSetInputTestSubMode('note');
+        if (exerciseAxes.tempo === 'rubato') {
+            handleSetInputTestSubMode('note');
+            return;
+        }
+        handleSetInputTestSubMode('live');
+        // Write the ref SYNCHRONOUSLY: onPlaybackStartRef (fired by the play
+        // call below, same tick) reads inputTestSubModeRef.current to decide
+        // whether to kill the input test — the state-sync effect only lands
+        // after the next render, which would be too late.
+        inputTestSubModeRef.current = 'live';
+        // In LIVE submode playback and input test coexist (onPlaybackStartRef
+        // keeps the test alive); handlePlayContinuouslyLogic starts the plain
+        // sequencer loop — deliberately NOT the rubato-intercepting wrapper.
+        handlePlayContinuouslyLogic();
     // isInputTestModeRef is a ref — stable identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [setExerciseEditMode, handleToggleInputTest, handleSetInputTestSubMode]);
+    }, [exerciseAxes.tempo, setExerciseEditMode, handleToggleInputTest, handleSetInputTestSubMode, handlePlayContinuouslyLogic]);
 
     // Populate the rubato-play interceptor now that useInputTest is mounted.
     // The Play buttons (handlePlayMelody/Repeat/Continuously) consult this ref

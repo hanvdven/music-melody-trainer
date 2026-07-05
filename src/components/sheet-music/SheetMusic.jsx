@@ -2829,6 +2829,7 @@ const SheetMusic = ({
                       trebleStart={trebleStart}
                       bassStart={bassStart}
                       isTrebleVisible={isTrebleVisible}
+                      isBassVisible={isBassVisible}
                       activeExerciseId={activeExerciseId}
                       axes={exerciseAxes}
                       onSelectExercise={onSelectExercise}

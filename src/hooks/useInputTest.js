@@ -145,9 +145,31 @@ const useInputTest = ({
 
             if (matchIdx !== -1 && matchIdx !== lastTrackedIndex) {
                 lastTrackedIndex = matchIdx;
-                setInputTestState(prev => {
-                    if (prev.activeIndex === matchIdx) return prev;
-                    return { ...prev, activeIndex: matchIdx, status: 'waiting', chordHits: [], wrongNote: null };
+                // #266 rework 3 'too slow' (fixed-tempo play-along, Han 2026-07-05:
+                // "doorspelen + fout tellen"): the tracker moved FORWARD past a note
+                // the player never answered → one miss. If the player HAD answered,
+                // advanceToNext already moved activeIndex to (or past) matchIdx and
+                // no penalty applies. Backward jumps (melody wrap at the repeat
+                // boundary) never count.
+                const prev = inputTestStateRef.current;
+                const missed = prev.activeIndex !== -1 && matchIdx > prev.activeIndex;
+                if (missed && onScoreEventRef.current) {
+                    onScoreEventRef.current('noteWrong', {
+                        staff: prev.activeStaff || 'treble',
+                        subMode: 'live',
+                        tooSlow: true,
+                    });
+                }
+                setInputTestState(p => {
+                    if (p.activeIndex === matchIdx) return p;
+                    return {
+                        ...p, activeIndex: matchIdx, status: 'waiting', chordHits: [], wrongNote: null,
+                        ...(missed ? {
+                            score: p.score - 1,
+                            totalNotes: p.totalNotes + 1,
+                            lastMissAt: Date.now(), // SubHeader shows the TOO SLOW flash
+                        } : {}),
+                    };
                 });
             }
         };
