@@ -7,6 +7,19 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-06 — ✅ #295 GEBOUWD: inline noten in de generator-carousels (d7a9840)
+
+Autonome swimlane-ronde. `generationNoteGlyphs.jsx` (alles via canonieke
+StaffQuarterNote/StaffMelodyNote, §6d): note-pools als echte notenruns
+(chromatic + Maestro ♭♯♮), notes/measure 1–16 als afgeleide ritmepatronen
+(formule getest tegen Hans voorbeelden; vlaggen, beaming = follow-up),
+progressies als Romeinse cijfers; arp up/down/bounce uit deze carousel;
+NOTES_PER_MEASURE nu 1–16 (gedeeld met bottom view); redundante kolomkoppen
+weg; CarouselField kreeg renderContent + visibleHalf; labels caps in de
+gedeelde renderer. 548 tests groen. → test (UAT).
+⏳ Volgende passes in de lane: #162 (span-setter sleutel-afhankelijk),
+#262 (clef-carousel consistent + Italiaanse namen).
+
 ## 2026-07-06 — ✅ CR: repeats terug naar Maestro-weergave (#298 rework, 7c94881)
 
 Han: repeats waren "de verkeerde kant op" consistent gemaakt (sans-serif ×N).

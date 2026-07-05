@@ -210,15 +210,19 @@ const TupletWordFanCarousel = ({ cx, centerY, items, activeIndex, onCommit, rend
 // serif infinity glyph at the 15th's pitch (top of the fan). Interval NAME sits BELOW the staff for
 // treble / ABOVE for bass (Han UAT). Heads carry data-fly so they slide in note-by-note (consistency).
 const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, onCommit, debugMode }) => {
-  const { effIndex, dragging, bind } = useTangensDrag(activeIndex, SPAN_OPTIONS.length - 1, onCommit, PX_PER_STEP, 1);
-  // Interval-name label band: BELOW the staff for treble, ABOVE for bass (Han UAT).
-  const labelY = ascending ? staffStart + 64 : staffStart - 18;
-  // FIXED C4 anchor head — sits to the LEFT of the fan centre but CLAMPED inside the carousel region
-  // so it is ALWAYS on screen (Han UAT 2× "ik mis/zie de gerenderde C4 noot": the old anchorX =
-  // cx − 4·SPAN_X_SPACING landed left of startX → clipped off-canvas). We anchor it at a fixed offset
-  // left of the column centre but never let it cross the left edge of the fan window.
+  // #162 rework (Han 2026-07-02): the setter is CLEF-dependent, not staff-dependent.
+  // ascending (treble/vocal clefs): intervals rise from C4; the fixed C4 sits DIRECTLY
+  // UNDER the selected note (same x = the fan centre) and the interval name reads ABOVE.
+  // descending (bass clef): mirrored — C4 directly ABOVE the selected note, name BELOW,
+  // and the fan direction REVERSES ("de noten gaan van laag naar hoog in plaats van
+  // andersom"): larger (lower-pitched) intervals fan LEFT so left→right stays low→high.
+  const dir = ascending ? 1 : -1;
+  const { effIndex, dragging, bind } = useTangensDrag(activeIndex, SPAN_OPTIONS.length - 1, onCommit, PX_PER_STEP, dir);
+  const labelY = ascending ? staffStart - 18 : staffStart + 64;
   const bandW = 6 * SPAN_X_SPACING + 24;
-  const anchorX = cx - bandW / 2 + 10;       // just inside the left edge of the drag window → on screen
+  // Fixed C4 anchor on the fan CENTRE axis — the selected head lands at cx, so the
+  // pair reads vertically: name / selected note / C4 (treble) or C4 / note / name (bass).
+  const anchorX = cx;
   const c4Y = getNoteAbsoluteY('C4', staffStart, clef, staff);
   // The ∞ entry draws where the 15th head would be (top of the fan). Resolve the 15th's pitch once
   // so ∞ aligns with it (Han UAT: "infinity mag op dezelfde hoogte als de 15th").
@@ -236,7 +240,7 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
     const dist = Math.abs(t);
     const op = Math.max(0.15, (isActive ? 1 : 0.7) - dist * 0.1);
     const fill = isActive ? COLOR : LOW;
-    const x = cx + curveX(t) * (SPAN_X_SPACING / X_SPACING);
+    const x = cx + dir * curveX(t) * (SPAN_X_SPACING / X_SPACING);
     if (opt.value == null) {
       // ∞ entry: serif infinity char at the 15th's pitch (top of the fan), fanned with the rest.
       if (infBaseY == null) continue;
@@ -433,6 +437,16 @@ const GenerationAdvancedSetterOverlay = ({
     { key: 'percussion', clef: 'percussion', staff: 'percussion', centerY: percussionStart + 20, staffStart: percussionStart, smallestMidi: D3_MIDI, show: isPercussionVisible },
   ].filter(r => r.show);
 
+  // #162 rework: the row's REAL clef comes from its instrument settings (falling
+  // back to the staff default); 'off' keeps the default so positions stay sane.
+  const spanClefFor = (row, cfg) => {
+    const c = cfg?.clef;
+    return c && c !== 'off' ? c : row.clef;
+  };
+  // Bass FAMILY (bass, bass8vb, …, baritone-f) descends from C4; treble + vocal
+  // clefs ascend (Han: "sleutel-afhankelijk (viool/zang/bas)").
+  const isBassFamilyClef = (clef) => /^bass/.test(String(clef)) || String(clef) === 'baritone-f';
+
   const settersFor = (rowKey) => (
     rowKey === 'treble' ? { cfg: trebleSettings, set: setTrebleSettings }
       : rowKey === 'bass' ? { cfg: bassSettings, set: setBassSettings }
@@ -478,8 +492,11 @@ const GenerationAdvancedSetterOverlay = ({
 
             {!isPerc && (
               <SpanFanCarousel
-                cx={cols[1]} staffStart={row.staffStart} clef={row.clef} staff={row.staff}
-                ascending={row.key === 'treble'}
+                cx={cols[1]} staffStart={row.staffStart} clef={spanClefFor(row, cfg)} staff={row.staff}
+                /* #162 rework (Han): CLEF-dependent, not staff-dependent — a treble
+                   staff set to a bass clef behaves like bass, and vocal clefs like
+                   treble. */
+                ascending={!isBassFamilyClef(spanClefFor(row, cfg))}
                 activeIndex={idxOf(SPAN_OPTIONS, cfg?.maxLeap ?? null)}
                 onCommit={(i) => { fireInteraction(); set(p => ({ ...p, maxLeap: SPAN_OPTIONS[i].value })); }}
                 debugMode={debugMode}
