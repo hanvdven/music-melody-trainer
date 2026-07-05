@@ -24,13 +24,21 @@ import { BadgeCheck } from 'lucide-react';
 // Enforced here so no consumer can render a lowercase carousel label again.
 const caps = (label) => (label == null ? '' : String(label).toUpperCase());
 
+// Active-card glow — SINGLE SOURCE OF TRUTH (#163 rework, Han 2026-07-02:
+// "highlight glow is more subtle (50%)", flagged as GLOBAL). One soft
+// drop-shadow at half strength via color-mix (the app already relies on
+// color-mix support — see chromatoneMix). Every carousel consumer imports
+// this instead of composing its own drop-shadow chain.
+export const activeGlowFilter = (color) =>
+    `drop-shadow(0 0 3px color-mix(in srgb, ${color} 50%, transparent))`;
+
 export const renderCarouselOptionGlyph = (item, active, baselineY) => {
     const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
     return (
         <g style={{
             pointerEvents: 'none',
             color, // lucide strokes use currentColor
-            filter: active ? `drop-shadow(0 0 3px ${color})` : 'none',
+            filter: active ? activeGlowFilter(color) : 'none',
         }}>
             {item.isUntil ? (
                 <BadgeCheck size={12} x={-6} y={baselineY - 10} />
@@ -61,7 +69,7 @@ export const renderStaffCardGlyph = (item, active, staffStart, { iconSize = STAF
         <g style={{
             pointerEvents: 'none',
             color,
-            filter: active ? `drop-shadow(0 0 3px ${color}) drop-shadow(0 0 6px ${color})` : 'none',
+            filter: active ? activeGlowFilter(color) : 'none',
         }}>
             {Icon && (
                 <Icon size={iconSize} x={-iconSize / 2} y={staffStart + (40 - iconSize) / 2} />

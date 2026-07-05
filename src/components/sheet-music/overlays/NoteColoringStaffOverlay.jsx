@@ -40,12 +40,11 @@ const BASE = 115;
 // x-gap between the example noteheads within one scheme item. Increased 11 → 16 (Han 2026-06-27):
 // add more horizontal space between notes for clarity while keeping carousel narrower overall.
 const NOTE_SPACING = 16;
-// Scheme-label vertical drop below the staff top line. LOWERED (Han 2026-06-18): the colour
-// carousel's notes ASCEND C4→C5, so the lowest example notes (C4 + its ledger lines) sit well
-// below the staff and the old +58 label crowded them. Pushed down to clear the run and to sit
-// roughly where the instrument carousel's NAME_DY (58, below the bottom staff line) reads — Han
-// will fine-tune the exact value live.
-const LABEL_DY = 78;
+// Scheme-label vertical drop below the staff top line. RAISED 78 → 66 (#231 rework,
+// Han 2026-07-02: "Tekst hoger, vlak onder de C4"): C4 sits on its ledger at
+// +50 (notehead centre ≈ +55), so +66 puts the label directly beneath the lowest
+// example note instead of floating far below the run.
+const LABEL_DY = 66;
 
 // Ledger lines (every 10) between the 5-line staff [staffStart..staffStart+40] and a notehead.
 const ledgerYs = (y, staffStart) => {

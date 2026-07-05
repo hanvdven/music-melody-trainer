@@ -33,9 +33,10 @@ describe('InstrumentStaffOverlay', () => {
         // Items render SVG-NATIVE (icon glyph + name <text>), NOT foreignObject — foreignObject
         // didn't fade with the morph and broke the INSTRUMENT→COLOUR slide (Han 2026-06-17).
         expect(container.querySelectorAll('foreignObject').length).toBe(0);
-        // Every instrument item renders its name (twice — once per staff carousel).
+        // Every instrument item renders its name — ALL CAPS since the #163 rework
+        // (Han 2026-07-02: "all labels should use all caps, also the not active ones").
         const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
-        expect(labels).toContain(INSTRUMENT_LIST[0].name);
+        expect(labels).toContain(INSTRUMENT_LIST[0].name.toUpperCase());
     });
 
     it('shows a dynamic group bracket for the active group (2+ visible)', () => {

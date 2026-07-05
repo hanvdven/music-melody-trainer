@@ -1,5 +1,6 @@
 import React from 'react';
 import NonLinearCarousel, { visibleRange, xOffsetForDist } from './NonLinearCarousel';
+import { activeGlowFilter } from './carouselOptionGlyph';
 import {
     INSTRUMENT_LIST, getInstrumentIconUrl, getIconUrlByBasename, ICON_ATTRIBUTION, categoryColorVar,
 } from '../../../constants/instruments';
@@ -188,6 +189,14 @@ const StaffCarousel = ({
 }) => {
     const edgeX = edgeXFor(visibleHalf);
     const activeIndex = Math.max(0, items.findIndex(it => idOf(it) === currentId));
+    // ICON TINT (#163 rework, Han: "selected icon is colored just like the text").
+    // The icons are flat-black PNGs, so recolouring needs an SVG filter: feFlood
+    // in the category colour composited into the icon's alpha. ONE filter per
+    // carousel instance; updateActiveCard rewrites its flood colour live during
+    // a gesture and React re-asserts it at rest.
+    const rawTintId = React.useId();
+    const tintId = `inst-icon-tint-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
+    const tintFloodRef = React.useRef(null);
     // At rest the brackets derive from the COMMITTED centre (stable). During a gesture they track
     // the LIVE pos via onPosChange → updateHeaders (imperative, §6).
     const headers = categoryHeaders(activeIndex, items, groupOf, visibleHalf);
@@ -256,14 +265,21 @@ const StaffCarousel = ({
             const color = active ? cardColor(items[i]) : 'var(--text-lowlight)';
             // GLOW via CSS drop-shadow in the category var — CSS vars resolve inside drop-shadow().
             // Inactive cards clear the filter so only the centred card glows (Han: glow, not a box).
-            c.cardG.style.filter = active
-                ? `drop-shadow(0 0 3px ${color}) drop-shadow(0 0 6px ${color})`
-                : 'none';
+            // Subtle 50% glow via the SHARED helper (#163 rework, Han: global convention).
+            c.cardG.style.filter = active ? activeGlowFilter(color) : 'none';
             if (c.label) {
                 c.label.setAttribute('fill', color);
                 c.label.setAttribute('font-weight', active ? 'bold' : 'normal');
-                // CAPS for the active label (Han #163 E2), normal case otherwise.
-                c.label.textContent = active ? c.labelRaw.toUpperCase() : c.labelRaw;
+                // ALL labels caps, active or not (#163 rework, Han).
+                c.label.textContent = c.labelRaw.toUpperCase();
+            }
+            // ICON TINT (#163 rework): the active icon takes the category colour via
+            // the feFlood filter; inactive icons fall back to the theme invert filter.
+            if (c.img) {
+                c.img.style.filter = active ? `url(#${tintId})` : 'var(--instrument-icon-filter, none)';
+            }
+            if (active && tintFloodRef.current) {
+                tintFloodRef.current.style.floodColor = color;
             }
         }
     };
@@ -317,9 +333,8 @@ const StaffCarousel = ({
                 cardRefs.current[i].labelRaw = rawLabel; }}
                 style={{
                     pointerEvents: 'none',
-                    filter: active
-                        ? `drop-shadow(0 0 3px ${color}) drop-shadow(0 0 6px ${color})`
-                        : 'none',
+                    // Subtle 50% glow via the SHARED helper (#163 rework — global convention).
+                    filter: active ? activeGlowFilter(color) : 'none',
                 }}>
                 {/* icons8 PNG centred on the staff (Han 2026-06-17). SVG-native <image> so it
                     composites/fades with the morph group opacity (no <foreignObject>). The icons
@@ -327,12 +342,16 @@ const StaffCarousel = ({
                     themes) keeps them visible. iconUrlOf is the single swap point (instruments →
                     getInstrumentIconUrl(slug); kits → getIconUrlByBasename(category icon)). */}
                 <image href={iconUrlOf(item)}
+                    ref={(el) => { (cardRefs.current[i] ||= {}).img = el; }}
                     x={-ICON / 2} y={staffStart + ICON_DY} width={ICON} height={ICON}
-                    style={{ filter: 'var(--instrument-icon-filter, none)' }} />
+                    /* ICON TINT (#163 rework): active icon takes the category colour via the
+                       feFlood filter below; inactive keeps the theme invert filter. */
+                    style={{ filter: active ? `url(#${tintId})` : 'var(--instrument-icon-filter, none)' }} />
                 <text ref={(el) => { (cardRefs.current[i] ||= {}).label = el; }}
                     x={0} y={staffStart + NAME_DY} textAnchor="middle" fontSize={11}
                     fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'} fill={color}>
-                    {active ? rawLabel.toUpperCase() : rawLabel}
+                    {/* ALL labels caps, active or not (#163 rework, Han). */}
+                    {rawLabel.toUpperCase()}
                 </text>
             </g>
         );
@@ -345,6 +364,16 @@ const StaffCarousel = ({
         // drops its `data-fly` — leaving it would double-translate every card. The category brackets
         // stay UNtagged so they still do the cascade's delayed fade.
         <g className="instrument-cards">
+            {/* ICON TINT filter (#163 rework): flood the category colour into the icon's
+                alpha. flood-color is a style so the CSS var resolves; updateActiveCard
+                rewrites it live during a gesture. */}
+            <defs>
+                <filter id={tintId} x="-20%" y="-20%" width="140%" height="140%">
+                    <feFlood ref={tintFloodRef}
+                        style={{ floodColor: cardColor(items[activeIndex]) || 'var(--text-primary)' }} />
+                    <feComposite in2="SourceAlpha" operator="in" />
+                </filter>
+            </defs>
             {/* Category brackets ABOVE the staff — ottava "blokhaken" style (dashed horizontal
                 line + short end hooks, var(--text-primary)), with the UPPERCASE category label
                 centred on the line. UNtagged → delayed fade with the cascade.

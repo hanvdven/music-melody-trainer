@@ -58,13 +58,24 @@ class Scale {
    * Duration = 6 ticks (half of the 12-tick quarter note), keeping the same BPM reference.
    */
   toMelodyFast() {
-    const n = this.notes.length;
+    // #264 (Han): the instrument preview sounded "inconsistent, geen 8 noten" —
+    // this.notes runs tonic..leading tone WITHOUT the octave top, so a heptatonic
+    // scale previewed as 7 notes and never resolved. Append the tonic an octave
+    // up so the preview is always the complete ascending run (8 notes for
+    // heptatonic, scale length + 1 in general). toMelody() (Play Scale button)
+    // is intentionally untouched.
+    const raiseOctave = (note) => {
+      const m = typeof note === 'string' ? note.match(/([^0-9-]+)(-?\d+)/) : null;
+      return m ? m[1] + (parseInt(m[2], 10) + 1) : note;
+    };
+    const notes = [...this.notes, raiseOctave(this.notes[0])];
+    const displayNotes = [...(this.displayNotes ?? this.notes), raiseOctave((this.displayNotes ?? this.notes)[0])];
     const duration = 6; // eighth note in 48th-note units (2× speed of toMelody())
     return new Melody(
-      this.notes,
-      new Array(n).fill(duration),
-      Array.from({ length: n }, (_, i) => i * duration),
-      this.displayNotes
+      notes,
+      new Array(notes.length).fill(duration),
+      Array.from({ length: notes.length }, (_, i) => i * duration),
+      displayNotes
     );
   }
 
