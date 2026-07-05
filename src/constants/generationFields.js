@@ -44,7 +44,9 @@ export const PERC_POOL_PRESETS = [
 ];
 
 // ── "notes per measure" → notesPerMeasure (InstrumentRow col 5, melodic branch) ──
-export const NOTES_PER_MEASURE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16];
+// #295 (Han 2026-07-02): ALL options 1..16 (0 = unset/auto stays first), so the
+// in-staff rhythm-pattern carousel and the bottom view share one list (§6c).
+export const NOTES_PER_MEASURE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 
 // ── "variability" → rhythmVariability (InstrumentRow col 7), shown with '%' suffix ──
 export const RHYTHM_VARIABILITY = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];

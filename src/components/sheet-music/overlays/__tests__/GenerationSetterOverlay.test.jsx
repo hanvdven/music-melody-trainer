@@ -36,20 +36,28 @@ describe('GenerationSetterOverlay (carousel style)', () => {
   it('renders all four balks (chords + treble + bass + percussion) without crashing', () => {
     const { container } = renderOverlay();
     expect(container.querySelector('.generation-overlay')).not.toBeNull();
-    // Three italic column headers.
+    // #295 (Han): only 'melody type' keeps a column header — the other two were
+    // redundant with the field-name brackets on those carousels.
     const headers = [...container.querySelectorAll('text')].map(t => t.textContent);
-    expect(headers).toContain('melody notes');
     expect(headers).toContain('melody type');
-    expect(headers).toContain('notes / measure');
+    expect(headers).not.toContain('melody notes');
+    expect(headers).not.toContain('notes / measure');
+    // The field-name brackets still label the fields (uppercased by buildBracket).
+    expect(headers).toContain('NOTE POOL');
+    expect(headers).toContain('NOTES / MEASURE');
   });
 
-  it('renders carousel item icons (lucide inline svg) and labels', () => {
+  it('renders carousel item icons (lucide inline svg) and ALL-CAPS labels', () => {
     const { container } = renderOverlay();
-    // Each carousel item draws a lucide <svg> (class "lucide") inside the sheet svg.
+    // Rule/percussion items still draw a lucide <svg> (class "lucide") inside the sheet svg.
     expect(container.querySelectorAll('svg.lucide').length).toBeGreaterThan(0);
-    // Note-pool labels show as carousel item text.
+    // Note-pool labels show as ALL-CAPS carousel item text (#295 + standing caps CR);
+    // the item CONTENT is now inline staff notes (Maestro noteheads).
     const texts = [...container.querySelectorAll('text')].map(t => t.textContent);
-    expect(texts).toContain('Scale');
+    expect(texts).toContain('SCALE');
+    const maestro = [...container.querySelectorAll('text')]
+      .filter(t => t.getAttribute('font-family') === 'Maestro');
+    expect(maestro.length).toBeGreaterThan(0);
   });
 
   it('draws category/field brackets (blokhaken) above the carousels', () => {

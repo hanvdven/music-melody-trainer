@@ -7,6 +7,14 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-06 — ✅ CR: repeats terug naar Maestro-weergave (#298 rework, 7c94881)
+
+Han: repeats waren "de verkeerde kant op" consistent gemaakt (sans-serif ×N).
+Hersteld op SSOT-niveau: `renderRepeatGlyph` in carouselOptionGlyph — Maestro
+"N À" (∞ = kale À, until-correct = BadgeCheck), zelfde lettertype als
+RepeatsControls-header en BPM. Beide numRepeats-carousels (PLAYBACK +
+exercise REPEAT-as) consumeren hem; smoke test bewaakt het font. → test.
+
 ## 2026-07-05 — ✅ Swimlane-ronde: #267 run GEBOUWD + lane opgeruimd
 
 Han: "pak de tickets in jouw swimlane op." ✅ #267: begrensde run van 10

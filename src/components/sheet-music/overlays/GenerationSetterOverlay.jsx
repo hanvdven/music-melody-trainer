@@ -18,6 +18,7 @@ import {
 import { RULE_FAMILIES, PERC_FAMILIES } from '../../../constants/instrumentRules';
 import { PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { CarouselField } from '../CarouselFieldItem';
+import { NotePoolGlyph, RhythmPatternGlyph, RomanProgressionGlyph } from './generationNoteGlyphs';
 
 // ── GENERATION setter — CAROUSEL STYLE (Han 2026-06-22) ────────────────────────────────────────
 // REBUILD: previously each field was a tiny SvgSetter stepper (the smallest-note Maestro glyphs were
@@ -50,6 +51,11 @@ const LABEL_FONT_SIZE = 11;   // readable label (§ task: ~11-12).
 const BRACKET_DY = -32;       // dashed category/field bracket offset above the row centre.
 const HIT_TOP = -30;          // carousel hit/debug box top offset from the row centre.
 const HIT_H = 56;             // carousel hit/debug box height.
+// #295 sizing for the inline-note content fields (Han: follow the colour carousel).
+const POOL_BASE = 66;         // note-pool item stride (example runs are ~56-80 wide)
+const PATTERN_BASE = 84;      // rhythm-pattern item stride (a full measure of notes)
+const RULE_ICON_SIZE = 22;    // roomier randomization icons (Han: "groter icoon")
+const CONTENT_LABEL_DY = 28;  // labels sit just BELOW the staff (staffStart+48) for content rows
 // Horizontal column centres as fractions of the staff width (3 fields spread across the balk).
 const COL_FRACS = [0.20, 0.50, 0.80];
 
@@ -58,13 +64,15 @@ const COL_FRACS = [0.20, 0.50, 0.80];
 // we flatten to the SAME ordered list of reachable rules per instrument type (every value reachable
 // below is reachable here too, §6d). Each item is tagged with its FAMILY so the carousel can draw
 // one "blokhaken" bracket per family run (random / arp / walk / chords / fixed).
+// #295 (Han): arp up / arp down / arp (bounce) are dropped from THIS carousel
+// ("haal arp up, down en bounce uit de lijst") — the bottom view keeps them.
 const MELODIC_RULE_RING = [
   ...RULE_FAMILIES.random,
   ...RULE_FAMILIES.arp,
   ...RULE_FAMILIES.walk,
   ...RULE_FAMILIES.chords,
   ...RULE_FAMILIES.fixed,
-];
+].filter(rule => !['arp_up', 'arp_down', 'arp'].includes(rule));
 const PERC_RULE_RING = [
   ...PERC_FAMILIES.random,
   ...PERC_FAMILIES.stylized,
@@ -150,7 +158,10 @@ const GenerationSetterOverlay = ({
     { key: 'percussion', centerY: percussionStart + 20, show: isPercussionVisible },
   ].filter(r => r.show);
 
-  const COL_HEADERS = ['melody notes', 'melody type', 'notes / measure'];
+  // #295 (Han): 'melody notes' and 'notes / measure' headers were REDUNDANT with the
+  // field-name brackets on those carousels — only 'melody type' (family brackets, no
+  // field label) keeps a column header.
+  const COL_HEADERS = [null, 'melody type', null];
 
   // Build the carousel descriptor for one (row, columnIndex) cell. Returns the props CarouselField
   // needs: items, activeIndex, onSelect, and bracket mode. WIRING UNCHANGED — onSelect writes the
@@ -167,11 +178,15 @@ const GenerationSetterOverlay = ({
         };
       }
       if (colIdx === 1) {
-        // melody type → strategy (progression)
-        const items = STRATEGY_ITEMS;
+        // melody type → strategy (progression). #295 (Han): rendered as ROMAN
+        // NUMERALS — the numeral IS the item, so the sans label is omitted.
+        const items = STRATEGY_ITEMS.map(it => ({ ...it, romanLabel: it.label, label: '' }));
         const cur = chordSettings?.strategy || 'tonic-tonic-tonic';
         return {
           items, activeIndex: idxOf(items, cur), fieldLabel: 'strategy',
+          renderContent: (item, active, color) => (
+            <RomanProgressionGlyph label={item.romanLabel} y={row.centerY + 2} color={color} active={active} />
+          ),
           onSelect: (item) => setChordSettings(p => ({ ...p, strategy: item.value })),
         };
       }
@@ -201,29 +216,54 @@ const GenerationSetterOverlay = ({
           onSelect: (item) => set(p => ({ ...p, enabledPads: [...PERCUSSION_PRESETS[item.value]] })),
         };
       }
+      // #295 (Han): pool items are INLINE NOTE RUNS at real staff positions
+      // (root C4+C5 · chord C4 E4 G4 C5 · scale C4..C5 · chromatic + ♭♯♮),
+      // colour-carousel design. 3-visible window so the wide runs don't collide
+      // with the neighbouring columns.
       const items = NOTE_POOL_ITEMS;
       const cur = cfg?.notePool || 'scale';
+      const staffStart = row.centerY - 20;
+      const clef = cfg?.clef || (row.key === 'bass' ? 'bass' : 'treble');
       return {
         items, activeIndex: idxOf(items, cur), fieldLabel: 'note pool',
+        renderContent: (item, active, color) => (
+          <NotePoolGlyph pool={item.value} staffStart={staffStart} clef={clef}
+            staffType={row.key} color={color} />
+        ),
+        baseWidth: POOL_BASE, visibleHalf: 1,
+        labelDy: CONTENT_LABEL_DY,
         onSelect: (item) => set(p => ({ ...p, notePool: item.value })),
       };
     }
     if (colIdx === 1) {
       // melody type → randomizationRule (play-style), grouped by FAMILY (blokhaken brackets).
+      // #295 (Han): "mooie ruime carousel" — bigger icons, label just below the staff.
       const items = isPerc ? PERC_RULE_ITEMS : MELODIC_RULE_ITEMS;
       const cur = cfg?.randomizationRule || (isPerc ? 'uniform' : 'uniform');
       return {
         items, activeIndex: idxOf(items, cur),
         familyMode: true, familyName,
+        iconSize: RULE_ICON_SIZE, labelDy: CONTENT_LABEL_DY,
         // Keep `type` set alongside the rule (mirrors the previous stepper wiring).
         onSelect: (item) => set(p => ({ ...p, randomizationRule: item.value, type: p.type ?? row.key })),
       };
     }
-    // notes per measure → notesPerMeasure
+    // notes per measure → notesPerMeasure. #295 (Han): every option 1..16 renders
+    // as its REAL rhythm pattern on the middle staff line (whole → mixed 8ths →
+    // 16ths, derived formulaically — see rhythmPatternDurations). n=0 (auto)
+    // keeps its numeric label only.
     const items = NOTES_PER_MEASURE_ITEMS;
     const cur = cfg?.notesPerMeasure || 0;
+    const rowStaffStart = row.centerY - 20;
     return {
       items, activeIndex: idxOf(items, cur), fieldLabel: 'notes / measure',
+      renderContent: (item, active, color) => (
+        item.value > 0
+          ? <RhythmPatternGlyph n={item.value} staffStart={rowStaffStart} color={color} />
+          : null
+      ),
+      baseWidth: PATTERN_BASE, visibleHalf: 1,
+      labelDy: CONTENT_LABEL_DY,
       onSelect: (item) => set(p => ({ ...p, notesPerMeasure: item.value })),
     };
   };
@@ -242,11 +282,11 @@ const GenerationSetterOverlay = ({
       />
 
       {/* Column headers — italic serif, var(--text-secondary), fontSize 14 (matches siblings). */}
-      {COL_HEADERS.map((h, i) => (
+      {COL_HEADERS.map((h, i) => (h == null ? null : (
         <text key={`hdr-${i}`} x={cols[i]} y={HEADER_Y} textAnchor="middle"
           fontFamily="serif" fontStyle="italic" fontSize={14} fill="var(--text-secondary)"
           style={{ userSelect: 'none', pointerEvents: 'none' }}>{h}</text>
-      ))}
+      )))}
 
       {/* Per-balk rows of field-carousels. CarouselField reuses NonLinearCarousel (§6d) and shows
           its own debug hit box (§3a). */}
@@ -263,17 +303,21 @@ const GenerationSetterOverlay = ({
                 onSelect={withInteraction(f.onSelect)}
                 centerX={cx}
                 rowCenterY={row.centerY}
-                baseWidth={CAROUSEL_BASE}
+                // #295: content fields (inline notes / rhythm patterns) override
+                // stride, window, icon size and label position per field.
+                baseWidth={f.baseWidth ?? CAROUSEL_BASE}
                 hitTop={HIT_TOP}
                 hitHeight={HIT_H}
-                iconSize={ICON_SIZE}
+                iconSize={f.iconSize ?? ICON_SIZE}
                 iconDy={ICON_DY}
-                labelDy={LABEL_DY}
+                labelDy={f.labelDy ?? LABEL_DY}
                 labelFontSize={LABEL_FONT_SIZE}
                 bracketDy={BRACKET_DY}
                 fieldLabel={f.fieldLabel}
                 familyMode={f.familyMode}
                 familyName={f.familyName}
+                renderContent={f.renderContent}
+                visibleHalf={f.visibleHalf ?? 2}
                 debugMode={debugMode}
               />
             );

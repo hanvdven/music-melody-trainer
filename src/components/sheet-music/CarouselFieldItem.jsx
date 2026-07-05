@@ -48,7 +48,7 @@ const renderLucideIcon = (IconComp, { size, iconY }) => {
 //
 // SIZING is passed in as named consts from the owning overlay (Han 2026-06-22 wants all sizing as
 // tunable named consts at the overlay top), so this renderer is layout-agnostic.
-export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFontSize }) => {
+export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent }) => {
   // Returns a render-PROP for NonLinearCarousel.renderItem (invoked manually), NOT a React
   // component — so there's no display name to give.
   const renderCarouselItem = (item, i) => {
@@ -57,11 +57,21 @@ export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFont
     return (
       // `color` on the group → currentColor for the lucide icon; fill on the <text> for the label.
       <g style={{ pointerEvents: 'none', color }}>
-        {renderLucideIcon(item.Icon, { size: iconSize, iconY })}
-        <text x={0} y={labelY} textAnchor="middle" fontSize={labelFontSize}
-          fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'} fill={color}>
-          {item.label}
-        </text>
+        {/* #295 (Han): custom item CONTENT (inline staff notes, rhythm patterns,
+            Roman numerals) takes the icon slot when provided; falls back to the
+            lucide icon otherwise. Content renderers draw via the canonical
+            staff-note components (§6d — see generationNoteGlyphs). */}
+        {renderContent
+          ? renderContent(item, active, color)
+          : renderLucideIcon(item.Icon, { size: iconSize, iconY })}
+        {/* ALL CAPS per the standing carousel-text CR. An item/field may omit its
+            label (e.g. Roman-numeral items ARE their label). */}
+        {item.label ? (
+          <text x={0} y={labelY} textAnchor="middle" fontSize={labelFontSize}
+            fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'} fill={color}>
+            {String(item.label).toUpperCase()}
+          </text>
+        ) : null}
       </g>
     );
   };
@@ -184,9 +194,14 @@ export const CarouselField = ({
   fieldLabel,           // single field-name bracket label (when not family-grouped)
   familyMode = false,   // true → group items by item.family
   familyName,           // (family) => display string (family mode only)
+  // #295: custom item content (inline notes / rhythm patterns / Roman numerals);
+  // wide-content fields shrink the window (visibleHalf 1 → 3 visible, like the
+  // colour carousel) so neighbouring columns don't collide.
+  renderContent = null,
+  visibleHalf = 2,      // Han 2026-06-22 default: full 5-wide carousel per field.
   debugMode = false,
 }) => {
-  const VISIBLE_HALF = 2;   // Han 2026-06-22: full 5-wide carousel per field.
+  const VISIBLE_HALF = visibleHalf;
   const edgeX = (VISIBLE_HALF + 0.5) * baseWidth;
   const iconY = rowCenterY + iconDy;
   const labelY = rowCenterY + labelDy;
@@ -198,7 +213,7 @@ export const CarouselField = ({
   // Keep pos in sync when the committed activeIndex changes externally (e.g. settings reset).
   React.useEffect(() => { setPos(activeIndex); }, [activeIndex]);
 
-  const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize });
+  const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent });
 
   return (
     <g>

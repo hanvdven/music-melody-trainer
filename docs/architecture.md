@@ -4296,3 +4296,32 @@ configs lack the field and must stay ON.
 
 **Files:** `src/audio/Sequencer.js` (one gate in the series-boundary branch),
 `overlays/SettingsOverlay.jsx` (AUTO NEW toggle).
+
+### §46. Generation setter — inline-note carousel items (#295, 2026-07-06)
+
+**Purpose:** Han: "vervang de items in de carousels met inline noten, zoals in de colour
+carousel" — the GENERATION setter's fields now show real notation instead of lucide icons.
+
+**How it works:**
+- `overlays/generationNoteGlyphs.jsx` builds all item content from the CANONICAL staff-note
+  components (§6d): `NotePoolGlyph` (root C4+C5 · chord C4-E4-G4-C5 · scale C4..C5 · chromatic
+  + Maestro ♭♯♮ cluster left, positioned via `getNoteAbsoluteY` per the row's clef/staff),
+  `RhythmPatternGlyph` (notes-per-measure patterns on the middle staff line via
+  `StaffMelodyNote` — real heads/stems/flags/dots, proportional-to-time layout), and
+  `RomanProgressionGlyph` (chord progressions as serif Roman numerals).
+- `rhythmPatternDurations(n, measureTicks)` DERIVES the patterns (§6c, no table): merge beats
+  into halves/whole below the beat count; split beats into 8th pairs (inner beats first — Han's
+  examples) above it; then 8ths into 16th pairs. Unit-tested against Han's worked examples 1..6
+  and the sum/count/renderable-duration invariants for all n 1..16. Flags, not beams (beaming
+  needs the full beam-group pipeline — possible follow-up).
+- `NOTES_PER_MEASURE` now lists ALL of 1..16 (bottom view shares the list, §6c).
+- Randomization carousel: arp up/down/bounce dropped from THIS carousel only (bottom view keeps
+  them); roomier icons (22), labels just below the staff.
+- `CarouselField` gained `renderContent` (custom item content in the icon slot) + a
+  `visibleHalf` prop (wide content fields use 1 → 3 visible, colour-carousel style); labels are
+  ALL-CAPS in the shared renderer now.
+- Redundant column headers 'melody notes'/'notes / measure' removed (the field-name brackets
+  already label those); 'melody type' keeps its header (family brackets carry no field name).
+
+**Files:** `overlays/generationNoteGlyphs.jsx` (+ test), `overlays/GenerationSetterOverlay.jsx`,
+`CarouselFieldItem.jsx`, `constants/generationFields.js` (NOTES_PER_MEASURE 1..16).
