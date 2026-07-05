@@ -1,7 +1,7 @@
 import React from 'react';
 import SvgSetter from '../SvgSetter';
 import NonLinearCarousel from './NonLinearCarousel';
-import { renderCarouselOptionGlyph } from './carouselOptionGlyph';
+import { renderRepeatGlyph } from './carouselOptionGlyph';
 import { AXES } from '../../../exercises/exerciseIndex';
 import '../SheetMusic.css';
 import { usePlaybackConfig } from '../../../contexts/PlaybackConfigContext';
@@ -386,9 +386,10 @@ const SettingsOverlay = ({
             const idx = AXES.evaluation.findIndex(o => o.value === current);
             return idx === -1 ? AXES.evaluation.findIndex(o => o.value === 4) : idx;
           })()}
+          // Maestro repeat glyphs (#298 rework, Han: same font as the sheet header + BPM).
           renderItem={(item, i) => {
             const current = playbackConfig.untilCorrect ? 'until' : playbackConfig.repsPerMelody;
-            return renderCarouselOptionGlyph(item, AXES.evaluation[i]?.value === current, 0);
+            return renderRepeatGlyph(item, AXES.evaluation[i]?.value === current, 0);
           }}
           centerX={0}
           y={-12}

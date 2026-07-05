@@ -32,6 +32,41 @@ const caps = (label) => (label == null ? '' : String(label).toUpperCase());
 export const activeGlowFilter = (color) =>
     `drop-shadow(0 0 3px color-mix(in srgb, ${color} 50%, transparent))`;
 
+/**
+ * Repeat-count option card (#298 rework, Han 2026-07-05: "herstel de originele
+ * Maestro-weergave"). Repeats render EXACTLY like the sheet-music header's
+ * RepeatsControls and the BPM display: Maestro font, `N À` (À = the Maestro
+ * repeat glyph), ∞ = the bare À glyph, 'until correct' = BadgeCheck. Used by
+ * EVERY surface that shows numRepeats as a carousel (PLAYBACK repeats + the
+ * exercise REPEAT axis) so the notation font never drifts per consumer.
+ */
+export const renderRepeatGlyph = (item, active, baselineY) => {
+    const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
+    return (
+        <g style={{
+            pointerEvents: 'none',
+            color,
+            filter: active ? activeGlowFilter(color) : 'none',
+        }}>
+            {item.isUntil ? (
+                <BadgeCheck size={12} x={-6} y={baselineY - 10} />
+            ) : (
+                <text x={0} y={baselineY} textAnchor="middle" fontFamily="Maestro"
+                    fontWeight={active ? 'bold' : 'normal'} fill={color}>
+                    {item.value === Infinity ? (
+                        <tspan fontSize={12}>À</tspan>
+                    ) : (
+                        <>
+                            <tspan fontSize={14}>{item.value}</tspan>
+                            <tspan fontSize={12}> À</tspan>
+                        </>
+                    )}
+                </text>
+            )}
+        </g>
+    );
+};
+
 export const renderCarouselOptionGlyph = (item, active, baselineY) => {
     const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
     return (

@@ -1,6 +1,6 @@
 import React from 'react';
 import NonLinearCarousel from './NonLinearCarousel';
-import { renderCarouselOptionGlyph, renderStaffCardGlyph } from './carouselOptionGlyph';
+import { renderCarouselOptionGlyph, renderRepeatGlyph, renderStaffCardGlyph } from './carouselOptionGlyph';
 import { EXERCISES, AXES } from '../../../exercises/exerciseIndex';
 
 // ── In-staff EXERCISE setter (#266 rework 3, epic #245, Han 2026-07-03/05) ───
@@ -109,7 +109,9 @@ const ExerciseStaffOverlay = ({
             <NonLinearCarousel
                 items={AXES.evaluation}
                 activeIndex={axisIndex('evaluation')}
-                renderItem={(item, i) => renderCarouselOptionGlyph(item, i === axisIndex('evaluation'), topStaff - 25)}
+                // Maestro repeat glyphs (#298 rework, Han: numRepeats renders in the
+                // sheet's notation font EVERYWHERE — same as RepeatsControls + BPM).
+                renderItem={(item, i) => renderRepeatGlyph(item, i === axisIndex('evaluation'), topStaff - 25)}
                 centerX={endX - 60}
                 y={topStaff - 37}
                 baseWidth={28}
