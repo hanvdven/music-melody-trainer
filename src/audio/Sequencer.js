@@ -407,7 +407,15 @@ class Sequencer {
         if (repsPerMelody !== -1 && iteration >= repsPerMelody) {
           iteration = 0; // Reset for next cycle (repeat mode) or next melody (normal mode)
 
-          if (this.isRepeatMode) {
+          // #230e (Han): "generate after last repeat" toggle. When OFF the series
+          // boundary reuses the SAME short-circuit as repeat-forever mode — keep
+          // playing the current melody, no regeneration, melodyCount untouched.
+          // Read from the config ref at the boundary so flipping the toggle
+          // mid-playback takes effect at the next series edge.
+          const generateAfterLastRepeat =
+            this.refs.playbackConfigRef.current.generateAfterLastRepeat !== false;
+
+          if (this.isRepeatMode || !generateAfterLastRepeat) {
             // Repeat-forever: keep playing the same melody. melodyCount stays 0 so the
             // outer while never exits due to totalMelodies. No regeneration happens.
           } else {

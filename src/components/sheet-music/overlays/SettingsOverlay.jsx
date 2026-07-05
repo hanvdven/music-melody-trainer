@@ -405,6 +405,32 @@ const SettingsOverlay = ({
           }}
           debugMode={debugMode}
         />
+        {/* #230e (Han): "generate after last repeat" toggle. ON (default) = a fresh
+            melody generates at the series boundary; OFF = the Sequencer reuses the
+            repeat-forever short-circuit and keeps the current melody. Read with
+            `!== false` everywhere so existing configs (field absent) stay ON. */}
+        <g
+          onClick={(e) => {
+            e.stopPropagation();
+            onSettingsInteraction?.();
+            setPlaybackConfig(p => ({ ...p, generateAfterLastRepeat: p.generateAfterLastRepeat === false }));
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          <rect x={-40} y={8} width={80} height={14} fill="transparent" />
+          <text x={0} y={18} textAnchor="middle" fontSize={8} fontFamily="sans-serif"
+            letterSpacing={0.5}
+            fontWeight={playbackConfig.generateAfterLastRepeat !== false ? 'bold' : 'normal'}
+            fill={playbackConfig.generateAfterLastRepeat !== false ? 'var(--text-primary)' : 'var(--text-lowlight)'}
+            style={{ pointerEvents: 'none' }}>
+            AUTO NEW
+          </text>
+          {debugMode && (
+            <rect x={-40} y={8} width={80} height={14}
+              fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
+              style={{ pointerEvents: 'none' }} />
+          )}
+        </g>
       </g>
 
     </g>
