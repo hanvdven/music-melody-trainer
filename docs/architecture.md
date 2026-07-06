@@ -4325,3 +4325,29 @@ carousel" — the GENERATION setter's fields now show real notation instead of l
 
 **Files:** `overlays/generationNoteGlyphs.jsx` (+ test), `overlays/GenerationSetterOverlay.jsx`,
 `CarouselFieldItem.jsx`, `constants/generationFields.js` (NOTES_PER_MEASURE 1..16).
+
+### §47. Clef pickers on the shared carousel + Italian labels (#262, 2026-07-06)
+
+**Purpose:** Han's rework feedback: the clef-selection carousels must behave like every other
+horizontal carousel (drag/scale/settle), with the ACTIVE clef pixel-aligned to the sheet clef,
+Italian names as labels, and the vocal clefs in a horizontal carousel too.
+
+**How it works:**
+- The bespoke `ClefCarousel` loop-strip and the vocal `ClefCardCarousel` swipe strip are GONE
+  (files deleted, §7 no-dead-code); all three pickers (family per melodic staff, vocal voices,
+  percussion) are `NonLinearCarousel`s.
+- Family picker: items = `carouselOrder(famId)` (current-first, activeIndex 0), item origin =
+  glyph left edge, `centerX = CLEF_GLYPH_X` → the active clef sits EXACTLY where the sheet
+  draws it (the one sanctioned deviation from centre-of-window carousels). Left-side
+  neighbours fall off-canvas (no gutter room) and fade in during a drag; the wheel wraps so
+  everything stays reachable. Percussion picker mirrors this at `PERC_CLEF_X`, with the OFF
+  DisableCross keeping its BUG-N1 absolute alignment.
+- Vocal voices: a centred wheel of their REAL clef glyphs (`ClefGlyph anchor="middle"`).
+- Labels: ALL-CAPS ITALIAN under every item (`ITALIAN_FAMILY`: VIOLINO/BASSO/VOCE/OFF;
+  `ITALIAN_VOICE`: BASSO/BARITONO/TENORE/CONTRALTO/MEZZOSOPRANO/SOPRANO; PERCUSSIONE).
+- Still open from the ORIGINAL #262 description (flagged on the ticket, not guessed): the
+  transposition-setter font-size percentages and the 8vb-on-overflow behaviour — those predate
+  later setter reworks, so Han confirms whether they still apply before implementation.
+
+**Files:** `overlays/ClefStaffOverlay.jsx`; deleted `overlays/ClefCarousel.jsx`,
+`overlays/ClefCardCarousel.jsx`.
