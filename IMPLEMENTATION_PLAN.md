@@ -7,6 +7,19 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-07 — ✅ Bord-tooling: #229 burndown + #263 AC-paneel volledig
+
+✅ #229: Graph-tab → BURNDOWN (interviews: level-gewogen punten, auto-schaal,
+completed_at, volledige historie, actual + gestreepte projectie op 14-daagse
+velocity met target-datum = geprojecteerde nuldoorgang). Handgerold SVG (geen
+lib; force-graph vervangen), crosshair+tooltip, weektabel-fallback, palet
+gevalideerd (dataviz-methode). ✅ #263: AC-paneel nu volledig per gelockte
+antwoorden — per rij checkbox (verifiedAt/By-stempel), inline tekst-edit,
+comment, ×-delete; afwijking genoteerd: direct opslaan i.p.v. batch-Save
+(interviews-patroon). Beide gespiegeld naar .devcontainer-overlay (§9k),
+beide → test. ⏳ #144 (adaptieve engine) blijft in plan_review — Hans
+antwoord-note is partieel; bevestiging nodig voor deze L3 app-feature.
+
 ## 2026-07-06 — ✅ #296 Thronefall iteratie 1 GEBOUWD (31cbd54)
 
 Plan-kolom leeggewerkt: `:root[data-theme='thronefall']` (indigo bg, crème

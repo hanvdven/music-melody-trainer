@@ -1661,11 +1661,18 @@ async function showTaskDetail(id: number, project?: string) {
       </div>` : '';
 
     // (3) ACCEPTANCE CRITERIA — Han's own checklist + test report field.
+    // #263 (Han, plan Q3/Q4): each criterion row is fully editable — checkbox
+    // "verified complete", inline-editable text, a per-row comment, and delete.
+    // Every action PATCHes the whole array immediately (the established
+    // interviews pattern; deviation from the plan's batch-Save noted on the
+    // ticket — immediate persistence covers Q5 "any phase, any time" better).
     const acHtml = acItems.map((c: any) => `
-      <label class="ac-item">
-        <input type="checkbox" class="ac-check" data-ac-id="${c.id}" ${c.verified ? 'checked' : ''} />
-        <span class="ac-text ${c.verified ? 'done' : ''}">${esc(c.text)}</span>
-      </label>`).join('');
+      <div class="ac-item ac-row" data-ac-id="${c.id}">
+        <input type="checkbox" class="ac-check" data-ac-id="${c.id}" ${c.verified ? 'checked' : ''} title="verified complete" />
+        <input type="text" class="ac-text-input ${c.verified ? 'done' : ''}" data-ac-id="${c.id}" value="${esc(c.text)}" />
+        <input type="text" class="ac-comment-input" data-ac-id="${c.id}" placeholder="comment…" value="${esc(c.comment || '')}" />
+        <button class="ac-delete" data-ac-id="${c.id}" title="Delete criterion">×</button>
+      </div>`).join('');
     const acceptanceSection = `
       <div class="lifecycle-phase phase-acceptance" id="acceptance-section">
         <div class="phase-header">
@@ -1828,13 +1835,41 @@ async function showTaskDetail(id: number, project?: string) {
       showTaskDetail(id, task.project);
     });
 
-    // Acceptance-criteria checkboxes: toggle verified, save whole array.
+    // Acceptance-criteria rows (#263): checkbox toggles verified (+ verifiedAt/By
+    // audit stamp), text + comment edit inline on change, × deletes the row.
+    // Each action PATCHes the whole array (interviews pattern, Q5 any-time edit).
     content.querySelectorAll<HTMLInputElement>(".ac-check").forEach((cb) => {
       cb.addEventListener("change", async () => {
         const acId = Number(cb.getAttribute("data-ac-id"));
         const updated = acItems.map((c: any) => c.id === acId
-          ? { ...c, verified: cb.checked, verifiedAt: cb.checked ? new Date().toISOString() : null }
+          ? { ...c, verified: cb.checked,
+              verifiedAt: cb.checked ? new Date().toISOString() : null,
+              verifiedBy: cb.checked ? "han" : null }
           : c);
+        await reanalyzePatch({ acceptance_criteria: updated });
+      });
+    });
+    content.querySelectorAll<HTMLInputElement>(".ac-text-input").forEach((inp) => {
+      inp.addEventListener("change", async () => {
+        const acId = Number(inp.getAttribute("data-ac-id"));
+        const text = inp.value.trim();
+        const updated = text
+          ? acItems.map((c: any) => c.id === acId ? { ...c, text } : c)
+          : acItems; // emptied text is ignored — use × to delete
+        await reanalyzePatch({ acceptance_criteria: updated });
+      });
+    });
+    content.querySelectorAll<HTMLInputElement>(".ac-comment-input").forEach((inp) => {
+      inp.addEventListener("change", async () => {
+        const acId = Number(inp.getAttribute("data-ac-id"));
+        const updated = acItems.map((c: any) => c.id === acId ? { ...c, comment: inp.value.trim() || null } : c);
+        await reanalyzePatch({ acceptance_criteria: updated });
+      });
+    });
+    content.querySelectorAll<HTMLButtonElement>(".ac-delete").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const acId = Number(btn.getAttribute("data-ac-id"));
+        const updated = acItems.filter((c: any) => c.id !== acId);
         await reanalyzePatch({ acceptance_criteria: updated });
       });
     });
@@ -1844,7 +1879,8 @@ async function showTaskDetail(id: number, project?: string) {
       const inp = document.getElementById("ac-add-input") as HTMLInputElement | null;
       const text = inp?.value.trim();
       if (!text) return;
-      const updated = [...acItems, { id: Date.now(), text, verified: false, comment: null, verifiedAt: null }];
+      const updated = [...acItems, { id: Date.now(), text, verified: false, comment: null,
+        createdAt: new Date().toISOString(), verifiedAt: null, verifiedBy: null }];
       await reanalyzePatch({ acceptance_criteria: updated });
     });
 
@@ -2163,477 +2199,176 @@ async function loadChronicleView() {
   }
 }
 
+// #229 (Han): the Graph tab is a BURNDOWN chart now (the force-graph network
+// read as "a copy of chronicle"). Interview answers (2026-06-27, interviews
+// field): Y = level-weighted points (L1=1 / L2=2 / L3=3); X auto-scales to the
+// project duration; done = completed_at; range = full history; show actual AND
+// an ideal/projection line with a target date. No chart library — hand-rolled
+// SVG per the dataviz method: one axis, thin 2px lines, recessive grid, a
+// legend (2 series), the projection dashed so identity is never colour-alone,
+// crosshair + tooltip on hover, and a collapsible table view for accessibility.
 async function loadGraphView() {
   const el = document.getElementById("graph-view")!;
-  // Set exact height from current viewport position
   const top = el.getBoundingClientRect().top;
   el.style.height = `${window.innerHeight - top}px`;
-
   el.innerHTML = `
     <div class="graph-placeholder">
       <div class="graph-spinner"></div>
-      <p>Loading graph&hellip;</p>
+      <p>Loading burndown&hellip;</p>
     </div>`;
 
-  // Cleanup previous graph and ResizeObserver
-  if (graphInstance) {
-    graphInstance.pauseAnimation();
-    graphInstance = null;
-  }
-  if (graphResizeObserver) {
-    graphResizeObserver.disconnect();
-    graphResizeObserver = null;
-  }
-
-  // Status → border color (ring around node)
-  const STATUS_COLORS: Record<string, string> = {
-    todo: "#475569",
-    plan: "#3b82f6",
-    impl: "#8b5cf6",
-    impl_review: "#6366f1",
-    plan_review: "#a855f7",
-    test: "#f59e0b",
-    done: "#22c55e",
-  };
-  // Tech/topic tag → fill color (Obsidian-style topic clustering)
-  const TOPIC_COLORS: Record<string, string> = {
-    react:           "#61dafb",
-    nextjs:          "#ffffff",
-    typescript:      "#3178c6",
-    tailwind:        "#38bdf8",
-    "react-query":   "#ff4154",
-    vite:            "#a855f7",
-    shadcn:          "#f8fafc",
-    zustand:         "#764abc",
-    hotwire:         "#cc0000",
-    css:             "#264de4",
-    fastapi:         "#009688",
-    rails:           "#cc0000",
-    python:          "#3572a5",
-    nodejs:          "#68a063",
-    ruby:            "#cc342d",
-    postgresql:      "#336791",
-    sqlite:          "#003b57",
-    neon:            "#00e599",
-    supabase:        "#3ecf8e",
-    timescaledb:     "#fdb515",
-    influxdb:        "#22adf6",
-    drizzle:         "#c5f74f",
-    prisma:          "#5a67d8",
-    sqlalchemy:      "#d71f00",
-    oracle:          "#f80000",
-    auth:            "#f59e0b",
-    "auth.js":       "#f59e0b",
-    oauth:           "#f97316",
-    docker:          "#2496ed",
-    "docker-compose":"#2496ed",
-    vercel:          "#ffffff",
-    deploy:          "#10b981",
-    kamal:           "#10b981",
-    gcp:             "#4285f4",
-    azure:           "#0078d4",
-    "ci-cd":         "#f05032",
-    mobile:          "#a78bfa",
-    capacitor:       "#119eff",
-    pwa:             "#5a0fc8",
-    api:             "#64748b",
-    modbus:          "#e67e22",
-    realtime:        "#ef4444",
-    webhook:         "#6366f1",
-    ai:              "#f59e0b",
-    testing:         "#22c55e",
-    storage:         "#0ea5e9",
-    s3:              "#ff9900",
-    r2:              "#f38020",
-    pdf:             "#e53e3e",
-    excel:           "#217346",
-    performance:     "#f97316",
-    cache:           "#8b5cf6",
-    migration:       "#ec4899",
-    maps:            "#34a853",
-    gps:             "#34a853",
-    visualization:   "#06b6d4",
-    dashboard:       "#06b6d4",
-    canvas:          "#f59e0b",
-    graph:           "#06b6d4",
-    chart:           "#06b6d4",
-    modal:           "#94a3b8",
-    refactor:        "#a3a3a3",
-    kanban:          "#818cf8",
-    obsidian:        "#7c3aed",
-    "cycling-data":  "#10b981",
-    euv:             "#e11d48",
-    plc:             "#e11d48",
-    schema:          "#64748b",
-    // music-melody-trainer domain tags
-    feature:         "#818cf8",
-    generation:      "#a78bfa",
-    notation:        "#34d399",
-    "sheet-music":   "#34d399",
-    audio:           "#f59e0b",
-    playback:        "#fb923c",
-    animation:       "#38bdf8",
-    gamification:    "#f472b6",
-    lessons:         "#c084fc",
-    chords:          "#4ade80",
-    "range-setter":  "#22d3ee",
-    "tech-debt":     "#94a3b8",
-    "audit-finding": "#64748b",
-    "arch-violation":"#ef4444",
-    "song-load":     "#fbbf24",
-    percussion:      "#f97316",
-    input:           "#a3e635",
-    "react-hooks":   "#61dafb",
-    timing:          "#e879f9",
-    "error-handling":"#f87171",
-    "test-coverage": "#86efac",
-    debug:           "#fdba74",
-  };
-  // Priority weight for dominant topic selection
-  const TOPIC_PRIORITY_ORDER = [
-    "react","nextjs","typescript","fastapi","rails","python","nodejs",
-    "postgresql","sqlite","neon","supabase","timescaledb","influxdb",
-    "drizzle","prisma","sqlalchemy","oracle",
-    "auth","auth.js","oauth",
-    "docker","docker-compose","vercel","deploy","kamal","gcp","azure","ci-cd",
-    "mobile","capacitor","pwa",
-    "api","modbus","realtime","webhook",
-    "ai","testing","storage","s3","r2","pdf","excel",
-    "performance","cache","migration","maps","gps",
-    "visualization","dashboard","canvas","graph","chart","modal",
-    "refactor","kanban","obsidian","cycling-data","euv","plc","schema",
-    // music-melody-trainer domain tags (ordered: most differentiating first)
-    "arch-violation","p0","audio","playback","animation","generation","notation",
-    "sheet-music","chords","range-setter","gamification","lessons","percussion",
-    "input","timing","song-load","tech-debt","audit-finding","feature",
-    "react-hooks","error-handling","test-coverage","debug",
-  ];
-  function dominantTopic(tags: string[]): string | null {
-    const lower = tags.map((t) => t.toLowerCase());
-    for (const tp of TOPIC_PRIORITY_ORDER) {
-      if (lower.includes(tp)) return tp;
-    }
-    // Fallback: first tag that has a color mapping
-    return lower.find((t) => t in TOPIC_COLORS) ?? null;
-  }
-  const LEVEL_SIZES: Record<number, number> = { 1: 9, 2: 16, 3: 25 };
-  const STATUS_RING: Record<string, string> = {
-    todo:        "#475569",
-    plan:        "#3b82f6",
-    impl:        "#8b5cf6",
-    impl_review: "#6366f1",
-    plan_review: "#a855f7",
-    test:        "#f59e0b",
-    done:        "#22c55e",
-  };
+  const DAY = 86400000;
+  const weightOf = (t: Task) => ({ 1: 1, 2: 2, 3: 3 } as Record<number, number>)[t.level] ?? 2;
+  const dayFloor = (iso: string) => { const d = new Date(iso); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
   try {
-    const [{ default: ForceGraph }, data] = await Promise.all([
-      import("force-graph"),
-      fetchSummaryBoard("full"),
-    ]);
-
-    // Collect all tasks across columns.
-    // "parking" is a composed column (on_hold + cancelled) — must iterate
-    // composedOf sub-statuses rather than the synthetic "parking" key.
-    const allTasks: (Task & { _status: string })[] = [];
+    const data = await fetchSummaryBoard("full");
+    // All tasks across columns; cancelled work leaves the scope entirely.
+    const allTasks: Task[] = [];
     for (const col of COLUMNS) {
-      const sources = col.composedOf
-        ? col.composedOf.map(s => ({ key: s, arr: (data[s as keyof Omit<Board, "projects" | "counts">] as Task[] | undefined) ?? [] }))
-        : [{ key: col.status ?? col.key, arr: (data[col.status as keyof Omit<Board, "projects" | "counts">] as Task[] | undefined) ?? [] }];
-      for (const { key, arr } of sources) {
-        for (const t of arr) allTasks.push({ ...t, _status: key });
+      const sources = col.composedOf ?? [col.status ?? col.key];
+      for (const key of sources) {
+        const arr = (data[key as keyof Omit<Board, "projects" | "counts">] as Task[] | undefined) ?? [];
+        for (const t of arr) if (t.status !== "cancelled") allTasks.push(t);
       }
     }
-
-    // 300+ node guard: warn and exclude done nodes
-    // Also apply hideOldDone: exclude done nodes older than 3 days
-    let tasksForGraph = allTasks;
-    let warningHtml = "";
-    if (allTasks.length > 300) {
-      tasksForGraph = allTasks.filter((t) => t._status !== "done");
-      warningHtml = `<div style="position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:10;background:#1e293b;color:#f59e0b;padding:4px 12px;border-radius:6px;font-size:0.8rem;border:1px solid #f59e0b40">${allTasks.length} nodes — done tasks hidden for performance</div>`;
-    } else if (hideOldDone) {
-      tasksForGraph = allTasks.filter((t) => !(t._status === "done" && isOlderThan3Days(t.completed_at || "")));
+    const created = allTasks.filter((t) => t.created_at);
+    if (!created.length) {
+      el.innerHTML = `<div class="graph-placeholder"><p>No tasks yet — nothing to burn down.</p></div>`;
+      return;
     }
 
-    // Build nodes
-    interface GraphNode {
-      id: number;
-      title: string;
-      status: string;
-      level: number;
-      tags: string[];
-      priority: string;
-      project: string;
-      x?: number;
-      y?: number;
-    }
-    interface GraphLink {
-      source: number;
-      target: number;
-      tag: string;
-      sharedCount: number;
-      // dependency links have depType set ('s-f' or 'f-f'); tag-based links have depType null
-      depType?: string | null;
-    }
-
-    const q = currentSearch.toLowerCase().replace(/^#/, "");
-
-    const nodes: GraphNode[] = tasksForGraph.map((t) => ({
-      id: t.id,
-      title: `#${t.id} ${t.title}`,
-      status: t._status,
-      level: t.level ?? 1,
-      tags: parseTags(t.tags),
-      priority: t.priority || "medium",
-      project: t.project,
-    }));
-
-    // Build edges: shared-tags — deduplicated pairs + count shared tags per pair
-    const tagIndex = new Map<string, number[]>();
-    for (const node of nodes) {
-      for (const tag of node.tags) {
-        const lowerTag = tag.toLowerCase();
-        if (!tagIndex.has(lowerTag)) tagIndex.set(lowerTag, []);
-        tagIndex.get(lowerTag)!.push(node.id);
+    // Daily series over the FULL history: scope(day) = points created ≤ day,
+    // burned(day) = points of done tasks with completed_at ≤ day, remaining = scope − burned.
+    const startDay = Math.min(...created.map((t) => dayFloor(t.created_at)));
+    const todayDay = dayFloor(new Date().toISOString());
+    const nDays = Math.max(1, Math.round((todayDay - startDay) / DAY) + 1);
+    const scope = new Array<number>(nDays).fill(0);
+    const burned = new Array<number>(nDays).fill(0);
+    for (const t of created) {
+      const w = weightOf(t);
+      const c = Math.max(0, Math.round((dayFloor(t.created_at) - startDay) / DAY));
+      for (let i = c; i < nDays; i++) scope[i] += w;
+      if (t.status === "done" && t.completed_at) {
+        const d = Math.min(nDays - 1, Math.max(0, Math.round((dayFloor(t.completed_at) - startDay) / DAY)));
+        for (let i = d; i < nDays; i++) burned[i] += w;
       }
     }
+    const remaining = scope.map((s, i) => s - burned[i]);
+    const remainingNow = remaining[nDays - 1];
 
-    // Count how many tags each pair shares
-    const pairTagCount = new Map<string, number>();
-    for (const [, ids] of tagIndex) {
-      for (let i = 0; i < ids.length; i++) {
-        for (let j = i + 1; j < ids.length; j++) {
-          const a = Math.min(ids[i], ids[j]);
-          const b = Math.max(ids[i], ids[j]);
-          const key = `${a}-${b}`;
-          pairTagCount.set(key, (pairTagCount.get(key) || 0) + 1);
-        }
-      }
+    // Projection (the "ideal + target date" answer): average burn velocity over
+    // the last 14 days extends the actual line to its zero crossing.
+    const window = Math.min(14, nDays - 1);
+    const burnedInWindow = window > 0 ? burned[nDays - 1] - burned[nDays - 1 - window] : 0;
+    const velocity = window > 0 ? burnedInWindow / window : 0; // points/day
+    const daysToZero = velocity > 0 ? Math.ceil(remainingNow / velocity) : null;
+    const targetDay = daysToZero != null ? todayDay + daysToZero * DAY : null;
+
+    // Geometry. X spans history + projection; Y spans the peak scope.
+    const W = Math.max(640, el.clientWidth - 32);
+    const H = Math.max(320, Math.min(520, el.clientHeight - 90));
+    const M = { top: 24, right: 130, bottom: 42, left: 52 };
+    const plotW = W - M.left - M.right;
+    const plotH = H - M.top - M.bottom;
+    const xEndDay = targetDay ?? todayDay;
+    const xSpan = Math.max(1, xEndDay - startDay);
+    const yMax = Math.max(1, Math.max(...scope));
+    const x = (day: number) => M.left + ((day - startDay) / xSpan) * plotW;
+    const y = (v: number) => M.top + (1 - v / yMax) * plotH;
+
+    // Auto-scaled x ticks: monthly > 120 days, weekly > 30, else every few days.
+    const spanDays = xSpan / DAY;
+    const tickEvery = spanDays > 120 ? 30 : spanDays > 30 ? 7 : Math.max(1, Math.round(spanDays / 8));
+    const fmtDate = (ms: number) =>
+      new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    let xTicks = "";
+    for (let d = startDay; d <= xEndDay; d += tickEvery * DAY) {
+      xTicks += `<line x1="${x(d)}" y1="${M.top}" x2="${x(d)}" y2="${M.top + plotH}" stroke="#1e293b" stroke-width="1"/>
+        <text x="${x(d)}" y="${M.top + plotH + 16}" text-anchor="middle" fill="#8a90a8" font-size="10">${fmtDate(d)}</text>`;
+    }
+    let yTicks = "";
+    const yStep = yMax > 40 ? Math.ceil(yMax / 5 / 10) * 10 : Math.max(1, Math.ceil(yMax / 5));
+    for (let v = 0; v <= yMax; v += yStep) {
+      yTicks += `<line x1="${M.left}" y1="${y(v)}" x2="${M.left + plotW}" y2="${y(v)}" stroke="#1e293b" stroke-width="1"/>
+        <text x="${M.left - 8}" y="${y(v) + 3}" text-anchor="end" fill="#8a90a8" font-size="10">${v}</text>`;
     }
 
-    const linkSet = new Set<string>();
-    const links: GraphLink[] = [];
-    for (const [tag, ids] of tagIndex) {
-      for (let i = 0; i < ids.length; i++) {
-        for (let j = i + 1; j < ids.length; j++) {
-          const a = Math.min(ids[i], ids[j]);
-          const b = Math.max(ids[i], ids[j]);
-          const key = `${a}-${b}`;
-          if (!linkSet.has(key)) {
-            linkSet.add(key);
-            links.push({ source: a, target: b, tag, sharedCount: pairTagCount.get(key) || 1, depType: null });
-          }
-        }
-      }
+    const remainingPath = remaining
+      .map((v, i) => `${i === 0 ? "M" : "L"} ${x(startDay + i * DAY).toFixed(1)} ${y(v).toFixed(1)}`)
+      .join(" ");
+    const projPath = targetDay != null
+      ? `M ${x(todayDay).toFixed(1)} ${y(remainingNow).toFixed(1)} L ${x(targetDay).toFixed(1)} ${y(0).toFixed(1)}`
+      : "";
+    const targetMarker = targetDay != null
+      ? `<line x1="${x(targetDay)}" y1="${M.top}" x2="${x(targetDay)}" y2="${M.top + plotH}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="2,3"/>
+         <text x="${x(targetDay)}" y="${M.top - 8}" text-anchor="middle" fill="#94a3b8" font-size="10">target ${fmtDate(targetDay)}</text>`
+      : "";
+
+    // Weekly table view (accessibility fallback — identity never colour-alone).
+    let tableRows = "";
+    for (let i = 0; i < nDays; i += 7) {
+      tableRows += `<tr><td>${fmtDate(startDay + i * DAY)}</td><td>${scope[i]}</td><td>${burned[i]}</td><td>${remaining[i]}</td></tr>`;
     }
 
-    // Build dependency edges (#246): explicit s-f / f-f links between tasks.
-    // These override or supplement tag-based edges and are drawn in a distinct color.
-    const nodeIds = new Set(nodes.map((n) => n.id));
-    for (const task of tasksForGraph) {
-      if (!task.dependencies) continue;
-      let deps: Array<{ id: number | string; targetId: number; type: string }>;
-      try {
-        deps = JSON.parse(task.dependencies);
-      } catch {
-        continue;
-      }
-      for (const dep of deps) {
-        const from = task.id;
-        const to = dep.targetId;
-        // Only draw if both ends are in the current graph view
-        if (!nodeIds.has(from) || !nodeIds.has(to)) continue;
-        const depKey = `dep-${from}-${to}`;
-        if (!linkSet.has(depKey)) {
-          linkSet.add(depKey);
-          links.push({ source: from, target: to, tag: dep.type, sharedCount: 1, depType: dep.type });
-        }
-      }
-    }
-
-    // Clear and render — fix overflow so canvas stays in bounds
-    el.innerHTML = warningHtml;
-    el.style.position = "relative";
-    el.style.padding = "0";
-    el.style.overflow = "hidden";
-
-    const graphContainer = document.createElement("div");
-    graphContainer.style.cssText = "position:absolute;inset:0;width:100%;height:100%";
-    el.appendChild(graphContainer);
-
-    // Tooltip element
-    const tooltip = document.createElement("div");
-    tooltip.className = "graph-tooltip";
-    el.appendChild(tooltip);
-
-    // Track mouse position for tooltip placement
-    el.addEventListener("mousemove", (e) => {
-      const rect = el.getBoundingClientRect();
-      tooltip.style.left = `${e.clientX - rect.left + 12}px`;
-      tooltip.style.top = `${e.clientY - rect.top + 12}px`;
-    });
-
-    const graph = ForceGraph()(graphContainer)
-      .backgroundColor("#0f172a")
-      .nodeId("id")
-      .nodeLabel(() => "")
-      .nodeVal((node: GraphNode) => LEVEL_SIZES[node.level] || LEVEL_SIZES[1])
-      .nodeCanvasObject((node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
-        const r = Math.sqrt(LEVEL_SIZES[node.level] || LEVEL_SIZES[1]) * 2;
-        const x = node.x ?? 0;
-        const y = node.y ?? 0;
-
-        // Determine opacity: search dim > done dim
-        let alpha = 1;
-        if (q) {
-          const match = node.title.toLowerCase().includes(q) ||
-            node.tags.some((t) => t.toLowerCase().includes(q));
-          alpha = match ? 1 : 0.15;
-        } else if (node.status === "done") {
-          alpha = 0.35;
-        }
-        ctx.globalAlpha = alpha;
-
-        // Fill: topic color (Obsidian-style clustering) or fallback grey
-        const topic = dominantTopic(node.tags);
-        const fillColor = topic ? (TOPIC_COLORS[topic] ?? "#334155") : "#334155";
-        ctx.beginPath();
-        ctx.arc(x, y, r, 0, 2 * Math.PI);
-        ctx.fillStyle = fillColor;
-        ctx.fill();
-
-        // Status ring (outer ring shows pipeline position)
-        const statusColor = STATUS_RING[node.status] ?? "#475569";
-        ctx.beginPath();
-        ctx.arc(x, y, r + 1.5 / globalScale, 0, 2 * Math.PI);
-        ctx.strokeStyle = statusColor;
-        ctx.lineWidth = 1.5 / globalScale;
-        ctx.stroke();
-
-        // Topic label — centered below node, always visible
-        const labelText = topic ?? node.tags[0] ?? "";
-        if (labelText) {
-          const topicFontSize = Math.max(2, 10 / globalScale);
-          ctx.font = `600 ${topicFontSize}px sans-serif`;
-          ctx.fillStyle = alpha < 0.5
-            ? "rgba(148,163,184,0.15)"
-            : (topic ? (TOPIC_COLORS[topic] ?? "#94a3b8") : "#94a3b8");
-          ctx.textAlign = "center";
-          ctx.textBaseline = "top";
-          ctx.fillText(labelText, x, y + r + 2 / globalScale);
-        }
-
-        // Title — only when zoomed in (Obsidian style: detail on demand)
-        if (globalScale > 2.5) {
-          const titleText = node.title.replace(/^#\d+\s*/, "").slice(0, 30);
-          const titleFontSize = 9 / globalScale;
-          ctx.font = `${titleFontSize}px sans-serif`;
-          ctx.fillStyle = alpha < 0.5 ? "rgba(148,163,184,0.2)" : "#64748b";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "bottom";
-          ctx.fillText(titleText, x, y - r - 2 / globalScale);
-        }
-
-        // Reset alpha
-        ctx.globalAlpha = 1;
-      })
-      .nodePointerAreaPaint((node: GraphNode, color: string, ctx: CanvasRenderingContext2D) => {
-        const r = Math.sqrt(LEVEL_SIZES[node.level] || LEVEL_SIZES[1]) * 2 + 2;
-        ctx.beginPath();
-        ctx.arc(node.x ?? 0, node.y ?? 0, r, 0, 2 * Math.PI);
-        ctx.fillStyle = color;
-        ctx.fill();
-      })
-      .onNodeClick((node: GraphNode) => {
-        showTaskDetail(node.id, node.project);
-      })
-      .onNodeHover((node: GraphNode | null) => {
-        graphContainer.style.cursor = node ? "pointer" : "default";
-        if (!node) {
-          tooltip.style.display = "none";
-          return;
-        }
-        const topicTag = dominantTopic(node.tags);
-        const topicColor = topicTag ? (TOPIC_COLORS[topicTag] ?? null) : null;
-        const topicBadge = topicTag
-          ? `<span style="background:${topicColor};color:#0f172a;padding:1px 7px;border-radius:4px;font-weight:600">${topicTag}</span>`
-          : "";
-        const otherTags = node.tags.filter((t) => t.toLowerCase() !== topicTag).slice(0, 3);
-        const tagsHtml = otherTags.length
-          ? `<div class="graph-tooltip-tags">${otherTags.map((t) => `<span>${t}</span>`).join("")}</div>`
-          : "";
-        tooltip.innerHTML = `
-          <div class="graph-tooltip-title">${node.title}</div>
-          <div class="graph-tooltip-meta" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            ${topicBadge}
-            <span>${node.status} &middot; ${node.priority} &middot; L${node.level}</span>
+    el.innerHTML = `
+      <div class="burndown-wrap">
+        <div class="burndown-head">
+          <h3>Burndown — level-weighted points (L1=1 · L2=2 · L3=3)</h3>
+          <div class="burndown-legend">
+            <span><svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="#60a5fa" stroke-width="2"/></svg> Remaining</span>
+            <span><svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/></svg> Projection (14-day velocity)</span>
           </div>
-          ${tagsHtml}`;
-        tooltip.style.display = "block";
-      })
-      .linkColor((link: GraphLink) => {
-        // Dependency links: bright amber (s-f) or rose (f-f) so they stand out
-        if (link.depType === "s-f") return "#f59e0b";
-        if (link.depType === "f-f") return "#f43f5e";
-        // Tag-based links: use topic color if known, else a visible mid-slate
-        return TOPIC_COLORS[link.tag.toLowerCase()] ?? "#475569";
-      })
-      .linkWidth((link: GraphLink) => {
-        // Dependency links are thicker and always visible
-        if (link.depType) return 2.5;
-        return Math.min(1.5 + (link.sharedCount - 1) * 0.8, 4);
-      })
-      .linkDirectionalArrowLength((link: GraphLink) => link.depType ? 6 : 0)
-      .linkDirectionalArrowRelPos(1)
-      .d3AlphaDecay(0.02)
-      .d3VelocityDecay(0.3)
-      .warmupTicks(100)
-      .cooldownTime(5000)
-      .width(el.offsetWidth || window.innerWidth)
-      .height(window.innerHeight - el.getBoundingClientRect().top)
-      .graphData({ nodes, links });
+        </div>
+        <svg id="burndown-svg" viewBox="0 0 ${W} ${H}" width="100%" style="max-height:${H}px">
+          ${yTicks}${xTicks}
+          <line x1="${M.left}" y1="${M.top + plotH}" x2="${M.left + plotW}" y2="${M.top + plotH}" stroke="#475569" stroke-width="1"/>
+          <line x1="${M.left}" y1="${M.top}" x2="${M.left}" y2="${M.top + plotH}" stroke="#475569" stroke-width="1"/>
+          ${targetMarker}
+          <path d="${remainingPath}" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linejoin="round"/>
+          ${projPath ? `<path d="${projPath}" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,3"/>` : ""}
+          <text x="${M.left + plotW + 6}" y="${y(remainingNow) + 3}" fill="#60a5fa" font-size="11">${remainingNow} pts open</text>
+          <g id="burndown-hover" style="display:none">
+            <line id="bd-cross" y1="${M.top}" y2="${M.top + plotH}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="2,2"/>
+            <circle id="bd-dot" r="3.5" fill="#60a5fa" stroke="#0f172a" stroke-width="2"/>
+          </g>
+          <rect id="bd-hit" x="${M.left}" y="${M.top}" width="${plotW}" height="${plotH}" fill="transparent"/>
+        </svg>
+        <div id="bd-tip" class="burndown-tip" style="display:none"></div>
+        <details class="burndown-table"><summary>Data (weekly)</summary>
+          <table><thead><tr><th>Week of</th><th>Scope</th><th>Done</th><th>Remaining</th></tr></thead>
+          <tbody>${tableRows}</tbody></table>
+        </details>
+      </div>`;
 
-    graphInstance = graph as unknown as GraphInstanceAPI;
-
-    // Legend: topic colors + dependency link types (always show if any dep links exist)
-    const presentTopics = new Set(nodes.flatMap((n) => n.tags.map((t) => t.toLowerCase())));
-    const legendTopics = TOPIC_PRIORITY_ORDER
-      .filter((t) => presentTopics.has(t) && t in TOPIC_COLORS)
-      .slice(0, 14);
-    const hasSF = links.some((l) => l.depType === "s-f");
-    const hasFF = links.some((l) => l.depType === "f-f");
-    if (legendTopics.length > 0 || hasSF || hasFF) {
-      const legend = document.createElement("div");
-      legend.className = "graph-legend";
-      let legendHtml = legendTopics
-        .map((t) => `<div class="graph-legend-item"><span style="background:${TOPIC_COLORS[t]}"></span>${t}</div>`)
-        .join("");
-      // Dependency link type legend entries use a line swatch instead of a dot
-      if (hasSF) legendHtml += `<div class="graph-legend-item"><span style="background:#f59e0b"></span>s-f dep</div>`;
-      if (hasFF) legendHtml += `<div class="graph-legend-item"><span style="background:#f43f5e"></span>f-f dep</div>`;
-      legend.innerHTML = legendHtml;
-      el.appendChild(legend);
-    }
-
-    // ResizeObserver for responsive canvas sizing
-    graphResizeObserver = new ResizeObserver(() => {
-      const w = el.offsetWidth;
-      const h = window.innerHeight - el.getBoundingClientRect().top;
-      if (w > 0 && h > 0) {
-        el.style.height = `${h}px`;
-        graph.width(w).height(h);
-      }
+    // Crosshair + tooltip (dataviz interaction default for line charts).
+    const svg = document.getElementById("burndown-svg") as unknown as SVGSVGElement;
+    const hit = document.getElementById("bd-hit")!;
+    const hover = document.getElementById("burndown-hover")!;
+    const cross = document.getElementById("bd-cross")!;
+    const dot = document.getElementById("bd-dot")!;
+    const tip = document.getElementById("bd-tip")!;
+    hit.addEventListener("mousemove", (ev: Event) => {
+      const e = ev as MouseEvent;
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX; pt.y = e.clientY;
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      const p = pt.matrixTransform(ctm.inverse());
+      const day = Math.round(((p.x - M.left) / plotW) * ((todayDay - startDay) / DAY));
+      const i = Math.max(0, Math.min(nDays - 1, day));
+      const dx = x(startDay + i * DAY);
+      hover.style.display = "";
+      cross.setAttribute("x1", String(dx)); cross.setAttribute("x2", String(dx));
+      dot.setAttribute("cx", String(dx)); dot.setAttribute("cy", String(y(remaining[i])));
+      tip.style.display = "";
+      tip.style.left = `${e.clientX + 12}px`; tip.style.top = `${e.clientY - 10}px`;
+      tip.innerHTML = `<b>${fmtDate(startDay + i * DAY)}</b><br>remaining ${remaining[i]} · done ${burned[i]} / ${scope[i]}`;
     });
-    graphResizeObserver.observe(document.documentElement);
-
+    hit.addEventListener("mouseleave", () => { hover.style.display = "none"; tip.style.display = "none"; });
   } catch (err) {
     console.error("loadGraphView failed:", err);
-    el.innerHTML = `
-      <div class="graph-placeholder">
-        <p style="color:#ef4444;font-size:0.9rem">Failed to load graph</p>
-      </div>`;
+    el.innerHTML = `<div class="graph-placeholder"><p>Failed to load burndown</p></div>`;
   }
 }
 
