@@ -30,6 +30,7 @@ import SvgSetter from './SvgSetter';
 import MelodyNotesLayer from './MelodyNotesLayer';
 import ChordLabelsLayer from './ChordLabelsLayer';
 import BarlinesLayer from './BarlinesLayer';
+import RamMascot from './RamMascot';
 import LyricsLayer from './LyricsLayer';
 import FermataLayer from './FermataLayer';
 import PreviewOverlay from './PreviewOverlay';
@@ -1652,6 +1653,12 @@ const SheetMusic = ({
             strokeWidth="0.5"
             style={{ transition: 'y1 1s ease-in-out, y2 1s ease-in-out' }}
           />
+
+          {/* RAM mascot (#297) — lives in the header band ABOVE the BPM display
+              (the viewBox starts at y=−30). Reads the input test via
+              RoundStateContext for its expressions; artwork + speech live in
+              RamMascot.jsx. */}
+          <RamMascot debugMode={debugMode} />
 
           {/* Draw BPM Controls */}
           <BpmControls

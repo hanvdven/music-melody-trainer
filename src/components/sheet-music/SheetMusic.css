@@ -7,3 +7,14 @@
 .svg-pointer {
   cursor: pointer;
 }
+
+/* RAM mascot (#297) — gentle idle bob. Our own header element, not one of the
+   rAF-animated melody layers, so the §6 "no CSS opacity on animated elements"
+   rule does not apply here. */
+@keyframes ram-mascot-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(1.5px); }
+}
+.ram-mascot-bob {
+  animation: ram-mascot-bob 3.2s ease-in-out infinite;
+}

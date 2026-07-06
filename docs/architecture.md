@@ -4351,3 +4351,25 @@ Italian names as labels, and the vocal clefs in a horizontal carousel too.
 
 **Files:** `overlays/ClefStaffOverlay.jsx`; deleted `overlays/ClefCarousel.jsx`,
 `overlays/ClefCardCarousel.jsx`.
+
+### §48. All staves visible in every setter (#299) + RAM mascot (#297) — 2026-07-06
+
+**#299 — Purpose:** Han: every in-staff setter shows ALL staves, so a hidden/disabled staff
+stays editable without re-enabling it first. **How:** `inSettingsView` (SheetMusic) now spans
+all nine edit modes (was settings/range/clef only); base visibility is computed separately and
+`isXVisible = inSettingsView || baseVisible`. The existing GHOST machinery extends to
+eye-hidden staves (not only clef-off): notes at 0.4 opacity and — new, Q4 — the staff LINES in
+`var(--text-lowlight)`. Outside setters nothing changes.
+
+**#297 — Purpose:** "clippy maar dan een ram": an anime-style ram mascot in the SVG header
+above the BPM (Q2), with expressions and sparse speech. **How:** `RamMascot.jsx` — hand-drawn
+vector line-art (Q1: Claude draws it) in theme colours (strokes `--text-primary`, horns
+`--accent-yellow`), occupying the y=−30 header band. Expressions follow
+`RoundStateContext.inputTestState`: happy on a correct note, proud + "Well done!" every 10th,
+oef on a miss (3 misses → "Oef…"); tap → "Beh!". Speech is rate-limited to one bubble per 20 s
+(Q3 "af en toe"). Idle bob via CSS keyframes on its own element (§6 rAF-opacity rule not in
+play). §3a tap hit box included. Adaptive-difficulty coaching ("let's slow down…") is ticket
+#307, blocked on #144 (Q4).
+
+**Files:** `SheetMusic.jsx` (visibility + mount), `RamMascot.jsx` (new, + test),
+`SheetMusic.css` (bob keyframes).
