@@ -7,6 +7,17 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-06 — ✅ 🐞 Kanban-bord: kolombreedtes inconsistent op smal scherm
+
+Han: done/parking soms heel breed (vooral smal scherm / na resize); design/
+plan/implement zijn de belangrijkste kolommen. Oorzaak: de 1024px-breakpoint
+zette `repeat(4, 1fr)` terwijl de kolommen vaste gridColumn 1–6 inline-styles
+hebben → done (5) en parking (6) vielen in IMPLICIETE auto-sized tracks
+(inhoudsbreedte). Fix: op élk breakpoint 6 expliciete tracks, gewogen —
+werk-kolommen (2–4) 1.3fr, todo/done/parking 0.7–0.75fr; 1024px behoudt
+horizontale scroll. Gepatcht in `~/.claude/kanban-board/src/style.css` ÉN
+gespiegeld naar `.devcontainer/kanban-board-overlay/` (§9k drift-regel).
+
 ## 2026-07-06 — ✅ #295 GEBOUWD: inline noten in de generator-carousels (d7a9840)
 
 Autonome swimlane-ronde. `generationNoteGlyphs.jsx` (alles via canonieke
