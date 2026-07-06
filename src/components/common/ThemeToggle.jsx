@@ -11,6 +11,9 @@ const ThemeToggle = ({ currentTheme, setTheme }) => {
     { id: 'afterglow',       name: 'Afterglow',        colors: ['#0e1220', '#c85c5c'] },
     { id: 'pastel-dawn',     name: 'Pastel Dawn',      colors: ['#eef3f7', '#f3c6a8'] },
     { id: 'golden-wetlands', name: 'Golden Wetlands',  colors: ['#e6ddc6', '#d6b35c'] },
+    // #296 (Han): bright, hard-contrast, hard-diagonal shadows — also toggleable
+    // via the crown button next to debug in the AppHeader.
+    { id: 'thronefall',      name: 'Thronefall',       colors: ['#1f2a52', '#ffc93c'] },
   ];
 
   return (

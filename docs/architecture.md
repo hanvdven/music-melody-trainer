@@ -4373,3 +4373,26 @@ play). §3a tap hit box included. Adaptive-difficulty coaching ("let's slow down
 
 **Files:** `SheetMusic.jsx` (visibility + mount), `RamMascot.jsx` (new, + test),
 `SheetMusic.css` (bob keyframes).
+
+### §49. Thronefall theme — iteration 1 (#296, 2026-07-06)
+
+**Purpose:** Han: an alternative UI in the style of Thronefall — bright colours, hard contrast,
+a styled hard-diagonal drop shadow — toggleable next to the debug button. Explicitly iterative
+("we gaan itereren"; the usual UI rules may bend inside this theme by Han's call).
+
+**How it works:** `:root[data-theme='thronefall']` in App.css — indigo `--app-bg`, warm-cream
+`--text-primary` (hard contrast), banner-gold accent; the **chromatone hues are SACRED** and
+inherit the defaults untouched (only saturation/lightness may ever shift). The hard-diagonal
+shadow is `--tf-shadow` (darker indigo with a subtle violet hue shift): zero-blur
+`drop-shadow(1.6px 2.2px 0 …)` on `.notes-transition` + `.chord-labels-group` (notes and sheet
+elements, NEVER the staff lines — Han), and zero-blur `box-shadow` on the HTML chrome
+(tab/app-header buttons, profile cards, session summary). The shadowed SVG groups are not the
+rAF-animated opacity/mask properties, so §6 stays intact. Toggle: a Crown button next to debug
+in the AppHeader flips thronefall ↔ default; the theme also appears in the settings theme grid
+(ThemeToggle).
+
+**Next iterations (per the ticket plan):** shapes/typography pass, the app-wide consistency
+screening filed as kanban tickets, shadow tuning per Han's UAT.
+
+**Files:** `src/styles/App.css`, `src/components/layout/AppHeader.jsx`,
+`src/components/common/ThemeToggle.jsx`, `src/App.jsx`.

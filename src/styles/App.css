@@ -978,3 +978,58 @@ path {
 .clef-variant-enter {
   animation: clefVariantEnter 0.4s ease-out;
 }
+
+/* ============================================================
+ * THRONEFALL (#296, Han 2026-07-06) — bright colours, hard contrast,
+ * styled hard-diagonal drop shadows. Iteration 1 (Han: "we gaan itereren";
+ * the usual UI rules may bend here by his explicit call).
+ * The chromatone-* hues are SACRED and inherit the defaults unchanged
+ * (only saturation/lightness may ever shift, never the hue).
+ * ============================================================ */
+:root[data-theme='thronefall'] {
+  --app-bg: #1f2a52;               /* rich indigo night */
+  --panel-bg: #2d3d78;             /* saturated panel blue */
+  --text-primary: #fff3d6;         /* warm cream — hard contrast on indigo */
+  --text-dim: #9aa6d6;
+  --text-tonic: #1f2a52;
+  --text-highlight: #ffffff;
+  --text-lowlight: #7a86bb;
+
+  --accent-yellow: #ffc93c;        /* bright banner gold */
+  --button-active: var(--accent-yellow);
+  --pressed-key-color: #ffc93c;
+
+  --white-key-color: #fdf6e3;
+  --white-key-color-tonic: #4f8cff;
+  --black-key-color: #131a38;
+  --black-key-color-tonic: #4f8cff;
+
+  --wheel-color-tonic: #ffc93c;
+  --wheel-color-highlight: #4f8cff;
+  --wheel-color-lowlight: #24305e;
+
+  --soft-mix-target: #ffffff;
+
+  /* The hard-diagonal shadow tint: a darker indigo with a SUBTLE hue shift
+     toward violet (Han: "harde diagonale lijn met een subtiel kleurverschil"). */
+  --tf-shadow: rgba(18, 16, 52, 0.65);
+}
+
+/* Hard diagonal drop shadows on NOTES and other sheet elements — never on the
+   staff lines themselves (Han). Zero blur = the hard edge. The targeted groups
+   are NOT the rAF-animated opacity/mask properties (§6 stays intact). */
+:root[data-theme='thronefall'] .notes-transition,
+:root[data-theme='thronefall'] .chord-labels-group {
+  filter: drop-shadow(1.6px 2.2px 0 var(--tf-shadow));
+}
+
+/* HTML chrome: bright panels with the same hard-diagonal shadow language. */
+:root[data-theme='thronefall'] .tab-button,
+:root[data-theme='thronefall'] .app-header-btn {
+  box-shadow: 2.5px 3px 0 var(--tf-shadow);
+}
+:root[data-theme='thronefall'] .profile-family-btn,
+:root[data-theme='thronefall'] .profile-debug-toggle,
+:root[data-theme='thronefall'] .session-summary-card {
+  box-shadow: 4px 5px 0 var(--tf-shadow);
+}

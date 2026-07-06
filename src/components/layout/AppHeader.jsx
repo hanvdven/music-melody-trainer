@@ -13,6 +13,7 @@ import {
     Bug,
     KanbanSquare,
     Dumbbell,
+    Crown,
 } from 'lucide-react';
 import './AppHeader.css';
 import { formatScaleName } from '../../theory/scaleHandler';
@@ -49,6 +50,10 @@ const AppHeader = ({
     progressionLabel = null,
     songTitle = null,
     onStartExercise = null,     // #266 rework 2 (Han 2026-07-02): START always in the header
+    // #296 (Han): Thronefall-toggle naast de debug-knop — alternative bright
+    // hard-contrast UI with hard-diagonal shadows.
+    isThronefall = false,
+    onToggleThronefall = null,
 }) => {
     const headerScale = windowWidth >= 550 ? 1 : Math.max(0.5, windowWidth / 550);
 
@@ -88,6 +93,18 @@ const AppHeader = ({
                 >
                     <Bug size={22} />
                 </button>
+                {/* THRONEFALL toggle (#296, Han: "voeg een toggler naast debug toe") —
+                    flips the alternative bright/hard-contrast theme on and off. */}
+                {onToggleThronefall && (
+                    <button
+                        className={`tab-button secondary app-header-btn ${isThronefall ? 'active' : ''}`}
+                        onClick={onToggleThronefall}
+                        title="Toggle Thronefall UI"
+                        style={{ color: isThronefall ? 'var(--accent-yellow)' : '#88ccff', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
+                    >
+                        <Crown size={22} />
+                    </button>
+                )}
                 {/* Kanban board — only surfaced via debug (Han 2026-06-22: "via debug -> kanban"). */}
                 {debugMode && (
                     <button
