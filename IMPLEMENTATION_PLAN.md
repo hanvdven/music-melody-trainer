@@ -7,6 +7,20 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-06 — ✅ Plan-kolom-antwoorden verwerkt: #299 + #297 GEBOUWD
+
+✅ #299 (163b727): inSettingsView omvat alle negen edit-modes — élke setter
+toont álle balken; ghost uitgebreid naar eye-verborgen balken: noten 0.4 +
+balklijnen in lowlight (Q4). ✅ #297 (8574b16): RamMascot — handgetekende
+SVG-ram in de header boven de BPM (Q2), expressies via input test (blij/trots/
+oef), "Well done!" elke 10e, "Beh!" bij tik, spraak max 1×/20s (Q3); 4 tests.
+Q4 → nieuw ticket #328 "RAM × adaptieve moeilijkheid" (s-f op #144).
+🔨 #296 Thronefall: iteratie-1-plan op het ticket (thema-var-infra, palet met
+heilige chromatone-hues, harde diagonale SVG-slagschaduw op noten — niet op
+balklijnen, screening → tickets); volgende geconcentreerde pass.
+🐞 Kanban-bord lag plat — herstart via `npm run kanban` (achtergrond).
+552 tests groen, lint 0, build OK. architecture.md §48.
+
 ## 2026-07-06 — ✅ Swimlane-vervolg: #262 clef-carousels + bord-ticket + #299-interview
 
 ✅ #262 (cdb0e0f): alle drie clef-pickers (familie per balk, zangstemmen,
