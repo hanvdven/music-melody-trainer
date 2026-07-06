@@ -7,6 +7,18 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-06 — ✅ Swimlane-vervolg: #262 clef-carousels + bord-ticket + #299-interview
+
+✅ #262 (cdb0e0f): alle drie clef-pickers (familie per balk, zangstemmen,
+percussie) → gedeelde NonLinearCarousel (slepen/schalen/settle); actieve
+sleutel pixel-exact op de bladmuziek-positie (CLEF_GLYPH_X / PERC_CLEF_X);
+zangsleutels als horizontale wheel van echte clef-glyphs; Italiaanse
+caps-labels (VIOLINO/BASSO/VOCE, BASSO…SOPRANO, PERCUSSIONE). ClefCarousel +
+ClefCardCarousel VERWIJDERD (§7). Beschrijving-items (font-%'s, 8vb) als vraag
+op het ticket — dateren van vóór latere reworks, niet gegokt. → test.
+architecture.md §47. 548 tests groen, lint 0, build OK.
+✅ Bordfix als ticket #306 → test. ✅ #299 interview (4 vragen) → design_review.
+
 ## 2026-07-06 — ✅ 🐞 Kanban-bord: kolombreedtes inconsistent op smal scherm
 
 Han: done/parking soms heel breed (vooral smal scherm / na resize); design/

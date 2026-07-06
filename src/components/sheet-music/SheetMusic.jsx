@@ -417,26 +417,35 @@ const SheetMusic = ({
   // — but stays visible in clef-edit / settings so the user can re-enable it.
   const trebleOff = trebleActiveClef === 'off';
   const bassOff = bassActiveClef === 'off';
-  const isTrebleVisible = showSettings || rangeEditMode || clefEditMode ||
-    (!trebleOff && (playbackConfig?.oddRounds?.trebleEye !== false || playbackConfig?.evenRounds?.trebleEye !== false));
-  const isBassVisible = showSettings || rangeEditMode || clefEditMode ||
-    (!bassOff && (playbackConfig?.oddRounds?.bassEye !== false || playbackConfig?.evenRounds?.bassEye !== false));
+  // #299 (Han 2026-07-06): EVERY setter shows ALL staves — a staff hidden by its
+  // eye toggles or disabled via clef-off stays editable in any in-staff setter,
+  // not just settings/range/clef. inSettingsView therefore spans all edit modes.
+  const inSettingsView = showSettings || rangeEditMode || clefEditMode ||
+    colorEditMode || instrumentEditMode || playbackEditMode ||
+    generationEditMode || generationAdvancedEditMode || exerciseEditMode;
+  // Base visibility = what the staff shows OUTSIDE any setter.
+  const trebleBaseVisible =
+    !trebleOff && (playbackConfig?.oddRounds?.trebleEye !== false || playbackConfig?.evenRounds?.trebleEye !== false);
+  const bassBaseVisible =
+    !bassOff && (playbackConfig?.oddRounds?.bassEye !== false || playbackConfig?.evenRounds?.bassEye !== false);
   // Percussion staff disabled via the clef selector's X (preferredClef==='off').
   const percOff = percussionSettings?.preferredClef === 'off';
-  const isPercussionVisible = showSettings || rangeEditMode || clefEditMode ||
-    (!percOff && (playbackConfig?.oddRounds?.percussionEye === true || playbackConfig?.evenRounds?.percussionEye === true ||
-      playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome'));
+  const percBaseVisible =
+    !percOff && (playbackConfig?.oddRounds?.percussionEye === true || playbackConfig?.evenRounds?.percussionEye === true ||
+      playbackConfig?.oddRounds?.percussionEye === 'metronome' || playbackConfig?.evenRounds?.percussionEye === 'metronome');
+  const isTrebleVisible = inSettingsView || trebleBaseVisible;
+  const isBassVisible = inSettingsView || bassBaseVisible;
+  const isPercussionVisible = inSettingsView || percBaseVisible;
 
-  // GHOST STAFF (Han 2026-06-01 #7): in any settings/edit view a DISABLED staff is
-  // still shown, but its notes + interactive "settings" are dimmed to opacity 0.4
-  // (barlines/staff-lines stay normal). Interacting re-enables it (the clef X /
-  // eye toggles restore the most recent settings). Outside settings views a disabled
-  // staff stays hidden, so ghosting only applies when an overlay/settings view is up.
-  const inSettingsView = showSettings || rangeEditMode || clefEditMode;
+  // GHOST STAFF (Han 2026-06-01 #7, extended by #299): in any settings/edit view a
+  // staff that would NOT show outside the setter (clef-off OR eye-hidden) is still
+  // rendered, with its notes dimmed to opacity 0.4 AND its staff lines in the shared
+  // lowlight colour (#299 Q4). Interacting re-enables it. Outside settings views a
+  // hidden staff stays hidden, so ghosting only applies while a setter is up.
   const GHOST_OPACITY = 0.4;
-  const trebleGhost = inSettingsView && trebleOff;
-  const bassGhost = inSettingsView && bassOff;
-  const percGhost = inSettingsView && percOff;
+  const trebleGhost = inSettingsView && !trebleBaseVisible;
+  const bassGhost = inSettingsView && !bassBaseVisible;
+  const percGhost = inSettingsView && !percBaseVisible;
 
   const numVisibleStaves = (isTrebleVisible ? 1 : 0) + (isBassVisible ? 1 : 0) + (isPercussionVisible ? 1 : 0);
   const numGaps = Math.max(1, numVisibleStaves - 1);
@@ -1687,7 +1696,9 @@ const SheetMusic = ({
             transition: 'transform 1s ease-in-out, opacity 1s ease-in-out'
           }}>
             {[0, 10, 20, 30, 40].map(y => (
-              <path key={`t-line-${y}`} d={`M 0 ${y} H ${endX}`} stroke="var(--text-primary)" strokeWidth="0.5" />
+              /* #299 Q4: ghost staves keep their lines, in the shared lowlight colour. */
+              <path key={`t-line-${y}`} d={`M 0 ${y} H ${endX}`}
+                stroke={trebleGhost ? 'var(--text-lowlight)' : 'var(--text-primary)'} strokeWidth="0.5" />
             ))}
             {isTrebleVisible && (
               <>
@@ -1790,7 +1801,9 @@ const SheetMusic = ({
             transition: 'transform 1s ease-in-out, opacity 1s ease-in-out'
           }}>
             {[0, 10, 20, 30, 40].map(y => (
-              <path key={`b-line-${y}`} d={`M 0 ${y} H ${endX}`} stroke="var(--text-primary)" strokeWidth="0.5" />
+              /* #299 Q4: ghost staves keep their lines, in the shared lowlight colour. */
+              <path key={`b-line-${y}`} d={`M 0 ${y} H ${endX}`}
+                stroke={bassGhost ? 'var(--text-lowlight)' : 'var(--text-primary)'} strokeWidth="0.5" />
             ))}
             {isBassVisible && (
               <>
@@ -1879,7 +1892,9 @@ const SheetMusic = ({
             transition: 'transform 1s ease-in-out, opacity 1s ease-in-out'
           }}>
             {[0, 10, 20, 30, 40].map(y => (
-              <path key={`p-line-${y}`} d={`M 0 ${y} H ${endX}`} stroke="var(--text-primary)" strokeWidth="0.5" />
+              /* #299 Q4: ghost staves keep their lines, in the shared lowlight colour. */
+              <path key={`p-line-${y}`} d={`M 0 ${y} H ${endX}`}
+                stroke={percGhost ? 'var(--text-lowlight)' : 'var(--text-primary)'} strokeWidth="0.5" />
             ))}
             {isPercussionVisible && !clefEditMode && (
               <text
