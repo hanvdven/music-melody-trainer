@@ -7,6 +7,17 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-06 — ✅ #296 Thronefall iteratie 1 GEBOUWD (31cbd54)
+
+Plan-kolom leeggewerkt: `:root[data-theme='thronefall']` (indigo bg, crème
+tekst, banier-goud; chromatone-hues heilig — erven ongewijzigd); harde
+diagonale slagschaduw (nul blur, --tf-shadow met subtiele violet-verschuiving)
+op noten + akkoordlabels — NIET op balklijnen — en als harde box-shadow op de
+HTML-chrome; Kroon-toggle naast debug (AppHeader) + entry in het thema-grid.
+552 tests groen, lint 0, build OK. architecture.md §49. → test (UAT).
+Plan-kolom rest: #245/#230 zijn paraplu's (kinderen in UAT of wachtend op
+Hans #300-antwoord).
+
 ## 2026-07-06 — ✅ Plan-kolom-antwoorden verwerkt: #299 + #297 GEBOUWD
 
 ✅ #299 (163b727): inSettingsView omvat alle negen edit-modes — élke setter
