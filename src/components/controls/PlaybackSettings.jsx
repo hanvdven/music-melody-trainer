@@ -300,7 +300,24 @@ const PlaybackSettings = ({
             className="ps-diff-row"
             style={{ gridTemplateColumns: GRID_GENERATOR, marginBottom: '6px', opacity: allFixed ? 0.4 : 1 }}
           >
-            <div className="ps-diff-col-label">Harmonic</div>
+            <div className="ps-diff-col-label">
+              Harmonic
+              {/* #144 ADAPTIVE toggle (Han: override — the engine writes these same
+                  target sliders per completed melody; sliders keep working and show
+                  the engine's choices live). */}
+              <button
+                className={`ps-clear-btn${playbackConfig.adaptiveDifficulty ? ' active' : ''}`}
+                style={{
+                  marginLeft: 6, fontSize: '0.62rem', letterSpacing: '0.05em',
+                  color: playbackConfig.adaptiveDifficulty ? 'var(--accent-yellow)' : undefined,
+                  borderColor: playbackConfig.adaptiveDifficulty ? 'var(--accent-yellow)' : undefined,
+                }}
+                title="Adaptive difficulty: after every completed melody the engine nudges the difficulty targets toward the challenge zone"
+                onClick={() => setPlaybackConfig(p => ({ ...p, adaptiveDifficulty: !p.adaptiveDifficulty }))}
+              >
+                ADAPTIVE
+              </button>
+            </div>
             <div className="ps-diff-col-slider">
               <HarmonicSlider
                 min={harmonyDifficultyRange.min}

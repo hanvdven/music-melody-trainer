@@ -2,6 +2,7 @@ import React from 'react';
 import NonLinearCarousel from './NonLinearCarousel';
 import { renderCarouselOptionGlyph, renderRepeatGlyph, renderStaffCardGlyph } from './carouselOptionGlyph';
 import { EXERCISES, AXES } from '../../../exercises/exerciseIndex';
+import { useProfile } from '../../../contexts/ProfileContext';
 
 // ── In-staff EXERCISE setter (#266 rework 3, epic #245, Han 2026-07-03/05) ───
 //
@@ -40,6 +41,10 @@ const ExerciseStaffOverlay = ({
     onSettingsInteraction,
     debugMode = false,
 }) => {
+    // #268: persistent per-exercise progress (runs / melodies) from the profile —
+    // shown under the ACTIVE preset card.
+    const { exerciseProgress } = useProfile();
+
     // Preset row hosts on the top VISIBLE staff; the MELODY/INPUT row prefers
     // the bass staff and falls back below the top staff when bass is hidden.
     const topStaff = isTrebleVisible ? trebleStart : bassStart;
@@ -83,6 +88,19 @@ const ExerciseStaffOverlay = ({
                 }}
                 debugMode={debugMode}
             />
+            {/* #268: persistent progress for the ACTIVE preset, just under its
+                card label — "runs N · melodies M" from the profile. */}
+            {(() => {
+                const prog = exerciseProgress?.[EXERCISES[activeIndex]?.id];
+                if (!prog || (!prog.runs && !prog.melodies)) return null;
+                return (
+                    <text x={centerX} y={topStaff + 64} textAnchor="middle" fontSize={7}
+                        fontFamily="sans-serif" letterSpacing={0.5}
+                        fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
+                        {`RUNS ${prog.runs} · MELODIES ${prog.melodies}`}
+                    </text>
+                );
+            })()}
 
             {/* TEMPO — at the BPM display (BpmControls: x=25, value line
                 trebleStart−59). FIXED/RUBATO next to the ♩= glyph so tempo feels

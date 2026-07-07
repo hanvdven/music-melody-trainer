@@ -9,6 +9,7 @@ import {
   PASSING_CHORD_TYPES,
 } from '../../../constants/generationFields';
 // §6d — canonical renderers / curve math, NEVER hand-rolled here:
+import { LeftFanCarousel, DragBand, FieldLabel, FAN_LABEL_FONT, FAN_ACTIVE_LABEL_SIZE, FAN_ROW_H, FAN_PX_PER_STEP } from './fanCarousels';
 import { StaffQuarterNote, StaffMelodyNote } from '../staffNoteGlyph';
 import { getNoteFromValue } from '../../../utils/rangeUtils';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
@@ -44,14 +45,14 @@ import { curveX, curveY, leftCurveX, X_SPACING, useTangensDrag } from './tangens
 // the SAME setState path. The PROPS CONTRACT is identical (zero call-site change in SheetMusic.jsx).
 
 // ── Typography / layout constants (§6d: in-staff LABELS are serif, never Maestro) ────────────────
-const LABEL_FONT = "Georgia, 'Times New Roman', serif";   // matches TranspositionSetter LABEL_FONT
-const ACTIVE_LABEL_SIZE = 22;   // active numeric label size (matches TranspositionSetter)
+const LABEL_FONT = FAN_LABEL_FONT;   // shared with fanCarousels (§6d)
+const ACTIVE_LABEL_SIZE = FAN_ACTIVE_LABEL_SIZE;   // shared with fanCarousels (§6d)
 const TUPLET_LABEL_SIZE = 15;   // tuplet words read smaller (Han UAT: "veel te groot lettertype")
-const ROW_H = 15;               // vertical spacing between LEFT-fan rows (matches TranspositionSetter)
+const ROW_H = FAN_ROW_H;               // shared with fanCarousels (§6d)
 const INTERVAL_LABEL_SIZE = 11; // serif interval name above/below each span head
 const FIELD_LABEL_SIZE = 11;    // field name below the staff
 const HEADER_Y_DROP = 89;       // column header sits trebleStart − 89 (kept from old overlay)
-const PX_PER_STEP = 16;         // drag sensitivity for the LEFT/centre carousels (px per index step)
+const PX_PER_STEP = FAN_PX_PER_STEP;   // shared with fanCarousels (§6d)
 const SPAN_X_SPACING = 18;      // span/smallest-note horizontal fan spacing — TIGHTER than the
                                 // transposition X_SPACING=30 (Han UAT: "afstand tussen noten is groter").
 const C4_MIDI = 60;
@@ -103,67 +104,8 @@ const idxOf = (items, value) => {
   return i === -1 ? 0 : i;
 };
 
-// Field name below the staff (sans, --text-secondary, possibly multi-line). Renders nothing for an
-// empty `lines` array — the column HEADER already names every field, so the redundant below-staff
-// labels were removed (Han UAT 2026-06-27: "overdadig gebruik van labels … volledig redundant").
-const FieldLabel = ({ cx, topY, lines }) => (
-  (!lines || lines.length === 0) ? null : (
-    <text x={cx} y={topY} textAnchor="middle" fontSize={FIELD_LABEL_SIZE} fontFamily="sans-serif"
-      fill={SECONDARY} style={{ userSelect: 'none', pointerEvents: 'none' }}>
-      {lines.map((ln, i) => (
-        <tspan key={i} x={cx} dy={i === 0 ? 0 : FIELD_LABEL_SIZE + 1}>{ln}</tspan>
-      ))}
-    </text>
-  )
-);
-
-// Shared invisible drag band + its §3a debug mirror.
-const DragBand = ({ x, y, w, h, bind, debugMode }) => (
-  <>
-    <rect x={x} y={y} width={w} height={h}
-      fill="transparent" style={{ cursor: 'ns-resize', touchAction: 'none' }} {...bind} />
-    {debugMode && (
-      <rect x={x} y={y} width={w} height={h}
-        fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
-        style={{ pointerEvents: 'none' }} />
-    )}
-  </>
-);
-
-// ── LEFT-fan numeric carousel (variability) ───────────────────────────────────────────────────────
-// Mirrors TranspositionSetter's left name carousel: high values sit HIGH on screen, gentle tanh-x
-// fan (leftCurveX), active label biggest in --text-primary, neighbours shrink + dim. Drag UP
-// increases the index (dirSign +1). `renderLabel(item)` → the text to draw for each option.
-const LeftFanCarousel = ({ cx, centerY, items, activeIndex, onCommit, renderLabel, fieldLines, debugMode }) => {
-  const { effIndex, dragging, bind } = useTangensDrag(activeIndex, items.length - 1, onCommit, PX_PER_STEP, 1);
-  const rowsOut = [];
-  for (let i = Math.floor(effIndex) - 4; i <= Math.ceil(effIndex) + 4; i++) {
-    if (i < 0 || i > items.length - 1) continue;
-    const off = i - effIndex;                 // off>0 = higher value
-    const isActive = i === Math.round(effIndex);
-    const ry = centerY + 6 - off * ROW_H;     // high value HIGH on screen
-    const nx = cx + leftCurveX(off);
-    const dist = Math.abs(off);
-    const size = Math.max(8, ACTIVE_LABEL_SIZE - dist * 2.0);
-    const op = Math.max(0.18, (isActive ? 1 : 0.8) - dist * 0.12);
-    rowsOut.push(
-      // data-fly: SELECTOR carousel — slides in note-by-note like the TranspositionSetter (consistency).
-      <text key={i} data-fly="" x={nx} y={ry} textAnchor="middle" fontFamily={LABEL_FONT} fontSize={size}
-        fill={isActive ? COLOR : LOW} opacity={op} style={{ pointerEvents: 'none' }}>
-        {renderLabel(items[i])}
-      </text>,
-    );
-  }
-  const bandH = dragging ? 150 : 110;
-  const bandTop = centerY + 6 - bandH / 2;
-  return (
-    <g>
-      {rowsOut}
-      <DragBand x={cx - 22} y={bandTop} w={44} h={bandH} bind={bind} debugMode={debugMode} />
-      <FieldLabel cx={cx} topY={centerY + 50} lines={fieldLines} />
-    </g>
-  );
-};
+// FieldLabel / DragBand / LeftFanCarousel moved to ./fanCarousels.jsx (#300/#302
+// extraction, §6d) — the PLAYBACK setter's volume + measures fans share them.
 
 // ── HORIZONTAL WORD carousel (tuplets) — low LEFT-down → xtreme RIGHT-up ───────────────────────────
 // Han UAT 2026-06-27: "tuplet, ik wil de x inverteren, dus ik wil low 'linksonder' en 'xtreme'

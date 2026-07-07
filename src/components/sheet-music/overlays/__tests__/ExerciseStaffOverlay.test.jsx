@@ -3,10 +3,13 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import ExerciseStaffOverlay from '../ExerciseStaffOverlay';
 import { EXERCISES, AXIS_ORDER } from '../../../../exercises/exerciseIndex';
+import { ProfileProvider } from '../../../../contexts/ProfileContext';
 
 const baseAxes = { melodyType: 'scales', input: 'read', tempo: 'fixed', evaluation: 1 };
 
 const renderOverlay = (props = {}) => render(
+    // ProfileProvider: the overlay reads exerciseProgress (#268) from the profile.
+    <ProfileProvider>
     <svg>
         <ExerciseStaffOverlay
             startX={100} endX={700} trebleStart={100} bassStart={170}
@@ -18,7 +21,8 @@ const renderOverlay = (props = {}) => render(
             onStartExercise={() => {}}
             {...props}
         />
-    </svg>,
+    </svg>
+    </ProfileProvider>,
 );
 
 describe('ExerciseStaffOverlay', () => {

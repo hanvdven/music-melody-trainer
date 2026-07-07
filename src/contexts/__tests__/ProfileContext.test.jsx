@@ -109,7 +109,7 @@ describe('ProfileContext schema (v2)', () => {
         expect(summary.streakDays).toBe(1);
         // Persisted at the melodyComplete flush
         const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        expect(saved.version).toBe(2);
+        expect(saved.version).toBe(3);
         expect(saved.totalXP).toBeGreaterThan(0);
         expect(Object.keys(saved.lifetime.scales)).toContain('Diatonic:Major');
     });
@@ -123,6 +123,20 @@ describe('ProfileContext schema (v2)', () => {
         let summary;
         act(() => { summary = result.current.endSession(); });
         expect(summary).toBeNull();
+    });
+
+    it('persists per-exercise progress counters (#268, v3)', () => {
+        const { result } = renderHook(() => useProfile(), { wrapper });
+        act(() => {
+            result.current.recordExerciseProgress('scale-runs', { melodies: 1 });
+            result.current.recordExerciseProgress('scale-runs', { melodies: 1, runs: 1 });
+        });
+        expect(result.current.exerciseProgress['scale-runs'].melodies).toBe(2);
+        expect(result.current.exerciseProgress['scale-runs'].runs).toBe(1);
+        // The run bump flushed to storage.
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        expect(saved.exerciseProgress['scale-runs'].runs).toBe(1);
+        expect(saved.version).toBe(3);
     });
 
     it('accumulates stats but no XP when gamification is off', () => {

@@ -2,6 +2,11 @@ import React from 'react';
 import SvgSetter from '../SvgSetter';
 import NonLinearCarousel from './NonLinearCarousel';
 import { renderRepeatGlyph } from './carouselOptionGlyph';
+import { LeftFanCarousel } from './fanCarousels';
+
+// #302: the measures fan drags through every count 1..32 (the old stepper's
+// bounds), derived — not a hand-picked subset (§6c).
+const MEASURE_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
 import { AXES } from '../../../exercises/exerciseIndex';
 import '../SheetMusic.css';
 import { usePlaybackConfig } from '../../../contexts/PlaybackConfigContext';
@@ -196,22 +201,33 @@ const SettingsOverlay = ({
     const isEven = round === 'evenRounds';
     const shouldBlur = playbackConfig?.repsPerMelody === 1 && isEven;
 
+    // #300 (Han: "zet volume setter op een tangens selector, zoals in
+    // transposition-links"): each volume cell is a COMPACT vertical tangens fan
+    // of VOL_STEPS — at rest only the current Maestro dynamics glyph shows;
+    // dragging fans the neighbouring steps out under the finger (ten permanent
+    // fans would overlap the grid rows). Same LeftFanCarousel as the
+    // GEN. ADVANCED setters (§6d, shared module). Mapping chosen per Han's
+    // "werk af" mandate — flagged on the ticket, reversible in UAT.
+    const activeVolIdx = Math.max(0, VOL_STEPS.findIndex(s => s.glyph === step.glyph));
     return (
       <g key={`vol-${round}-${row.key}`} style={shouldBlur ? { filter: 'blur(3px)', opacity: 0.5, pointerEvents: 'none' } : {}}>
-        <SvgSetter
-          x={vx}
-          y={vy}
-          value={step.glyph}
-          label={undefined}
-          showLabel={false}
-          valueFontFamily="Maestro"
-          valueFontSize={32}
-          spacing={20}
-          onDecrement={() => cycleVolume(round, row.key, 'down')}
-          onIncrement={() => cycleVolume(round, row.key, 'up')}
-          onValueLongPress={() => setActiveVolumePicker?.({ round, instrumentKey: row.key })}
-          onValueClick={() => cycleVolume(round, row.key, 'up')}
-          onInteraction={onSettingsInteraction}
+        <LeftFanCarousel
+          cx={vx}
+          centerY={vy - 6}
+          items={VOL_STEPS}
+          activeIndex={activeVolIdx}
+          renderLabel={(s) => s.glyph}
+          labelFontFamily="Maestro"
+          activeLabelSize={32}
+          compact
+          bandW={36}
+          fieldLines={[]}
+          onCommit={(i) => {
+            onSettingsInteraction?.();
+            const newVal = VOL_STEPS[i].value;
+            setPlaybackConfig(prev => ({ ...prev, [round]: { ...(prev[round] || {}), [row.key]: newVal } }));
+          }}
+          debugMode={debugMode}
         />
       </g>
     );
@@ -355,18 +371,22 @@ const SettingsOverlay = ({
         />
       ))}
 
-      {/* ── MEASURE COUNT AREA ── */}
+      {/* ── MEASURE COUNT AREA (#302, Han: "measures ook op een tangens
+          selector") — the SAME LeftFanCarousel as the volume cells and the
+          GEN. ADVANCED setters (§6d shared module), compact: at rest only the
+          current count shows, dragging fans 1..32 out vertically. */}
       <g transform={`translate(${startX + 0.70 * (systemEndX - startX)}, ${CHORD_ROW_Y})`}>
         <text x="0" y={-25} fontFamily="serif" fontStyle="italic" fontSize="14" fill="var(--text-secondary)" textAnchor="middle" className="svg-no-interact">measures</text>
-        <SvgSetter
-          x={0}
-          y={0}
-          valueDy={-3}
-          value={numMeasures ?? '—'}
-          onValueClick={() => setActiveNumberPicker?.('measures')}
-          onDecrement={() => numMeasures > 1 ? setNumMeasures(numMeasures - 1) : null}
-          onIncrement={() => numMeasures < 32 ? setNumMeasures(numMeasures + 1) : null}
-          onInteraction={onSettingsInteraction}
+        <LeftFanCarousel
+          cx={0}
+          centerY={-6}
+          items={MEASURE_OPTIONS}
+          activeIndex={Math.max(0, MEASURE_OPTIONS.indexOf(numMeasures))}
+          renderLabel={(n) => String(n)}
+          compact
+          fieldLines={[]}
+          onCommit={(i) => { onSettingsInteraction?.(); setNumMeasures(MEASURE_OPTIONS[i]); }}
+          debugMode={debugMode}
         />
       </g>
 

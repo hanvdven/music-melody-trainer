@@ -4396,3 +4396,38 @@ screening filed as kanban tickets, shadow tuning per Han's UAT.
 
 **Files:** `src/styles/App.css`, `src/components/layout/AppHeader.jsx`,
 `src/components/common/ThemeToggle.jsx`, `src/App.jsx`.
+
+### §50. Adaptive difficulty (#144) + exercise persistence (#268) + playback fans (#300/#302) — 2026-07-07
+
+**#144 — adaptive difficulty.** Han's locked answers: OVERRIDE (the engine writes the SAME
+target sliders), drive the EXISTING difficulty mechanism, feedback = the skill-attempt outcome,
+cadence = per completed melody. `src/utils/adaptiveDifficulty.js` (pure, tested): the ticket's
+0.25–0.45 challenge zone maps to a graded-outcome band [0.55, 0.75]; above it targets step UP
+(+4% of range), below DOWN (−7%, relief comes faster), inside hold; null targets seed from the
+CURRENT actual difficulty so enabling never jumps the material. Wired in App's `onScoreEvent`
+(same event the ELO ratings consume); the Sequencer already reads the three target refs at every
+series boundary, so the next melody adapts. Toggle: ADAPTIVE button beside the Harmonic slider
+(`playbackConfig.adaptiveDifficulty`); sliders keep working and display the engine's choices.
+
+**#268 — persistent exercise progress.** Profile v3 (additive): `exerciseProgress`
+(exerciseId → { melodies, runs, lastAt }); `recordExerciseProgress()` is the only writer —
+melody bumps ride along with recordEvent's melodyComplete flush, run completions flush
+themselves. App's run counter feeds it; the exercise setter shows "RUNS N · MELODIES M" under
+the active preset card. No parallel storage (§43 invariant honoured); in rubato a melody cannot
+fail, so progress counts completions, not scores (per the ticket).
+
+**#300/#302 — playback fans.** `overlays/fanCarousels.jsx`: `LeftFanCarousel` + `DragBand` +
+`FieldLabel` EXTRACTED from GenerationAdvancedSetterOverlay (§6d — one fan, all consumers),
+with new options: `labelFontFamily` (Maestro dynamics glyphs), `compact` (rest = active label
+only; the fan appears while dragging — ten permanent fans would overlap the grid rows). Volume
+cells (#300) and the measures count (#302, options 1..32 derived) in the PLAYBACK setter are
+compact fans now. #300's cell-mapping was chosen under Han's "werk af" mandate and flagged on
+the ticket. Still open in the #230 family: #301 (visibility carousel — the off-state is a
+vector DisableCross, the text-fan needs a renderContent variant first), #303 (measure groups —
+awaits Han's advancing-semantics answers; touches §6-documented playback invariants), #305
+(PlaybackSettings class + per-song persistence, L3 — after the rest).
+
+**Files:** `src/utils/adaptiveDifficulty.js` (+test), `src/App.jsx`,
+`src/components/controls/PlaybackSettings.jsx`, `src/contexts/ProfileContext.jsx` (+test),
+`overlays/ExerciseStaffOverlay.jsx`, `overlays/fanCarousels.jsx` (new),
+`overlays/GenerationAdvancedSetterOverlay.jsx`, `overlays/SettingsOverlay.jsx`.

@@ -21,7 +21,8 @@ import {
 
 const STORAGE_KEY = 'music-trainer-profile';
 // v2 (#129 rework): branchXP → ELO-style skillRatings + consistencyXP scalar.
-const PROFILE_VERSION = 2;
+// v3 (#268): + exerciseProgress — per-exercise persistent counters (additive).
+const PROFILE_VERSION = 3;
 
 // Scale families in display order (matches scaleDefinitions keys + Simple)
 export const ALL_SCALE_FAMILIES = [
@@ -60,6 +61,10 @@ function defaultProfile() {
         // Novelty tracking for newKey/newScale XP: keys by semitone pitch class
         // (enharmonics count once), scales by 'family:mode'.
         lifetime: { keys: {}, scales: {} },
+        // #268: persistent per-exercise progress — exerciseId → counters.
+        // In rubato a melody cannot be failed, so "progress" = completions,
+        // not a pass/fail score (per the ticket).
+        exerciseProgress: {},
     };
 }
 
@@ -95,6 +100,8 @@ function loadProfile() {
             keys: { ...(saved.lifetime?.keys || {}) },
             scales: { ...(saved.lifetime?.scales || {}) },
         },
+        // #268 (v3, additive): older saves simply lack the field.
+        exerciseProgress: { ...(saved.exerciseProgress || {}) },
     };
     // v1 → v2 (#129 rework): the old volume-based branchXP becomes the STARTING
     // rating (its displayed score carries over); consistency keeps its XP pool.
@@ -325,6 +332,27 @@ export function ProfileProvider({ children }) {
         if (type === 'melodyComplete' || type === 'seriesComplete') flush();
     }, [flush]);
 
+    // #268: bump the persistent per-exercise counters. Melody bumps ride along
+    // with recordEvent's own melodyComplete flush (call this BEFORE recordEvent
+    // so one persist covers both); run completions flush themselves.
+    const recordExerciseProgress = useCallback((exerciseId, { melodies = 0, runs = 0 } = {}) => {
+        if (!exerciseId) return;
+        const p = profileRef.current;
+        const prev = p.exerciseProgress[exerciseId] || { melodies: 0, runs: 0, lastAt: null };
+        profileRef.current = {
+            ...p,
+            exerciseProgress: {
+                ...p.exerciseProgress,
+                [exerciseId]: {
+                    melodies: prev.melodies + melodies,
+                    runs: prev.runs + runs,
+                    lastAt: localDateISO(),
+                },
+            },
+        };
+        if (runs > 0) flush();
+    }, [flush]);
+
     // Persist any unflushed per-note XP if the tab closes mid-session.
     useEffect(() => {
         const persist = () => saveProfile(profileRef.current);
@@ -370,9 +398,13 @@ export function ProfileProvider({ children }) {
         recordEvent,
         beginSession,
         endSession,
+        // #268: persistent per-exercise counters + the writer.
+        exerciseProgress: snapshot.exerciseProgress || {},
+        recordExerciseProgress,
     }), [unlockedFamilies, snapshot.debugMode, snapshot.gamificationEnabled, gamification,
+         snapshot.exerciseProgress,
          setDebugMode, toggleFamily, isFamilyUnlocked, setGamificationEnabled,
-         recordEvent, beginSession, endSession]);
+         recordEvent, beginSession, endSession, recordExerciseProgress]);
 
     return (
         <ProfileContext.Provider value={value}>

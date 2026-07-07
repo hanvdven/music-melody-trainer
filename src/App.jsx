@@ -76,6 +76,11 @@ import { UniversalTransitionProvider } from './contexts/UniversalTransitionConte
 import { useProfile } from './contexts/ProfileContext';
 import SessionSummaryCard from './components/profile/SessionSummaryCard';
 import { applyExerciseConfig, configFromAxes, EXERCISES } from './exercises/exerciseIndex';
+import { gradedOutcome } from './utils/gamification';
+import { stepAdaptiveTargets } from './utils/adaptiveDifficulty';
+import { calcHarmonicDifficulty } from './utils/difficultyCalculator';
+import { calcTrebleDifficulty, MELODY_DIFFICULTY_RANGE } from './utils/melodyDifficultyTable';
+import { HARMONY_DIFFICULTY_RANGE } from './utils/harmonyTable';
 import { AnimationRefsProvider } from './contexts/AnimationRefsContext';
 
 
@@ -193,9 +198,14 @@ const App = () => {
     // event sink is consumed here. recordEvent/beginSession/endSession are
     // memoised with stable deps in ProfileContext. recordEventRef lets
     // sequencerSetters (memoised, long-lived) emit without adding a dep.
-    const { recordEvent, beginSession, endSession } = useProfile();
+    const { recordEvent, beginSession, endSession, recordExerciseProgress } = useProfile();
     const recordEventRef = useRef(recordEvent);
     useEffect(() => { recordEventRef.current = recordEvent; }, [recordEvent]);
+    // #268: persistent per-exercise counters — written from the score-event
+    // callback, so both live in refs (state would go stale there).
+    const recordExerciseProgressRef = useRef(recordExerciseProgress);
+    useEffect(() => { recordExerciseProgressRef.current = recordExerciseProgress; }, [recordExerciseProgress]);
+    const activeExerciseIdRef = useRef(null);
     // Post-session summary card data (#131); null = hidden.
     const [sessionSummary, setSessionSummary] = useState(null);
 
@@ -737,6 +747,7 @@ const App = () => {
     // through the existing setters. Opening the selector flips the bottom view
     // to the songs tab.
     const [activeExerciseId, setActiveExerciseId] = useState(EXERCISES[0].id);
+    useEffect(() => { activeExerciseIdRef.current = activeExerciseId; }, [activeExerciseId]);
     const [exerciseAxes, setExerciseAxes] = useState(() => ({ ...EXERCISES[0].axes }));
     const exerciseSetters = useMemo(() => ({
         setPlaybackConfig, setTrebleSettings, setBpm, setNumMeasures, setIsRubato,
@@ -843,6 +854,37 @@ const App = () => {
         // only, so this callback is stable.
         onScoreEvent: useCallback((type, detail) => {
             recordEventRef.current(type, { ...detail, ...buildScorePayload() });
+            // #144 adaptive difficulty (Han: override — the engine writes the SAME
+            // targets the sliders write; the Sequencer reads them at the next
+            // series boundary, so the very next melody adapts). Cadence: per
+            // completed melody attempt; signal: the same graded outcome the ELO
+            // ratings consume. Null targets seed from the CURRENT actual
+            // difficulty so switching adaptive on never jumps the material.
+            if (type === 'melodyComplete' && detail.total > 0 && configRef.current?.adaptiveDifficulty) {
+                const outcome = gradedOutcome(detail.correct, detail.total);
+                const inst = instrumentSettingsRef.current;
+                const next = stepAdaptiveTargets({
+                    outcome,
+                    targets: {
+                        harmonic: targetHarmonicDifficultyRef.current,
+                        treble: targetTrebleDifficultyRef.current,
+                        bass: targetBassDifficultyRef.current,
+                    },
+                    ranges: {
+                        harmonic: HARMONY_DIFFICULTY_RANGE,
+                        treble: MELODY_DIFFICULTY_RANGE,
+                        bass: MELODY_DIFFICULTY_RANGE,
+                    },
+                    seeds: {
+                        harmonic: calcHarmonicDifficulty(scaleRef.current).score,
+                        treble: calcTrebleDifficulty(inst.treble),
+                        bass: calcTrebleDifficulty(inst.bass),
+                    },
+                });
+                setTargetHarmonicDifficulty(next.harmonic);
+                setTargetTrebleDifficulty(next.treble);
+                setTargetBassDifficulty(next.bass);
+            }
             // #267 run counter: with untilCorrect only a FLAWLESS pass advances
             // the run (matches the restart-until-flawless loop); otherwise every
             // completion counts. Ending the run is deferred a tick — this event
@@ -855,7 +897,13 @@ const App = () => {
                     const next = { ...run, completed: run.completed + 1 };
                     exerciseRunRef.current = next;
                     setExerciseRun(next);
-                    if (next.completed >= next.target) {
+                    const finished = next.completed >= next.target;
+                    // #268: persistent per-exercise counters (melody rides along with
+                    // recordEvent's melodyComplete flush; a finished run flushes itself).
+                    recordExerciseProgressRef.current?.(activeExerciseIdRef.current, {
+                        melodies: 1, runs: finished ? 1 : 0,
+                    });
+                    if (finished) {
                         setTimeout(() => endExerciseRunRef.current?.(), 0);
                     }
                 }
