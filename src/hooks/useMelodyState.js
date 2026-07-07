@@ -197,7 +197,9 @@ const useMelodyState = (
 
       const chordGenSettings = {
         notesPerMeasure: structuralCount,
-        smallestNoteDenom: activeTS[1] || 4,
+        // #362 (Han): chords get their own smallest-note setter (GEN.ADV chords
+        // balk); absent → the old beat-resolution default.
+        smallestNoteDenom: chordSettings?.smallestNoteDenom ?? (activeTS[1] || 4),
         rhythmVariability: chordSettings?.rhythmVariability || 0,
         enableTriplets: false,
         notePool,

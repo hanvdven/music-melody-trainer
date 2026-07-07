@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
-import useLongPressTimer from '../../hooks/useLongPressTimer';
 import { getTempoTerm } from '../../utils/tempo';
+import { BpmFan } from './overlays/fanCarousels';
 
-const BPM_MIN = 12;
-const BPM_MAX = 360;
+// Exported: the exercise overlay's BpmFan shares the same range (§6c — one
+// source of truth for the BPM domain).
+export const BPM_MIN = 12;
+export const BPM_MAX = 360;
 
 /**
  * SVG <g> sub-component for the BPM display and controls in the sheet music header.
@@ -37,32 +39,14 @@ const BpmControls = ({
 
     const clampBpm = (v) => Math.min(BPM_MAX, Math.max(BPM_MIN, v));
 
+    // #362 (Han): the -/+/--/++ stepper zones (and the long-press numeric prompt)
+    // are replaced by the HIDDEN VERTICAL FAN on the value itself — drag the
+    // Maestro numeral to sweep tempi in 5-steps, exactly the volume-cell
+    // interaction. TAP tempo stays for precise/free values.
     const handleBpmChangeWrapper = (val) => {
         onResetBpmTimer();
         openSettingsIfClosed();
         onBpmChange(clampBpm(val));
-    };
-
-    // Inner -/+: jump to nearest integer (always moves by at least 1)
-    const bpmDecrement = () => handleBpmChangeWrapper(Math.floor(bpm - 0.001));
-    const bpmIncrement = () => handleBpmChangeWrapper(Math.ceil(bpm + 0.001));
-    // Outer --/++: jump to nearest multiple of 5
-    const bpmDecrementFive = () => handleBpmChangeWrapper(Math.floor((bpm - 0.001) / 5) * 5);
-    const bpmIncrementFive = () => handleBpmChangeWrapper(Math.ceil((bpm + 0.001) / 5) * 5);
-
-    const bpmLongPress = useLongPressTimer();
-
-    const handleBpmLongPress = () => {
-        onResetBpmTimer();
-        setTimeout(() => {
-            const input = window.prompt('Enter BPM:', bpm);
-            if (input !== null) {
-                const val = parseFloat(input);
-                if (!isNaN(val) && val >= BPM_MIN && val <= BPM_MAX) {
-                    onBpmChange(clampBpm(val));
-                }
-            }
-        }, 10);
     };
 
     const handleTap = () => {
@@ -96,35 +80,6 @@ const BpmControls = ({
     const headerY = trebleStart - 89;
     const valueY = trebleStart - 59;
 
-    // Button zones (relative to x=25, total span from x-22 to x+112):
-    // --  : x-22 .. x+3   (25px)
-    // -   : x+3  .. x+45  (42px)
-    // +   : x+45 .. x+87  (42px)
-    // ++  : x+87 .. x+112 (25px)
-    const zL2 = x - 22, zL2w = 25;
-    const zL1 = x + 3,  zL1w = 42;
-    const zR1 = x + 45, zR1w = 42;
-    const zR2 = x + 87, zR2w = 25;
-    const zH  = valueY - 30;
-    const zHh = 45;
-    const dc  = debugMode ? 'orange' : 'transparent';
-    const dop = debugMode ? 0.4 : 1;
-    const ds  = debugMode ? 1 : 0;
-
-    const mkRect = (rx, rw, onUp, longPressOpts) => (
-        <rect
-            x={rx} y={zH} width={rw} height={zHh}
-            fill={dc} fillOpacity={dop} stroke={dc} strokeWidth={ds}
-            style={{ cursor: 'pointer' }}
-            onMouseDown={() => longPressOpts && bpmLongPress.start(handleBpmLongPress)}
-            onMouseUp={(e) => { e.stopPropagation(); longPressOpts ? bpmLongPress.end(e, onUp) : onUp(); }}
-            onClick={(e) => e.stopPropagation()}
-            onMouseLeave={() => longPressOpts && bpmLongPress.cancel()}
-            onTouchStart={() => longPressOpts && bpmLongPress.start(handleBpmLongPress)}
-            onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); longPressOpts ? bpmLongPress.end(e, onUp) : onUp(); }}
-        />
-    );
-
     return (
         <g data-settings-keepalive="">
             {/* Tempo term — clickable to open tempo word picker */}
@@ -156,27 +111,22 @@ const BpmControls = ({
                     T
                 </text>
             ) : (
-                <text x={x + 30} y={valueY - 8} className="bpm-value" fontFamily="Maestro" fill={showSettings ? 'var(--accent-yellow)' : undefined}>{bpm}</text>
+                /* #362 (Han): the value IS the setter — a compact hidden fan
+                   (BpmFan draws the at-rest numeral itself in Maestro 32, same
+                   size as the old .bpm-value display). stopPropagation so a tap
+                   on the band never reaches handleSheetMusicClick. */
+                <g onClick={(e) => e.stopPropagation()}>
+                    <BpmFan
+                        cx={x + 55}
+                        centerY={valueY - 14}
+                        bpm={bpm}
+                        min={BPM_MIN}
+                        max={BPM_MAX}
+                        onCommit={handleBpmChangeWrapper}
+                        debugMode={debugMode}
+                    />
+                </g>
             )}
-
-            {/* -- / - / + / ++ indicators */}
-            {(showBpmControls || showSettings) && (
-                <>
-                    <text x={x - 12} y={valueY - 5} className="measure-indicator" fontSize="10">--</text>
-                    <text x={x + 17} y={valueY - 5} className="measure-indicator">-</text>
-                    <text x={x + 70} y={valueY - 4} className="measure-indicator">+</text>
-                    <text x={x + 91} y={valueY - 4} className="measure-indicator" fontSize="10">++</text>
-                </>
-            )}
-
-            {/* -- (outer left): jump to next lower multiple of 5 */}
-            {mkRect(zL2, zL2w, bpmDecrementFive, false)}
-            {/* -  (inner left): jump to next lower integer, long-press = prompt */}
-            {mkRect(zL1, zL1w, bpmDecrement, true)}
-            {/* +  (inner right): jump to next higher integer, long-press = prompt */}
-            {mkRect(zR1, zR1w, bpmIncrement, true)}
-            {/* ++ (outer right): jump to next higher multiple of 5 */}
-            {mkRect(zR2, zR2w, bpmIncrementFive, false)}
 
             {/* TAP button — always visible in settings, appears briefly after first BPM interaction */}
             {(showBpmControls || showSettings) && (

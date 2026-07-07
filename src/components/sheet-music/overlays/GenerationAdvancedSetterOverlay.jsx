@@ -56,8 +56,6 @@ const PX_PER_STEP = FAN_PX_PER_STEP;   // shared with fanCarousels (§6d)
 const SPAN_X_SPACING = 18;      // span/smallest-note horizontal fan spacing — TIGHTER than the
                                 // transposition X_SPACING=30 (Han UAT: "afstand tussen noten is groter").
 const C4_MIDI = 60;
-const B4_MIDI = 71;             // treble smallest-note anchor = middle staff line
-const D3_MIDI = 50;             // bass smallest-note anchor = middle staff line
 
 const COLOR = 'var(--text-primary)';
 const LOW = 'var(--text-lowlight)';
@@ -257,15 +255,19 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
 // ── SMALLEST NOTE — FLAT tangens carousel of REAL melody notes ────────────────────────────────────
 // Renders each duration as a FULL melody note (head+stem+flag+dot via StaffMelodyNote — the existing
 // melody-note renderer, Han UAT 2026-06-27: "gebruik bestaande melody-note functie (zoals in de color
-// setter carousel)"), NOT a single Maestro glyph. All notes sit on the staff's middle line
-// (B4 treble / D3 bass) — only the X fans (Han UAT: "smallest note staan niet allemaal op b4 hoogte").
+// setter carousel)"), NOT a single Maestro glyph. All notes sit on the staff's MIDDLE LINE — only
+// the X fans (Han UAT: "smallest note staan niet allemaal op b4 hoogte").
+// #362 (Han: "percussie smallest-note staat te hoog"): the anchor was resolved via a note name
+// (B4/D3) through getNoteAbsoluteY, and the percussion clef's mapping put that note ABOVE the middle
+// line. The anchor IS the middle line by definition, so derive it from staffStart directly (§6c) —
+// clef-independent, and it lets the CHORDS balk host this fan on a virtual staff too.
 // Active note full size; neighbours shrink + dim. Durations (ticks) derived from SMALLEST_NOTE_DENOMS.
-const SmallestNoteFanCarousel = ({ cx, staffStart, clef, staff, anchorMidi, activeIndex, onCommit, fieldLines, debugMode }) => {
+const SmallestNoteFanCarousel = ({ cx, staffStart, activeIndex, onCommit, fieldLines, debugMode }) => {
   const { effIndex, dragging, bind } = useTangensDrag(activeIndex, SMALLEST_NOTE_DENOMS.length - 1, onCommit, PX_PER_STEP, 1);
-  const anchorY = getNoteAbsoluteY(getNoteFromValue(anchorMidi), staffStart, clef, staff);
+  const anchorY = staffStart + 20; // middle of the five 10-unit-spaced staff lines
   const out = [];
   for (let i = Math.floor(effIndex) - 4; i <= Math.ceil(effIndex) + 4; i++) {
-    if (i < 0 || i > SMALLEST_NOTE_DENOMS.length - 1 || anchorY == null) continue;
+    if (i < 0 || i > SMALLEST_NOTE_DENOMS.length - 1) continue;
     const denom = SMALLEST_NOTE_DENOMS[i];
     const t = i - effIndex;
     const isActive = i === Math.round(effIndex);
@@ -282,7 +284,7 @@ const SmallestNoteFanCarousel = ({ cx, staffStart, clef, staff, anchorMidi, acti
     );
   }
   const bandH = dragging ? 150 : 110;
-  const bandTop = (anchorY ?? staffStart + 20) - bandH / 2;
+  const bandTop = anchorY - bandH / 2;
   const bandW = 6 * SPAN_X_SPACING + 24;
   return (
     <g>
@@ -387,9 +389,9 @@ const GenerationAdvancedSetterOverlay = ({
   const COL_HEADERS = ['variability', 'span', 'tuplets', 'smallest note'];
 
   const rows = [
-    { key: 'treble', clef: 'treble', staff: 'treble', centerY: trebleStart + 20, staffStart: trebleStart, smallestMidi: B4_MIDI, show: isTrebleVisible },
-    { key: 'bass', clef: 'bass', staff: 'bass', centerY: bassStart + 20, staffStart: bassStart, smallestMidi: D3_MIDI, show: isBassVisible },
-    { key: 'percussion', clef: 'percussion', staff: 'percussion', centerY: percussionStart + 20, staffStart: percussionStart, smallestMidi: D3_MIDI, show: isPercussionVisible },
+    { key: 'treble', clef: 'treble', staff: 'treble', centerY: trebleStart + 20, staffStart: trebleStart, show: isTrebleVisible },
+    { key: 'bass', clef: 'bass', staff: 'bass', centerY: bassStart + 20, staffStart: bassStart, show: isBassVisible },
+    { key: 'percussion', clef: 'percussion', staff: 'percussion', centerY: percussionStart + 20, staffStart: percussionStart, show: isPercussionVisible },
   ].filter(r => r.show);
 
   // #162 rework: the row's REAL clef comes from its instrument settings (falling
@@ -477,8 +479,7 @@ const GenerationAdvancedSetterOverlay = ({
             />
 
             <SmallestNoteFanCarousel
-              cx={cols[3]} staffStart={row.staffStart} clef={row.clef} staff={row.staff}
-              anchorMidi={row.smallestMidi}
+              cx={cols[3]} staffStart={row.staffStart}
               activeIndex={idxOf(SMALLEST_NOTE_DENOMS, cfg?.smallestNoteDenom ?? 4)}
               onCommit={(i) => { fireInteraction(); set(p => ({ ...p, smallestNoteDenom: SMALLEST_NOTE_DENOMS[i] })); }}
               fieldLines={[]} /* header 'smallest note' suffices (Han UAT: redundant) */
@@ -493,6 +494,30 @@ const GenerationAdvancedSetterOverlay = ({
           usually FALSE in generation-advanced edit mode, so the whole chord setter vanished. The
           passing-chords toggle is part of THIS overlay's contract, so it renders whenever the overlay
           is mounted. */}
+      {/* #362 (Han): the chords balk gets its own VARIABILITY + SMALLEST NOTE —
+          the same fans as the melodic rows (they sit under the same column
+          headers), writing chordSettings.rhythmVariability /.smallestNoteDenom
+          (both consumed by the chord generation in useMelodyState + Sequencer). */}
+      <LeftFanCarousel
+        cx={cols[0]} centerY={CHORD_ROW_Y}
+        items={RHYTHM_VARIABILITY}
+        compact
+        activeIndex={idxOf(RHYTHM_VARIABILITY, chordSettings?.rhythmVariability ?? 0)}
+        onCommit={(i) => { fireInteraction(); setChordSettings(p => ({ ...p, rhythmVariability: RHYTHM_VARIABILITY[i] })); }}
+        renderLabel={(v) => String(v)}
+        fieldLines={[]}
+        debugMode={debugMode}
+      />
+      <SmallestNoteFanCarousel
+        /* No real staff on the chords row — anchor on a VIRTUAL staff whose
+           middle line is the row's note line (CHORD_ROW_Y − 6), same trick as
+           the complexity stack in the GENERATION setter. */
+        cx={cols[3]} staffStart={CHORD_ROW_Y - 26}
+        activeIndex={idxOf(SMALLEST_NOTE_DENOMS, chordSettings?.smallestNoteDenom ?? 4)}
+        onCommit={(i) => { fireInteraction(); setChordSettings(p => ({ ...p, smallestNoteDenom: SMALLEST_NOTE_DENOMS[i] })); }}
+        fieldLines={[]}
+        debugMode={debugMode}
+      />
       {(
         <PassingChordsFan
           cx={cols[2]} centerY={CHORD_ROW_Y}

@@ -462,23 +462,15 @@ const InstrumentStaffOverlay = ({
     const bottomStart = isPercussionVisible && percussionStart != null ? percussionStart
         : isBassVisible ? bassStart : trebleStart;
 
-    // CHORD ROW PLACEMENT (Han #163 F): previously the chord carousel was jammed just below the
-    // attribution text (bottomStart + NAME_DY + 13 + 20), so it sat cramped under the last staff's
-    // NAME row instead of reading as its OWN row. Fix: place it ONE STAFF STRIDE below the bottom
-    // staff — the SAME spacing the real staves use among themselves (§6c — derive the stride from
-    // the existing layout, don't hardcode). The stride is read from the gap between two adjacent
-    // VISIBLE staves; if only one staff is visible we fall back to a sensible content-height stride
-    // (the per-staff carousel content spans ~NAME_DY+attribution below its staffStart).
-    const staffStride = (() => {
-        if (isPercussionVisible && isBassVisible && percussionStart != null) return percussionStart - bassStart;
-        if (isBassVisible && isTrebleVisible) return bassStart - trebleStart;
-        if (isPercussionVisible && isTrebleVisible && percussionStart != null) return percussionStart - trebleStart;
-        // Single-staff fallback: one carousel's full content height + a small gap. NAME_DY (58) is
-        // the name row; +13 attribution; +20 breathing gap — matches the old offset magnitude so a
-        // single-staff layout keeps a comparable chord-row position.
-        return NAME_DY + 13 + 20;
-    })();
-    const chordCarouselStart = bottomStart + staffStride;
+    // CHORD ROW PLACEMENT (#362, Han: "chords rij moet op dezelfde plek staan als
+    // in de bladmuziek"): the sheet draws chord LABELS on the band above the
+    // treble staff (the CHORD_ROW_Y line the other setters use, trebleStart−64).
+    // The old below-percussion placement was both off-screen and against the
+    // "settings gaan op in de bladmuziek" philosophy. The carousel's content
+    // spans staffStart−18 (brackets) … staffStart+58 (name row), so anchoring at
+    // trebleStart−78 puts the cards inside the chord-label band, ending just
+    // above the treble staff.
+    const chordCarouselStart = trebleStart - 78;
 
     return (
         <g className="instrument-overlay" onClick={(e) => e.stopPropagation()}>
@@ -522,12 +514,12 @@ const InstrumentStaffOverlay = ({
                 style={{ pointerEvents: 'none' }}>
                 {ICON_ATTRIBUTION}
             </text>
-            {/* CHORD INSTRUMENT ROW (Han #163 AC3): always visible — the chord staff carousel sits
-                below the attribution line, regardless of chord-staff visibility. Han Q3 correction:
-                "chord row altijd zichtbaar in alle settings". Uses the same ITEMS + StaffCarousel
-                as the other rows (§6d, no per-row hacks). A "Chords" label sits above it. */}
-            <text x={centerX} y={chordCarouselStart - 6}
-                textAnchor="middle" fontSize={9} fontFamily="sans-serif" fontWeight="bold"
+            {/* CHORD INSTRUMENT ROW (Han #163 AC3, repositioned #362): always visible, ON the
+                sheet's chord-label band above the treble staff. Uses the same ITEMS +
+                StaffCarousel as the other rows (§6d, no per-row hacks). The CHORDS label sits
+                to the LEFT (the band has no vertical room above the cards). */}
+            <text x={startX + 4} y={chordCarouselStart + 30}
+                textAnchor="start" fontSize={9} fontFamily="sans-serif" fontWeight="bold"
                 fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
                 CHORDS
             </text>

@@ -1,8 +1,10 @@
 import React from 'react';
 import NonLinearCarousel from './NonLinearCarousel';
-import { renderCarouselOptionGlyph, renderRepeatGlyph, renderStaffCardGlyph } from './carouselOptionGlyph';
+import { renderCarouselOptionGlyph, renderRepeatGlyph, renderStaffCardGlyph, MiniRepeatSign } from './carouselOptionGlyph';
 import { EXERCISES, AXES } from '../../../exercises/exerciseIndex';
 import { useProfile } from '../../../contexts/ProfileContext';
+import { BpmFan } from './fanCarousels';
+import { BPM_MIN, BPM_MAX } from '../BpmControls';
 
 // ── In-staff EXERCISE setter (#266 rework 3, epic #245, Han 2026-07-03/05) ───
 //
@@ -39,6 +41,10 @@ const ExerciseStaffOverlay = ({
     onAxisChange,
     onStartExercise,
     onSettingsInteraction,
+    // #362: the fixed-tempo BPM is settable HERE too — same hidden fan as
+    // BpmControls (shared BpmFan, §6d).
+    bpm,
+    onBpmChange,
     debugMode = false,
 }) => {
     // #268: persistent per-exercise progress (runs / melodies) from the profile —
@@ -118,6 +124,20 @@ const ExerciseStaffOverlay = ({
                 onSelect={selectAxis('tempo')}
                 debugMode={debugMode}
             />
+            {/* #362: with FIXED tempo the BPM value sits right of the axis as the
+                same hidden vertical fan as the header BpmControls (drag = sweep
+                tempi in 5-steps). Hidden in rubato — there is no tempo to set. */}
+            {axes?.tempo === 'fixed' && onBpmChange && (
+                <BpmFan
+                    cx={startX + 125}
+                    centerY={topStaff - 65} /* at-rest baseline = the ♩=N value line (−59) */
+                    bpm={bpm}
+                    min={BPM_MIN}
+                    max={BPM_MAX}
+                    onCommit={(v) => { onSettingsInteraction?.(); onBpmChange(v); }}
+                    debugMode={debugMode}
+                />
+            )}
 
             {/* REPEAT — #361 (Han): op DEZELFDE plek als in de playback settings
                 (x = startX + 0.85·(systemEndX−startX), y = de CHORD_ROW_Y-lijn,
@@ -137,6 +157,11 @@ const ExerciseStaffOverlay = ({
                 onSelect={selectAxis('evaluation')}
                 debugMode={debugMode}
             />
+            {/* #362 (Han): repeats > 1 → the notation sign the number stands for
+                (mini end-repeat), same placement as the PLAYBACK repeats setter. */}
+            {axes?.evaluation !== 1 && (
+                <MiniRepeatSign x={startX + 0.85 * ((endX + 5) - startX) + 108} y={topStaff - 80} h={24} />
+            )}
 
             {/* MELODY (left) + INPUT (right) — icon cards on the second staff. */}
             {axisCaption(startX + width * 0.28, rowStaff - 6, 'MELODY')}

@@ -1432,7 +1432,8 @@ class Sequencer {
 
       const chordGenSettings = {
         notesPerMeasure: seqStructuralCount,
-        smallestNoteDenom: timeSignature[1] || 4,
+        // #362: mirrors useMelodyState — chords' own smallest-note setting.
+        smallestNoteDenom: chordSettings?.smallestNoteDenom ?? (timeSignature[1] || 4),
         rhythmVariability: chordSettings?.rhythmVariability || 0,
         enableTriplets: false,
         notePool, // Always Chord[]

@@ -92,3 +92,33 @@ export const LeftFanCarousel = ({
         </g>
     );
 };
+
+// ── BPM fan (#362, Han: "BPM als hidden vertical fan — ook in exercises") ────
+// The BPM value becomes the same compact hidden fan as the volume cells: at
+// rest only the Maestro numeral shows (visually identical to the old static
+// .bpm-value display); dragging fans the neighbouring tempi out. Items are
+// multiples of 5 across the range PLUS the exact current bpm — tap-tempo can
+// land on any integer, and the at-rest label must always show the REAL value.
+// Shared by BpmControls and the exercise TEMPO row so the two never drift (§6d).
+export const BpmFan = ({ cx, centerY, bpm, min, max, onCommit, debugMode, activeLabelSize = 32 }) => {
+    const cur = Math.round(bpm);
+    const items = React.useMemo(() => {
+        const vals = new Set([cur]);
+        for (let v = Math.ceil(min / 5) * 5; v <= max; v += 5) vals.add(v);
+        return [...vals].sort((a, b) => a - b);
+    }, [cur, min, max]);
+    return (
+        <LeftFanCarousel
+            cx={cx} centerY={centerY}
+            items={items}
+            activeIndex={items.indexOf(cur)}
+            onCommit={(i) => onCommit(items[i])}
+            renderLabel={(v) => String(v)}
+            labelFontFamily="Maestro"
+            activeLabelSize={activeLabelSize}
+            compact
+            bandW={56}
+            debugMode={debugMode}
+        />
+    );
+};

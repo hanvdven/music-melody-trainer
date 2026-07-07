@@ -68,6 +68,25 @@ export const renderRepeatGlyph = (item, active, baselineY) => {
     );
 };
 
+/**
+ * Mini END-REPEAT barline (#362, Han: "herhalingstekens naast de repeats-setter
+ * bij repeats>1"). Same construction as BarlinesLayer's end-repeat sign —
+ * Maestro 'k' dots + thin line + thick bar, in the same left-to-right order —
+ * scaled down to a header-height hint. Shared by the PLAYBACK repeats setter
+ * and the exercise REPEAT axis so the sign never drifts per consumer (§6d).
+ * (x, y) = top of the THIN line; the thick bar sits right of it.
+ */
+export const MiniRepeatSign = ({ x = 0, y = 0, h = 24, color = 'var(--text-dim)' }) => (
+    <g style={{ pointerEvents: 'none' }}>
+        <text x={x - 6} y={y + h * 0.45} fontSize={h * 0.5} fontFamily="Maestro"
+            fill={color} textAnchor="middle">k</text>
+        <text x={x - 6} y={y + h * 0.7} fontSize={h * 0.5} fontFamily="Maestro"
+            fill={color} textAnchor="middle">k</text>
+        <path d={`M ${x} ${y} V ${y + h}`} stroke={color} strokeWidth="1" />
+        <rect x={x + 3} y={y} width={2.5} height={h} fill={color} />
+    </g>
+);
+
 export const renderCarouselOptionGlyph = (item, active, baselineY) => {
     const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
     return (

@@ -4431,3 +4431,57 @@ awaits Han's advancing-semantics answers; touches §6-documented playback invari
 `src/components/controls/PlaybackSettings.jsx`, `src/contexts/ProfileContext.jsx` (+test),
 `overlays/ExerciseStaffOverlay.jsx`, `overlays/fanCarousels.jsx` (new),
 `overlays/GenerationAdvancedSetterOverlay.jsx`, `overlays/SettingsOverlay.jsx`.
+
+### §51. UI tweaks round 2 — pass 2: generation overhaul + BPM fan + repeat signs (#362, 2026-07-07)
+
+**Purpose:** the heavy half of Han's #361 harmonisation batch (split per §9): the GENERATION
+setter's content fields render like the sheet itself, BPM becomes a hidden fan, and several
+setter-placement corrections.
+
+**How it works:**
+- **Notes/measure = a REAL mini-measure** (`RhythmMeasureGlyph`): the derived
+  `rhythmPatternDurations` pattern goes through `processMelodyAndCalculateSlots` +
+  `MelodyNotesLayer` (the ClefStaffOverlay recipe: neutral layer props, sentinel `allOffsets`,
+  `previewMode=color`), so 8ths/16ths BEAM per beat exactly like the sheet. The flag-only
+  `RhythmPatternGlyph` is deleted (§7). The count sits BELOW each pattern as a Maestro numeral
+  (24); n=0 keeps its icon + AUTO label.
+- **Chord complexity = the real stack** (`ComplexityChordGlyph`): each option renders its
+  stacked pitches (root C4 … exotic C-E-G-B-D5) via `StaffQuarterNote` on a VIRTUAL staff
+  centred on the chords row — Han: "geen plaatjes maar noten".
+- **Note pool = colour-setter geometry**: stride 115 + the colour setter's tall hit box
+  (top −42, h 104) so ledger-line heads are never clipped; head spacing 16 (= the colour
+  setter's NOTE_SPACING).
+- **Labels ABOVE, brackets = groupings only**: non-family fields use the new
+  `labelAbove` caption (plain caps above the carousel); the dashed blokhaken are reserved for
+  REAL groupings (randomization families). Families are tinted with the existing `--cat-*`
+  palette (`FAMILY_COLORS`: random→synth, arp→strings, walk→wind, chords→guitars, fixed→keys,
+  stylized→percussion) on bracket + active item; rule icons grew to 24.
+- **BPM = hidden vertical fan** (`BpmFan` in `fanCarousels.jsx`): items are multiples of 5
+  across [BPM_MIN, BPM_MAX] PLUS the exact current bpm (tap-tempo lands anywhere, and the
+  at-rest Maestro-32 numeral must show the REAL value). BpmControls' -/+/--/++ zones and the
+  long-press `window.prompt` are GONE (the fan + TAP replace them). The exercise setter shows
+  the same fan beside the TEMPO axis when tempo=fixed (hidden in rubato).
+- **Repeat signs**: `MiniRepeatSign` (carouselOptionGlyph) draws the end-repeat barline
+  (Maestro 'k' dots + thin + thick, BarlinesLayer's construction) beside the PLAYBACK repeats
+  setter and the exercise REPEAT axis whenever repeats > 1 — the sign the number stands for.
+- **GEN.ADV chords balk** gains variability + smallest-note fans writing
+  `chordSettings.rhythmVariability` / `.smallestNoteDenom`; the chord generators
+  (useMelodyState + Sequencer, both sites identically) now read
+  `chordSettings?.smallestNoteDenom ?? (ts[1] || 4)`.
+- **Percussion smallest-note height fix**: the fan's anchor was a note name (B4/D3) through
+  `getNoteAbsoluteY`, which the percussion clef mapped ABOVE the middle line. The anchor IS the
+  middle line by definition → `staffStart + 20` directly (§6c), which also lets the chords balk
+  host the fan on a virtual staff.
+- **Instrument-setter CHORDS row** moved from below percussion to the chord-label band above
+  the treble staff (Han: "settings gaan op in bladmuziek"; below percussion was off-screen).
+
+**Invariants:** generation pipeline untouched except the chord `smallestNoteDenom` read (both
+call sites changed identically — they MUST stay mirrored); `BpmFan` is the only BPM setter
+besides TAP, and both clamp to [BPM_MIN, BPM_MAX] exported from BpmControls.
+
+**Files:** `overlays/generationNoteGlyphs.jsx`, `overlays/GenerationSetterOverlay.jsx`,
+`CarouselFieldItem.jsx`, `overlays/fanCarousels.jsx`, `BpmControls.jsx`,
+`overlays/ExerciseStaffOverlay.jsx`, `overlays/SettingsOverlay.jsx`,
+`overlays/carouselOptionGlyph.jsx`, `overlays/GenerationAdvancedSetterOverlay.jsx`,
+`overlays/InstrumentStaffOverlay.jsx`, `SheetMusic.jsx`, `hooks/useMelodyState.js`,
+`audio/Sequencer.js`.

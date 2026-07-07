@@ -18,7 +18,9 @@ import {
 import { RULE_FAMILIES, PERC_FAMILIES } from '../../../constants/instrumentRules';
 import { PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { CarouselField } from '../CarouselFieldItem';
-import { NotePoolGlyph, RhythmPatternGlyph, RomanProgressionGlyph } from './generationNoteGlyphs';
+import {
+  NotePoolGlyph, RhythmMeasureGlyph, ComplexityChordGlyph, RomanProgressionGlyph,
+} from './generationNoteGlyphs';
 
 // ── GENERATION setter — CAROUSEL STYLE (Han 2026-06-22) ────────────────────────────────────────
 // REBUILD: previously each field was a tiny SvgSetter stepper (the smallest-note Maestro glyphs were
@@ -51,11 +53,28 @@ const LABEL_FONT_SIZE = 11;   // readable label (§ task: ~11-12).
 const BRACKET_DY = -32;       // dashed category/field bracket offset above the row centre.
 const HIT_TOP = -30;          // carousel hit/debug box top offset from the row centre.
 const HIT_H = 56;             // carousel hit/debug box height.
-// #295 sizing for the inline-note content fields (Han: follow the colour carousel).
-const POOL_BASE = 66;         // note-pool item stride (example runs are ~56-80 wide)
-const PATTERN_BASE = 84;      // rhythm-pattern item stride (a full measure of notes)
-const RULE_ICON_SIZE = 22;    // roomier randomization icons (Han: "groter icoon")
+// #295/#362 sizing for the inline-note content fields (Han: follow the colour carousel).
+// #362: the pool carousel is now EXACTLY the colour setter's geometry (Han: "precies
+// even breed en hoog als de colour setter") — same stride, same tall hit box.
+const POOL_BASE = 115;        // note-pool item stride = colour setter's option stride
+const POOL_HIT_TOP = -42;     // colour setter's hit-box top offset from the row centre
+const POOL_HIT_H = 104;       // colour setter's hit-box height
+const PATTERN_BASE = 100;     // rhythm-measure item stride (PATTERN_W 92 + breathing room)
+const RULE_ICON_SIZE = 24;    // roomier randomization icons (Han: "groter icoon", #362)
 const CONTENT_LABEL_DY = 28;  // labels sit just BELOW the staff (staffStart+48) for content rows
+const COUNT_FONT_SIZE = 24;   // Maestro numeral under each rhythm-measure item (#362)
+
+// #362 (Han): randomization families take CATEGORY COLOURS — reuse the existing
+// --cat-* palette (instrument categories) instead of inventing new colours (§6c).
+const FAMILY_COLORS = {
+  random: 'var(--cat-synth)',
+  arp: 'var(--cat-strings)',
+  walk: 'var(--cat-wind)',
+  chords: 'var(--cat-guitars)',
+  fixed: 'var(--cat-keys)',
+  stylized: 'var(--cat-percussion)',
+};
+const familyColor = (fam) => FAMILY_COLORS[fam] ?? null;
 // Horizontal column centres as fractions of the staff width (3 fields spread across the balk).
 const COL_FRACS = [0.20, 0.50, 0.80];
 
@@ -100,7 +119,11 @@ const STRATEGY_ITEMS = CHORD_STRATEGIES.map(value => ({
   Icon: FIELD_ITEM_ICONS.strategy[value],
 }));
 // Numeric carousels: number IS the label, plus a small generic icon (§ task).
-const NOTES_PER_MEASURE_ITEMS = NOTES_PER_MEASURE.map(v => ({ value: v, label: String(v), Icon: NUMERIC_ICONS.count }));
+// #362: n>0 items drop the sans label — the count is a Maestro numeral under the
+// pattern (drawn in renderContent); n=0 keeps its icon + AUTO label fallback.
+const NOTES_PER_MEASURE_ITEMS = NOTES_PER_MEASURE.map(v => ({
+  value: v, label: v === 0 ? 'auto' : '', Icon: NUMERIC_ICONS.count,
+}));
 const CHORD_COUNT_ITEMS = CHORD_COUNTS.map(o => ({ ...o, Icon: NUMERIC_ICONS.count }));
 
 // Match the current enabledPads array to a preset NAME (mirrors RuleSelector.sameSet fallback).
@@ -172,11 +195,18 @@ const GenerationSetterOverlay = ({
   const fieldFor = (row, colIdx) => {
     if (row.isChords) {
       if (colIdx === 0) {
-        // melody notes → chord complexity
+        // melody notes → chord complexity. #362 (Han): "geen plaatjes" — each
+        // option is the REAL stacked chord it stands for (canonical noteheads),
+        // the stack IS the item; the sans label below identifies it.
         const items = COMPLEXITY_ITEMS;
         const cur = chordSettings?.complexity || 'triad';
         return {
-          items, activeIndex: idxOf(items, cur), fieldLabel: 'complexity',
+          items, activeIndex: idxOf(items, cur), labelAbove: 'complexity',
+          renderContent: (item, active, color) => (
+            <ComplexityChordGlyph complexity={item.value} centerY={row.centerY} color={color} />
+          ),
+          // Stack reaches ~centerY+34 (C4 head) → label clears it; hit box grows to match.
+          labelDy: CONTENT_LABEL_DY + 14, hitTop: -32, hitHeight: 84,
           onSelect: (item) => setChordSettings(p => ({ ...p, complexity: item.value })),
         };
       }
@@ -186,7 +216,7 @@ const GenerationSetterOverlay = ({
         const items = STRATEGY_ITEMS.map(it => ({ ...it, romanLabel: it.label, label: '' }));
         const cur = chordSettings?.strategy || 'tonic-tonic-tonic';
         return {
-          items, activeIndex: idxOf(items, cur), fieldLabel: 'strategy',
+          items, activeIndex: idxOf(items, cur), labelAbove: 'strategy',
           renderContent: (item, active, color) => (
             <RomanProgressionGlyph label={item.romanLabel} y={row.centerY + 2} color={color} active={active} />
           ),
@@ -197,7 +227,7 @@ const GenerationSetterOverlay = ({
       const items = CHORD_COUNT_ITEMS;
       const cur = chordSettings?.chordCount ?? 1;
       return {
-        items, activeIndex: idxOf(items, cur), fieldLabel: 'chords / measure',
+        items, activeIndex: idxOf(items, cur), labelAbove: 'chords / measure',
         onSelect: (item) => setChordSettings(p => ({ ...p, chordCount: item.value })),
       };
     }
@@ -215,7 +245,7 @@ const GenerationSetterOverlay = ({
         const items = PERC_POOL_ITEMS;
         const cur = percPresetName(cfg?.enabledPads);
         return {
-          items, activeIndex: idxOf(items, cur), fieldLabel: 'percussion',
+          items, activeIndex: idxOf(items, cur), labelAbove: 'percussion',
           onSelect: (item) => set(p => ({ ...p, enabledPads: [...PERCUSSION_PRESETS[item.value]] })),
         };
       }
@@ -228,12 +258,15 @@ const GenerationSetterOverlay = ({
       const staffStart = row.centerY - 20;
       const clef = cfg?.clef || (row.key === 'bass' ? 'bass' : 'treble');
       return {
-        items, activeIndex: idxOf(items, cur), fieldLabel: 'note pool',
+        items, activeIndex: idxOf(items, cur), labelAbove: 'note pool',
         renderContent: (item, active, color) => (
           <NotePoolGlyph pool={item.value} staffStart={staffStart} clef={clef}
             staffType={row.key} color={color} />
         ),
+        // #362: colour-setter geometry — same stride AND same tall hit box, so
+        // off-staff heads (C4 ledger notes) are never clipped out of the tap zone.
         baseWidth: POOL_BASE, visibleHalf: 1,
+        hitTop: POOL_HIT_TOP, hitHeight: POOL_HIT_H,
         labelDy: CONTENT_LABEL_DY,
         onSelect: (item) => set(p => ({ ...p, notePool: item.value })),
       };
@@ -245,27 +278,39 @@ const GenerationSetterOverlay = ({
       const cur = cfg?.randomizationRule || (isPerc ? 'uniform' : 'uniform');
       return {
         items, activeIndex: idxOf(items, cur),
-        familyMode: true, familyName,
+        // #362 (Han): family brackets AND the active item take the family's
+        // category colour (--cat-* palette), bigger icons.
+        familyMode: true, familyName, familyColor,
+        colorOf: (item) => familyColor(item.family),
         iconSize: RULE_ICON_SIZE, labelDy: CONTENT_LABEL_DY,
         // Keep `type` set alongside the rule (mirrors the previous stepper wiring).
         onSelect: (item) => set(p => ({ ...p, randomizationRule: item.value, type: p.type ?? row.key })),
       };
     }
-    // notes per measure → notesPerMeasure. #295 (Han): every option 1..16 renders
-    // as its REAL rhythm pattern on the middle staff line (whole → mixed 8ths →
-    // 16ths, derived formulaically — see rhythmPatternDurations). n=0 (auto)
-    // keeps its numeric label only.
+    // notes per measure → notesPerMeasure. #295/#362 (Han): every option 1..16
+    // renders as its REAL rhythm pattern — now through MelodyNotesLayer, so 8ths/
+    // 16ths BEAM per beat exactly like the sheet ("volgens bestaande protocol
+    // renderMelodyNotes"). The count sits below as a Maestro numeral (same font
+    // as the BPM/repeats displays); n=0 (auto) keeps its icon + AUTO label.
     const items = NOTES_PER_MEASURE_ITEMS;
     const cur = cfg?.notesPerMeasure || 0;
     const rowStaffStart = row.centerY - 20;
     return {
-      items, activeIndex: idxOf(items, cur), fieldLabel: 'notes / measure',
+      items, activeIndex: idxOf(items, cur), labelAbove: 'notes / measure',
       renderContent: (item, active, color) => (
         item.value > 0
-          ? <RhythmPatternGlyph n={item.value} staffStart={rowStaffStart} color={color} />
+          ? (
+            <g>
+              <RhythmMeasureGlyph n={item.value} staffStart={rowStaffStart} color={color} />
+              <text x={0} y={row.centerY + CONTENT_LABEL_DY + 16} textAnchor="middle"
+                fontSize={COUNT_FONT_SIZE} fontFamily="Maestro" fill={color}
+                style={{ pointerEvents: 'none' }}>{item.value}</text>
+            </g>
+          )
           : null
       ),
       baseWidth: PATTERN_BASE, visibleHalf: 1,
+      hitTop: HIT_TOP, hitHeight: HIT_H + 24,
       labelDy: CONTENT_LABEL_DY,
       onSelect: (item) => set(p => ({ ...p, notesPerMeasure: item.value })),
     };
@@ -309,16 +354,19 @@ const GenerationSetterOverlay = ({
                 // #295: content fields (inline notes / rhythm patterns) override
                 // stride, window, icon size and label position per field.
                 baseWidth={f.baseWidth ?? CAROUSEL_BASE}
-                hitTop={HIT_TOP}
-                hitHeight={HIT_H}
+                hitTop={f.hitTop ?? HIT_TOP}
+                hitHeight={f.hitHeight ?? HIT_H}
                 iconSize={f.iconSize ?? ICON_SIZE}
                 iconDy={ICON_DY}
                 labelDy={f.labelDy ?? LABEL_DY}
                 labelFontSize={LABEL_FONT_SIZE}
                 bracketDy={BRACKET_DY}
                 fieldLabel={f.fieldLabel}
+                labelAbove={f.labelAbove}
                 familyMode={f.familyMode}
                 familyName={f.familyName}
+                familyColor={f.familyColor}
+                colorOf={f.colorOf}
                 renderContent={f.renderContent}
                 visibleHalf={f.visibleHalf ?? 2}
                 debugMode={debugMode}

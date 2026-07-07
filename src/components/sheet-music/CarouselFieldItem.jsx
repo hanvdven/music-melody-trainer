@@ -48,12 +48,14 @@ const renderLucideIcon = (IconComp, { size, iconY }) => {
 //
 // SIZING is passed in as named consts from the owning overlay (Han 2026-06-22 wants all sizing as
 // tunable named consts at the overlay top), so this renderer is layout-agnostic.
-export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent }) => {
+export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf }) => {
   // Returns a render-PROP for NonLinearCarousel.renderItem (invoked manually), NOT a React
   // component — so there's no display name to give.
   const renderCarouselItem = (item, i) => {
     const active = i === activeIndex;
-    const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
+    // #362 (Han): category colours per item, like the instrument setter — the
+    // ACTIVE item takes its category tint; inactive stays lowlight.
+    const color = active ? (colorOf?.(item) ?? 'var(--text-primary)') : 'var(--text-lowlight)';
     return (
       // `color` on the group → currentColor for the lucide icon; fill on the <text> for the label.
       <g style={{ pointerEvents: 'none', color }}>
@@ -82,13 +84,13 @@ export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFont
 // One dashed bracket spanning [x1, x2] at vertical `y`, with the UPPERCASE label centred in a gap:
 //   |———— LABEL ————|
 // Returns the two path strings + the label mid-x so the caller can draw two <path>s + a <text>.
-const buildBracket = (x1, x2, y, rawLabel) => {
+const buildBracket = (x1, x2, y, rawLabel, color) => {
   const label = rawLabel.toUpperCase();
   const mid = (x1 + x2) / 2;
   // Estimate label half-width to leave a gap (matches InstrumentStaffOverlay's heuristic).
   const halfText = Math.min((x2 - x1) / 2 - 6, label.length * 3.4 + 4);
   return {
-    label, mid, y,
+    label, mid, y, color,
     leftPath: `M ${x1} ${y + 6} V ${y} H ${mid - halfText}`,
     rightPath: `M ${mid + halfText} ${y} H ${x2} V ${y + 6}`,
   };
@@ -97,12 +99,14 @@ const buildBracket = (x1, x2, y, rawLabel) => {
 // Render the dashed bracket <g> (two paths + centred label). Style matches the instrument carousel
 // brackets exactly: stroke var(--text-primary), strokeWidth 1, dashed 4,3, bold 10px label.
 const BracketSvg = ({ geom }) => (
+  // #362: brackets take their category tint when one is supplied (mirrors
+  // InstrumentStaffOverlay's tinted brackets); default stays --text-primary.
   <g style={{ pointerEvents: 'none' }}>
-    <path d={geom.leftPath} stroke="var(--text-primary)" strokeWidth="1" fill="none" strokeDasharray="4,3" />
-    <path d={geom.rightPath} stroke="var(--text-primary)" strokeWidth="1" fill="none" strokeDasharray="4,3" />
+    <path d={geom.leftPath} stroke={geom.color || 'var(--text-primary)'} strokeWidth="1" fill="none" strokeDasharray="4,3" />
+    <path d={geom.rightPath} stroke={geom.color || 'var(--text-primary)'} strokeWidth="1" fill="none" strokeDasharray="4,3" />
     <text x={geom.mid} y={geom.y} textAnchor="middle" dominantBaseline="middle"
       fontSize={10} fontFamily="sans-serif" fontWeight="bold" letterSpacing={1}
-      fill="var(--text-primary)">{geom.label}</text>
+      fill={geom.color || 'var(--text-primary)'}>{geom.label}</text>
   </g>
 );
 
@@ -131,8 +135,9 @@ const signedDist = (i, pos, n) => ((i - pos + n / 2 + n) % n) - n / 2;
 
 // items: [{ family }]; familyName: (family) => display string; visibleHalf matches the carousel.
 export const familyBrackets = (
-  pos, items, { centerX, bracketY, baseWidth, visibleHalf, edgeX, familyName },
+  pos, items, { centerX, bracketY, baseWidth, visibleHalf, edgeX, familyName, familyColor },
 ) => {
+  const geomPropsColor = (fam) => familyColor?.(fam) ?? null;
   const N = items.length;
   const visible = visibleRange(pos, N, visibleHalf);  // ordered, wrap-aware real indices
   const firstVis = visible[0];
@@ -162,7 +167,8 @@ export const familyBrackets = (
     const xRightRaw = xOffsetForDist(signedDist(r.lastIdx, pos, N), visibleHalf) * baseWidth;
     const x1 = r.firstIdx === firstVis ? (centerX - edgeX) : (centerX + xLeftRaw - baseWidth * 0.42);
     const x2 = r.lastIdx === lastVis ? (centerX + edgeX) : (centerX + xRightRaw + baseWidth * 0.42);
-    return buildBracket(x1, x2, bracketY, familyName(r.family));
+    return buildBracket(x1, x2, bracketY, familyName(r.family),
+      geomPropsColor(r.family));
   });
 };
 
@@ -192,8 +198,13 @@ export const CarouselField = ({
   baseWidth, hitTop, hitHeight, iconSize, iconDy, labelDy, labelFontSize, bracketDy,
   // bracket mode:
   fieldLabel,           // single field-name bracket label (when not family-grouped)
+  // #362 (Han): plain caps label ABOVE the carousel instead of the blokhaken
+  // bracket ("de groupings functie wordt abusievelijk gebruikt als setter label").
+  labelAbove = null,
   familyMode = false,   // true → group items by item.family
   familyName,           // (family) => display string (family mode only)
+  familyColor = null,   // (family) => CSS colour (category tints, #362)
+  colorOf = null,       // (item) => CSS colour for the ACTIVE item (#362)
   // #295: custom item content (inline notes / rhythm patterns / Roman numerals);
   // wide-content fields shrink the window (visibleHalf 1 → 3 visible, like the
   // colour carousel) so neighbouring columns don't collide.
@@ -213,7 +224,7 @@ export const CarouselField = ({
   // Keep pos in sync when the committed activeIndex changes externally (e.g. settings reset).
   React.useEffect(() => { setPos(activeIndex); }, [activeIndex]);
 
-  const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent });
+  const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf });
 
   return (
     <g>
@@ -221,11 +232,19 @@ export const CarouselField = ({
         <FamilyBrackets
           pos={pos}
           items={items}
-          geomProps={{ centerX, bracketY, baseWidth, visibleHalf: VISIBLE_HALF, edgeX, familyName }}
+          geomProps={{ centerX, bracketY, baseWidth, visibleHalf: VISIBLE_HALF, edgeX, familyName, familyColor }}
         />
-      ) : (
+      ) : labelAbove ? (
+        /* #362: field name as a plain caps caption ABOVE the carousel — the
+           dashed blokhaken stay reserved for real groupings (families). */
+        <text x={centerX} y={bracketY} textAnchor="middle" fontSize={10}
+          fontFamily="sans-serif" fontWeight="bold" letterSpacing={1}
+          fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
+          {String(labelAbove).toUpperCase()}
+        </text>
+      ) : fieldLabel ? (
         <FieldNameBracket centerX={centerX} bracketY={bracketY} edgeX={edgeX} label={fieldLabel} />
-      )}
+      ) : null}
       <NonLinearCarousel
         items={items}
         activeIndex={activeIndex}

@@ -1,7 +1,7 @@
 import React from 'react';
 import SvgSetter from '../SvgSetter';
 import NonLinearCarousel from './NonLinearCarousel';
-import { renderRepeatGlyph } from './carouselOptionGlyph';
+import { renderRepeatGlyph, MiniRepeatSign } from './carouselOptionGlyph';
 import { LeftFanCarousel } from './fanCarousels';
 
 // #302: the measures fan drags through every count 1..32 (the old stepper's
@@ -430,6 +430,11 @@ const SettingsOverlay = ({
           cyclical={false} /* #361 (Han): repeats-carousel is niet-periodiek */
           debugMode={debugMode}
         />
+        {/* #362 (Han): repeats > 1 → the actual notation SIGN the number stands
+            for (mini end-repeat: dots + thin + thick) right of the carousel. */}
+        {(playbackConfig.untilCorrect || playbackConfig.repsPerMelody > 1) && (
+          <MiniRepeatSign x={82} y={-26} h={24} />
+        )}
         {/* #230e (Han): "generate after last repeat" toggle. ON (default) = a fresh
             melody generates at the series boundary; OFF = the Sequencer reuses the
             repeat-forever short-circuit and keeps the current melody. Read with

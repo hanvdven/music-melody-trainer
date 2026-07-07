@@ -2858,6 +2858,8 @@ const SheetMusic = ({
                       onAxisChange={onExerciseAxisChange}
                       onStartExercise={onStartExercise}
                       onSettingsInteraction={onSettingsInteraction}
+                      bpm={bpm}
+                      onBpmChange={onBpmChange}
                       debugMode={debugMode}
                     />
                   )}

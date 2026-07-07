@@ -1,6 +1,8 @@
 import React from 'react';
-import { StaffQuarterNote, StaffMelodyNote, NOTE_FONT_SIZE } from '../staffNoteGlyph';
+import { StaffQuarterNote, NOTE_FONT_SIZE } from '../staffNoteGlyph';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
+import MelodyNotesLayer from '../MelodyNotesLayer';
+import { processMelodyAndCalculateSlots } from '../processMelodyAndCalculateSlots';
 
 // ── Inline-note carousel content for the GENERATION setter (#295, Han) ────────
 //
@@ -31,7 +33,7 @@ const POOL_NOTES = {
 // Maestro accidental glyphs shown LEFT of the chromatic run: flat, sharp, natural.
 const CHROMATIC_ACCIDENTALS = ['b', '#', 'n'];
 
-const POOL_NOTE_SPACING = 9;   // x-gap between the example noteheads
+const POOL_NOTE_SPACING = 16;  // x-gap — EXACTLY the colour setter's NOTE_SPACING (#362)
 const ACC_SPACING = 8;         // x-gap between the chromatic accidental glyphs
 const ACC_FONT = 22;           // accidental cluster size (compact — three glyphs must fit)
 
@@ -108,30 +110,91 @@ export function rhythmPatternDurations(n, measureTicks = 48) {
     return slots.flat();
 }
 
-const PATTERN_W = 74; // one measure's worth of pattern width inside a carousel item
+const PATTERN_W = 92; // one measure's worth of pattern width inside a carousel item
+
+// Neutral layer props for the mini-measures below — mirrors ClefStaffOverlay's
+// PERC_LAYER_PROPS recipe (§6c: same MelodyNotesLayer preparation, not a fork).
+const MINI_LAYER_PROPS = {
+    numAccidentals: 0, noteGroupSize: 12, measureLengthSlots: 9999, scaleNotes: [],
+    tonic: '', processedChords: [], inputTestState: null, pixelsPerTick: null,
+    startMeasureIndex: 0, transpositionSemitones: 0, debugMode: false, interactive: false,
+    courtesyAccidentals: false, percussionVoiceSplit: false, noteColoringMode: 'none',
+};
 
 /**
- * One notes-per-measure item: the n-note rhythm pattern as REAL staff notes on
- * the middle line (B4 in treble — Han: "allemaal de middelste"), laid out
- * proportionally to time like real notation. StaffMelodyNote supplies head +
- * stem + flag + dot exactly as renderMelodyNotes draws them (§6d). Flags (not
- * beams) for 8ths/16ths — beaming needs the full beam-group pipeline and is a
- * possible follow-up.
+ * #362 (Han): notes-per-measure rendered "volgens bestaande protocol
+ * renderMelodyNotes" — a REAL mini-measure through MelodyNotesLayer, so eighths
+ * beam per beat and groupings read exactly like the sheet. The pattern comes
+ * from the same derived rhythmPatternDurations; every note sits on the middle
+ * line (B4 in treble).
  */
-export const RhythmPatternGlyph = ({ n, staffStart, color = 'var(--text-primary)' }) => {
+export const RhythmMeasureGlyph = ({ n, staffStart, color = 'var(--text-primary)' }) => {
     const durations = rhythmPatternDurations(n);
     if (!durations.length) return null;
-    const total = durations.reduce((a, b) => a + b, 0);
-    const y = staffStart + 20; // middle staff line
+    const offsets = [];
     let cum = 0;
+    for (const d of durations) { offsets.push(cum); cum += d; }
+    const raw = {
+        notes: durations.map(() => 'B4'),
+        durations,
+        offsets,
+        displayNotes: durations.map(() => 'B4'),
+    };
+    const mel = processMelodyAndCalculateSlots(raw, [4, 4], 12, 48);
+    // Shared x-grid with sentinels — the ClefStaffOverlay recipe (getTickX uses
+    // indexOf − 1, so a leading sentinel lands the first note at startX).
+    const grid = Array.from(new Set(mel.offsets)).sort((a, b) => a - b);
+    const lastOff = grid[grid.length - 1] ?? 0;
+    const allOffsets = [-1, ...grid, lastOff + 1];
+    const slots = Math.max(1, grid.length);
+    const noteW = PATTERN_W / slots;
+    const ox = -PATTERN_W / 2;
     return (
         <g style={{ pointerEvents: 'none' }}>
-            {durations.map((d, i) => {
-                const x = -PATTERN_W / 2 + (cum / total) * PATTERN_W;
-                cum += d;
+            <MelodyNotesLayer
+                {...MINI_LAYER_PROPS}
+                melody={mel}
+                clef="treble"
+                staff="treble"
+                staffYStart={staffStart}
+                startX={ox}
+                noteWidth={noteW}
+                allOffsets={allOffsets}
+                timeSignature={[4, 4]}
+                previewMode={color}
+            />
+        </g>
+    );
+};
+
+// Chord-complexity → the stacked pitches it stands for (built on C so every
+// head is a natural; the stack IS the icon — #362 Han: "geen plaatjes").
+const COMPLEXITY_NOTES = {
+    root: ['C4'],
+    power: ['C4', 'G4'],
+    triad: ['C4', 'E4', 'G4'],
+    seventh: ['C4', 'E4', 'G4', 'B4'],
+    sus: ['C4', 'F4', 'G4'],
+    exotic: ['C4', 'E4', 'G4', 'B4', 'D5'],
+};
+
+/**
+ * #362: chord-complexity item = a REAL stacked chord (canonical noteheads via
+ * StaffQuarterNote). The chords row floats on the chord-label band (no staff),
+ * so the stack anchors on a VIRTUAL staff around the row centre; stems follow
+ * the normal middle-line rule of that virtual staff.
+ */
+export const ComplexityChordGlyph = ({ complexity, centerY, color = 'var(--text-primary)' }) => {
+    const notes = COMPLEXITY_NOTES[complexity] || COMPLEXITY_NOTES.triad;
+    const virtualStaffStart = centerY - 26; // middle line = centerY − 6
+    return (
+        <g style={{ pointerEvents: 'none' }}>
+            {notes.map((nname) => {
+                const y = getNoteAbsoluteY(nname, virtualStaffStart, 'treble', 'treble');
+                if (y == null) return null;
                 return (
-                    <StaffMelodyNote key={i} visualDuration={d} x={x} positionY={y}
-                        staffYStart={staffStart} color={color} />
+                    <StaffQuarterNote key={nname} x={-5} positionY={y}
+                        staffYStart={virtualStaffStart} ledgerYs={[]} color={color} />
                 );
             })}
         </g>
