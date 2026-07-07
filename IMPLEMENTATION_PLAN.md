@@ -7,6 +7,23 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-07 — ✅ Drieluik GEBOUWD: #144 adaptive + #268 persistentie + #300/#302 fans (d03295b)
+
+Han: "werk exercise mode, playback settings tweaks af, implementeer adaptive
+difficulty." ✅ #144: pure engine (`adaptiveDifficulty.js`, getest) — challenge
+zone 0.25–0.45 als outcome-band [0.55,0.75], +4%/−7% stappen, seed vanaf
+werkelijke difficulty; per melodie in onScoreEvent; schrijft de bestaande
+target-sliders (override, Sequencer leest ze al); ADAPTIVE-toggle naast de
+Harmonic-slider. ✅ #268: profiel v3 `exerciseProgress` (melodies/runs/lastAt),
+gevoed door de run-teller; "RUNS N · MELODIES M" onder de actieve preset.
+✅ #300/#302: LeftFanCarousel+DragBand+FieldLabel geëxtraheerd naar gedeelde
+`fanCarousels.jsx` (§6d) met labelFontFamily+compact; volume-cellen = compacte
+Maestro-dynamiekfans (mapping-keuze onder mandaat, op ticket geflagd),
+measures = 1..32-fan. ⏳ Gemotiveerd doorgeschoven: #301 (renderContent-
+fanvariant nodig), #303 (wacht op Hans antwoorden; §6-invarianten), #305 (na
+de rest). Epics #245/#230 status-notes bijgewerkt. 559 tests groen (+7),
+lint 0, build OK. architecture.md §50.
+
 ## 2026-07-07 — ✅ Bord-tooling: #229 burndown + #263 AC-paneel volledig
 
 ✅ #229: Graph-tab → BURNDOWN (interviews: level-gewogen punten, auto-schaal,
