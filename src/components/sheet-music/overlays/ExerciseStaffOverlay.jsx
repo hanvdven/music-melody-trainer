@@ -119,22 +119,21 @@ const ExerciseStaffOverlay = ({
                 debugMode={debugMode}
             />
 
-            {/* REPEAT — at the repeat-sign position (RepeatsControls: baseline
-                trebleStart−25, right-aligned at the system edge). BadgeCheck
-                'until correct' leftmost; same option list as the PLAYBACK
-                repeats carousel (§6c). */}
-            {axisCaption(endX - 60, topStaff - 42, 'REPEAT')}
+            {/* REPEAT — #361 (Han): op DEZELFDE plek als in de playback settings
+                (x = startX + 0.85·(systemEndX−startX), y = de CHORD_ROW_Y-lijn,
+                topStaff − 64). Niet-periodiek; Maestro-glyphs op BPM-grootte via
+                de gedeelde renderRepeatGlyph (#298). */}
+            {axisCaption(startX + 0.85 * ((endX + 5) - startX), topStaff - 84, 'REPEAT')}
             <NonLinearCarousel
                 items={AXES.evaluation}
                 activeIndex={axisIndex('evaluation')}
-                // Maestro repeat glyphs (#298 rework, Han: numRepeats renders in the
-                // sheet's notation font EVERYWHERE — same as RepeatsControls + BPM).
-                renderItem={(item, i) => renderRepeatGlyph(item, i === axisIndex('evaluation'), topStaff - 25)}
-                centerX={endX - 60}
-                y={topStaff - 37}
-                baseWidth={28}
-                height={16}
+                renderItem={(item, i) => renderRepeatGlyph(item, i === axisIndex('evaluation'), topStaff - 58)}
+                centerX={startX + 0.85 * ((endX + 5) - startX)}
+                y={topStaff - 78}
+                baseWidth={40}
+                height={26}
                 visibleHalf={2}
+                cyclical={false}
                 onSelect={selectAxis('evaluation')}
                 debugMode={debugMode}
             />

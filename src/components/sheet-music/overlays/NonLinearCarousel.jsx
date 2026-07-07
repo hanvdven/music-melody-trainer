@@ -161,6 +161,10 @@ const xOffsetForDist = (d, half = VISIBLE_HALF) => {
 export default function NonLinearCarousel({
     items, activeIndex = 0, renderItem, centerX, y, baseWidth, height,
     onSelect, onPosChange, debugMode = false,
+    // #361 (Han: "carousel voor repeats -> niet-periodiek"): cyclical=false
+    // CLAMPS the position to [0, N-1] instead of wrapping the ring — first and
+    // last item are hard ends. Default stays cyclical for existing consumers.
+    cyclical = true,
     // visibleHalf: how many items show on EACH side of the centre (window = 2*half+1). PROP, not a
     // constant (Han 2026-06-19): the instrument carousel passes 3 → 7 visible; the colour carousel
     // omits it → default VISIBLE_HALF (2) → 5 visible (unchanged). Drives the fade edge, the
@@ -181,6 +185,10 @@ export default function NonLinearCarousel({
     onPosChangeRef.current = onPosChange;
 
     const N = items.length;
+    // Wrap vs clamp (#361): all position/distance maths goes through these two,
+    // so the non-cyclical mode is a pure domain change, not a second code path.
+    const normPos = (p) => (cyclical ? wrapPos(p, N) : Math.max(0, Math.min(N - 1, p)));
+    const distTo = (i, pos) => (cyclical ? signedDist(i, pos, N) : i - pos);
 
     // Keep the resting position in sync with the externally-controlled activeIndex (e.g. the
     // setter committed a new selection): glide to it unless the user is mid-drag.
@@ -199,16 +207,16 @@ export default function NonLinearCarousel({
     // translateX + scale + opacity, all via element.style (§6). Items far outside the visible
     // window are hidden (opacity 0) so they don't intercept anything or paint off-staff.
     const applyPos = (pos) => {
-        // Keep posRef in the canonical wrapped domain [0, N) so the seam never drifts off to
-        // ±infinity over many loops (Han 2026-06-17: cyclical scroll).
-        const wp = wrapPos(pos, N);
+        // Keep posRef in the canonical domain: wrapped [0, N) when cyclical, clamped
+        // [0, N-1] when not (#361 non-periodic mode).
+        const wp = normPos(pos);
         posRef.current = wp;
         for (let i = 0; i < N; i += 1) {
             const g = wrapRefs.current[i];
             if (!g) continue;
             // NEAREST signed distance accounting for the wrap, so items near index 0 sit just to the
             // right of items near index N-1 — the ring loops with no clamp at the ends.
-            const d = signedDist(i, wp, N);
+            const d = distTo(i, wp);
             const op = opacityForDist(d, visibleHalf);
             if (op <= 0) {
                 // Beyond the single overflow element — park it transparent so it never paints
@@ -249,7 +257,7 @@ export default function NonLinearCarousel({
         const from = posRef.current;
         // Shortest signed delta from `from` to `target` around the ring, in (-N/2, N/2]. We glide
         // from `from` to `from + delta` (which may land outside [0,N)); applyPos wraps it back.
-        const delta = signedDist(target, from, N);
+        const delta = distTo(target, from);
         if (Math.abs(delta) < 0.001) { applyPos(from); return; }
         const to = from + delta;
         const t0 = performance.now();
@@ -269,7 +277,7 @@ export default function NonLinearCarousel({
     // initial layout when N changes (the item count); it would be redundant to also re-run on
     // activeIndex changes since the previous effect already animates there. Fire on N only.
     React.useLayoutEffect(() => {
-        applyPos(wrapPos(activeIndex, N));
+        applyPos(normPos(activeIndex));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [N]);
 
@@ -302,7 +310,8 @@ export default function NonLinearCarousel({
         d.moved = Math.max(d.moved, Math.abs(dx));
         // Dragging RIGHT (dx > 0) should bring LOWER-index items toward the centre, so the
         // position moves in the OPPOSITE direction of the finger by dx / baseWidth item-units.
-        // No clamp — the loop wraps freely (applyPos wraps into [0,N)).
+        // Cyclical: no clamp, the loop wraps freely; non-cyclical: applyPos clamps
+        // to the hard ends (#361).
         const next = d.startPos - dx / baseWidth;
         applyPos(next);
     };
@@ -320,7 +329,7 @@ export default function NonLinearCarousel({
             let best = Math.round(posRef.current);
             let bestErr = Infinity;
             for (let i = 0; i < N; i += 1) {
-                const dist = signedDist(i, posRef.current, N);
+                const dist = distTo(i, posRef.current);
                 if (Math.abs(dist) > visibleHalf + 0.5) continue;   // only visible items are tappable
                 const ix = xOffsetForDist(dist, visibleHalf) * baseWidth;
                 const err = Math.abs(localX - ix);
@@ -332,7 +341,8 @@ export default function NonLinearCarousel({
         } else {
             // DRAG settle — snap to the nearest item and commit it (Han: centred item is the
             // selection, commit on settle). Map the wrapped centre back to a real item index.
-            const snapped = wrapPos(Math.round(posRef.current), N) % N;
+            const snapped = cyclical ? (wrapPos(Math.round(posRef.current), N) % N)
+                : Math.max(0, Math.min(N - 1, Math.round(posRef.current)));
             animatePosTo(snapped);
             onSelect?.(items[snapped], snapped);
         }

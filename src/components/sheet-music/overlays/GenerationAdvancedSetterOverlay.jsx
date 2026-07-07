@@ -82,7 +82,14 @@ const denomToTicks = (denom) => 48 / denom;
 // Maestro accidental glyph for a (Unicode-spelled) note name — same mapping the TranspositionSetter
 // uses for its span heads. '#'/'b' here are MAESTRO FONT GLYPH chars, not display text, so §5b's
 // "no ASCII b/#" rule does not apply (the rule is about user-visible TEXT, not font codepoints).
-const accidentalGlyph = (name) => (name.includes('♯') ? '#' : name.includes('♭') ? 'b' : null);
+// #361: diatonic note name `steps` scale-steps from C4 (naturals only — the
+// span setter shows INTERVALS; the major/perfect variant from C is natural).
+const NATURALS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const diatonicFromC4 = (steps) => {
+  const idx = ((steps % 7) + 7) % 7;
+  const oct = 4 + Math.floor(steps / 7);
+  return NATURALS[idx] + oct;
+};
 
 // Ledger-line Y positions for a head drawn at `y` on a staff starting at `staffStart`. Identical
 // geometry to TranspositionSetter.ledgerYs (caller-side note placement, not glyph drawing — §6d is
@@ -194,11 +201,18 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
         </g>,
       );
     } else {
-      const targetMidi = C4_MIDI + (ascending ? opt.value : -opt.value);
-      const name = getNoteFromValue(targetMidi);
+      // #361 (Han): intervals, not exact pitches — "ga altijd uit van de grote
+      // variant", no accidentals. The MAJOR/PERFECT variant of every interval
+      // from C4 is a NATURAL (E, F, G, A, B, C…), so the head is placed
+      // DIATONICALLY from the interval NAME (3rd → 2 steps, … 15th → 14) and
+      // never carries an accidental glyph.
+      const steps = (parseInt(opt.label, 10) || 1) - 1;
+      const name = diatonicFromC4(ascending ? steps : -steps);
       const originY = getNoteAbsoluteY(name, staffStart, clef, staff);
       if (originY == null) continue;
-      const y = originY + curveY(t);
+      // #361: on a BASS clef the heads read left→right high→low, so the fan's
+      // Y-curve inverts with the direction (same dir that mirrors the X-fan).
+      const y = originY + dir * curveY(t);
       const scale = Math.max(0.5, 1 - dist * 0.09);
       out.push(
         // data-fly OUTER wrapper so the cascade's translateX slides the head in without clobbering the
@@ -207,7 +221,6 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
           <g opacity={op}
             transform={`translate(${x} ${y}) scale(${scale}) translate(${-x} ${-y})`}>
             <StaffQuarterNote x={x} positionY={y} staffYStart={staffStart}
-              accidental={accidentalGlyph(name)}
               ledgerYs={dist < 1.5 ? ledgerYs(y, staffStart) : []} color={fill} />
           </g>
         </g>,
@@ -425,6 +438,9 @@ const GenerationAdvancedSetterOverlay = ({
             <LeftFanCarousel
               cx={cols[0]} centerY={row.centerY}
               items={RHYTHM_VARIABILITY}
+              /* #361 (Han): "gebruik dezelfde setter als voor volume, dus hidden
+                 vertical carousel" — fan only under the finger. */
+              compact
               activeIndex={variabilityIdx}
               onCommit={(i) => { fireInteraction(); set(p => ({ ...p, rhythmVariability: RHYTHM_VARIABILITY[i] })); }}
               renderLabel={(v) => String(v)}
@@ -445,13 +461,18 @@ const GenerationAdvancedSetterOverlay = ({
               />
             )}
 
-            <TupletWordFanCarousel
+            {/* #361 (Han): "gebruik geen tanh setter, maar een hidden vertical
+                carousel" — the tuplet word fans vertically under the finger only,
+                which also clears the passing-chords label conflict. */}
+            <LeftFanCarousel
               cx={cols[2]} centerY={row.centerY}
               items={POLY_LEVELS}
+              compact
               activeIndex={polyIdx}
               onCommit={(i) => { fireInteraction(); set(p => ({ ...p, polyMultiplier: POLY_LEVELS[i].value })); }}
               renderLabel={(it) => it.label}
-              fieldLines={[]} /* header 'tuplets' + the centred word suffice (Han UAT: redundant 3-line label) */
+              activeLabelSize={15}
+              fieldLines={[]}
               debugMode={debugMode}
             />
 

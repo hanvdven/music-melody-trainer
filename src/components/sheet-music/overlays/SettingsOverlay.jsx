@@ -383,6 +383,9 @@ const SettingsOverlay = ({
           items={MEASURE_OPTIONS}
           activeIndex={Math.max(0, MEASURE_OPTIONS.indexOf(numMeasures))}
           renderLabel={(n) => String(n)}
+          /* #361 (Han): measures in Maestro, same size as the repeats + BPM (32). */
+          labelFontFamily="Maestro"
+          activeLabelSize={32}
           compact
           fieldLines={[]}
           onCommit={(i) => { onSettingsInteraction?.(); setNumMeasures(MEASURE_OPTIONS[i]); }}
@@ -424,6 +427,7 @@ const SettingsOverlay = ({
               untilCorrect: item.value === 'until',
             }));
           }}
+          cyclical={false} /* #361 (Han): repeats-carousel is niet-periodiek */
           debugMode={debugMode}
         />
         {/* #230e (Han): "generate after last repeat" toggle. ON (default) = a fresh
@@ -444,7 +448,9 @@ const SettingsOverlay = ({
             fontWeight={playbackConfig.generateAfterLastRepeat !== false ? 'bold' : 'normal'}
             fill={playbackConfig.generateAfterLastRepeat !== false ? 'var(--text-primary)' : 'var(--text-lowlight)'}
             style={{ pointerEvents: 'none' }}>
-            AUTO NEW
+            {/* #361 (Han: "ik begrijp de auto new niet") — self-describing state:
+                what happens AFTER the last repeat. */}
+            {playbackConfig.generateAfterLastRepeat !== false ? 'THEN: NEW MELODY' : 'THEN: SAME MELODY'}
           </text>
           {debugMode && (
             <rect x={-40} y={8} width={80} height={14}

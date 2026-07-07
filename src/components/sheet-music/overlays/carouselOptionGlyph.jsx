@@ -53,12 +53,13 @@ export const renderRepeatGlyph = (item, active, baselineY) => {
             ) : (
                 <text x={0} y={baselineY} textAnchor="middle" fontFamily="Maestro"
                     fontWeight={active ? 'bold' : 'normal'} fill={color}>
+                    {/* #361 (Han): same Maestro size as the BPM display (.bpm-value = 32). */}
                     {item.value === Infinity ? (
-                        <tspan fontSize={12}>À</tspan>
+                        <tspan fontSize={26}>À</tspan>
                     ) : (
                         <>
-                            <tspan fontSize={14}>{item.value}</tspan>
-                            <tspan fontSize={12}> À</tspan>
+                            <tspan fontSize={32}>{item.value}</tspan>
+                            <tspan fontSize={26}> À</tspan>
                         </>
                     )}
                 </text>
@@ -77,6 +78,11 @@ export const renderCarouselOptionGlyph = (item, active, baselineY) => {
         }}>
             {item.isUntil ? (
                 <BadgeCheck size={12} x={-6} y={baselineY - 10} />
+            ) : item.maestroGlyph ? (
+                /* #361 (Han: tempo "moet zonder tekst kunnen") — a Maestro glyph
+                   IS the option (♩ = fixed, T = rubato, matching BpmControls). */
+                <text x={0} y={baselineY + 4} textAnchor="middle" fontSize={22}
+                    fontFamily="Maestro" fill={color}>{item.maestroGlyph}</text>
             ) : (
                 <text x={0} y={baselineY} textAnchor="middle" fontSize={8}
                     fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'}

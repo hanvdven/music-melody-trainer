@@ -152,7 +152,10 @@ const GenerationSetterOverlay = ({
   const CHORD_ROW_Y = trebleStart - 64;
 
   const rows = [
-    { key: 'chords', centerY: CHORD_ROW_Y, show: showChordsRow, isChords: true },
+    // #361 (Han: "ik mis de setters voor akkoorden"): the chords row was gated on
+    // showChordsRow (hidden chord labels hid the SETTERS too). Decoupled — always
+    // visible, same correction the instrument setter got in #163 Q3.
+    { key: 'chords', centerY: CHORD_ROW_Y, show: true, isChords: true },
     { key: 'treble', centerY: trebleStart + 20, show: isTrebleVisible },
     { key: 'bass', centerY: bassStart + 20, show: isBassVisible },
     { key: 'percussion', centerY: percussionStart + 20, show: isPercussionVisible },

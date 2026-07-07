@@ -19,9 +19,10 @@ import { melodicNoteColor } from '../../../theory/noteUtils';
 // 'scale' is the RENAMED LABEL of the legacy 'tonic_scale_keys' mode — the mode VALUE stays
 // 'tonic_scale_keys' (audio/selection wiring unchanged); only the visible label is 'Scale'.
 const SCHEMES = [
+    // #361 (Han): order = none, SCALE, CHORD, chroma, subtle chroma.
     { mode: 'none', label: 'None' },
-    { mode: 'chords', label: 'Chord' },
     { mode: 'tonic_scale_keys', label: 'Scale' },
+    { mode: 'chords', label: 'Chord' },
     { mode: 'chromatone', label: 'Chromatone' },
     { mode: 'subtle-chroma', label: 'Subtle chromatone' },
 ];

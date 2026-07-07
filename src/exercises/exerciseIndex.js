@@ -35,9 +35,11 @@ export const AXES = {
         { value: 'read', label: 'READ', Icon: BookOpenCheck },
         { value: 'hear', label: 'HEAR', Icon: Ear },
     ],
+    // #361 (Han): tempo without text — Maestro glyphs, matching BpmControls
+    // ('q' = the quarter-note ♩ of ♩=N; 'T' = the rubato/tempo-libero glyph).
     tempo: [
-        { value: 'fixed', label: 'FIXED' },
-        { value: 'rubato', label: 'RUBATO' },
+        { value: 'fixed', label: '', maestroGlyph: 'q' },
+        { value: 'rubato', label: '', maestroGlyph: 'T' },
     ],
     // Same option list as the PLAYBACK repeats setter (repsPerMelody), with
     // 'until correct' LEFTMOST (Han 2026-07-02, BadgeCheck icon — star-check

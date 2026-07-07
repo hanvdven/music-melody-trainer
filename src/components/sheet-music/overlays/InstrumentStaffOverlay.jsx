@@ -1,6 +1,5 @@
 import React from 'react';
 import NonLinearCarousel, { visibleRange, xOffsetForDist } from './NonLinearCarousel';
-import { activeGlowFilter } from './carouselOptionGlyph';
 import {
     INSTRUMENT_LIST, getInstrumentIconUrl, getIconUrlByBasename, ICON_ATTRIBUTION, categoryColorVar,
 } from '../../../constants/instruments';
@@ -265,8 +264,9 @@ const StaffCarousel = ({
             const color = active ? cardColor(items[i]) : 'var(--text-lowlight)';
             // GLOW via CSS drop-shadow in the category var — CSS vars resolve inside drop-shadow().
             // Inactive cards clear the filter so only the centred card glows (Han: glow, not a box).
-            // Subtle 50% glow via the SHARED helper (#163 rework, Han: global convention).
-            c.cardG.style.filter = active ? activeGlowFilter(color) : 'none';
+            // #361 (Han): NO glow on the instrument cards — the category tint +
+            // caps weight carry the active state.
+            c.cardG.style.filter = 'none';
             if (c.label) {
                 c.label.setAttribute('fill', color);
                 c.label.setAttribute('font-weight', active ? 'bold' : 'normal');
@@ -333,8 +333,7 @@ const StaffCarousel = ({
                 cardRefs.current[i].labelRaw = rawLabel; }}
                 style={{
                     pointerEvents: 'none',
-                    // Subtle 50% glow via the SHARED helper (#163 rework — global convention).
-                    filter: active ? activeGlowFilter(color) : 'none',
+                    // #361 (Han): no glow — tint + caps weight mark the active card.
                 }}>
                 {/* icons8 PNG centred on the staff (Han 2026-06-17). SVG-native <image> so it
                     composites/fades with the morph group opacity (no <foreignObject>). The icons
