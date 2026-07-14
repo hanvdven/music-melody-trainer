@@ -220,6 +220,8 @@ const SettingsOverlay = ({
           labelFontFamily="Maestro"
           activeLabelSize={32}
           compact
+          /* #434 (Han): same intuitive drag as measures — dragging DOWN raises the value. */
+          invert
           bandW={36}
           fieldLines={[]}
           onCommit={(i) => {
@@ -377,18 +379,19 @@ const SettingsOverlay = ({
           repeatSigns module, §6d). Shown whenever repeats ≠ 1 (a finite count > 1 OR 'until'). */}
       {(playbackConfig.untilCorrect || playbackConfig.repsPerMelody > 1) && (
         <g className="svg-no-interact">
-          {/* #430 rework (Han: "exact overeenkomen in design en positie met de render-melody
-              repeat-balken"). Design is identical (shared repeatSigns, §6d). Position: the begin sign
-              sits at the system's left edge (startX) and the end sign at the final barline
-              (systemEndX) — the same anchors the sheet's outer barlines use. Exact pixel alignment to
-              BarlinesLayer's opening/closing barline is UAT-tunable. */}
-          <BeginRepeatSign x={startX} trebleStart={topY}
+          {/* #434 rework (Han: "repeat balken rechts worden geclipt … pixel perfect"). Match
+              BarlinesLayer EXACTLY: the sheet's opening repeat anchors at (first barline − 15), and
+              the first barline is at startX → startX−15. The sheet's closing repeat is at the LAST
+              barline = the staff's right edge endX (NOT systemEndX = the viewBox edge; the old thick
+              bar at systemEndX+1 sat 1px off-screen → the clip). endX un-clips it and lines it up
+              with the melody's closing barline. */}
+          <BeginRepeatSign x={startX - 15} trebleStart={topY}
             bassStart={isBassVisible ? bassStart : null}
             percussionStart={isPercussionVisible ? percussionStart : null}
             bottomY={bottomY}
             isTrebleVisible={isTrebleVisible} isBassVisible={isBassVisible}
             isPercussionVisible={isPercussionVisible} />
-          <EndRepeatSign x={systemEndX ?? endX} trebleStart={topY}
+          <EndRepeatSign x={endX} trebleStart={topY}
             bassStart={isBassVisible ? bassStart : null}
             percussionStart={isPercussionVisible ? percussionStart : null}
             bottomY={bottomY}
@@ -446,8 +449,10 @@ const SettingsOverlay = ({
           activeLabelSize={32}
           compact
           fieldLines={[]}
-          // Draw the repeat glyph per row (§6d — same renderRepeatGlyph as the sheet header/BPM),
-          // scaled from the 32px active size to the fan's per-row size so side rows shrink.
+          // Draw the repeat glyph per row (§6d — the same renderRepeatGlyph as the sheet header/BPM;
+          // the Maestro 'À' renders as the ×N repeat mark). #434: Han only wanted a wider SPACE
+          // between the number and the mark — that lives in renderRepeatGlyph now. Scaled from the
+          // 32px active size to the fan's per-row size.
           renderNode={(item, { active, size }) => (
             <g transform={`scale(${size / 32})`}>{renderRepeatGlyph(item, active, 0)}</g>
           )}

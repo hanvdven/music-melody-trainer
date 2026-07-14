@@ -60,7 +60,9 @@ export const renderRepeatGlyph = (item, active, baselineY) => {
                     ) : (
                         <>
                             <tspan fontSize={32}>{item.value}</tspan>
-                            <tspan fontSize={26}> À</tspan>
+                            {/* #434 (Han: "enige wat ik wou … was een spatie") — a wider gap between
+                                the number and the ×N repeat mark, via dx (a plain space was too tight). */}
+                            <tspan fontSize={26} dx={5}>À</tspan>
                         </>
                     )}
                 </text>

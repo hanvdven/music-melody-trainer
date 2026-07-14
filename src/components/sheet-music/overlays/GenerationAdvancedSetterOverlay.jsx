@@ -441,11 +441,13 @@ const GenerationAdvancedSetterOverlay = ({
               cx={cols[0]} centerY={row.centerY}
               items={RHYTHM_VARIABILITY}
               /* #361 (Han): "gebruik dezelfde setter als voor volume, dus hidden
-                 vertical carousel" — fan only under the finger. */
+                 vertical carousel" — fan only under the finger. #434: intuitive invert (drag DOWN
+                 raises) like measures, and a % sign after the number. */
               compact
+              invert
               activeIndex={variabilityIdx}
               onCommit={(i) => { fireInteraction(); set(p => ({ ...p, rhythmVariability: RHYTHM_VARIABILITY[i] })); }}
-              renderLabel={(v) => String(v)}
+              renderLabel={(v) => `${v} %`}
               fieldLines={[]} /* header 'variability' + the centred number suffice (Han UAT: redundant) */
               debugMode={debugMode}
             />
@@ -470,6 +472,7 @@ const GenerationAdvancedSetterOverlay = ({
               cx={cols[2]} centerY={row.centerY}
               items={POLY_LEVELS}
               compact
+              invert
               activeIndex={polyIdx}
               onCommit={(i) => { fireInteraction(); set(p => ({ ...p, polyMultiplier: POLY_LEVELS[i].value })); }}
               renderLabel={(it) => it.label}
@@ -502,9 +505,10 @@ const GenerationAdvancedSetterOverlay = ({
         cx={cols[0]} centerY={CHORD_ROW_Y}
         items={RHYTHM_VARIABILITY}
         compact
+        invert
         activeIndex={idxOf(RHYTHM_VARIABILITY, chordSettings?.rhythmVariability ?? 0)}
         onCommit={(i) => { fireInteraction(); setChordSettings(p => ({ ...p, rhythmVariability: RHYTHM_VARIABILITY[i] })); }}
-        renderLabel={(v) => String(v)}
+        renderLabel={(v) => `${v} %`}
         fieldLines={[]}
         debugMode={debugMode}
       />
