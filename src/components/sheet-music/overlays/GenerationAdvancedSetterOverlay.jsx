@@ -280,8 +280,8 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
 const SmallestNoteFanCarousel = ({ cx, staffStart, activeIndex, onCommit, fieldLines, debugMode }) => {
   // #434 (Han: intuitive invert like measures — drag DOWN raises the index).
   const { effIndex, dragging, bind } = useTangensDrag(activeIndex, SMALLEST_NOTE_DENOMS.length - 1, onCommit, PX_PER_STEP, -1);
-  // #434 (Han: "plaats een streep hoger (20 units)") — raised 20 from the middle line.
-  const anchorY = staffStart; // was staffStart + 20
+  // #434 (Han: raised 20, then lowered 10 → net 10 above the middle line).
+  const anchorY = staffStart + 10; // middle line is staffStart + 20
   const out = [];
   for (let i = Math.floor(effIndex) - 4; i <= Math.ceil(effIndex) + 4; i++) {
     if (i < 0 || i > SMALLEST_NOTE_DENOMS.length - 1) continue;
@@ -302,7 +302,7 @@ const SmallestNoteFanCarousel = ({ cx, staffStart, activeIndex, onCommit, fieldL
           staffYStart={staffStart} color={isActive ? COLOR : LOW} opacity={op} scale={scale} />
         {/* #434 (Han): the duration label below the note, as a custom Maestro fraction (small
             super/subscript numerals). Moved up with the note (Han: "20 units hoger"). */}
-        <MaestroFraction num={1} den={denom} cx={x} cy={staffStart + 36}
+        <MaestroFraction num={1} den={denom} cx={x} cy={staffStart + 46}
           color={isActive ? COLOR : LOW} opacity={op} />
       </g>,
     );
@@ -476,7 +476,7 @@ const GenerationAdvancedSetterOverlay = ({
               invert
               activeIndex={variabilityIdx}
               onCommit={(i) => { fireInteraction(); set(p => ({ ...p, rhythmVariability: RHYTHM_VARIABILITY[i] })); }}
-              renderLabel={(v) => `${v} %`}
+              renderLabel={(v) => (<>{v}<tspan fontSize="80%" dy="1"> %</tspan></>)}
               fieldLines={[]} /* header 'variability' + the centred number suffice (Han UAT: redundant) */
               debugMode={debugMode}
             />
@@ -538,7 +538,7 @@ const GenerationAdvancedSetterOverlay = ({
         invert
         activeIndex={idxOf(RHYTHM_VARIABILITY, chordSettings?.rhythmVariability ?? 0)}
         onCommit={(i) => { fireInteraction(); setChordSettings(p => ({ ...p, rhythmVariability: RHYTHM_VARIABILITY[i] })); }}
-        renderLabel={(v) => `${v} %`}
+        renderLabel={(v) => (<>{v}<tspan fontSize="80%" dy="1"> %</tspan></>)}
         fieldLines={[]}
         debugMode={debugMode}
       />

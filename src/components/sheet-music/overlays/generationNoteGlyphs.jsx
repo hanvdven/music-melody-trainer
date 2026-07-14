@@ -224,9 +224,12 @@ export const ChordCountGlyph = ({
     return (
         <g style={{ pointerEvents: 'none' }}>
             {labels.map((c, i) => (
+                // #434 rework (Han: "maak niet-geheel akkoord iets kleiner, maar wel de gewone kleur")
+                // — the trailing partial chord of a fractional count is drawn SMALLER but in its
+                // NORMAL colour (not lowlit).
                 <text key={i} x={x0 + i * CHORD_LABEL_SPACING} y={centerY} textAnchor="middle"
-                    fontFamily="serif" fontSize={CHORD_LABEL_FONT_SIZE} fontWeight="normal"
-                    fill={c.dim ? 'var(--text-lowlight)' : letterColor(c.label)}>
+                    fontFamily="serif" fontSize={c.dim ? CHORD_LABEL_FONT_SIZE * 0.7 : CHORD_LABEL_FONT_SIZE}
+                    fontWeight="normal" fill={letterColor(c.label)}>
                     {c.label}
                 </text>
             ))}

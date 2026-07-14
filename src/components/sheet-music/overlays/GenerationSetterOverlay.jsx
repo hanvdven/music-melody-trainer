@@ -261,7 +261,7 @@ const GenerationSetterOverlay = ({
       const items = CHORD_COUNT_ITEMS.map(it => ({ ...it, countLabel: it.label, label: '' }));
       const cur = chordSettings?.chordCount ?? 1;
       return {
-        items, activeIndex: idxOf(items, cur), labelAbove: '#/measure',
+        items, activeIndex: idxOf(items, cur), labelAbove: 'chords / measure',
         renderContent: (item, active, color) => (
           <g>
             <ChordCountGlyph count={item.value} centerY={row.centerY - 2}
@@ -358,8 +358,8 @@ const GenerationSetterOverlay = ({
     // as the BPM/repeats displays); n=0 (auto) keeps its icon + AUTO label.
     const items = NOTES_PER_MEASURE_ITEMS;
     const cur = cfg?.notesPerMeasure || 0;
-    // #434 (Han: "notes/measure: plaats een streep hoger (20 units)") — raised 20.
-    const rowStaffStart = row.centerY - 40;
+    // #434 (Han: raised 20, then lowered 10 → net 10 above the row centre).
+    const rowStaffStart = row.centerY - 30;
     return {
       items, activeIndex: idxOf(items, cur), labelAbove: 'notes / measure',
       renderContent: (item, active, color) => (
