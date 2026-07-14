@@ -667,22 +667,26 @@ const RangeStaffOverlay = ({
         const writtenNames = trans !== 0 ? transposeMelodyBySemitones(concertNames, trans) : concertNames;
         const writtenByConcert = new Map(winNotes.map((n, i) => [n.name, writtenNames[i]]));
         const writtenName = (concertNm) => writtenByConcert.get(concertNm) ?? concertNm;
-        const colorFor = (concertMidi, writtenNm) => {
-            // Boundary notes use the theme-safe range-boundary-highlight (white on dark
-            // themes) for chromatone visibility — NOT --accent-yellow (Han 2026-06-17 R4).
-            if (concertMidi === selMin || concertMidi === selMax) return 'var(--range-boundary-highlight)';
-            if (concertMidi > selMin && concertMidi < selMax) {
-                const base = melodicNoteColor(writtenNm, { noteColoringMode, tonic, scaleNotes, theme });
-                if (base) return base;
-                if (noteColoringMode === 'chords' && activeChord?.notes?.length) {
-                    const pc = ((concertMidi % 12) + 12) % 12;
-                    if (activeChord.notes.some(cn => getNoteSemitone(cn) === pc)) {
-                        return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
-                    }
+        // #436 (Han: "zorg dat ook de actieve noot EN de noten buiten range gekleurd zijn") — every
+        // note (boundary / in-range / out-of-range) is now coloured by the ACTIVE note-coloring rule;
+        // the old code white-ed the boundaries and flat-lowlit the out-of-range notes.
+        const ruleColorFor = (concertMidi, writtenNm) => {
+            const base = melodicNoteColor(writtenNm, { noteColoringMode, tonic, scaleNotes, theme });
+            if (base) return base;
+            if (noteColoringMode === 'chords' && activeChord?.notes?.length) {
+                const pc = ((concertMidi % 12) + 12) % 12;
+                if (activeChord.notes.some(cn => getNoteSemitone(cn) === pc)) {
+                    return chromatoneMix(getNoteSemitone(activeChord.root), 30, theme);
                 }
-                return 'var(--text-primary)';
             }
-            return 'var(--range-lowlight)';
+            return null;
+        };
+        const colorFor = (concertMidi, writtenNm) => {
+            const rule = ruleColorFor(concertMidi, writtenNm);
+            // Boundary (active) note: the rule colour, falling back to the theme-safe highlight.
+            if (concertMidi === selMin || concertMidi === selMax) return rule || 'var(--range-boundary-highlight)';
+            if (concertMidi > selMin && concertMidi < selMax) return rule || 'var(--text-primary)';
+            return rule || 'var(--range-lowlight)';   // out of range — coloured by the rule too
         };
 
         // Press = start a continuous SLIDE of the nearest boundary toward the
@@ -996,7 +1000,11 @@ const RangeStaffOverlay = ({
                             allOffsets={allOffsets}
                             timeSignature={timeSignature}
                             theme={theme}
-                            previewMode={layer.color}
+                            // #436 (Han: "percussie range setter: de noten kleuren nog niet mee met
+                            // colour mode"): the ENABLED pads now colour by the active rule (chromatone/
+                            // chords per-drum colour); DISABLED pads stay a flat lowlight (previewMode).
+                            noteColoringMode={layer.key === 'on' ? noteColoringMode : 'none'}
+                            previewMode={layer.key === 'on' ? null : layer.color}
                         />
                     </g>
                 ))}
