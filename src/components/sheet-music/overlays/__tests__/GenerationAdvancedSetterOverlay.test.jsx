@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import GenerationAdvancedSetterOverlay from '../GenerationAdvancedSetterOverlay';
 import { InstrumentSettingsProvider } from '../../../../contexts/InstrumentSettingsContext';
+import { DisplaySettingsProvider } from '../../../../contexts/DisplaySettingsContext';
 
 // Smoke test (#162): the GENERATION ADVANCED setter (now IN-STAFF MAESTRO / TANGENS style) renders
 // for a staff set INCLUDING the chords balk (passing-chord toggle carousel) without throwing, shows
@@ -21,6 +22,7 @@ const ctx = {
 
 const renderOverlay = (props = {}) => render(
   <InstrumentSettingsProvider value={ctx}>
+    <DisplaySettingsProvider value={{ noteColoringMode: 'chromatone', theme: 'default' }}>
     <svg>
       <GenerationAdvancedSetterOverlay
         startX={100} endX={700}
@@ -30,6 +32,7 @@ const renderOverlay = (props = {}) => render(
         {...props}
       />
     </svg>
+    </DisplaySettingsProvider>
   </InstrumentSettingsProvider>,
 );
 

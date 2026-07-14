@@ -40,7 +40,10 @@ const accidentalGlyph = (name) => (name.includes('♯') ? '#' : name.includes('�
 const LABEL_FONT = "Georgia, 'Times New Roman', serif";
 const LABEL_SIZE = 22;   // size for "=", "C4 =" and the active carousel name (Han 2026-06-09: 16→18;
                          // Han 2026-06-19: 18→22, the note-name LETTER should read bigger)
-const PRESET_FONT = 13;  // preset label size (Han 2026-06-09: 11→13, bigger)
+const PRESET_FONT = 15;  // preset label size (Han 2026-06-09: 11→13; #262a 2026-07-08: 13→15, +15%)
+// Right "concert C₄ =" label shrinks 20% (Han #262a Q4) — ONLY this label; the centre "=" and the
+// left active carousel name stay at LABEL_SIZE.
+const RIGHT_LABEL_SIZE = Math.round(LABEL_SIZE * 0.8);
 
 // ── Layout offsets (Han 2026-06-19) ──────────────────────────────────────────────────────
 // The whole setter is a TWO-carousel comparison: LEFT concert NAMES | "=" + PRESETS (centre) |
@@ -208,7 +211,10 @@ const TranspositionSetter = ({
         const d = dragRef.current;
         if (!d) return;
         const dyUp = (d.startClientY - e.clientY) / PX_PER_STEP;   // up = positive
-        setDragDelta(d.side === 'right' ? dyUp : -dyUp);
+        // #434 (Han: intuitive invert like measures — drag DOWN raises on BOTH carousels). The right
+        // carousel used to be up=increase (counterintuitive); the left was already down=increase, so
+        // making both −dyUp aligns them: dragging DOWN raises the transposition on either side.
+        setDragDelta(-dyUp);
     };
     const endDrag = (e) => {
         const d = dragRef.current;
@@ -241,8 +247,9 @@ const TranspositionSetter = ({
     // PRESET columns now sit BETWEEN the two carousels, near the centre "=" (Han 2026-06-19,
     // moved from the far LEFT). They flank the "=" so the quick-picks are the visual centre of the
     // comparison. presetColR is the column just LEFT of "=", presetColL one step further left.
-    const presetColR = leftLabelX - 60;            // B♭+E♭ column, just left of "="
-    const presetColL = leftLabelX - 92;            // C+F column, one step further left
+    // #396 rework (Han UAT): presets ~30 units further LEFT.
+    const presetColR = leftLabelX - 90;            // B♭+E♭ column
+    const presetColL = leftLabelX - 122;           // C+F column, one step further left
     // Abstract grid: the fixed written-C4 REFERENCE head + "=" sit at the staff's vertical centre
     // (midY) so C4 is dead-centre of the comparison grid, NOT at its real off-staff pitch position
     // (Han 2026-06-19: was getNoteAbsoluteY('C4',…) = staffStart+50 for treble). This anchors the
@@ -372,11 +379,13 @@ const TranspositionSetter = ({
                         <g key={`qp${midi}`}>
                             <NoteLabel name={nameOf(midi)} x={cx} y={qy} size={PRESET_FONT} anchor="middle"
                                 fill={qpActive ? color : low} opacity={qpActive ? 1 : 0.85} />
-                            <rect x={cx - 15} y={qy - 9} width={30} height={14}
+                            {/* Hit box scaled with the +15% preset font (Han #262a Q5) so the bigger
+                                labels don't overlap and the tap target keeps up. */}
+                            <rect x={cx - 17} y={qy - 10} width={34} height={16}
                                 fill="transparent" style={{ cursor: 'pointer' }}
                                 onClick={() => onSelectTrans?.(clampTrans(C4_MIDI - midi))} />
                             {debugMode && (
-                                <rect x={cx - 15} y={qy - 9} width={30} height={14}
+                                <rect x={cx - 17} y={qy - 10} width={34} height={16}
                                     fill="magenta" fillOpacity={0.16} stroke="magenta" strokeWidth={0.5}
                                     style={{ pointerEvents: 'none' }} />
                             )}
@@ -416,11 +425,20 @@ const TranspositionSetter = ({
                 )}
                 {nameRows}
 
-                {/* RIGHT notehead carousel — "C4 =" label, drag surface, curve + heads (no clef) */}
-                <text x={rightLabelX} y={midY + 6} fontSize={LABEL_SIZE} fontFamily={LABEL_FONT}
+                {/* RIGHT notehead carousel — "C₄ =" label, drag surface, curve + heads (no clef).
+                    Han #396 rework (UAT): "concert" is a SEPARATE label directly ABOVE the "C₄ ="
+                    label (not above the notehead), lowercase, italic, serif (overrides the earlier
+                    sans-serif/caps interview answer). */}
+                <text x={rightLabelX} y={midY + 6 - RIGHT_LABEL_SIZE - 2} fontSize={Math.round(LABEL_SIZE * 0.5)}
+                    fontFamily={LABEL_FONT} fontStyle="italic" textAnchor="middle"
+                    fill={color} style={{ pointerEvents: 'none' }}>
+                    concert
+                </text>
+                {/* "C₄ =" label at −20% (RIGHT_LABEL_SIZE, Han #262a Q4); the "=" and left name stay 22. */}
+                <text x={rightLabelX} y={midY + 6} fontSize={RIGHT_LABEL_SIZE} fontFamily={LABEL_FONT}
                     textAnchor="middle" fill={color} style={{ pointerEvents: 'none' }}>
-                    concert C<tspan fontSize={Math.round(LABEL_SIZE * 0.7)} dy={LABEL_SIZE * 0.22}>4</tspan>
-                    <tspan dy={-LABEL_SIZE * 0.22}> =</tspan>
+                    C<tspan fontSize={Math.round(RIGHT_LABEL_SIZE * 0.7)} dy={RIGHT_LABEL_SIZE * 0.22}>4</tspan>
+                    <tspan dy={-RIGHT_LABEL_SIZE * 0.22}> =</tspan>
                 </text>
                 <rect x={anchorX - 3 * X_SPACING - 12} y={bandTop} width={6 * X_SPACING + 24} height={bandH}
                     fill="transparent" style={{ cursor: 'ns-resize', touchAction: 'none' }}
@@ -432,6 +450,10 @@ const TranspositionSetter = ({
                         fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
                         style={{ pointerEvents: 'none' }} />
                 )}
+                {/* #396 rework (Han UAT): the earlier scale(0.85) shrank the note GLYPHS, which Han
+                    rejected ("−15% smaller, niet −15% kleiner lettertype"). Reverted to full-size
+                    heads; the exact "carousel 15% smaller" (footprint vs spacing) is re-asked on the
+                    ticket rather than guessed again (§9k). */}
                 <polyline points={linePts.join(' ')} fill="none" stroke={low}
                     strokeWidth={0.75} strokeDasharray="3 3" opacity={0.4}
                     style={{ pointerEvents: 'none' }} />
