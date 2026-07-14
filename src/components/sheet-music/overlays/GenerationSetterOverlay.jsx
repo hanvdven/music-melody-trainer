@@ -21,6 +21,7 @@ import { PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { CarouselField } from '../CarouselFieldItem';
 import {
   NotePoolGlyph, RhythmMeasureGlyph, ComplexityChordGlyph, RomanProgressionGlyph, ChordCountGlyph,
+  PercPoolGlyph,
 } from './generationNoteGlyphs';
 import { STAFF_CARD_ICON } from './carouselOptionGlyph';
 import { MaestroMixedNumber } from './maestroGlyphs';
@@ -76,21 +77,26 @@ const PATTERN_BASE = 135;     // rhythm-measure item stride (widened from 100)
 // serves the COLOUR setter, which previews the REAL current context.
 const GEN_PREVIEW_CHORD = { root: 'C4', notes: ['C4', 'E4', 'G4'] };
 const MELODY_TYPE_ICON_DY = -16;   // icon TOP relative to rowCenterY (staff body)
+const MELODY_TYPE_BASE = 50;       // #434: stride > 38px icon so melody-type icons never clip/overlap
 const MELODY_TYPE_LABEL_DY = 38;   // label baseline relative to rowCenterY (below the staff)
 const CONTENT_LABEL_DY = 28;  // labels sit just BELOW the staff (staffStart+48) for content rows
 const COUNT_FONT_SIZE = 24;   // Maestro numeral under each rhythm-measure item (#362)
 
 // #362 (Han): randomization families take CATEGORY COLOURS — reuse the existing
 // --cat-* palette (instrument categories) instead of inventing new colours (§6c).
+// #434 fix (Han: "categorien zijn zwart"): the family colours must reference DEFINED --cat-* vars.
+// `--cat-percussion` was never defined (only `--cat-percussion-tuned`), so the percussion 'stylized'
+// family fell back to black. Each entry now also carries a --text-secondary fallback so an undefined
+// var can never render as black again.
 const FAMILY_COLORS = {
-  random: 'var(--cat-synth)',
-  arp: 'var(--cat-strings)',
-  walk: 'var(--cat-wind)',
-  chords: 'var(--cat-guitars)',
-  fixed: 'var(--cat-keys)',
-  stylized: 'var(--cat-percussion)',
+  random: 'var(--cat-synth, var(--text-secondary))',
+  arp: 'var(--cat-strings, var(--text-secondary))',
+  walk: 'var(--cat-wind, var(--text-secondary))',
+  chords: 'var(--cat-guitars, var(--text-secondary))',
+  fixed: 'var(--cat-keys, var(--text-secondary))',
+  stylized: 'var(--cat-percussion-tuned, var(--text-secondary))',
 };
-const familyColor = (fam) => FAMILY_COLORS[fam] ?? null;
+const familyColor = (fam) => FAMILY_COLORS[fam] ?? 'var(--text-secondary)';
 // Horizontal column centres as fractions of the staff width (3 fields spread across the balk).
 const COL_FRACS = [0.20, 0.50, 0.80];
 
@@ -284,12 +290,18 @@ const GenerationSetterOverlay = ({
       if (isPerc) {
         const items = PERC_POOL_ITEMS;
         const cur = percPresetName(cfg?.enabledPads);
+        const percStaffStart = row.centerY - 20;
         return {
           items, activeIndex: idxOf(items, cur), labelAbove: 'percussion',
-          // #431 rework (Han: "percussion note pool: breng in lijn met de andere icon+label
-          // carousels — grotere afbeelding, label op exact dezelfde hoogte"): same icon size +
-          // label alignment as the melody-type field.
-          iconSize: STAFF_CARD_ICON, iconDy: MELODY_TYPE_ICON_DY, labelDy: MELODY_TYPE_LABEL_DY,
+          // #434 rework (Han: "percussion pool: breng in lijn met note pool setter — render de noten
+          // uit de pool"): render the preset's real drum notes (like the melodic note pool), not the
+          // lucide icon. Same colour-setter geometry as the melodic note pool.
+          renderContent: (item) => (
+            <PercPoolGlyph pads={PERCUSSION_PRESETS[item.value]} staffStart={percStaffStart}
+              noteColoringMode={noteColoringMode} theme={theme} />
+          ),
+          baseWidth: POOL_BASE, visibleHalf: 1,
+          hitTop: POOL_HIT_TOP, hitHeight: POOL_HIT_H, labelDy: CONTENT_LABEL_DY,
           onSelect: (item) => set(p => ({ ...p, enabledPads: [...PERCUSSION_PRESETS[item.value]] })),
         };
       }
@@ -328,10 +340,13 @@ const GenerationSetterOverlay = ({
         familyMode: true, familyName, familyColor,
         colorOf: (item) => familyColor(item.family),
         // #431 (Han): icons as TALL as the instrument-setter icons (STAFF_CARD_ICON = 38, the
-        // shared staff-card height, §6d — not a new literal), and the label aligned the SAME way as
-        // the instrument setter: icon on the staff body (top at staffStart+~4 ≈ rowCenterY−16),
-        // label below the staff at staffStart+~58 ≈ rowCenterY+38.
+        // shared staff-card height, §6d), label aligned the SAME way as the instrument setter.
         iconSize: STAFF_CARD_ICON, iconDy: MELODY_TYPE_ICON_DY, labelDy: MELODY_TYPE_LABEL_DY,
+        // #434 (Han: "er is nu nog clipping … breng in lijn met instrument selector"): the 38px
+        // icons overlapped at the narrow default 26px stride. Widen the stride (> icon) and show a
+        // 3-wide window (visibleHalf 1) so it reads like the instrument carousel without clipping or
+        // colliding with the neighbouring columns.
+        baseWidth: MELODY_TYPE_BASE, visibleHalf: 1,
         // Keep `type` set alongside the rule (mirrors the previous stepper wiring).
         onSelect: (item) => set(p => ({ ...p, randomizationRule: item.value, type: p.type ?? row.key })),
       };

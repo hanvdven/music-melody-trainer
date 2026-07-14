@@ -57,6 +57,28 @@ export const NotePoolGlyph = ({
     );
 };
 
+/**
+ * #434 (Han: "percussion pool: breng in lijn met note pool setter — render de noten uit de pool") —
+ * the percussion pool option renders the preset's actual DRUM notes (like the melodic note pool
+ * renders example notes), through the shared MiniMelody pipeline with staff="percussion" so each pad
+ * sits at its real drum position and gets its chromatone colour where the rule applies.
+ */
+export const PercPoolGlyph = ({ pads, staffStart, noteColoringMode, theme }) => {
+    const slots = (pads && pads.length) ? pads : ['k', 's', 'hh'];
+    return (
+        <MiniMelody
+            slots={slots}
+            durations={slots.map(() => QUARTER)}
+            width={POOL_WIDTH}
+            staffStart={staffStart}
+            clef="percussion"
+            staff="percussion"
+            noteColoringMode={noteColoringMode}
+            theme={theme}
+        />
+    );
+};
+
 // ── Notes-per-measure rhythm patterns (#295) ──────────────────────────────────
 //
 // Han's spec, DERIVED not tabulated (§6c): start from the measure's beats
