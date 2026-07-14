@@ -28,15 +28,16 @@ import { PERCUSSION_KIT_CATEGORIES, percussionKitLabel } from '../../../audio/dr
 // (renderMelodyNotes, dashed line + end hooks, var(--text-primary)). Selecting reuses the
 // existing setTrebleSettings/setBassSettings({...,instrument}) path via onSetInstrument.
 
-// Icon size. #432 (Han 2026-07-14): use the SHARED carousel icon size (STAFF_CARD_ICON = 38, the
-// colour-setter reference) so ALL icon+label carousels match — the old 33*1.15 ≈ 37.95 was the same
-// value by coincidence, now it is one constant. Card spacing (BASE) still clears it comfortably.
-const ICON = STAFF_CARD_ICON;
+// Icon size. #436 (Han: "instrument voor de glyph hoogte; maak nog 8 units hoger, houd de baseline;
+// zodat de afbeelding precies de hoogte van de notenbalk heeft") — the glyph is STAFF_CARD_ICON + 8
+// tall, and ICON_DY is lowered by the same 8 so the BASELINE (bottom edge) stays put and the image
+// now spans the full staff height.
+const ICON = STAFF_CARD_ICON + 8;
 // Per-item slot stride (user units). Widened from 56 → 64 (Han #163): +14%, conservative step,
 // multiple of 4 per design-principles §3. Adds a bit more breathing room between cards.
 const BASE = 64;
 // Vertical anchors relative to the staff top line (staff body spans staffStart..+40).
-const ICON_DY = 4;        // icon sits centred on the staff body
+const ICON_DY = 4 - 8;    // #436: lowered 8 so the taller glyph keeps its baseline (bottom edge)
 const NAME_DY = 58;       // name below the bottom staff line
 const HEADER_DY = -10;    // category bracket above the top staff line (lowered, Han 2026-06-17)
 const HIT_TOP = -22;      // hit/debug box spans header..name

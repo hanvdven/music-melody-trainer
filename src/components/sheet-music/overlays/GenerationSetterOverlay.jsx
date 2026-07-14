@@ -25,6 +25,7 @@ import {
 } from './generationNoteGlyphs';
 import { STAFF_CARD_ICON } from './carouselOptionGlyph';
 import { MaestroMixedNumber } from './maestroGlyphs';
+import { AlignmentGuides } from './debugGuides';
 
 // ── GENERATION setter — CAROUSEL STYLE (Han 2026-06-22) ────────────────────────────────────────
 // REBUILD: previously each field was a tiny SvgSetter stepper (the smallest-note Maestro glyphs were
@@ -400,6 +401,21 @@ const GenerationSetterOverlay = ({
           fontFamily="serif" fontStyle="italic" fontSize={14} fill="var(--text-secondary)"
           style={{ userSelect: 'none', pointerEvents: 'none' }}>{h}</text>
       )))}
+
+      {/* #436 (Han): debug ALIGNMENT GUIDES — full-width lines at the header, per-row icon-top,
+          icon-baseline (staff top+STAFF_CARD_ICON) and label baseline, so their heights can be lined
+          up against the colour/instrument setters while iterating. */}
+      {debugMode && rows.map(row => {
+        const iconTop = row.centerY + MELODY_TYPE_ICON_DY;
+        return (
+          <AlignmentGuides key={`guides-${row.key}`} startX={startX} endX={endX} guides={[
+            row.key === 'treble' ? { y: HEADER_Y, label: 'header', color: '#3b82f6' } : null,
+            { y: iconTop, label: 'icon-top' },
+            { y: iconTop + STAFF_CARD_ICON, label: 'icon-baseline' },
+            { y: row.centerY + MELODY_TYPE_LABEL_DY, label: 'label', color: '#ef4444' },
+          ]} />
+        );
+      })}
 
       {/* Per-balk rows of field-carousels. CarouselField reuses NonLinearCarousel (§6d) and shows
           its own debug hit box (§3a). */}
