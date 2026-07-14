@@ -49,7 +49,11 @@ export const renderRepeatGlyph = (item, active, baselineY) => {
                 <BadgeCheck size={12} x={-6} y={baselineY - 10} />
             ) : (
                 <text x={0} y={baselineY} textAnchor="middle" fontFamily="Maestro"
-                    fontWeight={active ? 'bold' : 'normal'} fill={color}>
+                    /* #432 rework (Han 2026-07-14: "is repeats misschien bold face dat eruit ziet als
+                       glow in maestro?") — YES: bold Maestro glyphs render as a heavier/glowing
+                       stroke. Maestro glyphs MUST be normal weight (cf. StaffDurationNote); the bright
+                       colour alone marks the active value. */
+                    fontWeight="normal" fill={color}>
                     {/* #361 (Han): same Maestro size as the BPM display (.bpm-value = 32). */}
                     {item.value === Infinity ? (
                         <tspan fontSize={26}>À</tspan>
