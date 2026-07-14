@@ -873,6 +873,58 @@ function parseJsonArray(raw: string | null | undefined): any[] {
   }
 }
 
+// ── #405 Dependency line tracing ────────────────────────────────────────────────────────────────
+// A fixed, full-viewport SVG overlay onto which we draw lines from a hovered card to each of its
+// dependency-target cards. Positions come from getBoundingClientRect (viewport coords), so the
+// overlay maps 1:1 to the viewport; lines are (re)computed at hover time.
+const SVGNS = "http://www.w3.org/2000/svg";
+function ensureDepOverlay(): SVGSVGElement {
+  let svg = document.getElementById("dep-overlay") as SVGSVGElement | null;
+  if (!svg) {
+    svg = document.createElementNS(SVGNS, "svg") as SVGSVGElement;
+    svg.id = "dep-overlay";
+    document.body.appendChild(svg);
+  }
+  return svg;
+}
+function clearDepLines(): void {
+  const svg = document.getElementById("dep-overlay");
+  if (svg) svg.innerHTML = "";
+  document.querySelectorAll(".card.dep-source, .card.dep-target").forEach((c) =>
+    c.classList.remove("dep-source", "dep-target"));
+}
+function showDepLines(card: HTMLElement): void {
+  const raw = card.dataset.deps;
+  if (!raw) return;
+  const svg = ensureDepOverlay();
+  svg.innerHTML = "";
+  card.classList.add("dep-source");
+  const sr = card.getBoundingClientRect();
+  const sx = sr.left + sr.width / 2;
+  const sy = sr.top + sr.height / 2;
+  for (const idStr of raw.split(",")) {
+    const target = document.querySelector<HTMLElement>(`.card[data-id="${idStr}"]`);
+    if (!target) continue; // target may be off-board (filtered/collapsed) — skip
+    target.classList.add("dep-target");
+    const tr = target.getBoundingClientRect();
+    const tx = tr.left + tr.width / 2;
+    const ty = tr.top + tr.height / 2;
+    const line = document.createElementNS(SVGNS, "line");
+    line.setAttribute("x1", String(sx));
+    line.setAttribute("y1", String(sy));
+    line.setAttribute("x2", String(tx));
+    line.setAttribute("y2", String(ty));
+    line.setAttribute("class", "dep-line");
+    svg.appendChild(line);
+    const dot = document.createElementNS(SVGNS, "circle");
+    dot.setAttribute("cx", String(tx));
+    dot.setAttribute("cy", String(ty));
+    dot.setAttribute("r", "4");
+    dot.setAttribute("class", "dep-line-dot");
+    svg.appendChild(dot);
+  }
+}
+
 function renderCard(task: Task): string {
   const pClass = priorityClass(task.priority);
   const priorityBadge = pClass
@@ -954,13 +1006,26 @@ function renderCard(task: Task): string {
       </label>
     `
     : "";
+  // #405 (Han): dependency indicator — two dots joined by a line on any card that declares
+  // dependencies (§9j data model). Hovering the card traces lines to its target cards. The target
+  // ids ride along in data-deps for the hover wiring.
+  const deps = parseJsonArray(task.dependencies);
+  const depIndicator = deps.length
+    ? `<span class="dep-indicator" title="${deps.length} dependency(ies) — hover to trace">
+        <svg viewBox="0 0 20 8" width="20" height="8" aria-hidden="true">
+          <line x1="3" y1="4" x2="17" y2="4"></line>
+          <circle cx="3" cy="4" r="2.4"></circle><circle cx="17" cy="4" r="2.4"></circle>
+        </svg></span>`
+    : "";
+  const depAttr = deps.length ? ` data-deps="${deps.map((d: any) => d.targetId).join(",")}"` : "";
+
   const draggableAttr = isMobileViewport ? 'draggable="false"' : 'draggable="true"';
   const cardClasses = isMobileViewport ? "card mobile-card" : "card";
 
   return `
-    <div class="${cardClasses}" ${draggableAttr} data-id="${task.id}" data-status="${task.status}" data-project="${task.project}" data-completed-at="${task.completed_at || ''}">
+    <div class="${cardClasses}" ${draggableAttr} data-id="${task.id}"${depAttr} data-status="${task.status}" data-project="${task.project}" data-completed-at="${task.completed_at || ''}">
       <div class="card-header">
-        <span class="card-id">#${task.id}</span>
+        <span class="card-id">#${task.id}</span>${depIndicator}
         ${levelBadge}
         ${priorityBadge}
         ${statusBadge}
@@ -2437,6 +2502,11 @@ async function loadBoard() {
         const project = (el as HTMLElement).dataset.project;
         showTaskDetail(id, project);
       });
+      // #405: trace dependency lines while hovering a card that has any.
+      if ((el as HTMLElement).dataset.deps) {
+        el.addEventListener("mouseenter", () => showDepLines(el as HTMLElement));
+        el.addEventListener("mouseleave", clearDepLines);
+      }
     });
 
     if (!isMobileViewport) {

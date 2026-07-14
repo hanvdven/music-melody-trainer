@@ -28,16 +28,18 @@ import { PERCUSSION_KIT_CATEGORIES, percussionKitLabel } from '../../../audio/dr
 // (renderMelodyNotes, dashed line + end hooks, var(--text-primary)). Selecting reuses the
 // existing setTrebleSettings/setBassSettings({...,instrument}) path via onSetInstrument.
 
-// Icon size. #436 (Han: "instrument voor de glyph hoogte; maak nog 8 units hoger, houd de baseline;
-// zodat de afbeelding precies de hoogte van de notenbalk heeft") — the glyph is STAFF_CARD_ICON + 8
-// tall, and ICON_DY is lowered by the same 8 so the BASELINE (bottom edge) stays put and the image
-// now spans the full staff height.
-const ICON = STAFF_CARD_ICON + 8;
+// Icon size. #436 rework (Han: "ik vind de iconen ietsss te groot: maak 8 units kleiner, 3 aan de
+// onderkant 5 aan de bovenkant") — back to STAFF_CARD_ICON (38): 8 shorter than the previous 46, with
+// 5 taken off the TOP (ICON_DY 1 instead of −4) and 3 off the BOTTOM (bottom 42 → 39).
+const ICON = STAFF_CARD_ICON;
 // Per-item slot stride (user units). Widened from 56 → 64 (Han #163): +14%, conservative step,
 // multiple of 4 per design-principles §3. Adds a bit more breathing room between cards.
 const BASE = 64;
 // Vertical anchors relative to the staff top line (staff body spans staffStart..+40).
-const ICON_DY = 4 - 8;    // #436: lowered 8 so the taller glyph keeps its baseline (bottom edge)
+const ICON_DY = 1;        // #436: top edge (5 lower than the previous −4 → 8 shorter with 3 off the bottom)
+// #436 (Han: "ik mis nog de header: instrument"): a per-row field header, placed ABOVE the category
+// brackets (HEADER_DY = −10) so the two never overlap.
+const FIELD_HEADER_DY = -26;
 const NAME_DY = 58;       // name below the bottom staff line
 const HEADER_DY = -10;    // category bracket above the top staff line (lowered, Han 2026-06-17)
 const HIT_TOP = -22;      // hit/debug box spans header..name
@@ -176,6 +178,7 @@ const StaffCarousel = ({
     // Caller (InstrumentStaffOverlay) passes onPreview down from App via SheetMusic.
     onPreview,                                   // (item) => void, optional
     visibleHalf = INSTRUMENT_VISIBLE_HALF,
+    fieldHeader = 'instrument',   // #436: per-row field header (see FIELD_HEADER_DY)
     // #429 (Han: "instrument settings: maak de carousel onzichtbaar indien niet actief"): the same
     // reveal-on-interaction behaviour as the generation setters (§6d shared hook) — at rest only the
     // active instrument shows; press-and-hold reveals + drags; 3s idle re-hides with a fade.
@@ -361,6 +364,14 @@ const StaffCarousel = ({
         // drops its `data-fly` — leaving it would double-translate every card. The category brackets
         // stay UNtagged so they still do the cascade's delayed fade.
         <g className="instrument-cards">
+            {/* #436 (Han: "ik mis nog de header: instrument") — per-row field header, in the standard
+                setter header style (serif italic, non-capitalised, --text-secondary). Sits ABOVE the
+                category brackets so the two never overlap. */}
+            <text x={centerX} y={staffStart + FIELD_HEADER_DY} textAnchor="middle"
+                fontFamily="serif" fontStyle="italic" fontSize={14} fill="var(--text-secondary)"
+                style={{ userSelect: 'none', pointerEvents: 'none' }}>
+                {fieldHeader}
+            </text>
             {/* ICON TINT filter (#163 rework): flood the category colour into the icon's
                 alpha. flood-color is a style so the CSS var resolves; updateActiveCard
                 rewrites it live during a gesture. */}

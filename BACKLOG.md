@@ -21,7 +21,7 @@
 
 Deel deze features in bij de juiste categorie.
 
-### 🔴 P0 — Kanban-board opzetten (cyanluna.skills) (Han 2026-06-22)
+### ✅ 🔴 P0 — Kanban-board opzetten (cyanluna.skills) (Han 2026-06-22)
 
 Maak een kanban-board volgens de instructies op https://github.com/cyanluna-git/cyanluna.skills
 
@@ -55,6 +55,16 @@ remote-omgeving te draaien (met bovenstaande beperkingen)?
   alleen de SKILLS draagbaar.
 - ⏳ RESTANT (door Han, lokaal): board-UI uit upstream halen, token in `~/.claude/kanban-auth`
   (NOOIT in git), `/kanban-init` draaien. Begeleiding op aanvraag.
+
+[Claude 2026-07-08 11:00]: ✅ VOLLEDIG OPGELOST — het bord draait en wordt actief gebruikt.
+De uiteindelijke implementatie wijkt af van de oorspronkelijke cyanluna-route (dat was het
+plan, niet het eindresultaat): er draait nu een LOKAAL bord op `http://localhost:5500`
+(PGlite-backed, niet de gehoste Vercel-backend, niet Neon), gestart via `npm run kanban`.
+Bron: `~/.claude/kanban-board/` met de custom `plugins/kanban-api.ts` (2D-swimlane-model,
+§9 in CLAUDE.md). De devcontainer-overlay staat in `.devcontainer/kanban-board-overlay/`
+(gespiegeld, §9k drift-regel). De oorspronkelijke intentie — een werkend kanban-board dat de
+feature-pipeline stuurt — is dus gehaald. Originele tekst hierboven bewust ongewijzigd
+(BACKLOG-regel 1); dit is de status-update eronder.
 
 ### In-app kanban-bord (debug → kanban + terugknop) + items uit backlog/plan (Han 2026-06-22)
 

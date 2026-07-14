@@ -384,6 +384,11 @@ main#board.hidden {
   flex: 1;
   min-height: 0; /* see .column rule — needed for overflow-y to actually scroll */
   overflow-y: auto;
+  /* #395 (Han 2026-07-08): when a column-body reaches its scroll limit the
+     wheel/touch scroll used to CHAIN to the document, scrolling the whole page
+     so the board slid down below the swimlanes. `contain` keeps the scroll
+     inside the column and never propagates it to <body>. */
+  overscroll-behavior: contain;
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -478,6 +483,36 @@ main#board.hidden {
   color: #64748b;
   font-weight: 500;
 }
+
+/* #405 (Han): dependency indicator (two dots + a line) on cards that declare dependencies, plus the
+   hover-traced lines to the target cards drawn on the #dep-overlay. */
+.dep-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  color: #38bdf8;
+  cursor: help;
+}
+.dep-indicator svg line { stroke: currentColor; stroke-width: 1.5; }
+.dep-indicator svg circle { fill: currentColor; }
+#dep-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 60;
+  overflow: visible;
+}
+#dep-overlay .dep-line {
+  stroke: #38bdf8;
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  opacity: 0.9;
+}
+#dep-overlay .dep-line-dot { fill: #38bdf8; }
+.card.dep-source { box-shadow: 0 0 0 2px #38bdf8; }
+.card.dep-target { box-shadow: 0 0 0 2px #f59e0b; }
 
 .card-title {
   font-size: 0.8rem;

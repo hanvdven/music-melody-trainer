@@ -48,6 +48,17 @@ record it as a short entry in `IMPLEMENTATION_PLAN.md` (the running scratch-plan
 (✅ done · 🔨 in progress · ⏳ backlog · 🐞 bug). BACKLOG.md remains the user's
 source-of-truth feature text; `IMPLEMENTATION_PLAN.md` is the live working plan.
 
+**Update the architecture doc after IMPL, before UAT (Han 2026-07-08) — HARD
+GATE.** Every implementation phase must update `docs/architecture.md` as its
+LAST step, *before* moving the ticket to `test` (UAT). This is not optional and
+not deferrable: a ticket is NOT "impl complete" while its user-visible feature
+or significant bug fix is undocumented in the authoritative spec (§2). The
+pre-UAT architecture update keeps the authoritative spec in lock-step with the
+code so it never silently falls behind. Verify before every `impl → test` move:
+does architecture.md have a section for what I just built/fixed? If not, write it
+first — and give it a UNIQUE, correctly-formatted section number (a 2026-07-08
+audit found a duplicate "§38"; check the existing headers before allocating).
+
 ---
 
 ## 1b. BACKLOG.md — Editing Rules (mandatory)
@@ -491,7 +502,10 @@ Agents are selected based on **level (L1/L2/L3)** and **phase**:
 
 **Special cases:**
 
-- **Preplan phase** (always Haiku/low): fast L/effort classification, no deep thinking
+- **L/effort classification** (Han 2026-07-08): the standalone `preplan` column was
+  dropped (folded into `design`, alongside `impl_review` folding into `test`). Fast
+  L1/L2/L3 + effort classification now happens at the START of the `design` phase
+  before the interview — no separate column, but still a quick, cheap first step.
 - **Periodic audits** (§9d): execute immediately (no approval gates) and create findings tickets
 - **Tech-debt fixes**: Claude can execute immediately if scope is unambiguous (no design/plan interview needed)
 
@@ -650,7 +664,7 @@ Multiple tickets can be in flight simultaneously:
 - **Use different models per ticket** to provide evidence of multi-agent thinking (haiku for one, sonnet for another)
 - **Build in background** with `run_in_background: true` for long waits; monitorwith `Monitor` tool
 
-When Han is AFK (timeboxed): execute audit findings, preplans, and low-risk mechanical fixes immediately. High-impact design decisions wait for Han.
+When Han is AFK (timeboxed): execute audit findings, fast L/effort classification, and low-risk mechanical fixes immediately. High-impact design decisions wait for Han.
 
 ### 9i. Review Swimlane Clarifications
 

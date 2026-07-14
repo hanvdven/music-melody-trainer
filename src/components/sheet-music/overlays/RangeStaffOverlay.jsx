@@ -339,6 +339,12 @@ const RangeStaffOverlay = ({
         CONTEXT: RANGE_CONTEXT, DRAG: DRAG_PX_PER_STEP,
     });
 
+    // #436 (Han: "passief: setter is niet actief → bij geen interactie mogen de niet geselecteerde
+    // noten haast onzichtbaar"). True while a pointer is down on the setter; drives the extra fade of
+    // the out-of-range notes and the disabled percussion pads at rest.
+    const [interacting, setInteracting] = React.useState(false);
+    const PASSIVE_FADE = 0.22;   // multiplier applied to non-selected notes when NOT interacting
+
     const downRef = React.useRef(null);       // { x, staff } at pointer-down (drag detection)
     // Latest boundary writer captured in a ref so the timer-driven loop never
     // calls a stale closure across re-renders (§6 spirit).
@@ -703,6 +709,7 @@ const RangeStaffOverlay = ({
         const onDown = (e) => {
             if (!onSetMelodicBoundary) return;
             const x = svgX(e); if (x == null) return;
+            setInteracting(true);   // #436: reveal the non-selected notes while interacting
             // Two zones: pick the NEAREST fixed boundary handle (min at Xl, max at Xr). Drag is
             // relative + fixed-sensitivity (see onMove); min/max stay on their fixed x.
             const which = Math.abs(x - Xl) <= Math.abs(x - Xr) ? 'min' : 'max';
@@ -745,6 +752,7 @@ const RangeStaffOverlay = ({
             }
         };
         const onUp = () => {
+            setInteracting(false);   // #436: fade the non-selected notes back out at rest
             const d = downRef.current;
             const s = slideRef.current[staff];
             if (d?.dragged) { dragRef.current = null; forceReanchor(); }   // drag already committed live
@@ -821,7 +829,11 @@ const RangeStaffOverlay = ({
                         if (y == null) return null;
                         const inBand = n.midi >= selMin && n.midi <= selMax;
                         const d = inBand ? 0 : (n.midi < selMin ? selMin - n.midi : n.midi - selMax);
-                        const opacity = inBand ? 1 : Math.max(0.15, 1 - d * 0.045);
+                        // #436: out-of-range (non-selected) notes fade to near-invisible when the
+                        // setter is PASSIVE (no pointer down), and come back while interacting.
+                        const opacity = inBand
+                            ? 1
+                            : Math.max(0.15, 1 - d * 0.045) * (interacting ? 1 : PASSIVE_FADE);
                         // In-range notes SHRINK toward the MIDDLE of the range (Han 2026-06-16):
                         // 100% at the boundaries → ~50% at the exact middle, symmetric + eased.
                         // Position by NATURAL ORDINAL (even white-key steps) so the curve is smooth;
@@ -988,7 +1000,10 @@ const RangeStaffOverlay = ({
         // full strength; DISABLED pads colour by the rule too but faint (opacity ≈ the 40%-colour
         // blend), so they read as "in the kit but off" rather than flat grey.
         const layers = [
-            { key: 'off', opacity: 0.4, entries: disabledEntries },
+            // #436 (Han: "bij percussie: maak ze extra lowlight bij passieve selector") — EXTRA
+            // lowlight at rest, but still visible/clickable (unlike the melodic out-of-range notes,
+            // a pad must stay tappable to be re-enabled); back to the normal dim blend while active.
+            { key: 'off', opacity: interacting ? 0.4 : 0.22, entries: disabledEntries },
             { key: 'on', opacity: 1, entries: enabledEntries },
         ];
 

@@ -136,7 +136,8 @@ export const noteYMap = {
   tm: 181, // Med Tom
   s: 186,  // Snare drum
   sg: 186, // Ghost snare (same position as snare)
-  sr: 176, // Rim click (cross notehead 10 units above snare)
+  sr: 186, // Rim click — #436 (Han: "de snare rim staat 10 units te hoog"): lowered 10 (176 → 186)
+           // so it sits on the SNARE line (its cross notehead is what distinguishes it).
   tl: 196, // Floor Tom
   k: 206, // Bass drum
   hp: 211, // Hi-hat pedal
@@ -192,6 +193,21 @@ const percussionChromatoneColors = {
   wl: 'var(--drum-woodblock)',
   other: '#4CAF50',
 };
+
+// #436 (Han: "percussie chord: te veel noten zijn nu gekleurd — de toms moeten niet gekleurd zijn in
+// akkoord mode, de woodblocks ook niet"): in the CHORDS colouring mode only the CORE kit pieces take
+// their chromatone colour — kick, snare, hi-hat and their variants (rim, ghost, open, pedal). Toms,
+// woodblocks, cymbals and cowbell stay neutral. (chromatone / subtle-chroma still colour everything.)
+const CHORD_MODE_PERC_PADS = new Set(['k', 's', 'hh', 'sr', 'sg', 'ho', 'hp']);
+const percussionChordModeColors = Object.fromEntries(
+  Object.entries(percussionChromatoneColors).filter(([id]) => CHORD_MODE_PERC_PADS.has(id)),
+);
+// The per-drum colour map to use for a given colouring mode (null = don't colour percussion).
+const percColorMapFor = (mode) => (
+  mode === 'chords' ? percussionChordModeColors
+    : (mode === 'chromatone' || mode === 'subtle-chroma') ? percussionChromatoneColors
+      : null
+);
 
 // durationDotMap / durationFlagMapDown / durationFlagMapUp now imported from staffNoteGlyph
 // (single source — §6c/§6d).
@@ -815,10 +831,9 @@ const renderMelodyNotes = (
         });
       }
 
-      // Per-note colors (percussion chromatone coloring). #434: 'chords' mode colours percussion too.
-      const drumColors = staff === 'percussion' && (noteColoringMode === 'chromatone' || noteColoringMode === 'subtle-chroma' || noteColoringMode === 'chords')
-        ? percussionChromatoneColors
-        : null;
+      // Per-note colors (percussion chromatone coloring). #434/#436: 'chords' mode colours percussion
+      // too, but only the CORE kit pieces (percColorMapFor restricts the map).
+      const drumColors = staff === 'percussion' ? percColorMapFor(noteColoringMode) : null;
 
       const stemColor = previewColor ?? 'var(--text-primary)';
 
@@ -1119,14 +1134,15 @@ const renderMelodyNotes = (
       // track the real harmony). melody.notes is the untransposed concert array; for non-transposed
       // staves it equals the written note, so this is a no-op there.
       const concertNote = melody.notes[index] ?? noteWithAccidental;
-      // #434 (Han: "chord past ook toe op percussie: kleur [k,s,hh] + varianten [sr,sg,ho,hp] in
-      // hun chromatone kleuren") — the 'chords' colouring mode now also gives percussion its
-      // per-drum chromatone colour (plain, like chromatone; only subtle-chroma uses the mix).
+      // #434/#436: 'chords' mode colours percussion too, but only the CORE kit pieces —
+      // percColorMapFor returns the restricted map for 'chords' (no toms/woodblocks/cymbals) and the
+      // full map for chromatone/subtle-chroma. A pad missing from the map falls back to text-primary.
+      const percMap = staff === 'percussion' ? percColorMapFor(noteColoringMode) : null;
       let headColor = staff === 'percussion'
-        ? ((noteColoringMode === 'chromatone' || noteColoringMode === 'subtle-chroma' || noteColoringMode === 'chords')
+        ? (percMap
           ? (noteColoringMode === 'subtle-chroma'
-            ? `color-mix(in srgb, ${percussionChromatoneColors[normalizePC(noteWithAccidental)] || 'var(--text-primary)'}, ${theme === 'light' ? 'black' : 'white'} 60%)`
-            : (percussionChromatoneColors[normalizePC(noteWithAccidental)] || 'var(--text-primary)'))
+            ? `color-mix(in srgb, ${percMap[normalizePC(noteWithAccidental)] || 'var(--text-primary)'}, ${theme === 'light' ? 'black' : 'white'} 60%)`
+            : (percMap[normalizePC(noteWithAccidental)] || 'var(--text-primary)'))
           : 'var(--text-primary)')
         : getMelodicColor(concertNote);
       // Stem/flag/ledger color: follows head in preview mode, otherwise default.

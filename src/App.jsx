@@ -7,7 +7,7 @@ import { getProgressionLabel } from './theory/progressionDefinitions';
 import './styles/App.css';
 import './styles/AppLayout.css';
 import { modulateMelody, transposeNoteBySemitones } from './theory/musicUtils';
-import { respellToKeySignature, getNoteSemitone, stripOctave } from './theory/noteUtils';
+import { respellToKeySignature, getNoteSemitone, stripOctave, representativeChord } from './theory/noteUtils';
 import { getTranspositionSemitones, getTranspositionFifths, getTranspositionLabel } from './constants/transposingInstruments';
 import Sequencer from './audio/Sequencer';
 import playInstrumentPreview from './audio/playInstrumentPreview';
@@ -1369,9 +1369,11 @@ const App = () => {
         // in .displayNotes (what getChordsWithSlashes reads). Both have { root, notes }.
         const list = (prog?.chords?.length ? prog.chords : prog?.displayNotes) || [];
         const chords = list.filter(c => c?.notes?.length && c?.root);
-        if (!chords.length) return null;
-        const last = chords[chords.length - 1];
-        return getNoteSemitone(last.root) === getNoteSemitone(scale.tonic) ? last : chords[0];
+        // #436 (Han: the range-PRESET setter "weet niet dat ze chord kleuren mag gebruiken als er
+        // geen akkoord actief is") — route through the SHARED representativeChord, which adds the
+        // tritone-of-tonic fallback when the progression has no chord, so 'chords' colouring is
+        // ALWAYS visible on the keyboard / range-preset surfaces too.
+        return representativeChord(chords.map(c => ({ isSlash: false, chord: c })), scale.tonic);
     }, [displayChordProgression, chordProgression, scale.tonic]);
 
 

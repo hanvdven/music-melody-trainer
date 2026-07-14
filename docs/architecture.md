@@ -4724,3 +4724,29 @@ state look is colour+weight (no glow); bracket geometry and the carousel icon si
 `overlays/NoteColoringStaffOverlay.jsx`, `overlays/carouselOptionGlyph.jsx`,
 `overlays/generationNoteGlyphs.jsx`, `overlays/InstrumentStaffOverlay.jsx`, `CarouselFieldItem.jsx`,
 `hooks/useRevealOnInteraction.js`.
+
+### §57. Settings fan unification + colour audit (#434, Han 2026-07-14)
+
+**Purpose:** make every setter fan behave like the intuitive measures fan (drag DOWN raises),
+tidy labels, and apply note-colouring more universally.
+
+- **Intuitive invert** (drag DOWN = increase) on: the measures + volume fans (SettingsOverlay), the
+  variability + tuplets fans and the span / smallest-note / passing-chords fans (gen-advanced), and
+  BOTH transposition carousels. The vertical `LeftFanCarousel` grew an `invert` prop (drag sign only,
+  layout unchanged, §54); the custom tangens carousels flip the `useTangensDrag` sign.
+- **Hidden (compact)** added to the gen-advanced span / smallest-note / passing-chords fans (only the
+  active item at rest; the fan opens under the finger). NOT applied to the transposition setter — its
+  neighbour rows are tap-to-select targets (§15), so hiding them would remove that feature (flagged).
+- **Labels:** variability shows `N %`; smallest-note shows `1/4, 1/8, 1/16 …` under each note;
+  repeats keeps the Maestro `À` (=×N) mark with a wider gap before it (Han only wanted the space).
+- **Repeat barlines (playback)** align to BarlinesLayer exactly: begin at `startX−15`, end at `endX`
+  (was `systemEndX+1`, 1px past the viewBox edge → the right clip).
+- **Colour audit:** the span example heads are pitch-coloured by the active note-coloring rule (C
+  reference). `smallest-note` (durations) and the exercise/chord selectors are left uncoloured (Han:
+  "span mag gekleurd, de rest niet"). The **'chords' colour mode now also colours percussion**
+  ([k,s,hh] + variants sr/sg/ho/hp) with its per-drum chromatone colour (renderMelodyNotes, both the
+  chord and single-note percussion paths).
+
+**Files:** `overlays/SettingsOverlay.jsx`, `overlays/carouselOptionGlyph.jsx`,
+`overlays/GenerationAdvancedSetterOverlay.jsx`, `overlays/TranspositionSetter.jsx`,
+`renderMelodyNotes.jsx`.

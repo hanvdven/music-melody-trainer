@@ -345,6 +345,12 @@ const KeyboardRangeSetter = ({
                     minNote={win[0].name}
                     maxNote={win[nWhite - 1].name}
                     noteColoringMode={noteColoringMode}
+                    // #436 (Han: "pas de akkoordkleuring ook toe op de range preset setter") — this
+                    // selector PianoView never received the chord context, so 'chords' mode left it
+                    // uncoloured. It now gets the same representative chord (with the tritone
+                    // fallback) the other surfaces use.
+                    activeChord={activeChord}
+                    theme={theme}
                     hideLabels
                 />
                 <svg ref={selSvgRef} className="kbd-range-overlay"
