@@ -815,8 +815,8 @@ const renderMelodyNotes = (
         });
       }
 
-      // Per-note colors (percussion chromatone coloring)
-      const drumColors = staff === 'percussion' && (noteColoringMode === 'chromatone' || noteColoringMode === 'subtle-chroma')
+      // Per-note colors (percussion chromatone coloring). #434: 'chords' mode colours percussion too.
+      const drumColors = staff === 'percussion' && (noteColoringMode === 'chromatone' || noteColoringMode === 'subtle-chroma' || noteColoringMode === 'chords')
         ? percussionChromatoneColors
         : null;
 
@@ -1119,8 +1119,11 @@ const renderMelodyNotes = (
       // track the real harmony). melody.notes is the untransposed concert array; for non-transposed
       // staves it equals the written note, so this is a no-op there.
       const concertNote = melody.notes[index] ?? noteWithAccidental;
+      // #434 (Han: "chord past ook toe op percussie: kleur [k,s,hh] + varianten [sr,sg,ho,hp] in
+      // hun chromatone kleuren") — the 'chords' colouring mode now also gives percussion its
+      // per-drum chromatone colour (plain, like chromatone; only subtle-chroma uses the mix).
       let headColor = staff === 'percussion'
-        ? ((noteColoringMode === 'chromatone' || noteColoringMode === 'subtle-chroma')
+        ? ((noteColoringMode === 'chromatone' || noteColoringMode === 'subtle-chroma' || noteColoringMode === 'chords')
           ? (noteColoringMode === 'subtle-chroma'
             ? `color-mix(in srgb, ${percussionChromatoneColors[normalizePC(noteWithAccidental)] || 'var(--text-primary)'}, ${theme === 'light' ? 'black' : 'white'} 60%)`
             : (percussionChromatoneColors[normalizePC(noteWithAccidental)] || 'var(--text-primary)'))
