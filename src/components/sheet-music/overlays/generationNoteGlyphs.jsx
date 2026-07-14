@@ -1,6 +1,7 @@
 import React from 'react';
 import { NOTE_FONT_SIZE } from '../staffNoteGlyph';
-import { MiniMelody, MINI_QUARTER as QUARTER } from './MiniMelody';
+import { melodicNoteColor } from '../../../theory/noteUtils';
+import { MiniMelody, MINI_QUARTER as QUARTER, PREVIEW_TONIC, PREVIEW_SCALE } from './MiniMelody';
 
 // ── Inline-note carousel content for the GENERATION setter ────────────────────────────────────────
 //
@@ -8,25 +9,37 @@ import { MiniMelody, MINI_QUARTER as QUARTER } from './MiniMelody';
 // MiniMelody.jsx) — the SAME renderMelodyNotes pipeline the sheet uses. NotePoolGlyph / RhythmMeasure
 // Glyph / ComplexityChordGlyph are thin wrappers; no glyph offsets live here (§6c/§6d).
 
+// Shift a note name down one octave (bass-clef example notes render an octave lower — Han: "de
+// gerenderde noten moeten een octaaf lager zijn indien bassleutel", C3–C4 for bass vs C4–C5 treble).
+const octaveDown = (name) => {
+    const m = String(name).match(/^([A-G][♭♯#b]?)(-?\d+)$/);
+    return m ? `${m[1]}${parseInt(m[2], 10) - 1}` : name;
+};
+
 // ── Note-pool example runs (#295/#431) ────────────────────────────────────────
-// Example notes per pool, as a MELODY (notes achter elkaar — Han: "zet de noten achter elkaar ipv
-// boven elkaar"). The NAMES stay C-based regardless of clef; MelodyNotesLayer positions them for the
-// active clef, so switching bass↔treble repositions the notes (Han's clef-change bug — no manual
-// octave maths). 'chromatic' uses a chromatic ascending run so its accidentals render at REAL size.
+// Example notes per pool, as a MELODY (notes achter elkaar). Treble/vocal → C4–C5; bass → C3–C4
+// (the names shift an octave, then MelodyNotesLayer positions them for the clef, so a clef change
+// re-renders correctly). 'chromatic' uses a chromatic ascending run so its accidentals render at
+// REAL size.
 const POOL_NOTES = {
     root: ['C4', 'C5'],
     chord: ['C4', 'E4', 'G4', 'C5'],
     scale: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'],
     chromatic: ['C4', 'D♭4', 'D4', 'E♭4', 'E4', 'F4', 'F♯4', 'G4', 'A♭4', 'A4', 'B♭4', 'B4', 'C5'],
 };
-const POOL_WIDTH = 100;   // horizontal room for the run; more notes → tighter (root ends up widest)
+// Horizontal room for the run (Han 2026-07-14: "maak de note pool selector iets breder" — widened
+// so the 13-note chromatic run isn't cramped).
+const POOL_WIDTH = 150;
 
 /**
  * One note-pool item: the pool's example notes rendered through the real melody pipeline, so they
  * carry the active note-colouring, real accidentals and clef-correct positions.
  */
-export const NotePoolGlyph = ({ pool, staffStart, clef, staffType, noteColoringMode, theme }) => {
-    const notes = POOL_NOTES[pool] || POOL_NOTES.scale;
+export const NotePoolGlyph = ({
+    pool, staffStart, clef, staffType, noteColoringMode, tonic, scaleNotes, activeChord, theme,
+}) => {
+    let notes = POOL_NOTES[pool] || POOL_NOTES.scale;
+    if (clef === 'bass') notes = notes.map(octaveDown);   // C3–C4 for bass
     return (
         <MiniMelody
             slots={notes}
@@ -36,6 +49,9 @@ export const NotePoolGlyph = ({ pool, staffStart, clef, staffType, noteColoringM
             clef={clef}
             staff={staffType}
             noteColoringMode={noteColoringMode}
+            tonic={tonic}
+            scaleNotes={scaleNotes}
+            processedChords={activeChord ? [{ absoluteOffset: 0, isSlash: false, chord: activeChord }] : []}
             theme={theme}
         />
     );
@@ -85,7 +101,8 @@ export function rhythmPatternDurations(n, measureTicks = 48) {
     return slots.flat();
 }
 
-const PATTERN_W = 96; // one measure's worth of pattern width inside a carousel item
+// One measure's pattern width (Han 2026-07-14: "maak de selector iets breder" — widened from 96).
+const PATTERN_W = 124;
 
 /**
  * #362/#431: notes-per-measure rendered "volgens bestaande protocol renderMelodyNotes" — a REAL
@@ -119,16 +136,17 @@ const COMPLEXITY_NOTES = {
     triad: ['C4', 'E4', 'G4'],
     seventh: ['C4', 'E4', 'G4', 'B4'],
     sus: ['C4', 'F4', 'G4'],
-    // #431 (Han): alt/ext = D4, E♭4, F4, G♯4, A4, B4, C5.
-    exotic: ['D4', 'E♭4', 'F4', 'G♯4', 'A4', 'B4', 'C5'],
+    // #431 rework (Han 2026-07-14): alt/ext = C4, D♯4, E4, F4, G4, A4, B♭4, C5.
+    exotic: ['C4', 'D♯4', 'E4', 'F4', 'G4', 'A4', 'B♭4', 'C5'],
 };
 
 /**
  * #362/#431: chord-complexity item = the REAL chord rendered without a staff, via the shared
  * pipeline (one slot = the chord array). The chords row floats on the chord-label band (no staff),
- * so the chord anchors on a VIRTUAL staff around the row centre.
+ * so the chord anchors on a VIRTUAL staff around the row centre. Coloured by the active rule (the
+ * 'chords' mode uses the representative chord passed via activeChord).
  */
-export const ComplexityChordGlyph = ({ complexity, centerY, noteColoringMode, theme }) => {
+export const ComplexityChordGlyph = ({ complexity, centerY, noteColoringMode, tonic, scaleNotes, activeChord, theme }) => {
     const notes = COMPLEXITY_NOTES[complexity] || COMPLEXITY_NOTES.triad;
     const virtualStaffStart = centerY - 26; // middle line = centerY − 6
     return (
@@ -138,6 +156,9 @@ export const ComplexityChordGlyph = ({ complexity, centerY, noteColoringMode, th
             width={0}                       // one column → the chord sits on the origin
             staffStart={virtualStaffStart}
             noteColoringMode={noteColoringMode}
+            tonic={tonic}
+            scaleNotes={scaleNotes}
+            processedChords={activeChord ? [{ absoluteOffset: 0, isSlash: false, chord: activeChord }] : []}
             theme={theme}
         />
     );
@@ -160,21 +181,30 @@ export const chordLabelsFor = (n) => {
 // Match the sheet's chord ROOT label EXACTLY (Han: "waarom een andere grootte en lettertype dan
 // akkoorden in gewone melodie?") — serif, fontSize 26, weight normal (ChordLabelsLayer.rootFontSize).
 const CHORD_LABEL_FONT_SIZE = 26;
-const CHORD_LABEL_SPACING = 18;
+// Han 2026-07-14: "voeg spatie toe tussen de akkoorden" — wider gap between the chord letters.
+const CHORD_LABEL_SPACING = 26;
 
 /**
  * #431 (Han): the chords/measure item renders literal chord LABELS in the SAME serif font/size the
- * sheet uses for chord roots (§6d). The trailing partial chord of a fractional count is lowlit.
+ * sheet uses for chord roots (§6d). The trailing partial chord of a fractional count is lowlit, and
+ * each chord letter is COLOURED by the active note-coloring rule (Han 2026-07-14: "de letters worden
+ * niet gekleurd, ik verwacht van wel") — the letter's root pitch class through melodicNoteColor.
  */
-export const ChordCountGlyph = ({ count, centerY, color = 'var(--text-primary)' }) => {
+export const ChordCountGlyph = ({
+    count, centerY, noteColoringMode, tonic = PREVIEW_TONIC, scaleNotes = PREVIEW_SCALE,
+    activeChord = null, theme, color = 'var(--text-primary)',
+}) => {
     const labels = chordLabelsFor(count);
     const x0 = -((labels.length - 1) * CHORD_LABEL_SPACING) / 2;
+    const letterColor = (letter) =>
+        melodicNoteColor(`${letter}4`, { noteColoringMode, tonic, scaleNotes, theme, activeChord })
+        || color;
     return (
         <g style={{ pointerEvents: 'none' }}>
             {labels.map((c, i) => (
                 <text key={i} x={x0 + i * CHORD_LABEL_SPACING} y={centerY} textAnchor="middle"
                     fontFamily="serif" fontSize={CHORD_LABEL_FONT_SIZE} fontWeight="normal"
-                    fill={c.dim ? 'var(--text-lowlight)' : color}>
+                    fill={c.dim ? 'var(--text-lowlight)' : letterColor(c.label)}>
                     {c.label}
                 </text>
             ))}

@@ -9,6 +9,8 @@ import {
     getTraditionalSolfege,
     getKodalySolfege,
     respellToKeySignature,
+    tritoneOf,
+    representativeChord,
 } from '../noteUtils';
 import { getTranspositionFifths } from '../../constants/transposingInstruments';
 
@@ -265,5 +267,35 @@ describe('respellToKeySignature', () => {
     it('does not touch percussion / non-pitched tokens', () => {
         expect(respellToKeySignature('r', 4)).toBe('r');
         expect(respellToKeySignature('hh', 4)).toBe('hh');
+    });
+});
+
+describe('tritoneOf', () => {
+    it('is the pitch class + 6 semitones, keeping the octave', () => {
+        expect(getNoteSemitone(tritoneOf('C4'))).toBe(6);   // F♯
+        expect(getNoteSemitone(tritoneOf('F4'))).toBe(11);  // B
+        expect(tritoneOf('C4')).toMatch(/4$/);
+    });
+});
+
+describe('representativeChord (#432 — chords-mode preview colouring)', () => {
+    it('uses the LAST chord when its root is the tonic', () => {
+        const chords = [
+            { isSlash: false, chord: { root: 'F4', notes: ['F4', 'A4', 'C5'] } },
+            { isSlash: false, chord: { root: 'C4', notes: ['C4', 'E4', 'G4'] } },
+        ];
+        expect(representativeChord(chords, 'C4').root).toBe('C4');
+    });
+    it('uses the FIRST chord when the last chord is not the tonic', () => {
+        const chords = [
+            { isSlash: false, chord: { root: 'C4', notes: ['C4', 'E4', 'G4'] } },
+            { isSlash: false, chord: { root: 'G4', notes: ['G4', 'B4', 'D5'] } },
+        ];
+        expect(representativeChord(chords, 'C4').root).toBe('C4');
+    });
+    it('falls back to the TRITONE of the tonic when there is no chord', () => {
+        const rc = representativeChord([], 'C4');
+        expect(getNoteSemitone(rc.root)).toBe(6);            // F♯ = tritone of C
+        expect(rc.notes.map(getNoteSemitone).sort((a, b) => a - b)).toEqual([0, 6]);
     });
 });

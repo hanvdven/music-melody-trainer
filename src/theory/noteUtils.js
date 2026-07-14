@@ -314,6 +314,33 @@ export const chordNoteColor = (note, activeChord, theme = 'dark') => {
     return null;
 };
 
+// The TRITONE of a note (pitch class + 6), spelled from ALL_NOTES, keeping the incoming octave.
+export const tritoneOf = (note) => {
+    const pc = (getNoteSemitone(note) + 6) % 12;
+    const octMatch = String(note ?? '').match(/(-?\d+)$/);
+    return `${ALL_NOTES[pc]}${octMatch ? octMatch[1] : '4'}`;
+};
+
+// ── representativeChord — ONE global source for 'chords'-mode preview colouring (Han 2026-07-14) ───
+// UNtimed preview surfaces (the in-staff colour/generation setters + the keyboard) have no playback
+// position, so they need a single representative chord to colour by when noteColoringMode==='chords'.
+// Han's rule (restored + made global — "zorg dat die akkoordkleuring globaal wordt opgelost"):
+//   • the LAST chord of the active progression IF its root is the tonic;
+//   • else the FIRST chord;
+//   • if there is NO chord at all, the TRITONE of the tonic — a maximally-distant fallback so the
+//     'chords' colouring is ALWAYS visible in the settings (previously this returned null → nothing
+//     coloured).
+export const representativeChord = (processedChords, tonic) => {
+    const real = (processedChords || []).filter(c => !c.isSlash && c.chord?.notes?.length);
+    if (real.length > 0) {
+        const last = real[real.length - 1].chord;
+        return getNoteSemitone(last.root) === getNoteSemitone(tonic) ? last : real[0].chord;
+    }
+    const t = tonic || 'C4';
+    const tri = tritoneOf(t);
+    return { root: tri, notes: [t, tri] };
+};
+
 export const melodicNoteColor = (note, { noteColoringMode, tonic, scaleNotes = [], theme = 'dark', activeChord = null } = {}) => {
     if (noteColoringMode === 'chromatone') return `var(--chromatone-${getNoteSemitone(note)})`;
     if (noteColoringMode === 'subtle-chroma') {

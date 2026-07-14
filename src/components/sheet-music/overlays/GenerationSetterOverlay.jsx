@@ -58,13 +58,22 @@ const HIT_H = 56;             // carousel hit/debug box height.
 // #295/#362 sizing for the inline-note content fields (Han: follow the colour carousel).
 // #362: the pool carousel is now EXACTLY the colour setter's geometry (Han: "precies
 // even breed en hoog als de colour setter") — same stride, same tall hit box.
-const POOL_BASE = 115;        // note-pool item stride = colour setter's option stride
+// #432 rework (Han 2026-07-14: "maak de note pool selector iets breder voor alle note pool
+// selectors" + same for notes/measure) — wider strides so the wider content (esp. the 13-note
+// chromatic run) breathes.
+const POOL_BASE = 160;        // note-pool item stride (widened from 115)
 const POOL_HIT_TOP = -42;     // colour setter's hit-box top offset from the row centre
 const POOL_HIT_H = 104;       // colour setter's hit-box height
-const PATTERN_BASE = 100;     // rhythm-measure item stride (PATTERN_W 92 + breathing room)
+const PATTERN_BASE = 135;     // rhythm-measure item stride (widened from 100)
 // #431 (Han): melody-type icons match the instrument setter — icon on the staff body, label below.
 // rowCenterY = staffStart + 20, so instrument's icon top (staffStart+4) → −16 and its label
 // (staffStart+58) → +38 relative to rowCenterY.
+// #432 rework: the generation previews are a C-based ILLUSTRATION (root C, C-major scale), so they
+// colour against a fixed C reference — a "scale" example must not read as non-scale just because the
+// real key isn't C. For 'chords'-mode colouring the illustration chord is the C-major triad (the
+// same C-E-G the 'chord' note-pool shows). The GLOBAL representativeChord fallback (with the tritone)
+// serves the COLOUR setter, which previews the REAL current context.
+const GEN_PREVIEW_CHORD = { root: 'C4', notes: ['C4', 'E4', 'G4'] };
 const MELODY_TYPE_ICON_DY = -16;   // icon TOP relative to rowCenterY (staff body)
 const MELODY_TYPE_LABEL_DY = 38;   // label baseline relative to rowCenterY (below the staff)
 const CONTENT_LABEL_DY = 28;  // labels sit just BELOW the staff (staffStart+48) for content rows
@@ -216,7 +225,7 @@ const GenerationSetterOverlay = ({
           items, activeIndex: idxOf(items, cur), labelAbove: 'complexity',
           renderContent: (item) => (
             <ComplexityChordGlyph complexity={item.value} centerY={row.centerY}
-              noteColoringMode={noteColoringMode} theme={theme} />
+              noteColoringMode={noteColoringMode} activeChord={GEN_PREVIEW_CHORD} theme={theme} />
           ),
           // Stack reaches ~centerY+34 (C4 head) → label clears it; hit box grows to match.
           labelDy: CONTENT_LABEL_DY + 14, hitTop: -32, hitHeight: 84,
@@ -239,16 +248,21 @@ const GenerationSetterOverlay = ({
       // chords / measure → chordCount. #431 (Han): render literal chord LABELS (C / C G / C F G /
       // C F G C by count, trailing partial chord lowlit) instead of the numeric icon, with the
       // count as a Maestro numeral BELOW (like notes/measure), and a '#/measure' header.
-      const items = CHORD_COUNT_ITEMS;
+      // #431/#432: blank the item.label so makeRenderItem does NOT draw the caps count — Han: "eerst
+      // in caps, dan in maestro. Enkel maestro is genoeg." The count shows ONLY as the Maestro
+      // numeral below (countLabel). The chord letters are coloured by the active rule.
+      const items = CHORD_COUNT_ITEMS.map(it => ({ ...it, countLabel: it.label, label: '' }));
       const cur = chordSettings?.chordCount ?? 1;
       return {
         items, activeIndex: idxOf(items, cur), labelAbove: '#/measure',
         renderContent: (item, active, color) => (
           <g>
-            <ChordCountGlyph count={item.value} centerY={row.centerY - 2} color={color} />
+            <ChordCountGlyph count={item.value} centerY={row.centerY - 2}
+              noteColoringMode={noteColoringMode} activeChord={GEN_PREVIEW_CHORD}
+              theme={theme} color={color} />
             <text x={0} y={row.centerY + CONTENT_LABEL_DY + 16} textAnchor="middle"
               fontSize={COUNT_FONT_SIZE} fontFamily="Maestro" fill={color}
-              style={{ pointerEvents: 'none' }}>{item.label}</text>
+              style={{ pointerEvents: 'none' }}>{item.countLabel}</text>
           </g>
         ),
         labelDy: CONTENT_LABEL_DY, hitTop: -32, hitHeight: 84,
@@ -289,7 +303,8 @@ const GenerationSetterOverlay = ({
         items, activeIndex: idxOf(items, cur), labelAbove: 'note pool',
         renderContent: (item) => (
           <NotePoolGlyph pool={item.value} staffStart={staffStart} clef={clef}
-            staffType={row.key} noteColoringMode={noteColoringMode} theme={theme} />
+            staffType={row.key} noteColoringMode={noteColoringMode}
+            activeChord={GEN_PREVIEW_CHORD} theme={theme} />
         ),
         // #362: colour-setter geometry — same stride AND same tall hit box, so
         // off-staff heads (C4 ledger notes) are never clipped out of the tap zone.

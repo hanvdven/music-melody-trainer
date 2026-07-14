@@ -39,7 +39,7 @@ import { renderAccidentals } from './renderAccidentals';
 import { calculateAllOffsets } from './calculateAllOffsets';
 import { generateAccidentalMap } from './generateAccidentalMap';
 import { getChordsWithSlashes } from '../../theory/chordLabelHandler';
-import { getNoteSemitone, noteToMidi, getKodalySolfege, respellToKeySignature, melodicNoteColor } from '../../theory/noteUtils';
+import { getNoteSemitone, noteToMidi, getKodalySolfege, respellToKeySignature, melodicNoteColor, representativeChord } from '../../theory/noteUtils';
 import { transposeNoteBySemitones } from '../../theory/musicUtils';
 import { clefForScreen } from './clefResolution';
 import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
@@ -995,12 +995,14 @@ const SheetMusic = ({
   // The ACTIVE chord used to colour notes when PAUSED (Han 2026-06-10): the TONIC chord if it is
   // the LAST chord of the progression, otherwise the FIRST chord. Shared by the melody layers AND
   // the in-staff setters (transposition/range) + keyboard so they all colour consistently.
-  const pausedActiveChord = useMemo(() => {
-    const real = (processedChords || []).filter(c => !c.isSlash && c.chord?.notes?.length);
-    if (real.length === 0) return null;
-    const lastChord = real[real.length - 1].chord;
-    return getNoteSemitone(lastChord.root) === getNoteSemitone(tonic) ? lastChord : real[0].chord;
-  }, [processedChords, tonic]);
+  // #432 rework (Han: "zorg dat die akkoordkleuring globaal wordt opgelost"): the representative
+  // chord for the UNtimed preview surfaces now comes from ONE shared helper, which ALSO supplies a
+  // tritone-of-tonic fallback when there is no progression (previously null → nothing coloured in
+  // the settings on 'chords' mode).
+  const pausedActiveChord = useMemo(
+    () => representativeChord(processedChords, tonic),
+    [processedChords, tonic],
+  );
   // Chords that drive the melody NOTE colouring: ALWAYS the full progression, so each note follows
   // the chord at its own offset whether playing or paused (Han 2026-06-14 — the old paused single-
   // chord collapse was not intended; the sheet must always reflect the per-timing chord). The

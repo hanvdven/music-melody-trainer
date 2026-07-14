@@ -379,9 +379,12 @@ const StaffCarousel = ({
                 each slot's geometry imperatively each frame (§6). Slots beyond the live header
                 count are parked transparent. Keys are by SLOT INDEX (stable, never collide even
                 when two same-label brackets straddle the seam). */}
-            {/* #429: the category brackets are CHROME — hidden at rest and fading with the field, so
-                a collapsed instrument carousel shows only the active card (like the generation
-                setters). Wrapped in one <g> whose opacity follows chromeVisible. */}
+            {/* #429/#432 rework (Han: category labels like "GUITARS"/"STRINGS" must be GONE when the
+                carousel is invisible): the brackets are CHROME. They are only RENDERED while the
+                side items are mounted (mountAllItems — i.e. open/closing), NOT merely dimmed, so a
+                collapsed carousel shows just the active card. The chromeVisible opacity still fades
+                them during the close transition. */}
+            {mountAllItems && (
             <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease',
                 pointerEvents: chromeVisible ? undefined : 'none' }}>
             {Array.from({ length: MAX_HEADERS }).map((_, i) => {
@@ -410,6 +413,7 @@ const StaffCarousel = ({
                 );
             })}
             </g>
+            )}
             <NonLinearCarousel
                 items={items} activeIndex={activeIndex} renderItem={renderItem}
                 centerX={centerX} y={staffStart + HIT_TOP} baseWidth={BASE} height={HIT_H}
