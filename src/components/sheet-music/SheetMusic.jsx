@@ -21,7 +21,6 @@ import GenerationSetterOverlay from './overlays/GenerationSetterOverlay';
 import ExerciseStaffOverlay from './overlays/ExerciseStaffOverlay';
 import GenerationAdvancedSetterOverlay from './overlays/GenerationAdvancedSetterOverlay';
 import { clefFamilyKey } from './overlays/clefSelector';
-import ChordStaffOverlay from './overlays/ChordStaffOverlay';
 import ChordStyleOverlay from './overlays/ChordStyleOverlay';
 import { clefSymbols } from './clefGlyphs';
 import GenericTypeSelector from '../common/GenericTypeSelector';
@@ -2997,17 +2996,10 @@ const SheetMusic = ({
                     />
                   )}
 
-                  {/* Chord COMPLEXITY selector — chord row, RANGE setter (Han #11/#12). */}
-                  {rangeMounted && (
-                    <ChordStaffOverlay
-                      startX={startX}
-                      endX={endX}
-                      trebleStart={trebleStart}
-                      chordComplexity={chordSettings?.complexity || 'triad'}
-                      onSetChordComplexity={(c) => setChordSettings(prev => ({ ...prev, complexity: c }))}
-                      debugMode={debugMode}
-                    />
-                  )}
+                  {/* #436 (Han: "range: haal chord complexity hier weg") — the chord-COMPLEXITY
+                      selector (root/power/triad/… stacks that ChordStaffOverlay drew above the RANGE
+                      staff) is removed from the range view; complexity is set in the generation
+                      setter's chords balk. */}
 
                   {/* Chord STYLE selector (off/letters/roman) — chord row, CLEF setter
                       (Han #12). Uses the sheet chord-label font size/style. */}

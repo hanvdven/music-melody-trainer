@@ -686,7 +686,11 @@ const RangeStaffOverlay = ({
             // Boundary (active) note: the rule colour, falling back to the theme-safe highlight.
             if (concertMidi === selMin || concertMidi === selMax) return rule || 'var(--range-boundary-highlight)';
             if (concertMidi > selMin && concertMidi < selMax) return rule || 'var(--text-primary)';
-            return rule || 'var(--range-lowlight)';   // out of range — coloured by the rule too
+            // #436 (Han): OUT-OF-RANGE = non-selected → a blend of 40% of the note's rule colour and
+            // 60% of the lowlight colour (dim but still tinted). Falls back to plain lowlight.
+            return rule
+                ? `color-mix(in srgb, ${rule} 40%, var(--range-lowlight) 60%)`
+                : 'var(--range-lowlight)';
         };
 
         // Press = start a continuous SLIDE of the nearest boundary toward the
@@ -980,9 +984,12 @@ const RangeStaffOverlay = ({
         // opacity fading made multi-stroke glyphs (ghost snare's parens, rim slash,
         // open-hihat 'o') hard to read as on/off. A flat lowlight grey at full
         // opacity keeps the glyph crisp while clearly reading as deselected.
+        // #436 (Han: non-selected = a dim blend of the colour): enabled pads colour by the rule at
+        // full strength; DISABLED pads colour by the rule too but faint (opacity ≈ the 40%-colour
+        // blend), so they read as "in the kit but off" rather than flat grey.
         const layers = [
-            { key: 'off', color: 'var(--range-lowlight)', opacity: 1, entries: disabledEntries },
-            { key: 'on', color: 'var(--text-primary)', opacity: 1, entries: enabledEntries },
+            { key: 'off', opacity: 0.4, entries: disabledEntries },
+            { key: 'on', opacity: 1, entries: enabledEntries },
         ];
 
         return (
@@ -1001,10 +1008,11 @@ const RangeStaffOverlay = ({
                             timeSignature={timeSignature}
                             theme={theme}
                             // #436 (Han: "percussie range setter: de noten kleuren nog niet mee met
-                            // colour mode"): the ENABLED pads now colour by the active rule (chromatone/
-                            // chords per-drum colour); DISABLED pads stay a flat lowlight (previewMode).
-                            noteColoringMode={layer.key === 'on' ? noteColoringMode : 'none'}
-                            previewMode={layer.key === 'on' ? null : layer.color}
+                            // colour mode"): BOTH enabled and disabled pads colour by the active rule
+                            // (chromatone/chords per-drum colour); the disabled layer is just faded
+                            // (its 0.4 opacity ≈ the 40%-colour blend).
+                            noteColoringMode={noteColoringMode}
+                            previewMode={null}
                         />
                     </g>
                 ))}
