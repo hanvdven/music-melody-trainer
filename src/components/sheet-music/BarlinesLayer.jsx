@@ -1,5 +1,6 @@
 import React from 'react';
 import { computeRepeatPass } from '../../utils/repeatNumbering';
+import { BeginRepeatSign, EndRepeatSign } from './repeatSigns';
 
 /**
  * BarlinesLayer — memoised wrapper around barline + measure-number rendering.
@@ -173,21 +174,16 @@ const isAnacrusisStart = mergedBodyMeasures == null && anacrusisMeasureIndex !==
             );
           }
           if (mode !== 'repeat') return null;
+          // §6d: the begin-repeat sign geometry now lives in the shared repeatSigns module (also
+          // used by the PLAYBACK setter, #430). The wrapper <g> keeps data-mel/data-offset for the
+          // highlight/animation system.
           const startXOffset = x - 15;
           return (
             <g key={`measure-line-${index}`} data-offset={barlineOffset} data-mel="barline">
-              <rect x={startXOffset - 2} y={trebleStart} width="3" height={bottomY - trebleStart} fill="var(--text-primary)" />
-              <path d={`M ${startXOffset + 4} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="1" />
-              {[trebleStart, bassStart, percussionStart].map((start, sIdx) => {
-                const showDots = sIdx === 0 ? isTrebleVisible : (sIdx === 1 ? isBassVisible : isPercussionVisible);
-                if (!showDots) return null;
-                return (
-                  <g key={`rep-dot-start-${start}-${sIdx}`}>
-                    <text x={startXOffset + 9} y={start + 18.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                    <text x={startXOffset + 9} y={start + 28.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                  </g>
-                );
-              })}
+              <BeginRepeatSign x={startXOffset} trebleStart={trebleStart} bassStart={bassStart}
+                percussionStart={percussionStart} bottomY={bottomY}
+                isTrebleVisible={isTrebleVisible} isBassVisible={isBassVisible}
+                isPercussionVisible={isPercussionVisible} />
             </g>
           );
         }
@@ -195,18 +191,10 @@ const isAnacrusisStart = mergedBodyMeasures == null && anacrusisMeasureIndex !==
           if (mode !== 'repeat') return null;
           return (
             <g key={`measure-line-${index}`} data-offset={barlineOffset} data-mel="barline">
-              {[trebleStart, bassStart, percussionStart].map((start, sIdx) => {
-                const showDots = sIdx === 0 ? isTrebleVisible : (sIdx === 1 ? isBassVisible : isPercussionVisible);
-                if (!showDots) return null;
-                return (
-                  <g key={`rep-dot-end-${start}-${sIdx}`}>
-                    <text x={x - 9} y={start + 18.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                    <text x={x - 9} y={start + 28.5} fontSize="21" fontFamily="Maestro" fill="var(--text-primary)" textAnchor="middle">k</text>
-                  </g>
-                );
-              })}
-              <path d={`M ${x - 4} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="1" />
-              <rect x={x + 1} y={trebleStart} width="3" height={bottomY - trebleStart} fill="var(--text-primary)" />
+              <EndRepeatSign x={x} trebleStart={trebleStart} bassStart={bassStart}
+                percussionStart={percussionStart} bottomY={bottomY}
+                isTrebleVisible={isTrebleVisible} isBassVisible={isBassVisible}
+                isPercussionVisible={isPercussionVisible} />
             </g>
           );
         }

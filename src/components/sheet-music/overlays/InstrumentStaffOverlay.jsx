@@ -1,5 +1,8 @@
 import React from 'react';
 import NonLinearCarousel, { visibleRange, xOffsetForDist } from './NonLinearCarousel';
+import { useRevealOnInteraction } from '../../../hooks/useRevealOnInteraction';
+import { bracketPaths } from './carouselBrackets';
+import { STAFF_CARD_ICON } from './carouselOptionGlyph';
 import {
     INSTRUMENT_LIST, getInstrumentIconUrl, getIconUrlByBasename, ICON_ATTRIBUTION, categoryColorVar,
 } from '../../../constants/instruments';
@@ -25,11 +28,10 @@ import { PERCUSSION_KIT_CATEGORIES, percussionKitLabel } from '../../../audio/dr
 // (renderMelodyNotes, dashed line + end hooks, var(--text-primary)). Selecting reuses the
 // existing setTrebleSettings/setBassSettings({...,instrument}) path via onSetInstrument.
 
-// Icon size. Was 33 (~50% larger than the original 22, Han 2026-06-17); ENLARGED +15% (Han
-// 2026-06-22, Task E): 33 * 1.15 ≈ 37.95. Kept as `33 * 1.15` so the +15% intent is explicit and
-// the base (33) is still visible for future tweaks. Card spacing (BASE) is unchanged — the larger
-// icon (~38) still clears the BASE=56 slot stride comfortably, so no clipping.
-const ICON = 33 * 1.15;
+// Icon size. #432 (Han 2026-07-14): use the SHARED carousel icon size (STAFF_CARD_ICON = 38, the
+// colour-setter reference) so ALL icon+label carousels match — the old 33*1.15 ≈ 37.95 was the same
+// value by coincidence, now it is one constant. Card spacing (BASE) still clears it comfortably.
+const ICON = STAFF_CARD_ICON;
 // Per-item slot stride (user units). Widened from 56 → 64 (Han #163): +14%, conservative step,
 // multiple of 4 per design-principles §3. Adds a bit more breathing room between cards.
 const BASE = 64;
@@ -147,23 +149,11 @@ const bracketGeom = (h, centerX, staffStart, edgeX) => {
     // first/last icon of the run.
     const x1 = h.pinLeft ? (centerX - edgeX) : (centerX + h.xLeft - BASE * 0.42);
     const x2 = h.pinRight ? (centerX + edgeX) : (centerX + h.xRight + BASE * 0.42);
-    const mid = (x1 + x2) / 2;
-    const label = h.label.toUpperCase();          // Unicode-safe (no accidentals here)
-    // CATEGORY TINT (Han 2026-06-22, Task B): the bracket (both hook/dash paths + the label) takes
-    // its top-category colour. h.label is the bracket's group === the top category, so
-    // categoryColorVar maps it straight to its --cat-* var (§6c, no hardcoded table). Per §6d the
-    // bracket KEEPS its weight (strokeWidth 1) + dash — only the colour changes from --text-primary
-    // to the category var. Falls back to --text-primary for any unmapped category.
+    // CATEGORY TINT (Han 2026-06-22, Task B): the bracket takes its top-category colour (§6c —
+    // categoryColorVar, no hardcoded table); §6d KEEPS the weight/dash, only the colour changes.
     const color = categoryColorVar(h.label, 'var(--text-primary)');
-    // Gap in the middle of the bracket for the label (so the line frames the text):
-    // |———— STRINGS ————|. Estimate the label half-width from its length.
-    const halfText = Math.min((x2 - x1) / 2 - 6, label.length * 3.4 + 4);
-    return {
-        y, label, color,
-        leftPath: `M ${x1} ${y + 6} V ${y} H ${mid - halfText}`,
-        rightPath: `M ${mid + halfText} ${y} H ${x2} V ${y + 6}`,
-        mid,
-    };
+    // #432: the path formula is the SHARED bracketPaths (one source of truth with CarouselFieldItem).
+    return { y, color, ...bracketPaths(x1, x2, y, h.label) };
 };
 
 // One carousel + dynamic category brackets. GENERALISED (Han 2026-06-22, Task D) so it drives BOTH
@@ -185,8 +175,14 @@ const StaffCarousel = ({
     // Caller (InstrumentStaffOverlay) passes onPreview down from App via SheetMusic.
     onPreview,                                   // (item) => void, optional
     visibleHalf = INSTRUMENT_VISIBLE_HALF,
+    // #429 (Han: "instrument settings: maak de carousel onzichtbaar indien niet actief"): the same
+    // reveal-on-interaction behaviour as the generation setters (§6d shared hook) — at rest only the
+    // active instrument shows; press-and-hold reveals + drags; 3s idle re-hides with a fade.
+    hidden = false,
 }) => {
     const edgeX = edgeXFor(visibleHalf);
+    // #429: reveal state machine (shared with CarouselField, §6d). Inert when `hidden` is false.
+    const { collapsed, mountAllItems, chromeVisible, reveal, resetHideTimer } = useRevealOnInteraction(hidden);
     const activeIndex = Math.max(0, items.findIndex(it => idOf(it) === currentId));
     // ICON TINT (#163 rework, Han: "selected icon is colored just like the text").
     // The icons are flat-black PNGs, so recolouring needs an SVG filter: feFlood
@@ -284,8 +280,9 @@ const StaffCarousel = ({
         }
     };
 
-    // Combined per-frame handler fed to the carousel's onPosChange: brackets + active-card glow.
-    const onPos = (pos) => { updateHeaders(pos); updateActiveCard(pos); };
+    // Combined per-frame handler fed to the carousel's onPosChange: brackets + active-card glow, and
+    // (when hidden) any drag activity resets the idle auto-hide timer (#429).
+    const onPos = (pos) => { updateHeaders(pos); updateActiveCard(pos); if (hidden) resetHideTimer(); };
 
     // When the gesture ends and the carousel re-settles on a committed index, React re-renders the
     // brackets from `activeIndex`. The last imperative `updateHeaders` write may have left a slot's
@@ -382,6 +379,11 @@ const StaffCarousel = ({
                 each slot's geometry imperatively each frame (§6). Slots beyond the live header
                 count are parked transparent. Keys are by SLOT INDEX (stable, never collide even
                 when two same-label brackets straddle the seam). */}
+            {/* #429: the category brackets are CHROME — hidden at rest and fading with the field, so
+                a collapsed instrument carousel shows only the active card (like the generation
+                setters). Wrapped in one <g> whose opacity follows chromeVisible. */}
+            <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease',
+                pointerEvents: chromeVisible ? undefined : 'none' }}>
             {Array.from({ length: MAX_HEADERS }).map((_, i) => {
                 const h = headers[i];
                 const geom = h ? bracketGeom(h, centerX, staffStart, edgeX) : null;
@@ -407,6 +409,7 @@ const StaffCarousel = ({
                     </g>
                 );
             })}
+            </g>
             <NonLinearCarousel
                 items={items} activeIndex={activeIndex} renderItem={renderItem}
                 centerX={centerX} y={staffStart + HIT_TOP} baseWidth={BASE} height={HIT_H}
@@ -415,8 +418,14 @@ const StaffCarousel = ({
                     // AUDIO PREVIEW (Han #163 Q1: fires on every select — tap OR drag-settle).
                     // Fires after onSelect so the instrument state is updated before the preview plays.
                     onPreview?.(item);
+                    if (hidden) resetHideTimer();   // stay open 3s after a selection (#429)
                 }}
                 onPosChange={onPos}
+                // #429: hidden mode — collapsed until pressed (press-and-hold reveals + drags), only
+                // the active card mounted at rest (mountAllItems=false → cheap).
+                collapsed={collapsed}
+                mountAllItems={mountAllItems}
+                onReveal={hidden ? reveal : undefined}
                 // 7 visible (3 each side + centre) for instruments — Han 2026-06-19 wanted more in
                 // view. The kit carousel passes a smaller half (fewer kits). "Same card size,
                 // wider": cards keep BASE width; the extra slots just fade at the edge (xOffset is
@@ -448,6 +457,9 @@ const InstrumentStaffOverlay = ({
     // AUDIO PREVIEW (Han #163 AC2 + Q1: fires on carousel select — drag settle OR tap).
     // App provides this callback; it plays a 2x-speed scale or percussion pattern for the item.
     onPreviewInstrument,        // (staff, slug) => void, optional
+    // #429 (Han): every instrument carousel is hidden (reveal-on-interaction) by default; tests pass
+    // false to assert the fully-expanded cards.
+    hiddenCarousels = true,
     debugMode = false,
 }) => {
     if (startX == null || endX == null) return null;
@@ -462,15 +474,16 @@ const InstrumentStaffOverlay = ({
     const bottomStart = isPercussionVisible && percussionStart != null ? percussionStart
         : isBassVisible ? bassStart : trebleStart;
 
-    // CHORD ROW PLACEMENT (#362, Han: "chords rij moet op dezelfde plek staan als
-    // in de bladmuziek"): the sheet draws chord LABELS on the band above the
-    // treble staff (the CHORD_ROW_Y line the other setters use, trebleStart−64).
-    // The old below-percussion placement was both off-screen and against the
-    // "settings gaan op in de bladmuziek" philosophy. The carousel's content
-    // spans staffStart−18 (brackets) … staffStart+58 (name row), so anchoring at
-    // trebleStart−78 puts the cards inside the chord-label band, ending just
-    // above the treble staff.
-    const chordCarouselStart = trebleStart - 78;
+    // CHORD ROW PLACEMENT (#429, Han: "zet de carousel op chords omhoog, zodat deze dezelfde
+    // relatieve afstand heeft als de setters in treble/bass/percussie"). The three staff carousels
+    // are anchored one staff-stride apart (treble→bass→percussion). Han wants the CHORDS carousel to
+    // sit that SAME stride ABOVE the treble carousel, so its vertical gap matches the gaps between
+    // the staff carousels — DERIVED from the actual staff positions (§6c), not the old hardcoded
+    // trebleStart−78. Fallback stride when only the treble staff is visible keeps it clear + up.
+    const staffStride = (isBassVisible && bassStart != null) ? (bassStart - trebleStart)
+        : (isPercussionVisible && percussionStart != null) ? ((percussionStart - trebleStart) / 2)
+        : 100;
+    const chordCarouselStart = trebleStart - staffStride;
 
     return (
         <g className="instrument-overlay" onClick={(e) => e.stopPropagation()}>
@@ -478,13 +491,13 @@ const InstrumentStaffOverlay = ({
                 <StaffCarousel staffStart={trebleStart} currentId={trebleInstrument}
                     centerX={centerX} onSelect={(item) => onSetInstrument('treble', item.slug)}
                     onPreview={(item) => onPreviewInstrument?.('treble', item.slug)}
-                    debugMode={debugMode} />
+                    hidden={hiddenCarousels} debugMode={debugMode} />
             )}
             {isBassVisible && (
                 <StaffCarousel staffStart={bassStart} currentId={bassInstrument}
                     centerX={centerX} onSelect={(item) => onSetInstrument('bass', item.slug)}
                     onPreview={(item) => onPreviewInstrument?.('bass', item.slug)}
-                    debugMode={debugMode} />
+                    hidden={hiddenCarousels} debugMode={debugMode} />
             )}
             {/* PERCUSSION-KIT carousel (Han 2026-06-22, Task D): same NonLinearCarousel + bracket
                 style as the instrument carousels (reuse, §6d), but the items are drum KITS grouped
@@ -504,7 +517,7 @@ const InstrumentStaffOverlay = ({
                     visibleHalf={PERC_KIT_VISIBLE_HALF}
                     centerX={centerX} onSelect={(item) => onSetPercussionKit?.(item.id)}
                     onPreview={(item) => onPreviewInstrument?.('percussion', item.id)}
-                    debugMode={debugMode} />
+                    hidden={hiddenCarousels} debugMode={debugMode} />
             )}
             {/* icons8 attribution/licence (MANDATORY) — centred DIRECTLY BELOW the (bottom) carousel
                 (Han 2026-06-17), just under its name row. UNtagged (no data-fly) so it does the
@@ -514,22 +527,16 @@ const InstrumentStaffOverlay = ({
                 style={{ pointerEvents: 'none' }}>
                 {ICON_ATTRIBUTION}
             </text>
-            {/* CHORD INSTRUMENT ROW (Han #163 AC3, repositioned #362): always visible, ON the
-                sheet's chord-label band above the treble staff. Uses the same ITEMS +
-                StaffCarousel as the other rows (§6d, no per-row hacks). The CHORDS label sits
-                to the LEFT (the band has no vertical room above the cards). */}
-            <text x={startX + 4} y={chordCarouselStart + 30}
-                textAnchor="start" fontSize={9} fontFamily="sans-serif" fontWeight="bold"
-                fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
-                CHORDS
-            </text>
+            {/* CHORD INSTRUMENT ROW (Han #163 AC3, repositioned #429): on the chord-label band above
+                the treble staff. Same ITEMS + StaffCarousel as the other rows (§6d). #429 rework
+                (Han: "haal het woordje 'chords' weg") — the standalone "CHORDS" caption is removed. */}
             <StaffCarousel
                 staffStart={chordCarouselStart}
                 currentId={chordInstrument || DEFAULT_CHORD_INSTRUMENT}
                 centerX={centerX}
                 onSelect={(item) => onSetChordInstrument?.(item.slug)}
                 onPreview={(item) => onPreviewInstrument?.('chords', item.slug)}
-                debugMode={debugMode} />
+                hidden={hiddenCarousels} debugMode={debugMode} />
         </g>
     );
 };

@@ -1,5 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { rhythmPatternDurations } from '../generationNoteGlyphs';
+import { rhythmPatternDurations, chordLabelsFor } from '../generationNoteGlyphs';
+
+// #431 (Han): literal chords/measure labels — C (≤1) · C G · C F G · C F G C, trailing partial
+// chord of a fractional count lowlit.
+describe('chordLabelsFor (#431, Han literal labels)', () => {
+    const labels = (n) => chordLabelsFor(n).map(c => c.label);
+    const dims = (n) => chordLabelsFor(n).map(c => c.dim);
+    it('integer counts render the exact label sequences', () => {
+        expect(labels(1)).toEqual(['C']);
+        expect(labels(2)).toEqual(['C', 'G']);
+        expect(labels(3)).toEqual(['C', 'F', 'G']);
+        expect(labels(4)).toEqual(['C', 'F', 'G', 'C']);
+        expect(dims(4)).toEqual([false, false, false, false]);   // all full
+    });
+    it('n ≤ 1 is a single C', () => {
+        expect(labels(0.25)).toEqual(['C']);
+        expect(labels(0.5)).toEqual(['C']);
+    });
+    it('a fractional count lowlights the trailing partial chord (2.5 → C F (G))', () => {
+        expect(labels(2.5)).toEqual(['C', 'F', 'G']);
+        expect(dims(2.5)).toEqual([false, false, true]);         // G dimmed
+        expect(dims(1.5)).toEqual([false, true]);                // C (G)
+    });
+});
 
 // #295 (Han): notes-per-measure patterns are DERIVED, not tabulated (§6c).
 // Han's worked examples from the ticket are the fixture.

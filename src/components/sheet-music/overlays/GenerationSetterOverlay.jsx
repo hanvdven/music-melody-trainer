@@ -1,6 +1,7 @@
 import React from 'react';
 import '../SheetMusic.css';
 import { useInstrumentSettings } from '../../../contexts/InstrumentSettingsContext';
+import { useDisplaySettings } from '../../../contexts/DisplaySettingsContext';
 import { getProgressionLabel, getPlayStyleLabel } from '../../../utils/labelUtils';
 import {
   MELODIC_NOTE_POOLS,
@@ -19,8 +20,9 @@ import { RULE_FAMILIES, PERC_FAMILIES } from '../../../constants/instrumentRules
 import { PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { CarouselField } from '../CarouselFieldItem';
 import {
-  NotePoolGlyph, RhythmMeasureGlyph, ComplexityChordGlyph, RomanProgressionGlyph,
+  NotePoolGlyph, RhythmMeasureGlyph, ComplexityChordGlyph, RomanProgressionGlyph, ChordCountGlyph,
 } from './generationNoteGlyphs';
+import { STAFF_CARD_ICON } from './carouselOptionGlyph';
 
 // ── GENERATION setter — CAROUSEL STYLE (Han 2026-06-22) ────────────────────────────────────────
 // REBUILD: previously each field was a tiny SvgSetter stepper (the smallest-note Maestro glyphs were
@@ -60,7 +62,11 @@ const POOL_BASE = 115;        // note-pool item stride = colour setter's option 
 const POOL_HIT_TOP = -42;     // colour setter's hit-box top offset from the row centre
 const POOL_HIT_H = 104;       // colour setter's hit-box height
 const PATTERN_BASE = 100;     // rhythm-measure item stride (PATTERN_W 92 + breathing room)
-const RULE_ICON_SIZE = 24;    // roomier randomization icons (Han: "groter icoon", #362)
+// #431 (Han): melody-type icons match the instrument setter — icon on the staff body, label below.
+// rowCenterY = staffStart + 20, so instrument's icon top (staffStart+4) → −16 and its label
+// (staffStart+58) → +38 relative to rowCenterY.
+const MELODY_TYPE_ICON_DY = -16;   // icon TOP relative to rowCenterY (staff body)
+const MELODY_TYPE_LABEL_DY = 38;   // label baseline relative to rowCenterY (below the staff)
 const CONTENT_LABEL_DY = 28;  // labels sit just BELOW the staff (staffStart+48) for content rows
 const COUNT_FONT_SIZE = 24;   // Maestro numeral under each rhythm-measure item (#362)
 
@@ -152,6 +158,9 @@ const GenerationSetterOverlay = ({
   isPercussionVisible,
   showChordsRow = true,
   onSettingsInteraction,
+  // #394a / #398: every field is a hidden (reveal-on-interaction) carousel by default; tests pass
+  // false to assert the fully-expanded carousel content.
+  hiddenFields = true,
   debugMode = false,
 }) => {
   const {
@@ -160,6 +169,9 @@ const GenerationSetterOverlay = ({
     percussionSettings, setPercussionSettings,
     chordSettings, setChordSettings,
   } = useInstrumentSettings();
+  // #431 rework (Han): example notes render through the REAL renderMelodyNotes pipeline, coloured by
+  // the ACTIVE note-coloring rule (+ theme for the subtle-chroma mix) — not a hardcoded palette.
+  const { noteColoringMode, theme } = useDisplaySettings();
   if (startX == null || endX == null) return null;
 
   // Wrap every field's onSelect so a selection also pings onSettingsInteraction (resets the
@@ -202,8 +214,9 @@ const GenerationSetterOverlay = ({
         const cur = chordSettings?.complexity || 'triad';
         return {
           items, activeIndex: idxOf(items, cur), labelAbove: 'complexity',
-          renderContent: (item, active, color) => (
-            <ComplexityChordGlyph complexity={item.value} centerY={row.centerY} color={color} />
+          renderContent: (item) => (
+            <ComplexityChordGlyph complexity={item.value} centerY={row.centerY}
+              noteColoringMode={noteColoringMode} theme={theme} />
           ),
           // Stack reaches ~centerY+34 (C4 head) → label clears it; hit box grows to match.
           labelDy: CONTENT_LABEL_DY + 14, hitTop: -32, hitHeight: 84,
@@ -223,11 +236,22 @@ const GenerationSetterOverlay = ({
           onSelect: (item) => setChordSettings(p => ({ ...p, strategy: item.value })),
         };
       }
-      // notes per measure → chordCount
+      // chords / measure → chordCount. #431 (Han): render literal chord LABELS (C / C G / C F G /
+      // C F G C by count, trailing partial chord lowlit) instead of the numeric icon, with the
+      // count as a Maestro numeral BELOW (like notes/measure), and a '#/measure' header.
       const items = CHORD_COUNT_ITEMS;
       const cur = chordSettings?.chordCount ?? 1;
       return {
-        items, activeIndex: idxOf(items, cur), labelAbove: 'chords / measure',
+        items, activeIndex: idxOf(items, cur), labelAbove: '#/measure',
+        renderContent: (item, active, color) => (
+          <g>
+            <ChordCountGlyph count={item.value} centerY={row.centerY - 2} color={color} />
+            <text x={0} y={row.centerY + CONTENT_LABEL_DY + 16} textAnchor="middle"
+              fontSize={COUNT_FONT_SIZE} fontFamily="Maestro" fill={color}
+              style={{ pointerEvents: 'none' }}>{item.label}</text>
+          </g>
+        ),
+        labelDy: CONTENT_LABEL_DY, hitTop: -32, hitHeight: 84,
         onSelect: (item) => setChordSettings(p => ({ ...p, chordCount: item.value })),
       };
     }
@@ -246,6 +270,10 @@ const GenerationSetterOverlay = ({
         const cur = percPresetName(cfg?.enabledPads);
         return {
           items, activeIndex: idxOf(items, cur), labelAbove: 'percussion',
+          // #431 rework (Han: "percussion note pool: breng in lijn met de andere icon+label
+          // carousels — grotere afbeelding, label op exact dezelfde hoogte"): same icon size +
+          // label alignment as the melody-type field.
+          iconSize: STAFF_CARD_ICON, iconDy: MELODY_TYPE_ICON_DY, labelDy: MELODY_TYPE_LABEL_DY,
           onSelect: (item) => set(p => ({ ...p, enabledPads: [...PERCUSSION_PRESETS[item.value]] })),
         };
       }
@@ -259,9 +287,9 @@ const GenerationSetterOverlay = ({
       const clef = cfg?.clef || (row.key === 'bass' ? 'bass' : 'treble');
       return {
         items, activeIndex: idxOf(items, cur), labelAbove: 'note pool',
-        renderContent: (item, active, color) => (
+        renderContent: (item) => (
           <NotePoolGlyph pool={item.value} staffStart={staffStart} clef={clef}
-            staffType={row.key} color={color} />
+            staffType={row.key} noteColoringMode={noteColoringMode} theme={theme} />
         ),
         // #362: colour-setter geometry — same stride AND same tall hit box, so
         // off-staff heads (C4 ledger notes) are never clipped out of the tap zone.
@@ -279,10 +307,14 @@ const GenerationSetterOverlay = ({
       return {
         items, activeIndex: idxOf(items, cur),
         // #362 (Han): family brackets AND the active item take the family's
-        // category colour (--cat-* palette), bigger icons.
+        // category colour (--cat-* palette).
         familyMode: true, familyName, familyColor,
         colorOf: (item) => familyColor(item.family),
-        iconSize: RULE_ICON_SIZE, labelDy: CONTENT_LABEL_DY,
+        // #431 (Han): icons as TALL as the instrument-setter icons (STAFF_CARD_ICON = 38, the
+        // shared staff-card height, §6d — not a new literal), and the label aligned the SAME way as
+        // the instrument setter: icon on the staff body (top at staffStart+~4 ≈ rowCenterY−16),
+        // label below the staff at staffStart+~58 ≈ rowCenterY+38.
+        iconSize: STAFF_CARD_ICON, iconDy: MELODY_TYPE_ICON_DY, labelDy: MELODY_TYPE_LABEL_DY,
         // Keep `type` set alongside the rule (mirrors the previous stepper wiring).
         onSelect: (item) => set(p => ({ ...p, randomizationRule: item.value, type: p.type ?? row.key })),
       };
@@ -329,7 +361,7 @@ const GenerationSetterOverlay = ({
         style={{ cursor: 'default' }}
       />
 
-      {/* Column headers — italic serif, var(--text-secondary), fontSize 14 (matches siblings). */}
+      {/* Column headers — italic serif, non-capitalised (Han 2026-07-13), var(--text-secondary), 14. */}
       {COL_HEADERS.map((h, i) => (h == null ? null : (
         <text key={`hdr-${i}`} x={cols[i]} y={HEADER_Y} textAnchor="middle"
           fontFamily="serif" fontStyle="italic" fontSize={14} fill="var(--text-secondary)"
@@ -357,7 +389,7 @@ const GenerationSetterOverlay = ({
                 hitTop={f.hitTop ?? HIT_TOP}
                 hitHeight={f.hitHeight ?? HIT_H}
                 iconSize={f.iconSize ?? ICON_SIZE}
-                iconDy={ICON_DY}
+                iconDy={f.iconDy ?? ICON_DY}
                 labelDy={f.labelDy ?? LABEL_DY}
                 labelFontSize={LABEL_FONT_SIZE}
                 bracketDy={BRACKET_DY}
@@ -369,6 +401,9 @@ const GenerationSetterOverlay = ({
                 colorOf={f.colorOf}
                 renderContent={f.renderContent}
                 visibleHalf={f.visibleHalf ?? 2}
+                // #394a / #398 (Han): every generation-settings field is a hidden carousel —
+                // at rest it shows only the active value; tap to open, tap-away/select to close.
+                hidden={hiddenFields}
                 debugMode={debugMode}
               />
             );

@@ -10,6 +10,9 @@ const renderOverlay = (props = {}) => render(
             noteColoringMode="tonic_scale_keys"
             setNoteColoringMode={() => {}}
             tonic="C" scaleNotes={['C', 'D', 'E', 'F', 'G', 'A', 'B']}
+            // #427 rework: these assertions cover the EXPANDED carousel; the hidden reveal-on-
+            // interaction behaviour is the shared hook (tested in useRevealOnInteraction). Default off.
+            hidden={false}
             {...props}
         />
     </svg>,
@@ -47,13 +50,14 @@ describe('NoteColoringStaffOverlay', () => {
         expect(ys.size).toBeGreaterThan(1);
     });
 
-    it('tags EACH scheme card with data-fly so the cards cascade in (Han 2026-06-19)', () => {
-        // PER-ELEMENT FLY-IN: data-fly moved from the old wrapping group DOWN onto each scheme card
-        // inside the carousel, so the schemes cascade in one-by-one (leftmost first) with the morph
-        // rather than the whole carousel flying as one unit. One data-fly per scheme.
+    it('tags scheme cards with data-fly so the cards cascade in (Han 2026-06-19)', () => {
+        // PER-ELEMENT FLY-IN: each scheme card carries data-fly so the schemes cascade in one-by-one
+        // (leftmost first). Since #432 the notes render through MiniMelody/renderMelodyNotes, whose
+        // note groups ALSO carry data-fly (they fly with their card), so there are at least the 5
+        // card-level flies plus the inner note flies.
         const { container } = renderOverlay();
         const flies = container.querySelectorAll('.note-coloring-overlay [data-fly]');
-        expect(flies.length).toBe(5);   // five colour schemes
+        expect(flies.length).toBeGreaterThanOrEqual(5);
     });
 
     it('renders the debug hit box when debugMode is on', () => {

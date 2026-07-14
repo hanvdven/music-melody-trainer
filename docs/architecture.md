@@ -1317,11 +1317,34 @@ Overlay menus (clef/transposition/range) are framed by a single vertical line at
 at staff-line weight (`var(--text-primary)` `strokeWidth="0.5"`) so it matches the horizontal
 staff lines. The earlier left line at `startX` and the heavier `strokeWidth="1"` were removed.
 
-**STAGED (TODO — needs the clef-octave system expanded):** on release, when a drag runs
->~octave off the staff, switch to an 8va/15ma/8vb/15vb clef (fade) so the head returns near
-the staff; and the octave-shifted quick-picks (C3, C5, B♭2). Today `OCTAVE_VARIANTS` has no
-treble 8vb/15vb (or bass 15va/15vb), so those octave variants must be added first. Until then
-the octave quick-picks are drawn dim + inert and the carousel is bounded to `[−5, 11]`.
+**Octave-on-overflow — IMPLEMENTED (corrected 2026-07-08, was a stale STAGED note).** Dragging the
+setter far off the staff DOES switch the real staff to an 8va/15ma/8vb/15vb clef. The whole chain is
+live and unit-tested: the setter allows ±24 semitones (`MIN_TRANS`/`MAX_TRANS`), `decomposeTrans`
+(ClefStaffOverlay) splits the total into `{ key, octave∈[−2,2] }`, `patchForTransposition` writes
+`transpositionOctave`, and `octaveAdjustedClef` (clefResolution.js) maps that octave onto
+`treble8vb`/`treble15vb`/`bass8vb`/`bass15vb`/… (proven in `clefResolution.test.js` —
+`octaveAdjustedClef('treble', -1) === 'treble8vb'`, `bass → bass15vb`). `getClefShiftValue` and
+`clefGlyphs.jsx` cover every ottava. So the old claim that "`OCTAVE_VARIANTS` must be expanded first"
+was about a DIFFERENT surface: the clef SELECTOR's direct octave-variant list (`OCTAVE_VARIANTS` in
+clefSelector.js) still offers only treble-up / bass-down/up-8 for DIRECT picking — that is separate
+from the transposition-driven octave path, which is complete. Ticket #262b (#397) tracks any further
+work here.
+
+**Typography pass — #262a / #396 (Han 2026-07-08, incl. UAT rework):** the setter's labels were
+re-tuned. `PRESET_FONT` 13→15 (+15%) with the preset hit boxes widened to match (34×16, §3a debug
+rects kept in sync) and the preset columns shifted ~30u left. The right label is no longer the
+inline `"concert C₄ ="`: the word **concert** is a SEPARATE label directly ABOVE the `"C₄ ="` label
+— lowercase, italic, serif (`LABEL_FONT`), in the active colour (Han's UAT report overrode the
+earlier sans-serif/caps interview answer). `"C₄ ="` sits at `RIGHT_LABEL_SIZE` (`LABEL_SIZE*0.8`,
+−20%); the centre `"="` and left active name stay at `LABEL_SIZE` (22). An earlier attempt to draw
+the whole right carousel at `scale(0.85)` was REVERTED — Han wanted the carousel's footprint 15%
+smaller, not the note glyphs shrunk; the exact interpretation is an open ticket question. Still open
+on #396 (impl): the precise −15% footprint, a left `C₄`/`=` sizing tweak, and making the whole
+setter a hidden (reveal-on-interaction, cf. §52) carousel. Spun off to their own tickets: clef-setter
+revise (#406), chords/percussion option carousels (#407/#408), keyboard black-key `₄`-subscript
+removal (#409). The 8vb-on-overflow work (the STAGED TODO above) is #262b (#397); the octave-clef
+GLYPHS already exist (`clefGlyphs.jsx`) — it's `OCTAVE_VARIANTS` (clefSelector) that lacks the
+treble-down variants, so #397 wires those rather than being blocked.
 
 **Invariants:** writes go only through `onApplyClefPatch(staff, patchForTransposition(key))`;
 the setter never mutates settings directly. The clef passed in is the *concrete* current clef
@@ -3655,7 +3678,11 @@ the existing `NonLinearCarousel` primitive + the existing category-bracket machi
 
 ---
 
-## 38. NonLinearCarousel Primitive + Redesigned Instrument / Colour Setters (Han 2026-06-17)
+## 41a. NonLinearCarousel Primitive + Redesigned Instrument / Colour Setters (Han 2026-06-17)
+
+> Renumbered 2026-07-08 from a duplicate "§38" (the number was already taken by
+> §38 Keyboard Transposition). Placed as §41a because the carousel primitive
+> directly underpins the §41 in-staff instrument setter.
 
 **Purpose / what it does.** A redesign of the in-staff INSTRUMENT and COLOUR setters onto one
 shared, reusable carousel primitive. Instead of the flat horizontally-scrolling
@@ -4485,3 +4512,215 @@ besides TAP, and both clamp to [BPM_MIN, BPM_MAX] exported from BpmControls.
 `overlays/carouselOptionGlyph.jsx`, `overlays/GenerationAdvancedSetterOverlay.jsx`,
 `overlays/InstrumentStaffOverlay.jsx`, `SheetMusic.jsx`, `hooks/useMelodyState.js`,
 `audio/Sequencer.js`.
+
+---
+
+### §52. Hidden (reveal-on-interaction) generation carousels (#394a / #398, Han 2026-07-08)
+
+**Purpose:** the generation-settings fields used to render every option's full 5-wide carousel at
+all times, crowding the staff. Han wanted them **hidden until you interact**: at rest a field shows
+only its ACTIVE value; tapping it opens the full carousel; a selection or a tap-away closes it
+(his interview Q1). This is the first slice (394a) of the #394 UI-tweaks epic and the foundation the
+repeats/strategy carousels (394b/394e) build on.
+
+**How it works:** the behaviour lives in the shared `CarouselField` (`CarouselFieldItem.jsx`), NOT
+copied into each overlay (§6d) — it *wraps* the existing `NonLinearCarousel`, it does not re-engine
+it. A new opt-in `hidden` prop adds a local `open` state:
+
+- `hidden && !open` → render ONLY `renderItem(items[activeIndex])` at the carousel centre
+  (`translate(centerX 0)`), plus a transparent tap-to-open hit box (with its §3a debug rect). No
+  bracket/label at rest — just the active value.
+- `hidden && open` → the normal bracket + `NonLinearCarousel`, preceded by a modest transparent
+  tap-away backdrop (`±1.3·edgeX`) that closes on a click outside the items.
+- `onSelect` is wrapped so a selection also closes (`setOpen(false)`).
+`GenerationSetterOverlay` exposes `hiddenFields` (default `true`; tests pass `false` to assert the
+expanded carousel content). Only `GenerationSetterOverlay` consumes `CarouselField`, so other
+setters are unaffected.
+
+**Invariants / limits:** reuses `NonLinearCarousel` + `makeRenderItem` (no second engine, §6d);
+animation still runs through the carousel's own rAF/`element.style` path (§6). **v1 limitation:**
+single-open is per-field — opening one field does not auto-close others; tap-away is a per-field
+backdrop, not a global one. Lifting `open` to an overlay-level `openField` (one-at-a-time + global
+tap-away) is the natural follow-up if Han wants it.
+
+**Files:** `CarouselFieldItem.jsx` (the `hidden`/`open` logic), `overlays/GenerationSetterOverlay.jsx`
+(`hiddenFields` prop), `overlays/__tests__/GenerationSetterOverlay.test.jsx` (rest-vs-expanded test).
+
+### §52a. Hidden carousel — press-and-hold drag + 3s idle fade-out (#428, Han 2026-07-13)
+
+**Purpose:** two refinements to §52 from Han's #427 interview. (1) **Press-and-hold → immediate
+drag:** the §52 v1 opened on a *tap* (`onClick`), so scrolling needed a separate second gesture. Han
+wants pressing-and-holding the rest value to start scrolling in the SAME gesture. (2) **3s idle
+fade-out:** after the last interaction (open, drag, or selection) the field auto re-hides after 3s
+with a fade, leaving only the active item — and the timer RESETS on every interaction.
+
+**How it works:** the carousel is now **always mounted** while `hidden` (never mount/unmount on
+open), so its persistent transparent hit rect is present to receive the press — that is what makes
+the hold-to-drag work with **no event handoff** between two elements. Two new `NonLinearCarousel`
+props carry the state:
+
+- `collapsed` — fades every OFF-centre item's opacity to 0 (the centre/active item keeps its own
+  opacity, so at rest only the active value shows). The collapse is **animated** (260 ms rAF ramp,
+  `element.style` only, §6) → the fade-in on reveal / fade-out on re-hide. The hit rect also shrinks
+  to `baseWidth` (centre only) when collapsed, so adjacent hidden fields don't overlap tap targets;
+  it widens to the full window when open. A pointer-down while `collapsed` fires `onReveal` and — via
+  pointer capture on that same rect — flows straight into the drag.
+- `mountAllItems` — when `false`, only `items[activeIndex]`'s content is rendered (the side items are
+  unmounted), so a resting field stays cheap: the 16 `RhythmMeasureGlyph`/`MelodyNotesLayer` etc. do
+  NOT mount until reveal. Default `true` keeps every always-open consumer unchanged.
+
+`CarouselField` drives these with an `open`/`closing` pair + a ref-based idle timer:
+`onReveal → setOpen(true)` + `resetHideTimer()`; the 3s timer calls `beginHide()` which sets
+`closing` (keeps items mounted, `collapsed=true` → fade out) then unmounts them ~280 ms later; any
+interaction (`onReveal`, drag `onPosChange`, `handleSelect`, tap-away) calls `resetHideTimer()` which
+cancels an in-flight fade and restarts the 3s countdown. The chrome (brackets/label) fades via a CSS
+`opacity` transition on its wrapper `<g>` tied to `open && !closing`. A selection no longer closes
+immediately (§52 did `setOpen(false)`) — it resets the 3s timer, per Han "na selectie na 3s hidden".
+
+**Invariants / limits:** still one carousel engine (§6d); all per-frame opacity via `element.style`
+(§6). The §52 v1 per-field (not global) single-open limitation is unchanged.
+
+**Files:** `overlays/NonLinearCarousel.jsx` (`collapsed`/`onReveal`/`mountAllItems`, collapse rAF,
+narrow-collapsed hit rect), `CarouselFieldItem.jsx` (`open`/`closing` + idle timer + chrome fade),
+`overlays/__tests__/NonLinearCarousel.test.jsx` (collapsed/reveal tests).
+
+### §53. Instrument setter — chords reposition + hidden carousels (#429, Han 2026-07-13)
+
+**Purpose:** two #427 items. (1) The CHORDS carousel sat at a hardcoded `trebleStart − 78`; Han wants
+it one STAFF-STRIDE above the treble carousel so its vertical gap matches the gaps between the
+treble/bass/percussion carousels ("dezelfde relatieve afstand"). (2) The instrument carousels should
+be HIDDEN when not active, like the generation setters ("maak de carousel onzichtbaar indien niet
+actief").
+
+**How it works:** `chordCarouselStart` is now DERIVED (§6c) — `trebleStart − staffStride`, where
+`staffStride = bassStart − trebleStart` (or half the percussion offset, or a 100-unit fallback when
+only treble is visible). Each `StaffCarousel` takes a `hidden` prop and drives the SAME
+`useRevealOnInteraction` hook the generation `CarouselField` uses (§6d — one reveal state machine),
+passing `collapsed`/`mountAllItems`/`onReveal` to its `NonLinearCarousel` and wrapping the category
+brackets in a `chromeVisible`-gated `<g>` so they fade with the field. `InstrumentStaffOverlay` gains
+`hiddenCarousels` (default true; tests pass false to assert the expanded cards). At rest only the
+active instrument card mounts.
+
+**Invariants:** the reveal behaviour is the shared hook, not a per-overlay reimplementation (§6d);
+the bracket/glow imperative machinery (§6) is untouched, just wrapped in the fade group.
+
+**Files:** `overlays/InstrumentStaffOverlay.jsx`, `hooks/useRevealOnInteraction.js`,
+`overlays/__tests__/InstrumentStaffOverlay.test.jsx`. **Live-tunable:** the exact `staffStride`
+placement is UAT-adjustable.
+
+### §54. Playback setter — measures invert, repeats fan, in-line repeat signs (#430, Han 2026-07-13)
+
+**Purpose:** #427 PLAYBACK items. (1) The measures fan felt inverted — dragging DOWN should raise the
+count. (2) Repeats should be the SAME hidden vertical tanh fan as measures. (3) Remove the
+"THEN: NEW MELODY" toggle. (4) When repeats ≠ 1, render FULL begin- AND end-repeat signs in-line on
+the staff (Han interview: both, full staff-height).
+
+**How it works:**
+- `LeftFanCarousel` gains `invert` (flips both the vertical layout AND the drag `dirSign`, so high
+  values sit low and dragging down increases) and `renderNode` (draw a custom SVG node per row
+  instead of the default `<text>`). Only the measures fan passes `invert`; volume/BPM keep up-is-more.
+- Repeats is now a compact `LeftFanCarousel` (§6d, same fan as measures) whose `renderNode` draws the
+  canonical `renderRepeatGlyph` (Maestro `À`/BadgeCheck), scaled from 32px to the fan's per-row size.
+  The old `NonLinearCarousel` + `MiniRepeatSign` + generate-after-last-repeat toggle are removed.
+- The begin/end repeat barline geometry is extracted from `BarlinesLayer` into a shared
+  `repeatSigns.jsx` (`BeginRepeatSign`/`EndRepeatSign`, §6d) — thick bar + thin line + Maestro `k`
+  dots per visible staff. BarlinesLayer now consumes it (identical output); SettingsOverlay renders a
+  begin sign at `startX` and an end sign at `systemEndX` (full staff-height) whenever
+  `untilCorrect || repsPerMelody > 1`.
+
+**Invariants:** `LeftFanCarousel` stays the single shared fan (§6d); repeat options stay
+`AXES.evaluation` (SSOT); repeat-barline geometry has ONE home (`repeatSigns.jsx`).
+
+**Files:** `overlays/SettingsOverlay.jsx`, `overlays/fanCarousels.jsx`, `repeatSigns.jsx` (new),
+`BarlinesLayer.jsx`. **Flagged for UAT:** whether tempo/volume fans should also invert (only measures
+does now); exact in-line sign x-positions.
+
+### §55. Generation setter — icons, note-pool colours, chords/measure, chromatic, alt/ext (#431, Han 2026-07-13)
+
+**Purpose:** #427 GENERATION items + the follow-up additions.
+- **Melody-type icons** now match the instrument setter: `STAFF_CARD_ICON` (38) tall, icon on the
+  staff body (`iconDy −16`), label below (`labelDy 38`). `CarouselField` gained a per-field `iconDy`.
+- **Chords/measure** renders literal chord LABELS (`ChordCountGlyph`) in the sheet's own chord-root
+  font (serif 26, ChordLabelsLayer): C (≤1) · C G · C F G · C F G C by count, the trailing partial
+  chord of a fractional count lowlit (2.5 → C F (G)); the count sits below as a Maestro numeral;
+  header `#/measure`. Labels are Han's LITERAL spec.
+- **Complexity `exotic`** is relabelled **alt/ext** (LABEL only — the value stays `exotic`).
+- **Headers vs labels** (Han 2026-07-13): field-name HEADERS (`labelAbove` + column headers) are
+  italic serif, NON-capitalised; item VALUE labels are sans-serif ALL CAPS.
+
+### §55a. Carousel note previews go through the REAL pipeline — no shadow renderer (Han 2026-07-13)
+
+**Symptom:** the first #431 pass hand-rolled noteheads/accidentals/chords in `generationNoteGlyphs`
+with bespoke geometry (`StaffQuarterNote` runs, manual octave maths, a per-glyph chromatone colour, a
+`noteGroupSize` beam hack). That "shadow solution" drifted from the staff on EVERY axis Han spotted:
+note spacing, accidental SIZE, clef changes ignored (bass row stuck an octave off), chord stem rules,
+colouring, and beam-group spacing — each fixed as a separate point-problem. Han: *"maak gewoon een
+robuuste methode om render melody notes te gebruiken voor de carousels!!"*
+
+**Fix — one helper, the real pipeline.** `generationNoteGlyphs.jsx` now has a single `MiniMelody`
+component that renders any carousel note content through the SAME path the sheet uses:
+`processMelodyAndCalculateSlots` → `calculateAllOffsets` → `MelodyNotesLayer` (`renderMelodyNotes`).
+A "slot" is a note-name STRING (single note) or an ARRAY (a chord) — exactly renderMelodyNotes' own
+shape. `MiniMelody` takes a **`width`** and treats the content as a TINY MEASURE: `noteWidth =
+width / columns`, `startX = −width/2` (Han's own suggestion — "assign a width to the carousel slots
+… as if it was a tiny measure"). This buys, from ONE source of truth (§6c/§6d):
+- real note **colours** driven by the active `noteColoringMode` (+ tonic/scaleNotes/theme), not a
+  hardcoded palette;
+- **full-size accidentals** (Maestro 36), identical to the staff;
+- **clef-correct positioning** — the note NAMES are clef-agnostic; changing the clef reposition​s them
+  (fixes the bass→treble bug, no manual octave shift);
+- **chord rendering** with the proper single shared stem + note colours (complexity = one chord slot);
+- **beam grouping WITH the group-boundary spacing** — `calculateAllOffsets` inserts the `'g'` markers
+  that give the [2,2] groups their horizontal gap (`groupSpacing` flag; the old 9999
+  `measureLengthSlots` had collapsed the beam span to the whole measure).
+
+`NotePoolGlyph` (melodic run — chord pool included, "achter elkaar"), `RhythmMeasureGlyph`
+(`groupSpacing`), and `ComplexityChordGlyph` (single chord slot) are all thin wrappers over
+`MiniMelody`. `staffNoteGlyph` glyph drawing, octave/accidental helpers, and the chromatone shortcut
+are GONE from this file.
+
+**Invariants:** carousel note content MUST go through `MiniMelody`/`renderMelodyNotes` — never
+hand-roll noteheads/accidentals/stems again (that was the whole bug). Colours come from
+`noteColoringMode`; spacing/beaming from the pipeline.
+
+**Files:** `overlays/generationNoteGlyphs.jsx` (rewritten around `MiniMelody`),
+`overlays/GenerationSetterOverlay.jsx` (passes `noteColoringMode`/`theme`),
+`constants/generationFields.js`, `CarouselFieldItem.jsx`,
+`overlays/__tests__/generationNoteGlyphs.test.js`.
+
+### §56. Carousel consistency pass (#432, Han 2026-07-14)
+
+**Purpose:** a screening of every carousel/setter turned up drift; this pass unifies it.
+
+- **P1a — colour setter through the real pipeline.** `NoteColoringStaffOverlay` hand-rolled its
+  C4–C5 example run with `StaffQuarterNote`; it now renders through the shared **`MiniMelody`**
+  primitive (§55a), extracted to its own module `overlays/MiniMelody.jsx` and consumed by BOTH the
+  generation glyphs and the colour setter. Each scheme item colours by its own `noteColoringMode`
+  (the `chords` scheme feeds a single-slot `processedChords` so renderMelodyNotes derives the active
+  chord). Same accidental size / clef behaviour / colours as the staff, from one source.
+- **P1b — no more glow.** The active-card GLOW (`activeGlowFilter`) is removed from
+  `renderStaffCardGlyph` + `renderCarouselOptionGlyph` (and earlier `renderRepeatGlyph`), so NO
+  carousel glows — the bright colour + bold weight mark the active item everywhere (matches the
+  instrument cards #361). `activeGlowFilter` is deleted.
+- **P2c — two hidden mechanisms documented** (not merged, Han's call): the collapse hook
+  `useRevealOnInteraction` (horizontal setters: colour/instrument/generation) vs `LeftFanCarousel`
+  `compact` (vertical fans: volume/measures/repeats/BPM). Different interaction models on purpose.
+- **P2d — one icon size.** `STAFF_CARD_ICON` (38) is the canonical carousel icon size; the
+  instrument setter's `ICON` now references it (was `33*1.15 ≈ 37.95`, the same by coincidence).
+- **P2e — one bracket geometry.** The dashed "blokhaken" path formula lived in two byte-identical
+  copies (`CarouselFieldItem.buildBracket`, `InstrumentStaffOverlay.bracketGeom`); both now consume
+  a shared `overlays/carouselBrackets.jsx` (`bracketPaths` + `BracketSvg`).
+- **P3f — active colour convention** = category tint, else `--text-primary`; inactive
+  `--text-lowlight`. The colour setter's old `accent-yellow` active label is gone.
+- **P3g/h — audit (no migration needed):** `ChordStaffOverlay` + `ClefStaffOverlay` already render
+  through `MelodyNotesLayer`; `TranspositionSetter`/`RangeStaffOverlay` use `StaffQuarterNote` for
+  individual slider/transposition notes (canonical §6d single-note usage, not the shadow pattern).
+  Debug hit boxes (§3a) are provided by the primitives (`NonLinearCarousel`, `DragBand`).
+
+**Invariant added:** carousel note/chord/rhythm previews MUST go through `MiniMelody`; the active-
+state look is colour+weight (no glow); bracket geometry and the carousel icon size each have ONE home.
+
+**Files:** `overlays/MiniMelody.jsx` (new), `overlays/carouselBrackets.jsx` (new),
+`overlays/NoteColoringStaffOverlay.jsx`, `overlays/carouselOptionGlyph.jsx`,
+`overlays/generationNoteGlyphs.jsx`, `overlays/InstrumentStaffOverlay.jsx`, `CarouselFieldItem.jsx`,
+`hooks/useRevealOnInteraction.js`.

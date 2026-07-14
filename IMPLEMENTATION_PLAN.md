@@ -7,6 +7,47 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-08 — ✅ Swimlane-ronde: #395 bord-scroll GEFIXT + #394 design → design_review
+
+Han: "werk aan jouw swimlane (design/plan/impl)". ✅ 🐞 #395 (kanban tweak):
+scroll-chaining — een `.column-body` die zijn scroll-limiet raakt gaf de scroll
+door aan `<body>` (alleen `min-height:100vh`, geen overflow-guard) → hele pagina
+schoof, bord zakte onder de swimlanes. Fix: `overscroll-behavior: contain` op
+`.column-body`, gespiegeld naar `.devcontainer/kanban-board-overlay/` (§9k). Geen
+andere view geraakt. → test. 🔨 #394 (ui tweaks round 3, L3): ~21 tweaks op de
+in-staff generation/exercise-setters; rode draad = §6d (inline noten volgen
+note-coloring niet, accidentals niet gestapeld, notes/measure geen echte
+grouping, chord-complexity negeert notenplaatsing — meeste in
+`generationNoteGlyphs.jsx`). Te groot (§9c) → split-voorstel 394a–g op ticket
+(394a hidden-carousel = fundament/architectuur → plan_review). 4 interviewvragen
++ 15 AC's + 9 consistency-reqs geseed, → design_review (STOP: wacht op Hans
+antwoorden + split-akkoord).
+
+**Vervolg (Han: "wat is actiehaar? waarom in jouw swimlane?" + screening):**
+Correctie op mezelf: #262 WAS actiehaar — Hans interview (Q1–Q6) was al beantwoord;
+mijn "wacht op Han" was fout. #262 GESPLITST (§9c, Q1='alles, splits in plan-fase'):
+#396 (#262a typografie + rechter-carousel −15%, L2) → **impl**; #397 (#262b 8vb bij
+overflow, L3, overlapt #112) → **plan_review**; #262 → on_hold (umbrella). #245/#230
+laat Han zelf routen. 🐞 #395 scroll-chaining GEFIXT (`overscroll-behavior: contain`,
+beide CSS-kopieën) → test. SCREENING: CLAUDE.md nieuwe HARD-gate (na impl, vóór UAT
+architecture.md bijwerken — Han 2026-07-08) + preplan-refs bijgewerkt; architecture.md
+dubbele §38 → §41a hernummerd (§45–51 bestonden al als `### §NN`, mijn eerdere
+"ontbreekt" was een grep-misvatting); BACKLOG P0-kanban ✅-notitie (bord draait op
+:5500, PGlite; originele tekst ongemoeid, regel 1).
+
+**Slot: #394 gesplitst + #396 GEBOUWD (Han verplaatste #394→plan met alle 4 Qs
+beantwoord; "beide, in deze volgorde").** #394 SPLIT (§9c) in 7 kinderen #398–#404:
+394a hidden-carousel (#398, fundament) → **plan_review**; 394b–g (#399–#404, repeats/
+note-consistentie/chord-complexity/strategy-carousels/percussie-pool/gen-advanced) →
+todo, allen f-f op #398; #394 → on_hold. #245 beantwoord (geen residueel impl-werk;
+→ done-aanbeveling). Nieuwe bord-FR #405 (dependency-viz op kaartjes: bolletjes +
+hover-lijnen). ✅ **#396 GEBOUWD** (TranspositionSetter.jsx): PRESET_FONT 13→15 +
+hitboxes; 'CONCERT' los sans-serif `--text-primary` boven de rechter notehead; 'C₄ ='
+−20% (`RIGHT_LABEL_SIZE`); rechter carousel −15% (`RIGHT_CAROUSEL_SCALE`, om centrum).
+"uitlijnen boven percussie-optie" GEFLAGD (setter heeft geen percussie-optie, §9k) i.p.v.
+gegokt. Gates: lint 0, 559 tests, build OK; architecture.md §15 bijgewerkt VÓÓR test
+(§1a-gate). → test (UAT).
+
 ## 2026-07-07 — ✅ Drieluik GEBOUWD: #144 adaptive + #268 persistentie + #300/#302 fans (d03295b)
 
 Han: "werk exercise mode, playback settings tweaks af, implementeer adaptive
@@ -1938,3 +1979,46 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
    already per-row anchored, no stacked-below bug. Preview already used new slug.
    Tests: 488 green (NonLinearCarousel +5 curve/mask/debug tests; 2 InstrumentStaff
    tests updated for CAPS). Lint 0 errors, build clean.
+
+## #427 — Settings overlay UI overhaul 3 (L3) 🔨 [design]
+   Big multi-section polish ticket. Sections & work items:
+   ALGEMEEN — 1) hidden carousel: press-and-hold → drag immediately (no separate
+     tap-open step); after a selection, auto re-hide after 3s (fade-out) leaving only
+     the active item. (CarouselField hidden mode; possibly shared to StaffCarousel/fan.)
+   COLOUR — colour wheel is the reference look, no change.
+   INSTRUMENT — 2) move CHORDS carousel UP so its offset above its band matches the
+     treble/bass/perc setters' offset above their staves; 3) instrument carousel hidden
+     when not active.
+   PLAYBACK — 4) measures fan: invert drag direction (drag DOWN = higher value);
+     5) repeats: convert to hidden tanh fan (same layout as measures);
+     6) remove "THEN: NEW MELODY" toggle; 7) repeats≠1 → render vertical repeat barline
+     at endX (in-line).
+   GENERATION — 8) melody-type icons: match instrument-setter icon height + label align;
+     9) note-pool: add missing "note pool" header; 10) note-pool notes use real
+     renderMelodyNotes note colours (not flat 'plaatjes'); 11) notes/measure: cluster
+     per renderMelodyNotes grouping rules, assume grouping [2,2]q — stop mislabelling as
+     'groupings'; 12) chords/measure: render chord LABELS instead of icon (C /  C G /
+     C F G / C F G C by count; fractional count lowlights last chord e.g. 2.5 → C F (G)),
+     count in Maestro under item (like notes/measure), add "#/measure" header;
+     13) note-pool chromatic: stack accidentals vertically at pitches g4/b4/d5 (treble/
+     vocal), an octave lower for bass clef; bass-clef rendered notes an octave lower.
+   ✅ INTERVIEW done (§4b). Split into 4 sub-tickets: #428 ALGEMEEN, #429 INSTRUMENT,
+   #430 PLAYBACK, #431 GENERATION (#429 f-f afh. #428). Han-antwoorden: hidden-timer reset
+   bij elke interactie; repeat-barlines = volledig begin+eind repeat-teken; chords/measure
+   labels letterlijk C/F/G/C.
+   • #428 🔨→UAT [Opus/high]: hidden carousel press-and-hold→drag + 3s idle fade-out.
+     NonLinearCarousel: collapsed/onReveal/mountAllItems (altijd gemount → naadloze hold-drag;
+     collapse-fade via element.style rAF; rest goedkoop, alleen actief item gemount).
+     CarouselField: open/closing + 3s idle timer (reset op elke interactie). Tests 563 groen,
+     lint/build clean, docs §52a. NIET gecommit (wacht op Han). → #428 op `test`.
+   • #429 ✅→UAT [Opus/high]: chords-carousel afgeleid op staffStride boven treble;
+     instrument-carousels hidden via gedeelde useRevealOnInteraction hook (#428 hergebruikt).
+   • #430 ✅→UAT [Opus/high]: measures-fan invert (naar beneden = hoger); repeats → compacte
+     LeftFanCarousel met repeat-glyphs (renderNode); THEN:NEW MELODY weg; full begin+eind
+     repeat-tekens op staff via nieuwe gedeelde repeatSigns.jsx (BarlinesLayer consumeert ook).
+   • #431 ✅→UAT [Opus/high]: melody-type iconen 38px+uitlijning; note-pool chromatone-kleuren;
+     chord-pool gestapeld; chromatic voortekens verticaal D5/B4/G4 (octaaf lager bass); notes/measure
+     [2,2]q beaming; chords/measure letterlijke labels C/C G/C F G/C F G C (+lowlight fractie,
+     Maestro-count, #/measure header); exotic→alt/ext label + akkoord D4 E♭4 F4 G♯4 A4 B♮4 C5.
+   Alle 4 op `test`. Suite 571 groen, lint 0 err, build clean. docs §52a/§53/§54/§55. NIET gecommit.
+   Nieuw gedeeld: src/hooks/useRevealOnInteraction.js, src/components/sheet-music/repeatSigns.jsx.

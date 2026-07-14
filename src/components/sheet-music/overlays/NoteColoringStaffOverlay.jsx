@@ -1,8 +1,7 @@
 import React from 'react';
 import NonLinearCarousel from './NonLinearCarousel';
-import { getNoteAbsoluteY } from '../renderMelodyNotes';
-import { StaffQuarterNote } from '../staffNoteGlyph';
-import { melodicNoteColor } from '../../../theory/noteUtils';
+import { MiniMelody, MINI_QUARTER } from './MiniMelody';
+import { useRevealOnInteraction } from '../../../hooks/useRevealOnInteraction';
 
 // ── Note-colouring menu (Han 2026-06-13, redesigned on the NonLinearCarousel primitive
 // 2026-06-17) ───────────────────────────────────────────────────────────────────────────
@@ -38,60 +37,54 @@ const NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
 // A 115px stride spaces the item centres just past the run width → visible separation while still
 // peeking the two neighbours (3 schemes on screen).
 const BASE = 115;
-// x-gap between the example noteheads within one scheme item. Increased 11 → 16 (Han 2026-06-27):
-// add more horizontal space between notes for clarity while keeping carousel narrower overall.
-const NOTE_SPACING = 16;
-// Scheme-label vertical drop below the staff top line. RAISED 78 → 66 (#231 rework,
-// Han 2026-07-02: "Tekst hoger, vlak onder de C4"): C4 sits on its ledger at
-// +50 (notehead centre ≈ +55), so +66 puts the label directly beneath the lowest
-// example note instead of floating far below the run.
+// Horizontal room for the C4–C5 example run inside one scheme item (≈ the old 7×16 run width).
+const RUN_WIDTH = 112;
+// Scheme-label vertical drop below the staff top line (Han 2026-07-02: "vlak onder de C4").
 const LABEL_DY = 66;
-
-// Ledger lines (every 10) between the 5-line staff [staffStart..staffStart+40] and a notehead.
-const ledgerYs = (y, staffStart) => {
-    const out = [];
-    for (let g = staffStart - 10; y <= g; g -= 10) out.push(g);
-    for (let g = staffStart + 50; y >= g; g += 10) out.push(g);
-    return out;
-};
 
 const NoteColoringStaffOverlay = ({
     startX, endX, trebleStart, clefTreble = 'treble',
-    noteColoringMode, setNoteColoringMode, tonic, scaleNotes, activeChord = null, theme, debugMode = false,
+    noteColoringMode, setNoteColoringMode, tonic, scaleNotes, activeChord = null, theme,
+    // #427 rework (Han: "COLOUR: maak een hidden carousel hiervan") — hidden reveal-on-interaction
+    // like the other setters (§6d shared hook). Default on; a caller can pass false to force-expand.
+    hidden = true,
+    debugMode = false,
 }) => {
+    const { collapsed, mountAllItems, reveal, resetHideTimer } = useRevealOnInteraction(hidden);
     if (startX == null || endX == null) return null;
     const centerX = startX + (endX - startX) / 2;
     const activeIndex = Math.max(0, SCHEMES.findIndex(s => s.mode === noteColoringMode));
-    // activeChord drives the 'chords' set's colouring (no playback → the representative chord).
-    const ctx = { tonic, scaleNotes, theme, activeChord };
+    // The 'chords' scheme colours notes by the representative chord (no playback). Feed it to the
+    // pipeline as a single-slot processedChords entry so renderMelodyNotes derives the activeChord.
+    const previewChords = activeChord
+        ? [{ absoluteOffset: 0, isSlash: false, chord: { root: activeChord.root, notes: activeChord.notes } }]
+        : [];
 
-    // Render ONE scheme item around the carousel origin (0,0): its example notes coloured by
-    // this scheme + the scheme label below. The carousel wrapper applies translate+scale+opacity.
-    // SVG-NATIVE noteheads via the canonical StaffQuarterNote (§6d) so they match the real staff.
-    // Notes ASCEND C4→C5 at their true staff positions (Han 2026-06-17: keep the C4–C5 idea — the
-    // "flat" was a misread; only the CAROUSEL should read horizontal, not the notes).
+    // Render ONE scheme item: its C4→C5 example run coloured by THAT scheme, via the shared
+    // MiniMelody pipeline (§6d — the SAME renderMelodyNotes path as the staff + the note pool; no
+    // hand-rolled noteheads), plus the scheme label below. The carousel wraps this in
+    // translate+scale+opacity.
     const renderItem = (s, i) => {
         const active = i === activeIndex;
-        const runW = (NOTES.length - 1) * NOTE_SPACING;
-        const x0 = -runW / 2;   // centre the example run on the item origin
         return (
             <g style={{ pointerEvents: 'none' }}>
-                {NOTES.map((n, k) => {
-                    const x = x0 + k * NOTE_SPACING;
-                    const y = getNoteAbsoluteY(n, trebleStart, clefTreble, 'treble');
-                    if (y == null) return null;
-                    const color = melodicNoteColor(n, { noteColoringMode: s.mode, ...ctx })
-                        || 'var(--text-primary)';
-                    return (
-                        <StaffQuarterNote key={n} x={x} positionY={y} staffYStart={trebleStart}
-                            ledgerYs={ledgerYs(y, trebleStart)} color={color} />
-                    );
-                })}
+                <MiniMelody
+                    slots={NOTES}
+                    durations={NOTES.map(() => MINI_QUARTER)}
+                    width={RUN_WIDTH}
+                    staffStart={trebleStart}
+                    clef={clefTreble}
+                    noteColoringMode={s.mode}
+                    tonic={tonic}
+                    scaleNotes={scaleNotes}
+                    theme={theme}
+                    processedChords={s.mode === 'chords' ? previewChords : []}
+                />
+                {/* Active-state colour convention (Han 2026-07-14): bright active (no category here →
+                    --text-primary), dim inactive; item VALUE label sans-serif ALL CAPS. */}
                 <text x={0} y={trebleStart + LABEL_DY} textAnchor="middle" fontSize={11}
                     fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'}
-                    fill={active ? 'var(--accent-yellow)' : 'var(--text-primary)'}>
-                    {/* ALL CAPS — standing carousel-text CR (Han 2026-07-03: the caps
-                        convention was drifting per consumer; see carouselOptionGlyph). */}
+                    fill={active ? 'var(--text-primary)' : 'var(--text-lowlight)'}>
                     {s.label.toUpperCase()}
                 </text>
             </g>
@@ -110,7 +103,11 @@ const NoteColoringStaffOverlay = ({
                 items={SCHEMES} activeIndex={activeIndex} renderItem={renderItem}
                 centerX={centerX} y={trebleStart - 22} baseWidth={BASE} height={104}
                 visibleHalf={1}
-                onSelect={(s) => setNoteColoringMode(s.mode)}
+                onSelect={(s) => { setNoteColoringMode(s.mode); if (hidden) resetHideTimer(); }}
+                onPosChange={hidden ? (() => resetHideTimer()) : undefined}
+                collapsed={collapsed}
+                mountAllItems={mountAllItems}
+                onReveal={hidden ? reveal : undefined}
                 debugMode={debugMode} />
         </g>
     );

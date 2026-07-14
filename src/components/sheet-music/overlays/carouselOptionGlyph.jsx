@@ -24,13 +24,9 @@ import { BadgeCheck } from 'lucide-react';
 // Enforced here so no consumer can render a lowercase carousel label again.
 const caps = (label) => (label == null ? '' : String(label).toUpperCase());
 
-// Active-card glow — SINGLE SOURCE OF TRUTH (#163 rework, Han 2026-07-02:
-// "highlight glow is more subtle (50%)", flagged as GLOBAL). One soft
-// drop-shadow at half strength via color-mix (the app already relies on
-// color-mix support — see chromatoneMix). Every carousel consumer imports
-// this instead of composing its own drop-shadow chain.
-export const activeGlowFilter = (color) =>
-    `drop-shadow(0 0 3px color-mix(in srgb, ${color} 50%, transparent))`;
+// #432 carousel-consistency (Han 2026-07-14): the active-card GLOW is removed everywhere — the
+// bright colour (category tint / --text-primary) + bold weight mark the active item, matching the
+// instrument cards (#361), the generation setter, and the repeats fan. No consumer draws a glow now.
 
 /**
  * Repeat-count option card (#298 rework, Han 2026-07-05: "herstel de originele
@@ -43,10 +39,11 @@ export const activeGlowFilter = (color) =>
 export const renderRepeatGlyph = (item, active, baselineY) => {
     const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
     return (
+        // #430 rework (Han: "haal de glow weg bij actieve setting"): NO active-glow on the repeat
+        // glyph — the bright colour alone marks the active value (matches the instrument cards, #361).
         <g style={{
             pointerEvents: 'none',
             color,
-            filter: active ? activeGlowFilter(color) : 'none',
         }}>
             {item.isUntil ? (
                 <BadgeCheck size={12} x={-6} y={baselineY - 10} />
@@ -93,7 +90,6 @@ export const renderCarouselOptionGlyph = (item, active, baselineY) => {
         <g style={{
             pointerEvents: 'none',
             color, // lucide strokes use currentColor
-            filter: active ? activeGlowFilter(color) : 'none',
         }}>
             {item.isUntil ? (
                 <BadgeCheck size={12} x={-6} y={baselineY - 10} />
@@ -129,7 +125,6 @@ export const renderStaffCardGlyph = (item, active, staffStart, { iconSize = STAF
         <g style={{
             pointerEvents: 'none',
             color,
-            filter: active ? activeGlowFilter(color) : 'none',
         }}>
             {Icon && (
                 <Icon size={iconSize} x={-iconSize / 2} y={staffStart + (40 - iconSize) / 2} />

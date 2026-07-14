@@ -55,31 +55,49 @@ export const DragBand = ({ x, y, w, h, bind, debugMode }) => (
 // ── LEFT-fan carousel ────────────────────────────────────────────────────────
 // High values sit HIGH on screen; drag UP increases the index (dirSign +1).
 // `renderLabel(item)` → the text drawn per option.
+//
+// #430 (Han): two opt-in extensions.
+//  - `invert` flips ONLY the drag/scroll DIRECTION (Han 2026-07-13 rework: "inverteer de scroll-
+//    richting bij slepen" — NOT the visual layout). High values still sit HIGH on screen; dragging
+//    DOWN now increases the value instead of decreasing it. Only the measures fan passes it.
+//  - `renderNode(item, { active, size })` draws a custom SVG node per row (centred at the origin;
+//    the fan applies the translate + opacity) instead of the default <text>. The repeats fan uses it
+//    to render the canonical Maestro repeat glyphs (renderRepeatGlyph, §6d) rather than plain text.
 export const LeftFanCarousel = ({
     cx, centerY, items, activeIndex, onCommit, renderLabel, fieldLines, debugMode,
     labelFontFamily = FAN_LABEL_FONT,
     activeLabelSize = FAN_ACTIVE_LABEL_SIZE,
     compact = false,
     bandW = 44,
+    invert = false,
+    renderNode = null,
 }) => {
-    const { effIndex, dragging, bind } = useTangensDrag(activeIndex, items.length - 1, onCommit, FAN_PX_PER_STEP, 1);
+    const dir = invert ? -1 : 1;   // DRAG sign only (see #430 above) — layout is unchanged
+    const { effIndex, dragging, bind } = useTangensDrag(activeIndex, items.length - 1, onCommit, FAN_PX_PER_STEP, dir);
     const rowsOut = [];
     for (let i = Math.floor(effIndex) - 4; i <= Math.ceil(effIndex) + 4; i++) {
         if (i < 0 || i > items.length - 1) continue;
         const off = i - effIndex;                 // off>0 = higher value
         const isActive = i === Math.round(effIndex);
         if (compact && !dragging && !isActive) continue; // rest state: active only
-        const ry = centerY + 6 - off * FAN_ROW_H; // high value HIGH on screen
+        const ry = centerY + 6 - off * FAN_ROW_H; // high value HIGH on screen (layout unchanged)
         const nx = cx + leftCurveX(off);
         const dist = Math.abs(off);
         const size = Math.max(8, activeLabelSize - dist * 2.0);
         const op = Math.max(0.18, (isActive ? 1 : 0.8) - dist * 0.12);
         rowsOut.push(
-            // data-fly: SELECTOR carousel — slides in note-by-note like the TranspositionSetter (consistency).
-            <text key={i} data-fly="" x={nx} y={ry} textAnchor="middle" fontFamily={labelFontFamily} fontSize={size}
-                fill={isActive ? COLOR : LOW} opacity={op} style={{ pointerEvents: 'none' }}>
-                {renderLabel(items[i])}
-            </text>,
+            renderNode ? (
+                // data-fly: SELECTOR carousel — slides in note-by-note like the TranspositionSetter.
+                <g key={i} data-fly="" transform={`translate(${nx} ${ry})`} opacity={op}
+                    style={{ pointerEvents: 'none' }}>
+                    {renderNode(items[i], { active: isActive, size })}
+                </g>
+            ) : (
+                <text key={i} data-fly="" x={nx} y={ry} textAnchor="middle" fontFamily={labelFontFamily} fontSize={size}
+                    fill={isActive ? COLOR : LOW} opacity={op} style={{ pointerEvents: 'none' }}>
+                    {renderLabel(items[i])}
+                </text>
+            ),
         );
     }
     const bandH = dragging ? 150 : (compact ? 44 : 110);

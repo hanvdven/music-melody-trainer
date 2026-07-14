@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 import NonLinearCarousel, {
     visibleRange, scaleForDist, opacityForDist, xOffsetForDist, gapAtDist, edgeFor,
     SIZE_EDGE, SIZE_OVERFLOW, OPACITY_EDGE, OPACITY_OVERFLOW, GAP_CENTER, GAP_EDGE,
@@ -156,6 +156,35 @@ describe('NonLinearCarousel', () => {
         const magenta = [...container.querySelectorAll('line')].filter(l => l.getAttribute('stroke') === 'magenta');
         expect(cyan.length).toBe(2);
         expect(magenta.length).toBe(2);
+    });
+
+    // ── #428: collapsed / reveal (hidden-field press-and-hold → drag) ────────────────────────────
+    describe('collapsed reveal-on-interaction (#428)', () => {
+        it('mountAllItems=false renders ONLY the active item (rest stays cheap)', () => {
+            // At rest a hidden field must not mount all N items' content (16 rhythm layers etc.); only
+            // the active item's content is in the DOM. The persistent hit rect is what carries the
+            // hold-to-drag gesture, so it is present regardless.
+            const { getAllByText, queryByText } = renderCarousel({ mountAllItems: false, activeIndex: 3 });
+            expect(getAllByText('d').length).toBe(1);      // active item (index 3) present
+            expect(queryByText('a')).toBeNull();           // side items unmounted
+            expect(queryByText('g')).toBeNull();
+        });
+
+        it('collapsed shrinks the hit surface to the centre item (adjacent fields don\'t overlap)', () => {
+            const { container } = renderCarousel({ collapsed: true, mountAllItems: false });
+            const surface = container.querySelector('rect[fill="transparent"]');
+            // Collapsed → width == baseWidth (40), far narrower than the ~200px open window.
+            expect(Number(surface.getAttribute('width'))).toBe(40);
+        });
+
+        it('a press on a collapsed carousel fires onReveal (opens + begins the same drag)', () => {
+            const calls = [];
+            const { container } = renderCarousel({ collapsed: true, onReveal: () => calls.push(1) });
+            const surface = container.querySelector('rect[fill="transparent"]');
+            // jsdom lacks createSVGPoint but onReveal fires before the CTM maths, so pointerdown is enough.
+            fireEvent.pointerDown(surface, { clientX: 300 });
+            expect(calls.length).toBe(1);
+        });
     });
 
     it('visibleRange handles a fractional (live-drag) centre', () => {

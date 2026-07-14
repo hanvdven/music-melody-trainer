@@ -17,6 +17,9 @@ const renderOverlay = (props = {}) => render(
             trebleInstrument="acoustic_grand_piano"
             bassInstrument="cello"
             onSetInstrument={() => {}}
+            // #429: these tests assert the fully-EXPANDED cards/brackets; the hidden reveal-on-
+            // interaction behaviour has its own test below. Default off here.
+            hiddenCarousels={false}
             {...props}
         />
     </svg>,
@@ -105,6 +108,17 @@ describe('InstrumentStaffOverlay', () => {
         expect(keysLabel).not.toBeUndefined();
         expect(keysLabel.getAttribute('fill')).toBe(categoryColorVar('keys'));
     });
+
+    // #429: hidden reveal-on-interaction (default on). At rest each carousel mounts ONLY its active
+    // card (far fewer name <text> nodes than the fully-expanded 7-wide carousels).
+    it('hidden carousels mount only the active card at rest, and expand when hiddenCarousels=false (#429)', () => {
+        const restNames = renderOverlay({ hiddenCarousels: true })
+            .container.querySelectorAll('image').length;
+        const openNames = renderOverlay({ hiddenCarousels: false })
+            .container.querySelectorAll('image').length;
+        // Expanded mounts every visible card's icon; hidden mounts just the active card per carousel.
+        expect(openNames).toBeGreaterThan(restNames);
+    });
 });
 
 // ── Percussion-KIT carousel (Han 2026-06-22, Task D) ──────────────────────────────────────────
@@ -117,6 +131,7 @@ const renderPerc = (props = {}) => render(
             percussionKit="FreePats Percussion"
             onSetInstrument={() => {}}
             onSetPercussionKit={() => {}}
+            hiddenCarousels={false}
             {...props}
         />
     </svg>,

@@ -161,6 +161,21 @@ const xOffsetForDist = (d, half = VISIBLE_HALF) => {
 export default function NonLinearCarousel({
     items, activeIndex = 0, renderItem, centerX, y, baseWidth, height,
     onSelect, onPosChange, debugMode = false,
+    // #428 (Han 2026-07-13): reveal-on-interaction support baked into the carousel itself, so the
+    // hidden generation/instrument fields can do PRESS-AND-HOLD → immediate drag. When `collapsed`,
+    // every off-centre item is faded to 0 (only the active/centre item paints — Han: "alleen het
+    // actieve item blijft"), and a pointer-down on the (narrow) hit rect fires `onReveal` while the
+    // SAME gesture continues into a drag (the rect owns pointer capture, so no event forwarding).
+    // The collapse is ANIMATED (fade in on reveal, fade out on re-hide) so Han's "met een fade out"
+    // is honoured. `collapsed=false` (default) → unchanged always-open behaviour.
+    collapsed = false,
+    onReveal,
+    // #428: when false, render ONLY the active item's content (the side items are unmounted) so a
+    // hidden field stays cheap at rest — the 16 rhythm-pattern MelodyNotesLayers etc. do NOT mount
+    // until the field is revealed. The carousel's persistent hit rect is always present regardless,
+    // which is what makes press-and-hold → drag work without an event handoff. Default true keeps
+    // every existing (always-open) consumer unchanged.
+    mountAllItems = true,
     // #361 (Han: "carousel voor repeats -> niet-periodiek"): cyclical=false
     // CLAMPS the position to [0, N-1] instead of wrapping the ring — first and
     // last item are hard ends. Default stays cyclical for existing consumers.
@@ -179,6 +194,14 @@ export default function NonLinearCarousel({
     const posRef = React.useRef(activeIndex);  // fractional centre position (which item index sits at centerX)
     const dragRef = React.useRef(null);   // { startX, startPos, moved, downSvgX }
     const animRef = React.useRef(null);   // glide rAF
+    // #428: collapse factor 0..1 (0 = fully open, 1 = only the centre item shows). Animated on the
+    // `collapsed` prop so side items fade in/out. Read live in applyPos (§6 — element.style only).
+    const collapseAmtRef = React.useRef(collapsed ? 1 : 0);
+    const collapseAnimRef = React.useRef(null);
+    // Keep the live onReveal callback in a ref so onPointerDown (a stable closure) always calls the
+    // latest one without re-creating the pointer handlers every render.
+    const onRevealRef = React.useRef(onReveal);
+    onRevealRef.current = onReveal;
     // Keep the live onPosChange callback in a ref so applyPos (a stable closure) always calls the
     // latest one without us re-creating the render functions every render.
     const onPosChangeRef = React.useRef(onPosChange);
@@ -206,18 +229,23 @@ export default function NonLinearCarousel({
     // Apply the current fractional centre position `pos` to every item's wrapper <g>:
     // translateX + scale + opacity, all via element.style (§6). Items far outside the visible
     // window are hidden (opacity 0) so they don't intercept anything or paint off-staff.
-    const applyPos = (pos) => {
+    const applyPos = (pos, notify = true) => {
         // Keep posRef in the canonical domain: wrapped [0, N) when cyclical, clamped
         // [0, N-1] when not (#361 non-periodic mode).
         const wp = normPos(pos);
         posRef.current = wp;
+        // #428: collapse fades every OFF-centre item toward 0. The centre (active) item keeps its
+        // own opacity so it stays visible at rest ("alleen het actieve item blijft").
+        const collapse = collapseAmtRef.current;
         for (let i = 0; i < N; i += 1) {
             const g = wrapRefs.current[i];
             if (!g) continue;
             // NEAREST signed distance accounting for the wrap, so items near index 0 sit just to the
             // right of items near index N-1 — the ring loops with no clamp at the ends.
             const d = distTo(i, wp);
-            const op = opacityForDist(d, visibleHalf);
+            const isCentre = Math.abs(d) < 0.01;
+            const op = isCentre ? opacityForDist(d, visibleHalf)
+                : opacityForDist(d, visibleHalf) * (1 - collapse);
             if (op <= 0) {
                 // Beyond the single overflow element — park it transparent so it never paints
                 // off-staff or intercepts anything. The ONE overflow element each side (edge <
@@ -246,7 +274,11 @@ export default function NonLinearCarousel({
         // Notify the consumer of the LIVE wrapped position every frame (drag + glide), so e.g. the
         // instrument setter's category brackets can track the carousel during the gesture. §6: the
         // consumer does its own element.style writes — we never set React state per frame here.
-        onPosChangeRef.current?.(wp);
+        // #428 FIX: the COLLAPSE animation (fade-out on re-hide) also calls applyPos, but the
+        // POSITION isn't changing there — only opacity. It must pass notify=false, otherwise the
+        // consumer's onPosChange (which resets the idle auto-hide timer) fires during the fade and
+        // CANCELS the very re-hide that triggered it, so the setter never collapses.
+        if (notify) onPosChangeRef.current?.(wp);
     };
 
     // Glide the fractional centre position to item index `target` over CENTER_ANIM_MS, taking the
@@ -283,7 +315,31 @@ export default function NonLinearCarousel({
 
     React.useEffect(() => () => {
         if (animRef.current) cancelAnimationFrame(animRef.current);
+        if (collapseAnimRef.current) cancelAnimationFrame(collapseAnimRef.current);
     }, []);
+
+    // #428: animate the collapse factor toward the `collapsed` prop (1 = hidden side items, 0 =
+    // fully open), re-applying the layout each frame so the side items FADE in on reveal / out on
+    // re-hide. Omit applyPos from deps — it is a stable closure (touches only refs + DOM style);
+    // the effect must run exactly on `collapsed` changes.
+    React.useEffect(() => {
+        const target = collapsed ? 1 : 0;
+        const from = collapseAmtRef.current;
+        if (collapseAnimRef.current) { cancelAnimationFrame(collapseAnimRef.current); collapseAnimRef.current = null; }
+        // notify=false: the collapse only changes opacity, not position — see the FIX note in applyPos.
+        if (Math.abs(from - target) < 0.001) { collapseAmtRef.current = target; applyPos(posRef.current, false); return; }
+        const COLLAPSE_MS = 260;
+        const t0 = performance.now();
+        const step = (now) => {
+            const p = Math.min(1, (now - t0) / COLLAPSE_MS);
+            collapseAmtRef.current = from + (target - from) * easeInOut(p);
+            applyPos(posRef.current, false);
+            collapseAnimRef.current = p < 1 ? requestAnimationFrame(step) : null;
+        };
+        collapseAnimRef.current = requestAnimationFrame(step);
+        return () => { if (collapseAnimRef.current) cancelAnimationFrame(collapseAnimRef.current); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [collapsed]);
 
     // client (px) → SVG user-space x via the owning svg's screen CTM (borrowed from
     // ClefCardCarousel — keeps drag distance 1:1 with the finger across viewBox scales).
@@ -298,6 +354,10 @@ export default function NonLinearCarousel({
 
     const onPointerDown = (e) => {
         if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
+        // #428: a press on a COLLAPSED (hidden) carousel reveals it AND — because this same rect owns
+        // pointer capture — the very same gesture continues into a drag. That is Han's "bij vasthouden
+        // wil ik onmiddellijk slepen": press-and-hold begins scrolling with no separate tap-to-open.
+        if (collapsed) onRevealRef.current?.();
         const sx = toSvgX(e.currentTarget, e.clientX);
         dragRef.current = { startX: sx, startPos: posRef.current, moved: 0, downSvgX: sx };
         e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -352,6 +412,12 @@ export default function NonLinearCarousel({
     // VISIBLE window: the in-window items span centerX ± (visibleHalf+0.5)*baseWidth (the hit rect).
     const winLeft = centerX - (visibleHalf + 0.5) * baseWidth;
     const winW = (2 * visibleHalf + 1) * baseWidth;
+    // #428: while COLLAPSED the hit/tap surface shrinks to just the centre item (baseWidth wide), so
+    // adjacent hidden fields don't overlap each other's rest tap targets. On press it reveals and —
+    // via pointer capture — the drag still tracks the finger far outside this narrow rect. When open
+    // the surface spans the full visible window (unchanged).
+    const hitX = collapsed ? centerX - 0.5 * baseWidth : winLeft;
+    const hitW = collapsed ? baseWidth : winW;
     // OVERFLOW boundary: one item beyond the edge sits at distance up to edge+1; in x-units that is
     // xOffsetForDist(visibleHalf+1) (slightly more than the window half because the overflow step is
     // 0.40*baseWidth). Used only for the debug dashed boundary (the element itself is masked/faded).
@@ -399,31 +465,37 @@ export default function NonLinearCarousel({
                 around the origin (0,0). */}
             <g style={{ pointerEvents: 'none' }} mask={`url(#${maskId})`}>
                 {items.map((item, i) => (
-                    <g key={i} data-fly="">
-                        <g ref={(el) => { wrapRefs.current[i] = el; }}>
-                            {renderItem(item, i)}
+                    // #428: at rest (mountAllItems=false) only the active item's content is mounted;
+                    // React fires the ref with null for the others, so wrapRefs stays consistent and
+                    // applyPos's `if (!g) continue` skips them.
+                    (mountAllItems || i === activeIndex) ? (
+                        <g key={i} data-fly="">
+                            <g ref={(el) => { wrapRefs.current[i] = el; }}>
+                                {renderItem(item, i)}
+                            </g>
                         </g>
-                    </g>
+                    ) : null
                 ))}
             </g>
             {/* Full-width transparent drag/tap surface (captures the gesture). Spans the visible
                 window: `visibleHalf` items each side of centre, at base width (Han 2026-06-19: the
                 window is now a prop — 3 for the 7-card instrument carousel, default 2 elsewhere). */}
             <rect
-                x={centerX - (visibleHalf + 0.5) * baseWidth}
+                x={hitX}
                 y={y}
-                width={(2 * visibleHalf + 1) * baseWidth}
+                width={hitW}
                 height={height}
                 fill="transparent"
-                style={{ cursor: 'grab', touchAction: 'none' }}
+                style={{ cursor: collapsed ? 'pointer' : 'grab', touchAction: 'none' }}
                 onPointerDown={onPointerDown} onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
             />
             {debugMode && (
                 <g style={{ pointerEvents: 'none' }}>
-                    {/* §3a: the orange rect matches the REAL hit window (same x/width/height), so
-                        debug mode shows exactly where taps/drags register. */}
-                    <rect x={winLeft} y={y} width={winW} height={height}
+                    {/* §3a: the orange rect matches the REAL hit surface (collapsed → narrow centre
+                        tap target; open → full window), so debug mode shows exactly where taps/drags
+                        register in either state. */}
+                    <rect x={hitX} y={y} width={hitW} height={height}
                         fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5} />
                     {/* CYAN: the VISIBLE-window boundary (centerX ± edge*baseWidth) — the last
                         FULLY-laid-out item edge. Distinct from the orange hit rect (Han #163 C1). */}

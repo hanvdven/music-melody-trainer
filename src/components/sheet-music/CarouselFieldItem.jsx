@@ -1,5 +1,7 @@
 import React from 'react';
 import NonLinearCarousel, { visibleRange, xOffsetForDist } from './overlays/NonLinearCarousel';
+import { useRevealOnInteraction } from '../../hooks/useRevealOnInteraction';
+import { bracketPaths, BracketSvg } from './overlays/carouselBrackets';
 
 // ── Shared carousel-field building blocks for the generation setters (Han 2026-06-22) ──────────
 //
@@ -80,35 +82,10 @@ export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFont
   return renderCarouselItem;
 };
 
-// ── BRACKET GEOMETRY (replicated from InstrumentStaffOverlay.bracketGeom — TODO consolidate) ─────
-// One dashed bracket spanning [x1, x2] at vertical `y`, with the UPPERCASE label centred in a gap:
-//   |———— LABEL ————|
-// Returns the two path strings + the label mid-x so the caller can draw two <path>s + a <text>.
-const buildBracket = (x1, x2, y, rawLabel, color) => {
-  const label = rawLabel.toUpperCase();
-  const mid = (x1 + x2) / 2;
-  // Estimate label half-width to leave a gap (matches InstrumentStaffOverlay's heuristic).
-  const halfText = Math.min((x2 - x1) / 2 - 6, label.length * 3.4 + 4);
-  return {
-    label, mid, y, color,
-    leftPath: `M ${x1} ${y + 6} V ${y} H ${mid - halfText}`,
-    rightPath: `M ${mid + halfText} ${y} H ${x2} V ${y + 6}`,
-  };
-};
-
-// Render the dashed bracket <g> (two paths + centred label). Style matches the instrument carousel
-// brackets exactly: stroke var(--text-primary), strokeWidth 1, dashed 4,3, bold 10px label.
-const BracketSvg = ({ geom }) => (
-  // #362: brackets take their category tint when one is supplied (mirrors
-  // InstrumentStaffOverlay's tinted brackets); default stays --text-primary.
-  <g style={{ pointerEvents: 'none' }}>
-    <path d={geom.leftPath} stroke={geom.color || 'var(--text-primary)'} strokeWidth="1" fill="none" strokeDasharray="4,3" />
-    <path d={geom.rightPath} stroke={geom.color || 'var(--text-primary)'} strokeWidth="1" fill="none" strokeDasharray="4,3" />
-    <text x={geom.mid} y={geom.y} textAnchor="middle" dominantBaseline="middle"
-      fontSize={10} fontFamily="sans-serif" fontWeight="bold" letterSpacing={1}
-      fill={geom.color || 'var(--text-primary)'}>{geom.label}</text>
-  </g>
-);
+// #432: the bracket path formula + <g> renderer now live in the SHARED carouselBrackets module (one
+// source of truth for the "blokhaken", consumed by BOTH this file and InstrumentStaffOverlay). We
+// just add the per-run colour on top of the shared geometry.
+const buildBracket = (x1, x2, y, rawLabel, color) => ({ ...bracketPaths(x1, x2, y, rawLabel), y, color });
 
 // ── SINGLE FIELD-NAME BRACKET ───────────────────────────────────────────────────────────────────
 // For fields whose items are NOT grouped (notePool, notesPerMeasure, etc.), draw ONE bracket
@@ -210,6 +187,10 @@ export const CarouselField = ({
   // colour carousel) so neighbouring columns don't collide.
   renderContent = null,
   visibleHalf = 2,      // Han 2026-06-22 default: full 5-wide carousel per field.
+  // #394a / #398 (Han 2026-07-08): reveal-on-interaction. When `hidden`, the field shows ONLY the
+  // active value at rest; tapping it opens the full carousel; a selection or a tap-away closes it
+  // (Han Q1). Opt-in so only the generation setters get it; default is the always-visible carousel.
+  hidden = false,
   debugMode = false,
 }) => {
   const VISIBLE_HALF = visibleHalf;
@@ -226,8 +207,29 @@ export const CarouselField = ({
 
   const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf });
 
+  // #394a / #398 / #428: reveal-on-interaction. Only meaningful when `hidden`. The carousel is now
+  // ALWAYS mounted when hidden (it renders itself COLLAPSED — only the active item paints), so a
+  // press-and-hold on it begins a drag immediately. The reveal + 3s idle-fade state machine lives in
+  // the shared useRevealOnInteraction hook (§6d — the same logic drives the instrument StaffCarousel).
+  const { collapsed, mountAllItems, chromeVisible, open, reveal: handleReveal, resetHideTimer, closeNow } =
+    useRevealOnInteraction(hidden);
+
+  // handleSelect keeps the field OPEN for another 3s after a selection (Han: "na selectie, wordt na
+  // 3s terug hidden") rather than closing immediately.
+  const handleSelect = (item, i) => { onSelect?.(item, i); if (hidden) resetHideTimer(); };
+
   return (
     <g>
+      {/* Hidden + open: a tap-away backdrop BEHIND the carousel closes it on a click outside the
+          items (Han Q1 "tik weg … sluit"). Kept modest (±1.3·edgeX) so it doesn't hijack the whole
+          surface. NB single-open coordination across fields is v1-per-field (documented). */}
+      {hidden && open && (
+        <rect x={centerX - edgeX * 1.3} y={hitY - hitHeight} width={edgeX * 2.6} height={hitHeight * 3}
+          fill="transparent" onClick={closeNow} />
+      )}
+      {/* #428: fade the chrome (brackets / caps label) in/out with `open` so the whole field, not
+          just the carousel items, honours the reveal + fade-out. */}
+      <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: chromeVisible ? undefined : 'none' }}>
       {familyMode ? (
         <FamilyBrackets
           pos={pos}
@@ -235,16 +237,18 @@ export const CarouselField = ({
           geomProps={{ centerX, bracketY, baseWidth, visibleHalf: VISIBLE_HALF, edgeX, familyName, familyColor }}
         />
       ) : labelAbove ? (
-        /* #362: field name as a plain caps caption ABOVE the carousel — the
-           dashed blokhaken stay reserved for real groupings (families). */
-        <text x={centerX} y={bracketY} textAnchor="middle" fontSize={10}
-          fontFamily="sans-serif" fontWeight="bold" letterSpacing={1}
+        /* #431 (Han 2026-07-13: "headers - no caps, labels: all caps"): the field-name HEADER above
+           the carousel is italic SERIF, NON-capitalised; the item VALUE labels below are sans-serif
+           ALL CAPS (makeRenderItem). The dashed blokhaken stay reserved for real groupings. */
+        <text x={centerX} y={bracketY} textAnchor="middle" fontSize={14}
+          fontFamily="serif" fontStyle="italic"
           fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
-          {String(labelAbove).toUpperCase()}
+          {labelAbove}
         </text>
       ) : fieldLabel ? (
         <FieldNameBracket centerX={centerX} bracketY={bracketY} edgeX={edgeX} label={fieldLabel} />
       ) : null}
+      </g>
       <NonLinearCarousel
         items={items}
         activeIndex={activeIndex}
@@ -253,9 +257,16 @@ export const CarouselField = ({
         y={hitY}
         baseWidth={baseWidth}
         height={hitHeight}
-        onSelect={onSelect}
-        // Family brackets must track the carousel during a drag → feed live pos. Cheap re-render.
-        onPosChange={familyMode ? setPos : undefined}
+        onSelect={handleSelect}
+        // Family brackets must track the carousel during a drag → feed live pos, and ANY drag
+        // activity resets the idle auto-hide timer (#428). Cheap re-render.
+        onPosChange={(hidden || familyMode) ? ((p) => { if (familyMode) setPos(p); if (hidden) resetHideTimer(); }) : undefined}
+        // #428: when hidden, the carousel renders COLLAPSED (only the active item) until revealed by
+        // a press; the press both opens it and continues into a drag (hold-to-drag). `collapsed`
+        // stays true through the fade-out so the side items fade before unmounting (from the hook).
+        collapsed={collapsed}
+        mountAllItems={mountAllItems}
+        onReveal={hidden ? handleReveal : undefined}
         visibleHalf={VISIBLE_HALF}
         debugMode={debugMode}
       />

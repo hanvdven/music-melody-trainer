@@ -1,8 +1,8 @@
 import React from 'react';
 import SvgSetter from '../SvgSetter';
-import NonLinearCarousel from './NonLinearCarousel';
-import { renderRepeatGlyph, MiniRepeatSign } from './carouselOptionGlyph';
+import { renderRepeatGlyph } from './carouselOptionGlyph';
 import { LeftFanCarousel } from './fanCarousels';
+import { BeginRepeatSign, EndRepeatSign } from '../repeatSigns';
 
 // #302: the measures fan drags through every count 1..32 (the old stepper's
 // bounds), derived — not a hand-picked subset (§6c).
@@ -371,6 +371,32 @@ const SettingsOverlay = ({
         />
       ))}
 
+      {/* ── IN-LINE REPEAT SIGNS (#430, Han: "als repeats ≠ 1: render vertical repeat block in
+          line") ── a FULL begin-repeat sign at the front of the staff AND a full end-repeat sign at
+          the system end, both full staff-height. Same canonical geometry the sheet uses (shared
+          repeatSigns module, §6d). Shown whenever repeats ≠ 1 (a finite count > 1 OR 'until'). */}
+      {(playbackConfig.untilCorrect || playbackConfig.repsPerMelody > 1) && (
+        <g className="svg-no-interact">
+          {/* #430 rework (Han: "exact overeenkomen in design en positie met de render-melody
+              repeat-balken"). Design is identical (shared repeatSigns, §6d). Position: the begin sign
+              sits at the system's left edge (startX) and the end sign at the final barline
+              (systemEndX) — the same anchors the sheet's outer barlines use. Exact pixel alignment to
+              BarlinesLayer's opening/closing barline is UAT-tunable. */}
+          <BeginRepeatSign x={startX} trebleStart={topY}
+            bassStart={isBassVisible ? bassStart : null}
+            percussionStart={isPercussionVisible ? percussionStart : null}
+            bottomY={bottomY}
+            isTrebleVisible={isTrebleVisible} isBassVisible={isBassVisible}
+            isPercussionVisible={isPercussionVisible} />
+          <EndRepeatSign x={systemEndX ?? endX} trebleStart={topY}
+            bassStart={isBassVisible ? bassStart : null}
+            percussionStart={isPercussionVisible ? percussionStart : null}
+            bottomY={bottomY}
+            isTrebleVisible={isTrebleVisible} isBassVisible={isBassVisible}
+            isPercussionVisible={isPercussionVisible} />
+        </g>
+      )}
+
       {/* ── MEASURE COUNT AREA (#302, Han: "measures ook op een tangens
           selector") — the SAME LeftFanCarousel as the volume cells and the
           GEN. ADVANCED setters (§6d shared module), compact: at rest only the
@@ -387,6 +413,8 @@ const SettingsOverlay = ({
           labelFontFamily="Maestro"
           activeLabelSize={32}
           compact
+          /* #430 (Han): "measures is tegenintuitief" — invert so dragging DOWN raises the count. */
+          invert
           fieldLines={[]}
           onCommit={(i) => { onSettingsInteraction?.(); setNumMeasures(MEASURE_OPTIONS[i]); }}
           debugMode={debugMode}
@@ -400,69 +428,40 @@ const SettingsOverlay = ({
           6,8,∞]) with the BadgeCheck 'until correct' glyph LEFTMOST. Stored as
           { untilCorrect, repsPerMelody } so the Sequencer's repeat arithmetic
           stays numeric ('until' plays as Infinity). */}
+      {/* #430 (Han): repeats becomes the SAME hidden vertical tanh fan as measures (compact
+          LeftFanCarousel, §6d) — at rest only the current value shows, dragging fans the options out.
+          It renders the canonical Maestro repeat glyphs (renderRepeatGlyph) via the fan's renderNode,
+          scaled to the fan's per-row size so until/×N/∞ read exactly like the sheet header. */}
       <g transform={`translate(${startX + 0.85 * (systemEndX - startX)}, ${CHORD_ROW_Y})`}>
         <text x="0" y={-25} fontFamily="serif" fontStyle="italic" fontSize="14" fill="var(--text-secondary)" textAnchor="middle" className="svg-no-interact">repeats</text>
-        <NonLinearCarousel
+        <LeftFanCarousel
+          cx={0}
+          centerY={-6}
           items={AXES.evaluation}
           activeIndex={(() => {
             const current = playbackConfig.untilCorrect ? 'until' : playbackConfig.repsPerMelody;
             const idx = AXES.evaluation.findIndex(o => o.value === current);
             return idx === -1 ? AXES.evaluation.findIndex(o => o.value === 4) : idx;
           })()}
-          // Maestro repeat glyphs (#298 rework, Han: same font as the sheet header + BPM).
-          renderItem={(item, i) => {
-            const current = playbackConfig.untilCorrect ? 'until' : playbackConfig.repsPerMelody;
-            return renderRepeatGlyph(item, AXES.evaluation[i]?.value === current, 0);
-          }}
-          centerX={0}
-          y={-12}
-          baseWidth={30}
-          height={16}
-          visibleHalf={2}
-          onSelect={(item) => {
+          activeLabelSize={32}
+          compact
+          fieldLines={[]}
+          // Draw the repeat glyph per row (§6d — same renderRepeatGlyph as the sheet header/BPM),
+          // scaled from the 32px active size to the fan's per-row size so side rows shrink.
+          renderNode={(item, { active, size }) => (
+            <g transform={`scale(${size / 32})`}>{renderRepeatGlyph(item, active, 0)}</g>
+          )}
+          onCommit={(i) => {
             onSettingsInteraction?.();
+            const item = AXES.evaluation[i];
             setPlaybackConfig(p => ({
               ...p,
               repsPerMelody: item.value === 'until' ? Infinity : item.value,
               untilCorrect: item.value === 'until',
             }));
           }}
-          cyclical={false} /* #361 (Han): repeats-carousel is niet-periodiek */
           debugMode={debugMode}
         />
-        {/* #362 (Han): repeats > 1 → the actual notation SIGN the number stands
-            for (mini end-repeat: dots + thin + thick) right of the carousel. */}
-        {(playbackConfig.untilCorrect || playbackConfig.repsPerMelody > 1) && (
-          <MiniRepeatSign x={82} y={-26} h={24} />
-        )}
-        {/* #230e (Han): "generate after last repeat" toggle. ON (default) = a fresh
-            melody generates at the series boundary; OFF = the Sequencer reuses the
-            repeat-forever short-circuit and keeps the current melody. Read with
-            `!== false` everywhere so existing configs (field absent) stay ON. */}
-        <g
-          onClick={(e) => {
-            e.stopPropagation();
-            onSettingsInteraction?.();
-            setPlaybackConfig(p => ({ ...p, generateAfterLastRepeat: p.generateAfterLastRepeat === false }));
-          }}
-          style={{ cursor: 'pointer' }}
-        >
-          <rect x={-40} y={8} width={80} height={14} fill="transparent" />
-          <text x={0} y={18} textAnchor="middle" fontSize={8} fontFamily="sans-serif"
-            letterSpacing={0.5}
-            fontWeight={playbackConfig.generateAfterLastRepeat !== false ? 'bold' : 'normal'}
-            fill={playbackConfig.generateAfterLastRepeat !== false ? 'var(--text-primary)' : 'var(--text-lowlight)'}
-            style={{ pointerEvents: 'none' }}>
-            {/* #361 (Han: "ik begrijp de auto new niet") — self-describing state:
-                what happens AFTER the last repeat. */}
-            {playbackConfig.generateAfterLastRepeat !== false ? 'THEN: NEW MELODY' : 'THEN: SAME MELODY'}
-          </text>
-          {debugMode && (
-            <rect x={-40} y={8} width={80} height={14}
-              fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
-              style={{ pointerEvents: 'none' }} />
-          )}
-        </g>
       </g>
 
     </g>
