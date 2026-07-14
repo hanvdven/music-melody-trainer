@@ -163,8 +163,10 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
   // descending (bass clef): mirrored — C4 directly ABOVE the selected note, name BELOW,
   // and the fan direction REVERSES ("de noten gaan van laag naar hoog in plaats van
   // andersom"): larger (lower-pitched) intervals fan LEFT so left→right stays low→high.
-  const dir = ascending ? 1 : -1;
-  const { effIndex, dragging, bind } = useTangensDrag(activeIndex, SPAN_OPTIONS.length - 1, onCommit, PX_PER_STEP, dir);
+  const dir = ascending ? 1 : -1;   // X-fan LAYOUT direction (clef-dependent)
+  // #434 (Han: intuitive invert like measures — drag DOWN always raises the span, both clefs; this
+  // was inconsistent before, ascending was up=increase). DRAG sign is decoupled from the layout dir.
+  const { effIndex, dragging, bind } = useTangensDrag(activeIndex, SPAN_OPTIONS.length - 1, onCommit, PX_PER_STEP, -1);
   const labelY = ascending ? staffStart - 18 : staffStart + 64;
   const bandW = 6 * SPAN_X_SPACING + 24;
   // Fixed C4 anchor on the fan CENTRE axis — the selected head lands at cx, so the
@@ -184,6 +186,8 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
     const opt = SPAN_OPTIONS[i];
     const t = i - effIndex;
     const isActive = i === activeIdxRounded;
+    // #434 (Han: "maak die carousels ook hidden") — compact: only the active head at rest.
+    if (!dragging && !isActive) continue;
     const dist = Math.abs(t);
     const op = Math.max(0.15, (isActive ? 1 : 0.7) - dist * 0.1);
     const fill = isActive ? COLOR : LOW;
@@ -263,7 +267,8 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
 // clef-independent, and it lets the CHORDS balk host this fan on a virtual staff too.
 // Active note full size; neighbours shrink + dim. Durations (ticks) derived from SMALLEST_NOTE_DENOMS.
 const SmallestNoteFanCarousel = ({ cx, staffStart, activeIndex, onCommit, fieldLines, debugMode }) => {
-  const { effIndex, dragging, bind } = useTangensDrag(activeIndex, SMALLEST_NOTE_DENOMS.length - 1, onCommit, PX_PER_STEP, 1);
+  // #434 (Han: intuitive invert like measures — drag DOWN raises the index).
+  const { effIndex, dragging, bind } = useTangensDrag(activeIndex, SMALLEST_NOTE_DENOMS.length - 1, onCommit, PX_PER_STEP, -1);
   const anchorY = staffStart + 20; // middle of the five 10-unit-spaced staff lines
   const out = [];
   for (let i = Math.floor(effIndex) - 4; i <= Math.ceil(effIndex) + 4; i++) {
@@ -271,6 +276,9 @@ const SmallestNoteFanCarousel = ({ cx, staffStart, activeIndex, onCommit, fieldL
     const denom = SMALLEST_NOTE_DENOMS[i];
     const t = i - effIndex;
     const isActive = i === Math.round(effIndex);
+    // #434 (Han: "maak die carousels ook hidden") — compact: at rest only the active note shows;
+    // the fan opens under the finger while dragging.
+    if (!dragging && !isActive) continue;
     const dist = Math.abs(t);
     const op = Math.max(0.15, (isActive ? 1 : 0.7) - dist * 0.1);
     const x = cx + curveX(t) * (SPAN_X_SPACING / X_SPACING);
@@ -280,6 +288,11 @@ const SmallestNoteFanCarousel = ({ cx, staffStart, activeIndex, onCommit, fieldL
       <g key={i} data-fly="">
         <StaffMelodyNote visualDuration={denomToTicks(denom)} x={x} positionY={y}
           staffYStart={staffStart} color={isActive ? COLOR : LOW} opacity={op} scale={scale} />
+        {/* #434 (Han: "voeg labels toe; 1/4, 1/8, etc.") — the duration name below the note. */}
+        <text x={x} y={staffStart + 56} textAnchor="middle" fontFamily="sans-serif" fontSize={10}
+          fill={isActive ? COLOR : LOW} opacity={op} style={{ pointerEvents: 'none' }}>
+          {`1/${denom}`}
+        </text>
       </g>,
     );
   }
@@ -302,8 +315,9 @@ const SmallestNoteFanCarousel = ({ cx, staffStart, activeIndex, onCommit, fieldL
 // stable across re-renders.
 const PassingChordsFan = ({ cx, centerY, enabled, activeIndex, setPassingPos, onToggle, debugMode }) => {
   const enabledSet = new Set(enabled);
+  // #434 (Han: intuitive invert like measures — drag DOWN advances the centred type).
   const { effIndex, dragging, bind } = useTangensDrag(
-    activeIndex, PASSING_CHORD_TYPES.length - 1, (i) => setPassingPos(i), PX_PER_STEP, 1,
+    activeIndex, PASSING_CHORD_TYPES.length - 1, (i) => setPassingPos(i), PX_PER_STEP, -1,
   );
   const rowsOut = [];
   for (let i = Math.floor(effIndex) - 4; i <= Math.ceil(effIndex) + 4; i++) {
@@ -311,6 +325,9 @@ const PassingChordsFan = ({ cx, centerY, enabled, activeIndex, setPassingPos, on
     const ct = PASSING_CHORD_TYPES[i];
     const off = i - effIndex;
     const isActive = i === Math.round(effIndex);
+    // #434 (Han: "maak die carousels ook hidden") — compact: only the centred type at rest; the
+    // fan opens under the finger while dragging. Tap the centred type to toggle it on/off.
+    if (!dragging && !isActive) continue;
     const on = enabledSet.has(ct.key);
     const ry = centerY + 6 - off * ROW_H;
     const nx = cx + leftCurveX(off);
