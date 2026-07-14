@@ -13,6 +13,7 @@ import {
 // §6d — canonical renderers / curve math, NEVER hand-rolled here:
 import { LeftFanCarousel, DragBand, FieldLabel, FAN_LABEL_FONT, FAN_ACTIVE_LABEL_SIZE, FAN_ROW_H, FAN_PX_PER_STEP } from './fanCarousels';
 import { StaffQuarterNote, StaffMelodyNote } from '../staffNoteGlyph';
+import { MaestroFraction } from './maestroGlyphs';
 import { getNoteFromValue } from '../../../utils/rangeUtils';
 import { getNoteAbsoluteY } from '../renderMelodyNotes';
 import { curveX, curveY, leftCurveX, X_SPACING, useTangensDrag } from './tangensCurve';
@@ -252,11 +253,12 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
   const bandTop = staffStart + 20 + 6 - bandH / 2;
   return (
     <g>
-      {/* Fixed C4 reference head (anchor) — clamped on screen; the interval reads "C4 → target". */}
+      {/* Fixed C4 reference head (anchor) — clamped on screen; the interval reads "C4 → target".
+          #434 (Han: "de statische C moet ook gekleurd worden") — colour it by the active rule too. */}
       {c4Y != null && (
         <g data-fly="">
           <StaffQuarterNote x={anchorX} positionY={c4Y} staffYStart={staffStart}
-            ledgerYs={ledgerYs(c4Y, staffStart)} color={COLOR} />
+            ledgerYs={ledgerYs(c4Y, staffStart)} color={spanNoteColor('C4', noteColoringMode, COLOR)} />
         </g>
       )}
       {out}
@@ -278,7 +280,8 @@ const SpanFanCarousel = ({ cx, staffStart, clef, staff, ascending, activeIndex, 
 const SmallestNoteFanCarousel = ({ cx, staffStart, activeIndex, onCommit, fieldLines, debugMode }) => {
   // #434 (Han: intuitive invert like measures — drag DOWN raises the index).
   const { effIndex, dragging, bind } = useTangensDrag(activeIndex, SMALLEST_NOTE_DENOMS.length - 1, onCommit, PX_PER_STEP, -1);
-  const anchorY = staffStart + 20; // middle of the five 10-unit-spaced staff lines
+  // #434 (Han: "plaats een streep hoger (20 units)") — raised 20 from the middle line.
+  const anchorY = staffStart; // was staffStart + 20
   const out = [];
   for (let i = Math.floor(effIndex) - 4; i <= Math.ceil(effIndex) + 4; i++) {
     if (i < 0 || i > SMALLEST_NOTE_DENOMS.length - 1) continue;
@@ -297,11 +300,10 @@ const SmallestNoteFanCarousel = ({ cx, staffStart, activeIndex, onCommit, fieldL
       <g key={i} data-fly="">
         <StaffMelodyNote visualDuration={denomToTicks(denom)} x={x} positionY={y}
           staffYStart={staffStart} color={isActive ? COLOR : LOW} opacity={op} scale={scale} />
-        {/* #434 (Han: "voeg labels toe; 1/4, 1/8, etc.") — the duration name below the note. */}
-        <text x={x} y={staffStart + 56} textAnchor="middle" fontFamily="sans-serif" fontSize={10}
-          fill={isActive ? COLOR : LOW} opacity={op} style={{ pointerEvents: 'none' }}>
-          {`1/${denom}`}
-        </text>
+        {/* #434 (Han): the duration label below the note, as a custom Maestro fraction (small
+            super/subscript numerals). Moved up with the note (Han: "20 units hoger"). */}
+        <MaestroFraction num={1} den={denom} cx={x} cy={staffStart + 36}
+          color={isActive ? COLOR : LOW} opacity={op} />
       </g>,
     );
   }

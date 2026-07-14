@@ -23,6 +23,7 @@ import {
   NotePoolGlyph, RhythmMeasureGlyph, ComplexityChordGlyph, RomanProgressionGlyph, ChordCountGlyph,
 } from './generationNoteGlyphs';
 import { STAFF_CARD_ICON } from './carouselOptionGlyph';
+import { MaestroMixedNumber } from './maestroGlyphs';
 
 // ── GENERATION setter — CAROUSEL STYLE (Han 2026-06-22) ────────────────────────────────────────
 // REBUILD: previously each field was a tiny SvgSetter stepper (the smallest-note Maestro glyphs were
@@ -260,9 +261,10 @@ const GenerationSetterOverlay = ({
             <ChordCountGlyph count={item.value} centerY={row.centerY - 2}
               noteColoringMode={noteColoringMode} activeChord={GEN_PREVIEW_CHORD}
               theme={theme} color={color} />
-            <text x={0} y={row.centerY + CONTENT_LABEL_DY + 16} textAnchor="middle"
-              fontSize={COUNT_FONT_SIZE} fontFamily="Maestro" fill={color}
-              style={{ pointerEvents: 'none' }}>{item.countLabel}</text>
+            {/* #434 (Han: "maak een custom 1/2 etc.") — the count as a real Maestro mixed number
+                (big whole + small ½/¼ fraction) instead of the ASCII '2½' Maestro can't draw. */}
+            <MaestroMixedNumber value={item.value} cx={0} cy={row.centerY + CONTENT_LABEL_DY + 16}
+              size={COUNT_FONT_SIZE} color={color} />
           </g>
         ),
         labelDy: CONTENT_LABEL_DY, hitTop: -32, hitHeight: 84,
@@ -341,7 +343,8 @@ const GenerationSetterOverlay = ({
     // as the BPM/repeats displays); n=0 (auto) keeps its icon + AUTO label.
     const items = NOTES_PER_MEASURE_ITEMS;
     const cur = cfg?.notesPerMeasure || 0;
-    const rowStaffStart = row.centerY - 20;
+    // #434 (Han: "notes/measure: plaats een streep hoger (20 units)") — raised 20.
+    const rowStaffStart = row.centerY - 40;
     return {
       items, activeIndex: idxOf(items, cur), labelAbove: 'notes / measure',
       renderContent: (item, active, color) => (

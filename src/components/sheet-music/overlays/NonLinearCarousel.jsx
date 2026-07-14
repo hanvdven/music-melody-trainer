@@ -354,12 +354,15 @@ export default function NonLinearCarousel({
 
     const onPointerDown = (e) => {
         if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
-        // #428: a press on a COLLAPSED (hidden) carousel reveals it AND — because this same rect owns
-        // pointer capture — the very same gesture continues into a drag. That is Han's "bij vasthouden
-        // wil ik onmiddellijk slepen": press-and-hold begins scrolling with no separate tap-to-open.
+        // #434 (Han: "tap (carousel zichtbaar) tap (noot gekozen); tap-hold -> carousel slepen"):
+        // a press on a COLLAPSED carousel REVEALS it (this gesture), but a plain TAP that only
+        // revealed must NOT also select — selection needs a SECOND tap once open. Press-and-hold
+        // still flows straight into a drag (same rect owns pointer capture). We remember whether
+        // this gesture did the reveal so onPointerUp can suppress the select on that first tap.
+        const revealedNow = collapsed;
         if (collapsed) onRevealRef.current?.();
         const sx = toSvgX(e.currentTarget, e.clientX);
-        dragRef.current = { startX: sx, startPos: posRef.current, moved: 0, downSvgX: sx };
+        dragRef.current = { startX: sx, startPos: posRef.current, moved: 0, downSvgX: sx, revealedNow };
         e.currentTarget.setPointerCapture?.(e.pointerId);
     };
     const onPointerMove = (e) => {
@@ -381,6 +384,10 @@ export default function NonLinearCarousel({
         e.currentTarget.releasePointerCapture?.(e.pointerId);
         if (!d) return;
         if (d.moved < TAP_SLOP) {
+            // #434: a TAP that merely REVEALED the carousel selects nothing — it just opens it; the
+            // next tap (carousel now open) picks a note. This is what lets a hidden carousel keep
+            // tap-to-select without committing on the reveal (Han's two-tap model).
+            if (d.revealedNow) return;
             // TAP — figure out which visible item slot the down point landed in (nearest by the
             // laid-out x), glide it to centre and commit. We test against the SAME xOffset layout
             // applied in applyPos (NEAREST signed distance, wrap-aware) so the hit maths matches the
