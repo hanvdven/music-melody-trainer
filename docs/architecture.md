@@ -4821,6 +4821,24 @@ tidy labels, and apply note-colouring more universally.
 `overlays/GenerationAdvancedSetterOverlay.jsx`, `overlays/TranspositionSetter.jsx`,
 `renderMelodyNotes.jsx`.
 
+### §58b. Consistency screening — uniform chord/single notehead size (Han 2026-07-19)
+
+Han: "screen kritisch op inconsistenties." A DOM-level measurement of the generation setter (via the
+real-browser harness) found chord noteheads rendering at **34px** while single noteheads — and each
+chord's OWN accidental — used `NOTE_FONT_SIZE = 36`. `renderMelodyNotes.jsx` line ~928 hardcoded the
+34 (a §6d magic number). Effect: every carousel preview built from CHORD arrays (the complexity
+stack, the voices/`VoicesGlyph` heads incl. `unisono` which is a 1-element array, any real chord on
+the staff) drew 2px smaller than the note-pool single notes beside them. Fixed to `NOTE_FONT_SIZE`,
+so chord and single noteheads are one size app-wide. Verified: all Maestro noteheads now measure 36.
+
+**Screening notes (deliberate, left as-is):** the melody-type ACTIVE label is category-tinted
+(`--cat-*`) while note-pool/voices/percussion labels are `--text-primary` — a deliberate family-colour
+cue (§362), flagged to Han as a possible visual inconsistency. The chords-row headers sit at
+`rowCenterY−32` vs the staff rows' `−46` (chords-row top-pinning), tracked with the deferred
+4-column layout-polish round.
+
+**Files:** `renderMelodyNotes.jsx` (chord notehead → `NOTE_FONT_SIZE`).
+
 ### §58a. Generation setter — headers always-on, consistent labels, voices names (Han 2026-07-19)
 
 Follow-up polish on §58/§55b after Han's UAT:

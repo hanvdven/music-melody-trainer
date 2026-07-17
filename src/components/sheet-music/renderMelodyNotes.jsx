@@ -924,8 +924,12 @@ const renderMelodyNotes = (
                 )}
                 <text
                   x={positionX + (pos.xOffset || 0)}
+                  /* #435 audit (Han 2026-07-19: "screen kritisch op inconsistenties"): chord
+                     noteheads used a hardcoded 34 while single noteheads AND this chord's own
+                     accidental (above) use NOTE_FONT_SIZE (36) — a §6d magic-number inconsistency
+                     that made chord/voices previews render 2px smaller than note-pool notes. */
                   y={pos.y}
-                  fontSize="34"
+                  fontSize={NOTE_FONT_SIZE}
                   fill={noteColor}
                   fontFamily="Maestro"
                 >
