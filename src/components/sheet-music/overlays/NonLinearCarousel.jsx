@@ -86,6 +86,9 @@ const GAP_OVERFLOW   = 0.40;   // per-step gap for the overflow step (edge → e
 const OPACITY_EDGE     = 0.50; // opacity at the visible-window edge
 const OPACITY_OVERFLOW = 0.30; // opacity of the single peeking overflow element
 const EDGE_MASK_FRAC = 0.05;   // edge opacity-mask ramp width = 5% of the visible window each side
+const MASK_PAD_Y = 200;        // #435: vertical head/foot room on the edge mask — the fade is
+                               // horizontal-only, so the rect must never vertically clip content
+                               // (labels/counts below the hit box). 200 safely exceeds any row.
 
 // edgeFor(half): the integer distance of the OUTERMOST in-window item — the "edge". A wider window
 // (Han 2026-06-19: 7-visible instruments) pushes the edge out so the falloff stretches to the new
@@ -450,9 +453,17 @@ export default function NonLinearCarousel({
                     <stop offset={1 - f} stopColor="white" stopOpacity={1} />
                     <stop offset="1" stopColor="white" stopOpacity={OPACITY_EDGE} />
                 </linearGradient>
+                {/* #435 clipping fix (Han 2026-07-17: "ik zie de labels van de carousels niet"):
+                    the mask rect used the HIT-BOX bounds (y..y+height) — but the mask exists ONLY
+                    for the HORIZONTAL edge fade, and item content (value labels at rowCenterY+38,
+                    Maestro counts at +54) can extend well below the hit box. Everything outside the
+                    mask rect is hard-clipped to invisible, which silently ate every label drawn
+                    below hitY+hitHeight (fields with tall hit boxes escaped — that's why note-pool
+                    labels showed while melody-type labels vanished). The rect now takes a generous
+                    vertical margin; the horizontal gradient — the mask's actual job — is unchanged. */}
                 <mask id={maskId} maskUnits="userSpaceOnUse"
-                    x={winLeft} y={y} width={winW} height={height}>
-                    <rect x={winLeft} y={y} width={winW} height={height}
+                    x={winLeft} y={y - MASK_PAD_Y} width={winW} height={height + 2 * MASK_PAD_Y}>
+                    <rect x={winLeft} y={y - MASK_PAD_Y} width={winW} height={height + 2 * MASK_PAD_Y}
                         fill={`url(#${maskId}-grad)`} />
                 </mask>
             </defs>

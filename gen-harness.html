@@ -1,0 +1,15 @@
+<!doctype html>
+<!-- Dev-only visual harness page (#435 clipping debug, Han 2026-07-17): renders the GENERATION
+     setter overlay at rest (hiddenFields) in a REAL browser via the running Vite dev server, so
+     headless-Chrome screenshots show the true runtime state (rAF positioning, CSS vars, fonts).
+     Open: http://localhost:5173/gen-harness.html  — not part of the app build. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>gen harness</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/scripts/gen-harness-entry.jsx"></script>
+  </body>
+</html>

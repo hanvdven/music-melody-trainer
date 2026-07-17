@@ -4879,6 +4879,19 @@ branching in generation code (§6b). Merged melodies preserve the Melody contigu
 `string[]` — the same shape fullchord produced — so `renderMelodyNotes` and `playMelodies`
 required NO changes.
 
+**Bug — carousel labels invisible ("clipping", the real root cause of the #431 round-3
+complaint).** *Symptom:* value labels under the melody-type/progression icons and the Maestro
+counts under notes/measure never showed (or showed as cut-off fragments); labels on fields with
+tall hit boxes (note pool) were fine. *Root cause:* `NonLinearCarousel`'s horizontal edge-fade
+`<mask>` used the HIT-BOX rect (`y..y+height`) as its mask rect — everything an item drew BELOW
+the hit box (labels at rowCenterY+38, counts at +54 vs the default hit box ending at +26) was
+hard-clipped to alpha 0. Invisible in jsdom probes (no paint) and in the static render harness
+(no rAF), only reproducible in a real browser — found via headless-Chrome screenshots of the new
+`gen-harness.html` + a DOM dump showing the `mask=url(#nlc-edge-mask-…)` ancestor. *Fix:* the mask
+rect takes `MASK_PAD_Y = 200` vertical head/foot room; the horizontal gradient (the mask's actual
+job) is unchanged. *Files:* `overlays/NonLinearCarousel.jsx`; dev harness `gen-harness.html` +
+`scripts/gen-harness-entry.jsx` (real-browser screenshot harness, `?open=1` / `?bisect=1`).
+
 **Files:** `generation/melodyGenerator.js` (wrapper + `applyVoicing`/`generateAuxMelody`/
 `mergeVoice`/`buildChordLookup`/`computeEffectiveScale`), `audio/drumKits.js`
 (`resolvePercussionChord`), `generation/generateBackbeat.js` (imports the resolver),
