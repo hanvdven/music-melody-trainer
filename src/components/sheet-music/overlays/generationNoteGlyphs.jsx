@@ -170,7 +170,10 @@ const COMPLEXITY_NOTES = {
  */
 export const ComplexityChordGlyph = ({ complexity, centerY, noteColoringMode, tonic, scaleNotes, activeChord, theme }) => {
     const notes = COMPLEXITY_NOTES[complexity] || COMPLEXITY_NOTES.triad;
-    const virtualStaffStart = centerY - 26; // middle line = centerY − 6
+    // #431 rework (Han 2026-07-17): the stack is anchored 8px HIGHER (was centerY−26) so its lowest
+    // head (C4 ledger) clears the shared +28 value-label line — this lets the chords-row labels sit at
+    // the SAME offset as every other row instead of being pushed down to clear the stack.
+    const virtualStaffStart = centerY - 34;
     return (
         <MiniMelody
             slots={[notes]}                 // a SINGLE slot containing the whole chord

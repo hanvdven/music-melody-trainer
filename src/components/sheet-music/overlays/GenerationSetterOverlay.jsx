@@ -83,8 +83,19 @@ const PATTERN_BASE = 135;     // rhythm-measure item stride (widened from 100)
 const GEN_PREVIEW_CHORD = { root: 'C4', notes: ['C4', 'E4', 'G4'] };
 const MELODY_TYPE_ICON_DY = -19;   // icon TOP relative to rowCenterY → staffStart+1 (instrument 1-op-1)
 const MELODY_TYPE_BASE = 50;       // #434: stride > 38px icon so melody-type icons never clip/overlap
-const MELODY_TYPE_LABEL_DY = 38;   // label baseline relative to rowCenterY (below the staff)
-const CONTENT_LABEL_DY = 28;  // labels sit just BELOW the staff (staffStart+48) for content rows
+// #431 rework (Han 2026-07-17): ALL value labels share ONE offset (+28) so every column's label lines
+// up at the same height — the generation overlay packs 4 rows into the staff spacing, so labels sit
+// just below the staff (not at the instrument setter's roomier +38, which collided with the next row's
+// header). The ICON stays 1-op-1 with the instrument setter (staffStart+1); only the label is tucked up.
+// #431 rework (Han 2026-07-17): ONE value-label offset (+28) for EVERY column in EVERY row — staff AND
+// chords. The chords row used to need a lower label to clear its tall complexity stack; the stack is now
+// anchored 8px higher (generationNoteGlyphs `virtualStaffStart`) so it clears +28 too. Full consistency
+// (Han: "inconsistent height of elements at chords rule").
+const CONTENT_LABEL_DY = 28;
+const MELODY_TYPE_LABEL_DY = CONTENT_LABEL_DY;
+const CHORDS_LABEL_DY = CONTENT_LABEL_DY;
+const STAFF_HEADER_DY = -46;  // field header baseline for the STAFF rows → rowCenterY-46 = staffStart-26
+                              // (instrument setter FIELD_HEADER_DY), clear ABOVE the ledger notes.
 const COUNT_FONT_SIZE = 24;   // Maestro numeral under each rhythm-measure item (#362)
 
 // #362 (Han): randomization families take CATEGORY COLOURS — reuse the existing
@@ -285,7 +296,7 @@ const GenerationSetterOverlay = ({
               noteColoringMode={noteColoringMode} activeChord={GEN_PREVIEW_CHORD} theme={theme} />
           ),
           // Stack reaches ~centerY+34 (C4 head) → label clears it; hit box grows to match.
-          labelDy: CONTENT_LABEL_DY + 14, hitTop: -32, hitHeight: 84,
+          labelDy: CHORDS_LABEL_DY, hitTop: -32, hitHeight: 84,
           onSelect: (item) => setChordSettings(p => ({ ...p, complexity: item.value })),
         };
       }
@@ -308,12 +319,12 @@ const GenerationSetterOverlay = ({
                   width={STAFF_CARD_ICON} height={STAFF_CARD_ICON} color="currentColor" strokeWidth={2}
                   style={{ pointerEvents: 'none' }} />
               ) : null}
-              <RomanProgressionGlyph label={item.romanLabel} y={row.centerY + MELODY_TYPE_LABEL_DY}
+              <RomanProgressionGlyph label={item.romanLabel} y={row.centerY + CHORDS_LABEL_DY}
                 color={color} active={active} />
             </g>
           ),
           baseWidth: MELODY_TYPE_BASE, visibleHalf: 1,
-          iconSize: STAFF_CARD_ICON, iconDy: MELODY_TYPE_ICON_DY, labelDy: MELODY_TYPE_LABEL_DY,
+          iconSize: STAFF_CARD_ICON, iconDy: MELODY_TYPE_ICON_DY, labelDy: CHORDS_LABEL_DY,
           onSelect: (item) => setChordSettings(p => ({ ...p, strategy: item.value })),
         };
       }
@@ -334,11 +345,11 @@ const GenerationSetterOverlay = ({
               theme={theme} color={color} />
             {/* #434 (Han: "maak een custom 1/2 etc.") — the count as a real Maestro mixed number
                 (big whole + small ½/¼ fraction) instead of the ASCII '2½' Maestro can't draw. */}
-            <MaestroMixedNumber value={item.value} cx={0} cy={row.centerY + CONTENT_LABEL_DY + 16}
+            <MaestroMixedNumber value={item.value} cx={0} cy={row.centerY + CHORDS_LABEL_DY}
               size={COUNT_FONT_SIZE} color={color} />
           </g>
         ),
-        labelDy: CONTENT_LABEL_DY, hitTop: -32, hitHeight: 84,
+        labelDy: CHORDS_LABEL_DY, hitTop: -32, hitHeight: 84,
         onSelect: (item) => setChordSettings(p => ({ ...p, chordCount: item.value })),
       };
     }
@@ -513,6 +524,10 @@ const GenerationSetterOverlay = ({
                 labelDy={f.labelDy ?? LABEL_DY}
                 labelFontSize={LABEL_FONT_SIZE}
                 bracketDy={BRACKET_DY}
+                // #431 rework: staff-row headers line up at −46 (clear above the ledger notes); the
+                // chords row keeps the tighter −32 (BRACKET_DY default) so it doesn't clip the overlay
+                // top. Family brackets stay at BRACKET_DY, sitting BETWEEN header and icons.
+                headerDy={row.isChords ? BRACKET_DY : STAFF_HEADER_DY}
                 fieldLabel={f.fieldLabel}
                 labelAbove={f.labelAbove}
                 familyMode={f.familyMode}

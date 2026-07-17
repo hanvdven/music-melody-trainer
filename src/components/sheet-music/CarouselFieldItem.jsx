@@ -193,6 +193,11 @@ export const CarouselField = ({
   centerX, rowCenterY,
   // sizing consts (from the overlay):
   baseWidth, hitTop, hitHeight, iconSize, iconDy, labelDy, labelFontSize, bracketDy,
+  // #431 rework (Han 2026-07-17): the field HEADER (labelAbove) sits at its OWN offset, independent of
+  // the family "blokhaken" bracket offset (bracketDy). This lets every column's header line up at ONE
+  // height (above the notes) while the family brackets sit lower, between header and icons. Defaults to
+  // bracketDy so non-family fields are unchanged unless the overlay passes an explicit headerDy.
+  headerDy,
   // bracket mode:
   fieldLabel,           // single field-name bracket label (when not family-grouped)
   // #362 (Han): plain caps label ABOVE the carousel instead of the blokhaken
@@ -217,6 +222,7 @@ export const CarouselField = ({
   const edgeX = (VISIBLE_HALF + 0.5) * baseWidth;
   const iconY = rowCenterY + iconDy;
   const labelY = rowCenterY + labelDy;
+  const headerY = rowCenterY + (headerDy ?? bracketDy);   // field header baseline (§431 rework)
   const bracketY = rowCenterY + bracketDy;
   const hitY = rowCenterY + hitTop;
 
@@ -282,7 +288,7 @@ export const CarouselField = ({
             geomProps={{ centerX, bracketY, baseWidth, visibleHalf: VISIBLE_HALF, edgeX, familyName, familyColor }}
           />
           {labelAbove ? (
-            <text x={centerX} y={bracketY - 14} textAnchor="middle" fontSize={14}
+            <text x={centerX} y={headerY} textAnchor="middle" fontSize={14}
               fontFamily="serif" fontStyle="italic"
               fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
               {labelAbove}
@@ -290,7 +296,7 @@ export const CarouselField = ({
           ) : null}
         </>
       ) : labelAbove ? (
-        <text x={centerX} y={bracketY} textAnchor="middle" fontSize={14}
+        <text x={centerX} y={headerY} textAnchor="middle" fontSize={14}
           fontFamily="serif" fontStyle="italic"
           fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
           {labelAbove}

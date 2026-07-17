@@ -4712,6 +4712,16 @@ attribution line**, and the newly-supplied `concert` + plain `dice` assets neede
   item paints its caps label (side items keep their icons + category bracket) — no more overlap, robust
   at any screen width. (The instrument setter can show every label because it is a single full-width
   carousel; the 3-column generation row cannot.)
+- **Unified vertical geometry (2nd UAT, Han "headers at different heights / inconsistent element
+  heights").** Every column's field HEADER now sits at ONE height per row and every column's value
+  LABEL at ONE height per row. `CarouselField` gained `headerDy` (independent of the family-bracket
+  `bracketDy`), so the header lines up ABOVE the ledger notes (`STAFF_HEADER_DY = −46 = staffStart−26`,
+  the instrument `FIELD_HEADER_DY`) while the family brackets sit lower, between header and icons. All
+  value labels share `CONTENT_LABEL_DY = +28` (staff AND chords rows); the chords row's tall complexity
+  STACK is anchored 8px higher (`ComplexityChordGlyph` `virtualStaffStart = centerY−34`) so its lowest
+  head clears +28, letting the chords labels line up with the staff labels instead of being pushed down
+  to +42 (which collided with the treble header). The chords row keeps its header at `BRACKET_DY (−32)`
+  so it doesn't clip the overlay top. Verified with `scripts/render-gen.jsx` (header/label y-values).
 - **icons8 attribution (#465).** `GenerationSetterOverlay` now renders `ICON_ATTRIBUTION` (imported from
   `constants/instruments`) centred below the bottom row — MANDATORY wherever icons8 art shows (same
   convention as the instrument setter, §6d).
