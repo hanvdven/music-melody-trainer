@@ -17,7 +17,7 @@ import {
   FAMILY_DISPLAY_NAMES,
 } from '../../../constants/generationFields';
 import { RULE_FAMILIES, PERC_FAMILIES } from '../../../constants/instrumentRules';
-import { getIconUrlByBasename } from '../../../constants/instruments';
+import { getIconUrlByBasename, ICON_ATTRIBUTION } from '../../../constants/instruments';
 import { PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { CarouselField } from '../CarouselFieldItem';
 import {
@@ -70,15 +70,18 @@ const POOL_HIT_TOP = -42;     // colour setter's hit-box top offset from the row
 const POOL_HIT_H = 104;       // colour setter's hit-box height
 const PATTERN_BASE = 135;     // rhythm-measure item stride (widened from 100)
 // #431 (Han): melody-type icons match the instrument setter — icon on the staff body, label below.
-// rowCenterY = staffStart + 20, so instrument's icon top (staffStart+4) → −16 and its label
-// (staffStart+58) → +38 relative to rowCenterY.
+// rowCenterY = staffStart + 20. The instrument setter (InstrumentStaffOverlay) anchors its icon top
+// at staffStart + ICON_DY (ICON_DY = 1) and its label at staffStart + NAME_DY (NAME_DY = 58). So for
+// pixel-identical 1-op-1 alignment (Han 2026-07-17 rework): icon top staffStart+1 → −19 relative to
+// rowCenterY, label staffStart+58 → +38. (Earlier comment said staffStart+4/−16; that referenced the
+// pre-#436 ICON_DY=−4 and was stale — corrected here.)
 // #432 rework: the generation previews are a C-based ILLUSTRATION (root C, C-major scale), so they
 // colour against a fixed C reference — a "scale" example must not read as non-scale just because the
 // real key isn't C. For 'chords'-mode colouring the illustration chord is the C-major triad (the
 // same C-E-G the 'chord' note-pool shows). The GLOBAL representativeChord fallback (with the tritone)
 // serves the COLOUR setter, which previews the REAL current context.
 const GEN_PREVIEW_CHORD = { root: 'C4', notes: ['C4', 'E4', 'G4'] };
-const MELODY_TYPE_ICON_DY = -16;   // icon TOP relative to rowCenterY (staff body)
+const MELODY_TYPE_ICON_DY = -19;   // icon TOP relative to rowCenterY → staffStart+1 (instrument 1-op-1)
 const MELODY_TYPE_BASE = 50;       // #434: stride > 38px icon so melody-type icons never clip/overlap
 const MELODY_TYPE_LABEL_DY = 38;   // label baseline relative to rowCenterY (below the staff)
 const CONTENT_LABEL_DY = 28;  // labels sit just BELOW the staff (staffStart+48) for content rows
@@ -129,7 +132,7 @@ const PERC_RULE_RING = [
 // #460 (Han) — the full rule → icons8 mapping. dice-d20 stands in for the "dice" (random); a
 // dedicated plain-dice / d20 split is a follow-up card. Percussion rules share this map.
 const RULE_ICON8 = {
-  uniform: 'dice-d20',          // random
+  uniform: 'dice',              // #466 (Han): plain six-sided die = the generic random rule
   emphasize_roots: 'anchor',    // "roots on one"
   weighted: 'feather',
   walking_bass: 'guitar',
@@ -164,20 +167,21 @@ const PERC_POOL_ITEMS = PERC_POOL_PRESETS.map(o => ({
   iconUrl: PERC_POOL_ICON8[o.value] ? getIconUrlByBasename(PERC_POOL_ICON8[o.value]) : undefined,
 }));
 const COMPLEXITY_ITEMS = CHORD_COMPLEXITY.map(o => ({ ...o, Icon: FIELD_ITEM_ICONS.complexity[o.value] }));
-// #460 (Han) — chord-progression strategy → icons8. Only mapped where a real asset exists; 'concert'
-// (pop-1-5-6-4 "pop 4 chord") has NO asset yet, so it keeps its lucide glyph until one is added.
+// #460 (Han) — chord-progression strategy → icons8. #466 (Han 2026-07-17): the 'concert' (pop) and
+// plain 'dice' assets were added, so pop-1-5-6-4 now uses concert and the generic 'modal-random'
+// takes the plain six-sided die; the 20-sided 'dice-d20' stays for the more exotic inter-modal random.
 const STRATEGY_ICON8 = {
-  'modal-random': 'dice-d20',
-  'inter-modal-random': 'dice-d20',   // #462: "d20" — plain d20 asset TODO; dice-d20 for now
+  'modal-random': 'dice',              // #466: plain six-sided die = the generic random
+  'inter-modal-random': 'dice-d20',   // #462: "d20" — the exotic/chromatic random keeps the 20-sided die
   'tonic-tonic-tonic': 'ground-symbol',
   'ii-v-i': 'jazz',                    // jazz circle-of-fifths maps onto the as-is jazz (Han)
+  'pop-1-5-6-4': 'concert',           // #466: asset added
   'pop-6-4-1-5': 'heart',             // "sensitive"
   'doo-wop': 'microphone',            // vintage mic
   'classical-1-4-5-5': 'violinist',
   'pachelbel': 'art-track',           // musical score
   'andalusian': 'flamenco',
   '12-bar-blues': 'blues',            // #461
-  // 'pop-1-5-6-4': 'concert' — asset MISSING (flagged)
 };
 const STRATEGY_ITEMS = CHORD_STRATEGIES.map(value => ({
   value,
@@ -258,10 +262,10 @@ const GenerationSetterOverlay = ({
     { key: 'percussion', centerY: percussionStart + 20, show: isPercussionVisible },
   ].filter(r => r.show);
 
-  // #295 (Han): 'melody notes' and 'notes / measure' headers were REDUNDANT with the
-  // field-name brackets on those carousels — only 'melody type' (family brackets, no
-  // field label) keeps a column header.
-  const COL_HEADERS = [null, 'melody type', null];
+  // #431 rework (Han 2026-07-17): the persistent "melody type" COLUMN header was removed — it stayed
+  // visible after the carousel collapsed. It now lives as a per-row `labelAbove` inside each melody-
+  // type field's fading chrome (see fieldFor colIdx 1), so it hides with the carousel like every
+  // other column header.
 
   // Build the carousel descriptor for one (row, columnIndex) cell. Returns the props CarouselField
   // needs: items, activeIndex, onSelect, and bracket mode. WIRING UNCHANGED — onSelect writes the
@@ -403,6 +407,10 @@ const GenerationSetterOverlay = ({
       const cur = cfg?.randomizationRule || (isPerc ? 'uniform' : 'uniform');
       return {
         items, activeIndex: idxOf(items, cur),
+        // #431 rework (Han 2026-07-17): the "melody type" header is now a PER-ROW label inside the
+        // fading chrome (like the instrument setter's "instrument" header), NOT a persistent column
+        // header — so it hides together with the carousel when collapsed.
+        labelAbove: 'melody type',
         // #362 (Han): family brackets AND the active item take the family's
         // category colour (--cat-* palette).
         familyMode: true, familyName, familyColor,
@@ -462,12 +470,8 @@ const GenerationSetterOverlay = ({
         style={{ cursor: 'default' }}
       />
 
-      {/* Column headers — italic serif, non-capitalised (Han 2026-07-13), var(--text-secondary), 14. */}
-      {COL_HEADERS.map((h, i) => (h == null ? null : (
-        <text key={`hdr-${i}`} x={cols[i]} y={HEADER_Y} textAnchor="middle"
-          fontFamily="serif" fontStyle="italic" fontSize={14} fill="var(--text-secondary)"
-          style={{ userSelect: 'none', pointerEvents: 'none' }}>{h}</text>
-      )))}
+      {/* #431 rework: no persistent column headers — each field's header now lives in its own fading
+          chrome (labelAbove), so it hides with the carousel. */}
 
       {/* #436 (Han): debug ALIGNMENT GUIDES — full-width lines at the header, per-row icon-top,
           icon-baseline (staff top+STAFF_CARD_ICON) and label baseline, so their heights can be lined
@@ -526,6 +530,16 @@ const GenerationSetterOverlay = ({
           })}
         </g>
       ))}
+
+      {/* #465 (Han 2026-07-17: "in de generation settings tab de attributie icons by icons8 mis"):
+          icons8 attribution/licence — MANDATORY wherever icons8 art shows. Same convention as the
+          instrument setter (§6d): centred, small, dim, below the bottom row. */}
+      <text x={(startX + endX) / 2}
+        y={rows[rows.length - 1].centerY + MELODY_TYPE_LABEL_DY + 16}
+        textAnchor="middle" fontSize={9} fontFamily="sans-serif" fill="var(--text-dim, #888)"
+        style={{ pointerEvents: 'none' }}>
+        {ICON_ATTRIBUTION}
+      </text>
     </g>
   );
 };

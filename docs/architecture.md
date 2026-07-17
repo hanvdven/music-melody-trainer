@@ -4688,6 +4688,48 @@ hand-roll noteheads/accidentals/stems again (that was the whole bug). Colours co
 `constants/generationFields.js`, `CarouselFieldItem.jsx`,
 `overlays/__tests__/generationNoteGlyphs.test.js`.
 
+### §55b. Generation setter — melody-type 1-op-1 alignment, fading header, active-label-only; icons8 attribution + concert/dice (#431 rework / #465 / #466, Han 2026-07-17)
+
+**Purpose / Symptom:** Han UAT of the first #431 pass — melody-type was still not right: (1) the value
+labels at the bottom "fell away" (adjacent caps labels overlapped in the narrow 3-column row); (2) the
+icon/label alignment did not match the instrument setter; (3) the "melody type" **category label stayed
+visible after the carousel collapsed**. Separately: the generation tab was **missing the icons8
+attribution line**, and the newly-supplied `concert` + plain `dice` assets needed wiring.
+
+**How it works / Fix:**
+- **1-op-1 alignment (§6d).** The instrument setter anchors its icon top at `staffStart + 1`
+  (`ICON_DY = 1`) and its label at `staffStart + 58` (`NAME_DY = 58`). The generation rows use
+  `rowCenterY = staffStart + 20`, so melody-type now uses `MELODY_TYPE_ICON_DY = −19`
+  (`staffStart + 1`) and keeps `MELODY_TYPE_LABEL_DY = 38` (`staffStart + 58`) — pixel-identical. (The
+  old comment claiming `staffStart + 4 / −16` referenced the pre-#436 `ICON_DY = −4` and was stale.)
+- **Fading per-row header.** The persistent `COL_HEADERS = [null,'melody type',null]` column header was
+  removed. Melody-type fields now pass `labelAbove: 'melody type'`, and `CarouselField` renders that
+  header **inside the fading `chromeVisible` group, ABOVE the family brackets** (at `bracketY − 14 =
+  rowCenterY − 46 = staffStart − 26`, mirroring the instrument setter's `FIELD_HEADER_DY`). So the
+  header hides with the carousel exactly like the other columns' `labelAbove`.
+- **Active-label-only for family carousels.** `makeRenderItem` gained `activeLabelOnly`; `CarouselField`
+  passes `activeLabelOnly: familyMode`. In the narrow 3-column melody-type row only the CENTRED/active
+  item paints its caps label (side items keep their icons + category bracket) — no more overlap, robust
+  at any screen width. (The instrument setter can show every label because it is a single full-width
+  carousel; the 3-column generation row cannot.)
+- **icons8 attribution (#465).** `GenerationSetterOverlay` now renders `ICON_ATTRIBUTION` (imported from
+  `constants/instruments`) centred below the bottom row — MANDATORY wherever icons8 art shows (same
+  convention as the instrument setter, §6d).
+- **concert + plain dice (#466).** `STRATEGY_ICON8['pop-1-5-6-4'] = 'concert'`;
+  `STRATEGY_ICON8['modal-random']` and `RULE_ICON8.uniform` → plain `'dice'` (six-sided = generic
+  random); the 20-sided `'dice-d20'` stays for the exotic `inter-modal-random`. Assets resolve via
+  `getIconUrlByBasename`.
+
+**Invariants:** icon/label geometry for any in-staff carousel that ALSO exists elsewhere must reuse the
+canonical constants (here: match the instrument setter's `ICON_DY`/`NAME_DY`, §6d). Any overlay showing
+icons8 art must render `ICON_ATTRIBUTION` while open. The `svg.lucide` proxy in the tests was widened to
+`svg.lucide, image` because most items are icons8 now.
+
+**Files:** `overlays/GenerationSetterOverlay.jsx` (consts, `labelAbove`, removed `COL_HEADERS`, icon
+maps, attribution), `CarouselFieldItem.jsx` (`activeLabelOnly`, family-mode header),
+`overlays/__tests__/GenerationSetterOverlay.test.jsx` (icon proxy widened),
+`src/assets/icons8-concert-*.png`, `src/assets/icons8-dice-*.png`.
+
 ### §56. Carousel consistency pass (#432, Han 2026-07-14)
 
 **Purpose:** a screening of every carousel/setter turned up drift; this pass unifies it.

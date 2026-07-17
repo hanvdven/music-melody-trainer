@@ -65,7 +65,7 @@ const renderIcon8 = (iconUrl, { size, iconY, active, tintId }) => {
 //
 // SIZING is passed in as named consts from the owning overlay (Han 2026-06-22 wants all sizing as
 // tunable named consts at the overlay top), so this renderer is layout-agnostic.
-export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf, tintId }) => {
+export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf, tintId, activeLabelOnly = false }) => {
   // Returns a render-PROP for NonLinearCarousel.renderItem (invoked manually), NOT a React
   // component — so there's no display name to give.
   const renderCarouselItem = (item, i) => {
@@ -86,8 +86,11 @@ export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFont
             ? renderIcon8(item.iconUrl, { size: iconSize, iconY, active, tintId })
             : renderLucideIcon(item.Icon, { size: iconSize, iconY })}
         {/* ALL CAPS per the standing carousel-text CR. An item/field may omit its
-            label (e.g. Roman-numeral items ARE their label). */}
-        {item.label ? (
+            label (e.g. Roman-numeral items ARE their label). #431 rework (Han 2026-07-17):
+            `activeLabelOnly` renders ONLY the centred/active item's label — the melody-type family
+            carousel sits in a narrow 3-column row where wide caps labels of adjacent items overlapped
+            and "fell away"; showing just the active value's label keeps it readable at any width. */}
+        {item.label && (!activeLabelOnly || active) ? (
           <text x={0} y={labelY} textAnchor="middle" fontSize={labelFontSize}
             fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'} fill={color}>
             {String(item.label).toUpperCase()}
@@ -229,7 +232,9 @@ export const CarouselField = ({
   const tintId = `carousel-icon-tint-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
   const activeIconColor = (colorOf?.(items[activeIndex]) ?? 'var(--text-primary)');
 
-  const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf, tintId });
+  // #431 rework: in family mode (melody-type) the 3-column row is too narrow for every item's caps
+  // label — show only the active item's label (side items keep their icons + category bracket).
+  const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf, tintId, activeLabelOnly: familyMode });
 
   // #394a / #398 / #428: reveal-on-interaction. Only meaningful when `hidden`. The carousel is now
   // ALWAYS mounted when hidden (it renders itself COLLAPSED — only the active item paints), so a
@@ -262,16 +267,29 @@ export const CarouselField = ({
       {/* #428: fade the chrome (brackets / caps label) in/out with `open` so the whole field, not
           just the carousel items, honours the reveal + fade-out. */}
       <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: chromeVisible ? undefined : 'none' }}>
+      {/* #431 (Han 2026-07-13: "headers - no caps, labels: all caps"): the field-name HEADER above
+          the carousel is italic SERIF, NON-capitalised; the item VALUE labels below are sans-serif
+          ALL CAPS (makeRenderItem). The dashed blokhaken stay reserved for real groupings. */}
       {familyMode ? (
-        <FamilyBrackets
-          pos={pos}
-          items={items}
-          geomProps={{ centerX, bracketY, baseWidth, visibleHalf: VISIBLE_HALF, edgeX, familyName, familyColor }}
-        />
+        /* Family mode (melody-type): the category "blokhaken" brackets PLUS — when a field header is
+           given — the field name ABOVE them (§6d: mirrors the instrument setter's "instrument" header
+           sitting above its category brackets). #431 rework: this header lives inside the fading
+           chrome, so it hides with the carousel instead of persisting as a column header. */
+        <>
+          <FamilyBrackets
+            pos={pos}
+            items={items}
+            geomProps={{ centerX, bracketY, baseWidth, visibleHalf: VISIBLE_HALF, edgeX, familyName, familyColor }}
+          />
+          {labelAbove ? (
+            <text x={centerX} y={bracketY - 14} textAnchor="middle" fontSize={14}
+              fontFamily="serif" fontStyle="italic"
+              fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
+              {labelAbove}
+            </text>
+          ) : null}
+        </>
       ) : labelAbove ? (
-        /* #431 (Han 2026-07-13: "headers - no caps, labels: all caps"): the field-name HEADER above
-           the carousel is italic SERIF, NON-capitalised; the item VALUE labels below are sans-serif
-           ALL CAPS (makeRenderItem). The dashed blokhaken stay reserved for real groupings. */
         <text x={centerX} y={bracketY} textAnchor="middle" fontSize={14}
           fontFamily="serif" fontStyle="italic"
           fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>

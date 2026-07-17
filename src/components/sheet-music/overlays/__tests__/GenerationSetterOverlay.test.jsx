@@ -52,10 +52,12 @@ describe('GenerationSetterOverlay (carousel style)', () => {
     expect(headers).toContain('notes / measure');
   });
 
-  it('renders carousel item icons (lucide inline svg) and ALL-CAPS labels', () => {
+  it('renders carousel item icons (lucide inline svg or icons8 image) and ALL-CAPS labels', () => {
     const { container } = renderOverlay();
-    // Rule/percussion items still draw a lucide <svg> (class "lucide") inside the sheet svg.
-    expect(container.querySelectorAll('svg.lucide').length).toBeGreaterThan(0);
+    // #466 (Han 2026-07-17): most items now render an icons8 <image>; only the rules/strategies
+    // without a mapped asset keep a lucide <svg>. Either counts as a rendered item icon.
+    const iconCount = container.querySelectorAll('svg.lucide, image').length;
+    expect(iconCount).toBeGreaterThan(0);
     // Note-pool labels show as ALL-CAPS carousel item text (#295 + standing caps CR);
     // the item CONTENT is now inline staff notes (Maestro noteheads).
     const texts = [...container.querySelectorAll('text')].map(t => t.textContent);
@@ -89,12 +91,13 @@ describe('GenerationSetterOverlay (carousel style)', () => {
   // (far fewer lucide icons than the fully-expanded 5-wide carousels); tapping a field's rest
   // hit box opens its full carousel (more icons appear).
   it('hidden fields show only the active value at rest, and expand on tap (#398)', () => {
+    // #466: count item icons as lucide <svg> OR icons8 <image> (most items are icons8 now).
     const { container } = renderOverlay({ hiddenFields: true });
-    const iconsAtRest = container.querySelectorAll('svg.lucide').length;
+    const iconsAtRest = container.querySelectorAll('svg.lucide, image').length;
 
     // The expanded overlay draws many more icons (5-wide carousels for every field).
     const { container: expanded } = renderOverlay({ hiddenFields: false });
-    expect(expanded.querySelectorAll('svg.lucide').length).toBeGreaterThan(iconsAtRest);
+    expect(expanded.querySelectorAll('svg.lucide, image').length).toBeGreaterThan(iconsAtRest);
 
     // A resting field exposes a tap-to-open hit box; clicking it opens without crashing.
     const restRects = [...container.querySelectorAll('rect')].filter(
