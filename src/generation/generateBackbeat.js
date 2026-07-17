@@ -20,6 +20,9 @@ import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { generateRankedRhythm } from './generateRankedRhythm.js';
 import { findBestSlot } from './proximityUtils.js';
 import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
+// #435: the percussion overlap-hierarchy resolver moved to drumKits.js (percussion-pad SSOT, §8)
+// so the voices post-step in melodyGenerator shares it. Behaviour is byte-identical.
+import { resolvePercussionChord } from '../audio/drumKits.js';
 
 // ─── Beat-count helpers ─────────────────────────────────────────────────────
 
@@ -106,60 +109,9 @@ export function filterPercussionByEnabledPads(melody, enabledPads) {
 
 const SWING_PREFILL = ['cr', null, ['cr', 'hp'], 'cr'];
 
-/**
- * General percussion hierarchy rules to clean overlapping notes.
- * Applied to ALL percussion melodies.
- */
-function cleanPercussionChord(chord) {
-    if (!Array.isArray(chord)) return chord;
-
-    // Deduplicate
-    let notes = [...new Set(chord)];
-
-    // 1. Primary Hierarchy: s > sg > wh > wm > wl > cb
-    if (notes.includes('s')) {
-        notes = notes.filter(n => !['sg', 'wh', 'wm', 'wl', 'cb'].includes(n));
-    } else if (notes.includes('sg')) {
-        notes = notes.filter(n => !['wh', 'wm', 'wl', 'cb'].includes(n));
-    } else if (notes.includes('wh')) {
-        notes = notes.filter(n => !['wm', 'wl', 'cb'].includes(n));
-    } else if (notes.includes('wm')) {
-        notes = notes.filter(n => !['wl', 'cb'].includes(n));
-    } else if (notes.includes('wl')) {
-        notes = notes.filter(n => n !== 'cb');
-    }
-
-    // 2. Cymbal Hierarchy: cc > cr > hp > ho > hh (special coexist rules)
-    const hasCC = notes.includes('cc');
-    const hasCR = notes.includes('cr');
-
-    if (hasCC) {
-        // cc kills cr, ho, hh
-        notes = notes.filter(n => !['cr', 'ho', 'hh'].includes(n));
-    } else if (hasCR) {
-        // cr kills ho, hh
-        notes = notes.filter(n => !['ho', 'hh'].includes(n));
-    }
-
-    // ho kills hh
-    if (notes.includes('ho') && notes.includes('hh')) {
-        notes = notes.filter(n => n !== 'hh');
-    }
-
-    // 3. Tom Hierarchy: tl > tm > th
-    const hasTL = notes.includes('tl');
-    const hasTM = notes.includes('tm');
-    const hasTH = notes.includes('th');
-
-    if (hasTL) {
-        if (hasTM) notes = notes.filter(n => n !== 'tm');
-        if (hasTH) notes = notes.filter(n => n !== 'th');
-    } else if (hasTM) {
-        if (hasTH) notes = notes.filter(n => n !== 'th');
-    }
-
-    return notes.length === 1 ? notes[0] : notes;
-}
+// #435: `cleanPercussionChord` (the percussion overlap-hierarchy: s>sg>wh>wm>wl>cb,
+// cc>cr>ho>hh with "ho kills hh", tl>tm>th) moved VERBATIM to drumKits.js as
+// `resolvePercussionChord` — imported above and shared with the voices post-step.
 
 // ─── Core ranked-array-driven percussion generator ──────────────────────────
 
@@ -260,7 +212,7 @@ function generatePercussionFromDNA(
     const mutatedNotes = v > 0 ? applyVariability(rawNotes, v) : rawNotes;
 
     // Apply General Percussion Hierarchy Cleaning to ALL notes
-    const finalNotes = mutatedNotes.map(slot => cleanPercussionChord(slot));
+    const finalNotes = mutatedNotes.map(slot => resolvePercussionChord(slot));
 
     // Build Melody
     const tickDur = slotTicks(timeSignature, smallestNoteDenom);
@@ -410,7 +362,7 @@ export function generateBackbeat2(
     const mutatedNotes = v > 0 ? applyVariability(rawNotes, v) : rawNotes;
 
     // ── 4. Clean percussion hierarchy collisions ──────────────────────────────
-    const finalNotes = mutatedNotes.map(slot => cleanPercussionChord(slot));
+    const finalNotes = mutatedNotes.map(slot => resolvePercussionChord(slot));
 
     const tickDur = slotTicks(timeSignature, smallestNoteDenom);
     const durations = finalNotes.map(() => tickDur);

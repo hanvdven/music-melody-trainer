@@ -30,7 +30,6 @@ import {
     PASSING_CHIP_TITLES,
 } from '../../../constants/generationFields';
 import { GRID_GENERATOR, GRID_VISIBILITY } from '../../../constants/musicLayout';
-import ChordGroupIcon from '../ChordGroupIcon';
 import ChordComplexityIcon from '../ChordComplexityIcon';
 import PlayStyleSelector from '../PlayStyleSelector';
 import RuleSelector from '../RuleSelector';
@@ -39,7 +38,6 @@ const getRuleFamily = (rule) => {
     if (RULE_FAMILIES.random.includes(rule)) return 'random';
     if (RULE_FAMILIES.arp.includes(rule)) return 'arp';
     if (RULE_FAMILIES.walk.includes(rule)) return 'walk';
-    if (RULE_FAMILIES.chords.includes(rule)) return 'chords';
     if (rule === 'fixed') return 'fixed';
     if (PERC_FAMILIES.stylized.includes(rule)) return 'stylized';
     return 'random';
@@ -278,29 +276,24 @@ const InstrumentRow = ({
                     })()
                 ) : !isMetronome ? (
                     (() => {
-                        const currentRule = RULE_FAMILIES.chords.includes(settings?.type) ? settings.type : (settings?.randomizationRule || 'uniform');
+                        // #435: the chords family (pairedchord/fullchord type-hijack) is gone —
+                        // voices are a separate setting now. A persisted stale type is normalised
+                        // back to the track key on the next toggle.
+                        const currentRule = settings?.randomizationRule || 'uniform';
                         const family = getRuleFamily(currentRule);
                         const toggleMode = () => {
-                            let nextRule, newType;
+                            let nextRule;
                             if (isPerc) {
-                                if (family === 'random') { nextRule = 'backbeat'; newType = instrumentKey; }
-                                else if (family === 'stylized') { nextRule = 'fixed'; newType = instrumentKey; }
-                                else { nextRule = 'uniform'; newType = instrumentKey; }
+                                if (family === 'random') { nextRule = 'backbeat'; }
+                                else if (family === 'stylized') { nextRule = 'fixed'; }
+                                else { nextRule = 'uniform'; }
                             } else {
-                                if (family === 'random') { nextRule = RULE_FAMILIES.arp[0]; newType = instrumentKey; }
-                                else if (family === 'arp') { nextRule = RULE_FAMILIES.walk[0]; newType = instrumentKey; }
-                                else if (family === 'walk') { nextRule = RULE_FAMILIES.chords[0]; newType = RULE_FAMILIES.chords[0]; }
-                                else if (family === 'chords') {
-                                    const ci = RULE_FAMILIES.chords.indexOf(currentRule);
-                                    if (ci < RULE_FAMILIES.chords.length - 1) {
-                                        nextRule = RULE_FAMILIES.chords[ci + 1]; newType = nextRule;
-                                    } else {
-                                        nextRule = 'fixed'; newType = instrumentKey;
-                                    }
-                                }
-                                else { nextRule = RULE_FAMILIES.random[0]; newType = instrumentKey; }
+                                if (family === 'random') { nextRule = RULE_FAMILIES.arp[0]; }
+                                else if (family === 'arp') { nextRule = RULE_FAMILIES.walk[0]; }
+                                else if (family === 'walk') { nextRule = 'fixed'; }
+                                else { nextRule = RULE_FAMILIES.random[0]; }
                             }
-                            setSettings(prev => ({ ...prev, randomizationRule: nextRule, type: newType }));
+                            setSettings(prev => ({ ...prev, randomizationRule: nextRule, type: instrumentKey }));
                             if (setPlaybackConfig) setPlaybackConfig(p => ({ ...p, randomize: { ...p.randomize, melody: true } }));
                         };
                         return (
@@ -308,7 +301,6 @@ const InstrumentRow = ({
                                 {family === 'random' && <Dices size={22} color="var(--accent-yellow)" />}
                                 {family === 'arp' && <TrendingUp size={22} color="var(--accent-yellow)" />}
                                 {family === 'walk' && <Footprints size={22} color="var(--accent-yellow)" />}
-                                {family === 'chords' && <ChordGroupIcon size={22} color="var(--accent-yellow)" />}
                                 {family === 'stylized' && <Drum size={22} color="var(--accent-yellow)" />}
                                 {family === 'fixed' && <Pin size={22} color="white" className="ir-pin-dim" />}
                             </div>
@@ -443,7 +435,7 @@ const InstrumentRow = ({
 
             {/* Col 8: Max Leap — melodic interval limit per quarter-note window (treble/bass only).
                 Also used as the span window for arp_var / arp_group backwards planning.
-                For fullchord/pairedchord: max span between lowest and highest voicing note. */}
+                For simultaneous voices (#435): max span between a slot's base note and its extras. */}
             <div className="ir-col-center">
                 {!isMetronome && !isChords && !isPerc && (() => {
                     // Shared option list (§6d) — value→label pairs identical to the in-sheet setter.

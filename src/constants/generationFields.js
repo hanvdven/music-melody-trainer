@@ -19,7 +19,7 @@
 // We import the lucide React components and attach one to each option's value/key below.
 import {
   Circle, Layers, Grid3x3, Sparkles,           // notePool: root / chord / scale / chromatic
-  Dices, ArrowUp, Footprints, Combine, PenLine, // melody-type families: random/arp/walk/chords/fixed
+  Dices, ArrowUp, Footprints, PenLine, // melody-type families: random/arp/walk/fixed (#435: chords family removed)
   Hash, Percent, MoveHorizontal,                // numeric + span
   Music, Music2, Music3, Music4,                // smallest-note durations
   Triangle, Layers3, RotateCw,                  // chord complexity / tuplets / strategy
@@ -147,7 +147,7 @@ export const PASSING_CHORD_TYPES = [
 //   chord complexity: root=Circle, power=Zap, triad=Triangle (3 notes), seventh=Layers3,
 //             sus=MoveHorizontal (suspended), exotic=Star.
 //   melody-type rules: grouped icons per family idea (Dices=random, ArrowUp=arpeggio motion,
-//             Footprints=walking bass, Combine=chord-grab, PenLine=fixed/hand-written).
+//             Footprints=walking bass, PenLine=fixed/hand-written).
 //   perc presets: Drum for all (sized differences not meaningful as glyphs) — label carries Basic/
 //             Standard/Full.
 //   strategies: one distinct glyph each (purely mnemonic placeholders).
@@ -166,8 +166,6 @@ export const FIELD_ITEM_ICONS = {
     arp_up: ArrowUp, arp_down: ArrowUp, arp: ArrowUp, arp_var: ArrowUp, arp_group: ArrowUp,
     // walk family
     walking_bass: Footprints,
-    // chords family
-    pairedchord: Combine, fullchord: Combine,
     // fixed family
     fixed: PenLine,
     // perc stylized
@@ -218,12 +216,12 @@ export const SMALLEST_NOTE_LABELS = { 1: 'whole', 2: 'half', 4: 'quarter', 8: 'e
 // ── melody-type rule → FAMILY map + family display names (for the grouped "blokhaken" brackets) ──
 // Mirrors InstrumentStaffOverlay's category brackets but grouping by rule FAMILY. The overlay builds
 // a flat item list tagged with `family` so CarouselFieldItem.familyBrackets can draw one bracket per
-// consecutive same-family run (random / arp / walk / chords / fixed).
+// consecutive same-family run (random / arp / walk / fixed). #435: chords family removed
+// (pairedchord/fullchord became the separate `voices` setting).
 export const MELODIC_FAMILY_OF = {
   uniform: 'random', emphasize_roots: 'random', weighted: 'random',
   arp_up: 'arp', arp_down: 'arp', arp: 'arp', arp_var: 'arp', arp_group: 'arp',
   walking_bass: 'walk',
-  pairedchord: 'chords', fullchord: 'chords',
   fixed: 'fixed',
 };
 export const PERC_FAMILY_OF = {

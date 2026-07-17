@@ -257,6 +257,69 @@ export const PERCUSSION_INTERRUPT_GROUP = {
 };
 
 /**
+ * General percussion hierarchy rules to clean overlapping notes.
+ * Applied to ALL percussion melodies.
+ *
+ * #435 (Han 2026-07-17): extracted VERBATIM from generateBackbeat.js
+ * (`cleanPercussionChord`) so the voices generation post-step and the backbeat
+ * generators share ONE resolver (§6c). This module is the percussion-pad SSOT
+ * (§8: interrupt groups, presets, note mappings live here), so the "which pads
+ * may sound together, and who wins" rule belongs here too. The hierarchy is
+ * GENERATION-time dedup (a chord slot never contains both ho and hh); the
+ * PERCUSSION_INTERRUPT_GROUP above is the separate PLAYBACK-time choke.
+ */
+export function resolvePercussionChord(chord) {
+    if (!Array.isArray(chord)) return chord;
+
+    // Deduplicate
+    let notes = [...new Set(chord)];
+
+    // 1. Primary Hierarchy: s > sg > wh > wm > wl > cb
+    if (notes.includes('s')) {
+        notes = notes.filter(n => !['sg', 'wh', 'wm', 'wl', 'cb'].includes(n));
+    } else if (notes.includes('sg')) {
+        notes = notes.filter(n => !['wh', 'wm', 'wl', 'cb'].includes(n));
+    } else if (notes.includes('wh')) {
+        notes = notes.filter(n => !['wm', 'wl', 'cb'].includes(n));
+    } else if (notes.includes('wm')) {
+        notes = notes.filter(n => !['wl', 'cb'].includes(n));
+    } else if (notes.includes('wl')) {
+        notes = notes.filter(n => n !== 'cb');
+    }
+
+    // 2. Cymbal Hierarchy: cc > cr > hp > ho > hh (special coexist rules)
+    const hasCC = notes.includes('cc');
+    const hasCR = notes.includes('cr');
+
+    if (hasCC) {
+        // cc kills cr, ho, hh
+        notes = notes.filter(n => !['cr', 'ho', 'hh'].includes(n));
+    } else if (hasCR) {
+        // cr kills ho, hh
+        notes = notes.filter(n => !['ho', 'hh'].includes(n));
+    }
+
+    // ho kills hh
+    if (notes.includes('ho') && notes.includes('hh')) {
+        notes = notes.filter(n => n !== 'hh');
+    }
+
+    // 3. Tom Hierarchy: tl > tm > th
+    const hasTL = notes.includes('tl');
+    const hasTM = notes.includes('tm');
+    const hasTH = notes.includes('th');
+
+    if (hasTL) {
+        if (hasTM) notes = notes.filter(n => n !== 'tm');
+        if (hasTH) notes = notes.filter(n => n !== 'th');
+    } else if (hasTM) {
+        if (hasTH) notes = notes.filter(n => n !== 'th');
+    }
+
+    return notes.length === 1 ? notes[0] : notes;
+}
+
+/**
  * Display ordering for the range-selector percussion row (Han 2026-05-30).
  * Ordered per instrument family (kick → snare → toms → hi-hat → ride → crash →
  * other); within each family the BASE pad comes first, followed by its variants.

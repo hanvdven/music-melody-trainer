@@ -6,6 +6,9 @@ import { chooseGrouping, generateRhythmicDNA } from './rhythmicPriorities.js';
 import { generateBackbeat, generateBackbeat2, generateSwing, generateMetronome, filterPercussionByEnabledPads } from './generateBackbeat.js';
 import { getNoteIndex } from '../theory/musicUtils.js';
 import { getNoteSemitone } from '../theory/noteUtils.js';
+// #435: percussion overlap-hierarchy resolver (drumKits = percussion-pad SSOT, §8) —
+// shared with generateBackbeat so multi-pad slots obey ONE set of rules (ho kills hh, …).
+import { resolvePercussionChord } from '../audio/drumKits.js';
 import { TICKS_PER_WHOLE } from '../constants/timing.js';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults.js';
 
@@ -30,6 +33,9 @@ class MelodyGenerator {
         this.scale = Array.isArray(Scale?.notes) ? Scale.notes : [];
         this.numAccidentals = Scale ? Scale.numAccidentals : 0;
         this.tonic = Scale ? Scale.tonic : null;
+        // #435: keep the raw Scale object so the voices post-step can spawn auxiliary
+        // generators (the 'var' mode) through the exact same public constructor.
+        this.sourceScale = Scale;
         this.numMeasures = numMeasures;
         this.timeSignature = timeSignature;
         this.InstrumentSettings = InstrumentSettings;
@@ -42,7 +48,19 @@ class MelodyGenerator {
         this.externalRhythmicGrouping = externalRhythmicGrouping;
     }
 
+    // #435 (Han 2026-07-17): generateMelody is now a thin wrapper — build the base melody
+    // through the unchanged pipeline, then apply the shared VOICES post-step (§6b: driven
+    // purely by the InstrumentSettings.voices field, identical for every instrument type;
+    // it also runs after the percussion early-exit patterns, which the old fullchord/
+    // pairedchord type-hijack never could).
     generateMelody() {
+        const base = this.generateBaseMelody();
+        const voices = this.InstrumentSettings.voices ?? 1;
+        if (voices === 1 || voices == null || !base) return base;
+        return this.applyVoicing(base, voices);
+    }
+
+    generateBaseMelody() {
         let tonic = this.tonic;
         let notesPerMeasure = this.InstrumentSettings.notesPerMeasure;
         let numMeasures = this.numMeasures;
@@ -166,42 +184,8 @@ class MelodyGenerator {
             tupletGroupsCount: tupletGroups.length,
         });
 
-        // Pre-calculate allowed notes based on Range
-        let effectiveScale = this.scale;
-
-        if (this.range) {
-            // Map each scale pitch-class (0-11, chromatic C=0) to its spelling, via the
-            // canonical getNoteSemitone (§6 invariant) — replaces a local ASCII pitch-class
-            // table + .replace() enharmonic chain that only handled single accidentals.
-            // First spelling wins (matches the old indexOf semantics); scales don't repeat PCs.
-            const scalePCSpelling = new Map();
-            for (const n of this.scale) {
-                const pc = getNoteSemitone(n);
-                if (!scalePCSpelling.has(pc)) scalePCSpelling.set(pc, n.replace(/\d+$/, ''));
-            }
-
-            // getNoteIndex returns position in allNotes where A0=0 (9 semitones above C0=0).
-            // noteVal = oct*12+i uses chromatic MIDI convention (C0=0). Add 9 to align origins.
-            const rawMin = getNoteIndex(this.range.min);
-            const rawMax = getNoteIndex(this.range.max);
-            const minVal = rawMin >= 0 ? rawMin + 9 : 0;
-            const maxVal = rawMax >= 0 ? rawMax + 9 : 108; // 108 = C8 (safe upper bound)
-
-            const expanded = [];
-
-            for (let oct = 0; oct <= 8; oct++) {
-                for (let i = 0; i < 12; i++) {
-                    const noteVal = oct * 12 + i; // i is the chromatic pitch-class
-                    if (noteVal >= minVal && noteVal <= maxVal && scalePCSpelling.has(i)) {
-                        expanded.push(`${scalePCSpelling.get(i)}${oct}`);
-                    }
-                }
-            }
-
-            if (expanded.length > 0) {
-                effectiveScale = expanded;
-            }
-        }
+        // Pre-calculate allowed notes based on Range (shared with the voices post-step, #435).
+        const effectiveScale = this.computeEffectiveScale();
 
         // randomizationRule must be a string. Log the unexpected type to aid root-cause
         // diagnosis; then default to 'uniform' so generation can continue.
@@ -241,8 +225,8 @@ class MelodyGenerator {
         // Melodic leap constraint: replace any note that jumps more than maxLeap semitones from
         // all notes placed within the previous quarter-note window. Uses intersection approach
         // (O(pool × window) linear scan) instead of retries — always terminates.
-        // Not applied to fullchord (span constraint below) or chord sequences (progression mode).
-        if (maxLeap !== null && instrumentType !== 'fullchord') {
+        // Not applied to chord sequences (progression mode).
+        if (maxLeap !== null) {
             // Quarter-note window in slots: smallestNoteDenom=8 → 2 slots, =16 → 4 slots, =4 → 1 slot.
             const slotsPerQuarter = Math.max(1, Math.round(smallestNoteDenom / 4));
             const placed = []; // { slotIndex, noteIdx }
@@ -293,129 +277,9 @@ class MelodyGenerator {
             }
         }
 
-        // Full-chord mode: replace each rhythm-active slot with all chord tones at that time offset.
-        // The rhythm (which slots are active) comes from the normal generateRankedRhythm pipeline above,
-        // so notesPerMeasure, smallestNoteDenom, rhythmVariability, etc. all apply as normal.
-        if (instrumentType === 'fullchord' && this.chords) {
-            const totalSlots = generatedMelody.length;
-            const fcTimeScale = (TICKS_PER_WHOLE * numMeasures / totalSlots) * (timeSignature[0] / timeSignature[1]);
-
-            // Build sorted chord event list.
-            // this.chords can be a Melody object (normal path from randomizeAll) or a
-            // ChordProgression / raw Chord array (Sequencer.randomizeScaleAndGenerate path).
-            const chordEvents = [];
-            const measureLength = TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]);
-            if (this.chords.offsets && Array.isArray(this.chords.offsets)) {
-                // Melody object: use precise per-slot offsets
-                for (let i = 0; i < this.chords.offsets.length; i++) {
-                    const evOffset = this.chords.offsets[i];
-                    const evNotes = this.chords.notes[i];
-                    if (evOffset !== null && Array.isArray(evNotes)) {
-                        chordEvents.push({ offset: evOffset, notes: evNotes });
-                    }
-                }
-            } else {
-                // ChordProgression object or raw Chord[] array — one chord per measure
-                const chordsArray = this.chords.chords || (Array.isArray(this.chords) ? this.chords : []);
-                chordsArray.forEach((chord, idx) => {
-                    if (chord && Array.isArray(chord.notes) && chord.notes.length > 0) {
-                        chordEvents.push({ offset: idx * measureLength, notes: chord.notes });
-                    }
-                });
-            }
-            chordEvents.sort((a, b) => a.offset - b.offset);
-
-            const getChordAt = (targetOffset) => {
-                let result = null;
-                for (const ev of chordEvents) {
-                    if (ev.offset <= targetOffset) result = ev.notes;
-                    else break;
-                }
-                return result;
-            };
-
-            generatedMelody = generatedMelody.map((note, i) => {
-                if (note === null) return null; // inactive (rest) slot
-                const chordNotes = getChordAt(i * fcTimeScale);
-                if (!chordNotes) return null;
-                let kept = this.range ? chordNotes.filter(n => isNoteInRange(n, this.range)) : chordNotes;
-                // Chord voicing span: limit semitone distance between lowest and highest note.
-                // Find the largest consecutive pitch window that fits within maxLeap.
-                if (maxLeap !== null && kept.length > 1) {
-                    const sorted = [...kept].sort((a, b) => getNoteIndex(a) - getNoteIndex(b));
-                    let best = [sorted[0]];
-                    for (let lo = 0; lo < sorted.length; lo++) {
-                        for (let hi = sorted.length - 1; hi > lo; hi--) {
-                            if (getNoteIndex(sorted[hi]) - getNoteIndex(sorted[lo]) <= maxLeap) {
-                                if (hi - lo + 1 > best.length) best = sorted.slice(lo, hi + 1);
-                                break;
-                            }
-                        }
-                    }
-                    kept = best;
-                }
-                return kept.length > 0 ? kept : null;
-            });
-
-            // Return directly: no scale-context display-note resolution needed for chord arrays
-            return Melody.fromFlattenedNotes(generatedMelody, timeSignature, numMeasures, generatedMelody, generatedVolumes, null);
-        }
-
-        // Paired-chord mode: each active slot keeps the generated melody note and adds one
-        // chord tone within an octave. Falls back to the single note when none qualify.
-        if (instrumentType === 'pairedchord' && this.chords) {
-            const totalSlots = generatedMelody.length;
-            const pcTimeScale = (TICKS_PER_WHOLE * numMeasures / totalSlots) * (timeSignature[0] / timeSignature[1]);
-
-            const chordEvents = [];
-            const measureLength = TICKS_PER_WHOLE * (timeSignature[0] / timeSignature[1]);
-            if (this.chords.offsets && Array.isArray(this.chords.offsets)) {
-                for (let i = 0; i < this.chords.offsets.length; i++) {
-                    const evOffset = this.chords.offsets[i];
-                    const evNotes = this.chords.notes[i];
-                    if (evOffset !== null && Array.isArray(evNotes)) {
-                        chordEvents.push({ offset: evOffset, notes: evNotes });
-                    }
-                }
-            } else {
-                const chordsArray = this.chords.chords || (Array.isArray(this.chords) ? this.chords : []);
-                chordsArray.forEach((chord, idx) => {
-                    if (chord && Array.isArray(chord.notes) && chord.notes.length > 0) {
-                        chordEvents.push({ offset: idx * measureLength, notes: chord.notes });
-                    }
-                });
-            }
-            chordEvents.sort((a, b) => a.offset - b.offset);
-
-            const getChordAt = (targetOffset) => {
-                let result = null;
-                for (const ev of chordEvents) {
-                    if (ev.offset <= targetOffset) result = ev.notes;
-                    else break;
-                }
-                return result;
-            };
-
-            generatedMelody = generatedMelody.map((note, i) => {
-                if (note === null || typeof note !== 'string') return note;
-                const chordNotes = getChordAt(i * pcTimeScale);
-                if (!chordNotes) return note;
-                const melIdx = getNoteIndex(note);
-                if (melIdx === -1) return note;
-                // Range-filter chord tones, then keep those within maxLeap (or one octave if unlimited)
-                const spanLimit = maxLeap !== null ? Math.min(12, maxLeap) : 12;
-                const inRange = this.range ? chordNotes.filter(n => isNoteInRange(n, this.range)) : chordNotes;
-                const candidates = inRange.filter(n => {
-                    const nIdx = getNoteIndex(n);
-                    return nIdx !== -1 && n !== note && Math.abs(nIdx - melIdx) <= spanLimit;
-                });
-                if (candidates.length === 0) return note; // fallback: single note
-                const partner = candidates[Math.floor(Math.random() * candidates.length)];
-                return [note, partner];
-            });
-
-            return Melody.fromFlattenedNotes(generatedMelody, timeSignature, numMeasures, generatedMelody, generatedVolumes, null);
-        }
+        // #435: the fullchord/pairedchord early-exit blocks (reached by hijacking the settings
+        // `type`) were REPLACED by the shared voices post-step (applyVoicing below) — their
+        // chord-event lookup lives on as this.buildChordLookup(), the §6c shared helper.
 
         let generatedMelodyWithRests;
         let displayMelody;
@@ -600,6 +464,340 @@ class MelodyGenerator {
             finalNotes: finalMelody.notes.length,
         });
         return finalMelody;
+    }
+
+    // ── #435: shared helpers for the VOICES post-step ────────────────────────────────────────────
+
+    /**
+     * The scale filtered to the instrument's configured range (step 4d). Extracted from
+     * generateBaseMelody so applyVoicing draws its extra simultaneous notes from the SAME
+     * candidate pool the base melody used (§6c — one pool computation, not two).
+     */
+    computeEffectiveScale() {
+        let effectiveScale = this.scale;
+
+        if (this.range) {
+            // Map each scale pitch-class (0-11, chromatic C=0) to its spelling, via the
+            // canonical getNoteSemitone (§6 invariant) — replaces a local ASCII pitch-class
+            // table + .replace() enharmonic chain that only handled single accidentals.
+            // First spelling wins (matches the old indexOf semantics); scales don't repeat PCs.
+            const scalePCSpelling = new Map();
+            for (const n of this.scale) {
+                const pc = getNoteSemitone(n);
+                if (!scalePCSpelling.has(pc)) scalePCSpelling.set(pc, n.replace(/\d+$/, ''));
+            }
+
+            // getNoteIndex returns position in allNotes where A0=0 (9 semitones above C0=0).
+            // noteVal = oct*12+i uses chromatic MIDI convention (C0=0). Add 9 to align origins.
+            const rawMin = getNoteIndex(this.range.min);
+            const rawMax = getNoteIndex(this.range.max);
+            const minVal = rawMin >= 0 ? rawMin + 9 : 0;
+            const maxVal = rawMax >= 0 ? rawMax + 9 : 108; // 108 = C8 (safe upper bound)
+
+            const expanded = [];
+
+            for (let oct = 0; oct <= 8; oct++) {
+                for (let i = 0; i < 12; i++) {
+                    const noteVal = oct * 12 + i; // i is the chromatic pitch-class
+                    if (noteVal >= minVal && noteVal <= maxVal && scalePCSpelling.has(i)) {
+                        expanded.push(`${scalePCSpelling.get(i)}${oct}`);
+                    }
+                }
+            }
+
+            if (expanded.length > 0) {
+                effectiveScale = expanded;
+            }
+        }
+        return effectiveScale;
+    }
+
+    /**
+     * Offset-based chord lookup for the voices step. Mirrors the event-list building the old
+     * fullchord/pairedchord blocks each duplicated inline: this.chords can be a Melody object
+     * (offsets + string[] notes), a ChordProgression, or a raw Chord[] (one chord per measure).
+     * Returns (offsetTicks) => string[] | null, or null when no chord data is available.
+     */
+    buildChordLookup() {
+        if (!this.chords) return null;
+        const chordEvents = [];
+        const measureLength = TICKS_PER_WHOLE * (this.timeSignature[0] / this.timeSignature[1]);
+        if (this.chords.offsets && Array.isArray(this.chords.offsets)) {
+            for (let i = 0; i < this.chords.offsets.length; i++) {
+                const evOffset = this.chords.offsets[i];
+                const evNotes = this.chords.notes[i];
+                if (evOffset !== null && Array.isArray(evNotes)) {
+                    chordEvents.push({ offset: evOffset, notes: evNotes });
+                }
+            }
+        } else {
+            const chordsArray = this.chords.chords || (Array.isArray(this.chords) ? this.chords : []);
+            chordsArray.forEach((chord, idx) => {
+                if (chord && Array.isArray(chord.notes) && chord.notes.length > 0) {
+                    chordEvents.push({ offset: idx * measureLength, notes: chord.notes });
+                }
+            });
+        }
+        if (chordEvents.length === 0) return null;
+        chordEvents.sort((a, b) => a.offset - b.offset);
+        return (targetOffset) => {
+            let result = null;
+            for (const ev of chordEvents) {
+                if (ev.offset <= targetOffset) result = ev.notes;
+                else break;
+            }
+            return result;
+        };
+    }
+
+    /**
+     * #435 VOICES post-step (Han 2026-07-17) — one shared implementation for every instrument
+     * type; all variation flows from InstrumentSettings fields (voices, notePool, maxLeap,
+     * enabledPads, percussionChordRules — §6b).
+     *
+     *  voices 2|3 — every active slot becomes a chord of that many DISTINCT notes. Extras come
+     *    from the SAME pool as the base melody (notePool 'chord' → chord tones at that offset,
+     *    else the range-filtered scale; unpitched pads → enabledPads), each within maxLeap of the
+     *    slot's base note. Candidate FILTERING replaces retry loops (always terminates); when the
+     *    pool runs dry the slot simply keeps fewer notes (AC fallback).
+     *
+     *  voices 'var' — merge three melodies: the base (100%) plus two auxiliaries at 60% / 40%
+     *    notesPerMeasure (round, min 1 — Han). Coinciding onsets become chords (exact duplicates
+     *    removed); non-coinciding aux notes are KEPT as loose notes (Han interview Q3), splitting
+     *    the base note/rest they land inside.
+     *
+     *  When percussionChordRules is set, every multi-pad slot is cleaned through
+     *  resolvePercussionChord (dedup + pad hierarchy: ho kills hh, cc kills cr, …).
+     */
+    applyVoicing(baseMelody, voices) {
+        const settings = this.InstrumentSettings;
+        const maxLeap = settings.maxLeap ?? null;
+        const effectiveScale = this.computeEffectiveScale();
+        const getChordAt = this.buildChordLookup();
+        const usePercRules = !!settings.percussionChordRules;
+
+        // Candidate pool for EXTRA simultaneous notes next to `baseNote` at `offsetTicks`.
+        const poolFor = (baseNote, offsetTicks) => {
+            const baseIdx = getNoteIndex(baseNote);
+            if (baseIdx === -1) {
+                // Unpitched pad: candidates = the user's enabled pads (no span concept).
+                return (settings.enabledPads ?? []).filter(p => p !== baseNote);
+            }
+            let pool;
+            if (settings.notePool === 'chord' && getChordAt) {
+                const chordNotes = getChordAt(offsetTicks);
+                pool = chordNotes
+                    ? chordNotes.filter(n => isNoteInRange(n, this.range))
+                    : effectiveScale;
+            } else {
+                pool = effectiveScale;
+            }
+            return pool.filter(n => {
+                if (n === baseNote) return false;
+                const ni = getNoteIndex(n);
+                if (ni === -1) return false;
+                return maxLeap === null || Math.abs(ni - baseIdx) <= maxLeap;
+            });
+        };
+
+        // Fisher-Yates pick of `count` distinct candidates.
+        const pickDistinct = (pool, count) => {
+            const shuffled = [...pool];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled.slice(0, count);
+        };
+
+        const copyMeta = (target, source, tripletsOverride) => {
+            target.rhythmicGrouping = source.rhythmicGrouping;
+            target.rhythmicDNA = source.rhythmicDNA;
+            target.smallestNoteDenom = source.smallestNoteDenom;
+            const trip = tripletsOverride !== undefined ? tripletsOverride : source.triplets;
+            if (trip) target.triplets = trip;
+            return target;
+        };
+
+        if (voices === 2 || voices === 3) {
+            const notes = baseMelody.notes.map((entry, i) => {
+                if (entry == null || entry === 'r') return entry;
+                // Percussion patterns can already emit arrays (e.g. ['hh','sg']) — extend those too.
+                const have = Array.isArray(entry) ? [...new Set(entry)] : [entry];
+                const need = voices - have.length;
+                if (need <= 0) return entry;
+                const baseNote = have[0];
+                const candidates = poolFor(baseNote, baseMelody.offsets[i]).filter(n => !have.includes(n));
+                const merged = [...have, ...pickDistinct(candidates, need)];
+                const resolved = usePercRules ? resolvePercussionChord(merged) : merged;
+                return Array.isArray(resolved) && resolved.length === 1 ? resolved[0] : resolved;
+            });
+            const voiced = new Melody(notes, [...baseMelody.durations], [...baseMelody.offsets], notes,
+                [...(baseMelody.volumes ?? [])]);
+            logger.debug('MelodyGen', 'voices fixed applied', { voices, slots: notes.length });
+            return copyMeta(voiced, baseMelody);
+        }
+
+        // voices === 'var' — three-melody merge at 100% / 60% / 40% density (round, min 1: Han).
+        const npm = settings.notesPerMeasure || 1;
+        const grouping = baseMelody.rhythmicGrouping ?? this.externalRhythmicGrouping ?? null;
+        let merged = baseMelody;
+        for (const fraction of [0.6, 0.4]) {
+            const aux = this.generateAuxMelody(Math.max(1, Math.round(npm * fraction)), grouping);
+            if (aux) merged = this.mergeVoice(merged, aux, { maxLeap, effectiveScale, copyMeta });
+        }
+        if (usePercRules) {
+            const resolved = merged.notes.map(n => resolvePercussionChord(n));
+            const cleaned = new Melody(resolved, merged.durations, merged.offsets, resolved, merged.volumes);
+            merged = copyMeta(cleaned, merged);
+        }
+        logger.debug('MelodyGen', 'voices var applied', { finalNotes: merged.notes.length });
+        return merged;
+    }
+
+    /**
+     * A reduced-density auxiliary melody for the 'var' mode, produced through the SAME public
+     * pipeline (new MelodyGenerator + generateMelody with voices=1 — no recursion). The shared
+     * `grouping` keeps all three voices on one beat hierarchy.
+     */
+    generateAuxMelody(reducedNotesPerMeasure, grouping) {
+        const s = this.InstrumentSettings;
+        // Prototype-preserving clone so class getters/methods survive; only the density and the
+        // voicing-related fields are overridden.
+        const auxSettings = Object.assign(Object.create(Object.getPrototypeOf(s)), s);
+        auxSettings.notesPerMeasure = reducedNotesPerMeasure;
+        auxSettings.voices = 1;             // aux voices are single-note — prevents recursion
+        // Suppress tuplets: aux tuplet groups would put notes on off-grid offsets with no
+        // triplets metadata after the merge. NB generateRankedRhythm coerces `0 || 1` → 1,
+        // so a literal 0 would NOT disable tuplets — use an epsilon instead.
+        auxSettings.polyMultiplier = 1e-9;
+        auxSettings.insertBeatRests = false; // aux rests would only be skipped by the merge anyway
+        const gen = new MelodyGenerator(
+            this.sourceScale, this.numMeasures, this.timeSignature, auxSettings,
+            this.chords, this.range, this.runId, null, grouping,
+        );
+        return gen.generateMelody();
+    }
+
+    /**
+     * Merge one auxiliary voice into the base melody at the Melody level. Both melodies span the
+     * same total ticks with CONTIGUOUS entries (offset[i+1] = offset[i] + duration[i] — the
+     * fromFlattenedNotes invariant), so every aux onset lands exactly on or inside one base entry:
+     *   - same onset, base is a note  → chord (union, exact duplicates removed)
+     *   - same onset, base is a rest  → aux note replaces the rest (loose note)
+     *   - inside a base entry         → SPLIT: base keeps [start, o), aux note takes [o, end)
+     *     (musically: the base note is cut short when the loose note enters — inherent to the
+     *     one-track model Han chose with "meenemen als losse noot")
+     *   - inside a tuplet group       → skipped (never corrupt the triplets parallel array)
+     * Aux notes are span-corrected against the nearest preceding pitched base note (maxLeap):
+     * out-of-window notes are substituted from the pool inside the window (nearest as fallback).
+     */
+    mergeVoice(base, aux, { maxLeap, effectiveScale, copyMeta }) {
+        const notes = [...base.notes];
+        const durations = [...base.durations];
+        const offsets = [...base.offsets];
+        const volumes = [...(base.volumes ?? base.notes.map(() => 1))];
+        const triplets = base.triplets ? [...base.triplets] : null;
+
+        const firstPitched = (entry) => {
+            const arr = Array.isArray(entry) ? entry : [entry];
+            for (const n of arr) {
+                if (typeof n === 'string' && getNoteIndex(n) !== -1) return n;
+            }
+            return null;
+        };
+
+        // Span-correct `note` against the last sounding pitched base note at/before entry `idx`.
+        const correctSpan = (note, idx) => {
+            if (typeof note !== 'string' || getNoteIndex(note) === -1) return note; // pads: as-is
+            if (maxLeap === null) return note;
+            let ref = null;
+            for (let i = idx; i >= 0 && ref === null; i--) {
+                if (notes[i] != null && notes[i] !== 'r') ref = firstPitched(notes[i]);
+            }
+            if (ref === null) return note;
+            const refIdx = getNoteIndex(ref);
+            if (Math.abs(getNoteIndex(note) - refIdx) <= maxLeap) return note;
+            const allowed = effectiveScale.filter(c => {
+                const ci = getNoteIndex(c);
+                return ci !== -1 && Math.abs(ci - refIdx) <= maxLeap;
+            });
+            if (allowed.length > 0) return allowed[Math.floor(Math.random() * allowed.length)];
+            // Fallback: nearest pool note to the reference.
+            let best = null, bestDist = Infinity;
+            for (const c of effectiveScale) {
+                const ci = getNoteIndex(c);
+                if (ci === -1) continue;
+                const d = Math.abs(ci - refIdx);
+                if (d < bestDist) { bestDist = d; best = c; }
+            }
+            return best; // null when the pool is empty → caller skips the note
+        };
+
+        for (let a = 0; a < aux.notes.length; a++) {
+            const auxNote = aux.notes[a];
+            if (auxNote == null || auxNote === 'r') continue;
+            const o = aux.offsets[a];
+
+            // Locate the base entry whose span covers this onset. Null CONTINUATION entries
+            // (the flat-slot Melody shape) never match: their offset is null → end computes 0.
+            let idx = -1;
+            let firstIdx = -1; // first non-null entry — leading nulls before it are a silent GAP
+            for (let i = 0; i < offsets.length; i++) {
+                if (notes[i] == null && offsets[i] == null) continue;
+                if (firstIdx === -1) firstIdx = i;
+                const end = offsets[i] + (durations[i] ?? 0);
+                if (o >= offsets[i] && o < end) { idx = i; break; }
+            }
+            if (idx === -1) {
+                // A loose note in the LEADING silent gap (before the base's first onset) — kept
+                // per Han's "meenemen als losse noot": insert it as a standalone entry running
+                // up to the first base onset. Onsets beyond the melody end stay skipped.
+                if (firstIdx !== -1 && o < offsets[firstIdx]) {
+                    const corrected = correctSpan(firstPitched(auxNote) ?? auxNote, firstIdx);
+                    if (corrected != null) {
+                        notes.splice(firstIdx, 0, corrected);
+                        durations.splice(firstIdx, 0, offsets[firstIdx] - o);
+                        offsets.splice(firstIdx, 0, o);
+                        volumes.splice(firstIdx, 0, aux.volumes?.[a] ?? 1);
+                        if (triplets) triplets.splice(firstIdx, 0, null);
+                    }
+                }
+                continue;
+            }
+            if (triplets && triplets[idx]) continue;  // never split a tuplet group
+
+            const corrected = correctSpan(firstPitched(auxNote) ?? auxNote, idx);
+            if (corrected == null) continue;
+
+            if (offsets[idx] === o) {
+                const cur = notes[idx];
+                if (cur == null || cur === 'r') {
+                    notes[idx] = corrected;   // the loose note fills a rest slot
+                } else {
+                    // Union with exact-duplicate removal (Han: "exacte dubbele verwijderen").
+                    const set = new Set([
+                        ...(Array.isArray(cur) ? cur : [cur]),
+                        ...(Array.isArray(corrected) ? corrected : [corrected]),
+                    ]);
+                    const arr = [...set];
+                    notes[idx] = arr.length === 1 ? arr[0] : arr;
+                }
+            } else {
+                // Split the covering entry at the aux onset.
+                const start = offsets[idx];
+                const end = start + durations[idx];
+                durations[idx] = o - start;
+                notes.splice(idx + 1, 0, corrected);
+                durations.splice(idx + 1, 0, end - o);
+                offsets.splice(idx + 1, 0, o);
+                volumes.splice(idx + 1, 0, aux.volumes?.[a] ?? volumes[idx] ?? 1);
+                if (triplets) triplets.splice(idx + 1, 0, null);
+            }
+        }
+
+        const mergedMelody = new Melody(notes, durations, offsets, notes, volumes);
+        return copyMeta(mergedMelody, base, triplets ?? undefined);
     }
 }
 

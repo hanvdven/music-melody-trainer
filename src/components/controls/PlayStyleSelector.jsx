@@ -1,7 +1,6 @@
 import React from 'react';
 import { Dices, TrendingUp, Drum, Pin } from 'lucide-react';
 import GenericStepper from '../common/GenericStepper';
-import ChordGroupIcon from './ChordGroupIcon';
 import { RULE_FAMILIES, PERC_FAMILIES } from '../../constants/instrumentRules';
 import { getPlayStyleLabel } from '../../utils/labelUtils';
 
@@ -9,7 +8,7 @@ const PlayStyleSelector = ({ settings, setSettings, isSheetMusic = false, instru
     if (instrumentKey === 'metronome' || instrumentKey === 'chords') return null;
     if (isSheetMusic) return <div className="ir-placeholder">-</div>;
 
-    const currentRule = settings?.type === 'fullchord' ? 'fullchord' : (settings?.randomizationRule || 'uniform');
+    const currentRule = settings?.randomizationRule || 'uniform';
     const isPerc     = instrumentKey === 'percussion';
     const families   = isPerc ? PERC_FAMILIES : RULE_FAMILIES;
     const allRules   = Object.values(families).flat();
@@ -18,7 +17,6 @@ const PlayStyleSelector = ({ settings, setSettings, isSheetMusic = false, instru
         const family = Object.keys(families).find(k => families[k].includes(r));
         if (family === 'random')   return <Dices size={14} />;
         if (family === 'arp')      return <TrendingUp size={14} />;
-        if (family === 'chords')   return <ChordGroupIcon size={14} />;
         if (family === 'stylized') return <Drum size={14} />;
         if (family === 'fixed')    return <Pin size={14} />;
         return null;
@@ -39,9 +37,9 @@ const PlayStyleSelector = ({ settings, setSettings, isSheetMusic = false, instru
                 options={options}
                 shouldCycle
                 onChange={(val) => setSettings(p => {
-                    const newType = RULE_FAMILIES.chords.includes(val)
-                        ? val
-                        : (RULE_FAMILIES.chords.includes(p.type) ? instrumentKey : p.type);
+                    // #435: the chords-family type-hijack is gone (voices is its own setting);
+                    // normalise a stale persisted 'fullchord'/'pairedchord' type back to the track.
+                    const newType = (p.type === 'fullchord' || p.type === 'pairedchord') ? instrumentKey : p.type;
                     return { ...p, randomizationRule: val, type: newType };
                 })}
                 background="none"

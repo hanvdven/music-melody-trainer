@@ -49,7 +49,7 @@ class InstrumentSettings {
     // unaffected (always concert). Non-constructor field to keep the positional signature stable.
     this.transpositionOctave = 0;
     // Max melodic leap between adjacent notes (semitones). null = unlimited.
-    // For chord voicing (fullchord/pairedchord): max span between lowest and highest note.
+    // For simultaneous voices (#435): max span between a slot's base note and its extra notes.
     this.maxLeap = maxLeap;
     // Global polyrhythm multiplier applied to all tuplet probabilities.
     // 1 = normal (default); higher values make tuplets dramatically more frequent.
@@ -68,6 +68,20 @@ class InstrumentSettings {
     // field so the generation pipeline stays identical for ALL instrument types
     // (see CLAUDE.md §6b). Only the percussion default enables it.
     this.insertBeatRests = false;
+    // #435 (Han 2026-07-17): simultaneous-voices setting — replaces the old
+    // fullchord/pairedchord type-hijack. 1 = single-note melody (default);
+    // 2 | 3 = every active slot becomes a chord of that many distinct notes
+    // (melodic instruments); 'var' = merge three melodies (100% / 60% / 40%
+    // notesPerMeasure) into one, coinciding onsets become chords. Applied as a
+    // SHARED post-step in melodyGenerator (§6b — no per-instrument branching);
+    // the UI limits percussion to 1 | 'var'.
+    this.voices = 1;
+    // When true, multi-note slots are cleaned through resolvePercussionChord
+    // (drumKits.js): dedup + the pad hierarchy (ho kills hh, cc kills cr, …).
+    // A settings flag — NOT an instrument-type check — so the pipeline stays
+    // identical for all types (§6b, mirrors insertBeatRests). Only the
+    // percussion default enables it.
+    this.percussionChordRules = false;
   }
 
   static defaultTrebleInstrumentSettings() {
@@ -128,6 +142,8 @@ class InstrumentSettings {
     // Percussion fills empty on-beat slots with explicit rests so drum notation
     // shows beat anchors. See melodyGenerator.js step 4f.
     settings.insertBeatRests = true;
+    // #435: multi-voice percussion slots obey the pad hierarchy (resolvePercussionChord).
+    settings.percussionChordRules = true;
     return settings;
   }
 
@@ -166,25 +182,8 @@ class InstrumentSettings {
     settings.passingChordTypes = [];
     return settings;
   }
-  static defaultFullChordSettings(clef = 'treble') {
-    const range = clef === 'bass'
-      ? { min: 'A1', max: 'C4' }
-      : { min: 'C4', max: 'C6' };
-    return new InstrumentSettings(
-      clef === 'bass' ? 'electric_bass_pick' : 'acoustic_grand_piano',
-      'fullchord',        // type — triggers early-exit in MelodyGenerator
-      1,                  // notesPerMeasure (ignored in fullchord branch)
-      1,                  // smallestNoteDenom (ignored)
-      0,                  // rhythmVariability
-      'chord',            // notePool (ignored)
-      'uniform',          // randomizationRule (ignored)
-      null,               // strategy
-      false,              // strummingEnabled
-      range,              // range — filters chord notes to register
-      clef,               // preferredClef
-      'STANDARD'
-    );
-  }
+  // #435: defaultFullChordSettings (the 'fullchord' type-hijack factory) was removed —
+  // simultaneous notes are now the `voices` field, applied by melodyGenerator.applyVoicing.
 }
 
 export default InstrumentSettings;

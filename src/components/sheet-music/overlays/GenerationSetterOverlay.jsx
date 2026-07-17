@@ -22,7 +22,7 @@ import { PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { CarouselField } from '../CarouselFieldItem';
 import {
   NotePoolGlyph, RhythmMeasureGlyph, ComplexityChordGlyph, RomanProgressionGlyph, ChordCountGlyph,
-  PercPoolGlyph,
+  PercPoolGlyph, VoicesGlyph,
 } from './generationNoteGlyphs';
 import { STAFF_CARD_ICON } from './carouselOptionGlyph';
 import { MaestroMixedNumber } from './maestroGlyphs';
@@ -118,24 +118,26 @@ const FAMILY_COLORS = {
 };
 const familyColor = (fam) => FAMILY_COLORS[fam] ?? 'var(--text-secondary)';
 // Horizontal column centres as fractions of the staff width (3 fields spread across the balk).
-const COL_FRACS = [0.20, 0.50, 0.80];
+// #435 (Han): 4 columns — note pool | melody type | VOICES | notes/measure. The voices column
+// sits between melody type and notes/measure (Han's spec); the chords row puts complexity there.
+// Layout-polish for the tighter spacing is a separate follow-up round (Han 2026-07-17 Q2).
+const COL_FRACS = [0.14, 0.38, 0.62, 0.86];
 
 // ── melody-type flat item rings (mirror the bottom view's reachable rules) ──────────────────────
 // The bottom-view "melody type" is a family icon + within-family stepper. For the in-sheet carousel
 // we flatten to the SAME ordered list of reachable rules per instrument type (every value reachable
 // below is reachable here too, §6d). Each item is tagged with its FAMILY so the carousel can draw
-// one "blokhaken" bracket per family run (random / arp / walk / chords / fixed).
+// one "blokhaken" bracket per family run (random / arp / walk / fixed).
 // #295 (Han): arp up / arp down / arp (bounce) are dropped from THIS carousel
 // ("haal arp up, down en bounce uit de lijst") — the bottom view keeps them.
+// #435: the chords family (pairedchord/fullchord, #460 "duo chord en chord mogen weg uit de
+// picker") no longer exists — simultaneous notes are the separate `voices` field/column.
 const MELODIC_RULE_RING = [
   ...RULE_FAMILIES.random,
   ...RULE_FAMILIES.arp,
   ...RULE_FAMILIES.walk,
-  ...RULE_FAMILIES.chords,
   ...RULE_FAMILIES.fixed,
-  // #460 (Han): arp up/down/bounce were already dropped; "duo chord en chord mogen weg uit de picker"
-  // removes pairedchord + fullchord too.
-].filter(rule => !['arp_up', 'arp_down', 'arp', 'pairedchord', 'fullchord'].includes(rule));
+].filter(rule => !['arp_up', 'arp_down', 'arp'].includes(rule));
 const PERC_RULE_RING = [
   ...PERC_FAMILIES.random,
   ...PERC_FAMILIES.stylized,
@@ -182,6 +184,19 @@ const PERC_POOL_ITEMS = PERC_POOL_PRESETS.map(o => ({
   iconUrl: PERC_POOL_ICON8[o.value] ? getIconUrlByBasename(PERC_POOL_ICON8[o.value]) : undefined,
 }));
 const COMPLEXITY_ITEMS = CHORD_COMPLEXITY.map(o => ({ ...o, Icon: FIELD_ITEM_ICONS.complexity[o.value] }));
+// #435 (Han): the voices options — melodic 1 · var · 2 · 3; percussion 'simultaneous' 1 · var.
+// Values map straight onto InstrumentSettings.voices (melodyGenerator.applyVoicing).
+const VOICES_MELODIC_ITEMS = [
+  { value: 1, label: '1' },
+  { value: 'var', label: 'var' },
+  { value: 2, label: '2' },
+  { value: 3, label: '3' },
+];
+const VOICES_PERC_ITEMS = [
+  { value: 1, label: '1' },
+  { value: 'var', label: 'var' },
+];
+const VOICES_BASE = 64;       // voices item stride — the widest item ('var': note + chord) is ~44
 // #460 (Han) — chord-progression strategy → icons8. #466 (Han 2026-07-17): the 'concert' (pop) and
 // plain 'dice' assets were added, so pop-1-5-6-4 now uses concert and the generic 'modal-random'
 // takes the plain six-sided die; the 20-sided 'dice-d20' stays for the more exotic inter-modal random.
@@ -287,10 +302,13 @@ const GenerationSetterOverlay = ({
   // exact same field via the exact same setState path as the previous stepper version.
   const fieldFor = (row, colIdx) => {
     if (row.isChords) {
-      if (colIdx === 0) {
-        // melody notes → chord complexity. #362 (Han): "geen plaatjes" — each
-        // option is the REAL stacked chord it stands for (canonical noteheads),
-        // the stack IS the item; the sans label below identifies it.
+      // #435 (Han: "Plaats chord complexity ook in deze kolom"): complexity moved from column 0
+      // to the VOICES column (2); column 0 is empty on the chords row.
+      if (colIdx === 0) return null;
+      if (colIdx === 2) {
+        // chord complexity. #362 (Han): "geen plaatjes" — each option is the REAL stacked chord
+        // it stands for (canonical noteheads), the stack IS the item; the sans label below
+        // identifies it.
         const items = COMPLEXITY_ITEMS;
         const cur = chordSettings?.complexity || 'triad';
         return {
@@ -440,6 +458,28 @@ const GenerationSetterOverlay = ({
         baseWidth: MELODY_TYPE_BASE, visibleHalf: 1,
         // Keep `type` set alongside the rule (mirrors the previous stepper wiring).
         onSelect: (item) => set(p => ({ ...p, randomizationRule: item.value, type: p.type ?? row.key })),
+      };
+    }
+    if (colIdx === 2) {
+      // #435 (Han): VOICES — simultaneous notes per slot. Melodic: 1 · var · 2 · 3;
+      // percussion: 'simultaneous' 1 · var. Items render as the notation they produce
+      // (VoicesGlyph → the shared MiniMelody pipeline, §6d). Replaces the old
+      // pairedchord/fullchord chord-randomization types.
+      const items = (isPerc ? VOICES_PERC_ITEMS : VOICES_MELODIC_ITEMS);
+      const cur = cfg?.voices ?? 1;
+      const vStaffStart = row.centerY - 20;
+      const clef = cfg?.clef || (row.key === 'bass' ? 'bass' : 'treble');
+      return {
+        items, activeIndex: idxOf(items, cur),
+        labelAbove: isPerc ? 'simultaneous' : 'voices',
+        renderContent: (item) => (
+          <VoicesGlyph voices={item.value} staffStart={vStaffStart} clef={clef}
+            staffType={row.key} noteColoringMode={noteColoringMode}
+            activeChord={GEN_PREVIEW_CHORD} theme={theme} />
+        ),
+        baseWidth: VOICES_BASE, visibleHalf: 1,
+        hitTop: POOL_HIT_TOP, hitHeight: POOL_HIT_H, labelDy: CONTENT_LABEL_DY,
+        onSelect: (item) => set(p => ({ ...p, voices: item.value })),
       };
     }
     // notes per measure → notesPerMeasure. #295/#362 (Han): every option 1..16

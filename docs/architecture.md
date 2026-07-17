@@ -191,6 +191,15 @@ After `fromFlattenedNotes`, when `rhythmVariability > 0`, each active note has i
 
 **Beat-group boundary penalty:** tuplets that span a rhythmic group boundary (e.g. crossing the 3|2 division in 5/4) receive a 10× probability reduction (`CROSS_BOUNDARY_FACTOR = 0.1`).
 
+#### 4h — Voices post-step (`melodyGenerator.js` → `applyVoicing`, #435)
+`generateMelody()` is a thin wrapper: it builds the base melody through steps 4a–4g (now
+`generateBaseMelody()`), then — when `InstrumentSettings.voices !== 1` — applies the shared
+simultaneous-voices post-step. Because it wraps ALL return paths, it also applies to the
+percussion early-exit patterns (backbeat/swing), which the removed fullchord/pairedchord
+type-hijack never could. See §58 for the full specification. The old `fullchord` / `pairedchord`
+early-exit blocks were deleted; their chord-event lookup lives on as the shared
+`buildChordLookup()` method.
+
 ### Step 5 — Note Assignment (`convertRankedArrayToMelody.js`)
 *(Detailed in §4e above.)*
 
@@ -4811,3 +4820,71 @@ tidy labels, and apply note-colouring more universally.
 **Files:** `overlays/SettingsOverlay.jsx`, `overlays/carouselOptionGlyph.jsx`,
 `overlays/GenerationAdvancedSetterOverlay.jsx`, `overlays/TranspositionSetter.jsx`,
 `renderMelodyNotes.jsx`.
+
+### §58. Simultaneous voices — the `voices` setting + shared voicing post-step (#435, Han 2026-07-17)
+
+**Purpose:** Replace the old chord-randomization "melody types" (`pairedchord` / `fullchord`, which
+HIJACKED the settings `type` field to trigger early-exits in MelodyGenerator) with a proper
+per-instrument **`voices`** setting: how many simultaneous notes each slot carries. Percussion gains
+the same concept for the first time ("simultaneous notes").
+
+**Setting (`InstrumentSettings.voices`, default `1`):**
+
+- `1` — single-note melody, byte-identical to the previous pipeline output.
+- `2` | `3` — every active slot becomes a chord of that many DISTINCT notes (melodic instruments;
+  the UI does not offer these for percussion).
+- `'var'` — three melodies merged into one: the base (100%) plus two auxiliaries at 60% / 40% of
+  `notesPerMeasure` (`round`, minimum 1 — Han). Coinciding onsets become chords (exact duplicates
+  removed); non-coinciding aux notes are KEPT as loose notes (Han interview Q3), splitting the base
+  note/rest they land inside — including a loose note in a leading silent gap.
+
+**How it works (`melodyGenerator.js`):** `generateMelody()` = `generateBaseMelody()` (the unchanged
+steps 4a–4g) + `applyVoicing()` when `voices !== 1` (step 4h). Because the post-step wraps ALL
+return paths it also applies to the percussion early-exit patterns (backbeat/backbeat_2/swing).
+
+- **2/3:** per active slot, N−1 extra notes from the SAME pool as the base melody (`notePool
+  'chord'` → chord tones at that offset via the shared `buildChordLookup()`; otherwise the
+  range-filtered scale from `computeEffectiveScale()`; unpitched pads → `enabledPads`), each within
+  `maxLeap` semitones of the slot's base note. Candidate FILTERING replaces retry loops (always
+  terminates); a dry pool simply yields fewer notes.
+- **'var':** auxiliaries are produced through the SAME public pipeline (`generateAuxMelody` spawns a
+  fresh MelodyGenerator with `voices=1`, the shared `rhythmicGrouping`, `insertBeatRests=false` and
+  `polyMultiplier=1e-9` — NB `generateRankedRhythm` coerces `0 || 1`, so a literal 0 would NOT
+  suppress tuplets). `mergeVoice` walks aux onsets against the base's contiguous
+  (offset,duration) entries: same onset → union; onset inside an entry → split; inside a tuplet
+  group → skipped (never corrupt the `triplets` parallel array). Aux notes are span-corrected
+  against the nearest preceding pitched base note (substitute from the pool inside the `maxLeap`
+  window; nearest as fallback).
+- **Percussion rules:** when `InstrumentSettings.percussionChordRules` is true (a settings flag —
+  NOT a type check, §6b; only the percussion default enables it, mirroring `insertBeatRests`),
+  every multi-pad slot is cleaned through **`resolvePercussionChord`** — the overlap hierarchy
+  (`s>sg>wh>wm>wl>cb`, `cc>cr>ho>hh` with "ho kills hh", `tl>tm>th`, dedup) extracted VERBATIM
+  from generateBackbeat's private `cleanPercussionChord` into `drumKits.js` (the percussion-pad
+  SSOT, §8) so backbeat generation and the voices step share ONE resolver.
+
+**UI (`GenerationSetterOverlay`):** a fourth column between *melody type* and *notes / measure*
+(`COL_FRACS` 4-wide). Treble/bass: header `voices`, items 1 · var · 2 · 3; percussion: header
+`simultaneous`, items 1 · var; the chords row shows **complexity** in this column (moved from
+column 0, which is now empty — Han: "Plaats chord complexity ook in deze kolom"). Items render as
+the notation they produce (`VoicesGlyph` → the shared MiniMelody pipeline, §55a/§6d). Layout
+polish for the tighter 4-column spacing is a separate follow-up round (Han).
+
+**Removed:** the `fullchord`/`pairedchord` early-exit blocks, `defaultFullChordSettings`, the
+`RULE_FAMILIES.chords` family and every type-hijack (`PlayStyleSelector`, `InstrumentRow` family
+cycle — a stale persisted `type` is normalised back to the track key on the next rule change).
+
+**Invariants:** the voicing is driven ONLY by `InstrumentSettings` fields — no instrument-type
+branching in generation code (§6b). Merged melodies preserve the Melody contiguity invariant
+(each non-null entry starts where the previous ended; total ticks unchanged). Chord slots are
+`string[]` — the same shape fullchord produced — so `renderMelodyNotes` and `playMelodies`
+required NO changes.
+
+**Files:** `generation/melodyGenerator.js` (wrapper + `applyVoicing`/`generateAuxMelody`/
+`mergeVoice`/`buildChordLookup`/`computeEffectiveScale`), `audio/drumKits.js`
+(`resolvePercussionChord`), `generation/generateBackbeat.js` (imports the resolver),
+`model/InstrumentSettings.js` (`voices`, `percussionChordRules`; `defaultFullChordSettings`
+removed), `constants/instrumentRules.js` / `constants/generationFields.js` / `utils/labelUtils.js`
+(chords family removed), `components/controls/PlayStyleSelector.jsx` /
+`components/controls/rows/InstrumentRow.jsx` (de-hijacked),
+`overlays/GenerationSetterOverlay.jsx` (4th column), `overlays/generationNoteGlyphs.jsx`
+(`VoicesGlyph`), `generation/__tests__/applyVoicing.test.js` (new, 12 tests).

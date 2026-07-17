@@ -79,6 +79,44 @@ export const PercPoolGlyph = ({ pads, staffStart, noteColoringMode, theme }) => 
     );
 };
 
+/**
+ * #435 (Han 2026-07-17): voices carousel item — the option rendered AS the notation it produces
+ * (through the shared MiniMelody pipeline, §6d): 1 = a single head; 2/3 = the stacked chord;
+ * 'var' = a single note followed by a two-note chord (the three-melody merge in miniature).
+ * Percussion shows pads (staff="percussion"): 1 = snare; var = snare then a kick+hi-hat pair.
+ */
+export const VoicesGlyph = ({
+    voices, staffStart, clef, staffType, noteColoringMode, tonic, scaleNotes, activeChord, theme,
+}) => {
+    let slots;
+    if (staffType === 'percussion') {
+        slots = voices === 'var' ? ['s', ['k', 'hh']] : ['s'];
+    } else {
+        slots = voices === 1 ? [['C4']]
+            : voices === 2 ? [['C4', 'E4']]
+            : voices === 3 ? [['C4', 'E4', 'G4']]
+            : ['C4', ['C4', 'E4']]; // 'var'
+        if (clef === 'bass') {
+            slots = slots.map(s => Array.isArray(s) ? s.map(octaveDown) : octaveDown(s));
+        }
+    }
+    return (
+        <MiniMelody
+            slots={slots}
+            durations={slots.map(() => QUARTER)}
+            width={slots.length > 1 ? 44 : 0}
+            staffStart={staffStart}
+            clef={staffType === 'percussion' ? 'percussion' : clef}
+            staff={staffType}
+            noteColoringMode={noteColoringMode}
+            tonic={tonic}
+            scaleNotes={scaleNotes}
+            processedChords={activeChord ? [{ absoluteOffset: 0, isSlash: false, chord: activeChord }] : []}
+            theme={theme}
+        />
+    );
+};
+
 // ── Notes-per-measure rhythm patterns (#295) ──────────────────────────────────
 //
 // Han's spec, DERIVED not tabulated (§6c): start from the measure's beats
