@@ -125,6 +125,16 @@ export const PROGRESSION_STRATEGIES = [
         degrees: [1, 7, 6, '5d'],
     },
     {
+        // #461 (Han #460): the classic 12-bar blues — I·I·I·I | IV·IV·I·I | V·IV·I·V.
+        key: '12-bar-blues',
+        label: '12-Bar Blues (^1×4 ^4×2 ^1×2 ^5 ^4 ^1 ^5)',
+        shortLabel: '12-Bar Blues',
+        category: 'predetermined',
+        preferredScale: 'major',
+        defaultLength: 12,
+        degrees: [1, 1, 1, 1, 4, 4, 1, 1, 5, 4, 1, 5],
+    },
+    {
         key: 'classical-1-4-5-1',
         label: 'Classical Cadence (^1-^4-^5-^1)',
         shortLabel: 'Classical Cadence',

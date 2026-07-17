@@ -168,13 +168,15 @@ const COMPLEXITY_ITEMS = CHORD_COMPLEXITY.map(o => ({ ...o, Icon: FIELD_ITEM_ICO
 // (pop-1-5-6-4 "pop 4 chord") has NO asset yet, so it keeps its lucide glyph until one is added.
 const STRATEGY_ICON8 = {
   'modal-random': 'dice-d20',
+  'inter-modal-random': 'dice-d20',   // #462: "d20" — plain d20 asset TODO; dice-d20 for now
   'tonic-tonic-tonic': 'ground-symbol',
-  'ii-v-i': 'jazz',
-  'pop-6-4-1-5': 'heart',        // "sensitive"
-  'doo-wop': 'microphone',       // vintage mic
+  'ii-v-i': 'jazz',                    // jazz circle-of-fifths maps onto the as-is jazz (Han)
+  'pop-6-4-1-5': 'heart',             // "sensitive"
+  'doo-wop': 'microphone',            // vintage mic
   'classical-1-4-5-5': 'violinist',
-  'pachelbel': 'art-track',      // musical score
+  'pachelbel': 'art-track',           // musical score
   'andalusian': 'flamenco',
+  '12-bar-blues': 'blues',            // #461
   // 'pop-1-5-6-4': 'concert' — asset MISSING (flagged)
 };
 const STRATEGY_ITEMS = CHORD_STRATEGIES.map(value => ({

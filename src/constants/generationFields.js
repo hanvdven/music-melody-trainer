@@ -101,6 +101,7 @@ export const CHORD_COMPLEXITY = [
 // human-readable label comes from getProgressionLabel, the bottom-view's source of truth).
 export const CHORD_STRATEGIES = [
   'modal-random',
+  'inter-modal-random',   // #460/#462 (Han: "intermodal") — already defined in progressionDefinitions
   'tonic-tonic-tonic',
   'ii-v-i',
   'pop-1-5-6-4',
@@ -109,6 +110,7 @@ export const CHORD_STRATEGIES = [
   'classical-1-4-5-5',
   'pachelbel',
   'andalusian',
+  '12-bar-blues',         // #461 (Han #460)
 ];
 
 // "notes per measure" → chordCount (InstrumentRow chords branch col 5).
@@ -174,6 +176,7 @@ export const FIELD_ITEM_ICONS = {
   // chord strategies → one distinct mnemonic glyph each.
   strategy: {
     'modal-random': Dices,
+    'inter-modal-random': Dices,
     'tonic-tonic-tonic': Anchor,
     'ii-v-i': RotateCw,
     'pop-1-5-6-4': Star,
@@ -182,6 +185,7 @@ export const FIELD_ITEM_ICONS = {
     'classical-1-4-5-5': GitBranch,
     'pachelbel': Repeat,
     'andalusian': Flame,
+    '12-bar-blues': Waves,
   },
   // tuplets (polyMultiplier) — Layers3 for all; label carries none/low/med/high/xtreme.
   poly: { 1: Layers3, 5: Layers3, 15: Layers3, 50: Layers3, 200: Layers3 },
