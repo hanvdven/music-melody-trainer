@@ -115,7 +115,9 @@ const MELODIC_RULE_RING = [
   ...RULE_FAMILIES.walk,
   ...RULE_FAMILIES.chords,
   ...RULE_FAMILIES.fixed,
-].filter(rule => !['arp_up', 'arp_down', 'arp'].includes(rule));
+  // #460 (Han): arp up/down/bounce were already dropped; "duo chord en chord mogen weg uit de picker"
+  // removes pairedchord + fullchord too.
+].filter(rule => !['arp_up', 'arp_down', 'arp', 'pairedchord', 'fullchord'].includes(rule));
 const PERC_RULE_RING = [
   ...PERC_FAMILIES.random,
   ...PERC_FAMILIES.stylized,
@@ -124,14 +126,19 @@ const PERC_RULE_RING = [
 // #436 (Han: icons8 pass — the melody-RANDOMIZATION rules get icons8 art). Rule → icons8 basename
 // (resolved to a bundled URL via getIconUrlByBasename). Only the rules Han mapped are set; the rest
 // keep their lucide glyph (item.iconUrl absent → renderer falls back to item.Icon).
+// #460 (Han) — the full rule → icons8 mapping. dice-d20 stands in for the "dice" (random); a
+// dedicated plain-dice / d20 split is a follow-up card. Percussion rules share this map.
 const RULE_ICON8 = {
-  uniform: 'dice-d20',          // random family
-  emphasize_roots: 'anchor',    // roots
+  uniform: 'dice-d20',          // random
+  emphasize_roots: 'anchor',    // "roots on one"
   weighted: 'feather',
-  arp_up: 'hand-fan', arp_down: 'hand-fan', arp: 'hand-fan',   // arp family (dropped from this ring)
+  walking_bass: 'guitar',
   arp_var: 'squiggly-arrow',
   arp_group: 'stairs',
-  fixed: 'sheet-music',
+  fixed: 'sheet-music',         // keeps the previous / song melody
+  // percussion rules
+  backbeat: 'snare-drum', backbeat_2: 'snare-drum',
+  swing: 'jazz',                // jazz swing
 };
 
 // Build the carousel item list for a rule ring: { value, label, Icon, iconUrl, family }.
@@ -148,13 +155,34 @@ const familyName = (fam) => FAMILY_DISPLAY_NAMES[fam] ?? fam;
 
 // ── static item lists (icon attached from FIELD_ITEM_ICONS / NUMERIC_ICONS) ─────────────────────
 const NOTE_POOL_ITEMS = MELODIC_NOTE_POOLS.map(o => ({ ...o, Icon: FIELD_ITEM_ICONS.notePool[o.value] }));
-const PERC_POOL_ITEMS = PERC_POOL_PRESETS.map(o => ({ ...o, Icon: FIELD_ITEM_ICONS.percPreset[o.value] }));
+// #460 (Han): the percussion POOL presets — BASIC keeps the 3 example drum notes; STANDARD/FULL show
+// an icons8 kit icon. ('custom' is a new preset, active only when a custom range is set — follow-up.)
+const PERC_POOL_ICON8 = { STANDARD: 'drums', FULL: 'drum-set' };
+const PERC_POOL_ITEMS = PERC_POOL_PRESETS.map(o => ({
+  ...o,
+  Icon: FIELD_ITEM_ICONS.percPreset[o.value],
+  iconUrl: PERC_POOL_ICON8[o.value] ? getIconUrlByBasename(PERC_POOL_ICON8[o.value]) : undefined,
+}));
 const COMPLEXITY_ITEMS = CHORD_COMPLEXITY.map(o => ({ ...o, Icon: FIELD_ITEM_ICONS.complexity[o.value] }));
+// #460 (Han) — chord-progression strategy → icons8. Only mapped where a real asset exists; 'concert'
+// (pop-1-5-6-4 "pop 4 chord") has NO asset yet, so it keeps its lucide glyph until one is added.
+const STRATEGY_ICON8 = {
+  'modal-random': 'dice-d20',
+  'tonic-tonic-tonic': 'ground-symbol',
+  'ii-v-i': 'jazz',
+  'pop-6-4-1-5': 'heart',        // "sensitive"
+  'doo-wop': 'microphone',       // vintage mic
+  'classical-1-4-5-5': 'violinist',
+  'pachelbel': 'art-track',      // musical score
+  'andalusian': 'flamenco',
+  // 'pop-1-5-6-4': 'concert' — asset MISSING (flagged)
+};
 const STRATEGY_ITEMS = CHORD_STRATEGIES.map(value => ({
   value,
   // getProgressionLabel may embed a '^' superscript marker; strip it for the flat carousel label.
   label: (getProgressionLabel(value) || value).replace('^', ''),
   Icon: FIELD_ITEM_ICONS.strategy[value],
+  iconUrl: STRATEGY_ICON8[value] ? getIconUrlByBasename(STRATEGY_ICON8[value]) : undefined,
 }));
 // Numeric carousels: number IS the label, plus a small generic icon (§ task).
 // #362: n>0 items drop the sans label — the count is a Maestro numeral under the
@@ -265,11 +293,15 @@ const GenerationSetterOverlay = ({
           items, activeIndex: idxOf(items, cur), labelAbove: 'progression',
           renderContent: (item, active, color) => (
             <g>
-              {item.Icon && (
+              {item.iconUrl ? (
+                <image href={item.iconUrl} x={-STAFF_CARD_ICON / 2} y={row.centerY + MELODY_TYPE_ICON_DY}
+                  width={STAFF_CARD_ICON} height={STAFF_CARD_ICON}
+                  style={{ pointerEvents: 'none', filter: 'var(--instrument-icon-filter, none)' }} />
+              ) : item.Icon ? (
                 <item.Icon x={-STAFF_CARD_ICON / 2} y={row.centerY + MELODY_TYPE_ICON_DY}
                   width={STAFF_CARD_ICON} height={STAFF_CARD_ICON} color="currentColor" strokeWidth={2}
                   style={{ pointerEvents: 'none' }} />
-              )}
+              ) : null}
               <RomanProgressionGlyph label={item.romanLabel} y={row.centerY + MELODY_TYPE_LABEL_DY}
                 color={color} active={active} />
             </g>
@@ -320,12 +352,19 @@ const GenerationSetterOverlay = ({
         const percStaffStart = row.centerY - 20;
         return {
           items, activeIndex: idxOf(items, cur), labelAbove: 'percussion',
-          // #434 rework (Han: "percussion pool: breng in lijn met note pool setter — render de noten
-          // uit de pool"): render the preset's real drum notes (like the melodic note pool), not the
-          // lucide icon. Same colour-setter geometry as the melodic note pool.
+          // #434/#460 (Han): BASIC renders the preset's real drum notes (like the melodic note pool);
+          // STANDARD/FULL show their icons8 kit icon.
           renderContent: (item) => (
-            <PercPoolGlyph pads={PERCUSSION_PRESETS[item.value]} staffStart={percStaffStart}
-              noteColoringMode={noteColoringMode} theme={theme} />
+            item.iconUrl
+              ? (
+                <image href={item.iconUrl} x={-STAFF_CARD_ICON / 2} y={row.centerY + MELODY_TYPE_ICON_DY}
+                  width={STAFF_CARD_ICON} height={STAFF_CARD_ICON}
+                  style={{ pointerEvents: 'none', filter: 'var(--instrument-icon-filter, none)' }} />
+              )
+              : (
+                <PercPoolGlyph pads={PERCUSSION_PRESETS[item.value]} staffStart={percStaffStart}
+                  noteColoringMode={noteColoringMode} theme={theme} />
+              )
           ),
           baseWidth: POOL_BASE, visibleHalf: 1,
           hitTop: POOL_HIT_TOP, hitHeight: POOL_HIT_H, labelDy: CONTENT_LABEL_DY,
