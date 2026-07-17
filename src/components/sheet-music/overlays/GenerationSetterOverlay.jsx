@@ -98,7 +98,10 @@ const MELODY_TYPE_BASE = 50;       // #434: stride > 38px icon so melody-type ic
 const CONTENT_LABEL_DY = 38;   // staff rows → staffStart+58 (instrument NAME_DY, 1-op-1)
 const MELODY_TYPE_LABEL_DY = CONTENT_LABEL_DY;
 const CHORDS_LABEL_DY = 28;    // chords row → clears the treble header (−46) 84px below
-const STAFF_HEADER_DY = -46;  // field header baseline for the STAFF rows → rowCenterY-46 = staffStart-26
+// #435 audit (Han 2026-07-19: "alle headers mogen 10 units zakken, behalve headers boven de chord
+// rule"): staff-row headers dropped 10 (−46 → −36). This also moves the treble header away from the
+// chords-row count above it. The chords row keeps BRACKET_DY (−32) — its headers are excepted.
+const STAFF_HEADER_DY = -36;  // field header baseline for the STAFF rows → rowCenterY-36
                               // (instrument setter FIELD_HEADER_DY), clear ABOVE the ledger notes.
 const COUNT_FONT_SIZE = 24;   // Maestro numeral under each rhythm-measure item (#362)
 
