@@ -17,6 +17,7 @@ import {
   FAMILY_DISPLAY_NAMES,
 } from '../../../constants/generationFields';
 import { RULE_FAMILIES, PERC_FAMILIES } from '../../../constants/instrumentRules';
+import { getIconUrlByBasename } from '../../../constants/instruments';
 import { PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { CarouselField } from '../CarouselFieldItem';
 import {
@@ -120,11 +121,25 @@ const PERC_RULE_RING = [
   ...PERC_FAMILIES.stylized,
   ...PERC_FAMILIES.fixed,
 ];
-// Build the carousel item list for a rule ring: { value, label, Icon, family }.
+// #436 (Han: icons8 pass — the melody-RANDOMIZATION rules get icons8 art). Rule → icons8 basename
+// (resolved to a bundled URL via getIconUrlByBasename). Only the rules Han mapped are set; the rest
+// keep their lucide glyph (item.iconUrl absent → renderer falls back to item.Icon).
+const RULE_ICON8 = {
+  uniform: 'dice-d20',          // random family
+  emphasize_roots: 'anchor',    // roots
+  weighted: 'feather',
+  arp_up: 'hand-fan', arp_down: 'hand-fan', arp: 'hand-fan',   // arp family (dropped from this ring)
+  arp_var: 'squiggly-arrow',
+  arp_group: 'stairs',
+  fixed: 'sheet-music',
+};
+
+// Build the carousel item list for a rule ring: { value, label, Icon, iconUrl, family }.
 const ruleItems = (ring, familyOf) => ring.map(rule => ({
   value: rule,
   label: getPlayStyleLabel(rule),
   Icon: FIELD_ITEM_ICONS.rule[rule],
+  iconUrl: RULE_ICON8[rule] ? getIconUrlByBasename(RULE_ICON8[rule]) : undefined,
   family: familyOf[rule],
 }));
 const MELODIC_RULE_ITEMS = ruleItems(MELODIC_RULE_RING, MELODIC_FAMILY_OF);

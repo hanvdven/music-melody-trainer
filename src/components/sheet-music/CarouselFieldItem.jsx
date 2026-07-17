@@ -42,6 +42,17 @@ const renderLucideIcon = (IconComp, { size, iconY }) => {
   );
 };
 
+// #436 (Han: icons8 pass) — an icons8 PNG icon for a carousel item, drawn like the instrument
+// carousel's flat-black art: the theme filter keeps it visible on dark themes. Used when an item
+// carries an `iconUrl` (melody-type rules now use icons8 instead of lucide glyphs).
+const renderIcon8 = (iconUrl, { size, iconY }) => {
+  if (!iconUrl) return null;
+  return (
+    <image href={iconUrl} x={-size / 2} y={iconY} width={size} height={size}
+      style={{ pointerEvents: 'none', filter: 'var(--instrument-icon-filter, none)' }} />
+  );
+};
+
 // ── ITEM RENDERER ──────────────────────────────────────────────────────────────────────────────
 // Build a renderItem(item, i) for a NonLinearCarousel from an option list + an icon/label resolver.
 // item shape: { value/key, label, Icon }. The active item (i === activeIndex) is bright
@@ -67,7 +78,9 @@ export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFont
             staff-note components (§6d — see generationNoteGlyphs). */}
         {renderContent
           ? renderContent(item, active, color)
-          : renderLucideIcon(item.Icon, { size: iconSize, iconY })}
+          : item.iconUrl
+            ? renderIcon8(item.iconUrl, { size: iconSize, iconY })
+            : renderLucideIcon(item.Icon, { size: iconSize, iconY })}
         {/* ALL CAPS per the standing carousel-text CR. An item/field may omit its
             label (e.g. Roman-numeral items ARE their label). */}
         {item.label ? (
