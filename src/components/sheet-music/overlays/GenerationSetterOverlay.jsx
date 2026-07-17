@@ -256,15 +256,26 @@ const GenerationSetterOverlay = ({
         };
       }
       if (colIdx === 1) {
-        // melody type → strategy (progression). #295 (Han): rendered as ROMAN
-        // NUMERALS — the numeral IS the item, so the sans label is omitted.
+        // progression (chord randomization type) — #436 (Han: "de carousel van chords heeft nog geen
+        // iconen … melody type / progression"): mirror the melody-type carousel — the strategy's icon
+        // ON TOP (STAFF_CARD_ICON, staff-body position) with the ROMAN NUMERAL as the label below.
         const items = STRATEGY_ITEMS.map(it => ({ ...it, romanLabel: it.label, label: '' }));
         const cur = chordSettings?.strategy || 'tonic-tonic-tonic';
         return {
-          items, activeIndex: idxOf(items, cur), labelAbove: 'strategy',
+          items, activeIndex: idxOf(items, cur), labelAbove: 'progression',
           renderContent: (item, active, color) => (
-            <RomanProgressionGlyph label={item.romanLabel} y={row.centerY + 2} color={color} active={active} />
+            <g>
+              {item.Icon && (
+                <item.Icon x={-STAFF_CARD_ICON / 2} y={row.centerY + MELODY_TYPE_ICON_DY}
+                  width={STAFF_CARD_ICON} height={STAFF_CARD_ICON} color="currentColor" strokeWidth={2}
+                  style={{ pointerEvents: 'none' }} />
+              )}
+              <RomanProgressionGlyph label={item.romanLabel} y={row.centerY + MELODY_TYPE_LABEL_DY}
+                color={color} active={active} />
+            </g>
           ),
+          baseWidth: MELODY_TYPE_BASE, visibleHalf: 1,
+          iconSize: STAFF_CARD_ICON, iconDy: MELODY_TYPE_ICON_DY, labelDy: MELODY_TYPE_LABEL_DY,
           onSelect: (item) => setChordSettings(p => ({ ...p, strategy: item.value })),
         };
       }
