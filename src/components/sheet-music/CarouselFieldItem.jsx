@@ -42,14 +42,18 @@ const renderLucideIcon = (IconComp, { size, iconY }) => {
   );
 };
 
-// #436 (Han: icons8 pass) — an icons8 PNG icon for a carousel item, drawn like the instrument
-// carousel's flat-black art: the theme filter keeps it visible on dark themes. Used when an item
-// carries an `iconUrl` (melody-type rules now use icons8 instead of lucide glyphs).
-const renderIcon8 = (iconUrl, { size, iconY }) => {
+// #436 (Han: icons8 pass) — an icons8 PNG icon for a carousel item. The art is flat-black, so the
+// ACTIVE item is CATEGORY-TINTED via the shared feFlood filter (`tintId`, floods the category colour
+// into the icon's alpha — same trick as the instrument setter); inactive icons use the theme invert
+// filter so they stay visible on dark themes.
+const renderIcon8 = (iconUrl, { size, iconY, active, tintId }) => {
   if (!iconUrl) return null;
   return (
     <image href={iconUrl} x={-size / 2} y={iconY} width={size} height={size}
-      style={{ pointerEvents: 'none', filter: 'var(--instrument-icon-filter, none)' }} />
+      style={{
+        pointerEvents: 'none',
+        filter: active && tintId ? `url(#${tintId})` : 'var(--instrument-icon-filter, none)',
+      }} />
   );
 };
 
@@ -61,7 +65,7 @@ const renderIcon8 = (iconUrl, { size, iconY }) => {
 //
 // SIZING is passed in as named consts from the owning overlay (Han 2026-06-22 wants all sizing as
 // tunable named consts at the overlay top), so this renderer is layout-agnostic.
-export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf }) => {
+export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf, tintId }) => {
   // Returns a render-PROP for NonLinearCarousel.renderItem (invoked manually), NOT a React
   // component — so there's no display name to give.
   const renderCarouselItem = (item, i) => {
@@ -79,7 +83,7 @@ export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFont
         {renderContent
           ? renderContent(item, active, color)
           : item.iconUrl
-            ? renderIcon8(item.iconUrl, { size: iconSize, iconY })
+            ? renderIcon8(item.iconUrl, { size: iconSize, iconY, active, tintId })
             : renderLucideIcon(item.Icon, { size: iconSize, iconY })}
         {/* ALL CAPS per the standing carousel-text CR. An item/field may omit its
             label (e.g. Roman-numeral items ARE their label). */}
@@ -218,7 +222,14 @@ export const CarouselField = ({
   // Keep pos in sync when the committed activeIndex changes externally (e.g. settings reset).
   React.useEffect(() => { setPos(activeIndex); }, [activeIndex]);
 
-  const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf });
+  // #436 (Han: icons8 rule icons also CATEGORY-TINTED on active): a per-field feFlood filter that
+  // floods the ACTIVE item's category colour into a flat-black icons8 image's alpha (same trick as
+  // the instrument setter). Unique id per field so multiple carousels on one staff never collide.
+  const rawTintId = React.useId();
+  const tintId = `carousel-icon-tint-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const activeIconColor = (colorOf?.(items[activeIndex]) ?? 'var(--text-primary)');
+
+  const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf, tintId });
 
   // #394a / #398 / #428: reveal-on-interaction. Only meaningful when `hidden`. The carousel is now
   // ALWAYS mounted when hidden (it renders itself COLLAPSED — only the active item paints), so a
@@ -233,6 +244,14 @@ export const CarouselField = ({
 
   return (
     <g>
+      {/* #436: icons8 icon category-tint filter — floods the active item's category colour into a
+          flat-black icon's alpha. floodColor is a style so the CSS var resolves. */}
+      <defs>
+        <filter id={tintId} x="-20%" y="-20%" width="140%" height="140%">
+          <feFlood style={{ floodColor: activeIconColor }} />
+          <feComposite in2="SourceAlpha" operator="in" />
+        </filter>
+      </defs>
       {/* Hidden + open: a tap-away backdrop BEHIND the carousel closes it on a click outside the
           items (Han Q1 "tik weg … sluit"). Kept modest (±1.3·edgeX) so it doesn't hijack the whole
           surface. NB single-open coordination across fields is v1-per-field (documented). */}
