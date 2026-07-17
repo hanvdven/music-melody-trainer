@@ -204,6 +204,9 @@ export const CarouselField = ({
   // bracket ("de groupings functie wordt abusievelijk gebruikt als setter label").
   labelAbove = null,
   familyMode = false,   // true → group items by item.family
+  // #435: show ONLY the active item's caps label (side items keep just their glyph). Defaults to
+  // familyMode (the narrow melody-type row); the voices field opts in for its long polyphony names.
+  activeLabelOnly = familyMode,
   familyName,           // (family) => display string (family mode only)
   familyColor = null,   // (family) => CSS colour (category tints, #362)
   colorOf = null,       // (item) => CSS colour for the ACTIVE item (#362)
@@ -240,7 +243,7 @@ export const CarouselField = ({
 
   // #431 rework: in family mode (melody-type) the 3-column row is too narrow for every item's caps
   // label — show only the active item's label (side items keep their icons + category bracket).
-  const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf, tintId, activeLabelOnly: familyMode });
+  const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf, tintId, activeLabelOnly });
 
   // #394a / #398 / #428: reveal-on-interaction. Only meaningful when `hidden`. The carousel is now
   // ALWAYS mounted when hidden (it renders itself COLLAPSED — only the active item paints), so a
@@ -270,47 +273,33 @@ export const CarouselField = ({
         <rect x={centerX - edgeX * 1.3} y={hitY - hitHeight} width={edgeX * 2.6} height={hitHeight * 3}
           fill="transparent" onClick={closeNow} />
       )}
-      {/* #428: fade the chrome (brackets / caps label) in/out with `open` so the whole field, not
-          just the carousel items, honours the reveal + fade-out.
-          #431 rework 3 (Han 2026-07-17: "als de carousel passief is moet de categorie onzichtbaar
-          zijn … ik zie nog steeds de cat label"): the chrome is ONLY MOUNTED while the field is open
-          (or closing — `mountAllItems` stays true through the fade). At passive rest it is not in the
-          DOM at all, so the category bracket / header can NEVER show, independent of opacity. The
-          opacity transition still animates the fade during open→closing. */}
-      {mountAllItems && (
-      <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: chromeVisible ? undefined : 'none' }}>
-      {/* #431 (Han 2026-07-13: "headers - no caps, labels: all caps"): the field-name HEADER above
-          the carousel is italic SERIF, NON-capitalised; the item VALUE labels below are sans-serif
-          ALL CAPS (makeRenderItem). The dashed blokhaken stay reserved for real groupings. */}
-      {familyMode ? (
-        /* Family mode (melody-type): the category "blokhaken" brackets PLUS — when a field header is
-           given — the field name ABOVE them (§6d: mirrors the instrument setter's "instrument" header
-           sitting above its category brackets). #431 rework: this header lives inside the fading
-           chrome, so it hides with the carousel instead of persisting as a column header. */
-        <>
-          <FamilyBrackets
-            pos={pos}
-            items={items}
-            geomProps={{ centerX, bracketY, baseWidth, visibleHalf: VISIBLE_HALF, edgeX, familyName, familyColor }}
-          />
-          {labelAbove ? (
-            <text x={centerX} y={headerY} textAnchor="middle" fontSize={14}
-              fontFamily="serif" fontStyle="italic"
-              fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
-              {labelAbove}
-            </text>
-          ) : null}
-        </>
-      ) : labelAbove ? (
+      {/* #431 rework 4 (Han 2026-07-19: "ik mis nog de headers"): the field-name HEADER is ALWAYS
+          visible — it names the column and must not disappear at passive rest. Only the CATEGORY
+          brackets (the "cat label") hide when the carousel is collapsed. Italic SERIF, NON-capitalised
+          (Han 2026-07-13); the item VALUE labels below are sans-serif ALL CAPS (makeRenderItem). */}
+      {labelAbove ? (
         <text x={centerX} y={headerY} textAnchor="middle" fontSize={14}
           fontFamily="serif" fontStyle="italic"
           fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
           {labelAbove}
         </text>
-      ) : fieldLabel ? (
-        <FieldNameBracket centerX={centerX} bracketY={bracketY} edgeX={edgeX} label={fieldLabel} />
       ) : null}
-      </g>
+      {/* #428/#431 rework 3+4: the CATEGORY chrome (family "blokhaken" brackets, or a bracketed
+          field-name when there is no header) is MOUNTED only while the field is open (mountAllItems
+          stays true through the fade-out), and faded via chromeVisible — so the category is invisible
+          at passive rest ("als de carousel passief is moet de categorie onzichtbaar zijn"). */}
+      {mountAllItems && (familyMode || (!labelAbove && fieldLabel)) && (
+        <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: chromeVisible ? undefined : 'none' }}>
+          {familyMode ? (
+            <FamilyBrackets
+              pos={pos}
+              items={items}
+              geomProps={{ centerX, bracketY, baseWidth, visibleHalf: VISIBLE_HALF, edgeX, familyName, familyColor }}
+            />
+          ) : (
+            <FieldNameBracket centerX={centerX} bracketY={bracketY} edgeX={edgeX} label={fieldLabel} />
+          )}
+        </g>
       )}
       <NonLinearCarousel
         items={items}

@@ -21,7 +21,7 @@ import { getIconUrlByBasename, ICON_ATTRIBUTION } from '../../../constants/instr
 import { PERCUSSION_PRESETS } from '../../../audio/drumKits';
 import { CarouselField } from '../CarouselFieldItem';
 import {
-  NotePoolGlyph, RhythmMeasureGlyph, ComplexityChordGlyph, RomanProgressionGlyph, ChordCountGlyph,
+  NotePoolGlyph, RhythmMeasureGlyph, ComplexityChordGlyph, ChordCountGlyph,
   PercPoolGlyph, VoicesGlyph,
 } from './generationNoteGlyphs';
 import { STAFF_CARD_ICON } from './carouselOptionGlyph';
@@ -184,17 +184,18 @@ const PERC_POOL_ITEMS = PERC_POOL_PRESETS.map(o => ({
   iconUrl: PERC_POOL_ICON8[o.value] ? getIconUrlByBasename(PERC_POOL_ICON8[o.value]) : undefined,
 }));
 const COMPLEXITY_ITEMS = CHORD_COMPLEXITY.map(o => ({ ...o, Icon: FIELD_ITEM_ICONS.complexity[o.value] }));
-// #435 (Han): the voices options — melodic 1 · var · 2 · 3; percussion 'simultaneous' 1 · var.
-// Values map straight onto InstrumentSettings.voices (melodyGenerator.applyVoicing).
+// #435 (Han 2026-07-19: "Akkoordtype mag naam hebben: unisono, duophony, triphony"): the voices
+// options carry POLYPHONY NAMES (rendered ALL-CAPS by makeRenderItem, like every other value label).
+// 'var' = the variable-density merge → "variable". Values map straight onto InstrumentSettings.voices.
 const VOICES_MELODIC_ITEMS = [
-  { value: 1, label: '1' },
-  { value: 'var', label: 'var' },
-  { value: 2, label: '2' },
-  { value: 3, label: '3' },
+  { value: 1, label: 'unisono' },
+  { value: 'var', label: 'variable' },
+  { value: 2, label: 'duophony' },
+  { value: 3, label: 'triphony' },
 ];
 const VOICES_PERC_ITEMS = [
-  { value: 1, label: '1' },
-  { value: 'var', label: 'var' },
+  { value: 1, label: 'unisono' },
+  { value: 'var', label: 'variable' },
 ];
 const VOICES_BASE = 64;       // voices item stride — the widest item ('var': note + chord) is ~44
 // #460 (Han) — chord-progression strategy → icons8. #466 (Han 2026-07-17): the 'concert' (pop) and
@@ -324,29 +325,19 @@ const GenerationSetterOverlay = ({
       }
       if (colIdx === 1) {
         // progression (chord randomization type) — #436 (Han: "de carousel van chords heeft nog geen
-        // iconen … melody type / progression"): mirror the melody-type carousel — the strategy's icon
-        // ON TOP (STAFF_CARD_ICON, staff-body position) with the ROMAN NUMERAL as the label below.
-        const items = STRATEGY_ITEMS.map(it => ({ ...it, romanLabel: it.label, label: '' }));
+        // iconen … melody type / progression"): mirrors the melody-type carousel — the strategy's
+        // icons8 icon on the staff body + its name below. #435 rework (Han 2026-07-19: "progression
+        // type heeft een serif font en niet all caps — dit soort inconsistenties zou niet moeten"):
+        // the label is now the SAME sans-serif ALL-CAPS as every other value label (via
+        // makeRenderItem), NOT a serif Roman numeral. Same iconDy/labelDy as melody-type.
+        const items = STRATEGY_ITEMS;
         const cur = chordSettings?.strategy || 'tonic-tonic-tonic';
         return {
           items, activeIndex: idxOf(items, cur), labelAbove: 'progression',
-          renderContent: (item, active, color) => (
-            <g>
-              {item.iconUrl ? (
-                <image href={item.iconUrl} x={-STAFF_CARD_ICON / 2} y={row.centerY + MELODY_TYPE_ICON_DY}
-                  width={STAFF_CARD_ICON} height={STAFF_CARD_ICON}
-                  style={{ pointerEvents: 'none', filter: 'var(--instrument-icon-filter, none)' }} />
-              ) : item.Icon ? (
-                <item.Icon x={-STAFF_CARD_ICON / 2} y={row.centerY + MELODY_TYPE_ICON_DY}
-                  width={STAFF_CARD_ICON} height={STAFF_CARD_ICON} color="currentColor" strokeWidth={2}
-                  style={{ pointerEvents: 'none' }} />
-              ) : null}
-              <RomanProgressionGlyph label={item.romanLabel} y={row.centerY + CHORDS_LABEL_DY}
-                color={color} active={active} />
-            </g>
-          ),
           baseWidth: MELODY_TYPE_BASE, visibleHalf: 1,
           iconSize: STAFF_CARD_ICON, iconDy: MELODY_TYPE_ICON_DY, labelDy: CHORDS_LABEL_DY,
+          // Strategy names are long ("12-BAR BLUES") — show only the centred label, like melody-type.
+          activeLabelOnly: true,
           onSelect: (item) => setChordSettings(p => ({ ...p, strategy: item.value })),
         };
       }
@@ -478,6 +469,9 @@ const GenerationSetterOverlay = ({
             activeChord={GEN_PREVIEW_CHORD} theme={theme} />
         ),
         baseWidth: VOICES_BASE, visibleHalf: 1,
+        // Long polyphony names (DUOPHONY…) would collide across the narrow column when expanded;
+        // show only the centred item's label (§435, like the melody-type carousel).
+        activeLabelOnly: true,
         hitTop: POOL_HIT_TOP, hitHeight: POOL_HIT_H, labelDy: CONTENT_LABEL_DY,
         onSelect: (item) => set(p => ({ ...p, voices: item.value })),
       };
@@ -498,7 +492,11 @@ const GenerationSetterOverlay = ({
           ? (
             <g>
               <RhythmMeasureGlyph n={item.value} staffStart={rowStaffStart} color={color} />
-              <text x={0} y={row.centerY + CONTENT_LABEL_DY + 16} textAnchor="middle"
+              {/* #431 rework 4 (Han 2026-07-19: "de maestro labels staan niet op dezelfde hoogte als
+                  de tekstlabels"): the count baseline == the value-label baseline (CONTENT_LABEL_DY),
+                  so the Maestro numeral lines up with the sans labels (WEIGHTED, SCALE, …) in the
+                  neighbouring columns. */}
+              <text x={0} y={row.centerY + CONTENT_LABEL_DY} textAnchor="middle"
                 fontSize={COUNT_FONT_SIZE} fontFamily="Maestro" fill={color}
                 style={{ pointerEvents: 'none' }}>{item.value}</text>
             </g>
@@ -575,6 +573,7 @@ const GenerationSetterOverlay = ({
                 fieldLabel={f.fieldLabel}
                 labelAbove={f.labelAbove}
                 familyMode={f.familyMode}
+                activeLabelOnly={f.activeLabelOnly ?? f.familyMode}
                 familyName={f.familyName}
                 familyColor={f.familyColor}
                 colorOf={f.colorOf}

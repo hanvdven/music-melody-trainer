@@ -4821,6 +4821,37 @@ tidy labels, and apply note-colouring more universally.
 `overlays/GenerationAdvancedSetterOverlay.jsx`, `overlays/TranspositionSetter.jsx`,
 `renderMelodyNotes.jsx`.
 
+### §58a. Generation setter — headers always-on, consistent labels, voices names (Han 2026-07-19)
+
+Follow-up polish on §58/§55b after Han's UAT:
+
+- **Field headers are ALWAYS visible.** The #431-rework-3 fix mount-gated the WHOLE chrome (header +
+  category brackets) so nothing showed at passive rest — but that also hid the COLUMN HEADERS ("note
+  pool", "melody type", "voices", "notes / measure"), which name the columns and must stay. Now only
+  the CATEGORY (family "blokhaken") brackets are mount-gated/faded; the `labelAbove` header renders
+  unconditionally (`CarouselFieldItem.jsx`). Han: "ik mis nog de headers."
+- **Progression label = the same sans-serif ALL-CAPS as every other value label** (was a serif Roman
+  numeral via `RomanProgressionGlyph`). The progression field dropped its custom `renderContent` and
+  now uses the plain `makeRenderItem` icon+label like the melody-type carousel. Han: "dit soort
+  inconsistenties zou niet moeten." (`RomanProgressionGlyph` is now unused by the overlay.)
+- **Maestro count aligns with the text labels.** The notes/measure count numeral moved from
+  `CONTENT_LABEL_DY + 16` to `CONTENT_LABEL_DY` — same baseline as WEIGHTED/SCALE/UNISONO in the
+  neighbouring columns. Han: "de maestro labels staan niet op dezelfde hoogte als de tekstlabels."
+- **Voices options carry polyphony NAMES** (Han: "Akkoordtype mag naam hebben: unisono, duophony,
+  triphony"): `1 → unisono`, `var → variable`, `2 → duophony`, `3 → triphony` (percussion: unisono /
+  variable), rendered ALL-CAPS. `CarouselField` gained an `activeLabelOnly` prop (defaults to
+  `familyMode`) so the voices + progression carousels — whose names are long — show only the centred
+  label, avoiding overlap in the narrow columns.
+
+**Known / deferred (UI-polish round, Han Q2):** the melody-type setters (treble/bass/perc) ARE
+uniformly spaced; the smaller gap above them is the PROGRESSION (chords) row, pinned just under the
+top edge (~84px above treble vs the ~110px staff-to-staff), because the tempo display occupies the
+band above it. The chords-row chord-count numeral therefore sits close to the treble "notes /
+measure" header. Making the top band roomier is the deferred 4-column layout-polish round.
+
+**Files:** `CarouselFieldItem.jsx` (header always-on, `activeLabelOnly` prop),
+`overlays/GenerationSetterOverlay.jsx` (progression simplified, count baseline, voices names).
+
 ### §58. Simultaneous voices — the `voices` setting + shared voicing post-step (#435, Han 2026-07-17)
 
 **Purpose:** Replace the old chord-randomization "melody types" (`pairedchord` / `fullchord`, which
