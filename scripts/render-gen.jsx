@@ -35,8 +35,8 @@ const ctx = {
   setChordSettings: () => {},
 };
 
-// Match Han's real screen (~455 wide, staves ~100 apart) so header/label heights read true.
-const trebleStart = 120, bassStart = 220, percussionStart = 320, startX = 15, endX = 445;
+// Match the REAL sheet: staff line gap = 10, staffHeight 40, staffGap baseGap=70 → staves 110 apart.
+const trebleStart = 120, bassStart = 230, percussionStart = 340, startX = 15, endX = 445;
 const inner = renderToStaticMarkup(
   React.createElement(InstrumentSettingsProvider, { value: ctx },
     React.createElement(DisplaySettingsProvider, { value: { noteColoringMode: 'tonic_scale_keys', theme: 'default' } },
@@ -49,10 +49,10 @@ const inner = renderToStaticMarkup(
   ),
 );
 
-const W = 460, H = 400;
+const W = 460, H = 480;
 const staffLines = [trebleStart, bassStart, percussionStart].map(s =>
   [0, 1, 2, 3, 4].map(i =>
-    `<line x1="${startX}" y1="${s + i * 7.5}" x2="${endX}" y2="${s + i * 7.5}" stroke="#3a3a3a" stroke-width="1"/>`).join('')).join('');
+    `<line x1="${startX}" y1="${s + i * 10}" x2="${endX}" y2="${s + i * 10}" stroke="#3a3a3a" stroke-width="1"/>`).join('')).join('');
 const svg = resolveVars(
   `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 -20 ${W} ${H}">`
   + `<rect x="0" y="-20" width="${W}" height="${H}" fill="#1b1b28"/>`

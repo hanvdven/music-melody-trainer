@@ -87,13 +87,17 @@ const MELODY_TYPE_BASE = 50;       // #434: stride > 38px icon so melody-type ic
 // up at the same height — the generation overlay packs 4 rows into the staff spacing, so labels sit
 // just below the staff (not at the instrument setter's roomier +38, which collided with the next row's
 // header). The ICON stays 1-op-1 with the instrument setter (staffStart+1); only the label is tucked up.
-// #431 rework (Han 2026-07-17): ONE value-label offset (+28) for EVERY column in EVERY row — staff AND
-// chords. The chords row used to need a lower label to clear its tall complexity stack; the stack is now
-// anchored 8px higher (generationNoteGlyphs `virtualStaffStart`) so it clears +28 too. Full consistency
-// (Han: "inconsistent height of elements at chords rule").
-const CONTENT_LABEL_DY = 28;
+// #431 rework 3 (Han 2026-07-17: "labels staan te hoog; gebruik instrument selector als referentie"):
+// the STAFF-row value labels sit at the instrument setter's label height — staffStart+58 = rowCenterY+38
+// (NAME_DY 58, rowCenterY = staffStart+20). The CHORDS row is 84px above the treble row (vs 100px
+// staff-to-staff), too tight for +38 without its labels colliding with the treble header at −46, so its
+// labels stay at +28 (and its tall complexity stack is anchored 8px higher, generationNoteGlyphs
+// `virtualStaffStart`, so +28 clears it). Each row is internally consistent; the chords row has no
+// instrument-setter analogue, so matching the staff rows there is neither required nor geometrically
+// possible.
+const CONTENT_LABEL_DY = 38;   // staff rows → staffStart+58 (instrument NAME_DY, 1-op-1)
 const MELODY_TYPE_LABEL_DY = CONTENT_LABEL_DY;
-const CHORDS_LABEL_DY = CONTENT_LABEL_DY;
+const CHORDS_LABEL_DY = 28;    // chords row → clears the treble header (−46) 84px below
 const STAFF_HEADER_DY = -46;  // field header baseline for the STAFF rows → rowCenterY-46 = staffStart-26
                               // (instrument setter FIELD_HEADER_DY), clear ABOVE the ledger notes.
 const COUNT_FONT_SIZE = 24;   // Maestro numeral under each rhythm-measure item (#362)

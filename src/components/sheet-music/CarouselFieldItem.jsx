@@ -271,7 +271,13 @@ export const CarouselField = ({
           fill="transparent" onClick={closeNow} />
       )}
       {/* #428: fade the chrome (brackets / caps label) in/out with `open` so the whole field, not
-          just the carousel items, honours the reveal + fade-out. */}
+          just the carousel items, honours the reveal + fade-out.
+          #431 rework 3 (Han 2026-07-17: "als de carousel passief is moet de categorie onzichtbaar
+          zijn … ik zie nog steeds de cat label"): the chrome is ONLY MOUNTED while the field is open
+          (or closing — `mountAllItems` stays true through the fade). At passive rest it is not in the
+          DOM at all, so the category bracket / header can NEVER show, independent of opacity. The
+          opacity transition still animates the fade during open→closing. */}
+      {mountAllItems && (
       <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: chromeVisible ? undefined : 'none' }}>
       {/* #431 (Han 2026-07-13: "headers - no caps, labels: all caps"): the field-name HEADER above
           the carousel is italic SERIF, NON-capitalised; the item VALUE labels below are sans-serif
@@ -305,6 +311,7 @@ export const CarouselField = ({
         <FieldNameBracket centerX={centerX} bracketY={bracketY} edgeX={edgeX} label={fieldLabel} />
       ) : null}
       </g>
+      )}
       <NonLinearCarousel
         items={items}
         activeIndex={activeIndex}

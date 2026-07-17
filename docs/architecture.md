@@ -4722,6 +4722,15 @@ attribution line**, and the newly-supplied `concert` + plain `dice` assets neede
   head clears +28, letting the chords labels line up with the staff labels instead of being pushed down
   to +42 (which collided with the treble header). The chords row keeps its header at `BRACKET_DY (−32)`
   so it doesn't clip the overlay top. Verified with `scripts/render-gen.jsx` (header/label y-values).
+- **3rd UAT (Han "ik zie nog steeds de cat label / labels te hoog / clipping onderkant").** (a) The
+  chrome (category brackets + header) is now conditionally MOUNTED on `mountAllItems` — at passive rest
+  it is not in the DOM at all, so the category can never show regardless of opacity (`mountAllItems`
+  stays true through the fade-out, so the animation is preserved). (b) STAFF-row value labels moved to
+  the instrument reference `CONTENT_LABEL_DY = +38` (= staffStart+58 = instrument `NAME_DY`); the chords
+  row stays `+28` because it is only 84px above the treble row (vs 110px staff-to-staff = `staffHeight
+  40 + baseGap 70`) and would otherwise collide with the treble header. At the real 110px spacing,
+  header −46 + label +38 fit with margin; the harness (`render-gen.jsx`) was corrected to the real
+  staff gap (line gap 10, staves 110 apart) after an earlier run used the wrong gap.
 - **icons8 attribution (#465).** `GenerationSetterOverlay` now renders `ICON_ATTRIBUTION` (imported from
   `constants/instruments`) centred below the bottom row — MANDATORY wherever icons8 art shows (same
   convention as the instrument setter, §6d).
