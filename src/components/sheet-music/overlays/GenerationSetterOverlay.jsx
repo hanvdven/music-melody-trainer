@@ -569,10 +569,12 @@ const GenerationSetterOverlay = ({
                 labelDy={f.labelDy ?? LABEL_DY}
                 labelFontSize={LABEL_FONT_SIZE}
                 bracketDy={BRACKET_DY}
-                // #431 rework: staff-row headers line up at −46 (clear above the ledger notes); the
-                // chords row keeps the tighter −32 (BRACKET_DY default) so it doesn't clip the overlay
-                // top. Family brackets stay at BRACKET_DY, sitting BETWEEN header and icons.
-                headerDy={row.isChords ? BRACKET_DY : STAFF_HEADER_DY}
+                // #435 audit (Han 2026-07-19: "akkoordrij heeft nog steeds niet consistent headers"):
+                // EVERY row's header uses the SAME offset (STAFF_HEADER_DY, −36) so each header sits
+                // the same 17px above its icon — the chords row no longer hugs its content 4px tighter
+                // than the staff rows. (−36 clears the overlay top: CHORD_ROW_Y−36 stays below the
+                // viewBox edge.) Family brackets stay at BRACKET_DY, between header and icons.
+                headerDy={STAFF_HEADER_DY}
                 fieldLabel={f.fieldLabel}
                 labelAbove={f.labelAbove}
                 familyMode={f.familyMode}
