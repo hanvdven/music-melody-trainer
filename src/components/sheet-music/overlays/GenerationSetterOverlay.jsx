@@ -339,8 +339,6 @@ const GenerationSetterOverlay = ({
           items, activeIndex: idxOf(items, cur), labelAbove: 'progression',
           baseWidth: MELODY_TYPE_BASE, visibleHalf: 1,
           iconSize: STAFF_CARD_ICON, iconDy: MELODY_TYPE_ICON_DY, labelDy: CHORDS_LABEL_DY,
-          // Strategy names are long ("12-BAR BLUES") — show only the centred label, like melody-type.
-          activeLabelOnly: true,
           onSelect: (item) => setChordSettings(p => ({ ...p, strategy: item.value })),
         };
       }
@@ -472,9 +470,6 @@ const GenerationSetterOverlay = ({
             activeChord={GEN_PREVIEW_CHORD} theme={theme} />
         ),
         baseWidth: VOICES_BASE, visibleHalf: 1,
-        // Long polyphony names (DUOPHONY…) would collide across the narrow column when expanded;
-        // show only the centred item's label (§435, like the melody-type carousel).
-        activeLabelOnly: true,
         hitTop: POOL_HIT_TOP, hitHeight: POOL_HIT_H, labelDy: CONTENT_LABEL_DY,
         onSelect: (item) => set(p => ({ ...p, voices: item.value })),
       };
@@ -578,7 +573,9 @@ const GenerationSetterOverlay = ({
                 fieldLabel={f.fieldLabel}
                 labelAbove={f.labelAbove}
                 familyMode={f.familyMode}
-                activeLabelOnly={f.activeLabelOnly ?? f.familyMode}
+                activeLabelOnly={f.activeLabelOnly ?? false}
+                // #493: staff-line Y's for the veil (empty on the chords band, which has no staff).
+                staffLineYs={row.isChords ? [] : [-20, -10, 0, 10, 20].map(d => row.centerY + d)}
                 familyName={f.familyName}
                 familyColor={f.familyColor}
                 colorOf={f.colorOf}

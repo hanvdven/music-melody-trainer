@@ -204,9 +204,14 @@ export const CarouselField = ({
   // bracket ("de groupings functie wordt abusievelijk gebruikt als setter label").
   labelAbove = null,
   familyMode = false,   // true → group items by item.family
-  // #435: show ONLY the active item's caps label (side items keep just their glyph). Defaults to
-  // familyMode (the narrow melody-type row); the voices field opts in for its long polyphony names.
-  activeLabelOnly = familyMode,
+  // #493 (Han 2026-07-19): default OFF — every carousel shows ALL item labels when active, like the
+  // instrument setter. The veil scrim (below) keeps them readable where they overlap other content.
+  // (Kept as an opt-in escape hatch; no generation field sets it any more.)
+  activeLabelOnly = false,
+  // #493: absolute Y of this row's staff lines, redrawn ON TOP of the veil scrim so the horizontal
+  // staff strokes stay visible through the veil (Han: "laat de horizontale notenbalkstrepen zichtbaar").
+  // Empty for rows without a staff (the chords band).
+  staffLineYs = [],
   familyName,           // (family) => display string (family mode only)
   familyColor = null,   // (family) => CSS colour (category tints, #362)
   colorOf = null,       // (item) => CSS colour for the ACTIVE item (#362)
@@ -221,8 +226,19 @@ export const CarouselField = ({
   hidden = false,
   debugMode = false,
 }) => {
+  // #394a / #398 / #428: reveal-on-interaction state machine (moved up in #493 so the OPEN state can
+  // drive the widen + veil below). Only meaningful when `hidden`.
+  const { collapsed, mountAllItems, chromeVisible, open, reveal: handleReveal, resetHideTimer, closeNow } =
+    useRevealOnInteraction(hidden);
+
   const VISIBLE_HALF = visibleHalf;
-  const edgeX = (VISIBLE_HALF + 0.5) * baseWidth;
+  // #493 (Han 2026-07-19): when a field is OPEN it WIDENS to OPEN_STRIDE so ALL item labels fit
+  // without overlapping (the narrow at-rest columns can't — that's why activeLabelOnly existed). The
+  // widened carousel spreads over its neighbours; the veil scrim below covers that width. Wide-content
+  // fields (note pool / notes-measure, baseWidth ≥ OPEN_STRIDE) are unchanged by the max().
+  const OPEN_STRIDE = 92;
+  const effBaseWidth = open ? Math.max(baseWidth, OPEN_STRIDE) : baseWidth;
+  const edgeX = (VISIBLE_HALF + 0.5) * effBaseWidth;
   const iconY = rowCenterY + iconDy;
   const labelY = rowCenterY + labelDy;
   const headerY = rowCenterY + (headerDy ?? bracketDy);   // field header baseline (§431 rework)
@@ -239,18 +255,21 @@ export const CarouselField = ({
   // the instrument setter). Unique id per field so multiple carousels on one staff never collide.
   const rawTintId = React.useId();
   const tintId = `carousel-icon-tint-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const scrimId = `carousel-veil-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
   const activeIconColor = (colorOf?.(items[activeIndex]) ?? 'var(--text-primary)');
+
+  // #493 (Han 2026-07-19): VEIL. When a hidden carousel is active/open it may overlap the neighbouring
+  // columns' text; a gradient scrim in the app background colour sits BEHIND this field's own chrome +
+  // items and dims whatever is behind it, so the active carousel stays readable ("kan overlappen …
+  // zonder onleesbaar te worden"). Edges fade (gradient) so the veil blends in; the row's staff lines
+  // are redrawn on top so the horizontal staff strokes stay visible through the veil.
+  const veilHalfW = edgeX + 26;
+  const veilTop = headerY - 18;
+  const veilBottom = labelY + 14;
 
   // #431 rework: in family mode (melody-type) the 3-column row is too narrow for every item's caps
   // label — show only the active item's label (side items keep their icons + category bracket).
   const renderItem = makeRenderItem({ activeIndex, iconSize, iconY, labelY, labelFontSize, renderContent, colorOf, tintId, activeLabelOnly });
-
-  // #394a / #398 / #428: reveal-on-interaction. Only meaningful when `hidden`. The carousel is now
-  // ALWAYS mounted when hidden (it renders itself COLLAPSED — only the active item paints), so a
-  // press-and-hold on it begins a drag immediately. The reveal + 3s idle-fade state machine lives in
-  // the shared useRevealOnInteraction hook (§6d — the same logic drives the instrument StaffCarousel).
-  const { collapsed, mountAllItems, chromeVisible, open, reveal: handleReveal, resetHideTimer, closeNow } =
-    useRevealOnInteraction(hidden);
 
   // handleSelect keeps the field OPEN for another 3s after a selection (Han: "na selectie, wordt na
   // 3s terug hidden") rather than closing immediately.
@@ -265,7 +284,27 @@ export const CarouselField = ({
           <feFlood style={{ floodColor: activeIconColor }} />
           <feComposite in2="SourceAlpha" operator="in" />
         </filter>
+        {/* #493 veil gradient — opaque in the middle, fading to transparent at the horizontal edges. */}
+        <linearGradient id={scrimId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="var(--app-bg, #14131a)" stopOpacity="0" />
+          <stop offset="0.12" stopColor="var(--app-bg, #14131a)" stopOpacity="0.9" />
+          <stop offset="0.88" stopColor="var(--app-bg, #14131a)" stopOpacity="0.9" />
+          <stop offset="1" stopColor="var(--app-bg, #14131a)" stopOpacity="0" />
+        </linearGradient>
       </defs>
+      {/* #493 (Han): the VEIL — only while the field is active/open (mountAllItems stays true through
+          the fade). Sits FIRST in the group so it's behind this field's own chrome + carousel but on
+          top of the sheet. Fades with chromeVisible. Staff lines redrawn on top so they stay visible. */}
+      {mountAllItems && (
+        <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
+          <rect x={centerX - veilHalfW} y={veilTop} width={veilHalfW * 2} height={veilBottom - veilTop}
+            fill={`url(#${scrimId})`} />
+          {staffLineYs.map((ly, i) => (
+            <line key={i} x1={centerX - veilHalfW + 4} x2={centerX + veilHalfW - 4} y1={ly} y2={ly}
+              stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.5" />
+          ))}
+        </g>
+      )}
       {/* Hidden + open: a tap-away backdrop BEHIND the carousel closes it on a click outside the
           items (Han Q1 "tik weg … sluit"). Kept modest (±1.3·edgeX) so it doesn't hijack the whole
           surface. NB single-open coordination across fields is v1-per-field (documented). */}
@@ -294,7 +333,7 @@ export const CarouselField = ({
             <FamilyBrackets
               pos={pos}
               items={items}
-              geomProps={{ centerX, bracketY, baseWidth, visibleHalf: VISIBLE_HALF, edgeX, familyName, familyColor }}
+              geomProps={{ centerX, bracketY, baseWidth: effBaseWidth, visibleHalf: VISIBLE_HALF, edgeX, familyName, familyColor }}
             />
           ) : (
             <FieldNameBracket centerX={centerX} bracketY={bracketY} edgeX={edgeX} label={fieldLabel} />
@@ -307,7 +346,7 @@ export const CarouselField = ({
         renderItem={renderItem}
         centerX={centerX}
         y={hitY}
-        baseWidth={baseWidth}
+        baseWidth={effBaseWidth}
         height={hitHeight}
         onSelect={handleSelect}
         // Family brackets must track the carousel during a drag → feed live pos, and ANY drag

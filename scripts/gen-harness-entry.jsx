@@ -88,8 +88,33 @@ const Fonts = () => (
   </svg>
 );
 
+// #493 verify: with ?reveal=x,y (SVG user coords) auto-open ONE field so the widen + veil show in
+// the realistic single-open state (headless Chrome can't click). Dispatches a pointerdown/up there.
+const AutoReveal = () => {
+  React.useEffect(() => {
+    const rv = params.get('reveal');
+    if (!rv) return;
+    const [ux, uy] = rv.split(',').map(Number);
+    const t = setTimeout(() => {
+      const svg = document.querySelector('svg');
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      const vb = svg.viewBox.baseVal;
+      const sx = rect.left + (ux - vb.x) * (rect.width / vb.width);
+      const sy = rect.top + (uy - vb.y) * (rect.height / vb.height);
+      const el = document.elementFromPoint(sx, sy) || svg;
+      for (const type of ['pointerdown', 'pointerup']) {
+        el.dispatchEvent(new PointerEvent(type, { clientX: sx, clientY: sy, bubbles: true, pointerId: 1 }));
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  }, []);
+  return null;
+};
+
 const App = () => FONTS ? <Fonts /> : BISECT ? <Bisect /> : (
   <InstrumentSettingsProvider value={ctx}>
+    <AutoReveal />
     <DisplaySettingsProvider value={{ noteColoringMode: 'tonic_scale_keys', theme: 'default' }}>
       <svg width="610" height="440" viewBox="-5 -30 610 440"
         style={{ background: 'var(--app-bg, #1b1b28)', display: 'block' }}>
