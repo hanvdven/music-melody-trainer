@@ -448,6 +448,9 @@ const SettingsOverlay = ({
           })()}
           activeLabelSize={32}
           compact
+          // #435 (Han 2026-07-19: "de carousel draait in de andere richting dan 'maten', wissel om"):
+          // match the measures fan — dragging DOWN raises the value.
+          invert
           fieldLines={[]}
           // Draw the repeat glyph per row (§6d — the same renderRepeatGlyph as the sheet header/BPM;
           // the Maestro 'À' renders as the ×N repeat mark). #434: Han only wanted a wider SPACE
