@@ -325,6 +325,36 @@ body {
   src: url('/src/assets/fonts/maestro.ttf') format('truetype');
 }
 
+/* Academico (Steinberg, SIL OFL) — the TEXT/NUMBER companion for the Maestro notation font
+   (#494, Han 2026-07-19). Maestro stays for music glyphs ONLY (noteheads, clefs, repeat sign,
+   time signatures); Academico renders numbers + text that must sit beside the notation and align
+   cleanly (BPM, repeat counts, the italic × repeat mark). Serif engraving style (Century
+   Schoolbook lineage) with real italics + lining figures. */
+@font-face {
+  font-family: 'Academico';
+  font-weight: normal;
+  font-style: normal;
+  src: url('/src/assets/fonts/AcademicoRegular.otf') format('opentype');
+}
+@font-face {
+  font-family: 'Academico';
+  font-weight: normal;
+  font-style: italic;
+  src: url('/src/assets/fonts/AcademicoItalic.otf') format('opentype');
+}
+@font-face {
+  font-family: 'Academico';
+  font-weight: bold;
+  font-style: normal;
+  src: url('/src/assets/fonts/AcademicoBold.otf') format('opentype');
+}
+@font-face {
+  font-family: 'Academico';
+  font-weight: bold;
+  font-style: italic;
+  src: url('/src/assets/fonts/AcademicoBoldItalic.otf') format('opentype');
+}
+
 svg {
   font-family: 'Maestro';
   user-select: none;

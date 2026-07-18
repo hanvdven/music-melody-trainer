@@ -1,0 +1,7 @@
+Academico font family (AcademicoRegular / Italic / Bold / BoldItalic .otf)
+Copyright Steinberg Media Technologies GmbH.
+Licensed under the SIL Open Font License, Version 1.1 (https://scripts.sil.org/OFL).
+
+Bundled in this project (#494, 2026-07-19) as the TEXT / NUMBER companion to the
+Maestro notation font. The OFL permits bundling and web embedding. Full OFL text:
+https://openfontlicense.org/open-font-license-official-text/

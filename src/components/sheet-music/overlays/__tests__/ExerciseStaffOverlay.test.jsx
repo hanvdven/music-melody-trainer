@@ -55,14 +55,16 @@ describe('ExerciseStaffOverlay', () => {
         expect(onStartExercise).toHaveBeenCalledTimes(1);
     });
 
-    it('renders repeat counts in the Maestro notation font with the À glyph (#298 rework)', () => {
-        // Han 2026-07-05: numRepeats must render EXACTLY like the sheet header's
-        // RepeatsControls and the BPM — Maestro font, "N À" — everywhere.
+    it('renders repeat counts as a clear ×N in Academico with an italic × (#494)', () => {
+        // Han 2026-07-19: the unclear Maestro 'À' mark is replaced by a cursive × (Academico
+        // Italic) BEFORE the count; the number is Academico so × and number share one text font.
         const { container } = renderOverlay({ axes: { ...baseAxes, evaluation: 2 } });
-        const maestro = [...container.querySelectorAll('text')]
-            .filter(t => t.getAttribute('font-family') === 'Maestro');
-        expect(maestro.length).toBeGreaterThan(0);
-        expect(maestro.some(t => t.textContent.includes('À'))).toBe(true);
+        const academicoTexts = [...container.querySelectorAll('text')]
+            .filter(t => t.getAttribute('font-family') === 'Academico');
+        expect(academicoTexts.some(t => t.textContent.includes('×2'))).toBe(true);
+        const italicCross = [...container.querySelectorAll('tspan')]
+            .find(t => t.textContent === '×' && t.getAttribute('font-style') === 'italic');
+        expect(italicCross).toBeTruthy();
     });
 
     it('shows the BadgeCheck until-correct icon when evaluation is leftmost', () => {

@@ -8,11 +8,14 @@ import GenerationSetterOverlay from '../src/components/sheet-music/overlays/Gene
 import { InstrumentSettingsProvider } from '../src/contexts/InstrumentSettingsContext.jsx';
 import { DisplaySettingsProvider } from '../src/contexts/DisplaySettingsContext.jsx';
 import { getIconUrlByBasename } from '../src/constants/instruments.jsx';
+import { renderRepeatGlyph } from '../src/components/sheet-music/overlays/carouselOptionGlyph.jsx';
+import { AXES } from '../src/exercises/exerciseIndex.js';
 import '../src/styles/App.css';
 
 const params = new URLSearchParams(window.location.search);
 const HIDDEN = params.get('open') !== '1';
 const BISECT = params.get('bisect') === '1';
+const FONTS = params.get('fonts') === '1';
 
 // Han's screenshot proportions: staves ~95 apart (short container), sheet ~600 wide.
 const startX = 15, endX = 585, trebleStart = 120, bassStart = 215, percussionStart = 310;
@@ -66,7 +69,26 @@ const Bisect = () => {
   );
 };
 
-const App = () => BISECT ? <Bisect /> : (
+// #494 font check: Academico samples + the repeat glyphs (italic × counts) beside Maestro.
+const Fonts = () => (
+  <svg width="610" height="300" viewBox="0 0 610 300" style={{ background: '#1b1b28', display: 'block' }}>
+    <text x={20} y={40} fontFamily="Academico" fontSize={28} fill="#e8e8e8">Academico 0123456789</text>
+    <text x={20} y={80} fontFamily="Academico" fontStyle="italic" fontSize={28} fill="#e8e8e8">Academico italic ×  0123456789</text>
+    <text x={20} y={120} fontFamily="Maestro" fontSize={28} fill="#8ab4ff">Maestro Ï À k (music glyphs)</text>
+    <text x={20} y={170} fontFamily="Academico" fontSize={14} fontStyle="italic" fill="#888">repeat glyphs (×N counts, ∞, until):</text>
+    {AXES.evaluation.map((item, i) => (
+      <g key={i} transform={`translate(${70 + i * 80}, 230)`}>
+        <rect x={-28} y={-30} width={56} height={56} fill="none" stroke="#333" />
+        {renderRepeatGlyph(item, true, 0)}
+        <text x={0} y={40} fontFamily="Academico" fontSize={11} fill="#888" textAnchor="middle">
+          {item.isUntil ? 'until' : String(item.value)}
+        </text>
+      </g>
+    ))}
+  </svg>
+);
+
+const App = () => FONTS ? <Fonts /> : BISECT ? <Bisect /> : (
   <InstrumentSettingsProvider value={ctx}>
     <DisplaySettingsProvider value={{ noteColoringMode: 'tonic_scale_keys', theme: 'default' }}>
       <svg width="610" height="440" viewBox="-5 -30 610 440"

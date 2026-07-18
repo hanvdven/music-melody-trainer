@@ -47,24 +47,18 @@ export const renderRepeatGlyph = (item, active, baselineY) => {
         }}>
             {item.isUntil ? (
                 <BadgeCheck size={12} x={-6} y={baselineY - 10} />
+            ) : item.value === Infinity ? (
+                // ∞ = repeat forever. In Academico (the text companion) so it sits with the counts.
+                <text x={0} y={baselineY} textAnchor="middle" fontFamily="Academico"
+                    fontSize={30} fill={color}>∞</text>
             ) : (
-                <text x={0} y={baselineY} textAnchor="middle" fontFamily="Maestro"
-                    /* #432 rework (Han 2026-07-14: "is repeats misschien bold face dat eruit ziet als
-                       glow in maestro?") — YES: bold Maestro glyphs render as a heavier/glowing
-                       stroke. Maestro glyphs MUST be normal weight (cf. StaffDurationNote); the bright
-                       colour alone marks the active value. */
-                    fontWeight="normal" fill={color}>
-                    {/* #361 (Han): same Maestro size as the BPM display (.bpm-value = 32). */}
-                    {item.value === Infinity ? (
-                        <tspan fontSize={26}>À</tspan>
-                    ) : (
-                        <>
-                            <tspan fontSize={32}>{item.value}</tspan>
-                            {/* #434 (Han: "enige wat ik wou … was een spatie") — a wider gap between
-                                the number and the ×N repeat mark, via dx (a plain space was too tight). */}
-                            <tspan fontSize={26} dx={5}>À</tspan>
-                        </>
-                    )}
+                // #494 (Han 2026-07-19: "'X times' symbool niet duidelijk … cursieve x vóór het
+                // aantal repeats"): a clear ITALIC × (Academico Italic) BEFORE the count, replacing
+                // the unclear Maestro 'À' mark. The number is Academico (Regular) so × and number
+                // share one engraving-text font and align without the Maestro-baseline fiddling.
+                <text x={0} y={baselineY} textAnchor="middle" fontFamily="Academico" fill={color}>
+                    <tspan fontStyle="italic" fontSize={24}>×</tspan>
+                    <tspan fontSize={30} dx={2}>{item.value}</tspan>
                 </text>
             )}
         </g>
