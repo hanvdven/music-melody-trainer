@@ -224,12 +224,26 @@ export const CarouselField = ({
   // active value at rest; tapping it opens the full carousel; a selection or a tap-away closes it
   // (Han Q1). Opt-in so only the generation setters get it; default is the always-visible carousel.
   hidden = false,
+  // #493 (Han 2026-07-19: "de-activeer alle andere carousels als een carousel wordt geactiveerd"):
+  // single-open coordination. Each field has a unique `fieldId`; on reveal it calls `onActivate(id)`,
+  // and whenever `activeFieldId` names a DIFFERENT field this one closes. Lifted to the overlay so
+  // only ONE carousel is ever open at a time.
+  fieldId = null,
+  activeFieldId = null,
+  onActivate = null,
   debugMode = false,
 }) => {
   // #394a / #398 / #428: reveal-on-interaction state machine (moved up in #493 so the OPEN state can
   // drive the widen + veil below). Only meaningful when `hidden`.
   const { collapsed, mountAllItems, chromeVisible, open, reveal: handleReveal, resetHideTimer, closeNow } =
     useRevealOnInteraction(hidden);
+
+  // #493: reveal → become the single active field; close when another field takes over.
+  const onReveal = () => { handleReveal(); onActivate?.(fieldId); };
+  React.useEffect(() => {
+    if (activeFieldId != null && activeFieldId !== fieldId && open) closeNow();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFieldId]);
 
   const VISIBLE_HALF = visibleHalf;
   // #493 (Han 2026-07-19): when a field is OPEN it WIDENS to OPEN_STRIDE so ALL item labels fit
@@ -284,12 +298,15 @@ export const CarouselField = ({
           <feFlood style={{ floodColor: activeIconColor }} />
           <feComposite in2="SourceAlpha" operator="in" />
         </filter>
-        {/* #493 veil gradient — opaque in the middle, fading to transparent at the horizontal edges. */}
+        {/* #493 veil gradient — the EXACT sheet background colour (var(--panel-bg), the bg App.jsx
+            gives the sheet), FULLY OPAQUE in the middle so veiled content reads as clean background
+            (Han 2026-07-19: "veil moet dezelfde kleur hebben als de achtergrond"), fading to
+            transparent only at the very horizontal edges so the patch blends in. */}
         <linearGradient id={scrimId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="var(--app-bg, #14131a)" stopOpacity="0" />
-          <stop offset="0.12" stopColor="var(--app-bg, #14131a)" stopOpacity="0.9" />
-          <stop offset="0.88" stopColor="var(--app-bg, #14131a)" stopOpacity="0.9" />
-          <stop offset="1" stopColor="var(--app-bg, #14131a)" stopOpacity="0" />
+          <stop offset="0" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="0" />
+          <stop offset="0.08" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="1" />
+          <stop offset="0.92" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="1" />
+          <stop offset="1" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="0" />
         </linearGradient>
       </defs>
       {/* #493 (Han): the VEIL — only while the field is active/open (mountAllItems stays true through
@@ -357,7 +374,7 @@ export const CarouselField = ({
         // stays true through the fade-out so the side items fade before unmounting (from the hook).
         collapsed={collapsed}
         mountAllItems={mountAllItems}
-        onReveal={hidden ? handleReveal : undefined}
+        onReveal={hidden ? onReveal : undefined}
         visibleHalf={VISIBLE_HALF}
         debugMode={debugMode}
       />

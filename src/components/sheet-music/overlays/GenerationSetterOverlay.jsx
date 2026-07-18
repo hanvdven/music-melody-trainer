@@ -272,6 +272,8 @@ const GenerationSetterOverlay = ({
   // #431 rework (Han): example notes render through the REAL renderMelodyNotes pipeline, coloured by
   // the ACTIVE note-coloring rule (+ theme for the subtle-chroma mix) — not a hardcoded palette.
   const { noteColoringMode, theme } = useDisplaySettings();
+  // #493 (Han): single-open coordination — only ONE generation carousel open at a time.
+  const [activeFieldId, setActiveFieldId] = React.useState(null);
   if (startX == null || endX == null) return null;
 
   // Wrap every field's onSelect so a selection also pings onSettingsInteraction (resets the
@@ -576,6 +578,9 @@ const GenerationSetterOverlay = ({
                 activeLabelOnly={f.activeLabelOnly ?? false}
                 // #493: staff-line Y's for the veil (empty on the chords band, which has no staff).
                 staffLineYs={row.isChords ? [] : [-20, -10, 0, 10, 20].map(d => row.centerY + d)}
+                fieldId={`${row.key}-${colIdx}`}
+                activeFieldId={activeFieldId}
+                onActivate={setActiveFieldId}
                 familyName={f.familyName}
                 familyColor={f.familyColor}
                 colorOf={f.colorOf}

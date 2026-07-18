@@ -117,7 +117,7 @@ const App = () => FONTS ? <Fonts /> : BISECT ? <Bisect /> : (
     <AutoReveal />
     <DisplaySettingsProvider value={{ noteColoringMode: 'tonic_scale_keys', theme: 'default' }}>
       <svg width="610" height="440" viewBox="-5 -30 610 440"
-        style={{ background: 'var(--app-bg, #1b1b28)', display: 'block' }}>
+        style={{ background: 'var(--panel-bg, #1f1e2a)', display: 'block' }}>
         {staffLines.map((y, i) => (
           <line key={i} x1={startX} y1={y} x2={endX} y2={y}
             stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.5" />
