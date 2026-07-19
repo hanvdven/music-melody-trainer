@@ -104,7 +104,8 @@ const CHORDS_LABEL_DY = CONTENT_LABEL_DY;
 // #435 audit (Han 2026-07-19: "alle headers mogen 10 units zakken, behalve headers boven de chord
 // rule"): staff-row headers dropped 10 (−46 → −36). This also moves the treble header away from the
 // chords-row count above it. The chords row keeps BRACKET_DY (−32) — its headers are excepted.
-const STAFF_HEADER_DY = -36;  // field header baseline for the STAFF rows → rowCenterY-36
+// #435 (Han 2026-07-19: "álle headers boven de carousels mogen 5 units zakken"): −36 → −31.
+const STAFF_HEADER_DY = -31;  // field header baseline (all rows) → rowCenterY-31
                               // (instrument setter FIELD_HEADER_DY), clear ABOVE the ledger notes.
 const COUNT_FONT_SIZE = 24;   // Maestro numeral under each rhythm-measure item (#362)
 
@@ -290,6 +291,13 @@ const GenerationSetterOverlay = ({
   // Header band + per-balk Y anchors (borrowed from the previous overlay so it aligns with siblings).
   const HEADER_Y = trebleStart - 89;
   const CHORD_ROW_Y = trebleStart - 64;
+  // #435 (Han 2026-07-19): the chords-row SETTER carousels (progression, complexity) move UP to the
+  // uniform staff-to-staff spacing so the gap above the treble row equals every other row gap; only
+  // the chords/measure preview (chord notation) stays down at the chord band (CHORD_ROW_Y).
+  const staffSpacing = (isBassVisible && bassStart != null) ? (bassStart - trebleStart)
+    : (isPercussionVisible && percussionStart != null) ? (percussionStart - trebleStart)
+    : 110;
+  const CHORDS_SETTER_Y = trebleStart + 20 - staffSpacing;
 
   const rows = [
     // #361 (Han: "ik mis de setters voor akkoorden"): the chords row was gated on
@@ -322,8 +330,9 @@ const GenerationSetterOverlay = ({
         const cur = chordSettings?.complexity || 'triad';
         return {
           items, activeIndex: idxOf(items, cur), labelAbove: 'complexity',
+          centerY: CHORDS_SETTER_Y,   // #435: moved up to the uniform row spacing
           renderContent: (item) => (
-            <ComplexityChordGlyph complexity={item.value} centerY={row.centerY}
+            <ComplexityChordGlyph complexity={item.value} centerY={CHORDS_SETTER_Y}
               noteColoringMode={noteColoringMode} activeChord={GEN_PREVIEW_CHORD} theme={theme} />
           ),
           // Stack reaches ~centerY+34 (C4 head) → label clears it; hit box grows to match.
@@ -342,6 +351,7 @@ const GenerationSetterOverlay = ({
         const cur = chordSettings?.strategy || 'tonic-tonic-tonic';
         return {
           items, activeIndex: idxOf(items, cur), labelAbove: 'progression',
+          centerY: CHORDS_SETTER_Y,   // #435: moved up to the uniform row spacing
           baseWidth: MELODY_TYPE_BASE, visibleHalf: 1,
           iconSize: STAFF_CARD_ICON, iconDy: MELODY_TYPE_ICON_DY, labelDy: CHORDS_LABEL_DY,
           onSelect: (item) => setChordSettings(p => ({ ...p, strategy: item.value })),
@@ -568,7 +578,7 @@ const GenerationSetterOverlay = ({
                 activeIndex={f.activeIndex}
                 onSelect={withInteraction(f.onSelect)}
                 centerX={cx}
-                rowCenterY={row.centerY}
+                rowCenterY={f.centerY ?? row.centerY}
                 // #295: content fields (inline notes / rhythm patterns) override
                 // stride, window, icon size and label position per field.
                 baseWidth={f.baseWidth ?? CAROUSEL_BASE}
