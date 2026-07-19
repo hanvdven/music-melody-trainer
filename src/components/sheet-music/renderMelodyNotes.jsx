@@ -842,6 +842,26 @@ const renderMelodyNotes = (
         : (flagX - 1);
       const finalFlagY = stemIsAbove ? flagY + 3 : flagY - 4;
 
+      // #435 (Han 2026-07-19: "de voortekens staan over de noten van de linker kolom heen"): accidentals
+      // were positioned at each note's OWN (possibly right-shifted) column, so a cluster note displaced
+      // to the RIGHT drew its accidental over the LEFT-column noteheads. Place every accidental left of
+      // the WHOLE cluster's leftmost notehead, and cascade vertically-close ones further left so they
+      // don't overlap each other. accCols: pos.noteIndex → cascade column (0 = nearest the cluster).
+      const clusterMinXOff = Math.min(0, ...chordNotes.map(p => p.xOffset || 0));
+      const accCols = new Map();
+      if (staff !== 'percussion' && Array.isArray(accidentals[index])) {
+        const withAcc = chordNotes
+          .filter(p => accidentals[index][p.noteIndex])
+          .sort((a, b) => a.y - b.y);           // top → bottom
+        const placed = [];                       // { y, col }
+        for (const p of withAcc) {
+          let col = 0;
+          while (placed.some(q => q.col === col && Math.abs(q.y - p.y) < 22)) col += 1;
+          placed.push({ y: p.y, col });
+          accCols.set(p.noteIndex, col);
+        }
+      }
+
       return (
         <g key={index} data-fly="" {...(!previewMode && interactive ? { 'data-measure-index': measureIndex, 'data-local-slot': localSlot, 'data-mel': staff, 'data-duration': duration, 'data-notes': JSON.stringify(chordNotes.map(p => p.n)) } : {})} className={inputTestClass.trim() || undefined} style={!previewMode && interactive ? { cursor: 'pointer' } : undefined}>
           {/* Ledger lines — extend left/right to cover any displaced noteheads */}
@@ -917,7 +937,8 @@ const renderMelodyNotes = (
               <g key={hi} className={headClass || undefined}>
                 {/* Accidental */}
                 {chordAcc && (
-                  <text x={positionX + (pos.xOffset || 0) - 4} y={pos.y - 3} fontSize="36"
+                  <text x={positionX + clusterMinXOff - 4 - (accCols.get(pos.noteIndex) || 0) * 9}
+                    y={pos.y - 3} fontSize="36"
                     fill={noteColor} fontFamily="Maestro" textAnchor="end">
                     {chordAcc}
                   </text>
