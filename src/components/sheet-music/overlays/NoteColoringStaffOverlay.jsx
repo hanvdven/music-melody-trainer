@@ -39,8 +39,11 @@ const NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
 const BASE = 115;
 // Horizontal room for the C4–C5 example run inside one scheme item (≈ the old 7×16 run width).
 const RUN_WIDTH = 112;
-// Scheme-label vertical drop below the staff top line (Han 2026-07-02: "vlak onder de C4").
-const LABEL_DY = 66;
+// #435 (Han 2026-07-19): value-label drop matches the other setters (staffStart+58, = generation
+// CONTENT_LABEL_DY relative to its rowCenterY) for cross-setter consistency.
+const LABEL_DY = 58;
+// Field header drop — the shared setter header height (staffStart−11 = generation rowCenterY−31).
+const HEADER_DY = -11;
 
 const NoteColoringStaffOverlay = ({
     startX, endX, trebleStart, clefTreble = 'treble',
@@ -100,6 +103,11 @@ const NoteColoringStaffOverlay = ({
         // ride inside each card's fly subtree, so they slide WITH their card now rather than doing
         // the cascade's delayed fade.)
         <g className="note-coloring-overlay">
+            {/* #435 (Han 2026-07-19: "colour heeft nu geen header"): field header, same style + height
+                as every other setter header (serif italic, non-caps, --text-secondary, staffStart−11). */}
+            <text x={centerX} y={trebleStart + HEADER_DY} textAnchor="middle" fontSize={14}
+                fontFamily="serif" fontStyle="italic" fill="var(--text-secondary)"
+                style={{ userSelect: 'none', pointerEvents: 'none' }}>colour</text>
             <NonLinearCarousel
                 items={SCHEMES} activeIndex={activeIndex} renderItem={renderItem}
                 centerX={centerX} y={trebleStart - 22} baseWidth={BASE} height={104}

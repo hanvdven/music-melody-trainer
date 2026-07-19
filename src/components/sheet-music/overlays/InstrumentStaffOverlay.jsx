@@ -39,7 +39,10 @@ const BASE = 64;
 const ICON_DY = 1;        // #436: top edge (5 lower than the previous −4 → 8 shorter with 3 off the bottom)
 // #436 (Han: "ik mis nog de header: instrument"): a per-row field header, placed ABOVE the category
 // brackets (HEADER_DY = −10) so the two never overlap.
-const FIELD_HEADER_DY = -26;
+// #435 (Han 2026-07-19: "instrument: zak de header, voeg header toe op de chord row"): the field
+// header drops to the shared setter height (staffStart−11 = generation rowCenterY−31). This also
+// brings the chords-row 'instrument' header (chordCarouselStart − 11) down into view.
+const FIELD_HEADER_DY = -11;
 const NAME_DY = 58;       // name below the bottom staff line
 const HEADER_DY = -10;    // category bracket above the top staff line (lowered, Han 2026-06-17)
 const HIT_TOP = -22;      // hit/debug box spans header..name
