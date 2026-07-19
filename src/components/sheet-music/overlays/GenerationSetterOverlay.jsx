@@ -367,14 +367,18 @@ const GenerationSetterOverlay = ({
       const cur = chordSettings?.chordCount ?? 1;
       return {
         items, activeIndex: idxOf(items, cur), labelAbove: 'chords / measure',
+        // #435 (Han 2026-07-19): the HEADER + the count LABEL align with the moved-up setter row
+        // (CHORDS_SETTER_Y), but the C-G chord letters (chord notation) STAY at the chord band
+        // (CHORD_ROW_Y), so they read at the melody-notes height like the real sheet labels.
+        centerY: CHORDS_SETTER_Y,
         renderContent: (item, active, color) => (
           <g>
-            <ChordCountGlyph count={item.value} centerY={row.centerY - 2}
+            <ChordCountGlyph count={item.value} centerY={CHORD_ROW_Y - 2}
               noteColoringMode={noteColoringMode} activeChord={GEN_PREVIEW_CHORD}
               theme={theme} color={color} />
             {/* #434 (Han: "maak een custom 1/2 etc.") — the count as a real Maestro mixed number
                 (big whole + small ½/¼ fraction) instead of the ASCII '2½' Maestro can't draw. */}
-            <MaestroMixedNumber value={item.value} cx={0} cy={row.centerY + CHORDS_LABEL_DY}
+            <MaestroMixedNumber value={item.value} cx={0} cy={CHORDS_SETTER_Y + CHORDS_LABEL_DY}
               size={COUNT_FONT_SIZE} color={color} />
           </g>
         ),
