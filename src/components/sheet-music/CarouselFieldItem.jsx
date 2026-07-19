@@ -270,6 +270,7 @@ export const CarouselField = ({
   const rawTintId = React.useId();
   const tintId = `carousel-icon-tint-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
   const scrimId = `carousel-veil-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const veilMaskId = `carousel-veilmask-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
   const activeIconColor = (colorOf?.(items[activeIndex]) ?? 'var(--text-primary)');
 
   // #493 (Han 2026-07-19): VEIL. When a hidden carousel is active/open it may overlap the neighbouring
@@ -308,18 +309,26 @@ export const CarouselField = ({
           <stop offset="0.92" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="1" />
           <stop offset="1" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="0" />
         </linearGradient>
+        {/* #493 (Han 2026-07-19: "de 5 horizontale strepen van de notenbalk moeten niet geveild
+            worden"): a mask that punches thin transparent slots at the staff-line Y's, so the REAL
+            staff lines (behind the veil) show through UNTOUCHED — no re-draw that could drift. White
+            = veil paints; black slot = veil is cut so the line underneath stays as-is. */}
+        <mask id={veilMaskId} maskUnits="userSpaceOnUse"
+          x={centerX - veilHalfW} y={veilTop} width={veilHalfW * 2} height={veilBottom - veilTop}>
+          <rect x={centerX - veilHalfW} y={veilTop} width={veilHalfW * 2} height={veilBottom - veilTop} fill="white" />
+          {staffLineYs.map((ly, i) => (
+            <line key={i} x1={centerX - veilHalfW} x2={centerX + veilHalfW} y1={ly} y2={ly}
+              stroke="black" strokeWidth="1.4" />
+          ))}
+        </mask>
       </defs>
       {/* #493 (Han): the VEIL — only while the field is active/open (mountAllItems stays true through
           the fade). Sits FIRST in the group so it's behind this field's own chrome + carousel but on
-          top of the sheet. Fades with chromeVisible. Staff lines redrawn on top so they stay visible. */}
+          top of the sheet. Fades with chromeVisible. The mask keeps the 5 staff lines un-veiled. */}
       {mountAllItems && (
         <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
           <rect x={centerX - veilHalfW} y={veilTop} width={veilHalfW * 2} height={veilBottom - veilTop}
-            fill={`url(#${scrimId})`} />
-          {staffLineYs.map((ly, i) => (
-            <line key={i} x1={centerX - veilHalfW + 4} x2={centerX + veilHalfW - 4} y1={ly} y2={ly}
-              stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.5" />
-          ))}
+            fill={`url(#${scrimId})`} mask={staffLineYs.length ? `url(#${veilMaskId})` : undefined} />
         </g>
       )}
       {/* Hidden + open: a tap-away backdrop BEHIND the carousel closes it on a click outside the
