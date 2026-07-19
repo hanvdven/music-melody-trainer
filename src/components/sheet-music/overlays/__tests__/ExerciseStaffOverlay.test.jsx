@@ -55,22 +55,26 @@ describe('ExerciseStaffOverlay', () => {
         expect(onStartExercise).toHaveBeenCalledTimes(1);
     });
 
-    it('renders repeat counts as a clear ×N in Academico with an italic × (#494)', () => {
-        // Han 2026-07-19: the unclear Maestro 'À' mark is replaced by a cursive × (Academico
-        // Italic) BEFORE the count; the number is Academico so × and number share one text font.
+    it('renders repeat counts in the Maestro notation font with the À glyph (#298; Maestro reverted #494)', () => {
+        // Han 2026-07-19 revert: the numeric repeat counts stay in Maestro ("N À") — only 'until
+        // correct' gets a cursive x (next test).
         const { container } = renderOverlay({ axes: { ...baseAxes, evaluation: 2 } });
-        const academicoTexts = [...container.querySelectorAll('text')]
-            .filter(t => t.getAttribute('font-family') === 'Academico');
-        expect(academicoTexts.some(t => t.textContent.includes('×2'))).toBe(true);
-        const italicCross = [...container.querySelectorAll('tspan')]
-            .find(t => t.textContent === '×' && t.getAttribute('font-style') === 'italic');
-        expect(italicCross).toBeTruthy();
+        const maestro = [...container.querySelectorAll('text')]
+            .filter(t => t.getAttribute('font-family') === 'Maestro');
+        expect(maestro.some(t => t.textContent.includes('À'))).toBe(true);
+        expect(maestro.some(t => t.textContent.includes('2'))).toBe(true);
     });
 
-    it('shows the BadgeCheck until-correct icon when evaluation is leftmost', () => {
+    it("shows a cursive x + À for 'until correct' (unknown repeat count, #494)", () => {
         const { container } = renderOverlay({ axes: { ...baseAxes, evaluation: 'until' } });
-        // lucide renders an <svg class="lucide-badge-check"> nested in the group.
-        expect(container.querySelector('.lucide-badge-check')).not.toBeNull();
+        // The variable count is an italic Academico 'x'; the mark stays the Maestro 'À'.
+        const italicX = [...container.querySelectorAll('tspan')]
+            .find(t => t.textContent === 'x' && t.getAttribute('font-style') === 'italic'
+                && t.getAttribute('font-family') === 'Academico');
+        expect(italicX).toBeTruthy();
+        const maestroMark = [...container.querySelectorAll('tspan')]
+            .find(t => t.textContent === 'À' && t.getAttribute('font-family') === 'Maestro');
+        expect(maestroMark).toBeTruthy();
     });
 
     it('draws the START debug hit box only in debug mode (§3a)', () => {
