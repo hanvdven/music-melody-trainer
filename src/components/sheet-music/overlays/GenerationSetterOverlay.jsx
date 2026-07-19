@@ -414,7 +414,12 @@ const GenerationSetterOverlay = ({
       const items = NOTE_POOL_ITEMS;
       const cur = cfg?.notePool || 'scale';
       const staffStart = row.centerY - 20;
-      const clef = cfg?.clef || (row.key === 'bass' ? 'bass' : 'treble');
+      // #435 bug (Han 2026-07-19): the note-pool/voices notes didn't transpose to a vocal clef — this
+      // read a non-existent `cfg.clef`; the track's clef lives in `preferredClef` (as the staff uses,
+      // SheetMusic trebleActiveClef). 'off' means the clef is hidden → fall back to the default.
+      const clef = (cfg?.preferredClef && cfg.preferredClef !== 'off')
+        ? cfg.preferredClef
+        : (row.key === 'bass' ? 'bass' : 'treble');
       return {
         items, activeIndex: idxOf(items, cur), labelAbove: 'note pool',
         renderContent: (item) => (
@@ -465,7 +470,12 @@ const GenerationSetterOverlay = ({
       const items = (isPerc ? VOICES_PERC_ITEMS : VOICES_MELODIC_ITEMS);
       const cur = cfg?.voices ?? 1;
       const vStaffStart = row.centerY - 20;
-      const clef = cfg?.clef || (row.key === 'bass' ? 'bass' : 'treble');
+      // #435 bug (Han 2026-07-19): the note-pool/voices notes didn't transpose to a vocal clef — this
+      // read a non-existent `cfg.clef`; the track's clef lives in `preferredClef` (as the staff uses,
+      // SheetMusic trebleActiveClef). 'off' means the clef is hidden → fall back to the default.
+      const clef = (cfg?.preferredClef && cfg.preferredClef !== 'off')
+        ? cfg.preferredClef
+        : (row.key === 'bass' ? 'bass' : 'treble');
       return {
         items, activeIndex: idxOf(items, cur),
         labelAbove: isPerc ? 'simultaneous' : 'voices',

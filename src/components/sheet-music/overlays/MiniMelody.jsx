@@ -29,6 +29,9 @@ export const MiniMelody = ({
     slots, durations, width, staffStart, clef = 'treble', staff = 'treble',
     noteColoringMode, tonic = PREVIEW_TONIC, scaleNotes = PREVIEW_SCALE, theme,
     processedChords = [], previewColor = null, forcedAccidentals = null,
+    // #435 (Han 2026-07-19): beats per group for the 'g' spacers. Default 2 (the sheet's [2,2]); the
+    // note-pool + colour runs pass 8 → one group of 8 (no internal gaps, grouping [8]).
+    groupBeats = 2,
 }) => {
     const offsets = [];
     let cum = 0;
@@ -45,7 +48,7 @@ export const MiniMelody = ({
     const accs = generateAccidentalMap(mel.notes, 0, mel.offsets, MEASURE_TICKS);
     if (forcedAccidentals) forcedAccidentals.forEach((a, i) => { if (a != null && i < accs.length) accs[i] = a; });
     const hasAcc = (a) => Array.isArray(a) ? a.some(x => x != null) : a != null;
-    const GROUP_TICKS = 2 * MINI_QUARTER;   // 2-beat groups, matching the sheet's [2,2] default
+    const GROUP_TICKS = groupBeats * MINI_QUARTER;   // beats per group (default 2 = sheet [2,2])
     const allOffsets = (() => {
         const grid = mel.offsets
             .map((o, i) => ({ o, i }))

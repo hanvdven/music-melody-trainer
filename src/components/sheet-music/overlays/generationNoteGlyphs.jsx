@@ -20,8 +20,7 @@ const octaveDown = (name) => {
 // Example notes per pool, as a MELODY (notes achter elkaar). Treble/vocal → C4–C5; bass → C3–C4
 // (the names shift an octave, then MelodyNotesLayer positions them for the clef, so a clef change
 // re-renders correctly). #435 (Han 2026-07-19): the chromatic pool is now an ABSTRACTION — the diatonic run C4..C5 with
-// three illustrative accidentals (♮ E4, ♯ on the G step, ♭ on the B step). The natural only shows
-// after a prior alteration on the same letter, so an E♭4 precedes E4 to trigger the herstel.
+// three illustrative accidentals (♮ E4, ♯ on the G step, ♭ on the B step). The ♮ on E is FORCED illustratively (NotePoolGlyph forcedAccidentals) — no E♭ needed.
 const POOL_NOTES = {
     root: ['C4', 'C5'],
     chord: ['C4', 'E4', 'G4', 'C5'],
@@ -59,6 +58,7 @@ export const NotePoolGlyph = ({
             processedChords={activeChord ? [{ absoluteOffset: 0, isSlash: false, chord: activeChord }] : []}
             theme={theme}
             forcedAccidentals={forcedAccidentals}
+            groupBeats={8}
         />
     );
 };
@@ -98,12 +98,19 @@ export const VoicesGlyph = ({
     if (staffType === 'percussion') {
         slots = voices === 'var' ? ['s', ['k', 'hh']] : ['s'];
     } else {
-        slots = voices === 1 ? [['C4']]
-            : voices === 2 ? [['C4', 'E4']]
-            : voices === 3 ? [['C4', 'E4', 'G4']]
-            : ['C4', ['C4', 'E4']]; // 'var'
         if (clef === 'bass') {
-            slots = slots.map(s => Array.isArray(s) ? s.map(octaveDown) : octaveDown(s));
+            // #435 (Han 2026-07-19): "laat bassleutel ongewijzigd" — bass stays C-based (C3/E3/G3).
+            const cBased = voices === 1 ? [['C4']]
+                : voices === 2 ? [['C4', 'E4']]
+                : voices === 3 ? [['C4', 'E4', 'G4']]
+                : ['C4', ['C4', 'E4']]; // 'var'
+            slots = cBased.map(s => Array.isArray(s) ? s.map(octaveDown) : octaveDown(s));
+        } else {
+            // #435 (Han 2026-07-19): treble a diatonic THIRD up — E4/G4/B4 (was C4/E4/G4).
+            slots = voices === 1 ? [['E4']]
+                : voices === 2 ? [['E4', 'G4']]
+                : voices === 3 ? [['E4', 'G4', 'B4']]
+                : ['E4', ['E4', 'G4']]; // 'var'
         }
     }
     return (

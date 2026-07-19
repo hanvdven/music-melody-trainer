@@ -79,6 +79,7 @@ const NoteColoringStaffOverlay = ({
                     scaleNotes={scaleNotes}
                     theme={theme}
                     processedChords={s.mode === 'chords' ? previewChords : []}
+                    groupBeats={8}
                 />
                 {/* Active-state colour convention (Han 2026-07-14): bright active (no category here →
                     --text-primary), dim inactive; item VALUE label sans-serif ALL CAPS. */}
