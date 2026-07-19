@@ -4950,3 +4950,56 @@ removed), `constants/instrumentRules.js` / `constants/generationFields.js` / `ut
 `components/controls/rows/InstrumentRow.jsx` (de-hijacked),
 `overlays/GenerationSetterOverlay.jsx` (4th column), `overlays/generationNoteGlyphs.jsx`
 (`VoicesGlyph`), `generation/__tests__/applyVoicing.test.js` (new, 12 tests).
+
+### §59. Cross-setter header/label consistency — per-row headers (#498, Han 2026-07-19)
+
+**Purpose:** After the generation-setter overhaul (#431/#435) landed a shared header/label
+geometry, the OTHER in-staff setters still headed their fields at ad-hoc heights and in
+mismatched styles. Han: *"pas de aanpassingen in hoogte van labels en headers ook toe op de
+andere settings… herstructureren naar per-rij headers."* This section records the SHARED
+geometry every setter now follows so a future setter never re-invents its own.
+
+**Shared setter-header contract (single source of truth):**
+- **Field header:** `staffStart − 11` (= the generation setter's `rowCenterY − 31`, since a
+  row's `centerY = staffStart + 20`). Style: `serif`, `italic`, `fontSize 14`, non-caps,
+  `fill=var(--text-secondary)`, `pointerEvents:none`.
+- **Icon top:** `staffStart + 1` (STAFF_CARD_ICON 38).
+- **Value label:** `staffStart + 58`.
+- **Per-row, not one top row:** each instrument row (treble/bass/percussion) — and the chords
+  row (`CHORD_ROW_Y − 31`) — repeats its own field headers at that row's height, so header
+  heights stay uniform whichever staves are visible.
+
+**How it works / what changed per setter:**
+- **Generation** (`GenerationSetterOverlay.jsx`) — the reference; already per-row (#431/#435).
+- **Colour** (`NoteColoringStaffOverlay.jsx`) — added the missing `colour` header at
+  `staffStart − 11`; value label `+66 → +58` (commit f8fd14a).
+- **Instrument** (`InstrumentStaffOverlay.jsx`) — `FIELD_HEADER_DY −26 → −11`, which also brings
+  the chord-row `instrument` header into view (commit f8fd14a).
+- **Gen.advanced** (`GenerationAdvancedSetterOverlay.jsx`) — converted the single top row of
+  column headers (variability/span/tuplets/smallest note at `trebleStart − 89`) to PER-ROW
+  headers at `row.centerY − 31`. The chords row gets `variability` + `smallest note` headers at
+  `CHORD_ROW_Y − 31`; the `PassingChordsFan` `passing chords` label is restyled to the shared
+  header style and height (its col-2 header). Removed now-dead `HEADER_Y` / `HEADER_Y_DROP` /
+  `FIELD_LABEL_SIZE`.
+- **Playback** (`SettingsOverlay.jsx`) — the layout is a 2-column (odd/even repeats) × instrument
+  grid with no natural per-instrument-row header slot, so per Han's choice it gains a per-row
+  `volume` label (shared header style) in the LEFT gutter, aligned to that row's volume-fan centre
+  (`volY(row) − 2`). The `odd repeats` / `even repeats` column headers and `measures` / `repeats`
+  labels are unchanged (already serif-italic).
+- **Exercises** (`ExerciseStaffOverlay.jsx`) — the axis captions (TEMPO/REPEAT/MELODY/INPUT)
+  adopted the FULL shared header style (serif italic 14, non-caps, `--text-secondary`; were tiny
+  sans-serif ALL-CAPS `fontSize 7`) and are now lowercase. `melody`/`input` sit at `rowStaff − 11`;
+  `tempo`/`repeat` are aligned to `topStaff − 80` (their carousels share the `−58/−59` value line).
+  Card/option labels inside the carousels stay ALL-CAPS (§6d item convention — unchanged).
+
+**Invariants:** any NEW in-staff setter header MUST use `staffStart − 11`, serif italic 14,
+non-caps, `--text-secondary`, per row — never a bespoke height or a caps sans-serif caption. When
+a row has no staff (chords), use `CHORD_ROW_Y − 31`.
+
+**Verification:** browser-verified via `gen-harness.html?overlay=genadv|playback|exercise`
+(headless-Chrome screenshots) — the harness now mounts all four setters, not just generation.
+
+**Files:** `overlays/GenerationAdvancedSetterOverlay.jsx`, `overlays/SettingsOverlay.jsx`,
+`overlays/ExerciseStaffOverlay.jsx`, `overlays/NoteColoringStaffOverlay.jsx`,
+`overlays/InstrumentStaffOverlay.jsx`, `overlays/__tests__/ExerciseStaffOverlay.test.jsx`,
+dev harness `scripts/gen-harness-entry.jsx` (added `?overlay=` switch + playback/exercise mounts).

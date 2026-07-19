@@ -357,6 +357,16 @@ const SettingsOverlay = ({
       {/* ── INSTRUMENT ROWS ─────────────────────────────────── */}
       {rows.map(row => (
         <g key={row.key}>
+          {/* #498 (Han 2026-07-19): per-row 'volume' label in the shared setter header style
+              (serif italic 14, --text-secondary), left of the two volume fans. The odd/even
+              columns above already head the repeat-rounds; this labels what each ROW's fans do.
+              Placed BESIDE the fans (not above) — the volume fans already sit just above the
+              staff, so there is no room for an above-header; it aligns to the fan's centre line
+              (volY−6) in the left gutter (startX→leftFanX). */}
+          <text x={(startX + (oddCol - 38 - 16)) / 2} y={volY(row) - 2} textAnchor="middle"
+            fontFamily="serif" fontStyle="italic" fontSize={14} fill="var(--text-secondary)"
+            style={{ userSelect: 'none', pointerEvents: 'none',
+              opacity: playbackConfig?.repsPerMelody === 1 ? 0.4 : 0.9 }}>volume</text>
           {renderVolGlyph('oddRounds', row, oddCol)}
           {renderVisGlyph('oddRounds', row, oddCol)}
           {renderVolGlyph('evenRounds', row, evenCol)}

@@ -5,8 +5,13 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import GenerationSetterOverlay from '../src/components/sheet-music/overlays/GenerationSetterOverlay.jsx';
+import GenerationAdvancedSetterOverlay from '../src/components/sheet-music/overlays/GenerationAdvancedSetterOverlay.jsx';
+import SettingsOverlay from '../src/components/sheet-music/overlays/SettingsOverlay.jsx';
+import ExerciseStaffOverlay from '../src/components/sheet-music/overlays/ExerciseStaffOverlay.jsx';
 import { InstrumentSettingsProvider } from '../src/contexts/InstrumentSettingsContext.jsx';
 import { DisplaySettingsProvider } from '../src/contexts/DisplaySettingsContext.jsx';
+import { PlaybackConfigProvider } from '../src/contexts/PlaybackConfigContext.jsx';
+import { ProfileProvider } from '../src/contexts/ProfileContext.jsx';
 import { getIconUrlByBasename } from '../src/constants/instruments.jsx';
 import { renderRepeatGlyph } from '../src/components/sheet-music/overlays/carouselOptionGlyph.jsx';
 import { AXES } from '../src/exercises/exerciseIndex.js';
@@ -16,6 +21,8 @@ const params = new URLSearchParams(window.location.search);
 const HIDDEN = params.get('open') !== '1';
 const BISECT = params.get('bisect') === '1';
 const FONTS = params.get('fonts') === '1';
+// #498: which setter to render — 'genadv' | 'playback' | 'exercise' | (default) generation.
+const OVERLAY = params.get('overlay');
 
 // Han's screenshot proportions: staves ~95 apart (short container), sheet ~600 wide.
 const startX = 15, endX = 585, trebleStart = 120, bassStart = 215, percussionStart = 310;
@@ -112,22 +119,78 @@ const AutoReveal = () => {
   return null;
 };
 
+// #498 mock playback config: two rounds with per-instrument volumes + eyes, reps > 1 so
+// headers render at full opacity.
+const VOL = { chords: 0.6, treble: 0.8, bass: 0.4, percussion: 1.0 };
+const EYE = { chordsEye: true, trebleEye: true, bassEye: true, percussionEye: true };
+const mockPlayback = {
+  playbackConfig: {
+    oddRounds: { ...VOL, ...EYE },
+    evenRounds: { ...VOL, ...EYE },
+    repsPerMelody: 4, untilCorrect: false,
+  },
+  setPlaybackConfig: () => {},
+  toggleRoundSetting: () => {},
+};
+
+const OverlayEl = () => {
+  if (OVERLAY === 'genadv') {
+    return (
+      <GenerationAdvancedSetterOverlay
+        startX={startX} endX={endX}
+        trebleStart={trebleStart} bassStart={bassStart} percussionStart={percussionStart}
+        isTrebleVisible isBassVisible isPercussionVisible
+      />
+    );
+  }
+  if (OVERLAY === 'playback') {
+    return (
+      <PlaybackConfigProvider value={mockPlayback}>
+        <SettingsOverlay
+          startX={startX} endX={endX} systemEndX={endX}
+          trebleStart={trebleStart} bassStart={bassStart} percussionStart={percussionStart}
+          isTrebleVisible isBassVisible isPercussionVisible
+          numMeasures={2} setNumMeasures={() => {}}
+          processedChords={[]} groupClassName="playback-overlay"
+        />
+      </PlaybackConfigProvider>
+    );
+  }
+  if (OVERLAY === 'exercise') {
+    return (
+      <ProfileProvider>
+        <ExerciseStaffOverlay
+          startX={startX} endX={endX}
+          trebleStart={trebleStart} bassStart={bassStart}
+          isTrebleVisible isBassVisible
+          activeExerciseId={null}
+          axes={{ tempo: 'fixed', evaluation: 4, melodyType: 'diatonic', input: 'sing' }}
+          bpm={100} onBpmChange={() => {}}
+        />
+      </ProfileProvider>
+    );
+  }
+  return (
+    <GenerationSetterOverlay
+      startX={startX} endX={endX}
+      trebleStart={trebleStart} bassStart={bassStart} percussionStart={percussionStart}
+      isTrebleVisible isBassVisible isPercussionVisible showChordsRow
+      hiddenFields={HIDDEN}
+    />
+  );
+};
+
 const App = () => FONTS ? <Fonts /> : BISECT ? <Bisect /> : (
   <InstrumentSettingsProvider value={ctx}>
     <AutoReveal />
-    <DisplaySettingsProvider value={{ noteColoringMode: 'tonic_scale_keys', theme: 'default' }}>
+    <DisplaySettingsProvider value={{ noteColoringMode: 'tonic_scale_keys', theme: 'default', chordDisplayMode: 'letters' }}>
       <svg width="610" height="440" viewBox="-5 -30 610 440"
         style={{ background: 'var(--panel-bg, #1f1e2a)', display: 'block' }}>
         {staffLines.map((y, i) => (
           <line key={i} x1={startX} y1={y} x2={endX} y2={y}
             stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.5" />
         ))}
-        <GenerationSetterOverlay
-          startX={startX} endX={endX}
-          trebleStart={trebleStart} bassStart={bassStart} percussionStart={percussionStart}
-          isTrebleVisible isBassVisible isPercussionVisible showChordsRow
-          hiddenFields={HIDDEN}
-        />
+        <OverlayEl />
       </svg>
     </DisplaySettingsProvider>
   </InstrumentSettingsProvider>

@@ -66,12 +66,14 @@ const ExerciseStaffOverlay = ({
         onAxisChange?.(axis, item.value);
     };
 
-    // Small caps caption above an icon carousel (axis name) — same style as the
-    // instrument setter's category labels.
+    // #498 (Han 2026-07-19): axis captions adopt the SHARED setter-header style used by every
+    // other setter (generation / gen.advanced / colour / instrument): serif italic, non-caps,
+    // fontSize 14, --text-secondary. (Was tiny sans-serif ALL-CAPS fontSize 7.) Height is set by
+    // each call site so it sits the shared distance above its carousel.
     const axisCaption = (x, y, label) => (
-        <text x={x} y={y} textAnchor="middle" fontSize={7} fontFamily="sans-serif"
-            fill="var(--text-secondary, #888)" letterSpacing={1}
-            style={{ pointerEvents: 'none' }}>
+        <text x={x} y={y} textAnchor="middle" fontSize={14} fontFamily="serif" fontStyle="italic"
+            fill="var(--text-secondary)"
+            style={{ userSelect: 'none', pointerEvents: 'none' }}>
             {label}
         </text>
     );
@@ -111,7 +113,7 @@ const ExerciseStaffOverlay = ({
             {/* TEMPO — at the BPM display (BpmControls: x=25, value line
                 trebleStart−59). FIXED/RUBATO next to the ♩= glyph so tempo feels
                 like one editable unit with the BPM. */}
-            {axisCaption(startX + 45, topStaff - 76, 'TEMPO')}
+            {axisCaption(startX + 45, topStaff - 80, 'tempo')}
             <NonLinearCarousel
                 items={AXES.tempo}
                 activeIndex={axisIndex('tempo')}
@@ -143,7 +145,7 @@ const ExerciseStaffOverlay = ({
                 (x = startX + 0.85·(systemEndX−startX), y = de CHORD_ROW_Y-lijn,
                 topStaff − 64). Niet-periodiek; Maestro-glyphs op BPM-grootte via
                 de gedeelde renderRepeatGlyph (#298). */}
-            {axisCaption(startX + 0.85 * ((endX + 5) - startX), topStaff - 84, 'REPEAT')}
+            {axisCaption(startX + 0.85 * ((endX + 5) - startX), topStaff - 80, 'repeat')}
             <NonLinearCarousel
                 items={AXES.evaluation}
                 activeIndex={axisIndex('evaluation')}
@@ -164,7 +166,7 @@ const ExerciseStaffOverlay = ({
             )}
 
             {/* MELODY (left) + INPUT (right) — icon cards on the second staff. */}
-            {axisCaption(startX + width * 0.28, rowStaff - 6, 'MELODY')}
+            {axisCaption(startX + width * 0.28, rowStaff - 11, 'melody')}
             <NonLinearCarousel
                 items={AXES.melodyType}
                 activeIndex={axisIndex('melodyType')}
@@ -177,7 +179,7 @@ const ExerciseStaffOverlay = ({
                 onSelect={selectAxis('melodyType')}
                 debugMode={debugMode}
             />
-            {axisCaption(startX + width * 0.76, rowStaff - 6, 'INPUT')}
+            {axisCaption(startX + width * 0.76, rowStaff - 11, 'input')}
             <NonLinearCarousel
                 items={AXES.input}
                 activeIndex={axisIndex('input')}

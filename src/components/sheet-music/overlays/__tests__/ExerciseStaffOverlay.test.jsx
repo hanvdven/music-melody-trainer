@@ -41,8 +41,10 @@ describe('ExerciseStaffOverlay', () => {
         for (const l of optionTexts) expect(l).toBe(l.toUpperCase());
         // One NonLinearCarousel hit surface per axis + one for the presets. The
         // §3a hit boxes live INSIDE NonLinearCarousel; here we assert the axis
-        // labels exist so all four carousels mounted.
-        expect(labels).toEqual(expect.arrayContaining(['MELODY', 'INPUT', 'TEMPO', 'REPEAT']));
+        // labels exist so all four carousels mounted. #498 (Han 2026-07-19): axis
+        // captions adopted the SHARED setter-header style — serif italic, NON-CAPS
+        // (was tiny ALL-CAPS) — so they read lowercase now.
+        expect(labels).toEqual(expect.arrayContaining(['melody', 'input', 'tempo', 'repeat']));
         expect(AXIS_ORDER.length).toBe(4);
     });
 
