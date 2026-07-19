@@ -52,8 +52,10 @@ export const renderRepeatGlyph = (item, active, baselineY) => {
                 // SAME Maestro 'À' repeat mark the numeric counts use. So it reads "x ×" in the sheet's
                 // own repeat language, matching the Maestro numerals beside it.
                 <text x={0} y={baselineY} textAnchor="middle" fontWeight="normal" fill={color}>
-                    <tspan fontFamily="Academico" fontStyle="italic" fontSize={30}>x</tspan>
-                    <tspan fontFamily="Maestro" fontSize={26} dx={5}>À</tspan>
+                    {/* #494 (Han 2026-07-19): the Academico 'x' sits high vs the Maestro mark — drop it
+                        ~12 so the x's centre lines up with the ×-mark's centre; dy is reset on the mark. */}
+                    <tspan fontFamily="Academico" fontStyle="italic" fontSize={30} dy={12}>x</tspan>
+                    <tspan fontFamily="Maestro" fontSize={26} dx={5} dy={-12}>À</tspan>
                 </text>
             ) : (
                 <text x={0} y={baselineY} textAnchor="middle" fontFamily="Maestro"
@@ -66,7 +68,12 @@ export const renderRepeatGlyph = (item, active, baselineY) => {
                         counts stay in MAESTRO (Han 2026-07-19 revert); only 'until correct' uses the
                         cursive x above. */}
                     {item.value === Infinity ? (
-                        <tspan fontSize={26}>À</tspan>
+                        // #494 (Han: "there is no symbol for 'infinite times' now") — ∞ (Academico)
+                        // + the Maestro repeat mark, i.e. "∞ ×" = repeat an infinite number of times.
+                        <>
+                            <tspan fontFamily="Academico" fontSize={30}>∞</tspan>
+                            <tspan fontSize={26} dx={5}>À</tspan>
+                        </>
                     ) : (
                         <>
                             <tspan fontSize={32}>{item.value}</tspan>

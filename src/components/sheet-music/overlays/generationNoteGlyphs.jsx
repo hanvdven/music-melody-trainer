@@ -19,16 +19,16 @@ const octaveDown = (name) => {
 // ── Note-pool example runs (#295/#431) ────────────────────────────────────────
 // Example notes per pool, as a MELODY (notes achter elkaar). Treble/vocal → C4–C5; bass → C3–C4
 // (the names shift an octave, then MelodyNotesLayer positions them for the clef, so a clef change
-// re-renders correctly). 'chromatic' uses a chromatic ascending run so its accidentals render at
-// REAL size.
+// re-renders correctly). #435 (Han 2026-07-19): the chromatic pool is now an ABSTRACTION — the diatonic run C4..C5 with
+// three illustrative accidentals (♮ E4, ♯ on the G step, ♭ on the B step). The natural only shows
+// after a prior alteration on the same letter, so an E♭4 precedes E4 to trigger the herstel.
 const POOL_NOTES = {
     root: ['C4', 'C5'],
     chord: ['C4', 'E4', 'G4', 'C5'],
     scale: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'],
-    chromatic: ['C4', 'D♭4', 'D4', 'E♭4', 'E4', 'F4', 'F♯4', 'G4', 'A♭4', 'A4', 'B♭4', 'B4', 'C5'],
+    chromatic: ['C4', 'D4', 'E♭4', 'E4', 'F4', 'G♯4', 'A4', 'B♭4', 'C5'],
 };
-// Horizontal room for the run (Han 2026-07-14: "maak de note pool selector iets breder" — widened
-// so the 13-note chromatic run isn't cramped).
+// Horizontal room for the run (Han 2026-07-14: "maak de note pool selector iets breder" — widened for the run).
 const POOL_WIDTH = 150;
 
 /**
