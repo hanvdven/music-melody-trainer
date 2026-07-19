@@ -53,8 +53,7 @@ const ACTIVE_LABEL_SIZE = FAN_ACTIVE_LABEL_SIZE;   // shared with fanCarousels (
 const TUPLET_LABEL_SIZE = 15;   // tuplet words read smaller (Han UAT: "veel te groot lettertype")
 const ROW_H = FAN_ROW_H;               // shared with fanCarousels (§6d)
 const INTERVAL_LABEL_SIZE = 11; // serif interval name above/below each span head
-const FIELD_LABEL_SIZE = 11;    // field name below the staff
-const HEADER_Y_DROP = 89;       // column header sits trebleStart − 89 (kept from old overlay)
+const HEADER_DY = -31;          // #498: per-row field-header height (row.centerY−31 = staffStart−11)
 const PX_PER_STEP = FAN_PX_PER_STEP;   // shared with fanCarousels (§6d)
 const SPAN_X_SPACING = 18;      // span/smallest-note horizontal fan spacing — TIGHTER than the
                                 // transposition X_SPACING=30 (Han UAT: "afstand tussen noten is groter").
@@ -357,8 +356,10 @@ const PassingChordsFan = ({ cx, centerY, enabled, activeIndex, setPassingPos, on
   const bandTop = centerY + 6 - bandH / 2;
   return (
     <g>
-      <text x={cx} y={centerY - 32} textAnchor="middle" fontFamily="sans-serif"
-        fontSize={FIELD_LABEL_SIZE} fill={SECONDARY} style={{ pointerEvents: 'none' }}>
+      {/* #498: this label IS the chords-row col2 header — match the shared header style
+          (serif italic 14, --text-secondary) and height (centerY−31) of every other setter header. */}
+      <text x={cx} y={centerY - 31} textAnchor="middle" fontFamily="serif" fontStyle="italic"
+        fontSize={14} fill={SECONDARY} style={{ pointerEvents: 'none' }}>
         passing chords
       </text>
       {rowsOut}
@@ -413,7 +414,6 @@ const GenerationAdvancedSetterOverlay = ({
   const fireInteraction = () => onSettingsInteraction?.();
   const span = endX - startX;
   const cols = COL_FRACS.map(f => startX + f * span);
-  const HEADER_Y = trebleStart - HEADER_Y_DROP;
   const CHORD_ROW_Y = trebleStart - 64;
   const COL_HEADERS = ['variability', 'span', 'tuplets', 'smallest note'];
 
@@ -451,12 +451,14 @@ const GenerationAdvancedSetterOverlay = ({
         style={{ cursor: 'default' }}
       />
 
-      {/* Column headers — italic serif, --text-secondary (kept from old overlay). */}
-      {COL_HEADERS.map((h, i) => (
-        <text key={`hdr-${i}`} x={cols[i]} y={HEADER_Y} textAnchor="middle"
+      {/* #498 (Han 2026-07-19): PER-ROW headers (was one column-header row at the top) — every row
+          repeats its 4 field headers at the shared setter height (row.centerY−31 = staffStart−11),
+          matching the generation setter so header heights are consistent across setters. */}
+      {rows.map(row => COL_HEADERS.map((h, i) => (
+        <text key={`hdr-${row.key}-${i}`} x={cols[i]} y={row.centerY + HEADER_DY} textAnchor="middle"
           fontFamily="serif" fontStyle="italic" fontSize={14} fill={SECONDARY}
           style={{ userSelect: 'none', pointerEvents: 'none' }}>{h}</text>
-      ))}
+      )))}
 
       {/* Per-balk in-staff tangens setters. */}
       {rows.map(row => {
@@ -531,6 +533,14 @@ const GenerationAdvancedSetterOverlay = ({
           the same fans as the melodic rows (they sit under the same column
           headers), writing chordSettings.rhythmVariability /.smallestNoteDenom
           (both consumed by the chord generation in useMelodyState + Sequencer). */}
+      {/* #498 (Han 2026-07-19): chords-row headers at the shared setter height, matching the melodic
+          rows above. col1 (span) is N/A for chords; col2's header is the PassingChordsFan's own
+          'passing chords' label (already at CHORD_ROW_Y−32 = the same height). */}
+      {[[0, 'variability'], [3, 'smallest note']].map(([i, h]) => (
+        <text key={`hdr-chord-${i}`} x={cols[i]} y={CHORD_ROW_Y + HEADER_DY} textAnchor="middle"
+          fontFamily="serif" fontStyle="italic" fontSize={14} fill={SECONDARY}
+          style={{ userSelect: 'none', pointerEvents: 'none' }}>{h}</text>
+      ))}
       <LeftFanCarousel
         cx={cols[0]} centerY={CHORD_ROW_Y}
         items={RHYTHM_VARIABILITY}
