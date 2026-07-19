@@ -97,7 +97,10 @@ const MELODY_TYPE_BASE = 50;       // #434: stride > 38px icon so melody-type ic
 // possible.
 const CONTENT_LABEL_DY = 38;   // staff rows → staffStart+58 (instrument NAME_DY, 1-op-1)
 const MELODY_TYPE_LABEL_DY = CONTENT_LABEL_DY;
-const CHORDS_LABEL_DY = 28;    // chords row → clears the treble header (−46) 84px below
+// #435 (Han 2026-07-19: "afstand tussen elementen tussen alle rijen hetzelfde — gelijke uitlijning"):
+// the chords row now uses the SAME label offset as the staff rows (+38). Room opened up once the
+// headers dropped to −36; the chords label at +38 still clears the treble header (also −36).
+const CHORDS_LABEL_DY = CONTENT_LABEL_DY;
 // #435 audit (Han 2026-07-19: "alle headers mogen 10 units zakken, behalve headers boven de chord
 // rule"): staff-row headers dropped 10 (−46 → −36). This also moves the treble header away from the
 // chords-row count above it. The chords row keeps BRACKET_DY (−32) — its headers are excepted.

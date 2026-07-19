@@ -308,7 +308,11 @@ const renderMelodyNotes = (
   // a single rendered row in multiple colors WITHOUT splitting it into separate
   // MelodyNotesLayer instances — so ottava (8va/8vb) is still computed ONCE over
   // the whole row (fixes the multi-ottava bug, §6b). Used by RangeStaffOverlay.
-  previewColorFn = null
+  previewColorFn = null,
+  // #435 (Han 2026-07-19): optional per-slot accidental OVERRIDE (array aligned with melody.notes).
+  // A non-null entry forces that slot's displayed accidental (e.g. a purely ILLUSTRATIVE natural on a
+  // diatonic note that the key-signature logic would otherwise suppress). null → compute normally.
+  forcedAccidentals = null
 ) => {
   // previewMode can be: false (normal), true (yellow, for input test), or a CSS color string (e.g. 'rgba(220,30,30,0.85)' for wipe preview)
   const previewColor = typeof previewMode === 'string' ? previewMode : (previewMode ? 'var(--accent-yellow)' : null);
@@ -334,6 +338,11 @@ const renderMelodyNotes = (
   // Offsets + measureLengthSlots enable within-measure tracking; courtesyAccidentals controls
   // whether small repeat reminders and cross-measure courtesies are shown.
   const accidentals = generateAccidentalMap(melodyNotes, numAccidentals, melodyOffsets, measureLengthSlots, courtesyAccidentals);
+  if (forcedAccidentals) {
+    for (let i = 0; i < forcedAccidentals.length && i < accidentals.length; i++) {
+      if (forcedAccidentals[i] != null) accidentals[i] = forcedAccidentals[i];
+    }
+  }
 
   // --- UNIFIED Y-SHIFT CALCULATION ---
   // clefOffsets is now module-scoped (see top of file) and shared with the

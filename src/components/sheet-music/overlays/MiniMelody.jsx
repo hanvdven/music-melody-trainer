@@ -1,7 +1,7 @@
 import React from 'react';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { processMelodyAndCalculateSlots } from '../processMelodyAndCalculateSlots';
-import { calculateAllOffsets } from '../calculateAllOffsets';
+import { generateAccidentalMap } from '../generateAccidentalMap';
 
 // ── MiniMelody — the ONE way carousels render note previews (Han 2026-07-13/14) ───────────────────
 //
@@ -28,7 +28,7 @@ export const PREVIEW_SCALE = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 export const MiniMelody = ({
     slots, durations, width, staffStart, clef = 'treble', staff = 'treble',
     noteColoringMode, tonic = PREVIEW_TONIC, scaleNotes = PREVIEW_SCALE, theme,
-    processedChords = [], groupSpacing = false, previewColor = null,
+    processedChords = [], previewColor = null, forcedAccidentals = null,
 }) => {
     const offsets = [];
     let cum = 0;
@@ -36,16 +36,33 @@ export const MiniMelody = ({
     const raw = { notes: slots, durations, offsets, displayNotes: slots };
     const mel = processMelodyAndCalculateSlots(raw, TS, MINI_QUARTER, cum);
 
-    // Build the x-grid like SheetMusic. With groupSpacing we use the real calculateAllOffsets (which
-    // inserts 'g' markers at beat-group boundaries → the gap between the [2,2] groups). Without it a
-    // plain sorted grid + two sentinels (leading sentinel lands the first note at startX).
-    const allOffsets = groupSpacing
-        ? calculateAllOffsets(TS, MINI_QUARTER, 1, 1, 0, [2, 2], mel.offsets.map(o => ({ offset: o })))
-        : (() => {
-            const grid = Array.from(new Set(mel.offsets)).sort((a, b) => a - b);
-            const last = grid[grid.length - 1] ?? 0;
-            return [-1, ...grid, last + 1];
-        })();
+    // Build the x-grid like SheetMusic, using the SAME marker vocabulary the real staff uses so the
+    // carousel notes get identical spacing (Han 2026-07-19: "de noten hebben geen extra spacing voor
+    // de accidentals … geen note grouping"): 'a' before a note that carries an accidental (widens its
+    // slot), 'g' at each 2-beat group boundary (the beat grouping). Illustrations are NOT measures, so
+    // we build the array directly (no 'm' barlines) instead of calling calculateAllOffsets. With
+    // groupSpacing the caller wants only the beat gaps (rhythm previews, no accidentals).
+    const accs = generateAccidentalMap(mel.notes, 0, mel.offsets, MEASURE_TICKS);
+    if (forcedAccidentals) forcedAccidentals.forEach((a, i) => { if (a != null && i < accs.length) accs[i] = a; });
+    const hasAcc = (a) => Array.isArray(a) ? a.some(x => x != null) : a != null;
+    const GROUP_TICKS = 2 * MINI_QUARTER;   // 2-beat groups, matching the sheet's [2,2] default
+    const allOffsets = (() => {
+        const grid = mel.offsets
+            .map((o, i) => ({ o, i }))
+            .filter(x => x.o != null)
+            .sort((a, b) => a.o - b.o);
+        const out = [-1];                    // leading sentinel → first note lands at startX
+        let lastGroup = -1;
+        for (const { o, i } of grid) {
+            const group = Math.floor(o / GROUP_TICKS);
+            if (lastGroup >= 0 && group !== lastGroup) out.push('g');
+            lastGroup = group;
+            if (hasAcc(accs[i])) out.push('a');
+            out.push(o);
+        }
+        out.push((grid[grid.length - 1]?.o ?? 0) + 1);   // trailing sentinel
+        return out;
+    })();
     const cols = Math.max(1, allOffsets.length - 2);
     const noteWidth = width / cols;
     return (
@@ -76,6 +93,7 @@ export const MiniMelody = ({
                 courtesyAccidentals={false}
                 percussionVoiceSplit={false}
                 previewMode={previewColor}
+                forcedAccidentals={forcedAccidentals}
             />
         </g>
     );

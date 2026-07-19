@@ -26,7 +26,7 @@ const POOL_NOTES = {
     root: ['C4', 'C5'],
     chord: ['C4', 'E4', 'G4', 'C5'],
     scale: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'],
-    chromatic: ['C4', 'D4', 'E♭4', 'E4', 'F4', 'G♯4', 'A4', 'B♭4', 'C5'],
+    chromatic: ['C4', 'D4', 'E4', 'F4', 'G♯4', 'A4', 'B♭4', 'C5'],
 };
 // Horizontal room for the run (Han 2026-07-14: "maak de note pool selector iets breder" — widened for the run).
 const POOL_WIDTH = 150;
@@ -40,6 +40,11 @@ export const NotePoolGlyph = ({
 }) => {
     let notes = POOL_NOTES[pool] || POOL_NOTES.scale;
     if (clef === 'bass') notes = notes.map(octaveDown);   // C3–C4 for bass
+    // #435 (Han 2026-07-19): the chromatic pool's herstel (♮ on E) is ILLUSTRATIVE — force it, so no
+    // extra E♭ is needed just to trigger it. 'n' = the Maestro natural glyph; index matches E4/E3.
+    const forcedAccidentals = pool === 'chromatic'
+        ? notes.map(n => (n === 'E4' || n === 'E3' ? 'n' : null))
+        : null;
     return (
         <MiniMelody
             slots={notes}
@@ -53,6 +58,7 @@ export const NotePoolGlyph = ({
             scaleNotes={scaleNotes}
             processedChords={activeChord ? [{ absoluteOffset: 0, isSlash: false, chord: activeChord }] : []}
             theme={theme}
+            forcedAccidentals={forcedAccidentals}
         />
     );
 };
