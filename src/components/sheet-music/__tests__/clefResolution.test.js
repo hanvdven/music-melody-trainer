@@ -55,6 +55,16 @@ describe('calculateOptimalClef', () => {
     expect(result).not.toBe('treble');
     expect(result).toMatch(/(8va|15va)$/);
   });
+
+  it('#497: a BASS clef on the TOP (treble-position) staff uses the BASS range table', () => {
+    // Regression for the redundant-8vb bug: the top staff set to a bass STANDARD range shows a
+    // bass clef but staffName is 'treble'. The octave table must follow the CLEF FAMILY, so
+    // bass-register notes (C2–E4) stay in the plain bass clef instead of picking an 8vb/8va.
+    const bassRangeNotes = ['C2', 'G2', 'C3', 'E4'];
+    expect(calculateOptimalClef('bass', bassRangeNotes, 'treble', 'STANDARD')).toBe('bass');
+    // …and it behaves identically to the real bass-position staff.
+    expect(calculateOptimalClef('bass', bassRangeNotes, 'bass', 'STANDARD')).toBe('bass');
+  });
 });
 
 describe('octaveAdjustedClef', () => {

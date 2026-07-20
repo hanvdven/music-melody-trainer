@@ -48,7 +48,13 @@ export const calculateOptimalClef = (activeClef, melodyNotes, staff = 'treble', 
 
   // Ranges use getNoteIndex() indices: A0=0, each semitone = 1 step.
   // C4 = 39 (not 48 — the old comment was wrong and caused all ranges to be off by 9).
-  const RANGES = staff === 'bass' ? {
+  // #497 (Han 2026-07-19): pick the octave-range table from the actual CLEF FAMILY, NOT the `staff`
+  // position argument. The TOP staff (staffName 'treble') can DISPLAY a bass clef (a bass rangeMode),
+  // and then it must use the BASS ranges — otherwise its bass-register notes fall outside the treble
+  // base and it wrongly picks an 8vb/8va (the middle bass staff didn't, because there staff==='bass').
+  // Vocal clefs already returned early above, so `activeClef` here is a treble- or bass-family clef.
+  const isBassClef = String(activeClef).replace(/(8|15|22)v[ab]$/, '') === 'bass';
+  const RANGES = isBassClef ? {
     base: [15, 43],   // C2-E4
     '8vb': [0, 19],   // A0-E2
     '15vb': [0, 0],   // DISABLED

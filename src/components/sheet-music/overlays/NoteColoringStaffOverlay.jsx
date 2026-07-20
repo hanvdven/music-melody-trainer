@@ -29,9 +29,12 @@ const SCHEMES = [
     { mode: 'chromatone', label: 'Chromatone' },
     { mode: 'subtle-chroma', label: 'Subtle chromatone' },
 ];
-// The full diatonic run C4–C5 so each scheme's colouring reads clearly (Han 2026-06-17:
-// the shortened 5-note run dropped too many in-between notes).
-const NOTES = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+// The full diatonic run so each scheme's colouring reads clearly (Han 2026-06-17: the shortened
+// 5-note run dropped too many in-between notes). #497 (Han 2026-07-19): on a BASS-clef top staff the
+// C4–C5 run sits far ABOVE the staff ("de kleurensetter komt heel hoog uit") — drop an octave to
+// C3–C4 so it reads inside the bass clef.
+const NOTES_TREBLE = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+const NOTES_BASS = ['C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3', 'C4'];
 // Per-item slot stride (user units) — narrower carousel per Han 2026-06-27 feedback.
 // Reduced from 134 → 115 (about 15%) to make carousel more compact.
 // Further reduced to 100 (Han 2026-06-27): to show exactly 3 color schemes (left peek + center + right peek),
@@ -85,6 +88,9 @@ const NoteColoringStaffOverlay = ({
     debugMode = false,
 }) => {
     const { collapsed, mountAllItems, reveal, resetHideTimer } = useRevealOnInteraction(hidden);
+    // #497: pick the example-run register from the top staff's CLEF FAMILY (bass clef → C3–C4).
+    const isBassClef = String(clefTreble).replace(/(8|15|22)v[ab]$/, '') === 'bass';
+    const NOTES = isBassClef ? NOTES_BASS : NOTES_TREBLE;
     // #502: the three moved adjustment controls come straight from DisplaySettings (they used to be
     // read by the SubHeader) — no extra prop threading through SheetMusic.
     const {

@@ -5077,3 +5077,24 @@ COLOUR for colour + the 3 display toggles). No `showSheetMusicSettings` anywhere
 **Files:** removed `hooks/useSettingsOverlay.js`(+test); edited `hooks/useEditMode.js`(+test),
 `App.jsx`, `components/layout/{AppHeader,SubHeader,TabView}.jsx`, `sheet-music/SheetMusic.jsx`,
 `sheet-music/overlays/NoteColoringStaffOverlay.jsx` (+test), `scripts/gen-harness-entry.jsx`.
+
+### §62. Bug: redundant 8vb on a bass-clef top staff + colour-setter register (#497, Han 2026-07-19)
+
+**Symptom:** Setting the TOP staff to a bass STANDARD range showed an F-clef **8vb** with notes from
+G3 in 8va — redundant; per the 8va/8vb rules it should be a plain (untransposed) bass clef. The
+MIDDLE (bass-position) staff did not do this. Separately, the COLOUR setter's example run sat far
+above a bass-clef top staff.
+
+**Root cause:** `clefResolution.calculateOptimalClef(activeClef, notes, staff, rangeMode)` chose its
+octave-range table from the `staff` POSITION argument (`staff === 'bass' ? bassTable : trebleTable`),
+but `clefForScreen` is called with the staff NAME hardcoded (`'treble'` for the top staff). A top
+staff showing a bass clef therefore used the TREBLE ranges → its bass-register notes fell outside the
+treble base → a spurious 8vb/8va. The middle staff worked only because there `staff === 'bass'`.
+
+**Fix:** derive the range table from the actual CLEF FAMILY
+(`isBassClef = activeClef.replace(/(8|15|22)v[ab]$/,'') === 'bass'`), not the `staff` arg — so a
+bass-clef top staff behaves identically to the bass-position staff. Vocal clefs still return early.
+Colour setter: the example run is `C3–C4` on a bass-clef top staff (else `C4–C5`).
+
+**Files:** `sheet-music/clefResolution.js` (+ `__tests__/clefResolution.test.js` regression),
+`sheet-music/overlays/NoteColoringStaffOverlay.jsx` (register by clef family).
