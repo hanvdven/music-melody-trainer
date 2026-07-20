@@ -212,6 +212,11 @@ export const CarouselField = ({
   // horizontal staff strokes stay visible through it (Han: "laat de horizontale notenbalkstrepen
   // zichtbaar"). Empty for rows without a staff (the chords band).
   staffLineYs = [],
+  // #493 refine (Han 2026-07-20): the staff's horizontal bounds. The veil (and its redrawn lines) are
+  // CLAMPED to [staffX0, staffX1] so nothing runs past the staff end; where the veil reaches an edge
+  // the staff's vertical frame barline is redrawn too. Null → no clamp / no barlines (chords band).
+  staffX0 = null,
+  staffX1 = null,
   familyName,           // (family) => display string (family mode only)
   familyColor = null,   // (family) => CSS colour (category tints, #362)
   colorOf = null,       // (item) => CSS colour for the ACTIVE item (#362)
@@ -269,6 +274,7 @@ export const CarouselField = ({
   // the instrument setter). Unique id per field so multiple carousels on one staff never collide.
   const rawTintId = React.useId();
   const tintId = `carousel-icon-tint-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const scrimId = `carousel-veil-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
   const activeIconColor = (colorOf?.(items[activeIndex]) ?? 'var(--text-primary)');
 
   // #493 (Han 2026-07-19): VEIL. When a hidden carousel is active/open it may overlap the neighbouring
@@ -279,6 +285,12 @@ export const CarouselField = ({
   const veilHalfW = edgeX + 26;
   const veilTop = headerY - 18;
   const veilBottom = labelY + 14;
+  // #493 refine (Han 2026-07-20): the veil box CLAMPED to the staff's horizontal bounds so the redrawn
+  // lines never run past the staff end, and so we know where to redraw the vertical frame barlines.
+  const veilX0 = staffX0 != null ? Math.max(centerX - veilHalfW, staffX0) : centerX - veilHalfW;
+  const veilX1 = staffX1 != null ? Math.min(centerX + veilHalfW, staffX1) : centerX + veilHalfW;
+  const atLeftEdge = staffX0 != null && veilX0 <= staffX0 + 0.5;    // box reaches the staff start
+  const atRightEdge = staffX1 != null && veilX1 >= staffX1 - 0.5;   // box reaches the staff end
 
   // #431 rework: in family mode (melody-type) the 3-column row is too narrow for every item's caps
   // label — show only the active item's label (side items keep their icons + category bracket).
@@ -297,6 +309,15 @@ export const CarouselField = ({
           <feFlood style={{ floodColor: activeIconColor }} />
           <feComposite in2="SourceAlpha" operator="in" />
         </filter>
+        {/* #493 refine (Han 2026-07-20: "kunnen de randen zacht zijn"): SOFT edges — the veil is opaque
+            panel-bg in the core and fades to transparent at the very left/right edges so the patch
+            blends into the sheet instead of ending on a hard vertical seam. */}
+        <linearGradient id={scrimId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="0" />
+          <stop offset="0.09" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="1" />
+          <stop offset="0.91" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="1" />
+          <stop offset="1" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="0" />
+        </linearGradient>
       </defs>
       {/* #493 (Han): the VEIL — only while the field is active/open (mountAllItems stays true through
           the fade). Sits FIRST in the group so it's behind this field's own chrome + carousel but on
@@ -304,19 +325,29 @@ export const CarouselField = ({
       {mountAllItems && (
         <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
           {/* #493 rework (Han 2026-07-20): LOCALIZED veil — an opaque panel just the size of THIS
-              carousel's expanded footprint (veilHalfW is edgeX widened to OPEN_STRIDE). Only what sits
-              DIRECTLY behind the visible carousel is hidden; content far to the side / above / below
-              stays visible ("elementen ver ernaast, of boven of onder de carousel mogen zichtbaar
-              blijven"). The row's staff lines are REDRAWN on top so they stay visible while overlapping
-              elements are still veiled (the smart solution — no mask, which un-veiled overlaps on the
-              line pixels). The overlay renders the ACTIVE field LAST so this veil sits above sibling
-              content within its box. */}
-          <rect x={centerX - veilHalfW} y={veilTop} width={veilHalfW * 2} height={veilBottom - veilTop}
-            fill="var(--panel-bg, #1f1e2a)" />
+              carousel's expanded footprint (veilHalfW is edgeX widened to OPEN_STRIDE), CLAMPED to the
+              staff bounds [staffX0, staffX1]. Only what sits DIRECTLY behind the visible carousel is
+              hidden; content far to the side / above / below stays visible. The row's staff lines are
+              REDRAWN on top (clamped, so they never run past the staff end), and where the box reaches a
+              staff edge the vertical FRAME barline is redrawn too (Han 2026-07-20). Soft edges via the
+              gradient. The overlay renders the ACTIVE field LAST so this veil sits above sibling content
+              within its box. */}
+          <rect x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop}
+            fill={`url(#${scrimId})`} />
           {staffLineYs.map((ly, i) => (
-            <line key={i} x1={centerX - veilHalfW} x2={centerX + veilHalfW} y1={ly} y2={ly}
+            <line key={i} x1={veilX0} x2={veilX1} y1={ly} y2={ly}
               stroke="var(--text-primary)" strokeWidth="0.5" />
           ))}
+          {/* Vertical frame barlines (SheetMusic draws them at startX/endX from trebleStart→bottomY);
+              redraw the segment this veil box covers so it stays visible through the veil. */}
+          {atLeftEdge && staffLineYs.length > 0 && (
+            <line x1={staffX0} x2={staffX0} y1={Math.min(...staffLineYs)} y2={Math.max(...staffLineYs)}
+              stroke="var(--text-primary)" strokeWidth="0.5" />
+          )}
+          {atRightEdge && staffLineYs.length > 0 && (
+            <line x1={staffX1} x2={staffX1} y1={Math.min(...staffLineYs)} y2={Math.max(...staffLineYs)}
+              stroke="var(--text-primary)" strokeWidth="0.5" />
+          )}
         </g>
       )}
       {/* Hidden + open: a tap-away backdrop BEHIND the carousel closes it on a click outside the

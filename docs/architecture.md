@@ -5024,6 +5024,11 @@ dev harness `scripts/gen-harness-entry.jsx` (added `?overlay=` switch + playback
 - *Paint order:* the owning overlay still renders the **active field LAST** (flatten + stable-key
   reorder in `GenerationSetterOverlay` / `NoteColoringStaffOverlay`), so the localized veil sits above
   any sibling content that falls inside its box, and the active carousel sits above the veil.
+- *Clamp + frame + soft edges (Han 2026-07-20 refine):* the box is CLAMPED to the staff's horizontal
+  bounds (`staffX0`/`staffX1` = startX/endX) so the redrawn horizontal lines never run past the staff
+  end; where the box reaches a staff edge the vertical FRAME barline (SheetMusic draws these at
+  startX/endX from trebleStart→bottomY) is redrawn for the box's y-range. The veil rect uses a
+  left/right-fading gradient (soft edges) so it blends into the sheet instead of ending on a hard seam.
 
 **Chord-complexity glyph (`generationNoteGlyphs.ComplexityChordGlyph`):**
 - WHOLE notes (duration 48) instead of quarters; SUS removed as a complexity option (`CHORD_COMPLEXITY`

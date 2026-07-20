@@ -586,6 +586,8 @@ const GenerationSetterOverlay = ({
         return cells.map(({ row, cx, colIdx, f, id }) => (
               <CarouselField
                 key={id}
+                staffX0={startX}
+                staffX1={endX}
                 items={f.items}
                 activeIndex={f.activeIndex}
                 onSelect={withInteraction(f.onSelect)}

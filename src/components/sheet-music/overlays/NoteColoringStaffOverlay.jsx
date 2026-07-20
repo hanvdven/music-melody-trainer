@@ -215,6 +215,8 @@ const NoteColoringStaffOverlay = ({
                     headerDy={B_HEADER_DY}
                     labelAbove={f.label}
                     staffLineYs={[-20, -10, 0, 10, 20].map(d => bassRowY + d)}
+                    staffX0={startX}
+                    staffX1={endX}
                     fieldId={f.id}
                     activeFieldId={activeFieldId}
                     onActivate={setActiveFieldId}
