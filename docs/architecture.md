@@ -5004,28 +5004,26 @@ a row has no staff (chords), use `CHORD_ROW_Y − 31`.
 `overlays/InstrumentStaffOverlay.jsx`, `overlays/__tests__/ExerciseStaffOverlay.test.jsx`,
 dev harness `scripts/gen-harness-entry.jsx` (added `?overlay=` switch + playback/exercise mounts).
 
-### §60. Carousel veil → shared-layer + line-redraw; chord-complexity glyph polish (#493-followup, Han 2026-07-20)
+### §60. Carousel veil → LOCALIZED + line-redraw; chord-complexity glyph polish (#493-followup, Han 2026-07-20)
 
-**Purpose:** Two defects in the #493 carousel veil, plus chord-complexity preview polish.
+**Purpose:** Fix the #493 carousel veil, plus chord-complexity preview polish.
 
-**Veil — root causes & fix:**
-- *Symptom 1:* opening a hidden carousel did NOT hide the chords/measure (and other) content behind
-  it. *Cause:* the veil lived INSIDE each `CarouselFieldItem` and was sized to that field's local
-  neighbourhood — too small to reach the chords band, and low in paint order. *Symptom 2:* elements
-  that overlapped a staff line were NOT veiled on those pixels. *Cause:* the veil used a `<mask>` that
-  punched transparent slots at the staff-line Y's — the hole un-veiled anything drawn over the line.
-- *Fix (Han's chosen "shared layer + lines on top"):* `GenerationSetterOverlay` now FLATTENS its
-  field cells and renders the **active field LAST** (React keeps each field's state via its stable
-  `key`, so reorder is free). It passes every field a `veilBounds` (the full overlay rect) and
-  `veilStaffLineYs` (all staff rows' line Y's). When a field is open it paints ONE opaque
-  `var(--panel-bg)` panel over `veilBounds` — covering ALL other content — then REDRAWS the staff
-  lines on top (so lines stay visible while overlapping elements are still hidden). Because the active
-  field is last, its veil sits above every other field + the chords band, and its own carousel sits
-  above the veil. The old gradient+mask path remains as a fallback when `veilBounds` is null (overlays
-  not yet migrated, e.g. `InstrumentStaffOverlay`).
-- *Bounds:* `y = trebleStart−125` (above the complexity whole-note stack, which tops out ≈
-  trebleStart−118, above its own header) to `percussionStart+88` (past the bottom row's value labels);
-  the icons8 attribution below stays visible.
+**Veil — root cause & fix:**
+- *Symptom:* elements that overlapped a staff line were NOT veiled on those pixels. *Cause:* the veil
+  used a `<mask>` that punched transparent slots at the staff-line Y's — the hole un-veiled anything
+  drawn over the line.
+- *Fix — LOCALIZED veil + lines redrawn on top:* while a hidden carousel is open, `CarouselFieldItem`
+  paints ONE opaque `var(--panel-bg)` panel sized to just THIS carousel's expanded footprint
+  (`veilHalfW = edgeX + 26`, where `edgeX` is widened to `OPEN_STRIDE` when open; `veilTop = headerY−18`
+  to `veilBottom = labelY+14`), then REDRAWS that row's staff lines on top. So the staff strokes stay
+  visible while anything else in the box is veiled — the "smart solution", no mask.
+- *Extent (Han 2026-07-20 correction):* the veil must cover ONLY what sits DIRECTLY behind the visible
+  carousel — "elementen ver ernaast, of boven of onder de carousel mogen zichtbaar blijven". An earlier
+  pass made it a full-overlay shared layer (hiding the chords band + every other row); Han rejected that
+  ("álles wordt onzichtbaar"). The veil is therefore per-field and box-sized, NOT overlay-wide.
+- *Paint order:* the owning overlay still renders the **active field LAST** (flatten + stable-key
+  reorder in `GenerationSetterOverlay` / `NoteColoringStaffOverlay`), so the localized veil sits above
+  any sibling content that falls inside its box, and the active carousel sits above the veil.
 
 **Chord-complexity glyph (`generationNoteGlyphs.ComplexityChordGlyph`):**
 - WHOLE notes (duration 48) instead of quarters; SUS removed as a complexity option (`CHORD_COMPLEXITY`
@@ -5034,12 +5032,13 @@ dev harness `scripts/gen-harness-entry.jsx` (added `?overlay=` switch + playback
   renderMelodyNotes` (pitch kept, only the ledger stroke skipped); the chord shifted LEFT by one
   notehead width so the first column's RIGHT edge lands on the field centre.
 
-**Invariants:** the veil is a SINGLE shared opaque layer with the staff lines redrawn on top — never a
-mask that cuts holes (which un-veils overlapping content). The active carousel is always rendered LAST
-so it paints above its own veil.
+**Invariants:** the veil is a LOCALIZED opaque box (the active carousel's own expanded footprint) with
+that row's staff lines redrawn on top — never a mask that cuts holes (which un-veils overlapping
+content), and never an overlay-wide layer (which hides unrelated rows). The active carousel is always
+rendered LAST so it paints above its own veil.
 
-**Files:** `overlays/GenerationSetterOverlay.jsx` (flatten + active-last + veilBounds/veilStaffLineYs),
-`CarouselFieldItem.jsx` (shared-layer veil path), `overlays/generationNoteGlyphs.jsx`
+**Files:** `CarouselFieldItem.jsx` (localized veil), `overlays/GenerationSetterOverlay.jsx` /
+`overlays/NoteColoringStaffOverlay.jsx` (active-last reorder), `overlays/generationNoteGlyphs.jsx`
 (ComplexityChordGlyph), `overlays/MiniMelody.jsx` / `MelodyNotesLayer.jsx` / `renderMelodyNotes.jsx`
 (suppressLedgers), `constants/generationFields.js` (SUS removed, exotic label).
 

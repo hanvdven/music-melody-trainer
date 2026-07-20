@@ -208,19 +208,10 @@ export const CarouselField = ({
   // instrument setter. The veil scrim (below) keeps them readable where they overlap other content.
   // (Kept as an opt-in escape hatch; no generation field sets it any more.)
   activeLabelOnly = false,
-  // #493: absolute Y of this row's staff lines, redrawn ON TOP of the veil scrim so the horizontal
-  // staff strokes stay visible through the veil (Han: "laat de horizontale notenbalkstrepen zichtbaar").
-  // Empty for rows without a staff (the chords band).
+  // #493: absolute Y of this row's staff lines, redrawn ON TOP of the (localized) veil so the
+  // horizontal staff strokes stay visible through it (Han: "laat de horizontale notenbalkstrepen
+  // zichtbaar"). Empty for rows without a staff (the chords band).
   staffLineYs = [],
-  // #493 rework (Han 2026-07-20): SHARED-LAYER veil. When the parent renders the ACTIVE field LAST and
-  // passes `veilBounds` (the full overlay rect {x,y,w,h}) + `veilStaffLineYs` (EVERY staff row's line
-  // Y's), the open field paints ONE opaque panel over the whole overlay — hiding ALL other content
-  // (incl. chords/measure) — and REDRAWS the staff lines on top. This replaces the old per-field
-  // gradient+mask, which (a) was too small to cover the chords row and (b) un-veiled anything that
-  // overlapped a staff line (the mask cut a hole there). When veilBounds is null the legacy localized
-  // veil is used (overlays not yet migrated).
-  veilBounds = null,
-  veilStaffLineYs = null,
   familyName,           // (family) => display string (family mode only)
   familyColor = null,   // (family) => CSS colour (category tints, #362)
   colorOf = null,       // (item) => CSS colour for the ACTIVE item (#362)
@@ -278,8 +269,6 @@ export const CarouselField = ({
   // the instrument setter). Unique id per field so multiple carousels on one staff never collide.
   const rawTintId = React.useId();
   const tintId = `carousel-icon-tint-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
-  const scrimId = `carousel-veil-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
-  const veilMaskId = `carousel-veilmask-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
   const activeIconColor = (colorOf?.(items[activeIndex]) ?? 'var(--text-primary)');
 
   // #493 (Han 2026-07-19): VEIL. When a hidden carousel is active/open it may overlap the neighbouring
@@ -308,52 +297,26 @@ export const CarouselField = ({
           <feFlood style={{ floodColor: activeIconColor }} />
           <feComposite in2="SourceAlpha" operator="in" />
         </filter>
-        {/* #493 veil gradient — the EXACT sheet background colour (var(--panel-bg), the bg App.jsx
-            gives the sheet), FULLY OPAQUE in the middle so veiled content reads as clean background
-            (Han 2026-07-19: "veil moet dezelfde kleur hebben als de achtergrond"), fading to
-            transparent only at the very horizontal edges so the patch blends in. */}
-        <linearGradient id={scrimId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="0" />
-          <stop offset="0.08" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="1" />
-          <stop offset="0.92" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="1" />
-          <stop offset="1" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="0" />
-        </linearGradient>
-        {/* #493 (Han 2026-07-19: "de 5 horizontale strepen van de notenbalk moeten niet geveild
-            worden"): a mask that punches thin transparent slots at the staff-line Y's, so the REAL
-            staff lines (behind the veil) show through UNTOUCHED — no re-draw that could drift. White
-            = veil paints; black slot = veil is cut so the line underneath stays as-is. */}
-        <mask id={veilMaskId} maskUnits="userSpaceOnUse"
-          x={centerX - veilHalfW} y={veilTop} width={veilHalfW * 2} height={veilBottom - veilTop}>
-          <rect x={centerX - veilHalfW} y={veilTop} width={veilHalfW * 2} height={veilBottom - veilTop} fill="white" />
-          {staffLineYs.map((ly, i) => (
-            <line key={i} x1={centerX - veilHalfW} x2={centerX + veilHalfW} y1={ly} y2={ly}
-              stroke="black" strokeWidth="1.4" />
-          ))}
-        </mask>
       </defs>
       {/* #493 (Han): the VEIL — only while the field is active/open (mountAllItems stays true through
           the fade). Sits FIRST in the group so it's behind this field's own chrome + carousel but on
           top of the sheet. Fades with chromeVisible. */}
       {mountAllItems && (
         <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
-          {veilBounds ? (
-            // #493 rework (Han 2026-07-20): SHARED-LAYER veil. One OPAQUE panel over the whole overlay
-            // (this field is rendered LAST, so it covers ALL other content incl. chords/measure), with
-            // the staff lines REDRAWN on top — so lines stay visible while anything else that overlaps
-            // them is still veiled. No mask (which un-veiled overlapping elements on the line pixels).
-            <>
-              <rect x={veilBounds.x} y={veilBounds.y} width={veilBounds.w} height={veilBounds.h}
-                fill="var(--panel-bg, #1f1e2a)" />
-              {(veilStaffLineYs || []).map((ly, i) => (
-                <line key={i} x1={veilBounds.x} x2={veilBounds.x + veilBounds.w} y1={ly} y2={ly}
-                  stroke="var(--text-primary)" strokeWidth="0.5" />
-              ))}
-            </>
-          ) : (
-            // Legacy localized veil (overlays not yet passing veilBounds).
-            <rect x={centerX - veilHalfW} y={veilTop} width={veilHalfW * 2} height={veilBottom - veilTop}
-              fill={`url(#${scrimId})`} mask={staffLineYs.length ? `url(#${veilMaskId})` : undefined} />
-          )}
+          {/* #493 rework (Han 2026-07-20): LOCALIZED veil — an opaque panel just the size of THIS
+              carousel's expanded footprint (veilHalfW is edgeX widened to OPEN_STRIDE). Only what sits
+              DIRECTLY behind the visible carousel is hidden; content far to the side / above / below
+              stays visible ("elementen ver ernaast, of boven of onder de carousel mogen zichtbaar
+              blijven"). The row's staff lines are REDRAWN on top so they stay visible while overlapping
+              elements are still veiled (the smart solution — no mask, which un-veiled overlaps on the
+              line pixels). The overlay renders the ACTIVE field LAST so this veil sits above sibling
+              content within its box. */}
+          <rect x={centerX - veilHalfW} y={veilTop} width={veilHalfW * 2} height={veilBottom - veilTop}
+            fill="var(--panel-bg, #1f1e2a)" />
+          {staffLineYs.map((ly, i) => (
+            <line key={i} x1={centerX - veilHalfW} x2={centerX + veilHalfW} y1={ly} y2={ly}
+              stroke="var(--text-primary)" strokeWidth="0.5" />
+          ))}
         </g>
       )}
       {/* Hidden + open: a tap-away backdrop BEHIND the carousel closes it on a click outside the

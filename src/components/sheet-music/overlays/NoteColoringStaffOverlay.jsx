@@ -141,15 +141,6 @@ const NoteColoringStaffOverlay = ({
     const bCols = B_COL_FRACS.map(f => startX + f * (endX - startX));
     const animIndex = Math.max(0, ANIMATION_ITEMS.findIndex(a =>
         a.mode === animationMode && (a.variant == null || a.variant === (paginationVariant ?? 'mid'))));
-    // Shared veil (§60): covers the whole colour-setter area (treble scheme carousel + bass row) so
-    // an open bass carousel hides everything behind it; the staff lines are redrawn on top.
-    const veilTop = trebleStart - 40;
-    const veilBot = bassRowY + 62;
-    const veilBounds = bassStart == null ? null : { x: startX - 8, y: veilTop, w: (endX - startX) + 16, h: veilBot - veilTop };
-    const veilStaffLineYs = bassStart == null ? null : [
-        ...[0, 10, 20, 30, 40].map(d => trebleStart + d),
-        ...[0, 10, 20, 30, 40].map(d => bassStart + d),
-    ];
     const bassFields = bassStart == null ? [] : [
         {
             id: 'highlights', label: 'highlights', items: HIGHLIGHT_ITEMS,
@@ -218,8 +209,6 @@ const NoteColoringStaffOverlay = ({
                     headerDy={B_HEADER_DY}
                     labelAbove={f.label}
                     staffLineYs={[-20, -10, 0, 10, 20].map(d => bassRowY + d)}
-                    veilBounds={veilBounds}
-                    veilStaffLineYs={veilStaffLineYs}
                     fieldId={f.id}
                     activeFieldId={activeFieldId}
                     onActivate={setActiveFieldId}

@@ -576,22 +576,6 @@ const GenerationSetterOverlay = ({
           above); veilStaffLineYs = every staff row's 5 lines, REDRAWN on top of the veil so the staff
           stays visible while overlapping elements are hidden. */}
       {(() => {
-        // The veil must cover EVERYTHING in the overlay (Han 2026-07-20: "valt niet over alle elementen
-        // heen"): from above the chords-band content (the complexity whole-note stack tops out around
-        // CHORD_ROW_Y−34−20 ≈ trebleStart−118, above its own header) down past the bottom row's value
-        // labels (rowCenterY+MELODY_TYPE_LABEL_DY ≈ percussionStart+78). The icons8 attribution below
-        // that stays visible (a licence notice).
-        const veilTop = trebleStart - 125;
-        const veilBot = percussionStart + 88;
-        const veilBounds = {
-          x: startX - 8,
-          y: veilTop,
-          w: (endX - startX) + 16,
-          h: veilBot - veilTop,
-        };
-        const veilStaffLineYs = rows
-          .filter(row => !row.isChords)
-          .flatMap(row => [-20, -10, 0, 10, 20].map(d => row.centerY + d));
         const cells = [];
         rows.forEach(row => cols.forEach((cx, colIdx) => {
           const f = fieldFor(row, colIdx);
@@ -602,8 +586,6 @@ const GenerationSetterOverlay = ({
         return cells.map(({ row, cx, colIdx, f, id }) => (
               <CarouselField
                 key={id}
-                veilBounds={veilBounds}
-                veilStaffLineYs={veilStaffLineYs}
                 items={f.items}
                 activeIndex={f.activeIndex}
                 onSelect={withInteraction(f.onSelect)}
