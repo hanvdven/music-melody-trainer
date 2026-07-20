@@ -5003,3 +5003,42 @@ a row has no staff (chords), use `CHORD_ROW_Y − 31`.
 `overlays/ExerciseStaffOverlay.jsx`, `overlays/NoteColoringStaffOverlay.jsx`,
 `overlays/InstrumentStaffOverlay.jsx`, `overlays/__tests__/ExerciseStaffOverlay.test.jsx`,
 dev harness `scripts/gen-harness-entry.jsx` (added `?overlay=` switch + playback/exercise mounts).
+
+### §60. Carousel veil → shared-layer + line-redraw; chord-complexity glyph polish (#493-followup, Han 2026-07-20)
+
+**Purpose:** Two defects in the #493 carousel veil, plus chord-complexity preview polish.
+
+**Veil — root causes & fix:**
+- *Symptom 1:* opening a hidden carousel did NOT hide the chords/measure (and other) content behind
+  it. *Cause:* the veil lived INSIDE each `CarouselFieldItem` and was sized to that field's local
+  neighbourhood — too small to reach the chords band, and low in paint order. *Symptom 2:* elements
+  that overlapped a staff line were NOT veiled on those pixels. *Cause:* the veil used a `<mask>` that
+  punched transparent slots at the staff-line Y's — the hole un-veiled anything drawn over the line.
+- *Fix (Han's chosen "shared layer + lines on top"):* `GenerationSetterOverlay` now FLATTENS its
+  field cells and renders the **active field LAST** (React keeps each field's state via its stable
+  `key`, so reorder is free). It passes every field a `veilBounds` (the full overlay rect) and
+  `veilStaffLineYs` (all staff rows' line Y's). When a field is open it paints ONE opaque
+  `var(--panel-bg)` panel over `veilBounds` — covering ALL other content — then REDRAWS the staff
+  lines on top (so lines stay visible while overlapping elements are still hidden). Because the active
+  field is last, its veil sits above every other field + the chords band, and its own carousel sits
+  above the veil. The old gradient+mask path remains as a fallback when `veilBounds` is null (overlays
+  not yet migrated, e.g. `InstrumentStaffOverlay`).
+- *Bounds:* `y = trebleStart−125` (above the complexity whole-note stack, which tops out ≈
+  trebleStart−118, above its own header) to `percussionStart+88` (past the bottom row's value labels);
+  the icons8 attribution below stays visible.
+
+**Chord-complexity glyph (`generationNoteGlyphs.ComplexityChordGlyph`):**
+- WHOLE notes (duration 48) instead of quarters; SUS removed as a complexity option (`CHORD_COMPLEXITY`
+  + `COMPLEXITY_NOTES`); the exotic label spelled out `'Altered / Extended'` (renders ALL-CAPS); the
+  low-C ledger suppressed via a new `suppressLedgers` flag threaded `MiniMelody → MelodyNotesLayer →
+  renderMelodyNotes` (pitch kept, only the ledger stroke skipped); the chord shifted LEFT by one
+  notehead width so the first column's RIGHT edge lands on the field centre.
+
+**Invariants:** the veil is a SINGLE shared opaque layer with the staff lines redrawn on top — never a
+mask that cuts holes (which un-veils overlapping content). The active carousel is always rendered LAST
+so it paints above its own veil.
+
+**Files:** `overlays/GenerationSetterOverlay.jsx` (flatten + active-last + veilBounds/veilStaffLineYs),
+`CarouselFieldItem.jsx` (shared-layer veil path), `overlays/generationNoteGlyphs.jsx`
+(ComplexityChordGlyph), `overlays/MiniMelody.jsx` / `MelodyNotesLayer.jsx` / `renderMelodyNotes.jsx`
+(suppressLedgers), `constants/generationFields.js` (SUS removed, exotic label).
