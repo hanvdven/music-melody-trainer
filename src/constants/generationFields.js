@@ -90,11 +90,12 @@ export const CHORD_COMPLEXITY = [
   { value: 'power', label: 'Power' },
   { value: 'triad', label: 'Triad' },
   { value: 'seventh', label: 'Seventh' },
-  { value: 'sus', label: 'Sus' },
+  // sus removed as a complexity option (Han 2026-07-20).
   // #431 (Han): "Exotic is een zelfbedachte naam, moet zijn: alt/ext". LABEL-only rename — the
   // VALUE 'exotic' stays (it is used internally by chordGenerator/chordRecognition), so this is a
-  // pure display change, no behaviour change.
-  { value: 'exotic', label: 'alt/ext' },
+  // pure display change. #493-followup (Han 2026-07-20): spell it out fully → 'ALTERED / EXTENDED'
+  // (labels render upper-cased). No behaviour change.
+  { value: 'exotic', label: 'Altered / Extended' },
 ];
 
 // "melody type" → strategy (InstrumentRow.jsx PROGRESSION_OPTIONS, value list only — the

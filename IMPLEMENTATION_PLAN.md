@@ -2022,3 +2022,16 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
      Maestro-count, #/measure header); exotic→alt/ext label + akkoord D4 E♭4 F4 G♯4 A4 B♮4 C5.
    Alle 4 op `test`. Suite 571 groen, lint 0 err, build clean. docs §52a/§53/§54/§55. NIET gecommit.
    Nieuw gedeeld: src/hooks/useRevealOnInteraction.js, src/components/sheet-music/repeatSigns.jsx.
+
+## 2026-07-20 — Chord-complexity setter polish + veil layering + legacy settings removal (Han)
+- 🐞/🔨 Chord complexity glyph (generationNoteGlyphs ComplexityChordGlyph):
+  - render als HELE noten i.p.v. kwartnoten
+  - SUS eruit als complexity-optie
+  - voorkom hulpstreepje onder de lage C
+  - ALT/EXT voluit: ALTERED / EXTENDED
+  - horizontaal centreren: rechterkant eerste-kolom noteheads tegen de middenlijn (centerX)
+- 🐞 Veil/masking (#493) — algemene layering-fix:
+  - veil bedekt NIET alles (chords/measure blijven zichtbaar) → til veil naar gedeelde laag boven alle sheet-content
+  - staff-line MASK laat overlappende elementen op die pixels ongeveild → vervang mask door lijnen BOVENOP de veil hertekenen (slimme oplossing)
+- 🔨 Verwijder legacy 'settings'-overlay (legacyMounted, SheetMusic.jsx:2738) + trigger/tab — vervangen door playback
+- Status: INTERVIEW eerst (§4b), daarna impl.

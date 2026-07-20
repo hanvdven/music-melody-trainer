@@ -208,10 +208,15 @@ const COMPLEXITY_NOTES = {
     power: ['C4', 'G4'],
     triad: ['C4', 'E4', 'G4'],
     seventh: ['C4', 'E4', 'G4', 'B4'],
-    sus: ['C4', 'F4', 'G4'],
+    // sus removed as an option (Han 2026-07-20).
     // #431 rework (Han 2026-07-14): alt/ext = C4, D♯4, E4, F4, G4, A4, B♭4, C5.
     exotic: ['C4', 'D♯4', 'E4', 'F4', 'G4', 'A4', 'B♭4', 'C5'],
 };
+
+// #493-followup (Han 2026-07-20): "de eerste kolom noteheads rechts tegen de middenlijn". A Maestro
+// notehead is ~16px wide; shift the whole chord LEFT by that so the first (left) column's RIGHT edge
+// sits on the field centre (x=0 in the glyph's local frame) instead of its LEFT edge.
+const NOTEHEAD_W = 16;
 
 /**
  * #362/#431: chord-complexity item = the REAL chord rendered without a staff, via the shared
@@ -226,17 +231,22 @@ export const ComplexityChordGlyph = ({ complexity, centerY, noteColoringMode, to
     // the SAME offset as every other row instead of being pushed down to clear the stack.
     const virtualStaffStart = centerY - 34;
     return (
-        <MiniMelody
-            slots={[notes]}                 // a SINGLE slot containing the whole chord
-            durations={[QUARTER]}
-            width={0}                       // one column → the chord sits on the origin
-            staffStart={virtualStaffStart}
-            noteColoringMode={noteColoringMode}
-            tonic={tonic}
-            scaleNotes={scaleNotes}
-            processedChords={activeChord ? [{ absoluteOffset: 0, isSlash: false, chord: activeChord }] : []}
-            theme={theme}
-        />
+        // Shift LEFT by one notehead width so the first column's RIGHT edge lands on the field centre
+        // (Han 2026-07-20: "de eerste kolom noteheads rechts tegen de middenlijn").
+        <g transform={`translate(${-NOTEHEAD_W}, 0)`}>
+            <MiniMelody
+                slots={[notes]}                 // a SINGLE slot containing the whole chord
+                durations={[QUARTER * 4]}       // #493-followup: WHOLE notes (Han 2026-07-20), not quarters
+                width={0}                       // one column → the chord sits on the origin
+                staffStart={virtualStaffStart}
+                noteColoringMode={noteColoringMode}
+                tonic={tonic}
+                scaleNotes={scaleNotes}
+                processedChords={activeChord ? [{ absoluteOffset: 0, isSlash: false, chord: activeChord }] : []}
+                theme={theme}
+                suppressLedgers          // low C keeps its pitch but shows no ledger (Han 2026-07-20)
+            />
+        </g>
     );
 };
 

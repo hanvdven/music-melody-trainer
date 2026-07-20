@@ -32,6 +32,8 @@ export const MiniMelody = ({
     // #435 (Han 2026-07-19): beats per group for the 'g' spacers. Default 2 (the sheet's [2,2]); the
     // note-pool + colour runs pass 8 → one group of 8 (no internal gaps, grouping [8]).
     groupBeats = 2,
+    // #493-followup (Han 2026-07-20): suppress ledger lines (chord-complexity glyph's low C).
+    suppressLedgers = false,
 }) => {
     const offsets = [];
     let cum = 0;
@@ -97,6 +99,7 @@ export const MiniMelody = ({
                 percussionVoiceSplit={false}
                 previewMode={previewColor}
                 forcedAccidentals={forcedAccidentals}
+                suppressLedgers={suppressLedgers}
             />
         </g>
     );

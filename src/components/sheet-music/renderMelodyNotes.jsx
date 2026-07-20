@@ -312,7 +312,11 @@ const renderMelodyNotes = (
   // #435 (Han 2026-07-19): optional per-slot accidental OVERRIDE (array aligned with melody.notes).
   // A non-null entry forces that slot's displayed accidental (e.g. a purely ILLUSTRATIVE natural on a
   // diatonic note that the key-signature logic would otherwise suppress). null → compute normally.
-  forcedAccidentals = null
+  forcedAccidentals = null,
+  // #493-followup (Han 2026-07-20): when true, DO NOT draw ledger lines. Used by the chord-complexity
+  // preview glyph so its low C doesn't show a redundant ledger ("voorkom dat de lage c een
+  // hulpstreepje heeft") — the pitch/position is kept, only the ledger stroke is suppressed.
+  suppressLedgers = false
 ) => {
   // previewMode can be: false (normal), true (yellow, for input test), or a CSS color string (e.g. 'rgba(220,30,30,0.85)' for wipe preview)
   const previewColor = typeof previewMode === 'string' ? previewMode : (previewMode ? 'var(--accent-yellow)' : null);
@@ -874,7 +878,7 @@ const renderMelodyNotes = (
       return (
         <g key={index} data-fly="" {...(!previewMode && interactive ? { 'data-measure-index': measureIndex, 'data-local-slot': localSlot, 'data-mel': staff, 'data-duration': duration, 'data-notes': JSON.stringify(chordNotes.map(p => p.n)) } : {})} className={inputTestClass.trim() || undefined} style={!previewMode && interactive ? { cursor: 'pointer' } : undefined}>
           {/* Ledger lines — extend left/right to cover any displaced noteheads */}
-          {Array.from(chordLedgerSet).map((ly, li) => {
+          {!suppressLedgers && Array.from(chordLedgerSet).map((ly, li) => {
             const maxXOff = Math.max(0, ...chordNotes.map(p => p.xOffset || 0));
             const minXOff = Math.min(0, ...chordNotes.map(p => p.xOffset || 0));
             return (
@@ -1200,7 +1204,7 @@ const renderMelodyNotes = (
           className={inputTestClass.trim() || undefined}
           style={!previewMode && interactive ? { cursor: 'pointer' } : undefined}
         >
-          {ledgerLines.map((y, idx) => (
+          {!suppressLedgers && ledgerLines.map((y, idx) => (
             <path
               key={`ledger-${index}-${idx}`}
               d={`M ${positionX - 7} ${y} H ${positionX + 19}`}

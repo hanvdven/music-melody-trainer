@@ -52,6 +52,7 @@ const MelodyNotesLayer = ({
   percussionVoiceSplit,
   previewColorFn,
   forcedAccidentals,
+  suppressLedgers,
 }) => {
   if (!melody) return null;
   return (
@@ -84,6 +85,7 @@ const MelodyNotesLayer = ({
         percussionVoiceSplit,
         previewColorFn,
         forcedAccidentals,
+        suppressLedgers,
       )}
     </>
   );
