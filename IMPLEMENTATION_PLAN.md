@@ -2035,3 +2035,10 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
   - staff-line MASK laat overlappende elementen op die pixels ongeveild → vervang mask door lijnen BOVENOP de veil hertekenen (slimme oplossing)
 - 🔨 Verwijder legacy 'settings'-overlay (legacyMounted, SheetMusic.jsx:2738) + trigger/tab — vervangen door playback
 - Status: INTERVIEW eerst (§4b), daarna impl.
+
+## 2026-07-20 — #502 Verwijder legacy SETTINGS-knop + verhuis controles naar COLOUR-setter (Han)
+- 🔨/⏳ SubHeader SETTINGS-knop (Settings2) + legacy in-staff SettingsOverlay + bottom RangeControls weg (redundant met PLAYBACK).
+- kleurmodus-knop weg (COLOUR-setter dekt); akkoordnotatie-knop weg.
+- highlights + animatie(pag/wipe/scroll) + lyrics → 3 HIDDEN tap-to-open carousels op de BAS-balk in de COLOUR-setter (treble houdt kleur-schema carousel).
+- Verwijdert showSheetMusicSettings (useSettingsOverlay) — verweven met useEditMode/AppHeader/SubHeader/App.jsx/SheetMusic/TabView (~7 files). LET OP: AppHeader heeft OOK een SlidersHorizontal-knop die het toggelt — bevestigen of die ook weg moet.
+- Interview afgerond; ticket #502 in design. Impl = gefocuste vervolgstap (niet in deze turn — te groot om aan de staart te haasten).

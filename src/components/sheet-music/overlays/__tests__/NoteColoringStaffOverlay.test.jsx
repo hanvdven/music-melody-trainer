@@ -2,20 +2,33 @@ import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import NoteColoringStaffOverlay from '../NoteColoringStaffOverlay';
+import { DisplaySettingsProvider } from '../../../../contexts/DisplaySettingsContext';
+
+// #502: the overlay now reads the moved adjustment controls (highlights/animation/lyrics) from
+// DisplaySettings, so tests must provide the context.
+const DS_VALUE = {
+    noteColoringMode: 'tonic_scale_keys', theme: 'default', chordDisplayMode: 'letters',
+    showNoteHighlight: true, setShowNoteHighlight: () => {},
+    animationMode: 'pagination', setAnimationMode: () => {},
+    paginationVariant: 'mid', setPaginationVariant: () => {},
+    lyricsMode: 'kodaly', setLyricsMode: () => {},
+};
 
 const renderOverlay = (props = {}) => render(
-    <svg>
-        <NoteColoringStaffOverlay
-            startX={100} endX={700} trebleStart={100}
-            noteColoringMode="tonic_scale_keys"
-            setNoteColoringMode={() => {}}
-            tonic="C" scaleNotes={['C', 'D', 'E', 'F', 'G', 'A', 'B']}
-            // #427 rework: these assertions cover the EXPANDED carousel; the hidden reveal-on-
-            // interaction behaviour is the shared hook (tested in useRevealOnInteraction). Default off.
-            hidden={false}
-            {...props}
-        />
-    </svg>,
+    <DisplaySettingsProvider value={DS_VALUE}>
+        <svg>
+            <NoteColoringStaffOverlay
+                startX={100} endX={700} trebleStart={100} bassStart={210}
+                noteColoringMode="tonic_scale_keys"
+                setNoteColoringMode={() => {}}
+                tonic="C" scaleNotes={['C', 'D', 'E', 'F', 'G', 'A', 'B']}
+                // #427 rework: these assertions cover the EXPANDED carousel; the hidden reveal-on-
+                // interaction behaviour is the shared hook (tested in useRevealOnInteraction). Default off.
+                hidden={false}
+                {...props}
+            />
+        </svg>
+    </DisplaySettingsProvider>,
 );
 
 describe('NoteColoringStaffOverlay', () => {

@@ -2,6 +2,9 @@ import React from 'react';
 import NonLinearCarousel from './NonLinearCarousel';
 import { MiniMelody, MINI_QUARTER } from './MiniMelody';
 import { useRevealOnInteraction } from '../../../hooks/useRevealOnInteraction';
+import { CarouselField } from '../CarouselFieldItem';
+import { useDisplaySettings } from '../../../contexts/DisplaySettingsContext';
+import { Music2, BookOpenCheck, ArrowRightFromLine, ArrowLeft, MicVocal, PencilOff } from 'lucide-react';
 
 // ── Note-colouring menu (Han 2026-06-13, redesigned on the NonLinearCarousel primitive
 // 2026-06-17) ───────────────────────────────────────────────────────────────────────────
@@ -14,9 +17,10 @@ import { useRevealOnInteraction } from '../../../hooks/useRevealOnInteraction';
 // is selected. (Han 2026-06-17: keep the C4–C5 pitch ramp — an earlier "flatten the wheel" pass
 // wrongly flattened the NOTES; only the CAROUSEL itself should read horizontal, not the notes.)
 //
-// REORDER + RENAME (Han 2026-06-17): none → chord → scale → chromatone → subtle chromatone.
-// 'scale' is the RENAMED LABEL of the legacy 'tonic_scale_keys' mode — the mode VALUE stays
-// 'tonic_scale_keys' (audio/selection wiring unchanged); only the visible label is 'Scale'.
+// #502 (Han 2026-07-20): the legacy SubHeader "settings" surface was retired; three of its
+// adjustment controls moved HERE, onto the BASS staff, as hidden tap-to-open carousels (same
+// CarouselField + shared veil as the generation setter): HIGHLIGHTS, ANIMATION (pag/wipe/scroll)
+// and LYRICS (solfège). The colour-scheme carousel keeps the treble staff.
 const SCHEMES = [
     // #361 (Han): order = none, SCALE, CHORD, chroma, subtle chroma.
     { mode: 'none', label: 'None' },
@@ -45,8 +49,35 @@ const LABEL_DY = 58;
 // Field header drop — the shared setter header height (staffStart−11 = generation rowCenterY−31).
 const HEADER_DY = -11;
 
+// ── #502 bass-staff adjustment carousels (highlights / animation / lyrics) ───────────────────────
+// Item shape {value, label, Icon} — CarouselField renders the lucide icon + ALL-CAPS label.
+const HIGHLIGHT_ITEMS = [
+    { value: false, label: 'No highlights', Icon: Music2 },
+    { value: true, label: 'Highlights', Icon: Music2 },
+];
+// ANIMATION combines animationMode + paginationVariant into ONE carousel (the old SubHeader cycle:
+// pag·snel → pag·mid → wipe → scroll). Each item carries the (mode, variant) pair it writes.
+const ANIMATION_ITEMS = [
+    { value: 'pag-snel', mode: 'pagination', variant: 'snel', label: 'Pag · snel', Icon: BookOpenCheck },
+    { value: 'pag-mid', mode: 'pagination', variant: 'mid', label: 'Pag · mid', Icon: BookOpenCheck },
+    { value: 'wipe', mode: 'wipe', variant: null, label: 'Wipe', Icon: ArrowRightFromLine },
+    { value: 'scroll', mode: 'scroll', variant: null, label: 'Scroll', Icon: ArrowLeft },
+];
+const LYRICS_ITEMS = [
+    { value: 'none', label: 'No lyrics', Icon: PencilOff },
+    { value: 'doremi-rel', label: 'Do-re-mi (rel)', Icon: MicVocal },
+    { value: 'doremi-abs', label: 'Do-re-mi (abs)', Icon: MicVocal },
+    { value: 'kodaly', label: 'Do-re-mi (Kodály)', Icon: MicVocal },
+    { value: 'takadimi', label: 'Takadimi', Icon: Music2 },
+];
+// Shared sizing for the bass carousels (mirrors the generation setter's named consts, §6d).
+const B_BASE = 26, B_ICON = 16, B_ICON_DY = -22, B_LABEL_DY = 58, B_LABEL_FS = 11, B_BRACKET_DY = -32;
+const B_HIT_TOP = -30, B_HIT_H = 56, B_HEADER_DY = -31;   // header at rowCenterY−31 = bassStart−11
+// Three columns across the staff width.
+const B_COL_FRACS = [0.2, 0.5, 0.8];
+
 const NoteColoringStaffOverlay = ({
-    startX, endX, trebleStart, clefTreble = 'treble',
+    startX, endX, trebleStart, bassStart, clefTreble = 'treble',
     noteColoringMode, setNoteColoringMode, tonic, scaleNotes, activeChord = null, theme,
     // #427 rework (Han: "COLOUR: maak een hidden carousel hiervan") — hidden reveal-on-interaction
     // like the other setters (§6d shared hook). Default on; a caller can pass false to force-expand.
@@ -54,6 +85,16 @@ const NoteColoringStaffOverlay = ({
     debugMode = false,
 }) => {
     const { collapsed, mountAllItems, reveal, resetHideTimer } = useRevealOnInteraction(hidden);
+    // #502: the three moved adjustment controls come straight from DisplaySettings (they used to be
+    // read by the SubHeader) — no extra prop threading through SheetMusic.
+    const {
+        showNoteHighlight, setShowNoteHighlight,
+        animationMode, setAnimationMode,
+        paginationVariant, setPaginationVariant,
+        lyricsMode, setLyricsMode,
+    } = useDisplaySettings();
+    // Single-open coordination across the three bass carousels (mirrors the generation setter).
+    const [activeFieldId, setActiveFieldId] = React.useState(null);
     if (startX == null || endX == null) return null;
     const centerX = startX + (endX - startX) / 2;
     const activeIndex = Math.max(0, SCHEMES.findIndex(s => s.mode === noteColoringMode));
@@ -95,6 +136,42 @@ const NoteColoringStaffOverlay = ({
         );
     };
 
+    // ── #502 bass carousels ──────────────────────────────────────────────────────────────────────
+    const bassRowY = (bassStart ?? trebleStart + 110) + 20;
+    const bCols = B_COL_FRACS.map(f => startX + f * (endX - startX));
+    const animIndex = Math.max(0, ANIMATION_ITEMS.findIndex(a =>
+        a.mode === animationMode && (a.variant == null || a.variant === (paginationVariant ?? 'mid'))));
+    // Shared veil (§60): covers the whole colour-setter area (treble scheme carousel + bass row) so
+    // an open bass carousel hides everything behind it; the staff lines are redrawn on top.
+    const veilTop = trebleStart - 40;
+    const veilBot = bassRowY + 62;
+    const veilBounds = bassStart == null ? null : { x: startX - 8, y: veilTop, w: (endX - startX) + 16, h: veilBot - veilTop };
+    const veilStaffLineYs = bassStart == null ? null : [
+        ...[0, 10, 20, 30, 40].map(d => trebleStart + d),
+        ...[0, 10, 20, 30, 40].map(d => bassStart + d),
+    ];
+    const bassFields = bassStart == null ? [] : [
+        {
+            id: 'highlights', label: 'highlights', items: HIGHLIGHT_ITEMS,
+            activeIndex: showNoteHighlight ? 1 : 0,
+            onSelect: (it) => setShowNoteHighlight(it.value),
+        },
+        {
+            id: 'animation', label: 'animation', items: ANIMATION_ITEMS,
+            activeIndex: animIndex,
+            onSelect: (it) => { setAnimationMode(it.mode); if (it.variant) setPaginationVariant?.(it.variant); },
+        },
+        {
+            id: 'lyrics', label: 'lyrics', items: LYRICS_ITEMS,
+            activeIndex: Math.max(0, LYRICS_ITEMS.findIndex(l => l.value === lyricsMode)),
+            onSelect: (it) => setLyricsMode(it.value),
+        },
+    ];
+    // Render the ACTIVE bass field LAST so its shared-layer veil sits above the others (§60).
+    const bassCells = bassFields
+        .map((f, i) => ({ f, cx: bCols[i] }))
+        .sort((a, b) => (a.f.id === activeFieldId ? 1 : 0) - (b.f.id === activeFieldId ? 1 : 0));
+
     return (
         // PER-ELEMENT FLY-IN (Han 2026-06-19): the `data-fly` moved DOWN onto each scheme card
         // inside NonLinearCarousel, so the scheme cards cascade in one-by-one from the right
@@ -118,6 +195,39 @@ const NoteColoringStaffOverlay = ({
                 mountAllItems={mountAllItems}
                 onReveal={hidden ? reveal : undefined}
                 debugMode={debugMode} />
+
+            {/* #502: HIGHLIGHTS / ANIMATION / LYRICS on the BASS staff — hidden tap-to-open carousels
+                with the shared veil, same primitives as the generation setter (§6d, §60). Active
+                field rendered LAST so its veil sits above the rest. */}
+            {bassCells.map(({ f, cx }) => (
+                <CarouselField
+                    key={f.id}
+                    items={f.items}
+                    activeIndex={f.activeIndex}
+                    onSelect={f.onSelect}
+                    centerX={cx}
+                    rowCenterY={bassRowY}
+                    baseWidth={B_BASE}
+                    hitTop={B_HIT_TOP}
+                    hitHeight={B_HIT_H}
+                    iconSize={B_ICON}
+                    iconDy={B_ICON_DY}
+                    labelDy={B_LABEL_DY}
+                    labelFontSize={B_LABEL_FS}
+                    bracketDy={B_BRACKET_DY}
+                    headerDy={B_HEADER_DY}
+                    labelAbove={f.label}
+                    staffLineYs={[-20, -10, 0, 10, 20].map(d => bassRowY + d)}
+                    veilBounds={veilBounds}
+                    veilStaffLineYs={veilStaffLineYs}
+                    fieldId={f.id}
+                    activeFieldId={activeFieldId}
+                    onActivate={setActiveFieldId}
+                    visibleHalf={2}
+                    hidden
+                    debugMode={debugMode}
+                />
+            ))}
         </g>
     );
 };

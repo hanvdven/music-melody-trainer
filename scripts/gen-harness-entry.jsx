@@ -8,6 +8,7 @@ import GenerationSetterOverlay from '../src/components/sheet-music/overlays/Gene
 import GenerationAdvancedSetterOverlay from '../src/components/sheet-music/overlays/GenerationAdvancedSetterOverlay.jsx';
 import SettingsOverlay from '../src/components/sheet-music/overlays/SettingsOverlay.jsx';
 import ExerciseStaffOverlay from '../src/components/sheet-music/overlays/ExerciseStaffOverlay.jsx';
+import NoteColoringStaffOverlay from '../src/components/sheet-music/overlays/NoteColoringStaffOverlay.jsx';
 import { InstrumentSettingsProvider } from '../src/contexts/InstrumentSettingsContext.jsx';
 import { DisplaySettingsProvider } from '../src/contexts/DisplaySettingsContext.jsx';
 import { PlaybackConfigProvider } from '../src/contexts/PlaybackConfigContext.jsx';
@@ -154,6 +155,25 @@ const OverlayEl = () => {
           processedChords={[]} groupClassName="playback-overlay"
         />
       </PlaybackConfigProvider>
+    );
+  }
+  if (OVERLAY === 'colour') {
+    return (
+      <DisplaySettingsProvider value={{
+        noteColoringMode: 'tonic_scale_keys', theme: 'default', chordDisplayMode: 'letters',
+        showNoteHighlight: true, setShowNoteHighlight: () => {},
+        animationMode: 'pagination', setAnimationMode: () => {},
+        paginationVariant: 'mid', setPaginationVariant: () => {},
+        lyricsMode: 'kodaly', setLyricsMode: () => {},
+      }}>
+        <NoteColoringStaffOverlay
+          startX={startX} endX={endX}
+          trebleStart={trebleStart} bassStart={bassStart}
+          noteColoringMode="tonic_scale_keys" setNoteColoringMode={() => {}}
+          tonic="C4" scaleNotes={['C', 'D', 'E', 'F', 'G', 'A', 'B']}
+          theme="default" hidden={false}
+        />
+      </DisplaySettingsProvider>
     );
   }
   if (OVERLAY === 'exercise') {

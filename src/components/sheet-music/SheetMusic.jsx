@@ -2881,6 +2881,7 @@ const SheetMusic = ({
                       startX={startX}
                       endX={endX}
                       trebleStart={trebleStart}
+                      bassStart={bassStart}
                       clefTreble={clefTreble}
                       noteColoringMode={noteColoringMode}
                       setNoteColoringMode={setNoteColoringMode}
