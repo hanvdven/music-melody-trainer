@@ -5098,3 +5098,23 @@ Colour setter: the example run is `C3–C4` on a bass-clef top staff (else `C4�
 
 **Files:** `sheet-music/clefResolution.js` (+ `__tests__/clefResolution.test.js` regression),
 `sheet-music/overlays/NoteColoringStaffOverlay.jsx` (register by clef family).
+
+### §63. Bug: silent TR-808 pads + instrument-selector percussion preview (#495, Han 2026-07-19)
+
+**Symptom:** Some drum sounds were silent; the instrument-selector percussion preview played the
+wrong pattern.
+
+**Root cause (silent pads):** verified against the live smplr manifests
+(`smpldsnds.github.io/drum-machines/<kit>/dm.json`). Casio-RZ1 / LM-2 / MFB-512 / Roland CR-8000 map
+to valid names. TR-808 (= `DEFAULT_NOTE_MAPPING`, the DEFAULT kit) uses ONLY `category/variant`
+sample names, but six pads referenced a BARE category that doesn't exist → silent: `b` `mid-tom`,
+`hp` `maraca`, `th` `conga-hi`, `tm` `conga-mid`, `tl` `conga-low`, `cb` `cowbell`.
+
+**Fix:** point those six at a real mid-velocity variant (`mid-tom/mt50`, `maraca/ma`, `conga-hi/hc50`,
+`conga-mid/mc50`, `conga-low/lc50`, `cowbell/cb`). Toms stay mapped to congas (unchanged intent).
+
+**Preview pattern:** the instrument-selector percussion preview is now `[[k,hh], [hh], [s,hh], [ho]]`
+as 4 QUARTER notes (was `[[k,hh],[hh],[s,hh],[hh],[k,c]]` eighths). Bracketed notes share a timeslot;
+routed through the existing `playMelodies` percussion path.
+
+**Files:** `audio/drumKits.js` (`DEFAULT_NOTE_MAPPING`), `audio/playInstrumentPreview.js`.

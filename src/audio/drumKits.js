@@ -208,20 +208,24 @@ export const DEFAULT_NOTE_MAPPING = {
     sg: 'snare/sd0010',   // Ghost snare — same sample, played at 70 % velocity
     sr: 37,               // Rim click — side stick MIDI note
     k: 'kick/bd0010',
-    b: 'mid-tom',
+    // #495 (Han 2026-07-19): the TR-808 manifest uses ONLY category/variant sample names, so these
+    // six pads referenced BARE categories (e.g. 'mid-tom') that don't exist → SILENT. Point them at a
+    // real mid-velocity variant. Toms stay mapped to congas (unchanged intent), which the TR-808
+    // provides as conga-hi/mid/low.
+    b: 'mid-tom/mt50',
     hh: 'hihat-close/ch',
     ho: 'hihat-open/oh50',
-    hp: 'maraca',
+    hp: 'maraca/ma',
     cr: 'cymbal/cy7575',
     cc: 'cymbal/cy0010',
     crt: 'cymbal/cy1000',
     cct: 'cymbal/cy1000',
     cc_bell: 'cymbal/cy7575',
     cr_bell: 'cymbal/cy7575',
-    th: 'conga-hi',
-    tm: 'conga-mid',
-    tl: 'conga-low',
-    cb: 'cowbell',
+    th: 'conga-hi/hc50',
+    tm: 'conga-mid/mc50',
+    tl: 'conga-low/lc50',
+    cb: 'cowbell/cb',
     wh: 91,
     wm: 86,
     wl: 81,

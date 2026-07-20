@@ -21,16 +21,16 @@ import { Soundfont, Reverb } from 'smplr';
 import playMelodies from './playMelodies';
 import Melody from '../model/Melody';
 
-// Percussion preview pattern: [[k,hh], hh, [s,hh], hh, [k,c]] as 5 eighth-note beats.
-// Notes are the standard short IDs from drumKits.js (k=kick, hh=hihat closed, s=snare, c=crash).
-// NOT routed through METRONOME_NOTE_IDS (none of k/s/hh/c are woodblocks), so all go to
-// instruments.percussion (DrumMachine) as per §MEMORY percussion routing checklist.
-const PERC_PREVIEW_NOTES  = [['k','hh'], ['hh'], ['s','hh'], ['hh'], ['k','c']];
-const PERC_PREVIEW_DURATION = 6; // eighth note in 48th-note ticks
+// Percussion preview pattern (#495, Han 2026-07-19): [[k,hh], [hh], [s,hh], [ho]] as 4 QUARTER-note
+// beats — bracketed notes share a timeslot. Short IDs from drumKits.js (k=kick, hh=closed hi-hat,
+// s=snare, ho=open hi-hat). None are woodblocks, so all route to instruments.percussion (DrumMachine)
+// per §MEMORY percussion routing checklist.
+const PERC_PREVIEW_NOTES  = [['k','hh'], ['hh'], ['s','hh'], ['ho']];
+const PERC_PREVIEW_DURATION = 12; // quarter note in 48th-note ticks
 const PERC_PREVIEW_MELODY = new Melody(
     PERC_PREVIEW_NOTES,
-    new Array(5).fill(PERC_PREVIEW_DURATION),
-    Array.from({ length: 5 }, (_, i) => i * PERC_PREVIEW_DURATION),
+    new Array(PERC_PREVIEW_NOTES.length).fill(PERC_PREVIEW_DURATION),
+    PERC_PREVIEW_NOTES.map((_, i) => i * PERC_PREVIEW_DURATION),
     PERC_PREVIEW_NOTES,
 );
 
