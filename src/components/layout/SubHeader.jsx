@@ -2,28 +2,16 @@ import React from 'react';
 import {
     Palette,
     Music2,
-    BookOpenCheck,
-    ArrowRightFromLine,
-    ArrowLeft,
-    PencilOff,
-    MicVocal,
     MoveHorizontal,
-    Settings2,
     Piano,
     SlidersHorizontal,
     Sparkles,
     FlaskConical,
     Dumbbell,
 } from 'lucide-react';
-import { ChordNotationIcon } from '../common/CustomIcons';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { useMelodies } from '../../contexts/MelodyContext';
 
-// ── Cycling lists for button modes ───────────────────────────────────────────
-// Palette-cycle order (Han 2026-06-17): none → chord → scale → chromatone → subtle chromatone
-// (matches the colour-setter carousel order). 'tonic_scale_keys' mode is now LABELLED "Scale".
-const COLOR_MODES = ['none', 'chords', 'tonic_scale_keys', 'chromatone', 'subtle-chroma'];
-const LYRICS_MODES = ['none', 'doremi-rel', 'doremi-abs', 'kodaly', 'takadimi'];
 
 const SubHeader = ({
     show,
@@ -234,112 +222,15 @@ const SubHeader = ({
                 </div>
             </div>
 
-            <div style={{
-                position: 'absolute',
-                left: SIDE_PAD,
-                right: SIDE_PAD,
-                top: 0,
-                bottom: 0,
-                opacity: show ? 1 : 0,
-                pointerEvents: show ? 'auto' : 'none',
-                transition: 'opacity 0.2s',
-            }}>
-                {/* LEFT: 0 from padded edge */}
-                <div style={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)' }}>
-                    {renderButton(
-                        <Palette size={22} color={noteColoringMode === 'chromatone' ? 'url(#chromatone-gradient-hdr)' : noteColoringMode === 'subtle-chroma' ? 'url(#subtle-chromatone-gradient-hdr)' : paletteColor} fill="none" />,
-                        noteColoringMode === 'none' ? 'NO COLOR' : noteColoringMode === 'tonic_scale_keys' ? 'SCALE' : noteColoringMode === 'chords' ? 'CHORDS' : noteColoringMode === 'subtle-chroma' ? 'SUBTLE CHROMA' : 'CHROMATONE',
-                        () => {
-                            const idx = COLOR_MODES.indexOf(noteColoringMode);
-                            setNoteColoringMode(COLOR_MODES[(idx + 1) % COLOR_MODES.length]);
-                        },
-                        noteColoringMode !== 'none',
-                        paletteColor
-                    )}
-                </div>
-
-                {/* LEFT: 1*BW*btnScale from padded edge */}
-                <div style={{ position: 'absolute', left: Math.round(BW * btnScale), top: '50%', transform: 'translateY(-50%)' }}>
-                    {renderButton(
-                        <Music2 size={22} style={showNoteHighlight ? { filter: 'drop-shadow(0 0 8px white) drop-shadow(0 0 4px white) drop-shadow(0 0 2px white)' } : {}} />,
-                        showNoteHighlight ? 'HIGHLIGHTS' : 'NO HIGHLIGHTS',
-                        () => setShowNoteHighlight(!showNoteHighlight),
-                        false,
-                        showNoteHighlight ? 'white' : '#88ccff'
-                    )}
-                </div>
-
-                {/* LEFT: 2*BW*btnScale from padded edge — animation mode + pagination variant.
-                    Cycle: pag-snel → pag-mid → wipe → scroll. The 'lang' pagination variant
-                    was removed 2026-05-28 (Han: no use case). If a user has 'lang' saved in
-                    localStorage from a previous session it falls through to 'wipe' on the
-                    next cycle press; legacy state isn't actively scrubbed. */}
-                <div style={{ position: 'absolute', left: Math.round(BW * 2 * btnScale), top: '50%', transform: 'translateY(-50%)' }}>
-                    {renderButton(
-                        animationMode === 'wipe' ? <ArrowRightFromLine size={22} /> : animationMode === 'scroll' ? <ArrowLeft size={22} /> : <BookOpenCheck size={22} />,
-                        animationMode === 'wipe' ? 'WIPE'
-                            : animationMode === 'scroll' ? 'SCROLL'
-                            : `PAG · ${(paginationVariant ?? 'mid').toUpperCase()}`,
-                        () => {
-                            // Cycle: pag/snel → pag/mid → wipe → scroll → pag/snel.
-                            if (animationMode !== 'pagination') {
-                                if (animationMode === 'wipe') setAnimationMode('scroll');
-                                else { setAnimationMode('pagination'); setPaginationVariant('snel'); }
-                                return;
-                            }
-                            const next = { snel: 'mid', mid: null }[paginationVariant ?? 'mid'];
-                            if (next) setPaginationVariant(next);
-                            else setAnimationMode('wipe');
-                        },
-                        false,
-                        '#88ccff'
-                    )}
-                </div>
-
-                {/* LEFT: 3*BW*btnScale from padded edge */}
-                <div style={{ position: 'absolute', left: Math.round(BW * 3 * btnScale), top: '50%', transform: 'translateY(-50%)' }}>
-                    {renderButton(
-                        lyricsMode === 'none' ? <PencilOff size={22} /> : lyricsMode === 'takadimi' ? <Music2 size={22} /> : <MicVocal size={22} />,
-                        lyricsMode === 'none' ? 'NO LYRICS' : lyricsMode === 'doremi-rel' ? 'DO-RE-MI (RELATIVE)' : lyricsMode === 'doremi-abs' ? 'DO-RE-MI (ABSOLUTE)' : lyricsMode === 'kodaly' ? 'DO-RE-MI (KODÁLY)' : 'TAKADIMI',
-                        () => {
-                            const idx = LYRICS_MODES.indexOf(lyricsMode);
-                            setLyricsMode(LYRICS_MODES[(idx + 1) % LYRICS_MODES.length]);
-                        },
-                        lyricsMode !== 'none',
-                        lyricsMode !== 'none' ? 'var(--accent-yellow)' : '#88ccff'
-                    )}
-                </div>
-
-                {/* LEFT: 4*BW*btnScale from padded edge — chord notation mode */}
-                <div style={{ position: 'absolute', left: Math.round(BW * 4 * btnScale), top: '50%', transform: 'translateY(-50%)' }}>
-                    {renderButton(
-                        <ChordNotationIcon mode={chordDisplayMode} size={22} />,
-                        chordDisplayMode === 'letters' ? 'LETTERS' : 'NUMERALS',
-                        () => setChordDisplayMode(m => m === 'letters' ? 'roman' : 'letters'),
-                        false,
-                        '#88ccff'
-                    )}
-                </div>
-
-            </div>
+            {/* (#502: legacy adjustment-button row removed 2026-07-20 — colour+chord-notation
+                dropped; highlights/animation/lyrics moved into the COLOUR setter as bass-staff carousels.) */}
 
             {/* RANGE button — TEMPORARY entry point for the visual settings re-haul.
                 Lives OUTSIDE the opacity:show wrapper above so it stays visible even
                 when the adjustment buttons are faded out (Han: "altijd zichtbaar").
                 Will be replaced by tap-on-element context overlays later. */}
-            {(onOpenRange || onOpenClef || onOpenSettings) && (
+            {(onOpenRange || onOpenClef) && (
                 <div style={{ position: 'absolute', right: SIDE_PAD, top: '50%', transform: 'translateY(-50%)', zIndex: 2, display: 'flex', gap: 8 }}>
-                    {/* SETTINGS button — the ONLY entry point for the legacy settings
-                        surface now (Han #13: clicking the sheet no longer opens it).
-                        Goal: deprecate once its options migrate to in-staff setters. */}
-                    {onOpenSettings && renderButton(
-                        <Settings2 size={22} />,
-                        'SETTINGS',
-                        onOpenSettings,
-                        showSheetMusicSettings,
-                        null,
-                        true
-                    )}
                     {/* Chords are enabled/disabled inside the CLEF selector (Han #6) —
                         no standalone CHORDS button. */}
                     {onOpenClef && renderButton(

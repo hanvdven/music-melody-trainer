@@ -1,26 +1,19 @@
 // Smoke tests for useEditMode (Han 2026-06-19, ARCHITECTURE_AUDIT.md §4).
 // These assert the EXACT behaviour-preserving contract the hook extracted from
 // App.jsx: each toggle flips its own flag, and OPENING any edit mode closes the
-// three siblings + the settings overlay (via toggleSheetMusicSettings) + stops
-// playback. CLOSING a mode must NOT close siblings or stop playback.
+// three siblings + stops playback. CLOSING a mode must NOT close siblings or stop playback.
+// (The legacy settings overlay was removed 2026-07-20; its coordination tests are gone.)
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import useEditMode from '../useEditMode';
 
-function setup({ showSheetMusicSettings = false } = {}) {
+function setup() {
     const handleStopAllPlayback = vi.fn();
-    const toggleSheetMusicSettings = vi.fn();
     const { result, rerender } = renderHook(
         (props) => useEditMode(props),
-        {
-            initialProps: {
-                handleStopAllPlayback,
-                showSheetMusicSettings,
-                toggleSheetMusicSettings,
-            },
-        }
+        { initialProps: { handleStopAllPlayback } }
     );
-    return { result, rerender, handleStopAllPlayback, toggleSheetMusicSettings };
+    return { result, rerender, handleStopAllPlayback };
 }
 
 describe('useEditMode', () => {
@@ -139,25 +132,6 @@ describe('useEditMode', () => {
         expect(h.handleStopAllPlayback).toHaveBeenCalledTimes(2);
     });
 
-    it('opening an edit mode closes the settings overlay when it is open', () => {
-        const open = setup({ showSheetMusicSettings: true });
-        act(() => open.result.current.handleToggleRangeEdit());
-        expect(open.toggleSheetMusicSettings).toHaveBeenCalledTimes(1);
-    });
-
-    it('handleToggleSettings stops playback and closes all edit modes on open', () => {
-        // turn on an edit mode first
-        act(() => h.result.current.handleToggleClefEdit());
-        expect(h.result.current.clefEditMode).toBe(true);
-        // settings is currently closed → toggling it counts as OPEN
-        act(() => h.result.current.handleToggleSettings());
-        expect(h.toggleSheetMusicSettings).toHaveBeenCalledTimes(1);
-        expect(h.result.current.clefEditMode).toBe(false);
-        expect(h.result.current.rangeEditMode).toBe(false);
-        expect(h.result.current.colorEditMode).toBe(false);
-        expect(h.result.current.instrumentEditMode).toBe(false);
-    });
-
     it('handleOpenClefEdit always lands in clef-edit (pure open, not toggle)', () => {
         act(() => h.result.current.handleOpenClefEdit());
         expect(h.result.current.clefEditMode).toBe(true);
@@ -175,17 +149,4 @@ describe('useEditMode', () => {
         expect(h.result.current.clefEditMode).toBe(false);
     });
 
-    it('settings catch-all effect closes range/clef when settings becomes visible', () => {
-        act(() => h.result.current.handleToggleRangeEdit());
-        expect(h.result.current.rangeEditMode).toBe(true);
-        // settings overlay turns on by some other path → rerender with new prop
-        act(() => {
-            h.rerender({
-                handleStopAllPlayback: h.handleStopAllPlayback,
-                showSheetMusicSettings: true,
-                toggleSheetMusicSettings: h.toggleSheetMusicSettings,
-            });
-        });
-        expect(h.result.current.rangeEditMode).toBe(false);
-    });
 });

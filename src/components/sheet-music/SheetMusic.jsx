@@ -190,7 +190,11 @@ const SheetMusic = ({
   screenWidth,
   onRandomizeMeasure,
   showChords,
-  showSettings,
+  // #502 (2026-07-20): the legacy in-staff SETTINGS surface was removed. Nothing sets this true any
+  // more (its entry-point buttons are gone), so it defaults false; the remaining `showSettings`
+  // branches (BPM/time-sig/colour affordances that used to appear while that panel was open) are now
+  // simply inert. Kept as a prop rather than purged so those conditionals stay untouched.
+  showSettings = false,
   rangeEditMode,
   clefEditMode,
   colorEditMode,
@@ -420,7 +424,7 @@ const SheetMusic = ({
   // #299 (Han 2026-07-06): EVERY setter shows ALL staves — a staff hidden by its
   // eye toggles or disabled via clef-off stays editable in any in-staff setter,
   // not just settings/range/clef. inSettingsView therefore spans all edit modes.
-  const inSettingsView = showSettings || rangeEditMode || clefEditMode ||
+  const inSettingsView = rangeEditMode || clefEditMode ||
     colorEditMode || instrumentEditMode || playbackEditMode ||
     generationEditMode || generationAdvancedEditMode || exerciseEditMode;
   // Base visibility = what the staff shows OUTSIDE any setter.
@@ -482,7 +486,7 @@ const SheetMusic = ({
   // new flies in from the right. Either RANGE or CLEF mode triggers it (both replace
   // the melody with an overlay). `morphing` keeps BOTH groups mounted+visible for
   // the duration. Fly distance = content width (user units). See useRangeMorph.
-  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || instrumentEditMode || showSettings || playbackEditMode || generationEditMode || generationAdvancedEditMode || exerciseEditMode;
+  const overlayEditMode = rangeEditMode || clefEditMode || colorEditMode || instrumentEditMode || playbackEditMode || generationEditMode || generationAdvancedEditMode || exerciseEditMode;
   // The currently-shown SURFACE drives the morph: switching between range / clef /
   // legacy-settings / melody re-arms the animation each time (Han #10/#11). The old
   // settings overlay is now the sliding 'legacy' surface.
@@ -494,7 +498,7 @@ const SheetMusic = ({
   // The three generator setters (Han 2026-06-22) are their own morph surfaces, placed BEFORE the
   // 'legacy'/'melody' fallbacks. PLAYBACK reuses SettingsOverlay but flies in as the 'playback'
   // surface (distinct group class 'playback-overlay').
-  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : instrumentEditMode ? 'instrument' : playbackEditMode ? 'playback' : generationEditMode ? 'generation' : generationAdvancedEditMode ? 'generation-advanced' : exerciseEditMode ? 'exercise' : showSettings ? 'legacy' : 'melody';
+  const overlayKind = rangeEditMode ? 'range' : clefEditMode ? 'clef' : colorEditMode ? 'color' : instrumentEditMode ? 'instrument' : playbackEditMode ? 'playback' : generationEditMode ? 'generation' : generationAdvancedEditMode ? 'generation-advanced' : exerciseEditMode ? 'exercise' : 'melody';
   const { morphing: rangeMorphing, morphFrom, morphTo } = useRangeMorph(overlayKind, svgRef, endX);
   // Universal transition: replay the SAME 1.5s cascade when the app swaps the sheet content
   // IN PLACE (song load, difficulty, …) rather than via an overlay surface change. App bumps
@@ -517,7 +521,6 @@ const SheetMusic = ({
   const mountedFor = (k, active) => active || (rangeMorphing && (morphFrom === k || morphTo === k));
   const rangeMounted = mountedFor('range', rangeEditMode);
   const clefMounted = mountedFor('clef', clefEditMode);
-  const legacyMounted = mountedFor('legacy', showSettings);
   // Keep the colour overlay mounted through its EXIT morph too (color→melody), so its
   // scheme rows can fade/fly out instead of vanishing instantly (Han 2026-06-15 B1).
   const colorMounted = mountedFor('color', colorEditMode);
@@ -2733,47 +2736,8 @@ const SheetMusic = ({
                       below (overlayEditMode ⊇ rangeEditMode), together with a matching
                       LEFT barline so both edges read at the same weight (Han BUG-V3). */}
 
-                  {/* Legacy settings surface — now slides in like clef/range (Han #11),
-                      kept mounted during its morph. */}
-                  {legacyMounted && (
-                    <SettingsOverlay
-                      startX={startX}
-                      endX={endX}
-                      systemEndX={systemEndX}
-                      trebleStart={trebleStart}
-                      bassStart={bassStart}
-                      percussionStart={percussionStart}
-                      isTrebleVisible={isTrebleVisible}
-                      isBassVisible={isBassVisible}
-                      isPercussionVisible={isPercussionVisible}
-                      playbackConfig={playbackConfig}
-                      setPlaybackConfig={setPlaybackConfig}
-                      toggleRoundSetting={toggleRoundSetting}
-                      setActiveVolumePicker={setActiveVolumePicker}
-                      setActiveNumberPicker={setActiveNumberPicker}
-                      numMeasures={numMeasures}
-                      setNumMeasures={onNumMeasuresChange}
-                      chordDisplayMode={chordDisplayMode}
-                      showNoteHighlight={showNoteHighlight}
-                      setShowNoteHighlight={setShowNoteHighlight}
-                      animationMode={animationMode}
-                        noteColoringMode={noteColoringMode}
-                      setNoteColoringMode={setNoteColoringMode}
-                      inputTestSubMode={inputTestSubMode}
-                      setInputTestSubMode={setInputTestSubMode}
-                      isFullscreen={isFullscreen}
-                      toggleFullscreen={toggleFullscreen}
-                      headerPlayMode={headerPlayMode}
-                      setHeaderPlayMode={setHeaderPlayMode}
-                      handleToggleInputTest={handleToggleInputTest}
-                      handlePlayMelody={handlePlayMelody}
-                      handlePlayContinuously={handlePlayContinuously}
-                      chordProgression={chordProgression}
-                      processedChords={processedChords}
-                      onSettingsInteraction={onSettingsInteraction}
-                      debugMode={debugMode}
-                    />
-                  )}
+                  {/* (Legacy in-staff 'settings' surface removed 2026-07-20 — fully replaced by the
+                      PLAYBACK setter below; §6c no duplicate.) */}
 
                   {/* PLAYBACK setter (Han 2026-06-22) — REUSES SettingsOverlay (§6c: no duplicate),
                       but under the distinct group class 'playback-overlay' so its morph never

@@ -28,7 +28,6 @@ import useMelodyState from './hooks/useMelodyState';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
 import useDeviceState from './hooks/useDeviceState';
-import useSettingsOverlay from './hooks/useSettingsOverlay';
 import useNoteInteraction from './hooks/useNoteInteraction';
 import usePlaybackNavigation from './hooks/usePlaybackNavigation';
 import useScaleManagement from './hooks/useScaleManagement';
@@ -223,7 +222,6 @@ const App = () => {
     const [customPercussionMapping, setCustomPercussionMapping, customPercussionMappingRef] = useRefState({});
 
     // Sheet Music Settings state (Lifted)
-    const { showSheetMusicSettings, toggleSheetMusicSettings, resetSettingsTimer } = useSettingsOverlay();
 
     // Edit-mode flags (range / clef / colour / instrument) + their toggle/open/close
     // handlers + the settings catch-all effect now live in useEditMode (Han 2026-06-19,
@@ -733,11 +731,10 @@ const App = () => {
         handleToggleGenerationEdit,
         handleToggleGenerationAdvancedEdit,
         handleToggleExerciseEdit,
-        handleToggleSettings,
         handleCloseRangeEdit,
         handleCloseClefEdit,
         handleOpenClefEdit,
-    } = useEditMode({ handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings });
+    } = useEditMode({ handleStopAllPlayback });
 
     // ── Exercise view (#265/#266 rework, epic #245, Han 2026-07-02) ───────────
     // Exercises are PRESETS over four axes (melodyType / input / tempo /
@@ -1563,7 +1560,6 @@ const App = () => {
         numAccidentals: scale.numAccidentals,
         screenWidth: windowSize.width,
         onRandomizeMeasure: randomizeMeasure,
-        showSettings: showSheetMusicSettings,
         rangeEditMode: rangeEditMode,
         clefEditMode: clefEditMode,
         colorEditMode: colorEditMode,
@@ -1577,11 +1573,9 @@ const App = () => {
         exerciseAxes: exerciseAxes,
         onExerciseAxisChange: handleExerciseAxisChange,
         onStartExercise: handleStartExercise,
-        onToggleSettings: toggleSheetMusicSettings,
         onCloseRangeEdit: handleCloseRangeEdit,
         onCloseClefEdit: handleCloseClefEdit,
         onOpenClefEdit: handleOpenClefEdit,
-        onSettingsInteraction: resetSettingsTimer,
         tonic: scale.tonic,
         svgRef,
         isFullscreen,
@@ -1615,12 +1609,12 @@ const App = () => {
         anacrusisMeasureIndex, mergedRenderMelodies,
         playbackConfig, setPlaybackConfig,
         numMeasures, musicalBlocks, setMusicalBlocks, setNumMeasures, scale.numAccidentals, scale.tonic,
-        windowSize.width, randomizeMeasure, showSheetMusicSettings, rangeEditMode, clefEditMode, colorEditMode, instrumentEditMode,
+        windowSize.width, randomizeMeasure, rangeEditMode, clefEditMode, colorEditMode, instrumentEditMode,
         playbackEditMode, generationEditMode, generationAdvancedEditMode, exerciseEditMode,
         handleSelectExercise, activeExerciseId, exerciseAxes, handleExerciseAxisChange,
-        handleStartExercise, toggleSheetMusicSettings,
+        handleStartExercise,
         handleCloseRangeEdit, handleCloseClefEdit, handleOpenClefEdit,
-        resetSettingsTimer, svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
+        svgRef, isFullscreen, toggleFullscreen, headerPlayMode, setHeaderPlayMode,
         handleToggleInputTest, handlePlayMelody, handlePlayContinuously, isPlayingContinuously, isPlaying,
         showNotes, showChordLabels, showChordsOddRounds, showChordsEvenRounds,
         handleNoteClick, handleChordClick, handleEnharmonicToggle, handleMeasureNumberClick,
@@ -1679,8 +1673,6 @@ const App = () => {
                     onToggleThronefall={() => setTheme(theme === 'thronefall' ? 'default' : 'thronefall')}
                     displayTonic={displayTonic}
                     globalInstLabel={globalTransposition ? `${globalTransposition.label} instrument` : null}
-                    showSheetMusicSettings={showSheetMusicSettings}
-                    toggleSheetMusicSettings={toggleSheetMusicSettings}
                     isInputTestMode={isInputTestMode}
                     inputTestState={isInputTestMode ? inputTestState : null}
                     inputTestSubMode={inputTestSubMode}
@@ -1710,7 +1702,6 @@ const App = () => {
                 />
 
                 <SubHeader
-                    show={showSheetMusicSettings}
                     inputTestSubMode={inputTestSubMode}
                     setInputTestSubMode={handleSetInputTestSubMode}
                     isInputTestMode={isInputTestMode}
@@ -1723,7 +1714,6 @@ const App = () => {
                     isPlayingContinuously={isPlayingContinuously}
                     handlePlayMelody={handlePlayMelody}
                     handlePlayContinuously={handlePlayContinuously}
-                    onOpenSettings={handleToggleSettings}
                     onOpenRange={handleToggleRangeEdit}
                     onOpenClef={handleToggleClefEdit}
                     onOpenColor={handleToggleColorEdit}
@@ -1741,7 +1731,6 @@ const App = () => {
                     generationAdvancedEditMode={generationAdvancedEditMode}
                     exerciseEditMode={exerciseEditMode}
                     exerciseRun={exerciseRun}
-                    showSheetMusicSettings={showSheetMusicSettings}
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}
                 />
@@ -1876,13 +1865,11 @@ const App = () => {
                     activeClef={activeClef}
                     handleInputTestNote={handleInputTestNote}
                     qwertyKeyboardActive={qwertyKeyboardActive}
-                    showSheetMusicSettings={showSheetMusicSettings}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}
                     keyboardTranspose={keyboardTranspose}
                     setKeyboardTranspose={setKeyboardTranspose}
                     keyboardActiveChord={keyboardActiveChord}
-                    resetSettingsTimer={resetSettingsTimer}
                     customPercussionMapping={customPercussionMapping}
                     setCustomPercussionMapping={setCustomPercussionMapping}
                     theme={theme}

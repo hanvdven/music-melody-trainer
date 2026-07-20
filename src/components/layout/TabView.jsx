@@ -3,7 +3,6 @@ import SheetMusic from '../sheet-music/SheetMusic';
 import PianoView, { foldShift } from '../controls/PianoView';
 import KeyboardRangeSetter from '../controls/KeyboardRangeSetter';
 import KeyboardTransposeSetter from '../controls/KeyboardTransposeSetter';
-import RangeControls from '../controls/RangeControls';
 import ToneRecognizer from '../controls/ToneRecognizer';
 import DrumPad from '../controls/DrumPad';
 import ScaleSelector from '../scale/ScaleSelector';
@@ -46,13 +45,11 @@ const TabView = ({
     activeClef,
     handleInputTestNote,
     qwertyKeyboardActive,
-    showSheetMusicSettings,
     rangeEditMode,
     clefEditMode,
     keyboardTranspose = 0,
     setKeyboardTranspose,
     keyboardActiveChord = null,
-    resetSettingsTimer,
     // Percussion custom mapping
     customPercussionMapping,
     setCustomPercussionMapping,
@@ -204,34 +201,6 @@ const TabView = ({
                                         activeChord={keyboardActiveChord}
                                         theme={theme}
                                     />
-                                    {/* data-settings-keepalive stops the overlay's
-                                        click-outside-to-close from firing when the user
-                                        taps a control here (bug #7, Han 2026-05-30). */}
-                                    {showSheetMusicSettings && (
-                                        <div data-settings-keepalive="" style={{
-                                            position: 'absolute',
-                                            top: 0, left: 0, right: 0,
-                                            background: 'var(--panel-bg)',
-                                            zIndex: 20,
-                                            padding: '4px 8px 20px 8px',
-                                        }}>
-                                            <RangeControls
-                                                activeSettings={activeClef === 'treble' ? trebleSettings : bassSettings}
-                                                setSettings={activeClef === 'treble' ? setTrebleSettings : setBassSettings}
-                                                tonic={scale.tonic}
-                                                activeClef={activeClef}
-                                                instrumentOptions={instrumentOptions}
-                                                setInstrument={(slug) => {
-                                                    if (activeClef === 'treble') setTrebleSettings(p => ({ ...p, instrument: slug }));
-                                                    else setBassSettings(p => ({ ...p, instrument: slug }));
-                                                }}
-                                                noteColoringMode={noteColoringMode}
-                                                setNoteColoringMode={setNoteColoringMode}
-                                                onSettingsInteraction={resetSettingsTimer}
-                                                rangeOnly={false}
-                                            />
-                                        </div>
-                                    )}
                                 </>
                             )}
                         </div>
@@ -297,28 +266,6 @@ const TabView = ({
                                         activeChord={keyboardActiveChord}
                                         theme={theme}
                                     />
-                                    {showSheetMusicSettings && (
-                                        <div data-settings-keepalive="" style={{
-                                            position: 'absolute',
-                                            top: 0, left: 0, right: 0,
-                                            background: 'var(--panel-bg)',
-                                            zIndex: 20,
-                                            padding: '4px 8px 20px 8px',
-                                        }}>
-                                            <RangeControls
-                                                activeSettings={bassSettings}
-                                                setSettings={setBassSettings}
-                                                tonic={scale.tonic}
-                                                activeClef={'bass'}
-                                                instrumentOptions={instrumentOptions}
-                                                setInstrument={(slug) => setBassSettings(p => ({ ...p, instrument: slug }))}
-                                                noteColoringMode={noteColoringMode}
-                                                setNoteColoringMode={setNoteColoringMode}
-                                                onSettingsInteraction={resetSettingsTimer}
-                                                rangeOnly={false}
-                                            />
-                                        </div>
-                                    )}
                                 </>
                             )}
                         </div>

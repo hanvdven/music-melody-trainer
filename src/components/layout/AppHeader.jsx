@@ -2,7 +2,6 @@ import React from 'react';
 import {
     Play,
     Square,
-    SlidersHorizontal,
     Cog,
     Repeat1,
     MicOff,
@@ -23,8 +22,6 @@ const AppHeader = ({
     scale,
     displayTonic = null,        // written tonic when global transposition is active (item 5)
     globalInstLabel = null,     // "(B♭ instrument)" line under the title when global-transposed
-    showSheetMusicSettings,
-    toggleSheetMusicSettings,
     isInputTestMode,
     inputTestSubMode = 'step',
     setInputTestSubMode,
@@ -77,13 +74,8 @@ const AppHeader = ({
                         inputTestSubMode === 'note' ? <Piano size={22} /> : <Mic size={22} />}
                 </button>
 
-                <button
-                    className={`tab-button secondary app-header-btn ${showSheetMusicSettings ? 'active' : ''}`}
-                    onClick={toggleSheetMusicSettings}
-                    style={{ color: showSheetMusicSettings ? 'var(--accent-yellow)' : '#88ccff', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
-                >
-                    <SlidersHorizontal size={22} />
-                </button>
+                {/* (Legacy SETTINGS toggle removed 2026-07-20 — replaced by the PLAYBACK setter +
+                    the moved adjustment carousels in the COLOUR setter.) */}
 
                 <button
                     className={`tab-button secondary app-header-btn ${debugMode ? 'active' : ''}`}
@@ -147,7 +139,7 @@ const AppHeader = ({
                         {songTitle ? `${songTitle} in` : (progressionLabel ? `${progressionLabel} in` : 'Melody in')}{' '}
                     <span
                         style={{
-                            color: showSheetMusicSettings ? 'var(--accent-yellow)' : 'inherit',
+                            color: 'inherit',
                             filter: isScalePlaying ? 'drop-shadow(0 0 6px white) drop-shadow(0 0 3px white)' : 'none',
                             cursor: 'pointer',
                             pointerEvents: 'auto',

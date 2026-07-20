@@ -5042,3 +5042,39 @@ so it paints above its own veil.
 `CarouselFieldItem.jsx` (shared-layer veil path), `overlays/generationNoteGlyphs.jsx`
 (ComplexityChordGlyph), `overlays/MiniMelody.jsx` / `MelodyNotesLayer.jsx` / `renderMelodyNotes.jsx`
 (suppressLedgers), `constants/generationFields.js` (SUS removed, exotic label).
+
+### §61. Legacy SETTINGS surface retired → adjustment controls moved to the COLOUR setter (#502, Han 2026-07-20)
+
+**Purpose:** The SubHeader **SETTINGS** button (Settings2 icon) and the AppHeader SlidersHorizontal
+button both opened a legacy in-staff `SettingsOverlay` (+ a bottom `RangeControls` panel + a
+`show`-gated SubHeader adjustment-button row). The overlay/panel were redundant with the PLAYBACK
+setter and the separate range/instrument/colour setters. Han retired the entry points and RELOCATED
+the still-useful adjustment controls into the COLOUR setter.
+
+**What was removed:**
+- `hooks/useSettingsOverlay.js` (+ its test) — the `showSheetMusicSettings` state/timer.
+- `useEditMode` no longer takes/closes the settings overlay (params, the catch-all effect, the
+  per-toggle "close settings" lines, and `handleToggleSettings` all gone).
+- The legacy `SettingsOverlay` render + `legacyMounted` + the `'legacy'` overlay-kind in
+  `SheetMusic.jsx` (the `showSettings` PROP is kept as an always-false default so the unrelated
+  `showSettings` affordance branches — BPM/time-sig/colour hints that used to appear while the panel
+  was open — simply stay inert rather than being surgically unpicked).
+- The SubHeader **SETTINGS** button + the entire `show`-gated adjustment-button row (colour /
+  highlights / animation / lyrics / chord-notation) + now-dead imports/consts.
+- The AppHeader SlidersHorizontal button + its title-colour tie-in.
+- The `showSheetMusicSettings`-gated `RangeControls` sections in `TabView.jsx`.
+
+**What was relocated (see §60/§59):** three of those controls became hidden tap-to-open carousels on
+the BASS staff of the COLOUR setter (`NoteColoringStaffOverlay`), using the shared
+`CarouselField` + shared-layer veil: **HIGHLIGHTS**, **ANIMATION** (pag·snel / pag·mid / wipe /
+scroll — writes `animationMode`+`paginationVariant`), **LYRICS** (solfège). The colour-mode and
+chord-notation toggles were dropped (colour is the setter's own treble carousel; chord-notation was
+retired). The controls are read straight from `DisplaySettings` (only `bassStart` is newly threaded
+from `SheetMusic`).
+
+**Invariants:** there is now ONE settings surface per concern (PLAYBACK for rounds/volume/repeats,
+COLOUR for colour + the 3 display toggles). No `showSheetMusicSettings` anywhere.
+
+**Files:** removed `hooks/useSettingsOverlay.js`(+test); edited `hooks/useEditMode.js`(+test),
+`App.jsx`, `components/layout/{AppHeader,SubHeader,TabView}.jsx`, `sheet-music/SheetMusic.jsx`,
+`sheet-music/overlays/NoteColoringStaffOverlay.jsx` (+test), `scripts/gen-harness-entry.jsx`.

@@ -11,15 +11,12 @@
 // "only one open" enforcement was added beyond what the original handlers already
 // did (each toggle clears its three siblings only on OPEN, never on close).
 //
-// The general SETTINGS overlay (showSheetMusicSettings) is NOT owned here — it
-// lives in useSettingsOverlay. It is passed in as state + toggler because the
-// edit-mode handlers must close it on open and are closed by it (mutual exclusion).
-import { useState, useEffect, useCallback } from 'react';
+// (The legacy general SETTINGS overlay was removed 2026-07-20 — fully replaced by the PLAYBACK
+// setter + the moved adjustment carousels in the COLOUR setter — so useEditMode no longer takes it.)
+import { useState, useCallback } from 'react';
 
 export default function useEditMode({
     handleStopAllPlayback,
-    showSheetMusicSettings,
-    toggleSheetMusicSettings,
 }) {
     // In-SVG range-edit mode for the visual settings re-haul. Toggled by the
     // SubHeader RANGE button; drives RangeStaffOverlay inside the SheetMusic SVG.
@@ -47,15 +44,6 @@ export default function useEditMode({
     // Sibling of all the above — fully mutually exclusive.
     const [exerciseEditMode, setExerciseEditMode] = useState(false);
 
-    // Range-edit and the general settings overlay are mutually exclusive
-    // (Han 2026-05-31). This effect is the catch-all: whenever the settings
-    // overlay becomes visible (by any path — sheet click, SubHeader, …) close
-    // range edit so the two never stack. Clef-edit follows the same rule.
-    useEffect(() => {
-        if (showSheetMusicSettings && rangeEditMode) setRangeEditMode(false);
-        if (showSheetMusicSettings && clefEditMode) setClefEditMode(false);
-    }, [showSheetMusicSettings, rangeEditMode, clefEditMode]);
-
     // Range-edit and playback are mutually exclusive (Han 2026-05-30): opening
     // the range overlay stops playback; see also the close-on-play effect below.
     // Range-edit and the general settings overlay are ALSO mutually exclusive
@@ -64,7 +52,6 @@ export default function useEditMode({
     const handleToggleRangeEdit = useCallback(() => {
         if (!rangeEditMode) {
             handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
             setClefEditMode(false);   // range & clef modes are mutually exclusive
             setColorEditMode(false);
             setInstrumentEditMode(false);
@@ -74,14 +61,13 @@ export default function useEditMode({
             setExerciseEditMode(false);
         }
         setRangeEditMode(v => !v);
-    }, [rangeEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+    }, [rangeEditMode, handleStopAllPlayback]);
 
     // Clef-edit toggle — mirrors range-edit (stop playback, close settings/range).
     // The chord-row X/letters/roman selector lives inside this mode (Han #6).
     const handleToggleClefEdit = useCallback(() => {
         if (!clefEditMode) {
             handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
             setRangeEditMode(false);
             setColorEditMode(false);
             setInstrumentEditMode(false);
@@ -91,13 +77,12 @@ export default function useEditMode({
             setExerciseEditMode(false);
         }
         setClefEditMode(v => !v);
-    }, [clefEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+    }, [clefEditMode, handleStopAllPlayback]);
 
     // Note-colouring menu toggle — mirrors range/clef (stop playback, close the others).
     const handleToggleColorEdit = useCallback(() => {
         if (!colorEditMode) {
             handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
             setRangeEditMode(false);
             setClefEditMode(false);
             setInstrumentEditMode(false);
@@ -107,13 +92,12 @@ export default function useEditMode({
             setExerciseEditMode(false);
         }
         setColorEditMode(v => !v);
-    }, [colorEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+    }, [colorEditMode, handleStopAllPlayback]);
 
     // Instrument selector toggle — mirrors colour (stop playback, close the others).
     const handleToggleInstrumentEdit = useCallback(() => {
         if (!instrumentEditMode) {
             handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
             setRangeEditMode(false);
             setClefEditMode(false);
             setColorEditMode(false);
@@ -123,7 +107,7 @@ export default function useEditMode({
             setExerciseEditMode(false);
         }
         setInstrumentEditMode(v => !v);
-    }, [instrumentEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+    }, [instrumentEditMode, handleStopAllPlayback]);
 
     // ── Three new generator-setter toggles (Han 2026-06-22) ───────────────────
     // Each mirrors handleToggleInstrumentEdit EXACTLY: stop playback, close the legacy settings
@@ -131,7 +115,6 @@ export default function useEditMode({
     const handleTogglePlaybackEdit = useCallback(() => {
         if (!playbackEditMode) {
             handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
             setRangeEditMode(false);
             setClefEditMode(false);
             setColorEditMode(false);
@@ -141,12 +124,11 @@ export default function useEditMode({
             setExerciseEditMode(false);
         }
         setPlaybackEditMode(v => !v);
-    }, [playbackEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+    }, [playbackEditMode, handleStopAllPlayback]);
 
     const handleToggleGenerationEdit = useCallback(() => {
         if (!generationEditMode) {
             handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
             setRangeEditMode(false);
             setClefEditMode(false);
             setColorEditMode(false);
@@ -156,12 +138,11 @@ export default function useEditMode({
             setExerciseEditMode(false);
         }
         setGenerationEditMode(v => !v);
-    }, [generationEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+    }, [generationEditMode, handleStopAllPlayback]);
 
     const handleToggleGenerationAdvancedEdit = useCallback(() => {
         if (!generationAdvancedEditMode) {
             handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
             setRangeEditMode(false);
             setClefEditMode(false);
             setColorEditMode(false);
@@ -171,14 +152,13 @@ export default function useEditMode({
             setExerciseEditMode(false);
         }
         setGenerationAdvancedEditMode(v => !v);
-    }, [generationAdvancedEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+    }, [generationAdvancedEditMode, handleStopAllPlayback]);
 
     // EXERCISES selector toggle (#266, Han 2026-07-02) — mirrors the other
     // setter toggles exactly (stop playback, close settings + every sibling).
     const handleToggleExerciseEdit = useCallback(() => {
         if (!exerciseEditMode) {
             handleStopAllPlayback();
-            if (showSheetMusicSettings) toggleSheetMusicSettings();
             setRangeEditMode(false);
             setClefEditMode(false);
             setColorEditMode(false);
@@ -188,25 +168,7 @@ export default function useEditMode({
             setGenerationAdvancedEditMode(false);
         }
         setExerciseEditMode(v => !v);
-    }, [exerciseEditMode, handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
-
-    // Toggle the legacy SETTINGS surface from its own SubHeader button (Han #13).
-    // Mutually exclusive with clef/range (the catch-all effect closes those when
-    // settings opens, but close them here too so the morph arms cleanly).
-    const handleToggleSettings = useCallback(() => {
-        if (!showSheetMusicSettings) {
-            handleStopAllPlayback();
-            setRangeEditMode(false);
-            setClefEditMode(false);
-            setColorEditMode(false);
-            setInstrumentEditMode(false);
-            setPlaybackEditMode(false);            // Han 2026-06-22
-            setGenerationEditMode(false);
-            setGenerationAdvancedEditMode(false);
-            setExerciseEditMode(false);
-        }
-        toggleSheetMusicSettings();
-    }, [showSheetMusicSettings, handleStopAllPlayback, toggleSheetMusicSettings]);
+    }, [exerciseEditMode, handleStopAllPlayback]);
 
     // Closing range edit (e.g. clicking outside the bottom range settings, or
     // tapping empty sheet area while in range mode).
@@ -216,10 +178,9 @@ export default function useEditMode({
     // in clef-edit (Han 2026-06-01: clicking the clef opens the selector).
     const handleOpenClefEdit = useCallback(() => {
         handleStopAllPlayback();
-        if (showSheetMusicSettings) toggleSheetMusicSettings();
         setRangeEditMode(false);
         setClefEditMode(true);
-    }, [handleStopAllPlayback, showSheetMusicSettings, toggleSheetMusicSettings]);
+    }, [handleStopAllPlayback]);
 
     return {
         // flags
@@ -243,7 +204,6 @@ export default function useEditMode({
         handleToggleGenerationEdit,
         handleToggleGenerationAdvancedEdit,
         handleToggleExerciseEdit,
-        handleToggleSettings,
         handleCloseRangeEdit,
         handleCloseClefEdit,
         handleOpenClefEdit,
