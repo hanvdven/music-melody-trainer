@@ -290,6 +290,7 @@ const TabView = ({
                         setPercussionSettings={setPercussionSettings}
                         onNoteInput={handleInputTestNote}
                         qwertyKeyboardActive={qwertyKeyboardActive}
+                        rangeEditMode={rangeEditMode}
                         theme={theme}
                     />
                 </div>

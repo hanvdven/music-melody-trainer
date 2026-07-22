@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import playSound from '../../audio/playSound';
-import { DRUM_KITS, KIT_NOTE_MAPPINGS } from '../../audio/drumKits';
+import { DRUM_KITS, KIT_NOTE_MAPPINGS, orderedPercussionPads } from '../../audio/drumKits';
 
-const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, percussionSettings, setPercussionSettings, onNoteInput, qwertyKeyboardActive }) => {
+const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, percussionSettings, setPercussionSettings, onNoteInput, qwertyKeyboardActive, rangeEditMode = false }) => {
     const subtleMix = (color) => {
         return `color-mix(in srgb, ${color} 65%, var(--soft-mix-target) 35%)`;
     };
@@ -25,7 +25,24 @@ const DrumPad = ({ instruments, context, customMapping = {}, setCustomMapping, p
     const padOpacity = (note) =>
         Array.isArray(enabledPads) && !enabledPads.includes(note) ? 0.15 : 1;
 
+    // #496 (Han): while the RANGE-settings view is on, tapping a pad TOGGLES that kit element in/out
+    // of the pool — the same enabledPads logic the in-staff range setter uses (§6c: one source of
+    // truth). `enabledPads` null/undefined means "all pads enabled", so the first toggle-off has to
+    // materialise the full list first (orderedPercussionPads is the canonical order from drumKits).
+    const togglePad = (note) => {
+        setPercussionSettings?.((p) => {
+            const all = orderedPercussionPads();
+            const cur = Array.isArray(p?.enabledPads) ? p.enabledPads : all;
+            const next = cur.includes(note) ? cur.filter((n) => n !== note) : [...cur, note];
+            return { ...p, enabledPads: next };
+        });
+    };
+
     const play = (note) => {
+        // Toggling happens INSIDE play() so every pad hit-target (there are a dozen call sites, incl.
+        // the hi-hat wedges and the snare sub-zones) gets it without duplicating the branch.
+        // The pad still SOUNDS while toggling — audible confirmation of what you just switched on/off.
+        if (rangeEditMode) togglePad(note);
         setLastPlayed(note);
         onNoteInput?.(note);
 

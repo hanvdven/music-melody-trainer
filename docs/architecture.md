@@ -5184,3 +5184,21 @@ Either way `morphing` stayed true and both surfaces stayed mounted.
 alone to end a state that controls how many overlays are mounted.
 
 **Files:** `hooks/useRangeMorph.js`.
+
+### §66. Percussion pads toggle in the bottom view during range-edit (#496, Han 2026-07-19)
+
+**Purpose:** while the RANGE-settings view is on, tapping a drum element in the BOTTOM view must
+switch that kit element in/out of the pool — the same logic the in-staff range setter already uses.
+
+**How it works:** `DrumPad` takes a `rangeEditMode` prop (wired from `TabView`). The toggle lives
+INSIDE `play(note)` rather than at the ~12 individual pad hit-targets (hi-hat wedges, snare
+sub-zones, bell, …), so every target gets it without duplicating the branch. The pad still SOUNDS
+while toggling — audible confirmation of what was switched. `togglePad` writes
+`percussionSettings.enabledPads`, the SAME field the in-staff setter uses; because
+`enabledPads == null` means "all enabled", the first toggle-off materialises the canonical full list
+via `orderedPercussionPads()` (drumKits.js) rather than a hand-written array (§6c).
+
+**Invariant:** pad enable/disable has ONE source of truth — `percussionSettings.enabledPads` — shared
+by the in-staff range setter, the bottom-view pads and the generation filter.
+
+**Files:** `components/controls/DrumPad.jsx`, `components/layout/TabView.jsx`.
