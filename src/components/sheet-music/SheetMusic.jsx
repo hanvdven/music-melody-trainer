@@ -2783,6 +2783,11 @@ const SheetMusic = ({
                       isBassVisible={isBassVisible}
                       isPercussionVisible={isPercussionVisible}
                       showChordsRow={showChords}
+                      /* #433: REAL key context → key-relative previews (root/scale/chords on the
+                         real tonic + scale) instead of the fixed C illustration. */
+                      tonic={tonic}
+                      scaleNotes={scaleNotes}
+                      activeChord={pausedActiveChord}
                       onSettingsInteraction={onSettingsInteraction}
                       debugMode={debugMode}
                     />

@@ -190,12 +190,21 @@ const OverlayEl = () => {
       </ProfileProvider>
     );
   }
+  // #433: ?key=G / ?key=Am → feed the REAL tonic + scale so the previews render key-relative.
+  const KEYS = {
+    C: { tonic: 'C4', scale: ['C', 'D', 'E', 'F', 'G', 'A', 'B'] },
+    G: { tonic: 'G4', scale: ['G', 'A', 'B', 'C', 'D', 'E', 'F♯'] },
+    F: { tonic: 'F4', scale: ['F', 'G', 'A', 'B♭', 'C', 'D', 'E'] },
+    Am: { tonic: 'A4', scale: ['A', 'B', 'C', 'D', 'E', 'F', 'G'] },
+  };
+  const k = KEYS[params.get('key')] || null;
   return (
     <GenerationSetterOverlay
       startX={startX} endX={endX}
       trebleStart={trebleStart} bassStart={bassStart} percussionStart={percussionStart}
       isTrebleVisible isBassVisible isPercussionVisible showChordsRow
       hiddenFields={HIDDEN}
+      tonic={k?.tonic} scaleNotes={k?.scale}
     />
   );
 };

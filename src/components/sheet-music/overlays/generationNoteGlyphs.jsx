@@ -1,6 +1,7 @@
 import React from 'react';
 import { NOTE_FONT_SIZE } from '../staffNoteGlyph';
-import { melodicNoteColor } from '../../../theory/noteUtils';
+import { melodicNoteColor, getNoteSemitone } from '../../../theory/noteUtils';
+import { getNoteAbsoluteY } from '../renderMelodyNotes';
 import { MiniMelody, MINI_QUARTER as QUARTER, PREVIEW_TONIC, PREVIEW_SCALE } from './MiniMelody';
 
 // ── Inline-note carousel content for the GENERATION setter ────────────────────────────────────────
@@ -27,6 +28,56 @@ const POOL_NOTES = {
     scale: ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'],
     chromatic: ['C4', 'D4', 'E4', 'F4', 'G♯4', 'A4', 'B♭4', 'C5'],
 };
+
+// ── #433 (Han 2026-07-14): KEY-RELATIVE example notes ────────────────────────────────────────────
+// The previews used to be a FIXED C illustration (C-major run / C triad), so in any other key the
+// colouring read wrong ("scale" notes shown as non-scale). They now follow the REAL tonic + scale.
+//
+// `scaleRun` builds an ascending ONE-OCTAVE run out of the REAL scale pitch-classes, starting on the
+// tonic and closing on the tonic an octave up — so minor/modal scales are correct, not a transposed
+// C-major. Octave bumps when the raw pitch class wraps past B→C. Degrees are picked by their distance
+// from the tonic, so the caller can take a subset (root = [1], chord = [1,3,5]).
+const scaleRunNotes = (tonic, scaleNotes, baseOctave) => {
+    const tonicPc = getNoteSemitone(tonic);
+    if (tonicPc == null || !Array.isArray(scaleNotes) || scaleNotes.length === 0) return null;
+    // Order the scale's pitch-classes ascending FROM the tonic.
+    const ordered = [...scaleNotes]
+        .filter(n => getNoteSemitone(n) != null)
+        .sort((a, b) => ((getNoteSemitone(a) - tonicPc + 12) % 12) - ((getNoteSemitone(b) - tonicPc + 12) % 12));
+    if (ordered.length === 0) return null;
+    // REGISTER CLAMP (#433): keep the run in the SAME staff region as the original C4–C5 illustration.
+    // A tonic more than a tritone above C would push the octave run off the top of the staff — which
+    // also triggers a spurious 8va marker — so start an octave LOWER for those keys.
+    const pc = ((tonicPc % 12) + 12) % 12;
+    const startOct = baseOctave - (pc > 6 ? 1 : 0);
+    let oct = startOct;
+    let prevPc = null;
+    const out = ordered.map((name) => {
+        const p = getNoteSemitone(name);
+        if (prevPc != null && p < prevPc) oct += 1;   // wrapped past B → next octave
+        prevPc = p;
+        return `${name}${oct}`;
+    });
+    // Close on the tonic ONE OCTAVE above the FIRST note — not `oct + 1`, which would be an octave too
+    // high whenever the run wrapped past B (e.g. G3…F♯4 would have closed on G5 instead of G4).
+    out.push(`${ordered[0]}${startOct + 1}`);
+    return out;
+};
+
+// Degree indices (0-based, within the ordered scale) each pool illustrates.
+const POOL_DEGREES = { root: [0], chord: [0, 2, 4], scale: null, chromatic: null };
+
+// Build the example run for a pool in the REAL key. Falls back to the C-based table when the real
+// scale isn't usable (keeps the previous behaviour rather than rendering nothing).
+const poolNotesFor = (pool, tonic, scaleNotes, baseOctave) => {
+    const run = scaleRunNotes(tonic, scaleNotes, baseOctave);
+    if (!run) return null;
+    const degrees = POOL_DEGREES[pool];
+    if (!degrees) return run;                          // scale + chromatic use the full run
+    const picked = degrees.filter(d => d < run.length - 1).map(d => run[d]);
+    picked.push(run[run.length - 1]);                  // always close on the octave tonic
+    return picked;
+};
 // Horizontal room for the run (Han 2026-07-14: "maak de note pool selector iets breder" — widened for the run).
 const POOL_WIDTH = 150;
 
@@ -37,12 +88,20 @@ const POOL_WIDTH = 150;
 export const NotePoolGlyph = ({
     pool, staffStart, clef, staffType, noteColoringMode, tonic, scaleNotes, activeChord, theme,
 }) => {
-    let notes = POOL_NOTES[pool] || POOL_NOTES.scale;
-    if (clef === 'bass') notes = notes.map(octaveDown);   // C3–C4 for bass
-    // #435 (Han 2026-07-19): the chromatic pool's herstel (♮ on E) is ILLUSTRATIVE — force it, so no
-    // extra E♭ is needed just to trigger it. 'n' = the Maestro natural glyph; index matches E4/E3.
+    // #433 (Han): KEY-RELATIVE — build the run from the REAL tonic + scale so the colouring is right
+    // in every key (root = real tonic, chord = real 1-3-5, scale = the real scale). Falls back to the
+    // C-based table when no usable scale is supplied (tests / previews without context).
+    const baseOctave = clef === 'bass' ? 3 : 4;
+    let notes = poolNotesFor(pool, tonic, scaleNotes, baseOctave);
+    if (!notes) {
+        notes = POOL_NOTES[pool] || POOL_NOTES.scale;
+        if (clef === 'bass') notes = notes.map(octaveDown);   // C3–C4 for bass
+    }
+    // #435 (Han 2026-07-19): the chromatic pool's herstel is ILLUSTRATIVE — force it so no extra
+    // flat/sharp is needed just to trigger it. 'n' = the Maestro natural glyph. #433: key-relative, so
+    // it lands on the THIRD DEGREE of the real scale (was hardcoded E4/E3 = the third in C).
     const forcedAccidentals = pool === 'chromatic'
-        ? notes.map(n => (n === 'E4' || n === 'E3' ? 'n' : null))
+        ? notes.map((_, i) => (i === 2 ? 'n' : null))
         : null;
     return (
         <MiniMelody
@@ -218,6 +277,17 @@ const COMPLEXITY_NOTES = {
 // sits on the field centre (x=0 in the glyph's local frame) instead of its LEFT edge.
 const NOTEHEAD_W = 16;
 
+// #433: which SCALE DEGREES each complexity stacks, so the chord is built on the REAL tonic/scale
+// (a minor key gets a minor triad, etc.) instead of a fixed C-major shape. `exotic` (altered/extended)
+// uses the whole run — the illustrative dense stack.
+const COMPLEXITY_DEGREES = {
+    root: [0],
+    power: [0, 4],
+    triad: [0, 2, 4],
+    seventh: [0, 2, 4, 6],
+    exotic: null,   // null → the full one-octave run
+};
+
 /**
  * #362/#431: chord-complexity item = the REAL chord rendered without a staff, via the shared
  * pipeline (one slot = the chord array). The chords row floats on the chord-label band (no staff),
@@ -225,11 +295,26 @@ const NOTEHEAD_W = 16;
  * 'chords' mode uses the representative chord passed via activeChord).
  */
 export const ComplexityChordGlyph = ({ complexity, centerY, noteColoringMode, tonic, scaleNotes, activeChord, theme }) => {
-    const notes = COMPLEXITY_NOTES[complexity] || COMPLEXITY_NOTES.triad;
+    // #433 (Han): build the stack on the REAL tonic/scale; fall back to the C-based table when no
+    // usable scale context is supplied.
+    const run = scaleRunNotes(tonic, scaleNotes, 4);
+    const degrees = COMPLEXITY_DEGREES[complexity];
+    const keyRelative = run
+        ? (degrees === undefined ? null
+            : degrees === null ? run
+                : degrees.filter(d => d < run.length - 1).map(d => run[d]))
+        : null;
+    const notes = keyRelative || COMPLEXITY_NOTES[complexity] || COMPLEXITY_NOTES.triad;
     // #431 rework (Han 2026-07-17): the stack is anchored 8px HIGHER (was centerY−26) so its lowest
     // head (C4 ledger) clears the shared +28 value-label line — this lets the chords-row labels sit at
     // the SAME offset as every other row instead of being pushed down to clear the stack.
-    const virtualStaffStart = centerY - 34;
+    // #433: the −34 anchor was tuned for the C4-based stack; in another key the stack's lowest note
+    // differs, which would shift the whole stack (and collide with the header/label). Anchor on the
+    // LOWEST note instead, so the stack sits in the same place whatever the key.
+    const refOff = getNoteAbsoluteY('C4', 0, 'treble', 'treble');
+    const lowOff = getNoteAbsoluteY(notes[0], 0, 'treble', 'treble');
+    const keyShift = (refOff != null && lowOff != null) ? (refOff - lowOff) : 0;
+    const virtualStaffStart = centerY - 34 + keyShift;
     return (
         // Shift LEFT by one notehead width so the first column's RIGHT edge lands on the field centre
         // (Han 2026-07-20: "de eerste kolom noteheads rechts tegen de middenlijn").

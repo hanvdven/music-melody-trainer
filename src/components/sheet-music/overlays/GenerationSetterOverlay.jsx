@@ -261,6 +261,12 @@ const GenerationSetterOverlay = ({
   isBassVisible,
   isPercussionVisible,
   showChordsRow = true,
+  // #433 (Han): the REAL key context, so the previews are KEY-RELATIVE (root = real tonic, scale =
+  // real scale, chords built on the real tonic) instead of a fixed C illustration. Falls back to the
+  // C preview when a caller (e.g. a test) supplies none.
+  tonic = null,
+  scaleNotes = null,
+  activeChord = null,
   onSettingsInteraction,
   // #394a / #398: every field is a hidden (reveal-on-interaction) carousel by default; tests pass
   // false to assert the fully-expanded carousel content.
@@ -278,6 +284,12 @@ const GenerationSetterOverlay = ({
   const { noteColoringMode, theme } = useDisplaySettings();
   // #493 (Han): single-open coordination — only ONE generation carousel open at a time.
   const [activeFieldId, setActiveFieldId] = React.useState(null);
+  // #433: real chord/tonic/scale when available, else the fixed C illustration. NOTE: coerce absent
+  // values to `undefined` (NOT null) — default parameters only kick in for undefined, so passing null
+  // would blow past MiniMelody's PREVIEW_TONIC/PREVIEW_SCALE defaults.
+  const previewChord = activeChord || GEN_PREVIEW_CHORD;
+  const keyTonic = tonic || undefined;
+  const keyScale = (Array.isArray(scaleNotes) && scaleNotes.length > 0) ? scaleNotes : undefined;
   if (startX == null || endX == null) return null;
 
   // Wrap every field's onSelect so a selection also pings onSettingsInteraction (resets the
@@ -333,7 +345,7 @@ const GenerationSetterOverlay = ({
           centerY: CHORDS_SETTER_Y,   // #435: moved up to the uniform row spacing
           renderContent: (item) => (
             <ComplexityChordGlyph complexity={item.value} centerY={CHORDS_SETTER_Y}
-              noteColoringMode={noteColoringMode} activeChord={GEN_PREVIEW_CHORD} theme={theme} />
+              noteColoringMode={noteColoringMode} tonic={keyTonic} scaleNotes={keyScale} activeChord={previewChord} theme={theme} />
           ),
           // Stack reaches ~centerY+34 (C4 head) → label clears it; hit box grows to match.
           labelDy: CHORDS_LABEL_DY, hitTop: -32, hitHeight: 84,
@@ -374,7 +386,7 @@ const GenerationSetterOverlay = ({
         renderContent: (item, active, color) => (
           <g>
             <ChordCountGlyph count={item.value} centerY={CHORD_ROW_Y - 2}
-              noteColoringMode={noteColoringMode} activeChord={GEN_PREVIEW_CHORD}
+              noteColoringMode={noteColoringMode} tonic={keyTonic} scaleNotes={keyScale} activeChord={previewChord}
               theme={theme} color={color} />
             {/* #434 (Han: "maak een custom 1/2 etc.") — the count as a real Maestro mixed number
                 (big whole + small ½/¼ fraction) instead of the ASCII '2½' Maestro can't draw. */}
@@ -439,7 +451,7 @@ const GenerationSetterOverlay = ({
         renderContent: (item) => (
           <NotePoolGlyph pool={item.value} staffStart={staffStart} clef={clef}
             staffType={row.key} noteColoringMode={noteColoringMode}
-            activeChord={GEN_PREVIEW_CHORD} theme={theme} />
+            tonic={keyTonic} scaleNotes={keyScale} activeChord={previewChord} theme={theme} />
         ),
         // #362: colour-setter geometry — same stride AND same tall hit box, so
         // off-staff heads (C4 ledger notes) are never clipped out of the tap zone.
@@ -496,7 +508,7 @@ const GenerationSetterOverlay = ({
         renderContent: (item) => (
           <VoicesGlyph voices={item.value} staffStart={vStaffStart} clef={clef}
             staffType={row.key} noteColoringMode={noteColoringMode}
-            activeChord={GEN_PREVIEW_CHORD} theme={theme} />
+            tonic={keyTonic} scaleNotes={keyScale} activeChord={previewChord} theme={theme} />
         ),
         baseWidth: VOICES_BASE, visibleHalf: 1,
         hitTop: POOL_HIT_TOP, hitHeight: POOL_HIT_H, labelDy: CONTENT_LABEL_DY,

@@ -5123,3 +5123,37 @@ as 4 QUARTER notes (was `[[k,hh],[hh],[s,hh],[hh],[k,c]]` eighths). Bracketed no
 routed through the existing `playMelodies` percussion path.
 
 **Files:** `audio/drumKits.js` (`DEFAULT_NOTE_MAPPING`), `audio/playInstrumentPreview.js`.
+
+### §64. Key-relative generation previews (#433, Han 2026-07-14)
+
+**Purpose:** the GENERATION setter's previews (note pool, complexity, voices) were a FIXED C
+illustration — a C-major run and a C triad — so in any other key the note-colouring read wrong (a
+"scale" example showed as non-scale). They now follow the REAL tonic + scale.
+
+**How it works:**
+- `scaleRunNotes(tonic, scaleNotes, baseOctave)` builds an ascending ONE-OCTAVE run from the REAL
+  scale pitch-classes, ordered by distance from the tonic and closing on the tonic an octave up. Built
+  from the actual scale (not a transposed C-major), so minor/modal keys are correct.
+- `POOL_DEGREES` / `COMPLEXITY_DEGREES` pick the illustrated degrees out of that run: note pool
+  root=[1], chord=[1,3,5], scale/chromatic=full run; complexity root/power/triad/seventh=[1]/[1,5]/
+  [1,3,5]/[1,3,5,7], altered-extended = the full run.
+- **Register clamp:** a tonic more than a tritone above C starts an octave LOWER, so the run stays in
+  the same staff region as the old C4–C5 illustration instead of pushing off the top (which also
+  triggered a spurious 8va marker).
+- **Key-independent stack anchor:** `ComplexityChordGlyph` anchors its virtual staff on the stack's
+  LOWEST note (via `getNoteAbsoluteY`) rather than a fixed `centerY−34` tuned for C4, so the stack sits
+  in the same place in every key and never collides with its header/label.
+- The real `tonic` / `scaleNotes` / `activeChord` are threaded `SheetMusic → GenerationSetterOverlay →
+  glyphs`. Absent values are coerced to `undefined` (NOT null) so MiniMelody's `PREVIEW_TONIC` /
+  `PREVIEW_SCALE` defaults still apply — default parameters only fire for `undefined`.
+
+**Out of scope (deliberate):** the chords/measure labels stay the LITERAL C · C G · C F G sequence —
+Han confirmed those as literal illustrations in an earlier interview (§ChordCountGlyph), so they are
+not made key-relative here.
+
+**Invariant:** previews never hardcode C; when no scale context is supplied they fall back to the
+C-based tables rather than rendering nothing.
+
+**Files:** `overlays/generationNoteGlyphs.jsx` (scaleRunNotes / POOL_DEGREES / COMPLEXITY_DEGREES /
+anchor), `overlays/GenerationSetterOverlay.jsx` (key context props), `sheet-music/SheetMusic.jsx`
+(threading), dev harness `scripts/gen-harness-entry.jsx` (`?key=G|F|Am`).
