@@ -5202,3 +5202,23 @@ via `orderedPercussionPads()` (drumKits.js) rather than a hand-written array (§
 by the in-staff range setter, the bottom-view pads and the generation filter.
 
 **Files:** `components/controls/DrumPad.jsx`, `components/layout/TabView.jsx`.
+
+### §67. Difficulty engine uses the arps; clearer progression names (#410 + #527, Han 2026-07-20)
+
+**#410 — difficulty-based generation uses the ARPS.** `POOL_RULE_ENTRIES` (melodyDifficultyTable.js)
+changed on two axes:
+- The arp rule the engine reaches for is now `arp_var` / `arp_group`. The older arps — `arp_up`,
+  `arp_down` and `arp` (which IS the "bounce" variant; see the RULE_FAMILIES comment) — are no longer
+  selected by difficulty. They stay available as manual choices in the bottom view.
+- The note-pool `root` is dropped from difficulty-based generation entirely. The `emphasize_roots`
+  RULE stays (still the easiest rule over a chord pool).
+Scores were renumbered 1..10 so there is no gap; `arp_group` sits one step above `arp_var` in the
+same pool.
+
+**#527 — progression names.** Two strategies both had `shortLabel: 'Melody'`
+(`tonic-tonic-tonic` and `modal-random`), which is why the carousel read "melody modal melody
+melody". Each is now named after what it does: `Tonic`, `Random Modal`, `Intermodal` (was "Modal
+Song"), `Chromatic` (was "Chromatic Song"). Labels live in `progressionDefinitions.js` — the single
+source `getProgressionLabel` reads (§6c).
+
+**Files:** `utils/melodyDifficultyTable.js`, `theory/progressionDefinitions.js`.

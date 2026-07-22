@@ -22,7 +22,9 @@ export const PROGRESSION_STRATEGIES = [
     {
         key: 'tonic-tonic-tonic',
         label: 'Tonic (I)',
-        shortLabel: 'Melody',
+        // #527 (Han: "now it says melody modal melody melody ... not clear what they mean") — this
+        // and 'modal-random' BOTH read 'Melody'. Name each after what it actually does.
+        shortLabel: 'Tonic',
         category: 'random',
         preferredScale: null,
         defaultLength: 4,
@@ -30,7 +32,7 @@ export const PROGRESSION_STRATEGIES = [
     {
         key: 'modal-random',
         label: 'Modal Random',
-        shortLabel: 'Melody',
+        shortLabel: 'Random Modal',
         category: 'random',
         preferredScale: null,
         defaultLength: 4,
@@ -38,7 +40,7 @@ export const PROGRESSION_STRATEGIES = [
     {
         key: 'inter-modal-random',
         label: 'Modal Song (random)',
-        shortLabel: 'Modal Song',
+        shortLabel: 'Intermodal',
         category: 'random',
         preferredScale: null,
         defaultLength: 4,
@@ -46,7 +48,7 @@ export const PROGRESSION_STRATEGIES = [
     {
         key: 'extra-modal-random',
         label: 'Chromatic Song (random)',
-        shortLabel: 'Chromatic Song',
+        shortLabel: 'Chromatic',
         category: 'random',
         preferredScale: null,
         defaultLength: 4,

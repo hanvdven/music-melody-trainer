@@ -46,16 +46,25 @@ const VARIABILITY_ENTRIES = [
 ];
 
 // Each entry: { notePool, randomizationRule, score }
+// #410 (Han 2026-07-20): difficulty-based generation now uses the ARPS. Two changes:
+//  · the ARP rule is `arp_var` / `arp_group` — the older arps (arp_up, arp_down and `arp`, which is
+//    the "bounce" variant) are NO LONGER selected by the difficulty engine. They remain available as
+//    manual choices in the bottom view; only the difficulty table stops reaching for them.
+//  · the note-pool `root` is dropped entirely from difficulty-based generation (Han: "haal note pool
+//    roots weg"). The `emphasize_roots` RULE stays — it is still the easiest rule over a chord pool.
+// Scores are the ORDERING of the remaining combinations (easiest → hardest), renumbered 1..10 after
+// the removal so there is no gap. arp_group sits one step above arp_var within the same pool.
 const POOL_RULE_ENTRIES = [
-    { notePool: 'root',      randomizationRule: 'emphasize_roots', score: 1 },
-    { notePool: 'chord',     randomizationRule: 'emphasize_roots', score: 2 },
-    { notePool: 'chord',     randomizationRule: 'weighted',        score: 3 },
-    { notePool: 'chord',     randomizationRule: 'arp',             score: 4 },
+    { notePool: 'chord',     randomizationRule: 'emphasize_roots', score: 1 },
+    { notePool: 'chord',     randomizationRule: 'weighted',        score: 2 },
+    { notePool: 'chord',     randomizationRule: 'arp_var',         score: 3 },
+    { notePool: 'chord',     randomizationRule: 'arp_group',       score: 4 },
     { notePool: 'chord',     randomizationRule: 'uniform',         score: 5 },
     { notePool: 'scale',     randomizationRule: 'weighted',        score: 6 },
-    { notePool: 'scale',     randomizationRule: 'arp',             score: 7 },
-    { notePool: 'scale',     randomizationRule: 'uniform',         score: 8 },
-    { notePool: 'chromatic', randomizationRule: 'weighted',        score: 9 },
+    { notePool: 'scale',     randomizationRule: 'arp_var',         score: 7 },
+    { notePool: 'scale',     randomizationRule: 'arp_group',       score: 8 },
+    { notePool: 'scale',     randomizationRule: 'uniform',         score: 9 },
+    { notePool: 'chromatic', randomizationRule: 'weighted',        score: 10 },
 ];
 
 /**
