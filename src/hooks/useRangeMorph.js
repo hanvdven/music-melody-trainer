@@ -104,6 +104,12 @@ export default function useRangeMorph(kind, svgRef, flyDist) {
   // it is mutated during render (the React-sanctioned "store info from previous renders" ref
   // pattern) so the RETURNED values are correct on the same render the kind changes.
   const activeMorphRef = useRef(null);
+  // #499: keep flyDist in a REF and out of the effect deps. It is endX, which changes on every
+  // resize/layout settle — with it in the deps a resize DURING a morph cleans up and restarts the
+  // tween, and a repeatedly-changing endX meant the tween never reached onDone, so `morphing` stayed
+  // true and both setter surfaces remained mounted (the stacked-overlay bug).
+  const flyDistRef = useRef(flyDist);
+  flyDistRef.current = flyDist;
   // Force a re-render when the tween completes (so `morphing` recomputes to false). A bumping
   // counter is the minimal state needed; its value is never read.
   const [, forceRerender] = useState(0);
@@ -130,11 +136,23 @@ export default function useRangeMorph(kind, svgRef, flyDist) {
     const armed = activeMorphRef.current;
     const oldEls = groupsForKind(svg, armed.from);   // old just fades out
     const newEls = groupsForKind(svg, armed.to);     // new flies in (staggered)
+    // #499 (Han: "er mogen nooit meerdere settings overlays tegelijk actief zijn"): SheetMusic mounts
+    // BOTH morphFrom and morphTo while `morphing` is true (that is what makes the crossfade possible),
+    // so a morph that never completes leaves two setter surfaces stacked forever. `onDone` is the ONLY
+    // thing that clears activeMorphRef, and it can be missed (an interrupted cascade's cancel() resets
+    // styles but does NOT clear the ref). This watchdog guarantees `morphing` always falls back to
+    // false, so at most one surface survives.
+    const watchdog = setTimeout(() => {
+      if (activeMorphRef.current?.id === armed.id) {
+        activeMorphRef.current = null;
+        forceRerender((n) => n + 1);
+      }
+    }, MORPH_MS + 400);
     // runFlyInCascade returns a cancel() that also resets inline styles, so a mid-flight
     // re-toggle (cleanup) never leaves a group stuck (Han #8). On natural completion clear the
     // active morph and force a render so `morphing` recomputes to false.
     const cancel = runFlyInCascade(svg, {
-      oldEls, newEls, flyDist,
+      oldEls, newEls, flyDist: flyDistRef.current,
       onDone: () => {
         // Only clear if no newer morph has armed in the meantime (id still matches).
         if (activeMorphRef.current?.id === armed.id) {
@@ -143,14 +161,14 @@ export default function useRangeMorph(kind, svgRef, flyDist) {
         }
       },
     });
-    return cancel;
+    return () => { clearTimeout(watchdog); cancel(); };
     // svgRef and flyDist are stable refs/constants passed from the parent, and runFlyInCascade
     // is pure (no closure over stale vars). The only true dependency is pendingId (the morph
     // sequence ID). Including svgRef/flyDist would cause the effect to re-run on every parent
     // render even if the ID hasn't changed, re-starting the tween unnecessarily. The effect
     // MUST fire only when a new morph is armed (pendingId incremented); stale refs are safe.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingId, svgRef, flyDist]);
+  }, [pendingId, svgRef]);
 
   return { morphing: morph != null, morphFrom: morph?.from ?? null, morphTo: morph?.to ?? null };
 }

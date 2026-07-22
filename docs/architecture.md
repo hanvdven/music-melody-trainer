@@ -5157,3 +5157,30 @@ C-based tables rather than rendering nothing.
 **Files:** `overlays/generationNoteGlyphs.jsx` (scaleRunNotes / POOL_DEGREES / COMPLEXITY_DEGREES /
 anchor), `overlays/GenerationSetterOverlay.jsx` (key context props), `sheet-music/SheetMusic.jsx`
 (threading), dev harness `scripts/gen-harness-entry.jsx` (`?key=G|F|Am`).
+
+### §65. Bug: two setter overlays stacked (#499, Han 2026-07-20)
+
+**Symptom:** occasionally two settings overlays are active at once (e.g. click GENERATION, then
+TRANSPOSITION → both surfaces drawn on top of each other).
+
+**Root cause:** the edit modes ARE mutually exclusive (every `useEditMode` toggle closes its
+siblings). The stacking comes from the MORPH layer: `SheetMusic` mounts an overlay via
+`mountedFor(k, active) = active || (rangeMorphing && (morphFrom === k || morphTo === k))`, so while a
+morph runs BOTH surfaces are mounted on purpose (that is what makes the crossfade possible).
+`morphing` is `activeMorphRef.current != null`, and that ref is cleared ONLY by
+`runFlyInCascade`'s `onDone`. Two ways it was missed:
+1. the tween effect had `flyDist` (= `endX`) in its deps — a resize/layout settle DURING a morph
+   cleaned up and restarted the tween, so a repeatedly-changing `endX` meant `onDone` never fired;
+2. the returned `cancel()` resets inline styles but does NOT clear `activeMorphRef`.
+Either way `morphing` stayed true and both surfaces stayed mounted.
+
+**Fix:**
+- **Watchdog:** a `setTimeout(MORPH_MS + 400)` armed with the morph force-clears `activeMorphRef` if
+  `onDone` hasn't fired, so `morphing` ALWAYS falls back to false and at most one surface survives.
+  Cleared in the effect cleanup.
+- **`flyDist` out of the deps:** read via `flyDistRef` so a resize no longer restarts the tween.
+
+**Invariant:** `morphing` must be self-terminating — never rely on the tween's completion callback
+alone to end a state that controls how many overlays are mounted.
+
+**Files:** `hooks/useRangeMorph.js`.
