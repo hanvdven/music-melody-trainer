@@ -233,9 +233,11 @@ const SubHeader = ({
                 <div style={{ position: 'absolute', right: SIDE_PAD, top: '50%', transform: 'translateY(-50%)', zIndex: 2, display: 'flex', gap: 8 }}>
                     {/* Chords are enabled/disabled inside the CLEF selector (Han #6) —
                         no standalone CHORDS button. */}
+                    {/* #500 (Han 2026-07-24): renamed TRANSPOSITION → NOTATION. This setter owns clef +
+                        transposition + (per #501) font/theme/accidental notation choices. */}
                     {onOpenClef && renderButton(
                         <Music2 size={22} />,
-                        'TRANSPOSITION',
+                        'NOTATION',
                         onOpenClef,
                         clefEditMode,
                         null,

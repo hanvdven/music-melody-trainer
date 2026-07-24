@@ -1671,6 +1671,8 @@ const App = () => {
                        still offers every theme incl. this one). */
                     isThronefall={theme === 'thronefall'}
                     onToggleThronefall={() => setTheme(theme === 'thronefall' ? 'default' : 'thronefall')}
+                    isFullscreen={isFullscreen}
+                    toggleFullscreen={toggleFullscreen}
                     displayTonic={displayTonic}
                     globalInstLabel={globalTransposition ? `${globalTransposition.label} instrument` : null}
                     isInputTestMode={isInputTestMode}

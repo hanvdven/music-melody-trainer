@@ -13,6 +13,8 @@ import {
     KanbanSquare,
     Dumbbell,
     Crown,
+    Maximize,
+    Minimize,
 } from 'lucide-react';
 import './AppHeader.css';
 import { formatScaleName } from '../../theory/scaleHandler';
@@ -41,6 +43,10 @@ const AppHeader = ({
     canSkipBack,
     debugMode = false,
     setDebugMode,
+    // #501 (Han 2026-07-24): a fullscreen toggler in the header (the toggle already exists in
+    // useDeviceState; SettingsPanel had the only button — surface it in the header too).
+    isFullscreen = false,
+    toggleFullscreen = null,
     onOpenKanban = null,        // opens the in-app kanban board; button only shown in debug mode
     onScaleClick = null,
     isScalePlaying = false,
@@ -76,6 +82,18 @@ const AppHeader = ({
 
                 {/* (Legacy SETTINGS toggle removed 2026-07-20 — replaced by the PLAYBACK setter +
                     the moved adjustment carousels in the COLOUR setter.) */}
+
+                {/* #501 (Han): fullscreen toggler in the header. */}
+                {toggleFullscreen && (
+                    <button
+                        className={`tab-button secondary app-header-btn ${isFullscreen ? 'active' : ''}`}
+                        onClick={() => toggleFullscreen()}
+                        title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                        style={{ color: isFullscreen ? 'var(--accent-yellow)' : '#88ccff', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
+                    >
+                        {isFullscreen ? <Minimize size={22} /> : <Maximize size={22} />}
+                    </button>
+                )}
 
                 <button
                     className={`tab-button secondary app-header-btn ${debugMode ? 'active' : ''}`}
