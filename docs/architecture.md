@@ -5247,3 +5247,16 @@ Three bugs on the reveal-on-interaction carousels (`NonLinearCarousel`) and thei
 
 **Files:** `overlays/NonLinearCarousel.jsx` (window-listener drag + collapse snap), `CarouselFieldItem.jsx`
 (soft-edge mask).
+
+### §67a. SONG progression option (#527, Han 2026-07-24)
+
+Adds a `song` strategy to the progression carousel. SONG FREEZES the progression: it reuses the
+CURRENT progression — which is the loaded song's progression when a song is loaded, else the last
+generated one (so it subsumes the old "fixed" behaviour when no song is present). It never
+regenerates, intercepted at BOTH call sites: `useMelodyState.generateChords` returns
+`chordProgressionRef.current` unchanged for `song`/`fixed`, and `Sequencer` sets
+`shouldGenerateNew = false` for those strategies regardless of the dice toggle — so
+`generateProgression` is never called with `song`. Label/icon: 'Song' + the sheet-music icons8 glyph.
+
+**Files:** `theory/progressionDefinitions.js`, `constants/generationFields.js`,
+`hooks/useMelodyState.js`, `audio/Sequencer.js`, `overlays/GenerationSetterOverlay.jsx`.

@@ -1322,8 +1322,9 @@ class Sequencer {
     if (this.setters.generateChords) {
       // The Dice toggle (randConfig.chords) determines IF we generate a new progression.
       // The strategy for that generation comes from the UI (chordSettings.strategy).
-      const shouldGenerateNew = !!randConfig.chords;
       const uiStrategy = chordSettings?.strategy || 'modal-random';
+      // #527: SONG/FIXED freeze the progression — keep currentProgression regardless of the dice.
+      const shouldGenerateNew = !!randConfig.chords && uiStrategy !== 'song' && uiStrategy !== 'fixed';
 
       if (shouldGenerateNew && uiStrategy) {
         const complexity = this.refs.playbackConfigRef.current.chordComplexity || currentProgression.complexity || 'triad';

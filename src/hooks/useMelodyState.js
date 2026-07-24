@@ -80,6 +80,14 @@ const useMelodyState = (
 
   const generateChords = useCallback((strategyKey) => {
     let strategy = strategyKey;
+    // #527 (Han): SONG (and legacy 'fixed') FREEZE the progression — return the CURRENT one unchanged
+    // (the loaded song's progression when a song is loaded, else the last generated one). Never
+    // regenerate, so generateProgression is not called for these.
+    if (strategy === 'song' || strategy === 'fixed') {
+      const cur = chordProgressionRef?.current;
+      if (cur) return cur;
+      strategy = 'tonic-tonic-tonic';
+    }
     if (strategyKey === true || strategyKey === 'random') {
       strategy = 'modal-random';
     } else if (strategyKey === false || strategyKey === undefined) {

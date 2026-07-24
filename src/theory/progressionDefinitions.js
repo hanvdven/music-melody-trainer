@@ -30,6 +30,18 @@ export const PROGRESSION_STRATEGIES = [
         defaultLength: 4,
     },
     {
+        // #527 (Han 2026-07-24): SONG freezes the progression — it reuses the CURRENT progression,
+        // which is the loaded song's progression when a song is loaded, else the last generated one.
+        // Behaves like the old 'fixed' when no song is loaded. Never regenerates (intercepted in
+        // generateChords + Sequencer), so generateProgression is never called with 'song'.
+        key: 'song',
+        label: 'Song',
+        shortLabel: 'Song',
+        category: 'random',
+        preferredScale: null,
+        defaultLength: 4,
+    },
+    {
         key: 'modal-random',
         label: 'Modal Random',
         shortLabel: 'Random Modal',

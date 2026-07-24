@@ -209,6 +209,7 @@ const VOICES_BASE = 64;       // voices item stride — the widest item ('var': 
 // plain 'dice' assets were added, so pop-1-5-6-4 now uses concert and the generic 'modal-random'
 // takes the plain six-sided die; the 20-sided 'dice-d20' stays for the more exotic inter-modal random.
 const STRATEGY_ICON8 = {
+  'song': 'sheet-music',                // #527/#460 — freeze to loaded song / last progression
   'modal-random': 'dice',              // #466: plain six-sided die = the generic random
   'inter-modal-random': 'dice-d20',   // #462: "d20" — the exotic/chromatic random keeps the 20-sided die
   'tonic-tonic-tonic': 'ground-symbol',

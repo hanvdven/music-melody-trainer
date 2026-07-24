@@ -101,6 +101,7 @@ export const CHORD_COMPLEXITY = [
 // "melody type" → strategy (InstrumentRow.jsx PROGRESSION_OPTIONS, value list only — the
 // human-readable label comes from getProgressionLabel, the bottom-view's source of truth).
 export const CHORD_STRATEGIES = [
+  'song',                 // #527 — freeze to the loaded song / last progression
   'modal-random',
   'inter-modal-random',   // #460/#462 (Han: "intermodal") — already defined in progressionDefinitions
   'tonic-tonic-tonic',
