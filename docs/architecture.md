@@ -5222,3 +5222,28 @@ Song"), `Chromatic` (was "Chromatic Song"). Labels live in `progressionDefinitio
 source `getProgressionLabel` reads (§6c).
 
 **Files:** `utils/melodyDifficultyTable.js`, `theory/progressionDefinitions.js`.
+
+### §68. Hidden-carousel + veil bug fixes (Han 2026-07-24)
+
+Three bugs on the reveal-on-interaction carousels (`NonLinearCarousel`) and their localized veil
+(`CarouselFieldItem`, §60):
+
+1. **Drag froze once the pointer left the carousel area.** The gesture ran on the hit-rect's own
+   `pointermove`/`pointerup` via `setPointerCapture`, but the active-last REORDER (the veil, §60) moves
+   the field's DOM subtree mid-gesture and can drop the capture. *Fix:* the gesture now also rides
+   WINDOW `pointermove`/`pointerup`/`pointercancel` listeners (added on down, removed on up); the rect
+   keeps only `onPointerDown`. `dragRef.el` carries the rect for the client-px→SVG conversion.
+
+2. **Redrawn veil staff lines doubled the real lines, brighter at the soft edge.** The veil rect faded
+   at its edges via a gradient FILL, but the redrawn lines were solid — so at the soft edge the real
+   line + a solid redrawn line stacked (two anti-aliased 0.5px strokes → brighter/bolder). *Fix:* the
+   soft edge is now a MASK over the WHOLE veil group (rect + lines + barlines), so the lines fade
+   EXACTLY like the panel and never exceed the real line.
+
+3. **Clicking outside an active carousel showed no selection.** If the field closed DURING the
+   settle-glide, `posRef` was still mid-glide, so with `collapse=1` the active item was off-centre and
+   its opacity fell to 0 — nothing at rest. *Fix:* on collapse, cancel any glide and snap `posRef` to
+   `activeIndex`, so the active value is always centred/visible when closed.
+
+**Files:** `overlays/NonLinearCarousel.jsx` (window-listener drag + collapse snap), `CarouselFieldItem.jsx`
+(soft-edge mask).

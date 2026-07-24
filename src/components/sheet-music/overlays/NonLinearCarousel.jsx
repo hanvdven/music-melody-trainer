@@ -319,6 +319,13 @@ export default function NonLinearCarousel({
     React.useEffect(() => () => {
         if (animRef.current) cancelAnimationFrame(animRef.current);
         if (collapseAnimRef.current) cancelAnimationFrame(collapseAnimRef.current);
+        // #493 bug: if the component unmounts mid-drag, tear down the window listeners it added.
+        const d = dragRef.current;
+        if (d) {
+            window.removeEventListener('pointermove', d.winMove);
+            window.removeEventListener('pointerup', d.winUp);
+            window.removeEventListener('pointercancel', d.winUp);
+        }
     }, []);
 
     // #428: animate the collapse factor toward the `collapsed` prop (1 = hidden side items, 0 =
@@ -327,6 +334,14 @@ export default function NonLinearCarousel({
     // the effect must run exactly on `collapsed` changes.
     React.useEffect(() => {
         const target = collapsed ? 1 : 0;
+        // #493 bug (Han 2026-07-24: "buiten de carousel klikken … geen selectie wordt getoond"): when
+        // the field closes DURING the settle-glide, posRef is still mid-glide, so with collapse=1 the
+        // active item is NOT at the centre and its opacity falls to 0 — nothing shows at rest. Snap the
+        // centre to activeIndex on collapse so the active value is always visible when closed.
+        if (collapsed) {
+            if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
+            posRef.current = normPos(activeIndex);
+        }
         const from = collapseAmtRef.current;
         if (collapseAnimRef.current) { cancelAnimationFrame(collapseAnimRef.current); collapseAnimRef.current = null; }
         // notify=false: the collapse only changes opacity, not position — see the FIX note in applyPos.
@@ -355,36 +370,56 @@ export default function NonLinearCarousel({
         return pt.matrixTransform(ctm.inverse()).x;
     };
 
+    // #493 bug (Han 2026-07-24: "wanneer de muis buiten het carouselgebied is, kun je niet meer
+    // slepen"): the drag ran on the hit-rect's own pointermove/up via setPointerCapture, but the
+    // active-last REORDER (the veil, #493) moves this field's DOM subtree mid-gesture, which can drop
+    // the capture and freeze the drag the moment the finger leaves the rect. So the gesture now also
+    // rides WINDOW listeners (added on down, removed on up) — those keep firing wherever the pointer
+    // goes. `dragRef.el` holds the rect for the client-px → SVG-user conversion; capture is still set
+    // as a nicety but the window listeners are what guarantee it works.
+    const handleMove = (e) => {
+        const d = dragRef.current;
+        if (!d) return;
+        const sx = toSvgX(d.el, e.clientX);
+        const dx = sx - d.startX;
+        d.moved = Math.max(d.moved, Math.abs(dx));
+        // Dragging RIGHT (dx > 0) should bring LOWER-index items toward the centre, so the
+        // position moves in the OPPOSITE direction of the finger by dx / baseWidth item-units.
+        const next = d.startPos - dx / baseWidth;
+        applyPos(next);
+    };
+    const endGesture = () => {
+        const d = dragRef.current;
+        if (d) {
+            window.removeEventListener('pointermove', d.winMove);
+            window.removeEventListener('pointerup', d.winUp);
+            window.removeEventListener('pointercancel', d.winUp);
+            try { d.el.releasePointerCapture?.(d.pointerId); } catch { /* capture may already be gone */ }
+        }
+    };
     const onPointerDown = (e) => {
         if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
         // #434 (Han: "tap (carousel zichtbaar) tap (noot gekozen); tap-hold -> carousel slepen"):
         // a press on a COLLAPSED carousel REVEALS it (this gesture), but a plain TAP that only
         // revealed must NOT also select — selection needs a SECOND tap once open. Press-and-hold
-        // still flows straight into a drag (same rect owns pointer capture). We remember whether
-        // this gesture did the reveal so onPointerUp can suppress the select on that first tap.
+        // still flows straight into a drag. We remember whether this gesture did the reveal so the up
+        // handler can suppress the select on that first tap.
         const revealedNow = collapsed;
         if (collapsed) onRevealRef.current?.();
-        const sx = toSvgX(e.currentTarget, e.clientX);
-        dragRef.current = { startX: sx, startPos: posRef.current, moved: 0, downSvgX: sx, revealedNow };
-        e.currentTarget.setPointerCapture?.(e.pointerId);
+        const el = e.currentTarget;
+        const sx = toSvgX(el, e.clientX);
+        const winMove = (ev) => handleMove(ev);
+        const winUp = (ev) => handleUp(ev);
+        dragRef.current = { startX: sx, startPos: posRef.current, moved: 0, downSvgX: sx, revealedNow, el, pointerId: e.pointerId, winMove, winUp };
+        el.setPointerCapture?.(e.pointerId);
+        window.addEventListener('pointermove', winMove);
+        window.addEventListener('pointerup', winUp);
+        window.addEventListener('pointercancel', winUp);
     };
-    const onPointerMove = (e) => {
+    const handleUp = (e) => {
         const d = dragRef.current;
-        if (!d) return;
-        const sx = toSvgX(e.currentTarget, e.clientX);
-        const dx = sx - d.startX;
-        d.moved = Math.max(d.moved, Math.abs(dx));
-        // Dragging RIGHT (dx > 0) should bring LOWER-index items toward the centre, so the
-        // position moves in the OPPOSITE direction of the finger by dx / baseWidth item-units.
-        // Cyclical: no clamp, the loop wraps freely; non-cyclical: applyPos clamps
-        // to the hard ends (#361).
-        const next = d.startPos - dx / baseWidth;
-        applyPos(next);
-    };
-    const onPointerUp = (e) => {
-        const d = dragRef.current;
+        endGesture();
         dragRef.current = null;
-        e.currentTarget.releasePointerCapture?.(e.pointerId);
         if (!d) return;
         if (d.moved < TAP_SLOP) {
             // #434: a TAP that merely REVEALED the carousel selects nothing — it just opens it; the
@@ -505,8 +540,7 @@ export default function NonLinearCarousel({
                 height={height}
                 fill="transparent"
                 style={{ cursor: collapsed ? 'pointer' : 'grab', touchAction: 'none' }}
-                onPointerDown={onPointerDown} onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+                onPointerDown={onPointerDown}
             />
             {debugMode && (
                 <g style={{ pointerEvents: 'none' }}>

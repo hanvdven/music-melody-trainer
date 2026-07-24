@@ -275,6 +275,7 @@ export const CarouselField = ({
   const rawTintId = React.useId();
   const tintId = `carousel-icon-tint-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
   const scrimId = `carousel-veil-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const veilMaskId = `carousel-veilmask-${rawTintId.replace(/[^a-zA-Z0-9]/g, '')}`;
   const activeIconColor = (colorOf?.(items[activeIndex]) ?? 'var(--text-primary)');
 
   // #493 (Han 2026-07-19): VEIL. When a hidden carousel is active/open it may overlap the neighbouring
@@ -309,31 +310,39 @@ export const CarouselField = ({
           <feFlood style={{ floodColor: activeIconColor }} />
           <feComposite in2="SourceAlpha" operator="in" />
         </filter>
-        {/* #493 refine (Han 2026-07-20: "kunnen de randen zacht zijn"): SOFT edges — the veil is opaque
-            panel-bg in the core and fades to transparent at the very left/right edges so the patch
-            blends into the sheet instead of ending on a hard vertical seam. */}
-        <linearGradient id={scrimId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="0" />
-          <stop offset="0.09" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="1" />
-          <stop offset="0.91" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="1" />
-          <stop offset="1" stopColor="var(--panel-bg, #1f1e2a)" stopOpacity="0" />
+        {/* #493 refine (Han 2026-07-20: "kunnen de randen zacht zijn"): SOFT edges as a MASK (white =
+            keep, transparent = fade) spanning the veil box, applied to the WHOLE veil group. Doing the
+            fade with a mask instead of a gradient FILL means the redrawn staff lines fade EXACTLY like
+            the panel behind them, so they no longer double the real staff lines at the soft edge (Han
+            bug 2026-07-24: "de lijntjes ... zijn in de fade dubbel ... feller aan de rand"). */}
+        <linearGradient id={scrimId} gradientUnits="userSpaceOnUse" x1={veilX0} y1="0" x2={veilX1} y2="0">
+          <stop offset="0" stopColor="white" stopOpacity="0" />
+          <stop offset="0.09" stopColor="white" stopOpacity="1" />
+          <stop offset="0.91" stopColor="white" stopOpacity="1" />
+          <stop offset="1" stopColor="white" stopOpacity="0" />
         </linearGradient>
+        <mask id={veilMaskId} maskUnits="userSpaceOnUse"
+          x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop}>
+          <rect x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop}
+            fill={`url(#${scrimId})`} />
+        </mask>
       </defs>
       {/* #493 (Han): the VEIL — only while the field is active/open (mountAllItems stays true through
           the fade). Sits FIRST in the group so it's behind this field's own chrome + carousel but on
-          top of the sheet. Fades with chromeVisible. */}
+          top of the sheet. Fades with chromeVisible; soft L/R edges via the mask. */}
       {mountAllItems && (
-        <g style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
-          {/* #493 rework (Han 2026-07-20): LOCALIZED veil — an opaque panel just the size of THIS
+        <g mask={`url(#${veilMaskId})`}
+          style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
+          {/* #493 rework (Han 2026-07-20): LOCALIZED veil — an OPAQUE panel just the size of THIS
               carousel's expanded footprint (veilHalfW is edgeX widened to OPEN_STRIDE), CLAMPED to the
               staff bounds [staffX0, staffX1]. Only what sits DIRECTLY behind the visible carousel is
               hidden; content far to the side / above / below stays visible. The row's staff lines are
-              REDRAWN on top (clamped, so they never run past the staff end), and where the box reaches a
-              staff edge the vertical FRAME barline is redrawn too (Han 2026-07-20). Soft edges via the
-              gradient. The overlay renders the ACTIVE field LAST so this veil sits above sibling content
-              within its box. */}
+              REDRAWN on top (clamped, so they never run past the staff end) — and because the whole
+              group is soft-masked, the redrawn lines fade with the panel and never double the real
+              lines. Where the box reaches a staff edge the vertical FRAME barline is redrawn too. The
+              overlay renders the ACTIVE field LAST so this veil sits above sibling content in its box. */}
           <rect x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop}
-            fill={`url(#${scrimId})`} />
+            fill="var(--panel-bg, #1f1e2a)" />
           {staffLineYs.map((ly, i) => (
             <line key={i} x1={veilX0} x2={veilX1} y1={ly} y2={ly}
               stroke="var(--text-primary)" strokeWidth="0.5" />
