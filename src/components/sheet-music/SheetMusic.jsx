@@ -217,6 +217,9 @@ const SheetMusic = ({
   numMeasures, // Added prop
   onNumMeasuresChange,      // NEW — for overlay measure count stepper
   tonic,
+  scale = null,             // #529: authoritative Scale object (has .notes/.tonic/mode) — the chord
+                            // -notation setter derives its diatonic ii-V-I preview from it (the
+                            // per-instrument trebleSettings.scaleNotes is often empty in this view).
   containerHeight = 400,
   musicalBlocks,
   startMeasureIndex = 0,
@@ -2983,11 +2986,12 @@ const SheetMusic = ({
                       trebleStart={trebleStart}
                       chordDisplayMode={chordDisplayMode}
                       onSetChordDisplayMode={setChordDisplayMode}
-                      // #529 rework: colour the sample by the standard chord-label rules
-                      // (melodicNoteColor) — same inputs the sheet chord labels use.
+                      // #529 rework: the sample is the CURRENT key's diatonic ii-V-I, built from the
+                      // authoritative scale (generateChordOnDegree) and coloured by the standard
+                      // chord-label rules (melodicNoteColor) — same inputs the sheet chord labels use.
+                      scale={scale}
                       noteColoringMode={noteColoringMode}
                       tonic={tonic}
-                      scaleNotes={scaleNotes}
                       theme={theme}
                       debugMode={debugMode}
                     />

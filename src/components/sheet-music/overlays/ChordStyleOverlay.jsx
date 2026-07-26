@@ -3,24 +3,25 @@ import DisableCross from './DisableCross';
 import { chordRootY } from '../ChordLabelsLayer';
 import { CarouselField } from '../CarouselFieldItem';
 import { melodicNoteColor, normalizeNoteChars, stripOctave } from '../../../theory/noteUtils';
+import { generateChordOnDegree } from '../../../theory/chordGenerator';
 
 /**
  * ChordStyleOverlay — the chord NOTATION selector (Han #12 / #529): X (disable) / letters /
  * roman, shown in the chord row inside the NOTATION (clef) setter. Writes `chordDisplayMode`
  * ('off' | 'letters' | 'roman').
  *
- * #529 (Han 2026-07-25: "maak van de X D G C ii V7 I akkoordnotatie een carousel"): the three
- * options are ONE hidden `CarouselField` — the SAME shared carousel primitive every other setter
- * uses (§6d): at rest it shows only the active option; a press reveals + drags through the three; the
- * localized veil (§60) keeps it readable; the serif-italic header (§59) names the field; each option
- * carries an ALL-CAPS label (INVISIBLE / LETTERS / ROMAN, Han 2026-07-26).
+ * #529 (Han 2026-07-25): the three options are ONE hidden `CarouselField` — the SAME shared carousel
+ * primitive every other setter uses (§6d): at rest only the active option shows; a press reveals +
+ * drags through the three; the localized veil (§60) keeps it readable; the serif-italic header (§59)
+ * names the field; each option carries an ALL-CAPS label (INVISIBLE / LETTERS / ROMAN).
  *
- * #529 rework (Han 2026-07-26): the letters/roman sample now COLOURS by the standard chord-label
- * rules — NOT a re-implementation: it reuses `melodicNoteColor` (the exact function ChordLabelsLayer
- * colours the real sheet chord names with, §6d) on each chord ROOT. The sample is KEY-RELATIVE (like
- * every other adaptive setter preview, #433): it renders the CURRENT key's ii–V7–I, so the tonic (the
- * "I" / its letter) always takes the tonic colour in scale mode, and every chord takes its chroma in
- * chromatone / chord mode.
+ * #529 rework (Han 2026-07-26): the letters/roman sample is the CURRENT key's diatonic ii–V7–I, built
+ * with the CANONICAL chord engine — `generateChordOnDegree` (the exact function the real progression
+ * uses, §6d — "de logica bestaat al, niet hercoderen"): degree 2 (ii) + degree 1 (I) as triads, and
+ * degree 5 (V) as a FORCED dominant seventh (`overrideQuality='dominant'`, Han: "forceer een dominant
+ * V7"). So in a MAJOR key it reads D− G7 C / ii V7 I; in a MINOR key the ii and i adapt (ii° … i) while
+ * V stays a dominant seventh. Each chord's letter/roman/quality and its COLOUR come straight from the
+ * generated Chord, coloured by `melodicNoteColor` exactly like the sheet chord labels.
  */
 
 // Sheet chord-label metrics (mirror ChordLabelsLayer's non-passing chord).
@@ -30,9 +31,8 @@ const SUP_DY = 12;
 const GAP = 42;   // spacing between the 3 sample chords (Han: further apart)
 
 // A short chord-label progression sample matching the SHEET chord labels EXACTLY (ChordLabelsLayer):
-// plain serif (NOT italic), root letter + the suffix (incl. the minor "−") as a raised superscript.
-// `chords` = [{ root, sup, color }] (per-chord colour from the caller). Drawn around a local origin
-// `cx` (the carousel wrapper translates the whole item into place, so cx is 0 here).
+// plain serif (NOT italic), root + a raised superscript suffix. `chords` = [{ root, sup, color }].
+// Drawn around a local origin `cx` (the carousel wrapper translates the whole item into place).
 const ProgressionSample = ({ cx, cy, chords }) => {
     const x0 = cx - GAP;            // 3 chords centred on cx
     return (
@@ -54,26 +54,48 @@ const CHORD_STYLE_ITEMS = [
     { value: 'roman', label: 'roman' },
 ];
 
-// Sizing consts. The letters/roman sample spans 2×GAP + a root glyph each side ≈ 120u, so the stride
-// is wide enough that the three options don't overlap when the field is open. visibleHalf=1 → all
-// three show when revealed.
+// Sizing consts. The letters/roman sample spans ≈ 2×GAP + a glyph each side, so the stride is wide
+// enough that the three options don't overlap when open. visibleHalf=1 → all three show revealed.
 const BASE = 138;
 const HIT_TOP = -24, HIT_H = 48, HEADER_DY = -31, LABEL_DY = 26;
+
+// Fixed C-major illustration used only when no usable scale is available (defensive — the app always
+// has a Scale, but exotic/non-heptatonic scales can make the engine throw).
+const FALLBACK = {
+    letters: [{ root: 'D', sup: '−' }, { root: 'G', sup: '7' }, { root: 'C', sup: '' }],
+    roman: [{ root: 'ii', sup: '' }, { root: 'V', sup: '7' }, { root: 'I', sup: '' }],
+};
 
 const ChordStyleOverlay = ({
     startX, endX, trebleStart,
     chordDisplayMode = 'letters',
     onSetChordDisplayMode,
-    // #529 rework: the colouring context — SAME inputs ChordLabelsLayer feeds melodicNoteColor.
+    // #529 rework: the colouring/derivation context — the authoritative Scale + the SAME inputs
+    // ChordLabelsLayer feeds melodicNoteColor.
+    scale = null,
     noteColoringMode = 'none',
     tonic = 'C',
-    scaleNotes = [],
     theme = 'dark',
     debugMode = false,
 }) => {
     // #529: single-open coordination is local (this overlay owns one field). Lifting it to share with
     // the clef/percussion carousels happens when #530 converts those too.
     const [activeFieldId, setActiveFieldId] = React.useState(null);
+
+    // The CURRENT key's diatonic ii / V(7, forced dominant) / I via the canonical engine, memoised on
+    // the scale so we don't regenerate chords every frame. try/catch: the engine requires a heptatonic
+    // collection and throws otherwise — fall back to the fixed C-major illustration.
+    const diatonic = React.useMemo(() => {
+        if (!scale?.notes?.length) return null;
+        try {
+            return {
+                ii: generateChordOnDegree(scale, 2, 'triad'),
+                V: generateChordOnDegree(scale, 5, 'seventh', null, 'dominant'),
+                I: generateChordOnDegree(scale, 1, 'triad'),
+            };
+        } catch { return null; }
+    }, [scale]);
+
     if (startX == null || trebleStart == null) return null;
 
     // Match the SHEET chord-label baseline so the setter row sits at the SAME height as the real
@@ -84,43 +106,32 @@ const ChordStyleOverlay = ({
 
     const activeIndex = Math.max(0, CHORD_STYLE_ITEMS.findIndex(o => o.value === chordDisplayMode));
 
-    // KEY-RELATIVE ii–V7–I roots — taken straight from the CURRENT SCALE (Han 2026-07-26: "die moeten
-    // relatief zijn aan de akkoorden van de toonladder"). scaleNotes are the diatonic degrees already
-    // respelled to the key, so degree 1 = I (tonic), degree 2 = ii (supertonic), degree 5 = V
-    // (dominant) — the actual chords of the scale, not a fixed C–G–C. #433: the sample follows the key.
-    const deg = (i) => (scaleNotes && scaleNotes[i]) ? scaleNotes[i] : tonic;
-    const IRoot = deg(0);
-    const iiRoot = deg(1);
-    const VRoot = deg(4);
+    // Per-chord colour — the EXACT call ChordLabelsLayer makes (§6d), on the concert root.
+    const colorOfChord = (c) => {
+        const iroot = stripOctave(c.root || '');
+        return melodicNoteColor(iroot, {
+            noteColoringMode, tonic, scaleNotes: scale?.notes || [], theme,
+            activeChord: noteColoringMode === 'chords' ? { root: iroot, notes: [iroot] } : null,
+        }) || 'var(--text-primary)';
+    };
 
-    // Colour a chord root by the ACTIVE scheme — the EXACT call ChordLabelsLayer makes (§6d): tonic/
-    // scale → tonic/scale colour, chromatone → the root's chroma, chords → the root's chord tint.
-    const colorOfRoot = (root) => melodicNoteColor(root, {
-        noteColoringMode, tonic, scaleNotes, theme,
-        // EXACTLY ChordLabelsLayer's call (§6d): a synthetic single-note chord in 'chords' mode,
-        // null otherwise (melodicNoteColor ignores activeChord in the other modes).
-        activeChord: noteColoringMode === 'chords' ? { root, notes: [root] } : null,
-    }) || 'var(--text-primary)';
+    // Pull the display parts from a generated Chord: letters = key-spelled root (Unicode §5b) +
+    // internalSuffix; roman = romanBaseDisplay + romanSuffix (adapts ii°/i in minor).
+    const partOf = (c, kind) => (kind === 'roman'
+        ? { root: c.meta?.romanBaseDisplay || c.roman || '', sup: c.meta?.romanSuffix || '' }
+        : { root: normalizeNoteChars(stripOctave(c._displayRoot || c.root || '')), sup: c.internalSuffix || '' });
 
-    // letters = the key's actual chord letters (respelled, Unicode accidentals §5b); roman = fixed
-    // ii/V/I text. Both colour their roots identically.
-    const disp = (n) => normalizeNoteChars(stripOctave(n));
+    // Build the 3-chord sample [ii, V, I] for a display kind, with per-chord colour.
     const buildSample = (kind) => {
-        const roots = [iiRoot, VRoot, IRoot];
-        const romanRoots = ['ii', 'V', 'I'];
-        // Letters spell the minor ii as "−"; roman already encodes it in the lower-case numeral, so
-        // only V keeps its "7" there (matches the original ChordStyleOverlay sample).
-        const sups = kind === 'roman' ? ['', '7', ''] : ['−', '7', ''];
-        return roots.map((r, i) => ({
-            root: kind === 'roman' ? romanRoots[i] : disp(r),
-            sup: sups[i],
-            color: colorOfRoot(r),
+        if (!diatonic) return FALLBACK[kind].map(x => ({ ...x, color: 'var(--text-primary)' }));
+        return [diatonic.ii, diatonic.V, diatonic.I].map((c) => ({
+            ...partOf(c, kind),
+            color: colorOfChord(c),
         }));
     };
 
-    // renderContent draws each option around the carousel item's LOCAL x-origin (0); the carousel
-    // wrapper translates it into place. When the item is the ACTIVE/centre one it shows the real
-    // chord colours; passive (side) items dim to the field's `color` (lowlight).
+    // renderContent draws each option around the carousel item's LOCAL x-origin (0). The active/centre
+    // option shows the real chord colours; passive (side) options dim to the field's `color` (lowlight).
     const renderContent = (item, active, color) => {
         if (item.value === 'off') {
             return <DisableCross x={-9} topY={labelBase - 9 - 18} color={color} />;
