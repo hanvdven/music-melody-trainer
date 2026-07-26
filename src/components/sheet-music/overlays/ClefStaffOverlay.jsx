@@ -7,6 +7,7 @@ import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones } from '../../../con
 import TranspositionSetter from './TranspositionSetter';
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
 import NonLinearCarousel from './NonLinearCarousel';
+import { CarouselField } from '../CarouselFieldItem';
 import DisableCross from './DisableCross';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { processMelodyAndCalculateSlots } from '../processMelodyAndCalculateSlots';
@@ -221,6 +222,12 @@ const ClefStaffOverlay = ({
     onTogglePercussionDisabled,  // () => void  (percussion clef on↔off)
     debugMode = false,
 }) => {
+    // #529 Slice B: single-open coordination for the hidden percussion-notation carousel. Local for
+    // now (the melodic family carousels are always-visible NonLinearCarousels, not hidden fields);
+    // lifted to coordinate with the clef carousels when #530 converts those too. Declared BEFORE the
+    // early return so the hook order is stable (rules-of-hooks).
+    const [activeFieldId, setActiveFieldId] = React.useState(null);
+
     if (startX == null || endX == null) return null;
 
     // The family carousel lives in the CLEF GUTTER, fully LEFT of startX (Han
@@ -445,112 +452,110 @@ const ClefStaffOverlay = ({
         const slots = Math.max(1, gridOffsets.length - 1);   // gaps between notes
         const NOTE_W = (span * 0.15) / slots;                // bundle ≈ 15% of the width
 
-        // One option, CENTRED on cx: the first note sits at cx − (slots/2)·NOTE_W so the
-        // whole bundle is symmetric about cx. `layers` = one or more voices (split = 2).
-        const renderOption = (key, cx, active, layers, onTap) => {
+        // #529 Slice B (Han 2026-07-25: "doe hetzelfde voor percussie … [X/||] + [samen/gesplitst]
+        // -> een carousel [samen/gesplitst/X]"): the old LEFT clef-picker carousel (perc `/` ↔ X) and
+        // the RIGHT together/split hit boxes MERGE into ONE hidden CarouselField with three options —
+        // together / split / off. The drum-pattern renders are reused verbatim (§6c — the sheet's real
+        // MelodyNotesLayer), now authored around the carousel item's LOCAL x-origin (the wrapper
+        // translates each option into place); `off` is the shared DisableCross.
+        const renderDrumBundle = (layers, active) => {
             const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
-            const ox = cx - (slots / 2) * NOTE_W;
-            // Taller + a touch wider hit target so the percussion together/split toggles
-            // aren't fiddly (Han 2026-06-03 "percussion clickzone too small").
-            const hitX = ox - 16, hitW = slots * NOTE_W + 32;
-            // Cover the FULL note bundle (Han BUG-N3, 2026-06-08): the split voice's
-            // hi-hat beam rides above the staff (≈ y−28) and the together voice's
-            // stems+beam hang below it (≈ y+50); the old y−18…y+44 box clipped both
-            // ends, so the clickzone didn't match the visible note height.
-            const HIT_Y = y - 30, HIT_H = 84;
+            const ox = -(slots / 2) * NOTE_W;   // bundle symmetric about the item's local origin (0)
             return (
-                <g key={key} style={{ cursor: onToggleVoiceSplit ? 'pointer' : 'default' }} onClick={onTap}>
-                    {/* invisible hit target — no visible box around the notes (Han #14) */}
-                    <rect x={hitX} y={HIT_Y} width={hitW} height={HIT_H} fill="transparent" />
-                    {/* Debug mode: visualise the actual hit region (§3a) */}
-                    {debugMode && (
-                        <rect x={hitX} y={HIT_Y} width={hitW} height={HIT_H}
-                            fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
-                            style={{ pointerEvents: 'none' }} />
-                    )}
-                    <g style={{ pointerEvents: 'none' }}>
-                        {/* Stage I (Han 2026-06-09): the ACTIVE option colours its percussion heads
-                            through the real colour mode (chromatone) like the live staff; the
-                            inactive option stays a flat lowlight via previewMode. */}
-                        {layers.map((L, i) => (
-                            <MelodyNotesLayer key={i}
-                                {...PERC_LAYER_PROPS}
-                                noteGroupSize={BUNDLE_TICKS}
-                                measureLengthSlots={BUNDLE_TICKS}
-                                percussionVoiceSplit={L.split}
-                                melody={L.melody}
-                                staff="percussion"
-                                staffYStart={y}
-                                clef={null}
-                                startX={ox}
-                                noteWidth={NOTE_W}
-                                allOffsets={allOffsets}
-                                timeSignature={PERC_TS}
-                                theme={theme}
-                                noteColoringMode={active ? noteColoringMode : 'none'}
-                                previewMode={active ? false : color}
-                            />
-                        ))}
-                    </g>
-                    {debugMode && (
-                        <rect x={hitX} y={HIT_Y} width={hitW} height={HIT_H}
-                            fill="orange" fillOpacity={0.12} stroke="orange" strokeWidth={0.5}
-                            style={{ pointerEvents: 'none' }} />
-                    )}
+                <g style={{ pointerEvents: 'none' }}>
+                    {/* Stage I (Han 2026-06-09): the ACTIVE option colours its percussion heads through
+                        the real colour mode (chromatone) like the live staff; the inactive option stays
+                        a flat lowlight via previewMode. */}
+                    {layers.map((L, i) => (
+                        <MelodyNotesLayer key={i}
+                            {...PERC_LAYER_PROPS}
+                            noteGroupSize={BUNDLE_TICKS}
+                            measureLengthSlots={BUNDLE_TICKS}
+                            percussionVoiceSplit={L.split}
+                            melody={L.melody}
+                            staff="percussion"
+                            staffYStart={y}
+                            clef={null}
+                            startX={ox}
+                            noteWidth={NOTE_W}
+                            allOffsets={allOffsets}
+                            timeSignature={PERC_TS}
+                            theme={theme}
+                            noteColoringMode={active ? noteColoringMode : 'none'}
+                            previewMode={active ? false : color}
+                        />
+                    ))}
                 </g>
             );
         };
 
-        // Left clef picker (#262 rework): the SHARED NonLinearCarousel — the
-        // ACTIVE item sits at the sheet percussion clef position (PERC_CLEF_X,
-        // Han #8 alignment kept as-is); 'off' shows the shared DisableCross at
-        // the −5 offset so it lands on the same absolute span as the melodic
-        // staff crosses (BUG-N1). Italian label below (caps CR).
-        const PERC_CLEF_X = 18;
-        const percOrder = percussionDisabled ? ['off', 'perc'] : ['perc', 'off'];
-        const renderPercClef = (item, isActive) => {
-            const colr = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
-            const CROSS_DX = CLEF_GLYPH_X - PERC_CLEF_X;   // −5 (BUG-N1 alignment)
-            return (
-                <g style={{ pointerEvents: 'none' }}>
-                    {item === 'off' ? (
-                        <DisableCross x={CROSS_DX} topY={y + 2} color={colr} />
-                    ) : (
-                        <text x={0} y={y + 30} fontSize={FAMILY_GLYPH_SIZE} fontFamily="Maestro"
-                            textAnchor="middle" fill={colr}>{'/'}</text>
-                    )}
-                    <text x={0} y={y + CLEF_LABEL_DY} textAnchor="middle"
-                        fontSize={CLEF_LABEL_SIZE} fontFamily="sans-serif" letterSpacing={0.5}
-                        fontWeight={isActive ? 'bold' : 'normal'} fill={colr}>
-                        {item === 'off' ? 'OFF' : 'PERCUSSIONE'}
-                    </text>
-                </g>
-            );
+        // The three merged options (Han order: samen / gesplitst / X).
+        const PERC_ITEMS = [
+            { value: 'together', layers: [{ melody: togetherMel, split: false }] },
+            { value: 'split', layers: [{ melody: hhMel, split: true }, { melody: ksMel, split: true }] },
+            { value: 'off' },
+        ];
+        const percActiveIndex = percussionDisabled ? 2 : (percussionVoiceSplit ? 1 : 0);
+
+        // renderContent draws each option around the item's local origin (0). `off` = the shared
+        // DisableCross centred on the staff; the two pattern options = the real drum renders.
+        const renderPercContent = (item, active, color) => (
+            item.value === 'off'
+                ? <DisableCross x={-9} topY={y + 2} color={color} />
+                : renderDrumBundle(item.layers, active)
+        );
+
+        // Committing an option may flip TWO pieces of state at once (enable/disable + split). React 18
+        // batches the two setters, so the round lands in one render. 'off' only disables; the pattern
+        // options ensure percussion is enabled AND set the split flag to match.
+        const selectPerc = (item) => {
+            const v = item.value;
+            if (v === 'off') {
+                if (!percussionDisabled) onTogglePercussionDisabled?.();
+                return;
+            }
+            if (percussionDisabled) onTogglePercussionDisabled?.();
+            const wantSplit = v === 'split';
+            if (percussionVoiceSplit !== wantSplit) onToggleVoiceSplit?.();
         };
+
+        // Carousel stride: wide enough that the ~15%-of-span drum bundle + a gap fits per option, so
+        // the three don't overlap when the field is revealed. visibleHalf=1 → all three show open.
+        const PERC_BASE = Math.max(150, slots * NOTE_W + 48);
+        const rowCenterY = y + 20;   // percussion 5-line staff centre (lines at y..y+40)
 
         return (
             <g className="clef-row clef-row-percussion" key="percussion">
-                <NonLinearCarousel
-                    items={percOrder}
-                    activeIndex={0}
-                    renderItem={(item, i) => renderPercClef(item, i === 0)}
-                    centerX={PERC_CLEF_X}
-                    y={y - 18}
-                    baseWidth={FAMILY_SLOT_W}
-                    height={62}
+                <CarouselField
+                    items={PERC_ITEMS}
+                    activeIndex={percActiveIndex}
+                    onSelect={selectPerc}
+                    centerX={(startX + endX) / 2}
+                    rowCenterY={rowCenterY}
+                    baseWidth={PERC_BASE}
+                    // Hit/veil must cover the tall drum bundle: the split hi-hat beam rides ≈ y−28
+                    // (rowCenterY−48) and the together stems hang ≈ y+50 (rowCenterY+30).
+                    hitTop={-50}
+                    hitHeight={84}
+                    iconSize={0}
+                    iconDy={0}
+                    labelDy={22}
+                    labelFontSize={11}
+                    bracketDy={-31}
+                    headerDy={-31}
+                    labelAbove="percussion"
+                    renderContent={renderPercContent}
+                    // Percussion 5-line staff → redraw its lines through the veil (§60).
+                    staffLineYs={[-20, -10, 0, 10, 20].map(d => rowCenterY + d)}
+                    staffX0={startX}
+                    staffX1={endX}
                     visibleHalf={1}
-                    onSelect={(item, i) => { if (i !== 0) onTogglePercussionDisabled?.(); }}
+                    fieldId="percussion-notation"
+                    activeFieldId={activeFieldId}
+                    onActivate={setActiveFieldId}
+                    hidden
                     debugMode={debugMode}
                 />
-                {/* Right: together / split toggler bundles CENTRED at 30% / 70% of the
-                    staff body, enabled only. Together = one voice; split = RH hi-hats
-                    (beamed, up) + LH kick/snare (quarters, down). */}
-                {!percussionDisabled && renderOption('together', startX + span * 0.30, !percussionVoiceSplit,
-                    [{ melody: togetherMel, split: false }],
-                    () => { if (percussionVoiceSplit) onToggleVoiceSplit?.(); })}
-                {!percussionDisabled && renderOption('split', startX + span * 0.70, percussionVoiceSplit,
-                    [{ melody: hhMel, split: true }, { melody: ksMel, split: true }],
-                    () => { if (!percussionVoiceSplit) onToggleVoiceSplit?.(); })}
             </g>
         );
     };

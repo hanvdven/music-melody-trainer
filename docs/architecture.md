@@ -5342,3 +5342,23 @@ clef/percussion carousels when #530 / #529-B convert those).
 `ChordLabelsLayer`, §6d) — a move of the chord row still applies here with no duplicated constant.
 
 **Files (Slice A):** `overlays/ChordStyleOverlay.jsx` (rewrite to `CarouselField`).
+
+**Slice B — percussion-notation carousel (`ClefStaffOverlay.percussionBlock`).** The percussion row
+had TWO separate controls: a LEFT clef-picker carousel (perc `/` ↔ X disable, writing
+`percussionDisabled`) and RIGHT together/split hit boxes (writing `percussionVoiceSplit`). Han:
+"[X/||] + [samen/gesplitst] → één carousel [samen/gesplitst/X]." They MERGE into ONE hidden
+`CarouselField` centred on the staff with three options in Han's order — `together` / `split` / `off`.
+The two pattern options reuse the real sheet drum renderer verbatim (§6c, `MelodyNotesLayer`: together =
+one beamed-eighths voice; split = RH hi-hats↑ + LH kick/snare↓), now authored around the item's local
+x-origin (the carousel wrapper translates each into place); `off` = the shared `DisableCross`. The 5-line
+percussion staff (`percussionStart + i·10`) is redrawn through the localized veil (§60); the hit/veil box
+is sized to cover the tall bundle (hi-hat beam ≈ rowCenterY−48, together stems ≈ rowCenterY+30). Header
+"percussion" (§59).
+
+**Committing merges two flags:** picking a pattern option ensures percussion is ENABLED
+(`onTogglePercussionDisabled` if currently off) AND sets `percussionVoiceSplit` to match; `off` only
+disables. React 18 batches the two setters, so the round lands in one render. `activeIndex` derives from
+the pair: `off` when disabled, else `split`/`together` by the split flag.
+
+**Files (Slice B):** `overlays/ClefStaffOverlay.jsx` (percussion block → `CarouselField`; removed the
+left perc-clef `NonLinearCarousel` + `renderOption`/`renderPercClef`).
