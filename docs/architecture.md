@@ -5318,3 +5318,27 @@ still selects nothing; only DRAG behaviour became immediate. §6 animation-opaci
 **Files:** `overlays/NonLinearCarousel.jsx` (flushSync reveal on pointer-down),
 `overlays/fanCarousels.jsx` (`BpmFan` invert), `overlays/ExerciseStaffOverlay.jsx` (exercise tempo fan
 invert).
+
+### §71. Notation setter: togglers → carousels (#529, Han 2026-07-25)
+
+**Purpose:** part of the transposition→NOTATION overhaul (#500). Han: "maak van de X D G C ii V7 I
+akkoordnotatie een carousel; doe hetzelfde voor percussie." The notation setter's stand-alone
+click-togglers become the SAME hidden `CarouselField` primitive every other setter uses (§6d) — one
+consistent interaction (press-reveal-drag), the localized veil (§60), and a serif-italic header (§59).
+
+**Slice A — chord-notation carousel (`ChordStyleOverlay`).** The three chord-label options
+(X / letters `D− G7 C` / roman `ii V7 I`, writing `chordDisplayMode` = `off`/`letters`/`roman`) were
+three separate hit boxes across the chord row. They are now ONE hidden `CarouselField` centred on the
+staff, `visibleHalf=1` (all three show when revealed), header "chord notation". The option CONTENT is
+UNCHANGED and reused verbatim (§6d): the letters/roman samples keep the exact sheet-chord-label
+metrics (`ProgressionSample`, root 26 serif + 16 superscript) and X reuses the shared `DisableCross`.
+`renderContent` draws each option around the item's local x-origin (the carousel wrapper translates it
+into place); `color` comes from the field (active = `--text-primary`, passive = `--text-lowlight`), so
+active/passive colouring matches the old behaviour. Chords band → `staffLineYs=[]` (no staff strokes to
+redraw through the veil). Single-open is local to this overlay for now (lifted to coordinate with the
+clef/percussion carousels when #530 / #529-B convert those).
+
+**Invariants:** the sheet chord-label baseline stays the single source of truth (`chordRootY` from
+`ChordLabelsLayer`, §6d) — a move of the chord row still applies here with no duplicated constant.
+
+**Files (Slice A):** `overlays/ChordStyleOverlay.jsx` (rewrite to `CarouselField`).

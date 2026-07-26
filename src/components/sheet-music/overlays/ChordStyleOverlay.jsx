@@ -1,14 +1,20 @@
 import React from 'react';
 import DisableCross from './DisableCross';
 import { chordRootY } from '../ChordLabelsLayer';
+import { CarouselField } from '../CarouselFieldItem';
 
 /**
- * ChordStyleOverlay — the chord STYLE selector (Han #12): X (disable) / letters /
- * roman, shown in the chord row inside the CLEF setter. The letters/roman samples
- * use the SAME font size & style as the sheet chord labels (ChordLabelsLayer: root
- * ~26 serif, superscript ~16) — they were too small before.
+ * ChordStyleOverlay — the chord NOTATION selector (Han #12 / #529): X (disable) / letters /
+ * roman, shown in the chord row inside the NOTATION (clef) setter. Writes `chordDisplayMode`
+ * ('off' | 'letters' | 'roman').
  *
- * Writes `chordDisplayMode` ('off' | 'letters' | 'roman').
+ * #529 (Han 2026-07-25: "maak van de X D G C ii V7 I akkoordnotatie een carousel"): the three
+ * options used to be three separate click-to-select hit boxes laid out across the chord row. They
+ * are now ONE hidden `CarouselField` — the SAME shared carousel primitive every other setter uses
+ * (§6d): at rest it shows only the active option; a press reveals + drags through the three; the
+ * localized veil (§60) keeps it readable where it overlaps the chord row; the serif-italic header
+ * (§59) names the field. The option CONTENT is unchanged — the letters/roman samples still reuse the
+ * exact sheet-chord-label font/metrics (`ProgressionSample`) and the shared `DisableCross` for X.
  */
 
 // Sheet chord-label metrics (mirror ChordLabelsLayer's non-passing chord).
@@ -18,7 +24,8 @@ const SUP_DY = 12;
 
 // A short chord-label progression sample matching the SHEET chord labels EXACTLY
 // (ChordLabelsLayer): plain serif (NOT italic), root letter + the suffix — incl. the
-// minor "−" — as a raised superscript tspan (Han #13).
+// minor "−" — as a raised superscript tspan (Han #13). Drawn around a local origin `cx`
+// (the carousel wrapper translates the whole item into place, so cx is 0 here).
 const ProgressionSample = ({ cx, cy, kind, color }) => {
     const items = kind === 'roman'
         ? [{ root: 'ii', sup: '' }, { root: 'V', sup: '7' }, { root: 'I', sup: '' }]
@@ -40,9 +47,19 @@ const ProgressionSample = ({ cx, cy, kind, color }) => {
         </g>
     );
 };
-// Width spanned by the 3-chord sample (2 gaps + a root glyph on each end) — used to size
-// the hit box so it brackets the chords (Han: clickzone too narrow).
-const SAMPLE_W = 2 * 42 + 36;
+
+// #529: carousel option order (Han: "X / D G C / ii V7 I").
+const CHORD_STYLE_ITEMS = [
+    { value: 'off' },
+    { value: 'letters' },
+    { value: 'roman' },
+];
+
+// Sizing consts (named per Han's overlay convention). The letters/roman sample spans
+// 2×GAP + a root glyph each side ≈ 120u, so the carousel stride is wide enough that the three
+// options don't overlap when the field is open. visibleHalf=1 → all three show when revealed.
+const BASE = 138;
+const HIT_TOP = -24, HIT_H = 48, HEADER_DY = -31, LABEL_DY = 16;
 
 const ChordStyleOverlay = ({
     startX, endX, trebleStart,
@@ -50,48 +67,62 @@ const ChordStyleOverlay = ({
     onSetChordDisplayMode,
     debugMode = false,
 }) => {
+    // #529: single-open coordination is local (this overlay owns one field). Lifting it to share
+    // with the clef/percussion carousels happens when #530/#529-B convert those too.
+    const [activeFieldId, setActiveFieldId] = React.useState(null);
     if (startX == null || trebleStart == null) return null;
-    // Match the SHEET chord-label baseline so the setter row sits at the SAME height as the
-    // real chord labels (Han Batch C). Imported from ChordLabelsLayer (§6d single source of
-    // truth) so a move of the chord row applies here too — no duplicated magic number.
+
+    // Match the SHEET chord-label baseline so the setter row sits at the SAME height as the real
+    // chord labels (Han Batch C). Imported from ChordLabelsLayer (§6d single source of truth) so a
+    // move of the chord row applies here too — no duplicated magic number.
     const labelBase = chordRootY(trebleStart);
-    const visCentre = labelBase - 9;               // ~centre of the 26px text, for the off-cross
-    const span = (endX ?? startX) - startX;
-    const cx33 = startX + span * 0.33;
-    const cx66 = startX + span * 0.66;
-    const isLetters = chordDisplayMode !== 'off' && chordDisplayMode !== 'roman';
+    const rowCenterY = labelBase - 9;              // ~centre of the 26px text
+    const centerX = (startX + (endX ?? startX)) / 2;
 
-    // Active = normal colour (NOT yellow); passive = lowlight, opacity 1 (Han #14).
-    const offColor = chordDisplayMode === 'off' ? 'var(--text-primary)' : 'var(--text-lowlight)';
-    const lettersColor = isLetters ? 'var(--text-primary)' : 'var(--text-lowlight)';
-    const romanColor = chordDisplayMode === 'roman' ? 'var(--text-primary)' : 'var(--text-lowlight)';
+    const activeIndex = Math.max(0, CHORD_STYLE_ITEMS.findIndex(o => o.value === chordDisplayMode));
 
-    const hit = (key, node, hitX, hitW, onTap) => (
-        <g key={key} data-fly="" style={{ cursor: 'pointer' }} onClick={onTap}>
-            <rect x={hitX} y={visCentre - 22} width={hitW} height={44} fill="transparent" />
-            {node}
-            {debugMode && (
-                <rect x={hitX} y={visCentre - 22} width={hitW} height={44}
-                    fill="orange" fillOpacity={0.15} stroke="orange" strokeWidth={0.5}
-                    style={{ pointerEvents: 'none' }} />
-            )}
-        </g>
-    );
+    // renderContent draws each option around the carousel item's LOCAL x-origin (0); the carousel
+    // wrapper translates it into place. `color` comes from the field (active = primary, passive =
+    // lowlight) so active/passive colouring matches the old hit-box behaviour.
+    const renderContent = (item, _active, color) => {
+        if (item.value === 'off') {
+            // Shared DisableCross so the chord-row OFF reads identically to the staff + percussion
+            // OFF crosses (Han BUG-V1). 18 wide → centre it on the local origin.
+            return <DisableCross x={-9} topY={labelBase - 9 - 18} color={color} />;
+        }
+        return <ProgressionSample cx={0} cy={labelBase} kind={item.value === 'roman' ? 'roman' : 'letters'} color={color} />;
+    };
 
     return (
         <g className="chord-style-overlay" onClick={(e) => e.stopPropagation()}>
-            {hit('off', (
-                // Shared DisableCross so the chord-row OFF reads identically to the staff
-                // + percussion OFF crosses (Han BUG-V1, 2026-06-08): start-aligned at the
-                // row-left, 18×36, 2× taller than wide. Centred vertically on the label.
-                <DisableCross x={startX} topY={visCentre - 18} color={offColor} />
-            ), startX - 6, 30, () => onSetChordDisplayMode?.('off'))}
-            {hit('letters',
-                <ProgressionSample cx={cx33} cy={labelBase} kind="letters" color={lettersColor} />,
-                cx33 - SAMPLE_W / 2, SAMPLE_W, () => onSetChordDisplayMode?.('letters'))}
-            {hit('roman',
-                <ProgressionSample cx={cx66} cy={labelBase} kind="roman" color={romanColor} />,
-                cx66 - SAMPLE_W / 2, SAMPLE_W, () => onSetChordDisplayMode?.('roman'))}
+            <CarouselField
+                items={CHORD_STYLE_ITEMS}
+                activeIndex={activeIndex}
+                onSelect={(item) => onSetChordDisplayMode?.(item.value)}
+                centerX={centerX}
+                rowCenterY={rowCenterY}
+                baseWidth={BASE}
+                hitTop={HIT_TOP}
+                hitHeight={HIT_H}
+                iconSize={0}
+                iconDy={0}
+                labelDy={LABEL_DY}
+                labelFontSize={11}
+                bracketDy={HEADER_DY}
+                headerDy={HEADER_DY}
+                labelAbove="chord notation"
+                renderContent={renderContent}
+                // Chords band → no staff lines to redraw through the veil (§60).
+                staffLineYs={[]}
+                staffX0={startX}
+                staffX1={endX}
+                visibleHalf={1}
+                fieldId="chord-notation"
+                activeFieldId={activeFieldId}
+                onActivate={setActiveFieldId}
+                hidden
+                debugMode={debugMode}
+            />
         </g>
     );
 };
