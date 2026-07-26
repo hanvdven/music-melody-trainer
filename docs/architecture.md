@@ -5395,3 +5395,27 @@ the pair: `off` when disabled, else `split`/`together` by the split flag.
 
 **Files (Slice B):** `overlays/ClefStaffOverlay.jsx` (percussion block → `CarouselField`; removed the
 left perc-clef `NonLinearCarousel` + `renderOption`/`renderPercClef`).
+
+### §72. Bug: inconsistent percussion stem lengths (#626, Han 2026-07-26)
+
+**Symptom:** a hi-hat with a flag up read with a visibly SHORTER stem than the kick/snare beside it
+("hihat met vlag omhoog heeft een kortere stok dan de kick of snare omlaag").
+
+**Root cause:** in the single-note stem path (`renderMelodyNotes`) the stem END was a per-glyph ABSOLUTE
+value, not a length: the `À` (x/cymbal) notehead ended its UP stem at `positionY − 22.5` while round
+kick/snare stems reached `∓27`, and `Ñ` (triangle) stems were up/down-asymmetric. Because the `À`
+notehead also attaches its stem 5 units off-centre (`lineYstartAdj = ∓5`), its visible up-stem was only
+~17.5 vs ~26 for a round head — and the flag (drawn at a fixed `positionY ∓ 27`) floated off the tip.
+
+**Fix / invariant:** every percussion stem is now ONE consistent length measured from the notehead's
+stem-attach point: `lineYend = lineYstartAdj ∓ percLen` (`percLen = STEM_LENGTH` = 27, or 25.2 for the
+deliberately-short `shortStemNotes` — open hi-hat / woodblocks). The flag follows the tip (`flagY =
+lineYend`). Melodic notes are untouched (the branch is `staff === 'percussion'`-gated; for melodic,
+`lineYend` stays `positionY ∓ 27`, so `flagY` is unchanged). Verified by rendering hh/k/s/ho eighths:
+all full stems are equal length, `ho` intentionally shorter, flags connected.
+
+**Not yet addressed (needs Han's visual UAT):** the CHORD stem path (`stemEndY` 32.4/34.2) and the BEAM
+path (`chordClear` 32/28) carry their own up/down-asymmetric constants; flagged single notes were the
+reported case, so the beam/chord geometry is left for a follow-up after UAT confirms the single-note fix.
+
+**Files:** `renderMelodyNotes.jsx` (single-note percussion stem end + flag Y).

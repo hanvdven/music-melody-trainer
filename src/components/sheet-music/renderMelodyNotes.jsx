@@ -1097,15 +1097,18 @@ const renderMelodyNotes = (
       } else if (percHead === 'À') {
         lineYstartAdj = stemIsAbove ? positionY - 5 : positionY + 5;
       }
-      // Stem end: beam slope takes priority; fall back to per-notehead or shortStem lengths
+      // Stem end: beam slope takes priority; else a CONSISTENT length for every percussion glyph.
       if (isBeamed && bData) {
         lineYend = bData.firstYend + bData.slope * (lineX - bData.firstX);
-      } else if (percHead === 'Ñ') {
-        lineYend = stemIsAbove ? positionY - 28 : positionY + 28;
-      } else if (percHead === 'À') {
-        lineYend = stemIsAbove ? positionY - 22.5 : positionY + 27;
-      } else if (staff === 'percussion' && shortStemNotes.includes(note)) {
-        lineYend = stemIsAbove ? positionY - 25.2 : positionY + 25.2;
+      } else if (staff === 'percussion') {
+        // #626 (Han): every percussion stem is ONE consistent length, measured from the notehead's
+        // stem-ATTACH point (lineYstartAdj), not a per-glyph absolute end. Before, the 'À' (x/cymbal)
+        // up-stem ended at positionY−22.5 and 'Ñ' (triangle) stems were up/down-asymmetric, so a
+        // hi-hat stem read visibly shorter than the round kick/snare beside it (up vs down in split
+        // notation). Anchoring the end to lineYstartAdj makes the visible length identical across all
+        // heads. shortStemNotes (open hi-hat / woodblocks) keep their deliberate shorter length.
+        const percLen = shortStemNotes.includes(note) ? 25.2 : STEM_LENGTH;
+        lineYend = stemIsAbove ? lineYstartAdj - percLen : lineYstartAdj + percLen;
       }
       let ledgerLines = [];
       if (staff === 'percussion') {
@@ -1126,7 +1129,10 @@ const renderMelodyNotes = (
       }
       const flagSymbol = stemIsAbove ? durationFlagMapUp[visualDuration] : durationFlagMapDown[visualDuration];
       const flagX = stemIsAbove ? positionX + 11 : positionX + 0.5;
-      const flagY = stemIsAbove ? positionY - 27 : positionY + 27;
+      // #626: the flag sits at the STEM TIP (lineYend), so it stays connected now that percussion
+      // stems end at a per-glyph attach point. For melodic notes lineYend === positionY∓27, so this
+      // is unchanged there.
+      const flagY = lineYend;
 
       // Collect data for tuplet bracket rendering (after note rendering pass).
       if (tripletInfo) {
