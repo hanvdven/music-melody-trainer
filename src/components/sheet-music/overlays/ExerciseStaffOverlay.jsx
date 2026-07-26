@@ -147,7 +147,8 @@ const ExerciseStaffOverlay = ({
                     renderLabel={(it) => it.maestroGlyph}
                     labelFontFamily="Maestro"
                     activeLabelSize={32}
-                    compact invert fieldLines={[]}
+                    /* Han 2026-07-25: tempo scroll direction reversed vs the other fans (no `invert`). */
+                    compact fieldLines={[]}
                     onCommit={(i) => selectAxis('tempo')(AXES.tempo[i])}
                     debugMode={debugMode}
                 />
