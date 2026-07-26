@@ -135,6 +135,9 @@ export const BpmFan = ({ cx, centerY, bpm, min, max, onCommit, debugMode, active
             labelFontFamily="Maestro"
             activeLabelSize={activeLabelSize}
             compact
+            /* #tempo (Han 2026-07-25): reverse the tempo scroll direction on ALL screens so it matches
+               the measures/repeats fans (which all use `invert`). Dragging DOWN raises the BPM. */
+            invert
             bandW={56}
             debugMode={debugMode}
         />

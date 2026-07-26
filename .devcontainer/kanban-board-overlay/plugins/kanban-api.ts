@@ -505,6 +505,17 @@ export function kanbanApiPlugin(): Plugin {
       const sql = getSql();
       ensureSchema(sql);
 
+      // Belt-and-suspenders (Han 2026-07-25): keep a stray rejection/exception from the DB layer from
+      // taking down the whole dev server. The per-request try/catch below is the primary guard; these
+      // process-level handlers catch anything that still escapes (e.g. a background PGlite task) and
+      // log it instead of crashing. Guarded so repeated HMR reloads don't stack listeners.
+      const g = globalThis as any;
+      if (!g.__kanbanErrGuards) {
+        g.__kanbanErrGuards = true;
+        process.on("unhandledRejection", (reason) => console.error("[kanban-api] unhandledRejection:", reason));
+        process.on("uncaughtException", (err) => console.error("[kanban-api] uncaughtException:", err));
+      }
+
       function parseBody(req: any): Promise<any> {
         return new Promise((resolve) => {
           let body = "";
@@ -517,6 +528,7 @@ export function kanbanApiPlugin(): Plugin {
       }
 
       server.middlewares.use(async (req, res, next) => {
+       try {
         const reqUrl = new URL(req.url || "/", "http://localhost");
         const pathname = reqUrl.pathname;
 
@@ -1638,6 +1650,19 @@ export function kanbanApiPlugin(): Plugin {
         }
 
         next();
+       } catch (err) {
+        // A failing PGlite query (or any handler throw) used to REJECT this async middleware,
+        // becoming an unhandled promise rejection that CRASHES the Node dev server (the
+        // "queryOptions: undefined … ELIFECYCLE" crash Han hit). Contain it: log + 500, never crash.
+        console.error("[kanban-api] request error:", err);
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ error: String((err as any)?.message ?? err) }));
+        } else {
+          try { res.end(); } catch { /* socket already gone */ }
+        }
+       }
       });
     },
   };
