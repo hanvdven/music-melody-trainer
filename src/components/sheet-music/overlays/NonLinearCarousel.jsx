@@ -1,4 +1,5 @@
 import React from 'react';
+import { flushSync } from 'react-dom';
 
 /**
  * NonLinearCarousel — a compact, centre-weighted item carousel (Han 2026-06-17).
@@ -405,7 +406,17 @@ export default function NonLinearCarousel({
         // still flows straight into a drag. We remember whether this gesture did the reveal so the up
         // handler can suppress the select on that first tap.
         const revealedNow = collapsed;
-        if (collapsed) onRevealRef.current?.();
+        // #445 (Han 2026-07-26: "meteen slepen; alle carousels moeten aldus functioneren"): a
+        // collapsed field must DRAG from the very first press, like the vertical fans — no "tap to
+        // reveal, then a second gesture to drag". The drag itself already engages on this pointer-down
+        // (dragRef + window listeners below), but at rest mountAllItems=false, so the side items are
+        // NOT in the DOM yet; reveal() only schedules the mount, which React commits a frame LATER.
+        // The first pointermove therefore finds wrapRefs[i]===null for every side item and moves
+        // nothing visible → it reads as "nothing happened, click again". flushSync forces the reveal's
+        // state commit (open=true → mountAllItems=true → all item <g>s mounted, wrapRefs populated)
+        // to happen SYNCHRONOUSLY here, before we read/drag those refs — so the drag is visible from
+        // frame 1. At rest (no press) nothing mounts, so the #428 cheap-rest contract is unchanged.
+        if (collapsed) flushSync(() => onRevealRef.current?.());
         const el = e.currentTarget;
         const sx = toSvgX(el, e.clientX);
         const winMove = (ev) => handleMove(ev);

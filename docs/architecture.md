@@ -5284,3 +5284,37 @@ carousels."
 **Files:** `overlays/ExerciseStaffOverlay.jsx` (rewrite), `sheet-music/SheetMusic.jsx` (mount now
 passes systemEndX/percussionStart/isPercussionVisible), `overlays/__tests__/ExerciseStaffOverlay.test.jsx`,
 dev harness `scripts/gen-harness-entry.jsx`.
+
+### §70. Tempo scroll direction + hidden carousels drag from the first press (Han 2026-07-26)
+
+**Purpose / Symptom:** two cross-setter interaction inconsistencies Han hit at once.
+
+1. **Tempo scrolled the "wrong" way vs every other fan.** The vertical `LeftFanCarousel` fans for
+   measures/repeats/volume all pass `invert` (drag DOWN raises the value); the TEMPO fans did not, so
+   tempo scrolled opposite to its neighbours on every screen. *Fix:* `BpmFan` (the header BPM control,
+   shared by `BpmControls` and the exercise tempo row) and the exercise tempo fan now both pass
+   `invert` — one consistent tempo scroll direction everywhere. Layout is unchanged (§430: `invert`
+   flips only the drag/scroll DIRECTION, not which value sits high on screen).
+
+2. **Hidden horizontal carousels needed a "tap first, then drag" (the fans did not).** On a collapsed
+   `CarouselField` the drag gesture *did* engage on the first pointer-down (`NonLinearCarousel`'s
+   `onPointerDown` sets up `dragRef` + window listeners regardless), but at rest `mountAllItems=false`,
+   so the side items are not in the DOM yet. `reveal()` only SCHEDULES the mount (`open=true →
+   mountAllItems=true`), which React commits a frame later — so the first `pointermove` finds every
+   side item's `wrapRefs[i]===null` and moves nothing visible. It read as "nothing happened, click
+   again", i.e. a reveal-tap followed by a separate drag. The vertical fans never had this because they
+   render all rows immediately. *Fix (Han: "meteen slepen; alle carousels moeten aldus functioneren"):*
+   the reveal on pointer-down is wrapped in `flushSync(() => onReveal())`, so the mount commits
+   SYNCHRONOUSLY before we read/drag the refs — the drag is visible from frame 1, exactly like the
+   fans. This benefits ALL hidden carousels (generation, exercise, colour) uniformly since they share
+   `NonLinearCarousel`.
+
+**Invariants preserved:** `flushSync` fires ONLY on a real pointer-down; at rest nothing mounts, so the
+#428 cheap-rest contract ("only the active item is in the DOM at rest") and its tests are unchanged. The
+#434 two-tap SELECT model is also unchanged — a plain tap (movement < `TAP_SLOP`) that merely revealed
+still selects nothing; only DRAG behaviour became immediate. §6 animation-opacity invariant untouched
+(all per-frame opacity/scale still via `element.style` in `applyPos`).
+
+**Files:** `overlays/NonLinearCarousel.jsx` (flushSync reveal on pointer-down),
+`overlays/fanCarousels.jsx` (`BpmFan` invert), `overlays/ExerciseStaffOverlay.jsx` (exercise tempo fan
+invert).
