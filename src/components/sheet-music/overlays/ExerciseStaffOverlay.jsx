@@ -63,8 +63,12 @@ const ExerciseStaffOverlay = ({
     const presetItems = EXERCISES.map(e => ({ value: e.id, label: e.title, Icon: e.Icon }));
     const presetIndex = Math.max(0, EXERCISES.findIndex(e => e.id === activeExerciseId));
 
-    // Row descriptors → flattened + active-last so the open field's localized veil sits above its
-    // neighbours (same trick as GenerationSetterOverlay).
+    // Row descriptors. NB: unlike the generation setter we do NOT reorder the active field to the end
+    // (Han 2026-07-25: "de carousels ... interageren precies anders ... klik - pak, sleep"). Each row
+    // sits on its OWN staff, far from the others, so an open carousel's localized veil never overlaps a
+    // neighbouring row — the active-last reorder (needed only when boxes overlap) is unnecessary here,
+    // and skipping it keeps the DOM node stable across the first press so press-and-hold-drag works in
+    // ONE gesture (no reveal-tap first).
     const rows = [
         {
             id: 'preset', header: 'preset', staffStart: topStaff, items: presetItems, activeIndex: presetIndex,
@@ -79,9 +83,7 @@ const ExerciseStaffOverlay = ({
             activeIndex: axisIndex('input'), onSelect: selectAxis('input'),
         },
     ];
-    const cells = rows
-        .map(r => ({ r, cx: (startX + endX) / 2 }))
-        .sort((a, b) => (a.r.id === activeFieldId ? 1 : 0) - (b.r.id === activeFieldId ? 1 : 0));
+    const cells = rows.map(r => ({ r, cx: (startX + endX) / 2 }));
 
     // TEMPO + REPEAT on the chords band, EXACTLY like the playback setter (compact LeftFanCarousel).
     const CHORD_ROW_Y = trebleStart - 64;
