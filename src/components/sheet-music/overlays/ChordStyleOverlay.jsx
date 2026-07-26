@@ -78,7 +78,13 @@ const ChordStyleOverlay = ({
         });
         try { if (scale?.notes?.length) return build(scale); } catch { /* fall through */ }
         try { return build(Scale.defaultScale()); } catch { return null; }
-    }, [scale]);
+        // Depend on the scale's CONTENT (tonic + mode name + notes), NOT the object reference: the
+        // colours already tracked the key via the fresh `scale.notes` read in renderContent, but the
+        // letters lagged because a reference-only dep ([scale]) can miss a content change (Han
+        // 2026-07-26: "de kleuren reageren wél op de toonladder, de letters niet"). Primitive deps
+        // compare by value, so a key/mode change always regenerates the diatonic chords.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scale?.tonic, scale?.name, (scale?.notes || []).join(',')]);
 
     if (startX == null || trebleStart == null) return null;
 

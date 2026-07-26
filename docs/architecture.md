@@ -5364,7 +5364,13 @@ from `ChordLabelsLayer`, §6d) — NOT a hand-rolled copy — so its font (`seri
 (normal), superscript layout and per-chord colour are byte-for-byte the sheet chord labels and can never
 drift (Han 2026-07-26: "verschilt het lettertype/grootte/dikgedruktheid … hoe kan dat nou?"). Passive
 (off-centre) options dim via the renderer's `overrideColor`. Verified in C major: the I renders
-`fill=var(--note-tonic)`, ii/V `var(--note-scale)`.
+`fill=var(--note-tonic)`, ii/V `var(--note-scale)`; E melodic minor → F♯− B7 E− / ii V7 i.
+
+**Memo key = scale CONTENT, not reference (Han 2026-07-26):** "de kleuren reageren wél op de toonladder,
+de letters niet" — the colours tracked the key (fresh `scale.notes`/`tonic` read each render) but the
+LETTERS lagged, because the `diatonic` chords were memoised on the `scale` object reference, which can
+stay stable while `scale.notes` is mutated in place. The memo now keys on the scale's CONTENT
+(`scale?.tonic`, `scale?.name`, `scale.notes.join(',')`) so a key/mode change always regenerates them.
 
 **Files (Slice A):** `overlays/ChordStyleOverlay.jsx` (rewrite to `CarouselField` + `generateChordOnDegree`
 + canonical `renderSingleChordLabel`), `ChordLabelsLayer.jsx` (export `renderSingleChordLabel`),
