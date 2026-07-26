@@ -31,7 +31,10 @@ import { transposeNoteBySemitones } from '../../theory/musicUtils';
 // −73 (Han: "move the whole chord row up ~15") so the row sits higher, away from the staff.
 export const chordRootY = (trebleStart) => trebleStart - 73;
 
-const renderSingleChordLabel = ({
+// Exported (§6d) so the notation setter's chord-STYLE sample renders its ii-V-I with the EXACT same
+// canonical chord-label glyphs — font (serif), size (26/16), weight (normal), superscript layout and
+// per-chord colour (melodicNoteColor) — as the real sheet chord labels, and can never drift from them.
+export const renderSingleChordLabel = ({
   chord,
   xPos,
   absoluteOffset,

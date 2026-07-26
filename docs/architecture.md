@@ -5359,8 +5359,16 @@ The engine needs the AUTHORITATIVE `Scale` (heptatonic) — the per-instrument `
 is often empty in this view, so `App → SheetMusic → ChordStyleOverlay` now threads the real `scale`
 object; a try/catch falls back to a fixed C-major illustration for non-heptatonic/exotic scales.
 
+The sample is rendered with the CANONICAL chord-label renderer `renderSingleChordLabel` (now EXPORTED
+from `ChordLabelsLayer`, §6d) — NOT a hand-rolled copy — so its font (`serif`), size (26/16), weight
+(normal), superscript layout and per-chord colour are byte-for-byte the sheet chord labels and can never
+drift (Han 2026-07-26: "verschilt het lettertype/grootte/dikgedruktheid … hoe kan dat nou?"). Passive
+(off-centre) options dim via the renderer's `overrideColor`. Verified in C major: the I renders
+`fill=var(--note-tonic)`, ii/V `var(--note-scale)`.
+
 **Files (Slice A):** `overlays/ChordStyleOverlay.jsx` (rewrite to `CarouselField` + `generateChordOnDegree`
-+ `melodicNoteColor`), `sheet-music/SheetMusic.jsx` (destructure + thread the `scale` prop to the mount).
++ canonical `renderSingleChordLabel`), `ChordLabelsLayer.jsx` (export `renderSingleChordLabel`),
+`sheet-music/SheetMusic.jsx` (destructure + thread the `scale` prop to the mount).
 
 **Slice B — percussion-notation carousel (`ClefStaffOverlay.percussionBlock`).** The percussion row
 had TWO separate controls: a LEFT clef-picker carousel (perc `/` ↔ X disable, writing
