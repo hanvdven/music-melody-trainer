@@ -1758,6 +1758,10 @@ const App = () => {
                             startMeasureIndex={renderStartMeasureIndex}
                             blockMeasureStart={blockMeasureStart}
                             blockPlayStart={blockPlayStart}
+                            // #529: the authoritative Scale (sheetMusicCommonProps only carries
+                            // scale.tonic / scale.numAccidentals, not the object) — the chord-notation
+                            // setter derives its key-relative diatonic ii-V-I sample from it.
+                            scale={scale}
                         />
                     </ErrorBoundary>
                 </div>
