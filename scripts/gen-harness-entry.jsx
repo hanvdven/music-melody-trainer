@@ -180,9 +180,9 @@ const OverlayEl = () => {
     return (
       <ProfileProvider>
         <ExerciseStaffOverlay
-          startX={startX} endX={endX}
-          trebleStart={trebleStart} bassStart={bassStart}
-          isTrebleVisible isBassVisible
+          startX={startX} endX={endX} systemEndX={endX}
+          trebleStart={trebleStart} bassStart={bassStart} percussionStart={percussionStart}
+          isTrebleVisible isBassVisible isPercussionVisible
           activeExerciseId={null}
           axes={{ tempo: 'fixed', evaluation: 4, melodyType: 'diatonic', input: 'sing' }}
           bpm={100} onBpmChange={() => {}}

@@ -2818,10 +2818,13 @@ const SheetMusic = ({
                     <ExerciseStaffOverlay
                       startX={startX}
                       endX={endX}
+                      systemEndX={systemEndX}
                       trebleStart={trebleStart}
                       bassStart={bassStart}
+                      percussionStart={percussionStart}
                       isTrebleVisible={isTrebleVisible}
                       isBassVisible={isBassVisible}
+                      isPercussionVisible={isPercussionVisible}
                       activeExerciseId={activeExerciseId}
                       axes={exerciseAxes}
                       onSelectExercise={onSelectExercise}

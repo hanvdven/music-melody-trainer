@@ -1,8 +1,8 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { render } from '@testing-library/react';
 import ExerciseStaffOverlay from '../ExerciseStaffOverlay';
-import { EXERCISES, AXIS_ORDER } from '../../../../exercises/exerciseIndex';
+import { AXIS_ORDER } from '../../../../exercises/exerciseIndex';
 import { ProfileProvider } from '../../../../contexts/ProfileContext';
 
 const baseAxes = { melodyType: 'scales', input: 'read', tempo: 'fixed', evaluation: 1 };
@@ -10,18 +10,18 @@ const baseAxes = { melodyType: 'scales', input: 'read', tempo: 'fixed', evaluati
 const renderOverlay = (props = {}) => render(
     // ProfileProvider: the overlay reads exerciseProgress (#268) from the profile.
     <ProfileProvider>
-    <svg>
-        <ExerciseStaffOverlay
-            startX={100} endX={700} trebleStart={100} bassStart={170}
-            isTrebleVisible
-            activeExerciseId="scale-runs"
-            axes={baseAxes}
-            onSelectExercise={() => {}}
-            onAxisChange={() => {}}
-            onStartExercise={() => {}}
-            {...props}
-        />
-    </svg>
+        <svg>
+            <ExerciseStaffOverlay
+                startX={100} endX={700} systemEndX={700}
+                trebleStart={100} bassStart={170} percussionStart={240}
+                isTrebleVisible isBassVisible isPercussionVisible
+                activeExerciseId="scale-runs"
+                axes={baseAxes}
+                onSelectExercise={() => {}}
+                onAxisChange={() => {}}
+                {...props}
+            />
+        </svg>
     </ProfileProvider>,
 );
 
@@ -32,44 +32,29 @@ describe('ExerciseStaffOverlay', () => {
         expect(container.querySelectorAll('foreignObject').length).toBe(0);
     });
 
-    it('renders all preset titles in ALL CAPS plus one carousel per axis (§6d — no flat option rows)', () => {
+    it('#560: three stacked per-staff carousels (preset/melody/input) + tempo/repeat fans, no START', () => {
         const { container } = renderOverlay();
         const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
-        for (const e of EXERCISES) expect(labels).toContain(e.title);
-        // Every visible axis-option label is uppercase (standing all-caps carousel CR).
-        const optionTexts = labels.filter(l => /^[A-Z×∞]/.test(l));
-        for (const l of optionTexts) expect(l).toBe(l.toUpperCase());
-        // One NonLinearCarousel hit surface per axis + one for the presets. The
-        // §3a hit boxes live INSIDE NonLinearCarousel; here we assert the axis
-        // labels exist so all four carousels mounted. #498 (Han 2026-07-19): axis
-        // captions adopted the SHARED setter-header style — serif italic, NON-CAPS
-        // (was tiny ALL-CAPS) — so they read lowercase now.
-        expect(labels).toEqual(expect.arrayContaining(['melody', 'input', 'tempo', 'repeat']));
+        // The three row headers + the two chords-band fan headers (serif-italic, non-caps, §59).
+        expect(labels).toEqual(expect.arrayContaining(['preset', 'melody type', 'input type', 'tempo', 'repeat']));
+        // The active preset value shows at rest (hidden carousels mount only the active item).
+        expect(labels).toContain('SCALE RUNS');
+        // START is gone — it lives in the header now (Han 2026-07-25).
+        expect(labels).not.toContain('START');
+        // Four settable axes still exist in the registry.
         expect(AXIS_ORDER.length).toBe(4);
     });
 
-    it('renders the prominent START button and fires onStartExercise on click', () => {
-        const onStartExercise = vi.fn();
-        const { container } = renderOverlay({ onStartExercise });
-        const startText = [...container.querySelectorAll('text')].find(t => t.textContent === 'START');
-        expect(startText).toBeTruthy();
-        fireEvent.click(startText.parentElement); // the button <g> owns the click handler
-        expect(onStartExercise).toHaveBeenCalledTimes(1);
-    });
-
     it('renders repeat counts in the Maestro notation font with the À glyph (#298; Maestro reverted #494)', () => {
-        // Han 2026-07-19 revert: the numeric repeat counts stay in Maestro ("N À") — only 'until
-        // correct' gets a cursive x (next test).
         const { container } = renderOverlay({ axes: { ...baseAxes, evaluation: 2 } });
-        const maestro = [...container.querySelectorAll('text')]
+        const maestro = [...container.querySelectorAll('text, tspan')]
             .filter(t => t.getAttribute('font-family') === 'Maestro');
-        expect(maestro.some(t => t.textContent.includes('À'))).toBe(true);
-        expect(maestro.some(t => t.textContent.includes('2'))).toBe(true);
+        expect(maestro.some(t => (t.textContent || '').includes('À'))).toBe(true);
+        expect(maestro.some(t => (t.textContent || '').includes('2'))).toBe(true);
     });
 
     it("shows a cursive x + À for 'until correct' (unknown repeat count, #494)", () => {
         const { container } = renderOverlay({ axes: { ...baseAxes, evaluation: 'until' } });
-        // The variable count is an italic Academico 'x'; the mark stays the Maestro 'À'.
         const italicX = [...container.querySelectorAll('tspan')]
             .find(t => t.textContent === 'x' && t.getAttribute('font-style') === 'italic'
                 && t.getAttribute('font-family') === 'Academico');
@@ -77,12 +62,5 @@ describe('ExerciseStaffOverlay', () => {
         const maestroMark = [...container.querySelectorAll('tspan')]
             .find(t => t.textContent === 'À' && t.getAttribute('font-family') === 'Maestro');
         expect(maestroMark).toBeTruthy();
-    });
-
-    it('draws the START debug hit box only in debug mode (§3a)', () => {
-        const { container: off } = renderOverlay();
-        const { container: on } = renderOverlay({ debugMode: true });
-        const orangeRects = (c) => [...c.querySelectorAll('rect')].filter(r => r.getAttribute('fill') === 'orange');
-        expect(orangeRects(on).length).toBeGreaterThan(orangeRects(off).length);
     });
 });

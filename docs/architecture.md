@@ -5260,3 +5260,27 @@ regenerates, intercepted at BOTH call sites: `useMelodyState.generateChords` ret
 
 **Files:** `theory/progressionDefinitions.js`, `constants/generationFields.js`,
 `hooks/useMelodyState.js`, `audio/Sequencer.js`, `overlays/GenerationSetterOverlay.jsx`.
+
+### §69. Exercise setter redesigned for cross-setter consistency (#560, Han 2026-07-25)
+
+**Purpose:** the exercise setter had its own axis-positional layout (preset cards on the top staff,
+melody/input side-by-side, tempo top-left, repeat top-right, a START button) — audit #559 flagged it
+as the least consistent setter. Han: "zo consistent mogelijk met de andere tabs; dus zelfde soort
+carousels."
+
+**New shape** — identical primitives to the generation/colour setters:
+- Three hidden tap-to-open `CarouselField` carousels, ONE PER STAFF, stacked:
+  row 1 (treble) = PRESET (the 6 exercises), row 2 (bass) = MELODY TYPE (`AXES.melodyType`),
+  row 3 (percussion) = INPUT TYPE (`AXES.input`). Each has a serif-italic header at `staffStart−11`
+  (§59), the shared localized veil (§60) and single-open coordination (`activeFieldId` + active-last).
+- Item content rides the shared `makeRenderItem` (lucide `.Icon` + caps label) — the exercise/axis
+  items already carry `.Icon` + `.title`/`.label`, so NO hand-rolled card glyph.
+- TEMPO + REPEAT sit on the chords band EXACTLY like the PLAYBACK setter's measures/repeats fans
+  (compact vertical `LeftFanCarousel`): tempo renders its Maestro glyph (♩ fixed / fermata rubato);
+  repeat uses the shared `renderRepeatGlyph`. BPM is set from the header BpmControls (no inline BPM
+  here, matching playback).
+- The START button is GONE — it lives in the AppHeader.
+
+**Files:** `overlays/ExerciseStaffOverlay.jsx` (rewrite), `sheet-music/SheetMusic.jsx` (mount now
+passes systemEndX/percussionStart/isPercussionVisible), `overlays/__tests__/ExerciseStaffOverlay.test.jsx`,
+dev harness `scripts/gen-harness-entry.jsx`.

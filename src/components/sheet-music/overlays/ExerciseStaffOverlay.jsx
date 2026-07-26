@@ -1,108 +1,130 @@
 import React from 'react';
-import NonLinearCarousel from './NonLinearCarousel';
-import { renderCarouselOptionGlyph, renderRepeatGlyph, renderStaffCardGlyph, MiniRepeatSign } from './carouselOptionGlyph';
+import { CarouselField } from '../CarouselFieldItem';
+import { renderRepeatGlyph, MiniRepeatSign } from './carouselOptionGlyph';
+import { LeftFanCarousel } from './fanCarousels';
 import { EXERCISES, AXES } from '../../../exercises/exerciseIndex';
 import { useProfile } from '../../../contexts/ProfileContext';
-import { BpmFan } from './fanCarousels';
-import { BPM_MIN, BPM_MAX } from '../BpmControls';
 
-// ── In-staff EXERCISE setter (#266 rework 3, epic #245, Han 2026-07-03/05) ───
+// ── In-staff EXERCISE setter — CONSISTENT with the other setters (#560, Han 2026-07-25) ──────────
 //
-// Layout philosophy (Han): the settings must feel INTEGRATED into the sheet
-// music — each axis lives where its subject lives in the real layout, like the
-// clefs in the transposition setter:
-//   · PRESETS  — big staff-height icon cards on the TOP staff (colour-setter
-//     height, "plaatje + tekst eronder", ALL CAPS);
-//   · MELODY + INPUT — icon cards side-by-side on the SECOND staff;
-//   · TEMPO    — compact carousel AT the BPM display position (top-left,
-//     BpmControls geometry: value line at trebleStart − 59);
-//   · REPEAT   — compact carousel AT the repeat-sign position (top-right,
-//     RepeatsControls geometry: baseline trebleStart − 25, right-aligned),
-//     BadgeCheck 'until correct' leftmost;
-//   · START    — prominent button below the axes (also mirrored in AppHeader).
+// REDESIGN (audit #559 F2): the exercise setter used its own axis-positional layout (preset cards on
+// the top staff, melody/input side-by-side, tempo top-left, repeat top-right, a START button). Han:
+// make it "zo consistent mogelijk met de andere tabs; dus zelfde soort carousels". So it is now the
+// SAME shape as the generation/colour setters — one hidden tap-to-open `CarouselField` PER STAFF
+// (with the shared veil + single-open), stacked:
+//   · row 1 (treble)      → PRESET      (the 6 exercises)
+//   · row 2 (bass)        → MELODY TYPE (AXES.melodyType)
+//   · row 3 (percussion)  → INPUT TYPE  (AXES.input)
+// and TEMPO + REPEAT sit on the chords band EXACTLY like the PLAYBACK setter's measures/repeats fans
+// (compact vertical `LeftFanCarousel`). The START button is GONE — it lives in the header (Han).
 //
-// Everything is the shared NonLinearCarousel primitive with the SHARED card
-// glyphs from carouselOptionGlyph (§6d — caps + icon conventions enforced in
-// one place). §3a hit boxes come from NonLinearCarousel; START draws its own.
+// Item content: the exercise/axis items already carry a lucide `.Icon` + `.title`/`.label`, so
+// `CarouselField`'s shared `makeRenderItem` renders them (icon on top, caps label below) — the SAME
+// path the generation melody-type carousel uses (§6d). No hand-rolled card glyph.
 
-const START_W = 72;
-const START_H = 18;
+// Shared sizing (mirrors the generation setter's named consts, §6d).
+const BASE = 70, ICON = 30, ICON_DY = -19, LABEL_DY = 38, LABEL_FS = 11, BRACKET_DY = -32;
+const HIT_TOP = -30, HIT_H = 60, HEADER_DY = -31;   // header at rowCenterY−31 = staffStart−11
 
 const ExerciseStaffOverlay = ({
     startX,
     endX,
+    systemEndX,
     trebleStart,
     bassStart,
+    percussionStart,
     isTrebleVisible,
     isBassVisible,
+    isPercussionVisible,
     activeExerciseId,
     axes,
     onSelectExercise,
     onAxisChange,
-    onStartExercise,
     onSettingsInteraction,
-    // #362: the fixed-tempo BPM is settable HERE too — same hidden fan as
-    // BpmControls (shared BpmFan, §6d).
-    bpm,
-    onBpmChange,
     debugMode = false,
 }) => {
-    // #268: persistent per-exercise progress (runs / melodies) from the profile —
-    // shown under the ACTIVE preset card.
+    // #268: persistent per-exercise progress (runs / melodies) from the profile — shown under the
+    // active PRESET carousel.
     const { exerciseProgress } = useProfile();
+    // Single-open coordination across the three carousels (mirrors the generation setter).
+    const [activeFieldId, setActiveFieldId] = React.useState(null);
+    if (startX == null || endX == null) return null;
 
-    // Preset row hosts on the top VISIBLE staff; the MELODY/INPUT row prefers
-    // the bass staff and falls back below the top staff when bass is hidden.
-    const topStaff = isTrebleVisible ? trebleStart : bassStart;
-    const rowStaff = isBassVisible ? bassStart : topStaff + 70;
-    const centerX = (startX + endX) / 2;
-    const width = endX - startX;
-
-    const activeIndex = Math.max(0, EXERCISES.findIndex(e => e.id === activeExerciseId));
     const axisIndex = (axis) => Math.max(0, AXES[axis].findIndex(o => o.value === axes?.[axis]));
+    const selectAxis = (axis) => (item) => { onSettingsInteraction?.(); onAxisChange?.(axis, item.value); };
+    const fireInteraction = () => onSettingsInteraction?.();
 
-    const selectAxis = (axis) => (item) => {
-        onSettingsInteraction?.();
-        onAxisChange?.(axis, item.value);
-    };
+    // The three stacked staff rows. Preset uses the top VISIBLE staff; melody/input fall back below it
+    // when their staff is hidden, so the three carousels never collapse onto each other.
+    const topStaff = isTrebleVisible ? trebleStart : bassStart;
+    const bassRow = isBassVisible ? bassStart : (topStaff + 100);
+    const percRow = isPercussionVisible ? percussionStart : (bassRow + 100);
 
-    // #498 (Han 2026-07-19): axis captions adopt the SHARED setter-header style used by every
-    // other setter (generation / gen.advanced / colour / instrument): serif italic, non-caps,
-    // fontSize 14, --text-secondary. (Was tiny sans-serif ALL-CAPS fontSize 7.) Height is set by
-    // each call site so it sits the shared distance above its carousel.
-    const axisCaption = (x, y, label) => (
-        <text x={x} y={y} textAnchor="middle" fontSize={14} fontFamily="serif" fontStyle="italic"
-            fill="var(--text-secondary)"
-            style={{ userSelect: 'none', pointerEvents: 'none' }}>
-            {label}
-        </text>
-    );
+    const presetItems = EXERCISES.map(e => ({ value: e.id, label: e.title, Icon: e.Icon }));
+    const presetIndex = Math.max(0, EXERCISES.findIndex(e => e.id === activeExerciseId));
+
+    // Row descriptors → flattened + active-last so the open field's localized veil sits above its
+    // neighbours (same trick as GenerationSetterOverlay).
+    const rows = [
+        {
+            id: 'preset', header: 'preset', staffStart: topStaff, items: presetItems, activeIndex: presetIndex,
+            onSelect: (item) => { fireInteraction(); onSelectExercise?.(EXERCISES.find(e => e.id === item.value)); },
+        },
+        {
+            id: 'melody', header: 'melody type', staffStart: bassRow, items: AXES.melodyType,
+            activeIndex: axisIndex('melodyType'), onSelect: selectAxis('melodyType'),
+        },
+        {
+            id: 'input', header: 'input type', staffStart: percRow, items: AXES.input,
+            activeIndex: axisIndex('input'), onSelect: selectAxis('input'),
+        },
+    ];
+    const cells = rows
+        .map(r => ({ r, cx: (startX + endX) / 2 }))
+        .sort((a, b) => (a.r.id === activeFieldId ? 1 : 0) - (b.r.id === activeFieldId ? 1 : 0));
+
+    // TEMPO + REPEAT on the chords band, EXACTLY like the playback setter (compact LeftFanCarousel).
+    const CHORD_ROW_Y = trebleStart - 64;
+    const fanX = (frac) => startX + frac * ((systemEndX ?? endX) - startX);
 
     return (
         <g className="exercise-overlay">
-            {/* PRESETS — staff-height icon cards on the top staff. */}
-            <NonLinearCarousel
-                items={EXERCISES}
-                activeIndex={activeIndex}
-                renderItem={(item, i) => renderStaffCardGlyph(item, i === activeIndex, topStaff)}
-                centerX={centerX}
-                y={topStaff - 4}
-                baseWidth={92}
-                height={60}
-                visibleHalf={2}
-                onSelect={(item) => {
-                    onSettingsInteraction?.();
-                    onSelectExercise?.(item);
-                }}
-                debugMode={debugMode}
-            />
-            {/* #268: persistent progress for the ACTIVE preset, just under its
-                card label — "runs N · melodies M" from the profile. */}
+            {cells.map(({ r, cx }) => (
+                <CarouselField
+                    key={r.id}
+                    items={r.items}
+                    activeIndex={r.activeIndex}
+                    onSelect={r.onSelect}
+                    centerX={cx}
+                    rowCenterY={r.staffStart + 20}
+                    baseWidth={BASE}
+                    hitTop={HIT_TOP}
+                    hitHeight={HIT_H}
+                    iconSize={ICON}
+                    iconDy={ICON_DY}
+                    labelDy={LABEL_DY}
+                    labelFontSize={LABEL_FS}
+                    bracketDy={BRACKET_DY}
+                    headerDy={HEADER_DY}
+                    labelAbove={r.header}
+                    staffLineYs={[-20, -10, 0, 10, 20].map(d => r.staffStart + 20 + d)}
+                    staffX0={startX}
+                    staffX1={endX}
+                    fieldId={r.id}
+                    activeFieldId={activeFieldId}
+                    onActivate={setActiveFieldId}
+                    visibleHalf={2}
+                    hidden
+                    debugMode={debugMode}
+                />
+            ))}
+
+            {/* #268: persistent progress for the ACTIVE preset, just under its value label. */}
             {(() => {
-                const prog = exerciseProgress?.[EXERCISES[activeIndex]?.id];
+                const prog = exerciseProgress?.[EXERCISES[presetIndex]?.id];
                 if (!prog || (!prog.runs && !prog.melodies)) return null;
                 return (
-                    <text x={centerX} y={topStaff + 64} textAnchor="middle" fontSize={7}
+                    <text x={(startX + endX) / 2} y={topStaff + 72} textAnchor="middle" fontSize={8}
                         fontFamily="sans-serif" letterSpacing={0.5}
                         fill="var(--text-secondary, #888)" style={{ pointerEvents: 'none' }}>
                         {`RUNS ${prog.runs} · MELODIES ${prog.melodies}`}
@@ -110,106 +132,46 @@ const ExerciseStaffOverlay = ({
                 );
             })()}
 
-            {/* TEMPO — at the BPM display (BpmControls: x=25, value line
-                trebleStart−59). FIXED/RUBATO next to the ♩= glyph so tempo feels
-                like one editable unit with the BPM. */}
-            {axisCaption(startX + 45, topStaff - 80, 'tempo')}
-            <NonLinearCarousel
-                items={AXES.tempo}
-                activeIndex={axisIndex('tempo')}
-                renderItem={(item, i) => renderCarouselOptionGlyph(item, i === axisIndex('tempo'), topStaff - 59)}
-                centerX={startX + 45}
-                y={topStaff - 71} /* hit-surface top just above the ♩=N value line (−59) */
-                baseWidth={44}
-                height={16}
-                visibleHalf={1}
-                onSelect={selectAxis('tempo')}
-                debugMode={debugMode}
-            />
-            {/* #362: with FIXED tempo the BPM value sits right of the axis as the
-                same hidden vertical fan as the header BpmControls (drag = sweep
-                tempi in 5-steps). Hidden in rubato — there is no tempo to set. */}
-            {axes?.tempo === 'fixed' && onBpmChange && (
-                <BpmFan
-                    cx={startX + 125}
-                    centerY={topStaff - 65} /* at-rest baseline = the ♩=N value line (−59) */
-                    bpm={bpm}
-                    min={BPM_MIN}
-                    max={BPM_MAX}
-                    onCommit={(v) => { onSettingsInteraction?.(); onBpmChange(v); }}
+            {/* TEMPO — playback-style compact fan on the chords band (measures position): the
+                fixed/rubato mode. The BPM itself is set from the header BpmControls (as in the playback
+                setter, which likewise has no inline BPM here) — Han: "precies dezelfde manier als
+                playback". */}
+            <g transform={`translate(${fanX(0.70)}, ${CHORD_ROW_Y})`}>
+                <text x="0" y={-25} fontFamily="serif" fontStyle="italic" fontSize="14"
+                    fill="var(--text-secondary)" textAnchor="middle" className="svg-no-interact">tempo</text>
+                <LeftFanCarousel
+                    cx={0} centerY={-6} items={AXES.tempo}
+                    activeIndex={axisIndex('tempo')}
+                    /* tempo items carry a Maestro glyph (♩ fixed / fermata rubato), not a text label —
+                       render it in Maestro at the fan size, like the playback measures/repeats fans. */
+                    renderLabel={(it) => it.maestroGlyph}
+                    labelFontFamily="Maestro"
+                    activeLabelSize={32}
+                    compact invert fieldLines={[]}
+                    onCommit={(i) => selectAxis('tempo')(AXES.tempo[i])}
                     debugMode={debugMode}
                 />
-            )}
-
-            {/* REPEAT — #361 (Han): op DEZELFDE plek als in de playback settings
-                (x = startX + 0.85·(systemEndX−startX), y = de CHORD_ROW_Y-lijn,
-                topStaff − 64). Niet-periodiek; Maestro-glyphs op BPM-grootte via
-                de gedeelde renderRepeatGlyph (#298). */}
-            {axisCaption(startX + 0.85 * ((endX + 5) - startX), topStaff - 80, 'repeat')}
-            <NonLinearCarousel
-                items={AXES.evaluation}
-                activeIndex={axisIndex('evaluation')}
-                renderItem={(item, i) => renderRepeatGlyph(item, i === axisIndex('evaluation'), topStaff - 58)}
-                centerX={startX + 0.85 * ((endX + 5) - startX)}
-                y={topStaff - 78}
-                baseWidth={40}
-                height={26}
-                visibleHalf={2}
-                cyclical={false}
-                onSelect={selectAxis('evaluation')}
-                debugMode={debugMode}
-            />
-            {/* #362 (Han): repeats > 1 → the notation sign the number stands for
-                (mini end-repeat), same placement as the PLAYBACK repeats setter. */}
-            {axes?.evaluation !== 1 && (
-                <MiniRepeatSign x={startX + 0.85 * ((endX + 5) - startX) + 108} y={topStaff - 80} h={24} />
-            )}
-
-            {/* MELODY (left) + INPUT (right) — icon cards on the second staff. */}
-            {axisCaption(startX + width * 0.28, rowStaff - 11, 'melody')}
-            <NonLinearCarousel
-                items={AXES.melodyType}
-                activeIndex={axisIndex('melodyType')}
-                renderItem={(item, i) => renderStaffCardGlyph(item, i === axisIndex('melodyType'), rowStaff, { iconSize: 30 })}
-                centerX={startX + width * 0.28}
-                y={rowStaff - 2}
-                baseWidth={70}
-                height={58}
-                visibleHalf={1}
-                onSelect={selectAxis('melodyType')}
-                debugMode={debugMode}
-            />
-            {axisCaption(startX + width * 0.76, rowStaff - 11, 'input')}
-            <NonLinearCarousel
-                items={AXES.input}
-                activeIndex={axisIndex('input')}
-                renderItem={(item, i) => renderStaffCardGlyph(item, i === axisIndex('input'), rowStaff, { iconSize: 30 })}
-                centerX={startX + width * 0.76}
-                y={rowStaff - 2}
-                baseWidth={70}
-                height={58}
-                visibleHalf={1}
-                onSelect={selectAxis('input')}
-                debugMode={debugMode}
-            />
-
-            {/* START — the prominent one-tap entry point (also in the AppHeader). */}
-            <g onClick={() => { onSettingsInteraction?.(); onStartExercise?.(); }}
-                style={{ cursor: 'pointer' }}>
-                <rect x={centerX - START_W / 2} y={rowStaff + 62} width={START_W} height={START_H}
-                    rx={4} fill="var(--accent-yellow, #e0b64d)" />
-                <text x={centerX} y={rowStaff + 62 + START_H / 2}
-                    textAnchor="middle" dominantBaseline="central" fontSize={10}
-                    fontFamily="sans-serif" fontWeight="bold" fill="#1a1a1a" letterSpacing={2}
-                    style={{ pointerEvents: 'none' }}>
-                    START
-                </text>
-                {debugMode && (
-                    <rect x={centerX - START_W / 2} y={rowStaff + 62} width={START_W} height={START_H}
-                        fill="orange" fillOpacity={0.4} stroke="orange" strokeWidth={1}
-                        style={{ pointerEvents: 'none' }} />
-                )}
             </g>
+
+            {/* REPEAT — identical to the playback setter's repeats fan (renderRepeatGlyph, BadgeCheck
+                'until correct' included via AXES.evaluation). */}
+            <g transform={`translate(${fanX(0.85)}, ${CHORD_ROW_Y})`}>
+                <text x="0" y={-25} fontFamily="serif" fontStyle="italic" fontSize="14"
+                    fill="var(--text-secondary)" textAnchor="middle" className="svg-no-interact">repeat</text>
+                <LeftFanCarousel
+                    cx={0} centerY={-6} items={AXES.evaluation}
+                    activeIndex={axisIndex('evaluation')}
+                    activeLabelSize={32} compact invert fieldLines={[]}
+                    renderNode={(item, { active, size }) => (
+                        <g transform={`scale(${size / 32})`}>{renderRepeatGlyph(item, active, 0)}</g>
+                    )}
+                    onCommit={(i) => selectAxis('evaluation')(AXES.evaluation[i])}
+                    debugMode={debugMode}
+                />
+            </g>
+            {axes?.evaluation !== 1 && (
+                <MiniRepeatSign x={fanX(0.85) + 108} y={CHORD_ROW_Y - 16} h={24} />
+            )}
         </g>
     );
 };
