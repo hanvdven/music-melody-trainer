@@ -2983,6 +2983,12 @@ const SheetMusic = ({
                       trebleStart={trebleStart}
                       chordDisplayMode={chordDisplayMode}
                       onSetChordDisplayMode={setChordDisplayMode}
+                      // #529 rework: colour the sample by the standard chord-label rules
+                      // (melodicNoteColor) — same inputs the sheet chord labels use.
+                      noteColoringMode={noteColoringMode}
+                      tonic={tonic}
+                      scaleNotes={scaleNotes}
+                      theme={theme}
                       debugMode={debugMode}
                     />
                   )}

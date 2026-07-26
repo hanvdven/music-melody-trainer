@@ -5341,7 +5341,22 @@ clef/percussion carousels when #530 / #529-B convert those).
 **Invariants:** the sheet chord-label baseline stays the single source of truth (`chordRootY` from
 `ChordLabelsLayer`, §6d) — a move of the chord row still applies here with no duplicated constant.
 
-**Files (Slice A):** `overlays/ChordStyleOverlay.jsx` (rewrite to `CarouselField`).
+Both carousels' options carry an ALL-CAPS label (Han 2026-07-26 UAT): chord notation =
+INVISIBLE / LETTERS / ROMAN, percussion = INVISIBLE / JOINED / SPLIT — the standard `label` field
+`makeRenderItem` renders below the option content.
+
+**Slice A colouring (Han 2026-07-26 UAT rework):** the letters/roman sample MUST colour by the standard
+chord-label rules, not a flat colour. It reuses `melodicNoteColor` — the EXACT function
+`ChordLabelsLayer` colours the real sheet chord names with (§6d — "moet ergens al reeds staan, niet
+hercoderen") — on each chord ROOT, with the same `{ noteColoringMode, tonic, scaleNotes, theme,
+activeChord }` inputs (a synthetic single-note chord in `chords` mode, `null` otherwise). The sample is
+KEY-RELATIVE (#433): the roots are the current key's scale degrees 2 / 5 / 1 (`ii`/`V`/`I`) via semitone
+transpose from the tonic, so the tonic chord always takes the tonic colour in scale mode and every chord
+takes its chroma in chromatone/chord mode; letters are respelled with Unicode accidentals (§5b). Passive
+(off-centre) options dim to the field lowlight; only the active/centre option shows the real chord colours.
+
+**Files (Slice A):** `overlays/ChordStyleOverlay.jsx` (rewrite to `CarouselField` + `melodicNoteColor`
+colouring), `sheet-music/SheetMusic.jsx` (mount passes `noteColoringMode`/`tonic`/`scaleNotes`/`theme`).
 
 **Slice B — percussion-notation carousel (`ClefStaffOverlay.percussionBlock`).** The percussion row
 had TWO separate controls: a LEFT clef-picker carousel (perc `/` ↔ X disable, writing

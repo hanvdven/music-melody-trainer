@@ -489,11 +489,12 @@ const ClefStaffOverlay = ({
             );
         };
 
-        // The three merged options (Han order: samen / gesplitst / X).
+        // The three merged options (Han order: samen / gesplitst / X). Labels (Han 2026-07-26:
+        // "INVISIBLE / JOINED / SPLIT") show ALL-CAPS below the drum bundle.
         const PERC_ITEMS = [
-            { value: 'together', layers: [{ melody: togetherMel, split: false }] },
-            { value: 'split', layers: [{ melody: hhMel, split: true }, { melody: ksMel, split: true }] },
-            { value: 'off' },
+            { value: 'together', label: 'joined', layers: [{ melody: togetherMel, split: false }] },
+            { value: 'split', label: 'split', layers: [{ melody: hhMel, split: true }, { melody: ksMel, split: true }] },
+            { value: 'off', label: 'invisible' },
         ];
         const percActiveIndex = percussionDisabled ? 2 : (percussionVoiceSplit ? 1 : 0);
 
@@ -539,7 +540,9 @@ const ClefStaffOverlay = ({
                     hitHeight={84}
                     iconSize={0}
                     iconDy={0}
-                    labelDy={22}
+                    // Label sits BELOW the drum bundle: the together stems hang ≈ rowCenterY+30, so the
+                    // JOINED/SPLIT/INVISIBLE caption clears them at +44.
+                    labelDy={44}
                     labelFontSize={11}
                     bracketDy={-31}
                     headerDy={-31}
