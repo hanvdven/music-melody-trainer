@@ -5435,4 +5435,13 @@ disconnect the output channel, and stop the scheduler") on both the scheduled an
 so each old instrument (and its reverb) is fully torn down. The per-voice fader gains are created ONCE
 and reused, so they are untouched; only the swapped-out instrument leaves the graph.
 
-**Files:** `hooks/useInstruments.js` (`updateInstrument` teardown: `.stop()` → `.disconnect()`).
+**Second (larger) leak — the instrument PREVIEW:** `playInstrumentPreview` creates a TRANSIENT
+`Soundfont` + `Reverb` for the 2×-speed scale that plays on every PITCHED instrument selection, and
+never disposed it — so the leak fired on every carousel pick, not just when the track slug actually
+changed. *Fix:* after scheduling the preview run, `setTimeout` a `previewInst.disconnect()` at the run's
+end (`endTick × secondsPerTick(bpm)`) + a 2s reverb tail. Each preview owns its own instance + timer, so
+rapid overlapping previews clean up independently. (The percussion preview reuses the existing
+`instruments.percussion` instance, so it never leaked.)
+
+**Files:** `hooks/useInstruments.js` (`updateInstrument` teardown: `.stop()` → `.disconnect()`),
+`audio/playInstrumentPreview.js` (dispose the transient preview `Soundfont` after it finishes).

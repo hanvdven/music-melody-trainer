@@ -20,6 +20,7 @@
 import { Soundfont, Reverb } from 'smplr';
 import playMelodies from './playMelodies';
 import Melody from '../model/Melody';
+import { secondsPerTick } from '../constants/timing.js';
 
 // Percussion preview pattern (#495, Han 2026-07-19): [[k,hh], [hh], [s,hh], [ho]] as 4 QUARTER-note
 // beats — bracketed notes share a timeslot. Short IDs from drumKits.js (k=kick, hh=closed hi-hat,
@@ -92,6 +93,16 @@ const playInstrumentPreview = async (staff, slug, instruments, scale, context, b
                 bpm,
                 context.currentTime,
             );
+
+            // #4: dispose the transient preview instance once the run has finished (+ a reverb tail).
+            // This preview fires on EVERY pitched instrument selection; without teardown each one
+            // leaks a Soundfont + Reverb worklet — a major source of the "no sound after many
+            // instrument switches" bug (see useInstruments.js §73). Duration = the melody's end tick ×
+            // secondsPerTick(bpm); +2s comfortably covers the 0.1 reverb tail. Each preview owns its
+            // own instance + timer, so overlapping rapid previews each clean up independently.
+            const endTick = melody.offsets.reduce((m, o, i) => Math.max(m, o + melody.durations[i]), 0);
+            setTimeout(() => { try { previewInst.disconnect(); } catch { /* already gone */ } },
+                (endTick * secondsPerTick(bpm) + 2) * 1000);
         }
     } catch {
         // Preview is best-effort; errors are non-fatal (context may be suspended, instruments
