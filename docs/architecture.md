@@ -5419,3 +5419,20 @@ path (`chordClear` 32/28) carry their own up/down-asymmetric constants; flagged 
 reported case, so the beam/chord geometry is left for a follow-up after UAT confirms the single-note fix.
 
 **Files:** `renderMelodyNotes.jsx` (single-note percussion stem end + flag Y).
+
+### §73. Bug: no sound after many instrument switches — smplr leak (#4, Han 2026-07-29)
+
+**Symptom:** after changing the instrument many times, playback goes silent.
+
+**Root cause:** `useInstruments` re-creates an smplr instance whenever the instrument slug changes, but
+the OLD instance was only `.stop()`-ed. Its output channel — including the `Reverb` AudioWorklet added
+right after creation via `output.addEffect('reverb', …)` — stayed connected to the per-voice fader gain,
+and its scheduler kept running. Every switch therefore leaked those nodes; after enough switches the
+accumulated worklets/nodes clog the AudioContext graph until nothing is audible.
+
+**Fix / invariant:** before replacing an instance, call smplr's `disconnect()` ("Stop all voices,
+disconnect the output channel, and stop the scheduler") on both the scheduled and the manual instances —
+so each old instrument (and its reverb) is fully torn down. The per-voice fader gains are created ONCE
+and reused, so they are untouched; only the swapped-out instrument leaves the graph.
+
+**Files:** `hooks/useInstruments.js` (`updateInstrument` teardown: `.stop()` → `.disconnect()`).

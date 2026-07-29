@@ -58,10 +58,16 @@ const useInstruments = (context) => {
     const updateInstrument = (type, settings, setter, manualSetter = null, Effect = null, effectMix = 0) => {
       if (slugsRef.current[type] === settings.instrument) return; // Already loaded
 
+      // #4 (Han): after switching instruments many times no sound was heard. The old instance was
+      // only .stop()'d, so its output channel — including the Reverb AudioWorklet added below via
+      // addEffect — stayed connected to the fader, and its scheduler kept running. Every switch
+      // leaked those nodes; enough of them clog the AudioContext graph until nothing is audible.
+      // smplr's disconnect() ("Stop all voices, disconnect the output channel, and stop the
+      // scheduler") tears the old instance down fully before we replace it.
       const current = instancesRef.current[type];
       const currentManual = manualInstancesRef.current[type];
-      if (current) { try { current.stop(); } catch { /* may not be started */ } }
-      if (currentManual) { try { currentManual.stop(); } catch { /* may not be started */ } }
+      if (current) { try { current.disconnect(); } catch { /* may already be gone */ } }
+      if (currentManual) { try { currentManual.disconnect(); } catch { /* may already be gone */ } }
 
       let newInst, newManualInst;
       try {
