@@ -236,13 +236,19 @@ const FamilyClefCarousel = ({
     const veilTop = staffStart - 22;
     const veilBottom = staffStart + CLEF_LABEL_DY + 6;
     const staffLineYs = [0, 10, 20, 30, 40].map(d => staffStart + d);
+    // The staff lines run from x=0 (the sheet's `M 0 y H endX`), NOT from startX — so the veil must
+    // redraw them from x=0 through the gutter, else the panel hides the staff there (#530 UAT #1).
+    const lineX0 = Math.max(0, veilX0);
 
     return (
         <g>
             <defs>
+                {/* Soft edges on BOTH sides (#530 UAT #3): the left edge fades into the sheet like the
+                    right, so the gutter clef + panel blend at the screen edge instead of hard-clipping. */}
                 <linearGradient id={scrimId} gradientUnits="userSpaceOnUse" x1={veilX0} y1="0" x2={veilX1} y2="0">
-                    <stop offset="0" stopColor="white" stopOpacity="1" />
-                    <stop offset="0.82" stopColor="white" stopOpacity="1" />
+                    <stop offset="0" stopColor="white" stopOpacity="0" />
+                    <stop offset="0.12" stopColor="white" stopOpacity="1" />
+                    <stop offset="0.85" stopColor="white" stopOpacity="1" />
                     <stop offset="1" stopColor="white" stopOpacity="0" />
                 </linearGradient>
                 <mask id={maskId} maskUnits="userSpaceOnUse" x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop}>
@@ -255,10 +261,18 @@ const FamilyClefCarousel = ({
                     style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
                     <rect x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop} fill="var(--panel-bg, #1f1e2a)" />
                     {staffLineYs.map((ly, i) => (
-                        <line key={i} x1={Math.max(startX, veilX0)} x2={veilX1} y1={ly} y2={ly}
+                        <line key={i} x1={lineX0} x2={veilX1} y1={ly} y2={ly}
                             stroke="var(--text-primary)" strokeWidth="0.5" />
                     ))}
                 </g>
+            )}
+            {/* #530 UAT #2: field header (serif-italic, §59), shown while revealed, centred over the fan. */}
+            {mountAllItems && (
+                <text x={(lineX0 + veilX1) / 2} y={staffStart - 14} textAnchor="middle" fontSize={14}
+                    fontFamily="serif" fontStyle="italic" fill="var(--text-secondary, #888)"
+                    style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
+                    clef
+                </text>
             )}
             <NonLinearCarousel
                 items={order}
@@ -445,8 +459,9 @@ const ClefStaffOverlay = ({
                 // clef-variant-enter CSS — those made the whole setter slide-from-left/fade as one
                 // unit (the "old logic"), which conflicted with the per-element cascade. Now the
                 // setter's OWN tagged children animate: carousels + heads slide (data-fly), presets
-                // + "=" / "concert C₄ =" labels do the delayed fade (collectFadeEls). Family-switch
-                // entrance is covered by useClefRefly re-flying the clef row.
+                // + "=" / "concert C₄ =" labels do the delayed fade (collectFadeEls). (#530: the old
+                // whole-row family-switch re-fly was removed — the hidden clef carousel's own collapse
+                // fade covers the transition now.)
                 <g key={`clefvar-${famId}`} className="clef-variant-cards">
                     <TranspositionSetter
                         staff={staff} clef={clef} staffStart={staffStart}

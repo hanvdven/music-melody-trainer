@@ -4,7 +4,6 @@ import React, { useRef, useState, useMemo } from 'react';
 import useSheetMusicHighlight from '../../hooks/useSheetMusicHighlight';
 import useSheetMusicTransitions from '../../hooks/useSheetMusicTransitions';
 import useRangeMorph, { melodyHiddenDuringOverlay } from '../../hooks/useRangeMorph';
-import useClefRefly from '../../hooks/useClefRefly';
 import useUniversalTransition from '../../hooks/useUniversalTransition';
 import { useUniversalTransitionKey } from '../../contexts/UniversalTransitionContext';
 import RandomizeIcon from '../common/RandomizeIcon';
@@ -20,7 +19,6 @@ import InstrumentStaffOverlay from './overlays/InstrumentStaffOverlay';
 import GenerationSetterOverlay from './overlays/GenerationSetterOverlay';
 import ExerciseStaffOverlay from './overlays/ExerciseStaffOverlay';
 import GenerationAdvancedSetterOverlay from './overlays/GenerationAdvancedSetterOverlay';
-import { clefFamilyKey } from './overlays/clefSelector';
 import ChordStyleOverlay from './overlays/ChordStyleOverlay';
 import { clefSymbols } from './clefGlyphs';
 import GenericTypeSelector from '../common/GenericTypeSelector';
@@ -510,15 +508,9 @@ const SheetMusic = ({
   // shares flyInCascade with useRangeMorph so the two never need to agree on constants. Same
   // flyDist (endX) as the morph.
   useUniversalTransition(svgRef, useUniversalTransitionKey(), endX);
-  // CR-A2: re-fly a single staff's clef row when its clef FAMILY changes while the
-  // clef-edit overlay is open (fade old out + wipe new in from the right). Keyed on the
-  // left-carousel family only (clefFamilyKey) — sub-clef variants (octave, transposition,
-  // vocal voice) must NOT re-trigger the animation (Han 2026-06-08).
-  const clefReflyKeys = {
-    treble: clefFamilyKey(trebleSettings),
-    bass: clefFamilyKey(bassSettings),
-  };
-  useClefRefly(svgRef, clefReflyKeys, clefEditMode, endX);
+  // #530 (Han 2026-07-29 UAT #4): the clef-row re-fly on a family change ("wipe new in from the
+  // right") is now UNNECESSARY — the hidden FamilyClefCarousel collapses with its own fade after a
+  // selection, so the extra whole-row slide read as gratuitous. Removed (was `useClefRefly`).
   // While morphing, BOTH the leaving and arriving surfaces must stay mounted. These
   // flags say whether each overlay must render right now (active OR part of the morph).
   const mountedFor = (k, active) => active || (rangeMorphing && (morphFrom === k || morphTo === k));

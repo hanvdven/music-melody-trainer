@@ -5474,4 +5474,14 @@ unchanged (still the `TranspositionSetter` variant content). NB: the fan positio
 rAF-laid-out, so SSR can only verify structure (at rest only the active family mounts) — the visual
 alignment needs live UAT.
 
-**Files:** `overlays/ClefStaffOverlay.jsx` (`FamilyClefCarousel` component + `staffBlock` uses it).
+**UAT round 1 fixes (Han 2026-07-29):** (1) *No staff visible* — the sheet staff lines run from `x=0`
+(`M 0 y H endX`), NOT from `startX`, so the veil's line-redraw must start at `x=0`; it was starting at
+`startX`, leaving the gutter covered with no lines. (2) *No header* — added a serif-italic "clef" header
+(§59) over the fan, shown while revealed. (3) *Hard left clip* — the veil now fades on BOTH edges (soft
+left + right), so the gutter clef + panel blend into the sheet at the screen edge. (4) *Unnecessary
+post-selection animation* — the clef-row re-fly on a family change (`useClefRefly`) was removed; the
+hidden carousel's own collapse fade covers the transition, so the whole-row slide read as gratuitous.
+`useClefRefly` + its import/keys are gone from `SheetMusic.jsx` (the hook file is left orphaned for now).
+
+**Files:** `overlays/ClefStaffOverlay.jsx` (`FamilyClefCarousel` component + `staffBlock` uses it;
+veil redraw from `x=0`, soft both edges, header), `SheetMusic.jsx` (removed the `useClefRefly` re-fly).
