@@ -300,7 +300,6 @@ const TranspositionSetter = ({
     const writtenActive = Math.round(writtenFloat);
     const notes = [];
     const hits = [];
-    const linePts = [];
     for (let m = writtenActive - 8; m <= writtenActive + 8; m++) {
         if (C4_MIDI + clampTrans(m - C4_MIDI) !== m) continue;   // outside the available range
         const t = m - writtenFloat;
@@ -316,7 +315,6 @@ const TranspositionSetter = ({
         const op = Math.max(0.15, (isActive ? 1 : 0.7) - dist * 0.1);
         // Active head = concert-C4 colour; the fanned context heads stay lowlight.
         const fill = isActive ? c4Color : low;
-        linePts.push(`${x},${y}`);
         // Ledger lines only for near-active heads (|t|<1.5): those sit close to their TRUE
         // pitch position, so ledgers read correctly as the selection scrolls off-staff. The
         // far fanned heads are visual context only — drawing ledgers to their curve-displaced
@@ -454,9 +452,8 @@ const TranspositionSetter = ({
                     rejected ("−15% smaller, niet −15% kleiner lettertype"). Reverted to full-size
                     heads; the exact "carousel 15% smaller" (footprint vs spacing) is re-asked on the
                     ticket rather than guessed again (§9k). */}
-                <polyline points={linePts.join(' ')} fill="none" stroke={low}
-                    strokeWidth={0.75} strokeDasharray="3 3" opacity={0.4}
-                    style={{ pointerEvents: 'none' }} />
+                {/* #531 (Han 2026-07-26): the dashed poly-line connecting the notehead carousel was
+                    removed ("HAAL de stippellijn weg"). */}
                 {notes}
                 {hits}
             </g>
