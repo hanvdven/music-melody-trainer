@@ -120,11 +120,9 @@ const ITALIAN_VOICE = {
 const CLEF_LABEL_DY = 56;          // Italian label baseline below the staff body
 const CLEF_LABEL_SIZE = 7;
 
-const FAMILY_GLYPH_SIZE = 36;      // clefs at ~true staff size (Han 2026-06-01)
 const FAMILY_SLOT_W = 36;          // horizontal step between carousel glyphs (Han #5: more space)
-// Family clefs cluster a bit tighter so the rightmost sits just OUTSIDE the 95% fader
-// zone (Han #9, 2026-06-03). Shared so the percussion 'off' cross can align to a slot.
-const FAMILY_RIGHT_FRAC = 0.80;
+// FAMILY_GLYPH_SIZE + FAMILY_RIGHT_FRAC were only used by the old percussion clef-picker carousel
+// (renderPercClef), removed in #529 Slice B when the percussion controls merged into one CarouselField.
 const EIGHTH = TICKS_PER_WHOLE / 8;
 const PERC_LAYER_PROPS = {
     numAccidentals: 0, noteGroupSize: 1, measureLengthSlots: 9999, scaleNotes: [],
