@@ -145,11 +145,13 @@ const PianoView = ({
       bottom: '-0.2em'
     };
 
-    // If NOT in tonic selector, just return standard label
+    // If NOT in tonic selector, just return standard label.
     if (!isTonicSelector) {
       return (
         <span style={labelStyle} className="piano-key-label">
-          <span>{noteName}<sub style={octaveStyle}>{octave}</sub></span>
+          {/* #409 (Han): BLACK keys drop the octave subscript — the sharps/flats are cramped and the
+              transposition keyboard read as cluttered. White keys keep their octave. */}
+          <span>{noteName}{!isBlack && <sub style={octaveStyle}>{octave}</sub>}</span>
         </span>
       );
     }
