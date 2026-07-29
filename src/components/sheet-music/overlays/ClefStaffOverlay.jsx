@@ -8,6 +8,7 @@ import TranspositionSetter from './TranspositionSetter';
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
 import NonLinearCarousel from './NonLinearCarousel';
 import { CarouselField } from '../CarouselFieldItem';
+import { useRevealOnInteraction } from '../../../hooks/useRevealOnInteraction';
 import DisableCross from './DisableCross';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { processMelodyAndCalculateSlots } from '../processMelodyAndCalculateSlots';
@@ -202,6 +203,83 @@ const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, c
     );
 };
 
+// ── #530: HIDDEN clef-FAMILY picker (Viool / Bas / Vocal / None) ─────────────────────────────────
+// Han 2026-07-29: replace the always-visible family carousel with a HIDDEN one + veil, like the other
+// setters — but keep it GUTTER-anchored (the active clef stays at the exact sheet-clef position, so at
+// rest it reads as the normal staff clef). A press reveals the family fan (fanning RIGHT, one element
+// peeking LEFT and fading at the screen edge — already the NonLinearCarousel's gutter behaviour). The
+// families are ALREADY exactly 4 (CLEF_FAMILIES). Each staff row needs its own reveal state, so this is
+// a component (a hook can't live inside the multiply-called staffBlock). Reuses the canonical ClefGlyph
+// via the passed `renderItem` (§6d). Single-open is coordinated through the overlay's activeFieldId,
+// shared with the percussion carousel.
+const FAMILY_VISIBLE_HALF = 2;
+const FamilyClefCarousel = ({
+    order, renderItem, onSelectFamily, staffStart, startX,
+    fieldId, activeFieldId, onActivate, debugMode,
+}) => {
+    const { collapsed, mountAllItems, chromeVisible, open, reveal, resetHideTimer, closeNow } =
+        useRevealOnInteraction(true);
+    const onReveal = () => { reveal(); onActivate?.(fieldId); };
+    React.useEffect(() => {
+        if (activeFieldId != null && activeFieldId !== fieldId && open) closeNow();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeFieldId]);
+
+    // Veil footprint: from just off the left edge out past the fan's rightmost family, covering the
+    // clef row. Soft RIGHT edge via a mask (the left side is the screen edge → hard). Staff lines are
+    // redrawn where the veil overlaps the staff body (x ≥ startX); the gutter part has no staff lines.
+    const rawId = React.useId();
+    const scrimId = `clef-veil-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
+    const maskId = `clef-veilmask-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
+    const veilX0 = -6;
+    const veilX1 = CLEF_GLYPH_X + (FAMILY_VISIBLE_HALF + 1) * FAMILY_SLOT_W;   // ≈ 121, clears the fan
+    const veilTop = staffStart - 22;
+    const veilBottom = staffStart + CLEF_LABEL_DY + 6;
+    const staffLineYs = [0, 10, 20, 30, 40].map(d => staffStart + d);
+
+    return (
+        <g>
+            <defs>
+                <linearGradient id={scrimId} gradientUnits="userSpaceOnUse" x1={veilX0} y1="0" x2={veilX1} y2="0">
+                    <stop offset="0" stopColor="white" stopOpacity="1" />
+                    <stop offset="0.82" stopColor="white" stopOpacity="1" />
+                    <stop offset="1" stopColor="white" stopOpacity="0" />
+                </linearGradient>
+                <mask id={maskId} maskUnits="userSpaceOnUse" x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop}>
+                    <rect x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop} fill={`url(#${scrimId})`} />
+                </mask>
+            </defs>
+            {/* Localized veil — only while revealed (mountAllItems stays true through the fade). */}
+            {mountAllItems && (
+                <g mask={`url(#${maskId})`}
+                    style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
+                    <rect x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop} fill="var(--panel-bg, #1f1e2a)" />
+                    {staffLineYs.map((ly, i) => (
+                        <line key={i} x1={Math.max(startX, veilX0)} x2={veilX1} y1={ly} y2={ly}
+                            stroke="var(--text-primary)" strokeWidth="0.5" />
+                    ))}
+                </g>
+            )}
+            <NonLinearCarousel
+                items={order}
+                activeIndex={0}
+                renderItem={renderItem}
+                centerX={CLEF_GLYPH_X}
+                y={staffStart - 18}
+                baseWidth={FAMILY_SLOT_W}
+                height={62}
+                visibleHalf={FAMILY_VISIBLE_HALF}
+                collapsed={collapsed}
+                mountAllItems={mountAllItems}
+                onReveal={onReveal}
+                onPosChange={() => resetHideTimer()}
+                onSelect={onSelectFamily}
+                debugMode={debugMode}
+            />
+        </g>
+    );
+};
+
 const ClefStaffOverlay = ({
     startX, endX,
     trebleStart, bassStart, percussionStart,
@@ -292,16 +370,15 @@ const ClefStaffOverlay = ({
             );
         };
         const familyCarousel = (
-            <NonLinearCarousel
-                items={order}
-                activeIndex={0}
+            <FamilyClefCarousel
+                order={order}
                 renderItem={(fam, i) => renderFamily(fam, i === 0)}
-                centerX={CLEF_GLYPH_X}
-                y={staffStart - 18}
-                baseWidth={FAMILY_SLOT_W}
-                height={62}
-                visibleHalf={2}
-                onSelect={(fam) => { if (fam.id !== famId) onApplyClefPatch?.(staff, patchForFamily(fam.id)); }}
+                onSelectFamily={(fam) => { if (fam.id !== famId) onApplyClefPatch?.(staff, patchForFamily(fam.id)); }}
+                staffStart={staffStart}
+                startX={startX}
+                fieldId={`clef-${staff}`}
+                activeFieldId={activeFieldId}
+                onActivate={setActiveFieldId}
                 debugMode={debugMode}
             />
         );

@@ -5445,3 +5445,33 @@ rapid overlapping previews clean up independently. (The percussion preview reuse
 
 **Files:** `hooks/useInstruments.js` (`updateInstrument` teardown: `.stop()` → `.disconnect()`),
 `audio/playInstrumentPreview.js` (dispose the transient preview `Soundfont` after it finishes).
+
+### §74. Notation setter: hidden clef-family carousel (#530, Han 2026-07-29)
+
+**Purpose:** part of the transposition→NOTATION overhaul (#500). Han: replace the always-visible clef
+family carousel with a HIDDEN one + veil, like the other setters — but keep the active clef at the EXACT
+sheet-clef position so at rest the setter reads as the normal staff clef.
+
+**Design decisions (Han interview 2026-07-29):**
+- The carousel shows ONLY the 4 FAMILIES — Viool (treble) / Bas / Vocal / None — which `CLEF_FAMILIES`
+  already is. Octave variants are applied AUTOMATICALLY (existing logic); the transposing-instrument
+  variants live in the transposition setter (#531). No variants in this carousel.
+- POSITION: the fan stays GUTTER-anchored (`centerX = CLEF_GLYPH_X`). At rest only the active family
+  mounts, sitting where the real clef is. On press it fans RIGHT; the left neighbour peeks and fades at
+  the screen edge (already the `NonLinearCarousel` gutter behaviour) — NOT centred like the staff-body
+  setters.
+
+**How it works:** a new `FamilyClefCarousel` component (each staff row needs its own reveal state, so it
+can't live in the multiply-called `staffBlock`) wires `useRevealOnInteraction(true)` to the family
+`NonLinearCarousel` via its existing `collapsed`/`onReveal`/`mountAllItems` props (#428). Single-open is
+coordinated through the overlay's `activeFieldId` (shared with the percussion carousel). A localized veil
+(§60-style, but LEFT-anchored at the gutter with a soft RIGHT edge) covers the fan footprint while
+revealed; staff lines are redrawn where the veil overlaps the staff body (`x ≥ startX`). Clef glyphs come
+from the canonical `ClefGlyph` via the passed `renderItem` (§6d).
+
+**Invariants:** families reduced to none (already 4); melodic-clef octave/transposition handling
+unchanged (still the `TranspositionSetter` variant content). NB: the fan positioning + veil geometry are
+rAF-laid-out, so SSR can only verify structure (at rest only the active family mounts) — the visual
+alignment needs live UAT.
+
+**Files:** `overlays/ClefStaffOverlay.jsx` (`FamilyClefCarousel` component + `staffBlock` uses it).
