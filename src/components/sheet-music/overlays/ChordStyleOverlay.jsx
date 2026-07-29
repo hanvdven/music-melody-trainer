@@ -30,7 +30,10 @@ import Scale from '../../../model/Scale';
 // Sizing consts. The letters/roman sample spans ≈ 2×STEP + a glyph, so the carousel stride is wide
 // enough that the three options don't overlap when open. visibleHalf=1 → all three show revealed.
 const BASE = 138;
-const HIT_TOP = -24, HIT_H = 48, HEADER_DY = -31, LABEL_DY = 26;
+// #530 UAT: header/label offsets match the percussion + clef notation carousels
+// (ClefStaffOverlay NOTATION_HEADER_DY/NOTATION_LABEL_DY) so the header→content→label rhythm is
+// consistent across the notation carousels.
+const HIT_TOP = -24, HIT_H = 48, HEADER_DY = -31, LABEL_DY = 38;
 // 3-chord sample layout: start-anchored labels (like the sheet), centred on the item's local origin.
 const STEP = 46, FIRST_X = -60;
 

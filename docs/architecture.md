@@ -5483,5 +5483,18 @@ post-selection animation* — the clef-row re-fly on a family change (`useClefRe
 hidden carousel's own collapse fade covers the transition, so the whole-row slide read as gratuitous.
 `useClefRefly` + its import/keys are gone from `SheetMusic.jsx` (the hook file is left orphaned for now).
 
-**Files:** `overlays/ClefStaffOverlay.jsx` (`FamilyClefCarousel` component + `staffBlock` uses it;
-veil redraw from `x=0`, soft both edges, header), `SheetMusic.jsx` (removed the `useClefRefly` re-fly).
+**UAT round 2 fixes (Han 2026-07-29):** the clef picker was still its OWN carousel (custom fonts,
+alignment, and the header not above the active choice) — "het enig verschil moet zijn de clipping links
+… verder mag de carousel identiek hetzelfde zijn". So `FamilyClefCarousel` is now a thin wrapper around
+the SAME shared `CarouselField` every other setter uses: identical fonts, header-above-active, value
+label below, and the standard localized veil (§60). The ONLY difference is it is centred near the gutter
+(`CLEF_CENTER_X = CLEF_GLYPH_X + 14`) with `staffX0=0`, so the active clef lands at the sheet-clef
+position and the left edge clips/fades. Clef glyphs stay canonical (`ClefGlyph`, `anchor="middle"` so
+glyph + label + header all centre on `centerX`); the ITALIAN family label renders via `makeRenderItem`.
+Also (Han: "spacing … inconsistent tussen chord notation en percussion") the header/label offsets are
+now SHARED consts — `NOTATION_HEADER_DY = -31`, `NOTATION_LABEL_DY = 38` — used by the chord-notation,
+percussion AND clef carousels, so the header→content→label rhythm is consistent across them.
+
+**Files:** `overlays/ClefStaffOverlay.jsx` (`FamilyClefCarousel` → `CarouselField` wrapper; shared
+`NOTATION_*_DY`; percussion label harmonised), `overlays/ChordStyleOverlay.jsx` (label offset → 38),
+`SheetMusic.jsx` (removed the `useClefRefly` re-fly).

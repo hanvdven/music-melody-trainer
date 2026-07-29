@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-    VOCAL_VARIANTS, clefFamilyKey, carouselOrder,
+    VOCAL_VARIANTS, clefFamilyKey, CLEF_FAMILIES,
     patchForFamily, patchForVocal, patchForTransposition,
 } from './clefSelector';
 import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones } from '../../../constants/transposingInstruments';
@@ -8,7 +8,6 @@ import TranspositionSetter from './TranspositionSetter';
 import { ClefGlyph, variantToSymbolKey, CLEF_GLYPH_X } from '../clefGlyphs';
 import NonLinearCarousel from './NonLinearCarousel';
 import { CarouselField } from '../CarouselFieldItem';
-import { useRevealOnInteraction } from '../../../hooks/useRevealOnInteraction';
 import DisableCross from './DisableCross';
 import MelodyNotesLayer from '../MelodyNotesLayer';
 import { processMelodyAndCalculateSlots } from '../processMelodyAndCalculateSlots';
@@ -121,9 +120,9 @@ const ITALIAN_VOICE = {
 const CLEF_LABEL_DY = 56;          // Italian label baseline below the staff body
 const CLEF_LABEL_SIZE = 7;
 
-const FAMILY_SLOT_W = 36;          // horizontal step between carousel glyphs (Han #5: more space)
-// FAMILY_GLYPH_SIZE + FAMILY_RIGHT_FRAC were only used by the old percussion clef-picker carousel
-// (renderPercClef), removed in #529 Slice B when the percussion controls merged into one CarouselField.
+// FAMILY_GLYPH_SIZE + FAMILY_RIGHT_FRAC (removed #529 Slice B) and FAMILY_SLOT_W (removed #530 UAT —
+// the clef family picker is now a CarouselField, not a raw gutter NonLinearCarousel) were all part of
+// the old always-visible clef/percussion carousels.
 const EIGHTH = TICKS_PER_WHOLE / 8;
 const PERC_LAYER_PROPS = {
     numAccidentals: 0, noteGroupSize: 1, measureLengthSlots: 9999, scaleNotes: [],
@@ -203,96 +202,56 @@ const ClefCard = ({ symbolKey, clef, notes, trans, inst, x, staffStart, cardW, c
     );
 };
 
-// ── #530: HIDDEN clef-FAMILY picker (Viool / Bas / Vocal / None) ─────────────────────────────────
-// Han 2026-07-29: replace the always-visible family carousel with a HIDDEN one + veil, like the other
-// setters — but keep it GUTTER-anchored (the active clef stays at the exact sheet-clef position, so at
-// rest it reads as the normal staff clef). A press reveals the family fan (fanning RIGHT, one element
-// peeking LEFT and fading at the screen edge — already the NonLinearCarousel's gutter behaviour). The
-// families are ALREADY exactly 4 (CLEF_FAMILIES). Each staff row needs its own reveal state, so this is
-// a component (a hook can't live inside the multiply-called staffBlock). Reuses the canonical ClefGlyph
-// via the passed `renderItem` (§6d). Single-open is coordinated through the overlay's activeFieldId,
-// shared with the percussion carousel.
-const FAMILY_VISIBLE_HALF = 2;
+// ── Shared notation-carousel spacing (§59, Han 2026-07-29 UAT) ────────────────────────────────────
+// The chord-notation, percussion AND clef carousels all use the SAME header/label offsets so their
+// header → content → value-label rhythm is identical (Han: "spacing … inconsistent tussen chord
+// notation en percussion"). Header sits at rowCenterY−31 (= staffStart−11, §59); the caps value label
+// at +38 (the generation setter's CONTENT_LABEL_DY).
+export const NOTATION_HEADER_DY = -31;
+export const NOTATION_LABEL_DY = 38;
+
+// ── #530: clef-FAMILY picker = the SAME shared CarouselField as every other setter ────────────────
+// Han 2026-07-29 UAT: the clef picker must be IDENTICAL to the other carousels (fonts, alignment,
+// header-above-active, veil) — the ONLY difference is that it sits GUTTER-anchored so the active clef
+// lands at the sheet-clef position and the left edge clips. So it is now a thin wrapper around
+// `CarouselField`, centred near the gutter (`CLEF_CENTER_X`); `CarouselField`'s own reveal + localized
+// veil (§60) + §59 header do everything. Families are already exactly 4 (CLEF_FAMILIES); the concrete
+// active clef / family-default glyphs come from the canonical `ClefGlyph` (§6d) via `renderClef`.
+// staffX0=0 because the sheet staff lines run from x=0, so the veil redraws them through the gutter.
+const CLEF_CENTER_X = CLEF_GLYPH_X + 14;   // active clef centres ≈ the sheet-clef position; left clips
+const CLEF_BASE = 46;
 const FamilyClefCarousel = ({
-    order, renderItem, onSelectFamily, staffStart, startX,
+    items, activeIndex, onSelectFamily, renderClef, staffStart, endX,
     fieldId, activeFieldId, onActivate, debugMode,
-}) => {
-    const { collapsed, mountAllItems, chromeVisible, open, reveal, resetHideTimer, closeNow } =
-        useRevealOnInteraction(true);
-    const onReveal = () => { reveal(); onActivate?.(fieldId); };
-    React.useEffect(() => {
-        if (activeFieldId != null && activeFieldId !== fieldId && open) closeNow();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeFieldId]);
-
-    // Veil footprint: from just off the left edge out past the fan's rightmost family, covering the
-    // clef row. Soft RIGHT edge via a mask (the left side is the screen edge → hard). Staff lines are
-    // redrawn where the veil overlaps the staff body (x ≥ startX); the gutter part has no staff lines.
-    const rawId = React.useId();
-    const scrimId = `clef-veil-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
-    const maskId = `clef-veilmask-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
-    const veilX0 = -6;
-    const veilX1 = CLEF_GLYPH_X + (FAMILY_VISIBLE_HALF + 1) * FAMILY_SLOT_W;   // ≈ 121, clears the fan
-    const veilTop = staffStart - 22;
-    const veilBottom = staffStart + CLEF_LABEL_DY + 6;
-    const staffLineYs = [0, 10, 20, 30, 40].map(d => staffStart + d);
-    // The staff lines run from x=0 (the sheet's `M 0 y H endX`), NOT from startX — so the veil must
-    // redraw them from x=0 through the gutter, else the panel hides the staff there (#530 UAT #1).
-    const lineX0 = Math.max(0, veilX0);
-
-    return (
-        <g>
-            <defs>
-                {/* Soft edges on BOTH sides (#530 UAT #3): the left edge fades into the sheet like the
-                    right, so the gutter clef + panel blend at the screen edge instead of hard-clipping. */}
-                <linearGradient id={scrimId} gradientUnits="userSpaceOnUse" x1={veilX0} y1="0" x2={veilX1} y2="0">
-                    <stop offset="0" stopColor="white" stopOpacity="0" />
-                    <stop offset="0.12" stopColor="white" stopOpacity="1" />
-                    <stop offset="0.85" stopColor="white" stopOpacity="1" />
-                    <stop offset="1" stopColor="white" stopOpacity="0" />
-                </linearGradient>
-                <mask id={maskId} maskUnits="userSpaceOnUse" x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop}>
-                    <rect x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop} fill={`url(#${scrimId})`} />
-                </mask>
-            </defs>
-            {/* Localized veil — only while revealed (mountAllItems stays true through the fade). */}
-            {mountAllItems && (
-                <g mask={`url(#${maskId})`}
-                    style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
-                    <rect x={veilX0} y={veilTop} width={veilX1 - veilX0} height={veilBottom - veilTop} fill="var(--panel-bg, #1f1e2a)" />
-                    {staffLineYs.map((ly, i) => (
-                        <line key={i} x1={lineX0} x2={veilX1} y1={ly} y2={ly}
-                            stroke="var(--text-primary)" strokeWidth="0.5" />
-                    ))}
-                </g>
-            )}
-            {/* #530 UAT #2: field header (serif-italic, §59), shown while revealed, centred over the fan. */}
-            {mountAllItems && (
-                <text x={(lineX0 + veilX1) / 2} y={staffStart - 14} textAnchor="middle" fontSize={14}
-                    fontFamily="serif" fontStyle="italic" fill="var(--text-secondary, #888)"
-                    style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
-                    clef
-                </text>
-            )}
-            <NonLinearCarousel
-                items={order}
-                activeIndex={0}
-                renderItem={renderItem}
-                centerX={CLEF_GLYPH_X}
-                y={staffStart - 18}
-                baseWidth={FAMILY_SLOT_W}
-                height={62}
-                visibleHalf={FAMILY_VISIBLE_HALF}
-                collapsed={collapsed}
-                mountAllItems={mountAllItems}
-                onReveal={onReveal}
-                onPosChange={() => resetHideTimer()}
-                onSelect={onSelectFamily}
-                debugMode={debugMode}
-            />
-        </g>
-    );
-};
+}) => (
+    <CarouselField
+        items={items}
+        activeIndex={activeIndex}
+        onSelect={onSelectFamily}
+        centerX={CLEF_CENTER_X}
+        rowCenterY={staffStart + 20}
+        baseWidth={CLEF_BASE}
+        hitTop={-30}
+        hitHeight={66}
+        iconSize={0}
+        iconDy={0}
+        labelDy={NOTATION_LABEL_DY}
+        labelFontSize={11}
+        bracketDy={NOTATION_HEADER_DY}
+        headerDy={NOTATION_HEADER_DY}
+        labelAbove="clef"
+        renderContent={renderClef}
+        staffLineYs={[-20, -10, 0, 10, 20].map(d => staffStart + 20 + d)}
+        staffX0={0}
+        staffX1={endX}
+        visibleHalf={2}
+        fieldId={fieldId}
+        activeFieldId={activeFieldId}
+        onActivate={onActivate}
+        hidden
+        debugMode={debugMode}
+    />
+);
 
 const ClefStaffOverlay = ({
     startX, endX,
@@ -338,7 +297,6 @@ const ClefStaffOverlay = ({
         // activate the Bass family (Han BUG-N8, 2026-06-08); clefFamilyKey inspects the
         // rangeMode, familyOfClef only sees the concrete clef glyph.
         const famId = clefFamilyKey(settings);
-        const order = carouselOrder(famId);            // current first
         const transKey = settings?.transpositionKey || 'C';
         // Total written-pitch offset = instrument pitch-class part + whole-octave part (Stage D).
         const transOctave = settings?.transpositionOctave || 0;
@@ -359,37 +317,30 @@ const ClefStaffOverlay = ({
         // stays reachable in either direction. Each glyph carries its ITALIAN
         // name below (standing caps CR). Interaction + §3a hit box come from
         // NonLinearCarousel itself.
-        const renderFamily = (fam, isActive) => {
-            const isOff = fam.id === 'off';
-            const colr = isActive ? 'var(--text-primary)' : 'var(--text-lowlight)';
-            // The ACTIVE slot shows the current clef's concrete variant glyph ONLY when
-            // it really is the current family (fam.id === famId) — a neighbour keeps its
-            // OWN family glyph (Han BUG-N5).
-            const symbolKey = (isActive && fam.id === famId) ? variantToSymbolKey(clef) : fam.clef;
-            return (
-                <g style={{ pointerEvents: 'none' }}>
-                    {isOff ? (
-                        // Shared DisableCross so it matches the percussion + chord OFF
-                        // crosses (V1); START-aligned like the clef glyphs (Han #8).
-                        <DisableCross x={0} topY={staffStart + 2} color={colr} />
-                    ) : (
-                        <ClefGlyph symbolKey={symbolKey} x={0} baseY={staffStart + 30} fill={colr} anchor="start" />
-                    )}
-                    <text x={9} y={staffStart + CLEF_LABEL_DY} textAnchor="middle"
-                        fontSize={CLEF_LABEL_SIZE} fontFamily="sans-serif" letterSpacing={0.5}
-                        fontWeight={isActive ? 'bold' : 'normal'} fill={colr}>
-                        {ITALIAN_FAMILY[fam.id] ?? fam.label.toUpperCase()}
-                    </text>
-                </g>
-            );
+        // renderContent for the clef CarouselField (signature (item, active, color)): draw the
+        // canonical ClefGlyph — the ACTIVE slot shows the concrete current clef, neighbours their
+        // family default (Han BUG-N5) — or the shared DisableCross for OFF. anchor="middle" so the
+        // glyph, its value label and the header all centre on centerX, identical to the other
+        // carousels; CarouselField's makeRenderItem renders the ITALIAN family label below.
+        const renderClef = (item, active, color) => {
+            if (item.value === 'off') {
+                return <DisableCross x={-9} topY={staffStart + 2} color={color} />;
+            }
+            const symbolKey = active ? variantToSymbolKey(clef) : item.clef;
+            return <ClefGlyph symbolKey={symbolKey} x={0} baseY={staffStart + 30} fill={color} anchor="middle" />;
         };
+        const familyItems = CLEF_FAMILIES.map((fam) => ({
+            value: fam.id, label: ITALIAN_FAMILY[fam.id] ?? fam.label, clef: fam.clef,
+        }));
+        const familyActiveIndex = Math.max(0, CLEF_FAMILIES.findIndex((f) => f.id === famId));
         const familyCarousel = (
             <FamilyClefCarousel
-                order={order}
-                renderItem={(fam, i) => renderFamily(fam, i === 0)}
-                onSelectFamily={(fam) => { if (fam.id !== famId) onApplyClefPatch?.(staff, patchForFamily(fam.id)); }}
+                items={familyItems}
+                activeIndex={familyActiveIndex}
+                onSelectFamily={(item) => { if (item.value !== famId) onApplyClefPatch?.(staff, patchForFamily(item.value)); }}
+                renderClef={renderClef}
                 staffStart={staffStart}
-                startX={startX}
+                endX={endX}
                 fieldId={`clef-${staff}`}
                 activeFieldId={activeFieldId}
                 onActivate={setActiveFieldId}
@@ -630,12 +581,14 @@ const ClefStaffOverlay = ({
                     hitHeight={84}
                     iconSize={0}
                     iconDy={0}
-                    // Label sits BELOW the drum bundle: the together stems hang ≈ rowCenterY+30, so the
-                    // JOINED/SPLIT/INVISIBLE caption clears them at +44.
-                    labelDy={44}
+                    // #530 UAT: header/label offsets shared with the chord-notation + clef carousels
+                    // (NOTATION_HEADER_DY / NOTATION_LABEL_DY) so the header→content→label rhythm is
+                    // consistent across the notation carousels. The label at +38 still clears the drum
+                    // stems (which hang to ≈ rowCenterY+30).
+                    labelDy={NOTATION_LABEL_DY}
                     labelFontSize={11}
-                    bracketDy={-31}
-                    headerDy={-31}
+                    bracketDy={NOTATION_HEADER_DY}
+                    headerDy={NOTATION_HEADER_DY}
                     labelAbove="percussion"
                     renderContent={renderPercContent}
                     // Percussion 5-line staff → redraw its lines through the veil (§60).
