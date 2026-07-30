@@ -263,24 +263,31 @@ const NoteColoringStaffOverlay = ({
                         const cy = percussionStart + 20;   // staff centre; lines at cy−20 … cy+20
                         const cs = item.colors;
                         const four = [0, 1, 2, 3].map((i) => cs[i] ?? cs[i % cs.length]);
-                        const W = 46;
-                        const mId = `theme-swatch-${String(item.value).replace(/[^a-z0-9]/gi, '')}`;
+                        const W = 46, T = 13;              // T = taper length at each end
+                        const x0 = -W / 2, x1 = W / 2, yT = cy - 20, yB = cy + 20;
+                        const cId = `theme-swatch-${String(item.value).replace(/[^a-z0-9]/gi, '')}`;
+                        // #533 UAT-3 (Han: "geen blur — een kwaststreek-effect"): the opacity fade read
+                        // as double-vision. Instead the swatch is CLIPPED to an OPAQUE brush-stroke
+                        // silhouette — full height across the middle, tapering to a soft point at each
+                        // end (at the vertical centre) via quadratic curves — like a horizontal paint
+                        // stroke. No transparency, so no ghosting.
+                        const d = `M ${x0} ${cy} Q ${x0 + T * 0.3} ${yT} ${x0 + T} ${yT}`
+                            + ` L ${x1 - T} ${yT} Q ${x1 - T * 0.3} ${yT} ${x1} ${cy}`
+                            + ` Q ${x1 - T * 0.3} ${yB} ${x1 - T} ${yB}`
+                            + ` L ${x0 + T} ${yB} Q ${x0 + T * 0.3} ${yB} ${x0} ${cy} Z`;
                         return (
                             <g style={{ pointerEvents: 'none' }}>
-                                <defs>
-                                    <linearGradient id={`${mId}-g`} x1="0" y1="0" x2="1" y2="0">
-                                        <stop offset="0" stopColor="white" stopOpacity="0" />
-                                        <stop offset="0.16" stopColor="white" stopOpacity="1" />
-                                        <stop offset="0.84" stopColor="white" stopOpacity="1" />
-                                        <stop offset="1" stopColor="white" stopOpacity="0" />
-                                    </linearGradient>
-                                    <mask id={mId} maskUnits="userSpaceOnUse" x={-W / 2} y={cy - 20} width={W} height={40}>
-                                        <rect x={-W / 2} y={cy - 20} width={W} height={40} fill={`url(#${mId}-g)`} />
-                                    </mask>
-                                </defs>
-                                <g mask={`url(#${mId})`}>
+                                <defs><clipPath id={cId}><path d={d} /></clipPath></defs>
+                                <g clipPath={`url(#${cId})`}>
                                     {four.map((c, i) => (
-                                        <rect key={i} x={-W / 2} y={cy - 20 + i * 10} width={W} height={10} fill={c} />
+                                        <rect key={i} x={x0} y={cy - 20 + i * 10} width={W} height={10} fill={c} />
+                                    ))}
+                                    {/* #533 UAT-3 (Han): keep the staff lines ON TOP of the colours (drawn
+                                        INTO the swatch, clipped to the brush stroke) — they keep the four
+                                        colour bands crisply separated. */}
+                                    {[-20, -10, 0, 10, 20].map((d2) => (
+                                        <line key={d2} x1={x0} x2={x1} y1={cy + d2} y2={cy + d2}
+                                            stroke="var(--text-primary)" strokeWidth="0.5" />
                                     ))}
                                 </g>
                             </g>

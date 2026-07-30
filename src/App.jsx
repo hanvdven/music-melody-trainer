@@ -1666,11 +1666,8 @@ const App = () => {
                 <AppHeader
                     scale={scale}
                     onStartExercise={handleStartExercise}
-                    /* #296: crown button next to debug toggles the Thronefall theme;
-                       returning goes to the default theme (the theme grid in settings
-                       still offers every theme incl. this one). */
-                    isThronefall={theme === 'thronefall'}
-                    onToggleThronefall={() => setTheme(theme === 'thronefall' ? 'default' : 'thronefall')}
+                    /* #533: the header Thronefall crown was removed — the colour setter's theme
+                       carousel now covers it (and every other theme). */
                     isFullscreen={isFullscreen}
                     toggleFullscreen={toggleFullscreen}
                     displayTonic={displayTonic}
