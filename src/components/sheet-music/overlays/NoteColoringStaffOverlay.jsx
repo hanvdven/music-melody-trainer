@@ -253,23 +253,36 @@ const NoteColoringStaffOverlay = ({
                     bracketDy={-31}
                     headerDy={-31}
                     labelAbove="theme"
-                    renderContent={(item, active) => {
+                    renderContent={(item) => {
                         // #533 UAT: FOUR colour blocks that fit EXACTLY in the staff — one per staff
-                        // SPACE (lines at cy±20/±10/0). Colours [bg, accent, panel, text]; padded to 4
-                        // for themes App.css defines with only 2. Bg block is first so the theme's
-                        // background reads at a glance (Han: "voeg de achtergrondkleur toe").
+                        // SPACE (lines at cy±20/±10/0), so vertically they stay tight to the staff
+                        // lines. Colours [bg, accent, panel, text]; padded to 4 for themes App.css
+                        // defines with only 2. Han UAT-2: ~50% wider, SOFT horizontal edges (like a
+                        // paint stroke) via a left/right fade mask, NO framing border. No active border
+                        // either — the carousel already dims passive items and centres the active one.
                         const cy = percussionStart + 20;   // staff centre; lines at cy−20 … cy+20
                         const cs = item.colors;
                         const four = [0, 1, 2, 3].map((i) => cs[i] ?? cs[i % cs.length]);
-                        const strokeCol = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
-                        const W = 30;
+                        const W = 46;
+                        const mId = `theme-swatch-${String(item.value).replace(/[^a-z0-9]/gi, '')}`;
                         return (
                             <g style={{ pointerEvents: 'none' }}>
-                                {four.map((c, i) => (
-                                    <rect key={i} x={-W / 2} y={cy - 20 + i * 10} width={W} height={10} fill={c} />
-                                ))}
-                                <rect x={-W / 2} y={cy - 20} width={W} height={40} fill="none"
-                                    stroke={strokeCol} strokeWidth={active ? 1 : 0.5} />
+                                <defs>
+                                    <linearGradient id={`${mId}-g`} x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0" stopColor="white" stopOpacity="0" />
+                                        <stop offset="0.16" stopColor="white" stopOpacity="1" />
+                                        <stop offset="0.84" stopColor="white" stopOpacity="1" />
+                                        <stop offset="1" stopColor="white" stopOpacity="0" />
+                                    </linearGradient>
+                                    <mask id={mId} maskUnits="userSpaceOnUse" x={-W / 2} y={cy - 20} width={W} height={40}>
+                                        <rect x={-W / 2} y={cy - 20} width={W} height={40} fill={`url(#${mId}-g)`} />
+                                    </mask>
+                                </defs>
+                                <g mask={`url(#${mId})`}>
+                                    {four.map((c, i) => (
+                                        <rect key={i} x={-W / 2} y={cy - 20 + i * 10} width={W} height={10} fill={c} />
+                                    ))}
+                                </g>
                             </g>
                         );
                     }}
