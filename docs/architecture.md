@@ -5677,3 +5677,29 @@ glob from the instrument icons (`constants/instruments.jsx`), which only covers 
 
 **Files:** `components/common/ThemeToggle.jsx` (`THEME_ICON_URLS` glob + `getThemeIconUrl`),
 `components/sheet-music/overlays/NoteColoringStaffOverlay.jsx` (swatch `renderContent` redesign).
+
+### §80. Theme: special-theme backgrounds — flags, gradients, pet patterns (#628 Slice 4 / #637, Han 2026-07-31)
+
+**Purpose / symptom:** the Slice-2 gradient themes "did not really show" (Han) — the visible TOP area
+(header + sheet) is transparent over `#root`, but the first-pass gradients were too subtle, and pride
+lacked a recognisable flag. Slice 4 makes the special themes unmistakable.
+
+**How it works (`App.css`, "#628-S4 Special BACKGROUNDS"):** the page background is `var(--panel-bg)` on
+`body/#root`; the transparent top area shows it, the bottom control panel stays solid (readability).
+
+- **Pride Light / Pride Dark:** a `#root` `linear-gradient` of six hard-stop stripes = a recognisable
+  rainbow FLAG (pastel vs deep variants).
+- **Vapourwave:** a bold pink→purple→cyan diagonal `#root` gradient.
+- **Disco:** bright scattered mirror-ball `radial-gradient` facets over the light panel.
+- **Pets (Cat / Dog / Ram):** the animal's icons8 icon TILED as an accent-tinted watermark. A decorative
+  `#root::before` (`position:absolute; inset:0; z-index:-1`, so it sits above `#root`'s background but
+  below the transparent sheet content — `#root` was given `position:relative` to anchor it) uses
+  `mask-image: url(<icon>)` + `background-color: var(--accent-yellow)` to recolour the flat-black PNG to
+  the theme accent, `mask-repeat: repeat`, low `opacity`. Vite inlines the small PNGs as data URIs.
+
+**Invariant:** special backgrounds live on `#root` (or its `::before`) so they show in the transparent
+sheet/header area without covering the opaque control panel; notation stays legible because the
+panel-derived text vars are unchanged. First-pass intensity — tune in UAT.
+
+**Files:** `styles/App.css` (`#root` `position:relative`, bold gradients for pride/vapourwave/disco, the
+pets `::before` mask-pattern rules).

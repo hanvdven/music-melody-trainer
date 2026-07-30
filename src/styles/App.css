@@ -317,6 +317,11 @@ body,
   overflow: hidden;
   background-color: var(--panel-bg);
 }
+/* #628-S4: positioned so a decorative ::before (the pets icon-pattern) can sit at z-index:-1 —
+   above #root's background, below the (transparent) sheet/header content. */
+#root {
+  position: relative;
+}
 
 * {
   box-sizing: border-box;
@@ -1170,26 +1175,58 @@ path {
 :root[data-theme='dog']        { --app-bg: #201811; --panel-bg: #31261c; --text-primary: #f0e4d4; --accent-yellow: #c98a3f; }
 :root[data-theme='ram']        { --app-bg: #242019; --panel-bg: #322d24; --text-primary: #ece6da; --accent-yellow: #9a8768; }
 
-/* Special BACKGROUNDS: the page bg is normally `background-color: var(--panel-bg)` (body/#root).
-   These gradient/texture themes override it with a `background` shorthand. Panel-derived vars still
-   drive the chrome/notation so text stays legible over the gradient. */
+/* #628-S4 Special BACKGROUNDS (Han 2026-07-31): the page bg is normally `var(--panel-bg)` on body/#root;
+   the transparent TOP area (header + sheet) shows it. These themes override #root with a BOLD gradient /
+   flag / icon-pattern so the special theme is unmistakable. The bottom control panel stays solid
+   --panel-bg for readability. Panel-derived vars still drive the notation so it stays legible. */
+
+/* PRIDE — a recognisable 6-stripe rainbow flag (hard stops). Light = pastel, dark = deep. */
 :root[data-theme='pride-light'] body,
 :root[data-theme='pride-light'] #root {
-  background: linear-gradient(160deg, #fde2e2 0%, #fdeede 18%, #fdfbe0 36%, #e2f6e6 54%, #e2eefd 72%, #efe2fb 100%);
+  background: linear-gradient(180deg,
+    #f7b7b0 0 16.66%, #f8d9a8 16.66% 33.33%, #f7efab 33.33% 50%,
+    #b7e3b4 50% 66.66%, #acc9ee 66.66% 83.33%, #cdb4e6 83.33% 100%);
 }
 :root[data-theme='pride-dark'] body,
 :root[data-theme='pride-dark'] #root {
-  background: linear-gradient(160deg, #3a1420 0%, #3a2414 18%, #2e3414 36%, #143a24 54%, #14263a 72%, #2a143a 100%);
+  background: linear-gradient(180deg,
+    #7d1f1f 0 16.66%, #8a4d16 16.66% 33.33%, #7d7016 33.33% 50%,
+    #1f6b2f 50% 66.66%, #1f3f7d 66.66% 83.33%, #4a1f7d 83.33% 100%);
 }
+/* VAPOURWAVE — bold pink→purple→cyan diagonal wash. */
 :root[data-theme='vapourwave'] body,
 :root[data-theme='vapourwave'] #root {
-  background: linear-gradient(160deg, #2a1a3e 0%, #6a2a6e 45%, #2a4a7e 100%);
+  background: linear-gradient(150deg, #ff6ad5 0%, #8a4ddb 40%, #4a5ad6 68%, #3fd0e0 100%);
 }
+/* DISCO — bright scattered mirror-ball facets over the light panel. */
 :root[data-theme='disco'] body,
 :root[data-theme='disco'] #root {
   background:
-    radial-gradient(circle at 25% 20%, rgba(176, 106, 223, 0.18) 0 8%, transparent 9%),
-    radial-gradient(circle at 70% 55%, rgba(63, 155, 214, 0.16) 0 7%, transparent 8%),
-    radial-gradient(circle at 45% 80%, rgba(224, 64, 122, 0.14) 0 6%, transparent 7%),
+    radial-gradient(circle at 22% 18%, rgba(176, 106, 223, 0.45) 0 10%, transparent 11%),
+    radial-gradient(circle at 68% 40%, rgba(63, 155, 214, 0.40) 0 9%, transparent 10%),
+    radial-gradient(circle at 40% 74%, rgba(224, 64, 122, 0.38) 0 8%, transparent 9%),
+    radial-gradient(circle at 85% 80%, rgba(240, 200, 60, 0.35) 0 8%, transparent 9%),
     var(--panel-bg);
 }
+
+/* PETS — the animal's icons8 icon TILED as an accent-tinted watermark behind all content. A fixed
+   pseudo-element (z-index:-1) sits above #root's bg but behind the (transparent) sheet/header, so the
+   pattern shows there. `mask` recolours the flat-black PNG to the theme accent; low opacity = subtle. */
+:root[data-theme='cat'] #root::before,
+:root[data-theme='dog'] #root::before,
+:root[data-theme='ram'] #root::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-color: var(--accent-yellow);
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  -webkit-mask-size: 72px;
+  mask-size: 72px;
+  opacity: 0.12;
+}
+:root[data-theme='cat'] #root::before { -webkit-mask-image: url('../assets/icons8/themes/icons8-cat-100.png'); mask-image: url('../assets/icons8/themes/icons8-cat-100.png'); }
+:root[data-theme='dog'] #root::before { -webkit-mask-image: url('../assets/icons8/themes/icons8-dog-100.png'); mask-image: url('../assets/icons8/themes/icons8-dog-100.png'); }
+:root[data-theme='ram'] #root::before { -webkit-mask-image: url('../assets/icons8/themes/icons8-ram-100.png'); mask-image: url('../assets/icons8/themes/icons8-ram-100.png'); }
