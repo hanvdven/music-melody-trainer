@@ -1763,7 +1763,11 @@ const App = () => {
                             // setter derives its key-relative diatonic ii-V-I sample from it.
                             scale={scale}
                             // #533: the colour setter's in-staff theme carousel switches the app theme.
+                            // appTheme is the REACTIVE theme (SheetMusic otherwise reads data-theme off
+                            // the DOM non-reactively, so it wouldn't re-render — and the theme carousel's
+                            // activeIndex would stay stale — after a swatch pick).
                             setTheme={setTheme}
+                            appTheme={theme}
                         />
                     </ErrorBoundary>
                 </div>

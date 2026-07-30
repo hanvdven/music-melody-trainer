@@ -5516,6 +5516,16 @@ carousel (with the font carousel on the percussion staff). That restructure is a
 theme carousel sits ADDITIVELY on the PERCUSSION staff so the switcher is testable without disturbing
 the working #502 bass controls.
 
-**Files:** `common/ThemeToggle.jsx` (export `allThemes`), `overlays/NoteColoringStaffOverlay.jsx`
-(theme `CarouselField` + swatch), `sheet-music/SheetMusic.jsx` + `App.jsx` (thread `setTheme` /
-`percussionStart`).
+**UAT round 1 fixes (Han 2026-07-29):** (1) *carousel snapped to the wrong theme / visual didn't match
+the centred swatch* — root cause: `SheetMusic` reads `theme` NON-reactively from the DOM
+(`document.documentElement.getAttribute('data-theme')`), so after `setTheme` it didn't re-render and the
+carousel's controlled `activeIndex` stayed stale. Fixed by threading the REACTIVE theme as `appTheme`
+(App → SheetMusic) and preferring it over the DOM read — every theme-dependent colour + the carousel
+now stay in sync. (2) *swatch* → now FOUR colour blocks (`[bg, accent, panel, text]`, padded to 4) that
+fit EXACTLY in the staff, one per staff SPACE, bg first (Han: "voeg de achtergrondkleur toe … vier
+blokjes die precies in de notenbalk passen"). `allThemes` gained the panel/text colours for the
+App.css-defined themes.
+
+**Files:** `common/ThemeToggle.jsx` (export `allThemes` + 4 colours), `overlays/NoteColoringStaffOverlay.jsx`
+(theme `CarouselField` + 4-block swatch), `sheet-music/SheetMusic.jsx` + `App.jsx` (thread `setTheme` /
+`percussionStart` / reactive `appTheme`).

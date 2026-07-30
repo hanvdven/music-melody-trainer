@@ -254,13 +254,21 @@ const NoteColoringStaffOverlay = ({
                     headerDy={-31}
                     labelAbove="theme"
                     renderContent={(item, active) => {
-                        const cy = percussionStart + 20;
+                        // #533 UAT: FOUR colour blocks that fit EXACTLY in the staff — one per staff
+                        // SPACE (lines at cy±20/±10/0). Colours [bg, accent, panel, text]; padded to 4
+                        // for themes App.css defines with only 2. Bg block is first so the theme's
+                        // background reads at a glance (Han: "voeg de achtergrondkleur toe").
+                        const cy = percussionStart + 20;   // staff centre; lines at cy−20 … cy+20
+                        const cs = item.colors;
+                        const four = [0, 1, 2, 3].map((i) => cs[i] ?? cs[i % cs.length]);
                         const strokeCol = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
+                        const W = 30;
                         return (
                             <g style={{ pointerEvents: 'none' }}>
-                                <rect x={-16} y={cy - 12} width={32} height={24} rx={3} fill={item.colors[0]} />
-                                <rect x={-16} y={cy} width={32} height={12} fill={item.colors[1]} />
-                                <rect x={-16} y={cy - 12} width={32} height={24} rx={3} fill="none"
+                                {four.map((c, i) => (
+                                    <rect key={i} x={-W / 2} y={cy - 20 + i * 10} width={W} height={10} fill={c} />
+                                ))}
+                                <rect x={-W / 2} y={cy - 20} width={W} height={40} fill="none"
                                     stroke={strokeCol} strokeWidth={active ? 1 : 0.5} />
                             </g>
                         );

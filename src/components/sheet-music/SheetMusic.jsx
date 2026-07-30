@@ -219,6 +219,8 @@ const SheetMusic = ({
                             // -notation setter derives its diatonic ii-V-I preview from it (the
                             // per-instrument trebleSettings.scaleNotes is often empty in this view).
   setTheme = null,          // #533: the colour setter's in-staff theme carousel switches the app theme.
+  appTheme = null,          // #533: REACTIVE theme id (see the theme read below) — keeps colour + the
+                            // theme carousel's activeIndex in sync after a swatch pick.
   containerHeight = 400,
   musicalBlocks,
   startMeasureIndex = 0,
@@ -341,8 +343,10 @@ const SheetMusic = ({
   });
 
   useSheetMusicTransitions(nextLayer, layoutRef, svgRef);
-  // Read theme from DOM attribute set by App.jsx — avoids threading it as a prop.
-  const theme = document.documentElement.getAttribute('data-theme') ?? 'default';
+  // #533: prefer the REACTIVE `appTheme` prop (so a theme change re-renders SheetMusic and every
+  // theme-dependent colour + the in-staff theme carousel's activeIndex stays in sync); fall back to
+  // the DOM attribute App.jsx sets, for any caller that doesn't pass it.
+  const theme = appTheme ?? (document.documentElement.getAttribute('data-theme') ?? 'default');
   // Alias for overlay-preview state (yellow = same-melody repeat preview, red = new-melody preview).
   const showWipePreview = nextLayer;
 
