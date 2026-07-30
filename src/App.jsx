@@ -1762,6 +1762,8 @@ const App = () => {
                             // scale.tonic / scale.numAccidentals, not the object) — the chord-notation
                             // setter derives its key-relative diatonic ii-V-I sample from it.
                             scale={scale}
+                            // #533: the colour setter's in-staff theme carousel switches the app theme.
+                            setTheme={setTheme}
                         />
                     </ErrorBoundary>
                 </div>

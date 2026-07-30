@@ -218,6 +218,7 @@ const SheetMusic = ({
   scale = null,             // #529: authoritative Scale object (has .notes/.tonic/mode) — the chord
                             // -notation setter derives its diatonic ii-V-I preview from it (the
                             // per-instrument trebleSettings.scaleNotes is often empty in this view).
+  setTheme = null,          // #533: the colour setter's in-staff theme carousel switches the app theme.
   containerHeight = 400,
   musicalBlocks,
   startMeasureIndex = 0,
@@ -2849,6 +2850,7 @@ const SheetMusic = ({
                       endX={endX}
                       trebleStart={trebleStart}
                       bassStart={bassStart}
+                      percussionStart={percussionStart}
                       clefTreble={clefTreble}
                       noteColoringMode={noteColoringMode}
                       setNoteColoringMode={setNoteColoringMode}
@@ -2856,6 +2858,7 @@ const SheetMusic = ({
                       scaleNotes={scaleNotes}
                       activeChord={pausedActiveChord}
                       theme={theme}
+                      setTheme={setTheme}
                       debugMode={debugMode}
                     />
                   )}

@@ -3,8 +3,16 @@ import NonLinearCarousel from './NonLinearCarousel';
 import { MiniMelody, MINI_QUARTER } from './MiniMelody';
 import { useRevealOnInteraction } from '../../../hooks/useRevealOnInteraction';
 import { CarouselField } from '../CarouselFieldItem';
+import { allThemes } from '../../common/ThemeToggle';
 import { useDisplaySettings } from '../../../contexts/DisplaySettingsContext';
 import { Music2, BookOpenCheck, ArrowRightFromLine, ArrowLeft, MicVocal, PencilOff } from 'lucide-react';
+
+// #533 (Han 2026-07-29): the in-staff THEME carousel — one option per app theme, reusing the shared
+// `allThemes` list (§6c). Each option renders a two-tone swatch (bg + accent) like the header
+// ThemeToggle; picking one calls setTheme (the data-theme attribute + CSS do the rest). Placed on the
+// PERCUSSION staff for now (additive); Han wants it on the bass staff eventually, with the existing
+// highlights/animation/lyrics controls restacked — a follow-up restructure.
+const THEME_ITEMS = allThemes.map((t) => ({ value: t.id, label: t.name, colors: t.colors }));
 
 // ── Note-colouring menu (Han 2026-06-13, redesigned on the NonLinearCarousel primitive
 // 2026-06-17) ───────────────────────────────────────────────────────────────────────────
@@ -80,8 +88,8 @@ const B_HIT_TOP = -30, B_HIT_H = 56, B_HEADER_DY = -31;   // header at rowCenter
 const B_COL_FRACS = [0.2, 0.5, 0.8];
 
 const NoteColoringStaffOverlay = ({
-    startX, endX, trebleStart, bassStart, clefTreble = 'treble',
-    noteColoringMode, setNoteColoringMode, tonic, scaleNotes, activeChord = null, theme,
+    startX, endX, trebleStart, bassStart, percussionStart, clefTreble = 'treble',
+    noteColoringMode, setNoteColoringMode, tonic, scaleNotes, activeChord = null, theme, setTheme,
     // #427 rework (Han: "COLOUR: maak een hidden carousel hiervan") — hidden reveal-on-interaction
     // like the other setters (§6d shared hook). Default on; a caller can pass false to force-expand.
     hidden = true,
@@ -225,6 +233,49 @@ const NoteColoringStaffOverlay = ({
                     debugMode={debugMode}
                 />
             ))}
+
+            {/* #533: THEME carousel on the percussion staff (additive). Two-tone swatch per theme +
+                the theme name; picking one switches the app theme via setTheme. */}
+            {percussionStart != null && setTheme && (
+                <CarouselField
+                    items={THEME_ITEMS}
+                    activeIndex={Math.max(0, allThemes.findIndex((t) => t.id === (theme || 'default')))}
+                    onSelect={(item) => setTheme(item.value)}
+                    centerX={centerX}
+                    rowCenterY={percussionStart + 20}
+                    baseWidth={64}
+                    hitTop={-24}
+                    hitHeight={52}
+                    iconSize={0}
+                    iconDy={0}
+                    labelDy={38}
+                    labelFontSize={11}
+                    bracketDy={-31}
+                    headerDy={-31}
+                    labelAbove="theme"
+                    renderContent={(item, active) => {
+                        const cy = percussionStart + 20;
+                        const strokeCol = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
+                        return (
+                            <g style={{ pointerEvents: 'none' }}>
+                                <rect x={-16} y={cy - 12} width={32} height={24} rx={3} fill={item.colors[0]} />
+                                <rect x={-16} y={cy} width={32} height={12} fill={item.colors[1]} />
+                                <rect x={-16} y={cy - 12} width={32} height={24} rx={3} fill="none"
+                                    stroke={strokeCol} strokeWidth={active ? 1 : 0.5} />
+                            </g>
+                        );
+                    }}
+                    staffLineYs={[-20, -10, 0, 10, 20].map((d) => percussionStart + 20 + d)}
+                    staffX0={startX}
+                    staffX1={endX}
+                    fieldId="theme"
+                    activeFieldId={activeFieldId}
+                    onActivate={setActiveFieldId}
+                    visibleHalf={2}
+                    hidden
+                    debugMode={debugMode}
+                />
+            )}
         </g>
     );
 };

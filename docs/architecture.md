@@ -5498,3 +5498,24 @@ percussion AND clef carousels, so the header→content→label rhythm is consist
 **Files:** `overlays/ClefStaffOverlay.jsx` (`FamilyClefCarousel` → `CarouselField` wrapper; shared
 `NOTATION_*_DY`; percussion label harmonised), `overlays/ChordStyleOverlay.jsx` (label offset → 38),
 `SheetMusic.jsx` (removed the `useClefRefly` re-fly).
+
+### §75. Colour setter: in-staff THEME carousel (#533, Han 2026-07-29)
+
+**Purpose:** part of #501 — an in-staff carousel to switch the app THEME (Default / Light / Nocturne /
+… / Thronefall) from the colour setter, without opening the header ThemeToggle.
+
+**How it works:** the theme list is the shared `allThemes` (now EXPORTED from `ThemeToggle`, §6c — one
+source of truth). The carousel is the standard hidden `CarouselField`; each option renders a two-tone
+swatch (theme bg + accent) with the theme name below; selecting one calls `setTheme(id)`, which flips
+the `data-theme` attribute on `<html>` (existing mechanism in `useAppUIState`). `setTheme` is threaded
+`App → SheetMusic → NoteColoringStaffOverlay` (a new prop on the SheetMusic tag, like `scale`).
+
+**Placement (interim):** Han wants the theme carousel on the BASS staff and the existing
+highlights/animation/lyrics controls restacked as a compact vertical column right of the scheme
+carousel (with the font carousel on the percussion staff). That restructure is a follow-up; for now the
+theme carousel sits ADDITIVELY on the PERCUSSION staff so the switcher is testable without disturbing
+the working #502 bass controls.
+
+**Files:** `common/ThemeToggle.jsx` (export `allThemes`), `overlays/NoteColoringStaffOverlay.jsx`
+(theme `CarouselField` + swatch), `sheet-music/SheetMusic.jsx` + `App.jsx` (thread `setTheme` /
+`percussionStart`).
