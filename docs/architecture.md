@@ -5510,11 +5510,11 @@ swatch (theme bg + accent) with the theme name below; selecting one calls `setTh
 the `data-theme` attribute on `<html>` (existing mechanism in `useAppUIState`). `setTheme` is threaded
 `App → SheetMusic → NoteColoringStaffOverlay` (a new prop on the SheetMusic tag, like `scale`).
 
-**Placement (interim):** Han wants the theme carousel on the BASS staff and the existing
-highlights/animation/lyrics controls restacked as a compact vertical column right of the scheme
-carousel (with the font carousel on the percussion staff). That restructure is a follow-up; for now the
-theme carousel sits ADDITIVELY on the PERCUSSION staff so the switcher is testable without disturbing
-the working #502 bass controls.
+**Placement (restructured, Han 2026-07-30):** the theme carousel now sits UNDER the colour setter on the
+BASS staff. The #502 highlights/animation/lyrics controls moved off the bass staff to a COMPACT vertical
+stack of icon fans (`LeftFanCarousel`, `compact`, `renderNode` = the option's lucide icon) on the RIGHT
+of the scheme carousel. The FONT carousel (#532) will sit on the percussion staff, below the theme (a
+follow-up — it needs the app-wide `--app-text-font` mechanism first).
 
 **UAT round 1 fixes (Han 2026-07-29):** (1) *carousel snapped to the wrong theme / visual didn't match
 the centred swatch* — root cause: `SheetMusic` reads `theme` NON-reactively from the DOM
