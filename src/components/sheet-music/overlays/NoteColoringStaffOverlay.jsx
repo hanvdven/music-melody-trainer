@@ -3,7 +3,6 @@ import NonLinearCarousel from './NonLinearCarousel';
 import { MiniMelody, MINI_QUARTER } from './MiniMelody';
 import { useRevealOnInteraction } from '../../../hooks/useRevealOnInteraction';
 import { CarouselField } from '../CarouselFieldItem';
-import { LeftFanCarousel } from './fanCarousels';
 import { allThemes } from '../../common/ThemeToggle';
 import { useDisplaySettings } from '../../../contexts/DisplaySettingsContext';
 import { Music2, BookOpenCheck, ArrowRightFromLine, ArrowLeft, MicVocal, PencilOff } from 'lucide-react';
@@ -82,8 +81,11 @@ const LYRICS_ITEMS = [
     { value: 'kodaly', label: 'Do-re-mi (Kodály)', Icon: MicVocal },
     { value: 'takadimi', label: 'Takadimi', Icon: Music2 },
 ];
-// (The old B_* bass-carousel sizing consts were removed with the #502 horizontal bass layout — the
-// three controls are now compact icon fans on the treble-right, #533.)
+// Shared sizing for the bass carousels (mirrors the generation setter's named consts, §6d).
+const B_BASE = 26, B_ICON = 16, B_ICON_DY = -22, B_LABEL_DY = 58, B_LABEL_FS = 11, B_BRACKET_DY = -32;
+const B_HIT_TOP = -30, B_HIT_H = 56, B_HEADER_DY = -31;   // header at rowCenterY−31 = bassStart−11
+// Three columns across the staff width.
+const B_COL_FRACS = [0.2, 0.5, 0.8];
 
 const NoteColoringStaffOverlay = ({
     startX, endX, trebleStart, bassStart, percussionStart, clefTreble = 'treble',
@@ -148,23 +150,32 @@ const NoteColoringStaffOverlay = ({
         );
     };
 
-    // ── #533 (Han 2026-07-29): highlights / animation / lyrics as a COMPACT vertical stack ──────────
-    // The three controls moved off the bass staff (freeing it for the theme carousel) to a compact
-    // stack of icon fans on the RIGHT of the treble scheme carousel. Each is a compact LeftFanCarousel
-    // showing the active option's lucide icon at rest; a vertical drag cycles it.
+    // ── #502 bass carousels ──────────────────────────────────────────────────────────────────────
+    const bassRowY = (bassStart ?? trebleStart + 110) + 20;
+    const bCols = B_COL_FRACS.map(f => startX + f * (endX - startX));
     const animIndex = Math.max(0, ANIMATION_ITEMS.findIndex(a =>
         a.mode === animationMode && (a.variant == null || a.variant === (paginationVariant ?? 'mid'))));
-    const controlFields = [
-        { id: 'highlights', items: HIGHLIGHT_ITEMS, activeIndex: showNoteHighlight ? 1 : 0,
-            onSelect: (it) => setShowNoteHighlight(it.value) },
-        { id: 'animation', items: ANIMATION_ITEMS, activeIndex: animIndex,
-            onSelect: (it) => { setAnimationMode(it.mode); if (it.variant) setPaginationVariant?.(it.variant); } },
-        { id: 'lyrics', items: LYRICS_ITEMS,
+    const bassFields = bassStart == null ? [] : [
+        {
+            id: 'highlights', label: 'highlights', items: HIGHLIGHT_ITEMS,
+            activeIndex: showNoteHighlight ? 1 : 0,
+            onSelect: (it) => setShowNoteHighlight(it.value),
+        },
+        {
+            id: 'animation', label: 'animation', items: ANIMATION_ITEMS,
+            activeIndex: animIndex,
+            onSelect: (it) => { setAnimationMode(it.mode); if (it.variant) setPaginationVariant?.(it.variant); },
+        },
+        {
+            id: 'lyrics', label: 'lyrics', items: LYRICS_ITEMS,
             activeIndex: Math.max(0, LYRICS_ITEMS.findIndex(l => l.value === lyricsMode)),
-            onSelect: (it) => setLyricsMode(it.value) },
+            onSelect: (it) => setLyricsMode(it.value),
+        },
     ];
-    const controlCx = endX - 30;                                        // right side of the staff
-    const controlYs = [trebleStart + 4, trebleStart + 20, trebleStart + 36];   // three stacked levels
+    // Render the ACTIVE bass field LAST so its shared-layer veil sits above the others (§60).
+    const bassCells = bassFields
+        .map((f, i) => ({ f, cx: bCols[i] }))
+        .sort((a, b) => (a.f.id === activeFieldId ? 1 : 0) - (b.f.id === activeFieldId ? 1 : 0));
 
     return (
         // PER-ELEMENT FLY-IN (Han 2026-06-19): the `data-fly` moved DOWN onto each scheme card
@@ -190,40 +201,48 @@ const NoteColoringStaffOverlay = ({
                 onReveal={hidden ? reveal : undefined}
                 debugMode={debugMode} />
 
-            {/* #533: HIGHLIGHTS / ANIMATION / LYRICS — a compact vertical stack of icon fans on the
-                RIGHT of the scheme carousel. Each fan shows the active option's icon at rest; a
-                vertical drag cycles it. */}
-            {controlFields.map((f, i) => (
-                <LeftFanCarousel
+            {/* #502: HIGHLIGHTS / ANIMATION / LYRICS on the BASS staff — hidden tap-to-open carousels
+                with the shared veil, same primitives as the generation setter (§6d, §60). Active
+                field rendered LAST so its veil sits above the rest. */}
+            {bassCells.map(({ f, cx }) => (
+                <CarouselField
                     key={f.id}
-                    cx={controlCx}
-                    centerY={controlYs[i]}
                     items={f.items}
                     activeIndex={f.activeIndex}
-                    onCommit={(idx) => f.onSelect(f.items[idx])}
-                    renderNode={(item, { active, size }) => (
-                        <g style={{ color: active ? 'var(--text-primary)' : 'var(--text-lowlight)' }}>
-                            <item.Icon x={-size / 2} y={-size / 2} width={size} height={size}
-                                color="currentColor" strokeWidth={2} style={{ pointerEvents: 'none' }} />
-                        </g>
-                    )}
-                    compact
-                    activeLabelSize={16}
-                    bandW={26}
-                    fieldLines={[]}
+                    onSelect={f.onSelect}
+                    centerX={cx}
+                    rowCenterY={bassRowY}
+                    baseWidth={B_BASE}
+                    hitTop={B_HIT_TOP}
+                    hitHeight={B_HIT_H}
+                    iconSize={B_ICON}
+                    iconDy={B_ICON_DY}
+                    labelDy={B_LABEL_DY}
+                    labelFontSize={B_LABEL_FS}
+                    bracketDy={B_BRACKET_DY}
+                    headerDy={B_HEADER_DY}
+                    labelAbove={f.label}
+                    staffLineYs={[-20, -10, 0, 10, 20].map(d => bassRowY + d)}
+                    staffX0={startX}
+                    staffX1={endX}
+                    fieldId={f.id}
+                    activeFieldId={activeFieldId}
+                    onActivate={setActiveFieldId}
+                    visibleHalf={2}
+                    hidden
                     debugMode={debugMode}
                 />
             ))}
 
-            {/* #533: THEME carousel — UNDER the colour setter, on the BASS staff. Brush-stroke colour
-                swatch per theme + the theme name; picking one switches the app theme via setTheme. */}
-            {bassStart != null && setTheme && (
+            {/* #533: THEME carousel on the percussion staff (additive). Two-tone swatch per theme +
+                the theme name; picking one switches the app theme via setTheme. */}
+            {percussionStart != null && setTheme && (
                 <CarouselField
                     items={THEME_ITEMS}
                     activeIndex={Math.max(0, allThemes.findIndex((t) => t.id === (theme || 'default')))}
                     onSelect={(item) => setTheme(item.value)}
                     centerX={centerX}
-                    rowCenterY={bassStart + 20}
+                    rowCenterY={percussionStart + 20}
                     baseWidth={64}
                     hitTop={-24}
                     hitHeight={52}
@@ -241,7 +260,7 @@ const NoteColoringStaffOverlay = ({
                         // defines with only 2. Han UAT-2: ~50% wider, SOFT horizontal edges (like a
                         // paint stroke) via a left/right fade mask, NO framing border. No active border
                         // either — the carousel already dims passive items and centres the active one.
-                        const cy = bassStart + 20;   // staff centre; lines at cy−20 … cy+20
+                        const cy = percussionStart + 20;   // staff centre; lines at cy−20 … cy+20
                         const cs = item.colors;
                         const four = [0, 1, 2, 3].map((i) => cs[i] ?? cs[i % cs.length]);
                         const W = 46, T = 13;              // T = taper length at each end
@@ -274,7 +293,7 @@ const NoteColoringStaffOverlay = ({
                             </g>
                         );
                     }}
-                    staffLineYs={[-20, -10, 0, 10, 20].map((d) => bassStart + 20 + d)}
+                    staffLineYs={[-20, -10, 0, 10, 20].map((d) => percussionStart + 20 + d)}
                     staffX0={startX}
                     staffX1={endX}
                     fieldId="theme"
