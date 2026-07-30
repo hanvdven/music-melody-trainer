@@ -305,9 +305,6 @@ body,
   height: 100%;
   overflow: hidden;
   background-color: var(--panel-bg);
-  /* #532: HTML chrome inherits the app-text font (Arial by default; Academico / Finale Maestro Text
-     when the colour setter's font carousel sets --app-text-font). Music glyphs are SVG-only. */
-  font-family: var(--app-text-font, Arial, Helvetica, sans-serif);
 }
 
 * {
@@ -379,6 +376,20 @@ body {
    excluded via :not(), so the glyphs never change. Only active when a non-default font is chosen. */
 :root[data-app-font] text[font-family*='serif']:not([font-family*='Maestro']):not([font-family*='Academico']) {
   font-family: var(--app-text-font) !important;
+}
+/* HTML CHROME (#532 UAT: header / sub-header / bottom-view / buttons set their own font, so they don't
+   inherit) — force every NON-svg element to the app font. `:not(svg *)` keeps SVG (incl. its notation
+   glyphs) out. Only active for a non-default font; default leaves the chrome exactly as authored. */
+:root[data-app-font] :not(svg):not(svg *) {
+  font-family: var(--app-text-font) !important;
+}
+/* #532 UAT (Han): the serif fonts are hard to read in ALL-CAPS, so the in-staff value labels render
+   bold + lower-case when a serif app-font is active (`.carousel-value-label` is on every makeRenderItem
+   label). text-transform overrides the JS .toUpperCase() at display time. */
+:root[data-app-font='academico'] .carousel-value-label,
+:root[data-app-font='maestro'] .carousel-value-label {
+  text-transform: lowercase;
+  font-weight: bold;
 }
 
 svg {
@@ -773,7 +784,7 @@ path {
 }
 
 .bpm-text {
-  font-family: var(--app-text-font, Arial, sans-serif);
+  font-family: Arial, sans-serif;
   font-size: 24px;
   fill: var(--text-primary);
   pointer-events: none;
@@ -811,7 +822,7 @@ path {
 .measure-indicator {
   fill: var(--text-secondary);
   font-size: 16px;
-  font-family: var(--app-text-font, Arial, sans-serif);
+  font-family: Arial, sans-serif;
   pointer-events: none;
   user-select: none;
 }

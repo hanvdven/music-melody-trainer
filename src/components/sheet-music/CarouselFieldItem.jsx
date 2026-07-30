@@ -91,7 +91,9 @@ export const makeRenderItem = ({ activeIndex, iconSize, iconY, labelY, labelFont
             carousel sits in a narrow 3-column row where wide caps labels of adjacent items overlapped
             and "fell away"; showing just the active value's label keeps it readable at any width. */}
         {item.label && (!activeLabelOnly || active) ? (
-          <text x={0} y={labelY} textAnchor="middle" fontSize={labelFontSize}
+          // #532: `carousel-value-label` lets the app-font CSS render these ALL-CAPS labels as bold
+          // lower-case when a (hard-to-read-in-caps) serif app-font is active.
+          <text x={0} y={labelY} textAnchor="middle" fontSize={labelFontSize} className="carousel-value-label"
             fontFamily="sans-serif" fontWeight={active ? 'bold' : 'normal'} fill={color}>
             {String(item.label).toUpperCase()}
           </text>
