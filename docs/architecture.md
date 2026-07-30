@@ -5544,21 +5544,39 @@ sheet-tekst, maar niet de noten."
 
 - `:root[data-app-font='academico'|'maestro'] { --app-text-font: … }` picks the font (Academico, or the
   newly-`@font-face`'d `FinaleMaestroText`).
-- HTML CHROME inherits it: `#root { font-family: var(--app-text-font, Arial…) }` and the explicit `Arial`
-  rules now read `var(--app-text-font, Arial…)`.
+- HTML CHROME switches via one broad rule: `:root[data-app-font] :not(svg):not(svg *) { font-family:
+  var(--app-text-font) !important; }`. `:not(svg *)` keeps every SVG descendant (incl. notation glyphs)
+  out, while the `!important` overrides the many chrome elements (header, sub-header, bottom-view
+  selectors, buttons) that set their OWN explicit `font-family` and would otherwise not switch.
 - SVG SHEET-TEXT switches via an ATTRIBUTE selector that catches plain serif/sans text but EXCLUDES the
   notation fonts: `:root[data-app-font] text[font-family*='serif']:not([font-family*='Maestro'])
   :not([font-family*='Academico']) { font-family: var(--app-text-font) !important; }`. So chord labels /
   note names / setter labels switch, while every `Maestro` (incl. `"Maestro, serif"`) and `Academico`
   notation glyph is left untouched. Default (no attribute) leaves ALL fonts exactly as authored.
 
+**AS-IS regression fix (UAT, Han 2026-07-30):** an earlier version added `#root { font-family:
+var(--app-text-font, Arial…) }` UNCONDITIONALLY, which forced Arial as the inherited default and stripped
+AS-IS of its original serif/sans mix (elements that relied on the browser-default serif went sans). That
+`#root` declaration was removed; the default (no `data-app-font`) now changes NOTHING, and all switching is
+gated behind the `:root[data-app-font]` rules above.
+
+**Serif readability (UAT, Han 2026-07-30):** the serif app-fonts are hard to read in ALL-CAPS, so in-staff
+value labels render **bold + lower-case** when a serif app-font is active — `:root[data-app-font='academico'|
+'maestro'] .carousel-value-label { text-transform: lowercase; font-weight: bold; }`. `.carousel-value-label`
+is on every `makeRenderItem` label (`CarouselFieldItem.jsx`); `text-transform` overrides the JS
+`.toUpperCase()` at display time. (Maestro/Academico ship no sans-serif variant, so bold-lower-case is the
+readability lever rather than a font swap.)
+
 **UI:** a hidden `CarouselField` on the percussion staff (centred, under the theme carousel), each option
 an "Aa" sample rendered in its own font. Threaded `App → SheetMusic → NoteColoringStaffOverlay` as
 `appFont` / `setAppFont`.
 
 **Invariant:** music notation NEVER changes font — enforced by the `:not([font-family*='Maestro'])` /
-`:not([font-family*='Academico'])` exclusions on the only rule that touches SVG text.
+`:not([font-family*='Academico'])` exclusions on the sheet-text rule AND the `:not(svg *)` exclusion on the
+chrome rule.
 
-**Files:** `styles/App.css` (`@font-face` FinaleMaestroText + the `data-app-font` switch rules + `#root` /
-Arial → `var`), `hooks/useAppUIState.js` (`appFont` state + attribute effect), `overlays/NoteColoringStaffOverlay.jsx`
-(font `CarouselField`), `sheet-music/SheetMusic.jsx` + `App.jsx` (thread `appFont` / `setAppFont`).
+**Files:** `styles/App.css` (`@font-face` FinaleMaestroText + the `data-app-font` switch rules: chrome
+`:not(svg *)`, sheet-text attribute selector, serif `.carousel-value-label` bold-lower-case),
+`hooks/useAppUIState.js` (`appFont` state + attribute effect), `overlays/NoteColoringStaffOverlay.jsx`
+(font `CarouselField`), `sheet-music/CarouselFieldItem.jsx` (`.carousel-value-label` class),
+`sheet-music/SheetMusic.jsx` + `App.jsx` (thread `appFont` / `setAppFont`).
