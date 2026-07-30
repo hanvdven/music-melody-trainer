@@ -12,7 +12,10 @@ import { Music2, BookOpenCheck, ArrowRightFromLine, ArrowLeft, MicVocal, PencilO
 // ThemeToggle; picking one calls setTheme (the data-theme attribute + CSS do the rest). Placed on the
 // PERCUSSION staff for now (additive); Han wants it on the bass staff eventually, with the existing
 // highlights/animation/lyrics controls restacked — a follow-up restructure.
-const THEME_ITEMS = allThemes.map((t) => ({ value: t.id, label: t.name, colors: t.colors }));
+// #628-S2: items carry `family` (the theme CATEGORY) so the CarouselField groups them with the same
+// dashed "blokhaken" brackets as the instrument setter (familyMode). `icon` (icons8 basename) is passed
+// through for the #628-S3 swatch redesign.
+const THEME_ITEMS = allThemes.map((t) => ({ value: t.id, label: t.name, colors: t.colors, family: t.category, icon: t.icon }));
 
 // #532 (Han 2026-07-30): the app-text FONT carousel — AS IS / MAESTRO (Finale Maestro Text) /
 // ACADEMICO. Each option shows an "Aa" sample IN that font. `sample` uses a font-family that the
@@ -250,9 +253,16 @@ const NoteColoringStaffOverlay = ({
                     iconDy={0}
                     labelDy={38}
                     labelFontSize={11}
-                    bracketDy={-31}
+                    bracketDy={-24}
                     headerDy={-31}
                     labelAbove="theme"
+                    // #628-S2: group the ~20 themes by CATEGORY (Default/Light/Dark/Elemental/Special/
+                    // Pets) with the shared dashed "blokhaken" brackets — same mechanism as the
+                    // instrument setter (§6d). `family` is on each THEME_ITEM; brackets sit at
+                    // bracketDy (−24) just below the "theme" header (−31), above the full-height swatch.
+                    familyMode
+                    familyName={(f) => f}
+                    familyColor={() => 'var(--text-secondary)'}
                     renderContent={(item) => {
                         // #533 UAT: FOUR colour blocks that fit EXACTLY in the staff — one per staff
                         // SPACE (lines at cy±20/±10/0), so vertically they stay tight to the staff

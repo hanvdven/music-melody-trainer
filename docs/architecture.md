@@ -5618,3 +5618,40 @@ work for free. This is the §6c "derive, don't hardcode" rule applied to theming
 renderMelodyNotes.jsx` (2 subtle-chroma inline mixes), `components/sheet-music/SheetMusic.jsx`
 (`getLyricFill` `mixTarget`), `components/layout/AppHeader.jsx` (`#88ccff` → `var(--text-secondary)`),
 `styles/App.css` (`--text-secondary` derivation + the two `color: white` hovers).
+
+### §78. Theme: catalog + carousel category grouping (#628 Slice 2 / #635, Han 2026-07-30)
+
+**Purpose:** replace the flat 9-theme list (4 of which had NO CSS block and did nothing — #627) with a
+categorised catalog of 20 themes, grouped in the in-staff theme carousel by category.
+
+**Catalog (`allThemes` in `ThemeToggle.jsx` — the §6c SSOT):** each entry now carries `category` and an
+`icon` (icons8 basename in `src/assets/icons8/themes/`) alongside `colors` = `[app-bg, accent, panel-bg,
+text-primary]`. Categories: **Default** (Night, Classical) · **Light** (Marble, Barley, Bright Day) ·
+**Dark** (Sunset, Stars, Museum) · **Elemental** (Clover, River, Lava, Rock) · **Special** (Pride Light,
+Pride Dark, Vapourwave, Disco, Royal) · **Pets** (Cat, Dog, Ram). The orphan themes afterglow /
+pastel-dawn / golden-wetlands were removed; `thronefall` → `royal`. **The real page background is
+`--panel-bg`** (index 2), applied by `body, #root { background-color: var(--panel-bg) }`; `--app-bg`
+(index 0) is effectively unused except by the swatch.
+
+**CSS strategy (`App.css`, "#628-S2 THEME CATALOG" section):** each theme block sets ONLY the 4 base
+colours; everything else derives (Slice 1's `--text-secondary`, plus a shared LIGHT-theme rule that
+derives the keyboard / dimmed-text / note colours from each theme's own `--panel-bg` / `--text-primary` /
+`--accent-yellow`). Four reused palettes are ALIASES on the old blocks so the legacy `SettingsPanel`
+picker still resolves them: `classical`↔`light`, `barley`↔`meridienne`, `stars`↔`nocturne`,
+`royal`↔`thronefall` (incl. its bespoke hard-diagonal shadow rules). Gradient/texture backgrounds
+(`pride-light`, `pride-dark`, `vapourwave`, `disco`) override `body/#root` `background`. Dark themes
+inherit the `:root` dark keyboard/note defaults (first-pass — palettes tuned per-theme in UAT). **Every id
+in `allThemes` MUST have a `:root[data-theme=<id>]` block** (else selecting it does nothing — the #627 bug).
+
+**Carousel category grouping:** the theme `CarouselField` now runs in `familyMode` — items carry
+`family: category`, and the shared dashed "blokhaken" brackets (the SAME `FamilyBrackets` mechanism the
+instrument setter uses, §6d) group consecutive same-category runs. `familyName` returns the category
+string; `familyColor` returns `var(--text-secondary)` (muted, theme-responsive). Category brackets sit at
+`bracketDy −24`, below the `theme` field header at `headerDy −31`.
+
+**Invariant:** `allThemes` (JS) and the `data-theme` CSS blocks are a matched set — adding a theme means
+adding BOTH. Category is data on the theme, never hardcoded in the carousel.
+
+**Files:** `components/common/ThemeToggle.jsx` (catalog + category/icon), `styles/App.css` (aliases +
+shared light rule + 15 new blocks + gradient bgs), `components/sheet-music/overlays/
+NoteColoringStaffOverlay.jsx` (`family`/`icon` on items + `familyMode`/`familyName`/`familyColor`).

@@ -189,7 +189,11 @@
  * THEMES
  * ============================================================ */
 
-:root[data-theme='nocturne'] {
+/* #628-S2: 'stars' reuses the nocturne palette (deep night blue + gold), 'light' → 'classical',
+   'meridienne' → 'barley', 'thronefall' → 'royal'. Old ids kept as aliases so the legacy
+   SettingsPanel theme picker still resolves them. */
+:root[data-theme='nocturne'],
+:root[data-theme='stars'] {
   --app-bg: #0b1020;
   --panel-bg: #222c40;
   --text-primary: #e6e8ef;
@@ -215,7 +219,8 @@
 }
 
 /* Warm parchment */
-:root[data-theme='meridienne'] {
+:root[data-theme='meridienne'],
+:root[data-theme='barley'] {
   --instrument-icon-filter: none;   /* light theme: flat-black icons read as-is */
   /* Light theme: a dark boundary highlight stays visible on the parchment bg (R4). */
   --range-boundary-highlight: #2b3a42;
@@ -255,7 +260,8 @@
   --cat-synth: #44607c;
 }
 
-:root[data-theme='light'] {
+:root[data-theme='light'],
+:root[data-theme='classical'] {
   --instrument-icon-filter: none;   /* light theme: flat-black icons read as-is */
   /* Light theme: a dark boundary highlight stays visible on the light bg (R4). */
   --range-boundary-highlight: #2b3a42;
@@ -1058,7 +1064,8 @@ path {
  * The chromatone-* hues are SACRED and inherit the defaults unchanged
  * (only saturation/lightness may ever shift, never the hue).
  * ============================================================ */
-:root[data-theme='thronefall'] {
+:root[data-theme='thronefall'],
+:root[data-theme='royal'] {
   --app-bg: #1f2a52;               /* rich indigo night */
   --panel-bg: #2d3d78;             /* saturated panel blue */
   --text-primary: #fff3d6;         /* warm cream — hard contrast on indigo */
@@ -1091,17 +1098,98 @@ path {
    staff lines themselves (Han). Zero blur = the hard edge. The targeted groups
    are NOT the rAF-animated opacity/mask properties (§6 stays intact). */
 :root[data-theme='thronefall'] .notes-transition,
-:root[data-theme='thronefall'] .chord-labels-group {
+:root[data-theme='royal'] .notes-transition,
+:root[data-theme='thronefall'] .chord-labels-group,
+:root[data-theme='royal'] .chord-labels-group {
   filter: drop-shadow(1.6px 2.2px 0 var(--tf-shadow));
 }
 
 /* HTML chrome: bright panels with the same hard-diagonal shadow language. */
 :root[data-theme='thronefall'] .tab-button,
-:root[data-theme='thronefall'] .app-header-btn {
+:root[data-theme='royal'] .tab-button,
+:root[data-theme='thronefall'] .app-header-btn,
+:root[data-theme='royal'] .app-header-btn {
   box-shadow: 2.5px 3px 0 var(--tf-shadow);
 }
 :root[data-theme='thronefall'] .profile-family-btn,
+:root[data-theme='royal'] .profile-family-btn,
 :root[data-theme='thronefall'] .profile-debug-toggle,
-:root[data-theme='thronefall'] .session-summary-card {
+:root[data-theme='royal'] .profile-debug-toggle,
+:root[data-theme='thronefall'] .session-summary-card,
+:root[data-theme='royal'] .session-summary-card {
   box-shadow: 4px 5px 0 var(--tf-shadow);
+}
+
+/* ============================================================
+ * #628-S2 THEME CATALOG (Han 2026-07-30) — first-pass palettes, tweak in UAT.
+ * Each block sets only the 4 BASE colours (--app-bg / --panel-bg / --text-primary /
+ * --accent-yellow); everything else derives (Slice 1's --text-secondary, and for light
+ * themes the shared rule below). Dark themes inherit the :root dark defaults for the
+ * keyboard/wheel/note colours (first-pass — Han tweaks per-theme in UAT). Kept in sync
+ * with `allThemes` in ThemeToggle.jsx (every id there MUST have a block here).
+ * ============================================================ */
+
+/* Shared LIGHT-theme structural overrides (icon filter, keyboard, dimmed text, notes) —
+   all DERIVED from each theme's own base colours so one rule fits every light theme (§6c). */
+:root[data-theme='marble'],
+:root[data-theme='bright-day'],
+:root[data-theme='disco'],
+:root[data-theme='pride-light'] {
+  --instrument-icon-filter: none;                 /* flat-black icons8 read as-is on light */
+  --range-boundary-highlight: var(--text-primary);
+  --soft-mix-target: var(--panel-bg);
+  --text-dim: color-mix(in srgb, var(--text-primary), var(--panel-bg) 45%);
+  --text-lowlight: color-mix(in srgb, var(--text-primary), var(--panel-bg) 55%);
+  --text-highlight: var(--text-primary);
+  --white-key-color: color-mix(in srgb, #ffffff, var(--panel-bg) 15%);
+  --white-key-color-highlight: color-mix(in srgb, var(--accent-yellow), #ffffff 40%);
+  --black-key-color: color-mix(in srgb, var(--text-primary), #000000 10%);
+  --wheel-color-tonic: var(--accent-yellow);
+  --wheel-color-highlight: color-mix(in srgb, var(--panel-bg), #ffffff 30%);
+  --wheel-color-lowlight: var(--panel-bg);
+  --note-tonic: #8a3fd1;
+  --note-scale: #4e6fa3;
+}
+
+/* — Light — */
+:root[data-theme='marble']     { --app-bg: #f2f1f4; --panel-bg: #e4e3e8; --text-primary: #33323a; --accent-yellow: #8a7a6a; }
+:root[data-theme='bright-day'] { --app-bg: #e6f4fd; --panel-bg: #c8e6f7; --text-primary: #1e3a4a; --accent-yellow: #3f9bd6; }
+:root[data-theme='disco']      { --app-bg: #f0eefa; --panel-bg: #e2dcf0; --text-primary: #2a2440; --accent-yellow: #b06adf; }
+:root[data-theme='pride-light']{ --app-bg: #fdf0f5; --panel-bg: #f3dbe8; --text-primary: #3a2030; --accent-yellow: #e0407a; }
+
+/* — Dark (inherit :root dark keyboard/note defaults; base colours only) — */
+:root[data-theme='sunset']     { --app-bg: #241018; --panel-bg: #3a1c2a; --text-primary: #ffe6d0; --accent-yellow: #ff8c42; }
+:root[data-theme='museum']     { --app-bg: #0e2a47; --panel-bg: #163a5f; --text-primary: #f0e6d2; --accent-yellow: #f2c94c; }
+:root[data-theme='clover']     { --app-bg: #0d2016; --panel-bg: #16321f; --text-primary: #e2f2e4; --accent-yellow: #5fbf6a; }
+:root[data-theme='river']      { --app-bg: #08202b; --panel-bg: #103440; --text-primary: #dff0f4; --accent-yellow: #3fb6c9; }
+:root[data-theme='lava']       { --app-bg: #2e1310; --panel-bg: #451a15; --text-primary: #ffe0d6; --accent-yellow: #ff6a3d; }
+:root[data-theme='rock']       { --app-bg: #26241f; --panel-bg: #34322b; --text-primary: #e8e4dc; --accent-yellow: #a08c6a; }
+:root[data-theme='pride-dark'] { --app-bg: #1a1020; --panel-bg: #2a1a38; --text-primary: #f0d8e8; --accent-yellow: #ff5fa2; }
+:root[data-theme='vapourwave'] { --app-bg: #2a1a3e; --panel-bg: #3a2552; --text-primary: #f0d0ff; --accent-yellow: #ff6ad5; }
+:root[data-theme='cat']        { --app-bg: #241d18; --panel-bg: #332a22; --text-primary: #f5e8dc; --accent-yellow: #e8a04b; }
+:root[data-theme='dog']        { --app-bg: #201811; --panel-bg: #31261c; --text-primary: #f0e4d4; --accent-yellow: #c98a3f; }
+:root[data-theme='ram']        { --app-bg: #242019; --panel-bg: #322d24; --text-primary: #ece6da; --accent-yellow: #9a8768; }
+
+/* Special BACKGROUNDS: the page bg is normally `background-color: var(--panel-bg)` (body/#root).
+   These gradient/texture themes override it with a `background` shorthand. Panel-derived vars still
+   drive the chrome/notation so text stays legible over the gradient. */
+:root[data-theme='pride-light'] body,
+:root[data-theme='pride-light'] #root {
+  background: linear-gradient(160deg, #fde2e2 0%, #fdeede 18%, #fdfbe0 36%, #e2f6e6 54%, #e2eefd 72%, #efe2fb 100%);
+}
+:root[data-theme='pride-dark'] body,
+:root[data-theme='pride-dark'] #root {
+  background: linear-gradient(160deg, #3a1420 0%, #3a2414 18%, #2e3414 36%, #143a24 54%, #14263a 72%, #2a143a 100%);
+}
+:root[data-theme='vapourwave'] body,
+:root[data-theme='vapourwave'] #root {
+  background: linear-gradient(160deg, #2a1a3e 0%, #6a2a6e 45%, #2a4a7e 100%);
+}
+:root[data-theme='disco'] body,
+:root[data-theme='disco'] #root {
+  background:
+    radial-gradient(circle at 25% 20%, rgba(176, 106, 223, 0.18) 0 8%, transparent 9%),
+    radial-gradient(circle at 70% 55%, rgba(63, 155, 214, 0.16) 0 7%, transparent 8%),
+    radial-gradient(circle at 45% 80%, rgba(224, 64, 122, 0.14) 0 6%, transparent 7%),
+    var(--panel-bg);
 }
