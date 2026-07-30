@@ -69,7 +69,7 @@ const AppHeader = ({
                         if (next === 'none' && isInputTestMode) handleToggleInputTest();
                         else if (next !== 'none' && !isInputTestMode) handleToggleInputTest();
                     }}
-                    style={{ color: inputTestSubMode !== 'none' ? 'var(--accent-yellow)' : '#88ccff', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
+                    style={{ color: inputTestSubMode !== 'none' ? 'var(--accent-yellow)' : 'var(--text-secondary)', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
                 >
                     {inputTestSubMode === 'none' ? <MicOff size={22} /> :
                         inputTestSubMode === 'note' ? <Piano size={22} /> : <Mic size={22} />}
@@ -84,7 +84,7 @@ const AppHeader = ({
                         className={`tab-button secondary app-header-btn ${isFullscreen ? 'active' : ''}`}
                         onClick={() => toggleFullscreen()}
                         title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-                        style={{ color: isFullscreen ? 'var(--accent-yellow)' : '#88ccff', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
+                        style={{ color: isFullscreen ? 'var(--accent-yellow)' : 'var(--text-secondary)', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
                     >
                         {isFullscreen ? <Minimize size={22} /> : <Maximize size={22} />}
                     </button>
@@ -94,7 +94,7 @@ const AppHeader = ({
                     className={`tab-button secondary app-header-btn ${debugMode ? 'active' : ''}`}
                     onClick={() => setDebugMode?.(d => !d)}
                     title="Toggle debug mode (shows clickable zones)"
-                    style={{ color: debugMode ? 'var(--accent-yellow)' : '#88ccff', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
+                    style={{ color: debugMode ? 'var(--accent-yellow)' : 'var(--text-secondary)', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
                 >
                     <Bug size={22} />
                 </button>
@@ -106,7 +106,7 @@ const AppHeader = ({
                         className="tab-button secondary app-header-btn"
                         onClick={() => onOpenKanban?.()}
                         title="Open kanban board"
-                        style={{ color: '#88ccff', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: '2px solid cyan' }}
+                        style={{ color: 'var(--text-secondary)', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: '2px solid cyan' }}
                     >
                         <KanbanSquare size={22} />
                     </button>
@@ -171,7 +171,7 @@ const AppHeader = ({
                     className="tab-button secondary app-header-btn"
                     onClick={handleSkipBack}
                     disabled={!canSkipBack}
-                    style={{ color: canSkipBack ? '#88ccff' : '#444', outline: debugMode ? '2px solid cyan' : undefined }}
+                    style={{ color: canSkipBack ? 'var(--text-secondary)' : '#444', outline: debugMode ? '2px solid cyan' : undefined }}
                 >
                     <SkipBack size={22} />
                 </button>
@@ -179,7 +179,7 @@ const AppHeader = ({
                 <button
                     className="tab-button secondary app-header-btn"
                     onClick={handleSkipForward}
-                    style={{ color: '#88ccff', outline: debugMode ? '2px solid cyan' : undefined }}
+                    style={{ color: 'var(--text-secondary)', outline: debugMode ? '2px solid cyan' : undefined }}
                 >
                     <SkipForward size={22} />
                 </button>
@@ -202,7 +202,7 @@ const AppHeader = ({
                         }
                     }}
                     title="Play this melody"
-                    style={{ color: isPlayingMelody ? 'var(--accent-yellow)' : '#88ccff', outline: debugMode ? '2px solid cyan' : undefined }}
+                    style={{ color: isPlayingMelody ? 'var(--accent-yellow)' : 'var(--text-secondary)', outline: debugMode ? '2px solid cyan' : undefined }}
                 >
                     {isPlayingMelody ? (
                         <Square size={24} color="var(--accent-yellow)" />
@@ -217,7 +217,7 @@ const AppHeader = ({
                     className="tab-button secondary app-header-btn-sm"
                     onClick={() => setHeaderPlayMode(m => m === 'repeat' ? 'once' : 'repeat')}
                     title={headerPlayMode === 'repeat' ? 'Repeat current melody' : 'Play once'}
-                    style={{ color: '#88ccff', outline: debugMode ? '2px solid cyan' : undefined }}
+                    style={{ color: 'var(--text-secondary)', outline: debugMode ? '2px solid cyan' : undefined }}
                 >
                     {headerPlayMode === 'repeat' ? <Repeat1 size={17} /> : <IconOne size={17} />}
                 </button>
@@ -232,7 +232,7 @@ const AppHeader = ({
                         handlePlayContinuously();
                     }}
                     title={isPlayingContinuously ? 'Stop generating' : 'Start generating'}
-                    style={{ color: isPlayingContinuously ? 'var(--accent-yellow)' : '#88ccff', outline: debugMode ? '2px solid cyan' : undefined }}
+                    style={{ color: isPlayingContinuously ? 'var(--accent-yellow)' : 'var(--text-secondary)', outline: debugMode ? '2px solid cyan' : undefined }}
                 >
                     {isPlayingContinuously ? (
                         <Square size={24} color="var(--accent-yellow)" />

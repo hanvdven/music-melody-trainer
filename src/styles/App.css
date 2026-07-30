@@ -11,7 +11,12 @@
 
   /* Typography */
   --text-primary: #ffffff;
-  --text-secondary: var(--white-key-color);
+  /* #628-S1 (Han 2026-07-30): secondary text is a MUTED derivation of --text-primary, NOT the
+     white-key colour. The old alias (`var(--white-key-color)`, a light grey) stayed light on light
+     themes → carousel/setter headers were white-on-light = unreadable. Deriving from --text-primary
+     (dark on light themes, light on dark) makes every current AND future #628 theme legible with no
+     per-theme override. On the default dark theme this resolves ≈ the old #c6c9da. */
+  --text-secondary: color-mix(in srgb, var(--text-primary), var(--panel-bg) 30%);
   /* icons8 instrument icons render flat black: invert them on DARK themes (default + nocturne,
      which inherit this base value) so they read as light glyphs. Light themes override to none. */
   --instrument-icon-filter: invert(1);
@@ -720,7 +725,7 @@ path {
 
 .tab-button:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: white;
+  color: var(--text-primary); /* #628-S1: was hardcoded white -> invisible on light themes */
 }
 
 .tab-button.active {
@@ -733,7 +738,7 @@ path {
 }
 
 .tab-button.secondary:hover {
-  color: white;
+  color: var(--text-primary); /* #628-S1: was hardcoded white -> invisible on light themes */
 }
 
 .tab-label {

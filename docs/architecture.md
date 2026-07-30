@@ -5580,3 +5580,41 @@ chrome rule.
 `hooks/useAppUIState.js` (`appFont` state + attribute effect), `overlays/NoteColoringStaffOverlay.jsx`
 (font `CarouselField`), `sheet-music/CarouselFieldItem.jsx` (`.carousel-value-label` class),
 `sheet-music/SheetMusic.jsx` + `App.jsx` (thread `appFont` / `setAppFont`).
+
+### §77. Theme: light-mode readability fixes (#628 Slice 1 / #634, Han 2026-07-30)
+
+**Purpose:** the app shipped a growing set of themes but several chrome/notation colours were hardcoded to
+DARK-theme assumptions, so light themes were partly unreadable. Slice 1 of the #628 theme overhaul makes
+those colours theme-derived so they adapt to every current and future theme with no per-theme branching.
+
+**Three bugs fixed:**
+
+1. **Chromatone / subtle noteheads blended toward WHITE on light themes.** `chromatoneMix(pc, pct)` in
+   `theory/noteUtils.js` chose its mix target with `theme === 'light' ? 'black' : 'white'` — a test that
+   only recognises the ONE theme literally named `'light'`. Every OTHER light theme (meridienne, and the
+   whole #628 catalog) failed it and blended toward white → invisible noteheads. Now it blends toward
+   `var(--text-primary)` (dark on light themes, light on dark themes), correct for ALL themes with no
+   theme name in the code. The `theme` param is vestigial (callers may still pass it; it is ignored — JS
+   drops the extra arg). The same inline `theme === 'light' ? 'black' : 'white'` string was duplicated in
+   `renderMelodyNotes.jsx` (drum + perc subtle-chroma) and `SheetMusic.jsx` (`getLyricFill`); all now use
+   `var(--text-primary)`.
+
+2. **Carousel / setter headers were white-on-light.** `--text-secondary` aliased `--white-key-color` (a
+   light grey), and no light theme overrode it → headers stayed light on light backgrounds. It is now a
+   MUTED derivation of the theme text colour: `--text-secondary: color-mix(in srgb, var(--text-primary),
+   var(--panel-bg) 30%)`. Resolves ≈ the old `#c6c9da` on the default dark theme; dark-and-readable on
+   light themes. One definition covers every theme.
+
+3. **Header buttons + tab hovers hardcoded light colours.** The header icon buttons used `#88ccff` (baby
+   blue) for their inactive state (`AppHeader.jsx`) and `.tab-button:hover` / `.tab-button.secondary:hover`
+   used `color: white` — both illegible on light backgrounds. Inactive header icons now use
+   `var(--text-secondary)` (active stays `var(--accent-yellow)`); the hovers use `var(--text-primary)`.
+
+**Invariant:** no chrome or notation colour may hardcode a light/dark value or a specific theme NAME —
+resolve through `--text-primary` / `--text-secondary` / `--panel-bg` (or `chromatoneMix`) so new themes
+work for free. This is the §6c "derive, don't hardcode" rule applied to theming.
+
+**Files:** `theory/noteUtils.js` (`chromatoneMix` target + drop `theme` use), `components/sheet-music/
+renderMelodyNotes.jsx` (2 subtle-chroma inline mixes), `components/sheet-music/SheetMusic.jsx`
+(`getLyricFill` `mixTarget`), `components/layout/AppHeader.jsx` (`#88ccff` → `var(--text-secondary)`),
+`styles/App.css` (`--text-secondary` derivation + the two `color: white` hovers).

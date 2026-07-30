@@ -931,7 +931,9 @@ const renderMelodyNotes = (
           {chordNotes.map((pos, hi) => {
             const drumColorBase = drumColors ? (drumColors[pos.n] || 'var(--text-primary)') : null;
             const finalDrumColor = drumColorBase && noteColoringMode === 'subtle-chroma'
-              ? `color-mix(in srgb, ${drumColorBase}, ${theme === 'light' ? 'black' : 'white'} 60%)`
+              // #628-S1: blend toward the theme text colour, not literal white/black on a
+              // single hardcoded theme name — see chromatoneMix() in noteUtils.js.
+              ? `color-mix(in srgb, ${drumColorBase}, var(--text-primary) 60%)`
               : drumColorBase;
 
             const noteColor = previewColor
@@ -1185,7 +1187,8 @@ const renderMelodyNotes = (
       let headColor = staff === 'percussion'
         ? (percMap
           ? (noteColoringMode === 'subtle-chroma'
-            ? `color-mix(in srgb, ${percMap[normalizePC(noteWithAccidental)] || 'var(--text-primary)'}, ${theme === 'light' ? 'black' : 'white'} 60%)`
+            // #628-S1: blend toward theme text colour (see chromatoneMix in noteUtils.js).
+            ? `color-mix(in srgb, ${percMap[normalizePC(noteWithAccidental)] || 'var(--text-primary)'}, var(--text-primary) 60%)`
             : (percMap[normalizePC(noteWithAccidental)] || 'var(--text-primary)'))
           : 'var(--text-primary)')
         : getMelodicColor(concertNote);

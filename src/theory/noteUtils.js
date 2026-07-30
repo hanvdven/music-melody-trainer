@@ -289,20 +289,26 @@ export const respellToKeySignature = (note, numAccidentals) => {
 // (CLAUDE.md §6c/§6d). `activeChord` = { root, notes:[...] }.
 /**
  * Builds the chromatone colour-mix CSS string for a given pitch class, mixed `pct`%
- * toward the page colour (white on dark themes, black on light) so the chromatone
- * hue stays legible against the staff/keyboard background.
+ * toward the theme's primary TEXT colour so the chromatone hue stays legible against
+ * the staff/keyboard background on every theme.
  *
  * Why a single helper (Han 2026-06-19): the exact string
  * `color-mix(in srgb, var(--chromatone-${pc}), white|black ${pct}%)` was hand-written
  * byte-for-byte in 8 sites (noteUtils chord/subtle, renderMelodyNotes, SheetMusic,
- * RangeStaffOverlay, TranspositionSetter). All 8 used the identical
- * `theme === 'light' ? 'black' : 'white'` choice, so unifying is behaviour-preserving.
+ * RangeStaffOverlay, TranspositionSetter).
  * `pc` is the numeric pitch class (0–11) or a percussion CSS-var suffix already resolved
  * by the caller — callers pass the same value they previously interpolated.
+ *
+ * #628-S1 (Han 2026-07-30): the mix target was `theme === 'light' ? 'black' : 'white'`,
+ * which only recognised the ONE theme literally named 'light' — every OTHER light theme
+ * (meridienne, and the whole #628 catalog: marble/barley/bright-day/disco/pride…) failed
+ * the check and blended toward WHITE, making noteheads invisible on their light backgrounds.
+ * Blending toward `var(--text-primary)` (dark on light themes, light on dark themes) is
+ * correct for ALL themes with no per-theme branching. The `theme` param is now vestigial —
+ * retained only so existing callers need not change; it no longer affects the result.
  */
-export function chromatoneMix(pc, pct, theme = 'dark') {
-    const mix = theme === 'light' ? 'black' : 'white';
-    return `color-mix(in srgb, var(--chromatone-${pc}), ${mix} ${pct}%)`;
+export function chromatoneMix(pc, pct) {
+    return `color-mix(in srgb, var(--chromatone-${pc}), var(--text-primary) ${pct}%)`;
 }
 
 export const chordNoteColor = (note, activeChord, theme = 'dark') => {

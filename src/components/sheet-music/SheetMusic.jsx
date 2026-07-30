@@ -1376,7 +1376,9 @@ const SheetMusic = ({
   };
 
   const getLyricFill = (note, absoluteOffset, isPercussion = false) => {
-    const mixTarget = theme === 'light' ? 'black' : 'white';
+    // #628-S1: blend toward the theme text colour on every theme (see chromatoneMix in
+    // noteUtils.js) — the old `theme === 'light'` test only matched the one theme named 'light'.
+    const mixTarget = 'var(--text-primary)';
     if (isPercussion) {
       if (noteColoringMode === 'chromatone' || noteColoringMode === 'subtle-chroma') {
         const firstDrum = Array.isArray(note) ? note[0] : note;
