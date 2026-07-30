@@ -1,6 +1,15 @@
 import React from 'react';
 import './ThemeToggle.css';
 
+// #628-S3: icons8 theme icons live in src/assets/icons8/themes/icons8-<basename>-100.png (a SUBDIR the
+// instrument glob in constants/instruments.jsx does not cover). Vite bundles them via import.meta.glob
+// (?url). getThemeIconUrl(basename) → the hashed asset URL, or null if the asset is missing.
+const THEME_ICON_URLS = import.meta.glob('../../assets/icons8/themes/icons8-*-100.png', {
+  eager: true, query: '?url', import: 'default',
+});
+export const getThemeIconUrl = (basename) =>
+  THEME_ICON_URLS[`../../assets/icons8/themes/icons8-${basename}-100.png`] ?? null;
+
 // SINGLE SOURCE OF TRUTH for the theme list (§6c) — each theme's id + display name + category + icons8
 // icon basename + [bg, accent, panel, text] swatch colours. Exported so the in-staff notation/colour
 // theme carousel (#533) reuses it instead of duplicating the list.

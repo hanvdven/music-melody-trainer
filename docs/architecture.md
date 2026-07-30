@@ -5655,3 +5655,25 @@ adding BOTH. Category is data on the theme, never hardcoded in the carousel.
 **Files:** `components/common/ThemeToggle.jsx` (catalog + category/icon), `styles/App.css` (aliases +
 shared light rule + 15 new blocks + gradient bgs), `components/sheet-music/overlays/
 NoteColoringStaffOverlay.jsx` (`family`/`icon` on items + `familyMode`/`familyName`/`familyColor`).
+
+### §79. Theme: carousel swatch redesign — themed mini-staff with logo (#628 Slice 3 / #636, Han 2026-07-31)
+
+**Purpose / change:** the theme carousel swatch went from a 4-colour band to a themed MINI-STAFF that
+identifies each theme by its icons8 logo. Han: box in the theme background colour, staff lines in the line
+colour, the theme's logo in the accent colour, and "Aa" in the text colour.
+
+**How it works (`NoteColoringStaffOverlay.jsx` theme `renderContent`):** each swatch draws, clipped to the
+same OPAQUE brush-stroke silhouette as #533 (soft horizontal ends, tight top/bottom, no border): a `<rect>`
+in the theme's `--panel-bg` colour (`colors[2]` — the real page background), the five staff lines, the
+theme's icons8 logo (`<image>`) on the left tinted to the accent colour, and "Aa" in the text colour on the
+right. The logo tint reuses the #436 trick — an SVG `filter` (`feFlood` accent + `feComposite … in
+SourceAlpha`) floods the accent colour into the flat-black PNG's alpha. Each swatch gets unique clip/filter
+ids from `item.value`.
+
+**Theme icon assets:** `getThemeIconUrl(basename)` (exported from `ThemeToggle.jsx`) resolves
+`src/assets/icons8/themes/icons8-<basename>-100.png` via `import.meta.glob(..., '?url')`. This is a SEPARATE
+glob from the instrument icons (`constants/instruments.jsx`), which only covers the flat `assets/` dir.
+`basename` is the `icon` field on each `allThemes` entry (note theme id `vapourwave` uses icon `vaporwave`).
+
+**Files:** `components/common/ThemeToggle.jsx` (`THEME_ICON_URLS` glob + `getThemeIconUrl`),
+`components/sheet-music/overlays/NoteColoringStaffOverlay.jsx` (swatch `renderContent` redesign).

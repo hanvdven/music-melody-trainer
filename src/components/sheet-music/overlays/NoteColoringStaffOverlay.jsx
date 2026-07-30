@@ -3,7 +3,7 @@ import NonLinearCarousel from './NonLinearCarousel';
 import { MiniMelody, MINI_QUARTER } from './MiniMelody';
 import { useRevealOnInteraction } from '../../../hooks/useRevealOnInteraction';
 import { CarouselField } from '../CarouselFieldItem';
-import { allThemes } from '../../common/ThemeToggle';
+import { allThemes, getThemeIconUrl } from '../../common/ThemeToggle';
 import { useDisplaySettings } from '../../../contexts/DisplaySettingsContext';
 import { Music2, BookOpenCheck, ArrowRightFromLine, ArrowLeft, MicVocal, PencilOff } from 'lucide-react';
 
@@ -264,41 +264,53 @@ const NoteColoringStaffOverlay = ({
                     familyName={(f) => f}
                     familyColor={() => 'var(--text-secondary)'}
                     renderContent={(item) => {
-                        // #533 UAT: FOUR colour blocks that fit EXACTLY in the staff — one per staff
-                        // SPACE (lines at cy±20/±10/0), so vertically they stay tight to the staff
-                        // lines. Colours [bg, accent, panel, text]; padded to 4 for themes App.css
-                        // defines with only 2. Han UAT-2: ~50% wider, SOFT horizontal edges (like a
-                        // paint stroke) via a left/right fade mask, NO framing border. No active border
-                        // either — the carousel already dims passive items and centres the active one.
+                        // #628-S3 swatch redesign (Han 2026-07-31): from a 4-colour band to a themed
+                        // MINI-STAFF — a box in the theme's real background colour (panel-bg), the staff
+                        // lines in the line colour, the theme's icons8 LOGO tinted to the accent colour,
+                        // and "Aa" in the theme's text colour. Still clipped to the OPAQUE brush-stroke
+                        // silhouette from #533 UAT (soft horizontal ends, tight top/bottom, no border).
                         const cy = bassStart + 20;   // staff centre; lines at cy−20 … cy+20
-                        const cs = item.colors;
-                        const four = [0, 1, 2, 3].map((i) => cs[i] ?? cs[i % cs.length]);
+                        const cs = item.colors;      // [app-bg, accent, panel-bg, text]
+                        const bg = cs[2] ?? cs[0];               // the real page background
+                        const accent = cs[1] ?? 'var(--accent-yellow)';
+                        const text = cs[3] ?? 'var(--text-primary)';
                         const W = 46, T = 13;              // T = taper length at each end
                         const x0 = -W / 2, x1 = W / 2, yT = cy - 20, yB = cy + 20;
-                        const cId = `theme-swatch-${String(item.value).replace(/[^a-z0-9]/gi, '')}`;
-                        // #533 UAT-3 (Han: "geen blur — een kwaststreek-effect"): the opacity fade read
-                        // as double-vision. Instead the swatch is CLIPPED to an OPAQUE brush-stroke
-                        // silhouette — full height across the middle, tapering to a soft point at each
-                        // end (at the vertical centre) via quadratic curves — like a horizontal paint
-                        // stroke. No transparency, so no ghosting.
+                        const sid = String(item.value).replace(/[^a-z0-9]/gi, '');
+                        const cId = `theme-swatch-${sid}`;
+                        const tintId = `theme-logo-tint-${sid}`;
                         const d = `M ${x0} ${cy} Q ${x0 + T * 0.3} ${yT} ${x0 + T} ${yT}`
                             + ` L ${x1 - T} ${yT} Q ${x1 - T * 0.3} ${yT} ${x1} ${cy}`
                             + ` Q ${x1 - T * 0.3} ${yB} ${x1 - T} ${yB}`
                             + ` L ${x0 + T} ${yB} Q ${x0 + T * 0.3} ${yB} ${x0} ${cy} Z`;
+                        const iconUrl = getThemeIconUrl(item.icon);
+                        const LOGO = 26;                          // logo box size
                         return (
                             <g style={{ pointerEvents: 'none' }}>
-                                <defs><clipPath id={cId}><path d={d} /></clipPath></defs>
+                                <defs>
+                                    <clipPath id={cId}><path d={d} /></clipPath>
+                                    {/* Flood the accent colour into the flat-black icons8 PNG's alpha
+                                        (same #436 trick as the instrument setter) → an accent-coloured logo. */}
+                                    <filter id={tintId} x="0" y="0" width="100%" height="100%">
+                                        <feFlood floodColor={accent} result="flood" />
+                                        <feComposite in="flood" in2="SourceAlpha" operator="in" />
+                                    </filter>
+                                </defs>
                                 <g clipPath={`url(#${cId})`}>
-                                    {four.map((c, i) => (
-                                        <rect key={i} x={x0} y={cy - 20 + i * 10} width={W} height={10} fill={c} />
-                                    ))}
-                                    {/* #533 UAT-3 (Han): keep the staff lines ON TOP of the colours (drawn
-                                        INTO the swatch, clipped to the brush stroke) — they keep the four
-                                        colour bands crisply separated. */}
+                                    <rect x={x0} y={yT} width={W} height={yB - yT} fill={bg} />
+                                    {/* staff lines in the line colour */}
                                     {[-20, -10, 0, 10, 20].map((d2) => (
                                         <line key={d2} x1={x0} x2={x1} y1={cy + d2} y2={cy + d2}
-                                            stroke="var(--text-primary)" strokeWidth="0.5" />
+                                            stroke="var(--text-primary)" strokeWidth="0.5" strokeOpacity="0.55" />
                                     ))}
+                                    {/* LOGO (accent-tinted) on the left, "Aa" (text colour) on the right */}
+                                    {iconUrl && (
+                                        <image href={iconUrl} x={x0 + 4} y={cy - LOGO / 2}
+                                            width={LOGO} height={LOGO} filter={`url(#${tintId})`}
+                                            preserveAspectRatio="xMidYMid meet" />
+                                    )}
+                                    <text x={x1 - 12} y={cy + 6} textAnchor="middle" fontSize={17}
+                                        fontFamily="serif" fill={text}>Aa</text>
                                 </g>
                             </g>
                         );
