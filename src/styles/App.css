@@ -305,6 +305,9 @@ body,
   height: 100%;
   overflow: hidden;
   background-color: var(--panel-bg);
+  /* #532: HTML chrome inherits the app-text font (Arial by default; Academico / Finale Maestro Text
+     when the colour setter's font carousel sets --app-text-font). Music glyphs are SVG-only. */
+  font-family: var(--app-text-font, Arial, Helvetica, sans-serif);
 }
 
 * {
@@ -353,6 +356,29 @@ body {
   font-weight: bold;
   font-style: italic;
   src: url('/src/assets/fonts/AcademicoBoldItalic.otf') format('opentype');
+}
+
+/* Finale Maestro TEXT (Finale, the text companion to the Maestro NOTATION font) — the #532 app-text
+   font choice. NOT for music glyphs (those stay 'Maestro'). */
+@font-face { font-family: 'FinaleMaestroText'; font-weight: normal; font-style: normal;
+  src: url('/src/assets/fonts/FinaleMaestroText-Regular.otf') format('opentype'); }
+@font-face { font-family: 'FinaleMaestroText'; font-weight: normal; font-style: italic;
+  src: url('/src/assets/fonts/FinaleMaestroText-Italic.otf') format('opentype'); }
+@font-face { font-family: 'FinaleMaestroText'; font-weight: bold; font-style: normal;
+  src: url('/src/assets/fonts/FinaleMaestroText-Bold.otf') format('opentype'); }
+@font-face { font-family: 'FinaleMaestroText'; font-weight: bold; font-style: italic;
+  src: url('/src/assets/fonts/FinaleMaestroText-BoldItalic.otf') format('opentype'); }
+
+/* ── #532 (Han 2026-07-30): app-wide TEXT-font switch ─────────────────────────────────────────────
+   `data-app-font` on <html> swaps ALL app text — HTML chrome AND sheet-text (chord labels, note names,
+   setter labels) — to Academico or Finale Maestro Text, but NEVER the music glyphs (Maestro/Academico
+   NOTATION fonts stay). Default (no attribute) leaves every font exactly as authored. */
+:root[data-app-font='academico'] { --app-text-font: 'Academico', Georgia, serif; }
+:root[data-app-font='maestro']   { --app-text-font: 'FinaleMaestroText', Georgia, serif; }
+/* SVG sheet-text: any text on a plain serif/sans stack switches — Maestro/Academico NOTATION text is
+   excluded via :not(), so the glyphs never change. Only active when a non-default font is chosen. */
+:root[data-app-font] text[font-family*='serif']:not([font-family*='Maestro']):not([font-family*='Academico']) {
+  font-family: var(--app-text-font) !important;
 }
 
 svg {
@@ -747,7 +773,7 @@ path {
 }
 
 .bpm-text {
-  font-family: Arial, sans-serif;
+  font-family: var(--app-text-font, Arial, sans-serif);
   font-size: 24px;
   fill: var(--text-primary);
   pointer-events: none;
@@ -785,7 +811,7 @@ path {
 .measure-indicator {
   fill: var(--text-secondary);
   font-size: 16px;
-  font-family: Arial, sans-serif;
+  font-family: var(--app-text-font, Arial, sans-serif);
   pointer-events: none;
   user-select: none;
 }

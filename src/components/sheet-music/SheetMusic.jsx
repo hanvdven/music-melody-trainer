@@ -221,6 +221,8 @@ const SheetMusic = ({
   setTheme = null,          // #533: the colour setter's in-staff theme carousel switches the app theme.
   appTheme = null,          // #533: REACTIVE theme id (see the theme read below) — keeps colour + the
                             // theme carousel's activeIndex in sync after a swatch pick.
+  appFont = 'default',      // #532: current app-wide text font id ('default'|'academico'|'maestro').
+  setAppFont = null,        // #532: the colour setter's font carousel sets it.
   containerHeight = 400,
   musicalBlocks,
   startMeasureIndex = 0,
@@ -2863,6 +2865,8 @@ const SheetMusic = ({
                       activeChord={pausedActiveChord}
                       theme={theme}
                       setTheme={setTheme}
+                      appFont={appFont}
+                      setAppFont={setAppFont}
                       debugMode={debugMode}
                     />
                   )}

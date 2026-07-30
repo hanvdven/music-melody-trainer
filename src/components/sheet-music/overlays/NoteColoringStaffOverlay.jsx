@@ -14,6 +14,16 @@ import { Music2, BookOpenCheck, ArrowRightFromLine, ArrowLeft, MicVocal, PencilO
 // highlights/animation/lyrics controls restacked — a follow-up restructure.
 const THEME_ITEMS = allThemes.map((t) => ({ value: t.id, label: t.name, colors: t.colors }));
 
+// #532 (Han 2026-07-30): the app-text FONT carousel — AS IS / MAESTRO (Finale Maestro Text) /
+// ACADEMICO. Each option shows an "Aa" sample IN that font. `sample` uses a font-family that the
+// App.css switch rule leaves alone (default = no 'serif' term; the other two contain Maestro/Academico
+// which the rule's :not() excludes), so a sample always shows its OWN font.
+const FONT_ITEMS = [
+    { value: 'default', label: 'as is', sample: 'Arial, Helvetica' },
+    { value: 'maestro', label: 'maestro', sample: 'FinaleMaestroText' },
+    { value: 'academico', label: 'academico', sample: 'Academico' },
+];
+
 // ── Note-colouring menu (Han 2026-06-13, redesigned on the NonLinearCarousel primitive
 // 2026-06-17) ───────────────────────────────────────────────────────────────────────────
 // COLOUR-mode menu of every note-colour scheme, rendered the visual-redesign way (docs §37
@@ -91,6 +101,7 @@ const CTRL_HIT_TOP = -30, CTRL_HIT_H = 60, CTRL_HEADER_DY = -31;
 const NoteColoringStaffOverlay = ({
     startX, endX, trebleStart, bassStart, percussionStart, clefTreble = 'treble',
     noteColoringMode, setNoteColoringMode, tonic, scaleNotes, activeChord = null, theme, setTheme,
+    appFont = 'default', setAppFont,
     // #427 rework (Han: "COLOUR: maak een hidden carousel hiervan") — hidden reveal-on-interaction
     // like the other setters (§6d shared hook). Default on; a caller can pass false to force-expand.
     hidden = true,
@@ -286,6 +297,41 @@ const NoteColoringStaffOverlay = ({
                     staffX0={startX}
                     staffX1={endX}
                     fieldId="theme"
+                    activeFieldId={activeFieldId}
+                    onActivate={setActiveFieldId}
+                    visibleHalf={2}
+                    hidden
+                    debugMode={debugMode}
+                />
+            )}
+
+            {/* #532: FONT carousel — under the theme, on the PERCUSSION staff. Each option shows an "Aa"
+                sample in that font; picking one switches the app-wide text font via setAppFont. */}
+            {percussionStart != null && setAppFont && (
+                <CarouselField
+                    items={FONT_ITEMS}
+                    activeIndex={Math.max(0, FONT_ITEMS.findIndex((f) => f.value === appFont))}
+                    onSelect={(item) => setAppFont(item.value)}
+                    centerX={centerX}
+                    rowCenterY={percussionStart + 20}
+                    baseWidth={70}
+                    hitTop={-24}
+                    hitHeight={52}
+                    iconSize={0}
+                    iconDy={0}
+                    labelDy={38}
+                    labelFontSize={11}
+                    bracketDy={-31}
+                    headerDy={-31}
+                    labelAbove="font"
+                    renderContent={(item) => (
+                        <text x={0} y={percussionStart + 29} textAnchor="middle" fontSize={26}
+                            fontFamily={item.sample} fill="var(--text-primary)">Aa</text>
+                    )}
+                    staffLineYs={[-20, -10, 0, 10, 20].map((d) => percussionStart + 20 + d)}
+                    staffX0={startX}
+                    staffX1={endX}
+                    fieldId="font"
                     activeFieldId={activeFieldId}
                     onActivate={setActiveFieldId}
                     visibleHalf={2}

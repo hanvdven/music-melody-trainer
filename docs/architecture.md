@@ -5532,3 +5532,33 @@ App.css-defined themes.
 **Files:** `common/ThemeToggle.jsx` (export `allThemes` + 4 colours), `overlays/NoteColoringStaffOverlay.jsx`
 (theme `CarouselField` + 4-block swatch), `sheet-music/SheetMusic.jsx` + `App.jsx` (thread `setTheme` /
 `percussionStart` / reactive `appTheme`).
+
+### §76. Colour setter: app-wide TEXT font carousel (#532, Han 2026-07-30)
+
+**Purpose:** part of #501 — switch the app-wide TEXT font (AS IS / MAESTRO / ACADEMICO) from the colour
+setter, WITHOUT ever touching the music glyphs. Han: "voeg de twee nieuwe fonts app-wide toe; html-chrome,
+sheet-tekst, maar niet de noten."
+
+**Mechanism (the hard part — the app has no central font declaration):** a `data-app-font` attribute on
+`<html>` (set by `useAppUIState`, same pattern as `data-theme`) drives CSS in `App.css`:
+
+- `:root[data-app-font='academico'|'maestro'] { --app-text-font: … }` picks the font (Academico, or the
+  newly-`@font-face`'d `FinaleMaestroText`).
+- HTML CHROME inherits it: `#root { font-family: var(--app-text-font, Arial…) }` and the explicit `Arial`
+  rules now read `var(--app-text-font, Arial…)`.
+- SVG SHEET-TEXT switches via an ATTRIBUTE selector that catches plain serif/sans text but EXCLUDES the
+  notation fonts: `:root[data-app-font] text[font-family*='serif']:not([font-family*='Maestro'])
+  :not([font-family*='Academico']) { font-family: var(--app-text-font) !important; }`. So chord labels /
+  note names / setter labels switch, while every `Maestro` (incl. `"Maestro, serif"`) and `Academico`
+  notation glyph is left untouched. Default (no attribute) leaves ALL fonts exactly as authored.
+
+**UI:** a hidden `CarouselField` on the percussion staff (centred, under the theme carousel), each option
+an "Aa" sample rendered in its own font. Threaded `App → SheetMusic → NoteColoringStaffOverlay` as
+`appFont` / `setAppFont`.
+
+**Invariant:** music notation NEVER changes font — enforced by the `:not([font-family*='Maestro'])` /
+`:not([font-family*='Academico'])` exclusions on the only rule that touches SVG text.
+
+**Files:** `styles/App.css` (`@font-face` FinaleMaestroText + the `data-app-font` switch rules + `#root` /
+Arial → `var`), `hooks/useAppUIState.js` (`appFont` state + attribute effect), `overlays/NoteColoringStaffOverlay.jsx`
+(font `CarouselField`), `sheet-music/SheetMusic.jsx` + `App.jsx` (thread `appFont` / `setAppFont`).

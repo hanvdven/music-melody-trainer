@@ -24,6 +24,15 @@ export default function useAppUIState() {
         else document.documentElement.setAttribute('data-theme', theme);
     }, [theme]);
 
+    // #532: app-wide TEXT font ('default' | 'academico' | 'maestro'). The `data-app-font` attribute on
+    // <html> drives the CSS in App.css (--app-text-font); music glyphs stay Maestro. Same pattern as
+    // theme above.
+    const [appFont, setAppFont] = useState('default');
+    useEffect(() => {
+        if (appFont === 'default') document.documentElement.removeAttribute('data-app-font');
+        else document.documentElement.setAttribute('data-app-font', appFont);
+    }, [appFont]);
+
     const [customScaleLabel, setCustomScaleLabel] = useState(null);
     const [isModulationEnabled, setIsModulationEnabled] = useState(true);
     const [isSimpleView, setIsSimpleView] = useState(true);
@@ -102,6 +111,7 @@ export default function useAppUIState() {
         generatorMode, setGeneratorMode,
         activePreset, setActivePreset,
         theme, setTheme,
+        appFont, setAppFont,
         customScaleLabel, setCustomScaleLabel,
         isModulationEnabled, setIsModulationEnabled,
         isSimpleView, setIsSimpleView,

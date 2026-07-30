@@ -156,6 +156,7 @@ const App = () => {
         generatorMode, setGeneratorMode,
         activePreset, setActivePreset,
         theme, setTheme,
+        appFont, setAppFont,
         customScaleLabel, setCustomScaleLabel,
         isModulationEnabled, setIsModulationEnabled,
         isSimpleView, setIsSimpleView,
@@ -1765,6 +1766,9 @@ const App = () => {
                             // activeIndex would stay stale — after a swatch pick).
                             setTheme={setTheme}
                             appTheme={theme}
+                            // #532: the colour setter's font carousel switches the app-wide text font.
+                            appFont={appFont}
+                            setAppFont={setAppFont}
                         />
                     </ErrorBoundary>
                 </div>
