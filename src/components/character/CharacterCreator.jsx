@@ -10,16 +10,24 @@ import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/charac
 // width never distorts it (fixes the ear drift). Saved to localStorage across sessions.
 
 const SCALE = 4.5;                  // preview zoom (80x64 * 4.5) — fills the central chest slot
-const PET_OFFSET = { x: 40, y: 24 };   // pet beside the hero (native px; the doll flip mirrors it to the side)
-const PET_COLS = 4, EFFECT_COLS = 5;   // frames in the pet/effect row-0 loops (own sheets)
+// Pet sits beside the hero with its PAWS on the ground line. The pet frame is 32 tall and its paws are at
+// its bottom edge; the char's feet are at y63 of the 64px body frame → put the pet's bottom at 63 (top 31).
+const PET_OFFSET = { x: 40, y: 31 };
+const EFFECT_COLS = 5;              // frames in the effect row-0 loop
+// Pet sheets are 6x2 (32x32): row 0 = idle (5 frames), row 1 = run (6). Wisp is a single row (no run).
+const PET_IDLE = 5, PET_RUN = 6;
 
-// backgroundPosition for one frame: col from the animation, row from the animation. Pet/effect keep their
-// own single-row loops (their sheets don't share the 7-row body layout).
-const layerStyle = (url, cat, frame, anim) => {
+// backgroundPosition for one frame: col + row from the animation. Pet plays its RUN row when the character
+// walks/runs (Han); effects keep their own single-row loop.
+const layerStyle = (url, cat, frame, anim, name) => {
     const f = frameOf(cat);
     let col = frame % anim.frames, row = anim.row;
-    if (cat === 'pet') { col = frame % PET_COLS; row = 0; }
-    else if (cat === 'effect') { col = frame % EFFECT_COLS; row = 0; }
+    if (cat === 'pet') {
+        const canRun = !/wisp/i.test(name || '');
+        const running = canRun && (anim.key === 'walk' || anim.key === 'run');
+        row = running ? 1 : 0;
+        col = frame % (running ? PET_RUN : PET_IDLE);
+    } else if (cat === 'effect') { col = frame % EFFECT_COLS; row = 0; }
     return {
         position: 'absolute',
         left: cat === 'pet' ? PET_OFFSET.x : 0,
@@ -31,9 +39,7 @@ const layerStyle = (url, cat, frame, anim) => {
         backgroundPosition: `${-col * f.w}px ${-row * f.h}px`,
         backgroundSize: 'auto',           // NATIVE sheet size → step works for any sheet width
         imageRendering: 'pixelated',
-        // Extra flip so the pet faces the SAME way (right) as the char inside the flipped doll.
-        transform: cat === 'pet' ? 'scaleX(-1)' : undefined,
-        transformOrigin: 'center',
+        // pet now flips WITH the doll (no extra flip) → it was reversed the other way (Han).
     };
 };
 
@@ -135,8 +141,9 @@ export default function CharacterCreator({ onClose }) {
             <div style={{ width: BODY_FRAME.w, height: BODY_FRAME.h, transform: `scale(${SCALE})`, transformOrigin: 'top left' }}>
                 <div style={{ position: 'absolute', inset: 0, transform: 'scaleX(-1)' }}>
                     {zOrder.map((c) => {
-                        const url = urlOfLayer(c.key, char.layers[c.key]);
-                        return url ? <div key={c.key} style={layerStyle(url, c.key, frame, anim)} /> : null;
+                        const layer = char.layers[c.key];
+                        const url = urlOfLayer(c.key, layer);
+                        return url ? <div key={c.key} style={layerStyle(url, c.key, frame, anim, layer?.name)} /> : null;
                     })}
                 </div>
             </div>
