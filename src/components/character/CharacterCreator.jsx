@@ -37,15 +37,16 @@ const layerStyle = (url, cat, frame, anim) => {
     };
 };
 
-// A cropped thumbnail (frame 0) of one part — scaled UP so the small sprite fills the cell (Han: bigger).
-const thumbStyle = (url, cat) => {
+// A cropped thumbnail (frame 0) of one part. `mult` scales it (1 = grid; ~0.55 = the small equipment slot).
+// scaleX(-1) → faces RIGHT like the preview (Han). Fit-not-crop zoom so an item's top/bottom isn't cut.
+const thumbStyle = (url, cat, mult = 1) => {
     const f = frameOf(cat);
+    const base = (cat === 'pet' ? 1.8 : 1.1) * mult;
     return {
         width: f.w, height: f.h,
         backgroundImage: `url("${url}")`, backgroundRepeat: 'no-repeat',
         backgroundPosition: '0 0', backgroundSize: 'auto', imageRendering: 'pixelated',
-        // scaleX(-1) → faces RIGHT like the preview (Han). Fit-not-crop zoom so an item's top/bottom isn't cut.
-        transform: cat === 'pet' ? 'scale(-1.8, 1.8)' : 'scale(-1.1, 1.1)',
+        transform: `scale(${-base}, ${base})`,
     };
 };
 
@@ -170,11 +171,19 @@ export default function CharacterCreator({ onClose }) {
                             onChange={(e) => patch({ birthday: e.target.value })} />
                     </div>
 
-                    <div className="cc-tabs">
-                        {CATEGORIES.map((c) => (
-                            <button key={c.key} className={`cc-tab${activeCat === c.key ? ' active' : ''}`}
-                                onClick={() => setActiveCat(c.key)}>{c.label}</button>
-                        ))}
+                    {/* Diablo-style EQUIPMENT SLOTS (Han): each slot shows the equipped item; click to edit it. */}
+                    <div className="cc-slots">
+                        {CATEGORIES.map((c) => {
+                            const url = urlOfLayer(c.key, char.layers[c.key]);
+                            return (
+                                <button key={c.key} title={c.label}
+                                    className={`cc-slot${activeCat === c.key ? ' active' : ''}${url ? ' filled' : ''}`}
+                                    onClick={() => setActiveCat(c.key)}>
+                                    {url ? <div className="cc-slot-icon" style={thumbStyle(url, c.key, 0.55)} /> : null}
+                                    <span className="cc-slot-label">{c.label}</span>
+                                </button>
+                            );
+                        })}
                     </div>
 
                     {/* variant setter — a COLOUR swatch per colour/material variant (Han: a colour, not text) */}
