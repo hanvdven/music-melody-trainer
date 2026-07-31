@@ -189,6 +189,12 @@ export default function NonLinearCarousel({
     // omits it → default VISIBLE_HALF (2) → 5 visible (unchanged). Drives the fade edge, the
     // tap-hit visibility cut-off, and the hit-surface width below.
     visibleHalf = VISIBLE_HALF,
+    // #628-S5 (Han): keep each item's HEIGHT fixed while it still shrinks horizontally toward the edges.
+    // The theme carousel's swatch is a mini-STAFF (bg rect + staff lines) that must always be exactly one
+    // staff tall so it lines up with the real staff during a drag; the uniform edge-scale would squash it
+    // vertically. When true, the per-item transform scales X only (`scale(s, 1)`), so the staff lines stay
+    // at their authored Y and the bg fills the staff. Default false → unchanged uniform scaling.
+    fixedItemHeight = false,
 }) {
     // Unique id per instance for the SVG edge-mask <defs> (multiple carousels coexist on one staff
     // surface, so a shared id would collide). React.useId is stable across renders + SSR-safe.
@@ -271,7 +277,8 @@ export default function NonLinearCarousel({
             // card toward the SAME horizontal line; no item drifts vertically as it shrinks.
             // X origin stays 0 (the item's authored horizontal origin, where translate(x) places it).
             const baselineY = y + height / 2;
-            g.style.transform = `translate(${x}px, 0px) scale(${s})`;
+            // #628-S5: fixedItemHeight scales X only so mini-staff swatches keep exactly one staff height.
+            g.style.transform = fixedItemHeight ? `translate(${x}px, 0px) scale(${s}, 1)` : `translate(${x}px, 0px) scale(${s})`;
             g.style.transformOrigin = `0px ${baselineY}px`;
             g.style.opacity = String(op);
         }

@@ -334,6 +334,7 @@ const NoteColoringStaffOverlay = ({
                     onActivate={setActiveFieldId}
                     visibleHalf={2}
                     hidden
+                    fixedItemHeight
                     debugMode={debugMode}
                 />
             )}

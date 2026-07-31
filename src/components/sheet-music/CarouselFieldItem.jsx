@@ -238,6 +238,9 @@ export const CarouselField = ({
   fieldId = null,
   activeFieldId = null,
   onActivate = null,
+  // #628-S5: pass-through to NonLinearCarousel — scale items on X only so mini-staff swatches keep a
+  // fixed (one-staff) height while dragging. Opt-in; only the theme carousel sets it.
+  fixedItemHeight = false,
   debugMode = false,
 }) => {
   // #394a / #398 / #428: reveal-on-interaction state machine (moved up in #493 so the OPEN state can
@@ -415,6 +418,7 @@ export const CarouselField = ({
         mountAllItems={mountAllItems}
         onReveal={hidden ? onReveal : undefined}
         visibleHalf={VISIBLE_HALF}
+        fixedItemHeight={fixedItemHeight}
         debugMode={debugMode}
       />
     </g>
