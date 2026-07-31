@@ -246,7 +246,7 @@ const NoteColoringStaffOverlay = ({
                     onSelect={(item) => setTheme(item.value)}
                     centerX={centerX}
                     rowCenterY={bassStart + 20}
-                    baseWidth={74}
+                    baseWidth={84}
                     hitTop={-24}
                     hitHeight={52}
                     iconSize={0}
@@ -274,15 +274,17 @@ const NoteColoringStaffOverlay = ({
                         const bg = cs[2] ?? cs[0];               // the real page background
                         const accent = cs[1] ?? 'var(--accent-yellow)';
                         const text = cs[3] ?? 'var(--text-primary)';
-                        // #636 UAT (Han 2026-07-31): ~1.5× wider (46→68) so the logo can be near full
-                        // staff height. RECTANGULAR now (the old brush-stroke taper clipped the logo,
-                        // Han: "maak themasetter rechthoekig") — no clipPath. Staff lines drawn LAST
-                        // (over logo + Aa) at the EXACT real-staff stroke (0.5, --text-primary, no
-                        // opacity) so they look continuous with the rest of the staff.
-                        const W = 68;
+                        // #636 UAT (Han 2026-07-31): wider still (→78) and rectangular (no clip). The SIDES
+                        // (left/right only, not top/bottom) get a ~6px soft fade — a horizontal mask — so
+                        // the swatch has soft "verfstreek" edges WITHOUT the taper clip that cut the logo.
+                        // Staff lines drawn LAST at the exact real-staff stroke (0.5, --text-primary) so
+                        // they read continuous with the rest of the staff.
+                        const W = 78, FADE = 6 / W;               // 6px soft edge each side
                         const x0 = -W / 2, x1 = W / 2, yT = cy - 20, yB = cy + 20;
                         const sid = String(item.value).replace(/[^a-z0-9]/gi, '');
                         const tintId = `theme-logo-tint-${sid}`;
+                        const fadeId = `theme-swatch-fade-${sid}`;
+                        const maskId = `theme-swatch-mask-${sid}`;
                         const iconUrl = getThemeIconUrl(item.icon);
                         const LOGO = 38;                          // logo near full staff height
                         return (
@@ -294,8 +296,18 @@ const NoteColoringStaffOverlay = ({
                                         <feFlood floodColor={accent} result="flood" />
                                         <feComposite in="flood" in2="SourceAlpha" operator="in" />
                                     </filter>
+                                    {/* 6px soft fade on the LEFT/RIGHT edges only (horizontal gradient mask). */}
+                                    <linearGradient id={fadeId} x1="0" y1="0" x2="1" y2="0">
+                                        <stop offset="0" stopColor="white" stopOpacity="0" />
+                                        <stop offset={FADE} stopColor="white" stopOpacity="1" />
+                                        <stop offset={1 - FADE} stopColor="white" stopOpacity="1" />
+                                        <stop offset="1" stopColor="white" stopOpacity="0" />
+                                    </linearGradient>
+                                    <mask id={maskId}>
+                                        <rect x={x0} y={yT} width={W} height={yB - yT} fill={`url(#${fadeId})`} />
+                                    </mask>
                                 </defs>
-                                <g>
+                                <g mask={`url(#${maskId})`}>
                                     <rect x={x0} y={yT} width={W} height={yB - yT} fill={bg} />
                                     {/* LOGO (accent-tinted) on the left, "Aa" (text colour) on the right */}
                                     {iconUrl && (

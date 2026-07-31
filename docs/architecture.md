@@ -5689,16 +5689,15 @@ of the staff instead of a lighter seam behind the logo.
 (header + sheet) is transparent over `#root`, but the first-pass gradients were too subtle, and pride
 lacked a recognisable flag. Slice 4 makes the special themes unmistakable.
 
-**How it works (`App.css`, "#628-S5 Special BACKGROUNDS") — UPDATED S5 (Han 2026-07-31):** the special
-backgrounds now live on **`.app-top-wrapper`** (`AppLayout.css`) so they are FULL-BLEED over the top area
-— header + sub-header + the sheet and its margins — but NOT the bottom control panel (a sibling in
-`.app-root`, which keeps its solid `--panel-bg`; Han: not on the bottom view). `.app-top-wrapper`'s own
-`background-color: var(--bg-primary)` is undefined → transparent → showed `.app-root`'s `--panel-bg`; the
-special rules override its `background`. Earlier attempts on `#root` (covered by `.app-root`'s opaque
-`--panel-bg`) and on `.sheet-surface` (clipped to the staff box, stopping at the margins) were both wrong.
-The background is set on the ELEMENT'S OWN `background` (never a pseudo / negative z-index) so it paints
-behind the content with no stacking-context risk to popups; the notation SVG is transparent so it shows
-behind every staff and note.
+**How it works (`App.css`, "#628-S5 Special BACKGROUNDS") — UPDATED (Han 2026-07-31):** the special
+backgrounds live on **`.app-root`** (`AppLayout.css`, normally `background-color: var(--panel-bg)`). This
+makes them full-bleed over the top area (the transparent `.app-top-wrapper` shows `.app-root` through) AND
+fills the ROUNDED-CORNER slivers behind the bottom panel (Han: "het halfronde hoekje moet mee in de
+achtergrond"). The bottom control panel is an opaque child of `.app-root`, so it covers `.app-root` in the
+bottom view — the pattern is NOT on the controls. Earlier attempts on `#root` (covered by `.app-root`),
+`.sheet-surface` (clipped to the staff box), and `.app-top-wrapper` (missed the corner slivers) were all
+superseded. The background is the ELEMENT'S OWN `background` (never a pseudo / negative z-index → no
+stacking-context risk to popups); the notation SVG is transparent so it shows behind every staff and note.
 
 - **Pride Light / Pride Dark:** SOFT blurred rainbow bands (smooth blend, no hard stops) tilted ~10°
   (`linear-gradient(172deg, …)`); light = subtle pastel, dark = deep + muted. (TODO next batch: the
