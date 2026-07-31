@@ -35,6 +35,7 @@ export const allThemes = [
   { id: 'sunset',     name: 'Sunset',      category: 'Dark',      icon: 'field',          colors: ['#241018', '#ff8c42', '#3a1c2a', '#ffe6d0'] },
   { id: 'stars',      name: 'Stars',       category: 'Dark',      icon: 'shooting-stars', colors: ['#0b1020', '#d4af37', '#222c40', '#e6e8ef'] },
   { id: 'museum',     name: 'Museum',      category: 'Dark',      icon: 'exhibition',     colors: ['#0e2a47', '#f2c94c', '#163a5f', '#f0e6d2'] },
+  { id: 'marble-dark',name: 'Marble (Dark)',category: 'Dark',     icon: 'bust',           colors: ['#151518', '#9a9aa6', '#1c1c20', '#e4e4ea'] },
   // Elemental
   { id: 'clover',     name: 'Clover',      category: 'Elemental', icon: 'clover',         colors: ['#0d2016', '#5fbf6a', '#16321f', '#e2f2e4'] },
   { id: 'river',      name: 'River',       category: 'Elemental', icon: 'water-element',  colors: ['#08202b', '#3fb6c9', '#103440', '#dff0f4'] },

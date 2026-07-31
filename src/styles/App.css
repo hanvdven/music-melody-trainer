@@ -1169,6 +1169,7 @@ path {
 /* — Dark (inherit :root dark keyboard/note defaults; base colours only) — */
 :root[data-theme='sunset']     { --app-bg: #241018; --panel-bg: #3a1c2a; --text-primary: #ffe6d0; --accent-yellow: #ff8c42; }
 :root[data-theme='museum']     { --app-bg: #0e2a47; --panel-bg: #163a5f; --text-primary: #f0e6d2; --accent-yellow: #f2c94c; }
+:root[data-theme='marble-dark']{ --app-bg: #151518; --panel-bg: #1c1c20; --text-primary: #e4e4ea; --accent-yellow: #9a9aa6; }
 :root[data-theme='clover']     { --app-bg: #0d2016; --panel-bg: #16321f; --text-primary: #e2f2e4; --accent-yellow: #5fbf6a; }
 :root[data-theme='river']      { --app-bg: #08202b; --panel-bg: #103440; --text-primary: #dff0f4; --accent-yellow: #3fb6c9; }
 :root[data-theme='lava']       { --app-bg: #2e1310; --panel-bg: #451a15; --text-primary: #ffe0d6; --accent-yellow: #ff6a3d; }
@@ -1185,9 +1186,14 @@ path {
    (a child of `.app-root`) covers `.app-root` in the bottom view, so the pattern is NOT on the controls.
    Element-own `background`, no pseudo/z-index. Panel-derived text vars keep the notes legible. */
 
-/* PRIDE — soft BLURRED rainbow bands, tilted ~10° (Han: perfect). TODO next batch: Progress chevron+circle. */
-:root[data-theme='pride-light'] .app-root { background: linear-gradient(172deg, #e7b0ab, #ecc79f, #ecdfa2, #b9dab6, #accae0, #c8b2dd); }
-:root[data-theme='pride-dark'] .app-root { background: linear-gradient(172deg, #4e1616, #52300f, #4e4510, #123f1c, #12294e, #2c134d); }
+/* PRIDE — soft BLURRED rainbow bands, tilted ~10°. Applied to BOTH .app-root (fills the corner sliver)
+   AND .app-top-wrapper — the latter is the TOP-AREA box, so the 6 stripes fit within the visible sheet
+   view and the WHOLE flag is seen on a tall mobile portrait (Han: on portrait only red/yellow/green showed
+   because the full-height .app-root flag ran off-screen). TODO next batch: Progress chevron + circle. */
+:root[data-theme='pride-light'] .app-root,
+:root[data-theme='pride-light'] .app-top-wrapper { background: linear-gradient(172deg, #e7b0ab, #ecc79f, #ecdfa2, #b9dab6, #accae0, #c8b2dd); }
+:root[data-theme='pride-dark'] .app-root,
+:root[data-theme='pride-dark'] .app-top-wrapper { background: linear-gradient(172deg, #4e1616, #52300f, #4e4510, #123f1c, #12294e, #2c134d); }
 
 /* VAPOURWAVE — colours kept (Han: perfect); a bit more tilted; subtle L↔R drift. */
 :root[data-theme='vapourwave'] .app-root {
@@ -1197,35 +1203,46 @@ path {
 }
 @keyframes vw-drift { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
 
-/* DISCO — fewer, LARGER mirror-ball facets that mix ADDITIVELY (Han: "regels voor licht, niet verf" →
-   `background-blend-mode: screen`) and drift SLOWLY. */
+/* DISCO — mirror-ball facets that mix ADDITIVELY (Han: "regels voor licht, niet verf" →
+   `background-blend-mode: screen`). Base is a MEDIUM lavender (darker than --panel-bg) so the screened
+   light actually shows, yet still light-mode. First layer = small WHITE specks that drift left→right
+   (fast) like a mirror-ball's reflections; the coloured facets drift slowly. */
 :root[data-theme='disco'] .app-root {
   background:
-    radial-gradient(circle at 26% 26%, rgba(150, 90, 210, 0.42) 0 14%, transparent 15%),
-    radial-gradient(circle at 72% 42%, rgba(60, 150, 214, 0.40) 0 13%, transparent 14%),
-    radial-gradient(circle at 46% 78%, rgba(224, 70, 130, 0.38) 0 12%, transparent 13%),
-    var(--panel-bg);
-  background-size: 200% 200%, 230% 230%, 210% 210%, auto;
-  background-blend-mode: screen, screen, screen, normal;
+    radial-gradient(circle, rgba(255, 255, 255, 0.6) 0 1.4px, transparent 2.6px),
+    radial-gradient(circle at 26% 26%, rgba(185, 120, 240, 0.55) 0 14%, transparent 15%),
+    radial-gradient(circle at 72% 42%, rgba(90, 175, 240, 0.5) 0 13%, transparent 14%),
+    radial-gradient(circle at 46% 78%, rgba(240, 95, 160, 0.5) 0 12%, transparent 13%),
+    #9e92c0;
+  background-size: 46px 46px, 200% 200%, 230% 230%, 210% 210%, auto;
+  background-blend-mode: screen, screen, screen, screen, normal;
   animation: disco-drift 60s ease-in-out infinite alternate;
 }
 @keyframes disco-drift {
-  from { background-position: 0% 0%, 100% 0%, 50% 100%, 0 0; }
-  to   { background-position: 55% 45%, 40% 75%, 20% 30%, 0 0; }
+  from { background-position: 0 0, 0% 0%, 100% 0%, 50% 100%, 0 0; }
+  to   { background-position: 640px 0, 55% 45%, 40% 75%, 20% 30%, 0 0; }
 }
 
-/* MARBLE — Han: the earlier soft version was nicer; just make the lines less straight. Soft cloudy fade +
-   3 dark BLURRY veins + 2 bright-WHITE veins, each a WIDE soft band at a slightly different angle. */
+/* MARBLE — Han: straight gradient lines never look organic; use ORGANIC feTurbulence veins, but sparse &
+   bold (threshold in feColorMatrix so only the noise peaks become veins) at a LARGE scale — not the
+   earlier scratchy hundreds-of-lines. Soft cloudy radial fades underneath. (For photo-real marble Han can
+   drop his reference images into src/assets/textures/ and we swap these to `url(...)`.) */
 :root[data-theme='marble'] .app-root {
-  background-color: #eceaee;
+  background-color: #f1eff3;
   background-image:
-    linear-gradient(108deg, transparent 40%, rgba(255, 255, 255, 0.55) 46%, transparent 52%),
-    linear-gradient(133deg, transparent 58%, rgba(255, 255, 255, 0.42) 63%, transparent 69%),
-    linear-gradient(112deg, transparent 25%, rgba(96, 88, 98, 0.30) 32%, transparent 40%),
-    linear-gradient(123deg, transparent 51%, rgba(96, 88, 98, 0.26) 58%, transparent 66%),
-    linear-gradient(101deg, transparent 70%, rgba(96, 88, 98, 0.22) 76%, transparent 85%),
-    radial-gradient(ellipse at 22% 28%, rgba(160, 150, 158, 0.28), transparent 48%),
-    radial-gradient(ellipse at 76% 66%, rgba(150, 142, 150, 0.22), transparent 54%);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.010 0.016' numOctaves='4' seed='9'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.48 0 0 0 0 0.47 0 0 0 0 0.5 0 0 0 7 -4.1'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23m)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 30% 25%, rgba(210, 205, 214, 0.40), transparent 55%),
+    radial-gradient(ellipse at 74% 70%, rgba(205, 200, 210, 0.34), transparent 58%);
+  background-size: 1000px 1000px, auto, auto;
+}
+/* MARBLE DARK — same organic veins, LIGHTER grey on a near-black stone (Han: "voeg marble dark toe"). */
+:root[data-theme='marble-dark'] .app-root {
+  background-color: #17171b;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='md'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.010 0.016' numOctaves='4' seed='5'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.6 0 0 0 0 0.6 0 0 0 0 0.66 0 0 0 6 -3.5'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23md)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 30% 28%, rgba(80, 80, 92, 0.34), transparent 56%),
+    radial-gradient(ellipse at 74% 70%, rgba(70, 70, 82, 0.28), transparent 58%);
+  background-size: 1000px 1000px, auto, auto;
 }
 
 /* PETS — Han: too busy; use the plain icons8 icon, subtler, a colour CLOSE to the bg. The tiled flat-black
