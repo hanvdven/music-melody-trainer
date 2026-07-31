@@ -5751,10 +5751,12 @@ shared}/<category>/` — `male|female/{hair,ears,hands,handitems,clothing,hats,a
 back,masks,effects}` (skin files are gender-named). Non-character folders (NPC, platformer, enemies, pet,
 hp bar, emojis, warrior base) stay in the original `RGPAssets_by_GandalfHardcore` dir.
 
-**Sprite framing (key fact):** the parts are 800×448 sprite SHEETS (an 8×4 grid of 100×112 frames), NOT
-single images. The creator composites FRAME 0 (top-left idle-front) of each layer. Geometry is one tunable
-constant `FRAME` in `characterAssets.js`. Effects are a different 400×64 sheet → rendered whole, not
-frame-cropped.
+**Sprite framing (key fact):** the parts are 800×448 sprite SHEETS. MEASURED (PIL alpha analysis) as a
+**10-col × 7-row grid of 80×64 frames**; **row 0 is the idle animation** (frames 0–4 have content, 5–9
+empty). The creator composites one frame of each layer and cycles the idle frames (~6 fps) in the preview;
+thumbnails stay on frame 0. Geometry is one tunable constant `FRAME = {w:80,h:64,cols:10,rows:7,idle:5}` in
+`characterAssets.js`. The doll is `scaleX(-1)` so the character faces RIGHT. Effects are a different 400×64
+sheet → rendered whole.
 
 **How it works:**
 - `model/characterAssets.js` — `import.meta.glob` the parts; `CATEGORIES` (order == paper-doll z-order,
