@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import './CharacterCreator.css';
-import { CATEGORIES, IDLE, BODY_FRAME, frameOf, basesFor, urlOfLayer, variantColor, counterpart } from '../../model/characterAssets';
+import { CATEGORIES, ANIMATIONS, BODY_FRAME, frameOf, basesFor, urlOfLayer, variantColor, counterpart } from '../../model/characterAssets';
 import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/characterProfile';
 
 // #645 POC character creator (v2, Han). LEFT: live paper-doll (layers stacked in z-order, one sprite frame
@@ -10,11 +10,16 @@ import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/charac
 // width never distorts it (fixes the ear drift). Saved to localStorage across sessions.
 
 const SCALE = 6;                    // preview zoom (80x64 * 6)
-const PET_OFFSET = { x: 40, y: 30 };   // pet stands just behind, to the (native-left, becomes right) side
+const PET_OFFSET = { x: 40, y: 24 };   // pet beside the hero (native px; the doll flip mirrors it to the side)
+const PET_COLS = 4, EFFECT_COLS = 5;   // frames in the pet/effect row-0 loops (own sheets)
 
-const layerStyle = (url, cat, frame, animate) => {
+// backgroundPosition for one frame: col from the animation, row from the animation. Pet/effect keep their
+// own single-row loops (their sheets don't share the 7-row body layout).
+const layerStyle = (url, cat, frame, anim) => {
     const f = frameOf(cat);
-    const idx = animate ? frame % IDLE : 0;
+    let col = frame % anim.frames, row = anim.row;
+    if (cat === 'pet') { col = frame % PET_COLS; row = 0; }
+    else if (cat === 'effect') { col = frame % EFFECT_COLS; row = 0; }
     return {
         position: 'absolute',
         left: cat === 'pet' ? PET_OFFSET.x : 0,
@@ -23,10 +28,10 @@ const layerStyle = (url, cat, frame, animate) => {
         height: f.h,
         backgroundImage: `url("${url}")`,
         backgroundRepeat: 'no-repeat',
-        backgroundPosition: `${-idx * f.w}px 0px`,
-        backgroundSize: 'auto',           // NATIVE sheet size → step by f.w works for any sheet width
+        backgroundPosition: `${-col * f.w}px ${-row * f.h}px`,
+        backgroundSize: 'auto',           // NATIVE sheet size → step works for any sheet width
         imageRendering: 'pixelated',
-        // The pet gets an extra flip so it faces the SAME way (right) as the char inside the flipped doll.
+        // Extra flip so the pet faces the SAME way (right) as the char inside the flipped doll.
         transform: cat === 'pet' ? 'scaleX(-1)' : undefined,
         transformOrigin: 'center',
     };
@@ -39,7 +44,7 @@ const thumbStyle = (url, cat) => {
         width: f.w, height: f.h,
         backgroundImage: `url("${url}")`, backgroundRepeat: 'no-repeat',
         backgroundPosition: '0 0', backgroundSize: 'auto', imageRendering: 'pixelated',
-        transform: cat === 'pet' ? 'scale(2.4)' : 'scale(1.5)',
+        transform: cat === 'pet' ? 'scale(2.2)' : 'scale(1.25)',   // less zoom → don't crop the item's top (Han)
     };
 };
 
@@ -48,12 +53,13 @@ export default function CharacterCreator({ onClose }) {
     const [activeCat, setActiveCat] = useState('skin');
     const [saved, setSaved] = useState(false);
     const [frame, setFrame] = useState(0);
-    const [animOn, setAnimOn] = useState(true);   // Han: toggle the idle animation
+    const [animKey, setAnimKey] = useState('rest');   // Han: buttons for rest/walk/attack/death/…
+    const anim = ANIMATIONS.find((a) => a.key === animKey) || ANIMATIONS[0];
     useEffect(() => {
-        if (!animOn) return undefined;
-        const id = setInterval(() => setFrame((f) => (f + 1) % IDLE), 170);
+        setFrame(0);
+        const id = setInterval(() => setFrame((f) => (f + 1) % anim.frames), 150);
         return () => clearInterval(id);
-    }, [animOn]);
+    }, [anim.frames, animKey]);
 
     const gender = char.gender;
     const bases = useMemo(() => basesFor(activeCat, gender), [activeCat, gender]);
@@ -119,15 +125,19 @@ export default function CharacterCreator({ onClose }) {
                             <div style={{ position: 'absolute', inset: 0, transform: 'scaleX(-1)' }}>
                                 {zOrder.map((c) => {
                                     const url = urlOfLayer(c.key, char.layers[c.key]);
-                                    return url ? <div key={c.key} style={layerStyle(url, c.key, frame, animOn)} /> : null;
+                                    return url ? <div key={c.key} style={layerStyle(url, c.key, frame, anim)} /> : null;
                                 })}
                             </div>
                         </div>
                     </div>
                     <div className="cc-level">LVL {char.level}</div>
-                    <button className="cc-btn cc-anim" onClick={() => setAnimOn((a) => !a)}>
-                        {animOn ? '⏸ Anim' : '▶ Anim'}
-                    </button>
+                    {/* animation picker (Han): rest / walk / run / attack / … / death */}
+                    <div className="cc-anims">
+                        {ANIMATIONS.map((a) => (
+                            <button key={a.key} className={`cc-anim${animKey === a.key ? ' active' : ''}`}
+                                onClick={() => setAnimKey(a.key)}>{a.label}</button>
+                        ))}
+                    </div>
                 </div>
 
                 {/* RIGHT — controls */}

@@ -133,7 +133,17 @@
 }
 .cc-swatch.active { border-color: var(--accent-yellow); box-shadow: 0 0 0 2px var(--accent-yellow); }
 
-.cc-anim { padding: 4px 12px; font-size: 12px; }
+.cc-anims { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; max-width: 320px; }
+.cc-anim {
+  padding: 4px 9px;
+  font-size: 11px;
+  background-color: color-mix(in srgb, var(--panel-bg), var(--text-primary) 12%);
+  color: var(--text-primary);
+  border: 1px solid var(--text-dim);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.cc-anim.active { background-color: var(--accent-yellow); color: #000; border-color: var(--accent-yellow); }
 
 /* M/F watermark on a wrong-gender item (Han's interchangeability test) */
 .cc-wm {

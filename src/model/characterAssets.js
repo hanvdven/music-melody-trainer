@@ -12,7 +12,19 @@ const FILES = import.meta.glob('../assets/character/**/*.png', { eager: true, qu
 
 export const BODY_FRAME = { w: 80, h: 64 };   // per-frame size for body sheets (sheet width varies)
 export const PET_FRAME = { w: 32, h: 32 };
-export const IDLE = 5;                          // content frames in row 0
+export const IDLE = 5;                          // content frames in row 0 (the rest animation)
+
+// Each sheet ROW is an animation (measured content frames: 5/8/8/4/4/6/10). Names are the common tinyRPG
+// order — the picker plays the selected row (Han: buttons for rest/walk/attack/death/…).
+export const ANIMATIONS = [
+    { key: 'rest', label: 'Rest', row: 0, frames: 5 },
+    { key: 'walk', label: 'Walk', row: 1, frames: 8 },
+    { key: 'run', label: 'Run', row: 2, frames: 8 },
+    { key: 'attack', label: 'Attack', row: 3, frames: 4 },
+    { key: 'attack2', label: 'Attack 2', row: 4, frames: 4 },
+    { key: 'hurt', label: 'Hurt', row: 5, frames: 6 },
+    { key: 'death', label: 'Death', row: 6, frames: 10 },
+];
 
 const RAW = (() => {
     const out = { male: {}, female: {}, shared: {} };
@@ -39,10 +51,12 @@ function parseVariant(name) {
 
 // Clothing splits by name into legs / chest / feet — kept per-GENDER (Han: male & female clothes must be
 // separate; a female body must not get male legs). `both` tags each with its source gender.
+// Cover BOTH the male vocabulary (shirt/pants/…) and the female vocabulary (bodice/corset/dress/skirt/
+// bikini/panties/socks/thigh-high) — otherwise a whole gender's clothing silently vanishes (Han bug).
 const clothesFilter = {
-    feet: (p) => has(p.name, 'boot', 'shoe'),
-    chest: (p) => has(p.name, 'shirt', 'chainmail'),
-    legs: (p) => has(p.name, 'pants', 'underwear', 'hose', 'trunk'),
+    feet: (p) => has(p.name, 'boot', 'shoe', 'sock', 'thigh'),
+    chest: (p) => has(p.name, 'shirt', 'chainmail', 'bodice', 'corset', 'dress', 'bra', 'bikini'),
+    legs: (p) => has(p.name, 'pants', 'underwear', 'hose', 'trunk', 'skirt', 'panties'),
 };
 
 // Colour/material variant → a representative swatch colour for the chips (Han: show a colour, not text).
@@ -76,7 +90,7 @@ export const CATEGORIES = [
     { key: 'offhand', label: 'Off-hand', z: 10, gendered: true, source: () => bothFrom(RAW.shared.back, (p) => has(p.name, 'shield', 'lantern')) },
     { key: 'weapon', label: 'Weapon', z: 11, gendered: true, source: () => both('handitems', (p) => has(p.name, 'axe', 'sword', 'pickaxe', 'hoe', 'stick')) },
     { key: 'effect', label: 'Effect', z: 12, animated: true, gendered: false, source: () => shared(RAW.shared.effects) },
-    { key: 'pet', label: 'Pet', z: 0, frame: PET_FRAME, animated: true, gendered: false, source: () => shared(RAW.shared.pet) },
+    { key: 'pet', label: 'Pet', z: 13, frame: PET_FRAME, animated: true, gendered: false, source: () => shared(RAW.shared.pet) },
 ];
 
 // Skin lives in shared/skin but its files are gender-named — split into male/female by prefix.
