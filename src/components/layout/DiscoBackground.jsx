@@ -20,9 +20,9 @@ export default function DiscoBackground() {
         const ctx = canvas.getContext('2d');
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const ROWS = [0.15, 0.35, 0.50, 0.65, 0.85];
-        const DOTS = [4, 5, 6, 5, 4];                       // per row → ¼ ⅕ ⅙ ⅕ ¼ spacing
+        const DOTS = [4, 6, 8, 6, 4];                       // more toward the equator (Han: most in mid row)
         const LAMP_COLORS = ['#ff2d2d', '#2d6eff', '#2ddc5a', '#ffd72d'];
-        const OMEGA = 0.9;                                  // ring rotation speed (rad/s) — Han: faster
+        const OMEGA = 0.32;                                 // rotation speed (rad/s) — Han: 65% slower
         let w = 0, h = 0, t0 = performance.now(), raf = 0;
         let specks = [], lamps = [];
 
@@ -79,9 +79,10 @@ export default function DiscoBackground() {
             });
             ctx.globalAlpha = 1;
 
-            // SPECKS — blurred white rects, tan-projected: slow at centre, FAST toward the edges, sweeping
-            // one direction (exit right, re-enter left). K sets how wide before a spot runs off-screen.
-            const K = halfW / 3;
+            // SPECKS — blurred white rects, tan-projected: slow at centre, FASTER toward the edges, sweeping
+            // one direction (exit right, re-enter left). Larger K = the edge/centre speed ratio 1+(halfW/K)²
+            // is smaller = a MORE SUBTLE speed difference (Han). K=halfW/2 → ~5× (was halfW/3 → 10×).
+            const K = halfW / 2;
             ctx.shadowColor = 'rgba(255,255,255,0.95)';
             ctx.shadowBlur = 7;
             ctx.fillStyle = 'rgba(255,255,255,0.95)';
