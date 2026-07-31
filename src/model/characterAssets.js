@@ -37,15 +37,22 @@ function parseVariant(name) {
     return { base: tokens.filter((_, j) => j !== i).join(' ').trim() || name, variant: cap(tokens[i].toLowerCase()) };
 }
 
-// Clothing splits by name into legs / chest / feet. Merge both genders' clothing (they share the 80x64 rig
-// and are mostly gender-neutral tops/bottoms); dedupe by name.
-function clothes(kind) {
-    const seen = new Set();
-    const all = [...(RAW.male.clothing || []), ...(RAW.female.clothing || [])].filter((p) => (seen.has(p.name) ? false : seen.add(p.name)));
-    if (kind === 'feet') return all.filter((p) => has(p.name, 'boot', 'shoe'));
-    if (kind === 'chest') return all.filter((p) => has(p.name, 'shirt', 'chainmail'));
-    return all.filter((p) => has(p.name, 'pants', 'underwear', 'hose', 'trunk'));   // legs
-}
+// Clothing splits by name into legs / chest / feet — kept per-GENDER (Han: male & female clothes must be
+// separate; a female body must not get male legs). `both` tags each with its source gender.
+const clothesFilter = {
+    feet: (p) => has(p.name, 'boot', 'shoe'),
+    chest: (p) => has(p.name, 'shirt', 'chainmail'),
+    legs: (p) => has(p.name, 'pants', 'underwear', 'hose', 'trunk'),
+};
+
+// Colour/material variant → a representative swatch colour for the chips (Han: show a colour, not text).
+const COLOR_HEX = {
+    blue: '#4a80e0', green: '#4caf50', orange: '#ff9800', purple: '#9c27b0', red: '#e53935', skyblue: '#4fc3f7',
+    yellow: '#fdd835', black: '#2b2b2b', white: '#eeeeee', brown: '#8a5a3b', pink: '#ec8fb5', cyan: '#26c6da',
+    grey: '#9e9e9e', gray: '#9e9e9e', bronze: '#cd7f32', diamond: '#7fe3d8', golden: '#e6c200', gold: '#e6c200',
+    iron: '#9aa0a6', wooden: '#a5794a', wood: '#a5794a', steel: '#b0bec5', stone: '#8d9499', silver: '#c0c0c0',
+};
+export const variantColor = (v) => (v ? COLOR_HEX[v.toLowerCase()] || null : null);
 
 // A gendered source returns BOTH genders, each item tagged with its source gender `g`.
 const both = (folder, filter = () => true) => [
@@ -54,21 +61,22 @@ const both = (folder, filter = () => true) => [
 ];
 const shared = (list) => (list || []).map((p) => ({ ...p, g: 'shared' }));
 
-// Taxonomy (Han). z = paint order (low = behind). gendered categories get the M/F watermark test.
+// Taxonomy (Han). ARRAY order = the TAB order (skin/hair/ears/head/clothes/…/weapon/off-hand/effect/pet);
+// `z` = paint order (low = behind). Clothing is now GENDERED. gendered categories get the M/F watermark.
 export const CATEGORIES = [
-    { key: 'pet', label: 'Pet', z: 0, frame: PET_FRAME, animated: true, gendered: false, source: () => shared(RAW.shared.pet) },
-    { key: 'back', label: 'Back', z: 1, gendered: false, source: () => shared((RAW.shared.back || []).filter((p) => has(p.name, 'cape', 'backpack'))) },
     { key: 'skin', label: 'Skin', z: 2, required: true, gendered: true, source: () => both('__skin__') },
-    { key: 'legs', label: 'Legs', z: 3, gendered: false, source: () => shared(clothes('legs')) },
-    { key: 'chest', label: 'Chest', z: 4, gendered: false, source: () => shared(clothes('chest')) },
-    { key: 'feet', label: 'Feet', z: 5, gendered: false, source: () => shared(clothes('feet')) },
-    { key: 'hands', label: 'Hands', z: 6, gendered: true, source: () => both('arms') },
-    { key: 'ears', label: 'Ears', z: 7, gendered: true, source: () => both('ears') },
     { key: 'hair', label: 'Hair', z: 8, gendered: true, source: () => both('hair') },
+    { key: 'ears', label: 'Ears', z: 7, gendered: true, source: () => both('ears') },
     { key: 'head', label: 'Head', z: 9, gendered: true, source: () => [...both('hats'), ...shared(RAW.shared.masks)] },
+    { key: 'chest', label: 'Chest', z: 5, gendered: true, source: () => both('clothing', clothesFilter.chest) },
+    { key: 'legs', label: 'Legs', z: 3, gendered: true, source: () => both('clothing', clothesFilter.legs) },
+    { key: 'feet', label: 'Feet', z: 4, gendered: true, source: () => both('clothing', clothesFilter.feet) },
+    { key: 'hands', label: 'Hands', z: 6, gendered: true, source: () => both('arms') },
+    { key: 'back', label: 'Back', z: 1, gendered: false, source: () => shared((RAW.shared.back || []).filter((p) => has(p.name, 'cape', 'backpack'))) },
     { key: 'offhand', label: 'Off-hand', z: 10, gendered: true, source: () => bothFrom(RAW.shared.back, (p) => has(p.name, 'shield', 'lantern')) },
     { key: 'weapon', label: 'Weapon', z: 11, gendered: true, source: () => both('handitems', (p) => has(p.name, 'axe', 'sword', 'pickaxe', 'hoe', 'stick')) },
     { key: 'effect', label: 'Effect', z: 12, animated: true, gendered: false, source: () => shared(RAW.shared.effects) },
+    { key: 'pet', label: 'Pet', z: 0, frame: PET_FRAME, animated: true, gendered: false, source: () => shared(RAW.shared.pet) },
 ];
 
 // Skin lives in shared/skin but its files are gender-named — split into male/female by prefix.
@@ -105,4 +113,16 @@ export function basesFor(category, gender) {
 export function urlOfLayer(category, layer) {
     if (!layer?.name) return null;
     return (catByKey(category)?.source() || []).find((p) => p.name === layer.name && (p.g || 'shared') === (layer.g || 'shared'))?.url || null;
+}
+
+// On a gender swap, find the equivalent item in the new gender so the outfit stays the same (Han): first an
+// exact same-name match, else the same base+variant. Returns { g, name } or null (caller keeps the old).
+export function counterpart(category, layer, newGender) {
+    if (!layer?.name) return null;
+    const parts = catByKey(category)?.source() || [];
+    const exact = parts.find((p) => p.name === layer.name && (p.g || 'shared') === newGender);
+    if (exact) return { g: newGender, name: exact.name };
+    const { base, variant } = parseVariant(layer.name);
+    const same = parts.find((p) => (p.g || 'shared') === newGender && (() => { const pv = parseVariant(p.name); return pv.base === base && pv.variant === variant; })());
+    return same ? { g: newGender, name: same.name } : null;
 }

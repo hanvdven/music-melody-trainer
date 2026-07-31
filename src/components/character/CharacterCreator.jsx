@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import './CharacterCreator.css';
-import { CATEGORIES, IDLE, BODY_FRAME, frameOf, basesFor, urlOfLayer } from '../../model/characterAssets';
+import { CATEGORIES, IDLE, BODY_FRAME, frameOf, basesFor, urlOfLayer, variantColor, counterpart } from '../../model/characterAssets';
 import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/characterProfile';
 
 // #645 POC character creator (v2, Han). LEFT: live paper-doll (layers stacked in z-order, one sprite frame
@@ -9,12 +9,12 @@ import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/charac
 // interchangeability can be eyeballed. Rendered at NATIVE sprite size + `transform: scale`, so a sheet's
 // width never distorts it (fixes the ear drift). Saved to localStorage across sessions.
 
-const SCALE = 5;                    // preview zoom (80x64 * 5)
-const PET_OFFSET = { x: -4, y: 30 };   // pet stands just behind, lower-left (native px, pre-flip)
+const SCALE = 6;                    // preview zoom (80x64 * 6)
+const PET_OFFSET = { x: 40, y: 30 };   // pet stands just behind, to the (native-left, becomes right) side
 
-const layerStyle = (url, cat, frame) => {
+const layerStyle = (url, cat, frame, animate) => {
     const f = frameOf(cat);
-    const idx = frame % IDLE;
+    const idx = animate ? frame % IDLE : 0;
     return {
         position: 'absolute',
         left: cat === 'pet' ? PET_OFFSET.x : 0,
@@ -26,17 +26,20 @@ const layerStyle = (url, cat, frame) => {
         backgroundPosition: `${-idx * f.w}px 0px`,
         backgroundSize: 'auto',           // NATIVE sheet size → step by f.w works for any sheet width
         imageRendering: 'pixelated',
+        // The pet gets an extra flip so it faces the SAME way (right) as the char inside the flipped doll.
+        transform: cat === 'pet' ? 'scaleX(-1)' : undefined,
+        transformOrigin: 'center',
     };
 };
 
-// A cropped thumbnail (frame 0) of one part, native size scaled down by CSS.
+// A cropped thumbnail (frame 0) of one part — scaled UP so the small sprite fills the cell (Han: bigger).
 const thumbStyle = (url, cat) => {
     const f = frameOf(cat);
     return {
         width: f.w, height: f.h,
         backgroundImage: `url("${url}")`, backgroundRepeat: 'no-repeat',
         backgroundPosition: '0 0', backgroundSize: 'auto', imageRendering: 'pixelated',
-        transform: 'scale(0.9)',
+        transform: cat === 'pet' ? 'scale(2.4)' : 'scale(1.5)',
     };
 };
 
@@ -45,10 +48,12 @@ export default function CharacterCreator({ onClose }) {
     const [activeCat, setActiveCat] = useState('skin');
     const [saved, setSaved] = useState(false);
     const [frame, setFrame] = useState(0);
+    const [animOn, setAnimOn] = useState(true);   // Han: toggle the idle animation
     useEffect(() => {
+        if (!animOn) return undefined;
         const id = setInterval(() => setFrame((f) => (f + 1) % IDLE), 170);
         return () => clearInterval(id);
-    }, []);
+    }, [animOn]);
 
     const gender = char.gender;
     const bases = useMemo(() => basesFor(activeCat, gender), [activeCat, gender]);
@@ -66,7 +71,15 @@ export default function CharacterCreator({ onClose }) {
     }, []);
     useEffect(() => { setChar((c) => ({ ...c, layers: ensureSkin(c.gender, c.layers) })); }, [ensureSkin]);
 
-    const setGender = (g) => setChar((c) => ({ ...c, gender: g, layers: ensureSkin(g, c.layers) }));
+    // Swap gender AND keep the same outfit where a counterpart exists (Han); skin re-defaults to the gender.
+    const setGender = (g) => setChar((c) => {
+        const layers = {};
+        for (const [cat, layer] of Object.entries(c.layers)) {
+            const cp = counterpart(cat, layer, g);
+            layers[cat] = cp || layer;   // no counterpart → keep the old (shown watermarked)
+        }
+        return { ...c, gender: g, layers: ensureSkin(g, layers) };
+    });
 
     const selected = char.layers[activeCat];   // { g, name } | null
     const activeBase = bases.find((b) => b.variants.some((v) => v.name === selected?.name && v.g === selected?.g));
@@ -106,12 +119,15 @@ export default function CharacterCreator({ onClose }) {
                             <div style={{ position: 'absolute', inset: 0, transform: 'scaleX(-1)' }}>
                                 {zOrder.map((c) => {
                                     const url = urlOfLayer(c.key, char.layers[c.key]);
-                                    return url ? <div key={c.key} style={layerStyle(url, c.key, frame)} /> : null;
+                                    return url ? <div key={c.key} style={layerStyle(url, c.key, frame, animOn)} /> : null;
                                 })}
                             </div>
                         </div>
                     </div>
                     <div className="cc-level">LVL {char.level}</div>
+                    <button className="cc-btn cc-anim" onClick={() => setAnimOn((a) => !a)}>
+                        {animOn ? '⏸ Anim' : '▶ Anim'}
+                    </button>
                 </div>
 
                 {/* RIGHT — controls */}
@@ -136,14 +152,20 @@ export default function CharacterCreator({ onClose }) {
                         ))}
                     </div>
 
-                    {/* variant setter (colours / materials) for the selected base */}
+                    {/* variant setter — a COLOUR swatch per colour/material variant (Han: a colour, not text) */}
                     {activeBase && activeBase.variants.length > 1 && (
                         <div className="cc-variants">
-                            {activeBase.variants.map((v) => (
-                                <button key={v.name} title={v.variant || 'plain'}
-                                    className={`cc-chip${selected?.name === v.name ? ' active' : ''}`}
-                                    onClick={() => setLayer(activeCat, { g: v.g, name: v.name })}>{v.variant || '•'}</button>
-                            ))}
+                            {activeBase.variants.map((v) => {
+                                const col = variantColor(v.variant);
+                                return (
+                                    <button key={v.name} title={v.variant || 'plain'}
+                                        className={`cc-swatch${selected?.name === v.name ? ' active' : ''}`}
+                                        onClick={() => setLayer(activeCat, { g: v.g, name: v.name })}
+                                        style={{ background: col || 'transparent' }}>
+                                        {col ? '' : (v.variant || '•')}
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
 

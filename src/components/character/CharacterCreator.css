@@ -121,6 +121,20 @@
 }
 .cc-chip.active { background-color: var(--accent-yellow); color: #000; border-color: var(--accent-yellow); }
 
+/* colour/material swatch buttons */
+.cc-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid var(--text-dim);
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--text-primary);
+}
+.cc-swatch.active { border-color: var(--accent-yellow); box-shadow: 0 0 0 2px var(--accent-yellow); }
+
+.cc-anim { padding: 4px 12px; font-size: 12px; }
+
 /* M/F watermark on a wrong-gender item (Han's interchangeability test) */
 .cc-wm {
   position: absolute;
@@ -137,17 +151,17 @@
 
 .cc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: 6px;
   overflow-y: auto;
   padding: 4px;
   align-content: start;
   flex: 1;
-  min-height: 120px;
+  min-height: 140px;
 }
 .cc-thumb {
   position: relative;
-  height: 76px;
+  height: 100px;
   display: flex;
   align-items: center;
   justify-content: center;
