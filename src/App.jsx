@@ -18,6 +18,7 @@ import Scale from './model/Scale';
 import SheetMusic from './components/sheet-music/SheetMusic';
 import { KIT_NOTE_MAPPINGS } from './audio/drumKits';
 import AppHeader from './components/layout/AppHeader';
+import DiscoBackground from './components/layout/DiscoBackground';
 import SubHeader from './components/layout/SubHeader';
 
 // Hooks
@@ -1664,6 +1665,9 @@ const App = () => {
         <div className="app-root">
             {/* TOP AREA WRAPPER (Preserves app theme for header/sheet) */}
             <div className="App app-top-wrapper">
+                {/* #628-S5: canvas disco-ball background — only mounted for the disco theme; sits behind
+                    the (transparent) header + sheet via .disco-canvas (z-index:-1 + isolate). */}
+                {theme === 'disco' && <DiscoBackground />}
                 <AppHeader
                     scale={scale}
                     onStartExercise={handleStartExercise}
