@@ -83,7 +83,7 @@ export const CATEGORIES = [
     { key: 'ears', label: 'Ears', z: 7, gendered: true, source: () => both('ears') },
     { key: 'head', label: 'Head', z: 9, gendered: true, source: () => [...both('hats'), ...shared(RAW.shared.masks)] },
     { key: 'chest', label: 'Chest', z: 5, gendered: true, source: () => both('clothing', clothesFilter.chest) },
-    { key: 'legs', label: 'Legs', z: 3, gendered: true, source: () => both('clothing', clothesFilter.legs) },
+    { key: 'legs', label: 'Legs', z: 3, gendered: true, required: true, source: () => both('clothing', clothesFilter.legs) },
     { key: 'feet', label: 'Feet', z: 4, gendered: true, source: () => both('clothing', clothesFilter.feet) },
     { key: 'hands', label: 'Hands', z: 6, gendered: true, source: () => both('arms') },
     { key: 'back', label: 'Back', z: 1, gendered: false, source: () => shared((RAW.shared.back || []).filter((p) => has(p.name, 'cape', 'backpack'))) },

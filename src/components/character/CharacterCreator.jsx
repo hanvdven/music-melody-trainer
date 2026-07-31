@@ -9,16 +9,21 @@ import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/charac
 // interchangeability can be eyeballed. Rendered at NATIVE sprite size + `transform: scale`, so a sheet's
 // width never distorts it (fixes the ear drift). Saved to localStorage across sessions.
 
-const SCALE = 4.5;                  // preview zoom (80x64 * 4.5) — fills the central chest slot
-// Pet sits beside the hero with its PAWS on the ground line. The pet frame is 32 tall and its paws are at
-// its bottom edge; the char's feet are at y63 of the 64px body frame → put the pet's bottom at 63 (top 31).
+// CROP: the character body region within the 80x64 frame (measured x3..57 / y17..63). Rendering only this
+// region removes the "suuuper veel lege ruimte" so the preview is much bigger. Centred on x40 so the flip
+// keeps it centred. CHAR_DY / PET_DY are Han's pixel-perfect nudges (art px) to sit on the bottom edge.
+const CROP = { x: 10, y: 6, w: 60, h: 58 };
+const CHAR_DY = 1, PET_DY = 2;
+const AVATAR_H = 336;              // avatar height; each equipment slot is ⅓ of it (Han)
+// The 4×3 equipment grid, in Han's exact order (skin is the avatar itself, not a grid slot).
+const GRID = ['ears', 'hair', 'head', 'back', 'effect', 'weapon', 'chest', 'offhand', 'pet', 'hands', 'legs', 'feet'];
 const PET_OFFSET = { x: 40, y: 31 };
 const EFFECT_COLS = 5;              // frames in the effect row-0 loop
 // Pet sheets are 6x2 (32x32): row 0 = idle (5 frames), row 1 = run (6). Wisp is a single row (no run).
 const PET_IDLE = 5, PET_RUN = 6;
 
 // backgroundPosition for one frame: col + row from the animation. Pet plays its RUN row when the character
-// walks/runs (Han); effects keep their own single-row loop.
+// walks/runs (Han); effects keep their own single-row loop. `flipPet` re-mirrors the pet to face right.
 const layerStyle = (url, cat, frame, anim, name) => {
     const f = frameOf(cat);
     let col = frame % anim.frames, row = anim.row;
@@ -31,7 +36,7 @@ const layerStyle = (url, cat, frame, anim, name) => {
     return {
         position: 'absolute',
         left: cat === 'pet' ? PET_OFFSET.x : 0,
-        top: cat === 'pet' ? PET_OFFSET.y : 0,
+        top: cat === 'pet' ? PET_OFFSET.y + PET_DY : CHAR_DY,
         width: f.w,
         height: f.h,
         backgroundImage: `url("${url}")`,
@@ -39,20 +44,24 @@ const layerStyle = (url, cat, frame, anim, name) => {
         backgroundPosition: `${-col * f.w}px ${-row * f.h}px`,
         backgroundSize: 'auto',           // NATIVE sheet size → step works for any sheet width
         imageRendering: 'pixelated',
-        // pet now flips WITH the doll (no extra flip) → it was reversed the other way (Han).
+        // Extra flip so the pet faces the SAME way (right) as the char (Han: it was reversed).
+        transform: cat === 'pet' ? 'scaleX(-1)' : undefined,
+        transformOrigin: 'center',
     };
 };
 
-// A cropped thumbnail (frame 0) of one part. `mult` scales it (1 = grid; ~0.55 = the small equipment slot).
-// scaleX(-1) → faces RIGHT like the preview (Han). Fit-not-crop zoom so an item's top/bottom isn't cut.
-const thumbStyle = (url, cat, mult = 1) => {
-    const f = frameOf(cat);
-    const base = (cat === 'pet' ? 1.8 : 1.1) * mult;
+// A frame-0 thumbnail, CROPPED to the body region so the item fills the cell (Han: 3× bigger, less empty
+// space). `k` scales it. The char faces RIGHT (scaleX -1); the pet faces right natively so it is NOT flipped.
+const PET_CROP = { x: 3, y: 2, w: 26, h: 28 };
+const thumbStyle = (url, cat, k = 1.6) => {
+    const isPet = cat === 'pet';
+    const crop = isPet ? PET_CROP : CROP;
+    const flip = isPet ? 1 : -1;
     return {
-        width: f.w, height: f.h,
+        width: crop.w, height: crop.h,
         backgroundImage: `url("${url}")`, backgroundRepeat: 'no-repeat',
-        backgroundPosition: '0 0', backgroundSize: 'auto', imageRendering: 'pixelated',
-        transform: `scale(${-base}, ${base})`,
+        backgroundPosition: `${-crop.x}px ${-crop.y}px`, backgroundSize: 'auto', imageRendering: 'pixelated',
+        transform: `scale(${flip * k}, ${k})`,
     };
 };
 
@@ -76,12 +85,20 @@ export default function CharacterCreator({ onClose }) {
     const setLayer = (cat, layer) => { setChar((c) => ({ ...c, layers: { ...c.layers, [cat]: layer } })); setSaved(false); };
     const patch = (p) => { setChar((c) => ({ ...c, ...p })); setSaved(false); };
 
-    // skin is required — default it (to the current gender's first skin) whenever it is missing/mismatched.
+    // Required layers: skin (default first skin of the gender) and legs (default = underwear, colourable —
+    // Han: "no legs" shows the underwear). Applied whenever a required layer is missing/gender-mismatched.
     const ensureSkin = useCallback((g, layers) => {
-        const cur = layers.skin;
-        if (cur && cur.g === g) return layers;
-        const first = basesFor('skin', g)[0]?.variants[0];
-        return first ? { ...layers, skin: { g: first.g, name: first.name } } : layers;
+        let out = layers;
+        if (!(out.skin && out.skin.g === g)) {
+            const s = basesFor('skin', g)[0]?.variants[0];
+            if (s) out = { ...out, skin: { g: s.g, name: s.name } };
+        }
+        if (!out.legs) {
+            const und = basesFor('legs', g).find((b) => /underwear|panties/i.test(b.base)) || basesFor('legs', g)[0];
+            const v = und?.variants.find((x) => !x.variant) || und?.variants[0];
+            if (v) out = { ...out, legs: { g: v.g, name: v.name } };
+        }
+        return out;
     }, []);
     useEffect(() => { setChar((c) => ({ ...c, layers: ensureSkin(c.gender, c.layers) })); }, [ensureSkin]);
 
@@ -135,10 +152,12 @@ export default function CharacterCreator({ onClose }) {
     const onSave = () => { saveCharacter(char); setSaved(true); };
     const reset = () => setChar((c) => ({ ...emptyCharacter(), gender: c.gender, layers: ensureSkin(c.gender, {}) }));
 
-    // the stacked paper-doll (reused inside the central "chest" slot). scaleX(-1) → faces RIGHT (Han).
+    // the stacked paper-doll, CROPPED to the body region + scaled to AVATAR_H (Han: much bigger, no empty
+    // space). scaleX(-1) → faces RIGHT. Clicking the avatar selects the SKIN.
+    const s = AVATAR_H / CROP.h;
     const doll = (
-        <div className="cc-doll" style={{ width: BODY_FRAME.w * SCALE, height: BODY_FRAME.h * SCALE }}>
-            <div style={{ width: BODY_FRAME.w, height: BODY_FRAME.h, transform: `scale(${SCALE})`, transformOrigin: 'top left' }}>
+        <div className="cc-doll" style={{ width: CROP.w * s, height: AVATAR_H }}>
+            <div style={{ position: 'absolute', left: -CROP.x * s, top: -CROP.y * s, width: BODY_FRAME.w, height: BODY_FRAME.h, transform: `scale(${s})`, transformOrigin: 'top left' }}>
                 <div style={{ position: 'absolute', inset: 0, transform: 'scaleX(-1)' }}>
                     {zOrder.map((c) => {
                         const layer = char.layers[c.key];
@@ -169,25 +188,33 @@ export default function CharacterCreator({ onClose }) {
                     <span className="cc-level">LVL {char.level}</span>
                 </div>
 
-                {/* Diablo equipment layout (Han): slots arranged around the central character preview. */}
-                <div className="cc-equip">
-                    {CATEGORIES.filter((c) => c.key !== 'chest').map((c) => {
-                        const url = urlOfLayer(c.key, char.layers[c.key]);
-                        return (
-                            <button key={c.key} title={c.label} style={{ gridArea: c.key }}
-                                className={`cc-slot${activeCat === c.key ? ' active' : ''}${url ? ' filled' : ''}`}
-                                onClick={() => setActiveCat(c.key)}>
-                                {url ? <div className="cc-slot-icon" style={thumbStyle(url, c.key, 0.62)} /> : null}
-                                <span className="cc-slot-label">{c.label}</span>
-                            </button>
-                        );
-                    })}
-                    {/* the central CHEST slot IS the big live preview */}
-                    <button style={{ gridArea: 'chest' }} title="Chest"
-                        className={`cc-chestslot${activeCat === 'chest' ? ' active' : ''}`}
-                        onClick={() => setActiveCat('chest')}>
-                        {doll}
-                    </button>
+                {/* Diablo layout (Han): the big avatar (= skin slot) on the LEFT, a 4×3 grid of equal square
+                    equipment slots on the RIGHT (each slot ~⅓ of the avatar height). */}
+                <div className="cc-body">
+                    <button className={`cc-avatar${activeCat === 'skin' ? ' active' : ''}`}
+                        title="Skin" onClick={() => setActiveCat('skin')}>{doll}</button>
+                    <div className="cc-equip" style={{ height: AVATAR_H }}>
+                        {GRID.map((key) => {
+                            const c = CATEGORIES.find((x) => x.key === key);
+                            const url = urlOfLayer(key, char.layers[key]);
+                            return (
+                                <button key={key} title={c.label}
+                                    className={`cc-slot${activeCat === key ? ' active' : ''}${url ? ' filled' : ''}`}
+                                    onClick={() => setActiveCat(key)}>
+                                    {url ? <div className="cc-slot-icon" style={thumbStyle(url, key, 1.7)} /> : null}
+                                    <span className="cc-slot-label">{c.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* animation picker (Han): rest / walk / run / air-up / air-down / attack / death */}
+                <div className="cc-anims">
+                    {ANIMATIONS.map((a) => (
+                        <button key={a.key} className={`cc-anim${animKey === a.key ? ' active' : ''}`}
+                            onClick={() => setAnimKey(a.key)}>{a.label}</button>
+                    ))}
                 </div>
 
                 {/* animation picker (Han): rest / walk / run / air-up / air-down / attack / death */}

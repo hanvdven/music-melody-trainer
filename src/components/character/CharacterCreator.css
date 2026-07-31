@@ -33,32 +33,32 @@
   max-width: 720px;
   overflow-y: auto;
 }
-.cc-equip {
-  display: grid;
-  grid-template-columns: 88px 88px 188px 188px 88px;
-  grid-template-rows: 70px 150px 150px 92px;
-  grid-template-areas:
-    ".      hair   ears   head   back"
-    "weapon effect chest  chest  offhand"
-    "weapon effect chest  chest  offhand"
-    "hands  pet    legs   legs   feet";
-  gap: 6px;
-  justify-content: center;
+/* avatar (= skin slot) on the LEFT, 4×3 equal square equipment slots on the RIGHT. */
+.cc-body {
+  display: flex;
+  gap: 14px;
   align-self: center;
+  align-items: flex-start;
 }
-.cc-chestslot {
-  grid-area: chest;
+.cc-avatar {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  background-color: color-mix(in srgb, var(--panel-bg), #000 20%);
+  background-color: color-mix(in srgb, var(--panel-bg), #000 22%);
   border: 2px solid var(--text-dim);
   border-radius: 8px;
   cursor: pointer;
   overflow: hidden;
 }
-.cc-chestslot.active { border-color: var(--accent-yellow); }
+.cc-avatar.active { border-color: var(--accent-yellow); }
+.cc-equip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 6px;
+  width: 448px;   /* 4 columns; rows = ⅓ avatar height via grid-auto-rows:1fr over the AVATAR_H height */
+}
 .cc-picker { display: flex; flex-direction: column; gap: 10px; }
 .cc-picker-head {
   font-size: 12px;
@@ -148,7 +148,6 @@
 }
 .cc-slot {
   position: relative;
-  height: 62px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -159,6 +158,7 @@
   border: 1px solid var(--text-dim);
   border-radius: 6px;
   cursor: pointer;
+  min-height: 0;
 }
 .cc-slot.active { border-color: var(--accent-yellow); box-shadow: inset 0 0 0 1px var(--accent-yellow); }
 .cc-slot.filled { background-color: color-mix(in srgb, var(--panel-bg), var(--text-primary) 10%); }
