@@ -1191,13 +1191,20 @@ path {
    a full-height flag there was a DIFFERENT scale and produced a mismatched-stripe seam at the bottom corner
    (Han: "de vlag loopt niet mooi door naar onderste deel"); the corner now shows the solid panel colour.
    TODO next batch: Progress chevron + circle. */
-:root[data-theme='pride-light'] .app-top-wrapper { background: linear-gradient(172deg, #e7b0ab 0%, #ecc79f 16%, #ecdfa2 32%, #b9dab6 48%, #accae0 62%, #c8b2dd 74%, #c8b2dd 100%); }
-:root[data-theme='pride-dark'] .app-top-wrapper { background: linear-gradient(172deg, #4e1616 0%, #52300f 16%, #4e4510 32%, #123f1c 48%, #12294e 62%, #2c134d 74%, #2c134d 100%); }
+/* Progress-Pride flag (Han): 6 rainbow stripes + the Progress chevron (black/brown/light-blue/pink/white
+   triangle) on the LEFT + the intersex circle (purple ring on yellow). SVG so the triangle + circle are
+   crisp; preserveAspectRatio='none' stretches it to fill the top area. Light = softer, dark = deeper. */
+:root[data-theme='pride-light'] .app-top-wrapper {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 100' preserveAspectRatio='none'%3E%3Crect width='120' height='16.7' y='0' fill='%23e6606a'/%3E%3Crect width='120' height='16.7' y='16.7' fill='%23eca24e'/%3E%3Crect width='120' height='16.7' y='33.4' fill='%23ecd85a'/%3E%3Crect width='120' height='16.7' y='50' fill='%2368b06a'/%3E%3Crect width='120' height='16.7' y='66.7' fill='%235a7fd6'/%3E%3Crect width='120' height='16.6' y='83.4' fill='%238a6fc0'/%3E%3Cpath d='M0 0 L52 50 L0 100 Z' fill='%23151515'/%3E%3Cpath d='M0 10 L42 50 L0 90 Z' fill='%23663d1f'/%3E%3Cpath d='M0 20 L32 50 L0 80 Z' fill='%237fd0ea'/%3E%3Cpath d='M0 30 L22 50 L0 70 Z' fill='%23ffb3c8'/%3E%3Cpath d='M0 40 L12 50 L0 60 Z' fill='%23ffffff'/%3E%3Ccircle cx='11.5' cy='50' r='6.5' fill='%23ffd21a'/%3E%3Ccircle cx='11.5' cy='50' r='6.5' fill='none' stroke='%236a1b9a' stroke-width='2'/%3E%3C/svg%3E") center / cover no-repeat;
+}
+:root[data-theme='pride-dark'] .app-top-wrapper {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 100' preserveAspectRatio='none'%3E%3Crect width='120' height='16.7' y='0' fill='%237a2a2e'/%3E%3Crect width='120' height='16.7' y='16.7' fill='%237a5222'/%3E%3Crect width='120' height='16.7' y='33.4' fill='%237a6e22'/%3E%3Crect width='120' height='16.7' y='50' fill='%23226b32'/%3E%3Crect width='120' height='16.7' y='66.7' fill='%23223a7a'/%3E%3Crect width='120' height='16.6' y='83.4' fill='%233e2a66'/%3E%3Cpath d='M0 0 L52 50 L0 100 Z' fill='%23050505'/%3E%3Cpath d='M0 10 L42 50 L0 90 Z' fill='%234a2c17'/%3E%3Cpath d='M0 20 L32 50 L0 80 Z' fill='%235aa8c0'/%3E%3Cpath d='M0 30 L22 50 L0 70 Z' fill='%23d98aa0'/%3E%3Cpath d='M0 40 L12 50 L0 60 Z' fill='%23e8e8e8'/%3E%3Ccircle cx='11.5' cy='50' r='6.5' fill='%23d9b31a'/%3E%3Ccircle cx='11.5' cy='50' r='6.5' fill='none' stroke='%238a3bba' stroke-width='2'/%3E%3C/svg%3E") center / cover no-repeat;
+}
 /* Corner fix (Han): the flag ends in its LAST stripe colour at the bottom of the top area; the rounded
    corner behind the bottom panel reveals .app-root, so paint .app-root that same last colour → the flag
    flows seamlessly into the corner instead of a mismatched sliver. */
-:root[data-theme='pride-light'] .app-root { background: #c8b2dd; }
-:root[data-theme='pride-dark'] .app-root { background: #2c134d; }
+:root[data-theme='pride-light'] .app-root { background: #8a6fc0; }
+:root[data-theme='pride-dark'] .app-root { background: #3e2a66; }
 
 /* VAPOURWAVE — colours kept (Han: perfect); a bit more tilted; subtle L↔R drift. */
 :root[data-theme='vapourwave'] .app-root {
