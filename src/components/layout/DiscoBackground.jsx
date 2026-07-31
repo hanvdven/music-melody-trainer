@@ -39,7 +39,7 @@ export default function DiscoBackground() {
                 c,
                 x: Math.random() * w,
                 y: (0.15 + 0.7 * Math.random()) * h,
-                r: (0.13 + Math.random() * 0.14) * Math.min(w, h),   // bigger + varied (Han: too small)
+                r: (0.20 + Math.random() * 0.21) * Math.min(w, h),   // +50% bigger, varied (Han)
                 vx: (18 + Math.random() * 30) * (Math.random() < 0.5 ? -1 : 1),
                 vy: (8 + Math.random() * 18) * (Math.random() < 0.5 ? -1 : 1),
             }));
@@ -62,7 +62,7 @@ export default function DiscoBackground() {
 
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.globalCompositeOperation = 'source-over';
-            ctx.fillStyle = '#9e92c0';                       // medium base so the screened light shows
+            ctx.fillStyle = '#ada2ce';                       // a bit lighter base (Han) — still shows the light
             ctx.fillRect(0, 0, w, h);
 
             // LAMPS — additive coloured glows, drifting; wrap with a margin so they leave/re-enter frame
@@ -72,8 +72,8 @@ export default function DiscoBackground() {
                 if (l.x < -l.r * 1.6) l.x = w + l.r; else if (l.x > w + l.r * 1.6) l.x = -l.r;
                 if (l.y < -l.r * 1.6) l.y = h + l.r; else if (l.y > h + l.r * 1.6) l.y = -l.r;
                 const g = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
-                g.addColorStop(0, l.c); g.addColorStop(0.55, l.c + 'cc'); g.addColorStop(1, l.c + '00');
-                ctx.globalAlpha = 0.75;                      // stronger additive mix (Han)
+                g.addColorStop(0, l.c + 'cc'); g.addColorStop(0.5, l.c + '99'); g.addColorStop(1, l.c + '00');
+                ctx.globalAlpha = 0.42;                      // subtler (Han: less 'fel')
                 ctx.fillStyle = g;
                 ctx.beginPath(); ctx.arc(l.x, l.y, l.r, 0, Math.PI * 2); ctx.fill();
             });
