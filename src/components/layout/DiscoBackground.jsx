@@ -3,14 +3,15 @@ import React, { useRef, useEffect } from 'react';
 // #628-S5 DISCO BALL background (Han 2026-07-31). CSS backgrounds cannot give a particle a
 // POSITION-DEPENDENT speed, so the disco theme's animated background is this <canvas> particle system.
 //
-// Physics — a rotating cylinder/ball. Each speck sits on a horizontal ring at phase φ and its screen X is
-//   x = cx + halfW * sin(φ + ω·t)
-// so its horizontal speed dx/dt = halfW·ω·cos(φ+ω·t) is MAX at the centre and → 0 at the edges, where the
-// specks bunch up (the classic mirror-ball sweep; Han: "in het midden bewegen ze sneller … naar de rand
-// toe … verder uit elkaar"). Rings (rows) at 15/35/50/65/85 % of the height; dot counts 4/5/6/5/4 give the
-// ¼ / ⅕ / ⅙ / ⅕ / ¼ average spacing (tightest at the equator). Specks are small BLURRED rectangles.
-// LAMPS are a few coloured (R/B/G/Y) glows of VARIED size drifting randomly, sometimes off-screen.
-// rAF-driven; nothing here touches React state per frame (CLAUDE.md §6).
+// Physics — a mirror-ball's reflection on a FLAT wall (Han 2026-07-31: "denk na over de fysica"). A beam
+// from a facet rotating at constant ω hits the flat view at
+//   x = cx + K · tan(θ),   θ = phase + ω·t   (wrapped to (−π/2, π/2))
+// so the spot's speed dx/dθ = K·sec²θ is SLOW at the centre and FAST toward the edges — and it sweeps in
+// ONE direction (θ monotonic): it exits the right edge (tan→+∞) and a new spot enters from the left
+// (tan→−∞), never bouncing back. This is exactly Han's "in het midden 100%, naar de rand 200%,
+// versnellen naar de rand" — the earlier sin() model was slow-at-edges and oscillated (wrong). Rows at
+// 15/35/50/65/85 %; 4/5/6/5/4 dots per row. Specks are small BLURRED rectangles. LAMPS are a few coloured
+// (R/B/G/Y) glows of VARIED size drifting randomly, sometimes off-screen. rAF-driven; no React state (§6).
 export default function DiscoBackground() {
     const canvasRef = useRef(null);
     useEffect(() => {
@@ -38,7 +39,7 @@ export default function DiscoBackground() {
                 c,
                 x: Math.random() * w,
                 y: (0.15 + 0.7 * Math.random()) * h,
-                r: (0.05 + Math.random() * 0.09) * Math.min(w, h),   // varied sizes
+                r: (0.13 + Math.random() * 0.14) * Math.min(w, h),   // bigger + varied (Han: too small)
                 vx: (18 + Math.random() * 30) * (Math.random() < 0.5 ? -1 : 1),
                 vy: (8 + Math.random() * 18) * (Math.random() < 0.5 ? -1 : 1),
             }));
@@ -71,22 +72,27 @@ export default function DiscoBackground() {
                 if (l.x < -l.r * 1.6) l.x = w + l.r; else if (l.x > w + l.r * 1.6) l.x = -l.r;
                 if (l.y < -l.r * 1.6) l.y = h + l.r; else if (l.y > h + l.r * 1.6) l.y = -l.r;
                 const g = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
-                g.addColorStop(0, l.c); g.addColorStop(1, l.c + '00');
-                ctx.globalAlpha = 0.5;
+                g.addColorStop(0, l.c); g.addColorStop(0.55, l.c + 'cc'); g.addColorStop(1, l.c + '00');
+                ctx.globalAlpha = 0.75;                      // stronger additive mix (Han)
                 ctx.fillStyle = g;
                 ctx.beginPath(); ctx.arc(l.x, l.y, l.r, 0, Math.PI * 2); ctx.fill();
             });
             ctx.globalAlpha = 1;
 
-            // SPECKS — blurred white rects on the rotating rings (fade the "back" of the ring for depth)
+            // SPECKS — blurred white rects, tan-projected: slow at centre, FAST toward the edges, sweeping
+            // one direction (exit right, re-enter left). K sets how wide before a spot runs off-screen.
+            const K = halfW / 3;
             ctx.shadowColor = 'rgba(255,255,255,0.95)';
             ctx.shadowBlur = 7;
+            ctx.fillStyle = 'rgba(255,255,255,0.95)';
             specks.forEach((s) => {
-                const a = s.phase + OMEGA * t;
-                const x = cx + halfW * Math.sin(a);
-                const front = Math.cos(a);                   // >0 = near side → brighter
-                ctx.globalAlpha = 0.28 + 0.62 * Math.max(0, front);
-                ctx.fillStyle = 'rgba(255,255,255,0.95)';
+                let a = (s.phase + OMEGA * t) % Math.PI;     // 0..π
+                if (a < 0) a += Math.PI;
+                a -= Math.PI / 2;                            // −π/2 .. π/2
+                const x = cx + K * Math.tan(a);
+                const off = Math.abs(x - cx) / halfW;
+                if (off > 1.02) return;                      // off-screen (tan blows up near ±π/2)
+                ctx.globalAlpha = off > 0.75 ? Math.max(0, 1 - (off - 0.75) / 0.27) : 1;  // fade at edges
                 ctx.fillRect(x - 2.5, s.y - 1.5, 5, 3);      // small rectangle (Han) + shadowBlur glow
             });
             ctx.shadowBlur = 0; ctx.globalAlpha = 1;

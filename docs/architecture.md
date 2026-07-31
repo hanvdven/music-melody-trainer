@@ -5714,11 +5714,13 @@ stacking-context risk to popups); the notation SVG is transparent so it shows be
 - **Vapourwave (dark theme):** muted/darker pink→purple→blue→teal bands (near-vertical = the pride look
   rotated 90°) that DRIFT left↔right (`background-size:300%` + `@keyframes vw-drift`).
 - **Disco:** a `<canvas>` mirror-ball (`components/layout/DiscoBackground.jsx`), NOT CSS — CSS cannot give
-  a particle a position-dependent speed. Specks ride rotating rings (`x = cx + halfW·sin(φ+ω·t)` → fastest
-  at the centre, bunching at the edges); 5 rings at 15/35/50/65/85 % with 4/5/6/5/4 dots; small blurred
-  rectangles. Coloured R/B/G/Y lamps of varied size drift and leave frame. Mounted only for the disco
-  theme as the first child of `.app-top-wrapper` (made `isolate` so the `z-index:-1` `.disco-canvas` sits
-  behind the transparent header + sheet). rAF-driven, no per-frame React state (§6).
+  a particle a position-dependent speed. Specks are a beam-on-a-flat-wall projection `x = cx + K·tan(θ)`,
+  `θ = phase + ω·t` wrapped to (−π/2, π/2): SLOW at the centre, FAST toward the edges, sweeping one
+  direction (exit right, re-enter left — no bounce). 5 rows at 15/35/50/65/85 % with 4/5/6/5/4 dots; small
+  blurred rectangles, faded near the edge. Coloured R/B/G/Y lamps of varied size drift additively
+  (`globalCompositeOperation:'lighter'`) and leave frame. Mounted only for the disco theme as the first
+  child of `.app-top-wrapper` (made `isolate` so the `z-index:-1` `.disco-canvas` sits behind the
+  transparent header + sheet). rAF-driven, no per-frame React state (§6).
 - **Marble:** soft cloudy radial fade + ORGANIC `feTurbulence` veins + bright-white streaks, baked as SVG
   data-URIs (wispy, not straight lines).
 - **Pets (Cat / Dog / Ram):** accent-tinted animal shapes TILED as the pattern — a BONE for dog, a cat
