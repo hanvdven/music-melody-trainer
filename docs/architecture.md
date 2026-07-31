@@ -5738,3 +5738,39 @@ notation stays legible because the panel-derived text vars are unchanged. First-
 `.app-top-wrapper` backgrounds, `@keyframes vw-drift`/`disco-drift`, marble turbulence + pet-shape SVG
 data-URIs, paper block). (`.sheet-surface` class on the SVG wrapper in `SheetMusic.jsx` is now unused by
 these rules but kept.)
+
+### §81. Character creator POC (#645, Han 2026-07-31)
+
+**Purpose:** a proof-of-concept character creator opened from the top header — build a pixel-art avatar
+from the GandalfHardcore RPG parts, saved across sessions. Interview outcome (Han): ALL layer categories,
+a header BUTTON only (no in-header avatar yet), a STANDALONE localStorage level (no gamification coupling),
+and reorganise the asset folder NOW.
+
+**Assets:** the messy GandalfHardcore folders were flattened into `src/assets/character/{male,female,
+shared}/<category>/` — `male|female/{hair,ears,hands,handitems,clothing,hats,arms}` and `shared/{skin,
+back,masks,effects}` (skin files are gender-named). Non-character folders (NPC, platformer, enemies, pet,
+hp bar, emojis, warrior base) stay in the original `RGPAssets_by_GandalfHardcore` dir.
+
+**Sprite framing (key fact):** the parts are 800×448 sprite SHEETS (an 8×4 grid of 100×112 frames), NOT
+single images. The creator composites FRAME 0 (top-left idle-front) of each layer. Geometry is one tunable
+constant `FRAME` in `characterAssets.js`. Effects are a different 400×64 sheet → rendered whole, not
+frame-cropped.
+
+**How it works:**
+- `model/characterAssets.js` — `import.meta.glob` the parts; `CATEGORIES` (order == paper-doll z-order,
+  back→front) + `partsFor(category, gender)` (skin filtered by gender-prefixed filename; non-gendered
+  categories come from `shared/`). `FRAME` holds the sheet/frame geometry.
+- `model/characterProfile.js` — `loadCharacter`/`saveCharacter` to `localStorage['mmt.character.v1']`,
+  shape `{ name, birthday, gender, layers:{category:partName}, level }`. Stores the part NAME (not the
+  bundled URL) so a moved asset degrades gracefully.
+- `components/character/CharacterCreator.jsx` (+ `.css`) — fullscreen modal: left = live paper-doll
+  (stacked `frameStyle` layers), right = gender toggle, name + birthday, `LVL`, category tabs, thumbnail
+  grid (+ None), Random / Reset / Save. Theme-responsive via the app CSS vars.
+- `AppHeader.jsx` — a `UserCircle2` button (`onOpenCharacter`); `App.jsx` holds `showCharacter` state and
+  renders the modal.
+
+**Invariants:** the manifest is the single source of parts (never hardcode file lists); frame geometry
+lives only in `FRAME`; the profile persists across sessions and is independent of the gamification system.
+
+**Files:** `assets/character/**` (reorganised), `model/characterAssets.js`, `model/characterProfile.js`,
+`components/character/CharacterCreator.{jsx,css}`, `components/layout/AppHeader.jsx`, `App.jsx`.
