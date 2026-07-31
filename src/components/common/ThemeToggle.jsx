@@ -46,7 +46,7 @@ export const allThemes = [
   { id: 'pride-light',name: 'Pride (Light)',category: 'Special',  icon: 'flag',           colors: ['#fdf0f5', '#e0407a', '#f3dbe8', '#3a2030'] },
   { id: 'pride-dark', name: 'Pride (Dark)', category: 'Special',  icon: 'flag',           colors: ['#1a1020', '#ff5fa2', '#2a1a38', '#f0d8e8'] },
   { id: 'vapourwave', name: 'Vapourwave',  category: 'Special',   icon: 'vaporwave',      colors: ['#2a1a3e', '#ff6ad5', '#3a2552', '#f0d0ff'] },
-  { id: 'disco',      name: 'Disco',       category: 'Special',   icon: 'disco-ball',     colors: ['#f0eefa', '#b06adf', '#e2dcf0', '#2a2440'] },
+  { id: 'disco',      name: 'Disco',       category: 'Special',   icon: 'disco-ball',     colors: ['#f0eefa', '#7d3fb0', '#a99ec8', '#241f36'] },
   { id: 'royal',      name: 'Royal',       category: 'Special',   icon: 'crown',          colors: ['#1f2a52', '#ffc93c', '#2d3d78', '#fff3d6'] },
   // Pets
   { id: 'cat',        name: 'Cat',         category: 'Pets',      icon: 'cat',            colors: ['#241d18', '#e8a04b', '#332a22', '#f5e8dc'] },

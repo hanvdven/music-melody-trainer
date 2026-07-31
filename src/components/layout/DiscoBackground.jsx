@@ -54,6 +54,10 @@ export default function DiscoBackground() {
             build();
         };
 
+        // #628-S5 (Han todo-4: bg in line with the theme's colour): the base = the theme's own --panel-bg
+        // (read once), so the disco background matches the swatch/palette instead of a divergent hardcode.
+        const base = getComputedStyle(canvas).getPropertyValue('--panel-bg').trim() || '#a99ec8';
+
         let last = performance.now();
         const draw = (now) => {
             const dt = Math.min((now - last) / 1000, 0.05); last = now;
@@ -62,7 +66,7 @@ export default function DiscoBackground() {
 
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.globalCompositeOperation = 'source-over';
-            ctx.fillStyle = '#ada2ce';                       // a bit lighter base (Han) — still shows the light
+            ctx.fillStyle = base;
             ctx.fillRect(0, 0, w, h);
 
             // LAMPS — additive coloured glows, drifting; wrap with a margin so they leave/re-enter frame
