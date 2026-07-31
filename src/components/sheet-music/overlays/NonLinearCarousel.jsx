@@ -280,6 +280,9 @@ export default function NonLinearCarousel({
             // #628-S5: fixedItemHeight scales X only so mini-staff swatches keep exactly one staff height.
             g.style.transform = fixedItemHeight ? `translate(${x}px, 0px) scale(${s}, 1)` : `translate(${x}px, 0px) scale(${s})`;
             g.style.transformOrigin = `0px ${baselineY}px`;
+            // Expose the per-item scale so fixedItemHeight consumers can COUNTER-scale specific parts back
+            // to uniform (Han: swatch bg stays one staff tall, but its logo/letters must not stretch).
+            g.style.setProperty('--nlc-s', String(s));
             g.style.opacity = String(op);
         }
         // Notify the consumer of the LIVE wrapped position every frame (drag + glide), so e.g. the

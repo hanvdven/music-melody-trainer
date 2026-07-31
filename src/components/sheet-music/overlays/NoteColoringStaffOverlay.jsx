@@ -263,7 +263,7 @@ const NoteColoringStaffOverlay = ({
                     familyMode
                     familyName={(f) => f}
                     familyColor={() => 'var(--text-secondary)'}
-                    renderContent={(item) => {
+                    renderContent={(item, active) => {
                         // #628-S3 swatch redesign (Han 2026-07-31): from a 4-colour band to a themed
                         // MINI-STAFF — a box in the theme's real background colour (panel-bg), the staff
                         // lines in the line colour, the theme's icons8 LOGO tinted to the accent colour,
@@ -308,15 +308,21 @@ const NoteColoringStaffOverlay = ({
                                     </mask>
                                 </defs>
                                 <g mask={`url(#${maskId})`}>
-                                    <rect x={x0} y={yT} width={W} height={yB - yT} fill={bg} />
-                                    {/* LOGO (accent-tinted) on the left, "Aa" (text colour) on the right */}
-                                    {iconUrl && (
-                                        <image href={iconUrl} x={x0 + 4} y={cy - LOGO / 2}
-                                            width={LOGO} height={LOGO} filter={`url(#${tintId})`}
-                                            preserveAspectRatio="xMidYMid meet" />
-                                    )}
-                                    <text x={x1 - 14} y={cy + 6} textAnchor="middle" fontSize={18}
-                                        fontFamily="serif" fill={text}>Aa</text>
+                                    {/* #628-S5 (Han): the ACTIVE swatch = the currently-applied theme, so its
+                                        own bg box is dropped → the REAL themed page background shows through. */}
+                                    {!active && <rect x={x0} y={yT} width={W} height={yB - yT} fill={bg} />}
+                                    {/* LOGO + "Aa" counter-scaled in Y by the carousel's per-item scale
+                                        (--nlc-s) about the staff centre, so with fixedItemHeight (X-only
+                                        scale) they shrink UNIFORMLY instead of stretching tall (Han). */}
+                                    <g style={{ transform: `translate(0px, ${cy}px) scaleY(var(--nlc-s, 1)) translate(0px, ${-cy}px)` }}>
+                                        {iconUrl && (
+                                            <image href={iconUrl} x={x0 + 4} y={cy - LOGO / 2}
+                                                width={LOGO} height={LOGO} filter={`url(#${tintId})`}
+                                                preserveAspectRatio="xMidYMid meet" />
+                                        )}
+                                        <text x={x1 - 14} y={cy + 6} textAnchor="middle" fontSize={18}
+                                            fontFamily="serif" fill={text}>Aa</text>
+                                    </g>
                                     {/* staff lines LAST, exact real-staff stroke → continuous, no seam */}
                                     {[-20, -10, 0, 10, 20].map((d2) => (
                                         <line key={d2} x1={x0} x2={x1} y1={cy + d2} y2={cy + d2}
