@@ -44,7 +44,8 @@ const thumbStyle = (url, cat) => {
         width: f.w, height: f.h,
         backgroundImage: `url("${url}")`, backgroundRepeat: 'no-repeat',
         backgroundPosition: '0 0', backgroundSize: 'auto', imageRendering: 'pixelated',
-        transform: cat === 'pet' ? 'scale(2.2)' : 'scale(1.25)',   // less zoom → don't crop the item's top (Han)
+        // scaleX(-1) → thumbnails face RIGHT like the preview (Han); modest zoom so the item's top isn't cropped.
+        transform: cat === 'pet' ? 'scale(-2.2, 2.2)' : 'scale(-1.25, 1.25)',
     };
 };
 
@@ -189,10 +190,9 @@ export default function CharacterCreator({ onClose }) {
                             const rep = b.variants.find((v) => !v.variant) || b.variants[0];
                             const isActive = activeBase && activeBase.id === b.id;
                             return (
-                                <button key={b.id} title={`${b.base}${b.mismatch ? ` (${b.g === 'female' ? 'F' : 'M'})` : ''}`}
+                                <button key={b.id} title={b.base}
                                     className={`cc-thumb${isActive ? ' active' : ''}`} onClick={() => pickBase(b)}>
                                     <div style={thumbStyle(rep.url, activeCat)} />
-                                    {b.mismatch && <span className="cc-wm">{b.g === 'female' ? 'F' : 'M'}</span>}
                                 </button>
                             );
                         })}

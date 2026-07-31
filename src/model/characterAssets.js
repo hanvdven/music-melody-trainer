@@ -87,7 +87,7 @@ export const CATEGORIES = [
     { key: 'feet', label: 'Feet', z: 4, gendered: true, source: () => both('clothing', clothesFilter.feet) },
     { key: 'hands', label: 'Hands', z: 6, gendered: true, source: () => both('arms') },
     { key: 'back', label: 'Back', z: 1, gendered: false, source: () => shared((RAW.shared.back || []).filter((p) => has(p.name, 'cape', 'backpack'))) },
-    { key: 'offhand', label: 'Off-hand', z: 10, gendered: true, source: () => bothFrom(RAW.shared.back, (p) => has(p.name, 'shield', 'lantern')) },
+    { key: 'offhand', label: 'Off-hand', z: 1, gendered: true, source: () => bothFrom(RAW.shared.back, (p) => has(p.name, 'shield', 'lantern')) },
     { key: 'weapon', label: 'Weapon', z: 11, gendered: true, source: () => both('handitems', (p) => has(p.name, 'axe', 'sword', 'pickaxe', 'hoe', 'stick')) },
     { key: 'effect', label: 'Effect', z: 12, animated: true, gendered: false, source: () => shared(RAW.shared.effects) },
     { key: 'pet', label: 'Pet', z: 13, frame: PET_FRAME, animated: true, gendered: false, source: () => shared(RAW.shared.pet) },
@@ -104,23 +104,23 @@ function bothFrom(list, filter) {
 export const catByKey = (key) => CATEGORIES.find((c) => c.key === key);
 export const frameOf = (key) => catByKey(key)?.frame || BODY_FRAME;
 
-// Bases for a category, current-gender first. Each base: { id, base, g, mismatch, variants:[{variant,name,url,g}] }.
-// Gendered items keep their gender in the base key so male-Sword and female-Sword stay distinct + watermarkable.
+// Bases for a category — only the CURRENT gender (+ shared). Han removed the gender-swapped watermark items
+// after the interchangeability test. Each base: { id, base, g, variants:[{variant,name,url,g}] }.
 export function basesFor(category, gender) {
     const cat = catByKey(category);
     if (!cat) return [];
-    const parts = cat.source();
+    const parts = cat.source().filter((p) => (p.g || 'shared') === 'shared' || p.g === gender);
     const map = new Map();
     for (const p of parts) {
         const { base, variant } = parseVariant(p.name);
         const g = p.g || 'shared';
         const id = `${g}::${base}`;
-        if (!map.has(id)) map.set(id, { id, base, g, mismatch: cat.gendered && g !== 'shared' && g !== gender, variants: [] });
+        if (!map.has(id)) map.set(id, { id, base, g, variants: [] });
         map.get(id).variants.push({ variant, name: p.name, url: p.url, g });
     }
     return [...map.values()]
         .map((b) => ({ ...b, variants: b.variants.sort((a, c) => (a.variant || '').localeCompare(c.variant || '')) }))
-        .sort((a, b) => (a.mismatch === b.mismatch ? a.base.localeCompare(b.base) : a.mismatch ? 1 : -1));
+        .sort((a, b) => a.base.localeCompare(b.base));
 }
 
 // Resolve a stored layer { g, name } → its url within a category (graceful if it moved/renamed).
