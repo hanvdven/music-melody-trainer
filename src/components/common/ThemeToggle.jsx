@@ -27,16 +27,17 @@ export const allThemes = [
   { id: 'classical',  name: 'Classical',   category: 'Default',   icon: 'lyre',           colors: ['#eef3f7', '#c97b4b', '#bcc7d4', '#2b3a42'] },
   // Paper — plain black-on-white, no frills, like printed sheet music (Han 2026-07-31). No logo icon.
   { id: 'paper',      name: 'Paper',       category: 'Default',   icon: null,             colors: ['#ffffff', '#333333', '#ffffff', '#111111'] },
-  // Light
-  { id: 'marble',     name: 'Marble',      category: 'Light',     icon: 'bust',           colors: ['#f2f1f4', '#8a7a6a', '#e4e3e8', '#33323a'] },
+  // Light — `marble` is placed LAST in Light so it sits ADJACENT to `marble-dark` (first in Dark) in the
+  // carousel (Han: "zet dark en light marble naast elkaar").
   { id: 'barley',     name: 'Barley',      category: 'Light',     icon: 'barley',         colors: ['#f4e7c5', '#b08a5a', '#e3d3a2', '#3a2e1f'] },
   { id: 'bright-day', name: 'Bright Day',  category: 'Light',     icon: 'sky',            colors: ['#e6f4fd', '#3f9bd6', '#c8e6f7', '#1e3a4a'] },
   { id: 'cloudy-day', name: 'Cloudy Day',  category: 'Light',     icon: 'sky',            colors: ['#dbeefb', '#5a8fc0', '#bfdcf0', '#25415a'] },
-  // Dark
+  { id: 'marble',     name: 'Marble',      category: 'Light',     icon: 'bust',           colors: ['#f2f1f4', '#8a7a6a', '#e4e3e8', '#33323a'] },
+  // Dark — `marble-dark` first, next to `marble`.
+  { id: 'marble-dark',name: 'Marble (Dark)',category: 'Dark',     icon: 'bust',           colors: ['#151518', '#9a9aa6', '#1c1c20', '#e4e4ea'] },
   { id: 'sunset',     name: 'Sunset',      category: 'Dark',      icon: 'field',          colors: ['#241018', '#ff8c42', '#3a1c2a', '#ffe6d0'] },
   { id: 'stars',      name: 'Stars',       category: 'Dark',      icon: 'shooting-stars', colors: ['#0b1020', '#d4af37', '#222c40', '#e6e8ef'] },
   { id: 'museum',     name: 'Museum',      category: 'Dark',      icon: 'exhibition',     colors: ['#0e2a47', '#f2c94c', '#163a5f', '#f0e6d2'] },
-  { id: 'marble-dark',name: 'Marble (Dark)',category: 'Dark',     icon: 'bust',           colors: ['#151518', '#9a9aa6', '#1c1c20', '#e4e4ea'] },
   // Elemental
   { id: 'clover',     name: 'Clover',      category: 'Elemental', icon: 'clover',         colors: ['#0d2016', '#5fbf6a', '#16321f', '#e2f2e4'] },
   { id: 'river',      name: 'River',       category: 'Elemental', icon: 'water-element',  colors: ['#08202b', '#3fb6c9', '#103440', '#dff0f4'] },

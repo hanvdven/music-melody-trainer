@@ -1195,6 +1195,11 @@ path {
    TODO next batch: Progress chevron + circle. */
 :root[data-theme='pride-light'] .app-top-wrapper { background: linear-gradient(172deg, #e7b0ab, #ecc79f, #ecdfa2, #b9dab6, #accae0, #c8b2dd); }
 :root[data-theme='pride-dark'] .app-top-wrapper { background: linear-gradient(172deg, #4e1616, #52300f, #4e4510, #123f1c, #12294e, #2c134d); }
+/* Corner fix (Han): the flag ends in its LAST stripe colour at the bottom of the top area; the rounded
+   corner behind the bottom panel reveals .app-root, so paint .app-root that same last colour → the flag
+   flows seamlessly into the corner instead of a mismatched sliver. */
+:root[data-theme='pride-light'] .app-root { background: #c8b2dd; }
+:root[data-theme='pride-dark'] .app-root { background: #2c134d; }
 
 /* VAPOURWAVE — colours kept (Han: perfect); a bit more tilted; subtle L↔R drift. */
 :root[data-theme='vapourwave'] .app-root {
@@ -1254,23 +1259,25 @@ path {
 :root[data-theme='marble'] .app-root {
   background-color: #f1eff3;
   background-image:
-    /* thin sharp branching VEINS (turbulence ridges, very high threshold → lines, not blobs) */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900'%3E%3Cfilter id='ml'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.010 0.024' numOctaves='3' seed='3'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.32 0 0 0 0 0.31 0 0 0 0 0.35 0 0 0 13 -7.2'/%3E%3C/filter%3E%3Crect width='900' height='900' filter='url(%23ml)'/%3E%3C/svg%3E"),
-    /* soft grey cloudy blotches (fractalNoise, sparse) */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.010 0.016' numOctaves='4' seed='9'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.48 0 0 0 0 0.47 0 0 0 0 0.5 0 0 0 7 -4.1'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23m)'/%3E%3C/svg%3E"),
-    radial-gradient(ellipse at 30% 25%, rgba(210, 205, 214, 0.40), transparent 55%),
-    radial-gradient(ellipse at 74% 70%, rgba(205, 200, 210, 0.34), transparent 58%);
-  background-size: 1150px 1150px, 1000px 1000px, auto, auto;
+    /* thin branching VEIN LINES — put a noise channel into alpha, then a feComponentTransfer SPIKE table
+       makes only narrow noise-value bands opaque = organic CONTOUR lines (not blobs). */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='1000'%3E%3Cfilter id='ml'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.017' numOctaves='3' seed='3'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.32 0 0 0 0 0.31 0 0 0 0 0.35 1 0 0 0 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 0 0 1 0 0 1 0 0 0'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='1000' height='1000' filter='url(%23ml)'/%3E%3C/svg%3E"),
+    /* fewer, LIGHTER grey blotches (closer to the bg) */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.014' numOctaves='4' seed='9'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.74 0 0 0 0 0.73 0 0 0 0 0.76 0 0 0 5 -3.4'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23m)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 30% 25%, rgba(214, 210, 218, 0.30), transparent 55%),
+    radial-gradient(ellipse at 74% 70%, rgba(210, 206, 214, 0.24), transparent 58%);
+  background-size: 1250px 1250px, 1000px 1000px, auto, auto;
 }
 /* MARBLE DARK — Han: base REALLY black, veins DARK-GREY (the white blotches made light text unreadable).
    Thin vein LINES + very subtle dark cloudy blotches on near-black stone. */
 :root[data-theme='marble-dark'] .app-root {
   background-color: #060608;
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900'%3E%3Cfilter id='mdl'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.010 0.024' numOctaves='3' seed='3'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.26 0 0 0 0 0.26 0 0 0 0 0.3 0 0 0 13 -7.4'/%3E%3C/filter%3E%3Crect width='900' height='900' filter='url(%23mdl)'/%3E%3C/svg%3E"),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='md'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.010 0.016' numOctaves='4' seed='5'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.16 0 0 0 0 0.16 0 0 0 0 0.19 0 0 0 6 -3.4'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23md)'/%3E%3C/svg%3E"),
-    radial-gradient(ellipse at 30% 28%, rgba(40, 40, 48, 0.30), transparent 56%);
-  background-size: 1150px 1150px, 1000px 1000px, auto;
+    /* dark-grey contour VEIN LINES (same spike technique, muted so light text stays readable) */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='1000'%3E%3Cfilter id='mdl'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.017' numOctaves='3' seed='3'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.28 0 0 0 0 0.28 0 0 0 0 0.32 1 0 0 0 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 0 0 1 0 0 1 0 0 0'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='1000' height='1000' filter='url(%23mdl)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='md'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.014' numOctaves='4' seed='5'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.12 0 0 0 0 0.12 0 0 0 0 0.15 0 0 0 5 -3.0'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23md)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 30% 28%, rgba(30, 30, 38, 0.28), transparent 56%);
+  background-size: 1250px 1250px, 1000px 1000px, auto;
 }
 
 /* CLOUDY DAY — the marble blotch texture reused as soft WHITE CLOUDS (fractalNoise, gradual alpha = fluffy,
@@ -1278,8 +1285,8 @@ path {
 :root[data-theme='cloudy-day'] .app-root {
   background-color: #cfe6f8;
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900'%3E%3Cfilter id='cl'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.005 0.008' numOctaves='4' seed='7'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.5 -0.42'/%3E%3C/filter%3E%3Crect width='900' height='900' filter='url(%23cl)'/%3E%3C/svg%3E");
-  background-size: 1100px 1100px;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='cl'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.014' numOctaves='4' seed='7'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 5 -2.6'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23cl)'/%3E%3C/svg%3E");
+  background-size: 1000px 1000px;
   background-repeat: repeat;
   animation: cloud-drift 90s linear infinite alternate;
 }
