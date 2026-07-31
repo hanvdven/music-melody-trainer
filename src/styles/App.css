@@ -1133,6 +1133,7 @@ path {
    all DERIVED from each theme's own base colours so one rule fits every light theme (§6c). */
 :root[data-theme='marble'],
 :root[data-theme='bright-day'],
+:root[data-theme='cloudy-day'],
 :root[data-theme='disco'],
 :root[data-theme='paper'],
 :root[data-theme='pride-light'] {
@@ -1163,6 +1164,7 @@ path {
 /* — Light — */
 :root[data-theme='marble']     { --app-bg: #f2f1f4; --panel-bg: #e4e3e8; --text-primary: #33323a; --accent-yellow: #8a7a6a; }
 :root[data-theme='bright-day'] { --app-bg: #e6f4fd; --panel-bg: #c8e6f7; --text-primary: #1e3a4a; --accent-yellow: #3f9bd6; }
+:root[data-theme='cloudy-day'] { --app-bg: #dbeefb; --panel-bg: #bfdcf0; --text-primary: #25415a; --accent-yellow: #5a8fc0; }
 :root[data-theme='disco']      { --app-bg: #f0eefa; --panel-bg: #e2dcf0; --text-primary: #2a2440; --accent-yellow: #b06adf; }
 :root[data-theme='pride-light']{ --app-bg: #fdf0f5; --panel-bg: #f3dbe8; --text-primary: #3a2030; --accent-yellow: #e0407a; }
 
@@ -1186,13 +1188,12 @@ path {
    (a child of `.app-root`) covers `.app-root` in the bottom view, so the pattern is NOT on the controls.
    Element-own `background`, no pseudo/z-index. Panel-derived text vars keep the notes legible. */
 
-/* PRIDE — soft BLURRED rainbow bands, tilted ~10°. Applied to BOTH .app-root (fills the corner sliver)
-   AND .app-top-wrapper — the latter is the TOP-AREA box, so the 6 stripes fit within the visible sheet
-   view and the WHOLE flag is seen on a tall mobile portrait (Han: on portrait only red/yellow/green showed
-   because the full-height .app-root flag ran off-screen). TODO next batch: Progress chevron + circle. */
-:root[data-theme='pride-light'] .app-root,
+/* PRIDE — soft BLURRED rainbow bands, tilted ~10°. On `.app-top-wrapper` ONLY (the TOP-AREA box) so all 6
+   stripes fit the visible sheet view — the whole flag is seen on a tall mobile portrait. NOT on `.app-root`:
+   a full-height flag there was a DIFFERENT scale and produced a mismatched-stripe seam at the bottom corner
+   (Han: "de vlag loopt niet mooi door naar onderste deel"); the corner now shows the solid panel colour.
+   TODO next batch: Progress chevron + circle. */
 :root[data-theme='pride-light'] .app-top-wrapper { background: linear-gradient(172deg, #e7b0ab, #ecc79f, #ecdfa2, #b9dab6, #accae0, #c8b2dd); }
-:root[data-theme='pride-dark'] .app-root,
 :root[data-theme='pride-dark'] .app-top-wrapper { background: linear-gradient(172deg, #4e1616, #52300f, #4e4510, #123f1c, #12294e, #2c134d); }
 
 /* VAPOURWAVE — colours kept (Han: perfect); a bit more tilted; subtle L↔R drift. */
@@ -1209,18 +1210,19 @@ path {
    (fast) like a mirror-ball's reflections; the coloured facets drift slowly. */
 :root[data-theme='disco'] .app-root {
   background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.6) 0 1.4px, transparent 2.6px),
-    radial-gradient(circle at 26% 26%, rgba(185, 120, 240, 0.55) 0 14%, transparent 15%),
-    radial-gradient(circle at 72% 42%, rgba(90, 175, 240, 0.5) 0 13%, transparent 14%),
-    radial-gradient(circle at 46% 78%, rgba(240, 95, 160, 0.5) 0 12%, transparent 13%),
+    radial-gradient(circle, rgba(255, 255, 255, 0.8) 0 2px, rgba(255, 255, 255, 0.3) 5px, transparent 10px),
+    radial-gradient(circle at 24% 28%, rgba(255, 45, 45, 0.55) 0 12%, transparent 14%),   /* red */
+    radial-gradient(circle at 70% 32%, rgba(45, 110, 255, 0.55) 0 11%, transparent 13%),  /* blue */
+    radial-gradient(circle at 38% 74%, rgba(45, 220, 90, 0.5) 0 11%, transparent 13%),    /* green */
+    radial-gradient(circle at 80% 78%, rgba(255, 215, 45, 0.5) 0 11%, transparent 13%),   /* yellow */
     #9e92c0;
-  background-size: 46px 46px, 200% 200%, 230% 230%, 210% 210%, auto;
-  background-blend-mode: screen, screen, screen, screen, normal;
+  background-size: 132px 132px, 200% 200%, 220% 220%, 210% 210%, 190% 190%, auto;
+  background-blend-mode: screen, screen, screen, screen, screen, normal;
   animation: disco-drift 60s ease-in-out infinite alternate;
 }
 @keyframes disco-drift {
-  from { background-position: 0 0, 0% 0%, 100% 0%, 50% 100%, 0 0; }
-  to   { background-position: 640px 0, 55% 45%, 40% 75%, 20% 30%, 0 0; }
+  from { background-position: 0 0, 0% 0%, 100% 0%, 30% 100%, 90% 90%, 0 0; }
+  to   { background-position: 700px 90px, 55% 45%, 40% 75%, 70% 25%, 15% 40%, 0 0; }
 }
 
 /* MARBLE — Han: straight gradient lines never look organic; use ORGANIC feTurbulence veins, but sparse &
@@ -1230,20 +1232,36 @@ path {
 :root[data-theme='marble'] .app-root {
   background-color: #f1eff3;
   background-image:
+    /* thin sharp branching VEINS (turbulence ridges, very high threshold → lines, not blobs) */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900'%3E%3Cfilter id='ml'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.010 0.024' numOctaves='3' seed='3'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.32 0 0 0 0 0.31 0 0 0 0 0.35 0 0 0 13 -7.2'/%3E%3C/filter%3E%3Crect width='900' height='900' filter='url(%23ml)'/%3E%3C/svg%3E"),
+    /* soft grey cloudy blotches (fractalNoise, sparse) */
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.010 0.016' numOctaves='4' seed='9'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.48 0 0 0 0 0.47 0 0 0 0 0.5 0 0 0 7 -4.1'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23m)'/%3E%3C/svg%3E"),
     radial-gradient(ellipse at 30% 25%, rgba(210, 205, 214, 0.40), transparent 55%),
     radial-gradient(ellipse at 74% 70%, rgba(205, 200, 210, 0.34), transparent 58%);
-  background-size: 1000px 1000px, auto, auto;
+  background-size: 1150px 1150px, 1000px 1000px, auto, auto;
 }
-/* MARBLE DARK — same organic veins, LIGHTER grey on a near-black stone (Han: "voeg marble dark toe"). */
+/* MARBLE DARK — Han: base REALLY black, veins DARK-GREY (the white blotches made light text unreadable).
+   Thin vein LINES + very subtle dark cloudy blotches on near-black stone. */
 :root[data-theme='marble-dark'] .app-root {
-  background-color: #17171b;
+  background-color: #060608;
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='md'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.010 0.016' numOctaves='4' seed='5'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.6 0 0 0 0 0.6 0 0 0 0 0.66 0 0 0 6 -3.5'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23md)'/%3E%3C/svg%3E"),
-    radial-gradient(ellipse at 30% 28%, rgba(80, 80, 92, 0.34), transparent 56%),
-    radial-gradient(ellipse at 74% 70%, rgba(70, 70, 82, 0.28), transparent 58%);
-  background-size: 1000px 1000px, auto, auto;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900'%3E%3Cfilter id='mdl'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.010 0.024' numOctaves='3' seed='3'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.26 0 0 0 0 0.26 0 0 0 0 0.3 0 0 0 13 -7.4'/%3E%3C/filter%3E%3Crect width='900' height='900' filter='url(%23mdl)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='md'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.010 0.016' numOctaves='4' seed='5'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.16 0 0 0 0 0.16 0 0 0 0 0.19 0 0 0 6 -3.4'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23md)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 30% 28%, rgba(40, 40, 48, 0.30), transparent 56%);
+  background-size: 1150px 1150px, 1000px 1000px, auto;
 }
+
+/* CLOUDY DAY — the marble blotch texture reused as soft WHITE CLOUDS (fractalNoise, gradual alpha = fluffy,
+   not thresholded) drifting over a sky-blue base (Han 2026-07-31). */
+:root[data-theme='cloudy-day'] .app-root {
+  background-color: #cfe6f8;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900'%3E%3Cfilter id='cl'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.005 0.008' numOctaves='4' seed='7'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.5 -0.42'/%3E%3C/filter%3E%3Crect width='900' height='900' filter='url(%23cl)'/%3E%3C/svg%3E");
+  background-size: 1100px 1100px;
+  background-repeat: repeat;
+  animation: cloud-drift 90s linear infinite alternate;
+}
+@keyframes cloud-drift { from { background-position: 0 0; } to { background-position: 260px 40px; } }
 
 /* PETS — Han: too busy; use the plain icons8 icon, subtler, a colour CLOSE to the bg. The tiled flat-black
    PNG is muted toward the panel colour by an ~78% panel overlay → a soft same-hue watermark; big tiles = calm. */

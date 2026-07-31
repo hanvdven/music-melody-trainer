@@ -31,6 +31,7 @@ export const allThemes = [
   { id: 'marble',     name: 'Marble',      category: 'Light',     icon: 'bust',           colors: ['#f2f1f4', '#8a7a6a', '#e4e3e8', '#33323a'] },
   { id: 'barley',     name: 'Barley',      category: 'Light',     icon: 'barley',         colors: ['#f4e7c5', '#b08a5a', '#e3d3a2', '#3a2e1f'] },
   { id: 'bright-day', name: 'Bright Day',  category: 'Light',     icon: 'sky',            colors: ['#e6f4fd', '#3f9bd6', '#c8e6f7', '#1e3a4a'] },
+  { id: 'cloudy-day', name: 'Cloudy Day',  category: 'Light',     icon: 'sky',            colors: ['#dbeefb', '#5a8fc0', '#bfdcf0', '#25415a'] },
   // Dark
   { id: 'sunset',     name: 'Sunset',      category: 'Dark',      icon: 'field',          colors: ['#241018', '#ff8c42', '#3a1c2a', '#ffe6d0'] },
   { id: 'stars',      name: 'Stars',       category: 'Dark',      icon: 'shooting-stars', colors: ['#0b1020', '#d4af37', '#222c40', '#e6e8ef'] },
