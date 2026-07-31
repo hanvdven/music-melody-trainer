@@ -19,6 +19,7 @@ import SheetMusic from './components/sheet-music/SheetMusic';
 import { KIT_NOTE_MAPPINGS } from './audio/drumKits';
 import AppHeader from './components/layout/AppHeader';
 import DiscoBackground from './components/layout/DiscoBackground';
+import CharacterCreator from './components/character/CharacterCreator';
 import SubHeader from './components/layout/SubHeader';
 
 // Hooks
@@ -234,6 +235,7 @@ const App = () => {
     // transposition (which transposes the NOTATION); this transposes the KEYS only. Set in
     // TRANSPOSITION mode (clefEditMode) via the keyboard's "concert C =" control.
     const [keyboardTranspose, setKeyboardTranspose] = useState(0);
+    const [showCharacter, setShowCharacter] = useState(false);   // #645: character-creator modal
     // Loaded-song title for the header (Han 2026-06-14): "Happy Birthday in G major". Set on song
     // load; cleared when the user generates a fresh exercise (un-pins the melody) — see effect below.
     const [loadedSongTitle, setLoadedSongTitle] = useState(null);
@@ -1668,8 +1670,11 @@ const App = () => {
                 {/* #628-S5: canvas disco-ball background — only mounted for the disco theme; sits behind
                     the (transparent) header + sheet via .disco-canvas (z-index:-1 + isolate). */}
                 {theme === 'disco' && <DiscoBackground />}
+                {/* #645: character-creator modal (fixed-position; opened from the header). */}
+                {showCharacter && <CharacterCreator onClose={() => setShowCharacter(false)} />}
                 <AppHeader
                     scale={scale}
+                    onOpenCharacter={() => setShowCharacter(true)}
                     onStartExercise={handleStartExercise}
                     /* #533: the header Thronefall crown was removed — the colour setter's theme
                        carousel now covers it (and every other theme). */

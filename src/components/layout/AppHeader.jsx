@@ -14,6 +14,7 @@ import {
     Dumbbell,
     Maximize,
     Minimize,
+    UserCircle2,
 } from 'lucide-react';
 import './AppHeader.css';
 import { formatScaleName } from '../../theory/scaleHandler';
@@ -47,6 +48,7 @@ const AppHeader = ({
     isFullscreen = false,
     toggleFullscreen = null,
     onOpenKanban = null,        // opens the in-app kanban board; button only shown in debug mode
+    onOpenCharacter = null,     // #645: opens the character-creator modal
     onScaleClick = null,
     isScalePlaying = false,
     progressionLabel = null,
@@ -87,6 +89,18 @@ const AppHeader = ({
                         style={{ color: isFullscreen ? 'var(--accent-yellow)' : 'var(--text-secondary)', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
                     >
                         {isFullscreen ? <Minimize size={22} /> : <Maximize size={22} />}
+                    </button>
+                )}
+
+                {/* #645: character creator */}
+                {onOpenCharacter && (
+                    <button
+                        className="tab-button secondary app-header-btn"
+                        onClick={() => onOpenCharacter()}
+                        title="Character creator"
+                        style={{ color: 'var(--text-secondary)', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
+                    >
+                        <UserCircle2 size={22} />
                     </button>
                 )}
 
