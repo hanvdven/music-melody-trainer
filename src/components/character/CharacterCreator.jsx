@@ -1,92 +1,126 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import './CharacterCreator.css';
-import { CATEGORIES, FRAME, partsFor } from '../../model/characterAssets';
+import { CATEGORIES, IDLE, BODY_FRAME, frameOf, basesFor, urlOfLayer } from '../../model/characterAssets';
 import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/characterProfile';
 
-// #645 POC character creator (Han). A fullscreen modal opened from the header. LEFT: a live paper-doll
-// that stacks the selected layers (frame 0 of each 800x448 sprite sheet); RIGHT: gender + name + birthday
-// + level, category tabs and a thumbnail grid to pick each layer. Saved to localStorage across sessions.
+// #645 POC character creator (v2, Han). LEFT: live paper-doll (layers stacked in z-order, one sprite frame
+// each, idle-animated). RIGHT: gender + name + birthday + level, category tabs, base-item grid (+ a colour/
+// material variant setter when a base has variants) with an M/F watermark on wrong-gender items so their
+// interchangeability can be eyeballed. Rendered at NATIVE sprite size + `transform: scale`, so a sheet's
+// width never distorts it (fixes the ear drift). Saved to localStorage across sessions.
 
-const PREVIEW_SCALE = 4;   // 80x64 frame shown at 4x
-const THUMB_SCALE = 1;
+const SCALE = 5;                    // preview zoom (80x64 * 5)
+const PET_OFFSET = { x: -4, y: 30 };   // pet stands just behind, lower-left (native px, pre-flip)
 
-// CSS to crop a sprite SHEET to one frame of row 0 (frameIndex) at a given scale (pixel-art crisp).
-const frameStyle = (url, scale, frameIndex = 0) => ({
-    width: FRAME.w * scale,
-    height: FRAME.h * scale,
-    backgroundImage: `url("${url}")`,
-    backgroundRepeat: 'no-repeat',
-    backgroundPosition: `${-frameIndex * FRAME.w * scale}px 0px`,
-    backgroundSize: `${FRAME.sheetW * scale}px ${FRAME.sheetH * scale}px`,
-    imageRendering: 'pixelated',
-});
+const layerStyle = (url, cat, frame) => {
+    const f = frameOf(cat);
+    const idx = frame % IDLE;
+    return {
+        position: 'absolute',
+        left: cat === 'pet' ? PET_OFFSET.x : 0,
+        top: cat === 'pet' ? PET_OFFSET.y : 0,
+        width: f.w,
+        height: f.h,
+        backgroundImage: `url("${url}")`,
+        backgroundRepeat: 'no-repeat',
+        backgroundPosition: `${-idx * f.w}px 0px`,
+        backgroundSize: 'auto',           // NATIVE sheet size → step by f.w works for any sheet width
+        imageRendering: 'pixelated',
+    };
+};
+
+// A cropped thumbnail (frame 0) of one part, native size scaled down by CSS.
+const thumbStyle = (url, cat) => {
+    const f = frameOf(cat);
+    return {
+        width: f.w, height: f.h,
+        backgroundImage: `url("${url}")`, backgroundRepeat: 'no-repeat',
+        backgroundPosition: '0 0', backgroundSize: 'auto', imageRendering: 'pixelated',
+        transform: 'scale(0.9)',
+    };
+};
 
 export default function CharacterCreator({ onClose }) {
     const [char, setChar] = useState(loadCharacter);
     const [activeCat, setActiveCat] = useState('skin');
     const [saved, setSaved] = useState(false);
-    // Passive/idle animation (Han): cycle the row-0 idle frames in the preview.
     const [frame, setFrame] = useState(0);
     useEffect(() => {
-        const id = setInterval(() => setFrame((f) => (f + 1) % FRAME.idle), 160);
+        const id = setInterval(() => setFrame((f) => (f + 1) % IDLE), 170);
         return () => clearInterval(id);
     }, []);
 
     const gender = char.gender;
-    const options = useMemo(() => partsFor(activeCat, gender), [activeCat, gender]);
+    const bases = useMemo(() => basesFor(activeCat, gender), [activeCat, gender]);
+    const zOrder = useMemo(() => [...CATEGORIES].sort((a, b) => a.z - b.z), []);
 
-    // Resolve a category's selected part name → its current URL (graceful if the asset moved/renamed).
-    const urlFor = (cat) => {
-        const name = char.layers[cat];
-        if (!name) return null;
-        return partsFor(cat, gender).find((p) => p.name === name)?.url || null;
-    };
-
-    const setLayer = (cat, name) => { setChar((c) => ({ ...c, layers: { ...c.layers, [cat]: name } })); setSaved(false); };
+    const setLayer = (cat, layer) => { setChar((c) => ({ ...c, layers: { ...c.layers, [cat]: layer } })); setSaved(false); };
     const patch = (p) => { setChar((c) => ({ ...c, ...p })); setSaved(false); };
+
+    // skin is required — default it (to the current gender's first skin) whenever it is missing/mismatched.
+    const ensureSkin = useCallback((g, layers) => {
+        const cur = layers.skin;
+        if (cur && cur.g === g) return layers;
+        const first = basesFor('skin', g)[0]?.variants[0];
+        return first ? { ...layers, skin: { g: first.g, name: first.name } } : layers;
+    }, []);
+    useEffect(() => { setChar((c) => ({ ...c, layers: ensureSkin(c.gender, c.layers) })); }, [ensureSkin]);
+
+    const setGender = (g) => setChar((c) => ({ ...c, gender: g, layers: ensureSkin(g, c.layers) }));
+
+    const selected = char.layers[activeCat];   // { g, name } | null
+    const activeBase = bases.find((b) => b.variants.some((v) => v.name === selected?.name && v.g === selected?.g));
+
+    const pickBase = (b) => {
+        const plain = b.variants.find((v) => !v.variant) || b.variants[0];
+        setLayer(activeCat, { g: plain.g, name: plain.name });
+    };
 
     const randomize = () => {
         const layers = {};
         for (const c of CATEGORIES) {
-            const list = partsFor(c.key, gender);
-            // Always give a skin; other layers are optional (~55% chance) so the doll isn't over-stacked.
-            if (list.length && (c.key === 'skin' || Math.random() < 0.55)) layers[c.key] = list[Math.floor(Math.random() * list.length)].name;
+            const bs = basesFor(c.key, gender).filter((b) => !b.mismatch);
+            if (!bs.length) continue;
+            if (c.required || Math.random() < 0.5) {
+                const b = bs[Math.floor(Math.random() * bs.length)];
+                const v = b.variants[Math.floor(Math.random() * b.variants.length)];
+                layers[c.key] = { g: v.g, name: v.name };
+            }
         }
-        setChar((c) => ({ ...c, layers }));
+        setChar((c) => ({ ...c, layers: ensureSkin(c.gender, layers) }));
         setSaved(false);
     };
 
     const onSave = () => { saveCharacter(char); setSaved(true); };
-    const reset = () => { setChar((c) => ({ ...emptyCharacter(), gender: c.gender })); setSaved(false); };
+    const reset = () => setChar((c) => ({ ...emptyCharacter(), gender: c.gender, layers: ensureSkin(c.gender, {}) }));
 
     return (
         <div className="cc-overlay" onClick={onClose}>
             <div className="cc-modal" onClick={(e) => e.stopPropagation()}>
                 <button className="cc-close" onClick={onClose} aria-label="Close">✕</button>
 
-                {/* LEFT — live paper-doll preview. scaleX(-1) → the character faces RIGHT (Han). */}
+                {/* LEFT — live paper-doll. scaleX(-1) → faces RIGHT (Han). */}
                 <div className="cc-preview">
-                    <div className="cc-doll" style={{ width: FRAME.w * PREVIEW_SCALE, height: FRAME.h * PREVIEW_SCALE, transform: 'scaleX(-1)' }}>
-                        {CATEGORIES.map((c) => {
-                            const url = urlFor(c.key);
-                            if (!url) return null;
-                            // Effects use a different (400x64) sheet — show them whole rather than frame-cropped.
-                            if (c.key === 'effects') {
-                                return <img key={c.key} className="cc-layer cc-effect" src={url} alt="" />;
-                            }
-                            return <div key={c.key} className="cc-layer" style={frameStyle(url, PREVIEW_SCALE, frame)} />;
-                        })}
+                    <div className="cc-doll" style={{ width: BODY_FRAME.w * SCALE, height: BODY_FRAME.h * SCALE }}>
+                        <div style={{ width: BODY_FRAME.w, height: BODY_FRAME.h, transform: `scale(${SCALE})`, transformOrigin: 'top left' }}>
+                            <div style={{ position: 'absolute', inset: 0, transform: 'scaleX(-1)' }}>
+                                {zOrder.map((c) => {
+                                    const url = urlOfLayer(c.key, char.layers[c.key]);
+                                    return url ? <div key={c.key} style={layerStyle(url, c.key, frame)} /> : null;
+                                })}
+                            </div>
+                        </div>
                     </div>
                     <div className="cc-level">LVL {char.level}</div>
                 </div>
 
                 {/* RIGHT — controls */}
                 <div className="cc-controls">
-                    <div className="cc-row cc-identity">
+                    <div className="cc-identity">
                         <div className="cc-gender">
                             {['male', 'female'].map((g) => (
                                 <button key={g} className={`cc-gender-btn${gender === g ? ' active' : ''}`}
-                                    onClick={() => patch({ gender: g })}>{g === 'male' ? '♂' : '♀'}</button>
+                                    onClick={() => setGender(g)}>{g === 'male' ? '♂' : '♀'}</button>
                             ))}
                         </div>
                         <input className="cc-input" placeholder="name" value={char.name}
@@ -95,7 +129,6 @@ export default function CharacterCreator({ onClose }) {
                             onChange={(e) => patch({ birthday: e.target.value })} />
                     </div>
 
-                    {/* category tabs */}
                     <div className="cc-tabs">
                         {CATEGORIES.map((c) => (
                             <button key={c.key} className={`cc-tab${activeCat === c.key ? ' active' : ''}`}
@@ -103,19 +136,34 @@ export default function CharacterCreator({ onClose }) {
                         ))}
                     </div>
 
-                    {/* thumbnail grid for the active category (+ a None option) */}
+                    {/* variant setter (colours / materials) for the selected base */}
+                    {activeBase && activeBase.variants.length > 1 && (
+                        <div className="cc-variants">
+                            {activeBase.variants.map((v) => (
+                                <button key={v.name} title={v.variant || 'plain'}
+                                    className={`cc-chip${selected?.name === v.name ? ' active' : ''}`}
+                                    onClick={() => setLayer(activeCat, { g: v.g, name: v.name })}>{v.variant || '•'}</button>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* base-item grid */}
                     <div className="cc-grid">
-                        <button className={`cc-thumb cc-none${!char.layers[activeCat] ? ' active' : ''}`}
-                            onClick={() => setLayer(activeCat, null)} title="None">∅</button>
-                        {options.map((p) => (
-                            <button key={p.name} title={p.name}
-                                className={`cc-thumb${char.layers[activeCat] === p.name ? ' active' : ''}`}
-                                onClick={() => setLayer(activeCat, p.name)}>
-                                {activeCat === 'effects'
-                                    ? <img className="cc-effect-thumb" src={p.url} alt="" />
-                                    : <div style={frameStyle(p.url, THUMB_SCALE)} />}
-                            </button>
-                        ))}
+                        {!catByRequired(activeCat) && (
+                            <button className={`cc-thumb cc-none${!selected ? ' active' : ''}`}
+                                onClick={() => setLayer(activeCat, null)} title="None">∅</button>
+                        )}
+                        {bases.map((b) => {
+                            const rep = b.variants.find((v) => !v.variant) || b.variants[0];
+                            const isActive = activeBase && activeBase.id === b.id;
+                            return (
+                                <button key={b.id} title={`${b.base}${b.mismatch ? ` (${b.g === 'female' ? 'F' : 'M'})` : ''}`}
+                                    className={`cc-thumb${isActive ? ' active' : ''}`} onClick={() => pickBase(b)}>
+                                    <div style={thumbStyle(rep.url, activeCat)} />
+                                    {b.mismatch && <span className="cc-wm">{b.g === 'female' ? 'F' : 'M'}</span>}
+                                </button>
+                            );
+                        })}
                     </div>
 
                     <div className="cc-actions">
@@ -128,3 +176,5 @@ export default function CharacterCreator({ onClose }) {
         </div>
     );
 }
+
+const catByRequired = (key) => CATEGORIES.find((c) => c.key === key)?.required;
