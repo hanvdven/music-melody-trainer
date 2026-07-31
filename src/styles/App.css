@@ -1196,11 +1196,15 @@ path {
    so it is centred on the SHEET MUSIC, not the screen middle. Light mode = PALE rainbow (dark notes stay
    readable); dark mode = DEEP rainbow (light notes stay readable) — the readability-correct mapping. */
 :root[data-theme='pride-light'] .app-root {
-  background: linear-gradient(175deg,
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 68 50'%3E%3Cfilter id='pcl'%3E%3CfeGaussianBlur stdDeviation='0.5'/%3E%3C/filter%3E%3Cg filter='url(%23pcl)'%3E%3Cpath d='M0 0 L60 25 L0 50 Z' fill='%231a1a1a'/%3E%3Cpath d='M0 5 L48 25 L0 45 Z' fill='%23603b1e'/%3E%3Cpath d='M0 10 L36 25 L0 40 Z' fill='%235ac8e8'/%3E%3Cpath d='M0 15 L24 25 L0 35 Z' fill='%23ffb0c8'/%3E%3Cpath d='M0 20 L12 25 L0 30 Z' fill='%23ffffff'/%3E%3Ccircle cx='9' cy='25' r='6' fill='%23ffd21a'/%3E%3Ccircle cx='9' cy='25' r='6' fill='none' stroke='%237a2a9e' stroke-width='2'/%3E%3C/g%3E%3C/svg%3E") left 26% / auto 30% no-repeat,
+    linear-gradient(175deg,
     #ef9298 0%, #ef9298 20%, #f0bd86 25%, #f0e29a 29%, #86cf92 34%, #8aa6e6 39%, #c4a0dd 44%, #c4a0dd 100%);
 }
 :root[data-theme='pride-dark'] .app-root {
-  background: linear-gradient(175deg,
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 68 50'%3E%3Cfilter id='pcd'%3E%3CfeGaussianBlur stdDeviation='0.5'/%3E%3C/filter%3E%3Cg filter='url(%23pcd)'%3E%3Cpath d='M0 0 L60 25 L0 50 Z' fill='%231a1a1a'/%3E%3Cpath d='M0 5 L48 25 L0 45 Z' fill='%23603b1e'/%3E%3Cpath d='M0 10 L36 25 L0 40 Z' fill='%235ac8e8'/%3E%3Cpath d='M0 15 L24 25 L0 35 Z' fill='%23ffb0c8'/%3E%3Cpath d='M0 20 L12 25 L0 30 Z' fill='%23ffffff'/%3E%3Ccircle cx='9' cy='25' r='6' fill='%23ffd21a'/%3E%3Ccircle cx='9' cy='25' r='6' fill='none' stroke='%237a2a9e' stroke-width='2'/%3E%3C/g%3E%3C/svg%3E") left 26% / auto 30% no-repeat,
+    linear-gradient(175deg,
     #7a2028 0%, #7a2028 20%, #7a4e1e 25%, #6e6420 29%, #1e6030 34%, #1e3a72 39%, #40285e 44%, #40285e 100%);
 }
 /* GENERAL corner fix (Han: no per-theme corner hacks): pride now lives on `.app-root` like every other
