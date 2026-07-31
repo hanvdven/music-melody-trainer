@@ -1191,20 +1191,16 @@ path {
    a full-height flag there was a DIFFERENT scale and produced a mismatched-stripe seam at the bottom corner
    (Han: "de vlag loopt niet mooi door naar onderste deel"); the corner now shows the solid panel colour.
    TODO next batch: Progress chevron + circle. */
-/* Progress-Pride flag (Han): the rainbow is a SOFT, tilted (~8°) gradient (blurred bands, PALER on light
-   so the sheet stays readable); the Progress chevron (black/brown/light-blue/pink/white triangle) + the
-   intersex circle (purple ring on yellow) are a crisp SVG layer on the LEFT. */
+/* PRIDE flag (Han redesign): a single tilted (~10° up) rainbow BAND — red is held above the band, purple
+   below it, so it fills the whole viewport as one continuous flag (no empty areas, corners flow). Soft
+   wide colour transitions = the "global blur". Light mode uses DARKER colours, dark mode LIGHTER (Han). */
 :root[data-theme='pride-light'] .app-root {
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Cfilter id='cb' x='-40%25' y='-40%25' width='180%25' height='180%25'%3E%3CfeGaussianBlur stdDeviation='0.9'/%3E%3C/filter%3E%3Cg filter='url(%23cb)'%3E%3Ccircle cx='22' cy='22' r='13' fill='%23ffd94d'/%3E%3Ccircle cx='22' cy='22' r='13' fill='none' stroke='%238a4bb8' stroke-width='4'/%3E%3C/g%3E%3C/svg%3E") 7% center / 42px 42px no-repeat,
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 55 100' preserveAspectRatio='none'%3E%3Cfilter id='chb' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeGaussianBlur stdDeviation='1.8'/%3E%3C/filter%3E%3Cg filter='url(%23chb)' transform='rotate(-7 4 50)'%3E%3Cpath d='M0 0 L52 50 L0 100 Z' fill='%23303030'/%3E%3Cpath d='M0 9 L43 50 L0 91 Z' fill='%237a4f2c'/%3E%3Cpath d='M0 18 L34 50 L0 82 Z' fill='%2392d7ee'/%3E%3Cpath d='M0 27 L25 50 L0 73 Z' fill='%23ffc2d3'/%3E%3Cpath d='M0 36 L16 50 L0 64 Z' fill='%23ffffff'/%3E%3C/g%3E%3C/svg%3E") left center / 42% 100% no-repeat,
-    linear-gradient(172deg, #e8b7b1, #edcca4, #ece2ab, #c3dbc0, #b6d0e6, #ccb9e2);
+  background: linear-gradient(170deg,
+    #cf2f3c 0%, #cf2f3c 27%, #dd7622 35%, #d7b726 43%, #2a8a42 52%, #244fb6 61%, #6a2f9a 69%, #6a2f9a 100%);
 }
 :root[data-theme='pride-dark'] .app-root {
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44'%3E%3Cfilter id='cbd' x='-40%25' y='-40%25' width='180%25' height='180%25'%3E%3CfeGaussianBlur stdDeviation='0.9'/%3E%3C/filter%3E%3Cg filter='url(%23cbd)'%3E%3Ccircle cx='22' cy='22' r='13' fill='%23c9a83a'/%3E%3Ccircle cx='22' cy='22' r='13' fill='none' stroke='%238a3bba' stroke-width='4'/%3E%3C/g%3E%3C/svg%3E") 7% center / 42px 42px no-repeat,
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 55 100' preserveAspectRatio='none'%3E%3Cfilter id='chbd' x='-20%25' y='-20%25' width='140%25' height='140%25'%3E%3CfeGaussianBlur stdDeviation='1.8'/%3E%3C/filter%3E%3Cg filter='url(%23chbd)' transform='rotate(-7 4 50)'%3E%3Cpath d='M0 0 L52 50 L0 100 Z' fill='%23070707'/%3E%3Cpath d='M0 9 L43 50 L0 91 Z' fill='%234a2c17'/%3E%3Cpath d='M0 18 L34 50 L0 82 Z' fill='%235aa8c0'/%3E%3Cpath d='M0 27 L25 50 L0 73 Z' fill='%23c47f92'/%3E%3Cpath d='M0 36 L16 50 L0 64 Z' fill='%23d8d8d8'/%3E%3C/g%3E%3C/svg%3E") left center / 42% 100% no-repeat,
-    linear-gradient(172deg, #542024, #543a1a, #544c1e, #1e5230, #1e3560, #382658);
+  background: linear-gradient(170deg,
+    #ef6d75 0%, #ef6d75 27%, #f0a862 35%, #f0da82 43%, #6ac97a 52%, #6e93e2 61%, #b389d9 69%, #b389d9 100%);
 }
 /* GENERAL corner fix (Han: no per-theme corner hacks): pride now lives on `.app-root` like every other
    special background, so the rounded-corner sliver behind the bottom panel continues the flag automatically
