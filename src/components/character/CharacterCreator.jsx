@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import './CharacterCreator.css';
 import { CATEGORIES, FRAME, partsFor } from '../../model/characterAssets';
 import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/characterProfile';
@@ -7,16 +7,16 @@ import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/charac
 // that stacks the selected layers (frame 0 of each 800x448 sprite sheet); RIGHT: gender + name + birthday
 // + level, category tabs and a thumbnail grid to pick each layer. Saved to localStorage across sessions.
 
-const PREVIEW_SCALE = 3;   // frame 0 shown at 100x112 * 3
-const THUMB_SCALE = 0.82;
+const PREVIEW_SCALE = 4;   // 80x64 frame shown at 4x
+const THUMB_SCALE = 1;
 
-// CSS to crop a sprite SHEET to its top-left FRAME 0 at a given scale (pixel-art crisp).
-const frameStyle = (url, scale) => ({
+// CSS to crop a sprite SHEET to one frame of row 0 (frameIndex) at a given scale (pixel-art crisp).
+const frameStyle = (url, scale, frameIndex = 0) => ({
     width: FRAME.w * scale,
     height: FRAME.h * scale,
     backgroundImage: `url("${url}")`,
     backgroundRepeat: 'no-repeat',
-    backgroundPosition: '0 0',
+    backgroundPosition: `${-frameIndex * FRAME.w * scale}px 0px`,
     backgroundSize: `${FRAME.sheetW * scale}px ${FRAME.sheetH * scale}px`,
     imageRendering: 'pixelated',
 });
@@ -25,6 +25,12 @@ export default function CharacterCreator({ onClose }) {
     const [char, setChar] = useState(loadCharacter);
     const [activeCat, setActiveCat] = useState('skin');
     const [saved, setSaved] = useState(false);
+    // Passive/idle animation (Han): cycle the row-0 idle frames in the preview.
+    const [frame, setFrame] = useState(0);
+    useEffect(() => {
+        const id = setInterval(() => setFrame((f) => (f + 1) % FRAME.idle), 160);
+        return () => clearInterval(id);
+    }, []);
 
     const gender = char.gender;
     const options = useMemo(() => partsFor(activeCat, gender), [activeCat, gender]);
@@ -58,9 +64,9 @@ export default function CharacterCreator({ onClose }) {
             <div className="cc-modal" onClick={(e) => e.stopPropagation()}>
                 <button className="cc-close" onClick={onClose} aria-label="Close">✕</button>
 
-                {/* LEFT — live paper-doll preview */}
+                {/* LEFT — live paper-doll preview. scaleX(-1) → the character faces RIGHT (Han). */}
                 <div className="cc-preview">
-                    <div className="cc-doll" style={{ width: FRAME.w * PREVIEW_SCALE, height: FRAME.h * PREVIEW_SCALE }}>
+                    <div className="cc-doll" style={{ width: FRAME.w * PREVIEW_SCALE, height: FRAME.h * PREVIEW_SCALE, transform: 'scaleX(-1)' }}>
                         {CATEGORIES.map((c) => {
                             const url = urlFor(c.key);
                             if (!url) return null;
@@ -68,7 +74,7 @@ export default function CharacterCreator({ onClose }) {
                             if (c.key === 'effects') {
                                 return <img key={c.key} className="cc-layer cc-effect" src={url} alt="" />;
                             }
-                            return <div key={c.key} className="cc-layer" style={frameStyle(url, PREVIEW_SCALE)} />;
+                            return <div key={c.key} className="cc-layer" style={frameStyle(url, PREVIEW_SCALE, frame)} />;
                         })}
                     </div>
                     <div className="cc-level">LVL {char.level}</div>

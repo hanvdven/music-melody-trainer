@@ -2,14 +2,16 @@
 // src/assets/character/{male,female,shared}/<category>/<Name>.png. This module globs them (Vite bundles the
 // URLs) and groups them by gender + category so the creator can list parts and composite a paper-doll.
 //
-// The parts are 800x448 sprite SHEETS (an 8x4 grid of 100x112 frames); the creator shows FRAME 0 (the
-// top-left idle-front pose) of each layer, stacked. Effects are a different (400x64) sheet — treated as a
-// non-body overlay category. Frame geometry lives in FRAME below so it is tunable in one place.
+// The parts are 800x448 sprite SHEETS — measured (feTransparency analysis) as a 10x8... actually a 10-col
+// × 7-row grid of 80x64 frames. Row 0 = the IDLE animation (frames 0..idle-1 have content, the rest of the
+// row is empty). The creator composites one frame of each layer, stacked, and cycles the idle frames.
+// Effects are a different (400x64) sheet — treated as a non-body overlay category (rendered whole).
 
 const FILES = import.meta.glob('../assets/character/**/*.png', { eager: true, query: '?url', import: 'default' });
 
-// One body-sheet frame (Han POC — tune here if the pose/size is off). cols/rows describe the full sheet.
-export const FRAME = { w: 100, h: 112, cols: 8, rows: 4, sheetW: 800, sheetH: 448 };
+// Body-sheet frame geometry — the SINGLE place to tune if the pose/crop is off (Han). idle = number of
+// content frames in row 0 (measured 5).
+export const FRAME = { w: 80, h: 64, cols: 10, rows: 7, sheetW: 800, sheetH: 448, idle: 5 };
 
 // Category display order == paper-doll Z-ORDER (back → front) + label. `gendered` categories live under
 // male/ and female/; the rest under shared/. Skin sits in shared/ but its files are gender-named.
