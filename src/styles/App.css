@@ -1208,21 +1208,43 @@ path {
    `background-blend-mode: screen`). Base is a MEDIUM lavender (darker than --panel-bg) so the screened
    light actually shows, yet still light-mode. First layer = small WHITE specks that drift left→right
    (fast) like a mirror-ball's reflections; the coloured facets drift slowly. */
-:root[data-theme='disco'] .app-root {
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.8) 0 2px, rgba(255, 255, 255, 0.3) 5px, transparent 10px),
-    radial-gradient(circle at 24% 28%, rgba(255, 45, 45, 0.55) 0 12%, transparent 14%),   /* red */
-    radial-gradient(circle at 70% 32%, rgba(45, 110, 255, 0.55) 0 11%, transparent 13%),  /* blue */
-    radial-gradient(circle at 38% 74%, rgba(45, 220, 90, 0.5) 0 11%, transparent 13%),    /* green */
-    radial-gradient(circle at 80% 78%, rgba(255, 215, 45, 0.5) 0 11%, transparent 13%),   /* yellow */
-    #9e92c0;
-  background-size: 132px 132px, 200% 200%, 220% 220%, 210% 210%, 190% 190%, auto;
-  background-blend-mode: screen, screen, screen, screen, screen, normal;
-  animation: disco-drift 60s ease-in-out infinite alternate;
+/* On `.app-top-wrapper` (the bladmuziek view) — NOT .app-root — so ALL rows fit the visible top area on a
+   tall mobile portrait (Han: on .app-root the lower half was off-screen so only 2-3 lamps showed).
+   Mirror-ball SPECKS as 5 ROWS: rows at 15/35/50/65/85% of the view height (further from the vertical
+   centre = further apart), horizontal spacing widest at top/bottom (¼ width) and tightest in the middle
+   (⅙) — the spherical bulge. Rows drift horizontally by different amounts (outer rows move more = the
+   ball's faster edges). Big, soft specks. Plus 4 SMALLER monochrome lamps (R/B/G/Y) spread across. */
+:root[data-theme='disco'] .app-top-wrapper {
+  background-color: #9e92c0;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 2.5px, rgba(255, 255, 255, 0.32) 8px, transparent 15px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 2.5px, rgba(255, 255, 255, 0.32) 8px, transparent 15px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 2.5px, rgba(255, 255, 255, 0.32) 8px, transparent 15px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 2.5px, rgba(255, 255, 255, 0.32) 8px, transparent 15px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 2.5px, rgba(255, 255, 255, 0.32) 8px, transparent 15px),
+    radial-gradient(circle at 30% 22%, rgba(255, 45, 45, 0.55) 0 8%, transparent 10%),   /* red */
+    radial-gradient(circle at 66% 32%, rgba(45, 110, 255, 0.55) 0 7%, transparent 9%),   /* blue */
+    radial-gradient(circle at 34% 64%, rgba(45, 220, 90, 0.5) 0 7%, transparent 9%),     /* green */
+    radial-gradient(circle at 72% 76%, rgba(255, 215, 45, 0.5) 0 7%, transparent 9%);    /* yellow */
+  background-size:
+    25% 44px, 20% 44px, 16.6667% 44px, 20% 44px, 25% 44px,
+    200% 200%, 220% 220%, 210% 210%, 190% 190%;
+  background-position:
+    0 15%, 0 35%, 0 50%, 0 65%, 0 85%,
+    0% 0%, 100% 0%, 30% 100%, 90% 90%;
+  background-repeat:
+    repeat-x, repeat-x, repeat-x, repeat-x, repeat-x,
+    no-repeat, no-repeat, no-repeat, no-repeat;
+  background-blend-mode: screen, screen, screen, screen, screen, screen, screen, screen, screen;
+  animation: disco-drift 50s ease-in-out infinite alternate;
 }
 @keyframes disco-drift {
-  from { background-position: 0 0, 0% 0%, 100% 0%, 30% 100%, 90% 90%, 0 0; }
-  to   { background-position: 700px 90px, 55% 45%, 40% 75%, 70% 25%, 15% 40%, 0 0; }
+  from {
+    background-position: 0 15%, 0 35%, 0 50%, 0 65%, 0 85%, 0% 0%, 100% 0%, 30% 100%, 90% 90%;
+  }
+  to {
+    background-position: 78px 15%, -60px 35%, 40px 50%, -60px 65%, 78px 85%, 55% 45%, 40% 75%, 70% 25%, 15% 40%;
+  }
 }
 
 /* MARBLE — Han: straight gradient lines never look organic; use ORGANIC feTurbulence veins, but sparse &
