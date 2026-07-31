@@ -30,7 +30,6 @@ export const allThemes = [
   // Light — `marble` is placed LAST in Light so it sits ADJACENT to `marble-dark` (first in Dark) in the
   // carousel (Han: "zet dark en light marble naast elkaar").
   { id: 'barley',     name: 'Barley',      category: 'Light',     icon: 'barley',         colors: ['#f4e7c5', '#b08a5a', '#e3d3a2', '#3a2e1f'] },
-  { id: 'bright-day', name: 'Bright Day',  category: 'Light',     icon: 'sky',            colors: ['#e6f4fd', '#3f9bd6', '#c8e6f7', '#1e3a4a'] },
   { id: 'cloudy-day', name: 'Cloudy Day',  category: 'Light',     icon: 'sky',            colors: ['#dbeefb', '#5a8fc0', '#bfdcf0', '#25415a'] },
   { id: 'marble',     name: 'Marble',      category: 'Light',     icon: 'bust',           colors: ['#f2f1f4', '#8a7a6a', '#e4e3e8', '#33323a'] },
   // Dark — `marble-dark` first, next to `marble`.

@@ -1132,7 +1132,6 @@ path {
 /* Shared LIGHT-theme structural overrides (icon filter, keyboard, dimmed text, notes) —
    all DERIVED from each theme's own base colours so one rule fits every light theme (§6c). */
 :root[data-theme='marble'],
-:root[data-theme='bright-day'],
 :root[data-theme='cloudy-day'],
 :root[data-theme='disco'],
 :root[data-theme='paper'],
@@ -1163,7 +1162,6 @@ path {
 
 /* — Light — */
 :root[data-theme='marble']     { --app-bg: #f2f1f4; --panel-bg: #e4e3e8; --text-primary: #33323a; --accent-yellow: #8a7a6a; }
-:root[data-theme='bright-day'] { --app-bg: #e6f4fd; --panel-bg: #c8e6f7; --text-primary: #1e3a4a; --accent-yellow: #3f9bd6; }
 :root[data-theme='cloudy-day'] { --app-bg: #dbeefb; --panel-bg: #bfdcf0; --text-primary: #25415a; --accent-yellow: #5a8fc0; }
 :root[data-theme='disco']      { --app-bg: #f0eefa; --panel-bg: #e2dcf0; --text-primary: #2a2440; --accent-yellow: #b06adf; }
 :root[data-theme='pride-light']{ --app-bg: #fdf0f5; --panel-bg: #f3dbe8; --text-primary: #3a2030; --accent-yellow: #e0407a; }
@@ -1193,8 +1191,8 @@ path {
    a full-height flag there was a DIFFERENT scale and produced a mismatched-stripe seam at the bottom corner
    (Han: "de vlag loopt niet mooi door naar onderste deel"); the corner now shows the solid panel colour.
    TODO next batch: Progress chevron + circle. */
-:root[data-theme='pride-light'] .app-top-wrapper { background: linear-gradient(172deg, #e7b0ab, #ecc79f, #ecdfa2, #b9dab6, #accae0, #c8b2dd); }
-:root[data-theme='pride-dark'] .app-top-wrapper { background: linear-gradient(172deg, #4e1616, #52300f, #4e4510, #123f1c, #12294e, #2c134d); }
+:root[data-theme='pride-light'] .app-top-wrapper { background: linear-gradient(172deg, #e7b0ab 0%, #ecc79f 16%, #ecdfa2 32%, #b9dab6 48%, #accae0 62%, #c8b2dd 74%, #c8b2dd 100%); }
+:root[data-theme='pride-dark'] .app-top-wrapper { background: linear-gradient(172deg, #4e1616 0%, #52300f 16%, #4e4510 32%, #123f1c 48%, #12294e 62%, #2c134d 74%, #2c134d 100%); }
 /* Corner fix (Han): the flag ends in its LAST stripe colour at the bottom of the top area; the rounded
    corner behind the bottom panel reveals .app-root, so paint .app-root that same last colour → the flag
    flows seamlessly into the corner instead of a mismatched sliver. */
@@ -1259,25 +1257,24 @@ path {
 :root[data-theme='marble'] .app-root {
   background-color: #f1eff3;
   background-image:
-    /* thin branching VEIN LINES — put a noise channel into alpha, then a feComponentTransfer SPIKE table
-       makes only narrow noise-value bands opaque = organic CONTOUR lines (not blobs). */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='1000'%3E%3Cfilter id='ml'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.017' numOctaves='3' seed='3'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.32 0 0 0 0 0.31 0 0 0 0 0.35 1 0 0 0 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 0 0 1 0 0 1 0 0 0'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='1000' height='1000' filter='url(%23ml)'/%3E%3C/svg%3E"),
-    /* fewer, LIGHTER grey blotches (closer to the bg) */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.014' numOctaves='4' seed='9'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.74 0 0 0 0 0.73 0 0 0 0 0.76 0 0 0 5 -3.4'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23m)'/%3E%3C/svg%3E"),
-    radial-gradient(ellipse at 30% 25%, rgba(214, 210, 218, 0.30), transparent 55%),
-    radial-gradient(ellipse at 74% 70%, rgba(210, 206, 214, 0.24), transparent 58%);
-  background-size: 1250px 1250px, 1000px 1000px, auto, auto;
+    /* CONTRASTING organic vein LINES, top→bottom, hand-drawn bezier paths with a subtle blur (Han).
+       `cover` (no-repeat) so they span the view once — no tiling seams. */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='820' preserveAspectRatio='none'%3E%3Cfilter id='vb'%3E%3CfeGaussianBlur stdDeviation='1.1'/%3E%3C/filter%3E%3Cg fill='none' stroke='%23625d69' stroke-opacity='0.5' filter='url(%23vb)'%3E%3Cpath stroke-width='2.2' d='M170 -20 C138 140 232 232 196 372 S150 588 236 840'/%3E%3Cpath stroke-width='1.3' d='M198 366 C262 430 300 528 286 648'/%3E%3Cpath stroke-width='1.7' d='M452 -20 C494 168 404 312 470 470 S506 700 430 840'/%3E%3Cpath stroke-width='1.1' d='M470 470 C420 540 452 636 402 720'/%3E%3C/g%3E%3C/svg%3E"),
+    /* SUBTLE grey blotches, close to the bg colour */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.014' numOctaves='4' seed='9'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.82 0 0 0 0 0.81 0 0 0 0 0.84 0 0 0 4 -2.7'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23m)'/%3E%3C/svg%3E");
+  background-size: cover, 1000px 1000px;
+  background-repeat: no-repeat, repeat;
 }
 /* MARBLE DARK — Han: base REALLY black, veins DARK-GREY (the white blotches made light text unreadable).
    Thin vein LINES + very subtle dark cloudy blotches on near-black stone. */
 :root[data-theme='marble-dark'] .app-root {
   background-color: #060608;
   background-image:
-    /* dark-grey contour VEIN LINES (same spike technique, muted so light text stays readable) */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='1000'%3E%3Cfilter id='mdl'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.017' numOctaves='3' seed='3'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.28 0 0 0 0 0.28 0 0 0 0 0.32 1 0 0 0 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='table' tableValues='0 0 0 1 0 0 1 0 0 0'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='1000' height='1000' filter='url(%23mdl)'/%3E%3C/svg%3E"),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='md'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.014' numOctaves='4' seed='5'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.12 0 0 0 0 0.12 0 0 0 0 0.15 0 0 0 5 -3.0'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23md)'/%3E%3C/svg%3E"),
-    radial-gradient(ellipse at 30% 28%, rgba(30, 30, 38, 0.28), transparent 56%);
-  background-size: 1250px 1250px, 1000px 1000px, auto;
+    /* contrasting mid-grey vein lines (not white → light text stays readable), top→bottom, subtle blur */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='820' preserveAspectRatio='none'%3E%3Cfilter id='vbd'%3E%3CfeGaussianBlur stdDeviation='1.1'/%3E%3C/filter%3E%3Cg fill='none' stroke='%23575760' stroke-opacity='0.6' filter='url(%23vbd)'%3E%3Cpath stroke-width='2.2' d='M170 -20 C138 140 232 232 196 372 S150 588 236 840'/%3E%3Cpath stroke-width='1.3' d='M198 366 C262 430 300 528 286 648'/%3E%3Cpath stroke-width='1.7' d='M452 -20 C494 168 404 312 470 470 S506 700 430 840'/%3E%3Cpath stroke-width='1.1' d='M470 470 C420 540 452 636 402 720'/%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='md'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.009 0.014' numOctaves='4' seed='5'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.11 0 0 0 0 0.11 0 0 0 0 0.14 0 0 0 4 -2.6'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23md)'/%3E%3C/svg%3E");
+  background-size: cover, 1000px 1000px;
+  background-repeat: no-repeat, repeat;
 }
 
 /* CLOUDY DAY — the marble blotch texture reused as soft WHITE CLOUDS (fractalNoise, gradual alpha = fluffy,
