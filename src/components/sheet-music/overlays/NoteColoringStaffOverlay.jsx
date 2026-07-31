@@ -246,7 +246,7 @@ const NoteColoringStaffOverlay = ({
                     onSelect={(item) => setTheme(item.value)}
                     centerX={centerX}
                     rowCenterY={bassStart + 20}
-                    baseWidth={64}
+                    baseWidth={74}
                     hitTop={-24}
                     hitHeight={52}
                     iconSize={0}
@@ -274,7 +274,11 @@ const NoteColoringStaffOverlay = ({
                         const bg = cs[2] ?? cs[0];               // the real page background
                         const accent = cs[1] ?? 'var(--accent-yellow)';
                         const text = cs[3] ?? 'var(--text-primary)';
-                        const W = 46, T = 13;              // T = taper length at each end
+                        // #636 UAT (Han 2026-07-31): ~1.5× wider (46→68) so the logo can be near
+                        // full staff height, and the staff lines are drawn LAST (over logo + Aa) at
+                        // the EXACT real-staff stroke (0.5, --text-primary, no opacity) so they look
+                        // continuous with the rest of the staff — no seam behind the logo.
+                        const W = 68, T = 14;              // T = taper length at each end
                         const x0 = -W / 2, x1 = W / 2, yT = cy - 20, yB = cy + 20;
                         const sid = String(item.value).replace(/[^a-z0-9]/gi, '');
                         const cId = `theme-swatch-${sid}`;
@@ -284,7 +288,7 @@ const NoteColoringStaffOverlay = ({
                             + ` Q ${x1 - T * 0.3} ${yB} ${x1 - T} ${yB}`
                             + ` L ${x0 + T} ${yB} Q ${x0 + T * 0.3} ${yB} ${x0} ${cy} Z`;
                         const iconUrl = getThemeIconUrl(item.icon);
-                        const LOGO = 26;                          // logo box size
+                        const LOGO = 38;                          // logo near full staff height
                         return (
                             <g style={{ pointerEvents: 'none' }}>
                                 <defs>
@@ -298,19 +302,19 @@ const NoteColoringStaffOverlay = ({
                                 </defs>
                                 <g clipPath={`url(#${cId})`}>
                                     <rect x={x0} y={yT} width={W} height={yB - yT} fill={bg} />
-                                    {/* staff lines in the line colour */}
-                                    {[-20, -10, 0, 10, 20].map((d2) => (
-                                        <line key={d2} x1={x0} x2={x1} y1={cy + d2} y2={cy + d2}
-                                            stroke="var(--text-primary)" strokeWidth="0.5" strokeOpacity="0.55" />
-                                    ))}
                                     {/* LOGO (accent-tinted) on the left, "Aa" (text colour) on the right */}
                                     {iconUrl && (
                                         <image href={iconUrl} x={x0 + 4} y={cy - LOGO / 2}
                                             width={LOGO} height={LOGO} filter={`url(#${tintId})`}
                                             preserveAspectRatio="xMidYMid meet" />
                                     )}
-                                    <text x={x1 - 12} y={cy + 6} textAnchor="middle" fontSize={17}
+                                    <text x={x1 - 14} y={cy + 6} textAnchor="middle" fontSize={18}
                                         fontFamily="serif" fill={text}>Aa</text>
+                                    {/* staff lines LAST, exact real-staff stroke → continuous, no seam */}
+                                    {[-20, -10, 0, 10, 20].map((d2) => (
+                                        <line key={d2} x1={x0} x2={x1} y1={cy + d2} y2={cy + d2}
+                                            stroke="var(--text-primary)" strokeWidth="0.5" />
+                                    ))}
                                 </g>
                             </g>
                         );

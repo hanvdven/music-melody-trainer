@@ -1574,6 +1574,7 @@ const SheetMusic = ({
       {/* Overlay controls — rendered INSIDE the SVG so coords match stave geometry */}
 
       <div
+        className="sheet-surface"
         style={{ flex: 1, display: 'flex', justifyContent: 'center', width: '100%', cursor: showSettings ? 'pointer' : 'default' }}
         onClick={handleSheetMusicClick}
       >

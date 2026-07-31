@@ -5675,6 +5675,11 @@ ids from `item.value`.
 glob from the instrument icons (`constants/instruments.jsx`), which only covers the flat `assets/` dir.
 `basename` is the `icon` field on each `allThemes` entry (note theme id `vapourwave` uses icon `vaporwave`).
 
+**UAT rework (Han 2026-07-31):** the swatch was widened ~1.5× (`W` 46→68, `baseWidth` 64→74) so the logo
+can be near full staff height (`LOGO` 26→38), and the staff lines are now drawn LAST (over the logo + Aa)
+at the EXACT real-staff stroke (`0.5`, `--text-primary`, no opacity) so they read continuous with the rest
+of the staff instead of a lighter seam behind the logo.
+
 **Files:** `components/common/ThemeToggle.jsx` (`THEME_ICON_URLS` glob + `getThemeIconUrl`),
 `components/sheet-music/overlays/NoteColoringStaffOverlay.jsx` (swatch `renderContent` redesign).
 
@@ -5684,22 +5689,28 @@ glob from the instrument icons (`constants/instruments.jsx`), which only covers 
 (header + sheet) is transparent over `#root`, but the first-pass gradients were too subtle, and pride
 lacked a recognisable flag. Slice 4 makes the special themes unmistakable.
 
-**How it works (`App.css`, "#628-S4 Special BACKGROUNDS"):** the page background is `var(--panel-bg)` on
-`body/#root`; the transparent top area shows it, the bottom control panel stays solid (readability).
+**How it works (`App.css`, "#628-S4 Special BACKGROUNDS"):** the special backgrounds live on
+`.sheet-surface` — the transparent `<div>` directly wrapping the sheet-music SVG (`SheetMusic.jsx`) —
+NOT on `#root`. UAT (Han 2026-07-31): the `#root` version never reached the eye (opaque panels cover it);
+Han wants the background OF THE BLADMUZIEK. Because the notation SVG is transparent, the surface background
+shows through behind every staff and note.
 
-- **Pride Light / Pride Dark:** a `#root` `linear-gradient` of six hard-stop stripes = a recognisable
-  rainbow FLAG (pastel vs deep variants).
-- **Vapourwave:** a bold pink→purple→cyan diagonal `#root` gradient.
+- **Pride Light / Pride Dark:** a `linear-gradient` of six hard-stop stripes = a recognisable rainbow FLAG
+  (pastel vs deep variants).
+- **Vapourwave:** a bold pink→purple→cyan diagonal gradient.
 - **Disco:** bright scattered mirror-ball `radial-gradient` facets over the light panel.
-- **Pets (Cat / Dog / Ram):** the animal's icons8 icon TILED as an accent-tinted watermark. A decorative
-  `#root::before` (`position:absolute; inset:0; z-index:-1`, so it sits above `#root`'s background but
-  below the transparent sheet content — `#root` was given `position:relative` to anchor it) uses
+- **Marble:** a light stone surface with soft grey veins built from layered diagonal + radial gradients
+  (CSS-only, no image).
+- **Pets (Cat / Dog / Ram):** the animal's icons8 icon TILED as an accent-tinted watermark (the same art
+  the swatch shows). A `.sheet-surface::before` (`position:absolute; inset:0; z-index:-1`, above the
+  surface bg / below the transparent SVG; `.sheet-surface` is `position:relative` to anchor it) uses
   `mask-image: url(<icon>)` + `background-color: var(--accent-yellow)` to recolour the flat-black PNG to
   the theme accent, `mask-repeat: repeat`, low `opacity`. Vite inlines the small PNGs as data URIs.
 
-**Invariant:** special backgrounds live on `#root` (or its `::before`) so they show in the transparent
-sheet/header area without covering the opaque control panel; notation stays legible because the
-panel-derived text vars are unchanged. First-pass intensity — tune in UAT.
+**Invariant:** special backgrounds live on `.sheet-surface` (or its `::before`) so they paint behind the
+staff/notes; notation stays legible because the panel-derived text vars are unchanged. First-pass
+intensity — tune in UAT.
 
-**Files:** `styles/App.css` (`#root` `position:relative`, bold gradients for pride/vapourwave/disco, the
+**Files:** `components/sheet-music/SheetMusic.jsx` (`.sheet-surface` class on the SVG wrapper),
+`styles/App.css` (`.sheet-surface` `position:relative`, gradients for pride/vapourwave/disco/marble, the
 pets `::before` mask-pattern rules).
