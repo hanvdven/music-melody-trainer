@@ -25,8 +25,8 @@ export const allThemes = [
   // Default
   { id: 'default',    name: 'Night',       category: 'Default',   icon: 'night',          colors: ['#14131a', '#f2c879', '#1f1e2a', '#ffffff'] },
   { id: 'classical',  name: 'Classical',   category: 'Default',   icon: 'lyre',           colors: ['#eef3f7', '#c97b4b', '#bcc7d4', '#2b3a42'] },
-  // Paper — plain black-on-white, no frills, like printed sheet music (Han 2026-07-31). No logo icon.
-  { id: 'paper',      name: 'Paper',       category: 'Default',   icon: null,             colors: ['#ffffff', '#333333', '#ffffff', '#111111'] },
+  // Paper — plain black-on-white, no frills, like printed sheet music (Han 2026-07-31).
+  { id: 'paper',      name: 'Paper',       category: 'Default',   icon: 'sheet-music',    colors: ['#ffffff', '#333333', '#ffffff', '#111111'] },
   // Light — `marble` is placed LAST in Light so it sits ADJACENT to `marble-dark` (first in Dark) in the
   // carousel (Han: "zet dark en light marble naast elkaar").
   { id: 'barley',     name: 'Barley',      category: 'Light',     icon: 'barley',         colors: ['#f4e7c5', '#b08a5a', '#e3d3a2', '#3a2e1f'] },
