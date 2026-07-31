@@ -1264,6 +1264,16 @@ path {
   background-repeat: no-repeat, repeat;
 }
 
+/* STARS — a night SKYMAP: yellow stars scattered over deep blue, with the Big Dipper (Ursa Major) and
+   Orion drawn as brighter stars joined by DOTTED lines (Han 2026-07-31). Static SVG, slice-fit. */
+:root[data-theme='stars'] .app-root {
+  background-color: #141c2e;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 620' preserveAspectRatio='xMidYMid slice'%3E%3Cg fill='%23ffe680'%3E%3Ccircle cx='30' cy='44' r='1.4'/%3E%3Ccircle cx='92' cy='62' r='1.1'/%3E%3Ccircle cx='205' cy='30' r='1.6'/%3E%3Ccircle cx='300' cy='54' r='1.2'/%3E%3Ccircle cx='362' cy='92' r='1.5'/%3E%3Ccircle cx='150' cy='96' r='1'/%3E%3Ccircle cx='252' cy='150' r='1.3'/%3E%3Ccircle cx='340' cy='182' r='1.1'/%3E%3Ccircle cx='42' cy='222' r='1.5'/%3E%3Ccircle cx='120' cy='250' r='1'/%3E%3Ccircle cx='200' cy='232' r='1.3'/%3E%3Ccircle cx='300' cy='262' r='1.2'/%3E%3Ccircle cx='372' cy='300' r='1.4'/%3E%3Ccircle cx='60' cy='322' r='1.1'/%3E%3Ccircle cx='158' cy='352' r='1.5'/%3E%3Ccircle cx='82' cy='420' r='1.2'/%3E%3Ccircle cx='190' cy='442' r='1'/%3E%3Ccircle cx='360' cy='420' r='1.4'/%3E%3Ccircle cx='40' cy='500' r='1.2'/%3E%3Ccircle cx='140' cy='540' r='1.5'/%3E%3Ccircle cx='262' cy='545' r='1.1'/%3E%3Ccircle cx='352' cy='560' r='1.3'/%3E%3Ccircle cx='100' cy='592' r='1.2'/%3E%3Ccircle cx='300' cy='602' r='1.4'/%3E%3Ccircle cx='210' cy='582' r='1'/%3E%3C/g%3E%3Cg stroke='%23ffe07a' stroke-opacity='0.5' stroke-width='1' stroke-dasharray='1.5 4' fill='none'%3E%3Cpolyline points='55,110 58,152 105,168 118,132 55,110'/%3E%3Cpolyline points='118,132 172,120 216,130 258,108'/%3E%3Cpolyline points='245,345 320,335'/%3E%3Cpolyline points='245,345 262,405'/%3E%3Cpolyline points='320,335 308,418'/%3E%3Cpolyline points='262,405 285,412 308,418'/%3E%3Cpolyline points='262,405 250,485'/%3E%3Cpolyline points='308,418 322,478'/%3E%3C/g%3E%3Cg fill='%23fff2b0'%3E%3Ccircle cx='55' cy='110' r='2.6'/%3E%3Ccircle cx='58' cy='152' r='2.2'/%3E%3Ccircle cx='105' cy='168' r='2.3'/%3E%3Ccircle cx='118' cy='132' r='2.1'/%3E%3Ccircle cx='172' cy='120' r='2.4'/%3E%3Ccircle cx='216' cy='130' r='2.2'/%3E%3Ccircle cx='258' cy='108' r='2.6'/%3E%3Ccircle cx='245' cy='345' r='3'/%3E%3Ccircle cx='320' cy='335' r='2.4'/%3E%3Ccircle cx='262' cy='405' r='2'/%3E%3Ccircle cx='285' cy='412' r='2'/%3E%3Ccircle cx='308' cy='418' r='2'/%3E%3Ccircle cx='250' cy='485' r='2.8'/%3E%3Ccircle cx='322' cy='478' r='2.3'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
 /* CLOUDY DAY — the marble blotch texture reused as soft WHITE CLOUDS (fractalNoise, gradual alpha = fluffy,
    not thresholded) drifting over a sky-blue base (Han 2026-07-31). */
 :root[data-theme='cloudy-day'] .app-root {
