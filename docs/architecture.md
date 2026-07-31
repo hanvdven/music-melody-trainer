@@ -5689,28 +5689,38 @@ of the staff instead of a lighter seam behind the logo.
 (header + sheet) is transparent over `#root`, but the first-pass gradients were too subtle, and pride
 lacked a recognisable flag. Slice 4 makes the special themes unmistakable.
 
-**How it works (`App.css`, "#628-S4 Special BACKGROUNDS"):** the special backgrounds live on
-`.sheet-surface` — the transparent `<div>` directly wrapping the sheet-music SVG (`SheetMusic.jsx`) —
-NOT on `#root`. UAT (Han 2026-07-31): the `#root` version never reached the eye (opaque panels cover it);
-Han wants the background OF THE BLADMUZIEK. Because the notation SVG is transparent, the surface background
-shows through behind every staff and note.
+**How it works (`App.css`, "#628-S5 Special BACKGROUNDS") — UPDATED S5 (Han 2026-07-31):** the special
+backgrounds now live on **`.app-top-wrapper`** (`AppLayout.css`) so they are FULL-BLEED over the top area
+— header + sub-header + the sheet and its margins — but NOT the bottom control panel (a sibling in
+`.app-root`, which keeps its solid `--panel-bg`; Han: not on the bottom view). `.app-top-wrapper`'s own
+`background-color: var(--bg-primary)` is undefined → transparent → showed `.app-root`'s `--panel-bg`; the
+special rules override its `background`. Earlier attempts on `#root` (covered by `.app-root`'s opaque
+`--panel-bg`) and on `.sheet-surface` (clipped to the staff box, stopping at the margins) were both wrong.
+The background is set on the ELEMENT'S OWN `background` (never a pseudo / negative z-index) so it paints
+behind the content with no stacking-context risk to popups; the notation SVG is transparent so it shows
+behind every staff and note.
 
-- **Pride Light / Pride Dark:** a `linear-gradient` of six hard-stop stripes = a recognisable rainbow FLAG
-  (pastel vs deep variants).
-- **Vapourwave:** a bold pink→purple→cyan diagonal gradient.
-- **Disco:** bright scattered mirror-ball `radial-gradient` facets over the light panel.
-- **Marble:** a light stone surface with soft grey veins built from layered diagonal + radial gradients
-  (CSS-only, no image).
-- **Pets (Cat / Dog / Ram):** the animal's icons8 icon TILED as an accent-tinted watermark (the same art
-  the swatch shows). A `.sheet-surface::before` (`position:absolute; inset:0; z-index:-1`, above the
-  surface bg / below the transparent SVG; `.sheet-surface` is `position:relative` to anchor it) uses
-  `mask-image: url(<icon>)` + `background-color: var(--accent-yellow)` to recolour the flat-black PNG to
-  the theme accent, `mask-repeat: repeat`, low `opacity`. Vite inlines the small PNGs as data URIs.
+- **Pride Light / Pride Dark:** SOFT blurred rainbow bands (smooth blend, no hard stops) tilted ~10°
+  (`linear-gradient(172deg, …)`); light = subtle pastel, dark = deep + muted. (TODO next batch: the
+  Progress-Pride chevron/triangle + circle on the left.)
+- **Vapourwave (dark theme):** muted/darker pink→purple→blue→teal bands (near-vertical = the pride look
+  rotated 90°) that DRIFT left↔right (`background-size:300%` + `@keyframes vw-drift`).
+- **Disco:** bright mirror-ball `radial-gradient` facets over the light panel that slowly DRIFT
+  (`@keyframes disco-drift` animates each layer's `background-position`) so the colours keep shifting.
+- **Marble:** soft cloudy radial fade + ORGANIC `feTurbulence` veins + bright-white streaks, baked as SVG
+  data-URIs (wispy, not straight lines).
+- **Pets (Cat / Dog / Ram):** accent-tinted animal shapes TILED as the pattern — a BONE for dog, a cat
+  face for cat, a paw for ram — pre-coloured SVG data-URIs (accent hard-coded, `fill-opacity`) tiled
+  directly on the element `background` (no mask / pseudo / z-index, so they reliably show). The earlier
+  `::before` `z-index:-1` version sank behind `.app-root` and was invisible.
+- **Paper (Default category):** a plain black-on-white "printed sheet" theme — pure white surface,
+  near-black text + notes, grey accent, no special background.
 
-**Invariant:** special backgrounds live on `.sheet-surface` (or its `::before`) so they paint behind the
-staff/notes; notation stays legible because the panel-derived text vars are unchanged. First-pass
-intensity — tune in UAT.
+**Invariant:** special backgrounds live on `.app-top-wrapper`'s own `background` so they are full-bleed
+over the top area (not the bottom panel) and never introduce a stacking context that could trap popups;
+notation stays legible because the panel-derived text vars are unchanged. First-pass intensity — tune in UAT.
 
-**Files:** `components/sheet-music/SheetMusic.jsx` (`.sheet-surface` class on the SVG wrapper),
-`styles/App.css` (`.sheet-surface` `position:relative`, gradients for pride/vapourwave/disco/marble, the
-pets `::before` mask-pattern rules).
+**Files:** `components/common/ThemeToggle.jsx` (paper theme), `styles/App.css` (all special-theme
+`.app-top-wrapper` backgrounds, `@keyframes vw-drift`/`disco-drift`, marble turbulence + pet-shape SVG
+data-URIs, paper block). (`.sheet-surface` class on the SVG wrapper in `SheetMusic.jsx` is now unused by
+these rules but kept.)

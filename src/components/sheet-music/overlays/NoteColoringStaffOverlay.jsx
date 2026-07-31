@@ -274,25 +274,20 @@ const NoteColoringStaffOverlay = ({
                         const bg = cs[2] ?? cs[0];               // the real page background
                         const accent = cs[1] ?? 'var(--accent-yellow)';
                         const text = cs[3] ?? 'var(--text-primary)';
-                        // #636 UAT (Han 2026-07-31): ~1.5× wider (46→68) so the logo can be near
-                        // full staff height, and the staff lines are drawn LAST (over logo + Aa) at
-                        // the EXACT real-staff stroke (0.5, --text-primary, no opacity) so they look
-                        // continuous with the rest of the staff — no seam behind the logo.
-                        const W = 68, T = 14;              // T = taper length at each end
+                        // #636 UAT (Han 2026-07-31): ~1.5× wider (46→68) so the logo can be near full
+                        // staff height. RECTANGULAR now (the old brush-stroke taper clipped the logo,
+                        // Han: "maak themasetter rechthoekig") — no clipPath. Staff lines drawn LAST
+                        // (over logo + Aa) at the EXACT real-staff stroke (0.5, --text-primary, no
+                        // opacity) so they look continuous with the rest of the staff.
+                        const W = 68;
                         const x0 = -W / 2, x1 = W / 2, yT = cy - 20, yB = cy + 20;
                         const sid = String(item.value).replace(/[^a-z0-9]/gi, '');
-                        const cId = `theme-swatch-${sid}`;
                         const tintId = `theme-logo-tint-${sid}`;
-                        const d = `M ${x0} ${cy} Q ${x0 + T * 0.3} ${yT} ${x0 + T} ${yT}`
-                            + ` L ${x1 - T} ${yT} Q ${x1 - T * 0.3} ${yT} ${x1} ${cy}`
-                            + ` Q ${x1 - T * 0.3} ${yB} ${x1 - T} ${yB}`
-                            + ` L ${x0 + T} ${yB} Q ${x0 + T * 0.3} ${yB} ${x0} ${cy} Z`;
                         const iconUrl = getThemeIconUrl(item.icon);
                         const LOGO = 38;                          // logo near full staff height
                         return (
                             <g style={{ pointerEvents: 'none' }}>
                                 <defs>
-                                    <clipPath id={cId}><path d={d} /></clipPath>
                                     {/* Flood the accent colour into the flat-black icons8 PNG's alpha
                                         (same #436 trick as the instrument setter) → an accent-coloured logo. */}
                                     <filter id={tintId} x="0" y="0" width="100%" height="100%">
@@ -300,7 +295,7 @@ const NoteColoringStaffOverlay = ({
                                         <feComposite in="flood" in2="SourceAlpha" operator="in" />
                                     </filter>
                                 </defs>
-                                <g clipPath={`url(#${cId})`}>
+                                <g>
                                     <rect x={x0} y={yT} width={W} height={yB - yT} fill={bg} />
                                     {/* LOGO (accent-tinted) on the left, "Aa" (text colour) on the right */}
                                     {iconUrl && (

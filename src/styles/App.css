@@ -1134,6 +1134,7 @@ path {
 :root[data-theme='marble'],
 :root[data-theme='bright-day'],
 :root[data-theme='disco'],
+:root[data-theme='paper'],
 :root[data-theme='pride-light'] {
   --instrument-icon-filter: none;                 /* flat-black icons8 read as-is on light */
   --range-boundary-highlight: var(--text-primary);
@@ -1149,6 +1150,14 @@ path {
   --wheel-color-lowlight: var(--panel-bg);
   --note-tonic: #8a3fd1;
   --note-scale: #4e6fa3;
+}
+
+/* — Default / Paper — plain black-on-white print look: pure white surface, near-black text + notes,
+   grey accent (no colour). Overrides the shared light rule's purple/blue note colours to ink black. */
+:root[data-theme='paper'] {
+  --app-bg: #ffffff; --panel-bg: #ffffff; --text-primary: #111111; --accent-yellow: #333333;
+  --note-tonic: #111111; --note-scale: #333333;
+  --white-key-color: #ffffff; --black-key-color: #222222;
 }
 
 /* — Light — */
@@ -1170,65 +1179,65 @@ path {
 :root[data-theme='dog']        { --app-bg: #201811; --panel-bg: #31261c; --text-primary: #f0e4d4; --accent-yellow: #c98a3f; }
 :root[data-theme='ram']        { --app-bg: #242019; --panel-bg: #322d24; --text-primary: #ece6da; --accent-yellow: #9a8768; }
 
-/* #628-S4 Special BACKGROUNDS (Han 2026-07-31): these must show behind the STAFF (the bladmuziek), so
-   they live on `.sheet-surface` — the transparent wrapper directly behind the sheet-music SVG — NOT on
-   #root (which is covered by opaque panels and never reaches the eye). The notation SVG is transparent,
-   so the surface bg shows through behind every staff/note. Panel-derived text vars keep the notes legible. */
-.sheet-surface { position: relative; }   /* anchor the pets ::before pattern */
+/* #628-S5 Special BACKGROUNDS (Han 2026-07-31): FULL-BLEED over the TOP area only. Target is
+   `.app-top-wrapper` — it wraps header + sub-header + content (sheet + its margins); the bottom control
+   panel is a SIBLING in `.app-root`, so it keeps its solid --panel-bg (Han: NOT on the bottom view).
+   The bg goes on the ELEMENT'S OWN `background` (not a pseudo) so it paints behind the content with no
+   stacking games; the notation SVG is transparent so the bg shows behind every staff/note. Panel-derived
+   text vars keep the notes legible. Pets use pre-tinted SVG shapes (bone/cat/paw) tiled directly. */
 
-/* PRIDE — a recognisable 6-stripe rainbow flag (hard stops). Light = pastel, dark = deep. */
-:root[data-theme='pride-light'] .sheet-surface {
-  background: linear-gradient(180deg,
-    #f7b7b0 0 16.66%, #f8d9a8 16.66% 33.33%, #f7efab 33.33% 50%,
-    #b7e3b4 50% 66.66%, #acc9ee 66.66% 83.33%, #cdb4e6 83.33% 100%);
+/* PRIDE — soft BLURRED rainbow bands (smooth blend, no hard stops), tilted ~10°. Light = subtle pastel,
+   Dark = deep + muted. TODO(#628-S5 next): the Progress-Pride chevron (triangle) + circle on the left. */
+:root[data-theme='pride-light'] .app-top-wrapper {
+  background: linear-gradient(172deg, #e7b0ab, #ecc79f, #ecdfa2, #b9dab6, #accae0, #c8b2dd);
 }
-:root[data-theme='pride-dark'] .sheet-surface {
-  background: linear-gradient(180deg,
-    #7d1f1f 0 16.66%, #8a4d16 16.66% 33.33%, #7d7016 33.33% 50%,
-    #1f6b2f 50% 66.66%, #1f3f7d 66.66% 83.33%, #4a1f7d 83.33% 100%);
+:root[data-theme='pride-dark'] .app-top-wrapper {
+  background: linear-gradient(172deg, #4e1616, #52300f, #4e4510, #123f1c, #12294e, #2c134d);
 }
-/* VAPOURWAVE — bold pink→purple→cyan diagonal wash. */
-:root[data-theme='vapourwave'] .sheet-surface {
-  background: linear-gradient(150deg, #ff6ad5 0%, #8a4ddb 40%, #4a5ad6 68%, #3fd0e0 100%);
+/* VAPOURWAVE — a DARK theme, so muted/darker pink→purple→blue→teal bands (near-vertical, the pride look
+   rotated 90°), with a subtle left↔right drift. */
+:root[data-theme='vapourwave'] .app-top-wrapper {
+  background: linear-gradient(100deg, #6e2f66, #45285f, #2a3560, #2a5f66, #45285f, #6e2f66);
+  background-size: 300% 100%;
+  animation: vw-drift 26s ease-in-out infinite alternate;
 }
-/* DISCO — bright scattered mirror-ball facets over the light panel. */
-:root[data-theme='disco'] .sheet-surface {
+@keyframes vw-drift { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+/* DISCO — bright scattered mirror-ball facets over the light panel, slowly DRIFTING so the colours keep
+   shifting (Han loved the blur; the drift = the subtle "fade to a new colour" he asked for). */
+:root[data-theme='disco'] .app-top-wrapper {
   background:
-    radial-gradient(circle at 22% 18%, rgba(176, 106, 223, 0.45) 0 10%, transparent 11%),
-    radial-gradient(circle at 68% 40%, rgba(63, 155, 214, 0.40) 0 9%, transparent 10%),
-    radial-gradient(circle at 40% 74%, rgba(224, 64, 122, 0.38) 0 8%, transparent 9%),
-    radial-gradient(circle at 85% 80%, rgba(240, 200, 60, 0.35) 0 8%, transparent 9%),
+    radial-gradient(circle at 22% 18%, rgba(176, 106, 223, 0.42) 0 10%, transparent 11%),
+    radial-gradient(circle at 68% 40%, rgba(63, 155, 214, 0.38) 0 9%, transparent 10%),
+    radial-gradient(circle at 40% 74%, rgba(224, 64, 122, 0.36) 0 8%, transparent 9%),
+    radial-gradient(circle at 85% 80%, rgba(240, 200, 60, 0.34) 0 8%, transparent 9%),
     var(--panel-bg);
+  background-size: 180% 180%, 200% 200%, 220% 220%, 160% 160%, auto;
+  animation: disco-drift 24s ease-in-out infinite alternate;
 }
-/* MARBLE — a light stone surface with soft grey veins (CSS-only texture, no image). */
-:root[data-theme='marble'] .sheet-surface {
+@keyframes disco-drift {
+  from { background-position: 0% 0%, 100% 0%, 0% 100%, 100% 100%, 0 0; }
+  to   { background-position: 60% 40%, 30% 70%, 80% 20%, 20% 80%, 0 0; }
+}
+/* MARBLE — light stone: soft cloudy fade (Han liked it) + ORGANIC feTurbulence veins + a few bright-white
+   streaks, all pre-baked as SVG data-URIs so the veins are wispy/organic, not straight lines. */
+:root[data-theme='marble'] .app-top-wrapper {
   background-color: #eceaee;
   background-image:
-    linear-gradient(115deg, transparent 44%, rgba(120, 112, 120, 0.22) 47%, transparent 50%),
-    linear-gradient(115deg, transparent 62%, rgba(120, 112, 120, 0.14) 64%, transparent 67%),
-    linear-gradient(200deg, transparent 30%, rgba(120, 112, 120, 0.12) 33%, transparent 36%),
-    radial-gradient(ellipse at 22% 28%, rgba(160, 150, 158, 0.30), transparent 46%),
-    radial-gradient(ellipse at 76% 66%, rgba(150, 142, 150, 0.24), transparent 52%);
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='500'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.5 0.008' numOctaves='2' seed='11'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 -3 1.35'/%3E%3C/filter%3E%3Crect width='500' height='500' filter='url(%23w)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='500'%3E%3Cfilter id='v'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.9 0.014' numOctaves='2' seed='4'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.42 0 0 0 0 0.4 0 0 0 0 0.44 0 0 0 -2.2 1.05'/%3E%3C/filter%3E%3Crect width='500' height='500' filter='url(%23v)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 22% 28%, rgba(160, 150, 158, 0.28), transparent 48%),
+    radial-gradient(ellipse at 76% 66%, rgba(150, 142, 150, 0.22), transparent 54%);
+  background-size: 620px 620px, 520px 520px, auto, auto;
 }
-
-/* PETS — the animal's icons8 icon TILED as an accent-tinted watermark (the SAME art the theme swatch
-   shows). A decorative ::before sits at z-index:-1 (above the surface bg, below the transparent SVG),
-   so the pattern shows behind the staff. `mask` recolours the flat-black PNG to the theme accent. */
-:root[data-theme='cat'] .sheet-surface::before,
-:root[data-theme='dog'] .sheet-surface::before,
-:root[data-theme='ram'] .sheet-surface::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-color: var(--accent-yellow);
-  -webkit-mask-repeat: repeat;
-  mask-repeat: repeat;
-  -webkit-mask-size: 76px;
-  mask-size: 76px;
-  opacity: 0.16;
+/* PETS — accent-tinted animal shapes TILED as the background pattern (bones for dog, cats for cat, a paw
+   for ram). Baked as pre-coloured SVG data-URIs (the theme accent hard-coded) so no mask/pseudo/z-index
+   is needed — they tile directly on .app-top-wrapper; transparent gaps show the panel colour behind. */
+:root[data-theme='dog'] .app-top-wrapper {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='72' viewBox='0 0 128 72'%3E%3Cg fill='%23c98a3f' fill-opacity='0.5'%3E%3Ccircle cx='22' cy='24' r='16'/%3E%3Ccircle cx='22' cy='48' r='16'/%3E%3Ccircle cx='106' cy='24' r='16'/%3E%3Ccircle cx='106' cy='48' r='16'/%3E%3Crect x='20' y='20' width='88' height='32'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 92px auto repeat;
 }
-:root[data-theme='cat'] .sheet-surface::before { -webkit-mask-image: url('../assets/icons8/themes/icons8-cat-100.png'); mask-image: url('../assets/icons8/themes/icons8-cat-100.png'); }
-:root[data-theme='dog'] .sheet-surface::before { -webkit-mask-image: url('../assets/icons8/themes/icons8-dog-100.png'); mask-image: url('../assets/icons8/themes/icons8-dog-100.png'); }
-:root[data-theme='ram'] .sheet-surface::before { -webkit-mask-image: url('../assets/icons8/themes/icons8-ram-100.png'); mask-image: url('../assets/icons8/themes/icons8-ram-100.png'); }
+:root[data-theme='cat'] .app-top-wrapper {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Cg fill='%23e8a04b' fill-opacity='0.5'%3E%3Cpath d='M26 16 L40 48 L16 42 Z'/%3E%3Cpath d='M70 16 L56 48 L80 42 Z'/%3E%3Ccircle cx='48' cy='56' r='28'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 74px 74px repeat;
+}
+:root[data-theme='ram'] .app-top-wrapper {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Cg fill='%239a8768' fill-opacity='0.5'%3E%3Cellipse cx='48' cy='60' rx='24' ry='20'/%3E%3Ccircle cx='22' cy='34' r='10'/%3E%3Ccircle cx='40' cy='22' r='10'/%3E%3Ccircle cx='58' cy='24' r='10'/%3E%3Ccircle cx='74' cy='38' r='9'/%3E%3C/g%3E%3C/svg%3E") 0 0 / 76px 76px repeat;
+}
