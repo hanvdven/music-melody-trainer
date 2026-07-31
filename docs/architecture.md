@@ -5774,5 +5774,16 @@ sheet → rendered whole.
 **Invariants:** the manifest is the single source of parts (never hardcode file lists); frame geometry
 lives only in `FRAME`; the profile persists across sessions and is independent of the gamification system.
 
+**v2 restructure (#645, Han 2026-07-31):** taxonomy re-grouped into pet · back(cloak/backpack) · skin
+(required) · legs · chest · feet · hands(arms) · ears · hair · head(hat+mask) · off-hand(shield/lantern) ·
+weapon · effect (clothing split by filename; off-hand/shield split out of `back`). Colour/material variants
+(Blue Pants / Bronze Axe / Cape blue) are parsed to a **base item + a variant setter** (`basesFor`/
+`parseVariant`). Gendered categories expose BOTH genders with an **M/F watermark** on wrong-gender items
+(interchangeability test — male/female weapon sprites are NOT byte-identical). RENDER: native sprite size +
+`transform: scale` + step by frame WIDTH, so a sheet's width (800/720/400) never stretches/drifts the layer
+(fixes the ear bug). Layers are stored as `{ g, name }`. Pet (32x32) sits just behind; pet + effects
+animate. Assets: after Han's re-upload, the redundant raw GandalfHardcore dup + editor-source/junk were
+stripped; the creator sources only `src/assets/character/**`.
+
 **Files:** `assets/character/**` (reorganised), `model/characterAssets.js`, `model/characterProfile.js`,
 `components/character/CharacterCreator.{jsx,css}`, `components/layout/AppHeader.jsx`, `App.jsx`.
