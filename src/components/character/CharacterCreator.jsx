@@ -9,7 +9,7 @@ import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/charac
 // interchangeability can be eyeballed. Rendered at NATIVE sprite size + `transform: scale`, so a sheet's
 // width never distorts it (fixes the ear drift). Saved to localStorage across sessions.
 
-const SCALE = 6;                    // preview zoom (80x64 * 6)
+const SCALE = 4.5;                  // preview zoom (80x64 * 4.5) — fills the central chest slot
 const PET_OFFSET = { x: 40, y: 24 };   // pet beside the hero (native px; the doll flip mirrors it to the side)
 const PET_COLS = 4, EFFECT_COLS = 5;   // frames in the pet/effect row-0 loops (own sheets)
 
@@ -129,64 +129,71 @@ export default function CharacterCreator({ onClose }) {
     const onSave = () => { saveCharacter(char); setSaved(true); };
     const reset = () => setChar((c) => ({ ...emptyCharacter(), gender: c.gender, layers: ensureSkin(c.gender, {}) }));
 
+    // the stacked paper-doll (reused inside the central "chest" slot). scaleX(-1) → faces RIGHT (Han).
+    const doll = (
+        <div className="cc-doll" style={{ width: BODY_FRAME.w * SCALE, height: BODY_FRAME.h * SCALE }}>
+            <div style={{ width: BODY_FRAME.w, height: BODY_FRAME.h, transform: `scale(${SCALE})`, transformOrigin: 'top left' }}>
+                <div style={{ position: 'absolute', inset: 0, transform: 'scaleX(-1)' }}>
+                    {zOrder.map((c) => {
+                        const url = urlOfLayer(c.key, char.layers[c.key]);
+                        return url ? <div key={c.key} style={layerStyle(url, c.key, frame, anim)} /> : null;
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="cc-overlay" onClick={onClose}>
-            <div className="cc-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cc-modal cc-modal-diablo" onClick={(e) => e.stopPropagation()}>
                 <button className="cc-close" onClick={onClose} aria-label="Close">✕</button>
 
-                {/* LEFT — live paper-doll. scaleX(-1) → faces RIGHT (Han). */}
-                <div className="cc-preview">
-                    <div className="cc-doll" style={{ width: BODY_FRAME.w * SCALE, height: BODY_FRAME.h * SCALE }}>
-                        <div style={{ width: BODY_FRAME.w, height: BODY_FRAME.h, transform: `scale(${SCALE})`, transformOrigin: 'top left' }}>
-                            <div style={{ position: 'absolute', inset: 0, transform: 'scaleX(-1)' }}>
-                                {zOrder.map((c) => {
-                                    const url = urlOfLayer(c.key, char.layers[c.key]);
-                                    return url ? <div key={c.key} style={layerStyle(url, c.key, frame, anim)} /> : null;
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                    <div className="cc-level">LVL {char.level}</div>
-                    {/* animation picker (Han): rest / walk / run / attack / … / death */}
-                    <div className="cc-anims">
-                        {ANIMATIONS.map((a) => (
-                            <button key={a.key} className={`cc-anim${animKey === a.key ? ' active' : ''}`}
-                                onClick={() => setAnimKey(a.key)}>{a.label}</button>
+                <div className="cc-identity">
+                    <div className="cc-gender">
+                        {['male', 'female'].map((g) => (
+                            <button key={g} className={`cc-gender-btn${gender === g ? ' active' : ''}`}
+                                onClick={() => setGender(g)}>{g === 'male' ? '♂' : '♀'}</button>
                         ))}
                     </div>
+                    <input className="cc-input" placeholder="name" value={char.name}
+                        onChange={(e) => patch({ name: e.target.value })} maxLength={24} />
+                    <input className="cc-input cc-date" type="date" value={char.birthday}
+                        onChange={(e) => patch({ birthday: e.target.value })} />
+                    <span className="cc-level">LVL {char.level}</span>
                 </div>
 
-                {/* RIGHT — controls */}
-                <div className="cc-controls">
-                    <div className="cc-identity">
-                        <div className="cc-gender">
-                            {['male', 'female'].map((g) => (
-                                <button key={g} className={`cc-gender-btn${gender === g ? ' active' : ''}`}
-                                    onClick={() => setGender(g)}>{g === 'male' ? '♂' : '♀'}</button>
-                            ))}
-                        </div>
-                        <input className="cc-input" placeholder="name" value={char.name}
-                            onChange={(e) => patch({ name: e.target.value })} maxLength={24} />
-                        <input className="cc-input cc-date" type="date" value={char.birthday}
-                            onChange={(e) => patch({ birthday: e.target.value })} />
-                    </div>
+                {/* Diablo equipment layout (Han): slots arranged around the central character preview. */}
+                <div className="cc-equip">
+                    {CATEGORIES.filter((c) => c.key !== 'chest').map((c) => {
+                        const url = urlOfLayer(c.key, char.layers[c.key]);
+                        return (
+                            <button key={c.key} title={c.label} style={{ gridArea: c.key }}
+                                className={`cc-slot${activeCat === c.key ? ' active' : ''}${url ? ' filled' : ''}`}
+                                onClick={() => setActiveCat(c.key)}>
+                                {url ? <div className="cc-slot-icon" style={thumbStyle(url, c.key, 0.62)} /> : null}
+                                <span className="cc-slot-label">{c.label}</span>
+                            </button>
+                        );
+                    })}
+                    {/* the central CHEST slot IS the big live preview */}
+                    <button style={{ gridArea: 'chest' }} title="Chest"
+                        className={`cc-chestslot${activeCat === 'chest' ? ' active' : ''}`}
+                        onClick={() => setActiveCat('chest')}>
+                        {doll}
+                    </button>
+                </div>
 
-                    {/* Diablo-style EQUIPMENT SLOTS (Han): each slot shows the equipped item; click to edit it. */}
-                    <div className="cc-slots">
-                        {CATEGORIES.map((c) => {
-                            const url = urlOfLayer(c.key, char.layers[c.key]);
-                            return (
-                                <button key={c.key} title={c.label}
-                                    className={`cc-slot${activeCat === c.key ? ' active' : ''}${url ? ' filled' : ''}`}
-                                    onClick={() => setActiveCat(c.key)}>
-                                    {url ? <div className="cc-slot-icon" style={thumbStyle(url, c.key, 0.55)} /> : null}
-                                    <span className="cc-slot-label">{c.label}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
+                {/* animation picker (Han): rest / walk / run / air-up / air-down / attack / death */}
+                <div className="cc-anims">
+                    {ANIMATIONS.map((a) => (
+                        <button key={a.key} className={`cc-anim${animKey === a.key ? ' active' : ''}`}
+                            onClick={() => setAnimKey(a.key)}>{a.label}</button>
+                    ))}
+                </div>
 
-                    {/* variant setter — a COLOUR swatch per colour/material variant (Han: a colour, not text) */}
+                {/* the active slot's picker: colour/material swatches + all its items */}
+                <div className="cc-picker">
+                    <div className="cc-picker-head">{catByKeyLabel(activeCat)}</div>
                     {activeBase && activeBase.variants.length > 1 && (
                         <div className="cc-variants">
                             {activeBase.variants.map((v) => {
@@ -202,8 +209,6 @@ export default function CharacterCreator({ onClose }) {
                             })}
                         </div>
                     )}
-
-                    {/* base-item grid */}
                     <div className="cc-grid">
                         {!catByRequired(activeCat) && (
                             <button className={`cc-thumb cc-none${!selected ? ' active' : ''}`}
@@ -220,16 +225,18 @@ export default function CharacterCreator({ onClose }) {
                             );
                         })}
                     </div>
+                </div>
 
-                    <div className="cc-actions">
-                        <button className="cc-btn" onClick={randomize}>🎲 Random</button>
-                        <button className="cc-btn" onClick={reset}>Reset</button>
-                        <button className="cc-btn cc-save" onClick={onSave}>{saved ? '✓ Saved' : 'Save'}</button>
-                    </div>
+                <div className="cc-actions">
+                    <button className="cc-btn" onClick={randomize}>🎲 Random</button>
+                    <button className="cc-btn" onClick={reset}>Reset</button>
+                    <button className="cc-btn cc-save" onClick={onSave}>{saved ? '✓ Saved' : 'Save'}</button>
                 </div>
             </div>
         </div>
     );
 }
+
+const catByKeyLabel = (key) => CATEGORIES.find((c) => c.key === key)?.label || '';
 
 const catByRequired = (key) => CATEGORIES.find((c) => c.key === key)?.required;
