@@ -20,9 +20,9 @@ export const ANIMATIONS = [
     { key: 'rest', label: 'Rest', row: 0, frames: 5 },
     { key: 'walk', label: 'Walk', row: 1, frames: 8 },
     { key: 'run', label: 'Run', row: 2, frames: 8 },
-    { key: 'attack', label: 'Attack', row: 3, frames: 4 },
-    { key: 'attack2', label: 'Attack 2', row: 4, frames: 4 },
-    { key: 'hurt', label: 'Hurt', row: 5, frames: 6 },
+    { key: 'airup', label: 'Air Up', row: 3, frames: 4 },     // Han relabel (was Attack)
+    { key: 'airdown', label: 'Air Down', row: 4, frames: 4 }, // Han relabel (was Attack 2)
+    { key: 'attack', label: 'Attack', row: 5, frames: 6 },    // Han relabel (was Hurt)
     { key: 'death', label: 'Death', row: 6, frames: 10 },
 ];
 
@@ -103,6 +103,15 @@ function bothFrom(list, filter) {
 
 export const catByKey = (key) => CATEGORIES.find((c) => c.key === key);
 export const frameOf = (key) => catByKey(key)?.frame || BODY_FRAME;
+
+// Han: force the ears to the SKIN's tone — "Elven Ears{N}" matches "…Skin{N}". Returns the matching ear
+// layer for the given gender (or null for special skins / no numbered skin).
+export function earForSkin(gender, skinName) {
+    const m = /skin\s*(\d)/i.exec(skinName || '');
+    if (!m) return null;
+    const ear = both('ears').find((p) => p.g === gender && p.name.replace(/\s+/g, '').toLowerCase().includes(`ears${m[1]}`));
+    return ear ? { g: gender, name: ear.name } : null;
+}
 
 // Bases for a category — only the CURRENT gender (+ shared). Han removed the gender-swapped watermark items
 // after the interchangeability test. Each base: { id, base, g, variants:[{variant,name,url,g}] }.

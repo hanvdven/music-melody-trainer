@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import './CharacterCreator.css';
-import { CATEGORIES, ANIMATIONS, BODY_FRAME, frameOf, basesFor, urlOfLayer, variantColor, counterpart } from '../../model/characterAssets';
+import { CATEGORIES, ANIMATIONS, BODY_FRAME, frameOf, basesFor, urlOfLayer, variantColor, counterpart, earForSkin } from '../../model/characterAssets';
 import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/characterProfile';
 
 // #645 POC character creator (v2, Han). LEFT: live paper-doll (layers stacked in z-order, one sprite frame
@@ -44,8 +44,8 @@ const thumbStyle = (url, cat) => {
         width: f.w, height: f.h,
         backgroundImage: `url("${url}")`, backgroundRepeat: 'no-repeat',
         backgroundPosition: '0 0', backgroundSize: 'auto', imageRendering: 'pixelated',
-        // scaleX(-1) → thumbnails face RIGHT like the preview (Han); modest zoom so the item's top isn't cropped.
-        transform: cat === 'pet' ? 'scale(-2.2, 2.2)' : 'scale(-1.25, 1.25)',
+        // scaleX(-1) → faces RIGHT like the preview (Han). Fit-not-crop zoom so an item's top/bottom isn't cut.
+        transform: cat === 'pet' ? 'scale(-1.8, 1.8)' : 'scale(-1.1, 1.1)',
     };
 };
 
@@ -78,6 +78,15 @@ export default function CharacterCreator({ onClose }) {
     }, []);
     useEffect(() => { setChar((c) => ({ ...c, layers: ensureSkin(c.gender, c.layers) })); }, [ensureSkin]);
 
+    // Han: force the ears to match the skin tone (Elven Ears{N} ↔ Skin{N}) whenever skin/gender changes.
+    useEffect(() => {
+        setChar((c) => {
+            if (!c.layers.ears) return c;
+            const t = earForSkin(c.gender, c.layers.skin?.name);
+            return t && t.name !== c.layers.ears.name ? { ...c, layers: { ...c.layers, ears: t } } : c;
+        });
+    }, [char.layers.skin, char.gender]);
+
     // Swap gender AND keep the same outfit where a counterpart exists (Han); skin re-defaults to the gender.
     const setGender = (g) => setChar((c) => {
         const layers = {};
@@ -92,6 +101,11 @@ export default function CharacterCreator({ onClose }) {
     const activeBase = bases.find((b) => b.variants.some((v) => v.name === selected?.name && v.g === selected?.g));
 
     const pickBase = (b) => {
+        // Ears always take the skin tone (Han); any ear pick resolves to the skin-matched ear.
+        if (activeCat === 'ears') {
+            const forced = earForSkin(gender, char.layers.skin?.name);
+            if (forced) { setLayer('ears', forced); return; }
+        }
         const plain = b.variants.find((v) => !v.variant) || b.variants[0];
         setLayer(activeCat, { g: plain.g, name: plain.name });
     };
