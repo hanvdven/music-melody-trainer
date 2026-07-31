@@ -5649,6 +5649,15 @@ instrument setter uses, §6d) group consecutive same-category runs. `familyName`
 string; `familyColor` returns `var(--text-secondary)` (muted, theme-responsive). Category brackets sit at
 `bracketDy −24`, below the `theme` field header at `headerDy −31`.
 
+**Carousel pass (#628-S5, Han 2026-07-31) — two opt-in `CarouselField`/`NonLinearCarousel` props used ONLY
+by the theme carousel:** (1) `fixedItemHeight` makes the per-item transform scale X only (`scale(s, 1)`),
+so the mini-staff swatch keeps exactly one staff height while dragging (the uniform edge-scale otherwise
+squashes it vertically and it no longer lines up with the real staff). (2) `showVeil={false}` drops the
+opaque `--panel-bg` scrim that normally hides neighbour content behind an open carousel — the swatches are
+themselves opaque mini-staves, so between them the REAL themed page background + staff show through instead
+of a scrim box (Han: "je ziet ECHT de achtergrond en notenbalk"). Both default to the prior behaviour for
+every other setter.
+
 **Invariant:** `allThemes` (JS) and the `data-theme` CSS blocks are a matched set — adding a theme means
 adding BOTH. Category is data on the theme, never hardcoded in the carousel.
 

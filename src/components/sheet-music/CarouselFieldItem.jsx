@@ -241,6 +241,11 @@ export const CarouselField = ({
   // #628-S5: pass-through to NonLinearCarousel — scale items on X only so mini-staff swatches keep a
   // fixed (one-staff) height while dragging. Opt-in; only the theme carousel sets it.
   fixedItemHeight = false,
+  // #628-S5 (Han: "je ziet ECHT de achtergrond en notenbalk"): the VEIL is an opaque --panel-bg scrim that
+  // hides neighbour content behind an open carousel — but it also hides the themed page background. The
+  // theme carousel's swatches are themselves opaque mini-staves, so it opts OUT (showVeil=false): between
+  // swatches you then see the REAL bg + staff, no scrim box. Default true keeps every other setter's veil.
+  showVeil = true,
   debugMode = false,
 }) => {
   // #394a / #398 / #428: reveal-on-interaction state machine (moved up in #493 so the OPEN state can
@@ -335,7 +340,7 @@ export const CarouselField = ({
       {/* #493 (Han): the VEIL — only while the field is active/open (mountAllItems stays true through
           the fade). Sits FIRST in the group so it's behind this field's own chrome + carousel but on
           top of the sheet. Fades with chromeVisible; soft L/R edges via the mask. */}
-      {mountAllItems && (
+      {showVeil && mountAllItems && (
         <g mask={`url(#${veilMaskId})`}
           style={{ opacity: chromeVisible ? 1 : 0, transition: 'opacity 260ms ease', pointerEvents: 'none' }}>
           {/* #493 rework (Han 2026-07-20): LOCALIZED veil — an OPAQUE panel just the size of THIS

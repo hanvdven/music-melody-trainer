@@ -335,6 +335,7 @@ const NoteColoringStaffOverlay = ({
                     visibleHalf={2}
                     hidden
                     fixedItemHeight
+                    showVeil={false}
                     debugMode={debugMode}
                 />
             )}
