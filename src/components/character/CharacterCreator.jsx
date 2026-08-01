@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import './CharacterCreator.css';
-import { CATEGORIES, ANIMATIONS, BODY_FRAME, frameOf, basesFor, urlOfLayer, variantColor, counterpart, earForSkin, CATEGORY_ICON } from '../../model/characterAssets';
+import { CATEGORIES, ANIMATIONS, basesFor, urlOfLayer, variantColor, counterpart, earForSkin, CATEGORY_ICON } from '../../model/characterAssets';
 import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/characterProfile';
 import Bestiary from './Bestiary';
+import CharacterDoll, { CROP, PET_CROP } from './CharacterDoll';
 
 // #645 POC character creator (v2, Han). LEFT: live paper-doll (layers stacked in z-order, one sprite frame
 // each, idle-animated). RIGHT: gender + name + birthday + level, category tabs, base-item grid (+ a colour/
@@ -10,50 +11,14 @@ import Bestiary from './Bestiary';
 // interchangeability can be eyeballed. Rendered at NATIVE sprite size + `transform: scale`, so a sheet's
 // width never distorts it (fixes the ear drift). Saved to localStorage across sessions.
 
-// CROP: the character body region within the 80x64 frame (measured x3..57 / y17..63). Rendering only this
-// region removes the "suuuper veel lege ruimte" so the preview is much bigger. Centred on x40 so the flip
-// keeps it centred. CHAR_DY / PET_DY are Han's pixel-perfect nudges (art px) to sit on the bottom edge.
-const CROP = { x: 10, y: 6, w: 60, h: 58 };
-const CHAR_DY = 1, PET_DY = 2;
+// CROP / PET_CROP / layerStyle + the paper-doll rendering now live in CharacterDoll.jsx — the single shared
+// doll renderer, reused by the hero on the sheet music (§6d). AVATAR_H + GRID stay here (creator-only).
 const AVATAR_H = 336;              // avatar height; each equipment slot is ⅓ of it (Han)
 // The 4×3 equipment grid, in Han's exact order (skin is the avatar itself, not a grid slot).
 const GRID = ['ears', 'hair', 'head', 'back', 'effect', 'weapon', 'chest', 'offhand', 'pet', 'hands', 'legs', 'feet'];
-const PET_OFFSET = { x: 40, y: 31 };
-const EFFECT_COLS = 5;              // frames in the effect row-0 loop
-// Pet sheets are 6x2 (32x32): row 0 = idle (5 frames), row 1 = run (6). Wisp is a single row (no run).
-const PET_IDLE = 5, PET_RUN = 6;
-
-// backgroundPosition for one frame: col + row from the animation. Pet plays its RUN row when the character
-// walks/runs (Han); effects keep their own single-row loop. `flipPet` re-mirrors the pet to face right.
-const layerStyle = (url, cat, frame, anim, name) => {
-    const f = frameOf(cat);
-    let col = frame % anim.frames, row = anim.row;
-    if (cat === 'pet') {
-        const canRun = !/wisp/i.test(name || '');
-        const running = canRun && (anim.key === 'walk' || anim.key === 'run');
-        row = running ? 1 : 0;
-        col = frame % (running ? PET_RUN : PET_IDLE);
-    } else if (cat === 'effect') { col = frame % EFFECT_COLS; row = 0; }
-    return {
-        position: 'absolute',
-        left: cat === 'pet' ? PET_OFFSET.x : 0,
-        top: cat === 'pet' ? PET_OFFSET.y + PET_DY : CHAR_DY,
-        width: f.w,
-        height: f.h,
-        backgroundImage: `url("${url}")`,
-        backgroundRepeat: 'no-repeat',
-        backgroundPosition: `${-col * f.w}px ${-row * f.h}px`,
-        backgroundSize: 'auto',           // NATIVE sheet size → step works for any sheet width
-        imageRendering: 'pixelated',
-        // Extra flip so the pet faces the SAME way (right) as the char (Han: it was reversed).
-        transform: cat === 'pet' ? 'scaleX(-1)' : undefined,
-        transformOrigin: 'center',
-    };
-};
 
 // A frame-0 thumbnail, CROPPED to the body region so the item fills the cell (Han: 3× bigger, less empty
 // space). `k` scales it. The char faces RIGHT (scaleX -1); the pet faces right natively so it is NOT flipped.
-const PET_CROP = { x: 3, y: 2, w: 26, h: 28 };
 const thumbStyle = (url, cat, k = 1.6) => {
     const isPet = cat === 'pet';
     const crop = isPet ? PET_CROP : CROP;
@@ -81,7 +46,6 @@ export default function CharacterCreator({ onClose }) {
 
     const gender = char.gender;
     const bases = useMemo(() => basesFor(activeCat, gender), [activeCat, gender]);
-    const zOrder = useMemo(() => [...CATEGORIES].sort((a, b) => a.z - b.z), []);
 
     const setLayer = (cat, layer) => { setChar((c) => ({ ...c, layers: { ...c.layers, [cat]: layer } })); setSaved(false); };
     const patch = (p) => { setChar((c) => ({ ...c, ...p })); setSaved(false); };
@@ -153,22 +117,8 @@ export default function CharacterCreator({ onClose }) {
     const onSave = () => { saveCharacter(char); setSaved(true); };
     const reset = () => setChar((c) => ({ ...emptyCharacter(), gender: c.gender, layers: ensureSkin(c.gender, {}) }));
 
-    // the stacked paper-doll, CROPPED to the body region + scaled to AVATAR_H (Han: much bigger, no empty
-    // space). scaleX(-1) → faces RIGHT. Clicking the avatar selects the SKIN.
-    const s = AVATAR_H / CROP.h;
-    const doll = (
-        <div className="cc-doll" style={{ width: CROP.w * s, height: AVATAR_H }}>
-            <div style={{ position: 'absolute', left: -CROP.x * s, top: -CROP.y * s, width: BODY_FRAME.w, height: BODY_FRAME.h, transform: `scale(${s})`, transformOrigin: 'top left' }}>
-                <div style={{ position: 'absolute', inset: 0, transform: 'scaleX(-1)' }}>
-                    {zOrder.map((c) => {
-                        const layer = char.layers[c.key];
-                        const url = urlOfLayer(c.key, layer);
-                        return url ? <div key={c.key} style={layerStyle(url, c.key, frame, anim, layer?.name)} /> : null;
-                    })}
-                </div>
-            </div>
-        </div>
-    );
+    // the stacked paper-doll (shared renderer, §6d), scaled to AVATAR_H. Clicking the avatar selects the SKIN.
+    const doll = <CharacterDoll char={char} anim={anim} frame={frame} height={AVATAR_H} />;
 
     return (
         <div className="cc-overlay" onClick={onClose}>

@@ -27,7 +27,7 @@ import SvgSetter from './SvgSetter';
 import MelodyNotesLayer from './MelodyNotesLayer';
 import ChordLabelsLayer from './ChordLabelsLayer';
 import BarlinesLayer from './BarlinesLayer';
-import RamMascot from './RamMascot';
+import SheetRpgLayer from './SheetRpgLayer';
 import LyricsLayer from './LyricsLayer';
 import FermataLayer from './FermataLayer';
 import PreviewOverlay from './PreviewOverlay';
@@ -187,6 +187,7 @@ const SheetMusic = ({
   numAccidentals,
   screenWidth,
   onRandomizeMeasure,
+  onOpenCharacter,                  // #647 — clicking the sheet-music hero opens the character menu
   showChords,
   // #502 (2026-07-20): the legacy in-staff SETTINGS surface was removed. Nothing sets this true any
   // more (its entry-point buttons are gone), so it defaults false; the remaining `showSettings`
@@ -1663,11 +1664,8 @@ const SheetMusic = ({
             style={{ transition: 'y1 1s ease-in-out, y2 1s ease-in-out' }}
           />
 
-          {/* RAM mascot (#297) — lives in the header band ABOVE the BPM display
-              (the viewBox starts at y=−30). Reads the input test via
-              RoundStateContext for its expressions; artwork + speech live in
-              RamMascot.jsx. */}
-          <RamMascot debugMode={debugMode} />
+          {/* RAM mascot removed (Han 2026-08-01: "was een placeholder") — replaced by the #647 hero on the
+              sheet music (rendered in <SheetRpgLayer/> below, after the note layers). */}
 
           {/* Draw BPM Controls */}
           <BpmControls
@@ -2736,6 +2734,22 @@ const SheetMusic = ({
                       mergedBodyMeasures={mergedBodyMeasures}
                     />
                   )}
+
+                  {/* #647 RPG layer: a slime under each treble note (coloured by duration, facing left) +
+                      the saved hero bottom-left. Painted here (after the note/barline layers, before the
+                      settings overlays) so the hero may overlap the percussion info (Han). */}
+                  <SheetRpgLayer
+                    trebleMelody={isTrebleVisible && actualTreble ? adjustedTrebleMelody : null}
+                    startX={startX}
+                    pixelsPerTick={ppt}
+                    allOffsets={allOffsets}
+                    noteWidth={noteWidth}
+                    trebleStart={trebleStart}
+                    staffHeight={staffHeight}
+                    viewBottom={logicalHeightForViewBox - 30}
+                    onOpenCharacter={onOpenCharacter}
+                    debugMode={debugMode}
+                  />
 
                   {/* Range-edit's end barline is now drawn by the shared overlay frame
                       below (overlayEditMode ⊇ rangeEditMode), together with a matching

@@ -5840,3 +5840,48 @@ cases a format beyond reading `{url,row,frames,frame}`; the curated icon/enemy f
 **Files:** `assets/enemies/**` (new), `assets/character-icons/**` (new), `model/enemyAssets.js` (new),
 `components/character/Bestiary.jsx` (new), `components/character/CharacterCreator.{jsx,css}`,
 `model/characterAssets.js`.
+
+### §83. RPG layer on the sheet music — hero + slimes (#647, Han 2026-08-01)
+
+**Purpose:** put the saved custom HERO on the sheet music and a SLIME under every treble note — the first
+step toward "slimes attacking in sync" (the later step). Interview outcome (Han): hero = the custom
+paper-doll, bottom-LEFT, facing right (into the music); slimes on ONE fixed line aligned to each note's X
+(rests skipped), facing LEFT, coloured by duration (green = quarter, blue = eighth, red = half/whole); today
+idle-only, treble-only, current page, NO playback sync yet. The old RAM mascot (#297, a placeholder) was
+removed in the same change; the hero replaces it, and clicking the hero opens the character menu (its header
+button was removed too).
+
+**Shared doll renderer (§6d):** the paper-doll drawing + its constants (`CROP`, `layerStyle`, pet/effect
+frame handling) were extracted from `CharacterCreator.jsx` into **`CharacterDoll.jsx`** — ONE renderer used by
+both the creator (big avatar) and the hero (on the sheet), so they can never drift. Styling is fully inline
+(no CSS dependency) because `CharacterCreator.css` is not loaded when only the sheet is on screen.
+
+**`SheetRpgLayer.jsx`** (rendered inside the SVG after the note/barline layers, before the setter overlays,
+so the hero may overlap the percussion info — Han):
+- **Slimes** are SVG `<image>` elements — one per treble note. A slime is a nested `<svg>` whose `viewBox` is
+  the sprite's crop region (self-clipping to one frame) with a horizontal-flip transform to face left; the
+  idle row cycles on a local interval. Colour by duration is a FORMULA (§6c): `d ≥ 24 → red`, `≥ 12 → green`,
+  else `blue` (dotted quarter 18 → green, dotted eighth 9 → blue). Rests (`'r'`), spacers (`'c'`) and null
+  notes get no slime; a chord (array) gets one.
+- **Note X reuses `renderMelodyNotes`' `getTickX`** exactly (§6d): tick-based when `pixelsPerTick` is set
+  (scroll modes), else index-based via `allOffsets + noteWidth`. **BUG fixed same day:** the first cut gated
+  the whole layer on `pixelsPerTick != null`, but `ppt` is `null` in the normal (non-scroll) render, so every
+  slime vanished ("kan de slimes niet zien"). The index-based fallback is now always used.
+- **Hero** is the shared `CharacterDoll` inside a `<foreignObject>` sized to the doll (its clickable region ≈
+  the character), bottom-LEFT with feet aligned to the bottom of the viewBox (`viewBottom = viewBox y-max`),
+  at 2× the first-cut height (`HERO_H = 140`, Han). `pointer-events` is re-enabled on the hero only (the
+  layer group is `none`) so the click opens the menu without blocking note taps; a debug hit box renders in
+  `debugMode` (§3a).
+
+**State/perf:** the idle frame is LOCAL to `SheetRpgLayer` (only it re-renders each tick, never the heavy
+SheetMusic tree); the saved character is read once (not per tick). This is decorative chrome (like the old
+ram), NOT an rAF melody layer, so the §6 timing invariants do not apply.
+
+**Not yet (Han's "volgende stap"):** pressing a piano key → hero plays its attack animation once; if the note
+matches the LEFTMOST slime it dies; when all slimes are dead, generate a new melody. Needs its own interview.
+
+**Files:** `components/character/CharacterDoll.jsx` (new — extracted), `components/sheet-music/
+SheetRpgLayer.jsx` (new), `components/character/CharacterCreator.jsx` (uses CharacterDoll),
+`components/sheet-music/SheetMusic.jsx` (renders the layer; RamMascot removed),
+`components/layout/AppHeader.jsx` + `App.jsx` (header button removed; hero opens the menu). `RamMascot.jsx`
++ its test deleted.

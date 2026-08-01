@@ -44,12 +44,23 @@ kleuren (green/blue/red = kwart/achtste/half-heel, seed voor #647). Per-enemy cr
 gemeten; preview op CONSTANTE schaal (natuurlijke relatieve groottes). Build+577+lint
 groen. → deel van #648 test.
 
-⏳ **#647 (Han 2026-08-01, "for today"): held + slimes op de sheet music.** Slime
-onder ELKE treble-noot, kijkend naar LINKS, idle-animatie; kleur per duur (groen=
-kwart, blauw=achtste, rood=half/heel). Held onderaan de sheet-music-view (mag over
-percussion vallen). Aparte RPG-laag, note-position-aware. Slime-assets + kleuren
-klaar. NOG TE DOEN: note-positie/duur-data uit de sheet-renderer halen + §4b
-interview (held-pose/plek, verticale slime-plaats, rust-noten, andere staves).
+🔨 **#647 (Han 2026-08-01, "for today"): held + slimes op de sheet music.** ✅
+Interview: held=custom paper-doll linksonder (kijkt rechts), slimes op vaste regel
+uitgelijnd op treble-noot-X (rusten over), links, idle, kleur per duur (groen=kwart/
+blauw=achtste/rood=half-heel); vandaag idle-only treble huidige-pagina, geen sync.
+✅ `CharacterDoll` geëxtraheerd (1 renderer, creator+held, §6d). ✅ `SheetRpgLayer`
+= slimes (SVG-`<image>`, getTickX-hergebruik) + held (foreignObject). ✅ RamMascot
+verwijderd (Han: placeholder). Docs §83.
+✅ **UAT-ronde 1 (Han): "de guy staat er!"** Fixes: (a) held 2× groter (HERO_H 140)
++ voeten op viewBox-bottom; (b) klik op held → opent menu; header-knop weg
+(AppHeader+App); (c) 🐞 slimes onzichtbaar — `ppt===null` in normale render, hele
+laag was ppt-gated → index-based fallback (allOffsets+noteWidth) altijd gebruiken.
+Build+575+lint groen.
+
+⏳ **#647 volgende stap (Han, combat):** toets indrukken → held speelt attack (1×);
+noot == meest-linkse slime → die gaat dood; alle slimes dood → nieuwe melodie.
+Vereist §4b interview (piano-input-hook, note-match, attack-anim-once, slime-death+
+verwijderen, melodie-regen-API).
 
 ## 2026-07-08 — ✅ Swimlane-ronde: #395 bord-scroll GEFIXT + #394 design → design_review
 

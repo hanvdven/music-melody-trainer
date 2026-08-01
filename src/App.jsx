@@ -1674,7 +1674,6 @@ const App = () => {
                 {showCharacter && <CharacterCreator onClose={() => setShowCharacter(false)} />}
                 <AppHeader
                     scale={scale}
-                    onOpenCharacter={() => setShowCharacter(true)}
                     onStartExercise={handleStartExercise}
                     /* #533: the header Thronefall crown was removed — the colour setter's theme
                        carousel now covers it (and every other theme). */
@@ -1760,6 +1759,7 @@ const App = () => {
                     <ErrorBoundary boundary="sheet-music">
                         <SheetMusic
                             {...sheetMusicCommonProps}
+                            onOpenCharacter={() => setShowCharacter(true)}   // #647 hero click opens the menu
                             containerHeight={sheetHeight}
                             visibleMeasures={effectiveVisibleMeasures}
                             startMeasureIndex={renderStartMeasureIndex}
