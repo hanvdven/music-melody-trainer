@@ -2219,7 +2219,9 @@ const SheetMusic = ({
                       {animationMode === 'scroll' && (
                         <path d={`M ${startX} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.4" />
                       )}
-                      <BarlinesLayer
+                      {/* #661 side-scroll draws its OWN moving barlines/measure-numbers inside SheetRpgLayer;
+                          suppress the static (non-scrolling) ones here so they don't sit frozen on top. */}
+                      {!sideScroll && <BarlinesLayer
                         mode="regular"
                         offsets={allOffsets}
                         noteWidth={noteWidth}
@@ -2248,7 +2250,7 @@ const SheetMusic = ({
                         onMeasureNumberClick={onMeasureNumberClick}
                         anacrusisMeasureIndex={anacrusisMeasureIndex}
                         mergedBodyMeasures={mergedBodyMeasures}
-                      />
+                      />}
                     </g>
 
                     {/* Chord labels */}
@@ -2708,8 +2710,9 @@ const SheetMusic = ({
                   )}
 
                   {/* Thick repeat barlines — hidden in scroll+playing (no start/end repeat signs in scroll mode).
-                      In rangeEditMode we force numRepeats=1 so this layer draws nothing (no repeat signs). */}
-                  {!(animationMode === 'scroll' && isPlaying) && (
+                      In rangeEditMode we force numRepeats=1 so this layer draws nothing (no repeat signs).
+                      #661: also suppressed in side-scroll (the RPG layer owns all barlines there). */}
+                  {!sideScroll && !(animationMode === 'scroll' && isPlaying) && (
                     <BarlinesLayer
                       mode="repeat"
                       offsets={allOffsets}
