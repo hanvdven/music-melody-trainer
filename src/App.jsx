@@ -1722,15 +1722,17 @@ const App = () => {
             rubatoScrollAnchorRef={rubatoScrollAnchorRef}
         >
         <div className="app-root">
-            {/* #661 MIDI debug overlay (Han: "kun je ergens debug midi events tonen"). Shows Web-MIDI status,
-                connected input names, event count + last raw bytes so we can see whether events arrive at all.
-                Temporary diagnostic — remove once MIDI is confirmed working. */}
-            <div style={{ position: 'fixed', top: 4, right: 4, zIndex: 99999, background: 'rgba(0,0,0,0.72)',
-                color: midiStatus.state === 'granted' ? '#6f6' : (midiStatus.state === 'denied' || midiStatus.state === 'unsupported' ? '#f66' : '#fd6'),
-                font: '10px monospace', padding: '3px 6px', borderRadius: 4, pointerEvents: 'none', whiteSpace: 'pre', lineHeight: 1.3 }}>
-                {`MIDI: ${midiStatus.state}${midiStatus.inputs.length ? ` [${midiStatus.inputs.join(', ')}]` : ''}`}
-                {midiStatus.lastData ? `\n#${midiStatus.count}  [${midiStatus.lastData.join(', ')}]` : '\n(no events yet)'}
-            </div>
+            {/* #661 MIDI debug overlay (Han: "kun je ergens debug midi events tonen"). Web-MIDI status,
+                connected input names, event count + last raw bytes — only in debugMode now that MIDI is
+                confirmed working (Han 2026-08-01: works in Chrome; VS Code's webview blocked it). */}
+            {debugMode && (
+                <div style={{ position: 'fixed', top: 4, right: 4, zIndex: 99999, background: 'rgba(0,0,0,0.72)',
+                    color: midiStatus.state === 'granted' ? '#6f6' : (midiStatus.state === 'denied' || midiStatus.state === 'unsupported' ? '#f66' : '#fd6'),
+                    font: '10px monospace', padding: '3px 6px', borderRadius: 4, pointerEvents: 'none', whiteSpace: 'pre', lineHeight: 1.3 }}>
+                    {`MIDI: ${midiStatus.state}${midiStatus.inputs.length ? ` [${midiStatus.inputs.join(', ')}]` : ''}`}
+                    {midiStatus.lastData ? `\n#${midiStatus.count}  [${midiStatus.lastData.join(', ')}]` : '\n(no events yet)'}
+                </div>
+            )}
             {/* TOP AREA WRAPPER (Preserves app theme for header/sheet) */}
             <div className="App app-top-wrapper">
                 {/* #628-S5: canvas disco-ball background — only mounted for the disco theme; sits behind
