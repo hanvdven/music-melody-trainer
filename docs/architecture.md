@@ -5908,6 +5908,43 @@ penalty); when ALL slimes are dead the melody regenerates (`randomizeAll({ chord
 (`combatNote`/`onSlimesCleared` props), `App.jsx` (`handleNoteInputCombat` relay), `model/enemyAssets.js`
 (`SLIME_DEATH`).
 
+### §84. Level 1 (combat mini-level) (#659, Han 2026-08-01)
+
+**Purpose:** a first game "level" built on the #647 combat. A header button (a Swords icon) starts Level 1;
+the player clears waves of slimes by playing the notes; after the target measure count a "Well done!" splash
+shows stats. Interview outcome (Han): treble only (chords/bass/percussion hidden), 2 measures, 1 repeat, 2
+notes per measure, 30% variability, range C4–G4; **4 cleared waves of 2 measures = 8 measures** ends the
+level; pure combat (no autoplay — the player's own pace); stats = slimes defeated, accuracy % / misses,
+longest streak (timing precision is intentionally OMITTED for levels without a metronome); after the splash,
+Opnieuw (replay) / Sluiten (restore the previous settings).
+
+**Config as data:** `src/levels/levels.js` holds `LEVEL1` (measures / repeats / notesPerMeasure / variability
+/ range / totalMeasures) + `wavesForLevel` + `trebleOnlyEyes` (the treble-only `playbackConfig` round-eyes
+shape the app already uses — see `PresetPicker`).
+
+**State machine:** `src/hooks/useLevel.js` — a pure orchestrator the app wires with `{ setters, snapshot,
+regenerate }`. `start` snapshots the current config then applies the level's (numMeasures, trebleSettings
+notesPerMeasure/rhythmVariability/range, playbackConfig repsPerMelody + treble-only eyes, chord labels off),
+resets stats, and spawns the first wave. `onHit`/`onMiss` accumulate defeated / misses / longest streak
+(reported by `SheetRpgLayer`). `onWaveCleared` advances the wave and, at `wavesForLevel` (4), sets `done`
+(the app renders `LevelSplash`); otherwise it regenerates the next wave — and returns whether it consumed the
+event so the normal (non-level) combat still regenerates freely. `close` restores the snapshot; `replay`
+re-runs from the snapshot.
+
+**Regeneration timing (subtle):** `setNumMeasures` (a `useRefState`) mirrors its ref synchronously, but
+`setTrebleSettings` mirrors into `instrumentSettingsRef` only during the render it triggers, and `randomizeAll`
+reads that ref — so the app's `levelRegenerate` defers the generate to `requestAnimationFrame`, after the
+config setters have flushed, otherwise the FIRST wave would generate from the OLD settings.
+
+**Stat coupling:** `SheetRpgLayer` reports `onHit` when a played note kills the leftmost slime and `onMiss`
+when a note doesn't match it (via refs so the nonce-keyed note effect never goes stale); the app passes these
+through only while a level is active. `LevelSplash` (`components/levels/LevelSplash.{jsx,css}`) shows the four
+stats + accuracy (`defeated / (defeated + misses)`).
+
+**Files:** `levels/levels.js` (new), `hooks/useLevel.js` (new), `components/levels/LevelSplash.{jsx,css}`
+(new), `App.jsx` (level wiring + splash), `components/layout/AppHeader.jsx` (Swords button),
+`components/sheet-music/SheetMusic.jsx` + `SheetRpgLayer.jsx` (`onCombatHit`/`onCombatMiss`).
+
 **Files:** `components/character/CharacterDoll.jsx` (new — extracted), `components/sheet-music/
 SheetRpgLayer.jsx` (new), `components/character/CharacterCreator.jsx` (uses CharacterDoll),
 `components/sheet-music/SheetMusic.jsx` (renders the layer; RamMascot removed),

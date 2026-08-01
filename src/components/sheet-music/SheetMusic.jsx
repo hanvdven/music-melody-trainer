@@ -190,6 +190,8 @@ const SheetMusic = ({
   onOpenCharacter,                  // #647 — clicking the sheet-music hero opens the character menu
   combatNote,                       // #647 combat — the last played note {note, nonce} (any input source)
   onSlimesCleared,                  // #647 combat — all slimes killed → regenerate the melody
+  onCombatHit,                      // #659 level — a played note killed the leftmost slime
+  onCombatMiss,                     // #659 level — a played note missed (for accuracy stats)
   showChords,
   // #502 (2026-07-20): the legacy in-staff SETTINGS surface was removed. Nothing sets this true any
   // more (its entry-point buttons are gone), so it defaults false; the remaining `showSettings`
@@ -2752,6 +2754,8 @@ const SheetMusic = ({
                     viewBottom={logicalHeightForViewBox - 30}
                     onOpenCharacter={onOpenCharacter}
                     onSlimesCleared={onSlimesCleared}
+                    onHit={onCombatHit}
+                    onMiss={onCombatMiss}
                     combatNote={combatNote}
                     debugMode={debugMode}
                   />

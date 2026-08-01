@@ -20,6 +20,7 @@ import { KIT_NOTE_MAPPINGS } from './audio/drumKits';
 import AppHeader from './components/layout/AppHeader';
 import DiscoBackground from './components/layout/DiscoBackground';
 import CharacterCreator from './components/character/CharacterCreator';
+import LevelSplash from './components/levels/LevelSplash';
 import SubHeader from './components/layout/SubHeader';
 
 // Hooks
@@ -27,6 +28,7 @@ import useRefState from './hooks/useRefState';
 import useWindowSize from './hooks/useWindowSize';
 import useInstruments from './hooks/useInstruments';
 import useMelodyState from './hooks/useMelodyState';
+import useLevel from './hooks/useLevel';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
 import useDeviceState from './hooks/useDeviceState';
@@ -925,6 +927,23 @@ const App = () => {
         setCombatNote({ note, nonce: combatNonceRef.current });
     }, [handleInputTestNote]);
 
+    // #659 Level 1: a header button applies the level config (treble only, 2 measures, 2 notes/measure, 30%
+    // variability, C4–G4), the player clears 4 waves of slimes, then a "Well done!" splash. The setters update
+    // their refs synchronously, so regenerating right after applying config uses the new settings.
+    const levelSetters = useMemo(() => ({
+        setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds,
+    }), [setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds]);
+    const levelSnapshot = useCallback(() => ({
+        numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds,
+    }), [numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds]);
+    // Defer the (re)generation to the next frame so the just-applied config setters have flushed to their
+    // refs first (setTrebleSettings mirrors into instrumentSettingsRef only during the render it triggers;
+    // randomizeAll reads that ref) — otherwise the FIRST wave would generate from the old settings.
+    const levelRegenerate = useCallback(() => {
+        requestAnimationFrame(() => randomizeAll({ chords: false }));
+    }, [randomizeAll]);
+    const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate });
+
     const handleSetInputTestSubMode = useCallback((mode) => {
         setInputTestSubMode(mode);
         // Keyboard is only active in 'note' (Piano) mode
@@ -1683,7 +1702,12 @@ const App = () => {
                 {theme === 'disco' && <DiscoBackground />}
                 {/* #645: character-creator modal (fixed-position; opened from the header). */}
                 {showCharacter && <CharacterCreator onClose={() => setShowCharacter(false)} />}
+                {level.done && (
+                    <LevelSplash levelName={level.level.name} stats={level.stats}
+                        onReplay={level.replay} onClose={level.close} />
+                )}
                 <AppHeader
+                    onStartLevel={level.start}
                     scale={scale}
                     onStartExercise={handleStartExercise}
                     /* #533: the header Thronefall crown was removed — the colour setter's theme
@@ -1772,7 +1796,11 @@ const App = () => {
                             {...sheetMusicCommonProps}
                             onOpenCharacter={() => setShowCharacter(true)}   // #647 hero click opens the menu
                             combatNote={combatNote}                          // #647 combat — last played note
-                            onSlimesCleared={() => randomizeAll({ chords: false })}   // #647 — new melody on clear
+                            // #647/#659: a cleared wave advances the level (splash at the end); otherwise it
+                            // just regenerates a fresh wave.
+                            onSlimesCleared={() => { if (!level.onWaveCleared()) randomizeAll({ chords: false }); }}
+                            onCombatHit={level.active ? level.onHit : undefined}
+                            onCombatMiss={level.active ? level.onMiss : undefined}
                             containerHeight={sheetHeight}
                             visibleMeasures={effectiveVisibleMeasures}
                             startMeasureIndex={renderStartMeasureIndex}

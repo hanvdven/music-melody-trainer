@@ -75,7 +75,7 @@ function ensureVisible(char) {
 
 export default function SheetRpgLayer({
     trebleMelody, startX, pixelsPerTick, allOffsets, noteWidth, bpm,
-    trebleStart, staffHeight, viewBottom, onOpenCharacter, onSlimesCleared, combatNote, debugMode = false,
+    trebleStart, staffHeight, viewBottom, onOpenCharacter, onSlimesCleared, onHit, onMiss, combatNote, debugMode = false,
 }) {
     const idleAnim = ANIMATIONS[0];
     const [savedChar] = useState(loadCharacter);            // read once (not per tick)
@@ -128,6 +128,9 @@ export default function SheetRpgLayer({
     const slimesRef = useRef(slimeData); slimesRef.current = slimeData;
     const clearedRef = useRef(false);
     const heroAttackRef = useRef(null); heroAttackRef.current = heroAttack;
+    // hit/miss callbacks via refs so the nonce-keyed note effect always sees the latest (no stale closure).
+    const onHitRef = useRef(onHit); onHitRef.current = onHit;
+    const onMissRef = useRef(onMiss); onMissRef.current = onMiss;
 
     // one interval drives the tick at the tempo-coupled frame rate; tickRef lets the note handler read "now"
     // without being a dep. Re-created when bpm changes so the animation speed follows the tempo.
@@ -149,8 +152,12 @@ export default function SheetRpgLayer({
             setHeroAttack({ startTick: tickRef.current });
         }
         const k = killedRef.current;
-        if (!dyingRef.current && k < slimesRef.current.length && notesMatch(combatNote.note, slimesRef.current[k].note)) {
+        const canTarget = !dyingRef.current && k < slimesRef.current.length;
+        if (canTarget && notesMatch(combatNote.note, slimesRef.current[k].note)) {
             setDying({ index: k, startTick: tickRef.current });   // match the LEFTMOST slime → it dies
+            onHitRef.current?.();
+        } else if (canTarget) {
+            onMissRef.current?.();                                // a note that didn't match the leftmost = a miss
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [combatNote?.nonce]);

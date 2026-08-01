@@ -14,6 +14,7 @@ import {
     Dumbbell,
     Maximize,
     Minimize,
+    Swords,
 } from 'lucide-react';
 import './AppHeader.css';
 import { formatScaleName } from '../../theory/scaleHandler';
@@ -47,6 +48,7 @@ const AppHeader = ({
     isFullscreen = false,
     toggleFullscreen = null,
     onOpenKanban = null,        // opens the in-app kanban board; button only shown in debug mode
+    onStartLevel = null,        // #659: starts Level 1
     onScaleClick = null,
     isScalePlaying = false,
     progressionLabel = null,
@@ -92,6 +94,18 @@ const AppHeader = ({
 
                 {/* #645 character-creator button removed (Han 2026-08-01): the sheet-music hero is now the
                     entry point — clicking it opens the character menu (see SheetRpgLayer / #647). */}
+
+                {/* #659: start Level 1 */}
+                {onStartLevel && (
+                    <button
+                        className="tab-button secondary app-header-btn"
+                        onClick={() => onStartLevel()}
+                        title="Level 1"
+                        style={{ color: 'var(--text-secondary)', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
+                    >
+                        <Swords size={22} />
+                    </button>
+                )}
 
                 <button
                     className={`tab-button secondary app-header-btn ${debugMode ? 'active' : ''}`}

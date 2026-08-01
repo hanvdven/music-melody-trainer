@@ -77,6 +77,19 @@ bpm-gekoppeld (`12/bpm` s/frame → 5-frame rust = 1 tel); attack-cyclus 3+2=5 f
 Ties: gekoppelde noten → 1 slime (alleen eerste). ⏳ **#658** aangemaakt: snelle
 gegroepeerde noten → 1 animatie/slag (koppel aan smallestNoteDenom+bpm).
 
+## 2026-08-01 — ✅ #659 Level 1 (combat mini-level)
+
+Han: header-knop start Level 1. ✅ Interview: 4 golven×2 maten=8, puur combat, stats
+= slimes verslagen/accuraatheid%/missers/langste streak (timing pas bij metronoom),
+na splash Opnieuw/Sluiten (settings hersteld). GEBOUWD: `levels/levels.js` (config
++ trebleOnlyEyes), `hooks/useLevel.js` (state-machine + snapshot/restore), `LevelSplash`
+(splash + stats), App-wiring (setters/snapshot/regenerate; onSlimesCleared→onWaveCleared;
+onCombatHit/Miss alleen als level.active), SheetRpgLayer hit/miss, AppHeader Swords-knop.
+Config: treble-only via playbackConfig-eyes, numMeasures=2, notes/maat=2, variability=30,
+range C4–G4, reps=1. 🐞 timing: setTrebleSettings flusht z'n ref pas bij re-render →
+regen via rAF (anders 1e golf oude config). 4 useLevel-tests. Build+581+lint groen.
+Docs §84. → #659 test.
+
 ## 2026-07-08 — ✅ Swimlane-ronde: #395 bord-scroll GEFIXT + #394 design → design_review
 
 Han: "werk aan jouw swimlane (design/plan/impl)". ✅ 🐞 #395 (kanban tweak):
