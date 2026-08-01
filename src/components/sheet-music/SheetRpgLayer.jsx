@@ -84,10 +84,23 @@ export default function SheetRpgLayer({
     const slimeData = useMemo(() => {
         const out = [];
         if (trebleMelody && Array.isArray(trebleMelody.notes)) {
-            const { notes, offsets, durations } = trebleMelody;
+            const { notes, offsets, durations, ties } = trebleMelody;
+            // A tie (`ties[i] === 'tie'`) joins note i to its CONTINUATION = the next entry with a real
+            // offset (same logic renderMelodyNotes uses to draw the tie). Tied noteheads are ONE logical
+            // note — e.g. a note split across a barline — so only the FIRST gets a slime (Han); skip every
+            // continuation. Chains (A–B–C) fall out naturally: each tie marks its own continuation.
+            const skip = new Set();
+            if (ties) {
+                for (let i = 0; i < notes.length; i++) {
+                    if (ties[i] !== 'tie') continue;
+                    for (let j = i + 1; j < notes.length; j++) {
+                        if (offsets[j] != null) { skip.add(j); break; }
+                    }
+                }
+            }
             for (let i = 0; i < notes.length; i++) {
                 const note = notes[i];
-                if (note === 'r' || note === 'c' || note == null) continue;
+                if (note === 'r' || note === 'c' || note == null || skip.has(i)) continue;
                 out.push({ key: i, x: getTickX(offsets[i]) - SLIME_VIEW_W / 2 + 3, note, colorKey: slimeColorKey(durations[i]) });
             }
         }

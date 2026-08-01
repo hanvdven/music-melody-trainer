@@ -5862,7 +5862,10 @@ so the hero may overlap the percussion info — Han):
   the sprite's crop region (self-clipping to one frame) with a horizontal-flip transform to face left; the
   idle row cycles on a local interval. Colour by duration is a FORMULA (§6c): `d ≥ 24 → red`, `≥ 12 → green`,
   else `blue` (dotted quarter 18 → green, dotted eighth 9 → blue). Rests (`'r'`), spacers (`'c'`) and null
-  notes get no slime; a chord (array) gets one.
+  notes get no slime; a chord (array) gets one. **Tied notes get ONE slime — only the first** (Han): a note
+  split by a tie (e.g. across a barline) renders as two tied noteheads but is one logical note, so every tie
+  CONTINUATION (`ties[i] === 'tie'` marks the start; the continuation is the next entry with a real offset,
+  matching `renderMelodyNotes`) is skipped.
 - **Note X reuses `renderMelodyNotes`' `getTickX`** exactly (§6d): tick-based when `pixelsPerTick` is set
   (scroll modes), else index-based via `allOffsets + noteWidth`. **BUG fixed same day:** the first cut gated
   the whole layer on `pixelsPerTick != null`, but `ppt` is `null` in the normal (non-scroll) render, so every

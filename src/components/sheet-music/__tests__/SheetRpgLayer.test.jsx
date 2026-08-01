@@ -32,6 +32,12 @@ describe('SheetRpgLayer (#647)', () => {
         expect(wrap({ trebleMelody: spacer }).container.querySelectorAll('image')).toHaveLength(1);
     });
 
+    it('tied notes get ONE slime — only the first (the tie continuation is skipped)', () => {
+        // C4 tied to its continuation C4 (e.g. split across a barline), then D4 → 2 slimes, not 3.
+        const tied = { notes: ['C4', 'C4', 'D4'], offsets: [0, 12, 24], durations: [12, 12, 12], ties: ['tie', null, null] };
+        expect(wrap({ trebleMelody: tied }).container.querySelectorAll('image')).toHaveLength(2);
+    });
+
     it('combat: exact-pitch match kills the leftmost slime; a wrong note does not; clearing all fires onSlimesCleared', () => {
         vi.useFakeTimers();
         const onSlimesCleared = vi.fn();
