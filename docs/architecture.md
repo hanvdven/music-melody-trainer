@@ -6069,9 +6069,19 @@ slimes drift apart. Memoise the staff content so it is not rebuilt at the moveme
   hit-zone (no more clipped flags/tie-arcs) and only soft-fade as they scroll off the left edge (≈a measure
   past the hero). Right-edge fade-in unchanged.
 
-**Still open → §88 (metronome + audio-clock anchor):** the scroll clock is still SheetRpgLayer's own
-`setInterval` tick; the metronome + ms-exact audio anchoring (Sequencer-driven, treble silent) is §88. The
-end-of-song final barline (thin+thick on the last measure) lands there too, with the real level end.
+**Scroll clock now rides the AudioContext (Han 2026-08-01):** the side-scroll `setInterval` tick was
+"hakkelig" (not frame-aligned). It was replaced by a `requestAnimationFrame` loop that samples
+`context.currentTime` — the SAME robust audio clock the Sequencer schedules on and `useSheetMusicHighlight`
+reads (Han: "in de main app staat al een robuuste audiocontext… zou niet zo veel nieuws moeten gebeuren"),
+NOT a new `performance.now` clock. `tick` still counts INTERVAL_MS units (every formula unchanged), but is now
+`round(context.currentTime·1000 / INTERVAL_MS)` sampled per frame → smooth AND locked to audio. `context` is
+passed SheetMusic→SheetRpgLayer; the level-start button resumes the context. Falls back to `performance.now`
+only when there is no AudioContext (tests). This is the foundation the metronome/backing hangs off (below).
+
+**Still open → §88 (metronome + cello/timpani backing):** run the Sequencer for Level 2 (treble silent,
+metronome from bar 3, cello bass + timpani intro from bar 1 — audible-only, ticket #661) so its schedule plays
+on the same `context.currentTime` the scroll now rides. The end-of-song final barline (thin+thick) lands there
+too, with the real level end.
 
 ### §87. MIDI keyboard input + on-piano played-note highlight (#661, Han 2026-08-01)
 

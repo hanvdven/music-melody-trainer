@@ -2772,6 +2772,7 @@ const SheetMusic = ({
                     onMiss={onCombatMiss}
                     combatNote={combatNote}
                     debugMode={debugMode}
+                    context={context}
                     scrollNotation={sideScroll ? {
                       melody: adjustedTrebleMelody,
                       numAccidentals: trebleWrittenAccidentals,

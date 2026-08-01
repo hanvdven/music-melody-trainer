@@ -43,7 +43,7 @@ describe('SheetRpgLayer (#647)', () => {
     });
 
     it('combat: exact-pitch match kills the leftmost slime; a wrong note does not; clearing all fires onSlimesCleared', () => {
-        vi.useFakeTimers();
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
         const onSlimesCleared = vi.fn();
         const base = {
             startX: 20, pixelsPerTick: null, allOffsets: [0, 12], noteWidth: 20,
@@ -70,7 +70,7 @@ describe('SheetRpgLayer (#647)', () => {
 
     it('side-scroll (#661): reuses the REAL staff — a scrollNotation bundle renders canonical Maestro noteheads', () => {
         // Instead of hand-rolled glyphs, the moving staff is drawn via MelodyNotesLayer (font-family="Maestro").
-        vi.useFakeTimers();
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
         const notation = {
             melody: { notes: ['C4', 'E4'], offsets: [0, 12], durations: [12, 12], ties: [null, null] },
             numAccidentals: 0, noteGroupSize: 12, measureLengthSlots: 48, timeSignature: [4, 4],
@@ -88,7 +88,7 @@ describe('SheetRpgLayer (#647)', () => {
     });
 
     it('side-scroll (#660): playing the correct note before the slime reaches the hit-zone is a MISS', () => {
-        vi.useFakeTimers();
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
         const onHit = vi.fn(); const onMiss = vi.fn();
         const base = {
             startX: 20, pixelsPerTick: null, allOffsets: [0], noteWidth: 20, bpm: 80,

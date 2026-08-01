@@ -1745,7 +1745,7 @@ const App = () => {
                         onReplay={level.replay} onClose={level.close} />
                 )}
                 <AppHeader
-                    onStartLevel={(n) => level.start(LEVELS[n] || LEVELS[1])}
+                    onStartLevel={(n) => { context.resume?.(); level.start(LEVELS[n] || LEVELS[1]); }}
                     scale={scale}
                     onStartExercise={handleStartExercise}
                     /* #533: the header Thronefall crown was removed — the colour setter's theme

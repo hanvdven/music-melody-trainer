@@ -113,6 +113,10 @@ export default function SheetRpgLayer({
     // null outside side-scroll. The whole staff is laid out at the scroll spacing (startX = viewRight,
     // pixelsPerTick = scrollPPT) and translated left over time — rigid & LINEAR (Han); slimes hop under it.
     scrollNotation = null, scrollBarlines = null,
+    // #661/§88 (Han): the scroll rides the app's robust AudioContext clock (context.currentTime) — the SAME
+    // clock the Sequencer schedules on and useSheetMusicHighlight reads — NOT a new performance.now clock. So
+    // when the backing (metronome/cello/timpani) plays via the Sequencer, the visuals are locked to audio.
+    context = null,
 }) {
     const idleAnim = ANIMATIONS[0];
     const [savedChar] = useState(loadCharacter);            // read once (not per tick)
@@ -195,10 +199,29 @@ export default function SheetRpgLayer({
         return { x: slimeX, slimeX, noteX, walkFrame: msSinceSpawn >= 0 ? Math.floor(ff) % SLIME_WALK.frames : 0, spawned: msSinceSpawn >= 0 };
     };
 
-    // one fast interval drives the tick for smooth movement; tickRef lets the note handler read "now".
+    // A requestAnimationFrame loop drives `tick` — the SAME rAF+AudioContext pattern useSheetMusicHighlight
+    // already uses (Han: "in de main app staat al een robuuste audiocontext… zou niet zo veel nieuws moeten
+    // gebeuren"). The setInterval version was "hakkelig" (setInterval isn't frame-aligned). `tick` still counts
+    // INTERVAL_MS units so every formula below is unchanged, but it's `round(elapsedMs / INTERVAL_MS)` sampled
+    // once per frame off `context.currentTime` (the audio clock the Sequencer schedules on) → smooth AND
+    // locked to audio. Falls back to performance.now only when there's no AudioContext (tests).
+    const clockStartRef = useRef(null);
+    const ctxRef = useRef(context); ctxRef.current = context;
     useEffect(() => {
-        const id = setInterval(() => { tickRef.current += 1; setTick(tickRef.current); }, INTERVAL_MS);
-        return () => clearInterval(id);
+        let raf;
+        const loop = () => {
+            const ctx = ctxRef.current;
+            const nowMs = (ctx && typeof ctx.currentTime === 'number')
+                ? ctx.currentTime * 1000
+                : (typeof performance !== 'undefined' ? performance.now() : Date.now());
+            if (clockStartRef.current == null) clockStartRef.current = nowMs;
+            const t = Math.round((nowMs - clockStartRef.current) / INTERVAL_MS);
+            tickRef.current = t;
+            setTick(t);
+            raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(raf);
     }, []);
 
     // reset combat when the melody (its slime notes) changes — a fresh wave; the side-scroll clock restarts.
