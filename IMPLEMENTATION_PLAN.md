@@ -7,6 +7,33 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-07-31 — 🔨 #648 slimes (enemy-navigator) + ⏳ #647 karakter in sheet music
+
+Han: "pak kaartje slimes, en karakter in sheet music hierna op." Beide L3 (design).
+
+🔨 **#648 slimes** — in het karakter-menu een navigator om door enemies te scrollen
+met info per enemy; begin met de **blob**. Enemy-assets = `tinyRPG_by_Zerie/
+Characters(100x100 split)/` → Blood Monster_A (rode blob ≈ "blob"), Demon_A, Orc,
+Soldier. LET OP structuurverschil t.o.v. de held: enemies hebben **losse bestanden
+per animatie** (Idle 600×100=6f, Walk 800×100=8f, Attack01/02 var, Hurt 400×100=4f,
+Death 400×100=4f), 100×100-frames, één rij per bestand — dus een eigen enemy-model
+(niet de multi-row body-sheet parser). §4b interview eerst.
+
+⏳ **#647 karakter in sheet music** — held onderaan de sheet-music-view (mag deels
+over percussion-info), aparte RPG-laag maar note-position-aware; onder elke
+treble-noot een slime; later slimes die in sync met de noten bewegen/aanvallen.
+NA #648. §4b interview eerst.
+
+🔨 **#648 CR (Han 2026-08-01): 16×16 item-iconen als slot-preview.** Han zette een
+16×16 item-set (600 stuks, 24-koloms; ijkpunt: pickaxe=item145=6*24+1) in
+`src/assets/rpg/16x16/`. Wil die als preview in de equipment-slots (passen beter dan
+gecropte sprite-delen). Per categorie een passend icoon zoeken; geen match →
+origineel behouden (hair/ears/effect/pet). Items hernoemen bij analyse.
+Geïdentificeerde bereiken: weapons 121-198/248-280, helmets 313-336/409-432/505-520,
+hats 521-528, chest 337-372/433-464/529-544/570-576, pants 593-600, boots
+385-408/481-504/577-592, gloves 373-384/465-480/545-568, shields 176-204/229-252,
+backpack 108. Wacht op 2 keuzes (equipped-state + rename-scope) vóór impl.
+
 ## 2026-07-08 — ✅ Swimlane-ronde: #395 bord-scroll GEFIXT + #394 design → design_review
 
 Han: "werk aan jouw swimlane (design/plan/impl)". ✅ 🐞 #395 (kanban tweak):

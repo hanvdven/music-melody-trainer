@@ -5787,3 +5787,51 @@ stripped; the creator sources only `src/assets/character/**`.
 
 **Files:** `assets/character/**` (reorganised), `model/characterAssets.js`, `model/characterProfile.js`,
 `components/character/CharacterCreator.{jsx,css}`, `components/layout/AppHeader.jsx`, `App.jsx`.
+
+### §82. Bestiary + 16×16 equipment-slot icons (#648, Han 2026-08-01)
+
+**Purpose:** a navigator UNDER the hero in the character menu to browse enemies, each with a big animated
+preview + name + blurb + animation buttons — the first step toward "slimes" attacking in the sheet music
+(#647). Interview outcome (Han): navigator sits below the hero; info = name + animation buttons (idle/walk/
+attack/death like the hero); ALL four tinyRPG enemies in full PLUS a few of the newly-added GandalfHardcore
+enemies; switch enemies "like equippable items" (thumbnail grid → big preview).
+
+**Two enemy sprite formats, unified behind one shape** (`{ key, label, url, row, frames }` per animation, so
+the renderer is format-agnostic):
+- **tiny** (tinyRPG_by_Zerie): 100×100 frames, ONE FILE per animation, single row (`row` 0). Enemies: Blob
+  (= "Blood Monster_A", the red blob Han calls the blob), Demon, Orc, Soldier (Soldier has a 3rd attack).
+- **gandalf** (GandalfHardcore Pixel Art Enemies): 64×64 frames, ONE SHEET, each animation is a ROW. Added:
+  Bat, Flying Eye, Mushroom, Rat. Row→name follows the pack's sheet order (idle first, then move/attack/
+  death); labels are a convention and can be renamed without touching the renderer.
+
+`frames` are the MEASURED content-frame counts (some sheet rows have trailing blank cells that must NOT be
+played, e.g. Bat idle = 4 of 6 cols) — declared in the manifest exactly like `ANIMATIONS.frames`. Assets are
+copied into `src/assets/enemies/{tiny/<enemy>/<anim>.png, sheets/<enemy>.png}` with clean kebab names because
+the original rpg paths contain spaces AND parens (`Characters(100x100 split)`) that break
+`import.meta.glob`. Preview cropping uses a measured per-format content region (`TINY_CROP`/`SHEET_CROP`).
+
+**Rendering:** `Bestiary.jsx`'s `EnemySprite` reuses the hero doll's crop-and-scale technique (native-size
+background + `transform: scale`, never stretched — §6d): an outer clip box, an inner frame-sized layer scaled
+from top-left, background stepped by whole frames. Animation cycles at 150ms (same as the hero). Its own
+state; its own component; rendered after the hero's actions in the modal.
+
+**16×16 equipment-slot type icons (CR, Han 2026-08-01):** Han added a 600-item 16×16 icon set
+(`src/assets/rpg/16x16/`, 24-col layout; anchor: pickaxe = item145 = 6·24+1). Purpose-built icons fit the
+square equipment slots far better than a cropped body-part. A curated icon per category is copied+renamed
+into `src/assets/character-icons/<category>.png` (weapon=sword 267, head=helm 319, chest=breastplate 337,
+legs=pants 593, feet=boots 385, hands=gauntlet 377, offhand=kite-shield 202). Categories with NO fitting
+icon (hair, ears, back, effect, pet, skin) keep the sprite preview (Han's fallback rule). `CATEGORY_ICON`
+(filename→url map) in `characterAssets.js`; the slot renders the icon BEHIND the equipped sprite
+(`.cc-slot-typeicon`, z-index 0) — opacity 0.8 when empty (clear type hint), 0.28 when filled (subtle
+backdrop). Full category→item-range analysis is logged in `IMPLEMENTATION_PLAN.md`.
+
+**Also fixed:** a duplicated hero animation-picker block in `CharacterCreator.jsx` (copy-paste — the
+rest/walk/…/death row was rendered twice).
+
+**Invariants:** enemy geometry lives only in the manifest (`enemyAssets.js`); the renderer never special-
+cases a format beyond reading `{url,row,frames,frame}`; the curated icon/enemy folders are the single source
+(the raw rpg folders stay untouched as source material).
+
+**Files:** `assets/enemies/**` (new), `assets/character-icons/**` (new), `model/enemyAssets.js` (new),
+`components/character/Bestiary.jsx` (new), `components/character/CharacterCreator.{jsx,css}`,
+`model/characterAssets.js`.

@@ -10,6 +10,15 @@
 
 const FILES = import.meta.glob('../assets/character/**/*.png', { eager: true, query: '?url', import: 'default' });
 
+// #648 CR (Han): purpose-built 16×16 item icons (from src/assets/rpg/16x16, curated + renamed per category)
+// used as the equipment slot's TYPE glyph behind the equipped sprite — they fit the square slots far better
+// than a cropped body-part. Only categories with a fitting icon are here; the rest (hair/ears/back/effect/
+// pet/skin) have no match and keep their sprite preview (Han's fallback rule). Filename = category key.
+const ICONS = import.meta.glob('../assets/character-icons/*.png', { eager: true, query: '?url', import: 'default' });
+export const CATEGORY_ICON = Object.fromEntries(
+    Object.entries(ICONS).map(([p, url]) => [p.match(/([^/]+)\.png$/)[1], url]),
+);
+
 export const BODY_FRAME = { w: 80, h: 64 };   // per-frame size for body sheets (sheet width varies)
 export const PET_FRAME = { w: 32, h: 32 };
 export const IDLE = 5;                          // content frames in row 0 (the rest animation)

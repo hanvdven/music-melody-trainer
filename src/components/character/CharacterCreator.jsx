@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import './CharacterCreator.css';
-import { CATEGORIES, ANIMATIONS, BODY_FRAME, frameOf, basesFor, urlOfLayer, variantColor, counterpart, earForSkin } from '../../model/characterAssets';
+import { CATEGORIES, ANIMATIONS, BODY_FRAME, frameOf, basesFor, urlOfLayer, variantColor, counterpart, earForSkin, CATEGORY_ICON } from '../../model/characterAssets';
 import { loadCharacter, saveCharacter, emptyCharacter } from '../../model/characterProfile';
+import Bestiary from './Bestiary';
 
 // #645 POC character creator (v2, Han). LEFT: live paper-doll (layers stacked in z-order, one sprite frame
 // each, idle-animated). RIGHT: gender + name + birthday + level, category tabs, base-item grid (+ a colour/
@@ -197,24 +198,21 @@ export default function CharacterCreator({ onClose }) {
                         {GRID.map((key) => {
                             const c = CATEGORIES.find((x) => x.key === key);
                             const url = urlOfLayer(key, char.layers[key]);
+                            const icon = CATEGORY_ICON[key];   // 16×16 type glyph (only for categories with a match)
                             return (
                                 <button key={key} title={c.label}
                                     className={`cc-slot${activeCat === key ? ' active' : ''}${url ? ' filled' : ''}`}
                                     onClick={() => setActiveCat(key)}>
+                                    {/* Han: the type icon sits BEHIND the equipped sprite — a clear hint when empty
+                                        (opacity high), a subtle backdrop when something is equipped (opacity low). */}
+                                    {icon && <img className="cc-slot-typeicon" src={icon} alt=""
+                                        style={{ opacity: url ? 0.28 : 0.8 }} />}
                                     {url ? <div className="cc-slot-icon" style={thumbStyle(url, key, 1.7)} /> : null}
                                     <span className="cc-slot-label">{c.label}</span>
                                 </button>
                             );
                         })}
                     </div>
-                </div>
-
-                {/* animation picker (Han): rest / walk / run / air-up / air-down / attack / death */}
-                <div className="cc-anims">
-                    {ANIMATIONS.map((a) => (
-                        <button key={a.key} className={`cc-anim${animKey === a.key ? ' active' : ''}`}
-                            onClick={() => setAnimKey(a.key)}>{a.label}</button>
-                    ))}
                 </div>
 
                 {/* animation picker (Han): rest / walk / run / air-up / air-down / attack / death */}
@@ -266,6 +264,9 @@ export default function CharacterCreator({ onClose }) {
                     <button className="cc-btn" onClick={reset}>Reset</button>
                     <button className="cc-btn cc-save" onClick={onSave}>{saved ? '✓ Saved' : 'Save'}</button>
                 </div>
+
+                {/* #648 enemy navigator — UNDER the hero (Han). Its own animation state; own component. */}
+                <Bestiary />
             </div>
         </div>
     );
