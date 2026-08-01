@@ -2744,7 +2744,12 @@ const SheetMusic = ({
 
                   {/* #647 RPG layer: a slime under each treble note (coloured by duration, facing left) +
                       the saved hero bottom-left. Painted here (after the note/barline layers, before the
-                      settings overlays) so the hero may overlap the percussion info (Han). */}
+                      settings overlays) so the hero may overlap the percussion info (Han).
+                      #661 side-scroll: instead of hand-rolling noteheads, SheetRpgLayer renders the REAL
+                      scrolling staff via the canonical MelodyNotesLayer + BarlinesLayer (§6d). scrollNotation
+                      / scrollBarlines below are the SAME prop bundles the static treble layer + barlines use,
+                      so the moving notes get proper duration heads, rests, colouring, beams, animated barlines
+                      + measure numbers. Both null outside side-scroll → zero overhead in normal render. */}
                   <SheetRpgLayer
                     trebleMelody={isTrebleVisible && actualTreble ? adjustedTrebleMelody : null}
                     startX={startX}
@@ -2764,6 +2769,44 @@ const SheetMusic = ({
                     onMiss={onCombatMiss}
                     combatNote={combatNote}
                     debugMode={debugMode}
+                    scrollNotation={sideScroll ? {
+                      melody: adjustedTrebleMelody,
+                      numAccidentals: trebleWrittenAccidentals,
+                      noteGroupSize,
+                      measureLengthSlots,
+                      timeSignature,
+                      clef: clefTreble,
+                      noteColoringMode,
+                      tonic,
+                      scaleNotes,
+                      processedChords: coloringChords,
+                      theme,
+                      startMeasureIndex,
+                      transpositionSemitones: trebleTransSemitones,
+                      courtesyAccidentals,
+                    } : null}
+                    scrollBarlines={sideScroll ? {
+                      offsets: allOffsets,
+                      measureLengthSlots,
+                      startIdx: startMeasureIndex,
+                      blockMeasureStart,
+                      blockPlayStart,
+                      partialTop,
+                      partialMeasureStart,
+                      measureBottom,
+                      measureYPositions,
+                      trebleStart,
+                      bassStart,
+                      percussionStart,
+                      bottomY,
+                      isTrebleVisible,
+                      isBassVisible,
+                      isPercussionVisible,
+                      numRepeats,
+                      numMeasures,
+                      anacrusisMeasureIndex,
+                      mergedBodyMeasures,
+                    } : null}
                   />
 
                   {/* Range-edit's end barline is now drawn by the shared overlay frame

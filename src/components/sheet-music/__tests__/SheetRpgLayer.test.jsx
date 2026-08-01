@@ -68,6 +68,25 @@ describe('SheetRpgLayer (#647)', () => {
         vi.useRealTimers();
     });
 
+    it('side-scroll (#661): reuses the REAL staff — a scrollNotation bundle renders canonical Maestro noteheads', () => {
+        // Instead of hand-rolled glyphs, the moving staff is drawn via MelodyNotesLayer (font-family="Maestro").
+        vi.useFakeTimers();
+        const notation = {
+            melody: { notes: ['C4', 'E4'], offsets: [0, 12], durations: [12, 12], ties: [null, null] },
+            numAccidentals: 0, noteGroupSize: 12, measureLengthSlots: 48, timeSignature: [4, 4],
+            clef: 'treble', noteColoringMode: 'none', tonic: 'C4', scaleNotes: [], processedChords: [],
+            theme: 'default', startMeasureIndex: 0, transpositionSemitones: 0, courtesyAccidentals: true,
+        };
+        const { container } = render(
+            <svg><SheetRpgLayer startX={20} pixelsPerTick={null} allOffsets={[0, 12]} noteWidth={20}
+                trebleStart={100} staffHeight={40} viewBottom={220} bpm={80} sideScroll viewRight={500}
+                trebleMelody={notation.melody} scrollNotation={notation} /></svg>,
+        );
+        const maestro = [...container.querySelectorAll('text')].filter((t) => (t.getAttribute('font-family') || '') === 'Maestro');
+        expect(maestro.length).toBeGreaterThan(0);   // canonical noteheads from MelodyNotesLayer, not hand-rolled
+        vi.useRealTimers();
+    });
+
     it('side-scroll (#660): playing the correct note before the slime reaches the hit-zone is a MISS', () => {
         vi.useFakeTimers();
         const onHit = vi.fn(); const onMiss = vi.fn();

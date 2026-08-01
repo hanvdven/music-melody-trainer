@@ -5,7 +5,8 @@ import { loadCharacter } from '../../model/characterProfile';
 import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_WALK, SLIME_DEATH, SLIME_COLORS } from '../../model/enemyAssets';
 import { noteToMidi } from '../../theory/noteUtils';
 import { getNoteAbsoluteY } from './renderMelodyNotes';
-import { QUARTER_GLYPH, NOTE_FONT_SIZE } from './staffNoteGlyph';
+import MelodyNotesLayer from './MelodyNotesLayer';
+import BarlinesLayer from './BarlinesLayer';
 
 // #647 RPG layer on the sheet music — a SEPARATE layer that is AWARE of note positions (Han). Two parts:
 //  1. a SLIME under each treble note, aligned to the note's X, coloured by duration (green = quarter,
@@ -39,6 +40,10 @@ const SLIME_COLS = 8, SLIME_ROWS = 3;
 const SLIME_VIEW_H = 33;   // on-sheet slime height (Han: +50%); tunable
 const SLIME_VIEW_W = SLIME_VIEW_H * (SLIME_CROP.w / SLIME_CROP.h);
 const HERO_H = 140;        // on-sheet hero height (Han: 2×); tunable
+// #661 horizontal nudge for the scrolling staff so a Maestro notehead (drawn at its left edge, head centre
+// ≈ +6) sits centred over the slime below it (slime centre = slimeX + SLIME_VIEW_W/2), matching the accepted
+// Level-1 note/slime alignment. Applied as a constant x-shift on the whole moving staff group.
+const NOTE_STAFF_DX = SLIME_VIEW_W / 2 - 6;
 
 // EXACT pitch+octave match (Han): compare by MIDI so enharmonic spellings of the same piano key match. A
 // chord (array) matches if any of its notes matches.
@@ -98,6 +103,12 @@ export default function SheetRpgLayer({
     trebleMelody, startX, pixelsPerTick, allOffsets, noteWidth, bpm,
     trebleStart, staffHeight, viewBottom, onOpenCharacter, onSlimesCleared, onHit, onMiss, combatNote,
     sideScroll = false, viewRight = 0, beatsOnScreen = 8, clef = 'treble', debugMode = false,
+    // #661 side-scroll: the REAL scrolling staff is drawn via the canonical renderers (§6d) instead of
+    // hand-rolled glyphs. `scrollNotation` = the treble MelodyNotesLayer prop bundle (heads/rests/colours/
+    // beams), `scrollBarlines` = the BarlinesLayer prop bundle (moving barlines + measure numbers). Both are
+    // null outside side-scroll. The whole staff is laid out at the scroll spacing (startX = viewRight,
+    // pixelsPerTick = scrollPPT) and translated left over time — rigid & LINEAR (Han); slimes hop under it.
+    scrollNotation = null, scrollBarlines = null,
 }) {
     const idleAnim = ANIMATIONS[0];
     const [savedChar] = useState(loadCharacter);            // read once (not per tick)
@@ -264,17 +275,78 @@ export default function SheetRpgLayer({
         <CharacterDoll char={hero} anim={heroAnim} frame={heroFrame} height={HERO_H} />
     ), [hero, heroAnim, heroFrame]);
 
-    // #660 the moving notehead(s) drawn above a side-scrolling slime (§6d: reuse the canonical Maestro glyph +
-    // getNoteAbsoluteY). Han: no stem, no colouring — just a plain notehead. A chord renders one head per note.
-    const noteHeads = (s, x) => (Array.isArray(s.note) ? s.note : [s.note]).map((n, hi) => {
-        const y = getNoteAbsoluteY(n, trebleStart, clef, 'treble');
-        return y == null ? null : (
-            <text key={hi} x={x + SLIME_VIEW_W / 2 - 6} y={y} fontFamily="Maestro" fontSize={NOTE_FONT_SIZE} fill="var(--text-primary)">{QUARTER_GLYPH}</text>
+    // #661 side-scroll scroll offset. The whole melody is laid out ONCE at the scroll spacing
+    // (pixelsPerTick = dist / (beatsOnScreen · TICKS_PER_BEAT), origin = viewRight) and the group is
+    // translated left by `scrollPx` every tick — a rigid, LINEAR glide (Han). At elapsed = beatsOnScreen
+    // beats a note has travelled the full `dist` (viewRight → startX = the hero). This matches the LINEAR
+    // `noteX` the slimes already use (see sideScrollX), so notes and their slimes stay in step.
+    const dist = viewRight - startX;
+    const scrollPPT = sideScroll && dist > 0 ? dist / (beatsOnScreen * TICKS_PER_BEAT) : 0;
+    const scrollElapsedMs = (tick - waveStartRef.current) * INTERVAL_MS;
+    const scrollPx = sideScroll && beatMs > 0 ? (scrollElapsedMs / (beatsOnScreen * beatMs)) * dist : 0;
+
+    // The staff CONTENT (heavy: beaming, accidentals, tuplets) is memoised so React.memo on
+    // MelodyNotesLayer/BarlinesLayer skips it every fast tick — only the outer translate updates per tick
+    // (cheap), exactly like heroEl above. Deps are the (referentially stable across ticks) prop bundles.
+    const staffContent = useMemo(() => {
+        if (!(sideScroll && scrollNotation && scrollNotation.melody)) return null;
+        return (
+            <>
+                <MelodyNotesLayer
+                    {...scrollNotation}
+                    staff="treble"
+                    staffYStart={trebleStart}
+                    startX={viewRight}
+                    noteWidth={noteWidth}
+                    allOffsets={allOffsets}
+                    pixelsPerTick={scrollPPT}
+                    inputTestState={null}
+                    previewMode={false}
+                    interactive={false}
+                    debugMode={debugMode}
+                    percussionVoiceSplit={false}
+                />
+                {scrollBarlines && (
+                    <BarlinesLayer
+                        mode="regular"
+                        {...scrollBarlines}
+                        noteWidth={noteWidth}
+                        startX={viewRight}
+                        pixelsPerTick={scrollPPT}
+                        isPlaying={false}
+                        showSettings={false}
+                        debugMode={debugMode}
+                        onMeasureNumberClick={undefined}
+                    />
+                )}
+            </>
         );
-    });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sideScroll, scrollNotation, scrollBarlines, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
+
+    // #661 "raakbaar" cue: the leftmost UNRESOLVED slime is the current target. When it enters the hit-zone
+    // (startX..+HITZONE_W) both it and its notehead light up so the player knows to strike NOW (Han).
+    const targetIdx = killedCount;
+    const targetSlime = slimeData[targetIdx];
+    const targetPos = sideScroll && targetSlime ? sideScrollX(targetSlime.beat, tick) : null;
+    const targetInZone = !!(targetPos && targetPos.spawned && !killedSet.has(targetIdx)
+        && targetPos.slimeX >= startX && targetPos.slimeX <= startX + HITZONE_W);
 
     return (
         <g className="rpg-layer" data-rpg-layer="" style={{ pointerEvents: 'none' }}>
+            {/* #661 the REAL scrolling staff (notes/rests/colours/beams + barlines/measure numbers), laid out
+                once and translated left every tick. NOTE_STAFF_DX centres noteheads over their slimes. */}
+            {staffContent && (
+                <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{staffContent}</g>
+            )}
+            {/* #661 fixed hit-zone band in front of the hero — Han wants to clearly SEE where a note is
+                'raakbaar'. Brightens while the current target slime is inside it. */}
+            {sideScroll && dist > 0 && (
+                <rect x={startX} y={trebleStart} width={HITZONE_W} height={Math.max(0, viewBottom - trebleStart)}
+                    fill="var(--accent-yellow)" fillOpacity={targetInZone ? 0.14 : 0.05}
+                    stroke="var(--accent-yellow)" strokeOpacity={0.45} strokeWidth={0.5}
+                    style={{ pointerEvents: 'none' }} />
+            )}
             {slimeData.map((s, idx) => {
                 const isDying = dying && dying.index === idx;
                 const deathFrame = isDying ? Math.min(framesSince(dying.startTick), SLIME_DEATH.frames - 1) : 0;
@@ -283,12 +355,7 @@ export default function SheetRpgLayer({
                     if (isDying) return <Slime key={s.key} x={dying.x} y={slimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />;
                     const p = sideScrollX(s.beat, tick);
                     if (!p.spawned || p.slimeX < -SLIME_VIEW_W) return null;   // not on screen / walked off left
-                    return (
-                        <g key={s.key}>
-                            {noteHeads(s, p.noteX)}
-                            <Slime x={p.slimeX} y={slimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} />
-                        </g>
-                    );
+                    return <Slime key={s.key} x={p.slimeX} y={slimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} />;
                 }
                 // static (Level 1): idle under the note; death in place.
                 if (idx < killedCount) return null;
@@ -296,6 +363,22 @@ export default function SheetRpgLayer({
                 const frame = isDying ? deathFrame : gFrame % SLIME_IDLE.frames;
                 return <Slime key={s.key} x={s.x} y={slimeY} colorKey={s.colorKey} row={row} frame={frame} />;
             })}
+            {/* #661 target-in-zone highlight: a glow behind the target slime + its notehead. */}
+            {targetInZone && targetSlime && (() => {
+                const n = Array.isArray(targetSlime.note) ? targetSlime.note[0] : targetSlime.note;
+                const ny = getNoteAbsoluteY(n, trebleStart, clef, 'treble');
+                const cx = targetPos.slimeX + SLIME_VIEW_W / 2;
+                return (
+                    <g style={{ pointerEvents: 'none' }}>
+                        <ellipse cx={cx} cy={slimeY + SLIME_VIEW_H / 2} rx={SLIME_VIEW_W * 0.75} ry={SLIME_VIEW_H * 0.6}
+                            fill="var(--accent-yellow)" fillOpacity={0.28} />
+                        {ny != null && (
+                            <circle cx={targetPos.noteX + SLIME_VIEW_W / 2} cy={ny - 4} r={13}
+                                fill="var(--accent-yellow)" fillOpacity={0.3} />
+                        )}
+                    </g>
+                );
+            })()}
             {/* #660 debug: the hit-zone in front of the hero (kills only register here) */}
             {debugMode && sideScroll && (
                 <rect x={startX} y={slimeY} width={HITZONE_W} height={SLIME_VIEW_H}

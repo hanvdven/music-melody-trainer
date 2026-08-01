@@ -7,6 +7,30 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-01 — 🔨 Level 2 side-scroll: echte notatie + metronoom (#661)
+
+Han: "maak de noteheads conform muzieknotatie (losse noteheads, geen vlaggen/
+verbindingen)… geanimeerde maatstreep + maatnummers… raakbaar duidelijk zien +
+metronoom horen (2 maten intellen terwijl slimes komen, dan doortikken)… rusten
+als er geen slimes zijn… check of je generateMelody + renderMelodyNotes kunt
+hergebruiken (rusten/kleuren/beams)." Interview §4b afgenomen; keuzes: **hele staff
+hergebruiken (incl. beams)** · **gekleurd zoals hoofd-bladmuziek** · **vaste hit-zone
+band + noot licht op** · **2 maten intellen dan doortikken**.
+
+Aanpak: in side-scroll rendert `SheetRpgLayer` de echte staff via de canonieke
+`MelodyNotesLayer` + `BarlinesLayer` (§6d) met scroll-`pixelsPerTick`
+(`dist/(beatsOnScreen*12)`) en één `translate(-scrollPx)`. Lineaire noot-x valt
+exact samen met de bestaande slime-`noteX`; slimes hoppen er onafhankelijk onder.
+
+🔨 **Fase 1 (deze commit):** hand-gerolde quarter-glyphs vervangen door de echte
+scrollende staff → juiste koppen per duur, rusten, kleuren, beams, bewegende
+maatstrepen + maatnummers. + vaste hit-zone band (altijd zichtbaar) + target-noot/
+slime licht op in de zone.
+⏳ **Fase 2:** metronoom — `context`/`instruments` doorplumben naar `SheetRpgLayer`;
+2 maten intellen (= beatsOnScreen, terwijl 1e slime invliegt) + elke tel doortikken,
+drift-vrij via AudioContext-tijd (§6, geen setTimeout-drift). Scroll-klok evt. op
+`context.currentTime` verankeren zodat visueel + audio locken.
+
 ## 2026-07-31 — 🔨 #648 slimes (enemy-navigator) + ⏳ #647 karakter in sheet music
 
 Han: "pak kaartje slimes, en karakter in sheet music hierna op." Beide L3 (design).

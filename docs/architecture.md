@@ -5973,10 +5973,10 @@ hit-zone and escape use `slimeX`. Slimes are staggered by the melody's rhythm, s
 The wave's clock (`waveStartRef`) restarts whenever the melody changes.
 
 **The NOTES side-scroll too (Han):** in Level 2 the static treble notes are hidden (`SheetMusic` gates the
-treble `MelodyNotesLayer` on `!sideScroll`) and the RPG layer draws each note's **moving notehead** above its
-slime — the canonical Maestro glyph (`QUARTER_GLYPH`/`NOTE_FONT_SIZE`) at `getNoteAbsoluteY(note, trebleStart,
-clef, 'treble')` (§6d), **no stem, no colouring** (Han) — so note + slime fly in together, linearly. The hero
-doll is memoised on its frame so it doesn't re-render at the fast movement rate.
+treble `MelodyNotesLayer` on `!sideScroll`) and the RPG layer draws the moving notes. **SUPERSEDED by §86**
+(Han 2026-08-01): the original per-slime hand-rolled Maestro glyph (no stem/colour) was replaced by rendering
+the REAL scrolling staff via the canonical renderers. The hero doll is memoised on its frame so it doesn't
+re-render at the fast movement rate.
 
 **Kill / miss:** the leftmost un-resolved slime (`slimeData[killedCount]`, ordered by beat = arrival order) is
 killable only while it's in the hit-zone (`startX ≤ x ≤ startX + HITZONE_W`). A matching note in the zone →
@@ -5991,3 +5991,51 @@ slime is resolved (struck or walked past), so misses still progress the level. D
 (`sideScroll` + `setBpm`, two level buttons), `components/layout/AppHeader.jsx`,
 `components/sheet-music/SheetMusic.jsx` (`sideScroll`/`viewRight`), `SheetRpgLayer.jsx` (side-scroll engine),
 `model/enemyAssets.js` (`SLIME_WALK`).
+
+### §86. Level 2 — REAL scrolling staff + hit-zone cue (#661, Han 2026-08-01)
+
+**Purpose / Symptom:** the side-scroll notes were hand-rolled quarter-glyphs (one plain notehead per slime,
+no stem/rests/colour/beams). Han: *"maak de noteheads conform muzieknotatie… render sheet music heeft heeeel
+veel functionaliteit voor rusten, nootkleuren, verbindingsstrepen — gebruik al die functies!!"* Interview §4b
+outcome: **reuse the whole staff (incl. beams)**, **colour like the main sheet**, **a fixed hit-zone band +
+the target note lights up**, **metronome 2-bar count-in then keep ticking** (metronome = §87, a follow-up).
+
+**How it works — reuse, don't hand-roll (§6d).** In `sideScroll` mode `SheetRpgLayer` now renders the
+canonical `MelodyNotesLayer` + `BarlinesLayer` (the exact components the static staff uses) instead of drawing
+glyphs itself. `SheetMusic` passes two prop bundles — `scrollNotation` (the treble `MelodyNotesLayer` props:
+melody, accidentals, colouring mode, tonic/scale/chords, transposition, …) and `scrollBarlines` (the
+`BarlinesLayer` props) — only in side-scroll (both `null` otherwise → zero overhead in the normal render).
+The whole melody is laid out ONCE at the **scroll spacing** and the group is translated left every tick:
+
+- `scrollPPT = dist / (beatsOnScreen · TICKS_PER_BEAT)` with origin `startX = viewRight` (so note at tick
+  `offset` sits pre-translate at `viewRight + offset·scrollPPT`), `dist = viewRight − startX`.
+- `scrollPx = (elapsedMs / (beatsOnScreen · beatMs)) · dist`, applied as `translate(NOTE_STAFF_DX − scrollPx, 0)`.
+  This is algebraically identical to the LINEAR `noteX` the slimes already use (§85), so the reused staff and
+  the slimes stay in step; the staff is rigid & linear while each slime still **hops** independently under it.
+- `NOTE_STAFF_DX = SLIME_VIEW_W/2 − 6` nudges the staff so a Maestro notehead (drawn at its left edge, head
+  centre ≈ +6) sits centred over its slime (slime centre = `slimeX + SLIME_VIEW_W/2`), matching Level-1 alignment.
+- The staff content is **memoised** (`useMemo` on the stable prop bundles) so the heavy beam/accidental/tuplet
+  work in `MelodyNotesLayer`/`BarlinesLayer` (both `React.memo`) is NOT redone every ~120fps tick — only the
+  outer `translate` updates per tick (same pattern as the memoised hero doll). `staffYStart = trebleStart` so
+  notes land at absolute treble Y (no separate `translateY` wrapper); barlines already carry absolute Y.
+
+**Consequences:** rests, note colours (mode = main sheet), beams, ties, ledger lines, **moving barlines** and
+**scrolling measure numbers** all come for free from the canonical code. Rests appear wherever the melody has
+no note (Han: *"rusten als er geen slimes zijn"*) — a rest has no slime, so the staff shows the rest and no
+enemy walks in for it. Notes are a continuous scrolling SCORE: a note is NOT erased when its slime is killed
+(the score keeps flowing past). `generateMelody` already produces a fresh 2-measure melody per wave — reused
+unchanged (`useLevel.regenerate`).
+
+**Hit-zone cue (Han: "duidelijk zien wanneer een noot raakbaar is").** A fixed translucent
+`var(--accent-yellow)` band spans `startX .. startX+HITZONE_W` over the staff, ALWAYS visible in side-scroll
+(brightens `fillOpacity` 0.05→0.14 while the current target is inside it). The current target = leftmost
+un-resolved slime (`slimeData[killedCount]`); when its `slimeX` is in the zone it AND its notehead get a
+glow (ellipse behind the slime + circle behind the head at `noteX + SLIME_VIEW_W/2, getNoteAbsoluteY(...)`).
+
+**Invariants:** reuse the canonical renderers — never hand-roll noteheads/barlines/measure-numbers (§6d). The
+scroll `pixelsPerTick`/origin MUST stay algebraically consistent with the slimes' `noteX` (§85) or notes and
+slimes drift apart. Memoise the staff content so it is not rebuilt at the movement tick rate.
+
+**Files:** `components/sheet-music/SheetRpgLayer.jsx` (moving staff via `MelodyNotesLayer`+`BarlinesLayer`,
+`scrollPPT`/`scrollPx`/`NOTE_STAFF_DX`, hit-zone band + target glow; removed the hand-rolled `noteHeads`),
+`components/sheet-music/SheetMusic.jsx` (`scrollNotation`/`scrollBarlines` prop bundles).
