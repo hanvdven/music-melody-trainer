@@ -70,12 +70,22 @@ function Slime({ x, y, colorKey, row, frame, opacity = 1 }) {
 }
 
 // #660 Level 2 side-scroll geometry. The render interval is decoupled from the sprite frame rate: it ticks
-// fast (INTERVAL_MS ≈ 40fps) so the horizontal movement is SMOOTH (Han: the framerate was too low), while
-// each sprite's animation frame is derived from ELAPSED TIME ÷ the bpm-coupled frame duration, so the sprite
-// animations still step at the right musical speed. Movement is LINEAR (Han: notes + slimes move linearly).
-const INTERVAL_MS = 25;
+// FAST (INTERVAL_MS ≈ 120fps, Han) so movement is smooth, while each sprite's animation frame is derived from
+// ELAPSED TIME ÷ the bpm-coupled frame duration, so the sprites still step at the right musical speed.
+// The NOTES move LINEARLY; the SLIMES HOP (Han: a blob must STAND STILL on walk frames 1,2,8 = 0-indexed
+// 0,1,7) — so the slime's x follows `movingProgress` (advances only on the moving frames 3–7, smoothly WITHIN
+// them thanks to the high fps), while the note above it glides linearly.
+const INTERVAL_MS = 8;
 const TICKS_PER_BEAT = 12;   // note ticks per quarter-note beat
 const HITZONE_W = 70;        // width (viewBox units) of the strike zone in front of the hero (startX..+W)
+// complete moving frames in [0, n): moving frames (0-indexed) are 2..6 (= Han's walk frames 3–7).
+const movingFramesBefore = (n) => { const c = Math.floor(n / 8); const rem = n - c * 8; return c * 5 + Math.max(0, Math.min(rem - 2, 5)); };
+// continuous moving progress at fractional frame `ff`: whole moving frames + the partial of the current frame
+// IF it is a moving one (so x advances smoothly during 3–7 and pauses flat during 1,2,8).
+const movingProgress = (ff) => {
+    const full = Math.floor(ff), frac = ff - full, inCycle = full % 8;
+    return movingFramesBefore(full) + (inCycle >= 2 && inCycle <= 6 ? frac : 0);
+};
 
 // Ensure the hero has at least a skin so it is never invisible.
 function ensureVisible(char) {
@@ -155,16 +165,19 @@ export default function SheetRpgLayer({
     // frames elapsed since a start tick (integer sprite frame) and the ms elapsed.
     const framesSince = (startTick, fMs = frameMs) => Math.floor((tick - startTick) * INTERVAL_MS / fMs);
 
-    // #660 side-scroll position of a slime: it spawns at its own `beat` and moves LINEARLY (Han: notes + slimes
-    // move linearly over a linear path) toward startX, reaching it `beatsOnScreen` beats later, then keeps
-    // going off the left edge if never struck. Smooth because `tick` is fast (INTERVAL_MS). The walk animation
-    // still cycles for visual life.
+    // #660 side-scroll positions: a slime spawns at its own `beat` and travels to startX over `beatsOnScreen`
+    // beats, then keeps going off the left edge if never struck. The NOTE moves LINEARLY (noteX); the SLIME
+    // HOPS (slimeX) — pausing on walk frames 1,2,8 — via `movingProgress`. `x` (= slimeX) is what the hit-zone
+    // and escape use (you strike the blob, not the glyph).
     const sideScrollX = (beat, atTick) => {
         const { startX: sx, viewRight: vr, beatsOnScreen: bos, beatMs: bMs, frameMs: fMs } = geomRef.current;
         const msSinceSpawn = (atTick - waveStartRef.current) * INTERVAL_MS - beat * bMs;
-        const progress = msSinceSpawn / (bos * bMs);      // 0 at spawn, 1 at the hero (startX), >1 past
-        const x = vr - progress * (vr - sx);
-        return { x, walkFrame: msSinceSpawn >= 0 ? Math.floor(msSinceSpawn / fMs) % SLIME_WALK.frames : 0, spawned: msSinceSpawn >= 0 };
+        const dist = vr - sx;
+        const noteX = vr - (msSinceSpawn / (bos * bMs)) * dist;                 // linear
+        const totalFrames = Math.round((bos * bMs) / fMs);                     // walk frames over the crossing
+        const ff = msSinceSpawn / fMs;                                         // fractional frame since spawn
+        const slimeX = vr - movingProgress(Math.max(0, ff)) * (dist / (movingFramesBefore(totalFrames) || 1));
+        return { x: slimeX, slimeX, noteX, walkFrame: msSinceSpawn >= 0 ? Math.floor(ff) % SLIME_WALK.frames : 0, spawned: msSinceSpawn >= 0 };
     };
 
     // one fast interval drives the tick for smooth movement; tickRef lets the note handler read "now".
@@ -269,11 +282,11 @@ export default function SheetRpgLayer({
                     if (killedSet.has(idx)) return null;                  // struck & death finished
                     if (isDying) return <Slime key={s.key} x={dying.x} y={slimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />;
                     const p = sideScrollX(s.beat, tick);
-                    if (!p.spawned || p.x < -SLIME_VIEW_W) return null;   // not on screen / walked off the left
+                    if (!p.spawned || p.slimeX < -SLIME_VIEW_W) return null;   // not on screen / walked off left
                     return (
                         <g key={s.key}>
-                            {noteHeads(s, p.x)}
-                            <Slime x={p.x} y={slimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} />
+                            {noteHeads(s, p.noteX)}
+                            <Slime x={p.slimeX} y={slimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} />
                         </g>
                     );
                 }

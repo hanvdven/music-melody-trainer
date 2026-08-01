@@ -5961,15 +5961,16 @@ miss**; 4 cleared waves = 8 measures → the same "Well done!" splash. `LEVEL2` 
 `{ ...LEVEL1, bpm: 80, sideScroll: true, beatsOnScreen: 8 }`; `useLevel` is parametrised by the level def
 (`start(levelDef)`), applies `bpm`, and the header has a Level 1 / Level 2 button (`onStartLevel(n)`).
 
-**Motion (in `SheetRpgLayer`, `sideScroll` mode) — LINEAR + SMOOTH (Han).** The render interval is decoupled
-from the sprite frame rate: `tick` steps every `INTERVAL_MS` (25 ms ≈ 40fps) so movement is smooth (Han: "de
-framerate voor beweging is te laag"), while each sprite's animation frame is `elapsedMs ÷ frameMs`
-(`frameMs = 12/bpm s`) so the sprites still animate at the right musical speed. Each slime spawns at its own
-**beat** (`offset / 12`) and moves **LINEARLY** toward `startX`, reaching it `beatsOnScreen` (8) beats later,
-then keeps going off the left edge if never struck (Han chose the "just move linearly over a linear path"
-option — the earlier hop/`movingFramesBefore` was dropped; the walk animation still cycles for life). Slimes
-are staggered by the melody's rhythm, so several share the screen. The wave's clock (`waveStartRef`) restarts
-whenever the melody changes.
+**Motion (in `SheetRpgLayer`, `sideScroll` mode).** The render interval is decoupled from the sprite frame
+rate: `tick` steps every `INTERVAL_MS` (8 ms ≈ 120fps, Han) so movement is smooth, while each sprite's
+animation frame is `elapsedMs ÷ frameMs` (`frameMs = 12/bpm s`) so the sprites still animate at the right
+musical speed. Each slime spawns at its own **beat** (`offset / 12`) and travels to `startX` over
+`beatsOnScreen` (8) beats, then keeps going off the left edge if never struck. **The note glides LINEARLY
+(`noteX`); the slime HOPS (`slimeX`)** — Han: a blob must STAND STILL on walk frames 1,2,8 (0-indexed 0,1,7).
+`movingProgress(ff)` advances x only on the moving frames 3–7 (0-indexed 2–6) and SMOOTHLY within them (the
+fractional part of the current frame at ~120fps), pausing flat on 1,2,8 in sync with the walk sprite; the
+hit-zone and escape use `slimeX`. Slimes are staggered by the melody's rhythm, so several share the screen.
+The wave's clock (`waveStartRef`) restarts whenever the melody changes.
 
 **The NOTES side-scroll too (Han):** in Level 2 the static treble notes are hidden (`SheetMusic` gates the
 treble `MelodyNotesLayer` on `!sideScroll`) and the RPG layer draws each note's **moving notehead** above its
