@@ -14,15 +14,16 @@ const wrap = (props) => render(
 );
 
 describe('SheetRpgLayer (#647)', () => {
-    it('renders one slime per non-rest treble note (via the ppt=null fallback), coloured by duration, plus a hero', () => {
-        // C4 quarter(12)=green, rest(skip), E4 eighth(6)=blue, G4 half(24)=red
+    it('renders one slime per non-rest treble note (via the ppt=null fallback), coloured by length, plus a hero', () => {
+        // Han: red = short, blue = long, green = middle. C4 quarter(12)=green, rest(skip), E4 eighth(6)=red,
+        // G4 half(24)=blue.
         const melody = { notes: ['C4', 'r', 'E4', 'G4'], offsets: [0, 12, 18, 24], durations: [12, 6, 6, 24] };
         const { container } = wrap({ trebleMelody: melody });
         const hrefs = [...container.querySelectorAll('image')].map((im) => im.getAttribute('href') || '');
         expect(hrefs).toHaveLength(3);               // 4 notes − 1 rest
-        expect(hrefs[0]).toContain('slime-green');   // quarter
-        expect(hrefs[1]).toContain('slime-blue');    // eighth
-        expect(hrefs[2]).toContain('slime-red');     // half
+        expect(hrefs[0]).toContain('slime-green');   // quarter (middle)
+        expect(hrefs[1]).toContain('slime-red');     // eighth (short)
+        expect(hrefs[2]).toContain('slime-blue');    // half (long)
         expect(container.querySelector('foreignObject')).toBeTruthy();   // hero
     });
 
@@ -32,10 +33,13 @@ describe('SheetRpgLayer (#647)', () => {
         expect(wrap({ trebleMelody: spacer }).container.querySelectorAll('image')).toHaveLength(1);
     });
 
-    it('tied notes get ONE slime — only the first (the tie continuation is skipped)', () => {
-        // C4 tied to its continuation C4 (e.g. split across a barline), then D4 → 2 slimes, not 3.
+    it('tied notes get ONE slime — only the first — coloured by the TOTAL length', () => {
+        // C4 quarter tied to a quarter continuation (total = half = LONG → blue), then D4 quarter (green).
         const tied = { notes: ['C4', 'C4', 'D4'], offsets: [0, 12, 24], durations: [12, 12, 12], ties: ['tie', null, null] };
-        expect(wrap({ trebleMelody: tied }).container.querySelectorAll('image')).toHaveLength(2);
+        const hrefs = [...wrap({ trebleMelody: tied }).container.querySelectorAll('image')].map((im) => im.getAttribute('href') || '');
+        expect(hrefs).toHaveLength(2);               // tied pair = 1 slime, + D4
+        expect(hrefs[0]).toContain('slime-blue');    // tied total = half → long
+        expect(hrefs[1]).toContain('slime-green');   // D4 quarter → middle
     });
 
     it('combat: exact-pitch match kills the leftmost slime; a wrong note does not; clearing all fires onSlimesCleared', () => {

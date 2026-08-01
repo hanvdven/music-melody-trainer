@@ -22,6 +22,7 @@ export default function useLevel({ setters, snapshot, regenerate }) {
 
     const applyConfig = useCallback(() => {
         setters.setNumMeasures(level.numMeasures);
+        setters.setStartMeasureIndex?.(0);   // Han: a new level restarts the measure numbering from 1
         setters.setTrebleSettings((prev) => ({
             ...prev, notesPerMeasure: level.notesPerMeasure, rhythmVariability: level.variability,
             range: level.range, rangeMode: 'fixed',

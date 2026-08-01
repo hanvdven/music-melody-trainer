@@ -30,7 +30,8 @@ const ATTACK_CYCLE = ATTACK_SHEET_FRAMES + ATTACK_DELAY;   // 5 frames
 // quarter-note beat (5 × 12/bpm = 60/bpm s). Faster bpm → faster animation.
 const frameMsForBpm = (bpm) => (bpm > 0 ? 12000 / bpm : IDLE_MS);
 
-const slimeColorKey = (d) => (d >= 24 ? 'red' : d >= 12 ? 'green' : 'blue');   // §6c formula (see interview)
+// colour by note length (Han 2026-08-01: RED = short, BLUE = long; green = the middle). §6c formula.
+const slimeColorKey = (d) => (d >= 24 ? 'blue' : d >= 12 ? 'green' : 'red');
 
 const SLIME_COLS = 8, SLIME_ROWS = 3;
 const SLIME_VIEW_H = 33;   // on-sheet slime height (Han: +50%); tunable
@@ -97,19 +98,17 @@ export default function SheetRpgLayer({
             // offset (same logic renderMelodyNotes uses to draw the tie). Tied noteheads are ONE logical
             // note — e.g. a note split across a barline — so only the FIRST gets a slime (Han); skip every
             // continuation. Chains (A–B–C) fall out naturally: each tie marks its own continuation.
+            const nextReal = (from) => { for (let j = from + 1; j < notes.length; j++) if (offsets[j] != null) return j; return -1; };
             const skip = new Set();
-            if (ties) {
-                for (let i = 0; i < notes.length; i++) {
-                    if (ties[i] !== 'tie') continue;
-                    for (let j = i + 1; j < notes.length; j++) {
-                        if (offsets[j] != null) { skip.add(j); break; }
-                    }
-                }
-            }
+            if (ties) for (let i = 0; i < notes.length; i++) if (ties[i] === 'tie') { const c = nextReal(i); if (c >= 0) skip.add(c); }
             for (let i = 0; i < notes.length; i++) {
                 const note = notes[i];
                 if (note === 'r' || note === 'c' || note == null || skip.has(i)) continue;
-                out.push({ key: i, x: getTickX(offsets[i]) - SLIME_VIEW_W / 2 + 3, note, colorKey: slimeColorKey(durations[i]) });
+                // colour by the TOTAL length across the tie chain (Han: not the first segment) — sum the
+                // start's duration + every continuation's.
+                let total = durations[i], k = i;
+                while (ties && ties[k] === 'tie') { const c = nextReal(k); if (c < 0) break; total += durations[c]; k = c; }
+                out.push({ key: i, x: getTickX(offsets[i]) - SLIME_VIEW_W / 2 + 3, note, colorKey: slimeColorKey(total) });
             }
         }
         return out;

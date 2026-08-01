@@ -932,7 +932,8 @@ const App = () => {
     // their refs synchronously, so regenerating right after applying config uses the new settings.
     const levelSetters = useMemo(() => ({
         setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds,
-    }), [setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds]);
+        setStartMeasureIndex,
+    }), [setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex]);
     const levelSnapshot = useCallback(() => ({
         numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds,
     }), [numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds]);
@@ -943,6 +944,10 @@ const App = () => {
         requestAnimationFrame(() => randomizeAll({ chords: false }));
     }, [randomizeAll]);
     const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate });
+
+    // #659 (Han): on PC (non-touch) the QWERTY keyboard input is ON by default — so you can play the combat
+    // notes straight away without toggling it on. Touch devices keep it off (no physical keyboard).
+    useEffect(() => { if (!isTouch) setQwertyKeyboardActive(true); }, [isTouch, setQwertyKeyboardActive]);
 
     const handleSetInputTestSubMode = useCallback((mode) => {
         setInputTestSubMode(mode);
