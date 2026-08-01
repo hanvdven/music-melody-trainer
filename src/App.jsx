@@ -31,6 +31,7 @@ import useMelodyState from './hooks/useMelodyState';
 import useLevel from './hooks/useLevel';
 import useMidiInput from './hooks/useMidiInput';
 import playSound, { resolveNotePitch } from './audio/playSound';
+import { Soundfont } from 'smplr';
 import { LEVELS } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
@@ -962,9 +963,15 @@ const App = () => {
     // Defer the (re)generation to the next frame so the just-applied config setters have flushed to their
     // refs first (setTrebleSettings mirrors into instrumentSettingsRef only during the render it triggers;
     // randomizeAll reads that ref) — otherwise the FIRST wave would generate from the old settings.
+    // Han BUG (2026-08-01): the FIRST generation ignored the level's range/settings. `randomizeAll` closes over
+    // `trebleSettings` (a useCallback dep), so it only picks up applyConfig's setTrebleSettings AFTER the state
+    // commit re-creates it. The rAF defer alone wasn't enough — it captured the STALE randomizeAll. Calling the
+    // LATEST randomizeAll via a ref (after React has flushed the setters on the next frame) guarantees the range
+    // + every other applied setting are in effect BEFORE generation.
+    const randomizeAllRef = useRef(randomizeAll); randomizeAllRef.current = randomizeAll;
     const levelRegenerate = useCallback(() => {
-        requestAnimationFrame(() => randomizeAll({ chords: false }));
-    }, [randomizeAll]);
+        requestAnimationFrame(() => randomizeAllRef.current({ chords: false }));
+    }, []);
     const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate });
 
     // §88 (ticket #661): a side-scroll level plays a METRONOME (audible timing guide) on the AudioContext,
@@ -974,19 +981,41 @@ const App = () => {
     // beatsOnScreen (2 bars) after the start, when the first slime arrives at the hero. Cello/timpani backing
     // (needs their Soundfonts loaded) follows. (playSound/instruments reused — no new scheduling machinery.)
     const [levelAudioStart, setLevelAudioStart] = useState(null);
+    // §88 cello for the Level 2 backing — a small dedicated Soundfont, preloaded once the AudioContext exists
+    // so it's ready (loaded from the CDN in the background) by the time a level starts. Own instrument so it
+    // never disturbs the user's treble/bass selection.
+    const celloRef = useRef(null);
+    useEffect(() => {
+        if (context && !celloRef.current) {
+            try { celloRef.current = new Soundfont(context, { instrument: 'cello', destination: context.destination }); } catch { /* offline / CDN blocked → no cello */ }
+        }
+    }, [context]);
     const scheduleLevelBacking = useCallback((lvl) => {
         if (!lvl?.sideScroll || !context) return;
         const startTime = context.currentTime + 0.35;   // small pre-roll so the melody has generated
         setLevelAudioStart(startTime);
         const bpm = lvl.bpm || 80;
         const beatSec = 60 / bpm;
+        const barSec = beatSec * 4;                        // 4/4
         const bos = lvl.beatsOnScreen || 8;
         const contentBeats = (lvl.numMeasures || 8) * 4;   // 4/4
+        // The game beat-grid at the hero: beat b arrives at startTime + (bos + b)·beatSec. Han: the metronome
+        // starts ONE bar before the blobs arrive ("maat 0") — i.e. bos−4 beats after start — and ticks the
+        // count-in bar + all content beats. Downbeat (bar start) = k%4===0 (bos is a whole number of bars).
         const metro = instruments.metronome;
         if (metro) {
-            for (let k = 0; k < contentBeats; k++) {
-                // downbeat (k%4===0) = high woodblock, other beats = low. First click at +bos beats (bar 3).
-                try { metro.start({ note: resolveNotePitch(k % 4 === 0 ? 'wh' : 'wl'), time: startTime + (bos + k) * beatSec, duration: 0.12 }); } catch { /* instrument not ready */ }
+            for (let k = 0; k < contentBeats + 4; k++) {
+                const clickBeat = bos - 4 + k;
+                try { metro.start({ note: resolveNotePitch(k % 4 === 0 ? 'wh' : 'wl'), time: startTime + clickBeat * beatSec, duration: 0.12 }); } catch { /* not ready */ }
+            }
+        }
+        // §88 cello bass (Han, ticket #661): a whole-note C3 per bar, audible-only backing, from bar 1 (the
+        // intro). Plays for the whole level (count-in bar + content). Uses a lazily-loaded cello Soundfont.
+        const cello = celloRef.current;
+        if (cello) {
+            const bars = Math.ceil((bos - 4 + contentBeats + 4) / 4);
+            for (let m = 0; m < bars; m++) {
+                try { cello.start({ note: 'C3', time: startTime + m * barSec, duration: barSec * 0.98 }); } catch { /* not ready */ }
             }
         }
     }, [context, instruments]);
@@ -1000,6 +1029,7 @@ const App = () => {
     useEffect(() => {
         if (!level.active) {
             try { instruments.metronome?.stop(); } catch { /* not started */ }
+            try { celloRef.current?.stop(); } catch { /* not started */ }
             setLevelAudioStart(null);
         }
     }, [level.active, instruments]);

@@ -6126,18 +6126,24 @@ melody has generated) and:
   `scrollStartTime`. SheetRpgLayer's rAF loop then measures `tick` from `context.currentTime − startTime`, and
   the wave clock is 0 at `startTime` regardless of when the melody actually generated. So a slime reaches the
   hero at `startTime + (beat + beatsOnScreen)·beatSec`.
-- **Schedules the metronome on the SAME base** — `contentBeats` clicks (`numMeasures·4`) via
-  `instruments.metronome.start({ note: resolveNotePitch('wh'|'wl'), time })` at `startTime + (beatsOnScreen +
-  k)·beatSec`. The FIRST click is `beatsOnScreen` (2 bars) after the start — i.e. exactly when the first slime
-  reaches the hero (the 2-bar intro passes click-free). Downbeats (`k%4===0`) use the high woodblock (`wh`),
-  other beats the low (`wl`).
+- **Schedules the metronome on the SAME base** — clicks via `instruments.metronome.start({ note:
+  resolveNotePitch('wh'|'wl'), time })` at `startTime + (beatsOnScreen − 4 + k)·beatSec`. The FIRST click is
+  ONE BAR before the first slime reaches the hero (Han: "metronoom op maat 0, één maat voor de blobs komen") —
+  a 1-bar audible count-in — then it ticks every content beat. Because a slime for beat `b` reaches the hero at
+  `startTime + (beatsOnScreen + b)·beatSec` and the click grid shares that base, slime arrivals land on clicks
+  to the millisecond. Downbeats (high woodblock) else low.
+- **Cello bass** — a whole-note `C3` per bar on a preloaded dedicated `cello` Soundfont (`celloRef`), from bar
+  1 (the intro), audible-only. Its own instrument so it never disturbs the user's treble/bass selection.
 
-Because both the slime arrival and the click for beat `k` land at `startTime + (beatsOnScreen + k)·beatSec`,
-they coincide to the millisecond. `instruments.metronome.stop()` + `levelAudioStart = null` on level end.
+`instruments.metronome.stop()` + `celloRef.stop()` + `levelAudioStart = null` on level end.
 
-**Invariants:** the scroll anchor and the metronome MUST share `startTime` (or they drift apart). Schedule on
-`context.currentTime` (the robust audio clock), never `setTimeout`/`performance.now`. **Still open:** cello
-bass (whole C3/bar) + timpani ([C2,C2,C3,r]/bar) intro/backing — needs their Soundfonts loaded, then scheduled
-the same way (from bar 1); and the end-of-song final barline. **Files:** `App.jsx` (`scheduleLevelBacking`,
-`startLevel`, `levelAudioStart`), `components/sheet-music/SheetMusic.jsx` (`levelAudioStart`→`scrollStartTime`
-passthrough), `components/sheet-music/SheetRpgLayer.jsx` (`scrollStartTime` anchor).
+**Range-bug fix (Han 2026-08-01):** the FIRST generation ignored the level's range/settings. `randomizeAll`
+closes over `trebleSettings` (a useCallback dep) so it only sees applyConfig's setters AFTER the commit
+re-creates it; the rAF defer captured the STALE one. `levelRegenerate` now calls the LATEST `randomizeAll` via
+`randomizeAllRef.current` (after React flushes the setters next frame) → range + all settings apply before gen.
+
+**Invariants:** the scroll anchor and the backing MUST share `startTime` (or they drift). Schedule on
+`context.currentTime` (the robust audio clock), never `setTimeout`/`performance.now`. **Still open:** timpani
+([C2,C2,C3,r]/bar) backing (same scheduling, needs its Soundfont) + the end-of-song final barline. **Files:**
+`App.jsx` (`scheduleLevelBacking`, `startLevel`, `levelAudioStart`, `celloRef`, `randomizeAllRef`),
+`components/sheet-music/SheetMusic.jsx` (`levelAudioStart`→`scrollStartTime`), `SheetRpgLayer.jsx` (anchor).
