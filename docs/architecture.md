@@ -5961,20 +5961,30 @@ miss**; 4 cleared waves = 8 measures → the same "Well done!" splash. `LEVEL2` 
 `{ ...LEVEL1, bpm: 80, sideScroll: true, beatsOnScreen: 8 }`; `useLevel` is parametrised by the level def
 (`start(levelDef)`), applies `bpm`, and the header has a Level 1 / Level 2 button (`onStartLevel(n)`).
 
-**Motion (in `SheetRpgLayer`, `sideScroll` mode):** the bpm-coupled tick is the game clock — `FRAMES_PER_BEAT
-= 5` (12/bpm s per frame). Each slime spawns at its own **beat** (`offset / 12`) and reaches `startX`
-`beatsOnScreen` (8) beats later, so slimes are staggered by the melody's rhythm and several share the screen.
-It **HOPS** (Han): over each 8-frame walk cycle it advances only on frames 3–7 (0-indexed 2–6) at 8/5 speed —
-`movingFramesBefore(f)` counts elapsed moving frames, giving the non-linear x that still averages to a uniform
-crossing (reaches `startX` exactly at frame 40). The walk animation is `SLIME_WALK` (row 1). The wave's clock
-(`waveStartRef`) restarts whenever the melody changes.
+**Motion (in `SheetRpgLayer`, `sideScroll` mode) — LINEAR + SMOOTH (Han).** The render interval is decoupled
+from the sprite frame rate: `tick` steps every `INTERVAL_MS` (25 ms ≈ 40fps) so movement is smooth (Han: "de
+framerate voor beweging is te laag"), while each sprite's animation frame is `elapsedMs ÷ frameMs`
+(`frameMs = 12/bpm s`) so the sprites still animate at the right musical speed. Each slime spawns at its own
+**beat** (`offset / 12`) and moves **LINEARLY** toward `startX`, reaching it `beatsOnScreen` (8) beats later,
+then keeps going off the left edge if never struck (Han chose the "just move linearly over a linear path"
+option — the earlier hop/`movingFramesBefore` was dropped; the walk animation still cycles for life). Slimes
+are staggered by the melody's rhythm, so several share the screen. The wave's clock (`waveStartRef`) restarts
+whenever the melody changes.
 
-**Kill / miss:** the leftmost living slime (`slimeData[killedCount]`, ordered by beat = arrival order) is
-killable only while it's in the hit-zone (`x ≤ startX + HITZONE_W`, before it reaches `startX`). A matching
-note in the zone → death in place (`dying.x` frozen); a matching note too early, or a wrong note → miss. A
-slime that reaches `startX` un-killed → `escaping` (fades over `FADE_FRAMES`) + miss, then advances
-`killedCount`. A wave clears whether its slimes were killed or escaped (so misses still progress the level).
-Debug mode draws the hit-zone. `SLIME_WALK` added to `enemyAssets.js`.
+**The NOTES side-scroll too (Han):** in Level 2 the static treble notes are hidden (`SheetMusic` gates the
+treble `MelodyNotesLayer` on `!sideScroll`) and the RPG layer draws each note's **moving notehead** above its
+slime — the canonical Maestro glyph (`QUARTER_GLYPH`/`NOTE_FONT_SIZE`) at `getNoteAbsoluteY(note, trebleStart,
+clef, 'treble')` (§6d), **no stem, no colouring** (Han) — so note + slime fly in together, linearly. The hero
+doll is memoised on its frame so it doesn't re-render at the fast movement rate.
+
+**Kill / miss:** the leftmost un-resolved slime (`slimeData[killedCount]`, ordered by beat = arrival order) is
+killable only while it's in the hit-zone (`startX ≤ x ≤ startX + HITZONE_W`). A matching note in the zone →
+death in place (`dying.x` frozen; hidden via `killedSet` when the death animation finishes) + `killedCount++`;
+a matching note too early, or a wrong note → miss WITHOUT resolving the slime (it stays the target). A slime
+that reaches `startX` un-struck is **NOT killed** (Han) — it just keeps hopping off the left edge — but it
+counts as a miss and advances `killedCount` so the next slime becomes the target. A wave clears when every
+slime is resolved (struck or walked past), so misses still progress the level. Debug mode draws the hit-zone.
+`SLIME_WALK` added to `enemyAssets.js`.
 
 **Files:** `levels/levels.js` (`LEVEL2`/`LEVELS`), `hooks/useLevel.js` (parametrised), `App.jsx`
 (`sideScroll` + `setBpm`, two level buttons), `components/layout/AppHeader.jsx`,

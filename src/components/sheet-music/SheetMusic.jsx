@@ -1993,7 +1993,9 @@ const SheetMusic = ({
                     >
                       {/* CHORD MELODY BLURRED BACKGROUND REMOVED */}
                       <g style={{ transform: `translateY(${trebleStart}px)`, transition: 'transform 1s ease-in-out', opacity: trebleGhost ? GHOST_OPACITY : 1 }}>
-                        {actualTreble && <MelodyNotesLayer
+                        {/* #660 Level 2: the static treble notes are hidden — the RPG layer draws them
+                            MOVING (side-scrolling in from the right with their slimes). */}
+                        {actualTreble && !sideScroll && <MelodyNotesLayer
                           melody={adjustedTrebleMelody}
                           numAccidentals={trebleWrittenAccidentals}
                           startX={startX}
@@ -2752,6 +2754,7 @@ const SheetMusic = ({
                     bpm={bpm}
                     sideScroll={sideScroll}
                     viewRight={logicalScreenWidth - 5}
+                    clef={clefTreble}
                     trebleStart={trebleStart}
                     staffHeight={staffHeight}
                     viewBottom={logicalHeightForViewBox - 30}

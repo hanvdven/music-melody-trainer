@@ -99,8 +99,13 @@ maatnummer reset per level, bottom-paneel ≤40%. GEBOUWD: LEVEL2/LEVELS + useLe
 geparametriseerd (start(levelDef)+setBpm), 2 header-knoppen, SheetRpgLayer sideScroll-
 engine (game-klok=bpm-tick 5f/beat; spawn op beat; hop via movingFramesBefore frame3-7
 op 8/5; hit-zone startX..+70; escape→fade+miss; SLIME_WALK row1). Test: hit-zone-gate
-(te vroeg=miss). Build+582+lint groen. Docs §85. → #660 test. ⏳ Han levert nog
-side-scroll-animatiedetails (spawn-hoogte/hit-zone-plek etc.).
+(te vroeg=miss). Build+582+lint groen. Docs §85. → #660 test.
+✅ UAT-ronde (Han): (1) NOTEN side-scrollen mee (statische treble-noten verborgen;
+bewegende Maestro-notehead per slime via getNoteAbsoluteY, §6d — geen stem/kleuring);
+(2) niet-geslagen slime gaat NIET dood → loopt door (killedSet ipv fade; resolved-
+count); (3) beweging LINEAIR + SOEPEL: render-interval losgekoppeld van sprite-frame-
+rate (INTERVAL_MS=25≈40fps; sprite-frame=elapsedMs/frameMs), held gememoized op frame.
+Hop gedropt (Han's 'beweeg gewoon linear'-optie). Build+582+lint groen.
 
 ## 2026-07-08 — ✅ Swimlane-ronde: #395 bord-scroll GEFIXT + #394 design → design_review
 
