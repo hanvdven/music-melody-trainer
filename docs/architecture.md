@@ -6147,3 +6147,32 @@ re-creates it; the rAF defer captured the STALE one. `levelRegenerate` now calls
 ([C2,C2,C3,r]/bar) backing (same scheduling, needs its Soundfont) + the end-of-song final barline. **Files:**
 `App.jsx` (`scheduleLevelBacking`, `startLevel`, `levelAudioStart`, `celloRef`, `randomizeAllRef`),
 `components/sheet-music/SheetMusic.jsx` (`levelAudioStart`→`scrollStartTime`), `SheetRpgLayer.jsx` (anchor).
+
+### §89. Level 2 rework + rhythm-precise combat (#661, Han 2026-08-02)
+
+**Level shuffle:** the old side-scroll Level 2 is now **Level 3** (`LEVEL3`); a new, EASIER **Level 2** takes
+its slot — 3 notes/measure, 30% variability, smallest note = quarter, and every note **forced to a quarter**.
+Header shows three level buttons.
+
+**forceQuarterNotes (new feature, `src/utils/forceQuarterNotes.js`):** a settings-driven POST-process applied
+AFTER the generator in `randomizeAll` (gated on `trebleSettings.forceQuarterNotes`; uniform, no per-instrument
+branch — §6b). Every real note becomes a quarter; a longer note becomes quarter + a rest for the remainder;
+ties dropped; offsets stay consistent. `useLevel.applyConfig` sets `smallestNoteDenom` + `forceQuarterNotes`.
+
+**Rhythm-precise combat (SheetRpgLayer, sideScroll):**
+- **±1/8-beat TIME window** replaces the spatial hit-zone. A note for beat `b` is due at the strike line at
+  elapsed `(b + beatsOnScreen)·beatMs`; a matching note within `±beatMs/8` kills, otherwise it's a miss.
+- **Red vertical strike line** at `startX + SLIME_VIEW_W/2` — exactly where the note/slime sits at its play
+  moment (aligned with the metronome click). The old subtle band is gone.
+- **Miss → wiggle:** a wrong/early note shakes the (still-)next slime (`wiggle` state, decaying `sin` `dx`,
+  cleared after `WIGGLE_FRAMES`).
+- **Defeat animation:** on a kill, in parallel with the blob's death, a canonical `StaffQuarterNote` (§6d)
+  flies UP + fades from the strike position, and a lowlight `StaffQuarterNote` GHOST stays there ("niet meer
+  spelen"). `staffYStart` shifts with the flying note so its stem can't flip mid-flight. Exact for Level 2
+  (forced quarters, C4–G4 = no accidentals/ties/beams); an approximation for Level 3's mixed durations
+  (always a quarter glyph) — the precise accidental/tie-follow + beamed stem-and-head-only case is a refinement.
+- **End-of-song final barline** (thin + thick) at `numMeasures·measureLengthSlots`, inside the scrolling
+  barline group.
+
+**Files:** `levels/levels.js`, `components/layout/AppHeader.jsx`, `hooks/useLevel.js`, `hooks/useMelodyState.js`,
+`utils/forceQuarterNotes.js` (+test), `components/sheet-music/SheetRpgLayer.jsx`.

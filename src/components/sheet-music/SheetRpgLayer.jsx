@@ -6,6 +6,8 @@ import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_WALK, SLIME_DEATH, SLIME_COL
 import { noteToMidi } from '../../theory/noteUtils';
 import MelodyNotesLayer from './MelodyNotesLayer';
 import BarlinesLayer from './BarlinesLayer';
+import { getNoteAbsoluteY } from './renderMelodyNotes';
+import { StaffQuarterNote } from './staffNoteGlyph';
 
 // #647 RPG layer on the sheet music — a SEPARATE layer that is AWARE of note positions (Han). Two parts:
 //  1. a SLIME under each treble note, aligned to the note's X, coloured by duration (green = quarter,
@@ -441,7 +443,27 @@ export default function SheetRpgLayer({
                 const deathFrame = isDying ? Math.min(framesSince(dying.startTick), SLIME_DEATH.frames - 1) : 0;
                 if (sideScroll) {
                     if (killedSet.has(idx)) return null;                  // struck & death finished
-                    if (isDying) return <Slime key={s.key} x={dying.x} y={slimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />;
+                    if (isDying) {
+                        // Han: in parallel with the blob's death, the struck NOTE flies UP + fades; a lowlight
+                        // GHOST copy stays at its spot ("niet meer spelen"). staffYStart shifts with the note so
+                        // the stem direction can't flip mid-flight. (Level 2 = forced quarters, C4–G4: exact.)
+                        const note = Array.isArray(s.note) ? s.note[0] : s.note;
+                        const ny = getNoteAbsoluteY(note, trebleStart, 'treble', 'treble');
+                        const nx = startX + NOTE_STAFF_DX;
+                        const prog = Math.min(1, framesSince(dying.startTick) / SLIME_DEATH.frames);
+                        const up = prog * 46;
+                        return (
+                            <g key={s.key}>
+                                <Slime x={dying.x} y={slimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />
+                                {ny != null && (
+                                    <>
+                                        <StaffQuarterNote x={nx} positionY={ny} staffYStart={trebleStart} color="var(--text-lowlight)" opacity={0.45} />
+                                        <StaffQuarterNote x={nx} positionY={ny - up} staffYStart={trebleStart - up} opacity={1 - prog} />
+                                    </>
+                                )}
+                            </g>
+                        );
+                    }
                     const p = sideScrollX(s.beat, tick);
                     if (!p.spawned || p.slimeX < -SLIME_VIEW_W) return null;   // not on screen / walked off left
                     // Han: a wrong/early note WIGGLES the (still-)next slime — a quick decaying horizontal shake.
