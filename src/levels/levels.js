@@ -24,17 +24,32 @@ export const LEVEL1 = {
 // scroll clock (a fresh 2-bar lead-in = the gap). With numMeasures=8 the whole level is a single wave: one
 // generation, one lead-in, and measures 1–8 scroll seamlessly. `wavesForLevel` = round(8/8) = 1, so the
 // "Well done!" splash fires once the whole piece is resolved.
-export const LEVEL2 = {
+// Level 3 (Han 2026-08-02): what used to be Level 2 — the side-scroll with 2 notes/measure, 30% variability,
+// mixed durations. Shifted up one slot so Level 2 can be an EASIER on-ramp.
+export const LEVEL3 = {
     ...LEVEL1,
-    id: 2,
-    name: 'Level 2',
+    id: 3,
+    name: 'Level 3',
     bpm: 80,
     numMeasures: 8,             // one continuous 8-measure piece (no mid-level regeneration → no seam)
     sideScroll: true,
     beatsOnScreen: 8,            // spawn (right) → hero (left) takes this many beats
 };
 
-export const LEVELS = { 1: LEVEL1, 2: LEVEL2 };
+// Level 2 (Han 2026-08-02): a SIMPLER on-ramp — 3 notes/measure, 30% variability, smallest note = quarter,
+// and EVERY note forced to a quarter (longer notes → quarter + rests; see forceQuarterNotes). Same
+// side-scroll engine as Level 3.
+export const LEVEL2 = {
+    ...LEVEL3,
+    id: 2,
+    name: 'Level 2',
+    notesPerMeasure: 3,
+    variability: 30,
+    smallestNoteDenom: 4,       // quarter is the smallest generated note
+    forceQuarterNotes: true,    // NEW: post-process every note into a quarter (pad the remainder with rests)
+};
+
+export const LEVELS = { 1: LEVEL1, 2: LEVEL2, 3: LEVEL3 };
 
 // waves to clear = total measures / measures-per-wave (each cleared slime-wave is one melody = numMeasures).
 export const wavesForLevel = (lvl) => Math.max(1, Math.round(lvl.totalMeasures / lvl.numMeasures));

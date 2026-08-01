@@ -30,6 +30,8 @@ export default function useLevel({ setters, snapshot, regenerate }) {
         setters.setTrebleSettings((prev) => ({
             ...prev, notesPerMeasure: lvl.notesPerMeasure, rhythmVariability: lvl.variability,
             range: lvl.range, rangeMode: 'fixed',
+            ...(lvl.smallestNoteDenom ? { smallestNoteDenom: lvl.smallestNoteDenom } : {}),
+            forceQuarterNotes: !!lvl.forceQuarterNotes,   // #661 Level 2: every note → a quarter (+ rests)
         }));
         setters.setPlaybackConfig((prev) => ({
             ...prev, repsPerMelody: lvl.numRepeats,

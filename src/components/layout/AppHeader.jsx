@@ -96,7 +96,7 @@ const AppHeader = ({
                     entry point — clicking it opens the character menu (see SheetRpgLayer / #647). */}
 
                 {/* #659/#660: start Level 1 / Level 2 */}
-                {onStartLevel && [1, 2].map((n) => (
+                {onStartLevel && [1, 2, 3].map((n) => (
                     <button
                         key={n}
                         className="tab-button secondary app-header-btn"
