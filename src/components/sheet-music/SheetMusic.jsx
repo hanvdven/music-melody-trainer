@@ -2791,9 +2791,11 @@ const SheetMusic = ({
                     scrollBarlines={sideScroll ? {
                       offsets: allOffsets,
                       measureLengthSlots,
-                      startIdx: startMeasureIndex,
-                      blockMeasureStart,
-                      blockPlayStart,
+                      // #661 (Han UAT): a level always numbers its measures 1..N. Force the numbering origin
+                      // to 1 (blockMeasureStart) regardless of the app's paginated block state.
+                      startIdx: 0,
+                      blockMeasureStart: 1,
+                      blockPlayStart: 0,
                       partialTop,
                       partialMeasureStart,
                       measureBottom,

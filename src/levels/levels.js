@@ -18,11 +18,18 @@ export const LEVEL1 = {
 // Level 2 (Han 2026-08-01): same as Level 1 + bpm 80, but SIDE-SCROLL — slimes fly in from the right (walk
 // animation, hopping), a note is 8 beats on screen, and you may only kill the leftmost slime once it reaches
 // the HIT-ZONE by the hero (playing too early misses; a slime that reaches the hero un-killed fades = miss).
+//
+// #661 (Han UAT 2026-08-01: "maatblokken sluiten niet naadloos aan"): Level 2 is ONE continuous 8-measure
+// piece, NOT 4 regenerated 2-measure waves. The seam Han saw came from mid-level regeneration resetting the
+// scroll clock (a fresh 2-bar lead-in = the gap). With numMeasures=8 the whole level is a single wave: one
+// generation, one lead-in, and measures 1–8 scroll seamlessly. `wavesForLevel` = round(8/8) = 1, so the
+// "Well done!" splash fires once the whole piece is resolved.
 export const LEVEL2 = {
     ...LEVEL1,
     id: 2,
     name: 'Level 2',
     bpm: 80,
+    numMeasures: 8,             // one continuous 8-measure piece (no mid-level regeneration → no seam)
     sideScroll: true,
     beatsOnScreen: 8,            // spawn (right) → hero (left) takes this many beats
 };

@@ -44,6 +44,11 @@ const HERO_H = 140;        // on-sheet hero height (Han: 2×); tunable
 // ≈ +6) sits centred over the slime below it (slime centre = slimeX + SLIME_VIEW_W/2), matching the accepted
 // Level-1 note/slime alignment. Applied as a constant x-shift on the whole moving staff group.
 const NOTE_STAFF_DX = SLIME_VIEW_W / 2 - 6;
+// #661 side-scroll lane fade (Han UAT): the moving notes/barlines fade OUT over the last LANE_FADE_L units
+// before the hero (startX) so they vanish softly after being played, and fade IN over the last LANE_FADE_R
+// units at the right edge so the incoming 'end' of the score isn't a hard pop. Applied as an SVG mask.
+const LANE_FADE_L = 24;
+const LANE_FADE_R = 15;
 
 // EXACT pitch+octave match (Han): compare by MIDI so enharmonic spellings of the same piano key match. A
 // chord (array) matches if any of its notes matches.
@@ -288,41 +293,48 @@ export default function SheetRpgLayer({
     // The staff CONTENT (heavy: beaming, accidentals, tuplets) is memoised so React.memo on
     // MelodyNotesLayer/BarlinesLayer skips it every fast tick — only the outer translate updates per tick
     // (cheap), exactly like heroEl above. Deps are the (referentially stable across ticks) prop bundles.
-    const staffContent = useMemo(() => {
+    // NOTES and BARLINES are SEPARATE memos so they can be translated independently: notes carry
+    // NOTE_STAFF_DX (centre the head over its slime), while barlines sit at the PURE tick boundary — Han
+    // (UAT): "maatstreep tussen 2 noten, niet pal voor een notehead". A downbeat note is at boundary+DX, so
+    // a barline at boundary sits ~DX units left of it, in the gap between the previous note and the downbeat.
+    const noteStaffContent = useMemo(() => {
         if (!(sideScroll && scrollNotation && scrollNotation.melody)) return null;
         return (
-            <>
-                <MelodyNotesLayer
-                    {...scrollNotation}
-                    staff="treble"
-                    staffYStart={trebleStart}
-                    startX={viewRight}
-                    noteWidth={noteWidth}
-                    allOffsets={allOffsets}
-                    pixelsPerTick={scrollPPT}
-                    inputTestState={null}
-                    previewMode={false}
-                    interactive={false}
-                    debugMode={debugMode}
-                    percussionVoiceSplit={false}
-                />
-                {scrollBarlines && (
-                    <BarlinesLayer
-                        mode="regular"
-                        {...scrollBarlines}
-                        noteWidth={noteWidth}
-                        startX={viewRight}
-                        pixelsPerTick={scrollPPT}
-                        isPlaying={false}
-                        showSettings={false}
-                        debugMode={debugMode}
-                        onMeasureNumberClick={undefined}
-                    />
-                )}
-            </>
+            <MelodyNotesLayer
+                {...scrollNotation}
+                staff="treble"
+                staffYStart={trebleStart}
+                startX={viewRight}
+                noteWidth={noteWidth}
+                allOffsets={allOffsets}
+                pixelsPerTick={scrollPPT}
+                inputTestState={null}
+                previewMode={false}
+                interactive={false}
+                debugMode={debugMode}
+                percussionVoiceSplit={false}
+            />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sideScroll, scrollNotation, scrollBarlines, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
+    }, [sideScroll, scrollNotation, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
+
+    const barlineStaffContent = useMemo(() => {
+        if (!(sideScroll && scrollBarlines)) return null;
+        return (
+            <BarlinesLayer
+                mode="regular"
+                {...scrollBarlines}
+                noteWidth={noteWidth}
+                startX={viewRight}
+                pixelsPerTick={scrollPPT}
+                isPlaying={false}
+                showSettings={false}
+                debugMode={debugMode}
+                onMeasureNumberClick={undefined}
+            />
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sideScroll, scrollBarlines, viewRight, noteWidth, scrollPPT, debugMode]);
 
     // #661 "raakbaar" cue: the leftmost UNRESOLVED slime is the current target. When it enters the hit-zone
     // (startX..+HITZONE_W) both it and its notehead light up so the player knows to strike NOW (Han).
@@ -335,9 +347,29 @@ export default function SheetRpgLayer({
     return (
         <g className="rpg-layer" data-rpg-layer="" style={{ pointerEvents: 'none' }}>
             {/* #661 the REAL scrolling staff (notes/rests/colours/beams + barlines/measure numbers), laid out
-                once and translated left every tick. NOTE_STAFF_DX centres noteheads over their slimes. */}
-            {staffContent && (
-                <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{staffContent}</g>
+                once and translated left every tick. Barlines sit at the pure tick boundary (between notes);
+                notes carry NOTE_STAFF_DX to centre over their slimes. A soft mask fades both lane ends. */}
+            {sideScroll && dist > 0 && viewRight > 0 && (
+                <>
+                    <defs>
+                        <linearGradient id="rpgLaneFadeGrad" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={viewRight} y2={0}>
+                            <stop offset={0} stopColor="#000" />
+                            <stop offset={Math.max(0, (startX - LANE_FADE_L) / viewRight)} stopColor="#000" />
+                            <stop offset={Math.min(1, startX / viewRight)} stopColor="#fff" />
+                            <stop offset={Math.max(0, (viewRight - LANE_FADE_R) / viewRight)} stopColor="#fff" />
+                            <stop offset={1} stopColor="#000" />
+                        </linearGradient>
+                        {/* mask: white = visible, black = transparent. Extends far left so notes only vanish via the
+                            gradient (not the mask's own edge). userSpaceOnUse → immune to the inner translates. */}
+                        <mask id="rpgLaneFade" maskUnits="userSpaceOnUse" x={-2000} y={0} width={viewRight + 2000} height={Math.max(1, viewBottom)}>
+                            <rect x={-2000} y={0} width={viewRight + 2000} height={Math.max(1, viewBottom)} fill="url(#rpgLaneFadeGrad)" />
+                        </mask>
+                    </defs>
+                    <g mask="url(#rpgLaneFade)">
+                        {barlineStaffContent && <g transform={`translate(${-scrollPx}, 0)`}>{barlineStaffContent}</g>}
+                        {noteStaffContent && <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContent}</g>}
+                    </g>
+                </>
             )}
             {/* #661 fixed hit-zone band in front of the hero — Han wants to clearly SEE where a note is
                 'raakbaar'. Brightens while the current target slime is inside it. */}

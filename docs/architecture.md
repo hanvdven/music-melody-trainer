@@ -6039,3 +6039,23 @@ slimes drift apart. Memoise the staff content so it is not rebuilt at the moveme
 **Files:** `components/sheet-music/SheetRpgLayer.jsx` (moving staff via `MelodyNotesLayer`+`BarlinesLayer`,
 `scrollPPT`/`scrollPx`/`NOTE_STAFF_DX`, hit-zone band + target glow; removed the hand-rolled `noteHeads`),
 `components/sheet-music/SheetMusic.jsx` (`scrollNotation`/`scrollBarlines` prop bundles).
+
+**UAT refinements (Han 2026-08-01):**
+- **Seamless flow** — `LEVEL2.numMeasures = 8` (was 2). The seam Han saw ("maatblokken sluiten niet naadloos
+  aan; maat 2 despawnt, 2 maten later komt maat 3") was mid-level regeneration: each cleared 2-measure wave
+  reset the scroll clock (`waveStartRef`), and the next wave's first note needed `beatsOnScreen` (2 bars) to
+  fly in = the gap. One continuous 8-measure piece = one generation, one lead-in, no reset → measures 1–8
+  scroll seamlessly and only leave once fully scrolled off the left.
+- **Static barlines/numbers suppressed** — `SheetMusic` gates the static regular + repeat `BarlinesLayer` on
+  `!sideScroll` (the scrolling ones own all barlines/numbers in side-scroll).
+- **Lane mask fade** — an SVG mask (`rpgLaneFade`, userSpaceOnUse so it's immune to the inner translates)
+  fades the moving notes+barlines OUT over `LANE_FADE_L` units before the hero (soft vanish after playing)
+  and IN over `LANE_FADE_R` units at the right edge (no hard 'end' pop). Slimes are outside the mask.
+- **Barline between notes** — notes and barlines are now SEPARATE memos with separate translates: notes carry
+  `NOTE_STAFF_DX`, barlines sit at the pure tick boundary, so a barline lands in the gap ~`NOTE_STAFF_DX`
+  left of the downbeat notehead, not on top of it.
+- **Numbering from 1** — `scrollBarlines` forces `blockMeasureStart:1`, `startIdx:0` so a level numbers 1..N.
+
+**Still open → §87 (metronome + audio-clock anchor):** the scroll clock is still SheetRpgLayer's own
+`setInterval` tick; the metronome + ms-exact audio anchoring (Sequencer-driven, treble silent) is §87. The
+end-of-song final barline (thin+thick on the last measure) lands there too, with the real level end.

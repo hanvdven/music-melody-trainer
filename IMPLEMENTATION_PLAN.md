@@ -26,10 +26,41 @@ exact samen met de bestaande slime-`noteX`; slimes hoppen er onafhankelijk onder
 scrollende staff → juiste koppen per duur, rusten, kleuren, beams, bewegende
 maatstrepen + maatnummers. + vaste hit-zone band (altijd zichtbaar) + target-noot/
 slime licht op in de zone.
-⏳ **Fase 2:** metronoom — `context`/`instruments` doorplumben naar `SheetRpgLayer`;
-2 maten intellen (= beatsOnScreen, terwijl 1e slime invliegt) + elke tel doortikken,
-drift-vrij via AudioContext-tijd (§6, geen setTimeout-drift). Scroll-klok evt. op
-`context.currentTime` verankeren zodat visueel + audio locken.
+✅ **Fase 1 (commit 488006a):** echte scrollende staff + hit-zone band + target-glow.
+
+⏳ **Fase 2 — metronoom + audio-verankerde scroll (HERONTWERP, wacht op Han go/no-go).**
+Han (2026-08-01): "gebruik EXACT de muziekklok, muziek komt aan op ms; check wat er
+al bestaat; straks bas+percussie parallel." Onderzoek gedaan: de **Sequencer** is de
+bestaande planner — `context.currentTime`-klok, `lookahead = 120/bpm` (halve noot
+vooruit), en `scheduledNotes = {audioTime,duration,slot,mel,measureIndex,localSlot}`
+per noot; de rAF-highlight leest die `audioTime` t.o.v. `context.currentTime`. De
+metronoom speelt mee als `activeConfig.metronome>0`. Bas/percussie zitten al in
+hetzelfde `scheduledNotes`-schema (`mel:'bass'/'percussion'`).
+
+Plan: Level 2 laten lopen via de **echte Sequencer** (playback, metronoom aan,
+voorlopig treble-only), en de side-scroll positie afleiden uit `audioTime`:
+`x(now) = startX + (audioTime − now)/(beatsOnScreen·beatSec)·dist` → noot/slime staat
+op `viewRight` beatsOnScreen-beats vóór z'n `audioTime`, en exact bij de held (startX)
+óp z'n `audioTime`. Doorlopende tijdlijn = gratis (Sequencer telt continu, JIT-gen per
+2 maten). Metronoom-intel = de eerste 2 maten (Sequencer-telling) direct bij levelstart.
+Implicaties (voor Han): (a) combat "in hit-zone" wordt een tijdvenster rond `audioTime`
+(ruimtelijke band blijft, maar is nu audio-afgeleid); (b) golf/splash-telling verschuift
+van "alle slimes resolved" → Sequencer-maatvoortgang (8 maten). SheetRpgLayer's eigen
+setInterval-positieklok vervalt; sprite-frames blijven bpm-gekoppeld.
+
+**Han-keuzes gelockt (2026-08-01):** doorlopende tijdlijn · metronoom direct bij
+levelstart · **treble STIL** (speler speelt zelf; metronoom/bas/perc = backing) ·
+tijd-gebaseerde combat · maat-gebaseerde golftelling. **Bouwstappen (Sequencer-onderzoek
+klaar):** (1) `useLevel.applyConfig` zet voor Level 2 round-VOLUMES `treble:0, bass:0,
+perc:0, chords:0, metronome:>0` (naast de bestaande `trebleEye`-zichtbaarheid) →
+metronoom klinkt, treble stil maar zichtbaar+gepland. (2) Level-start start de Sequencer
+(continu, JIT-gen per 2 maten uit de level-settings). (3) `SheetRpgLayer` krijgt `context`
++ `sequencerRef`; positieklok = `context.currentTime`; noot-`audioTime` uit
+`playbackState.measureStartTime/measureIndex/timeFactor` (extrapolatie, want scherm toont
+~8 tellen, Sequencer plant ~½ noot). (4) combat = tijdvenster rond `audioTime`; (5) golf/
+splash op maatvoortgang. **Koppeling metronoom↔scroll is één geheel** (verschillende klokken
+= zichtbare drift), dus Fase 2 landt als één samenhangende commit — NIET half. Best Han
+Fase 1 eerst UAT'en (Fase 2 vervangt de bewegings-engine).
 
 ## 2026-07-31 — 🔨 #648 slimes (enemy-navigator) + ⏳ #647 karakter in sheet music
 
