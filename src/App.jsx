@@ -985,15 +985,28 @@ const App = () => {
     // so it's ready (loaded from the CDN in the background) by the time a level starts. Own instrument so it
     // never disturbs the user's treble/bass selection.
     const celloRef = useRef(null);
+    const timpaniRef = useRef(null);
+    const backingStopsRef = useRef([]);   // per-note stop handles from smplr start(), so STOP cancels future notes
     useEffect(() => {
-        if (context && !celloRef.current) {
-            try { celloRef.current = new Soundfont(context, { instrument: 'cello', destination: context.destination }); } catch { /* offline / CDN blocked → no cello */ }
-        }
+        if (!context) return;
+        try { if (!celloRef.current) celloRef.current = new Soundfont(context, { instrument: 'cello', destination: context.destination }); } catch { /* offline / CDN blocked */ }
+        try { if (!timpaniRef.current) timpaniRef.current = new Soundfont(context, { instrument: 'timpani', destination: context.destination }); } catch { /* offline / CDN blocked */ }
     }, [context]);
+    // Han (2026-08-01): the STOP button "stopt niet acuut genoeg". smplr's .stop() doesn't always cancel notes
+    // scheduled in the FUTURE (esp. the long cello notes), so we ALSO call each note's own stop handle.
+    const stopAllBackingAudio = useCallback(() => {
+        backingStopsRef.current.forEach((s) => { try { s(); } catch { /* already stopped */ } });
+        backingStopsRef.current = [];
+        try { instruments.metronome?.stop(); } catch { /* not started */ }
+        try { celloRef.current?.stop(); } catch { /* not started */ }
+        try { timpaniRef.current?.stop(); } catch { /* not started */ }
+    }, [instruments]);
     const scheduleLevelBacking = useCallback((lvl) => {
         if (!lvl?.sideScroll || !context) return;
         const startTime = context.currentTime + 0.35;   // small pre-roll so the melody has generated
         setLevelAudioStart(startTime);
+        const stops = [];
+        const push = (h) => { if (typeof h === 'function') stops.push(h); };   // collect per-note stop handles
         const bpm = lvl.bpm || 80;
         const beatSec = 60 / bpm;
         const barSec = beatSec * 4;                        // 4/4
@@ -1006,18 +1019,30 @@ const App = () => {
         if (metro) {
             for (let k = 0; k < contentBeats + 4; k++) {
                 const clickBeat = bos - 4 + k;
-                try { metro.start({ note: resolveNotePitch(k % 4 === 0 ? 'wh' : 'wl'), time: startTime + clickBeat * beatSec, duration: 0.12 }); } catch { /* not ready */ }
+                try { push(metro.start({ note: resolveNotePitch(k % 4 === 0 ? 'wh' : 'wl'), time: startTime + clickBeat * beatSec, duration: 0.12 })); } catch { /* not ready */ }
             }
         }
-        // §88 cello bass (Han, ticket #661): a whole-note C3 per bar, audible-only backing, from bar 1 (the
-        // intro). Plays for the whole level (count-in bar + content). Uses a lazily-loaded cello Soundfont.
+        // §88 cello bass (Han, ticket #661): the bass line — a whole-note C2 per bar at mp, audible-only,
+        // from bar 1 (the intro). Timpani (percussion): [C2, C2, C3, rest] quarters per bar at mf. Both play
+        // for the whole level (count-in bar + content). Own Soundfonts so they never disturb the user's kit.
+        const totalBars = Math.ceil((bos - 4 + contentBeats + 4) / 4);
         const cello = celloRef.current;
         if (cello) {
-            const bars = Math.ceil((bos - 4 + contentBeats + 4) / 4);
-            for (let m = 0; m < bars; m++) {
-                try { cello.start({ note: 'C3', time: startTime + m * barSec, duration: barSec * 0.98 }); } catch { /* not ready */ }
+            for (let m = 0; m < totalBars; m++) {
+                try { push(cello.start({ note: 'C2', time: startTime + m * barSec, duration: barSec * 0.98, velocity: 64 })); } catch { /* not ready */ }
             }
         }
+        const timp = timpaniRef.current;
+        if (timp) {
+            const TIMP_BAR = ['C2', 'C2', 'C3', null];     // [c2,c2,c3,r] quarters (Han)
+            for (let m = 0; m < totalBars; m++) {
+                TIMP_BAR.forEach((note, beat) => {
+                    if (!note) return;
+                    try { push(timp.start({ note, time: startTime + m * barSec + beat * beatSec, duration: beatSec * 0.9, velocity: 80 })); } catch { /* not ready */ }
+                });
+            }
+        }
+        backingStopsRef.current = stops;
     }, [context, instruments]);
     const startLevel = useCallback((n) => {
         const lvl = LEVELS[n] || LEVELS[1];
@@ -1028,11 +1053,10 @@ const App = () => {
     // Stop any scheduled backing + drop the anchor when the level ends (splash close / replay handles its own).
     useEffect(() => {
         if (!level.active) {
-            try { instruments.metronome?.stop(); } catch { /* not started */ }
-            try { celloRef.current?.stop(); } catch { /* not started */ }
+            stopAllBackingAudio();
             setLevelAudioStart(null);
         }
-    }, [level.active, instruments]);
+    }, [level.active, stopAllBackingAudio]);
 
     // #659 (Han): on PC (non-touch) the QWERTY keyboard input is ON by default — so you can play the combat
     // notes straight away without toggling it on. Touch devices keep it off (no physical keyboard).
@@ -1539,7 +1563,7 @@ const App = () => {
     }, [generateChords]);
 
 
-    const { isDualView, sheetHeight, tabBtnScale, idealVisibleMeasures } = useAppLayout(windowSize, numMeasures);
+    const { isDualView, sheetHeight, btmPanelHeight, tabBtnScale, idealVisibleMeasures } = useAppLayout(windowSize, numMeasures);
 
     // Scroll mode uses a different visibleMeasures formula than pagination/wipe:
     //   - For numMeasures > 1: visible = numMeasures (drop the capacity cap so melodyWidth
@@ -1800,6 +1824,19 @@ const App = () => {
                     {midiStatus.lastData ? `\n#${midiStatus.count}  [${midiStatus.lastData.join(', ')}]` : '\n(no events yet)'}
                 </div>
             )}
+            {/* §88 (Han): STOP button — interrupts the level and stops ALL audio (Sequencer + backing). Shown
+                only while a level is running (the splash has its own buttons once it's done). */}
+            {level.active && !level.done && (
+                <button
+                    onClick={() => { stopAllBackingAudio(); handleStopAllPlayback(); level.close(); }}
+                    style={{ position: 'fixed', top: 8, left: 8, zIndex: 99999, background: 'var(--accent-red, #d33)',
+                        color: '#fff', border: 'none', borderRadius: 6, padding: '7px 14px', fontSize: 14,
+                        fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.35)' }}
+                    title="Stop de oefening"
+                >
+                    ■ Stop
+                </button>
+            )}
             {/* TOP AREA WRAPPER (Preserves app theme for header/sheet) */}
             <div className="App app-top-wrapper">
                 {/* #628-S5: canvas disco-ball background — only mounted for the disco theme; sits behind
@@ -2020,7 +2057,13 @@ const App = () => {
                     )}
                 </div>
 
-                {/* CONTENT AREA */}
+                {/* CONTENT AREA — Han 2026-08-01: the bottom panel (keyboard + selector) was taking ~60% of the
+                    screen; useAppLayout computes a 40%-of-height cap in `btmPanelHeight` but App wasn't applying
+                    it. Wrap the content in a height-capped, overflow-hidden flex column so the keyboard scales
+                    to ≤40% (dual-view only; single-view keeps auto height). */}
+                <div style={isDualView
+                    ? { height: btmPanelHeight, maxHeight: btmPanelHeight, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }
+                    : undefined}>
                 <TabView
                     activeTab={activeTab}
                     sheetMusicCommonProps={sheetMusicCommonProps}
@@ -2092,6 +2135,7 @@ const App = () => {
                     windowSize={windowSize}
                     onLoadSong={handleLoadSong}
                 />
+                </div>
             </div>
 
             {/* Post-session summary (#131). Rendered only when endSession()

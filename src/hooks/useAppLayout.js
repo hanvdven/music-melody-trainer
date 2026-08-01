@@ -21,11 +21,12 @@ const useAppLayout = (windowSize, numMeasures) => {
         sheetHeight = usableHeight / 2;
     }
 
-    // Han 2026-08-01: cap the BOTTOM control panel at 40% of the screen height (it was up to ~50%); the sheet
-    // music view gets the rest. Dual view only (single view shares one height).
+    // Han 2026-08-01 (rev): FORCE the sheet music to 45% of the screen height, and give the bottom control
+    // panel the rest (relaxes the earlier hard 40% bottom cap, which left empty space under the keyboard —
+    // the sheet must fill the space between header and sub-header, not shrink and leave a gap). Dual view only.
     if (isDualView) {
-        btmPanelHeight = Math.min(btmPanelHeight, Math.round(windowSize.height * 0.4));
-        sheetHeight = usableHeight - btmPanelHeight;
+        sheetHeight = Math.round(windowSize.height * 0.45);
+        btmPanelHeight = usableHeight - sheetHeight;
     }
 
     const tabBtnScale = windowSize.width >= 550 ? 1 : Math.max(0.5, windowSize.width / 550);
