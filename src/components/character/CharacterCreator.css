@@ -319,13 +319,13 @@
 .cc-enemy-anims { max-width: 240px; }
 .cc-enemy-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
   gap: 6px;
   flex: 1;
   min-width: 200px;
   align-content: start;
 }
-.cc-enemy-thumb { height: 84px; }
+.cc-enemy-thumb { height: 92px; }
 
 @media (max-width: 640px) {
   .cc-modal { flex-direction: column; overflow-y: auto; }

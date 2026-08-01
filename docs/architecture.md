@@ -5796,19 +5796,24 @@ preview + name + blurb + animation buttons — the first step toward "slimes" at
 attack/death like the hero); ALL four tinyRPG enemies in full PLUS a few of the newly-added GandalfHardcore
 enemies; switch enemies "like equippable items" (thumbnail grid → big preview).
 
-**Two enemy sprite formats, unified behind one shape** (`{ key, label, url, row, frames }` per animation, so
-the renderer is format-agnostic):
-- **tiny** (tinyRPG_by_Zerie): 100×100 frames, ONE FILE per animation, single row (`row` 0). Enemies: Blob
-  (= "Blood Monster_A", the red blob Han calls the blob), Demon, Orc, Soldier (Soldier has a 3rd attack).
-- **gandalf** (GandalfHardcore Pixel Art Enemies): 64×64 frames, ONE SHEET, each animation is a ROW. Added:
-  Bat, Flying Eye, Mushroom, Rat. Row→name follows the pack's sheet order (idle first, then move/attack/
-  death); labels are a convention and can be renamed without touching the renderer.
+**Roster (v2, Han 2026-08-01): GandalfHardcore ONLY** — the tinyRPG enemies were dropped. Every enemy is now
+ONE sprite SHEET whose ROWS are animations, one uniform format, so the renderer only reads
+`{ url, row, frames, frame }`. Frame size is PER ENEMY: the Pixel Art Enemies pack is 64×64, the Slime pack
+is 32×32. Enemies (Han's expected list): Lamia, Bat, Flying Eye, Flying Witch, Mimic, Mosquito, Plant,
+Pumpkin, Rat, Mushroom, Slime. Row→name follows the pack's sheet order (idle first, then move/attack/death);
+labels are a bestiary convention and can be renamed without touching the renderer.
 
-`frames` are the MEASURED content-frame counts (some sheet rows have trailing blank cells that must NOT be
-played, e.g. Bat idle = 4 of 6 cols) — declared in the manifest exactly like `ANIMATIONS.frames`. Assets are
-copied into `src/assets/enemies/{tiny/<enemy>/<anim>.png, sheets/<enemy>.png}` with clean kebab names because
-the original rpg paths contain spaces AND parens (`Characters(100x100 split)`) that break
-`import.meta.glob`. Preview cropping uses a measured per-format content region (`TINY_CROP`/`SHEET_CROP`).
+`frames` are the MEASURED content-frame counts per row (trailing blank cells must NOT be played, e.g. Bat idle
+= 4 of 6 cols) — declared in the manifest exactly like `ANIMATIONS.frames`. `crop` is a measured PER-ENEMY
+content region (union over all animations) so the preview frames each sprite tightly. The preview renders at a
+CONSTANT pixel scale (not scaled-to-fixed-height — that would blow up a short rat and shrink a tall lamia), so
+pixel density is uniform and relative sizes stay natural. Assets are copied into
+`src/assets/enemies/sheets/<enemy>.png` with clean kebab names because the original rpg paths contain spaces
+AND parens that break `import.meta.glob`.
+
+**Slime colours (#647 seed):** the Slime pack ships green/blue/red sheets. `enemyAssets.js` exports
+`SLIME_COLORS` + `SLIME_FRAME`/`SLIME_CROP`/`SLIME_IDLE` for the sheet-music overlay (green = quarter, blue =
+eighth, red = half/whole). The bestiary shows the green representative.
 
 **Rendering:** `Bestiary.jsx`'s `EnemySprite` reuses the hero doll's crop-and-scale technique (native-size
 background + `transform: scale`, never stretched — §6d): an outer clip box, an inner frame-sized layer scaled

@@ -1,76 +1,71 @@
-// #648 Bestiary — enemy sprite manifest. Two source sprite formats are unified behind ONE shape so the
-// renderer stays format-agnostic (each animation is just `{ key, label, url, row, frames }`):
+// #648 Bestiary — enemy sprite manifest (v2, Han 2026-08-01: GandalfHardcore ONLY; tinyRPG dropped).
+// Every enemy is now ONE sprite SHEET whose ROWS are animations — a single uniform format, so the renderer
+// only ever reads `{ url, row, frames, frame }`. Frame size is PER ENEMY (the Pixel Art Enemies pack is
+// 64×64; the Slime pack is 32×32). `frames` are the MEASURED content-frame counts per row (some rows have
+// trailing blank cells that must NOT be played) — declared here exactly like ANIMATIONS.frames; this file is
+// the single source of truth for enemy geometry. `crop` is the measured content region (union over all
+// animations) so the preview frames the sprite tightly instead of floating in empty pixels.
 //
-//  - 'tiny'    (tinyRPG_by_Zerie): 100×100 frames, ONE FILE per animation, a single row. `row` is always 0.
-//  - 'gandalf' (GandalfHardcore Pixel Art Enemies): 64×64 frames, ONE SHEET; each animation is a ROW.
-//
-// The curated set is copied into src/assets/enemies/{tiny,sheets}/ with clean kebab names — the original
-// rpg paths contain spaces AND parens ("Characters(100x100 split)") which break import.meta.glob's matcher.
-//
-// `frames` are the MEASURED content-frame counts (some sheet rows have trailing blank cells that must NOT be
-// played — e.g. the Bat idle row is 4 of 6 cols). They are declared here, exactly like the per-animation
-// `frames` in ANIMATIONS (characterAssets.js): this file is the single source of truth for enemy geometry.
+// Assets are copied into src/assets/enemies/sheets/ with clean kebab names — the original rpg paths contain
+// spaces AND parens which break import.meta.glob's matcher.
 
-const TINY = import.meta.glob('../assets/enemies/tiny/**/*.png', { eager: true, query: '?url', import: 'default' });
 const SHEET = import.meta.glob('../assets/enemies/sheets/*.png', { eager: true, query: '?url', import: 'default' });
-
-const tinyUrl = (enemy, anim) => TINY[`../assets/enemies/tiny/${enemy}/${anim}.png`];
 const sheetUrl = (file) => SHEET[`../assets/enemies/sheets/${file}.png`];
 
-export const TINY_FRAME = { w: 100, h: 100 };
-export const SHEET_FRAME = { w: 64, h: 64 };
-
-// Content region within a frame (measured union across all animations), used to CROP the preview so the
-// small sprite fills the box instead of floating in empty pixels — same idea as the hero's CROP.
-export const TINY_CROP = { x: 26, y: 28, w: 56, h: 44 };
-export const SHEET_CROP = { x: 10, y: 14, w: 46, h: 50 };
-export const cropFor = (format) => (format === 'tiny' ? TINY_CROP : SHEET_CROP);
-
-// tinyRPG enemy: animations are separate files (each a single row → row 0). `anims` = [key, label, file, frames].
-const tiny = (id, name, blurb, anims) => ({
-    id, name, blurb, format: 'tiny', frame: TINY_FRAME, crop: TINY_CROP,
-    animations: anims.map(([key, label, file, frames]) => ({ key, label, url: tinyUrl(id, file), row: 0, frames })),
-});
-
-// GandalfHardcore enemy: one sheet, animation = row index. `anims` = [key, label, row, frames].
-// Row → name follows the pack's sheet order (idle first, then move/attack/death); labels are a sensible
-// convention for a bestiary preview and can be renamed without touching the renderer.
-const gandalf = (id, name, blurb, file, anims) => ({
-    id, name, blurb, format: 'gandalf', frame: SHEET_FRAME, crop: SHEET_CROP, sheet: sheetUrl(file),
+// enemy(id, name, blurb, file, F, crop, anims) — F = square frame size; anims = [key, label, row, frames].
+// Row → name follows the pack's sheet order (idle first, then move/attack/death); labels are a bestiary
+// convention and can be renamed without touching the renderer.
+const enemy = (id, name, blurb, file, F, crop, anims) => ({
+    id, name, blurb, sheet: sheetUrl(file), frame: { w: F, h: F }, crop,
     animations: anims.map(([key, label, row, frames]) => ({ key, label, url: sheetUrl(file), row, frames })),
 });
 
-// Han: the "blob" (tinyRPG Blood Monster) first; all 4 tinyRPG enemies in full, plus a few of the new
-// GandalfHardcore sheets. Blurbs are Dutch flavour text.
+// Han's expected roster, all GandalfHardcore. Blurbs are Dutch flavour text.
 export const ENEMIES = [
-    tiny('blob', 'Blob', 'Een gulzige rode blob. Traag, maar hij blijft komen — en hij deelt graag in je noten.', [
-        ['idle', 'Idle', 'idle', 6], ['walk', 'Walk', 'walk', 8], ['attack', 'Attack', 'attack', 8],
-        ['attack2', 'Attack 2', 'attack2', 8], ['hurt', 'Hurt', 'hurt', 4], ['death', 'Death', 'death', 4],
+    enemy('lamia', 'Lamia', 'Een slangvrouw die je met haar blik verlamt.', 'lamia', 64, { x: 0, y: 9, w: 64, h: 55 }, [
+        ['idle', 'Idle', 0, 5], ['move', 'Move', 1, 8], ['attack', 'Attack', 2, 6], ['death', 'Death', 3, 6],
     ]),
-    tiny('demon', 'Demon', 'Een gevleugelde demon uit de onderwereld. Snel en venijnig.', [
-        ['idle', 'Idle', 'idle', 6], ['walk', 'Walk', 'walk', 8], ['attack', 'Attack', 'attack', 7],
-        ['attack2', 'Attack 2', 'attack2', 7], ['hurt', 'Hurt', 'hurt', 4], ['death', 'Death', 'death', 4],
-    ]),
-    tiny('orc', 'Orc', 'Een norse orc-krijger. Log en sterk, en niet bang voor een zwaard.', [
-        ['idle', 'Idle', 'idle', 6], ['walk', 'Walk', 'walk', 8], ['attack', 'Attack', 'attack', 6],
-        ['attack2', 'Attack 2', 'attack2', 6], ['hurt', 'Hurt', 'hurt', 4], ['death', 'Death', 'death', 4],
-    ]),
-    tiny('soldier', 'Soldier', 'Een geharnaste soldaat. Gedisciplineerd, goed getraind — drie aanvalscombo’s.', [
-        ['idle', 'Idle', 'idle', 6], ['walk', 'Walk', 'walk', 8], ['attack', 'Attack', 'attack', 6],
-        ['attack2', 'Attack 2', 'attack2', 6], ['attack3', 'Attack 3', 'attack3', 9], ['hurt', 'Hurt', 'hurt', 4], ['death', 'Death', 'death', 4],
-    ]),
-    gandalf('bat', 'Bat', 'Een fladderende grotvleermuis. Klein, maar lastig te raken.', 'bat', [
+    enemy('bat', 'Bat', 'Een fladderende grotvleermuis. Klein, maar lastig te raken.', 'bat', 64, { x: 16, y: 17, w: 38, h: 33 }, [
         ['idle', 'Idle', 0, 4], ['move', 'Fly', 1, 6], ['attack', 'Attack', 2, 6],
     ]),
-    gandalf('flying-eye', 'Flying Eye', 'Een zwevend oog dat je nooit uit het oog verliest.', 'flying-eye', [
+    enemy('flying-eye', 'Flying Eye', 'Een zwevend oog dat je nooit uit het oog verliest.', 'flying-eye', 64, { x: 13, y: 15, w: 39, h: 34 }, [
         ['idle', 'Idle', 0, 5], ['move', 'Float', 1, 6],
     ]),
-    gandalf('mushroom', 'Mushroom', 'Een chagrijnige paddenstoel die giftige sporen uitstoot.', 'mushroom', [
+    enemy('flying-witch', 'Flying Witch', 'Een heks op haar bezem, klaar om te vervloeken.', 'flying-witch', 64, { x: 0, y: 1, w: 46, h: 63 }, [
+        ['idle', 'Idle', 0, 5], ['move', 'Fly', 1, 8], ['attack', 'Attack', 2, 7],
+    ]),
+    enemy('mimic', 'Mimic', 'Een kist die eruitziet als buit — tot hij toehapt.', 'mimic', 64, { x: 10, y: 33, w: 41, h: 31 }, [
+        ['idle', 'Closed', 0, 1], ['move', 'Open', 1, 8], ['attack', 'Attack', 2, 6], ['death', 'Death', 3, 7],
+    ]),
+    enemy('mosquito', 'Mosquito', 'Een bloeddorstige reuzenmug. Zoemt vervelend om je heen.', 'mosquito', 64, { x: 15, y: 22, w: 35, h: 30 }, [
+        ['idle', 'Idle', 0, 4], ['move', 'Fly', 1, 6],
+    ]),
+    enemy('plant', 'Plant', 'Een vleesetende plant met een flinke beet.', 'plant', 64, { x: 10, y: 31, w: 39, h: 33 }, [
+        ['idle', 'Idle', 0, 5], ['move', 'Move', 1, 8], ['attack', 'Attack', 2, 6], ['death', 'Death', 3, 5],
+    ]),
+    enemy('pumpkin', 'Pumpkin', 'Een grijnzende pompoenkop. Hobbelt griezelig dichterbij.', 'pumpkin', 64, { x: 3, y: 29, w: 61, h: 35 }, [
+        ['idle', 'Idle', 0, 10], ['move', 'Move', 1, 9], ['attack', 'Attack', 2, 6],
+    ]),
+    enemy('rat', 'Rat', 'Een grote rioolrat. Snel op zijn pootjes.', 'rat', 64, { x: 10, y: 47, w: 48, h: 17 }, [
+        ['idle', 'Idle', 0, 5], ['move', 'Move', 1, 8], ['attack', 'Attack', 2, 6], ['death', 'Death', 3, 5],
+    ]),
+    enemy('mushroom', 'Mushroom', 'Een chagrijnige paddenstoel die giftige sporen uitstoot.', 'mushroom', 64, { x: 13, y: 35, w: 37, h: 29 }, [
         ['idle', 'Idle', 0, 5], ['move', 'Move', 1, 5], ['attack', 'Attack', 2, 6], ['death', 'Death', 3, 5],
     ]),
-    gandalf('rat', 'Rat', 'Een grote rioolrat. Snel op zijn pootjes.', 'rat', [
-        ['idle', 'Idle', 0, 5], ['move', 'Move', 1, 8], ['attack', 'Attack', 2, 6], ['death', 'Death', 3, 5],
+    enemy('slime', 'Slime', 'Een glibberige slijmbal. Komt in groen, blauw en rood.', 'slime-green', 32, { x: 0, y: 3, w: 30, h: 29 }, [
+        ['idle', 'Idle', 0, 5], ['move', 'Move', 1, 8], ['death', 'Death', 2, 5],
     ]),
 ];
 
 export const enemyById = (id) => ENEMIES.find((e) => e.id === id);
+
+// #647 slime colours by note duration (Han): green = quarter, blue = eighth, red = half/whole. The overlay
+// uses these directly (the bestiary shows the green representative). Same 32×32 / row layout as the slime.
+export const SLIME_FRAME = { w: 32, h: 32 };
+export const SLIME_CROP = { x: 0, y: 3, w: 30, h: 29 };
+export const SLIME_IDLE = { row: 0, frames: 5 };
+export const SLIME_COLORS = {
+    green: sheetUrl('slime-green'),
+    blue: sheetUrl('slime-blue'),
+    red: sheetUrl('slime-red'),
+};

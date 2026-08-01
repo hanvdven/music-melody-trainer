@@ -8,15 +8,16 @@ import { ENEMIES, enemyById } from '../../model/enemyAssets';
 // (native-size background + `transform: scale`, never stretched — §6d), so tiny (100×100) and gandalf
 // (64×64) sheets both render crisp and correctly framed.
 
-// One sprite frame, CROPPED to the enemy's content region and scaled so the crop height maps to `height`.
-// Mirrors CharacterCreator's doll: an outer clip box, an inner frame-sized layer scaled from top-left.
-function EnemySprite({ enemy, anim, frame, height }) {
+// One sprite frame, CROPPED to the enemy's content region and rendered at a CONSTANT pixel `scale` (not
+// scaled-to-a-fixed-height — that would blow up short enemies like the rat and shrink tall ones). A constant
+// scale keeps pixel density uniform across enemies AND their relative sizes natural (a rat is short, a lamia
+// is tall). Mirrors CharacterCreator's doll: an outer clip box, an inner frame-sized layer scaled top-left.
+function EnemySprite({ enemy, anim, frame, scale }) {
     const { frame: f, crop } = enemy;
-    const s = height / crop.h;
     const col = frame % anim.frames;
     return (
-        <div style={{ position: 'relative', width: crop.w * s, height, overflow: 'hidden' }}>
-            <div style={{ position: 'absolute', left: -crop.x * s, top: -crop.y * s, width: f.w, height: f.h, transform: `scale(${s})`, transformOrigin: 'top left' }}>
+        <div style={{ position: 'relative', width: crop.w * scale, height: crop.h * scale, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', left: -crop.x * scale, top: -crop.y * scale, width: f.w, height: f.h, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
                 <div style={{
                     position: 'absolute', inset: 0, width: f.w, height: f.h,
                     backgroundImage: `url("${anim.url}")`, backgroundRepeat: 'no-repeat',
@@ -29,8 +30,8 @@ function EnemySprite({ enemy, anim, frame, height }) {
     );
 }
 
-const PREVIEW_H = 160;   // preview sprite height in px (crop.h → this)
-const THUMB_H = 70;      // enemy-picker thumbnail height
+const PREVIEW_SCALE = 2.6;   // constant pixel scale for the big preview
+const THUMB_SCALE = 1.3;     // constant pixel scale for the picker thumbnails
 
 export default function Bestiary() {
     const [selId, setSelId] = useState(ENEMIES[0].id);
@@ -54,7 +55,7 @@ export default function Bestiary() {
             <div className="cc-bestiary-body">
                 {/* left: big animated preview + name + blurb */}
                 <div className="cc-enemy-preview">
-                    <div className="cc-enemy-stage"><EnemySprite enemy={enemy} anim={anim} frame={frame} height={PREVIEW_H} /></div>
+                    <div className="cc-enemy-stage"><EnemySprite enemy={enemy} anim={anim} frame={frame} scale={PREVIEW_SCALE} /></div>
                     <div className="cc-enemy-name">{enemy.name}</div>
                     <div className="cc-enemy-blurb">{enemy.blurb}</div>
                     <div className="cc-anims cc-enemy-anims">
@@ -72,7 +73,7 @@ export default function Bestiary() {
                             <button key={e.id} title={e.name}
                                 className={`cc-thumb cc-enemy-thumb${e.id === selId ? ' active' : ''}`}
                                 onClick={() => setSelId(e.id)}>
-                                <EnemySprite enemy={e} anim={idle} frame={0} height={THUMB_H} />
+                                <EnemySprite enemy={e} anim={idle} frame={0} scale={THUMB_SCALE} />
                             </button>
                         );
                     })}

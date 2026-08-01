@@ -31,8 +31,25 @@ gecropte sprite-delen). Per categorie een passend icoon zoeken; geen match →
 origineel behouden (hair/ears/effect/pet). Items hernoemen bij analyse.
 Geïdentificeerde bereiken: weapons 121-198/248-280, helmets 313-336/409-432/505-520,
 hats 521-528, chest 337-372/433-464/529-544/570-576, pants 593-600, boots
-385-408/481-504/577-592, gloves 373-384/465-480/545-568, shields 176-204/229-252,
-backpack 108. Wacht op 2 keuzes (equipped-state + rename-scope) vóór impl.
+385-408/481-504/577-592, gloves 373-384/465-480/545-568, shields 176-204/229-252.
+✅ Keuzes: icoon-ACHTER-sprite + alleen-gebruikte-iconen. 7 iconen → character-icons/.
+Commit 85ac169.
+
+🔨 **#648 v2 (Han 2026-08-01): bestiary = GandalfHardcore ONLY.** "ik mis enemies…
+gebruik enkel gandalfhardcore… laat de tinies achterwege." tinyRPG (blob/demon/orc/
+soldier) VERWIJDERD; enemy-model uniform gemaakt (alles single-sheet multi-row,
+frame-size per enemy). Roster (11): lamia, bat, flying-eye, flying-witch, mimic,
+mosquito, plant, pumpkin, rat, mushroom, slime. Slime toegevoegd door Han in 3
+kleuren (green/blue/red = kwart/achtste/half-heel, seed voor #647). Per-enemy crop
+gemeten; preview op CONSTANTE schaal (natuurlijke relatieve groottes). Build+577+lint
+groen. → deel van #648 test.
+
+⏳ **#647 (Han 2026-08-01, "for today"): held + slimes op de sheet music.** Slime
+onder ELKE treble-noot, kijkend naar LINKS, idle-animatie; kleur per duur (groen=
+kwart, blauw=achtste, rood=half/heel). Held onderaan de sheet-music-view (mag over
+percussion vallen). Aparte RPG-laag, note-position-aware. Slime-assets + kleuren
+klaar. NOG TE DOEN: note-positie/duur-data uit de sheet-renderer halen + §4b
+interview (held-pose/plek, verticale slime-plaats, rust-noten, andere staves).
 
 ## 2026-07-08 — ✅ Swimlane-ronde: #395 bord-scroll GEFIXT + #394 design → design_review
 
