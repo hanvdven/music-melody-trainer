@@ -87,6 +87,7 @@ function Slime({ x, y, colorKey, row, frame, opacity = 1 }) {
 const INTERVAL_MS = 8;
 const TICKS_PER_BEAT = 12;   // note ticks per quarter-note beat
 const HITZONE_W = 70;        // width (viewBox units) of the strike zone in front of the hero (startX..+W)
+const WIGGLE_FRAMES = 7;     // how long the next slime shakes after a wrong/early note (sprite frames)
 // complete moving frames in [0, n): moving frames (0-indexed) are 2..6 (= Han's walk frames 3–7).
 const movingFramesBefore = (n) => { const c = Math.floor(n / 8); const rem = n - c * 8; return c * 5 + Math.max(0, Math.min(rem - 2, 5)); };
 // continuous moving progress at fractional frame `ff`: whole moving frames + the partial of the current frame
@@ -172,6 +173,7 @@ export default function SheetRpgLayer({
     const [dying, setDying] = useState(null);              // { index, startTick, x } — slime playing death
     const [killedSet, setKilledSet] = useState(() => new Set());   // side-scroll: struck slimes (death done → hidden)
     const [heroAttack, setHeroAttack] = useState(null);    // { startTick } — hero playing attack once
+    const [wiggle, setWiggle] = useState(null);            // { index, startTick } — a missed/next slime shaking
     const tickRef = useRef(0);
     const killedRef = useRef(0); killedRef.current = killedCount;
     const dyingRef = useRef(null); dyingRef.current = dying;
@@ -256,12 +258,21 @@ export default function SheetRpgLayer({
         if (dyingRef.current || !s) return;
         const matches = notesMatch(combatNote.note, s.note);
         if (geomRef.current.sideScroll) {
-            // Level 2: a kill only counts when the leftmost slime is in the HIT-ZONE by the hero
-            // (startX..startX+HITZONE_W). Too early / a wrong note = miss but does NOT resolve the slime.
-            const { x } = sideScrollX(s.beat, tickRef.current);
-            const inZone = x >= geomRef.current.startX && x <= geomRef.current.startX + HITZONE_W;
-            if (matches && inZone) { setDying({ index: k, startTick: tickRef.current, x }); setKilledCount((c) => c + 1); onHitRef.current?.(); }
-            else onMissRef.current?.();
+            // Level 2 (Han 2026-08-02): the hit WINDOW is a TIME window — 1/8 beat before to 1/8 beat after the
+            // moment the note should be played (in sync with the metronome), NOT a spatial band. A note for
+            // beat b is due at the strike line at elapsed = (b + beatsOnScreen)·beatMs. A matching note inside
+            // the window kills; a wrong note OR too-early/late = miss AND wiggles the (still-)next note.
+            const { beatMs: bMs, beatsOnScreen: bos } = geomRef.current;
+            const elapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
+            const targetMs = (s.beat + bos) * bMs;
+            const inWindow = Math.abs(elapsedMs - targetMs) <= bMs / 8;
+            if (matches && inWindow) {
+                const { x } = sideScrollX(s.beat, tickRef.current);
+                setDying({ index: k, startTick: tickRef.current, x }); setKilledCount((c) => c + 1); onHitRef.current?.();
+            } else {
+                onMissRef.current?.();
+                setWiggle({ index: k, startTick: tickRef.current });
+            }
         } else if (matches) {
             setDying({ index: k, startTick: tickRef.current, x: s.x }); onHitRef.current?.();
         } else {
@@ -280,6 +291,7 @@ export default function SheetRpgLayer({
             setDying(null);
         }
         if (heroAttack && framesSince(heroAttack.startTick) >= ATTACK_CYCLE) setHeroAttack(null);
+        if (wiggle && framesSince(wiggle.startTick) >= WIGGLE_FRAMES) setWiggle(null);
         if (geomRef.current.sideScroll) {
             const s = slimesRef.current[killedRef.current];
             if (s) { const { x, spawned } = sideScrollX(s.beat, tick); if (spawned && x < geomRef.current.startX) { setKilledCount((c) => c + 1); onMissRef.current?.(); } }
@@ -323,6 +335,11 @@ export default function SheetRpgLayer({
     const scrollPPT = sideScroll && dist > 0 ? dist / (beatsOnScreen * TICKS_PER_BEAT) : 0;
     const scrollElapsedMs = (tick - waveStartRef.current) * INTERVAL_MS;
     const scrollPx = sideScroll && beatMs > 0 ? (scrollElapsedMs / (beatsOnScreen * beatMs)) * dist : 0;
+    // #661 (Han 2026-08-02): end-of-song final barline (thin + thick) at the end of the last measure. Lives in
+    // the barline translate group (pure tick boundary, scrolls with the staff). endTick = numMeasures·mls.
+    const finalBarTick = sideScroll && scrollBarlines ? (scrollBarlines.numMeasures || 0) * (scrollBarlines.measureLengthSlots || 48) : 0;
+    const finalBarX = viewRight + finalBarTick * scrollPPT;
+    const finalBarBottom = (scrollBarlines && scrollBarlines.bottomY != null) ? scrollBarlines.bottomY : viewBottom;
 
     // The staff CONTENT (heavy: beaming, accidentals, tuplets) is memoised so React.memo on
     // MelodyNotesLayer/BarlinesLayer skips it every fast tick — only the outer translate updates per tick
@@ -396,17 +413,27 @@ export default function SheetRpgLayer({
                         </mask>
                     </defs>
                     <g mask="url(#rpgLaneFade)">
-                        {barlineStaffContent && <g transform={`translate(${-scrollPx}, 0)`}>{barlineStaffContent}</g>}
+                        {(barlineStaffContent || finalBarTick > 0) && (
+                            <g transform={`translate(${-scrollPx}, 0)`}>
+                                {barlineStaffContent}
+                                {finalBarTick > 0 && (
+                                    <g>
+                                        <path d={`M ${finalBarX} ${trebleStart} V ${finalBarBottom}`} stroke="var(--text-primary)" strokeWidth="0.5" />
+                                        <path d={`M ${finalBarX + 4} ${trebleStart} V ${finalBarBottom}`} stroke="var(--text-primary)" strokeWidth="2.5" />
+                                    </g>
+                                )}
+                            </g>
+                        )}
                         {noteStaffContent && <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContent}</g>}
                     </g>
                 </>
             )}
-            {/* #661 hit-zone marker in front of the hero — a SUBTLE, STATIC band (Han UAT: it must NOT light
-                up). Just enough to show where a slime becomes strikeable; no brightening, no per-target glow. */}
+            {/* #661 (Han 2026-08-02): a RED vertical STRIKE line at exactly where a note sits at the moment it
+                must be played (note/slime centre at the hero = startX + SLIME_VIEW_W/2). The hit window is the
+                ±1/8-beat TIME window around that moment (combat check), so the old spatial band is gone. */}
             {sideScroll && dist > 0 && (
-                <rect x={startX} y={trebleStart} width={HITZONE_W} height={Math.max(0, viewBottom - trebleStart)}
-                    fill="var(--accent-yellow)" fillOpacity={0.04}
-                    stroke="var(--accent-yellow)" strokeOpacity={0.18} strokeWidth={0.5}
+                <line x1={startX + SLIME_VIEW_W / 2} y1={trebleStart - 8} x2={startX + SLIME_VIEW_W / 2}
+                    y2={Math.max(trebleStart, viewBottom)} stroke="#e63232" strokeWidth={1.5} strokeOpacity={0.85}
                     style={{ pointerEvents: 'none' }} />
             )}
             {slimeData.map((s, idx) => {
@@ -417,7 +444,10 @@ export default function SheetRpgLayer({
                     if (isDying) return <Slime key={s.key} x={dying.x} y={slimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />;
                     const p = sideScrollX(s.beat, tick);
                     if (!p.spawned || p.slimeX < -SLIME_VIEW_W) return null;   // not on screen / walked off left
-                    return <Slime key={s.key} x={p.slimeX} y={slimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} />;
+                    // Han: a wrong/early note WIGGLES the (still-)next slime — a quick decaying horizontal shake.
+                    const wf = wiggle && wiggle.index === idx ? framesSince(wiggle.startTick) : -1;
+                    const wdx = wf >= 0 && wf < WIGGLE_FRAMES ? Math.sin(wf * 3.2) * 4 * (1 - wf / WIGGLE_FRAMES) : 0;
+                    return <Slime key={s.key} x={p.slimeX + wdx} y={slimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} />;
                 }
                 // static (Level 1): idle under the note; death in place.
                 if (idx < killedCount) return null;
