@@ -25,7 +25,7 @@ const slimeColorKey = (d) => (d >= 24 ? 'red' : d >= 12 ? 'green' : 'blue');
 // Slime sheet = 8 cols × 3 rows of 32×32 (green/blue/red share the layout). The image is drawn at native
 // sheet size and the nested <svg> viewBox crops to the wanted frame's content region.
 const SLIME_COLS = 8, SLIME_ROWS = 3;
-const SLIME_VIEW_H = 22;   // on-sheet slime height in viewBox units (tunable)
+const SLIME_VIEW_H = 33;   // on-sheet slime height in viewBox units (Han: +50%); tunable
 const SLIME_VIEW_W = SLIME_VIEW_H * (SLIME_CROP.w / SLIME_CROP.h);
 const HERO_H = 140;        // on-sheet hero height (Han: 2× bigger); tunable
 
@@ -83,7 +83,7 @@ export default function SheetRpgLayer({
         : (offset) => { const idx = allOffsets.indexOf(offset); return idx >= 0 ? startX + (idx - 1) * noteWidth : startX; };
 
     // slimes sit on one fixed line just below the treble staff, aligned to each note's X (rests skipped).
-    const slimeY = trebleStart + staffHeight + 6;
+    const slimeY = trebleStart + staffHeight + 12;   // Han: iets lager
     const slimes = [];
     if (trebleMelody && Array.isArray(trebleMelody.notes)) {
         const { notes, offsets, durations } = trebleMelody;
