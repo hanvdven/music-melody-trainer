@@ -4,7 +4,6 @@ import { ANIMATIONS, basesFor } from '../../model/characterAssets';
 import { loadCharacter } from '../../model/characterProfile';
 import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_WALK, SLIME_DEATH, SLIME_COLORS } from '../../model/enemyAssets';
 import { noteToMidi } from '../../theory/noteUtils';
-import { getNoteAbsoluteY } from './renderMelodyNotes';
 import MelodyNotesLayer from './MelodyNotesLayer';
 import BarlinesLayer from './BarlinesLayer';
 
@@ -107,7 +106,7 @@ function ensureVisible(char) {
 export default function SheetRpgLayer({
     trebleMelody, startX, pixelsPerTick, allOffsets, noteWidth, bpm,
     trebleStart, staffHeight, viewBottom, onOpenCharacter, onSlimesCleared, onHit, onMiss, combatNote,
-    sideScroll = false, viewRight = 0, beatsOnScreen = 8, clef = 'treble', debugMode = false,
+    sideScroll = false, viewRight = 0, beatsOnScreen = 8, debugMode = false,
     // #661 side-scroll: the REAL scrolling staff is drawn via the canonical renderers (§6d) instead of
     // hand-rolled glyphs. `scrollNotation` = the treble MelodyNotesLayer prop bundle (heads/rests/colours/
     // beams), `scrollBarlines` = the BarlinesLayer prop bundle (moving barlines + measure numbers). Both are
@@ -336,14 +335,6 @@ export default function SheetRpgLayer({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sideScroll, scrollBarlines, viewRight, noteWidth, scrollPPT, debugMode]);
 
-    // #661 "raakbaar" cue: the leftmost UNRESOLVED slime is the current target. When it enters the hit-zone
-    // (startX..+HITZONE_W) both it and its notehead light up so the player knows to strike NOW (Han).
-    const targetIdx = killedCount;
-    const targetSlime = slimeData[targetIdx];
-    const targetPos = sideScroll && targetSlime ? sideScrollX(targetSlime.beat, tick) : null;
-    const targetInZone = !!(targetPos && targetPos.spawned && !killedSet.has(targetIdx)
-        && targetPos.slimeX >= startX && targetPos.slimeX <= startX + HITZONE_W);
-
     return (
         <g className="rpg-layer" data-rpg-layer="" style={{ pointerEvents: 'none' }}>
             {/* #661 the REAL scrolling staff (notes/rests/colours/beams + barlines/measure numbers), laid out
@@ -352,10 +343,13 @@ export default function SheetRpgLayer({
             {sideScroll && dist > 0 && viewRight > 0 && (
                 <>
                     <defs>
+                        {/* Notes stay FULLY visible through the hero/hit-zone (Han UAT: don't cut flags/ties at
+                            startX). They only soft-fade at the two SCREEN edges: in over the last LANE_FADE_R
+                            units at the right, out over the first LANE_FADE_L units at the far left as they
+                            scroll off (≈a measure past the hero) — an invisible despawn, no hard clip. */}
                         <linearGradient id="rpgLaneFadeGrad" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={viewRight} y2={0}>
                             <stop offset={0} stopColor="#000" />
-                            <stop offset={Math.max(0, (startX - LANE_FADE_L) / viewRight)} stopColor="#000" />
-                            <stop offset={Math.min(1, startX / viewRight)} stopColor="#fff" />
+                            <stop offset={Math.max(0, LANE_FADE_L / viewRight)} stopColor="#fff" />
                             <stop offset={Math.max(0, (viewRight - LANE_FADE_R) / viewRight)} stopColor="#fff" />
                             <stop offset={1} stopColor="#000" />
                         </linearGradient>
@@ -371,12 +365,12 @@ export default function SheetRpgLayer({
                     </g>
                 </>
             )}
-            {/* #661 fixed hit-zone band in front of the hero — Han wants to clearly SEE where a note is
-                'raakbaar'. Brightens while the current target slime is inside it. */}
+            {/* #661 hit-zone marker in front of the hero — a SUBTLE, STATIC band (Han UAT: it must NOT light
+                up). Just enough to show where a slime becomes strikeable; no brightening, no per-target glow. */}
             {sideScroll && dist > 0 && (
                 <rect x={startX} y={trebleStart} width={HITZONE_W} height={Math.max(0, viewBottom - trebleStart)}
-                    fill="var(--accent-yellow)" fillOpacity={targetInZone ? 0.14 : 0.05}
-                    stroke="var(--accent-yellow)" strokeOpacity={0.45} strokeWidth={0.5}
+                    fill="var(--accent-yellow)" fillOpacity={0.04}
+                    stroke="var(--accent-yellow)" strokeOpacity={0.18} strokeWidth={0.5}
                     style={{ pointerEvents: 'none' }} />
             )}
             {slimeData.map((s, idx) => {
@@ -395,22 +389,6 @@ export default function SheetRpgLayer({
                 const frame = isDying ? deathFrame : gFrame % SLIME_IDLE.frames;
                 return <Slime key={s.key} x={s.x} y={slimeY} colorKey={s.colorKey} row={row} frame={frame} />;
             })}
-            {/* #661 target-in-zone highlight: a glow behind the target slime + its notehead. */}
-            {targetInZone && targetSlime && (() => {
-                const n = Array.isArray(targetSlime.note) ? targetSlime.note[0] : targetSlime.note;
-                const ny = getNoteAbsoluteY(n, trebleStart, clef, 'treble');
-                const cx = targetPos.slimeX + SLIME_VIEW_W / 2;
-                return (
-                    <g style={{ pointerEvents: 'none' }}>
-                        <ellipse cx={cx} cy={slimeY + SLIME_VIEW_H / 2} rx={SLIME_VIEW_W * 0.75} ry={SLIME_VIEW_H * 0.6}
-                            fill="var(--accent-yellow)" fillOpacity={0.28} />
-                        {ny != null && (
-                            <circle cx={targetPos.noteX + SLIME_VIEW_W / 2} cy={ny - 4} r={13}
-                                fill="var(--accent-yellow)" fillOpacity={0.3} />
-                        )}
-                    </g>
-                );
-            })()}
             {/* #660 debug: the hit-zone in front of the hero (kills only register here) */}
             {debugMode && sideScroll && (
                 <rect x={startX} y={slimeY} width={HITZONE_W} height={SLIME_VIEW_H}

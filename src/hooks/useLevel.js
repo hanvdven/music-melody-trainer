@@ -37,6 +37,10 @@ export default function useLevel({ setters, snapshot, regenerate }) {
         }));
         setters.setShowChordsOddRounds?.(false);
         setters.setShowChordsEvenRounds?.(false);
+        // #661 (Han UAT): a side-scroll level is ONE continuous piece — it must NOT paginate, or the melody
+        // (and its slimes) get sliced to a single page and only part of the measures scroll in ("5 of 8").
+        // 'wipe' does not slice the melody (only 'pagination' does); the static staff is hidden anyway.
+        if (lvl.sideScroll) setters.setAnimationMode?.('wipe');
     }, [setters]);
 
     const begin = useCallback((lvl) => {
@@ -78,6 +82,7 @@ export default function useLevel({ setters, snapshot, regenerate }) {
         setters.setPlaybackConfig(() => s.playbackConfig);
         setters.setShowChordsOddRounds?.(s.showChordsOddRounds);
         setters.setShowChordsEvenRounds?.(s.showChordsEvenRounds);
+        setters.setAnimationMode?.(s.animationMode);   // restore the user's animation mode (see applyConfig)
     }, [setters]);
 
     const close = useCallback(() => {

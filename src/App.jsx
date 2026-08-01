@@ -29,6 +29,8 @@ import useWindowSize from './hooks/useWindowSize';
 import useInstruments from './hooks/useInstruments';
 import useMelodyState from './hooks/useMelodyState';
 import useLevel from './hooks/useLevel';
+import useMidiInput from './hooks/useMidiInput';
+import playSound from './audio/playSound';
 import { LEVELS } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
@@ -928,16 +930,35 @@ const App = () => {
         setCombatNote({ note, nonce: combatNonceRef.current });
     }, [handleInputTestNote]);
 
+    // #661 (Han): GLOBAL MIDI input. A connected MIDI keyboard plays the note (treble instrument for now) and
+    // routes it into the SAME combat/input path as QWERTY/piano — regardless of which view is active (the old
+    // PianoView-local listener only worked while the piano was mounted, so events "kwamen niet door"). note-on
+    // starts a sustained note (stopFn kept per note); note-off releases it.
+    const midiStopsRef = useRef({});
+    const handleMidiNoteOn = useCallback((note) => {
+        if (instruments.treble && context) {
+            if (context.state !== 'running') context.resume();
+            const stop = playSound(note, instruments.treble, context, context.currentTime, null);
+            if (stop) midiStopsRef.current[note] = stop;
+        }
+        handleNoteInputCombat(note, true);
+    }, [context, instruments.treble, handleNoteInputCombat]);
+    const handleMidiNoteOff = useCallback((note) => {
+        const stop = midiStopsRef.current[note];
+        if (stop) { stop(); delete midiStopsRef.current[note]; }
+    }, []);
+    useMidiInput({ onNoteOn: handleMidiNoteOn, onNoteOff: handleMidiNoteOff });
+
     // #659 Level 1: a header button applies the level config (treble only, 2 measures, 2 notes/measure, 30%
     // variability, C4–G4), the player clears 4 waves of slimes, then a "Well done!" splash. The setters update
     // their refs synchronously, so regenerating right after applying config uses the new settings.
     const levelSetters = useMemo(() => ({
         setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds,
-        setStartMeasureIndex, setBpm,
-    }), [setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm]);
+        setStartMeasureIndex, setBpm, setAnimationMode,
+    }), [setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode]);
     const levelSnapshot = useCallback(() => ({
-        numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm,
-    }), [numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm]);
+        numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode,
+    }), [numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode]);
     // Defer the (re)generation to the next frame so the just-applied config setters have flushed to their
     // refs first (setTrebleSettings mirrors into instrumentSettingsRef only during the render it triggers;
     // randomizeAll reads that ref) — otherwise the FIRST wave would generate from the old settings.

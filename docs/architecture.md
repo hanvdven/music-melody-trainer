@@ -6056,6 +6056,19 @@ slimes drift apart. Memoise the staff content so it is not rebuilt at the moveme
   left of the downbeat notehead, not on top of it.
 - **Numbering from 1** — `scrollBarlines` forces `blockMeasureStart:1`, `startIdx:0` so a level numbers 1..N.
 
+**UAT round 2 (Han 2026-08-01):**
+- **Full melody, no pagination ("5 of 8 maten")** — a side-scroll level must show ALL its measures, but the
+  app paginates: `sliceMelodyForPagination` slices `adjustedTrebleMelody` (and thus the slimes, which read it)
+  to a single page when `animationMode === 'pagination'`. `useLevel.applyConfig` now forces `animationMode`
+  to `'wipe'` for a `sideScroll` level (only `'pagination'` slices; the static staff is hidden anyway), and
+  snapshots/restores the user's mode on close. All 8 measures + their slimes now scroll in.
+- **Hit-zone must NOT light up** — Han disliked the brightening. The band is now a single SUBTLE, STATIC rect
+  (`fillOpacity 0.04`); the per-target brightening AND the target slime/notehead glow were removed.
+- **Notes despawn softly at the screen edge, not cut at the hero** — the lane mask's left fade-out moved from
+  `startX` to the far-LEFT SCREEN EDGE (`0 .. LANE_FADE_L`). Notes now stay FULLY visible through the hero /
+  hit-zone (no more clipped flags/tie-arcs) and only soft-fade as they scroll off the left edge (≈a measure
+  past the hero). Right-edge fade-in unchanged.
+
 **Still open → §88 (metronome + audio-clock anchor):** the scroll clock is still SheetRpgLayer's own
 `setInterval` tick; the metronome + ms-exact audio anchoring (Sequencer-driven, treble silent) is §88. The
 end-of-song final barline (thin+thick on the last measure) lands there too, with the real level end.
@@ -6067,23 +6080,25 @@ on-screen piano — Han: "als er MIDI input gedetecteerd wordt: luister naar MID
 op klavier (net zoals bij toetsenbord)." Interview: always on when a device is connected (no toggle), all
 inputs/channels, routes to the SAME path as QWERTY/click.
 
-**How it works (all in `PianoView.jsx`, §6c — reuse the existing input path):**
-- **Web MIDI** — a mount-once `useEffect` calls `navigator.requestMIDIAccess()`, binds `onmidimessage` on
-  every input, and re-binds on `statechange` (hot-plug). The message handler lives in a **ref**
-  (`midiMsgRef`, reassigned every render) so the once-only access effect always invokes the latest closure
-  (fresh `handlePointerDown`/`onNoteInput`) without re-requesting access each render. Guarded on
-  `navigator.requestMIDIAccess` so browsers without Web MIDI (or a denied permission) simply no-op.
-- **note number → key string** — `notes[midiNumber − 21]` (`generateAllNotesArray` starts at A0 = MIDI 21),
-  which is exactly this piano's own key string, so highlight/press bookkeeping matches the rendered keys.
-- **note ON** (`0x90`, velocity > 0) → `handlePointerDown(note)` (play + light up) + `onNoteInput(note, true)`
-  (combat, one event). **note OFF** (`0x80`, or `0x90` vel 0) → `handlePointerUp(note, false)` — release
-  audio + highlight only. The new `fireInput=false` arg suppresses `handlePointerUp`'s own `onNoteInput` so a
-  MIDI note is NOT double-counted (combat already fired on note-on). Pointer/QWERTY keep the default `true`.
-- **played-note highlight** — a `playedNotes` state (Set) is updated in `handlePointerDown`/`handlePointerUp`/
-  `handlePointerCancel`, so click / QWERTY / MIDI all light their key. `getKeyClass` returns the existing
-  `tone-active-key` class for a played note (highest priority, above scale/tonic/colouring). `activeKeysRef`
-  alone couldn't drive this — it's a ref (no re-render); the state does.
+**How it works (GLOBAL — `src/hooks/useMidiInput.js` + App, §6c reuse the existing input path):**
+- **Web MIDI is app-level, not PianoView-level** (Han UAT: MIDI "kwam niet door" because the first cut lived
+  in PianoView, which only listens while the piano is mounted in the active view). `useMidiInput` owns just
+  the plumbing: a mount-once `useEffect` calls `navigator.requestMIDIAccess()`, binds `onmidimessage` on every
+  input, re-binds on `statechange` (hot-plug), and parses messages. Handlers live in a **ref** (reassigned
+  every render) so the once-only access effect always invokes the latest closures without re-requesting
+  access. Guarded on `navigator.requestMIDIAccess` → browsers without Web MIDI (or a denied permission) no-op.
+- **note number → name** — `generateAllNotesArray()[midiNumber − 21]` (A0 = MIDI 21). The hook calls back with
+  the note NAME; what to do with it is the caller's.
+- **App wiring** — `handleMidiNoteOn(note)`: play it on the **treble** instrument (`playSound`, sustained,
+  stopFn kept per note in `midiStopsRef`) + `handleNoteInputCombat(note, true)` (the SAME combat/input funnel
+  as QWERTY/click, ONE event per note). `handleMidiNoteOff(note)`: release the sustained note. Works in any
+  view. (Han: "voor nu gewoon treble instrument. Midi event → speel de noot." Bass/percussion routing later.)
+- **played-note highlight (click/QWERTY)** — `PianoView` keeps a `playedNotes` state (Set) updated in
+  `handlePointerDown`/`handlePointerUp`/`handlePointerCancel`, so click + QWERTY light their key
+  (`getKeyClass` → `tone-active-key`, top priority). `handlePointerUp(note, fireInput=true)` gained the
+  `fireInput` arg (release-only when false). MIDI highlight ON the piano is a separate follow-up (the global
+  hook plays + routes combat but does not yet feed PianoView's highlight).
 
-**Invariants:** MIDI must fund the SAME `onNoteInput` path as QWERTY/click (combat funnels through
-`handleNoteInputCombat` in App), never a parallel one. Fire combat ONCE per note (on note-on). Map MIDI
-numbers via `notes[n−21]` so highlight keys match. **Files:** `components/controls/PianoView.jsx`.
+**Invariants:** MIDI routes through the SAME `handleNoteInputCombat` funnel as QWERTY/click, never a parallel
+one. Fire combat ONCE per note (on note-on). **Files:** `hooks/useMidiInput.js`, `App.jsx` (wiring),
+`components/controls/PianoView.jsx` (played-note highlight for click/QWERTY; MIDI listener removed).
