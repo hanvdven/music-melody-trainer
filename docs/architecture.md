@@ -5892,10 +5892,17 @@ penalty); when ALL slimes are dead the melody regenerates (`randomizeAll({ chord
   `SheetRpgLayer` — one hook covers all sources, the input-test behaviour is untouched. `onSlimesCleared`
   (→ regenerate) is passed the same way.
 - **Matcher/animation state** lives in `SheetRpgLayer` (it owns the slime notes). `killedCount` = the
-  leftmost living slime; `dying`/`heroAttack` are `{ startTick }` one-shots driven by the same idle interval
-  (`frame = min(tick − startTick, frames − 1)`), completed by effects; a finished death advances
-  `killedCount`. The wave is reset when the melody's slime-notes change; "cleared" fires from an effect keyed
-  on `killedCount` (not a later tick). NOT an rAF layer → §6 timing invariants don't apply.
+  leftmost living slime; `dying`/`heroAttack` are `{ startTick }` one-shots driven by the same interval,
+  completed by effects; a finished death advances `killedCount`. The wave is reset when the melody's
+  slime-notes change; "cleared" fires from an effect keyed on `killedCount` (not a later tick). NOT an rAF
+  layer → §6 timing invariants don't apply.
+- **Attack timing coupled to tempo (Han 2026-08-01):** the frame interval is `12/bpm` seconds, so the
+  5-frame idle loops once per quarter-note beat and the animation follows the tempo. On the SHEET the attack
+  plays only the LAST 3 frames of the 6-frame swing (the full swing felt too long in playback; the
+  creator/menu still plays all 6). An attack cycle = 3 attack frames + a 2-frame delay = 5 frames = one beat;
+  a note within that window kills its slime but does not restart the swing. When the music gets fast
+  (sixteenths), notes arrive faster than one cycle → grouping several fast notes into one strike is a
+  follow-up (ticket #658).
 
 **Files (combat):** `components/sheet-music/SheetRpgLayer.jsx`, `components/sheet-music/SheetMusic.jsx`
 (`combatNote`/`onSlimesCleared` props), `App.jsx` (`handleNoteInputCombat` relay), `model/enemyAssets.js`

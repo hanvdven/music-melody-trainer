@@ -2746,6 +2746,7 @@ const SheetMusic = ({
                     pixelsPerTick={ppt}
                     allOffsets={allOffsets}
                     noteWidth={noteWidth}
+                    bpm={bpm}
                     trebleStart={trebleStart}
                     staffHeight={staffHeight}
                     viewBottom={logicalHeightForViewBox - 30}

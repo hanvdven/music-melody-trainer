@@ -72,6 +72,10 @@ melodiewissel. `SLIME_DEATH` (row2,5f) toegevoegd.
 combat (killedCount/dying/heroAttack via startTick; clear-effect op [killedCount]).
 Smoke-test met fake timers (match doodt links, foute noot niet, clear→cleared).
 Build+576+lint groen. Docs §83. → #647 UAT.
+✅ UAT-tuning (Han): sheet-attack = laatste 3 frames (creator alle 6); frame-rate
+bpm-gekoppeld (`12/bpm` s/frame → 5-frame rust = 1 tel); attack-cyclus 3+2=5 frames.
+Ties: gekoppelde noten → 1 slime (alleen eerste). ⏳ **#658** aangemaakt: snelle
+gegroepeerde noten → 1 animatie/slag (koppel aan smallestNoteDenom+bpm).
 
 ## 2026-07-08 — ✅ Swimlane-ronde: #395 bord-scroll GEFIXT + #394 design → design_review
 

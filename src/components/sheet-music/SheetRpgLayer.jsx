@@ -19,8 +19,16 @@ import { noteToMidi } from '../../theory/noteUtils';
 // This is decorative/game chrome living in the SVG, NOT an rAF melody layer, so §6 timing invariants do not
 // apply; a plain interval drives frames. State is LOCAL so only this layer re-renders per tick.
 
-const IDLE_MS = 160;
+const IDLE_MS = 160;   // fallback frame interval when bpm is unknown
 const ATTACK = ANIMATIONS.find((a) => a.key === 'attack') || ANIMATIONS[0];   // hero attack (row 5, 6 frames)
+// On the SHEET the attack uses only the LAST 3 frames of the 6 (Han: the full swing is too long in playback;
+// the creator/menu still plays all 6). One attack cycle = 3 attack frames + a 2-frame delay = 5 frames — i.e.
+// exactly one beat at the bpm-coupled frame rate below, matching the 5-frame idle loop.
+const ATTACK_SHEET_START = 3, ATTACK_SHEET_FRAMES = 3, ATTACK_DELAY = 2;
+const ATTACK_CYCLE = ATTACK_SHEET_FRAMES + ATTACK_DELAY;   // 5 frames
+// Frame interval coupled to tempo (Han): 12/bpm seconds per frame, so the 5-frame idle loops once per
+// quarter-note beat (5 × 12/bpm = 60/bpm s). Faster bpm → faster animation.
+const frameMsForBpm = (bpm) => (bpm > 0 ? 12000 / bpm : IDLE_MS);
 
 const slimeColorKey = (d) => (d >= 24 ? 'red' : d >= 12 ? 'green' : 'blue');   // §6c formula (see interview)
 
@@ -66,7 +74,7 @@ function ensureVisible(char) {
 }
 
 export default function SheetRpgLayer({
-    trebleMelody, startX, pixelsPerTick, allOffsets, noteWidth,
+    trebleMelody, startX, pixelsPerTick, allOffsets, noteWidth, bpm,
     trebleStart, staffHeight, viewBottom, onOpenCharacter, onSlimesCleared, combatNote, debugMode = false,
 }) {
     const idleAnim = ANIMATIONS[0];
@@ -119,12 +127,14 @@ export default function SheetRpgLayer({
     const dyingRef = useRef(null); dyingRef.current = dying;
     const slimesRef = useRef(slimeData); slimesRef.current = slimeData;
     const clearedRef = useRef(false);
+    const heroAttackRef = useRef(null); heroAttackRef.current = heroAttack;
 
-    // one interval drives the tick; tickRef lets the note handler read "now" without being a dep.
+    // one interval drives the tick at the tempo-coupled frame rate; tickRef lets the note handler read "now"
+    // without being a dep. Re-created when bpm changes so the animation speed follows the tempo.
     useEffect(() => {
-        const id = setInterval(() => { tickRef.current += 1; setTick(tickRef.current); }, IDLE_MS);
+        const id = setInterval(() => { tickRef.current += 1; setTick(tickRef.current); }, frameMsForBpm(bpm));
         return () => clearInterval(id);
-    }, []);
+    }, [bpm]);
 
     // reset combat when the melody (its slime notes) changes — a fresh wave of slimes.
     const notesKey = slimeData.map((s) => (Array.isArray(s.note) ? s.note.join('+') : s.note)).join('|');
@@ -133,7 +143,11 @@ export default function SheetRpgLayer({
     // a played note (any input) — key ONLY on the nonce so it fires once per note; read live state via refs.
     useEffect(() => {
         if (!combatNote) return;
-        setHeroAttack({ startTick: tickRef.current });     // ANY note → hero attacks once
+        // ANY note → hero attacks once, but not more often than one attack cycle (the 2-frame delay) so rapid
+        // notes don't restart a half-played swing (grouping fast notes is a separate ticket).
+        if (!heroAttackRef.current || tickRef.current - heroAttackRef.current.startTick >= ATTACK_CYCLE) {
+            setHeroAttack({ startTick: tickRef.current });
+        }
         const k = killedRef.current;
         if (!dyingRef.current && k < slimesRef.current.length && notesMatch(combatNote.note, slimesRef.current[k].note)) {
             setDying({ index: k, startTick: tickRef.current });   // match the LEFTMOST slime → it dies
@@ -148,7 +162,7 @@ export default function SheetRpgLayer({
             setKilledCount((k) => Math.max(k, dying.index + 1));
             setDying(null);
         }
-        if (heroAttack && tick - heroAttack.startTick >= ATTACK.frames) setHeroAttack(null);
+        if (heroAttack && tick - heroAttack.startTick >= ATTACK_CYCLE) setHeroAttack(null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tick]);
 
@@ -166,10 +180,13 @@ export default function SheetRpgLayer({
     const dollW = DOLL_CROP.w * (HERO_H / DOLL_CROP.h);
     const heroX = -2;
     const heroY = viewBottom - HERO_H;
-    const heroAnim = heroAttack ? ATTACK : idleAnim;
-    const heroFrame = heroAttack
-        ? Math.min(tick - heroAttack.startTick, ATTACK.frames - 1)
-        : tick % idleAnim.frames;
+    // hero: during the first 3 frames of an attack show the LAST 3 attack frames (3,4,5); during the 2-frame
+    // delay (and otherwise) show the idle loop.
+    let heroAnim = idleAnim, heroFrame = tick % idleAnim.frames;
+    if (heroAttack) {
+        const e = tick - heroAttack.startTick;
+        if (e < ATTACK_SHEET_FRAMES) { heroAnim = ATTACK; heroFrame = ATTACK_SHEET_START + e; }
+    }
 
     return (
         <g className="rpg-layer" data-rpg-layer="" style={{ pointerEvents: 'none' }}>
