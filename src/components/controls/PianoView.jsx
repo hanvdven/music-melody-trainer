@@ -1,5 +1,5 @@
 // components/PianoView.jsx
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import logger from '../../utils/logger';
 import playSound from '../../audio/playSound';
 import { standardizeTonic, getRelativeNoteName } from '../../theory/convertToDisplayNotes';
@@ -74,6 +74,10 @@ const PianoView = ({
   // Refs must be declared before any early return (Rules of Hooks)
   const pressTimesRef = useRef({});
   const activeKeysRef = useRef(new Set());
+  // #661 (Han): the physically-played notes (click / QWERTY / MIDI) so their keys light up on the piano —
+  // "highlight de juiste noot op klavier". activeKeysRef alone is a ref (no re-render); this state drives the
+  // highlight class in getKeyClass. Updated in handlePointerDown/Up/Cancel so ALL input methods light up.
+  const [playedNotes, setPlayedNotes] = useState(() => new Set());
   const activeStopsRef = useRef({});
   const ringingTapsRef = useRef(new Set());
   const tapsTimeoutRef = useRef({});
@@ -358,6 +362,44 @@ const PianoView = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qwertyKeyboardActive, qwertyNoteMap, trebleInstrument, onNoteInput]);
 
+  // #661 Web MIDI (Han): when a MIDI keyboard is connected, listen on ALL inputs/channels and route note-on
+  // through the SAME path as QWERTY/click — handlePointerDown (play + light up the key) + onNoteInput (combat).
+  // Always on, no toggle. The message handler lives in a ref so the once-only access effect always invokes the
+  // latest closure (fresh handlePointerDown/onNoteInput) without re-requesting MIDI access on every render.
+  // notes[midiNumber − 21] is this piano's own key string (generateAllNotesArray starts at A0 = MIDI 21), so
+  // the highlight/press bookkeeping matches the rendered keys exactly.
+  const midiMsgRef = useRef(null);
+  midiMsgRef.current = (e) => {
+    const status = e.data[0], d1 = e.data[1], d2 = e.data[2];
+    const cmd = status & 0xf0;
+    const noteStr = notes[d1 - 21];
+    if (!noteStr) return;                                   // outside the piano's range
+    if (cmd === 0x90 && d2 > 0) {                           // note ON (velocity > 0)
+      if (activeKeysRef.current.has(noteStr)) return;       // already held
+      handlePointerDown(noteStr, null);
+      if (onNoteInput) onNoteInput(noteStr, true);
+    } else if (cmd === 0x80 || (cmd === 0x90 && d2 === 0)) { // note OFF (or note-on vel 0)
+      if (activeKeysRef.current.has(noteStr)) handlePointerUp(noteStr, false);   // release only; combat already fired on note-on
+    }
+  };
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) return undefined;
+    let access = null; let cancelled = false;
+    const wrapper = (e) => { if (midiMsgRef.current) midiMsgRef.current(e); };
+    const attach = (a) => { a.inputs.forEach((input) => { input.onmidimessage = wrapper; }); };
+    navigator.requestMIDIAccess().then((a) => {
+      if (cancelled) return;
+      access = a;
+      attach(a);
+      a.onstatechange = () => attach(a);                    // hot-plug: bind newly-connected inputs
+    }).catch((err) => logger.warn('PianoView', 'Web MIDI access unavailable', err));
+    return () => {
+      cancelled = true;
+      if (access) { access.inputs.forEach((input) => { input.onmidimessage = null; }); access.onstatechange = null; }
+    };
+    // midiMsgRef is reassigned every render (fresh closures); access is acquired ONCE. No render deps.
+  }, []);
+
   // All hooks have been called above — safe to early-return now
   if (tonicNotFound) return null;
 
@@ -390,6 +432,10 @@ const PianoView = ({
     if (note === 'placeholder') return 'placeholder-key';
 
     const isBlack = note.includes('♯') || note.includes('♭');   // physical key shape (untransposed)
+
+    // #661 (Han): a physically-played note (click / QWERTY / MIDI) lights its key up. Highest priority so the
+    // player sees immediate feedback for what they just played, over scale/tonic/colouring highlights.
+    if (playedNotes.has(note)) return isBlack ? 'black-key tone-active-key' : 'white-key tone-active-key';
 
     const cmp = tn(note);   // concert note this key represents — drives all highlight decisions
     const notePC = cmp.replace(/\d+$/, '');
@@ -553,6 +599,7 @@ const PianoView = ({
 
     pressTimesRef.current[note] = Date.now();
     activeKeysRef.current.add(note);
+    setPlayedNotes((s) => { const n = new Set(s); n.add(note); return n; });   // light up the key
     // Start with long sustain (null duration), store the stop function! Sound the CONCERT note
     // (tn) so a transposed key plays what its label says; press-tracking still keys off `note`.
     const stopFn = playSound(tn(note), trebleInstrument, ctx, ctx.currentTime, null);
@@ -561,9 +608,12 @@ const PianoView = ({
     }
   };
 
-  const handlePointerUp = (note) => {
+  // fireInput=false releases the key (audio + highlight) WITHOUT re-firing onNoteInput — used by MIDI note-off,
+  // which already fired combat on note-ON (so the note isn't double-counted). Pointer/QWERTY keep the default.
+  const handlePointerUp = (note, fireInput = true) => {
     if (!activeKeysRef.current.has(note)) return;
     activeKeysRef.current.delete(note);
+    setPlayedNotes((s) => { if (!s.has(note)) return s; const n = new Set(s); n.delete(note); return n; });
 
     const pressStart = pressTimesRef.current[note];
     delete pressTimesRef.current[note];
@@ -584,7 +634,7 @@ const PianoView = ({
       }, Math.max(0, 1000 - duration));
     }
 
-    if (onNoteInput) onNoteInput(note, isTap);
+    if (fireInput && onNoteInput) onNoteInput(note, isTap);
 
     if (interactionMode === 'select-tonic' && onTonicSelect) {
       const notePC = note.replace(/\d+$/, '');
@@ -610,6 +660,7 @@ const PianoView = ({
   const handlePointerCancel = (note) => {
     if (!activeKeysRef.current.has(note)) return;
     activeKeysRef.current.delete(note);
+    setPlayedNotes((s) => { if (!s.has(note)) return s; const n = new Set(s); n.delete(note); return n; });
     delete pressTimesRef.current[note];
     stopNote(note);
   };

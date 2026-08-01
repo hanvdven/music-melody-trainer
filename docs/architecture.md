@@ -6056,6 +6056,34 @@ slimes drift apart. Memoise the staff content so it is not rebuilt at the moveme
   left of the downbeat notehead, not on top of it.
 - **Numbering from 1** — `scrollBarlines` forces `blockMeasureStart:1`, `startIdx:0` so a level numbers 1..N.
 
-**Still open → §87 (metronome + audio-clock anchor):** the scroll clock is still SheetRpgLayer's own
-`setInterval` tick; the metronome + ms-exact audio anchoring (Sequencer-driven, treble silent) is §87. The
+**Still open → §88 (metronome + audio-clock anchor):** the scroll clock is still SheetRpgLayer's own
+`setInterval` tick; the metronome + ms-exact audio anchoring (Sequencer-driven, treble silent) is §88. The
 end-of-song final barline (thin+thick on the last measure) lands there too, with the real level end.
+
+### §87. MIDI keyboard input + on-piano played-note highlight (#661, Han 2026-08-01)
+
+**Purpose:** play the combat / note-input with a physical MIDI keyboard, and light up the played note on the
+on-screen piano — Han: "als er MIDI input gedetecteerd wordt: luister naar MIDI. Highlight ook de juiste noot
+op klavier (net zoals bij toetsenbord)." Interview: always on when a device is connected (no toggle), all
+inputs/channels, routes to the SAME path as QWERTY/click.
+
+**How it works (all in `PianoView.jsx`, §6c — reuse the existing input path):**
+- **Web MIDI** — a mount-once `useEffect` calls `navigator.requestMIDIAccess()`, binds `onmidimessage` on
+  every input, and re-binds on `statechange` (hot-plug). The message handler lives in a **ref**
+  (`midiMsgRef`, reassigned every render) so the once-only access effect always invokes the latest closure
+  (fresh `handlePointerDown`/`onNoteInput`) without re-requesting access each render. Guarded on
+  `navigator.requestMIDIAccess` so browsers without Web MIDI (or a denied permission) simply no-op.
+- **note number → key string** — `notes[midiNumber − 21]` (`generateAllNotesArray` starts at A0 = MIDI 21),
+  which is exactly this piano's own key string, so highlight/press bookkeeping matches the rendered keys.
+- **note ON** (`0x90`, velocity > 0) → `handlePointerDown(note)` (play + light up) + `onNoteInput(note, true)`
+  (combat, one event). **note OFF** (`0x80`, or `0x90` vel 0) → `handlePointerUp(note, false)` — release
+  audio + highlight only. The new `fireInput=false` arg suppresses `handlePointerUp`'s own `onNoteInput` so a
+  MIDI note is NOT double-counted (combat already fired on note-on). Pointer/QWERTY keep the default `true`.
+- **played-note highlight** — a `playedNotes` state (Set) is updated in `handlePointerDown`/`handlePointerUp`/
+  `handlePointerCancel`, so click / QWERTY / MIDI all light their key. `getKeyClass` returns the existing
+  `tone-active-key` class for a played note (highest priority, above scale/tonic/colouring). `activeKeysRef`
+  alone couldn't drive this — it's a ref (no re-render); the state does.
+
+**Invariants:** MIDI must fund the SAME `onNoteInput` path as QWERTY/click (combat funnels through
+`handleNoteInputCombat` in App), never a parallel one. Fire combat ONCE per note (on note-on). Map MIDI
+numbers via `notes[n−21]` so highlight keys match. **Files:** `components/controls/PianoView.jsx`.
