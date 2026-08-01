@@ -46,7 +46,7 @@ const NOTE_STAFF_DX = SLIME_VIEW_W / 2 - 6;
 // #661 side-scroll lane fade (Han UAT): the moving notes/barlines fade OUT over the last LANE_FADE_L units
 // before the hero (startX) so they vanish softly after being played, and fade IN over the last LANE_FADE_R
 // units at the right edge so the incoming 'end' of the score isn't a hard pop. Applied as an SVG mask.
-const LANE_FADE_L = 24;
+const LANE_FADE_L = 34;   // soft, wide enough that a note's flag/tie fades smoothly (no hard glyph clip)
 const LANE_FADE_R = 15;
 
 // EXACT pitch+octave match (Han): compare by MIDI so enharmonic spellings of the same piano key match. A
@@ -343,13 +343,14 @@ export default function SheetRpgLayer({
             {sideScroll && dist > 0 && viewRight > 0 && (
                 <>
                     <defs>
-                        {/* Notes stay FULLY visible through the hero/hit-zone (Han UAT: don't cut flags/ties at
-                            startX). They only soft-fade at the two SCREEN edges: in over the last LANE_FADE_R
-                            units at the right, out over the first LANE_FADE_L units at the far left as they
-                            scroll off (≈a measure past the hero) — an invisible despawn, no hard clip. */}
+                        {/* Notes fade OUT at the hero (Han UAT: "mask fade moet bij startx"): opaque up to
+                            startX, then a soft LANE_FADE_L-wide fade to transparent just LEFT of it, so a note
+                            softly disappears as it passes the hero. Fade IN over the last LANE_FADE_R units at
+                            the right edge. */}
                         <linearGradient id="rpgLaneFadeGrad" gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={viewRight} y2={0}>
                             <stop offset={0} stopColor="#000" />
-                            <stop offset={Math.max(0, LANE_FADE_L / viewRight)} stopColor="#fff" />
+                            <stop offset={Math.max(0, (startX - LANE_FADE_L) / viewRight)} stopColor="#000" />
+                            <stop offset={Math.max(0, Math.min(1, startX / viewRight))} stopColor="#fff" />
                             <stop offset={Math.max(0, (viewRight - LANE_FADE_R) / viewRight)} stopColor="#fff" />
                             <stop offset={1} stopColor="#000" />
                         </linearGradient>
