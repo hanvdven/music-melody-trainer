@@ -21,6 +21,13 @@ const useAppLayout = (windowSize, numMeasures) => {
         sheetHeight = usableHeight / 2;
     }
 
+    // Han 2026-08-01: cap the BOTTOM control panel at 40% of the screen height (it was up to ~50%); the sheet
+    // music view gets the rest. Dual view only (single view shares one height).
+    if (isDualView) {
+        btmPanelHeight = Math.min(btmPanelHeight, Math.round(windowSize.height * 0.4));
+        sheetHeight = usableHeight - btmPanelHeight;
+    }
+
     const tabBtnScale = windowSize.width >= 550 ? 1 : Math.max(0.5, windowSize.width / 550);
     const sheetWidth = windowSize.width;
     // Ideal visible measures: how many fit in the viewport at ~120px each.
