@@ -57,10 +57,21 @@ verwijderd (Han: placeholder). Docs §83.
 laag was ppt-gated → index-based fallback (allOffsets+noteWidth) altijd gebruiken.
 Build+575+lint groen.
 
-⏳ **#647 volgende stap (Han, combat):** toets indrukken → held speelt attack (1×);
-noot == meest-linkse slime → die gaat dood; alle slimes dood → nieuwe melodie.
-Vereist §4b interview (piano-input-hook, note-match, attack-anim-once, slime-death+
-verwijderen, melodie-regen-API).
+🔨 **#647 combat (Han 2026-08-01).** ✅ Interview: match=**exacte noot+octaaf**
+(noteToMidi), **alle inputs** tellen (piano-klik+QWERTY+mic; MIDI later), **altijd
+aan** op de bladmuziek (eigen lichte matcher). Aannames: fout=held zwaait mis (geen
+kill/straf), strikt links→rechts, rusten geen slime, regen meteen bij laatste kill.
+Plan: (1) App wrapt `handleInputTestNote` → relayt óók de gespeelde noot als
+`{note,nonce}` naar SheetMusic→SheetRpgLayer (alle bronnen komen daar samen). (2)
+SheetRpgLayer combat-state: `killedCount` (meest-links), `dying` (death-anim via
+startTick), held-attack (startTick, 1×). Op noot: held attack; als `noteToMidi(noot)
+==noteToMidi(slimeNotes[killedCount])` → die slime death-anim → weg → killedCount++.
+killedCount==totaal → `onSlimesCleared` → `randomizeAll({chords:false})`. Reset bij
+melodiewissel. `SLIME_DEATH` (row2,5f) toegevoegd.
+✅ GEBOUWD: App-relay (`handleNoteInputCombat`), SheetMusic-props, SheetRpgLayer-
+combat (killedCount/dying/heroAttack via startTick; clear-effect op [killedCount]).
+Smoke-test met fake timers (match doodt links, foute noot niet, clear→cleared).
+Build+576+lint groen. Docs §83. → #647 UAT.
 
 ## 2026-07-08 — ✅ Swimlane-ronde: #395 bord-scroll GEFIXT + #394 design → design_review
 

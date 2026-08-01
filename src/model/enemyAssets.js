@@ -64,6 +64,7 @@ export const enemyById = (id) => ENEMIES.find((e) => e.id === id);
 export const SLIME_FRAME = { w: 32, h: 32 };
 export const SLIME_CROP = { x: 0, y: 3, w: 30, h: 29 };
 export const SLIME_IDLE = { row: 0, frames: 5 };
+export const SLIME_DEATH = { row: 2, frames: 5 };   // #647 combat: slime death animation (plays once)
 export const SLIME_COLORS = {
     green: sheetUrl('slime-green'),
     blue: sheetUrl('slime-blue'),

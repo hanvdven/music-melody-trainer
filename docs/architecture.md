@@ -5877,8 +5877,26 @@ so the hero may overlap the percussion info — Han):
 SheetMusic tree); the saved character is read once (not per tick). This is decorative chrome (like the old
 ram), NOT an rAF melody layer, so the §6 timing invariants do not apply.
 
-**Not yet (Han's "volgende stap"):** pressing a piano key → hero plays its attack animation once; if the note
-matches the LEFTMOST slime it dies; when all slimes are dead, generate a new melody. Needs its own interview.
+**Combat (#647 next step, Han 2026-08-01).** Interview: match = EXACT pitch+octave (`noteToMidi`, so
+enharmonic spellings of one piano key match); ALL inputs count (piano tap / QWERTY / mic — MIDI later);
+ALWAYS ON on the sheet (own light matcher, not the input-test mode). Behaviour: every played note → hero
+plays its ATTACK animation ONCE; if the note matches the LEFTMOST living slime by exact pitch, that slime
+plays its DEATH animation and is removed (strictly left→right); a wrong note whiffs (attack, no kill, no
+penalty); when ALL slimes are dead the melody regenerates (`randomizeAll({ chords: false })` → a fresh wave).
+
+- **Wiring:** every input already funnels through `App`'s `handleInputTestNote`, so `App` wraps it
+  (`handleNoteInputCombat`) to ALSO relay the note as `{ note, nonce }` (`combatNote`) down to
+  `SheetRpgLayer` — one hook covers all sources, the input-test behaviour is untouched. `onSlimesCleared`
+  (→ regenerate) is passed the same way.
+- **Matcher/animation state** lives in `SheetRpgLayer` (it owns the slime notes). `killedCount` = the
+  leftmost living slime; `dying`/`heroAttack` are `{ startTick }` one-shots driven by the same idle interval
+  (`frame = min(tick − startTick, frames − 1)`), completed by effects; a finished death advances
+  `killedCount`. The wave is reset when the melody's slime-notes change; "cleared" fires from an effect keyed
+  on `killedCount` (not a later tick). NOT an rAF layer → §6 timing invariants don't apply.
+
+**Files (combat):** `components/sheet-music/SheetRpgLayer.jsx`, `components/sheet-music/SheetMusic.jsx`
+(`combatNote`/`onSlimesCleared` props), `App.jsx` (`handleNoteInputCombat` relay), `model/enemyAssets.js`
+(`SLIME_DEATH`).
 
 **Files:** `components/character/CharacterDoll.jsx` (new — extracted), `components/sheet-music/
 SheetRpgLayer.jsx` (new), `components/character/CharacterCreator.jsx` (uses CharacterDoll),

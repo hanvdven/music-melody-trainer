@@ -914,6 +914,17 @@ const App = () => {
         }, [buildScorePayload]),
     });
 
+    // #647 combat: EVERY played note funnels through handleInputTestNote (piano/QWERTY/mic; MIDI later).
+    // Relay it to the sheet-music RPG layer as { note, nonce } so the hero attacks once and the leftmost
+    // matching slime dies. Wrapping here keeps the existing input-test behaviour untouched.
+    const [combatNote, setCombatNote] = useState(null);
+    const combatNonceRef = useRef(0);
+    const handleNoteInputCombat = useCallback((note, isTap = false) => {
+        handleInputTestNote(note, isTap);
+        combatNonceRef.current += 1;
+        setCombatNote({ note, nonce: combatNonceRef.current });
+    }, [handleInputTestNote]);
+
     const handleSetInputTestSubMode = useCallback((mode) => {
         setInputTestSubMode(mode);
         // Keyboard is only active in 'note' (Piano) mode
@@ -1760,6 +1771,8 @@ const App = () => {
                         <SheetMusic
                             {...sheetMusicCommonProps}
                             onOpenCharacter={() => setShowCharacter(true)}   // #647 hero click opens the menu
+                            combatNote={combatNote}                          // #647 combat — last played note
+                            onSlimesCleared={() => randomizeAll({ chords: false })}   // #647 — new melody on clear
                             containerHeight={sheetHeight}
                             visibleMeasures={effectiveVisibleMeasures}
                             startMeasureIndex={renderStartMeasureIndex}
@@ -1885,7 +1898,7 @@ const App = () => {
                     context={context}
                     scale={scale}
                     activeClef={activeClef}
-                    handleInputTestNote={handleInputTestNote}
+                    handleInputTestNote={handleNoteInputCombat}
                     qwertyKeyboardActive={qwertyKeyboardActive}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}

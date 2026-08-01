@@ -1,6 +1,6 @@
 import React from 'react';
-import { render } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, act } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import SheetRpgLayer from '../SheetRpgLayer';
 
 // #647 — a slime under each treble note (coloured by duration), the hero bottom-left. pixelsPerTick is null
@@ -30,5 +30,31 @@ describe('SheetRpgLayer (#647)', () => {
         expect(wrap({ trebleMelody: null }).container.querySelectorAll('image')).toHaveLength(0);
         const spacer = { notes: ['c', 'D4'], offsets: [0, 12], durations: [12, 12] };
         expect(wrap({ trebleMelody: spacer }).container.querySelectorAll('image')).toHaveLength(1);
+    });
+
+    it('combat: exact-pitch match kills the leftmost slime; a wrong note does not; clearing all fires onSlimesCleared', () => {
+        vi.useFakeTimers();
+        const onSlimesCleared = vi.fn();
+        const base = {
+            startX: 20, pixelsPerTick: null, allOffsets: [0, 12], noteWidth: 20,
+            trebleStart: 100, staffHeight: 40, viewBottom: 220, onSlimesCleared,
+            trebleMelody: { notes: ['C4', 'D4'], offsets: [0, 12], durations: [12, 12] },
+        };
+        let container, rerender;
+        act(() => { const r = render(<svg><SheetRpgLayer {...base} combatNote={null} /></svg>); container = r.container; rerender = r.rerender; });
+        const play = (note, nonce) => act(() => rerender(<svg><SheetRpgLayer {...base} combatNote={{ note, nonce }} /></svg>));
+        const settle = () => act(() => vi.advanceTimersByTime(160 * 8));   // > death-animation frames
+        expect(container.querySelectorAll('image')).toHaveLength(2);
+
+        play('C4', 1); settle();                                          // leftmost matches → dies
+        expect(container.querySelectorAll('image')).toHaveLength(1);
+        expect(onSlimesCleared).not.toHaveBeenCalled();
+
+        play('F4', 2); settle();                                          // wrong note → nothing dies
+        expect(container.querySelectorAll('image')).toHaveLength(1);
+
+        play('D4', 3); settle();                                          // last slime → cleared
+        expect(onSlimesCleared).toHaveBeenCalledTimes(1);
+        vi.useRealTimers();
     });
 });
