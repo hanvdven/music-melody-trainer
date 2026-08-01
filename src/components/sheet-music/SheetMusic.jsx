@@ -192,6 +192,7 @@ const SheetMusic = ({
   onSlimesCleared,                  // #647 combat — all slimes killed → regenerate the melody
   onCombatHit,                      // #659 level — a played note killed the leftmost slime
   onCombatMiss,                     // #659 level — a played note missed (for accuracy stats)
+  sideScroll = false,               // #660 Level 2 — slimes fly in from the right toward a hit-zone
   showChords,
   // #502 (2026-07-20): the legacy in-staff SETTINGS surface was removed. Nothing sets this true any
   // more (its entry-point buttons are gone), so it defaults false; the remaining `showSettings`
@@ -2749,6 +2750,8 @@ const SheetMusic = ({
                     allOffsets={allOffsets}
                     noteWidth={noteWidth}
                     bpm={bpm}
+                    sideScroll={sideScroll}
+                    viewRight={logicalScreenWidth - 5}
                     trebleStart={trebleStart}
                     staffHeight={staffHeight}
                     viewBottom={logicalHeightForViewBox - 30}

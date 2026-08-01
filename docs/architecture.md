@@ -5950,3 +5950,33 @@ SheetRpgLayer.jsx` (new), `components/character/CharacterCreator.jsx` (uses Char
 `components/sheet-music/SheetMusic.jsx` (renders the layer; RamMascot removed),
 `components/layout/AppHeader.jsx` + `App.jsx` (header button removed; hero opens the menu). `RamMascot.jsx`
 + its test deleted.
+
+### §85. Level 2 — side-scroll rhythm-combat (#660, Han 2026-08-01)
+
+**Purpose:** a second level where slimes FLY IN FROM THE RIGHT toward the hero, and you strike each one only
+as it reaches a hit-zone by the hero. Interview outcome (Han): same params as Level 1 + **bpm 80**; timing =
+**metronome guide** (the existing metronome, toggled in settings — NOT built here); **kill only in the
+hit-zone** by the hero (playing too early = miss); a slime that reaches the hero un-killed **fades at startX =
+miss**; 4 cleared waves = 8 measures → the same "Well done!" splash. `LEVEL2` (in `levels.js`) =
+`{ ...LEVEL1, bpm: 80, sideScroll: true, beatsOnScreen: 8 }`; `useLevel` is parametrised by the level def
+(`start(levelDef)`), applies `bpm`, and the header has a Level 1 / Level 2 button (`onStartLevel(n)`).
+
+**Motion (in `SheetRpgLayer`, `sideScroll` mode):** the bpm-coupled tick is the game clock — `FRAMES_PER_BEAT
+= 5` (12/bpm s per frame). Each slime spawns at its own **beat** (`offset / 12`) and reaches `startX`
+`beatsOnScreen` (8) beats later, so slimes are staggered by the melody's rhythm and several share the screen.
+It **HOPS** (Han): over each 8-frame walk cycle it advances only on frames 3–7 (0-indexed 2–6) at 8/5 speed —
+`movingFramesBefore(f)` counts elapsed moving frames, giving the non-linear x that still averages to a uniform
+crossing (reaches `startX` exactly at frame 40). The walk animation is `SLIME_WALK` (row 1). The wave's clock
+(`waveStartRef`) restarts whenever the melody changes.
+
+**Kill / miss:** the leftmost living slime (`slimeData[killedCount]`, ordered by beat = arrival order) is
+killable only while it's in the hit-zone (`x ≤ startX + HITZONE_W`, before it reaches `startX`). A matching
+note in the zone → death in place (`dying.x` frozen); a matching note too early, or a wrong note → miss. A
+slime that reaches `startX` un-killed → `escaping` (fades over `FADE_FRAMES`) + miss, then advances
+`killedCount`. A wave clears whether its slimes were killed or escaped (so misses still progress the level).
+Debug mode draws the hit-zone. `SLIME_WALK` added to `enemyAssets.js`.
+
+**Files:** `levels/levels.js` (`LEVEL2`/`LEVELS`), `hooks/useLevel.js` (parametrised), `App.jsx`
+(`sideScroll` + `setBpm`, two level buttons), `components/layout/AppHeader.jsx`,
+`components/sheet-music/SheetMusic.jsx` (`sideScroll`/`viewRight`), `SheetRpgLayer.jsx` (side-scroll engine),
+`model/enemyAssets.js` (`SLIME_WALK`).

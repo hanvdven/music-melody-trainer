@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import CharacterDoll, { CROP as DOLL_CROP } from '../character/CharacterDoll';
 import { ANIMATIONS, basesFor } from '../../model/characterAssets';
 import { loadCharacter } from '../../model/characterProfile';
-import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_DEATH, SLIME_COLORS } from '../../model/enemyAssets';
+import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_WALK, SLIME_DEATH, SLIME_COLORS } from '../../model/enemyAssets';
 import { noteToMidi } from '../../theory/noteUtils';
 
 // #647 RPG layer on the sheet music — a SEPARATE layer that is AWARE of note positions (Han). Two parts:
@@ -50,14 +50,14 @@ const notesMatch = (played, target) => {
 
 // One slime, cropped to its content and mirrored to face LEFT. Plays whichever row/frame is passed (idle or
 // death). Rendered as a nested <svg> whose viewBox = the frame's crop region → it self-clips to the sprite.
-function Slime({ x, y, colorKey, row, frame }) {
+function Slime({ x, y, colorKey, row, frame, opacity = 1 }) {
     const url = SLIME_COLORS[colorKey];
     if (!url) return null;
     const ox = -frame * SLIME_FRAME.w;
     const oy = -row * SLIME_FRAME.h;
     const flip = `translate(${2 * SLIME_CROP.x + SLIME_CROP.w}, 0) scale(-1, 1)`;   // face left
     return (
-        <svg x={x} y={y} width={SLIME_VIEW_W} height={SLIME_VIEW_H}
+        <svg x={x} y={y} width={SLIME_VIEW_W} height={SLIME_VIEW_H} opacity={opacity}
             viewBox={`${SLIME_CROP.x} ${SLIME_CROP.y} ${SLIME_CROP.w} ${SLIME_CROP.h}`}>
             <g transform={flip}>
                 <image href={url} x={ox} y={oy} width={SLIME_COLS * SLIME_FRAME.w} height={SLIME_ROWS * SLIME_FRAME.h}
@@ -66,6 +66,14 @@ function Slime({ x, y, colorKey, row, frame }) {
         </svg>
     );
 }
+
+// #660 Level 2 side-scroll geometry. FRAMES_PER_BEAT = 5 (the frame interval is 12/bpm s → 5 frames/beat).
+// The slime "hops": over each 8-frame walk cycle it moves only on Han's frames 3–7 (0-indexed 2–6) — so
+// `movingFramesBefore(f)` counts how many moving frames have elapsed, giving the non-linear (hoppy) x.
+const FRAMES_PER_BEAT = 5, TICKS_PER_BEAT = 12;
+const HITZONE_W = 70;        // width (viewBox units) of the strike zone in front of the hero (startX..+W)
+const FADE_FRAMES = 5;       // a missed (escaped) slime fades over this many frames
+const movingFramesBefore = (f) => { const c = Math.floor(f / 8); const rem = f - c * 8; return c * 5 + Math.max(0, Math.min(rem - 2, 5)); };
 
 // Ensure the hero has at least a skin so it is never invisible.
 function ensureVisible(char) {
@@ -76,7 +84,8 @@ function ensureVisible(char) {
 
 export default function SheetRpgLayer({
     trebleMelody, startX, pixelsPerTick, allOffsets, noteWidth, bpm,
-    trebleStart, staffHeight, viewBottom, onOpenCharacter, onSlimesCleared, onHit, onMiss, combatNote, debugMode = false,
+    trebleStart, staffHeight, viewBottom, onOpenCharacter, onSlimesCleared, onHit, onMiss, combatNote,
+    sideScroll = false, viewRight = 0, beatsOnScreen = 8, debugMode = false,
 }) {
     const idleAnim = ANIMATIONS[0];
     const [savedChar] = useState(loadCharacter);            // read once (not per tick)
@@ -108,7 +117,8 @@ export default function SheetRpgLayer({
                 // start's duration + every continuation's.
                 let total = durations[i], k = i;
                 while (ties && ties[k] === 'tie') { const c = nextReal(k); if (c < 0) break; total += durations[c]; k = c; }
-                out.push({ key: i, x: getTickX(offsets[i]) - SLIME_VIEW_W / 2 + 3, note, colorKey: slimeColorKey(total) });
+                // `beat` = the note's position in beats (side-scroll spawns/arrives on it). offset in ticks / 12.
+                out.push({ key: i, x: getTickX(offsets[i]) - SLIME_VIEW_W / 2 + 3, beat: offsets[i] / TICKS_PER_BEAT, note, colorKey: slimeColorKey(total) });
             }
         }
         return out;
@@ -119,17 +129,33 @@ export default function SheetRpgLayer({
     // ── combat state ──────────────────────────────────────────────────────────
     const [tick, setTick] = useState(0);                   // drives all idle/one-shot frame timing
     const [killedCount, setKilledCount] = useState(0);     // leftmost living slime = slimeData[killedCount]
-    const [dying, setDying] = useState(null);              // { index, startTick } — slime playing death
+    const [dying, setDying] = useState(null);              // { index, startTick, x } — slime playing death
+    const [escaping, setEscaping] = useState(null);        // { index, startTick } — missed slime fading at startX
     const [heroAttack, setHeroAttack] = useState(null);    // { startTick } — hero playing attack once
     const tickRef = useRef(0);
     const killedRef = useRef(0); killedRef.current = killedCount;
     const dyingRef = useRef(null); dyingRef.current = dying;
+    const escapingRef = useRef(null); escapingRef.current = escaping;
     const slimesRef = useRef(slimeData); slimesRef.current = slimeData;
     const clearedRef = useRef(false);
     const heroAttackRef = useRef(null); heroAttackRef.current = heroAttack;
     // hit/miss callbacks via refs so the nonce-keyed note effect always sees the latest (no stale closure).
     const onHitRef = useRef(onHit); onHitRef.current = onHit;
     const onMissRef = useRef(onMiss); onMissRef.current = onMiss;
+    const waveStartRef = useRef(0);                        // tick at which the current wave's clock started
+    const geomRef = useRef({});                            // geometry read by the effects "at now"
+    geomRef.current = { startX, viewRight, beatsOnScreen, sideScroll };
+
+    // #660 side-scroll position of a slime: it spawns at its own `beat` and reaches startX `beatsOnScreen`
+    // beats later, HOPPING (x only advances on the walk's moving frames). Returns x + the walk frame.
+    const sideScrollX = (beat, atTick) => {
+        const { startX: sx, viewRight: vr, beatsOnScreen: bos } = geomRef.current;
+        const totalFrames = bos * FRAMES_PER_BEAT;
+        const framesSince = atTick - waveStartRef.current - beat * FRAMES_PER_BEAT;
+        const step = (vr - sx) / (movingFramesBefore(totalFrames) || 1);
+        const x = vr - movingFramesBefore(Math.max(0, Math.min(framesSince, totalFrames))) * step;
+        return { x, walkFrame: ((framesSince % 8) + 8) % 8, framesSince, totalFrames, spawned: framesSince >= 0 };
+    };
 
     // one interval drives the tick at the tempo-coupled frame rate; tickRef lets the note handler read "now"
     // without being a dep. Re-created when bpm changes so the animation speed follows the tempo.
@@ -138,9 +164,12 @@ export default function SheetRpgLayer({
         return () => clearInterval(id);
     }, [bpm]);
 
-    // reset combat when the melody (its slime notes) changes — a fresh wave of slimes.
+    // reset combat when the melody (its slime notes) changes — a fresh wave; the side-scroll clock restarts.
     const notesKey = slimeData.map((s) => (Array.isArray(s.note) ? s.note.join('+') : s.note)).join('|');
-    useEffect(() => { setKilledCount(0); setDying(null); clearedRef.current = false; }, [notesKey]);
+    useEffect(() => {
+        setKilledCount(0); setDying(null); setEscaping(null); clearedRef.current = false;
+        waveStartRef.current = tickRef.current;
+    }, [notesKey]);
 
     // a played note (any input) — key ONLY on the nonce so it fires once per note; read live state via refs.
     useEffect(() => {
@@ -151,29 +180,44 @@ export default function SheetRpgLayer({
             setHeroAttack({ startTick: tickRef.current });
         }
         const k = killedRef.current;
-        const canTarget = !dyingRef.current && k < slimesRef.current.length;
-        if (canTarget && notesMatch(combatNote.note, slimesRef.current[k].note)) {
-            setDying({ index: k, startTick: tickRef.current });   // match the LEFTMOST slime → it dies
-            onHitRef.current?.();
-        } else if (canTarget) {
-            onMissRef.current?.();                                // a note that didn't match the leftmost = a miss
+        const s = slimesRef.current[k];
+        if (dyingRef.current || escapingRef.current || !s) return;
+        const matches = notesMatch(combatNote.note, s.note);
+        if (geomRef.current.sideScroll) {
+            // Level 2: a kill only counts when the leftmost slime is in the HIT-ZONE by the hero (too early or
+            // a wrong note = miss). The slime dies where it currently is.
+            const { x, framesSince, totalFrames } = sideScrollX(s.beat, tickRef.current);
+            const inZone = framesSince >= 0 && framesSince < totalFrames && x <= geomRef.current.startX + HITZONE_W;
+            if (matches && inZone) { setDying({ index: k, startTick: tickRef.current, x }); onHitRef.current?.(); }
+            else onMissRef.current?.();
+        } else if (matches) {
+            setDying({ index: k, startTick: tickRef.current, x: s.x }); onHitRef.current?.();
+        } else {
+            onMissRef.current?.();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [combatNote?.nonce]);
 
-    // complete the one-shot animations (runs each tick with fresh state): a finished death removes the slime
-    // (advances killedCount); a finished attack returns the hero to idle.
+    // complete the one-shot animations each tick; in side-scroll, a slime that reaches the hero un-killed
+    // ESCAPES (fades) and counts as a miss.
     useEffect(() => {
         if (dying && tick - dying.startTick >= SLIME_DEATH.frames) {
-            setKilledCount((k) => Math.max(k, dying.index + 1));
-            setDying(null);
+            setKilledCount((k) => Math.max(k, dying.index + 1)); setDying(null);
+        }
+        if (escaping && tick - escaping.startTick >= FADE_FRAMES) {
+            setKilledCount((k) => Math.max(k, escaping.index + 1)); setEscaping(null);
         }
         if (heroAttack && tick - heroAttack.startTick >= ATTACK_CYCLE) setHeroAttack(null);
+        if (geomRef.current.sideScroll && !dying && !escaping) {
+            const s = slimesRef.current[killedRef.current];
+            if (s) { const { framesSince, totalFrames } = sideScrollX(s.beat, tick); if (framesSince >= totalFrames) { setEscaping({ index: killedRef.current, startTick: tick }); onMissRef.current?.(); } }
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tick]);
 
     // wave cleared → regenerate (keyed on killedCount so it fires the moment the last slime is removed, not a
-    // tick later — no dependence on a subsequent interval tick).
+    // tick later — no dependence on a subsequent interval tick). A slime counts as "gone" whether killed or
+    // escaped, so a side-scroll wave also ends if the player misses them all.
     useEffect(() => {
         if (total > 0 && killedCount >= total && !clearedRef.current) {
             clearedRef.current = true;
@@ -197,14 +241,27 @@ export default function SheetRpgLayer({
     return (
         <g className="rpg-layer" data-rpg-layer="" style={{ pointerEvents: 'none' }}>
             {slimeData.map((s, idx) => {
-                if (idx < killedCount) return null;                       // already dead → gone
+                if (idx < killedCount) return null;                       // already gone (killed or escaped)
                 const isDying = dying && dying.index === idx;
+                const deathFrame = isDying ? Math.min(tick - dying.startTick, SLIME_DEATH.frames - 1) : 0;
+                if (sideScroll) {
+                    if (isDying) return <Slime key={s.key} x={dying.x} y={slimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />;
+                    const p = sideScrollX(s.beat, tick);
+                    if (!p.spawned) return null;                          // not on screen yet
+                    const isEscaping = escaping && escaping.index === idx;
+                    const opacity = isEscaping ? Math.max(0, 1 - (tick - escaping.startTick) / FADE_FRAMES) : 1;
+                    return <Slime key={s.key} x={p.x} y={slimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} opacity={opacity} />;
+                }
+                // static (Level 1): idle under the note; death in place.
                 const row = isDying ? SLIME_DEATH.row : SLIME_IDLE.row;
-                const frame = isDying
-                    ? Math.min(tick - dying.startTick, SLIME_DEATH.frames - 1)
-                    : tick % SLIME_IDLE.frames;
+                const frame = isDying ? deathFrame : tick % SLIME_IDLE.frames;
                 return <Slime key={s.key} x={s.x} y={slimeY} colorKey={s.colorKey} row={row} frame={frame} />;
             })}
+            {/* #660 debug: the hit-zone in front of the hero (kills only register here) */}
+            {debugMode && sideScroll && (
+                <rect x={startX} y={slimeY} width={HITZONE_W} height={SLIME_VIEW_H}
+                    fill="lime" fillOpacity={0.15} stroke="lime" strokeWidth={0.5} style={{ pointerEvents: 'none' }} />
+            )}
             <foreignObject x={heroX} y={heroY} width={dollW} height={HERO_H} style={{ overflow: 'visible', pointerEvents: 'auto' }}>
                 <div xmlns="http://www.w3.org/1999/xhtml" onClick={onOpenCharacter}
                     style={{ cursor: 'pointer' }} title="Open character">

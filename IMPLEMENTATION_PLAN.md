@@ -90,6 +90,18 @@ range C4–G4, reps=1. 🐞 timing: setTrebleSettings flusht z'n ref pas bij re-
 regen via rAF (anders 1e golf oude config). 4 useLevel-tests. Build+581+lint groen.
 Docs §84. → #659 test.
 
+## 2026-08-01 — ✅ #660 Level 2 (side-scroll rhythm-combat)
+
+Han: slimes vliegen van rechts in; kill alleen in hit-zone bij de held; metronoom-gids
+(bestaat al, niet gebouwd); miss-fade tegen startX; 4 golven; bpm=80. Ook: slime-kleur
+SWAP (rood=kort/blauw=lang), tie-kleur op TOTALE lengte, keyboard default aan op PC,
+maatnummer reset per level, bottom-paneel ≤40%. GEBOUWD: LEVEL2/LEVELS + useLevel
+geparametriseerd (start(levelDef)+setBpm), 2 header-knoppen, SheetRpgLayer sideScroll-
+engine (game-klok=bpm-tick 5f/beat; spawn op beat; hop via movingFramesBefore frame3-7
+op 8/5; hit-zone startX..+70; escape→fade+miss; SLIME_WALK row1). Test: hit-zone-gate
+(te vroeg=miss). Build+582+lint groen. Docs §85. → #660 test. ⏳ Han levert nog
+side-scroll-animatiedetails (spawn-hoogte/hit-zone-plek etc.).
+
 ## 2026-07-08 — ✅ Swimlane-ronde: #395 bord-scroll GEFIXT + #394 design → design_review
 
 Han: "werk aan jouw swimlane (design/plan/impl)". ✅ 🐞 #395 (kanban tweak):

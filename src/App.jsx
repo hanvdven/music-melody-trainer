@@ -29,6 +29,7 @@ import useWindowSize from './hooks/useWindowSize';
 import useInstruments from './hooks/useInstruments';
 import useMelodyState from './hooks/useMelodyState';
 import useLevel from './hooks/useLevel';
+import { LEVELS } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
 import useDeviceState from './hooks/useDeviceState';
@@ -932,11 +933,11 @@ const App = () => {
     // their refs synchronously, so regenerating right after applying config uses the new settings.
     const levelSetters = useMemo(() => ({
         setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds,
-        setStartMeasureIndex,
-    }), [setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex]);
+        setStartMeasureIndex, setBpm,
+    }), [setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm]);
     const levelSnapshot = useCallback(() => ({
-        numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds,
-    }), [numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds]);
+        numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm,
+    }), [numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm]);
     // Defer the (re)generation to the next frame so the just-applied config setters have flushed to their
     // refs first (setTrebleSettings mirrors into instrumentSettingsRef only during the render it triggers;
     // randomizeAll reads that ref) — otherwise the FIRST wave would generate from the old settings.
@@ -1708,11 +1709,11 @@ const App = () => {
                 {/* #645: character-creator modal (fixed-position; opened from the header). */}
                 {showCharacter && <CharacterCreator onClose={() => setShowCharacter(false)} />}
                 {level.done && (
-                    <LevelSplash levelName={level.level.name} stats={level.stats}
+                    <LevelSplash levelName={level.current.name} stats={level.stats}
                         onReplay={level.replay} onClose={level.close} />
                 )}
                 <AppHeader
-                    onStartLevel={level.start}
+                    onStartLevel={(n) => level.start(LEVELS[n] || LEVELS[1])}
                     scale={scale}
                     onStartExercise={handleStartExercise}
                     /* #533: the header Thronefall crown was removed — the colour setter's theme
@@ -1806,6 +1807,7 @@ const App = () => {
                             onSlimesCleared={() => { if (!level.onWaveCleared()) randomizeAll({ chords: false }); }}
                             onCombatHit={level.active ? level.onHit : undefined}
                             onCombatMiss={level.active ? level.onMiss : undefined}
+                            sideScroll={level.active && !!level.current.sideScroll}   // #660 Level 2
                             containerHeight={sheetHeight}
                             visibleMeasures={effectiveVisibleMeasures}
                             startMeasureIndex={renderStartMeasureIndex}

@@ -67,4 +67,22 @@ describe('SheetRpgLayer (#647)', () => {
         expect(onSlimesCleared).toHaveBeenCalledTimes(1);
         vi.useRealTimers();
     });
+
+    it('side-scroll (#660): playing the correct note before the slime reaches the hit-zone is a MISS', () => {
+        vi.useFakeTimers();
+        const onHit = vi.fn(); const onMiss = vi.fn();
+        const base = {
+            startX: 20, pixelsPerTick: null, allOffsets: [0], noteWidth: 20, bpm: 80,
+            trebleStart: 100, staffHeight: 40, viewBottom: 220, viewRight: 500, sideScroll: true, onHit, onMiss,
+            trebleMelody: { notes: ['C4'], offsets: [0], durations: [12] },
+        };
+        let rerender;
+        act(() => { rerender = render(<svg><SheetRpgLayer {...base} combatNote={null} /></svg>).rerender; });
+        // at the wave start the slime is at the far right (viewRight=500), far from the hit-zone
+        // (startX..startX+70) → the correct note is TOO EARLY → a miss, not a kill.
+        act(() => rerender(<svg><SheetRpgLayer {...base} combatNote={{ note: 'C4', nonce: 1 }} /></svg>));
+        expect(onMiss).toHaveBeenCalledTimes(1);
+        expect(onHit).not.toHaveBeenCalled();
+        vi.useRealTimers();
+    });
 });
