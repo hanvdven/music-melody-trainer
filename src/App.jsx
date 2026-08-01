@@ -30,7 +30,7 @@ import useInstruments from './hooks/useInstruments';
 import useMelodyState from './hooks/useMelodyState';
 import useLevel from './hooks/useLevel';
 import useMidiInput from './hooks/useMidiInput';
-import playSound from './audio/playSound';
+import playSound, { resolveNotePitch } from './audio/playSound';
 import { LEVELS } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
@@ -967,6 +967,43 @@ const App = () => {
     }, [randomizeAll]);
     const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate });
 
+    // §88 (ticket #661): a side-scroll level plays a METRONOME (audible timing guide) on the AudioContext,
+    // locked to the scroll. `levelAudioStart` (audio-time seconds) is BOTH the scroll's t=0 anchor (passed to
+    // SheetRpgLayer) AND the base the metronome clicks are scheduled on, so a slime reaches the hero at exactly
+    // the beat it clicks. Han: 2-bar intro then metronome + playable slimes from bar 3 — so the first click is
+    // beatsOnScreen (2 bars) after the start, when the first slime arrives at the hero. Cello/timpani backing
+    // (needs their Soundfonts loaded) follows. (playSound/instruments reused — no new scheduling machinery.)
+    const [levelAudioStart, setLevelAudioStart] = useState(null);
+    const scheduleLevelBacking = useCallback((lvl) => {
+        if (!lvl?.sideScroll || !context) return;
+        const startTime = context.currentTime + 0.35;   // small pre-roll so the melody has generated
+        setLevelAudioStart(startTime);
+        const bpm = lvl.bpm || 80;
+        const beatSec = 60 / bpm;
+        const bos = lvl.beatsOnScreen || 8;
+        const contentBeats = (lvl.numMeasures || 8) * 4;   // 4/4
+        const metro = instruments.metronome;
+        if (metro) {
+            for (let k = 0; k < contentBeats; k++) {
+                // downbeat (k%4===0) = high woodblock, other beats = low. First click at +bos beats (bar 3).
+                try { metro.start({ note: resolveNotePitch(k % 4 === 0 ? 'wh' : 'wl'), time: startTime + (bos + k) * beatSec, duration: 0.12 }); } catch { /* instrument not ready */ }
+            }
+        }
+    }, [context, instruments]);
+    const startLevel = useCallback((n) => {
+        const lvl = LEVELS[n] || LEVELS[1];
+        context.resume?.();
+        level.start(lvl);
+        scheduleLevelBacking(lvl);
+    }, [context, level, scheduleLevelBacking]);
+    // Stop any scheduled backing + drop the anchor when the level ends (splash close / replay handles its own).
+    useEffect(() => {
+        if (!level.active) {
+            try { instruments.metronome?.stop(); } catch { /* not started */ }
+            setLevelAudioStart(null);
+        }
+    }, [level.active, instruments]);
+
     // #659 (Han): on PC (non-touch) the QWERTY keyboard input is ON by default — so you can play the combat
     // notes straight away without toggling it on. Touch devices keep it off (no physical keyboard).
     useEffect(() => { if (!isTouch) setQwertyKeyboardActive(true); }, [isTouch, setQwertyKeyboardActive]);
@@ -1745,7 +1782,7 @@ const App = () => {
                         onReplay={level.replay} onClose={level.close} />
                 )}
                 <AppHeader
-                    onStartLevel={(n) => { context.resume?.(); level.start(LEVELS[n] || LEVELS[1]); }}
+                    onStartLevel={startLevel}
                     scale={scale}
                     onStartExercise={handleStartExercise}
                     /* #533: the header Thronefall crown was removed — the colour setter's theme
@@ -1840,6 +1877,7 @@ const App = () => {
                             onCombatHit={level.active ? level.onHit : undefined}
                             onCombatMiss={level.active ? level.onMiss : undefined}
                             sideScroll={level.active && !!level.current.sideScroll}   // #660 Level 2
+                            levelAudioStart={level.active ? levelAudioStart : null}   // §88 scroll↔metronome anchor
                             containerHeight={sheetHeight}
                             visibleMeasures={effectiveVisibleMeasures}
                             startMeasureIndex={renderStartMeasureIndex}

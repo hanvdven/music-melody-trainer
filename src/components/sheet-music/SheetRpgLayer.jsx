@@ -117,6 +117,10 @@ export default function SheetRpgLayer({
     // clock the Sequencer schedules on and useSheetMusicHighlight reads — NOT a new performance.now clock. So
     // when the backing (metronome/cello/timpani) plays via the Sequencer, the visuals are locked to audio.
     context = null,
+    // §88: the audio-time (seconds) the level's backing was scheduled to start on. When set, the scroll
+    // anchors its t=0 to it (elapsed = context.currentTime − scrollStartTime) so a slime reaches the hero at
+    // EXACTLY the beat the metronome clicks. null → free-running (first-frame anchor), e.g. Level 1 / tests.
+    scrollStartTime = null,
 }) {
     const idleAnim = ANIMATIONS[0];
     const [savedChar] = useState(loadCharacter);            // read once (not per tick)
@@ -207,6 +211,7 @@ export default function SheetRpgLayer({
     // locked to audio. Falls back to performance.now only when there's no AudioContext (tests).
     const clockStartRef = useRef(null);
     const ctxRef = useRef(context); ctxRef.current = context;
+    const scrollStartRef = useRef(null); scrollStartRef.current = scrollStartTime != null ? scrollStartTime * 1000 : null;
     useEffect(() => {
         let raf;
         const loop = () => {
@@ -214,8 +219,12 @@ export default function SheetRpgLayer({
             const nowMs = (ctx && typeof ctx.currentTime === 'number')
                 ? ctx.currentTime * 1000
                 : (typeof performance !== 'undefined' ? performance.now() : Date.now());
-            if (clockStartRef.current == null) clockStartRef.current = nowMs;
-            const t = Math.round((nowMs - clockStartRef.current) / INTERVAL_MS);
+            // When the level provides an audio start time, anchor t=0 there (so the scroll locks to the
+            // metronome/backing). Otherwise anchor to the first frame (free-running). tick may be negative
+            // before scrollStartTime (during the pre-roll) — slimes just aren't spawned yet.
+            const anchor = scrollStartRef.current != null ? scrollStartRef.current
+                : (clockStartRef.current == null ? (clockStartRef.current = nowMs) : clockStartRef.current);
+            const t = Math.round((nowMs - anchor) / INTERVAL_MS);
             tickRef.current = t;
             setTick(t);
             raf = requestAnimationFrame(loop);
@@ -228,7 +237,10 @@ export default function SheetRpgLayer({
     const notesKey = slimeData.map((s) => (Array.isArray(s.note) ? s.note.join('+') : s.note)).join('|');
     useEffect(() => {
         setKilledCount(0); setDying(null); setKilledSet(new Set()); clearedRef.current = false;
-        waveStartRef.current = tickRef.current;
+        // With an audio anchor (scrollStartTime), t=0 IS the scheduled start, so the wave clock is 0 regardless
+        // of WHEN the melody generated (a few frames later). Free-running mode restarts from the current tick.
+        waveStartRef.current = scrollStartTime != null ? 0 : tickRef.current;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [notesKey]);
 
     // a played note (any input) — key ONLY on the nonce so it fires once per note; read live state via refs.

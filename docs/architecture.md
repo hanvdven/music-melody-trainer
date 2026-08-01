@@ -6112,3 +6112,32 @@ inputs/channels, routes to the SAME path as QWERTY/click.
 **Invariants:** MIDI routes through the SAME `handleNoteInputCombat` funnel as QWERTY/click, never a parallel
 one. Fire combat ONCE per note (on note-on). **Files:** `hooks/useMidiInput.js`, `App.jsx` (wiring),
 `components/controls/PianoView.jsx` (played-note highlight for click/QWERTY; MIDI listener removed).
+
+### §88. Level 2 backing — metronome (audio-locked timing guide) (#661, Han 2026-08-01)
+
+**Purpose:** an audible timing guide for the side-scroll, ms-locked to the scroll (Han: "metronoom start na
+2 maten … vanaf maat 3"). Reuses the existing audio primitives — no new scheduling machinery (Han: "zou niet
+zo veel nieuws moeten gebeuren").
+
+**How it works (App):** `startLevel(n)` resumes the AudioContext, applies the level, and calls
+`scheduleLevelBacking(lvl)`. That picks `startTime = context.currentTime + 0.35` (a small pre-roll so the
+melody has generated) and:
+- **Anchors the scroll to it** — `levelAudioStart = startTime` is passed SheetMusic→SheetRpgLayer as
+  `scrollStartTime`. SheetRpgLayer's rAF loop then measures `tick` from `context.currentTime − startTime`, and
+  the wave clock is 0 at `startTime` regardless of when the melody actually generated. So a slime reaches the
+  hero at `startTime + (beat + beatsOnScreen)·beatSec`.
+- **Schedules the metronome on the SAME base** — `contentBeats` clicks (`numMeasures·4`) via
+  `instruments.metronome.start({ note: resolveNotePitch('wh'|'wl'), time })` at `startTime + (beatsOnScreen +
+  k)·beatSec`. The FIRST click is `beatsOnScreen` (2 bars) after the start — i.e. exactly when the first slime
+  reaches the hero (the 2-bar intro passes click-free). Downbeats (`k%4===0`) use the high woodblock (`wh`),
+  other beats the low (`wl`).
+
+Because both the slime arrival and the click for beat `k` land at `startTime + (beatsOnScreen + k)·beatSec`,
+they coincide to the millisecond. `instruments.metronome.stop()` + `levelAudioStart = null` on level end.
+
+**Invariants:** the scroll anchor and the metronome MUST share `startTime` (or they drift apart). Schedule on
+`context.currentTime` (the robust audio clock), never `setTimeout`/`performance.now`. **Still open:** cello
+bass (whole C3/bar) + timpani ([C2,C2,C3,r]/bar) intro/backing — needs their Soundfonts loaded, then scheduled
+the same way (from bar 1); and the end-of-song final barline. **Files:** `App.jsx` (`scheduleLevelBacking`,
+`startLevel`, `levelAudioStart`), `components/sheet-music/SheetMusic.jsx` (`levelAudioStart`→`scrollStartTime`
+passthrough), `components/sheet-music/SheetRpgLayer.jsx` (`scrollStartTime` anchor).
