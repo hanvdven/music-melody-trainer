@@ -22,13 +22,22 @@ export function gradeHit(deltaMs, beatMs) {
 }
 
 // Display labels for the floating judgment text ("zeg dan 'wrong note'" — Han) + the stat rows.
+// Han 2026-08-02 (well-done breakdown): 4 distinct final outcomes for a slime, plus 2 LIVE (in-the-moment)
+// labels shown immediately on a keypress whose fate is still pending (see SheetRpgLayer's combat effect):
+//   - 'wrongNote'          LIVE — a wrong pitch played while a slime was hittable; fate deferred.
+//   - 'extraNote'          FINAL — a note played while NOTHING was due (no slime in any window).
+//   - 'secondAttemptCorrected' FINAL — a wrong attempt that was later corrected in time.
+//   - 'wrongUncorrected'   FINAL — a wrong attempt that was NEVER corrected before the slime expired.
+//   - 'missed'             FINAL — a slime expired with NO attempt at all.
 export const GRADE_LABELS = {
     perfect: 'perfect',
     tooFast: 'too fast',
     tooSlow: 'too slow',
     muchTooFast: 'much too fast',
     muchTooSlow: 'much too slow',
-    secondAttempt: 'on second attempt',
+    secondAttemptCorrected: 'on second attempt',
     wrongNote: 'wrong note',
-    miss: 'miss',
+    wrongUncorrected: 'never fixed',
+    extraNote: 'extra note',
+    missed: 'missed',
 };

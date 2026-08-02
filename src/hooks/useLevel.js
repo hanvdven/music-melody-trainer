@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { LEVEL1, wavesForLevel, trebleOnlyEyes } from '../levels/levels';
+import { LEVEL1, wavesForLevel, trebleOnlyEyes, threeLineEyes } from '../levels/levels';
 
 // #659/#660 Level orchestration. Applies a level's config (snapshotting the prior config to restore on
 // close), accumulates combat stats (defeated / misses / longest streak), counts cleared waves, and flags
@@ -8,12 +8,20 @@ import { LEVEL1, wavesForLevel, trebleOnlyEyes } from '../levels/levels';
 // regenerate.
 
 // Graded timing stats (Han 2026-08-02): the side-scroll levels grade each kill (gradeHit — perfect /
-// too fast / too slow / much too fast / much too slow / on second attempt) and award points (perfect = 1,
-// everything else ½). wrongNotes counts wrong-pitch attempts (also a miss); Level 1 (no metronome) passes
-// no grade → just defeated + 1 point.
+// too fast / too slow / much too fast / much too slow) and award points (perfect = 1, everything else ½).
+// Level 1 (no metronome) passes no grade → just defeated + 1 point.
+//
+// Well-done breakdown (Han 2026-08-02, 4 distinct outcomes for a "miss" — see SheetRpgLayer's combat
+// effect for how each is resolved). Field names match the `reason`/`grade.category` strings SheetRpgLayer
+// emits EXACTLY (no translation table) — see gradeHit.js's GRADE_LABELS for the display-label mapping:
+//   - missed                 a due note was never attempted at all before its slime expired.
+//   - wrongUncorrected       a wrong pitch was played while a slime was hittable, and never fixed in time.
+//   - secondAttemptCorrected a wrong pitch was played, then CORRECTED before the slime expired (½ point).
+//   - extraNote              a note was played while nothing was due at all (no slime in any window).
 const emptyStats = () => ({
     defeated: 0, misses: 0, currentStreak: 0, longestStreak: 0, points: 0,
-    perfect: 0, tooFast: 0, tooSlow: 0, muchTooFast: 0, muchTooSlow: 0, secondAttempt: 0, wrongNotes: 0,
+    perfect: 0, tooFast: 0, tooSlow: 0, muchTooFast: 0, muchTooSlow: 0,
+    secondAttemptCorrected: 0, wrongUncorrected: 0, missed: 0, extraNote: 0,
 });
 
 // `setters` — the app state setters the level drives. `snapshot()` returns the current config to restore.
@@ -46,10 +54,17 @@ export default function useLevel({ setters, snapshot, regenerate }) {
             insertBeatRests: !!lvl.insertBeatRests,
             polyMultiplier: lvl.polyMultiplier ?? 1,
         }));
+        // #661 (Han 2026-08-02, "de 3 lijnen zichtbaar maken"): a side-scroll level shows treble + bass +
+        // percussion (all 3 scroll, SheetRpgLayer) instead of the static Level-1 treble-only view.
+        const eyes = lvl.sideScroll ? threeLineEyes : trebleOnlyEyes;
         setters.setPlaybackConfig((prev) => ({
             ...prev, repsPerMelody: lvl.numRepeats,
-            oddRounds: trebleOnlyEyes(prev.oddRounds), evenRounds: trebleOnlyEyes(prev.evenRounds),
+            oddRounds: eyes(prev.oddRounds), evenRounds: eyes(prev.evenRounds),
         }));
+        // #661 ("gewoon op de baslijn een cello zet"): a side-scroll level's bass line plays through a
+        // cello timbre — the REAL generated bass melody, via the REAL bass instrument slot (App.jsx's
+        // scheduleLevelBacking schedules it with playMelodies, no separate ad-hoc Soundfont).
+        if (lvl.sideScroll) setters.setBassSettings?.((prev) => ({ ...prev, instrument: 'cello' }));
         setters.setShowChordsOddRounds?.(false);
         setters.setShowChordsEvenRounds?.(false);
         // #661 (Han UAT): a side-scroll level is ONE continuous piece — it must NOT paginate, or the melody
@@ -78,11 +93,11 @@ export default function useLevel({ setters, snapshot, regenerate }) {
             ...(g.category ? { [g.category]: (s[g.category] || 0) + 1 } : {}),
         };
     }), []);
-    // `reason` = 'wrongNote' (wrong pitch while a slime was hittable) | 'miss' (outside every window / note
-    // never played). Both break the streak; wrong notes get their own stat row (Han).
+    // `reason` = 'missed' | 'wrongUncorrected' | 'extraNote' (see emptyStats above) — each breaks the
+    // streak and bumps the total `misses` count (used for the overall accuracy %) plus its own stat row.
     const onMiss = useCallback((reason) => setStats((s) => ({
         ...s, misses: s.misses + 1, currentStreak: 0,
-        ...(reason === 'wrongNote' ? { wrongNotes: s.wrongNotes + 1 } : {}),
+        ...(reason ? { [reason]: (s[reason] || 0) + 1 } : {}),
     })), []);
 
     // a cleared slime-wave. Returns true if the level consumed it (so the app skips its default regen). At the
@@ -105,6 +120,7 @@ export default function useLevel({ setters, snapshot, regenerate }) {
         setters.setNumMeasures(s.numMeasures);
         setters.setBpm?.(s.bpm);
         setters.setTrebleSettings(() => s.trebleSettings);
+        setters.setBassSettings?.(() => s.bassSettings);   // restores the pre-level bass instrument (cello only during a level)
         setters.setPlaybackConfig(() => s.playbackConfig);
         setters.setShowChordsOddRounds?.(s.showChordsOddRounds);
         setters.setShowChordsEvenRounds?.(s.showChordsEvenRounds);

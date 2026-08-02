@@ -87,6 +87,49 @@ describe('SheetRpgLayer (#647)', () => {
         vi.useRealTimers();
     });
 
+    it('side-scroll (#661 "3 lijnen zichtbaar"): bass + percussion ALSO scroll via their own bundles', () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+        const trebleNotation = {
+            melody: { notes: ['C4'], offsets: [0], durations: [12], ties: [null] },
+            numAccidentals: 0, noteGroupSize: 12, measureLengthSlots: 48, timeSignature: [4, 4],
+            clef: 'treble', noteColoringMode: 'none', tonic: 'C4', scaleNotes: [], processedChords: [],
+            theme: 'default', startMeasureIndex: 0, transpositionSemitones: 0, courtesyAccidentals: true,
+        };
+        const bassNotation = { ...trebleNotation, melody: { notes: ['C2'], offsets: [0], durations: [12], ties: [null] }, clef: 'bass' };
+        const percNotation = { ...trebleNotation, melody: { notes: ['k'], offsets: [0], durations: [12], ties: [null] }, clef: null };
+        const { container } = render(
+            <svg><SheetRpgLayer startX={20} pixelsPerTick={null} allOffsets={[0]} noteWidth={20}
+                trebleStart={100} bassStart={140} percussionStart={180} staffHeight={40} viewBottom={260}
+                bpm={80} sideScroll viewRight={500}
+                trebleMelody={trebleNotation.melody} scrollNotation={trebleNotation}
+                scrollNotationBass={bassNotation} scrollNotationPercussion={percNotation} /></svg>,
+        );
+        // 3 staves worth of Maestro noteheads (treble + bass + percussion) — more than the treble-only case.
+        const maestro = [...container.querySelectorAll('text')].filter((t) => (t.getAttribute('font-family') || '') === 'Maestro');
+        expect(maestro.length).toBeGreaterThanOrEqual(3);
+        vi.useRealTimers();
+    });
+
+    it('side-scroll: bass/percussion bundles are absent (null) when not visible — no extra staves render', () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+        const notation = {
+            melody: { notes: ['C4'], offsets: [0], durations: [12], ties: [null] },
+            numAccidentals: 0, noteGroupSize: 12, measureLengthSlots: 48, timeSignature: [4, 4],
+            clef: 'treble', noteColoringMode: 'none', tonic: 'C4', scaleNotes: [], processedChords: [],
+            theme: 'default', startMeasureIndex: 0, transpositionSemitones: 0, courtesyAccidentals: true,
+        };
+        const { container } = render(
+            <svg><SheetRpgLayer startX={20} pixelsPerTick={null} allOffsets={[0]} noteWidth={20}
+                trebleStart={100} bassStart={140} percussionStart={180} staffHeight={40} viewBottom={260}
+                bpm={80} sideScroll viewRight={500}
+                trebleMelody={notation.melody} scrollNotation={notation}
+                scrollNotationBass={null} scrollNotationPercussion={null} /></svg>,
+        );
+        const maestro = [...container.querySelectorAll('text')].filter((t) => (t.getAttribute('font-family') || '') === 'Maestro');
+        expect(maestro.length).toBeGreaterThan(0);   // treble alone still renders
+        vi.useRealTimers();
+    });
+
     it('side-scroll (#660): playing the correct note before the slime reaches the hit-zone is a MISS', () => {
         vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
         const onHit = vi.fn(); const onMiss = vi.fn();

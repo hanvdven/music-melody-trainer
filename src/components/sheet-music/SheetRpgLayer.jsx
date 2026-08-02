@@ -96,7 +96,8 @@ const JUDGMENT_MS = 900;     // floating judgment label ("perfect" / "wrong note
 // perfect; wrong note red; second-attempt its own (teal) so a corrected note reads as a save, not a fail.
 const JUDGMENT_COLOR = {
     perfect: '#2eb84d', tooFast: '#d4a800', tooSlow: '#d4a800', muchTooFast: '#e07818', muchTooSlow: '#e07818',
-    secondAttempt: '#2e9bb8', wrongNote: '#e63232', miss: '#888888',
+    secondAttemptCorrected: '#2e9bb8', wrongNote: '#e63232', wrongUncorrected: '#e63232',
+    missed: '#888888', extraNote: '#9b59b6',
 };
 // complete moving frames in [0, n): moving frames (0-indexed) are 2..6 (= Han's walk frames 3–7).
 const movingFramesBefore = (n) => { const c = Math.floor(n / 8); const rem = n - c * 8; return c * 5 + Math.max(0, Math.min(rem - 2, 5)); };
@@ -124,6 +125,10 @@ export default function SheetRpgLayer({
     // null outside side-scroll. The whole staff is laid out at the scroll spacing (startX = viewRight,
     // pixelsPerTick = scrollPPT) and translated left over time — rigid & LINEAR (Han); slimes hop under it.
     scrollNotation = null, scrollBarlines = null,
+    // #661 (Han 2026-08-02, "de 3 lijnen zichtbaar maken"): bass + percussion scroll ALONGSIDE treble, at
+    // their own staff Y positions — visual only (no slimes, no combat; their audio is scheduled separately
+    // via playMelodies in App.jsx). Same bundle shape as `scrollNotation`, null when not visible.
+    bassStart = 0, percussionStart = 0, scrollNotationBass = null, scrollNotationPercussion = null,
     // #661/§88 (Han): the scroll rides the app's robust AudioContext clock (context.currentTime) — the SAME
     // clock the Sequencer schedules on and useSheetMusicHighlight reads — NOT a new performance.now clock. So
     // when the backing (metronome/cello/timpani) plays via the Sequencer, the visuals are locked to audio.
@@ -291,9 +296,10 @@ export default function SheetRpgLayer({
             const target = inWindow.find(({ sl }) => notesMatch(combatNote.note, sl.note));   // lowest idx = earliest beat
             if (target) {
                 // a wrong first attempt on this slime downgrades the kill to 'on second attempt' (½ point,
-                // Han interview) regardless of the correction's own timing tier.
+                // Han interview) regardless of the correction's own timing tier. Category renamed
+                // (Han 2026-08-02 well-done breakdown) so it reads distinctly from a first-try hit.
                 const grade = wrongAttemptRef.current.has(target.idx)
-                    ? { category: 'secondAttempt', points: 0.5 }
+                    ? { category: 'secondAttemptCorrected', points: 0.5 }
                     : gradeHit(target.delta, bMs);
                 resolvedRef.current.add(target.idx);
                 const { x } = sideScrollX(target.sl.beat, tickRef.current);
@@ -304,26 +310,29 @@ export default function SheetRpgLayer({
                 // resolution logs note + delta so a stats mismatch is diagnosable from the console.
                 logger.debug('RpgCombat', 'KILL', { note: combatNote.note, slime: target.idx, beat: target.sl.beat, deltaMs: Math.round(target.delta), grade: grade.category });
                 onHitRef.current?.(grade);
-            } else {
-                // no matching slime in any open window. If something WAS hittable the pitch was wrong →
-                // 'wrong note' (and flag the earliest candidate for the second-attempt rule); otherwise it
-                // was simply outside every window (too early/late beyond 1/8 note) → plain miss.
-                const wrong = inWindow.length > 0;
-                if (wrong) wrongAttemptRef.current.add(inWindow[0].idx);
-                addJudgment(wrong ? 'wrongNote' : 'miss');
-                // nearest unresolved slime's delta shows WHY nothing matched (wrong pitch vs out of window).
-                const nearest = slimesRef.current.reduce((best, sl, idx) => {
-                    if (resolvedRef.current.has(idx)) return best;
-                    const d = elapsedMs - (sl.beat + bos) * bMs;
-                    return best == null || Math.abs(d) < Math.abs(best.d) ? { idx, d, note: sl.note } : best;
-                }, null);
-                logger.debug('RpgCombat', wrong ? 'WRONG NOTE' : 'MISS (out of window)', {
+            } else if (inWindow.length > 0) {
+                // Han 2026-08-02 (well-done breakdown): a wrong pitch while a slime WAS hittable is flagged
+                // but NOT yet counted as a final stat — its fate (corrected later, or the slime expires
+                // still wrong) is only known at RESOLUTION time (see the kill branch above and the expiry
+                // effect below), so the stat bump is deferred there. This is what makes "wrong notes within
+                // time" and "wrong notes that were corrected" mutually exclusive, distinct categories
+                // instead of double-counting every corrected note as both a miss AND a kill.
+                wrongAttemptRef.current.add(inWindow[0].idx);
+                addJudgment('wrongNote');
+                const nearest = inWindow[0];
+                logger.debug('RpgCombat', 'WRONG NOTE (pending — corrected or expired later)', {
                     played: combatNote.note, candidatesInWindow: inWindow.length,
-                    nearestSlime: nearest && { idx: nearest.idx, note: nearest.note, deltaMs: Math.round(nearest.d) },
+                    nearestSlime: { idx: nearest.idx, note: nearest.sl.note, deltaMs: Math.round(nearest.delta) },
                 });
-                onMissRef.current?.(wrong ? 'wrongNote' : 'miss');
-                const next = slimesRef.current.findIndex((_, i) => !resolvedRef.current.has(i));
-                if (next >= 0) setWiggle({ index: next, startTick: tickRef.current });
+                setWiggle({ index: nearest.idx, startTick: tickRef.current });
+            } else {
+                // Han 2026-08-02: nothing was due AT ALL (no slime in any open window) — a note played
+                // during silence. Distinct from "missed" (a due note never played) and "wrong within time"
+                // (a due note played with the wrong pitch) — its own category, counted immediately (it
+                // isn't tied to any slime's lifecycle, so there is nothing to defer).
+                addJudgment('extraNote');
+                logger.debug('RpgCombat', 'EXTRA NOTE (nothing due)', { played: combatNote.note });
+                onMissRef.current?.('extraNote');
             }
         } else {
             const k = killedRef.current;
@@ -365,11 +374,15 @@ export default function SheetRpgLayer({
                 if (elapsedMs > (sl.beat + bos) * bMs + bMs * MUCH_TOO_BEATS) {
                     resolvedRef.current.add(idx);
                     setKilledCount((c) => c + 1);
-                    logger.debug('RpgCombat', 'EXPIRED (never struck)', { slime: idx, note: sl.note, beat: sl.beat });
+                    // Han 2026-08-02 (well-done breakdown): the slime's FINAL verdict is only known now —
+                    // 'missed' (never attempted at all) vs 'wrongUncorrected' (a wrong-pitch attempt was
+                    // made on it earlier — see the wrongAttemptRef branch above — but never fixed in time).
+                    const reason = wrongAttemptRef.current.has(idx) ? 'wrongUncorrected' : 'missed';
+                    logger.debug('RpgCombat', `EXPIRED (${reason})`, { slime: idx, note: sl.note, beat: sl.beat });
                     // visible feedback for a silent expiry — without a label these misses were invisible and
                     // the splash count looked inexplicable (Han: "22 MISSERS???").
-                    setJudgments((l) => [...l, { id: judgmentIdRef.current++, category: 'miss', startTick: tick }]);
-                    onMissRef.current?.('miss');
+                    setJudgments((l) => [...l, { id: judgmentIdRef.current++, category: reason, startTick: tick }]);
+                    onMissRef.current?.(reason);
                 }
             });
         }
@@ -446,6 +459,51 @@ export default function SheetRpgLayer({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [sideScroll, scrollNotation, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
 
+    // #661 (Han 2026-08-02): bass + percussion scroll the SAME way as treble (same scrollPPT/translate, so
+    // a beat lines up vertically across all 3 staves) — visual only, no slimes/combat. Separate memos
+    // (mirrors noteStaffContent above) so each staff's heavy beaming/accidental work is skipped independently
+    // when its own bundle hasn't changed.
+    const noteStaffContentBass = useMemo(() => {
+        if (!(sideScroll && scrollNotationBass && scrollNotationBass.melody)) return null;
+        return (
+            <MelodyNotesLayer
+                {...scrollNotationBass}
+                staff="bass"
+                staffYStart={bassStart}
+                startX={viewRight}
+                noteWidth={noteWidth}
+                allOffsets={allOffsets}
+                pixelsPerTick={scrollPPT}
+                inputTestState={null}
+                previewMode={false}
+                interactive={false}
+                debugMode={debugMode}
+                percussionVoiceSplit={false}
+            />
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sideScroll, scrollNotationBass, viewRight, noteWidth, allOffsets, scrollPPT, bassStart, debugMode]);
+
+    const noteStaffContentPercussion = useMemo(() => {
+        if (!(sideScroll && scrollNotationPercussion && scrollNotationPercussion.melody)) return null;
+        return (
+            <MelodyNotesLayer
+                {...scrollNotationPercussion}
+                staff="percussion"
+                staffYStart={percussionStart}
+                startX={viewRight}
+                noteWidth={noteWidth}
+                allOffsets={allOffsets}
+                pixelsPerTick={scrollPPT}
+                inputTestState={null}
+                previewMode={false}
+                interactive={false}
+                debugMode={debugMode}
+            />
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sideScroll, scrollNotationPercussion, viewRight, noteWidth, allOffsets, scrollPPT, percussionStart, debugMode]);
+
     const barlineStaffContent = useMemo(() => {
         if (!(sideScroll && scrollBarlines)) return null;
         return (
@@ -502,6 +560,10 @@ export default function SheetRpgLayer({
                             </g>
                         )}
                         {noteStaffContent && <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContent}</g>}
+                        {/* #661: bass/percussion ride the SAME translate as treble so a beat lines up
+                            vertically across all 3 scrolling staves. */}
+                        {noteStaffContentBass && <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContentBass}</g>}
+                        {noteStaffContentPercussion && <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContentPercussion}</g>}
                     </g>
                 </>
             )}

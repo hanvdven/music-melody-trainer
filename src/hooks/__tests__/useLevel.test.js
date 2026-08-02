@@ -4,10 +4,13 @@ import useLevel from '../useLevel';
 import { LEVEL1, LEVEL2, LEVEL3 } from '../../levels/levels';
 
 const makeSetters = () => ({
-    setNumMeasures: vi.fn(), setTrebleSettings: vi.fn(), setPlaybackConfig: vi.fn(),
+    setNumMeasures: vi.fn(), setTrebleSettings: vi.fn(), setBassSettings: vi.fn(), setPlaybackConfig: vi.fn(),
     setShowChordsOddRounds: vi.fn(), setShowChordsEvenRounds: vi.fn(),
 });
-const snap = () => ({ numMeasures: 4, trebleSettings: { x: 1 }, playbackConfig: { y: 1 }, showChordsOddRounds: true, showChordsEvenRounds: true });
+const snap = () => ({
+    numMeasures: 4, trebleSettings: { x: 1 }, bassSettings: { instrument: 'electric_bass_pick' },
+    playbackConfig: { y: 1 }, showChordsOddRounds: true, showChordsEvenRounds: true,
+});
 
 const setup = () => {
     const setters = makeSetters();
@@ -45,11 +48,21 @@ describe('useLevel (#659 Level 1)', () => {
         act(() => result.current.start());
         act(() => result.current.onHit({ category: 'perfect', points: 1 }));
         act(() => result.current.onHit({ category: 'tooSlow', points: 0.5 }));
-        act(() => result.current.onMiss('wrongNote'));
-        act(() => result.current.onHit({ category: 'secondAttempt', points: 0.5 }));
-        act(() => result.current.onMiss('miss'));
+        act(() => result.current.onHit({ category: 'secondAttemptCorrected', points: 0.5 }));
         expect(result.current.stats).toMatchObject({
-            defeated: 3, misses: 2, points: 2, perfect: 1, tooSlow: 1, secondAttempt: 1, wrongNotes: 1,
+            defeated: 3, points: 2, perfect: 1, tooSlow: 1, secondAttemptCorrected: 1,
+        });
+    });
+
+    it('distinguishes missed / wrongUncorrected / extraNote in the well-done breakdown (Han 2026-08-02)', () => {
+        const { result } = setup();
+        act(() => result.current.start());
+        act(() => result.current.onMiss('missed'));
+        act(() => result.current.onMiss('wrongUncorrected'));
+        act(() => result.current.onMiss('wrongUncorrected'));
+        act(() => result.current.onMiss('extraNote'));
+        expect(result.current.stats).toMatchObject({
+            misses: 4, missed: 1, wrongUncorrected: 2, extraNote: 1, currentStreak: 0,
         });
     });
 
@@ -89,5 +102,22 @@ describe('useLevel (#659 Level 1)', () => {
         expect(setters.setNumMeasures).toHaveBeenLastCalledWith(4);     // the snapshot's value
         expect(result.current.active).toBe(false);
         expect(result.current.done).toBe(false);
+    });
+
+    it('side-scroll levels show 3 lines + cello bass; Level 1 stays treble-only; close() restores bass (Han 2026-08-02)', () => {
+        const { setters, result } = setup();
+        act(() => result.current.start(LEVEL2));
+        const bassApplied = setters.setBassSettings.mock.calls.at(-1)[0]({ instrument: 'electric_bass_pick' });
+        expect(bassApplied).toMatchObject({ instrument: 'cello' });
+        const eyesApplied = setters.setPlaybackConfig.mock.calls.at(-1)[0]({ oddRounds: {}, evenRounds: {} });
+        expect(eyesApplied.oddRounds).toMatchObject({ trebleEye: true, bassEye: true, percussionEye: true, chordsEye: false });
+
+        act(() => result.current.start(LEVEL1));
+        const eyesLevel1 = setters.setPlaybackConfig.mock.calls.at(-1)[0]({ oddRounds: {}, evenRounds: {} });
+        expect(eyesLevel1.oddRounds).toMatchObject({ trebleEye: true, bassEye: false, percussionEye: false });
+
+        act(() => result.current.close());
+        expect(setters.setBassSettings).toHaveBeenLastCalledWith(expect.any(Function));
+        expect(setters.setBassSettings.mock.calls.at(-1)[0]()).toMatchObject({ instrument: 'electric_bass_pick' });
     });
 });

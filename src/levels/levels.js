@@ -80,3 +80,9 @@ export const wavesForLevel = (lvl) => Math.max(1, Math.round(lvl.totalMeasures /
 export const trebleOnlyEyes = (rounds) => ({
     ...rounds, trebleEye: true, bassEye: false, percussionEye: false, chordsEye: false,
 });
+
+// #661 (Han 2026-08-02, "de 3 lijnen zichtbaar maken"): side-scroll levels show treble + bass + percussion
+// (all 3 scroll — SheetRpgLayer §661) with chords hidden (a level has no chord track/UI).
+export const threeLineEyes = (rounds) => ({
+    ...rounds, trebleEye: true, bassEye: true, percussionEye: true, chordsEye: false,
+});

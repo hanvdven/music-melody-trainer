@@ -6347,3 +6347,110 @@ item.value }))`, same `CarouselField` engine, no new component.
 call site removed), `src/utils/forceQuarterNotes.js` + test (deleted),
 `src/generation/__tests__/quarterGrid.golden.test.js` (new), `src/components/sheet-music/overlays/
 GenerationSetterOverlay.jsx` (+test).
+
+### §92. Level 2/3 backing via the real `playMelodies` pipeline + 3 scrolling lines + well-done breakdown (Han 2026-08-02)
+
+**Purpose:** Han: *"ik wil dat je playAllMelodies gebruikt, en gewoon op de baslijn een cello zet, de
+metronoom aanzet, en de 3 lijnen zichtbaar maakt, via de bestaande play all melody params. Als je vindt dat
+er iets aan die functie ontbreekt, los het dan daar op i.p.v. een hardcoded laag te maken."* Retires the §88
+hand-rolled backing (a dedicated `celloRef`/`timpaniRef` Soundfont pair, manually scheduling a fixed C2
+whole-note / `[C2,C2,C3,r]` pattern note-by-note) in favour of the app's REAL playback primitives.
+
+**Bass = the real generated melody through the real bass instrument, temporarily voiced as cello.**
+`useLevel.applyConfig` sets `bassSettings.instrument = 'cello'` for a `sideScroll` level (via a new
+`setBassSettings` entry in `levelSetters`/`levelSnapshot`, App.jsx) — `useInstruments.js` already knows how
+to rebuild ANY instrument slot from its `.instrument` slug (no new instrument-management code). `restore()`
+sets it back from the snapshot on `close()`. The bass line that plays is `melodies.bass` — whatever the
+level's own generation produced — not a fixed drone.
+
+**Metronome = the real generated metronome melody** (`melodies.metronome`), the SAME melody every other
+playback path (Sequencer) uses — not manually-placed woodblock hits.
+
+**Scheduling = the shared `playMelodies()` function**, called with the exact param shape `Sequencer.js` uses
+per iteration (`melodies[]`, `instruments[]`, `context`, `bpm`, `scheduledStart`, `abortControllerRef`,
+`tickRange`, `namedInstruments`, `customMapping`, `trackGains`) — `App.jsx`'s
+`scheduleLevelBacking`/its companion effect is the ONLY new code, and it is a thin call site, not a second
+scheduling engine. `trackGains = { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 1 }` — percussion
+stays silent (Han's explicit choice); the player's own playing is never auto-sounded (only channels other
+than treble are gained up).
+
+**Timing split — anchor now, schedule when ready:** `scheduleLevelBacking(lvl)` sets `levelAudioStart`
+(the scroll's t=0 anchor, unchanged from §88) IMMEDIATELY so the visual side-scroll always starts on
+schedule. A separate effect defers the ACTUAL `playMelodies()` call until `instruments.bass` has really
+become the cello Soundfont (`bassSettings.instrument === 'cello'` AND `instruments.bass`/`.metronome` exist)
+— `setBassSettings` triggers an ASYNC instrument rebuild in `useInstruments.js` (Soundfont/Sampler
+construction, possibly a CDN fetch), so scheduling immediately after `applyConfig` would use the STALE
+pre-level bass instrument. `backingScheduledForRef` guards against re-scheduling the same anchor once the
+effect's dependencies re-fire. Content tick-0 sounds at `levelAudioStart + beatsOnScreen·beatSec` — the SAME
+"add beatsOnScreen" convention `SheetRpgLayer`'s `sideScrollX`/graded window use for when a beat's SLIME
+arrives at the hero, so a beat's sound and its slime's arrival coincide exactly.
+
+**Known gap (pre-existing, not introduced here):** `LevelSplash`'s "Opnieuw" (replay) button calls
+`level.replay()` directly, which never called `scheduleLevelBacking` even in the §88 version — replaying a
+level does not restart the audible backing. Fixing this is a separate, self-contained follow-up.
+
+#### 3 scrolling lines (Han: "de 3 lijnen zichtbaar maken")
+
+Bass and percussion now scroll ALONGSIDE treble in `SheetRpgLayer` — visual only, no slimes/combat (only
+treble is the combat target), reusing the exact canonical-renderer pattern treble's `scrollNotation`/
+`scrollBarlines` already established (§6d, §661/§86): `SheetMusic.jsx` builds `scrollNotationBass`/
+`scrollNotationPercussion` bundles (same shape as `scrollNotation`, sourced from `adjustedBassMelody`/
+`adjustedPercussionMelody`) and passes new `bassStart`/`percussionStart` props; `SheetRpgLayer` memoises two
+more `MelodyNotesLayer` instances (`noteStaffContentBass`/`noteStaffContentPercussion`) and renders them
+inside the SAME lane-fade mask, translated by the SAME `scrollPx`/`NOTE_STAFF_DX` as treble — a beat lines up
+vertically across all 3 staves. `useLevel.applyConfig` selects `threeLineEyes` (new helper in `levels.js`,
+`trebleEye/bassEye/percussionEye = true`, `chordsEye = false`) instead of `trebleOnlyEyes` when
+`lvl.sideScroll`; Level 1 (static combat) is unaffected — still `trebleOnlyEyes`.
+
+**Static-staff double-render guard:** `SheetMusic.jsx`'s static bass/percussion `MelodyNotesLayer` blocks
+were NOT gated on `!sideScroll` (only treble's was) — this never mattered while bass/percussion were always
+hidden during a level, but now that `threeLineEyes` makes them visible it would double-render a static staff
+underneath the new scrolling one. Both are now gated `actualBass/actualPerc && !sideScroll`, mirroring the
+treble pattern exactly.
+
+#### Well-done breakdown — 4 distinct final outcomes (Han: "missed notes, wrong notes within time, wrong
+notes that were corrected, en notes when no note was supposed to be played")
+
+`SheetRpgLayer`'s combat effect now DEFERS a wrong-pitch attempt's stat attribution until the slime's fate is
+actually decided, instead of double-counting every corrected note as both an immediate miss AND a later
+kill:
+- **`missed`** — a slime's window fully expired with NO attempt ever made on it.
+- **`wrongUncorrected`** — a wrong pitch was played while the slime was hittable, and it was NEVER fixed
+  before expiring.
+- **`secondAttemptCorrected`** — a wrong pitch was played, then CORRECTED before the slime expired (½ point;
+  category renamed from the old `secondAttempt`).
+- **`extraNote`** — a note was played while NOTHING was due at all (no slime in any open window) — counted
+  immediately (not tied to any slime's lifecycle, so there is nothing to defer).
+
+A wrong-pitch keypress still shows an immediate `'wrongNote'` floating judgment (live feedback) and flags
+`wrongAttemptRef`; the FINAL stat (`wrongUncorrected` vs `secondAttemptCorrected`) is decided later, at the
+kill or the expiry effect, by checking that flag. `useLevel`'s `emptyStats` field names match the
+`reason`/`grade.category` strings SheetRpgLayer emits EXACTLY (no translation table) — see `gradeHit.js`'s
+`GRADE_LABELS` for the judgment-label/colour mapping (`wrongNote`/`extraNote` live, `missed`/`wrongUncorrected`
+at expiry, `secondAttemptCorrected` at a late kill).
+
+#### Two charts on the splash (Han: "maken we meteen onderscheid tussen timing precision en note accuracy")
+
+New `src/components/levels/LevelStatsCharts.jsx` — hand-rolled SVG (no charting library in this project),
+reusing the SAME colour convention as the in-game judgment labels (`JUDGMENT_COLOR` in `SheetRpgLayer.jsx`)
+so a colour means the same thing on the sheet and on the splash (§6d):
+- **`TimingBarChart`** — 5 bars, the `gradeHit` timing tiers (perfect / too fast / too slow / much too fast /
+  much too slow), counts only. Han confirmed a bar chart over a raw-millisecond box plot (simpler to read,
+  uses the counters already tracked — no new per-note timing-value storage needed).
+- **`NoteCorrectnessGauge`** — a donut gauge, 4 pitch-correctness outcomes as coloured arc segments + the
+  overall accuracy % in the centre: `correct` (first-try, any timing tier — `defeated − secondAttemptCorrected`),
+  `secondAttemptCorrected`, `wrongUncorrected`, `extraNote`. `missed` is deliberately OUT of this gauge (Han's
+  4-colour list didn't include it) — it's a timing/attempt failure, not a pitch-accuracy question; it still
+  shows in the plain stat rows above the charts.
+
+`LevelSplash.jsx` renders both (`timed` levels only) below a 4-row breakdown (Gemiste noten / Fout binnen
+tijd / Fout hersteld / Noot zonder doel) that replaces the old flat "Wrong notes"/"Op 2e poging" rows. The
+card widens (`.ls-card-wide`, max-width 480px) to fit the two charts side by side.
+
+**Files:** `src/App.jsx` (`scheduleLevelBacking` rewrite, backing-scheduling effect, `stopAllBackingAudio`
+simplified, `levelSetters`/`levelSnapshot` gain `setBassSettings`/`bassSettings`), `src/hooks/useLevel.js`
+(+test), `src/levels/levels.js` (`threeLineEyes`), `src/components/sheet-music/SheetMusic.jsx`
+(`scrollNotationBass`/`scrollNotationPercussion`, static-staff `!sideScroll` gating fix),
+`src/components/sheet-music/SheetRpgLayer.jsx` (+test — bass/percussion scrolling, deferred stat
+resolution), `src/levels/gradeHit.js` (`GRADE_LABELS` additions), `src/hooks/useLevel.js` (stats reshape),
+`src/components/levels/LevelSplash.jsx` (+test), `src/components/levels/LevelStatsCharts.jsx` (new).

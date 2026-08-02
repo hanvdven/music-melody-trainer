@@ -30,8 +30,8 @@ import useInstruments from './hooks/useInstruments';
 import useMelodyState from './hooks/useMelodyState';
 import useLevel from './hooks/useLevel';
 import useMidiInput from './hooks/useMidiInput';
-import playSound, { resolveNotePitch } from './audio/playSound';
-import { Soundfont } from 'smplr';
+import playSound from './audio/playSound';
+import playMelodies from './audio/playMelodies';
 import { LEVELS } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
@@ -968,12 +968,12 @@ const App = () => {
     // variability, C4–G4), the player clears 4 waves of slimes, then a "Well done!" splash. The setters update
     // their refs synchronously, so regenerating right after applying config uses the new settings.
     const levelSetters = useMemo(() => ({
-        setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds,
+        setNumMeasures, setTrebleSettings, setBassSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds,
         setStartMeasureIndex, setBpm, setAnimationMode,
-    }), [setNumMeasures, setTrebleSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode]);
+    }), [setNumMeasures, setTrebleSettings, setBassSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode]);
     const levelSnapshot = useCallback(() => ({
-        numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode,
-    }), [numMeasures, trebleSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode]);
+        numMeasures, trebleSettings, bassSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode,
+    }), [numMeasures, trebleSettings, bassSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode]);
     // Defer the (re)generation to the next frame so the just-applied config setters have flushed to their
     // refs first (setTrebleSettings mirrors into instrumentSettingsRef only during the render it triggers;
     // randomizeAll reads that ref) — otherwise the FIRST wave would generate from the old settings.
@@ -988,76 +988,62 @@ const App = () => {
     }, []);
     const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate });
 
-    // §88 (ticket #661): a side-scroll level plays a METRONOME (audible timing guide) on the AudioContext,
-    // locked to the scroll. `levelAudioStart` (audio-time seconds) is BOTH the scroll's t=0 anchor (passed to
-    // SheetRpgLayer) AND the base the metronome clicks are scheduled on, so a slime reaches the hero at exactly
-    // the beat it clicks. Han: 2-bar intro then metronome + playable slimes from bar 3 — so the first click is
-    // beatsOnScreen (2 bars) after the start, when the first slime arrives at the hero. Cello/timpani backing
-    // (needs their Soundfonts loaded) follows. (playSound/instruments reused — no new scheduling machinery.)
+    // #661 rework (Han 2026-08-02: "ik wil dat je playAllMelodies gebruikt... via de bestaande play all
+    // melody params"): the old §88 backing hand-rolled its OWN note-by-note scheduling on two throwaway
+    // Soundfont instances (celloRef/timpaniRef) with a fixed C2-whole-note / [C2,C2,C3,r] pattern. That is
+    // gone. The bass line now plays its REAL GENERATED melody (`melodies.bass`) through the app's REAL
+    // `instruments.bass` slot — the level just temporarily points that slot at a 'cello' Soundfont
+    // (useLevel.applyConfig sets bassSettings.instrument='cello'; useInstruments.js already knows how to
+    // (re)build any instrument from its `.instrument` slug, so this is zero new instrument-management
+    // code). The metronome likewise plays `melodies.metronome`, the SAME generated metronome every other
+    // playback path uses. Both are scheduled with the exact same `playMelodies()` function + `namedInstruments`/
+    // `trackGains` params the Sequencer itself uses per iteration (src/audio/Sequencer.js) — see
+    // scheduleLevelBackingAudio below. Percussion stays silent (Han's explicit choice).
+    //
+    // `levelAudioStart` (audio-time seconds) is BOTH the scroll's t=0 anchor (passed to SheetRpgLayer) AND
+    // the base the backing is scheduled on, so a slime reaches the hero at exactly the beat that sounds.
     const [levelAudioStart, setLevelAudioStart] = useState(null);
-    // §88 cello for the Level 2 backing — a small dedicated Soundfont, preloaded once the AudioContext exists
-    // so it's ready (loaded from the CDN in the background) by the time a level starts. Own instrument so it
-    // never disturbs the user's treble/bass selection.
-    const celloRef = useRef(null);
-    const timpaniRef = useRef(null);
-    const backingStopsRef = useRef([]);   // per-note stop handles from smplr start(), so STOP cancels future notes
-    useEffect(() => {
-        if (!context) return;
-        try { if (!celloRef.current) celloRef.current = new Soundfont(context, { instrument: 'cello', destination: context.destination }); } catch { /* offline / CDN blocked */ }
-        try { if (!timpaniRef.current) timpaniRef.current = new Soundfont(context, { instrument: 'timpani', destination: context.destination }); } catch { /* offline / CDN blocked */ }
-    }, [context]);
-    // Han (2026-08-01): the STOP button "stopt niet acuut genoeg". smplr's .stop() doesn't always cancel notes
-    // scheduled in the FUTURE (esp. the long cello notes), so we ALSO call each note's own stop handle.
     const stopAllBackingAudio = useCallback(() => {
-        backingStopsRef.current.forEach((s) => { try { s(); } catch { /* already stopped */ } });
-        backingStopsRef.current = [];
+        try { instruments.bass?.stop(); } catch { /* not started */ }
         try { instruments.metronome?.stop(); } catch { /* not started */ }
-        try { celloRef.current?.stop(); } catch { /* not started */ }
-        try { timpaniRef.current?.stop(); } catch { /* not started */ }
     }, [instruments]);
+    // Sets the scroll anchor IMMEDIATELY (so the visual side-scroll always starts on schedule) — the actual
+    // audio scheduling is deferred to the effect below, which waits for instruments.bass to actually BECOME
+    // the cello Soundfont (useInstruments.js rebuilds it asynchronously after applyConfig's setBassSettings;
+    // scheduling against the STALE pre-level bass instrument here would play the wrong timbre).
     const scheduleLevelBacking = useCallback((lvl) => {
         if (!lvl?.sideScroll || !context) return;
-        const startTime = context.currentTime + 0.35;   // small pre-roll so the melody has generated
-        setLevelAudioStart(startTime);
-        const stops = [];
-        const push = (h) => { if (typeof h === 'function') stops.push(h); };   // collect per-note stop handles
+        setLevelAudioStart(context.currentTime + 0.35);   // small pre-roll so the melody has generated
+    }, [context]);
+    const backingScheduledForRef = useRef(null);   // the levelAudioStart we already scheduled audio for
+    useEffect(() => {
+        const lvl = level.current;
+        if (!level.active || !lvl?.sideScroll || levelAudioStart == null || !context) return;
+        if (backingScheduledForRef.current === levelAudioStart) return;   // already scheduled this anchor
+        if (bassSettings.instrument !== 'cello' || !instruments.bass || !instruments.metronome) return;
+        backingScheduledForRef.current = levelAudioStart;
         const bpm = lvl.bpm || 80;
         const beatSec = 60 / bpm;
-        const barSec = beatSec * 4;                        // 4/4
         const bos = lvl.beatsOnScreen || 8;
-        const contentBeats = (lvl.numMeasures || 8) * 4;   // 4/4
-        // The game beat-grid at the hero: beat b arrives at startTime + (bos + b)·beatSec. Han: the metronome
-        // starts ONE bar before the blobs arrive ("maat 0") — i.e. bos−4 beats after start — and ticks the
-        // count-in bar + all content beats. Downbeat (bar start) = k%4===0 (bos is a whole number of bars).
-        const metro = instruments.metronome;
-        if (metro) {
-            for (let k = 0; k < contentBeats + 4; k++) {
-                const clickBeat = bos - 4 + k;
-                try { push(metro.start({ note: resolveNotePitch(k % 4 === 0 ? 'wh' : 'wl'), time: startTime + clickBeat * beatSec, duration: 0.12 })); } catch { /* not ready */ }
-            }
-        }
-        // §88 cello bass (Han, ticket #661): the bass line — a whole-note C2 per bar at mp, audible-only,
-        // from bar 1 (the intro). Timpani (percussion): [C2, C2, C3, rest] quarters per bar at mf. Both play
-        // for the whole level (count-in bar + content). Own Soundfonts so they never disturb the user's kit.
-        const totalBars = Math.ceil((bos - 4 + contentBeats + 4) / 4);
-        const cello = celloRef.current;
-        if (cello) {
-            for (let m = 0; m < totalBars; m++) {
-                try { push(cello.start({ note: 'C2', time: startTime + m * barSec, duration: barSec * 0.98, velocity: 64 })); } catch { /* not ready */ }
-            }
-        }
-        const timp = timpaniRef.current;
-        if (timp) {
-            const TIMP_BAR = ['C2', 'C2', 'C3', null];     // [c2,c2,c3,r] quarters (Han)
-            for (let m = 0; m < totalBars; m++) {
-                TIMP_BAR.forEach((note, beat) => {
-                    if (!note) return;
-                    try { push(timp.start({ note, time: startTime + m * barSec + beat * beatSec, duration: beatSec * 0.9, velocity: 80 })); } catch { /* not ready */ }
-                });
-            }
-        }
-        backingStopsRef.current = stops;
-    }, [context, instruments]);
+        // Content tick-0 sounds `bos` beats AFTER the anchor — the SAME "add beatsOnScreen" convention
+        // SheetRpgLayer's sideScrollX/graded-window use for when a beat's SLIME arrives at the hero, so a
+        // beat's sound and its slime's arrival coincide exactly.
+        const contentStart = levelAudioStart + bos * beatSec;
+        const melodiesToPlay = [], instrumentsToPlay = [];
+        if (melodies.bass?.notes?.length) { melodiesToPlay.push(melodies.bass); instrumentsToPlay.push(instruments.bass); }
+        if (melodies.metronome?.notes?.length) { melodiesToPlay.push(melodies.metronome); instrumentsToPlay.push(instruments.metronome); }
+        if (melodiesToPlay.length === 0) return;
+        playMelodies(
+            melodiesToPlay, instrumentsToPlay, context, bpm, contentStart,
+            null,          // abortControllerRef — stopping is via instruments.bass/.metronome.stop() (stopAllBackingAudio)
+            null,          // tickRange — play the whole generated piece, not a measure slice
+            instruments,   // namedInstruments — same routing/gain-lookup Sequencer.js passes
+            null,          // customMapping
+            { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 1 },
+        );
+        // melodies is a memoised object (useMelodyState) — safe as a dep; bassSettings.instrument is the
+        // real gate (waits for the cello swap), so this effect is a no-op until everything lines up.
+    }, [level.active, level.current, levelAudioStart, context, instruments, bassSettings.instrument, melodies]);
     const startLevel = useCallback((n) => {
         const lvl = LEVELS[n] || LEVELS[1];
         context.resume?.();

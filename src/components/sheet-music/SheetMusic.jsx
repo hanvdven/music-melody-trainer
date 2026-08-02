@@ -2074,7 +2074,10 @@ const SheetMusic = ({
                         </g>
                       )}
                       <g style={{ transform: `translateY(${bassStart}px)`, transition: 'transform 1s ease-in-out', opacity: bassGhost ? GHOST_OPACITY : 1 }}>
-                        {actualBass && <MelodyNotesLayer
+                        {/* #661 (Han 2026-08-02): a side-scroll level draws bass moving too (SheetRpgLayer,
+                            mirrors the treble gating just above) — the static bass staff must not ALSO
+                            render underneath it. */}
+                        {actualBass && !sideScroll && <MelodyNotesLayer
                           melody={adjustedBassMelody}
                           numAccidentals={bassWrittenAccidentals}
                           startX={startX}
@@ -2104,7 +2107,8 @@ const SheetMusic = ({
                         {isBassVisible && !actualBass && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out', opacity: percGhost ? GHOST_OPACITY : 1 }}>
-                        {actualPerc && <MelodyNotesLayer
+                        {/* #661 (Han 2026-08-02): same side-scroll gating as bass/treble above. */}
+                        {actualPerc && !sideScroll && <MelodyNotesLayer
                           melody={adjustedPercussionMelody}
                           numAccidentals={numAccidentals}
                           startX={startX}
@@ -2767,6 +2771,11 @@ const SheetMusic = ({
                     trebleStart={trebleStart}
                     staffHeight={staffHeight}
                     viewBottom={logicalHeightForViewBox - 30}
+                    // #661 (Han 2026-08-02, "de 3 lijnen zichtbaar maken"): bass + percussion ALSO scroll,
+                    // same as treble — visual only (no slimes/combat, no audio here; the cello/metronome
+                    // audio is scheduled separately via playMelodies, see App.jsx scheduleLevelBacking).
+                    bassStart={bassStart}
+                    percussionStart={percussionStart}
                     onOpenCharacter={onOpenCharacter}
                     onSlimesCleared={onSlimesCleared}
                     onHit={onCombatHit}
@@ -2790,6 +2799,41 @@ const SheetMusic = ({
                       startMeasureIndex,
                       transpositionSemitones: trebleTransSemitones,
                       courtesyAccidentals,
+                    } : null}
+                    // #661 same bundle shape as scrollNotation above, for the bass/percussion staves —
+                    // null when not visible (mirrors isTrebleVisible && actualTreble on trebleMelody).
+                    scrollNotationBass={sideScroll && isBassVisible && actualBass ? {
+                      melody: adjustedBassMelody,
+                      numAccidentals: bassWrittenAccidentals,
+                      noteGroupSize,
+                      measureLengthSlots,
+                      timeSignature,
+                      clef: clefBass,
+                      noteColoringMode,
+                      tonic,
+                      scaleNotes,
+                      processedChords: coloringChords,
+                      theme,
+                      startMeasureIndex,
+                      transpositionSemitones: bassTransSemitones,
+                      courtesyAccidentals,
+                    } : null}
+                    scrollNotationPercussion={sideScroll && isPercussionVisible && actualPerc ? {
+                      melody: adjustedPercussionMelody,
+                      numAccidentals,
+                      noteGroupSize,
+                      measureLengthSlots,
+                      timeSignature,
+                      clef: null,
+                      noteColoringMode,
+                      tonic,
+                      scaleNotes: EMPTY_SCALE_NOTES,
+                      processedChords,
+                      theme,
+                      startMeasureIndex,
+                      transpositionSemitones: 0,
+                      courtesyAccidentals,
+                      percussionVoiceSplit,
                     } : null}
                     scrollBarlines={sideScroll ? {
                       offsets: allOffsets,

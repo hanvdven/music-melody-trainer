@@ -7,6 +7,61 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — ✅ Level 2/3: playMelodies-backing, 3 scrollende lijnen, well-done breakdown + charts
+
+Han (na bevestiging dat het kwart-grid werkte — "metronoom anders, maat 8 gevuld,
+dat waren artefacten van hardcoded oplossingen, ben blij!"): "gebruik playAllMelodies,
+zet op de baslijn een cello, metronoom aan, 3 lijnen zichtbaar — via bestaande
+play-all-melody params. Als er iets ontbreekt aan die functie, los het daar op,
+niet in een hardcoded laag." + well-done: onderscheid missed/wrong-within-time/
+wrong-corrected/note-when-none-due. + box plot timing + note-correctness grafiek,
+apart van elkaar (timing precision vs note accuracy).
+
+Interview (§4b): backing = bas(cello)+metronoom, percussie stil · 3 lijnen =
+bas/percussie MOETEN OOK MEESCROLLEN (niet enkel statisch tonen) · correctness-
+grafiek = bar+gauge in 4 kleuren (correct/wrong-corrected/wrong-within-time/
+note-when-none-due) · timing-grafiek = bar chart met de 5 gradeHit-tiers (geen
+raw-ms box plot, minder werk + consistent met de gauge).
+
+Backing: `App.jsx`'s `scheduleLevelBacking` (§88 hand-rolled celloRef/timpaniRef
+Soundfont + manuele metronoom-clicks) volledig vervangen door de ECHTE
+`playMelodies()` (dezelfde call-shape als Sequencer.js), met `melodies.bass`
+(echte gegenereerde baslijn) door `instruments.bass` tijdelijk op `'cello'`
+gezet (useLevel.applyConfig/restore — geen los Soundfont-object nodig,
+useInstruments.js bouwt het instrument gewoon opnieuw), en `melodies.metronome`.
+Scroll-anker (`levelAudioStart`) blijft synchroon gezet; het ECHTE afspelen
+wordt uitgesteld tot `bassSettings.instrument==='cello'` daadwerkelijk is
+doorgebouwd (async smplr-herbouw) via een aparte effect + `backingScheduledForRef`
+guard.
+
+3 lijnen: `SheetRpgLayer` rendert nu ook bas + percussie als scrollende
+notenbalken (puur visueel, geen combat/audio daar — audio komt uit de
+backing hierboven), zelfde canonieke MelodyNotesLayer/mask/translate-aanpak
+als treble al had. `levels.js` kreeg `threeLineEyes` (naast `trebleOnlyEyes`,
+alleen voor sideScroll-levels). Bijvangst-bug gefixt: de statische bas/
+percussie MelodyNotesLayer-blokken in SheetMusic.jsx waren NOOIT op
+`!sideScroll` gegate (alleen treble was dat) — nu wel, anders zou een
+statische balk onder de nieuwe scrollende balk door-renderen.
+
+Well-done breakdown: combat-resolutie in SheetRpgLayer stelt de stat-toekenning
+van een foute noot nu uit tot het lot van de slime bekend is (gedood of
+verlopen) — voorheen telde een gecorrigeerde noot dubbel (1 misser + 1 kill).
+4 losse categorieën: `missed` (nooit geprobeerd) / `wrongUncorrected` (fout
+gebleven) / `secondAttemptCorrected` (fout, later goedgemaakt) / `extraNote`
+(noot gespeeld terwijl niets gepland stond).
+
+Charts: nieuw `LevelStatsCharts.jsx` — handgerolde SVG (geen chart-library in
+de repo): `TimingBarChart` (5 tijd-tiers, aantallen) + `NoteCorrectnessGauge`
+(donut, 4 kleuren + accuraatheid% in het midden — `missed` bewust NIET in
+deze grafiek, dat is een timing/attempt-vraag, geen toonhoogte-vraag).
+Kleuren hergebruiken exact `JUDGMENT_COLOR` uit SheetRpgLayer (§6d).
+
+Bekende, niet-geïntroduceerde restbeperking: "Opnieuw" op het well-done-scherm
+herstart de audible backing niet (riep scheduleLevelBacking al niet aan vóór
+deze wijziging) — apart vervolgpunt indien gewenst.
+
+architecture.md §92.
+
 ## 2026-08-02 — ✅ Level 1/2: robuuste kwart-grid via generator (root cause van "gaten")
 
 Han: "elke kwartnoot moet kwartnoot of rust zijn — niet zo nu, waarschijnlijk
