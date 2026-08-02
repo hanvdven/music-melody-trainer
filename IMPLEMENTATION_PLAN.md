@@ -7,6 +7,27 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — 🔨 Level 2/3: ruimere timing-coulantie + graded judgments
+
+Han: "accuracy maar ~10% terwijl ik best goed speel. ±1/32 noot = 'perfect';
+1/32–1/16 = 'too fast/slow' (½ punt, in stats); 1/16–1/8 = 'much too fast/slow';
+verkeerde toonhoogte = 'wrong note' (in stats); zones visueel naast de rode
+streep. Edge cases: fout→correctie = goed 'on second attempt'; check ALLE noten
+in de hit-zone (gemiste noot → volgende mag al); meerdere matches → vroegste."
+Interview (§4b) afgenomen: **alles ≤1/8 noot doodt de slime + telt voor streak**;
+**too/much too = ½ punt, daarbuiten gewone miss**; **second attempt = ½ punt +
+wrong-note stat**; **zonebanden groen/geel/oranje alleen in debug mode** (Han
+zet er later mogelijk assets neer).
+
+Aanpak: nieuw puur `src/levels/gradeHit.js` (delta-ms + beatMs → categorie/punten;
+1/32 noot = beatMs/8 enz.). `SheetRpgLayer` side-scroll combat herschreven:
+kandidaat-scan over ALLE onopgeloste slimes binnen ±½ beat (vroegste match wint,
+out-of-order kills → `dyingList` + resolved-set i.p.v. één pointer), per-slime
+wrongAttempt-vlag voor 'on second attempt', walk-off-miss pas ná target+½ beat
+(anders verlies je het late venster), zwevende judgment-labels bij de rode lijn,
+debug-zonebanden. `useLevel` stats uitgebreid (points/perfect/tooFast/tooSlow/
+muchTooFast/muchTooSlow/wrongNotes/secondAttempt); `LevelSplash` toont ze.
+
 ## 2026-08-01 — 🔨 Level 2 side-scroll: echte notatie + metronoom (#661)
 
 Han: "maak de noteheads conform muzieknotatie (losse noteheads, geen vlaggen/

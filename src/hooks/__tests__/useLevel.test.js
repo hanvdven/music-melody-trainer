@@ -39,6 +39,19 @@ describe('useLevel (#659 Level 1)', () => {
         expect(result.current.stats).toMatchObject({ defeated: 4, misses: 1, longestStreak: 3 });
     });
 
+    it('accumulates graded timing stats + points (Han 2026-08-02)', () => {
+        const { result } = setup();
+        act(() => result.current.start());
+        act(() => result.current.onHit({ category: 'perfect', points: 1 }));
+        act(() => result.current.onHit({ category: 'tooSlow', points: 0.5 }));
+        act(() => result.current.onMiss('wrongNote'));
+        act(() => result.current.onHit({ category: 'secondAttempt', points: 0.5 }));
+        act(() => result.current.onMiss('miss'));
+        expect(result.current.stats).toMatchObject({
+            defeated: 3, misses: 2, points: 2, perfect: 1, tooSlow: 1, secondAttempt: 1, wrongNotes: 1,
+        });
+    });
+
     it('clears 4 waves then flags done; regenerates between waves only', () => {
         const { regenerate, result } = setup();
         act(() => result.current.start());                              // regenerate #1

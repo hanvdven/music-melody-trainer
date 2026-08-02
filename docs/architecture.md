@@ -6176,3 +6176,53 @@ ties dropped; offsets stay consistent. `useLevel.applyConfig` sets `smallestNote
 
 **Files:** `levels/levels.js`, `components/layout/AppHeader.jsx`, `hooks/useLevel.js`, `hooks/useMelodyState.js`,
 `utils/forceQuarterNotes.js` (+test), `components/sheet-music/SheetRpgLayer.jsx`.
+
+### §90. Graded timing-coulantie + judgment stats (Han 2026-08-02)
+
+**Purpose:** Han played well but scored ~10% accuracy — the flat ±1/8-beat window of §89 was too strict. The
+hit window is now WIDER and GRADED, with per-category stats and floating judgment labels.
+
+**Grading (`src/levels/gradeHit.js`, pure + tested):** `gradeHit(deltaMs, beatMs)` with
+`deltaMs = elapsed − target` (negative = early). Tiers are note-length fractions of the quarter-note beat
+(constants `PERFECT_BEATS = 1/8`, `TOO_BEATS = 1/4`, `MUCH_TOO_BEATS = 1/2` beat, exported as the single
+source of truth for grading AND the debug zone bands — §6c):
+
+| deviation | category | points |
+|---|---|---|
+| ≤ 1/32 note | `perfect` | 1 |
+| 1/32–1/16 note | `tooFast` / `tooSlow` | ½ |
+| 1/16–1/8 note | `muchTooFast` / `muchTooSlow` | ½ |
+| > 1/8 note | not in window (null) → plain miss | — |
+
+Every correct-pitch note within ±1/8 note KILLS the slime and continues the streak (Han interview); only
+points differ.
+
+**Combat scan (SheetRpgLayer, sideScroll) — invariants:**
+- The nonce-keyed combat effect scans **ALL unresolved slimes whose ±1/2-beat window contains "now"** — not
+  just a single next-pointer. Rationale (Han's edge cases): a missed note must not block striking the next
+  incoming one, and multiple correct candidates → the **earliest** (lowest index) wins.
+- `resolvedRef` (Set) is the bookkeeping SSOT: a slime is resolved when killed OR when its late window
+  expires. `killedCount` remains the resolved COUNT (wave-clear trigger unchanged).
+- **Second attempt (Han):** a wrong-pitch attempt while ≥1 slime is hittable logs `wrongNote` (miss + own
+  stat) and flags the earliest candidate in `wrongAttemptRef`; a later correct hit on a flagged slime scores
+  `{ category: 'secondAttempt', points: 0.5 }` regardless of its own timing tier.
+- **Walk-off miss is TIME-based** (target + 1/2 beat), NOT `x < startX`: the blob's left edge passes the hero
+  BEFORE the late window closes; resolving spatially would rob the player of the `muchTooSlow` tier. The blob
+  keeps walking off (never killed), per §85.
+- **`dying` is a LIST** (`dyingList`): with the ±1/2-beat window two kills can overlap one death animation;
+  a single slot would swallow the second kill. Static Level 1 still uses at most one entry and its original
+  blocked-during-death behaviour.
+- **Floating judgment labels** ("perfect" / "too fast" / … / "wrong note" / "miss", `GRADE_LABELS`) spawn at
+  the strike line, float up + fade over `JUDGMENT_MS`; colour per category (`JUDGMENT_COLOR`).
+- **Debug zone bands** (debugMode only — Han: "mss zet ik er later assets neer"): green/yellow/orange rects
+  centred on the strike line, half-width `(dist/beatsOnScreen)·tierBeats` — derived from the SAME exported
+  tier constants gradeHit uses, so the visual always matches the grading. Replaces the obsolete §85 spatial
+  hit-zone debug rect (`HITZONE_W` removed).
+
+**Stats (`useLevel`):** `emptyStats` gains `points, perfect, tooFast, tooSlow, muchTooFast, muchTooSlow,
+secondAttempt, wrongNotes`. `onHit(grade)` adds points + bumps the category counter (no grade → Level 1
+ungraded: 1 point, no category). `onMiss(reason)` bumps `wrongNotes` when `reason === 'wrongNote'`.
+`LevelSplash` shows the graded rows only when `timed` (App passes `level.current.sideScroll`).
+
+**Files:** `src/levels/gradeHit.js` (+test), `src/components/sheet-music/SheetRpgLayer.jsx`,
+`src/hooks/useLevel.js` (+test), `src/components/levels/LevelSplash.jsx`, `src/App.jsx`.

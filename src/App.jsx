@@ -1846,7 +1846,7 @@ const App = () => {
                 {showCharacter && <CharacterCreator onClose={() => setShowCharacter(false)} />}
                 {level.done && (
                     <LevelSplash levelName={level.current.name} stats={level.stats}
-                        onReplay={level.replay} onClose={level.close} />
+                        timed={!!level.current.sideScroll} onReplay={level.replay} onClose={level.close} />
                 )}
                 <AppHeader
                     onStartLevel={startLevel}

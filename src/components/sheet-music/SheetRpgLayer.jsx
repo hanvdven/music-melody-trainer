@@ -8,6 +8,7 @@ import MelodyNotesLayer from './MelodyNotesLayer';
 import BarlinesLayer from './BarlinesLayer';
 import { getNoteAbsoluteY } from './renderMelodyNotes';
 import { StaffQuarterNote } from './staffNoteGlyph';
+import { gradeHit, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS } from '../../levels/gradeHit';
 
 // #647 RPG layer on the sheet music — a SEPARATE layer that is AWARE of note positions (Han). Two parts:
 //  1. a SLIME under each treble note, aligned to the note's X, coloured by duration (green = quarter,
@@ -88,8 +89,14 @@ function Slime({ x, y, colorKey, row, frame, opacity = 1 }) {
 // them thanks to the high fps), while the note above it glides linearly.
 const INTERVAL_MS = 8;
 const TICKS_PER_BEAT = 12;   // note ticks per quarter-note beat
-const HITZONE_W = 70;        // width (viewBox units) of the strike zone in front of the hero (startX..+W)
 const WIGGLE_FRAMES = 7;     // how long the next slime shakes after a wrong/early note (sprite frames)
+const JUDGMENT_MS = 900;     // floating judgment label ("perfect" / "wrong note" …) lifetime
+// judgment label colour per grading category (Han 2026-08-02): green→yellow→orange with distance from
+// perfect; wrong note red; second-attempt its own (teal) so a corrected note reads as a save, not a fail.
+const JUDGMENT_COLOR = {
+    perfect: '#2eb84d', tooFast: '#d4a800', tooSlow: '#d4a800', muchTooFast: '#e07818', muchTooSlow: '#e07818',
+    secondAttempt: '#2e9bb8', wrongNote: '#e63232', miss: '#888888',
+};
 // complete moving frames in [0, n): moving frames (0-indexed) are 2..6 (= Han's walk frames 3–7).
 const movingFramesBefore = (n) => { const c = Math.floor(n / 8); const rem = n - c * 8; return c * 5 + Math.max(0, Math.min(rem - 2, 5)); };
 // continuous moving progress at fractional frame `ff`: whole moving frames + the partial of the current frame
@@ -172,15 +179,24 @@ export default function SheetRpgLayer({
     // `tick` counts INTERVAL_MS steps (fast, for smooth movement). Sprite frames = elapsed-ms ÷ frameMs.
     const [tick, setTick] = useState(0);
     const [killedCount, setKilledCount] = useState(0);     // static: killed count; side-scroll: RESOLVED count
-    const [dying, setDying] = useState(null);              // { index, startTick, x } — slime playing death
+    // dying is a LIST (Han 2026-08-02): with the ±1/2-beat graded window two kills can overlap one death
+    // animation (notes a beat apart, played fast) — a single `dying` slot would swallow the second kill.
+    const [dyingList, setDyingList] = useState([]);        // [{ index, startTick, x }] — slimes playing death
     const [killedSet, setKilledSet] = useState(() => new Set());   // side-scroll: struck slimes (death done → hidden)
     const [heroAttack, setHeroAttack] = useState(null);    // { startTick } — hero playing attack once
     const [wiggle, setWiggle] = useState(null);            // { index, startTick } — a missed/next slime shaking
+    const [judgments, setJudgments] = useState([]);        // [{ id, category, startTick }] floating labels at the strike line
     const tickRef = useRef(0);
     const killedRef = useRef(0); killedRef.current = killedCount;
-    const dyingRef = useRef(null); dyingRef.current = dying;
+    const dyingRef = useRef([]); dyingRef.current = dyingList;
     const slimesRef = useRef(slimeData); slimesRef.current = slimeData;
     const clearedRef = useRef(false);
+    // side-scroll graded combat bookkeeping (refs, not state — read inside the nonce-keyed effect "at now"):
+    // resolved = every slime with a final outcome (killed OR its late window expired); wrongAttempt = slimes
+    // that got a wrong-pitch attempt while hittable, so a correction scores 'on second attempt' (Han).
+    const resolvedRef = useRef(new Set());
+    const wrongAttemptRef = useRef(new Set());
+    const judgmentIdRef = useRef(0);
     const heroAttackRef = useRef(null); heroAttackRef.current = heroAttack;
     // hit/miss callbacks via refs so the nonce-keyed note effect always sees the latest (no stale closure).
     const onHitRef = useRef(onHit); onHitRef.current = onHit;
@@ -240,7 +256,8 @@ export default function SheetRpgLayer({
     // reset combat when the melody (its slime notes) changes — a fresh wave; the side-scroll clock restarts.
     const notesKey = slimeData.map((s) => (Array.isArray(s.note) ? s.note.join('+') : s.note)).join('|');
     useEffect(() => {
-        setKilledCount(0); setDying(null); setKilledSet(new Set()); clearedRef.current = false;
+        setKilledCount(0); setDyingList([]); setKilledSet(new Set()); setJudgments([]); clearedRef.current = false;
+        resolvedRef.current = new Set(); wrongAttemptRef.current = new Set();
         // With an audio anchor (scrollStartTime), t=0 IS the scheduled start, so the wave clock is 0 regardless
         // of WHEN the melody generated (a few frames later). Free-running mode restarts from the current tick.
         waveStartRef.current = scrollStartTime != null ? 0 : tickRef.current;
@@ -255,30 +272,54 @@ export default function SheetRpgLayer({
         if (!heroAttackRef.current || (tickRef.current - heroAttackRef.current.startTick) * INTERVAL_MS >= ATTACK_CYCLE * fMs) {
             setHeroAttack({ startTick: tickRef.current });
         }
-        const k = killedRef.current;
-        const s = slimesRef.current[k];
-        if (dyingRef.current || !s) return;
-        const matches = notesMatch(combatNote.note, s.note);
         if (geomRef.current.sideScroll) {
-            // Level 2 (Han 2026-08-02): the hit WINDOW is a TIME window — 1/8 beat before to 1/8 beat after the
-            // moment the note should be played (in sync with the metronome), NOT a spatial band. A note for
-            // beat b is due at the strike line at elapsed = (b + beatsOnScreen)·beatMs. A matching note inside
-            // the window kills; a wrong note OR too-early/late = miss AND wiggles the (still-)next note.
+            // Level 2/3 graded hit window (Han 2026-08-02): a note for beat b is due at the strike line at
+            // elapsed = (b + beatsOnScreen)·beatMs; the full window is ±1/2 beat (= ±1/8 note) around it,
+            // graded by gradeHit (perfect ≤1/32 note, too fast/slow ≤1/16, much too fast/slow ≤1/8). We scan
+            // ALL unresolved slimes whose window contains "now" — NOT just the next pointer — because (a) a
+            // missed note must not block striking the next incoming one, and (b) after a wrong-pitch attempt
+            // the player can still correct within the same window. Earliest matching slime wins (Han's
+            // edge-edge case: multiple correct candidates → the earliest).
             const { beatMs: bMs, beatsOnScreen: bos } = geomRef.current;
             const elapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
-            const targetMs = (s.beat + bos) * bMs;
-            const inWindow = Math.abs(elapsedMs - targetMs) <= bMs / 8;
-            if (matches && inWindow) {
-                const { x } = sideScrollX(s.beat, tickRef.current);
-                setDying({ index: k, startTick: tickRef.current, x }); setKilledCount((c) => c + 1); onHitRef.current?.();
+            const addJudgment = (category) =>
+                setJudgments((l) => [...l, { id: judgmentIdRef.current++, category, startTick: tickRef.current }]);
+            const inWindow = slimesRef.current
+                .map((sl, idx) => ({ sl, idx, delta: elapsedMs - (sl.beat + bos) * bMs }))
+                .filter(({ idx, delta }) => !resolvedRef.current.has(idx) && Math.abs(delta) <= bMs * MUCH_TOO_BEATS);
+            const target = inWindow.find(({ sl }) => notesMatch(combatNote.note, sl.note));   // lowest idx = earliest beat
+            if (target) {
+                // a wrong first attempt on this slime downgrades the kill to 'on second attempt' (½ point,
+                // Han interview) regardless of the correction's own timing tier.
+                const grade = wrongAttemptRef.current.has(target.idx)
+                    ? { category: 'secondAttempt', points: 0.5 }
+                    : gradeHit(target.delta, bMs);
+                resolvedRef.current.add(target.idx);
+                const { x } = sideScrollX(target.sl.beat, tickRef.current);
+                setDyingList((l) => [...l, { index: target.idx, startTick: tickRef.current, x }]);
+                setKilledCount((c) => c + 1);
+                addJudgment(grade.category);
+                onHitRef.current?.(grade);
+            } else {
+                // no matching slime in any open window. If something WAS hittable the pitch was wrong →
+                // 'wrong note' (and flag the earliest candidate for the second-attempt rule); otherwise it
+                // was simply outside every window (too early/late beyond 1/8 note) → plain miss.
+                const wrong = inWindow.length > 0;
+                if (wrong) wrongAttemptRef.current.add(inWindow[0].idx);
+                addJudgment(wrong ? 'wrongNote' : 'miss');
+                onMissRef.current?.(wrong ? 'wrongNote' : 'miss');
+                const next = slimesRef.current.findIndex((_, i) => !resolvedRef.current.has(i));
+                if (next >= 0) setWiggle({ index: next, startTick: tickRef.current });
+            }
+        } else {
+            const k = killedRef.current;
+            const s = slimesRef.current[k];
+            if (dyingRef.current.length || !s) return;
+            if (notesMatch(combatNote.note, s.note)) {
+                setDyingList([{ index: k, startTick: tickRef.current, x: s.x }]); onHitRef.current?.();
             } else {
                 onMissRef.current?.();
-                setWiggle({ index: k, startTick: tickRef.current });
             }
-        } else if (matches) {
-            setDying({ index: k, startTick: tickRef.current, x: s.x }); onHitRef.current?.();
-        } else {
-            onMissRef.current?.();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [combatNote?.nonce]);
@@ -287,16 +328,32 @@ export default function SheetRpgLayer({
     // hidden (killedSet); a slime that reaches the hero UN-struck is NOT killed (Han) — it just keeps walking
     // off the left edge — but it counts as a miss and lets the next slime become the target.
     useEffect(() => {
-        if (dying && framesSince(dying.startTick) >= SLIME_DEATH.frames) {
-            if (geomRef.current.sideScroll) setKilledSet((set) => { const n = new Set(set); n.add(dying.index); return n; });
-            else setKilledCount((k) => Math.max(k, dying.index + 1));
-            setDying(null);
+        const finished = dyingList.filter((d) => framesSince(d.startTick) >= SLIME_DEATH.frames);
+        if (finished.length) {
+            if (geomRef.current.sideScroll) setKilledSet((set) => { const n = new Set(set); finished.forEach((d) => n.add(d.index)); return n; });
+            else setKilledCount((k) => Math.max(k, ...finished.map((d) => d.index + 1)));
+            setDyingList((l) => l.filter((d) => framesSince(d.startTick) < SLIME_DEATH.frames));
         }
         if (heroAttack && framesSince(heroAttack.startTick) >= ATTACK_CYCLE) setHeroAttack(null);
         if (wiggle && framesSince(wiggle.startTick) >= WIGGLE_FRAMES) setWiggle(null);
+        if (judgments.length && judgments.some((j) => (tick - j.startTick) * INTERVAL_MS > JUDGMENT_MS)) {
+            setJudgments((l) => l.filter((j) => (tick - j.startTick) * INTERVAL_MS <= JUDGMENT_MS));
+        }
         if (geomRef.current.sideScroll) {
-            const s = slimesRef.current[killedRef.current];
-            if (s) { const { x, spawned } = sideScrollX(s.beat, tick); if (spawned && x < geomRef.current.startX) { setKilledCount((c) => c + 1); onMissRef.current?.(); } }
+            // Resolve an un-struck slime as a miss when its LATE window has fully passed (target + 1/2 beat)
+            // — TIME-based, not "x < startX": the blob's left edge passes the hero BEFORE the late window
+            // closes, and resolving there would rob the player of the 'much too slow' tier. The blob itself
+            // just keeps walking off the left edge (Han: never killed, only missed).
+            const { beatMs: bMs, beatsOnScreen: bos } = geomRef.current;
+            const elapsedMs = (tick - waveStartRef.current) * INTERVAL_MS;
+            slimesRef.current.forEach((sl, idx) => {
+                if (resolvedRef.current.has(idx)) return;
+                if (elapsedMs > (sl.beat + bos) * bMs + bMs * MUCH_TOO_BEATS) {
+                    resolvedRef.current.add(idx);
+                    setKilledCount((c) => c + 1);
+                    onMissRef.current?.('miss');
+                }
+            });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tick]);
@@ -432,15 +489,17 @@ export default function SheetRpgLayer({
             )}
             {/* #661 (Han 2026-08-02): a RED vertical STRIKE line at exactly where a note sits at the moment it
                 must be played (note/slime centre at the hero = startX + SLIME_VIEW_W/2). The hit window is the
-                ±1/8-beat TIME window around that moment (combat check), so the old spatial band is gone. */}
+                graded ±1/2-beat (= ±1/8 note) TIME window around that moment (gradeHit tiers; combat check),
+                so the old spatial band is gone. */}
             {sideScroll && dist > 0 && (
                 <line x1={startX + SLIME_VIEW_W / 2} y1={trebleStart - 8} x2={startX + SLIME_VIEW_W / 2}
                     y2={Math.max(trebleStart, viewBottom)} stroke="#e63232" strokeWidth={1.5} strokeOpacity={0.85}
                     style={{ pointerEvents: 'none' }} />
             )}
             {slimeData.map((s, idx) => {
-                const isDying = dying && dying.index === idx;
-                const deathFrame = isDying ? Math.min(framesSince(dying.startTick), SLIME_DEATH.frames - 1) : 0;
+                const dyingEntry = dyingList.find((d) => d.index === idx);
+                const isDying = !!dyingEntry;
+                const deathFrame = isDying ? Math.min(framesSince(dyingEntry.startTick), SLIME_DEATH.frames - 1) : 0;
                 if (sideScroll) {
                     if (killedSet.has(idx)) return null;                  // struck & death finished
                     if (isDying) {
@@ -450,11 +509,11 @@ export default function SheetRpgLayer({
                         const note = Array.isArray(s.note) ? s.note[0] : s.note;
                         const ny = getNoteAbsoluteY(note, trebleStart, 'treble', 'treble');
                         const nx = startX + NOTE_STAFF_DX;
-                        const prog = Math.min(1, framesSince(dying.startTick) / SLIME_DEATH.frames);
+                        const prog = Math.min(1, framesSince(dyingEntry.startTick) / SLIME_DEATH.frames);
                         const up = prog * 46;
                         return (
                             <g key={s.key}>
-                                <Slime x={dying.x} y={slimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />
+                                <Slime x={dyingEntry.x} y={slimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />
                                 {ny != null && (
                                     <>
                                         <StaffQuarterNote x={nx} positionY={ny} staffYStart={trebleStart} color="var(--text-lowlight)" opacity={0.45} />
@@ -477,11 +536,34 @@ export default function SheetRpgLayer({
                 const frame = isDying ? deathFrame : gFrame % SLIME_IDLE.frames;
                 return <Slime key={s.key} x={s.x} y={slimeY} colorKey={s.colorKey} row={row} frame={frame} />;
             })}
-            {/* #660 debug: the hit-zone in front of the hero (kills only register here) */}
-            {debugMode && sideScroll && (
-                <rect x={startX} y={slimeY} width={HITZONE_W} height={SLIME_VIEW_H}
-                    fill="lime" fillOpacity={0.15} stroke="lime" strokeWidth={0.5} style={{ pointerEvents: 'none' }} />
-            )}
+            {/* Graded timing zones next to the red strike line (Han 2026-08-02, debug-only for now — Han may
+                place assets here later). Replaces the old #660 spatial hit-zone rect (kills are TIME-window
+                based since #661). Widths derive from the SAME window constants gradeHit grades with (§6c):
+                px-per-beat = dist/beatsOnScreen, so half-width(tier) = (dist/bos)·tierBeats. Green = perfect
+                (±1/32 note), yellow = too fast/slow (±1/16), orange = much too fast/slow (±1/8). */}
+            {debugMode && sideScroll && dist > 0 && (() => {
+                const strikeX = startX + SLIME_VIEW_W / 2;
+                const pxPerBeat = dist / beatsOnScreen;
+                const zoneY = trebleStart - 8, zoneH = Math.max(trebleStart, viewBottom) - zoneY;
+                const band = (halfBeats, color) => (
+                    <rect key={color} x={strikeX - halfBeats * pxPerBeat} y={zoneY} width={2 * halfBeats * pxPerBeat}
+                        height={zoneH} fill={color} fillOpacity={0.13} stroke={color} strokeWidth={0.5}
+                        strokeOpacity={0.5} style={{ pointerEvents: 'none' }} />
+                );
+                return [band(MUCH_TOO_BEATS, '#e07818'), band(TOO_BEATS, '#d4a800'), band(PERFECT_BEATS, '#2eb84d')];
+            })()}
+            {/* floating judgment labels ("perfect" / "too slow" / "wrong note" … — Han: 'zeg dan wrong note').
+                Spawn at the strike line, float up and fade out over JUDGMENT_MS. */}
+            {sideScroll && judgments.map((j) => {
+                const prog = Math.min(1, ((tick - j.startTick) * INTERVAL_MS) / JUDGMENT_MS);
+                return (
+                    <text key={j.id} x={startX + SLIME_VIEW_W / 2 + 10} y={trebleStart - 14 - prog * 18}
+                        fill={JUDGMENT_COLOR[j.category] || 'var(--text-primary)'} opacity={1 - prog}
+                        fontSize="12" fontWeight="700" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                        {GRADE_LABELS[j.category] || j.category}
+                    </text>
+                );
+            })}
             <foreignObject x={heroX} y={heroY} width={dollW} height={HERO_H} style={{ overflow: 'visible', pointerEvents: 'auto' }}>
                 <div xmlns="http://www.w3.org/1999/xhtml" onClick={onOpenCharacter}
                     style={{ cursor: 'pointer' }} title="Open character">

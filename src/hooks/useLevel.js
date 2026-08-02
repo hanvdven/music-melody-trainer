@@ -7,7 +7,14 @@ import { LEVEL1, wavesForLevel, trebleOnlyEyes } from '../levels/levels';
 // Level 1 (static combat) and Level 2 (side-scroll). Pure state machine — the app wires the setters +
 // regenerate.
 
-const emptyStats = () => ({ defeated: 0, misses: 0, currentStreak: 0, longestStreak: 0 });
+// Graded timing stats (Han 2026-08-02): the side-scroll levels grade each kill (gradeHit — perfect /
+// too fast / too slow / much too fast / much too slow / on second attempt) and award points (perfect = 1,
+// everything else ½). wrongNotes counts wrong-pitch attempts (also a miss); Level 1 (no metronome) passes
+// no grade → just defeated + 1 point.
+const emptyStats = () => ({
+    defeated: 0, misses: 0, currentStreak: 0, longestStreak: 0, points: 0,
+    perfect: 0, tooFast: 0, tooSlow: 0, muchTooFast: 0, muchTooSlow: 0, secondAttempt: 0, wrongNotes: 0,
+});
 
 // `setters` — the app state setters the level drives. `snapshot()` returns the current config to restore.
 // `regenerate()` builds a fresh melody (a new wave) from the CURRENT settings (call AFTER applying config).
@@ -55,11 +62,22 @@ export default function useLevel({ setters, snapshot, regenerate }) {
     const replay = useCallback(() => begin(currentRef.current), [begin]);   // keep the snapshot; restart the run
 
     // combat stat hooks (only meaningful while active — the app passes these only then).
-    const onHit = useCallback(() => setStats((s) => {
+    // `grade` = { category, points } from gradeHit (side-scroll); undefined for ungraded (Level 1) hits.
+    const onHit = useCallback((grade) => setStats((s) => {
         const cs = s.currentStreak + 1;
-        return { ...s, defeated: s.defeated + 1, currentStreak: cs, longestStreak: Math.max(s.longestStreak, cs) };
+        const g = grade || { category: null, points: 1 };
+        return {
+            ...s, defeated: s.defeated + 1, currentStreak: cs, longestStreak: Math.max(s.longestStreak, cs),
+            points: s.points + g.points,
+            ...(g.category ? { [g.category]: (s[g.category] || 0) + 1 } : {}),
+        };
     }), []);
-    const onMiss = useCallback(() => setStats((s) => ({ ...s, misses: s.misses + 1, currentStreak: 0 })), []);
+    // `reason` = 'wrongNote' (wrong pitch while a slime was hittable) | 'miss' (outside every window / note
+    // never played). Both break the streak; wrong notes get their own stat row (Han).
+    const onMiss = useCallback((reason) => setStats((s) => ({
+        ...s, misses: s.misses + 1, currentStreak: 0,
+        ...(reason === 'wrongNote' ? { wrongNotes: s.wrongNotes + 1 } : {}),
+    })), []);
 
     // a cleared slime-wave. Returns true if the level consumed it (so the app skips its default regen). At the
     // target wave count → done (splash); otherwise spawn the next wave.
