@@ -497,7 +497,19 @@ const SheetMusic = ({
 
   const lyricsExtraBottom = rhythmicLyricsActive ? 50 : 0;
   const logicalHeightForViewBox = bottomY + 80 + lyricsExtraBottom;
-  const scaleFactor = Math.min(1.0, containerHeight / logicalHeightForViewBox);
+  // Han 2026-08-02 (BUG — "bottom view schuift omhoog bij minder staves"): this used to be
+  // `Math.min(1.0, containerHeight / logicalHeightForViewBox)`. The `<svg>` fills its parent
+  // (width=100% height=100%), and that parent's box only resolves to the FULL `containerHeight`
+  // (the app-wide 45%-of-screen rule, useAppLayout.js `sheetHeight`) when the viewBox's own
+  // aspect ratio (`logicalScreenWidth : logicalHeightForViewBox`) already equals
+  // `screenWidth : containerHeight` — which is exactly what an UNCLAMPED `scaleFactor` guarantees
+  // algebraically (logicalScreenWidth = screenWidth/scaleFactor, so the ratio reduces to
+  // containerHeight/screenWidth regardless of scaleFactor's value). Capping scaleFactor at 1.0
+  // broke that identity whenever the content was "short" enough to need scaleFactor > 1 to fill
+  // 45% (fewer visible staves — e.g. Level 2 outside debug mode, bass+percussion hidden) — the
+  // sheet's rendered box then shrank BELOW containerHeight, and the flex-column bottom panel
+  // (App.jsx `flex: 1`) grew upward into the freed space. No cap → the 45% rule always holds.
+  const scaleFactor = containerHeight / logicalHeightForViewBox;
   const logicalScreenWidth = screenWidth / scaleFactor;
 
   const endX = logicalScreenWidth - 10; // 5 unit margin on each side (Starts at 0, viewBox starts at -5)

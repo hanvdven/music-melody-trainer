@@ -7,6 +7,32 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — 🐞✅ Bug: sheet-music-vlak krimpt onder 45% bij minder notenbalken
+
+Han: "bij level 2 (niet-debug) schuift 'bottom view' omhoog. ik heb al
+eerder gezegd dat de melody view / sheet music 45% van het beeld moet
+innemen. om een of andere reden wordt dat niet aangehouden als de perc
+en bas wegvallen."
+
+Root cause gevonden via wiskundige analyse (geen browser-automatisering
+beschikbaar om interactief te verifiëren — carousel-drags laten zich
+niet betrouwbaar simuleren zonder Playwright; wel bevestigd dat de app
+normaal laadt/rendert na de fix): `SheetMusic.jsx`'s
+`scaleFactor = Math.min(1.0, containerHeight / logicalHeightForViewBox)`.
+Omdat `logicalScreenWidth = screenWidth/scaleFactor`, reduceert de
+viewBox-aspectratio ALTIJD naar `containerHeight/screenWidth` — ongeacht
+scaleFactor — MITS scaleFactor onbegrensd blijft. De `Math.min(1.0,...)`
+brak die identiteit precies wanneer er weinig genoeg content was (minder
+notenbalken) dat opschalen >1× nodig was om de 45% te vullen; met de cap
+kromp het sheet-vlak dan onder 45%, en schoof het onderpaneel (flex:1 in
+dezelfde kolom) omhoog de vrijgekomen ruimte in.
+
+Fix: de cap verwijderd. scaleFactor wordt alleen gebruikt om
+logicalScreenWidth af te leiden (geen andere afhankelijkheid elders),
+dus dit is een smalle, veilige wijziging.
+
+architecture.md §98.
+
 ## 2026-08-02 — ✅ 8-level ramp: bpm/tegenstander/introductie-info + 5 nieuwe levels
 
 Han: "geef voor elk level wat basis info: bpm, type enemies, wat wordt

@@ -6717,3 +6717,33 @@ source of truth, no duplicated level metadata). `LEVEL_NUMBERS` grew from `[1,2,
 LevelStartSplash.jsx` (info panel, 8-item carousel), `src/hooks/__tests__/useLevel.test.js` (`LEVEL3`
 references repointed to their new half-note-level meaning; the former "always 3 lines / real bass" assertions
 moved to `LEVEL8`).
+
+### §98. Bug: sheet-music area shrinks below the 45% rule with fewer visible staves (Han 2026-08-02)
+
+**Symptom:** Han: *"bij level 2 (niet-debug) schuift 'bottom view' omhoog. ik heb al eerder gezegd dat de
+melody view / sheet music 45% van het beeld moet innemen... om een of andere reden wordt dat niet
+aangehouden als de perc en bas wegvallen."* Whenever fewer staves are visible (e.g. Level 2 outside debug
+mode, §96 — bass+percussion hidden), the sheet-music area rendered SHORTER than the app's 45%-of-screen
+rule (`useAppLayout.js`'s `sheetHeight = windowSize.height * 0.45`), and the bottom control panel (a `flex:
+1` sibling in the same flex-column) crept upward to fill the freed space.
+
+**Root cause — an algebraic identity broken by an unnecessary clamp.** The `<svg>` fills its parent
+(`width="100%" height="100%"`), and that parent's rendered box only resolves to the FULL `containerHeight`
+(the 45% value, passed down from `useAppLayout`) when the viewBox's own aspect ratio
+(`logicalScreenWidth : logicalHeightForViewBox`) already equals `screenWidth : containerHeight`. Since
+`logicalScreenWidth = screenWidth / scaleFactor`, that ratio ALWAYS reduces algebraically to
+`containerHeight / screenWidth` — **regardless of `scaleFactor`'s value** — as long as `scaleFactor` is left
+unclamped. `SheetMusic.jsx` computed `scaleFactor = Math.min(1.0, containerHeight / logicalHeightForViewBox)`
+— capping it at 1.0 broke that identity exactly when the content was "short" enough (fewer staves →
+smaller `logicalHeightForViewBox`) that filling 45% would require `scaleFactor > 1` (i.e. upscaling the
+notation slightly). With the cap in place, the sheet's rendered box then fell BELOW `containerHeight`,
+which is what let the flex-column bottom panel expand upward into the gap.
+
+**Fix:** removed the `Math.min(1.0, …)` clamp — `scaleFactor = containerHeight / logicalHeightForViewBox`,
+unbounded. `scaleFactor` is used ONLY to derive `logicalScreenWidth` (verified — no other multiplier in the
+file depends on it staying ≤1), so this is a narrow, safe change: the "many staves, needs shrinking" case
+(`scaleFactor < 1`) is untouched; only the previously-broken "few staves, needs slight upscaling" case
+(`scaleFactor > 1`) now behaves correctly, keeping the sheet-music area pinned at exactly 45% regardless of
+how many staves are visible.
+
+**Files:** `src/components/sheet-music/SheetMusic.jsx` (`scaleFactor` calculation).
