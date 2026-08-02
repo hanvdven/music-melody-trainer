@@ -19,6 +19,16 @@ Interview (§4b) afgenomen: **alles ≤1/8 noot doodt de slime + telt voor strea
 wrong-note stat**; **zonebanden groen/geel/oranje alleen in debug mode** (Han
 zet er later mogelijk assets neer).
 
+**UAT-ronde (Han 2026-08-02):** ✅ label 3× groter + Georgia i.p.v. Maestro ·
+✅ Level 2: elke tel kwartnoot óf KWARTrust (`forceQuarterNotes` splitst nu ook
+rusten in kwart-chunks) · 🐞 "maat 8 leeg": probe (300 melodieën) toont dat
+`notesPerMeasure:3` een GEMIDDELDE is — verdeling 0–4 per maat, lege maat ≈ 2%
+kans ergens in het stuk, niet structureel; totaal is ALTIJD 24 noten ·
+🐞 "22 missers": (a) er waren 24 slimes, niet 18 → ≥6 stille verloop-missers
+(nu zichtbaar met zwevend 'miss'-label + logger.debug audit-trail 'RpgCombat'),
+(b) dedupe-guard: zelfde toon <60ms wordt niet meer als tweede combat-event
+geteld (dubbele MIDI-poort/double-trigger).
+
 Aanpak: nieuw puur `src/levels/gradeHit.js` (delta-ms + beatMs → categorie/punten;
 1/32 noot = beatMs/8 enz.). `SheetRpgLayer` side-scroll combat herschreven:
 kandidaat-scan over ALLE onopgeloste slimes binnen ±½ beat (vroegste match wint,

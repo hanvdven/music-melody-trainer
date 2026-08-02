@@ -6226,3 +6226,26 @@ ungraded: 1 point, no category). `onMiss(reason)` bumps `wrongNotes` when `reaso
 
 **Files:** `src/levels/gradeHit.js` (+test), `src/components/sheet-music/SheetRpgLayer.jsx`,
 `src/hooks/useLevel.js` (+test), `src/components/levels/LevelSplash.jsx`, `src/App.jsx`.
+
+#### §90a. UAT round (Han 2026-08-02): label styling, quarter-rest grid, miss forensics
+
+- **Judgment labels 3× + text font:** `fontSize 36`, explicit `Georgia, 'Times New Roman', serif` (the same
+  stack the measure numbers use — without it the SVG cascade put the Maestro NOTATION font on plain words).
+- **Quarter-rest grid (`forceQuarterNotes`):** rests are now ALSO split into quarter chunks (a half/whole
+  rest → 2/4 quarter rests), so in Level 2 every beat reads as a quarter note OR a quarter rest. A
+  sub-quarter remainder stays as a short final chunk.
+- **"Maat 8 leeg" diagnosed (not a bug):** a 300-trial generation probe showed `notesPerMeasure: 3` is a
+  TARGET AVERAGE — the total is always exactly `3 × numMeasures` notes, but per-measure counts vary 0–4
+  (histogram ≈ 0:0.2%, 1:3%, 2:21%, 3:47%, 4:28%); an empty measure is rare chance, uniform across measure
+  indices. If Level 2 should guarantee ≥1 note per measure, that is a generation-design change (ask Han).
+- **Miss forensics ("22 missers???"):** two causes addressed. (1) The piece ALWAYS has 24 slimes (3×8) — the
+  18 defeated were not "allemaal"; the ≥6 un-struck slimes expired silently. Expiry now shows a floating
+  'miss' label so the count is visible live. (2) A same-pitch combat event within 60ms is dropped in
+  `handleNoteInputCombat` (App.jsx) — dual-port/double-trigger MIDI keyboards sent duplicate note-ons that
+  arrived after the kill and judged as spurious misses. The input-test path still receives every event.
+- **Audit trail:** every combat resolution logs `logger.debug('RpgCombat', …)` — KILL (note/slime/deltaMs/
+  grade), WRONG NOTE / MISS (played note, candidates-in-window, nearest slime delta), EXPIRED (slime/note/
+  beat). With `localStorage.LOG_LEVEL='debug'` a run's splash stats are fully reconstructible.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx`, `src/utils/forceQuarterNotes.js` (+test),
+`src/App.jsx`.

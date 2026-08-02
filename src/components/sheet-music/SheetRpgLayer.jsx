@@ -9,6 +9,7 @@ import BarlinesLayer from './BarlinesLayer';
 import { getNoteAbsoluteY } from './renderMelodyNotes';
 import { StaffQuarterNote } from './staffNoteGlyph';
 import { gradeHit, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS } from '../../levels/gradeHit';
+import logger from '../../utils/logger';
 
 // #647 RPG layer on the sheet music — a SEPARATE layer that is AWARE of note positions (Han). Two parts:
 //  1. a SLIME under each treble note, aligned to the note's X, coloured by duration (green = quarter,
@@ -299,6 +300,9 @@ export default function SheetRpgLayer({
                 setDyingList((l) => [...l, { index: target.idx, startTick: tickRef.current, x }]);
                 setKilledCount((c) => c + 1);
                 addJudgment(grade.category);
+                // per-event audit trail (Han 2026-08-02 "22 missers — vind uit hoe dat kan"): every combat
+                // resolution logs note + delta so a stats mismatch is diagnosable from the console.
+                logger.debug('RpgCombat', 'KILL', { note: combatNote.note, slime: target.idx, beat: target.sl.beat, deltaMs: Math.round(target.delta), grade: grade.category });
                 onHitRef.current?.(grade);
             } else {
                 // no matching slime in any open window. If something WAS hittable the pitch was wrong →
@@ -307,6 +311,16 @@ export default function SheetRpgLayer({
                 const wrong = inWindow.length > 0;
                 if (wrong) wrongAttemptRef.current.add(inWindow[0].idx);
                 addJudgment(wrong ? 'wrongNote' : 'miss');
+                // nearest unresolved slime's delta shows WHY nothing matched (wrong pitch vs out of window).
+                const nearest = slimesRef.current.reduce((best, sl, idx) => {
+                    if (resolvedRef.current.has(idx)) return best;
+                    const d = elapsedMs - (sl.beat + bos) * bMs;
+                    return best == null || Math.abs(d) < Math.abs(best.d) ? { idx, d, note: sl.note } : best;
+                }, null);
+                logger.debug('RpgCombat', wrong ? 'WRONG NOTE' : 'MISS (out of window)', {
+                    played: combatNote.note, candidatesInWindow: inWindow.length,
+                    nearestSlime: nearest && { idx: nearest.idx, note: nearest.note, deltaMs: Math.round(nearest.d) },
+                });
                 onMissRef.current?.(wrong ? 'wrongNote' : 'miss');
                 const next = slimesRef.current.findIndex((_, i) => !resolvedRef.current.has(i));
                 if (next >= 0) setWiggle({ index: next, startTick: tickRef.current });
@@ -351,6 +365,10 @@ export default function SheetRpgLayer({
                 if (elapsedMs > (sl.beat + bos) * bMs + bMs * MUCH_TOO_BEATS) {
                     resolvedRef.current.add(idx);
                     setKilledCount((c) => c + 1);
+                    logger.debug('RpgCombat', 'EXPIRED (never struck)', { slime: idx, note: sl.note, beat: sl.beat });
+                    // visible feedback for a silent expiry — without a label these misses were invisible and
+                    // the splash count looked inexplicable (Han: "22 MISSERS???").
+                    setJudgments((l) => [...l, { id: judgmentIdRef.current++, category: 'miss', startTick: tick }]);
                     onMissRef.current?.('miss');
                 }
             });
@@ -553,13 +571,17 @@ export default function SheetRpgLayer({
                 return [band(MUCH_TOO_BEATS, '#e07818'), band(TOO_BEATS, '#d4a800'), band(PERFECT_BEATS, '#2eb84d')];
             })()}
             {/* floating judgment labels ("perfect" / "too slow" / "wrong note" … — Han: 'zeg dan wrong note').
-                Spawn at the strike line, float up and fade out over JUDGMENT_MS. */}
+                Spawn at the strike line, float up and fade out over JUDGMENT_MS. Explicit TEXT font (same
+                Georgia stack the measure numbers use — see BarlinesLayer) because the surrounding SVG
+                otherwise cascades the Maestro NOTATION font onto plain words (Han 2026-08-02: 3× groter,
+                standaard font). */}
             {sideScroll && judgments.map((j) => {
                 const prog = Math.min(1, ((tick - j.startTick) * INTERVAL_MS) / JUDGMENT_MS);
                 return (
-                    <text key={j.id} x={startX + SLIME_VIEW_W / 2 + 10} y={trebleStart - 14 - prog * 18}
+                    <text key={j.id} x={startX + SLIME_VIEW_W / 2 + 10} y={trebleStart - 18 - prog * 24}
                         fill={JUDGMENT_COLOR[j.category] || 'var(--text-primary)'} opacity={1 - prog}
-                        fontSize="12" fontWeight="700" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                        fontSize="36" fontWeight="700" fontFamily="Georgia, 'Times New Roman', serif"
+                        style={{ pointerEvents: 'none', userSelect: 'none' }}>
                         {GRADE_LABELS[j.category] || j.category}
                     </text>
                 );

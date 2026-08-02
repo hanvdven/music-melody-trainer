@@ -925,8 +925,17 @@ const App = () => {
     // matching slime dies. Wrapping here keeps the existing input-test behaviour untouched.
     const [combatNote, setCombatNote] = useState(null);
     const combatNonceRef = useRef(0);
+    // Dedupe guard (Han 2026-08-02 "22 missers???"): some MIDI keyboards expose TWO ports (USB + thru) or
+    // double-trigger a key — the duplicate note-on arrived ms after the kill, found its slime already
+    // resolved, and was judged a spurious miss/wrong-note. A repeat of the SAME pitch within 60ms is never a
+    // deliberate second note (>16 notes/s), so it's dropped from COMBAT only — the input-test path still
+    // receives every event (its own state machine tolerates repeats).
+    const combatLastRef = useRef({ note: null, at: 0 });
     const handleNoteInputCombat = useCallback((note, isTap = false) => {
         handleInputTestNote(note, isTap);
+        const now = performance.now();
+        if (combatLastRef.current.note === note && now - combatLastRef.current.at < 60) return;
+        combatLastRef.current = { note, at: now };
         combatNonceRef.current += 1;
         setCombatNote({ note, nonce: combatNonceRef.current });
     }, [handleInputTestNote]);
