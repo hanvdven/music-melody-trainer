@@ -21,6 +21,7 @@ import AppHeader from './components/layout/AppHeader';
 import DiscoBackground from './components/layout/DiscoBackground';
 import CharacterCreator from './components/character/CharacterCreator';
 import LevelSplash from './components/levels/LevelSplash';
+import LevelStartSplash from './components/levels/LevelStartSplash';
 import SubHeader from './components/layout/SubHeader';
 
 // Hooks
@@ -247,6 +248,7 @@ const App = () => {
     // TRANSPOSITION mode (clefEditMode) via the keyboard's "concert C =" control.
     const [keyboardTranspose, setKeyboardTranspose] = useState(0);
     const [showCharacter, setShowCharacter] = useState(false);   // #645: character-creator modal
+    const [showLevelPicker, setShowLevelPicker] = useState(false);   // #661: level-start splash (tanh carousel)
     // Loaded-song title for the header (Han 2026-06-14): "Happy Birthday in G major". Set on song
     // load; cleared when the user generates a fresh exercise (un-pins the melody) — see effect below.
     const [loadedSongTitle, setLoadedSongTitle] = useState(null);
@@ -1922,8 +1924,17 @@ const App = () => {
                     <LevelSplash levelName={level.current.name} stats={level.stats}
                         timed={!!level.current.sideScroll} onReplay={level.replay} onClose={level.close} />
                 )}
+                {/* #661 (Han 2026-08-02): "een splash screen voor het level start, met daarin een tanh
+                    carousel dat het level nummer kiest" — replaces the header's old 3 separate per-level
+                    buttons. */}
+                {showLevelPicker && (
+                    <LevelStartSplash
+                        onStart={(n) => { startLevel(n); setShowLevelPicker(false); }}
+                        onClose={() => setShowLevelPicker(false)}
+                    />
+                )}
                 <AppHeader
-                    onStartLevel={startLevel}
+                    onOpenLevelPicker={() => setShowLevelPicker(true)}
                     scale={scale}
                     onStartExercise={handleStartExercise}
                     /* #533: the header Thronefall crown was removed — the colour setter's theme

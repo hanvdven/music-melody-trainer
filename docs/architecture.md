@@ -6604,3 +6604,31 @@ only `contentStart` (measure 1) carried any backing sound or barline. Now:
 (`fixedWholeNote` field), `src/hooks/useMelodyState.js` (bass override), `src/levels/levels.js`
 (`fixedBass`), `src/hooks/useLevel.js` (+test), `src/App.jsx` (3-call backing scheduling), `src/components/
 sheet-music/SheetMusic.jsx` (`LEVEL_LEAD_IN_BARS`, `scrollBarlines` offsets prepend).
+
+### §95. Level-start splash — tanh carousel level picker (Han 2026-08-02)
+
+**Purpose:** Han: *"maak een splash screen voor het level start, met daarin een tanh carousel dat het
+level nummer kiest."* Replaces the header's 3 separate per-level sword buttons (`AppHeader.jsx`) with ONE
+"Start Level" button that opens a picker modal; a drag-carousel selects 1/2/3, then an explicit Start
+button confirms (Han: avoid accidentally starting mid-drag) and a Sluiten button (or backdrop click)
+cancels.
+
+**Reuse, not reinvention (§6c/§6d):** the "tanh carousel" is the existing tangens/tanh fan mechanic
+(`src/components/sheet-music/overlays/tangensCurve.js` — `useTangensDrag`, the `f(t) = (−3·tanh(t/3)·X,
+−(t³/20)·Y)` curve already used by the TranspositionSetter, BPM fan, measures/repeats fans, etc.) via its
+shared wrapper component `LeftFanCarousel` (`fanCarousels.jsx`) — no second carousel engine. New
+`src/components/levels/LevelStartSplash.jsx` hosts an inline `<svg>` inside the SAME HTML/CSS modal chrome
+`LevelSplash.css` already defines (`.ls-overlay`/`.ls-card`/`.ls-badge`/`.ls-title`/`.ls-sub`/`.ls-actions`/
+`.ls-btn`) — one consistent card look for both the level-START and level-COMPLETE modals, reusing the CSS
+file verbatim rather than a parallel stylesheet.
+
+**Wiring:** `App.jsx` owns a `showLevelPicker` boolean (mirrors the existing `showCharacter` modal
+pattern). `AppHeader`'s old `onStartLevel` prop (which directly called `startLevel(n)` per button) is
+replaced by `onOpenLevelPicker` (just flips `showLevelPicker` true) — the header no longer knows which
+level number gets chosen. `LevelStartSplash`'s local `activeIndex` state (committed by
+`LeftFanCarousel.onCommit`, default index 0 = Level 1) drives both the displayed level name (`LEVELS[chosen]
+.name`, `levels.js`) and the Start button's `onStart(chosen)` call, which App.jsx wires to
+`startLevel(chosen)` + closes the picker.
+
+**Files:** `src/components/levels/LevelStartSplash.jsx` (new, +test), `src/components/layout/AppHeader.jsx`
+(`onOpenLevelPicker` replaces the 3 per-level buttons), `src/App.jsx` (`showLevelPicker` state + mount).

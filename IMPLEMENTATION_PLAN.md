@@ -7,6 +7,26 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — ✅ Level-start splash met tanh carousel level-picker
+
+Han: "maak een splash screen voor het level start, met daarin een tanh
+carousel dat het level nummer kiest."
+
+Interview: 1 'Start Level'-knop vervangt de 3 losse zwaard-knoppen in de
+header · losse 'Start'-knop na keuze (niet meteen starten bij tikken).
+
+Hergebruik i.p.v. nieuw bouwen (§6c/§6d): de "tanh carousel" = de
+bestaande tangens/tanh fan-mechaniek (`tangensCurve.js`'s `useTangensDrag`
++ `LeftFanCarousel` uit `fanCarousels.jsx`, al gebruikt door o.a. de
+TranspositionSetter/BPM-fan) — geen nieuwe carousel-engine. Nieuw
+`LevelStartSplash.jsx` (+test) hergebruikt ook de bestaande
+`LevelSplash.css`-kaartstijl (zelfde look als het well-done-scherm).
+`AppHeader.jsx`'s oude `onStartLevel`-prop (direct starten per knop) is
+vervangen door `onOpenLevelPicker` (opent enkel de splash); App.jsx kreeg
+een `showLevelPicker`-state (zelfde patroon als `showCharacter`).
+
+architecture.md §95.
+
 ## 2026-08-02 — ✅ UAT ronde 2: missed op timing-chart, vaste Level-2 cello, -1/0 intel
 
 Han: "voeg aan timing accuracy toe: missed." + "level 2: de cello is een

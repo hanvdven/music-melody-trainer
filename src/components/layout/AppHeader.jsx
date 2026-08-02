@@ -48,7 +48,10 @@ const AppHeader = ({
     isFullscreen = false,
     toggleFullscreen = null,
     onOpenKanban = null,        // opens the in-app kanban board; button only shown in debug mode
-    onStartLevel = null,        // #659: starts Level 1
+    // #661 (Han 2026-08-02): the 3 separate per-level sword buttons are replaced by ONE button that
+    // opens the LevelStartSplash (a tanh-fan carousel picks the level number, then a Start button
+    // begins it — App.jsx owns that flow via `startLevel`). This header button only OPENS the picker.
+    onOpenLevelPicker = null,
     onScaleClick = null,
     isScalePlaying = false,
     progressionLabel = null,
@@ -95,19 +98,18 @@ const AppHeader = ({
                 {/* #645 character-creator button removed (Han 2026-08-01): the sheet-music hero is now the
                     entry point — clicking it opens the character menu (see SheetRpgLayer / #647). */}
 
-                {/* #659/#660: start Level 1 / Level 2 */}
-                {onStartLevel && [1, 2, 3].map((n) => (
+                {/* #661 (Han 2026-08-02): ONE "Start Level" button opens the LevelStartSplash — the tanh
+                    carousel there picks 1/2/3, replacing the old 3 separate per-level buttons. */}
+                {onOpenLevelPicker && (
                     <button
-                        key={n}
                         className="tab-button secondary app-header-btn"
-                        onClick={() => onStartLevel(n)}
-                        title={`Level ${n}`}
+                        onClick={onOpenLevelPicker}
+                        title="Start Level"
                         style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '1px', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
                     >
                         <Swords size={18} />
-                        <span style={{ fontSize: '11px', fontWeight: 700 }}>{n}</span>
                     </button>
-                ))}
+                )}
 
                 <button
                     className={`tab-button secondary app-header-btn ${debugMode ? 'active' : ''}`}
