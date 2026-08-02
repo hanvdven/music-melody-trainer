@@ -35,6 +35,10 @@ export const LEVEL1 = {
     range: { min: 'C4', max: 'G4' },
     totalMeasures: 8,             // level complete after this many measures cleared
     ...QUARTER_GRID,
+    // Han 2026-08-02: "in level 1 en 2, toon de bas en percussie ENKEL in debug mode" — bass/percussion
+    // notation is hidden by default, visible only while debugMode is on (useLevel reacts live to the
+    // debugMode toggle, no restart needed). Level 3 keeps them always visible (debugOnlyLines: false).
+    debugOnlyLines: true,
 };
 
 // Level 3 (Han 2026-08-02): what used to be Level 2 — the side-scroll level with 2 notes/measure, 30%
@@ -59,6 +63,7 @@ export const LEVEL3 = {
     insertBeatRests: false,
     polyMultiplier: 1,
     fixedBass: false,   // Level 3 keeps the REAL generated bass melody (Han: "gewoon zoals nu")
+    debugOnlyLines: false,   // Level 3 always shows all 3 lines (Han only asked for 1/2 to be debug-gated)
 };
 
 // Level 2 (Han 2026-08-02): a SIMPLER on-ramp — 3 notes/measure, 30% variability, same side-scroll engine
@@ -75,6 +80,7 @@ export const LEVEL2 = {
     variability: 30,
     ...QUARTER_GRID,
     fixedBass: true,
+    debugOnlyLines: true,   // overrides LEVEL3's false — Level 2 IS debug-gated (Han: "level 1 en 2")
 };
 
 export const LEVELS = { 1: LEVEL1, 2: LEVEL2, 3: LEVEL3 };

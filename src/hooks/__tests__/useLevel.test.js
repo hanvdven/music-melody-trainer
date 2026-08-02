@@ -13,11 +13,14 @@ const snap = () => ({
     playbackConfig: { y: 1 }, showChordsOddRounds: true, showChordsEvenRounds: true,
 });
 
-const setup = () => {
+const setup = (initialProps = {}) => {
     const setters = makeSetters();
     const snapshot = vi.fn(snap);
     const regenerate = vi.fn();
-    const hook = renderHook(() => useLevel({ setters, snapshot, regenerate }));
+    const hook = renderHook(
+        (props) => useLevel({ setters, snapshot, regenerate, ...props }),
+        { initialProps },
+    );
     return { setters, snapshot, regenerate, ...hook };
 };
 
@@ -105,9 +108,9 @@ describe('useLevel (#659 Level 1)', () => {
         expect(result.current.done).toBe(false);
     });
 
-    it('side-scroll levels show 3 lines + cello bass; Level 1 stays treble-only; close() restores bass (Han 2026-08-02)', () => {
+    it('Level 3 always shows 3 lines + cello bass; Level 1 stays treble-only; close() restores bass (Han 2026-08-02)', () => {
         const { setters, result } = setup();
-        act(() => result.current.start(LEVEL2));
+        act(() => result.current.start(LEVEL3));
         const bassApplied = setters.setBassSettings.mock.calls.at(-1)[0]({ instrument: 'electric_bass_pick' });
         expect(bassApplied).toMatchObject({ instrument: 'cello' });
         const eyesApplied = setters.setPlaybackConfig.mock.calls.at(-1)[0]({ oddRounds: {}, evenRounds: {} });
@@ -120,6 +123,31 @@ describe('useLevel (#659 Level 1)', () => {
         act(() => result.current.close());
         expect(setters.setBassSettings).toHaveBeenLastCalledWith(expect.any(Function));
         expect(setters.setBassSettings.mock.calls.at(-1)[0]()).toMatchObject({ instrument: 'electric_bass_pick' });
+    });
+
+    it('Level 1/2 hide bass+percussion by default but show them live when debugMode toggles on, without a restart (Han 2026-08-02)', () => {
+        const { setters, result, rerender } = setup({ debugMode: false });
+        act(() => result.current.start(LEVEL2));
+        let eyes = setters.setPlaybackConfig.mock.calls.at(-1)[0]({ oddRounds: {}, evenRounds: {} });
+        expect(eyes.oddRounds).toMatchObject({ trebleEye: true, bassEye: false, percussionEye: false });
+
+        // Toggling debugMode ON while Level 2 is still running must re-apply the eyes immediately —
+        // no result.current.start() call in between.
+        rerender({ debugMode: true });
+        eyes = setters.setPlaybackConfig.mock.calls.at(-1)[0]({ oddRounds: {}, evenRounds: {} });
+        expect(eyes.oddRounds).toMatchObject({ trebleEye: true, bassEye: true, percussionEye: true });
+
+        rerender({ debugMode: false });
+        eyes = setters.setPlaybackConfig.mock.calls.at(-1)[0]({ oddRounds: {}, evenRounds: {} });
+        expect(eyes.oddRounds).toMatchObject({ bassEye: false, percussionEye: false });
+    });
+
+    it('Level 3 ignores debugMode — always 3 lines regardless of the toggle (Han 2026-08-02)', () => {
+        const { setters, result, rerender } = setup({ debugMode: false });
+        act(() => result.current.start(LEVEL3));
+        rerender({ debugMode: true });   // toggling debug must not change anything for Level 3
+        const eyes = setters.setPlaybackConfig.mock.calls.at(-1)[0]({ oddRounds: {}, evenRounds: {} });
+        expect(eyes.oddRounds).toMatchObject({ trebleEye: true, bassEye: true, percussionEye: true });
     });
 
     it('Level 2 forces a fixed whole-note bass (octave-mismatch UAT fix); Level 3 keeps the real generated bass (Han 2026-08-02)', () => {

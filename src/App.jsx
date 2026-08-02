@@ -993,7 +993,7 @@ const App = () => {
     const levelRegenerate = useCallback(() => {
         requestAnimationFrame(() => randomizeAllRef.current({ chords: false }));
     }, []);
-    const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate });
+    const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate, debugMode });
 
     // #661 rework (Han 2026-08-02: "ik wil dat je playAllMelodies gebruikt... via de bestaande play all
     // melody params"): the old §88 backing hand-rolled its OWN note-by-note scheduling on two throwaway

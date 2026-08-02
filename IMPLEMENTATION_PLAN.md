@@ -7,6 +7,20 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — ✅ Bas/percussie enkel zichtbaar in debug mode (Level 1/2)
+
+Han: "next, in level 1 en 2, toon de bas en percussie ENKEL in debug
+mode."
+
+Nieuw `levels.js`-veld `debugOnlyLines` (true op LEVEL1/LEVEL2, expliciet
+false op LEVEL3 — zelfde anti-lek-patroon als eerdere per-level vlaggen).
+`useLevel.js` kreeg een `debugMode`-parameter (App.jsx geeft zijn bestaande
+debugMode-state door) + een reactieve effect: het omzetten van debug mode
+TERWIJL een debugOnlyLines-level al draait, past de eyes meteen aan (geen
+herstart nodig). Level 3 blijft ongewijzigd altijd 3 lijnen tonen.
+
+architecture.md §96.
+
 ## 2026-08-02 — ✅ Level-start splash met tanh carousel level-picker
 
 Han: "maak een splash screen voor het level start, met daarin een tanh

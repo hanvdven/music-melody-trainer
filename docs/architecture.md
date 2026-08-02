@@ -6632,3 +6632,23 @@ level number gets chosen. `LevelStartSplash`'s local `activeIndex` state (commit
 
 **Files:** `src/components/levels/LevelStartSplash.jsx` (new, +test), `src/components/layout/AppHeader.jsx`
 (`onOpenLevelPicker` replaces the 3 per-level buttons), `src/App.jsx` (`showLevelPicker` state + mount).
+
+### §96. Bass/percussion notation debug-gated for Levels 1/2 (Han 2026-08-02)
+
+**Purpose:** Han: *"next, in level 1 en 2, toon de bas en percussie ENKEL in debug mode."* Levels 1 and 2's
+bass+percussion notation (the §92 "3 lines" feature) is now hidden by DEFAULT and only shown while the
+app's debug mode is on; Level 3 is unaffected (always shows all 3, unchanged from §92).
+
+**Reactive to a LIVE debug toggle, not just at level start:** a new `levels.js` flag, `debugOnlyLines`
+(`true` on `LEVEL1`/`LEVEL2`, explicit `false` on `LEVEL3` — same "explicit, not merely unset"
+cross-level-leakage discipline as `insertBeatRests`/`fixedBass`/`melodic`), drives the eyes selection in
+`useLevel.js`'s `applyConfig`: `lvl.debugOnlyLines ? (debugMode ? threeLineEyes : trebleOnlyEyes) :
+threeLineEyes`. Because Han's debug toggle can be flipped WHILE a level is already running (the header's
+existing debug button), a plain "set once at start" application isn't enough — `useLevel` now accepts a
+`debugMode` param (`App.jsx` passes its existing `debugMode` state through) and runs a companion
+`useEffect` that re-applies the eyes whenever `debugMode` changes during an active `debugOnlyLines` level,
+with no restart needed. The effect is a no-op for Level 3 (`debugOnlyLines` false) and while no level is
+active.
+
+**Files:** `src/levels/levels.js` (`debugOnlyLines` flag), `src/hooks/useLevel.js` (+test — `debugMode`
+param, reactive eyes effect), `src/App.jsx` (`useLevel(...)` gains `debugMode`).

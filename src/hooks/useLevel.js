@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { LEVEL1, wavesForLevel, trebleOnlyEyes, threeLineEyes } from '../levels/levels';
 
 // #659/#660 Level orchestration. Applies a level's config (snapshotting the prior config to restore on
@@ -26,7 +26,10 @@ const emptyStats = () => ({
 
 // `setters` — the app state setters the level drives. `snapshot()` returns the current config to restore.
 // `regenerate()` builds a fresh melody (a new wave) from the CURRENT settings (call AFTER applying config).
-export default function useLevel({ setters, snapshot, regenerate }) {
+// `debugMode` (Han 2026-08-02, "in level 1 en 2, toon de bas en percussie ENKEL in debug mode") — for a
+// `debugOnlyLines` level (1/2), bass/percussion visibility follows this LIVE, reacted to below, so toggling
+// the app's debug mode while the level is running shows/hides them immediately — no restart needed.
+export default function useLevel({ setters, snapshot, regenerate, debugMode = false }) {
     const [current, setCurrent] = useState(LEVEL1);
     const [active, setActive] = useState(false);
     const [wave, setWave] = useState(0);
@@ -54,9 +57,12 @@ export default function useLevel({ setters, snapshot, regenerate }) {
             insertBeatRests: !!lvl.insertBeatRests,
             polyMultiplier: lvl.polyMultiplier ?? 1,
         }));
-        // #661 (Han 2026-08-02, "de 3 lijnen zichtbaar maken"): a side-scroll level shows treble + bass +
-        // percussion (all 3 scroll, SheetRpgLayer) instead of the static Level-1 treble-only view.
-        const eyes = lvl.sideScroll ? threeLineEyes : trebleOnlyEyes;
+        // #661 (Han 2026-08-02, "de 3 lijnen zichtbaar maken" / later "in level 1 en 2, toon de bas en
+        // percussie ENKEL in debug mode"): a `debugOnlyLines` level (1/2) shows treble + bass + percussion
+        // ONLY while debugMode is on (else treble-only); Level 3 always shows all 3. The reactive effect
+        // below re-applies this whenever `debugMode` changes DURING an active debugOnlyLines level, so this
+        // initial application only needs to get the START state right.
+        const eyes = lvl.debugOnlyLines ? (debugMode ? threeLineEyes : trebleOnlyEyes) : threeLineEyes;
         setters.setPlaybackConfig((prev) => ({
             ...prev, repsPerMelody: lvl.numRepeats,
             oddRounds: eyes(prev.oddRounds), evenRounds: eyes(prev.evenRounds),
@@ -78,7 +84,18 @@ export default function useLevel({ setters, snapshot, regenerate }) {
         // (and its slimes) get sliced to a single page and only part of the measures scroll in ("5 of 8").
         // 'wipe' does not slice the melody (only 'pagination' does); the static staff is hidden anyway.
         if (lvl.sideScroll) setters.setAnimationMode?.('wipe');
-    }, [setters]);
+    }, [setters, debugMode]);
+
+    // Live debug-mode reactivity (Han 2026-08-02): toggling the app's debug mode WHILE a `debugOnlyLines`
+    // level (1/2) is running immediately shows/hides bass+percussion — no level restart needed. A no-op
+    // for Level 3 (debugOnlyLines=false) and while no level is active.
+    useEffect(() => {
+        if (!active || !current?.debugOnlyLines) return;
+        const eyes = debugMode ? threeLineEyes : trebleOnlyEyes;
+        setters.setPlaybackConfig((prev) => ({
+            ...prev, oddRounds: eyes(prev.oddRounds), evenRounds: eyes(prev.evenRounds),
+        }));
+    }, [debugMode, active, current, setters]);
 
     const begin = useCallback((lvl) => {
         applyConfig(lvl);
