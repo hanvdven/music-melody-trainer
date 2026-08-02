@@ -6275,3 +6275,75 @@ re-fires `onNoteInput`. Regression test: `src/components/controls/__tests__/Pian
 genuine hardware duplicates (dual MIDI ports, key-bounce) — no longer load-bearing for QWERTY correctness.
 
 **Files:** `src/components/controls/PianoView.jsx` (+test), `src/App.jsx`.
+
+### §91. Quarter-grid: generator-level fix replacing `forceQuarterNotes` (Han 2026-08-02)
+
+**Symptom:** Han reported that Level 2 did not reliably show "every quarter is a note or a rest" — some
+beats were silently missing (no note, no rest, nothing rendered), and this got noticeably worse than the
+narrow §90a QWERTY bug alone could explain.
+
+**Root cause — two compounding generator behaviours, NOT the RPG layer:**
+1. **`insertBeatRests` (an existing `InstrumentSettings` field, step 4f of the Generation Pipeline, §3)
+   defaults to `false` for treble.** With it off, an inactive quarter-slot does not become a rest at all —
+   `Melody.fromFlattenedNotes` silently EXTENDS the duration of the *preceding* note to cover it (that is
+   the general mechanism that represents a "long note" — a note held over multiple slots). The retired
+   `forceQuarterNotes.js` post-process tried to re-split these merged long notes back into quarter+rest
+   chunks, but only handled the two cases it recognized (`isReal && dur>QUARTER`, `note==='r' && dur>QUARTER`).
+2. **`fromFlattenedNotes`'s leading-rest edge case is untouched by any post-process fix.** When the melody
+   itself *begins* with one or more inactive slots, `noteIndex` (initialised to `0`) never moves off index 0,
+   so the accumulated leading-rest duration lands on `durations[0]` while `notes[0]` AND `offsets[0]` stay
+   `null` (this is the documented "CHARACTERIZED QUIRK" in `generationPipeline.golden.test.js`). A `null`
+   note is not `'r'`, so `forceQuarterNotes`'s rest-branch never matched it — the leading rest passed through
+   unchanged as a single entry with **no offset**, which every consumer (`SheetRpgLayer`, `MelodyNotesLayer`)
+   skips as unrenderable. Net effect: a piece that happens to open with a rest shows an invisible gap instead
+   of a rest — confirmed empirically via a 500-trial probe of real Level 2 settings (`null`-offset entries in
+   100% of trials; genuine timeline gaps, excluding harmless post-`forceQuarterNotes` vestigial null entries,
+   in ~12% — consistent with "starts on an inactive slot" probability).
+
+**Fix — generator-level, not RPG-layer (Han's explicit ask, §6c "reuse existing logic"):** three EXISTING
+`InstrumentSettings` fields, combined, make every slot exactly one quarter (note or rest) with NO merging
+and NO leading-null case ever possible:
+- `smallestNoteDenom: 4` — caps the generator's finest slot resolution at one quarter.
+- `insertBeatRests: true` — `insertRestsAtBeats` (step 4f) converts every empty on-beat slot into an
+  explicit `'r'` **before** `Melody.fromFlattenedNotes` ever runs. With `smallestNoteDenom=4` in 4/4 every
+  slot IS a beat, so this eliminates every `null` input to `fromFlattenedNotes` — no merging, no leading-null
+  case, full stop.
+- `polyMultiplier: 1` (the default) — `generateRankedRhythm` only injects tuplets when `polyMultiplier > 1`;
+  set explicitly (not left implicit) so a stale higher Polyrhythm value from elsewhere in the session can
+  never leak a triplet into a "every beat is a quarter" level.
+
+Because no note is ever longer than a quarter and every quarter aligns with every barline, **no tie is ever
+needed** either — ties only arise from a note spanning a barline. This is verified for 200 trials of real
+Level 2 settings in `src/generation/__tests__/quarterGrid.golden.test.js`: every melody yields exactly
+`numMeasures × 4` contiguous one-quarter events, offset 0 gapless to the end, zero null-offset entries.
+
+**`forceQuarterNotes.js` retired (deleted, not disabled)** — `src/utils/forceQuarterNotes.js` and its test
+are gone; `useMelodyState.js`'s post-process call site is removed. The generator-level fields make it
+structurally unnecessary and eliminate its edge-case bugs at the source (§6c: fix the root cause, don't patch
+around it).
+
+**Level configs (`src/levels/levels.js`) restructured:**
+- `QUARTER_GRID = { smallestNoteDenom: 4, insertBeatRests: true, polyMultiplier: 1 }` — the shared bundle,
+  applied to LEVEL1 and LEVEL2 (Han: "in level 1 en 2: elke noot is kwartnoot of kwartrust").
+- **LEVEL3 no longer spreads `...LEVEL1`** — it lists its own base fields explicitly, so it can never
+  accidentally inherit `QUARTER_GRID` through the old `LEVEL3 = {...LEVEL1, …}` inheritance chain. LEVEL3
+  explicitly sets `insertBeatRests: false, polyMultiplier: 1` (Han: "level 3 is gewoon gegenereerd zoals
+  nu" — full generation richness, mixed durations, ties, tuplets if Polyrhythm is on).
+- **`useLevel.js`'s `applyConfig` writes `insertBeatRests`/`polyMultiplier` UNCONDITIONALLY** on every level
+  switch (never `...(lvl.x ? {x} : {})`) — this is the cross-level-leakage guard: switching Level 2 → Level 3
+  directly (no `close()` in between) must not carry Level 2's `insertBeatRests=true` into Level 3. Covered by
+  a dedicated `useLevel.test.js` case that starts Level 2 then Level 3 in the same hook instance and asserts
+  Level 3's written config has `insertBeatRests: false, polyMultiplier: 1` regardless of what was there before.
+
+**New user-facing toggle (Han: "ik zou het clean vinden als dat een togglebare optie is in de
+melodie-generator"):** `insertBeatRests` is now exposed as a 5th carousel column ("beat rests": FREE/GRID) in
+`GenerationSetterOverlay.jsx`, for treble, bass, AND percussion (percussion already defaulted `true`; it is
+now user-togglable too). `COL_FRACS` grew from 4 to 5 evenly-spaced fractions; the chords row has no
+analogue for this column (returns `null`, same as its empty column 0) since chord density is already
+expressed by `chordCount`. Wiring mirrors every other field in the file: `set(p => ({ ...p, insertBeatRests:
+item.value }))`, same `CarouselField` engine, no new component.
+
+**Files:** `src/levels/levels.js`, `src/hooks/useLevel.js` (+test), `src/hooks/useMelodyState.js` (post-process
+call site removed), `src/utils/forceQuarterNotes.js` + test (deleted),
+`src/generation/__tests__/quarterGrid.golden.test.js` (new), `src/components/sheet-music/overlays/
+GenerationSetterOverlay.jsx` (+test).

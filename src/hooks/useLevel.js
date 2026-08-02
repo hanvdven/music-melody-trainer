@@ -38,7 +38,13 @@ export default function useLevel({ setters, snapshot, regenerate }) {
             ...prev, notesPerMeasure: lvl.notesPerMeasure, rhythmVariability: lvl.variability,
             range: lvl.range, rangeMode: 'fixed',
             ...(lvl.smallestNoteDenom ? { smallestNoteDenom: lvl.smallestNoteDenom } : {}),
-            forceQuarterNotes: !!lvl.forceQuarterNotes,   // #661 Level 2: every note → a quarter (+ rests)
+            // #661 rework (Han 2026-08-02): quarter-note/quarter-rest grid for Level 1/2, produced by the
+            // GENERATOR (see levels.js QUARTER_GRID comment) — NOT a post-process. insertBeatRests and
+            // polyMultiplier are written UNCONDITIONALLY (never `...(lvl.x ? {x} : {})`) on every level
+            // switch, so a value set by a PREVIOUS level in the same session can never leak into this one
+            // (e.g. Level 2 → Level 3 must not carry over insertBeatRests=true).
+            insertBeatRests: !!lvl.insertBeatRests,
+            polyMultiplier: lvl.polyMultiplier ?? 1,
         }));
         setters.setPlaybackConfig((prev) => ({
             ...prev, repsPerMelody: lvl.numRepeats,

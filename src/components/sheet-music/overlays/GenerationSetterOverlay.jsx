@@ -1,4 +1,5 @@
 import React from 'react';
+import { Grid3x3, Waves } from 'lucide-react';
 import '../SheetMusic.css';
 import { useInstrumentSettings } from '../../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../../contexts/DisplaySettingsContext';
@@ -128,7 +129,10 @@ const familyColor = (fam) => FAMILY_COLORS[fam] ?? 'var(--text-secondary)';
 // #435 (Han): 4 columns — note pool | melody type | VOICES | notes/measure. The voices column
 // sits between melody type and notes/measure (Han's spec); the chords row puts complexity there.
 // Layout-polish for the tighter spacing is a separate follow-up round (Han 2026-07-17 Q2).
-const COL_FRACS = [0.14, 0.38, 0.62, 0.86];
+// #661 (Han 2026-08-02): a 5th column — BEAT RESTS (`insertBeatRests`) — added after notes/measure. Han
+// asked for the "every beat is a note or an explicit rest" behaviour (built for Levels 1/2, see levels.js
+// QUARTER_GRID) to be a visible, user-toggleable generator setting, not just an internal level flag.
+const COL_FRACS = [0.1, 0.3, 0.5, 0.7, 0.9];
 
 // ── melody-type flat item rings (mirror the bottom view's reachable rules) ──────────────────────
 // The bottom-view "melody type" is a family icon + within-family stepper. For the in-sheet carousel
@@ -236,6 +240,14 @@ const NOTES_PER_MEASURE_ITEMS = NOTES_PER_MEASURE.map(v => ({
   value: v, label: v === 0 ? 'auto' : '', Icon: NUMERIC_ICONS.count,
 }));
 const CHORD_COUNT_ITEMS = CHORD_COUNTS.map(o => ({ ...o, Icon: NUMERIC_ICONS.count }));
+// #661 (Han 2026-08-02): BEAT RESTS toggle — maps straight onto InstrumentSettings.insertBeatRests.
+// 'free' (false, default) = an empty beat silently extends the previous note (today's behaviour outside
+// the levels); 'grid' (true) = every empty beat becomes an explicit rest (the Level 1/2 quarter-grid
+// mechanism, §6c — reused here, not reimplemented). Percussion already defaults 'grid' (true).
+const BEAT_RESTS_ITEMS = [
+  { value: false, label: 'free', Icon: Waves },
+  { value: true, label: 'grid', Icon: Grid3x3 },
+];
 
 // Match the current enabledPads array to a preset NAME (mirrors RuleSelector.sameSet fallback).
 const sameSet = (a, b) => {
@@ -334,7 +346,9 @@ const GenerationSetterOverlay = ({
     if (row.isChords) {
       // #435 (Han: "Plaats chord complexity ook in deze kolom"): complexity moved from column 0
       // to the VOICES column (2); column 0 is empty on the chords row.
-      if (colIdx === 0) return null;
+      // #661 (Han 2026-08-02): the new BEAT RESTS column (4) has no chords-row analogue either —
+      // "empty on-beat slot" isn't a concept for the chord track (chordCount already IS its density).
+      if (colIdx === 0 || colIdx === 4) return null;
       if (colIdx === 2) {
         // chord complexity. #362 (Han): "geen plaatjes" — each option is the REAL stacked chord
         // it stands for (canonical noteheads), the stack IS the item; the sans label below
@@ -516,37 +530,49 @@ const GenerationSetterOverlay = ({
         onSelect: (item) => set(p => ({ ...p, voices: item.value })),
       };
     }
-    // notes per measure → notesPerMeasure. #295/#362 (Han): every option 1..16
-    // renders as its REAL rhythm pattern — now through MelodyNotesLayer, so 8ths/
-    // 16ths BEAM per beat exactly like the sheet ("volgens bestaande protocol
-    // renderMelodyNotes"). The count sits below as a Maestro numeral (same font
-    // as the BPM/repeats displays); n=0 (auto) keeps its icon + AUTO label.
-    const items = NOTES_PER_MEASURE_ITEMS;
-    const cur = cfg?.notesPerMeasure || 0;
-    // #434 (Han: raised 20, then lowered 10 → net 10 above the row centre).
-    const rowStaffStart = row.centerY - 30;
+    if (colIdx === 3) {
+      // notes per measure → notesPerMeasure. #295/#362 (Han): every option 1..16
+      // renders as its REAL rhythm pattern — now through MelodyNotesLayer, so 8ths/
+      // 16ths BEAM per beat exactly like the sheet ("volgens bestaande protocol
+      // renderMelodyNotes"). The count sits below as a Maestro numeral (same font
+      // as the BPM/repeats displays); n=0 (auto) keeps its icon + AUTO label.
+      const items = NOTES_PER_MEASURE_ITEMS;
+      const cur = cfg?.notesPerMeasure || 0;
+      // #434 (Han: raised 20, then lowered 10 → net 10 above the row centre).
+      const rowStaffStart = row.centerY - 30;
+      return {
+        items, activeIndex: idxOf(items, cur), labelAbove: 'notes / measure',
+        renderContent: (item, active, color) => (
+          item.value > 0
+            ? (
+              <g>
+                <RhythmMeasureGlyph n={item.value} staffStart={rowStaffStart} color={color} />
+                {/* #431 rework 4 (Han 2026-07-19: "de maestro labels staan niet op dezelfde hoogte als
+                    de tekstlabels"): the count baseline == the value-label baseline (CONTENT_LABEL_DY),
+                    so the Maestro numeral lines up with the sans labels (WEIGHTED, SCALE, …) in the
+                    neighbouring columns. */}
+                <text x={0} y={row.centerY + CONTENT_LABEL_DY} textAnchor="middle"
+                  fontSize={COUNT_FONT_SIZE} fontFamily="Maestro" fill={color}
+                  style={{ pointerEvents: 'none' }}>{item.value}</text>
+              </g>
+            )
+            : null
+        ),
+        baseWidth: PATTERN_BASE, visibleHalf: 1,
+        hitTop: HIT_TOP, hitHeight: HIT_H + 24,
+        labelDy: CONTENT_LABEL_DY,
+        onSelect: (item) => set(p => ({ ...p, notesPerMeasure: item.value })),
+      };
+    }
+    // #661 (Han 2026-08-02): BEAT RESTS toggle → InstrumentSettings.insertBeatRests. A small 2-item
+    // carousel (mirrors the melody-type column's simpler icon+label pattern — no custom glyph needed).
+    const items = BEAT_RESTS_ITEMS;
+    const cur = !!cfg?.insertBeatRests;
     return {
-      items, activeIndex: idxOf(items, cur), labelAbove: 'notes / measure',
-      renderContent: (item, active, color) => (
-        item.value > 0
-          ? (
-            <g>
-              <RhythmMeasureGlyph n={item.value} staffStart={rowStaffStart} color={color} />
-              {/* #431 rework 4 (Han 2026-07-19: "de maestro labels staan niet op dezelfde hoogte als
-                  de tekstlabels"): the count baseline == the value-label baseline (CONTENT_LABEL_DY),
-                  so the Maestro numeral lines up with the sans labels (WEIGHTED, SCALE, …) in the
-                  neighbouring columns. */}
-              <text x={0} y={row.centerY + CONTENT_LABEL_DY} textAnchor="middle"
-                fontSize={COUNT_FONT_SIZE} fontFamily="Maestro" fill={color}
-                style={{ pointerEvents: 'none' }}>{item.value}</text>
-            </g>
-          )
-          : null
-      ),
-      baseWidth: PATTERN_BASE, visibleHalf: 1,
-      hitTop: HIT_TOP, hitHeight: HIT_H + 24,
-      labelDy: CONTENT_LABEL_DY,
-      onSelect: (item) => set(p => ({ ...p, notesPerMeasure: item.value })),
+      items, activeIndex: idxOf(items, cur), labelAbove: 'beat rests',
+      iconSize: STAFF_CARD_ICON, iconDy: MELODY_TYPE_ICON_DY, labelDy: CONTENT_LABEL_DY,
+      baseWidth: MELODY_TYPE_BASE, visibleHalf: 1,
+      onSelect: (item) => set(p => ({ ...p, insertBeatRests: item.value })),
     };
   };
 

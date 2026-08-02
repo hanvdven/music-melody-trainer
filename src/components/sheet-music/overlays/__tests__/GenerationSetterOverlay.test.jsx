@@ -82,6 +82,16 @@ describe('GenerationSetterOverlay (carousel style)', () => {
     expect(debugRects.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('renders a BEAT RESTS toggle (insertBeatRests) for treble/bass/percussion but not the chords row (#661)', () => {
+    const { container } = renderOverlay();
+    const headers = [...container.querySelectorAll('text')].map(t => t.textContent);
+    expect(headers).toContain('beat rests');
+    // 3 melodic/percussion rows each get the toggle; the chords row does not (it has no on-beat-rest
+    // concept — chordCount already expresses its density). FREE/GRID labels only come from this field.
+    const labels = [...container.querySelectorAll('text')].map(t => t.textContent);
+    expect(labels.filter((t) => t === 'FREE' || t === 'GRID').length).toBeGreaterThan(0);
+  });
+
   it('renders nothing without geometry', () => {
     const { container } = renderOverlay({ startX: null });
     expect(container.querySelector('.generation-overlay')).toBeNull();

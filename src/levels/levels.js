@@ -1,9 +1,30 @@
 // #659 Levels — a "level" applies a fixed generation + visibility config, then the player clears waves of
 // slimes (the #647 combat) until a target measure count, then a "Well done!" splash with stats.
-//
-// Level 1 (Han 2026-08-01): treble only (chords/bass/percussion hidden), 2 measures, 1 repeat, 2 notes per
-// measure, 30% variability, range C4–G4. Done after 8 measures = 4 cleared waves of 2 measures each.
 
+// #661 rework (Han 2026-08-02): "elke kwartnoot moet kwartnoot of rust zijn" for the early levels, produced
+// ROBUSTLY at the GENERATOR level (§6c: reuse existing generation settings — no RPG-layer/post-process
+// hack). Three EXISTING InstrumentSettings fields, combined, guarantee this:
+//   - smallestNoteDenom: 4  → caps the generator's slot resolution at one quarter (the finest note it will
+//     ever place), so no sub-quarter subdivision exists to merge into a longer note in the first place.
+//   - insertBeatRests: true → melodyGenerator's step-4f `insertRestsAtBeats` turns every EMPTY on-beat slot
+//     into an explicit 'r' BEFORE Melody.fromFlattenedNotes runs. This is the field that was missing: with
+//     it OFF (the treble default), an inactive quarter-slot instead silently EXTENDS the duration of the
+//     PRECEDING note (that's how a "long note" is represented at all) — and Melody.fromFlattenedNotes'
+//     leading-rest edge case additionally left a piece-opening rest with a null offset (invisible — no
+//     note, no rest, nothing rendered: the reported "maat 8 is leeg" / gap symptom). With insertBeatRests
+//     on, no null slot ever reaches that merge step, so no long note and no invisible leading gap can occur.
+//   - polyMultiplier: 1 (the default) → keeps tuplet injection off (generateRankedRhythm only injects
+//     tuplets when polyMultiplier > 1), so no beat is ever subdivided into a triplet etc. Set EXPLICITLY
+//     here (not just left at its default) so a stale higher Polyrhythm setting from elsewhere in the app
+//     can never leak into these levels.
+// The combination means NO note or rest is ever longer than a quarter and NO tie is ever needed (ties only
+// arise from a note spanning a barline; every quarter aligns with every barline). forceQuarterNotes.js (the
+// old post-process patch, which had its own null-entry/leading-gap bugs) is retired — deleted, not disabled.
+const QUARTER_GRID = { smallestNoteDenom: 4, insertBeatRests: true, polyMultiplier: 1 };
+
+// Level 1 (Han 2026-08-01, quarter-grid since 2026-08-02): treble only (chords/bass/percussion hidden),
+// 2 measures, 1 repeat, 2 notes per measure, 30% variability, range C4–G4, quarter-note/quarter-rest grid.
+// Done after 8 measures = 4 cleared waves of 2 measures each.
 export const LEVEL1 = {
     id: 1,
     name: 'Level 1',
@@ -13,40 +34,41 @@ export const LEVEL1 = {
     variability: 30,              // rhythmVariability 0–100
     range: { min: 'C4', max: 'G4' },
     totalMeasures: 8,             // level complete after this many measures cleared
+    ...QUARTER_GRID,
 };
 
-// Level 2 (Han 2026-08-01): same as Level 1 + bpm 80, but SIDE-SCROLL — slimes fly in from the right (walk
-// animation, hopping), a note is 8 beats on screen, and you may only kill the leftmost slime once it reaches
-// the HIT-ZONE by the hero (playing too early misses; a slime that reaches the hero un-killed fades = miss).
-//
-// #661 (Han UAT 2026-08-01: "maatblokken sluiten niet naadloos aan"): Level 2 is ONE continuous 8-measure
-// piece, NOT 4 regenerated 2-measure waves. The seam Han saw came from mid-level regeneration resetting the
-// scroll clock (a fresh 2-bar lead-in = the gap). With numMeasures=8 the whole level is a single wave: one
-// generation, one lead-in, and measures 1–8 scroll seamlessly. `wavesForLevel` = round(8/8) = 1, so the
-// "Well done!" splash fires once the whole piece is resolved.
-// Level 3 (Han 2026-08-02): what used to be Level 2 — the side-scroll with 2 notes/measure, 30% variability,
-// mixed durations. Shifted up one slot so Level 2 can be an EASIER on-ramp.
+// Level 3 (Han 2026-08-02): what used to be Level 2 — the side-scroll level with 2 notes/measure, 30%
+// variability, FULL generation richness (mixed durations, ties, tuplets if Polyrhythm is on elsewhere) —
+// "gewoon gegenereerd zoals nu" (Han). Deliberately does NOT spread LEVEL1 (which now carries QUARTER_GRID)
+// — it lists its own base fields so it is never accidentally pulled onto the quarter grid.
 export const LEVEL3 = {
-    ...LEVEL1,
     id: 3,
     name: 'Level 3',
+    numMeasures: 8,             // one continuous 8-measure piece (no mid-level regeneration → no seam,
+                                 // see the #661 UAT note this replaced: "maatblokken sluiten niet naadloos aan")
+    numRepeats: 1,
+    notesPerMeasure: 2,
+    variability: 30,
+    range: { min: 'C4', max: 'G4' },
+    totalMeasures: 8,
     bpm: 80,
-    numMeasures: 8,             // one continuous 8-measure piece (no mid-level regeneration → no seam)
     sideScroll: true,
     beatsOnScreen: 8,            // spawn (right) → hero (left) takes this many beats
+    // Explicit (not merely "unset") so a stale value from a just-played Level 1/2 in the SAME session can
+    // never leak in — useLevel.applyConfig writes these fields unconditionally on every level switch.
+    insertBeatRests: false,
+    polyMultiplier: 1,
 };
 
-// Level 2 (Han 2026-08-02): a SIMPLER on-ramp — 3 notes/measure, 30% variability, smallest note = quarter,
-// and EVERY note forced to a quarter (longer notes → quarter + rests; see forceQuarterNotes). Same
-// side-scroll engine as Level 3.
+// Level 2 (Han 2026-08-02): a SIMPLER on-ramp — 3 notes/measure, 30% variability, same side-scroll engine
+// as Level 3, PLUS the quarter-note/quarter-rest grid (QUARTER_GRID, overridden on top of LEVEL3's shape).
 export const LEVEL2 = {
     ...LEVEL3,
     id: 2,
     name: 'Level 2',
     notesPerMeasure: 3,
     variability: 30,
-    smallestNoteDenom: 4,       // quarter is the smallest generated note
-    forceQuarterNotes: true,    // NEW: post-process every note into a quarter (pad the remainder with rests)
+    ...QUARTER_GRID,
 };
 
 export const LEVELS = { 1: LEVEL1, 2: LEVEL2, 3: LEVEL3 };

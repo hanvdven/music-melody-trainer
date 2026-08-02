@@ -7,6 +7,43 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — ✅ Level 1/2: robuuste kwart-grid via generator (root cause van "gaten")
+
+Han: "elke kwartnoot moet kwartnoot of rust zijn — niet zo nu, waarschijnlijk
+door weggehaalde ties/lange noten. Dat is op zich goed, maar maak het een
+togglebare optie in de generator. Los het op via de generator, niet
+hardcoded in de rpg-laag. Level 1 én 2 krijgen het kwartraster; Level 3
+blijft zoals nu (ties/tierlantijnen)."
+
+Root cause gevonden (500-trial probe): `insertBeatRests` (bestaande generator-
+instelling) staat voor treble standaard UIT — een lege kwart-slot verlengt dan
+stilzwijgend de VORIGE noot (zo ontstaat een "lange noot") i.p.v. een rust te
+worden. Bovendien: als het stuk zelf met een rust begint, komt die rust in
+`Melody.fromFlattenedNotes` op een entry met `offset:null` terecht (het
+gedocumenteerde "leading rest" quirk in de golden test) — onrenderbaar, dus
+een ONZICHTBAAR gat (geen noot, geen rust). De oude `forceQuarterNotes.js`
+post-process (Level 2 t/m nu) herkende dit null-geval niet en loste het dus
+niet op.
+
+Fix (root cause, generator-niveau, §6c): `smallestNoteDenom:4` +
+`insertBeatRests:true` + `polyMultiplier:1` samen garanderen dat ELKE slot
+precies één kwart is (noot of expliciete rust), zonder samenvoegen — dus ook
+zonder de null-offset edge case. Geverifieerd met 200/200 trials: exact
+`numMeasures×4` aaneengesloten kwart-events, nul gaten, nul null-entries
+(`quarterGrid.golden.test.js`). `forceQuarterNotes.js` + zijn test VERWIJDERD
+(dood, en bevatte de bug) i.p.v. gepatcht.
+
+`levels.js` herstructureerd: `QUARTER_GRID` bundel op LEVEL1 + LEVEL2; LEVEL3
+spreadt NIET meer van LEVEL1 (zodat het kwartraster nooit kan lekken) en zet
+`insertBeatRests:false, polyMultiplier:1` EXPLICIET. `useLevel.applyConfig`
+schrijft deze 2 velden nu ONVOORWAARDELIJK bij elke level-switch (voorkomt
+lekkage tussen levels binnen dezelfde sessie, bv. Level2→Level3 zonder
+close()) — gedekt door een nieuwe useLevel-test.
+
+Nieuwe UI: `insertBeatRests` is nu een 5e carousel-kolom ("beat rests":
+FREE/GRID) in `GenerationSetterOverlay.jsx`, voor treble/bass/percussie (Han:
+"zet de toggler in generator settings"). architecture.md §91.
+
 ## 2026-08-02 — 🔨 Level 2/3: ruimere timing-coulantie + graded judgments
 
 Han: "accuracy maar ~10% terwijl ik best goed speel. ±1/32 noot = 'perfect';

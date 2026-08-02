@@ -1,6 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import useLevel from '../useLevel';
+import { LEVEL1, LEVEL2, LEVEL3 } from '../../levels/levels';
 
 const makeSetters = () => ({
     setNumMeasures: vi.fn(), setTrebleSettings: vi.fn(), setPlaybackConfig: vi.fn(),
@@ -62,6 +63,23 @@ describe('useLevel (#659 Level 1)', () => {
         act(() => { result.current.onWaveCleared(); });                 // wave 4 → done, NO regen
         expect(result.current.done).toBe(true);
         expect(regenerate).toHaveBeenCalledTimes(4);
+    });
+
+    it('Level 1/2 set the quarter-grid generator fields; Level 3 explicitly clears them (Han 2026-08-02, no cross-level leakage)', () => {
+        const { setters, result } = setup();
+        act(() => result.current.start(LEVEL2));
+        let applied = setters.setTrebleSettings.mock.calls.at(-1)[0]({});
+        expect(applied).toMatchObject({ smallestNoteDenom: 4, insertBeatRests: true, polyMultiplier: 1 });
+
+        // Switching straight to Level 3 (no close() in between) must NOT inherit Level 2's
+        // insertBeatRests/polyMultiplier — this is the exact leakage the explicit-write fixes.
+        act(() => result.current.start(LEVEL3));
+        applied = setters.setTrebleSettings.mock.calls.at(-1)[0]({ insertBeatRests: true, polyMultiplier: 4 });
+        expect(applied).toMatchObject({ insertBeatRests: false, polyMultiplier: 1 });
+
+        act(() => result.current.start(LEVEL1));
+        applied = setters.setTrebleSettings.mock.calls.at(-1)[0]({});
+        expect(applied).toMatchObject({ smallestNoteDenom: 4, insertBeatRests: true, polyMultiplier: 1 });
     });
 
     it('close restores the snapshot and deactivates', () => {

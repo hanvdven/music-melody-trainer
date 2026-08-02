@@ -9,7 +9,6 @@ import ChordProgression from '../model/ChordProgression';
 import { calculateRelativeRange, modulateMelody } from '../theory/musicUtils';
 import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
-import forceQuarterNotes from '../utils/forceQuarterNotes';
 import useRefState from './useRefState';
 
 // Percussion note tokens are non-pitched and must never be passed through
@@ -265,13 +264,6 @@ const useMelodyState = (
       canRandomize: canRandomizeMelody, voiceType: 'treble', settings: trebleSettings,
       nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
-    // #661 Level 2 (Han 2026-08-02): a settings-driven POST-process — force every treble note to a quarter
-    // (longer → quarter + rest). Applied AFTER the generator (uniform, settings-gated; not a generator branch).
-    if (trebleSettings?.forceQuarterNotes && newTreble?.notes?.length) {
-      const q = forceQuarterNotes(newTreble);
-      newTreble.notes = q.notes; newTreble.offsets = q.offsets; newTreble.durations = q.durations; newTreble.ties = q.ties;
-      if (q.triplets) newTreble.triplets = q.triplets;
-    }
     const newBass = bassSettings?.preferredClef === 'off' ? EMPTY() : resolveVoice({
       isFixed: bassSettings?.randomizationRule === 'fixed',
       currentMelody: bass, refMelody: referenceBassMelody, refScale: referenceScale.generateBassScale(), targetScale: bassSc,
