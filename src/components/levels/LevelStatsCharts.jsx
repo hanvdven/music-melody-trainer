@@ -15,12 +15,17 @@ import { TIMING_ORDER, GRADE_LABELS } from '../../levels/gradeHit';
 // <text> below sets an explicit CSS font (TEXT_FONT), never inherits.
 const TEXT_FONT = "Georgia, 'Times New Roman', serif";
 
-const TIER_COLOR = { perfect: '#2eb84d', tooFast: '#d4a800', tooSlow: '#d4a800', muchTooFast: '#e07818', muchTooSlow: '#e07818' };
+const TIER_COLOR = {
+    perfect: '#2eb84d', tooFast: '#d4a800', tooSlow: '#d4a800', muchTooFast: '#e07818', muchTooSlow: '#e07818',
+    missed: '#888888',
+};
 // Order + labels come from gradeHit.js (single source of truth, §6c) — Han 2026-08-02: "maak de
-// timing-as logisch": much too early → too early → perfect → too late → much too late.
-const TIMING_TIERS = TIMING_ORDER.map((key) => ({ key, label: GRADE_LABELS[key], color: TIER_COLOR[key] }));
+// timing-as logisch": much too early → too early → perfect → too late → much too late. `missed` (Han:
+// "voeg aan timing accuracy toe: missed") is appended as its own trailing bar — a note that was never
+// attempted at all has no timing/position on the early↔late axis, so it sits outside the 5-tier order.
+const TIMING_TIERS = [...TIMING_ORDER, 'missed'].map((key) => ({ key, label: GRADE_LABELS[key], color: TIER_COLOR[key] }));
 
-const CHART_W = 320, BAR_CHART_H = 120, BAR_GAP = 10;
+const CHART_W = 360, BAR_CHART_H = 120, BAR_GAP = 8;
 
 // Bar chart of the 5 gradeHit timing tiers (counts only — Han confirmed bars over a raw-ms box plot).
 export function TimingBarChart({ stats }) {

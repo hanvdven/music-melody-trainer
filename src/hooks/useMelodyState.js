@@ -10,6 +10,7 @@ import { calculateRelativeRange, modulateMelody } from '../theory/musicUtils';
 import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
 import buildTimpaniPattern from '../utils/timpaniPattern';
+import buildCelloWholeNotePattern from '../utils/celloWholeNotePattern';
 import useRefState from './useRefState';
 
 // Percussion note tokens are non-pitched and must never be passed through
@@ -271,6 +272,15 @@ const useMelodyState = (
       canRandomize: canRandomizeMelody, voiceType: 'bass', settings: bassSettings,
       nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
+    // #661 (Han 2026-08-02, Level 2 exception): a settings-driven override — a FIXED C2 whole-note
+    // pattern (utils/celloWholeNotePattern.js) replaces the generated bass melody. Deterministic, NOT
+    // routed through MelodyGenerator (explicitly authorized as hardcoded — mirrors the percussion
+    // `melodic` override above/below). Level-internal only (useLevel.applyConfig sets it for Level 2).
+    if (bassSettings?.fixedWholeNote && newBass?.notes?.length) {
+      const pat = buildCelloWholeNotePattern(activeNumMeasures, activeTS);
+      newBass.notes = pat.notes; newBass.offsets = pat.offsets;
+      newBass.durations = pat.durations; newBass.ties = pat.ties;
+    }
     const newPercussion = percussionSettings?.preferredClef === 'off' ? EMPTY() : resolveVoice({
       isFixed: percussionSettings?.randomizationRule === 'fixed',
       currentMelody: percussion, refMelody: null, refScale: null, targetScale: percussionScale,

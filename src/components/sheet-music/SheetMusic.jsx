@@ -154,6 +154,12 @@ const DOTTED_DURATIONS = new Set([9, 18, 21, 36, 42, 72]);
 // `[]` on each render and can hit its cache.
 const EMPTY_SCALE_NOTES = Object.freeze([]);
 
+// #661 (Han 2026-08-02): the side-scroll levels' audible lead-in (App.jsx's scheduleLevelBacking: cello +
+// timpani start at measure -1, metronome joins at measure 0) is 2 bars — this MUST match
+// `beatsOnScreen / barBeats` there (today's levels: beatsOnScreen=8, 4/4 → 2 bars). Used to prepend that
+// many synthetic barlines to the scrolling staff so measures -1/0 also draw a moving line + number.
+const LEVEL_LEAD_IN_BARS = 2;
+
 const melodyToTaggedOffsets = (melody, accidentals) => {
   if (!melody || !melody.offsets) return [];
   return melody.offsets.map((offset, i) => ({
@@ -2844,12 +2850,21 @@ const SheetMusic = ({
                       percussionVoiceSplit: percussionSettings?.melodic ? false : percussionVoiceSplit,
                     } : null}
                     scrollBarlines={sideScroll ? {
-                      offsets: allOffsets,
+                      // #661 (Han 2026-08-02 UAT: "voor maat -1 en 0 moet er ook een streep bewegen ... en
+                      // een nummer zichtbaar zijn"): BarlinesLayer positions every barline PURELY from its
+                      // ordinal position among 'm' markers in `offsets` (barlineCount × measureLengthSlots
+                      // × pixelsPerTick) — it never reads the marker's OWN tick value. So two synthetic 'm'
+                      // entries prepended here (this bundle ONLY — the shared `allOffsets` used for actual
+                      // note positioning elsewhere is untouched) make BarlinesLayer draw 2 EXTRA barlines
+                      // before the real content, which the scroll's uniform translate naturally carries
+                      // across the screen first — exactly the -1/0 lead-in bars. LEVEL_LEAD_IN_BARS must
+                      // match the audio lead-in in App.jsx (beatsOnScreen⁄barBeats — 2 for today's levels).
+                      offsets: [...Array(LEVEL_LEAD_IN_BARS).fill('m'), ...allOffsets],
                       measureLengthSlots,
-                      // #661 (Han UAT): a level always numbers its measures 1..N. Force the numbering origin
-                      // to 1 (blockMeasureStart) regardless of the app's paginated block state.
+                      // A level always numbers its measures starting at 1 − LEAD_IN_BARS (so the 2 extra
+                      // barlines read "-1" and "0"), regardless of the app's paginated block state.
                       startIdx: 0,
-                      blockMeasureStart: 1,
+                      blockMeasureStart: 1 - LEVEL_LEAD_IN_BARS,
                       blockPlayStart: 0,
                       partialTop,
                       partialMeasureStart,

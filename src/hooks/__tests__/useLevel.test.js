@@ -122,6 +122,15 @@ describe('useLevel (#659 Level 1)', () => {
         expect(setters.setBassSettings.mock.calls.at(-1)[0]()).toMatchObject({ instrument: 'electric_bass_pick' });
     });
 
+    it('Level 2 forces a fixed whole-note bass (octave-mismatch UAT fix); Level 3 keeps the real generated bass (Han 2026-08-02)', () => {
+        const { setters, result } = setup();
+        act(() => result.current.start(LEVEL2));
+        expect(setters.setBassSettings.mock.calls.at(-1)[0]({})).toMatchObject({ instrument: 'cello', fixedWholeNote: true });
+
+        act(() => result.current.start(LEVEL3));
+        expect(setters.setBassSettings.mock.calls.at(-1)[0]({ fixedWholeNote: true })).toMatchObject({ instrument: 'cello', fixedWholeNote: false });
+    });
+
     it('side-scroll levels turn percussion melodic (timpani); Level 1 keeps it off; close() restores it (Han 2026-08-02)', () => {
         const { setters, result } = setup();
         act(() => result.current.start(LEVEL2));

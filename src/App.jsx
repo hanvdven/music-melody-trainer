@@ -34,6 +34,8 @@ import playSound from './audio/playSound';
 import playMelodies from './audio/playMelodies';
 import { Soundfont } from 'smplr';
 import buildTimpaniPattern from './utils/timpaniPattern';
+import buildCelloWholeNotePattern from './utils/celloWholeNotePattern';
+import withMetronomeLeadIn from './utils/metronomeLeadIn';
 import { VOL_STEPS } from './components/sheet-music/overlays/SettingsOverlay';
 import { LEVELS } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
@@ -1045,45 +1047,77 @@ const App = () => {
         if (!level.active || !lvl?.sideScroll || levelAudioStart == null || !context) return;
         if (backingScheduledForRef.current === levelAudioStart) return;   // already scheduled this anchor
         if (bassSettings.instrument !== 'cello' || !instruments.bass || !instruments.metronome) return;
+        // Wait for the dedicated timpani Soundfont too when percussion is melodic — scheduling before
+        // it's ready would silently skip it for the whole level session (backingScheduledForRef locks in).
+        if (percussionSettings?.melodic && !timpaniRef.current) return;
         backingScheduledForRef.current = levelAudioStart;
         const bpm = lvl.bpm || 80;
         const beatSec = 60 / bpm;
         const bos = lvl.beatsOnScreen || 8;
-        // Content tick-0 sounds `bos` beats AFTER the anchor — the SAME "add beatsOnScreen" convention
-        // SheetRpgLayer's sideScrollX/graded-window use for when a beat's SLIME arrives at the hero, so a
-        // beat's sound and its slime's arrival coincide exactly.
-        const contentStart = levelAudioStart + bos * beatSec;
-        const melodiesToPlay = [], instrumentsToPlay = [];
-        if (melodies.bass?.notes?.length) { melodiesToPlay.push(melodies.bass); instrumentsToPlay.push(instruments.bass); }
-        if (melodies.metronome?.notes?.length) { melodiesToPlay.push(melodies.metronome); instrumentsToPlay.push(instruments.metronome); }
-        // #661 ("melodische percussie … pauken"): percussion.melodic drives BOTH the notation (already
-        // rendered pitched via SheetRpgLayer/SheetMusic) and this hardcoded timpani pattern — the SAME
-        // buildTimpaniPattern() call is the single source of truth for both, so they can never drift.
+        const barBeats = timeSignature[0] || 4;
+        const barSec = beatSec * barBeats;
+        const measureTicks = (TICKS_PER_WHOLE * barBeats) / (timeSignature[1] || 4);
+        // #661 (Han 2026-08-02 UAT): "de timpanen en cello moeten beginnen op maat -1, de metronoom op
+        // maat 0" — a 2-bar lead-in BEFORE content measure 1 (unchanged: `contentStart` is where the
+        // FIRST slime arrives, the "add beatsOnScreen" convention SheetRpgLayer's sideScrollX/graded
+        // window already use). Timpani + Level 2's fixed cello start at the very front of the lead-in
+        // (measure -1); the metronome joins one bar later (measure 0, `contentStart − barSec`).
+        const contentStart = levelAudioStart + bos * beatSec;   // measure 1
+        const leadInStart = levelAudioStart;                    // measure -1
+        const metronomeStart = contentStart - barSec;           // measure 0
+        const leadInBars = Math.max(1, Math.round((bos * beatSec) / barSec));   // 2 for today's levels
+
+        setVolume('bass', LEVEL_BACKING_VOLUME);
+        setVolume('metronome', LEVEL_BACKING_VOLUME);
+
+        // Timpani (both levels) + Level 2's fixed C2 cello — both Han-authorized hardcoded patterns with
+        // no "generated content" to align to — span the WHOLE piece (lead-in + content) from measure -1.
+        const leadInMelodies = [], leadInInstruments = [];
         let namedInstruments = instruments;
         if (percussionSettings?.melodic && timpaniRef.current) {
-            const pat = buildTimpaniPattern(lvl.numMeasures, timeSignature);
-            melodiesToPlay.push(pat);
-            instrumentsToPlay.push(timpaniRef.current);
+            leadInMelodies.push(buildTimpaniPattern(leadInBars + lvl.numMeasures, timeSignature));
+            leadInInstruments.push(timpaniRef.current);
             // trackGains below identifies each track by comparing the instrument reference against
             // namedInstruments.percussion — override just for THIS call so gain-lookup treats the
             // dedicated timpani instance as "percussion" without touching the real instruments object.
             namedInstruments = { ...instruments, percussion: timpaniRef.current };
         }
-        if (melodiesToPlay.length === 0) return;
-        setVolume('bass', LEVEL_BACKING_VOLUME);
-        setVolume('metronome', LEVEL_BACKING_VOLUME);
-        playMelodies(
-            melodiesToPlay, instrumentsToPlay, context, bpm, contentStart,
-            null,              // abortControllerRef — stopping is via instruments.bass/.metronome/timpaniRef.stop() (stopAllBackingAudio)
-            null,              // tickRange — play the whole generated piece, not a measure slice
-            namedInstruments,  // namedInstruments — same routing/gain-lookup Sequencer.js passes
-            null,              // customMapping
-            { treble: 0, bass: 1, percussion: LEVEL_BACKING_VOLUME, chords: 0, metronome: 1 },
-        );
+        if (bassSettings.fixedWholeNote) {
+            leadInMelodies.push(buildCelloWholeNotePattern(leadInBars + lvl.numMeasures, timeSignature));
+            leadInInstruments.push(instruments.bass);
+        }
+        if (leadInMelodies.length > 0) {
+            playMelodies(
+                leadInMelodies, leadInInstruments, context, bpm, leadInStart,
+                null, null, namedInstruments, null,
+                { treble: 0, bass: 1, percussion: LEVEL_BACKING_VOLUME, chords: 0, metronome: 0 },
+            );
+        }
+
+        // Level 3's bass keeps the REAL generated melody, CONTENT ONLY — silent during the -1/0 lead-in
+        // (Han's explicit answer: there is no generated data for negative measures).
+        if (!bassSettings.fixedWholeNote && melodies.bass?.notes?.length) {
+            playMelodies(
+                [melodies.bass], [instruments.bass], context, bpm, contentStart,
+                null, null, instruments, null,
+                { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 0 },
+            );
+        }
+
+        // Metronome starts ONE bar into the lead-in ("maat 0") — its own first bar duplicated as the
+        // count-in (utils/metronomeLeadIn.js: reuses the metronome's own uniform click pattern, not a new
+        // hardcoded one), so the untouched original melody still lands exactly on content measure 1.
+        if (melodies.metronome?.notes?.length) {
+            playMelodies(
+                [withMetronomeLeadIn(melodies.metronome, measureTicks)], [instruments.metronome], context, bpm, metronomeStart,
+                null, null, instruments, null,
+                { treble: 0, bass: 0, percussion: 0, chords: 0, metronome: 1 },
+            );
+        }
         // melodies is a memoised object (useMelodyState) — safe as a dep; bassSettings.instrument is the
         // real gate (waits for the cello swap), so this effect is a no-op until everything lines up.
-    }, [level.active, level.current, levelAudioStart, context, instruments, bassSettings.instrument, melodies,
-        setVolume, LEVEL_BACKING_VOLUME, percussionSettings?.melodic, timeSignature]);
+    }, [level.active, level.current, levelAudioStart, context, instruments, bassSettings.instrument,
+        bassSettings.fixedWholeNote, melodies, setVolume, LEVEL_BACKING_VOLUME, percussionSettings?.melodic, timeSignature]);
     const startLevel = useCallback((n) => {
         const lvl = LEVELS[n] || LEVELS[1];
         context.resume?.();

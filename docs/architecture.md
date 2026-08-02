@@ -6543,3 +6543,64 @@ scrolling render swap), `src/components/sheet-music/SheetRpgLayer.jsx` (percussi
 `src/components/sheet-music/overlays/ClefStaffOverlay.jsx` (+test — 4th carousel option), `src/App.jsx`
 (`timpaniRef`, backing-scheduling effect extended), `src/hooks/useLevel.js` (+test — `percussionSettings`
 apply/restore).
+
+### §94. UAT round 2: missed on the timing chart, Level 2 fixed cello, -1/0 lead-in (Han 2026-08-02)
+
+**"missed" on the timing chart:** `LevelStatsCharts.jsx`'s `TimingBarChart` gains a 6th, trailing bar —
+`missed` (grey, `JUDGMENT_COLOR.missed`) — appended after `TIMING_ORDER`'s 5 tiers. A note that was never
+attempted at all has no position on the early↔late axis, so it sits outside (not inserted into) the
+logical order §90a established; `NoteCorrectnessGauge` is unaffected (Han's 4-colour list there still
+deliberately excludes `missed` — a different question, pitch-correctness not timing).
+
+**Level 2 bass — fixed C2 whole note (UAT, octave-register fix):** Han: *"de cello is een octaaf te hoog.
+is nu gegenereerd volgens de generate melody — dat is op zich fantastisch, maar voor level 2 wil ik
+uitzonderlijk gewoon een c2 toon, hele noot, elke maat."* Rather than chase the register mismatch between
+the generated bass range and the cello timbre, Level 2's bass is simplified to a FIXED whole note, C2, every
+measure — `utils/celloWholeNotePattern.js` (+test), explicitly authorized as a hardcoded exception (same
+spirit as §93's timpani pattern). New `InstrumentSettings.fixedWholeNote` field (bass-only in practice, no
+general UI toggle — this is Level-2-internal, unlike percussion's `melodic`): `useMelodyState.js` overrides
+`newBass` with the pattern when set, so notation AND audio both show the simple content consistently.
+`levels.js`'s `LEVEL2.fixedBass = true`, `LEVEL3.fixedBass = false` (explicit, not merely unset — same
+cross-level-leakage guard as `insertBeatRests`/`melodic`); `useLevel.applyConfig` writes
+`bassSettings.fixedWholeNote` unconditionally alongside `instrument: 'cello'`.
+
+**Lead-in measures -1 and 0 (Han UAT): *"de timpanen en cello moeten beginnen op maat -1, de metronoom op
+maat 0. Voor maat -1 en 0 moet er ook een streep bewegen. En een nummer zichtbaar zijn."*** Previously the
+2-bar pre-roll (`beatsOnScreen` beats before content measure 1) was audibly silent and visually absent —
+only `contentStart` (measure 1) carried any backing sound or barline. Now:
+
+- **Audio (`App.jsx`'s backing-scheduling effect):** three SEPARATE `playMelodies()` calls (one
+  `scheduledStart` each, since `playMelodies` shares one anchor across everything in a single call):
+  1. **Lead-in group** (timpani always, Level 2's fixed cello when `fixedWholeNote`) — spans the WHOLE
+     piece (`leadInBars + numMeasures` measures) via `buildTimpaniPattern`/`buildCelloWholeNotePattern`,
+     scheduled at `levelAudioStart` (measure -1). Both are hardcoded patterns with no "generated content"
+     to align to, so there's nothing lost by starting them early.
+  2. **Level 3's real bass** (`melodies.bass`, unchanged) — content-only, scheduled at `contentStart`
+     (measure 1); silent during -1/0 (Han's explicit answer — there is no generated data for negative
+     measures, so no filler is invented).
+  3. **Metronome** — starts ONE bar into the lead-in ("maat 0" = `contentStart − barSec`). Its own
+     generated melody unchanged, but `utils/metronomeLeadIn.js` (+test) prepends a DUPLICATE of the
+     melody's own first bar (the click pattern is deterministic/uniform every measure, so bar 1 is a
+     faithful stand-in for a count-in bar) — no new generation, no hardcoded click pattern. Scheduling the
+     combined melody at `contentStart − barSec` lands the duplicated bar at measure 0 and the untouched
+     original at measure 1 onward, exactly where it already played before this change.
+  - `leadInBars` is derived from `beatsOnScreen / barBeats` (today's levels: 8 beats / 4 = 2 bars, matching
+    "-1, 0"). The readiness gate (`bassSettings.instrument==='cello'`, `instruments.bass/.metronome`
+    existing) now ALSO waits for `timpaniRef.current` when percussion is melodic, before locking in
+    `backingScheduledForRef` — scheduling before the dedicated timpani Soundfont has loaded would
+    otherwise silently skip it for the whole level session.
+- **Visual (`SheetMusic.jsx`'s `scrollBarlines` bundle):** `BarlinesLayer` positions every barline PURELY
+  from its ordinal position among `'m'` markers in the `offsets` array (`barlineCount ×
+  measureLengthSlots × pixelsPerTick`) — it never reads a marker's own tick value. So `LEVEL_LEAD_IN_BARS`
+  (= 2, must match the audio lead-in above) synthetic `'m'` entries are prepended to a bundle-LOCAL copy of
+  the offsets (`[...Array(LEVEL_LEAD_IN_BARS).fill('m'), ...allOffsets]` — the SHARED `allOffsets` used for
+  actual note positioning elsewhere is untouched), and `blockMeasureStart` shifts from `1` to `1 −
+  LEVEL_LEAD_IN_BARS` (= -1) so the numbering reads -1, 0, 1, 2, … No changes to `BarlinesLayer.jsx` itself
+  — the existing mechanism draws and numbers the 2 extra bars for free once fed the extra markers, and the
+  scroll's uniform `translate(-scrollPx)` carries them across the screen first, exactly like real content.
+
+**Files:** `src/components/levels/LevelStatsCharts.jsx` (`missed` tier), `src/utils/celloWholeNotePattern.js`
+(new, +test), `src/utils/metronomeLeadIn.js` (new, +test), `src/model/InstrumentSettings.js`
+(`fixedWholeNote` field), `src/hooks/useMelodyState.js` (bass override), `src/levels/levels.js`
+(`fixedBass`), `src/hooks/useLevel.js` (+test), `src/App.jsx` (3-call backing scheduling), `src/components/
+sheet-music/SheetMusic.jsx` (`LEVEL_LEAD_IN_BARS`, `scrollBarlines` offsets prepend).

@@ -62,9 +62,11 @@ export default function useLevel({ setters, snapshot, regenerate }) {
             oddRounds: eyes(prev.oddRounds), evenRounds: eyes(prev.evenRounds),
         }));
         // #661 ("gewoon op de baslijn een cello zet"): a side-scroll level's bass line plays through a
-        // cello timbre — the REAL generated bass melody, via the REAL bass instrument slot (App.jsx's
-        // scheduleLevelBacking schedules it with playMelodies, no separate ad-hoc Soundfont).
-        if (lvl.sideScroll) setters.setBassSettings?.((prev) => ({ ...prev, instrument: 'cello' }));
+        // cello timbre — the REAL generated bass melody (Level 3) OR a fixed C2 whole-note pattern
+        // (Level 2 exception, `fixedBass` — Han UAT: the generated melody sounded an octave too high
+        // through the cello timbre in Level 2 specifically). `fixedWholeNote` is written UNCONDITIONALLY
+        // (same cross-level-leakage guard as insertBeatRests/polyMultiplier/percussion.melodic below).
+        if (lvl.sideScroll) setters.setBassSettings?.((prev) => ({ ...prev, instrument: 'cello', fixedWholeNote: !!lvl.fixedBass }));
         // #661 ("melodische percussie … percussie de timpanen"): percussion becomes the fixed pitched
         // timpani pattern (utils/timpaniPattern.js) — notation AND the level's dedicated timpani audio
         // both key off this flag. Written UNCONDITIONALLY (mirrors insertBeatRests/polyMultiplier above)

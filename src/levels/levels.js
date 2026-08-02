@@ -58,10 +58,15 @@ export const LEVEL3 = {
     // never leak in — useLevel.applyConfig writes these fields unconditionally on every level switch.
     insertBeatRests: false,
     polyMultiplier: 1,
+    fixedBass: false,   // Level 3 keeps the REAL generated bass melody (Han: "gewoon zoals nu")
 };
 
 // Level 2 (Han 2026-08-02): a SIMPLER on-ramp — 3 notes/measure, 30% variability, same side-scroll engine
 // as Level 3, PLUS the quarter-note/quarter-rest grid (QUARTER_GRID, overridden on top of LEVEL3's shape).
+// `fixedBass: true` (Han, same day, UAT): the generated bass melody sounded great in general but was an
+// octave too high through the cello timbre in Level 2 specifically — rather than chase the register match,
+// Han opted to simplify Level 2's bass to a fixed C2 whole note per measure (utils/celloWholeNotePattern.js,
+// an explicitly authorized hardcoded exception, same spirit as the timpani pattern).
 export const LEVEL2 = {
     ...LEVEL3,
     id: 2,
@@ -69,6 +74,7 @@ export const LEVEL2 = {
     notesPerMeasure: 3,
     variability: 30,
     ...QUARTER_GRID,
+    fixedBass: true,
 };
 
 export const LEVELS = { 1: LEVEL1, 2: LEVEL2, 3: LEVEL3 };

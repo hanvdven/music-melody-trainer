@@ -7,6 +7,43 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — ✅ UAT ronde 2: missed op timing-chart, vaste Level-2 cello, -1/0 intel
+
+Han: "voeg aan timing accuracy toe: missed." + "level 2: de cello is een
+octaaf te hoog. is nu gegenereerd volgens de generate melody - dat is op
+zich fantastisch, maar voor level 2 wil ik uitzonderlijk gewoon een c2
+toon, hele noot, elke maat. de timpanen en cello moeten beginnen op maat
+-1, de metronoom op maat 0. voor maat -1 en 0 moet er ook een streep
+bewegen. en een nummer zichtbaar zijn."
+
+Interview: Level 3's bas blijft stil tijdens -1/0 (geen gegenereerde data
+voor negatieve maten, dus geen filler verzinnen) · streep/nummer voor
+-1/0 identiek gestyled aan gewone maten (geen aparte intel-styling).
+
+- **Timing-chart**: `missed` toegevoegd als 6e (grijze) staaf, na de 5
+  gradeHit-tiers — buiten TIMING_ORDER (heeft geen positie op de vroeg↔laat
+  as, want nooit geprobeerd).
+- **Level 2 cello**: nieuw `utils/celloWholeNotePattern.js` (+test) — vaste
+  C2 hele noot per maat, hardcoded net als het paukenpatroon.
+  `InstrumentSettings.fixedWholeNote` (nieuw, bas-only, geen algemene UI -
+  puur Level-2-intern). `useMelodyState.js` overschrijft de baslijn ermee.
+  `LEVEL2.fixedBass=true`, `LEVEL3.fixedBass=false` (expliciet, zelfde
+  anti-lek-patroon).
+- **-1/0 intel**: App.jsx's backing-effect splitst nu in 3 aparte
+  `playMelodies()`-calls (elk hun eigen scheduledStart): (1) pauken +
+  Level-2-cello spannen de HELE piece (intel+inhoud) vanaf maat -1
+  (`levelAudioStart`); (2) Level 3's echte baslijn blijft inhoud-only vanaf
+  maat 1 (`contentStart`); (3) metronoom start één maat ín de intel (maat
+  0 = `contentStart - barSec`) via nieuw `utils/metronomeLeadIn.js`
+  (+test) - dupliceert de metronoom se eigen eerste maat als intel-maat
+  (geen nieuwe generatie, geen hardcoded klik-patroon). Visueel:
+  `SheetMusic.jsx`'s scrollBarlines-bundel krijgt 2 synthetische 'm'-markers
+  vooraan (BarlinesLayer positioneert puur op volgorde, niet op tick-waarde
+  - dus dit werkt zonder BarlinesLayer.jsx aan te raken) + blockMeasureStart
+  van 1 naar -1, zodat -1/0 gewoon meescrollen en genummerd worden.
+
+architecture.md §94.
+
 ## 2026-08-02 — ✅ Melodische percussie (timpani) — 4e optie in de notation setter
 
 Han: "zorg dat de basmuziek de cello toont en de percussie de timpanen. Voor
