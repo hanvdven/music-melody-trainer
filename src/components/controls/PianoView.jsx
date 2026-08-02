@@ -345,7 +345,13 @@ const PianoView = ({
       const note = qwertyNoteMap[e.key.toLowerCase()];
       if (!note) return;
       if (activeKeysRef.current && activeKeysRef.current.has(note)) {
-        handlePointerUp(note);
+        // BUG FIX (Han 2026-08-02, "loslaten van keys geeft ook 'miss'"): handleKeyDown above already
+        // fires onNoteInput explicitly (line ~341) the instant the key goes down. handlePointerUp's
+        // DEFAULT (fireInput=true) is for the on-screen piano, where pointerDown does NOT fire input —
+        // only pointerUp does (single source there). For QWERTY, keydown is the single legitimate
+        // input event; passing the default here double-fired combat on every keyup — a held note could
+        // even kill a LATER same-pitch slime on release. fireInput=false only releases audio/highlight.
+        handlePointerUp(note, false);
       }
     };
 

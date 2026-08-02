@@ -29,6 +29,17 @@ kans ergens in het stuk, niet structureel; totaal is ALTIJD 24 noten ·
 (b) dedupe-guard: zelfde toon <60ms wordt niet meer als tweede combat-event
 geteld (dubbele MIDI-poort/double-trigger).
 
+✅ **Root cause "22 missers" gevonden (2026-08-02):** QWERTY `handleKeyUp` in
+`PianoView.jsx` riep `handlePointerUp(note)` aan (default `fireInput=true`) —
+maar `handleKeyDown` had `onNoteInput` al expliciet gevuurd bij indrukken. Elke
+toetsaanslag vuurde dus TWEE combat-events: één bij indrukken (juist), één bij
+loslaten (spurieus — vond de slime al opgelost → wrong-note/miss; bij lang
+ingedrukt zelfs een latere gelijke-toon-slime). Fix: `handlePointerUp(note,
+false)` in `handleKeyUp`. Regressietest toegevoegd
+(`PianoView.qwerty.test.jsx`). Dedupe-guard in App.jsx omgezet naar
+tempo-relatief (1/128 noot, vloer 15ms, Han's verzoek) en blijft als
+vangnet voor echte hardware-duplicaten (nu geen primaire fix meer nodig).
+
 Aanpak: nieuw puur `src/levels/gradeHit.js` (delta-ms + beatMs → categorie/punten;
 1/32 noot = beatMs/8 enz.). `SheetRpgLayer` side-scroll combat herschreven:
 kandidaat-scan over ALLE onopgeloste slimes binnen ±½ beat (vroegste match wint,

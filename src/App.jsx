@@ -927,18 +927,23 @@ const App = () => {
     const combatNonceRef = useRef(0);
     // Dedupe guard (Han 2026-08-02 "22 missers???"): some MIDI keyboards expose TWO ports (USB + thru) or
     // double-trigger a key — the duplicate note-on arrived ms after the kill, found its slime already
-    // resolved, and was judged a spurious miss/wrong-note. A repeat of the SAME pitch within 60ms is never a
-    // deliberate second note (>16 notes/s), so it's dropped from COMBAT only — the input-test path still
-    // receives every event (its own state machine tolerates repeats).
+    // resolved, and was judged a spurious miss/wrong-note. The REAL bug (a QWERTY keyup double-firing combat
+    // — see PianoView.jsx handleKeyUp) is fixed separately; this guard stays as a safety net for genuine
+    // hardware duplicates. Window = a 1/128 note at the current tempo (Han's ask), floored at 15ms so it
+    // still catches near-simultaneous duplicates at very slow bpm without being long enough to ever drop a
+    // deliberate fast repeated note. Dropped from COMBAT only — the input-test path still receives every
+    // event (its own state machine tolerates repeats).
     const combatLastRef = useRef({ note: null, at: 0 });
     const handleNoteInputCombat = useCallback((note, isTap = false) => {
         handleInputTestNote(note, isTap);
         const now = performance.now();
-        if (combatLastRef.current.note === note && now - combatLastRef.current.at < 60) return;
+        const beatMs = bpmRef.current > 0 ? 60000 / bpmRef.current : 500;
+        const dedupeMs = Math.max(15, beatMs / 32);   // 1/128 note
+        if (combatLastRef.current.note === note && now - combatLastRef.current.at < dedupeMs) return;
         combatLastRef.current = { note, at: now };
         combatNonceRef.current += 1;
         setCombatNote({ note, nonce: combatNonceRef.current });
-    }, [handleInputTestNote]);
+    }, [handleInputTestNote, bpmRef]);
 
     // #661 (Han): GLOBAL MIDI input. A connected MIDI keyboard plays the note (treble instrument for now) and
     // routes it into the SAME combat/input path as QWERTY/piano — regardless of which view is active (the old

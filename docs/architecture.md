@@ -6249,3 +6249,29 @@ ungraded: 1 point, no category). `onMiss(reason)` bumps `wrongNotes` when `reaso
 
 **Files:** `src/components/sheet-music/SheetRpgLayer.jsx`, `src/utils/forceQuarterNotes.js` (+test),
 `src/App.jsx`.
+
+#### §90b. Root cause: QWERTY keyup double-fired combat (Han 2026-08-02)
+
+**Symptom:** Han reported far more misses than notes played, and specifically that *releasing* a key
+produced a miss even when the note was correct. The audit trail added in §90a made the pattern visible:
+every correct keypress logged a KILL immediately followed by a spurious WRONG NOTE / MISS a few hundred ms
+later — exactly the hold duration of the key.
+
+**Root cause (`PianoView.jsx`):** `handleKeyDown` (QWERTY) fires `onNoteInput` explicitly the instant a
+mapped key goes down (single legitimate input event). But `handleKeyUp` called `handlePointerUp(note)` with
+its default `fireInput=true` — a default meant for the **on-screen piano**, where `handlePointerDown` does
+NOT fire input (only `handlePointerUp`, i.e. click/tap release, does — a single source there). For QWERTY
+this meant EVERY physical keypress fired combat TWICE: once correctly on keydown, once spuriously on keyup.
+The second event found its slime already resolved (killed) and was scored as a miss or wrong note — and if
+held long enough, could even mis-hit a LATER same-pitch slime.
+
+**Fix:** `handleKeyUp` now calls `handlePointerUp(note, false)` — release only stops audio/highlight, never
+re-fires `onNoteInput`. Regression test: `src/components/controls/__tests__/PianoView.qwerty.test.jsx`
+(asserts exactly one `onNoteInput` call across keydown+keyup, and across a held key with OS-repeat events).
+
+**Dedupe guard reclassified:** the flat 60ms same-pitch dedupe added in §90a (App.jsx
+`handleNoteInputCombat`) was treating a symptom of this bug, not a separate cause. It is now tempo-relative
+(`max(15ms, beatMs/32)` = a 1/128 note at the current bpm, Han's request) and kept as a safety net for
+genuine hardware duplicates (dual MIDI ports, key-bounce) — no longer load-bearing for QWERTY correctness.
+
+**Files:** `src/components/controls/PianoView.jsx` (+test), `src/App.jsx`.
