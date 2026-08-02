@@ -82,6 +82,12 @@ class InstrumentSettings {
     // identical for all types (§6b, mirrors insertBeatRests). Only the
     // percussion default enables it.
     this.percussionChordRules = false;
+    // #661 (Han 2026-08-02, "melodische percussie"): when true (percussion only, in practice), the
+    // percussion track plays a FIXED pitched pattern (see utils/timpaniPattern.js) instead of normal drum
+    // generation, and renders as pitched noteheads on a bass staff instead of the unpitched drum
+    // notation. A settings field — not an instrument-type branch (§6b) — toggled via the percussion
+    // notation carousel (ClefStaffOverlay).
+    this.melodic = false;
   }
 
   static defaultTrebleInstrumentSettings() {

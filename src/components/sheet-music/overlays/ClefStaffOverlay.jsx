@@ -265,10 +265,12 @@ const ClefStaffOverlay = ({
     isNarrow = false,            // narrow screens: only the selected card shows notes (A7)
     percussionVoiceSplit = false,
     percussionDisabled = false,
+    percussionMelodic = false,   // #661 ("melodische percussie"): fixed pitched timpani pattern
     theme,
     onApplyClefPatch,            // (staff, patch) => void
     onToggleVoiceSplit,          // () => void  (percussion together↔split)
     onTogglePercussionDisabled,  // () => void  (percussion clef on↔off)
+    onToggleMelodicPercussion,   // () => void  (percussion drum-notation↔melodic/timpani)
     debugMode = false,
 }) => {
     // #529 Slice B: single-open coordination for the hidden percussion-notation carousel. Local for
@@ -480,6 +482,15 @@ const ClefStaffOverlay = ({
             offsets: [0, QUARTER], displayNotes: ['k', 's'],
         });
 
+        // MELODIC (Han 2026-08-02, "melodische percussie"): a taste of the fixed timpani pattern
+        // (utils/timpaniPattern.js — C2, C2, C3, rest per measure) as PITCHED noteheads, first 2
+        // quarters shown (this preview bundle is a compact 2-quarter/24-tick window, matching the
+        // together/split previews' own PERC_TS — not the full 4-beat pattern).
+        const melodicMel = proc({
+            notes: ['C2', 'C2'], durations: [QUARTER, QUARTER],
+            offsets: [0, QUARTER], displayNotes: ['C2', 'C2'],
+        });
+
         // Shared x-grid for ALL voices so split RH/LH align vertically: the union of
         // every voice's processed offsets, sorted. A leading sentinel (< all offsets)
         // makes the FIRST note land exactly at the layer's startX — getTickX uses
@@ -530,26 +541,54 @@ const ClefStaffOverlay = ({
             );
         };
 
-        // The three merged options (Han order: samen / gesplitst / X). Labels (Han 2026-07-26:
-        // "INVISIBLE / JOINED / SPLIT") show ALL-CAPS below the drum bundle.
+        // The four merged options (Han order: samen / gesplitst / melodisch / X). Labels (Han
+        // 2026-07-26: "INVISIBLE / JOINED / SPLIT"; 2026-08-02 adds "MELODIC") show ALL-CAPS below the
+        // bundle.
         const PERC_ITEMS = [
             { value: 'together', label: 'joined', layers: [{ melody: togetherMel, split: false }] },
             { value: 'split', label: 'split', layers: [{ melody: hhMel, split: true }, { melody: ksMel, split: true }] },
+            { value: 'melodic', label: 'melodic' },
             { value: 'off', label: 'invisible' },
         ];
-        const percActiveIndex = percussionDisabled ? 2 : (percussionVoiceSplit ? 1 : 0);
+        const percActiveIndex = percussionDisabled ? 3 : percussionMelodic ? 2 : (percussionVoiceSplit ? 1 : 0);
 
         // renderContent draws each option around the item's local origin (0). `off` = the shared
-        // DisableCross centred on the staff; the two pattern options = the real drum renders.
-        const renderPercContent = (item, active, color) => (
-            item.value === 'off'
-                ? <DisableCross x={-9} topY={y + 2} color={color} />
-                : renderDrumBundle(item.layers, active)
-        );
+        // DisableCross centred on the staff; `melodic` = the pitched timpani preview; the two drum
+        // pattern options = the real drum renders.
+        const renderMelodicBundle = (active) => {
+            const color = active ? 'var(--text-primary)' : 'var(--text-lowlight)';
+            const ox = -(slots / 2) * NOTE_W;
+            return (
+                <g style={{ pointerEvents: 'none' }}>
+                    <MelodyNotesLayer
+                        {...PERC_LAYER_PROPS}
+                        noteGroupSize={BUNDLE_TICKS}
+                        measureLengthSlots={BUNDLE_TICKS}
+                        melody={melodicMel}
+                        staff="bass"
+                        staffYStart={y}
+                        clef="bass"
+                        startX={ox}
+                        noteWidth={NOTE_W}
+                        allOffsets={allOffsets}
+                        timeSignature={PERC_TS}
+                        theme={theme}
+                        noteColoringMode={active ? noteColoringMode : 'none'}
+                        previewMode={active ? false : color}
+                    />
+                </g>
+            );
+        };
+        const renderPercContent = (item, active, color) => {
+            if (item.value === 'off') return <DisableCross x={-9} topY={y + 2} color={color} />;
+            if (item.value === 'melodic') return renderMelodicBundle(active);
+            return renderDrumBundle(item.layers, active);
+        };
 
-        // Committing an option may flip TWO pieces of state at once (enable/disable + split). React 18
-        // batches the two setters, so the round lands in one render. 'off' only disables; the pattern
-        // options ensure percussion is enabled AND set the split flag to match.
+        // Committing an option may flip TWO/THREE pieces of state at once (enable/disable + split +
+        // melodic). React 18 batches the setters, so the round lands in one render. 'off' only disables;
+        // 'melodic' ensures enabled + sets the melodic flag (mutually exclusive with split — a drum
+        // together/split option turns melodic back off).
         const selectPerc = (item) => {
             const v = item.value;
             if (v === 'off') {
@@ -557,6 +596,11 @@ const ClefStaffOverlay = ({
                 return;
             }
             if (percussionDisabled) onTogglePercussionDisabled?.();
+            if (v === 'melodic') {
+                if (!percussionMelodic) onToggleMelodicPercussion?.();
+                return;
+            }
+            if (percussionMelodic) onToggleMelodicPercussion?.();
             const wantSplit = v === 'split';
             if (percussionVoiceSplit !== wantSplit) onToggleVoiceSplit?.();
         };

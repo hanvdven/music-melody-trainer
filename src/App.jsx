@@ -32,6 +32,8 @@ import useLevel from './hooks/useLevel';
 import useMidiInput from './hooks/useMidiInput';
 import playSound from './audio/playSound';
 import playMelodies from './audio/playMelodies';
+import { Soundfont } from 'smplr';
+import buildTimpaniPattern from './utils/timpaniPattern';
 import { VOL_STEPS } from './components/sheet-music/overlays/SettingsOverlay';
 import { LEVELS } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
@@ -969,12 +971,12 @@ const App = () => {
     // variability, C4–G4), the player clears 4 waves of slimes, then a "Well done!" splash. The setters update
     // their refs synchronously, so regenerating right after applying config uses the new settings.
     const levelSetters = useMemo(() => ({
-        setNumMeasures, setTrebleSettings, setBassSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds,
-        setStartMeasureIndex, setBpm, setAnimationMode,
-    }), [setNumMeasures, setTrebleSettings, setBassSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode]);
+        setNumMeasures, setTrebleSettings, setBassSettings, setPercussionSettings, setPlaybackConfig,
+        setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode,
+    }), [setNumMeasures, setTrebleSettings, setBassSettings, setPercussionSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode]);
     const levelSnapshot = useCallback(() => ({
-        numMeasures, trebleSettings, bassSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode,
-    }), [numMeasures, trebleSettings, bassSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode]);
+        numMeasures, trebleSettings, bassSettings, percussionSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode,
+    }), [numMeasures, trebleSettings, bassSettings, percussionSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode]);
     // Defer the (re)generation to the next frame so the just-applied config setters have flushed to their
     // refs first (setTrebleSettings mirrors into instrumentSettingsRef only during the render it triggers;
     // randomizeAll reads that ref) — otherwise the FIRST wave would generate from the old settings.
@@ -1010,9 +1012,22 @@ const App = () => {
     // its backing tracks explicitly audible at mezzo-piano (reusing the canonical VOL_STEPS dynamics table,
     // §6c, rather than a new hardcoded gain constant) and restores full volume on close.
     const LEVEL_BACKING_VOLUME = VOL_STEPS.find((s) => s.label === 'mezzo piano').value;
+    // #661 (Han 2026-08-02, "melodische percussie … hardcoded timpani enkel in levels"): the app's normal
+    // `instruments.percussion` slot is ALWAYS an unpitched DrumMachine/Sampler/GM-drum-kit
+    // (useInstruments.js) — it structurally cannot play the pitched timpani pattern, and Han explicitly
+    // does NOT want the general percussion instrument dropdown to switch to melodic instruments. So,
+    // unlike bass (which reuses the real `instruments.bass` slot), percussion's level audio needs its own
+    // small dedicated Soundfont — preloaded once the AudioContext exists, own instrument so it never
+    // disturbs the user's real percussion-kit selection.
+    const timpaniRef = useRef(null);
+    useEffect(() => {
+        if (!context) return;
+        try { if (!timpaniRef.current) timpaniRef.current = new Soundfont(context, { instrument: 'timpani', destination: context.destination }); } catch { /* offline / CDN blocked */ }
+    }, [context]);
     const stopAllBackingAudio = useCallback(() => {
         try { instruments.bass?.stop(); } catch { /* not started */ }
         try { instruments.metronome?.stop(); } catch { /* not started */ }
+        try { timpaniRef.current?.stop(); } catch { /* not started */ }
         setVolume('bass', 1.0);
         setVolume('metronome', 1.0);
     }, [instruments, setVolume]);
@@ -1041,20 +1056,34 @@ const App = () => {
         const melodiesToPlay = [], instrumentsToPlay = [];
         if (melodies.bass?.notes?.length) { melodiesToPlay.push(melodies.bass); instrumentsToPlay.push(instruments.bass); }
         if (melodies.metronome?.notes?.length) { melodiesToPlay.push(melodies.metronome); instrumentsToPlay.push(instruments.metronome); }
+        // #661 ("melodische percussie … pauken"): percussion.melodic drives BOTH the notation (already
+        // rendered pitched via SheetRpgLayer/SheetMusic) and this hardcoded timpani pattern — the SAME
+        // buildTimpaniPattern() call is the single source of truth for both, so they can never drift.
+        let namedInstruments = instruments;
+        if (percussionSettings?.melodic && timpaniRef.current) {
+            const pat = buildTimpaniPattern(lvl.numMeasures, timeSignature);
+            melodiesToPlay.push(pat);
+            instrumentsToPlay.push(timpaniRef.current);
+            // trackGains below identifies each track by comparing the instrument reference against
+            // namedInstruments.percussion — override just for THIS call so gain-lookup treats the
+            // dedicated timpani instance as "percussion" without touching the real instruments object.
+            namedInstruments = { ...instruments, percussion: timpaniRef.current };
+        }
         if (melodiesToPlay.length === 0) return;
         setVolume('bass', LEVEL_BACKING_VOLUME);
         setVolume('metronome', LEVEL_BACKING_VOLUME);
         playMelodies(
             melodiesToPlay, instrumentsToPlay, context, bpm, contentStart,
-            null,          // abortControllerRef — stopping is via instruments.bass/.metronome.stop() (stopAllBackingAudio)
-            null,          // tickRange — play the whole generated piece, not a measure slice
-            instruments,   // namedInstruments — same routing/gain-lookup Sequencer.js passes
-            null,          // customMapping
-            { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 1 },
+            null,              // abortControllerRef — stopping is via instruments.bass/.metronome/timpaniRef.stop() (stopAllBackingAudio)
+            null,              // tickRange — play the whole generated piece, not a measure slice
+            namedInstruments,  // namedInstruments — same routing/gain-lookup Sequencer.js passes
+            null,              // customMapping
+            { treble: 0, bass: 1, percussion: LEVEL_BACKING_VOLUME, chords: 0, metronome: 1 },
         );
         // melodies is a memoised object (useMelodyState) — safe as a dep; bassSettings.instrument is the
         // real gate (waits for the cello swap), so this effect is a no-op until everything lines up.
-    }, [level.active, level.current, levelAudioStart, context, instruments, bassSettings.instrument, melodies, setVolume, LEVEL_BACKING_VOLUME]);
+    }, [level.active, level.current, levelAudioStart, context, instruments, bassSettings.instrument, melodies,
+        setVolume, LEVEL_BACKING_VOLUME, percussionSettings?.melodic, timeSignature]);
     const startLevel = useCallback((n) => {
         const lvl = LEVELS[n] || LEVELS[1];
         context.resume?.();

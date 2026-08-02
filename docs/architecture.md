@@ -6471,3 +6471,75 @@ simplified, `levelSetters`/`levelSnapshot` gain `setBassSettings`/`bassSettings`
 `src/components/sheet-music/SheetRpgLayer.jsx` (+test — bass/percussion scrolling, deferred stat
 resolution), `src/levels/gradeHit.js` (`GRADE_LABELS` additions), `src/hooks/useLevel.js` (stats reshape),
 `src/components/levels/LevelSplash.jsx` (+test), `src/components/levels/LevelStatsCharts.jsx` (new).
+
+### §93. Melodic percussion (timpani) — a 4th percussion-notation option (Han 2026-08-02)
+
+**Purpose:** Han: *"zorg ook dat de basmuziek de cello toont en de percussie de timpanen. Voor dat laatste
+moet de percussie as getoggled kunnen worden naar 'melodische percussie' (bassleutel). Voeg die optie toe
+aan de carousel in de notation setter."* Percussion's own instrument slot (`instruments.percussion`,
+`useInstruments.js`) is ALWAYS an unpitched `DrumMachine`/`Sampler`/GM-drum-kit — it structurally cannot
+play a pitched pattern. A new `InstrumentSettings.melodic` flag (percussion-only in practice, but a
+settings field per §6b — not an instrument-type branch) switches percussion into a PITCHED bass-clef
+voice instead of drum notation.
+
+**Interview scope (Han's explicit simplifications — read before touching this again):**
+- **Generation is a FIXED, hardcoded pattern** — `src/utils/timpaniPattern.js` builds `C2, C2, C3, rest`
+  repeated every measure (cycling by quarter-beat index, so it degrades gracefully for any time
+  signature). Han explicitly authorized this as an EXCEPTION to §6c ("voorlopig geen generatie, je mag
+  uitzonderlijk hardcoded pauken gebruiken") — it deliberately does NOT route through `MelodyGenerator`.
+  Single source of truth for both the notation AND the level's timpani audio (below), so they can never
+  drift apart.
+- **The general instrument dropdown does NOT change** — melodic mode is a NOTATION/generation toggle only;
+  Han explicitly declined exposing pitched instrument choices for percussion ("Nee, hardcoded timpani
+  enkel in levels"). Outside a level, toggling `melodic` shows the pitched pattern but percussion audio
+  still plays through whatever drum kit is currently selected (an accepted mismatch — general use gets the
+  NOTATION change only).
+- **Levels get the real timpani sound** — because the general percussion slot can't play pitched notes,
+  side-scroll levels use a small DEDICATED `timpani` Soundfont (`App.jsx`'s `timpaniRef`, same
+  once-preloaded pattern the retired §88 celloRef/timpaniRef used) scheduled via the SAME `playMelodies()`
+  call as bass/metronome (§92) — `namedInstruments` is overridden just for that call
+  (`{ ...instruments, percussion: timpaniRef.current }`) so `trackGains.percussion` gain-lookup treats it
+  correctly, without touching the real `instruments` object. Volume: since `timpaniRef` has no persistent
+  fader (`useInstruments.js` only manages the real `instruments.*` set), its audibility comes from the
+  `trackGains.percussion` note-level multiplier (set to the same mezzo-piano value as bass/metronome's
+  fader, §92) — not from `setVolume`.
+
+**Generation override (`useMelodyState.js`):** after `resolveVoice` produces `newPercussion` (whatever the
+normal generator/settings would have made), if `percussionSettings.melodic` is true its notes/offsets/
+durations/ties are overwritten with `buildTimpaniPattern(activeNumMeasures, activeTS)` — mirrors how the
+now-retired `forceQuarterNotes` post-process was wired in (§91), just far simpler (no generation to patch
+around, since there IS no generation here).
+
+**Rendering — pitched notes need the pitched renderer, not drum notation:** `renderMelodyNotes.jsx`'s
+`staff === 'percussion'` path is deeply drum-specific (fixed baseline, `percussionNoteHeads` lookup keyed
+by drum TOKENS like `'k'`/`'s'`/`'hh'` — a real pitch name like `'C2'` would not resolve). So when
+`percussionSettings.melodic`, every percussion render site swaps to `staff="bass"` / `clef="bass"` (reusing
+the canonical PITCHED rendering path verbatim, §6d) while staying positioned at the percussion row
+(`staffYStart`/`percussionStart`unchanged) — NOT a new rendering mode, just pointing at the existing one:
+- **Main static staff** (`SheetMusic.jsx`, `!sideScroll`): `staff`/`clef`/`numAccidentals`/`scaleNotes`/
+  `percussionVoiceSplit` all conditionally swap to the bass-clef equivalents when melodic.
+- **RPG scrolling staff** (`scrollNotationPercussion` bundle, §92): same swap, done ONCE in the bundle
+  object (`staff: melodic ? 'bass' : 'percussion'`, etc.) rather than in `SheetRpgLayer` — its
+  `noteStaffContentPercussion` memo no longer hardcodes `staff="percussion"`; it now trusts the bundle's
+  own `staff` field (spread first, no override after).
+
+**Notation-setter carousel (`ClefStaffOverlay.jsx`'s percussion block):** a 4th option — `[together, split,
+melodic, off]` — mutually exclusive with `together`/`split` (drum-specific concepts). The preview renders
+the first 2 quarters of the fixed pattern (`C2, C2`) as real pitched noteheads via `MelodyNotesLayer`
+(`staff="bass"`, `clef="bass"`) inside the SAME compact 24-tick preview window `together`/`split` use — not
+the full 4-beat pattern (a representative taste, matching how the drum previews are already excerpts, not
+literal generation output). `selectPerc` batches the enable/disable + melodic + split flags in one React 18
+render, same pattern as the existing together/split logic.
+
+**Level wiring (`useLevel.js`):** `applyConfig` sets `percussionSettings.melodic = !!lvl.sideScroll`
+UNCONDITIONALLY on every level switch (same cross-level-leakage guard as `insertBeatRests`/`polyMultiplier`,
+§91, and `bassSettings.instrument`, §92) — Level 1 always off, Level 2/3 always on regardless of what a
+prior level in the same session left behind. `restore()` puts back the pre-level `percussionSettings`
+(including the melodic flag) from the snapshot on `close()`.
+
+**Files:** `src/utils/timpaniPattern.js` (new, +test), `src/model/InstrumentSettings.js` (`melodic` field),
+`src/hooks/useMelodyState.js` (generation override), `src/components/sheet-music/SheetMusic.jsx` (static +
+scrolling render swap), `src/components/sheet-music/SheetRpgLayer.jsx` (percussion `staff` from bundle),
+`src/components/sheet-music/overlays/ClefStaffOverlay.jsx` (+test — 4th carousel option), `src/App.jsx`
+(`timpaniRef`, backing-scheduling effect extended), `src/hooks/useLevel.js` (+test — `percussionSettings`
+apply/restore).

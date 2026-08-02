@@ -96,7 +96,7 @@ describe('SheetRpgLayer (#647)', () => {
             theme: 'default', startMeasureIndex: 0, transpositionSemitones: 0, courtesyAccidentals: true,
         };
         const bassNotation = { ...trebleNotation, melody: { notes: ['C2'], offsets: [0], durations: [12], ties: [null] }, clef: 'bass' };
-        const percNotation = { ...trebleNotation, melody: { notes: ['k'], offsets: [0], durations: [12], ties: [null] }, clef: null };
+        const percNotation = { ...trebleNotation, melody: { notes: ['k'], offsets: [0], durations: [12], ties: [null] }, staff: 'percussion', clef: null };
         const { container } = render(
             <svg><SheetRpgLayer startX={20} pixelsPerTick={null} allOffsets={[0]} noteWidth={20}
                 trebleStart={100} bassStart={140} percussionStart={180} staffHeight={40} viewBottom={260}

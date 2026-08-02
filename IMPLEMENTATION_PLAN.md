@@ -7,6 +7,33 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — ✅ Melodische percussie (timpani) — 4e optie in de notation setter
+
+Han: "zorg dat de basmuziek de cello toont en de percussie de timpanen. Voor
+dat laatste moet de percussie as getoggled kunnen worden naar 'melodische
+percussie' (bassleutel). Voeg die optie toe aan de carousel in de notation
+setter."
+
+Interview: generatie = vast patroon C2-C2-C3-rust per maat (Han: "voorlopig
+geen generatie, je mag uitzonderlijk hardcoded pauken gebruiken" — expliciete
+uitzondering op §6c) · instrumenten-dropdown blijft ongewijzigd, timpani-klank
+alleen binnen levels · 4e carousel-optie naast samen/gesplitst/uit (sluit die
+twee uit).
+
+Nieuw `src/utils/timpaniPattern.js` (+test) — enige bron voor zowel notatie als
+level-audio. `InstrumentSettings.melodic` (nieuw veld). `useMelodyState.js`
+overschrijft percussie's gegenereerde melodie met het vaste patroon wanneer
+melodic aan staat. Rendering: percussie-notatie (statisch én de RPG-scrollbaan)
+wisselt naar `staff="bass"`/`clef="bass"` (hergebruik van de bestaande
+getoonhoogde renderer, §6d) i.p.v. de drum-specifieke percussienotatie, die
+geen echte nootnamen aankan. `ClefStaffOverlay.jsx`'s percussiecarousel kreeg
+een 4e optie "melodic" met een pitched-preview. `useLevel.applyConfig` zet
+`percussionSettings.melodic` onvoorwaardelijk (zelfde anti-lek-patroon als
+insertBeatRests) en `App.jsx` kreeg een toegewijde `timpaniRef`-Soundfont,
+gescheduled via dezelfde `playMelodies()`-call als bas/metronoom (met een
+tijdelijke `namedInstruments`-override zodat trackGains het als 'percussion'
+herkent). architecture.md §93.
+
 ## 2026-08-02 — ✅ Quick follow-ups: Maestro-tekst regel, timing-as volgorde, backing-volume
 
 Han: "onthoud/schrijf op dat TEKST nooit Maestro font gebruikt, maar CSS font" →

@@ -4,11 +4,12 @@ import useLevel from '../useLevel';
 import { LEVEL1, LEVEL2, LEVEL3 } from '../../levels/levels';
 
 const makeSetters = () => ({
-    setNumMeasures: vi.fn(), setTrebleSettings: vi.fn(), setBassSettings: vi.fn(), setPlaybackConfig: vi.fn(),
-    setShowChordsOddRounds: vi.fn(), setShowChordsEvenRounds: vi.fn(),
+    setNumMeasures: vi.fn(), setTrebleSettings: vi.fn(), setBassSettings: vi.fn(), setPercussionSettings: vi.fn(),
+    setPlaybackConfig: vi.fn(), setShowChordsOddRounds: vi.fn(), setShowChordsEvenRounds: vi.fn(),
 });
 const snap = () => ({
     numMeasures: 4, trebleSettings: { x: 1 }, bassSettings: { instrument: 'electric_bass_pick' },
+    percussionSettings: { melodic: false },
     playbackConfig: { y: 1 }, showChordsOddRounds: true, showChordsEvenRounds: true,
 });
 
@@ -119,5 +120,20 @@ describe('useLevel (#659 Level 1)', () => {
         act(() => result.current.close());
         expect(setters.setBassSettings).toHaveBeenLastCalledWith(expect.any(Function));
         expect(setters.setBassSettings.mock.calls.at(-1)[0]()).toMatchObject({ instrument: 'electric_bass_pick' });
+    });
+
+    it('side-scroll levels turn percussion melodic (timpani); Level 1 keeps it off; close() restores it (Han 2026-08-02)', () => {
+        const { setters, result } = setup();
+        act(() => result.current.start(LEVEL2));
+        const percApplied = setters.setPercussionSettings.mock.calls.at(-1)[0]({ melodic: false });
+        expect(percApplied).toMatchObject({ melodic: true });
+
+        act(() => result.current.start(LEVEL1));
+        const percLevel1 = setters.setPercussionSettings.mock.calls.at(-1)[0]({ melodic: true });
+        expect(percLevel1).toMatchObject({ melodic: false });
+
+        act(() => result.current.start(LEVEL2));
+        act(() => result.current.close());
+        expect(setters.setPercussionSettings.mock.calls.at(-1)[0]()).toMatchObject({ melodic: false });
     });
 });

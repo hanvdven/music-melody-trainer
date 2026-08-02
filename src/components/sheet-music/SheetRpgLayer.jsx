@@ -489,7 +489,6 @@ export default function SheetRpgLayer({
         return (
             <MelodyNotesLayer
                 {...scrollNotationPercussion}
-                staff="percussion"
                 staffYStart={percussionStart}
                 startX={viewRight}
                 noteWidth={noteWidth}

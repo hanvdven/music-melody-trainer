@@ -9,6 +9,7 @@ import ChordProgression from '../model/ChordProgression';
 import { calculateRelativeRange, modulateMelody } from '../theory/musicUtils';
 import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
+import buildTimpaniPattern from '../utils/timpaniPattern';
 import useRefState from './useRefState';
 
 // Percussion note tokens are non-pitched and must never be passed through
@@ -276,6 +277,16 @@ const useMelodyState = (
       canRandomize: canRandomizeMelody, voiceType: null, settings: percussionSettings,
       nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
+    // #661 (Han 2026-08-02, "melodische percussie"): a settings-driven override — a FIXED pitched
+    // pattern (see utils/timpaniPattern.js) replaces whatever the generator produced, deterministic and
+    // NOT routed through MelodyGenerator (explicitly authorized as hardcoded by Han, not a §6c violation
+    // by omission). Applied AFTER the generator (uniform, settings-gated), mirrors the now-retired
+    // forceQuarterNotes pattern for how a post-process override is wired in.
+    if (percussionSettings?.melodic && newPercussion?.notes?.length) {
+      const pat = buildTimpaniPattern(activeNumMeasures, activeTS);
+      newPercussion.notes = pat.notes; newPercussion.offsets = pat.offsets;
+      newPercussion.durations = pat.durations; newPercussion.ties = pat.ties;
+    }
 
     const metronomeGenSettings = {
       // One click per denominator-unit beat; wh/wm/wl assigned by generateMetronome based on grouping.

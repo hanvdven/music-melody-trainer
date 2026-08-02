@@ -65,6 +65,11 @@ export default function useLevel({ setters, snapshot, regenerate }) {
         // cello timbre — the REAL generated bass melody, via the REAL bass instrument slot (App.jsx's
         // scheduleLevelBacking schedules it with playMelodies, no separate ad-hoc Soundfont).
         if (lvl.sideScroll) setters.setBassSettings?.((prev) => ({ ...prev, instrument: 'cello' }));
+        // #661 ("melodische percussie … percussie de timpanen"): percussion becomes the fixed pitched
+        // timpani pattern (utils/timpaniPattern.js) — notation AND the level's dedicated timpani audio
+        // both key off this flag. Written UNCONDITIONALLY (mirrors insertBeatRests/polyMultiplier above)
+        // so it can never leak between levels.
+        setters.setPercussionSettings?.((prev) => ({ ...prev, melodic: !!lvl.sideScroll }));
         setters.setShowChordsOddRounds?.(false);
         setters.setShowChordsEvenRounds?.(false);
         // #661 (Han UAT): a side-scroll level is ONE continuous piece — it must NOT paginate, or the melody
@@ -121,6 +126,7 @@ export default function useLevel({ setters, snapshot, regenerate }) {
         setters.setBpm?.(s.bpm);
         setters.setTrebleSettings(() => s.trebleSettings);
         setters.setBassSettings?.(() => s.bassSettings);   // restores the pre-level bass instrument (cello only during a level)
+        setters.setPercussionSettings?.(() => s.percussionSettings);   // restores melodic flag + percussion kit
         setters.setPlaybackConfig(() => s.playbackConfig);
         setters.setShowChordsOddRounds?.(s.showChordsOddRounds);
         setters.setShowChordsEvenRounds?.(s.showChordsEvenRounds);

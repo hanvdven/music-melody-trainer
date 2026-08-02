@@ -46,4 +46,10 @@ describe('ClefStaffOverlay', () => {
         const { container } = renderClef({ startX: null });
         expect(container.querySelector('.clef-overlay')).toBeNull();
     });
+
+    it('renders the melodic-percussion preview (pitched bass-clef notes) without crashing (#661)', () => {
+        const { container } = renderClef({ percussionMelodic: true, onToggleMelodicPercussion: () => {} });
+        expect(container.querySelector('.clef-row-percussion')).not.toBeNull();
+        expect(container.querySelectorAll('text').length).toBeGreaterThan(0);
+    });
 });

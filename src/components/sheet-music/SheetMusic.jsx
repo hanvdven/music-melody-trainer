@@ -2107,22 +2107,27 @@ const SheetMusic = ({
                         {isBassVisible && !actualBass && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
                       <g style={{ transform: `translateY(${percussionStart}px)`, transition: 'transform 1s ease-in-out', opacity: percGhost ? GHOST_OPACITY : 1 }}>
-                        {/* #661 (Han 2026-08-02): same side-scroll gating as bass/treble above. */}
+                        {/* #661 (Han 2026-08-02): same side-scroll gating as bass/treble above.
+                            "melodische percussie": when percussionSettings.melodic is on, percussion
+                            renders as PITCHED noteheads on a bass staff (reusing the canonical bass
+                            rendering path, §6d) instead of the unpitched drum notation — the fixed
+                            timpani pattern (utils/timpaniPattern.js) needs real pitch positions, which
+                            staff="percussion" cannot draw (its noteheads are drum-token lookups). */}
                         {actualPerc && !sideScroll && <MelodyNotesLayer
                           melody={adjustedPercussionMelody}
-                          numAccidentals={numAccidentals}
+                          numAccidentals={percussionSettings?.melodic ? bassWrittenAccidentals : numAccidentals}
                           startX={startX}
                           noteWidth={noteWidth}
                           allOffsets={allOffsets}
-                          staff="percussion"
+                          staff={percussionSettings?.melodic ? 'bass' : 'percussion'}
                           staffYStart={0}
                           noteGroupSize={noteGroupSize}
                           measureLengthSlots={measureLengthSlots}
                           timeSignature={timeSignature}
-                          clef={null}
+                          clef={percussionSettings?.melodic ? 'bass' : null}
                           noteColoringMode={noteColoringMode}
                           tonic={tonic}
-                          scaleNotes={EMPTY_SCALE_NOTES}
+                          scaleNotes={percussionSettings?.melodic ? scaleNotes : EMPTY_SCALE_NOTES}
                           processedChords={processedChords}
                           theme={theme}
                           inputTestState={inputTestState}
@@ -2133,7 +2138,7 @@ const SheetMusic = ({
                           debugMode={debugMode}
                           interactive={true}
                           courtesyAccidentals={courtesyAccidentals}
-                          percussionVoiceSplit={percussionVoiceSplit}
+                          percussionVoiceSplit={percussionSettings?.melodic ? false : percussionVoiceSplit}
                         />}
                         {isPercussionVisible && !actualPerc && !actualMetronome && renderRepeatSymbols(allOffsets, noteWidth, ppt, [30])}
                       </g>
@@ -2820,20 +2825,23 @@ const SheetMusic = ({
                     } : null}
                     scrollNotationPercussion={sideScroll && isPercussionVisible && actualPerc ? {
                       melody: adjustedPercussionMelody,
-                      numAccidentals,
+                      // "melodische percussie" (Han 2026-08-02): same staff/clef swap as the static
+                      // render above — pitched noteheads via the bass rendering path when melodic.
+                      staff: percussionSettings?.melodic ? 'bass' : 'percussion',
+                      numAccidentals: percussionSettings?.melodic ? bassWrittenAccidentals : numAccidentals,
                       noteGroupSize,
                       measureLengthSlots,
                       timeSignature,
-                      clef: null,
+                      clef: percussionSettings?.melodic ? 'bass' : null,
                       noteColoringMode,
                       tonic,
-                      scaleNotes: EMPTY_SCALE_NOTES,
+                      scaleNotes: percussionSettings?.melodic ? scaleNotes : EMPTY_SCALE_NOTES,
                       processedChords,
                       theme,
                       startMeasureIndex,
                       transpositionSemitones: 0,
                       courtesyAccidentals,
-                      percussionVoiceSplit,
+                      percussionVoiceSplit: percussionSettings?.melodic ? false : percussionVoiceSplit,
                     } : null}
                     scrollBarlines={sideScroll ? {
                       offsets: allOffsets,
@@ -3089,6 +3097,7 @@ const SheetMusic = ({
                       isNarrow={logicalScreenWidth < 500}
                       percussionVoiceSplit={percussionVoiceSplit}
                       percussionDisabled={percOff}
+                      percussionMelodic={!!percussionSettings?.melodic}
                       theme={theme}
                       onApplyClefPatch={(staff, patch) => {
                         const setter = staff === 'treble' ? setTrebleSettings : setBassSettings;
@@ -3098,6 +3107,9 @@ const SheetMusic = ({
                       onTogglePercussionDisabled={() => setPercussionSettings(prev => ({
                         ...prev, preferredClef: prev?.preferredClef === 'off' ? null : 'off',
                       }))}
+                      // #661 ("melodische percussie"): toggles InstrumentSettings.percussionMelodic —
+                      // fixed timpani pattern + pitched bass-clef notation (utils/timpaniPattern.js).
+                      onToggleMelodicPercussion={() => setPercussionSettings(prev => ({ ...prev, melodic: !prev?.melodic }))}
                       debugMode={debugMode}
                     />
                   )}
