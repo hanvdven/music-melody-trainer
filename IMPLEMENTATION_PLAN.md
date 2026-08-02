@@ -7,6 +7,21 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — ✅ Quick follow-ups: Maestro-tekst regel, timing-as volgorde, backing-volume
+
+Han: "onthoud/schrijf op dat TEKST nooit Maestro font gebruikt, maar CSS font" →
+CLAUDE.md §1a (nieuwe standing rule) + memory `feedback-maestro-font-text.md`.
+"maak de timing-as logisch: much too early - too early - perfect - too late -
+much too late" → `gradeHit.js` kreeg `TIMING_ORDER` (canonieke volgorde) +
+GRADE_LABELS hernoemd naar early/late-taal (interne category-keys ongewijzigd,
+enkel de labels); `LevelStatsCharts.jsx`'s TimingBarChart hergebruikt nu
+TIMING_ORDER+GRADE_LABELS i.p.v. eigen gedupliceerde strings/volgorde.
+"ik hoor de timpanen en cello niet, zet hun volume op mp" → bass/metronome
+faders (useInstruments.js setVolume, een persistente GainNode, apart van
+note-level gain) expliciet op 'mezzo piano' (hergebruik VOL_STEPS-tabel uit
+SettingsOverlay.jsx, §6c) bij het schedulen van de level-backing, terug naar
+vol (1.0) bij stopAllBackingAudio.
+
 ## 2026-08-02 — ✅ Level 2/3: playMelodies-backing, 3 scrollende lijnen, well-done breakdown + charts
 
 Han (na bevestiging dat het kwart-grid werkte — "metronoom anders, maat 8 gevuld,

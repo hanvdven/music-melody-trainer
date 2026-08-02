@@ -1,4 +1,5 @@
 import React from 'react';
+import { TIMING_ORDER, GRADE_LABELS } from '../../levels/gradeHit';
 
 // #661 (Han 2026-08-02): two small SVG charts for the "Well done!" splash, hand-rolled (no charting
 // library in this project) but following the SAME colour convention as the in-game judgment labels
@@ -9,14 +10,15 @@ import React from 'react';
 // "missed" (a note never attempted) is deliberately OUT of the correctness gauge (Han's 4-colour list
 // omitted it) — it is a timing/attempt failure, not a pitch-accuracy question; it still shows in the
 // plain stat rows above the charts.
+//
+// Han 2026-08-02: text in this SVG is NEVER the Maestro notation font (see CLAUDE.md §1a) — every
+// <text> below sets an explicit CSS font (TEXT_FONT), never inherits.
+const TEXT_FONT = "Georgia, 'Times New Roman', serif";
 
-const TIMING_TIERS = [
-    { key: 'perfect', label: 'perfect', color: '#2eb84d' },
-    { key: 'tooFast', label: 'too fast', color: '#d4a800' },
-    { key: 'tooSlow', label: 'too slow', color: '#d4a800' },
-    { key: 'muchTooFast', label: 'much too fast', color: '#e07818' },
-    { key: 'muchTooSlow', label: 'much too slow', color: '#e07818' },
-];
+const TIER_COLOR = { perfect: '#2eb84d', tooFast: '#d4a800', tooSlow: '#d4a800', muchTooFast: '#e07818', muchTooSlow: '#e07818' };
+// Order + labels come from gradeHit.js (single source of truth, §6c) — Han 2026-08-02: "maak de
+// timing-as logisch": much too early → too early → perfect → too late → much too late.
+const TIMING_TIERS = TIMING_ORDER.map((key) => ({ key, label: GRADE_LABELS[key], color: TIER_COLOR[key] }));
 
 const CHART_W = 320, BAR_CHART_H = 120, BAR_GAP = 10;
 
@@ -36,9 +38,9 @@ export function TimingBarChart({ stats }) {
                     <g key={t.key}>
                         <rect x={x} y={y} width={barW} height={Math.max(h, counts[i] > 0 ? 2 : 0)} rx={2} fill={t.color} />
                         <text x={x + barW / 2} y={plotH - h - 4} textAnchor="middle" fontSize="11" fontWeight="700"
-                            fill="var(--text-primary)">{counts[i]}</text>
+                            fontFamily={TEXT_FONT} fill="var(--text-primary)">{counts[i]}</text>
                         <text x={x + barW / 2} y={BAR_CHART_H - 4} textAnchor="middle" fontSize="8.5"
-                            fill="var(--text-secondary)">{t.label}</text>
+                            fontFamily={TEXT_FONT} fill="var(--text-secondary)">{t.label}</text>
                     </g>
                 );
             })}
@@ -84,8 +86,8 @@ export function NoteCorrectnessGauge({ stats }) {
                     offset += dash;
                     return el;
                 })}
-                <text x={cx} y={cy - 2} textAnchor="middle" fontSize="22" fontWeight="800" fill="var(--text-primary)">{accuracy}%</text>
-                <text x={cx} y={cy + 16} textAnchor="middle" fontSize="9" fill="var(--text-secondary)">accuracy</text>
+                <text x={cx} y={cy - 2} textAnchor="middle" fontSize="22" fontWeight="800" fontFamily={TEXT_FONT} fill="var(--text-primary)">{accuracy}%</text>
+                <text x={cx} y={cy + 16} textAnchor="middle" fontSize="9" fontFamily={TEXT_FONT} fill="var(--text-secondary)">accuracy</text>
             </svg>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px', fontSize: 10 }}>
                 {CORRECTNESS_SEGMENTS.map((s) => (

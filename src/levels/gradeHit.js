@@ -29,15 +29,24 @@ export function gradeHit(deltaMs, beatMs) {
 //   - 'secondAttemptCorrected' FINAL — a wrong attempt that was later corrected in time.
 //   - 'wrongUncorrected'   FINAL — a wrong attempt that was NEVER corrected before the slime expired.
 //   - 'missed'             FINAL — a slime expired with NO attempt at all.
+//
+// Labels read as "early"/"late" (Han 2026-08-02: "maak de timing-as logisch") — the internal category
+// KEYS stay tooFast/tooSlow/muchTooFast/muchTooSlow (deltaMs sign — negative = played early = "too fast"
+// relative to the click) since those are referenced across stats/tests; only the DISPLAY text changed.
 export const GRADE_LABELS = {
     perfect: 'perfect',
-    tooFast: 'too fast',
-    tooSlow: 'too slow',
-    muchTooFast: 'much too fast',
-    muchTooSlow: 'much too slow',
+    tooFast: 'too early',
+    tooSlow: 'too late',
+    muchTooFast: 'much too early',
+    muchTooSlow: 'much too late',
     secondAttemptCorrected: 'on second attempt',
     wrongNote: 'wrong note',
     wrongUncorrected: 'never fixed',
     extraNote: 'extra note',
     missed: 'missed',
 };
+
+// Canonical LOGICAL timing-axis order (Han 2026-08-02: "much too early - too early - perfect - too late -
+// much too late") — single source of truth so every timing display (the debug zone bands, the splash's
+// timing bar chart) orders its 5 tiers identically instead of each inventing its own order (§6c).
+export const TIMING_ORDER = ['muchTooFast', 'tooFast', 'perfect', 'tooSlow', 'muchTooSlow'];

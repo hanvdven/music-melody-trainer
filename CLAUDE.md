@@ -48,6 +48,16 @@ record it as a short entry in `IMPLEMENTATION_PLAN.md` (the running scratch-plan
 (✅ done · 🔨 in progress · ⏳ backlog · 🐞 bug). BACKLOG.md remains the user's
 source-of-truth feature text; `IMPLEMENTATION_PLAN.md` is the live working plan.
 
+**TEXT never uses the Maestro font (Han 2026-08-02).** Maestro is the MUSIC
+NOTATION font (noteheads, clefs, rests, accidentals) — it is NOT a text font and
+must never be applied to plain words/labels (judgment labels, chart labels, UI
+text, etc.). Any `<text>` showing human-readable words must set an explicit CSS
+text font (the app's Georgia/serif stack — `Georgia, 'Times New Roman', serif` —
+or the app-wide text font var, see §17/§76 of `docs/architecture.md`), never
+inherit whatever font-family the surrounding SVG/staff context happens to use.
+This bit the app once already (§90a: judgment labels rendered in Maestro because
+the SVG cascade carried it over) — always set the font explicitly on new text.
+
 **Update the architecture doc after IMPL, before UAT (Han 2026-07-08) — HARD
 GATE.** Every implementation phase must update `docs/architecture.md` as its
 LAST step, *before* moving the ticket to `test` (UAT). This is not optional and

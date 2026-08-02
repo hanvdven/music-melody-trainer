@@ -6447,6 +6447,23 @@ so a colour means the same thing on the sheet and on the splash (§6d):
 tijd / Fout hersteld / Noot zonder doel) that replaces the old flat "Wrong notes"/"Op 2e poging" rows. The
 card widens (`.ls-card-wide`, max-width 480px) to fit the two charts side by side.
 
+**UAT follow-up (Han, same day):**
+- **Timing axis order:** Han: "maak de timing-as logisch: much too early - too early - perfect - too late -
+  much too late". `gradeHit.js` gained `TIMING_ORDER = ['muchTooFast','tooFast','perfect','tooSlow',
+  'muchTooSlow']` (single source of truth, §6c) and `GRADE_LABELS`' timing entries were reworded to
+  "too/much too early/late" (the internal category KEYS are unchanged — `tooFast`/`tooSlow`/etc. are still
+  referenced across stats and tests; only the display text changed). `TimingBarChart` now derives its tier
+  list from `TIMING_ORDER`+`GRADE_LABELS` instead of a second hardcoded array.
+- **Backing volume:** Han: "ik hoor de timpanen en cello niet, zet hun volume op mp". The bass/metronome
+  instruments' PERSISTENT output fader (`useInstruments.js`'s `setVolume`, a `GainNode` distinct from any
+  per-note velocity/`trackGains`) is whatever the user last left it — inaudible if never raised. The backing-
+  scheduling effect now calls `setVolume('bass', mp)` / `setVolume('metronome', mp)` (mp = the canonical
+  `VOL_STEPS` "mezzo piano" value from `SettingsOverlay.jsx`, reused rather than a new hardcoded gain
+  constant, §6c) right before `playMelodies()`; `stopAllBackingAudio` restores both to full (1.0) on close.
+- **Standing rule added (CLAUDE.md §1a):** text must NEVER inherit the Maestro notation font — every new
+  `<text>` in `LevelStatsCharts.jsx` now sets an explicit `fontFamily` (the app's Georgia/serif stack),
+  matching the fix already applied to the judgment labels in §90a.
+
 **Files:** `src/App.jsx` (`scheduleLevelBacking` rewrite, backing-scheduling effect, `stopAllBackingAudio`
 simplified, `levelSetters`/`levelSnapshot` gain `setBassSettings`/`bassSettings`), `src/hooks/useLevel.js`
 (+test), `src/levels/levels.js` (`threeLineEyes`), `src/components/sheet-music/SheetMusic.jsx`

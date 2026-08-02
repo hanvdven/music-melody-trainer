@@ -32,6 +32,7 @@ import useLevel from './hooks/useLevel';
 import useMidiInput from './hooks/useMidiInput';
 import playSound from './audio/playSound';
 import playMelodies from './audio/playMelodies';
+import { VOL_STEPS } from './components/sheet-music/overlays/SettingsOverlay';
 import { LEVELS } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
@@ -1003,10 +1004,18 @@ const App = () => {
     // `levelAudioStart` (audio-time seconds) is BOTH the scroll's t=0 anchor (passed to SheetRpgLayer) AND
     // the base the backing is scheduled on, so a slime reaches the hero at exactly the beat that sounds.
     const [levelAudioStart, setLevelAudioStart] = useState(null);
+    // Han (2026-08-02): "ik hoor de timpanen en cello niet, zet hun volume op mp" — the bass/metronome
+    // instruments' PERSISTENT output fader (useInstruments.js's `setVolume`, a GainNode separate from any
+    // per-note velocity) is whatever the user last left it at — inaudible if never raised. A level makes
+    // its backing tracks explicitly audible at mezzo-piano (reusing the canonical VOL_STEPS dynamics table,
+    // §6c, rather than a new hardcoded gain constant) and restores full volume on close.
+    const LEVEL_BACKING_VOLUME = VOL_STEPS.find((s) => s.label === 'mezzo piano').value;
     const stopAllBackingAudio = useCallback(() => {
         try { instruments.bass?.stop(); } catch { /* not started */ }
         try { instruments.metronome?.stop(); } catch { /* not started */ }
-    }, [instruments]);
+        setVolume('bass', 1.0);
+        setVolume('metronome', 1.0);
+    }, [instruments, setVolume]);
     // Sets the scroll anchor IMMEDIATELY (so the visual side-scroll always starts on schedule) — the actual
     // audio scheduling is deferred to the effect below, which waits for instruments.bass to actually BECOME
     // the cello Soundfont (useInstruments.js rebuilds it asynchronously after applyConfig's setBassSettings;
@@ -1033,6 +1042,8 @@ const App = () => {
         if (melodies.bass?.notes?.length) { melodiesToPlay.push(melodies.bass); instrumentsToPlay.push(instruments.bass); }
         if (melodies.metronome?.notes?.length) { melodiesToPlay.push(melodies.metronome); instrumentsToPlay.push(instruments.metronome); }
         if (melodiesToPlay.length === 0) return;
+        setVolume('bass', LEVEL_BACKING_VOLUME);
+        setVolume('metronome', LEVEL_BACKING_VOLUME);
         playMelodies(
             melodiesToPlay, instrumentsToPlay, context, bpm, contentStart,
             null,          // abortControllerRef — stopping is via instruments.bass/.metronome.stop() (stopAllBackingAudio)
@@ -1043,7 +1054,7 @@ const App = () => {
         );
         // melodies is a memoised object (useMelodyState) — safe as a dep; bassSettings.instrument is the
         // real gate (waits for the cello swap), so this effect is a no-op until everything lines up.
-    }, [level.active, level.current, levelAudioStart, context, instruments, bassSettings.instrument, melodies]);
+    }, [level.active, level.current, levelAudioStart, context, instruments, bassSettings.instrument, melodies, setVolume, LEVEL_BACKING_VOLUME]);
     const startLevel = useCallback((n) => {
         const lvl = LEVELS[n] || LEVELS[1];
         context.resume?.();
