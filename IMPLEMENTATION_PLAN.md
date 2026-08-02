@@ -7,6 +7,33 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — 🐞✅ Bug: RPG-laag (avatar/slimes) zichtbaar buiten levels / tijdens Settings-tab
+
+Han: "avatar, slimes (en andere enemies) mogen alleen zichtbaar zijn TIJDENS
+een level. En nooit tijdens de settings view actief."
+
+Interview (§4b) leverde op: avatar mag WEL zichtbaar zijn in de normale
+melodie-view (niet level-gated) — alleen niet tijdens de Settings-tab
+('other-settings', die in dual-view naast de notenbalk blijft staan). Slimes
+horen puur bij een level en mogen sowieso nooit in de normale view gegenereerd
+worden.
+
+Fix: `trebleMelody` naar `SheetRpgLayer` gaat nu door `levelActive &&` (nieuwe
+prop, `level.active` uit App.jsx) — dus buiten een level is er nooit
+slime-data. Nieuwe `hideHero` prop verbergt alleen de hero-`<foreignObject>`
+zodra `activeTab === 'other-settings'`. architecture.md §99.
+
+## 2026-08-02 — ✅ FR: levels.js-data naar levels.json (apart bewerkbaar)
+
+Han: "sla de level settings op in een json, zodat ik die apart kan bewerken."
+
+`src/levels/levels.json` toegevoegd: alle 8 levels volledig plat/zelfstandig
+(geen JS-spreads meer over te nemen bij het bewerken). `levels.js` is nu enkel
+nog de loader + de samengevoegde toelichting-comments (JSON ondersteunt geen
+comments) + de niet-data helpers (`wavesForLevel`, `trebleOnlyEyes`,
+`threeLineEyes`). Export-surface (`LEVEL1`..`LEVEL8`, `LEVELS`) ongewijzigd,
+dus geen enkele call site hoefde aangepast. architecture.md §100.
+
 ## 2026-08-02 — 🐞✅ Vervolg: notenbalk te ver ingezoomd na de 45%-fix
 
 Han: "perfect, dit is goed. maar nu is de notenbalk wel te ver

@@ -137,6 +137,10 @@ export default function SheetRpgLayer({
     // anchors its t=0 to it (elapsed = context.currentTime − scrollStartTime) so a slime reaches the hero at
     // EXACTLY the beat the metronome clicks. null → free-running (first-frame anchor), e.g. Level 1 / tests.
     scrollStartTime = null,
+    // #662 (Han 2026-08-02, "avatar... nooit tijdens de settings view actief"): hides only the hero doll
+    // (click-to-open-character-menu). Slimes/enemies are gated separately — see `trebleMelody` at the
+    // call site in SheetMusic.jsx (null outside a level → slimeData never populates).
+    hideHero = false,
 }) {
     const idleAnim = ANIMATIONS[0];
     const [savedChar] = useState(loadCharacter);            // read once (not per tick)
@@ -647,13 +651,15 @@ export default function SheetRpgLayer({
                     </text>
                 );
             })}
-            <foreignObject x={heroX} y={heroY} width={dollW} height={HERO_H} style={{ overflow: 'visible', pointerEvents: 'auto' }}>
-                <div xmlns="http://www.w3.org/1999/xhtml" onClick={onOpenCharacter}
-                    style={{ cursor: 'pointer' }} title="Open character">
-                    {heroEl}
-                </div>
-            </foreignObject>
-            {debugMode && (
+            {!hideHero && (
+                <foreignObject x={heroX} y={heroY} width={dollW} height={HERO_H} style={{ overflow: 'visible', pointerEvents: 'auto' }}>
+                    <div xmlns="http://www.w3.org/1999/xhtml" onClick={onOpenCharacter}
+                        style={{ cursor: 'pointer' }} title="Open character">
+                        {heroEl}
+                    </div>
+                </foreignObject>
+            )}
+            {!hideHero && debugMode && (
                 <rect x={heroX} y={heroY} width={dollW} height={HERO_H}
                     fill="orange" fillOpacity={0.25} stroke="orange" strokeWidth={1} style={{ pointerEvents: 'none' }} />
             )}

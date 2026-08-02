@@ -2029,6 +2029,8 @@ const App = () => {
                             onCombatHit={level.active ? level.onHit : undefined}
                             onCombatMiss={level.active ? level.onMiss : undefined}
                             sideScroll={level.active && !!level.current.sideScroll}   // #660 Level 2
+                            levelActive={level.active}                                // #662 no slimes outside a level
+                            hideHero={activeTab === 'other-settings'}                 // #662 hide avatar on the Settings tab
                             levelAudioStart={level.active ? levelAudioStart : null}   // §88 scroll↔metronome anchor
                             containerHeight={sheetHeight}
                             visibleMeasures={effectiveVisibleMeasures}

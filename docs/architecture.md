@@ -6767,3 +6767,74 @@ the header/hero/treble staff stay pinned to the same top position they'd have wi
 unused vertical space now only appears at the BOTTOM of the sheet-music area.
 
 **Files:** `src/components/sheet-music/SheetMusic.jsx` (`scaleFactor` calculation, `preserveAspectRatio`).
+
+### §99. RPG layer visibility: no slimes outside a level, avatar hidden on the Settings tab (Han 2026-08-02)
+
+**Bug:** "avatar, slimes (en andere enemies) mogen alleen zichtbaar zijn TIJDENS een level. En nooit tijdens
+de settings view actief." Two distinct leaks:
+
+1. **Slimes rendered in normal (non-level) practice view.** `SheetMusic.jsx` passed `trebleMelody` into
+   `SheetRpgLayer` purely based on staff visibility (`isTrebleVisible && actualTreble`), with no check for
+   whether a level was even running. `SheetRpgLayer`'s `slimeData` memo builds its enemy list from
+   `trebleMelody` unconditionally (both the sideScroll `sideScrollX` path and the static Level-1-style "idle
+   under the note" path), so a slime appeared under every treble note all the time — not just during a
+   level, contradicting the RPG layer's whole premise ("die passen bij level", Han).
+
+2. **Avatar (hero doll) visible while the Settings tab is open.** The app keeps the sheet-music container
+   mounted with `display: flex` whenever `isDualView` is true (desktop split layout), REGARDLESS of
+   `activeTab` (`App.jsx`: `display: (activeTab === 'sheet-music' || isDualView) ? 'flex' : 'none'`) — so in
+   dual-view, switching to the Settings tab (`activeTab === 'other-settings'`, the `SettingsPanel` rendered
+   by `TabView.jsx`) left the sheet music, including the clickable hero doll, visible right alongside it.
+   (On narrow/mobile, non-dual layout, the container is already `display: none` outside the sheet-music tab
+   — this leak only existed in dual-view.)
+
+**Fix:**
+
+- `SheetMusic.jsx` gained two new props: `levelActive` (bool, default false) and `hideHero` (bool, default
+  false).
+- The `trebleMelody` prop handed to `SheetRpgLayer` is now `levelActive && isTrebleVisible && actualTreble ?
+  adjustedTrebleMelody : null` — outside a level, `SheetRpgLayer` never receives melody data, so `slimeData`
+  is always empty and no enemy is ever generated. (Distinct from the existing `sideScroll` prop: Level 1 is
+  a level too but is NOT sideScroll — `levelActive` is what actually gates enemy generation for both level
+  types.)
+- `SheetRpgLayer` gained a `hideHero` prop (default false) that wraps the hero `<foreignObject>` (and its
+  debug hit-box rect, §3a) in `{!hideHero && (...)}`. Slimes are unaffected by this prop — they're already
+  gated off by `levelActive` above; `hideHero` only ever needs to hide the avatar.
+- `App.jsx` wires both: `levelActive={level.active}`, `hideHero={activeTab === 'other-settings'}`.
+
+**Invariant:** slimes/enemies exist ONLY while `level.active` is true (created together with the level's
+notes, not the app's normal generated melody); the hero avatar is visible whenever the sheet music is
+visible EXCEPT while the Settings tab (`other-settings`) is the active tab.
+
+**Files:** `src/components/sheet-music/SheetMusic.jsx`, `src/components/sheet-music/SheetRpgLayer.jsx`,
+`src/App.jsx`.
+
+### §100. Level settings extracted to `levels.json` (Han 2026-08-02, "sla de level settings op in een json, zodat ik die apart kan bewerken")
+
+**Purpose:** Han wants to hand-edit level tuning (bpm, range, notesPerMeasure, grid settings, intro text,
+etc.) without touching JS. The 8-level data previously lived in `src/levels/levels.js` as a chain of object
+spreads (`LEVEL3 = {...LEVEL2, ...HALF_NOTE_GRID, ...}`, `LEVEL4 = {...LEVEL3, ...}`, etc.) — convenient for
+expressing "this level = the previous one + one change" in code, but bad for hand-editing: changing one
+field in the JSON requires understanding which later levels inherit it, and JS object spreads aren't valid
+JSON syntax at all.
+
+**How it works:** `src/levels/levels.json` is a flat array of 8 fully self-contained level objects — every
+field (`id`, `name`, `bpm`, `numMeasures`, `numRepeats`, `notesPerMeasure`, `variability`, `range`,
+`totalMeasures`, `sideScroll`, `beatsOnScreen`, `smallestNoteDenom`, `insertBeatRests`, `polyMultiplier`,
+`fixedBass`, `debugOnlyLines`, `enemyType`, `intro`) is written out explicitly per level, with the exact
+values the old spread chain used to resolve to. Editing Level 5 in the JSON can never accidentally change
+Level 6 or 7 — there is no inheritance left to trace.
+
+`src/levels/levels.js` now only: imports `levels.json`, builds the `LEVELS` id→level map and the named
+`LEVEL1`…`LEVEL8` exports from it (unchanged export surface — no call site needed to change), and keeps the
+non-data helpers (`wavesForLevel`, `trebleOnlyEyes`, `threeLineEyes`). The file's header comment consolidates
+ALL the rationale that used to live inline next to each level/grid-preset definition (§6c/CLAUDE.md §2–3:
+institutional knowledge preserved, just relocated since JSON can't hold comments) — read it before editing
+`levels.json` so a numeric change doesn't accidentally violate an invariant (e.g. why `insertBeatRests` must
+stay explicit on every level, why Level 8 doesn't inherit from Level 1–7).
+
+**Invariant:** `levels.json` holds ONLY plain, flat, self-contained data — no level should ever be
+re-expressed as a spread of another in the JSON. `levels.js` holds ONLY the loader + derived helpers + the
+consolidated rationale comment; it must never regain level-specific data literals of its own.
+
+**Files:** `src/levels/levels.json` (new), `src/levels/levels.js` (rewritten to a loader).

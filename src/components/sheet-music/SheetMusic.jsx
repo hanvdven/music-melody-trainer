@@ -200,6 +200,14 @@ const SheetMusic = ({
   onCombatMiss,                     // #659 level — a played note missed (for accuracy stats)
   sideScroll = false,               // #660 Level 2 — slimes fly in from the right toward a hit-zone
   levelAudioStart = null,           // §88 — audio-time (s) the level backing started; scroll anchors to it
+  // #662 (Han 2026-08-02, "slimes mogen alleen zichtbaar zijn TIJDENS een level"): distinct from
+  // `sideScroll` — Level 1 is a level too but is NOT sideScroll (static idle slimes). Gates whether
+  // SheetRpgLayer is handed any treble melody at all, so slimes are never generated outside a level.
+  levelActive = false,
+  // #662 (Han: "avatar... nooit tijdens de settings view actief" — the app-wide Settings TAB, which in
+  // dual-view desktop layout stays mounted alongside the sheet music). Hides only the hero doll; slimes
+  // are already gated off by `levelActive` above.
+  hideHero = false,
   showChords,
   // #502 (2026-07-20): the legacy in-staff SETTINGS surface was removed. Nothing sets this true any
   // more (its entry-point buttons are gone), so it defaults false; the remaining `showSettings`
@@ -2798,13 +2806,14 @@ const SheetMusic = ({
                       so the moving notes get proper duration heads, rests, colouring, beams, animated barlines
                       + measure numbers. Both null outside side-scroll → zero overhead in normal render. */}
                   <SheetRpgLayer
-                    trebleMelody={isTrebleVisible && actualTreble ? adjustedTrebleMelody : null}
+                    trebleMelody={levelActive && isTrebleVisible && actualTreble ? adjustedTrebleMelody : null}
                     startX={startX}
                     pixelsPerTick={ppt}
                     allOffsets={allOffsets}
                     noteWidth={noteWidth}
                     bpm={bpm}
                     sideScroll={sideScroll}
+                    hideHero={hideHero}
                     viewRight={logicalScreenWidth - 5}
                     clef={clefTreble}
                     trebleStart={trebleStart}
