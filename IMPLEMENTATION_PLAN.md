@@ -7,6 +7,28 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — 🐞✅ Vervolg: notenbalk te ver ingezoomd na de 45%-fix
+
+Han: "perfect, dit is goed. maar nu is de notenbalk wel te ver
+ingezoomd. kun je zorgen dat er NIET verder wordt ingezoomd, dus het
+zoom level wordt bepaald door het zoom level wanneer alle elementen in
+beeld zouden staan."
+
+De vorige fix (scaleFactor onbegrensd) loste de 45%-krimp op, maar
+zorgde er nu voor dat minder notenbalken = minder content = extra
+inzoomen om die 45% te vullen. Nieuwe aanpak: `scaleFactor` wordt nu
+begrensd op een berekende REFERENTIEWAARDE (wat de zoom zou zijn met
+alle 3 notenbalken zichtbaar), i.p.v. een platte 1.0-cap. Zo blijft het
+zoomniveau exact gelijk aan "alles in beeld", en krimpt het sheet-vlak
+nooit onder 45% maar zoomt ook nooit verder in dan dat.
+
+Bijkomend: `preserveAspectRatio` van `xMidYMid` (verticaal gecentreerd)
+naar `xMidYMin` (top-uitgelijnd) — anders zou de notatie bij minder
+notenbalken los in het midden van het vlak komen te zweven i.p.v. netjes
+bovenaan te blijven staan.
+
+architecture.md §98 (uitgebreid).
+
 ## 2026-08-02 — 🐞✅ Bug: sheet-music-vlak krimpt onder 45% bij minder notenbalken
 
 Han: "bij level 2 (niet-debug) schuift 'bottom view' omhoog. ik heb al

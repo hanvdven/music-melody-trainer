@@ -6739,11 +6739,31 @@ smaller `logicalHeightForViewBox`) that filling 45% would require `scaleFactor >
 notation slightly). With the cap in place, the sheet's rendered box then fell BELOW `containerHeight`,
 which is what let the flex-column bottom panel expand upward into the gap.
 
-**Fix:** removed the `Math.min(1.0, …)` clamp — `scaleFactor = containerHeight / logicalHeightForViewBox`,
-unbounded. `scaleFactor` is used ONLY to derive `logicalScreenWidth` (verified — no other multiplier in the
-file depends on it staying ≤1), so this is a narrow, safe change: the "many staves, needs shrinking" case
-(`scaleFactor < 1`) is untouched; only the previously-broken "few staves, needs slight upscaling" case
-(`scaleFactor > 1`) now behaves correctly, keeping the sheet-music area pinned at exactly 45% regardless of
-how many staves are visible.
+**First fix:** removed the `Math.min(1.0, …)` clamp — `scaleFactor = containerHeight /
+logicalHeightForViewBox`, unbounded. This correctly kept the sheet-music area pinned at 45% regardless of
+stave count, but introduced a NEW symptom (below).
 
-**Files:** `src/components/sheet-music/SheetMusic.jsx` (`scaleFactor` calculation).
+**Follow-up (Han, same day): "nu is de notenbalk wel te ver ingezoomd... het zoom level wordt bepaald door
+het zoom level wanneer alle elementen in beeld zouden staan."** An unclamped `scaleFactor` fixes the 45%
+box-size rule but also means fewer staves → less content → the "fill 45%" math zooms EVERYTHING in (bigger
+noteheads/text) purely because there's less content to fill the box with — not what Han wants. The zoom
+level should be pinned to whatever it would be with ALL 3 staves visible, not creep up when some are
+hidden.
+
+**Second fix — cap `scaleFactor` at a computed "everything visible" reference, not a flat 1.0:**
+`refLogicalHeightForViewBox` recomputes what `logicalHeightForViewBox` WOULD be with all 3 staves shown
+(same `staffHeight`/gap formula, `numGaps` pinned to 2 — the live lyrics-mode extras are orthogonal to
+stave count and excluded from the reference). `referenceScaleFactor = containerHeight /
+refLogicalHeightForViewBox` is the "everything in view" zoom baseline; `scaleFactor = Math.min
+(referenceScaleFactor, containerHeight / logicalHeightForViewBox)` — never zooms in further just because
+fewer staves are showing right now, but can still shrink BELOW the reference if even the full 3-staff
+layout wouldn't fit 45% (a very short container — same edge case the original clamp guarded against).
+
+**Vertical alignment:** capping `scaleFactor` below the "would need" ratio for shorter content reintroduces
+letterboxing slack on the height axis (the fixed-size SVG box now has more room than the scaled content
+needs) — `preserveAspectRatio` changed from `xMidYMid meet` (vertically CENTRED, so the treble staff would
+float toward the middle of the box with blank space above AND below) to `xMidYMin meet` (top-anchored), so
+the header/hero/treble staff stay pinned to the same top position they'd have with every stave shown; any
+unused vertical space now only appears at the BOTTOM of the sheet-music area.
+
+**Files:** `src/components/sheet-music/SheetMusic.jsx` (`scaleFactor` calculation, `preserveAspectRatio`).

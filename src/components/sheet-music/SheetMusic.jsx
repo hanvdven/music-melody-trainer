@@ -497,19 +497,31 @@ const SheetMusic = ({
 
   const lyricsExtraBottom = rhythmicLyricsActive ? 50 : 0;
   const logicalHeightForViewBox = bottomY + 80 + lyricsExtraBottom;
-  // Han 2026-08-02 (BUG — "bottom view schuift omhoog bij minder staves"): this used to be
-  // `Math.min(1.0, containerHeight / logicalHeightForViewBox)`. The `<svg>` fills its parent
-  // (width=100% height=100%), and that parent's box only resolves to the FULL `containerHeight`
-  // (the app-wide 45%-of-screen rule, useAppLayout.js `sheetHeight`) when the viewBox's own
-  // aspect ratio (`logicalScreenWidth : logicalHeightForViewBox`) already equals
-  // `screenWidth : containerHeight` — which is exactly what an UNCLAMPED `scaleFactor` guarantees
-  // algebraically (logicalScreenWidth = screenWidth/scaleFactor, so the ratio reduces to
-  // containerHeight/screenWidth regardless of scaleFactor's value). Capping scaleFactor at 1.0
-  // broke that identity whenever the content was "short" enough to need scaleFactor > 1 to fill
-  // 45% (fewer visible staves — e.g. Level 2 outside debug mode, bass+percussion hidden) — the
-  // sheet's rendered box then shrank BELOW containerHeight, and the flex-column bottom panel
-  // (App.jsx `flex: 1`) grew upward into the freed space. No cap → the 45% rule always holds.
-  const scaleFactor = containerHeight / logicalHeightForViewBox;
+  // Han 2026-08-02 (BUG — "bottom view schuift omhoog bij minder staves"): the `<svg>` fills its
+  // parent (width=100% height=100%), and that parent's box only resolves to the FULL
+  // `containerHeight` (the app-wide 45%-of-screen rule, useAppLayout.js `sheetHeight`) when the
+  // viewBox's own aspect ratio (`logicalScreenWidth : logicalHeightForViewBox`) already equals
+  // `screenWidth : containerHeight` — which is exactly what `scaleFactor = containerHeight /
+  // logicalHeightForViewBox` guarantees algebraically (logicalScreenWidth = screenWidth/
+  // scaleFactor, so the ratio reduces to containerHeight/screenWidth regardless of scaleFactor's
+  // value) AS LONG AS scaleFactor is computed from a FIXED reference height, not the current
+  // (possibly smaller) content height.
+  //
+  // Follow-up (Han, same day: "nu is de notenbalk wel te ver ingezoomd... het zoom level wordt
+  // bepaald door het zoom level wanneer alle elementen in beeld zouden staan"): a first pass left
+  // `scaleFactor` fully unclamped, which fixed the 45% shrink bug but let it ZOOM IN past 1:1 —
+  // fewer visible staves (Level 2 outside debug mode, §96) meant less content, so the "fill 45%"
+  // math scaled everything up. `refLogicalHeightForViewBox` recomputes what `logicalHeightForViewBox`
+  // WOULD be with ALL 3 staves shown (same staffHeight/gap formula, numGaps pinned to 2 — not the
+  // live lyrics-mode extras, which are orthogonal to stave count) — this is the "everything in
+  // view" zoom baseline Han wants. `scaleFactor` is capped at that baseline (never zooms in
+  // further just because fewer staves are showing right now) but can still shrink BELOW it if even
+  // the full 3-staff layout wouldn't fit 45% (a very short container) — same as before.
+  const refNumGaps = 2; // 3 staves → 2 gaps, regardless of how many are ACTUALLY visible right now
+  const refStaffGap = containerHeight >= 400 ? baseGap : Math.max(minGap, (containerHeight - 110 - 131) / refNumGaps);
+  const refLogicalHeightForViewBox = trebleStart + staffHeight * 3 + refStaffGap * 2 + 80;
+  const referenceScaleFactor = containerHeight / refLogicalHeightForViewBox;
+  const scaleFactor = Math.min(referenceScaleFactor, containerHeight / logicalHeightForViewBox);
   const logicalScreenWidth = screenWidth / scaleFactor;
 
   const endX = logicalScreenWidth - 10; // 5 unit margin on each side (Starts at 0, viewBox starts at -5)
@@ -1608,7 +1620,11 @@ const SheetMusic = ({
           width="100%"
           height="100%"
           viewBox={`-5 -30 ${logicalScreenWidth} ${logicalHeightForViewBox}`}
-          preserveAspectRatio="xMidYMid meet"
+          // Han 2026-08-02: top-anchored (not vertically centred) — with scaleFactor now capped at
+          // the "all 3 staves visible" reference (see above), fewer visible staves leaves vertical
+          // slack in the 45% box; xMidYMin keeps the header/hero/treble staff pinned to the same
+          // top position they'd have with every stave shown, so the sheet doesn't float mid-box.
+          preserveAspectRatio="xMidYMin meet"
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
