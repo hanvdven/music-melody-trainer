@@ -6633,6 +6633,12 @@ level number gets chosen. `LevelStartSplash`'s local `activeIndex` state (commit
 **Files:** `src/components/levels/LevelStartSplash.jsx` (new, +test), `src/components/layout/AppHeader.jsx`
 (`onOpenLevelPicker` replaces the 3 per-level buttons), `src/App.jsx` (`showLevelPicker` state + mount).
 
+**UAT (same day, Han: "maak hidden carousel van, en de scroll richting moet andersom"):** both are EXISTING
+`LeftFanCarousel` props, reused verbatim (no new behaviour) — `compact` (shows ONLY the active number at
+rest, fans the neighbours out while dragging, the same reveal-on-interaction convention the generation
+carousels use, §52) and `invert` (flips only the DRAG direction — layout is unchanged, high values still
+sit high — matching the BPM/measures/repeats fans elsewhere in the app).
+
 ### §96. Bass/percussion notation debug-gated for Levels 1/2 (Han 2026-08-02)
 
 **Purpose:** Han: *"next, in level 1 en 2, toon de bas en percussie ENKEL in debug mode."* Levels 1 and 2's

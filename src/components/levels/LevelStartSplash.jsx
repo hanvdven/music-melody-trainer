@@ -13,6 +13,12 @@ const LEVEL_NUMBERS = [1, 2, 3];
 // carousel engine). Replaces the header's old 3 separate per-level buttons (AppHeader.jsx): ONE "Start
 // Level" button opens this splash; dragging the carousel picks 1/2/3; a separate Start button confirms
 // (Han: avoid accidentally starting mid-drag).
+//
+// UAT (same day, Han: "maak hidden carousel van, en de scroll richting moet andersom") — both are EXISTING
+// `LeftFanCarousel` props, reused verbatim (§6c/§6d), not new behaviour: `compact` shows only the active
+// number at rest and fans the neighbours out while dragging (the same "reveal-on-interaction" convention
+// the generation carousels use, §52); `invert` flips only the DRAG direction (layout is unchanged — high
+// values still sit high), matching the BPM/measures/repeats fans elsewhere in the app.
 export default function LevelStartSplash({ onStart, onClose }) {
     const [activeIndex, setActiveIndex] = useState(0);
     const chosen = LEVEL_NUMBERS[activeIndex];
@@ -34,6 +40,8 @@ export default function LevelStartSplash({ onStart, onClose }) {
                         renderLabel={(v) => String(v)}
                         activeLabelSize={36}
                         bandW={60}
+                        compact
+                        invert
                     />
                 </svg>
                 <div className="ls-actions">
