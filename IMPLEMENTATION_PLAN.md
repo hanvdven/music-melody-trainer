@@ -7,6 +7,39 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-02 — ✅ 8-level ramp: bpm/tegenstander/introductie-info + 5 nieuwe levels
+
+Han: "geef voor elk level wat basis info: bpm, type enemies, wat wordt
+nieuw geïntroduceerd? maak tussen level 2 en level 3 5 nieuwe levels,
+dus level 3 schuift door naar level 8." Interview: enemy-type is puur
+info-tekst (geen echte sprite-wissel); Han koos zelf de progressie i.p.v.
+eerst een voorstel te reviewen. Toen ik een rijker voorstel schetste
+(tempo-ramp, bestiary-thema's per level) greep Han in: "nee wacht, houd
+het simpel, gewoon slimes, en langzaam opbouwen: halve noten, achtste
+noten, verbonden noten, etc."
+
+Resultaat: 8 levels. 1-2 ongewijzigd. Nieuw: 3=halve noten
+(insertBeatRests uit — dat is het ENE ding dat een noot langer dan het
+rooster toestaat), 4=achtste noten (smallestNoteDenom 8), 5=verbonden
+noten (dichtere notesPerMeasure zodat een noot vaker de maatstreep
+haalt — ties zijn geen aparte toggle, ze ontstaan al vanzelf zodra een
+noot over de maatstreep kan lopen), 6=groter bereik (C4-C5), 7=bas+
+percussie altijd zichtbaar. Level 8 = de oude Level 3, ONGEWIJZIGD op
+id/naam na.
+
+Bug gevonden en gefixt tijdens het bouwen: `smallestNoteDenom` werd
+voorheen VOORWAARDELIJK geschreven in useLevel.applyConfig (enkel als
+een level het zette) — onschadelijk met 3 levels, maar met 8 levels die
+verschillende waarden gebruiken zou Level7→Level8 (zonder close()) het
+achtste-noten-rooster laten lekken. Nu onvoorwaardelijk, zoals
+insertBeatRests/polyMultiplier al waren.
+
+`LevelStartSplash.jsx` toont nu een info-paneel (bpm/tegenstander/intro)
+onder de carousel, `LEVEL_NUMBERS` uitgebreid naar [1..8]. Nieuw
+`levels.test.js` legt de 8-level-structuur vast.
+
+architecture.md §97.
+
 ## 2026-08-02 — ✅ Bas/percussie enkel zichtbaar in debug mode (Level 1/2)
 
 Han: "next, in level 1 en 2, toon de bas en percussie ENKEL in debug

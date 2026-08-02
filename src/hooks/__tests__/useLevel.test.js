@@ -1,7 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import useLevel from '../useLevel';
-import { LEVEL1, LEVEL2, LEVEL3 } from '../../levels/levels';
+import { LEVEL1, LEVEL2, LEVEL3, LEVEL8 } from '../../levels/levels';
 
 const makeSetters = () => ({
     setNumMeasures: vi.fn(), setTrebleSettings: vi.fn(), setBassSettings: vi.fn(), setPercussionSettings: vi.fn(),
@@ -82,7 +82,7 @@ describe('useLevel (#659 Level 1)', () => {
         expect(regenerate).toHaveBeenCalledTimes(4);
     });
 
-    it('Level 1/2 set the quarter-grid generator fields; Level 3 explicitly clears them (Han 2026-08-02, no cross-level leakage)', () => {
+    it('Level 1/2 set the quarter-grid generator fields; Level 3 (half notes) explicitly clears insertBeatRests (Han 2026-08-02, no cross-level leakage)', () => {
         const { setters, result } = setup();
         act(() => result.current.start(LEVEL2));
         let applied = setters.setTrebleSettings.mock.calls.at(-1)[0]({});
@@ -92,11 +92,23 @@ describe('useLevel (#659 Level 1)', () => {
         // insertBeatRests/polyMultiplier — this is the exact leakage the explicit-write fixes.
         act(() => result.current.start(LEVEL3));
         applied = setters.setTrebleSettings.mock.calls.at(-1)[0]({ insertBeatRests: true, polyMultiplier: 4 });
-        expect(applied).toMatchObject({ insertBeatRests: false, polyMultiplier: 1 });
+        expect(applied).toMatchObject({ smallestNoteDenom: 4, insertBeatRests: false, polyMultiplier: 1 });
 
         act(() => result.current.start(LEVEL1));
         applied = setters.setTrebleSettings.mock.calls.at(-1)[0]({});
         expect(applied).toMatchObject({ smallestNoteDenom: 4, insertBeatRests: true, polyMultiplier: 1 });
+    });
+
+    it('the 8-level ramp never leaks smallestNoteDenom between rungs (Han 2026-08-02, "stap voor stap")', () => {
+        const { setters, result } = setup();
+        act(() => result.current.start(LEVEL2));   // quarter grid
+        expect(setters.setTrebleSettings.mock.calls.at(-1)[0]({})).toMatchObject({ smallestNoteDenom: 4 });
+
+        act(() => result.current.start(LEVEL3));   // half notes — same grid resolution, longer notes allowed
+        expect(setters.setTrebleSettings.mock.calls.at(-1)[0]({})).toMatchObject({ smallestNoteDenom: 4, insertBeatRests: false });
+
+        act(() => result.current.start(LEVEL8));   // straight to Level 8 — must NOT inherit Level 3's grid
+        expect(setters.setTrebleSettings.mock.calls.at(-1)[0]({ smallestNoteDenom: 4 })).toMatchObject({ smallestNoteDenom: 8 });
     });
 
     it('close restores the snapshot and deactivates', () => {
@@ -108,9 +120,9 @@ describe('useLevel (#659 Level 1)', () => {
         expect(result.current.done).toBe(false);
     });
 
-    it('Level 3 always shows 3 lines + cello bass; Level 1 stays treble-only; close() restores bass (Han 2026-08-02)', () => {
+    it('Level 8 always shows 3 lines + cello bass; Level 1 stays treble-only; close() restores bass (Han 2026-08-02)', () => {
         const { setters, result } = setup();
-        act(() => result.current.start(LEVEL3));
+        act(() => result.current.start(LEVEL8));
         const bassApplied = setters.setBassSettings.mock.calls.at(-1)[0]({ instrument: 'electric_bass_pick' });
         expect(bassApplied).toMatchObject({ instrument: 'cello' });
         const eyesApplied = setters.setPlaybackConfig.mock.calls.at(-1)[0]({ oddRounds: {}, evenRounds: {} });
@@ -142,20 +154,20 @@ describe('useLevel (#659 Level 1)', () => {
         expect(eyes.oddRounds).toMatchObject({ bassEye: false, percussionEye: false });
     });
 
-    it('Level 3 ignores debugMode — always 3 lines regardless of the toggle (Han 2026-08-02)', () => {
+    it('Level 8 ignores debugMode — always 3 lines regardless of the toggle (Han 2026-08-02)', () => {
         const { setters, result, rerender } = setup({ debugMode: false });
-        act(() => result.current.start(LEVEL3));
-        rerender({ debugMode: true });   // toggling debug must not change anything for Level 3
+        act(() => result.current.start(LEVEL8));
+        rerender({ debugMode: true });   // toggling debug must not change anything for Level 8
         const eyes = setters.setPlaybackConfig.mock.calls.at(-1)[0]({ oddRounds: {}, evenRounds: {} });
         expect(eyes.oddRounds).toMatchObject({ trebleEye: true, bassEye: true, percussionEye: true });
     });
 
-    it('Level 2 forces a fixed whole-note bass (octave-mismatch UAT fix); Level 3 keeps the real generated bass (Han 2026-08-02)', () => {
+    it('Level 2 forces a fixed whole-note bass (octave-mismatch UAT fix); Level 8 keeps the real generated bass (Han 2026-08-02)', () => {
         const { setters, result } = setup();
         act(() => result.current.start(LEVEL2));
         expect(setters.setBassSettings.mock.calls.at(-1)[0]({})).toMatchObject({ instrument: 'cello', fixedWholeNote: true });
 
-        act(() => result.current.start(LEVEL3));
+        act(() => result.current.start(LEVEL8));
         expect(setters.setBassSettings.mock.calls.at(-1)[0]({ fixedWholeNote: true })).toMatchObject({ instrument: 'cello', fixedWholeNote: false });
     });
 

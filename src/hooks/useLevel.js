@@ -48,20 +48,21 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         setters.setTrebleSettings((prev) => ({
             ...prev, notesPerMeasure: lvl.notesPerMeasure, rhythmVariability: lvl.variability,
             range: lvl.range, rangeMode: 'fixed',
-            ...(lvl.smallestNoteDenom ? { smallestNoteDenom: lvl.smallestNoteDenom } : {}),
-            // #661 rework (Han 2026-08-02): quarter-note/quarter-rest grid for Level 1/2, produced by the
-            // GENERATOR (see levels.js QUARTER_GRID comment) — NOT a post-process. insertBeatRests and
-            // polyMultiplier are written UNCONDITIONALLY (never `...(lvl.x ? {x} : {})`) on every level
-            // switch, so a value set by a PREVIOUS level in the same session can never leak into this one
-            // (e.g. Level 2 → Level 3 must not carry over insertBeatRests=true).
+            // #661 rework (Han 2026-08-02): quarter/half/eighth-note grids ramping toward full richness
+            // (levels.js QUARTER_GRID/HALF_NOTE_GRID/EIGHTH_NOTE_GRID), produced by the GENERATOR — NOT a
+            // post-process. smallestNoteDenom/insertBeatRests/polyMultiplier are written UNCONDITIONALLY
+            // (never `...(lvl.x ? {x} : {})`) on every level switch, so a value set by a PREVIOUS level in
+            // the same session can never leak into this one (e.g. Level 7's eighth-note grid must not
+            // carry over into Level 8) — every level (1–8) explicitly declares all three fields.
+            smallestNoteDenom: lvl.smallestNoteDenom ?? 8,
             insertBeatRests: !!lvl.insertBeatRests,
             polyMultiplier: lvl.polyMultiplier ?? 1,
         }));
         // #661 (Han 2026-08-02, "de 3 lijnen zichtbaar maken" / later "in level 1 en 2, toon de bas en
-        // percussie ENKEL in debug mode"): a `debugOnlyLines` level (1/2) shows treble + bass + percussion
-        // ONLY while debugMode is on (else treble-only); Level 3 always shows all 3. The reactive effect
-        // below re-applies this whenever `debugMode` changes DURING an active debugOnlyLines level, so this
-        // initial application only needs to get the START state right.
+        // percussie ENKEL in debug mode"): a `debugOnlyLines` level shows treble + bass + percussion ONLY
+        // while debugMode is on (else treble-only) — Levels 1–6; Levels 7/8 always show all 3. The reactive
+        // effect below re-applies this whenever `debugMode` changes DURING an active debugOnlyLines level,
+        // so this initial application only needs to get the START state right.
         const eyes = lvl.debugOnlyLines ? (debugMode ? threeLineEyes : trebleOnlyEyes) : threeLineEyes;
         setters.setPlaybackConfig((prev) => ({
             ...prev, repsPerMelody: lvl.numRepeats,

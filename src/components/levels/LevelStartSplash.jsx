@@ -4,7 +4,7 @@ import './LevelSplash.css';
 import { LeftFanCarousel } from '../sheet-music/overlays/fanCarousels';
 import { LEVELS } from '../../levels/levels';
 
-const LEVEL_NUMBERS = [1, 2, 3];
+const LEVEL_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 // #661 (Han 2026-08-02): "maak een splash screen voor het level start, met daarin een tanh carousel dat
 // het level nummer kiest." Reuses the SAME CSS chrome as the "Well done!" splash (LevelSplash.css, §6d —
@@ -19,10 +19,15 @@ const LEVEL_NUMBERS = [1, 2, 3];
 // number at rest and fans the neighbours out while dragging (the same "reveal-on-interaction" convention
 // the generation carousels use, §52); `invert` flips only the DRAG direction (layout is unchanged — high
 // values still sit high), matching the BPM/measures/repeats fans elsewhere in the app.
+//
+// #661 (Han 2026-08-02, 8-level ramp): an info panel below the carousel shows each level's bpm, enemy type
+// (Han: "gewoon slimes" — always Slime, no per-level bestiary swap) and what it newly introduces
+// (`lvl.intro`, levels.js) — read straight off the chosen `LEVELS[n]` object, single source of truth.
 export default function LevelStartSplash({ onStart, onClose }) {
     const [activeIndex, setActiveIndex] = useState(0);
     const chosen = LEVEL_NUMBERS[activeIndex];
-    const levelName = LEVELS[chosen]?.name || `Level ${chosen}`;
+    const lvl = LEVELS[chosen];
+    const levelName = lvl?.name || `Level ${chosen}`;
 
     return (
         <div className="ls-overlay" onClick={onClose}>
@@ -44,6 +49,22 @@ export default function LevelStartSplash({ onStart, onClose }) {
                         invert
                     />
                 </svg>
+                {lvl && (
+                    <div className="ls-stats" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 14 }}>
+                        <div className="ls-stat">
+                            <span className="ls-stat-value">{lvl.bpm}</span>
+                            <span className="ls-stat-label">bpm</span>
+                        </div>
+                        <div className="ls-stat">
+                            <span className="ls-stat-value">{lvl.enemyType}</span>
+                            <span className="ls-stat-label">tegenstander</span>
+                        </div>
+                        <div className="ls-stat" style={{ gridColumn: '1 / -1' }}>
+                            <span className="ls-stat-value" style={{ fontSize: 14 }}>{lvl.intro}</span>
+                            <span className="ls-stat-label">nieuw in dit level</span>
+                        </div>
+                    </div>
+                )}
                 <div className="ls-actions">
                     <button className="ls-btn ls-replay" onClick={() => onStart(chosen)}>▶ Start</button>
                     <button className="ls-btn" onClick={onClose}>Sluiten</button>

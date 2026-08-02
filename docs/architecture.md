@@ -6653,8 +6653,67 @@ threeLineEyes`. Because Han's debug toggle can be flipped WHILE a level is alrea
 existing debug button), a plain "set once at start" application isn't enough — `useLevel` now accepts a
 `debugMode` param (`App.jsx` passes its existing `debugMode` state through) and runs a companion
 `useEffect` that re-applies the eyes whenever `debugMode` changes during an active `debugOnlyLines` level,
-with no restart needed. The effect is a no-op for Level 3 (`debugOnlyLines` false) and while no level is
-active.
+with no restart needed. The effect is a no-op for a level with `debugOnlyLines: false` and while no level is
+active. (Superseded by §97: after the 8-level ramp, `debugOnlyLines` is true for Levels 1–6 and false for
+7/8 — at the time this section was written there were only 3 levels and Level 3 was the always-visible one.)
 
 **Files:** `src/levels/levels.js` (`debugOnlyLines` flag), `src/hooks/useLevel.js` (+test — `debugMode`
 param, reactive eyes effect), `src/App.jsx` (`useLevel(...)` gains `debugMode`).
+
+### §97. 8-level ramp: step-by-step notation progression (Han 2026-08-02)
+
+**Purpose:** Han: *"maak tussen level 2 en level 3 5 nieuwe levels, dus level 3 schuift door naar level 8"*
++ (after an initial richer proposal) *"nee wacht. houd het simpel, gewoon slimes, en langzaam opbouwen, dus
+introduceer stap voor stap: halve noten, achtste noten, verbonden noten, etc."* The 3-level roster (§89/§92)
+becomes 8: Levels 1–2 unchanged, 5 new Levels 3–7 inserted, and the former Level 3 (full richness) becomes
+Level 8 with its `id`/`name` as the ONLY changes — every gameplay field is exactly what it already had.
+
+**Design constraints Han set (read before touching the ramp again):**
+- **Enemy type stays "gewoon slimes"** for every level — no Bestiary sprite variety, not even as flavour
+  text differentiation. `enemyType: 'Slime'` is identical on all 8 levels; the splash's info panel (below)
+  shows it mostly for schema completeness / a stable place to hang a future "real" enemy-type feature on.
+- **One new notation concept per level, nothing else varies unless it IS the headline.** Each of Levels
+  3–7 changes exactly ONE setting relative to the previous rung (§6c: minimal, legible diffs) — bpm,
+  notesPerMeasure, range etc. stay at Level 2's values except where a level's own headline is that axis.
+
+**The ramp (see `levels.js` for the exact field values):**
+
+| Level | New this level | Key setting |
+|---|---|---|
+| 1 | Quarter notes/rests, static combat | `QUARTER_GRID` |
+| 2 | Side-scroll combat; bass+metronome audible | `QUARTER_GRID` (unchanged) |
+| 3 | **Half notes** | `HALF_NOTE_GRID` (`insertBeatRests: false` — the ONE thing that lets a note be longer than the grid unit at all, §91) |
+| 4 | **Eighth notes** | `EIGHTH_NOTE_GRID` (`smallestNoteDenom: 8`) |
+| 5 | **Tied notes** across the barline | `notesPerMeasure: 4` (denser → a note more often reaches the barline) |
+| 6 | Wider range | `range: C4–C5` (a full octave, up from the fifth C4–G4) |
+| 7 | Bass+percussion always visible | `debugOnlyLines: false` (the last training wheel) |
+| 8 | Full richness — real generated bass, everything together | unchanged from the old Level 3 |
+
+**Ties are NOT a separate on/off flag (§6c: reuse, don't invent a second mechanism).** A tie is what the
+EXISTING rendering pipeline draws whenever a generated note's duration crosses a barline — a real musical
+notation necessity, not a toggle. Once `insertBeatRests: false` (Level 3) allows notes longer than the grid
+unit, a tie can occur by chance whenever such a note's span happens to reach a measure boundary; Level 5's
+denser `notesPerMeasure` just makes it common enough to read as "introduced there," it doesn't newly enable
+anything Level 3/4 couldn't already produce. Do not add a dedicated "disable ties" setting to force stricter
+level-by-level gating — the existing behaviour already matches how ties work everywhere else in the app.
+
+**Cross-level leakage — `smallestNoteDenom` closed the same way as §91's `insertBeatRests`/`polyMultiplier`:**
+previously `useLevel.applyConfig` only wrote `smallestNoteDenom` CONDITIONALLY (`...(lvl.smallestNoteDenom ?
+{smallestNoteDenom} : {})`), silently preserving whatever was already in `trebleSettings` when a level didn't
+set it — harmless with only 3 levels (Level 3/old was the only "don't touch it" case, and its ambient value
+was always either untouched-fresh or 4 from Level 1/2), but a REAL bug risk now that Levels 3–7 use
+DIFFERENT `smallestNoteDenom` values that matter for gameplay (a Level 7 → Level 8 switch without `close()`
+would otherwise leak Level 7's eighth-note grid into Level 8). Fixed by making `smallestNoteDenom`
+UNCONDITIONAL too (`lvl.smallestNoteDenom ?? 8`) — every level (1–8) now explicitly declares it, `LEVEL8`
+gaining an explicit `smallestNoteDenom: 8` (the app's own default treble resolution) it never needed before.
+
+**Level-start splash info panel (`LevelStartSplash.jsx`):** below the carousel, a small panel now shows the
+CHOSEN level's `bpm`, `enemyType`, and `intro` (levels.js fields, read straight off `LEVELS[n]` — single
+source of truth, no duplicated level metadata). `LEVEL_NUMBERS` grew from `[1,2,3]` to `[1..8]`.
+
+**Files:** `src/levels/levels.js` (+test — `LEVEL3`–`LEVEL7` new, old `LEVEL3` renamed to `LEVEL8`,
+`HALF_NOTE_GRID`/`EIGHTH_NOTE_GRID` constants, `bpm`/`enemyType`/`intro` fields on every level),
+`src/hooks/useLevel.js` (+test — unconditional `smallestNoteDenom`), `src/components/levels/
+LevelStartSplash.jsx` (info panel, 8-item carousel), `src/hooks/__tests__/useLevel.test.js` (`LEVEL3`
+references repointed to their new half-note-level meaning; the former "always 3 lines / real bass" assertions
+moved to `LEVEL8`).
