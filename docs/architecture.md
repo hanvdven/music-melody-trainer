@@ -6944,3 +6944,43 @@ Stop only silences currently-sounding notes, not the rest of the already-committ
   silencing bug found; likely a perceived-loudness/balance issue (a sustained low C2 sample being much
   quieter than the punchy timpani hits playing alongside it) rather than a scheduling bug. Follow-up: try
   boosting the lead-in call's `bass` trackGain above 1.0 as a mitigation, pending Han's confirmation.
+
+### §104. Bug: rapid consecutive notes dropped in Level 1's static combat (Han 2026-08-03)
+
+**Bug:** "in level 1 merk ik dat als ik 'te snel achter elkaar' noten aansla, dan wordt mijn tweede noot
+niet geregistreerd." Han asked whether the same applied to the other levels and, if not, for consistency.
+
+**Root cause:** `SheetRpgLayer.jsx`'s STATIC (Level 1, non-`sideScroll`) combat branch used:
+
+```js
+const k = killedRef.current;
+const s = slimesRef.current[k];
+if (dyingRef.current.length || !s) return;
+```
+
+`dyingList` used to be a single-death-at-a-time slot; while ANY slime was still playing its death
+animation, a new note was silently dropped — no hit, no miss, nothing. The side-scroll levels (2–8) hit
+this exact class of bug earlier and fixed it by turning `dyingList` into a LIST (§92/§93: "two kills can
+overlap one death animation... a single dying slot would swallow the second kill") — but the static branch
+was never updated to match, so Level 1 alone kept the old blocking behaviour. `killedRef`
+(`killedCount`) compounded it: it only advances once a death ANIMATION FINISHES (see the per-tick
+`finished` effect), so even without the block, the "next target" index wouldn't have advanced to the
+second slime while the first was still animating.
+
+**Fix (Han confirmed: same behaviour as the other levels; wrong notes still don't advance the target):** a
+new `resolvedStaticRef` (a `Set`, reset every fresh wave alongside `resolvedRef`/`wrongAttemptRef`) marks a
+slime as struck THE INSTANT it's hit, decoupled from its animation. The target for a new note is now
+`slimesRef.current.findIndex((_, idx) => !resolvedStaticRef.current.has(idx))` — the lowest-index
+NOT-YET-STRUCK slime — instead of `killedRef.current`. `setDyingList` now APPENDS
+(`(l) => [...l, {...}]`) instead of replacing, so multiple slimes can animate their death concurrently,
+exactly like the side-scroll levels already do. `killedCount` still only advances on animation-finish —
+that's fine, it only drives the "hide fully-animated kills" render check and the wave-cleared effect, both
+of which are OK to lag slightly behind the strike itself. A wrong note still does not add to
+`resolvedStaticRef`, so (unchanged, Han confirmed) you keep retrying the same slime until you hit it.
+`killedRef`/`dyingRef` (now unused after this change) were removed.
+
+**Invariant:** static and side-scroll combat must both allow overlapping death animations — a note's hit/
+miss registration is NEVER gated on whether a PREVIOUS slime's death animation has finished rendering.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx`,
+`src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx`.

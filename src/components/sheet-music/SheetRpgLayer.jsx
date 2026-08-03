@@ -197,8 +197,6 @@ export default function SheetRpgLayer({
     const [wiggle, setWiggle] = useState(null);            // { index, startTick } — a missed/next slime shaking
     const [judgments, setJudgments] = useState([]);        // [{ id, category, startTick }] floating labels at the strike line
     const tickRef = useRef(0);
-    const killedRef = useRef(0); killedRef.current = killedCount;
-    const dyingRef = useRef([]); dyingRef.current = dyingList;
     const slimesRef = useRef(slimeData); slimesRef.current = slimeData;
     const clearedRef = useRef(false);
     // side-scroll graded combat bookkeeping (refs, not state — read inside the nonce-keyed effect "at now"):
@@ -206,6 +204,17 @@ export default function SheetRpgLayer({
     // that got a wrong-pitch attempt while hittable, so a correction scores 'on second attempt' (Han).
     const resolvedRef = useRef(new Set());
     const wrongAttemptRef = useRef(new Set());
+    // #663 (Han 2026-08-03, "te snel achter elkaar noten aansla... tweede noot wordt niet geregistreerd"):
+    // static (Level 1) combat's target index used to be `killedCount`, which only advances once a death
+    // ANIMATION finishes (see the `finished` effect below) — combined with the old single-slot `dying`
+    // gate, a second correct note played before the first slime's death animation finished was silently
+    // dropped entirely. Mirrors the side-scroll fix (dyingList became a LIST for the same reason, Han
+    // 2026-08-02): resolvedStaticRef marks a slime hit THE MOMENT it's struck (not when its animation
+    // finishes), so the next note can immediately target the NEXT unresolved slime while earlier ones are
+    // still animating. `killedCount` still only advances on animation-finish — it only drives rendering
+    // (`idx < killedCount` hides fully-animated kills) and the wave-cleared check, both fine to lag the
+    // animation queue.
+    const resolvedStaticRef = useRef(new Set());
     const judgmentIdRef = useRef(0);
     const heroAttackRef = useRef(null); heroAttackRef.current = heroAttack;
     // hit/miss callbacks via refs so the nonce-keyed note effect always sees the latest (no stale closure).
@@ -267,7 +276,7 @@ export default function SheetRpgLayer({
     const notesKey = slimeData.map((s) => (Array.isArray(s.note) ? s.note.join('+') : s.note)).join('|');
     useEffect(() => {
         setKilledCount(0); setDyingList([]); setKilledSet(new Set()); setJudgments([]); clearedRef.current = false;
-        resolvedRef.current = new Set(); wrongAttemptRef.current = new Set();
+        resolvedRef.current = new Set(); wrongAttemptRef.current = new Set(); resolvedStaticRef.current = new Set();
         // With an audio anchor (scrollStartTime), t=0 IS the scheduled start, so the wave clock is 0 regardless
         // of WHEN the melody generated (a few frames later). Free-running mode restarts from the current tick.
         waveStartRef.current = scrollStartTime != null ? 0 : tickRef.current;
@@ -339,11 +348,17 @@ export default function SheetRpgLayer({
                 onMissRef.current?.('extraNote');
             }
         } else {
-            const k = killedRef.current;
-            const s = slimesRef.current[k];
-            if (dyingRef.current.length || !s) return;
+            // #663: target the lowest-index slime not yet STRUCK (resolvedStaticRef), not `killedRef` —
+            // that only advances once a death animation finishes, which is what let a fast second note
+            // get dropped while the previous kill was still animating. A wrong note does NOT resolve the
+            // target (Han: unchanged — you keep retrying the same slime until you hit it).
+            const k = slimesRef.current.findIndex((_, idx) => !resolvedStaticRef.current.has(idx));
+            const s = k >= 0 ? slimesRef.current[k] : null;
+            if (!s) return;
             if (notesMatch(combatNote.note, s.note)) {
-                setDyingList([{ index: k, startTick: tickRef.current, x: s.x }]); onHitRef.current?.();
+                resolvedStaticRef.current.add(k);
+                setDyingList((l) => [...l, { index: k, startTick: tickRef.current, x: s.x }]);
+                onHitRef.current?.();
             } else {
                 onMissRef.current?.();
             }

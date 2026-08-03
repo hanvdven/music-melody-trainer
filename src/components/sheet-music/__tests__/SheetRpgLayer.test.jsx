@@ -68,6 +68,29 @@ describe('SheetRpgLayer (#647)', () => {
         vi.useRealTimers();
     });
 
+    it('#663: two correct notes played rapidly (before the first death animation finishes) both register — static combat is not consistency-blocked by an in-progress animation', () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+        const onHit = vi.fn(); const onSlimesCleared = vi.fn();
+        const base = {
+            startX: 20, pixelsPerTick: null, allOffsets: [0, 12], noteWidth: 20,
+            trebleStart: 100, staffHeight: 40, viewBottom: 220, onHit, onSlimesCleared,
+            trebleMelody: { notes: ['C4', 'D4'], offsets: [0, 12], durations: [12, 12] },
+        };
+        let container, rerender;
+        act(() => { const r = render(<svg><SheetRpgLayer {...base} combatNote={null} /></svg>); container = r.container; rerender = r.rerender; });
+        const play = (note, nonce) => act(() => rerender(<svg><SheetRpgLayer {...base} combatNote={{ note, nonce }} /></svg>));
+        const tick = () => act(() => vi.advanceTimersByTime(16));   // one rAF-ish frame, well short of the death animation
+
+        play('C4', 1); tick();          // first slime struck, starts dying — animation NOT finished yet
+        play('D4', 2); tick();          // second slime played immediately after — must still register
+
+        expect(onHit).toHaveBeenCalledTimes(2);
+        act(() => vi.advanceTimersByTime(160 * 8));   // let both animations finish
+        expect(container.querySelectorAll('image')).toHaveLength(0);
+        expect(onSlimesCleared).toHaveBeenCalledTimes(1);
+        vi.useRealTimers();
+    });
+
     it('side-scroll (#661): reuses the REAL staff — a scrollNotation bundle renders canonical Maestro noteheads', () => {
         // Instead of hand-rolled glyphs, the moving staff is drawn via MelodyNotesLayer (font-family="Maestro").
         vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });

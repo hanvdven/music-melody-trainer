@@ -7,6 +7,24 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-03 — 🐞✅ Bug: snelle noten na elkaar in Level 1 worden genegeerd
+
+Han: "in level 1 merk ik dat als ik 'te snel achter elkaar' noten aansla, dan
+wordt mijn tweede noot niet geregistreerd... geldt ditzelfde in andere levels?
+zorg hier voor consistentie."
+
+Root cause: Level 1's statische combat-tak blokkeerde ELKE nieuwe noot zolang
+er ergens een dood-animatie liep (`dyingList` was ooit single-slot). De
+side-scroll levels hadden dit exacte probleem al opgelost (dyingList → lijst),
+maar Level 1 is toen niet meegenomen. Fix: nieuwe `resolvedStaticRef` markeert
+een slime METEEN bij een raak schot (niet pas als de animatie klaar is); het
+doelwit is nu de laagste NIET-geraakte index i.p.v. `killedRef` (die pas
+verhoogt als een animatie AF is). `setDyingList` append't nu i.p.v. vervangt,
+dus meerdere slimes kunnen tegelijk hun sterf-animatie spelen — consistent met
+de andere levels. Fout-noten gedrag ongewijzigd (Han bevestigd: je blijft op
+dezelfde slime proberen). architecture.md §104. Nieuwe test in
+SheetRpgLayer.test.jsx.
+
 ## 2026-08-03 — 🐞✅ Bug: Stop-knop onderbreekt pauken/cello niet
 
 Han: "timpani en cello worden niet onderbroken door de stop-knop."
