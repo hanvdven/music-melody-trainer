@@ -7,6 +7,41 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-03 — 🐞✅ Bug: opmaat nog steeds niet zichtbaar bij level-start (echte fix)
+
+Han: "top! nog steeds geen opmaat." (na de content-fix hierboven).
+
+Live-verificatie toonde: de notenbalk was leeg van de held tot ver off-screen
+rechts — "-1" verscheen pas op ~80% van het scherm. Root cause: BarlinesLayer
+positioneert strepen op ORDINAAL AANTAL 'm'-markers (niet hun tick-waarde),
+terwijl de notenbalk (en Level 8's echte bas) op hun EIGEN tick-waarde
+positioneert vanaf dezelfde `viewRight`. De 2 synthetische opmaat-'m's
+verschuiven het ordinale aantal met 2 t.o.v. de (onverschoven) noten-tick —
+waardoor "-1" aan de verre schermrand vastzat (moest de VOLLEDIGE
+kruistijd overbruggen voor 'ie zichtbaar werd) en echte-inhoud-strepen niet
+eens uitlijnden met hun eigen noten. Fix: content waarvan tick 0 = maat -1
+(pauken/vaste-cello-patroon, en de maatstrepen zelf) wordt nu `leadInTicks`
+pixels EERDER dan `viewRight` georigineerd (nieuwe `barlineStartX`/
+`bassStartX`/`percussionStartX` in SheetRpgLayer.jsx) — treble en Level 8's
+echte bas blijven op `viewRight` (ongewijzigd, aankomsttijd blijft perfect).
+Live geverifieerd: "-1" en "0" al gepasseerd/zichtbaar 500ms na start, "1"-"8"
+netjes gespreid rechts. architecture.md §108 (herschreven).
+
+## 2026-08-03 — ✅ FR: avatar-preview thema-achtergrond + genuine 1px-clip fix
+
+Han: "1 avatar frame: geef de 'thema'-achtergrond in het display. in het
+voorbeeld mis ik één pixel aan de onderkant."
+
+`.cc-avatar`'s achtergrondkleur is nu `var(--app-bg)` (dezelfde variabele elk
+thema al zet) i.p.v. een vaste donkere tint — decoratieve thema-texturen
+(marmer-aders, sterrenhemel, wolken) blijven een aparte vervolgstap indien
+gewenst. De "1 pixel mist" bleek een ECHTE, aparte bug (niet dezelfde als
+§107's containerbreedte-fix): `CHAR_DY`/`PET_DY` (1-2px omlaag-nudge, getuned
+voor de oude gecropte weergave met marge) duwde de sprite in `fullFrame`-modus
+net over de 64px-frame-rand, afgesneden door `overflow:hidden`. Fix:
+`layerStyle()` slaat de nudge over wanneer `fullFrame` true is. architecture.md
+§109. Nieuwe test in CharacterDoll.test.jsx.
+
 ## 2026-08-03 — 🐞✅ Bug: opmaat-maten tonen niet de audibele cello/pauken-inhoud
 
 Han: "je hebt nog NIET gekeken naar de opmaten." + eerdere verduidelijking:

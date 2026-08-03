@@ -7102,46 +7102,109 @@ sibling), so later (layer) paint always wins. New regression test asserts this D
 max-width), `src/components/character/CharacterDoll.jsx` (reference-box render order),
 `src/components/character/__tests__/CharacterDoll.test.jsx` (new ordering test).
 
-### §108. Level-scroll bass/percussion notation matches the audible lead-in content (Han 2026-08-03)
+### §108. Level-scroll bass/percussion notation matches the audible lead-in content; barlines/lead-in content re-origined so "-1"/"0" are visible from the very start of a level (Han 2026-08-03)
 
-**Bug:** "je hebt nog NIET gekeken naar de opmaten." Han's clarification of the intended behaviour: "de
-aankomsttijd van de noten is perfect [treble timing — untouched]... Maat -1 bevat wel cello en timpanen
-(zichtbaar in debug) en vanaf maat 0 speelt ook de metronoom" — the bass/percussion SCROLLING STAVES
-(visible in debug mode, per the existing `debugOnlyLines` rule) must show the SAME lead-in content that's
-actually audible during measures -1/0.
+**Bug (part 1):** "je hebt nog NIET gekeken naar de opmaten." Han's clarification of the intended
+behaviour: "de aankomsttijd van de noten is perfect [treble timing — untouched]... Maat -1 bevat wel cello
+en timpanen (zichtbaar in debug) en vanaf maat 0 speelt ook de metronoom" — the bass/percussion SCROLLING
+STAVES (visible in debug mode, per the existing `debugOnlyLines` rule) must show the SAME lead-in content
+that's actually audible during measures -1/0.
 
-**Root cause:** `SheetMusic.jsx`'s `scrollNotationBass`/`scrollNotationPercussion` bundles fed the moving
-staves from `adjustedBassMelody`/`adjustedPercussionMelody` — the REAL GENERATED melody, unaware of the
-level's lead-in at all — while `App.jsx`'s `scheduleLevelBacking` schedules a COMPLETELY DIFFERENT pattern
-as AUDIO for the same time window: `buildTimpaniPattern`/`buildCelloWholeNotePattern` (Han-authorized
-hardcoded exceptions, §92/§93) spanning the WHOLE piece (lead-in + content) for melodic-percussion/
-fixed-bass levels, or silence during -1/0 + the real melody from measure 1 for Level 8's real bass. The
-notation never reflected either of these — it just showed the real melody arriving at its own native tick
-0, visually contradicting what's actually playing (Level 2: audio = cello C2 whole notes + timpani hits;
-notation = whatever the real generated bass/percussion happened to be, completely unrelated).
+**Root cause (part 1):** `SheetMusic.jsx`'s `scrollNotationBass`/`scrollNotationPercussion` bundles fed the
+moving staves from `adjustedBassMelody`/`adjustedPercussionMelody` — the REAL GENERATED melody, unaware of
+the level's lead-in at all — while `App.jsx`'s `scheduleLevelBacking` schedules a COMPLETELY DIFFERENT
+pattern as AUDIO for the same time window: `buildTimpaniPattern`/`buildCelloWholeNotePattern`
+(Han-authorized hardcoded exceptions, §92/§93) spanning the WHOLE piece (lead-in + content) for
+melodic-percussion/fixed-bass levels, or silence during -1/0 + the real melody from measure 1 for Level 8's
+real bass. The notation never reflected either — it just showed the real melody arriving at its own native
+tick 0, visually contradicting what's actually playing.
 
-**Fix:** two new local values in `SheetMusic.jsx`, computed the same way `App.jsx` computes its audio:
+**Fix (part 1):** two new local values in `SheetMusic.jsx`, computed the same way `App.jsx` computes its
+audio: `scrollPercussionMelody = buildTimpaniPattern(LEVEL_LEAD_IN_BARS + numMeasures, timeSignature)`
+whenever `percussionSettings?.melodic` (true for every side-scroll level); `scrollBassMelody =
+buildCelloWholeNotePattern(...)` when `bassSettings?.fixedWholeNote` (Levels 2–7), else the plain
+`adjustedBassMelody` unchanged (Level 8's real bass — see part 2 for why no shift is needed here).
 
-- `scrollPercussionMelody` = `buildTimpaniPattern(LEVEL_LEAD_IN_BARS + numMeasures, timeSignature)` whenever
-  `percussionSettings?.melodic` (true for every side-scroll level) — spans the WHOLE piece in its own
-  tick-space where offset 0 = measure -1, which lines up naturally with the barlines' own numbering
-  (barlineCount 0 = "-1") — no shift needed, just swapping the source to match audio exactly.
-- `scrollBassMelody` = `buildCelloWholeNotePattern(LEVEL_LEAD_IN_BARS + numMeasures, timeSignature)` when
-  `bassSettings?.fixedWholeNote` (Levels 2–7); otherwise (Level 8's REAL bass, no fixed lead-in pattern to
-  show) `shiftMelodyOffsets(adjustedBassMelody, LEVEL_LEAD_IN_BARS * measureLengthSlots)` — pushes the real
-  melody's notation later by exactly the lead-in span, so it stays silent/invisible during -1/0 (matching
-  its equally-silent audio during that window) and only appears from measure 1.
-- New `src/utils/shiftMelodyOffsets.js` (re-added after an earlier, DIFFERENT attempt at shifting TREBLE
-  notation was reverted — Han confirmed treble's arrival timing was already correct and must stay
-  untouched; this shift is scoped to bass only, and only for the non-fixed-pattern case).
+**Bug (part 2, discovered while verifying part 1 live):** even with the content fixed, a screenshot showed
+the treble staff essentially EMPTY from the hero to far off-screen right, with "-1" only appearing once
+already ~80% across — contradicting Han's stated intent: "bij start van level zie ik onmiddellijk maat -1
+en maat 0 in beeld. Die schuiven naar links, en zo komt maat 1 met de noten in beeld."
 
-Verified live via a headless-browser screenshot of Level 2 in debug mode: the bass staff shows a cello
-whole note and the percussion staff shows the timpani quarter-note pattern scrolling in during the lead-in,
-where previously either staff would have shown unrelated (or absent) generated-melody content.
+**Root cause (part 2):** `BarlinesLayer` positions every barline by ORDINAL COUNT among the `offsets`
+array's `'m'` markers (`barlineCount × measureLengthSlots × pixelsPerTick`, from `startX`) — by design,
+since in the static/paginated context there's no tick value to read for a marker. But `scrollNotation`'s
+treble melody (and Level 8's real bass) is positioned by its OWN RAW TICK value from the SAME `startX`
+(`viewRight`), where tick 0 = measure 1's start. Since `scrollBarlines.offsets` has 2 synthetic `'m'`
+entries PREPENDED for the lead-in, the ordinal count for the barline before REAL measure 1 is 2 — placing it
+`2 measureLengthSlots` (= exactly `dist`, since `beatsOnScreen` already equals the lead-in span for today's
+levels) to the RIGHT of where measure 1's own first note sits. Two consequences: (a) barlines marking real
+content were subtly misaligned with their own notes (a full lead-in's worth of pixels late), and (b) the
+"-1" marker (ordinal 0) was pinned to `viewRight` — the far screen edge — at t=0, needing the FULL crossing
+time before becoming visible at all, instead of already being on screen.
+
+**Fix (part 2):** re-origin any content whose own tick 0 represents measure **-1's** start (not measure 1's)
+`leadInTicks` pixels EARLIER than `viewRight`, where `leadInTicks = LEVEL_LEAD_IN_BARS × measureLengthSlots`:
+
+- `scrollBarlines` gained a `leadInTicks` field (computed once in `SheetMusic.jsx`).
+- `scrollNotationBass`/`scrollNotationPercussion` each gained a `spansLeadIn` boolean (true exactly when
+  that staff's melody is a lead-in-spanning pattern — `bassSettings?.fixedWholeNote` /
+  `percussionSettings?.melodic` respectively; false = real content, same zero-point as treble).
+- `SheetRpgLayer.jsx` computes `barlineStartX = viewRight - leadInTicks·scrollPPT` and analogous
+  `bassStartX`/`percussionStartX` (each falling back to plain `viewRight` when `spansLeadIn` is false), and
+  passes them as the `startX` for `BarlinesLayer` / the bass and percussion `MelodyNotesLayer`s respectively.
+  Treble (and Level 8's real bass) keep plain `viewRight` — unchanged, matching Han's "arrival timing is
+  perfect, don't touch it".
+
+The algebra behind this (worth re-deriving before touching this code again): with `dist = leadInTicks·scrollPPT`
+(true whenever `beatsOnScreen` equals the lead-in span, as today), `barlineStartX = viewRight - dist`. At
+`scrollPx = 0` (level start), the "-1" barline (ordinal 0) sits at `barlineStartX + 0 = viewRight - dist =
+startX` — i.e. **already at the hero** — "0" (ordinal 1) sits at the screen's midpoint, and the barline
+before real content (ordinal `LEVEL_LEAD_IN_BARS`) sits at `barlineStartX + leadInTicks·scrollPPT =
+viewRight` — exactly where the treble's own tick-0 note is. For any later real-content boundary `k`
+measures in, the barline lands at `viewRight + k·measureLengthSlots·scrollPPT` — exactly the same formula
+the corresponding note uses. Both misalignments (a) and (b) resolve from the same single shift.
+
+Verified live via a headless-browser trace of `[data-rpg-layer] text` positions over time in Level 2, debug
+mode: 500ms after level start, "-1" had already scrolled PAST the hero (x≈-180, off-screen left), "0" sat
+just past it (x≈104), and "1"–"8" were evenly spaced further right (x≈388…2376) — exactly the "-1 and 0
+already in view, sliding left as 1 arrives" behaviour Han described. Also verified via screenshot that the
+bass staff shows the cello whole note and the percussion staff the timpani pattern during the lead-in.
 
 **Invariant:** any level's scrolling bass/percussion NOTATION must be built from the exact same pattern its
-AUDIO is scheduled from (`buildTimpaniPattern`/`buildCelloWholeNotePattern`/the real melody) — never let the
-two drift onto different sources, or what's seen stops matching what's heard.
+AUDIO is scheduled from, AND any content whose own tick 0 represents measure -1 (not measure 1) must be
+rendered from the `viewRight − leadInTicks·scrollPPT` origin, never plain `viewRight` — mixing the two
+origins is what caused both the invisible lead-in and the barline/note misalignment.
 
-**Files:** `src/components/sheet-music/SheetMusic.jsx` (`scrollBassMelody`/`scrollPercussionMelody`),
-`src/utils/shiftMelodyOffsets.js` (new), `src/utils/__tests__/shiftMelodyOffsets.test.js` (new).
+**Files:** `src/components/sheet-music/SheetMusic.jsx` (`scrollBassMelody`/`scrollPercussionMelody`,
+`leadInTicks`, `spansLeadIn` fields), `src/components/sheet-music/SheetRpgLayer.jsx` (`barlineStartX`/
+`bassStartX`/`percussionStartX`).
+
+### §109. Avatar preview: theme background + a genuine 1px bottom clip (follow-up to §107, Han 2026-08-03)
+
+**Ask 1:** "geef de 'thema'-achtergrond in het display" — the avatar box should show the CURRENT app
+theme's background instead of a fixed dark tint, so it doesn't feel like a separate flat panel regardless
+of which theme (stars/marble/disco/cloudy-day/…) is active. Confirmed scope (Han): the theme's flat
+background COLOUR, not the decorative textures some themes also paint directly onto `.app-root` (marble
+veins, the stars skymap, drifting clouds) — those are a separate, bigger follow-up if wanted later, since
+duplicating each theme's often-large inline SVG `background-image` onto `.cc-avatar` too would mean two
+copies of the same asset to keep in sync (§6c). Fix: `.cc-avatar`'s `background-color` changed from
+`color-mix(in srgb, var(--panel-bg), #000 22%)` to `var(--app-bg)` — the same variable every theme already
+sets on `.app-root`, so the avatar box's colour now tracks the active theme automatically, no per-theme code.
+
+**Ask 2 (a genuine remaining clip, distinct from §107's container-width fix):** "in het voorbeeld mis ik
+één pixel aan de onderkant." Root cause: `CharacterDoll.jsx`'s `layerStyle()` nudges every sprite layer
+`CHAR_DY = 1` px down (pets: `PET_DY = 2`) — tuned for the OLD cropped view, which had vertical slack below
+`CROP`'s own bottom edge (`CROP.h = 58` vs the full `BODY_FRAME.h = 64`) to absorb that nudge harmlessly. In
+`fullFrame` mode (§107) there's no such slack — the frame IS the full 64px — so the SAME nudge pushed the
+sprite's bottom row 1 native px (≈5px on screen at `AVATAR_H`'s scale) past the frame's own bottom edge,
+which `.cc-avatar`'s `overflow: hidden` then clipped. Fix: `layerStyle()` takes a new `fullFrame` parameter
+(default `false`, so the sheet-music hero and equipment-grid thumbnails are unaffected) and skips the
+`CHAR_DY`/`PET_DY` nudge entirely when true — nothing needs "sitting on the bottom edge" adjustment when the
+whole undistorted frame is already shown.
+
+**Invariant:** `CHAR_DY`/`PET_DY` are CROP-mode-only nudges — any future `fullFrame` rendering path must
+keep skipping them, since the full frame has zero slack to absorb a downward nudge without clipping.
+
+**Files:** `src/components/character/CharacterCreator.css` (`.cc-avatar` background-color),
+`src/components/character/CharacterDoll.jsx` (`layerStyle` fullFrame param),
+`src/components/character/__tests__/CharacterDoll.test.jsx` (new `layerStyle` unit test).

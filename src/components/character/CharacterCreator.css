@@ -48,7 +48,13 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  background-color: color-mix(in srgb, var(--panel-bg), #000 22%);
+  /* #665 (Han 2026-08-03, "geef de 'thema'-achtergrond in het display"): the avatar box now shows the
+     current app THEME's own background colour (--app-bg, the same variable every theme sets on
+     .app-root) instead of a fixed dark tint, so it doesn't feel like a separate flat panel regardless of
+     which theme is active. Decorative theme TEXTURES (marble veins, stars, clouds — applied as
+     background-image directly on .app-root for a handful of themes) are a separate, bigger follow-up if
+     Han wants those to show here too; only the flat theme colour is reused for now. */
+  background-color: var(--app-bg);
   border: 2px solid var(--text-dim);
   border-radius: 8px;
   cursor: pointer;

@@ -450,6 +450,25 @@ export default function SheetRpgLayer({
     const finalBarX = viewRight + finalBarTick * scrollPPT;
     const finalBarBottom = (scrollBarlines && scrollBarlines.bottomY != null) ? scrollBarlines.bottomY : viewBottom;
 
+    // #662 (Han 2026-08-03, "bij start van level zie ik onmiddellijk maat -1 en maat 0 in beeld"): a
+    // lead-in pattern (timpani/fixed-cello, and the barlines' own synthetic "-1"/"0" entries) has its OWN
+    // tick 0 at measure -1's start — a DIFFERENT zero-point than treble/Level-8-bass, whose tick 0 is
+    // measure 1's start (the real content). Both kinds of content use the SAME `x = originX + tick·ppt`
+    // formula, so giving lead-in content an origin `leadInTicks` earlier than `viewRight` makes its tick 0
+    // land exactly `leadInTicks·ppt` (= `dist`, since beatsOnScreen already equals the lead-in span for
+    // today's levels) to the LEFT of viewRight — i.e. already at/near the hero at level start (t=0), rather
+    // than pinned to the screen's far edge like real content correctly is. Real content (treble, and
+    // Level 8's real bass) keeps the plain `viewRight` origin — unchanged, Han confirmed its arrival timing
+    // is already correct. This ALSO fixes a latent misalignment: the barlines marking real-content measure
+    // boundaries used to sit `leadInTicks·ppt` to the right of their own measure's first note (ordinal
+    // barlineCount includes the 2 synthetic entries; the note's own unshifted tick doesn't) — shifting the
+    // barline origin by the same `leadInTicks` amount realigns them with their notes too, for any k.
+    const leadInTicks = (scrollBarlines && scrollBarlines.leadInTicks) || 0;
+    const leadInPx = leadInTicks * scrollPPT;
+    const barlineStartX = viewRight - leadInPx;
+    const bassStartX = (scrollNotationBass && scrollNotationBass.spansLeadIn) ? viewRight - leadInPx : viewRight;
+    const percussionStartX = (scrollNotationPercussion && scrollNotationPercussion.spansLeadIn) ? viewRight - leadInPx : viewRight;
+
     // The staff CONTENT (heavy: beaming, accidentals, tuplets) is memoised so React.memo on
     // MelodyNotesLayer/BarlinesLayer skips it every fast tick — only the outer translate updates per tick
     // (cheap), exactly like heroEl above. Deps are the (referentially stable across ticks) prop bundles.
@@ -489,7 +508,7 @@ export default function SheetRpgLayer({
                 {...scrollNotationBass}
                 staff="bass"
                 staffYStart={bassStart}
-                startX={viewRight}
+                startX={bassStartX}
                 noteWidth={noteWidth}
                 allOffsets={allOffsets}
                 pixelsPerTick={scrollPPT}
@@ -501,7 +520,7 @@ export default function SheetRpgLayer({
             />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sideScroll, scrollNotationBass, viewRight, noteWidth, allOffsets, scrollPPT, bassStart, debugMode]);
+    }, [sideScroll, scrollNotationBass, bassStartX, noteWidth, allOffsets, scrollPPT, bassStart, debugMode]);
 
     const noteStaffContentPercussion = useMemo(() => {
         if (!(sideScroll && scrollNotationPercussion && scrollNotationPercussion.melody)) return null;
@@ -509,7 +528,7 @@ export default function SheetRpgLayer({
             <MelodyNotesLayer
                 {...scrollNotationPercussion}
                 staffYStart={percussionStart}
-                startX={viewRight}
+                startX={percussionStartX}
                 noteWidth={noteWidth}
                 allOffsets={allOffsets}
                 pixelsPerTick={scrollPPT}
@@ -520,7 +539,7 @@ export default function SheetRpgLayer({
             />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sideScroll, scrollNotationPercussion, viewRight, noteWidth, allOffsets, scrollPPT, percussionStart, debugMode]);
+    }, [sideScroll, scrollNotationPercussion, percussionStartX, noteWidth, allOffsets, scrollPPT, percussionStart, debugMode]);
 
     const barlineStaffContent = useMemo(() => {
         if (!(sideScroll && scrollBarlines)) return null;
@@ -529,7 +548,7 @@ export default function SheetRpgLayer({
                 mode="regular"
                 {...scrollBarlines}
                 noteWidth={noteWidth}
-                startX={viewRight}
+                startX={barlineStartX}
                 pixelsPerTick={scrollPPT}
                 isPlaying={false}
                 showSettings={false}
@@ -538,7 +557,7 @@ export default function SheetRpgLayer({
             />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sideScroll, scrollBarlines, viewRight, noteWidth, scrollPPT, debugMode]);
+    }, [sideScroll, scrollBarlines, barlineStartX, noteWidth, scrollPPT, debugMode]);
 
     return (
         <g className="rpg-layer" data-rpg-layer="" style={{ pointerEvents: 'none' }}>

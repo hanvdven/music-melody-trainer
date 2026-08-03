@@ -1,7 +1,7 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
-import CharacterDoll, { CROP } from '../CharacterDoll';
+import CharacterDoll, { CROP, layerStyle } from '../CharacterDoll';
 import { BODY_FRAME } from '../../../model/characterAssets';
 
 const char = { gender: 'male', layers: {} };
@@ -37,5 +37,15 @@ describe('CharacterDoll — fullFrame (#664)', () => {
         const refIdx = children.findIndex((el) => el.style.border === '1px solid red');
         const layerStackIdx = children.findIndex((el) => el.style.transform === 'scaleX(-1)');
         expect(refIdx).toBeLessThan(layerStackIdx);
+    });
+
+    // #664 (Han 2026-08-03, "in het voorbeeld mis ik één pixel aan de onderkant"): CHAR_DY/PET_DY nudge
+    // layers 1-2px down — tuned for the CROPPED view's slack below CROP's own bottom edge. In fullFrame
+    // mode there's no slack (the frame IS the full 64px), so the nudge must be skipped or it clips.
+    it('layerStyle: skips the CHAR_DY/PET_DY bottom nudge when fullFrame is true', () => {
+        expect(layerStyle('u', 'chest', 0, { row: 0, frames: 5 }, null, false).top).toBe(1);
+        expect(layerStyle('u', 'chest', 0, { row: 0, frames: 5 }, null, true).top).toBe(0);
+        expect(layerStyle('u', 'pet', 0, { row: 0, frames: 5, key: 'rest' }, null, false).top).toBeGreaterThan(31);
+        expect(layerStyle('u', 'pet', 0, { row: 0, frames: 5, key: 'rest' }, null, true).top).toBe(31);
     });
 });

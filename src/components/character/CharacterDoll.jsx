@@ -26,7 +26,11 @@ const PET_IDLE = 5, PET_RUN = 6;    // pet sheets are 6×2 (row 0 idle 5, row 1 
 
 // backgroundPosition for one frame: col + row from the animation. Pet plays its RUN row when the character
 // walks/runs (Han); effects keep their own single-row loop. Pet gets an extra flip to face right (Han).
-export const layerStyle = (url, cat, frame, anim, name) => {
+// #664 (Han 2026-08-03, "in het voorbeeld mis ik één pixel aan de onderkant"): CHAR_DY nudges every layer
+// 1px DOWN — tuned for the CROPPED view, which had slack below CROP's own bottom edge to absorb it. In
+// fullFrame mode there's no such slack (the frame IS the full 64px), so that same nudge pushed the sprite
+// 1px past the frame's bottom edge, clipped by `.cc-avatar`'s overflow:hidden. `fullFrame` skips the nudge.
+export const layerStyle = (url, cat, frame, anim, name, fullFrame = false) => {
     const f = frameOf(cat);
     let col = frame % anim.frames, row = anim.row;
     if (cat === 'pet') {
@@ -38,7 +42,7 @@ export const layerStyle = (url, cat, frame, anim, name) => {
     return {
         position: 'absolute',
         left: cat === 'pet' ? PET_OFFSET.x : 0,
-        top: cat === 'pet' ? PET_OFFSET.y + PET_DY : CHAR_DY,
+        top: cat === 'pet' ? PET_OFFSET.y + (fullFrame ? 0 : PET_DY) : (fullFrame ? 0 : CHAR_DY),
         width: f.w,
         height: f.h,
         backgroundImage: `url("${url}")`,
@@ -78,7 +82,7 @@ export default function CharacterDoll({ char, anim, frame, height, fullFrame = f
                     {zOrder.map((c) => {
                         const layer = char.layers[c.key];
                         const url = urlOfLayer(c.key, layer);
-                        return url ? <div key={c.key} style={layerStyle(url, c.key, frame, anim, layer?.name)} /> : null;
+                        return url ? <div key={c.key} style={layerStyle(url, c.key, frame, anim, layer?.name, fullFrame)} /> : null;
                     })}
                 </div>
             </div>
