@@ -7070,3 +7070,78 @@ the big avatar), `src/components/character/__tests__/CharacterDoll.test.jsx` (ne
 **Not done this round (Han's explicit choice — deferred):** linking equipment items to preview icons from
 `src/assets/ASSORTED/icons/16x16` — that folder has 600+ unlabeled files (`item1.png`…`item602.png`, no
 category names), so it needs a mapping list from Han before it can be wired up.
+
+### §107. Avatar-preview overlay: container no longer clips; reference box moved behind the sprite (Han 2026-08-03)
+
+**Bug (follow-up to §106):** "de overlay is te smal, dus deel van de avatar valt buiten beeld... ik zie de
+onderste paar pixels niet; wsl omdat het kader erover valt, verplaats het kader naar de achtergrond."
+
+**Root cause 1 — container too narrow:** `.cc-avatar` (`CharacterCreator.css`) has no explicit width, so it
+sizes to its content — but as a `display:flex` child of `.cc-body` (itself inside `.cc-modal-diablo`,
+`max-width: 720px`), it had NO `flex-shrink: 0`. §106's `fullFrame` avatar is WIDER than the old
+CROP-cropped one (420px vs ~348px at `AVATAR_H=336`), and `420 + 14 (gap) + 448 (.cc-equip) + 40 (modal
+padding)` ≈ 922px — comfortably over the 720px cap. With no `flex-shrink:0`, the flex algorithm silently
+shrank `.cc-avatar` below its content's natural width, and `overflow:hidden` clipped the excess.
+
+**Fix 1:** `.cc-avatar` gained `flex-shrink: 0` (never shrinks below its content) and `.cc-modal-diablo`'s
+`max-width` was raised from 720px to 960px (comfortably fits avatar + grid + gaps + padding). Verified via a
+headless-browser measurement (`avatar.getBoundingClientRect()` vs the doll's own rect) at two window sizes
+(1400×900 and 900×700): the avatar container now always fully contains the doll, `clipped: false` both
+times — any remaining horizontal squeeze is absorbed by the modal's own scroll, not the avatar.
+
+**Root cause 2 — reference box paint order:** `CharacterDoll.jsx`'s `fullFrame` reference rectangle (§106)
+was rendered AFTER the sprite-layer stack in DOM order, so it painted ON TOP of the character, potentially
+obscuring pixels at its edges (Han's own diagnosis, even though the box itself has no fill — only a 1px
+border — the visual intent is clearly "reference guide behind the character, never in front of it").
+
+**Fix 2:** the reference-box `<div>` now renders BEFORE the sprite-layer stack `<div>` (same parent, earlier
+sibling), so later (layer) paint always wins. New regression test asserts this DOM ordering directly
+(`CharacterDoll.test.jsx`).
+
+**Files:** `src/components/character/CharacterCreator.css` (`.cc-avatar` flex-shrink, `.cc-modal-diablo`
+max-width), `src/components/character/CharacterDoll.jsx` (reference-box render order),
+`src/components/character/__tests__/CharacterDoll.test.jsx` (new ordering test).
+
+### §108. Level-scroll bass/percussion notation matches the audible lead-in content (Han 2026-08-03)
+
+**Bug:** "je hebt nog NIET gekeken naar de opmaten." Han's clarification of the intended behaviour: "de
+aankomsttijd van de noten is perfect [treble timing — untouched]... Maat -1 bevat wel cello en timpanen
+(zichtbaar in debug) en vanaf maat 0 speelt ook de metronoom" — the bass/percussion SCROLLING STAVES
+(visible in debug mode, per the existing `debugOnlyLines` rule) must show the SAME lead-in content that's
+actually audible during measures -1/0.
+
+**Root cause:** `SheetMusic.jsx`'s `scrollNotationBass`/`scrollNotationPercussion` bundles fed the moving
+staves from `adjustedBassMelody`/`adjustedPercussionMelody` — the REAL GENERATED melody, unaware of the
+level's lead-in at all — while `App.jsx`'s `scheduleLevelBacking` schedules a COMPLETELY DIFFERENT pattern
+as AUDIO for the same time window: `buildTimpaniPattern`/`buildCelloWholeNotePattern` (Han-authorized
+hardcoded exceptions, §92/§93) spanning the WHOLE piece (lead-in + content) for melodic-percussion/
+fixed-bass levels, or silence during -1/0 + the real melody from measure 1 for Level 8's real bass. The
+notation never reflected either of these — it just showed the real melody arriving at its own native tick
+0, visually contradicting what's actually playing (Level 2: audio = cello C2 whole notes + timpani hits;
+notation = whatever the real generated bass/percussion happened to be, completely unrelated).
+
+**Fix:** two new local values in `SheetMusic.jsx`, computed the same way `App.jsx` computes its audio:
+
+- `scrollPercussionMelody` = `buildTimpaniPattern(LEVEL_LEAD_IN_BARS + numMeasures, timeSignature)` whenever
+  `percussionSettings?.melodic` (true for every side-scroll level) — spans the WHOLE piece in its own
+  tick-space where offset 0 = measure -1, which lines up naturally with the barlines' own numbering
+  (barlineCount 0 = "-1") — no shift needed, just swapping the source to match audio exactly.
+- `scrollBassMelody` = `buildCelloWholeNotePattern(LEVEL_LEAD_IN_BARS + numMeasures, timeSignature)` when
+  `bassSettings?.fixedWholeNote` (Levels 2–7); otherwise (Level 8's REAL bass, no fixed lead-in pattern to
+  show) `shiftMelodyOffsets(adjustedBassMelody, LEVEL_LEAD_IN_BARS * measureLengthSlots)` — pushes the real
+  melody's notation later by exactly the lead-in span, so it stays silent/invisible during -1/0 (matching
+  its equally-silent audio during that window) and only appears from measure 1.
+- New `src/utils/shiftMelodyOffsets.js` (re-added after an earlier, DIFFERENT attempt at shifting TREBLE
+  notation was reverted — Han confirmed treble's arrival timing was already correct and must stay
+  untouched; this shift is scoped to bass only, and only for the non-fixed-pattern case).
+
+Verified live via a headless-browser screenshot of Level 2 in debug mode: the bass staff shows a cello
+whole note and the percussion staff shows the timpani quarter-note pattern scrolling in during the lead-in,
+where previously either staff would have shown unrelated (or absent) generated-melody content.
+
+**Invariant:** any level's scrolling bass/percussion NOTATION must be built from the exact same pattern its
+AUDIO is scheduled from (`buildTimpaniPattern`/`buildCelloWholeNotePattern`/the real melody) — never let the
+two drift onto different sources, or what's seen stops matching what's heard.
+
+**Files:** `src/components/sheet-music/SheetMusic.jsx` (`scrollBassMelody`/`scrollPercussionMelody`),
+`src/utils/shiftMelodyOffsets.js` (new), `src/utils/__tests__/shiftMelodyOffsets.test.js` (new).

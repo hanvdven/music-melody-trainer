@@ -8,6 +8,9 @@ import useUniversalTransition from '../../hooks/useUniversalTransition';
 import { useUniversalTransitionKey } from '../../contexts/UniversalTransitionContext';
 import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
+import buildTimpaniPattern from '../../utils/timpaniPattern';
+import buildCelloWholeNotePattern from '../../utils/celloWholeNotePattern';
+import shiftMelodyOffsets from '../../utils/shiftMelodyOffsets';
 import OttavaMarker from './OttavaMarker';
 import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
 import RangeStaffOverlay from './overlays/RangeStaffOverlay';
@@ -1029,6 +1032,23 @@ const SheetMusic = ({
     ? processMelodyAndCalculateSlots(currentMetronome, timeSignature, noteGroupSize, displayNumMeasures * measureLengthSlots)
     : null,
     [currentMetronome, timeSignature, noteGroupSize, displayNumMeasures, measureLengthSlots]);
+
+  // #662 (Han 2026-08-03, "Maat -1 bevat wel cello en timpanen (zichtbaar in debug)"): the bass/percussion
+  // SCROLLING STAVES (sideScroll only) must show the SAME lead-in content that's actually audible during
+  // measures -1/0 (App.jsx's scheduleLevelBacking schedules exactly these two patterns as audio) — not the
+  // real generated melody arriving at its own unshifted tick 0, which visually contradicted what's playing.
+  // Timpani/fixed-cello patterns already span the WHOLE piece (lead-in + content, §92) in their own
+  // tick-space where offset 0 = measure -1 — that lines up naturally with the barlines' own numbering
+  // (barlineCount 0 = "-1"), so no shift needed, just swapping the source. Level 8's REAL bass has no fixed
+  // lead-in pattern to show, so it's shifted later by exactly the lead-in span instead, staying silent/
+  // invisible during -1/0 like its (also silent then) audio, and only appearing from measure 1.
+  const levelTotalMeasures = LEVEL_LEAD_IN_BARS + numMeasures;
+  const scrollBassMelody = bassSettings?.fixedWholeNote
+    ? buildCelloWholeNotePattern(levelTotalMeasures, timeSignature)
+    : shiftMelodyOffsets(adjustedBassMelody, LEVEL_LEAD_IN_BARS * measureLengthSlots);
+  const scrollPercussionMelody = percussionSettings?.melodic
+    ? buildTimpaniPattern(levelTotalMeasures, timeSignature)
+    : adjustedPercussionMelody;
 
   // For rendering, expand chords to match the active melody's measure span so chord labels
   // don't appear/disappear when numMeasures is changed while a different-length melody is shown.
@@ -2851,7 +2871,7 @@ const SheetMusic = ({
                     // #661 same bundle shape as scrollNotation above, for the bass/percussion staves —
                     // null when not visible (mirrors isTrebleVisible && actualTreble on trebleMelody).
                     scrollNotationBass={sideScroll && isBassVisible && actualBass ? {
-                      melody: adjustedBassMelody,
+                      melody: scrollBassMelody,
                       numAccidentals: bassWrittenAccidentals,
                       noteGroupSize,
                       measureLengthSlots,
@@ -2867,7 +2887,7 @@ const SheetMusic = ({
                       courtesyAccidentals,
                     } : null}
                     scrollNotationPercussion={sideScroll && isPercussionVisible && actualPerc ? {
-                      melody: adjustedPercussionMelody,
+                      melody: scrollPercussionMelody,
                       // "melodische percussie" (Han 2026-08-02): same staff/clef swap as the static
                       // render above — pitched noteheads via the bass rendering path when melodic.
                       staff: percussionSettings?.melodic ? 'bass' : 'percussion',

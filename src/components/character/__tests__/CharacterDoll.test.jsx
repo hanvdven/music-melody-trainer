@@ -26,4 +26,16 @@ describe('CharacterDoll — fullFrame (#664)', () => {
         expect(outer.style.width).toBe(`${BODY_FRAME.w * (height / BODY_FRAME.h)}px`);
         expect(container.querySelector('[style*="border: 1px solid red"]')).toBeTruthy();
     });
+
+    // #664 (Han 2026-08-03, "het kader valt over de avatar, verplaats het naar de achtergrond"): the
+    // reference box must be a PRECEDING sibling of the sprite-layer stack, so later (layer) paint wins.
+    it('fullFrame=true: the reference box is a preceding sibling of the sprite-layer stack (renders behind it)', () => {
+        const height = 336;
+        const { container } = render(<CharacterDoll char={char} anim={{ row: 0, frames: 5, key: 'rest' }} frame={0} height={height} fullFrame />);
+        const frameParent = container.querySelector('[style*="border: 1px solid red"]').parentElement;
+        const children = Array.from(frameParent.children);
+        const refIdx = children.findIndex((el) => el.style.border === '1px solid red');
+        const layerStackIdx = children.findIndex((el) => el.style.transform === 'scaleX(-1)');
+        expect(refIdx).toBeLessThan(layerStackIdx);
+    });
 });

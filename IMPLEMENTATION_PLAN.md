@@ -7,6 +7,42 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-03 — 🐞✅ Bug: opmaat-maten tonen niet de audibele cello/pauken-inhoud
+
+Han: "je hebt nog NIET gekeken naar de opmaten." + eerdere verduidelijking:
+"de aankomsttijd van de noten is perfect... Maat -1 bevat wel cello en
+timpanen (zichtbaar in debug) en vanaf maat 0 speelt ook de metronoom."
+
+Root cause: de bas/percussie-notenbalk toonde de ECHTE gegenereerde melodie
+(onwetend van de opmaat), terwijl de AUDIO tijdens diezelfde maten -1/0 een
+compleet ANDER patroon speelt (buildTimpaniPattern/buildCelloWholeNotePattern
+— al bestaande, geautoriseerde hardcoded patronen voor audio). Wat je zag
+klopte dus nooit met wat je hoorde. Fix: `scrollPercussionMelody`/
+`scrollBassMelody` in SheetMusic.jsx worden nu op EXACT dezelfde manier
+opgebouwd als de audio in App.jsx — timpani/cello-patroon voor de hele piece
+(geen shift nodig, hun eigen tick 0 = maat -1, sluit al aan bij de
+maatstrepen-nummering), en voor Level 8's ECHTE bas (geen vast lead-in
+patroon) een verschuiving van precies de opmaat-lengte zodat die stil/
+onzichtbaar blijft tot maat 1. Live geverifieerd via screenshot: bas toont nu
+de cello-hele-noot, percussie toont de pauken-patroon tijdens de opmaat.
+architecture.md §108. Nieuwe util: shiftMelodyOffsets.js (+ test).
+
+## 2026-08-03 — 🐞✅ Bug: avatar-preview overlay te smal + kader over de avatar
+
+Han: "de overlay is te smal, dus deel van de avatar valt buiten beeld... ik
+zie de onderste paar pixels niet; wsl omdat het kader erover valt, verplaats
+het kader naar de achtergrond." (vervolg op §106)
+
+Root cause 1: `.cc-avatar` had geen `flex-shrink:0`, en de nieuwe
+`fullFrame`-avatar (420px breed) + het uitrustingsraster (448px) + gaps/
+padding (~922px) overschreed de modal's oude `max-width:720px` ruim —
+flexbox kromp de avatar-container stilzwijgend, `overflow:hidden` sneed de
+rest af. Fix: `flex-shrink:0` op `.cc-avatar` + `max-width` naar 960px.
+Root cause 2: het rode referentiekader werd NA de sprite-laag gerenderd
+(tekende er dus overheen). Fix: kader nu EERST in de DOM (tekent erachter).
+Live geverifieerd op 2 windowgroottes (1400x900 en 900x700): avatar nooit
+meer afgesneden. architecture.md §107. Nieuwe test in CharacterDoll.test.jsx.
+
 ## 2026-08-03 — ✅ FR: RPG-assets herbronnen naar ASSORTED + avatar-preview zonder crop
 
 Han: "re-point the rpg assets to the ASSORTED folder... de preview in de

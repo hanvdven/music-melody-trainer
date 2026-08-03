@@ -30,7 +30,10 @@
 .cc-modal-diablo {
   flex-direction: column;
   gap: 12px;
-  max-width: 720px;
+  /* #664 (Han 2026-08-03, "de overlay is te smal, deel van de avatar valt buiten beeld"): the avatar's
+     full-frame width (80:64 aspect, AVATAR_H=336 → 420px) + the equipment grid's fixed 448px + gaps/padding
+     needs ~920px — 720px was sized for the OLD cropped (narrower) avatar and silently flex-shrank it. */
+  max-width: 960px;
   overflow-y: auto;
 }
 /* avatar (= skin slot) on the LEFT, 4×3 equal square equipment slots on the RIGHT. */
@@ -50,6 +53,11 @@
   border-radius: 8px;
   cursor: pointer;
   overflow: hidden;
+  /* #664 (Han 2026-08-03): a flex row (.cc-body) with two fixed-size children can shrink either one below
+     its natural content size once they no longer both fit — that silently clipped the avatar (overflow:
+     hidden) whenever the viewport made .cc-body narrower than avatar+grid combined. The avatar must never
+     be the one that shrinks; let the grid (or the modal's own scroll) absorb any remaining squeeze. */
+  flex-shrink: 0;
 }
 .cc-avatar.active { border-color: var(--accent-yellow); }
 .cc-equip {

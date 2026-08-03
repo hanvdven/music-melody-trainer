@@ -65,6 +65,15 @@ export default function CharacterDoll({ char, anim, frame, height, fullFrame = f
     return (
         <div style={{ position: 'relative', overflow: 'visible', width: outerW, height }}>
             <div style={{ position: 'absolute', left: offX, top: offY, width: BODY_FRAME.w, height: BODY_FRAME.h, transform: `scale(${s})`, transformOrigin: 'top left' }}>
+                {/* #664 (Han 2026-08-03, "het kader valt over de avatar, verplaats het naar de achtergrond"):
+                    rendered FIRST so later (sprite-layer) siblings paint on top of it, not the other way
+                    round — a reference guide should sit behind the character, never obscure it. */}
+                {fullFrame && (
+                    <div style={{
+                        position: 'absolute', left: REF_FRAME_X, top: REF_FRAME_Y, width: REF_FRAME.w, height: REF_FRAME.h,
+                        border: '1px solid red', boxSizing: 'border-box', pointerEvents: 'none',
+                    }} />
+                )}
                 <div style={{ position: 'absolute', inset: 0, transform: 'scaleX(-1)' }}>
                     {zOrder.map((c) => {
                         const layer = char.layers[c.key];
@@ -72,12 +81,6 @@ export default function CharacterDoll({ char, anim, frame, height, fullFrame = f
                         return url ? <div key={c.key} style={layerStyle(url, c.key, frame, anim, layer?.name)} /> : null;
                     })}
                 </div>
-                {fullFrame && (
-                    <div style={{
-                        position: 'absolute', left: REF_FRAME_X, top: REF_FRAME_Y, width: REF_FRAME.w, height: REF_FRAME.h,
-                        border: '1px solid red', boxSizing: 'border-box', pointerEvents: 'none',
-                    }} />
-                )}
             </div>
         </div>
     );
