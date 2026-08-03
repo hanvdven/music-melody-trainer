@@ -6838,3 +6838,61 @@ re-expressed as a spread of another in the JSON. `levels.js` holds ONLY the load
 consolidated rationale comment; it must never regain level-specific data literals of its own.
 
 **Files:** `src/levels/levels.json` (new), `src/levels/levels.js` (rewritten to a loader).
+
+### §101. Bottom panel pinned to the screen's bottom edge in dual-view (Han 2026-08-02)
+
+**Bug:** "nu de schaal is gelimiteerd, schuift het bottom view block weer omhoog. plak dat gewoon aan de
+onderrand van het scherm." §98's second fix (capping `scaleFactor` at the "all 3 staves" reference)
+reintroduced a variant of the original 45%-shrink symptom.
+
+**Root cause:** the TOP SECTION div (`App.jsx`, wraps `<SheetMusic>`) had BOTH an explicit `height:
+sheetHeight` AND `flex: 1`. Per the flexbox spec, `flex: 1` expands to `flex-grow: 1; flex-shrink: 1;
+flex-basis: 0%` — and flex-basis, when not `auto`, is what actually determines a flex item's main-axis
+size, NOT the `height`/`width` CSS property. So the explicit `height: sheetHeight` was silently dead —
+this div's real height was decided by a 1-vs-1 flex-grow contest against the BOTTOM SECTION div (also
+`flex: 1`, no explicit height). That contest happened to resolve near the intended 45/55 split only
+because the sheet-music content's rendered/min-content size cooperated; once §98's reference-cap made the
+rendered content shorter for some staff combinations, the contest could resolve differently and the
+bottom panel crept upward.
+
+**Fix (dual-view only, Han):** the TOP SECTION's `flex` is now `` `0 0 ${sheetHeight}px` `` (grow/shrink
+OFF, fixed basis) instead of `1` — it no longer competes for space at all. The BOTTOM SECTION's own
+`flex: 1` then deterministically fills 100% of whatever remains below it, pinning it to the screen's
+bottom edge regardless of how tall the sheet-music content renders. Single-view (mobile) layout is
+untouched (`flex: isDualView ? ... : 1`) — Han scoped the fix to dual-view only.
+
+**Invariant:** in dual-view, the sheet-music container's height must be set via `flex-basis` (or an
+equivalent non-competing mechanism), never via a plain `height` style sitting alongside `flex: 1` on a
+sibling that also grows — the two fight over space in a way that depends on content, not intent.
+
+**Files:** `src/App.jsx` (TOP SECTION / BOTTOM SECTION div styles).
+
+### §102. Level-splash charts full-width; note-correctness as a stacked bar, not a donut (Han 2026-08-02)
+
+**Purpose:** Han: "haal de dubbele info weg... [de KPI rows] mogen weg. dan kunnen timing PRECISION en
+NOTE ACCURACY volle breedte gebruiken. Note correctness, stacked bar ipv pie."
+
+**What changed:**
+
+- `LevelSplash.jsx`'s plain stat-row grid no longer includes the 4 breakdown rows (`Gemiste noten`, `Fout
+  (binnen tijd)`, `Fout, hersteld`, `Noot zonder doel`) — they duplicated exactly what the two charts below
+  already show. Only `Slimes verslagen`, `Accuraatheid`, `Punten` (timed only), `Langste streak` remain.
+- `.ls-charts` (`LevelSplash.css`) changed from a side-by-side `flex-wrap` layout to `flex-direction:
+  column` — both charts now stack, each at `width: 100%` of the card (removing the old `flex: 1 1 200px`
+  cap). Chart order unchanged: Timing accuracy above, Note correctness below (Han confirmed keep as-is).
+- `NoteCorrectnessGauge` (a donut with a centre accuracy %) is replaced by `NoteCorrectnessBar` in
+  `LevelStatsCharts.jsx` — a single full-width stacked bar, segments proportional to each of the 4
+  pitch-correctness outcomes' share of the total. The centre `%` label is dropped entirely (Han: "weglaten"
+  when asked whether to keep it as a caption) — the segments/counts are the whole story now.
+- `extraNote` ("note when none due")'s segment colour changed from a bespoke purple (`#9b59b6`) to
+  `TIER_COLOR.missed` (`#888888`) — the SAME neutral grey `TimingBarChart` uses for its `missed` bar. Han
+  confirmed this reuse: both are "outside the score" outcomes (a note never attempted / a keypress with no
+  note due), not a graded timing or pitch result, so they should read as visually the same "kind" of thing
+  across both charts.
+
+**Invariant:** the two level-splash charts are always full-width and stacked (never side-by-side again);
+`NoteCorrectnessBar`'s `extraNote` colour must stay derived from `TIER_COLOR.missed`, not a new literal, so
+the two charts can't visually drift apart on this shared category.
+
+**Files:** `src/components/levels/LevelSplash.jsx`, `src/components/levels/LevelSplash.css`,
+`src/components/levels/LevelStatsCharts.jsx`, `src/components/levels/__tests__/LevelSplash.test.jsx`.

@@ -1,31 +1,28 @@
 import React from 'react';
 import './LevelSplash.css';
-import { TimingBarChart, NoteCorrectnessGauge } from './LevelStatsCharts';
+import { TimingBarChart, NoteCorrectnessBar } from './LevelStatsCharts';
 
 // #659 Level-complete splash: "Well done!" + stats (Han). Timing precision is intentionally omitted for
-// levels without a metronome (Han) — `timed` (side-scroll levels) adds the graded timing rows + charts
-// (Han 2026-08-02): points, the 5 gradeHit timing tiers, and a 4-outcome well-done breakdown that
-// distinguishes missed notes / wrong-but-corrected / wrong-within-time (uncorrected) / notes played when
-// none was due — each a MUTUALLY EXCLUSIVE final verdict (see useLevel.js emptyStats + SheetRpgLayer's
-// combat effect), not overlapping tallies. Two charts (Han: "maken we meteen onderscheid tussen timing
-// precision en note accuracy"): a timing bar chart (WHEN) and a note-correctness gauge (WHETHER the pitch
-// was right at all) — see LevelStatsCharts.jsx.
+// levels without a metronome (Han) — `timed` (side-scroll levels) adds a Punten row + two full-width
+// charts (Han: "maken we meteen onderscheid tussen timing precision en note accuracy"): a timing bar
+// chart (WHEN a note was played — 5 gradeHit tiers + missed) and a note-correctness bar (WHETHER the
+// pitch was right at all — 4 outcomes, MUTUALLY EXCLUSIVE final verdicts, see useLevel.js emptyStats +
+// SheetRpgLayer's combat effect) — see LevelStatsCharts.jsx. The old plain-text KPI rows for these same
+// 4 outcomes (missed / wrong-within-time / wrong-corrected / note-when-none-due) were removed (Han
+// 2026-08-02, "haal de dubbele info weg... mogen weg") — the charts ARE the breakdown now, so showing
+// both was redundant and left no room for the charts to use the splash's full width.
 export default function LevelSplash({ levelName, stats, timed = false, onReplay, onClose }) {
     const attempts = stats.defeated + stats.misses;
     const accuracy = attempts > 0 ? Math.round((stats.defeated / attempts) * 100) : 100;
+    // Han 2026-08-02 ("haal de dubbele info weg... de 'kpi' stijl info: gemist, fout (binnen tijd),
+    // fout (hersteld), noot zonder doel, mogen weg"): those 4 rows duplicated what the timing/
+    // correctness charts below already show (the charts' bars/segments ARE the breakdown now), so
+    // they're removed here — freeing up width for the charts (see .ls-charts / LevelStatsCharts).
     const rows = [
         { label: 'Slimes verslagen', value: stats.defeated },
         { label: 'Accuraatheid', value: `${accuracy}%` },
         ...(timed ? [
             { label: 'Punten', value: stats.points },
-        ] : []),
-        // Han 2026-08-02: 4 distinct breakdown rows — missed / wrong-within-time (uncorrected) /
-        // wrong-but-corrected / note-when-none-due — replacing the old flat "misses" + "wrong notes".
-        { label: 'Gemiste noten', value: stats.missed },
-        ...(timed ? [
-            { label: 'Fout (binnen tijd)', value: stats.wrongUncorrected },
-            { label: 'Fout, hersteld', value: stats.secondAttemptCorrected },
-            { label: 'Noot zonder doel', value: stats.extraNote },
         ] : []),
         { label: 'Langste streak', value: stats.longestStreak },
     ];
@@ -51,7 +48,7 @@ export default function LevelSplash({ levelName, stats, timed = false, onReplay,
                         </div>
                         <div className="ls-chart-block">
                             <div className="ls-chart-title">Note correctness</div>
-                            <NoteCorrectnessGauge stats={stats} />
+                            <NoteCorrectnessBar stats={stats} />
                         </div>
                     </div>
                 )}

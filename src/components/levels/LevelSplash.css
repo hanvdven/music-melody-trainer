@@ -58,18 +58,17 @@
 .ls-stat-value { font-size: 24px; font-weight: 800; color: var(--text-primary); }
 .ls-stat-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.4px; }
 
-/* #661 (Han 2026-08-02): timing bar chart + note-correctness gauge, side by side on wide viewports,
-   stacked on narrow ones. */
+/* #662 (Han 2026-08-02, "dan kunnen timing PRECISION en NOTE ACCURACY volle breedte gebruiken"): the
+   4 KPI rows removed from .ls-stats freed up width, so both charts now stack full-width instead of
+   sitting side by side (was #661's side-by-side layout). */
 .ls-charts {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 16px;
-  justify-content: center;
   margin-bottom: 20px;
 }
 .ls-chart-block {
-  flex: 1 1 200px;
-  min-width: 180px;
+  width: 100%;
   background-color: color-mix(in srgb, var(--panel-bg), var(--text-primary) 6%);
   border: 1px solid var(--text-dim);
   border-radius: 10px;

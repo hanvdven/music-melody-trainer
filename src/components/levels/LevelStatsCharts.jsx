@@ -1,15 +1,18 @@
 import React from 'react';
 import { TIMING_ORDER, GRADE_LABELS } from '../../levels/gradeHit';
 
-// #661 (Han 2026-08-02): two small SVG charts for the "Well done!" splash, hand-rolled (no charting
+// #661/#662 (Han 2026-08-02): two SVG charts for the "Well done!" splash, hand-rolled (no charting
 // library in this project) but following the SAME colour convention as the in-game judgment labels
 // (SheetRpgLayer's JUDGMENT_COLOR) so a colour means the same thing on the sheet and on the splash (§6d).
-// Han: "maken we meteen onderscheid tussen timing precision en note accuracy" — TWO separate charts:
-//   1. TimingBarChart  — WHEN a correct note was played (5 timing tiers from gradeHit), counts only.
-//   2. NoteCorrectnessGauge — WHETHER the pitch was right at all (4 outcomes), as a donut + centre %.
-// "missed" (a note never attempted) is deliberately OUT of the correctness gauge (Han's 4-colour list
-// omitted it) — it is a timing/attempt failure, not a pitch-accuracy question; it still shows in the
-// plain stat rows above the charts.
+// Han: "maken we meteen onderscheid tussen timing precision en note accuracy" — TWO separate charts,
+// both now full-width and stacked (§662 removed the redundant KPI stat rows to make room, see LevelSplash):
+//   1. TimingBarChart — WHEN a correct note was played (5 timing tiers from gradeHit + trailing 'missed').
+//   2. NoteCorrectnessBar — WHETHER the pitch was right at all (4 outcomes), as a single stacked bar
+//      (was a donut gauge with a centre %; Han 2026-08-02: "stacked bar ipv pie", drop the % — the
+//      segments/counts speak for themselves).
+// "missed" (a note never attempted) is deliberately OUT of the correctness bar (Han's 4-colour list
+// omitted it) — it's a timing/attempt failure, not a pitch-accuracy question; it still has its own bar
+// in TimingBarChart.
 //
 // Han 2026-08-02: text in this SVG is NEVER the Maestro notation font (see CLAUDE.md §1a) — every
 // <text> below sets an explicit CSS font (TEXT_FONT), never inherits.
@@ -53,46 +56,41 @@ export function TimingBarChart({ stats }) {
     );
 }
 
+// #662 (Han 2026-08-02): "note when none due" (extraNote) reuses the SAME neutral grey as Timing
+// accuracy's 'missed' bar (TIER_COLOR.missed above) — both are "outside the score" outcomes (a note
+// that was never attempted / a keypress with no note due), not a graded timing or pitch result.
 const CORRECTNESS_SEGMENTS = [
     { key: 'correct', label: 'correct', color: '#2eb84d' },
     { key: 'secondAttemptCorrected', label: 'wrong, corrected', color: '#2e9bb8' },
     { key: 'wrongUncorrected', label: 'wrong within time', color: '#e63232' },
-    { key: 'extraNote', label: 'note when none due', color: '#9b59b6' },
+    { key: 'extraNote', label: 'note when none due', color: TIER_COLOR.missed },
 ];
 
-const GAUGE_SIZE = 140, GAUGE_R = 52, GAUGE_STROKE = 16;
-const CIRC = 2 * Math.PI * GAUGE_R;
+const BAR_H = 28;
 
-// Donut gauge — 4 pitch-correctness outcomes as coloured arc segments + overall accuracy % in the centre.
+// #662 (Han 2026-08-02, "Note correctness, stacked bar ipv pie"): a single full-width bar split into
+// the 4 pitch-correctness outcomes, proportional to their share of the total — replaces the old donut
+// gauge (no more centre accuracy %, Han: "weglaten" — the counts/segments speak for themselves).
 // `stats.correct` isn't stored directly (useLevel only tracks the 5 timing tiers) — it's every FIRST-TRY
 // correct hit regardless of timing tier, i.e. defeated minus the corrected-on-second-try kills.
-export function NoteCorrectnessGauge({ stats }) {
+export function NoteCorrectnessBar({ stats }) {
     const correct = Math.max(0, (stats.defeated || 0) - (stats.secondAttemptCorrected || 0));
     const values = { correct, ...stats };
     const total = CORRECTNESS_SEGMENTS.reduce((sum, s) => sum + (values[s.key] || 0), 0);
-    const accuracy = total > 0 ? Math.round((correct / total) * 100) : 100;
 
-    let offset = 0;
-    const cx = GAUGE_SIZE / 2, cy = GAUGE_SIZE / 2;
+    let x = 0;
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-            <svg viewBox={`0 0 ${GAUGE_SIZE} ${GAUGE_SIZE}`} width={GAUGE_SIZE} height={GAUGE_SIZE} role="img" aria-label="Note accuracy">
-                <circle cx={cx} cy={cy} r={GAUGE_R} fill="none" stroke="var(--text-dim)" strokeWidth={GAUGE_STROKE} opacity={0.25} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+            <svg viewBox={`0 0 ${CHART_W} ${BAR_H}`} width="100%" height={BAR_H} role="img" aria-label="Note accuracy">
+                <rect x={0} y={0} width={CHART_W} height={BAR_H} rx={4} fill="var(--text-dim)" opacity={0.25} />
                 {total > 0 && CORRECTNESS_SEGMENTS.map((s) => {
                     const v = values[s.key] || 0;
                     if (v === 0) return null;
-                    const frac = v / total;
-                    const dash = frac * CIRC;
-                    const el = (
-                        <circle key={s.key} cx={cx} cy={cy} r={GAUGE_R} fill="none" stroke={s.color}
-                            strokeWidth={GAUGE_STROKE} strokeDasharray={`${dash} ${CIRC - dash}`}
-                            strokeDashoffset={-offset} transform={`rotate(-90 ${cx} ${cy})`} strokeLinecap="butt" />
-                    );
-                    offset += dash;
+                    const w = (v / total) * CHART_W;
+                    const el = <rect key={s.key} x={x} y={0} width={w} height={BAR_H} fill={s.color} />;
+                    x += w;
                     return el;
                 })}
-                <text x={cx} y={cy - 2} textAnchor="middle" fontSize="22" fontWeight="800" fontFamily={TEXT_FONT} fill="var(--text-primary)">{accuracy}%</text>
-                <text x={cx} y={cy + 16} textAnchor="middle" fontSize="9" fontFamily={TEXT_FONT} fill="var(--text-secondary)">accuracy</text>
             </svg>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px', fontSize: 10 }}>
                 {CORRECTNESS_SEGMENTS.map((s) => (

@@ -2005,11 +2005,23 @@ const App = () => {
                     difficultyMultiplier={actualDifficulty.multiplier}
                 />
 
-                {/* TOP SECTION: SHEET MUSIC & PLAYBACK */}
+                {/* TOP SECTION: SHEET MUSIC & PLAYBACK
+                    Han 2026-08-02 (BUG — "bottom view schuift weer omhoog" after the scaleFactor cap):
+                    `flex: 1` sets flex-basis to 0%, which OVERRIDES the explicit `height: sheetHeight` for
+                    sizing purposes — so in dual-view this box's actual height was never really pinned at
+                    `sheetHeight`, it was just winning a 1-vs-1 flex-grow contest against the BOTTOM SECTION
+                    below (line ~2058, also `flex: 1`), which happened to land near the intended split only
+                    when the sheet-music content's min-content height cooperated. Once the reference-capped
+                    scaleFactor (§98) made the rendered content shorter, that contest could resolve
+                    differently and the bottom panel crept up. Fix (dual-view only, Han): give this box a
+                    fixed flex-basis of `sheetHeight` with grow/shrink OFF, so it never competes for space —
+                    the BOTTOM SECTION's own `flex: 1` then simply fills 100% of whatever remains below it,
+                    pinning it to the screen's bottom edge regardless of how tall the sheet-music content
+                    renders. Single-view (mobile) is untouched — Han scoped this fix to dual-view only. */}
                 <div
                     style={{
+                        flex: isDualView ? `0 0 ${sheetHeight}px` : 1,
                         height: isDualView ? sheetHeight : 'auto',
-                        flex: 1,
                         display: (activeTab === 'sheet-music' || isDualView) ? 'flex' : 'none',
                         flexDirection: 'column',
                         alignItems: 'center',
@@ -2055,7 +2067,9 @@ const App = () => {
                 </div>
             </div> {/* END TOP AREA WRAPPER */}
 
-            {/* BOTTOM SECTION: PANEL (Full height in landscape) */}
+            {/* BOTTOM SECTION: PANEL (Full height in landscape)
+                `flex: 1` here now fills exactly whatever remains below the TOP SECTION (which lost its
+                grow/shrink above) — pinning this panel to the screen's bottom edge (Han 2026-08-02). */}
             <div
                 style={{
                     flex: 1,

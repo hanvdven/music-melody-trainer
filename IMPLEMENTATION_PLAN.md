@@ -7,6 +7,34 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-03 — 🐞✅ Bug: bottom view schuift weer omhoog na de scale-cap
+
+Han: "nu de schaal is gelimiteerd, schuift het bottom view block weer omhoog.
+plak dat gewoon aan de onderrand van het scherm."
+
+Root cause: de notenbalk-container had zowel `height: sheetHeight` als `flex:
+1` — `flex: 1` zet `flex-basis` op 0%, wat de expliciete hoogte overstemt, dus
+de 45/55-verdeling werd in werkelijkheid door een flex-grow-wedstrijd bepaald
+(content-afhankelijk), niet door een vaste waarde. Fix (enkel dual-view, Han's
+keuze): notenbalk-container krijgt `flex: '0 0 ' + sheetHeight + 'px'` (doet
+niet meer mee aan de wedstrijd); het onderpaneel se eigen `flex: 1` vult dan
+gegarandeerd de rest, dus het zit altijd aan de onderrand vast.
+architecture.md §101.
+
+## 2026-08-03 — ✅ FR: splash-charts volle breedte + stacked bar i.p.v. pie
+
+Han: "timing accuracy: gebruik de breedte van het splash screen. haal de
+dubbele info weg... note correctness, stacked bar ipv pie. note when none due:
+gebruik dezelfde kleur als in timing accuracy."
+
+De 4 KPI-rijen (gemist/fout binnen tijd/fout hersteld/noot zonder doel) zijn
+verwijderd uit `LevelSplash.jsx` — de charts eronder tonen dezelfde info al.
+Beide charts staan nu vol-breedte gestapeld (`.ls-charts` → column i.p.v.
+side-by-side). `NoteCorrectnessGauge` (donut+%) is vervangen door
+`NoteCorrectnessBar` (gestapelde balk, geen %-label — Han: "weglaten").
+`extraNote`'s kleur is nu `TIER_COLOR.missed` (hetzelfde grijs als Timing
+accuracy's 'missed'-balk). architecture.md §102.
+
 ## 2026-08-02 — 🐞✅ Bug: RPG-laag (avatar/slimes) zichtbaar buiten levels / tijdens Settings-tab
 
 Han: "avatar, slimes (en andere enemies) mogen alleen zichtbaar zijn TIJDENS
