@@ -118,7 +118,10 @@ export default function CharacterCreator({ onClose }) {
     const reset = () => setChar((c) => ({ ...emptyCharacter(), gender: c.gender, layers: ensureSkin(c.gender, {}) }));
 
     // the stacked paper-doll (shared renderer, §6d), scaled to AVATAR_H. Clicking the avatar selects the SKIN.
-    const doll = <CharacterDoll char={char} anim={anim} frame={frame} height={AVATAR_H} />;
+    // #664 (Han 2026-08-03): fullFrame here only — shows the whole 80×64 frame (nothing clipped) + the red
+    // 40×56 reference box; the equipment-grid thumbnails below keep the CROP behaviour (Han: scope this fix
+    // to the big preview only).
+    const doll = <CharacterDoll char={char} anim={anim} frame={frame} height={AVATAR_H} fullFrame />;
 
     return (
         <div className="cc-overlay" onClick={onClose}>

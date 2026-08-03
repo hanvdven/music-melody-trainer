@@ -3,12 +3,29 @@
 // renders at NATIVE size and steps by 80px, never stretching, which fixes the ears drift). Pets are 32x32.
 // Row 0 of each sheet is the idle animation (first IDLE frames have content).
 //
-// The old folders are re-grouped into Han's taxonomy via source+filter rules; colour/material variants
-// (Blue Pants / Bronze Axe / Cape blue …) are split out for a base-item + variant setter. Gendered
-// categories expose BOTH genders' items, each tagged with `g` + a `mismatch` flag, so the UI can show all
-// and watermark the wrong-gender ones (Han's interchangeability test).
-
-const FILES = import.meta.glob('../assets/character/**/*.png', { eager: true, query: '?url', import: 'default' });
+// #664 (Han 2026-08-03, "re-point the rpg assets to the ASSORTED folder"): the source moved to
+// src/assets/ASSORTED — a richer, differently-organised asset dump (all the old files are duplicated
+// there, plus many more). The taxonomy below (CATEGORIES/basesFor/etc.) is UNCHANGED; only how the raw
+// files are discovered and bucketed changed, since ASSORTED's folder names are inconsistent in ways the
+// old `character/{gender}/{folder}` regex can't express:
+//   - bonus packs sit in differently-prefixed sibling folders for the SAME category ("Female Hair" AND
+//     "30x Female Hair" AND — for clothing — "GandalfHardcore 43x Female Clothing"), so categorisation
+//     below matches on a KEYWORD anywhere in the subfolder name, not an exact folder name.
+//   - the "head" folder is literally named "Head" for male, "Hat" for female — same category, different
+//     names — so both keywords map to the same bucket.
+//   - "arms" is capitalised "Female Arms" for female but lowercase "arms" for male — keyword match is
+//     case-insensitive so this doesn't matter.
+//   - male's masks/face-items (Mask/Plague Mask/Bandit Scarf) live INSIDE the "Male Head" folder, while
+//     female's equivalents (Mask/Plague Mask/Blindfold/Blue Face paint) are LOOSE files at the female
+//     root — both are routed to the SAME shared `masks` bucket (Han's existing "shared head items, works
+//     for both genders" rule), regardless of which of the two places they were found in.
+//   - skins, shields/lanterns, and capes/backpacks are LOOSE files directly under each gender's root
+//     folder (no subfolder) — categorised by a NAME keyword instead of a folder keyword.
+//   - a couple of non-item files (a "DONT FORGET TO RATE" attribution image, pet accessory extras the
+//     renderer doesn't understand yet) are explicitly excluded so they can never appear as pickable items.
+const CHAR_FILES = import.meta.glob('../assets/ASSORTED/characters/char_hero/**/*.png', { eager: true, query: '?url', import: 'default' });
+const EFFECT_FILES = import.meta.glob('../assets/ASSORTED/fx/character effects/*.png', { eager: true, query: '?url', import: 'default' });
+const PET_FILES = import.meta.glob('../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/*.png', { eager: true, query: '?url', import: 'default' });
 
 // #648 CR (Han): purpose-built 16×16 item icons (from src/assets/rpg/16x16, curated + renamed per category)
 // used as the equipment slot's TYPE glyph behind the equipped sprite — they fit the square slots far better
@@ -35,15 +52,67 @@ export const ANIMATIONS = [
     { key: 'death', label: 'Death', row: 6, frames: 10 },
 ];
 
-const RAW = (() => {
-    const out = { male: {}, female: {}, shared: {} };
-    for (const [path, url] of Object.entries(FILES)) {
-        const m = path.match(/\/character\/(male|female|shared)\/([^/]+)\/(.+)\.png$/);
-        if (!m) continue;
-        (out[m[1]][m[2]] ||= []).push({ name: m[3], url });
+// Attribution/junk images that sit alongside real assets in the ASSORTED dump — never a pickable item.
+const JUNK_NAME = /dont forget|read ?me/i;
+// Pet accessory extras (backpack/hat overlays, an "outline" variant) the pet renderer doesn't understand
+// (it expects the exact old idle/run row layout) — excluded until pet rendering is extended for them.
+const PET_EXCLUDE = /backpack|hat|outline/i;
+
+// Classify one char_hero file (path RELATIVE to char_hero/, e.g. "Hero Male/Male Hair/Male Hair1.png" or
+// "Hero Female/Female Mask.png") into { bucket, gender, name }, or null to exclude it entirely.
+function categorizeCharFile(relPath) {
+    const parts = relPath.split('/');
+    const genderRoot = parts[0];   // "Hero Male" | "Hero Female" | "Hero Unisex"
+    const gender = genderRoot === 'Hero Male' ? 'male' : genderRoot === 'Hero Female' ? 'female' : 'shared';
+    const rest = parts.slice(1);   // [subfolder, file] or just [file] for a loose root file
+    const file = rest[rest.length - 1];
+    const name = file.replace(/\.png$/i, '');
+    if (JUNK_NAME.test(name)) return null;
+    const sub = rest.length > 1 ? rest[0].toLowerCase() : null;
+    const lname = name.toLowerCase();
+
+    let bucket = null;
+    let forceShared = false;
+    if (sub) {
+        if (sub.includes('hair')) bucket = 'hair';
+        else if (sub.includes('ear')) bucket = 'ears';
+        else if (sub.includes('cloth')) bucket = 'clothing';
+        else if (sub.includes('hand')) bucket = 'handitems';
+        else if (sub.includes('arm')) bucket = 'arms';
+        else if (sub.includes('hat') || sub.includes('head')) {
+            if (/mask|blindfold|plague|scarf|paint/.test(lname)) { bucket = 'masks'; forceShared = true; }
+            else bucket = 'hats';
+        }
+    } else {
+        // Loose file directly under the gender root.
+        if (lname.includes('skin')) bucket = '__skin__';
+        else if (/mask|blindfold|plague|paint/.test(lname)) { bucket = 'masks'; forceShared = true; }
+        else if (/shield|lantern/.test(lname)) bucket = 'offhand';
+        else if (/cape|backpack/.test(lname)) { bucket = 'back'; forceShared = true; }
+        // Anything else unrecognised (e.g. a bound/"tied up" pose) is simply not an equipment item.
     }
-    return out;
-})();
+    if (!bucket) return null;
+    return { bucket, gender: forceShared ? 'shared' : gender, name };
+}
+
+const RAW = { male: {}, female: {}, shared: {} };
+for (const [path, url] of Object.entries(CHAR_FILES)) {
+    const m = path.match(/\/ASSORTED\/characters\/char_hero\/(.+)$/);
+    if (!m) continue;
+    const parsed = categorizeCharFile(m[1]);
+    if (!parsed) continue;
+    (RAW[parsed.gender][parsed.bucket] ||= []).push({ name: parsed.name, url });
+}
+for (const [path, url] of Object.entries(EFFECT_FILES)) {
+    const name = path.match(/([^/]+)\.png$/)[1];
+    if (JUNK_NAME.test(name)) continue;
+    (RAW.shared.effects ||= []).push({ name, url });
+}
+for (const [path, url] of Object.entries(PET_FILES)) {
+    const name = path.match(/([^/]+)\.png$/)[1];
+    if (JUNK_NAME.test(name) || PET_EXCLUDE.test(name)) continue;
+    (RAW.shared.pet ||= []).push({ name, url });
+}
 
 const COLORS = ['blue', 'green', 'orange', 'purple', 'red', 'skyblue', 'yellow', 'black', 'white', 'brown', 'pink', 'cyan', 'grey', 'gray'];
 const MATERIALS = ['bronze', 'diamond', 'golden', 'gold', 'iron', 'wooden', 'wood', 'steel', 'stone', 'silver'];
@@ -95,20 +164,12 @@ export const CATEGORIES = [
     { key: 'legs', label: 'Legs', z: 3, gendered: true, required: true, source: () => both('clothing', clothesFilter.legs) },
     { key: 'feet', label: 'Feet', z: 4, gendered: true, source: () => both('clothing', clothesFilter.feet) },
     { key: 'hands', label: 'Hands', z: 6, gendered: true, source: () => both('arms') },
-    { key: 'back', label: 'Back', z: 1, gendered: false, source: () => shared((RAW.shared.back || []).filter((p) => has(p.name, 'cape', 'backpack'))) },
-    { key: 'offhand', label: 'Off-hand', z: 1, gendered: true, source: () => bothFrom(RAW.shared.back, (p) => has(p.name, 'shield', 'lantern')) },
+    { key: 'back', label: 'Back', z: 1, gendered: false, source: () => shared(RAW.shared.back) },
+    { key: 'offhand', label: 'Off-hand', z: 1, gendered: true, source: () => both('offhand') },
     { key: 'weapon', label: 'Weapon', z: 11, gendered: true, source: () => both('handitems', (p) => has(p.name, 'axe', 'sword', 'pickaxe', 'hoe', 'stick')) },
     { key: 'effect', label: 'Effect', z: 12, animated: true, gendered: false, source: () => shared(RAW.shared.effects) },
     { key: 'pet', label: 'Pet', z: 13, frame: PET_FRAME, animated: true, gendered: false, source: () => shared(RAW.shared.pet) },
 ];
-
-// Skin lives in shared/skin but its files are gender-named — split into male/female by prefix.
-RAW.male.__skin__ = (RAW.shared.skin || []).filter((p) => p.name.toLowerCase().startsWith('male'));
-RAW.female.__skin__ = (RAW.shared.skin || []).filter((p) => p.name.toLowerCase().startsWith('female'));
-// Off-hand (shields/lanterns) are gender-named inside shared/back.
-function bothFrom(list, filter) {
-    return (list || []).filter(filter).map((p) => ({ ...p, g: p.name.toLowerCase().startsWith('female') ? 'female' : 'male' }));
-}
 
 export const catByKey = (key) => CATEGORIES.find((c) => c.key === key);
 export const frameOf = (key) => catByKey(key)?.frame || BODY_FRAME;

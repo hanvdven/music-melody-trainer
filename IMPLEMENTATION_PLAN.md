@@ -7,6 +7,32 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-03 — ✅ FR: RPG-assets herbronnen naar ASSORTED + avatar-preview zonder crop
+
+Han: "re-point the rpg assets to the ASSORTED folder... de preview in de
+character menu mist wat pixels onderaan. Make the view window square, 80x64
+times a scaling factor... Render a 40x56 red frame in bottom-horizontal
+middle. put all 'items' in 16x16 grid boxes... waar mogelijk."
+
+1) `characterAssets.js`'s bestandsontdekking wijst nu naar
+`ASSORTED/characters/char_hero/**` (+ fx/character effects + animals/pets)
+i.p.v. het oude `src/assets/character/**` (verwijderd). Nieuwe
+`categorizeCharFile()` classifier vangt de inconsistente ASSORTED-naamgeving
+op (bonus-packs in anders-geprefixte submappen, "Male Head" vs "Female Hat",
+maskers soms in de Head-map soms los). Geverifieerd via een los Node-scriptje
+tegen de echte bestandslijst: 307 bestanden, 3 terecht uitgesloten, elke
+categorie-emmer gevuld.
+2) Avatar-preview (enkel de grote, Han's keuze) toont nu het VOLLEDIGE
+onvervormde 80x64-frame (nieuwe `fullFrame` prop op CharacterDoll) i.p.v. de
+CROP-subregio die onderaan afsneed, plus een rood 40x56 referentiekader
+onderaan-gecentreerd.
+3) 16x16-icoon-koppeling: **overgeslagen** op Han's expliciete verzoek — de
+iconenmap heeft 600+ ongelabelde bestanden, wacht op een koppel-lijst van Han.
+
+architecture.md §106. Nieuwe test: CharacterDoll.test.jsx. Live geverifieerd
+via headless-browser screenshot (voeten niet meer afgesneden, rood kader
+zichtbaar).
+
 ## 2026-08-03 — ✅ Test: cello backing volume naar mezzo-forte
 
 Han: "zet de cello op mf, om te testen" — vervolg op de onopgeloste "cello

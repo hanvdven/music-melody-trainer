@@ -6999,3 +6999,74 @@ can't hear the cello at mf, the root cause isn't loudness and the investigation 
 audible, the level's mix may need permanent rebalancing (a separate follow-up, not decided yet).
 
 **Files:** `src/App.jsx` (`LEVEL_BASS_VOLUME` constant + `scheduleLevelBacking`).
+
+### §106. RPG assets re-pointed to `src/assets/ASSORTED`; avatar preview shows the full 80×64 frame (Han 2026-08-03)
+
+**Purpose:** Han supplied a new, larger asset dump (`src/assets/ASSORTED`) — a richer reorganisation of the
+same tinyRPG-style packs, with every old file duplicated there plus many more (extra hair/clothing packs,
+more skins, more head/hat items). Two changes, both scoped by Han's own interview answers:
+
+**1) Asset source moved.** `src/model/characterAssets.js`'s file discovery now globs
+`src/assets/ASSORTED/characters/char_hero/**/*.png` (body parts), `src/assets/ASSORTED/fx/character
+effects/*.png` (status-effect overlays), and `src/assets/ASSORTED/characters/animals/pets/GandalfHardcore
+Pet companion/*.png` (pet sheets) instead of the old `src/assets/character/**` — which has been deleted
+(fully superseded). The CATEGORIES taxonomy, `basesFor`/`urlOfLayer`/`counterpart`/`earForSkin` and every
+consumer (`CharacterCreator.jsx`, `CharacterDoll.jsx`, `SheetRpgLayer.jsx`) are UNCHANGED — only how the raw
+per-category buckets get populated changed, via a new `categorizeCharFile()` classifier, because ASSORTED's
+folder names are inconsistent in ways the old exact-match `character/{gender}/{folder}` regex couldn't
+express:
+
+- Bonus packs sit in differently-prefixed SIBLING folders for the same category ("Female Hair" AND "30x
+  Female Hair"; "GandalfHardcore 43x Female Clothing" for clothing) — `categorizeCharFile` matches a
+  KEYWORD anywhere in the subfolder name (`sub.includes('hair')`, `sub.includes('cloth')`, …), not an exact
+  folder name, so every sibling pack folds into the same bucket automatically.
+- The "head" folder is literally named "Male Head" for male but "Female Hat" for female — both the "hat"
+  and "head" keywords map to the same bucket.
+- Case differs ("Female Arms" vs lowercase "arms") — keyword matching is case-insensitive throughout.
+- Male's mask/face items (Mask/Plague Mask/Bandit Scarf) live INSIDE the "Male Head" folder, while female's
+  equivalents (Mask/Plague Mask/Blindfold/Blue Face paint) are LOOSE files at the female root. Both are
+  routed to the same SHARED `masks` bucket (a name-keyword check `/mask|blindfold|plague|scarf|paint/`
+  overrides the folder-based routing) regardless of which of the two places they were found — preserving
+  the existing "shared head item, works for both genders" rule (`CATEGORIES.head`'s source is unchanged:
+  `[...both('hats'), ...shared(RAW.shared.masks)]`).
+- Skins, shields/lanterns, and capes/backpacks are LOOSE files directly under each gender's root (no
+  subfolder) — categorised by a NAME keyword instead. Skins populate `RAW[gender].__skin__` directly now
+  (the old cross-gender prefix-split step — `RAW.male.__skin__ = RAW.shared.skin.filter(startsWith 'male')`
+  — is gone; ASSORTED already separates them by folder). Shields/lanterns are now naturally gendered via
+  folder, so `CATEGORIES.offhand`'s source simplified from a bespoke `bothFrom(RAW.shared.back, …)` filename
+  -prefix-inference helper to a plain `both('offhand')` (the `bothFrom` helper was removed as dead code).
+- Two file categories are explicitly excluded so they never appear as pickable items: a `JUNK_NAME` regex
+  (`/dont forget|read ?me/i`) drops attribution images bundled inside the packs (e.g. "DONT FORGET TO
+  RATE.png"); a `PET_EXCLUDE` regex (`/backpack|hat|outline/i`) drops the pet-pack's accessory-overlay
+  extras (doggy backpack/hat, an "outline" Wisp variant) the pet renderer doesn't understand yet (it expects
+  the exact old idle/run row layout) — only the pet sheets with an exact byte-identical match to the old
+  asset set are included.
+- "Tied up" pose files (a bound/captive sprite, not wearable equipment) fall through every keyword rule and
+  are simply excluded — no special case needed.
+
+Verified via a standalone Node script that ran the classifier against the real ASSORTED file tree: 307
+files in, only 3 excluded (2 "tied up" poses + 1 junk image), every category bucket populated with a
+plausible count, `shared.back` = exactly 7 (Backpack/Cape×5/Small Backpack, matching the old set exactly),
+pet files = exactly the 7 old filenames (byte-identical to the old assets — confirmed via `diff`).
+
+**2) Avatar preview no longer clips.** Han: "de preview in het character menu mist wat pixels onderaan" —
+`CharacterDoll.jsx`'s shared paper-doll renderer always scaled off `CROP` (a `{x:10,y:6,w:60,h:58}`
+subregion of the 80×64 frame), which cut off the bottom of some ASSORTED sprites. A new `fullFrame` prop
+(default `false`, so the sheet-music hero and the equipment-grid thumbnails are UNTOUCHED — Han scoped this
+fix to the big avatar preview only) makes the component show the ENTIRE undistorted 80×64 `BODY_FRAME`
+instead, scaled so `BODY_FRAME.h → height` — nothing is ever clipped. It also renders a reference-only red
+40×56 outline, bottom-anchored and horizontally centred (`x = (80-40)/2 = 20`, `y = 64-56 = 8`), so Han can
+eyeball where a sprite's "body" should sit within the frame. `CharacterCreator.jsx`'s big avatar is the only
+caller passing `fullFrame`.
+
+**Invariant:** `CharacterDoll` stays the SINGLE shared paper-doll renderer (§6d) — the crop/full-frame
+choice is a prop, never a second hand-rolled rendering path.
+
+**Files:** `src/model/characterAssets.js` (rewritten file-discovery + classifier), `src/assets/character/`
+(deleted — fully superseded by `src/assets/ASSORTED`), `src/components/character/CharacterDoll.jsx`
+(`fullFrame` prop + reference box), `src/components/character/CharacterCreator.jsx` (passes `fullFrame` on
+the big avatar), `src/components/character/__tests__/CharacterDoll.test.jsx` (new).
+
+**Not done this round (Han's explicit choice — deferred):** linking equipment items to preview icons from
+`src/assets/ASSORTED/icons/16x16` — that folder has 600+ unlabeled files (`item1.png`…`item602.png`, no
+category names), so it needs a mapping list from Han before it can be wired up.
