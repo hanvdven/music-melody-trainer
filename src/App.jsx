@@ -1028,7 +1028,17 @@ const App = () => {
         if (!context) return;
         try { if (!timpaniRef.current) timpaniRef.current = new Soundfont(context, { instrument: 'timpani', destination: context.destination }); } catch { /* offline / CDN blocked */ }
     }, [context]);
+    // #662 (Han 2026-08-03, "timpanen en cello worden niet onderbroken door de stop-knop"): the level's
+    // backing is scheduled ALL AT ONCE, far ahead (the whole -1..8 measure span) — unlike the Sequencer's
+    // own short-horizon incremental scheduling. `instrument.stop()` alone only halts voices that are
+    // ALREADY SOUNDING; it can't reach notes still waiting in smplr's internal Scheduler for their future
+    // dispatch time. Every playMelodies() call below for the level backing is passed this SAME ref, which
+    // collects each note's StopFn (playMelodies.js's new `stopHandlesRef` param) — calling all of them
+    // cancels the ENTIRE remaining schedule, pending or not.
+    const levelBackingStopFnsRef = useRef([]);
     const stopAllBackingAudio = useCallback(() => {
+        levelBackingStopFnsRef.current.forEach((fn) => { try { fn(); } catch { /* already stopped */ } });
+        levelBackingStopFnsRef.current = [];
         try { instruments.bass?.stop(); } catch { /* not started */ }
         try { instruments.metronome?.stop(); } catch { /* not started */ }
         try { timpaniRef.current?.stop(); } catch { /* not started */ }
@@ -1053,6 +1063,7 @@ const App = () => {
         // it's ready would silently skip it for the whole level session (backingScheduledForRef locks in).
         if (percussionSettings?.melodic && !timpaniRef.current) return;
         backingScheduledForRef.current = levelAudioStart;
+        levelBackingStopFnsRef.current = [];   // fresh schedule — drop any stale handles from a prior level
         const bpm = lvl.bpm || 80;
         const beatSec = 60 / bpm;
         const bos = lvl.beatsOnScreen || 8;
@@ -1093,6 +1104,7 @@ const App = () => {
                 leadInMelodies, leadInInstruments, context, bpm, leadInStart,
                 null, null, namedInstruments, null,
                 { treble: 0, bass: 1, percussion: LEVEL_BACKING_VOLUME, chords: 0, metronome: 0 },
+                levelBackingStopFnsRef,
             );
         }
 
@@ -1103,6 +1115,7 @@ const App = () => {
                 [melodies.bass], [instruments.bass], context, bpm, contentStart,
                 null, null, instruments, null,
                 { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 0 },
+                levelBackingStopFnsRef,
             );
         }
 
@@ -1114,6 +1127,7 @@ const App = () => {
                 [withMetronomeLeadIn(melodies.metronome, measureTicks)], [instruments.metronome], context, bpm, metronomeStart,
                 null, null, instruments, null,
                 { treble: 0, bass: 0, percussion: 0, chords: 0, metronome: 1 },
+                levelBackingStopFnsRef,
             );
         }
         // melodies is a memoised object (useMelodyState) — safe as a dep; bassSettings.instrument is the

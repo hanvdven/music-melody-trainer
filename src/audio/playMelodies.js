@@ -12,7 +12,19 @@ const playMelodies = (
   tickRange = null,
   namedInstruments = null,
   customMapping = null,
-  trackGains = null
+  trackGains = null,
+  // #662 (Han 2026-08-03, "timpanen en cello worden niet onderbroken door de stop-knop"): smplr's
+  // `instrument.stop()` only halts voices that are ALREADY SOUNDING — it does not cancel notes still
+  // sitting in smplr's own internal Scheduler, waiting for their future dispatch time (only the
+  // destructive, one-way `.disconnect()` does that, which is unusable on a shared/reusable instrument
+  // slot). `instrument.start()` returns a per-note "StopFn" that DOES cancel that pending dispatch
+  // (`schedulerStop()` inside it) — but nothing previously kept a reference to it. Callers that need to
+  // be able to fully cancel a whole scheduled block ahead of time (e.g. a level's -1..8 measure backing,
+  // scheduled ALL AT ONCE far in advance — unlike the Sequencer's own short-horizon incremental
+  // scheduling, which naturally avoids this problem) pass a ref here; every note's StopFn is pushed into
+  // `stopHandlesRef.current` so the caller can cancel the entire remaining schedule on demand. null (the
+  // default) preserves old behaviour exactly — no other caller is affected.
+  stopHandlesRef = null
 ) => {
   // Restore output channel volume on every instrument we're about to play.
   // Sequencer.stop() hard-mutes each instrument's output (setVolume(0)) so
@@ -158,7 +170,8 @@ const playMelodies = (
       item.instrument.stop({ stopId: item.interruptGroup, time: item.time });
       startOpts.stopId = item.interruptGroup;
     }
-    item.instrument.start(startOpts);
+    const stopFn = item.instrument.start(startOpts);
+    if (stopHandlesRef) stopHandlesRef.current.push(stopFn);
   }
 
   // Return the end time of the last note + its duration

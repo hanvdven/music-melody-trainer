@@ -6896,3 +6896,51 @@ the two charts can't visually drift apart on this shared category.
 
 **Files:** `src/components/levels/LevelSplash.jsx`, `src/components/levels/LevelSplash.css`,
 `src/components/levels/LevelStatsCharts.jsx`, `src/components/levels/__tests__/LevelSplash.test.jsx`.
+
+### §103. Stop button now cancels the level's ENTIRE remaining backing schedule (Han 2026-08-03)
+
+**Bug:** "timpani en cello worden niet onderbroken door de stop-knop." Confirmed via a headless-browser
+audio trace (patched `AudioContext.prototype.createBufferSource` to log every real `.start()` call): notes
+kept firing for several seconds after `stopAllBackingAudio()` ran.
+
+**Root cause:** `scheduleLevelBacking` (App.jsx) schedules a level's ENTIRE -1..8 measure backing (timpani +
+Level 2's fixed cello, the real Level 8 bass, the metronome) in one upfront `playMelodies()` burst per
+track — unlike the Sequencer's own playback, which schedules in short, incremental, look-ahead windows and
+so naturally never has more than a fraction of a second "in flight" to cancel. smplr's own
+`instrument.stop()` (called from `stopAllBackingAudio`) only stops voices that are ALREADY SOUNDING — it
+has no way to reach notes still waiting in smplr's internal `Scheduler` for their future dispatch time
+(only the destructive, instance-killing `.disconnect()` does that, unusable on the shared/reusable
+`instruments.bass`/`instruments.metronome` slots). Every `instrument.start()` call, however, returns a
+per-note "StopFn" that DOES cancel that pending dispatch — nothing was keeping a reference to it.
+
+**Fix:** `playMelodies.js` gained an 11th, optional, trailing parameter `stopHandlesRef` (a ref shaped
+`{ current: [] }`, same pattern as the existing `abortControllerRef`). When provided, every scheduled
+note's returned StopFn is pushed into `stopHandlesRef.current`; omitting it (every other existing caller —
+Sequencer.js, usePlayback.js, useRubato.js, playInstrumentPreview.js) preserves old behaviour exactly. In
+App.jsx, one shared `levelBackingStopFnsRef` is passed to all 3 of `scheduleLevelBacking`'s `playMelodies()`
+calls (lead-in timpani+cello, Level 8's content-only bass, the metronome); the ref is reset at the start of
+each fresh schedule. `stopAllBackingAudio` now calls every collected StopFn (cancelling the WHOLE remaining
+schedule, pending or not) in addition to the existing `instrument.stop()` calls (kept as a belt-and-braces
+catch for any already-sounding voice).
+
+**Invariant:** any code path that schedules audio FAR ahead of the current time in one upfront burst (as
+opposed to the Sequencer's short-horizon incremental scheduling) MUST pass a `stopHandlesRef` to
+`playMelodies` and wire its collected StopFns into whatever "stop" action the feature exposes — otherwise
+Stop only silences currently-sounding notes, not the rest of the already-committed schedule.
+
+**Files:** `src/audio/playMelodies.js`, `src/App.jsx`, `src/audio/__tests__/playMelodies.test.js` (new).
+
+**Not fixed this round (investigated, no reproducible code bug found):**
+
+- *"geen opmaat maatnummers/maatstrepen, muziek start in maat -1"* — live-tested Level 2 in a headless
+  browser (direct DOM inspection of the rendered barlines/measure-number `<text>` elements): "-1", "0",
+  "1"…"8" all render with correct labels and the scroll transform actively advances. Could not reproduce
+  despite Han confirming it happens every time at Level 2 start — needs a screenshot/video next time it
+  occurs, since the discrepancy between the live app and this test is currently unexplained.
+- *"cello C2 niet hoorbaar (timpani wel)"* — traced the full pipeline (queue population, gains 0.6 vs 1.0
+  per track, persistent per-type fader default 1.0 correctly connected to `context.destination`, and real
+  `AudioBufferSourceNode.start()` calls with valid decoded buffers at MIDI 36/48/60/72, confirmed via the
+  same headless trace) — structurally sound, real audio nodes ARE created for the cello. No code-level
+  silencing bug found; likely a perceived-loudness/balance issue (a sustained low C2 sample being much
+  quieter than the punchy timpani hits playing alongside it) rather than a scheduling bug. Follow-up: try
+  boosting the lead-in call's `bass` trackGain above 1.0 as a mitigation, pending Han's confirmation.

@@ -7,6 +7,27 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-03 — 🐞✅ Bug: Stop-knop onderbreekt pauken/cello niet
+
+Han: "timpani en cello worden niet onderbroken door de stop-knop."
+
+Bevestigd via een headless-browser audio-trace: `scheduleLevelBacking` plant
+de HELE -1..8-maat backing in één keer vooruit (i.p.v. de Sequencer's korte
+incrementele scheduling), en smplr's `instrument.stop()` stopt alleen AL
+KLINKENDE noten — niet de nog toekomstige, al ingeplande noten in zijn interne
+scheduler. Fix: `playMelodies.js` krijgt een optionele `stopHandlesRef` param
+die elke noot's StopFn verzamelt; App.jsx's `levelBackingStopFnsRef` wordt aan
+alle 3 de level-backing `playMelodies()`-calls doorgegeven, en
+`stopAllBackingAudio` vuurt nu alle verzamelde StopFns af. Geen ander
+call-site aangepast (optioneel/achteraan param, default ongewijzigd gedrag).
+architecture.md §103. Nieuwe test: `src/audio/__tests__/playMelodies.test.js`.
+
+**Ook onderzocht, niet opgelost** (zie architecture.md §103 "Not fixed this
+round" voor het volledige onderzoek): de ontbrekende opmaat-strepen/nummers
+(kon niet reproduceren in een live test — nodig: screenshot/video de
+volgende keer) en de onhoorbare cello (audio-pad structureel correct
+bevonden, vermoedelijk een balans/volume-kwestie i.p.v. een codefout).
+
 ## 2026-08-03 — 🐞✅ Bug: bottom view schuift weer omhoog na de scale-cap
 
 Han: "nu de schaal is gelimiteerd, schuift het bottom view block weer omhoog.
