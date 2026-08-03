@@ -6984,3 +6984,18 @@ miss registration is NEVER gated on whether a PREVIOUS slime's death animation h
 
 **Files:** `src/components/sheet-music/SheetRpgLayer.jsx`,
 `src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx`.
+
+### §105. Cello backing volume raised to mezzo-forte, as a test (Han 2026-08-03)
+
+**Purpose:** Han: "zet de cello op mf, om te testen" — a diagnostic mitigation for §103's "cello niet
+hoorbaar" finding (the audio pipeline traced structurally sound; the leading theory is that the cello's
+sustained low C2 sample is simply much quieter than the punchy timpani hits playing alongside it, not a
+scheduling bug).
+
+**Change:** a new `LEVEL_BASS_VOLUME` constant (`VOL_STEPS` "mezzo forte" = 0.8) is now used for the bass
+fader specifically (`setVolume('bass', LEVEL_BASS_VOLUME)`); `LEVEL_BACKING_VOLUME` (mezzo-piano = 0.6)
+remains unchanged for the metronome and timpani. This is a deliberate imbalance for testing — if Han still
+can't hear the cello at mf, the root cause isn't loudness and the investigation continues; if it becomes
+audible, the level's mix may need permanent rebalancing (a separate follow-up, not decided yet).
+
+**Files:** `src/App.jsx` (`LEVEL_BASS_VOLUME` constant + `scheduleLevelBacking`).

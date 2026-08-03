@@ -1016,6 +1016,12 @@ const App = () => {
     // its backing tracks explicitly audible at mezzo-piano (reusing the canonical VOL_STEPS dynamics table,
     // §6c, rather than a new hardcoded gain constant) and restores full volume on close.
     const LEVEL_BACKING_VOLUME = VOL_STEPS.find((s) => s.label === 'mezzo piano').value;
+    // Han (2026-08-03, "zet de cello op mf, om te testen"): the cello alone gets a louder persistent
+    // fader than the rest of the backing (timpani/metronome stay at mezzo-piano) — a deliberate imbalance
+    // to test whether it's simply drowned out next to the punchy timpani (§104's inaudible-cello finding
+    // was inconclusive: the audio pipeline traced structurally sound, so this is the perceived-loudness
+    // mitigation flagged there as a follow-up).
+    const LEVEL_BASS_VOLUME = VOL_STEPS.find((s) => s.label === 'mezzo forte').value;
     // #661 (Han 2026-08-02, "melodische percussie … hardcoded timpani enkel in levels"): the app's normal
     // `instruments.percussion` slot is ALWAYS an unpitched DrumMachine/Sampler/GM-drum-kit
     // (useInstruments.js) — it structurally cannot play the pitched timpani pattern, and Han explicitly
@@ -1080,7 +1086,7 @@ const App = () => {
         const metronomeStart = contentStart - barSec;           // measure 0
         const leadInBars = Math.max(1, Math.round((bos * beatSec) / barSec));   // 2 for today's levels
 
-        setVolume('bass', LEVEL_BACKING_VOLUME);
+        setVolume('bass', LEVEL_BASS_VOLUME);
         setVolume('metronome', LEVEL_BACKING_VOLUME);
 
         // Timpani (both levels) + Level 2's fixed C2 cello — both Han-authorized hardcoded patterns with
@@ -1133,7 +1139,7 @@ const App = () => {
         // melodies is a memoised object (useMelodyState) — safe as a dep; bassSettings.instrument is the
         // real gate (waits for the cello swap), so this effect is a no-op until everything lines up.
     }, [level.active, level.current, levelAudioStart, context, instruments, bassSettings.instrument,
-        bassSettings.fixedWholeNote, melodies, setVolume, LEVEL_BACKING_VOLUME, percussionSettings?.melodic, timeSignature]);
+        bassSettings.fixedWholeNote, melodies, setVolume, LEVEL_BACKING_VOLUME, LEVEL_BASS_VOLUME, percussionSettings?.melodic, timeSignature]);
     const startLevel = useCallback((n) => {
         const lvl = LEVELS[n] || LEVELS[1];
         context.resume?.();

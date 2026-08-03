@@ -7,6 +7,13 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-03 — ✅ Test: cello backing volume naar mezzo-forte
+
+Han: "zet de cello op mf, om te testen" — vervolg op de onopgeloste "cello
+niet hoorbaar"-bevinding (§103). Nieuwe `LEVEL_BASS_VOLUME` (mf=0.8) apart van
+`LEVEL_BACKING_VOLUME` (mp=0.6, blijft voor metronoom/pauken). architecture.md
+§105.
+
 ## 2026-08-03 — 🐞✅ Bug: snelle noten na elkaar in Level 1 worden genegeerd
 
 Han: "in level 1 merk ik dat als ik 'te snel achter elkaar' noten aansla, dan
