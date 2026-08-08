@@ -42,6 +42,17 @@ const useInstruments = (context) => {
   const [manualPercussion, setManualPercussion] = useState(null);
   const [manualMetronome, setManualMetronome] = useState(null);
 
+  // #663 (Han 2026-08-03 bug: "cello niet hoorbaar"): the instrument SLOT (`bass`/etc. state
+  // above) and the SETTINGS (`bassSettings.instrument`) update in DIFFERENT React commits —
+  // `setBassSettings('cello')` commits first; `updateInstrument` below reacts to that in ITS
+  // OWN effect and only THEN calls `setBass(newInst)`, one commit later. A caller gating on
+  // `bassSettings.instrument === 'cello'` can catch the FIRST commit, where `bass` is still the
+  // PREVIOUS (stale) instrument — exactly the race that silently scheduled Level 2's cello
+  // through the wrong/old instrument. `loadedSlug` is written in the SAME effect, SAME
+  // synchronous call, right where the instance setter fires — so `loadedSlug.bass === 'cello'`
+  // is only ever true in the SAME commit where `bass` is truly the rebuilt cello instance.
+  const [loadedSlug, setLoadedSlug] = useState({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
+
   useEffect(() => {
     if (!context) return;
 
@@ -124,6 +135,7 @@ const useInstruments = (context) => {
       manualInstancesRef.current[type] = newManualInst;
       setter(newInst);
       if (manualSetter) manualSetter(newManualInst);
+      setLoadedSlug((prev) => ({ ...prev, [type]: settings.instrument }));
     };
 
     updateInstrument('treble', trebleSettings, setTreble, setManualTreble, Reverb, 0.1);
@@ -155,6 +167,7 @@ const useInstruments = (context) => {
 
   return {
     instruments: { treble, bass, percussion, metronome, chords },
+    loadedSlug,
     manualInstruments: { treble: manualTreble, bass: manualBass, percussion: manualPercussion, metronome: manualMetronome },
     settings: {
       treble: [trebleSettings, setTrebleSettings],

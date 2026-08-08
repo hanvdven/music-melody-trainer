@@ -19,7 +19,13 @@ export const PET_CROP = { x: 3, y: 2, w: 26, h: 28 };
 const REF_FRAME = { w: 40, h: 56 };
 const REF_FRAME_X = (BODY_FRAME.w - REF_FRAME.w) / 2;
 const REF_FRAME_Y = BODY_FRAME.h - REF_FRAME.h;
-const CHAR_DY = 1, PET_DY = 2;
+// #693 round 12 (Han: "mijn character anchor is 1px lower than the others, e.g. pet, tent, grass, sprite,
+// tree — both in the bestiary and in the level"): CHAR_DY/PET_DY's shared +1 nudge (round 10) was tuned
+// back when there was no single global ground-anchor convention — now that `worldAnchor.js`'s
+// `GROUND_ANCHOR_PX` anchors every sprite consistently, this leftover nudge just pushes the hero (and its
+// glued-on pet layer) 1px BELOW everything else instead of matching it. Zeroed out — the doll now sits
+// flush with its own frame, same as every other sprite.
+const CHAR_DY = 0, PET_DY = 0;
 const PET_OFFSET = { x: 40, y: 31 };
 const EFFECT_COLS = 5;              // frames in the effect row-0 loop
 const PET_IDLE = 5, PET_RUN = 6;    // pet sheets are 6×2 (row 0 idle 5, row 1 run 6); wisp has no run row

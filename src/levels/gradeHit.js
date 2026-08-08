@@ -44,6 +44,8 @@ export const GRADE_LABELS = {
     wrongUncorrected: 'never fixed',
     extraNote: 'extra note',
     missed: 'missed',
+    // #693 round 8 (Han: critters under rests — an accidental note during a rest kills the critter there).
+    critterKilled: 'critter hit',
 };
 
 // Canonical LOGICAL timing-axis order (Han 2026-08-02: "much too early - too early - perfect - too late -

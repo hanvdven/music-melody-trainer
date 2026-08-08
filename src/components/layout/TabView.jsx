@@ -12,6 +12,10 @@ import ChordGrid from '../controls/ChordGrid';
 import { getNoteValue, getNoteFromValue } from '../../utils/rangeUtils';
 import ProfileTab from '../profile/ProfileTab';
 import SongsTab from '../songs/SongsTab';
+import CharacterOptionsPanel from '../character/CharacterOptionsPanel';
+import { BestiaryBottomPanel } from '../character/BestiaryPanels';
+import RpgLevelBottomPanel from '../character/RpgLevelBottomPanel';
+import { StatsBottomPanel } from '../character/CharacterStatsPanels';
 import InstrumentRow from '../controls/rows/InstrumentRow';
 import ErrorBoundary from '../error/ErrorBoundary';
 import { SectionHeader, ColumnHeaders } from '../controls/PlaybackSubComponents';
@@ -29,6 +33,13 @@ import { useRoundState } from '../../contexts/RoundStateContext';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const TabView = ({
+    // #667 (Han 2026-08-03): avatar-context's BOTTOM content (item options/colours, or the bestiary
+    // picker) — overrides whatever activeTab is selected, same as avatar-context overrides the top
+    // sheet-music slot in App.jsx. null outside avatar-context.
+    characterScreen,
+    characterEditor,
+    bestiaryEditor,
+    rpgLevel,
     activeTab,
     // Sheet music
     sheetMusicCommonProps,
@@ -138,6 +149,19 @@ const TabView = ({
     };
     const trebleDisp = displayRange(trebleSettings?.range?.min, trebleSettings?.range?.max);
     const bassDisp = displayRange(bassSettings?.range?.min, bassSettings?.range?.max);
+
+    if (characterScreen) {
+        return (
+            <div className="app-content-area">
+                {(characterScreen === 'character' || characterScreen === 'equipment') && (
+                    <CharacterOptionsPanel editor={characterEditor} debugMode={debugMode} />
+                )}
+                {characterScreen === 'stats' && <StatsBottomPanel />}
+                {characterScreen === 'bestiary' && <BestiaryBottomPanel editor={bestiaryEditor} />}
+                {characterScreen === 'rpg-level' && <RpgLevelBottomPanel rpgLevel={rpgLevel} />}
+            </div>
+        );
+    }
 
     return (
         <div className="app-content-area">

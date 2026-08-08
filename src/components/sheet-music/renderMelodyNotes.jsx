@@ -212,8 +212,10 @@ const percColorMapFor = (mode) => (
 // durationDotMap / durationFlagMapDown / durationFlagMapUp now imported from staffNoteGlyph
 // (single source — §6c/§6d).
 
-// Rests
-const restMap = {
+// Rests. Exported (§6c/§6d — single source) so callers that need a bare rest glyph outside the normal
+// note-rendering loop (e.g. SheetRpgLayer's Level 9 call-measure overlay, §686) reuse the same glyphs
+// instead of hand-rolling Maestro rest characters.
+export const restMap = {
   72: '·k',
   48: '·',
   42: 'îkk',
@@ -363,6 +365,26 @@ const renderMelodyNotes = (
       return idx >= 0 ? startX + (idx - 1) * noteWidth : startX;
     };
 
+  // #693 (Han: "als de hele maat een rust is, mogen ze gecentreerd in de maat staan") — the
+  // pixel midpoint between a whole-measure rest's own barline and the NEXT barline. Tick mode has
+  // an exact linear tick→pixel scale, so the midpoint tick converts directly. Pagination/slot-index
+  // mode has no such fixed scale (spacing is elastic between 'm'/'g' markers), so instead find the
+  // 'm' markers bounding this offset in `allOffsets` and average their own pixel positions.
+  const getWholeMeasureRestCenterX = (offset, measureLenSlots) => {
+    if (pixelsPerTick !== null) {
+      const measureStart = Math.floor(offset / measureLenSlots) * measureLenSlots;
+      return startX + (measureStart + measureLenSlots / 2) * pixelsPerTick;
+    }
+    const myIdx = allOffsets.indexOf(offset);
+    if (myIdx < 0) return getTickX(offset);
+    let leftIdx = myIdx;
+    while (leftIdx > 0 && allOffsets[leftIdx] !== 'm') leftIdx--;
+    let rightIdx = myIdx + 1;
+    while (rightIdx < allOffsets.length - 1 && allOffsets[rightIdx] !== 'm') rightIdx++;
+    const leftX = startX + (leftIdx - 1) * noteWidth;
+    const rightX = startX + (rightIdx - 1) * noteWidth;
+    return (leftX + rightX) / 2;
+  };
 
   const getTargetBounds = () => {
     if (staff === 'percussion') return { minY: -50, maxY: 150 };
@@ -1037,14 +1059,24 @@ const renderMelodyNotes = (
     const restY = staffYStart + 24;
 
     if (note === 'r') {
+      // #693 (Han 2026-08-04, "als de hele maat een rust is, mogen ze gecentreerd in de maat
+      // staan"): a rest that fills the ENTIRE measure (duration === measureLengthSlots) is
+      // horizontally centered between that measure's two barlines, instead of left-anchored at
+      // its offset like every partial-measure rest. Applies everywhere renderMelodyNotes draws a
+      // rest, not just Level 9 — a lone whole-rest measure reads better centered regardless of
+      // context.
+      const restX = (duration === measureLengthSlots)
+        ? getWholeMeasureRestCenterX(absoluteOffset, measureLengthSlots)
+        : positionX;
       return (
         <g key={index} {...(!previewMode ? { 'data-measure-index': measureIndex, 'data-local-slot': localSlot, 'data-mel': staff, 'data-duration': duration } : {})}>
           <text
-            x={positionX}
+            x={restX}
             y={restY}
             fontSize="36"
             fill={previewColor ?? 'var(--text-primary)'}
             fontFamily="Maestro"
+            textAnchor={duration === measureLengthSlots ? 'middle' : 'start'}
           >
             {restMap[duration]}
           </text>

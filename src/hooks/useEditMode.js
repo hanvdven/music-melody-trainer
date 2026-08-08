@@ -182,6 +182,22 @@ export default function useEditMode({
         setClefEditMode(true);
     }, [handleStopAllPlayback]);
 
+    // #667 (Han 2026-08-03): avatar-context (the character/equipment/bestiary screens replacing the old
+    // popup) is a sibling of all the above and fully mutually exclusive with them — entering it must close
+    // whichever of these was open, same as every other toggle above closes its siblings. Avatar-context
+    // itself hides the SubHeader row these all live on, so the reverse direction can't be triggered by the
+    // user (there's nothing to click) and needs no handling here.
+    const closeAllEditModes = useCallback(() => {
+        setRangeEditMode(false);
+        setClefEditMode(false);
+        setColorEditMode(false);
+        setInstrumentEditMode(false);
+        setPlaybackEditMode(false);
+        setGenerationEditMode(false);
+        setGenerationAdvancedEditMode(false);
+        setExerciseEditMode(false);
+    }, []);
+
     return {
         // flags
         rangeEditMode,
@@ -207,5 +223,6 @@ export default function useEditMode({
         handleCloseRangeEdit,
         handleCloseClefEdit,
         handleOpenClefEdit,
+        closeAllEditModes,
     };
 }

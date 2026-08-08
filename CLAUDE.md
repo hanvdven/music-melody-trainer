@@ -403,8 +403,15 @@ logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
 - **E018-INVALID-SLOTS** — invalid numberOfSlotsPerMeasure in generateRankedRhythm (generateRankedRhythm.js)
 - **E019-TONIC-NOT-FOUND** — tonic note not found in notes array (PianoView.jsx)
 - **E020-JIT-GENERATE** — pagination JIT melody generation threw during deadline OR arm-time fallback (Sequencer.js)
+- **E021-FOLIAGE-SHADER-COMPILE** — tree/grass shimmer shader failed to compile/link (ForegroundFoliageLayer.jsx)
+- **E022-FOLIAGE-TEXTURE-LOAD** — a foliage-layer diffuse/normal texture image failed to load; that instance
+  is skipped rather than crashing the shared render loop (ForegroundFoliageLayer.jsx)
+- **E023-FOLIAGE-DRAW-FRAME** — an unexpected error during one WebGL foliage-layer frame; caught so the
+  render loop always reschedules its next frame instead of permanently dying (ForegroundFoliageLayer.jsx)
+- **E024-INSTRUMENT-LOAD-WAIT** — waiting on `Promise.all` of the initial smplr instruments' own `.load`
+  promises (app-wide boot splash gate) rejected (App.jsx)
 
-When you add a new `logger.error` call, allocate a new code (e.g. `E021-NEW-FAILURE`) and add it to this list.
+When you add a new `logger.error` call, allocate a new code (e.g. `E025-NEW-FAILURE`) and add it to this list.
 
 ### Error Boundaries
 The root `<ErrorBoundary boundary="root">` in `src/main.jsx` catches anything React renders that throws. For tab content or large isolated UI sections, wrap them in their own ErrorBoundary with a descriptive `boundary` name (e.g. `boundary="sheet-music"`, `boundary="chords-tab"`) so a failure in one area doesn't blank out the whole app and so logs identify which area failed.

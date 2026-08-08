@@ -9,7 +9,6 @@ import { useUniversalTransitionKey } from '../../contexts/UniversalTransitionCon
 import RandomizeIcon from '../common/RandomizeIcon';
 import { processMelodyAndCalculateSlots } from './processMelodyAndCalculateSlots';
 import buildTimpaniPattern from '../../utils/timpaniPattern';
-import buildCelloWholeNotePattern from '../../utils/celloWholeNotePattern';
 import OttavaMarker from './OttavaMarker';
 import SettingsOverlay, { VOL_STEPS } from './overlays/SettingsOverlay';
 import RangeStaffOverlay from './overlays/RangeStaffOverlay';
@@ -45,7 +44,7 @@ import { getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import { getBeatDurationTicks } from '../../theory/rhythmicSolfege';
 
 import { getTempoTerm, tempoTerms } from '../../utils/tempo';
-import { TICKS_PER_WHOLE } from '../../constants/timing.js';
+import { TICKS_PER_WHOLE, LEVEL_LEAD_IN_BARS } from '../../constants/timing.js';
 import { PRESET_RANGES as CLEF_RANGE_PRESET_RANGES } from '../../constants/ranges';
 import { TRANSPOSING_INSTRUMENTS, getTranspositionSemitones, getTranspositionInstLabel, getTranspositionFifths } from '../../constants/transposingInstruments';
 import { sliceMelodyByMeasure, sliceChordsForMeasure, sliceToMelodyLike, sliceMelodyByRange, sliceChordsByRange, melodyMeasureSpan } from '../../utils/melodySlice';
@@ -156,11 +155,8 @@ const DOTTED_DURATIONS = new Set([9, 18, 21, 36, 42, 72]);
 // `[]` on each render and can hit its cache.
 const EMPTY_SCALE_NOTES = Object.freeze([]);
 
-// #661 (Han 2026-08-02): the side-scroll levels' audible lead-in (App.jsx's scheduleLevelBacking: cello +
-// timpani start at measure -1, metronome joins at measure 0) is 2 bars — this MUST match
-// `beatsOnScreen / barBeats` there (today's levels: beatsOnScreen=8, 4/4 → 2 bars). Used to prepend that
-// many synthetic barlines to the scrolling staff so measures -1/0 also draw a moving line + number.
-const LEVEL_LEAD_IN_BARS = 2;
+// #663: LEVEL_LEAD_IN_BARS now lives in constants/timing.js — it's shared with App.jsx's
+// useLevelBackingStream (the JIT chunk size), not just this file's barline-prepend usage.
 
 const melodyToTaggedOffsets = (melody, accidentals) => {
   if (!melody || !melody.offsets) return [];
@@ -198,14 +194,41 @@ const SheetMusic = ({
   onOpenCharacter,                  // #647 — clicking the sheet-music hero opens the character menu
   combatNote,                       // #647 combat — the last played note {note, nonce} (any input source)
   onSlimesCleared,                  // #647 combat — all slimes killed → regenerate the melody
+  onSongEnd,                        // #688 — the final barline visually crossed the strike line
   onCombatHit,                      // #659 level — a played note killed the leftmost slime
   onCombatMiss,                     // #659 level — a played note missed (for accuracy stats)
+  onCritterKilled,                  // #693 round 8 — an accidental note struck a critter under a rest
+  onEnemyTotal,                     // #693 round 8 — reports the level's total slime/enemy count
+  onCritterTotal,                   // #693 round 8 — reports the level's total critter (rest) count
   sideScroll = false,               // #660 Level 2 — slimes fly in from the right toward a hit-zone
   levelAudioStart = null,           // §88 — audio-time (s) the level backing started; scroll anchors to it
   // #662 (Han 2026-08-02, "slimes mogen alleen zichtbaar zijn TIJDENS een level"): distinct from
   // `sideScroll` — Level 1 is a level too but is NOT sideScroll (static idle slimes). Gates whether
   // SheetRpgLayer is handed any treble melody at all, so slimes are never generated outside a level.
   levelActive = false,
+  // Bug fix (Han 2026-08-06, "ik zie noten van de basismelodie" — the pre-level melody flashed through
+  // on level start): `level.active` flips synchronously in `startLevel`, but the level's OWN treble
+  // melody is only built by a `requestAnimationFrame`-deferred `randomizeAll()` call (App.jsx's
+  // `levelRegenerate`, needed so the just-applied level settings have flushed to refs first — see its
+  // own comment). That left a real render frame where `levelActive` was already true but
+  // `adjustedTrebleMelody` was still whatever melody was loaded before the level started. Defaults to
+  // true so normal (non-level) callers are unaffected; App.jsx flips it false for the span between
+  // requesting a (re)generation and that generation actually landing.
+  levelMelodyReady = true,
+  // #679 (Han 2026-08-03, Level 9: "zet rechts de wizard tegenover de avatar... ipv slimes, gebruik cast
+  // 2"): which enemy SheetRpgLayer renders — "Slime" (default, every level 1-8) or "Wizard" (Level 9's
+  // static caster + linear projectiles instead of hopping slimes). Read straight from the level config
+  // (levels.json `enemyType`), NOT hardcoded here (§6c) — a future Level 10 with yet another enemyType
+  // needs no SheetMusic.jsx change, only a new branch inside SheetRpgLayer.
+  enemyType = 'Slime',
+  // #686 (Han 2026-08-04, Level 9 call-response: "spawnt exact 1 of 2 maten voordat ze gespeeld moeten
+  // worden"): how many measures ahead of its response beat a Wizard projectile becomes VISIBLE (the
+  // underlying flight itself keeps using `beatsOnScreen`, unchanged — see SheetRpgLayer's own comment).
+  // Read from levels.json (`wizardSpawnLeadMeasures`), not hardcoded — configurable per level (§6c).
+  wizardSpawnLeadMeasures = 1,
+  // Level 11 (Han 2026-08-06): pass-through to SheetRpgLayer's decorative green wizard — see its own
+  // comment for the full rationale. Read from levels.json (`decorativeWizard`).
+  decorativeWizard = false,
   // #662 (Han: "avatar... nooit tijdens de settings view actief" — the app-wide Settings TAB, which in
   // dual-view desktop layout stays mounted alongside the sheet music). Hides only the hero doll; slimes
   // are already gated off by `levelActive` above.
@@ -941,8 +964,18 @@ const SheetMusic = ({
   // is changed while a melody with a different length is active.
   const localMeasureStart = startMeasureIndex % (melodyMeasureCount || 1);
 
+  // #693 (Han 2026-08-04, round 5 root cause): side-scroll levels (Level 9) render their notation
+  // through SheetRpgLayer's scrollNotation, which needs the melody's TRUE absolute offsets/measure
+  // numbers — its odd/even override (`isOddMeasure`) computes measure parity straight from
+  // `offset / measureLengthSlots`. Pagination windowing rebases offsets to 0 for whatever page is
+  // "in view" (tracked via `startMeasureIndex`, which keeps advancing during play), so as soon as
+  // the level's `startMeasureIndex` moved past measure 1 the RPG layer was handed a REBASED slice
+  // starting at measure 2's content with its offset renumbered to 0 — read by `isOddMeasure` as
+  // "measure 1" and shown as real notes, while the true (forced-rest) measure 1 vanished entirely.
+  // The static paginated block view is unconditionally hidden during sideScroll (`actualTreble &&
+  // !sideScroll` above) so nothing else depends on this slice while side-scrolling — bypass it.
   const sliceMelodyForPagination = (melody) => {
-    if (!melody || animationMode !== 'pagination' || !musicalBlocks) return melody;
+    if (!melody || sideScroll || animationMode !== 'pagination' || !musicalBlocks) return melody;
     return sliceMelodyByRange(melody, measureLengthSlots, displayNumMeasures, localMeasureStart);
   };
 
@@ -1042,14 +1075,13 @@ const SheetMusic = ({
   // matches its melody: `spansLeadIn: true` tells it to origin this staff `leadInTicks` earlier than
   // viewRight, so a lead-in pattern's own tick 0 lands exactly where the barlines' "-1" now also sits
   // (same file, scrollBarlines' `leadInTicks`) instead of overlapping treble's real-content arrival.
-  // Level 8's REAL bass has no fixed lead-in pattern to show — it stays on the treble-matching zero-point
-  // (`spansLeadIn: false`), silent during -1/0 simply because its own tick 0 (measure 1) hasn't scrolled
-  // into view yet, exactly like treble.
+  // #663 (Han 2026-08-03, "geen hardcoded oplossingen, gebruik de generator"): bass is now ALWAYS the
+  // real generated melody — `bassMelody` prop is already the level's JIT-generated backing stream
+  // (App.jsx's useLevelBackingStream) when a side-scroll level is active, spanning -1..numMeasures like
+  // any other chunk-generated content, so no per-level pattern branch is needed here any more.
   const levelTotalMeasures = LEVEL_LEAD_IN_BARS + numMeasures;
   const leadInTicks = LEVEL_LEAD_IN_BARS * measureLengthSlots;
-  const scrollBassMelody = bassSettings?.fixedWholeNote
-    ? buildCelloWholeNotePattern(levelTotalMeasures, timeSignature)
-    : adjustedBassMelody;
+  const scrollBassMelody = adjustedBassMelody;
   const scrollPercussionMelody = percussionSettings?.melodic
     ? buildTimpaniPattern(levelTotalMeasures, timeSignature)
     : adjustedPercussionMelody;
@@ -2830,13 +2862,16 @@ const SheetMusic = ({
                       so the moving notes get proper duration heads, rests, colouring, beams, animated barlines
                       + measure numbers. Both null outside side-scroll → zero overhead in normal render. */}
                   <SheetRpgLayer
-                    trebleMelody={levelActive && isTrebleVisible && actualTreble ? adjustedTrebleMelody : null}
+                    trebleMelody={levelActive && levelMelodyReady && isTrebleVisible && actualTreble ? adjustedTrebleMelody : null}
                     startX={startX}
                     pixelsPerTick={ppt}
                     allOffsets={allOffsets}
                     noteWidth={noteWidth}
                     bpm={bpm}
                     sideScroll={sideScroll}
+                    enemyType={enemyType}
+                    wizardSpawnLeadMeasures={wizardSpawnLeadMeasures}
+                    decorativeWizard={decorativeWizard}
                     hideHero={hideHero}
                     viewRight={logicalScreenWidth - 5}
                     clef={clefTreble}
@@ -2850,8 +2885,12 @@ const SheetMusic = ({
                     percussionStart={percussionStart}
                     onOpenCharacter={onOpenCharacter}
                     onSlimesCleared={onSlimesCleared}
+                    onSongEnd={onSongEnd}
                     onHit={onCombatHit}
                     onMiss={onCombatMiss}
+                    onCritterKilled={onCritterKilled}
+                    onEnemyTotal={onEnemyTotal}
+                    onCritterTotal={onCritterTotal}
                     combatNote={combatNote}
                     debugMode={debugMode}
                     context={context}
@@ -2876,9 +2915,10 @@ const SheetMusic = ({
                     // null when not visible (mirrors isTrebleVisible && actualTreble on trebleMelody).
                     scrollNotationBass={sideScroll && isBassVisible && actualBass ? {
                       melody: scrollBassMelody,
-                      // #662: this staff's tick 0 = measure -1's start (a lead-in pattern) when true, else
-                      // measure 1's start (the real melody, same zero-point treble uses) — see SheetRpgLayer.
-                      spansLeadIn: !!bassSettings?.fixedWholeNote,
+                      // #663: bass is now ALWAYS JIT-generated starting at measure -1 (chunk 0 of
+                      // useLevelBackingStream) for every side-scroll level — this staff's tick 0 is
+                      // always the lead-in's start (unconditionally true, mirrors percussion below).
+                      spansLeadIn: true,
                       leadInTicks,
                       numAccidentals: bassWrittenAccidentals,
                       noteGroupSize,

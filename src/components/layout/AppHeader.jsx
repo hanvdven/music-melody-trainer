@@ -4,9 +4,6 @@ import {
     Square,
     Cog,
     Repeat1,
-    MicOff,
-    Piano,
-    Mic,
     SkipBack,
     SkipForward,
     Bug,
@@ -15,6 +12,9 @@ import {
     Maximize,
     Minimize,
     Swords,
+    Pause,
+    User,
+    Music2,
 } from 'lucide-react';
 import './AppHeader.css';
 import { formatScaleName } from '../../theory/scaleHandler';
@@ -24,20 +24,15 @@ const AppHeader = ({
     scale,
     displayTonic = null,        // written tonic when global transposition is active (item 5)
     globalInstLabel = null,     // "(B♭ instrument)" line under the title when global-transposed
-    isInputTestMode,
-    inputTestSubMode = 'step',
-    setInputTestSubMode,
     isPlayingMelody,
     handlePlayMelody,
     handlePlayRepeat,
-    handleToggleInputTest,
     isPlayingContinuously,
     handlePlayContinuously,
     customScaleLabel,
     headerPlayMode,
     setHeaderPlayMode,
     windowWidth,
-    setActiveTab,
     handleSkipBack,
     handleSkipForward,
     canSkipBack,
@@ -52,34 +47,28 @@ const AppHeader = ({
     // opens the LevelStartSplash (a tanh-fan carousel picks the level number, then a Start button
     // begins it — App.jsx owns that flow via `startLevel`). This header button only OPENS the picker.
     onOpenLevelPicker = null,
+    // #693 (Han 2026-08-04, "de stop button... zou de 'start level' button moeten vervangen in de
+    // header wanneer een level actief is. maak het een 'pause' button"): while a level is active this
+    // SAME button slot shows a Pause icon and opens the resume/quit popup instead of the level picker.
+    levelActive = false,
+    onPauseLevel = null,
     onScaleClick = null,
     isScalePlaying = false,
     progressionLabel = null,
     songTitle = null,
     onStartExercise = null,     // #266 rework 2 (Han 2026-07-02): START always in the header
+    // #667 (Han 2026-08-03): "zet een 'bladmuziek icoon' in de header rij, afwisselend met het 'character
+    // icoon'" — the header button that opens/closes avatar-context (replaces #645's removed button; that
+    // removal assumed the hero-sprite click would be the ONLY entry point, but avatar-context now REPLACES
+    // the sheet-music area, so the hero itself is invisible while it's open — this is the way back out).
+    characterScreen = null,
+    onToggleCharacterView = null,
 }) => {
     const headerScale = windowWidth >= 550 ? 1 : Math.max(0.5, windowWidth / 550);
 
     return (
         <div className="app-header">
             <div className="app-header-left">
-                {/* Unified Input Mode Cycler */}
-                <button
-                    className={`tab-button secondary app-header-btn ${inputTestSubMode !== 'none' ? 'active' : ''}`}
-                    onClick={() => {
-                        const nextModes = { 'none': 'note', 'note': 'live', 'live': 'none' };
-                        const next = nextModes[inputTestSubMode || 'none'];
-                        setInputTestSubMode(next);
-                        if (next === 'live') setActiveTab?.('listen');
-                        if (next === 'none' && isInputTestMode) handleToggleInputTest();
-                        else if (next !== 'none' && !isInputTestMode) handleToggleInputTest();
-                    }}
-                    style={{ color: inputTestSubMode !== 'none' ? 'var(--accent-yellow)' : 'var(--text-secondary)', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
-                >
-                    {inputTestSubMode === 'none' ? <MicOff size={22} /> :
-                        inputTestSubMode === 'note' ? <Piano size={22} /> : <Mic size={22} />}
-                </button>
-
                 {/* (Legacy SETTINGS toggle removed 2026-07-20 — replaced by the PLAYBACK setter +
                     the moved adjustment carousels in the COLOUR setter.) */}
 
@@ -95,12 +84,34 @@ const AppHeader = ({
                     </button>
                 )}
 
-                {/* #645 character-creator button removed (Han 2026-08-01): the sheet-music hero is now the
-                    entry point — clicking it opens the character menu (see SheetRpgLayer / #647). */}
+                {/* #667 (Han 2026-08-03): the hero-sprite click still OPENS avatar-context (SheetRpgLayer /
+                    #647), but the sheet-music area it replaces has no hero to click to get back — this
+                    button is the only way out, so the icon alternates to show which way it currently goes. */}
+                {onToggleCharacterView && (
+                    <button
+                        className={`tab-button secondary app-header-btn ${characterScreen ? 'active' : ''}`}
+                        onClick={onToggleCharacterView}
+                        title={characterScreen ? 'Back to sheet music' : 'Open character menu'}
+                        style={{ color: characterScreen ? 'var(--accent-yellow)' : 'var(--text-secondary)', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
+                    >
+                        {characterScreen ? <Music2 size={22} /> : <User size={22} />}
+                    </button>
+                )}
 
                 {/* #661 (Han 2026-08-02): ONE "Start Level" button opens the LevelStartSplash — the tanh
-                    carousel there picks 1/2/3, replacing the old 3 separate per-level buttons. */}
-                {onOpenLevelPicker && (
+                    carousel there picks 1/2/3, replacing the old 3 separate per-level buttons.
+                    #693 (round 7): while a level is active, the SAME slot becomes a Pause button
+                    (opens the resume/quit popup) — no more separate floating "■ Stop" button. */}
+                {levelActive ? (
+                    <button
+                        className="tab-button secondary app-header-btn active"
+                        onClick={onPauseLevel}
+                        title="Pause level"
+                        style={{ color: 'var(--accent-yellow)', display: 'flex', alignItems: 'center', gap: '1px', transform: `scale(${headerScale})`, transformOrigin: 'center', outline: debugMode ? '2px solid cyan' : undefined }}
+                    >
+                        <Pause size={18} />
+                    </button>
+                ) : onOpenLevelPicker && (
                     <button
                         className="tab-button secondary app-header-btn"
                         onClick={onOpenLevelPicker}

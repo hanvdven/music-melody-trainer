@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { LEVEL1, wavesForLevel, trebleOnlyEyes, threeLineEyes } from '../levels/levels';
+import { LEVEL1, wavesForLevel, trebleOnlyEyes, threeLineEyes, LEVEL_BASS_SIMPLE, LEVEL_BASS_DEFAULT } from '../levels/levels';
+import { DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE } from '../constants/generatorDefaults';
 
 // #659/#660 Level orchestration. Applies a level's config (snapshotting the prior config to restore on
 // close), accumulates combat stats (defeated / misses / longest streak), counts cleared waves, and flags
@@ -22,7 +23,27 @@ const emptyStats = () => ({
     defeated: 0, misses: 0, currentStreak: 0, longestStreak: 0, points: 0,
     perfect: 0, tooFast: 0, tooSlow: 0, muchTooFast: 0, muchTooSlow: 0,
     secondAttemptCorrected: 0, wrongUncorrected: 0, missed: 0, extraNote: 0,
+    // #693 round 8 (Han: "critters killed" → later reframed as the positive "critters saved y/m"):
+    // `critterKilled` is the raw running count; the splash derives `saved = totalCritters - critterKilled`.
+    critterKilled: 0,
 });
+
+// Level editor (Han 2026-08-06): per-track notation visibility, shared by applyConfig's initial
+// application and the live debug-mode-toggle effect below. Starts from the existing
+// debugOnlyLines-derived default, then lets `tracks.<name>.visible` override any ONE track explicitly
+// (e.g. force bass visible on an otherwise debug-gated level) — §6c: one shared computation, not two
+// copies that could drift.
+const computeEyes = (lvl, debugMode) => {
+    const base = lvl.debugOnlyLines
+        ? (debugMode ? threeLineEyes({}, true) : trebleOnlyEyes({}, false))
+        : threeLineEyes({}, true);
+    return {
+        ...base,
+        ...(lvl.tracks?.treble?.visible != null ? { trebleEye: lvl.tracks.treble.visible } : {}),
+        ...(lvl.tracks?.bass?.visible != null ? { bassEye: lvl.tracks.bass.visible } : {}),
+        ...(lvl.tracks?.percussion?.visible != null ? { percussionEye: lvl.tracks.percussion.visible } : {}),
+    };
+};
 
 // `setters` — the app state setters the level drives. `snapshot()` returns the current config to restore.
 // `regenerate()` builds a fresh melody (a new wave) from the CURRENT settings (call AFTER applying config).
@@ -35,6 +56,10 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
     const [wave, setWave] = useState(0);
     const [done, setDone] = useState(false);
     const [stats, setStats] = useState(emptyStats);
+    // #693 round 8 ("enemies vanquished x/n" / "critters saved y/m"): the TOTAL denominators, reported up
+    // from SheetRpgLayer (onEnemyTotal/onCritterTotal) as the melody's slime/critter counts become known.
+    const [totalEnemies, setTotalEnemies] = useState(0);
+    const [totalCritters, setTotalCritters] = useState(0);
     const snapRef = useRef(null);
     const activeRef = useRef(false); activeRef.current = active;
     const currentRef = useRef(current); currentRef.current = current;
@@ -44,7 +69,40 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
     const applyConfig = useCallback((lvl) => {
         setters.setNumMeasures(lvl.numMeasures);
         setters.setStartMeasureIndex?.(0);           // a new level restarts the measure numbering from 1
-        if (lvl.bpm) setters.setBpm?.(lvl.bpm);
+        // Bug fix (Han 2026-08-06, "na wijzigen instellingen gaan de basislevels slecht... ik zet de
+        // tonic op Gb, en wil dan level 2 spelen. Die heeft nog allemaal voortekens staan, en genereert
+        // helemaal niet vanuit C-majeur"): bpm/timeSignature/key used to only apply when the LEVEL itself
+        // declared them (`if (lvl.bpm) ...`) — for the original levels 1-9 (bpm always set, but no
+        // `key`/`timeSignature` field at all), that silently meant "whatever tonic/mode/meter the app's
+        // AMBIENT state happened to be in" — which was harmless only by accident, as long as nobody
+        // changed the ambient tonic before playing. Once per-level `key` became a real feature (§168) and
+        // Han started actually changing the ambient tonic between sessions, every level WITHOUT its own
+        // `key` inherited a random leftover tonic instead of the C-major every one of them was actually
+        // authored/tuned against — wrong accidentals, wrong-key generation, and (per the linked bug
+        // report) inconsistent slime timing/positions once the generated content stopped matching what
+        // the rest of the pipeline expected. Han's own preferred fix ("een lijst defaults 'if none
+        // provided', C majeur 4/4 etc."): every level now gets bpm/timeSignature/key applied
+        // UNCONDITIONALLY, falling back to the app's own DEFAULT_BPM/DEFAULT_TIME_SIG/DEFAULT_SCALE_TONIC/
+        // DEFAULT_SCALE_MODE (src/constants/generatorDefaults.js — the SAME defaults the app's own
+        // initial state already uses, §6c, not new hardcoded literals) when the level doesn't specify its
+        // own. A level therefore ALWAYS starts from a fully deterministic, known state regardless of
+        // whatever the app was doing right before — never "whatever was ambient."
+        setters.setBpm?.(lvl.bpm ?? DEFAULT_BPM);
+        setters.setTimeSignature?.(lvl.timeSignature ?? DEFAULT_TIME_SIG);
+        // Applied BEFORE setTrebleSettings/setBassSettings below so the level's own explicit `range`/
+        // `clef` (fixed, not tonic-relative) is what's actually left in effect — setTonic's own
+        // tonic-relative range sync only fires for a RELATIVE rangeMode, but ordering it first keeps this
+        // correct regardless. `restore()` reverts tonic/mode from the level's own start-of-session
+        // snapshot (see App.jsx's `levelSnapshot`), exactly like every other level-applied field.
+        setters.setSelectedMode?.(lvl.key?.mode ?? DEFAULT_SCALE_MODE);
+        setters.setTonic?.(lvl.key?.tonic ?? DEFAULT_SCALE_TONIC, true);   // true = manual override, no auto-respell
+        // Level editor (Han 2026-08-06, "theme = app kleurenschema"): forces the app's global colour
+        // theme for the level's duration, reverted on close (same pattern as `key` above).
+        if (lvl.theme) setters.setTheme?.(lvl.theme);
+        // `volume`/`visible` are level-editor-only convenience fields (read separately by
+        // resolveLevelVolume/computeEyes), NOT InstrumentSettings fields — stripped before spreading
+        // onto trebleSettings so they don't leave a stray unused property behind.
+        const { volume: _trebleVolume, visible: _trebleVisible, ...trebleGenOverride } = lvl.tracks?.treble ?? {};
         setters.setTrebleSettings((prev) => ({
             ...prev, notesPerMeasure: lvl.notesPerMeasure, rhythmVariability: lvl.variability,
             range: lvl.range, rangeMode: 'fixed',
@@ -57,23 +115,75 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
             smallestNoteDenom: lvl.smallestNoteDenom ?? 8,
             insertBeatRests: !!lvl.insertBeatRests,
             polyMultiplier: lvl.polyMultiplier ?? 1,
+            // Level editor (Han 2026-08-06): `tracks.treble` (any InstrumentSettings-shaped fields —
+            // notePool/randomizationRule/voices/maxLeap/preferredClef/… — see levels.js's schema
+            // reference) is spread LAST so it wins over the legacy flat fields above when both are
+            // present. Omitted on levels 1-9 → their behaviour is unchanged.
+            ...trebleGenOverride,
         }));
         // #661 (Han 2026-08-02, "de 3 lijnen zichtbaar maken" / later "in level 1 en 2, toon de bas en
         // percussie ENKEL in debug mode"): a `debugOnlyLines` level shows treble + bass + percussion ONLY
         // while debugMode is on (else treble-only) — Levels 1–6; Levels 7/8 always show all 3. The reactive
         // effect below re-applies this whenever `debugMode` changes DURING an active debugOnlyLines level,
         // so this initial application only needs to get the START state right.
-        const eyes = lvl.debugOnlyLines ? (debugMode ? threeLineEyes : trebleOnlyEyes) : threeLineEyes;
+        // #663: chordsEye now follows the SAME debugOnlyLines gate as bass/percussion (Han: "laat [de
+        // akkoordenprogressie] in debug ook maar zien").
+        // Level editor (Han 2026-08-06): `tracks.<name>.visible` overrides the debugOnlyLines-derived
+        // default for that ONE track — see computeEyes below (shared with the live debug-mode effect).
         setters.setPlaybackConfig((prev) => ({
             ...prev, repsPerMelody: lvl.numRepeats,
-            oddRounds: eyes(prev.oddRounds), evenRounds: eyes(prev.evenRounds),
+            oddRounds: { ...prev.oddRounds, ...computeEyes(lvl, debugMode) },
+            evenRounds: { ...prev.evenRounds, ...computeEyes(lvl, debugMode) },
         }));
-        // #661 ("gewoon op de baslijn een cello zet"): a side-scroll level's bass line plays through a
-        // cello timbre — the REAL generated bass melody (Level 3) OR a fixed C2 whole-note pattern
-        // (Level 2 exception, `fixedBass` — Han UAT: the generated melody sounded an octave too high
-        // through the cello timbre in Level 2 specifically). `fixedWholeNote` is written UNCONDITIONALLY
-        // (same cross-level-leakage guard as insertBeatRests/polyMultiplier/percussion.melodic below).
-        if (lvl.sideScroll) setters.setBassSettings?.((prev) => ({ ...prev, instrument: 'cello', fixedWholeNote: !!lvl.fixedBass }));
+        // #661/#663 ("gewoon op de baslijn een cello zet"): a side-scroll level's bass line plays through
+        // a cello timbre — either the REAL generated bass melody at full richness (Level 8, `fixedBass:
+        // false`) or the SAME generator simplified via LEVEL_BASS_SIMPLE's settings (Levels 2–7,
+        // `fixedBass: true` — Han UAT: the generated melody sounded an octave too high through the cello
+        // timbre; #663 REWORK: no more hardcoded pattern function, just different generator settings).
+        // All fields are written UNCONDITIONALLY (same cross-level-leakage guard as
+        // insertBeatRests/polyMultiplier/percussion.melodic below) so a previous level's simplified
+        // values can never leak into the next.
+        // Level editor (Han 2026-08-06): `tracks.bass` (any InstrumentSettings-shaped fields — see
+        // levels.js's schema reference) takes precedence over the `fixedBass` boolean when present, so a
+        // hand-written level can fully control the bass generator (e.g. for a future 'walking bass' level)
+        // without needing a new hardcoded preset in levels.js. Omitted → unchanged `fixedBass` behaviour
+        // (100% backward compatible with levels 1-9). `volume`/`visible` are stripped before this decision
+        // — they're level-editor-only convenience fields (read separately, by App.jsx/computeEyes), NOT
+        // InstrumentSettings fields; a level that sets ONLY `tracks.bass.volume` (no generator fields)
+        // must still fall through to `fixedBass`, not silently skip the whole preset.
+        const { volume: _bassVolume, visible: _bassVisible, ...bassGenOverride } = lvl.tracks?.bass ?? {};
+        const hasBassGenOverride = Object.keys(bassGenOverride).length > 0;
+        if (lvl.sideScroll) setters.setBassSettings?.((prev) => ({
+            ...prev, instrument: 'cello',
+            ...(hasBassGenOverride ? bassGenOverride : (lvl.fixedBass ? LEVEL_BASS_SIMPLE : LEVEL_BASS_DEFAULT)),
+        }));
+        // #663 (Han 2026-08-03, "genereer ook akkoordenprogressie (I-I-I) tonic progressie", then "zet
+        // ook voor level 1 akkoord op c" + "chords per measure naar 1"): EVERY level (1-8, not just
+        // side-scroll) forces a fresh 'tonic-tonic-tonic' progression by default, fixed to C regardless of
+        // the ambient melody scale (`fixedTonic` — melody/notation untouched, only the chord track's own
+        // tonic moves, per Han's explicit answer), one structural chord per measure. All reuse EXISTING
+        // generation fields (chordGenerator.js's strategy, useMelodyState's fixedTonic/chordCount) — no
+        // hardcoded pattern. `begin()` below passes `forceNewChords: true` to the FIRST regenerate() call
+        // so this actually gets exercised (regenerate() alone doesn't regenerate chords — see App.jsx's
+        // levelRegenerate comment). Written UNCONDITIONALLY (same cross-level-leakage guard as the bass/
+        // percussion fields above).
+        // Level editor (Han 2026-08-06): an explicit `chords` object overrides the default 'tonic-tonic-
+        // tonic'/1-chord-per-measure pair — e.g. a level could use `chords: { strategy: 'pop-1-5-6-4',
+        // chordCount: 4 }` for real harmonic movement instead of a static drone. Omitted → unchanged
+        // default (strategy/chordCount); any other chordSettings field (complexity, rhythmVariability,
+        // passingChordTypes) can also be forced via `chords` when present.
+        //
+        // Bug fix (Han 2026-08-06, "chords hangen af van level maar volgen niet de toonladder... level
+        // 113 (F#), cello staat nog in C"): `fixedTonic` used to be hardcoded 'C4' UNCONDITIONALLY
+        // (Han's original #663 instruction, from before per-level `key` existed) — for any level that ALSO
+        // sets its own `key.tonic` (the vocal-range/key feature added later, §168-170), the chord
+        // progression's roots stayed on C regardless, and `fixedBass: true`'s cello (which follows the
+        // chord roots via LEVEL_BASS_SIMPLE's `randomizationRule: 'emphasize_roots'`) audibly played the
+        // WRONG key. Fix: defaults to the level's OWN `key.tonic` when set, falling back to the original
+        // 'C4' only when the level has no `key` at all — levels 1-9 (no `key` field) are byte-identical.
+        setters.setChordSettings?.((prev) => ({
+            ...prev, strategy: 'tonic-tonic-tonic', fixedTonic: lvl.key?.tonic ?? 'C4', chordCount: 1, ...lvl.chords,
+        }));
         // #661 ("melodische percussie … percussie de timpanen"): percussion becomes the fixed pitched
         // timpani pattern (utils/timpaniPattern.js) — notation AND the level's dedicated timpani audio
         // both key off this flag. Written UNCONDITIONALLY (mirrors insertBeatRests/polyMultiplier above)
@@ -92,16 +202,21 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
     // for Level 3 (debugOnlyLines=false) and while no level is active.
     useEffect(() => {
         if (!active || !current?.debugOnlyLines) return;
-        const eyes = debugMode ? threeLineEyes : trebleOnlyEyes;
+        const eyes = computeEyes(current, debugMode);
         setters.setPlaybackConfig((prev) => ({
-            ...prev, oddRounds: eyes(prev.oddRounds), evenRounds: eyes(prev.evenRounds),
+            ...prev, oddRounds: { ...prev.oddRounds, ...eyes }, evenRounds: { ...prev.evenRounds, ...eyes },
         }));
     }, [debugMode, active, current, setters]);
 
     const begin = useCallback((lvl) => {
         applyConfig(lvl);
         setStats(emptyStats()); setWave(0); setDone(false); setActive(true);
-        regenerate();   // first wave, from the just-applied config (setters update refs synchronously)
+        setTotalEnemies(0); setTotalCritters(0);
+        pendingSongEndRef.current = false;
+        // #663: force a fresh chord regeneration on the level's FIRST wave only — applyConfig just set
+        // chordSettings.strategy to 'tonic-tonic-tonic' for side-scroll levels; without forceNewChords,
+        // regenerate() would just adapt whatever progression was left over from normal play.
+        regenerate(true);
     }, [applyConfig, regenerate]);
 
     const start = useCallback((lvl = LEVEL1) => { snapRef.current = snapshot(); setCurrent(lvl); begin(lvl); }, [snapshot, begin]);
@@ -124,6 +239,26 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         ...s, misses: s.misses + 1, currentStreak: 0,
         ...(reason ? { [reason]: (s[reason] || 0) + 1 } : {}),
     })), []);
+    // #693 round 8 (Han: "als personage een critter slaat kost dat -1/2 punt, die gaat dood"): a critter
+    // hit is its own outcome — NOT a `misses`/streak-breaking event (it isn't tied to a due note the
+    // player failed), just a direct point deduction + its own running count (the splash derives the
+    // positively-framed "critters saved" from `totalCritters - critterKilled`).
+    const onCritterKilled = useCallback(() => setStats((s) => ({
+        ...s, critterKilled: s.critterKilled + 1, points: s.points - 0.5,
+    })), []);
+
+    // #688 (Han 2026-08-04, "end of level splash screen: niet bij laatste noot, maar pas wanneer end of song
+    // (laatste maatstreep) de hit zone bereikt"): for a SIDE-SCROLL level, the splash must wait for the
+    // final barline to visually reach the strike line — NOT fire the instant the last note/wave resolves
+    // (which can be measures before the tail of the piece has even scrolled into view). `pendingSongEndRef`
+    // marks "waves are all cleared, but still waiting for the visual/audio tail to finish"; `onSongEnd`
+    // (called by SheetRpgLayer once it detects the final barline crossing the hit zone, on the SAME
+    // audio-anchored clock everything else there uses) is what actually flips `done`. Non-side-scroll levels
+    // (static combat, no scroll to wait for) keep the original immediate behaviour.
+    const pendingSongEndRef = useRef(false);
+    const onSongEnd = useCallback(() => {
+        if (pendingSongEndRef.current) { pendingSongEndRef.current = false; setDone(true); }
+    }, []);
 
     // a cleared slime-wave. Returns true if the level consumed it (so the app skips its default regen). At the
     // target wave count → done (splash); otherwise spawn the next wave.
@@ -132,8 +267,10 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         const tw = wavesForLevel(currentRef.current);
         setWave((w) => {
             const next = w + 1;
-            if (next >= tw) setDone(true);
-            else regenerate();
+            if (next >= tw) {
+                if (currentRef.current?.sideScroll) pendingSongEndRef.current = true;
+                else setDone(true);
+            } else regenerate();
             return next;
         });
         return true;
@@ -144,13 +281,25 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         if (!s) return;
         setters.setNumMeasures(s.numMeasures);
         setters.setBpm?.(s.bpm);
+        // Level editor (Han 2026-08-06): revert a level's `timeSignature` override (if any) — same
+        // snapshot/restore guarantee as bpm above.
+        setters.setTimeSignature?.(s.timeSignature);
         setters.setTrebleSettings(() => s.trebleSettings);
         setters.setBassSettings?.(() => s.bassSettings);   // restores the pre-level bass instrument (cello only during a level)
         setters.setPercussionSettings?.(() => s.percussionSettings);   // restores melodic flag + percussion kit
+        setters.setChordSettings?.(() => s.chordSettings);   // restores the pre-level chord strategy (#663)
         setters.setPlaybackConfig(() => s.playbackConfig);
         setters.setShowChordsOddRounds?.(s.showChordsOddRounds);
         setters.setShowChordsEvenRounds?.(s.showChordsEvenRounds);
         setters.setAnimationMode?.(s.animationMode);   // restore the user's animation mode (see applyConfig)
+        // Level editor (Han 2026-08-06): revert a level's `key` override (if any) — mode first, then tonic
+        // with the manual-override flag so it lands on the EXACT pre-level tonic, not a minimize-accidentals
+        // respelling of it.
+        setters.setSelectedMode?.(s.selectedMode);
+        setters.setTonic?.(s.tonic, true);
+        // Level editor (Han 2026-08-06): revert a level's `theme` override (if any) to whatever the
+        // user had selected before the level started.
+        setters.setTheme?.(s.theme);
     }, [setters]);
 
     const close = useCallback(() => {
@@ -159,5 +308,8 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         regenerate();   // rebuild a normal melody from the restored config
     }, [restore, regenerate]);
 
-    return { active, done, wave, totalWaves, stats, current, start, replay, close, onHit, onMiss, onWaveCleared };
+    return {
+        active, done, wave, totalWaves, stats, current, start, replay, close, onHit, onMiss, onWaveCleared, onSongEnd,
+        onCritterKilled, totalEnemies, totalCritters, setTotalEnemies, setTotalCritters,
+    };
 }

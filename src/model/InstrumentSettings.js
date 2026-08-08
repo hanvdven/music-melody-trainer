@@ -88,12 +88,6 @@ class InstrumentSettings {
     // notation. A settings field — not an instrument-type branch (§6b) — toggled via the percussion
     // notation carousel (ClefStaffOverlay).
     this.melodic = false;
-    // #661 (Han 2026-08-02, Level 2 exception: "voor level 2 wil ik uitzonderlijk gewoon een C2 toon,
-    // hele noot, elke maat" — sidesteps an octave mismatch between the generated bass range and the
-    // cello timbre). When true (bass only, in practice), the track plays a fixed C2 whole note every
-    // measure (utils/celloWholeNotePattern.js) instead of the generated melody. Level-internal only — no
-    // general UI toggle (unlike `melodic` above); set directly by useLevel.applyConfig.
-    this.fixedWholeNote = false;
   }
 
   static defaultTrebleInstrumentSettings() {

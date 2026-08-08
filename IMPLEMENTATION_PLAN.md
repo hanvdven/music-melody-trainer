@@ -7,6 +7,93 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-03 — 🐞✅ #663 Bug: Level 2 metronoom/timpani-desync, metronoom stopt na maat 0, cello niet hoorbaar
+
+Han: "level 2 moet in orde gebracht worden. bug: metronoom, timpanen, lopen niet
+exact gelijk met de noten... bug: metronoom enkel hoorbaar in maat 0. bug: cello
+niet hoorbaar." Interview: Han wees een "wacht op volledige regeneratie"-guard af
+("straks maak ik infinite levels... gebruik het JIT-mechanisme dat al bestaat in
+de generator") en wilde cello via het echte generate-melody-protocol i.p.v. een
+hardcoded patroon ("roots on 1, 1 note/measure, variability 0, smallest note denom
+whole, note pool c2-c3"); timpani mag WEL hardcoded blijven ("hard code de timpani
+voor nu").
+
+Root cause (alle 3 bugs): bass/metronome werden ÉÉN KEER, vooraf, voor het HELE
+level gegenereerd — racend tegen (1) de async cello-instrument-swap
+(`bassSettings.instrument` flipt één commit VOOR `instruments.bass` echt de
+nieuwe Soundfont is) en (2) de eigen regeneratie van `melodies.metronome` naar de
+volledige lengte. Een stale/korte melodie kon zo voor het HELE level vastgezet
+worden via `backingScheduledForRef`.
+
+Fix:
+
+- `useInstruments.js`: nieuwe `loadedSlug` state, geschreven in DEZELFDE commit
+  als het instrument-object zelf — sluit de race definitief.
+- Cello: `InstrumentSettings.fixedWholeNote` + `celloWholeNotePattern.js` weg;
+  `levels.js` exporteert `LEVEL_BASS_SIMPLE`/`LEVEL_BASS_DEFAULT` (echte
+  generator-settings, Han's protocol), toegepast door `useLevel.applyConfig`.
+- Bass + metronome nu JIT-chunked (`generateLevelBackingChunk.js` +
+  `useLevelBackingStream.js`): 2 maten ("1 chunk") per keer, altijd 1 chunk
+  vooruit gegenereerd ("2+2 maten op voorhand"), via de bestaande
+  `MelodyGenerator` — geen hardcoded patroon. Timpani blijft ongewijzigd
+  (hardcoded, in één keer vooraf).
+- Onderweg gevonden: React StrictMode (main.jsx) dubbel-invoked elke effect in
+  dev — een vroege versie met een `startedForRef`-guard bleek daardoor de
+  volledige backing na 2 maten stil te laten vallen IN ELKE DEV-SESSIE. Cleanup
+  nu volledig zelfvoorzienend (annuleert eigen timers + eigen reeds-geplande
+  noten), guard verwijderd.
+
+Suite 631 groen (was 626, +5 nieuwe smoke tests), lint 0 err, build clean.
+docs.md §110. Nog niet gecommit.
+
+## 2026-08-03 — ✅ #663 vervolg: gedwongen I-I-I akkoordenprogressie voor levels + debug-zichtbare akkoorden
+
+Han: "cello is goed, maar gebruikt denk ik niet [de akkoorden]... ah cello gebruikt
+roots on one, maar misschien zijn de akkoorden niet goed. genereer ook
+akkoordenprogressie (I-I-I) tonic progressie. Laat die in debug ook maar zien."
+
+Root cause: level-wave-regeneraties draaien altijd met `{chords:false}`
+(App.jsx's `levelRegenerate`), wat akkoorden NIET vers genereert maar enkel de
+BESTAANDE progressie (van vóór het level) aanpast/uitrekt — de cello's "roots"
+kwamen dus mogelijk uit een oude modal-random progressie, niet uit I.
+
+Fix:
+
+- `useLevel.applyConfig`: `chordSettings.strategy = 'tonic-tonic-tonic'` voor elk
+  side-scroll level — bestaande strategie (`chordGenerator.js`), geen nieuwe code.
+- `useLevel.begin()`: roept nu `regenerate(true)` aan (enkel bij levelstart) zodat
+  die strategie ook echt een verse progressie bouwt; golf-op-golf regens blijven
+  `{chords:false}` (onveranderd, onschadelijk — de aangepaste progressie blijft I).
+- `close()` herstelt de oude `chordSettings` via het bestaande snapshot-mechanisme.
+- `chordsEye` volgt nu dezelfde debug-gate als bas/percussie
+  (`trebleOnlyEyes`/`threeLineEyes` in `levels.js` kregen een `showChords`-param).
+
+Suite 632 groen (+1 nieuwe test in useLevel.test.js), lint 0 err, build clean.
+docs.md §110 (vervolg-sectie). Nog niet gecommit.
+
+## 2026-08-03 — ✅ #663 3e vervolg: akkoorden op C (scale ongemoeid), 1/maat, cello-range, metronoom-regressie fix
+
+Han: "cello is goed, maar gebruikt denk ik niet... zet ook voor level 1 akkoord op
+c. pas de range voor de cello aan naar c2-b2. zet chords per measure naar 1 (is nu
+4). ik wil: cello + timpanen vanaf maat -1, metronoom vanaf maat 0."
+
+- Akkoorden vast op C, MELODIE-SCALE blijft ongemoeid (bevestigd via interview):
+  `useMelodyState.js` krijgt `chordSettings.fixedTonic` — bouwt een aparte
+  `chordScale` via de bestaande `updateScaleWithTonic` (geen nieuwe scale-code),
+  gebruikt ALLEEN voor de akkoord-generatie call.
+- `useLevel.applyConfig`: strategy/fixedTonic('C4')/chordCount(1) nu
+  ONVOORWAARDELIJK voor ALLE levels (1-8), niet enkel side-scroll — dus ook
+  Level 1.
+- `LEVEL_BASS_SIMPLE.range` → `{min:'C2',max:'B2'}` (was C2-C3).
+- Regressie gevonden en gefixt: door bas+metronoom te unificeren in dezelfde
+  JIT-stream startte de metronoom óók op maat -1 (had moeten wachten tot maat 0,
+  zoals §94's originele spec). `generateLevelBackingChunk` kreeg een
+  `metronomeMeasures`-param zodat de opmaat-chunk voor de metronoom 1 maat
+  korter is + 1 bar later gepland wordt dan bas/timpani.
+
+Suite 633 groen (+3 nieuwe tests), lint 0 err, build clean. docs.md §110
+(2e vervolg-sectie). Nog niet gecommit.
+
 ## 2026-08-03 — 🐞✅ Bug: opmaat nog steeds niet zichtbaar bij level-start (echte fix)
 
 Han: "top! nog steeds geen opmaat." (na de content-fix hierboven).
@@ -2723,3 +2810,1364 @@ and build the pieces at runtime; works for any pickup song, not just HBD.
 - highlights + animatie(pag/wipe/scroll) + lyrics → 3 HIDDEN tap-to-open carousels op de BAS-balk in de COLOUR-setter (treble houdt kleur-schema carousel).
 - Verwijdert showSheetMusicSettings (useSettingsOverlay) — verweven met useEditMode/AppHeader/SubHeader/App.jsx/SheetMusic/TabView (~7 files). LET OP: AppHeader heeft OOK een SlidersHorizontal-knop die het toggelt — bevestigen of die ook weg moet.
 - Interview afgerond; ticket #502 in design. Impl = gefocuste vervolgstap (niet in deze turn — te groot om aan de staart te haasten).
+
+## 2026-08-03 — ✅ #666 Character creator → 32px pixel-art grid (vierkante hoeken, checkerboard debug, equipment slots 16x16)
+- Interview (3 rondes, §4b): scope hoeken ("alles"), scope checkerboard ("hele character view in pixel art"),
+  16x16-interpretatie (logische px × schaal 4, dezelfde schaal op ALLE elementen — Han bevestigde de grote,
+  risicovollere volledige herschrijving expliciet i.p.v. de aanbevolen kleinere scope).
+- CharacterCreator.css: 32px cell-conventie (8px logisch × 4 schaal), border-radius:0 overal (incl. .cc-swatch,
+  was rond), alle box-afmetingen (padding/gap/width/height) gesnapt naar veelvoud van de cell/half/quarter-cell,
+  nieuwe `.cc-checker` (grijs 50%/transparant checkerboard, 32px cel) alleen actief via debugMode-class.
+  .cc-equip/.cc-slot: vaste 64px (2x2 cellen = 16 logische px) i.p.v. proportioneel aan AVATAR_H.
+- CharacterCreator.jsx: debugMode prop, checker() helper op modal/avatar/slot/grid/thumb, AVATAR_H 336→320
+  (dichtstbijzijnde 32px-veelvoud; afgeleide avatar-breedte bewust NIET gesnapt, is sprite-aspect-ratio-gevolg).
+- App.jsx: debugMode doorgegeven aan <CharacterCreator>.
+- Suite 633 groen (ongewijzigd, geen nieuwe unit tests — pure CSS/layout wijziging), lint 0 err, build clean.
+  docs.md §111. Nog niet gecommit.
+
+## 2026-08-03 — 🐞 #666 vervolg: checkerboard was diagonaal i.p.v. axis-aligned vierkantjes
+- Han: "elke slot zou 4x 8x8 checkerboard moeten hebben" + "ook achter mijn avatar" (was onzichtbaar).
+- Root cause: de 2-laags 45deg linear-gradient truc geeft een DIAGONAAL streeppatroon, geen recht
+  geblokt schaakbord — te subtiel om als "4 losse vierkantjes" te lezen, en bijna onzichtbaar
+  achter de grotendeels ondoorzichtige avatar-sprite.
+- Fix: correcte 4-laags formule (+45deg EN -45deg, halve-tegel offset) → echt axis-aligned
+  checkerboard, 32px vierkantjes (1 cell), 64px tegel → 64px slot toont exact 2x2=4 vierkantjes.
+  CSS-only, geen JS/JSX wijziging.
+- Build clean. Kon dit NIET visueel verifiëren in de browser (geen Playwright/headless browser
+  beschikbaar in deze omgeving) — fix is afgeleid via zorgvuldige gradient-geometrie, niet
+  live getest. Han gevraagd opnieuw te checken. docs.md §111 uitgebreid met dit vervolg.
+
+## 2026-08-03 — ✅ #667 Character-popup weg — geïntegreerd in sheet-music/bottom-view (character/stats/equipment/bestiary)
+- Interview 4 rondes (§4b): entry/exit, tab/edit-mode-architectuur-fit, exclusiviteit met andere
+  SubHeader edit-modes, exacte top/bottom-split. Han's uiteindelijke spec: characterScreen
+  (null|character|stats|equipment|bestiary) vervangt de popup volledig.
+  - Top (sheet-music-slot): avatar (+ 4x3 equipment-grid enkel bij 'equipment'), of bestiary-preview,
+    of stats-placeholder — i.p.v. <SheetMusic>.
+  - Bottom (TabView-slot): identity+acties+categorie-tabs+item-grid+swatches, of bestiary-thumbnails,
+    of stats-placeholder — override, ongeacht welke activeTab eerder actief was.
+  - SubHeader: leeg tijdens een level; 4 nieuwe iconen (Character/Stats/Equipment/Bestiary,
+    AvatarSubHeader.jsx) tijdens avatar-context; normale 8-knops SubHeader daarbuiten.
+  - Hero-klik blijft trigger (opent op 'equipment'); nieuw header-icoon (User/Music2, alterneert)
+    is de enige weg terug, want de hero verdwijnt zelf mee met de sheet-music.
+  - Exclusief met de 7 andere edit-modes via nieuwe closeAllEditModes() (useEditMode.js).
+- Refactor (geen herschrijving): CharacterCreator.jsx's logica 1:1 verplaatst naar
+  useCharacterEditor.js hook; nieuwe CharacterAvatarPanel (top) / CharacterOptionsPanel (bottom).
+  Bestiary.jsx idem gesplitst via useBestiaryEditor.js → BestiaryPanels.jsx. Alle cc-* CSS-classes
+  hergebruikt; enkel de popup-chrome (.cc-overlay/.cc-modal/.cc-modal-diablo/.cc-close) verwijderd.
+  CharacterCreator.jsx + oude Bestiary.jsx verwijderd.
+- Stats: pure "coming soon"-placeholder, geen implementatie (zoals gevraagd).
+- Browser-geverifieerd (Puppeteer + lokale Chrome, headless, tegen de echte dev server): alle 4
+  schermen + open/dicht-cyclus gescreenshot, geen console-errors. Suite 633 groen, lint 0 err,
+  build clean. docs.md §112. Nog niet gecommit.
+
+## 2026-08-03 — 🐞 vervolg #666: checkerboard-fix bevestigd in browser
+- Eerste "verkeerde layer"-melding kwam vermoedelijk doordat debugMode niet aanstond na een refresh
+  (plain useState, niet persistent). Puppeteer-screenshot van de ECHTE dev server bevestigt: de
+  4-laags checkerboard-fix werkt correct — scherp schaakbord achter avatar, alle equipment-slots,
+  skin- en bestiary-thumbnails.
+
+## 2026-08-03 — ✅ #667 vervolg: mic/midi-icoon weg uit avatar-context, skin=kleurenpalet, ears=toggle
+- Mic/MIDI/QWERTY input-cycler-knop (AppHeader) verborgen zolang characterScreen actief is (irrelevant
+  tijdens avatar-editing). Debug-only MIDI-statusoverlay blijft ongemoeid (apart, al debug-gated).
+- Skin: 10 bestaande skin-opties nu als kleine kleurvlakjes (skinSwatchColor, characterAssets.js,
+  keyword-match zoals de rest van dit bestand) i.p.v. volledige lichaamsthumbnails. Interview bevestigd:
+  zelfde 10 opties, geen continu hue-palet.
+  characterAssets.js) i.p.v. volledige lichaamsthumbnails.
+- Ears: Normal/Long toggle i.p.v. 5-thumbnail-grid (die toch allemaal naar dezelfde skin-matched ear
+  resolvede — pre-existing redundantie nu opgeruimd). Long valt terug op eerste beschikbare ear-item
+  voor skins zonder nummer (Zombie/Orc/Demon/Devil/Ghost).
+- Hair: NIET aangepast — kleurvarianten-bestanden bestaan nog niet (anders dan kleding). Han: zelf
+  bestanden herlabelen later; dan werkt de bestaande .cc-variants-swatch-mechaniek er automatisch op.
+- Browser-geverifieerd (Puppeteer): mic-knop-aantal daalt met 1 in avatar-context, skin-swatches en
+  ears-toggle gescreenshot. Suite 633 groen, lint 0 err, build clean. docs.md §112 (vervolg-sectie).
+  Nog niet gecommit.
+
+## 2026-08-03 — ✅ #668 Auto-gescande bestiary (alle niet-hero personages), variant-toggler, 6-categorie selector
+- Interview (§4b): categorie-mapping bevestigd (characters/humanoid/animal/air/ground/other = 1-op-1 op
+  bestaande mapnamen), animatie-data-aanpak ("doe een voorstel o.b.v. wat je aantreft, toon hxb in debug"),
+  variant-groepering (hergebruik kleur-keyword-detectie zoals kleding).
+- scripts/generate-bestiary-manifest.mjs (nieuw, Node-only, pngjs devDependency): scant ~450 PNG's onder
+  ASSORTED/characters (excl. char_hero + de 10 al-gecureerde curated enemies), decodeert pixels, gokt
+  framegrootte (grootste gemene deler uit [128,96,80,64,48,32,24,16]), telt content-frames per rij (stopt
+  bij eerste transparante cel), berekent crop-rechthoek, groepeert kleurvarianten. → 289 entries in
+  bestiaryManifest.generated.js.
+- src/model/bestiaryAssets.js (nieuw, runtime): import.meta.glob voor URLs + generated manifest → creatures.
+- enemyAssets.js: ENKEL een additieve `category`-tag per curated entry (geen gameplay-velden aangeraakt —
+  SLIME_COLORS/etc blijven exact zoals ze waren, gebruikt door SheetRpgLayer voor echte combat-slimes).
+- useBestiaryEditor.js herschreven: unified creature-lijst (curated + gescand), Slime special-cased naar
+  3 variants via bestaande SLIME_* constants (geen dubbele sprite-data).
+- BestiaryPanels.jsx: variant-toggler (kleur-swatches, hergebruikt .cc-swatch/variantColor) in top-view;
+  6-categorie tab-rij in bottom-view; debug-only WxH-overlay ("hxb").
+- Browser-geverifieerd (Puppeteer): categorie-tabs werken, Slime-toggler toont 3 swatches, debug-overlay
+  toont afmetingen (bug gevonden EN gefixt tijdens verificatie: overlay toonde leeg voor curated entries
+  zonder width/height-veld).
+- Suite 633 groen, lint 0 err, build clean (JS-bundel groeide van 1.67MB→2.23MB door de vele nieuwe
+  eager-geladen sprite-URLs — bestaand patroon in dit bestand, geen nieuwe eager-glob-aanpak).
+- ⚠️ TWEE dingen die JOUW beslissing nodig hebben, zie docs.md §113:
+  1. Bekende gok-beperkingen: niet-vierkante frame-packs (cow/pig) vallen weg; een paar dieren (fox, doggy,
+     sommige paarden) tonen "verdubbeld" omdat de gegokte framegrootte geldig maar te grof is. Zichtbaar
+     via de debug-overlay, per-entry te corrigeren wanneer je wil.
+  2. De ASSORTED-asset-map bevat naakt/suggestief materiaal (Succubus-map, "no bra"-bestanden, ~26 entries)
+     dat nu ongefilterd in de "characters"-categorie staat. NIET zelf verwijderd — aan jou om te beslissen
+     hoe dit aan te pakken (map uitsluiten? keyword-blocklist?).
+- Nog niet gecommit.
+
+## 2026-08-03 — ✅ #670 Bestiary hand-meting ronde 2: niet-vierkante packs, cross-row animaties, critters, explosion-effect
+- boss_spider(192x96,5 anims,rij5 "??" overgeslagen), Imp(64x64,5 anims), Female Hell Giant[covered]
+  (112x128, covered/uncovered als kleurvarianten), The Devil(96x112, idle1/idle2/emptycauldron via
+  cross-row merge), Large Skull(rij1+2→attack, rest generiek), Demon eye/Demon Mine/Plague Flies
+  (fly/death) — allemaal hand-overrides in generate-bestiary-manifest.mjs.
+- Manifest-schema aangepast: frameSize(number)→frame:{w,h} (niet-vierkant mogelijk), rows:[{row,frames}]
+  →animations:[{key,label,cells:[{row,col}]}] (nodig voor het paard se cross-row-gestikte animaties).
+  CreatureSprite (BestiaryPanels.jsx) stapt nu door cells i.p.v. vaste rij+frame%N.
+  cells geëxporteerd; "row+frames" is nu gewoon het simpele geval van "cells".
+- Explosion (nieuw, categorie 'other'): Imp's death-cells apart opgeslagen als herbruikbaar
+  explosion-effect voor sprites zonder eigen death-animatie.
+- enemyAssets.js relabels (gameplay-veilig, enkel key/label strings, grep-bevestigd niets buiten
+  Bestiary-UI leest deze): pumpkin(move→attack,attack→death), bat(idle→fly,move→attack,attack→death),
+  flying-eye(idle→fly,move→death), mosquito(idle→fly,move→death).
+- Browser-geverifieerd: boss_spider/Imp/Devil/Hell Giant/Large Skull/Explosion/Bat allemaal gescreenshot,
+  renderen correct. Suite 633 groen, lint 0 err, build clean. docs.md §114.
+- ⚠️ NOG OPEN (jouw input nodig):
+  1. Horse stagger/death verwijzen naar "rij 7/8" maar het paard-sheet is bij 96x120 frame EXACT 6 rijen
+     (720/120) — rij 7/8 bestaan niet, renderen leeg. Is de framehoogte niet 120, of klopt de rijtelling
+     niet? Nog steeds ongefixt, met opzet — giswerk zou het misschien verkeerd maken.
+  2. Aanname: "demon fly" → Plague Flies.png (geen exacte bestandsnaam-match) — corrigeer als dit fout is.
+  3. Nog open van vorige ronde: naakt/suggestief materiaal (Succubus-map + nu ook Hell Giant) nog niet
+     door jou beslist hoe te behandelen.
+- Nog niet gecommit.
+
+## 2026-08-03 — ✅ #672 Bestiary ronde 3: kleur-sampling, accessory-togglers, portret-koppeling, 4-weg character-split
+- Correcties op ronde 2: horse 96x120→128x90 (lost ook de rij7/8-out-of-bounds bug op: 720/90=8 rijen),
+  wisp 40x32→32x32.
+- Doggy: 5 stijlen gegroepeerd tot 1 "Doggy"-creature, swatch-kleur ECHT GESAMPELD (gemiddelde RGB van
+  niet-transparante pixels — sampleColor() in de generator), geen giswerk.
+  Hat/Backpack: nieuw "accessory"-concept (onafhankelijke aan/uit-lagen, geen variant-alternatieven) —
+  ACCESSORIES-export, activeAccessories-state, CreatureSprite.overlayUrls stapelt lagen op dezelfde
+  frame/crop/cell-coördinaten (zelfde 32x32-grid).
+- Covered/Uncovered EN Wisp Plain/Outline tonen nu als .cc-tab-togglers i.p.v. lege swatches (geen kleur
+  te resolven → automatisch toggle-stijl i.p.v. swatch-stijl).
+  bloated(idle/move/death), damned tree (elke RIJ = gender-variant, kolom0=idle, rest=death; 1 bestand
+  →2 entries Male/Female). Damned Male/Female elk gegroepeerd met hun covered-bestand.
+- Lamia: "bare"-variant toegevoegd (lamia-bare.png gekopieerd naar enemies/sheets/, zelfde aanpak als
+  Slime's speciale multi-variant behandeling).
+- Portret-koppeling: char_with_porttrait (~166 bestanden) — elk personage-sheet gekoppeld aan zijn
+  "...64x64...portrait..."-crop in DEZELFDE map (werkt ook voor geneste Succubus-submappen), alleen bij
+  precies 1 kandidaat-portret (Samurai's 8 genummerde portretten = ambigu, overgeslagen). Top-view toont
+  nu karakter LINKS + portret RECHTS naast elkaar.
+- "characters" categorie gesplitst in 4: passive/attack/portrait/walk (1-op-1 op bronmappen), allemaal
+  aangenomen 64x64.
+- Relabels: Large Skull volgorde idle/attack/move (was attack/idle/move); curated flying-witch
+  idle/attack/move (rij1↔2 omgewisseld); mimic gecontroleerd, al correct, ongewijzigd.
+- Browser-geverifieerd: Doggy (5 swatches + hat+backpack beide actief zichtbaar op de hond), Hell Giant
+  toggle-stijl, Damned Tree (Female/Male + Idle/Death), Lamia (Normal/Bare), Angel portret naast karakter.
+  Suite 633 groen, lint 0 err, build clean. docs.md §115.
+- ⚠️ Bekende restruis (zoals afgesproken, niet stuk-voor-stuk nagelopen): een handvol portrait-categorie
+  thumbnails renderen als effen kleurvlak of rommelige multi-frame-strip — de blanket 64x64-aanname past
+  niet op elk van de ~240 bestanden in de 4 character-mappen.
+- Nog niet gecommit.
+
+## 2026-08-03 — ✅ #673 Bestiary ronde 4: 9 composite "characters sheet N"-bestanden → ~60 losse personages
+- GandalfHardcore characters sheet 1..6.png (14 rijen, 6 kleurvarianten van DEZELFDE roster) en
+  ...sheet1..3.png (15 rijen, 3 kleurvarianten, ANDERE roster) — elke rij = 2 losse personages (5 idle-
+  frames elk, kolom0-4/5-9). Nieuwe expandRosterSheet() + cropForCells() (krappe crop per personage,
+  hergebruikt scanRows' alpha-boundsmethode) in de generator, roster-tabellen 1-op-1 overgetypt uit je
+  bericht.
+- Cat/Cat Hat/Dog/Dog Helmet → categorie 'animal' i.p.v. passive/walk ("show in pets").
+- Posing Lady: vereenvoudigd naar 3 losse personages (Pose 1/2/3), elk met de volledige 6 kleurvarianten
+  — geen echte 2D (pose×kleur) selectie, bewuste scope-vereenvoudiging.
+- Browser-geverifieerd: Wizard (6 sheet-varianten), Cat (animal-categorie, 3 varianten), Posing Lady/Monk/
+  Mermaid correct. Suite 633 groen, lint 0 err, build clean (551 manifest-entries, was 308).
+  docs.md §116.
+- Nog niet gecommit.
+
+## 2026-08-03 — ✅ #674 Bestiary ronde 5: named-row extraction (camp/coin/cooking/musicians/art lady), musicians-tab
+- Nieuwe expandNamedRows() generaliseert §673's roster-aanpak naar losse rijen/rij-reeksen per bestand:
+  Camp Characters (Wizard(Camp)/Reading, Knight Crown/Squatting, Knight Pointy Hat/Sharpening),
+  Collecting Coin (Knight Crown/Collecting Coin, Wizard(Camp)/With Bag, Lady Collecting Coin),
+  Knight Cooking (Knight Crown/Cooking [rij1+2 samengevoegd], Lady Reading, Musician Lyre),
+  Wizard with a map (alle content-rijen samengevoegd tot 1 idle-loop, Wizard(Camp)/Reading Map).
+  Cross-file groepering werkt automatisch (Knight Crown krijgt 3 varianten uit 3 verschillende bestanden).
+- ⚠️ Naamcollisie gevonden EN gefixt vóór opleveren: de roster-sheet "Wizard" (uit sheet1-6) zou anders
+  samengevoegd zijn met deze nieuwe camp-wizard (2 visueel andere personages als 1 creature met 7
+  varianten). Hernoemd naar "Wizard (Camp)".
+- Art lady: laatste (7e) frame nu apart als 'Statue'-animatie i.p.v. onderdeel van de idle-loop.
+- Nieuwe categorie 'musicians' (10e tabblad): Drum, Tambourine (spelling gecorrigeerd), Violin, Musician
+  Lyre (uit Knight Cooking rij4), en Japanese Musician (op eigen initiatief toegevoegd, niet expliciet
+  gevraagd — gemeld).
+- Browser-geverifieerd: musicians-tab met 5 entries, Art lady Idle/Statue-knoppen, Knight Crown met 3
+  varianten uit 3 bestanden, Wizard (Camp) correct gescheiden van de roster-Wizard.
+  Suite 633 groen, lint 0 err, build clean (559 manifest-entries, was 551). docs.md §117.
+- Nog niet gecommit.
+
+## 2026-08-03 — ✅ #675 Bestiary ronde 6: kolom-gebaseerde Male/Female sheets, gedetailleerde portrait-Wizard, groter portret
+- Male/Female Pixel Art characters: KOLOM-gebaseerd (i.p.v. rij), 11 personages elk, animatie-frames verticaal
+  gestapeld binnen de kolom (rij0=portret[niet gebruikt, portrait-large-bestand ipv], rij1-5=idle, rij6-13=
+  walk). Nieuwe expandColumnSheet(), portret gekoppeld via "...Portrait large{N}.png".
+- ⚠️ Bug gevonden EN gefixt vóór opleveren: de "Male"-regex matchte ook "Female" (Female bevat letterlijk
+  "male" als substring: "Fe-male"). Elke kolom van de female-sheet kreeg stiekem de MALE-namen. Gevonden
+  door de manifest te controleren (geen "Queen"-entry) vóór de browsercheck. Gefixt met \b word-boundary.
+- De portrait-Wizard (char_with_porttrait/Wizard/, 8 kleurvarianten, 384x704=6x11): volledige cross-row-
+  gestikte animatieset (idle/walk/cast1-4/jump/counterspell/idlesmoke/death) overgetypt — 66 cellen totaal,
+  exact gelijk aan de 6x11-grid, sterke zelfcontrole dat de transcriptie klopt. Hernoemd naar
+  "Wizard (Portrait)" om verwarring met de eerdere twee "Wizard"-namen te voorkomen.
+- ⚠️ Tweede bug gevonden EN gefixt vóór opleveren: het gedeelde portret-bestand voor de 8 kleuren
+  (64x64 Wizard Portraits.png) bleek zelf een 4x2-grid (256x128) te zijn, niet 1 portret — toonde alle 8
+  kleuren tegelijk ongeacht welke geselecteerd was. Nieuwe portraitCell/portraitFrame + PortraitImage-
+  component lost dit op (crop naar de juiste cel, zelfde techniek als CreatureSprite).
+- Portret nu 2x groter (64×PREVIEW_SCALE i.p.v. de helft) — leest nu als gelijkwaardig aan de avatar,
+  niet als bijzaak.
+- Browser-geverifieerd: King/Queen (avatar links, groot portret rechts), Wizard (Portrait) met alle 10
+  animaties + correct 1-op-1 portret per kleur. Suite 633 groen, lint 0 err, build clean
+  (579 manifest-entries). docs.md §118.
+- Nog niet gecommit.
+
+## 2026-08-03 — ✅ #676 Bestiary ronde 7: archer/beekeeper relabels, 8 bestanden gesplitst/gegroepeerd, sheet4-correctie
+- Lichte verificatie zoals gevraagd ("simpele remappings, geen uitvoerige tests nodig"): build/lint/test +
+  1 korte browser-steekproef, niet de volledige screenshot-batterij van eerdere rondes.
+- Archer: idle/shoot/move/hit/death. Beekeeper: 3e rij attack->pose. Bard -> musicians.
+- Nieuwe splits: Tavern NPCs (Lute/Flute->musicians, Drunk Dancing, Couple Dancing), Character sheet
+  (9 personages, Knight Crown kneel/no-helmet samengevoegd met bestaande Knight Crown), Character sheet
+  bare (4 bare-varianten voor de Spirit Blue-groep), Little Person and Magician (Wizard Smoking grijs/bruin
+  hoed + Frodo), Relaxing characters + Relaxing Bare (Lady Relaxing 1/2/3, elk Normal/Bare).
+- Nieuwe variant-koppelingen: Spirit Blue Sword (4 varianten: Blue/Blue Bare/Sword Spirit/Sword Spirit
+  Bare), Female Wizard (Normal/Bare), Lady Godiva (Uncovered/Covered, 96x80 — enige uitzondering),
+  Japanese Characters (Normal/Bare, 80x64), Bathtime (Normal/Bare, 128x64, 2 rijen samengevoegd tot 1
+  animatie), Bathtime Knight (los, gewoon 64x64).
+- Correctie sheet4/5/6: sheet4 kreeg zijn EIGEN 14-karakter-roster (niet gedeeld met sheet1-3); sheet5/6
+  helemaal overgeslagen (nog geen roster van jou ontvangen) i.p.v. verkeerd gelabeld.
+- ⚠️ Bug gevonden EN gefixt vóór opleveren (zelfde bug-klasse als de Male/Female-fout): isCurated()'s
+  simpele .includes() matchte "Bathtime" tegen het curated-dedup-keyword 'bat' ("bat-time" bevat "bat"),
+  waardoor alle Bathtime-bestanden stilletjes werden weggegooid. Gevonden door de manifest te checken
+  (0 Bathtime-entries) vóór de browsercheck. Gefixt door ALLE CURATED_KEYWORDS over te zetten op
+  \b-word-boundary-matching i.p.v. losse substring-checks.
+- Suite 633 groen, lint 0 err, build clean (569 manifest-entries). docs.md §119.
+- Nog niet gecommit.
+
+## 2026-08-03 — ✅ #677/#678 Bestiary ronde 8/9: Santa/Vampire single-row layout, Knighty gedetailleerd, 3 quick fixes
+- Santa Claus + Vampire Lady v2: 896x64 = 1 rij x 14 kolommen (niet 14 rijen). idle=kol0-4, walk=kol5-12,
+  kol13(portret) genegeerd — standalone portret-bestand werkt al via bestaande PORTRAIT_MAP.
+- Knight Knighty: geverifieerd tegen echte bestandsgrootte (345x812 = EXACT 5x14 @ 69x58), 8 animaties
+  (walk/attack/jump/idle/block/attack double/idle sit/death) tellen op tot exact 70 cellen — sterke
+  zelfcontrole dat de transcriptie (incl. 1 aangenomen typo-fix: "rij5+rij5"->"rij5+rij6") klopt.
+  Losse "Run and Portrait"-pack (414x58, 6x1 @ 69x58) apart als "Knight (Knighty Run)" — cross-file
+  animatie-merge naar dezelfde creature bestaat niet in dit datamodel.
+  Basisnamen hernoemd naar "Knight (Knighty)"/"Knight (Knighty Run)" om botsing met bestaande
+  Knight Crown/Iron Mask/Sword Shield te voorkomen.
+- ⚠️ Knight HEAVY expliciet NIET meegenomen: hoofdsheet (455x768) en sheet2 (637x192) delen NIET
+  gelijkmatig door 69x58 (455/69≈6.59, 768/58≈13.24) — in tegenstelling tot Knighty's schone 5x14.
+  Blijft op de generieke gok staan; jij moet Heavy's echte framegrootte opnieuw opmeten.
+- 3 snelle fixes: Satyr->musicians, Wizard Smoking hoedkleuren omgewisseld (rij0=Brown Hat, rij2=Grey Hat),
+  Wizard (Portrait) kleur-volgorde gecorrigeerd (was alfabetisch geraden, nu: blue/red/green/purple/
+  yellow/brown/black/white zoals jij aangaf).
+- Suite 633 groen, lint 0 err, build clean (569 manifest-entries). docs.md §120.
+- Nog niet gecommit.
+
+## 2026-08-03 — ✅ #679 Level 9: Wizard-tegenstander met lineair vliegende projectiles i.p.v. slimes
+- Nieuw level 9 (kopie van level 2's generatie-parameters, jouw interviewantwoord), `enemyType: "Wizard"`.
+- Wizard (Black, jouw keuze) staat vast rechts, gespiegeld naar de avatar, cast2 speelt eenmalig per
+  gespawnde projectile (afgeleid uit spawn-timing, geen extra state — zelfde patroon als hero's attack).
+- Projectile (blue, gemeten: 288x96 = 6x6 @ 48x16, 36-frame loop) beweegt LINEAIR (herbruikt de bestaande
+  noteX die de nootglyph al lineair liet bewegen) i.p.v. de slime's hop-pauzes — zelfde beat-gekoppelde
+  aankomsttijd als een slime (jouw interviewantwoord: "zelfde timing, alleen lineair").
+  Death: eerste 5 frames van static-projectiles-5 (gemeten: 160x192 = 5x6 @ 32x32, rij0 = de 5 frames),
+  -20% opacity per frame (1,0.8,0.6,0.4,0.2), bevroren positie — exact zoals slime's death.
+- Combat/hit-detection/miss/wave-clear logica: 0 wijzigingen — enemy-agnostic, werkt al op abstracte
+  slime-data-indices.
+- 🐞 Gevonden EN gefixt: LevelStartSplash had een hardcoded `[1..8]`-array — level 9 bestond al in
+  levels.json maar was niet selecteerbaar in de UI-picker. Nu afgeleid van `LEVELS` zelf.
+- Suite 634 groen (levels.test.js +1), lint 0 err, build clean. docs.md §121.
+- Nog niet gecommit.
+
+## 2026-08-03 — ✅ #679 Avatar-context UI batch: mic weg, bestiary/character consistency, categorie-tabs verplaatst
+- Microfoon/input-cycler knop volledig verwijderd uit AppHeader (ook tijdens melody mode, niet alleen
+  character-context) — functionaliteit blijft volledig bereikbaar via de bestaande Settings-overlay.
+- Bestiary preview-stage (`.cc-enemy-stage`) krijgt nu hetzelfde kader+achtergrond als `.cc-avatar`
+  (zelfde CSS vars, geen nieuwe waarden geraden).
+- Nieuwe `.cc-toggle-group`/`.cc-toggle` CSS: verbonden segmented-control-look, structureel anders dan
+  `.cc-anim` (geen kleurwissel, jouw gekozen optie "vorm/groepering anders"). Toegepast op ears
+  Normal/Long, bestiary hat/backpack-togglers, en bestiary's kleurloze Covered/Uncovered-paren.
+  Animatieknoppen (`.cc-anim`) blijven ongewijzigd.
+- Equipment: kleurenvakjes verplaatst van vóór naar ná de item-thumbnail-grid.
+  Bestiary top-view swatches stonden al onder de sprite — ongewijzigd gelaten (jouw antwoord: enkel
+  equipment aanpassen).
+- Categorie-tabs (character skin/ears/hair; bestiary passive/attack/.../musicians) verplaatst van de
+  bottom-view panelen naar `AvatarSubHeader` (de rij waar normaal TOP/BOTTOM/PERCUSSION staat) — zelfde
+  state (`editor.activeCat`/`editor.category`), enkel verplaatst, niet gedupliceerd.
+  'equipment' en 'stats' tonen daar geen extra tabs (ongewijzigd: equipment gebruikt de slot-grid bovenin).
+- Bottom-view centrering: volle-breedte rijen (item-grid, identity, actions) behouden hun breedte via
+  `alignSelf: stretch`; de rest centreert nu als blok binnen de bottom-view.
+- Suite groen, lint 0 err, build clean. docs.md §122.
+- Nog niet gecommit.
+
+## 2026-08-03 — ✅ #680 Level 9 UAT-fix: projectile schaal + richting
+- "Zorg dat de projectiles de zelfde schaal hebben als de andere sprites (hero, wizard); draai ze van
+  richting."
+- Root cause: projectile erfde SLIME_VIEW_H (33px vaste hoogte, getuned voor de slime) → ~4x zoom terwijl
+  hero/wizard op ~2.4-2.7x zoom staan — zichtbaar "te ingezoomd" naast de wizard. Mirror-flip was
+  gekopieerd van Slime's conventie zonder de projectile-sheet's eigen richting te checken.
+- Fix: `PROJECTILE_SCALE = WIZARD_H / WIZARD_CROP.h` (dezelfde zoomfactor als de wizard, afgeleid i.p.v.
+  hardcoded), toegepast op de projectile's eigen crop voor zowel flight- als death-sprite (lost ook een
+  latent flight/death size-mismatch op). Mirror-transform verwijderd — rendert nu in native richting.
+- Suite 634 groen, lint 0 err, build clean, browser-geverifieerd (Level 9, wizard+projectiles kloppen visueel).
+  docs.md §123.
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ #681 Correctie: categorie-tabs naar de HOOFD bottom-nav-balk, niet AvatarSubHeader
+- Jouw correctie: "ik bedoelde dat de subtypes (passive, attack, portrait, etc.) in de navigator kwamen te
+  staan waar nu staat top bottom percussion chords scales generator songs settings listen profile keyboard
+  - die bottom view settings zijn redundant in bestiary mode."
+- §679/122 had de categorie-tabs verkeerd geplaatst: in AvatarSubHeader (de kleine rij met Character/Stats/
+  Equipment/Bestiary-iconen) i.p.v. de hoofd-tabbalk (TOP/BOTTOM/PERCUSSION/.../PROFILE), die inderdaad
+  volledig dode knoppen toont tijdens bestiary/character-mode (TabView negeert activeTab dan compleet).
+- Fix: AvatarSubHeader terug naar de originele 4-iconen-versie. De hoofd-tabbalk (App.jsx's MENU SELECTOR
+  kolom) toont nu, wanneer characterScreen actief is, de categorie-knoppen van dat scherm i.p.v. TOP/BOTTOM/
+  PERCUSSION/etc — character: skin/ears/hair; bestiary: de 11 categorieën; equipment/stats: leeg (niets te
+  navigeren, dus niets getoond — geen dode knoppen meer).
+- Suite 634 groen, lint 0 err, build clean, browser-geverifieerd (character/equipment/bestiary alle 3
+  gecheckt, categorie-switch werkt). docs.md §124.
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ #682 Grote bestiary-reorganisatie: 2 nieuwe categorieën, Knighty/Heavy/Run/Portret-merge, ~15 splits/merges/renames, frame-en-anker herwerkt
+- Jouw megabatch: kaders 64x64 achter units (anker midden-onder, grote units mogen overflowen), zelfde voor
+  bottom-view previews (30% groter, vakjes blijven gelijk), portret als apart 64x64-kader, titel boven het
+  kader, Bella Donna splitsen, bikini girls weg, cat hat/dog hat als varianten, nieuwe "mature"-categorie
+  (~30 items), roman female splitsen (niet mature), nieuwe "portrait -> incomplete"-categorie, color
+  variations/heavy colors weg, Knighty+Run+Heavy+portret mergen tot 1 groep, bishop/male knight halberd
+  namen omwisselen, GandalfHardcore overal uit namen.
+- 🐞 Onderweg ontdekt: Han's claim "Knight Heavy heeft dezelfde dimensies als Knighty (69x58)" klopte niet
+  (455x768/546x64/637x192 delen niet gelijkmatig door 69x58) — teruggekoppeld, Han mat opnieuw op: **91x64**,
+  klopt exact op alle 3 Heavy-sheets. `knightyAnimations()` geparametriseerd (totalRows) zodat dezelfde
+  cel-layout zowel Knighty (14 rijen) als Heavy (12 rijen) bedient — Heavy's death-animatie is gewoon 2 rijen
+  korter (echte inhoud, geen bug).
+- 🐞 Onderweg ontdekt EN gefixt: een regex voor Heavy's run-bestanden was woordvolgorde-afhankelijk
+  (".*Heavy Knighty.*run.*") en miste "Heavy Knighty brown yellow.png" (waar "Run" in de MAP-naam staat,
+  vóór "Heavy Knighty" in het pad) — dit bestand kreeg de verkeerde framegrootte en bleef als losse,
+  kapotte creature "Heavy Knighty yellow" hangen. Gefixt door op het mapsegment te matchen i.p.v.
+  bestandsnaam-woordvolgorde.
+- Succubus-consolidatie: alleen gecategoriseerd naar 'mature' (niet volledig clothes/bare gegroepeerd per
+  personage — geflagged als vervolgstap, niet in deze batch gedaan gezien de omvang).
+- "GandalfHardcore Covered Characters sheet.png" (13 rijen, geen rooster gegeven): als ÉÉN generieke
+  creature opgenomen i.p.v. overgeslagen — geflagged voor een naam-rooster van jou.
+- CreatureSprite/PortraitImage herbouwd: kader-anker nu bottom-center i.p.v. exact-om-de-crop, overflow
+  toegestaan (niet geclipt) voor grote units, portret krijgt zijn EIGEN kader, titel boven de kaders,
+  bottom-view previews 1.3×1.3 groter met ongewijzigde vakjes.
+- Suite 634 groen, lint 0 err, build clean, browser-geverifieerd (mature/incomplete/Knighty-merge/dubbele
+  kaders allemaal gecheckt, inclusief de regex-fix). docs.md §125.
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ #683 Goblin/Zombie/Maid uitgewerkt + terug naar portrait; Wizard herzien; Horse death-fix
+- Volledige frame-breakdowns van jou verwerkt voor Goblin (84x64, 9 anims, 6 kleuren incl. lime/dark green/
+  bright green), Zombie (64x64, 11 anims, 4 kleuren), Maid (64x64, 12 anims, normal/full-toggle + 8 kleuren).
+  Alle drie terug van 'incomplete' naar 'portrait'.
+- Elke frame-reeks (bv. "frame 47-57 death") omgerekend naar rij/kolom via row-major-nummering en
+  gecontroleerd tegen de echte pixelafmetingen — totaal gebruikte frames klopte in alle gevallen exact
+  (57/60, 79/80, 84/90) met wat over als lege opvulling.
+- Goblin's 6 portretten hadden geen kleur-aanduidende bestandsnaam (Portrait 64x64..64x69) — opgelost met
+  een nieuwe `nearestPortraitByColor()` die sheet- en portret-kleur samplet en op dichtste match koppelt
+  (zelfde sampleColor-techniek als Doggy) — visueel geverifieerd correct (groen shirt + groen gezicht).
+- Wizard (Portrait): volledig herschreven animatieset (idle/walk/walkattack/jump/simpleattack/block/
+  blockhit/resting/death) — vervangt de oudere cast1-4/counterspell/idlesmoke-set. Level 9's wizard-combat
+  (enemyAssets.js) heeft een eigen losstaande kopie van de OUDE idle/cast2-cellen — niet aangepast (buiten
+  scope), maar het commentaar daar is nu verouderd — geflagged.
+- Horse: 'stagger' verwijderd, 'death' herberekend naar frames 39-46 (nu 8 cellen i.p.v. 5).
+- Onderweg ontdekt: ALLE "* colors.png"-bestanden (Dress/Goblin/Maid/Mounted knight/Samurai/Zombie colors)
+  zijn dezelfde soort junk-preview-thumbnail als de eerder verwijderde "color variations"/"heavy colors" —
+  generiek uitgesloten i.p.v. de 2 losse namen.
+- Suite 634 groen, lint 0 err, build clean, browser-geverifieerd (alle 4 personages + horse gecheckt,
+  screenshots kloppen). docs.md §126.
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ #684/#685 Bestiary-vervolgfixes (Goblin portretten, Lady Flower/Spirit Blue swap, default
+  normal, oversized previews) + Level 9 projectile-herwerking
+- Goblin portretten kleurden niet mee: kleur-gemiddelde matching faalde (goblins hebben allemaal dezelfde
+  groene huidskleur) — vervangen door expliciete `GOBLIN_PORTRAIT_BY_VARIANT`-mapping, bepaald via
+  hue-vergelijking (en voor het ene lastige geval, bright/dark green, relatieve verzadiging). Visueel
+  geverifieerd correct.
+- Lady Flower (3 varianten) mature->passive, Lady Flower Plain passive->mature: omgewisseld.
+- Alle 4 Spirit Blue-personages gemerged tot 1 creature "Spirit Blue" in mature: 4 poses (on the floor/
+  pose back/pose frontal/sword) zijn nu ANIMATIE-knoppen i.p.v. aparte creatures; Normal/Bare/Brown/Brown
+  Bare is de variant-toggle. Brown heeft alleen sword-art — die 2 varianten krijgen gewoon 1 animatie i.p.v.
+  4 (geen nieuwe code nodig, de UI rendert toch al wat een variant heeft).
+- Default-variant bug gefixt: alfabetisch sorteren zette "Bare" vóór "Normal" (B<N) — elke Bare/Normal
+  creature toonde standaard Bare. Nieuwe sorteervolgorde: bare-varianten altijd laatst, "Normal" wint onder
+  de rest, verder alfabetisch.
+- Bottom-view preview: als een unit > 64 breed/hoog is, wordt de renderschaal nu afgeschaald zodat hij in
+  het vak past (i.p.v. de overflow-toestemming van de top-view over te nemen, die daar wél gewenst is).
+- Level 9 projectiles: 1,5x kleiner, animatie 4x sneller, gecentreerd op B4 (i.p.v. in de slime-baan onder
+  de notenbalk), noten worden nu HELEMAAL niet meer gerenderd (niet alleen verborgen), en een kleine
+  willekeurige oscillatie (2 sinusgolven per as, bereik 15 units, per-projectile fase zodat ze niet
+  synchroon bewegen).
+  🐞 Gevonden EN gefixt tijdens het verifiëren: de eerste blauwe-gloed-poging (CSS filter direct op de
+  projectile's eigen `<svg>`, met een piepklein viewBox van ~48x8 eenheden) rendere als een schermvullende
+  muur van vervaagde blobs i.p.v. een zachte gloed — Chrome berekent de blur blijkbaar in die kleine
+  viewBox-ruimte en schaalt het resultaat daarna mee omhoog. Gevonden door het DOM-element-aantal te
+  checken (slechts 4-5 echte projectiles — geen duplicatie-bug) en te bevestigen door de filter tijdelijk
+  uit te zetten. Fix: de filter op een omwikkelende `<g>` zetten i.p.v. op de geschaalde svg zelf.
+- Suite 634 groen, lint 0 err, build clean, uitgebreid browser-geverifieerd (goblin/spirit blue/lady flower/
+  level 9 met langere speelsessie, geen crashes). docs.md §127.
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ #686 Level 9 herontworpen als call-response echo-oefening
+- Blauwe gloed (permanent, §685) weggehaald — de projectiel-gloed had toch geen functie meer zodra de
+  noten sowieso nooit getoond worden.
+- Level 9 is nu een vaste call-response cyclus (maat -1/0 lead-in ongewijzigd): maat 1 = wizard geeft 2
+  kwartnoten (hoorbaar via nieuwe `treblePreviewMelody`, instrument 'lead_1_square' — "Square" bestaat niet
+  als instrument, dit is de dichtstbijzijnde GM-patch, met Han afgestemd), maat 2 = speler moet herhalen,
+  enz. t/m maat 8 → 4 golven van 2 maten. Vaste metronoom-tijd wint (Han's antwoord): een gemiste/foute
+  herhaling pauzeert niets, telt gewoon als miss (bestaande stats).
+- `levels.json` Level 9: numMeasures=1, numRepeats=2, notesPerMeasure=2, nieuw wizardSpawnLeadMeasures=1;
+  range/kwartnoten-instellingen ongewijzigd (zelfde als level 2, zoals gevraagd).
+  `wavesForLevel` gegeneraliseerd (totalMeasures/(numMeasures×numRepeats)) — geen ander level verandert.
+- Golf-voortgang is nu metronoom-getimed (nieuwe rAF-timer in App.jsx), niet meer "clear-gedreven" zoals
+  alle andere levels — `onSlimesCleared` is een no-op voor de Wizard.
+- Oneven maten tonen gewoon rusten (via de bestaande MelodyNotesLayer, notes geforceerd naar 'r' — geen
+  hand-getekende glyphs), even maten tonen het canonieke herhalingsteken (dezelfde "Ô" die ook bij een
+  onzichtbare notenbalk gebruikt wordt).
+- Projectiel: eigen 1-maats vluchtboog (i.p.v. de gedeelde 2-maats beeldbreedte), spawnLeadMeasures regelt
+  alleen ZICHTBAARHEID; nieuwe eenmalige "spawn glow" (witte cirkel + blauwe halo, groeit 0→20px, fade in/
+  piek/fade out over 2 rpg-frames, "achter de wizard, voor het projectiel" in z-volgorde).
+  🐞 Gevonden: het idee "wordt al halverwege de notenbalk zichtbaar" (Han's eigen verduidelijking) is
+  zonder JIT-pregeneratie van de melodie niet haalbaar (golf-inhoud bestaat pas op het moment dat hij nodig
+  is) — gevlagd, projectiel is nu zichtbaar vanaf het moment van spawnen i.p.v. al half onderweg.
+- Combat-venster voor de Wizard verbreed naar een hele maat i.p.v. een beat (Han: "hergebruik gradeHit met
+  maat-breed venster") — zelfde gradeHit-functie, alleen de eenheid anders.
+- 🐞🐞🐞 Drie echte bugs gevonden EN gefixt tijdens uitgebreid browser-verifiëren (golf 2/3/4 toonden een
+  lege notenbalk): (1) de golf-klok reset altijd naar absolute tick 0 — klopte toevallig voor elk vorig
+  level (altijd maar 1 golf), maar bij 4 golven dacht golf 2+ dat hij allang van de lane af gescrold was
+  vóór hij ooit gerenderd werd; (2) het projectiel gebruikte de verkeerde (2-maats) vluchtboog i.p.v. 1
+  maat; (3) de Wizard-branch was gegate op `scrollStartTime != null`, maar die closure kon een VEROUDERDE
+  waarde vasthouden (het effect draait alleen op `[notesKey]`) — gate simpelweg verwijderd, de formule had
+  hem toch niet nodig. Gevonden via tijdelijke console-instrumentatie + puppeteer, opgelost en herverifieerd
+  over alle 4 golven (rusten/herhalingsteken tonen nu correct, geen console errors over 20+ sec speeltijd).
+- Suite 635 groen, lint 0 err, build clean. docs.md §128.
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ #687 Bestiary-batch: Rat thief, Female kolom-verschuiving, Skeleton, Knight-merge,
+  Female Medieval+Lantern, Maid mega-merge
+- Rat thief miste: `isCurated` matchte 'rat' ook in "Rat thief" (verkeerd, dat is geen duplicaat van de
+  curated Rat). Expliciete uitzondering toegevoegd.
+- Female Pixel Art sheet: succubus is 128 breed (2 kolommen), dus goddess en maid schuiven één kolom door —
+  `expandColumnSheet` kreeg een `wideNames`-optie (loopt met een lopende pixelkolom-cursor i.p.v. de platte
+  array-index). Portret-nummering blijft ongewijzigd (aparte bestanden, per personage genummerd).
+- Skeleton: 6 kleuren gegroepeerd (grey/retro/full white/red/gold/ghost) + portretten uit de 3x2-grid,
+  zelfde techniek als de Wizard-portrait-grid (§675), nu met Han's eigen volgorde — geen giswerk nodig.
+- **Nieuwe generieke capability**: een animatie kan nu zijn EIGEN bronbestand hebben (`relPath`/`url` op
+  animatie-niveau i.p.v. alleen op variant-niveau) — nodig voor "green knight + green knight run als één
+  set animaties".
+- Knight (Knighty) en Knight (Heavy) zijn nu TWEE aparte creatures (was: 1 gemergede), elk met ALLE eigen
+  animaties (incl. run/sheet2) als knoppen op één kleurenkaart i.p.v. losse variant-swatches per bronbestand.
+  🐞 Gevonden: "Brown heavy .png" heeft een spatie vóór ".png" (enige met die typo) — 3 regexes misten hem
+  stilletjes, gefixt.
+- Female Medieval Pixel Art Character + Lantern: normal/lantern toggle, 9 animaties (idle/walk/run/air up/
+  air down/hit/death/playing harp/separate harp); de 2 harp-animaties zijn ook beschikbaar op de lantern-
+  variant (wijzen naar het normal-sheet via de nieuwe relPath-override). Harp.png/Lantern.png (losse props)
+  NIET als overlay gebouwd — bestaande overlay-mechanisme verwacht hetzelfde cell-grid als de basis-sprite,
+  wat geen van beide props heeft; uitgesloten i.p.v. als kapot-ogende losse kaartjes te tonen.
+- Maid mega-merge (het grootste onderdeel): kleur + full/normal (hernoemd naar "White Accent") + sheet2
+  (carry water/wash dishes/read/sit/idle alt) + combat (8 animaties) + sword-down (idle sword) — allemaal
+  samengevoegd tot ÉÉN animatielijst per kleur via dezelfde merge-techniek als Knight.
+  🐞🐞 Twee bugs gevonden en gefixt: (1) een bestaande roster-tabel had OOK een personage 'Maid' (ander,
+  simpeler NPC) — botsing met de nieuwe groep, hernoemd naar 'Maid (Roster)'; (2) "...Sheet.png" (geen
+  kleurnaam) werd verondersteld Black te zijn, maar Black had al een eigen bestand — dubbele animatie tot
+  gevolg. Bestanden zonder herkenbaar kleurwoord worden nu gewoon NIET gegroepeerd i.p.v. geraden.
+  ⚠ NIET geïmplementeerd: de "with hat" toggle (te complex voor dit al zeer grote blok — een accessoire zou
+  ook per-animatie-bron moeten resolven; apart vervolg). ⚠ Sheet2's "sleep"/"carry clothes" frame-ranges
+  die Han gaf zijn intern tegenstrijdig (achterstevoren / overlappend) — weggelaten i.p.v. geraden, Han moet
+  de juiste ranges nog een keer geven.
+- ⚠ Zombie per-kleur portretten: NIET mogelijk — er bestaat maar 1 zombie-portretbestand in de assets, geen
+  6/4 varianten om uit te kiezen. Gevlagd, niets veranderd (bestaande gedeelde portret blijft staan).
+- Maid bathing losgetrokken en naar mature verplaatst.
+- Suite 635 groen, lint 0 err, build clean, uitgebreid browser-geverifieerd (Knight/Heavy/Skeleton/Maid/
+  Medieval/Succubus allemaal met screenshots gecheckt, geen console errors). docs.md §129.
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ #688/#689/#690 Splash-timing fix + Level 9 volledig herwerkt + bestiary-batch 2
+- Algemeen: end-of-level splash wacht nu op de LAATSTE maatstreep die de hit zone bereikt (nieuwe
+  `onSongEnd`, van SheetRpgLayer via App.jsx naar useLevel) i.p.v. direct bij de laatste noot/golf.
+- Level 9: teruggedraaid naar ÉÉN doorlopende melodie van 8 maten (numMeasures=8/numRepeats=1, weer
+  identiek aan level 2) — de vorige 4-losse-golven-opzet (§686) was hoogstwaarschijnlijk de oorzaak van
+  "ik hoor te veel tonen" (overlappende audio-schedules) EN brak de lead-in/eindstreep-berekening (die een
+  melodie van de hele levellengte verwacht). De wave-timer is helemaal weg; level 9 gedraagt zich nu
+  precies als elk ander level (onSlimesCleared, ongewijzigd).
+  Wizard's hoorbare "call": nu één gemuted-even-maten kopie van de melodie, ÉÉN keer gescheduled voor het
+  hele level (i.p.v. per golf).
+  Projectielen: weer exact zoals de slimes (2 maten vluchtboog i.p.v. de vorige 1-maats-hack); alleen de
+  ZICHTBAARHEID is nog apart gegate (1 maat voor due), nu met een debug-mode bypass (altijd zichtbaar).
+  Rusten (oneven maten, hoorbaar maar nooit de toonhoogte tonend) en de ECHTE noten (even maten, normaal
+  onzichtbaar, alleen in debug mode) vervangen het herhalingsteken-idee volledig — twee aparte rest-
+  geclonede lagen via de bestaande MelodyNotesLayer.
+- Skeleton: volledige animatie-breakdown (walk/walk arm stretched/walk alt/idle/glow/attack/death/
+  resurrect); "Skeleton Variations" (junk) verwijderd.
+- Goddess: idle weggehaald, walk->fly hernoemd, nu de enige (dus standaard) animatie; terug naar 'portrait'.
+- Maid: kleurenvakjes nu diagonaal kleur/wit (duo) voor de gewone kleuren, mono voor "White Accent"; de
+  hat-toggler is nu ECHT samengevoegd (1 extra "Hat"-optie, want er is maar 1 hoedvel, niet 1 per kleur).
+  Sheet2's sleep/carry clothes frame-ranges (39-45/46-50, door Han gecorrigeerd) toegevoegd — nu alle 50
+  cellen van het grid gebruikt.
+  🐞 Gevonden: de swatch-override-pass draaide vóór de merknaam-strip-pass, dus overrides tegen de
+  GESTRIPTE naam (bv "Archer sheet") matchten nooit de RUWE naam die er op dat moment nog stond
+  ("GandalfHardcore Archer sheet") — volgorde omgedraaid.
+- Medieval: harp-animaties tonen nu ook het lantern-icoontje (nieuw `propRelPath`/`propUrl`-mechanisme,
+  een vast klein badge-icoon i.p.v. het bestaande per-cel overlay-systeem dat niet paste).
+- Oriental Female Characters: gesplitst in 6 karakters (laying/musician normal+bare, sitting, leaning,
+  wading->mature, lounging->mature).
+- Poop Thrower + Poop Impact Sheet gekoppeld (impact sheet als portret ernaast); idle = frames 1,2,3,41,50
+  (Han's "51" gelezen als rij5-frame1 = 41, GEEN pixel-verificatie, gevlagd), rest = throwing.
+- Kleurvakjes ingevuld voor archer/skeleton/zombie/koe/damned/burning skull/guards/musketeer/witch/wizard/
+  cat/dog — generieke override-pass op (base,variant), nieuw `swatchColor2` voor tweekleurige (diagonale)
+  vakjes. Dog hernoemd naar "Dog (Small)" (ter onderscheid van Doggy).
+- ⚠ NIET gedaan dit blok (expliciet uitgesteld, niet overhaast): archer/wizard 64x64 projectiel-paneel
+  (zoals poop thrower); nieuwe "RPG Level" tab met tegel-scène (gras/tent uit decor.png) — een echt NIEUWE
+  feature, verdient een eigen focused ronde i.p.v. een haastige toevoeging aan het eind van dit al zeer
+  grote blok.
+- Suite 634 groen, lint 0 err, build clean, uitgebreid browser-geverifieerd (Level 9 24 sec seamless
+  scroll in debug mode, Maid/Medieval/Skeleton/Goddess/Oriental/Poop screenshots gecheckt, 0 console
+  errors). docs.md §130/§131.
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ #691/#692 "doe de gevlagde items" (archer/wizard paneel) + 🐞✅ Level 9 "twee melodieën"
+
+Han: "doe de gevlagde items" — de twee uitgestelde items uit het vorige blok oppakken:
+
+- ✅ #691 Archer/wizard 64×64 projectiel-paneel (fx/arrow.png resp. fx/Projectile sheet blue.png), zelfde
+  portret-koppel-truc als Poop Thrower — maar via een POST-PROCESS (base,variant)-match ipv relPath-match,
+  want zowel Archer's als (vooral) roster-"Wizard"'s relPath wordt gedeeld met andere/onverwante entries.
+  🐞 Gevonden tijdens het testen: de match-predicate behandelde "geen variant opgegeven" als "match alleen
+  de variant-loze entry" (zelfde conventie als SWATCH_OVERRIDES) — daardoor kregen alleen Archer's kleurloze
+  entry het paneel, niet de 7 kleurvarianten. Gefixt: voor PORTRAIT_OVERRIDES betekent "geen variant" =
+  match ALLE varianten.
+- ⏳ RPG Level tab: interview gehouden (2 vragen — gras-tegel cellen, en tab-doel) voordat verder gebouwd
+  werd (CLAUDE §4b/§9k — genuine ambiguïteit, geen gok). Han's antwoorden: Floor Tiles1.png cel (1,2)+(1,3)
+  (rij;kolom), en de tab is een dev/preview-tab naast Bestiary (nog niet gewired in echte gameplay). Bouw
+  zelf nog niet gestart — apart afgerond in een volgend blok.
+
+Tussendoor: Han meldde (3x "werk verder!") een Level 9 bug: "ik hoor te veel tonen... ik hoor andere noten
+dan de te spelen noten... vermoeden is dat er twee aparte melodieën bestaan". Root cause gevonden: de
+odd/even-maat "call"/"response"-split uit #688 (vorig blok) WAS letterlijk twee verschillende notenreeksen
+— de hoorbare "call" (kwadraat-synth) speelde de ONEVEN maten, terwijl combat/projectile-grading (ongefilterd
+op pariteit) voor ELK note een projectiel/hitvereiste geeft, dus oneven-maat-noten (gehoord) ≠ even-maat-
+noten (te spelen). ✅ Fix: geen pariteits-split meer — ÉÉN melodie (`trebleMelody`, ongewijzigd), elke note
+doorloopt a) ~2 maten onzichtbaar spawnen (ongewijzigd), b) `wizardSpawnLeadMeasures` maten van tevoren
+zichtbaar + hoorbaar op ZIJN EIGEN toonhoogte (audio nu tijd-verschoven ipv pariteits-gemute — hele melodie,
+`wizardSpawnLeadMeasures` maten eerder in de tijd geschedule), c) op eigen beat: speler moet exact die
+toonhoogte spelen (ongewijzigd). Visuele staaf vereenvoudigd naar hetzelfde patroon (altijd-zichtbare rusten
++ debug-only echte notatie, niet meer pariteits-gesplitst).
+- Suite 634 groen, lint 0 err (1875 pre-existing warnings, ongewijzigd), build clean. docs.md §132.
+  Browser-verificatie van Level 9 gedaan: 24 sec seamless scroll in debug mode, screenshot bevestigt één
+  doorlopende melodie (rust altijd zichtbaar, echte toonhoogte alleen in debug-mode net vóór de wizard hem
+  cast), projectile-aantal blijft begrensd (geen runaway/duplicatie), 0 console errors.
+- Han meldde daarna (met screenshot van het Archer-vak): "ik kan het projectiel nog niet zien (attack /
+  archer sheet) en het projectiel ook niet bij portrait / wizard... maak de RPG level tab maar."
+  🐞 Gevonden: `bestiaryAssets.js`'s SHEETS-glob was scoped op `characters/**` — `fx/arrow.png` en
+  `fx/Projectile sheet blue.png` liggen daarbuiten, dus `portraitUrl` was altijd `undefined` (stil, geen
+  fout) → paneel rendert nooit. Gefixt: tweede glob voor `fx/**` toegevoegd en gemerged.
+  Twee polish-fixes erbovenop: `PortraitImage` rekte het hele-bestand-portret uit (arrow.png 30x5px werd
+  lelijk vervormd) — nu center+contain-fit ipv stretch. Wizard's portret-frame verplaatst van (rij0,kol0)
+  — een felle flits-pose — naar (rij2,kol2), een herkenbaardere "in flight"-boog.
+  ✅ RPG Level tab gebouwd: `RpgLevelPanel.jsx` (nieuw bestand), 5e avatar-context scherm naast Bestiary
+  (dev/preview, nog niet in echte gameplay). Vloer = Floor Tiles1.png cellen (1,2)+(1,3) getiled tegen de
+  onderkant; boom = Tree1.png volledig; tent = Decor.png rijen2-3 kol1-3 (96x64, LINKER van twee tenten,
+  visueel geverifieerd via een gecropte inspectie-render, geen gok); 5 graspollen (Decor.png 5;1 5;2 5;3
+  6;1 7;1) in het voorgrond bovenop de vloer; personage (herbruikte CharacterDoll) erop; debug-mode toont
+  een 32x32 cyaan grid. Browser-geverifieerd: alles sluit precies aan op het grid.
+- Suite 634 groen, lint 0 err, build clean. docs.md §133.
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ #692 Evil Wizard split + "heel veel critters" batch + generator opruiming
+
+Han: "Ik voegde toe: evil wizard.png. rij 1: wizard evil, rij 2: wizard skeleton; en heel veel critters.
+Voeg die toe aan de sheets. Ruim meteen op. Vind een manier om alle sprites goed te organiseren, labelen,
+splitsen indien nodig, zodat je snel kan laden/vinden in de files."
+
+- ✅ Evil Wizard.png (768x128, char_passive) gesplitst in TWEE creatures (rij0="Evil Wizard", rij1="Wizard
+  Skeleton") — zelfde "één bestand, N creatures" patroon als de bestaande `expandCritters` (critters
+  sheet.png). Nieuwe `expandEvilWizard()`.
+- ✅ Nieuwe map `animals/critters/` (3 curated packs × 15 dieren = 45 uniforme 64x16/4-frame idle sheets,
+  plus ~40 losse "X Sprite Sheet.png" bestanden) — valt automatisch in de BESTAANDE generieke scan-pipeline
+  (geen nieuwe scan-code nodig voor het gros), nu correct getagd category='critters' (was 'animal').
+  Labeling verbeterd: camelCase bestandsnamen (PlagueBat.png) gebruiken nu de nette mapnaam (Plague Bat) als
+  label; "basic magical animations"'s lowercase mapnamen krijgen Title Case; trailing "Sprite Sheet" wordt
+  overal gestript (Akaname Sprite Sheet -> Akaname).
+  🐞 Gevonden: curated-keyword collision check (isCurated, dedupe tegen de al-gecureerde gameplay "Bat")
+  test tegen de RUWE bestandsnaam (vóór de mapnaam-relabel) — dus "PlagueBat"/"SwoopingBat" (geen spatie,
+  geen woordgrens) komen wél door, terwijl de losse generieke "Bat_Sprite_Sheet.png" (spatie-genormaliseerd
+  vóór de check) terecht als duplicaat van de gecureerde Bat wordt gedropt. Beide uitkomsten geverifieerd.
+  🐞 Ook gevonden: nieuwe "- Guides.png" junk-regex had een overbodige `$`-anchor die nooit matchte (JUNK_NAME
+  test tegen de bestandsnaam MET .png) — verwijderd. Nieuw "(1)" duplicate-download-patroon toegevoegd
+  (DUPLICATE_DOWNLOAD_NAME).
+- ✅ "Vind een manier om te organiseren" — een volledige multi-bestand-split overwogen maar bewust NIET
+  gedaan (risico: alle override-tabellen delen dezelfde helpers/volgorde-afhankelijkheden, en deze sessie
+  vond al 2 subtiele volgorde-bugs — een 3e onder tijdsdruk is een reëel risico). Lichtgewicht alternatief:
+  een inhoudsopgave + 17 "═══ SECTION: ... ═══" banner-comments toegevoegd (grep/Ctrl+F-vriendelijk) door het
+  hele bestand heen. Als de zwaardere multi-bestand-split alsnog gewenst is: graag expliciet laten weten,
+  dat verdient een eigen zorgvuldige/geteste ronde.
+- Suite 634 groen, lint 0 err, build clean. Browser-geverifieerd: Critters-tab toont alle nieuwe dieren
+  (screenshot Acid Ant/Plague Bat), Evil Wizard + Wizard Skeleton apart selecteerbaar met eigen sprite.
+  docs.md §134.
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ Level 9 UAT ronde 2-3, bestiary portrait rework, nieuw RPG Level bewegingssysteem
+
+Han's UAT op de vorige ronde bracht 3 nieuwe rondes feedback (Level 9 nog niet 100%, bestiary-portret
+verfijning, en een hele reeks RPG-level-tab features): odd/even opnieuw (2x omgedraaid), wizard attack
+frames 2x herzien, projectile oscillatie -50%, portret-schaal 2x herzien (uiteindelijk terug naar
+64x64/true-size), en RPG level tab kreeg: beweging (A/D/pijltjes/tap), een volgend huisdier, een Whisp-NPC
+met dialoog — plus een hele reeks bugfixes onderweg.
+
+- 🐞✅ Level 9 bug: eerste keer klonk de default C-toonladder dwars door de echte muziek heen —
+  `trebleMelody` verandert meerdere keren vroeg in een level (initiële generatie → de restify-bake-in is
+  zelf een 2e wijziging), en de wizard-cast-audio-effect annuleerde zijn EIGEN vorige schedule niet bij een
+  hernieuwde fire → 2 overlappende audio-schedules. Gefixt met een eigen `wizardPreviewStopFnsRef` (niet de
+  gedeelde backing-ref) + een CONTENT-based (niet reference-based) "is dit al gerestified"-check, zodat het
+  zelf-corrigerend is ongeacht wat trebleMelody daarna nog vervangt.
+- ✅ Odd/even parity 2x omgedraaid op Han's UAT: eerst "oneven=leeg, even=noten" (§132's fix), toen Han
+  zag dat het nog niet klopte en zei: "even maten = alleen een hele rust. oneven maten = onzichtbare
+  kwartnoten, en zichtbare rusten" — definitieve versie: EVEN maten collapsen tot 1 hele rust; ONEVEN maten
+  blijven ONGEWIJZIGD (hun natuurlijke mix van echte noten + echte rusten), met noten verborgen tenzij debug.
+- ✅ Wizard attack-animatie: nu ECHT alleen bij het maken van een noot (niet meer een losse cast2-loop).
+  Frame-specificatie 2x herzien door Han, uiteindelijk: single f26-31 (flits f30), double f26-34+36-37
+  (skip f35, flitsen f30+f36), triple f26-34+36-38+40-44 (skip f35+f39, flitsen f30+f36+f42). Eén
+  `wizardAttackRun()` helper bouwt alle 3 varianten (geen 3x hand-copy).
+- ✅ Projectile oscillatie -50% (15 -> 7.5 units), `oscillate()` verplaatst naar `src/utils/oscillate.js`
+  zodat de bestiary-portretten 'm kunnen hergebruiken.
+- ✅ Bestiary portret-schaal 2x herzien: ronde 2 maakte het non-square/fill-schaal (geen letterbox), ronde 3
+  UAT zei: nee, terug naar vierkant 64x64, "true size" (schaal = size/64, NIET frame-afhankelijk),
+  gecentreerd, geclipt bij overflow, met milde oscillatie (hergebruikt dezelfde wobble als de sheet-music
+  projectile) — alleen voor archer-pijl en wizard-projectile (`portraitOscillate` vlag).
+- ✅ Nieuwe `Frame64Overlay`: het "64x64 frame.png" uit de Pixel Art Game UI-set als decoratieve rand op elk
+  64x64-vak (top-view sprite-kader + alle portret-vakken).
+- ✅ Nieuw "side portrait"-mechanisme: Wizard (Portrait) had zijn ENE portret-slot al bezet (eigen
+  kleuren-portret), dus de projectile-companion kreeg een 2e onafhankelijk slot (`sidePortrait*` velden).
+- ✅ Critters correcties: Porcupine 40x40 -> 32x32 (Han corrigeerde zichzelf), Imp toegevoegd op 32x32
+  (eerste 6 rijen gecapt), Training Dummy -> 'other', Flying Brain Monster Mind Blast nu geanimeerd (96x32,
+  5 frames, was statisch).
+- ✅ RPG Level tab — nieuw bewegingssysteem (`useRpgLevelState`, nieuwe hook, mirror van
+  useBestiaryEditor's "1 gedeelde instance naar top+bottom" patroon): A/D of pijltjestoetsen, of tap/klik op
+  het scherm om ernaartoe te lopen; wandel/rust-animatie + facing-flip.
+  🐞 Gevonden: na omschakelen naar 16x16 gras stonden boom/tent/hero/NPC 16px te hoog (nog op de OUDE
+  32px-tegel-hoogte `T` i.p.v. de nieuwe `FLOOR_T`) — alle grond-posities gefixt.
+  ✅ Volgend huisdier: wacht tot de leash (64 units) strak staat, loopt dan door tot VLAKBIJ de speler (niet
+  zomaar tot net onder de trigger-afstand — hysteresis). 🐞 Gevonden: 2 pets zichtbaar (de ingebouwde
+  CharacterDoll-pet-laag EN de nieuwe losstaande) — de doll-laag wordt nu gestript (`noPetChar`).
+  🐞 Gevonden: pet-sprite crop hardcodeerde Wisp's 5-koloms-layout, maar Fox (tijdelijk hardcoded ipv de
+  echte equipped pet, "spritesheet klopt niet") is 6 kolom x 2 rijen — veroorzaakte een dubbel/versmeerd
+  beeld; gefixt met dezelfde native-crop+transform-techniek als SheetCrop (werkt met elk sheet-formaat).
+  ✅ Whisp-NPC neergezet, klikken laat de speler ernaartoe lopen en opent een dialoog. Nieuw
+  `RpgLevelBottomPanel` toont de tekstballon in de bottom-view (pixel-font Habbo.ttf, geflagd als eerste
+  gok). Ronde-3 herontwerp: kader 64px hoog, spreker-avatar (Wisp) links, rechte hoeken, 256px tekst-breedte.
+  ✅ Antwoord (geen codewijziging): "zijn alle assets dezelfde schaal" — nee, Tree1.png is een
+  hoger-resolutie geschilderde asset, geen 32px-tegel-sprite; geen schone manier om dat te forceren zonder
+  de bron zelf te resamplen (contentbeslissing, niet stilzwijgend gedaan).
+- Suite 634 groen, lint 0 err, build clean. Uitgebreid browser-geverifieerd: Level 9 (odd/even correct,
+  attack-flits zichtbaar), Archer/Wizard(Portrait)/Flying Brain Monster portretten (frame-overlay, side-
+  portrait, animatie), RPG Level tab volledige flow (lopen, pet volgt/geen dubbel meer, NPC-klik ->
+  wandelen -> dialoog met nieuw kader-ontwerp). docs.md §135.
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ Level 9 odd/even ronde 4 (definitieve correctie): terug naar ronde 2
+
+Han: "nog steeds niet goed. maar misschien door mijn uitleg. dus: de noten om te spelen staan in de EVEN
+maten. de ONEVEN maten hebben altijd een hele rust (forceer dat). de noten in de EVEN maten worden een
+maat op voorhand óók door de wizard gespeeld; en op dat moment verschijnen de projectiles."
+
+- ✅ Ronde 3's flip (even=hele rust, oneven=echte noten) was zelf fout — dit is exact ronde 2's originele
+  mapping. `restifyOddMeasures`/`isAlreadyRestified` (App.jsx) en de render-split (SheetRpgLayer.jsx) beide
+  teruggedraaid: ONEVEN maten collapsen altijd tot 1 geforceerde hele rust; EVEN maten behouden hun echte
+  speelbare noten (onzichtbaar tenzij debug). De wizard-cast-audio + projectile-visibility-gate hoefden niet
+  aangepast (die schedulen al 1 maat vóór elke noot z'n echte positie, wat automatisch in de voorgaande —
+  oneven, verder stille — maat landt).
+- Suite 634 groen, lint 0 err, build clean. Browser-geverifieerd over meerdere frames: oneven maten tonen 1
+  hele-rust-glyph, even maten tonen debug-only echte noten met de wizard-attack-flits precies op het
+  cast-moment. (Eén tussentijds frame toonde kort 2 losse kwartrusten i.p.v. 1 hele rust — bleek een
+  transiënte render tijdens het zelf-corrigerende effect, niet reproduceerbaar in latere frames.)
+  docs.md §135 (aanvulling).
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ Level 9 ronde 5: "maat 1 = maat 2" op data-niveau + twee stille render-bugs gefixt
+
+Han: "Genereer als volgt: steeds, 1 maat; numrepeats = 2. dus maat 1 = maat 2 ... ik zie nu noten in maat 1
+EN in maat 2; dat zou sowieso niet mogen. de logica van de tovenaar is al goed geimplementeerd, daar is
+geen probleem."
+
+- ✅ `numMeasures:1/numRepeats:2` bleek de Sequencer's ROUND-repeat te sturen (§128), niet een 2e maat
+  tick-space — teruggedraaid naar `numMeasures:2/numRepeats:1` (zelfde 1-wave). Nieuwe
+  `duplicateMeasureOneIntoTwo` (App.jsx) kopieert maat 1's noten letterlijk naar maat 2 (per relatieve
+  offset) vóór `restifyOddMeasures` de oneven maat collapt — "maat 1 = maat 2" klopt nu op data-niveau.
+- 🐞→✅ Bug 1: gecollapste 2e+ slots hielden hun ORIGINELE duration/offset — overlapte de hele-rust van
+  slot 1 en corrumpeerde `processMelodyAndCalculateSlots`'s maatgrens-splitsing (noten schoven naar de
+  verkeerde maat). Fix: duration+offset ook op `null` gezet, niet enkel het notenglyph.
+  🐞→✅ Bug 2 (de eigenlijke oorzaak van "noten in beide maten"): `processMelodyAndCalculateSlots`
+  gebruikt `melody.displayNotes` i.p.v. `.notes` zodra die bestaat — beide restify-functies muteerden
+  alleen `.notes`, dus de BLADMUZIEK toonde nog de originele ongecollapste toonhoogtes terwijl `.notes`
+  (audio/grading) al correct was. Beide functies muteren nu `.displayNotes` in lockstep.
+  Gevonden via een tijdelijke console.log binnen de `useMemo`-callback zelf (input vs. output binnen
+  dezelfde synchrone call kwamen niet overeen — kon alleen betekenen dat de functie een ANDER veld las).
+  StrictMode kort verdacht en uitgesloten (tijdelijk verwijderd uit main.jsx, bug bleef identiek — teruggezet).
+- Ook gefixt: `SheetMusic.jsx`'s `sliceMelodyForPagination` bypasst nu paginatie-vensters wanneer
+  `sideScroll` actief is (was niet de hoofdoorzaak maar wel een reële bug — de RPG-laag moet de melodie's
+  ware absolute offsets zien, geen herbaseerde paginaslice).
+- Suite 635 groen, lint 0 err, build clean. Browser-geverifieerd (meerdere screenshots): maat 1 toont enkel
+  1 hele-rust-glyph, maat 2 toont de (gedupliceerde) echte noten, en dit alterneert correct maat-na-maat.
+  docs.md §135 (ronde 5-aanvulling).
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ Ronde 6: hele-maat-rust gecentreerd + Level 9 naar 8 maten (4 JIT call-response blokken)
+
+Han: "1 maak een nieuwe regel in render sheet music: als de hele maat een rust is, mogen ze gecentreerd in
+de maat staan. 2 nu is de lengte van het level maar 2 maten; maar daar 8 van (dus genereer sequentieel 4
+blokken zoals maat 1 en 2." Interview: (1) geldt overal, niet enkel Level 9; (2) 4 ONAFHANKELIJK
+gegenereerde paren; (3) just-in-time genereren (Han wees mijn "alles vooraf"-aanbeveling expliciet af: "een
+halve maat voor een nieuw maatblok in beeld moet komen, wordt ze gegenereerd").
+
+- ✅ Feature 1: `renderMelodyNotes.jsx` — nieuwe `getWholeMeasureRestCenterX` helper; een rust met
+  `duration === measureLengthSlots` krijgt `textAnchor="middle"` op het maat-midden i.p.v. links uitgelijnd
+  op `positionX`. Werkt in zowel tick-mode (Level 9 scroll) als paginatie-mode (barline-index-scan).
+- ✅ Feature 2: nieuw `generateLevel9CallResponseBlock.js` (pure, spiegelt `generateLevelBackingChunk.js`) —
+  genereert 1 call-maat via dezelfde MelodyGenerator, bakt de hele-rust-collapse + response-duplicatie
+  meteen in bij generatie (geen post-process meer nodig). Nieuw `useLevelTrebleStream.js` (spiegelt
+  `useLevelBackingStream.js`'s bewezen JIT-chunk-append patroon) laat de treble-melodie 2 maten
+  ("1 blok") tegelijk groeien, elk blok een halve maat voor het nodig is gegenereerd, met eigen
+  wizard-cast-audioplanning per blok.
+- 🗑️ App.jsx: `restifyOddMeasures`/`duplicateMeasureOneIntoTwo`/`isAlreadyRestified` + de oude
+  eenmalige wizard-preview-audio-effect volledig verwijderd — overbodig, want `generateLevel9CallResponseBlock`
+  genereert nu al-correcte content. `MelodyProvider`'s `treble`-prop leest nu `levelTrebleStream.treble`
+  tijdens Level 9 (zelfde overschrijf-patroon als bass/metronome).
+- `levels.json`: Level 9 `numMeasures`/`totalMeasures` 2 → 8 (nu de TOTALE levellengte, net als bij
+  bass/metronome se `useLevelBackingStream`) — `wavesForLevel` blijft 1 (1 doorlopend stuk, §130).
+  Combat/grading (`slimeData` in SheetRpgLayer.jsx) hoefde NIET aangepast: het is al een `useMemo` op de
+  `trebleMelody`-prop, dus een groeiende melodie wordt automatisch meegenomen.
+- Suite 635 groen, lint 0 err, build clean. Browser-geverifieerd over 24s speeltijd (16 screenshots, geen
+  console errors): maten 1 t/m 8 tonen allemaal verschillende, onafhankelijk gegenereerde content, correct
+  alternerend oneven=rust/even=noten. DOM-geverifieerd (niet enkel pixels): elke hele-rust `<text>` heeft
+  `text-anchor="middle"` op het berekende maat-midden. docs.md §136 (nieuw).
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ Bugfix: wizard-cast te laat vanaf blok 2 (maat 5-6)
+
+Han: "bug: vanaf maat 4 komt de muziek van de wizard te laat, ongeveer een halve maat. visueel klopt het
+nog wel."
+
+- 🐞→✅ Root cause: `playMelodies.js` klemt een `scheduledStart` die al in het verleden ligt vast op "speel
+  nu meteen" i.p.v. een fout te geven. `useLevelTrebleStream`'s generatie-timer mikte op "halve maat voor
+  het blok VISUEEL start", maar de cast zelf moet een VOLLE maat eerder klinken (`wizardSpawnLeadMeasures`)
+  — bleef maar een halve maat speling over voor de klem toesloeg. Blok 0/1 (synchroon gegenereerd bij
+  levelstart) hadden ruim speling; blok 2+ (via setTimeout) niet meer.
+  Fix: de generatie-timer mikt nu op een halve maat vóór de CAST z'n eigen deadline, niet vóór het blok's
+  visuele start. Geverifieerd via tijdelijke logging: elk blok heeft nu ≥1 maat positieve speling
+  (was ≈0/negatief voor blok 2+).
+- Nieuwe unit test: `generateLevel9CallResponseBlock.test.js` (3 tests — collapse-correctheid,
+  2-maten-span, onafhankelijke randomisatie tussen blokken).
+- Suite 638 groen, lint 0 err, build clean. docs.md §136 (aanvulling).
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ Ronde 7: header pause/resume/quit, level-start UI reset, RPG-wereld herbouw
+
+Han (groot batch): stop-knop moet in de header de start-level-knop vervangen als pause-knop met resume/quit
+popup; level-start moet character-UI/overlays sluiten en naar top-keys wisselen; RPG-tab moet
+geclassificeerde animaties gebruiken (fox 'walk' bij lopen); parallax-achtergronden (theme + 4 lagen);
+200-tegel scrollend level met dead-zone camera + edge-hold. "ik zal zelf testen... gewoon unit tests zijn
+genoeg."
+
+- ✅ Header: `AppHeader.jsx`'s Swords-knop wordt een Pause-icoon zodra een level actief is, opent
+  `LevelPausePopup` (nieuw). Oude losse "■ Stop"-knop verwijderd.
+  ✅ Quit: zelfde teardown als de oude Stop-knop + heropent de level-picker splash.
+  ✅ Resume: berekent de maat waarin gepauzeerd werd, breekt alle lopende audio af (zonder level te
+  sluiten), her-ankert `levelAudioStart` zodat een 1-maat metronome count-in meteen start en de inhoud
+  hervat vanaf het maatbegin. **Bekende vereenvoudiging** (in docs.md §137 expliciet vermeld, niet stilzwijgend
+  aangenomen): de JIT-streams (bas/wizard) regenereren hun content vanaf het nieuwe anker i.p.v. exact
+  dezelfde oude content te hervatten — een volledig niet-destructieve resume is een aparte, grotere klus.
+- ✅ `startLevel` sluit nu character-UI/edit-modes en zet `activeTab` naar 'piano' (top keys).
+- ✅ RPG: `CreatureSprite` (BestiaryPanels.jsx) geëxporteerd en hergebruikt via nieuwe `WorldCreature`
+  wrapper i.p.v. handgerolde crop-math — fox/wisp nu via `SCANNED_CREATURES` opgezocht, `WorldCreature`
+  kiest 'move' vs 'idle' animatie op basis van een nieuwe `petMoving` state (useRpgLevelState.js).
+  ✅ Parallax: 5 lagen uit `ASSORTED/backgrounds/Normal BG/` (layer 5 = statische sky-gradient theme, layer
+  4→1 = 4 parallax-lagen 0.2/0.4/0.6/0.8), elk met eigen `-cameraX*factor` offset.
+  ✅ 200-tegel wereld: `LEVEL_MIN_X`/`LEVEL_MAX_X` (±1600, 200×16px) in useRpgLevelState.js, speler
+  geclampt. Dead-zone camera (RpgLevelPanel, eigen rAF-loop) volgt pas als speler buiten het middelste
+  derde deel van het scherm komt. Alle wereld-objecten via één `worldToScreenX` conversie.
+  `EdgeHoldZone` (15% van viewport-breedte) hergebruikt de bestaande held-key beweging via nieuwe
+  `setHeldDirection`.
+- 🐞 Bekend, niet opgelost: bij langdurig ingedrukt houden van een bewegingstoets verschijnt soms een
+  React dev-mode "Maximum update depth exceeded" waarschuwing. Uitgebreid gediagnosticeerd (zie docs.md
+  §137) — geen crash, geen zichtbare functionele breuk (camera/animaties blijven correct werken,
+  geverifieerd via screenshots), enkel in dev-mode. Gezien de RPG-tab's "preview only" status en tijdsbudget
+  niet verder achtervolgd — vlagged voor een vervolgronde.
+- Suite 638 groen, lint 0 err, build clean. Browser-geverifieerd: parallax-lagen, fox/wisp animaties, en
+  camera-scroll werken zichtbaar correct (screenshots tonen tent die in beeld komt na scrollen, fox in
+  'move'-animatie tijdens lopen). docs.md §137 (nieuw).
+- Nog niet gecommit.
+
+## 2026-08-04 — ✅ Ronde 8/9: uniforme RPG-schaal, equipped pet, portret-bugfix, projectile-flip, critters
+
+Han (groot vervolg-batch + mid-turn correctie): RPG-schaal inconsistent; gebruik de EQUIPPED pet i.p.v.
+hardcoded fox; layer-volgorde nog fout (tent voor karakters); parallax-lagen moeten zakken (8/16/24/32px);
+skirts/dresses moeten boven chest/broek/schoenen; "veel portraits enorm ingezoomd"; portret-layer-volgorde
+fout; projectile-richting omdraaien; critters onder elke rust (−0,5 punt, "critters killed" stat, later
+herkaderd als positieve "critters saved y/m"). Toen: "sinds de critter update is level 9 kapot :( wizard
+werkt niet meer" + "critters staan onder de maatstrepen, niet onder de rusten" + "waarom gebruik je de
+walk/run animatie niet".
+
+- ✅ RPG-schaal: elk wereld-object gebruikte een ANDERE effectieve zoom (fit-to-height per creature-crop).
+  Nu allemaal exact `ZOOM` (natuurlijke pixels × ZOOM), zelfde conventie als de tiles al gebruikten.
+- ✅ Equipped pet: nieuwe `WorldPet` leest `char.layers.pet` via `urlOfLayer` (dezelfde resolver als
+  CharacterDoll) i.p.v. hardcoded Fox.
+- ✅ Tent (decoratie) stond NA held/pet in de JSX — verplaatst naast de boom (vóór karakters).
+- ✅ Parallax-lagen zakken nu 8/16/24/32px (`sinkPx` per laag).
+- ✅ `characterAssets.js` CATEGORIES: chest/feet/legs z-waarden verwisseld zodat skirt/dress (legs/chest-
+  classificatie) altijd boven broek/schoenen toont.
+- 🐞→✅ Portret-zoom-bug: root cause gevonden in de GENERATOR — "…portrait large{N}.png" bestanden zijn
+  DEZELFDE portretten op 640×640 (10× opgeschaald, pixel-identiek), niet een andere/betere crop. Maid's
+  portret was wel goed omdat DIE file al écht 64×64 is. Generator gebruikt nu de platte (niet-"large")
+  bestanden; manifest geregenereerd (608 entries).
+- ✅ Portret-layer-volgorde: witte rand (nieuw, achterste laag) → portret/projectile-content → kader
+  (Frame64Overlay, nu ALS LAATSTE i.p.v. eerste).
+  ✅ Projectile-richting omgedraaid (SheetRpgLayer's Projectile) + nieuwe `flip`-prop op PortraitImage,
+  toegepast op de wizard's magic-projectile side-portrait (niet de archer's pijl-portret).
+- ✅ Critters onder rusten: nieuwe `Critter`/`critterData` (spiegelt Slime/slimeData 1-op-1, maar voor
+  RUST-slots i.p.v. echte noten). 7 geclassificeerde bestiary-critters (squirrel/porcupine/pidgeon/panda/
+  armadillo/blue jay/dragonfly — "red panda" heet in de manifest gewoon "Panda"). Een noot spelen tijdens
+  een rust-venster kost −0,5 punt + "critterKilled" stat, ONDERSCHEIDEN van generieke extraNote.
+  Mid-turn herkaderd: splash toont nu "Enemies vanquished x/n" en "Critters saved y/m" (positief geframed —
+  saved = totaal − killed), totalen gerapporteerd via nieuwe onEnemyTotal/onCritterTotal callbacks.
+- 🐞→✅ Ronde-9 bugfix: critters stonden onder de MAATSTREEP (een rust' eigen offset = maatbegin, dezelfde
+  tick als de streep), niet onder de (sinds ronde 7 GECENTREERDE) rust-glyph. Critter-positie nu
+  `offset + duration/2` (het midden van de rust), matcht de glyph altijd.
+- 🐞→✅ Ronde-9 bugfix: `WorldCreature` checkte alleen op een 'move'-animatie-key; veel dieren zijn
+  geclassificeerd als 'walk'/'run'/'fly' i.p.v. 'move'. Nieuwe `findMoveAnim`/`findIdleAnim` checken alle
+  keys in prioriteitsvolgorde — leest rechtstreeks uit dezelfde manifest-data als de Bestiary-tab, dus
+  single source of truth zonder aparte RPG-sync nodig.
+- 🔍 "Level 9 kapot... wizard werkt niet meer": uitgebreid getest (idle playback, 8+ sec snel noten spelen,
+  console.trace op randomizeAll om een regeneratie-loop uit te sluiten) — GEEN crash, GEEN error, wizard
+  zichtbaar castend/gloeiend/schietend over meerdere frames. Enige BEVESTIGDE bug uit dezelfde screenshots
+  was de critter-mispositionering (hierboven gefixt) — mogelijk wat als "kapot" overkwam. Transparant
+  gemeld, niet als volledig opgelost geclaimd — Han's eigen bevestiging nodig.
+- ⏳ Nog niet geïmplementeerd (te groot/onzeker om blind te fixen zonder visuele terugkoppeling): een
+  formele GLOBALE bottom-center-anker-constante gedeeld tussen RPG-level EN avatar-preview (RPG-level
+  ankert al uniform op `bottom: FLOOR_T`; "pet 1px hoger dan personage in avatar preview" en "pet lijkt
+  achter gras / pootjes missen pixels" vragen directe visuele inspectie — clipping vs. z-order — voor een
+  zekere fix); 64×64-center-met-oscillatie generiek voor ELKE fly/float-creature (nu enkel archer/wizard
+  bespoke); animatie-specifieke heranchoring (fly/float + sit-animatie samen); grasprieten "bijna overal".
+- Antwoord op Han's chatvraag (geen code): ja — de grid-mapping/crop/frame-parameters per creature staan
+  in `scripts/generate-bestiary-manifest.mjs` (per-bestand overrides zoals `FRAME_OVERRIDES`,
+  `CATEGORY_OVERRIDES`, `PORTRAIT_OVERRIDES_BY_NAME`, etc.) — handmatig aanpasbaar daar, dan
+  `node scripts/generate-bestiary-manifest.mjs` opnieuw draaien om `bestiaryManifest.generated.js` te
+  regenereren. Geen losse UI hiervoor.
+- Suite 640 groen, lint 0 err, build clean. docs.md §138 (nieuw).
+- Nog niet gecommit.
+
+## 2026-08-04 (round 11, RPG follow-up op screenshot)
+
+- ✅ Han (screenshot RPG-level): "meeste items staan 1 pixel lager, ground anchor is 15 (ipv 16)" —
+  `GROUND_ANCHOR = (FLOOR_TILE-1)*ZOOM` toegevoegd in RpgLevelPanel.jsx, alle sprite-anchors (boom, tent,
+  wisp, hero, pet, gras-prieten-basis) daarop overgezet; `FLOOR_T` zelf blijft ongewijzigd (grastegel-grootte).
+- ✅ Han: "critters gebruiken nog steeds niet de walk/run/fly animatie" — `Critter` in SheetRpgLayer.jsx
+  gebruikte nog hardcoded 'idle'; `findMoveAnim`/`findIdleAnim` verplaatst naar bestiaryAssets.js (single
+  source of truth) en nu door ZOWEL WorldCreature ALS Critter gebruikt. Critter is altijd "moving" (scrollt
+  continu), dus prefereert nu altijd walk/run/move/fly/float boven idle indien geclassificeerd.
+- Suite 640 groen, lint 0 err (alleen pre-existing warnings), build clean. docs.md §139 (nieuw).
+- Nog open: fly/float 64×64-center+oscillatie generiek, sit-heranchoring, grasprieten overal, "pet achter
+  gras" bug (nog geen screenshot van ontvangen — deze keer wél een screenshot maar dat toonde het ground-
+  anchor-probleem, niet expliciet de pet/gras-z-order-klacht; nog navragen indien Han die apart bedoelt).
+- Nog niet gecommit.
+
+## 2026-08-04/05 (round 12, grote follow-up: global anchor, fly/float, dog-clip, tree-scale)
+- ✅ `src/model/worldAnchor.js` (nieuw): `GROUND_ANCHOR_PX = 15` — DE ene globale bron; RpgLevelPanel leest
+  hem nu vanuit dit bestand i.p.v. een lokaal hardcoded getal (Han: "dit soort settings moet globaal zijn").
+- ✅ Bottom-center anchor consistent toegepast: boom, tent, wisp, hero, pet, grasprieten — allemaal nu
+  `bottom: GROUND_ANCHOR` + `transform: translateX(-50%)` (was 3 verschillende mechanismen door elkaar).
+- ✅ Grasprieten: van 5 vaste stuks bij spawn naar verspreid over de HELE 200-tegel vloer (~1 per 3 tegels,
+  met jitter), geen aparte sink meer — zelfde ankerpunt als de rest.
+- ✅ Fly/float 64×64-hover+oscillatie: generiek via `isFlyingAnim(anim)` (checkt de HUIDIGE animatie, niet
+  de creature) — WorldCreature (RPG-level) én Critter (SheetRpgLayer) gebruiken 'm. Sit-heranchoring volgt
+  automatisch uit het ontwerp (sit-anim ≠ fly-anim → geen hover). Dragonfly (heeft 'fly' key) bevestigd.
+- ✅ Hond fout geclipt in level → root cause: `WorldPet`/`PET_CROP` nam ÉÉN vaste crop aan voor alle pet-
+  sheets, maar Doggy's manifest-crop wijkt af. Fix: `petVariant` matcht het equipped pet-bestand op URL
+  tegen SCANNED_CREATURES en rendert via WorldCreature (bestiary-data, single source of truth), met
+  WorldPet enkel als fallback voor niet-geclassificeerde pets.
+- ✅ Magic projectile flip: verwijderd uit de Bestiary-preview (`PortraitImage flip` prop), blijft alleen in
+  de song levels (`SheetRpgLayer.jsx`'s `Projectile`).
+- ✅ Han (zelfde sessie, vervolgvraag): "tree1 lijkt verkleind met een factor 2" — root cause: leftover
+  `* 0.6` op de boom-`<img>`, enige sprite nog niet op de gedeelde ZOOM sinds ronde 8. Verwijderd.
+  Achtergrond-parallax-lagen zijn een BEWUST ander mechanisme (fit op viewport-hoogte, geen wereld-ZOOM) —
+  toegelicht aan Han, niet blind aangepast (zou de achtergrond enorm/kapot maken).
+- Suite 640 groen, lint 0 err (alleen pre-existing warnings), build clean. docs.md §140 (nieuw).
+- Nog open: "pet achter gras / pootjes missen pixels" bug — nog geen screenshot ontvangen dat dit specifiek
+  isoleert.
+- Nog niet gecommit.
+
+## 2026-08-06 — 🐞✅ Song levels gebroken na (vermeend) laadscherm: hakkelen, basismelodie zichtbaar, geen geluid
+
+Han: "sinds het toevoegen van een laadscherm zijn de song levels gebroken. 1) notenbalk
+hakkelt, 2) ik zie noten van de basismelodie, 3) ik hoor geen van de melodieën (cello,
+timpanen, metronoom)." Vervolgens: "ik merk ook dat het level inconsistent is; soms
+laadt het wel succesvol inc geluid, soms niet."
+
+- Onderzoek (Explore-agent + eigen lezing): het laadscherm (§163, `audioReady`/
+  `spritesReady`) wordt NERGENS door level-code gelezen — geen oorzakelijk verband.
+  Echte oorzaak: twee races in de nog-niet-gecommitte §663/§679/§686/§688/§693
+  streaming-rework.
+- ✅ Bug A (inconsistent geluid): `levelAudioStart` werd op KLIK-tijd gezet
+  (`+0.35s`), vóórdat `bassReady`/`metronomeReady` bevestigd waren — races met de
+  async cello/metronome instrument-rebuild. Bij trage sample-load was het anker al
+  verstreken tegen de tijd dat geschedule werd; `playMelodies`'s clamp-naar-nu
+  overlapte dan de openingsmaten (soms hoorbaar als stilte, soms als brij). Fix:
+  anker wordt nu pas gezet ZODRA bass/metronome/timpani écht klaar zijn (zelfde
+  ready-flags als de bestaande schedule-effect, alleen eerder toegepast).
+- ✅ Bug B (basismelodie zichtbaar): `level.active` flipt synchroon, maar de
+  level-melodie wordt pas een rAF-tick later gebouwd (`levelRegenerate`) — één
+  renderframe toonde de oude/default treble-melodie via `SheetRpgLayer`. Fix:
+  nieuwe `levelMelodyReady` state (false tijdens de rAF-vertraging, true zodra
+  `randomizeAll()` echt geland is), gate toegevoegd op `trebleMelody` in
+  `SheetMusic.jsx` naast de bestaande `levelActive`/`isTrebleVisible`/`actualTreble`.
+- "Hakkelen" niet als apart afzonderlijk bug gereproduceerd — vermoedelijk gevolg van
+  Bug A (herhaaldelijk herschedulen/overlap forceert extra re-renders). Han test dit
+  live na deze fix; nog te bevestigen.
+- Interview (AskUserQuestion): Han bevestigde niet op de hoogte te zijn van de
+  lopende streaming-refactor (nieuwe bestanden `useLevelBackingStream.js` etc.,
+  ongedateerd 3-4 aug) — géén revert, gewoon voortbouwen. Bug 2 bleek alleen bij
+  treble/eerste keer. Han koos "direct doorpakken op meest waarschijnlijke oorzaken".
+- Build clean, lint 0 errors (alleen pre-existing warnings), test:run 630/631 groen
+  (1 falende test + 1 ENOSPC-suite zijn pre-existing/ongerelateerd — CharacterDoll
+  fullFrame-nudge en een schijfruimte-fout, niet aangeraakt door deze wijziging).
+  docs/architecture.md §166 (nieuw).
+- Nog niet gecommit. Nog te doen: Han test de 3 symptomen live in de browser om te
+  bevestigen dat ze weg zijn.
+
+## 2026-08-06 — 🔨✅ Performance: hakkelig beeld tijdens levels
+
+Han: "kijk ook naar de performance, want die is ondermaats. heel hakkelig beeld
+enzo. niet te doen. zijn er te véél instrumenten geladen? te veel audiocontext?
+zoiets?"
+
+- Gecheckt: 1 AudioContext (App.jsx:129), stabiel/begrensd aantal Soundfont/
+  DrumMachine-instanties — geen lek, niet de oorzaak.
+- Echte oorzaak: twee React-state-gedreven rAF-loops die tot 60×/sec een grote
+  boom re-renderen: (1) `SheetRpgLayer.jsx`'s `tick`-state re-rendert alle
+  Slime/Critter/Wizard/Projectile/SpawnGlow-instanties elke frame, ook als hun
+  props niet veranderd zijn; (2) `useRpgLevelState.js` riep `setMoving`/
+  `setPetMoving` ONVOORWAARDELIJK elke frame aan, zelfs stilstaand — en die hook
+  hangt direct in App.jsx (root component), dus elke aanroep her-runt App.jsx's
+  hele render-functie.
+- ✅ Interview (AskUserQuestion): Han koos "direct de refactor doen" + "alles in
+  één keer". Gegeven dat een volledige ref/imperatieve-DOM-rewrite van de hele
+  1169-regel combat-kritieke `SheetRpgLayer.jsx` + camera-follow + WebGL
+  licht-uniform NIET veilig blind uit te voeren is zonder live browser-profiling
+  (niet beschikbaar in deze omgeving — CLAUDE.md: "if you can't test the UI, say
+  so explicitly"), is gekozen voor de veilige, mechanisch verifieerbare deelset:
+  - `React.memo` op de 5 sprite-componenten in `SheetRpgLayer.jsx` (puur
+    presentationeel, alleen primitieve props) — skipt re-render wanneer props
+    ongewijzigd zijn tussen ticks (vaak, want walk-frame verandert maar om de
+    ~150ms, niet elke 8ms tick).
+  - `useRpgLevelState.js`: `movingRef`/`petMovingRef` guards zodat `setMoving`/
+    `setPetMoving` alleen vuren bij een ECHTE verandering.
+- Bijvangst: `npm run test:run` faalde af en toe met `ENOSPC` — `df` toont de
+  C-schijf op 100% vol (11 MB vrij). Dat kan zelf al brede systeem-hapering
+  veroorzaken, los van deze app. Aan Han gemeld als apart te onderzoeken punt.
+- Build clean, lint 0 errors, test:run 630/631 groen (zelfde 2 pre-existing/
+  ongerelateerde fails als hierboven). docs/architecture.md §167 (nieuw).
+- Nog niet gecommit. Nog open: Han moet live testen of het hakkelen merkbaar
+  minder is; een diepere ref-gedreven rewrite van SheetRpgLayer/useRpgLevelState/
+  RpgLevelPanel is een apart, groter vervolgtraject als dit onvoldoende blijkt.
+
+## 2026-08-06 — 🔨✅ Level editor (schema-focus, geen UI)
+
+Han: "ik wil een level editor; mag heel simpel zijn... kijk hoe levels worden
+opgeslagen en welke params ik kan aanpassen... zelfs ok als de file mooi
+gestructureerd is zodat ik die handmatig kan aanpassen... het gaat me vooral om
+de doc structuur, niet zozeer om de interface."
+
+- Interview (AskUserQuestion): "input type" bleek sleutel/regel/range te
+  betekenen (niet invoerapparaat) — vocal-range levels moeten rekening houden
+  met stem-range en het juiste (vocale) sleutelteken tonen; later ook
+  'walking bass'/tweehandig, dus bas-generator-instellingen los aanpasbaar.
+  Gewenste extra's: bas-instellingen los van fixedBass, percussie-instellingen,
+  akkoord-instellingen. Doc-vorm: uitgebreide comments in levels.js zelf (JSON
+  kan geen comments bevatten) + referentie in architecture.md.
+- ✅ Geen UI editor gebouwd (expliciet buiten scope) — levels.json blijft
+  hand-editable JSON.
+- ✅ Nieuwe OPTIONELE velden (100% backward compatible — geen van de bestaande
+  9 levels zet ze, dus hun gedrag is ongewijzigd):
+  - `key: {tonic, mode}` — hergebruikt bestaande setTonic/setSelectedMode
+    (useScaleManagement), toegevoegd aan useLevel's snapshot/restore-cyclus
+    zodat het na afsluiten van het level correct terugveert.
+  - `clefTreble`/`clefBass` — hergebruikt bestaande preferredClef/clefSelector.js
+    (vocale sleutels: alto/tenor/soprano/baritone-f/... bestonden al).
+  - `bass: {...}` — InstrumentSettings-vormig object, overschrijft `fixedBass`
+    wanneer aanwezig (bereidt 'walking bass' voor zonder nieuwe hardcoded preset).
+  - `chords: {...}` — overschrijft de hardcoded tonic-tonic-tonic/C4/1-default.
+- 🐞 Bewuste NIET-toevoeging: percussie (timpani) kit/dichtheid — er bestaat
+  geen generator-pad hiervoor (timpani is een hardcoded patroon, Han's eigen
+  eerdere expliciete keuze, §663); een veld toevoegen zonder onderliggend
+  mechanisme zou stilzwijgend niks doen (§6c). Gedocumenteerd als bekende
+  lacune/apart vervolgverzoek i.p.v. een nep-veld.
+- Documentatie: groot "SCHEMA REFERENCE"-commentaarblok bovenaan
+  `src/levels/levels.js` (elk veld, type, default, voorbeeld) + verwijzing +
+  samenvatting in docs/architecture.md §168.
+- Build clean, lint 0 errors, test:run 639/640 groen (1 pre-existing
+  ongerelateerde CharacterDoll-fail).
+- Nog niet gecommit.
+
+## 2026-08-06 — 🔨✅ Level editor ronde 2: 20 voorbeeldlevels (101-120)
+
+Han: "genereer 20 levels (101-120) met zeer uiteenlopende settings; als
+voorbeelden voor de json." Varieer: note pool, melody type, voices,
+notes/measure, beat rests, variability, span, tuplets, smallest note, volume,
+visibility voor elk van de tracks; theme; enemy type. Mid-turn erbij: "koppel
+num-repeats gewoon aan de enemy: slime=1, wizard=2", "numMeasures per block, en
+number of blocks", "varieer ook: range, tonic, scale."
+
+- Interview: 20 levels zijn ECHT speelbaar (niet apart voorbeeldbestand);
+  "melody type" = randomizationRule; "voices" = polyfonie (bestaand
+  InstrumentSettings-veld `voices`, §435); "theme" = app-kleurenschema.
+- ✅ Schema-refactor: de losse `clefTreble`/`clefBass`/top-level `bass:{}` uit
+  ronde 1 zijn samengevoegd tot één uniform `tracks: {treble?, bass?,
+  percussion?}`-object (§6c: geen twee mechanismen voor hetzelfde) — elk veld
+  gebruikt de ECHTE InstrumentSettings-naam (notePool, randomizationRule,
+  voices, maxLeap, polyMultiplier, smallestNoteDenom, insertBeatRests, range,
+  preferredClef) plus twee editor-only gemakstermen: `volume` (VOL_STEPS-glyph,
+  generaliseert het bestaande bas/metronome-levelvolume-mechanisme naar elke
+  track incl. metronome) en `visible` (overschrijft debugOnlyLines per track).
+- 🐞 Bug gevonden en gefixt tijdens het bouwen: `tracks.bass` had voorrang op
+  `fixedBass` puur op AANWEZIGHEID — een level met ALLEEN `tracks.bass.volume`
+  zou zo alle fixedBass-instellingen stilzwijgend verliezen. Fix:
+  `hasBassGenOverride` strip eerst volume/visible voordat de precedentie bepaald
+  wordt.
+- ✅ `theme` toegevoegd (setTheme, met snapshot/restore net als `key`).
+- ✅ `numBlocks` (optioneel) — normalizeLevel in levels.js berekent
+  `totalMeasures` hieruit; `numRepeats` optioneel, default via enemyType
+  (Slime→1, Wizard→2). 100% backward compatible (levels 1-9 zetten dit al
+  expliciet).
+- ✅ 20 levels (101-120) toegevoegd aan levels.json — elk een andere combinatie
+  (extreem minimaal, 16e noten+2-octaafbereik, voices:'var'/3, Wizard met
+  auto-numRepeats, vocale altsleutel, onafhankelijke walking-bass, akkoord-
+  progressie i.p.v. drone, geforceerd verborgen tracks, "kitchen sink"), met
+  uiteenlopende tonic/mode (Major/Minor/Dorisch/Mixolydisch/Harmonisch mineur)
+  en range.
+- 🐞 Test-fix: levels.test.js's "LEVELS map keys 1..9" check ging uit van EXACT
+  9 keys — nu gefilterd op id<=9 zodat de 101-120 voorbeelden die check niet
+  breken.
+- Build clean, lint 0 errors, test:run groen (639/640, zelfde pre-existing
+  CharacterDoll-fail). docs/architecture.md §169 (nieuw), §168 gemarkeerd als
+  deels vervangen.
+- ⚠️ NIET live getest in een browser (geen browser-tool in deze omgeving) — de
+  wiring hergebruikt bestaande, al geteste mechanismen, maar Han moet de
+  ongebruikelijkere levels (105 voices:'var', 110/119 losse bas, 116 geforceerd
+  verborgen tracks) zelf even spelen ter controle.
+- ✅ Vervolg zelfde dag: `timeSignature` toegevoegd als optioneel level-veld
+  (zelfde "laat ambient staan indien weggelaten"-idioom als bpm), via bestaande
+  setTimeSignature + snapshot/restore. Toegepast op 6 van de 20 voorbeeldlevels
+  (102:6/8, 103&117:3/4, 109:7/8, 113:5/4, 120:7/8) — levels 1-9 bewust
+  ongemoeid (al uitgebreid getuned, blijven op ambient 4/4). Build/lint/test
+  groen (639/640, zelfde pre-existing fail). docs/architecture.md §169 addendum.
+- ✅ Debug: read-only levelconfig-overlay toegevoegd (debugMode + level.active
+  → volledig JSON-dump van level.current rechtsboven, mirror van het bestaande
+  MIDI-debugpaneel). Build/lint groen.
+- Nog niet gecommit.
+
+## 2026-08-06 — ⏳ backlog: 3 grote vervolgfeatures (interview afgerond, NOG NIET gebouwd)
+
+Han vroeg in dezelfde sessie ook om Level 10, Level 11 en een live-editable
+Level 0. Interview (AskUserQuestion) is afgerond en scope is helder, maar dit
+zijn alle drie substantiële, risicovolle architectuurwijzigingen aan de al
+zwaar getunede combat-code (SheetRpgLayer/useLevel) — bewust NIET blind
+achter elkaar gebouwd in dezelfde beurt als de kleinere schema-uitbreidingen
+hierboven. Elk verdient een eigen implementatie-sessie met live UAT.
+
+- ⏳ **Level 10 — "mixed" enemyType**: 2 maten slimes → 2 maten wizard
+  (voor-speel-na) → herhaalt. Han bevestigde: de combat-MECHANIEK zelf wisselt
+  per blok (wizard-blokken krijgen echte call-response-preview-audio zoals
+  Level 9, slime-blokken niet) — dus niet alleen een visuele skin-wissel.
+  Vereist: `enemyType` per-BLOK i.p.v. per-level (nu hard verondersteld
+  level-breed door SheetRpgLayer's `isWizard`-branch, useLevelTrebleStream is
+  Wizard-only, de #693 odd/even-measure-collapsing zit vast aan Wizard-levels).
+  Grootste/riskantste van de drie — raakt de kern-combat-state-machine.
+- ⏳ **Level 11 — achtergrond-wizard met periodieke toonladder-wissel**: een
+  GROENE wizard-NPC (nieuwe sprite-variant nodig, decoratief — geen combat)
+  staat bij een slime-level, cast elke 2 maten een spell-animatie en wisselt
+  dan majeur↔mineur (zelfde tonic). Han bevestigde: ALLEEN vooruit — nieuw
+  gegenereerde maten NA de wissel gebruiken de nieuwe modus; al zichtbare/
+  gegenereerde maten blijven zoals ze waren (consistent met hoe de JIT-streams
+  nu al werken — elke chunk leest de instellingen op het moment van genereren).
+  Vereist: (a) een periodieke mode-toggle gekoppeld aan de blok-klok, gelezen
+  door de treble-generatie-chunk-aanroep; (b) een nieuwe decoratieve
+  wizard-sprite (groen) + cast-animatie-cyclus in SheetRpgLayer, losstaand van
+  de bestaande Wizard-combat-Wizard.
+- ⏳ **Level 0 — live-editable sandbox UI**: Han koos EXPLICIET voor een
+  volwaardige live-editable interface (velden/sliders per schema-veld, direct
+  effect op de lopende sessie) — dit IS alsnog de UI-editor die in de eerste
+  ronde bewust buiten scope viel ("het gaat me vooral om de doc structuur, niet
+  zozeer om de interface"). Nu wél gewenst. Grootste losse UI-bouwwerk van de
+  drie; kan het nieuwe debug-overlay (hierboven, read-only JSON-dump) als
+  vertrekpunt/referentie gebruiken maar heeft een volledig interactief paneel
+  nodig (inputs, live re-apply via useLevel.applyConfig).
+- Volgorde/prioriteit nog niet bepaald met Han — voorstel: Level 0 (UI-editor)
+  eerst, omdat die daarna handig is om Level 10/11 zelf mee te testen/tunen
+  zonder JSON te hoeven herladen.
+
+## 2026-08-06 — 🔨✅ Level 0: live-editable sandbox (Han koos: begin alvast)
+
+- ✅ Slimme scope-keuze i.p.v. alles hand-rollen (§6d): tijdens Level 0 blijft
+  de bestaande SubHeader (range/clef/kleur/instrument/playback/generatie/
+  oefeningen) gewoon zichtbaar — die roept al rechtstreeks de echte setters
+  aan (setTrebleSettings/setTonic/setTheme/etc.), dus treble/bas/percussie/
+  key/theme/bpm/maatsoort/akkoorden/volume zijn GRATIS live-editable, zonder
+  nieuwe inputs te bouwen.
+- ✅ Voor de paar level-only velden zonder bestaande UI (sideScroll,
+  enemyType, wizardSpawnLeadMeasures, debugOnlyLines, beatsOnScreen): nieuw
+  klein hoekpaneel `LevelZeroPanel.jsx`. debugOnlyLines/beatsOnScreen passen
+  DIRECT toe via nieuwe `useLevel.patchCurrent()` (merget alleen in state,
+  roept NOOIT applyConfig aan — anders zou het de live SubHeader-edits
+  terugzetten naar de originele Level-0-JSON). sideScroll/enemyType/
+  wizardSpawnLeadMeasures zijn bewust GEEN hot-swap — te riskant om blind
+  (zonder browser) te doen op code die hooks/combat-state daarop baseert —
+  in plaats daarvan een expliciete "↻ Herstart level"-knop.
+- ✅ Nieuw `id: 0`-level in levels.json (sideScroll, volle rijkdom,
+  debugOnlyLines: false). Verschijnt automatisch in de levelkiezer.
+- 🐞 2 bestaande tests gefixt die stilzwijgend "eerste level = id 1" of
+  "LEVELS keys zijn exact 1-9" aannamen: LevelStartSplash's carousel-default
+  (was hardcoded index 0, nu `LEVEL_NUMBERS.indexOf(1)`) en levels.test.js's
+  id-filter (nu `id>=1 && id<=9`).
+- Build clean, lint 0 errors, test:run 639/640 groen (zelfde pre-existing
+  CharacterDoll-fail). docs/architecture.md §170 (nieuw).
+- ⚠️ NIET live getest — Han moet zelf checken dat de SubHeader visueel niet
+  botst met de RPG-combat-scene, en dat patchCurrent's live-updates
+  daadwerkelijk goed lezen tijdens actief gevecht.
+- Nog niet gecommit.
+
+## 2026-08-06 — 🐞✅ Bug: slimes/noten niet in sync met metronoom, komen te laat (self-inflicted)
+
+Han: "oeps! slime levels werken niet goed. invliegende noten/slimes komen veel
+te laat en zijn niet in sync met de metroom. Soms komen ze pas na ~4 maten
+(dus niet eens precies matenaantal)."
+
+- Root cause: eigen regressie uit de audio-sync-fix van eerder vandaag (§166).
+  Door `levelAudioStart` pas te zetten zodra instrumenten klaar zijn, liep
+  `SheetRpgLayer`'s tick-klok in de tussentijd "free-running" (voor Level
+  1/tests bedoeld gedrag) en SPRONG de anker-bron vervolgens midden in de al
+  lopende rAF-loop naar de echte audio-tijd zodra die klaar was — een sprong
+  ter grootte van hoe lang het laden toevallig duurde (nooit een rond aantal
+  maten, vandaar "niet eens matenaantal").
+- ✅ Fix: `SheetRpgLayer`'s tick-loop bevriest de klok volledig (géén
+  free-running fase) zolang `sideScroll` waar is en de echte audio-anker nog
+  niet bestaat — pas zodra die er is, begint tick correct-verankerd vanaf de
+  allereerste echte tick.
+- Build/lint/test groen (639/640, zelfde pre-existing fail).
+  docs/architecture.md §171 (nieuw).
+
+## 2026-08-06 — 🔨✅ Debug levelparams verplaatst naar start-splash
+
+Han: "ik wil de level params zien tijdens het 'start level' splash screen,
+niet tijdens het level. Ik zie nu alleen aanpassingen van beatsonscreen en
+enemytype, niet van de andere params."
+
+- ✅ In-level debug-overlay (§170) verwijderd; `LevelStartSplash.jsx` (de
+  levelkiezer) toont nu i.p.v. daarvan een volledige JSON-dump van het
+  GESELECTEERDE carousel-level, live tijdens het slepen — gated op
+  `debugMode` (nieuwe prop, doorgegeven vanuit App.jsx).
+- Build/lint/test groen. docs/architecture.md §172 (nieuw).
+- Nog niet gecommit.
+
+## 2026-08-06 — 🔨✅ Level 0 → pre-start config form (i.p.v. live overlay)
+
+Han: "hoe kan ik level 0 aanpassen? dat wil ik in de 'config' voor het begin
+van het level doen, dus voordat het start, dus niet via instelling overlay."
+
+- ✅ §170's aanpak (SubHeader zichtbaar TIJDENS Level 0) teruggedraaid;
+  LevelZeroPanel.jsx + useLevel's patchCurrent verwijderd (ongebruikt).
+- ✅ Nieuw: `LevelZeroConfigForm.jsx` — volledig formulier voor élk schemaveld,
+  getoond in LevelStartSplash zodra carousel op id 0 staat. Start-knop geeft nu
+  het VOLLEDIGE bewerkte level-object door i.p.v. een id; `startLevel` in
+  App.jsx accepteert nu beide vormen.
+- Build/lint/test groen.
+
+## 2026-08-06 — 🔨✅ Level 10 (Mixed) + Level 11 (toonladderwissel) + akkoorden-bug
+
+Han: "voeg dan level 10/11 toe" (na eerder interview) + "ik mis de chords als
+instelling bij het level! ... level 113 (in F#), want cello staat nog in C."
+
+- ✅ Level 10 "Mixed": nieuwe `generateLevelMixedBlock.js` +
+  `useLevelMixedStream.js` — 2-maten-blokken wisselen Slime (normale generatie)
+  / Wizard (Level 9's rust+echo+cast-audio) af, startend met Slime.
+  **Bewuste scope-verkleining**: het vijand-SPRITE blijft slime (geen visuele
+  wissel) — een volledige per-item render-fork in SheetRpgLayer's isWizard-tak
+  (~10 raakpunten) was te riskant om blind te bouwen zonder live-verificatie.
+  De MECHANIEK (waar Han expliciet om vroeg — "niet alleen visueel") is wel
+  echt/compleet.
+- ✅ Level 11: nieuwe `useLevelKeyModulationStream.js` — JIT-treble wisselt
+  elke 2 maten majeur/mineur (zelfde tonic, alleen vooruit — bevestigd via
+  interview), hergebruikt bestaande `updateScaleWithMode`. Decoratieve groene
+  wizard: hergebruikt de bestaande Wizard-sprite/positie met een CSS
+  hue-rotate-filter (§6d, matcht eerder gegeven kleurvariant-advies), idle-only
+  — **bewuste scope-verkleining**: geen precies op de maat gesynchroniseerde
+  cast-animatie (te riskant blind te timen).
+- 🐞 Echte bug gefixt: `chordSettings.fixedTonic` was ONVOORWAARDELIJK
+  hardcoded op 'C4' (Han's eigen oude #663-instructie, van vóór het `key`-veld
+  bestond) — elk level met een eigen `key.tonic` (bv. level 113, F♯) hield zijn
+  akkoorden (en dus de cello, die akkoord-roots volgt) alsnog in C. Fix:
+  default is nu `lvl.key?.tonic ?? 'C4'` — levels 1-9 (geen `key`) ongewijzigd.
+- ✅ Akkoorden nu volledig instelbaar in het Level 0-formulier: progression
+  type (strategy), complexity, chords/measure, variability, passing chords —
+  allemaal uit de bestaande generationFields.js-constanten, geen nieuwe enum.
+- Build clean, lint 0 errors, test:run 639/640 groen (zelfde pre-existing
+  CharacterDoll-fail). docs/architecture.md §173-174 (nieuw).
+- ⚠️ Level 10/11 NIET live getest — dit zijn de diepste nieuwe mechanieken van
+  de sessie; Han moet beide spelen voor ze als "af" gelden.
+
+## 2026-08-06 — 🐞✅ Ronde 2 UAT: JIT-buffer, Level 10 visuele fork, Level 11 flourish, Level 0 defaults, cello-prewarm
+
+Han na het testen: "level 10: animaties schieten te kort. er moet een zwarte
+wizard staan. de noten van de wizardmaten moeten geen slime hebben, maar een
+projectile krijgen." + "level 11: ik wil 2 maten voor elke switch een
+staticprojeciles2 (32x32) laten toveren... vliegt mee op de maatstreep." +
+"level 10 en 11: de JIT-generatie loopt niet lekker... noten verschijnen pas 1
+maat op voorhand i.p.v. 2." + "level 0: zet de defaults daar als defaults." +
+"level 2: nog steeds pas veel te laat slimes... duurt ongeveer 2,5 maten
+voordat maat -1 in beeld komt."
+
+- 🐞 JIT-bufferbug gefixt: useLevelMixedStream/useLevelKeyModulationStream
+  gebruikten per ongeluk useLevelTrebleStream's KLEINERE cast-specifieke
+  buffer (~1-1.5 maat) i.p.v. useLevelBackingStream's bewezen volle
+  2-maten-buffer (genereer blok N+1 zodra blok N begint). Gefixt in beide.
+- ✅ Level 10: de eerder bewust weggelaten per-noot visuele fork is alsnog
+  gebouwd — `itemIsWizard` (via `blockTypeAt`) bepaalt nu PER NOOT of die als
+  Slime of Projectile rendert (dood-animatie, live flight, wizard
+  cast-sync, spawn-glow — allemaal bijgewerkt). Zwarte wizard toegevoegd
+  (brightness/saturate-filter, zelfde aanpak als het groene niveau-11-exemplaar).
+- ✅ Level 11: nieuw `static-projectiles-2`-asset (gekopieerd uit ASSORTED,
+  gemeten 160×192 = 5×6 @ 32×32, zelfde crop als static-projectiles-5 want
+  identieke sheet-afmetingen) + nieuw `StaticProjectile2`-component, één per
+  aankomende toonladderwissel, hergebruikt de bestaande `sideScrollX`-vlucht
+  (geen aparte lead-gate nodig — beatsOnScreen=8 beats geeft de gevraagde 2
+  maten al gratis).
+- ✅ Level 0: bpm/numMeasures/notesPerMeasure/range in levels.json nu
+  LETTERLIJK gelijk aan DEFAULT_BPM/DEFAULT_NUM_MEASURES/
+  defaultTrebleInstrumentSettings() i.p.v. willekeurig gekozen getallen. Vorm
+  gebruikt dezelfde constanten voor zijn eigen fallbacks; Mixed/decorativeWizard
+  toegevoegd aan het formulier.
+- ⚠️ Level 2 vertraging: GEEN volledige fix (kon niet live profilen) — een
+  cello-sample-prewarm toegevoegd (laadt alvast op de achtergrond zodra de
+  levelkiezer opent, zonder de echte bassSettings aan te raken) als
+  best-effort mitigatie. Als de vertraging blijft, is live profiling nodig om
+  de echte bottleneck te vinden.
+- Build clean, lint 0 errors, test:run 639/640 groen (zelfde pre-existing
+  fail). docs/architecture.md §176 (nieuw).
+- ⚠️ Niets van dit alles live geverifieerd — vooral Level 10/11's nieuwe
+  visuals en de Level 2-mitigatie hebben Han's eigen test nodig.
+- Nog niet gecommit.
+
+## 2026-08-06 — 🐞✅ Ronde 3 (low budget, tests overgeslagen op verzoek)
+
+- ✅ Level 10: wizardnoten (call-measure) nu ook onzichtbaar zoals Level 9
+  (noteStaffContentRest/Real/Content uitgebreid met isMixed + blockTypeAt-check).
+- ✅ Level 11: StaticProjectile2 nu op PROJECTILE_SCALE (was onscaled, te
+  klein) en gecentreerd op x/y i.p.v. links uitgelijnd.
+- ✅ Level 10/11: CSS-hue-rotate/brightness-filters vervangen door ECHTE
+  kleurvariant-sprites — `wizard-black.png` bleek al WIZARD_URL te zijn
+  (filter was dus overbodig/fout op Level 10); nieuw `wizard-green.png`
+  gekopieerd uit ASSORTED voor Level 11 (WIZARD_GREEN_URL).
+- 🐞 GROTE bug gevonden en gefixt: alle level-JIT-hooks (useLevelBackingStream,
+  useLevelTrebleStream, useLevelMixedStream, useLevelKeyModulationStream) +
+  App.jsx's handleResumeLevel gebruikten `barSec = (60/bpm) * timeSignature[0]`
+  — correct voor 4/4 maar FOUT voor elke maatsoort met noemer ≠ 4 (bv. 6/8:
+  telde 6 kwartnoten i.p.v. 6 achtstenoten, dus 2x te lange maten). Verklaart
+  level 102's "6/8 zorgt dat alles misloopt" volledig: de JIT-generatie dacht
+  elk blok duurde 2x zo lang, dus content kwam nooit op tijd bij, terwijl de
+  visuele scroll (al tick-correct) wél goed doorliep → lege/ontbrekende maten.
+  Fix: `barSec` nu overal afgeleid van `measureLengthTicks * secondsPerTick(bpm)`
+  (bestaande timing-SSOT, tick-based, denominator-correct) i.p.v. de
+  beats×denominator-agnostic shortcut. Dit was een PRE-EXISTING bug (ook in de
+  oudere useLevelBackingStream/useLevelTrebleStream) die nooit opviel omdat
+  alle levels tot nu toe impliciet 4/4 gebruikten.
+- Build clean (npm run build). ⚠️ GEEN lint/test-run deze ronde (expliciet
+  verzoek: "skip testing"). Han moet zelf level 102 (en andere niet-4/4-levels)
+  testen, en level 10/11 opnieuw.
+- 🐞✅ Crash gefixt: "Cannot read properties of undefined (reading 'col')" in
+  Wizard-component — level 11's decoratieve wizard gebruikte `gFrame %
+  length` zonder de bestaande niet-negatief-veilige modulo (gFrame is
+  negatief tijdens de pre-roll vóór maat 0), waardoor WIZARD_IDLE_CELLS met
+  een negatieve index werd geïndexeerd. Zelfde fix-patroon toegepast als de
+  al bestaande wizardFrame-berekening. Build clean.
+- Nog niet gecommit.
+
+## 2026-08-06 — 🐞✅ Bug: levels erfden ambient tonic/bpm/maatsoort i.p.v. vaste default
+
+Han: "slimes komen echt nog niet aan hoor. Level 2 is niet consistent goed
+gegenereerd." + "na wijzigen instellingen gaan de basislevels slecht.
+Bijvoorbeeld: ik zet de tonic op Gb, en wil dan level 2 spelen. Die heeft nog
+allemaal voortekens staan, en genereert helemaal niet vanuit C-majeur.
+Oplossing; alle params moeten meegegeven worden aan elk level; of er moet een
+lijst defaults zijn 'if none provided' (voorkeur), C majeur 4/4 etc."
+
+- Root cause: `applyConfig` paste bpm/timeSignature/key alleen VOORWAARDELIJK
+  toe (`if (lvl.bpm)` etc.) — levels zonder eigen `key`/`timeSignature`
+  (levels 1-9, van vóór die velden bestonden) erfden stilzwijgend wat de
+  AMBIENT app-state toevallig was. Werkte per ongeluk zolang niemand de
+  ambient tonic wijzigde vóór het spelen — braak zodra dat wel gebeurde
+  (bv. na het testen van level 113 in F♯ eerder deze sessie).
+  Verklaart waarschijnlijk ook de "slimes komen niet aan"-klacht: level 2
+  genereerde in de verkeerde toonsoort.
+- ✅ Fix (Han's eigen voorkeursoplossing): bpm/timeSignature/key.mode/
+  key.tonic worden nu ONVOORWAARDELIJK toegepast bij elke levelstart, met
+  fallback naar de bestaande DEFAULT_BPM/DEFAULT_TIME_SIG/
+  DEFAULT_SCALE_TONIC/DEFAULT_SCALE_MODE (dezelfde constanten die de hele app
+  al gebruikt, geen nieuwe hardcoded waarden). Een level start nu altijd
+  vanuit een volledig deterministische staat, nooit meer afhankelijk van wat
+  de app toevallig aan het doen was.
+- Build clean, lint 0 errors, test:run 639/640 groen (zelfde pre-existing
+  fail). docs/architecture.md §175 (nieuw), levels.js schema-referentie
+  bijgewerkt.
+- Nog niet gecommit.
+
+## 2026-08-06 — 🐞✅ Ronde 4: noten komen te laat van rechts (level 102 én level 2)
+
+Han: "level 102 werkt toch nog niet... noten komen pas laat invliegen van
+rechts. zelfde geldt voor level 2. Mss preloaden van melodie? Ergens is iets
+NIET robuust genoeg."
+
+- Root cause: de klok-start-effect (App.jsx) wachtte al op audio-readiness
+  (bassReady/metronomeReady) maar NIET op `levelMelodyReady` (§166) — de
+  tick-klok kon dus al gaan lopen terwijl `trebleMelody` nog `null` was
+  (melodie nog aan het regenereren). Tegen de tijd dat de melodie arriveerde
+  waren de noten se posities al "ingehaald" door de intussen doorgelopen klok
+  i.p.v. vers vanaf rechts te beginnen. Dit is GEEN 6/8-specifiek probleem —
+  treft elk level, precies zoals Han opmerkte.
+- ✅ Fix: de klok-start-effect wacht nu ook op `levelMelodyReady` voor hij het
+  anker zet — de melodie is voortaan altijd volledig "gepreload" vóór de klok
+  start (Han's eigen suggestie, bleek exact de root cause).
+- Build clean. ⚠️ Geen lint/test-run (budget/verzoek). Nog niet live getest.
+- Nog niet gecommit.
+
+## 2026-08-06 — 🐞✅ Ronde 5: gedeelde klok voor audio + notenbalk
+
+Han: "audio-context mag niet starten met spelen voordat de melodie geladen
+is. en de klok voor hit checken en de muziek (maat -1) moet tegelijk
+starten. Liefst zelfs dezelfde klok."
+
+- Bevestigd: metronoom/cello/notenbalk-klok lazen al hetzelfde `context`
+  (1 AudioContext) en dezelfde `levelAudioStart`-anker — dat deel was al
+  gedeeld.
+- 🐞✅ ECHTE bug gevonden: `startLevel` riep NOOIT `handleStopAllPlayback()`
+  aan. Als je bij het starten van een level nog gewoon aan het afspelen was
+  (normale oefen-Sequencer), bleef die GEWOON doorklinken — een compleet
+  aparte, ongerelateerde geluidsbron, los van elk anker/elke klok-fix tot nu
+  toe. Dat verklaart "soepje" prima zonder dat er iets mis hoeft te zijn met
+  de eigenlijke level-scheduling. Fix: stop alle lopende afspeel eerst, vóór
+  al het andere in startLevel.
+- Pre-roll (vorige ronde 0.35s→1.0s) en levelMelodyReady-gate blijven staan —
+  samen met deze fix zou dit de meeste resterende desync moeten dekken.
+- Build clean. ⚠️ Geen lint/test-run (budget). Nog niet live getest.
+- Nog niet gecommit.
+
+## 2026-08-06 — 🔨 Ronde 6: debug-instrumentatie i.p.v. nog een blinde gok
+
+Han: "Nee, werkt nog steeds niet... Maat -1 moet eigenlijk al helemaal links
+staan (startX) tegelijk met de start metronoom beginnen te bewegen."
+
+Na 3 rondes blind fixen zonder bevestigd resultaat: i.p.v. nog een gok, TIJDELIJKE
+debug-logging toegevoegd op 3 sleutelmomenten (App.jsx "anchor picked",
+SheetRpgLayer "first unfrozen tick", useLevelBackingStream "backing chunk 0
+scheduling") zodat de volgende test ECHTE tijdstempels oplevert i.p.v. weer een
+vage "werkt niet". Build clean. Nog te doen: Han test, plakt console-output,
+dan pas een gerichte fix i.p.v. verder gokken. Deze debug-logs MOETEN weer
+verwijderd worden zodra gediagnosticeerd.
+- Nog niet gecommit.

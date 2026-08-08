@@ -5,9 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Music MWE</title>
     <link rel="icon" href="data:,">
+    <!-- #141 round 24 (Han: "indien nodig, voeg een app-wide laadscherm toe"): a STATIC splash, styled
+         inline so it paints before any JS (including the bundle itself) has loaded — the earliest possible
+         moment something is visible. App.jsx removes it once the audio engine (smplr instruments) has
+         finished loading, so this is the FIRST frame of one continuous loading experience, not a flash
+         that gets replaced by a second, different-looking React overlay. Color hardcoded to the app's
+         default dark theme's --panel-bg (App.css) since CSS custom properties from an async-loaded
+         stylesheet aren't reliably available this early. -->
+    <style>
+        #boot-splash {
+            position: fixed; inset: 0; z-index: 999999; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 16px;
+            background: #1f1e2a; color: #f0eee6;
+            font-family: Georgia, 'Times New Roman', serif; font-size: 15px;
+        }
+        #boot-splash .boot-spinner {
+            width: 36px; height: 36px; border-radius: 50%;
+            border: 4px solid rgba(240, 238, 230, 0.25); border-top-color: #f0eee6;
+            animation: boot-spin 0.8s linear infinite;
+        }
+        @keyframes boot-spin { to { transform: rotate(360deg); } }
+        /* #141 round 25 (Han: "kun je in laadscherm weergeven 'wat je laadt'? audio-context/sprites/level"):
+           #boot-splash-status is updated via direct DOM text (App.jsx — this element lives outside React's
+           #root, so it can't be a React-rendered node) as each REAL, trackable stage completes. Only
+           audio-context + sprite/asset network loading are tracked here — see App.jsx's own comment on why
+           "level" isn't part of THIS boot-time status (it loads later, per-tab, not at boot). */
+        #boot-splash-status { font-size: 12px; opacity: 0.75; }
+    </style>
 </head>
 <body>
 <div id="root"></div>
+<div id="boot-splash">
+    <div class="boot-spinner"></div>
+    <div>Music Melody Trainer laden…</div>
+    <div id="boot-splash-status">Audio-context initialiseren…</div>
+</div>
 <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>

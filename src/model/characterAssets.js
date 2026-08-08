@@ -143,8 +143,30 @@ const COLOR_HEX = {
     yellow: '#fdd835', black: '#2b2b2b', white: '#eeeeee', brown: '#8a5a3b', pink: '#ec8fb5', cyan: '#26c6da',
     grey: '#9e9e9e', gray: '#9e9e9e', bronze: '#cd7f32', diamond: '#7fe3d8', golden: '#e6c200', gold: '#e6c200',
     iron: '#9aa0a6', wooden: '#a5794a', wood: '#a5794a', steel: '#b0bec5', stone: '#8d9499', silver: '#c0c0c0',
+    // #683 (Han 2026-08-04, Goblin's 6 colour variants) — compound colour names `variantColor` didn't have
+    // hex entries for yet (single-word `green`/`brown`/`red` already did).
+    lime: '#a4e02c', 'dark green': '#2e5a1e', 'bright green': '#3fdc3f',
 };
 export const variantColor = (v) => (v ? COLOR_HEX[v.toLowerCase()] || null : null);
+
+// #667 (Han 2026-08-03, "skin: color palette (geen equipment preview)"): the 10 skin options have no
+// variant-colour data of their own (each is a whole distinct sprite, not a colour of one base — see the
+// module comment above), so there is nothing existing to reuse (§6c) — this is new, hand-picked swatch
+// data, same idea as COLOR_HEX above but for skin tones specifically. Matches by KEYWORD (mirrors every
+// other name-based lookup in this file — categorizeCharFile, clothesFilter) so it's gender-prefix-agnostic
+// ("Male Skin1" / "Female Skin1" both match) and survives the base name including the gender word.
+const SKIN_TONES = ['#e8b592', '#c98a5b', '#a8673f', '#7a4a2f', '#5c3821'];   // Skin1..5, light → dark
+export function skinSwatchColor(name) {
+    const n = (name || '').toLowerCase();
+    if (n.includes('zombie')) return '#7a9c5e';
+    if (n.includes('orc')) return '#5f8a4a';
+    if (n.includes('demon')) return '#7a1f1f';
+    if (n.includes('devil')) return '#b0281f';
+    if (n.includes('ghost')) return '#d7dde0';
+    const m = /skin\s*(\d)/.exec(n);
+    if (m) return SKIN_TONES[Math.min(SKIN_TONES.length - 1, Math.max(0, parseInt(m[1], 10) - 1))];
+    return '#999999';
+}
 
 // A gendered source returns BOTH genders, each item tagged with its source gender `g`.
 const both = (folder, filter = () => true) => [
@@ -160,9 +182,15 @@ export const CATEGORIES = [
     { key: 'hair', label: 'Hair', z: 8, gendered: true, source: () => both('hair') },
     { key: 'ears', label: 'Ears', z: 7, gendered: true, source: () => both('ears') },
     { key: 'head', label: 'Head', z: 9, gendered: true, source: () => [...both('hats'), ...shared(RAW.shared.masks)] },
-    { key: 'chest', label: 'Chest', z: 5, gendered: true, source: () => both('clothing', clothesFilter.chest) },
-    { key: 'legs', label: 'Legs', z: 3, gendered: true, required: true, source: () => both('clothing', clothesFilter.legs) },
+    // #693 round 8 (Han: "volgorde op personages: dresses of skirts gaan boven chest, broeken en
+    // schoenen"): 'legs' (which also matches skirts — clothesFilter.legs includes 'skirt') now paints
+    // ABOVE 'chest' (which also matches dresses — clothesFilter.chest includes 'dress') AND above 'feet' —
+    // a skirt/dress needs to show over whatever's tucked in, not be hidden under it. Category-level swap
+    // (not a per-item skirt/dress special case, §6c) — z=3/4/5 keeps every OTHER category's relative order
+    // unchanged (chest still above skin, below hands/ears/hair/head).
+    { key: 'chest', label: 'Chest', z: 3, gendered: true, source: () => both('clothing', clothesFilter.chest) },
     { key: 'feet', label: 'Feet', z: 4, gendered: true, source: () => both('clothing', clothesFilter.feet) },
+    { key: 'legs', label: 'Legs', z: 5, gendered: true, required: true, source: () => both('clothing', clothesFilter.legs) },
     { key: 'hands', label: 'Hands', z: 6, gendered: true, source: () => both('arms') },
     { key: 'back', label: 'Back', z: 1, gendered: false, source: () => shared(RAW.shared.back) },
     { key: 'offhand', label: 'Off-hand', z: 1, gendered: true, source: () => both('offhand') },

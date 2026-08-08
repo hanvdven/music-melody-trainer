@@ -7208,3 +7208,4351 @@ keep skipping them, since the full frame has zero slack to absorb a downward nud
 **Files:** `src/components/character/CharacterCreator.css` (`.cc-avatar` background-color),
 `src/components/character/CharacterDoll.jsx` (`layerStyle` fullFrame param),
 `src/components/character/__tests__/CharacterDoll.test.jsx` (new `layerStyle` unit test).
+
+### §110. Level 2 backing rework — JIT-chunked bass/metronome generation; cello via real GeneratorSettings, not a hardcoded pattern (#663, Han 2026-08-03)
+
+**Symptoms (Han):** "metronoom, timpanen, lopen niet exact gelijk met de noten" (desync), "metronoom enkel
+hoorbaar in maat 0" (metronome silent after the first bar), "cello niet hoorbaar" (bass inaudible).
+
+**Root cause (all three):** `App.jsx`'s `scheduleLevelBacking` generated bass/metronome ONCE, up front, for
+the level's ENTIRE length, then scheduled that single melody with one `playMelodies()` call — racing two
+async processes with no readiness signal that actually proved they'd finished:
+
+1. **Instrument swap race (cello inaudible):** the scheduling effect gated on `bassSettings.instrument ===
+   'cello' && instruments.bass` (truthy). `bassSettings.instrument` flips to `'cello'` in one React commit;
+   `useInstruments.js` rebuilds the actual Soundfont object in a LATER commit (its own effect, reacting to
+   that same settings change, calling `setBass(newInst)`). A truthy-but-STALE `instruments.bass` (the
+   previous, pre-level instrument) could satisfy the gate in the commit BETWEEN those two, silently
+   scheduling the whole level's bass through the wrong instrument.
+2. **Stale/short metronome (measure-0-only, desync):** `melodies.metronome` is regenerated to the level's
+   full length by the SAME async `randomizeAll` pipeline every other melody uses. The scheduling effect only
+   checked `melodies.metronome?.notes?.length` (truthy), not that this regeneration had actually completed
+   for the level's length — a short, pre-level metronome melody could get locked in for the entire level via
+   `backingScheduledForRef`, which never re-fires once set.
+
+**Han's directive, in order:** (1) don't add a "wait longer / verify length" guard — levels will eventually
+be infinite/adaptive-length, so generate incrementally instead, reusing "the JIT mechanism that already
+exists in the generator" (2) hardcode the timpani pattern for now (unchanged — still legitimate per §93,
+percussion's instrument slot structurally can't be pitched) (3) fix cello via the REAL generation protocol
+("roots on 1, 1 note per measure, variability 0, smallest note denom whole, note pool C2-C3"), not a
+hardcoded pattern function.
+
+#### Fix 1 — instrument readiness: `loadedSlug` (`useInstruments.js`)
+
+A new `loadedSlug` state (`{ treble, bass, percussion, metronome, chords }`) is written in the EXACT SAME
+synchronous call as the instrument instance itself (`updateInstrument`'s `setter(newInst)` +
+`setLoadedSlug(...)`, same effect body) — so `loadedSlug.bass === 'cello'` is true ONLY in the same commit
+where `instruments.bass` is genuinely the rebuilt cello Soundfont, closing the one-commit-early race that
+`bassSettings.instrument` alone couldn't detect. `App.jsx` derives `bassReady`/`metronomeReady` from this
+instead of the settings value.
+
+#### Fix 2 — cello via real GeneratorSettings, not a pattern function
+
+`InstrumentSettings.fixedWholeNote` and `utils/celloWholeNotePattern.js` are deleted. `src/levels/levels.js`
+exports `LEVEL_BASS_SIMPLE` (`notesPerMeasure:1, smallestNoteDenom:1, rhythmVariability:0, notePool:'chord',
+randomizationRule:'emphasize_roots', range:{min:'C2',max:'C3'}`, Han's exact protocol mapped onto real
+`InstrumentSettings` fields) and `LEVEL_BASS_DEFAULT` (mirrors `InstrumentSettings.defaultBassInstrumentSettings()`
+— the non-simplified values, so Level 8 has a single source of truth to reset to, not a second hardcoded
+copy — §6c). `useLevel.applyConfig` writes ALL 5 fields unconditionally (same cross-level-leakage guard as
+`insertBeatRests`/`polyMultiplier`), choosing `LEVEL_BASS_SIMPLE` or `LEVEL_BASS_DEFAULT` from `lvl.fixedBass`.
+`useMelodyState.js`'s `fixedWholeNote` override block is removed — bass is now ALWAYS the output of
+`MelodyGenerator`, for every level.
+
+#### Fix 3 — JIT-chunked bass + metronome (`src/generation/generateLevelBackingChunk.js`, `src/hooks/useLevelBackingStream.js`)
+
+Bass and metronome are no longer generated once for the whole level. They grow incrementally,
+`LEVEL_LEAD_IN_BARS` measures ("one chunk") at a time:
+
+- **`generateLevelBackingChunk.js`** (pure): given a scale/time-signature/chunk length/bass settings/a
+  slice of the level's chord progression, calls `MelodyGenerator` directly for both bass and metronome —
+  the exact same generator every other track uses, just `chunkMeasures` long instead of the whole level.
+  No Sequencer, no `this`, no per-instrument branching (§6b).
+- **`useLevelBackingStream.js`** owns the growing bass/metronome `Melody` objects (fed into `MelodyProvider`
+  in `App.jsx` in place of `melodies.bass`/`melodies.metronome` while a side-scroll level streams) and their
+  audio scheduling. Chunk 0 = the lead-in (measures -1/0, reusing the FIRST content chunk's chord slice as
+  harmonic context, since no chord data exists for negative measures — mirrors the retired
+  `metronomeLeadIn.js`'s "reuse the nearest real content" approach, now itself deleted since every chunk is
+  genuinely generated). Chunk 0 and chunk 1 generate synchronously (a constant 1-chunk / 2-measure lookahead
+  buffer, "2+2 maten op voorhand"); chunk *k+1* is generated exactly when chunk *k* begins playing (a
+  `setTimeout` computed from `levelAudioStart`), never earlier — the buffer never grows or shrinks.
+- **Timpani is UNCHANGED** — still `buildTimpaniPattern`, still scheduled once, upfront, for the whole
+  piece, in `App.jsx`'s scheduling effect (Han: "hard code de timpani voor nu"). Only bass/metronome moved.
+
+**React 18 StrictMode remount safety (found via this ticket's own test suite):** `main.jsx` wraps the app in
+`<React.StrictMode>`, which double-invokes every effect in development (mount → cleanup → mount again) to
+surface exactly this class of bug. An early version guarded re-scheduling with a `startedForRef.current ===
+levelAudioStart` check — but StrictMode's remount reuses the SAME `levelAudioStart`, so cleanup cancelled
+the first mount's pending chunk-2 timer and the guard then refused to let the second mount reschedule it,
+silently reproducing "silence after a couple of measures" in every dev session. Fixed by making the effect's
+cleanup fully self-contained: it cancels BOTH its own pending generation timers AND its own already-scheduled
+notes (via a local `ownStopFns` array populated by diffing `stopFnsRef.current` around each `playMelodies`
+call — distinct from the shared `stopFnsRef`, which also carries timpani's handles and must survive a
+bass/metronome remount). With cleanup fully undoing a run's work, the `startedForRef` guard was removed —
+any effect re-run (StrictMode or otherwise) now safely restarts the stream from scratch.
+
+**Invariant:** any future level-backing track that needs async-generated content must gate scheduling on a
+readiness signal written in the SAME commit as the thing it's confirming (like `loadedSlug`), never on a
+value that merely correlates with readiness one commit early.
+
+**Files:** `src/hooks/useInstruments.js` (`loadedSlug`), `src/model/InstrumentSettings.js` (`fixedWholeNote`
+removed), `src/levels/levels.js` (`LEVEL_BASS_SIMPLE`/`LEVEL_BASS_DEFAULT`, +rationale), `src/hooks/useLevel.js`
+(+test), `src/hooks/useMelodyState.js` (fixedWholeNote override removed), `src/generation/generateLevelBackingChunk.js`
+(new, +test), `src/hooks/useLevelBackingStream.js` (new, +test), `src/constants/timing.js`
+(`LEVEL_LEAD_IN_BARS` hoisted here, shared by `SheetMusic.jsx` and the new hook), `src/App.jsx`
+(`scheduleLevelBacking` effect simplified to timpani-only, `useLevelBackingStream` wired into
+`MelodyProvider`), `src/components/sheet-music/SheetMusic.jsx` (`scrollBassMelody`/`spansLeadIn`
+simplified — bass is always real-generated and always spans the lead-in now). Deleted:
+`src/utils/celloWholeNotePattern.js`, `src/utils/metronomeLeadIn.js` (+ their tests).
+
+#### Follow-up — forced tonic (I-I-I) chord progression + debug-visible chords (same day)
+
+**Symptom:** Han: "cello is goed, maar gebruikt denk ik niet... ah cello gebruikt roots on one, maar
+misschien zijn de akkoorden niet goed." `LEVEL_BASS_SIMPLE`'s `randomizationRule: 'emphasize_roots'` draws
+its "root" from whatever chord progression it's given — but a level's `chordProgression` came from
+`melodies.chordProgression` (the normal `useMelodyState` pipeline), which `App.jsx`'s `levelRegenerate`
+calls with `{ chords: false }` on every wave regen. `randomizeAll`'s `chords: false` branch doesn't
+regenerate a fresh progression at all — it just ADAPTS (pads/wraps) whatever progression was already in
+state from normal (non-level) play. A level's cello could therefore be drawing "roots" from a leftover
+modal-random progression, not a clean I.
+
+**Fix:** `useLevel.applyConfig` now also sets `chordSettings.strategy = 'tonic-tonic-tonic'` for every
+side-scroll level — an EXISTING strategy (`chordGenerator.js`'s `generateProgression`, already used
+elsewhere as a fallback) that repeats `generateChordOnDegree(scale, 1, complexity)` for the whole length, no
+new generation code. Since `{ chords: false }` regens don't exercise `chordSettings.strategy` at all,
+`useLevel.begin()` now calls `regenerate(true)` (App.jsx's `levelRegenerate(forceNewChords)`) ONLY on the
+level's first wave — this is the one moment a fresh, correctly-stragegied progression must be built;
+subsequent wave-to-wave regens keep `{ chords: false }` unchanged (harmless — the adapted progression is
+still all-I). `close()` restores the pre-level `chordSettings` via the existing snapshot/restore mechanism
+(mirrors `bassSettings`/`percussionSettings`).
+
+**Debug visibility (Han: "laat die in debug ook maar zien"):** `chordsEye` now follows the exact same
+debug-gating rule bass/percussion already had — `trebleOnlyEyes`/`threeLineEyes` (`levels.js`) gained a
+`showChords` parameter (default `false`, so every OTHER caller is unaffected); for a `debugOnlyLines` level
+(1–6) it's `true` only while `debugMode` is on, for a non-`debugOnlyLines` level (7/8) it's always `true` —
+identical shape to `bassEye`/`percussionEye`.
+
+**Files:** `src/hooks/useLevel.js` (`chordSettings.strategy` override, `begin()` → `regenerate(true)`,
+`restore()` chordSettings, debug-gated `eyes` calls updated for `showChords`, +test), `src/App.jsx`
+(`levelSetters`/`levelSnapshot` gain `setChordSettings`/`chordSettings`, `levelRegenerate(forceNewChords)`),
+`src/levels/levels.js` (`trebleOnlyEyes`/`threeLineEyes` gain `showChords` param).
+
+#### Second follow-up, same day — chords fixed to C (scale untouched), 1 chord/measure, cello range, metronome-vs-lead-in asymmetry restored
+
+**Chord tonic pinned to C, independent of the melody scale:** Han: "cello is goed, maar gebruikt denk ik
+niet [de akkoorden]... ah cello gebruikt roots on one, maar misschien zijn de akkoorden niet goed. genereer
+ook akkoordenprogressie (I-I-I) tonic progressie." Confirmed scope: pin the CHORD track's tonic to C without
+touching the melody/notation scale (so treble stays in whatever key was active), for ALL levels (1–8), not
+just side-scroll ones. `useMelodyState.js` gains a `chordSettings.fixedTonic` field (e.g. `'C4'`): both
+chord-building call sites (`generateChords`, and `randomizeAll`'s chord branch via `generateChords`) build a
+`chordScale = updateScaleWithTonic({ currentScale: scale, newTonic: fixedTonic, ... })` — reusing the
+EXISTING scale-tonic helper (`theory/scaleHandler.js`, already used elsewhere for tonic randomization) — and
+pass `chordScale` (not `scale`) to `generateProgression`/`generateChordOnDegree`. The melody scale itself is
+never touched. `useLevel.applyConfig` now writes `chordSettings.strategy: 'tonic-tonic-tonic', fixedTonic:
+'C4', chordCount: 1` UNCONDITIONALLY for every level (the earlier `if (lvl.sideScroll)` gate is gone — Level
+1 gets this too, even though it has no bass/cello, for consistency and because `begin()`'s `regenerate(true)`
+already fires for every level).
+
+**Cello range:** `LEVEL_BASS_SIMPLE.range` changed from `{min:'C2',max:'C3'}` to `{min:'C2',max:'B2'}`.
+
+**Metronome-vs-lead-in asymmetry restored (regression from the FIRST #663 rework):** unifying bass and
+metronome into the same JIT-chunked stream accidentally made the metronome's chunk 0 span the FULL 2-measure
+lead-in (measures -1 AND 0) — reintroducing "metronome audible in measure -1", which Han's original §94
+spec explicitly forbids ("metronoom moet beginnen op maat 0"). Fixed via `generateLevelBackingChunk`'s new
+`metronomeMeasures` param (defaults to `chunkMeasures`, so every chunk beyond the lead-in is unaffected):
+the lead-in chunk now generates the metronome for `chunkMeasures - 1` measures only (just measure 0, not
+-1), scheduled `barSec` LATER than bass's chunk 0 (`metronomeStartTime = chunkStartTime + barSec`), and its
+own growing-melody tick-base is likewise shifted forward by one measure so it never overlaps the silent bar.
+Cello + timpani are unaffected — both still start at measure -1 exactly as before.
+
+**Files:** `src/hooks/useMelodyState.js` (`fixedTonic` support in both chord-generation call sites),
+`src/hooks/useLevel.js` (chordSettings override unconditional + `fixedTonic`/`chordCount`, +test),
+`src/levels/levels.js` (`LEVEL_BASS_SIMPLE.range` → C2-B2), `src/generation/generateLevelBackingChunk.js`
+(`metronomeMeasures` param, +test), `src/hooks/useLevelBackingStream.js` (metronome lead-in trim + shifted
+schedule/tick-base).
+
+### §111. Character creator rebuilt onto a 32px pixel-art grid; square corners; equipment slots fixed at 16×16 logical px (Han 2026-08-03)
+
+**Purpose:** Han: *"maak de hoeken van de boxes vierkant. steek in debug mode een 'grid' van 8x8 grijs
+opacity 50% en opacity 0% achter alle vensters in avatar view. de equipment slots moeten 16x16 zijn."*
+Interviewed (three rounds — corner scope, checkerboard scope, slot-size scaling) before touching any code
+per §4b; Han confirmed: square corners on EVERY box in the creator (not just avatar/slots); the checkerboard
+is a pixel-art grid ("ik wil de hele character view in pixel art"); "16×16" means LOGICAL pixels (an 8px unit
+× a 4x display scale, so slots render at 64px) — and the SAME scale should apply to every box in the file,
+not just the slots ("pas dezelfde schaal toe op ALLE elementen in de character creator").
+
+**How it works:** `CharacterCreator.css` now documents (top-of-file comment) a 32px "cell" convention — one
+8px logical pixel-art unit at a 4x display scale — and every box's width/height/padding/gap in the file was
+snapped to a multiple of it (32px, or a half/quarter-cell — 16px/8px — for tighter spacing). `border-radius`
+is `0` everywhere in the file (pixel art has no anti-aliased curves), including `.cc-swatch` (was a circular
+colour swatch; now square, per Han's explicit "alles"). A new `.cc-checker` class renders the 32px cell as a
+visible grey(50%)/transparent(0%) checkerboard via a two-layer diagonal `linear-gradient` background — it is
+appended to a box's className ONLY when `debugMode` is true (via a small `checker(cls)` helper in
+`CharacterCreator.jsx`), so it's invisible in normal play. Applied to the "window" boxes that display
+character/item art: `.cc-modal`, `.cc-avatar`, each `.cc-slot`, `.cc-grid`, and each `.cc-thumb` — NOT to
+every micro-control (gender/anim/action buttons, chips, swatches), since those are controls rather than
+art-display panels; this scope decision was made without a further interview round (already 3 rounds deep)
+and should be revisited if Han wants the checker on every element literally.
+
+**Equipment slots (Han: "16x16"):** `.cc-slot` is now a fixed 64×64px box (2×2 cells = 16 logical px × 4
+scale) — no longer proportional to `AVATAR_H` via `grid-auto-rows: 1fr`. `.cc-equip`'s grid is
+`repeat(4, 64px)` / `grid-auto-rows: 64px` (was `repeat(4, 1fr)` over a `height: AVATAR_H` inline style,
+which JSX no longer sets). `AVATAR_H` itself was snapped from 336 to 320 (10 cells) — the derived avatar
+box WIDTH (`80/64 × AVATAR_H`, from `CharacterDoll`'s fixed sprite aspect ratio) is left off-grid on
+purpose: it's a computed consequence of the sprite's native aspect ratio, not an independently-authored box
+dimension, so forcing it onto the 32px grid would require picking an AVATAR_H far from 336 (the nearest
+value making BOTH height and width exact 32px multiples is 256 or 384 — a much bigger jump).
+
+**Invariants:** `.cc-checker` must never be applied unconditionally (CSS-only, no debugMode gate) — it's a
+debug-only affordance, not a permanent visual style. New boxes added to this file should keep width/height/
+padding/gap as multiples of 8px (quarter-cell) to stay on-grid, per the file's top-of-file comment.
+
+**Follow-up fix (same day, Han: "ik zou verwachten dat elke slot 4 8x8 checkerboards heeft" / "ook verwacht
+ik die checkerboard achter mijn avatar"):** the first `.cc-checker` used a 2-layer 45deg `linear-gradient`
+trick that actually produces a DIAGONAL stripe pattern, not axis-aligned squares — too subtle to read as a
+clean grid on a 64px slot, and easy to miss entirely behind the avatar's mostly-opaque sprite layers.
+Replaced with the correct 4-layer recipe (gradients at +45deg AND -45deg, offset by half a tile) that
+produces a genuine axis-aligned checkerboard: 32px squares (one 8px-logical cell × 4 scale), 64px tile — a
+64px equipment slot now shows exactly the requested 2×2 = 4-square checker. No JS/JSX change; CSS-only fix
+in `.cc-checker` (`CharacterCreator.css`). Not independently browser-verified in this environment (no
+Playwright/headless-browser tooling available) — verified via careful derivation of the gradient geometry
+instead; flagged to Han to re-check visually.
+
+**Files:** `src/components/character/CharacterCreator.css` (grid-cell convention comment, `.cc-checker`,
+border-radius→0 throughout, all box dimensions snapped to grid, `.cc-equip`/`.cc-slot` fixed 64px),
+`src/components/character/CharacterCreator.jsx` (`debugMode` prop, `checker()` helper wired onto
+modal/avatar/slot/grid/thumb classNames, `AVATAR_H` 336→320, removed inline `cc-equip` height style),
+`src/App.jsx` (passes `debugMode` to `<CharacterCreator>`).
+
+**Superseded same day (§112):** `CharacterCreator.jsx` (the modal component) was deleted a few hours later
+when the popup itself was replaced by an in-layout avatar-context — its logic lives on in
+`useCharacterEditor.js` + `CharacterAvatarPanel.jsx`/`CharacterOptionsPanel.jsx`; `CharacterCreator.css`'s
+class names (`.cc-avatar`, `.cc-slot`, `.cc-checker`, etc.) are unchanged and still the ones in use.
+
+### §112. Character creator popup replaced by an integrated avatar-context (character/stats/equipment/bestiary) in the sheet-music + bottom-panel layout slots (#667, Han 2026-08-03)
+
+**Purpose:** Han: *"de char view moet niet langer een pop-up, maar geïntegreerd in gewone sheet music/bottom
+view. Avatar + equipment vervangt de sheet music. De item opties en kleuren staan in de bottom view. De
+sub-header row krijgt nieuwe iconen, dus kunnen navigeren tussen avatar en bestiary."* Interviewed across 4
+rounds (§4b) before touching code: entry/exit points, how this fits the existing tab/edit-mode architecture,
+mutual exclusivity with the other SubHeader edit-modes, and the exact top/bottom content split — because
+Han's intent (a 4-screen navigator: Character/Stats/Equipment/Bestiary, replacing the SubHeader only while
+this context is active) was NOT derivable from the initial one-line request.
+
+**How it works:** a single `characterScreen` state in `App.jsx` (`null | 'character' | 'stats' | 'equipment'
+| 'bestiary'`) now drives THREE swaps simultaneously, replacing the old `showCharacter` boolean + `<CharacterCreator>`
+modal entirely:
+
+1. **Top (sheet-music slot):** when `characterScreen` is set, `<CharacterAvatarPanel>` (screens
+   'character'/'equipment' — avatar always, the 4×3 equipment-slot grid ONLY for 'equipment'),
+   `<StatsTopPanel>`, or `<BestiaryTopPanel>` renders instead of `<SheetMusic>` — in the SAME flex box
+   App.jsx already uses for sheet-music (no new layout box; `display` gains `|| characterScreen` to the
+   existing dual-view/single-view condition).
+2. **Bottom (TabView's tab-panel slot):** `TabView` now short-circuits its `activeTab` branches entirely
+   when `characterScreen` is set (checked BEFORE the `activeTab === 'sheet-music'` etc. branches) and
+   renders `<CharacterOptionsPanel>` (identity row, Save/Reset/Random, anim buttons, category picker +
+   variant swatches + item grid), `<StatsBottomPanel>`, or `<BestiaryBottomPanel>` instead — regardless of
+   which bottom tab (piano/percussion/chords/…) was previously selected. The normal tab-nav bar itself is
+   NOT hidden (a deliberate minimal-footprint choice — clicking TOP/BOTTOM/etc. while in avatar-context is a
+   no-op since TabView ignores `activeTab` in this state; Han did not ask for the nav bar itself to hide).
+3. **SubHeader row:** `level.active` → nothing renders (no SubHeader AT ALL during a level — Han: "binnen
+   LEVEL context: geen subheader"); else `characterScreen` truthy → `<AvatarSubHeader>` (4 icons: Character
+   `User`/Stats `BarChart2`/Equipment `Shirt`/Bestiary `BookOpen`, lucide-react, reusing the existing
+   `tab-button secondary app-header-btn` chrome — §6d, no new button styling invented) replaces the normal
+   `<SubHeader>`; else the normal 8-option `<SubHeader>` (NOTATION/RANGE/COLOUR/INSTRUMENT/PLAYBACK/
+   GENERATION/GEN.ADVANCED/EXERCISES) as before.
+
+**Entry/exit (Han's answers, verbatim):** the hero-sprite click (`SheetRpgLayer`'s `onOpenCharacter`, #647)
+still opens avatar-context, landing on **'equipment'** (Han: "het huidige popup-gedrag opende ook meteen de
+4x3-sloten grid") — but since the sheet-music area (and the hero sprite inside it) is REPLACED while
+avatar-context is active, there is no hero to click to get back out. Han: *"zet een 'bladmuziek icoon' in de
+header rij, afwisselend met het 'character icoon'."* — a new `AppHeader` button (`User` icon when closed,
+`Music2` when open) toggles `characterScreen` between `null` and `'equipment'`; both entry points
+(hero-click AND the header toggle) call the new `closeAllEditModes()` (added to `useEditMode.js`) so
+avatar-context is exclusive with range/clef/colour/instrument/playback/generation/exercise-edit — mirroring
+how every one of THOSE toggles already closes its siblings. The reverse direction needs no code: those
+buttons live on the normal `<SubHeader>`, which isn't rendered while avatar-context is active, so there is
+nothing for the user to click that would need to close avatar-context as a side effect.
+
+**Character vs Equipment split (Han, exact):** "Character" screen = gender/skin/ears/hair only (no slot
+grid up top — since there's nothing to tab-select with, `CharacterOptionsPanel` grows its OWN small
+category-tab row, `CHARACTER_CATEGORIES = ['skin','ears','hair']`, from `characterEditorShared.js`).
+"Equipment" screen = the other 10 GRID categories (`EQUIPMENT_GRID = GRID.filter(k => !CHARACTER_CATEGORIES.includes(k))`),
+tab-selected via the slot grid up top exactly like the old popup's `.cc-body`.
+
+**Refactor (not a rewrite):** all character-editing STATE and LOGIC (gender/skin/ears sync, layer picking,
+randomize/reset/save, `ensureSkin`) is verbatim-identical to the old `CharacterCreator.jsx`, extracted into
+`useCharacterEditor.js` so the now-separate top and bottom panels can share one character without prop-
+drilling through a modal component boundary that no longer exists. Same pattern for Bestiary:
+`useBestiaryEditor.js` holds the enemy-selection state; `BestiaryPanels.jsx` exports `BestiaryTopPanel`
+(preview/name/blurb/anim-buttons) and `BestiaryBottomPanel` (thumbnail grid), replacing the old single-file
+`Bestiary.jsx`. All original `cc-*` CSS classes (`CharacterCreator.css`) are reused UNCHANGED — only the
+`.cc-overlay`/`.cc-modal`/`.cc-modal-diablo`/`.cc-close` rules (the popup chrome itself) were deleted as
+dead code once nothing referenced them.
+
+**Stats (Han: "niet nu implementeren"):** `CharacterStatsPanels.jsx` is a plain "Stats — coming soon"
+placeholder (top) and an empty box (bottom) — no tracking/data model was built. A real design interview is
+needed before this screen does anything.
+
+**Invariants:** avatar-context must stay mutually exclusive with the other 7 SubHeader edit-modes (via
+`closeAllEditModes`); `characterScreen` must be `null` (not e.g. `'none'`) for "normal" so `!characterScreen`
+checks stay simple; the top-panel and bottom-panel components for a given screen must always be rendered as
+a MATCHED PAIR (e.g. never 'equipment' top with 'character' bottom) — both read `characterScreen` from the
+same `App.jsx` state, so this can't drift by construction.
+
+**Verification:** browser-driven (Puppeteer + the existing Chrome install, headless) against the real dev
+server — screenshotted all 4 screens (character/stats/equipment/bestiary), confirmed the hero-click entry
+point, the header toggle's close path (back to normal `<SheetMusic>` + 8-option `<SubHeader>` + hero visible
+again), and that no console errors were thrown. `npm run test:run` (633 tests), `npm run lint` (0 errors),
+`npm run build` all green.
+
+**Files:** `src/components/character/useCharacterEditor.js` (new — extracted state/logic),
+`src/components/character/characterEditorShared.js` (new — `AVATAR_H`/`GRID`/`CHARACTER_CATEGORIES`/
+`EQUIPMENT_GRID`/`thumbStyle`/`checker`, imports `CharacterCreator.css`), `src/components/character/
+CharacterAvatarPanel.jsx` (new, top), `src/components/character/CharacterOptionsPanel.jsx` (new, bottom),
+`src/components/character/useBestiaryEditor.js` (new), `src/components/character/BestiaryPanels.jsx` (new,
+replaces `Bestiary.jsx`, deleted), `src/components/character/CharacterStatsPanels.jsx` (new placeholder),
+`src/components/layout/AvatarSubHeader.jsx` (new), `src/components/character/CharacterCreator.jsx` (deleted),
+`src/components/character/CharacterCreator.css` (popup-chrome rules deleted, everything else unchanged),
+`src/hooks/useEditMode.js` (`closeAllEditModes` export), `src/components/layout/AppHeader.jsx` (`User`/
+`Music2` toggle button), `src/components/layout/TabView.jsx` (`characterScreen` short-circuit),
+`src/App.jsx` (`characterScreen` state replaces `showCharacter`, wiring for all of the above).
+
+**Follow-up, same day (Han: "dit is heel goed! Haal de microfoon/midi/... input weg uit de top view. /
+character: skin: color palette (geen equipment preview) / ears: normal/long toggler / hair: zoals equipment"):**
+
+- **Input Mode Cycler hidden in avatar-context:** the `AppHeader`'s mic/MIDI/QWERTY-note "Unified Input Mode
+  Cycler" button (the `MicOff`/`Piano`/`Mic` cycling button, first icon in `.app-header-left`) is irrelevant
+  while editing the avatar — now wrapped in `{!characterScreen && (...)}`. The debug-only fixed-position MIDI
+  status readout (`App.jsx`, gated on `debugMode`) is a separate, already-hidden-by-default diagnostic
+  overlay, not user-facing input UI — left untouched, out of scope for this ask.
+- **Skin → colour palette, not item thumbnails:** the 10 skin sprites (Skin1-5 + Zombie/Orc/Demon/Devil/Ghost
+  per gender) have no built-in colour-variant data (each is a wholly distinct sprite — §"Skin" in the module
+  comment — unlike clothing, which has real colour-variant files). Interviewed (§4b): Han confirmed "same 10
+  underlying options, shown as small representative colour swatches instead of full-body thumbnails" (NOT a
+  continuous hue-shifted palette). New `skinSwatchColor(name)` in `characterAssets.js` — hand-picked hex per
+  keyword (zombie/orc/demon/devil/ghost) or a 5-step tan→dark gradient for `Skin{1..5}`, mirroring the
+  existing keyword-matching style already used throughout this file (`categorizeCharFile`, `clothesFilter`)
+  rather than a name-exact lookup table (§6c). `CharacterOptionsPanel` renders `.cc-swatch` buttons (reusing
+  the exact chip styling used for clothing colour variants) instead of the `.cc-grid` thumbnail grid when
+  `activeCat === 'skin'`.
+- **Ears → Normal/Long toggle, not an item grid:** the ONLY ear asset is a single "Elven Ears" sprite,
+  skin-tone-matched via the existing `earForSkin(gender, skinName)` (5 numbered variants, one per `Skin{N}`)
+  — there is no real STYLE choice to grid-pick; the previous 5-thumbnail grid was actually 5 buttons that all
+  resolved to the SAME skin-matched ear (since `pickBase` for `activeCat==='ears'` already forced the
+  skin-match regardless of which thumbnail was clicked — a pre-existing redundancy this change also cleans
+  up). Replaced with two buttons: "Normal" (`setLayer('ears', null)`, the existing ∅/none option) and "Long"
+  (resolves via `earForSkin`, falling back to the gender's first available ears item for non-numbered skins
+  like Zombie/Orc/Demon/Devil/Ghost, which `earForSkin`'s `/skin\s*(\d)/` regex can't match).
+- **Hair → unchanged, deliberately:** Han asked for a style-picker + hair-colour-picker "like equipment", but
+  hair sprites (Male/Female Hair1..30/35) have no colour-variant files either (unlike clothing) — a colour
+  picker would require LIVE re-tinting a pixel-art sprite via a CSS filter, a technique that doesn't exist
+  anywhere in this codebase yet. Flagged this explicitly before implementing (§6c: no existing mechanism to
+  reuse, new technique = ask first); Han's answer: **skip it for now** — he'll relabel/split the hair files
+  himself to provide real colour variants later, at which point Hair's picker will pick up the exact same
+  `.cc-variants` swatch mechanism used for clothing today, no new code needed. Hair's bottom-panel content is
+  therefore untouched (still the plain style-thumbnail grid).
+
+**Verification:** browser-driven (Puppeteer + local Chrome, headless) — confirmed the Input Mode Cycler
+button count in `.app-header-left` drops by one when avatar-context opens; screenshotted the Character
+screen's new Skin swatch row and Ears Normal/Long toggle. `npm run test:run` (633), `npm run lint` (0
+errors), `npm run build` all green.
+
+**Files:** `src/model/characterAssets.js` (`skinSwatchColor` + `SKIN_TONES`), `src/components/character/
+CharacterOptionsPanel.jsx` (skin-swatch branch, ears-toggle branch), `src/components/layout/AppHeader.jsx`
+(Input Mode Cycler wrapped in `!characterScreen`).
+
+### §113. Auto-scanned bestiary — all non-hero `src/assets/ASSORTED/characters/**` sprites, variant toggler, 6-way category selector (#668, Han 2026-08-03)
+
+**Purpose:** Han: *"scan de map characters en maak een bestiary met alle niet-hero personages, inclusief
+dieren. voor beesten met varianten, zoals de slime, zet in de top-view een toggler voor de verschillende
+varianten. in de bottom view, gebruik de bottom view selector om keuze te maken tussen: characters,
+humanoid, animal, air, ground, other."* The 10 hand-curated `enemyAssets.js` creatures (fully animated,
+hand-measured) only ever covered a small hand-picked subset; this scans the REST of the asset dump (~450
+PNGs) and merges everything into the same Bestiary UI.
+
+**Why this needed an interview (§4b) before any code:** the 10 curated entries each require a HAND-MEASURED
+frame size, crop rectangle, and per-row content-frame count (blank trailing cells differ per sheet) — there
+is no way to derive that correctly for ~450 unknown files without either inspecting every one by hand or
+writing a heuristic that WILL sometimes guess wrong. Interviewed and got Han's explicit sign-off on a
+best-effort heuristic ("doe een voorstel op basis van wat je in de file aantreft… toon de hxb in debug mode
+zodat ik kan checken") rather than guessing silently and presenting it as finished.
+
+**How it works — two-stage pipeline, mirrors the code-gen/runtime split nowhere else in this codebase but
+modeled on `characterAssets.js`'s "scan + categorise" pattern:**
+
+1. **`scripts/generate-bestiary-manifest.mjs`** (Node, re-run by hand after adding/removing sprites — not
+   part of the build). Walks the 6 folder-groups Han confirmed 1:1 on the EXISTING folder names
+   (`characters` = `char_passive`+`char_with_attack`+`char_with_walk`+`char_with_porttrait`; `humanoid` =
+   `creature_humanoid`; `animal` = `animals/**`; `air`/`ground`/`other` = `creatures_air`/`creatures_ground`/
+   `creatures_other`). Skips anything matching a curated-creature keyword (lamia/bat/flying eye/flying
+   witch/mimic/mosquito/mushroom/plant/pumpkin/rat/slime) so the bestiary never lists a creature twice.
+   Decodes each remaining PNG via `pngjs` (new devDependency — code-gen only, never shipped to the browser)
+   and PROPOSES: frame size = the largest of `[128,96,80,64,48,32,24,16]` that evenly divides both width and
+   height (falls back to treating the whole image as one frame if none do — this fails for non-square-frame
+   packs, see Known gaps below); per-row content-frame counts by scanning left-to-right until a fully-
+   transparent cell (alpha ≤ 10); crop = the union of non-transparent pixel bounds (frame-local) across all
+   content frames — the same three fields `enemyAssets.js` hand-measures. Colour-variant siblings (Slime
+   blue/green/red, the 7-colour Archer, farm-animal colours, …) are grouped into one `base` via the SAME
+   colour-keyword list as `characterAssets.js`'s `COLORS` (independently duplicated in the script — it runs
+   under plain Node, which can't load a module that calls `import.meta.glob`). Output: `src/model/
+   bestiaryManifest.generated.js` (289 entries from this run — do not hand-edit, re-run the script instead).
+2. **`src/model/bestiaryAssets.js`** (runtime). `import.meta.glob`s the same folder for URLs, joins them
+   against the generated manifest by relative path, and groups into `{ id, category, name, variants:
+   [{variant, url, frame, crop, animations}] }` creature records.
+3. **`src/model/enemyAssets.js`** — UNCHANGED gameplay-critical fields (sheet/frame/crop/animations, still
+   feeds `SheetRpgLayer`'s real combat slimes via `SLIME_COLORS`/etc); only an ADDITIVE `category` tag was
+   added to each of the 10 curated entries (derived from which ASSORTED subfolder each one originally came
+   from) so the category selector can filter curated + scanned creatures together.
+4. **`useBestiaryEditor.js`** merges curated `ENEMIES` + scanned `SCANNED_CREATURES` into one `CREATURES`
+   list (curated entries wrapped as single-variant records, except Slime — special-cased to 3 variants using
+   the EXISTING `SLIME_COLORS`/`SLIME_FRAME`/`SLIME_CROP`/`SLIME_IDLE`/`SLIME_WALK`/`SLIME_DEATH` gameplay
+   constants, not duplicated sprite data) and owns `category`/`selId`/`variantIndex`/`animKey`/`frame` state.
+5. **`BestiaryPanels.jsx`**: `BestiaryTopPanel` renders the selected variant + (when `creature.variants.length
+   > 1`) a colour-swatch toggler reusing the exact `.cc-swatch`/`variantColor` chrome clothing variants
+   already use (§6d) — Han's "toggler" ask; `BestiaryBottomPanel` adds the 6-category tab row (same `.cc-tab`
+   pill styling as the Character screen's Skin/Ears/Hair tabs) above the creature thumbnail grid, filtered to
+   the selected category.
+
+**Debug width×height overlay (Han: "toon de hxb"):** `BestiaryTopPanel`, gated on `debugMode`, shows
+`{width}×{height}px sheet, {frame.w}×{frame.h} frame` in the app's text font (never Maestro, §1a) so Han can
+visually sanity-check the frame-size guess against the real sheet and flag ones that guessed wrong.
+
+**Known gaps (disclosed, not hidden — Han explicitly signed up for a v1 he'd review, not a guaranteed-correct
+one):**
+- **Non-square-frame packs fail silently.** The heuristic only tries SQUARE frame sizes; farm-animal cow/pig
+  sheets (896×240, 640×144 — no square divisor fits both dimensions) fall back to a nonsensical guess and get
+  filtered out entirely (zero detected content frames). Chicken/horse (square frames) work fine. Farm cow/pig
+  are simply absent from the Animal category until someone hand-supplies their real frame data.
+- **A frame size that's a valid-but-too-coarse divisor produces "doubled" content.** A few Animal entries
+  (fox, doggy, some horse variants) render what looks like two small sprites side-by-side within one guessed
+  frame cell — the guessed frame size divides width/height evenly but isn't the pack's REAL per-frame size
+  (the true grid is finer). Visible immediately via the debug overlay's frame-size number; needs per-entry
+  correction, not a generic fix.
+- **⚠ Content flag for Han:** the ASSORTED asset dump's `char_with_porttrait/Succubus/` folder (and a couple
+  of loose "bikini girls" sheets in `char_passive`) contain nude/adult-suggestive character art (filenames
+  literally include "no bra"; ~26 manifest entries match on this pattern) — the scan pulled these into the
+  "characters" category as-is, since it has no way to know these are inappropriate for the app's audience.
+  **Not filtered out — flagging for Han's explicit decision** (exclude the whole `Succubus` folder? a
+  filename-keyword blocklist in the generator? something else?) rather than silently either shipping or
+  censoring adult content.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (new), `src/model/bestiaryManifest.generated.js` (new,
+generated — 289 entries), `src/model/bestiaryAssets.js` (new), `src/model/enemyAssets.js` (`category` tag,
+additive only), `src/components/character/useBestiaryEditor.js` (rewritten — unified creature/variant/
+category state), `src/components/character/BestiaryPanels.jsx` (variant toggler, category selector, debug
+overlay), `package.json` (`pngjs` devDependency, code-gen only).
+
+### §114. Bestiary hand-measurement pass 2 — non-square packs, cross-row-stitched animations, a sheet split into 16 species, a reusable "explosion" effect (#670, Han 2026-08-03)
+
+**Purpose:** same-day follow-up to §113 — Han hand-measured the remaining animal packs plus several
+`creatures_ground`/`creatures_other`/`creatures_air` sheets that the generic square-frame heuristic (§113's
+known gaps) couldn't handle or mislabelled. Also answered "maak je ergens een bestand?": yes — the generated
+manifest (`src/model/bestiaryManifest.generated.js`) is a real, checked-in file, produced by re-running
+`scripts/generate-bestiary-manifest.mjs`; nothing here is computed purely in memory at runtime.
+
+**Manifest schema changed:** `frameSize` (a single number, square) → `frame:{w,h}` (supports non-square
+frames — cow/pig/wisp all needed this); `rows:[{row,frames}]` → `animations:[{key,label,cells:[{row,col}]}]`
+— a per-frame cell LIST rather than a fixed row + frame count, because the horse's animations are stitched
+across row boundaries in a pattern no `{row,frames}` shape could express. `CreatureSprite` (BestiaryPanels.jsx)
+now steps through `anim.cells[frame % anim.cells.length]` for background-position instead of computing
+`col = frame % frames` against a fixed row; `useBestiaryEditor.js`'s curated-ENEMIES conversion and the
+generator's own generic per-row path both just emit `cells: rowCells(row, frames)` (sequential columns) —
+the simple case is a one-line special case of the general one, not a separate code path.
+
+**New hand-measured overrides (generator script), each behind a `test(relPath)` matcher:**
+- **boss_spider** (192×96): Idle/Walk/Threaten/Attack/Death — row 5 ("??", Han's own words) dropped entirely.
+- **Imp** (64×64): Idle/Eat/Walk/Fly/Death.
+- **Female Hell Giant[ covered]** (112×128, idle only): the two files don't share a colour-keyword base name
+  (`characterAssets.js`'s `COLORS` list doesn't know "covered"), so grouped by hand into one `Hell Giant`
+  creature with `Covered`/`Uncovered` variants (mirrors the Wisp `BASE_OVERRIDES` pattern from §113).
+- **The Devil** (96×112): two IDLE variants (not idle+move) each spanning 2 merged rows, plus a 3rd single-row
+  pose — `idle1` (rows 0-1), `idle2` (rows 2-3), `emptycauldron` (row 4).
+- **Large Skull**: frame size was already correct; only rows 0+1 merge into one `attack` animation (Han:
+  "ok, maar rij1+rij2 = attack") — remaining rows keep the generic positional Idle/Move/… labelling, just
+  starting fresh after the merge.
+- **Demon eye / Demon Mine / Plague Flies**: 2-row `Fly`/`Death` relabel. **Assumption flagged for Han**:
+  "demon fly" has no exact filename match in `creatures_air` — read as `Plague Flies.png` (closest thematic
+  fit); correct if wrong.
+- **Explosion** (new, category `other`): Han: *"sla IMP Death ook nog een keer apart op als explosion
+  effect, voor sprites zonder death animation."* Imp's own `death` cells are cloned into a STANDALONE
+  creature entry (same sheet/frame/crop, one `explosion` animation) — usable as a generic death/hit-effect
+  substitute for any creature that doesn't have its own.
+- **Critters** (§113, already its own `critters` category) — unchanged this round.
+
+**Curated `enemyAssets.js` relabels (gameplay-safe — animation `key`/`label` strings only, no row/frame/crop
+changes, grep-verified nothing outside the Bestiary UI reads these keys):** `pumpkin` (`move→attack`,
+`attack→death`), `bat` (`idle→fly`, `move→attack`, `attack→death`), `flying-eye` (`idle→fly`, `move→death`),
+`mosquito` (`idle→fly`, `move→death`) — Han's corrected readings of what each row actually depicts.
+
+**⚠ Known unresolved issue, flagged rather than silently guessed further:** the horse's `stagger`/`death`
+animations reference "rij 7"/"rij 8" (Han's 1-indexed notation) — but the horse sheet is 768×720px at his own
+specified 96×120 frame, which is EXACTLY 6 rows (720/120), so rows 7/8 (0-indexed 6/7) are out of bounds and
+currently render blank. Either the frame height isn't really 120, or the row numbers in that part of Han's
+spec need correcting — needs his input, not a guess (`horseAnimations()` in the generator, left as literally
+specified pending that answer).
+
+**⚠ Standing content flag (repeated from §113, not yet resolved):** more nude/suggestive art surfaced this
+round (`Female Hell Giant`/`Hell Giant covered`) — same `char_with_porttrait`/`creatures_other` content-flag
+raised in §113, still awaiting Han's decision on how to handle it.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (schema change to `frame`/`cells`, all overrides above),
+`src/model/bestiaryManifest.generated.js` (regenerated, 305 entries), `src/model/bestiaryAssets.js` (frame/
+animations passed through as-is now), `src/model/enemyAssets.js` (pumpkin/bat/flying-eye/mosquito relabels),
+`src/components/character/useBestiaryEditor.js` (`cells`-based curated conversion), `src/components/
+character/BestiaryPanels.jsx` (`CreatureSprite` steps through `cells`).
+
+### §115. Bestiary hand-measurement pass 3 — sampled colours, accessory togglers, portrait pairing, 4-way character split (#672, Han 2026-08-03)
+
+**Purpose:** third same-day follow-up. Fixed §114's two flagged corrections (horse frame, wisp frame), added
+a genuinely-derived (not guessed) colour-sampling mechanism, a new "accessory layer" concept distinct from
+colour variants, character-sheet↔portrait pairing, and split the single `characters` category into 4.
+
+**Corrections to §114's flagged issues:** horse frame corrected 96×120 → **128×90** (Han: "sorry") — this
+ALSO resolves §114's flagged stagger/death out-of-bounds bug: 720÷90 = 8 rows (was 6), so "rij 7/8" are valid
+now; horse's column counts recomputed for the new 6-column width (was hardcoded to 8, matching the old 96px
+width). Wisp frame corrected 40×32 → **32×32**.
+
+**Colour sampling (Han: "doggies: maak er kleurvarianten van. kan je de kleur samplen?"):** the 5 doggy
+sheets have no colour-word filenames to group on (unlike chicken/horse/cow/pig). New `sampleColor(data)` in
+the generator averages the RGB of every non-transparent pixel into one representative hex — a genuinely
+DERIVED value, not a hand-picked guess (§113's `skinSwatchColor` precedent was necessarily hand-picked since
+skin tones aren't literal pixel averages of anything; here the actual pixel data IS the source of truth).
+Stored as `swatchColor` per manifest entry; `BestiaryTopPanel`'s variant swatch row now resolves colour via
+`variantColor(v.variant) || v.swatchColor`, so named-colour variants (Slime, Archer) and sampled ones
+(Doggy) render identically.
+
+**Accessories — a new concept, distinct from colour variants (Han: "maak een toggler voor hat en
+backpack"):** doggy hat/backpack are independent ON/OFF LAYERS stacked on top of whichever Doggy variant is
+selected (not mutually-exclusive alternatives like colour variants are) — mirrors how `CharacterDoll` layers
+hero equipment (§6d). New manifest export `ACCESSORIES: { [creatureName]: [{key,label,relPath}] }` (kept OUT
+of the normal creature/variant list); `bestiaryAssets.js` resolves each into a URL and attaches
+`creature.accessories`; `useBestiaryEditor.js` tracks `activeAccessories` (an on/off map, reset when the
+creature changes); `CreatureSprite` gained `overlayUrls` — stacks each active accessory's own sprite layer
+at the SAME frame/crop/cell coordinates as the base (safe because hat/backpack share the exact 32×32/6-col/
+2-row grid as the doggy body sheets).
+
+**Toggler vs swatch (Han: "gebruik ook zo'n toggler voor covered/uncovered"):** `BestiaryTopPanel` now
+checks whether ANY variant resolves a colour (named or sampled); if none do (Covered/Uncovered, Wisp's
+Plain/Outline — real on/off pairs, not colour choices), it renders `.cc-tab` toggle pills instead of empty-
+looking `.cc-swatch` circles. Both code paths already existed (swatch from §113, tab from the Character
+screen's Skin/Ears/Hair row) — this just picks the right one per creature.
+
+**Lamia bare variant (Han: "ik mis de bare variant"):** `lamia bare.png` (same 512×256 layout as the main
+sheet — a skin-swap, not a different animation set) copied to `src/assets/enemies/sheets/lamia-bare.png`
+(matching the existing clean-kebab-name convention) and exposed as `LAMIA_BARE_URL` in `enemyAssets.js`;
+`useBestiaryEditor.js` special-cases lamia into a 2-variant creature (Normal/Bare) the same way it already
+special-cases Slime.
+
+**Humanoid overrides (all 64×64, Han's exact row mapping):** damned-anything/Mummy/Orc → Idle/Walk/Attack/
+Death, except **damned bloated** (Idle/Move/Death) and **damned tree** (each ROW is a GENDER variant, not an
+animation — column 0 is a 1-frame idle pose, the rest of that row is the death sequence; one file → 2
+manifest entries, Male/Female). **Damned Male**/**Damned Female** each grouped with their existing
+`… covered.png` sibling into Covered/Uncovered variants (same `BASE_OVERRIDES` pattern as Hell Giant).
+
+**Character-sheet ↔ portrait pairing (Han: "de characters met portrait horen altijd bij elkaar. toon het
+portret in het voorbeeld, karakter links, portret rechts"):** `char_with_porttrait`'s ~166 files pair one
+character sheet with one small "…64x64…portrait…" crop PER CONTAINING DIRECTORY (not per top-level
+subfolder — `Succubus` nests one sub-subfolder per character; pairing at the immediate directory level
+handles arbitrary nesting for free). Only paired when a directory has EXACTLY ONE portrait candidate —
+`Samurai`'s 8-numbered-portraits folder is a multi-character composite sheet with no unambiguous 1:1
+pairing, so it's skipped (disclosed gap, ~84 of 166 portrait-category entries paired successfully).
+`BestiaryTopPanel`'s `.cc-enemy-stage` (already `display:flex`) renders the sprite then the portrait `<img>`
+side by side via `gap`.
+
+**Category split (Han: "verdeel characters onder volgens mijn categorisering: passive, with attack, with
+portrait, with walk"):** the single `characters` bucket (§113) is now 4 — `passive`/`attack`/`portrait`/
+`walk` — still 1:1 on the source folder names. All `characters` folders also got a blanket 64×64 frame
+override (Han: "je mag aannemen dat ze 64x64 zijn"), replacing the generic square-guess for this whole
+category tree.
+
+**Relabels:** Large Skull (scanned, not curated) reordered to `[idle, attack, move]` (was
+`[attack, idle, move]` — same underlying merged-rows-0-1 `attack`, just listed second per Han's stated
+order). Curated `flying-witch` relabelled `idle/attack/move` (was `idle/Fly→move/Attack→attack`, i.e. rows
+1↔2 swapped, gameplay-safe key/label strings only); curated `mimic` checked and left UNCHANGED — its
+existing Closed/Open/Attack/Death keys already read as idle/move/attack/death.
+
+**⚠ Known limitation (disclosed):** a handful of `portrait`-category thumbnails render as solid colour
+blocks or garbled multi-frame strips — the blanket 64×64 frame assumption doesn't fit every one of the ~240
+files across 4 character folders; expected residual noise at this scale, not individually chased down (same
+"propose, disclose, iterate later" agreement as §113/§114).
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (frame/label corrections, `sampleColor`, `ACCESSORIES`
+export, `buildPortraitMap`/`damnedTreeEntries`, 4-way category split), `src/model/bestiaryManifest.generated.js`
+(regenerated, 308 entries), `src/model/bestiaryAssets.js` (`swatchColor`/`portraitUrl`/`accessories`
+resolution, category list), `src/model/enemyAssets.js` (`LAMIA_BARE_URL`, flying-witch relabel),
+`src/assets/enemies/sheets/lamia-bare.png` (new, copied), `src/components/character/useBestiaryEditor.js`
+(lamia special-case, `activeAccessories`/`toggleAccessory`), `src/components/character/BestiaryPanels.jsx`
+(`overlayUrls`, swatch-vs-toggle logic, portrait side-by-side layout, accessory toggle row).
+
+### §116. Roster-sheet expansion — 9 composite "characters sheet N" files → ~60 named creatures (#673, Han 2026-08-03)
+
+**Purpose:** fourth same-day follow-up. `char_passive` has two families of composite sheets Han identified
+by name: **`GandalfHardcore characters sheet 1..6.png`** (space before the number) and **`…sheet1..3.png`**
+(no space) — each packs roughly 14-15 DIFFERENT named characters (not animation rows of one creature) two
+per row, 5 idle frames each (cols 0-4 / cols 5-9). The two families have completely different rosters; the
+6-sheet family is a genuine colour-palette swap of the SAME 14-row layout (Han: "zijn kleurvarianten"), the
+3-sheet family is a different 15-row roster with the same 2-per-row/5-frame convention ("zelfde stramien").
+
+**How it works:** new `expandRosterSheet()` in the generator — a full custom expansion (one file → ~27 or
+~30 manifest entries) driven by an explicit `roster` table (`ROSTER_SHEETS_SPACED`/`ROSTER_SHEETS_UNSPACED`,
+row → `[leftName, rightName]`, transcribed directly from Han's message) rather than positional Idle/Move/…
+labels, since these are DIFFERENT CHARACTERS, not animations of one. `variant` is the sheet number ("Sheet
+1".."Sheet 6" / "Sheet 1".."Sheet 3") — a real recurring colour-palette dimension confirmed by Han, so every
+named character gets that many colour variants automatically once all 6 (or 3) sheets are scanned. Crop is
+still tightly computed per-character via a new `cropForCells()` (scoped to just that character's 5 cells,
+reusing the same alpha-bounds math as `scanRows`) rather than left as the full 64×64 frame.
+
+**Cat/Cat Hat/Dog/Dog Helmet → `animal` category (Han: "show in pets"):** these 4 names, wherever they
+appear in either roster, are routed to `category: 'animal'` instead of `passive`/`walk` — a small
+`ANIMAL_ROSTER_NAMES` lookup checked at push-time, no separate code path needed.
+
+**Simplification flagged for Han:** "Posing Lady" has 3 POSE variants (Han: "rij4 posing lady (pose1,
+pose2), rij5 eerste 5 pose3 — dus 3 varianten") layered on TOP of the existing colour-sheet dimension — a
+genuine 2D (pose × colour) variant space this data model doesn't support. Simplified to 3 separate creature
+names (`Posing Lady Pose 1/2/3`), each still getting the full 6 colour variants — not true 2D selection, but
+avoids a bigger UI change for one character.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`ROSTER_SHEETS_SPACED`/`ROSTER_SHEETS_UNSPACED`,
+`expandRosterSheet`, `cropForCells`, matched in the main loop before the generic per-file path),
+`src/model/bestiaryManifest.generated.js` (regenerated, 551 entries).
+
+### §117. Named-row extraction across 6 more files + a new "musicians" category (#674, Han 2026-08-03)
+
+**Purpose:** fifth same-day follow-up. Six more `char_passive` files (Camp Characters, Collecting Coin,
+Knight Cooking, Musicians, Wizard with a map, Art lady) needed the SAME "this row is a different named
+character" treatment §673 built for the 6/3-sheet rosters — generalised into a reusable helper instead of
+one-off code per file.
+
+**`expandNamedRows(absPath, relPath, frame, defs)`:** each `def = {rows, category, base, variant}` produces
+one manifest entry from one or more ROWS of a file (content-frame counts real-scanned via the existing
+`scanRows`, not assumed) — `rows` can be a single row or several MERGED rows (Knight Cooking's "knight crown
+cooking" spans 2 rows, same merge pattern as the Devil/Damned Tree). Several `def`s reuse a `base` already
+produced by an EARLIER file (Han: "variant op ... hierboven" — "a variant of the one above"): **Knight
+Crown** ends up with 3 variants (Squatting from Camp Characters, Collecting Coin, Cooking) and **"Wizard
+(Camp)"** with 3 (Reading, With Bag, Reading Map) — grouping across files is automatic (bestiaryAssets.js
+groups by `category::base` regardless of source file, same mechanism §673's colour-sheet variants rely on).
+
+**⚠ Naming collision caught and fixed before shipping:** §673's roster-sheet grid also has a row named
+"Wizard" (a small, differently-styled character among the Sheet 1-6 cast) — using the bare name "Wizard" for
+this batch's camp-scene wizard would have silently MERGED two visually unrelated characters into one
+7-variant creature. Renamed this batch's wizard to **"Wizard (Camp)"** to disambiguate; caught by inspecting
+the generated manifest before running the browser check, not by guesswork.
+
+**Art Lady (Han: "last frame is 'statue' variant"):** `artLadyAnimations()` splits the 7th (last) idle frame
+out of the idle loop into its own `statue` animation on the same creature — the loop plays frames 0-5, frame
+6 is a distinct static pose.
+
+**New `musicians` category (Han: "musicians zijn: drum, tamborine, violin. geef musicians een apart
+tabblad."):** added as a 10th `BESTIARY_CATEGORIES` entry. New `CATEGORY_OVERRIDES` (checked after the
+folder-based category, same pattern as `BASE_OVERRIDES`) reroutes `Musicians.png` and `Japanese Musician.png`
+(both physically in `char_passive`) into it; `Knight Cooking`'s row 4 ("musician lyre") is also routed there
+directly via its `expandNamedRows` def. "Tamborine" corrected to **"Tambourine"** per Han's own "check
+spelling" request. `Japanese Musician.png` (a lone 640×64/1-row file, not explicitly mentioned in Han's
+message but an obvious fit) was added to the category on my own initiative — flagged in case Han wants it
+elsewhere.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`CATEGORY_OVERRIDES`, `expandNamedRows`,
+`artLadyAnimations`, 6 new file-specific expansions), `src/model/bestiaryManifest.generated.js`
+(regenerated, 559 entries), `src/model/bestiaryAssets.js` (`musicians` added to `BESTIARY_CATEGORIES`).
+
+### §118. Column-based Male/Female Pixel Art sheets, the detailed portrait-Wizard, bigger portraits (#675, Han 2026-08-03)
+
+**Purpose:** sixth same-day follow-up, correcting Han's own earlier framing: *"toon bij portrait characters
+links de avatar, met animatievariaties, en rechts het portret (groot)."* Two more composite sheets needed
+splitting, one existing portrait-paired sheet needed its detailed (horse-style, cross-row-stitched)
+animation set transcribed, and the portrait display itself needed to be bigger.
+
+**Column-based sheets (Han: "bij deze twee sheets krijg je steeds per KOLOM" — the opposite orientation of
+every other composite sheet handled so far):** `Male Pixel Art characters.png` (704×896 → 11 cols × 14 rows)
+and `Female Pixel Art characters.png` (768×896 → 12 cols, 11 used) each pack 11 DIFFERENT named characters
+one per COLUMN, with that character's own animation frames stacked VERTICALLY within the column: row 0 =
+portrait (unused — the dedicated `…Portrait large{N}.png` file is used instead, per Han: "toon het portret
+groot"), rows 1-5 = idle (5 frames), rows 6-13 = walk (8 frames). New `expandColumnSheet()` builds one entry
+per name, pairing column index+1 with its matching `…Portrait large{N}.png`. **Assumption flagged:**
+left-to-right column order is assumed to match the order Han listed the 11 names in — not independently
+verified against the pixels.
+
+**⚠ Real bug caught before shipping:** the male-sheet regex (`/Male Pixel Art characters\.png$/`) also
+matched the FEMALE file, because "Female" literally contains "Male" as a substring ("Fe**male**"). Every
+column of the female sheet was silently getting the MALE roster's names — caught by spot-checking the
+generated manifest (no "Queen" entry existed) before the browser check, not by the browser check itself.
+Fixed with a `\b` word-boundary (`\bMale…` — no boundary exists between two letters, so it no longer matches
+inside "Female").
+
+**The portrait-paired Wizard (Han: "de wizards"):** `char_with_porttrait/Wizard/` has 8 colour-variant
+sheets (Black/Blue/Brown/Green/Purple/Red/White/Yellow) at 384×704 (6 cols × 11 rows) with a genuinely
+cross-row-stitched animation set — same `seq()` horse-style pattern as §669's horse, transcribed directly
+from Han's row/column notation (idle/walk/cast1/jump/cast2/cast3/cast4/counterspell/idlesmoke/death — 66
+cells total, exactly matching the 6×11 grid with none left over, a strong self-check that the transcription
+is correct). Renamed to **"Wizard (Portrait)"** to disambiguate from §673's roster "Wizard" and §674's
+"Wizard (Camp)" — three unrelated characters share the generic name "wizard" across this asset dump.
+
+**⚠ Second bug caught before shipping:** the shared portrait file for these 8 variants, `64x64 Wizard
+Portraits.png`, isn't a single portrait — at 256×128 it's an 8-cell (4×2) grid, one crop per colour, unlike
+every other portrait pairing (§672's mechanism assumes ONE dedicated file per character). Displaying it raw
+showed all 8 colour portraits at once regardless of which colour was selected. Fixed with new
+`portraitCell`/`portraitFrame` fields (set only for this file) and a `PortraitImage` component that crops to
+one cell — same background-position technique as `CreatureSprite` — falling back to a plain `<img>` for
+every other (single-file) portrait. **Assumption flagged:** the 4×2 cell order is assumed alphabetical by
+colour name — not verified pixel-by-pixel against the actual portrait crops.
+
+**Bigger portrait display (Han: "portret groot"):** `BestiaryTopPanel`'s portrait now renders at
+`64 × PREVIEW_SCALE` (was `64 × PREVIEW_SCALE / 2`) — roughly matching the avatar's own on-screen height so
+it reads as an equal-weight companion rather than an afterthought.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`expandColumnSheet`, `wizardPortraitAnimations`,
+`MALE_PIXEL_ART_NAMES`/`FEMALE_PIXEL_ART_NAMES`, `portraitCell`/`portraitFrame`, the `\b` regex fix),
+`src/model/bestiaryManifest.generated.js` (regenerated, 579 entries), `src/model/bestiaryAssets.js`
+(`portraitCell`/`portraitFrame` passthrough), `src/components/character/BestiaryPanels.jsx`
+(`PortraitImage` component, bigger portrait size).
+
+### §119. Simple remappings batch — archer/beekeeper relabels, 8 more files split/grouped, roster-4 correction (#676, Han 2026-08-03)
+
+**Purpose:** seventh same-day follow-up. Han: *"je hoeft geen uitvoerige tests of check te doen voor deze
+changes. zijn gewoon simpele remappings. alles blijf 64x64."* A lighter-verification batch (build/lint/test +
+a single spot-check screenshot round, not the full per-item battery of §113-§118) — still caught two real
+bugs, disclosed below.
+
+**Relabels:** curated-style row-label overrides for `GandalfHardcore Archer sheet` (all 8 colours + plain —
+`Idle/Shoot/Move/Hit/Death`) and `Beekeeper` (3rd row `Attack` → `Pose`). `Bard` moved to the `musicians`
+category via `CATEGORY_OVERRIDES`.
+
+**New splits (via `expandNamedRows`, §674's mechanism):** `GandalfHardcore tavern NPCs.png` (4 rows → Lute/
+Flute [→ `musicians`], Drunk Dancing, Couple Dancing); `Character sheet.png` (9 rows → Knight Crown/Kneel +
+Knight Crown/No Helmet, both MERGED into the existing "Knight Crown" creature per §674's cross-file grouping
++ Spirit Blue Pose Frontal/Back/Lie + Spirit Blue Sword + Armorer + Nun Dark + Lady Cook); `Character sheet
+bare .png` (4 rows → Bare variants of the 4 "Spirit Blue" characters, 1:1 row order with Character sheet's
+own Spirit Blue rows); `Little Person and Magician.png` (3 rows → Wizard Smoking/Grey Hat + Wizard Smoking/
+Brown Hat merged as 2 variants, + Frodo); `Relaxing characters.png` + `Relaxing Bare characters.png` (3 rows
+each → Lady Relaxing 1/2/3, each with Normal/Bare variants).
+
+**New whole-file variant pairings (via `BASE_OVERRIDES`):** Spirit Blue Sword gains `Sword Spirit`/`Sword
+Spirit Bare` as two more variants (on top of the Character-sheet-derived Blue/Blue Bare — 4 variants total);
+Female Wizard (Normal/Bare); Lady Godiva (Uncovered/Covered, frame **96×80** — Han's one stated exception to
+"characters are 64×64"); Japanese Characters (Normal/Bare, frame **80×64**, another exception); Bathtime
+(Normal/Bare, frame **128×64**, "twee rijen, een animatie" — both rows merged into ONE idle loop, mirroring
+Sleeping Dragon's §669 treatment); Bathtime Knight (standalone, ordinary 64×64, NOT grouped with Bathtime).
+
+**Roster correction (Han: "ik maakte een fout. char sheet 4, 5 en 6 zijn geen kleurvarianten maar eigen
+chars."):** §673 originally treated ALL of "characters sheet 1-6" (space-variant) as 6 colour variants of one
+14-character roster. Corrected: sheets 1-3 keep that roster unchanged; **sheet 4 gets its OWN 14-character
+roster** (`ROSTER_SHEET_4`, transcribed from Han's new list, `variant: null` for every entry since these
+aren't colour siblings of anything); **sheets 5/6 are SKIPPED entirely** — Han hasn't given their real
+content yet, so they're dropped rather than mislabelled with the wrong (old) roster.
+
+**⚠ Another substring-collision bug caught before shipping (same bug class as §675's Male/Female one):**
+`isCurated()`'s plain `.includes()` matched **"Bathtime" against the curated-dedup keyword `'bat'`**
+("bat-time" contains "bat" as a substring) — every Bathtime/Bathtime Bare/Bathtime Knight file was silently
+dropped, treated as an already-curated duplicate of the Bat enemy. Caught by spot-checking the generated
+manifest (zero Bathtime entries) before the browser check. Fixed by switching ALL of `CURATED_KEYWORDS` from
+substring `.includes()` to `\b`-bounded regex matching, not just this one instance — the same bug class had
+already bitten the Male/Female sheets in §675, so the fix was generalised rather than patched per-collision.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`isCurated` word-boundary fix, `ROSTER_SHEET_4`, 6 new
+`expandNamedRows`/`BASE_OVERRIDES`/`ROW_LABEL_OVERRIDES`/`FRAME_OVERRIDES`/`CATEGORY_OVERRIDES` entries, the
+Bathtime row-merge), `src/model/bestiaryManifest.generated.js` (regenerated, 569 entries).
+
+### §120. Santa/Vampire Lady's single-row layout, the detailed Knighty knight, plus 3 quick fixes (#677/#678, Han 2026-08-03)
+
+**Purpose:** eighth/ninth same-day follow-ups.
+
+**Santa Claus & Vampire Lady v2 (Han: "zij steeds 1,2,3,4,5 idle, 6,7,8,9,10,11,12,13 walk, 14 portrait"):**
+both are 896×64 — a SINGLE row, 14 columns (not 14 rows as the wording alone might suggest; confirmed by
+decoding the actual file). New `santaVampireAnimations()`: cols 0-4 = idle (5 frames), cols 5-12 = walk (8
+frames); col 13 (the embedded portrait) is unused — both already have a dedicated standalone
+`…Portrait 64x64.png` in their own character folder, so the existing §672 `PORTRAIT_MAP` pairing already
+handles the portrait without needing to crop the embedded one.
+
+**Knight Knighty (Han: "knights (heavy en knighty) 69x58" + a full cross-row-stitched breakdown):** verified
+against the real file — `Black knight.png` etc. are 345×812, EXACTLY 5×14 at 69×58, and the 8 named
+animations in `knightyAnimations()` sum to exactly 70 cells (5×14) with nothing left over — a strong
+self-check that the transcription (including one assumed-and-confirmed typo fix: "rij 5 + rij 5" → "rij 5 +
+rij 6", since a row can't supply both halves of its own merge) is correct. A separate 8-colour "Run and
+Portrait" bonus pack (414×58, cleanly 6×1 at the same 69×58 frame) becomes its own creature, "Knight
+(Knighty Run)" — cross-file animation merging into the SAME creature isn't supported by this data model (one
+manifest entry = one animations-per-url set), so a "5th button bolted onto the main creature" wasn't
+possible without a bigger model change.
+
+**⚠ Knight HEAVY explicitly NOT given this treatment — flagged, not guessed:** Heavy's main sheets are
+455×768 and its "sheet2" bonus pack is 637×192 — NEITHER divides evenly by 69×58 (455/69≈6.59, 768/58≈13.24),
+unlike Knighty's clean 5×14. Since Han's message assumed both shared the same frame, but the pixels say
+otherwise, Heavy was left on the generic square-guess rather than force a grid that doesn't fit — needs
+Han to re-measure Heavy specifically.
+
+**Base renames (avoid collisions):** `parseVariant` would have produced a bare, lowercase "knight" base for
+every Knighty colour file (colliding visually with the unrelated Knight Crown/Knight Iron Mask/Knight Sword
+Shield creatures already in the bestiary) — renamed to **"Knight (Knighty)"** and **"Knight (Knighty Run)"**.
+
+**Three quick fixes (Han's tenth follow-up):**
+- `Satyr` (from §673's roster) → `musicians` category, via a new `MUSICIAN_ROSTER_NAMES` set (mirrors
+  §674's `ANIMAL_ROSTER_NAMES` routing for Cat/Dog).
+- `Wizard Smoking`'s two hat-colour variants were swapped from what Han intended — corrected (row 0 → Brown
+  Hat, row 2 → Grey Hat).
+- **Wizard (Portrait)'s colour-to-portrait-cell mapping was wrong** — §675 guessed alphabetical order
+  (Black,Blue,Brown,Green,Purple,Red,White,Yellow); Han corrected the REAL order: Blue,Red,Green,Purple,
+  Yellow,Brown,Black,White. `WIZARD_PORTRAIT_ORDER` updated to match.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`santaVampireAnimations`, `knightyAnimations`,
+`knightyRunFastAnimations`, `MUSICIAN_ROSTER_NAMES`, Wizard Smoking swap, `WIZARD_PORTRAIT_ORDER` fix, base
+renames + frame overrides for Knighty), `src/model/bestiaryManifest.generated.js` (regenerated, 569
+entries).
+
+### §121. Level 9 — a Wizard enemy with linear-flight projectiles, replacing slimes (#679, Han 2026-08-03)
+
+**Purpose:** Han: *"we gaan level 9 maken. zet rechts de wizard tegenover de avatar. ipv slimes, gebruik cast
+2. De wizard schiet dan projectile blue, waar normaal slimes staan. deze bewegen wél lineair naar voren...
+voor de projectile death, gebruik de eerste 5 frames van static projectiles 5 met een fade out (elk frame
+-20% opacity) (en stop met voortbewegen, net als de slimes)."* The first level whose enemy is not a slime —
+introduces `enemyType` as a real branch in the combat/render pipeline (previously every level hard-coded
+"Slime", per §661's rationale comment) and a genuinely different projectile MOTION (linear, not hop-and-pause).
+
+**How it works:**
+- **Data**: `levels.json` gained a 9th entry, `id: 9`, mirroring Level 2's generation parameters exactly (Han's
+  interview answer — same bpm/measures/range/grid/fixedBass/debugOnlyLines), differing only in `enemyType:
+  "Wizard"` and its `intro` blurb. `levels.js` exports `LEVEL9`; `LEVELS` map now has keys 1–9.
+- **`enemyType` plumbing** (previously computed but never read outside the level-start splash's info panel):
+  `App.jsx` passes `enemyType={level.active ? level.current.enemyType : 'Slime'}` → `SheetMusic.jsx` → down
+  into `SheetRpgLayer`, which derives `isWizard = enemyType === 'Wizard'`. Default `'Slime'` everywhere else
+  (tests, no active level) — zero behaviour change for Levels 1–8.
+- **Assets** (`src/model/enemyAssets.js`, mirroring the existing `SLIME_*` shape 1:1 so the rest of the file's
+  conventions carry over): `WIZARD_*` (Black Wizard — Han's interview pick — 64×64 frame, 6×11 sheet, reusing
+  the EXACT `idle`/`cast2` cell lists from the bestiary's `wizardPortraitAnimations()`, §675/§6d — single
+  source of truth for this sheet's row/col layout, not hand-recomputed) and `PROJECTILE_*`/`PROJECTILE_DEATH_*`
+  (measured via the same pngjs content-scan technique the bestiary generator uses — never guessed):
+  - `Projectile sheet blue.png`: 288×96 = **6 cols × 6 rows @ 48×16px** → a continuous 36-frame loop (Han: "een
+    lange loop").
+  - `GandalfHardcore Static Projectiles5.png`: 160×192 = **5 cols × 6 rows @ 32×32px** → the first 5 frames are
+    exactly row 0's 5 columns (Han: "de eerste 5 frames").
+  - `PROJECTILE_DEATH_OPACITY = [1, 0.8, 0.6, 0.4, 0.2]` — Han's "-20% opacity" per death frame.
+- **`SheetRpgLayer.jsx`** (`src/components/sheet-music/SheetRpgLayer.jsx`) — the combat/hit-detection logic
+  (spawn timing, graded `gradeHit` windows, miss/expiry, wave-clear) is **completely unchanged and
+  enemy-agnostic** (§6b/§6c discipline: the SAME `slimeData`/`dyingList`/`killedSet` state machine drives both
+  enemy types — only the RENDER branch differs):
+  - `sideScrollX` (unchanged formula) now also returns `msSinceSpawn`/`ff` (previously computed but not
+    exposed) so the Wizard/Projectile render branch can derive its own frame logic from the same spawn-timing
+    source of truth instead of duplicating the formula.
+  - **Wizard**: a new `<Wizard>` component, static on the right (mirrors the hero's left position/scale,
+    `WIZARD_H = HERO_H`), mirrored to face left (same flip-transform convention as `<Slime>`). Plays
+    `WIZARD_CAST2_CELLS` for exactly `CAST2_FRAMES` sprite-frames starting the instant each projectile's
+    `msSinceSpawn` crosses 0 (derived purely from spawn timing every render tick — no extra state, same
+    derive-from-time pattern the hero's attack/slime's walk already use), idle otherwise.
+  - **Projectile**: a new `<Projectile>` component. In flight, positioned at `p.noteX` — the LINEAR arrival
+    coordinate `sideScrollX` already computed for the moving STAFF NOTE (previously unused by the slime
+    branch, which uses the hopping `p.slimeX` instead) — reused as-is for a genuinely different motion, not a
+    slime reskin (Han's interview: "zelfde beat-gekoppelde aankomsttijd" + "bewegen wél lineair"). The flight
+    sprite cycles its own 36-frame loop continuously (`Math.floor(p.ff) % PROJECTILE_LOOP_FRAMES`),
+    independent of position. On death: swaps to the `PROJECTILE_DEATH_*` sheet/grid, frozen at the struck x
+    (same freeze-in-place technique `dyingList` already uses for slimes), fading via
+    `PROJECTILE_DEATH_OPACITY[deathFrame]`.
+  - `DEATH_FRAMES = isWizard ? PROJECTILE_DEATH.frames : SLIME_DEATH.frames` replaces the 3 previously-hardcoded
+    `SLIME_DEATH.frames` references (the dying-list "finished" effect, the death-frame clamp, the flying-note
+    progress calc) — both happen to be 5 today, but this is a named derived value, not a hardcoded slime
+    constant, so the two death lengths can never silently desync (§6c).
+  - Miss/expiry, wave-clear, and the graded judgment labels are untouched — they already operated on abstract
+    slime-data indices, never on sprite specifics.
+- **Level picker bug found + fixed while wiring this up**: `LevelStartSplash.jsx` had a hardcoded
+  `LEVEL_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8]` array — Level 9 existed in `levels.json`/`LEVELS` but was
+  unreachable from the in-app picker. Fixed to derive from `LEVELS` itself
+  (`Object.keys(LEVELS).map(Number).sort(...)`, §6c) so a future 10th level can never repeat this bug.
+
+**Invariants:**
+- Levels 1–8 render byte-identical to before `enemyType` was threaded through (default `'Slime'` everywhere,
+  `isWizard` false ⇒ every new branch is skipped).
+- Level 9's own combat fairness (spawn/arrival/grading timing) is IDENTICAL to Level 2's — only the sprite and
+  its motion curve differ, per Han's explicit interview answer ("zelfde beat-gekoppelde aankomsttijd").
+- No per-instrument-style special-casing leaked into the miss/expiry/wave-clear logic — it never branches on
+  `enemyType` at all, only the render/animation code does (§6b).
+
+### §122. Avatar-context UI cleanup — mic button removed, bestiary/character consistency, category tabs relocated (#679, Han 2026-08-03)
+
+**Purpose:** a batch of small UX fixes Han flagged after using the integrated avatar-context screens (§112):
+1. *"haal de microfoon/input uit de header weg (ook in melody mode)"* — the mic/MIDI/QWERTY input cycler
+   button cluttered the header everywhere except avatar-context; remove it entirely (its full functionality
+   remains reachable via the existing Settings overlay, `SettingsOverlay.jsx`, which already exposes the same
+   `inputTestSubMode`/`setInputTestSubMode` controls).
+2. *"in de bestiary/equipment plaats de kleurenvakjes ook onder de preview van het item/enemy, dus niet
+   boven"* — equipment's colour-variant swatches showed ABOVE the item-thumbnail grid; move them below (pick
+   the item, then refine its colour).
+3. *"zorg voor consistentie tussen character en bestiary view: kader met achtergrond etc."* — the bestiary's
+   creature-preview stage had no frame/background, unlike the character screen's avatar box.
+4. *"zoek voor een duidelijk verschil tussen de animatieknopjes en de item toggle knopjes"* — animation
+   buttons (Idle/Walk/Attack) and on/off item togglers (Hat/No hat, Covered/Uncovered) shared near-identical
+   CSS (`.cc-anim`/`.cc-tab`), reading as the same kind of control.
+5. *"centreer de elementen in bottom view"*.
+6. *"verplaats de navigatieknopjes naar de regel boven de bottom view (waar normaal TOP/BOTTOM/PERCUSSION
+   staat)"* — the category-tab rows (character's skin/ears/hair; bestiary's passive/attack/.../musicians)
+   lived at the top of each bottom-view panel; move them into `AvatarSubHeader` (the row that already
+   replaces TOP/BOTTOM/PERCUSSION while avatar-context is active, §667).
+
+**How it works:**
+- **Mic button removed** (`AppHeader.jsx`): the whole `{!characterScreen && <button>...}` cycler block (and
+  its now-dead `MicOff`/`Piano`/`Mic` imports and `isInputTestMode`/`inputTestSubMode`/`setInputTestSubMode`/
+  `handleToggleInputTest`/`setActiveTab` props) deleted. `App.jsx`'s `<AppHeader>` call site no longer passes
+  those props either (they're still used elsewhere — `SubHeader`/`SettingsOverlay` — just not by AppHeader).
+- **Bestiary frame/background consistency** (`CharacterCreator.css`): `.cc-enemy-stage` (the bestiary sprite
+  stage) now reuses the EXACT same `background-color: var(--app-bg); border: 2px solid var(--text-dim);` as
+  `.cc-avatar` (§6d — same CSS vars, not re-guessed values) — both preview boxes now read as the same kind of
+  "stage".
+- **New `.cc-toggle-group`/`.cc-toggle` CSS**: a connected segmented-control strip (shared outer border, no
+  gaps between options) — structurally distinct from `.cc-anim`'s discrete individually-bordered squares, no
+  colour change (Han's chosen option: "vorm/groepering anders"). Applied to every genuine on/off toggle:
+  `CharacterOptionsPanel`'s ears Normal/Long pair, `BestiaryPanels`'s accessory togglers (hat/backpack) and
+  its "no known colour" variant pairs (Covered/Uncovered, Wisp Plain/Outline) — previously all rendered as
+  `.cc-tab` pills, indistinguishable from navigation/animation buttons.
+- **Equipment swatch reorder** (`CharacterOptionsPanel.jsx`): the multi-variant colour-swatch block (shown
+  when the selected base item has >1 colour) moved from BEFORE `.cc-grid` to AFTER it in the JSX — visually,
+  colour swatches now sit under the item grid instead of above it.
+- **Category tabs relocated** (`AvatarSubHeader.jsx`, `App.jsx`, `CharacterOptionsPanel.jsx`,
+  `BestiaryPanels.jsx`): `AvatarSubHeader` now accepts `characterEditor`/`bestiaryEditor` and renders a
+  `categoryTabs` list next to its 4 screen-switcher icons (separated by a 1px divider) — `CHARACTER_CATEGORIES`
+  (skin/ears/hair) when `screen==='character'`, `bestiaryEditor.categories` when `screen==='bestiary'`, empty
+  for 'equipment' (its top slot-grid is already its own category picker, unchanged) and 'stats' (no
+  categories). The row gained `flexWrap` + auto height since bestiary's 11 categories no longer fit one line
+  next to the 4 icons on narrow viewports. `CharacterOptionsPanel`/`BestiaryBottomPanel` had their OWN
+  category-tab rows deleted entirely — they now only render the picker content / creature grid for whichever
+  category is already active, owned by `editor.activeCat`/`editor.category` (unchanged state, just no longer
+  also rendered as a tab row in two places).
+- **Centering** (`CharacterOptionsPanel.jsx`, `BestiaryPanels.jsx`): `.cc-picker`'s root gained
+  `alignItems: 'center'`, which centers every row as a block — the genuinely full-width rows (`.cc-identity`,
+  `.cc-grid`, `.cc-actions`) opt back OUT via their own `alignSelf: 'stretch'` so the item grid still fills
+  the panel instead of shrinking to content width. `.cc-enemy-grid`/`.cc-grid` also gained
+  `justifyContent: 'center'` so a partially-filled last row of thumbnails centers instead of hugging the left.
+
+**Invariants:**
+- The mic/MIDI/QWERTY input-test feature itself is UNCHANGED — only its header entry point is gone; it's
+  still fully controllable from the Settings overlay.
+- `editor.activeCat`/`setActiveCat` (character) and `editor.category`/`selectCategory` (bestiary) are the SAME
+  state as before — only WHERE they're rendered as tabs changed (moved, not duplicated or re-implemented).
+- No gameplay-facing code touched (`enemyAssets.js`'s curated `ENEMIES`/`SLIME_*` exports, `SheetRpgLayer.jsx`)
+  — this section is UI-chrome only, in the avatar-context screens.
+
+**Files:** `src/components/layout/AppHeader.jsx` (mic button removed), `src/App.jsx` (AppHeader prop cleanup +
+`AvatarSubHeader` now receives `characterEditor`/`bestiaryEditor`), `src/components/layout/
+AvatarSubHeader.jsx` (category-tab rendering), `src/components/character/CharacterOptionsPanel.jsx` (category
+tabs removed, swatch reorder, ears toggle-group, centering), `src/components/character/BestiaryPanels.jsx`
+(category tabs removed from `BestiaryBottomPanel`, toggle-group conversions, centered grid),
+`src/components/character/CharacterCreator.css` (`.cc-enemy-stage` frame/background,
+`.cc-toggle-group`/`.cc-toggle`), `src/components/layout/TabView.jsx` (dropped now-unused `screen` prop on
+`CharacterOptionsPanel`).
+
+**Files:** `src/levels/levels.json`, `src/levels/levels.js` (`LEVEL9` export + rationale comment),
+`src/levels/__tests__/levels.test.js` (9-level assertions + a Level-9-mirrors-Level-2 config check),
+`src/model/enemyAssets.js` (`WIZARD_*`/`PROJECTILE_*`/`PROJECTILE_DEATH_*` constants), `src/App.jsx` /
+`src/components/sheet-music/SheetMusic.jsx` (`enemyType` prop threading), `src/components/sheet-music/
+SheetRpgLayer.jsx` (`Wizard`/`Projectile` components, `isWizard`/`DEATH_FRAMES` branches,
+`sideScrollX`'s exposed `msSinceSpawn`/`ff`), `src/components/levels/LevelStartSplash.jsx` (fixed
+`LEVEL_NUMBERS`), `src/assets/enemies/sheets/{wizard-black,projectile-blue,static-projectiles-5}.png` (new,
+copied from `src/assets/ASSORTED/characters/char_with_porttrait/Wizard/` and `src/assets/ASSORTED/fx/`).
+
+### §123. Level 9 UAT fix — projectile scale + facing (#680, Han 2026-08-03)
+
+**Symptom:** Han: *"zorg dat de projectiles de zelfde schaal hebben als de andere sprites (hero, wizard);
+draai ze van richting."* §121's first cut sized the projectile off `SLIME_VIEW_H` (a fixed 33px target
+height tuned for the slime) and mirrored it the same way `<Slime>` does (facing left, toward the hero).
+Both were wrong: the borrowed height put the projectile at a ~4x per-pixel zoom versus the hero/wizard's
+~2.4–2.7x (a visibly different "zoom level" standing right next to them, not just a different size), and
+the mirror flip put the sprite backwards (its native orientation was already correct).
+
+**Root cause:** `PROJECTILE_VIEW_H = SLIME_VIEW_H` copied the slime's TARGET HEIGHT convention without
+checking whether the projectile's own crop should scale the same way — a fixed target height is right for
+sprites meant to look the same SIZE (every slime colour), wrong for matching ZOOM across differently-sized
+sprites (a small bolt next to a person-sized wizard). The mirror was copy-pasted from `<Slime>`'s flip
+convention (§647) without verifying the projectile sheet's native facing.
+
+**Fix:** `SheetRpgLayer.jsx` — replaced the fixed-height constant with a derived per-pixel SCALE FACTOR,
+`PROJECTILE_SCALE = WIZARD_H / WIZARD_CROP.h` (the same zoom the wizard already renders at, §6c: derived
+from existing geometry, not a new hardcoded number), applied to the projectile's OWN crop
+(`viewW = crop.w * PROJECTILE_SCALE`, `viewH = crop.h * PROJECTILE_SCALE`) for BOTH the flight and death
+sprites independently (their crops differ, so this also fixes a latent flight-vs-death size mismatch that
+existed under the old fixed-height approach). The mirror `<g transform={flip}>` wrapper was removed —
+`<Projectile>` now renders in its native, unflipped orientation.
+
+**Invariant:** the projectile's on-screen size is now DERIVED from the wizard's own scale, not an
+independent tuned constant — if the wizard's `WIZARD_H`/`WIZARD_CROP` ever change, the projectile's zoom
+follows automatically, so the two can never silently drift back out of visual sync.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (`PROJECTILE_SCALE`, `PROJECTILE_VIEW_W`,
+`<Projectile>`'s size calc + mirror removal).
+
+### §124. Category tabs relocated to the MAIN bottom-nav bar, not `AvatarSubHeader` — correction (#681, Han 2026-08-04)
+
+**Symptom/correction:** §122 moved the category tabs (character skin/ears/hair; bestiary's 11 categories)
+into `AvatarSubHeader` — the small row with the Character/Stats/Equipment/Bestiary icons. Han: *"ik bedoelde
+dat de subtypes (passive, attack, portrait, etc.) in de navigator kwamen te staan waar nu staat top bottom
+percussion chords scales generator songs settings listen profile keyboard - die bottom view settings zijn
+redundant in bestiary mode."* That's a DIFFERENT row — the app's main tab bar (`App.jsx`'s `TABS` array:
+TOP/BOTTOM/PERCUSSION/CHORDS/SCALES/GENERATOR/SONGS/SETTINGS/LISTEN/PROFILE + the QWERTY keyboard toggle),
+rendered UNCONDITIONALLY in the "MENU SELECTOR" column regardless of `characterScreen` — while browsing the
+bestiary, clicking any of those tabs is a dead control (`TabView`'s `characterScreen` branch ignores
+`activeTab` entirely, §667), exactly Han's "redundant" complaint.
+
+**Fix:** §122's `AvatarSubHeader` change reverted (back to just the 4 screen-switcher icons, no category
+tabs, no `characterEditor`/`bestiaryEditor` props). The category tabs moved instead into `App.jsx`'s MENU
+SELECTOR column: when `characterScreen` is set, the ENTIRE normal tab list (the single-view "SHEET MUSIC"
+tab + `TABS.map` + the QWERTY toggle) is replaced by the active screen's own category buttons — character's
+`CHARACTER_CATEGORIES` (skin/ears/hair) via `characterEditor.activeCat`/`setActiveCat`, bestiary's
+`bestiaryEditor.categories` via `category`/`selectCategory` — reusing the SAME `tab-button` class/sizing
+(`tabBtnScale`, `debugMode` outline) as the row it replaces, so it fits the surrounding chrome exactly.
+'equipment' (its top slot-grid is already its own category picker) and 'stats' (no categories) render an
+empty column here — nothing to navigate, so nothing shown, matching Han's "redundant" framing precisely
+(no controls where none apply, instead of dead ones).
+
+**Invariant:** `editor.activeCat`/`editor.category` are still the SAME single source of truth as before —
+only WHICH row renders them as tabs changed (again). `CharacterOptionsPanel`/`BestiaryBottomPanel` are
+UNCHANGED by this correction (§122 already moved the tabs out of them; they still just render picker
+content/creature grid for whichever category is active).
+
+**Files:** `src/components/layout/AvatarSubHeader.jsx` (reverted to §112's original 4-icon-only version),
+`src/App.jsx` (`AvatarSubHeader` call site reverted; MENU SELECTOR column now branches on `characterScreen`;
+new imports `CHARACTER_CATEGORIES`/`catByKeyLabel`/`CATEGORIES as AVATAR_CATEGORIES`).
+
+### §125. Bestiary reorganization batch — two new categories, Knighty/Heavy/Run/Portrait merge, ~15 splits/merges/renames, frame-and-anchor rework (#682, Han 2026-08-04)
+
+**Purpose:** a large batch of manifest-generator and rendering fixes Han requested after browsing the
+reorganized bestiary — new content categories, several creatures that were wrongly split/merged/named, and a
+rework of how the top/bottom-view frames size and anchor a sprite.
+
+**Manifest changes** (`scripts/generate-bestiary-manifest.mjs`, regenerated `bestiaryManifest.generated.js`,
+575 entries):
+- **Removed**: the 2 "...bikini girls.png" sheets (Han: "past niet in de stijl"), and the 2 junk preview
+  thumbnails "color variations.png"/"Heavy colors.png" (`EXCLUDED_NAME`).
+- **`Knight (Heavy)` re-measured and merged into `Knight (Knighty)`**: Han's initial claim that Heavy shares
+  Knighty's 69×58 frame didn't check out (measured: 455×768/546×64/637×192, none divide evenly by 69×58) —
+  flagged back to Han, who re-measured to **91×64**, which DOES divide evenly across all three of Heavy's
+  sheets (5×12, 6×1, 7×3). `knightyAnimations(totalRows)` is now parameterized so the SAME cell layout serves
+  Knighty (14 rows) and Heavy (12 rows) — Heavy's 'death' animation simply ends up 2 rows shorter (real
+  content, not a bug) rather than reading rows that don't exist. Heavy's bonus "sheet2" (Walk Alt/Run Alt/
+  Attack Alt, 3 rows × 7 cols — a file Knighty itself doesn't have) gets its own
+  `knightHeavySheet2Animations()`. All 5 sources (Knighty main/run, Heavy main/run/sheet2) now share ONE
+  `base: 'Knight (Knighty)'`, distinguished by a `variant` suffix ("Black", "Black (Run)", "Black (Heavy)",
+  "Black (Heavy Run)", "Black (Heavy Alt)", ×8 colours = 39 total variants) and a portrait attached to EVERY
+  entry (Knighty's own portrait for Knighty variants, Heavy's own portrait for Heavy variants) — one bestiary
+  card instead of four. A regex bug was caught mid-implementation: one Heavy run file
+  ("Heavy Knighty brown yellow.png") has "Run" appearing in its DIRECTORY name but not its own filename,
+  breaking a word-order-dependent regex (`.*Heavy Knighty.*run.*`) — fixed by matching the directory segment
+  instead (`Knight Heavy\/Heavy Knight Run and Portrait\/`), which is order-independent.
+- **Cat Hat / Dog Helmet → variants of Cat / Dog** (`ROSTER_NAME_VARIANTS`): were separate roster names (two
+  bestiary cards each); now `{base,variant}` pairs merging into one creature with a Hat/Helmet toggle.
+- **Bishop ↔ Male Knight Halberd**: the two labels in `MALE_PIXEL_ART_NAMES` were swapped (physical columns
+  unchanged, only which name applies to which).
+- **Bella Donna split**: measured 640×64 = 1 row × 10 frames, splits cleanly 5+5 (no leftover — the
+  self-consistency check this generator has used throughout) into "Bella Donna" (cols 0-4) and
+  "Lady Sitting Hair Bare" (cols 5-9).
+- **Roman Female Characters split** (explicitly NOT 'mature', per Han): measured 384×128 = 2 rows × 6 cols;
+  was one 2-animation creature (row0 idle → row1 move); now two standalone creatures, "Roman Female 1"
+  (row0) / "Roman Female 2" (row1).
+- **New `mature` category** (`BESTIARY_CATEGORIES` in `bestiaryAssets.js`): every item Han listed — simple
+  recategorizations via `CATEGORY_OVERRIDES` (Bathtime, Japanese Characters, Funny Spring Characters, Lovers,
+  the Spirit* group, all Succubus-folder files), renames via `BASE_OVERRIDES` (Art Lady→Lady Art Pose,
+  Dryad sheet→Lady Dryad, Eve sheet→Lady Eve, Flower dryad→Lady Dryad Flowers), roster-name routing via a new
+  `MATURE_ROSTER_NAMES` set (mirroring `ANIMAL_ROSTER_NAMES`/`MUSICIAN_ROSTER_NAMES` — Ladies Bare, Lady Back,
+  Lady Pose, the 3 Posing Lady Poses, Nurse, Lady Flower, Lady Bare Ass, Lady Mini Skirt,
+  Lady Sitting Stone Bare, Lady Skull Witch, Lady Sweeping, the 4 Maid Bare variants, Mermaid, Seer), and
+  bespoke splits/merges:
+  - **Bathing characters** (measured 640×128 = 2 rows × 10 cols, roster-sheet shaped): "Lady Hair" (row0,
+    first slot) / "Lady Washing Foot" (row1, first slot) — the 2nd slot of each row is unnamed/skipped, same
+    convention as every other roster sheet's unnamed slots.
+  - **Bathmaids** (measured Covered/bare: BOTH 320×256 = 5 cols × 4 rows, identical layout): read together,
+    split into 4 creatures ("Bathmaid 1"-"4", one per row) × 2 variants (Normal from Covered, Bare from bare)
+    — a genuine 2-FILE merge in one pass.
+  - **Bee Girl** (measured 640×128 = 2 rows × 10 cols, was defaulting to Idle/Move — wrong per Han): now
+    Normal/Bare VARIANTS (each row = one full idle loop), not two animations of one variant.
+  - **Lady Flower "plain" split apart**: the roster-4 "Lady Flower" slot (no colour variant) renamed to
+    "Lady Flower Plain" so it no longer merges with the roster-1-3 "Lady Flower" (which DOES have Sheet 1/2/3
+    colour variants) — same base name previously caused an unintended silent merge.
+  - **"GandalfHardcore Covered Characters sheet.png"** (measured 640×832 = 13 rows × 10 cols — a roster-shaped
+    file with NO name list given): included as ONE generic creature ("Covered Characters") rather than
+    skipped, flagged for Han to split into named characters once he provides the roster (mirrors §676's
+    "sheets 5/6 skipped" precedent, in reverse — there, skipped for lack of names; here, kept whole).
+  - **Succubus consolidation**: every file whose path contains "Succubus" (or lives under the dedicated
+    `Succubus/` folder — Eisheth, Lilim, Lilith, Morgana, Mother, Pair, Pale Succubus, the plain Succubus) now
+    lands in 'mature' via a broad `CATEGORY_OVERRIDES` regex. **Flagged as a partial pass**: Han also asked to
+    "groepeer in clothes/bare" — the existing filenames (e.g. "no bra", "bare", "no wings") already imply a
+    clothed/bare pairing per character, but a full per-character clothes/bare grouping pass (like Bathmaids'
+    Covered/bare merge) was NOT done for all ~7 succubus characters — a reasonable follow-up, not attempted
+    here given the scope of this batch.
+- **New `incomplete` category** (Han: "portrait -> incomplete"): Samurai, the Maid portrait pack, Goblin,
+  Zombie, Angel, Goddess, and Mounted Knight — all currently sit in `char_with_porttrait` ('portrait') but
+  aren't fully verified (multi-colour sheets with no confirmed animation/portrait breakdown); moved to their
+  own tab via `CATEGORY_OVERRIDES` so they read as distinct from checked 'portrait' entries.
+- **`GandalfHardcore` stripped from every name**: a final pass over the whole `manifest` array (right before
+  `writeFileSync`) strips the brand-name prefix from every `base`/`variant` — a single global fix (not
+  per-override) so it can never be missed for a name computed by any of the many code paths in this file.
+
+**Rendering rework** (`src/components/character/BestiaryPanels.jsx`, `CharacterCreator.css`):
+- **`CreatureSprite` frame + anchor** (Han: "maak de kaders... 64x64, 'achter' de unit. anker op midden
+  onder... grote units mogen 'over het portret' heen"): the sprite's crop is now anchored bottom-CENTER
+  inside a `FRAME_SIZE` (64px, scaled)-square box, instead of the box being sized to exactly the sprite's own
+  crop. A creature bigger than 64×64 simply overflows past the frame (never clipped) — the frame's
+  `overflow: visible` (not `hidden`) lets this happen. `framed` prop: `true` (top view) draws the frame's own
+  themed background/border (`.cc-sprite-frame`, reusing `.cc-avatar`'s exact CSS vars, §6d); `false` (bottom-
+  view thumbnails) skips the frame — the parent `.cc-enemy-thumb` button already IS the visual box — but
+  keeps the identical bottom-center-anchor + un-clipped-overflow behaviour, filling 100% of whatever size the
+  parent thumb gives it.
+- **Portrait gets its own separate frame** (Han: "portrait varianten tonen twee kaders van 64x64: een met het
+  karakter, en een met de pixel art portrait"): `PortraitImage` now ALSO renders inside a `.cc-sprite-frame`
+  box (same background/border as the sprite's), sitting next to it in the `cc-enemy-stage` row — two visually
+  equal-weight 64×64 kaders, not one merged box (§122's shared-background-on-the-whole-row treatment was
+  removed from `.cc-enemy-stage`, which is back to a plain layout container).
+- **Title moved above the frame(s)** (Han: "de titel/naam moet er boven staan"): `.cc-enemy-name` now renders
+  BEFORE `.cc-enemy-stage` in the JSX (was after); blurb stays where it was (right after the stage).
+  `Continued from #679` renamed the debug width×height overlay's position accordingly (still between stage
+  and blurb).
+- **Bottom-view previews 30% bigger, box unchanged** (Han: "maak de previews 30% groter maar houd de vakjes
+  even groot"): `THUMB_SCALE = 1.3 × 1.3` (was 1.3) — the SPRITE scale grows, `.cc-enemy-thumb`'s box (CSS
+  `height: 96px`, grid-track width) is untouched. `.cc-enemy-thumb` gained `align-items: flex-end` (was
+  `.cc-thumb`'s inherited `center`) and `overflow: visible` (was `.cc-thumb`'s inherited `hidden`) so the
+  now-larger sprite bottom-anchors and is allowed to spill past the box instead of being clipped/shrunk to
+  fit — both override via later cascade position in the stylesheet (equal specificity, `.cc-enemy-thumb`
+  declared after `.cc-thumb`).
+
+**Invariants:**
+- The curated, gameplay-critical `enemyAssets.js`/`SheetRpgLayer.jsx` combat pipeline is UNTOUCHED — this
+  batch only touches the auto-scanned bestiary's generator script and its React renderer.
+- Every split/merge/rename was checked against MEASURED pixel dimensions (via the same pngjs content-scan
+  technique the generator itself uses) before being encoded — the ONE case where Han's own claim (Heavy =
+  Knighty's dimensions) didn't check out was flagged and re-measured rather than forced.
+- `CreatureSprite`'s frame/anchor rework applies uniformly to BOTH curated (Slime, Lamia, etc.) and
+  auto-scanned creatures — it operates on the shared `{frame,crop,url}` variant shape, not bestiary-specific
+  data, so no creature renders through a different code path than any other (§6d).
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (extensive — see above), `src/model/
+bestiaryManifest.generated.js` (regenerated, 575 entries), `src/model/bestiaryAssets.js`
+(`BESTIARY_CATEGORIES` + 'mature'/'incomplete'), `src/components/character/BestiaryPanels.jsx`
+(`CreatureSprite`/`PortraitImage` frame+anchor rework, title reorder), `src/components/character/
+CharacterCreator.css` (`.cc-sprite-frame`, `.cc-enemy-stage` background/border removed, `.cc-enemy-thumb`
+anchor/overflow overrides).
+
+### §126. Goblin/Zombie/Maid worked out and moved back to `portrait`; Wizard (Portrait) re-transcribed; Horse death fixed (#683, Han 2026-08-04)
+
+**Purpose:** Han provided full, verified animation breakdowns for 3 characters that had been parked in
+`incomplete` (§125) pending exactly this, plus a re-transcription of the existing Wizard (Portrait) and a
+Horse fix — all frame-number specs (row-major, "frame N" 1-indexed) cross-checked against the SAME
+self-consistency method used throughout this generator: total frames used must be ≤ the sheet's real
+cell count, with any leftover explained as trailing blank padding.
+
+**Goblin** (`char_with_porttrait/GandalfHardcore Goblin sheet/`) — 6 colour-variant sheets, measured
+504×640 = 6 cols × 10 rows @ **84×64** (a `FRAME_OVERRIDES` exception to the char-folder 64×64 blanket rule).
+9 animations (`goblinAnimations()`) use 57 of the 60 cells (3 trailing blank). Moved from `incomplete` back
+to `portrait`. **Portrait pairing**: the folder has 6 ambiguous portrait candidates ("Portrait 64x64.png"
+through "64x69.png", no colour-indicating filename) — `buildPortraitMap()`'s "exactly 1 candidate" rule can't
+resolve this, so a new `nearestPortraitByColor()` samples each sheet's AND each portrait's average pixel
+colour (`sampleColor()`, the same technique Doggy already uses, §671) and pairs by nearest match — verified
+visually correct (green sheet ↔ green-faced portrait) in the browser check. Two of the 6 colours
+("Lime", "Dark Green", "Bright Green") are compound words `variantColor()` had no hex entry for — added to
+`characterAssets.js`'s `COLOR_HEX`.
+
+**Zombie** (`char_with_porttrait/GandalfHardcore Zombies/`) — measured 640×512 = 10×8 @ 64×64. 11
+animations (`zombieAnimations()`) use 79 of 80 cells. 4 colour variants (Brown/Dark Red/Red/Yellow) assigned
+to files "v1"-"v4" by ASSUMED order (filenames carry no colour word) — flagged. Single shared portrait
+(unlike Goblin, this folder has only one portrait candidate, so the existing `PORTRAIT_MAP` mechanism
+already resolves it — no special-casing needed).
+
+**Maid** (`char_with_porttrait/Maid/GandalfHardcore Maid Character/`) — measured "Maid Character {colour}"
+AND "Maid Character full {colour}" both 640×576 = 10×9 @ 64×64 (same layout, different art — genuinely the
+"normal/full" pair Han asked for). 12 animations (`maidAnimations()`) use 84 of 90 cells. Han: "toggler
+'normal/full' EN color setter" — the data model has ONE variant dimension, so both are folded into it as
+`"{Color}"` / `"{Color} (Full)"` (same 2-dimension-into-one-string technique already shipped for Knighty's
+Colour×Heavy/Run combos, §682) — renders as text-pill toggles rather than true colour swatches (same
+trade-off already accepted for Knighty, since `variantColor()` only exact-matches a bare colour word). Moved
+from `incomplete` back to `portrait`. Note: no "full white" file exists on disk (7 "full" colours vs 8
+normal) — reflects the real asset, not a bug.
+
+**Wizard (Portrait) re-transcribed**: Han gave a NEW, cleaner breakdown of the SAME 6×11 sheet §675
+originally mapped — `wizardPortraitAnimations()` replaced wholesale (idle/walk/walkattack/jump/simpleattack/
+block/blockhit/resting/death, 65 of 66 cells; idle is UNCHANGED, cast1-4/counterspell/idlesmoke are gone).
+**Flagged, not touched**: Level 9's Wizard combat (`enemyAssets.js` `WIZARD_IDLE_CELLS`/`WIZARD_CAST2_CELLS`)
+has its own hardcoded copy of the OLD idle/cast2 cells (not a live import from this generator) — idle still
+matches, but 'cast2' no longer exists as a concept here, so that file's cross-reference comment is now stale.
+Out of scope for this bestiary-only request.
+
+**Horse**: 'stagger' animation removed entirely (Han: "remove stagger"); 'death' recomputed from Han's own
+frame numbers (39-46, row-major across the 6-col grid) — now 8 cells (was 5).
+
+**Cleanup caught while touching these files**: `EXCLUDED_NAME` generalized from the 2 originally-named junk
+files ("color variations"/"heavy colors") to ANY `"* colors.png"` — Dress/Goblin/Maid/Mounted knight/
+Samurai/Zombie colors are ALL the same kind of junk preview-swatch thumbnail (verified: no legitimate
+creature name in the whole tree ends in "colors").
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`goblinAnimations`, `zombieAnimations`,
+`maidAnimations`, `nearestPortraitByColor`, `wizardPortraitAnimations` rewritten, `horseAnimations` death
+fixed, `EXCLUDED_NAME` generalized, `FRAME_OVERRIDES`/`BASE_OVERRIDES`/`CATEGORY_OVERRIDES` entries for
+Goblin/Zombie/Maid), `src/model/bestiaryManifest.generated.js` (regenerated, 569 entries),
+`src/model/characterAssets.js` (`COLOR_HEX` gained `lime`/`dark green`/`bright green`).
+
+### §127. Bestiary follow-up fixes (Goblin portraits, Lady Flower/Spirit Blue category swaps, default-variant, oversized previews) + Level 9 projectile rework (#684/#685, Han 2026-08-04)
+
+**Goblin portrait mismatch — root cause + fix (Han: "goblin, portraits kleuren niet mee, pak de juiste
+portraits (ze zijn raar genummerd)"):** §683's whole-sprite average-colour match failed because goblins
+share the SAME green skin tone regardless of clothing/weapon colour — 5 of 6 sheets resolved to the same
+"nearest" portrait. Replaced `nearestPortraitByColor()` with an EXPLICIT `GOBLIN_PORTRAIT_BY_VARIANT` map,
+determined by comparing each portrait's dominant HUE (a much more discriminating measure than average RGB)
+against each sheet's idle-frame crop, then — for the one genuinely close call (Bright Green vs Dark Green,
+both hue≈150°) — relative saturation/vividness. Verified correct in the browser (green sheet ↔ green-faced
+portrait). Flagged: the Bright/Dark Green pairing is the one worth a second look if it's ever wrong.
+
+**Lady Flower ↔ Lady Flower Plain category swap** (Han: "wissel lady flower (met 3 varianten) van mature
+naar passive" + "wissel lady flower plain van passive naar mature"): the two were on the WRONG sides of
+§682's mature split — swapped in `MATURE_ROSTER_NAMES` (one Set, checked uniformly across all 3 roster
+tables by `expandRosterSheet()`, so no separate mechanism was needed for the roster-4-only name).
+
+**Spirit Blue merge** (Han: "verplaats all 4 de spirit blue naar mature. Merge en geef 4 'animaties' on the
+floor, pose back, pose frontal, sword; toggle bare normal en blue brown"): what were 4 separate creatures
+(Pose Frontal/Pose Back/Lie/Sword, each just a Bare/Normal pairing) are now ONE creature, "Spirit Blue" —
+the 4 poses become ANIMATION buttons (`spiritBlueEntries()`, reads "Character sheet.png" rows 2-5 for
+Normal, "Character sheet bare .png" rows 0-3 for Bare, plus the standalone "Sword Spirit"/"Sword Spirit
+Bare" files directly for Brown/Brown Bare), and Normal/Bare/Brown/Brown Bare becomes the variant toggle.
+Brown only has sword art (no floor/back/frontal art exists for it) — its 2 variants simply get ONE
+animation ('sword') instead of 4; `BestiaryTopPanel` already renders whatever `variant.animations` a variant
+has, so this needed no new code, just fewer entries.
+
+**Default variant must never be Bare** (Han: "zorg dat ALTIJD eerst als default normal wordt getoond, en
+niet bare"): `bestiaryAssets.js`'s creature-variant sort was plain alphabetical — "Bare" < "Normal" (B < N),
+so any Bare/Normal creature defaulted to Bare (`variantIndex` starts at 0). Fixed with a 3-tier comparator:
+any variant matching `/\bbare\b/i` sorts LAST; among the rest, an exact `"Normal"` wins first; everything
+else stays alphabetical. Verified on Lamia (Normal now first) and the new Spirit Blue (Normal, Brown, Bare,
+Brown Bare — bare-tagged ones both pushed to the end).
+
+**Bottom-view preview cap** (Han: "in 'preview' onderin beeld: als unit > 64 hoog of breed: schaal af tot
+het in het vak past"): §682's "let it overflow" rule was only ever meant for the TOP-view frame (which
+explicitly wants big units to spill over) — the bottom-view GRID has no such allowance. `CreatureSprite`'s
+unframed path (bottom-view thumbnails) now computes `effectiveScale = min(scale, FRAME_SIZE / max(crop.w,
+crop.h))` when the crop exceeds 64 logical units in either dimension, capping it back to the same footprint
+a normal ≤64-unit creature gets, instead of blowing past the thumbnail box.
+
+**Level 9 projectile rework** (`SheetRpgLayer.jsx`):
+- **1.5× smaller** (Han): `PROJECTILE_SCALE` divided by 1.5 (still derived from the wizard's own zoom, not
+  re-hardcoded).
+- **4× faster animation** (Han): a new `PROJECTILE_ANIM_SPEED = 4` multiplies the flight loop's frame-advance
+  rate ONLY (`Math.floor(p.ff * 4) % PROJECTILE_LOOP_FRAMES`) — `frameMs` itself (shared with hero/slime/
+  wizard idle cadence) is untouched.
+- **Centered on B4** (Han: "zorg dat de projectielen midden op de notenbalk staat, ter hoogte van de b4"):
+  a new `projectileCenterY = getNoteAbsoluteY('B4', ...) - PROJECTILE_VIEW_H/2` replaces `slimeY` for both
+  the flying AND dying projectile — the slime lane below the staff is no longer where they live.
+  Once dead, the projectile freezes at this SAME height (no more Y drift than the existing x-freeze).
+- **Notes hidden entirely** (Han: "render de noten zelfs niet"): `noteStaffContent` (the scrolling treble
+  note layer) now returns `null` outright when `isWizard` — not just visually obscured, genuinely skipped
+  (barlines/bass/percussion are unaffected). The per-kill "flying note" ghost-copy flourish is also skipped
+  for Wizard combat (`!isWizard && ny != null`).
+- **Random oscillation** (Han: "een klein beetje 'oscilleren' rond hun centrum... bereik van 15 units in
+  alle richtingen"): a new `oscillate(seed, tMs, range)` helper — two sine waves per axis at different
+  seed-derived frequencies/phases (so no two projectiles wobble in lockstep, and no visible single-frequency
+  loop) — applied to both x and y independently (`s.key` and `s.key + 1000` as the two seeds), only while
+  flying (frozen once dead, matching "stop met voortbewegen").
+- **Blue glow — a real bug found and fixed while verifying**: the first glow attempt (a CSS `filter:
+  drop-shadow(...)` set directly on the projectile's own `<svg>`, whose `viewBox` is a tiny ~48×8 crop-unit
+  box) rendered as a screen-spanning wall of smeared blobs instead of a soft halo — Chrome appears to
+  compute the drop-shadow's blur region in that SAME tiny user-unit space, then scale the (already
+  disproportionate) blurred result back up by the sprite's own ~1.8× zoom factor. Caught via a DOM
+  element-count check (only 4-5 real `<Projectile>`s existed — the "wall" was one filter rendering
+  artifact, not a duplication bug) and confirmed by temporarily disabling the filter (the sprite alone, at
+  this scale, looked exactly as expected). Fixed by moving the `filter` onto a WRAPPING `<g>` around the
+  already-positioned-and-scaled inner `<svg>` — a `<g>` has no viewBox of its own, so the blur resolves in
+  the PARENT canvas's normal coordinate space instead.
+
+**Invariants:** none of these touch the curated `enemyAssets.js`/combat state-machine logic (hit/miss/
+wave-clear) — purely rendering/positioning/timing constants and the bestiary generator's data.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`GOBLIN_PORTRAIT_BY_VARIANT`, `MATURE_ROSTER_NAMES`
+swap, `spiritBlueEntries`), `src/model/bestiaryManifest.generated.js` (regenerated, 563 entries),
+`src/model/bestiaryAssets.js` (variant sort comparator), `src/components/character/BestiaryPanels.jsx`
+(`CreatureSprite`'s `effectiveScale` cap), `src/components/sheet-music/SheetRpgLayer.jsx`
+(`PROJECTILE_SCALE`/`PROJECTILE_ANIM_SPEED`/`PROJECTILE_OSCILLATE_RANGE`/`oscillate`/`projectileCenterY`,
+`Projectile`'s glow `<g>` wrapper, `noteStaffContent` early-return for `isWizard`).
+
+### §128. Level 9 redesigned as a call-response echo exercise — timer-driven waves, spawn-glow flourish, measure-wide grading (#686, Han 2026-08-04)
+
+**Purpose:** Han's request ("nu komt het!"): turn Level 9 from a continuous 8-measure scroll into a
+call-and-response ear-training loop — the wizard "casts" 2 quarter notes (a rest-only call measure), the
+player must echo them by ear in the very next (repeat-sign) measure, on a fixed metronome cadence
+(maat -1/0 lead-in unchanged, maat 1=call, maat 2=response, … through maat 8). A wrong/missed echo does
+NOT pause the game — "vaste metronoom-tijd wint" (Han's explicit answer) — it just counts as a miss via
+the existing per-note stats, same as every other level.
+
+**Config (`levels.json`, Level 9 only):** `numMeasures: 1` (one real measure generated per wave, was 8),
+`numRepeats: 2` (that measure is shown across 2 measure-slots — the call, then a scrolling response
+placeholder), `notesPerMeasure: 2` ("2 kwartnoten"), new `wizardSpawnLeadMeasures: 1`. `range`/
+`smallestNoteDenom`/`insertBeatRests`/`polyMultiplier`/`sideScroll`/`beatsOnScreen`/`fixedBass` are
+UNCHANGED from Level 2 (Han: "settings als in level twee, dus range c4-g4, forceer kwartnoten").
+
+**`wavesForLevel` generalized** (`levels.js`) — was `totalMeasures / numMeasures`; now
+`totalMeasures / (numMeasures × numRepeats)`, so Level 9 (`8 / (1×2)`) resolves to 4 waves of 2 measures
+each. `numRepeats` already existed on every level (feeding `playbackConfig.repsPerMelody`, a SEPARATE
+Sequencer-internal mechanism that side-scroll levels never actually exercise), so this generalizes an
+unused-for-this-purpose field rather than adding a new one — every pre-#686 level has `numRepeats: 1`,
+so no other level's wave count changes.
+
+**Wave advance is METRONOME-LOCKED, not clear-driven** (`App.jsx`) — every OTHER level advances via
+`SheetRpgLayer`'s `onSlimesCleared` callback (fires once all enemies are resolved). Level 9 instead polls
+`context.currentTime` against `levelAudioStart` via its own rAF loop (`wizardWaveRef`, mirrors the
+audio-anchored pattern §6/§88 already establishes — never `setTimeout`) and calls `level.onWaveCleared()`
+itself the instant each wave boundary (`leadIn + N·waveDuration`) is crossed, regardless of combat outcome.
+`onSlimesCleared` is a no-op for `enemyType === 'Wizard'` to avoid double-advancing on an early full clear.
+
+**`treblePreviewMelody` — the wizard's audible "cast"** (`App.jsx`): a dedicated `wizardPreviewRef`
+Soundfont (`'lead_1_square'` — "Square" isn't a real instrument slug; smplr has no synth/oscillator
+backend, only sample-based Soundfonts, so this GM patch is the closest match, confirmed with Han) plays
+the SAME `trebleMelody` data `instruments.treble` would (that slot stays silent/interactive — it's the
+player's own instrument for the echo). Scheduled via the existing `playMelodies()` at the absolute time
+the wave's call measure begins (`levelAudioStart + leadIn + wave·waveDuration`), independent of exactly
+when the melody data itself finished generating, so it always lands in sync with the metronome.
+
+**Rests + repeat sign, no real noteheads** (`SheetRpgLayer.jsx`, Han: "render wel gewoon rusten in de
+oneven maten. render een 'herhalingsteken' in de even maten"): `noteStaffContent` no longer unconditionally
+skips notation for `isWizard` — it now renders a REST-IFIED clone of the melody (every real note forced to
+`'r'`, `'c'` spacers left alone) through the SAME canonical `MelodyNotesLayer` (§6d), so the call measure's
+rests land at each note's own position/duration for free. Since the melody has only 1 real measure of data
+(`numMeasures: 1`), this naturally draws nothing for the response measure — a NEW `wizardRepeatSignContent`
+memo fills that gap by calling the canonical `renderOneMeasureRepeatSymbols()` (the same "Ô" glyph already
+used for an invisible staff, §6d) shifted one measure right of `viewRight` so its own `m=0` slot lands on
+the response measure instead of the call measure.
+
+**Projectile visibility + spawn-glow flourish** (`SheetRpgLayer.jsx`):
+- `PROJECTILE_FLIGHT_BEATS` (= 1 measure, derived from `scrollBarlines.measureLengthSlots`) replaces the
+  shared `beatsOnScreen` (2 measures — the STAFF's visual width, unrelated) as the Wizard's OWN
+  spawn-to-arrival span inside `sideScrollX` — a note cast at its own beat must arrive exactly 1 measure
+  later (the response beat), not 2.
+- `wizardSpawnLeadMeasures` gates RENDER visibility only (`spawnLeadBeats`, clamped to the flight span) —
+  the underlying flight math is untouched, only when it starts being drawn.
+- A one-shot **spawn-glow** (`SpawnGlow`, Han: "gevulde witte cirkel met velle blauwe gloed... fade in en
+  groei van radius 0 tot 20... maximum opacity als projectiel er is... fade uit... 2 rpg frames") fires the
+  instant a projectile becomes visible: white filled circle + blue `drop-shadow` halo, growing 0→20px
+  radius and fading in over the FIRST half of `SPAWN_GLOW_FRAMES` (2), fading out over the second, timed to
+  start 1 sprite frame before the projectile's own visibility gate so peak opacity lands exactly when it
+  appears. Rendered after the Projectiles (in front of them) but before the `<Wizard>` element (behind it)
+  — Han: "achter de wizard, en voor het projectiel".
+- The old PERMANENT flight-time blue glow (§127) is gone — the note-obscuring effect it was there for is
+  now moot anyway, since real noteheads are never drawn for Level 9 (see above).
+
+**Combat grading widens to a whole measure, not a beat** (`SheetRpgLayer.jsx`, Han: "hergebruik gradeHit
+met maat-breed venster"): both the hit-matching effect and the miss-expiry effect now branch on `isWizard`
+— the due time for a note becomes `beat·beatMs + measureMs` (1 measure after its own cast beat, not
+`(beat + beatsOnScreen)·beatMs`), and `gradeHit`'s SAME tiered thresholds (perfect/too-fast/too-slow/
+much-too) are evaluated against `measureMs` as the unit instead of `beatMs` — reusing the exact function,
+just widening what "a beat" means for this level, per §6c.
+
+**BUGS found and fixed during browser verification (multi-wave content never appeared past wave 0):**
+1. **`waveStartRef` always reset to absolute tick 0.** Every side-scroll level before Level 9 only ever
+   has ONE wave, so this was never wrong — a note's own `beat` arriving `beatsOnScreen` beats after
+   absolute tick 0 coincidentally lands exactly at the end of the lead-in (`beatsOnScreen` == the lead-in
+   span for every level so far). With 4 waves, resetting wave 2/3/4's clock to tick 0 made their content
+   compute itself as already having scrolled far past the visible lane before ever rendering — a blank
+   staff every wave after the first. Fixed: the wave clock now snaps to that wave's OWN due time
+   (`leadIn + N·waveDuration`, inferred from the current absolute tick when the effect runs), not tick 0.
+2. **The Wizard's projectile used the wrong (2-measure) flight span**, discovered as a follow-on to fix
+   #1 — see `PROJECTILE_FLIGHT_BEATS` above.
+3. **The `isWizard` branch was gated on `scrollStartTime != null`**, mirroring the pre-existing
+   single-wave branch — but the reset effect only depends on `[notesKey]`, so it can capture a STALE
+   `scrollStartTime` from before `levelAudioStart` finishes propagating down as a prop and never see the
+   corrected value on a later wave (the effect doesn't re-run just because a non-dependency prop changes
+   in the meantime). The formula itself never actually needed the prop — `tickRef.current` is already
+   anchored by the outer tick-loop regardless of which anchor it resolved — so the gate was simply removed.
+   Found by adding temporary instrumentation (`console.log`) at each step of the chain (wave-timer firing,
+   melody regeneration, the reset effect's own inputs) and correlating timestamps in a puppeteer session —
+   confirmed fixed by re-verifying rests/repeat-signs render correctly across all 4 waves.
+
+**Known simplification (flagged for Han):** the "become visible already partway across the lane" nuance
+from the original spec (a flight span LONGER than the spawn lead) isn't achievable without pre-generating
+each wave's melody a full measure ahead of its own due time — Level 9 has no JIT pre-generation the way
+bass/percussion do (`useLevelBackingStream`), so a wave's content structurally cannot exist before its own
+cast moment. With `wizardSpawnLeadMeasures` clamped to the (now 1-measure) flight span, the projectile is
+visible for its entire flight from the moment it spawns, and there's a brief (roughly half-second, right at
+each wave boundary) gap where the previous wave's content has scrolled off before the next wave's audio has
+finished generating. Both are acceptable but real trade-offs, not full fidelity to the original ask.
+
+**Invariants:** the shared Sequencer round/repeat engine (`repsPerMelody`, §0/§40) is untouched — Level 9's
+wave advance is entirely bespoke to `SheetRpgLayer`/`App.jsx`, gated on `enemyType === 'Wizard'`, exactly
+like §679 established for every other Wizard-specific branch. No per-instrument special-casing was added
+to the shared melody generation pipeline (§6b) — Level 9 only sets `notesPerMeasure`/`numMeasures`/
+`numRepeats` in its own `levels.json` entry, the same knobs every other level already uses.
+
+**Files:** `src/levels/levels.json` (Level 9 config), `src/levels/levels.js` (`wavesForLevel` formula),
+`src/levels/__tests__/levels.test.js` (updated for the new wave count/config divergence from Level 2),
+`src/App.jsx` (`wizardWaveRef` timer effect, `wizardPreviewRef` + preview-melody scheduling effect,
+`onSlimesCleared` no-op guard), `src/components/sheet-music/SheetMusic.jsx`
+(`wizardSpawnLeadMeasures` prop threading), `src/components/sheet-music/SheetRpgLayer.jsx`
+(`SpawnGlow`/`SPAWN_GLOW_FRAMES`, `PROJECTILE_FLIGHT_BEATS`, `beatsPerMeasure`/`measureMs`/
+`spawnLeadBeats`, `wizardRepeatSignContent`, the rest-ified `noteStaffContent`, the `waveStartRef`
+snapping fix, the measure-wide grading branch), `src/components/sheet-music/renderMelodyNotes.jsx`
+(`restMap` now exported), `src/components/sheet-music/renderOneMeasureRepeatSymbols.jsx` (reused
+as-is, no changes).
+
+### §129. Bestiary batch — Rat thief fix, Female Pixel Art column shift, Skeleton portraits, Knight animation merge, Female Medieval + Lantern, Maid mega-merge (#687, Han 2026-08-04)
+
+**New capability: animation-level `relPath`/`url` override.** Every prior manifest entry had exactly ONE
+source file for all its animations (`variant.url`). Several of this round's asks needed one COLOUR's
+animation list to span MULTIPLE files (e.g. "green knight" + "green knight run" as one set of buttons) —
+`bestiaryAssets.js`'s `buildCreatures()` now resolves an optional `animation.relPath` to its own `url`
+(falling back to the variant's own `url` when absent, so every pre-existing creature is unaffected);
+`CreatureSprite` (`BestiaryPanels.jsx`) reads `anim.url || variant.url` for the sprite it draws. This is the
+mechanism behind the Knight merge, the Maid mega-merge, and the Female Medieval Lantern/Harp sharing below.
+
+**Rat thief was silently dropped** (Han: "ik mis rat thief van de passive characters") — `isCurated()`'s
+word-boundary 'rat' keyword-match (meant to catch the curated enemy "Rat") ALSO matched "Rat thief" (a
+char_passive human character), since `\brat\b` can't distinguish "Rat" from "Rat thief" — carved out an
+explicit exception (`!/^Rat thief$/i.test(name)`) rather than trying to generalize the whole keyword list.
+
+**Female Pixel Art column shift** (Han: "de succubus heeft breedte 128... dus de goddess moet doorschuiven,
+en de maid ook"): confirmed the sheet is 768×896 = 12 native 64px columns for 11 named characters — Succubus
+alone spans 2. `expandColumnSheet()` gained an optional `wideNames` Set (consumes 2 native columns instead
+of 1, tracked via a running pixel-column cursor instead of the plain array index) — Male's sheet (uniform
+64px columns) calls it unchanged. Portrait file numbering is untouched (portraits are separate files, keyed
+by the character's own sequential index, not by pixel column).
+
+**Skeleton portraits** (Han: colour order "grey (sheet), retro, full white, red, gold, ghost"): the 6 colour
+sheets are grouped via explicit `BASE_OVERRIDES` (like Goblin/Zombie); the portrait pairing reuses §675's
+Wizard-portrait-grid technique verbatim — "Skeleton Portraits 64x64.png" is a 3×2 grid, one cell per colour,
+cropped via `portraitCell`/`portraitFrame` using Han's given order (no guessing needed this time).
+
+**Knight (Knighty) / Knight (Heavy) — split into two creatures, each with one merged animation list per
+colour** (Han: "ik wil 1 knight knightly met de verschillende kleuren... green knight + green knight run
+als één set animaties" + "verplaats de heavy knight alt animaties en het portret naar knight (heavy)...
+heavy + run + sheet 2 zijn allemaal verschillende animaties bij heavy knight"): §682 had merged ALL FIVE
+knight sources (Knighty main/run, Heavy main/run/sheet2) into ONE base with variant-suffix disambiguation
+("Green (Heavy Run)" etc) — Han now wants the OPPOSITE shape: Knighty and Heavy as two SEPARATE creatures,
+but each colour showing ALL its own animations (idle/walk/... + run, or idle/walk/... + run + walk-alt/
+run-alt/attack-alt) as buttons on ONE variant card, not spread across near-duplicate swatches. A new
+post-process pass, `mergeKnightEntries()` (runs once after the main per-file scan, before the brand-strip
+pass), groups the still-suffix-tagged entries by `family::colour`, picks the PRIMARY (the un-suffixed main
+sheet) as the base, and folds every OTHER file's animations into it via the relPath override above —
+`base` becomes `Knight (Knighty)` or `Knight (Heavy)` per family, `variant` drops back to the plain colour.
+Verified in-browser: Knighty shows 9 animation buttons (…, Run - Fast) across 8 colour swatches; Heavy shows
+12 (…, Walk Alt, Run Alt, Attack Alt, Run - Fast) with its own portrait.
+**Bug found while wiring this up:** "Brown heavy .png" has a stray trailing space before `.png` (every
+sibling colour file doesn't) — the `Knight Heavy\/[A-Za-z]+ heavy\.png$` regex (frame override, animation
+assignment, AND the base/variant tagging — three separate call sites) silently failed to match it, so Brown
+Heavy fell through to generic naming entirely and the merge pass logged "no primary for heavy::Brown". Fixed
+by loosening all three regexes to `heavy ?\.png$`.
+
+**Female Medieval Pixel Art Character + Lantern** (Han: "twee varianten (normal/lantern)... de twee harp
+animaties mogen ook bij de lantern variant getoond worden"): the main sheet (640×576 = 10×9) is 9 ROWS = 9
+animations in Han's given order (idle/walk/run/air up/air down/hit/death/playing harp/separate harp); the
+Lantern sheet (576×448 = 9×7) has the same first 7 (no harp — can't hold a harp and a lantern with the same
+pose). The 2 harp animations are "borrowed" onto the Lantern variant using the relPath override — pointing
+their `cells` at the NORMAL sheet — so selecting "Playing Harp" while on the Lantern variant plays the
+Normal sheet's take. "Harp.png" (a single 64×64 prop) and "Lantern.png" (a 16×16 icon) are NOT wired up as
+visual overlays (the existing `overlayUrls` mechanism, §671, assumes the overlay shares the base sprite's
+OWN cell grid — Doggy's hat/backpack do; neither of these props does) — excluded from the scan entirely
+(flagged as a follow-up rather than a fragile one-off hack) rather than showing as two broken-looking cards.
+
+**Maid mega-merge** (Han: colour + full/normal (renamed "White Accent") + with-hat + sword togglers, plus
+sheet2/combat/sword-down frame breakdowns) — the biggest single item this round:
+- Colour × White-Accent was already modelled (§683, `{Color}`/`{Color} (White Accent)` — renamed from
+  `(Full)` per Han's ask this round) — unchanged.
+- Sheet2 (640×320=10×5, "f1-13 carry water, f14-21 wash dishes, f22-27 read, f28-33 sit, f34-38 idle alt" —
+  self-consistency check: 38 of 50 cells used, clean) is grouped and merged the SAME way as the Knight
+  merge (`mergeMaidEntries()`, a second post-process pass) — each colour's sheet2 file gets tagged
+  `"{Color} (Sheet2)"` on push, then folded into that colour's primary entry as 5 extra animation buttons.
+- Combat sheet (640×512=10×8, 8 given ranges) and sword-down (512×64=8×1, one "Idle Sword (Still)"
+  animation) merge the same way — verified self-consistent (78 of 80 combat cells used).
+- **Flagged, not guessed:** Han's message also gave "f39-35 sleep" (end BEFORE start — backwards) and
+  "f36-40 carry clothes" (overlaps idle alt's own f34-38, and numerically precedes the "f39" line above it)
+  for sheet2 — both read as transcription typos, not a real layout, so they're OMITTED rather than guessed
+  at (§9k — a wrong guess here wastes real money); Han needs to re-give these two ranges.
+- **NOT implemented — the "with hat" toggle.** The two Witch Hat sheets share sheet1's/sheet2's own cell
+  grids, so overlaying them (Doggy-style, §671) is technically possible for animations sourced from THOSE
+  two files — but Maid's animation list draws from FIVE different source files per colour (sheet1, sheet2,
+  combat, sword-down, plus whichever hat sheet), and the existing `overlayUrls` mechanism is a single flat
+  list applied uniformly to the WHOLE variant, not resolved per-animation the way the base sprite now is.
+  Building that (an accessory-level relPath override, resolved against whichever animation is active)
+  is a real, bounded follow-up — deliberately left out of this already-very-large round rather than rushed.
+  The two Witch Hat sheets and "Maid Witch hat combat.png" currently show as their own small, ungrouped
+  bestiary cards (harmless, just uncleaned-up) until that's built.
+- **Roster-name collision found and fixed:** an EXISTING roster-sheet entry (§673's composite "characters
+  sheet" tables, row 10) was ALSO named plain `'Maid'` (a much simpler, unrelated palette-swapped NPC) — with
+  the new detailed Maid group also named `'Maid'`, both collided into one bestiary card showing "Sheet
+  1/2/3" alongside the colour swatches. Renamed the roster entry to `'Maid (Roster)'`.
+- **Sword-down colour-guessing bug found and fixed:** "Maid Walk with sword down Sheet.png" has NO colour
+  word, and the folder ALSO has an explicit "...Sheet black.png" — the first pass assumed the unlabelled
+  file was Black (matching every other sheet's "Black is the base colour" pattern), which collided with the
+  real Black file and produced a duplicate `idleswordstill` animation. Fixed by leaving files with no
+  recognised colour word OUT of the colour grouping entirely (their true meaning is unclear without a
+  visual check) instead of guessing.
+
+**Zombie per-colour portraits — BLOCKED, flagged, not implemented** (Han: "zombie: varieer met de kleur ook
+de portretten"): the source asset folder has exactly ONE zombie portrait file (both a 640×640 and a 64×64
+version of the SAME single image) — there is no per-colour portrait art to select between. Left as the
+existing shared portrait for all 4 colours; flagged for Han (either he has additional portrait files not
+yet in the repo, or a same-portrait-tinted-per-colour approach — like Doggy's sampled swatch, §671 — would
+need to be a deliberate NEW design, not a re-pairing of existing assets).
+
+**Maid bathing → mature** (Han: "laat maid bathing apart en zet bij mature") — a one-line
+`CATEGORY_OVERRIDES` addition, same pattern as every other single-file mature move this session.
+
+**Invariants:** no shared/generic code path was special-cased per-creature — every new capability (the
+relPath/url override, the two merge post-process passes) is a generic mechanism any future creature can
+reuse, matching §6c/§6d's reuse-don't-hardcode discipline.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`isCurated` Rat thief exception, `expandColumnSheet`
+`wideNames` param + `FEMALE_WIDE_NAMES`, Skeleton `BASE_OVERRIDES` + portrait-grid, `frameRange` helper,
+`maidSheet2Animations`/`maidCombatAnimations`/`maidSwordDownAnimations`, `femaleMedievalEntries`,
+`mergeKnightEntries`/`mergeMaidEntries` post-process passes, Maid colour/suffix extraction, roster `'Maid'`
+→ `'Maid (Roster)'` rename, "Brown heavy .png" regex fix, maid-bathing category override),
+`src/model/bestiaryManifest.generated.js` (regenerated, 507 entries), `src/model/bestiaryAssets.js`
+(per-animation `url` resolution), `src/components/character/BestiaryPanels.jsx` (`CreatureSprite`'s
+`spriteUrl = anim.url || url`).
+
+### §130. End-of-level splash waits for the final barline; Level 9 reverted to one continuous melody (#688, Han 2026-08-04)
+
+**Splash timing** (Han: "niet bij laatste noot, maar pas wanneer end of song (laatste maatstreep) de hit
+zone bereikt"): `useLevel.onWaveCleared()` no longer calls `setDone(true)` immediately for a side-scroll
+level's final wave — it sets `pendingSongEndRef.current = true` and waits for a NEW `onSongEnd()` call
+(also returned from the hook). `SheetRpgLayer` fires it once `finalBarX - scrollPx` (the SAME translate
+every other scrolling element in the layer uses) crosses the strike line, guarded by `songEndFiredRef` so
+it only fires once per melody. Threaded `onSongEnd` through `App.jsx → SheetMusic.jsx → SheetRpgLayer.jsx`
+alongside the existing `onSlimesCleared`. Non-side-scroll levels (static combat, nothing to scroll toward)
+keep the original immediate `setDone(true)`.
+
+**Level 9 reverted to ONE continuous 8-measure melody** (Han: "ik hoor te veel tonen. lijkt of er meerdere
+melodieën gegenereerd zijn" + "ik verwacht een soepele aangesloten reeks maten... alle 10 maten naadloos
+aansluiten"): §686's redesign (4 separate 2-measure "waves", each with its own regenerated melody, its own
+wave-advance timer, and its own audio (re)scheduling) is the near-certain source of the overlapping-audio
+bug, and its per-wave `scrollPx`/`waveStartRef` resets broke the lead-in/final-barline math (both assume a
+single level-length melody). `levels.json` Level 9 is back to `numMeasures: 8, numRepeats: 1` (identical to
+Level 2 again); `wavesForLevel` naturally resolves to 1 wave, so Level 9 advances/ends exactly like every
+other side-scroll level (`onSlimesCleared`, unmodified) — the whole `wizardWaveRef` timer effect is gone.
+
+**The wizard's audible "call" is now a mute-the-even-measures clone, scheduled once**: the
+`wizardPreviewRef` (`lead_1_square` Soundfont, unchanged from §686) now plays a clone of the SINGLE
+melody with every EVEN-measure note replaced by a rest — muting the "response" half so only the odd "call"
+measures are heard — scheduled ONE time for the whole level (mirrors the timpani one-shot pattern), instead
+of once per wave.
+
+**Projectile flight reverted to match a slime exactly** (Han: "de projectiles worden gerendered net zoals
+de slimes; dus twee maten op voorhand. het verschil is, ze zijn onzichtbaar, tot 1 maat voor ze gespeeld
+moeten worden"): `PROJECTILE_FLIGHT_BEATS`/the measure-wide grading window (§686) are gone — the Wizard's
+`sideScrollX` call uses the shared `beatsOnScreen` (2 measures) again, and combat grading is back to the
+plain tight beat-window every other side-scroll level uses (both only existed to compensate for a shorter
+flight span that no longer exists). Only RENDER visibility is still gated (`spawnLeadBeats`,
+`wizardSpawnLeadMeasures` from `levels.json`) — a projectile becomes visible 1 measure before its due beat,
+exactly as before. New: `debugMode` bypasses the invisible window entirely (every spawned projectile is
+shown), so Han can inspect the response-measure content live.
+
+**Rests (odd/call) + real-but-hidden notes (even/response) replace the repeat-sign approach** — the
+FINAL, authoritative rule from this round: "oneven: hoorbaar maar onzichtbaar, even: onzichtbaar (maar
+zichtbaar in debug mode), onhoorbaar, te spelen." Two separate rest-ified clones of the melody (reusing the
+canonical `MelodyNotesLayer`, §6d, not hand-rolled glyphs), rendered as independent layers:
+- `noteStaffContentCall` — odd-measure notes forced to a plain `'r'`; even-measure notes blanked to the
+  invisible `'c'` spacer. Always opacity 1 (you hear the wizard cast it, never see the pitch).
+- `noteStaffContentResponse` — even-measure notes/durations kept EXACTLY as generated; odd-measure notes
+  blanked. Wrapped in `opacity={debugMode ? 1 : 0}` at the render call site — fully invisible by default,
+  the real notation only in debug mode.
+The old `wizardRepeatSignContent` (the "Ô" repeat-sign glyph, §686) and its positioning are gone — no longer
+part of the design.
+
+**Invariants:** the shared Sequencer/melody-generation pipeline is untouched — Level 9 is once again
+config-identical to Level 2 (`numMeasures`/`numRepeats`/`beatsOnScreen`), only `enemyType`/
+`notesPerMeasure`/`wizardSpawnLeadMeasures` differ, matching §679's original design intent.
+
+**Files:** `src/hooks/useLevel.js` (`pendingSongEndRef`/`onSongEnd`), `src/App.jsx` (`onSongEnd` prop,
+removed `wizardWaveRef` timer, single-shot muted-even-measures preview scheduling), `src/levels/levels.json`
+(Level 9 `numMeasures`/`numRepeats` reverted), `src/levels/__tests__/levels.test.js` (updated),
+`src/components/sheet-music/SheetMusic.jsx` (`onSongEnd` prop threading),
+`src/components/sheet-music/SheetRpgLayer.jsx` (`onSongEnd` prop + final-barline crossing effect, reverted
+`sideScrollX`/grading/`waveStartRef` to their pre-§686 form, `noteStaffContentCall`/`noteStaffContentResponse`
+replacing the rest-ified-clone + repeat-sign approach, `debugMode` bypass on projectile visibility).
+
+### §131. Bestiary batch 2 — Skeleton/Goddess animations, Maid hat toggle + diagonal swatches, Oriental Female split, Poop Thrower/Impact pairing, swatch-colour fill-in (#689/#690, Han 2026-08-04)
+
+**Skeleton** gets its full animation breakdown (`skeletonAnimations()`: walk/walk arm stretched/walk
+alt/idle/glow/attack/death/resurrect — 65 of 70 cells used, self-consistent); "Skeleton Variations.png" (a
+junk preview swatch, same treatment as the "* colors.png" pattern) is excluded.
+
+**Goddess** ("GandalfHardcore Goddess NPC.png", 832×64 = 13×1 — the SAME layout Santa/Vampire already use,
+5 idle + 8 walk cols): reuses `santaVampireAnimations()`, then drops the `idle` entry and renames `walk` to
+`fly` per Han's edit — being the only animation left, it's what shows by default. Moved back to `portrait`
+from `incomplete` (now "worked out", same convention as §683's Goblin/Zombie/Maid).
+
+**Maid — diagonal duo/mono swatches + the hat toggle finally merged in**: plain colour variants (Black,
+Blue, ...) now render as a colour/white DIAGONAL split swatch (`swatchColor2`, a new manifest field
+resolved the same way as `swatchColor`, rendered as a `linear-gradient(135deg, c1 50%, c2 50%)` in
+`CreatureSprite`); "(White Accent)" variants stay a single solid colour. The 2 Witch Hat sheets (which share
+sheet1's/sheet2's own grid exactly) are folded in as ONE more "colour" — literally named `Hat` — via the
+SAME suffix-tag-and-merge technique as every other Maid source file; there's only one hat sheet (not one
+per Maid colour), so this is a single extra toggle option, not a true colour×hat combination — flagged as
+a known simplification. Sheet2's earlier "sleep"/"carry clothes" ambiguity (§687, flagged rather than
+guessed) is now resolved: Han gave the correct ranges (frame 39-45 / 46-50) — self-consistency check: all
+50 cells of the 640×320 grid now used, no leftover.
+
+**Medieval's harp animations show the lantern prop** (Han: "zet het lantern frame ook in beeld: dat is
+gewoon lantern.png"): a new `propRelPath` field on an ANIMATION (resolved to `propUrl` the same way as
+`relPath`→`url`) — `CreatureSprite` draws it as a small fixed 16×16 badge in the bottom-left corner
+whenever the active animation carries one. Unlike `overlayUrls` (§671, per-cell-matched, e.g. Doggy's hat),
+this is a single static icon, not an animated per-frame layer — a smaller, more honest mechanism than
+trying to force Lantern.png into the overlay system it was never shaped for.
+
+**Oriental Female Characters** (640×512 = 10×8) splits into 6 named creatures — rows 1&7 → "Oriental
+Laying" (Normal/Bare), rows 2&8 → "Oriental Musician" (Normal/Bare), row 3 → "Oriental Sitting", row 4 →
+"Oriental Leaning", row 5 → "Oriental Wading" (→ `mature`), row 6 → "Lady Lounging" (→ `mature`) — all 8
+rows accounted for exactly once, via `expandNamedRows`.
+
+**Poop Thrower + Poop Impact Sheet are paired**, the Impact sheet shown whole in the portrait slot (Han:
+"alsof het een portret is" — no cell/frame crop, unlike Wizard/Skeleton's colour grids). `idle` plays the
+non-contiguous sequence 1,2,3,41,50 in exactly that order; every other frame (4-49, excluding 41) is
+`throwing`. "Frame 51" (past the 50-cell grid) is read as row-major "row 5, frame 1" shorthand = 41 — NOT
+independently verified pixel-by-pixel, flagged as an assumption.
+
+**Swatch-colour fill-in** (Han: "vul missende kleurvakjes in"): a generic `SWATCH_OVERRIDES` post-process
+pass, matched by `(base, variant)` (or a `baseTest` predicate for the "every Guard sheet" case), covering
+every creature whose `variant` string isn't a plain colour word (`variantColor()` can never resolve
+"Sheet 1", "Bw", "Full White", etc. on its own): Archer's yellow/white duo, Skeleton's Ghost/Full White,
+Zombie's Dark Red, the cow's black/white and red/white duos, Damned Burning/Burning Skull's orange, every
+Guard/Musketeer/Witch/Wizard/Cat/Dog sheet-numbered variant's colour. Also renamed `Dog` → `Dog (Small)`
+(disambiguates from the unrelated `Doggy` creature, per Han's "hernoem dog (small)").
+**Bug found while wiring this up:** the override pass originally ran BEFORE the brand-stripping pass
+(`stripBrand`, §682), so any override written against a POST-strip name (e.g. `'Archer sheet'`) silently
+never matched the PRE-strip raw name (`'GandalfHardcore Archer sheet'`) still on the entry at that point —
+moved the override pass to run after `stripBrand` instead.
+
+**NOT implemented this round (deferred, explicitly flagged rather than rushed):**
+
+- Maid's earlier-flagged unlabelled "Walk with sword down Sheet.png" (no colour word, still excluded from
+  colour grouping) — Han confirmed "heeft wel degelijk bronbestand voor elk frame" (there IS a proper
+  source file for every frame) without giving the specific colour this file represents; left as its own
+  ungrouped fallback entry pending that detail.
+
+(The archer/wizard projectile panel, deferred out of this round, is covered in §132. The RPG Level tab
+remains deferred — a genuinely new tile-scene feature, not yet built.)
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`skeletonAnimations`, Goddess override, Maid `Hat`
+variant + sheet2 sleep/carry-clothes, `propRelPath` on Medieval's harp animations, Oriental Female
+`expandNamedRows` call, `poopThrowerAnimations` + portrait pairing, `SWATCH_OVERRIDES` + application pass,
+`Dog (Small)` rename), `src/model/bestiaryManifest.generated.js` (regenerated), `src/model/bestiaryAssets.js`
+(`swatchColor2`/`propUrl` resolution), `src/components/character/BestiaryPanels.jsx` (diagonal swatch
+gradient, static prop badge rendering).
+
+### §132. Archer/Wizard projectile-reference panel; Level 9 single-melody fix for the wizard "call" (#691/#692, Han 2026-08-04)
+
+**Archer/Wizard 64×64 projectile panel** (Han: "voeg bij de archer en de wizard een 64x64 paneel toe met hun
+projectiel (net als poop thrower): fx > arrow en fx> projectile sheet blue"): the same "whole file as a
+portrait, no cell crop" technique as Poop Thrower's Impact Sheet pairing (§131), but applied via a
+POST-PROCESS `(base, variant)` match (`PORTRAIT_OVERRIDES_BY_NAME`, alongside `SWATCH_OVERRIDES`) instead of
+a `relPath`-based inline override during the per-file scan. Reason: both targets' `relPath` is SHARED with
+unrelated entries — Archer's own colour files are unique per entry but the pattern still applies for
+uniformity, and the roster-derived `base:'Wizard'` (row 13 of `ROSTER_SHEETS_SPACED`, "characters sheet
+N.png") shares its physical sheet file with dozens of OTHER roster characters, so a `relPath` override would
+have wrongly painted every one of them with the projectile portrait. `base:'Archer sheet'` (any variant) →
+`fx/arrow.png`; `base:'Wizard', variant: 'Sheet 1'|'Sheet 2'|'Sheet 3'` → `fx/Projectile sheet blue.png`.
+**Bug found while wiring this up:** the match predicate reused `SWATCH_OVERRIDES`' "no `variant` field means
+match only the variant-LESS entry" convention, which silently skipped every COLOURED Archer variant (only
+the bare `variant: null` entry got the portrait) — Archer's override needs "no `variant` field means match
+EVERY variant" instead (it has no per-colour distinction to make). Fixed by checking
+`s.variant === undefined` (match-all) vs. `s.variant === entry.variant` (match-one) instead of the
+nullish-coalescing equality `SWATCH_OVERRIDES` uses.
+
+**Level 9's "call"/"response" measure-parity split (§130) was itself the "two melodies" bug** (Han's #692
+report: "ik hoor te veel tonen... ik hoor andere noten dan de te spelen noten... vermoeden is dat er twee
+aparte melodieën bestaan"). §130's fix scheduled the wizard's square-synth "call" as a clone of the melody
+with EVEN measures muted (silent, "the player supplies them"), while combat/projectile grading
+(`slimeData`, unfiltered by measure parity) fires for EVERY real note — odd AND even. So the audible "call"
+and the notes the player must actually hit were, by construction, two DIFFERENT sets of pitches (an odd
+measure's notes vs. an even measure's notes are simply different notes in a generated melody) — exactly
+matching "ik hoor andere noten dan de te spelen noten".
+
+**Fix — single source of truth, timing-offset instead of measure-parity:** dropped the odd/even split
+entirely. There is only ONE melody (`trebleMelody`, never modified in pitch). Every note goes through the
+same 3 phases relative to its OWN beat:
+
+- **~2 measures out:** spawns off-screen, invisible (unchanged — the existing `beatsOnScreen` slime-style
+  flight).
+- **`wizardSpawnLeadMeasures` measures out (1, from `levels.json`):** becomes visible AND is audibly "cast"
+  by the wizard's square-lead voice, at its own real pitch.
+- **At its real beat:** the player must play that same pitch (unchanged combat grading).
+
+The wizard-preview `useEffect` in `App.jsx` (§130) now schedules the WHOLE unmodified `trebleMelody`
+through the square-lead Soundfont — no per-note muting — starting `wizardSpawnLeadMeasures` measures
+EARLIER (in real time) than the player's own position: `levelAudioStart + leadInSeconds -
+leadOffsetSeconds`, where `leadOffsetSeconds = wizardSpawnLeadMeasures * measureLengthTicks *
+secondsPerTick(bpm)`. Because it's the SAME melody just time-shifted, every cast pitch is now guaranteed
+identical to the pitch that must be played one measure later — single source of truth, §6c: the lead-measure
+count is read from `levels.json` (the same value `SheetRpgLayer` uses for the projectile's own visibility
+gate), never a separately hardcoded "1 measure" in two places.
+
+**Visual staff simplified to match:** `SheetRpgLayer`'s `noteStaffContentCall`/`noteStaffContentResponse`
+(measure-parity-gated) are replaced by `noteStaffContentRest` (every real note forced to a plain `'r'`,
+always visible — a rhythm guide only, no pitch, unchanged from §130's intent) and `noteStaffContentReal`
+(the melody exactly as generated, unmodified, `opacity={debugMode ? 1 : 0}` at the render site) — same
+two-layer reuse-`MelodyNotesLayer` pattern as §130, just no longer split by measure parity.
+
+**Invariants:** `slimeData`/projectile generation in `SheetRpgLayer` was ALREADY correct (one projectile per
+real note, unfiltered by parity) and needed no change — the bug was entirely in the AUDIO schedule (§130's
+muted-even-measures clone) and the now-removed visual split.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`PORTRAIT_OVERRIDES_BY_NAME` + application pass),
+`src/model/bestiaryManifest.generated.js` (regenerated), `src/App.jsx` (wizard-preview effect: schedules the
+unmodified `trebleMelody` time-shifted by `wizardSpawnLeadMeasures`, replacing the muted-even-measures
+clone), `src/components/sheet-music/SheetRpgLayer.jsx` (`noteStaffContentRest`/`noteStaffContentReal`
+replacing `noteStaffContentCall`/`noteStaffContentResponse`, `isOddMeasure` helper removed).
+
+### §133. Archer/Wizard portrait panel was invisible (SHEETS glob missed `fx/`); new "RPG Level" tab (#691, Han 2026-08-04)
+
+**Bug: the §132 projectile panel never rendered** (Han: "ik kan het projectiel nog niet zien"). Root cause:
+`bestiaryAssets.js`'s `SHEETS` map is built from `import.meta.glob('../assets/ASSORTED/characters/**/*.png', …)`
+— scoped to `characters/` only. `fx/arrow.png` and `fx/Projectile sheet blue.png` live OUTSIDE that folder,
+so `SHEETS[m.portraitRelPath]` was always `undefined` and `variant.portraitUrl` was falsy, silently skipping
+the `<PortraitImage>` render (no error, just nothing drawn). Fixed by merging a second glob
+(`'../assets/ASSORTED/fx/**/*.png'`) into `SHEETS`.
+
+**Two follow-on polish fixes, same report:**
+
+- `PortraitImage`'s whole-file branch stretched the source image to fill the box (`width={size}
+  height={size}` on a plain `<img>`), ignoring aspect ratio — harmless for a roughly-square portrait but
+  badly distorting `arrow.png` (30×5px, a 6:1 sliver). Both branches (whole-file and cropped-cell) now
+  flex-center their content with `object-fit: contain` / a `Math.min(size/frame.w, size/frame.h)` scale
+  instead of stretching — Han: "ik verwacht... een 64x64 vak met de pijl (gecentreerd)".
+- The Wizard's portrait initially cropped frame (row 0, col 0) of the 6×6 "Projectile sheet blue.png" —
+  visually a bright muzzle-flash/spawn pose, not a recognizable bolt. Moved to (row 2, col 2), the settled
+  in-flight streak — a clearer single reference image. `portraitFrame` size (48×16) intentionally mirrors
+  `PROJECTILE_FRAME` in `src/model/enemyAssets.js` (duplicated, not imported — this generator script runs
+  under plain Node, outside Vite, the same cross-runtime boundary every other frame/cell constant in this
+  file already lives with).
+
+**New "RPG Level" tab** (Han: "maak een extra tab: 'rpg level'" + full tile-scene spec). Per Han's own
+framing when asked to disambiguate scope: a dev/preview tab alongside Bestiary (same `characterScreen`
+mechanism, §667) — NOT wired into actual level gameplay. `AvatarSubHeader`'s `SCREENS` gained a 5th entry
+(`rpg-level`, `Trees` icon); `App.jsx` renders `<RpgLevelPanel>` in the same top-area slot as
+`CharacterAvatarPanel`/`BestiaryTopPanel` when `characterScreen === 'rpg-level'` (no category-tab column —
+falls through the existing `[]` default alongside `equipment`/`stats`).
+
+**`RpgLevelPanel` (`src/components/character/RpgLevelPanel.jsx`, new file):** a simple layered tile scene,
+scaled at a fixed `ZOOM = 3` over the native 32×32 sprite grid (`T = 96px` on screen) — nothing here is tied
+to real gameplay pixel math (unlike `SheetRpgLayer`'s audio-anchored scroll), it is a static preview.
+
+- **Floor** — `Floor Tiles1.png` (288×576, 9×18 @32px) cells (1,2) and (1,3) [row;col, 1-indexed — Han's
+  interview answer, resolving the ambiguous "floor tiles1, tile 2 en 3" instruction], alternated to tile a
+  row pinned to the container's bottom edge (Han: "de tiles beginnen onder, tegen de bottom view aan"),
+  width computed from a `ResizeObserver` on the container so the row always fills whatever width is
+  available.
+- **Tree** — `Tree1.png` (256×208), the WHOLE file (Han: "tee1 (volledig)" — not a tileset cell), standing on
+  the floor at the left.
+- **Hero** — the SAME `CharacterDoll` paper-doll renderer used everywhere else (§6d), standing on the floor,
+  centered.
+- **Tent** — `Decor.png` (416×544, 13×17 @32px), a 3×2-tile (96×64) crop at rows 2-3. Verified visually (a
+  cropped-cell inspection render, not a guess) that TWO side-by-side tents live there, cols 1-3 and cols 4-6;
+  Han's "linksaan" (left-aligned) selects the FIRST one, cols 1-3.
+- **Grass tufts** — 5 individual 32×32 `Decor.png` cells at (5,1) (5,2) (5,3) (6,1) (7,1) [row;col], scattered
+  along the floor row, rendered LAST (highest z-order) so they sit in the foreground, in front of the
+  hero/tree/tent (Han: "op de voorgrond direct boven de dirt renderen").
+- **Debug grid** (§3a convention) — a 32×32 (on-screen 96×96) cyan grid overlay across the whole scene when
+  `debugMode` is on, so tile alignment can be eyeballed directly (Han: "toon een 32x32 grid").
+
+**Invariants:** purely additive — no existing screen, route, or gameplay path touched. `RpgLevelPanel` does
+not read or write any level/Sequencer state; it is a static preview fed only by `characterEditor` (for the
+hero) and `debugMode`.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (new), `src/components/layout/AvatarSubHeader.jsx`
+(5th `SCREENS` entry), `src/App.jsx` (import + `characterScreen === 'rpg-level'` render branch),
+`src/model/bestiaryAssets.js` (`SHEETS` now merges an `fx/` glob), `src/components/character/BestiaryPanels.jsx`
+(`PortraitImage` centered/contain-fit instead of stretched), `scripts/generate-bestiary-manifest.mjs`
+(Wizard's `portraitCell` moved to (2,2)).
+
+### §134. Evil Wizard split + "heel veel critters" batch + generator navigability pass (#692, Han 2026-08-04)
+
+**Evil Wizard.png → two creatures, not one.** Han: "evil wizard.png. rij 1: wizard evil, rij 2: wizard
+skeleton" — 768×128 = 12×2 @64×64 (matches the existing char_passive blanket frame rule, §672, exactly).
+Row 0 (a hooded caster with a glowing red orb) and row 1 (a robed skeleton wizard) are TWO DIFFERENT
+creatures sharing one file, not two animations of the same one — same shape as the pre-existing
+`expandCritters` ("critters sheet.png" = 16 different animals stacked in one file). New `expandEvilWizard()`
+mirrors that function: `scanRows` auto-detects each row's real frame count (no hand-counted numbers), and
+each row becomes its own manifest entry (`base: 'Evil Wizard'` / `'Wizard Skeleton'`, one `idle` animation).
+
+**"Heel veel critters"** — Han added `src/assets/ASSORTED/characters/animals/critters/`, replacing the old
+single `critters sheet.png` with ~100 additional files: three uniformly-shaped curated packs ("Basic Animal
+Animations", "Basic Vermin Animations", "basic magical animations" — 45 creatures total, EVERY file exactly
+64×16 = a 4-frame 16×16 idle loop, verified by measuring all 45) plus ~40 independently-sized loose
+"`<Creature> Sprite Sheet.png`" files. All of it lands in the ALREADY-EXISTING generic auto-scan pipeline
+(§668's `analyze()`/`guessFrameSize` — no new scanning code needed for the bulk of it), gated into the
+existing `critters` category (not `animal`, its physical folder's default) via one new `CATEGORY_OVERRIDES`
+entry matching `/animals\/critters\//`.
+
+**Bugs this surfaced/fixed while wiring it up (all in `scripts/generate-bestiary-manifest.mjs`):**
+
+- **Label quality ("labelen"):** the 45 curated-pack files are named in camelCase with no spaces
+  (`PlagueBat.png`) while their CONTAINING FOLDER already has the human label (`Plague Bat/`) — added a
+  generic "if the folder name and filename stem are the same word(s), just spaced/cased differently, use the
+  folder name" normalize-and-compare check (not a per-creature lookup table, §6c). The "basic magical
+  animations" folder happens to be all-lowercase (`water elemental`) unlike its siblings (`Plague Bat`) — that
+  branch also Title-Cases when the source folder is entirely lowercase, so display names read consistently
+  across all three packs. `stripBrand` (§682) also now strips a trailing "Sprite Sheet" suffix generically,
+  cleaning up the ~40 loose `"<Creature> Sprite Sheet.png"` files' labels too.
+- **Curated-keyword collision risk:** `CURATED_KEYWORDS`'s word-boundary check (`\bbat\b`, meant to dedupe
+  against the already-hand-curated gameplay `Bat` enemy) tests the name BEFORE the folder-name relabel above —
+  intentionally: `PlagueBat`/`SwoopingBat` (no space, no boundary hit) pass through and get their nice labels,
+  while the loose generic `Bat_Sprite_Sheet.png` (space-normalized to `Bat Sprite Sheet` for this check only)
+  correctly matches and is dropped as a duplicate of the curated `Bat`. Verified both outcomes directly against
+  the generated manifest.
+- **New junk pattern:** `" - Guides.png"` siblings (e.g. `"Human Baby Sprite Sheet - Guides.png"`) are
+  measurement/reference overlays — added to `JUNK_NAME` (same role as the existing `read ?me|portrait`
+  patterns). Bug found while fixing this: the new sub-pattern had a stray `$` anchor that never matched
+  because `JUNK_NAME` is tested against the filename INCLUDING `.png` — removed the anchor.
+- **New duplicate-download pattern:** a literal `" (1)"` suffix (`"Ice Elemental Sprite Sheet (1).png"`
+  sitting next to `"Ice Elemental Sprite Sheet.png"`) is Windows' generic duplicate-download naming, not a
+  second variant — new `DUPLICATE_DOWNLOAD_NAME` regex, excluded the same way as `EXCLUDED_NAME`.
+
+**Generator navigability pass** (Han: "vind een manier om alle sprites goed te organiseren, labelen,
+splitsen indien nodig, zodat je snel kan laden/vinden in de files"). `scripts/generate-bestiary-manifest.mjs`
+had crossed ~1900 lines. A full multi-file split was considered and explicitly deferred: every override table
+in the file reads/writes the SAME shared helpers (`scanRows`, `rowCells`, `analyze`, …), and this session
+already hit two subtle ordering bugs from code being read/written in the wrong sequence (§133's `stripBrand`
+ordering bug, §133's match-all-vs-match-one bug) — splitting ~1900 interdependent lines apart under time
+pressure risks a THIRD, harder-to-spot one. Applied the lower-risk fix instead: a table of contents + 17
+`═══ SECTION: … ═══` banner comments (grep/Ctrl+F-friendly) at the top of the file and before each major
+logical group (folder mapping, filters, variant parsing, file discovery, frame size, base-name overrides,
+row labels, pixel scanning, generic analyze, per-creature animation defs, roster sheets, column-sheet
+expansion, special one-off expansions, the main scan loop, post-process merges, swatch/portrait/brand-strip,
+output) — a concern now has an unambiguous place to land without reading the whole file top to bottom. If a
+heavier multi-file split is still wanted, it should be its own careful, tested pass, not bundled into this one.
+
+**Invariants:** the generic scan pipeline (§668) is unchanged — every fix here is either a new filter/override
+entry (same shape as dozens of existing ones) or a comment-only navigability aid; no scanning LOGIC changed.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (`expandEvilWizard`, critters `CATEGORY_OVERRIDES` entry,
+folder-name-relabel + Title-Case normalization, `stripBrand` trailing-suffix strip, `JUNK_NAME`/
+`DUPLICATE_DOWNLOAD_NAME` additions, 17 section banners + TOC), `src/model/bestiaryManifest.generated.js`
+(regenerated).
+
+### §135. Level 9 UAT rounds 2-3 (odd/even parity flip, wizard attack timing, whole-rest collapse); bestiary portrait rework (true-size/64×64/oscillation/frame overlay, side-portraits); new RPG Level movement/pet/NPC-dialogue system (#693, Han 2026-08-04)
+
+**Level 9 — odd/even measure model, corrected twice in UAT.** Round 2 (Han: "de noten zijn niet netjes per
+maat gescheiden... oneven maat: leeg, even maat noten... In debug mode zijn deze zichtbaar. In niet-debug
+mode zijn ze onzichtbaar... je mag in de volledig lege maten een hele rust plaatsen, niet een 4x
+kwartrust"): `App.jsx`'s `restifyOddMeasures` now bakes the collapse into the CANONICAL `trebleMelody`
+itself (not a separate rendering clone) — one measure-parity collapses to a single whole-rest (`note:'r'`,
+`duration:measureLengthTicks`, at the measure's first slot; every other slot in that measure → invisible
+`'c'`), the other parity is left completely untouched (its own natural mix of real notes AND real rests).
+`SheetRpgLayer`'s two-layer render split simplified to match: `noteStaffContentRest` (always visible) shows
+the collapsed-parity's whole-rests PLUS the other parity's NATURAL rests; `noteStaffContentReal`
+(debug-only) shows ONLY the other parity's real notes (natural rests already drawn by the layer above —
+no double-draw). Round 3 UAT (Han, after seeing it live): "even measures should have no notes, just a
+whole rest. the odd measures should have invisible quarter notes, and visible rests" — flipped which
+parity collapses (`measureNum % 2 !== 0` → EVEN, not odd) in both `restifyOddMeasures` and the
+content-based `isAlreadyRestified` self-correction check (§ below).
+
+**Bug: stray default-scale melody heard through the real music on first play** (Han: "de eerste keer hoor
+ik dwars door de muziek de default melodie (toonladder in c)"). Root cause: `trebleMelody` legitimately
+changes MORE than once early in a level's life (initial generation → the restify bake-in above is a SECOND
+change on top of that), and the wizard-cast-preview `useEffect` re-fired for EACH change without cancelling
+its PREVIOUS `playMelodies` schedule — two overlapping schedules played simultaneously. Fixed two ways: (1)
+a DEDICATED `wizardPreviewStopFnsRef` (not the shared `levelBackingStopFnsRef`, which bass/metronome/timpani
+also use and must not be blanket-cancelled) is drained before every new schedule; (2) the restify bake-in
+itself switched from a REFERENCE-equality guard (`restifiedRef.current === trebleMelody`, which only
+protects against re-transforming the exact object just written back) to a CONTENT-based one
+(`isAlreadyRestified`: is the first collapsed-parity slot already a single whole-rest of the right
+duration?) — self-correcting no matter what else keeps replacing `trebleMelody` (a numMeasures-resize
+effect, a scale/transpose rebuild from `referenceMelody`, …), since a non-collapsed melody always gets
+fixed and an already-collapsed one is always left alone (can never loop).
+
+**Wizard attack animation — timed to the note, not free-running.** Han: "gebruik alleen de attack animatie
+wanneer een noot gemaakt wordt" — the wizard's swing now triggers per NOTE instead of a generic per-spawn
+Cast2 loop (§679/§686, now removed). Frame numbers (1-indexed, row-major across the 6-col sheet,
+`wizardFrameCell` — §6c, one formula) went through 2 UAT revisions before landing on the final spec:
+- **single** note: f26-31, flash (the moment the projectile "fires") at f30.
+- **double** (2 consecutive quarter notes): f26-31, 32-34, skip f35, 36-37 — one continuous swing covering
+  BOTH notes' flashes (f30, f36) instead of restarting the windup for the 2nd note.
+- **triple**: f26-31, 32-34, skip f35, 36-38, skip f39, 40-44 — three flashes (f30, f36, f42).
+
+`WIZARD_ATTACK_CELLS`/`_DOUBLE`/`_TRIPLE` + their flash-index arrays (`src/model/enemyAssets.js`) are built
+by ONE shared `wizardAttackRun(frames, flashFrames)` helper, not 3 hand-copied cell lists.
+`SheetRpgLayer`'s trigger (per render tick): scans `slimeData` for the earliest note whose "time since
+becoming visible" places the run's OWN flash-frame exactly at ms=0 (the same instant the wizard-cast audio
+plays, §132/§693's time-shifted schedule) — detecting 2-or-3-in-a-row via `oneBeatLater(a,b)` and skipping
+notes already covered by an earlier note's triggered run.
+
+**Projectile oscillation halved** (Han: "make the projectile oscillation 50% smaller in both directions") —
+`PROJECTILE_OSCILLATE_RANGE`, 15 → 7.5. The wobble function itself (`oscillate`) was extracted from
+`SheetRpgLayer.jsx` into `src/utils/oscillate.js` so the bestiary's projectile portraits (below) can reuse
+the IDENTICAL implementation instead of a second hand-copied one (§6c/§6d).
+
+**Bestiary portrait rework — "true size", not stretched.** Han's round-2 request ("dezelfde schaal als de
+boogschutter... nog niet geanimeerd") led to a non-square, fill-available-space box; round-3 UAT reverted
+that: "the portrait for the projectiles should be 64x64; as any other portrait... true size wrt the frame
+(30x5 (arrow) or 48x16 (magic) fitting into a 64x64 frame), centered, with mild oscillations." `PortraitImage`
+(`BestiaryPanels.jsx`) now: every portrait (whole-file or cell-cropped) is a SQUARE `size`×`size` box; content
+scale is `size / 64` (a fixed 64×64 reference — NEVER frame-dependent, so content shows at its own "true"
+pixel density matching every other 64-unit sprite in the app); centered on both axes via flex; clipped if it
+overflows (Mind Blast's 96×32 frame is wider than 64 — "center and clip"). `oscillateSeed` (optional) adds
+the SAME sheet-music wobble via `translate()` on the centered content — opted in per entry
+(`portraitOscillate: true` in the manifest) for the Archer's arrow and the Wizard's projectile only, not
+every portrait (a static reference image like Poop Impact Sheet shouldn't wobble).
+
+**`Frame64Overlay`** — a decorative pixel-art border (`icons/GandalfHardcore Pixel Art Game UI/64x64
+frame.png`, Han: "for the 64x64 frames, use icons/gandalfhardcore pixel art game ui/64x64 frame as an
+overlay to all 64x64 frames") now draws on top of every 64-reference box: `CreatureSprite`'s TOP-view framed
+box AND `PortraitImage`'s box. Scoped to those two (not the bottom-view thumbnail grid, which already uses
+the `.cc-enemy-thumb` button as its own visual box).
+
+**Side-portraits** — Han: "portait/wizard: add the animated projectile right of the portrait." The 8-colour
+`Wizard (Portrait)` creature's ONE portrait slot is already spoken for (its own colour-crop portrait), so a
+projectile companion needs an INDEPENDENT 2nd slot: new `sidePortraitRelPath`/`Cell`/`Frame`/`AnimCols`
+fields (manifest → `bestiaryAssets.js` → a 3rd `<PortraitImage>` in `BestiaryTopPanel`, rendered only when
+present) — resolved via a new `SIDE_PORTRAIT_OVERRIDES` table, matched the same (base,variant) way
+`PORTRAIT_OVERRIDES_BY_NAME` already is.
+
+**Critters batch round 3 corrections:** Porcupine's frame size, corrected AGAIN (round 2 said 40×40; round 3
+said 32×32 — the later instruction wins, same convention this whole session); Imp added at 32×32, capped to
+its first 6 content rows (`analysis.animations.slice(0,6)` — it auto-detects up to 12); Training Dummy moved
+to `other`; Flying Brain Monster's Mind Blast portrait switched from a static whole-file image to an
+ANIMATED one (96×32 frame, 5 frames, `portraitAnimCols:5` — matches the real 480×32 file exactly).
+
+**New "RPG Level" tab: movement, a following pet, and an NPC with dialogue** (Han, several follow-up
+messages). `useRpgLevelState` (new hook, `src/hooks/useRpgLevelState.js`, mirrors `useBestiaryEditor`'s
+"one shared instance passed to both the top scene and the bottom panel" pattern) owns: player/pet position
+(world units, native/unscaled px), keyboard input, click/tap-to-move, and dialogue state.
+
+- **Movement** — A/D or arrow keys (held-down state), OR tap/click anywhere on the scene to walk toward
+  that point (`moveTo`) — a single rAF loop drives velocity, facing (mirrors via `scaleX`), and switches the
+  hero's animation between `walk`/`rest` (`ANIMATIONS` from `characterAssets.js`, the SAME set the character
+  creator uses).
+- **Grass tiles** — switched from Floor Tiles1 (32×32) to Floor Tiles2, sliced at 16×16 (Han: "onderverdeel
+  in 16x16"), 8 candidate cells (row 1, cols 2-5 and 8-11 — the flat-top middle tiles of each 6-wide block,
+  verified visually, same block-edge-avoidance reasoning as the original Floor Tiles1 pick) chosen randomly
+  per floor slot (`Math.random()`, re-rolled only when the slot count changes, not every render).
+  **Bugfix:** everything standing ON the floor (tree/tent/hero/NPC/pet) was still positioned at `bottom: T`
+  (the OLD 32px-tile screen height) after this switch — 16px (native) too high, since the floor's OWN new
+  height is `FLOOR_T` (half of `T`). Every such position now uses `FLOOR_T`.
+- **A following pet** — hangs back until the leash (`PET_FOLLOW_GAP`, 64 world units — Han's literal pixel
+  figure, not his "3 tiles" arithmetic which would be 96) stretches taut, THEN keeps closing the gap (a
+  `petFollowingRef` hysteresis flag) until it's almost touching the player (`PET_CLOSE_ENOUGH`), not just
+  until back under the trigger distance — round-3 UAT: "zorg dat de pet helemaal doorloopt tot vlakbij het
+  personage." Rendered as its OWN standalone `PetSprite` (not CharacterDoll's built-in glued-on pet layer,
+  which was ALSO rendering and produced a visible duplicate — "de pet die vasthangt aan personage, die mag
+  weg" — the doll now gets a `noPetChar` clone with `layers.pet` stripped). Temporarily hardcoded to the
+  bestiary's Fox sprite (Han: "de spritesheet klopt niet [voor de equipped pet]. hardcode voorlopig bestiary
+  fox als pet") pending a real fix to the equipped-pet crop.
+  **Bugfix (`PetSprite`):** the pet's crop hardcoded `backgroundSize: 5×32` (Wisp's own 160×32 = 5-col/1-row
+  layout) — Fox's real sheet is 192×64 = 6-col/2-row, so that fixed size squashed BOTH of Fox's rows into
+  the intended single-row window (a visible smeared double-image). Fixed by switching to `backgroundSize:
+  'auto'` + a native-sized inner div scaled via `transform` (the SAME technique `SheetCrop`/CharacterDoll's
+  own pet layer already use) — robust to any sheet's total dimensions, no column/row count needs to be known
+  upfront.
+- **Whisp NPC + dialogue** — a fixed-position, always-idle Wisp sprite (same asset/pet-crop convention as
+  the equippable pet, §6d) placed clear of the tree/tent (world x=0) so it's never DOM-order-occluded by
+  them. Clicking it (`clickNpc`) walks the player there (`moveTo` + an `onArrive` callback) and opens a
+  dialogue once arrived. `RpgLevelBottomPanel` (new file) renders the bubble in the BOTTOM area (Han:
+  "Tekstballon mag in bottom view", not floating over the scene) using `Habbo.ttf` (one of ~40 unused pixel
+  fonts already bundled under `assets/fonts/pixel_fonts/` — a first pick, flagged for Han to swap). Round-3
+  redesign: "maak een kader van 64 hoog, met links in het kader een avatar van het sprekende personage...
+  rechte hoeken, en breedte 256 exc de 64px portret" — a 64px-tall flex row, the speaker's own portrait
+  (currently always the Wisp — the only thing that can start a dialogue) pinned to the left at native pet-
+  crop scale, square corners (`borderRadius:0`), a 256px text column to its right (320px total).
+
+**Q&A, no code change:** Han asked whether all the RPG-level assets share the same pixel scale — the tree
+(`Tree1.png`) genuinely does have a finer/denser pixel grid than the 32px-tile-native character/tile
+sprites; it's a higher-effective-resolution painted asset, not a scaling bug, and there's no clean way to
+force pixel-perfect consistency without resampling the source art down to a chunkier pixel size (a content
+decision, not something to do silently).
+
+**Invariants:** the melody-generation pipeline (§6b) is untouched — `restifyOddMeasures` is a post-generation
+transform living in App.jsx, not a change to `melodyGenerator.js` internals. The RPG Level tab remains a
+static/interactive PREVIEW only — still not wired into real level gameplay.
+
+**Files:** `src/App.jsx` (`restifyOddMeasures`/`isAlreadyRestified` parity flip + content-based guard,
+dedicated `wizardPreviewStopFnsRef`, `useRpgLevelState` instantiation + threading), `src/model/enemyAssets.js`
+(`WIZARD_ATTACK_CELLS`/`_DOUBLE`/`_TRIPLE` + `wizardAttackRun`, `WIZARD_CAST2_CELLS` removed),
+`src/components/sheet-music/SheetRpgLayer.jsx` (render-split simplification, wizard attack trigger rewrite,
+`PROJECTILE_OSCILLATE_RANGE` halved, `oscillate` now imported from `src/utils/oscillate.js`),
+`src/utils/oscillate.js` (new, extracted), `src/components/character/BestiaryPanels.jsx` (`PortraitImage`
+true-size/centered/clip/oscillate rewrite, `Frame64Overlay`, 3rd side-portrait slot), `src/model/bestiaryAssets.js`
+(`portraitOscillate`, `sidePortrait*` fields), `scripts/generate-bestiary-manifest.mjs` (Porcupine/Imp/
+Training Dummy/Mind Blast fixes, `PORTRAIT_OVERRIDES_BY_NAME.portraitOscillate`, new
+`SIDE_PORTRAIT_OVERRIDES`), `src/model/bestiaryManifest.generated.js` (regenerated), `src/hooks/
+useRpgLevelState.js` (new), `src/components/character/RpgLevelPanel.jsx` (movement/pet/NPC rendering,
+16×16 floor tiles, `FLOOR_T` position fixes, `PetSprite` crop bugfix), `src/components/character/
+RpgLevelBottomPanel.jsx` (new).
+
+**Round 4 correction (same day):** Han's round-3 parity flip (§ above — collapse EVEN, keep ODD) turned out
+to be wrong; round-4 UAT restated it explicitly: "de noten om te spelen staan in de EVEN maten. de ONEVEN
+maten hebben altijd een hele rust (forceer dat). de noten in de EVEN maten worden een maat op voorhand óók
+door de wizard gespeeld; en op dat moment verschijnen de projectiles." This is the ORIGINAL round-2 mapping
+— `restifyOddMeasures`/`isAlreadyRestified` (App.jsx) and `SheetRpgLayer`'s render split both flipped back:
+ODD measures ALWAYS collapse to a single forced whole-rest; EVEN measures keep their real playable notes
+(hidden unless debug), matching what the wizard-cast audio + projectile-visibility gate already do (both
+already fire exactly one measure before each note's real position, landing the cast/spawn in the
+PRECEDING — odd, otherwise-silent — measure, unchanged by this parity correction). Browser-verified: odd
+measures render as one whole-rest glyph, even measures show debug-only real notes with the wizard's attack
+flash landing exactly on the cast moment.
+
+**Round 5 (same day) — "maat 1 = maat 2" at the data level, plus two silent rendering bugs that were making
+measure 1 and 2 look identical regardless of the odd/even collapse.** Han: *"Genereer als volgt: steeds, 1
+maat; numrepeats = 2. dus maat 1 = maat 2 ... ik zie nu noten in maat 1 EN in maat 2; dat zou sowieso niet
+mogen. de logica van de tovenaar is al goed geimplementeerd, daar is geen probleem."*
+
+*Generation shape.* `numMeasures: 1, numRepeats: 2` (levels.json) was tried first, reusing the §128 "Sequencer
+repeats a single generated measure" mechanism — but that mechanism repeats the measure as a second PLAYBACK
+ROUND (`playbackConfig.repsPerMelody`, driven by `useLevel.js`), not a second adjacent measure of tick-space;
+with only 1 measure ever generated there was no "measure 2" for the odd/even override to act on. Reverted to
+`numMeasures: 2, numRepeats: 1` (unchanged wave count, `wavesForLevel` still 1) and added
+`duplicateMeasureOneIntoTwo` (App.jsx, alongside `restifyOddMeasures`) — copies measure 1's notes/durations
+onto measure 2's matching slot BY RELATIVE OFFSET before the odd-measure collapse runs, so "maat 1 = maat 2"
+holds literally at the data level (the wizard's cast — unchanged, §128/round-4 — and the player's real
+content are always the same pitches).
+
+*Bug 1 — collapsed slots still occupied real tick-space.* `restifyOddMeasures`'s 2nd+ slot of a collapsed
+measure was set to `notes[i] = 'c'` but its ORIGINAL `duration`/`offset` were left untouched. Since
+`processMelodyAndCalculateSlots` (the function that turns raw melody data into renderable slots) has no
+`'c'`-specific skip — it slot-splits every entry with a non-null duration uniformly — that left-over
+duration/offset OVERLAPPED the whole-rest now written into slot 1 (which spans the entire measure), and
+the overlap corrupted the function's measure-boundary splitting: notes several slots downstream got
+reordered/duplicated into the wrong measure. Fix: the 2nd+ slot now nulls `duration` AND `offset` too (not
+just the note glyph), matching every other "no content here" slot already skipped throughout the codebase
+(`offset == null` in `restifyOddMeasures`'s own loop and pervasively in `SheetRpgLayer.jsx`).
+
+**Bug 2 (the deeper one) — `displayNotes` silently diverged from `notes`.** `processMelodyAndCalculateSlots`
+PREFERS `melody.displayNotes` over `melody.notes` whenever `displayNotes` is present (it holds the
+transposed/relative display pitches). `restifyOddMeasures`/`duplicateMeasureOneIntoTwo` only ever
+transformed `.notes`/`.durations`/`.offsets` — never `.displayNotes` — so the RENDERED sheet (which reads
+`displayNotes`) kept showing the melody's ORIGINAL, un-collapsed pitches while `.notes` (read by combat
+grading and the wizard-cast audio) was correctly restified. This is why Han kept seeing "notes in measure 1
+AND measure 2" even after the App-state data was verified correct via logging — two representations of the
+same melody had silently split. Fix: both transforms now mirror every edit onto `displayNotes` in lockstep
+(same index, same 'r'/'c' substitution) whenever it's present.
+
+**Verification method note:** diagnosing bug 2 required bypassing React DevTools-style guesswork — a
+temporary `console.log` placed literally inside the `useMemo` callback (logging its OWN input immediately
+before calling `processMelodyAndCalculateSlots`, alongside the OUTPUT) proved the function's output didn't
+match its own input for the SAME synchronous call, which is only possible if the function reads a DIFFERENT
+field than the one being tracked — leading straight to the `displayNotes`-vs-`notes` fork in
+`processMelodyAndCalculateSlots.js` line 42-44. (React StrictMode double-invocation was briefly suspected
+and ruled out by temporarily removing `<React.StrictMode>` from `main.jsx` — the bug persisted identically,
+so StrictMode was restored unchanged.)
+
+**Invariant added:** any future transform of `trebleMelody` (or any melody object) that edits `.notes` for
+rendering purposes MUST also mirror the same edit onto `.displayNotes` when present, or the sheet will
+silently render the pre-transform pitches while everything else (audio, grading) uses the post-transform
+ones. `processMelodyAndCalculateSlots`'s displayNotes-preference (line ~42-44) is the reason why.
+
+**Files:** `src/levels/levels.json` (Level 9: `numMeasures: 2, numRepeats: 1`, reverted from the `1`/`2`
+attempt), `src/levels/__tests__/levels.test.js` (updated wave-count test + comment), `src/App.jsx`
+(`duplicateMeasureOneIntoTwo` added; `restifyOddMeasures` nulls duration+offset on collapsed slots and
+mirrors `displayNotes`), `src/components/sheet-music/SheetMusic.jsx` (`sliceMelodyForPagination` now bypasses
+pagination-window slicing when `sideScroll` is active — side-scroll levels must always see the melody's true
+absolute offsets, since `SheetRpgLayer`'s odd/even override computes measure parity straight from
+`offset / measureLengthSlots`; a paginated re-window would rebase those offsets and desync the parity).
+
+### §136. Whole-measure rests render centered; Level 9 extended to 8 measures as 4 independent JIT call-response blocks (#693, Han 2026-08-04, round 6)
+
+**Feature 1 — whole-measure rests are horizontally centered.** Han: *"maak een nieuwe regel in render
+sheet music: als de hele maat een rust is, mogen ze gecentreerd in de maat staan."* Applies everywhere
+`renderMelodyNotes.jsx` draws a rest (Han's explicit answer: "overal", not just Level 9) — a rest with
+`duration === measureLengthSlots` (it fills the entire measure) is centered between that measure's two
+barlines instead of left-anchored at its own offset like every partial-measure rest.
+
+**How it works:** a new helper `getWholeMeasureRestCenterX(offset, measureLenSlots)` sits beside the
+existing `getTickX` helper. In tick/pixelsPerTick mode (scroll/animation — Level 9's own rendering path)
+it's an exact linear conversion: `startX + (measureStart + measureLenSlots/2) * pixelsPerTick`. In
+pagination/slot-index mode (no fixed tick→pixel scale — spacing is elastic between `'m'`/`'g'` markers)
+it instead scans `allOffsets` left/right from this note's own index for the bounding `'m'` (barline)
+markers and averages THEIR pixel positions. The rest-rendering branch then sets the glyph's `x` to this
+center and `textAnchor="middle"` (SVG's own centering, robust to the glyph's actual rendered width —
+no manual glyph-width guessing needed) instead of the normal `textAnchor="start"` at `positionX`.
+Non-whole-measure rests (a single beat's rest, etc.) are completely unaffected — they keep the original
+left-anchored `positionX`.
+
+**Files:** `src/components/sheet-music/renderMelodyNotes.jsx` (`getWholeMeasureRestCenterX` helper; the
+`note === 'r'` branch now branches its `x`/`textAnchor` on `duration === measureLengthSlots`).
+
+**Feature 2 — Level 9 is 8 measures, generated as 4 independently-randomized call-response blocks, JIT.**
+Han: *"nu is de lengte van het level maar 2 maten; maar daar 8 van (dus genereer sequentieel 4 blokken
+zoals maat 1 en 2)."* Interview confirmed: (a) the 4 blocks are independently randomized — block 2's
+pitches differ from block 1's, not a literal repeat; (b) generation is **just-in-time**, explicitly
+NOT all 8 measures up front — Han: *"just-in-time genereren, dus een halve maat voor een nieuw maatblok
+in beeld moet komen, wordt ze gegenereerd"* (generate a new block half a measure before it's needed),
+overriding the interviewer's own upfront-generation recommendation.
+
+**Why JIT and not upfront:** §688 documents a PRIOR 4-wave, per-wave-regeneration architecture for Level 9
+that caused an overlapping-audio bug and was reverted to "one continuous melody" in §130. This round
+reinstates JIT *generation* (not the old wave-regeneration mechanism) deliberately scoped to avoid that
+regression: `useLevelTrebleStream.js` mirrors the ALREADY-PROVEN `useLevelBackingStream.js` JIT-chunk-append
+pattern (same StrictMode-safe mount/cleanup discipline: cancel-this-run's-pending-timers-and-audio on
+cleanup so a StrictMode remount can safely redo everything) instead of inventing new architecture — §6c
+("use existing logic") applied at the hook-design level, not just inside a function body.
+
+**Generation:** `generateLevel9CallResponseBlock.js` (new, pure — mirrors `generateLevelBackingChunk.js`'s
+"no React, no Sequencer" boundary) generates ONE call measure via the SAME `MelodyGenerator` every other
+track uses, then builds the block's second (response) measure as a verbatim copy of the call's raw notes
+one measure later, and collapses the call measure to a forced whole-rest — baking in the EXACT transform
+`restifyOddMeasures`/`duplicateMeasureOneIntoTwo` (round 5) used to apply AFTER the fact to a whole
+pre-generated melody. Each block is independently randomized (fresh `MelodyGenerator` call per block) —
+satisfies "blok 2 dus andere toonhoogtes dan blok 1" directly, no separate post-process step needed.
+
+**Streaming/scheduling:** `useLevelTrebleStream.js` (new) owns a growing treble `Melody` (appended one
+2-measure block at a time, `appendBlock` — same shape as `useLevelBackingStream`'s `appendChunk`) AND each
+block's own wizard-cast-preview audio scheduling (reusing the SAME Soundfont instance/lead-time formula
+the OLD one-shot effect used, just applied per-block instead of "reschedule the whole melody on every
+change"). Block *b*'s generation timer fires at `blockStartTime(b) − 0.5 barSec` (half a measure of lead
+time, Han's literal spec) — comfortably ahead of when block *b*'s OWN cast needs it (which fires exactly
+at `blockStartTime(b)`, no slack, since the cast is `wizardSpawnLeadMeasures` measures earlier than the
+response measure's real position = the call measure's own start).
+
+**Combat/grading required NO changes.** `SheetRpgLayer.jsx`'s `slimeData` is a `useMemo` keyed directly
+off the `trebleMelody` prop — as the stream's melody grows (new blocks appended → new object reference),
+`slimeData` recomputes and automatically includes the new block's notes on the next render. This reactive-
+recompute pattern (verified by reading the code, not assumed) is what de-risked building the JIT stream at
+all: no separate "combat needs to know about new content" wiring was needed.
+
+**What replaced what:** the round-5 `restifyOddMeasures`/`duplicateMeasureOneIntoTwo`/`isAlreadyRestified`
+App.jsx functions and the old one-shot wizard-preview-audio effect are REMOVED — both only ever handled
+Level 9's melody, which is now generated already-correct (rest+duplicate baked in at generation time) by
+`generateLevel9CallResponseBlock.js`, so the post-hoc transform is no longer needed. `MelodyProvider`'s
+`treble` prop now reads `levelTrebleStream.treble` while Level 9 is active (`level.active &&
+level.current?.enemyType === 'Wizard'`) — the exact override pattern `bass`/`metronome` already use for
+`useLevelBackingStream`.
+
+**`levels.json` semantics:** `numMeasures` for Level 9 is now the level's TOTAL content length (8),
+matching how `useLevelBackingStream` already treats `lvl.numMeasures` for bass/metronome — NOT a per-block
+size; the new hook internally chunks it into 2-measure blocks. `totalMeasures` stays equal to `numMeasures`
+(8) so `wavesForLevel` remains exactly 1 (one continuous piece — §130's precedent, unchanged) — the
+4-block structure is an internal JIT-generation detail invisible to the wave-counting/level-completion
+system.
+
+**Invariants:** the melody-generation pipeline (§6b) is untouched — `generateLevel9CallResponseBlock`
+calls the SAME `MelodyGenerator` every other track uses, just 1 measure at a time, no hardcoded pattern.
+`useLevelTrebleStream` never mutates `trebleMelody`/`melodies.treble` (the shared state every OTHER
+level/mode uses) — it owns its own independent, level-9-scoped growing melody, threaded in only via the
+`MelodyProvider` override.
+
+**Files:** `src/components/sheet-music/renderMelodyNotes.jsx` (feature 1, above), `src/generation/
+generateLevel9CallResponseBlock.js` (new), `src/hooks/useLevelTrebleStream.js` (new), `src/App.jsx`
+(removed `restifyOddMeasures`/`duplicateMeasureOneIntoTwo`/`isAlreadyRestified`/old wizard-preview effect;
+added `useLevelTrebleStream` instantiation + `MelodyProvider` treble override), `src/levels/levels.json`
+(Level 9: `numMeasures`/`totalMeasures` 2 → 8), `src/levels/__tests__/levels.test.js` (updated wave-count
+test + comment), `src/generation/__tests__/generateLevel9CallResponseBlock.test.js` (new smoke tests).
+
+**Bug fix (same day, same ticket) — wizard cast landed late from block 2 onward.** Han: *"vanaf maat 4 komt
+de muziek van de wizard te laat, ongeveer een halve maat. visueel klopt het nog wel."* Root cause:
+`playMelodies.js`'s `adjustedStart = Math.max(scheduledStart, context.currentTime + safetyBuffer)` silently
+clamps any `scheduledStart` already in the past to "play almost now" instead of erroring — audible as a
+late, sluggish cast rather than a crash. `useLevelTrebleStream`'s per-block generation timer fired "half a
+measure before the block visually starts" (`blockStartTime`), but the wizard's cast target is
+`blockStartTime − leadOffsetSeconds` (a full measure EARLIER, via `wizardSpawnLeadMeasures`) — leaving only
+`leadOffsetSeconds − 0.5·barSec` of real slack before that clamp-triggering deadline. Blocks 0/1 are
+generated synchronously at level start (comfortable multi-measure slack either way) so the bug was
+invisible until block 2 (measures 5-6), generated via the `setTimeout` path, where the shrunk slack was
+consumed by ordinary JS/timer jitter. Fix: the generation timer now targets half a measure before the
+CAST's own deadline (`blockStartTime − leadOffsetSeconds − 0.5·barSec`), not half a measure before the
+block's visual start — verified via injected logging that every block's `scheduledStart` now has ≥1
+measure of positive slack against `context.currentTime` at the moment it's scheduled (was ≈0/negative for
+blocks 2+ before the fix). **Files:** `src/hooks/useLevelTrebleStream.js` (the `nextIndex` branch's
+`delayMs` computation).
+
+### §137. Header pause/resume/quit; level-start UI reset; RPG world classified animations + parallax + scrolling camera (#693, Han 2026-08-04, round 7)
+
+**Header Pause button replaces the floating "■ Stop" button.** Han: *"the stop button feels totally not
+integrated into the app. It should replace the 'start level' button in the header when a level is active.
+Make it a 'pause' button, with a pop-up: resume / quit."* `AppHeader.jsx`'s Swords ("Start Level") button
+slot now conditionally renders a `Pause` icon (`levelActive` prop) that opens `LevelPausePopup` (new,
+`src/components/levels/LevelPausePopup.jsx`, reusing `LevelSplash.css`'s overlay/card/button classes —
+§6d, no new modal visual language) instead of the level picker. The old fixed-position "■ Stop" button
+(App.jsx) is removed entirely.
+
+- **Quit** — identical teardown to the old Stop button (`stopAllBackingAudio`, `handleStopAllPlayback`,
+  `level.close()`), PLUS reopens the level-picker splash (`setShowLevelPicker(true)`) — Han: "quit: go to
+  splash screen immediately."
+- **Resume** — Han: *"take the current timestamp. clear any notes that were supposed to be played (on the
+  input track, but do not clear notes on the other tracks); go to the start of the measure, play a
+  metronome for one measure, then resume from the start of the measure where the player left off."*
+  `handleResumeLevel` (App.jsx) computes the 0-based measure the player was in from elapsed time since
+  `levelAudioStart`, tears down all currently-scheduled/sounding audio (same as Quit, but WITHOUT
+  `level.close()` — stats/wave state survive), then re-anchors `levelAudioStart` so a 1-measure metronome
+  count-in starts immediately and the level's content resumes exactly at that measure's start.
+  **Known simplification (flagged, not silently assumed):** every side-scroll JIT stream
+  (`useLevelBackingStream`, `useLevelTrebleStream`) is keyed off `levelAudioStart` and fully regenerates
+  from its own start relative to the NEW anchor — so while nothing the player must still play carries over
+  as already-due/already-missed (satisfying Han's input-track requirement), the backing/wizard melody
+  content itself is freshly regenerated rather than replaying byte-identical prior content. A fully
+  non-destructive resume (preserving already-generated blocks verbatim across a re-anchor) would need
+  those hooks reworked to decouple "content already generated" from "playback anchor" — noted as a
+  follow-up, not attempted here given the size of that change.
+
+**Starting a level resets the UI.** Han: *"starting a level closes character UI, any settings overlays, and
+switches the input view to the proper input (top keys by default)."* `startLevel` (App.jsx) now calls
+`closeAllEditModes()`, `setCharacterScreen(null)`, and `setActiveTab('piano')` (the "TOP" tab — treble key
+row) before `level.start(lvl)`.
+
+**RPG Level tab — classified animations, parallax backgrounds, 200-tile scrolling world.** Still a
+preview/dev tab (Han's explicit answer this round: NOT wired into real Level 9 gameplay), but substantially
+reworked:
+
+- **Classified animations reused, not hand-rolled.** Han: *"we put a lot of work into classifying sprites
+  and animations; so make use of that work when placing assets into the world... i expect the fox to use
+  the 'walk' animation when walking."* `BestiaryPanels.jsx`'s `CreatureSprite` (previously local to that
+  file) is now exported and reused directly by `RpgLevelPanel.jsx`'s new `WorldCreature` wrapper — the pet
+  (Fox) and NPC (Wisp) are looked up via `SCANNED_CREATURES` (bestiaryAssets.js) instead of hand-rolled crop
+  math, and `WorldCreature` picks the classified `move` animation when `moving`, `idle` otherwise (falling
+  back to `idle`/first-available for creatures with no `move` row, e.g. Wisp). `useRpgLevelState.js` exposes
+  a new `petMoving` boolean (the pet's own follow-motion state, distinct from the player's `moving`) so the
+  fox's animation reflects ITS OWN walk/idle state, not the player's.
+- **Parallax background — 5 layers, back to front.** Han's exact spec: theme background (static) →
+  background 4 (0.2) → background 3 (0.4) → background 2 (0.6) → background 1 (0.8) → level (parallax 1).
+  Assets: `src/assets/ASSORTED/backgrounds/Normal BG/` — `layer 5` (a plain sky gradient, farthest/least
+  detail) is the static theme backdrop; `layer 4` → `layer 1` (mountains → dense near trees, verified
+  visually by file-size/silhouette-density falling off in that order) are the 4 parallax layers, each
+  `background-repeat-x` tiled with its own `-cameraX * factor` offset.
+- **200-tile scrolling world + dead-zone camera.** Han: *"make it possible to move beyond the screen edge.
+  Generate a level of 200 16x16 tiles. level should start moving when the character is at 1/3 of either
+  screen edge. pressing and holding near screen edge should keep the character moving."*
+  `useRpgLevelState.js` exports `LEVEL_MIN_X`/`LEVEL_MAX_X` (`±1600`, i.e. exactly 200×16px, centered on the
+  original spawn point) — the player is now clamped to this range instead of the old unbounded/viewport-
+  sized movement. `RpgLevelPanel.jsx` owns a separate `cameraX` (world-x rendered at screen center) driven
+  by its own rAF loop: a dead-zone follow — the camera only moves once the player's on-screen position
+  leaves the middle third (`viewHalfWorld / 3`), then re-centers them back to that line, clamped so the
+  viewport never shows past the level's own edges. EVERY world object (floor, tree, tent, NPC, pet, hero,
+  grass tufts) now goes through one `worldToScreenX(worldX) = centerX + (worldX - cameraX) * ZOOM`
+  conversion — previously a fixed `centerX + worldX*ZOOM` mapping that only worked because the camera never
+  moved. New `EdgeHoldZone` (15% of viewport width on each side) — press-and-hold calls
+  `setHeldDirection(dir)` (new in `useRpgLevelState.js`), reusing the SAME held-key movement path keyboard
+  input already drives (§6c — no parallel "auto-walk" mechanism), instead of a one-shot `moveTo`.
+
+**Known issue (flagged, not resolved this round):** sustained held-movement (holding a direction key for
+several continuous seconds) intermittently logs a React dev-mode "Maximum update depth exceeded" warning.
+Extensively diagnosed (disabling the camera effect entirely still reproduced it; captured stack traces
+pointed at two DIFFERENT, seemingly-unrelated setState call sites across separate runs — `useCharacterEditor`'s
+own idle-animation interval once, `RpgLevelPanel`'s ResizeObserver cleanup once — suggesting a genuine
+render-cascade rather than one single buggy line). Does NOT crash the app or visibly break functionality
+(verified via screenshots taken during/after sustained movement — the camera keeps following, animations
+keep playing correctly) and is a React DEV-MODE-ONLY diagnostic (not present in production builds). Given
+the RPG tab's own "preview only" status and time constraints, this was not chased further — flagged here as
+a known follow-up rather than silently left undocumented.
+
+**Files:** `src/components/layout/AppHeader.jsx` (Pause icon + `levelActive`/`onPauseLevel` props),
+`src/components/levels/LevelPausePopup.jsx` (new), `src/App.jsx` (`levelPaused` state,
+`handleQuitLevel`/`handleResumeLevel`, `startLevel` UI-reset additions), `src/components/character/
+BestiaryPanels.jsx` (`CreatureSprite` exported), `src/components/character/RpgLevelPanel.jsx` (rewritten:
+`WorldCreature`, parallax layers, `worldToScreenX`, camera rAF loop, `EdgeHoldZone`, 200-tile floor),
+`src/hooks/useRpgLevelState.js` (`LEVEL_MIN_X`/`LEVEL_MAX_X`, `clampToLevel`, `petMoving`,
+`setHeldDirection`).
+
+### §138. Round 8/9 batch: uniform RPG scale, equipped-pet reuse, decoration z-order, portrait bugfix, projectile flip, critters-under-rests (#693, Han 2026-08-04)
+
+**RPG world — one shared scale, no per-element zoom.** Han: *"zorg dat alle elementen het RPG level
+dezelfde schaal hebben, dus niet in of uitzoomen."* Root cause: `WorldCreature` (round 7) computed
+`scale = (T·0.9) / crop.h` — a "fit every creature to the same target height" formula that gave EACH
+creature a DIFFERENT effective zoom depending on its own crop size (Fox ≈4.8×, Wisp ≈3.9×, vs. the hero's
+own ≈2.98× from `CharacterDoll`'s `height/CROP.h`). Fixed: every world sprite (tiles, tree, tent, hero,
+pet, NPC) now uses exactly `ZOOM` (native pixels × ZOOM) — the SAME factor `SheetCrop`'s tiles already
+used — instead of fitting to a target height. The hero's `CharacterDoll` height is now `HERO_CROP.h * ZOOM`
+(derived, not the old hardcoded `T*1.8`).
+
+**Equipped pet, not a hardcoded Fox.** Han: *"gebruik dezelfde pet als in de avatar selector."* New
+`WorldPet` (`RpgLevelPanel.jsx`) resolves `char.layers.pet` via `urlOfLayer('pet', ...)` — the SAME
+resolver `CharacterDoll` itself uses — and renders it with the avatar system's own "idle row, 5 frames"
+convention (`PET_CROP`, `characterAssets.js`'s pet catalog — a DIFFERENT, simpler catalog than the
+Bestiary's classified critters, no separate walk/move animation). Renders nothing when no pet is equipped.
+
+**Decoration z-order fix.** The Tent (decoration) was rendered AFTER the hero/pet in the JSX — i.e. IN
+FRONT of characters, violating the back-to-front order (backgrounds → tiles → decoration → characters →
+pets → foreground details). Moved next to the Tree so both decoration pieces render before any character.
+
+**Parallax layer sink.** Han: *"zak elke laag een beetje: bg4 8px, bg3 16px, bg2 24px, bg1 32px."* Each
+`PARALLAX_LAYERS` entry now carries its own `sinkPx`, applied as `bottom: FLOOR_T - sinkPx`.
+
+**Character layer order — skirts/dresses above chest/pants/shoes.** Han: *"dresses of skirts gaan boven
+chest, broeken en schoenen."* `characterAssets.js`'s `CATEGORIES` z-values swapped: `chest` (z:3, was 5,
+also matches "dress") and `feet` (z:4, unchanged) now paint BEFORE `legs` (z:5, was 3, also matches
+"skirt") — a category-level swap (not a per-item skirt/dress special case, §6c), so a skirt/dress always
+shows over whatever's tucked in underneath.
+
+**Bestiary portrait zoom-in bug — root cause found and fixed at the GENERATOR.** Han: *"veel portraits
+zijn nu enorm ingezoomd... portret van maid is wel goed, maar veel andere niet."* `scripts/generate-
+bestiary-manifest.mjs`'s column-sheet expansion (Male/Female Pixel Art characters, §675) paired each of
+the 11 named characters' portraits with `"…portrait large{N}.png"` — verified via direct pixel-dimension
+checks that these are the SAME portraits at 640×640 (10× upscaled, pixel-identical content), not a
+different/higher-detail crop. `PortraitImage` assumes every portrait is already TRUE 64×64 size
+(`trueScale = size/64`, no contain-fit) — fed a 640×640 image, it rendered at 10× the intended size,
+clipped to a random ~1%-area fragment near the center = "enormously zoomed in". Maid's portrait was
+unaffected because HER portrait file is a genuine, correctly-sized 64×64 original (filename literally says
+"64x64"). Fix: the generator now pairs with the plain (non-"large") `"…portrait{N}.png"` files — verified
+64×64 via direct pixel checks — and the manifest was regenerated (608 entries).
+
+**Portrait layer order.** Han: *"volgorde is daar nog verkeerd; moet zijn (van achter naar voor): witte
+rand, portret, kader, game karakter/projectiel."* `PortraitImage` now draws a plain white backing behind
+everything (was just the box's ambient `--panel-bg`), then the portrait/projectile content, then
+`Frame64Overlay` LAST (in front) — reversed from the previous frame-behind-content order.
+
+**Projectile direction flipped back.** Han: *"projectiel is nice; draai de richting van het projectile van
+de wizard om"* — and separately, *"magic projectile: flip de richting (zowel in bestiary als in de song
+levels)"*. Reverses §680's "render unmirrored" call: `SheetRpgLayer.jsx`'s `Projectile` component now
+wraps its `<image>` in the same `scale(-1,1)` flip `Slime`/`Wizard` already use, and `PortraitImage`
+(BestiaryPanels.jsx) gained a `flip` prop (mirrors via `scale(-flipScale, trueScale)`), passed for the
+Wizard's magic-projectile side-portrait slot specifically (the Archer's arrow portrait, a different slot,
+is unaffected) — both contexts now agree on direction (§6d).
+
+**Critters under rests — positioning fix + walk/run/fly animation lookup.** Han: *"zet onder elke rust een
+squirrel of porcupine of pidgeon of red panda of armadillo of blue jay of dragon fly (random) (net als
+slimes onder rusten)."* New `Critter`/`critterData` in `SheetRpgLayer.jsx` mirror `Slime`/`slimeData`
+exactly but for REST slots instead of real notes (7 classified bestiary critters via `SCANNED_CREATURES` —
+"red panda" is classified simply as `"Panda"` in the manifest, verified not guessed). Hitting one (an
+accidental note played during its rest's window — same beat-window math as a slime's `inWindow` check, on
+`crittersRef`) costs −0.5 points and increments `critterKilled`, via a new `onCritterKilled` callback
+(useLevel.js) — distinct from the generic `extraNote` outcome, checked FIRST in that branch.
+
+- **Positioning bugfix (round 9, Han: "critters staan onder de maatstrepen, niet onder de rusten")**: a
+  rest's own tick offset is its START (for Level 9's whole-measure rest, the SAME tick as the barline) —
+  but round 7 CENTERS the rest glyph in its measure (`getWholeMeasureRestCenterX`). `critterData` now
+  positions each critter at `offset + duration/2` (the rest's own midpoint), matching wherever the glyph
+  visually is, whole-measure or partial, instead of sitting glued to the barline.
+- **Walk/run/fly animation lookup, single source of truth (round 9, Han: "waarom gebruik je de walk / run
+  animatie niet... zorg dat je check voor fly/run/walk-animaties")**: `RpgLevelPanel.jsx`'s `WorldCreature`
+  (round 7) only ever checked for a `'move'` animation key — several creatures are classified as `'walk'`,
+  `'run'`, or `'fly'` instead. New `findMoveAnim`/`findIdleAnim` helpers check every key the manifest
+  actually uses (`walk`, `run`, `move`, `fly`, `float` in priority order; `idle`/`sit` for the stationary
+  case) — since this reads straight from the SAME classified manifest data the Bestiary tab edits, a future
+  Bestiary animation change needs no separate RPG-side update (true single source of truth, not just
+  stated intent).
+
+**Splash stats reframed positively.** Han (mid-turn correction): *"maak ervan: enemies vanquished x/n...
+en critters saved y/m waar m het totaal aantal critters (rusten) is."* `SheetRpgLayer.jsx` reports
+`slimeData.length`/`critterData.length` upward (`onEnemyTotal`/`onCritterTotal` → `useLevel.js`'s new
+`totalEnemies`/`totalCritters` state) whenever they change — for Level 9's JIT-streamed melody this grows
+per block and settles at the true total once the melody stops growing, correct by the time the level ends.
+`LevelSplash.jsx` shows `defeated/totalEnemies` and — only when `totalCritters > 0` — `(totalCritters −
+critterKilled)/totalCritters`, deliberately the POSITIVE framing (higher is always better) rather than a
+raw kill count.
+
+**Investigated, not reproduced: "Level 9 kapot sinds de critter update — wizard werkt niet meer."**
+Extensive automated testing (idle playback, 8+ seconds of rapid note input, a `console.trace` on
+`randomizeAll` to rule out a regeneration loop) found NO crash, NO uncaught error, and the wizard visibly
+casting/glowing/firing projectiles correctly across many captured frames. The one CONFIRMED, concrete bug
+from the same screenshots was the critter mispositioning (fixed above, "onder de maatstrepen"), which may
+be what read as "broken" (critters cluttering/misaligned near the barlines rather than a genuine crash).
+Flagged transparently rather than claimed fully resolved — needs Han's own confirmation that the fix
+addresses what he saw.
+
+**Open items from this round not yet implemented** (flagged, not silently skipped — large/uncertain
+enough to need either more visual back-and-forth or are already covered by existing conventions that
+couldn't be independently confirmed broken from screenshots alone): a formal *global* bottom-center anchor
+constant shared across the RPG level AND the avatar preview (the RPG level's own objects already anchor at
+`bottom: FLOOR_T` uniformly; the reported "pet 1px higher than persona in avatar preview" and "pet appears
+behind grass / paws missing pixels" need direct visual inspection to isolate — clipping vs. z-order —
+before a confident fix); flying-unit/projectile 64×64-center-with-oscillation applied to every fly/float
+creature generically (currently bespoke per the Archer/Wizard); animation-specific re-anchoring (a unit
+with BOTH a fly/float AND a sit animation re-anchoring to the floor only for the sit pose); broader use of
+Decor.png's grass tufts "almost everywhere."
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (uniform ZOOM scale, `WorldPet`, tent reorder,
+`findMoveAnim`/`findIdleAnim`), `src/model/characterAssets.js` (`CATEGORIES` z swap), `scripts/generate-
+bestiary-manifest.mjs` (portrait file fix), `src/model/bestiaryManifest.generated.js` (regenerated),
+`src/components/character/BestiaryPanels.jsx` (`PortraitImage` layer order + `flip` prop),
+`src/components/sheet-music/SheetRpgLayer.jsx` (`Projectile` flip, `Critter`/`critterData`, critter hit
+detection, `onEnemyTotal`/`onCritterTotal`), `src/hooks/useLevel.js` (`onCritterKilled`,
+`totalEnemies`/`totalCritters`), `src/components/levels/LevelSplash.jsx` (fraction display),
+`src/levels/gradeHit.js` (`critterKilled` label), `src/App.jsx` (prop wiring).
+
+### §139. RPG round 11 — ground anchor 1px correction, critter animation lookup unified (Han 2026-08-04)
+
+**Ground anchor.** Han, from a screenshot of the RPG Level tab (hero/tent/pet): *"ik zie ook dat de meeste
+items op 1 pixel lager staan, dus level ground anchor is 15 (ipv 16)."* The floor-tile GRID size
+(`FLOOR_TILE`/`FLOOR_T` = 16px native) is a different concept from the GROUND LINE sprites anchor their
+`bottom` to — the grass art's visible top blade isn't flush with the tile's own bounding box, so bottom-
+anchoring at the full 16px tile height sat every standing sprite 1 native px too low. Fixed by introducing
+`GROUND_ANCHOR = (FLOOR_TILE - 1) * ZOOM` in `RpgLevelPanel.jsx` and switching every placed sprite (tree,
+tent, Wisp NPC, hero, pet, grass tufts' base) from the raw `FLOOR_T` literal to this one shared constant —
+`FLOOR_T` itself is untouched and still solely drives the actual 16px grass-tile rendering size.
+
+**Critter animation lookup.** Han: *"critters gebruiken nog steeds niet de walk/run/fly animatie als ze die
+hebben"* — round 9 built `findMoveAnim`/`findIdleAnim` (the walk→run→move→fly→float priority lookup) for
+`RpgLevelPanel.jsx`'s `WorldCreature`, but `SheetRpgLayer.jsx`'s `Critter` (round 8, critters-under-rests)
+was never updated to match — it still hardcoded `animations.find(a => a.key === 'idle')` only. Root cause:
+two independent, duplicated implementations instead of one shared helper (§6c). Fixed by moving
+`findMoveAnim`/`findIdleAnim` (plus a new `isFlyingAnim`, for the still-open fly/float 64×64 treatment) into
+`src/model/bestiaryAssets.js` as the single source of truth, and having BOTH `WorldCreature` and `Critter`
+import from there. A critter is always treated as "moving" (it perpetually scrolls across the staff), so it
+now always prefers its move-type animation (walk/run/move/fly/float) over idle when one is classified.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`GROUND_ANCHOR` constant + 6 call sites, removed
+local `findMoveAnim`/`findIdleAnim`), `src/model/bestiaryAssets.js` (new exports `MOVE_ANIM_KEYS`,
+`findMoveAnim`, `findIdleAnim`, `isFlyingAnim`), `src/components/sheet-music/SheetRpgLayer.jsx` (`Critter`
+now uses the shared lookup instead of hardcoded `'idle'`).
+
+**Still open (unchanged from §138):** flying-unit/projectile 64×64-center-with-oscillation applied
+generically to every fly/float creature (the `isFlyingAnim` helper now exists for this but isn't wired up to
+any renderer yet); animation-specific re-anchoring (fly/float unit that ALSO has a 'sit' anim, re-anchoring
+to the floor only for the sit pose); broader use of Decor.png's grass tufts "almost everywhere" across the
+floor; the reported "pet appears behind grass / paws missing pixels" bug (still awaiting Han's screenshot).
+
+### §140. RPG round 12 — global ground anchor, generic fly/float hover, bestiary-backed pet, tree scale bug (Han 2026-08-04/05)
+
+Closes out every item left open at the end of §139, from Han's follow-up: *"anchor van alle karakters,
+dieren, items, etc, moet op centrum onder staan... dit soort settings moet globaal zijn... flying units en
+projectiles staan op het midden van een 64x64 tile met lichte oscillatie... gebruik de grassprieten...
+royaal... ik zie het al! de sprite van de hond is fout geclipt in het level. maar gebruik toch gewoon de
+sprites uit de bestiary...!"* — plus a same-session follow-up: *"waarom is tree1 niet op dezelfde schaal als
+de personages? die lijkt verkleind met een factor 2."*
+
+**Global ground-anchor constant.** New `src/model/worldAnchor.js` exports `GROUND_ANCHOR_PX = 15` — the ONE
+native-pixel source value every bottom-anchoring renderer reads (each scaling it by its own display factor).
+`RpgLevelPanel.jsx`'s local `GROUND_ANCHOR = GROUND_ANCHOR_PX * ZOOM` now derives from it instead of a
+locally-hardcoded `15`. Retuning the ground line in the future only ever touches this one file.
+
+**Bottom-CENTER anchor, applied consistently.** Every placed world sprite — tree, tent, Wisp NPC, hero, pet,
+grass tufts — now anchors `bottom: GROUND_ANCHOR` **and** horizontally centers via `transform:
+translateX(-50%)` (previously only the hero centered this way; the tree/tent didn't center at all, and the
+Wisp/pet manually subtracted half their own crop width from `left` — three different mechanisms for the same
+concept). One convention, one anchor point, everywhere — exactly so Han can align world objects predictably.
+
+**Grass tufts, spread across the whole floor.** Round 7 placed only 5 fixed tufts near spawn. A new
+`grassTuftPositions` (`useMemo`, rolled once per mount like `floorTileIdx`) scatters one tuft roughly every
+3 world tiles (`GRASS_TUFT_SPACING = FLOOR_TILE * 3`) across the full `LEVEL_MIN_X..LEVEL_MAX_X` span, with
+small jitter and a random `GRASS_TUFT_CELLS` pick per tuft — no longer the old ad-hoc "`-FLOOR_T*0.3`" sink;
+tufts now anchor at the same `GROUND_ANCHOR` as everything else, per Han's "lijn uit op 16px [15px] vanaf de
+ondergrens" for tufts specifically.
+
+**Generic fly/float 64×64-hover-with-oscillation.** `WorldCreature` (`RpgLevelPanel.jsx`) and `Critter`
+(`SheetRpgLayer.jsx`) both now check `isFlyingAnim(anim)` — true only when the CURRENTLY playing animation's
+own `key` is `'fly'`/`'float'` (not "the variant has one somewhere") — and if so, lift the sprite by one
+hover height and add a small wobble via the SAME `oscillate()` utility the arrow/projectile already use
+(§6c), instead of the normal bottom/ground anchor. Because the check reads the ANIMATION, not the creature,
+a unit that also has a `'sit'` pose automatically re-anchors to the floor the instant it plays that specific
+animation — no extra branching needed (Han's "animatiespecifiek" requirement falls out of the design for
+free). Verified against the manifest: Dragonfly is classified with a `'fly'` key, so it's the first critter
+to visibly exercise this path.
+
+**Dog sprite clipping — pet now renders via the Bestiary, not a hand-rolled crop.** Root cause: `WorldPet`
+assumed every equipped-pet sheet shares ONE crop/frame (`PET_CROP = {x:3,y:2,w:26,h:28}`), but the pet
+sheets are NOT uniform — Doggy's own manifest entry has `crop:{x:1,y:10,w:30,h:22}`, a different shape,
+which `PET_CROP` clipped incorrectly. Fix: the equipped pet's sheet IS already classified in
+`SCANNED_CREATURES` (the `characterAssets.js` `PET_FILES` glob and `bestiaryAssets.js`'s manifest glob
+resolve the SAME source PNG under Vite, so their URLs match) — a new `petVariant` lookup
+(`RpgLevelPanel.jsx`) finds the classified variant by `variant.url === petUrl` and renders it through
+`WorldCreature` (same renderer, same walk/run/fly-aware animation lookup, same uniform `ZOOM`) instead of
+`WorldPet`. `WorldPet`/`PET_CROP` are kept only as a fallback for the rare pet file with no bestiary match,
+so an equipped pet can never silently vanish.
+
+**Tree scale bug.** The tree's `<img>` had a leftover `width: 256 * ZOOM * 0.6, height: 208 * ZOOM * 0.6` —
+an extra `* 0.6` shrink that slipped through round 8's "uniform `ZOOM` for everything" pass and was the ONE
+sprite in the whole level still off-scale (Han: "die lijkt verkleind met een factor 2" — close to what a
+0.6× extra shrink looks like relative to everything else at full `ZOOM`). Removed; the tree is now native
+pixels × `ZOOM` like every other sprite. The parallax BACKGROUND layers (`PARALLAX_LAYERS`, `bgLayer1-4Url`)
+are a deliberately DIFFERENT mechanism — fit to `size.h * 0.75` (a fraction of the viewport height) rather
+than the world's native-pixel `ZOOM` — because they're distant painted backdrops meant to fill the screen,
+not to-scale props standing on the ground plane; forcing literal `ZOOM` pixel scale onto them would blow
+them up far past the viewport. Flagged to Han rather than silently changed, since it's a different
+architectural choice, not the same bug class as the tree's stray `0.6`.
+
+**Magic-projectile flip — song levels only.** Round 8 added the mirror flip to BOTH the level's `Projectile`
+(`SheetRpgLayer.jsx`) and the Bestiary's Wizard side-portrait (`PortraitImage flip` prop). Han: "flip de
+richting (enkel in de song levels)" — removed the `flip` prop from the Bestiary call site; the flip now only
+happens in the actual level.
+
+**Files:** `src/model/worldAnchor.js` (new, `GROUND_ANCHOR_PX`), `src/components/character/RpgLevelPanel.jsx`
+(`GROUND_ANCHOR` now reads the shared constant, `translateX(-50%)` centering on tree/tent/Wisp/pet/tufts,
+`grassTuftPositions`, `HOVER_PX`/`FLY_OSC_RANGE` hover treatment in `WorldCreature`, `petVariant` bestiary
+lookup, tree `* 0.6` removed), `src/components/sheet-music/SheetRpgLayer.jsx` (`Critter` hover/oscillate
+treatment), `src/components/character/BestiaryPanels.jsx` (removed `flip` from the Wizard side-portrait).
+
+**Still open:** the "pet appears behind grass / paws missing pixels" bug (Han's screenshot showed the ground-
+anchor issue, not this one specifically — still awaiting a screenshot that isolates it).
+
+### §141. Tree/grass wind shimmer, stage 1 — normal-map relighting via a new shared WebGL layer (Han 2026-08-05)
+
+**Purpose.** Han asked for a Factorio-style "the level feels alive" effect on trees and grass, built in three
+stages: (1) constant normal-map-driven light animation with pixels staying in place, (2) slight pixel
+distortion, (3) directional wind gusts with local intensity — implemented one stage at a time. This entry
+covers stage 1 only, tree only (grass tufts included in the same pass since they share the renderer, but
+the tree was the agreed proof-of-concept scope).
+
+**How it works.** `RpgLevelPanel.jsx` is plain DOM/CSS (`imageRendering: pixelated` sprites positioned via
+`backgroundPosition`/inline styles) — it has no shader pipeline, so stage 1's requirement ("sample a normal
+map, relight already-in-place pixels against an animated light direction") needed the app's first WebGL
+surface. New component `src/components/character/ForegroundFoliageLayer.jsx`: ONE `<canvas>`/WebGL context
+(not one per sprite — browsers cap concurrent WebGL contexts at ~8-16, and grass tufts alone can number in
+the dozens) renders every animated instance (the tree-foliage quad + every grass-tuft quad) through one
+shared shader program, each instance a separate `drawArrays` call with its own diffuse-crop UV rect, normal
+map texture, and screen position. The fragment shader samples a tangent-space normal map, computes a
+Lambertian term against a slowly-oscillating virtual light direction (`sin(uTime*0.6)`-driven angle), and
+modulates the diffuse color's brightness — **no UV displacement**; pixels never move in stage 1 (later
+stages will add displacement as a separate change). Diffuse/normal textures use `NEAREST` filtering, no
+mipmaps, `CLAMP_TO_EDGE` — required to keep the shader's pixel-art output consistent with the
+`imageRendering: pixelated` DOM sprites it sits beside (an SVG `feDisplacementMap` filter was considered
+and rejected specifically because it forces blur/anti-aliasing, breaking that consistency).
+
+**Normal maps are generated, not hand-painted.** `scripts/generate-tree-normal-maps.mjs` (re-runnable,
+mirrors `generate-bestiary-manifest.mjs`'s "run when the source art changes" convention) derives a
+tangent-space normal map from the existing diffuse art via a 3×3 Sobel height-gradient (height = luminance,
+zeroed at fully-transparent pixels so silhouette edges don't pick up spurious gradients from whatever's
+behind them in the sheet). Output PNGs live in `src/assets/ASSORTED/tiles/trees/generated/` — one for the
+tree's summer-foliage cell, one per grass-tuft cell (`GRASS_TUFT_CELLS`, kept in sync between the script and
+`RpgLevelPanel.jsx` by hand — a comment on both flags the pairing).
+
+**Trunk/foliage split.** Han supplied `Trees_foliage_trunk.png` (1280×208 = 5 cells of 256×208: summer,
+apples, fall, winter, trunk) replacing the old single-file `Tree1.png`. The trunk (cell 5) is rigid and
+never animates — it renders as a plain static DOM crop in the SAME position/z-order slot the old full-tree
+`<img>` occupied (background/midground, before the tent). The foliage cell (currently hardcoded to summer —
+no season system exists yet) renders through `ForegroundFoliageLayer` instead, moved to the FOREGROUND
+z-order slot the grass tufts already occupied ("drawn LAST", Han: "render the trunk in the background, and
+the foliages + grass on a foreground foliage layer"). This is a deliberate z-order change from the old
+single-image tree (previously the whole tree, canopy included, rendered in the background slot).
+
+**Failure mode.** WebGL context creation can fail (unsupported browser/GPU) — a system-boundary capability
+check, not an internal-invariant violation, so it's handled per §7a: `logger.warn` and the layer renders
+nothing (no crash). Shader compile/link failure is unexpected internally and logged via `logger.error` with
+a new code, `E021-FOLIAGE-SHADER-COMPILE`.
+
+**Invariants.**
+
+- Stage 1 pixels never move — any future displacement work is a distinct, later change to the same shader,
+  not a modification of this one.
+- Every texture on this layer uses `NEAREST` filtering — never let mipmaps/linear filtering back in, it
+  breaks the pixel-art look.
+- One shared WebGL context for every foliage/grass instance — never spin up a canvas per sprite instance.
+- `GRASS_TUFT_CELLS` and its normal-map filenames must stay in sync between `RpgLevelPanel.jsx` and
+  `scripts/generate-tree-normal-maps.mjs`.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (new), `scripts/generate-tree-normal-maps.mjs`
+(new), `src/assets/ASSORTED/tiles/trees/generated/*.png` (new, generated), `src/components/character/RpgLevelPanel.jsx`
+(trunk/foliage split, grass tufts moved off the DOM loop into `ForegroundFoliageLayer`'s instance list),
+`CLAUDE.md` §7a (new error code `E021-FOLIAGE-SHADER-COMPILE`).
+
+**Not yet built (stage 2/3, separate future changes):** pixel distortion, and directional wind gusts with
+local intensity falloff. Also not yet built: season switching (apples/fall/winter cells exist in the sheet
+and have normal maps that would need generating, but nothing reads them yet).
+
+**Bug: foliage upside down, grass rendered as sticks, no visible shimmer (Han UAT, same day).**
+**Symptom:** the tree canopy rendered upside down; grass tufts showed unrelated content ("sticks") instead
+of grass; the light-shimmer animation wasn't perceptible at all.
+**Root cause (upside-down/sticks):** `gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)` was set on the belief
+that WebGL's default upload needed correcting to match this file's top-left-origin UV convention — backwards.
+WebGL's DEFAULT (no flip) already stores an image's visual top row at texel v=0, matching `diffuseUV`'s
+convention directly; flipping mirrored the ENTIRE source texture vertically before cropping. Harmless-looking
+on the single-row tree sheet (still the right cell, just upside down) but on the 17-row `Decor.png` it
+shifted row 5 (grass tufts) onto an unrelated row's content entirely.
+**Root cause (no shimmer):** the virtual light direction stayed almost face-on through its whole oscillation
+(dominant Z, a small X swing), so the Lambertian dot product barely moved — a real but visually
+imperceptible effect.
+**Fix:** removed the `UNPACK_FLIP_Y_WEBGL` call (default `false` already matches this file's UV convention).
+Widened the light's oscillation arc and increased shading contrast in `ForegroundFoliageLayer.jsx`'s
+fragment shader. Increased the normal-map generator's `STRENGTH` (2.5 → 4.5) for more pronounced relief,
+regenerated all normal maps.
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx`, `scripts/generate-tree-normal-maps.mjs`,
+`src/assets/ASSORTED/tiles/trees/generated/*.png` (regenerated).
+
+**Round 2 — traveling world-space wave replaces uniform light sway; debug-channel toggle (Han 2026-08-05).**
+Han, after seeing round 1 running: *"very subtle... I think I prefer if it looks like a wave going from left
+to right (see example) [Factorio FFF debug video]... travelling wave, with pixellated coarse edges... Can
+you implement 3 maps and let me toggle?"*
+
+**Uniform sway → traveling wave.** Round 1's single virtual light direction affected the WHOLE sprite at
+once — reads as the tree tilting, not wind crossing it, and (per the earlier bug entry) barely varied. The
+fragment shader now computes each fragment's WORLD-space X (`uWorldCenterX`/`uWorldWidth`, native/unzoomed
+px — the same coordinate space as `RpgLevelPanel`'s `TREE_X`/`grassTuftPositions`, deliberately NOT
+sprite-local UV) and derives a brightness band via `sin(worldX * WAVE_FREQ - uTime * WAVE_SPEED)`, so the
+SAME wavefront sweeps left→right across the tree and every grass tuft in sync, rather than each sprite
+animating independently. The band is quantized into `WAVE_STEPS = 5` discrete levels
+(`floor(wave01*STEPS)/(STEPS-1)`) instead of a smooth gradient, for the reference video's blocky/pixel-art
+look. Contrast increased substantially over round 1 (Han: "a bit more drastical").
+
+**Debug-channel toggle.** New `debugChannel` prop on `ForegroundFoliageLayer` (0 = final shimmer, 1 = raw
+normal map, 2 = wave band alone, no diffuse/normal) — a debug aid in the spirit of Factorio's own
+color-coded shader debug view (their video color-codes displacement X/Y/scale; this shader has no
+displacement yet, so the 3 channels instead expose the two things actually driving stage 1's look: the
+source normal-map data, and the wave in isolation). Cycled via a button in `RpgLevelPanel.jsx`, gated on
+`debugMode` like every other debug affordance (§3a) — `foliageDebugChannel` state, `(c+1)%3` on click.
+
+**Invariant addition:** the wave uses WORLD-space X, never sprite-local UV — a future instance (another
+tree, a bush) must derive its own `worldX`/`worldWidth` the same way `RpgLevelPanel.jsx` does now, or its
+wave will desync from the rest of the scene.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (fragment shader rewrite, `debugChannel`
+prop), `src/components/character/RpgLevelPanel.jsx` (`worldX`/`worldWidth` added to every instance,
+`foliageDebugChannel` state + toggle button).
+
+**Round 3 — finer/diagonal/grainy bands, genuine normal-map phase interaction (Han 2026-08-05, same day).**
+Han, after round 2: *"the wave is ugly, it has very large blocks and looks clunky. make the bands smaller,
+the edge more grainy. the 'pixellated' edge is just a straight line. I don't see any interaction with the
+normal map; it now just looks like an opacity overlay applied uniformly. adjust the wave to be much grainier
+and finer. The bands should be diagonal, and less regular."* Root problem: round 2 read "pixellated" as "a
+few flat quantized steps" (still a smooth `floor()` threshold, i.e. one clean edge) and only used the normal
+map as a LIGHTING input, never let it touch the wave's own shape — so it visually read as a flat opacity
+layer regardless of the canopy's own relief.
+
+**Smaller, diagonal, less-regular bands.** Wavelength dropped from ~140 world-px (round 2) to ~18 world-px
+(`WAVE_FREQ_X = 0.35`); a `WAVE_FREQ_Y` term (steeper than X) mixes in local `vUV.y`, tilting the bands
+diagonally instead of pure vertical stripes; the phase feeds TWO summed sine terms at incommensurate
+frequencies (`sin(phase) * 0.6 + sin(phase*2.37+1.7) * 0.4`) instead of one clean periodic sine, breaking
+the "obviously repeating" look.
+
+**Grainy dithered edge, not a straight quantize line.** Before thresholding into `WAVE_STEPS` (now 8, was
+5) discrete levels, a coarse per-native-pixel hash (`hash(floor(vec2(worldX,localY)/GRAIN_CELL))`) jitters
+the value — band boundaries now scatter into individual pixels (classic dithered pixel-art shading) instead
+of one geometrically smooth edge.
+
+**Real normal-map interaction, not just a lighting multiply.** The wave's own PHASE is now distorted by the
+decoded normal's tangent (`n.x * NORMAL_DISTORT + n.y * (NORMAL_DISTORT*0.6)`) before the sine is evaluated
+— a leaf clump tilted one way shifts the local wave earlier/later than its neighbour, so the band visibly
+bends and breaks around the canopy's actual relief. This is the key fix for "looks like an opacity overlay":
+the wave's SHAPE is now a function of the normal map, not just its brightness.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (fragment shader: diagonal/grainy/
+normal-distorted wave, `uWorldHeight` uniform added), `src/components/character/RpgLevelPanel.jsx`
+(`worldHeight` added to every instance).
+
+**Round 4 — bigger contrast/patches, near-vertical tilt (Han 2026-08-05, positive UAT on round 3's
+normal-map interaction: "fantastic!!!!").** Han: *"the waves ... are a bit too subtle now. I would like
+there to be distinguishable lighter and darker patches; they can be quite large"* + *"tilt the waves so that
+they are 'more vertical than horizontal', so a sideways wind effect is achieved."*
+
+**Tilt.** `WAVE_FREQ_X`/`WAVE_FREQ_Y` swapped dominance (X now 0.15, Y now 0.04 — was X 0.35, Y 0.55). A
+band's line of constant phase runs perpendicular to `(WAVE_FREQ_X, WAVE_FREQ_Y)`; X-dominant frequencies
+produce near-vertical bands, and since the traveling term (`-uTime*WAVE_SPEED`) is carried on the `worldX`
+component, the bands sweep sideways — reads as wind blowing across the scene rather than up through it.
+
+**Bigger, more distinguishable patches.** Both frequencies dropped (wavelength ~42 world-px, was ~18) and
+`WAVE_STEPS` dropped from 8 to 5 (fewer, more visually separated discrete levels). The existing per-pixel
+dither (round 3) still grains the edges at whatever patch size results — "large patches" and "grainy edges"
+turned out not to be in tension, just two different spatial scales of the same mechanism (macro quantization
+step vs. per-pixel threshold jitter).
+
+**Contrast.** Shade formula's swing widened substantially (was 0.4-1.3, now 0.2-1.2 with a lower floor) —
+the actual light/dark delta is now large enough to read as distinct patches rather than a subtle multiply.
+
+**Han's diagnostic questions, answered (not code changes):**
+
+- *"Is the wave band built from an image and some noise?"* No — currently 100% procedural: two summed sines
+  for the pattern, a hash function for the dithered grain. No bitmap texture involved yet.
+- *"Is the effect stronger for the bottom, lighter areas of the tree?"* Yes, almost certainly — shading is a
+  multiplier on diffuse color, so the same shade swing is far more visible on the canopy's lighter/highlight
+  tones (which cluster toward the bottom of the clump silhouettes in this art) than on darker pixels; the
+  Sobel-derived normal map also naturally has the strongest relief at luminance edges, denser along the
+  canopy's lower scalloped silhouette than its flatter top mass.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (frequency/steps/contrast constants).
+
+### §142. Parallax background layers unified onto the level's single `ZOOM` scale factor (Han 2026-08-05)
+
+**Purpose.** Han (unrelated to §141's foliage work): *"make all backgrounds the same scale as the rest of
+the level. There should be 1 global scaling factor, that's it. Move all elements of the background so that
+the background image 64px from the bottom is aligned with the bottom of the level."* This explicitly
+REVERSES §693 round 12 / §140's deliberate choice (both entries flagged it as an intentional exception, not
+an oversight) to render the 4 parallax layers (`bgLayer1-4`) at their own native resolution rather than
+`ZOOM` — Han's call this time is that every sprite in the scene, backgrounds included, shares one scale.
+
+**Scope confirmed with Han:** `bgLayer5` (the plain sky-gradient, full-bleed `object-fit: cover` backdrop
+behind everything) is explicitly EXCLUDED — it stays as-is. The "1 global scaling factor" rule applies to
+the 4 parallax layers only.
+
+**Changes.**
+
+- Each parallax layer's `backgroundSize`/container dimensions are now `BG_NATIVE.{w,h} * ZOOM` (was raw
+  `BG_NATIVE`) — the SAME scale factor `SheetCrop` and every other world sprite uses.
+- The horizontal scroll offset (`cameraX * factor`) is now also multiplied by `ZOOM`, and the tiling modulo
+  uses the new scaled tile width — otherwise the now-bigger background image would scroll at the OLD
+  (smaller-image) speed and drift out of sync with its own repeat seams.
+- **Per-layer `sinkPx` (§693 round 8's manual 8/16/24/32px nudge) is REMOVED entirely** — Han: "that's it",
+  i.e. exactly one factor governs alignment now, no per-layer hand-tuning.
+- New alignment rule replaces the old "pinned near the screen's bottom edge" behavior: each layer's
+  container `bottom` is solved so the point `HORIZON_PX * ZOOM` above the IMAGE's own bottom edge lands
+  exactly on `GROUND_ANCHOR` (the level's shared floor-line constant, `worldAnchor.js` — see §140), not the
+  viewport's bottom edge. `bgBottomOffset = GROUND_ANCHOR - HORIZON_PX * ZOOM` is commonly NEGATIVE now (the
+  image's own bottom edge sits below the visible viewport) — expected once the image renders this much
+  bigger than before; `overflow: hidden` on the level container clips the excess normally.
+
+**Invariant:** all 4 parallax layers must stay on this ONE shared rule (`ZOOM` scale, `HORIZON_PX * ZOOM`
+above image-bottom = `GROUND_ANCHOR`) — no reintroducing a per-layer sink/scale exception without Han
+explicitly asking for it again (this is the SECOND reversal of the backdrop-scaling call; if it flips again,
+flag it rather than silently deciding).
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`PARALLAX_LAYERS` — `sinkPx` removed;
+`HORIZON_PX`'s doc comment corrected; parallax render block — `ZOOM`-scaled dimensions/offset, new
+`bgBottomOffset` alignment).
+
+**Follow-up (Han, same day): "drop the backgrounds a further 32px".** A flat `- 32` added to
+`bgBottomOffset` on top of the `GROUND_ANCHOR - HORIZON_PX * ZOOM` alignment solved above — an additional
+manual nudge, not a change to the alignment rule itself.
+
+### §143. Floor top-row wind overlay — a thin translucent strip, not a lit sprite (Han 2026-08-05)
+
+**Purpose.** Han, same session as §141: *"can you apply the foliage effect to the top 3 rows of the grass
+tiles? the normal map can be very simple. The basic layer can be something like the attached image
+[bands.png — a hand sketch of bands converging toward one side]. If you move it straight from left to
+right, it looks like the wind moves very fast at the top, and slower at the bottom. The wind lower
+'follows' the wind at the top."*
+
+**Why this ISN'T the same mechanism as §141's sprite shimmer.** The floor is ~200 individual 16px tiles
+(`FLOOR_CELLS`, random grass-top cell per slot, plain DOM `SheetCrop` divs) spanning the whole
+`LEVEL_MIN_X..LEVEL_MAX_X` strip. Per-tile shader instances (like the grass tufts) would mean ~200 draw
+calls every frame just for this; Han confirmed (interview) a single thin overlay strip spanning the WHOLE
+floor is preferred — cheap (one draw call), and reasonable since the top edge of grass-top tiles reads
+fairly uniformly across variants anyway. `ForegroundFoliageLayer` gained a second instance `kind:
+'floorOverlay'` (vs. the default `'sprite'`) that skips diffuse/normal texture sampling entirely and
+instead outputs a translucent white-ish highlight (`FLOOR_ALPHA_MIN..FLOOR_ALPHA_MAX`, never fully opaque)
+blended over whatever floor art is drawn beneath it in the DOM.
+
+**"Fast top, slow bottom, bottom follows top" without literal fan geometry.** The overlay strip is only
+`FLOOR_TOP_ROWS = 3` native px tall — Han's reference sketch (`bands.png`, converging bands) implies true
+fan/perspective geometry, but that has almost no room to express itself across only 3px of height. Instead,
+the wave's FREQUENCY itself varies by row: `FLOOR_FREQ_TOP` (shorter wavelength) at the strip's own top row,
+`FLOOR_FREQ_BOTTOM` (longer wavelength) at its bottom row, mixed by local Y. Since a wave crest's travel
+speed is `WAVE_SPEED / frequency`, a smaller top-row frequency directly IS a faster top-row sweep — a more
+literal, more directly tunable realization of "fast top, slow bottom" than reproducing the sketch's exact
+converging-line geometry at this scale. The same per-pixel hash-dither grain technique from §141 rounds 3-4
+is reused for the band edges.
+
+**No bitmap asset used.** Han's `bands.png` sketch was the inspiration (and he offered to clean it up into
+proper art), but the implemented effect is 100% procedural — no texture sampling, just the row-frequency
+math above. If a future revision wants the exact hand-drawn band shapes/irregularity rather than a clean
+sine, THAT would be the point to bring in the bitmap as an actual sampled texture; not needed for this pass.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`uInstanceKind` uniform, `kind: 1` branch
+in the fragment shader — `FLOOR_FREQ_TOP`/`FLOOR_FREQ_BOTTOM`/`FLOOR_WAVE_SPEED`/`FLOOR_STEPS`/
+`FLOOR_ALPHA_MIN`/`FLOOR_ALPHA_MAX` constants), `src/components/character/RpgLevelPanel.jsx`
+(`FLOOR_TOP_ROWS` constant, new `kind: 'floorOverlay'` instance spanning the whole floor width),
+`src/assets/ASSORTED/tiles/bands.png` (Han's reference sketch, kept for future reference — not sampled by
+the current implementation).
+
+**Bug: floor overlay invisible — mediump `sin()` precision collapse at large world coordinates (Han UAT,
+same day: "i dont see the effect applied to the grass. did you confuse screen pixels for pixel art
+pixels?").**
+**Symptom:** the floor top-row overlay never appeared, despite building without errors.
+**Root cause:** the grain-dither hash (`hash(vec2) = fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453)`)
+feeds `worldX` into a `sin()` call. The floor overlay is the ONE instance whose `worldX` spans the entire
+level (`LEVEL_MIN_X..LEVEL_MAX_X` = ±1600 native px, from `useRpgLevelState.js`) rather than one sprite's
+local footprint (the tree only spans ~350px) — at `worldX≈1600`, `dot(p,...)` reaches ~200,000, and
+`sin()` of that magnitude is meaningless in GLSL `mediump` precision (~10 bits), silently collapsing the
+grain term and pinning the overlay's alpha near zero almost everywhere.
+**Fix:** wrap `worldX` with `mod(worldX, 512.0)` before it reaches the hash, in BOTH the floor-overlay
+branch and (defensively — grass tufts scatter across the same full level width and could degrade at
+extreme positions even though not yet reported broken) the sprite branch's grain computation. The wave's
+own phase math stays periodic regardless of wrapping, so this doesn't change the visible pattern, only
+keeps the hash's input bounded.
+**Also this round:** a 4th "Disabled" state added to the foliage debug-channel toggle (Han: "add a
+'disable' button to the shimmer debug options") — skips rendering `<ForegroundFoliageLayer>` entirely
+(not just a shader branch), fully removing the WebGL draw cost while toggled off.
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`mod()`-wrapped grain coordinates in both
+branches), `src/components/character/RpgLevelPanel.jsx` (4-state debug toggle, `Disabled` skips rendering).
+
+**Round 6 correction — "Disabled" now shows raw sprites, not nothing; floor overlay gains real debug
+support (Han, after a hard refresh confirmed the floor overlay actually works, then: "'disable' disables
+the full layer; i just want to see the raw unmodified sprites when 'disabled' is active" + "still don't
+see the shimmer on the floor — is that because it's not in the foliage layer?").**
+`<ForegroundFoliageLayer>` is now ALWAYS rendered — "Disabled" (`uDebugChannel===3`) is handled INSIDE the
+shader instead: sprites render their raw diffuse texture with zero shading/wave, the floor overlay renders
+fully transparent. Separately, the floor-overlay shader branch previously ignored `uDebugChannel` entirely
+(a real gap — Han had no way to diagnose it via the debug toggle at all); "Wave band" (channel 2) now works
+there too, showing the raw wave value as an opaque grayscale strip instead of the normal subtle blend. This
+was also the round where a stale-HMR WebGL context was identified as a likely confound — hot-reloading a
+component that does imperative `<canvas>`/WebGL setup in a mount-once effect doesn't reliably re-run that
+effect, so several rounds of shader edits may not have actually been live in the browser until a hard
+refresh. Worth remembering for any future WebGL work in this codebase.
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`uDebugChannel===3` branches in both
+instance kinds; `uDebugChannel===2` added to the floor-overlay branch), `src/components/character/RpgLevelPanel.jsx`
+(removed the `foliageDebugChannel !== 3 &&` conditional render).
+
+**Round 7 — floor overlay unified onto the SAME wave as the tree/tufts; shimmer shade rebalanced to stop
+net-darkening the sprite (Han, after the hard refresh revealed the real picture): "it seems a separate wave
+band applied to the tree and grass tufts. I would like them to use a common wave band" + "Make the height 5
+pixels with a lower and lower application as seen from the top" + "the shimmer makes everything much much
+darker. I'd rather the pixels are shifted around a bit / shuffled... now the elements just get darkened."**
+
+**Common wave band.** The floor overlay had its OWN frequency/speed/step constants
+(`FLOOR_FREQ_TOP`/`FLOOR_FREQ_BOTTOM`/`FLOOR_WAVE_SPEED`/`FLOOR_STEPS`) — a genuinely different wave from
+the tree/tufts' `WAVE_FREQ_X`/`WAVE_FREQ_Y`/`WAVE_SPEED`/`WAVE_STEPS`, which is exactly why it looked
+stretched/squished relative to everything else. Extracted a single shared `computeWaveQuant(worldX, localY,
+phaseOffset)` function used by BOTH instance kinds — same frequencies, same speed, same quantization, same
+grain/dither. `phaseOffset` is the only per-caller difference: sprites still pass their normal-map-derived
+distortion (`n.x*NORMAL_DISTORT + ...`), the floor passes `0.0` (no normal map to distort from). The
+"fast top, fading bottom" idea from round 5 is no longer a per-row FREQUENCY variation (which was itself
+part of why the floor's wave looked unrelated to the tree's) — it's now a plain alpha `rowFalloff` (full
+strength at the top row, linearly fading to 0 at the bottom) applied on top of the shared wave.
+`FLOOR_TOP_ROWS` raised from 3 to 5 (`RpgLevelPanel.jsx`) per Han's explicit height request.
+
+**Shimmer no longer nets darker.** Round 4's shade formula (`0.2 + 0.15*ambientNdotl + 0.85*waveQuant*...`)
+ranged roughly 0.2–1.3, but since a quantized wave spends more of its range below the bright peak than at
+it, the AVERAGE brightness over time/space sat well under 1.0 — reading as a steady darkening rather than a
+shimmer, exactly Han's complaint. `shade` is now `1.0 + swing * SHADE_CONTRAST * (0.4 + 0.6*ambientNdotl)`
+where `swing = (waveQuant-0.5)*2.0` (-1..1) — symmetric around 1.0, so patches shift brighter AND darker
+with an average close to the raw diffuse's own brightness, instead of only ever dimming.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`computeWaveQuant()` extracted and shared
+by both instance kinds; floor branch rewritten to use it + `rowFalloff`; `shade` formula rebalanced around
+1.0), `src/components/character/RpgLevelPanel.jsx` (`FLOOR_TOP_ROWS` 3 → 5).
+
+**Round 8 — sprite branch switched from a direct brightness multiply to the SAME translucent overlay
+technique the floor already used (Han: "The ground wave band is the same, but the grain is not. I actually
+prefer the less grainy effect, like it is on the tile... make sure not just the wavequant, but also the
+coarsification/distortion, etc. are the same. I want the wave band to look seamless across all layers").**
+Root cause: `computeWaveQuant()` WAS already shared (round 7), so the underlying wave/grain numbers were
+identical — but the floor blended a translucent highlight (soft, low max alpha) while the tree/tufts
+multiplied diffuse brightness directly at full opacity (harsh, high-contrast, reads as "grainier" even
+though it's the exact same noise). Unified: both branches now blend a shared `HIGHLIGHT_COLOR` over the
+diffuse with the same `HIGHLIGHT_ALPHA_MIN..MAX` budget — `waveQuant` only ever controls how strongly that
+highlight blends in, never a direct multiply. This also means the sprite shimmer can no longer net-darken
+(round 7's fix is now structural, not just numerically balanced — the overlay literally cannot go below the
+original diffuse brightness).
+Also this round: `NPC_X` (the Wisp) moved from `0` to `-140`, next to the tree's canopy (`TREE_X=-220`,
+canopy half-width 128) without overlapping it — Han: "move the wisp close to the tree."
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`HIGHLIGHT_COLOR`/`HIGHLIGHT_ALPHA_MIN`/
+`HIGHLIGHT_ALPHA_MAX` constants, shared by both branches; sprite branch's final composite rewritten from a
+brightness multiply to a `mix()` overlay), `src/components/character/RpgLevelPanel.jsx` (`NPC_X` moved).
+
+### §144. Wisp/hero point lights — tint nearby foliage toward blue/yellow (Han 2026-08-05)
+
+**Purpose.** Han: *"give it [the Wisp] a blue glow (that is only visible on nearby objects)"* + *"give the
+main character a yellow glow (both enabled and disabled in the debug)"* — followed a discussion of whether
+normal maps could drive lighting effects (§141's answer: yes, cheaply, since the maps are already free to
+generate).
+
+**Scope, confirmed with Han before implementing:** characters (Wisp, hero, pet) are plain DOM sprites, not
+part of the WebGL foliage shader — a "glow visible on nearby objects" can only work by tinting the WebGL-
+rendered things near them (tree canopy, grass tufts), not by drawing a literal halo on the DOM character
+sprite itself. Han confirmed that scope explicitly. Also scoped (my own call, flagged rather than silently
+decided) to SPRITE instances only, not the floor overlay — the floor has no solid base color to tint (it's
+a translucent wave-highlight indicator, not a lit surface), so a light blend there wouldn't read
+meaningfully.
+
+**Mechanism.** Two fixed point lights (not a generic N-light system — kept simple/cheap, consistent with
+this feature's "cheap on the GPU" brief from the start): `applyPointLight(color, worldX, lightWorldX,
+lightColor)` computes horizontal world-distance falloff (`LIGHT_RADIUS = 220` world-px, squared falloff
+curve) and blends `lightColor` in via the same `mix()`-overlay technique the wind-shimmer highlight uses
+(§141 round 8) — consistent visual language, not a different blending model. `uWispWorldX`/`uHeroWorldX`
+are per-frame uniforms (not per-instance) read from `wispWorldXRef`/`heroWorldXRef`, updated every render so
+the hero's light tracks it moving without recreating the GL context.
+
+**Applies in "Disabled" too.** Han's explicit ask for the hero glow ("both enabled and disabled in the
+debug"). The wind-shimmer highlight/wave IS skipped in `uDebugChannel===3`, but `applyPointLights()` is
+still called on the raw diffuse color in that branch — the point lights are a separate system from the
+wind-shimmer debug toggle, so disabling the wind effect doesn't hide them. Both diagnostic channels (1: raw
+normal map, 2: wave band alone) skip lights entirely — those views aren't meant to show lighting.
+
+**Wisp repositioned.** `NPC_X` moved from `0` to `-140` (next to `TREE_X=-220`'s canopy, half-width 128,
+without overlapping it) so the Wisp's new blue glow has a natural "near the tree" reason to exist.
+
+**Not yet built:** any directional (normal-dot-light) component to these point lights — they're currently
+pure distance-falloff tints, no relief interaction. §141's answer to "can normal maps drive lighting" says
+yes this is possible; not done here to keep this pass small, flagged as a natural follow-up if Han wants
+the glow to look like it's actually catching individual leaf clumps rather than a flat distance tint.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`uWispWorldX`/`uHeroWorldX` uniforms,
+`applyPointLight`/`applyPointLights` functions, `LIGHT_RADIUS`/`LIGHT_MAX_ALPHA`/`WISP_LIGHT_COLOR`/
+`HERO_LIGHT_COLOR` constants, wired into both the Disabled and normal sprite paths; new `wispWorldX`/
+`heroWorldX` props), `src/components/character/RpgLevelPanel.jsx` (`NPC_X` moved from `0` to `-140`, new
+props passed to `<ForegroundFoliageLayer>`).
+
+### §145. Color-preserving HSV brightness boost; light height falloff (Han 2026-08-05, NL feedback round)
+
+**Purpose.** Han asked (NL) for a full walkthrough of the pipeline, then diagnosed the actual bug himself:
+*"alles verliest kleur, komt dat door de 'additieve' kleuring? Wat zijn alternatieven die meer trouw
+blijven aan de hue / saturation, en vooral brightness aanpassen?"* ("everything loses color — is that the
+additive coloring? What alternatives stay truer to hue/saturation and mainly adjust brightness?") — plus
+*"Kan je de belichting in hoogte beperken, net zoals je die in verticale afstand beperkt?"* ("can you limit
+the lighting in HEIGHT too, like you already limit it in distance?").
+
+**Root cause of the graying/washing-out.** Rounds 8-9's `mix(diffuse.rgb, HIGHLIGHT_COLOR, alpha)` (wind
+shimmer) and `mix(color, lightColor, intensity)` (point lights) both interpolate RGB toward a FIXED target
+color — every `mix()` call necessarily slides saturation toward that target's own saturation, which is
+exactly why sprites near the wisp's blue light (or under a strong wave highlight) read grayish/washed out.
+Confirmed to Han: yes, the one pale grass tuft he spotted was the wisp's light doing exactly this.
+
+**Fix — HSV Value boost for the wind shimmer.** Added standard `rgb2hsv()`/`hsv2rgb()` GLSL round-trip
+functions (cheap, ~10-15 ALU ops each, negligible at this shader's scale). The wind-shimmer highlight now
+converts the diffuse color to HSV, adds to `.z` (Value/brightness) only, and converts back — Hue and
+Saturation come straight from the source art, never touched. Replaces round 8's `HIGHLIGHT_COLOR` mix
+entirely for sprites (the floor overlay KEEPS the alpha-blend/mix technique — it has no diffuse pixel to
+convert, it's a translucent tint the browser composites over unknown DOM content beneath it, not something
+this shader can HSV-boost).
+
+**Fix — additive blend for point lights.** `applyPointLight()` switched from `mix()` to
+`clamp(color + lightColor * intensity, 0.0, 1.0)` — adding stays much closer to the source hue than
+interpolating toward a fixed tint, especially at the low-to-moderate intensities most of the falloff radius
+sits in (it only saturates toward the light's own color as intensity approaches the clamp).
+
+**Light height falloff.** `applyPointLight()` gained a second, independent falloff term (`LIGHT_HEIGHT_RADIUS
+= 150`) alongside the existing horizontal one (`LIGHT_RADIUS = 220`) — multiplied together. Lights are
+assumed to sit at ground level; `groundDist = worldHeight - localY` (0 at the sprite's own bottom/ground,
+growing toward its top) feeds the same squared-falloff curve the horizontal distance already used. Without
+this, a ground-level light lit the WHOLE height of a tall sprite (e.g. the tree's ~208px canopy) uniformly,
+which is why Han asked for it — a real orientation bug was caught and fixed here too: `localY` (=
+`vUV.y * worldHeight`) grows toward the sprite's BOTTOM (vUV.y=0 is screen-top, per `VERTEX_SRC`), so the
+falloff must be computed from `groundDist`, not `localY` directly, or the light would fade the WRONG way
+(strongest at the canopy top instead of the ground).
+
+**Explicitly NOT done this round (flagged, not silently skipped):** extending any lighting effect to DOM
+objects (tree trunk, tent, pet/dog) — Han asked for this too ("Kan de belichting ook werken op de stam en
+de tent en de hond etc?"), but those aren't drawn through this WebGL shader at all, so it needs a genuinely
+different mechanism (most likely CSS filter/overlay driven by a JS-computed world distance) — a real design
+question, not a shader tweak, left open for a follow-up conversation rather than guessed at.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`rgb2hsv`/`hsv2rgb` functions; sprite
+branch's highlight rewritten to an HSV Value boost; `applyPointLight` switched to additive blend + gained
+`worldHeight`/`groundDist` height falloff; `LIGHT_HEIGHT_RADIUS` constant).
+
+### §146. Global wave, floor gets a real normal map + full-height lighting, hue-pull point lights, edge-lit crates (Han 2026-08-05, large NL feedback round)
+
+**Purpose.** After a full explain-the-pipeline walkthrough (asked for in NL: *"Leg me eens uit in stappen
+wat je eigenlijk doet!"*), Han diagnosed several remaining issues himself and requested a batch of fixes in
+one message. Handled in order:
+
+**1. "Ik wil één globale wave band" — the wave is now LITERALLY identical everywhere.** Round 3's
+`NORMAL_DISTORT` (normal-map-driven phase bend) was the last source of divergence between instances — even
+though `computeWaveQuant`'s frequency/speed/steps/grain were shared since round 7, each sprite's OWN normal
+map perturbed the phase differently, so the tree and grass tufts never showed the same wavefront, and the
+per-pixel normal detail added high-frequency phase jitter that read as "noisier" than the floor's clean
+(undistorted) wave — the same root cause Han's "grass tiles are subtler/nicer" observation was pointing at.
+`NORMAL_DISTORT` set to `0.0`. Trade-off: round 3's "wave visibly bends around individual leaf clumps"
+character is gone; if missed, dial back up as a SMALL value rather than reverting outright.
+
+**2. "Ik vind de boel nog steeds heel erg grijs" + "De boom is nu juist enorm 'hel'" — both dialed back.**
+`HIGHLIGHT_ALPHA_MAX` (the sprite HSV Value boost from §145) dropped from `0.45` to `0.16` — the old value
+pushed already-mid-brightness green toward near-white fast. Point lights ALSO still washed toward white at
+real intensities even with §145's additive-RGB switch (adding a light color across all channels raises
+overall luminance broadly, which desaturates too, just less abruptly than a mix). Replaced with an HSV
+**hue-pull**: `applyPointLight` now shifts Hue partway toward the light's own hue (`LIGHT_HUE_PULL = 0.55`)
+and boosts Value modestly, instead of adding RGB — green pulls toward blue-green near the wisp, not toward
+flat white.
+
+**3. "de 'straal' van licht mag 50% groter."** `LIGHT_RADIUS` 220→330, `LIGHT_HEIGHT_RADIUS` 150→225.
+
+**4. "ik zie geen normal map op de ground tile... normal map voor het hele level?" + "nu wordt het gras niet
+belicht" + "Voor lighting moet alles in scope zijn (behalve de achtergrond)."** The floor overlay now:
+   - Samples a real (generated, `floor-normal.png` — ONE representative cell, not per-tile-exact, same
+     "can be very simple" spirit Han used for the original floor ask) normal map for ambient shading.
+   - Spans the FULL tile height (`FLOOR_T`, was just the top rows) so lighting reaches the whole ground —
+     the wind-wave highlight specifically still restricts itself to the top rows via a new shader-only
+     constant (`FLOOR_TOP_ROWS_CONST = 5.0`; `RpgLevelPanel.jsx` no longer has its own `FLOOR_TOP_ROWS`,
+     since there's no separate JS-side instance height to derive it from anymore).
+   - Gets a STEADY point-light presence (`lightPresence()`), not gated by the wave's own phase — otherwise
+     the ground near a light would flicker in/out as the (now-global) wave cycles, instead of glowing
+     consistently. `alpha = max(waveAlpha, lightAlpha)`.
+   - Trunk/tent/pet/hero are STILL not lit — those are DOM, not WebGL, and still need the CSS-mechanism
+     design question resolved (asked again, not yet answered as of this round).
+
+**5. "is het mogelijk om lantaarn-invloed te beperken tot de buitenste paar pixels?"** New per-instance
+`edgeLitOnly` flag (default off). When on, `edgeLightFactor()` samples the diffuse alpha `EDGE_LIGHT_PIXELS
+= 3` native px out in each cardinal direction; if none of those neighbors are transparent, the fragment is
+"interior" and gets ZERO point-light contribution — only a thin rim near the sprite's own silhouette lights
+up. Demonstrated on the new crates below; intended for an eventual fence (Han's own example).
+
+**6. "zet een paar kisten op de voorgrond."** Three crates added as `edgeLitOnly: true` sprite instances
+near the tent (`CRATE_POSITIONS`), using Decor.png's top-left 32×32 cell + a generated normal map
+(`crate-normal.png`) — the first non-foliage object in the WebGL-lit pipeline, proving the mechanism
+generalizes beyond trees/grass.
+
+**Invariant addition:** `FLOOR_TOP_ROWS_CONST` (shader) has no JS-side counterpart to stay synced with
+anymore — if the floor overlay's wind-highlight height needs to change, edit it directly in
+`ForegroundFoliageLayer.jsx`.
+
+**Files:** `scripts/generate-tree-normal-maps.mjs` (`floor-normal.png`, `crate-normal.png` generation added),
+`src/components/character/ForegroundFoliageLayer.jsx` (`NORMAL_DISTORT`→0, `HIGHLIGHT_ALPHA_MAX` lowered,
+`LIGHT_RADIUS`/`LIGHT_HEIGHT_RADIUS` +50%, point-light hue-pull rewrite, `edgeLightFactor`/`uEdgeLitOnly`,
+floor branch normal-map + full-height lighting, `FLOOR_TOP_ROWS_CONST`), `src/components/character/RpgLevelPanel.jsx`
+(floor instance resized to full tile height, `FLOOR_TOP_ROWS` constant removed, crate constants/instances,
+new normal-map imports).
+
+### §147. Blotchy moving noise, screen blend, live-tunable debug panel, day/night global illumination (Han 2026-08-05, large NL feedback round)
+
+**Purpose.** Han's most technically dense round yet — several diagnoses were correct and directly informed
+the fix (screen blend for the "subtle on bright, strong on dark" property; the phase-mismatch root cause).
+
+**1. Blotchy moving pattern replaces sine bands (NL: "Ik heb liever een vlekkeriger patroon dat beweegt").**
+`computeWaveQuant` no longer sums two sine waves — it samples 2 octaves of value noise (`valueNoise`/
+`blotchNoise`, standard 4-corner-lerp smooth noise) at a coordinate that slides with `uTime`. Organic blob
+shapes instead of directional stripes; `uNoiseScale` controls blob size (replaces `WAVE_FREQ_X`/`WAVE_FREQ_Y`
+— there's no more "diagonal tilt" dial since blob noise has no inherent direction the way a sine band did).
+
+**2. Root cause of the lingering per-layer phase mismatch (NL: "ik zie nog steeds verschillende wave bends
+voor de verschillende lagen" — STILL different, even after round 10's "one global wave"): found it.** The
+wave's Y-term used raw `localY` (0..`worldHeight`) — a DIFFERENT range per instance (0..16 floor, 0..32
+tuft, 0..208 tree) — so the same world-X position sampled a genuinely different point in the noise field
+depending on which instance happened to be there. Switched to `groundDist` (height ABOVE the ground, 0 at
+every instance's own ground-contact point regardless of its own height) — now shared and meaningful across
+every instance kind. This is the same quantity `applyPointLight`'s height falloff already used (§145/§146).
+
+**3. Screen blend (NL: "ik denk dat belichting 'screen blend' moet gebruiken" + "lighting mag subtiel zijn
+voor heldere objecten, en een groter effect hebben op donkere objecten"): now the default for both the
+wind-highlight and the point lights.** `screenBlend(base, blend) = 1-(1-base)*(1-blend)` has the requested
+property built into the formula itself — a bright base barely changes no matter how strong the blend color;
+a dark base shows nearly the full blend color. No separate "reduce contrast on bright pixels" logic needed.
+
+**4. Debug blend-mode selector + full parameter panel (NL: "Kun je zorgen dat ik in debug verschillende
+blend modes kan kiezen" + "Zet alle params die je gebruikt in de debug").** `blendHighlight()`/`blendLight()`
+now take a `mode` int (0 Screen, 1 HSV Value/Hue boost — rounds 9-10's old technique, 2 Additive RGB — round
+9's first attempt, 3 plain Mix — round 8's original), independently selectable for the wave highlight and
+the point lights. Every tunable constant Han has asked about became a uniform (`uNoiseScale`, `uWaveSpeed`,
+`uWaveSteps`, `uDitherAmount`, `uHighlightStrength`, `uLightRadius`, `uLightHeightRadius`, `uLightStrength`,
+`uHuePull`, both blend-mode ints, `uGlobalIllumination`) driven live from a new `FoliageParamsPanel` in
+`RpgLevelPanel.jsx` (sliders + selects, gated on `debugMode`, a "reset" button restores
+`DEFAULT_FOLIAGE_PARAMS`). NOT exposed: `GRAIN_CELL` and `NORMAL_DISTORT` (the latter pinned at 0 by round
+10's decision) — stayed shader consts, flagged rather than silently included as "all" when they aren't.
+
+**5. Floor gets a real diffuse sample (NL: "ik zie nog steeds een duidelijk verschil in kleur van
+grastuften en tiles").** The floor overlay's `diffuseUrl` is now `floorTiles2Url` (cropped to one
+representative cell, `FLOOR_REPRESENTATIVE_CELL`, kept in sync by hand with the normal-map generator's own
+copy) instead of no diffuse at all — it now runs through the literal SAME `blendHighlight()`/`screenBlend()`
+call the sprite branch uses, with a real (if representative, not per-tile-exact) base color, instead of
+always tinting toward a flat near-white regardless of the ground's own hue.
+
+**6. Day/night global illumination (NL: "voeg nog een param toe: global illumination. Ik wil het donker
+kunnen maken; ga niet naar helemaal zwart, maar naar donkerblauw" + "Welke blend moet ik gebruiken zodat een
+lichtbron dan de oorspronkelijke kleur terug weergeeft (met een beetje geel erdoor)? ... de boom wordt niet
+wit-geel, maar ik zie ook nog het groen van het blad").** A point light's role changed from "add brightness
+toward the light's color" to "REVEAL the true color out of ambient darkness, lightly tinted by the light."
+`uGlobalIllumination` (0 = fully dark, tinted `AMBIENT_DARK_COLOR` — a dark blue, never pure black — 1 =
+full daylight) darkens `trueColor` (the wave-highlighted, undarkened color) into `darkened`; `applyPointLight`
+now takes BOTH and `mix()`es `currentColor` toward a light-tinted version of `trueColor` as intensity rises,
+instead of pushing brightness past 1.0. `uHuePull` doubles as "how much the light's hue tints the revealed
+color" — kept subtle by default so a lit tree reads as green-with-a-little-yellow, not white-yellow. The
+floor overlay gets a `nightBase` alpha floor `(1-uGlobalIllumination)*0.5` so the darkened ground actually
+shows at night even away from any wave patch or light (a translucent overlay at alpha=0 shows nothing,
+regardless of how dark its own color is computed to be).
+
+**Bug caught in review before shipping:** the mediump-precision wrap (`mod(worldX, 4000.0)`, inherited from
+round 6's original fix) jumps discontinuously wherever the mod wraps — with no offset, that wrap point was
+exactly `worldX=0`, the dead center of the visible level (`LEVEL_MIN_X..LEVEL_MAX_X = -1600..1600`), which
+would have been a visible seam right where the player starts. Fixed by offsetting before the mod
+(`mod(worldX + 10000.0, 4000.0)`), moving the wrap points to `+-2000`, outside the visible range.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (blotch noise functions, `groundDist`-based
+wave phase, `screenBlend`/`blendHighlight`/`blendLight`, `uGlobalIllumination` + darken/reveal lighting
+model, `DEFAULT_FOLIAGE_PARAMS` + all new uniforms, wrap-seam fix), `src/components/character/RpgLevelPanel.jsx`
+(`FLOOR_REPRESENTATIVE_CELL`, floor instance's real `diffuseUrl`, `FoliageParamsPanel`/`ParamSlider`/
+`ParamSelect`, `foliageParams` state).
+
+### §148. Symmetric HSV boost, dual blend-mode averaging, flicker noise, DOM lighting on backgrounds/tent/trunk (Han 2026-08-05)
+
+**1. HSV boost average preservation (NL: "Ik denk dat ik HSV boost van foliage het meest nice vind, maar de
+overall HSV wordt dan te hoog. Ik wil dat de gemiddelde HSV hetzelfde blijft").** `blendHighlight`'s mode 1
+only ever ADDED to Value (waveQuant is 0..1, so the boost was always >=0) — since the wave spends time on
+both sides of its own midpoint but the boost never went negative, the time-average brightness necessarily
+drifted upward. Mode 1 now swings symmetrically around zero: `(waveQuant-0.5)*2.0*strengthScale`. Required a
+signature change — `blendHighlight` now takes `waveQuant` and `strengthScale` separately instead of one
+pre-multiplied `strength`, so mode 1 can derive its own signed swing.
+
+**2. Dual blend-mode averaging (NL: "ik wil twee blend modes kiezen waarvan je het gemiddelde neemt").** New
+`blendHighlightDual()` runs `blendHighlight` twice with independently-selected modes (`uWaveBlendMode`,
+`uWaveBlendMode2`) and averages 50/50. Default pairs Screen (mode 0) with HSV boost (mode 1) — some of
+each's properties. Not yet done for the point-light blend (only requested/demonstrated for the wave
+highlight) — same mechanism, trivial to extend if wanted.
+
+**3. Flicker noise (NL: "Ik wil ook nog een 'random noise' hebben, die wat subtiele 'flickering' geeft op de
+bladeren en het gras. Nu is de wave heel clean").** `flickerNoise()` re-rolls a per-pixel-cell random value
+every `1/FLICKER_HZ` (6/sec) — a genuinely different value each slot, unlike the blotchy wave's smooth
+drift — added as a small nudge to `trueColor` via a new `uFlickerAmount` uniform, before the day/night
+darken/reveal step (so it participates in what gets revealed near a light).
+
+**4. DOM lighting extended to backgrounds, tent, trunk (NL: "pas alles ook toe op de tiles, de tent, en de
+boomstam" + "pas de illum ook toe op alle achtergronden").** These are plain DOM elements (never drawn
+through the WebGL shader), so they get a CSS approximation of the SAME two operations instead of running
+the actual shader code:
+- **Darken**: an opaque overlay with `mix-blend-mode: multiply` computes exactly `base*overlayColor` per
+  channel — the literal same operation as the shader's `trueColor*ambientTint`. One overlay for the whole
+  background region (positioned right after the parallax layers, before anything else is drawn, so it can't
+  double-darken anything drawn later) plus one each sized/positioned to match the trunk and tent divs
+  exactly (multiply doesn't compose safely across a whole screen the way screen blend does, so darkening had
+  to be scoped per-element rather than one global overlay).
+- **Reveal**: `mix-blend-mode: screen` computes `1-(1-base)*(1-blend)` — the literal same formula as the
+  shader's `screenBlend()`. ONE overlay (screen blend, unlike multiply, safely composites across everything
+  already drawn without double-effect risk) using two CSS `radial-gradient`s (one per light, in the light's
+  own color, centered at its world→screen position) layered via multiple `background-image` values, opacity
+  scaled by `(1 - globalIllumination)`.
+- Both driven by the SAME `foliageParams.globalIllumination`/light-color/radius values as the WebGL shader,
+  so the debug panel's sliders move both systems together.
+- No per-pixel normal-map interaction for these DOM elements (they have none) — a flat approximation,
+  consistent with the "can be simple" precedent already set for non-focal props.
+
+**Bug caught in review before shipping:** the trunk/tent darken overlays initially spread the SAME style
+object used for the full-screen background overlay (`inset:0`) while ALSO setting explicit
+`left`/`bottom`/`width`/`height` — `inset:0` sets `top`/`right` too, over-constraining the box (CSS resolves
+top+bottom+height conflicts by dropping `bottom`, which would have silently broken the trunk/tent
+positioning). Split into a position-free `domDarkenPaint` (background/blend-mode only) reused by both the
+full-screen and the per-element overlays, and a separate `domDarkenOverlayStyle` that adds `inset:0` only
+for the full-screen case.
+
+**5. Answered (not implemented): "why does the crate light up on the wrong side?"** Point lights currently
+have NO directional component at all — the reveal is pure distance falloff. The only thing currently reading
+the normal map's direction is the OLD fixed ambient term (a hardcoded virtual sun, unrelated to the
+wisp/hero's actual positions). Explained to Han directly; true directional point lighting (a light→fragment
+direction vector dotted with the decoded normal) is a natural extension but NOT built this round — offered
+as a next step, not assumed.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`blendHighlight` signature change +
+symmetric mode 1, `blendHighlightDual`, `flickerNoise`, `uWaveBlendMode2`/`uFlickerAmount` uniforms),
+`src/components/character/RpgLevelPanel.jsx` (`AMBIENT_DARK_RGB`/`WISP_LIGHT_RGB`/`HERO_LIGHT_RGB`/`mixRgb`/
+`rgbCss` constants, `domDarkenPaint`/`domDarkenOverlayStyle`, darken overlays for backgrounds/trunk/tent,
+reveal-glow overlay, two new `FoliageParamsPanel` controls).
+
+### §149. Directional point lighting; up to 10 lights, generalized from wisp/hero; flicker rewritten to be pixel-aligned and per-frame (Han 2026-08-05)
+
+**1. Directional lighting (Han: "ja graag" — after §148 explained that point lights had no directional
+component at all, only pure distance falloff, which is why a crate lit up on an unexpected side).**
+`applyPointLight` now computes `lightDir` — a vector FROM the fragment TOWARD the light in the same
+`(worldX, groundDist)`-ish 2D+ space the rest of the file already uses, with a fixed moderate positive Z
+(0.6, "the light is also somewhat toward the viewer," the same assumption the ambient term already made,
+since this is a 2D side-view game with no true depth axis) — and dots it against the decoded normal
+(`ndotl`). This MULTIPLIES the existing distance falloff: a surface facing the light gets the full effect,
+a surface facing away gets none, even standing right next to the light. This is the actual fix for "why did
+the crate light up on the wrong side" — before this round, nothing in the point-light path read the normal
+map's direction at all.
+
+**2. Generalized from 2 hardcoded named lights to an array of up to 10 (Han: "ik ga hooguit 10
+lichtbronnen in beeld hebben").** `uWispWorldX`/`uHeroWorldX` + `WISP_LIGHT_COLOR`/`HERO_LIGHT_COLOR`
+consts replaced by `MAX_LIGHTS=10` uniform arrays (`uLightCount`, `uLightWorldX[10]`,
+`uLightWorldHeight[10]`, `uLightColor[10]`), looped in `applyPointLights` with a GLSL ES 1.00-legal pattern
+— the loop's OWN bound is the constant `MAX_LIGHTS` (required), but the `break` condition inside reads the
+runtime `uLightCount` uniform (ordinary dynamic branching, not a dynamic loop bound). JS side: the
+`ForegroundFoliageLayer` `wispWorldX`/`heroWorldX` props are gone, replaced by a single `lights` prop —
+`[{ worldX, worldHeight, color: [r,g,b] }]` — uploaded via reused `Float32Array` buffers (`gl.uniform1fv`/
+`uniform3fv`, allocated once outside the draw loop, not reallocated 60x/sec). `RpgLevelPanel.jsx` currently
+populates exactly 2 entries (wisp, hero) — the array has room for 8 more (a torch, a campfire, a lantern on
+a future fence...) with zero shader/plumbing changes needed later.
+
+**3. Flicker noise corrected — pixel-aligned, genuinely per-frame (Han, NL: "wat is die flicker amount? ...
+De flicker is ook helemaal niet pixel trouw. Ik wil bereiken dat elke frame er wat willekeurige pixels
+oplichten en weer andere donkerder worden. Eerst had je prachtig een tweede wave in de wave map, die via
+interferentie voor prachtige random pixelation zorgde. Die wil ik hebben, niet jouw huidige implementatie"
+— "what is that flicker amount [answered: the amplitude]? The flicker isn't pixel-faithful at all. I want
+random pixels lighting up and others dimming EVERY frame. Bring back the two-wave-interference look you
+had, not your current implementation").** §148's `flickerNoise` sampled at `worldX*0.7` (not aligned to
+the native pixel grid at all) and only re-rolled 6x/second via a `floor(uTime*FLICKER_HZ)` time-slot — not
+"every frame." Fixed: the sample coordinate now floors to the SAME `GRAIN_CELL` pixel grid the wind-wave's
+own dither already uses (genuinely pixel-aligned), and re-seeds from a new `uFrameSeed` uniform — a plain
+integer counter incremented once per rendered frame in JS (`frameSeed += 1`), NOT derived from `uTime` —
+consecutive frames don't interpolate the way consecutive samples of a continuous time value would, so
+every frame gets a truly fresh, uncorrelated value per pixel. Two independently-offset `hash21` samples are
+combined (`a*0.6 + b*0.4`) rather than one, echoing round 3's two-sine-interference technique Han
+specifically asked to bring back, for a richer texture than a single hash alone gives.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`MAX_LIGHTS`/light-array uniforms
+replacing wisp/hero-specific ones, `applyPointLight`'s `lightDir`/`ndotl` directional term,
+`applyPointLights`/`maxLightPresence` array loops, `flickerNoise` rewritten, `uFrameSeed` uniform + JS-side
+`frameSeed` counter, reused `Float32Array` upload buffers), `src/components/character/RpgLevelPanel.jsx`
+(`WISP_LIGHT_COLOR01`/`HERO_LIGHT_COLOR01` 0..1 constants, `lights` array prop replacing
+`wispWorldX`/`heroWorldX`).
+
+### §150. Floor/trunk/tent moved into the WebGL lit pipeline; light-Y sign fix; 3-tier edge lighting; flicker replaced by true two-wave interference (Han 2026-08-05, round 14 NL feedback)
+
+Round 14's feedback (screenshot of the night scene, hero/wisp/pet/tree/dark background) named four
+concrete, unresolved gaps left by §148/§149's DOM-approximation hybrid:
+
+**1. Light comes from BELOW leaves, not above — Y sign was inverted (Han, NL: "het licht van personage en
+wisp komt van onder bladeren, dus de bladeren moeten van onder worden opgelicht, dat is nu andersom.
+Links-rechts is wel goed").** §149's `lightDir` Y component was `lightWorldHeight - groundDist`; for a
+light sitting at ground level (`worldHeight: 0`) and a leaf well above the ground, this pointed the "toward
+light" vector DOWNWARD in the shader's convention, lighting the leaf's upper (away-from-ground) face instead
+of its underside. Fixed by negating: `groundDist - lightWorldHeight`. X (left-right) was already correct
+per Han's own confirmation, so only Y was touched — `applyPointLight` in
+`ForegroundFoliageLayer.jsx`.
+
+**2. `edgeLightFactor` — binary rim → 3-tier falloff (Han, NL: "kisten: (dus voorgrond): buitenste pixels
+licht op, de pixels daarna voor 50%, de pixels daarna niet").** Previously a single
+`anyNeighborTransparent` check at `EDGE_LIGHT_PIXELS` distance returned a binary 0/1 "is this an edge
+pixel." Now checks at TWO distances — `EDGE_LIGHT_PIXELS` (returns 1.0, full point-light contribution) and
+`EDGE_LIGHT_PIXELS*2` (returns 0.5, half contribution) — with solid interior pixels (beyond both) still
+getting 0.0, i.e. `edgeLitOnly` objects (crates) now have a soft two-ring rim instead of a single hard-edged
+outline.
+
+**3. Flicker fully replaced by two-wave interference (Han, NL: "IPV flicker: maak een tweede wave, met
+tegengestelde richting, die interfereert: wit+wit = wit, zwart+zwart = zwart, wit+zwart = grijs" — an
+explicit rejection of §149's `flickerNoise` post-process approach, asking instead for literally what an
+early round already had and lost: two independent moving blotch-noise fields, averaged).**
+`computeWaveQuant(worldX, groundDist, phaseOffset)` now samples TWO independent 2-octave blotch-noise
+fields — `pA` moving left→right (`pA.x -= uTime*uWaveSpeed`), `pB` moving right→left
+(`pB.x += uTime*uWaveSpeed`), offset from each other by `vec2(53.7, 91.3)` so they're not mirror images —
+and averages them: `wave01 = (waveA + waveB) * 0.5`. This is literal amplitude averaging, not a probabilistic
+flicker: two waves both bright at a pixel stay bright, both dark stay dark, and disagreement washes toward
+mid-grey — exactly Han's stated rule. The whole `flickerNoise()` function, its `uFrameSeed`/`uFlickerAmount`
+uniforms, and the JS-side `frameSeed` counter from §149 are DELETED — there is no separate flicker pass
+anymore, the interference IS the wave. `worldX` is still `mod(worldX + 10000.0, 4000.0)`-wrapped before
+feeding either noise field (mediump `sin()` precision safety, unchanged from earlier rounds; the `+10000`
+offset keeps the wrap seam outside the visible `-1600..1600` level range, away from world-X=0).
+
+**4. Floor/trunk/tent moved from the §148 DOM+CSS "multiply-then-screen-reveal" approximation into the SAME
+WebGL lit sprite pipeline the tree canopy/grass tufts/crates already use (Han, NL: "ik blijf voor het licht
+een onderscheid zien tussen de grass tiles en de foliage/boomstam. Ik wil dat ALLE objecten zich hetzelfde
+gedragen t.o.v. licht (maar niet de achtergrond)" + "ik zie ook geen normal map op de tent en boomstam" + "De
+normal map op de grasmat is ook niet duidelijk" + "Is het niet gewoon beter om een normal map ook op het
+gras te maken? Het level is statisch je kan die bij app-constructie eenmalig opbouwen denk ik...").** Three
+sub-changes:
+
+- **New file `src/utils/runtimeNormalMap.js`** — a browser-side port of
+  `scripts/generate-tree-normal-maps.mjs`'s own Sobel height-gradient-from-luminance algorithm (same
+  `STRENGTH = 4.5`, same 3×3 kernel, kept in sync by hand since one runs at Node build time and the other at
+  browser runtime), operating on Canvas2D `ImageData` instead of `pngjs` buffers. Needed because the floor's
+  exact random tile arrangement (`floorTileIdx`, rolled once per mount) doesn't exist until the level itself
+  is constructed — there is no fixed source image a build-time script could point at, so §141/§146's
+  build-time `floor-normal.png` (one "representative" cell, repeated) could only ever approximate it. Exposes
+  `sobelNormalMap(imageData)`, `loadImageEl(url)`, `cropToCanvas`, `normalMapCanvasFromCrop`.
+- **`RpgLevelPanel.jsx`'s new `runtimeTextures` state + mount-time effect** (keyed on `floorTileIdx`, so it
+  reruns only if the level's own random layout changes) builds, once: (a) a floor diffuse+normal texture
+  PAIR stitched tile-by-tile in `floorTileIdx`'s exact order (a normal-map cache keyed by `${row}-${col}`
+  avoids re-running Sobel on repeated cells), so the floor's lighting now uses the REAL per-tile art, not one
+  cell standing in for all; (b) a single normal-map crop for the trunk (`TRUNK_CELL`/`TREE_CELL`); (c) a
+  single normal-map crop for the tent (`TENT_CELL`, `TENT_W*TILE × TENT_H*TILE`). All three are exposed as
+  `.toDataURL()` strings, so they slot into `ForegroundFoliageLayer`'s existing URL-based texture loader
+  with zero changes there.
+- **Trunk and tent get real `<ForegroundFoliageLayer>` sprite instances** (same shape as the tree
+  canopy/crate instances — `diffuseUrl`/`diffuseUV`/`normalUrl`/`screenX`/`screenY`/`widthPx`/`heightPx`/
+  `worldX`/`worldWidth`/`worldHeight`), added to the `instances` array once `runtimeTextures` is ready. The
+  floor's `floorOverlay` instance now uses `runtimeTextures.floorDiffuseUrl`/`floorNormalUrl` with
+  `diffuseUV: [0,0,1,1]` (the stitched texture already IS the exact floor, no cropping needed) instead of
+  the old `FLOOR_REPRESENTATIVE_CELL` approximation, which is deleted. Until `runtimeTextures` resolves (one
+  `Promise.all` image-load tick after mount), the OLD plain DOM `<div>`/`<SheetCrop>` trunk/tent render as a
+  brief unlit fallback so nothing is missing on first paint; the CSS `domDarkenPaint` multiply overlays §148
+  added specifically for trunk/tent are REMOVED (they no longer apply once those are real lit WebGL sprites)
+  — the background's own `domDarkenOverlayStyle` full-screen overlay is UNCHANGED, since Han explicitly
+  scoped "ALL objects behave the same w.r.t. light" to exclude the background.
+
+Deliberately NOT changed this round: the ambient light's fixed direction (`vec3(0.0, 0.5, 0.8)` in the
+shader) — Han's "Normal is.. Licht van recht boven moet het oplichten" ("normally, light from straight above
+should light it up") read as an explanatory aside about how normal-mapping conceptually works (motivating
+giving the floor a REAL normal map, resolved above), not a direct instruction to change the ambient
+direction; flagged back to Han rather than guessed.
+
+**Files:** `src/utils/runtimeNormalMap.js` (new), `src/components/character/ForegroundFoliageLayer.jsx`
+(`applyPointLight` Y-sign fix, `edgeLightFactor` 3-tier rewrite, `computeWaveQuant` two-wave interference
+replacing `flickerNoise`/`uFrameSeed`/`uFlickerAmount`), `src/components/character/RpgLevelPanel.jsx`
+(`runtimeTextures` state + effect, trunk/tent DOM fallback + new WebGL instances, floor instance switched to
+the stitched runtime texture, `FLOOR_REPRESENTATIVE_CELL` and the trunk/tent `domDarkenPaint` overlays
+deleted).
+
+### §151. Two independently-tunable waves, floor made fully opaque WebGL (fixing "grasmat doesn't react to light"), decor split into its own pre-hero canvas, per-instance wave opt-out, auto-flattened normal near lights, dual light blend, glow circle hidden outside debug (Han 2026-08-05, round 15 feedback)
+
+Round 15 opened with five asks answered through a 3-question interview (§ "Before implementing" note below),
+then Han caught two follow-up bugs mid-implementation once he saw the first pass: crates had started
+shimmering (wrong — solid wood) and the tent had NOT (wrong — it's fabric, and looked "fantastisch" once it
+did). The final design treats "does this instance shimmer" as orthogonal to "how is this instance shaped/
+lit," not a property of the trunk/tent-vs-foliage split Han's wording initially suggested.
+
+**1. Wave A/B independently tunable (Han, NL: "maak de noise scale en speed van de twee waves apart
+tunebaar").** `computeWaveQuant`'s two interfering blotch-noise fields (§150) shared one `uNoiseScale`/
+`uWaveSpeed` pair; now each has its own (`uNoiseScaleB`/`uWaveSpeedB` added, defaults equal to A's so nothing
+visibly changes until Han actually detunes one from the other). Two new debug-panel sliders.
+
+**2. Interview before implementing (three genuinely ambiguous asks, resolved by asking rather than
+guessing per CLAUDE.md §4b):**
+
+- *"Tent en trunk should be op de decor background layer"* — the single shared `ForegroundFoliageLayer`
+  canvas always draws AFTER the hero (that's why newly-added trunk/tent sprites started rendering IN FRONT
+  of the character). Han confirmed: add a SECOND `ForegroundFoliageLayer` canvas, positioned BEFORE the hero
+  (the old decor DOM slot), holding floor+trunk+tent; the existing canvas (AFTER the hero) keeps tree
+  canopy+grass tufts+crates. Two WebGL contexts total — nothing close to the browser's ~8-16 cap the file's
+  own header comment already discusses.
+- *"ik snap ook nog steeds niet waarom de grasmat niet reageert op het licht"* — root-caused: the floor was
+  a semi-transparent OVERLAY on top of separately-rendered, unlit DOM tiles, and its alpha was capped at
+  ~30% even directly under a light (`presence * uLightStrength * 0.6`), so any brightening was barely
+  visible against the plain, always-fully-opaque DOM tiles underneath. Han confirmed the fix: make the floor
+  a fully OPAQUE WebGL sprite — the exact stitched texture (§150) becomes the visible ground itself, the old
+  DOM `<SheetCrop>` tile loop is removed (kept only as the pre-`runtimeTextures` fallback), and the whole
+  `lightPresence`/`maxLightPresence`/`nightBase` alpha-blending machinery is deleted as dead code — an opaque
+  sprite's alpha is just `diffuse.a`, same as every other instance.
+- *"de schaduwen zijn nu heel extreem... kan de normal map strength 'zwakker' worden als je dichterbij
+  staat?"* — Han chose auto-flattening near the light (not a manual global slider): see point 4.
+
+**3. Per-instance `wave` flag, orthogonal to shape/kind (Han, mid-implementation: "let op! de kisten op de
+voorgrond moeten NIET shimmeren" then "en het tentdoek wel! dat ziet er echt fantastisch uit").** The first
+implementation pass conflated "which canvas" with "does it wave" (decor = no-wave, foreground = wave) —
+wrong, since the tent (decor canvas, fabric) DOES wave and crates (foreground canvas, solid wood) must NOT.
+Fixed by adding a `uHasWave` uniform, driven by a new per-instance `wave` prop (default `true`, pass
+`wave: false` for trunk/crates) — completely independent of which canvas an instance lives in or whether
+it's `kind: 'floor'`. `ForegroundFoliageLayer.jsx`'s `main()` was unified from two separate branches
+(alpha-cutout sprite vs. translucent floor-overlay) into ONE shared path: `uInstanceKind` now only decides
+discard-on-transparent (0) vs. no-discard (1, floor — opaque by construction) and whether the wind-wave
+restricts itself to the top rows (floor only); `uHasWave` decides whether `computeWaveQuant` runs at all.
+Final assignment: floor (kind 1, always waves, top-rows-restricted) — trunk (kind 0, `wave:false`) — tent
+(kind 0, waves) — tree canopy/grass tufts (kind 0, waves, default) — crates (kind 0, `wave:false`,
+`edgeLitOnly:true`).
+
+**4. Normal map auto-flattens near a light source (Han's chosen fix for "extreme shadows," see point 2).**
+`applyPointLight` blends the sampled normal toward straight-up (`FLAT_NORMAL = vec3(0,0,1)`) as the
+distance-based `closeness` falloff (computed BEFORE `ndotl`) rises — `NORMAL_FLATTEN_NEAR_LIGHT = 0.7`, a
+shader const, not a debug-panel dial per Han's "no slider" choice. Right under a light, small per-pixel
+normal-map slope variation used to swing `ndotl` hard between ~0 and ~1 across neighboring texels — that's
+the extreme dark/light "shadow" look; flattening the normal specifically where `closeness` is high softens
+just that near-light contrast, leaving the ambient shading (not what Han complained about) untouched.
+
+**5. Secondary light blend mode (Han, NL: "light: maak een secundaire blend mode").** New `blendLightDual`
+mirrors round 12's `blendHighlightDual` — runs `blendLight` twice with independently-selected modes
+(`uLightBlendMode`/`uLightBlendMode2`, default Screen+HSV, same default pairing as the wave's own dual-blend)
+and averages 50/50. New debug-panel select.
+
+**6. Glow-circle CSS overlay hidden outside debug mode (Han, NL: "light: buiten debug mode wil ik de glow
+circle niet meer zien; ik zie het licht superduidelijk op alle objecten, dat is genoeg!").** Now that every
+object in the scene is genuinely lit through the shader (floor/trunk/tent this round, canopy/tufts/crates
+since round 10-14), the CSS radial-gradient "reveal" overlay from §148 is redundant during normal play —
+gated on `debugMode` so it stays available as a "here's the light's actual radius" visual aid while tuning,
+but no longer renders during ordinary gameplay.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`uNoiseScaleB`/`uWaveSpeedB` uniforms,
+`uHasWave` uniform + per-instance `wave` prop, unified `main()` replacing the sprite/floor-overlay branch
+split, `lightPresence`/`maxLightPresence` deleted, `blendLightDual` + `uLightBlendMode2`, `applyPointLight`'s
+`FLAT_NORMAL`/`NORMAL_FLATTEN_NEAR_LIGHT` auto-flatten, `DEFAULT_FOLIAGE_PARAMS` new fields),
+`src/components/character/RpgLevelPanel.jsx` (floor DOM tile loop now fallback-only, floor instance moved
+into a new pre-hero `<ForegroundFoliageLayer>` decor canvas alongside trunk (`wave:false`)/tent, foreground
+canvas keeps canopy/tufts/crates (`wave:false` on crates), glow-circle overlay gated on `debugMode`, debug
+panel gets Wave B scale/speed sliders + Light blend mode 2 select).
+
+### §152. Glow circle removed entirely; grass wave amplitude raised (Han 2026-08-06, round 16 quick fixes)
+
+Two small follow-ups before round 16's bigger ask (§153):
+
+**1. Glow-circle overlay deleted, not just hidden (Han, NL: "haal de glow ook buiten debug mode weg" —
+round 15's `debugMode`-gating apparently still wasn't what he wanted).** The CSS radial-gradient "reveal"
+overlay from §148/§151 is removed entirely, in every mode including debug — every object in the scene is
+already genuinely lit through the WebGL shader (floor/trunk/tent/canopy/tufts/crates), so the CSS
+approximation added nothing even as a tuning aid. `WISP_LIGHT_RGB`/`HERO_LIGHT_RGB` (the ×255 CSS-color
+constants that overlay alone used) are deleted as dead code; `WISP_LIGHT_COLOR01`/`HERO_LIGHT_COLOR01`
+(0..1, used by the `lights` array the shader actually reads) stay.
+
+**2. Grass tuft wave visibility raised (Han, NL: "ik kan het foliage effect op het gras nauwelijks zien").**
+Root cause: a grass tuft is only 32×32 native px, close to one `noiseScale` period (~28px at the default
+0.035), so a single tuft rarely spans more than one wave band and mostly reads as a gentle overall
+brightness pulse rather than the tree canopy's visible traveling texture (canopy is 256×208, many periods
+wide). A per-instance-size noise scale would fix this more precisely but reintroduces round 11's "different
+wave per layer" bug Han explicitly rejected (one shared global wave field, sampled by every instance
+regardless of size) — so instead `DEFAULT_FOLIAGE_PARAMS.highlightStrength` (the shared amplitude) was
+raised 0.12 → 0.22, making the pulse readable on small instances too. Still live-tunable via the debug panel
+if this isn't enough once Han confirms visually.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (glow overlay JSX deleted, `WISP_LIGHT_RGB`/
+`HERO_LIGHT_RGB` deleted), `src/components/character/ForegroundFoliageLayer.jsx`
+(`DEFAULT_FOLIAGE_PARAMS.highlightStrength` default raised).
+
+### §153. Pixel-grid-aligned wind skew for grass tufts + tree canopy — "Stage 2" from §141's original plan (Han 2026-08-06, round 16 new feature)
+
+§141's very first header comment planned two stages: "STAGE 1 INVARIANT: pixels never move... Stage 2
+(planned, not yet built) is where actual pixel displacement/wind-push would be added." Round 16 builds
+Stage 2 — a wind-bend that visibly leans grass tufts and the tree canopy, while staying strictly aligned to
+the native pixel grid (no blur, no sub-pixel interpolation) per Han's own constraint: "kun je … skewen, maar
+wel de pixels binnen de pixel grid houden? … hoe verder van het anker, hoe veller de verplaatsing."
+
+**Interview before implementing (CLAUDE.md §4b):** Han's request was itself phrased as a feasibility
+question ("snap je wat ik wil? Is dat doenlijk?"), so the reply led with a plain-language explanation of the
+technique and its (negligible) cost, THEN two clarifying questions before writing any shader code:
+
+- *Should the skew reuse the existing wave signal (bright parts lean most, one coherent gust) or run on its
+  own independent speed/scale?* Han: reuse the same wave.
+- *Which instances should skew — only grass tufts + tree canopy as literally asked, or also the tent (which
+  already shimmers like fabric)?* Han: only grass tufts + tree canopy, explicitly NOT the tent (fabric held
+  taut by poles — waves in color, doesn't lean) — consistent with the `wave`/`skew` flags now being fully
+  independent per-instance switches (a tent has `wave: true, skew: false`; a crate has neither).
+
+**How the pixel-grid constraint is satisfied.** The skew doesn't move any vertex or blur any pixel — it
+changes WHICH source texel each screen row's fragment samples, by an offset that's rounded to a WHOLE
+native pixel (`floor(shift + 0.5)`) before being converted to a UV offset. Since both the diffuse and normal
+textures are already sampled with `NEAREST` filtering (no mipmaps, pixel-art fidelity — see this file's own
+header comment), an integer-texel offset always lands exactly on a texel center: the result is a crisp
+"staircase" shear — each native-pixel ROW of the sprite can shift sideways by a whole pixel relative to the
+row below it, exactly the classic pixel-art wind-lean look (Stardew-style grass), never a smeared diagonal
+edge.
+
+**"Further from the anchor, more displacement."** `groundDist` (height above the ground, already the
+shared Y-reference for the wave/lighting math since round 10 — one value, same meaning at every instance)
+doubles as the skew's height reference: `heightRatio = groundDist / worldHeight` is 0 at the ground-contact
+row and 1 at the instance's own top row. The shift is scaled by `heightRatio * heightRatio` (squared, not
+linear) so the base stays essentially rigid and the lean concentrates toward the tip — approximating how a
+flexible blade or branch actually bends under load, rather than a uniform tilt of the whole sprite.
+
+**Same wave, one gust.** `computeWaveQuant` was split into `computeWave01` (the raw, continuous two-wave-
+interference value from round 14, BEFORE dithering/quantization) and `quantizeWave` (round 14's dither+step
+logic, now taking a `wave01` it doesn't compute itself). Both the skew and the wind-wave highlight now call
+`computeWave01` from the SAME evaluation each fragment (computed once, reused) — recentered to -1..1 and
+scaled by `heightRatio²`, it's literally the same signal driving both effects, so a bright wave-lit patch on
+a leaf cluster is also the patch leaning hardest at that moment, matching Han's chosen "one coherent gust."
+The skew driver deliberately uses the RAW `wave01`, not the dithered/quantized version — dithering the shift
+itself would jitter the lean per-native-pixel-row (visually noisy sway) instead of reading as one smooth
+bend; only the color highlight wants the gritty, quantized texture.
+
+**New per-instance `skew` flag, independent of `kind`/`wave`.** Mirrors round 15's `wave` flag exactly:
+`skew: true` opts an instance in (grass tufts, tree canopy), default `false` for everything else (tent,
+trunk, crates, floor). A new `uHasSkew` uniform (paired with `uSkewAmount`, the shared max-pixel-shift-at-
+the-top dial, default 2.0px, debug-panel tunable 0-8px) drives it — fully orthogonal to `uHasWave`, since
+the tent needed `wave:true, skew:false` (color shimmer without leaning) while a hypothetical future rigid-
+but-lit object could equally want `wave:false, skew:true` if it ever needed to sway without color-shimmering.
+
+**Bleed-guard.** A skewed UV read could, in principle, sample past this instance's own crop rect into a
+NEIGHBORING cell in the shared source sheet. Both the diffuse UV offset and the normal-map UV offset are
+clamped to the instance's own crop bounds (`[uDiffuseUV.x, uDiffuseUV.z]` and `[0,1]` respectively) — at
+the extreme, the shear flattens to repeating its own edge texel rather than ever reading a neighbor's pixels.
+
+**Cost.** A handful of extra ALU ops (one multiply-add for the height-curve, one `floor`, two `clamp`s) per
+fragment in a shader that already runs this every frame for every instance — no new texture reads (still one
+diffuse + one normal sample per fragment, just at a different offset), no extra draw calls, no CPU work.
+Not measurably heavier than before.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`computeWaveQuant` split into
+`computeWave01`/`quantizeWave`, `uHasSkew`/`uSkewAmount` uniforms, skew computed + applied to `duv`/
+`normalUV` before texture sampling in `main()`, `NORMAL_DISTORT` dead-code removed since its only caller
+was replaced, `DEFAULT_FOLIAGE_PARAMS.skewAmount`), `src/components/character/RpgLevelPanel.jsx`
+(`skew: true` on the tree-canopy and grass-tuft instances only, debug panel gets a "Wind: skew amount"
+slider).
+
+**Bug fix (same round, Han: "skew heeft geen effect" immediately after shipping):** the skew was computing
+correctly but landing on exactly 0 pixels almost everywhere. Root cause — `wave01` is the average of FOUR
+quasi-random noise samples (two `blotchNoise` calls, each itself two `valueNoise` calls), and averaging that
+many independent samples clusters the result tightly around 0.5 (a central-limit effect); the original
+`sway = (wave01-0.5)*2.0` therefore rarely swung anywhere near +-1, and after the `heightRatio²` falloff and
+the whole-pixel `floor(x+0.5)` rounding, the product almost never crossed the 0.5 threshold needed to
+produce even a single pixel of shift. Fixed with a `SKEW_CONTRAST = 5.0` gain (clamped to -1..1) before the
+recentre, plus raising `DEFAULT_FOLIAGE_PARAMS.skewAmount` 2.0 → 4.0 — a moderate lean in the underlying
+wave now reliably clears the rounding deadzone instead of being swallowed by it.
+
+### §154. Round 17 tuned defaults — light radius/strength/blend preset, wisp color (Han 2026-08-06)
+
+Han passed along a preset dialed in from the debug panel plus one new color, applied as new defaults (still
+all live-tunable): `lightRadius` 330→200, `lightHeightRadius` 225→240, `lightStrength` 0.5→1,
+`huePull` 0.35→0.3, `lightBlendMode`/`lightBlendMode2` both →1 (HSV) — "blend: HSV (tweede mag weg)" is
+satisfied by defaulting BOTH dual-blend slots to the same mode (averaging HSV with itself is a no-op single
+mode) rather than removing the dual-blend mechanism §151 built; it stays independently selectable per slot
+in the debug panel if Han wants a real two-mode average again later. `WISP_LIGHT_COLOR01` (the blue wisp's
+light color) changed from `[0.3, 0.55, 1.0]` to `[100/255, 100/255, 1.0]` per "maak het licht van de blauwe
+wisp rgb (100,100,256) dus heel blauw" (256 clamped to the valid 0..255 byte range).
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`DEFAULT_FOLIAGE_PARAMS` light fields),
+`src/components/character/RpgLevelPanel.jsx` (`WISP_LIGHT_COLOR01`).
+
+### §155. Floor wave no longer restricted to top rows; horizontal "breathing" stretch added alongside skew (Han 2026-08-06, round 17)
+
+**1. Floor wind-wave highlight now spans its own full tile height (Han, NL: "kan het dat het shimmer
+effect per ongeluk nog beperkt is tot de bovenste pixels van het gras? Mag op de hele tile, dus de volle
+16px hoogte van de grond").** Round 10's original "blade tips catch the wind" design deliberately restricted
+the floor's highlight to its top `FLOOR_TOP_ROWS_CONST` (5) native rows, leaving the lower rows of each
+16px floor tile dark/unlit by the wave even though round 15/17 already gave the floor full-height ambient/
+point-light coverage. Removed entirely — `rowFalloff`/`FLOOR_TOP_ROWS_CONST` deleted, floor now uses the
+same full-height highlight every other waving instance already did.
+
+**2. Horizontal "breathing" stretch, alongside skew (Han: "ik vind de pixel movement echt heel nice...
+kan de vorm van de tree zelfs worden aangepast? dat de sprite wordt uitgerokken en beweegt?").** A second,
+independent pixel-grid-aligned deformation, layered on top of §153's skew. Resolved by a short interview
+(CLAUDE.md §4b) before implementing:
+
+- *Which axis?* Han: horizontal (width breathes wider/narrower), not vertical.
+- *Same wave signal as skew, or independent?* Han: same wave — one coherent gust drives both the lean and
+  the breathing together.
+- *Scope — tree canopy only (as literally asked), or also grass tufts?* Han: also the grass tufts, i.e. the
+  identical scope skew already has.
+
+Because the scope answer matched skew's exactly, stretch reuses the SAME `uHasSkew` gate rather than adding
+a redundant third per-instance flag that would always be set identically in practice — `skew: true` on an
+instance now means "this instance both leans and breathes."
+
+**How it stays pixel-grid-aligned.** Each fragment's own horizontal distance from the instance's CENTER
+(not its ground anchor — stretch is symmetric, unlike skew's anchor-relative lean) is scaled by the same
+`sway` value skew already computed (recentered -1..1, `SKEW_CONTRAST`-widened) and the tunable
+`uStretchAmount`, then rounded to a WHOLE native pixel before being added to the horizontal UV shift. Sign
+convention: a fragment right of center gets pulled TOWARD the center when `sway > 0` (samples a narrower
+band of source content stretched across the same fixed screen quad width — reads as the silhouette getting
+WIDER), and pushed away from center when `sway < 0` (reads as narrower). Nothing about the screen-space quad
+itself changes size — same as skew, this only changes WHICH native source pixel each on-screen row/column
+samples, so `NEAREST` filtering keeps every result crisp. The resulting skew and stretch pixel-offsets are
+summed into one `totalShiftPx` and applied/clamped together in a single place, rather than two separate UV
+adjustments.
+
+**Invariant reinforced (Han, NL: "let op, een px is altijd een game px, niet een schermpx"):** every
+"px" quantity in this file — `uSkewAmount`, `uStretchAmount`, `texelSize`, the shift math — was already,
+and remains, in NATIVE/game pixels; `ZOOM` (RpgLevelPanel's display scale) never enters the shader at all,
+only `uScreenPos`/`uSizePx` (the vertex-stage quad placement, untouched by skew/stretch) are in display px.
+Documented explicitly in the shader next to `uHasSkew` so this doesn't need re-deriving later.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (floor `rowFalloff`/
+`FLOOR_TOP_ROWS_CONST` removed, `uStretchAmount` uniform, `stretchShiftPx` computed alongside
+`skewShiftPx` and summed into `totalShiftPx` in `main()`, `DEFAULT_FOLIAGE_PARAMS.stretchAmount`),
+`src/components/character/RpgLevelPanel.jsx` (debug panel gets a "Wind: stretch amount" slider).
+
+### §156. Sub-pixel speckling bug in skew/stretch — snap to an explicit native-pixel index, not a continuous offset (Han 2026-08-06, round 18)
+
+Han, after praising the skew/stretch effect: "ik vind dat effect heel vet, maar ik zie wel vlekjes /
+verplaatsingen 'kleiner dan een pixel'" — speckles/displacements smaller than a pixel, which should be
+impossible given §153/§155's "quantize to a whole native pixel" design.
+
+**Root cause.** `duv.x = clamp(duv.x + totalShiftPx * texelSize.x, ...)` added an integer-pixel offset to
+`duv.x`, but `duv.x` itself was already a CONTINUOUS value (`mix(uDiffuseUV.xy, uDiffuseUV.zw, vUV)`,
+interpolated per-fragment across the screen quad) — the addition happened in floating point, and floating-
+point noise could land the result a hair's width from a texel boundary. Two screen fragments that were
+INTENDED to sample the same native source pixel could then round to two DIFFERENT texels under NEAREST
+filtering's own hardware rounding, depending on which side of the boundary each fragment's float value
+happened to fall — this is exactly a "smaller than a pixel" artifact: a torn/speckled seam within what
+should have been one solid native-pixel block.
+
+**Fix — snap to an explicit integer texel index before ever touching a continuous UV.** Instead of shifting
+an already-continuous coordinate, `main()` now computes `nativeX = floor(vUV.x * uWorldWidth)` and
+`nativeY = floor(vUV.y * uWorldHeight)` — the DISCRETE native-pixel column/row this fragment belongs to —
+shifts the INTEGER `nativeX` by `totalShiftPx` (still an integer), clamps it into `[0, uWorldWidth-1]`, and
+only THEN converts to UV using the texel's CENTER (`(index + 0.5) / worldSize`), for both `duv` (diffuse)
+and `normalUV` (normal map). Every fragment belonging to the same intended native pixel now computes the
+bit-for-bit identical integer index and therefore the identical UV — `texture2D()` always lands solidly in
+the middle of one texel, with no floating-point boundary to straddle, regardless of skew/stretch amount or
+screen zoom level. This subsumes the old `texelSize.x`-based offset entirely (still used elsewhere, e.g.
+`edgeLightFactor`'s neighbor sampling, which was never affected by this bug since it re-derives its own
+offsets from `duv` after this fix already runs).
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`duv`/`normalUV` computation in `main()`
+rewritten to snap to an explicit clamped native-pixel index before any UV conversion).
+
+### §157. Floor pinned to a flat "from above" normal; tunable normal-map strength; 5 new composite blend modes; hero light raised to 32px (Han 2026-08-06, round 19)
+
+**1. Floor lighting pinned flat (Han, NL: "normal map van de floor tiles mag toch globaal 'van boven' zijn;
+ik wil bereiken dat de floor tiles gelijkmatig belicht worden, de schaduwen tussen graspollen zijn echt
+overdreven").** The floor's Sobel-derived normal map (§150/§155) carries genuine per-blade relief, which —
+once lit directionally — reads as harsh, uneven per-pixel shadowing between grass tufts rather than an even
+ground plane. Han's own fix: don't sample the floor's normal map for LIGHTING at all, just treat it as flat
+"pointing straight up" (`FLAT_NORMAL = vec3(0,0,1)`, already defined for round 15's near-light flattening).
+`n` in `main()` is now `(uInstanceKind == 1) ? FLAT_NORMAL : ...` — the floor is unconditionally flat,
+regardless of the new strength dial below. The raw normal map is still sampled and shown in the debug
+channel-1 view (diagnostic only), just never used for actual lighting on the floor.
+
+**2. New `uNormalStrength` dial (Han: "maak ook een slider voor normal map strength voor illumination").**
+For every OTHER instance (trunk/tent/canopy/tufts/crates), `n = normalize(mix(FLAT_NORMAL, sampledNormal,
+uNormalStrength))` — 1.0 (default) keeps the current full-relief look, 0.0 flattens it completely, anything
+between softens it. This is a separate, always-on, globally-applied dial from `applyPointLight`'s own
+`NORMAL_FLATTEN_NEAR_LIGHT` (§150), which only kicks in close to a point light and leaves ambient shading
+alone — the new one covers ambient shading too. New debug-panel slider "Normal map strength".
+
+**3. Five new composite blend modes (Han: "voeg nog wat color blend modes toe. zoals, hue, sat, color, lum,
+color dodge").** Added to the SAME 0-8 mode enumeration both the wave-highlight and point-light blend
+selects already share: 4 Hue, 5 Saturation, 6 Color, 7 Luminosity (the four classic Photoshop/CSS
+non-separable HSL composite modes — approximated via the existing `rgb2hsv`/`hsv2rgb` round-trip rather than
+adding a whole separate HSL conversion pair, HSV's "Value" standing in for HSL's "Lightness", per CLAUDE.md
+§6c's "reuse existing machinery" rule), and 8 Color Dodge (`base/(1-blend)`, standard formula). A new shared
+helper `compositeBlend(base, blendColor, mode)` implements all five; since none of them has a built-in
+"strength" parameter the way Screen/Additive/HSV-swing do (Photoshop applies them via layer opacity),
+`blendHighlight`/`blendLight` both compute the fully-composited result and `mix()` it in by the existing
+strength/intensity value, same as plain Mix (mode 3) already does. `BLEND_MODE_LABELS` in
+`RpgLevelPanel.jsx` extended so all four blend-mode selects (wave ×2, light ×2) pick up the new options
+automatically — no per-select changes needed, they already map from one shared array.
+
+**4. Hero light raised (Han: "zet het lampje van de persona op 32px boven het anker").** The hero's `lights`
+entry (both the decor and foreground `<ForegroundFoliageLayer>` invocations) changed from `worldHeight: 0`
+to `worldHeight: 32` — native px above `GROUND_ANCHOR`, per §153's "px is always game px" invariant. The
+wisp's light is unchanged (still ground-level, `worldHeight: 0`).
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`n` computation in `main()` — floor
+pinned to `FLAT_NORMAL`, others blended by `uNormalStrength`; `colorDodge`/`compositeBlend` helpers;
+`blendHighlight`/`blendLight` modes 4-8; `DEFAULT_FOLIAGE_PARAMS.normalStrength`),
+`src/components/character/RpgLevelPanel.jsx` (`BLEND_MODE_LABELS` extended to 9 entries, debug panel gets a
+"Normal map strength" slider, hero `lights` entries' `worldHeight` raised to 32 in both instances arrays).
+
+### §158. Sub-pixel wobble persisted after §156 — derive the native-pixel column from gl_FragCoord, not the interpolated varying (Han 2026-08-06, round 20)
+
+Han, after praising the skew/stretch motion: "ik zie echt vlekken die niet meer in een px passen. Kun je
+pixel grid gebruiken en een pixel kleur forceren voor het hele grid unit? Gaat wsl wel duur zijn.. Misschien
+kan dat skewen nog makkelijker - pixels wisselen, of doorschuiven?" — his own proposed direction ("swap/
+shift whole pixels") was exactly right, and turned out to be cheap, not expensive as he worried.
+
+**Root cause — one layer deeper than §156's fix.** §156 correctly stopped adding a continuous float offset
+to an already-continuous `duv.x`. But the coordinate it started snapping FROM — `vUV.x`, a `varying`
+interpolated by the GPU across the quad — is itself not perfectly precise. GPU varying interpolation has
+finite precision; two adjacent screen fragments that are both MEANT to belong to the same native-pixel
+column could still receive `vUV.x` values that straddle a `floor()` boundary by a hair, so a `floor(vUV.x *
+uWorldWidth)` computed independently per fragment wasn't fully guaranteed to agree across that column,
+especially once skew/stretch made the whole column's position animate — a static image never reveals this
+kind of boundary jitter (the same wrong-side rounding happens every frame, so it's invisible), but a moving
+one does, exactly matching what Han saw only after the skew/stretch effect landed.
+
+**Fix — anchor the native-pixel index to gl_FragCoord instead.** `gl_FragCoord.xy` is not a `varying` — it's
+the fragment's exact, GPU-guaranteed window/backing-store coordinate, with none of the interpolation
+imprecision a `varying` carries. `main()` now computes, right at its top: `localXPx = gl_FragCoord.x -
+(uScreenPos.x - uSizePx.x*0.5)` (the fragment's position within its own quad, in backing-store px) and
+`nativeX = floor(localXPx / (uSizePx.x/uWorldWidth))` (which native-pixel COLUMN this fragment belongs to).
+This requires `uScreenPos`/`uSizePx` — previously vertex-shader-only uniforms — to also be declared in
+`FRAGMENT_SRC` (same values, same per-instance `gl.uniform2f` calls already run each draw; no new JS-side
+uniform plumbing needed). Every other X-position-dependent calculation that used to read `vUV.x` directly
+(`worldX`, the stretch's `offsetFromCenterPx`) now derives from `stableUVx = (nativeX + 0.5) / uWorldWidth`
+instead — the whole per-fragment "which native pixel am I" question is answered ONCE, from a stable source,
+and reused everywhere, rather than each call site independently re-deriving it from the wobblier `vUV.x`.
+Vertical (`nativeY`) is untouched — still derived from `vUV.y`, since skew/stretch don't animate that axis
+and Han hasn't reported vertical artifacts; scoping the fix to the axis that's actually animated keeps the
+change minimal. Cost: one subtraction, one division, one `floor` per fragment — no new texture reads, no
+extra draw calls — "niet duur" as hoped.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`uScreenPos`/`uSizePx` uniforms added to
+`FRAGMENT_SRC`, `main()`'s `nativeX`/`stableUVx` computed from `gl_FragCoord` up front and reused for
+`worldX` and the stretch's `offsetFromCenterPx`).
+
+### §159. CRITICAL: one failed texture load silently killed the entire foliage render loop forever (Han 2026-08-06, round 21)
+
+Han: "oeps! bij het laden krijg ik het level niet te zien... ik zie de assets bij het openen van het level
+een paar frames, en dan verdwijnen ze. Ik zie enkel de achtergrond, persona, wisp, maar tree, grass, tent
+(alle items met normal map etc) zie ik niet :( dit is een critical bug." Everything rendered through
+`ForegroundFoliageLayer`'s two WebGL canvases (tree canopy, grass tufts, trunk, tent, floor, crates) could
+vanish permanently after a few frames, while plain-DOM elements (backgrounds, hero, wisp, pet) kept working
+fine — a strong hint the bug was isolated to the WebGL render loop specifically, not the whole scene.
+
+**Root cause.** `getTexture(url)` did `const img = await loadImage(url); ...` with no error handling, and
+`draw()`'s per-instance loop did `const diffuseTex = await getTexture(inst.diffuseUrl);` also unguarded. If
+ANY single texture URL ever failed to load — a network hiccup, a slow/huge runtime-generated data URL
+(§150's stitched floor texture, generated fresh every mount), or any other transient failure, all of which
+got MORE likely as the app grew heavier per Han's own "ik heb sowieso wat problemen met de app nu die wat
+groter is" — the rejected promise propagated straight up through the unguarded `await` chain and threw
+inside the async `draw()` function. Since `raf = requestAnimationFrame(draw)` sat at the very END of that
+same function (after the per-instance loop), a throw ANYWHERE before it meant that line never executed —
+the shared rAF loop simply stopped, silently (an unhandled promise rejection most users never open devtools
+to see), leaving the canvas in whatever partial state `gl.clear()` + a partial `drawArrays` pass left it:
+blank, forever. This exactly explains "visible for a few frames [while already-cached textures kept
+drawing], then gone [the first frame a NOT-yet-cached texture's load happened to reject]."
+
+**Fix — two layers, both now permanent invariants for this file:**
+
+1. **`getTexture` catches the load failure at the source.** A rejected `loadImage(url)` is now caught,
+   logged once via `logger.error('ForegroundFoliageLayer', 'E022-FOLIAGE-TEXTURE-LOAD', err, { url })`, and
+   the URL is cached as `null` in `textureCache` — so this exact failure is never retried every single frame
+   (which would spam the console/network), and that ONE instance just silently doesn't draw instead of
+   taking every other instance down with it.
+2. **`draw()` itself can never permanently die again (defense in depth).** Split into `draw()` (the rAF
+   callback) and `drawFrame()` (the actual per-frame work, everything that used to be inline). `draw()` now
+   wraps `await drawFrame()` in `try/catch/finally`, logging any escaped error via
+   `logger.error('ForegroundFoliageLayer', 'E023-FOLIAGE-DRAW-FRAME', err)` in the `catch`, and — critically —
+   `raf = requestAnimationFrame(draw)` now lives in the `finally` block, so it ALWAYS runs (unless the
+   effect's own cleanup already set `cancelled`) no matter what happened during that frame. Worst case now: a
+   single frame renders wrong or skips an instance; the loop itself is structurally unkillable by a per-frame
+   error again — not just for THIS bug, for any future one too.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`getTexture` try/catch + null-caching,
+`draw`/`drawFrame` split with `draw`'s `try/catch/finally` wrapper), `CLAUDE.md` §7a (`E022-FOLIAGE-
+TEXTURE-LOAD`, `E023-FOLIAGE-DRAW-FRAME` allocated).
+
+### §160. CRITICAL, round 2: §159's fix didn't hold — root cause was a `size.w > 0` remount loop exhausting the WebGL context budget (Han 2026-08-06, round 22)
+
+Han: "nope - werkt niet. er is een ander bug denk ik. Ik laadt het level. Ik zie alle assets. 1 frame later
+zie ik alle elementen die geïmpacteerd worden door de normal map verdwijnen." Crucially DETERMINISTIC —
+every load, exactly one frame late, not the flaky network-dependent pattern §159's texture-load fix targeted
+— which is what pointed away from "one image failed to load" and toward something that reliably happens
+once, early, every single time.
+
+**Root cause.** BOTH `<ForegroundFoliageLayer>` mounts in `RpgLevelPanel.jsx` were gated on `size.w > 0`,
+where `size` comes from a `ResizeObserver` that starts at `{w:0,h:0}` and can genuinely fire MORE THAN ONCE
+as the level's own layout settles (web fonts finishing, images affecting a parent flex/grid's measured
+size, anything that reflows shortly after mount) — normal, expected ResizeObserver behavior, but every time
+it toggled `size.w > 0` from false to true (or back), React fully UNMOUNTED and REMOUNTED the gated
+component, tearing down its `<canvas>` and creating a BRAND NEW WebGL context on every single cycle. Each
+old context was simply abandoned to garbage collection — `canvas.getContext('webgl')` was never paired with
+an explicit release — and browsers cap concurrent WebGL contexts PER PAGE at roughly 8-16 (a limit this very
+file's own header comment has warned about since round 1). Round 15's decor/foreground split DOUBLED the
+context-consumption rate of this churn (two canvases per level instead of one), making exhaustion far more
+likely than before that round. Once the budget is hit, EVERY further `canvas.getContext('webgl')` call
+returns `null` — handled gracefully (`logger.warn(...); return undefined;`, no crash) but permanently: no
+more WebGL rendering, ever, for that mount. This is deterministic (not network-flaky) because the
+ResizeObserver settle-then-fire-again pattern happens reliably on every level load, not intermittently like
+a failed image request — exactly matching "1 frame later, always."
+
+**Fix — two parts:**
+
+1. **Stop unmounting for a mere size change.** Both `<ForegroundFoliageLayer>` render sites in
+   `RpgLevelPanel.jsx` no longer require `size.w > 0` to render at all (the decor one still requires
+   `runtimeTextures`, since its instances reference `runtimeTextures.*` directly). `widthPx`/`heightPx`
+   safely accept `0` — an empty canvas simply draws nothing, no error — and the component's own
+   `useLayoutEffect` already resizes the canvas's backing store IN PLACE as `size` changes, without
+   recreating anything. The canvas now mounts (and creates its WebGL context) exactly ONCE per level view,
+   regardless of how many times the container resizes afterward.
+2. **Explicit context release on unmount, as a backstop.** `ForegroundFoliageLayer`'s cleanup now calls
+   `gl.getExtension('WEBGL_lose_context')?.loseContext()` before returning. This doesn't fix THIS bug by
+   itself (the mount-churn is what's actually eliminated above) — it's there so that IF this component ever
+   does legitimately unmount again in the future (a route change, a different conditional render, dev HMR),
+   the context is freed immediately rather than whenever the GC eventually gets around to it, so no future
+   remount pattern can silently re-introduce the same exhaustion.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`size.w > 0` removed from both
+`<ForegroundFoliageLayer>` render gates), `src/components/character/ForegroundFoliageLayer.jsx`
+(`WEBGL_lose_context` extension called in the mount effect's cleanup).
+
+### §161. CRITICAL, round 3: the ACTUAL root cause — a uniform precision mismatch failed the shader link on every single load (Han 2026-08-06, round 23)
+
+§159 and §160 were both real, defensible fixes for real (if secondary) issues — but neither was Han's actual
+bug, and he correctly kept pushing back ("nope - werkt niet"; "nog altijd geen level zichtbaar") rather than
+accepting a plausible-sounding but unverified explanation. This round he pasted the actual browser console
+output, which ended the guessing immediately:
+
+```
+[ERROR] [ForegroundFoliageLayer] E021-FOLIAGE-SHADER-COMPILE Error: Precisions of uniform 'uScreenPos'
+differ between VERTEX and FRAGMENT shaders.
+```
+
+**Root cause.** §158 added `uniform vec2 uScreenPos;` / `uniform vec2 uSizePx;` to `FRAGMENT_SRC` (to derive
+the native-pixel column from `gl_FragCoord`) — the SAME two uniform names `VERTEX_SRC` already declared. GLSL
+requires a uniform shared by name across both stages of one linked PROGRAM to declare the IDENTICAL
+precision in both places. Vertex shaders default to `highp` per the GLSL ES spec (no `precision` pragma
+needed there); this file's fragment shader opens with `precision mediump float;`, and since §158's two new
+declarations had no explicit precision qualifier, they silently became `mediump` in the fragment stage only.
+Mismatch → `gl.linkProgram` fails → `createProgram()` throws → the existing try/catch in the mount effect
+catches it, logs `E021-FOLIAGE-SHADER-COMPILE`, and returns `undefined` — no canvas ever draws, not even
+once, on every single load, on every browser, deterministically. This is why §159's texture-load fix and
+§160's remount fix each felt plausible (both addressed genuine, real weaknesses this file had) but neither
+touched the actual failure: the shader had not compiled since §158 shipped, full stop.
+
+**Fix.** `uScreenPos`/`uSizePx` in `FRAGMENT_SRC` now explicitly declare `uniform highp vec2 ...`, matching
+the vertex shader's implicit default exactly. `gl_FragCoord` itself defaults to `mediump` precision in
+fragment shaders per spec, but mixing precisions WITHIN an expression (not across a shared uniform
+declaration) is legal GLSL — only the cross-stage uniform DECLARATION had to match.
+
+**Lesson for next time this file gets a new cross-stage uniform:** any uniform added to `FRAGMENT_SRC` that
+already exists in `VERTEX_SRC` (or vice versa) needs an explicit, matching precision qualifier on BOTH
+declarations — the fragment shader's `precision mediump float;` pragma only sets the DEFAULT for
+un-qualified declarations, and that default doesn't automatically match a stage that has no such pragma at
+all (vertex shaders are highp by default, unqualified). A silent link failure here is caught and logged
+(§7a's error-boundary discipline meant this never crashed the app), but "caught and logged" still means
+"nothing renders" if nobody reads the console — worth remembering that a `logger.error` call is a promise to
+LOOK at the log, not a guarantee the failure is harmless.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`uScreenPos`/`uSizePx` in `FRAGMENT_SRC`
+now explicitly `highp`, matching `VERTEX_SRC`'s default).
+
+### §162. CRITICAL, round 4: §160's own "backstop" fix was the regression — loseContext() breaks React StrictMode's mount→cleanup→mount (Han 2026-08-06, round 24)
+
+§161's precision fix was real and necessary but not sufficient — Han's next console paste showed a NEW
+failure mode: `E021-FOLIAGE-SHADER-COMPILE Error: null`, thrown from `compileShader`, on every load. An
+`Error: null` (not an empty string, not a real GLSL diagnostic) is the signature of `gl.getShaderInfoLog()`
+itself returning `null` — which the WebGL spec reserves for calls made against an invalid or LOST context,
+not an actual compile error in the source.
+
+**Root cause — a self-inflicted regression from §160.** `main.jsx` wraps the whole app in
+`<React.StrictMode>`, which deliberately double-invokes every mount effect in development (mount → cleanup
+→ mount) specifically to surface effects that don't clean up safely — this is standard, expected React 18
+dev behavior, not a bug in itself. §160 added `gl.getExtension('WEBGL_lose_context')?.loseContext()` to this
+component's cleanup as a defensive backstop against context leaks. Under StrictMode, that cleanup fires
+between the two mounts of the SAME `<canvas>` element — the FIRST mount's cleanup called `loseContext()`,
+and per the WebGL spec, a canvas whose context was explicitly lost this way does NOT hand back a fresh
+context from a later `getContext('webgl')` call on that same element; it returns the SAME, now-permanently-
+dead context object. The SECOND (real) mount then tried to `compileShader`/`linkProgram` against that dead
+context, and every shader-info-log query on a lost context returns `null` — exactly the error Han saw, on
+every load, because StrictMode's double-invoke happens on every load in dev.
+
+**Fix — remove the backstop, keep the actual fix.** The `loseContext()` call is deleted entirely. §160's
+real fix — removing the `size.w > 0` gate from both `<ForegroundFoliageLayer>` render sites in
+`RpgLevelPanel.jsx`, which eliminates the REPEATED remount churn that motivated wanting a backstop in the
+first place — stands on its own and needs no companion cleanup call. Letting the browser garbage-collect an
+abandoned WebGL context on unmount is the normal, StrictMode-safe pattern every other canvas-using React
+component relies on; the "backstop" turned out to be strictly worse than doing nothing.
+
+**Pattern worth remembering:** a "defense in depth" addition to a cleanup function is not automatically
+safe just because it only runs on unmount — in an app wrapped in `<React.StrictMode>` (this one is), EVERY
+mount effect's cleanup is guaranteed to run at least once as part of a normal, harmless double-invoke cycle,
+so any cleanup-time side effect must tolerate being followed by a legitimate remount of the same underlying
+resource (same DOM node, same canvas). `loseContext()` violates that tolerance by design — it exists
+specifically to make a context permanently unusable.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`WEBGL_lose_context.loseContext()` call
+removed from the mount effect's cleanup).
+
+### §163. App-wide boot loading screen; loading-status text; round 24/25 wave preset (Han 2026-08-06, rounds 24-25)
+
+**Boot loading screen (Han: "indien nodig, voeg een app-wide laadscherm toe").** A short interview (scope:
+whole app vs. RPG-level-only; timing: build now vs. wait for level confirmation) settled on: app-wide, built
+after Han confirmed the RPG level itself loads correctly again. One continuous loading experience, not two
+different-looking overlays stitched together:
+
+- **`index.html`** gets a STATIC `#boot-splash` (spinner + title + status line), styled with an inline
+  `<style>` block so it paints before ANY JavaScript — including the bundle itself — has loaded; the
+  earliest possible moment anything is visible. Colors are hardcoded to the default dark theme's
+  `--panel-bg` (App.css) since CSS custom properties from an async-loaded stylesheet aren't reliably
+  available this early.
+- **`App.jsx`** removes `#boot-splash` (a plain `document.getElementById(...).remove()` — it lives outside
+  React's `#root`, so it can't be a React-rendered/controlled node) once the app is actually ready to use:
+  `audioReady` (all 5 initial smplr instruments' own `.load` Promises resolved — `instruments.*` becoming
+  non-null happens the moment `useInstruments` CONSTRUCTS them, well before their sample buffers finish
+  fetching, so gating on non-null alone would hide the splash too early and risk silent/no playback on the
+  very first note the user clicks) AND `spritesReady` (`window`'s own `load` event, added round 25 — see
+  below).
+
+**Loading-status text (Han, round 25: "kun je in laadscherm weergeven 'wat je laadt'? audio-context/sprites/
+level").** `#boot-splash-status`, a second static line inside the splash, is updated via direct DOM text
+(same reasoning — outside React) as real, trackable stages complete:
+
+- *Sprites/assets* — `spritesReady` tracks `window`'s `load` event, which fires once every resource the
+  initial page requested (scripts, stylesheets, and every referenced `<img>`/CSS background image) has
+  finished loading. A REAL, honest signal, not a fabricated progress percentage.
+- *Audio-instruments* — the same `audioReady` gate described above.
+- ***"level" is deliberately NOT part of this boot-time status*** — the RPG level's own sprite sheets and
+  runtime-generated normal maps (§150) only start loading once a user actually opens that tab; blocking the
+  WHOLE app's boot splash on assets nobody may ever request would be dishonest, not helpful. That tab
+  already has its own local loading affordance (the `!runtimeTextures` DOM fallback).
+
+**Round 24/25 wave-tuning preset (Han: "preset waarden: A noise scale 0.03, a speed .62, b scale 0.17, b
+speed [unspecified], steps 5, dither 0.35, strength 0.18, wave blends color and HSV").** New
+`DEFAULT_FOLIAGE_PARAMS`: `noiseScale` 0.035→0.03, `waveSpeed` 0.3→0.62, `noiseScaleB` 0.035→0.17,
+`highlightStrength` 0.22→0.18, `waveBlendMode` 0→6 (Color, one of §157's new composite modes) averaged with
+`waveBlendMode2` 1 (HSV, unchanged). `waveSteps`/`ditherAmount` unchanged (already matched the preset).
+`waveSpeedB` left at its prior value — not part of the given preset.
+
+**Files:** `index.html` (`#boot-splash`/`#boot-splash-status` static markup + inline styles),
+`src/App.jsx` (`audioReady`/`spritesReady` state, `#boot-splash-status` text updates, splash removal,
+`E024-INSTRUMENT-LOAD-WAIT` allocated), `src/components/character/ForegroundFoliageLayer.jsx`
+(`DEFAULT_FOLIAGE_PARAMS` wave preset), `CLAUDE.md` §7a (`E024-INSTRUMENT-LOAD-WAIT`).
+
+### §164. Wind "weather" picker (low/med/high), collapsible debug panel, and a new "flat illumination" light term (Han 2026-08-06, round 26)
+
+**1. Wind level picker replaces the separate skew/stretch sliders (Han, NL: "ik wil wind skew en stretch
+beperken laten afhangen van het weer. maak in debug een knopje 'wind': low, med, high. met skew en stretch
+1, 2 en 3 pixels").** `RpgLevelPanel.jsx`'s new `WindLevelPicker` (a 3-button group, not a dropdown, per
+"knopje") sets `skewAmount` AND `stretchAmount` together from `WIND_LEVEL_PX = { low: 1, med: 2, high: 3 }`
+— they can't drift out of sync since one click always sets both. `DEFAULT_FOLIAGE_PARAMS` gained a
+`windLevel` field (the picker's own selected-state source of truth, default `'med'`) alongside the existing
+`skewAmount`/`stretchAmount` (now defaulting to `2`/`2`, matching `'med'`) that the shader uniforms actually
+read. Round 16/17's original individual sliders are removed from the debug panel — the shader-side
+`uSkewAmount`/`uStretchAmount` uniforms and their per-instance `skew: true` gating (§153/§155) are
+unchanged, only how RpgLevelPanel's UI sets them changed.
+
+**2. Collapsible debug panel (Han, NL: "ik wil in debug het settings menu kunnen in- en uitklappen").**
+`FoliageParamsPanel` gets its own local `collapsed` state (not lifted to `RpgLevelPanel` — a pure debug-UI
+display preference nothing else reads) — clicking the "▾/▸ Foliage params" header toggles it, hiding every
+slider/select/picker below while collapsed and shrinking the panel to just its header row (`maxHeight:
+'none'`, no scroll, instead of the expanded `80%`/`overflowY: auto`).
+
+**3. New "flat illumination" light term (Han, NL: "voeg een slider toe die naast normal map illumination nog
+'flat illumination' doet; radial vanaf de lichtbron. die wil ik kunnen instellen en moet worden opgeteld bij
+de normal map ilum").** `applyPointLight`'s existing `directional` term (`closeness * edgeFactor *
+uLightStrength * ndotl`) is fully gated by `ndotl` — a surface facing away from a light gets exactly zero,
+even standing right next to it. A new `flat` term uses the SAME distance-only falloff (`closeness *
+edgeFactor * uLightStrength`) scaled by a new `uFlatIllumination` dial (default 0, no change from before),
+WITHOUT the `ndotl` gate — a purely radial glow from the light source, independent of which way anything
+faces. Per Han's explicit "opgeteld" (added), `intensity = clamp(directional + flat, 0.0, 1.0)`, summed not
+blended/averaged. New debug-panel slider "Light: flat illumination" (0-1).
+
+This directly resolves a related complaint from the same round ("ik merk ook dat de grass tiles niet worden
+opgelicht; zou dat kunnen?"): the floor's normal is hard-pinned to `FLAT_NORMAL` (round 19, §157, to fix
+overly harsh inter-tuft shadows) — pointing straight up — so `ndotl` against a light whose direction mostly
+points sideways along the ground is usually small, making the DIRECTIONAL term weak for the floor
+specifically even when a light sits right on top of it. The new flat/radial term bypasses that `ndotl` gate
+entirely, so cranking `uFlatIllumination` up lets the floor (and any other flat-normal-affected surface)
+visibly light up near a light source, independent of the directional-lighting weakness that caused the
+complaint.
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (`uFlatIllumination` uniform,
+`applyPointLight`'s `directional`/`flat` split, `DEFAULT_FOLIAGE_PARAMS.windLevel`/`flatIllumination`,
+`skewAmount`/`stretchAmount` defaults changed to match `'med'`), `src/components/character/RpgLevelPanel.jsx`
+(`WIND_LEVEL_PX`, `WindLevelPicker` replacing the old skew/stretch sliders, `FoliageParamsPanel`'s
+`collapsed` state, new "Light: flat illumination" slider).
+
+**Bug fix (same round, shipped-but-never-compiled, Han: "flat illum lijkt niets te doen" + console: "'flat'
+: Illegal use of reserved word"):** the new local variable was named `flat` — a GLSL reserved keyword (an
+interpolation qualifier, as in `flat varying`), illegal as an identifier even though it reads as an ordinary
+English word. This failed `gl.linkProgram` exactly like §161/§162's earlier precision mismatch did — caught,
+logged, nothing rendered — which is why the feature "did nothing" (the whole shader hadn't compiled since
+this round shipped, not just the new term). Renamed to `flatGlow`.
+
+### §165. Always-visible wind symbol; Time-of-day picker; reusable LevelPicker; round 27 light preset (Han 2026-08-06, round 27)
+
+**1. Always-visible wind symbol (Han, NL: "wind wil ik als apart symbool linksbovenin beeld - ik wil nog
+kunnen spelen met de pixel skew enzo in debug").** A small badge — 💨 repeated once per `WIND_LEVEL_PX` step
+(1/2/3 for low/med/high) — now renders top-left of the level panel ALWAYS, not gated on `debugMode` like
+the rest of the foliage debug UI, so the current wind level is visible during normal play too.
+`pointerEvents: 'none'` keeps it purely decorative (never intercepts the container's own tap-to-move
+handler). §164's `WindLevelPicker` in the debug panel is UNCHANGED and stays debug-only — Han explicitly
+wants to keep tuning skew/stretch there.
+
+**2. Reusable `LevelPicker` (Han: "maak een tweede toggler: night: illum 0.1 / dusk-dawn 0.33, day global
+illum 1").** §164's `WindLevelPicker` is generalized into `LevelPicker({ label, levels, value, onChange })`
+— a 3-button group where picking a level sets EVERY param key in `levels[level]` together. Used for BOTH
+Wind (`WIND_LEVEL_PX`) and the new Time-of-day picker (`TIME_OF_DAY_ILLUM = { night: 0.1, 'dusk-dawn': 0.33,
+day: 1 }`), which REPLACES round 11's plain continuous "Global illumination" slider — `timeOfDay` is the
+picker's own selected state, `globalIllumination` is what the shader uniform actually reads, set together so
+they can't drift out of sync (same pattern as `windLevel`/`skewAmount`/`stretchAmount`).
+
+**3. Round 27 light preset (Han: "light preset: strength 1.5, hule pull/tint 0.3, color dodge + additive,
+flat illum 02, normal map 0.8").** New `DEFAULT_FOLIAGE_PARAMS`: `lightStrength` 1→1.5, `huePull` unchanged
+(already 0.3), `lightBlendMode` 1→8 (Color Dodge) + `lightBlendMode2` 1→2 (Additive), `flatIllumination`
+0→0.2 (§164's new radial term), `normalStrength` 1.0→0.8.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (always-visible wind badge, `WindLevelPicker`
+generalized into `LevelPicker`, `TIME_OF_DAY_ILLUM` + Time-of-day `LevelPicker` replacing the Global
+illumination slider), `src/components/character/ForegroundFoliageLayer.jsx` (`DEFAULT_FOLIAGE_PARAMS`
+`timeOfDay` field + round 27 light preset values).
+
+### §166. Two level-start races fixed: silent/garbled backing audio, and a one-frame flash of the pre-level melody (Han 2026-08-06)
+
+**Symptom (Han):** after §163's boot loading screen landed, side-scroll levels seemed broken: sheet-music
+scroll looked choppy, the pre-level ("basismelodie") treble notes flashed visibly on level start, and the
+cello/timpani/metronome backing was inconsistently silent — "soms laadt het wel succesvol inc geluid, soms
+niet." Investigation found BOTH bugs pre-date §163 and are unrelated to the boot splash (`audioReady`/
+`spritesReady` are read only by the splash-removal effect, never by `useLevel`, `SheetRpgLayer`, or any
+level audio-scheduling code) — they are races in the concurrent, still-uncommitted §663/§679/§686/§688/§693
+level-audio-streaming rework. The reported "choppy scroll" was not reproduced as a distinct bug; both
+`SheetRpgLayer` and `useSheetMusicHighlight` already run independent `requestAnimationFrame` loops off
+`context.currentTime` with no shared driver — it's the likely visible SYMPTOM of the audio race below
+(overlapping/rescheduled chunks forcing extra re-renders), not a separate root cause.
+
+**Bug A — intermittently silent/garbled cello, timpani, metronome.** `levelAudioStart` (the audio-time
+anchor the level's whole backing schedule and visual scroll are built from) used to be set at CLICK time —
+`scheduleLevelBacking` fired `setLevelAudioStart(context.currentTime + 0.35)` the instant a level started,
+BEFORE `instruments.bass`/`instruments.metronome` were confirmed to have finished rebuilding as the level's
+cello/metronome Soundfonts (`useInstruments.js` rebuilds them asynchronously — sample fetch time is
+inherently variable, hence "sometimes works"). The actual scheduling effect already waited for
+`bassReady`/`metronomeReady` before scheduling anything — but by the time those flags flipped true, the
+0.35s-old anchor could already be in the past. `playMelodies.js`'s `adjustedStart = Math.max(scheduledStart,
+context.currentTime + safetyBuffer)` silently clamps any past `scheduledStart` forward, which collapsed/
+overlapped the level's opening bars instead of waiting — audible as anything from "nothing" to a garbled
+pile-up, depending on how late the instruments finished loading.
+
+**Fix A:** `levelAudioStart` is no longer set at click time. A new effect only sets it once `bassReady`,
+`metronomeReady`, AND (when percussion is melodic) `timpaniRef.current` are ALL confirmed ready — the exact
+same readiness flags the scheduling effect below it already gated on, just moved one step earlier so the
+anchor itself can never be picked before those instruments exist. This also removes any possible audio vs.
+visual start-time divergence, since both now derive from this same, later anchor. The old `scheduleLevelBacking`
+callback is gone; `startLevel` no longer calls it.
+
+**Bug B — pre-level ("basismelodie") treble notes flash visibly on level start.** `level.active` flips
+synchronously in `startLevel` (`level.start(lvl)`), but the level's own treble melody is only built by a
+`requestAnimationFrame`-deferred call inside `levelRegenerate` (needed so `applyConfig`'s just-set treble
+range/settings have flushed to their refs before generating — see that function's own comment). This left a
+real render frame — sometimes more, depending on generation cost — where `SheetRpgLayer` already received
+`levelActive=true` but was still handed whatever treble melody was loaded BEFORE the level started.
+
+**Fix B:** a new `levelMelodyReady` boolean (`App.jsx`) is set `false` synchronously whenever `levelRegenerate`
+is invoked and `true` only once its deferred `randomizeAll()` call has actually run (in the same rAF callback,
+so both land in the same commit — `randomizeAll` builds melodies synchronously via plain `setState` calls, no
+further async hop). `SheetMusic`'s `levelMelodyReady` prop (default `true`, so every non-level caller is
+unaffected) gates `SheetRpgLayer`'s `trebleMelody` alongside the existing `levelActive`/`isTrebleVisible`/
+`actualTreble` checks — while not ready, the RPG layer is simply handed `null` instead of the stale melody.
+
+**Files:** `src/App.jsx` (removed `scheduleLevelBacking`; new readiness-gated `levelAudioStart`-setting
+effect; new `levelMelodyReady` state, set in `levelRegenerate`; passed to `<SheetMusic>`),
+`src/components/sheet-music/SheetMusic.jsx` (`levelMelodyReady` prop, gates `SheetRpgLayer`'s `trebleMelody`).
+
+### §167. Level-session render-cost reduction — memoized combat sprites, stop firing no-op `setState` every rAF tick (Han 2026-08-06)
+
+**Symptom (Han): "kijk ook naar de performance, want die is ondermaats. heel hakkelig beeld enzo... zijn er
+te véél instrumenten geladen? te veel audiocontext?"** Checked first: there is exactly ONE `AudioContext`
+(`App.jsx:129`, created once in a `useState` initializer) and a bounded, stable set of `Soundfont`/
+`DrumMachine` instances (5 main instrument slots + their "manual"/preview variants, plus one dedicated
+timpani Soundfont and one wizard-preview Soundfont per level session) — no leak, no growth, not the cause.
+
+**Actual cause: two React-state-driven `requestAnimationFrame` loops re-render large component trees up to
+60×/sec during a level**, regardless of whether anything visible actually changed that frame:
+
+1. `SheetRpgLayer.jsx`'s combat/animation clock (`const [tick, setTick] = useState(0)`, ~line 417/500-519)
+   calls `setTick` every rAF frame. Every `<Slime>`/`<Critter>`/`<Wizard>`/`<Projectile>`/`<SpawnGlow>`
+   instance on screen was a plain (non-memoized) function component, so each one re-rendered on every tick
+   even when its own props (x/y/frame/colorKey) hadn't changed since the previous tick — common, since a
+   sprite's walk-FRAME only actually advances every `frameMs` (~150ms at typical bpm), far less often than
+   the ~8ms tick granularity.
+2. `useRpgLevelState.js`'s player/pet movement loop (~line 91-138) called `setMoving(vx !== 0)` and
+   `setPetMoving(petIsWalking)` UNCONDITIONALLY every rAF frame, even while the player was standing
+   completely still (the common case — most play time is spent hitting notes, not walking). Since this hook
+   is called directly in `App.jsx` (the app's root component), every such call re-invokes App.jsx's entire
+   render function, even on frames where React ultimately bails out of committing (an identical-value
+   `setState` skips re-rendering CHILDREN, but the calling component's function body still runs).
+
+**Fix:**
+
+1. `Slime`, `Critter`, `Wizard`, `Projectile`, `SpawnGlow` (`SheetRpgLayer.jsx`) are now `React.memo`'d — all
+   take small, primitive-only prop sets (or a stable memoized object for `Critter`'s `variant`), so this is a
+   pure reconciliation-cost cut with no behavioural change. (The hero `<CharacterDoll>` already had this
+   optimization via a `useMemo` keyed on `[hero, heroAnim, heroFrame]`, ~line 730 — untouched, already correct.)
+2. `useRpgLevelState.js` now tracks `moving`/`petMoving` in refs (`movingRef`/`petMovingRef`) and only calls
+   `setMoving`/`setPetMoving` when the value actually flips — `playerX`/`petX` already had this property
+   (only set while actually moving) and needed no change.
+
+**Scope note:** this does NOT convert the level's animation to a fully ref/imperative-DOM-driven model (the
+`useSheetMusicHighlight.js` pattern CLAUDE.md §6 endorses for opacity). That would touch nearly every stateful
+visual effect in a combat-critical, many-times-iterated 1169-line file (dying-list, judgments, spawn-glows,
+wiggle, hero-attack) plus `RpgLevelPanel`'s camera-follow and the WebGL foliage layer's hero-light-position
+uniform — a much larger, riskier rewrite that cannot be responsibly done without live browser profiling/testing,
+which this environment doesn't have. The fixes above are the safe, mechanically-verifiable subset (build/lint/
+test-suite clean, no visual-logic changes) — Han should verify live whether stutter is materially improved
+before a deeper rewrite is considered.
+
+**Unrelated but notable finding:** `npm run test:run` intermittently failed with `ENOSPC: no space left on
+device` during this session — `df` showed the `C:` drive at **100% full (11 MB free)**. A nearly-full system
+disk can cause broad OS-level sluggishness (disk-cache thrashing, browser cache/temp-file writes failing) that
+would plausibly present as general "hakkelig" performance well beyond this app. Flagged to Han as likely worth
+checking independently of the render-cost fixes above.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (`React.memo` on 5 sprite components),
+`src/hooks/useRpgLevelState.js` (`movingRef`/`petMovingRef` guards).
+
+### §168. Level schema reference — key/clef/range and bass/chords generator overrides, for hand-editing `levels.json` (Han 2026-08-06)
+
+**Purpose (Han): "ik wil een level editor; mag heel simpel zijn... kijk hoe levels worden opgeslagen en
+welke params ik kan aanpassen... zelfs ok als de file mooi gestructureerd is zodat ik die handmatig kan
+aanpassen... het gaat me vooral om de doc structuur, niet zozeer om de interface."** No UI editor was built
+(explicitly out of scope) — instead, `levels.json`'s schema was extended with new OPTIONAL fields covering
+what Han asked for (key/vocal range/clef; bass/percussion/chord generator settings), and the FULL field
+reference — every existing field plus the new ones, with types/defaults/examples — was written as a large
+comment block at the top of `src/levels/levels.js` (JSON itself can't hold comments, so the reference lives
+in the loader file right next to it, the existing convention this file already used for the rationale prose).
+**This section is a pointer, not a duplicate** — read `src/levels/levels.js`'s own "SCHEMA REFERENCE" header
+comment for the authoritative, always-in-sync field list; keep both in sync if you add a field.
+
+**New optional fields (all backward-compatible — omitted on every existing Level 1-9, so their behaviour is
+byte-identical to before this change):**
+
+- **`key: {tonic, mode}`** — forces the app's global tonic/mode for the level's duration (reuses
+  `useScaleManagement`'s existing `setTonic`/`setSelectedMode`, no new scale mechanism). Added to BOTH
+  `useLevel`'s `applyConfig` (applies it) and its snapshot/restore cycle (App.jsx's `levelSnapshot` now
+  captures `scale.tonic`/`selectedMode`; `restore()` reverts them) — the same guarantee every other
+  level-applied field already had, so a level's key never leaks into normal play after it closes.
+- **`clefTreble` / `clefBass`** — any `preferredClef` the existing clef selector supports (`clefSelector.js`'s
+  `CLEF_FAMILIES` — treble/bass/alto/tenor/soprano/baritone-f/…), applied to `trebleSettings`/`bassSettings`.
+  This is the SAME field the in-staff clef picker already writes — a level just sets it programmatically.
+  Enables vocal-range levels to show the correct clef for the voice type (Han: "levels met doel om te zingen
+  moeten rekening houden met vocal range; en vocal clefs tonen").
+- **`bass: {...}`** — an InstrumentSettings-shaped object applied verbatim to the level's bass generator
+  settings, taking precedence over the existing `fixedBass` boolean. Opens the door for a future "walking
+  bass" or two-handed-input level (Han) without inventing a new hardcoded preset per case — `fixedBass` stays
+  as the two ready-made presets (`LEVEL_BASS_SIMPLE`/`LEVEL_BASS_DEFAULT`) for the common cases.
+- **`chords: {...}`** — merged over the previous hardcoded `{ strategy: 'tonic-tonic-tonic', fixedTonic: 'C4',
+  chordCount: 1 }` default, so a level can use real harmonic movement (e.g. `strategy: 'pop-1-5-6-4'`) instead
+  of a static drone.
+
+**Known gap, intentionally NOT added:** percussion (timpani) density/kit. During a side-scroll level, timpani
+is ONE hardcoded pattern (`utils/timpaniPattern.js`) per Han's own earlier explicit instruction ("hard code de
+timpani voor nu", §663) — there is no generator path for it to plug a per-level setting into. Adding a
+`percussion` field to the schema without first building that mechanism would silently do nothing (§6c: no
+fields that don't connect to real logic) — flagged in the schema reference as a separate future feature.
+
+**Files:** `src/levels/levels.js` (schema reference comment block; `applyConfig` reads `key`/`clefTreble`/
+`clefBass`/`bass`/`chords`; `restore()` reverts tonic/mode), `src/App.jsx` (`levelSetters`/`levelSnapshot`
+include `setTonic`/`setSelectedMode`/`scale.tonic`/`selectedMode`).
+
+**Superseded by §169 below:** the standalone `clefTreble`/`clefBass`/top-level `bass: {...}` fields
+described above were folded into the unified `tracks: {treble, bass, percussion}` object in the very next
+round (same day) — see §169. They no longer exist as separate fields; this section is kept for history.
+
+### §169. Level editor round 2 — unified `tracks` object, `theme`, `numBlocks`/enemy-derived `numRepeats`, 20 example levels 101-120 (Han 2026-08-06)
+
+**Purpose (Han): "genereer 20 levels (101-120) met zeer uiteenlopende settings; als voorbeelden voor de
+json... varieer: note pool, melody type, voices, notes/measure, beat rests, variability, span, tuplets,
+smallest note, volume, visibility voor elk van de tracks... andere level settings: theme, enemy type."**
+Interview (AskUserQuestion) confirmed: the 20 levels are REAL, playable levels added to `levels.json` (not
+a separate examples-only file); "melody type" = `randomizationRule`; "voices" = polyphony (InstrumentSettings'
+existing `voices` field, §435 — 1/2/3/'var'); "theme" = the app's colour theme (`ThemeToggle.jsx`). Mid-turn,
+Han also asked to couple `numRepeats` to `enemyType` (Slime→1, Wizard→2) and to think in "measures per
+block" and "number of blocks" rather than hand-computed `totalMeasures`, and to vary range/tonic/scale
+across the examples too.
+
+**Schema changes (all still 100% backward-compatible — levels 1-9 untouched):**
+
+- **Unified `tracks: { treble?, bass?, percussion? }`** replaces §168's separate `clefTreble`/`clefBass`/
+  top-level `bass: {...}` fields — one per-track object instead of several parallel mechanisms (§6c: no
+  duplicate ways to say the same thing). Each entry uses REAL InstrumentSettings field names directly, no
+  translation layer: `notePool`, `randomizationRule` ("melody type"), `voices` ("voices"/polyphony),
+  `notesPerMeasure`, `rhythmVariability`, `maxLeap` ("span"), `polyMultiplier` ("tuplets"),
+  `smallestNoteDenom`, `insertBeatRests`, `range`, `preferredClef`, plus two level-editor-only convenience
+  fields not in InstrumentSettings: `volume` (a VOL_STEPS glyph — generalizes the pre-existing bass/metronome
+  level-volume mechanism, §110/§166, to any track including `metronome`) and `visible` (overrides the
+  `debugOnlyLines`-derived notation visibility for that ONE track). `tracks.treble` is spread onto
+  `trebleSettings` AFTER the legacy flat fields (levels 1-9's own convention), so it wins when both are
+  present. `tracks.bass` takes precedence over `fixedBass` — but ONLY when it actually contains a generator
+  field: `useLevel.js`'s `hasBassGenOverride` strips `volume`/`visible` before deciding, so a level that sets
+  ONLY `tracks.bass.volume` still correctly falls through to the `fixedBass` preset instead of silently
+  losing all its bass generator settings. `tracks.percussion`/`tracks.metronome` only support `volume`/
+  `visible` (no generator path exists for either — same known gap as §168).
+- **`theme`** — any theme id from `ThemeToggle.jsx`'s list (e.g. `"disco"`, `"sunset"`, `"stars"`), applied
+  via the existing `setTheme` and reverted via the same snapshot/restore cycle as `key`.
+- **`numBlocks`** (optional) — write "how many blocks/waves" directly instead of hand-multiplying
+  `totalMeasures`; a `normalizeLevel` pass in `levels.js` computes `totalMeasures = numMeasures * numRepeats *
+  numBlocks` once at load time when `totalMeasures` is omitted. Explicit `totalMeasures` still wins if both
+  are present (levels 1-9 keep using it).
+- **`numRepeats` now optional**, defaulting to `enemyType === 'Wizard' ? 2 : 1` (same `normalizeLevel` pass).
+  Levels 1-9 all set it explicitly already, so nothing about them changes; new levels can omit it.
+
+**20 example levels (id 101-120)** were added to `levels.json`, each demonstrating a distinct combination —
+e.g. Level 101 (extreme minimal: 1 note/measure, half notes, static idle), 104 (16th notes, 2-octave range,
+wide leaps), 105/117 (`voices: 'var'` / `voices: 3` polyphony), 108/114/118 (Wizard levels using the
+enemy-derived `numRepeats`), 107 (vocal alto clef + alto range), 110/119 (independent `tracks.bass` generator
+settings — a "walking bass" preview), 111/120 (`chords` progression override instead of the tonic drone),
+116 (`tracks.bass.visible`/`tracks.percussion.visible: false` overriding `debugOnlyLines: false`), 120
+("kitchen sink" combining most axes at once). Together they sweep every `tracks` field, several scale
+tonics/modes (Major/Minor/Dorian/Mixolydian/Harmonic Minor), a range of `range` values, both enemy types, and
+several theme ids — living reference examples for the schema, verified by `npm run build`/`lint`/`test:run`
+(not manually play-tested in a browser — see the "not tested live" caveat below).
+
+**Test fix:** `levels.test.js`'s `'LEVELS map keys 1..9 match...'` test asserted `Object.keys(LEVELS)` was
+EXACTLY `[1..9]` — now filters to `id <= 9` before that comparison, since `LEVELS` legitimately has more
+keys now (101-120).
+
+**Not verified live:** per CLAUDE.md's UI-testing guidance, this environment has no browser to actually play
+through the 20 new levels — the build/lint/full test suite are clean and the wiring reuses existing,
+already-tested mechanisms (scale/theme/volume/eyes setters), but Han should spot-check a few of the more
+unusual ones (105's `voices: 'var'`, 110/119's independent bass generator, 116's forced-hidden tracks) in the
+running app before treating them as fully validated gameplay content.
+
+**Files:** `src/levels/levels.json` (20 new level entries), `src/levels/levels.js` (`normalizeLevel`,
+rewritten SCHEMA REFERENCE covering `tracks`/`theme`/`numBlocks`), `src/hooks/useLevel.js` (`computeEyes`,
+`tracks.treble`/`tracks.bass` merge incl. `hasBassGenOverride`, `theme` apply/restore), `src/App.jsx`
+(`resolveLevelVolume`, `setTheme` in `levelSetters`/`levelSnapshot`), `src/levels/__tests__/levels.test.js`
+(id-range fix).
+
+**Addendum, same day (Han: "voeg nog toe als params: BPM, maatsoort; pas ook toe op de random levels"):**
+`timeSignature` ([numerator, denominator]) added as a new optional level field — same "leave ambient if
+omitted" idiom `bpm` already used, applied/reverted via the existing `setTimeSignature` (no new mechanism),
+added to `levelSetters`/`levelSnapshot`/`restore()` exactly like `theme`. `bpm` was already a field since
+Level 1; both are now explicitly documented together under "Tempo & structure" in the schema reference.
+Applied to 6 of the 20 example levels for real variety (102: 6/8, 103 & 117: 3/4, 109: 7/8, 113: 5/4, 120:
+7/8) — levels 1-9 intentionally left untouched (their tempo/meter was already tuned through many UAT
+rounds; they keep running in the app's ambient 4/4 as before).
+
+### §170. Level 0 — live-editable sandbox; read-only level-config debug overlay (Han 2026-08-06)
+
+**Purpose (Han): "maak alle level params overzichtelijk zichtbaar" (debug) + "Level 0: ALLE params zijn
+instelbaar," confirmed via interview to mean a live-editable sandbox UI** — a reversal of §169's earlier
+"no UI editor" decision, now explicitly wanted.
+
+**Debug overlay:** a read-only panel (App.jsx, mirrors the existing MIDI debug panel) dumps the ACTIVE
+level's full config (`JSON.stringify(level.current, null, 1)`) whenever `debugMode && level.active` — every
+field including `normalizeLevel`'s derived `numRepeats`/`totalMeasures`, so it can never drift from the
+real schema (no hand-built field list to keep in sync).
+
+**Level 0 sandbox — reuse over reinvent (§6d):** rather than hand-rolling inputs for every schema field,
+`level.active && level.current.id !== 0 ? null : …` (App.jsx, where the header decides whether to show
+`SubHeader`) now makes an EXCEPTION for id 0 — the SubHeader (range/clef/colour/instrument/playback/
+generation/exercises edit-mode buttons), normally hidden during any level (#667), stays visible for Level 0.
+Those overlays already call the real `setTrebleSettings`/`setBassSettings`/`setTonic`/`setTheme`/etc.
+directly (the SAME setters a normal, non-level practice session uses) — so treble/bass/percussion generator
+settings, key/tonic/mode, theme, bpm, timeSignature, chords, and per-instrument volume are ALL live-editable
+for free, with zero new input components and zero risk of drifting from the real UI's behaviour.
+
+**The handful of fields with no existing non-level UI equivalent** (`sideScroll`, `enemyType`,
+`wizardSpawnLeadMeasures`, `debugOnlyLines`, `beatsOnScreen`) get a new small corner panel,
+`LevelZeroPanel.jsx`, shown only for id 0:
+- `debugOnlyLines`/`beatsOnScreen` apply INSTANTLY via a new `useLevel.patchCurrent(patch)` — merges
+  straight into `current` state with NO `applyConfig` call. This is deliberate: `current` is already read
+  reactively everywhere that matters (App.jsx's JSX props, `computeEyes`'s live debug-mode effect), so a
+  patch propagates immediately with no other wiring — and critically, `patchCurrent` must NEVER re-run
+  `applyConfig`, or it would STOMP whatever the SubHeader's overlays just live-edited back to Level 0's
+  original JSON values.
+- `sideScroll`/`enemyType`/`wizardSpawnLeadMeasures` are staged as LOCAL pending state and only take effect
+  via an explicit "↻ Herstart level" button (`level.start(...)` with the merged config) — these are
+  structural fields several hooks key their `active`/generation logic off (`useLevelBackingStream`,
+  `useLevelTrebleStream`, SheetRpgLayer's `isWizard` branch); hot-swapping them mid-session was judged too
+  risky to attempt blind (no browser available to verify live) — a full clean restart is the safe
+  equivalent, and the button is honest about that boundary rather than pretending everything hot-swaps.
+
+**New `LEVEL 0` entry** in `levels.json` (sideScroll, full richness, `debugOnlyLines: false` so every staff
+is visible immediately) — appears in the level picker automatically (`LevelStartSplash`'s `LEVEL_NUMBERS`
+is derived from `Object.keys(LEVELS)`, §6c). Its carousel default index had to change from a hardcoded `0`
+to `LEVEL_NUMBERS.indexOf(1)`, since id 0 now legitimately sorts first — a new player should still land on
+the real Level 1, not the sandbox.
+
+**Test fixes:** `levels.test.js`'s id-range filter (§169) widened from `id <= 9` to `id >= 1 && id <= 9`
+(id 0 would otherwise pass that filter too); `LevelStartSplash.test.jsx`'s "defaults to Level 1" assumption
+required the `DEFAULT_INDEX` fix above.
+
+**Not verified live** (same caveat as §169 — no browser in this environment): the SubHeader-reuse mechanism
+is low-risk (100% existing, already-tested components), but Han should confirm Level 0 in the running app,
+especially that the unhidden SubHeader doesn't visually clash with the RPG combat scene, and that
+`patchCurrent`'s `debugOnlyLines`/`beatsOnScreen` live-updates actually read correctly during active combat.
+
+**Files:** `src/hooks/useLevel.js` (`patchCurrent`), `src/App.jsx` (debug overlay, SubHeader id-0 exception,
+`LevelZeroPanel` mount), `src/components/levels/LevelZeroPanel.jsx` (new), `src/levels/levels.json` (`id: 0`
+entry), `src/components/levels/LevelStartSplash.jsx` (`DEFAULT_INDEX`), `src/levels/__tests__/levels.test.js`
++ `src/components/levels/__tests__/LevelStartSplash.test.jsx` (fixes for the above).
+
+### §171. Bug: slime/note arrival desynced from the metronome by a variable, non-measure amount (Han 2026-08-06)
+
+**Symptom (Han): "invliegende noten/slimes komen veel te laat en zijn niet in sync met de metronoom. Soms
+komen ze pas na ~4 maten (dus niet eens precies matenaantal)."** Self-inflicted regression from §166's own
+audio-race fix, same session.
+
+**Root cause:** §166 deliberately deferred picking `levelAudioStart` until `bassReady`/`metronomeReady`/
+timpani are CONFIRMED ready (to fix garbled/silent backing audio). But `SheetRpgLayer`'s tick clock
+(`scrollStartTime` prop = `levelAudioStart`) treats a null anchor as "free-running" (anchors `tick` to
+whichever frame the rAF loop happens to first run — the documented behaviour for Level 1 / tests, which
+have no audio anchor at all). For a side-scroll level, `levelAudioStart` is now null for however long
+instrument construction takes — during that window the SAME already-running rAF loop instance ticked in
+free-running mode, then the instant `levelAudioStart` finally arrived, the loop's anchor SOURCE SWITCHED
+from the free-running clock to the real audio-scheduled time, mid-flight — a live jump that threw every
+slime/note's computed position off by exactly however long the wait had been. Instrument load time is
+arbitrary, not measure-aligned, matching "niet eens matenaantal" exactly.
+
+**Fix:** `SheetRpgLayer.jsx`'s tick loop now checks `sideScroll && scrollStartRef.current == null` at the
+top of every frame and, if true, simply re-schedules the next frame WITHOUT advancing `tick` at all — no
+free-running phase ever happens for a side-scroll level, so there is nothing to jump away from once the
+real anchor arrives. `trebleMelody` is already `null` during this wait (§166's `levelMelodyReady`), so
+nothing visible spawns; once `scrollStartRef.current` gets a real value, ticking begins correctly-anchored
+from its very first real tick.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (tick-loop early-return guard).
+
+### §172. Debug level-params dump moved from in-level overlay to the start splash (Han 2026-08-06)
+
+**Purpose (Han): "ik wil de level params zien tijdens het 'start level' splash screen, niet tijdens het
+level. Ik zie nu alleen aanpassingen van beatsonscreen en enemytype, niet van de andere params."** §170's
+in-level `debugMode` overlay (a fixed top-right panel dumping `level.current`) is REMOVED — the wrong
+moment, since by the time a level is running you can no longer change your pick. `LevelStartSplash.jsx`
+(the level picker) now takes a `debugMode` prop (passed from App.jsx) and, when on, renders a
+`JSON.stringify(lvl, null, 1)` dump of the CURRENTLY SELECTED carousel level below the existing curated
+bpm/enemyType/intro stats grid — the stats grid only ever showed those 3 fields, which is what read as
+"alleen beatsonscreen en enemytype" (beatsOnScreen is the OTHER carousel-adjacent number visible nearby);
+the new dump shows every field, live as you drag the carousel between levels, before committing to Start.
+
+**Files:** `src/components/levels/LevelStartSplash.jsx` (`debugMode` prop + dump), `src/App.jsx` (removed
+the in-level overlay; passes `debugMode` to `<LevelStartSplash>`).
+
+### §173. Level 0 moved to a pre-start config FORM, not a live in-game overlay (Han 2026-08-06)
+
+**Purpose (Han): "hoe kan ik level 0 aanpassen? dat wil ik in de 'config' voor het begin van het level
+doen, dus voordat het start, dus niet via instelling overlay."** §170's approach (unhide the app's
+SubHeader DURING an active Level 0 session) is REVERTED — `App.jsx`'s SubHeader-hiding rule is unconditional
+again, `LevelZeroPanel.jsx` and `useLevel.js`'s `patchCurrent` are deleted (both unused now).
+
+**Replacement:** `LevelZeroConfigForm.jsx` (new) — a full pre-start editable form for every schema field
+(tempo/structure, enemy, key/theme, treble/bass/percussion tracks, chords — see §174 below for the chords
+section specifically), rendered inside `LevelStartSplash` whenever the carousel is on id 0, editing a local
+`level0Draft` (seeded from `LEVELS[0]`, NOT written back to the JSON — every fresh splash-open starts from
+the baseline again). `LevelStartSplash`'s Start button now passes `level0Draft` (a full level OBJECT)
+instead of an id when `chosen === 0`; `App.jsx`'s `startLevel` was widened to accept either shape
+(`typeof n === 'object' ? n : LEVELS[n] ?? LEVELS[1]`) — `level.start()` already accepted a raw level object
+verbatim, so no change was needed there.
+
+**Files:** `src/components/levels/LevelZeroConfigForm.jsx` (new), `src/components/levels/LevelStartSplash.jsx`
+(`level0Draft` state, form mount, Start button), `src/App.jsx` (`startLevel` accepts an object, SubHeader
+rule reverted, `LevelZeroPanel` import/mount removed), `src/hooks/useLevel.js` (`patchCurrent` removed) —
+`src/components/levels/LevelZeroPanel.jsx` deleted.
+
+### §174. Level 10 (Mixed) + Level 11 (key-modulation) added; chord-tonic-follows-level-key bug fixed (Han 2026-08-06)
+
+**Level 10 — "Mixed" enemy type.** Han: "nieuw type: mixed level - stuur 2 maten slimes, dan 2 maten wizard
+(de gebruikelijke rust; speel voor-speel na), dan weer 2 maten slimes..." — confirmed via interview: the
+combat MECHANIC alternates per 2-measure block (Wizard blocks get Level 9's real call-response
+rest+echo+cast-preview-audio; Slime blocks are a normal playable melody), not just a visual re-skin.
+
+New `generateLevelMixedBlock.js` (pure, mirrors `generateLevel9CallResponseBlock.js`/
+`generateLevelBackingChunk.js`'s "pure generation" boundary) picks between the TWO EXISTING generation
+shapes per block — a plain `MelodyGenerator` call for a Slime block, `generateLevel9CallResponseBlock`
+verbatim for a Wizard block — no third mechanism invented (§6c). New `useLevelMixedStream.js` (mirrors
+`useLevelTrebleStream.js`'s JIT per-block generation/scheduling) grows the treble melody block-by-block,
+alternating starting with Slime (`blockTypeAt(measureIndex)`), and only schedules the wizard-cast preview
+audio for Wizard-type blocks.
+
+**Scope reduction (deliberate, disclosed):** the VISUAL enemy stays rendered as Slime throughout — `enemyType`
+passed to `SheetRpgLayer` is coerced from `'Mixed'` to `'Slime'` (App.jsx). A full per-item Slime↔Wizard
+sprite/projectile rendering fork would require touching `SheetRpgLayer`'s `isWizard` branch in ~10 places
+(hero cast-frame sync, spawn-glow triggers, static wizard placement, note-glyph memoization, the
+death/flight render loop) — a much deeper, higher-risk refactor of the most heavily-iterated file in the
+codebase that this pass could not safely attempt without live browser verification. The MECHANIC (what Han
+explicitly confirmed mattered — "niet alleen visueel") is real and complete; the SPRITE swap is not. Flagged
+as a known follow-up if Han wants the full visual fork after playtesting this version.
+
+**Level 11 — decorative wizard + forward-only key modulation.** Han: "slimes, er staat een groene wizard.
+die doet elke 2 maten een spell en wisselt dan van toonladder (niet van tonic). Wissel tussen majeur en
+mineur" — confirmed forward-only (already-generated measures keep their mode).
+
+New `useLevelKeyModulationStream.js` (mirrors `useLevelBackingStream.js`'s JIT-chunk pattern, no cast audio,
+no call-response transform — Level 11 is otherwise a normal Slime level) grows the treble melody 2 measures
+at a time, alternating Major/Minor via `scaleHandler.js`'s existing `updateScaleWithMode` (tonic untouched —
+reuses the SAME function `setSelectedMode` calls, §6c, not a hand-built `Scale`). `SheetRpgLayer` gets a new
+`decorativeWizard` prop (threaded through `SheetMusic.jsx`): when true, renders the EXISTING `Wizard`
+component (same sprite/position the real combat Wizard uses) green-tinted via a CSS `hue-rotate` filter —
+reusing the canonical renderer (§6d) and the hue-rotate approach recommended earlier this session for
+chromatic sprite variants, rather than commissioning new art. **Scope reduction (disclosed):** the wizard is
+idle-only — no attack-frame animation precisely synced to each 2-measure mode switch (the real combat
+Wizard's cast-sync logic is intricate, frame-exact, and audio-timed; replicating it for a purely decorative
+element was judged not worth the added unverified risk). The MELODY mechanic (the actual mode-switch) is
+real and complete; the visual "casting" flourish is a steady presence, not a choreographed animation.
+
+**Bug fix, found via this work: chord tonic ignored a level's own key.** Han: "ik mis de chords als
+instelling... zorgt voor problemen bij level 113 (in F#), want cello staat nog in C (die volgt de
+progressie CCC, die hardcoded lijkt en niet de toonladder volgt)." Root cause: `useLevel.js`'s
+`applyConfig` hardcoded `chordSettings.fixedTonic = 'C4'` UNCONDITIONALLY — Han's own original #663
+instruction, from BEFORE the per-level `key` field (§168) existed. Once levels could set their own
+`key.tonic`, this stale hardcode silently kept every chord progression (and therefore `fixedBass: true`'s
+cello, which follows chord roots via `emphasize_roots`) anchored to C regardless. Fix: defaults to
+`lvl.key?.tonic ?? 'C4'` — levels 1-9 (no `key` field) are byte-identical; every level with a `key` now
+correctly roots its chords/cello there.
+
+**Chords now also fully exposed** (Han: "instelbaar: progression type, chord complexity, chords/measure,
+variability, passing chords") — `LevelZeroConfigForm`'s Akkoorden section gained `strategy` (from the real
+`CHORD_STRATEGIES` list), `complexity` (from the real `CHORD_COMPLEXITY` list), `rhythmVariability`, and a
+`passingChordTypes` checkbox group (the real 7 type keys) — all reusing existing constants
+(`src/constants/generationFields.js`), not a hand-invented enum.
+
+**New levels 10/11 in `levels.json`**, `debugOnlyLines: true` (training-wheels default, matches the early
+ramp levels), `fixedBass: true`.
+
+**Not verified live** (same caveat as §169/§170 — no browser in this environment, and these two are the
+deepest new mechanics built this session): Han should playtest both before treating them as done — Level
+10's block-alternation timing/scheduling in particular reuses proven JIT-stream machinery but has never been
+exercised end-to-end.
+
+**Files:** `src/generation/generateLevelMixedBlock.js` (new), `src/hooks/useLevelMixedStream.js` (new),
+`src/hooks/useLevelKeyModulationStream.js` (new), `src/components/sheet-music/SheetRpgLayer.jsx`
+(`decorativeWizard` prop + render block), `src/components/sheet-music/SheetMusic.jsx` (pass-through),
+`src/App.jsx` (both streams wired, `treble`/`enemyType` ternaries extended, `decorativeWizard` prop),
+`src/hooks/useLevel.js` (`fixedTonic` bug fix), `src/components/levels/LevelZeroConfigForm.jsx` (chords
+section), `src/levels/levels.json` (Level 10/11 entries).
+
+### §175. Bug: levels inherited ambient tonic/bpm/timeSignature instead of a deterministic default (Han 2026-08-06)
+
+**Symptom (Han): "na wijzigen instellingen gaan de basislevels slecht. Bijvoorbeeld: ik zet de tonic op Gb,
+en wil dan level 2 spelen. Die heeft nog allemaal voortekens staan, en genereert helemaal niet vanuit
+C-majeur."** Plus, very likely the SAME root cause manifesting as a separate-looking symptom: "slimes komen
+echt nog niet aan hoor. Level 2 is niet consistent goed gegenereerd" — Level 2 generated from whatever
+stray tonic was left over from earlier testing (e.g. Level 113's F♯, tested earlier this session), not the
+C major it was actually tuned against.
+
+**Root cause:** `useLevel.js`'s `applyConfig` applied `bpm`/`timeSignature`/`key` conditionally —
+`if (lvl.bpm) …`, `if (lvl.timeSignature) …`, `if (lvl.key) …`. For levels 1-9 (which set `bpm` but have no
+`timeSignature`/`key` field — those are §169/§174-era additions), the missing fields silently meant
+"whatever the app's AMBIENT state already was." This was harmless by accident for as long as nobody changed
+the ambient tonic before playing a level; once per-level `key` became a real, actively-used feature, that
+assumption broke — any level without its own `key` now inherited whatever tonic a PREVIOUS, unrelated
+action had left active.
+
+**Fix (Han's own preferred solution: "een lijst defaults 'if none provided' (voorkeur), C majeur 4/4
+etc."):** `bpm`/`timeSignature`/`key.mode`/`key.tonic` are now applied UNCONDITIONALLY on every level start,
+falling back to the app's own `DEFAULT_BPM`/`DEFAULT_TIME_SIG`/`DEFAULT_SCALE_TONIC`/`DEFAULT_SCALE_MODE`
+(`src/constants/generatorDefaults.js` — the SAME constants the app's own initial state already uses, §6c,
+not new hardcoded literals) when a level doesn't specify its own. Every level now starts from a fully
+deterministic, known state, regardless of whatever the app was doing immediately before — never "whatever
+was ambient." Levels 1-9 are unaffected in practice (bpm was always explicitly set; their implicit
+assumption of C major/4/4 is now an explicit, enforced guarantee instead of an accident).
+
+**Files:** `src/hooks/useLevel.js` (`applyConfig`), `src/levels/levels.js` (schema reference updated).
+
+### §176. Round 2 UAT fixes: JIT lookahead was too short, Level 10 gets real per-note Slime/Projectile rendering + black wizard, Level 11 gets a switch-boundary projectile flourish, Level 0 baseline matches the app's real defaults, cello sample pre-warm (Han 2026-08-06)
+
+**JIT generation-buffer bug (Level 10 + Level 11).** Han: "de maten komen correct invliegen. MAAR de noten
+van een volgend blok verschijnen best laat, niet 2 maten op voorhand; eerder pas 1 maat op voorhand."
+`useLevelMixedStream.js`/`useLevelKeyModulationStream.js` had copied their "when to generate the next
+block" timing from `useLevelTrebleStream.js`, which schedules generation relative to the WIZARD CAST's own
+early-fire time (itself `leadOffsetSeconds` before the block's visual start) minus a small buffer — correct
+for Level 9's cast-specific needs, but for Mixed/key-modulation blocks (no cast, or only some blocks have
+one) it shrank the real lookahead to ~1-1.5 measures. Fixed to match `useLevelBackingStream.js`'s proven
+pattern instead: generate block/chunk N+1 the INSTANT block/chunk N begins playing — a constant, full
+2-measure lookahead, matching `beatsOnScreen` and bass/metronome's own "2+2 maten op voorhand".
+
+**Level 10 — real per-note Slime↔Projectile rendering + a black static wizard.** Han, after playtesting:
+"animaties schieten te kort. er moet een zwarte wizard staan. de noten van de wizardmaten moeten geen
+slime hebben, maar een projectile krijgen" — reversing §174's deliberate visual-fork scope-cut now that he
+has concrete feedback to build against. `SheetRpgLayer.jsx` now computes `itemIsWizard` PER NOTE (via
+`blockTypeAt`, exported from `useLevelMixedStream.js`, converting the note's own `beat` to a measure index)
+instead of relying solely on the level-wide `isWizard` flag — the death-render branch, the live
+spawn/flight branch, the wizard's own cast-animation-sync loop, and the spawn-glow trigger all now check
+`itemIsWizard`/skip non-Wizard-block notes accordingly. A static wizard renders for `enemyType: 'Mixed'`
+too (`isWizard || isMixed`), tinted black via a CSS `brightness(0.25) saturate(0.6)` filter (§6d: same
+filter-based colour-variant technique as Level 11's green wizard, no new art) — its cast animation is the
+SAME `wizardCells`/`wizardFrame` logic Level 9 uses, now gated on Wizard-type notes specifically so it
+never winds up to cast on a Slime-block note.
+
+**Level 11 — a switch-boundary projectile flourish.** Han: "ik wil 2 maten voor elke switch een
+staticprojeciles2 (32x32) laten toveren door de tovenaar. Die vliegt mee op de maatstreep tussen de majeur
+en mineur-blokken." New asset `static-projectiles-2` (copied from
+`src/assets/ASSORTED/fx/GandalfHardcore Static Projectiles2.png` into `src/assets/enemies/sheets/`,
+measured 160×192 = 5 cols × 6 rows @ 32×32 — byte-identical dimensions to the already-measured
+`static-projectiles-5`, so its crop reuses that measurement rather than a blind guess) + a new
+`StaticProjectile2` component (`enemyAssets.js`/`SheetRpgLayer.jsx`). Rendered once per upcoming Major↔Minor
+switch boundary (every 2 measures) using the SAME plain `sideScrollX` linear-flight math every other moving
+element already uses, parameterized by the switch boundary's own beat rather than a literal
+BarlinesLayer-position lookup (§6d — reuses proven flight timing; `beatsOnScreen` defaulting to 8 beats = 2
+measures already gives the "2 maten voor elke switch" lead time for free, no extra gating needed). Loops
+its 5 frames continuously (not a death fade) while visible.
+
+**Level 0 baseline now matches the app's REAL defaults.** Han: "level 0: zet de defaults daar als
+defaults." `levels.json`'s id-0 entry's `bpm`/`numMeasures`/`notesPerMeasure`/`range` now literally equal
+`DEFAULT_BPM`/`DEFAULT_NUM_MEASURES`/`defaultTrebleInstrumentSettings()`'s own values (120/2/2/{C4,E5}) —
+previously arbitrary hand-picked numbers (90/4/3/{C4,C5}). `LevelZeroConfigForm.jsx`'s own internal `??`
+fallbacks (shown if a field is ever cleared) now import and use the SAME `DEFAULT_BPM`/`DEFAULT_TIME_SIG`/
+`DEFAULT_SCALE_TONIC`/`DEFAULT_SCALE_MODE` constants instead of re-typed literals. Also added: `enemyType`
+now offers "Mixed", and a `decorativeWizard` checkbox — the form had not been updated for §174's new fields.
+
+**Cello sample pre-warm (mitigation, not a full fix, for the Level 2 lead-in-delay report).** Han: "level 2:
+nog steeds pas veel te laat slimes, niet in sync met metronoom. Duurt ongeveer 2,5 maten voordat maat -1
+pas in beeld komt." §171 correctly stopped the visual scroll from starting before `bassReady`/
+`metronomeReady`, but that only stopped MASKING the real wait — `instruments.bass` rebuilding as 'cello'
+(a real, first-use-per-session sample fetch) was always there. Unlike `timpaniRef` (which sidesteps this by
+preloading into its OWN dedicated Soundfont slot on app boot), bass/metronome are the REAL, SHARED
+instrument slots practice mode also uses — pre-switching them to 'cello' early would visibly change the
+user's own instrument choice before they even started a level. Mitigation: a throwaway `cellowarmRef`
+Soundfont warms the browser's 'cello' sample cache as soon as the level picker opens (well before Start is
+pressed), so the REAL instrument construction at level start can likely be served from cache. **This is a
+best-effort mitigation, not a diagnosed root-cause fix** — if the wait is still long after this, the actual
+bottleneck needs live profiling (console.time markers around `bassReady`/`metronomeReady` becoming true) to
+pin down precisely, which this environment cannot do without Han's help running the app.
+
+**Not verified live** (same caveat as every level-editor round this session): Han should playtest Level
+10/11 again for the new visual behaviour, and Level 2's lead-in timing specifically to see if the pre-warm
+mitigation actually helped.
+
+**Files:** `src/hooks/useLevelMixedStream.js` + `src/hooks/useLevelKeyModulationStream.js` (buffer-timing
+fix), `src/components/sheet-music/SheetRpgLayer.jsx` (`itemIsWizard`, black wizard, `StaticProjectile2`
+render), `src/model/enemyAssets.js` (`STATIC_PROJECTILE2_*` constants), `src/assets/enemies/sheets/
+static-projectiles-2.png` (new, copied from ASSORTED), `src/levels/levels.json` (Level 0 defaults),
+`src/components/levels/LevelZeroConfigForm.jsx` (default constants, Mixed/decorativeWizard fields),
+`src/App.jsx` (`cellowarmRef` pre-warm, `enemyType` prop no longer coerces 'Mixed' to 'Slime').

@@ -19,9 +19,20 @@ import SheetMusic from './components/sheet-music/SheetMusic';
 import { KIT_NOTE_MAPPINGS } from './audio/drumKits';
 import AppHeader from './components/layout/AppHeader';
 import DiscoBackground from './components/layout/DiscoBackground';
-import CharacterCreator from './components/character/CharacterCreator';
+import useCharacterEditor from './components/character/useCharacterEditor';
+import useBestiaryEditor from './components/character/useBestiaryEditor';
+import useRpgLevelState from './hooks/useRpgLevelState';
+import CharacterAvatarPanel from './components/character/CharacterAvatarPanel';
+import CharacterOptionsPanel from './components/character/CharacterOptionsPanel';
+import { BestiaryTopPanel, BestiaryBottomPanel } from './components/character/BestiaryPanels';
+import RpgLevelPanel from './components/character/RpgLevelPanel';
+import { StatsTopPanel, StatsBottomPanel } from './components/character/CharacterStatsPanels';
+import { CHARACTER_CATEGORIES, catByKeyLabel } from './components/character/characterEditorShared';
+import { CATEGORIES as AVATAR_CATEGORIES } from './model/characterAssets';
+import AvatarSubHeader from './components/layout/AvatarSubHeader';
 import LevelSplash from './components/levels/LevelSplash';
 import LevelStartSplash from './components/levels/LevelStartSplash';
+import LevelPausePopup from './components/levels/LevelPausePopup';
 import SubHeader from './components/layout/SubHeader';
 
 // Hooks
@@ -35,8 +46,10 @@ import playSound from './audio/playSound';
 import playMelodies from './audio/playMelodies';
 import { Soundfont } from 'smplr';
 import buildTimpaniPattern from './utils/timpaniPattern';
-import buildCelloWholeNotePattern from './utils/celloWholeNotePattern';
-import withMetronomeLeadIn from './utils/metronomeLeadIn';
+import useLevelBackingStream from './hooks/useLevelBackingStream';
+import useLevelTrebleStream from './hooks/useLevelTrebleStream';
+import useLevelMixedStream from './hooks/useLevelMixedStream';
+import useLevelKeyModulationStream from './hooks/useLevelKeyModulationStream';
 import { VOL_STEPS } from './components/sheet-music/overlays/SettingsOverlay';
 import { LEVELS } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
@@ -51,7 +64,7 @@ import useRubato from './hooks/useRubato';
 import { buildHarmonyTable } from './utils/harmonyTable';
 import { resizeMelody } from './utils/melodySlice';
 import { buildMergedRenderMelodies, buildFirstPassMergedMelodies, mergedBodyPassIndex, hasAnacrusis } from './utils/anacrusisRepeat';
-import { TICKS_PER_WHOLE, secondsPerTick, secondsPerBeat } from './constants/timing';
+import { TICKS_PER_WHOLE, secondsPerTick, secondsPerBeat, LEVEL_LEAD_IN_BARS } from './constants/timing';
 import {
     DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_NUM_MEASURES,
     DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE,
@@ -247,7 +260,13 @@ const App = () => {
     // transposition (which transposes the NOTATION); this transposes the KEYS only. Set in
     // TRANSPOSITION mode (clefEditMode) via the keyboard's "concert C =" control.
     const [keyboardTranspose, setKeyboardTranspose] = useState(0);
-    const [showCharacter, setShowCharacter] = useState(false);   // #645: character-creator modal
+    // #667 (Han 2026-08-03): the character-creator popup is gone — avatar-context now REPLACES the
+    // sheet-music area (top) and bottom panel (bottom) in-place. null = normal practice view; else one of
+    // 'character' | 'stats' | 'equipment' | 'bestiary' (the 4 avatar-context screens, see AvatarSubHeader).
+    const [characterScreen, setCharacterScreen] = useState(null);
+    const characterEditor = useCharacterEditor();
+    const bestiaryEditor = useBestiaryEditor();
+    const rpgLevel = useRpgLevelState();
     const [showLevelPicker, setShowLevelPicker] = useState(false);   // #661: level-start splash (tanh carousel)
     // Loaded-song title for the header (Han 2026-06-14): "Happy Birthday in G major". Set on song
     // load; cleared when the user generates a fresh exercise (un-pins the melody) — see effect below.
@@ -270,11 +289,59 @@ const App = () => {
     const windowSize = useWindowSize();
     const [musicalBlocks, setMusicalBlocks, musicalBlocksRef] = useRefState([1]);
 
-    const { instruments, manualInstruments, settings: instrumentSettingsHooks, setVolume } = useInstruments(context);
+    const { instruments, loadedSlug, manualInstruments, settings: instrumentSettingsHooks, setVolume } = useInstruments(context);
 
     useEffect(() => {
         instrumentsRef.current = instruments;
     }, [instruments]);
+
+    // #141 round 24 (Han: "indien nodig, voeg een app-wide laadscherm toe"): the app-wide boot splash
+    // (index.html's static `#boot-splash`) stays visible until this flips true, so the very first thing
+    // a user can interact with already has working audio — no silent playback on first note-click while
+    // smplr is still fetching samples in the background. `instrument.load` is smplr's own Promise,
+    // resolving once ALL of that instrument's sample buffers have loaded (see node_modules/smplr's own
+    // type defs — `readonly load: Promise<this>`); `instruments.*` become non-null the moment
+    // useInstruments CONSTRUCTS them, well before their samples finish loading, so gating on `.load` too
+    // is required — gating on non-null alone would hide the splash too early.
+    //
+    // #141 round 25 (Han: "kun je in laadscherm weergeven 'wat je laadt'? audio-context/sprites/level"):
+    // `spritesReady` tracks `window`'s own `load` event — fires once every resource the initial page
+    // requested (scripts, styles, and every <img>/CSS-background image referenced by them) has finished
+    // loading, a real, honest signal for "assets/sprites," not a fabricated progress bar. "level" is
+    // DELIBERATELY not part of this boot-time status: the RPG level's own sprite sheets and runtime-
+    // generated normal maps only start loading once a user actually opens that tab (RpgLevelPanel's own
+    // `!runtimeTextures` DOM fallback already covers that moment locally — see §150) — blocking the WHOLE
+    // app's boot splash on assets nobody may ever request would be dishonest, not helpful.
+    const [audioReady, setAudioReady] = useState(false);
+    const [spritesReady, setSpritesReady] = useState(document.readyState === 'complete');
+    useEffect(() => {
+        if (spritesReady) return undefined;
+        const onLoad = () => setSpritesReady(true);
+        window.addEventListener('load', onLoad);
+        return () => window.removeEventListener('load', onLoad);
+    }, [spritesReady]);
+
+    useEffect(() => {
+        const insts = [instruments.treble, instruments.bass, instruments.percussion, instruments.metronome, instruments.chords];
+        if (insts.some((inst) => !inst)) return undefined;
+        let cancelled = false;
+        Promise.all(insts.map((inst) => inst.load || Promise.resolve()))
+            .catch((err) => logger.error('App', 'E024-INSTRUMENT-LOAD-WAIT', err))
+            .finally(() => { if (!cancelled) setAudioReady(true); });
+        return () => { cancelled = true; };
+    }, [instruments.treble, instruments.bass, instruments.percussion, instruments.metronome, instruments.chords]);
+
+    useEffect(() => {
+        const statusEl = document.getElementById('boot-splash-status');
+        if (!statusEl) return;
+        if (!spritesReady) statusEl.textContent = 'Sprites/assets laden…';
+        else if (!audioReady) statusEl.textContent = 'Audio-instrumenten laden…';
+    }, [spritesReady, audioReady]);
+
+    useEffect(() => {
+        if (!audioReady || !spritesReady) return;
+        document.getElementById('boot-splash')?.remove();
+    }, [audioReady, spritesReady]);
 
 
     // Factory: creates a setter that also mirrors the new value into instrumentSettingsRef.current[key].
@@ -751,6 +818,7 @@ const App = () => {
         handleCloseRangeEdit,
         handleCloseClefEdit,
         handleOpenClefEdit,
+        closeAllEditModes,
     } = useEditMode({ handleStopAllPlayback });
 
     // ── Exercise view (#265/#266 rework, epic #245, Han 2026-07-02) ───────────
@@ -974,13 +1042,19 @@ const App = () => {
     // #659 Level 1: a header button applies the level config (treble only, 2 measures, 2 notes/measure, 30%
     // variability, C4–G4), the player clears 4 waves of slimes, then a "Well done!" splash. The setters update
     // their refs synchronously, so regenerating right after applying config uses the new settings.
+    // Bug fix / feature (Han 2026-08-06, level editor: "key/vocal range/clef" fields — see levels.js's
+    // schema reference): `setTonic`/`setSelectedMode` are included so a level can force its own key
+    // (e.g. a vocal-range level pinned to a comfortable key) — added to BOTH setters and snapshot so
+    // `restore()` reverts the user's own key exactly, the same way every other level-applied field does.
     const levelSetters = useMemo(() => ({
-        setNumMeasures, setTrebleSettings, setBassSettings, setPercussionSettings, setPlaybackConfig,
+        setNumMeasures, setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings, setPlaybackConfig,
         setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode,
-    }), [setNumMeasures, setTrebleSettings, setBassSettings, setPercussionSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode]);
+        setTonic, setSelectedMode, setTheme, setTimeSignature,
+    }), [setNumMeasures, setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode, setTonic, setSelectedMode, setTheme, setTimeSignature]);
     const levelSnapshot = useCallback(() => ({
-        numMeasures, trebleSettings, bassSettings, percussionSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode,
-    }), [numMeasures, trebleSettings, bassSettings, percussionSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode]);
+        numMeasures, trebleSettings, bassSettings, percussionSettings, chordSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode,
+        tonic: scale.tonic, selectedMode, theme, timeSignature,
+    }), [numMeasures, trebleSettings, bassSettings, percussionSettings, chordSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode, scale.tonic, selectedMode, theme, timeSignature]);
     // Defer the (re)generation to the next frame so the just-applied config setters have flushed to their
     // refs first (setTrebleSettings mirrors into instrumentSettingsRef only during the render it triggers;
     // randomizeAll reads that ref) — otherwise the FIRST wave would generate from the old settings.
@@ -990,8 +1064,23 @@ const App = () => {
     // LATEST randomizeAll via a ref (after React has flushed the setters on the next frame) guarantees the range
     // + every other applied setting are in effect BEFORE generation.
     const randomizeAllRef = useRef(randomizeAll); randomizeAllRef.current = randomizeAll;
-    const levelRegenerate = useCallback(() => {
-        requestAnimationFrame(() => randomizeAllRef.current({ chords: false }));
+    // Bug fix (Han 2026-08-06, "ik zie noten van de basismelodie"): tracks whether the level's OWN
+    // treble melody has actually landed yet. False for the span between requesting a level (re)gen and
+    // the deferred randomizeAll below actually running — SheetMusic/SheetRpgLayer use this to withhold
+    // the stale pre-regen melody instead of flashing it. See SheetMusic.jsx's `levelMelodyReady` prop doc.
+    const [levelMelodyReady, setLevelMelodyReady] = useState(true);
+    // #663 (Han 2026-08-03, "genereer ook akkoordenprogressie (I-I-I) tonic progressie"): every OTHER
+    // level regen (wave-to-wave) keeps `chords: false` — the existing progression is just adapted to the
+    // new length, unchanged behaviour. Only the LEVEL'S FIRST regeneration (begin()) needs `chords: true`
+    // to actually run `generateChords(chordSettings.strategy)` and produce a fresh 'tonic-tonic-tonic'
+    // progression (useLevel.applyConfig sets that strategy just before this fires) — without this, the
+    // level would silently reuse whatever chord progression was left over from normal (non-level) play.
+    const levelRegenerate = useCallback((forceNewChords = false) => {
+        setLevelMelodyReady(false);
+        requestAnimationFrame(() => {
+            randomizeAllRef.current({ chords: forceNewChords });
+            setLevelMelodyReady(true);
+        });
     }, []);
     const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate, debugMode });
 
@@ -1022,6 +1111,15 @@ const App = () => {
     // was inconclusive: the audio pipeline traced structurally sound, so this is the perceived-loudness
     // mitigation flagged there as a follow-up).
     const LEVEL_BASS_VOLUME = VOL_STEPS.find((s) => s.label === 'mezzo forte').value;
+    // Level editor (Han 2026-08-06, "tracks.<name>.volume"): resolves a track's persistent output fader
+    // from the level's own `tracks.<name>.volume` (a VOL_STEPS glyph string — "pp"/"p"/"mp"/"mf"/"f"/
+    // "silent", see levels.js's schema reference), falling back to the hardcoded defaults above when the
+    // level doesn't specify one (100% backward compatible with levels 1-9, none of which set it).
+    const resolveLevelVolume = (lvl, trackName, fallback) => {
+        const glyph = lvl?.tracks?.[trackName]?.volume;
+        const step = glyph ? VOL_STEPS.find((s) => s.glyph === glyph) : null;
+        return step ? step.value : fallback;
+    };
     // #661 (Han 2026-08-02, "melodische percussie … hardcoded timpani enkel in levels"): the app's normal
     // `instruments.percussion` slot is ALWAYS an unpitched DrumMachine/Sampler/GM-drum-kit
     // (useInstruments.js) — it structurally cannot play the pitched timpani pattern, and Han explicitly
@@ -1034,6 +1132,24 @@ const App = () => {
         if (!context) return;
         try { if (!timpaniRef.current) timpaniRef.current = new Soundfont(context, { instrument: 'timpani', destination: context.destination }); } catch { /* offline / CDN blocked */ }
     }, [context]);
+    // Bug fix / mitigation (Han 2026-08-06, "level 2: nog steeds pas veel te laat slimes... duurt
+    // ongeveer 2,5 maten voordat maat -1 pas in beeld komt"): §171 correctly stopped the visual scroll
+    // from starting until `bassReady`/`metronomeReady` (the REAL `instruments.bass`/`.metronome` slots
+    // rebuilding as 'cello'/the level's metronome instrument), but that rebuild's own sample-fetch time
+    // was ALWAYS there — §171 just stopped hiding it behind a broken free-running clock. `timpaniRef`
+    // above already sidesteps this for percussion by preloading eagerly, on app boot, into its OWN
+    // dedicated Soundfont slot; bass/metronome can't do that (they're the REAL, shared instrument slots
+    // practice mode also uses — eagerly switching them to 'cello' early would visibly change the user's
+    // own instrument choice). Best available mitigation without touching real app state: warm the
+    // BROWSER's sample cache for 'cello' as soon as the level picker opens (well before Start is
+    // pressed) via a throwaway Soundfont — smplr/the browser can then serve the REAL instrument's
+    // construction (triggered by applyConfig at level start) from cache instead of a fresh network
+    // fetch. Discarded once done; never touches `instruments.bass` itself.
+    const cellowarmRef = useRef(null);
+    useEffect(() => {
+        if (!context || !showLevelPicker || cellowarmRef.current) return;
+        try { cellowarmRef.current = new Soundfont(context, { instrument: 'cello', destination: context.destination }); } catch { /* offline / CDN blocked */ }
+    }, [context, showLevelPicker]);
     // #662 (Han 2026-08-03, "timpanen en cello worden niet onderbroken door de stop-knop"): the level's
     // backing is scheduled ALL AT ONCE, far ahead (the whole -1..8 measure span) — unlike the Sequencer's
     // own short-horizon incremental scheduling. `instrument.stop()` alone only halts voices that are
@@ -1051,101 +1167,284 @@ const App = () => {
         setVolume('bass', 1.0);
         setVolume('metronome', 1.0);
     }, [instruments, setVolume]);
-    // Sets the scroll anchor IMMEDIATELY (so the visual side-scroll always starts on schedule) — the actual
-    // audio scheduling is deferred to the effect below, which waits for instruments.bass to actually BECOME
-    // the cello Soundfont (useInstruments.js rebuilds it asynchronously after applyConfig's setBassSettings;
-    // scheduling against the STALE pre-level bass instrument here would play the wrong timbre).
-    const scheduleLevelBacking = useCallback((lvl) => {
-        if (!lvl?.sideScroll || !context) return;
-        setLevelAudioStart(context.currentTime + 0.35);   // small pre-roll so the melody has generated
-    }, [context]);
-    const backingScheduledForRef = useRef(null);   // the levelAudioStart we already scheduled audio for
+    // #663 (Han 2026-08-03 bug: "cello niet hoorbaar"): readiness now checks `loadedSlug` — written by
+    // useInstruments.js in the SAME commit as the instrument INSTANCE itself, unlike `bassSettings.instrument`
+    // which flips one commit EARLIER (see useInstruments.js's loadedSlug comment). Gating on the settings
+    // value alone could pass while `instruments.bass` was still the stale pre-level instrument.
+    const bassReady = loadedSlug.bass === 'cello' && !!instruments.bass;
+    const metronomeReady = loadedSlug.metronome === metronomeSettings.instrument && !!instruments.metronome;
+    // Bug fix (Han 2026-08-06, "ik hoor geen van de melodieën" — intermittently silent/garbled level
+    // audio): this used to be set at CLICK time (+0.35s pre-roll) by a `scheduleLevelBacking` callback,
+    // before instruments were confirmed ready. `instruments.bass`/`instruments.metronome` rebuild
+    // ASYNCHRONOUSLY (useInstruments.js fetches the cello Soundfont's samples) — whenever that rebuild
+    // took longer than 0.35s (uncached samples, slow network — inherently variable, hence "sometimes
+    // works"), `bassReady`/`metronomeReady` only flipped true AFTER the anchor's intended start time had
+    // already elapsed. The scheduling effect below still fired once ready, but scheduled every chunk
+    // against that now-stale anchor; playMelodies.js clamps any past `scheduledStart` to
+    // `context.currentTime` (see its `adjustedStart` line), which collapsed/overlapped the level's
+    // opening bars instead of silently waiting. Fix: don't pick the anchor until every instrument the
+    // level's audio needs is CONFIRMED ready — the same flags the scheduling effect below already gates
+    // on — so by construction the anchor can never be in the past once anything schedules against it.
+    // This also removes the visual (SheetRpgLayer) vs. audio start-time divergence that the old
+    // click-time anchor could cause, since both now share this same, later, readiness-gated anchor.
+    // Bug fix (Han 2026-08-06, "noten komen pas laat invliegen van rechts... mss preloaden van
+    // melodie?"): this anchor-setting effect already waited for audio readiness, but NOT for the
+    // treble melody itself (`levelMelodyReady`, §166) — the tick clock could start advancing (once
+    // audio was ready) while `trebleMelody` was still `null`/regenerating, so by the time the melody
+    // finally arrived, its notes' spawn positions (computed from `beat` vs. the ALREADY-elapsed tick)
+    // landed partway across the lane instead of starting fresh from the right edge — i.e. "late,
+    // not enough lead-in from the right", on EVERY level, not just non-4/4 ones. Fix: also wait for
+    // `levelMelodyReady` before picking the anchor, so the melody is always fully "preloaded" before
+    // the clock ever starts ticking.
+    useEffect(() => {
+        const lvl = level.current;
+        if (!level.active || !lvl?.sideScroll || levelAudioStart != null || !context) return;
+        if (!bassReady || !metronomeReady || !levelMelodyReady) return;
+        if (percussionSettings?.melodic && !timpaniRef.current) return;
+        // Bug fix (Han 2026-08-06, "maat -1 is pas na anderhalve maat in beeld... metronoom/cello/melodie
+        // zouden allemaal dezelfde timer moeten gebruiken"): they DO already share one AudioContext — the
+        // remaining desync is that THIS anchor is picked once readiness fires, but bass/metronome/treble
+        // JIT scheduling (useLevelBackingStream/useLevelMixedStream/useLevelKeyModulationStream/
+        // SheetRpgLayer's own tick pickup) each fire in SEPARATE, chained React effects/commits after
+        // this one — real wall-clock time passes between "anchor picked" and "every track's first note
+        // actually scheduled". 0.35s was too tight a margin for that whole chain on a cold start;
+        // playMelodies.js's own clamp then silently pulled straggling tracks' first notes forward to
+        // "now", desyncing them from tracks that made the original anchor. Widened to 1.0s — cheap
+        // (worst case: the level starts a little later), removes the race instead of shrinking it.
+        const anchor = context.currentTime + 1.0;
+        // TEMP DEBUG (Han 2026-08-06, "nog steeds niet gelost" — need real numbers instead of another
+        // blind guess): logs exactly WHEN the anchor is picked (context.currentTime) and what it's set
+        // to, so a live test's console output tells us whether the anchor itself is late/wrong, or
+        // whether the problem is downstream (scheduling/rendering not honouring it). Remove once
+        // diagnosed.
+        logger.debug('LevelTiming', 'anchor picked', { nowCtxTime: context.currentTime, anchor, bpm: lvl.bpm });
+        setLevelAudioStart(anchor);
+    }, [level.active, level.current, levelAudioStart, context, bassReady, metronomeReady, levelMelodyReady, percussionSettings?.melodic]);
+    const backingScheduledForRef = useRef(null);   // the levelAudioStart we already scheduled TIMPANI for
     useEffect(() => {
         const lvl = level.current;
         if (!level.active || !lvl?.sideScroll || levelAudioStart == null || !context) return;
         if (backingScheduledForRef.current === levelAudioStart) return;   // already scheduled this anchor
-        if (bassSettings.instrument !== 'cello' || !instruments.bass || !instruments.metronome) return;
+        if (!bassReady || !metronomeReady) return;
         // Wait for the dedicated timpani Soundfont too when percussion is melodic — scheduling before
         // it's ready would silently skip it for the whole level session (backingScheduledForRef locks in).
         if (percussionSettings?.melodic && !timpaniRef.current) return;
         backingScheduledForRef.current = levelAudioStart;
         levelBackingStopFnsRef.current = [];   // fresh schedule — drop any stale handles from a prior level
         const bpm = lvl.bpm || 80;
-        const beatSec = 60 / bpm;
-        const bos = lvl.beatsOnScreen || 8;
-        const barBeats = timeSignature[0] || 4;
-        const barSec = beatSec * barBeats;
-        const measureTicks = (TICKS_PER_WHOLE * barBeats) / (timeSignature[1] || 4);
-        // #661 (Han 2026-08-02 UAT): "de timpanen en cello moeten beginnen op maat -1, de metronoom op
-        // maat 0" — a 2-bar lead-in BEFORE content measure 1 (unchanged: `contentStart` is where the
-        // FIRST slime arrives, the "add beatsOnScreen" convention SheetRpgLayer's sideScrollX/graded
-        // window already use). Timpani + Level 2's fixed cello start at the very front of the lead-in
-        // (measure -1); the metronome joins one bar later (measure 0, `contentStart − barSec`).
-        const contentStart = levelAudioStart + bos * beatSec;   // measure 1
-        const leadInStart = levelAudioStart;                    // measure -1
-        const metronomeStart = contentStart - barSec;           // measure 0
-        const leadInBars = Math.max(1, Math.round((bos * beatSec) / barSec));   // 2 for today's levels
+        const bassVolume = resolveLevelVolume(lvl, 'bass', LEVEL_BASS_VOLUME);
+        const metronomeVolume = resolveLevelVolume(lvl, 'metronome', LEVEL_BACKING_VOLUME);
+        const percussionVolume = resolveLevelVolume(lvl, 'percussion', LEVEL_BACKING_VOLUME);
+        setVolume('bass', bassVolume);
+        setVolume('metronome', metronomeVolume);
 
-        setVolume('bass', LEVEL_BASS_VOLUME);
-        setVolume('metronome', LEVEL_BACKING_VOLUME);
-
-        // Timpani (both levels) + Level 2's fixed C2 cello — both Han-authorized hardcoded patterns with
-        // no "generated content" to align to — span the WHOLE piece (lead-in + content) from measure -1.
-        const leadInMelodies = [], leadInInstruments = [];
-        let namedInstruments = instruments;
+        // #663 (Han 2026-08-03, "hard code de timpani voor nu"): timpani stays the ONE Han-authorized
+        // hardcoded pattern, scheduled ONCE for the whole piece (lead-in + content) from measure -1 —
+        // unlike bass/metronome below, which are now JIT-generated chunk by chunk (useLevelBackingStream)
+        // to fix the desync/measure-0-only/inaudible-cello bugs. Timpani never had those bugs (it isn't
+        // racing an async instrument swap or a regenerated melody), so it needs no change in kind.
         if (percussionSettings?.melodic && timpaniRef.current) {
-            leadInMelodies.push(buildTimpaniPattern(leadInBars + lvl.numMeasures, timeSignature));
-            leadInInstruments.push(timpaniRef.current);
-            // trackGains below identifies each track by comparing the instrument reference against
-            // namedInstruments.percussion — override just for THIS call so gain-lookup treats the
-            // dedicated timpani instance as "percussion" without touching the real instruments object.
-            namedInstruments = { ...instruments, percussion: timpaniRef.current };
-        }
-        if (bassSettings.fixedWholeNote) {
-            leadInMelodies.push(buildCelloWholeNotePattern(leadInBars + lvl.numMeasures, timeSignature));
-            leadInInstruments.push(instruments.bass);
-        }
-        if (leadInMelodies.length > 0) {
             playMelodies(
-                leadInMelodies, leadInInstruments, context, bpm, leadInStart,
-                null, null, namedInstruments, null,
-                { treble: 0, bass: 1, percussion: LEVEL_BACKING_VOLUME, chords: 0, metronome: 0 },
+                [buildTimpaniPattern(LEVEL_LEAD_IN_BARS + lvl.numMeasures, timeSignature)], [timpaniRef.current],
+                context, bpm, levelAudioStart,
+                null, null, { ...instruments, percussion: timpaniRef.current }, null,
+                { treble: 0, bass: 0, percussion: percussionVolume, chords: 0, metronome: 0 },
                 levelBackingStopFnsRef,
             );
         }
+    }, [level.active, level.current, levelAudioStart, context, instruments, bassReady, metronomeReady,
+        setVolume, LEVEL_BACKING_VOLUME, LEVEL_BASS_VOLUME, percussionSettings?.melodic, timeSignature]);
 
-        // Level 3's bass keeps the REAL generated melody, CONTENT ONLY — silent during the -1/0 lead-in
-        // (Han's explicit answer: there is no generated data for negative measures).
-        if (!bassSettings.fixedWholeNote && melodies.bass?.notes?.length) {
-            playMelodies(
-                [melodies.bass], [instruments.bass], context, bpm, contentStart,
-                null, null, instruments, null,
-                { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 0 },
-                levelBackingStopFnsRef,
-            );
-        }
+    // #688 (Han 2026-08-04, Level 9 rework: "ik hoor te veel tonen. lijkt of er meerdere melodieën
+    // gegenereerd zijn" + "ik verwacht een soepele aangesloten reeks maten... alle 10 maten naadloos"):
+    // reverted to ONE continuous 8-measure melody (`numMeasures: 8, numRepeats: 1` in levels.json — matches
+    // Level 2 exactly again) instead of §686's 4-separate-2-measure-waves structure. That structure needed
+    // its own wave-advance timer + per-wave melody regeneration + per-wave audio (re)scheduling — several
+    // OVERLAPPING schedules were almost certainly the source of the "too many tones" bug, and the repeated
+    // per-wave resets broke the lead-in/final-barline math (which assumes one level-length melody). Level 9
+    // now advances/ends exactly like every other side-scroll level (`onSlimesCleared` below, unchanged).
+    //
+    // #692 (Han 2026-08-04, Level 9 bug report: "ik hoor te veel tonen... ik hoor andere noten dan de te
+    // spelen noten... vermoeden is dat er twee aparte melodieën bestaan"): the §688 odd/even-measure "call"/
+    // "response" split literally WAS two different note streams sharing one beat grid — the square-synth
+    // "call" always played the ODD measures' pitches while the projectile/combat grading (slimeData, in
+    // SheetRpgLayer) fires for EVERY note including the even ones, whose pitches were never previewed. Han's
+    // corrected model: there is only ONE melody (single source of truth = `trebleMelody`, unmodified — same
+    // pitches heard and played). Every note goes through the SAME 3 phases relative to its OWN beat: (a) ~2
+    // measures out, spawns off-screen invisibly (SheetRpgLayer's existing beatsOnScreen flight, unchanged);
+    // (b) `wizardSpawnLeadMeasures` measures out, becomes visible AND is audibly "cast" by the wizard (this
+    // square-lead voice) at its OWN pitch; (c) at its real beat, the player must play that same pitch. So the
+    // cast-audio is the WHOLE unmodified melody, scheduled `wizardSpawnLeadMeasures` measures EARLIER than
+    // the player's real position — not a per-measure mute — which keeps every cast pitch identical to the
+    // pitch that must eventually be played, one measure later.
+    // #693 (Han 2026-08-04, Level 9 UAT round 2 — "de noten zijn niet netjes per maat gescheiden. ik wil
+    // echt: oneven maat: leeg, even maat noten"): odd/even is now baked into the CANONICAL `trebleMelody`
+    // itself (not just a rendering trick) — odd measures collapse to ONE whole-measure rest (Han: "je mag in
+    // de volledig lege maten een hele rust plaatsen, niet een 4x kwartrust"), even measures keep every real
+    // note untouched. Single source of truth: SheetRpgLayer's notation, `slimeData`/combat grading, AND this
+    // wizard-cast audio all read the SAME already-collapsed melody, so odd measures are truly silent/unplayed
+    // everywhere (no separate "mute" logic needed anywhere downstream).
+    // #693 (Han 2026-08-04, round 4 — FINAL: "de noten om te spelen staan in de EVEN maten. de ONEVEN maten
+    // hebben altijd een hele rust (forceer dat). de noten in de EVEN maten worden een maat op voorhand óók
+    // door de wizard gespeeld; en op dat moment verschijnen de projectiles"): round 3's flip (collapse EVEN,
+    // keep ODD) was itself wrong — Han confirmed the ORIGINAL round-2 mapping was right all along. Back to
+    // collapsing ODD measures to a single whole-rest; EVEN measures keep their real playable notes.
+    // #693 (Han 2026-08-04, round 6 — "genereer sequentieel 4 blokken zoals maat 1 en 2", JIT):
+    // Level 9's treble (the wizard's call-response melody) is no longer generated once up front
+    // and post-processed — useLevelTrebleStream owns generating + growing it 2 measures ("1
+    // call-response block") at a time, and schedules each block's own wizard-cast preview as it
+    // arrives. This REPLACES the old restify/duplicate-in-place transform (round 5) and the old
+    // one-shot "reschedule the whole melody on every trebleMelody change" preview effect — both
+    // only ever handled Level 9's OWN, now-JIT-generated `treble`, not the shared `trebleMelody`
+    // state every other level/mode uses, so removing them here is scoped to Level 9 only.
+    const wizardPreviewRef = useRef(null);
+    useEffect(() => {
+        if (!context) return;
+        try { if (!wizardPreviewRef.current) wizardPreviewRef.current = new Soundfont(context, { instrument: 'lead_1_square', destination: context.destination }); } catch { /* offline / CDN blocked */ }
+    }, [context]);
+    // Dedicated stop-fns ref (NOT the shared `levelBackingStopFnsRef` — that's also used by bass/
+    // metronome/timpani schedules and must not be blanket-cancelled from here).
+    const wizardPreviewStopFnsRef = useRef([]);
+    const levelTrebleStream = useLevelTrebleStream({
+        active: level.active && level.current?.enemyType === 'Wizard',
+        lvl: level.current,
+        scale,
+        timeSignature,
+        trebleSettings,
+        chordProgression: melodies.chordProgression,
+        context,
+        levelAudioStart,
+        wizardInstrument: wizardPreviewRef.current,
+        wizardVolume: LEVEL_BACKING_VOLUME,
+        stopFnsRef: wizardPreviewStopFnsRef,
+    });
+    // Level 10 (Han 2026-08-06, "mixed level - stuur 2 maten slimes, dan 2 maten wizard"): reuses the
+    // SAME wizard-cast Soundfont as Level 9 above, own dedicated stop-fns ref (§6c — mirrors
+    // wizardPreviewStopFnsRef's own rationale: never blanket-cancel a schedule that isn't this stream's).
+    // Scope note (see useLevelMixedStream.js's own header comment): only the MELODY/AUDIO mechanic
+    // alternates per block for now — the visual enemy stays rendered as Slime throughout (SheetRpgLayer
+    // gets `enemyType: 'Slime'` for a Mixed level, see the `enemyType` prop below), not a full
+    // slime↔wizard sprite swap, which would need a much deeper SheetRpgLayer rendering fork this pass
+    // couldn't safely verify without live testing.
+    const mixedPreviewStopFnsRef = useRef([]);
+    const levelMixedStream = useLevelMixedStream({
+        active: level.active && level.current?.enemyType === 'Mixed',
+        lvl: level.current,
+        scale,
+        timeSignature,
+        trebleSettings,
+        chordProgression: melodies.chordProgression,
+        context,
+        levelAudioStart,
+        wizardInstrument: wizardPreviewRef.current,
+        wizardVolume: LEVEL_BACKING_VOLUME,
+        stopFnsRef: mixedPreviewStopFnsRef,
+    });
+    // Level 11 (Han 2026-08-06, "slimes, er staat een groene wizard... wisselt dan van toonladder"):
+    // JIT treble stream that alternates Major/Minor every 2 measures (tonic fixed) — see
+    // useLevelKeyModulationStream.js's own header for the full rationale (forward-only, reuses
+    // updateScaleWithMode). Active for any Slime-enemy level with `decorativeWizard: true`, independent
+    // of the Wizard/Mixed streams above (mutually exclusive per level — only one is ever `active`).
+    const levelKeyModulationStream = useLevelKeyModulationStream({
+        active: level.active && !!level.current?.decorativeWizard,
+        lvl: level.current,
+        scale,
+        timeSignature,
+        trebleSettings,
+        chordProgression: melodies.chordProgression,
+        context,
+        levelAudioStart,
+    });
 
-        // Metronome starts ONE bar into the lead-in ("maat 0") — its own first bar duplicated as the
-        // count-in (utils/metronomeLeadIn.js: reuses the metronome's own uniform click pattern, not a new
-        // hardcoded one), so the untouched original melody still lands exactly on content measure 1.
-        if (melodies.metronome?.notes?.length) {
-            playMelodies(
-                [withMetronomeLeadIn(melodies.metronome, measureTicks)], [instruments.metronome], context, bpm, metronomeStart,
-                null, null, instruments, null,
-                { treble: 0, bass: 0, percussion: 0, chords: 0, metronome: 1 },
-                levelBackingStopFnsRef,
-            );
-        }
-        // melodies is a memoised object (useMelodyState) — safe as a dep; bassSettings.instrument is the
-        // real gate (waits for the cello swap), so this effect is a no-op until everything lines up.
-    }, [level.active, level.current, levelAudioStart, context, instruments, bassSettings.instrument,
-        bassSettings.fixedWholeNote, melodies, setVolume, LEVEL_BACKING_VOLUME, LEVEL_BASS_VOLUME, percussionSettings?.melodic, timeSignature]);
+    // #663: bass (cello) + metronome are generated + scheduled incrementally, LEVEL_LEAD_IN_BARS
+    // ("one chunk") at a time — see useLevelBackingStream.js for the full rationale. `bass`/`metronome`
+    // here are the level's GROWING melodies, threaded into MelodyProvider below in place of
+    // `melodies.bass`/`melodies.metronome` while a side-scroll level is active.
+    const levelBackingStream = useLevelBackingStream({
+        active: level.active && !!level.current?.sideScroll,
+        lvl: level.current,
+        scale,
+        timeSignature,
+        bassSettings,
+        chordProgression: melodies.chordProgression,
+        context,
+        levelAudioStart,
+        bassReady,
+        metronomeReady,
+        bassInstrument: instruments.bass,
+        metronomeInstrument: instruments.metronome,
+        stopFnsRef: levelBackingStopFnsRef,
+    });
+    // #693 (Han 2026-08-04, round 7): starting a level closes the character UI + any open edit-mode
+    // overlays (they don't make sense mid-combat and would otherwise cover the level) and switches
+    // the input view to the TOP (treble) key row — the input the player actually needs.
+    // Level 0 (Han 2026-08-06, "dat wil ik in de 'config' voor het begin van het level doen, dus niet
+    // via instelling overlay"): `n` is normally a level id (number), but LevelStartSplash's Level-0 form
+    // now passes a FULL, hand-edited level object instead — `level.start` already accepts either shape
+    // (it just assigns whatever it's given to `current`), so this only needs to skip the id lookup.
     const startLevel = useCallback((n) => {
-        const lvl = LEVELS[n] || LEVELS[1];
+        const lvl = typeof n === 'object' ? n : (LEVELS[n] || LEVELS[1]);
+        // Bug fix (Han 2026-08-06, "audio-context mag niet starten met spelen voordat de melodie geladen
+        // is... metronoom, cello, en melodie time checker zouden allemaal gebruik moeten maken van
+        // dezelfde timer"): if the user was mid-playback (normal practice-mode Sequencer running) when
+        // they hit Start, that playback was NEVER stopped — it kept sounding concurrently with the
+        // level's own bass/metronome/timpani scheduling, an entirely separate, unrelated audio source
+        // layered on top. That's real, audible "soup" with no shared clock at all (it isn't anchored to
+        // `levelAudioStart`), independent of every anchor/readiness fix so far. Stop it FIRST, before
+        // anything else, so the level always starts from total silence.
+        handleStopAllPlayback();
         context.resume?.();
+        closeAllEditModes();
+        setCharacterScreen(null);
+        setActiveTab('piano');
         level.start(lvl);
-        scheduleLevelBacking(lvl);
-    }, [context, level, scheduleLevelBacking]);
+    }, [context, level, closeAllEditModes, setCharacterScreen, setActiveTab, handleStopAllPlayback]);
+    // #693 (round 7): the header Pause button opens LevelPausePopup instead of the old floating
+    // "■ Stop" button. Quit ends the level exactly like the old Stop button did; Resume rewinds to
+    // the start of the measure the player was in, plays a 1-measure metronome count-in, then
+    // continues — see the popup's render site below for the full rationale.
+    const [levelPaused, setLevelPaused] = useState(false);
+    const handleQuitLevel = useCallback(() => {
+        stopAllBackingAudio();
+        handleStopAllPlayback();
+        level.close();
+        setLevelPaused(false);
+        // Han: "quit: go to splash screen immediately" — reopens the level-picker splash (the same
+        // one Start Level opens) so quitting flows straight back into picking another level.
+        setShowLevelPicker(true);
+    }, [stopAllBackingAudio, handleStopAllPlayback, level]);
+    const handleResumeLevel = useCallback(() => {
+        setLevelPaused(false);
+        if (!context || levelAudioStart == null || !level.active || !level.current) return;
+        const lvl = level.current;
+        const barBeats = timeSignature[0] || 4;
+        // Bug fix (Han 2026-08-06, "de 6/8 maatsoort zorgt dat alles misloopt") — see
+        // useLevelBackingStream.js's comment: bar duration must derive from ticks, not
+        // beats×denominator-agnostic quarter-seconds.
+        const measureLengthTicks = (TICKS_PER_WHOLE * barBeats) / (timeSignature[1] || 4);
+        const barSec = measureLengthTicks * secondsPerTick(lvl.bpm || 80);
+        const contentStartTime = levelAudioStart + LEVEL_LEAD_IN_BARS * barSec;
+        // The measure the player was IN at the moment of pause (0-based, clamped so a pause during
+        // the lead-in rewinds to measure 1, not a negative index).
+        const elapsedContent = Math.max(0, context.currentTime - contentStartTime);
+        const measureIndexAtPause = Math.floor(elapsedContent / barSec);
+        const measureStartOffsetSec = measureIndexAtPause * barSec;
+        // Tear down everything currently scheduled/sounding (identical to Quit's cleanup) WITHOUT
+        // ending the level — stats/wave/current-level state all stay intact.
+        stopAllBackingAudio();
+        handleStopAllPlayback();
+        // Re-anchor so a 1-measure metronome count-in starts NOW and the level's content resumes
+        // exactly at the start of the measure the player left off in. Every side-scroll track
+        // (bass/metronome/percussion via useLevelBackingStream, treble/wizard via
+        // useLevelTrebleStream) is keyed off `levelAudioStart` and regenerates from its own start
+        // relative to this new anchor — Han's "clear the input track's pending notes, don't touch
+        // the other tracks" is honoured for what the PLAYER must still play (nothing carries over
+        // as already-due/already-missed), though the backing/wizard content itself is freshly
+        // generated from the resume point rather than replaying byte-identical old content (a full
+        // non-destructive resume would need the JIT streams to persist already-generated blocks
+        // across a re-anchor — noted as a follow-up, not attempted here).
+        setLevelAudioStart(context.currentTime + barSec - LEVEL_LEAD_IN_BARS * barSec - measureStartOffsetSec);
+    }, [context, levelAudioStart, level, timeSignature, stopAllBackingAudio, handleStopAllPlayback]);
     // Stop any scheduled backing + drop the anchor when the level ends (splash close / replay handles its own).
     useEffect(() => {
         if (!level.active) {
@@ -1873,10 +2172,21 @@ const App = () => {
         <InstrumentSettingsProvider value={instrumentSettingsCtx}>
         <DisplaySettingsProvider value={displaySettingsCtx}>
         <MelodyProvider
-            treble={mergedRenderMelodies ? mergedRenderMelodies.treble : melodies.treble}
-            bass={mergedRenderMelodies ? mergedRenderMelodies.bass : melodies.bass}
+            // #693 (round 6): while Level 9 is streaming its JIT-generated call-response blocks, the
+            // growing treble melody replaces the normal one — same override pattern bass/metronome
+            // already use below.
+            treble={(level.active && level.current?.enemyType === 'Wizard') ? levelTrebleStream.treble
+                : (level.active && level.current?.enemyType === 'Mixed') ? levelMixedStream.treble
+                : (level.active && level.current?.decorativeWizard) ? levelKeyModulationStream.treble
+                : (mergedRenderMelodies ? mergedRenderMelodies.treble : melodies.treble)}
+            // #663: while a side-scroll level is streaming its JIT-generated backing, the growing
+            // level bass/metronome melodies replace the normal ones — SheetMusic's scrollNotationBass
+            // (and the level's metronome audio, scheduled inside useLevelBackingStream) must show/play
+            // exactly the same content, never the once-generated `melodies.bass`/`.metronome`.
+            bass={(level.active && level.current?.sideScroll) ? levelBackingStream.bass
+                : (mergedRenderMelodies ? mergedRenderMelodies.bass : melodies.bass)}
             percussion={mergedRenderMelodies ? mergedRenderMelodies.percussion : melodies.percussion}
-            metronome={melodies.metronome}
+            metronome={(level.active && level.current?.sideScroll) ? levelBackingStream.metronome : melodies.metronome}
             chordProgression={mergedRenderMelodies ? mergedRenderMelodies.chordProgression : chordProgression}
         >
         <PlaybackTransportProvider
@@ -1920,28 +2230,27 @@ const App = () => {
                     {midiStatus.lastData ? `\n#${midiStatus.count}  [${midiStatus.lastData.join(', ')}]` : '\n(no events yet)'}
                 </div>
             )}
-            {/* §88 (Han): STOP button — interrupts the level and stops ALL audio (Sequencer + backing). Shown
-                only while a level is running (the splash has its own buttons once it's done). */}
-            {level.active && !level.done && (
-                <button
-                    onClick={() => { stopAllBackingAudio(); handleStopAllPlayback(); level.close(); }}
-                    style={{ position: 'fixed', top: 8, left: 8, zIndex: 99999, background: 'var(--accent-red, #d33)',
-                        color: '#fff', border: 'none', borderRadius: 6, padding: '7px 14px', fontSize: 14,
-                        fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 6px rgba(0,0,0,0.35)' }}
-                    title="Stop de oefening"
-                >
-                    ■ Stop
-                </button>
+            {/* Level config debug dump MOVED (Han 2026-08-06, "ik wil de level params zien tijdens het
+                'start level' splash screen, niet tijdens het level") — now lives in LevelStartSplash
+                (the level picker), not here; during-level was the wrong place since you can't change
+                your pick by then anyway. See LevelStartSplash.jsx's own `debugMode` dump. Level 0's own
+                editing ALSO moved there (a pre-start config form, Han: "niet via instelling overlay") —
+                the `LevelZeroPanel` in-level corner panel is gone. */}
+            {/* #693 (Han 2026-08-04, round 7 — "de stop button voelt totally not integrated... zou de
+                'start level' button moeten vervangen in de header"): the old floating "■ Stop" button
+                is gone — the header's Swords/Pause button slot (AppHeader) now handles this, opening
+                LevelPausePopup below instead of stopping outright. */}
+            {levelPaused && level.active && !level.done && (
+                <LevelPausePopup levelName={level.current?.name} onResume={handleResumeLevel} onQuit={handleQuitLevel} />
             )}
             {/* TOP AREA WRAPPER (Preserves app theme for header/sheet) */}
             <div className="App app-top-wrapper">
                 {/* #628-S5: canvas disco-ball background — only mounted for the disco theme; sits behind
                     the (transparent) header + sheet via .disco-canvas (z-index:-1 + isolate). */}
                 {theme === 'disco' && <DiscoBackground />}
-                {/* #645: character-creator modal (fixed-position; opened from the header). */}
-                {showCharacter && <CharacterCreator onClose={() => setShowCharacter(false)} />}
                 {level.done && (
                     <LevelSplash levelName={level.current.name} stats={level.stats}
+                        totalEnemies={level.totalEnemies} totalCritters={level.totalCritters}
                         timed={!!level.current.sideScroll} onReplay={level.replay} onClose={level.close} />
                 )}
                 {/* #661 (Han 2026-08-02): "een splash screen voor het level start, met daarin een tanh
@@ -1951,10 +2260,13 @@ const App = () => {
                     <LevelStartSplash
                         onStart={(n) => { startLevel(n); setShowLevelPicker(false); }}
                         onClose={() => setShowLevelPicker(false)}
+                        debugMode={debugMode}
                     />
                 )}
                 <AppHeader
                     onOpenLevelPicker={() => setShowLevelPicker(true)}
+                    levelActive={level.active && !level.done}
+                    onPauseLevel={() => setLevelPaused(true)}
                     scale={scale}
                     onStartExercise={handleStartExercise}
                     /* #533: the header Thronefall crown was removed — the colour setter's theme
@@ -1963,21 +2275,15 @@ const App = () => {
                     toggleFullscreen={toggleFullscreen}
                     displayTonic={displayTonic}
                     globalInstLabel={globalTransposition ? `${globalTransposition.label} instrument` : null}
-                    isInputTestMode={isInputTestMode}
-                    inputTestState={isInputTestMode ? inputTestState : null}
-                    inputTestSubMode={inputTestSubMode}
-                    setInputTestSubMode={handleSetInputTestSubMode}
                     isPlayingMelody={isPlayingMelody}
                     handlePlayMelody={handlePlayMelody}
                     handlePlayRepeat={handlePlayRepeat}
-                    handleToggleInputTest={handleToggleInputTest}
                     isPlayingContinuously={isPlayingContinuously}
                     handlePlayContinuously={handlePlayContinuously}
                     customScaleLabel={customScaleLabel}
                     headerPlayMode={headerPlayMode}
                     setHeaderPlayMode={setHeaderPlayMode}
                     windowWidth={windowSize.width}
-                    setActiveTab={setActiveTab}
                     handleSkipBack={handleSkipBack}
                     handleSkipForward={handleSkipForward}
                     canSkipBack={historyIndex > 0}
@@ -1989,8 +2295,23 @@ const App = () => {
                     isScalePlaying={isScalePlaying}
                     progressionLabel={headerProgressionLabel}
                     songTitle={loadedSongTitle}
+                    characterScreen={characterScreen}
+                    onToggleCharacterView={() => setCharacterScreen((s) => {
+                        if (s) return null;
+                        closeAllEditModes();   // #667: avatar-context is exclusive with range/clef/colour/etc.
+                        return 'equipment';
+                    })}
                 />
 
+                {/* #667 (Han 2026-08-03): "binnen LEVEL context: geen subheader; binnen AVATAR context: 4
+                    char opties; binnen bladmuziek context: 8 bestaande sub header opties." Level 0's
+                    live-editing was moved to a PRE-START config form in LevelStartSplash (Han 2026-08-06,
+                    "dat wil ik in de config voor het begin van het level doen, niet via instelling
+                    overlay") — so this stays a flat, unconditional level-hides-subheader rule again, no
+                    id-0 exception. */}
+                {level.active ? null : characterScreen ? (
+                    <AvatarSubHeader screen={characterScreen} setScreen={setCharacterScreen} />
+                ) : (
                 <SubHeader
                     inputTestSubMode={inputTestSubMode}
                     setInputTestSubMode={handleSetInputTestSubMode}
@@ -2024,6 +2345,7 @@ const App = () => {
                     windowWidth={windowSize.width}
                     difficultyMultiplier={actualDifficulty.multiplier}
                 />
+                )}
 
                 {/* TOP SECTION: SHEET MUSIC & PLAYBACK
                     Han 2026-08-02 (BUG — "bottom view schuift weer omhoog" after the scaleFactor cap):
@@ -2042,7 +2364,7 @@ const App = () => {
                     style={{
                         flex: isDualView ? `0 0 ${sheetHeight}px` : 1,
                         height: isDualView ? sheetHeight : 'auto',
-                        display: (activeTab === 'sheet-music' || isDualView) ? 'flex' : 'none',
+                        display: (activeTab === 'sheet-music' || isDualView || characterScreen) ? 'flex' : 'none',
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -2050,18 +2372,45 @@ const App = () => {
                         position: 'relative'
                     }}
                 >
+                    {/* #667 (Han 2026-08-03): avatar-context REPLACES sheet-music here (top) — the popup is
+                        gone; the same top slot now shows the avatar (+ equipment slots, or the bestiary
+                        preview) instead. */}
+                    {characterScreen === 'character' && <CharacterAvatarPanel editor={characterEditor} screen="character" debugMode={debugMode} />}
+                    {characterScreen === 'equipment' && <CharacterAvatarPanel editor={characterEditor} screen="equipment" debugMode={debugMode} />}
+                    {characterScreen === 'stats' && <StatsTopPanel />}
+                    {characterScreen === 'bestiary' && <BestiaryTopPanel editor={bestiaryEditor} debugMode={debugMode} />}
+                    {characterScreen === 'rpg-level' && <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} />}
+                    {!characterScreen && (
                     <ErrorBoundary boundary="sheet-music">
                         <SheetMusic
                             {...sheetMusicCommonProps}
-                            onOpenCharacter={() => setShowCharacter(true)}   // #647 hero click opens the menu
+                            onOpenCharacter={() => { closeAllEditModes(); setCharacterScreen('equipment'); }}   // #647/#667 hero click opens avatar-context
                             combatNote={combatNote}                          // #647 combat — last played note
                             // #647/#659: a cleared wave advances the level (splash at the end); otherwise it
-                            // just regenerates a fresh wave.
+                            // just regenerates a fresh wave. #688: Level 9 is a single wave again (like
+                            // every other side-scroll level), so this is unconditional again.
                             onSlimesCleared={() => { if (!level.onWaveCleared()) randomizeAll({ chords: false }); }}
+                            // #688 (Han: "end of level splash... pas wanneer end of song de hit zone
+                            // bereikt") — fired by SheetRpgLayer when the final barline visually crosses
+                            // the strike line; flips `done` only if a wave-clear is pending one.
+                            onSongEnd={level.onSongEnd}
                             onCombatHit={level.active ? level.onHit : undefined}
                             onCombatMiss={level.active ? level.onMiss : undefined}
+                            // #693 round 8 ("critters onder rusten... critters killed" stat + "enemies
+                            // vanquished x/n" / "critters saved y/m" totals for the splash).
+                            onCritterKilled={level.active ? level.onCritterKilled : undefined}
+                            onEnemyTotal={level.active ? level.setTotalEnemies : undefined}
+                            onCritterTotal={level.active ? level.setTotalCritters : undefined}
                             sideScroll={level.active && !!level.current.sideScroll}   // #660 Level 2
                             levelActive={level.active}                                // #662 no slimes outside a level
+                            levelMelodyReady={levelMelodyReady}                       // Bug fix 2026-08-06: withhold stale pre-regen melody
+                            // Level 10 (Han 2026-08-06, Mixed): SheetRpgLayer now understands 'Mixed'
+                            // natively — a black static wizard is always shown, and each note renders
+                            // as a Slime or Projectile per its OWN block (Han: "de noten van de
+                            // wizardmaten moeten geen slime hebben, maar een projectile krijgen").
+                            enemyType={level.active ? level.current.enemyType : 'Slime'}   // #679 Level 9 — Wizard/projectile combat
+                            wizardSpawnLeadMeasures={level.active ? (level.current.wizardSpawnLeadMeasures ?? 1) : 1}   // #686
+                            decorativeWizard={level.active && !!level.current?.decorativeWizard}   // Level 11
                             hideHero={activeTab === 'other-settings'}                 // #662 hide avatar on the Settings tab
                             levelAudioStart={level.active ? levelAudioStart : null}   // §88 scroll↔metronome anchor
                             containerHeight={sheetHeight}
@@ -2084,6 +2433,7 @@ const App = () => {
                             setAppFont={setAppFont}
                         />
                     </ErrorBoundary>
+                    )}
                 </div>
             </div> {/* END TOP AREA WRAPPER */}
 
@@ -2120,6 +2470,44 @@ const App = () => {
                         overflowX: isDualView ? 'auto' : 'hidden',
                     }}
                 >
+                    {/* #679/#681 (Han 2026-08-03/04, correction: "de subtypes... kwamen te staan waar nu
+                        staat top bottom percussion... die bottom view settings zijn redundant in bestiary
+                        mode"): while avatar-context is active, TOP/BOTTOM/PERCUSSION/etc select a sheet-music
+                        tab that isn't even rendered (TabView's characterScreen branch ignores activeTab
+                        entirely, §667) — dead controls. Swap this whole column for the active screen's OWN
+                        category tabs instead (character's skin/ears/hair; bestiary's passive/attack/...); a
+                        screen with no categories (equipment — its top slot-grid is its own picker; stats)
+                        simply renders no tabs here. */}
+                    {characterScreen ? (
+                        (characterScreen === 'character'
+                            ? CHARACTER_CATEGORIES.map((key) => ({
+                                key, label: catByKeyLabel(key, AVATAR_CATEGORIES) || key,
+                                active: characterEditor.activeCat === key,
+                                onClick: () => characterEditor.setActiveCat(key),
+                            }))
+                            : characterScreen === 'bestiary'
+                                ? bestiaryEditor.categories.map((key) => ({
+                                    key, label: key, active: bestiaryEditor.category === key,
+                                    onClick: () => bestiaryEditor.selectCategory(key),
+                                }))
+                                : []
+                        ).map((t) => (
+                            <button key={t.key}
+                                className={`tab-button ${t.active ? 'active' : ''}`}
+                                onClick={t.onClick}
+                                style={{
+                                    width: (75 * tabBtnScale) + 'px',
+                                    minWidth: (75 * tabBtnScale) + 'px',
+                                    transform: `scale(${tabBtnScale})`,
+                                    transformOrigin: 'center',
+                                    outline: debugMode ? '2px solid cyan' : undefined,
+                                }}
+                            >
+                                <span className="tab-label">{t.label}</span>
+                            </button>
+                        ))
+                    ) : (
+                    <>
                     {/* Single-view-only "Sheet Music" tab */}
                     {!isDualView && (
                         <button
@@ -2176,6 +2564,8 @@ const App = () => {
                             />
                         </button>
                     )}
+                    </>
+                    )}
                 </div>
 
                 {/* CONTENT AREA — Han 2026-08-01: the bottom panel (keyboard + selector) was taking ~60% of the
@@ -2186,6 +2576,10 @@ const App = () => {
                     ? { height: btmPanelHeight, maxHeight: btmPanelHeight, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }
                     : undefined}>
                 <TabView
+                    characterScreen={characterScreen}
+                    characterEditor={characterEditor}
+                    bestiaryEditor={bestiaryEditor}
+                    rpgLevel={rpgLevel}
                     activeTab={activeTab}
                     sheetMusicCommonProps={sheetMusicCommonProps}
                     startMeasureIndex={renderStartMeasureIndex}

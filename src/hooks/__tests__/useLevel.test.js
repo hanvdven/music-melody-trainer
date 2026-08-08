@@ -5,11 +5,11 @@ import { LEVEL1, LEVEL2, LEVEL3, LEVEL8 } from '../../levels/levels';
 
 const makeSetters = () => ({
     setNumMeasures: vi.fn(), setTrebleSettings: vi.fn(), setBassSettings: vi.fn(), setPercussionSettings: vi.fn(),
-    setPlaybackConfig: vi.fn(), setShowChordsOddRounds: vi.fn(), setShowChordsEvenRounds: vi.fn(),
+    setChordSettings: vi.fn(), setPlaybackConfig: vi.fn(), setShowChordsOddRounds: vi.fn(), setShowChordsEvenRounds: vi.fn(),
 });
 const snap = () => ({
     numMeasures: 4, trebleSettings: { x: 1 }, bassSettings: { instrument: 'electric_bass_pick' },
-    percussionSettings: { melodic: false },
+    percussionSettings: { melodic: false }, chordSettings: { strategy: 'modal-random' },
     playbackConfig: { y: 1 }, showChordsOddRounds: true, showChordsEvenRounds: true,
 });
 
@@ -126,7 +126,8 @@ describe('useLevel (#659 Level 1)', () => {
         const bassApplied = setters.setBassSettings.mock.calls.at(-1)[0]({ instrument: 'electric_bass_pick' });
         expect(bassApplied).toMatchObject({ instrument: 'cello' });
         const eyesApplied = setters.setPlaybackConfig.mock.calls.at(-1)[0]({ oddRounds: {}, evenRounds: {} });
-        expect(eyesApplied.oddRounds).toMatchObject({ trebleEye: true, bassEye: true, percussionEye: true, chordsEye: false });
+        // #663: chordsEye now follows the same "always on for non-debugOnlyLines levels" rule as bass/percussion.
+        expect(eyesApplied.oddRounds).toMatchObject({ trebleEye: true, bassEye: true, percussionEye: true, chordsEye: true });
 
         act(() => result.current.start(LEVEL1));
         const eyesLevel1 = setters.setPlaybackConfig.mock.calls.at(-1)[0]({ oddRounds: {}, evenRounds: {} });
@@ -162,13 +163,35 @@ describe('useLevel (#659 Level 1)', () => {
         expect(eyes.oddRounds).toMatchObject({ trebleEye: true, bassEye: true, percussionEye: true });
     });
 
-    it('Level 2 forces a fixed whole-note bass (octave-mismatch UAT fix); Level 8 keeps the real generated bass (Han 2026-08-02)', () => {
+    it('Level 2 simplifies bass via real generator settings (octave-mismatch UAT fix, #663 rework); Level 8 keeps the real generated bass (Han 2026-08-02/2026-08-03)', () => {
         const { setters, result } = setup();
         act(() => result.current.start(LEVEL2));
-        expect(setters.setBassSettings.mock.calls.at(-1)[0]({})).toMatchObject({ instrument: 'cello', fixedWholeNote: true });
+        expect(setters.setBassSettings.mock.calls.at(-1)[0]({})).toMatchObject({
+            instrument: 'cello', notesPerMeasure: 1, smallestNoteDenom: 1, rhythmVariability: 0,
+            notePool: 'chord', randomizationRule: 'emphasize_roots', range: { min: 'C2', max: 'B2' },
+        });
 
         act(() => result.current.start(LEVEL8));
-        expect(setters.setBassSettings.mock.calls.at(-1)[0]({ fixedWholeNote: true })).toMatchObject({ instrument: 'cello', fixedWholeNote: false });
+        expect(setters.setBassSettings.mock.calls.at(-1)[0]({ notesPerMeasure: 1 })).toMatchObject({
+            instrument: 'cello', notesPerMeasure: 2, randomizationRule: 'emphasize_roots',
+        });
+    });
+
+    it('EVERY level (not just side-scroll) forces a tonic-tonic-tonic progression fixed to C, 1 chord/measure, forcing a fresh regen on start; close() restores the prior settings (#663, Han 2026-08-03)', () => {
+        const { setters, regenerate, result } = setup();
+        act(() => result.current.start(LEVEL1));   // Level 1 is NOT side-scroll — must still get this
+        expect(setters.setChordSettings.mock.calls.at(-1)[0]({ strategy: 'modal-random' })).toMatchObject({
+            strategy: 'tonic-tonic-tonic', fixedTonic: 'C4', chordCount: 1,
+        });
+        // start() forces a fresh chord regen (regenerate(true)) so the strategy actually gets applied —
+        // regenerate() alone (used between waves) does NOT regenerate chords.
+        expect(regenerate).toHaveBeenLastCalledWith(true);
+
+        act(() => result.current.close());
+        expect(setters.setChordSettings.mock.calls.at(-1)[0]()).toMatchObject({ strategy: 'modal-random' });
+
+        act(() => result.current.start(LEVEL2));
+        expect(setters.setChordSettings.mock.calls.at(-1)[0]({})).toMatchObject({ strategy: 'tonic-tonic-tonic', fixedTonic: 'C4', chordCount: 1 });
     });
 
     it('side-scroll levels turn percussion melodic (timpani); Level 1 keeps it off; close() restores it (Han 2026-08-02)', () => {

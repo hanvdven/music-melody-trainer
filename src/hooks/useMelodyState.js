@@ -10,7 +10,7 @@ import { calculateRelativeRange, modulateMelody } from '../theory/musicUtils';
 import { getRelativeNoteName } from '../theory/convertToDisplayNotes';
 import { GLOBAL_RESOLUTION } from '../constants/generatorDefaults';
 import buildTimpaniPattern from '../utils/timpaniPattern';
-import buildCelloWholeNotePattern from '../utils/celloWholeNotePattern';
+import { updateScaleWithTonic } from '../theory/scaleHandler';
 import useRefState from './useRefState';
 
 // Percussion note tokens are non-pitched and must never be passed through
@@ -105,6 +105,13 @@ const useMelodyState = (
     }
 
     try {
+      // #663 (Han 2026-08-03, "zet ook voor level 1 akkoord op c"): a level can pin the CHORD track's
+      // tonic independently of the melody scale (`chordSettings.fixedTonic`, e.g. 'C4') — the melody/
+      // notation scale is untouched (Han's explicit answer: only chords move, not the scale). Reuses
+      // the existing updateScaleWithTonic (same family/mode, new tonic) — no new scale-derivation code.
+      const chordScale = chordSettings?.fixedTonic
+        ? updateScaleWithTonic({ currentScale: scale, newTonic: chordSettings.fixedTonic, rangeUp: scale.rangeUp, rangeDown: scale.rangeDown })
+        : scale;
       const chordCount = chordSettings?.chordCount || 1;
       const enabledPassingTypes = chordSettings?.passingChordTypes ?? [];
       // When passing chords are enabled, exactly 1 structural chord per measure is
@@ -119,10 +126,10 @@ const useMelodyState = (
         progressionLength += 4;
       }
 
-      const chords = generateProgression(scale, progressionLength, strategy, chordComplexity);
+      const chords = generateProgression(chordScale, progressionLength, strategy, chordComplexity);
 
       if (!chords || chords.length === 0) {
-        const tonicChord = generateChordOnDegree(scale, 1, chordComplexity);
+        const tonicChord = generateChordOnDegree(chordScale, 1, chordComplexity);
         return new ChordProgression([tonicChord], chordComplexity, 'fallback-tonic', 'modal');
       }
 
@@ -272,15 +279,6 @@ const useMelodyState = (
       canRandomize: canRandomizeMelody, voiceType: 'bass', settings: bassSettings,
       nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
-    // #661 (Han 2026-08-02, Level 2 exception): a settings-driven override — a FIXED C2 whole-note
-    // pattern (utils/celloWholeNotePattern.js) replaces the generated bass melody. Deterministic, NOT
-    // routed through MelodyGenerator (explicitly authorized as hardcoded — mirrors the percussion
-    // `melodic` override above/below). Level-internal only (useLevel.applyConfig sets it for Level 2).
-    if (bassSettings?.fixedWholeNote && newBass?.notes?.length) {
-      const pat = buildCelloWholeNotePattern(activeNumMeasures, activeTS);
-      newBass.notes = pat.notes; newBass.offsets = pat.offsets;
-      newBass.durations = pat.durations; newBass.ties = pat.ties;
-    }
     const newPercussion = percussionSettings?.preferredClef === 'off' ? EMPTY() : resolveVoice({
       isFixed: percussionSettings?.randomizationRule === 'fixed',
       currentMelody: percussion, refMelody: null, refScale: null, targetScale: percussionScale,

@@ -7,6 +7,187 @@
 // loader + the documented RATIONALE for why the fields are what they are, and the small derived helpers
 // (`wavesForLevel`, `trebleOnlyEyes`, `threeLineEyes`) that aren't level DATA, just behaviour.
 //
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// SCHEMA REFERENCE (Han 2026-08-06, level editor: "kijk hoe levels worden opgeslagen en welke
+// params ik kan aanpassen... zelfs ok als de file mooi gestructureerd is zodat ik die handmatig
+// kan aanpassen"). JSON has no comment syntax, so this reference lives HERE, right next to the
+// loader — open this file whenever you edit levels.json. A matching copy lives in
+// docs/architecture.md (search "Level schema reference") for browsing outside an editor.
+//
+// Every field below is per-level (one entry in the levels.json array = one level, fully
+// self-contained — never inherited from another level). Fields marked OPTIONAL can be omitted
+// entirely; omitting them keeps the exact behaviour every existing level (1-9) already has —
+// adding a new field to the schema NEVER changes an existing level that doesn't set it.
+//
+// ── Identity ─────────────────────────────────────────────────────────────────────────────────
+//   id            number   Unique, matches the level's position in the picker.
+//   name          string   Shown in the header/splash.
+//   intro         string   One-line blurb shown on the level-start splash.
+//
+// ── Tempo & structure ────────────────────────────────────────────────────────────────────────
+//   bpm            OPTIONAL number. Tempo. Also drives the sprite frame rate (SheetRpgLayer: 12000/bpm
+//                  ms/frame). Applied via the app's own `setBpm`. Omit → DEFAULT_BPM
+//                  (constants/generatorDefaults.js), NOT whatever the app's ambient bpm happened to be —
+//                  see the bug-fix note under `key` below for why "leave ambient" was wrong.
+//   timeSignature  OPTIONAL [numerator, denominator], e.g. [4,4] | [3,4] | [6,8] | [5,4]. Forces the
+//                  app's global time signature for the level's duration (via the existing
+//                  `setTimeSignature` — no new mechanism), reverted on close like `key`/`theme`. Omit →
+//                  DEFAULT_TIME_SIG ([4,4]) — always applied, never "leave ambient" (see `key` below).
+//   numMeasures    number   How many measures ONE generated block/wave covers ("measures per block").
+//   numBlocks      OPTIONAL number. How many blocks/waves the level has. When given, `totalMeasures`
+//                  is computed as numMeasures * numRepeats * numBlocks — write THIS, not totalMeasures,
+//                  for a new level (no hand-multiplying). Ignored if `totalMeasures` is also present.
+//   numRepeats     OPTIONAL number. How many measure-slots one block is shown for. DEFAULT: derived
+//                  from `enemyType` — 1 for Slime, 2 for Wizard (its call-response needs a 2nd slot
+//                  for the player's repeat) — see `normalizeLevel` above. Only set this explicitly to
+//                  override that default.
+//   totalMeasures  OPTIONAL number. Total measures across the whole level. Derived from `numBlocks`
+//                  above when omitted; write one or the other, not both by hand.
+//   sideScroll     boolean  false = static idle combat (Level 1). true = the notation scrolls
+//                           and the level has its own audio-scheduled backing (bass/metronome/
+//                           timpani) — see docs/architecture.md §110/§166 for how that's timed.
+//   beatsOnScreen  number   Side-scroll only: how many beats of lead-time a slime/note gets
+//                           before it reaches the hit zone (bigger = more reaction time).
+//
+// ── Melody (treble) generator settings — LEGACY FLAT FIELDS (levels 1-9's own convention) ──────
+// These map 1:1 onto InstrumentSettings fields via the SAME MelodyGenerator pipeline every other
+// track uses (CLAUDE.md §6b — never special-cased per level). Kept for levels 1-9 exactly as they
+// were; NEW levels should prefer the unified `tracks.treble` object below instead (same fields,
+// same meaning, just grouped with bass/percussion for symmetry — "voor elk van de tracks").
+//   notesPerMeasure     number   Target note density.
+//   variability         0-100   Rhythmic variability (→ trebleSettings.rhythmVariability).
+//   range               {min,max} note names, e.g. {"min":"C4","max":"G4"}. Fixed (not tonic-relative).
+//   smallestNoteDenom   number   Finest note the generator will ever place (4=quarter, 8=eighth, 16=…).
+//   insertBeatRests     boolean  true = every empty on-beat slot becomes an explicit rest (used
+//                                for the early "quarter-grid" levels — see the rationale below).
+//   polyMultiplier      number   Tuplet-injection multiplier. 1 = off (default for every level so
+//                                far — write it explicitly, don't rely on the app's ambient value).
+//
+// ── OPTIONAL: `tracks` — unified per-track generator/mix/visibility overrides (Han 2026-08-06,
+//    "varieer voor elk van de tracks: note pool, melody type, voices, notes/measure, beat rests,
+//    variability, span, tuplets, smallest note, volume, visibility") ───────────────────────────────
+// `tracks: { treble?, bass?, percussion? }` — each an OPTIONAL object. Every field inside uses the
+// REAL InstrumentSettings/chordSettings field name directly (no separate vocabulary to learn/keep in
+// sync — §6c: reuse, don't re-invent):
+//   notePool           "scale" | "chord" | "all" | "metronome" — which notes the generator draws from.
+//   randomizationRule  "melody type": "uniform" | "emphasize_roots" | "weighted" | "arp" | "arp_var" |
+//                       "arp_group" | "fixed". arp_var/arp_group also use `maxLeap` as their span window.
+//   voices             "voices" = polyphony: 1 (single-note melody, default) | 2 | 3 (every active slot
+//                       becomes a chord of that many distinct notes) | "var" (three interleaved melodies
+//                       at 100/60/40% density, coinciding onsets become chords). See InstrumentSettings.js
+//                       §435 for the full rationale.
+//   notesPerMeasure, rhythmVariability, maxLeap ("span" — max melodic leap in semitones, null =
+//   unlimited), polyMultiplier ("tuplets" — injection multiplier, 1 = off), smallestNoteDenom,
+//   insertBeatRests, range, preferredClef — same meaning as the flat treble fields above, just
+//   nested per-track here.
+//   volume   OPTIONAL VOL_STEPS glyph string: "silent" | "pp" | "p" | "mp" | "mf" | "f" (see
+//            SettingsOverlay.jsx's VOL_STEPS). Sets that track's persistent output fader for the
+//            level's duration (App.jsx's `setVolume`); reset to full (1.0 = "f") when the level closes,
+//            same as the pre-existing bass/metronome level-volume mechanism this generalizes.
+//   visible  OPTIONAL boolean. Overrides the track's notation visibility for THIS level, regardless
+//            of `debugOnlyLines` below — e.g. `"tracks": { "bass": { "visible": true } }` shows bass
+//            notation even on a `debugOnlyLines: true` level with debugMode off.
+// `tracks.percussion` is more limited: percussion during a side-scroll level does NOT go through the
+// generator at all (see the "NOT yet parameterizable" note below) — only `volume`/`visible` have any
+// effect there; notePool/randomizationRule/voices/etc. under `tracks.percussion` are silently ignored.
+// `tracks.metronome` is more limited still: only `volume` has any effect (the metronome has no
+// notation/visibility toggle of its own to override). `tracks.bass` TAKES PRECEDENCE over the legacy
+// `fixedBass` boolean when present (see below); a level that sets ONLY `tracks.bass.volume`/`visible`
+// (no generator fields) still falls through to `fixedBass` — see useLevel.js's `hasBassGenOverride`.
+//
+// ── `fixedBass` — the two ready-made bass presets (still supported, used by levels 1-9) ─────────
+//   fixedBass      boolean  Ignored when `tracks.bass` (above) is present. Otherwise: true → the bass
+//                  generator uses LEVEL_BASS_SIMPLE (root notes, 1/measure, no variability, whole
+//                  notes); false → LEVEL_BASS_DEFAULT (the app's normal full-richness bass
+//                  generation). sideScroll only (Level 1 has no bass staff at all). For anything
+//                  those two presets don't cover (e.g. a future "walking bass" level), use
+//                  `tracks.bass` instead: `"tracks": { "bass": { "notesPerMeasure": 4,
+//                  "smallestNoteDenom": 4, "rhythmVariability": 20, "notePool": "chord",
+//                  "randomizationRule": "arp", "range": {"min":"C2","max":"C3"} } }`.
+//
+// ── key / vocal range / clef (Han 2026-08-06) ────────────────────────────────────────────────
+// Added for levels aimed at SINGING, which need a comfortable key + the right clef for the voice
+// type, on top of `range` above. Reuses the app's EXISTING scale/clef machinery (useScaleManagement,
+// clefSelector.js) — no new mechanism.
+//   key            OPTIONAL {tonic, mode}. tonic e.g. "C4" (setTonic), mode e.g. "Major"/"Minor"/
+//                  a scaleHandler.js mode name (setSelectedMode). Forces the app's GLOBAL key for
+//                  the level's duration; reverted to whatever the user had when the level closes.
+//                  BUG FIX (Han 2026-08-06, "ik zet de tonic op Gb, en wil dan level 2 spelen. Die
+//                  heeft nog allemaal voortekens staan, en genereert helemaal niet vanuit C-majeur"):
+//                  `key` (and `bpm`/`timeSignature` above) used to only apply "if the level sets it" —
+//                  for levels 1-9 (no `key` field) that meant "whatever tonic/mode the app happened to
+//                  be ambiently in", which silently broke the moment a user changed tonic before
+//                  entering a level. Every level now ALWAYS applies a key, falling back to
+//                  DEFAULT_SCALE_TONIC/DEFAULT_SCALE_MODE ('C4'/'Major', constants/generatorDefaults.js
+//                  — the SAME defaults the app's own initial state uses) when omitted — Han's own
+//                  preferred fix: "een lijst defaults 'if none provided'". A level is now ALWAYS
+//                  deterministic, never dependent on ambient app state left over from before it started.
+//   tracks.treble.preferredClef / tracks.bass.preferredClef   OPTIONAL string. Any preferredClef the
+//                  clef selector supports: "treble" | "bass" | "alto" | "tenor" | "soprano" |
+//                  "baritone-f" | … (see clefSelector.js's CLEF_FAMILIES) — e.g. "alto" for a
+//                  mezzo-soprano vocal level. Omit to leave whatever clef was already showing.
+//
+// ── OPTIONAL: chord progression override (Han 2026-08-06, extended same day: "instelbaar:
+//    progression type, chord complexity, chords/measure, variability, passing chords") ────────────
+//   chords         OPTIONAL object, merged over the default `{ strategy: 'tonic-tonic-tonic',
+//                  fixedTonic: <the level's own key.tonic, or 'C4' if no key>, chordCount: 1 }`. Any
+//                  chordSettings field can be overridden:
+//                    strategy            "progression type" — src/constants/generationFields.js's
+//                                        CHORD_STRATEGIES ('pop-1-5-6-4', 'modal-random', 'ii-v-i', …).
+//                    complexity          CHORD_COMPLEXITY ('root'|'power'|'triad'|'seventh'|'exotic').
+//                    chordCount          chords per measure.
+//                    rhythmVariability   "variability" (0-100), same meaning as every other track's.
+//                    passingChordTypes   array of 'secondary-dominant'|'secondary-dim'|'tritone-sub'|
+//                                        'diatonic'|'sus4'|'subdominant-approach'|'borrowed-parallel'.
+//                    fixedTonic          normally left to the automatic key-follow above; only set this
+//                                        explicitly to pin the chords to a DIFFERENT tonic than the
+//                                        level's own melody key (rare).
+//                  Not part of `tracks` (chords aren't a melodic voice with notePool/voices/etc. in the
+//                  same sense) — kept as its own field. Omit for every existing level's static
+//                  single-chord drone.
+//                  BUG FIX (Han 2026-08-06): `fixedTonic` used to be hardcoded 'C4' regardless of the
+//                  level's own `key` — any level with a non-C key (e.g. Level 113, F♯) had its chord
+//                  progression (and therefore `fixedBass: true`'s cello, which follows chord roots)
+//                  silently stuck in the wrong key. Now defaults to `key.tonic` automatically.
+//
+// ── OPTIONAL: theme (Han 2026-08-06, "theme = app kleurenschema") ────────────────────────────
+//   theme          OPTIONAL string. Any theme id the app's own theme picker supports (see
+//                  ThemeToggle.jsx's THEMES list — "default", "classical", "sunset", "disco", "lava",
+//                  "stars", …). Sets the app's global colour theme for the level's duration, reverted
+//                  to the user's own theme when the level closes (same snapshot/restore guarantee as
+//                  `key`). Omit to leave the user's current theme untouched (existing behaviour).
+//
+// ── Visibility / difficulty ramp ─────────────────────────────────────────────────────────────
+//   debugOnlyLines boolean  true = bass/percussion notation hidden unless the app's debugMode is
+//                           on (the early "training wheels" levels). false = always visible. A
+//                           per-track `tracks.<name>.visible` (above) overrides this for that track.
+//
+// ── Enemy ─────────────────────────────────────────────────────────────────────────────────────
+//   enemyType             "Slime" (default) | "Wizard" | "Mixed" (Level 10, Han 2026-08-06: alternates
+//                          Slime/Wizard-mechanic every 2 measures, starting with Slime — see
+//                          useLevelMixedStream.js. Rendered visually as Slime throughout — only the
+//                          melody/audio mechanic alternates, see that hook's own scope note). Also
+//                          drives the `numRepeats` default above (Wizard/Mixed → 2, else → 1).
+//   wizardSpawnLeadMeasures  number, Wizard/Mixed only — how many measures ahead a projectile/cast
+//                            becomes visible/audible.
+//   decorativeWizard       OPTIONAL boolean (Level 11, Han 2026-08-06). A non-combat, green-tinted
+//                          idle Wizard shown alongside Slime enemies, purely visual — pairs with the
+//                          forward-only Major/Minor scale alternation every 2 measures
+//                          (useLevelKeyModulationStream.js, tonic untouched). Independent of
+//                          `enemyType` (stays "Slime").
+//
+// ── NOT yet parameterizable (known gap — do not fabricate a field for these without extending
+//    the underlying mechanism first, see CLAUDE.md §6c) ─────────────────────────────────────────
+//   Percussion (timpani) NOTE CONTENT during a side-scroll level is ONE hardcoded pattern
+//   (utils/timpaniPattern.js, Han's own explicit "hard code de timpani voor nu" instruction, §663) —
+//   there is currently no generator path for it at all, so `tracks.percussion.notePool`/`voices`/etc.
+//   would have nothing to apply to (only `volume`/`visible` work, see above). Making percussion note
+//   content level-configurable is a separate feature (extending buildTimpaniPattern or routing
+//   percussion through the real MelodyGenerator like every other track) — flag it as a new request
+//   rather than expecting these fields to do anything beyond volume/visibility.
+//
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+//
 // Field rationale (consolidated from the pre-JSON version of this file — read before editing levels.json):
 //
 // - smallestNoteDenom / insertBeatRests / polyMultiplier (§6c: reuse existing generation settings — no
@@ -43,24 +224,75 @@
 //   octave (C4–C5, up from the fifth C4–G4 every prior level used). Level 7 turns off debugOnlyLines — "the
 //   last training wheel: bas + percussie voortaan altijd zichtbaar".
 //
-// - fixedBass (Han 2026-08-02, Level 2 UAT): the generated bass melody sounded great in general but was an
-//   octave too high through the cello timbre in Level 2 specifically — rather than chase the register match,
-//   Han opted to simplify Levels 2–7's bass to a fixed C2 whole note per measure
-//   (utils/celloWholeNotePattern.js, an explicitly authorized hardcoded exception, same spirit as the
-//   timpani pattern). Level 8 uses the real generated bass (`fixedBass: false`) — "gewoon zoals nu".
+// - fixedBass (Han 2026-08-02, Level 2 UAT; REWORKED Han 2026-08-03 #663 — "geen hard-coded oplossingen,
+//   gebruik het gewone protocol voor generate melody"): the generated bass melody sounded great in general
+//   but was an octave too high through the cello timbre in Level 2 specifically. Originally "fixed" via a
+//   hardcoded whole-note-pattern function (utils/celloWholeNotePattern.js, since deleted); now it's simplified
+//   through the REAL generation pipeline instead — LEVEL_BASS_SIMPLE (below) overrides bass
+//   notesPerMeasure/smallestNoteDenom/rhythmVariability/notePool/randomizationRule/range to Han's exact spec
+//   ("roots on 1, 1 note per measure, variability 0, smallest note denom whole, note pool C2-C3"), still
+//   generated by MelodyGenerator like every other track (§6b/§6c — no per-instrument special-casing, no
+//   hardcoded pattern function). Level 8 keeps the full generated bass unmodified (`fixedBass: false`) —
+//   "gewoon zoals nu".
 //
 // - debugOnlyLines (Han 2026-08-02, "in level 1 en 2, toon de bas en percussie ENKEL in debug mode", later
 //   extended through Level 6): bass/percussion notation is hidden by default, visible only while debugMode
 //   is on (useLevel reacts live to the debugMode toggle, no restart needed). false from Level 7 on.
 //
-// - enemyType is "Slime" on every level (Han: "gewoon slimes" — no bestiary theme swap).
+// - enemyType is "Slime" on every level (Han: "gewoon slimes" — no bestiary theme swap) EXCEPT Level 9
+//   (Han 2026-08-03 #679: "zet rechts de wizard tegenover de avatar... ipv slimes, gebruik cast 2"), whose
+//   config otherwise mirrors Level 2's parameters exactly (Han's interview answer) — only enemyType and the
+//   intro blurb differ. SheetRpgLayer branches its rendering/combat on this field (see its own §679 comment).
 //
 // - Level 8 is the UNCHANGED former Level 3 (Han: "level 3 schuift door naar level 8" — "gewoon gegenereerd
 //   zoals nu"): the side-scroll level with 2 notes/measure, 30% variability, FULL generation richness (mixed
 //   durations, ties, tuplets if Polyrhythm is on elsewhere).
 import levelsData from './levels.json';
+import InstrumentSettings from '../model/InstrumentSettings';
 
-const byId = Object.fromEntries(levelsData.map((lvl) => [lvl.id, lvl]));
+// Level editor (Han 2026-08-06, "koppel num-repeats gewoon aan de enemy: slime = 1, wizard = 2" +
+// "numMeasures per block, en number of blocks"): a ONE-TIME normalization pass at load time, so every
+// downstream consumer (wavesForLevel, useLevel.applyConfig) keeps reading plain `numRepeats`/
+// `totalMeasures` exactly as before — no special-casing scattered through the codebase (§6c).
+//   - `numRepeats`: OPTIONAL. When omitted, derived from `enemyType` (Wizard's call-response needs 2
+//     measure-slots per generated block; every other enemy needs 1). Existing levels 1-9 all set this
+//     explicitly already, so this is a pure fallback for NEW levels that omit it — no existing level's
+//     behaviour changes.
+//   - `totalMeasures`: if omitted but `numBlocks` (= how many waves the level has) IS given, computed as
+//     numMeasures * (effective numRepeats) * numBlocks — `numBlocks` reads more directly than having to
+//     hand-multiply `totalMeasures` yourself. Explicit `totalMeasures` always wins if both are present.
+const normalizeLevel = (lvl) => {
+    const numRepeats = lvl.numRepeats ?? (lvl.enemyType === 'Wizard' ? 2 : 1);
+    const totalMeasures = lvl.totalMeasures ?? (lvl.numBlocks != null ? lvl.numMeasures * numRepeats * lvl.numBlocks : lvl.numMeasures);
+    return { ...lvl, numRepeats, totalMeasures };
+};
+
+const byId = Object.fromEntries(levelsData.map((lvl) => [lvl.id, normalizeLevel(lvl)]));
+
+// #663 (Han 2026-08-03): the "fixedBass" simplification, expressed as real InstrumentSettings fields
+// instead of a hardcoded pattern function — Han's exact protocol: "roots on 1, 1 note per measure,
+// variability 0, smallest note denom whole, note pool c2-c3" (range later adjusted to c2-b2, same day).
+// Applied by useLevel.applyConfig.
+export const LEVEL_BASS_SIMPLE = {
+    notesPerMeasure: 1,
+    smallestNoteDenom: 1,          // whole note
+    rhythmVariability: 0,
+    notePool: 'chord',
+    randomizationRule: 'emphasize_roots',
+    range: { min: 'C2', max: 'B2' },
+};
+
+// The non-simplified values (Level 8's "gewoon zoals nu") — derived from the app's own bass default so
+// there is exactly ONE place these 5 numbers live (§6c), not a second hardcoded copy for the "off" case.
+const DEFAULT_BASS = InstrumentSettings.defaultBassInstrumentSettings();
+export const LEVEL_BASS_DEFAULT = {
+    notesPerMeasure: DEFAULT_BASS.notesPerMeasure,
+    smallestNoteDenom: DEFAULT_BASS.smallestNoteDenom,
+    rhythmVariability: DEFAULT_BASS.rhythmVariability,
+    notePool: DEFAULT_BASS.notePool,
+    randomizationRule: DEFAULT_BASS.randomizationRule,
+    range: DEFAULT_BASS.range,
+};
 
 export const LEVEL1 = byId[1];
 export const LEVEL2 = byId[2];
@@ -70,19 +302,30 @@ export const LEVEL5 = byId[5];
 export const LEVEL6 = byId[6];
 export const LEVEL7 = byId[7];
 export const LEVEL8 = byId[8];
+export const LEVEL9 = byId[9];
 
 export const LEVELS = byId;
 
-// waves to clear = total measures / measures-per-wave (each cleared slime-wave is one melody = numMeasures).
-export const wavesForLevel = (lvl) => Math.max(1, Math.round(lvl.totalMeasures / lvl.numMeasures));
+// waves to clear = total measures / measures-per-wave. Each wave shows ONE generated melody
+// (numMeasures) for `numRepeats` measure-slots (§686, Level 9's call-response: numMeasures=1,
+// numRepeats=2 → the 1 generated measure is shown twice — once as the wizard's call, once as the
+// player's repeat-measure — so a wave spans 2 measures of the level's timeline, not 1). Every
+// pre-#686 level has numRepeats=1 (the field already existed, unused for this purpose), so this
+// generalization changes no existing level's wave count (§6c: extend the formula, don't special-case).
+export const wavesForLevel = (lvl) => Math.max(1, Math.round(lvl.totalMeasures / (lvl.numMeasures * (lvl.numRepeats || 1))));
 
 // treble-only staff visibility, in the playbackConfig `eyes` shape the app already uses (see PresetPicker).
-export const trebleOnlyEyes = (rounds) => ({
-    ...rounds, trebleEye: true, bassEye: false, percussionEye: false, chordsEye: false,
+// #663 (Han 2026-08-03, "laat [de akkoordenprogressie] in debug ook maar zien"): `showChords` follows the
+// SAME debugOnlyLines gate as bass/percussion (useLevel.applyConfig picks the arg) — default false so
+// existing non-level callers of these helpers are unaffected.
+export const trebleOnlyEyes = (rounds, showChords = false) => ({
+    ...rounds, trebleEye: true, bassEye: false, percussionEye: false, chordsEye: showChords,
 });
 
 // #661 (Han 2026-08-02, "de 3 lijnen zichtbaar maken"): side-scroll levels show treble + bass + percussion
-// (all 3 scroll — SheetRpgLayer §661) with chords hidden (a level has no chord track/UI).
-export const threeLineEyes = (rounds) => ({
-    ...rounds, trebleEye: true, bassEye: true, percussionEye: true, chordsEye: false,
+// (all 3 scroll — SheetRpgLayer §661). #663: chords are a 4th debug-only line (Han: "laat de
+// akkoordenprogressie in debug ook maar zien") — a level has no chord-track UI, but the tonic progression
+// backing the cello's roots is now visible for verification while debugging.
+export const threeLineEyes = (rounds, showChords = false) => ({
+    ...rounds, trebleEye: true, bassEye: true, percussionEye: true, chordsEye: showChords,
 });
