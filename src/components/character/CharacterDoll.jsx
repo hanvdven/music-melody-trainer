@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
-import { CATEGORIES, BODY_FRAME, frameOf, urlOfLayer } from '../../model/characterAssets';
+import { CATEGORIES, BODY_FRAME, PET_FRAME, frameOf, urlOfLayer } from '../../model/characterAssets';
+import { CreatureSprite } from './BestiaryPanels';
+import { findVariantByUrl, findMoveAnim, findIdleAnim } from '../../model/bestiaryAssets';
 
 // #647 Shared paper-doll renderer — the SINGLE source of the layered character (§6d). Used by the character
 // creator (big avatar) AND by the hero on the sheet music (via foreignObject), so the two can never drift.
@@ -25,30 +27,27 @@ const REF_FRAME_Y = BODY_FRAME.h - REF_FRAME.h;
 // `GROUND_ANCHOR_PX` anchors every sprite consistently, this leftover nudge just pushes the hero (and its
 // glued-on pet layer) 1px BELOW everything else instead of matching it. Zeroed out — the doll now sits
 // flush with its own frame, same as every other sprite.
-const CHAR_DY = 0, PET_DY = 0;
+const CHAR_DY = 0;
 const PET_OFFSET = { x: 40, y: 31 };
 const EFFECT_COLS = 5;              // frames in the effect row-0 loop
-const PET_IDLE = 5, PET_RUN = 6;    // pet sheets are 6×2 (row 0 idle 5, row 1 run 6); wisp has no run row
 
-// backgroundPosition for one frame: col + row from the animation. Pet plays its RUN row when the character
-// walks/runs (Han); effects keep their own single-row loop. Pet gets an extra flip to face right (Han).
+// backgroundPosition for one frame: col + row from the animation. Effects keep their own single-row loop.
 // #664 (Han 2026-08-03, "in het voorbeeld mis ik één pixel aan de onderkant"): CHAR_DY nudges every layer
 // 1px DOWN — tuned for the CROPPED view, which had slack below CROP's own bottom edge to absorb it. In
 // fullFrame mode there's no such slack (the frame IS the full 64px), so that same nudge pushed the sprite
 // 1px past the frame's bottom edge, clipped by `.cc-avatar`'s overflow:hidden. `fullFrame` skips the nudge.
+// #790 (Han 2026-08-09): the 'pet' category no longer goes through this generic style-object path — see
+// `PetLayer` below, which routes through the SAME canonical `CreatureSprite` (§6d) the Bestiary tab and
+// RPG level already use, so the persona-preview pet can never again drift from the bestiary's own
+// animation/anchor/oscillation definition.
 export const layerStyle = (url, cat, frame, anim, name, fullFrame = false) => {
     const f = frameOf(cat);
     let col = frame % anim.frames, row = anim.row;
-    if (cat === 'pet') {
-        const canRun = !/wisp/i.test(name || '');
-        const running = canRun && (anim.key === 'walk' || anim.key === 'run');
-        row = running ? 1 : 0;
-        col = frame % (running ? PET_RUN : PET_IDLE);
-    } else if (cat === 'effect') { col = frame % EFFECT_COLS; row = 0; }
+    if (cat === 'effect') { col = frame % EFFECT_COLS; row = 0; }
     return {
         position: 'absolute',
-        left: cat === 'pet' ? PET_OFFSET.x : 0,
-        top: cat === 'pet' ? PET_OFFSET.y + (fullFrame ? 0 : PET_DY) : (fullFrame ? 0 : CHAR_DY),
+        left: 0,
+        top: fullFrame ? 0 : CHAR_DY,
         width: f.w,
         height: f.h,
         backgroundImage: `url("${url}")`,
@@ -56,10 +55,31 @@ export const layerStyle = (url, cat, frame, anim, name, fullFrame = false) => {
         backgroundPosition: `${-col * f.w}px ${-row * f.h}px`,
         backgroundSize: 'auto',           // NATIVE sheet size → step works for any sheet width
         imageRendering: 'pixelated',
-        transform: cat === 'pet' ? 'scaleX(-1)' : undefined,
         transformOrigin: 'center',
     };
 };
+
+// #790 (Han 2026-08-09, "the pet in the persona preview... does not match the bestiary animation"): the
+// equipped pet used to hand-roll its own frame math (fixed 5/6-frame idle/run row guess, uniform 32×32
+// crop) independently of the Bestiary tab's classification — replaced with the SAME `findVariantByUrl` +
+// `findMoveAnim`/`findIdleAnim` + `CreatureSprite` lookup RpgLevelPanel's WorldCreature uses (§6c/§6d), so
+// re-classifying a pet in the Bestiary editor updates the persona preview automatically, with no separate
+// code path to fall out of sync. Falls back to nothing (no pet layer) if the equipped sheet has no bestiary
+// match — mirrors WorldPet's own fallback rationale, kept minimal here since a missing-match pet sheet is
+// the rare case, not the common one.
+export function PetLayer({ url, moving, frame }) {
+    const variant = useMemo(() => findVariantByUrl(url), [url]);
+    if (!variant) return null;
+    const anim = (moving && findMoveAnim(variant)) || findIdleAnim(variant);
+    return (
+        <div style={{
+            position: 'absolute', left: PET_OFFSET.x, top: PET_OFFSET.y,
+            width: PET_FRAME.w, height: PET_FRAME.h, transform: 'scaleX(-1)', transformOrigin: 'center',
+        }}>
+            <CreatureSprite variant={variant} anim={anim} frame={frame} scale={1} framed={false} />
+        </div>
+    );
+}
 
 // The stacked paper-doll, cropped to the body region and scaled so CROP.h → `height`. Styling is fully
 // inline (no CSS dependency) so it works on the sheet music where CharacterCreator.css is not loaded.
@@ -88,7 +108,11 @@ export default function CharacterDoll({ char, anim, frame, height, fullFrame = f
                     {zOrder.map((c) => {
                         const layer = char.layers[c.key];
                         const url = urlOfLayer(c.key, layer);
-                        return url ? <div key={c.key} style={layerStyle(url, c.key, frame, anim, layer?.name, fullFrame)} /> : null;
+                        if (!url) return null;
+                        if (c.key === 'pet') {
+                            return <PetLayer key={c.key} url={url} moving={anim?.key === 'walk' || anim?.key === 'run'} frame={frame} />;
+                        }
+                        return <div key={c.key} style={layerStyle(url, c.key, frame, anim, layer?.name, fullFrame)} />;
                     })}
                 </div>
             </div>

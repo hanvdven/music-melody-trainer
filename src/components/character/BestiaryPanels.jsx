@@ -1,7 +1,7 @@
 import React from 'react';
 import { variantColor } from '../../model/characterAssets';
 import { isFlyingAnim } from '../../model/bestiaryAssets';
-import { oscillate } from '../../utils/oscillate';
+import { oscillate, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED } from '../../utils/oscillate';
 import frame64Url from '../../assets/ASSORTED/icons/GandalfHardcore Pixel Art Game UI/64x64 frame.png';
 
 // #693 (Han 2026-08-04, round 3: "voor de 64x64 frames, use icons/gandalfhardcore pixel art game ui/64x64
@@ -13,7 +13,9 @@ import frame64Url from '../../assets/ASSORTED/icons/GandalfHardcore Pixel Art Ga
 // blocks swatch/animation buttons layered around it. Rendered as the FIRST child at each call site (see
 // CreatureSprite/PortraitImage below) — paints BEHIND the creature/portrait content but ABOVE the box's own
 // `.cc-sprite-frame` background, i.e. "one layer behind the animal, above the frame".
-function Frame64Overlay({ box }) {
+// #790 (Han 2026-08-09): exported so CharacterAvatarPanel's persona preview can reuse the identical 64×64
+// frame instead of a second copy of the frame image/positioning (§6d).
+export function Frame64Overlay({ box }) {
     return <img src={frame64Url} alt="" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: box, height: box, imageRendering: 'pixelated', pointerEvents: 'none' }} />;
 }
 
@@ -47,7 +49,15 @@ export function CreatureSprite({ variant, anim, frame, scale, overlayUrls = [], 
     // #669: steps through the animation's explicit `cells` list rather than a fixed row + frame%N — needed
     // for animations stitched across row boundaries (the horse), and works identically for the simple
     // single-row case (cells = that row's columns in order).
-    const cell = anim.cells[frame % anim.cells.length];
+    // #790 (Han 2026-08-09, crash at level start): `frame` can be NEGATIVE during a level's pre-roll (e.g.
+    // SheetRpgLayer's `gFrame`/`heroFrame`, documented at their own definition) — plain `%` in JS preserves
+    // the dividend's sign, so a negative frame produced a negative array index (`undefined`), crashing on
+    // `cell.col` below. Same fix pattern already used for the Wizard's own frame-index math in
+    // SheetRpgLayer.jsx: force a non-negative result via `((n % m) + m) % m`. Fixed HERE (the one canonical
+    // renderer, §6d) so every caller — WorldCreature, CharacterDoll's PetLayer, the Bestiary preview itself
+    // — is protected, not just whichever call site happened to trip over it first.
+    const cellIndex = ((frame % anim.cells.length) + anim.cells.length) % anim.cells.length;
+    const cell = anim.cells[cellIndex];
     const layerStyle = (layerUrl) => ({
         position: 'absolute', inset: 0, width: f.w, height: f.h,
         backgroundImage: `url("${layerUrl}")`, backgroundRepeat: 'no-repeat',
@@ -77,8 +87,8 @@ export function CreatureSprite({ variant, anim, frame, scale, overlayUrls = [], 
     if (flying) {
         const seed = crop.x * 31 + crop.y;
         const tMs = frame * 120;
-        const dx = oscillate(seed, tMs, 3);
-        const dy = oscillate(seed + 1, tMs, 3);
+        const dx = oscillate(seed, tMs, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED);
+        const dy = oscillate(seed + 1, tMs, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED);
         flyTransform = `translate(${dx}px, ${dy}px)`;
     }
     return (

@@ -2,9 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import CharacterDoll, { CROP as HERO_CROP, PET_CROP } from './CharacterDoll';
 import { ANIMATIONS, urlOfLayer } from '../../model/characterAssets';
 import { CreatureSprite } from './BestiaryPanels';
-import { SCANNED_CREATURES, findMoveAnim, findIdleAnim, isFlyingAnim } from '../../model/bestiaryAssets';
+import { findMoveAnim, findIdleAnim, isFlyingAnim, findCreatureByName, findVariantByUrl } from '../../model/bestiaryAssets';
 import { GROUND_ANCHOR_PX } from '../../model/worldAnchor';
-import { oscillate } from '../../utils/oscillate';
 import { loadImageEl, normalMapCanvasFromCrop } from '../../utils/runtimeNormalMap';
 import { LEVEL_MIN_X, LEVEL_MAX_X } from '../../hooks/useRpgLevelState';
 import floorTiles2Url from '../../assets/ASSORTED/tiles/tiles/Floor Tiles2.png';
@@ -199,12 +198,8 @@ function DebugGrid({ widthPx, heightPx, cameraX }) {
 // `CreatureSprite` (§6d) the Bestiary tab uses, picking whichever classified animation (`idle`/`move`)
 // matches the creature's current state — replaces the previous hand-rolled crop math (which also
 // couldn't switch animations at all, always showing the idle row regardless of movement).
-function findCreature(name) {
-    const c = SCANNED_CREATURES.find((c) => c.name === name);
-    if (!c) return null;
-    const variant = c.variants.find((v) => v.variant === 'Plain') || c.variants[0];
-    return variant || null;
-}
+// #790: `findCreature`/the URL-matching pet lookup moved to bestiaryAssets.js (`findCreatureByName`/
+// `findVariantByUrl`) so CharacterDoll's persona-preview pet can share the SAME lookups (§6c).
 
 // #693 round 8 (Han: "zorg dat alle elementen het RPG level dezelfde schaal hebben, dus niet in of
 // uitzoomen"): EVERY world sprite (tiles, tree, tent, hero, pet, NPC) now shares exactly ONE scale
@@ -226,21 +221,21 @@ function findCreature(name) {
 // creature classified with a fly/float key, not a hardcoded list — `isFlyingAnim` checks the CURRENTLY
 // playing animation's own key, so a creature that also has a 'sit' pose re-anchors to the ground the
 // instant it plays THAT animation, with no special-casing needed here. Hover height is one world tile
-// above the ground; the wobble reuses the SAME `oscillate()` the arrow/projectile already use (§6c).
+// above the ground.
+// #790 (Han 2026-08-09, SSOT audit): the center-anchor + wobble itself is now handled ENTIRELY inside
+// `CreatureSprite` (shared FLYING_HOVER_OSC_RANGE/SPEED, §6d single source of truth) — this used to
+// re-derive its OWN separate oscillation on top of CreatureSprite's internal one (a real double-wobble
+// bug). Only the "lift one tile above the world's ground line" offset stays here: that's a WORLD-placement
+// concern CreatureSprite (a box-relative bestiary/world renderer with no notion of a ground line) can't
+// know about, not a creature-intrinsic property.
 const HOVER_PX = TILE * ZOOM;
-const FLY_OSC_RANGE = 4;   // native px, matches the projectile's own wobble amplitude
 function WorldCreature({ variant, moving, frame, facing = 1 }) {
     if (!variant) return null;
     const anim = (moving && findMoveAnim(variant)) || findIdleAnim(variant);
     const cropW = variant.crop.w * ZOOM, cropH = variant.crop.h * ZOOM;
-    let transform = `scale(${facing}, 1)`;
-    if (isFlyingAnim(anim)) {
-        const seed = variant.crop.x * 31 + variant.crop.y;   // stable per-creature-shape wobble phase
-        const tMs = frame * 120;
-        const dx = oscillate(seed, tMs, FLY_OSC_RANGE) * ZOOM;
-        const dy = oscillate(seed + 1, tMs, FLY_OSC_RANGE) * ZOOM;
-        transform = `translate(${dx}px, ${dy - HOVER_PX}px) scale(${facing}, 1)`;
-    }
+    const transform = isFlyingAnim(anim)
+        ? `translate(0px, ${-HOVER_PX}px) scale(${facing}, 1)`
+        : `scale(${facing}, 1)`;
     return (
         <div style={{ width: cropW, height: cropH, transform }}>
             <CreatureSprite variant={variant} anim={anim} frame={frame} scale={ZOOM} framed={false} />
@@ -358,7 +353,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         return () => cancelAnimationFrame(raf);
     }, [size.w]);
 
-    const wispVariant = useMemo(() => findCreature('Wisp'), []);
+    const wispVariant = useMemo(() => findCreatureByName('Wisp'), []);
     // #693 round 8 ("gebruik dezelfde pet als in de avatar selector"): whichever pet the player actually
     // equipped in the character screen, resolved via the SAME helper CharacterDoll itself uses (§6c).
     const petUrl = useMemo(() => urlOfLayer('pet', char?.layers?.pet), [char?.layers?.pet]);
@@ -367,14 +362,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // (both are `import.meta.glob('../assets/ASSORTED/...')`, so Vite gives the same file the same URL) —
     // matching on that URL finds the exact classified variant for whichever pet is actually equipped,
     // instead of assuming every pet sheet shares one hand-tuned crop.
-    const petVariant = useMemo(() => {
-        if (!petUrl) return null;
-        for (const c of SCANNED_CREATURES) {
-            const v = c.variants.find((v) => v.url === petUrl);
-            if (v) return v;
-        }
-        return null;
-    }, [petUrl]);
+    const petVariant = useMemo(() => findVariantByUrl(petUrl), [petUrl]);
     const walkAnim = ANIMATIONS.find((a) => a.key === 'walk');
     const idleAnim = ANIMATIONS.find((a) => a.key === 'rest');
     const [walkFrame, setWalkFrame] = useState(0);

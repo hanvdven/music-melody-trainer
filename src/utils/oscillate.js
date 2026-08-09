@@ -8,9 +8,23 @@
 // bestiary's archer/wizard projectile portraits): extracted here from SheetRpgLayer.jsx (which re-exports
 // it for backward compatibility) so BOTH call sites share the ONE implementation (§6c/§6d) instead of a
 // second hand-copied version drifting out of sync.
-export function oscillate(seed, tMs, range) {
+// #790 (Han 2026-08-09): optional 4th `speed` multiplier on the time input — defaults to 1 so every
+// existing 3-arg call site (arrow/projectile/critter wobble) is byte-for-byte unchanged. Lets a slower,
+// gentler wobble (companions/flying creatures, see FLYING_HOVER_OSC_* below) share this SAME formula
+// instead of a second hand-copied one (§6c).
+export function oscillate(seed, tMs, range, speed = 1) {
     const s = typeof seed === 'string' ? seed.split('').reduce((a, c) => a + c.charCodeAt(0), 0) : seed;
     const p1 = (s * 12.9898) % (2 * Math.PI), p2 = (s * 78.233) % (2 * Math.PI);
     const f1 = 0.0023 + (s % 7) * 0.0006, f2 = 0.0041 + (s % 5) * 0.0004;
-    return (Math.sin(tMs * f1 + p1) * 0.6 + Math.sin(tMs * f2 + p2) * 0.4) * range;
+    const t = tMs * speed;
+    return (Math.sin(t * f1 + p1) * 0.6 + Math.sin(t * f2 + p2) * 0.4) * range;
 }
+
+// #790 (Han 2026-08-09, "single source of truth" audit): before this, "flying creature hover" wobble was
+// re-derived with a DIFFERENT range at each of 3 call sites (CreatureSprite: 3px, RpgLevelPanel's
+// WorldCreature: 4px, PortraitImage's cosmetic wobble: 4×trueScale) — exactly the drift §6c warns about.
+// One shared constant pair now used by every "this creature/companion is flying, so it hovers+wobbles"
+// call site (CreatureSprite — the canonical renderer, §6d). The arrow/projectile's OWN combat wobble is a
+// distinct concept (not a creature anchor) and keeps its own literal range/default speed.
+export const FLYING_HOVER_OSC_RANGE = 5;   // px — Han: "radius up to 5px"
+export const FLYING_HOVER_OSC_SPEED = 0.5; // Han: "gentler: slower"

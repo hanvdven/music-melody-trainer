@@ -1,5 +1,6 @@
 import React from 'react';
 import CharacterDoll from './CharacterDoll';
+import { Frame64Overlay } from './BestiaryPanels';
 import { CATEGORIES, urlOfLayer, CATEGORY_ICON } from '../../model/characterAssets';
 import { AVATAR_H, GRID, checker, thumbStyle } from './characterEditorShared';
 
@@ -17,7 +18,13 @@ export default function CharacterAvatarPanel({ editor, screen, debugMode = false
     return (
         <div className={checker('cc-body', debugMode)}>
             <button className={checker(`cc-avatar${activeCat === 'skin' ? ' active' : ''}`, debugMode)}
-                title="Skin" onClick={() => setActiveCat('skin')}>{doll}</button>
+                title="Skin" onClick={() => setActiveCat('skin')}>
+                {/* #790 (Han 2026-08-09, "give the persona a 64x64 frame, same style as the other bestiary
+                    assets"): the SAME decorative pixel-art border every bestiary portrait/creature box
+                    uses (§6d) — rendered first so it paints behind the doll, matching that convention. */}
+                <Frame64Overlay box={AVATAR_H} />
+                {doll}
+            </button>
             {screen === 'equipment' && (
                 <div className="cc-equip">
                     {GRID.map((key) => {

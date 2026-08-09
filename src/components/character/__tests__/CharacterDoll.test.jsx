@@ -1,7 +1,7 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
-import CharacterDoll, { CROP, layerStyle } from '../CharacterDoll';
+import CharacterDoll, { CROP, layerStyle, PetLayer } from '../CharacterDoll';
 import { BODY_FRAME } from '../../../model/characterAssets';
 
 const char = { gender: 'male', layers: {} };
@@ -39,13 +39,20 @@ describe('CharacterDoll — fullFrame (#664)', () => {
         expect(refIdx).toBeLessThan(layerStackIdx);
     });
 
-    // #664 (Han 2026-08-03, "in het voorbeeld mis ik één pixel aan de onderkant"): CHAR_DY/PET_DY nudge
-    // layers 1-2px down — tuned for the CROPPED view's slack below CROP's own bottom edge. In fullFrame
-    // mode there's no slack (the frame IS the full 64px), so the nudge must be skipped or it clips.
-    it('layerStyle: skips the CHAR_DY/PET_DY bottom nudge when fullFrame is true', () => {
-        expect(layerStyle('u', 'chest', 0, { row: 0, frames: 5 }, null, false).top).toBe(1);
+    // #693 round 12 zeroed CHAR_DY out (see the comment above its declaration in CharacterDoll.jsx) — this
+    // assertion previously expected the OLD +1 nudge and was left stale; corrected to match current reality.
+    it('layerStyle: no bottom nudge in either mode (CHAR_DY was zeroed by #693 round 12)', () => {
+        expect(layerStyle('u', 'chest', 0, { row: 0, frames: 5 }, null, false).top).toBe(0);
         expect(layerStyle('u', 'chest', 0, { row: 0, frames: 5 }, null, true).top).toBe(0);
-        expect(layerStyle('u', 'pet', 0, { row: 0, frames: 5, key: 'rest' }, null, false).top).toBeGreaterThan(31);
-        expect(layerStyle('u', 'pet', 0, { row: 0, frames: 5, key: 'rest' }, null, true).top).toBe(31);
+    });
+});
+
+// #790 (Han 2026-08-09): the pet layer no longer goes through `layerStyle` — it routes through the
+// bestiary's canonical `CreatureSprite` via `findVariantByUrl` (§6c/§6d, see CharacterDoll.jsx). Smoke test
+// per §7b for the extracted behaviour.
+describe('CharacterDoll — PetLayer (#790)', () => {
+    it('renders nothing when the equipped pet sheet has no bestiary match', () => {
+        const { container } = render(<PetLayer url="not-a-real-sprite-url.png" moving={false} frame={0} />);
+        expect(container.firstChild).toBeNull();
     });
 });

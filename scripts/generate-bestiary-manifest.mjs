@@ -973,12 +973,29 @@ const FEMALE_WIDE_NAMES = new Set(['Female Succubus']);
 // verified self-consistent — 65 frames used out of the 66-cell grid, 1 trailing blank, exactly matching
 // idle's frame count (5) unchanged from §675's version (row0 cols0-4 either way). 8 colour variants
 // (Black/Blue/Brown/Green/Purple/Red/White/Yellow Wizard sheet.png) share this mapping.
-// NOTE: Level 9's Wizard combat (`src/model/enemyAssets.js` WIZARD_IDLE_CELLS/WIZARD_CAST2_CELLS) has its
-// OWN hardcoded copy of §675's OLD idle/cast2 cells (not a live import) — idle is unaffected (identical cell
-// list), but 'cast2' no longer exists as a concept in this new animation set, so that comment is now stale.
-// Not touched here (out of scope for this bestiary-only request) — flagged for Han if Level 9 should follow.
+// #790 (Han 2026-08-09, "the wizard has hardcoded, time-tuned animations. Solution to keep single source
+// of truth: add these animations to the bestiary too: song_attack"): Level 9's song-timed attack — formerly
+// `src/model/enemyAssets.js`'s hardcoded `WIZARD_ATTACK_SINGLE/DOUBLE/TRIPLE` (§679/§693 round 3) — is now
+// defined HERE as 3 animation keys (`song_attack_single/double/triple`, one per note-run length) using the
+// SAME 1-indexed row-major frame numbers `enemyAssets.js` used, resolved via `frameCell` below instead of a
+// hand-copied {row,col} list. `enemyAssets.js`/`SheetRpgLayer.jsx` now read these from the manifest instead
+// of hardcoding them (§6c) — this NOTE (and the stale "cast2 no longer exists" caveat it used to carry) is
+// now resolved: 'idle' is still unaffected (identical cell list to before).
 function wizardPortraitAnimations() {
     const seq = (...pairs) => pairs.flatMap(([row1, cols1]) => cols1.map((c) => ({ row: row1 - 1, col: c - 1 })));
+    // frame N (1-indexed, row-major across the 6-col sheet) → {row,col}; `flashIndices` is the index INTO
+    // `cells` (not a raw frame number) of each "flash" beat — enemyAssets.js used to derive this at runtime
+    // via `frames.indexOf(f)`; precomputed once here since the frame list itself now lives here too.
+    const frameCell = (n) => ({ row: Math.floor((n - 1) / 6), col: (n - 1) % 6 });
+    const songAttack = (frames, flashFrames) => ({
+        cells: frames.map(frameCell),
+        flashIndices: flashFrames.map((f) => frames.indexOf(f)),
+    });
+    // Han's frame spec (§693 round 3, revised): single f26-31(flash 30); double f26-31(flash30),32-34,36-37
+    // (flash36, skips f35); triple double + f38,40-44 (flash42, also skips f39).
+    const songAttackSingle = songAttack([26, 27, 28, 29, 30, 31], [30]);
+    const songAttackDouble = songAttack([26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 37], [30, 36]);
+    const songAttackTriple = songAttack([26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 37, 38, 40, 41, 42, 43, 44], [30, 36, 42]);
     return [
         { key: 'idle', label: 'Idle', cells: seq([1, [1, 2, 3, 4, 5]]) },
         { key: 'walk', label: 'Walk', cells: seq([1, [6]], [2, [1, 2, 3, 4, 5]]) },
@@ -989,6 +1006,9 @@ function wizardPortraitAnimations() {
         { key: 'blockhit', label: 'Block Hit', cells: seq([8, [1, 2, 3, 4, 5]]) },
         { key: 'resting', label: 'Resting', cells: seq([8, [6]], [9, [1, 2, 3, 4]]) },
         { key: 'death', label: 'Death', cells: seq([9, [5, 6]], [10, [1, 2, 3, 4, 5, 6]], [11, [1, 2, 3, 4, 5]]) },
+        { key: 'song_attack_single', label: 'Song Attack (Single)', cells: songAttackSingle.cells, flashIndices: songAttackSingle.flashIndices },
+        { key: 'song_attack_double', label: 'Song Attack (Double)', cells: songAttackDouble.cells, flashIndices: songAttackDouble.flashIndices },
+        { key: 'song_attack_triple', label: 'Song Attack (Triple)', cells: songAttackTriple.cells, flashIndices: songAttackTriple.flashIndices },
     ];
 }
 

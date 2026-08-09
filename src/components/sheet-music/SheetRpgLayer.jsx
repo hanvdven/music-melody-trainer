@@ -3,14 +3,12 @@ import CharacterDoll, { CROP as DOLL_CROP } from '../character/CharacterDoll';
 import { ANIMATIONS, basesFor } from '../../model/characterAssets';
 import { loadCharacter } from '../../model/characterProfile';
 import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_WALK, SLIME_DEATH, SLIME_COLORS } from '../../model/enemyAssets';
-import { SCANNED_CREATURES, findMoveAnim, findIdleAnim, isFlyingAnim } from '../../model/bestiaryAssets';
+import { SCANNED_CREATURES, findMoveAnim, findIdleAnim, isFlyingAnim, findCreatureVariantByName, findAnim } from '../../model/bestiaryAssets';
 // #679 (Han 2026-08-03, Level 9: "zet rechts de wizard tegenover de avatar... ipv slimes, gebruik cast 2.
 // De wizard schiet dan projectile blue... deze bewegen wél lineair naar voren... voor de projectile death,
 // gebruik de eerste 5 frames van static projectiles 5 met een fade out"): the Wizard/projectile enemy pair.
 import {
     WIZARD_URL, WIZARD_GREEN_URL, WIZARD_FRAME, WIZARD_COLS, WIZARD_ROWS, WIZARD_CROP, WIZARD_IDLE_CELLS,
-    WIZARD_ATTACK_CELLS, WIZARD_ATTACK_FLASH_INDEX, WIZARD_ATTACK_CELLS_DOUBLE, WIZARD_ATTACK_DOUBLE_FLASH_INDICES,
-    WIZARD_ATTACK_CELLS_TRIPLE, WIZARD_ATTACK_TRIPLE_FLASH_INDICES,
     PROJECTILE_URL, PROJECTILE_FRAME, PROJECTILE_CROP, PROJECTILE_COLS, PROJECTILE_ROWS, PROJECTILE_LOOP_FRAMES,
     PROJECTILE_DEATH_URL, PROJECTILE_DEATH_FRAME, PROJECTILE_DEATH_CROP, PROJECTILE_DEATH_COLS,
     PROJECTILE_DEATH_ROWS, PROJECTILE_DEATH, PROJECTILE_DEATH_OPACITY,
@@ -217,17 +215,16 @@ const Projectile = React.memo(function Projectile({ x, y, frame, dying = false, 
     // #686 (Han 2026-08-04, "haal de blauwe gloed weg"): the permanent flight-time blue halo (§685) is
     // removed — see the separate one-shot "spawn glow" flourish below instead, which plays only at the
     // moment the projectile appears.
-    // #693 round 8 (Han: "projectiel is nice; draai de richting van het projectile van de wizard om"):
-    // round #680's "already correct unmirrored" call is reversed — mirrored again via `scale(-1,1)`
-    // (Slime/Wizard's own flip convention), same as before #680 removed it.
-    const flip = `translate(${2 * crop.x + crop.w}, 0) scale(-1, 1)`;
+    // #790 (Han 2026-08-09, UAT: "projectiel van tovenaar in level staat nog verkeerd om. die in de
+    // bestiary staat juist. dus pas enkel in het level aan"): this component had picked up a `scale(-1,1)`
+    // mirror across several earlier rounds (#693 round 8 reversed #680's "already correct unmirrored" call)
+    // — Han's final, authoritative call: the Bestiary's own (unflipped) presentation is correct, so the
+    // level must MATCH it, not diverge from it. No mirror here any more.
     return (
         <svg x={x} y={y} width={viewW} height={viewH} opacity={opacity}
             viewBox={`${crop.x} ${crop.y} ${crop.w} ${crop.h}`}>
-            <g transform={flip}>
-                <image href={url} x={ox} y={oy} width={cols * frameSize.w} height={rows * frameSize.h}
-                    style={{ imageRendering: 'pixelated' }} />
-            </g>
+            <image href={url} x={ox} y={oy} width={cols * frameSize.w} height={rows * frameSize.h}
+                style={{ imageRendering: 'pixelated' }} />
         </svg>
     );
 });
@@ -807,6 +804,16 @@ export default function SheetRpgLayer({
     // animation needs no extra state of its own — same "no extra state" pattern the old Cast2 trigger used.
     const wizardX = viewRight - WIZARD_VIEW_W + 2;
     const wizardY = viewBottom - WIZARD_H;
+    // #790 (Han 2026-08-09, SSOT): the song-timed attack cells/flash-indices used to be hardcoded in
+    // enemyAssets.js — now read from the SAME "Wizard (Portrait)"/Black bestiary entry the generator writes
+    // `song_attack_single/double/triple` onto (§6c), via the shared `findCreatureVariantByName`/`findAnim`
+    // helpers (bestiaryAssets.js) every other creature lookup in this file already uses.
+    const wizardBlackVariant = useMemo(() => findCreatureVariantByName('Wizard (Portrait)', 'Black'), []);
+    const wizardSongAttack = useMemo(() => ({
+        single: findAnim(wizardBlackVariant, 'song_attack_single'),
+        double: findAnim(wizardBlackVariant, 'song_attack_double'),
+        triple: findAnim(wizardBlackVariant, 'song_attack_triple'),
+    }), [wizardBlackVariant]);
     let wizardCells = WIZARD_IDLE_CELLS;
     let wizardAttackFrame = -1;
     // Level 10 (Han 2026-08-06, "animaties schieten te kort... er moet een zwarte wizard staan"): the
@@ -826,11 +833,8 @@ export default function SheetRpgLayer({
             // "single/double/triple" — Han's exact frame runs for 1, 2, or 3 consecutive quarter notes.
             const isTriple = oneBeatLater(s, next) && oneBeatLater(next, next2);
             const isDouble = !isTriple && oneBeatLater(s, next);
-            const { cells, flashIndices } = isTriple
-                ? { cells: WIZARD_ATTACK_CELLS_TRIPLE, flashIndices: WIZARD_ATTACK_TRIPLE_FLASH_INDICES }
-                : isDouble
-                    ? { cells: WIZARD_ATTACK_CELLS_DOUBLE, flashIndices: WIZARD_ATTACK_DOUBLE_FLASH_INDICES }
-                    : { cells: WIZARD_ATTACK_CELLS, flashIndices: [WIZARD_ATTACK_FLASH_INDEX] };
+            const anim = isTriple ? wizardSongAttack.triple : isDouble ? wizardSongAttack.double : wizardSongAttack.single;
+            const { cells, flashIndices } = anim;
             const msSinceVisible = sideScrollX(s.beat, tick).msSinceSpawn - visibleGateMs;
             const frameInSeq = Math.floor(msSinceVisible / frameMs) + flashIndices[0];
             if (frameInSeq >= 0 && frameInSeq < cells.length) { wizardCells = cells; wizardAttackFrame = frameInSeq; break; }

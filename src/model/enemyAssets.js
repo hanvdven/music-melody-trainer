@@ -112,26 +112,13 @@ export const WIZARD_COLS = 6, WIZARD_ROWS = 11;
 export const WIZARD_CROP = { x: 16, y: 12, w: 47, h: 52 };
 // #679: idle = row0 cols0-4 (5 frames).
 export const WIZARD_IDLE_CELLS = [0, 1, 2, 3, 4].map((col) => ({ row: 0, col }));
-// #693 (Han 2026-08-04, Level 9 UAT round 3 — revised/final frame spec, superseding the round-2 f24-based
-// one): Han's frame numbers are 1-indexed row-major across the 6-col sheet (`wizardFrameCell`, §6c — one
-// formula, not a per-frame lookup table). One shared builder for all 3 note-run lengths instead of 3
-// hand-copied lists:
-//   single: f26,27,28,29,30(flash) 31
-//   double: f26,27,28,29,30(flash) 31,32,33,34,36(flash) 37             — skips f35
-//   triple: f26,27,28,29,30(flash) 31,32,33,34,36(flash) 37,38,40,41,42(flash) 43,44   — skips f35, f39
-const wizardFrameCell = (n) => ({ row: Math.floor((n - 1) / WIZARD_COLS), col: (n - 1) % WIZARD_COLS });
-function wizardAttackRun(frames, flashFrames) {
-    return { cells: frames.map(wizardFrameCell), flashIndices: flashFrames.map((f) => frames.indexOf(f)) };
-}
-const WIZARD_ATTACK_SINGLE = wizardAttackRun([26, 27, 28, 29, 30, 31], [30]);
-const WIZARD_ATTACK_DOUBLE = wizardAttackRun([26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 37], [30, 36]);
-const WIZARD_ATTACK_TRIPLE = wizardAttackRun([26, 27, 28, 29, 30, 31, 32, 33, 34, 36, 37, 38, 40, 41, 42, 43, 44], [30, 36, 42]);
-export const WIZARD_ATTACK_CELLS = WIZARD_ATTACK_SINGLE.cells;
-export const WIZARD_ATTACK_FLASH_INDEX = WIZARD_ATTACK_SINGLE.flashIndices[0];
-export const WIZARD_ATTACK_CELLS_DOUBLE = WIZARD_ATTACK_DOUBLE.cells;
-export const WIZARD_ATTACK_DOUBLE_FLASH_INDICES = WIZARD_ATTACK_DOUBLE.flashIndices;
-export const WIZARD_ATTACK_CELLS_TRIPLE = WIZARD_ATTACK_TRIPLE.cells;
-export const WIZARD_ATTACK_TRIPLE_FLASH_INDICES = WIZARD_ATTACK_TRIPLE.flashIndices;
+// #790 (Han 2026-08-09, "the wizard has hardcoded, time-tuned animations. Solution to keep single source
+// of truth: add these animations to the bestiary too"): the song-timed attack (single/double/triple note
+// runs, Han's exact frame spec — §693 round 3) used to be hardcoded HERE as `WIZARD_ATTACK_SINGLE/DOUBLE/
+// TRIPLE`. It now lives in the bestiary manifest as `song_attack_single/double/triple` on the Wizard
+// (Portrait)/Black creature (`scripts/generate-bestiary-manifest.mjs`'s `wizardPortraitAnimations()`) —
+// SheetRpgLayer.jsx reads it from there via `findCreatureByName`/`findAnim` (bestiaryAssets.js) instead of
+// a second hand-copied frame list (§6c).
 
 // #679 projectile ("Projectile sheet blue.png", measured via pngjs: 288×96 = 6 cols × 6 rows @ 48×16) — a
 // continuously-cycling 36-frame loop (Han: "een lange loop") that plays throughout the projectile's LINEAR

@@ -37,6 +37,12 @@
   align-items: center;
   justify-content: center;
   padding: 0;
+  /* #790 (Han 2026-08-09, "give the persona a 64x64 frame, same style as the other bestiary assets"):
+     Frame64Overlay (rendered by CharacterAvatarPanel) is absolutely positioned centered within this box —
+     needs a positioned ancestor. `overflow: hidden` below is removed for the same reason: a doll wider
+     than the square frame now spills past it instead of clipping, matching CreatureSprite's own documented
+     "big unit may spill past its 64×64 kader" allowance (§682) — same rule, same look. */
+  position: relative;
   /* #665 (Han 2026-08-03, "geef de 'thema'-achtergrond in het display"): the avatar box now shows the
      current app THEME's own background colour (--app-bg, the same variable every theme sets on
      .app-root) instead of a fixed dark tint, so it doesn't feel like a separate flat panel regardless of
@@ -47,7 +53,6 @@
   border: 2px solid var(--text-dim);
   border-radius: 0;
   cursor: pointer;
-  overflow: hidden;
   /* #664 (Han 2026-08-03): a flex row (.cc-body) with two fixed-size children can shrink either one below
      its natural content size once they no longer both fit — that silently clipped the avatar (overflow:
      hidden) whenever the viewport made .cc-body narrower than avatar+grid combined. The avatar must never

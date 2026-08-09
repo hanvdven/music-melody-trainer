@@ -11556,3 +11556,96 @@ render), `src/model/enemyAssets.js` (`STATIC_PROJECTILE2_*` constants), `src/ass
 static-projectiles-2.png` (new, copied from ASSORTED), `src/levels/levels.json` (Level 0 defaults),
 `src/components/levels/LevelZeroConfigForm.jsx` (default constants, Mixed/decorativeWizard fields),
 `src/App.jsx` (`cellowarmRef` pre-warm, `enemyType` prop no longer coerces 'Mixed' to 'Slime').
+
+### §177. Bestiary as single source of truth — companion anchor/oscillation dedup, persona 64×64 frame, Wizard `song_attack` moved into the manifest (#790, Han 2026-08-09)
+
+**Purpose.** Han: *"items as tweaked in the bestiary should be single source of truth. Any animations,
+oscillations, anchors are tweaked there and should be copied wherever they are used."* An interview-driven
+audit found real drift: THREE different hardcoded "flying creature hover" wobble ranges (`CreatureSprite`
+internal: 3px, `RpgLevelPanel`'s `WorldCreature`: a separately re-derived 4px, `PortraitImage`'s cosmetic
+wobble: 4×trueScale) — with `WorldCreature` likely double-applying oscillation on top of `CreatureSprite`'s
+own internal flying-anchor treatment — and `CharacterDoll.jsx`'s equipped-pet layer never joined the §693
+round-7 migration to bestiary-driven rendering at all, still hand-rolling its own `PET_IDLE`/`PET_RUN`/
+`PET_OFFSET` frame math independently of whatever the Bestiary tab actually defines for that creature.
+Locked scope (interview): companions (pet + Wisp NPC) AND the Wizard's Level-9 song-timed attack — NOT
+Slime, whose idle/walk/death are plain undupllicated `{row,frames}`.
+
+**Oscillation SSOT (`src/utils/oscillate.js`).** `oscillate(seed, tMs, range, speed = 1)` gained an optional
+4th `speed` multiplier (default 1 — every pre-existing 3-arg call site, e.g. the arrow/projectile's own
+combat wobble, is unchanged). New exported constants `FLYING_HOVER_OSC_RANGE = 5` / `FLYING_HOVER_OSC_SPEED
+= 0.5` ("radius up to 5px", "gentler: slower") are the ONE shared default now used everywhere a flying
+companion/creature hovers — `CreatureSprite`'s internal flying wobble (`BestiaryPanels.jsx`) is the sole
+call site left; `RpgLevelPanel.jsx`'s `WorldCreature` no longer re-derives its own separate oscillation,
+only the world-specific "hover one tile above the ground line" lift stays there (a placement concern
+`CreatureSprite` — a box-relative renderer with no notion of a world ground line — can't itself express).
+
+**Persona-preview pet routes through `CreatureSprite` (`CharacterDoll.jsx`).** The equipped-pet layer no
+longer computes its own frame/row math; a new `PetLayer` component resolves the equipped pet's bestiary
+variant via `findVariantByUrl` (new export, `bestiaryAssets.js` — moved from a locally-duplicated lookup in
+`RpgLevelPanel.jsx`, matching by resolved sprite URL since the avatar system's and Bestiary's globs resolve
+the same source PNG to the same URL) and renders it through the SAME canonical `CreatureSprite`
+(`BestiaryPanels.jsx`, exported since §693 round 7) the Bestiary tab and RPG level already use. Re-
+classifying a pet's animation in the Bestiary editor now updates the persona preview automatically — no
+second code path left to drift out of sync. `RpgLevelPanel.jsx`'s local `findCreature`/inline
+URL-matching `petVariant` lookup were likewise moved to `bestiaryAssets.js` as `findCreatureByName`/
+`findVariantByUrl` so both call sites share one implementation (§6c).
+
+**Persona gets a 64×64 bestiary-style frame (`CharacterAvatarPanel.jsx` + `CharacterCreator.css`).**
+`Frame64Overlay` (the decorative pixel-art border every bestiary portrait/creature box uses) is exported
+from `BestiaryPanels.jsx` and rendered as the first child of `.cc-avatar` (paints behind the doll, matching
+the existing convention). `.cc-avatar` gained `position: relative` (an anchor for the overlay) and lost
+`overflow: hidden` — a doll wider than the square frame now spills past it instead of clipping, the same
+"big unit may spill past its 64×64 kader" allowance `CreatureSprite`'s framed top-view already documents
+(§682) — one rule, one look, reused rather than re-invented.
+
+**Wizard's song-timed attack moved into the bestiary manifest.** Level 9's attack-swing timing (single/
+double/triple note-run variants, each with a "flash" beat — Han's exact frame spec, §693 round 3) used to
+be hardcoded in `src/model/enemyAssets.js` as `WIZARD_ATTACK_SINGLE/DOUBLE/TRIPLE`; the generator script's
+own comment already flagged this as stale duplicate debt. Han: *"the wizard has hardcoded, time-tuned
+animations. Solution to keep single source of truth: add these animations to the bestiary too:
+song_attack."* `scripts/generate-bestiary-manifest.mjs`'s `wizardPortraitAnimations()` now emits 3 new keys
+— `song_attack_single`/`song_attack_double`/`song_attack_triple` — on the "Wizard (Portrait)" creature's
+Black variant, each `{key, label, cells, flashIndices}` (`flashIndices` is a NEW, additive-only field: the
+index INTO `cells`, not a raw frame number — every other animation's shape is unaffected). Manifest
+regenerated (`bestiaryManifest.generated.js`, 608 entries). `SheetRpgLayer.jsx` reads these via 2 new
+`bestiaryAssets.js` exports — `findCreatureVariantByName(name, variantName)` (like `findCreatureByName` but
+for creatures classified with named colour variants, e.g. Black/Blue/Green Wizard sheets, with no "Plain"
+fallback to pick) and `findAnim(variant, key)` (exact-key lookup, vs `findMoveAnim`/`findIdleAnim`'s
+priority-list heuristic) — instead of importing the old hardcoded constants.
+
+**Invariants.** A creature's anchor (bottom vs. center-when-flying) and its hover wobble are decided in
+EXACTLY ONE place — `CreatureSprite` — for every placement (Bestiary preview, RPG level, persona preview).
+World-placement-specific offsets (the ground-line lift) are the only thing allowed to live outside it.
+Time-tuned combat animation data belongs in the bestiary manifest, not hand-copied into a combat-specific
+model file — extend `wizardPortraitAnimations()` (or the relevant sheet's own function) instead of adding a
+parallel constant.
+
+**Files:** `src/utils/oscillate.js` (`speed` param, `FLYING_HOVER_OSC_RANGE/SPEED`), `src/components/
+character/BestiaryPanels.jsx` (`CreatureSprite` uses the shared constants, `Frame64Overlay` exported),
+`src/components/character/RpgLevelPanel.jsx` (`WorldCreature` de-duplicated, `findCreature`/inline
+`petVariant` lookup moved out), `src/components/character/CharacterDoll.jsx` (`PetLayer`, exported),
+`src/components/character/__tests__/CharacterDoll.test.jsx` (updated for the refactor + `PetLayer` smoke
+test), `src/components/character/CharacterAvatarPanel.jsx` + `CharacterCreator.css` (`.cc-avatar` frame),
+`src/model/bestiaryAssets.js` (`findVariantByUrl`, `findCreatureByName`, `findCreatureVariantByName`,
+`findAnim`), `scripts/generate-bestiary-manifest.mjs` (`song_attack_*` in `wizardPortraitAnimations()`),
+`src/model/bestiaryManifest.generated.js` (regenerated), `src/model/enemyAssets.js` (`WIZARD_ATTACK_*`
+removed), `src/components/sheet-music/SheetRpgLayer.jsx` (reads `song_attack_*` from the bestiary).
+
+**UAT round 1 fixes (same session).**
+
+- **Crash at level start** — `Cannot read properties of undefined (reading 'col')` in `CreatureSprite`.
+  Root cause: `frame` can be NEGATIVE during a level's pre-roll (`SheetRpgLayer.jsx`'s `gFrame`/`heroFrame`,
+  documented at their own definitions) — plain `%` in JS preserves the dividend's sign, so
+  `anim.cells[frame % anim.cells.length]` indexed with a negative number, returning `undefined`.
+  `CreatureSprite` (a pre-existing function, previously only ever fed non-negative counters) was newly
+  reachable with a negative `frame` because `CharacterDoll`'s `PetLayer` (above) put it on the sheet-music
+  HERO doll's render path for the first time, where `heroFrame` legitimately goes negative pre-roll. Fixed
+  with the same non-negative-modulo pattern already used for the Wizard's own frame-index math:
+  `((frame % n) + n) % n` — fixed once in `CreatureSprite` itself so every caller is protected, not just
+  the one that tripped over it first. Regression test: `src/components/character/__tests__/
+  BestiaryPanels.test.jsx` (new).
+- **Projectile facing, round 2** — Han's final call after visually comparing: the Bestiary's own (unflipped)
+  presentation of the projectile is correct; the level's `Projectile` component (`SheetRpgLayer.jsx`) had
+  picked up a `scale(-1,1)` mirror across several earlier rounds (§693 round 8 reversed an earlier "already
+  correct unmirrored" call) — removed. `Wizard`'s own flip is UNCHANGED (needed so the character faces the
+  hero — a different concern from the projectile's own art orientation).

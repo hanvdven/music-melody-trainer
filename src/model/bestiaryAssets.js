@@ -100,6 +100,41 @@ export const BESTIARY_CATEGORIES = ['passive', 'attack', 'portrait', 'walk', 'hu
 export const SCANNED_CREATURES = buildCreatures();
 export const scannedByCategory = (cat) => SCANNED_CREATURES.filter((c) => c.category === cat);
 
+// #790 (Han 2026-08-09, SSOT audit): moved here from RpgLevelPanel's local `petVariant` useMemo (§693
+// round 12) so CharacterDoll's persona-preview pet can resolve the SAME classified variant the same way —
+// one lookup, not two hand-copied loops that could drift. Matches by resolved sprite URL (not name) since
+// the avatar system's PET_FILES glob and this file's own glob resolve the SAME source PNG to the same URL.
+export function findVariantByUrl(url) {
+    if (!url) return null;
+    for (const c of SCANNED_CREATURES) {
+        const v = c.variants.find((v) => v.url === url);
+        if (v) return v;
+    }
+    return null;
+}
+
+// #790: moved here from RpgLevelPanel's local `findCreature` (§693 round 7) — looks up a creature by its
+// bestiary NAME (used for the Wisp NPC, which has no equippable "pet file" URL to match by).
+export function findCreatureByName(name) {
+    const c = SCANNED_CREATURES.find((c) => c.name === name);
+    if (!c) return null;
+    return c.variants.find((v) => v.variant === 'Plain') || c.variants[0] || null;
+}
+
+// #790: like `findCreatureByName`, but for a creature classified with named COLOUR variants (e.g. the
+// Wizard's Black/Blue/Green/... portrait sheets — no "Plain" variant to fall back to) where the caller
+// needs one SPECIFIC variant, not "whichever is first".
+export function findCreatureVariantByName(name, variantName) {
+    const c = SCANNED_CREATURES.find((c) => c.name === name);
+    return c?.variants.find((v) => v.variant === variantName) || null;
+}
+
+// #790: exact-key animation lookup (vs `findMoveAnim`/`findIdleAnim`'s "whichever of a priority list
+// matches" heuristic) — for animations with no move/idle semantics, e.g. the Wizard's `song_attack_*` keys.
+export function findAnim(variant, key) {
+    return variant?.animations.find((a) => a.key === key) || null;
+}
+
 // #693 round 9 (Han: "waarom gebruik je de walk / run animatie niet. zorg dat je check voor fly/run/walk-
 // animaties; en zorg ook dat als ik die update in de bestiary, dat ze aangepast zijn in het level (single
 // source of truth)"): moved here (was local to RpgLevelPanel) so EVERY world placement of a classified
