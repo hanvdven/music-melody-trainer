@@ -10,17 +10,15 @@ import { findVariantByUrl, findMoveAnim, findIdleAnim } from '../../model/bestia
 // `transform: scale` so a sheet's width never stretches a layer (fixes the ear drift — see §81).
 
 // CROP: the body region within the 80×64 frame (measured x3..57 / y17..63). CHAR_DY / PET_DY: Han's
-// pixel-perfect nudges to sit on the bottom edge. PET_OFFSET: where the 32×32 pet sits within the frame.
+// pixel-perfect nudges to sit on the bottom edge. PET_OFFSET: where the pet sits within the frame.
 export const CROP = { x: 10, y: 6, w: 60, h: 58 };
 export const PET_CROP = { x: 3, y: 2, w: 26, h: 28 };
 // #664 (Han 2026-08-03, "de preview in het character menu mist wat pixels onderaan"): CROP was cutting off
 // the bottom of some ASSORTED sprites in the big character-menu preview. `fullFrame` (below) shows the
-// ENTIRE undistorted BODY_FRAME instead — nothing is ever clipped — plus a reference rectangle Han can use
-// to eyeball where a sprite's "body" should sit within the 80×64 frame. Bottom-anchored, horizontally
-// centred: x = (80-40)/2, y = 64-56.
-const REF_FRAME = { w: 40, h: 56 };
-const REF_FRAME_X = (BODY_FRAME.w - REF_FRAME.w) / 2;
-const REF_FRAME_Y = BODY_FRAME.h - REF_FRAME.h;
+// ENTIRE undistorted BODY_FRAME instead — nothing is ever clipped.
+// #790 round 4 (Han: "het rode kader mag weg"): the one-time measurement reference rectangle this comment
+// used to describe is removed — it had served its purpose (measuring CROP itself) and was left rendering
+// unconditionally in the persona preview ever since.
 // #693 round 12 (Han: "mijn character anchor is 1px lower than the others, e.g. pet, tent, grass, sprite,
 // tree — both in the bestiary and in the level"): CHAR_DY/PET_DY's shared +1 nudge (round 10) was tuned
 // back when there was no single global ground-anchor convention — now that `worldAnchor.js`'s
@@ -67,14 +65,24 @@ export const layerStyle = (url, cat, frame, anim, name, fullFrame = false) => {
 // code path to fall out of sync. Falls back to nothing (no pet layer) if the equipped sheet has no bestiary
 // match — mirrors WorldPet's own fallback rationale, kept minimal here since a missing-match pet sheet is
 // the rare case, not the common one.
+// #790 round 4 (Han: "dog animatie klopt niet, en de uitlijning ook niet"): the wrapper box was a FIXED
+// `PET_FRAME` (32×32) regardless of the equipped pet's actual measured crop — `CreatureSprite`'s internal
+// centering (`left: calc(50% - cropW/2)`) is relative to WHATEVER box it's given, so a pet whose crop isn't
+// ~32×32 (Doggy's is 30×22) centered against the WRONG reference size. `RpgLevelPanel`'s `WorldCreature`
+// never had this bug — it already sizes its own wrapper off `variant.crop` — so this now does the same:
+// bottom-center-anchored at the SAME fixed screen point `PET_OFFSET` + the old `PET_FRAME` box used to
+// occupy, but sized to the pet's own real crop instead of a generic guess.
+const PET_ANCHOR_X = PET_OFFSET.x + PET_FRAME.w / 2;   // horizontal center of the old fixed box
+const PET_ANCHOR_BOTTOM = PET_OFFSET.y + PET_FRAME.h;  // bottom edge of the old fixed box
 export function PetLayer({ url, moving, frame }) {
     const variant = useMemo(() => findVariantByUrl(url), [url]);
     if (!variant) return null;
     const anim = (moving && findMoveAnim(variant)) || findIdleAnim(variant);
+    const cropW = variant.crop.w, cropH = variant.crop.h;
     return (
         <div style={{
-            position: 'absolute', left: PET_OFFSET.x, top: PET_OFFSET.y,
-            width: PET_FRAME.w, height: PET_FRAME.h, transform: 'scaleX(-1)', transformOrigin: 'center',
+            position: 'absolute', left: PET_ANCHOR_X - cropW / 2, top: PET_ANCHOR_BOTTOM - cropH,
+            width: cropW, height: cropH, transform: 'scaleX(-1)', transformOrigin: 'center',
         }}>
             <CreatureSprite variant={variant} anim={anim} frame={frame} scale={1} framed={false} />
         </div>
@@ -95,15 +103,6 @@ export default function CharacterDoll({ char, anim, frame, height, fullFrame = f
     return (
         <div style={{ position: 'relative', overflow: 'visible', width: outerW, height }}>
             <div style={{ position: 'absolute', left: offX, top: offY, width: BODY_FRAME.w, height: BODY_FRAME.h, transform: `scale(${s})`, transformOrigin: 'top left' }}>
-                {/* #664 (Han 2026-08-03, "het kader valt over de avatar, verplaats het naar de achtergrond"):
-                    rendered FIRST so later (sprite-layer) siblings paint on top of it, not the other way
-                    round — a reference guide should sit behind the character, never obscure it. */}
-                {fullFrame && (
-                    <div style={{
-                        position: 'absolute', left: REF_FRAME_X, top: REF_FRAME_Y, width: REF_FRAME.w, height: REF_FRAME.h,
-                        border: '1px solid red', boxSizing: 'border-box', pointerEvents: 'none',
-                    }} />
-                )}
                 <div style={{ position: 'absolute', inset: 0, transform: 'scaleX(-1)' }}>
                     {zOrder.map((c) => {
                         const layer = char.layers[c.key];

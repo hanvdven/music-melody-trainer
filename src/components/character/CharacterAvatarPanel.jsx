@@ -1,6 +1,6 @@
 import React from 'react';
 import CharacterDoll from './CharacterDoll';
-import { CreatureSprite, Frame64Overlay } from './BestiaryPanels';
+import { CreatureSprite, Frame64Overlay, PREVIEW_SCALE } from './BestiaryPanels';
 import { findVariantByUrl, findIdleAnim } from '../../model/bestiaryAssets';
 import { CATEGORIES, urlOfLayer, CATEGORY_ICON } from '../../model/characterAssets';
 import { AVATAR_H, GRID, checker, thumbStyle } from './characterEditorShared';
@@ -32,7 +32,7 @@ function PetSlotIcon({ url }) {
 export default function CharacterAvatarPanel({ editor, screen, debugMode = false }) {
     const { char, anim, frame, activeCat, setActiveCat } = editor;
 
-    // #664: fullFrame shows the whole 80×64 frame (nothing clipped) + the red reference box.
+    // #664: fullFrame shows the whole 80×64 frame (nothing clipped).
     const doll = <CharacterDoll char={char} anim={anim} frame={frame} height={AVATAR_H} fullFrame />;
 
     return (
@@ -41,8 +41,12 @@ export default function CharacterAvatarPanel({ editor, screen, debugMode = false
                 title="Skin" onClick={() => setActiveCat('skin')}>
                 {/* #790 (Han 2026-08-09, "give the persona a 64x64 frame, same style as the other bestiary
                     assets"): the SAME decorative pixel-art border every bestiary portrait/creature box
-                    uses (§6d) — rendered first so it paints behind the doll, matching that convention. */}
-                <Frame64Overlay box={AVATAR_H} />
+                    uses (§6d) — rendered first so it paints behind the doll, matching that convention.
+                    Round 4 (Han: "het grote kader mag in lijn met de andere kaders (bestiary)"): sized at
+                    the SAME `PREVIEW_SCALE` the bestiary's own frames use, not stretched to fill the much
+                    bigger `.cc-avatar` box — centers itself inside it (Frame64Overlay's own 50%/50% +
+                    translate centering), matching the bestiary's frame scale exactly. */}
+                <Frame64Overlay box={64 * PREVIEW_SCALE} />
                 {doll}
             </button>
             {screen === 'equipment' && (
