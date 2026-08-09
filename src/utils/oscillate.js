@@ -26,5 +26,11 @@ export function oscillate(seed, tMs, range, speed = 1) {
 // One shared constant pair now used by every "this creature/companion is flying, so it hovers+wobbles"
 // call site (CreatureSprite — the canonical renderer, §6d). The arrow/projectile's OWN combat wobble is a
 // distinct concept (not a creature anchor) and keeps its own literal range/default speed.
-export const FLYING_HOVER_OSC_RANGE = 5;   // px — Han: "radius up to 5px"
-export const FLYING_HOVER_OSC_SPEED = 0.5; // Han: "gentler: slower"
+// #790 round 2 (Han: "pas hetzelfde effect toe dat bij pijl en projectiel is toegepast, maar dan trager
+// (50%) en met kleinere range (60%)"): derived from the arrow/projectile's own reference wobble —
+// `SheetRpgLayer.jsx`'s `PROJECTILE_OSCILLATE_RANGE = 7.5` — rather than an independently-chosen number
+// (§6c: a formula against the named reference, not a second guessed constant). Not a live cross-file
+// import (oscillate.js sits below SheetRpgLayer.jsx in the dependency graph) — if that reference value ever
+// changes, recompute this one too.
+export const FLYING_HOVER_OSC_RANGE = 7.5 * 0.6;  // = 4.5px — 60% of the arrow/projectile's own range
+export const FLYING_HOVER_OSC_SPEED = 0.5;        // 50% slower than the arrow/projectile's default speed

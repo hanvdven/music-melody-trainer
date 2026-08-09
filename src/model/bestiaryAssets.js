@@ -38,6 +38,15 @@ function buildCreatures() {
         }));
         map.get(id).variants.push({
             variant: m.variant,
+            // #790 (Han 2026-08-09, "alle animals uit de categorie air" moeten oscilleren): denormalized
+            // from the parent creature so `isFlyingAnim` can check category without every call site having
+            // to separately thread the creature object through just for this.
+            category: m.category,
+            // #790 (Han 2026-08-09, "voeg tags toe aan de bestiary, zodat ik straks kan zoeken"): derived
+            // by the generator (`scripts/generate-bestiary-manifest.mjs`) from category/animation/variant-name
+            // signals — never hand-typed. Per-animation tags ride through automatically via `animations`'s
+            // own `...a` spread above; this is the CREATURE/variant-level tag list.
+            tags: m.tags || [],
             url,
             width: m.width,
             height: m.height,
@@ -153,10 +162,21 @@ export function findMoveAnim(variant) {
 export function findIdleAnim(variant) {
     return variant.animations.find((a) => a.key === 'idle' || a.key === 'sit') || variant.animations[0];
 }
-// A creature "flies" (for anchor purposes — see RpgLevelPanel/Critter) if its CURRENTLY-PLAYING animation
-// key is fly/float — NOT merely "has one somewhere" — so a fly/float creature that also has a 'sit' anim
-// re-anchors to the floor specifically while sitting (Han: "als die OOK een sit animatie heeft, anker 'm
-// terug naar de vloer voor die specifieke animatie").
-export function isFlyingAnim(anim) {
-    return anim?.key === 'fly' || anim?.key === 'float';
+// A creature "flies" (for anchor purposes — see RpgLevelPanel/Critter/CreatureSprite) if its
+// CURRENTLY-PLAYING animation key is fly/float — NOT merely "has one somewhere" — so a fly/float creature
+// that also has a 'sit' anim re-anchors to the floor specifically while sitting (Han: "als die OOK een sit
+// animatie heeft, anker 'm terug naar de vloer voor die specifieke animatie").
+// #790 (Han 2026-08-09, "pas hetzelfde effect toe op: alle animals uit de categorie air, alle animaties met
+// 'fly' of 'float' in de titel"): broadened two ways, `variant` (optional, 2nd arg — every call site has it
+// in scope) unlocks the category check:
+//   1. the WHOLE creature's category is 'air' → always flying, whatever its current animation is playing
+//      (the explicit 'sit' override above still wins — a specific per-animation ground pose beats the
+//      creature-level default).
+//   2. the animation's key OR its human-readable label contains "fly"/"float" (substring, case-insensitive)
+//      — not just an exact key match, so e.g. a "Flying" or "Float Loop" label also counts.
+export function isFlyingAnim(anim, variant) {
+    if (!anim) return false;
+    if (anim.key === 'sit') return false;
+    if (variant?.category === 'air') return true;
+    return /fly|float/i.test(`${anim.key || ''} ${anim.label || ''}`);
 }

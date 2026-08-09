@@ -11649,3 +11649,82 @@ removed), `src/components/sheet-music/SheetRpgLayer.jsx` (reads `song_attack_*` 
   picked up a `scale(-1,1)` mirror across several earlier rounds (§693 round 8 reversed an earlier "already
   correct unmirrored" call) — removed. `Wizard`'s own flip is UNCHANGED (needed so the character faces the
   hero — a different concern from the projectile's own art orientation).
+
+### §178. Round 2 follow-up — flying-detection broadened (category + title match), auto-derived bestiary/animation tags with colour-coding, hero anim renamed rest→idle, pet thumbnails everywhere read the bestiary, generator script split for manual editing (#790, Han 2026-08-09)
+
+**Flying detection broadened.** `isFlyingAnim(anim, variant)` (`bestiaryAssets.js`) now also treats a
+creature as flying if its whole CATEGORY is `air` (regardless of which animation is currently playing), or
+if the current animation's key/label contains "fly"/"float" as a substring (was an exact-key match only) —
+Han asked for the shared hover effect applied to every `air`-category animal and every fly/float-titled
+animation. The explicit `sit` ground-reanchor override (§693 round 12) still wins over both. `variant.category`
+is now denormalized onto each bestiary variant (`bestiaryAssets.js`'s `buildCreatures()`) so this check
+doesn't need every call site to separately thread the parent creature through. Oscillation itself is now
+`oscillate.js`'s `FLYING_HOVER_OSC_RANGE`/`FLYING_HOVER_OSC_SPEED`, computed as 60%/50% of the arrow/
+projectile's own `PROJECTILE_OSCILLATE_RANGE` (7.5px) per Han's exact spec — used consistently by
+`CreatureSprite`, `WorldCreature`, AND `SheetRpgLayer.jsx`'s `Critter` (which previously had yet a 4th
+independently-tuned range, now removed).
+
+**Auto-derived tags, never hand-typed.** Han wants tags on both bestiary creatures (for future search) and
+on animations (so "flying" can be identified reliably). `scripts/generate-bestiary-manifest.mjs`'s final
+per-entry pass now computes `tags` on both the creature/variant (`flying` if category is `air` or any
+animation matches; `mature` if category is `mature`; `bare` if the variant name matches `/\bbare\b/i`) and
+on each qualifying animation (`flying`) — derived from the SAME signals `isFlyingAnim` checks at runtime, so
+"tagged flying" and "actually anchors/oscillates as flying" can never disagree. `bestiaryAssets.js` carries
+animation tags through automatically (already spread) and adds a new `tags` field to each variant. UI:
+`BestiaryPanels.jsx`'s animation buttons get a dark-blue background when `flying`-tagged; variant swatches
+get a pink outline when `bare`-tagged.
+
+**Hero animation renamed.** `characterAssets.js`'s `ANIMATIONS[0]` key/label `rest`/`Rest` → `idle`/`Idle` —
+matches the bestiary's own naming convention. Not persisted anywhere (the character-creator's `animKey` UI
+state defaults fresh each session), so a plain rename with no migration needed; the 2 lookup call sites
+(`useCharacterEditor.js`, `RpgLevelPanel.jsx`) updated.
+
+**Pet thumbnails now bestiary-driven everywhere, not just the persona preview.** `characterEditorShared.js`'s
+`thumbStyle` (used for every equipment-slot icon) assumed one fixed `PET_CROP` for all pet sheets, same bug
+§693 round 12 already fixed for the RPG level's `WorldPet`→`WorldCreature` migration, just never applied to
+the Character-tab equipment UI. Two new small components — `CharacterAvatarPanel.jsx`'s `PetSlotIcon` (the
+equipped-pet slot preview) and `CharacterOptionsPanel.jsx`'s `PetThumb` (the pet-picker grid where you
+actually choose a pet) — both route through `findVariantByUrl`/`CreatureSprite`, falling back to the old
+`thumbStyle` box only for a pet sheet with no bestiary match.
+
+**Crash fix (regression from earlier this session).** `CreatureSprite` indexed `anim.cells[frame %
+anim.cells.length]` — `frame` can be NEGATIVE during a level's pre-roll (`gFrame`/`heroFrame`), and plain
+`%` in JS preserves the dividend's sign, producing a negative array index (`undefined`) and crashing on
+`cell.col`. Only surfaced once `CharacterDoll`'s `PetLayer` put `CreatureSprite` on the sheet-music hero's
+own render path (which uses `heroFrame`, unlike the RPG level's always-non-negative counters). Fixed with
+the same non-negative-modulo pattern (`((n % m) + m) % m`) already used for the Wizard's own frame-index
+math — fixed once in `CreatureSprite` itself, protecting every caller. Regression test added:
+`src/components/character/__tests__/BestiaryPanels.test.jsx`.
+
+**Generator script split for manual editing.** §692 (2026-08-04) explicitly deferred a full multi-file
+split of `scripts/generate-bestiary-manifest.mjs` pending Han saying so explicitly — he has now asked for
+exactly that. Executed as a TARGETED split: the 18 bespoke per-creature "frame N-M = animation X" functions
+(horse/goblin/zombie/maid ×4/skeleton/wizard/santa-vampire/knighty ×3/art lady/boss_spider/large skull/
+devil) — the ones Han actually hand-edits when giving a corrected frame spec — moved to `scripts/bestiary/
+animationDefs.mjs`, with their 3 tiny shared helpers (`cap`/`rowCells`/`frameRange`) to `scripts/bestiary/
+helpers.mjs`. The main script (2067 → 1792 lines) keeps everything with real declaration-order dependencies
+(folder/category rules, frame-size/label overrides, the pixel scanner, roster/column/special-case expansion
+functions, the main scan loop) — §692's own flagged risk (shared mutable state, order-dependent helpers)
+was specifically NOT touched, since nobody hand-edits "the scan loop" the way they hand-edit "Goblin's frame
+numbers". **Verified safe**: regenerating `bestiaryManifest.generated.js` after the split produced a
+BYTE-IDENTICAL file (`diff` confirmed) — the split changed zero behavior.
+
+**Deferred, NOT implemented this round:** a full interactive bestiary editor (tag/label creatures and
+animations, mark cells individually, edit colour/appearance variants like hat/no-hat, all through a live UI)
+— this app has no backend/write-to-disk mechanism the running page could persist edits through (unlike the
+kanban board's small local API server), so building the UI without first deciding a persistence approach
+would produce something that can't actually save. Flagged to Han as its own scoped conversation rather than
+guessed at.
+
+**Files:** `src/model/bestiaryAssets.js` (`isFlyingAnim` broadened + `variant.category`/`variant.tags`,
+`findVariantByUrl`/`findCreatureByName`/`findCreatureVariantByName`/`findAnim`), `src/utils/oscillate.js`
+(`FLYING_HOVER_OSC_RANGE/SPEED` recomputed from the projectile's own reference range), `src/components/
+character/BestiaryPanels.jsx` (`isFlyingAnim` call sites pass `variant`, tag colour-coding, `CreatureSprite`'s
+negative-frame fix), `src/components/sheet-music/SheetRpgLayer.jsx` (`Critter` uses the shared oscillation
+constants + broadened `isFlyingAnim` call), `src/model/characterAssets.js` (`rest`→`idle`), `src/components/
+character/useCharacterEditor.js` + `RpgLevelPanel.jsx` (lookup updated), `src/components/character/
+CharacterAvatarPanel.jsx` (`PetSlotIcon`), `src/components/character/CharacterOptionsPanel.jsx`
+(`PetThumb`), `src/components/character/__tests__/BestiaryPanels.test.jsx` (new, negative-frame regression),
+`scripts/generate-bestiary-manifest.mjs` (tag derivation, animation-def functions extracted, TOC rewritten),
+`scripts/bestiary/animationDefs.mjs` (new), `scripts/bestiary/helpers.mjs` (new), `src/model/
+bestiaryManifest.generated.js` (regenerated, verified byte-identical to pre-split).

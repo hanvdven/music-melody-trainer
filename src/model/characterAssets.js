@@ -43,7 +43,9 @@ export const IDLE = 5;                          // content frames in row 0 (the 
 // Each sheet ROW is an animation (measured content frames: 5/8/8/4/4/6/10). Names are the common tinyRPG
 // order — the picker plays the selected row (Han: buttons for rest/walk/attack/death/…).
 export const ANIMATIONS = [
-    { key: 'rest', label: 'Rest', row: 0, frames: 5 },
+    // #790 (Han 2026-08-09, "hero: noem de animatie 'rest' idle"): renamed from 'rest'/'Rest' — consistent
+    // with the bestiary's own animation naming convention (idle/walk/fly/...).
+    { key: 'idle', label: 'Idle', row: 0, frames: 5 },
     { key: 'walk', label: 'Walk', row: 1, frames: 8 },
     { key: 'run', label: 'Run', row: 2, frames: 8 },
     { key: 'airup', label: 'Air Up', row: 3, frames: 4 },     // Han relabel (was Attack)

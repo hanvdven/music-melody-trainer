@@ -233,7 +233,7 @@ function WorldCreature({ variant, moving, frame, facing = 1 }) {
     if (!variant) return null;
     const anim = (moving && findMoveAnim(variant)) || findIdleAnim(variant);
     const cropW = variant.crop.w * ZOOM, cropH = variant.crop.h * ZOOM;
-    const transform = isFlyingAnim(anim)
+    const transform = isFlyingAnim(anim, variant)
         ? `translate(0px, ${-HOVER_PX}px) scale(${facing}, 1)`
         : `scale(${facing}, 1)`;
     return (
@@ -364,7 +364,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // instead of assuming every pet sheet shares one hand-tuned crop.
     const petVariant = useMemo(() => findVariantByUrl(petUrl), [petUrl]);
     const walkAnim = ANIMATIONS.find((a) => a.key === 'walk');
-    const idleAnim = ANIMATIONS.find((a) => a.key === 'rest');
+    const idleAnim = ANIMATIONS.find((a) => a.key === 'idle');
     const [walkFrame, setWalkFrame] = useState(0);
     useEffect(() => {
         if (!moving) { setWalkFrame(0); return; }

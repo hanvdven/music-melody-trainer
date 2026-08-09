@@ -13,7 +13,7 @@ export default function useCharacterEditor() {
     const [activeCat, setActiveCat] = useState('skin');
     const [saved, setSaved] = useState(false);
     const [frame, setFrame] = useState(0);
-    const [animKey, setAnimKey] = useState('rest');
+    const [animKey, setAnimKey] = useState('idle');
     const anim = ANIMATIONS.find((a) => a.key === animKey) || ANIMATIONS[0];
     useEffect(() => {
         setFrame(0);

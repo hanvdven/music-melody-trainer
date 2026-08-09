@@ -79,7 +79,7 @@ export function CreatureSprite({ variant, anim, frame, scale, overlayUrls = [], 
     // + light oscillation treatment the RPG level's WorldCreature/Critter already apply — this is the ONE
     // canonical renderer (§6d), so putting it here covers the bestiary preview AND every world placement at
     // once, rather than re-deriving it per call site. Bottom-anchored sprites are unaffected.
-    const flying = isFlyingAnim(anim);
+    const flying = isFlyingAnim(anim, variant);
     const vPos = flying
         ? { top: `calc(50% - ${cropH / 2}px)` }
         : { bottom: 0 };
@@ -252,11 +252,15 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
                             const bg = v.swatchColor2
                                 ? `linear-gradient(135deg, ${col} 50%, ${v.swatchColor2} 50%)`
                                 : (col || 'transparent');
+                            // #790 (Han 2026-08-09, "geef de bare variant een roze vakje"): a `bare`-tagged
+                            // variant (generator-derived, see scripts/generate-bestiary-manifest.mjs) gets a
+                            // pink outline layered ON TOP of its own swatch colour/split, not replacing it.
+                            const bareOutline = v.tags?.includes('bare') ? { outline: '2px solid #ff5fa8', outlineOffset: '-2px' } : null;
                             return (
                                 <button key={`${v.variant}-${i}`} title={v.variant || 'plain'}
                                     className={`cc-swatch${i === variantIndex ? ' active' : ''}`}
                                     onClick={() => setVariantIndex(i)}
-                                    style={{ background: bg }}>
+                                    style={{ background: bg, ...bareOutline }}>
                                     {col ? '' : (v.variant || '•')}
                                 </button>
                             );
@@ -282,9 +286,15 @@ export function BestiaryTopPanel({ editor, debugMode = false }) {
                 </div>
             )}
             <div className="cc-anims cc-enemy-anims">
+                {/* #790 (Han 2026-08-09, "tag alle flying animation, maak het vakje daarvan donkerblauw"):
+                    a `flying`-tagged animation (generator-derived) gets a dark-blue tint so it reads as
+                    "this one hovers/oscillates" at a glance, independent of which one is currently active. */}
                 {variant.animations.map((a) => (
                     <button key={a.key} className={`cc-anim${animKey === a.key ? ' active' : ''}`}
-                        onClick={() => setAnimKey(a.key)}>{a.label}</button>
+                        onClick={() => setAnimKey(a.key)}
+                        style={a.tags?.includes('flying') ? { backgroundColor: '#16306b', color: '#fff' } : undefined}>
+                        {a.label}
+                    </button>
                 ))}
             </div>
         </div>

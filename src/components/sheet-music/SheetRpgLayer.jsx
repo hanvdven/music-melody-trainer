@@ -22,7 +22,7 @@ import { getNoteAbsoluteY } from './renderMelodyNotes';
 import { StaffQuarterNote } from './staffNoteGlyph';
 import { gradeHit, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS } from '../../levels/gradeHit';
 import logger from '../../utils/logger';
-import { oscillate } from '../../utils/oscillate';
+import { oscillate, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED } from '../../utils/oscillate';
 import { blockTypeAt } from '../../hooks/useLevelMixedStream';
 
 // #647 RPG layer on the sheet music — a SEPARATE layer that is AWARE of note positions (Han). Two parts:
@@ -144,8 +144,11 @@ const CRITTER_SCALE = 2.2;
 // animation is fly/float (Dragonfly is classified with a 'fly' key) — same `isFlyingAnim`/`oscillate` the
 // RPG level's `WorldCreature` uses (§6c), just a small upward lift + wobble on this SVG's own x/y instead
 // of a CSS transform (the coordinate system here is the staff's own <svg>, not a DOM box).
+// #790 (Han 2026-08-09, SSOT): the wobble RANGE/SPEED are now the SAME shared `FLYING_HOVER_OSC_*`
+// constants every other flying-creature call site uses (was its own independently-tuned 3px range — one
+// more instance of the drift this ticket fixed everywhere else). Only the hover LIFT stays critter-specific
+// (this SVG's own coordinate space, unrelated to the DOM world's ground-line convention).
 const CRITTER_HOVER_PX = 14;
-const CRITTER_OSC_RANGE = 3;
 
 const Critter = React.memo(function Critter({ x, y, variant, frame, opacity = 1 }) {
     if (!variant) return null;
@@ -160,11 +163,11 @@ const Critter = React.memo(function Critter({ x, y, variant, frame, opacity = 1 
     const viewW = variant.crop.w * CRITTER_SCALE, viewH = variant.crop.h * CRITTER_SCALE;
     const flip = `translate(${2 * variant.crop.x + variant.crop.w}, 0) scale(-1, 1)`;   // face left, matches Slime
     let drawX = x, drawY = y;
-    if (isFlyingAnim(anim)) {
+    if (isFlyingAnim(anim, variant)) {
         const seed = variant.crop.x * 31 + variant.crop.y;
         const tMs = frame * 120;
-        drawX += oscillate(seed, tMs, CRITTER_OSC_RANGE);
-        drawY += oscillate(seed + 1, tMs, CRITTER_OSC_RANGE) - CRITTER_HOVER_PX;
+        drawX += oscillate(seed, tMs, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED);
+        drawY += oscillate(seed + 1, tMs, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED) - CRITTER_HOVER_PX;
     }
     return (
         <svg x={drawX} y={drawY} width={viewW} height={viewH} opacity={opacity}

@@ -1,6 +1,24 @@
 import React from 'react';
 import { ANIMATIONS, CATEGORIES, variantColor, skinSwatchColor, earForSkin } from '../../model/characterAssets';
 import { checker, thumbStyle, catByKeyLabel, catByRequired } from './characterEditorShared';
+import { CreatureSprite } from './BestiaryPanels';
+import { findVariantByUrl, findIdleAnim } from '../../model/bestiaryAssets';
+
+// #790 (Han 2026-08-09, "zorg in de avatar view en equipment view de 'pet' ook uit de bestiary komt"): the
+// pet-PICKER grid (below, `activeCat === 'pet'`) used the same generic `thumbStyle` every other equipment
+// category uses — wrong for pets for the same reason `CharacterAvatarPanel`'s slot preview was (fixed
+// alongside this, same ticket): a pet's real crop varies per creature, `thumbStyle`'s `PET_CROP` assumes one
+// fixed size for all of them. Routes through the SAME `findVariantByUrl`/`CreatureSprite` lookup (§6c).
+function PetThumb({ url }) {
+    const variant = findVariantByUrl(url);
+    if (!variant) return <div style={thumbStyle(url, 'pet')} />;
+    const scale = 1.6;
+    return (
+        <div style={{ position: 'relative', width: variant.crop.w * scale, height: variant.crop.h * scale }}>
+            <CreatureSprite variant={variant} anim={findIdleAnim(variant)} frame={0} scale={scale} framed={false} />
+        </div>
+    );
+}
 
 // #667 (Han 2026-08-03): the BOTTOM-of-screen content for the 'character' and 'equipment' avatar-context
 // screens — renders where the piano/bottom panel normally renders (Han: "item opties en kleuren staan in de
@@ -94,7 +112,7 @@ export default function CharacterOptionsPanel({ editor, debugMode = false }) {
                             return (
                                 <button key={b.id} title={b.base}
                                     className={checker(`cc-thumb${isActive ? ' active' : ''}`, debugMode)} onClick={() => pickBase(b)}>
-                                    <div style={thumbStyle(rep.url, activeCat)} />
+                                    {activeCat === 'pet' ? <PetThumb url={rep.url} /> : <div style={thumbStyle(rep.url, activeCat)} />}
                                 </button>
                             );
                         })}

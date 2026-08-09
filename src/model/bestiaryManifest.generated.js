@@ -59,6 +59,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -197,6 +200,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -243,6 +249,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -289,6 +298,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -335,6 +347,10 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature",
+      "bare"
     ]
   },
   {
@@ -381,6 +397,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -427,6 +446,10 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature",
+      "bare"
     ]
   },
   {
@@ -473,6 +496,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -519,6 +545,10 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature",
+      "bare"
     ]
   },
   {
@@ -565,6 +595,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -611,6 +644,10 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature",
+      "bare"
     ]
   },
   {
@@ -677,6 +714,10 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature",
+      "bare"
     ]
   },
   {
@@ -809,6 +850,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -875,6 +919,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -941,6 +988,10 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature",
+      "bare"
     ]
   },
   {
@@ -1033,6 +1084,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -1079,6 +1133,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -2019,6 +2076,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -2223,6 +2283,10 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature",
+      "bare"
     ]
   },
   {
@@ -2297,6 +2361,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -2371,6 +2438,10 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature",
+      "bare"
     ]
   },
   {
@@ -3105,6 +3176,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "bare"
     ]
   },
   {
@@ -3221,6 +3295,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -3359,6 +3436,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -3405,6 +3485,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -3497,6 +3580,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -3543,6 +3629,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -3589,6 +3678,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -3635,6 +3727,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -4146,6 +4241,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -4618,6 +4716,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -4664,6 +4765,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -4756,6 +4860,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -4802,6 +4909,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -4848,6 +4958,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -4894,6 +5007,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -5405,6 +5521,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -5877,6 +5996,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -5923,6 +6045,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -6015,6 +6140,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -6061,6 +6189,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -6107,6 +6238,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -6153,6 +6287,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -6664,6 +6801,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -7228,6 +7368,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -7412,6 +7555,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -7596,6 +7742,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -7734,6 +7883,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -8194,6 +8346,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -8240,6 +8395,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -8654,6 +8812,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -8700,6 +8861,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -8746,6 +8910,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -8792,6 +8959,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -9582,6 +9752,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -9628,6 +9801,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -10042,6 +10218,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -10088,6 +10267,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -10134,6 +10316,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -10180,6 +10365,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -10970,6 +11158,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -11016,6 +11207,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -11430,6 +11624,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -11476,6 +11673,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -11522,6 +11722,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -11568,6 +11771,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -12358,6 +12564,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -12404,6 +12613,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -13022,6 +13234,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -13108,6 +13323,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -13206,6 +13424,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -13252,6 +13473,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -13522,6 +13746,10 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature",
+      "bare"
     ]
   },
   {
@@ -13588,6 +13816,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -14486,6 +14717,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -14894,6 +15128,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "bare"
     ]
   },
   {
@@ -15026,6 +15263,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "bare"
     ]
   },
   {
@@ -15224,6 +15464,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -15290,6 +15533,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -15747,6 +15993,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "bare"
     ]
   },
   {
@@ -15813,6 +16062,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "bare"
     ]
   },
   {
@@ -15879,6 +16131,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "bare"
     ]
   },
   {
@@ -20181,10 +20436,16 @@ export default [
             "row": 13,
             "col": 10
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
     ],
-    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait10.png"
+    "portraitRelPath": "../assets/ASSORTED/characters/char_with_porttrait/Female Pixel Art characters/Female Pixel Art Portrait10.png",
+    "tags": [
+      "flying"
+    ]
   },
   {
     "category": "portrait",
@@ -26026,8 +26287,14 @@ export default [
             "row": 0,
             "col": 12
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -34027,6 +34294,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -41189,6 +41459,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -41315,6 +41588,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -41520,6 +41796,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -41725,6 +42004,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -41791,6 +42073,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -41857,6 +42142,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -41932,6 +42220,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -42007,6 +42298,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -42073,6 +42367,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -42233,6 +42530,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -42299,6 +42599,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -42459,6 +42762,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -42619,6 +42925,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -42783,6 +43092,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -42947,6 +43259,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -43606,6 +43921,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -44265,6 +44583,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -44548,6 +44869,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -44831,6 +45155,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -45490,6 +45817,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -46149,6 +46479,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -46808,6 +47141,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -47467,6 +47803,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -48126,6 +48465,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -48785,6 +49127,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -48862,6 +49207,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "mature"
     ]
   },
   {
@@ -58016,6 +58364,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -58628,8 +58979,14 @@ export default [
             "row": 3,
             "col": 3
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -58688,8 +59045,14 @@ export default [
             "row": 5,
             "col": 2
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -58926,8 +59289,14 @@ export default [
             "row": 10,
             "col": 1
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -58960,8 +59329,14 @@ export default [
             "row": 11,
             "col": 1
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -58994,8 +59369,14 @@ export default [
             "row": 12,
             "col": 1
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -59028,8 +59409,14 @@ export default [
             "row": 13,
             "col": 1
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -59062,8 +59449,14 @@ export default [
             "row": 14,
             "col": 1
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -59096,8 +59489,14 @@ export default [
             "row": 15,
             "col": 1
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -70854,8 +71253,14 @@ export default [
             "row": 0,
             "col": 4
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -70900,8 +71305,14 @@ export default [
             "row": 0,
             "col": 4
           }
+        ],
+        "tags": [
+          "flying"
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -71158,6 +71569,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -71239,7 +71653,10 @@ export default [
         ]
       }
     ],
-    "swatchColor": "#ff9800"
+    "swatchColor": "#ff9800",
+    "tags": [
+      "flying"
+    ]
   },
   {
     "category": "air",
@@ -71291,6 +71708,9 @@ export default [
             "row": 0,
             "col": 6
           }
+        ],
+        "tags": [
+          "flying"
         ]
       },
       {
@@ -71323,6 +71743,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -71371,6 +71794,9 @@ export default [
             "row": 0,
             "col": 5
           }
+        ],
+        "tags": [
+          "flying"
         ]
       },
       {
@@ -71407,6 +71833,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -71447,6 +71876,9 @@ export default [
             "row": 0,
             "col": 3
           }
+        ],
+        "tags": [
+          "flying"
         ]
       },
       {
@@ -71475,6 +71907,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
@@ -71861,6 +72296,9 @@ export default [
             "row": 3,
             "col": 4
           }
+        ],
+        "tags": [
+          "flying"
         ]
       },
       {
@@ -71893,6 +72331,9 @@ export default [
           }
         ]
       }
+    ],
+    "tags": [
+      "flying"
     ]
   },
   {
