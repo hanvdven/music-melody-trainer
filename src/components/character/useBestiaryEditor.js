@@ -83,7 +83,16 @@ export default function useBestiaryEditor() {
 
     useEffect(() => {
         setFrame(0);
-        const id = setInterval(() => setFrame((fr) => (fr + 1) % anim.cells.length), 150);
+        // #790 (Han 2026-08-09, "i do not see any oscillation e.g., for the dragonfly"): this used to wrap
+        // `frame` at `anim.cells.length` — fine for STEPPING the animation cell, but `CreatureSprite`'s
+        // flying-hover wobble also uses this SAME `frame` as its time input (`tMs = frame * 120`,
+        // `oscillate.js`), so a short animation (e.g. a 2-4 cell "fly" loop) gave the wobble only 2-4
+        // distinct positions before repeating — visually flat/imperceptible. `CreatureSprite` already wraps
+        // the cell index safely on its own (`((frame % n) + n) % n`, added earlier this ticket for the
+        // negative-frame crash), so the caller no longer needs to pre-wrap — a plain incrementing counter
+        // (same pattern RpgLevelPanel's `petFrame` already uses) gives the wobble a genuinely continuous
+        // time base while the animation cell still steps correctly.
+        const id = setInterval(() => setFrame((fr) => fr + 1), 150);
         return () => clearInterval(id);
     }, [anim.cells, variant.url]);
 
