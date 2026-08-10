@@ -17,7 +17,17 @@ export default function useCharacterEditor() {
     const anim = ANIMATIONS.find((a) => a.key === animKey) || ANIMATIONS[0];
     useEffect(() => {
         setFrame(0);
-        const id = setInterval(() => setFrame((f) => (f + 1) % anim.frames), 150);
+        // #790 round 6 (Han: "dog animatie... 'capped' at de hero walk animation frames, causing jitter due
+        // aan een andere loop length"): this used to wrap `frame` at the HERO's own `anim.frames` — fine for
+        // the hero layer (`layerStyle` applies `frame % anim.frames` itself anyway), but the SAME `frame`
+        // also drives the equipped pet's animation (`CharacterDoll`'s `PetLayer` → `CreatureSprite`), whose
+        // own loop length is unrelated to the hero's (e.g. hero walk = 8 frames, Doggy's move = 6 cells) —
+        // capping the shared counter at 8 meant the pet's 6-cell loop never got to complete/restart
+        // naturally, visibly jittering. Each consumer already applies its OWN modulo against its OWN loop
+        // length (`layerStyle`'s `frame % anim.frames`, `CreatureSprite`'s `frame % anim.cells.length`), so
+        // the shared counter itself no longer needs to pre-wrap — same fix already applied to
+        // `useBestiaryEditor.js`'s equivalent counter this ticket.
+        const id = setInterval(() => setFrame((f) => f + 1), 150);
         return () => clearInterval(id);
     }, [anim.frames, animKey]);
 

@@ -116,10 +116,13 @@ export function CreatureSprite({ variant, anim, frame, scale, overlayUrls = [], 
 }
 
 // #790 (Han 2026-08-09, "het grote kader mag in lijn met de andere kaders (bestiary)"): exported so the
-// persona avatar preview (CharacterAvatarPanel) can size its own 64×64 Frame64Overlay at this SAME scale
-// instead of stretching the border art to a much bigger box — one visual scale for every 64×64 frame,
-// not a second guessed one.
-export const PREVIEW_SCALE = 2.6;
+// persona avatar preview (CharacterAvatarPanel) sizes its own hero/pet/frame at this SAME scale — one
+// visual scale for every 64×64 frame, not a second guessed one.
+// #790 round 6 (Han: "je hebt het verkeerd begrepen. alle bestiary portretten moeten ook op die schaal
+// staan; d.w.z. preview_scale zelf moet groter"): round 5 introduced a SEPARATE `PERSONA_SCALE` multiplier
+// used only by the persona preview — wrong; Han wants the WHOLE Bestiary UI (every top-view frame/portrait,
+// not just the persona) 1.6× bigger, so the increase belongs on `PREVIEW_SCALE` itself.
+export const PREVIEW_SCALE = 2.6 * 1.6;
 // #682 (Han: "maak de previews 30% groter (maar houd de vakjes even groot)") — the SPRITE scale grows 30%;
 // the thumb box itself (`.cc-enemy-thumb`, CSS) is untouched, so bigger previews now overflow it (allowed —
 // see `.cc-enemy-thumb`'s `overflow: visible` below) instead of the box growing to fit.
