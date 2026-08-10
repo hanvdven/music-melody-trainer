@@ -66,10 +66,10 @@ export function CreatureSprite({ variant, anim, frame, scale, overlayUrls = [], 
     });
     // #684 (Han 2026-08-04, "in 'preview' onderin beeld: als unit > 64 hoog of breed: schaal af tot het in
     // het vak past"): the TOP view (`framed`) deliberately allows overflow (§682 — a big unit may spill past
-    // its 64×64 kader). The BOTTOM view has no such allowance: a creature whose crop exceeds the FRAME_SIZE
-    // reference in either dimension is scaled DOWN so its larger dimension lands back at exactly
-    // `FRAME_SIZE * scale` — the same footprint a normal ≤64-unit creature gets — instead of blowing past the
-    // thumbnail box.
+    // its 64×64 kader — Han 2026-08-09, round 5: "ok laat de allowance voor de top view dan maar staan!",
+    // confirming this stays after briefly considering a cap). The BOTTOM view has no such allowance: a
+    // creature that exceeds the FRAME_SIZE reference in either dimension is scaled DOWN so its larger
+    // dimension lands back at exactly `FRAME_SIZE * scale` instead of blowing past the thumbnail box.
     const maxDim = Math.max(crop.w, crop.h);
     const effectiveScale = (!framed && maxDim > FRAME_SIZE) ? scale * (FRAME_SIZE / maxDim) : scale;
     const box = FRAME_SIZE * scale;

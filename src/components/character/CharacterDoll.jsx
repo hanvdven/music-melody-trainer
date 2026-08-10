@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CATEGORIES, BODY_FRAME, PET_FRAME, frameOf, urlOfLayer } from '../../model/characterAssets';
+import { CATEGORIES, BODY_FRAME, frameOf, urlOfLayer } from '../../model/characterAssets';
 import { CreatureSprite } from './BestiaryPanels';
 import { findVariantByUrl, findMoveAnim, findIdleAnim } from '../../model/bestiaryAssets';
 
@@ -9,8 +9,8 @@ import { findVariantByUrl, findMoveAnim, findIdleAnim } from '../../model/bestia
 // scaled to `height`, facing RIGHT (scaleX(-1)) exactly like the creator. Rendered at NATIVE sprite size +
 // `transform: scale` so a sheet's width never stretches a layer (fixes the ear drift — see §81).
 
-// CROP: the body region within the 80×64 frame (measured x3..57 / y17..63). CHAR_DY / PET_DY: Han's
-// pixel-perfect nudges to sit on the bottom edge. PET_OFFSET: where the pet sits within the frame.
+// CROP: the body region within the 80×64 frame (measured x3..57 / y17..63). CHAR_DY: Han's pixel-perfect
+// nudge to sit on the bottom edge. The pet's own anchor point is defined next to `PetLayer` below.
 export const CROP = { x: 10, y: 6, w: 60, h: 58 };
 export const PET_CROP = { x: 3, y: 2, w: 26, h: 28 };
 // #664 (Han 2026-08-03, "de preview in het character menu mist wat pixels onderaan"): CROP was cutting off
@@ -20,13 +20,11 @@ export const PET_CROP = { x: 3, y: 2, w: 26, h: 28 };
 // used to describe is removed — it had served its purpose (measuring CROP itself) and was left rendering
 // unconditionally in the persona preview ever since.
 // #693 round 12 (Han: "mijn character anchor is 1px lower than the others, e.g. pet, tent, grass, sprite,
-// tree — both in the bestiary and in the level"): CHAR_DY/PET_DY's shared +1 nudge (round 10) was tuned
-// back when there was no single global ground-anchor convention — now that `worldAnchor.js`'s
-// `GROUND_ANCHOR_PX` anchors every sprite consistently, this leftover nudge just pushes the hero (and its
-// glued-on pet layer) 1px BELOW everything else instead of matching it. Zeroed out — the doll now sits
-// flush with its own frame, same as every other sprite.
+// tree — both in the bestiary and in the level"): CHAR_DY's +1 nudge (round 10) was tuned back when there
+// was no single global ground-anchor convention — now that `worldAnchor.js`'s `GROUND_ANCHOR_PX` anchors
+// every sprite consistently, this leftover nudge just pushes the hero 1px BELOW everything else instead of
+// matching it. Zeroed out — the doll now sits flush with its own frame, same as every other sprite.
 const CHAR_DY = 0;
-const PET_OFFSET = { x: 40, y: 31 };
 const EFFECT_COLS = 5;              // frames in the effect row-0 loop
 
 // backgroundPosition for one frame: col + row from the animation. Effects keep their own single-row loop.
@@ -65,15 +63,23 @@ export const layerStyle = (url, cat, frame, anim, name, fullFrame = false) => {
 // code path to fall out of sync. Falls back to nothing (no pet layer) if the equipped sheet has no bestiary
 // match — mirrors WorldPet's own fallback rationale, kept minimal here since a missing-match pet sheet is
 // the rare case, not the common one.
-// #790 round 4 (Han: "dog animatie klopt niet, en de uitlijning ook niet"): the wrapper box was a FIXED
-// `PET_FRAME` (32×32) regardless of the equipped pet's actual measured crop — `CreatureSprite`'s internal
-// centering (`left: calc(50% - cropW/2)`) is relative to WHATEVER box it's given, so a pet whose crop isn't
-// ~32×32 (Doggy's is 30×22) centered against the WRONG reference size. `RpgLevelPanel`'s `WorldCreature`
-// never had this bug — it already sizes its own wrapper off `variant.crop` — so this now does the same:
-// bottom-center-anchored at the SAME fixed screen point `PET_OFFSET` + the old `PET_FRAME` box used to
-// occupy, but sized to the pet's own real crop instead of a generic guess.
-const PET_ANCHOR_X = PET_OFFSET.x + PET_FRAME.w / 2;   // horizontal center of the old fixed box
-const PET_ANCHOR_BOTTOM = PET_OFFSET.y + PET_FRAME.h;  // bottom edge of the old fixed box
+// #790 round 4 (Han: "dog animatie klopt niet, en de uitlijning ook niet"): the wrapper box used to be a
+// FIXED `PET_FRAME` (32×32) regardless of the equipped pet's actual measured crop — `CreatureSprite`'s
+// internal centering (`left: calc(50% - cropW/2)`) is relative to WHATEVER box it's given, so a pet whose
+// crop isn't ~32×32 (Doggy's is 30×22) centered against the WRONG reference size. `RpgLevelPanel`'s
+// `WorldCreature` never had this bug — it already sizes its own wrapper off `variant.crop` — so this does
+// the same: the wrapper is sized to the pet's own real crop, not a generic guess.
+// #790 round 5 (Han: "zet het anker 12 'game pixels' links van de hero op de grond, zelfde hoogte als
+// onderkant frame portret"): the anchor point itself is now an explicit ground position relative to the
+// hero, not a leftover fixed screen coordinate from the OLD hand-rolled layout. Native (pre-mirror)
+// coordinates: this whole layer sits inside the SAME `scaleX(-1)` that mirrors the hero to face right
+// (see the render below), which reflects around x = BODY_FRAME.w/2 (the hero's own horizontal center) — so
+// a point at NATIVE x = center + 12 lands 12px to the LEFT of the hero ONCE MIRRORED (screen-left, behind
+// the hero, the same "trails behind" convention `RpgLevelPanel`'s petX/playerX comparison uses). Ground
+// height = the bottom edge of the full BODY_FRAME (fullFrame mode has no CROP offset, so that IS the
+// portrait frame's own bottom edge).
+const PET_ANCHOR_X = BODY_FRAME.w / 2 + 12;   // 12 native px left of the hero, once mirrored
+const PET_ANCHOR_BOTTOM = BODY_FRAME.h;       // ground level = the frame's own bottom edge
 export function PetLayer({ url, moving, frame }) {
     const variant = useMemo(() => findVariantByUrl(url), [url]);
     if (!variant) return null;

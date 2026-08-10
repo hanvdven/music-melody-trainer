@@ -2,8 +2,17 @@ import React from 'react';
 import CharacterDoll from './CharacterDoll';
 import { CreatureSprite, Frame64Overlay, PREVIEW_SCALE } from './BestiaryPanels';
 import { findVariantByUrl, findIdleAnim } from '../../model/bestiaryAssets';
-import { CATEGORIES, urlOfLayer, CATEGORY_ICON } from '../../model/characterAssets';
-import { AVATAR_H, GRID, checker, thumbStyle } from './characterEditorShared';
+import { CATEGORIES, BODY_FRAME, urlOfLayer, CATEGORY_ICON } from '../../model/characterAssets';
+import { GRID, checker, thumbStyle } from './characterEditorShared';
+
+// #790 round 5 (Han: "ik wil alles op dezelfde schaal. Maak de hero en pet dan ook kleiner... Zet dus alles
+// op preview_scale; en maak die 1,6x zo groot"): the persona avatar, its equipped pet, AND its decorative
+// frame all render at this ONE literal native-pixel scale — no more "fit the doll to a target height" (which
+// is what silently let the frame and the doll drift to different effective scales). `PREVIEW_SCALE` is the
+// SAME literal scale the bestiary's own top-view frames use (`BestiaryPanels.jsx`); the hero is NOT subject
+// to CreatureSprite's ">96px oversize" downscale exception (that only applies inside CreatureSprite itself,
+// which the hero doll never goes through) — it always renders at flat `PERSONA_SCALE`, equipment included.
+const PERSONA_SCALE = PREVIEW_SCALE * 1.6;
 
 // #790 (Han 2026-08-09, "zorg in de avatar view en equipment view de 'pet' ook uit de bestiary komt (de
 // animatie en pixelhoogte komen nu niet goed overeen met de spritesheet)"): the equipment-grid slot icon
@@ -33,7 +42,10 @@ export default function CharacterAvatarPanel({ editor, screen, debugMode = false
     const { char, anim, frame, activeCat, setActiveCat } = editor;
 
     // #664: fullFrame shows the whole 80×64 frame (nothing clipped).
-    const doll = <CharacterDoll char={char} anim={anim} frame={frame} height={AVATAR_H} fullFrame />;
+    // #790 round 5: `height` = BODY_FRAME.h * PERSONA_SCALE so CharacterDoll's own `s = height/BODY_FRAME.h`
+    // resolves to exactly PERSONA_SCALE — a literal native-pixel scale, not a "fit to some target height"
+    // number, so it lines up with the frame and the pet (both also driven by PERSONA_SCALE/PREVIEW_SCALE).
+    const doll = <CharacterDoll char={char} anim={anim} frame={frame} height={BODY_FRAME.h * PERSONA_SCALE} fullFrame />;
 
     return (
         <div className={checker('cc-body', debugMode)}>
@@ -42,11 +54,9 @@ export default function CharacterAvatarPanel({ editor, screen, debugMode = false
                 {/* #790 (Han 2026-08-09, "give the persona a 64x64 frame, same style as the other bestiary
                     assets"): the SAME decorative pixel-art border every bestiary portrait/creature box
                     uses (§6d) — rendered first so it paints behind the doll, matching that convention.
-                    Round 4 (Han: "het grote kader mag in lijn met de andere kaders (bestiary)"): sized at
-                    the SAME `PREVIEW_SCALE` the bestiary's own frames use, not stretched to fill the much
-                    bigger `.cc-avatar` box — centers itself inside it (Frame64Overlay's own 50%/50% +
-                    translate centering), matching the bestiary's frame scale exactly. */}
-                <Frame64Overlay box={64 * PREVIEW_SCALE} />
+                    Round 5 (Han: "ik wil alles op dezelfde schaal"): sized at `PERSONA_SCALE`, the SAME
+                    literal scale the doll (hero+equipment+pet) renders at — frame, hero, and pet all agree. */}
+                <Frame64Overlay box={64 * PERSONA_SCALE} />
                 {doll}
             </button>
             {screen === 'equipment' && (
