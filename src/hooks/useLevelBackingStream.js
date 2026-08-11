@@ -38,6 +38,13 @@ export default function useLevelBackingStream({
   levelAudioStart, // audio-time anchor for measure -1 (App.jsx)
   bassReady,       // true only once instruments.bass is CONFIRMED to be the rebuilt cello instance
   metronomeReady,  // true only once instruments.metronome is confirmed ready
+  // Bug fix (Han 2026-08-10, "het mag echt niet zijn dat de metronoom start voordat de melodie klaar
+  // is... die twee mogen nooit onafhankelijk beginnen"): `levelAudioStart` can only be SET after
+  // `levelMelodyReady` was true at pick time (App.jsx's anchor-picking effect), but nothing previously
+  // stopped THIS effect from scheduling backing audio if `levelMelodyReady` later flipped false again
+  // (e.g. a second regenerate racing in) before this effect got to run. Explicit, redundant-by-design
+  // gate — directly enforces "these two may never start independently" rather than relying on ordering.
+  levelMelodyReady,
   bassInstrument,
   metronomeInstrument,
   stopFnsRef,      // shared levelBackingStopFnsRef — collects every scheduled note's StopFn
@@ -57,6 +64,7 @@ export default function useLevelBackingStream({
   useEffect(() => {
     if (!active || !lvl?.sideScroll || levelAudioStart == null || !context) return;
     if (!bassReady || !metronomeReady) return;   // wait for the REAL rebuilt instruments — no stale scheduling
+    if (!levelMelodyReady) return;   // never start backing audio ahead of/independent from the treble melody
 
     setBass(Melody.defaultBassMelody());
     setMetronome(Melody.defaultMetronomeMelody());
@@ -175,7 +183,7 @@ export default function useLevelBackingStream({
       timers.forEach((t) => clearTimeout(t));
       ownStopFns.forEach((fn) => { try { fn(); } catch { /* already stopped */ } });
     };
-  }, [active, lvl, levelAudioStart, context, bassReady, metronomeReady, scale, timeSignature,
+  }, [active, lvl, levelAudioStart, context, bassReady, metronomeReady, levelMelodyReady, scale, timeSignature,
     bassSettings, chordProgression, bassInstrument, metronomeInstrument, stopFnsRef]);
 
   return { bass, metronome };

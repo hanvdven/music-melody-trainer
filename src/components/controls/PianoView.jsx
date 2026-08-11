@@ -18,15 +18,52 @@ export const foldShift = (s) => { const r = ((s % 12) + 12) % 12; return r > 6 ?
 // White keys: Q W E R T Y U I O P [ ]
 // Black keys (number row, by physical gap position): 2 3 _ 5 6 7 _ 9 0 _ =
 const QWERTY_WHITE_KEYS = ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']'];
-// Map: keyboard character → blackKeys array index (1-based slots between white keys).
-// All 11 gap positions are covered so the mapping is correct regardless of starting note.
-// Slots that land on a placeholder (E-F or B-C boundary) are ignored by the filter below.
-const QWERTY_BLACK_SLOTS = [
-  ['2', 1], ['3', 2], ['4', 3],
-  ['5', 4], ['6', 5], ['7', 6],
-  ['8', 7], ['9', 8], ['0', 9],
-  ['-', 10], ['=', 11],
-];
+// #FR (Han 2026-08-10, "ik merk dat ik het als speler verwarrend vind dat de toetsen steeds
+// verplaatsen"): QWERTY used to map POSITIONALLY (QWERTY_WHITE_KEYS[i] = the i-th currently VISIBLE
+// white key) — so the same physical key played a different pitch on every level, depending on where
+// the visible range happened to start. Replaced with a FIXED, pitch-anchored mapping: Q is always C4,
+// and the sequence repeats up from there (C=Q,D=W,E=E,F=R,G=T,A=Y,B=U, then C=I,D=O,E=P,F=[,G=]) —
+// confirmed via interview to be ABSOLUTE pitch (not tonic-relative): level 102 (tonic G Mixolydian,
+// range G4-D5) only lands on T,Y,U,I,O — Han's own worked example — because C is always Q regardless
+// of key. Covers exactly the same 12 QWERTY_WHITE_KEYS slots as before, just a fixed note list instead
+// of a range-derived one. A note outside this ~2-octave window simply gets no QWERTY key (click-to-play
+// still works) — confirmed acceptable, not a regression to "chase" with more keys.
+const FIXED_ANCHOR_WHITE_KEYS = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5', 'D5', 'E5', 'F5', 'G5'];
+
+// #FR2 (Han 2026-08-10, Level 15 "twee toetsen!!!"): additional FIXED qwerty schemes for a SECOND,
+// simultaneously-visible keyboard (the two-handed level's bass/left hand), selected via the new
+// `qwertyScheme` prop. Each entry is { whiteNotes, whiteKeys, blackGapKeys } — `blackGapKeys[i]` is the
+// physical key for the gap between `whiteNotes[i]` and `whiteNotes[i+1]` (undefined = no black key
+// there, e.g. an E-F/B-C boundary) — same shape/convention as the app-wide 'app' scheme below.
+const QWERTY_SCHEMES = {
+  // Default / app-wide fixed mapping (Q=C4..], see FIXED_ANCHOR_WHITE_KEYS above).
+  app: {
+    whiteNotes: FIXED_ANCHOR_WHITE_KEYS,
+    whiteKeys: QWERTY_WHITE_KEYS,
+    blackGapKeys: ['2', '3', undefined, '5', '6', '7', undefined, '9', '0', undefined, '='],
+  },
+  // Level 15 keyboard-layout "option 1" (Han: "klavier 2 heeft voorkeur a2=z b2=x c3=c d3=v, ..., c4=/,
+  // en bb2 = s etc"): the bass/left-hand keyboard, on the ZXCV.../ row (+ ASDFGHJKL for flats, mirroring
+  // the 'app' scheme's number-row-above-white-keys convention one row down).
+  bassRow: {
+    whiteNotes: ['A2', 'B2', 'C3', 'D3', 'E3', 'F3', 'G3', 'A3', 'B3', 'C4'],
+    whiteKeys: ['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/'],
+    blackGapKeys: ['s', undefined, 'd', 'f', undefined, 'h', 'j', 'k', undefined],
+  },
+  // Level 15 keyboard-layout "option 2" (Han: "gesplitst klavier (links/rechts) met de noten c3-g3 en
+  // c4-g4... in dat geval: q-t, i-]"): LEFT half of a single split keyboard, C3-G3 on Q W E R T.
+  splitLeft: {
+    whiteNotes: ['C3', 'D3', 'E3', 'F3', 'G3'],
+    whiteKeys: ['q', 'w', 'e', 'r', 't'],
+    blackGapKeys: ['2', '3', undefined, '5'],
+  },
+  // Level 15 keyboard-layout "option 2" — RIGHT half, C4-G4 on I O P [ ].
+  splitRight: {
+    whiteNotes: ['C4', 'D4', 'E4', 'F4', 'G4'],
+    whiteKeys: ['i', 'o', 'p', '[', ']'],
+    blackGapKeys: ['9', '0', undefined, '='],
+  },
+};
 
 const PianoView = ({
   scale,
@@ -45,6 +82,11 @@ const PianoView = ({
   theme = 'dark',
   onNoteInput = null,
   qwertyKeyboardActive = false,
+  // #FR2 (Han 2026-08-10, Level 15): which QWERTY_SCHEMES entry drives the fixed key mapping — 'app'
+  // (default, every existing call site) or one of the Level 15 two-keyboard schemes ('bassRow',
+  // 'splitLeft', 'splitRight'). Lets a SECOND, simultaneously-rendered PianoView instance use its own
+  // physical keys without colliding with the first instance's 'app' mapping.
+  qwertyScheme = 'app',
   // Compact mode (e.g. the range-setter selector): suppress the note-name labels,
   // which are too large/cluttered on a small windowed keyboard.
   hideLabels = false,
@@ -285,33 +327,57 @@ const PianoView = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notes, startIndex, endIndex, findNoteIndex, isBlackKey]);
 
-  // Build note→qwerty label map (for rendering labels on keys)
+  // #FR2 (Han 2026-08-10): resolved scheme for this instance (defaults to the app-wide 'app' mapping).
+  const scheme = QWERTY_SCHEMES[qwertyScheme] || QWERTY_SCHEMES.app;
+
+  // The FIXED black-key note NAMES for the resolved scheme's white-key gaps, built with the EXACT SAME
+  // gap-scan algorithm the visible-range `blackKeys` above uses (reused, not re-derived by hand — §6c)
+  // so accidental spelling (e.g. D♭ vs C♯) matches the app's canonical note list exactly. Index i = the
+  // gap between scheme.whiteNotes[i] and [i+1]; null when that gap has no black key (E-F/B-C boundary)
+  // or the scheme's own blackGapKeys[i] doesn't assign a physical key there.
+  const fixedBlackNotes = useMemo(() => {
+    return scheme.whiteNotes.slice(0, -1).map((note, i) => {
+      if (!scheme.blackGapKeys[i]) return null;
+      const currentIndex = findNoteIndex(note);
+      const nextNote = notes[currentIndex + 1];
+      if (!nextNote || note.startsWith('E') || note.startsWith('B')) return null;
+      return nextNote;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notes, scheme]);
+
+  // A note only gets a QWERTY key if it's both in the scheme's fixed window AND actually part of the
+  // CURRENT playable range — otherwise a key could trigger a pitch entirely outside the level's range
+  // (e.g. Q always resolving to C4 even on a level whose range doesn't include C4 at all).
+  const playableNotes = useMemo(() => new Set([...whiteKeys, ...blackKeys]), [whiteKeys, blackKeys]);
+
+  // Build note→qwerty label map (for rendering labels on keys) — FIXED pitch-anchored, not positional.
   const noteQwertyLabel = useMemo(() => {
     const map = {};
-    QWERTY_WHITE_KEYS.forEach((key, i) => {
-      if (i < whiteKeys.length) map[whiteKeys[i]] = key.toUpperCase();
+    scheme.whiteKeys.forEach((key, i) => {
+      const note = scheme.whiteNotes[i];
+      if (note && playableNotes.has(note)) map[note] = key.toUpperCase();
     });
-    QWERTY_BLACK_SLOTS.forEach(([key, idx]) => {
-      if (idx < blackKeys.length && blackKeys[idx] !== 'placeholder' && blackKeys[idx] !== 'halfKey') {
-        map[blackKeys[idx]] = key;
-      }
+    fixedBlackNotes.forEach((note, i) => {
+      const key = scheme.blackGapKeys[i];
+      if (note && key && playableNotes.has(note)) map[note] = key;
     });
     return map;
-  }, [whiteKeys, blackKeys]);
+  }, [scheme, fixedBlackNotes, playableNotes]);
 
-  // Build qwerty→note map (for keyboard event handler)
+  // Build qwerty→note map (for keyboard event handler) — FIXED pitch-anchored, not positional.
   const qwertyNoteMap = useMemo(() => {
     const map = {};
-    QWERTY_WHITE_KEYS.forEach((key, i) => {
-      if (i < whiteKeys.length) map[key] = whiteKeys[i];
+    scheme.whiteKeys.forEach((key, i) => {
+      const note = scheme.whiteNotes[i];
+      if (note && playableNotes.has(note)) map[key] = note;
     });
-    QWERTY_BLACK_SLOTS.forEach(([key, idx]) => {
-      if (idx < blackKeys.length && blackKeys[idx] !== 'placeholder' && blackKeys[idx] !== 'halfKey') {
-        map[key] = blackKeys[idx];
-      }
+    fixedBlackNotes.forEach((note, i) => {
+      const key = scheme.blackGapKeys[i];
+      if (note && key && playableNotes.has(note)) map[key] = note;
     });
     return map;
-  }, [whiteKeys, blackKeys]);
+  }, [scheme, fixedBlackNotes, playableNotes]);
 
   // Cleanup timeouts on unmount.
   // Capture tapsTimeoutRef.current at effect-setup time so the cleanup function

@@ -176,6 +176,27 @@
 //                          (useLevelKeyModulationStream.js, tonic untouched). Independent of
 //                          `enemyType` (stays "Slime").
 //
+// ── OPTIONAL: fixed song (Han 2026-08-11, #871 "abc music en level namen") ──────────────────────
+//   songId          OPTIONAL string. The `id` of a song definition in songs/songIndex.js. When
+//                   present, the level plays that FIXED song (via songs/loadSong.js) instead of
+//                   procedural generation — see useLevel.begin()'s `songId ? loadSong : regenerate`
+//                   branch. bpm/timeSignature/numMeasures/notesPerMeasure/range/key are all BACK-FILLED
+//                   from the song definition by `songLevelDefaults()` below — a song-backed level entry
+//                   should normally OMIT those fields entirely rather than duplicating what the song
+//                   JSON already states (single source of truth). An explicit field on the level entry
+//                   still overrides the song-derived value if you ever need to.
+//   npc             OPTIONAL string. A bestiary creature NAME (resolved via
+//                   model/bestiaryAssets.js's findCreatureByName — the SAME generated manifest every
+//                   other creature sprite comes from, no separate asset file) shown standing decoratively
+//                   at the wizard's anchor position (right edge of the side-scroll viewport). Purely
+//                   visual — no combat/interaction logic, independent of `enemyType`. Distinct from
+//                   `decorativeWizard` above, which stays coupled to Level 11's own key-modulation
+//                   mechanic; `npc` is the general-purpose decorative-character mechanism for any level.
+//   Levels 200-206 (Arirang, Frère Jacques, Kalinka, Kangding Qingge, La Bamba, Sakura, Scarborough
+//   Fair) are the first users of `songId`/`npc` — each converted offline from src/songs/abc/*.abc via
+//   `npm run abc:song` (scripts/abc-to-song.mjs, kept as a permanent/reusable tool for future abc
+//   imports, not a throwaway script).
+//
 // ── NOT yet parameterizable (known gap — do not fabricate a field for these without extending
 //    the underlying mechanism first, see CLAUDE.md §6c) ─────────────────────────────────────────
 //   Percussion (timpani) NOTE CONTENT during a side-scroll level is ONE hardcoded pattern
@@ -249,6 +270,33 @@
 //   durations, ties, tuplets if Polyrhythm is on elsewhere).
 import levelsData from './levels.json';
 import InstrumentSettings from '../model/InstrumentSettings';
+import SONGS from '../songs/songIndex.js';
+import { noteToMidi } from '../theory/noteUtils';
+
+const SONG_BY_ID = Object.fromEntries(SONGS.map((s) => [s.id, s]));
+
+// #871 (Han 2026-08-11, "abc music en level namen"): a level with `songId` plays a FIXED song (see
+// songs/loadSong.js) instead of procedural generation. bpm/timeSignature/numMeasures/notesPerMeasure/
+// range/key are derived from the song definition — the song JSON is the single source of truth for its
+// own musical metadata, never hand-duplicated into levels.json (CLAUDE.md §6c). Explicit level fields
+// still win (see normalizeLevel below) — this is only a fallback for whatever the level entry omits.
+const songLevelDefaults = (songDef) => {
+    const notes = songDef.difficulties.easy.treble.notes.filter((n) => n !== 'r');
+    let min = notes[0];
+    let max = notes[0];
+    for (const n of notes) {
+        if (noteToMidi(n) < noteToMidi(min)) min = n;
+        if (noteToMidi(n) > noteToMidi(max)) max = n;
+    }
+    return {
+        bpm: songDef.defaultTempo,
+        timeSignature: songDef.timeSignature,
+        numMeasures: songDef.numMeasures,
+        notesPerMeasure: songDef.generator.trebleSettings.notesPerMeasure,
+        range: { min, max },
+        key: { tonic: `${songDef.defaultTonic}4`, mode: songDef.generator.scaleMode },
+    };
+};
 
 // Level editor (Han 2026-08-06, "koppel num-repeats gewoon aan de enemy: slime = 1, wizard = 2" +
 // "numMeasures per block, en number of blocks"): a ONE-TIME normalization pass at load time, so every
@@ -262,9 +310,13 @@ import InstrumentSettings from '../model/InstrumentSettings';
 //     numMeasures * (effective numRepeats) * numBlocks — `numBlocks` reads more directly than having to
 //     hand-multiply `totalMeasures` yourself. Explicit `totalMeasures` always wins if both are present.
 const normalizeLevel = (lvl) => {
-    const numRepeats = lvl.numRepeats ?? (lvl.enemyType === 'Wizard' ? 2 : 1);
-    const totalMeasures = lvl.totalMeasures ?? (lvl.numBlocks != null ? lvl.numMeasures * numRepeats * lvl.numBlocks : lvl.numMeasures);
-    return { ...lvl, numRepeats, totalMeasures };
+    // #871: song-derived defaults are applied FIRST, then the level's own explicit fields are spread
+    // on top — a level entry can still override any individual derived field (rare, but keeps the
+    // "explicit fields always win" rule from the rest of this schema, e.g. `key`/`bpm` below).
+    const merged = lvl.songId ? { ...songLevelDefaults(SONG_BY_ID[lvl.songId]), ...lvl } : lvl;
+    const numRepeats = merged.numRepeats ?? (merged.enemyType === 'Wizard' ? 2 : 1);
+    const totalMeasures = merged.totalMeasures ?? (merged.numBlocks != null ? merged.numMeasures * numRepeats * merged.numBlocks : merged.numMeasures);
+    return { ...merged, numRepeats, totalMeasures };
 };
 
 const byId = Object.fromEntries(levelsData.map((lvl) => [lvl.id, normalizeLevel(lvl)]));

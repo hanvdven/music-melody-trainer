@@ -1,20 +1,24 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, forwardRef, useImperativeHandle } from 'react';
 import CharacterDoll, { CROP as DOLL_CROP } from '../character/CharacterDoll';
 import { ANIMATIONS, basesFor } from '../../model/characterAssets';
 import { loadCharacter } from '../../model/characterProfile';
 import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_WALK, SLIME_DEATH, SLIME_COLORS } from '../../model/enemyAssets';
-import { SCANNED_CREATURES, findMoveAnim, findIdleAnim, isFlyingAnim, findCreatureVariantByName, findAnim } from '../../model/bestiaryAssets';
+import { SCANNED_CREATURES, findMoveAnim, findIdleAnim, isFlyingAnim, findCreatureVariantByName, findAnim, findCreatureByName } from '../../model/bestiaryAssets';
 // #679 (Han 2026-08-03, Level 9: "zet rechts de wizard tegenover de avatar... ipv slimes, gebruik cast 2.
 // De wizard schiet dan projectile blue... deze bewegen wél lineair naar voren... voor de projectile death,
 // gebruik de eerste 5 frames van static projectiles 5 met een fade out"): the Wizard/projectile enemy pair.
 import {
+    SLIME_COLS, SLIME_ROWS,
     WIZARD_URL, WIZARD_GREEN_URL, WIZARD_FRAME, WIZARD_COLS, WIZARD_ROWS, WIZARD_CROP, WIZARD_IDLE_CELLS,
     PROJECTILE_URL, PROJECTILE_FRAME, PROJECTILE_CROP, PROJECTILE_COLS, PROJECTILE_ROWS, PROJECTILE_LOOP_FRAMES,
     PROJECTILE_DEATH_URL, PROJECTILE_DEATH_FRAME, PROJECTILE_DEATH_CROP, PROJECTILE_DEATH_COLS,
     PROJECTILE_DEATH_ROWS, PROJECTILE_DEATH, PROJECTILE_DEATH_OPACITY,
     STATIC_PROJECTILE2_URL, STATIC_PROJECTILE2_FRAME, STATIC_PROJECTILE2_CROP, STATIC_PROJECTILE2_COLS,
     STATIC_PROJECTILE2_ROWS, STATIC_PROJECTILE2_LOOP_FRAMES,
+    HIT_BURST_URL, HIT_BURST_FRAME, HIT_BURST_CROP, HIT_BURST_COLS, HIT_BURST_ROWS,
+    HIT_BURST_TOTAL_FRAMES, HIT_BURST_OPACITY,
 } from '../../model/enemyAssets';
+import playOneShotSfx, { HIT_ON_WOOD_FILES } from '../../audio/playOneShotSfx';
 import { noteToMidi } from '../../theory/noteUtils';
 import MelodyNotesLayer from './MelodyNotesLayer';
 import BarlinesLayer from './BarlinesLayer';
@@ -24,6 +28,7 @@ import { gradeHit, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS } from
 import logger from '../../utils/logger';
 import { oscillate, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED } from '../../utils/oscillate';
 import { blockTypeAt } from '../../hooks/useLevelMixedStream';
+import { LEVEL_LEAD_IN_BARS } from '../../constants/timing';
 
 // #647 RPG layer on the sheet music — a SEPARATE layer that is AWARE of note positions (Han). Two parts:
 //  1. a SLIME under each treble note, aligned to the note's X, coloured by duration (green = quarter,
@@ -53,7 +58,6 @@ const frameMsForBpm = (bpm) => (bpm > 0 ? 12000 / bpm : IDLE_MS);
 // colour by note length (Han 2026-08-01: RED = short, BLUE = long; green = the middle). §6c formula.
 const slimeColorKey = (d) => (d >= 24 ? 'blue' : d >= 12 ? 'green' : 'red');
 
-const SLIME_COLS = 8, SLIME_ROWS = 3;
 const SLIME_VIEW_H = 33;   // on-sheet slime height (Han: +50%); tunable
 const SLIME_VIEW_W = SLIME_VIEW_H * (SLIME_CROP.w / SLIME_CROP.h);
 const HERO_H = 140;        // on-sheet hero height (Han: 2×); tunable
@@ -75,6 +79,15 @@ const PROJECTILE_VIEW_H = PROJECTILE_CROP.h * PROJECTILE_SCALE;   // used to ver
 // #685 (Han: "animatie 4x zo snel") — the flight loop's own frame-advance rate, independent of frameMs
 // (which stays shared with the hero/slime/wizard idle cadence — only the projectile's loop speeds up).
 const PROJECTILE_ANIM_SPEED = 4;
+// #825 (Han 2026-08-10, "hit" animation on a successful strike) — sized relative to the slime it plays
+// over (same "derive from an existing tuned constant" convention as PROJECTILE_SCALE above, §6c: no new
+// hardcoded pixel size). 7 consecutive (randomly-chosen start) frames from HIT_BURST_TOTAL_FRAMES, at
+// DOUBLE the shared bpm-coupled frame rate (Han's exact spec).
+const HIT_BURST_SCALE = (SLIME_VIEW_H * 1.4) / HIT_BURST_CROP.h;
+const HIT_BURST_VIEW_W = HIT_BURST_CROP.w * HIT_BURST_SCALE;
+const HIT_BURST_VIEW_H = HIT_BURST_CROP.h * HIT_BURST_SCALE;
+const HIT_FRAMES = 7;
+const HIT_SFX_VOLUME = 0.6;
 // #685 (Han: "oscilleren rond hun centrum ... bereik van 15 units in alle richtingen") — small continuous
 // random-looking wobble (2 independent sine waves per axis, per-projectile phase/frequency so they don't
 // all wobble in lockstep) layered on top of the projectile's real flight position.
@@ -108,22 +121,48 @@ const notesMatch = (played, target) => {
 // every `frameMs` ≈ 150ms, not every 8ms tick). Memoizing these small, pure, presentational components lets
 // React skip re-invoking/diffing the ones whose props didn't change this frame — no visual/behavioural
 // change, purely a reconciliation-cost reduction on the level's busiest render path.
-const Slime = React.memo(function Slime({ x, y, colorKey, row, frame, opacity = 1 }) {
+// #863 follow-up (Han 2026-08-10): `tick` is no longer React state at all (see its declaration below) — the
+// parent re-renders at the much lower `frameTick` (sprite-frame) cadence now, and LIVE entities bypass
+// React entirely via the forwardRef imperative handles added below. This memo is still worth keeping: it
+// still skips re-invoking entities whose declarative props (colorKey, dying, etc.) didn't change on a
+// frameTick-cadence re-render, e.g. when only ONE slime's dying/wiggle state changed among many.
+// #863 (Han 2026-08-10, perf fix): ALSO wrapped in forwardRef + useImperativeHandle so a LIVE (on-screen,
+// not dying) slime's continuous position/frame can be pushed via direct DOM mutation from the rAF loop
+// (see the main loop below) instead of a full React re-render every ~8ms — the same "bypass React for
+// hot-path animation" principle CLAUDE.md §6 already mandates for opacity. The declarative x/y/row/frame
+// props are UNCHANGED and still drive the initial mount paint (and every non-live render, e.g. the death
+// animation, which stays purely declarative) — this is a pure ADDITION of an imperative escape hatch.
+const Slime = React.memo(forwardRef(function Slime({ x, y, colorKey, row, frame, opacity = 1 }, ref) {
+    const svgRef = useRef(null);
+    const imgRef = useRef(null);
+    useImperativeHandle(ref, () => ({
+        setPosition(nx, ny) {
+            if (svgRef.current) { svgRef.current.setAttribute('x', nx); svgRef.current.setAttribute('y', ny); }
+        },
+        // reuses the EXACT SAME ox/oy formula as the render body below (§6c) — just applied imperatively.
+        setFrame(nrow, nframe) {
+            if (imgRef.current) {
+                imgRef.current.setAttribute('x', -nframe * SLIME_FRAME.w);
+                imgRef.current.setAttribute('y', -nrow * SLIME_FRAME.h);
+            }
+        },
+        setOpacity(op) { if (svgRef.current) svgRef.current.setAttribute('opacity', op); },
+    }), []);
     const url = SLIME_COLORS[colorKey];
     if (!url) return null;
     const ox = -frame * SLIME_FRAME.w;
     const oy = -row * SLIME_FRAME.h;
     const flip = `translate(${2 * SLIME_CROP.x + SLIME_CROP.w}, 0) scale(-1, 1)`;   // face left
     return (
-        <svg x={x} y={y} width={SLIME_VIEW_W} height={SLIME_VIEW_H} opacity={opacity}
+        <svg ref={svgRef} x={x} y={y} width={SLIME_VIEW_W} height={SLIME_VIEW_H} opacity={opacity}
             viewBox={`${SLIME_CROP.x} ${SLIME_CROP.y} ${SLIME_CROP.w} ${SLIME_CROP.h}`}>
             <g transform={flip}>
-                <image href={url} x={ox} y={oy} width={SLIME_COLS * SLIME_FRAME.w} height={SLIME_ROWS * SLIME_FRAME.h}
+                <image ref={imgRef} href={url} x={ox} y={oy} width={SLIME_COLS * SLIME_FRAME.w} height={SLIME_ROWS * SLIME_FRAME.h}
                     style={{ imageRendering: 'pixelated' }} />
             </g>
         </svg>
     );
-});
+}));
 
 // #693 round 8 (Han: "zet onder elke rust een squirrel of porcupine of pidgeon of red panda of armadillo of
 // blue jay of dragon fly (random) (net als slimes onder rusten)"): one CRITTER sits under each REST slot
@@ -150,18 +189,31 @@ const CRITTER_SCALE = 2.2;
 // (this SVG's own coordinate space, unrelated to the DOM world's ground-line convention).
 const CRITTER_HOVER_PX = 14;
 
-const Critter = React.memo(function Critter({ x, y, variant, frame, opacity = 1 }) {
-    if (!variant) return null;
+// #863 perf fix: the row/col/oscillation math a Critter's render body needs is now factored into a pure
+// helper so the imperative `update()` handle below (called from the rAF loop) can reuse the EXACT SAME
+// formula (§6c) instead of a second hand-copied version — a real risk here since Critter's "position" is
+// not just x/y, it's x/y ALREADY INCLUDING the flying-anim oscillation offset.
+function critterDraw(variant, x, y, frame, preferIdle = false) {
     // #693 round 11 (Han: "critters gebruiken nog steeds niet de walk/run/fly animatie als ze die hebben"):
     // a critter perpetually scrolls across the staff (it's always "moving" relative to the player, unlike
     // the RPG level's stationary-until-clicked Wisp), so it always prefers its move-type animation — same
     // `findMoveAnim`/`findIdleAnim` helpers `WorldCreature` uses (§6c: one shared lookup, not a hardcoded
     // 'idle'-only read here that silently diverges from the Bestiary's own classification).
-    const anim = findMoveAnim(variant) || findIdleAnim(variant);
-    const cell = anim.cells[frame % anim.cells.length];
-    const ox = -cell.col * variant.frame.w, oy = -cell.row * variant.frame.h;
-    const viewW = variant.crop.w * CRITTER_SCALE, viewH = variant.crop.h * CRITTER_SCALE;
-    const flip = `translate(${2 * variant.crop.x + variant.crop.w}, 0) scale(-1, 1)`;   // face left, matches Slime
+    // #871: a stationary decorative NPC (unlike a scrolling critter) passes `preferIdle` so it plays its
+    // idle animation instead — same two helpers, just tried in the opposite order.
+    const anim = preferIdle ? (findIdleAnim(variant) || findMoveAnim(variant)) : (findMoveAnim(variant) || findIdleAnim(variant));
+    // Bug fix (Han 2026-08-10, #863 production crash — "het level werkt uberhaupt niet in build",
+    // TypeError: Cannot read properties of undefined (reading 'col')): plain `%` preserves the dividend's
+    // sign in JS, so a negative `frame` (possible here because the rAF loop — unlike the old declarative
+    // render, which only ever mounted a critter once its own `msSinceSpawn >= 0` — recomputes this EVERY
+    // frame from a live `sideScrollX` call and has no equivalent "not yet due" guard) indexed
+    // `anim.cells` with a negative number, which is `undefined` in JS, not a wrapped-around positive
+    // index. Same non-negative-modulo fix already used for `wizardFrame`/`idleFrame` elsewhere in this
+    // file (the "§679 bugfix" comments) — applied here too, plus an `anim.cells.length` guard in case an
+    // animation genuinely has zero cells.
+    const len = anim.cells.length;
+    const cell = len > 0 ? anim.cells[((frame % len) + len) % len] : null;
+    const ox = cell ? -cell.col * variant.frame.w : 0, oy = cell ? -cell.row * variant.frame.h : 0;
     let drawX = x, drawY = y;
     if (isFlyingAnim(anim, variant)) {
         const seed = variant.crop.x * 31 + variant.crop.y;
@@ -169,43 +221,111 @@ const Critter = React.memo(function Critter({ x, y, variant, frame, opacity = 1 
         drawX += oscillate(seed, tMs, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED);
         drawY += oscillate(seed + 1, tMs, FLYING_HOVER_OSC_RANGE, FLYING_HOVER_OSC_SPEED) - CRITTER_HOVER_PX;
     }
+    return { ox, oy, drawX, drawY };
+}
+
+// #871: `scale`/`preferIdle` are OPTIONAL — every existing call site (scrolling critters) omits them and
+// gets the exact prior behaviour (CRITTER_SCALE, move-preferred animation). The decorative-NPC render
+// branch below is the only caller that passes them, reusing this component rather than a new renderer.
+const Critter = React.memo(forwardRef(function Critter({ x, y, variant, frame, opacity = 1, scale = CRITTER_SCALE, preferIdle = false }, ref) {
+    const svgRef = useRef(null);
+    const imgRef = useRef(null);
+    useImperativeHandle(ref, () => ({
+        // #863 perf fix — position AND frame update together (a flying critter's draw position depends on
+        // its frame via the oscillation wobble, so they can't be split into separate setPosition/setFrame
+        // calls without desyncing them for one rAF tick).
+        update(nx, ny, nframe) {
+            if (!variant) return;
+            const { ox, oy, drawX, drawY } = critterDraw(variant, nx, ny, nframe, preferIdle);
+            if (svgRef.current) { svgRef.current.setAttribute('x', drawX); svgRef.current.setAttribute('y', drawY); }
+            if (imgRef.current) { imgRef.current.setAttribute('x', ox); imgRef.current.setAttribute('y', oy); }
+        },
+    }), [variant, preferIdle]);
+    if (!variant) return null;
+    const { ox, oy, drawX, drawY } = critterDraw(variant, x, y, frame, preferIdle);
+    const viewW = variant.crop.w * scale, viewH = variant.crop.h * scale;
+    const flip = `translate(${2 * variant.crop.x + variant.crop.w}, 0) scale(-1, 1)`;   // face left, matches Slime
     return (
-        <svg x={drawX} y={drawY} width={viewW} height={viewH} opacity={opacity}
+        <svg ref={svgRef} x={drawX} y={drawY} width={viewW} height={viewH} opacity={opacity}
             viewBox={`${variant.crop.x} ${variant.crop.y} ${variant.crop.w} ${variant.crop.h}`}>
             <g transform={flip}>
-                <image href={variant.url} x={ox} y={oy} width={variant.width} height={variant.height}
+                <image ref={imgRef} href={variant.url} x={ox} y={oy} width={variant.width} height={variant.height}
                     style={{ imageRendering: 'pixelated' }} />
             </g>
         </svg>
     );
-});
+}));
 
 // #679 Level 9 — the wizard "boss", static on the RIGHT, mirrored to face LEFT toward the hero (same flip
 // convention as Slime). `cells` is either WIZARD_IDLE_CELLS (default) or WIZARD_CAST2_CELLS (one-shot,
 // triggered per projectile spawn — see wizardCastFrame below); both are {row,col} lists because Cast2 spans
 // a row boundary on this sheet (§6d: cell format copied verbatim from the bestiary's wizardPortraitAnimations()).
-const Wizard = React.memo(function Wizard({ x, y, cells, frame, url = WIZARD_URL }) {
-    const cell = cells[frame % cells.length];
-    const ox = -cell.col * WIZARD_FRAME.w;
-    const oy = -cell.row * WIZARD_FRAME.h;
+// #863 round 2 perf fix: `cells[frame % cells.length]` → ox/oy is the ONE bit of frame math both the
+// render body and the imperative `setFrame` handle need (§6c — factored the same way `critterDraw` was).
+function wizardCellOffset(cells, frame) {
+    // Bug fix (Han 2026-08-10, #863 production crash, same class as `critterDraw`'s fix above): plain `%`
+    // preserves sign, so a negative `frame` would index `cells` with a negative number (`undefined` in
+    // JS) instead of wrapping. Non-negative modulo, same convention as this file's other "§679 bugfix"
+    // comments.
+    const len = cells.length;
+    const cell = len > 0 ? cells[((frame % len) + len) % len] : null;
+    return { ox: cell ? -cell.col * WIZARD_FRAME.w : 0, oy: cell ? -cell.row * WIZARD_FRAME.h : 0 };
+}
+// #863 round 2: forwardRef so the wizard's idle/cast-sync frame (previously recomputed in the render body
+// every `frameTick`) can be pushed every rAF frame instead — the cast-sync math is timing-sensitive
+// (Han: "de flits moet exact op de noot landen"), so throttling it to frameTick cadence left it up to one
+// sprite-frame (~100-300ms) coarser than the audio it's syncing to. `setCells` is needed (not just
+// `setFrame`) because a cast sequence swaps to a DIFFERENT cell array (idle vs single/double/triple) — the
+// imperative handle must be able to change which array `ox`/`oy` are computed from, not just the index.
+const Wizard = React.memo(forwardRef(function Wizard({ x, y, cells, frame, url = WIZARD_URL }, ref) {
+    const imgRef = useRef(null);
+    useImperativeHandle(ref, () => ({
+        setCells(ncells, nframe) {
+            if (!imgRef.current) return;
+            const { ox, oy } = wizardCellOffset(ncells, nframe);
+            imgRef.current.setAttribute('x', ox);
+            imgRef.current.setAttribute('y', oy);
+        },
+    }), []);
+    const { ox, oy } = wizardCellOffset(cells, frame);
     const flip = `translate(${2 * WIZARD_CROP.x + WIZARD_CROP.w}, 0) scale(-1, 1)`;
     return (
         <svg x={x} y={y} width={WIZARD_VIEW_W} height={WIZARD_H}
             viewBox={`${WIZARD_CROP.x} ${WIZARD_CROP.y} ${WIZARD_CROP.w} ${WIZARD_CROP.h}`}>
             <g transform={flip}>
-                <image href={url} x={ox} y={oy} width={WIZARD_COLS * WIZARD_FRAME.w} height={WIZARD_ROWS * WIZARD_FRAME.h}
+                <image ref={imgRef} href={url} x={ox} y={oy} width={WIZARD_COLS * WIZARD_FRAME.w} height={WIZARD_ROWS * WIZARD_FRAME.h}
                     style={{ imageRendering: 'pixelated' }} />
             </g>
         </svg>
     );
-});
+}));
 
 // #679 Level 9 — one projectile. Cropped/mirrored exactly like Slime, but flight vs. death are TWO different
 // sheets/grids (not row-offsets on one sheet like the slime), so `dying` switches both. In flight it cycles
 // the full 36-frame loop continuously (Han: "een lange loop") — unlike a slime's hop-and-pause walk, this
 // motion is driven entirely by the LINEAR `noteX` at the call site, so the sprite frame here is independent
 // of position. On death: the static-projectiles-5 sheet's first 5 frames (row 0), fading -20%/frame (Han).
-const Projectile = React.memo(function Projectile({ x, y, frame, dying = false, opacity = 1 }) {
+// #863 perf fix: forwardRef handle — used ONLY for LIVE (non-dying) flight-loop position/frame updates
+// from the rAF loop (see point 7 in the ticket). Dying projectiles stay fully React-state/frameTick-driven
+// (short-lived, few at a time, not worth ref plumbing — same call as dying Slimes above), so the imperative
+// `setFrame` here only needs the non-dying row/col formula (identical to the render body's own `dying ===
+// false` branch below, §6c).
+const Projectile = React.memo(forwardRef(function Projectile({ x, y, frame, dying = false, opacity = 1 }, ref) {
+    const svgRef = useRef(null);
+    const imgRef = useRef(null);
+    useImperativeHandle(ref, () => ({
+        setPosition(nx, ny) {
+            if (svgRef.current) { svgRef.current.setAttribute('x', nx); svgRef.current.setAttribute('y', ny); }
+        },
+        setFrame(nframe) {
+            if (imgRef.current) {
+                const col = nframe % PROJECTILE_COLS, row = Math.floor(nframe / PROJECTILE_COLS);
+                imgRef.current.setAttribute('x', -col * PROJECTILE_FRAME.w);
+                imgRef.current.setAttribute('y', -row * PROJECTILE_FRAME.h);
+            }
+        },
+        setOpacity(op) { if (svgRef.current) svgRef.current.setAttribute('opacity', op); },
+    }), []);
     const url = dying ? PROJECTILE_DEATH_URL : PROJECTILE_URL;
     const frameSize = dying ? PROJECTILE_DEATH_FRAME : PROJECTILE_FRAME;
     const crop = dying ? PROJECTILE_DEATH_CROP : PROJECTILE_CROP;
@@ -224,13 +344,45 @@ const Projectile = React.memo(function Projectile({ x, y, frame, dying = false, 
     // — Han's final, authoritative call: the Bestiary's own (unflipped) presentation is correct, so the
     // level must MATCH it, not diverge from it. No mirror here any more.
     return (
-        <svg x={x} y={y} width={viewW} height={viewH} opacity={opacity}
+        <svg ref={svgRef} x={x} y={y} width={viewW} height={viewH} opacity={opacity}
             viewBox={`${crop.x} ${crop.y} ${crop.w} ${crop.h}`}>
-            <image href={url} x={ox} y={oy} width={cols * frameSize.w} height={rows * frameSize.h}
+            <image ref={imgRef} href={url} x={ox} y={oy} width={cols * frameSize.w} height={rows * frameSize.h}
                 style={{ imageRendering: 'pixelated' }} />
         </svg>
     );
-});
+}));
+
+// #825 (Han 2026-08-10) — a one-shot "hit" burst played at the strike line on a successful kill.
+// `frame` is the ABSOLUTE index (0..HIT_BURST_TOTAL_FRAMES-1) into the flat 5×6 sheet — the caller
+// picks a random run of 7 consecutive (wrapping) indices once per hit, not a fixed per-instance cycle
+// (Han: no two hits should look identical). Crop/scale/svg-nesting mirrors Projectile exactly (§6d).
+// #863 round 2 perf fix: forwardRef so a live (not-yet-finished) hit burst's frame/opacity update every
+// rAF frame instead of at throttled `frameTick` cadence — several can be mid-animation simultaneously
+// (dyingList's own overlap rationale applies here too), each redrawing an image crop offset.
+const HitBurst = React.memo(forwardRef(function HitBurst({ x, y, frame, opacity = 1 }, ref) {
+    const svgRef = useRef(null);
+    const imgRef = useRef(null);
+    useImperativeHandle(ref, () => ({
+        setFrame(nframe) {
+            if (imgRef.current) {
+                const row = Math.floor(nframe / HIT_BURST_COLS), col = nframe % HIT_BURST_COLS;
+                imgRef.current.setAttribute('x', -col * HIT_BURST_FRAME.w);
+                imgRef.current.setAttribute('y', -row * HIT_BURST_FRAME.h);
+            }
+        },
+        setOpacity(op) { if (svgRef.current) svgRef.current.setAttribute('opacity', op); },
+    }), []);
+    const row = Math.floor(frame / HIT_BURST_COLS), col = frame % HIT_BURST_COLS;
+    const ox = -col * HIT_BURST_FRAME.w, oy = -row * HIT_BURST_FRAME.h;
+    return (
+        <svg ref={svgRef} x={x - HIT_BURST_VIEW_W / 2} y={y - HIT_BURST_VIEW_H / 2} width={HIT_BURST_VIEW_W} height={HIT_BURST_VIEW_H}
+            opacity={opacity} viewBox={`${HIT_BURST_CROP.x} ${HIT_BURST_CROP.y} ${HIT_BURST_CROP.w} ${HIT_BURST_CROP.h}`}
+            style={{ pointerEvents: 'none' }}>
+            <image ref={imgRef} href={HIT_BURST_URL} x={ox} y={oy} width={HIT_BURST_COLS * HIT_BURST_FRAME.w} height={HIT_BURST_ROWS * HIT_BURST_FRAME.h}
+                style={{ imageRendering: 'pixelated' }} />
+        </svg>
+    );
+}));
 
 // Level 11 (Han 2026-08-06, "ik wil 2 maten voor elke switch een staticprojeciles2 (32x32) laten
 // toveren door de tovenaar. Die vliegt mee op de maatstreep tussen de majeur en mineur-blokken"): a
@@ -242,20 +394,42 @@ const Projectile = React.memo(function Projectile({ x, y, frame, dying = false, 
 // schaal"): `x`/`y` are now the sprite's CENTER (caller centers it on the barline), scaled by the SAME
 // `PROJECTILE_SCALE` every other projectile-family sprite here uses (§680 — one shared per-pixel zoom,
 // not a second hardcoded/unscaled size).
-const StaticProjectile2 = React.memo(function StaticProjectile2({ x, y, frame }) {
+// #863 perf fix: forwardRef handle for the switch-flourish loop (bucket A — always on-screen while a
+// StaticProjectile2 is spawned, so its flight position/loop-frame update every rAF frame).
+// module-level (not per-render) since both inputs (crop, PROJECTILE_SCALE) are themselves module constants
+// — computing this once avoids a stale-vs-fresh dependency question for the `useImperativeHandle` below.
+const STATIC_PROJECTILE2_VIEW_W = STATIC_PROJECTILE2_CROP.w * PROJECTILE_SCALE;
+const STATIC_PROJECTILE2_VIEW_H = STATIC_PROJECTILE2_CROP.h * PROJECTILE_SCALE;
+const StaticProjectile2 = React.memo(forwardRef(function StaticProjectile2({ x, y, frame }, ref) {
+    const crop = STATIC_PROJECTILE2_CROP;
+    const viewW = STATIC_PROJECTILE2_VIEW_W, viewH = STATIC_PROJECTILE2_VIEW_H;
+    const svgRef = useRef(null);
+    const imgRef = useRef(null);
+    useImperativeHandle(ref, () => ({
+        // `cx`/`cy` are the sprite's CENTER (same convention as the x/y props below). Reads the MODULE-level
+        // constants directly (not the local `viewW`/`viewH` aliases above) so this is genuinely dep-free —
+        // they're derived from module constants, never from anything render-scoped.
+        setCenter(cx, cy) {
+            if (svgRef.current) {
+                svgRef.current.setAttribute('x', cx - STATIC_PROJECTILE2_VIEW_W / 2);
+                svgRef.current.setAttribute('y', cy - STATIC_PROJECTILE2_VIEW_H / 2);
+            }
+        },
+        setFrame(nframe) {
+            if (imgRef.current) imgRef.current.setAttribute('x', -(nframe % STATIC_PROJECTILE2_COLS) * STATIC_PROJECTILE2_FRAME.w);
+        },
+    }), []);
     const col = frame % STATIC_PROJECTILE2_COLS;
     const ox = -col * STATIC_PROJECTILE2_FRAME.w, oy = 0;   // row 0 only, looped
-    const crop = STATIC_PROJECTILE2_CROP;
-    const viewW = crop.w * PROJECTILE_SCALE, viewH = crop.h * PROJECTILE_SCALE;
     return (
-        <svg x={x - viewW / 2} y={y - viewH / 2} width={viewW} height={viewH} viewBox={`${crop.x} ${crop.y} ${crop.w} ${crop.h}`}>
-            <image href={STATIC_PROJECTILE2_URL} x={ox} y={oy}
+        <svg ref={svgRef} x={x - viewW / 2} y={y - viewH / 2} width={viewW} height={viewH} viewBox={`${crop.x} ${crop.y} ${crop.w} ${crop.h}`}>
+            <image ref={imgRef} href={STATIC_PROJECTILE2_URL} x={ox} y={oy}
                 width={STATIC_PROJECTILE2_COLS * STATIC_PROJECTILE2_FRAME.w}
                 height={STATIC_PROJECTILE2_ROWS * STATIC_PROJECTILE2_FRAME.h}
                 style={{ imageRendering: 'pixelated' }} />
         </svg>
     );
-});
+}));
 
 // #686 (Han 2026-08-04, "spawn glow": "een gevulde witte cirkel met velle blauwe gloed... fade in en
 // groei van radius 0 tot 20... maximum opacity als projectiel er is... fade uit... 2 rpg frames"): a
@@ -266,18 +440,31 @@ const StaticProjectile2 = React.memo(function StaticProjectile2({ x, y, frame })
 // projectile appears (age=1 = peak opacity, "speel dan ook de toon" — the wizard's preview-melody audio
 // is scheduled independently in App.jsx off the same measure clock, so it already lands here).
 export const SPAWN_GLOW_FRAMES = 2;
-const SpawnGlow = React.memo(function SpawnGlow({ x, y, age }) {
+// #863 round 2 perf fix: the growT/fadeT/radius/opacity math, factored out so both the render body AND the
+// imperative `update()` handle below use the EXACT SAME formula (§6c — same pattern as `critterDraw`).
+function spawnGlowDraw(age) {
     const half = SPAWN_GLOW_FRAMES / 2;   // grow+fade-in during the first half, fade-out during the second
     const growT = Math.min(1, age / half);
     const fadeT = Math.max(0, Math.min(1, (age - half) / half));
-    const radius = 20 * growT;
-    const opacity = age < half ? growT : 1 - fadeT;
+    return { radius: 20 * growT, opacity: age < half ? growT : 1 - fadeT };
+}
+const SpawnGlow = React.memo(forwardRef(function SpawnGlow({ x, y, age }, ref) {
+    const circleRef = useRef(null);
+    useImperativeHandle(ref, () => ({
+        update(nage) {
+            if (!circleRef.current) return;
+            const { radius, opacity } = spawnGlowDraw(nage);
+            circleRef.current.setAttribute('r', radius);
+            circleRef.current.setAttribute('opacity', opacity);
+        },
+    }), []);
+    const { radius, opacity } = spawnGlowDraw(age);
     if (opacity <= 0) return null;
     return (
-        <circle cx={x} cy={y} r={radius} fill="#fff" opacity={opacity}
+        <circle ref={circleRef} cx={x} cy={y} r={radius} fill="#fff" opacity={opacity}
             style={{ filter: 'drop-shadow(0 0 4px #4ab4ff) drop-shadow(0 0 9px #2e8fe0)', pointerEvents: 'none' }} />
     );
-});
+}));
 
 // #660 Level 2 side-scroll geometry. The render interval is decoupled from the sprite frame rate: it ticks
 // FAST (INTERVAL_MS ≈ 120fps, Han) so movement is smooth, while each sprite's animation frame is derived from
@@ -287,20 +474,96 @@ const SpawnGlow = React.memo(function SpawnGlow({ x, y, age }) {
 // them thanks to the high fps), while the note above it glides linearly.
 const INTERVAL_MS = 8;
 const TICKS_PER_BEAT = 12;   // note ticks per quarter-note beat
+// #863 round 2 perf fix: the raw "elapsed ticks since a start tick, in sprite frames" formula, factored out
+// of the component-scoped `framesSince` helper so the main rAF loop can call it directly with an explicit
+// `fMs` (sourced fresh from `geomRef.current.frameMs`/`hitFrameMs` every frame) instead of going through
+// `framesSince`'s own closure over the render-scoped `frameMs` — that closure is only safe to call from
+// code that re-runs every render; the rAF loop's effect is mount-time-only (empty deps), so closing over a
+// per-render `frameMs` there would silently go stale if bpm ever changed mid-level (§6c: one formula, two
+// call sites, neither one duplicating it).
+const framesElapsed = (atTick, startTick, fMs) => Math.floor((atTick - startTick) * INTERVAL_MS / fMs);
+
+// Bug fix (Han 2026-08-10, "render geen rusten of zelfs maten meer nadat het nummer is afgelopen"):
+// §179 already clamped slimeData/critterData (the COMBAT entities) to the level's true end
+// (trebleFinalBarTick), but the underlying STAFF rendering (notes/rests/barlines) was never clamped —
+// it draws whatever `scrollNotation*`/`scrollBarlines` contain, which (per §179's own diagnosis) can
+// legitimately extend slightly past `numMeasures` (melodySlice.js's measure padding, resizeMelody's
+// whole-rest fill, etc.). These two pure helpers apply the SAME clamp to the staff content, reusing
+// the already-computed `trebleFinalBarTick` (§6c — one source of truth for "where does this song end").
+//
+// `clipMelodyBundle` truncates a `scrollNotation*` bundle's melody arrays (notes/offsets/durations/
+// displayNotes/volumes/ties — Melody.js's field set) at the first entry whose OWN tick offset is at or
+// past `maxTick`. Truncating (not filtering interior elements) preserves index alignment between the
+// parallel arrays and never orphans a tie-continuation slot from the note it continues.
+function clipMelodyBundle(bundle, maxTick) {
+    if (!bundle || !bundle.melody || !bundle.melody.offsets || !Number.isFinite(maxTick)) return bundle;
+    const { notes, offsets, durations, displayNotes, volumes, ties } = bundle.melody;
+    let cutIndex = offsets.length;
+    for (let i = 0; i < offsets.length; i++) {
+        if (offsets[i] != null && offsets[i] >= maxTick) { cutIndex = i; break; }
+    }
+    if (cutIndex === offsets.length) return bundle; // nothing past the cutoff — unchanged
+    return {
+        ...bundle,
+        melody: {
+            ...bundle.melody,
+            notes: notes.slice(0, cutIndex),
+            offsets: offsets.slice(0, cutIndex),
+            durations: durations.slice(0, cutIndex),
+            displayNotes: displayNotes ? displayNotes.slice(0, cutIndex) : displayNotes,
+            volumes: volumes ? volumes.slice(0, cutIndex) : volumes,
+            ties: ties ? ties.slice(0, cutIndex) : ties,
+        },
+    };
+}
+// `clipBarlinesBundle` truncates a `scrollBarlines` bundle's `offsets` array (a mix of real tick
+// numbers and the string 'm' marking each barline — BarlinesLayer counts 'm' entries ORDINALLY, not by
+// tick value, to position each barline) at the (leadInBars + numMeasures)-th 'm' marker — the lead-in
+// bars (-1, 0) plus one barline per real measure. Any 'm' beyond that is padding past the song's end.
+function clipBarlinesBundle(bundle, leadInBars) {
+    if (!bundle || !bundle.offsets) return bundle;
+    const maxM = leadInBars + (bundle.numMeasures || 0);
+    let mSeen = 0;
+    let cutIndex = bundle.offsets.length;
+    for (let i = 0; i < bundle.offsets.length; i++) {
+        if (bundle.offsets[i] === 'm') {
+            mSeen++;
+            if (mSeen > maxM) { cutIndex = i; break; }
+        }
+    }
+    if (cutIndex === bundle.offsets.length) return bundle;
+    return { ...bundle, offsets: bundle.offsets.slice(0, cutIndex) };
+}
 const WIGGLE_FRAMES = 7;     // how long the next slime shakes after a wrong/early note (sprite frames)
 // Level 11 — a fixed lookahead of Major/Minor switch-boundary indices to render StaticProjectile2 for;
 // ones beyond the level's actual length simply never spawn (sideScrollX's own "not yet due" gating).
 const SWITCH_LOOKAHEAD = [1, 2, 3, 4, 5, 6, 7, 8];
 const JUDGMENT_MS = 900;     // floating judgment label ("perfect" / "wrong note" …) lifetime
-// judgment label colour per grading category (Han 2026-08-02): green→yellow→orange with distance from
-// perfect; wrong note red; second-attempt its own (teal) so a corrected note reads as a save, not a fail.
+// judgment label colour per grading category — green→yellow→orange with distance from perfect; wrong
+// note purple; corrected its own (blue) so a corrected note reads as a save, not a fail. #825 (Han
+// 2026-08-10): sourced from the shared --judgment-* CSS custom properties (src/styles/App.css) — the
+// SAME tokens LevelStatsCharts.jsx's two charts use — instead of an independently hardcoded hex map,
+// so a colour means the same thing here and on the level-complete splash (§6d).
 const JUDGMENT_COLOR = {
-    perfect: '#2eb84d', tooFast: '#d4a800', tooSlow: '#d4a800', muchTooFast: '#e07818', muchTooSlow: '#e07818',
-    secondAttemptCorrected: '#2e9bb8', wrongNote: '#e63232', wrongUncorrected: '#e63232',
-    missed: '#888888', extraNote: '#9b59b6',
+    perfect: 'var(--judgment-perfect)', tooFast: 'var(--judgment-near)', tooSlow: 'var(--judgment-near)',
+    muchTooFast: 'var(--judgment-far)', muchTooSlow: 'var(--judgment-far)',
+    secondAttemptCorrected: 'var(--judgment-corrected)', wrongNote: 'var(--judgment-wrong)',
+    wrongUncorrected: 'var(--judgment-wrong)',
+    missed: 'var(--judgment-missed)', extraNote: 'var(--judgment-extra)',
     // #693 round 8: a struck critter — its own colour so it reads distinctly from a generic extra note.
+    // Not one of the 7 shared judgment categories (§825), stays a local literal.
     critterKilled: '#c0392b',
 };
+// #863 round 2 perf fix: factored so both the render body's initial paint AND the rAF loop's per-frame
+// update use the EXACT SAME y formula (§6c). `g` is `geomRef.current` (bassStart/staffHeight/trebleStart —
+// added there specifically for this).
+function judgmentY(g, lane, prog) {
+    // #862 (Han 2026-08-10, "ik krijg geen statusberichten... render die ONDER de basbalk, zodat ik die
+    // kan onderscheiden van de treblenoten"): a bass judgment anchors BELOW the bass staff (floating
+    // further down as it fades) instead of above the treble staff, so it's visually unmistakable from
+    // treble feedback at a glance.
+    return lane === 'bass' ? g.bassStart + g.staffHeight + 40 + prog * 24 : g.trebleStart - 18 - prog * 24;
+}
 // complete moving frames in [0, n): moving frames (0-indexed) are 2..6 (= Han's walk frames 3–7).
 const movingFramesBefore = (n) => { const c = Math.floor(n / 8); const rem = n - c * 8; return c * 5 + Math.max(0, Math.min(rem - 2, 5)); };
 // continuous moving progress at fractional frame `ff`: whole moving frames + the partial of the current frame
@@ -324,6 +587,18 @@ export default function SheetRpgLayer({
     trebleMelody, startX, pixelsPerTick, allOffsets, noteWidth, bpm,
     trebleStart, staffHeight, viewBottom, onOpenCharacter, onSlimesCleared, onSongEnd, onHit, onMiss, onCritterKilled,
     onEnemyTotal, onCritterTotal, combatNote,
+    // Bug fix (Han 2026-08-10, "de melodie komt helemaal nooit... het is NIET robuust geïmplementeerd"):
+    // a watchdog signal for App.jsx — fired ONCE, the instant this component's own tick clock actually
+    // unfreezes (see the rAF loop below). App.jsx uses this to detect + self-heal the case where the
+    // visual clock never unfreezes at all despite the audio anchor being set (root cause unconfirmed;
+    // this is a structural safety net, not a targeted fix for a specific diagnosed cause).
+    onFirstTickUnfrozen = null,
+    // #862 (Han 2026-08-10, "doe maar meteen - ik wil 15 volledig kunnen testen"): twoHanded levels —
+    // the bass melody to spawn bass-slimes from (App.jsx's twoHandedBassMelody, already clipped to
+    // start at measure 1) and the hit/miss EVENT useTwoHandedBass emits. Grading itself stays owned by
+    // useTwoHandedBass (its per-measure hit/miss determination, already correct/tested) — this component
+    // only resolves the matching visual slime off the event, it never re-derives hit/miss itself (§6c).
+    bassMelody = null, bassCombatEvent = null,
     sideScroll = false, viewRight = 0, beatsOnScreen = 8, debugMode = false,
     // #661 side-scroll: the REAL scrolling staff is drawn via the canonical renderers (§6d) instead of
     // hand-rolled glyphs. `scrollNotation` = the treble MelodyNotesLayer prop bundle (heads/rests/colours/
@@ -358,6 +633,11 @@ export default function SheetRpgLayer({
     // Level 11 (Han 2026-08-06): a purely decorative, non-combat green wizard shown alongside Slime
     // enemies — see the render block near the real Wizard's own static render for the full rationale.
     decorativeWizard = false,
+    // #871 (Han 2026-08-11, "abc music en level namen"): a bestiary creature NAME (levels.json's `npc`
+    // field) shown standing decoratively at the wizard's anchor position — see the render block below,
+    // right after decorativeWizard's own. Distinct field: `decorativeWizard` stays coupled to Level 11's
+    // own key-modulation mechanic, `npc` is the general-purpose mechanism for any level.
+    npc = null,
 }) {
     const isWizard = enemyType === 'Wizard';
     // Level 10 (Han 2026-08-06, "de noten van de wizardmaten moeten geen slime hebben, maar een
@@ -381,11 +661,45 @@ export default function SheetRpgLayer({
 
     // ordered (left→right) slime data for the treble notes (rests/spacers skipped) — the "enemies".
     const slimeY = trebleStart + staffHeight + 12;   // Han: iets lager
+    // #862 (Han 2026-08-10, "slimes van de basnoten moeten lager staan, transleer ze de staf-afstand"):
+    // bass-slimes sit in their OWN lane, translated down by exactly the vertical distance between the
+    // two staves — not a separately-tuned offset.
+    const bassSlimeY = slimeY + (bassStart - trebleStart);
     // #685 (Han 2026-08-04, "zorg dat de projectielen midden op de notenbalk staat (dus ter hoogte van de
     // b4)"): the projectile no longer rides in the slime lane below the staff — it's vertically CENTERED on
     // B4 (the treble staff's middle line), independent of `slimeY`. Only meaningful when isWizard; harmless
     // to compute unconditionally (getNoteAbsoluteY is cheap, no side effects).
     const projectileCenterY = getNoteAbsoluteY('B4', trebleStart, 'treble', 'treble') - PROJECTILE_VIEW_H / 2;
+    // #824 bug fix (Han 2026-08-10, "er verschijnen soms nog rusten (en dus ook animals) na de
+    // laatste maat"): the JIT-generated/padded trebleMelody can extend slightly past the level's
+    // declared length (ceil-rounded measure padding, block-based generation overshoot) even though
+    // the level's TRUE end is `scrollBarlines.numMeasures` — the same value `finalBarTick` below
+    // (line ~865) uses to draw the final barline. Slimes/critters must never spawn past that same
+    // boundary, so both derive from the identical value rather than trusting trebleMelody's own
+    // length (§6c: one source of truth, not two independently-derived "end of song" values).
+    const trebleFinalBarTick = sideScroll && scrollBarlines
+        ? (scrollBarlines.numMeasures || 0) * (scrollBarlines.measureLengthSlots || 48)
+        : Infinity;
+    // Bug fix (Han 2026-08-10, "render geen rusten of zelfs maten meer nadat het nummer is
+    // afgelopen"): same clamp as slimeData/critterData above, now applied to the actual STAFF
+    // rendering (notes/rests/barlines) — see clipMelodyBundle/clipBarlinesBundle's own comments.
+    // Memoised so the clamp only recomputes when its own inputs change, not every fast tick.
+    const scrollNotationClipped = useMemo(
+        () => (sideScroll ? clipMelodyBundle(scrollNotation, trebleFinalBarTick) : scrollNotation),
+        [sideScroll, scrollNotation, trebleFinalBarTick]
+    );
+    const scrollNotationBassClipped = useMemo(
+        () => (sideScroll ? clipMelodyBundle(scrollNotationBass, trebleFinalBarTick) : scrollNotationBass),
+        [sideScroll, scrollNotationBass, trebleFinalBarTick]
+    );
+    const scrollNotationPercussionClipped = useMemo(
+        () => (sideScroll ? clipMelodyBundle(scrollNotationPercussion, trebleFinalBarTick) : scrollNotationPercussion),
+        [sideScroll, scrollNotationPercussion, trebleFinalBarTick]
+    );
+    const scrollBarlinesClipped = useMemo(
+        () => (sideScroll ? clipBarlinesBundle(scrollBarlines, LEVEL_LEAD_IN_BARS) : scrollBarlines),
+        [sideScroll, scrollBarlines]
+    );
     const slimeData = useMemo(() => {
         const out = [];
         if (trebleMelody && Array.isArray(trebleMelody.notes)) {
@@ -400,6 +714,7 @@ export default function SheetRpgLayer({
             for (let i = 0; i < notes.length; i++) {
                 const note = notes[i];
                 if (note === 'r' || note === 'c' || note == null || skip.has(i)) continue;
+                if (offsets[i] == null || offsets[i] >= trebleFinalBarTick) continue;
                 // colour by the TOTAL length across the tie chain (Han: not the first segment) — sum the
                 // start's duration + every continuation's.
                 let total = durations[i], k = i;
@@ -410,8 +725,34 @@ export default function SheetRpgLayer({
         }
         return out;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [trebleMelody, startX, pixelsPerTick, noteWidth, trebleStart, staffHeight]);
+    }, [trebleMelody, startX, pixelsPerTick, noteWidth, trebleStart, staffHeight, trebleFinalBarTick]);
     const total = slimeData.length;
+
+    // #862 (Han 2026-08-10, twoHanded levels, "ik wil 15 volledig kunnen testen"): mirrors slimeData
+    // above but far simpler — `bassMelody` (App.jsx's twoHandedBassMelody) is already exactly one real
+    // note per content measure (LEVEL_BASS_SIMPLE's "roots on one, 1 noot per maat"), so no tie-chain
+    // logic is needed. `measureIndex` (0-based content measure, matching useTwoHandedBass's own
+    // `measureRef` numbering) is how the combat-event effect below finds WHICH bass-slime a hit/miss
+    // event belongs to — grading itself stays owned by useTwoHandedBass (§6c), this is purely the
+    // matching visual entry.
+    const bassSlimeData = useMemo(() => {
+        const out = [];
+        if (bassMelody && Array.isArray(bassMelody.notes) && scrollBarlinesClipped) {
+            const mls = scrollBarlinesClipped.measureLengthSlots || 48;
+            const { notes, offsets } = bassMelody;
+            for (let i = 0; i < notes.length; i++) {
+                const note = notes[i];
+                if (note === 'r' || note === 'c' || note == null || offsets[i] == null) continue;
+                const measureIndex = Math.floor(offsets[i] / mls) - LEVEL_LEAD_IN_BARS;
+                out.push({
+                    key: i, x: getTickX(offsets[i]) - SLIME_VIEW_W / 2 + 3, beat: offsets[i] / TICKS_PER_BEAT,
+                    note, measureIndex, colorKey: slimeColorKey(24),
+                });
+            }
+        }
+        return out;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bassMelody, scrollBarlinesClipped, startX, pixelsPerTick]);
 
     // #693 round 8 ("zet onder elke rust een critter... net als slimes onder rusten"): one entry per REST
     // slot (the exact mirror of slimeData above, which skips rests — this only keeps them). A stable
@@ -423,6 +764,7 @@ export default function SheetRpgLayer({
             const { notes, offsets, durations } = trebleMelody;
             for (let i = 0; i < notes.length; i++) {
                 if (notes[i] !== 'r' || offsets[i] == null) continue;
+                if (offsets[i] >= trebleFinalBarTick) continue;
                 const variant = CRITTER_VARIANTS[i % CRITTER_VARIANTS.length];
                 // #693 round 9 (Han: "critters staan onder de maatstrepen, niet onder de rusten"): a rest's
                 // OWN offset is its START tick — for a Level 9 whole-measure rest that's the SAME tick as
@@ -436,7 +778,7 @@ export default function SheetRpgLayer({
         }
         return out;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [trebleMelody]);
+    }, [trebleMelody, trebleFinalBarTick]);
 
     // #693 round 8 (Han: "enemies vanquished x/n" / "critters saved y/m" — the splash needs a TOTAL
     // denominator, not just the running defeated/killed counts). Reports the current known count upward
@@ -459,8 +801,19 @@ export default function SheetRpgLayer({
     const spawnLeadBeats = Math.min(beatsOnScreen, wizardSpawnLeadMeasures * beatsPerMeasure);
 
     // ── combat state ──────────────────────────────────────────────────────────
-    // `tick` counts INTERVAL_MS steps (fast, for smooth movement). Sprite frames = elapsed-ms ÷ frameMs.
-    const [tick, setTick] = useState(0);
+    // #863 (Han 2026-08-10, perf fix): the raw INTERVAL_MS-stepped clock used to be a piece of React state
+    // (`tick`) updated ~120×/sec, forcing a full render+reconcile of the whole SVG subtree every ~8ms — the
+    // actual root cause of the reported jank/bad INP. It is now `tickRef` ONLY (declared below) — a plain
+    // ref, mutated every rAF frame but never triggering React. Continuous positions (slimes/critters/
+    // projectiles/scroll transforms — "bucket A") are pushed straight to the DOM from the rAF loop via
+    // imperative component handles (see Slime/Critter/Projectile/StaticProjectile2 above). Everything else
+    // that only needs to react when a SPRITE FRAME actually advances ("bucket B" — hero/wizard idle,
+    // dying-animation frames, judgment fade, hit-burst, spawn-glow, wiggle) is driven by `frameTick` below,
+    // which only changes (and thus only re-renders React) once per sprite frame (~3–10Hz) instead of every
+    // tick (~120Hz) — a legitimate cadence since none of that content is animated faster than a sprite frame
+    // to begin with; no visual smoothness is lost, only redundant intermediate re-renders are cut.
+    const [frameTick, setFrameTick] = useState(0);
+    const lastFrameIndexRef = useRef(-1);   // last sprite-frame index frameTick was set to (dedupe guard)
     const [killedCount, setKilledCount] = useState(0);     // static: killed count; side-scroll: RESOLVED count
     // dying is a LIST (Han 2026-08-02): with the ±1/2-beat graded window two kills can overlap one death
     // animation (notes a beat apart, played fast) — a single `dying` slot would swallow the second kill.
@@ -477,8 +830,54 @@ export default function SheetRpgLayer({
     // projectile stays visible.
     const [spawnGlows, setSpawnGlows] = useState([]);      // [{ key, startTick, x, y }]
     const spawnGlowFiredRef = useRef(new Set());
+    // #825 (Han 2026-08-10) — one-shot "hit" bursts, list-shaped for the SAME overlap reason dyingList
+    // is (two kills a beat apart can both be mid-animation at once). `frames` = 7 consecutive (wrapping)
+    // sheet indices picked ONCE per hit at spawn time, not re-randomized per render.
+    const [hits, setHits] = useState([]);   // [{ id, startTick, x, y, frames: number[7] }]
+    const hitIdRef = useRef(0);
+    // #862 — bass-slime death state, its OWN index space (separate from dyingList/killedSet above, which
+    // index into slimeData/treble). `judgments`/`hits` above are SHARED (a `lane: 'bass'` field on each
+    // entry, set by the combat-event effect below, picks the right Y at render time) — no separate
+    // bass-judgment/bass-hit arrays needed, just a lane tag.
+    const [bassDyingList, setBassDyingList] = useState([]);
+    const [bassKilledSet, setBassKilledSet] = useState(() => new Set());
     const tickRef = useRef(0);
+    // #863 perf fix — bucket A imperative refs. The 6 scroll-transform `<g>` wrappers (barline/note/rest/
+    // real/bass/percussion) get their `transform` attribute pushed every rAF frame instead of recomputing
+    // via React state (see the main loop below). The 3 entity ref Maps hold live (on-screen, not dying)
+    // Slime/Critter/Projectile imperative handles, keyed by their stable data key, populated via callback
+    // refs in the render body's `.map()` calls below; `switchRefsArr` is a plain array (SWITCH_LOOKAHEAD is
+    // a fixed-length, fixed-order constant, so no Map/key bookkeeping is needed for it).
+    const barlineScrollRef = useRef(null);
+    const noteScrollRef = useRef(null);
+    const restScrollRef = useRef(null);
+    const realScrollRef = useRef(null);
+    const bassScrollRef = useRef(null);
+    const percussionScrollRef = useRef(null);
+    const slimeRefsMap = useRef(new Map());       // key -> { el, kind: 'slime'|'projectile', idx }
+    const bassSlimeRefsMap = useRef(new Map());   // key -> { el, idx }
+    const critterRefsMap = useRef(new Map());     // key -> { el, idx }
+    const switchRefsArr = useRef([]);             // index (into SWITCH_LOOKAHEAD) -> el
+    // #863 round 2 — same ref-map pattern extended to "bucket B" content: dying slimes/projectiles, the
+    // ghost-note fly-up tween, judgments, hit bursts, and spawn glows. These are short-lived/few-at-a-time
+    // (which is why round 1 left them on the throttled `frameTick` path), but Han's follow-up measurement
+    // showed enough of them stacking up (multiple simultaneous judgments/hits/dying entries) to still be
+    // worth pushing to the rAF loop rather than a React re-render.
+    const dyingRefsMap = useRef(new Map());        // key -> { el, kind: 'slime'|'projectile', startTick }
+    const ghostNoteRefsMap = useRef(new Map());    // key -> { gEl, staticEl, flyEl, startTick } — the note-fly-up tween
+    const bassDyingRefsMap = useRef(new Map());    // key -> { el, startTick } (bass lane, own index space per §862)
+    const judgmentRefsMap = useRef(new Map());     // id -> { el, startTick, lane }
+    const hitRefsMap = useRef(new Map());          // id -> { el, startTick, frames }
+    const spawnGlowRefsMap = useRef(new Map());    // key -> { el, startTick }
+    const wizardRef = useRef(null);                // the combat Wizard's imperative handle (isWizard || isMixed)
+    const decorativeWizardRef = useRef(null);      // the decorative-only green Wizard's handle (Level 11)
+    // #863 — wiggle's shake offset (point 8): recomputed once per render (frameTick cadence, see below)
+    // and read fresh every rAF frame by the bucket-A slime-position loop, so a wiggling slime's continuous
+    // position update can add it in without wiggle itself needing to be a bucket-A ref-driven thing (it's
+    // short-lived and rare — not worth its own imperative plumbing, see point 8 of the ticket).
+    const wiggleRef = useRef(null);
     const slimesRef = useRef(slimeData); slimesRef.current = slimeData;
+    const bassSlimesRef = useRef(bassSlimeData); bassSlimesRef.current = bassSlimeData;
     const crittersRef = useRef(critterData); crittersRef.current = critterData;
     const killedCrittersRef = useRef(killedCritters); killedCrittersRef.current = killedCritters;
     const clearedRef = useRef(false);
@@ -504,12 +903,33 @@ export default function SheetRpgLayer({
     const onHitRef = useRef(onHit); onHitRef.current = onHit;
     const onMissRef = useRef(onMiss); onMissRef.current = onMiss;
     const onCritterKilledRef = useRef(onCritterKilled); onCritterKilledRef.current = onCritterKilled;
+    const onFirstTickUnfrozenRef = useRef(onFirstTickUnfrozen); onFirstTickUnfrozenRef.current = onFirstTickUnfrozen;
     const waveStartRef = useRef(0);                        // tick at which the current wave's clock started
-    const geomRef = useRef({});                            // geometry read by the effects "at now"
-    geomRef.current = { startX, viewRight, beatsOnScreen, sideScroll, beatMs, frameMs, isWizard };
+    const geomRef = useRef({});                            // geometry read by the effects/rAF loop "at now"
+    // #863 perf fix: `dist`/`slimeY`/`bassSlimeY`/`projectileCenterY`/`beatsPerMeasure` added so the main
+    // rAF loop (bucket A — scroll transform + live entity positions) can read the latest per-render-computed
+    // geometry without closing over stale render-scoped values (the loop's own effect has an intentionally
+    // empty dependency array — one continuous loop, not restarted every render, exactly like `sideScrollX`'s
+    // existing use of this same ref for the same reason).
+    geomRef.current = {
+        startX, viewRight, beatsOnScreen, sideScroll, beatMs, frameMs, isWizard,
+        dist: viewRight - startX, slimeY, bassSlimeY, projectileCenterY, beatsPerMeasure,
+        // #863 round 2: isMixed/spawnLeadBeats added so `computeWizardCast` (below) can run from the rAF
+        // loop's mount-time-only closure without stale-closure-capturing these render-scoped values.
+        isMixed, spawnLeadBeats,
+        // #863 round 2: staff-position inputs `judgmentY`/`hitFrameMs` (below) need for the SAME reason.
+        // `DEATH_FRAMES` — the dying-entity rAF-loop update (below) needs it too.
+        bassStart, staffHeight, trebleStart, hitFrameMs: frameMs / 2, DEATH_FRAMES,
+    };
 
-    // frames elapsed since a start tick (integer sprite frame) and the ms elapsed.
-    const framesSince = (startTick, fMs = frameMs) => Math.floor((tick - startTick) * INTERVAL_MS / fMs);
+    // frames elapsed since a start tick (integer sprite frame) and the ms elapsed. #863: reads `tickRef`
+    // (always fresh) instead of the removed `tick` state — since this is now only called from render bodies
+    // that run at the throttled `frameTick` cadence, reading the ref gives the MOST ACCURATE value available
+    // at that lower render frequency (same formula/meaning as before, just a ref instead of a state var —
+    // refs and the old `tick` state were kept in lockstep every frame anyway). #863 round 2: now a thin
+    // wrapper over the shared `framesElapsed` (see its declaration) so the rAF loop can call the SAME
+    // formula directly with a fresh `fMs`, without going through this closure's own (render-scoped) default.
+    const framesSince = (startTick, fMs = frameMs) => framesElapsed(tickRef.current, startTick, fMs);
 
     // #660 side-scroll positions: a slime spawns at its own `beat` and travels to startX over `beatsOnScreen`
     // beats, then keeps going off the left edge if never struck. The NOTE moves LINEARLY (noteX); the SLIME
@@ -544,6 +964,10 @@ export default function SheetRpgLayer({
     const ctxRef = useRef(context); ctxRef.current = context;
     const scrollStartRef = useRef(null); scrollStartRef.current = scrollStartTime != null ? scrollStartTime * 1000 : null;
     const debugLoggedUnfreezeRef = useRef(false);   // TEMP DEBUG (Han 2026-08-06) — log the FIRST unfrozen tick once
+    // Reset the "reported once" latch whenever a NEW anchor arrives (a fresh level start or replay) —
+    // without this, `debugLoggedUnfreezeRef`/the watchdog signal above would only ever fire for the
+    // FIRST level played in the whole app session (this component stays mounted across level changes).
+    useEffect(() => { debugLoggedUnfreezeRef.current = false; }, [scrollStartTime]);
     useEffect(() => {
         let raf;
         const loop = () => {
@@ -560,7 +984,20 @@ export default function SheetRpgLayer({
             // there's no free-running phase to jump away from — `tick` simply stays frozen (no slimes
             // spawn; `trebleMelody` is null anyway until `levelMelodyReady`, see SheetMusic.jsx) during
             // the wait, then starts ticking correctly-anchored from its very first real tick.
-            if (sideScroll && scrollStartRef.current == null) {
+            // Bug fix (Han 2026-08-10, round 6 — "het probleem is fundamenteel", confirmed via console
+            // log: `waveStartTick` was already 1373 — ~11s of ticks — at the moment the real anchor
+            // arrived): this effect has an EMPTY dependency array (`[]`, intentional — ONE continuous
+            // rAF loop, not restarted every render), so `loop` is a closure created ONCE at mount. The
+            // bare `sideScroll` PARAMETER used to be read directly here — a classic stale-closure bug:
+            // it captured whatever `sideScroll` was on the render that MOUNTED this effect, which is
+            // very likely `false` (this component mounts before any level is active). Every later
+            // render passing `sideScroll={true}` never reached this closure — the freeze branch above
+            // was permanently unreachable, so the clock free-ran continuously from mount instead of
+            // waiting for `scrollStartTime`. This is also why "first unfrozen tick" never logged (its
+            // `if (sideScroll && ...)` guard below was the same dead closure). Fixed by reading
+            // `geomRef.current.sideScroll` instead — that ref is reassigned on EVERY render (see its
+            // declaration above `sideScrollX`), so the loop always sees the CURRENT value.
+            if (geomRef.current.sideScroll && scrollStartRef.current == null) {
                 raf = requestAnimationFrame(loop);
                 return;
             }
@@ -578,12 +1015,186 @@ export default function SheetRpgLayer({
             // computes once unfrozen — compare `nowMs`/`anchor`/`t` here against App.jsx's "anchor
             // picked" log to see whether the anchor arrived here late, or whether it's correct here but
             // wrong downstream (rendering/positioning). Remove once diagnosed.
-            if (sideScroll && !debugLoggedUnfreezeRef.current) {
+            if (geomRef.current.sideScroll && !debugLoggedUnfreezeRef.current) {
                 debugLoggedUnfreezeRef.current = true;
                 logger.debug('LevelTiming', 'SheetRpgLayer first unfrozen tick', { nowMs, anchor, t, startX, viewRight });
+                // Bug fix (Han 2026-08-10, "1 frame de correcte positionering, waarna -1 en 0 plotseling
+                // naar rechts springen"): `t` on this VERY FIRST unfrozen frame should be <= 0 — the
+                // anchor is picked in the FUTURE (App.jsx's `context.currentTime + 1.0`), so real time
+                // should not have reached it yet by the time this frame runs. A POSITIVE `t` here means
+                // the render/effect chain took longer than the buffer, and this component just SNAPPED to
+                // a "catch up" position instead of counting up smoothly from a negative pre-roll — the
+                // exact jump Han reported. Concrete evidence if the 1.0s buffer (App.jsx ~line 1226) is
+                // ever insufficient again, instead of another guess.
+                if (t > 0) {
+                    logger.error('LevelTiming', 'E027-VISUAL-CLOCK-CATCHUP-JUMP', new Error('first unfrozen tick was already past the anchor'), { nowMs, anchor, t });
+                }
+                onFirstTickUnfrozenRef.current?.();
             }
             tickRef.current = t;
-            setTick(t);
+
+            // #863 (Han 2026-08-10, perf fix) — BUCKET A: continuous position, pushed straight to the DOM
+            // every rAF frame, bypassing React entirely (no setState here at all). This is the same
+            // "opacity via element.style in the rAF callback, never via JSX props" principle CLAUDE.md §6
+            // already mandates, extended to position/transform. `g` is this render's latest geometry
+            // (frameMs/beatMs/dist/etc. — see the geomRef.current assignment above sideScrollX).
+            const g = geomRef.current;
+            // #863 round 2: `fIdx` (the ever-increasing sprite-frame counter, = `gFrame`/`frameTick`) is
+            // needed by BOTH the throttled-setState check at the bottom of this loop AND the Wizard
+            // idle-frame push below — computed once here, reused by both (§6c).
+            const fIdx = Math.floor((t * INTERVAL_MS) / g.frameMs);
+            // Bug fix (Han 2026-08-10, #863 production crash — "het level werkt uberhaupt niet in build"):
+            // before this refactor, all this per-entity math ran inside React's OWN render, so a thrown
+            // error there was (at worst) a React render-time crash, once. Now it runs in a raw rAF
+            // callback OUTSIDE React — an uncaught throw here doesn't just skip one bad paint, it escapes
+            // the `loop` function entirely, so `requestAnimationFrame(loop)` at the bottom never runs
+            // again and the ENTIRE scroll/combat animation freezes forever for the rest of the level. Same
+            // failure mode CLAUDE.md's error-code table already documents a fix for (E023-FOLIAGE-DRAW-
+            // FRAME, "caught so the render loop always reschedules its next frame instead of permanently
+            // dying") — applied here for the identical reason. The actual crash (`critterDraw` indexing a
+            // sprite sheet with a negative frame — see its own fix above) is now also fixed at the source;
+            // this try/catch is the second, structural layer of defence so a FUTURE edge case in this
+            // large imperative surface can't silently brick combat for an entire level again.
+            try {
+            if (g.sideScroll && g.dist > 0 && g.beatMs > 0) {
+                // Scroll transform — mirrors the render body's own scrollPx/scrollPPT formula exactly
+                // (§6c: same arithmetic, just evaluated here every frame instead of once per React render).
+                const scrollElapsedMs = (t - waveStartRef.current) * INTERVAL_MS;
+                const framePx = (scrollElapsedMs / (g.beatsOnScreen * g.beatMs)) * g.dist;
+                const barlineTransform = `translate(${-framePx}, 0)`;
+                const noteTransform = `translate(${NOTE_STAFF_DX - framePx}, 0)`;
+                if (barlineScrollRef.current) barlineScrollRef.current.setAttribute('transform', barlineTransform);
+                if (noteScrollRef.current) noteScrollRef.current.setAttribute('transform', noteTransform);
+                if (restScrollRef.current) restScrollRef.current.setAttribute('transform', noteTransform);
+                if (realScrollRef.current) realScrollRef.current.setAttribute('transform', noteTransform);
+                if (bassScrollRef.current) bassScrollRef.current.setAttribute('transform', noteTransform);
+                if (percussionScrollRef.current) percussionScrollRef.current.setAttribute('transform', noteTransform);
+
+                // Live slimes/projectiles (treble). Only entities CURRENTLY MOUNTED (i.e. present in the
+                // ref map — React's own render-body culling decided that at the last frameTick-cadence
+                // render) get updated; a stale/about-to-unmount entry is skipped, not force-updated (see
+                // point 7's "IMPORTANT" note in the ticket — an entity that walked off-screen simply stops
+                // getting fresh positions for up to one frameTick interval, an acceptable ~100-300ms lag
+                // for something already leaving the screen).
+                const nowMsForOsc = t * INTERVAL_MS;
+                slimeRefsMap.current.forEach((entry, key) => {
+                    const sl = slimesRef.current[entry.idx];
+                    if (!sl || sl.key !== key) return;   // stale entry from a just-replaced wave
+                    const p = sideScrollX(sl.beat, t);
+                    if (entry.kind === 'projectile') {
+                        const oscX = oscillate(sl.key, nowMsForOsc, PROJECTILE_OSCILLATE_RANGE);
+                        const oscY = oscillate(sl.key + 1000, nowMsForOsc, PROJECTILE_OSCILLATE_RANGE);
+                        entry.el.setPosition(p.noteX + oscX, g.projectileCenterY + oscY);
+                        entry.el.setFrame(Math.floor(p.ff * PROJECTILE_ANIM_SPEED) % PROJECTILE_LOOP_FRAMES);
+                    } else {
+                        // point 8: add the (frameTick-cadence-refreshed) wiggle shake for the ONE slime
+                        // currently wiggling, exactly as the old declarative `wdx` addition did.
+                        const wig = wiggleRef.current;
+                        const wdx = wig && wig.index === entry.idx ? wig.wdx : 0;
+                        entry.el.setPosition(p.slimeX + wdx, g.slimeY);
+                        entry.el.setFrame(SLIME_WALK.row, p.walkFrame);
+                    }
+                });
+                // Live bass-slimes (Level 15 twoHanded) — same pattern, no wizard/wiggle branch (§862).
+                bassSlimeRefsMap.current.forEach((entry, key) => {
+                    const sl = bassSlimesRef.current[entry.idx];
+                    if (!sl || sl.key !== key) return;
+                    const p = sideScrollX(sl.beat, t);
+                    entry.el.setPosition(p.slimeX, g.bassSlimeY);
+                    entry.el.setFrame(SLIME_WALK.row, p.walkFrame);
+                });
+                // Live critters (under rests) — position+frame update together (critterDraw ties them via
+                // the flying-anim oscillation, see the Critter component above).
+                critterRefsMap.current.forEach((entry, key) => {
+                    const c = crittersRef.current[entry.idx];
+                    if (!c || c.key !== key) return;
+                    const p = sideScrollX(c.beat, t);
+                    const gF = Math.floor(p.ff / 4) % 1000;   // same slow idle cadence as the render body used
+                    entry.el.update(p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2, g.slimeY, gF);
+                });
+                // Level 11 switch-flourish (StaticProjectile2) — fixed SWITCH_LOOKAHEAD array, plain index.
+                SWITCH_LOOKAHEAD.forEach((k, i) => {
+                    const el = switchRefsArr.current[i];
+                    if (!el) return;
+                    const switchBeat = k * 2 * g.beatsPerMeasure;
+                    const p = sideScrollX(switchBeat, t);
+                    el.setCenter(p.noteX, g.projectileCenterY);
+                    el.setFrame(Math.floor(p.ff) % STATIC_PROJECTILE2_LOOP_FRAMES);
+                });
+            }
+
+            // #863 round 2 (Han 2026-08-10 follow-up: INP still "needs improvement" after round 1) — the
+            // SAME imperative-push technique extended to what round 1 left on the throttled `frameTick`
+            // React path: dying slime/projectile death frames + the ghost-note fly-up tween, judgment
+            // float-up position/opacity, hit-burst frame/opacity, spawn-glow radius/opacity, and the
+            // Wizard's idle/cast-sync frame. These are short-lived/few-at-a-time (why round 1 deferred
+            // them), but multiple can be simultaneously mid-animation (dyingList/judgments/hits all
+            // already documented as lists for exactly this overlap reason), and the cast-sync scan in
+            // particular is timing-sensitive enough (Han: "de flits moet exact op de noot landen") that
+            // throttling it to frameTick cadence left it up to one sprite-frame coarser than the audio
+            // it syncs to. All formulas below are the EXACT SAME ones the render body/effects already use
+            // (`framesElapsed`, `PROJECTILE_DEATH_OPACITY`, `judgmentY`, `HIT_BURST_OPACITY`,
+            // `spawnGlowDraw` via the SpawnGlow component's own `update()`, `computeWizardCast`) — no
+            // reimplementation, only WHERE they're evaluated changes (§6c).
+            dyingRefsMap.current.forEach((entry) => {
+                const deathFrame = Math.min(framesElapsed(t, entry.startTick, g.frameMs), g.DEATH_FRAMES - 1);
+                if (entry.kind === 'projectile') {
+                    entry.el.setFrame(deathFrame);
+                    entry.el.setOpacity(PROJECTILE_DEATH_OPACITY[deathFrame] ?? 0.2);
+                } else {
+                    entry.el.setFrame(SLIME_DEATH.row, deathFrame);
+                }
+            });
+            ghostNoteRefsMap.current.forEach((entry) => {
+                const prog = Math.min(1, framesElapsed(t, entry.startTick, g.frameMs) / g.DEATH_FRAMES);
+                const up = prog * 46;
+                entry.el.setAttribute('transform', `translate(0, ${-up})`);
+                entry.el.setAttribute('opacity', 1 - prog);
+            });
+            bassDyingRefsMap.current.forEach((entry) => {
+                const deathFrame = Math.min(framesElapsed(t, entry.startTick, g.frameMs), g.DEATH_FRAMES - 1);
+                entry.el.setFrame(SLIME_DEATH.row, deathFrame);
+            });
+            judgmentRefsMap.current.forEach((entry) => {
+                const prog = Math.min(1, ((t - entry.startTick) * INTERVAL_MS) / JUDGMENT_MS);
+                entry.el.setAttribute('y', judgmentY(g, entry.lane, prog));
+                entry.el.setAttribute('opacity', 1 - prog);
+            });
+            hitRefsMap.current.forEach((entry) => {
+                const f = Math.min(framesElapsed(t, entry.startTick, g.hitFrameMs), HIT_FRAMES - 1);
+                entry.el.setFrame(entry.frames[f]);
+                entry.el.setOpacity(HIT_BURST_OPACITY[f]);
+            });
+            spawnGlowRefsMap.current.forEach((entry) => {
+                entry.el.update(framesElapsed(t, entry.startTick, g.frameMs));
+            });
+            // Wizard: idle loop uses `fIdx` (same "ever-increasing sprite-frame counter" `gFrame` used
+            // elsewhere); a combat Wizard additionally re-scans for a cast sequence every frame so the
+            // flash lands exactly on the audio cue (see `computeWizardCast`'s own comment).
+            if (wizardRef.current || decorativeWizardRef.current) {
+                const idleLenL = WIZARD_IDLE_CELLS.length;
+                const idleFrame = ((fIdx % idleLenL) + idleLenL) % idleLenL;   // non-negative modulo (§679 bugfix)
+                if (wizardRef.current) {
+                    const cast = computeWizardCast(t);
+                    wizardRef.current.setCells(cast.frame >= 0 ? cast.cells : WIZARD_IDLE_CELLS, cast.frame >= 0 ? cast.frame : idleFrame);
+                }
+                if (decorativeWizardRef.current) decorativeWizardRef.current.setCells(WIZARD_IDLE_CELLS, idleFrame);
+            }
+            } catch (err) {
+                // See the try's own comment above: this catch is what keeps ONE bad frame (a malformed
+                // sprite-sheet lookup, a stale ref, anything unforeseen in this large imperative surface)
+                // from permanently freezing the whole level's animation — log it once per occurrence and
+                // keep going, exactly like E023-FOLIAGE-DRAW-FRAME does for the WebGL foliage layer.
+                logger.error('RpgCombat', 'E028-SHEETRPG-IMPERATIVE-FRAME', err, { t });
+            }
+
+            // #863 BUCKET B (round 1): throttle React re-renders to once per sprite-frame boundary instead
+            // of every rAF tick — only setState (and thus re-render) when the sprite frame actually
+            // changes, since a sprite frame is by definition constant between frameMs boundaries.
+            if (fIdx !== lastFrameIndexRef.current) {
+                lastFrameIndexRef.current = fIdx;
+                setFrameTick(fIdx);
+            }
             raf = requestAnimationFrame(loop);
         };
         raf = requestAnimationFrame(loop);
@@ -593,8 +1204,9 @@ export default function SheetRpgLayer({
     // reset combat when the melody (its slime notes) changes — a fresh wave; the side-scroll clock restarts.
     const notesKey = slimeData.map((s) => (Array.isArray(s.note) ? s.note.join('+') : s.note)).join('|');
     useEffect(() => {
-        setKilledCount(0); setDyingList([]); setKilledSet(new Set()); setJudgments([]); clearedRef.current = false;
+        setKilledCount(0); setDyingList([]); setKilledSet(new Set()); setJudgments([]); setHits([]); clearedRef.current = false;
         setKilledCritters(new Set());
+        setBassDyingList([]); setBassKilledSet(new Set());   // #862 — same fresh-wave reset, bass's own state
         resolvedRef.current = new Set(); wrongAttemptRef.current = new Set(); resolvedStaticRef.current = new Set();
         setSpawnGlows([]); spawnGlowFiredRef.current = new Set();
         // With an audio anchor (scrollStartTime), t=0 IS the scheduled start, so the wave clock is 0 regardless
@@ -602,9 +1214,31 @@ export default function SheetRpgLayer({
         // #688 (Level 9 rework): back to ONE continuous melody/single wave (like every other side-scroll
         // level, §679) — the §686 multi-wave due-time-snapping logic no longer applies (it only existed to
         // compensate for wave content not existing until its own due time; there's only one wave now).
+        //
+        // Bug fix (Han 2026-08-10, round 6): this effect used to depend on `[notesKey]` ONLY (see the
+        // eslint-disable below, previously deliberate). If the melody (`notesKey`) settled a few ms
+        // BEFORE `scrollStartTime` flipped from null to its real value (exactly what the console log
+        // showed: this effect fired with `scrollStartTime: null` two ms before "anchor picked"),
+        // `waveStartRef.current` got locked to `tickRef.current` — a garbage, possibly large tick value
+        // (since the sibling stale-closure bug above meant `tick` had been free-running for seconds) —
+        // and this effect never fires again for the SAME melody, so it was never corrected back to 0
+        // once the real anchor arrived. `scrollStartTime` is now in the dependency array so this effect
+        // re-runs the instant the real anchor arrives (even without a new melody), always correcting
+        // `waveStartRef` to 0 for an anchored wave. Re-running the combat-state resets above (killed
+        // count etc.) on that transition is harmless — no real combat could have happened during the
+        // pre-anchor free-run.
         waveStartRef.current = scrollStartTime != null ? 0 : tickRef.current;
+        // TEMP DEBUG (Han 2026-08-10, #824 follow-up round 3, "notes arrive very late"): logs the exact
+        // inputs to the flight-time formula the instant the wave (re)starts, so the expected arrival
+        // delay (beat=0's own `beatsOnScreen * beatMs`) can be checked directly against what's actually
+        // observed in-game, instead of re-deriving it from separate scattered logs. Remove once diagnosed.
+        logger.debug('LevelTiming', 'SheetRpgLayer wave (re)start', {
+            scrollStartTime, waveStartTick: waveStartRef.current, tickAtReset: tickRef.current,
+            firstSlimeBeat: slimeData[0]?.beat, beatsOnScreen, bpm,
+            expectedFirstArrivalMs: slimeData[0] != null ? (slimeData[0].beat + beatsOnScreen) * (60000 / bpm) : null,
+        });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [notesKey]);
+    }, [notesKey, scrollStartTime]);
 
     // a played note (any input) — key ONLY on the nonce so it fires once per note; read live state via refs.
     useEffect(() => {
@@ -635,20 +1269,37 @@ export default function SheetRpgLayer({
             const target = inWindow.find(({ sl }) => notesMatch(combatNote.note, sl.note));   // lowest idx = earliest beat
             if (target) {
                 // a wrong first attempt on this slime downgrades the kill to 'on second attempt' (½ point,
-                // Han interview) regardless of the correction's own timing tier. Category renamed
-                // (Han 2026-08-02 well-done breakdown) so it reads distinctly from a first-try hit.
+                // Han interview) regardless of the correction's own timing tier for the CORRECTNESS
+                // verdict — but the correction still landed at some point in time, and Han 2026-08-10
+                // ("wrong,corrected + too early... moet bovenop de too early staan") wants that timing
+                // info kept for the timing-accuracy chart, stacked on top of the matching timing-tier
+                // bar. `timingTier` carries gradeHit's OWN category (computed regardless, cheap) so
+                // useLevel.js's onHit can bump a `${tier}Corrected` stat alongside the unchanged
+                // `secondAttemptCorrected` correctness bump — two facts about the same hit, not a
+                // replacement for either.
                 const grade = wrongAttemptRef.current.has(target.idx)
-                    ? { category: 'secondAttemptCorrected', points: 0.5 }
+                    ? { category: 'secondAttemptCorrected', points: 0.5, timingTier: gradeHit(target.delta, bMs).category }
                     : gradeHit(target.delta, bMs);
                 resolvedRef.current.add(target.idx);
                 const { x } = sideScrollX(target.sl.beat, tickRef.current);
                 setDyingList((l) => [...l, { index: target.idx, startTick: tickRef.current, x }]);
                 setKilledCount((c) => c + 1);
                 addJudgment(grade.category);
+                // #825 (Han 2026-08-10, "'hit' animatie start wanneer een noot de hit area gepasseerd
+                // is"): a note is only ever resolved here the instant it's struck at the strike line, so
+                // this successful-kill branch IS "a note passing the hit area" — a burst of 7 random
+                // consecutive frames (wrapping) from HIT_BURST_TOTAL_FRAMES, played once, plus a random
+                // "hit on wood" one-shot sfx.
+                {
+                    const hitStart = Math.floor(Math.random() * HIT_BURST_TOTAL_FRAMES);
+                    const frames = Array.from({ length: HIT_FRAMES }, (_, i) => (hitStart + i) % HIT_BURST_TOTAL_FRAMES);
+                    setHits((l) => [...l, { id: hitIdRef.current++, startTick: tickRef.current, x: x + SLIME_VIEW_W / 2, y: slimeY, frames }]);
+                    playOneShotSfx(context, HIT_ON_WOOD_FILES, HIT_SFX_VOLUME);
+                }
                 // per-event audit trail (Han 2026-08-02 "22 missers — vind uit hoe dat kan"): every combat
                 // resolution logs note + delta so a stats mismatch is diagnosable from the console.
                 logger.debug('RpgCombat', 'KILL', { note: combatNote.note, slime: target.idx, beat: target.sl.beat, deltaMs: Math.round(target.delta), grade: grade.category });
-                onHitRef.current?.(grade);
+                onHitRef.current?.({ ...grade, hand: 'treble' });
             } else if (inWindow.length > 0) {
                 // Han 2026-08-02 (well-done breakdown): a wrong pitch while a slime WAS hittable is flagged
                 // but NOT yet counted as a final stat — its fate (corrected later, or the slime expires
@@ -685,7 +1336,7 @@ export default function SheetRpgLayer({
                     // isn't tied to any slime's lifecycle, so there is nothing to defer).
                     addJudgment('extraNote');
                     logger.debug('RpgCombat', 'EXTRA NOTE (nothing due)', { played: combatNote.note });
-                    onMissRef.current?.('extraNote');
+                    onMissRef.current?.('extraNote', 'treble');
                 }
             }
         } else {
@@ -699,17 +1350,53 @@ export default function SheetRpgLayer({
             if (notesMatch(combatNote.note, s.note)) {
                 resolvedStaticRef.current.add(k);
                 setDyingList((l) => [...l, { index: k, startTick: tickRef.current, x: s.x }]);
-                onHitRef.current?.();
+                onHitRef.current?.({ category: null, points: 1, hand: 'treble' });
             } else {
-                onMissRef.current?.();
+                onMissRef.current?.(undefined, 'treble');
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [combatNote?.nonce]);
 
-    // complete the one-shot animations each tick. Side-scroll: a struck slime that finishes its death is
-    // hidden (killedSet); a slime that reaches the hero UN-struck is NOT killed (Han) — it just keeps walking
-    // off the left edge — but it counts as a miss and lets the next slime become the target.
+    // #862 (Han 2026-08-10) — resolves the bass-slime matching a useTwoHandedBass hit/miss EVENT.
+    // Grading (was it a hit, was it a miss) is NOT re-derived here — useTwoHandedBass already decided
+    // that; this only finds the matching visual entry (by `measureIndex`) and plays its animation/
+    // judgment/hero-attack, mirroring the combatNote effect above but far simpler (no timing-window scan
+    // — useTwoHandedBass's own per-measure grading already resolved WHICH note and WHETHER it was hit).
+    useEffect(() => {
+        if (!bassCombatEvent) return;
+        const idx = bassSlimesRef.current.findIndex((s) => s.measureIndex === bassCombatEvent.measureIndex);
+        if (idx < 0) return;
+        const bassJudgment = (category) =>
+            setJudgments((l) => [...l, { id: judgmentIdRef.current++, category, startTick: tickRef.current, lane: 'bass' }]);
+        if (bassCombatEvent.type === 'hit') {
+            // ANY note (treble or bass) makes the hero attack — same shared cooldown as combatNote above.
+            if (!heroAttackRef.current || (tickRef.current - heroAttackRef.current.startTick) * INTERVAL_MS >= ATTACK_CYCLE * geomRef.current.frameMs) {
+                setHeroAttack({ startTick: tickRef.current });
+            }
+            const s = bassSlimesRef.current[idx];
+            const { x } = sideScrollX(s.beat, tickRef.current);
+            setBassDyingList((l) => [...l, { index: idx, startTick: tickRef.current, x }]);
+            bassJudgment('perfect');
+            const hitStart = Math.floor(Math.random() * HIT_BURST_TOTAL_FRAMES);
+            const frames = Array.from({ length: HIT_FRAMES }, (_, i) => (hitStart + i) % HIT_BURST_TOTAL_FRAMES);
+            setHits((l) => [...l, { id: hitIdRef.current++, startTick: tickRef.current, x: x + SLIME_VIEW_W / 2, y: bassSlimeY, frames }]);
+            playOneShotSfx(context, HIT_ON_WOOD_FILES, HIT_SFX_VOLUME);
+            logger.debug('RpgCombat', 'BASS KILL', { note: bassCombatEvent.note, bassSlime: idx, measureIndex: bassCombatEvent.measureIndex });
+        } else if (bassCombatEvent.type === 'miss') {
+            // No death animation / killedSet entry — like a missed treble note, it just keeps flying and
+            // scrolls off-screen naturally; only the feedback label is shown.
+            bassJudgment('missed');
+            logger.debug('RpgCombat', 'BASS EXPIRED (missed)', { bassSlime: idx, measureIndex: bassCombatEvent.measureIndex });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bassCombatEvent?.nonce]);
+
+    // complete the one-shot animations each SPRITE FRAME (#863: was every raw tick — see the frameTick
+    // comment near its declaration; a sprite frame's worth of headroom, hundreds of ms, is more than
+    // enough to still catch every threshold crossing here). Side-scroll: a struck slime that finishes its
+    // death is hidden (killedSet); a slime that reaches the hero UN-struck is NOT killed (Han) — it just
+    // keeps walking off the left edge — but it counts as a miss and lets the next slime become the target.
     useEffect(() => {
         const finished = dyingList.filter((d) => framesSince(d.startTick) >= DEATH_FRAMES);
         if (finished.length) {
@@ -719,8 +1406,21 @@ export default function SheetRpgLayer({
         }
         if (heroAttack && framesSince(heroAttack.startTick) >= ATTACK_CYCLE) setHeroAttack(null);
         if (wiggle && framesSince(wiggle.startTick) >= WIGGLE_FRAMES) setWiggle(null);
-        if (judgments.length && judgments.some((j) => (tick - j.startTick) * INTERVAL_MS > JUDGMENT_MS)) {
-            setJudgments((l) => l.filter((j) => (tick - j.startTick) * INTERVAL_MS <= JUDGMENT_MS));
+        // #863: `tick` state is gone — `tickRef.current` is the freshest available value at this
+        // (now-throttled) render, same reasoning as `framesSince` above.
+        if (judgments.length && judgments.some((j) => (tickRef.current - j.startTick) * INTERVAL_MS > JUDGMENT_MS)) {
+            setJudgments((l) => l.filter((j) => (tickRef.current - j.startTick) * INTERVAL_MS <= JUDGMENT_MS));
+        }
+        // #825 hit bursts play at DOUBLE the shared frame rate (frameMs / 2), so they use their own
+        // framesSince call with a halved fMs rather than the shared frameMs every other sprite uses.
+        if (hits.length && hits.some((h) => framesSince(h.startTick, frameMs / 2) >= HIT_FRAMES)) {
+            setHits((l) => l.filter((h) => framesSince(h.startTick, frameMs / 2) < HIT_FRAMES));
+        }
+        // #862 — bass-slime death completion, exact mirror of dyingList→killedSet above (own index space).
+        const bassFinished = bassDyingList.filter((d) => framesSince(d.startTick) >= DEATH_FRAMES);
+        if (bassFinished.length) {
+            setBassKilledSet((set) => { const n = new Set(set); bassFinished.forEach((d) => n.add(d.index)); return n; });
+            setBassDyingList((l) => l.filter((d) => framesSince(d.startTick) < DEATH_FRAMES));
         }
         // #686 Level 9 — fire the one-shot spawn-glow the instant each projectile becomes visible. Triggers
         // 1 sprite FRAME before the projectile's own visibility gate so the flourish's grow+fade-in (first
@@ -732,10 +1432,10 @@ export default function SheetRpgLayer({
             slimesRef.current.forEach((sl) => {
                 if (isMixed && blockTypeAt(Math.floor(sl.beat / beatsPerMeasure)) !== 'Wizard') return;
                 if (spawnGlowFiredRef.current.has(sl.key)) return;
-                const p = sideScrollX(sl.beat, tick);
+                const p = sideScrollX(sl.beat, tickRef.current);
                 if (p.spawned && p.msSinceSpawn >= glowTriggerMs) {
                     spawnGlowFiredRef.current.add(sl.key);
-                    setSpawnGlows((l) => [...l, { key: sl.key, startTick: tick, x: p.noteX, y: projectileCenterY }]);
+                    setSpawnGlows((l) => [...l, { key: sl.key, startTick: tickRef.current, x: p.noteX, y: projectileCenterY }]);
                 }
             });
             if (spawnGlows.some((g) => framesSince(g.startTick) >= SPAWN_GLOW_FRAMES)) {
@@ -750,7 +1450,7 @@ export default function SheetRpgLayer({
             // #688: back to the same window the hit-matching effect above uses (kept in exact sync so a
             // note can't expire on a different schedule than the one it was gradeable under).
             const { beatMs: bMs, beatsOnScreen: bos } = geomRef.current;
-            const elapsedMs = (tick - waveStartRef.current) * INTERVAL_MS;
+            const elapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
             slimesRef.current.forEach((sl, idx) => {
                 if (resolvedRef.current.has(idx)) return;
                 if (elapsedMs > (sl.beat + bos) * bMs + bMs * MUCH_TOO_BEATS) {
@@ -763,13 +1463,23 @@ export default function SheetRpgLayer({
                     logger.debug('RpgCombat', `EXPIRED (${reason})`, { slime: idx, note: sl.note, beat: sl.beat });
                     // visible feedback for a silent expiry — without a label these misses were invisible and
                     // the splash count looked inexplicable (Han: "22 MISSERS???").
-                    setJudgments((l) => [...l, { id: judgmentIdRef.current++, category: reason, startTick: tick }]);
-                    onMissRef.current?.(reason);
+                    // #825 (Han 2026-08-10, "melding: never fixed mag 'onzichtbaar' worden"): the
+                    // 'wrongUncorrected' ("never fixed") floating label is suppressed on purpose — the stat
+                    // still counts it (onMissRef below, unconditional) so the splash's "wrong within time"
+                    // segment is unaffected, only the in-the-moment popup is silenced.
+                    if (reason !== 'wrongUncorrected') {
+                        setJudgments((l) => [...l, { id: judgmentIdRef.current++, category: reason, startTick: tickRef.current }]);
+                    }
+                    onMissRef.current?.(reason, 'treble');
                 }
             });
         }
+        // #863: was `[tick]` — now `[frameTick]`, the throttled sprite-frame cadence. Every `tick` read
+        // inside this body was changed to `tickRef.current` above (always fresh regardless of render
+        // cadence), so this effect still catches every threshold crossing, just less often (§ comment
+        // at the top of this effect).
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tick]);
+    }, [frameTick]);
 
     // wave cleared → regenerate (keyed on killedCount so it fires the moment the last slime is resolved). A
     // slime counts as resolved whether it was struck or walked past (missed), so a side-scroll wave also ends
@@ -786,7 +1496,21 @@ export default function SheetRpgLayer({
     const dollW = DOLL_CROP.w * (HERO_H / DOLL_CROP.h);
     const heroX = -2;
     const heroY = viewBottom - HERO_H;
-    const gFrame = Math.floor(tick * INTERVAL_MS / frameMs);   // ever-increasing sprite frame counter (cyclic use)
+    // #863: `gFrame` IS `frameTick` — both are `floor(elapsedMs / frameMs)`, computed once in the rAF loop
+    // (see the `fIdx` comment there) and mirrored into this render-scoped name for readability at call
+    // sites below (§6c: one source of truth, not a second inline recomputation of the same formula).
+    const gFrame = frameTick;   // ever-increasing sprite frame counter (cyclic use)
+    // #863 point 8 — refresh the wiggling slime's shake offset once per (throttled) render, for the bucket-A
+    // rAF loop to read (see `wiggleRef` declaration + the loop's `slimeRefsMap.current.forEach` above).
+    // Recomputed via the SAME `framesSince`/sine formula the old declarative `wdx` used inline (§6c) — kept
+    // narrow on purpose (wiggle is short-lived/rare, not worth its own imperative ref plumbing, per the
+    // ticket's point 8 rationale).
+    if (wiggle) {
+        const wf = framesSince(wiggle.startTick);
+        wiggleRef.current = { index: wiggle.index, wdx: wf >= 0 && wf < WIGGLE_FRAMES ? Math.sin(wf * 3.2) * 4 * (1 - wf / WIGGLE_FRAMES) : 0 };
+    } else {
+        wiggleRef.current = null;
+    }
     // hero: during the first 3 frames of an attack show the LAST 3 attack frames (3,4,5); else idle loop.
     let heroAnim = idleAnim, heroFrame = gFrame % idleAnim.frames;
     if (heroAttack) {
@@ -807,6 +1531,15 @@ export default function SheetRpgLayer({
     // animation needs no extra state of its own — same "no extra state" pattern the old Cast2 trigger used.
     const wizardX = viewRight - WIZARD_VIEW_W + 2;
     const wizardY = viewBottom - WIZARD_H;
+    // #871: resolve the `npc` bestiary name (if any) via the SAME manifest lookup every other creature in
+    // this file uses (§6c — no separate hand-copied asset file). Scaled to the wizard's own tuned per-pixel
+    // zoom (WIZARD_H / WIZARD_CROP.h) so a decorative NPC reads at the same visual weight as the wizard/hero
+    // it stands in for, whatever its native sprite-sheet cell size happens to be.
+    const npcVariant = useMemo(() => (npc ? findCreatureByName(npc) : null), [npc]);
+    const NPC_SCALE = WIZARD_H / WIZARD_CROP.h;
+    // frame-count for the non-negative-modulo wrap below — same idle/move fallback order critterDraw's
+    // `preferIdle` path uses, so the wrap length always matches the animation actually drawn.
+    const npcIdleLen = npcVariant ? ((findIdleAnim(npcVariant) || findMoveAnim(npcVariant))?.cells.length || 1) : 1;
     // #790 (Han 2026-08-09, SSOT): the song-timed attack cells/flash-indices used to be hardcoded in
     // enemyAssets.js — now read from the SAME "Wizard (Portrait)"/Black bestiary entry the generator writes
     // `song_attack_single/double/triple` onto (§6c), via the shared `findCreatureVariantByName`/`findAnim`
@@ -817,39 +1550,47 @@ export default function SheetRpgLayer({
         double: findAnim(wizardBlackVariant, 'song_attack_double'),
         triple: findAnim(wizardBlackVariant, 'song_attack_triple'),
     }), [wizardBlackVariant]);
-    let wizardCells = WIZARD_IDLE_CELLS;
-    let wizardAttackFrame = -1;
-    // Level 10 (Han 2026-08-06, "animaties schieten te kort... er moet een zwarte wizard staan"): the
-    // cast-animation sync below now also runs for a Mixed level's static (black) wizard — but ONLY
-    // considers notes whose OWN block is Wizard-type (`itemIsWizard` below), so the wizard never winds
-    // up to cast on a Slime-block note.
-    if ((isWizard || isMixed) && sideScroll) {
-        const visibleGateMs = (beatsOnScreen - spawnLeadBeats) * beatMs;
+    // #863 round 2 perf fix: factored into a function (not inlined here) so BOTH this render body's initial
+    // paint AND the rAF loop's per-frame update (below) run the EXACT SAME cast-sync scan (§6c) — reads
+    // `slimesRef.current`/`geomRef.current` (kept fresh every render, see their declarations above) rather
+    // than closing over `slimeData`/props directly, so it stays correct even when called from the rAF
+    // loop's mount-time-only effect closure (same reasoning as `sideScrollX` already uses this ref pattern
+    // for). Level 10 (Han 2026-08-06, "animaties schieten te kort... er moet een zwarte wizard staan"): the
+    // cast-animation sync also runs for a Mixed level's static (black) wizard — but ONLY considers notes
+    // whose OWN block is Wizard-type, so the wizard never winds up to cast on a Slime-block note.
+    const computeWizardCast = (atTick) => {
+        const g = geomRef.current;
+        if (!((g.isWizard || g.isMixed) && g.sideScroll)) return { cells: WIZARD_IDLE_CELLS, frame: -1 };
+        const visibleGateMs = (g.beatsOnScreen - g.spawnLeadBeats) * g.beatMs;
         const oneBeatLater = (a, b) => a && b && Math.abs(b.beat - a.beat - 1) < 0.01;
-        for (let i = 0; i < slimeData.length; i++) {
-            const s = slimeData[i];
-            if (isMixed && blockTypeAt(Math.floor(s.beat / beatsPerMeasure)) !== 'Wizard') continue;
+        const data = slimesRef.current;
+        for (let i = 0; i < data.length; i++) {
+            const s = data[i];
+            if (g.isMixed && blockTypeAt(Math.floor(s.beat / g.beatsPerMeasure)) !== 'Wizard') continue;
             // Skip the 2nd/3rd note of a run already covered by an EARLIER note's triggered sequence
             // (checked below) — its own single-note check would otherwise also fire and restart the windup.
-            if (oneBeatLater(slimeData[i - 1], s)) continue;
-            const next = slimeData[i + 1], next2 = slimeData[i + 2];
+            if (oneBeatLater(data[i - 1], s)) continue;
+            const next = data[i + 1], next2 = data[i + 2];
             // "single/double/triple" — Han's exact frame runs for 1, 2, or 3 consecutive quarter notes.
             const isTriple = oneBeatLater(s, next) && oneBeatLater(next, next2);
             const isDouble = !isTriple && oneBeatLater(s, next);
             const anim = isTriple ? wizardSongAttack.triple : isDouble ? wizardSongAttack.double : wizardSongAttack.single;
             const { cells, flashIndices } = anim;
-            const msSinceVisible = sideScrollX(s.beat, tick).msSinceSpawn - visibleGateMs;
-            const frameInSeq = Math.floor(msSinceVisible / frameMs) + flashIndices[0];
-            if (frameInSeq >= 0 && frameInSeq < cells.length) { wizardCells = cells; wizardAttackFrame = frameInSeq; break; }
+            const msSinceVisible = sideScrollX(s.beat, atTick).msSinceSpawn - visibleGateMs;
+            const frameInSeq = Math.floor(msSinceVisible / g.frameMs) + flashIndices[0];
+            if (frameInSeq >= 0 && frameInSeq < cells.length) return { cells, frame: frameInSeq };
         }
-    }
+        return { cells: WIZARD_IDLE_CELLS, frame: -1 };
+    };
+    const wizardCast = computeWizardCast(tickRef.current);
+    const wizardCells = wizardCast.cells;
     // #679 bugfix: `gFrame` can be NEGATIVE during the pre-roll (tick is negative before scrollStartTime,
     // see the rAF loop comment above) — plain `%` in JS preserves the dividend's sign, so a negative gFrame
     // produced a negative array index into WIZARD_IDLE_CELLS (Slime avoids this because it uses frame/row as
     // a pixel OFFSET, not an array index — Wizard's cross-row-stitched cells format needs the array). Force
     // a non-negative result the same way `((n % m) + m) % m` always does.
     const idleLen = WIZARD_IDLE_CELLS.length;
-    const wizardFrame = wizardAttackFrame >= 0 ? wizardAttackFrame : ((gFrame % idleLen) + idleLen) % idleLen;
+    const wizardFrame = wizardCast.frame >= 0 ? wizardCast.frame : ((gFrame % idleLen) + idleLen) % idleLen;
 
     // #661 side-scroll scroll offset. The whole melody is laid out ONCE at the scroll spacing
     // (pixelsPerTick = dist / (beatsOnScreen · TICKS_PER_BEAT), origin = viewRight) and the group is
@@ -858,11 +1599,17 @@ export default function SheetRpgLayer({
     // `noteX` the slimes already use (see sideScrollX), so notes and their slimes stay in step.
     const dist = viewRight - startX;
     const scrollPPT = sideScroll && dist > 0 ? dist / (beatsOnScreen * TICKS_PER_BEAT) : 0;
-    const scrollElapsedMs = (tick - waveStartRef.current) * INTERVAL_MS;
+    // #863: `tick` state is gone — this is now only the INITIAL/first-paint value (used as the JSX
+    // `<g>` wrappers' initial `transform` attribute below); every subsequent frame the SAME formula is
+    // re-evaluated imperatively in the rAF loop (see the `framePx` computation there) and pushed straight
+    // to those `<g>` elements via `barlineScrollRef`/`noteScrollRef`/etc., bypassing React entirely.
+    const scrollElapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
     const scrollPx = sideScroll && beatMs > 0 ? (scrollElapsedMs / (beatsOnScreen * beatMs)) * dist : 0;
     // #661 (Han 2026-08-02): end-of-song final barline (thin + thick) at the end of the last measure. Lives in
     // the barline translate group (pure tick boundary, scrolls with the staff). endTick = numMeasures·mls.
-    const finalBarTick = sideScroll && scrollBarlines ? (scrollBarlines.numMeasures || 0) * (scrollBarlines.measureLengthSlots || 48) : 0;
+    // Same value as `trebleFinalBarTick` above (kept as a separate 0-default variable here since this
+    // one feeds arithmetic/JSX conditionals that expect 0, not Infinity, outside side-scroll).
+    const finalBarTick = sideScroll && scrollBarlines ? trebleFinalBarTick : 0;
     const finalBarX = viewRight + finalBarTick * scrollPPT;
     const finalBarBottom = (scrollBarlines && scrollBarlines.bottomY != null) ? scrollBarlines.bottomY : viewBottom;
 
@@ -877,9 +1624,16 @@ export default function SheetRpgLayer({
     useEffect(() => {
         if (!sideScroll || finalBarTick <= 0 || songEndFiredRef.current) return;
         const strikeX = startX + SLIME_VIEW_W / 2;
-        if (finalBarX - scrollPx <= strikeX) { songEndFiredRef.current = true; onSongEnd?.(); }
+        // #863: this effect now only runs at `frameTick` cadence, so the render body's own `scrollPx`
+        // (computed once per render, from `tickRef.current` AT render time) is no longer guaranteed fresh
+        // by the time this effect body runs — recompute it here inline from `tickRef.current`, using the
+        // EXACT SAME formula as the render body's `scrollElapsedMs`/`scrollPx` above (§6c: same arithmetic,
+        // just re-evaluated at the freshest possible moment instead of trusting a render-scoped closure).
+        const freshScrollElapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
+        const freshScrollPx = beatMs > 0 ? (freshScrollElapsedMs / (beatsOnScreen * beatMs)) * dist : 0;
+        if (finalBarX - freshScrollPx <= strikeX) { songEndFiredRef.current = true; onSongEnd?.(); }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [tick]);
+    }, [frameTick]);
 
     // #662 (Han 2026-08-03, "bij start van level zie ik onmiddellijk maat -1 en maat 0 in beeld"): a
     // lead-in pattern (timpani/fixed-cello, and the barlines' own synthetic "-1"/"0" entries) has its OWN
@@ -928,11 +1682,11 @@ export default function SheetRpgLayer({
     // Slime-type-block notes (a normal, uncollapsed melody) must stay always visible, unchanged.
     const wizardMeasure = (offset, mls) => (isWizard || (isMixed && blockTypeAt(Math.floor(offset / mls)) === 'Wizard'));
     const noteStaffContentRest = useMemo(() => {
-        if (!((isWizard || isMixed) && sideScroll && scrollNotation && scrollNotation.melody)) return null;
-        const mls = scrollNotation.measureLengthSlots || 48;
-        const { notes, offsets } = scrollNotation.melody;
+        if (!((isWizard || isMixed) && sideScroll && scrollNotationClipped && scrollNotationClipped.melody)) return null;
+        const mls = scrollNotationClipped.measureLengthSlots || 48;
+        const { notes, offsets } = scrollNotationClipped.melody;
         const melody = {
-            ...scrollNotation.melody,
+            ...scrollNotationClipped.melody,
             notes: notes.map((n, i) => {
                 if (n === 'c' || offsets[i] == null) return n;
                 if (!wizardMeasure(offsets[i], mls)) return n;  // Slime-block note (Mixed only): always visible
@@ -942,20 +1696,20 @@ export default function SheetRpgLayer({
         };
         return (
             <MelodyNotesLayer
-                {...scrollNotation} melody={melody} staff="treble" staffYStart={trebleStart} startX={viewRight}
+                {...scrollNotationClipped} melody={melody} staff="treble" staffYStart={trebleStart} startX={viewRight}
                 noteWidth={noteWidth} allOffsets={allOffsets} pixelsPerTick={scrollPPT}
                 inputTestState={null} previewMode={false} interactive={false} debugMode={debugMode}
                 percussionVoiceSplit={false}
             />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isWizard, isMixed, sideScroll, scrollNotation, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
+    }, [isWizard, isMixed, sideScroll, scrollNotationClipped, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
     const noteStaffContentReal = useMemo(() => {
-        if (!((isWizard || isMixed) && sideScroll && scrollNotation && scrollNotation.melody)) return null;
-        const mls = scrollNotation.measureLengthSlots || 48;
-        const { notes, offsets } = scrollNotation.melody;
+        if (!((isWizard || isMixed) && sideScroll && scrollNotationClipped && scrollNotationClipped.melody)) return null;
+        const mls = scrollNotationClipped.measureLengthSlots || 48;
+        const { notes, offsets } = scrollNotationClipped.melody;
         const melody = {
-            ...scrollNotation.melody,
+            ...scrollNotationClipped.melody,
             notes: notes.map((n, i) => {
                 if (n === 'c' || offsets[i] == null) return n;
                 if (!wizardMeasure(offsets[i], mls)) return 'c'; // Slime-block note: already shown in Rest layer
@@ -965,38 +1719,38 @@ export default function SheetRpgLayer({
         };
         return (
             <MelodyNotesLayer
-                {...scrollNotation} melody={melody} staff="treble" staffYStart={trebleStart} startX={viewRight}
+                {...scrollNotationClipped} melody={melody} staff="treble" staffYStart={trebleStart} startX={viewRight}
                 noteWidth={noteWidth} allOffsets={allOffsets} pixelsPerTick={scrollPPT}
                 inputTestState={null} previewMode={false} interactive={false} debugMode={debugMode}
                 percussionVoiceSplit={false}
             />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isWizard, isMixed, sideScroll, scrollNotation, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
+    }, [isWizard, isMixed, sideScroll, scrollNotationClipped, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
     // non-Wizard/non-Mixed levels keep the original single unmodified layer.
     const noteStaffContent = useMemo(() => {
         if (isWizard || isMixed) return null;
-        if (!(sideScroll && scrollNotation && scrollNotation.melody)) return null;
+        if (!(sideScroll && scrollNotationClipped && scrollNotationClipped.melody)) return null;
         return (
             <MelodyNotesLayer
-                {...scrollNotation} staff="treble" staffYStart={trebleStart} startX={viewRight}
+                {...scrollNotationClipped} staff="treble" staffYStart={trebleStart} startX={viewRight}
                 noteWidth={noteWidth} allOffsets={allOffsets} pixelsPerTick={scrollPPT}
                 inputTestState={null} previewMode={false} interactive={false} debugMode={debugMode}
                 percussionVoiceSplit={false}
             />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isWizard, sideScroll, scrollNotation, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
+    }, [isWizard, sideScroll, scrollNotationClipped, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
 
     // #661 (Han 2026-08-02): bass + percussion scroll the SAME way as treble (same scrollPPT/translate, so
     // a beat lines up vertically across all 3 staves) — visual only, no slimes/combat. Separate memos
     // (mirrors noteStaffContent above) so each staff's heavy beaming/accidental work is skipped independently
     // when its own bundle hasn't changed.
     const noteStaffContentBass = useMemo(() => {
-        if (!(sideScroll && scrollNotationBass && scrollNotationBass.melody)) return null;
+        if (!(sideScroll && scrollNotationBassClipped && scrollNotationBassClipped.melody)) return null;
         return (
             <MelodyNotesLayer
-                {...scrollNotationBass}
+                {...scrollNotationBassClipped}
                 staff="bass"
                 staffYStart={bassStart}
                 startX={bassStartX}
@@ -1011,13 +1765,13 @@ export default function SheetRpgLayer({
             />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sideScroll, scrollNotationBass, bassStartX, noteWidth, allOffsets, scrollPPT, bassStart, debugMode]);
+    }, [sideScroll, scrollNotationBassClipped, bassStartX, noteWidth, allOffsets, scrollPPT, bassStart, debugMode]);
 
     const noteStaffContentPercussion = useMemo(() => {
-        if (!(sideScroll && scrollNotationPercussion && scrollNotationPercussion.melody)) return null;
+        if (!(sideScroll && scrollNotationPercussionClipped && scrollNotationPercussionClipped.melody)) return null;
         return (
             <MelodyNotesLayer
-                {...scrollNotationPercussion}
+                {...scrollNotationPercussionClipped}
                 staffYStart={percussionStart}
                 startX={percussionStartX}
                 noteWidth={noteWidth}
@@ -1030,14 +1784,14 @@ export default function SheetRpgLayer({
             />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sideScroll, scrollNotationPercussion, percussionStartX, noteWidth, allOffsets, scrollPPT, percussionStart, debugMode]);
+    }, [sideScroll, scrollNotationPercussionClipped, percussionStartX, noteWidth, allOffsets, scrollPPT, percussionStart, debugMode]);
 
     const barlineStaffContent = useMemo(() => {
-        if (!(sideScroll && scrollBarlines)) return null;
+        if (!(sideScroll && scrollBarlinesClipped)) return null;
         return (
             <BarlinesLayer
                 mode="regular"
-                {...scrollBarlines}
+                {...scrollBarlinesClipped}
                 noteWidth={noteWidth}
                 startX={barlineStartX}
                 pixelsPerTick={scrollPPT}
@@ -1048,7 +1802,7 @@ export default function SheetRpgLayer({
             />
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sideScroll, scrollBarlines, barlineStartX, noteWidth, scrollPPT, debugMode]);
+    }, [sideScroll, scrollBarlinesClipped, barlineStartX, noteWidth, scrollPPT, debugMode]);
 
     return (
         <g className="rpg-layer" data-rpg-layer="" style={{ pointerEvents: 'none' }}>
@@ -1075,9 +1829,14 @@ export default function SheetRpgLayer({
                             <rect x={-2000} y={0} width={viewRight + 2000} height={Math.max(1, viewBottom)} fill="url(#rpgLaneFadeGrad)" />
                         </mask>
                     </defs>
+                    {/* #863 perf fix: each translate `<g>` below now carries a ref — the INITIAL `transform`
+                        (computed from `tickRef.current`, correct for first paint) is still set declaratively
+                        here, but every subsequent frame the SAME translate is pushed via `.setAttribute` from
+                        the main rAF loop above (bucket A), bypassing React's render/commit entirely for the
+                        by-far-highest-frequency mutation in this whole layer. */}
                     <g mask="url(#rpgLaneFade)">
                         {(barlineStaffContent || finalBarTick > 0) && (
-                            <g transform={`translate(${-scrollPx}, 0)`}>
+                            <g ref={barlineScrollRef} transform={`translate(${-scrollPx}, 0)`}>
                                 {barlineStaffContent}
                                 {finalBarTick > 0 && (
                                     <g>
@@ -1087,20 +1846,20 @@ export default function SheetRpgLayer({
                                 )}
                             </g>
                         )}
-                        {noteStaffContent && <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContent}</g>}
+                        {noteStaffContent && <g ref={noteScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContent}</g>}
                         {/* #692 Level 9 — every note: a plain rest (rhythm guide, no pitch), always visible. */}
-                        {noteStaffContentRest && <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContentRest}</g>}
+                        {noteStaffContentRest && <g ref={restScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContentRest}</g>}
                         {/* #692 — the REAL notes/rests, visible ONLY in debug mode (Han: "onzichtbaar, maar
                             zichtbaar in debug mode"). */}
                         {noteStaffContentReal && (
-                            <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`} opacity={debugMode ? 1 : 0} style={{ pointerEvents: 'none' }}>
+                            <g ref={realScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`} opacity={debugMode ? 1 : 0} style={{ pointerEvents: 'none' }}>
                                 {noteStaffContentReal}
                             </g>
                         )}
                         {/* #661: bass/percussion ride the SAME translate as treble so a beat lines up
                             vertically across all 3 scrolling staves. */}
-                        {noteStaffContentBass && <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContentBass}</g>}
-                        {noteStaffContentPercussion && <g transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContentPercussion}</g>}
+                        {noteStaffContentBass && <g ref={bassScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContentBass}</g>}
+                        {noteStaffContentPercussion && <g ref={percussionScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContentPercussion}</g>}
                     </g>
                 </>
             )}
@@ -1123,9 +1882,30 @@ export default function SheetRpgLayer({
                 // (all notes Wizard) and a Slime level (all notes Slime) are both special cases of this
                 // same per-item decision.
                 const itemIsWizard = isWizard || (isMixed && blockTypeAt(Math.floor(s.beat / beatsPerMeasure)) === 'Wizard');
+                // #863 perf fix: a live (on-screen, not dying) entity registers itself in `slimeRefsMap` via
+                // this callback ref so the bucket-A rAF loop can push its position/frame every frame without
+                // going through React. Any branch below that returns null/switches to a non-live render
+                // (killed, dying) must NOT attach this ref — see the explicit `.delete()` calls at those
+                // branches, otherwise a stale handle would linger in the map pointing at an unmounted node.
+                const liveSlimeRef = (el) => {
+                    if (el) slimeRefsMap.current.set(s.key, { el, kind: 'slime', idx });
+                    else slimeRefsMap.current.delete(s.key);
+                };
+                const liveProjectileRef = (el) => {
+                    if (el) slimeRefsMap.current.set(s.key, { el, kind: 'projectile', idx });
+                    else slimeRefsMap.current.delete(s.key);
+                };
                 if (sideScroll) {
-                    if (killedSet.has(idx)) return null;                  // struck & death finished
+                    if (killedSet.has(idx)) { slimeRefsMap.current.delete(s.key); return null; }   // struck & death finished
                     if (isDying) {
+                        slimeRefsMap.current.delete(s.key);   // dying → no longer a live/ref-driven entity
+                        // #863 round 2: registers the death-sprite's imperative handle (frame/opacity only —
+                        // position is FROZEN at `dyingEntry.x`, so no per-frame `setPosition` is needed) for
+                        // the rAF loop's `dyingRefsMap` pass below.
+                        const liveDyingRef = (el) => {
+                            if (el) dyingRefsMap.current.set(s.key, { el, kind: itemIsWizard ? 'projectile' : 'slime', startTick: dyingEntry.startTick });
+                            else dyingRefsMap.current.delete(s.key);
+                        };
                         // Han: in parallel with the enemy's death, the struck NOTE flies UP + fades; a lowlight
                         // GHOST copy stays at its spot ("niet meer spelen"). staffYStart shifts with the note so
                         // the stem direction can't flip mid-flight. (Level 2 = forced quarters, C4–G4: exact.)
@@ -1134,6 +1914,18 @@ export default function SheetRpgLayer({
                         const nx = startX + NOTE_STAFF_DX;
                         const prog = Math.min(1, framesSince(dyingEntry.startTick) / DEATH_FRAMES);
                         const up = prog * 46;
+                        // #863 round 2: registers the flying/fading ghost note's WRAPPER `<g>` — the rAF loop
+                        // mutates its `transform`/`opacity` directly; `StaffQuarterNote` itself is untouched
+                        // (still drawn once, declaratively, at its unshifted `ny`/`trebleStart`) since shifting
+                        // BOTH `positionY` and `staffYStart` by the same amount is mathematically identical to
+                        // translating the whole glyph by that amount (every internal offset in StaffQuarterNote
+                        // is relative to `staffYStart`) — so a `<g transform="translate(0,-up)">` wrapper
+                        // reproduces the exact same pixels as the old per-render `ny - up`/`trebleStart - up`
+                        // re-render did, without needing StaffQuarterNote to re-render at all.
+                        const liveGhostRef = (el) => {
+                            if (el) ghostNoteRefsMap.current.set(s.key, { el, startTick: dyingEntry.startTick });
+                            else ghostNoteRefsMap.current.delete(s.key);
+                        };
                         return (
                             <g key={s.key}>
                                 {itemIsWizard
@@ -1142,21 +1934,26 @@ export default function SheetRpgLayer({
                                     // slime already uses), stepping the death sheet's 5 frames with the fade table.
                                     // #685: Y is the same B4-centered height it flew at (no oscillation once dead
                                     // — "stop met voortbewegen" applies to the wobble too, not just the x drift).
-                                    ? <Projectile x={dyingEntry.x} y={projectileCenterY} frame={deathFrame} dying opacity={PROJECTILE_DEATH_OPACITY[deathFrame] ?? 0.2} />
-                                    : <Slime x={dyingEntry.x} y={slimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />}
+                                    ? <Projectile ref={liveDyingRef} x={dyingEntry.x} y={projectileCenterY} frame={deathFrame} dying opacity={PROJECTILE_DEATH_OPACITY[deathFrame] ?? 0.2} />
+                                    : <Slime ref={liveDyingRef} x={dyingEntry.x} y={slimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />}
                                 {/* #685 (Han: "render de noten zelfs niet") — the flying/ghost note glyphs are
                                     skipped entirely for the Wizard's projectiles; the glow already makes them
                                     unreadable, so they're not drawn instead of drawn-then-hidden. */}
                                 {!itemIsWizard && ny != null && (
                                     <>
                                         <StaffQuarterNote x={nx} positionY={ny} staffYStart={trebleStart} color="var(--text-lowlight)" opacity={0.45} />
-                                        <StaffQuarterNote x={nx} positionY={ny - up} staffYStart={trebleStart - up} opacity={1 - prog} />
+                                        <g ref={liveGhostRef} transform={`translate(0, ${-up})`} opacity={1 - prog}>
+                                            <StaffQuarterNote x={nx} positionY={ny} staffYStart={trebleStart} opacity={1} />
+                                        </g>
                                     </>
                                 )}
                             </g>
                         );
                     }
-                    const p = sideScrollX(s.beat, tick);
+                    // #863: initial mount-time position only — this render only happens at frameTick
+                    // cadence now; every subsequent frame's position comes from the rAF loop's imperative
+                    // update via `slimeRefsMap` (registered below), reading the freshest `tickRef.current`.
+                    const p = sideScrollX(s.beat, tickRef.current);
                     if (itemIsWizard) {
                         // #679 (Han interview: "zelfde beat-gekoppelde aankomsttijd" + "bewegen wél lineair naar
                         // voren"): reuses the SAME arrival timing as a slime (sideScrollX), but takes the LINEAR
@@ -1171,23 +1968,33 @@ export default function SheetRpgLayer({
                         // bypassed entirely in debug mode, so every spawned-but-not-yet-due projectile is
                         // visible for inspection.
                         const visibleSinceMs = (beatsOnScreen - spawnLeadBeats) * beatMs;
-                        if (!p.spawned || p.noteX < -PROJECTILE_VIEW_W || (!debugMode && p.msSinceSpawn < visibleSinceMs)) return null;
+                        if (!p.spawned || p.noteX < -PROJECTILE_VIEW_W || (!debugMode && p.msSinceSpawn < visibleSinceMs)) {
+                            slimeRefsMap.current.delete(s.key);
+                            return null;
+                        }
                         // #685 ("animatie 4x zo snel"): loop speed multiplied independently of frameMs.
                         const loopFrame = Math.floor(p.ff * PROJECTILE_ANIM_SPEED) % PROJECTILE_LOOP_FRAMES;
                         // #685 ("oscilleren rond hun centrum... 15 units in alle richtingen"): small wobble
                         // layered on top of the real flight position — `tick * INTERVAL_MS` = elapsed ms, a
                         // smooth continuously-increasing clock (unlike `Date.now()`, stays in sync with the
                         // audio-anchored rAF loop everything else here already uses).
-                        const nowMs = tick * INTERVAL_MS;
+                        const nowMs = tickRef.current * INTERVAL_MS;
                         const oscX = oscillate(s.key, nowMs, PROJECTILE_OSCILLATE_RANGE);
                         const oscY = oscillate(s.key + 1000, nowMs, PROJECTILE_OSCILLATE_RANGE);
-                        return <Projectile key={s.key} x={p.noteX + oscX} y={projectileCenterY + oscY} frame={loopFrame} />;
+                        // #863: `ref={liveProjectileRef}` — this is a BUCKET-A live entity; the rAF loop
+                        // takes over its position/frame every frame after this initial mount paint.
+                        return <Projectile key={s.key} ref={liveProjectileRef} x={p.noteX + oscX} y={projectileCenterY + oscY} frame={loopFrame} />;
                     }
-                    if (!p.spawned || p.slimeX < -SLIME_VIEW_W) return null;   // not on screen / walked off left
+                    if (!p.spawned || p.slimeX < -SLIME_VIEW_W) {
+                        slimeRefsMap.current.delete(s.key);
+                        return null;   // not on screen / walked off left
+                    }
                     // Han: a wrong/early note WIGGLES the (still-)next slime — a quick decaying horizontal shake.
+                    // #863: only used for THIS mount-time render; the rAF loop applies the same wiggle offset
+                    // (via `wiggleRef`, refreshed every render — see point 8) on every subsequent frame.
                     const wf = wiggle && wiggle.index === idx ? framesSince(wiggle.startTick) : -1;
                     const wdx = wf >= 0 && wf < WIGGLE_FRAMES ? Math.sin(wf * 3.2) * 4 * (1 - wf / WIGGLE_FRAMES) : 0;
-                    return <Slime key={s.key} x={p.slimeX + wdx} y={slimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} />;
+                    return <Slime key={s.key} ref={liveSlimeRef} x={p.slimeX + wdx} y={slimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} />;
                 }
                 // static (Level 1 style): idle under the note; death in place. Wizard is never non-sideScroll
                 // (Level 9's config is sideScroll:true), so this branch stays pure Slime — no isWizard check.
@@ -1196,15 +2003,46 @@ export default function SheetRpgLayer({
                 const frame = isDying ? deathFrame : gFrame % SLIME_IDLE.frames;
                 return <Slime key={s.key} x={s.x} y={slimeY} colorKey={s.colorKey} row={row} frame={frame} />;
             })}
+            {/* #862 (Han 2026-08-10, twoHanded levels) — bass-slimes, own lane at bassSlimeY. Simpler than
+                the treble render above: no Wizard/Mixed/wiggle branches (Level 15 is plain Slime; a wrong
+                bass attempt doesn't wiggle — useTwoHandedBass allows retrying any time within the measure). */}
+            {sideScroll && bassSlimeData.map((s, idx) => {
+                if (bassKilledSet.has(idx)) { bassSlimeRefsMap.current.delete(s.key); return null; }
+                const dyingEntry = bassDyingList.find((d) => d.index === idx);
+                if (dyingEntry) {
+                    bassSlimeRefsMap.current.delete(s.key);   // dying → no longer live/ref-driven
+                    const deathFrame = Math.min(framesSince(dyingEntry.startTick), DEATH_FRAMES - 1);
+                    // #863 round 2: frame-only imperative registration (position frozen, same as treble above).
+                    const liveBassDyingRef = (el) => {
+                        if (el) bassDyingRefsMap.current.set(`bass-${s.key}`, { el, startTick: dyingEntry.startTick });
+                        else bassDyingRefsMap.current.delete(`bass-${s.key}`);
+                    };
+                    return <Slime key={`bass-${s.key}`} ref={liveBassDyingRef} x={dyingEntry.x} y={bassSlimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />;
+                }
+                const p = sideScrollX(s.beat, tickRef.current);   // #863: initial paint only, see slimeData.map above
+                if (!p.spawned || p.slimeX < -SLIME_VIEW_W) { bassSlimeRefsMap.current.delete(s.key); return null; }
+                const liveBassSlimeRef = (el) => {
+                    if (el) bassSlimeRefsMap.current.set(s.key, { el, idx });
+                    else bassSlimeRefsMap.current.delete(s.key);
+                };
+                return <Slime key={`bass-${s.key}`} ref={liveBassSlimeRef} x={p.slimeX} y={bassSlimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} />;
+            })}
             {/* #693 round 8 — critters under rests, exact mirror of the slime render above but simpler: no
                 death animation, just hidden once struck (killedCritters). Same sideScrollX/spawn gating so
                 they scroll in lockstep with everything else. */}
             {sideScroll && critterData.map((c, idx) => {
-                if (killedCritters.has(idx)) return null;
-                const p = sideScrollX(c.beat, tick);
-                if (!p.spawned || p.noteX < -SLIME_VIEW_W || (!debugMode && p.msSinceSpawn < 0)) return null;
+                if (killedCritters.has(idx)) { critterRefsMap.current.delete(c.key); return null; }
+                const p = sideScrollX(c.beat, tickRef.current);   // #863: initial paint only, see slimeData.map above
+                if (!p.spawned || p.noteX < -SLIME_VIEW_W || (!debugMode && p.msSinceSpawn < 0)) {
+                    critterRefsMap.current.delete(c.key);
+                    return null;
+                }
+                const liveCritterRef = (el) => {
+                    if (el) critterRefsMap.current.set(c.key, { el, idx });
+                    else critterRefsMap.current.delete(c.key);
+                };
                 const gFrame = Math.floor(p.ff / 4) % 1000;   // slow, gentle idle cycle (not the slime's walk cadence)
-                return <Critter key={c.key} x={p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2} y={slimeY} variant={c.variant} frame={gFrame} />;
+                return <Critter key={c.key} ref={liveCritterRef} x={p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2} y={slimeY} variant={c.variant} frame={gFrame} />;
             })}
             {/* Graded timing zones next to the red strike line (Han 2026-08-02, debug-only for now — Han may
                 place assets here later). Replaces the old #660 spatial hit-zone rect (kills are TIME-window
@@ -1228,9 +2066,16 @@ export default function SheetRpgLayer({
                 otherwise cascades the Maestro NOTATION font onto plain words (Han 2026-08-02: 3× groter,
                 standaard font). */}
             {sideScroll && judgments.map((j) => {
-                const prog = Math.min(1, ((tick - j.startTick) * INTERVAL_MS) / JUDGMENT_MS);
+                const prog = Math.min(1, ((tickRef.current - j.startTick) * INTERVAL_MS) / JUDGMENT_MS);
+                const y = judgmentY(geomRef.current, j.lane, prog);
+                // #863 round 2: registers this judgment's live `<text>` node so the rAF loop can push
+                // fresh y/opacity every frame instead of waiting for the next `frameTick` re-render.
+                const liveJudgmentRef = (el) => {
+                    if (el) judgmentRefsMap.current.set(j.id, { el, startTick: j.startTick, lane: j.lane });
+                    else judgmentRefsMap.current.delete(j.id);
+                };
                 return (
-                    <text key={j.id} x={startX + SLIME_VIEW_W / 2 + 10} y={trebleStart - 18 - prog * 24}
+                    <text key={j.id} ref={liveJudgmentRef} x={startX + SLIME_VIEW_W / 2 + 10} y={y}
                         fill={JUDGMENT_COLOR[j.category] || 'var(--text-primary)'} opacity={1 - prog}
                         fontSize="36" fontWeight="700" fontFamily="Georgia, 'Times New Roman', serif"
                         style={{ pointerEvents: 'none', userSelect: 'none' }}>
@@ -1238,12 +2083,29 @@ export default function SheetRpgLayer({
                     </text>
                 );
             })}
+            {/* #825 "hit" bursts — 7-frame fade in/hold/fade out, double the shared sprite fps. */}
+            {sideScroll && hits.map((h) => {
+                const f = framesSince(h.startTick, frameMs / 2);
+                const frameIdx = h.frames[Math.min(f, HIT_FRAMES - 1)];
+                const opacity = HIT_BURST_OPACITY[Math.min(f, HIT_FRAMES - 1)];
+                // #863 round 2: registers this hit burst's imperative handle for the rAF loop.
+                const liveHitRef = (el) => {
+                    if (el) hitRefsMap.current.set(h.id, { el, startTick: h.startTick, frames: h.frames });
+                    else hitRefsMap.current.delete(h.id);
+                };
+                return <HitBurst key={h.id} ref={liveHitRef} x={h.x} y={h.y} frame={frameIdx} opacity={opacity} />;
+            })}
             {/* #686 spawn-glow flourishes — rendered AFTER the Projectiles above (so the flash sits IN
                 FRONT of a projectile it coincides with) but BEFORE the Wizard below (so it renders
                 BEHIND the wizard sprite — Han: "achter de wizard, en voor het projectiel"). */}
-            {(isWizard || isMixed) && spawnGlows.map((g) => (
-                <SpawnGlow key={g.key} x={g.x} y={g.y} age={framesSince(g.startTick)} />
-            ))}
+            {(isWizard || isMixed) && spawnGlows.map((g) => {
+                // #863 round 2: registers this spawn-glow's imperative handle for the rAF loop.
+                const liveSpawnGlowRef = (el) => {
+                    if (el) spawnGlowRefsMap.current.set(g.key, { el, startTick: g.startTick });
+                    else spawnGlowRefsMap.current.delete(g.key);
+                };
+                return <SpawnGlow key={g.key} ref={liveSpawnGlowRef} x={g.x} y={g.y} age={framesSince(g.startTick)} />;
+            })}
             {/* #679 Level 9 — the wizard, static on the right, facing the hero. Purely decorative/non-
                 interactive (no onClick, so no §3a debug hit-box is needed — nothing here is clickable).
                 Level 10 (Han 2026-08-06, "er moet een zwarte wizard staan"): a Mixed level shows the SAME
@@ -1252,7 +2114,7 @@ export default function SheetRpgLayer({
                 variant, rather than new art) — its cast animation is the SAME `wizardCells`/`wizardFrame`
                 computed above, now gated on Wizard-type NOTES specifically instead of the whole level. */}
             {(isWizard || isMixed) && sideScroll && (
-                <Wizard x={wizardX} y={wizardY} cells={wizardCells} frame={wizardFrame} />
+                <Wizard ref={wizardRef} x={wizardX} y={wizardY} cells={wizardCells} frame={wizardFrame} />
             )}
             {/* Level 11 (Han 2026-08-06, "slimes, er staat een groene wizard. die doet elke 2 maten een
                 spell en wisselt dan van toonladder"): a PURELY DECORATIVE wizard, same sprite/position as
@@ -1263,7 +2125,7 @@ export default function SheetRpgLayer({
                 real scale-swap mechanic IS implemented, in useLevelKeyModulationStream.js). `!isWizard`
                 guard: never doubles up with a real combat Wizard. */}
             {!isWizard && sideScroll && decorativeWizard && (
-                <Wizard x={wizardX} y={wizardY} cells={WIZARD_IDLE_CELLS}
+                <Wizard ref={decorativeWizardRef} x={wizardX} y={wizardY} cells={WIZARD_IDLE_CELLS}
                     // Bug fix (crash: "Cannot read properties of undefined (reading 'col')"): `gFrame` can
                     // be NEGATIVE during the pre-roll (tick negative before scrollStartTime) — plain `%`
                     // then indexes WIZARD_IDLE_CELLS with a negative number (undefined in JS), same failure
@@ -1281,13 +2143,29 @@ export default function SheetRpgLayer({
                 measures, so a note/flourish naturally becomes visible ~2 measures before its own beat —
                 exactly the timing asked for, for free. A fixed small lookahead of switch indices is
                 rendered; ones beyond the level's actual length simply never spawn (harmless). */}
-            {!isWizard && sideScroll && decorativeWizard && SWITCH_LOOKAHEAD.map((k) => {
+            {!isWizard && sideScroll && decorativeWizard && SWITCH_LOOKAHEAD.map((k, i) => {
                 const switchBeat = k * 2 * beatsPerMeasure;
-                const p = sideScrollX(switchBeat, tick);
-                if (!p.spawned || p.noteX < -STATIC_PROJECTILE2_CROP.w) return null;
+                const p = sideScrollX(switchBeat, tickRef.current);   // #863: initial paint only
+                if (!p.spawned || p.noteX < -STATIC_PROJECTILE2_CROP.w) { switchRefsArr.current[i] = null; return null; }
                 const loopFrame = Math.floor(p.ff) % STATIC_PROJECTILE2_LOOP_FRAMES;
-                return <StaticProjectile2 key={`switch-${k}`} x={p.noteX} y={projectileCenterY} frame={loopFrame} />;
+                // #863: bucket-A live entity — `switchRefsArr` (a plain array, SWITCH_LOOKAHEAD is fixed
+                // and ordered) is walked every rAF frame by the main loop above to update position/frame.
+                return (
+                    <StaticProjectile2 key={`switch-${k}`} ref={(el) => { switchRefsArr.current[i] = el; }}
+                        x={p.noteX} y={projectileCenterY} frame={loopFrame} />
+                );
             })}
+            {/* #871 (Han 2026-08-11, "abc music en level namen"): a decorative NPC (levels.json's `npc`
+                bestiary-name field) standing at the same right-edge anchor the wizard uses, sized to the
+                wizard's own tuned scale. Reuses the existing `Critter` renderer (§6c) with `preferIdle` so
+                it plays its idle animation. Purely visual: no ref registration in the rAF entity buckets,
+                no click handler, no combat/grading coupling. `!isWizard && !isMixed` guard: never doubles
+                up with a combat wizard, same guard shape decorativeWizard uses above. */}
+            {!isWizard && !isMixed && sideScroll && npcVariant && (
+                <Critter x={viewRight - npcVariant.crop.w * NPC_SCALE + 2} y={viewBottom - npcVariant.crop.h * NPC_SCALE}
+                    variant={npcVariant} scale={NPC_SCALE} preferIdle
+                    frame={((gFrame % npcIdleLen) + npcIdleLen) % npcIdleLen} />
+            )}
             {!hideHero && (
                 <foreignObject x={heroX} y={heroY} width={dollW} height={HERO_H} style={{ overflow: 'visible', pointerEvents: 'auto' }}>
                     <div xmlns="http://www.w3.org/1999/xhtml" onClick={onOpenCharacter}

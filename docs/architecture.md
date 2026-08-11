@@ -11194,6 +11194,10 @@ include `setTonic`/`setSelectedMode`/`scale.tonic`/`selectedMode`).
 described above were folded into the unified `tracks: {treble, bass, percussion}` object in the very next
 round (same day) — see §169. They no longer exist as separate fields; this section is kept for history.
 
+**Extended by §202 (Han 2026-08-11, #871):** two more OPTIONAL fields, `songId` and `npc` — see §202 for
+the full mechanism. The always-in-sync field list still lives in `src/levels/levels.js`'s own schema
+comment block; this pointer note exists only so a reader of this section knows to look there.
+
 ### §169. Level editor round 2 — unified `tracks` object, `theme`, `numBlocks`/enemy-derived `numRepeats`, 20 example levels 101-120 (Han 2026-08-06)
 
 **Purpose (Han): "genereer 20 levels (101-120) met zeer uiteenlopende settings; als voorbeelden voor de
@@ -11728,3 +11732,1384 @@ CharacterAvatarPanel.jsx` (`PetSlotIcon`), `src/components/character/CharacterOp
 `scripts/generate-bestiary-manifest.mjs` (tag derivation, animation-def functions extracted, TOC rewritten),
 `scripts/bestiary/animationDefs.mjs` (new), `scripts/bestiary/helpers.mjs` (new), `src/model/
 bestiaryManifest.generated.js` (regenerated, verified byte-identical to pre-split).
+
+### §179. Two level bugs fixed — trailing rests/critters past the final barline, and replay ("Opnieuw") leaving stale audio/timers running (#824, Han 2026-08-10)
+
+**Bug 1 — rests/critters rendering past a level's declared length.** `SheetRpgLayer.jsx`'s `slimeData`/
+`critterData` memos built one entry per note/rest in `trebleMelody` with no upper bound, but the underlying
+melody data can legitimately extend slightly PAST the level's true end — `melodySlice.js`'s `Math.ceil`-based
+measure padding, `resizeMelody`'s whole-rest fill, and Level 9's fixed-2-measure JIT block generation
+(`useLevelTrebleStream.js`, `totalBlocks = Math.ceil(numMeasures / 2)`) can all produce a trailing partial
+measure beyond `lvl.numMeasures`. The level's TRUE end was already computed once, correctly, as
+`finalBarTick = scrollBarlines.numMeasures * scrollBarlines.measureLengthSlots` (used to draw the final
+barline) — just never applied to slime/critter spawning. **Fix:** hoisted that computation to
+`trebleFinalBarTick` (computed once, near the top of the component, `Infinity` outside side-scroll) and both
+memos now skip any entry whose `offsets[i] >= trebleFinalBarTick`. The pre-existing `finalBarTick` (used for
+barline/song-end logic) now reuses the same hoisted value instead of recomputing it — one source of truth
+for "where does this song actually end" (§6c).
+
+**Bug 2 — "↻ Opnieuw" (replay) doubling/leaving stale audio.** `LevelSplash`'s replay button called
+`level.replay()` directly (`useLevel.js`), which only resets stats/wave/done and calls `regenerate(true)` —
+it never stops the PREVIOUS playthrough's backing audio, nor drops `levelAudioStart`. Because the splash is
+shown with `level.active` already `true`, replaying never transitions `active` false→true, so App.jsx's own
+`!level.active` cleanup effect (which stops backing audio and nulls the anchor) never fires either — any
+still-scheduled/sounding audio from the just-finished run is left completely untouched while the level starts
+generating fresh content, audible as doubled/overlapping playback. This is the exact gap `handleResumeLevel`
+(pause/resume) already solves correctly for the identical "cleanly restart this level's audio" problem: stop
+everything, then null the anchor so the readiness-gated anchor-picking effect (`App.jsx` ~line 1199) and every
+JIT stream (`useLevelBackingStream`/`useLevelTrebleStream`/etc.) tear down their own stale timers via their
+existing effect cleanup and start clean. **Fix:** new `handleReplayLevel` wrapper in `App.jsx` — reuses that
+exact shape (`stopAllBackingAudio(); handleStopAllPlayback(); setLevelAudioStart(null); level.replay();`) —
+wired to `LevelSplash`'s `onReplay` in place of the raw `level.replay`.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (`trebleFinalBarTick`, `slimeData`/`critterData`
+clamp, `finalBarTick` dedup), `src/App.jsx` (`handleReplayLevel`, `onReplay` wiring).
+
+**Not in this round — timpani/cello desync on non-4/4 signatures + timpani's own measure -1 pickup
+(originally bugs 3/4 of #824).** Scoped up during plan discussion into a genuine architectural change (Han
+wants timpani generated JUST-IN-TIME per measure-block, like bass/metronome, to support future adaptive
+difficulty — not a one-shot pure-function swap). Parked in the kanban ticket's `plan_review` pending Han's
+sign-off on the new streaming-hook approach; `src/utils/timpaniPattern.js` is UNCHANGED for now.
+
+### §180. Level-complete UX polish — shared judgment-colour CSS tokens, "never fixed" popup silenced, "missed" added to the note-accuracy chart, and a new sprite+sfx "hit" flourish on every successful strike (#825, Han 2026-08-10)
+
+**Shared judgment-colour tokens.** The 7 judgment/grading colours (perfect/near/far/missed/wrong/corrected/
+extra) were hardcoded independently in THREE places — `SheetRpgLayer.jsx`'s `JUDGMENT_COLOR` (the live
+floating popup), and `LevelStatsCharts.jsx`'s `TIER_COLOR` + `CORRECTNESS_SEGMENTS` (the two level-complete
+charts) — already slightly diverged despite a comment claiming they followed "the same colour convention".
+Fixed at the root: new `--judgment-*` CSS custom properties in `src/styles/App.css`'s base `:root` block
+(theme-neutral — these are semantic status colours, not surface colours, so no per-theme override needed),
+consumed via `fill="var(--judgment-perfect)"` etc. by all three call sites. One source of truth (§6d) — a
+future colour tweak only ever touches `App.css`.
+
+**"Missed" added to the note-accuracy (correctness) chart.** `NoteCorrectnessBar`'s `CORRECTNESS_SEGMENTS`
+deliberately excluded `missed` before (a "timing/attempt failure, not a pitch-accuracy question") — Han's
+spec explicitly lists it as a 5th segment, so it's now included (`values.missed` was already present in
+`stats`, no new plumbing needed — only the segment list changed).
+
+**"Never fixed" in-level notification silenced.** The floating `wrongUncorrected` ("never fixed") judgment
+label — shown when a wrong-pitch attempt is never corrected before the note's window closes — is now
+suppressed at its one spawn site (`SheetRpgLayer.jsx`'s slime-expiry effect). The underlying STAT is
+unaffected (`onMissRef` still fires unconditionally) — only the in-the-moment popup is hidden, per Han's
+"melding: never fixed mag 'onzichtbaar' worden".
+
+**New "hit" animation + sfx on every successful strike.** A one-shot burst plays at the strike line the
+instant a note is correctly hit (the same branch that already spawns the death animation + judgment label):
+7 consecutive (randomly chosen start, wrapping) frames from a new 5×6 sprite sheet
+(`GandalfHardcore 64x64 Projectiles4.png`, copied into the bestiary's clean-kebab asset convention as
+`hit-burst-4.png`), played at DOUBLE the shared bpm-coupled frame rate, with a 7-frame opacity envelope
+(fade-in 2 / hold 3 / fade-out 2 — `HIT_BURST_OPACITY` in `enemyAssets.js`). Rendering reuses the exact
+nested-`<svg>`-crop technique `Projectile`'s death animation already uses (§6d — no new hand-rolled sprite
+math). Paired with a random "hit on wood" one-shot sfx via a new `playOneShotSfx.js` helper — a plain
+WebAudio decode-and-play (buffers cached per URL after first decode) deliberately kept SEPARATE from
+`playSound.js`/`playMelodies.js` (the smplr-based, pitch/timing-scheduled MELODIC playback path), since a
+static one-shot sample has no pitch/scheduling concerns to share with that pipeline. The 2 sfx files are
+imported explicitly by name (NOT a folder-wide `import.meta.glob`) — `src/assets/sfx/` holds ~150 unrelated
+RPG samples; an eager glob over the whole folder was tried first and caught in review (it silently pulled
+all ~150 into the production bundle for 2 actually-used files).
+
+**Files:** `src/styles/App.css` (`--judgment-*` tokens), `src/components/sheet-music/SheetRpgLayer.jsx`
+(`JUDGMENT_COLOR` sourced from tokens, `wrongUncorrected` popup suppression, `HitBurst` component +
+`hits` state + spawn/cleanup wiring), `src/components/levels/LevelStatsCharts.jsx` (`TIER_COLOR`/
+`CORRECTNESS_SEGMENTS` sourced from tokens, `missed` segment added), `src/model/enemyAssets.js`
+(`HIT_BURST_*` constants), `src/assets/enemies/sheets/hit-burst-4.png` (new, copied from ASSORTED/fx),
+`src/audio/playOneShotSfx.js` (new), `CLAUDE.md` (`E025-ONE-SHOT-SFX-PLAY` error code allocated).
+
+### §181. Fixed, pitch-anchored QWERTY keyboard mapping — replaces the old positional (range-relative) mapping (Han 2026-08-10)
+
+**Purpose.** Han (as a player): "ik merk dat ik het als speler verwarrend vind dat de toetsen steeds
+verplaatsen" — the same physical QWERTY key used to play a DIFFERENT pitch on every level, because the
+mapping was positional (`QWERTY_WHITE_KEYS[i]` = whichever white key happened to be the i-th VISIBLE one
+for the current range). Every level/range change silently remapped the whole keyboard.
+
+**How it works.** `PianoView.jsx` now maps QWERTY keys to a FIXED, absolute-pitch sequence,
+`FIXED_ANCHOR_WHITE_KEYS = ['C4','D4','E4','F4','G4','A4','B4','C5','D5','E5','F5','G5']` — Q is always
+C4, and the mapping repeats up the same QWERTY_WHITE_KEYS slots used before (Q W E R T Y U I O P [ ]).
+Anchored to ABSOLUTE pitch C, not the current tonic/key — confirmed via Han's own worked example: level
+102 (tonic G Mixolydian, range G4-D5) only lands on keys T,Y,U,I,O (his stated expectation) if C is
+always Q regardless of key; a tonic-relative anchor would NOT reproduce that example. Black keys get the
+same fixed treatment — `fixedBlackKeys` is built with the EXACT SAME gap-scan algorithm the existing
+range-relative `blackKeys` already used (reused, not re-derived — §6c), just fed the fixed white-key list
+instead of the visible one, so accidental spelling (D♭ vs C♯ etc.) matches the app's canonical note list
+(`generateAllNotesArray`) automatically.
+
+**Range-gating.** A note only gets a QWERTY key if it's BOTH in the fixed anchor window (the 12
+QWERTY_WHITE_KEYS slots, ~2 octaves) AND actually part of the CURRENT playable range (`playableNotes`,
+the union of the visible `whiteKeys`/`blackKeys`) — otherwise a key could trigger a pitch entirely outside
+the level's range (e.g. Q always resolving to C4 even when a level's range doesn't include C4 at all). A
+note outside the fixed window simply has no QWERTY key (click-to-play still works) — confirmed
+acceptable during interview, not something to chase with more keys.
+
+**Scope.** Applies app-wide (practice mode AND levels), not just during levels — confirmed via interview
+for consistency (one mapping to learn, not mode-dependent behaviour).
+
+**Invariant.** `noteQwertyLabel`/`qwertyNoteMap` (used for on-key labels and the keydown handler) are now
+built from `FIXED_ANCHOR_WHITE_KEYS`/`fixedBlackKeys` intersected with `playableNotes` — NEVER from the
+visible `whiteKeys`/`blackKeys` arrays directly (those still drive rendering the piano itself, which still
+follows the current range as before — only the QWERTY assignment changed).
+
+**Files:** `src/components/controls/PianoView.jsx` (`FIXED_ANCHOR_WHITE_KEYS`, `fixedBlackKeys`,
+`playableNotes`, `noteQwertyLabel`/`qwertyNoteMap` rewritten).
+
+### §182. Level 15 — two-handed interactive play (dual/split keyboards, player-played bass line) (Han 2026-08-10)
+
+**Purpose.** A new interaction paradigm: the player plays TREBLE (right hand) and BASS (left hand)
+SIMULTANEOUSLY, each on their own keyboard, instead of every prior level's bass being an auto-played
+backing track. Level 15: progression always C, treble = quarter notes (level 2's exact shape), bass =
+root on beat 1, one note per measure, range C3-G3 (reuses `LEVEL_BASS_SIMPLE`'s generation recipe —
+`notesPerMeasure:1, smallestNoteDenom:1, notePool:'chord', randomizationRule:'emphasize_roots'` — via a
+`tracks.bass` override with the range swapped to C3-G3, §6c: no new generation logic needed).
+
+**PianoView QWERTY schemes generalised.** §181's fixed mapping is now ONE entry (`'app'`) in a new
+`QWERTY_SCHEMES` table (`src/components/controls/PianoView.jsx`), selected via a new `qwertyScheme` prop
+(default `'app'`, so every existing call site is unaffected). Three more schemes serve Level 15's two
+keyboard-layout options (BOTH shipped, toggleable — confirmed via interview):
+- `'bassRow'` — layout **option 1**'s bass/left-hand keyboard: A2-C4 on the ZXCV.../ row, flats on the
+  ASDFGHJKL row above (Han: "a2=z b2=x c3=c d3=v, ..., c4=/, en bb2=s etc").
+- `'splitLeft'`/`'splitRight'` — layout **option 2**'s single split keyboard: C3-G3 on Q-T, C4-G4 on I-]
+  (Han: "gesplitst klavier... q-t, i-]").
+Each scheme is `{ whiteNotes, whiteKeys, blackGapKeys }`; the black-key NOTE NAMES themselves are still
+derived via the same gap-scan algorithm §181 established (`findNoteIndex`/`notes`), just parameterised by
+the scheme's own white-key list instead of hardcoded to `FIXED_ANCHOR_WHITE_KEYS`.
+
+**Dual-keyboard UI.** `src/components/levels/TwoHandedKeyboardPanel.jsx` (new) renders two `PianoView`
+instances side by side and a layout-toggle button. Replaces `TabView`'s content outright while a
+`twoHanded` level is active (`App.jsx`'s new `twoHandedActive = level.active && !!level.current?.twoHanded`)
+— safe because `TabView`'s tab bar (`SubHeader`) is ALREADY suppressed during any active level
+(`level.active ? null : <SubHeader/.../>`), so no other tab content is reachable mid-level regardless.
+`twoHandedLayout` ('separate' | 'split') is a simple localStorage-persisted toggle, defaulting to
+'separate'.
+
+**Bass grading — deliberately NOT SheetRpgLayer's combat engine.** `src/hooks/useTwoHandedBass.js` (new)
+implements a much simpler per-measure hit/miss check, matching the coarseness of the spec itself ("roots
+on one, 1 noot per maat" — no graded timing tiers needed): every animation frame it derives the current
+CONTENT measure index from `context.currentTime` vs. `contentStartTime` (same math `handleResumeLevel`
+already uses elsewhere), looks up that measure's expected root from the growing bass `Melody`
+(`levelBackingStream.bass`), and accepts the correct root ANY TIME during that measure (compared by
+SEMITONE via `getNoteSemitone`, not string equality, since the generator's enharmonic spelling need not
+match the keyboard's own). A full measure passing with no correct hit counts as one miss. Reuses
+`level.onHit`/`level.onMiss` (useLevel.js) — bass hits land in the SAME combined stats treble combat
+already reports through, rather than a second parallel stats surface.
+
+**Files:** `src/levels/levels.json` (level 15, `twoHanded: true`, `tracks.bass` override),
+`src/components/controls/PianoView.jsx` (`QWERTY_SCHEMES`, `qwertyScheme` prop), `src/components/levels/
+TwoHandedKeyboardPanel.jsx` (new), `src/hooks/useTwoHandedBass.js` (new), `src/App.jsx`
+(`twoHandedActive`, `twoHandedBass`, `twoHandedLayout`, `TabView`↔`TwoHandedKeyboardPanel` swap).
+
+### §183. Level lead-in/flight-time anchor buffer narrowed 1.0s → 0.5s (Han 2026-08-10, #824 follow-up round 3)
+
+**Symptom.** Han: "de noten moeten ónmiddellijk rechts in beeld komen, en binnen 2 maten speelbaar zijn.
+Aan 80 bpm x 4 kwartnoten x 2 maten is dat exact 6 seconden, niet ongeveer 12" — a side-scroll level's
+first note felt roughly twice as slow to become hittable as the design spec requires.
+
+**Root cause, ruled OUT.** A targeted debug log (temporarily added to `SheetRpgLayer.jsx`'s wave-start
+effect, logging the exact flight-formula inputs the instant the wave starts) proved the visual flight
+itself is EXACTLY `beatsOnScreen * beatMs` = 6000ms at Level 3/15's 80bpm/8-beat settings — the formula
+was never the problem.
+
+**Root cause, actual.** The anchor-picking effect (`App.jsx` ~line 1201) adds a fixed buffer AFTER
+instrument readiness (`bassReady`/`metronomeReady`/`levelMelodyReady`) resolves, before picking
+`levelAudioStart` — widened to 1.0s in an earlier fix (§166-era, "0.35s was too tight a margin" for the
+chain of React effects that schedule each track's first note against the anchor). That widening, plus
+whatever the readiness gate itself takes, was the entire source of the "extra" ~1-6s Han measured on top
+of the correct 6-second flight.
+
+**Fix.** Narrowed the buffer to 0.5s — real margin above the PROVEN-too-tight 0.35s (not a re-run of the
+old bug), while meaningfully cutting the wasted wait. The readiness GATE itself (waiting for instruments
+to actually be loaded) is UNCHANGED — removing that entirely would risk scheduling audio against a
+still-loading instrument, a bigger and riskier change not made blind.
+
+**Files:** `src/App.jsx` (anchor buffer `+1.0` → `+0.5`).
+
+### §184. Level audio/visual sync — explicit invariant enforcement + self-healing watchdog (Han 2026-08-10, #824 follow-up round 4)
+
+**Symptom.** Han reported the notes-arrive-late issue recurring at ~20s (worse than round 3's fix
+addressed), AND a more severe failure: the metronome/cello/timpani sometimes play through their ENTIRE
+scheduled duration while the treble melody's first measure never appears at all — "het is NIET robuust
+geïmplementeerd." Han's explicit invariant: "het mag echt niet zijn dat de metronoom start voordat de
+melodie klaar is... die twee mogen nooit onafhankelijk beginnen" (the metronome must never start before
+the melody is ready — the two must never start independently).
+
+**Root cause: NOT confirmed.** Could not reproduce live in this environment (no browser automation
+available) after two earlier rounds of live-tested fixes for adjacent symptoms in the same area. Rather
+than propose a third guess, this round adds structural enforcement + detection instead.
+
+**Fix 1 — explicit `levelMelodyReady` gate on ALL backing-audio scheduling.** Previously,
+`useLevelBackingStream.js`'s bass/metronome scheduling effect and `App.jsx`'s timpani-scheduling effect
+only checked `bassReady`/`metronomeReady` (instrument readiness) plus `levelAudioStart != null` — they
+relied on the INDIRECT guarantee that `levelAudioStart` can only be set after `levelMelodyReady` was true
+at pick time (App.jsx's anchor-picking effect). Both effects now ALSO take/check `levelMelodyReady`
+directly — redundant-by-design, directly enforcing "these two may never start independently" rather than
+trusting effect-ordering to hold under all future changes.
+
+**Fix 2 — self-healing watchdog.** New `SheetRpgLayer` prop `onFirstTickUnfrozen` — fires once, the
+instant the component's own tick clock actually unfreezes (reuses the existing `debugLoggedUnfreezeRef`
+latch's trigger point, now ALSO reset per-anchor via a `[scrollStartTime]`-keyed effect, since the
+component stays mounted across level changes and the latch would otherwise only ever fire for the first
+level played all session). `App.jsx` starts a 4-second timer whenever `levelAudioStart` is set; if the
+callback hasn't fired by then, it logs a warning, nulls `levelAudioStart` (forcing the readiness-gated
+anchor-picking effect to retry from scratch), and tries again — capped at 2 retries, then logs
+`E026-LEVEL-VISUAL-CLOCK-STUCK` and gives up rather than retrying forever. This is a symptom-level safety
+net, not a targeted fix — it turns "level is permanently stuck" into "level recovers within ~4-12
+seconds," and the E026 log gives a concrete signal to chase if it ever fires in practice.
+
+**Deferred:** a live-reproducible root cause for the original symptom. If E026 fires in practice, that is
+the next lead to pull.
+
+**Files:** `src/hooks/useLevelBackingStream.js` (`levelMelodyReady` param + gate), `src/App.jsx`
+(timpani-scheduling gate, `handleFirstTickUnfrozen`, watchdog effect, `E026` allocated),
+`src/components/sheet-music/SheetRpgLayer.jsx` (`onFirstTickUnfrozen` prop + per-anchor latch reset),
+`src/components/sheet-music/SheetMusic.jsx` (prop passthrough), `CLAUDE.md` (`E026` logged),
+`src/hooks/__tests__/useLevelBackingStream.test.js` (updated fixtures to pass `levelMelodyReady: true`).
+
+### §185. Level 15 follow-up fixes — keyboard ranges, bass-hand instrument, bass staff visibility (Han 2026-08-10)
+
+Three concrete bugs found in UAT of §182's Level 15:
+
+- **Both keyboards showed the full fixed-anchor range instead of the level's configured range.**
+  `TwoHandedKeyboardPanel` had hardcoded `minNote`/`maxNote` per layout instead of reading the level's own
+  `trebleSettings.range`/`bassSettings.range` — fixed by threading `trebleRange`/`bassRange` props from
+  `App.jsx` through to both `PianoView` instances, for BOTH layouts (the QWERTY *scheme* — which physical
+  keys map to which notes — is independent from the *visible range*; a scheme can cover a wider span than
+  what's actually shown/playable, per §181's `playableNotes` gate).
+- **Bass-hand keyboard had no notation guide.** `tracks.bass.visible: true` added to Level 15's
+  `levels.json` entry — reuses the EXISTING per-track visibility override (`computeEyes`, §168) rather
+  than new code; the bass staff now always shows (not gated behind debug mode) since it's core gameplay
+  for this level, not a debug aid.
+- **Bass-hand keyboard sounded like cello.** `TwoHandedKeyboardPanel`'s `bassInstrument` prop now receives
+  `instruments.treble` (piano) instead of `instruments.bass` (cello) — this ALSO satisfies a separate ask
+  ("zet de cello... op een apart kanaal als extra melodie, niet als bass melody") for free:
+  `useLevelBackingStream`'s existing auto-played bass content (UNCHANGED, still the roots-on-beat-1
+  pattern) is now genuinely on its own instrument, decoupled from what the player plays, rather than
+  needing new plumbing.
+
+**Deferred, logged separately (not blocking):** a cello-sounds-an-octave-high bug (long-standing, per
+Han) — tracked for a later session, not chased down here. A broader architectural idea (generalizing
+`Melody`/`MelodyContext` to N named instances with M configurably rendered as staves, so
+audio-only/decorative tracks like metronome/timpani/cello never need ad-hoc visibility rules) — logged as
+its own low-priority design-phase kanban ticket, a genuine core-data-model change needing `plan_review`
+before any code, not attempted here.
+
+**Files:** `src/components/levels/TwoHandedKeyboardPanel.jsx` (`trebleRange`/`bassRange` props),
+`src/App.jsx` (range/instrument prop wiring), `src/levels/levels.json` (`tracks.bass.visible: true`).
+
+### §186. Root cause found — the anchor-buffer narrowing (§183) was the actual regression; reverted (Han 2026-08-10, #824 follow-up round 5)
+
+**Symptom, precisely described this round.** Han: the "-1" barline renders correctly (at `startX`) for
+exactly ONE frame, then suddenly jumps — and separately, the first real note arrives ~6 beats later than
+its correct 6-second flight time implies. Han's diagnosis: "het mag NOOIT zo zijn dat de metronoom en de
+noten een andere klok hebben" (the metronome and the notes may never have a different clock) — a
+structural objection to the whole approach of the last several rounds' point-fixes.
+
+**Actual root cause.** `SheetRpgLayer`'s tick clock is FROZEN (does not advance AT ALL) while
+`scrollStartTime` is null (§166's original fix, preventing a free-running-then-jump race). The very first
+time it computes a real tick after unfreezing: `t = round((nowMs - anchor) / INTERVAL_MS)`. This is only
+`~0` if real wall-clock time has NOT YET reached `anchor` by the time this frame actually runs. §183 (the
+previous round) narrowed the anchor buffer from a PROVEN-safe 1.0s down to 0.5s specifically to reduce
+perceived latency — but that buffer is not "wasted time before the note shows," it is the lead time
+`App.jsx`'s `levelAudioStart` state update needs to propagate through React's commit/effect chain
+(`SheetMusic` → `SheetRpgLayer` prop → its own rAF loop's first tick) BEFORE the promised anchor moment
+arrives. With only 0.5s of margin, that chain could easily still be in flight when the anchor time
+arrived — meaning `t` on the first unfrozen frame was ALREADY POSITIVE (a "catch-up" value), so instead of
+smoothly counting up through 0 from a negative pre-roll, everything SNAPPED straight to its "should
+already be here" position — exactly the one-frame-correct-then-jump Han described. This also directly
+explains the "6 beats too late" arrival: the jump doesn't just reposition, it can leave the visual clock
+functionally BEHIND where the (already-playing) audio anchor says it should be, depending on exactly how
+the catch-up lands.
+
+**Fix.** Reverted the anchor buffer `+0.5` → `+1.0` (§183's change undone). This is not a new point-fix —
+it is un-doing the previous round's regression and returning to the value already proven safe across
+multiple earlier rounds of live testing (§166 era: "0.35s was too tight… widened to 1.0s… removes the
+race instead of shrinking it"). If perceived latency needs to come down further, the correct lever is
+speeding up the effect chain itself (instrument readiness, melody generation) — not shrinking this buffer
+again, which reintroduces this exact class of bug.
+
+**New diagnostic — `E027-VISUAL-CLOCK-CATCHUP-JUMP`.** `SheetRpgLayer`'s existing "first unfrozen tick"
+debug log now also asserts `t <= 0` on that first frame and logs an error if not — concrete, immediate
+evidence if this buffer is ever insufficient again (e.g. a genuinely slow device/cold cache), instead of
+another round of guessing from vague symptom descriptions.
+
+**On Han's "one clock" objection.** The audio scheduling (bass/metronome/timpani, via
+`playMelodies`/`context.currentTime` absolute scheduling) and the visual tick clock (`SheetRpgLayer`'s rAF
+loop) DO already derive from the exact same single `levelAudioStart` value — there is only one anchor
+number in the system. What was NOT unified is WHEN each consumer's own React effect chain gets around to
+using it, and the visual clock's freeze/unfreeze design has zero tolerance for that latency exceeding the
+buffer. A truly unified single clock (e.g. a shared hook both audio scheduling and SheetRpgLayer read
+identically, with no independent per-consumer buffer/freeze logic) would remove this class of bug by
+construction — noted as a real follow-up architectural improvement, not attempted this round (same
+plan_review-worthy scope as §186's sibling ticket, #858).
+
+**Files:** `src/App.jsx` (anchor buffer `+0.5` → `+1.0`, extended rationale comment),
+`src/components/sheet-music/SheetRpgLayer.jsx` (`E027` catch-up-jump assertion), `CLAUDE.md` (`E027`
+logged).
+
+### §187. Generalized Melody-instance model — fixed `invisibleMelody1..10` audio-only slots (#858, Han 2026-08-10)
+
+**Purpose.** Han: "de melodies class moet meerdere instanties kunnen dragen; waarvan er maximaal 4
+(progression, treble, bass, percussion) gerenderd worden door sheet music, en er in totaal 16 in
+totaal kunnen bestaan." The 4 rendered slots (treble/bass/percussion/chordProgression) already had
+this — they always went through `MelodyContext`. What didn't: audio-only layers the app plays but
+never draws. Before this ticket, each one got its own bespoke mechanism invented on the spot — e.g.
+`App.jsx`'s `timpaniRef` (a raw `Soundfont` + an inline pattern array built at schedule time, zero
+`Melody`/`MelodyContext` representation). Every new audio-only layer meant inventing another ad-hoc
+ref. This ticket generalizes that into one mechanism instead of N bespoke ones.
+
+**How it works.**
+- `src/constants/melodyInstances.js` — `INVISIBLE_MELODY_SLOTS`, the fixed list
+  `['invisibleMelody1', ..., 'invisibleMelody10']` (Han's own naming, chosen explicitly over a
+  freeform id/array in the design interview). `LEVEL_TIMPANI_SLOT` records which slot timpani owns
+  — the single source of truth for slot ownership, not a literal string at the call site (§6c).
+- `src/contexts/MelodyContext.jsx` — `MelodyProvider` gained one new optional prop,
+  `invisibleMelodies` (a plain object keyed by slot name, e.g. `{ invisibleMelody1: timpaniMelody }`).
+  Defaults to a stable module-level `{}` when omitted, so `useMelodies().invisibleMelodies?.[slot]`
+  is always safe and consumers never re-render from a fresh `{}` being created every parent render.
+- `src/App.jsx` — the timpani pattern (`buildTimpaniPattern`) is now built ONCE in a `useMemo`
+  (`timpaniMelody`) instead of being reconstructed inline at schedule time; that same Melody is both
+  (a) scheduled via `playMelodies` as before, unchanged in behavior, and (b) passed to
+  `MelodyProvider` as `invisibleMelodies={{ [LEVEL_TIMPANI_SLOT]: timpaniMelody }}` — the first
+  concrete instance flowing through the new mechanism.
+
+**Deliberately NOT done this round (scope discipline, confirmed with Han in the design interview):**
+- `treble`/`bass`/`percussion`/`chordProgression`/`metronome` keep their existing names and
+  mechanism, unchanged. Renaming `metronome` into an `invisibleMelodyN` slot would touch
+  `trackGains`/`namedInstruments` plumbing across `playMelodies.js`, `Sequencer.js`, and every level
+  stream hook for zero user-visible benefit — pure risk, no win. `metronome` already has full
+  `Melody`/`MelodyContext` representation; it just isn't rendered as a staff, which is fine.
+- The level's cello guide track (`useLevelBackingStream`'s `bass`) was NOT moved onto an invisible
+  slot — it's the rendered `bass` staff's content by design (the player's guide melody), not an
+  audio-only layer; Level 15's separate-instrument fix (bass-hand keyboard plays through piano, not
+  cello — see §185) already gives cello its own instrument channel without needing this model.
+- Slots `invisibleMelody2..10` are reserved (named, documented) but not yet populated — no
+  speculative content was invented for them (§7 — no configurability that isn't needed now).
+- This ticket is scoped to the DATA MODEL only. It does not touch the separate "single shared clock"
+  architectural question raised in §186 (multiple independent readiness-gated `useEffect`s each
+  scheduling audio against `levelAudioStart` with their own buffer/race history) — that remains a
+  distinct, not-yet-authorized refactor.
+
+**Invariant.** A new audio-only layer should be added by (1) building its `Melody` once (memoized),
+(2) assigning it the next unused `INVISIBLE_MELODY_SLOTS` entry in `melodyInstances.js`, (3) passing
+it into `MelodyProvider`'s `invisibleMelodies` prop — never by inventing a new bespoke ref.
+
+**Files:** `src/constants/melodyInstances.js` (new), `src/contexts/MelodyContext.jsx`,
+`src/App.jsx` (timpani hoisted to `timpaniMelody` useMemo, wired into `MelodyProvider`).
+
+### §188. Root cause found (for real this time) — stale-closure `sideScroll` permanently disabled the tick-freeze mechanism (#824 follow-up round 6, Han 2026-08-10)
+
+**Symptom.** Level 3: measure -1 took ~7 "counts" (real: an unexplained ~11 seconds beyond the
+flight-time formula) to scroll in, with no jump this time (§186's buffer revert had already fixed the
+jump). Han: "je lijkt puntoplossingen te voorzien, maar het probleem is fundamenteel" — correct.
+
+**Root cause.** `SheetRpgLayer.jsx`'s tick-driving `useEffect` has an intentionally EMPTY dependency
+array (`[]`) — one continuous `requestAnimationFrame` loop across the component's whole lifetime,
+never restarted. Its `loop` closure was reading the bare `sideScroll` PROP directly. Because the
+effect only runs once, at mount, that closure captured whatever `sideScroll` was on the FIRST render —
+almost certainly `false`, since this component is mounted before any level is active. Every later
+render that passed `sideScroll={true}` (once a level actually starts) never reached this closure: the
+freeze branch (`if (sideScroll && scrollStartRef.current == null) { ...stay frozen... }`) was
+permanently unreachable dead code. The clock free-ran continuously from the moment this component
+mounted (near app boot), completely ignoring `scrollStartTime`/`levelAudioStart`.
+
+**Confirmed from the console log** (Han pasted the full session log): at `10:27:24.086` — 2ms before
+the real anchor was picked — the wave-restart log showed `waveStartTick: 1373`. `1373 × INTERVAL_MS
+(8ms) ≈ 11 seconds` — proof the tick counter had already been running for ~11 seconds, matching this
+component's mount time almost exactly. This also explains why the `E027`/"first unfrozen tick" debug
+log (added in §186) NEVER fired despite being added specifically to catch this class of bug — its own
+guard (`if (sideScroll && !debugLoggedUnfreezeRef.current)`) was gated behind the SAME dead closure.
+
+**Second-order bug this caused.** The wave-restart effect (`useEffect(..., [notesKey])`, no
+`scrollStartTime` in its deps) sets `waveStartRef.current = scrollStartTime != null ? 0 :
+tickRef.current`. Because it fired ONE render before `scrollStartTime` flipped from `null` to real
+(exactly what the log shows), it locked `waveStartRef.current` to the free-running clock's current
+(garbage, ~1373) value instead of 0 — and never re-ran to correct it, since `scrollStartTime` wasn't a
+dependency. Every note's flight-position formula (`sideScrollX`, `msSinceSpawn = (atTick -
+waveStartRef.current) * INTERVAL_MS - beat * bMs`) was computing against this wrong epoch, corrupting
+visibility/arrival timing for a long stretch until real elapsed time overcame the bogus offset.
+
+**Fix.**
+1. `SheetRpgLayer.jsx`'s tick loop now reads `geomRef.current.sideScroll` instead of the bare prop.
+   `geomRef.current` already exists and is reassigned on EVERY render (`geomRef.current = { startX,
+   viewRight, beatsOnScreen, sideScroll, beatMs, frameMs, isWizard }`) — reused rather than adding a
+   new ref (§6c). This makes the freeze/unfreeze branch and the `E027` diagnostic finally reachable.
+2. The wave-restart effect's dependency array gained `scrollStartTime` (`[notesKey, scrollStartTime]`)
+   so `waveStartRef` gets corrected to 0 the instant the real anchor arrives, even without a fresh
+   melody triggering the effect again.
+
+**Why this is the "fundamental" fix Han asked for, not another point-patch:** every previous round in
+this bug chain (§183 narrowing, §184 watchdog, §186 revert) worked AROUND a symptom while the actual
+freeze mechanism was silently dead code the whole time — none of those rounds could have found this,
+because the diagnostic log meant to catch it (`E027`) was itself gated behind the same bug. This round
+found it only because Han insisted on pasting the COMPLETE, unfiltered console log rather than
+accepting another targeted guess.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (tick-loop `sideScroll` read via
+`geomRef.current`, wave-restart effect's dependency array).
+
+### §189. Level 15 follow-ups round 2 — bass notes start at measure 1, keyboards stack vertically; timing/correctness charts extended (#861/#858, Han 2026-08-10)
+
+**Bass notes clipped to start at measure 1 (twoHanded levels only).** `useLevelBackingStream`'s `bass`
+Melody still spans the lead-in (measures -1/0) — the auto-played cello GUIDE audio in ordinary levels
+(2-9) intentionally starts there (unchanged, Han confirmed via interview this round). For a `twoHanded`
+level specifically, the RENDERED/combat-relevant bass staff should only show content from measure 1
+onward. `App.jsx`'s new `twoHandedBassMelody` memo front-truncates the bass Melody's parallel arrays
+(notes/offsets/durations/displayNotes/volumes/ties) at the first entry whose offset is at/past
+`LEVEL_LEAD_IN_BARS * measureLengthTicks`, only when `level.current?.twoHanded` — a mirror of
+§188's `clipMelodyBundle` (SheetRpgLayer.jsx) but truncating from the FRONT instead of the end. Only
+feeds `MelodyProvider`'s `bass` prop (what's drawn); `useTwoHandedBass`'s own `bassMelody` param is
+UNCHANGED (its `expectedRootFor` already filters by absolute tick range per measure and already
+excludes the lead-in via its own `measureRef.current >= 0` guard, so it needs no truncated input).
+
+**Two-handed keyboard layout — "Gestapeld klavier".** `TwoHandedKeyboardPanel.jsx`'s 'separate' layout
+(two full keyboards) is renamed "Gestapeld klavier" and now stacks vertically (treble keyboard on top,
+bass keyboard below — `flexDirection: 'column'`, treble JSX rendered first) instead of side by side. The
+'split' layout (one keyboard divided into a C3-G3 / C4-G4 half) is unchanged — a left/right split has no
+natural "stacked" reading.
+
+**Bass combat (full visual parity with treble) — split into #862.** Han's third #861 item — bass notes
+should spawn as combat entities (slimes) on the bass staff with the same graded timing tiers and hero-
+attack-on-hit treble already has, replacing the current silent per-measure counter
+(`useTwoHandedBass.js`, the actual cause of "alles registreert als missed") — is a substantial extension
+of `SheetRpgLayer.jsx`'s combat engine (the app's most complex/fragile file). Per CLAUDE.md's ticket-
+splitting rule (§ "Split Oversized Tickets in PLAN"), this was split into its own ticket (#862, `f-f`
+dependency on #861) for a focused design/plan_review cycle rather than a rushed, live-untestable change
+bundled with the smaller items above.
+
+**Timing-accuracy chart gains 'note when none due' (leftmost) and a stacked 'wrong' bar; note-
+correctness bar reordered; new weighted accuracy formula.** See §188's sibling changes in
+`LevelStatsCharts.jsx`: `TimingBarChart` now has 7 bars — `note when none due` (leftmost, dark grey,
+matches the correctness bar's own label/colour, §6d) — the 5 gradeHit timing tiers — `missed` — and a
+NEW rightmost `wrong` bar that is a TWO-SEGMENT STACKED bar (blue = `secondAttemptCorrected`, purple =
+`wrongUncorrected` — the SAME `--judgment-corrected`/`--judgment-wrong` tokens the note-correctness bar
+already uses, so no new legend entry is needed, Han: "altijd blauw, paars, geen extra legenda").
+`NoteCorrectnessBar`'s segment order/labels changed to Han's spec: "note when none due - correct -
+wrong, corrected - wrong, not corrected - missed" (was: correct - wrong,corrected - wrong within time -
+missed - note when none due; `wrongUncorrected`'s label changed from "wrong within time" to "wrong, not
+corrected" to read as a pair with "wrong, corrected"). `LevelSplash`'s "Accuraatheid" KPI now uses a new
+weighted formula (`computeAccuracyPercent`, exported from `LevelStatsCharts.jsx`, replacing the old
+`defeated/(defeated+misses)` ratio):
+```
+score = perfect + (muchTooEarly + tooEarly + wrongCorrected + tooLate + muchTooLate) / 2
+total  = noteWhenNoneDue + correct + wrongCorrected + wrongNotCorrected + missed
+accuracy% = round(score / total * 100)
+```
+Perfect-timed correct notes count fully; correct-but-imperfectly-timed notes AND corrected-wrong notes
+count half; wrong (uncorrected) / missed / note-when-none-due count zero. `correct` (first-try correct
+regardless of timing tier) is now a shared export (`computeCorrectCount`) instead of being duplicated
+inline in `NoteCorrectnessBar`.
+
+**Files:** `src/App.jsx` (`twoHandedBassMelody`), `src/components/levels/TwoHandedKeyboardPanel.jsx`
+(stacked layout + rename), `src/components/levels/LevelStatsCharts.jsx` (`TIMING_TIERS` stacked bar,
+`CORRECTNESS_SEGMENTS` reorder, `computeCorrectCount`/`computeAccuracyPercent` exports),
+`src/components/levels/LevelSplash.jsx` (new accuracy formula).
+
+### §190. Level 15 — full bass-hand combat visualization (#862, Han 2026-08-10 "doe maar meteen - ik wil 15 volledig kunnen testen")
+
+**Purpose.** #861's third item: bass notes must be treated exactly like treble — spawn as slimes on
+their own lane, resolve with visible feedback and a hero attack on hit — replacing the previous
+completely silent `useTwoHandedBass.js`-only grading (the root cause of "ze registreren allemaal als
+missed": nothing was ever visible, so every attempt LOOKED like it vanished). Originally split out to
+its own ticket for a design/plan_review cycle (§189); Han explicitly overrode that and asked for it
+immediately so Level 15 could be fully tested — implemented directly, scoped to what a live test
+actually needs (see "Deliberately not done" below).
+
+**Design: grading and visuals stay SEPARATE, deliberately.** `useTwoHandedBass.js`'s existing per-measure
+hit/miss determination (proven correct, feeds `level.onHit`/`onMiss`) is UNCHANGED and remains the sole
+source of truth for whether a bass attempt was right or wrong. It now ALSO emits a nonce-keyed visual
+`event` (`{ type: 'hit'|'miss', measureIndex, note, nonce }`, exposed as `useTwoHandedBass(...).event`).
+`SheetRpgLayer.jsx` consumes this event purely to find and animate the MATCHING bass-slime — it never
+re-derives hit/miss itself (§6c: one grading decision, not two that could disagree).
+
+**Bug fix bundled in:** `useTwoHandedBass`'s miss handler passed the reason string `'missedBassRoot'`
+to `onMiss` — not one of the shared stat keys (`missed`/`wrongUncorrected`/`extraNote`) every chart
+reads — so bass misses were silently invisible in both the timing and note-correctness charts (this is
+almost certainly what Han saw as "alles registreert als missed": `stats.misses` climbed while
+`stats.defeated` never did, reading as "nothing but misses" in the overall accuracy, even though the
+PER-CATEGORY breakdown had a phantom, untracked bucket). Fixed to pass `'missed'`.
+
+**Data flow:** `App.jsx`'s `twoHandedBassMelody` (§189's front-clipped bass melody, already used for the
+rendered bass staff) is reused unchanged as the source for bass-slime spawn positions — one melody, two
+consumers (staff notation + combat), not two independently derived note lists (§6c). Threaded as
+`twoHandedBassMelody` prop through `SheetMusic.jsx` (renamed from a bare `bassMelody` to avoid colliding
+with the EXISTING `bassMelody` already destructured there from `useMelodies()` — the normal app-wide
+bass staff melody, an unrelated value) down to `SheetRpgLayer`'s own `bassMelody` prop (no collision
+inside that file). `bassCombatEvent` (the useTwoHandedBass event) is threaded the same path.
+
+**`bassSlimeData`** (`SheetRpgLayer.jsx`): mirrors `slimeData` but far simpler — `twoHandedBassMelody` is
+already exactly one real note per content measure (`LEVEL_BASS_SIMPLE`'s "roots on one"), so no tie-
+chain logic is needed. Each entry carries `measureIndex` (0-based content measure, matching
+`useTwoHandedBass`'s own `measureRef` numbering) — the key the combat-event effect uses to find WHICH
+bass-slime a hit/miss event belongs to.
+
+**Own lane, own state, shared mechanisms.** `bassSlimeY = slimeY + (bassStart - trebleStart)` — Han:
+"transleer ze de staf-afstand" — literally the vertical distance between the two staves, not a
+separately-tuned offset. `bassDyingList`/`bassKilledSet` are bass's OWN index space (mirrors
+`dyingList`/`killedSet`, which index into `slimeData`) — a shared index space would have let a bass kill
+accidentally resolve a treble slime with the same array index. `judgments`/`hits` ARE shared arrays (not
+duplicated) — a `lane: 'bass'` tag on the judgment entry is all that differs; render-time Y picks
+`bassStart + staffHeight + 40 + prog·24` (Han: "render die ONDER de basbalk, zodat ik die kan
+onderscheiden van de treblenoten" — anchored BELOW the bass staff, distinct from treble's above-staff
+float) instead of the treble anchor. A bass hit also fires the SAME `setHeroAttack` the treble combat
+effect uses (shared cooldown) — any note, either hand, makes the hero attack once.
+
+**Deliberately not done this round** (scope discipline under time pressure — flagged, not silently
+skipped): no fine-grained timing tiers for bass judgments (always `'perfect'` on hit — matches
+`useTwoHandedBass`'s own binary hit/miss, which doesn't grade WHEN within the measure, only whether);
+no wiggle-on-wrong-attempt (bass allows retrying any time in the measure, so there's no "wrong pending"
+state to wiggle); no Wizard/Mixed/decorativeWizard support (Level 15 is plain `enemyType: 'Slime'`, the
+only case that matters). Not live-tested — I cannot run a browser in this environment; needs Han's UAT.
+
+**Files:** `src/hooks/useTwoHandedBass.js` (`event` state, `'missedBassRoot'`→`'missed'` fix),
+`src/components/sheet-music/SheetRpgLayer.jsx` (`bassMelody`/`bassCombatEvent` props, `bassSlimeY`,
+`bassSlimeData`, `bassDyingList`/`bassKilledSet`, the bass combat-event effect, bass-slime render block,
+lane-aware judgment Y), `src/components/sheet-music/SheetMusic.jsx` (`twoHandedBassMelody`/
+`bassCombatEvent` passthrough), `src/App.jsx` (wiring into `<SheetMusic>`).
+
+### §191. Post-level bug fix + timing-chart overhaul + L/R split + splash moved to top-view (#863, Han 2026-08-10)
+
+**Bug — "na voltooiing level blijven er 'missed' noten bijkomen".** Root cause: `App.jsx`'s
+`twoHandedActive` gated on `level.active && level.current?.twoHanded` only — `level.done` is a SEPARATE
+flag from `level.active` (useLevel.js never flips `active` off when a level finishes, only `done`), so
+`useTwoHandedBass`'s per-measure tick loop kept running indefinitely after completion. That loop has no
+natural upper bound on its own — `measureRef` just increments forever as long as `active` stays true —
+so it kept scoring phantom misses for measures past the song's real end. **Primary fix:** `twoHandedActive
+= level.active && !level.done && !!level.current?.twoHanded` — stops the whole bass-hand system (grading,
+keyboard panel, combat visuals) the instant the splash appears. **Defensive second layer:**
+`useTwoHandedBass`'s tick loop now only scores a miss when `expectedRootForRef.current(measureRef.current)
+!= null` (there was an actual expected root for that measure) — reads via a ref (not the bare
+`expectedRootFor` closure) since the tick effect deliberately doesn't restart on every `bassMelody`
+chunk-growth, so a direct closure would have gone stale and silently swallowed REAL misses for content
+that arrived in a later chunk (same stale-closure bug class as §188).
+
+**Timing chart overhaul** (`LevelStatsCharts.jsx`): taller (`BAR_CHART_H` 120→220); a bar's count label
+moves INSIDE the bar (white text) once the bar is at/above half the chart's max height, instead of
+floating above it where it could clip against the title row; `missed` is now itself a 2-segment stack
+(`wrongUncorrected` purple as the base — Han: "onder" — `missed` grey on top) instead of being dropped
+from the chart; the legend (`TimingLegend`, new export) is now separate, rendered below the chart, not
+interleaved per-bar. `NoteCorrectnessBar` and `CORRECTNESS_SEGMENTS` are DELETED (§7 — dead code, not
+commented out) — Han: "de note correctness mag weg, want alle info staat nu in timing accuracy" (the
+timing chart already carries note-when-none-due/correct/corrected/not-corrected/missed).
+
+**L/R split for twoHanded levels** (#862 follow-up). New hand-tagged stats: `useLevel.js`'s `onHit`/
+`onMiss` additionally bump a `${category}_${hand}` (and `defeated_${hand}`) stat alongside the existing
+unsuffixed combined one — `hand` ('treble'|'bass') is set at every `SheetRpgLayer.jsx`/
+`useTwoHandedBass.js` call site. Purely additive: every existing formula/chart reading the combined,
+unsuffixed stats is completely unaffected. `LevelStatsCharts.jsx`'s new `extractHandStats(stats, hand)`
+strips the suffix back into a plain stats-shaped object so the SAME `TIMING_TIERS` rendering logic works
+unchanged against either the combined stats or one hand's slice (§6c). `TimingBarChart`'s new
+`splitStats` prop (`{ bass, treble }`, only passed by `LevelSplash` when `twoHanded`) renders every bar
+as an L/R pair, each independently scaled to a PERCENTAGE of that hand's own total notes
+(`computeTotalNotes`, new export) with a shared 0–100% axis — so 8/8 bass "perfect" (100%) and 121/400
+treble "perfect" (30%) read as directly comparable proportions despite wildly different note counts
+(Han's own worked example).
+
+**Splash moved into the top view.** `LevelSplash` no longer renders as a floating `.ls-overlay` modal —
+it's now `characterScreen === 'levelResult'` in `App.jsx`'s existing top-view panel slot (alongside
+`CharacterAvatarPanel`/`StatsTopPanel`/etc.), auto-selected via a `useEffect` on `level.done`. New
+`.ls-panel` CSS class (non-modal, full top-view width, up to 720px) — `.ls-overlay`/`.ls-card` are
+UNCHANGED and still used by `LevelPausePopup`/`LevelStartSplash`'s own modals (shared `LevelSplash.css`).
+KPI grid widened to 3 columns ("2 regels" for the current 4-5 rows). "↻ Opnieuw"/"Sluiten" both now also
+clear `characterScreen` back to `null` so either action returns to the normal view.
+
+**Scope note:** this round only relocated the TOP-view slot; the bottom keyboard/TabView panel is
+untouched (falls back to the normal `TabView` once `twoHandedActive` goes false post-completion, same as
+every other `characterScreen` panel already coexists with).
+
+**Files:** `src/hooks/useLevel.js` (hand-suffixed stats), `src/hooks/useTwoHandedBass.js` (`'missed'`
+hand tag, `expectedRootForRef` miss guard), `src/components/sheet-music/SheetRpgLayer.jsx` (hand tags on
+every onHit/onMiss call site), `src/components/levels/LevelStatsCharts.jsx` (rewritten — taller chart,
+label-inside-near-max, missed/wrongUncorrected stack, `TimingLegend`, `extractHandStats`,
+`computeTotalNotes`, split-mode rendering, `NoteCorrectnessBar` deleted), `src/components/levels/
+LevelSplash.jsx` (rewritten for panel/top-view use, `twoHanded` prop), `src/components/levels/
+LevelSplash.css` (`.ls-panel`, 3-column `.ls-stats`, `.ls-charts` deleted), `src/App.jsx`
+(`twoHandedActive` done-gate, `characterScreen === 'levelResult'` wiring, `handleCloseLevelResult`),
+`src/components/levels/__tests__/LevelSplash.test.jsx` (updated for the removed correctness chart).
+
+### §192. Level-result dialogue box — extracted the Wisp's dialogue chrome into a shared component (#864, Han 2026-08-10)
+
+**Purpose.** Han: "na het level, tijdens splash screen, wil ik beneden een dialoogveld, zoals de wisp
+heeft in de rpg-wereld: 'woah, you beat me...!'" — the level-complete panel gets its own pixel-art
+dialogue box, in the BOTTOM panel (mirroring the top-view/bottom-view split the RpgLevelPanel/
+RpgLevelBottomPanel pair already uses for the Wisp NPC), showing the level's enemy portrait (Wizard) or
+a green slime (every other current enemy type).
+
+**Reuse, not a second hand-rolled box (§6d).** `RpgLevelBottomPanel.jsx`'s dialogue-box chrome (64px-tall
+frame, square corners, a 64×64 portrait pinned to the left edge, a 256px text column, the `HabboPixel`
+pixel font) was extracted into `src/components/character/DialogueBox.jsx` — `DialogueBox` (the frame +
+text) and `SpeakerPortrait` (a sprite-sheet crop, generalized to accept `cellW`/`cellH`/`row`/`col` so it
+isn't hardcoded to the Wisp's 32×32 `PET_CROP`, e.g. the Wizard's cells are 64×64). `RpgLevelBottomPanel`
+now only supplies its OWN portrait (`wispUrl`/`PET_CROP`) and text; behavior is byte-identical to before.
+
+**Level-result wiring.** `App.jsx`'s bottom panel conditional gained a new branch —
+`characterScreen === 'levelResult'` (§189/§191) renders the `DialogueBox` instead of `TabView`, exactly
+mirroring the existing `twoHandedActive` branch's placement pattern. Portrait selection
+(`levelResultPortrait`): `level.current?.enemyType === 'Wizard'` → `WIZARD_URL`/`WIZARD_CROP`/
+`WIZARD_FRAME` (64×64 cells); everything else → `SLIME_COLORS.green`/`SLIME_CROP`/`SLIME_FRAME` (32×32
+cells) — both sourced from `enemyAssets.js`, the same constants `SheetRpgLayer.jsx`'s own combat
+rendering already uses (one source of truth for these sprite geometries, §6c). Text is a static "Woah,
+you beat me...!" for now — flagged (mirroring the ORIGINAL Wisp dialogue's own "first guess" comment) as
+a placeholder Han can swap for something level-specific later.
+
+**Files:** `src/components/character/DialogueBox.jsx` (new), `src/components/character/
+RpgLevelBottomPanel.jsx` (refactored to use it), `src/App.jsx` (`levelResultPortrait`,
+`characterScreen === 'levelResult'` bottom-panel branch).
+
+### §193. SheetRpgLayer performance rewrite — ref-driven position/animation, no more 60–120Hz React state (#863, Han 2026-08-10, "de performance is echt bar slecht... vind uit wat er zoveel kost")
+
+**Symptom.** Han measured (Chrome Performance panel, live): keyboard INP up to 664ms ("poor"; threshold
+for "good" is <200ms) and visibly hakkelige (janky) combat animation during side-scroll levels.
+
+**Root cause.** `SheetRpgLayer.jsx`'s rAF loop called `setTick(t)` up to ~120×/sec — the SAME state
+value drove literally every visual: slime/critter/projectile/hero positions, the 6 staff-scroll
+`-scrollPx` translate wrappers, judgment float-up, hit-burst frames, spawn-glow growth, wiggle shake,
+dying-animation frames. Every `setTick` call forced React to fully re-render and reconcile ~20+ SVG
+subtrees, 60–120 times per second — the same class of bug CLAUDE.md §6 already bans for opacity
+("never set opacity via JSX props on animated elements... all animation opacity must go through
+`element.style.opacity` in the rAF callback"), just never applied to position. The main thread being
+saturated with this render/commit work is also the most plausible explanation for the bad keyboard INP
+(a keydown has to wait for the browser to finish the current render/paint cycle).
+
+**Fix — hybrid ref-driven architecture (two rounds, both live-verified by Han's own Performance-panel
+measurements before/after):**
+
+- **`tick` React state removed entirely.** `tickRef` (a plain ref, already existed) is now the sole
+  source of truth for the raw audio-anchored clock value, mutated every rAF frame but never triggering
+  a React render on its own.
+- **Bucket A — continuous, high-frequency, position/frame updates pushed straight to the DOM every rAF
+  frame, bypassing React:** the 6 scroll-transform `<g>` wrappers (barline/note/rest/real/bass/
+  percussion), live slime/bass-slime/critter/projectile/switch-flourish position+frame, dying-slime/
+  dying-projectile death-frame + the "note fly up and fade" ghost-note tween, judgment float-up
+  position+opacity, hit-burst frame+opacity, spawn-glow radius+opacity, and the Wizard's idle/cast-sync
+  frame. `Slime`/`Critter`/`Projectile`/`StaticProjectile2`/`HitBurst`/`SpawnGlow`/`Wizard` are all now
+  `React.memo(forwardRef(...))`, each exposing a small imperative handle (`setPosition`/`setFrame`/
+  `setOpacity`/`update`/`setCells`/`setCenter` as appropriate) that mutates the underlying SVG node's
+  attributes (`x`/`y`/`transform`/`opacity`, and the sprite-crop `<image x y>` offset) via
+  `setAttribute`, called from the main rAF loop. Live entities register themselves in per-kind `Map`s
+  (keyed by their stable data key) via callback refs in the (now much-less-frequent) render body; the
+  rAF loop walks these maps every frame. Every position/frame FORMULA is completely unchanged and
+  reused verbatim (`sideScrollX`, `framesSince`/`framesElapsed`, `movingProgress`, `oscillate`,
+  `critterDraw`, `spawnGlowDraw`, `wizardCellOffset`, `computeWizardCast`, `judgmentY`) — §6c: only
+  WHERE each formula is evaluated changed (rAF loop instead of render body), never the math itself.
+- **Bucket B — a new `frameTick` state**, updated only when the sprite-frame index actually advances
+  (`Math.floor(elapsedMs / frameMs)`, typically ~3–10Hz depending on bpm, vs. the old ~120Hz `tick`).
+  This throttled state is what the render body/effects now key off for everything that's inherently
+  frame-quantized sprite animation (list membership — which entities exist at all — and the initial
+  mount-time paint values for bucket-A entities). No visual smoothness is lost: nothing here was ever
+  animated faster than one sprite frame to begin with, only redundant intermediate re-renders (the ones
+  that would have recomputed the exact same frame value) are cut.
+- The `[tick]`-keyed "complete one-shot animations" bookkeeping effect and the `onSongEnd` effect both
+  now key on `[frameTick]` instead, reading `tickRef.current` (always fresh) for their actual elapsed-
+  time math rather than a stale render-scoped `tick` — same accuracy, much lower re-render frequency.
+
+**Invariants preserved (verified, not just asserted):** the §188 stale-closure `geomRef.current.sideScroll`
+freeze-check gate is untouched; the audio-anchored clock (`ctx.currentTime`) remains the sole timing
+source — this refactor changes only how that already-correct clock value reaches the DOM, never the
+clock itself; every hit-timing window, judgment category, and stat callback (`onHit`/`onMiss`/
+`onCritterKilled`) is byte-identical to before. `npm run test:run` (642/642), `npx eslint` (0 errors),
+and `npm run build` all stayed green across both implementation rounds.
+
+**Result (Han's live measurement, Chrome Performance panel):** INP improved 664ms → 448ms after round 1
+— round 2 extended the same technique to bucket B (dying animations, judgments, hit-bursts, spawn-glows,
+Wizard cast-sync). A THIRD measurement (1760ms) looked like a regression, but turned out to be a
+measurement artifact: all of Han's readings came from `npm run dev` (unminified React, no production
+optimizations). A controlled A/B test (Playwright, scripted rapid keyboard input against Level 3) showed
+the dev server producing continuous 50–95ms Long Tasks throughout gameplay regardless of input, while the
+SAME test against a production build (`npm run build` + `vite preview`) produced ZERO long tasks. Once
+Han re-measured against a production-style build, INP came back at 72ms (visual paint latency — see the
+note below on what this metric does and doesn't measure) — the dev-mode numbers were never a reliable
+signal for this refactor's actual effect. Two related items were explicitly kept OUT of this ticket's
+scope and logged separately: app/level-start ~10s slowness affecting LCP (#859, likely a blocking
+sample-fetch, not yet investigated) and the bundle-size warning (2.9MB/1.15MB gzip single chunk) also
+surfaced during the production build, which is a code-splitting concern that belongs with #859, not here
+(Han: explicitly deferred, "apart laten").
+
+**INP vs. audio latency — not the same measurement.** INP measures keydown → next visual paint (React's
+render/commit cycle). It does NOT measure keydown → audible sound, which for this app runs through a
+completely separate pipeline (Web Audio API scheduling in `playSound.js`/smplr, not React). Han correctly
+pushed back on treating a "good" INP score (<200ms) as sufficient for a music app, where actual
+note-trigger latency is the metric that matters and needs to be far tighter. That measurement was
+explicitly NOT taken in this ticket — Han deferred it to a future, separately-scoped investigation rather
+than expanding #863 further.
+
+**Production-only crash found and fixed (same session, before UAT):** live-testing the production build
+surfaced `TypeError: Cannot read properties of undefined (reading 'col')`, thrown inside the new
+`critterDraw`/`wizardCellOffset` imperative frame-index lookups — a negative `frame` value (JS's `%`
+operator preserves sign, so a negative index reads as `undefined` instead of wrapping) indexed a sprite
+sheet's `cells` array out of bounds. This exact failure mode already has a documented, established fix
+elsewhere in this same file (the "§679 bugfix" non-negative-modulo pattern applied to `wizardFrame`) — it
+just hadn't been applied to these two NEW functions. Both were fixed the same way. More importantly:
+because this lookup now runs inside a raw `requestAnimationFrame` callback instead of React's own render
+cycle, an uncaught throw here didn't just spoil one bad paint — it escaped the `loop` function entirely,
+so `requestAnimationFrame(loop)` never rescheduled and the ENTIRE level's animation froze permanently
+("het level werkt uberhaupt niet"). Added a second, structural layer of defence: the whole bucket-A/B
+imperative block is now wrapped in try/catch (`logger.error('RpgCombat', 'E028-SHEETRPG-IMPERATIVE-
+FRAME', ...)`, new error code added to CLAUDE.md §7a), mirroring the EXISTING E023-FOLIAGE-DRAW-FRAME
+pattern ("caught so the render loop always reschedules its next frame instead of permanently dying") —
+so a future edge case in this large new imperative surface degrades to one skipped/glitched frame instead
+of bricking combat for the rest of the level. Verified via Playwright against the rebuilt production
+bundle: 12 seconds of scripted rapid random keyboard input on Level 3, zero page errors, animation kept
+running throughout.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (implementation + crash fix), `CLAUDE.md`
+(new error code E028-SHEETRPG-IMPERATIVE-FRAME) — no other files touched.
+
+### §194. RPG hub scenery now built from `RAM level.ldtk` (Han 2026-08-10, "zorg dat ASSORTED de source of truth is... vervang het RPG-level voor het level in RAM level.ldtk")
+
+**Purpose.** The persistent RPG "hub" world (the overworld with the tree, tent, campfire, NOT the
+side-scroll combat levels in `levels.js`) was, until now, a hand-placed scene in `RpgLevelPanel.jsx` —
+manually positioned floor tiles, one tree, one tent, four hardcoded parallax backdrop images. Han
+asset-updated `src/assets/ASSORTED/` (deduped enemy sprites, added a properly LDtk-authored village scene)
+and asked for `src/assets/ASSORTED/LDtk/RAM level.ldtk` to become the real source of the hub's scenery,
+with debug-mode toggles for season (Summer/Fall), city (pavement on/off), and building tier (tavern
+tent→small→full, bridge log→wood) — all driven LIVE from the same `.ldtk` file, not pre-baked art.
+Interview-scoped to **scenery only**: hero/pet/wisp combat-adjacent sprites, movement, and the `Entities`
+layer's spawn markers are untouched.
+
+**How it works — three new files, `src/levels/ldtk/`:**
+
+- **`ldtkAutoTile.js`** — a minimal, purpose-built re-implementation of LDtk's (ldtk.io) auto-tiling rule
+  engine, scoped to exactly the rule features `RAM level.ldtk`'s 5 AutoLayers actually use (verified by
+  reading every rule in the raw file before writing this): NxN neighborhood pattern matching against an
+  IntGrid (`0`=wildcard, positive=must-equal, negative=must-NOT-equal, row-major with the center at the
+  middle index — cross-checked against the file's own pre-baked `autoLayerTiles` before being trusted),
+  `xModulo`/`yModulo`/`xOffset`/`yOffset` stride gating, and `chance`-gated tile selection using a
+  deterministic seeded hash (NOT `Math.random()` — the same IntGrid cell must always resolve the same way
+  across re-renders, or the ground would visibly re-shuffle on every unrelated re-render). Deliberately NOT
+  implemented: `flipX`/`flipY` mirroring, `checker` alternation, Perlin-noise gating — no rule in this file
+  sets any of them; a future rule that needs one will silently under-match rather than error (§6c: extend
+  `ruleMatches`/`ruleAppliesAtStride` if that ever happens, don't hardcode around the gap).
+- **`ldtkWorld.js`** — loads `RAM level.ldtk` (via `?raw` + `JSON.parse`, since Vite doesn't auto-parse a
+  `.ldtk` extension) and exposes `buildWorld({ season, city, tavernTier, bridgeTier })`. Terrain/water/
+  grass AutoLayers are RE-EVALUATED live via `ldtkAutoTile.js` against the `Terrain` IntGrid, selecting the
+  rule group matching the requested season (`Grass_Summer`/`Terrain_Summer` vs `_Fall`) — this is what
+  makes the season toggle a real live re-tiling, not a static asset swap. City gates the `Pavement` rule
+  group specifically (Han: "de pavement tiles hangen af van de city biome") — IntGrid value `4` = Pavement,
+  only honored when `city === 'City'`. Building tiers (`Tavern_level_1_tent`/`_2_small`/`_3_full`,
+  `Bridge_level_1_log`/`_2_wood`) are literal pre-authored whole `Tiles` layers in the file — no rule
+  engine involved, the tier picker just selects which one layer to include. Background scenery
+  (`Bg_plains_mountain`→`Bg_pine`, farthest→nearest by LDtk layer order) is returned as its own list with an
+  assigned parallax depth factor (0.1→0.85), replacing the old 4-image `PARALLAX_LAYERS` system entirely.
+  `LEVEL_MIN_X`/`LEVEL_MAX_X` (world walkable bounds) are derived from the ldtk level's own `pxWid`,
+  centered on x=0 — `useRpgLevelState.js` now imports these instead of hardcoding `-1600/1600`, so the
+  walkable area and the rendered scenery extent can never disagree (§6c: one shared bound).
+- **`tilesetUrls.js`** — resolves each `.ldtk` tileset def to its bundled Vite URL by matching on
+  **filename only**, not the file's own recorded `relPath` — the `.ldtk` file's paths point at a couple of
+  stale pre-reorg subfolders (e.g. `tiles/animated/GandalfHardcore Animated Water Tiles.png`, which now
+  actually lives under `tiles/water/`). This is what keeps ASSORTED itself the real source of truth (Han's
+  own framing) rather than the `.ldtk` file's recorded paths. One tileset (`VP2_Interriors`, used by the
+  Bridge "Wood" tier) has no matching file anywhere under ASSORTED at all — `tilesetUrlFor` returns `null`
+  and logs a `logger.warn` once; `ldtkWorld.js` silently drops any tile that resolves to a missing tileset
+  rather than crashing the scene. **Known gap:** selecting Bridge tier "Wood" in debug mode currently
+  renders no bridge tiles until that asset is restored under ASSORTED.
+
+**Rendering — `LdtkScenery.jsx`, plugged into `RpgLevelPanel.jsx`.** A `buildWorld()` result can carry
+several thousand tiles (`Bg_pine` alone has 1400). Rendering one absolutely-positioned DOM node per tile
+(the pattern the old hand-placed floor strip used, at ~200 tiles) would not scale to that count while
+staying in sync with the scrolling camera every frame. Instead, `LdtkScenery` composites each layer's
+tiles ONCE per season/city/tier change into a single `<canvas>` (`ctx.drawImage` per tile, native LDtk
+resolution, `imageSmoothingEnabled = false`), sized to the level's own native px extent. The canvas is then
+positioned with the SAME `worldToScreenX`/`ZOOM`/`GROUND_ANCHOR` convention every other sprite in
+`RpgLevelPanel.jsx` already uses (`bottom: GROUND_ANCHOR`, `left` computed via a `leftPxForFactor(factor)`
+helper that scales the camera term by a layer's own parallax depth before projecting) — panning is then a
+cheap CSS `left` update, not a redraw. **Known follow-up, not yet built:** the old scenery ran its
+trees/grass through `ForegroundFoliageLayer`'s normal-map wind-shimmer shader; the LDtk scenery's
+equivalent tiles currently render flat (no shimmer) — `ForegroundFoliageLayer` itself needed zero changes
+to support this in principle (it's already a generic `{screenX, screenY, diffuseUrl, diffuseUV, normalUrl}`
+instance-array renderer, see its own file header), this is purely a "not wired up yet" gap in
+`LdtkScenery.jsx`.
+
+**Legacy scenery kept behind a debug toggle, not deleted yet.** `RpgLevelPanel.jsx` gained a `sceneryMode`
+state (`'LDtk'` is now the DEFAULT; `'Legacy'` is debug-mode-only, via the new "World" `LevelPicker` panel)
+so Han can visually A/B the two before the old hand-placed floor/tree/tent/`PARALLAX_LAYERS` code — several
+hundred lines of heavily hand-tuned art placement — is deleted for good in a follow-up pass (CLAUDE.md §7:
+no permanent dead code, but a deliberate, temporary comparison toggle is not that). The legacy
+normal-map-generation `useEffect` is skipped entirely when `sceneryMode !== 'Legacy'` so switching to LDtk
+mode doesn't do wasted Sobel-normal-map work on mount.
+
+**Debug toggles** (`debugMode`-gated "World" panel, top-left of the RPG hub, same `LevelPicker`
+button-group pattern §141's Wind/Time-of-day pickers already established): Scenery (Legacy/LDtk), Season
+(Summer/Fall), City (City/No_City), Tavern tier (Tent/Small/Full), Bridge tier (Log/Wood). Defaults when
+debug is off: lowest building tier (Tent/Log, Han's explicit answer), season/city default to the `.ldtk`
+file's own authored level-level `Biome` field (Summer, No_City).
+
+**Invariant:** the LDtk pipeline is scenery-only. It must never be extended to special-case per-instrument
+or per-level generation logic (§6b/§6c) — it's a rendering concern, fully orthogonal to the melody
+generation pipeline and the side-scroll combat levels.
+
+**Files:** `src/levels/ldtk/ldtkAutoTile.js` (new), `src/levels/ldtk/ldtkWorld.js` (new),
+`src/levels/ldtk/tilesetUrls.js` (new), `src/levels/ldtk/__tests__/ldtkAutoTile.test.js` (new),
+`src/levels/ldtk/__tests__/ldtkWorld.test.js` (new), `src/components/character/LdtkScenery.jsx` (new),
+`src/components/character/RpgLevelPanel.jsx` (scenery-mode toggle, World debug panel, legacy code gated
+not deleted), `src/hooks/useRpgLevelState.js` (`LEVEL_MIN_X`/`LEVEL_MAX_X` now derived from the ldtk level
+width instead of hardcoded), `scripts/generate-tree-normal-maps.mjs` (re-run to restore the legacy scenery's
+own generated normal-map PNGs, which were missing from ASSORTED at the start of this session and blocked
+`npm run build` regardless of this feature).
+
+**Follow-up (Han 2026-08-11, "spawn personage op entity hero (staat in het level)" + "anker het level op
+de onderkant van de viewbox" + "hardcode dat karakter, pet, etc. op 32px van de grond leven"):**
+
+- **Entity-driven spawn positions.** `ldtkWorld.js` now also exports `ENTITY_WORLD_X` — the `Entities`
+  layer's Wisp/Pet/Hero/Slime markers, X only (same `ORIGIN_SHIFT_X` conversion every tile already uses).
+  `useRpgLevelState.js`'s `playerX`/`petX` initial state and its `npcX` default param now read
+  `ENTITY_WORLD_X.Hero`/`.Pet`/`.Wisp` instead of hand-tuned numbers (falling back to the old hand-tuned
+  spots if a marker is ever missing from a future re-export). This incidentally fixed a pre-existing gap:
+  `App.jsx` called `useRpgLevelState()` with no `npcX` argument at all, so `clickNpc()`'s walk-to-NPC
+  target was silently using the hook's default (`0`) rather than `RpgLevelPanel.jsx`'s own `NPC_X`
+  constant — the hook's default is now the real entity position, so the two can no longer drift apart
+  even without a prop being threaded through.
+- **Level bottom anchored to the viewport bottom.** `LdtkScenery`'s canvas is now passed `groundAnchor={0}`
+  (was `GROUND_ANCHOR`) — the level's own native bottom edge (`pxHei`) now sits flush against the RPG
+  hub's container bottom, not floating `GROUND_ANCHOR_PX` above it.
+- **Standing height hardcoded, decoupled from `GROUND_ANCHOR_PX`.** A new `STAND_HEIGHT_PX = 32` constant
+  (`ldtkWorld.js`, explicitly Han's own hardcode — NOT derived from the Hero/Pet/Wisp entities' own Y,
+  even though they happen to already sit at that same height in the authored file) is scaled by `ZOOM`
+  into `LDTK_STAND_ANCHOR` (`RpgLevelPanel.jsx`) and used as hero/pet/Wisp's `bottom` anchor whenever
+  `sceneryMode === 'LDtk'`. Legacy scenery mode is untouched — it still anchors to the old
+  `GROUND_ANCHOR`/`GROUND_ANCHOR_PX` line, which was tuned for different (legacy) art.
+- **Files:** `src/levels/ldtk/ldtkWorld.js` (`ENTITY_WORLD_X`, `STAND_HEIGHT_PX`), `src/hooks/
+  useRpgLevelState.js` (entity-derived spawn defaults), `src/components/character/RpgLevelPanel.jsx`
+  (`LDTK_STAND_ANCHOR`/`standAnchor`, `groundAnchor={0}` on `<LdtkScenery>`, `NPC_X` now entity-derived).
+
+### §195. LDtk pipeline fixes: world coordinates, wind foliage, animated tiles, run speed (Han 2026-08-11 UAT round on §194)
+
+**True LDtk world coordinates (fixes "level heeft een maximum-breedte die niet overeenkomt met de level
+breedte" + "entities spawnen te ver naar rechts").** `RAM level.ldtk` uses LDtk's `worldLayout: "Free"` —
+`Level_0` itself sits at an arbitrary `worldX`/`worldY` within a shared world grid (verified: `worldX:
+-1792`, not 0; two more levels, `Level_1`/`Level_2`, now also exist in the file at their own `worldX`/
+`worldY`, not yet rendered by this app — out of scope for this round). §194's `ldtkWorld.js` had invented
+its own centered origin (`-pxWid/2..+pxWid/2`), which silently RE-CENTERED on every edit to the level's
+width in the LDtk editor — spawn points and camera bounds drifted even though nothing Han placed had
+actually moved. Fixed: tile pixels stay LEVEL-LOCAL (`entry.px`, what `LdtkScenery`'s canvas actually
+draws at) while `LEVEL_MIN_X`/`LEVEL_MAX_X` are now `lvl.worldX`/`lvl.worldX + lvl.pxWid` — LDtk's own true
+(and possibly asymmetric) world bounds — and entity positions (`ENTITY_WORLD_X`) read LDtk's own
+precomputed `__worldX` field directly instead of re-deriving it. The app's world coordinates are now a 1:1
+mirror of LDtk's own, stable across edits that don't move existing content.
+
+**Auto-tile stamp geometry bug (fixes "water tiles tonen enkel de linker bovenhoek").** LDtk `tileMode:
+"Stamp"` rules place MULTIPLE tiles per match (e.g. water's 2x2 block, grass's 2-wide tuft) — every prior
+`evaluateRuleGroup` call placed EVERY tile in a stamp at the exact same single cell, so only the
+last-drawn tile was ever visible. Fixed by deriving each tile's placement offset from its own (col, row)
+position in the SOURCE tileset relative to the group's first tile (verified against the real file: water's
+`[80,120,81,121]` are exactly the (0,0)/(0,1)/(1,0)/(1,1) corners of one 2x2 block on its 40-column sheet)
+— no separate LDtk stamp-geometry field needed, the source art's own layout IS the stamp layout.
+`ldtkAutoTile.js`.
+
+**Duplicate-named rule group bug (fixes "ik mis ook grass decoration bg en fg").**
+`Grass_decoration_bg`'s layer def has TWO separate rule groups both literally named `"Grass_Summer"`
+(verified in the raw file) — `autoLayerTilesFor`'s `.find()` silently used only the first, dropping the
+second group's tiles entirely. Now collects and evaluates every group with a matching name (`.filter()`).
+`ldtkWorld.js`.
+
+**Wind-shimmer foliage (Han: "alle foliage lagen (via tag) moeten reageren op de wind").** LDtk has no
+tag data actually populated anywhere in this file (checked — every `tags`/`enumTags` array is empty), so
+"tag" here is Han's own layer-naming convention: `FOLIAGE_LAYERS` (`ldtkWorld.js`) =
+`Pine_forest_foliage2`, `Weeping_Willow`, `Main_tree_foliage` — trunks stay OUT on purpose, matching the
+pre-existing rigid-wood-vs-shimmering-foliage split (§141). `buildWorld()` now returns these (plus both
+grass-decoration layers) as a separate `foliageTiles` list instead of baking them into the static ground
+canvas. `useLdtkFoliageInstances.js` (new) converts that list into `ForegroundFoliageLayer` instances,
+generating a runtime normal map per DISTINCT (tileset, src-rect) — not per placed tile — since a handful
+of source tiles repeat hundreds of times (mirrors the pre-existing floor-tile normal-map cache, §141).
+Rendered in `RpgLevelPanel.jsx` through the SAME shimmer shader/wind params every other foliage sprite
+already uses — no shader changes needed, `ForegroundFoliageLayer`'s instance-array contract was already
+generic (§194's own note on this held up). **Known caveat, flagged to Han, not yet resolved:** this can
+push 1000+ individual WebGL draw calls (`Pine_forest_foliage2` alone has ~800 tiles) — `ForegroundFoliageLayer`
+draws one `drawArrays` call per instance, not batched/instanced; watch for frame-rate impact, especially on
+lower-end devices, before this ships beyond debug testing.
+
+**Animated water/campfire (Han: "de animated lagen moeten geanimeerd worden... campfire: alle rijen
+behalve de laatste (aan); begin random; laatste rij 1 cel (uit). water: steeds de gehele rij; begin
+random").** Tiles sourced from the Campfire/Animated-Water tilesets are pulled out of the static ground
+canvas (`buildWorld()`'s new `animatedTiles` list, grouped into 32x32 logical cells via `group32x32` — water's
+own rule is `xModulo:2`-gated so its matches always land 32-aligned already, campfire is one hand-placed
+2x2 block) and rendered by `LdtkAnimatedTiles.jsx` (new): a lightweight DOM overlay (no WebGL — these don't
+need lighting), one shared `tick` counter (not one interval per instance) driving every instance's frame,
+each instance's displayed frame offset by its OWN random start value (rolled once, stable across
+re-renders) so instances don't visibly lock-step. Water cycles columns within its own placed row; campfire
+cycles every cell across all rows except the last (the single static "off" cell) when its placed logical
+row is anything but the last row.
+
+**Hero run speed (Han: "als personage langer dan 2 seconden loopt, ga dan over naar 'run' met dubbele
+snelheid").** `useRpgLevelState.js` tracks a continuous-movement timer (`movingSinceRef`, reset the
+instant movement stops in either direction) and exposes `running` once it crosses 2000ms; the tick loop's
+own per-frame `speed` doubles while running. `RpgLevelPanel.jsx` swaps in the existing `run` animation
+(`ANIMATIONS` already had one, `characterAssets.js`) and doubles the walk-frame advance rate to match, so
+the run cycle doesn't look like the walk cycle just sliding faster. Pet speed is untouched (not requested).
+
+**Entity despawn / memory question (Han: "is het nodig om ook entiteiten te despawnen voor memory? is
+daar een mechanisme voor?").** No — this scenery pipeline has no dynamic entity spawning at all right now
+(the Wisp/Pet/Hero markers are read ONCE at module load to seed initial positions; nothing is created or
+destroyed at runtime). There is no despawn mechanism because there is nothing yet to despawn. This becomes
+a real question only once something spawns entities dynamically during play (e.g. a future wildlife/NPC
+system) — flag as a new, separately-scoped feature if/when that exists, rather than building a despawn
+mechanism speculatively now (§7: no config/abstraction ahead of an actual need).
+
+**Files:** `src/levels/ldtk/ldtkAutoTile.js` (stamp geometry), `src/levels/ldtk/ldtkWorld.js` (true world
+coords, duplicate rule groups, foliage/animated tile separation), `src/levels/ldtk/__tests__/
+ldtkAutoTile.test.js` + `ldtkWorld.test.js` (updated + new coverage), `src/components/character/
+useLdtkFoliageInstances.js` (new), `src/components/character/LdtkAnimatedTiles.jsx` (new), `src/components/
+character/RpgLevelPanel.jsx` (foliage/animated-tile rendering, run-speed animation swap), `src/hooks/
+useRpgLevelState.js` (run-speed timer).
+
+### §196. LDtk pipeline round 2: stamp pivot, per-tile flip, animated-tile duplication (Han 2026-08-11 follow-up UAT on §195)
+
+**Grass "one tile too low" — stamp pivot (`pivotX`/`pivotY`).** `evaluateRuleGroup` (`ldtkAutoTile.js`)
+was ignoring the rule's own `pivotX`/`pivotY` fields entirely. Every Grass_decoration Stamp rule sets
+`pivotY: 1` — LDtk anchors the stamp's BOTTOM/RIGHT edge to the trigger cell when a pivot is 1, not its
+top/left (the previous, un-pivoted default). For a 1-row grass tuft this means the tuft belongs ONE ROW
+ABOVE the ground cell it decorates, not coincident with it — exactly Han's "gras staat een tile te laag"
+report. Fixed: the stamp's own footprint size (`stampW`/`stampH`, derived from the placed tiles' own max
+offset) is now subtracted from the placement when the matching pivot is 1, so the pivot EDGE (not the
+first tile) lands on the trigger cell.
+
+**Per-tile flip (`f` bitmask) — "boomstammen... gespiegeld... jij hebt ze niet gespiegeld".** LDtk stores
+a per-tile flip bitmask (`entry.f`: bit0 = flipX, bit1 = flipY) on every placed tile — e.g.
+`Pine_forest_trunks` deliberately alternates flipped/unflipped trunks for visual variety (`f` values
+0/1/2/3 all present in the raw file). This was read into nothing at all before — `tileFromLdtkEntry`
+(`ldtkWorld.js`) now exposes `flipX`/`flipY` booleans, applied by the two renderers that draw STATIC
+tiles (the rule engine's own synthesized tiles never carry a flip — verified no relevant rule sets the
+rule-level flipX/flipY): `LdtkScenery.jsx`'s canvas draw wraps a flipped blit in `ctx.save()` +
+`translate`/`scale(-1|1, -1|1)`/`translate` around just that ONE tile (every other tile on the same
+canvas must stay unflipped); `useLdtkFoliageInstances.js` mirrors via a UV-rect min/max swap (the standard
+trick for a linearly-interpolated textured quad — no shader change). **Known limitation:** the foliage
+path's runtime-generated normal map is NOT also mirrored (would need a per-pixel R-channel negation, not
+just a visual flip) — left as a minor lighting inconsistency on flipped foliage tiles, flagged rather than
+silently accepted as "done."
+
+**Animated water/campfire showing 4 copies — grouping assumption removed entirely.** §195's `group32x32`
+grouped tiles into 32x32 blocks by FLOORING their placement (world) position to the nearest 32px, which
+implicitly assumed every animated sprite is placed 32-aligned. Verified false: campfire's own placement
+starts at world px 1648 (`1648 % 32 = 16`) — its 4 individual 16x16 pieces floor-divided into FOUR
+different "cells" instead of one, each then rendered as an independent 32x32 animated sprite (Han: "ik zie
+het kampvuur 4x, ik zie het water 4x"). Fixed by removing grouping entirely: `withAnimMeta` (`ldtkWorld.js`)
+computes each 16x16 tile's own `logicalCol`/`logicalRow`/`subX`/`subY` from its `src` (SHEET position —
+wholly independent of where it's placed), and `LdtkAnimatedTiles.jsx` animates each tile independently,
+cycling the logical cell while preserving the quadrant. No placement-alignment assumption survives, so it
+can't misgroup regardless of future non-aligned placements.
+
+**Water switched from the live rule engine to the file's own pre-baked tiles.** Water's one rule group
+isn't season/city-gated (unlike Terrain/Grass/Pavement), so there was nothing to re-evaluate live in the
+first place — `ldtkWorld.js` now reads it via `staticLayerTiles('Water_tile')` (LDtk's own already-correct
+`autoLayerTiles` output) instead of `autoLayerTilesFor`, sidestepping this app's own stamp-reconstruction
+logic for a layer that turned out not to need it at all.
+
+**Files:** `src/levels/ldtk/ldtkAutoTile.js` (pivot handling), `src/levels/ldtk/ldtkWorld.js` (`flipX`/
+`flipY` on `tileFromLdtkEntry`, `withAnimMeta` replacing `group32x32`, water now static-read),
+`src/levels/ldtk/__tests__/ldtkAutoTile.test.js` (pivot test), `src/components/character/LdtkScenery.jsx`
+(flipped canvas blit), `src/components/character/useLdtkFoliageInstances.js` (UV-flip),
+`src/components/character/LdtkAnimatedTiles.jsx` (rewritten per-tile, not per-group).
+
+### §197. LDtk pipeline round 3: LDtk-exact grass placement, layer z-order vs Entities, Slime, viewbox-fit zoom (Han 2026-08-11 second follow-up)
+
+**Grass density/placement — follow LDtk's own resolved output, not this app's re-derived chance.** Han
+asked directly: "reken je zelf de probabiliteit en plaatsing van de tiles uit, of geeft LDtk een
+voorberekende positionering? Ik heb het liefst dat je LDtk volgt." Verified: yes, this app's own live rule
+engine was resolving each grass rule's `chance` (0.8 tuft rule vs 0.25 bush/rock rule) with its OWN seeded
+hash, NOT LDtk's real RNG — and the two disagree badly. Counted the file's own pre-baked
+`Grass_decoration_fg` output: the "tuft" rule (chance 0.8) accounts for 288/300 placed tiles (96%), the
+"bush/rock" rule (chance 0.25) only 12/300 (4%) — the OPPOSITE of what Han was seeing rendered ("veel
+struiken en stenen, maar weinig grassprieten"), confirming the live engine's chance resolution was
+skewed relative to LDtk's true output. Also explains the "grassprieten vliegen boven de pavement" report:
+the pivot-shifted `px` computed live could land on cells the live pattern-match considered valid but LDtk's
+own resolved placement never actually used.
+
+Fix: `preBakedTilesFilteredByGroup` (`ldtkWorld.js`) reads the layer's OWN pre-baked `autoLayerTiles`
+(LDtk's real, already-resolved chance/RNG outcome AND already-pivot-adjusted `px` — zero re-derivation
+risk) and keeps only entries whose `t` (tileId) belongs to the requested rule GROUP (derived from each
+rule's own `tileRectsIds`, not hardcoded literals). `grassTilesFor` tries this first; only falls back to
+the live rule engine (`autoLayerTilesFor`) when the pre-baked pool has NO tiles for the requested group at
+all — verified empirically that this file's baked pool currently contains ONLY Summer's tileIds (Fall was
+never baked, despite both rule groups being marked "active" in the defs — LDtk apparently only bakes
+whichever variant was showing at last save). **Known limitation:** Fall grass decoration is therefore still
+best-effort (the live engine, imperfect chance resolution) until Han saves the file with Fall showing in
+the LDtk editor at least once — flagged, not silently hidden.
+
+**Scenery/Entities z-order (Han: "ik zie dat alle 'lagen' áchter de entiteiten staan; houd goed de
+volgorde van lagen aan; dus plaats ook entities op de z-map die bij de entities hoort").** LDtk's
+`layerInstances` array IS the paint order (index 0 = frontmost/rendered-last). This app previously
+rendered ALL scenery in one flat pass before the hero/pet/Wisp, ignoring that several layers
+(`Grass_decoration_fg`, `Blacksmith_level_3_full`, `Alchemist_level_3_full`, `Interior_Back_Walls`,
+`Alchemist_decor` — all at array index < the `Entities` layer's own index 5) are genuinely IN FRONT of the
+Entities layer in the source file. Fixed: `ldtkWorld.js` computes `LAYER_INDEX`/`ENTITIES_INDEX` once and
+tags every tile `inFront: layerIndex < entitiesIndex`; `buildWorld()`'s return shape changed from flat
+`groundTiles`/`foliageTiles`/`animatedTiles` to `*Back`/`*Front` pairs (`splitByFront`).
+`RpgLevelPanel.jsx` now renders scenery in three passes: back-of-entities scenery, THEN hero/pet/Wisp/
+Slime, THEN front-of-entities scenery — mirroring the source file's own paint order exactly instead of a
+single "scenery, then characters" assumption. `LdtkScenery`/`LdtkAnimatedTiles`/the foliage
+`ForegroundFoliageLayer` calls are each now mounted TWICE (back pass, front pass) with the corresponding
+tile bucket.
+
+**Slime entity not rendered (Han: "ik zie ook de slime niet; conform de entiteitslaag").** The Slime
+marker in the `Entities` layer has no equivalent in the Bestiary creature-classification system (unlike
+Wisp) — it's the SAME sprite sheet `SheetRpgLayer.jsx`'s real combat slimes use (`enemyAssets.js`'s
+`SLIME_*` exports). Added `WorldSlime` (`RpgLevelPanel.jsx`): a purely decorative, idle-animated slime
+(green variant) standing at `ENTITY_WORLD_X.Slime`, in the same z-slot as Wisp/hero/pet — no death/combat
+logic, this is scenery, not the real per-wave combat slimes.
+
+**Zoom-to-fit level height (Han: "zoom in/uit zodat de hoogte van het level precies in de viewbox past.
+je mag bottom view iets kleiner maken om ruimte te maken").** `RpgLevelPanel.jsx` previously always
+scaled at the fixed legacy `ZOOM = 3`. In LDtk mode it now computes `dynamicZoom = size.h /
+LEVEL_PX_HEIGHT` so the level's native height fills the container exactly; `zoom` (mode-aware: dynamic in
+LDtk mode, the fixed `ZOOM` in legacy mode) threads through every LDtk-relevant position/scale
+computation — `worldToScreenX`, `leftPxForFactor`, `standAnchor`, hero (`CharacterDoll` height), and
+`WorldCreature`/`WorldPet`/`WorldSlime` (each gained an optional `zoom` prop, defaulting to the module
+`ZOOM` so legacy callers are unaffected). To make room, `useAppLayout.js` gained `rpgLevelTopHeight` — 65%
+of window height (dual-view) instead of the sheet-music tabs' shared 45% — used by `App.jsx` only when
+`characterScreen === 'rpg-level'`; the bottom dialogue panel's own `flex: 1` already fills whatever
+remains, so it shrinks automatically with no separate change needed there.
+
+**Files:** `src/levels/ldtk/ldtkWorld.js` (`preBakedTilesFilteredByGroup`, `grassTilesFor`, `LAYER_INDEX`/
+`isInFrontOfEntities`/`splitByFront`, back/front return shape), `src/levels/ldtk/__tests__/
+ldtkWorld.test.js` (updated for the back/front shape, new pre-baked-fidelity and z-order tests),
+`src/components/character/LdtkScenery.jsx` (takes explicit `groundTiles`/`backgroundLayers` props, no
+longer a whole `world`), `src/components/character/RpgLevelPanel.jsx` (two-pass back/front rendering,
+`WorldSlime`, dynamic `zoom`, `WorldCreature`/`WorldPet` gained a `zoom` prop), `src/hooks/
+useAppLayout.js` (`rpgLevelTopHeight`), `src/App.jsx` (uses it for the rpg-level top panel).
+
+### §198. Debug metronome + counter + dual FPS readout; foliage viewport culling for performance (Han 2026-08-11)
+
+**Debug metronome (Han: "in debug wil ik in het level een metronoom aan kunnen zetten, bpm zelfde als
+bladmuziek. ik wil de metronoom zien spelen, en een teller (1,2,3,4) die elk kwartnoot verspringt").**
+`useDebugMetronome.js` (new) — a click track driven by polling `context.currentTime` via `rAF`, NOT
+`setInterval`/`setTimeout` (CLAUDE.md §6's "never use setTimeout to drive [musical] timing" invariant
+applies here too — a wall-clock timer would drift against the real AudioContext clock every other
+scheduled sound in this app uses). Each tick recomputes which beat SHOULD be current from elapsed
+AudioContext time and only acts on the tick where that beat actually CHANGES (edge-triggered), playing the
+click through the existing `instruments.metronome` Soundfont (`resolveNotePitch('wh'|'wm', null)` — reused
+from `playSound.js`, no new audio pipeline) and updating a 1-4 counter + a swinging-pendulum visual
+(`RpgLevelPanel.jsx`, gated `debugMode` + an explicit on/off `LevelPicker`, off by default even in debug).
+`bpm`/`context`/`instruments` are new props threaded from `App.jsx` down to `RpgLevelPanel` (previously had
+none of the app's audio state at all). **Known gap:** no bundled pixel-art TYPEFACE exists in this project
+(checked — only pixel-art character/tile ART, no pixel FONT file) — the counter currently uses a bold
+monospace + wide letter-spacing as a blocky stand-in; swap `fontFamily` for a real pixel font asset if/when
+Han adds one.
+
+**Dual FPS readout (Han: "toon ook de pixel art FPS en de app FPS in debug mode").** `useFpsCounters`
+(same file) reports two independently-measured rates: "App FPS" counts the hook's OWN `rAF` loop (the
+browser's general paint rate); "Pixel art FPS" is reported by `RpgLevelPanel`'s own camera/movement `rAF`
+loop calling `reportPixelFrame()` once per tick — a divergence between the two pinpoints whether a
+slowdown is general (App FPS drops too) or specific to the game-world render loop.
+
+**Performance investigation (Han: "de animatie is behoorlijk schokkerig, en de scrolling ook... hoe is de
+performance?", plus a pasted profile — LCP 5.37s poor, CLS 0.11 needs improvement, INP 816ms poor).**
+Root cause identified: §195 already flagged, as a known caveat, that `ForegroundFoliageLayer` draws ONE
+uncalled `gl.drawArrays` per instance (no batching) — and the LDtk foliage pipeline (§195/§196) can push
+~1000 instances (`Pine_forest_foliage2` alone has ~800 tiles), ALL of them drawn every frame regardless of
+camera position. That's the dominant cost behind the measured choppiness. Fixed with viewport culling,
+NOT a rendering-architecture rewrite (batched/instanced WebGL rendering would be the "real" fix but is a
+much larger change than this session's budget): `cullToViewport`/`cullTilesToViewport`
+(`RpgLevelPanel.jsx`) filter foliage instances and animated water/campfire tiles to a fixed pixel margin
+around the actual viewport (already-projected `screenX`, computed fresh every render since it depends on
+`cameraX`) right before handing them to `ForegroundFoliageLayer`/`LdtkAnimatedTiles` — cuts the typical
+per-frame instance/draw-call count from ~1000 to whatever's actually on-screen. **Not yet done, flagged as
+a further step if this isn't enough:** true batched/instanced rendering inside `ForegroundFoliageLayer`
+itself (would need a shader/attribute-buffer rework, out of scope for a same-session fix).
+
+**On the "Maximum update depth exceeded" console warnings Han also pasted:** reviewed the referenced code
+(`RpgLevelPanel.jsx`'s camera-follow loop, `useRpgLevelState.js`'s movement loop) again — both are
+standard "schedule once, self-reschedule inside the rAF callback, cancel on cleanup" loops with no
+structural issue found. The pasted trace shows dozens of nested `requestAnimationFrame` frames inside ONE
+reported stack, which is not how real per-frame `rAF` scheduling looks (each real tick is its own
+macrotask); it's consistent with React's OWN update-loop DETECTION mechanism synchronously replaying an
+effect, most often triggered by Fast Refresh (Vite HMR) tearing down/recreating an effect while a hot
+update lands mid-edit — the same console output shows several "[vite] hot updated: RpgLevelPanel.jsx"
+lines immediately adjacent to the warnings, consistent with this happening during active development
+edits rather than in a settled/reloaded page. Not dismissed outright — flagged here so a FUTURE recurrence
+after a clean hard-reload (no pending HMR) would be worth a fresh look, since that would rule out the HMR
+explanation.
+
+**Files:** `src/components/character/useDebugMetronome.js` (new), `src/components/character/
+RpgLevelPanel.jsx` (metronome UI, FPS readout, `cullToViewport`/`cullTilesToViewport`), `src/App.jsx`
+(`bpm`/`context`/`instruments` now passed to `RpgLevelPanel`).
+
+### §199. §198 follow-up round: metronome restart bug, camera zoom/size churn, canonical Slime crop, batched normal-map generation, Wind/Time-of-day relocated (Han 2026-08-11)
+
+**Metronome "sounds like a Geiger counter" (Han: "lijkt gekoppeld aan de FPS... je hebt metronoom met fps
+verward").** Real bug, found: `useDebugMetronome`'s effect depended on `[enabled, bpm, context,
+instruments]`. `instruments` is a plain object literal returned FRESH by `useInstruments()` on every
+`App.jsx` render — and `App.jsx` re-renders ~60x/sec while the hero moves (`rpgLevel` state lives there).
+Every one of those renders was a NEW `instruments` reference, so the effect tore down and restarted the
+whole click loop on every single render — each restart reset `startTimeRef` to "now" and
+`lastBeatIndexRef` to -1, which fires an IMMEDIATE click on every restart: up to ~60 clicks/sec while
+walking, tracking the frame rate instead of the tempo — exactly Han's diagnosis. Fixed: `bpm`/
+`timeSignature`/`instruments` are now read through refs updated every render (the same convention
+`useRpgLevelState.js` already uses for `playerXRef`), so the tick loop always sees the LATEST value
+without needing to be in the dependency array — only `enabled`/`context` (stable, created once) restart
+the loop. Also fixed the hardcoded `BEATS_PER_MEASURE = 4`: now reads `timeSignature[0]` (a new prop,
+threaded `App.jsx` -> `RpgLevelPanel`), defaulting to 4 — Han: "een metronoom volgens de globale bpm en
+measureType params (120 bpm 4/4 default)".
+
+**"App FPS 37, Px 0" (Han: "dat vind ik raar — er is toch een idle/walk animatie?").** The camera-follow
+effect (`RpgLevelPanel.jsx`) depended on `[size.w]`, so it tore down and restarted every time the
+ResizeObserver-driven `size` changed — a pattern this same file already documents elsewhere as "can
+genuinely fire more than once as the level's layout settles." Every restart replaced the rAF chain before
+`reportPixelFrame` could accumulate meaningful ticks between restarts, while "App FPS" (`useFpsCounters`'
+own genuinely-stable, empty-deps loop) kept counting normally — hence the divergence. Fixed the same way
+`useRpgLevelState.js`'s movement loop already does it: mount the rAF chain ONCE (`[]`), read the latest
+`size`/`zoom` through refs instead of restarting on every change.
+
+**"scrolling is schokkerig" — camera dead-zone math used the wrong zoom.** Found while fixing the above:
+the camera-follow effect's dead-zone/clamp math (`viewHalfWorld = (size.w/2)/ZOOM`) was hardcoded to the
+module-level `ZOOM` (3) constant — silently wrong as soon as §197's dynamic zoom-to-fit diverged from 3
+(which it does essentially always now), throwing off where the dead-zone boundaries and camera clamp
+actually sit relative to the REAL on-screen scale. Now reads the current `zoom` via the same ref pattern.
+
+**Slime "heel schokkerige animatie... waarom laad je niet de bestiary versie" — real crop bug, not a
+missing bestiary entry.** Checked: Slime has NO bestiary/`SCANNED_CREATURES` entry by design —
+`scripts/generate-bestiary-manifest.mjs`'s own `CURATED_KEYWORDS` comment says so explicitly ("already
+hand-curated in enemyAssets.js... skip these so the bestiary never lists the same creature twice"). What
+WAS wrong: §197's decorative `WorldSlime` sized its CSS `backgroundSize` off `SLIME_IDLE.frames` (5
+columns) instead of the sheet's REAL column count (8, matching the widest row, `SLIME_WALK`) — a
+squashed/misaligned crop, the actual cause of the choppy look Han saw. `SheetRpgLayer.jsx`'s own combat
+slime renderer already had the correct constants (`SLIME_COLS=8, SLIME_ROWS=3`), hand-derived locally
+there — moved to `enemyAssets.js` as a shared export (§6d: one source of truth) and `WorldSlime` now uses
+them too. `SheetRpgLayer.jsx` imports the shared constant instead of its own local copy.
+
+**Wind/Time-of-day moved to the World panel (Han: "verplaats wind en time of day togglers naar links
+World settings").** Both `LevelPicker`s moved out of `FoliageParamsPanel` (top-right) into the World debug
+panel (top-left, alongside Scenery/Season/City/tier/Metronome) — same `foliageParams`/`setFoliageParam`
+underneath, just relocated.
+
+**"is het de moeite om tiles te offloaden als ze een paar schermlengtes ver zijn?"** Answer, backed by a
+real count: this level's foliage still has ~450 DISTINCT source rects even after the per-art normal-map
+cache (1377 placed tiles, 449 unique crops) — the one-time Sobel-generation cost at mount is real and
+plausibly part of the measured LCP delay. Per-tile VIEWPORT eviction (destroying/regenerating normal maps
+as the camera scrolls) isn't worth building — the cache is already keyed by ART, not placement, so nothing
+GPU-resident scales with position, there's nothing meaningful left to "offload" per-tile. What DOES help,
+implemented: `useLdtkFoliageInstances.js` no longer generates all ~450 normal maps in one blocking
+`Promise.all`-then-all-at-once pass — `BATCH_SIZE=60` distinct rects are generated per
+`requestIdleCallback` slice (falls back to `setTimeout` where unavailable, e.g. Safari), publishing
+`instances` after every batch so SOME foliage is visible+lit almost immediately while the rest fills in
+over the next few idle windows without blocking input or paint.
+
+**Files:** `src/components/character/useDebugMetronome.js` (ref-based `instruments`/`bpm`, `timeSignature`
+param), `src/components/character/RpgLevelPanel.jsx` (camera effect mounts once + reads `size`/`zoom` via
+refs, `WorldSlime` uses `SLIME_COLS`/`SLIME_ROWS`, Wind/Time-of-day moved into the World panel),
+`src/model/enemyAssets.js` (`SLIME_COLS`/`SLIME_ROWS` now exported), `src/components/sheet-music/
+SheetRpgLayer.jsx` (imports the shared constants instead of its own local copy),
+`src/components/character/useLdtkFoliageInstances.js` (batched/idle-time normal-map generation),
+`src/App.jsx` (`timeSignature` now also passed to `RpgLevelPanel`).
+
+### §200. Foliage flat-sprite fallback while moving, foliage params default-collapsed, per-voice melody generate+play buttons (Han 2026-08-11)
+
+**Foliage "flitst nogal bij bewegen" (flickers while moving) — flat fallback, never "nothing".** Han's own
+diagnosis: the WebGL shimmer effect is too subtle to matter while the camera is moving a lot anyway, so
+turn it off then — but show the plain unmodified sprite, not empty space. Implemented by ALWAYS including
+foliage tiles in the flat ground canvas too (`LdtkScenery`'s `groundTiles` now gets `[...groundTilesBack,
+...foliageTilesBack]`, and the front pass equivalently) as a permanent, always-present base layer, while
+the WebGL `ForegroundFoliageLayer` foliage pass only mounts while `!moving` (`rpgLevel`'s existing
+`moving` state — no new movement-detection needed). When moving, the shimmer layer simply isn't rendered
+and the flat base shows through; when standing still, the shimmer layer draws on top of (visually
+replacing) the flat version. This has a second benefit for free: it's also what's visible during the
+first instant after a scenery change, before §199's batched normal-map generation has produced anything
+to shimmer yet — "toon dan de default ongemodificeerde sprite, ipv niets" now holds in BOTH cases.
+
+**Foliage params panel collapsed by default (Han: "zet foliage params uit by default").**
+`FoliageParamsPanel`'s `collapsed` state now starts `true` instead of `false` — the "World" panel (Scenery/
+Season/City/tier/Metronome/Wind/Time-of-day) is the primary debug surface now; the full shader-tuning
+panel is still one click away, just not open by default.
+
+**Per-voice "generate + play" buttons (Han: "voeg twee knoppen toe: treble melody en bass melody...
+genereert random melodieën, volgens de ingestelde settings... vergeet niet altijd progression mee te
+genereren... ook meteen afspelen").** `useMelodyState.js`'s `randomizeAll(randomizeConfig)` previously only
+had ONE blanket `melody` flag applied uniformly to treble/bass/percussion — no way to regenerate just one
+voice. Extended (backward-compatible — every EXISTING caller only ever sets the blanket `melody`/`chords`
+flags, which still work identically) with per-voice overrides: `randomizeConfig.treble`/`.bass`/
+`.percussion` (explicit `true`/`false`) win when given, otherwise fall back to the old blanket flag. The
+chord progression is regenerated on every call by default (`shouldRandomizeChords` only turns off when
+`chords: false` is explicitly passed, which the new buttons never do) — satisfying "vergeet niet altijd
+progression mee te genereren" for free, no special-casing needed.
+
+Playback-after-generate reuses the SAME defer-then-read-via-ref pattern this file already established for
+`levelRegenerate` (`randomizeAllRef`, with the documented reasoning: `randomizeAll`'s setters only land in
+state on the NEXT render, so playing back synchronously afterward would still read the OLD melody).
+`App.jsx`'s new `generateAndPlayVoice(voice)` calls `randomizeAllRef.current({ treble:false, bass:false,
+percussion:false, [voice]:true })` then defers `handlePlayMelodyRef.current()` (a new ref mirroring the
+same convention) to the next `requestAnimationFrame`, by which point React has committed the new melody
+state. Passed down as `onGenerateVoice` to `RpgLevelPanel`, which renders "Treble melody"/"Bass melody"
+buttons in the World debug panel calling `onGenerateVoice('treble'|'bass')` — no new audio/generation
+path, just new entry points into the existing ones.
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (foliage merged into flat ground tiles + shimmer
+gated on `!moving`, `FoliageParamsPanel` default-collapsed, Treble/Bass melody buttons), `src/hooks/
+useMelodyState.js` (`randomizeAll` per-voice overrides), `src/App.jsx` (`generateAndPlayVoice`,
+`handlePlayMelodyRef`, `onGenerateVoice` passed to `RpgLevelPanel`).
+
+### §201. Critical flashing regression fix, LDtk wave-band vertical periodicity fix, startup-time investigation (Han 2026-08-12)
+
+**"Heeeel veel flitsen op alle lagen; totaal niet speelbaar" — critical regression, found and fixed.**
+§200's foliage flat-fallback merge (`groundTiles={[...world.groundTilesBack, ...world.foliageTilesBack]}`)
+built a NEW array literal inline on every `RpgLevelPanel` render — and this component re-renders ~60x/sec
+while the hero moves (`cameraX`/`playerX` state churn). `LdtkScenery`'s own canvas-compositing effect is
+keyed on `[tiles, gridSize]` by REFERENCE, so a fresh array every render tore the canvas down
+(`setReady(false)` → transparent) and rebuilt it from scratch 60x/sec on EVERY layer using this pattern —
+exactly the flashing Han saw, and the "totally unplayable" severity. Fixed: the merged arrays are now
+built via `useMemo` keyed on the underlying stable `world.groundTilesBack`/`foliageTilesBack` references
+(themselves only change when `world` itself changes — season/city/tier toggles), restoring the same
+stability every other `LdtkScenery` consumer already had before this merge.
+
+**Wave band "ziet er heel anders uit... verticaal periodiek met periode 1" — traced to a real shader
+assumption that doesn't hold for the LDtk world.** `ForegroundFoliageLayer`'s wave/skew/highlight noise all
+sample a `groundDist` value that resets to 0 at EACH INSTANCE'S OWN bottom edge — correct for the legacy
+world, where one instance = one whole visual object (a tree canopy, a tuft), so `groundDist` already spans
+that object's full height continuously. Wrong for the LDtk world: a tall foliage column (a pine tree) is
+authored as MANY separate 16px tile instances stacked vertically, each independently restarting
+`groundDist` at 0..16 — the noise repeats every tile instead of sweeping smoothly up the whole column,
+exactly Han's "periode 1" observation. Fixed with a new, purely ADDITIVE uniform `uGroundDistOffset`
+(defaults to 0 for every existing caller — legacy behaviour is bit-for-bit unchanged, verified: no legacy
+call site sets it) that a caller can supply when it KNOWS an instance's true height above the level's real
+ground, not just its own local height. `RpgLevelPanel.jsx`'s `foliageInstanceProps` now passes
+`groundDistOffset: inst.localBottomFromLevelBottom` (a value it already computed for positioning) so the
+noise sweep is continuous across a stacked LDtk column, matching the legacy world's look. **Known minor
+side-effect, flagged not hidden:** the wind-skew intensity's own `heightRatio` term (normalized against
+ONE tile's own height) saturates at 1.0 for every tile above the bottom-most one in a stack instead of
+tapering — full-intensity skew on upper tiles rather than a per-tile gradient. Judged not worth a second
+offset/uniform for a cosmetic-only taper.
+
+**"App startup duurt heel lang" — investigated, one confirmed non-cause and one real fix applied.**
+Measured directly (Node timing, not guessed): `JSON.parse` of the 1.17MB `RAM level.ldtk` file plus this
+app's own index-building takes ~26ms total — NOT a plausible cause of a "very long" startup on its own.
+The more likely real contributor, found by inspection: `tilesetUrls.js`'s `import.meta.glob('tiles/**/*.png',
+{eager:true})` was eagerly registering all 235 PNGs under ASSORTED/tiles+backgrounds at APP BOOT (via
+`useRpgLevelState.js`'s unconditional import chain — `rpgLevel = useRpgLevelState()` runs at every App
+mount regardless of which tab is open), even though this level's own tileset defs only reference ~17 of
+them. `Legacy_Fantasy`/`chests`/`carriage`/`sky_decoration` (86 files, ~37% of the total — verified none of
+them contain a tileset this level's `defs.tilesets` actually references) are now excluded via glob negation
+patterns, without touching the `eager:true` pattern itself. Measured effect: main JS chunk shrank from
+4390KB to 4298KB (~92KB). **Not done, flagged as a bigger follow-up if this isn't enough:** converting the
+`?raw` ldtk import (currently inlined as a >1MB JS string in the main bundle) to a lazily-`fetch()`-ed
+`?url` asset would be the more thorough fix for bundle size specifically, but requires making
+`useRpgLevelState.js`'s entity-derived spawn defaults (currently synchronous module-level constants)
+async-aware — a real behavior-timing change, not attempted this round given the already-high risk budget
+this session (two "totally broken"-severity regressions already found and fixed today).
+
+**Files:** `src/components/character/RpgLevelPanel.jsx` (`groundAndFoliageBack`/`Front` memoized),
+`src/components/character/ForegroundFoliageLayer.jsx` (`uGroundDistOffset` uniform, additive/opt-in),
+`src/levels/ldtk/tilesetUrls.js` (glob narrowed to exclude 4 unused asset subfolders).
+
+### §202. Fixed-song RPG levels — `songId` + decorative `npc` (#871, Han 2026-08-11)
+
+**Purpose (Han): "maak levels met een naam ipv een nummer. Die levels spelen elk een nummer uit de
+abc-music lijst in songs/abc... zet bij sakura japanese musician als npc... zet bij frere jacques monk...
+kalinka roman woman... scarborough fair cook."** Turns 7 previously-unused ABC files
+(`src/songs/abc/*.abc`: Arirang, Frère Jacques, Kalinka, Kangding Qingge, La Bamba, Sakura, Scarborough
+Fair) into named RPG levels (ids 200-206) that each play a FIXED song instead of procedural generation,
+with lyrics, and 4 of them with a decorative NPC standing where the combat Wizard normally would. A design
+interview + plan_review (see kanban ticket #871) locked several scope decisions before implementation;
+this section documents the mechanism that resulted.
+
+**ABC → song-JSON conversion (offline, permanent/reusable tool).** `scripts/abc-to-song.mjs` (run via
+`npm run abc:song -- <path-to.abc>`, vite-node so it can import the app's own `noteUtils`/`timing`/
+`generatorDefaults` instead of re-deriving them) parses an ABC file into the SAME schema
+`src/songs/data/happyBirthday.json` already uses — tick-based `notes`/`durations`/`offsets`, spelled-out
+chord stacks, parallel `lyrics[]`. This is a PERMANENT tool, not a throwaway one-shot script (Han,
+plan_review: "er gaan nog abc's komen") — it accepts any `.abc` path as a CLI argument, so future imports
+reuse this one pipeline rather than growing a second parser (CLAUDE.md §6c). It is never imported by the
+app bundle; only the generated JSON is.
+
+Locked conversion decisions (documented in the script's own header, each song JSON's `_source.decisions`,
+and each `src/songs/definitions/*.js` wrapper's comment):
+
+1. **Repeats are NOT expanded** — `|: … :|` is written once (no repeat-sign renderer/scheduler exists).
+2. **Ties are merged** into the preceding note's duration (the notation pipeline re-derives ties across
+   barlines on its own; a second onset would be a spurious re-articulation).
+3. **Slurs are ignored** (no slur renderer, no duration effect).
+4. **Fermatas are parsed but NOT emitted by default** (`--fermatas` opts in) — a fermata delays audio via
+   `hold` while leaving `offsets` untouched, which would desync the side-scroll RPG layer's purely
+   `offsets`-driven enemy positions from the audio.
+5. **Songs without ABC chord symbols** (Frère Jacques, Kangding Qingge, La Bamba) get ONE mechanical tonic
+   triad per measure — a drone, not melody-derived inference — so every song ships a non-null chord
+   progression (`loadSong.js` always has something to build a `chordMelody` from).
+
+**Metadata is trusted from the ABC header, never inferred.** `K:`/`M:`/`L:`/`Q:` map directly to
+`defaultTonic`/`generator.scaleMode`/`timeSignature`/`defaultTempo` — no scale-detection algorithm exists
+or was built (a design-interview decision: "ABC-header vertrouwen" over building a generic
+smallest-scale-that-fits inference engine). `numMeasures` and `notesPerMeasure` ARE mechanically derived
+from the parsed note stream (never hand-typed) — `src/songs/__tests__/songData.test.js` asserts the
+treble line exactly fills `numMeasures * measureTicks`.
+
+**Song registration — no new mechanism.** Each song gets `src/songs/data/<id>.json` +
+`src/songs/definitions/<id>.js` (thin wrapper, exactly like `happyBirthday.js`), registered in
+`src/songs/songIndex.js`'s `SONGS` array. Single `easy` difficulty tier only (no medium/hard, a design
+decision — these are fixed folk melodies, not graduated exercises). **Deliberately does NOT set
+`randomizationRule: 'fixed'`** on `trebleSettings`: `useMelodyState.js`'s `resolveVoice` has a known gap
+where its `isFixed && refMelody` branch reconstructs a bare `new Melody(...)` that drops `.lyrics`/
+`.fermatas`/`.rhythmicGrouping`; leaving `randomizationRule` at the default `'uniform'` means
+`randomizeAll({melody:false})` instead takes the identity-preserving `(isFixed || !canRandomize) &&
+currentMelody → return currentMelody` branch, keeping lyrics intact. This gap is recorded here, not fixed
+— fixing `resolveVoice` is a separate follow-up (it's a shared generation-pipeline function; changing it
+was out of this ticket's risk budget).
+
+**Level wiring — `songId` back-fills musical metadata, one branch decides generation vs. loadSong.**
+`src/levels/levels.js` adds a pure helper `songLevelDefaults(songDef)` that derives
+`bpm`/`timeSignature`/`numMeasures`/`notesPerMeasure`/`range`/`key` from a song definition (range from the
+min/max MIDI-compared pitch in the treble line via `noteToMidi`, §6 invariant: canonical pitch comparison
+only). `normalizeLevel()` applies these BEFORE a level's own explicit fields (`{...songLevelDefaults(s),
+...lvl}` — explicit fields still win, unchanged for every level without `songId`). A song-backed
+`levels.json` entry therefore OMITS bpm/timeSignature/numMeasures/etc. entirely — the song JSON is the
+single source of truth for its own metadata, never hand-duplicated (CLAUDE.md §6c).
+
+`useLevel.js`'s `begin()` gained exactly one branch: `if (lvl.songId) setters.loadSong(lvl.songId); else
+regenerate(true);`. `App.jsx` provides `loadSong` as a new `levelLoadSong` callback that mirrors
+`levelRegenerate`'s existing rAF-defer + `levelMelodyReady` false→true gate EXACTLY (the same §6 timing
+invariant every level regeneration already respects — the backing-audio anchor at ~App.jsx:1229 never
+starts ahead of the melody), calling the pre-existing `handleLoadSong(songDef, 'easy', true)` pipeline
+(`useOriginalTonic: true` — the level plays in the ABC's own written key). Bass/metronome/timpani need NO
+change: they're derived from `useLevelBackingStream`/the level's own chord progression, not from
+`melodies.treble` — and every song JSON ships a `chords[]` array (point 5 above), so `chordProgression` is
+never null.
+
+**Lyrics required ZERO code changes.** `SheetMusic.jsx`'s `textLyricsActive` flag is derived purely from
+`trebleMelody.lyrics` being a non-empty array — not gated on any "song mode"/level flag — and the
+`LyricsLayer` `variant="text"` render was already unconditional whenever that flag is true. `loadSong.js`
+already copied `td.lyrics` onto the returned Melody. Converting an ABC `w:` line into `lyrics[]` (hyphen
+kept for word-continuation, `_` → em-dash hold, `*` → empty string, parallel-length to `notes[]`) was the
+only new logic, inside the conversion script.
+
+**Decorative NPCs — a bestiary NAME string, resolved through the existing manifest, not a new asset file.**
+`levels.json`'s new `npc` field holds a creature name (`"Monk"`, `"Cook"`, `"Japanese Musician"`, `"Roman
+Woman"`), resolved via the SAME `findCreatureByName`/`findIdleAnim` lookup every other creature placement
+in this codebase already uses (`bestiaryManifest.generated.js` stays the single source of truth — a
+design-review decision that deliberately rejected the ticket's originally-suggested `npcType` enum +
+hand-copied `enemyAssets.js`-style constants file, which would have been a second, drift-prone copy of
+manifest data). Rendering reuses the existing `Critter` component (`SheetRpgLayer.jsx`, previously used
+only for scrolling critters) generalized with two new OPTIONAL props: `scale` (defaults to the prior
+`CRITTER_SCALE`, unchanged for every existing call site) and `preferIdle` (tries the idle animation before
+the move animation — a stationary NPC has no "move" state, unlike a critter scrolling across the staff).
+The NPC renders at the same right-edge anchor the combat/decorative Wizard uses (`wizardX`/`wizardY`),
+scaled to the Wizard's own tuned per-pixel zoom (`WIZARD_H / WIZARD_CROP.h`) so it reads at the same
+visual weight regardless of its native sprite-sheet cell size, guarded by `!isWizard && !isMixed` so it
+can never double up with a combat Wizard. Purely decorative: no ref registration in the rAF entity
+buckets, no click handler, no combat/grading coupling — the exact same "purely visual" contract Level 11's
+`decorativeWizard` already established.
+
+**`decorativeWizard` and `npc` are deliberately SEPARATE fields, not merged.** `decorativeWizard` (Level
+11) stays coupled to that level's own key-modulation mechanic (the green `WIZARD_GREEN_URL` sheet, the
+`SWITCH_LOOKAHEAD` projectile flourish, `useLevelKeyModulationStream.js`) — folding it into the general
+`npc` mechanism would have dragged unrelated machinery into this ticket for no user-visible benefit and
+real regression risk on an already-tuned, accepted level. `npc` is the general-purpose decorative-NPC
+mechanism any future level can use; a follow-up ticket to eventually fold Level 11 in was noted but not
+filed as urgent.
+
+**Level ids stay numeric — "named" is the `name` field, not the identifier.** `LevelStartSplash.jsx` and
+`App.jsx` key level lookup by `Number(id)`; a string id would break the picker. The 7 new levels use ids
+200-206 with descriptive `name` strings ("Arirang", "Frère Jacques", …) — the splash already displays
+`name` prominently, so this alone satisfies "levels met een naam" without touching the id scheme anywhere
+else in the codebase.
+
+**Invariants respected:** no `setTimeout`-driven measure index (reuses the existing rAF/`levelMelodyReady`
+gate verbatim); no inline-JSX opacity on animated elements (the NPC's frame/position come from the same
+`gFrame` counter every other idle sprite already uses, no new per-frame `setState`); no per-NPC or
+per-song special-casing anywhere (`npc`/`songId` are both single data-driven lookups — every NPC and every
+song traverses the identical code path, CLAUDE.md §6b).
+
+**Known gap, intentionally not built:** timpani/percussion content stays the one hardcoded pattern
+(`utils/timpaniPattern.js`, pre-existing gap, see §168) — these song levels don't add percussion.
+
+**Files:** `scripts/abc-to-song.mjs` (new, permanent conversion tool), `package.json` (`abc:song` script),
+`src/songs/data/{arirang,frere-jacques,kalinka,kangding-qingge,la-bamba,sakura,scarborough-fair}.json` +
+matching `src/songs/definitions/*.js` (new), `src/songs/songIndex.js` (registration), `src/levels/
+levels.js` (`songLevelDefaults`, `normalizeLevel` back-fill, schema reference block), `src/levels/
+levels.json` (7 new entries, ids 200-206), `src/hooks/useLevel.js` (`begin()`'s `songId` branch),
+`src/App.jsx` (`levelLoadSong`, `levelSetters.loadSong`, `npc` prop threaded to SheetMusic), `src/
+components/sheet-music/SheetMusic.jsx` (`npc` pass-through prop), `src/components/sheet-music/
+SheetRpgLayer.jsx` (`Critter`'s `scale`/`preferIdle` props, `npcVariant`/`NPC_SCALE` derivation, the
+decorative-NPC render branch), tests: `src/songs/__tests__/songData.test.js`, `src/levels/__tests__/
+songLevels.test.js`, `src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx` (2 new cases).

@@ -26,10 +26,13 @@ describe('LevelSplash (#659, well-done breakdown #661, KPI-row removal #662)', (
         expect(queryByText('Fout (binnen tijd)')).toBeFalsy();
         expect(queryByText('Fout, hersteld')).toBeFalsy();
         expect(queryByText('Noot zonder doel')).toBeFalsy();
-        expect(container.querySelector('.ls-charts')).toBeNull();
+        expect(container.querySelector('.ls-chart-block')).toBeNull();
     });
 
-    it('renders the Punten row + both full-width charts for a timed level (Level 2/3), no KPI rows', () => {
+    // #863 (Han 2026-08-10, "de note correctness mag weg, want alle info staat nu in timing accuracy"):
+    // NoteCorrectnessBar is gone — the timing chart alone (now carrying note-when-none-due/corrected/
+    // missed too) is the single chart block.
+    it('renders the Punten row + the timing chart for a timed level (Level 2/3), no KPI rows', () => {
         const { container, getByText, queryByText } = render(
             <LevelSplash levelName="Level 2" stats={baseStats} timed onReplay={() => {}} onClose={() => {}} />,
         );
@@ -38,9 +41,8 @@ describe('LevelSplash (#659, well-done breakdown #661, KPI-row removal #662)', (
         expect(queryByText('Fout (binnen tijd)')).toBeFalsy();
         expect(queryByText('Fout, hersteld')).toBeFalsy();
         expect(queryByText('Noot zonder doel')).toBeFalsy();
-        expect(container.querySelector('.ls-charts')).toBeTruthy();
-        // TimingBarChart + NoteCorrectnessBar each render an <svg role="img">
-        expect(container.querySelectorAll('svg[role="img"]').length).toBe(2);
+        expect(container.querySelector('.ls-chart-block')).toBeTruthy();
+        expect(container.querySelectorAll('svg[role="img"]').length).toBe(1);
     });
 
     // #693 round 8 (Han: "maak ervan: enemies vanquished x/n... en critters saved y/m"): both figures show

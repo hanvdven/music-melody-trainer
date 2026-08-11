@@ -23,6 +23,11 @@ const emptyStats = () => ({
     defeated: 0, misses: 0, currentStreak: 0, longestStreak: 0, points: 0,
     perfect: 0, tooFast: 0, tooSlow: 0, muchTooFast: 0, muchTooSlow: 0,
     secondAttemptCorrected: 0, wrongUncorrected: 0, missed: 0, extraNote: 0,
+    // Han 2026-08-10 ("wrong,corrected + too early... moet bovenop de too early staan"): a corrected
+    // hit's OWN timing tier, tracked SEPARATELY from `secondAttemptCorrected` above (see onHit's
+    // `timingTier` handling) — read by the timing-accuracy chart to stack the corrected portion on top
+    // of its matching tier's bar.
+    muchTooFastCorrected: 0, tooFastCorrected: 0, perfectCorrected: 0, tooSlowCorrected: 0, muchTooSlowCorrected: 0,
     // #693 round 8 (Han: "critters killed" → later reframed as the positive "critters saved y/m"):
     // `critterKilled` is the raw running count; the splash derives `saved = totalCritters - critterKilled`.
     critterKilled: 0,
@@ -213,11 +218,19 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         setStats(emptyStats()); setWave(0); setDone(false); setActive(true);
         setTotalEnemies(0); setTotalCritters(0);
         pendingSongEndRef.current = false;
-        // #663: force a fresh chord regeneration on the level's FIRST wave only — applyConfig just set
-        // chordSettings.strategy to 'tonic-tonic-tonic' for side-scroll levels; without forceNewChords,
-        // regenerate() would just adapt whatever progression was left over from normal play.
-        regenerate(true);
-    }, [applyConfig, regenerate]);
+        // #871: a level with `songId` plays that FIXED song (via App's `loadSong` setter → the existing
+        // handleLoadSong pipeline) instead of generating one — applyConfig above has already back-filled
+        // this level's bpm/timeSignature/numMeasures/etc. from the song definition (levels.js's
+        // songLevelDefaults), so nothing else here needs to branch on songId.
+        if (lvl.songId) {
+            setters.loadSong(lvl.songId);
+        } else {
+            // #663: force a fresh chord regeneration on the level's FIRST wave only — applyConfig just set
+            // chordSettings.strategy to 'tonic-tonic-tonic' for side-scroll levels; without forceNewChords,
+            // regenerate() would just adapt whatever progression was left over from normal play.
+            regenerate(true);
+        }
+    }, [applyConfig, regenerate, setters]);
 
     const start = useCallback((lvl = LEVEL1) => { snapRef.current = snapshot(); setCurrent(lvl); begin(lvl); }, [snapshot, begin]);
     const replay = useCallback(() => begin(currentRef.current), [begin]);   // keep the snapshot; restart the run
@@ -227,18 +240,38 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
     const onHit = useCallback((grade) => setStats((s) => {
         const cs = s.currentStreak + 1;
         const g = grade || { category: null, points: 1 };
+        // #862 follow-up (Han 2026-08-10, "ik wil dat elke balk in twee gesplitst wordt... L R"): `hand`
+        // ('treble'|'bass', set at the SheetRpgLayer/useTwoHandedBass call sites) additionally bumps a
+        // `${category}_${hand}` stat — alongside, never instead of, the combined unsuffixed one, so every
+        // existing formula/chart that reads the combined stats is completely unaffected. Dynamic key,
+        // same pattern as the `${tier}Corrected` stat below (§6c — one mechanism, not two).
+        const handSuffix = g.hand ? `_${g.hand}` : '';
         return {
             ...s, defeated: s.defeated + 1, currentStreak: cs, longestStreak: Math.max(s.longestStreak, cs),
             points: s.points + g.points,
+            ...(handSuffix ? { [`defeated${handSuffix}`]: (s[`defeated${handSuffix}`] || 0) + 1 } : {}),
             ...(g.category ? { [g.category]: (s[g.category] || 0) + 1 } : {}),
+            ...(g.category && handSuffix ? { [`${g.category}${handSuffix}`]: (s[`${g.category}${handSuffix}`] || 0) + 1 } : {}),
+            // Han 2026-08-10 ("wrong,corrected + too early... moet bovenop de too early staan"): a
+            // corrected hit's OWN timing tier (SheetRpgLayer's `grade.timingTier`, set only for
+            // secondAttemptCorrected hits) bumps a SEPARATE `${tier}Corrected` stat — one hit, two
+            // facts (correctness verdict + timing tier), so neither `defeated`/`points`/streak nor the
+            // `secondAttemptCorrected` bump above is double-counted.
+            ...(g.timingTier ? { [`${g.timingTier}Corrected`]: (s[`${g.timingTier}Corrected`] || 0) + 1 } : {}),
+            ...(g.timingTier && handSuffix ? { [`${g.timingTier}Corrected${handSuffix}`]: (s[`${g.timingTier}Corrected${handSuffix}`] || 0) + 1 } : {}),
         };
     }), []);
     // `reason` = 'missed' | 'wrongUncorrected' | 'extraNote' (see emptyStats above) — each breaks the
     // streak and bumps the total `misses` count (used for the overall accuracy %) plus its own stat row.
-    const onMiss = useCallback((reason) => setStats((s) => ({
-        ...s, misses: s.misses + 1, currentStreak: 0,
-        ...(reason ? { [reason]: (s[reason] || 0) + 1 } : {}),
-    })), []);
+    // `hand` — see onHit's own comment above; same additive `${reason}_${hand}` stat.
+    const onMiss = useCallback((reason, hand) => setStats((s) => {
+        const handSuffix = hand ? `_${hand}` : '';
+        return {
+            ...s, misses: s.misses + 1, currentStreak: 0,
+            ...(reason ? { [reason]: (s[reason] || 0) + 1 } : {}),
+            ...(reason && handSuffix ? { [`${reason}${handSuffix}`]: (s[`${reason}${handSuffix}`] || 0) + 1 } : {}),
+        };
+    }), []);
     // #693 round 8 (Han: "als personage een critter slaat kost dat -1/2 punt, die gaat dood"): a critter
     // hit is its own outcome — NOT a `misses`/streak-breaking event (it isn't tied to a due note the
     // player failed), just a direct point deduction + its own running count (the splash derives the

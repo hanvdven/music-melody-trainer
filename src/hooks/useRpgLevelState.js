@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { LEVEL_MIN_X as LDTK_MIN_X, LEVEL_MAX_X as LDTK_MAX_X, ENTITY_WORLD_X } from '../levels/ldtk/ldtkWorld';
 
 // #693 (Han 2026-08-04, RPG Level tab round 2): the movement/pet/NPC-dialogue state for the RPG Level
 // preview tab. Lives in its own hook (mirrors `useBestiaryEditor`'s pattern) so the SAME state can be read
@@ -9,6 +10,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 // the panel multiplies by its own ZOOM only when rendering.
 
 const WALK_SPEED = 90;             // world px/sec
+// #RAM-level (Han 2026-08-11, "als personage langer dan 2 seconden loopt, ga dan over naar 'run' met
+// dubbele snelheid"): a continuous-movement timer (reset the instant movement stops, regardless of which
+// direction — a pause always starts the 2s count over) that upgrades walk -> run once it crosses this
+// threshold. Only the HERO runs — the pet's own follow-catch-up speed is untouched (not requested).
+const RUN_AFTER_MS = 2000;
+const RUN_SPEED_MULTIPLIER = 2;
 // Han: "vanaf dat ik 3 tiles (dus 64 pixels) weg ben, sluit die aan" — the explicit pixel figure (64) is
 // used as the authoritative gap threshold (3 tiles × 32px would be 96, not 64 — Han's own arithmetic
 // doesn't quite match his tile count; the literal "64 pixels" is taken as intended).
@@ -20,21 +27,29 @@ const PET_FOLLOW_GAP = 64;
 const PET_CLOSE_ENOUGH = 10;
 const ARRIVE_EPSILON = 4;
 
-// #693 round 7 (Han: "generate a level of 200 16x16 tiles"): the walkable world spans exactly 200×16 =
-// 3200 world units, centered on x=0 (the original spawn/tree/tent/NPC placement) — matches
-// RpgLevelPanel's own LEVEL_TILES/FLOOR_TILE constants (§6c: one shared bound, not two independently
-// hardcoded numbers that could drift apart).
-export const LEVEL_MIN_X = -1600;
-export const LEVEL_MAX_X = 1600;
+// #RAM-level (Han 2026-08-10): the walkable world's bounds are now derived from `RAM level.ldtk`'s own
+// level width (ldtkWorld.js), centered on x=0 like the original hand-tuned -1600..1600 span was — NOT a
+// second hardcoded number that could drift from the actual scene (§6c: one shared bound). RpgLevelPanel
+// re-exports/reads these same two constants for its camera clamp, so the walkable area and the LDtk
+// scenery's own extent can never disagree.
+export const LEVEL_MIN_X = LDTK_MIN_X;
+export const LEVEL_MAX_X = LDTK_MAX_X;
 const clampToLevel = (x) => Math.min(LEVEL_MAX_X, Math.max(LEVEL_MIN_X, x));
 
-// Matches RpgLevelPanel's own NPC_X constant — kept as one shared default so the visual placement and the
-// walk-to-NPC target never drift apart (§6c).
-export default function useRpgLevelState({ npcX = 0 } = {}) {
-    const [playerX, setPlayerX] = useState(-150);
-    const [petX, setPetX] = useState(-150 - PET_FOLLOW_GAP);
+// #RAM-level (Han 2026-08-11, "spawn personage op entity hero (staat in het level)"): hero/pet/NPC now
+// spawn at the `.ldtk` file's own Hero/Pet/Wisp `Entities` markers (`ENTITY_WORLD_X`, ldtkWorld.js)
+// instead of hand-tuned numbers — falls back to the old hand-tuned spots if a marker is ever missing from
+// the file, so a future re-export that drops an entity degrades gracefully instead of spawning at 0.
+const DEFAULT_PLAYER_X = ENTITY_WORLD_X.Hero ?? -150;
+const DEFAULT_PET_X = ENTITY_WORLD_X.Pet ?? (DEFAULT_PLAYER_X - PET_FOLLOW_GAP);
+const DEFAULT_NPC_X = ENTITY_WORLD_X.Wisp ?? 0;
+
+export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
+    const [playerX, setPlayerX] = useState(DEFAULT_PLAYER_X);
+    const [petX, setPetX] = useState(DEFAULT_PET_X);
     const [facing, setFacing] = useState(1);          // 1 = right, -1 = left
     const [moving, setMoving] = useState(false);
+    const [running, setRunning] = useState(false);
     const [petMoving, setPetMoving] = useState(false);
     const [dialogue, setDialogue] = useState(null);    // { text } | null
 
@@ -53,6 +68,8 @@ export default function useRpgLevelState({ npcX = 0 } = {}) {
     // this correctly (only set while actually moving); this brings moving/petMoving in line.
     const movingRef = useRef(false);
     const petMovingRef = useRef(false);
+    const runningRef = useRef(false);
+    const movingSinceRef = useRef(null);   // timestamp continuous movement started, or null while stopped
 
     // Keyboard: A/D or ArrowLeft/ArrowRight, held-down state (§693: "met A en D of pijl links pijl rechts").
     useEffect(() => {
@@ -114,11 +131,18 @@ export default function useRpgLevelState({ npcX = 0 } = {}) {
                 } else vx = d > 0 ? 1 : -1;
             }
             if (vx !== 0) {
+                if (movingSinceRef.current == null) movingSinceRef.current = now;
+                const nextRunning = (now - movingSinceRef.current) >= RUN_AFTER_MS;
+                if (nextRunning !== runningRef.current) { runningRef.current = nextRunning; setRunning(nextRunning); }
+                const speed = WALK_SPEED * (nextRunning ? RUN_SPEED_MULTIPLIER : 1);
                 // "make it possible to move beyond the screen EDGE" is the CAMERA's job (RpgLevelPanel) —
                 // the player itself is still clamped to the generated 200-tile world's own bounds.
-                playerXRef.current = clampToLevel(playerXRef.current + vx * WALK_SPEED * dt);
+                playerXRef.current = clampToLevel(playerXRef.current + vx * speed * dt);
                 if (vx !== facingRef.current) { facingRef.current = vx; setFacing(vx); }
                 setPlayerX(playerXRef.current);
+            } else {
+                movingSinceRef.current = null;
+                if (runningRef.current) { runningRef.current = false; setRunning(false); }
             }
             const nextMoving = vx !== 0;
             if (nextMoving !== movingRef.current) { movingRef.current = nextMoving; setMoving(nextMoving); }
@@ -146,5 +170,5 @@ export default function useRpgLevelState({ npcX = 0 } = {}) {
         return () => cancelAnimationFrame(raf);
     }, []);
 
-    return { playerX, petX, facing, moving, petMoving, dialogue, closeDialogue: () => setDialogue(null), moveTo, clickNpc, setHeldDirection };
+    return { playerX, petX, facing, moving, running, petMoving, dialogue, closeDialogue: () => setDialogue(null), moveTo, clickNpc, setHeldDirection };
 }

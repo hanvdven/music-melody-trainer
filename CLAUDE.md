@@ -410,6 +410,17 @@ logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
   render loop always reschedules its next frame instead of permanently dying (ForegroundFoliageLayer.jsx)
 - **E024-INSTRUMENT-LOAD-WAIT** — waiting on `Promise.all` of the initial smplr instruments' own `.load`
   promises (app-wide boot splash gate) rejected (App.jsx)
+- **E025-ONE-SHOT-SFX-PLAY** — fetch/decode/play of a one-shot RPG sfx sample (e.g. "hit on wood") failed
+  (playOneShotSfx.js)
+- **E026-LEVEL-VISUAL-CLOCK-STUCK** — a level's visual scroll clock (SheetRpgLayer) never unfroze after
+  `levelAudioStart` was set, even after the watchdog's retries were exhausted (App.jsx)
+- **E027-VISUAL-CLOCK-CATCHUP-JUMP** — SheetRpgLayer's tick clock's first unfrozen frame was already past
+  its anchor (a positive `t`) — the anchor buffer (App.jsx ~line 1226) was insufficient this time, causing
+  a visible "catch up" position snap instead of a smooth pre-roll (SheetRpgLayer.jsx)
+- **E028-SHEETRPG-IMPERATIVE-FRAME** — an unexpected error during one rAF frame of SheetRpgLayer's #863
+  ref-driven position/animation loop (slime/critter/projectile/scroll-transform updates); caught so the
+  loop always reschedules its next frame instead of permanently freezing the level's whole animation —
+  same pattern as E023-FOLIAGE-DRAW-FRAME (SheetRpgLayer.jsx)
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E025-NEW-FAILURE`) and add it to this list.
 

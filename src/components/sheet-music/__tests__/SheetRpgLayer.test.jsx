@@ -170,4 +170,33 @@ describe('SheetRpgLayer (#647)', () => {
         expect(onHit).not.toHaveBeenCalled();
         vi.useRealTimers();
     });
+
+    // #871 (Han 2026-08-11, "abc music en level namen"): a decorative NPC (levels.json's `npc` bestiary-
+    // name field), rendered via the generalized Critter component — purely visual, no combat coupling.
+    it('#871: npc="Monk" renders an extra sprite image; npc=null renders none (beyond the hero/slime images already present)', () => {
+        const base = {
+            startX: 20, pixelsPerTick: null, allOffsets: [0], noteWidth: 20, bpm: 80,
+            trebleStart: 100, staffHeight: 40, viewBottom: 220, viewRight: 500, sideScroll: true,
+            trebleMelody: { notes: ['C4'], offsets: [0], durations: [12] },
+        };
+        const without = render(<svg><SheetRpgLayer {...base} npc={null} /></svg>);
+        const withoutHrefs = [...without.container.querySelectorAll('image')].map((im) => im.getAttribute('href') || '');
+
+        const withNpc = render(<svg><SheetRpgLayer {...base} npc="Monk" /></svg>);
+        const withHrefs = [...withNpc.container.querySelectorAll('image')].map((im) => im.getAttribute('href') || '');
+
+        expect(withHrefs.length).toBe(withoutHrefs.length + 1);
+        expect(withHrefs.some((h) => h.toLowerCase().includes('gandalfhardcore'))).toBe(true);
+    });
+
+    it('#871: an unknown npc name renders nothing extra (findCreatureByName returns null, guarded)', () => {
+        const base = {
+            startX: 20, pixelsPerTick: null, allOffsets: [0], noteWidth: 20, bpm: 80,
+            trebleStart: 100, staffHeight: 40, viewBottom: 220, viewRight: 500, sideScroll: true,
+            trebleMelody: { notes: ['C4'], offsets: [0], durations: [12] },
+        };
+        const without = render(<svg><SheetRpgLayer {...base} npc={null} /></svg>);
+        const withUnknown = render(<svg><SheetRpgLayer {...base} npc="Nonexistent Creature Xyz" /></svg>);
+        expect(withUnknown.container.querySelectorAll('image').length).toBe(without.container.querySelectorAll('image').length);
+    });
 });

@@ -29,6 +29,12 @@ const useAppLayout = (windowSize, numMeasures) => {
         btmPanelHeight = usableHeight - sheetHeight;
     }
 
+    // #RAM-level (Han 2026-08-11, "zoom in/uit zodat de hoogte van het level precies in de viewbox past.
+    // je mag bottom view iets kleiner maken om ruimte te maken"): the RPG hub level wants more vertical
+    // room than the sheet-music split gives it — 65% instead of the shared 45%, dual-view only (single
+    // view already gives the top panel the FULL usable height, same as every other tab).
+    const rpgLevelTopHeight = isDualView ? Math.round(windowSize.height * 0.65) : sheetHeight;
+
     const tabBtnScale = windowSize.width >= 550 ? 1 : Math.max(0.5, windowSize.width / 550);
     const sheetWidth = windowSize.width;
     // Ideal visible measures: how many fit in the viewport at ~120px each.
@@ -38,7 +44,7 @@ const useAppLayout = (windowSize, numMeasures) => {
         Math.round((sheetWidth - APPROX_HEADER_WIDTH) / APPROX_PX_PER_MEASURE)
     ));
 
-    return { isDualView, sheetHeight, btmPanelHeight, tabBtnScale, sheetWidth, idealVisibleMeasures };
+    return { isDualView, sheetHeight, btmPanelHeight, rpgLevelTopHeight, tabBtnScale, sheetWidth, idealVisibleMeasures };
 };
 
 export default useAppLayout;

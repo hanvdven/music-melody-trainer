@@ -162,6 +162,14 @@ const useMelodyState = (
 
     const shouldRandomizeChords = !randomizeConfig || randomizeConfig.chords !== false;
     const canRandomizeMelody = !randomizeConfig || randomizeConfig.melody !== false;
+    // #RAM-level (Han 2026-08-11, "twee knoppen toe: treble melody en bass melody... genereert random
+    // melodieën, volgens de ingestelde settings"): per-voice override on top of the existing blanket
+    // `melody` flag — `randomizeConfig.treble`/`.bass`/`.percussion` (explicit `true`/`false`) win when
+    // given; omitted voices fall back to `canRandomizeMelody` exactly like before, so every EXISTING
+    // caller (which only ever sets the blanket `melody`/`chords` flags) is unaffected.
+    const canRandomizeTreble = randomizeConfig?.treble ?? canRandomizeMelody;
+    const canRandomizeBass = randomizeConfig?.bass ?? canRandomizeMelody;
+    const canRandomizePercussion = randomizeConfig?.percussion ?? canRandomizeMelody;
     let nextProgression;
     let globalRhythmArray = null;
     // One grouping choice for the entire generation block. All generators (treble, bass,
@@ -270,19 +278,19 @@ const useMelodyState = (
     const newTreble = trebleSettings?.preferredClef === 'off' ? EMPTY() : resolveVoice({
       isFixed: trebleSettings?.randomizationRule === 'fixed',
       currentMelody: treble, refMelody: referenceMelody, refScale: referenceScale, targetScale: scale,
-      canRandomize: canRandomizeMelody, voiceType: 'treble', settings: trebleSettings,
+      canRandomize: canRandomizeTreble, voiceType: 'treble', settings: trebleSettings,
       nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
     const newBass = bassSettings?.preferredClef === 'off' ? EMPTY() : resolveVoice({
       isFixed: bassSettings?.randomizationRule === 'fixed',
       currentMelody: bass, refMelody: referenceBassMelody, refScale: referenceScale.generateBassScale(), targetScale: bassSc,
-      canRandomize: canRandomizeMelody, voiceType: 'bass', settings: bassSettings,
+      canRandomize: canRandomizeBass, voiceType: 'bass', settings: bassSettings,
       nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
     const newPercussion = percussionSettings?.preferredClef === 'off' ? EMPTY() : resolveVoice({
       isFixed: percussionSettings?.randomizationRule === 'fixed',
       currentMelody: percussion, refMelody: null, refScale: null, targetScale: percussionScale,
-      canRandomize: canRandomizeMelody, voiceType: null, settings: percussionSettings,
+      canRandomize: canRandomizePercussion, voiceType: null, settings: percussionSettings,
       nextProgression, nm: activeNumMeasures, ts: activeTS, runId, rhythm: globalRhythmArray, grouping: sharedGrouping,
     });
     // #661 (Han 2026-08-02, "melodische percussie"): a settings-driven override — a FIXED pitched

@@ -4,12 +4,18 @@ import { ANIMATIONS, urlOfLayer } from '../../model/characterAssets';
 import { CreatureSprite } from './BestiaryPanels';
 import { findMoveAnim, findIdleAnim, isFlyingAnim, findCreatureByName, findVariantByUrl } from '../../model/bestiaryAssets';
 import { GROUND_ANCHOR_PX } from '../../model/worldAnchor';
+import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_COLS, SLIME_ROWS, SLIME_COLORS } from '../../model/enemyAssets';
 import { loadImageEl, normalMapCanvasFromCrop } from '../../utils/runtimeNormalMap';
 import { LEVEL_MIN_X, LEVEL_MAX_X } from '../../hooks/useRpgLevelState';
 import floorTiles2Url from '../../assets/ASSORTED/tiles/tiles/Floor Tiles2.png';
 import treeSheetUrl from '../../assets/ASSORTED/tiles/trees/Trees_foliage_trunk.png';
 import decorUrl from '../../assets/ASSORTED/tiles/int_ext_decoration/Decor.png';
 import ForegroundFoliageLayer, { DEFAULT_FOLIAGE_PARAMS } from './ForegroundFoliageLayer';
+import LdtkScenery from './LdtkScenery';
+import LdtkAnimatedTiles from './LdtkAnimatedTiles';
+import useLdtkFoliageInstances from './useLdtkFoliageInstances';
+import useDebugMetronome, { useFpsCounters } from './useDebugMetronome';
+import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_WORLD_X, STAND_HEIGHT_PX, LEVEL_PX_HEIGHT } from '../../levels/ldtk/ldtkWorld';
 // #141 (Han 2026-08-05): pre-generated normal maps for the shimmer shader — see
 // scripts/generate-tree-normal-maps.mjs (Sobel height-gradient derived from the diffuse art itself, no
 // hand-painted normal-map asset needed).
@@ -123,9 +129,12 @@ const SUMMER_FOLIAGE_CELL = { row: 1, col: 1 };
 const GRASS_TUFT_SPACING = FLOOR_TILE * 3;
 
 // World-space placement (was screen-edge-relative before the scrolling camera existed — Han round 7).
-// #141 round 8 (Han: "move the wisp close to the tree"): was 0 (roughly centered between tree/tent), now
-// close beside the tree's canopy (canopy half-width 128 native px, TREE_X=-220) without overlapping it.
-const NPC_X = -140;
+// #RAM-level (Han 2026-08-11, "spawn personage op entity hero (staat in het level)"): the Wisp NPC's
+// world position now comes from the `.ldtk` file's own Wisp entity marker (ENTITY_WORLD_X, ldtkWorld.js)
+// instead of a hand-tuned number — falls back to the old §141-round-8 spot if the file ever loses that
+// marker. TREE_X/TENT_X stay hand-tuned: they're legacy-scenery-only positions (no Tree/Tent entity exists
+// in the file), used only when `sceneryMode === 'Legacy'`.
+const NPC_X = ENTITY_WORLD_X.Wisp ?? -140;
 const TREE_X = -220;
 const TENT_X = 220;
 // #141 round 10 (Han, NL: "om te testen, zet een paar kisten (linker boven cell (32x32) van decor.png) op
@@ -229,16 +238,20 @@ function DebugGrid({ widthPx, heightPx, cameraX }) {
 // concern CreatureSprite (a box-relative bestiary/world renderer with no notion of a ground line) can't
 // know about, not a creature-intrinsic property.
 const HOVER_PX = TILE * ZOOM;
-function WorldCreature({ variant, moving, frame, facing = 1 }) {
+// #RAM-level (Han 2026-08-11, "zoom in/uit zodat de hoogte van het level precies in de viewbox past"):
+// `zoom` defaults to the module-level `ZOOM` (legacy scenery's fixed 3x) but callers in LDtk mode pass the
+// dynamic per-render zoom instead, so creatures stay correctly scaled to whichever mode is showing.
+function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
     if (!variant) return null;
     const anim = (moving && findMoveAnim(variant)) || findIdleAnim(variant);
-    const cropW = variant.crop.w * ZOOM, cropH = variant.crop.h * ZOOM;
+    const cropW = variant.crop.w * zoom, cropH = variant.crop.h * zoom;
+    const hoverPx = TILE * zoom;
     const transform = isFlyingAnim(anim, variant)
-        ? `translate(0px, ${-HOVER_PX}px) scale(${facing}, 1)`
+        ? `translate(0px, ${-hoverPx}px) scale(${facing}, 1)`
         : `scale(${facing}, 1)`;
     return (
         <div style={{ width: cropW, height: cropH, transform }}>
-            <CreatureSprite variant={variant} anim={anim} frame={frame} scale={ZOOM} framed={false} />
+            <CreatureSprite variant={variant} anim={anim} frame={frame} scale={zoom} framed={false} />
         </div>
     );
 }
@@ -250,19 +263,44 @@ function WorldCreature({ variant, moving, frame, facing = 1 }) {
 // `PET_CROP` (which assumed every pet sheet shares one crop — wrong for Doggy's differently-proportioned
 // frame, causing the clipping Han spotted). Kept only as a fallback for the rare pet file that has no
 // bestiary match (`findPetVariant` below returns null) so an equipped pet never silently disappears.
-function WorldPet({ url, frame, facing = 1 }) {
+function WorldPet({ url, frame, facing = 1, zoom = ZOOM }) {
     if (!url) return null;
-    const cropW = PET_CROP.w * ZOOM, cropH = PET_CROP.h * ZOOM;
+    const cropW = PET_CROP.w * zoom, cropH = PET_CROP.h * zoom;
     const cell = frame % 5;   // idle row, 5 frames — the shared convention every pet sheet in this folder uses
     return (
         <div style={{ position: 'relative', width: cropW, height: cropH, overflow: 'hidden', transform: `scale(${facing}, 1)` }}>
-            <div style={{ position: 'absolute', left: -PET_CROP.x * ZOOM, top: -PET_CROP.y * ZOOM, width: 32 * ZOOM, height: 32 * ZOOM, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', left: -PET_CROP.x * zoom, top: -PET_CROP.y * zoom, width: 32 * zoom, height: 32 * zoom, overflow: 'hidden' }}>
                 <div style={{
-                    width: 32, height: 32, transform: `scale(${ZOOM})`, transformOrigin: 'top left',
+                    width: 32, height: 32, transform: `scale(${zoom})`, transformOrigin: 'top left',
                     backgroundImage: `url("${url}")`, backgroundRepeat: 'no-repeat', backgroundSize: 'auto',
                     backgroundPosition: `${-cell * 32}px 0px`, imageRendering: 'pixelated',
                 }} />
             </div>
+        </div>
+    );
+}
+
+// #RAM-level (Han 2026-08-11, "ik zie ook de slime niet; conform de entiteitslaag"): a purely decorative,
+// idle-animated Slime standing at the .ldtk file's own Slime entity marker — no bestiary/SCANNED_CREATURES
+// entry exists for Slime BY DESIGN (scripts/generate-bestiary-manifest.mjs's own CURATED_KEYWORDS comment:
+// "already hand-curated in enemyAssets.js... skip these so the bestiary never lists the same creature
+// twice" — the SAME sprite SheetRpgLayer's real combat slimes use).
+// #RAM-level BUG FIX (Han 2026-08-11, "heel schokkerige animatie"): this used to size its crop off
+// `SLIME_IDLE.frames` (5) instead of the sheet's REAL column count `SLIME_COLS` (8, matching the WIDEST
+// row, SLIME_WALK) — a squashed/misaligned `backgroundSize`, the actual cause of the choppy look. Now uses
+// the same `SLIME_COLS`/`SLIME_ROWS` SheetRpgLayer.jsx's own (canonical) slime renderer uses — moved to
+// enemyAssets.js as a shared export so there's one source of truth instead of two hand-derived copies (§6d).
+function WorldSlime({ frame, zoom = ZOOM }) {
+    const cell = frame % SLIME_IDLE.frames;
+    const w = SLIME_FRAME.w * zoom, h = SLIME_FRAME.h * zoom;
+    return (
+        <div style={{ position: 'relative', width: SLIME_CROP.w * zoom, height: SLIME_CROP.h * zoom, overflow: 'hidden' }}>
+            <div style={{
+                position: 'absolute', left: -SLIME_CROP.x * zoom, top: -SLIME_CROP.y * zoom, width: w, height: h,
+                backgroundImage: `url("${SLIME_COLORS.green}")`, backgroundRepeat: 'no-repeat',
+                backgroundSize: `${w * SLIME_COLS}px ${h * SLIME_ROWS}px`,
+                backgroundPosition: `${-cell * w}px ${-SLIME_IDLE.row * h}px`, imageRendering: 'pixelated',
+            }} />
         </div>
     );
 }
@@ -287,7 +325,7 @@ function EdgeHoldZone({ side, widthPx, onHoldStart, onHoldEnd }) {
     );
 }
 
-export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = false }) {
+export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = false, bpm, timeSignature, context, instruments, onGenerateVoice }) {
     const containerRef = useRef(null);
     const [size, setSize] = useState({ w: 0, h: 0 });
     const [petFrame, setPetFrame] = useState(0);
@@ -304,6 +342,62 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // from `playerX`, which can now roam the full 200-tile level while the camera only follows once the
     // player nears an edge (dead-zone follow, Han's "1/3 of either screen edge").
     const [cameraX, setCameraX] = useState(0);
+    // #RAM-level (Han 2026-08-10, "vervang het RPG-level voor het level in RAM level.ldtk" + "maak een
+    // tier selector in debug mode... season en city toggler"): the LDtk-driven scenery (`ldtkWorld.js`)
+    // is the new DEFAULT — `sceneryMode` exists purely so Han can flip back to the old hand-placed scene
+    // in debug mode to visually compare before the legacy code is deleted for good (see the render block
+    // below). Season/city/tier default to the file's own authored defaults (Han: lowest tier by default).
+    const [sceneryMode, setSceneryMode] = useState('LDtk');
+    const [season, setSeason] = useState('Summer');
+    const [city, setCity] = useState('No_City');
+    const [tavernTier, setTavernTier] = useState('Tent');
+    const [bridgeTier, setBridgeTier] = useState('Log');
+    // #RAM-level (Han 2026-08-11, "zoom in/uit zodat de hoogte van het level precies in de viewbox past"):
+    // in LDtk mode, the display scale is no longer the fixed `ZOOM` module constant — it's WHATEVER makes
+    // the level's own native height fill the container exactly (`size.h / LEVEL_PX_HEIGHT`). Legacy mode
+    // is untouched (still the fixed `ZOOM`, its art was tuned specifically for that one scale). Computed
+    // here (early, before the camera-follow effect below) because that effect's own dead-zone math needs
+    // the CURRENT zoom too — it used to hardcode the module `ZOOM`, which silently mismatched the actual
+    // on-screen scale as soon as this dynamic zoom diverged from 3, throwing off the dead-zone boundaries
+    // (a likely contributor to "de scrolling is schokkerig").
+    const dynamicZoom = size.h > 0 ? size.h / LEVEL_PX_HEIGHT : ZOOM;
+    const zoom = sceneryMode === 'LDtk' ? dynamicZoom : ZOOM;
+    // #RAM-level (Han 2026-08-11, "in debug wil ik in het level een metronoom aan kunnen zetten, bpm
+    // zelfde als bladmuziek"): debug-only click track, off by default even when debugMode is on (Han
+    // still has to explicitly enable it) — see useDebugMetronome.js for the rAF/AudioContext-clock design.
+    const [metronomeOn, setMetronomeOn] = useState(false);
+    const { beat: metronomeBeat, pulseTick: metronomePulse } = useDebugMetronome({
+        enabled: debugMode && metronomeOn, bpm, timeSignature, context, instruments,
+    });
+    const { appFps, pixelFps, reportPixelFrame } = useFpsCounters();
+    const world = useMemo(
+        () => buildWorld({ season, city, tavernTier, bridgeTier }),
+        [season, city, tavernTier, bridgeTier],
+    );
+    // #RAM-level BUG FIX (Han 2026-08-11, "ik zie nu heeeel veel flitsen op alle lagen; totaal niet
+    // speelbaar"): `groundTiles={[...world.groundTilesBack, ...world.foliageTilesBack]}` (the flat-fallback
+    // merge added this round) built a NEW array literal on every RpgLevelPanel render — and this component
+    // re-renders ~60x/sec while the hero moves (`cameraX`/`playerX` state churn). `LdtkScenery`'s own
+    // compositing effect is keyed on `[tiles, gridSize]` by REFERENCE, so a fresh array every render tore
+    // the canvas down (`setReady(false)` → transparent) and rebuilt it from scratch 60x/sec — the flashing
+    // Han saw, on every layer that used this pattern. Memoized here so the combined array only changes when
+    // `world` itself changes (season/city/tier toggles), matching how `world.groundTilesBack` etc. were
+    // already stable before this merge was introduced.
+    const groundAndFoliageBack = useMemo(
+        () => [...world.groundTilesBack, ...world.foliageTilesBack],
+        [world.groundTilesBack, world.foliageTilesBack],
+    );
+    const groundAndFoliageFront = useMemo(
+        () => [...world.groundTilesFront, ...world.foliageTilesFront],
+        [world.groundTilesFront, world.foliageTilesFront],
+    );
+    // #RAM-level (Han 2026-08-11, "alle foliage lagen (via tag) moeten reageren op de wind"): foliage
+    // tiles render as ForegroundFoliageLayer instances (real wind-shimmer) instead of baked into the
+    // static ground canvas — see useLdtkFoliageInstances.js for why (runtime normal maps, cached per
+    // distinct source tile rather than per placed instance). Called twice — back/front of the Entities
+    // layer render in two separate passes (see "houd goed de volgorde van lagen aan" below).
+    const foliageInstancesBack = useLdtkFoliageInstances(world.foliageTilesBack, world.gridSize, sceneryMode);
+    const foliageInstancesFront = useLdtkFoliageInstances(world.foliageTilesFront, world.gridSize, sceneryMode);
 
     useEffect(() => {
         const el = containerRef.current;
@@ -324,19 +418,38 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     }, []);
 
     const { char } = characterEditor;
-    const { playerX, petX, facing, moving, petMoving, moveTo, clickNpc, setHeldDirection } = rpgLevel;
+    const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, setHeldDirection } = rpgLevel;
 
     // #693 round 7 (Han: "level should start moving when the character is at 1/3 of either screen edge"):
     // a dead-zone follow camera — the camera only moves once the player's ON-SCREEN position leaves the
     // middle third, then re-centers them back to that 1/3 line; clamped so the viewport never shows past
     // the generated level's own edges.
     const playerXRef = useRef(playerX); playerXRef.current = playerX;
+    // #RAM-level BUG FIX (Han 2026-08-11, "ik zie app fps 37, px 0; dat vind ik raar"): this effect used
+    // to depend on `[size.w]`, so it tore down and restarted every time the ResizeObserver-driven `size`
+    // changed — which, per an existing documented pattern elsewhere in this file, "can genuinely fire more
+    // than once as the level's layout settles." Every restart replaced the rAF chain, and `reportPixelFrame`
+    // never got a chance to accumulate ticks between restarts — the direct cause of "Pixel FPS" reading 0
+    // while "App FPS" (a genuinely stable, empty-deps loop) read a real number. Fixed the same way
+    // `useRpgLevelState.js`'s movement loop already does it: mount the rAF chain ONCE (`[]`), read the
+    // latest `size`/`zoom` through refs updated every render instead of restarting on every change.
+    const sizeRef = useRef(size); sizeRef.current = size;
+    const zoomRef = useRef(zoom); zoomRef.current = zoom;
     useEffect(() => {
         let raf;
         const tick = () => {
+            // #RAM-level (Han 2026-08-11, "toon ook de pixel art FPS"): this IS the game-world's own
+            // render-driving loop (camera follow) — counting its ticks is what "Pixel art FPS" measures,
+            // distinct from the generic browser paint rate ("App FPS", useFpsCounters' own rAF).
+            reportPixelFrame();
             setCameraX((cam) => {
-                if (size.w === 0) return cam;
-                const viewHalfWorld = (size.w / 2) / ZOOM;
+                const w = sizeRef.current.w;
+                if (w === 0) return cam;
+                // #RAM-level BUG FIX (Han 2026-08-11, "de scrolling is schokkerig"): was hardcoded to the
+                // module `ZOOM` (3) — silently wrong as soon as the dynamic zoom-to-fit (above) diverged
+                // from 3, throwing off the dead-zone/clamp math against the ACTUAL on-screen scale.
+                const z = zoomRef.current;
+                const viewHalfWorld = (w / 2) / z;
                 const deadzone = viewHalfWorld / 3;
                 const offset = playerXRef.current - cam;
                 let next = cam;
@@ -351,9 +464,14 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
         };
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
-    }, [size.w]);
+    }, []);
 
     const wispVariant = useMemo(() => findCreatureByName('Wisp'), []);
+    // #RAM-level (Han 2026-08-11, "ik zie ook de slime niet; conform de entiteitslaag"): a purely visual
+    // Slime, standing at the `.ldtk` file's own Slime entity marker — same treatment as the Wisp NPC
+    // (classified creature, idle only, no click handler — no combat here, this is scenery-adjacent, not
+    // the real SheetRpgLayer combat slimes).
+    const slimeVariant = useMemo(() => findCreatureByName('Slime'), []);
     // #693 round 8 ("gebruik dezelfde pet als in de avatar selector"): whichever pet the player actually
     // equipped in the character screen, resolved via the SAME helper CharacterDoll itself uses (§6c).
     const petUrl = useMemo(() => urlOfLayer('pet', char?.layers?.pet), [char?.layers?.pet]);
@@ -364,13 +482,18 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // instead of assuming every pet sheet shares one hand-tuned crop.
     const petVariant = useMemo(() => findVariantByUrl(petUrl), [petUrl]);
     const walkAnim = ANIMATIONS.find((a) => a.key === 'walk');
+    const runAnim = ANIMATIONS.find((a) => a.key === 'run');
     const idleAnim = ANIMATIONS.find((a) => a.key === 'idle');
     const [walkFrame, setWalkFrame] = useState(0);
+    // #RAM-level (Han 2026-08-11, "als personage langer dan 2 seconden loopt, ga dan over naar 'run' met
+    // dubbele snelheid"): `running` (useRpgLevelState.js) flips once movement has been continuous for 2s;
+    // the frame-advance rate doubles along with movement speed so the run cycle doesn't look like the walk
+    // cycle just sliding faster across the ground.
     useEffect(() => {
-        if (!moving) { setWalkFrame(0); return; }
-        const id = setInterval(() => setWalkFrame((f) => f + 1), 120);
+        if (!moving) { setWalkFrame(0); return undefined; }
+        const id = setInterval(() => setWalkFrame((f) => f + 1), running ? 60 : 120);
         return () => clearInterval(id);
-    }, [moving]);
+    }, [moving, running]);
 
     // #693 round 3: strip the pet LAYER from the doll — it's rendered as its own trailing sprite instead
     // (see the standalone `<WorldCreature>` below), so the doll must not ALSO draw its built-in glued-on
@@ -379,8 +502,55 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const centerX = size.w / 2;
     // #693 round 7: EVERY world object now goes through this ONE conversion (was `centerX + worldX*ZOOM`
     // — a fixed mapping that only worked because the camera never moved) so introducing the scrolling
-    // camera couldn't silently miss a spot.
-    const worldToScreenX = (worldX) => centerX + (worldX - cameraX) * ZOOM;
+    // camera couldn't silently miss a spot. Uses `zoom` (mode-aware) rather than the module `ZOOM` directly
+    // so hero/pet/Wisp/Slime — shared between both scenery modes — scale correctly in either.
+    const worldToScreenX = (worldX) => centerX + (worldX - cameraX) * zoom;
+    // LdtkScenery's canvases are drawn in LDtk's own native (unshifted) coordinate space, i.e. their own
+    // x=0 = this app's `LEVEL_MIN_X`. `factor` scales how much of the camera's movement a layer reacts to
+    // (1 = the ground plane, <1 = a background layer that lags behind — parallax depth).
+    const leftPxForFactor = (factor) => centerX + (LEVEL_MIN_X - cameraX * factor) * zoom;
+    // LDtk ground-plane tiles (animated water/campfire, foliage) are stored LEVEL-LOCAL (0..pxWid) — this
+    // adds the level's own world offset before projecting, so callers can pass a local px straight through
+    // exactly like `LdtkScenery`'s canvas positioning does.
+    const localWorldToScreenX = (localX) => worldToScreenX(LEVEL_MIN_X + localX);
+    // Hero/pet/Wisp/Slime always stand on this line, regardless of which scenery is showing underneath
+    // them — LDtk mode uses the hardcoded `STAND_HEIGHT_PX` (own comment above) scaled by the SAME dynamic
+    // zoom every other LDtk element uses; legacy mode keeps its own fixed `GROUND_ANCHOR`.
+    const standAnchor = sceneryMode === 'LDtk' ? STAND_HEIGHT_PX * zoom : GROUND_ANCHOR;
+    const foliageInstanceProps = (inst) => ({
+        diffuseUrl: inst.diffuseUrl, diffuseUV: inst.diffuseUV, normalUrl: inst.normalUrl,
+        screenX: localWorldToScreenX(inst.localX),
+        screenY: size.h - inst.localBottomFromLevelBottom * zoom,
+        widthPx: inst.gridSize * zoom, heightPx: inst.gridSize * zoom,
+        worldX: inst.localX, worldWidth: inst.gridSize, worldHeight: inst.gridSize,
+        // #RAM-level (Han 2026-08-12, "de wave band ziet er heel anders uit in de LDtk wereld... verticaal
+        // periodiek met periode 1"): each LDtk foliage tile is only 16px tall on its own, but several are
+        // often stacked to form one taller visual object (a pine tree's foliage column) — without this,
+        // every tile's wave noise restarted at its own bottom edge, repeating every tile instead of
+        // sweeping smoothly up the whole column. `localBottomFromLevelBottom` (already computed above for
+        // positioning) IS each tile's true height above the level's real ground — exactly what
+        // `groundDistOffset` needs to restore one continuous sweep, matching the legacy world's own
+        // single-instance-per-object behaviour (see ForegroundFoliageLayer.jsx's own comment on this).
+        groundDistOffset: inst.localBottomFromLevelBottom,
+        wave: inst.wave, skew: inst.skew,
+    });
+    // #RAM-level (Han 2026-08-11, "de animatie is behoorlijk schokkerig... hoe is de performance?"):
+    // `ForegroundFoliageLayer` draws ONE `gl.drawArrays` call per instance, not batched (its own file
+    // header) — a level with ~1000 foliage tiles (Pine_forest_foliage2 alone has ~800) meant ~1000
+    // uncullled draw calls EVERY frame regardless of camera position, the dominant cost behind the choppy
+    // animation/scrolling Han measured (LCP 5.37s, INP 816ms). Foliage/animated tiles scattered across the
+    // whole level only need to draw the handful currently on-screen — this filters by already-projected
+    // `screenX` (a fixed pixel margin around the viewport) right before handing instances to the shader,
+    // cutting the typical per-frame instance count from ~1000 to whatever's actually visible.
+    const CULL_MARGIN_PX = 200;
+    const cullToViewport = (instances) => instances.filter((inst) => inst.screenX > -CULL_MARGIN_PX && inst.screenX < size.w + CULL_MARGIN_PX);
+    // Same idea for the (cheaper, DOM-based) animated water/campfire overlay — filtered by raw world
+    // position before it ever reaches `LdtkAnimatedTiles`, so off-screen tiles don't even mount a
+    // per-instance `useNaturalSize` effect.
+    const cullTilesToViewport = (tiles) => tiles.filter((t) => {
+        const x = localWorldToScreenX(t.worldX);
+        return x > -CULL_MARGIN_PX && x < size.w + CULL_MARGIN_PX;
+    });
 
     // #141 round 12: the CSS-approximated day/night tint for DOM elements (backgrounds, tent, trunk) —
     // recomputed each render from the same `globalIllumination` value driving the WebGL shader, so both
@@ -427,6 +597,9 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // live from the already-loaded source sheets.
     const [runtimeTextures, setRuntimeTextures] = useState(null);
     useEffect(() => {
+        // #RAM-level: this whole normal-map build is legacy-scenery-only art (floor/trunk/tent) — skip it
+        // entirely in the new LDtk scenery mode rather than doing the work and never using the result.
+        if (sceneryMode !== 'Legacy') return undefined;
         let cancelled = false;
         (async () => {
             const [floorImg, treeImg, decorImg] = await Promise.all([
@@ -476,7 +649,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             });
         })();
         return () => { cancelled = true; };
-    }, [floorTileIdx]);
+    }, [floorTileIdx, sceneryMode]);
 
     return (
         <div ref={containerRef}
@@ -523,7 +696,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 line), not the viewport's bottom edge. `bgBottomOffset` is commonly negative — the image's
                 own bottom edge sits BELOW the visible viewport, which is expected once the image is this
                 much bigger than before. No more per-layer `sinkPx` — one rule, no exceptions. */}
-            {PARALLAX_LAYERS.map(({ url, factor }, i) => {
+            {/* #RAM-level: the LDtk scenery brings its OWN 5 background layers (ldtkWorld.js's
+                BACKGROUND_LAYERS, rendered via <LdtkScenery> below) — this hand-drawn 4-layer parallax
+                system is legacy-mode only, kept for Han's side-by-side comparison (see `sceneryMode`). */}
+            {sceneryMode === 'Legacy' && PARALLAX_LAYERS.map(({ url, factor }, i) => {
                 const bgW = BG_NATIVE.w * ZOOM, bgH = BG_NATIVE.h * ZOOM;
                 const offsetPx = -((cameraX * factor * ZOOM) % bgW);
                 // #141 round 4 (Han: "drop the backgrounds a further 32px"): additional fixed nudge below
@@ -548,6 +724,47 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 touches the backgrounds, never double-darkens anything drawn later). */}
             <div style={domDarkenOverlayStyle} />
 
+            {/* #RAM-level (Han 2026-08-11, "houd goed de volgorde van lagen aan"): scenery whose SOURCE
+                layer sits BEHIND the `Entities` layer in the .ldtk file's own paint order (ldtkWorld.js's
+                `isInFrontOfEntities`) — terrain/water/grass-bg/buildings/trees/backgrounds. Rendered here,
+                BEFORE the hero/pet/Wisp/Slime block below; whatever's genuinely in FRONT of Entities in
+                the source file (Grass_decoration_fg edge decor, Blacksmith/Alchemist, interior walls)
+                renders in its own second pass AFTER the entities instead (search "front-of-entities"). */}
+            {/* #RAM-level (Han 2026-08-11, "foliage laag flitst nogal bij bewegen; bij veel beweging is het
+                foliage effect toch te subtiel, dus is slim om dan af te zetten. Maar, toon dan de default
+                ongemodificeerde sprite, ipv niets"): foliage tiles are now ALWAYS included in the flat
+                ground canvas too (merged into `groundTiles` here), not just the WebGL shimmer layer — so
+                there is always a plain, correctly-drawn fallback sprite underneath. The shimmer layer
+                (below) only mounts while the hero is standing still; while moving it's unmounted entirely,
+                leaving the flat version visible (never "nothing") — and as a side benefit this is also
+                what's shown during the first instant after a scenery change, before the batched normal-map
+                generation (useLdtkFoliageInstances.js) has produced anything to shimmer yet. */}
+            {sceneryMode === 'LDtk' && (
+                <LdtkScenery
+                    groundTiles={groundAndFoliageBack} backgroundLayers={world.backgroundLayers}
+                    gridSize={world.gridSize} leftPxForFactor={leftPxForFactor} zoom={zoom} groundAnchor={0}
+                />
+            )}
+            {sceneryMode === 'LDtk' && (
+                <LdtkAnimatedTiles
+                    animatedTiles={cullTilesToViewport(world.animatedTilesBack)} worldToScreenX={localWorldToScreenX}
+                    groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
+                />
+            )}
+            {sceneryMode === 'LDtk' && !moving && foliageInstancesBack.length > 0 && (
+                <ForegroundFoliageLayer
+                    widthPx={size.w}
+                    heightPx={size.h}
+                    instances={cullToViewport(foliageInstancesBack.map((inst) => foliageInstanceProps(inst)))}
+                    debugChannel={foliageDebugChannel}
+                    lights={[
+                        { worldX: NPC_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
+                        { worldX: playerX, worldHeight: 32, color: HERO_LIGHT_COLOR01 },
+                    ]}
+                    params={foliageParams}
+                />
+            )}
+
             {/* Decor layer — #141 round 15 (Han: "je hebt de trunk aan de foliage layer toegevoegd. ik wil
                 hem verlicht, maar geen onderdeel van foliage. Tent en trunk should be op de decor background
                 layer"): a SEPARATE WebGL canvas from the foreground foliage one below — same shared-context
@@ -561,7 +778,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 echt fantastisch uit"). DOM fallback (old floor-tile loop + trunk/tent crops) renders ONLY
                 until `runtimeTextures` resolves, same brief-flash-on-mount pattern used everywhere else this
                 round. */}
-            {!runtimeTextures && (
+            {sceneryMode === 'Legacy' && !runtimeTextures && (
                 <div style={{ position: 'absolute', bottom: 0, left: worldToScreenX(LEVEL_MIN_X), display: 'flex' }}>
                     {floorTileIdx.map((idx, i) => {
                         const cell = FLOOR_CELLS[idx];
@@ -569,7 +786,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     })}
                 </div>
             )}
-            {!runtimeTextures && (
+            {sceneryMode === 'Legacy' && !runtimeTextures && (
                 <div style={{
                     position: 'absolute', left: worldToScreenX(TREE_X), bottom: GROUND_ANCHOR,
                     width: TREE_CELL.w * ZOOM, height: TREE_CELL.h * ZOOM, transform: 'translateX(-50%)',
@@ -579,7 +796,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     backgroundRepeat: 'no-repeat', imageRendering: 'pixelated', pointerEvents: 'none',
                 }} />
             )}
-            {!runtimeTextures && (
+            {sceneryMode === 'Legacy' && !runtimeTextures && (
                 <SheetCrop
                     url={decorUrl} sheet={DECOR_SHEET} row={TENT_CELL.row} col={TENT_CELL.col}
                     wTiles={TENT_W} hTiles={TENT_H}
@@ -600,7 +817,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 error) and the component's own `useLayoutEffect` already resizes the backing store in place
                 without recreating the context. `runtimeTextures` still gates rendering (its own instances
                 reference `runtimeTextures.*` directly, which would be undefined before it resolves). */}
-            {runtimeTextures && (
+            {sceneryMode === 'Legacy' && runtimeTextures && (
                 <ForegroundFoliageLayer
                     widthPx={size.w}
                     heightPx={size.h}
@@ -662,9 +879,17 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             {wispVariant && (
                 <div
                     onClick={(e) => { e.stopPropagation(); clickNpc(); }}
-                    style={{ position: 'absolute', left: worldToScreenX(NPC_X), bottom: GROUND_ANCHOR, transform: 'translateX(-50%)', cursor: 'pointer' }}
+                    style={{ position: 'absolute', left: worldToScreenX(NPC_X), bottom: standAnchor, transform: 'translateX(-50%)', cursor: 'pointer' }}
                 >
-                    <WorldCreature variant={wispVariant} moving={false} frame={petFrame} facing={1} />
+                    <WorldCreature variant={wispVariant} moving={false} frame={petFrame} facing={1} zoom={zoom} />
+                </div>
+            )}
+
+            {/* Slime — #RAM-level (Han 2026-08-11, "ik zie ook de slime niet; conform de entiteitslaag"):
+                purely decorative, standing at the Slime entity marker, same z-slot as Wisp/hero/pet. */}
+            {sceneryMode === 'LDtk' && ENTITY_WORLD_X.Slime != null && (
+                <div style={{ position: 'absolute', left: worldToScreenX(ENTITY_WORLD_X.Slime), bottom: standAnchor, transform: 'translateX(-50%)' }}>
+                    <WorldSlime frame={petFrame} zoom={zoom} />
                 </div>
             )}
 
@@ -674,10 +899,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 stripped here to avoid double-drawing it glued to the character's hip. */}
             {char && (
                 <div style={{
-                    position: 'absolute', left: worldToScreenX(playerX), bottom: GROUND_ANCHOR,
+                    position: 'absolute', left: worldToScreenX(playerX), bottom: standAnchor,
                     transform: `translateX(-50%) scaleX(${facing})`,
                 }}>
-                    <CharacterDoll char={noPetChar} anim={moving ? walkAnim : idleAnim} frame={moving ? walkFrame : 0} height={HERO_CROP.h * ZOOM} />
+                    <CharacterDoll char={noPetChar} anim={moving ? (running ? runAnim : walkAnim) : idleAnim} frame={moving ? walkFrame : 0} height={HERO_CROP.h * zoom} />
                 </div>
             )}
 
@@ -689,11 +914,42 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 to the old hand-rolled `WorldPet`/`PET_CROP` convention only if a pet sheet has no bestiary
                 match. Renders nothing if no pet is equipped. */}
             {petUrl && (
-                <div style={{ position: 'absolute', left: worldToScreenX(petX), bottom: GROUND_ANCHOR, transform: 'translateX(-50%)' }}>
+                <div style={{ position: 'absolute', left: worldToScreenX(petX), bottom: standAnchor, transform: 'translateX(-50%)' }}>
                     {petVariant
-                        ? <WorldCreature variant={petVariant} moving={petMoving} frame={petFrame} facing={petX <= playerX ? 1 : -1} />
-                        : <WorldPet url={petUrl} frame={petFrame} facing={petX <= playerX ? 1 : -1} />}
+                        ? <WorldCreature variant={petVariant} moving={petMoving} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />
+                        : <WorldPet url={petUrl} frame={petFrame} facing={petX <= playerX ? 1 : -1} zoom={zoom} />}
                 </div>
+            )}
+
+            {/* #RAM-level (Han 2026-08-11, "houd goed de volgorde van lagen aan"): scenery whose SOURCE
+                layer sits IN FRONT of the `Entities` layer in the .ldtk file's own paint order —
+                Grass_decoration_fg's edge decoration, Blacksmith/Alchemist buildings, interior walls.
+                Rendered AFTER hero/pet/Wisp/Slime so it correctly draws on top of them, mirroring the
+                source file exactly (see the back-of-entities pass earlier in this render for the rest). */}
+            {sceneryMode === 'LDtk' && (
+                <LdtkScenery
+                    groundTiles={groundAndFoliageFront} gridSize={world.gridSize}
+                    leftPxForFactor={leftPxForFactor} zoom={zoom} groundAnchor={0}
+                />
+            )}
+            {sceneryMode === 'LDtk' && (
+                <LdtkAnimatedTiles
+                    animatedTiles={cullTilesToViewport(world.animatedTilesFront)} worldToScreenX={localWorldToScreenX}
+                    groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
+                />
+            )}
+            {sceneryMode === 'LDtk' && !moving && foliageInstancesFront.length > 0 && (
+                <ForegroundFoliageLayer
+                    widthPx={size.w}
+                    heightPx={size.h}
+                    instances={cullToViewport(foliageInstancesFront.map((inst) => foliageInstanceProps(inst)))}
+                    debugChannel={foliageDebugChannel}
+                    lights={[
+                        { worldX: NPC_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
+                        { worldX: playerX, worldHeight: 32, color: HERO_LIGHT_COLOR01 },
+                    ]}
+                    params={foliageParams}
+                />
             )}
 
             {/* #141 round 12's CSS "reveal near a light" radial-gradient glow — gated behind debugMode in
@@ -710,7 +966,10 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 pass `wave: false` — lit via the same normal-map/edge-lit pipeline as everything else, but
                 never run the wind-wave highlight (they're solid wood, not foliage). #141 round 22: no longer
                 gated on `size.w > 0` — see the decor canvas's own comment above for why that gate caused
-                repeated WebGL-context-destroying remounts as `size` settled. */}
+                repeated WebGL-context-destroying remounts as `size` settled. #RAM-level: legacy-scenery
+                only now — the LDtk scenery's own trees/foliage render flat via `LdtkScenery`'s canvas (no
+                shimmer yet, a known follow-up noted in docs/architecture.md). */}
+            {sceneryMode === 'Legacy' && (
             <ForegroundFoliageLayer
                 widthPx={size.w}
                 heightPx={size.h}
@@ -771,6 +1030,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     ]}
                     params={foliageParams}
                 />
+            )}
 
             {/* #693 round 7 edge-hold zones — 15% of the viewport width on each side; press-and-hold keeps
                 the character (and camera, once it nears the deadzone edge) moving continuously. */}
@@ -803,6 +1063,121 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
 
             {debugMode && (
                 <FoliageParamsPanel params={foliageParams} onChange={setFoliageParam} onReset={() => setFoliageParams(DEFAULT_FOLIAGE_PARAMS)} />
+            )}
+
+            {/* #RAM-level (Han 2026-08-10, "maak een tier selector in debug mode... season en city
+                toggler"): season/city/building-tier all live-toggle `buildWorld()`'s inputs, re-compositing
+                the LDtk scenery canvases (see `world` useMemo above). Same `LevelPicker` pattern as the
+                Wind/Time-of-day pickers above (§141) — one button-group per axis, gated on debugMode. */}
+            {debugMode && (
+                <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                        position: 'absolute', top: 40, left: 8, zIndex: 6, width: 160,
+                        background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 4, padding: 8,
+                    }}
+                >
+                    <div style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontSize: 12, color: '#fff', marginBottom: 6 }}>
+                        <strong>World</strong>
+                    </div>
+                    <LevelPicker label="Scenery" levels={{ Legacy: 0, LDtk: 0 }} value={sceneryMode} onChange={setSceneryMode} />
+                    <LevelPicker label="Season" levels={Object.fromEntries(SEASONS.map((s) => [s, 0]))} value={season} onChange={setSeason} />
+                    <LevelPicker label="City" levels={Object.fromEntries(CITY_OPTIONS.map((c) => [c, 0]))} value={city} onChange={setCity} />
+                    <LevelPicker label="Tavern tier" levels={Object.fromEntries(TAVERN_TIERS.map((t) => [t, 0]))} value={tavernTier} onChange={setTavernTier} />
+                    <LevelPicker label="Bridge tier" levels={Object.fromEntries(BRIDGE_TIERS.map((t) => [t, 0]))} value={bridgeTier} onChange={setBridgeTier} />
+                    <LevelPicker
+                        label="Metronome" levels={{ Off: 0, On: 0 }}
+                        value={metronomeOn ? 'On' : 'Off'} onChange={(v) => setMetronomeOn(v === 'On')}
+                    />
+                    {/* #RAM-level (Han 2026-08-11, "verplaats wind en time of day togglers naar links World
+                        settings"): moved out of FoliageParamsPanel (top-right) — same params/onChange, just
+                        relocated. */}
+                    <LevelPicker
+                        label="Time of day"
+                        levels={TIME_OF_DAY_ILLUM}
+                        value={foliageParams.timeOfDay}
+                        onChange={(level) => {
+                            setFoliageParam('timeOfDay', level);
+                            setFoliageParam('globalIllumination', TIME_OF_DAY_ILLUM[level]);
+                        }}
+                    />
+                    <LevelPicker
+                        label="Wind"
+                        levels={WIND_LEVEL_PX}
+                        value={foliageParams.windLevel}
+                        onChange={(level) => {
+                            setFoliageParam('windLevel', level);
+                            setFoliageParam('skewAmount', WIND_LEVEL_PX[level]);
+                            setFoliageParam('stretchAmount', WIND_LEVEL_PX[level]);
+                        }}
+                    />
+                    {/* #RAM-level (Han 2026-08-11, "voeg twee knoppen toe: treble melody en bass melody...
+                        genereert random melodieën, volgens de ingestelde settings... vergeet niet altijd
+                        progression mee te genereren"): each button regenerates ONLY that one voice
+                        (`useMelodyState.js`'s `randomizeAll` extended with per-voice `treble`/`bass`/
+                        `percussion` overrides — the chord progression is always regenerated too, since
+                        `chords` isn't overridden to `false`) and immediately plays it back, reusing the
+                        app's real generation/playback pipeline — no new audio path. */}
+                    {onGenerateVoice && (
+                        <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onGenerateVoice('treble'); }}
+                                style={{
+                                    flex: 1, fontSize: 10, padding: '4px 0', cursor: 'pointer',
+                                    background: 'rgba(255,255,255,0.15)', color: '#fff',
+                                    border: '1px solid rgba(255,255,255,0.4)', borderRadius: 3,
+                                }}
+                            >
+                                Treble melody
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onGenerateVoice('bass'); }}
+                                style={{
+                                    flex: 1, fontSize: 10, padding: '4px 0', cursor: 'pointer',
+                                    background: 'rgba(255,255,255,0.15)', color: '#fff',
+                                    border: '1px solid rgba(255,255,255,0.4)', borderRadius: 3,
+                                }}
+                            >
+                                Bass melody
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* #RAM-level (Han 2026-08-11, "ik wil de metronoom zien spelen, en een teller (1,2,3,4)...
+                gebruik een pixel font" + "toon ook de pixel art FPS en de app FPS"): a small always-on-top
+                debug readout — swinging pendulum (flips angle on every beat edge, `metronomePulse` from
+                useDebugMetronome.js forces the CSS transition to restart each beat) + the 1-4 counter, both
+                gated on the metronome actually being on; FPS gated on debugMode alone since it's useful
+                regardless of the metronome. NOTE: no bundled pixel-art font asset exists in this project
+                yet (checked — only "pixel art" CHARACTER art, no pixel TYPEFACE) — styled with a bold
+                monospace + wide letter-spacing as a blocky stand-in; swap the fontFamily for a real pixel
+                font file if/when Han adds one. */}
+            {debugMode && (
+                <div style={{
+                    position: 'absolute', top: 8, right: 90, zIndex: 6, display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '4px 8px', background: 'rgba(0,0,0,0.6)', borderRadius: 4, pointerEvents: 'none',
+                }}>
+                    {metronomeOn && (
+                        <>
+                            <div key={metronomePulse} style={{
+                                width: 3, height: 18, background: '#fff', borderRadius: 2, transformOrigin: 'bottom center',
+                                transform: `rotate(${metronomeBeat % 2 === 0 ? -18 : 18}deg)`,
+                                transition: 'transform 0.08s ease-out',
+                            }} />
+                            <span style={{
+                                fontFamily: '"Courier New", monospace', fontWeight: 700, fontSize: 18,
+                                letterSpacing: 2, color: '#fff', textShadow: '1px 1px 0 #000',
+                            }}>
+                                {metronomeBeat}
+                            </span>
+                        </>
+                    )}
+                    <span style={{ fontFamily: '"Courier New", monospace', fontSize: 10, color: '#8f8' }}>
+                        App {appFps} / Px {pixelFps}
+                    </span>
+                </div>
             )}
         </div>
     );
@@ -875,7 +1250,8 @@ const TIME_OF_DAY_ILLUM = { night: 0.1, 'dusk-dawn': 0.33, day: 1 };
 function FoliageParamsPanel({ params, onChange, onReset }) {
     // #141 round 26 (Han, NL: "ik wil in debug het settings menu kunnen in- en uitklappen") — local, not
     // lifted to RpgLevelPanel state: purely a debug-UI display preference, nothing else reads it.
-    const [collapsed, setCollapsed] = useState(false);
+    // #RAM-level (Han 2026-08-11, "zet foliage params uit by default"): starts collapsed now.
+    const [collapsed, setCollapsed] = useState(true);
     return (
         <div
             onClick={(e) => e.stopPropagation()}
@@ -919,31 +1295,13 @@ function FoliageParamsPanel({ params, onChange, onReset }) {
                 illumination' doet; radial vanaf de lichtbron... moet worden opgeteld bij de normal map
                 ilum") — a purely distance-based glow, ADDED to the existing directional term, not blended. */}
             <ParamSlider label="Light: flat illumination" value={params.flatIllumination} min={0} max={1} step={0.01} onChange={(v) => onChange('flatIllumination', v)} />
-            <hr style={{ opacity: 0.3, margin: '8px 0' }} />
-            <LevelPicker
-                label="Time of day"
-                levels={TIME_OF_DAY_ILLUM}
-                value={params.timeOfDay}
-                onChange={(level) => {
-                    onChange('timeOfDay', level);
-                    onChange('globalIllumination', TIME_OF_DAY_ILLUM[level]);
-                }}
-            />
             {/* #141 round 19 (Han: "maak ook een slider voor normal map strength voor illumination") — 1.0
                 full relief (current look), 0.0 fully flat "from above". The floor ignores this entirely and
                 is ALWAYS flat (Han: "normal map van de floor tiles mag toch globaal 'van boven' zijn"). */}
             <ParamSlider label="Normal map strength" value={params.normalStrength} min={0} max={1} step={0.01} onChange={(v) => onChange('normalStrength', v)} />
-            <hr style={{ opacity: 0.3, margin: '8px 0' }} />
-            <LevelPicker
-                label="Wind"
-                levels={WIND_LEVEL_PX}
-                value={params.windLevel}
-                onChange={(level) => {
-                    onChange('windLevel', level);
-                    onChange('skewAmount', WIND_LEVEL_PX[level]);
-                    onChange('stretchAmount', WIND_LEVEL_PX[level]);
-                }}
-            />
+            {/* #RAM-level (Han 2026-08-11, "verplaats wind en time of day togglers naar links World
+                settings"): Wind and Time-of-day moved to the World debug panel (top-left) — see that
+                panel's own LevelPicker calls, driven by the SAME `foliageParams`/`setFoliageParam`. */}
             </>)}
         </div>
     );

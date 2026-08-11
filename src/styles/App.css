@@ -87,6 +87,25 @@
   --note-tonic: #d27ffb;
   --note-scale: #7fa0c8;
 
+  /* #825 Judgment/grading colours (Han 2026-08-10) — single source of truth for the level-complete
+     charts (LevelStatsCharts.jsx), the in-level floating judgment popup (SheetRpgLayer.jsx), and any
+     future judgment display. Previously hardcoded independently in all three, already slightly
+     diverged (§6d) — theme-NEUTRAL (same value on every theme, matching how those hardcoded hex
+     values already behaved) since these are semantic status colours, not surface colours. */
+  --judgment-perfect: #2eb84d;
+  --judgment-near: #d4a800;
+  /* too early / too late */
+  --judgment-far: #e07818;
+  /* much too early / much too late */
+  --judgment-missed: #b5b5b5;
+  /* light grey */
+  --judgment-wrong: #9b4fd6;
+  /* purple */
+  --judgment-corrected: #2e6fd6;
+  /* blue */
+  --judgment-extra: #4a4a4a;
+  /* dark grey */
+
   /* Chromatone Color System (pitch classes 0–11) */
   --chromatone-0: #88FF00;
   /* C  */

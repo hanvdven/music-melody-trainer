@@ -193,8 +193,13 @@ const SheetMusic = ({
   onRandomizeMeasure,
   onOpenCharacter,                  // #647 — clicking the sheet-music hero opens the character menu
   combatNote,                       // #647 combat — the last played note {note, nonce} (any input source)
+  // #862 — twoHanded levels bass-hand combat. Named `twoHandedBassMelody` (not `bassMelody`) to avoid
+  // colliding with the context-provided `bassMelody` below (the normal app-wide bass staff melody).
+  twoHandedBassMelody,
+  bassCombatEvent,                  // #862 — twoHanded levels: useTwoHandedBass's hit/miss event
   onSlimesCleared,                  // #647 combat — all slimes killed → regenerate the melody
   onSongEnd,                        // #688 — the final barline visually crossed the strike line
+  onFirstTickUnfrozen,              // Han 2026-08-10 — watchdog: fires once the visual clock actually unfreezes
   onCombatHit,                      // #659 level — a played note killed the leftmost slime
   onCombatMiss,                     // #659 level — a played note missed (for accuracy stats)
   onCritterKilled,                  // #693 round 8 — an accidental note struck a critter under a rest
@@ -229,6 +234,9 @@ const SheetMusic = ({
   // Level 11 (Han 2026-08-06): pass-through to SheetRpgLayer's decorative green wizard — see its own
   // comment for the full rationale. Read from levels.json (`decorativeWizard`).
   decorativeWizard = false,
+  // #871 (Han 2026-08-11): pass-through to SheetRpgLayer's decorative NPC — see its own comment for the
+  // full rationale. Read from levels.json (`npc`).
+  npc = null,
   // #662 (Han: "avatar... nooit tijdens de settings view actief" — the app-wide Settings TAB, which in
   // dual-view desktop layout stays mounted alongside the sheet music). Hides only the hero doll; slimes
   // are already gated off by `levelActive` above.
@@ -2872,6 +2880,7 @@ const SheetMusic = ({
                     enemyType={enemyType}
                     wizardSpawnLeadMeasures={wizardSpawnLeadMeasures}
                     decorativeWizard={decorativeWizard}
+                    npc={npc}
                     hideHero={hideHero}
                     viewRight={logicalScreenWidth - 5}
                     clef={clefTreble}
@@ -2886,12 +2895,15 @@ const SheetMusic = ({
                     onOpenCharacter={onOpenCharacter}
                     onSlimesCleared={onSlimesCleared}
                     onSongEnd={onSongEnd}
+                    onFirstTickUnfrozen={onFirstTickUnfrozen}
                     onHit={onCombatHit}
                     onMiss={onCombatMiss}
                     onCritterKilled={onCritterKilled}
                     onEnemyTotal={onEnemyTotal}
                     onCritterTotal={onCritterTotal}
                     combatNote={combatNote}
+                    bassMelody={twoHandedBassMelody}
+                    bassCombatEvent={bassCombatEvent}
                     debugMode={debugMode}
                     context={context}
                     scrollStartTime={levelAudioStart}

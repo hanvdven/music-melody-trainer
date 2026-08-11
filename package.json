@@ -17,7 +17,8 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "render:overlay": "vite-node scripts/render-overlay.jsx",
-    "kanban": "node scripts/start-kanban.mjs"
+    "kanban": "node scripts/start-kanban.mjs",
+    "abc:song": "vite-node scripts/abc-to-song.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",

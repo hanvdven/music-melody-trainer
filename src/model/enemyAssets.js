@@ -85,6 +85,13 @@ export const SLIME_CROP = { x: 0, y: 3, w: 30, h: 29 };
 export const SLIME_IDLE = { row: 0, frames: 5 };
 export const SLIME_WALK = { row: 1, frames: 8 };    // #660 Level 2: walk animation (used for the fly-in hop)
 export const SLIME_DEATH = { row: 2, frames: 5 };   // #647 combat: slime death animation (plays once)
+// #RAM-level (Han 2026-08-11, moved here from SheetRpgLayer.jsx's own local copy — §6d, one source of
+// truth): the sheet's REAL grid — 8 columns (matching SLIME_WALK's 8 frames, the widest row) × 3 rows
+// (idle/walk/death). NOT the same as any single row's own frame count (e.g. SLIME_IDLE.frames=5) — a
+// renderer that sizes its `backgroundSize`/SVG `<image>` off a single row's frame count instead of the
+// sheet's actual column count gets a squashed/misaligned crop (the bug behind a previous "choppy slime"
+// report — RpgLevelPanel.jsx's decorative `WorldSlime` had done exactly that before this fix).
+export const SLIME_COLS = 8, SLIME_ROWS = 3;
 export const SLIME_COLORS = {
     green: sheetUrl('slime-green'),
     blue: sheetUrl('slime-blue'),
@@ -144,6 +151,20 @@ export const PROJECTILE_DEATH_COLS = 5, PROJECTILE_DEATH_ROWS = 6;
 export const PROJECTILE_DEATH_CROP = { x: 4, y: 4, w: 24, h: 24 };
 export const PROJECTILE_DEATH = { row: 0, frames: 5 };
 export const PROJECTILE_DEATH_OPACITY = [1, 0.8, 0.6, 0.4, 0.2];   // Han: "-20% opacity" per frame
+
+// #825 (Han 2026-08-10, "hit" animation on the strike line) — "GandalfHardcore 64x64 Projectiles4.png",
+// a 320×384 = 5 cols × 6 rows @ 64×64 sheet of blue impact-burst variants (measured directly, same
+// pack/frame-padding convention as static-projectiles-5/2 above — 5×6 grids are this pack's norm).
+// Frames are read flat (row-major, 0..29) — Han: a RANDOM run of 7 CONSECUTIVE frames each time the
+// animation plays (not a fixed sequence), so no two hits look identical.
+export const HIT_BURST_URL = sheetUrl('hit-burst-4');
+export const HIT_BURST_FRAME = { w: 64, h: 64 };
+export const HIT_BURST_COLS = 5, HIT_BURST_ROWS = 6;
+export const HIT_BURST_TOTAL_FRAMES = HIT_BURST_COLS * HIT_BURST_ROWS;   // 30
+// crop measured (union bbox over all 30 cells): content spans relative x 14-50, y 16-48.
+export const HIT_BURST_CROP = { x: 14, y: 16, w: 36, h: 32 };
+// Han's exact envelope: fade in over 2 frames, hold 3 at full opacity, fade out over 2 — 7 frames total.
+export const HIT_BURST_OPACITY = [0.33, 0.66, 1, 1, 1, 0.66, 0.33];
 
 // Level 11 (Han 2026-08-06, "ik wil 2 maten voor elke switch een staticprojeciles2 (32x32) laten
 // toveren door de tovenaar"): "GandalfHardcore Static Projectiles2.png", measured via the SAME

@@ -31,7 +31,7 @@ describe('useLevelBackingStream (#663)', () => {
     const context = makeContext();
     renderHook(() => useLevelBackingStream({
       active: true, lvl, scale, timeSignature, bassSettings, chordProgression: null,
-      context, levelAudioStart: 10.35, bassReady: false, metronomeReady: true,
+      context, levelAudioStart: 10.35, bassReady: false, metronomeReady: true, levelMelodyReady: true,
       bassInstrument, metronomeInstrument, stopFnsRef: { current: [] },
     }));
     expect(playMelodies).not.toHaveBeenCalled();
@@ -44,7 +44,7 @@ describe('useLevelBackingStream (#663)', () => {
     // doesn't stay pending after the test ends — see the setTimeout test's comment for why.
     const { result, unmount } = renderHook(() => useLevelBackingStream({
       active: true, lvl, scale, timeSignature, bassSettings, chordProgression: null,
-      context, levelAudioStart: 10.35, bassReady: true, metronomeReady: true,
+      context, levelAudioStart: 10.35, bassReady: true, metronomeReady: true, levelMelodyReady: true,
       bassInstrument, metronomeInstrument, stopFnsRef,
     }));
 
@@ -67,7 +67,7 @@ describe('useLevelBackingStream (#663)', () => {
     // `lvl`, so a fresh object every render would retrigger it in an infinite loop.
     const { result, unmount } = renderHook(() => useLevelBackingStream({
       active: true, lvl: lvl8, scale, timeSignature, bassSettings, chordProgression: null,
-      context, levelAudioStart: 10.35, bassReady: true, metronomeReady: true,
+      context, levelAudioStart: 10.35, bassReady: true, metronomeReady: true, levelMelodyReady: true,
       bassInstrument, metronomeInstrument, stopFnsRef,
     }));
 

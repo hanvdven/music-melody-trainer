@@ -1,0 +1,361 @@
+{
+  "id": "kangding-qingge",
+  "title": "Kangding qingge",
+  "subtitle": "China,Sichuan, Kangding · II, 254]",
+  "category": "traditional",
+  "timeSignature": [
+    2,
+    4
+  ],
+  "defaultTempo": 120,
+  "defaultTonic": "F",
+  "numMeasures": 13,
+  "_source": {
+    "abc": "src/songs/abc/kangding-qingge.abc",
+    "generatedBy": "scripts/abc-to-song.mjs (#871) — re-run instead of hand-editing",
+    "decisions": [
+      "Repeats (|: :|) are NOT expanded — each section is written once.",
+      "Ties (-) are merged into the preceding note's duration.",
+      "Slurs ( ) are ignored.",
+      "Fermatas (H) parsed but NOT emitted (they shift audio without shifting offsets — would desync the side-scroll RPG layer).",
+      "No ABC chord symbols — one tonic triad per measure (drone)."
+    ]
+  },
+  "generator": {
+    "scaleFamily": "Diatonic",
+    "scaleMode": "Major",
+    "chordSettings": {
+      "strategy": "tonic-tonic-tonic",
+      "chordCount": 1,
+      "passingChordTypes": []
+    },
+    "trebleSettings": {
+      "notesPerMeasure": 4
+    },
+    "percussionSettings": null
+  },
+  "difficulties": {
+    "easy": {
+      "_comment": "Single fixed treble line converted from kangding-qingge.abc — 46 notes over 13 measures. One difficulty tier only (#871).",
+      "treble": {
+        "notes": [
+          "A4",
+          "C5",
+          "D5",
+          "D5",
+          "C5",
+          "D5",
+          "A4",
+          "G4",
+          "A4",
+          "C5",
+          "D5",
+          "D5",
+          "C5",
+          "D5",
+          "A4",
+          "A4",
+          "C5",
+          "D5",
+          "D5",
+          "C5",
+          "D5",
+          "A4",
+          "G4",
+          "C5",
+          "A4",
+          "G4",
+          "A4",
+          "G4",
+          "F4",
+          "G4",
+          "D4",
+          "D4",
+          "G4",
+          "C5",
+          "A4",
+          "G4",
+          "F4",
+          "D4",
+          "C5",
+          "A4",
+          "G4",
+          "A4",
+          "G4",
+          "F4",
+          "G4",
+          "D4"
+        ],
+        "durations": [
+          6,
+          6,
+          6,
+          3,
+          3,
+          9,
+          3,
+          12,
+          6,
+          6,
+          6,
+          3,
+          3,
+          6,
+          18,
+          6,
+          6,
+          6,
+          3,
+          3,
+          6,
+          6,
+          12,
+          6,
+          6,
+          3,
+          3,
+          3,
+          3,
+          6,
+          18,
+          6,
+          18,
+          6,
+          18,
+          3,
+          3,
+          18,
+          6,
+          6,
+          3,
+          3,
+          3,
+          3,
+          6,
+          18
+        ],
+        "offsets": [
+          0,
+          6,
+          12,
+          18,
+          21,
+          24,
+          33,
+          36,
+          48,
+          54,
+          60,
+          66,
+          69,
+          72,
+          78,
+          96,
+          102,
+          108,
+          114,
+          117,
+          120,
+          126,
+          132,
+          144,
+          150,
+          156,
+          159,
+          162,
+          165,
+          168,
+          174,
+          192,
+          198,
+          216,
+          222,
+          240,
+          243,
+          246,
+          264,
+          270,
+          276,
+          279,
+          282,
+          285,
+          288,
+          294
+        ]
+      },
+      "bass": null,
+      "percussion": null,
+      "chords": [
+        {
+          "offset": 0,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 24,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 48,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 72,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 96,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 120,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 144,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 168,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 192,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 216,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 240,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 264,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        },
+        {
+          "offset": 288,
+          "duration": 24,
+          "notes": [
+            "F3",
+            "A3",
+            "C4"
+          ],
+          "root": "F3",
+          "type": "major",
+          "name": "F",
+          "suffix": ""
+        }
+      ]
+    }
+  }
+}

@@ -57,6 +57,17 @@ uniform float uTime;
 uniform float uWorldCenterX;
 uniform float uWorldWidth;
 uniform float uWorldHeight;
+// #RAM-level (Han 2026-08-12, "de wave band ziet er heel anders uit in de LDtk wereld... alle tiles boven
+// elkaar hebben dezelfde wave, dus verticaal periodiek met periode 1"): groundDist below used to reset
+// to 0 at THIS INSTANCE'S OWN bottom edge — correct for a legacy foliage sprite (one instance = one whole
+// tree canopy/tuft/tent, so groundDist already spans the object's full height continuously), but wrong
+// for the LDtk world, where a tall foliage column (e.g. a pine tree) is authored as MANY separate 16px
+// tile instances stacked vertically — each one independently restarting groundDist at 0..16, so the noise
+// field repeats every tile instead of sweeping smoothly up the whole column. uGroundDistOffset (a plain
+// added offset, defaulting to 0 for every existing caller — legacy behaviour is bit-for-bit unchanged) lets
+// a caller that KNOWS an instance's true height above the level's real ground (not just its own local
+// height) supply it, restoring one continuous sweep across a stacked column.
+uniform float uGroundDistOffset;
 // #141 round 20 (Han, NL: "ik zie echt vlekken die niet meer in een px passen. Kun je pixel grid gebruiken
 // en een pixel kleur forceren voor het hele grid unit?"): same uniforms the vertex shader already uses to
 // place this instance's quad — declared here too so main() can derive the native-pixel column straight from
@@ -481,7 +492,7 @@ void main() {
 
     float worldX = uWorldCenterX + (stableUVx - 0.5) * uWorldWidth;
     float localY = vUV.y * uWorldHeight;
-    float groundDist = uWorldHeight - localY;
+    float groundDist = uWorldHeight - localY + uGroundDistOffset;
     vec2 texelSize = vec2((uDiffuseUV.z - uDiffuseUV.x) / uWorldWidth, (uDiffuseUV.w - uDiffuseUV.y) / uWorldHeight);
 
     // Channel 3 (Disabled) and instances with BOTH wave and skew switched off skip the noise sample
@@ -513,6 +524,11 @@ void main() {
         // a visible whole-pixel shift instead of being swallowed by the rounding deadzone.
         const float SKEW_CONTRAST = 5.0;
         float sway = clamp((wave01 - 0.5) * SKEW_CONTRAST, -1.0, 1.0);
+        // Known minor side-effect of uGroundDistOffset (see its own comment above): for a stacked LDtk
+        // column, groundDist can exceed this ONE tile's own uWorldHeight, so heightRatio saturates at
+        // 1.0 for every tile above the bottom-most one instead of tapering per-tile — full-intensity skew
+        // on upper tiles rather than a per-tile gradient. Not worth a second offset/uniform for a
+        // cosmetic-only skew-intensity taper; flagged rather than silently accepted.
         float heightRatio = clamp(groundDist / uWorldHeight, 0.0, 1.0);
         skewShiftPx = floor(sway * heightRatio * heightRatio * uSkewAmount + 0.5);
 
@@ -667,7 +683,14 @@ function loadImage(url) {
 // (native, unzoomed px — the SAME coordinate space as RpgLevelPanel's TREE_X/grassTuftPositions) drive the
 // wave's world-space sweep, independent of `screenX`/`widthPx` (which are display px, post-ZOOM/camera).
 // instance shape: { diffuseUrl, diffuseUV: [u0,v0,u1,v1], normalUrl, screenX, screenY (bottom-center anchor,
-// canvas px), widthPx, heightPx, worldX, worldWidth, worldHeight, kind, wave, skew, edgeLitOnly }
+// canvas px), widthPx, heightPx, worldX, worldWidth, worldHeight, kind, wave, skew, edgeLitOnly,
+// groundDistOffset (OPTIONAL, native px, default 0) }
+// `groundDistOffset`: added to the per-pixel `groundDist` the wave/skew/highlight noise samples — leave
+// unset (0) for a self-contained instance (one instance = one whole visual object, e.g. every legacy
+// tree/tuft/tent/crate instance). Only needed when several SEPARATE instances are stacked to form one
+// taller visual object (e.g. the LDtk world's multi-tile-tall foliage columns) — pass each instance's own
+// true height above the level's real ground so the noise sweeps continuously up the whole stack instead of
+// restarting at every instance boundary (see `uGroundDistOffset`'s own shader-side comment).
 // `kind`: 'sprite' (default, omit) = alpha-cutout silhouette (tree canopy/grass tuft/trunk/tent/crate) —
 // discards fully-transparent texels. 'floor' = the ground itself, opaque everywhere by construction (the
 // stitched exact-tile texture RpgLevelPanel.jsx generates at mount), no alpha-cutout, wind-wave highlight
@@ -829,6 +852,7 @@ export default function ForegroundFoliageLayer({
         const uWorldCenterX = gl.getUniformLocation(program, 'uWorldCenterX');
         const uWorldWidth = gl.getUniformLocation(program, 'uWorldWidth');
         const uWorldHeight = gl.getUniformLocation(program, 'uWorldHeight');
+        const uGroundDistOffset = gl.getUniformLocation(program, 'uGroundDistOffset');
         const uDebugChannel = gl.getUniformLocation(program, 'uDebugChannel');
         const uInstanceKind = gl.getUniformLocation(program, 'uInstanceKind');
         const uHasWave = gl.getUniformLocation(program, 'uHasWave');
@@ -983,6 +1007,7 @@ export default function ForegroundFoliageLayer({
                 gl.uniform1f(uWorldCenterX, inst.worldX);
                 gl.uniform1f(uWorldWidth, inst.worldWidth);
                 gl.uniform1f(uWorldHeight, inst.worldHeight);
+                gl.uniform1f(uGroundDistOffset, inst.groundDistOffset || 0);
                 gl.uniform1i(uInstanceKind, inst.kind === 'floor' ? 1 : 0);
                 gl.uniform1i(uHasWave, inst.wave === false ? 0 : 1);
                 gl.uniform1i(uHasSkew, inst.skew ? 1 : 0);
