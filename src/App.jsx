@@ -50,7 +50,7 @@ import playSound from './audio/playSound';
 import playMelodies from './audio/playMelodies';
 import { Soundfont } from 'smplr';
 import buildTimpaniPattern from './utils/timpaniPattern';
-import { LEVEL_TIMPANI_SLOT } from './constants/melodyInstances';
+import { LEVEL_TIMPANI_SLOT, LEVEL_CELLO_SLOT } from './constants/melodyInstances';
 import useLevelBackingStream from './hooks/useLevelBackingStream';
 import useTwoHandedBass from './hooks/useTwoHandedBass';
 import useLevelTrebleStream from './hooks/useLevelTrebleStream';
@@ -1118,14 +1118,20 @@ const App = () => {
     // #661 rework (Han 2026-08-02: "ik wil dat je playAllMelodies gebruikt... via de bestaande play all
     // melody params"): the old §88 backing hand-rolled its OWN note-by-note scheduling on two throwaway
     // Soundfont instances (celloRef/timpaniRef) with a fixed C2-whole-note / [C2,C2,C3,r] pattern. That is
-    // gone. The bass line now plays its REAL GENERATED melody (`melodies.bass`) through the app's REAL
-    // `instruments.bass` slot — the level just temporarily points that slot at a 'cello' Soundfont
-    // (useLevel.applyConfig sets bassSettings.instrument='cello'; useInstruments.js already knows how to
-    // (re)build any instrument from its `.instrument` slug, so this is zero new instrument-management
-    // code). The metronome likewise plays `melodies.metronome`, the SAME generated metronome every other
-    // playback path uses. Both are scheduled with the exact same `playMelodies()` function + `namedInstruments`/
-    // `trackGains` params the Sequencer itself uses per iteration (src/audio/Sequencer.js) — see
-    // scheduleLevelBackingAudio below. Percussion stays silent (Han's explicit choice).
+    // gone. The bass line plays a REAL GENERATED melody (`useLevelBackingStream`'s growing `bass`), the
+    // SAME generation pipeline every other track uses. The metronome likewise plays `melodies.metronome`,
+    // the SAME generated metronome every other playback path uses. Both are scheduled with the exact same
+    // `playMelodies()` function + `namedInstruments`/`trackGains` params the Sequencer itself uses per
+    // iteration (src/audio/Sequencer.js) — see scheduleLevelBackingAudio below. Percussion stays silent
+    // in the sense of never touching the visible percussion staff (Han's explicit choice) — the timpani
+    // AUDIO layer described below is separate.
+    //
+    // #871 follow-up (Han 2026-08-11, "cello... moet niet op bass melody staan; op een invisible
+    // melody"): the paragraph above originally described the bass line as playing through the app's REAL
+    // `instruments.bass` slot (temporarily retimbred to 'cello' by `useLevel.applyConfig`). That's no
+    // longer true — cello now plays through its own dedicated `celloRef` Soundfont (below), and its
+    // generated Melody is exposed as `LEVEL_CELLO_SLOT`, an audio-only invisible-melody instance (§187/
+    // §858) — `instruments.bass` is never touched by a level anymore.
     //
     // `levelAudioStart` (audio-time seconds) is BOTH the scroll's t=0 anchor (passed to SheetRpgLayer) AND
     // the base the backing is scheduled on, so a slime reaches the hero at exactly the beat that sounds.
@@ -1154,10 +1160,10 @@ const App = () => {
     // #661 (Han 2026-08-02, "melodische percussie … hardcoded timpani enkel in levels"): the app's normal
     // `instruments.percussion` slot is ALWAYS an unpitched DrumMachine/Sampler/GM-drum-kit
     // (useInstruments.js) — it structurally cannot play the pitched timpani pattern, and Han explicitly
-    // does NOT want the general percussion instrument dropdown to switch to melodic instruments. So,
-    // unlike bass (which reuses the real `instruments.bass` slot), percussion's level audio needs its own
-    // small dedicated Soundfont — preloaded once the AudioContext exists, own instrument so it never
-    // disturbs the user's real percussion-kit selection.
+    // does NOT want the general percussion instrument dropdown to switch to melodic instruments. So
+    // percussion's level audio needs its own small dedicated Soundfont — preloaded once the AudioContext
+    // exists, own instrument so it never disturbs the user's real percussion-kit selection. (#871 follow-
+    // up: `celloRef` right below now mirrors this exact same pattern for bass.)
     const timpaniRef = useRef(null);
     useEffect(() => {
         if (!context) return;
@@ -1174,24 +1180,20 @@ const App = () => {
         if (!percussionSettings?.melodic || !level.current?.numMeasures) return null;
         return buildTimpaniPattern(LEVEL_LEAD_IN_BARS + level.current.numMeasures, timeSignature);
     }, [percussionSettings?.melodic, level.current?.numMeasures, level.current?.id, timeSignature]);
-    // Bug fix / mitigation (Han 2026-08-06, "level 2: nog steeds pas veel te laat slimes... duurt
-    // ongeveer 2,5 maten voordat maat -1 pas in beeld komt"): §171 correctly stopped the visual scroll
-    // from starting until `bassReady`/`metronomeReady` (the REAL `instruments.bass`/`.metronome` slots
-    // rebuilding as 'cello'/the level's metronome instrument), but that rebuild's own sample-fetch time
-    // was ALWAYS there — §171 just stopped hiding it behind a broken free-running clock. `timpaniRef`
-    // above already sidesteps this for percussion by preloading eagerly, on app boot, into its OWN
-    // dedicated Soundfont slot; bass/metronome can't do that (they're the REAL, shared instrument slots
-    // practice mode also uses — eagerly switching them to 'cello' early would visibly change the user's
-    // own instrument choice). Best available mitigation without touching real app state: warm the
-    // BROWSER's sample cache for 'cello' as soon as the level picker opens (well before Start is
-    // pressed) via a throwaway Soundfont — smplr/the browser can then serve the REAL instrument's
-    // construction (triggered by applyConfig at level start) from cache instead of a fresh network
-    // fetch. Discarded once done; never touches `instruments.bass` itself.
-    const cellowarmRef = useRef(null);
+    // #871 follow-up (Han 2026-08-11, "cello en timpanen... moeten niet op bass melody en percussion
+    // melody staan; ze zouden op twee van de invisible melodies moeten staan. Geldt voor alle levels."):
+    // the level's cello backing now plays through its OWN dedicated Soundfont — exactly the same pattern
+    // `timpaniRef` above already uses for percussion — instead of temporarily rebuilding the REAL,
+    // shared `instruments.bass` slot to a 'cello' timbre. This also sidesteps the old §171 mitigation's
+    // problem entirely (a rebuilt shared slot's async sample-fetch time delaying level start): a
+    // dedicated instrument, preloaded once on mount exactly like timpani, never needs a "warm cache
+    // then rebuild" two-step — it just exists, ready, the whole session. `instruments.bass` is now
+    // NEVER touched by a level; it stays whatever the player has chosen for their own bass practice.
+    const celloRef = useRef(null);
     useEffect(() => {
-        if (!context || !showLevelPicker || cellowarmRef.current) return;
-        try { cellowarmRef.current = new Soundfont(context, { instrument: 'cello', destination: context.destination }); } catch { /* offline / CDN blocked */ }
-    }, [context, showLevelPicker]);
+        if (!context) return;
+        try { if (!celloRef.current) celloRef.current = new Soundfont(context, { instrument: 'cello', destination: context.destination }); } catch { /* offline / CDN blocked */ }
+    }, [context]);
     // #662 (Han 2026-08-03, "timpanen en cello worden niet onderbroken door de stop-knop"): the level's
     // backing is scheduled ALL AT ONCE, far ahead (the whole -1..8 measure span) — unlike the Sequencer's
     // own short-horizon incremental scheduling. `instrument.stop()` alone only halts voices that are
@@ -1203,30 +1205,20 @@ const App = () => {
     const stopAllBackingAudio = useCallback(() => {
         levelBackingStopFnsRef.current.forEach((fn) => { try { fn(); } catch { /* already stopped */ } });
         levelBackingStopFnsRef.current = [];
-        try { instruments.bass?.stop(); } catch { /* not started */ }
+        try { celloRef.current?.stop(); } catch { /* not started */ }
         try { instruments.metronome?.stop(); } catch { /* not started */ }
         try { timpaniRef.current?.stop(); } catch { /* not started */ }
         setVolume('bass', 1.0);
         setVolume('metronome', 1.0);
     }, [instruments, setVolume]);
-    // #871 follow-up (Han 2026-08-11, "sakura wil nu niet starten... lijkt een probleem met song
-    // laden"): a song-backed level whose song has no bass track (`songHasBass: false`) deliberately
-    // skips `setBassSettings` in useLevel.applyConfig (see its own #871 comment) — so `instruments.bass`
-    // NEVER gets rebuilt to 'cello' for that level. `bassReady` below used to unconditionally require
-    // `loadedSlug.bass === 'cello'`, which then stayed false FOREVER for a no-bass song — and every
-    // effect gated on `bassReady && metronomeReady` (the `levelAudioStart` anchor-picking effect right
-    // below, plus useLevelBackingStream's own gate) never fired, so the level's whole audio/visual clock
-    // never started: no crash, just a silently frozen `scrollStartTime: null` forever (confirmed via the
-    // `[LevelTiming] SheetRpgLayer wave (re)start` debug log staying stuck at `scrollStartTime: null`).
-    // Fix: bass readiness is vacuously true when the level doesn't need bass at all — same `bassEnabled`
-    // condition useLevelBackingStream already uses to decide whether to grow/schedule bass (§6c, one
-    // condition, not two independent copies that could drift).
-    const bassEnabled = !(level.current?.songId && !level.current?.songHasBass);
-    // #663 (Han 2026-08-03 bug: "cello niet hoorbaar"): readiness now checks `loadedSlug` — written by
-    // useInstruments.js in the SAME commit as the instrument INSTANCE itself, unlike `bassSettings.instrument`
-    // which flips one commit EARLIER (see useInstruments.js's loadedSlug comment). Gating on the settings
-    // value alone could pass while `instruments.bass` was still the stale pre-level instrument.
-    const bassReady = !bassEnabled || (loadedSlug.bass === 'cello' && !!instruments.bass);
+    // #871 follow-up (Han 2026-08-11): `bassReady` now simply asks whether the level's OWN dedicated
+    // `celloRef` instrument has been constructed — exactly the same shape as the `timpaniRef.current`
+    // checks already used below, since cello no longer depends on `instruments.bass` being rebuilt to
+    // anything. This also structurally FIXES the earlier `bassReady` deadlock (a no-bass song's level
+    // never rebuilding `instruments.bass` to 'cello', so `bassReady` stayed false forever and the
+    // `levelAudioStart` anchor never got picked — see the now-obsolete prior version of this comment):
+    // `celloRef` is constructed once, unconditionally, on mount, so this is never permanently false.
+    const bassReady = !!celloRef.current;
     const metronomeReady = loadedSlug.metronome === metronomeSettings.instrument && !!instruments.metronome;
     // Bug fix (Han 2026-08-06, "ik hoor geen van de melodieën" — intermittently silent/garbled level
     // audio): this used to be set at CLICK time (+0.35s pre-roll) by a `scheduleLevelBacking` callback,
@@ -1449,12 +1441,11 @@ const App = () => {
         bassReady,
         metronomeReady,
         levelMelodyReady,
-        bassInstrument: instruments.bass,
+        // #871 follow-up (Han 2026-08-11): the level's cello track now plays through its own dedicated
+        // `celloRef` Soundfont instead of `instruments.bass`.
+        bassInstrument: celloRef.current,
         metronomeInstrument: instruments.metronome,
         stopFnsRef: levelBackingStopFnsRef,
-        // #871 (Han 2026-08-11 UAT): a song-backed level whose song has no bass track stays empty.
-        // (`bassEnabled` hoisted above, next to `bassReady` — same condition, §6c.)
-        bassEnabled,
     });
     // #861 (Han 2026-08-10, "de basnoten moeten pas komen vanaf maat 1, niet vanaf maat -1" — scoped to
     // twoHanded levels only, confirmed via interview: the cello GUIDE audio in ordinary levels 2-9 keeps
@@ -2400,10 +2391,14 @@ const App = () => {
             percussion={mergedRenderMelodies ? mergedRenderMelodies.percussion : melodies.percussion}
             metronome={(level.active && level.current?.sideScroll) ? levelBackingStream.metronome : melodies.metronome}
             chordProgression={mergedRenderMelodies ? mergedRenderMelodies.chordProgression : chordProgression}
-            // #858: timpani is the first migrated audio-only instance — see the `timpaniMelody`
-            // useMemo above. `undefined` (not an empty object) when there's nothing to carry, so
-            // MelodyProvider's own stable-empty-object default applies.
-            invisibleMelodies={timpaniMelody ? { [LEVEL_TIMPANI_SLOT]: timpaniMelody } : undefined}
+            // #858/#871 follow-up: timpani and (now) the level's cello backing are both audio-only
+            // instances — see the `timpaniMelody` useMemo above and `levelBackingStream.bass` below.
+            // `undefined` (not an empty object) when there's nothing to carry, so MelodyProvider's own
+            // stable-empty-object default applies.
+            invisibleMelodies={(timpaniMelody || (level.active && level.current?.sideScroll && levelBackingStream.bass)) ? {
+                ...(timpaniMelody ? { [LEVEL_TIMPANI_SLOT]: timpaniMelody } : {}),
+                ...((level.active && level.current?.sideScroll) ? { [LEVEL_CELLO_SLOT]: levelBackingStream.bass } : {}),
+            } : undefined}
         >
         <PlaybackTransportProvider
             isPlaying={isPlaying}
@@ -2813,11 +2808,12 @@ const App = () => {
                         trebleInstrument={instruments.treble}
                         // Bug fix (Han 2026-08-10, "zet bass instrument op piano" + "zet de cello... op een
                         // apart kanaal als extra melodie... niet als bass melody"): the bass-hand keyboard
-                        // now plays through the SAME instrument the treble keyboard uses (piano) instead of
-                        // `instruments.bass` (cello) — this ALSO satisfies the "separate channel" ask for
-                        // free: `instruments.bass`/`levelBackingStream.bass` (useLevelBackingStream.js,
-                        // UNCHANGED) keeps auto-playing the exact same roots-on-beat-1 pattern as a cello
-                        // demo/guide — it's on a genuinely separate instrument now, not a repurposed one.
+                        // plays through the SAME instrument the treble keyboard uses (piano) instead of
+                        // `instruments.bass` — this ALSO satisfies the "separate channel" ask for free.
+                        // #871 follow-up (Han 2026-08-11): the level's cello guide (`levelBackingStream.bass`)
+                        // now plays through its own dedicated `celloRef` Soundfont, not `instruments.bass`
+                        // at all anymore — the separation this comment originally called out is now even
+                        // stronger than when it was written.
                         bassInstrument={instruments.treble}
                         noteColoringMode={noteColoringMode}
                         theme={theme}

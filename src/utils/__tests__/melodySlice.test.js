@@ -1,6 +1,56 @@
 import { describe, it, expect } from 'vitest';
-import { sliceMelodyByMeasure, sliceMelodyByRange, sliceChordsForMeasure, melodyMeasureSpan } from '../melodySlice';
+import { sliceMelodyByMeasure, sliceMelodyByRange, sliceChordsForMeasure, melodyMeasureSpan, resizeMelody } from '../melodySlice';
 import { processMelodyAndCalculateSlots } from '../../components/sheet-music/processMelodyAndCalculateSlots';
+
+// Bug fix (Han 2026-08-11, #871 follow-up: "lyrics zijn niet zichtbaar"): resizeMelody used to drop
+// `melody.lyrics` entirely from its returned object — a song-backed level sets numMeasures from the
+// song's own length in the SAME render as loading the song, so App.jsx's numMeasures-resize effect
+// could run against the loaded (lyric-bearing) melody and silently strip its lyrics.
+describe('resizeMelody (#871 lyrics preservation)', () => {
+    const TICKS_PER_MEASURE = 48;
+
+    it('preserves melody.lyrics, truncated in step with the notes, when shrinking', () => {
+        const melody = {
+            notes: ['C4', 'D4', 'E4', 'F4'],
+            durations: [48, 48, 48, 48],
+            offsets: [0, 48, 96, 144],
+            lyrics: ['sa', 'ku', 'ra', 'saku'],
+        };
+        const resized = resizeMelody(melody, 2, TICKS_PER_MEASURE);
+        expect(resized.lyrics).toEqual(['sa', 'ku']);
+        expect(resized.notes).toEqual(['C4', 'D4']);
+    });
+
+    it('preserves melody.lyrics, padded with null for the appended rest measures, when growing', () => {
+        const melody = {
+            notes: ['C4', 'D4'],
+            durations: [48, 48],
+            offsets: [0, 48],
+            lyrics: ['sa', 'ku'],
+        };
+        const resized = resizeMelody(melody, 4, TICKS_PER_MEASURE);
+        expect(resized.lyrics).toEqual(['sa', 'ku', null, null]);
+        expect(resized.notes).toEqual(['C4', 'D4', 'r', 'r']);
+    });
+
+    it('is a pure no-op (same object identity) when current measures already equal target — lyrics untouched by definition', () => {
+        const melody = {
+            notes: ['C4', 'D4'],
+            durations: [48, 48],
+            offsets: [0, 48],
+            lyrics: ['sa', 'ku'],
+        };
+        // notes span offset 0..96 (2 measures of 48 ticks each) — target=2 matches exactly.
+        const resized = resizeMelody(melody, 2, TICKS_PER_MEASURE);
+        expect(resized).toBe(melody);
+    });
+
+    it('does not add a lyrics field at all when the source melody has none (e.g. a procedurally generated melody)', () => {
+        const melody = { notes: ['C4', 'D4'], durations: [48, 48], offsets: [0, 48] };
+        const resized = resizeMelody(melody, 2, TICKS_PER_MEASURE);
+        expect(resized.lyrics).toBeUndefined();
+    });
+});
 
 describe('melodyMeasureSpan', () => {
     // Regression for the "TS change while stopped → malformed sheet" bug (BACKLOG.md 1587):

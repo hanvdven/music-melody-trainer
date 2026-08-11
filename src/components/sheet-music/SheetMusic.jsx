@@ -2389,7 +2389,11 @@ const SheetMusic = ({
                         opacity: showSettings ? 0.6 : (animationMode !== 'pagination' ? 1 : undefined),
                       }}
                     >
-                      {actualChords && <ChordLabelsLayer
+                      {/* #871 follow-up (Han 2026-08-11, "ik zie de akkoorden van het hele lied gerenderd"):
+                          side-scroll draws its OWN scrolling chord labels inside SheetRpgLayer
+                          (scrollChords) — suppress the static (non-scrolling, whole-progression) ones
+                          here, same guard as BarlinesLayer/MelodyNotesLayer just above. */}
+                      {!sideScroll && actualChords && <ChordLabelsLayer
                         chordProgression={chordProgression}
                         chords={null}
                         processedChords={processedChords}
@@ -2474,8 +2478,11 @@ const SheetMusic = ({
                           {animationMode === 'scroll' && (
                             <path d={`M ${startX} ${trebleStart} V ${bottomY}`} stroke="var(--text-primary)" strokeWidth="0.5" opacity="0.4" />
                           )}
-                          {/* Chord labels above treble staff — shown if next round has chords visible */}
-                          {nextChords && chordProgression && processedChords?.length > 0 &&
+                          {/* Chord labels above treble staff — shown if next round has chords visible.
+                              #871 follow-up: side-scroll's OWN scrolling chords (SheetRpgLayer's
+                              scrollChords) replace this "next round" preview panel entirely — same
+                              !sideScroll guard as the static group above. */}
+                          {!sideScroll && nextChords && chordProgression && processedChords?.length > 0 &&
                             <ChordLabelsLayer
                               chordProgression={chordProgression}
                               chords={null}

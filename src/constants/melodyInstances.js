@@ -15,3 +15,10 @@ export const INVISIBLE_MELODY_SLOTS = Array.from({ length: 10 }, (_, i) => `invi
 // not as a literal string at the call site) so slot ownership has one source of truth as more
 // audio-only layers get migrated onto this mechanism.
 export const LEVEL_TIMPANI_SLOT = INVISIBLE_MELODY_SLOTS[0]; // 'invisibleMelody1'
+// #871 follow-up (Han 2026-08-11, "cello en timpanen... moeten niet op bass melody en percussion
+// melody staan; ze zouden op twee van de invisible melodies moeten staan. Geldt voor alle levels."):
+// the level's cello guide track — previously the rendered `bass` staff's own content by design
+// (§187's "deliberately NOT done this round") — is now ALSO an audio-only instance, decoupled from
+// whether the bass staff is shown at all. It keeps playing through its own dedicated Soundfont
+// (App.jsx's `celloRef`, mirroring `timpaniRef`) regardless of the level's `songHasBass`.
+export const LEVEL_CELLO_SLOT = INVISIBLE_MELODY_SLOTS[1]; // 'invisibleMelody2'

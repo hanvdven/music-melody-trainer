@@ -47,6 +47,19 @@ describe('levels.js — fixed-song levels 200-206 (#871)', () => {
         });
     });
 
+    // Bug fix (Han 2026-08-11, #871 follow-up: "scarborough fair: de noten komen na 8 kwart-tellen; dat
+    // moet zijn na 2 maten (6 kwarttellen)"): `beatsOnScreen` is always counted in QUARTER-note beats
+    // (SheetRpgLayer's beatMs=60000/bpm), not the time signature's own numerator — a literal "8" copied
+    // from the 4/4-only levels 1-9 silently broke for the 3/4 songs (arirang, scarborough-fair). Now
+    // derived per-song from LEVEL_LEAD_IN_BARS measures' worth of quarter-beats.
+    it('beatsOnScreen is derived as 2 measures worth of QUARTER-note beats for the song\'s own time signature', () => {
+        const expected = { arirang: 6, 'frere-jacques': 8, kalinka: 4, 'kangding-qingge': 4, 'la-bamba': 8, sakura: 8, 'scarborough-fair': 6 };
+        SONG_LEVEL_IDS.forEach((id) => {
+            const lvl = LEVELS[id];
+            expect(lvl.beatsOnScreen).toBe(expected[lvl.songId]);
+        });
+    });
+
     it('each fixed-song level clears in exactly 1 wave (the whole song, no mid-level regeneration)', () => {
         SONG_LEVEL_IDS.forEach((id) => {
             expect(wavesForLevel(LEVELS[id])).toBe(1);

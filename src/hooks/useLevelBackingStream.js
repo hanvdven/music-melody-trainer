@@ -36,7 +36,12 @@ export default function useLevelBackingStream({
   chordProgression,// the level's once-generated chord Melody (melodies.chordProgression)
   context,
   levelAudioStart, // audio-time anchor for measure -1 (App.jsx)
-  bassReady,       // true only once instruments.bass is CONFIRMED to be the rebuilt cello instance
+  // #871 follow-up (Han 2026-08-11): the level's cello track now plays through its own dedicated
+  // Soundfont (App.jsx's `celloRef`, `LEVEL_CELLO_SLOT`), never `instruments.bass` — so this is simply
+  // "is that dedicated instrument constructed yet" (`!!celloRef.current`), not a rebuilt-shared-slot
+  // check anymore. Kept as `bassReady` (not renamed) since its role here — gate this effect until the
+  // instrument passed as `bassInstrument` actually exists — is unchanged.
+  bassReady,
   metronomeReady,  // true only once instruments.metronome is confirmed ready
   // Bug fix (Han 2026-08-10, "het mag echt niet zijn dat de metronoom start voordat de melodie klaar
   // is... die twee mogen nooit onafhankelijk beginnen"): `levelAudioStart` can only be SET after
@@ -48,13 +53,6 @@ export default function useLevelBackingStream({
   bassInstrument,
   metronomeInstrument,
   stopFnsRef,      // shared levelBackingStopFnsRef — collects every scheduled note's StopFn
-  // Bug fix (Han 2026-08-11, #871 UAT: "song loader lijkt met een aantal tellen extra noten bas te
-  // beginnen... als er niets wordt meegegeven, laat die dan leeg"): a song-backed level whose song
-  // provides no bass track sets this false — the metronome still grows/schedules exactly as before
-  // (unaffected; Han's feedback was specifically about bass/percussion, not the metronome), only the
-  // bass chunk's growth/scheduling is skipped so its staff and audio stay empty instead of being
-  // filled by the level's normal cello-backing generator underneath a song that never asked for one.
-  bassEnabled = true,
 }) {
   const [bass, setBass] = useState(() => Melody.defaultBassMelody());
   const [metronome, setMetronome] = useState(() => Melody.defaultMetronomeMelody());
@@ -135,14 +133,12 @@ export default function useLevelBackingStream({
       });
 
       const baseTicks = chunkIndex * chunkMeasures * measureLengthTicks;
-      // #871: skip growing/publishing the bass melody entirely when the song has no bass track — it
-      // stays the initial `Melody.defaultBassMelody()` (empty) set above, instead of filling in with
-      // this level's normal generated cello backing. The chunk is still generated above (cheap, and
-      // `generateLevelBackingChunk` always returns both together) — just discarded here.
-      if (bassEnabled) {
-        growingBass = appendChunk(growingBass, bassChunk, baseTicks);
-        setBass(growingBass);
-      }
+      // #871 follow-up (Han 2026-08-11): grown/published unconditionally again for every side-scroll
+      // level — the cello backing no longer needs to skip itself for a no-bass song, since it now plays
+      // through its own dedicated instrument/invisible-melody slot (App.jsx) instead of the visible bass
+      // staff / `instruments.bass`, so it can no longer bleed into a song that provides no bass.
+      growingBass = appendChunk(growingBass, bassChunk, baseTicks);
+      setBass(growingBass);
       // The metronome's lead-in chunk starts ONE MEASURE later than bass's (measure 0, not -1) — its
       // own tick-timeline is shifted forward by one measure to match, so it never overlaps silence.
       const metronomeBaseTicks = isLeadIn ? measureLengthTicks : baseTicks;
@@ -162,7 +158,7 @@ export default function useLevelBackingStream({
           nowCtxTime: context.currentTime, levelAudioStart, chunkStartTime, metronomeStartTime, barSec,
         });
       }
-      if (bassEnabled && bassChunk.notes.length) {
+      if (bassChunk.notes.length) {
         scheduleAndTrack(
           [bassChunk], [bassInstrument], chunkStartTime, { bass: bassInstrument },
           { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 0 },
@@ -197,7 +193,7 @@ export default function useLevelBackingStream({
       ownStopFns.forEach((fn) => { try { fn(); } catch { /* already stopped */ } });
     };
   }, [active, lvl, levelAudioStart, context, bassReady, metronomeReady, levelMelodyReady, scale, timeSignature,
-    bassSettings, chordProgression, bassInstrument, metronomeInstrument, stopFnsRef, bassEnabled]);
+    bassSettings, chordProgression, bassInstrument, metronomeInstrument, stopFnsRef]);
 
   return { bass, metronome };
 }

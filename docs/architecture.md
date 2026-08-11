@@ -13234,3 +13234,88 @@ infinite loading state, since no exception is ever thrown.
 
 **Files:** `src/App.jsx` (`bassEnabled` hoisted, `bassReady` relaxed). Verified via
 `npm run test:run` (693/693), `npm run lint` (0 errors), `npm run build`.
+
+### §205. #871 UAT round 2 — double chord row, invisible lyrics, cello/timpani decoupled onto invisible melodies, keyboard-range rule reorder, Scarborough Fair beat-unit bug (Han 2026-08-11)
+
+**Context:** second UAT pass, after §204 got Sakura loading again, surfaced 5 more issues. Two were
+straightforward rendering bugs; one ("geen cello/timpani hoorbaar") directly reversed §203's explicit
+"leave empty" instruction and required a fresh interview before touching anything (CLAUDE.md §4b) — Han's
+actual intent turned out to be a real architectural correction, not a revert.
+
+**1) Static (whole-song) chord row rendered behind the scrolling one.** `SheetMusic.jsx`'s two static
+`ChordLabelsLayer` render sites (the persistent "old" group and the wipe-transition "new"/preview panel
+inside `renderContent`) were never guarded with `!sideScroll`, unlike `BarlinesLayer`/`MelodyNotesLayer`
+right next to them. For a short procedural level this was invisible (few chords, clipped out of view);
+Sakura's 14-measure progression sprawled far enough to become visible, doubled up behind the correct
+scrolling row. Fix: added the same `!sideScroll &&` guard to both sites.
+
+**2) Lyrics invisible.** Root cause: `resizeMelody` (`melodySlice.js`) — fired by App.jsx's
+numMeasures-resize effect whenever `numMeasures` changes while not playing — never carried `melody.lyrics`
+through to its returned object at all. A song-backed level sets `numMeasures` from the song's own length
+in the SAME render as loading the song, so this effect could run against the just-loaded (lyric-bearing)
+melody and silently strip the lyrics. Fix: `lyrics` is now tracked as a parallel array exactly like
+`ties`/`volumes` — truncated in step with kept notes, padded with `null` for appended rest measures, and
+omitted entirely (not added) when the source melody has none. Tests:
+`src/utils/__tests__/melodySlice.test.js` (`resizeMelody (#871 lyrics preservation)`, 4 cases).
+
+**3) "Geen cello/timpani hoorbaar" — architectural correction, not a revert.** Interview clarified: Han
+wants cello/timpani to ALWAYS play for every side-scroll level (procedural or song-backed), same musical
+content as before, but they must never be tied to the visible `bass`/`percussion` staff data or to
+`instruments.bass` (the player's own real bass-practice instrument slot) again. Concretely:
+  - `src/constants/melodyInstances.js` gained `LEVEL_CELLO_SLOT` (`invisibleMelody2`), alongside the
+    existing `LEVEL_TIMPANI_SLOT` (§187/§858 — the audio-only invisible-melody mechanism cello was
+    explicitly deferred from in §187, now adopted).
+  - `App.jsx`: the old `cellowarmRef` (a throwaway cache-warming Soundfont, since `instruments.bass` was
+    the REAL playback instrument) became the REAL, persistent `celloRef` — created once on mount exactly
+    like `timpaniRef`, never touching `instruments.bass` at all. `bassReady` now just means
+    `!!celloRef.current` (this ALSO structurally obsoletes §204's fix — a dedicated instrument that's
+    always constructed can never be permanently un-ready the way a shared-slot rebuild gate could).
+    `stopAllBackingAudio` stops `celloRef` instead of `instruments.bass`. `MelodyProvider`'s
+    `invisibleMelodies` now also carries `{ [LEVEL_CELLO_SLOT]: levelBackingStream.bass }` while a
+    side-scroll level is active.
+  - `useLevel.js`'s `applyConfig`: REVERTED §203's `songProvidesNoBass`/`songHasPercussion` gates on
+    `setBassSettings`/`percussionSettings.melodic` — cello/timpani generation is unconditional again for
+    every side-scroll level. This is safe because generation content and AUDIO OWNERSHIP are now
+    decoupled: the bass/percussion STAFF's own visibility (computeEyes's `songHasBass`/`songHasPercussion`
+    check, unchanged) still hides the staff for a no-track song regardless of what's generated — the
+    generated content simply never gets drawn, only heard.
+  - `useLevelBackingStream.js`: removed the `bassEnabled` param entirely — bass/cello growth and
+    scheduling run unconditionally again, same reasoning as above.
+  - The visible `bass` staff (`MelodyProvider`'s `bass` prop) is UNCHANGED — still fed
+    `levelBackingStream.bass` while a side-scroll level is active, purely for display; only its AUDIO
+    scheduling and MelodyContext identity moved off `instruments.bass`/no invisible slot onto
+    `celloRef`/`LEVEL_CELLO_SLOT`.
+
+**4) QWERTY keyboard-range rule order reversed (§203's `qwertyScheme.js`).** Han: "probeer eerst
+(cn-gn+1), probeer dan b(n-1)-a(n+1)... en daarna pas de 12 witte toetsen regel met verschuiving." Fixed,
+octave-anchored windows (C(n)-G(n+1), then the wider B(n-1)-A(n+1) with Tab/\\) are now tried BEFORE the
+range's-own-lowest-note ("shifted") window, since a fixed window is more predictable across different
+songs. Concretely the new order: (a) any C(n)-G(n+1) — unchanged from §203; (b) NEW — any B(n-1)-A(n+1),
+14 keys, Tab=B(n-1)/\\=A(n+1); (c) own-lowest-note anchor, ≤12 keys (only reached once a/b both miss —
+rare in practice, since (b) alone tiles every octave 0-9 with no gaps); (d) own-lowest-note anchor
+extended with Tab/\\, ≤14 keys (safety fallback for the octave-sweep edge, kept from §203's old rule d);
+(e) two-row spread, unchanged. Sakura's own B3-C5 range now fits (b) exactly (anchors at B3=Tab). Tests:
+`src/utils/__tests__/qwertyScheme.test.js`, fully rewritten for the new priority order (10 cases).
+
+**5) Scarborough Fair: notes arrived after 8 quarter-beats instead of 6.** Root cause: every song level's
+`beatsOnScreen` (the slime/note flight lead-time) was a literal `8` in `levels.json`, copied from the
+original 4/4-only levels 1-9 — where 2 lead-in measures does equal 8 quarter-beats — but `beatsOnScreen`
+is ALWAYS counted in quarter-note beats (`SheetRpgLayer`'s `beatMs = 60000/bpm`), never in the time
+signature's own numerator. For 3/4 (arirang, scarborough-fair), 2 measures is 6 quarter-beats, not 8.
+Fix: `levels.js`'s `songLevelDefaults` now derives `beatsOnScreen` from ticks
+(`LEVEL_LEAD_IN_BARS * TICKS_PER_WHOLE * (num/den) / TICKS_PER_BEAT`, correct for any meter including
+compound ones like 6/8), and the literal `"beatsOnScreen": 8` was removed from all 7 song-level JSON
+entries (ids 200-206) so the derived default actually applies (an explicit level field always wins over
+the song-derived default, per the existing `{ ...songLevelDefaults(...), ...lvl }` merge order). Test:
+`src/levels/__tests__/songLevels.test.js` (`beatsOnScreen is derived as 2 measures worth of QUARTER-note
+beats...`).
+
+**Files:** `src/components/sheet-music/SheetMusic.jsx` (chord-layer `!sideScroll` guards),
+`src/utils/melodySlice.js` (`resizeMelody` lyrics preservation), `src/constants/melodyInstances.js`
+(`LEVEL_CELLO_SLOT`), `src/App.jsx` (`celloRef`, `bassReady`, `invisibleMelodies`, `stopAllBackingAudio`),
+`src/hooks/useLevel.js` (reverted bass/percussion song-track gates), `src/hooks/useLevelBackingStream.js`
+(removed `bassEnabled`), `src/utils/qwertyScheme.js` (rule reorder), `src/levels/levels.js`
+(`beatsOnScreen` derivation), `src/levels/levels.json` (removed hardcoded `beatsOnScreen` from ids
+200-206). Tests: `src/utils/__tests__/melodySlice.test.js`, `src/utils/__tests__/qwertyScheme.test.js`,
+`src/levels/__tests__/songLevels.test.js`. Verified via `npm run test:run` (699/699), `npm run lint`
+(0 errors), `npm run build`.

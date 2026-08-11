@@ -192,6 +192,14 @@ export function resizeMelody(melody, targetMeasures, measureLengthTicks) {
   const volumes      = [];
   const ties         = [];
   const triplets     = [];
+  // Bug fix (Han 2026-08-11, #871 follow-up: "lyrics zijn niet zichtbaar"): `melody.lyrics[i]` is a
+  // parallel array indexed exactly like `ties`/`volumes` — a loaded song's syllables. This function
+  // used to drop it entirely from its returned object, so any numMeasures change (e.g. entering a
+  // song-backed level, which sets numMeasures from the song's own length in the SAME render as
+  // loading the song) silently stripped the song's lyrics the next time this ran. Track it the same
+  // way as every other parallel array below.
+  const hasLyrics = Array.isArray(melody.lyrics);
+  const lyrics       = [];
 
   if (targetMeasures < currentMeasures) {
     // Truncate: keep notes that start before the new end; clamp durations at the boundary.
@@ -207,6 +215,7 @@ export function resizeMelody(melody, targetMeasures, measureLengthTicks) {
       volumes.push((melody.volumes ?? [])[i] ?? 1);
       ties.push(melody.ties?.[i] ?? null);
       triplets.push(melody.triplets?.[i] ?? null);
+      if (hasLyrics) lyrics.push(melody.lyrics[i] ?? null);
     }
   } else {
     // Extend: copy all existing notes, then add one whole-rest per new measure.
@@ -218,6 +227,7 @@ export function resizeMelody(melody, targetMeasures, measureLengthTicks) {
       volumes.push((melody.volumes ?? [])[i] ?? 1);
       ties.push(melody.ties?.[i] ?? null);
       triplets.push(melody.triplets?.[i] ?? null);
+      if (hasLyrics) lyrics.push(melody.lyrics[i] ?? null);
     }
     for (let m = currentMeasures; m < targetMeasures; m++) {
       notes.push('r');
@@ -227,11 +237,18 @@ export function resizeMelody(melody, targetMeasures, measureLengthTicks) {
       volumes.push(1);
       ties.push(null);
       triplets.push(null);
+      if (hasLyrics) lyrics.push(null);
     }
   }
 
   const hasTriplets = triplets.some(t => t !== null);
-  return { notes, durations, offsets, displayNotes, volumes, ties, triplets: hasTriplets ? triplets : null, rhythmicGrouping: melody.rhythmicGrouping ?? null, rhythmicDNA: melody.rhythmicDNA ?? null };
+  return {
+    notes, durations, offsets, displayNotes, volumes, ties,
+    triplets: hasTriplets ? triplets : null,
+    rhythmicGrouping: melody.rhythmicGrouping ?? null,
+    rhythmicDNA: melody.rhythmicDNA ?? null,
+    ...(hasLyrics ? { lyrics } : {}),
+  };
 }
 
 /**

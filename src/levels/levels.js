@@ -272,6 +272,7 @@ import levelsData from './levels.json';
 import InstrumentSettings from '../model/InstrumentSettings';
 import SONGS from '../songs/songIndex.js';
 import { noteToMidi } from '../theory/noteUtils';
+import { LEVEL_LEAD_IN_BARS, TICKS_PER_WHOLE, TICKS_PER_BEAT } from '../constants/timing';
 
 const SONG_BY_ID = Object.fromEntries(SONGS.map((s) => [s.id, s]));
 
@@ -295,6 +296,17 @@ const songLevelDefaults = (songDef) => {
         notesPerMeasure: songDef.generator.trebleSettings.notesPerMeasure,
         range: { min, max },
         key: { tonic: `${songDef.defaultTonic}4`, mode: songDef.generator.scaleMode },
+        // Bug fix (Han 2026-08-11, #871 follow-up: "scarborough fair: de noten komen na 8 kwart-tellen;
+        // dat moet zijn na 2 maten (6 kwarttellen)"): `beatsOnScreen` (the slime/note flight lead-time)
+        // is always counted in QUARTER-note beats (SheetRpgLayer's `beatMs = 60000/bpm`, TICKS_PER_BEAT
+        // = a quarter note — timing.js) — NOT in the time signature's own numerator/denominator units. A
+        // literal "8" (copy-pasted from the original 4/4-only levels 1-9, where 2 measures of 4/4
+        // happens to equal 8 quarter-beats) silently breaks for any other meter: 3/4 -> 6, 6/8 -> 6 (NOT
+        // 12 — 6/8 is 2 dotted-half-notes = 6 quarter-beats' worth of TIME, not 6 numerator-units).
+        // Derived from ticks so it's correct for every time signature, compound or simple (§6c).
+        beatsOnScreen: Math.round(
+            LEVEL_LEAD_IN_BARS * TICKS_PER_WHOLE * (songDef.timeSignature[0] / songDef.timeSignature[1]) / TICKS_PER_BEAT
+        ),
         // Bug fix (Han 2026-08-11, #871 UAT: "percussie en bas zijn zichtbaar, terwijl er geen muziek
         // is meegegeven in het lied" / "laat die dan leeg"): these 7 abc songs ship `bass: null,
         // percussion: null` (only a fixed treble line + chords). Read by useLevel's applyConfig to skip

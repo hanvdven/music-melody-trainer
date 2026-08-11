@@ -164,13 +164,16 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // must still fall through to `fixedBass`, not silently skip the whole preset.
         const { volume: _bassVolume, visible: _bassVisible, ...bassGenOverride } = lvl.tracks?.bass ?? {};
         const hasBassGenOverride = Object.keys(bassGenOverride).length > 0;
-        // Bug fix (Han 2026-08-11, #871 UAT: "song loader lijkt met een aantal tellen extra noten bas
-        // te beginnen... als er niets wordt meegegeven, laat die dan leeg"): a song-backed level whose
-        // song provides no bass track (`songHasBass: false`) skips this preset entirely — otherwise
-        // useLevelBackingStream would keep generating a full cello backing track underneath a song that
-        // never asked for one. Every other (procedurally-generated) level is unaffected.
-        const songProvidesNoBass = lvl.songId && !lvl.songHasBass;
-        if (lvl.sideScroll && !songProvidesNoBass) setters.setBassSettings?.((prev) => ({
+        // #871 follow-up (Han 2026-08-11, "cello en timpanen... moeten niet op bass melody en percussion
+        // melody staan; ze zouden op twee van de invisible melodies moeten staan. Geldt voor alle
+        // levels."): the #871 UAT round-1 fix that skipped this preset for a no-bass song is REVERTED —
+        // the level's cello backing is generated for EVERY side-scroll level unconditionally again. What
+        // changed instead (App.jsx) is WHERE that generated content is scheduled/exposed: through its own
+        // dedicated `celloRef` Soundfont + `LEVEL_CELLO_SLOT` invisible melody, never through
+        // `instruments.bass` or the visible bass staff — so it can no longer bleed into a song that
+        // provides no bass of its own. The bass STAFF itself stays hidden for such a song regardless
+        // (computeEyes's `songHasBass` check below, unchanged) — this field only drives audio content now.
+        if (lvl.sideScroll) setters.setBassSettings?.((prev) => ({
             ...prev, instrument: 'cello',
             ...(hasBassGenOverride ? bassGenOverride : (lvl.fixedBass ? LEVEL_BASS_SIMPLE : LEVEL_BASS_DEFAULT)),
         }));
@@ -202,12 +205,15 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
             ...prev, strategy: 'tonic-tonic-tonic', fixedTonic: lvl.key?.tonic ?? 'C4', chordCount: 1, ...lvl.chords,
         }));
         // #661 ("melodische percussie … percussie de timpanen"): percussion becomes the fixed pitched
-        // timpani pattern (utils/timpaniPattern.js) — notation AND the level's dedicated timpani audio
-        // both key off this flag. Written UNCONDITIONALLY (mirrors insertBeatRests/polyMultiplier above)
-        // so it can never leak between levels.
-        // #871 (Han 2026-08-11 UAT, same "laat leeg als niets meegegeven" fix as bass above): a song-
-        // backed level whose song has no percussion track never turns on the timpani generator/notation.
-        setters.setPercussionSettings?.((prev) => ({ ...prev, melodic: !!lvl.sideScroll && !(lvl.songId && !lvl.songHasPercussion) }));
+        // timpani pattern (utils/timpaniPattern.js) — the level's dedicated timpani audio keys off this
+        // flag. Written UNCONDITIONALLY (mirrors insertBeatRests/polyMultiplier above) so it can never
+        // leak between levels.
+        // #871 follow-up (Han 2026-08-11): REVERTED the "no percussion track -> no timpani" UAT round-1
+        // fix, same reasoning as bass above — timpani is generated for EVERY side-scroll level again
+        // (it already lives on its own dedicated `timpaniRef`/`LEVEL_TIMPANI_SLOT`, never the visible
+        // percussion staff). The percussion STAFF stays hidden for a no-percussion song regardless
+        // (computeEyes's `songHasPercussion` check below, unchanged).
+        setters.setPercussionSettings?.((prev) => ({ ...prev, melodic: !!lvl.sideScroll }));
         setters.setShowChordsOddRounds?.(false);
         setters.setShowChordsEvenRounds?.(false);
         // #661 (Han UAT): a side-scroll level is ONE continuous piece — it must NOT paginate, or the melody
