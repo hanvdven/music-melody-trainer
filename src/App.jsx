@@ -1209,11 +1209,24 @@ const App = () => {
         setVolume('bass', 1.0);
         setVolume('metronome', 1.0);
     }, [instruments, setVolume]);
+    // #871 follow-up (Han 2026-08-11, "sakura wil nu niet starten... lijkt een probleem met song
+    // laden"): a song-backed level whose song has no bass track (`songHasBass: false`) deliberately
+    // skips `setBassSettings` in useLevel.applyConfig (see its own #871 comment) — so `instruments.bass`
+    // NEVER gets rebuilt to 'cello' for that level. `bassReady` below used to unconditionally require
+    // `loadedSlug.bass === 'cello'`, which then stayed false FOREVER for a no-bass song — and every
+    // effect gated on `bassReady && metronomeReady` (the `levelAudioStart` anchor-picking effect right
+    // below, plus useLevelBackingStream's own gate) never fired, so the level's whole audio/visual clock
+    // never started: no crash, just a silently frozen `scrollStartTime: null` forever (confirmed via the
+    // `[LevelTiming] SheetRpgLayer wave (re)start` debug log staying stuck at `scrollStartTime: null`).
+    // Fix: bass readiness is vacuously true when the level doesn't need bass at all — same `bassEnabled`
+    // condition useLevelBackingStream already uses to decide whether to grow/schedule bass (§6c, one
+    // condition, not two independent copies that could drift).
+    const bassEnabled = !(level.current?.songId && !level.current?.songHasBass);
     // #663 (Han 2026-08-03 bug: "cello niet hoorbaar"): readiness now checks `loadedSlug` — written by
     // useInstruments.js in the SAME commit as the instrument INSTANCE itself, unlike `bassSettings.instrument`
     // which flips one commit EARLIER (see useInstruments.js's loadedSlug comment). Gating on the settings
     // value alone could pass while `instruments.bass` was still the stale pre-level instrument.
-    const bassReady = loadedSlug.bass === 'cello' && !!instruments.bass;
+    const bassReady = !bassEnabled || (loadedSlug.bass === 'cello' && !!instruments.bass);
     const metronomeReady = loadedSlug.metronome === metronomeSettings.instrument && !!instruments.metronome;
     // Bug fix (Han 2026-08-06, "ik hoor geen van de melodieën" — intermittently silent/garbled level
     // audio): this used to be set at CLICK time (+0.35s pre-roll) by a `scheduleLevelBacking` callback,
@@ -1440,7 +1453,8 @@ const App = () => {
         metronomeInstrument: instruments.metronome,
         stopFnsRef: levelBackingStopFnsRef,
         // #871 (Han 2026-08-11 UAT): a song-backed level whose song has no bass track stays empty.
-        bassEnabled: !(level.current?.songId && !level.current?.songHasBass),
+        // (`bassEnabled` hoisted above, next to `bassReady` — same condition, §6c.)
+        bassEnabled,
     });
     // #861 (Han 2026-08-10, "de basnoten moeten pas komen vanaf maat 1, niet vanaf maat -1" — scoped to
     // twoHanded levels only, confirmed via interview: the cello GUIDE audio in ordinary levels 2-9 keeps

@@ -13196,3 +13196,41 @@ json`, `src/levels/levels.js` (`songHasBass`/`songHasPercussion`), `src/hooks/us
 PianoView.jsx` (`useRangeDerivedScheme`), `src/components/layout/TabView.jsx`. Tests: `src/hooks/
 __tests__/useScaleManagement.test.js`, `src/utils/__tests__/timpaniPattern.test.js`, `src/utils/
 __tests__/qwertyScheme.test.js`.
+
+### §204. §203 follow-up — no-bass song levels never started at all (`bassReady` deadlock) (#871, Han 2026-08-11)
+
+**Symptom:** after §203's fix ("song loader lijkt met een aantal tellen extra noten bas te beginnen...
+als er niets wordt meegegeven, laat die dan leeg"), Sakura (a song with no bass/percussion track)
+stopped starting entirely — the level UI opened, but no notation or audio ever appeared, and no error
+was logged in the browser console. Level 3 (procedurally generated, always has a bass track) was
+unaffected. Confirmed via the existing `[LevelTiming] SheetRpgLayer wave (re)start` debug log, which
+showed `scrollStartTime: null` forever — the level's visual/audio clock anchor was simply never picked.
+
+**Root cause:** §203's fix made `useLevel.applyConfig` skip `setters.setBassSettings` entirely for a
+song-backed level whose song has no bass (`songProvidesNoBass`) — correct, since `instruments.bass`
+should never get rebuilt to the level's 'cello' timbre for a track that will never play. But
+`App.jsx`'s `bassReady` flag (used to gate the `levelAudioStart` anchor-picking effect, the timpani
+scheduling effect, AND `useLevelBackingStream`'s own bass/metronome scheduling effect) was written as
+an UNCONDITIONAL `loadedSlug.bass === 'cello' && !!instruments.bass` — a leftover assumption from
+before song-backed levels existed, when EVERY side-scroll level always rebuilt bass to cello. For a
+no-bass song, that rebuild now correctly never happens, so `bassReady` stayed `false` forever, and
+every effect gated on `bassReady && metronomeReady` (most importantly the anchor-picking effect that
+sets `levelAudioStart`) never fired — the whole level silently deadlocked with no crash, because
+nothing ever throws when an effect's guard clause just keeps returning early.
+
+**Fix:** hoisted the same `bassEnabled` condition `useLevelBackingStream` already uses
+(`!(lvl.songId && !lvl.songHasBass)`, §6c — one condition, not two independent copies) into App.jsx
+right above `bassReady`, and made bass readiness vacuously true when the level doesn't need bass at
+all: `const bassReady = !bassEnabled || (loadedSlug.bass === 'cello' && !!instruments.bass);`. The
+`useLevelBackingStream` call site now reuses the same hoisted `bassEnabled` value instead of
+recomputing the identical expression inline. Percussion has no equivalent readiness gate to begin
+with (its own scheduling effects check `percussionSettings?.melodic && !timpaniRef.current`, which
+already short-circuits correctly false for a no-percussion song), so it needed no analogous fix.
+
+**Invariant going forward:** any readiness/gating flag that assumes "every side-scroll level always
+uses instrument X" must be re-checked whenever a level type is introduced that can legitimately skip
+that instrument — a flag that can never become true is indistinguishable, from the outside, from an
+infinite loading state, since no exception is ever thrown.
+
+**Files:** `src/App.jsx` (`bassEnabled` hoisted, `bassReady` relaxed). Verified via
+`npm run test:run` (693/693), `npm run lint` (0 errors), `npm run build`.
