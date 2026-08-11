@@ -1439,6 +1439,8 @@ const App = () => {
         bassInstrument: instruments.bass,
         metronomeInstrument: instruments.metronome,
         stopFnsRef: levelBackingStopFnsRef,
+        // #871 (Han 2026-08-11 UAT): a song-backed level whose song has no bass track stays empty.
+        bassEnabled: !(level.current?.songId && !level.current?.songHasBass),
     });
     // #861 (Han 2026-08-10, "de basnoten moeten pas komen vanaf maat 1, niet vanaf maat -1" — scoped to
     // twoHanded levels only, confirmed via interview: the cello GUIDE audio in ordinary levels 2-9 keeps

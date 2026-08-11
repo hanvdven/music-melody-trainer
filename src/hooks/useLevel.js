@@ -42,8 +42,14 @@ const computeEyes = (lvl, debugMode) => {
     const base = lvl.debugOnlyLines
         ? (debugMode ? threeLineEyes({}, true) : trebleOnlyEyes({}, false))
         : threeLineEyes({}, true);
+    // #871 (Han 2026-08-11 UAT: "percussie en bas zijn zichtbaar, terwijl er geen muziek is
+    // meegegeven"): a song-backed level whose song has no bass/percussion track hides that staff by
+    // default — applied BEFORE the explicit tracks.*.visible overrides below so a level can still force
+    // it visible (empty) if ever needed.
     return {
         ...base,
+        ...(lvl.songId && !lvl.songHasBass ? { bassEye: false } : {}),
+        ...(lvl.songId && !lvl.songHasPercussion ? { percussionEye: false } : {}),
         ...(lvl.tracks?.treble?.visible != null ? { trebleEye: lvl.tracks.treble.visible } : {}),
         ...(lvl.tracks?.bass?.visible != null ? { bassEye: lvl.tracks.bass.visible } : {}),
         ...(lvl.tracks?.percussion?.visible != null ? { percussionEye: lvl.tracks.percussion.visible } : {}),
@@ -158,7 +164,13 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // must still fall through to `fixedBass`, not silently skip the whole preset.
         const { volume: _bassVolume, visible: _bassVisible, ...bassGenOverride } = lvl.tracks?.bass ?? {};
         const hasBassGenOverride = Object.keys(bassGenOverride).length > 0;
-        if (lvl.sideScroll) setters.setBassSettings?.((prev) => ({
+        // Bug fix (Han 2026-08-11, #871 UAT: "song loader lijkt met een aantal tellen extra noten bas
+        // te beginnen... als er niets wordt meegegeven, laat die dan leeg"): a song-backed level whose
+        // song provides no bass track (`songHasBass: false`) skips this preset entirely — otherwise
+        // useLevelBackingStream would keep generating a full cello backing track underneath a song that
+        // never asked for one. Every other (procedurally-generated) level is unaffected.
+        const songProvidesNoBass = lvl.songId && !lvl.songHasBass;
+        if (lvl.sideScroll && !songProvidesNoBass) setters.setBassSettings?.((prev) => ({
             ...prev, instrument: 'cello',
             ...(hasBassGenOverride ? bassGenOverride : (lvl.fixedBass ? LEVEL_BASS_SIMPLE : LEVEL_BASS_DEFAULT)),
         }));
@@ -193,7 +205,9 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // timpani pattern (utils/timpaniPattern.js) — notation AND the level's dedicated timpani audio
         // both key off this flag. Written UNCONDITIONALLY (mirrors insertBeatRests/polyMultiplier above)
         // so it can never leak between levels.
-        setters.setPercussionSettings?.((prev) => ({ ...prev, melodic: !!lvl.sideScroll }));
+        // #871 (Han 2026-08-11 UAT, same "laat leeg als niets meegegeven" fix as bass above): a song-
+        // backed level whose song has no percussion track never turns on the timpani generator/notation.
+        setters.setPercussionSettings?.((prev) => ({ ...prev, melodic: !!lvl.sideScroll && !(lvl.songId && !lvl.songHasPercussion) }));
         setters.setShowChordsOddRounds?.(false);
         setters.setShowChordsEvenRounds?.(false);
         // #661 (Han UAT): a side-scroll level is ONE continuous piece — it must NOT paginate, or the melody

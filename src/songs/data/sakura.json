@@ -264,8 +264,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 48,
@@ -277,8 +277,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 72,
@@ -303,8 +303,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 108,
@@ -355,8 +355,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 168,
@@ -368,8 +368,8 @@
           ],
           "root": "D3",
           "type": "minor",
-          "name": "Dm",
-          "suffix": "m"
+          "name": "D-",
+          "suffix": "-"
         },
         {
           "offset": 192,
@@ -381,8 +381,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 228,
@@ -394,8 +394,8 @@
           ],
           "root": "D3",
           "type": "minor",
-          "name": "Dm",
-          "suffix": "m"
+          "name": "D-",
+          "suffix": "-"
         },
         {
           "offset": 240,
@@ -407,8 +407,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 264,
@@ -433,8 +433,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 300,
@@ -485,8 +485,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 360,
@@ -498,8 +498,8 @@
           ],
           "root": "D3",
           "type": "minor",
-          "name": "Dm",
-          "suffix": "m"
+          "name": "D-",
+          "suffix": "-"
         },
         {
           "offset": 384,
@@ -511,8 +511,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 420,
@@ -524,8 +524,8 @@
           ],
           "root": "D3",
           "type": "minor",
-          "name": "Dm",
-          "suffix": "m"
+          "name": "D-",
+          "suffix": "-"
         },
         {
           "offset": 432,
@@ -537,8 +537,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 456,
@@ -563,8 +563,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 528,
@@ -576,8 +576,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         },
         {
           "offset": 552,
@@ -602,8 +602,8 @@
           ],
           "root": "D3",
           "type": "minor",
-          "name": "Dm",
-          "suffix": "m"
+          "name": "D-",
+          "suffix": "-"
         },
         {
           "offset": 624,
@@ -615,8 +615,8 @@
           ],
           "root": "D3",
           "type": "minor",
-          "name": "Dm",
-          "suffix": "m"
+          "name": "D-",
+          "suffix": "-"
         },
         {
           "offset": 648,
@@ -628,8 +628,8 @@
           ],
           "root": "A3",
           "type": "minor",
-          "name": "Am",
-          "suffix": "m"
+          "name": "A-",
+          "suffix": "-"
         }
       ]
     }

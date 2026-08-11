@@ -1,0 +1,31 @@
+
+X: 1
+T: Xi\vao y\`an zi
+T: ???
+T: Little Swallow
+O: China
+S: http://dev.music.free.fr/web-music-tools/tests/$ABC_UI/texts.html
+L: 1/8
+M: 4/4
+%
+K: C
+[|\ (EG) (cA) G4 | (EG) (Ac) G4 | c3 e d2 c2 | (dc) (Ac) G4 |
+w: Xi\vao* y\`an* zi, chu\=an* hu\=a* y\=i ni\'an ni\'an ch\=un ti\=an l\'ai* zh\`e* l\vi
+w: ?* ?* ?, ?* ?* ?, ? ? ? ? ?* ?* ??
+%
+E3 G A2 GA | c2 (dG) A4 | (ED) C2 D4 | D2 DE G2 G2 |
+w: w\vo w\`en y\`an zi n\vi w\`ei sh\'a* l\'ai y\`an* zi shu\=o zh\`e l\vi de ch\=un ti\=an
+w: ? ? ? ?* ? ?* ? ?? ? ? ?? ? ? ? ? ?
+%
+c2 (DE) G4 | (EG) (cA) G4 | (EG) (Ac) G4 | c3 e d2 c2 |
+w: zu\`i m\vei* l\`i Xi\vao* y\`an* zi g\`ao* su* n\vi j\=in ni\'an zh\`e l\vi
+w: ? ?* ?? ?* ?* ?? ?* ?* ? ? ? ? ?
+%
+(dc) (Ac) G4 | E3 G A2 GA | c2 (dG) A4 | (E3 c) A2 G2 |
+w: g\`eng* m\vei* l\`i w\vo men g\`ai q\vi le d\`a g\=ong* ch\vang zhu\=ang* sh\`ang le
+w: ?* ?* ? ? ? ? ? ? ? ?* ? ?* ? ?
+%
+(ED) C2 D4 | D3 E G4 | (c3 e) (d2 c2) | dc (GA) c4 |]
+w: x\=in* j\=i qi hu\=an y\'ing n\vi ch\'ang* q\=i* zh\`u z\`ai zh\`e* l\vi.
+w: ?* ? ?. ? ? ? ?* ?* ? ? ?* ?.
+

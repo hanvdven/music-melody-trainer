@@ -273,10 +273,16 @@ const PC_ORDER = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 
 const NATURAL_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 // Intervals reuse the app's own chordDefinitions vocabulary (src/theory/chordDefinitions.js): a
 // dominant seventh is [0,4,7,10] there too — no new chord theory is introduced by this script.
+// Bug fix (Han 2026-08-11, #871 UAT: "waarom komt de notatie A^m vandaan? Ik gebruik A^- voor
+// mineurakkoorden"): `suffix` is the DISPLAY string ChordLabelsLayer renders verbatim as a superscript
+// (Chord.js's own `internalSuffix` doc comment already states the app's convention: "e.g. maj7, -7", not
+// "m"/"m7") — these were copied straight from ABC's own minor-chord letter ('m'/'min'/'-') instead of
+// translated into the app's own notation. The chord TYPE string is unaffected (free-form label, only
+// `suffix`/`name` are user-visible).
 const CHORD_QUALITIES = [
     { re: /^maj7/, type: 'maj7', suffix: 'maj7', intervals: [0, 4, 7, 11] },
-    { re: /^m7|^min7|^-7/, type: 'min7', suffix: 'm7', intervals: [0, 3, 7, 10] },
-    { re: /^m|^min|^-/, type: 'minor', suffix: 'm', intervals: [0, 3, 7] },
+    { re: /^m7|^min7|^-7/, type: 'min7', suffix: '-7', intervals: [0, 3, 7, 10] },
+    { re: /^m|^min|^-/, type: 'minor', suffix: '-', intervals: [0, 3, 7] },
     { re: /^dim|^°/, type: 'dim', suffix: '°', intervals: [0, 3, 6] },
     { re: /^aug|^\+/, type: 'aug', suffix: '+', intervals: [0, 4, 8] },
     { re: /^sus4/, type: 'sus4', suffix: 'sus4', intervals: [0, 5, 7] },

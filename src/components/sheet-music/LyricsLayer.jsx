@@ -110,6 +110,12 @@ const renderMelodic = ({
 const renderTextLyrics = ({
   melody, lyricsY, offsets, nw, startX,
   textLyricsActive, getLyricFill,
+  // #871 (Han 2026-08-11 UAT: "akkoorden en lyrics schuiven niet mee met de noten"): OPTIONAL,
+  // mirrors ChordLabelsLayer's own pixelsPerTick mode (already used there for the RPG side-scroll
+  // staff) — when provided, position directly from the note's own tick offset instead of an
+  // index lookup into the (static-only) `offsets` grid, so lyrics scroll in the SAME coordinate
+  // space as SheetRpgLayer's MelodyNotesLayer noteheads. null/omitted → unchanged index-based path.
+  pixelsPerTick = null,
 }) => {
   if (!melody?.lyrics || !textLyricsActive) return null;
   const notes = melody.notes;
@@ -124,9 +130,14 @@ const renderTextLyrics = ({
     if (!syllable) return null;
     const tickOffset = melOffsets[i];
     if (tickOffset == null) return null;
-    const idx = offsets.indexOf(tickOffset);
-    if (idx < 0) return null;
-    const x = getXLocal(idx) + 5;
+    let x;
+    if (pixelsPerTick !== null) {
+      x = startX + tickOffset * pixelsPerTick + 5;
+    } else {
+      const idx = offsets.indexOf(tickOffset);
+      if (idx < 0) return null;
+      x = getXLocal(idx) + 5;
+    }
     const fill = getLyricFill(note, tickOffset, false);
     return (
       <text

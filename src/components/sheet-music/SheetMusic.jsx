@@ -3009,6 +3009,22 @@ const SheetMusic = ({
                       anacrusisMeasureIndex,
                       mergedBodyMeasures,
                     } : null}
+                    // #871 (Han 2026-08-11 UAT: "akkoorden en lyrics schuiven niet mee met de noten"):
+                    // chord labels for the scrolling treble staff — same `processedChords` data the static
+                    // ChordLabelsLayer above already renders, positioned via ChordLabelsLayer's own
+                    // pixelsPerTick mode (already supported there) so it scrolls in lockstep with the
+                    // notes. No slime/combat coupling — purely visual, like decorativeWizard/npc.
+                    scrollChords={sideScroll && actualChords ? {
+                      chordProgression, processedChords, chordDisplayMode, noteColoringMode, theme,
+                      tonic, scaleNotes, chordTransSemitones, chordWrittenAccidentals,
+                      measureLengthSlots, startMeasureIndex, displayNumMeasures,
+                    } : null}
+                    // Song lyrics for the scrolling treble staff — LyricsLayer's 'text' variant, now also
+                    // pixelsPerTick-aware (see LyricsLayer.jsx). Pass the ORIGINAL trebleMelody (not
+                    // adjustedTrebleMelody) so melody.lyrics[] indices align, same as the static render.
+                    scrollLyrics={sideScroll && textLyricsActive ? {
+                      melody: trebleMelody, textLyricsActive, getLyricFill,
+                    } : null}
                   />
 
                   {/* Range-edit's end barline is now drawn by the shared overlay frame

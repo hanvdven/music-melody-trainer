@@ -224,6 +224,9 @@ const TabView = ({
                                         transpose={keyboardTranspose}
                                         activeChord={keyboardActiveChord}
                                         theme={theme}
+                                        // #871 (Han 2026-08-11 UAT): the main practice/level keyboard derives
+                                        // its QWERTY mapping from the active range instead of always C4=Q.
+                                        useRangeDerivedScheme
                                     />
                                 </>
                             )}
@@ -289,6 +292,7 @@ const TabView = ({
                                         transpose={keyboardTranspose}
                                         activeChord={keyboardActiveChord}
                                         theme={theme}
+                                        useRangeDerivedScheme
                                     />
                                 </>
                             )}

@@ -1,0 +1,109 @@
+// #871 (Han 2026-08-11, #871 UAT: "Sakura: de keyboard range past niet... die regel moet flexibeler"):
+// PianoView's QWERTY mapping used to ALWAYS anchor C4=Q (FIXED_ANCHOR_WHITE_KEYS in PianoView.jsx) —
+// any note outside the fixed C4-G5 window simply got no physical key. For a song whose range sits
+// elsewhere (e.g. Sakura's B3-C5), that meant most of the melody had no QWERTY key at all. This module
+// derives a scheme dynamically from a melody's actual note range, following Han's own fallback ladder
+// (locked during the #871 rework interview):
+//   a) range fits within (inclusive) C4-G5           -> unchanged default (C4=Q)
+//   b) else, range fits within SOME C(n)-G(n+1)       -> anchor that C(n)=Q (same 12-key shape, shifted)
+//   c) else, range spans <=12 white keys               -> anchor the range's own LOWEST white key on Q
+//   d) else, range spans <=14 white keys                -> as (c), but the row is extended with Tab
+//                                                           (one white key before Q) and \ (one after ])
+//   e) else                                              -> spread over two rows: bottom row (Z../, 10
+//                                                           keys) carries the low end starting at Z =
+//                                                           the range's lowest note; the top row (Q..])
+//                                                           continues immediately where the bottom row's
+//                                                           '/' leaves off.
+// Returns the same { whiteNotes, whiteKeys, blackGapKeys } shape PianoView.jsx's QWERTY_SCHEMES already
+// use (blackGapKeys[i] = physical key for the gap between whiteNotes[i]/[i+1], undefined = no black key
+// there — E-F and B-C boundaries never have one).
+
+const NATURAL_LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const NATURAL_ORDER = { C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6 };
+
+// Natural-note-only ordinal (accidentals fold onto their own letter's slot — this scheme only ever
+// assigns QWERTY keys to WHITE keys, so a sharp/flat note's exact chroma doesn't change which physical
+// key-window it needs to fall inside).
+export const whiteKeyOrdinal = (note) => {
+    const m = String(note).match(/^([A-G])[#♯b♭]?(-?\d+)$/);
+    if (!m) return null;
+    return parseInt(m[2], 10) * 7 + NATURAL_ORDER[m[1]];
+};
+
+const noteAtOrdinal = (ord) => {
+    const octave = Math.floor(ord / 7);
+    const letter = NATURAL_LETTERS[((ord % 7) + 7) % 7];
+    return `${letter}${octave}`;
+};
+
+// Top physical row, extended with Tab (before Q) and \ (after ]) for rule (d). Index 0 = Tab.
+const TOP_ROW_WHITE_KEYS = ['tab', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\\'];
+// Gaps for the EXTENDED 14-key row (13 gaps). The original 11 app-scheme gap labels sit in the middle
+// (between q and ]); the two new boundary gaps (tab-q, ]-\\) have no established number-row partner in
+// this app's convention, so they carry no black key (undefined) rather than inventing a new label.
+const TOP_ROW_GAP_KEYS = [undefined, '2', '3', undefined, '5', '6', '7', undefined, '9', '0', undefined, '=', undefined];
+
+const BOTTOM_ROW_WHITE_KEYS = ['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/'];
+const BOTTOM_ROW_GAP_KEYS = ['s', undefined, 'd', 'f', undefined, 'h', 'j', 'k', undefined];
+
+// Builds a { whiteNotes, whiteKeys, blackGapKeys } window: `count` consecutive natural notes starting
+// at ordinal `anchorOrd`, using the top row's keys starting at `keyOffset` (1 = skip Tab, the app-scheme
+// default; 0 = include Tab as the first key, rule d's low end).
+const topRowWindow = (anchorOrd, count, keyOffset) => ({
+    whiteNotes: Array.from({ length: count }, (_, i) => noteAtOrdinal(anchorOrd + i)),
+    whiteKeys: TOP_ROW_WHITE_KEYS.slice(keyOffset, keyOffset + count),
+    blackGapKeys: TOP_ROW_GAP_KEYS.slice(keyOffset, keyOffset + count - 1),
+});
+
+export function deriveQwertyScheme(rangeMin, rangeMax) {
+    const loOrd = whiteKeyOrdinal(rangeMin);
+    const hiOrd = whiteKeyOrdinal(rangeMax);
+    if (loOrd == null || hiOrd == null || hiOrd < loOrd) {
+        // Malformed input — fall back to the app default rather than throwing (mirrors
+        // QWERTY_SCHEMES.app in PianoView.jsx; kept in sync there, not re-imported, to avoid a
+        // circular import between the two files).
+        return topRowWindow(4 * 7, 12, 1);
+    }
+    const whiteCount = hiOrd - loOrd + 1;
+    const fitsWindow = (anchorOrd, count) => loOrd >= anchorOrd && hiOrd <= anchorOrd + count - 1;
+
+    // a) fits the existing default window (C4-G5) — byte-identical to today's behaviour.
+    const C4_ORD = 4 * 7;
+    if (fitsWindow(C4_ORD, 12)) return topRowWindow(C4_ORD, 12, 1);
+
+    // b) fits SOME other C(n)-G(n+1) — same 12-key shape, anchored at that C instead.
+    for (let n = 0; n <= 9; n++) {
+        const anchorOrd = n * 7;
+        if (fitsWindow(anchorOrd, 12)) return topRowWindow(anchorOrd, 12, 1);
+    }
+
+    // c) doesn't fit any C-anchored window, but the range itself spans <=12 white keys —
+    // anchor the range's OWN lowest white key on Q.
+    if (whiteCount <= 12) return topRowWindow(loOrd, whiteCount, 1);
+
+    // d) <=14 white keys — extend with Tab (before Q) and \ (after ]).
+    if (whiteCount <= 14) return topRowWindow(loOrd, whiteCount, 0);
+
+    // e) still doesn't fit — spread over two rows. Bottom row (Z../, up to 10 keys) carries the low
+    // end starting at the range's own lowest note; the top row (Q..], up to 12 keys, no Tab/\\ needed
+    // here) continues immediately where the bottom row leaves off, so the two rows together form one
+    // continuous ascending sequence of white keys.
+    const bottomCount = Math.min(10, whiteCount);
+    const topCount = Math.min(12, whiteCount - bottomCount);
+    const bottomOrd = loOrd;
+    const topOrd = loOrd + bottomCount;
+    return {
+        whiteNotes: [
+            ...Array.from({ length: bottomCount }, (_, i) => noteAtOrdinal(bottomOrd + i)),
+            ...Array.from({ length: topCount }, (_, i) => noteAtOrdinal(topOrd + i)),
+        ],
+        whiteKeys: [...BOTTOM_ROW_WHITE_KEYS.slice(0, bottomCount), ...TOP_ROW_WHITE_KEYS.slice(1, 1 + topCount)],
+        // No black key across the two-row seam (bottom row's last key to top row's first) — the two
+        // rows are physically not adjacent, so no single key could represent that gap.
+        blackGapKeys: [
+            ...BOTTOM_ROW_GAP_KEYS.slice(0, bottomCount - 1),
+            undefined,
+            ...TOP_ROW_GAP_KEYS.slice(1, topCount),
+        ],
+    };
+}

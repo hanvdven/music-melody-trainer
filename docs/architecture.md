@@ -13113,3 +13113,86 @@ components/sheet-music/SheetMusic.jsx` (`npc` pass-through prop), `src/component
 SheetRpgLayer.jsx` (`Critter`'s `scale`/`preferIdle` props, `npcVariant`/`NPC_SCALE` derivation, the
 decorative-NPC render branch), tests: `src/songs/__tests__/songData.test.js`, `src/levels/__tests__/
 songLevels.test.js`, `src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx` (2 new cases).
+
+### §203. #871 UAT round 1 fixes — scale-mode bug, chord-suffix convention, song-empty-track suppression, timpani barline drift, RPG scroll chords/lyrics, dynamic QWERTY range mapping (Han 2026-08-11)
+
+**Context:** first UAT pass on §202's 7 named song levels surfaced 7 issues, several of which turned out
+to be PRE-EXISTING app bugs merely exposed for the first time by a genuinely non-C-major, non-4/4,
+mixed-track-availability song (rather than defects specific to the song-level feature itself). Full
+before/after detail lives in kanban ticket #871's `rework_feedback` (each item individually addressed).
+
+**1) `useScaleManagement.js`'s `setSelectedMode` never recomputed the `Scale` object (root cause of
+"voortekens komen niet overeen met de key" — Sakura/Scarborough Fair showed A-major's 3 sharps instead
+of A-minor's 0).** Pre-existing, app-wide bug: `setSelectedMode(newMode)` only updated the bare
+`selectedMode` string via `_setSelectedMode` — the `Scale` object's own `.name`/`.numAccidentals` were
+only ever recomputed by `setTonic` (via `updateScaleWithTonic`, which reads mode from the scale's OWN
+`.name`, not the just-changed argument). `ScaleSelector.jsx`'s manual mode picker worked around this by
+calling `updateScaleWithMode`+`setScale` itself, in addition to `setSelectedMode` — every OTHER caller
+(App.jsx's `handleLoadSong`, `useLevel`'s `applyConfig`) called `setSelectedMode` alone and silently kept
+the stale key signature. Fixed by folding the `updateScaleWithMode` recompute directly into
+`setSelectedMode` itself, so every caller is correct without needing the workaround. Test:
+`src/hooks/__tests__/useScaleManagement.test.js`.
+
+**2) Chord suffix used ABC's own minor letter ("m"/"m7") instead of the app's own notation ("A^m" shown
+instead of Han's "A^-" convention).** `scripts/abc-to-song.mjs`'s `CHORD_QUALITIES` table copied ABC's
+minor-chord letter straight into the song JSON's `suffix`/`name` fields — `Chord.js`'s own
+`internalSuffix` doc comment already states the app's convention ("e.g. maj7, -7", not "m"/"m7").
+Fixed the table (`m`→`-`, `m7`→`-7`) and re-ran the conversion script on all 7 songs (chord-only diff,
+no note/rhythm changes).
+
+**3) A song-backed level with no bass/percussion track (`bass:null`/`percussion:null` in the song JSON)
+still generated and showed a full procedural backing track underneath it.** Every side-scroll level
+unconditionally applied the cello-generator bass preset and turned on `percussionSettings.melodic`
+(→ timpani generation) regardless of whether the level's song actually provided those tracks. Fixed via
+two new derived booleans on `songLevelDefaults()` (`songHasBass`/`songHasPercussion`, `src/levels/
+levels.js`), read by `useLevel.js`'s `applyConfig` to skip the bass preset / keep `percussionSettings.
+melodic` false, by `computeEyes` to hide the empty staff, and by a new `bassEnabled` prop on
+`useLevelBackingStream` that skips bass-chunk growth/scheduling entirely (metronome unaffected — the
+UAT feedback was specifically about bass/percussion). All 7 abc songs have `bass:null`/`percussion:null`,
+so none of them show or generate phantom backing content anymore.
+
+**4) Timpani pattern drifted out of phase with the barline in any non-4/4 time signature.**
+`utils/timpaniPattern.js`'s 4-beat `[C2,C2,C3,rest]` pattern was indexed by a single free-running counter
+across the whole piece — for 4/4 that's indistinguishable from "restart every measure" (pattern length
+happens to equal beats/measure), but for 3/4 each subsequent measure started on a different pattern
+index, drifting the downbeat emphasis out of sync with the actual barlines. Fixed by indexing on
+beat-WITHIN-measure instead of an absolute counter (byte-identical output for 4/4). Tests extended in
+`src/utils/__tests__/timpaniPattern.test.js`. (Moot for these 7 song levels specifically, since none of
+them has a percussion track per fix #3 above — kept as a general correctness fix for any future
+percussion-bearing non-4/4 level/song.)
+
+**5) Chord labels and lyrics never scrolled in the RPG side-scroll view.** `SheetRpgLayer.jsx` only ever
+rendered `MelodyNotesLayer` for its scrolling notation groups — `ChordLabelsLayer`/`LyricsLayer` were
+never invoked there at all (a genuine gap, not a positioning/clipping issue). Fixed by threading two new
+bundle props from `SheetMusic.jsx` (`scrollChords`, `scrollLyrics`, same "null when not applicable"
+convention as the existing `scrollNotation*` bundles) and rendering `ChordLabelsLayer`/`LyricsLayer`
+INSIDE the same `<g ref={noteScrollRef}>` group the treble noteheads already scroll in — since both
+layers position via the SAME `pixelsPerTick`+`startX` formula `MelodyNotesLayer` uses (`ChordLabelsLayer`
+already supported a `pixelsPerTick` mode; `LyricsLayer`'s `variant="text"` gained one, additive/optional,
+`renderMelodic`/`renderRhythmicLyrics` unchanged), they scroll in perfect lockstep with the notes for
+free — no new imperative per-frame update code needed. Purely visual, no combat/click coupling.
+
+**6) QWERTY keyboard mapping was a single fixed C4=Q window — a melody outside C4-G5 (e.g. Sakura's
+B3-C5) left most of its notes with no playable key at all.** New pure, unit-tested module
+`src/utils/qwertyScheme.js` (`deriveQwertyScheme(rangeMin, rangeMax)`) implements the fallback ladder
+Han specified during the rework interview: (a) range fits C4-G5 → unchanged; (b) else fits some other
+C(n)-G(n+1) → anchor that C(n) on Q; (c) else the range spans ≤12 white keys → anchor the range's own
+LOWEST white key on Q; (d) else ≤14 white keys → extend the row with Tab (before Q) and `\` (after `]`);
+(e) else → spread across two physical rows (bottom row Z…/ carries the low end starting at Z = the
+range's lowest note, top row Q…] continues immediately where the bottom row leaves off). Wired into
+`PianoView.jsx` via a new OPT-IN prop `useRangeDerivedScheme` (default false — every existing call site
+that intentionally wants the fixed, predictable C4-anchored window, e.g. `KeyboardRangeSetter`/
+`KeyboardTransposeSetter`/`ScaleSelector`/`ToneRecognizer`, is unaffected); only `TabView.jsx`'s two main
+practice/level keyboards opt in. Tests: `src/utils/__tests__/qwertyScheme.test.js` (9 cases covering all
+5 rules, including the exact Sakura B3-C5 scenario).
+
+**Files:** `src/hooks/useScaleManagement.js`, `scripts/abc-to-song.mjs` + regenerated `src/songs/data/*.
+json`, `src/levels/levels.js` (`songHasBass`/`songHasPercussion`), `src/hooks/useLevel.js`
+(`applyConfig`/`computeEyes`), `src/hooks/useLevelBackingStream.js` (`bassEnabled`), `src/App.jsx`
+(`bassEnabled` wiring), `src/utils/timpaniPattern.js`, `src/components/sheet-music/SheetMusic.jsx`
+(`scrollChords`/`scrollLyrics` bundles), `src/components/sheet-music/SheetRpgLayer.jsx`
+(`chordStaffContent`/`lyricsStaffContent` memos), `src/components/sheet-music/LyricsLayer.jsx`
+(`pixelsPerTick` on `renderTextLyrics`), `src/utils/qwertyScheme.js` (new), `src/components/controls/
+PianoView.jsx` (`useRangeDerivedScheme`), `src/components/layout/TabView.jsx`. Tests: `src/hooks/
+__tests__/useScaleManagement.test.js`, `src/utils/__tests__/timpaniPattern.test.js`, `src/utils/
+__tests__/qwertyScheme.test.js`.

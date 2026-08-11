@@ -22,6 +22,8 @@ import playOneShotSfx, { HIT_ON_WOOD_FILES } from '../../audio/playOneShotSfx';
 import { noteToMidi } from '../../theory/noteUtils';
 import MelodyNotesLayer from './MelodyNotesLayer';
 import BarlinesLayer from './BarlinesLayer';
+import ChordLabelsLayer from './ChordLabelsLayer';
+import LyricsLayer from './LyricsLayer';
 import { getNoteAbsoluteY } from './renderMelodyNotes';
 import { StaffQuarterNote } from './staffNoteGlyph';
 import { gradeHit, GRADE_LABELS, PERFECT_BEATS, TOO_BEATS, MUCH_TOO_BEATS } from '../../levels/gradeHit';
@@ -606,6 +608,12 @@ export default function SheetRpgLayer({
     // null outside side-scroll. The whole staff is laid out at the scroll spacing (startX = viewRight,
     // pixelsPerTick = scrollPPT) and translated left over time — rigid & LINEAR (Han); slimes hop under it.
     scrollNotation = null, scrollBarlines = null,
+    // #871 (Han 2026-08-11 UAT: "akkoorden en lyrics schuiven niet mee met de noten"): chord labels +
+    // song lyrics for the scrolling treble staff — same bundle-prop convention as scrollNotation above,
+    // null outside side-scroll / when nothing to show. Rendered inside the SAME translated group as the
+    // treble noteheads (noteScrollRef below) so they scroll in perfect lockstep for free — no new
+    // imperative per-frame update code needed. Purely visual, no combat coupling.
+    scrollChords = null, scrollLyrics = null,
     // #661 (Han 2026-08-02, "de 3 lijnen zichtbaar maken"): bass + percussion scroll ALONGSIDE treble, at
     // their own staff Y positions — visual only (no slimes, no combat; their audio is scheduled separately
     // via playMelodies in App.jsx). Same bundle shape as `scrollNotation`, null when not visible.
@@ -1742,6 +1750,35 @@ export default function SheetRpgLayer({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isWizard, sideScroll, scrollNotationClipped, viewRight, noteWidth, allOffsets, scrollPPT, trebleStart, debugMode]);
 
+    // #871 (Han 2026-08-11 UAT: "akkoorden en lyrics schuiven niet mee met de noten"): chord labels for
+    // the scrolling treble staff, rendered inside the SAME translated group as noteStaffContent (below)
+    // so they scroll in lockstep for free. ChordLabelsLayer already supports a pixelsPerTick mode (used
+    // nowhere else in this file before now) — startX=viewRight/pixelsPerTick=scrollPPT mirrors exactly
+    // how noteStaffContent positions MelodyNotesLayer above.
+    const chordStaffContent = useMemo(() => {
+        if (!(sideScroll && scrollChords)) return null;
+        return (
+            <ChordLabelsLayer
+                {...scrollChords} chords={null}
+                offsets={allOffsets} startX={viewRight} noteWidth={noteWidth} pixelsPerTick={scrollPPT}
+                trebleStart={trebleStart} debugMode={debugMode} overrideColor={null} inputTestState={null}
+            />
+        );
+    }, [sideScroll, scrollChords, allOffsets, viewRight, noteWidth, scrollPPT, trebleStart, debugMode]);
+
+    // Song lyrics for the scrolling treble staff — LyricsLayer's 'text' variant, now pixelsPerTick-aware
+    // (see LyricsLayer.jsx). Same y-offset as the static render (trebleStart + staffHeight + 39).
+    const lyricsStaffContent = useMemo(() => {
+        if (!(sideScroll && scrollLyrics)) return null;
+        return (
+            <LyricsLayer
+                variant="text" {...scrollLyrics}
+                lyricsY={trebleStart + staffHeight + 39}
+                offsets={allOffsets} nw={noteWidth} startX={viewRight} pixelsPerTick={scrollPPT}
+            />
+        );
+    }, [sideScroll, scrollLyrics, trebleStart, staffHeight, allOffsets, noteWidth, viewRight, scrollPPT]);
+
     // #661 (Han 2026-08-02): bass + percussion scroll the SAME way as treble (same scrollPPT/translate, so
     // a beat lines up vertically across all 3 staves) — visual only, no slimes/combat. Separate memos
     // (mirrors noteStaffContent above) so each staff's heavy beaming/accidental work is skipped independently
@@ -1846,7 +1883,13 @@ export default function SheetRpgLayer({
                                 )}
                             </g>
                         )}
-                        {noteStaffContent && <g ref={noteScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContent}</g>}
+                        {(noteStaffContent || chordStaffContent || lyricsStaffContent) && (
+                            <g ref={noteScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>
+                                {noteStaffContent}
+                                {chordStaffContent}
+                                {lyricsStaffContent}
+                            </g>
+                        )}
                         {/* #692 Level 9 — every note: a plain rest (rhythm guide, no pitch), always visible. */}
                         {noteStaffContentRest && <g ref={restScrollRef} transform={`translate(${NOTE_STAFF_DX - scrollPx}, 0)`}>{noteStaffContentRest}</g>}
                         {/* #692 — the REAL notes/rests, visible ONLY in debug mode (Han: "onzichtbaar, maar

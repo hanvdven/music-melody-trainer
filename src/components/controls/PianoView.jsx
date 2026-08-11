@@ -6,6 +6,7 @@ import { standardizeTonic, getRelativeNoteName } from '../../theory/convertToDis
 import generateAllNotesArray from '../../theory/allNotesArray';
 import { getCanonicalNote, ENHARMONIC_PAIRS, getNoteSemitone, chordNoteColor } from '../../theory/noteUtils';
 import { transposeNoteBySemitones } from '../../theory/musicUtils';
+import { deriveQwertyScheme } from '../../utils/qwertyScheme';
 
 // Fold a semitone offset into the nearest octave, range [-6, +6]. Keyboard transposition is a
 // PITCH-CLASS rotation (Han 2026-06-13: "−1 and +11 are the same — the height comes from the range
@@ -87,6 +88,11 @@ const PianoView = ({
   // 'splitLeft', 'splitRight'). Lets a SECOND, simultaneously-rendered PianoView instance use its own
   // physical keys without colliding with the first instance's 'app' mapping.
   qwertyScheme = 'app',
+  // #871 (Han 2026-08-11 UAT): OPTIONAL, default false. When true AND `qwertyScheme` is left at its
+  // default 'app', derive the QWERTY mapping from `minNote`/`maxNote` (see utils/qwertyScheme.js)
+  // instead of the fixed C4=Q window. Only the main practice/level keyboard (TabView.jsx) opts in —
+  // every other call site keeps the predictable fixed window.
+  useRangeDerivedScheme = false,
   // Compact mode (e.g. the range-setter selector): suppress the note-name labels,
   // which are too large/cluttered on a small windowed keyboard.
   hideLabels = false,
@@ -328,7 +334,23 @@ const PianoView = ({
   }, [notes, startIndex, endIndex, findNoteIndex, isBlackKey]);
 
   // #FR2 (Han 2026-08-10): resolved scheme for this instance (defaults to the app-wide 'app' mapping).
-  const scheme = QWERTY_SCHEMES[qwertyScheme] || QWERTY_SCHEMES.app;
+  // Bug fix (Han 2026-08-11, #871 UAT: "Sakura: de keyboard range past niet... die regel moet
+  // flexibeler"): the plain fixed C4=Q window silently left most of a melody unmapped when its range
+  // sat elsewhere. When the caller left `qwertyScheme` at its default ('app' — every explicitly-named
+  // scheme like 'bassRow'/'splitLeft'/'splitRight' is UNCHANGED, this only affects the default path)
+  // and passed a `minNote`/`maxNote` range, derive a scheme from THAT range instead via the fallback
+  // ladder in utils/qwertyScheme.js — falls back to the unchanged default when no range is given (e.g.
+  // KeyboardRangeSetter/KeyboardTransposeSetter/ScaleSelector, which intentionally always show the
+  // fixed C4-anchored window regardless of any melody).
+  // OPT-IN (`useRangeDerivedScheme`, default false): several OTHER PianoView call sites also pass
+  // minNote/maxNote (KeyboardRangeSetter, KeyboardTransposeSetter, ScaleSelector, ToneRecognizer) but
+  // intentionally want the PREDICTABLE fixed C4-anchored window regardless of range — only the main
+  // practice/level keyboard (TabView.jsx) opts in.
+  const scheme = useMemo(() => {
+    if (qwertyScheme !== 'app') return QWERTY_SCHEMES[qwertyScheme] || QWERTY_SCHEMES.app;
+    if (useRangeDerivedScheme && minNote && maxNote) return deriveQwertyScheme(minNote, maxNote);
+    return QWERTY_SCHEMES.app;
+  }, [qwertyScheme, useRangeDerivedScheme, minNote, maxNote]);
 
   // The FIXED black-key note NAMES for the resolved scheme's white-key gaps, built with the EXACT SAME
   // gap-scan algorithm the visible-range `blackKeys` above uses (reused, not re-derived by hand — §6c)

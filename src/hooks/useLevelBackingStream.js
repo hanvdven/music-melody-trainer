@@ -48,6 +48,13 @@ export default function useLevelBackingStream({
   bassInstrument,
   metronomeInstrument,
   stopFnsRef,      // shared levelBackingStopFnsRef — collects every scheduled note's StopFn
+  // Bug fix (Han 2026-08-11, #871 UAT: "song loader lijkt met een aantal tellen extra noten bas te
+  // beginnen... als er niets wordt meegegeven, laat die dan leeg"): a song-backed level whose song
+  // provides no bass track sets this false — the metronome still grows/schedules exactly as before
+  // (unaffected; Han's feedback was specifically about bass/percussion, not the metronome), only the
+  // bass chunk's growth/scheduling is skipped so its staff and audio stay empty instead of being
+  // filled by the level's normal cello-backing generator underneath a song that never asked for one.
+  bassEnabled = true,
 }) {
   const [bass, setBass] = useState(() => Melody.defaultBassMelody());
   const [metronome, setMetronome] = useState(() => Melody.defaultMetronomeMelody());
@@ -128,12 +135,18 @@ export default function useLevelBackingStream({
       });
 
       const baseTicks = chunkIndex * chunkMeasures * measureLengthTicks;
-      growingBass = appendChunk(growingBass, bassChunk, baseTicks);
+      // #871: skip growing/publishing the bass melody entirely when the song has no bass track — it
+      // stays the initial `Melody.defaultBassMelody()` (empty) set above, instead of filling in with
+      // this level's normal generated cello backing. The chunk is still generated above (cheap, and
+      // `generateLevelBackingChunk` always returns both together) — just discarded here.
+      if (bassEnabled) {
+        growingBass = appendChunk(growingBass, bassChunk, baseTicks);
+        setBass(growingBass);
+      }
       // The metronome's lead-in chunk starts ONE MEASURE later than bass's (measure 0, not -1) — its
       // own tick-timeline is shifted forward by one measure to match, so it never overlaps silence.
       const metronomeBaseTicks = isLeadIn ? measureLengthTicks : baseTicks;
       growingMetronome = appendChunk(growingMetronome, metronomeChunk, metronomeBaseTicks);
-      setBass(growingBass);
       setMetronome(growingMetronome);
 
       const chunkStartTime = levelAudioStart + chunkIndex * chunkMeasures * barSec;
@@ -149,7 +162,7 @@ export default function useLevelBackingStream({
           nowCtxTime: context.currentTime, levelAudioStart, chunkStartTime, metronomeStartTime, barSec,
         });
       }
-      if (bassChunk.notes.length) {
+      if (bassEnabled && bassChunk.notes.length) {
         scheduleAndTrack(
           [bassChunk], [bassInstrument], chunkStartTime, { bass: bassInstrument },
           { treble: 0, bass: 1, percussion: 0, chords: 0, metronome: 0 },
@@ -184,7 +197,7 @@ export default function useLevelBackingStream({
       ownStopFns.forEach((fn) => { try { fn(); } catch { /* already stopped */ } });
     };
   }, [active, lvl, levelAudioStart, context, bassReady, metronomeReady, levelMelodyReady, scale, timeSignature,
-    bassSettings, chordProgression, bassInstrument, metronomeInstrument, stopFnsRef]);
+    bassSettings, chordProgression, bassInstrument, metronomeInstrument, stopFnsRef, bassEnabled]);
 
   return { bass, metronome };
 }

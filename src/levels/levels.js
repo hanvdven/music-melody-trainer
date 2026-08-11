@@ -295,6 +295,14 @@ const songLevelDefaults = (songDef) => {
         notesPerMeasure: songDef.generator.trebleSettings.notesPerMeasure,
         range: { min, max },
         key: { tonic: `${songDef.defaultTonic}4`, mode: songDef.generator.scaleMode },
+        // Bug fix (Han 2026-08-11, #871 UAT: "percussie en bas zijn zichtbaar, terwijl er geen muziek
+        // is meegegeven in het lied" / "laat die dan leeg"): these 7 abc songs ship `bass: null,
+        // percussion: null` (only a fixed treble line + chords). Read by useLevel's applyConfig to skip
+        // the cello-generator preset / timpani-generation flag / staff visibility for whichever track
+        // the song doesn't provide, instead of the level's normal "always generate a backing track"
+        // behaviour bleeding through underneath the loaded (empty) song track.
+        songHasBass: songDef.difficulties.easy.bass != null,
+        songHasPercussion: songDef.difficulties.easy.percussion != null,
     };
 };
 

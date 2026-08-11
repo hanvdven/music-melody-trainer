@@ -82,6 +82,20 @@ export default function useScaleManagement({
     const setSelectedMode = useCallback((newMode) => {
         _setSelectedMode(newMode);
 
+        // Bug fix (Han 2026-08-11, #871 UAT: "voortekens komen niet overeen met de key... key is
+        // a-mineur, voortekens zijn a-majeur"): this used to ONLY update the bare `selectedMode`
+        // string, never the `Scale` OBJECT's own `.name`/`.numAccidentals` (only `setTonic` touched
+        // those, via `updateScaleWithTonic`, which reads mode from the STALE `prev.name` — so a
+        // mode-only change never recomputed the displayed key signature). ScaleSelector.jsx's own
+        // handleModeChange worked around this by calling `updateScaleWithMode`+`setScale` itself
+        // before ALSO calling this function — every OTHER caller (App.jsx's handleLoadSong,
+        // useLevel's applyConfig) called this function alone and silently got a stale key signature.
+        // Folding the recompute in HERE fixes it for every caller at once (§6c: one mechanism).
+        _setScale((prev) => {
+            if (!prev) return prev;
+            return updateScaleWithMode({ currentScale: prev, newFamily: prev.family, newMode });
+        });
+
         // When mode changes, if minimize is on, we might need a better tonic for THIS mode
         if (minimizeAccidentals) {
             _setTonic((prevTonic) => {

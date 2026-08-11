@@ -7,7 +7,7 @@
     3,
     4
   ],
-  "defaultTempo": 120,
+  "defaultTempo": 90,
   "defaultTonic": "G",
   "numMeasures": 16,
   "_source": {
@@ -371,8 +371,8 @@
           ],
           "root": "E3",
           "type": "minor",
-          "name": "Em",
-          "suffix": "m"
+          "name": "E-",
+          "suffix": "-"
         },
         {
           "offset": 216,
@@ -475,8 +475,8 @@
           ],
           "root": "E3",
           "type": "minor",
-          "name": "Em",
-          "suffix": "m"
+          "name": "E-",
+          "suffix": "-"
         },
         {
           "offset": 504,

@@ -7,7 +7,7 @@
     3,
     4
   ],
-  "defaultTempo": 120,
+  "defaultTempo": 90,
   "defaultTonic": "E",
   "numMeasures": 19,
   "_source": {
@@ -220,8 +220,8 @@
           ],
           "root": "E3",
           "type": "minor",
-          "name": "Em",
-          "suffix": "m"
+          "name": "E-",
+          "suffix": "-"
         },
         {
           "offset": 72,
@@ -246,8 +246,8 @@
           ],
           "root": "E3",
           "type": "minor",
-          "name": "Em",
-          "suffix": "m"
+          "name": "E-",
+          "suffix": "-"
         },
         {
           "offset": 144,
@@ -272,8 +272,8 @@
           ],
           "root": "E3",
           "type": "minor",
-          "name": "Em",
-          "suffix": "m"
+          "name": "E-",
+          "suffix": "-"
         },
         {
           "offset": 216,
@@ -298,8 +298,8 @@
           ],
           "root": "E3",
           "type": "minor",
-          "name": "Em",
-          "suffix": "m"
+          "name": "E-",
+          "suffix": "-"
         },
         {
           "offset": 324,
@@ -311,8 +311,8 @@
           ],
           "root": "E3",
           "type": "minor",
-          "name": "Em",
-          "suffix": "m"
+          "name": "E-",
+          "suffix": "-"
         },
         {
           "offset": 360,
@@ -350,8 +350,8 @@
           ],
           "root": "E3",
           "type": "minor",
-          "name": "Em",
-          "suffix": "m"
+          "name": "E-",
+          "suffix": "-"
         },
         {
           "offset": 540,
@@ -376,8 +376,8 @@
           ],
           "root": "E3",
           "type": "minor",
-          "name": "Em",
-          "suffix": "m"
+          "name": "E-",
+          "suffix": "-"
         }
       ]
     }

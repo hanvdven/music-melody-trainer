@@ -7,8 +7,15 @@ import { TICKS_PER_WHOLE } from '../constants/timing';
 // for BOTH the visual notation (when `percussionSettings.melodic` is on) and the level's timpani audio,
 // so the two can never drift apart.
 //
-// Cycles the 4-beat pattern by quarter-beat index so it degrades gracefully for any time signature (the
-// pattern itself is authored for 4/4 — Han's spec).
+// Bug fix (Han 2026-08-11, #871 UAT: "Scarborough Fair is in 3/4, maar de timpanen spelen in 4/4"): the
+// pattern index USED to be a single free-running counter across the whole piece, never reset at a
+// barline — for a 4/4 song that's indistinguishable from "restart every measure" (quartersPerMeasure=4
+// happens to equal the pattern's own length), but for a 3/4 song (quartersPerMeasure=3) each subsequent
+// measure started on a DIFFERENT pattern index than the last (measure 1: C2 C2 C3, measure 2: rest C2
+// C2, measure 3: C3 rest C2, ...) — audibly and visually drifting out of phase with the actual barlines,
+// i.e. "playing in 4/4" regardless of the song's own meter. Now indexed by BEAT-WITHIN-MEASURE instead of
+// an absolute counter, so beat 1 of every measure always lands on the pattern's own downbeat (PATTERN[0])
+// — byte-identical output for 4/4 (quartersPerMeasure===PATTERN.length, so this is a no-op there).
 const PATTERN = ['C2', 'C2', 'C3', null];
 const QUARTER = TICKS_PER_WHOLE / 4;   // 12 ticks
 
@@ -18,7 +25,8 @@ export default function buildTimpaniPattern(numMeasures, timeSignature = [4, 4])
     const totalQuarters = quartersPerMeasure * Math.max(1, numMeasures);
     const notes = [], offsets = [], durations = [];
     for (let i = 0; i < totalQuarters; i++) {
-        notes.push(PATTERN[i % PATTERN.length] ?? 'r');
+        const beatInMeasure = i % quartersPerMeasure;
+        notes.push(PATTERN[beatInMeasure % PATTERN.length] ?? 'r');
         offsets.push(i * QUARTER);
         durations.push(QUARTER);
     }

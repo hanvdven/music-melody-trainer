@@ -6,7 +6,7 @@
 // Changing this value requires updating all rhythm-slot arithmetic.
 export const GLOBAL_RESOLUTION = 16;
 
-export const DEFAULT_BPM          = 120;
+export const DEFAULT_BPM          = 90;
 export const DEFAULT_TIME_SIG     = [4, 4];
 export const DEFAULT_NUM_MEASURES = 2;
 export const DEFAULT_SCALE_TONIC  = 'C4';

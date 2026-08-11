@@ -209,3 +209,38 @@ describe('useScaleManagement.handleEnharmonicToggle', () => {
         expect(updateFn(null)).toBe(null);
     });
 });
+
+// Bug fix (Han 2026-08-11, #871 UAT: "voortekens komen niet overeen met de key... key is a-mineur,
+// voortekens zijn a-majeur"): `setSelectedMode` used to ONLY update the bare `selectedMode` string —
+// the `Scale` OBJECT's own `.name`/`.numAccidentals` were never recomputed for the new mode (only
+// `setTonic`, via `updateScaleWithTonic`, touched those — and that reads mode from the STALE
+// `prev.name`). Every caller that changed mode WITHOUT also manually calling `updateScaleWithMode`
+// itself (App.jsx's handleLoadSong, useLevel's applyConfig) silently kept the OLD key signature.
+describe('useScaleManagement.setSelectedMode (#871 bug fix)', () => {
+    it('recomputes the Scale object (numAccidentals) for the new mode via _setScale, not just the bare selectedMode string', () => {
+        const _setScale = vi.fn();
+        const deps = makeDeps({ scale: makeScale('A4'), _setScale });
+        const { result } = renderHook(() => useScaleManagement(deps));
+
+        act(() => result.current.setSelectedMode('Minor'));
+
+        expect(_setScale).toHaveBeenCalled();
+        const updateFn = _setScale.mock.calls[0][0];
+        // A minor (Aeolian) has 0 accidentals — the bug produced A major's 3 sharps instead,
+        // because the Scale object's own `.name` never changed away from 'Major'.
+        const next = updateFn(makeScale('A4'));
+        expect(next.name).toBe('Minor');
+        expect(next.numAccidentals).toBe(0);
+    });
+
+    it('is a no-op on the Scale object when prev is null (guards the null-scale edge case)', () => {
+        const _setScale = vi.fn();
+        const deps = makeDeps({ _setScale });
+        const { result } = renderHook(() => useScaleManagement(deps));
+
+        act(() => result.current.setSelectedMode('Minor'));
+
+        const updateFn = _setScale.mock.calls[0][0];
+        expect(updateFn(null)).toBe(null);
+    });
+});
