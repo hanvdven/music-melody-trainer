@@ -3,6 +3,7 @@ import ChordProgression from '../model/ChordProgression';
 import InstrumentSettings from '../model/InstrumentSettings';
 import { generateProgression } from '../theory/chordGenerator';
 import MelodyGenerator from './melodyGenerator';
+import { WORLD_BPM, WORLD_TIME_SIGNATURE } from '../audio/worldClock';
 
 // #924 (Han 2026-08-12, "wereldlevel: speel op de achtergrond zachtjes random generated muziek met een
 // fluit (treble melody) en een acoustic_bass in de bas. bpm 100, numrepeats 1, nummeasures 2, c majeur,
@@ -12,19 +13,24 @@ import MelodyGenerator from './melodyGenerator';
 // (MelodyGenerator, theory/chordGenerator's generateProgression, docs/architecture.md §3) — per Han's own
 // choice ("hergebruik de hoofd-pipeline") — but with this feature's OWN fixed parameters, independent of
 // whatever InstrumentSettings/key the user's actual practice session has active.
-export const WORLD_AMBIENT_BPM = 100;
-export const WORLD_AMBIENT_TIME_SIGNATURE = [4, 4];
+// #924 round 4 ("alles op een klok... is die uberhaupt hetzelfde tempo?"): bpm/timeSignature are now
+// re-exported straight from worldClock.js — the ONE canonical "what tempo is the open world" constant,
+// also used by useDebugMetronome.js and the wisp/slime conversation (RpgLevelBottomPanel.jsx) — instead of
+// a second, independently-defined 100bpm copy that could silently drift out of sync with those.
+export const WORLD_AMBIENT_BPM = WORLD_BPM;
+export const WORLD_AMBIENT_TIME_SIGNATURE = WORLD_TIME_SIGNATURE;
 export const WORLD_AMBIENT_NUM_MEASURES = 2;
 export const WORLD_AMBIENT_SILENCE_CHANCE = 2 / 3;
 
-// #924: flute (treble) + acoustic_bass (bass) — fixed instruments, independent of the user's own
-// configured treble/bass instrument (useWorldAmbientMusic.js gives them their OWN dedicated Soundfont
-// instances, never the user's live ones).
+// #924 round 4 (Han: "ik nog steeds maar weinig melodie. zet die maar even op piano-instrument, en zelfde
+// volume als de vogels"): both treble and bass switched to piano while diagnosing audibility — was
+// flute/acoustic_bass. Own dedicated Soundfont instances either way (useWorldAmbientMusic.js), never the
+// user's own configured treble/bass instrument.
 export const WORLD_AMBIENT_TREBLE_SETTINGS = new InstrumentSettings(
-    'flute', 'treble', 3, 8, 40, 'scale', 'uniform', null, true, { min: 'C4', max: 'C6' }, 'treble', 'fixed', 'C', 12,
+    'acoustic_grand_piano', 'treble', 3, 8, 40, 'scale', 'uniform', null, true, { min: 'C4', max: 'C6' }, 'treble', 'fixed', 'C', 12,
 );
 export const WORLD_AMBIENT_BASS_SETTINGS = new InstrumentSettings(
-    'acoustic_bass', 'bass', 2, 4, 20, 'chord', 'emphasize_roots', null, true, { min: 'C2', max: 'C4' }, 'bass', 'fixed', 'C', 12,
+    'acoustic_grand_piano', 'bass', 2, 4, 20, 'chord', 'emphasize_roots', null, true, { min: 'C2', max: 'C4' }, 'bass', 'fixed', 'C', 12,
 );
 
 // Generates ONE ambient block. Treble and bass each roll their OWN independent 2/3 silence chance (Han,

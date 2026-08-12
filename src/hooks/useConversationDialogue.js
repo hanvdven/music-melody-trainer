@@ -103,9 +103,13 @@ export default function useConversationDialogue({
                 const entry = schedule[i];
                 if (entry.tone && profile?.instrument) {
                     // #922 round 3: up to GROUP_SIZE characters now share one click — each note's audible
-                    // length shrinks to its own `subSpan` share of the click so simultaneous/rapid notes
-                    // don't overlap and blur together.
-                    const noteDuration = (clickMs / 1000) * (entry.subSpan ?? 1) * 0.9;
+                    // length is sized off its own `subSpan` share of the click.
+                    // #922 round 4 (Han: "de tekst klinkt heel bot... maak de duur van de noten 2x zo lang
+                    // (dan overlappen ze dus)"): deliberately OVERLAPPING now (subSpan × 1.8, was × 0.9) —
+                    // Han's own diagnosis was that the sharp per-note cutoff (each note choked right at the
+                    // next note's onset) read as curt/robotic; letting consecutive notes ring into each
+                    // other softens that.
+                    const noteDuration = (clickMs / 1000) * (entry.subSpan ?? 1) * 1.8;
                     playSound(entry.tone, profile.instrument, context, context.currentTime, noteDuration, 0.8);
                 }
                 i += 1;

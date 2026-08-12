@@ -14142,3 +14142,51 @@ activates, so replacing the MIDI file with more/fewer tracks never needs a code 
 
 **Files:** `src/hooks/useWorldAmbientMusic.js`, `src/hooks/useConversationDialogue.js`,
 `src/generation/generateWorldAmbientBlock.js`, `scripts/generate-bird-sounds.mjs`.
+
+### §218. §217 UAT round — canonical WORLD_BPM everywhere, note-duration overlap, per-trigger bird selection (#924, Han 2026-08-12)
+
+**One tempo, not three** (Han: "alles op een klok geldt ook voor de tekst, en de toggleable
+wereldmetronoom... die kan nooit in sync zijn met de wereld timer. Is die uberhaupt hetzelfde tempo..?"):
+`worldClock.js` now exports `WORLD_BPM = 100` / `WORLD_TIME_SIGNATURE = [4,4]` as the ONE canonical tempo for
+the open-world tab. Previously three DIFFERENT bpm sources fed the "same" grid formula: `useDebugMetronome`
+and the wisp/slime conversation both used the app's LIVE song/practice bpm (varies per level, e.g. 80-120),
+while ambient music/bird songs used their own locally-defined 100bpm constant — so even with matching grid
+math, the actual tempo disagreed. Fixed:
+- `useDebugMetronome.js`: `bpm`/`timeSignature` params now DEFAULT to `WORLD_BPM`/`WORLD_TIME_SIGNATURE`;
+  `RpgLevelPanel.jsx` no longer passes the live song bpm down to it. Also dropped its `startTimeRef` local
+  anchor entirely (Han: "de world metronome begint precies wanneer ik op start druk, dat vind ik verdacht")
+  — beat index is now `Math.floor(context.currentTime / secondsPerBeat)`, the ABSOLUTE grid, matching
+  `worldClock.js` and therefore never drifting when the debug toggle is flipped on/off.
+- `RpgLevelBottomPanel.jsx` (wisp/slime): `useConversationDialogue` now gets `WORLD_BPM`/`WORLD_TIME_SIGNATURE`
+  directly, not the `bpm`/`timeSignature` props previously threaded from `TabView`/`App.jsx`'s live state.
+- `generateWorldAmbientBlock.js`'s `WORLD_AMBIENT_BPM`/`WORLD_AMBIENT_TIME_SIGNATURE` are now re-exports of
+  `worldClock.js`'s canonical constants (were an independently-defined second copy).
+- The POST-COMBAT conversation (`App.jsx`'s `levelResultDialogue`) is the deliberate exception — it stays on
+  the just-played level's own bpm, since that context is still "that song's world", not the open world.
+
+**Note duration** (Han: "de tekst klinkt heel bot... maak de duur van de noten 2x zo lang (dan overlappen ze
+dus)"): `useConversationDialogue.js`'s per-character note duration changed from `subSpan × 0.9` to
+`subSpan × 1.8` — notes now deliberately overlap into each other instead of being sharply choked, per Han's
+own diagnosis of why it sounded curt.
+
+**Wisp pitch**: one further octave up (Han: "wisp +1 octaaf") — `conversationEntities.js`'s `WISP_TONE_POOL`
+C5/D5/E5 → C6/D6/E6.
+
+**Bird-song selection redesigned** (Han: "ik hoor de eenden niet, zorg dat je steeds een random track van de
+midi-file instart... niet kiezen wanneer ik tab open, steeds een andere kiezen bij instarten"): the earlier
+"pick 3-of-N once per tab activation" (`useMemo` keyed on `active`) meant whichever 3 tracks got picked at
+mount time played on repeat for the whole session — rarer tracks (e.g. a duck call) might never get picked
+at all. Now there are `MAX_CONCURRENT_BIRD_LAYERS` (3) independent trigger SLOTS (not bound to a specific
+track) — each slot's `triggerOnce` picks a FRESH random layer from the full `BIRD_SONG_LAYERS` pool every
+time it fires, so over a session every track eventually gets a turn.
+
+**Ambient music instrument/volume for diagnosis** (Han: "ik nog steeds maar weinig melodie. zet die maar
+even op piano-instrument, en zelfde volume als de vogels"): `WORLD_AMBIENT_TREBLE_SETTINGS`/`_BASS_SETTINGS`
+both switched to `acoustic_grand_piano` (was flute/acoustic_bass); `AMBIENT_TRACK_GAIN` lowered to match
+`BIRD_LAYER_GAIN` (0.22, was 0.28) — both tracks now share ONE Soundfont instance (cached by slug in
+`useWorldAmbientMusic.js`, so requesting `'acoustic_grand_piano'` twice returns the same cached instance).
+
+**Files:** `src/audio/worldClock.js`, `src/components/character/useDebugMetronome.js`,
+`src/components/character/RpgLevelPanel.jsx`, `src/components/character/RpgLevelBottomPanel.jsx`,
+`src/components/layout/TabView.jsx`, `src/generation/generateWorldAmbientBlock.js`,
+`src/hooks/useWorldAmbientMusic.js`, `src/hooks/useConversationDialogue.js`, `src/audio/conversationEntities.js`.

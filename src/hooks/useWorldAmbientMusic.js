@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Soundfont } from 'smplr';
 import playMelodies from '../audio/playMelodies';
 import { secondsPerTick } from '../constants/timing';
@@ -9,29 +9,20 @@ import {
 import { BIRD_SONG_LAYERS } from '../model/birdSoundsManifest.generated';
 
 // #924 (Han 2026-08-12): the open-world RPG-level tab's ambient background audio — quiet generated
-// flute+bass music, plus a handful of independently-triggered "bird song" layers (pre-authored MIDI
-// material, played on shakuhachi). Both only run while `active` (Han: "alleen de open-wereld RPG-level
-// tab"), and BOTH are anchored to the SAME world clock (`worldClock.js`'s `nextMeasureStartTime`) — Han,
-// round 2: "de vogel-midi lijkt totaal niet afgestemd op de metronoom. start (natuurlijk) altijd op het
-// begin van een maat"; round 4: "ook de tekst playback heeft een eigen metronoom... niet de bedoeling;
-// alles moet op dezelfde klok lopen" — this is the ONE clock every RPG-layer audio system reads from now
-// (see useConversationDialogue.js's matching fix).
-const AMBIENT_TRACK_GAIN = 0.28;      // Han: "zachtjes" — quiet, background, not competing with foreground audio
+// piano music, plus a handful of independently-triggered "bird song" layers (pre-authored MIDI material,
+// played on shakuhachi). Both only run while `active` (Han: "alleen de open-wereld RPG-level tab"), and
+// BOTH are anchored to the SAME world clock (`worldClock.js`'s `nextMeasureStartTime`/`WORLD_BPM`) — Han,
+// round 2: "de vogel-midi lijkt totaal niet afgestemd op de metronoom. start altijd op het begin van een
+// maat"; round 4: "alles op een klok geldt ook voor de tekst, en de toggleable wereldmetronoom" — this is
+// the ONE clock/tempo every RPG-layer audio system reads from now (see useConversationDialogue.js and
+// useDebugMetronome.js's matching fixes).
+const AMBIENT_TRACK_GAIN = 0.22;      // #924 round 4 (Han: "zelfde volume als de vogels") — was 0.28
 const BIRD_LAYER_GAIN = { treble: 0.22 };
 const BIRD_MIN_SILENCE_SEC = 5;
 const BIRD_MAX_SILENCE_SEC = 30;
 // #924 round 2 (Han: "ik heb de file geupdated. Speel altijd maximaal 3."): the source MIDI's own track
-// count is no longer fixed (now 6) — always pick at most this many to actually play at once.
+// count is no longer fixed (currently 6) — always at most this many CONCURRENT trigger slots.
 const MAX_CONCURRENT_BIRD_LAYERS = 3;
-
-function pickRandomLayers(layers, count) {
-    const pool = [...layers];
-    const picked = [];
-    while (pool.length && picked.length < count) {
-        picked.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-    }
-    return picked;
-}
 
 export default function useWorldAmbientMusic({ active, context }) {
     // Own dedicated Soundfont instances — NEVER the user's live configured treble/bass instrument (Han's
@@ -44,29 +35,23 @@ export default function useWorldAmbientMusic({ active, context }) {
         }
         return instrumentsRef.current[slug];
     };
-    // A fresh random 3-of-N subset each time the tab (re)activates.
-    const activeBirdLayers = useMemo(
-        () => pickRandomLayers(BIRD_SONG_LAYERS, MAX_CONCURRENT_BIRD_LAYERS),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [active],
-    );
 
-    // Generated ambient flute+bass loop — a JIT-style block-by-block generator (mirrors
+    // Generated ambient piano loop — a JIT-style block-by-block generator (mirrors
     // generateLevelBackingChunk.js/useLevelBackingStream.js's chunk pattern, §6c), each block scheduled via
     // the SAME playMelodies() every other track in the app plays through, and each block START snapped to
     // the world clock's next measure boundary (self-correcting every cycle, not just the first).
     useEffect(() => {
         if (!active || !context) return undefined;
-        const flute = getInstrument('flute');
-        const bass = getInstrument('acoustic_bass');
+        const treblePiano = getInstrument('acoustic_grand_piano');
+        const bassPiano = treblePiano;   // #924 round 4: same 'piano' instrument for both tracks now
         let cancelled = false;
         let timeoutId;
         // #924 round 2 bugfix: these are BRAND NEW Soundfont instances (not part of the app's boot-splash
         // load gate) — calling .start() before their sample data has actually loaded produced no audible
-        // sound at all (Han: "ik hoor de bas en treble melodie niet"). Wait for both `.load` promises
-        // before the first block; smplr resolves instantly for an already-loaded instance, so this is a
-        // no-op cost on every later block/reactivation.
-        Promise.all([flute.load, bass.load]).then(() => {
+        // sound at all (Han: "ik hoor de bas en treble melodie niet"). Wait for the `.load` promise before
+        // the first block; smplr resolves instantly for an already-loaded instance, so this is a no-op
+        // cost on every later block/reactivation.
+        treblePiano.load.then(() => {
             if (cancelled) return;
             const scheduleNextBlock = () => {
                 if (cancelled) return;
@@ -79,8 +64,9 @@ export default function useWorldAmbientMusic({ active, context }) {
                 const { treble, bass: bassMelody } = generateWorldAmbientBlock({ runId: `world-amb-${Date.now()}` });
                 if (treble || bassMelody) {
                     playMelodies(
-                        [treble, bassMelody], [flute, bass], context, WORLD_AMBIENT_BPM, startTime,
-                        null, null, { treble: flute, bass }, null, { treble: AMBIENT_TRACK_GAIN, bass: AMBIENT_TRACK_GAIN },
+                        [treble, bassMelody], [treblePiano, bassPiano], context, WORLD_AMBIENT_BPM, startTime,
+                        null, null, { treble: treblePiano, bass: bassPiano }, null,
+                        { treble: AMBIENT_TRACK_GAIN, bass: AMBIENT_TRACK_GAIN },
                     );
                 }
                 const blockMeasureSec = (startTime - context.currentTime)
@@ -93,26 +79,27 @@ export default function useWorldAmbientMusic({ active, context }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, context]);
 
-    // #924 (Han: "3 lagen bird song... eenmalig per trigger + willekeurige stilte erna... herschaal naar de
-    // wereld-bpm"; round 2: "start altijd op het begin van een maat"): one independent trigger loop per
-    // randomly-picked layer — each plays its own pre-authored phrase ONCE, snapped to the world clock's
-    // next measure boundary (at WORLD_AMBIENT_BPM, so it rescales exactly like any other generated melody
-    // in the app — NOT the MIDI file's own native tempo), then waits a random silence before re-triggering.
-    // Independent timers so layers overlap naturally, like real birds calling at unrelated moments.
+    // #924 (Han: "eenmalig per trigger + willekeurige stilte erna... herschaal naar de wereld-bpm"; round 2:
+    // "start altijd op het begin van een maat"; round 4: "ik hoor de eenden niet, zorg dat je steeds een
+    // random track van de midi-file instart; dus ook duck, sparrow_low/high... niet kiezen wanneer ik tab
+    // open, steeds een andere kiezen bij instarten"): MAX_CONCURRENT_BIRD_LAYERS independent trigger SLOTS
+    // (not fixed to specific tracks) — each slot picks a FRESH random layer from the WHOLE pool every time
+    // it fires, not once per tab-activation, so every track (including rarer ones) eventually gets a turn.
     useEffect(() => {
-        if (!active || !context || activeBirdLayers.length === 0) return undefined;
+        if (!active || !context || BIRD_SONG_LAYERS.length === 0) return undefined;
         const shakuhachi = getInstrument('shakuhachi');
         const timeoutIds = [];
         let cancelled = false;
         shakuhachi.load.then(() => {
             if (cancelled) return;
-            activeBirdLayers.forEach((layer) => {
-                const lastNoteEnd = layer.offsets.length
-                    ? Math.max(...layer.offsets.map((o, i) => o + layer.durations[i]))
-                    : 0;
-                const layerDurationSec = lastNoteEnd * secondsPerTick(WORLD_AMBIENT_BPM);
+            for (let slot = 0; slot < MAX_CONCURRENT_BIRD_LAYERS; slot++) {
                 const triggerOnce = () => {
                     if (cancelled) return;
+                    const layer = BIRD_SONG_LAYERS[Math.floor(Math.random() * BIRD_SONG_LAYERS.length)];
+                    const lastNoteEnd = layer.offsets.length
+                        ? Math.max(...layer.offsets.map((o, i) => o + layer.durations[i]))
+                        : 0;
+                    const layerDurationSec = lastNoteEnd * secondsPerTick(WORLD_AMBIENT_BPM);
                     const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
                     playMelodies(
                         [layer], [shakuhachi], context, WORLD_AMBIENT_BPM, startTime,
@@ -123,14 +110,14 @@ export default function useWorldAmbientMusic({ active, context }) {
                     const id = setTimeout(triggerOnce, waitSec * 1000);
                     timeoutIds.push(id);
                 };
-                // Stagger each layer's FIRST trigger with its own random initial delay so all layers don't
+                // Stagger each slot's FIRST trigger with its own random initial delay so they don't all
                 // start in lockstep the instant the tab opens.
                 const initialDelaySec = Math.random() * BIRD_MAX_SILENCE_SEC;
                 const id = setTimeout(triggerOnce, initialDelaySec * 1000);
                 timeoutIds.push(id);
-            });
+            }
         });
         return () => { cancelled = true; timeoutIds.forEach(clearTimeout); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [active, context, activeBirdLayers]);
+    }, [active, context]);
 }

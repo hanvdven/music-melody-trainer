@@ -5,8 +5,9 @@ import { DEFAULT_TONE_POOL } from './conversationTypewriter';
 // EITHER a fixed internal role (wisp/slime/wizard) OR a level's own `npc` field verbatim (e.g. "Japanese
 // Musician", levels.json) — both are looked up through the SAME `getEntityAudioProfile`.
 const WISP_TONE_POOL = [
-    // Han 2026-08-12: "de range van de wisp mag twee octaven omhoog" — default pool's C/D/E3 shifted to 5.
-    { note: 'C5', weight: 70 }, { note: 'D5', weight: 25 }, { note: 'E5', weight: 5 },
+    // Han 2026-08-12: "de range van de wisp mag twee octaven omhoog" (3->5), then round 4 follow-up:
+    // "wisp +1 octaaf" (5->6) — default pool's C/D/E3 shifted to 6.
+    { note: 'C6', weight: 70 }, { note: 'D6', weight: 25 }, { note: 'E6', weight: 5 },
 ];
 // Han 2026-08-12: "japanese musician: koto. gebruik de IN toonladder, dus noten C4 Db4 en F4 (met zelfde
 // kansverhouding)" — the "In" scale's characteristic notes, at the SAME 70/25/5 weighting as every other

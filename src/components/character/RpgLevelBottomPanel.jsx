@@ -2,6 +2,7 @@ import React from 'react';
 import { PET_CROP } from './CharacterDoll';
 import DialogueBox from './DialogueBox';
 import useConversationDialogue from '../../hooks/useConversationDialogue';
+import { WORLD_BPM, WORLD_TIME_SIGNATURE } from '../../audio/worldClock';
 import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS } from '../../model/enemyAssets';
 import wispUrl from '../../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore Wisp.png';
 
@@ -21,12 +22,17 @@ const SPEAKER_PORTRAIT_BY_ENTITY = {
     slime: { url: SLIME_COLORS.green, crop: SLIME_CROP, cellW: SLIME_FRAME.w, cellH: SLIME_FRAME.h },
 };
 
-export default function RpgLevelBottomPanel({ rpgLevel, context, bpm, timeSignature, instruments, getConversationProfile }) {
+// #924 round 4 (Han: "alles op een klok geldt ook voor de tekst... Is die uberhaupt hetzelfde tempo..?"):
+// the wisp/slime conversation is open-world chrome, not tied to whatever song/level the user last played —
+// it now ALWAYS runs at WORLD_BPM/WORLD_TIME_SIGNATURE (worldClock.js), the same fixed tempo the ambient
+// music, bird songs, and debug metronome all share, instead of the app's live (and irrelevant here) song
+// bpm that used to be threaded down from TabView/App.jsx.
+export default function RpgLevelBottomPanel({ rpgLevel, context, instruments, getConversationProfile }) {
     const { dialogue, closeDialogue, autoContinue, toggleAutoContinue } = rpgLevel;
     const profile = dialogue ? getConversationProfile(dialogue.entity) : null;
     const { visibleText, hasNextPage, handleTextClick } = useConversationDialogue({
-        pages: dialogue?.pages, active: !!dialogue, context, bpm, timeSignature, profile,
-        metronomeInstrument: instruments?.metronome, autoContinue, onClosed: closeDialogue,
+        pages: dialogue?.pages, active: !!dialogue, context, bpm: WORLD_BPM, timeSignature: WORLD_TIME_SIGNATURE,
+        profile, metronomeInstrument: instruments?.metronome, autoContinue, onClosed: closeDialogue,
     });
 
     if (!dialogue) {

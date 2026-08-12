@@ -7,6 +7,31 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-12 — ✅ #924 UAT round 2: WORLD_BPM overal, note-overlap, per-trigger bird-selectie
+
+Han: "alles op een klok geldt ook voor de tekst, en de toggleable wereldmetronoom." + "de tekst klinkt heel
+bot... maak de duur van de noten 2x zo lang." + "wisp +1 octaaf" + "de world metronome begint precies
+wanneer ik op start druk, dat vind ik verdacht... Is die uberhaupt hetzelfde tempo..?" + "ik hoor de eenden
+niet, zorg dat je steeds een random track van de midi-file instart... niet kiezen wanneer ik tab open, steeds
+een andere kiezen bij instarten." + "Ik nog steeds maar weinig melodie. Zet die maar even op piano-
+instrument, en zelfde volume als de vogels."
+
+- `worldClock.js` krijgt `WORLD_BPM`/`WORLD_TIME_SIGNATURE` als DE canonieke constanten. Bleek dat drie
+  systemen elk hun eigen tempo gebruikten ondanks dezelfde grid-formule: `useDebugMetronome` en de wisp/
+  slime-conversatie draaiden op de LIVE song-bpm (varieert per level), ambient/bird op een eigen los
+  gedefinieerde 100bpm. Nu allemaal op dezelfde `WORLD_BPM`. Post-combat-gesprek blijft bewust op de
+  level-eigen bpm (dat hoort nog bij dat liedje, niet bij de open wereld).
+- `useDebugMetronome.js`: `startTimeRef`-lokale anker helemaal weg — beat-index nu direct uit
+  `context.currentTime / secondsPerBeat` (absolute grid), dus nooit meer "begint wanneer je op start drukt".
+- `useConversationDialogue.js`: noot-duur `subSpan × 0.9` → `× 1.8` (bewuste overlap, minder bot).
+- `conversationEntities.js`: wisp-toonhoogte C5/D5/E5 → C6/D6/E6.
+- `useWorldAmbientMusic.js`: bird-song nu 3 losse trigger-SLOTS (niet vastgezet op 1 track) — elke slot kiest
+  bij ELKE trigger een verse random track uit de volledige pool, i.p.v. één keer bij tab-open.
+- Ambient muziek tijdelijk op piano-instrument gezet (was fluit/bas), volume gelijk aan de vogels (0.22).
+
+Geverifieerd: `npm run test:run` (711/711), lint (0 errors), build groen. `docs/architecture.md` §218
+toegevoegd.
+
 ## 2026-08-12 — ✅ #924 UAT round: één gedeelde klok, onafhankelijke stilte-rolls, load-race bug
 
 Han: "de vogel-midi lijkt totaal niet afgestemd op de metronoom. start altijd op het begin van een maat." +

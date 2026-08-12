@@ -363,12 +363,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // (a likely contributor to "de scrolling is schokkerig").
     const dynamicZoom = size.h > 0 ? size.h / LEVEL_PX_HEIGHT : ZOOM;
     const zoom = sceneryMode === 'LDtk' ? dynamicZoom : ZOOM;
-    // #RAM-level (Han 2026-08-11, "in debug wil ik in het level een metronoom aan kunnen zetten, bpm
-    // zelfde als bladmuziek"): debug-only click track, off by default even when debugMode is on (Han
-    // still has to explicitly enable it) — see useDebugMetronome.js for the rAF/AudioContext-clock design.
+    // #RAM-level (Han 2026-08-11, "in debug wil ik in het level een metronoom aan kunnen zetten"): debug-
+    // only click track, off by default even when debugMode is on (Han still has to explicitly enable it) —
+    // see useDebugMetronome.js for the rAF/AudioContext-clock design. #924 round 4 ("die kan nooit in sync
+    // zijn met de wereld timer. Is die uberhaupt hetzelfde tempo..?"): no longer passes the live song
+    // bpm/timeSignature — defaults to WORLD_BPM/WORLD_TIME_SIGNATURE (worldClock.js), the SAME fixed tempo
+    // every open-world audio system now shares.
     const [metronomeOn, setMetronomeOn] = useState(false);
     const { beat: metronomeBeat, pulseTick: metronomePulse } = useDebugMetronome({
-        enabled: debugMode && metronomeOn, bpm, timeSignature, context, instruments,
+        enabled: debugMode && metronomeOn, context, instruments,
     });
     const { appFps, pixelFps, reportPixelFrame } = useFpsCounters();
     const world = useMemo(
