@@ -24,7 +24,10 @@ export const WORLD_AMBIENT_TIME_SIGNATURE = WORLD_TIME_SIGNATURE;
 // ends exactly at tick 96 = 2×48 ticks/measure). Doubled anyway to 4 measures per block for noticeably more
 // music, since "2 measures" was still reading as too little).
 export const WORLD_AMBIENT_NUM_MEASURES = 4;
-export const WORLD_AMBIENT_SILENCE_CHANCE = 2 / 3;
+// #924 round 9 (Han: "ik wil meer muziek, ik denk echt niet dat treble en bass melody elk 33% van de tijd
+// spelen. Zet 'm voor nu op 100% om te testen"): temporarily 0 — every block plays both tracks — so Han can
+// judge the actual amount-of-music feel without the silence rolls in the way, before picking a real value.
+export const WORLD_AMBIENT_SILENCE_CHANCE = 0;
 
 // #924 round 4 (Han: "ik nog steeds maar weinig melodie. zet die maar even op piano-instrument, en zelfde
 // volume als de vogels"): both treble and bass switched to piano while diagnosing audibility — was

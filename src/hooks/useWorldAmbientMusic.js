@@ -30,9 +30,10 @@ const BIRD_MAX_SILENCE_SEC = 30;
 // #924 round 2 (Han: "ik heb de file geupdated. Speel altijd maximaal 3."): the source MIDI's own track
 // count is no longer fixed (currently 6) — always at most this many CONCURRENT trigger slots.
 const MAX_CONCURRENT_BIRD_LAYERS = 3;
-// #924 round 7 (Han: "volume van de vogels mag 20% lager") — multiplies on top of MF_VOLUME, bird layers
-// only (the ambient piano's own MF_VOLUME scaling above is untouched).
-const BIRD_VOLUME_MULTIPLIER = 0.8;
+// #924 round 7 (Han: "volume van de vogels mag 20% lager") + round 9 (Han: "reduce the bird sounds another
+// 30%" — 0.8 * 0.7 = 0.56) — multiplies on top of MF_VOLUME, bird layers only (the ambient piano's own
+// MF_VOLUME scaling above is untouched).
+const BIRD_VOLUME_MULTIPLIER = 0.8 * 0.7;
 
 export default function useWorldAmbientMusic({ active, context }) {
     // Own dedicated Soundfont instances — NEVER the user's live configured treble/bass instrument (Han's

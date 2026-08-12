@@ -2420,10 +2420,15 @@ for (const entry of manifest) {
     if (entry.category === 'musicians' || entry.base === 'Oriental Musician' || entry.base === 'Tavern Musician') tags.push('musician');
     // Han: "critter: alles uit critter sheet en de critter map" — relPath-based (not `category`, which can
     // be OVERRIDDEN away from 'critters' for things that physically live in that folder, e.g. totems/portal).
-    // #924 (Han 2026-08-12, "bestiary: alle dieren uit critter sheet moeten 'critter' en 'nature' tag
-    // krijgen"): 'nature' rides the SAME relPath check — every critter-sheet animal is by definition wild
-    // fauna, one shared condition rather than a second copy of the same test.
-    if (/\/animals\/critters\//i.test(entry.relPath)) { tags.push('critter'); tags.push('nature'); }
+    // #924 round 9 (Han 2026-08-12, "oops... you gave all critters the nature tag, not just the ones that I
+    // explicitly mentioned and the ones in the sheet 'critter sheet.png'"): 'critter' (folder membership) and
+    // 'nature' (real-world wild animal, as opposed to a monster/fantasy being that HAPPENS to live in the
+    // same folder — Cacodaemon, Eye Monster, Pixies, Flying Brain Monster, Glowing Wisp, Fairy, Plague Bat,
+    // Portal, Swooping Bat, etc.) are NOT the same thing and must not share one condition. 'critter' stays
+    // folder-based; 'nature' is now assigned explicitly below, either via the packed multi-species
+    // "critters sheet.png" (`entry.category === 'critters' && CRITTER_ROWS`-sourced) or via the name rosters
+    // Han listed by hand (GROUND/WATER/UNDERWATER/FLYING_NATURE_ADD_NAMES below).
+    if (/\/animals\/critters\//i.test(entry.relPath)) tags.push('critter');
     if (/\/animals\/pets\//i.test(entry.relPath) || entry.base === 'Dog (Small)' || entry.base === 'Cat') tags.push('pet');
     if (/oriental|japanese/i.test(entry.base)) tags.push('oriental');
     // Han: "ken tavern toe aan: lady corset, lady leg, medieval servant, christmas lady, cook, lady can can,
@@ -2523,6 +2528,27 @@ for (const entry of manifest) {
     // key / ALWAYS_FLYING_NAMES respectively; this roster only needs the ones that were missing it.
     const FLYING_NATURE_ADD_NAMES = new Set(['Honking Goose', 'Leaping Frog', 'Pidgeon']);
     if (FLYING_NATURE_ADD_NAMES.has(entry.base) && !tags.includes('flying')) tags.push('flying');
+    // #924 round 9 (Han: "you gave all critters the nature tag, not just the ones I explicitly mentioned and
+    // the ones in the sheet 'critter sheet.png'"): 'nature' is exactly (a) the packed 16-species
+    // "critters sheet.png" (`expandCritters`/CRITTER_ROWS — literal small real-world fauna: Frog, Pigeon,
+    // Blue Jay, Rat, Snail, Turtle, Firefly, Ladybird, Fly, Butterfly, Mosquito, Dragonfly), plus (b) every
+    // name Han explicitly listed by hand across the ground/water/underwater/flying rosters above (which also
+    // covers Fly (Small)/Bumble Bee — already-flying but still real animals, so still nature). It is NOT a
+    // blanket "lives in the animals/critters/ folder" rule — that folder also holds monsters/fantasy beings
+    // (Cacodaemon, Eye Monster, Pixies, Flying Brain Monster, Glowing Wisp, Fairy, Plague Bat, Portal,
+    // Swooping Bat, etc.) which must NOT get 'nature'.
+    // 'Dragonfly (Small)': the packed sheet's own row is renamed away from bare 'Dragonfly' earlier in the
+    // pipeline (line ~2152, disambiguating it from the unrelated, much bigger "Giant Dragonfly") — by the
+    // time tags are derived here, `entry.base` already reflects that rename.
+    const CRITTER_SHEET_SPECIES_NAMES = new Set([
+        'Frog', 'Pigeon', 'Blue Jay', 'Rat', 'Snail', 'Turtle', 'Firefly', 'Ladybird', 'Fly', 'Butterfly',
+        'Mosquito', 'Dragonfly (Small)',
+    ]);
+    const NATURE_NAMES = new Set([
+        ...CRITTER_SHEET_SPECIES_NAMES, ...GROUND_NATURE_NAMES, ...WATER_NATURE_NAMES, ...UNDERWATER_NATURE_NAMES,
+        ...FLYING_NATURE_ADD_NAMES, 'Fly (Small)', 'Bumble Bee',
+    ]);
+    if (NATURE_NAMES.has(entry.base)) tags.push('nature');
     if (tags.length) entry.tags = [...new Set(tags)];
 }
 

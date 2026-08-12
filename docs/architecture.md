@@ -14405,3 +14405,45 @@ hostile/ground/water/underwater/flying tag rosters, Intellect Devourer rename), 
 RpgLevelPanel.jsx` (`WorldCreature` facing XOR, generic `critterWanderers`/`HABITAT_WANDER`, camera-stick
 fix, wander speed), `src/hooks/useWorldAmbientMusic.js` (`BIRD_VOLUME_MULTIPLIER`),
 `src/components/character/DialogueBox.jsx` (`FONT_SIZE_OVERRIDE_MULTIPLIER`).
+
+### §223. §222 UAT round — nature-tag scope correction, animal/nature/not-hostile spawn criteria, another bird-volume cut, ambient-silence testing override (#924, Han 2026-08-12)
+
+**Nature-tag over-application fixed.** §222's `nature` tag rode the SAME relPath condition as `critter`
+(`/\/animals\/critters\//i`) — but that folder also holds monster/fantasy sprites (Cacodaemon, Brain Mole
+Monarch, Eye Monster, Pixies, Flying Brain Monster, Giant Dragonfly, Giant Fly, Glowing Wisp, Fairy, Plague
+Bat, Portal, Swooping Bat), so ALL of them silently got `nature` too (Han: "you gave all critters the nature
+tag, not just the ones that I explicitly mentioned and the ones in the sheet 'critter sheet.png'"). `critter`
+stays folder-based (purely "lives in this folder"); `nature` is now assigned explicitly to exactly two
+sources: (a) the packed 16-species `expandCritters`/`CRITTER_ROWS` sheet ("critters sheet.png" — literal
+small real-world fauna: Frog, Pigeon, Blue Jay, Rat, Snail, Turtle, Firefly, Ladybird, Fly, Butterfly,
+Mosquito, Dragonfly (Small)), and (b) every name Han listed by hand across the existing ground/water/
+underwater/flying rosters (plus Fly (Small)/Bumble Bee, which were already-flying but still real animals).
+Verified via a `vite-node` import of the regenerated manifest that all 12 excluded monster/fantasy names now
+carry no `nature` tag while all packed-sheet species and named-roster animals do.
+
+**World-critter spawn criteria tightened.** Han: "the critters in the world should meet criteria: animal AND
+nature AND NOT hostile AND (flying/ground/water)" — `findCreaturesByTags(requiredTags, { excludeTags,
+being })` (bestiaryAssets.js) gained an `excludeTags` filter and a `being` match; `RpgLevelPanel.jsx`'s
+`randomTaggedVariant` now calls `findCreaturesByTags(['nature', habitatTag], { excludeTags: ['hostile'],
+being: 'animal' })` — the `critter` requirement was dropped (redundant now that `nature` alone already scopes
+correctly to real fauna) and `being: 'animal'` + `excludeTags: ['hostile']` were added, matching Han's exact
+boolean criteria.
+
+**Bird ambient volume, round 2**: Han: "reduce the bird sounds another 30%" — `BIRD_VOLUME_MULTIPLIER`
+(`useWorldAmbientMusic.js`) compounds to `0.8 * 0.7 = 0.56`.
+
+**Ambient music amount — temporary 100% testing override**: Han: "I want to have more music, i really don't
+think treble melody and bass melody (each) are playing 33% of the time... to test, set it to 100% for now."
+`WORLD_AMBIENT_SILENCE_CHANCE` (`generateWorldAmbientBlock.js`) temporarily set to `0` (was `2/3`, i.e. each
+track independently had a 1/3 chance to play) so Han can judge the actual felt density of music with both
+tracks always present, before deciding on a real value. The corresponding unit test
+(`generateWorldAmbientBlock.test.js`, "is silent when the roll lands under the silence chance") is
+conditionally skipped while the constant is 0 (no `rand()` roll in `[0,1)` can land under a 0 chance) — it
+re-activates automatically once a nonzero value is restored.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` + regenerated `src/model/bestiaryManifest.generated.js`
+(nature-tag scope fix), `src/model/bestiaryAssets.js` (`findCreaturesByTags` excludeTags/being params),
+`src/components/character/RpgLevelPanel.jsx` (`randomTaggedVariant` spawn criteria),
+`src/hooks/useWorldAmbientMusic.js` (`BIRD_VOLUME_MULTIPLIER`),
+`src/generation/generateWorldAmbientBlock.js` (`WORLD_AMBIENT_SILENCE_CHANCE`),
+`src/generation/__tests__/generateWorldAmbientBlock.test.js` (conditional skip).

@@ -277,12 +277,13 @@ function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
 }
 
 // #924 (Han 2026-08-12, "ik heb entiteiten bird, duck, butterfly toegevoegd... spawn op die plekken";
-// LDtk later replaced with generic "critter ground/air/water" markers, "spawn een random critter met tags:
-// critter + nature + (flying/ground/water)"): each spawned marker picks a RANDOM classified creature whose
-// tags match its habitat, via `findCreaturesByTags` (bestiaryAssets.js) — data-driven off the Bestiary's own
-// tagging (§6c), not a hand-picked name list.
+// LDtk later replaced with generic "critter ground/air/water" markers; round 9: "the critters in the world
+// should meet criteria: animal AND nature AND NOT hostile AND (flying/ground/water)"): each spawned marker
+// picks a RANDOM classified creature matching that exact criteria, via `findCreaturesByTags`
+// (bestiaryAssets.js) — data-driven off the Bestiary's own tagging/being classification (§6c), not a
+// hand-picked name list.
 const randomTaggedVariant = (habitatTag) => {
-    const pool = findCreaturesByTags(['critter', 'nature', habitatTag]);
+    const pool = findCreaturesByTags(['nature', habitatTag], { excludeTags: ['hostile'], being: 'animal' });
     return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
 };
 

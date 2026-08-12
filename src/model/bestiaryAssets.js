@@ -144,15 +144,20 @@ export function findCreatureByName(name) {
     return c.variants.find((v) => v.variant === 'Plain') || c.variants[0] || null;
 }
 
-// #924 (Han 2026-08-12, "spawn een random critter met tags: critter + nature + (flying/ground/water)"):
-// every classified creature (one per SCANNED_CREATURES entry, its own default 'Plain'-or-first variant,
-// same pick `findCreatureByName` uses) whose tag list contains ALL of `requiredTags` — the RPG-world
-// wanderer spawner picks a random ENTRY from this pool per spawn marker, so any bestiary tagging change
-// automatically flows through with no code change here (§6c).
-export function findCreaturesByTags(requiredTags) {
+// #924 (Han 2026-08-12, "spawn een random critter met tags: critter + nature + (flying/ground/water)"; round
+// 9: "the critters in the world should meet criteria: animal AND nature AND NOT hostile AND
+// (flying/ground/water)"): every classified creature (one per SCANNED_CREATURES entry, its own default
+// 'Plain'-or-first variant, same pick `findCreatureByName` uses) whose tag list contains ALL of
+// `requiredTags`, NONE of `excludeTags`, and (if given) matches `being` — the RPG-world wanderer spawner
+// picks a random ENTRY from this pool per spawn marker, so any bestiary tagging change automatically flows
+// through with no code change here (§6c).
+export function findCreaturesByTags(requiredTags, { excludeTags = [], being } = {}) {
     return SCANNED_CREATURES
         .map((c) => c.variants.find((v) => v.variant === 'Plain') || c.variants[0])
-        .filter((v) => v && requiredTags.every((t) => v.tags.includes(t)));
+        .filter((v) => v
+            && requiredTags.every((t) => v.tags.includes(t))
+            && !excludeTags.some((t) => v.tags.includes(t))
+            && (being == null || v.being === being));
 }
 
 // #790: like `findCreatureByName`, but for a creature classified with named COLOUR variants (e.g. the

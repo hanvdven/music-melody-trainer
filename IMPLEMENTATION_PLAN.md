@@ -4504,3 +4504,25 @@ de vogels mag 20% lager. font van tekst mag 50% groter."
 - ✅ `FONT_SIZE_OVERRIDE_MULTIPLIER = 0.5 * 1.5` (DialogueBox.jsx).
 - architecture.md §222 bijgewerkt. `npm run test:run`/`lint`/`build` groen (1
   vooraf-bestaande, ongerelateerde ldtkWorld.test.js failure blijft staan).
+
+## 2026-08-12 — ✅ #924 ronde 9: nature-tag scope fix, animal/nature/niet-hostile spawn-criteria, extra vogel-volume verlaging, tijdelijke 100%-muziek testmodus
+
+Han: "oops [nature-tag te breed toegepast, exclusielijst], reduce the bird
+sounds another 30%, ik wil meer muziek... zet 'm voor nu op 100% om te testen,
+the critters in the world should meet criteria: animal AND nature AND NOT
+hostile AND (flying/ground/water)"
+
+- ✅ `nature` tag losgekoppeld van de brede `/animals/critters/` folder-check
+  (die ving ook monsters/fantasy sprites: Cacodaemon, Brain Mole Monarch, Eye
+  Monster, Pixies, Flying Brain Monster, Giant Dragonfly, Giant Fly, Glowing
+  Wisp, Fairy, Plague Bat, Portal, Swooping Bat). `nature` nu alleen voor de
+  gepakte 16-soorten "critters sheet.png" + Han's expliciete naam-rosters.
+  Geverifieerd via vite-node import van geregenereerd manifest.
+- ✅ `findCreaturesByTags(tags, {excludeTags, being})` (bestiaryAssets.js)
+  uitgebreid; wereld-spawn criteria nu exact `nature + habitatTag,
+  excludeTags:['hostile'], being:'animal'`.
+- ✅ `BIRD_VOLUME_MULTIPLIER` 0.8 → 0.8*0.7 = 0.56.
+- ✅ `WORLD_AMBIENT_SILENCE_CHANCE` 2/3 → 0 (tijdelijk, voor testen); bijhorende
+  unit test conditioneel geskipt zolang de constante 0 is.
+- architecture.md §223 bijgewerkt. `npm run test:run`/`lint`/`build` groen (1
+  vooraf-bestaande, ongerelateerde ldtkWorld.test.js failure blijft staan).
