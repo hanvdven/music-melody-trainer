@@ -914,7 +914,12 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     position: 'absolute', left: worldToScreenX(playerX), bottom: standAnchor,
                     transform: `translateX(-50%) scaleX(${facing})`,
                 }}>
-                    <CharacterDoll char={noPetChar} anim={moving ? (running ? runAnim : walkAnim) : idleAnim} frame={moving ? walkFrame : 0} height={HERO_CROP.h * zoom} />
+                    {/* #924 (Han 2026-08-12, "mijn personage heeft geen animatie. Hero moet ook idle
+                        animatie tonen"): idle frame was hardcoded to 0 — a single frozen frame, no cycling
+                        at all. `petFrame` already ticks at the shared bpm-coupled idle cadence
+                        (frameMsForBpm, #923) for the pet/wisp/slime — reused here (§6c) instead of a second
+                        idle-frame counter. */}
+                    <CharacterDoll char={noPetChar} anim={moving ? (running ? runAnim : walkAnim) : idleAnim} frame={moving ? walkFrame : petFrame} height={HERO_CROP.h * zoom} />
                 </div>
             )}
 

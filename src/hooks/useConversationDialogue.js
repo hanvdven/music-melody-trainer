@@ -4,11 +4,12 @@ import { buildTypewriterSchedule } from '../audio/conversationTypewriter';
 import { nextMeasureStartTime, nextBeatStartTime, secondsPerBeat } from '../audio/worldClock';
 import { clickMsForBpm, CLICKS_PER_BEAT } from '../components/sheet-music/SheetRpgLayer';
 
-// #922 (Han 2026-08-12, "verhoog het tempo... met een factor twee", follow-up: "doe nog maar 2x sneller...!
-// voelt traag" — 2 × 2 = 4×): layered ON TOP of #923's shared clickMsForBpm (still the single source of the
-// tempo-scaled cadence, §6c) — typing is simply 4× as fast as the sprite-animation beat, not a second
-// independently-tuned speed.
-const TYPEWRITER_SPEED_MULTIPLIER = 4;
+// #922 (Han 2026-08-12, "verhoog het tempo... met een factor twee", then "doe nog maar 2x sneller" (4x
+// total), then round 3: "ga terug naar het vorige tempo, dus verlaag met factor 2" — back down to 2×, with
+// the VISUAL reveal now getting its own extra speed via GROUP_SIZE letters/click instead of a further click-
+// rate increase): layered ON TOP of #923's shared clickMsForBpm (still the single source of the tempo-
+// scaled cadence, §6c) — clicks run at 2× the sprite-animation beat, not a second independently-tuned speed.
+const TYPEWRITER_SPEED_MULTIPLIER = 2;
 const METRONOME_CLICK_VOLUME = 0.5;   // Han: "speel de metronoom af op mp volume" (mezzo-piano)
 const ACCENT_NOTE = 'wh';   // woodblock high — downbeat, same convention as useDebugMetronome.js
 const CLICK_NOTE = 'wm';    // woodblock mid — other beats
@@ -96,7 +97,11 @@ export default function useConversationDialogue({
             while (i < schedule.length && schedule[i].clickOffset <= elapsedClicks) {
                 const entry = schedule[i];
                 if (entry.tone && profile?.instrument) {
-                    playSound(entry.tone, profile.instrument, context, context.currentTime, (clickMs / 1000) * 0.9, 0.8);
+                    // #922 round 3: up to GROUP_SIZE characters now share one click — each note's audible
+                    // length shrinks to its own `subSpan` share of the click so simultaneous/rapid notes
+                    // don't overlap and blur together.
+                    const noteDuration = (clickMs / 1000) * (entry.subSpan ?? 1) * 0.9;
+                    playSound(entry.tone, profile.instrument, context, context.currentTime, noteDuration, 0.8);
                 }
                 i += 1;
             }

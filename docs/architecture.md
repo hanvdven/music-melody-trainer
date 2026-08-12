@@ -14026,3 +14026,32 @@ the ONE scale constant for the whole dialogue box — don't reintroduce a per-sp
 `src/components/character/DialogueBox.jsx`, `src/audio/conversationTypewriter.js` (+ tests),
 `src/audio/conversationEntities.js`, `src/audio/worldClock.js`, `src/model/conversationContent.js`,
 `src/constants/instruments.jsx` (koto + `ethnic` category), `src/styles/App.css` (`--cat-ethnic`).
+
+### §215. §214 follow-up — typewriter grouping redesign, shamisen, hero idle animation (#922, Han 2026-08-12)
+
+**Typewriter grouping** (Han: "ga terug naar het vorige tempo, dus verlaag met factor 2, maar spawn 3 letter
+per keer (lineair verspreid). dus op 120bpm: elke kwartnoot: 12 letters, 4 audio-beats. Stop altijd bij een
+leesteken met letters genereren, zo ontstaan er wel rusten"): `conversationTypewriter.js`'s reveal unit
+changed from "1 character = 1 click" to "up to `GROUP_SIZE` (3) characters share ONE click, spread linearly
+across it". `buildTypewriterSchedule` now assigns fractional `clickOffset`s (`click + i/size`) and a
+`subSpan` (`1/size`) per entry — `useConversationDialogue.js` uses `subSpan` to shrink each note's audible
+duration so simultaneous/rapid notes within one click don't blur together. A punctuation mark (comma/period)
+ALWAYS force-closes its group immediately, even mid-group — the resulting short group naturally reads as a
+hesitation before the punctuation's own extra-click penalty (comma's +2 silent clicks, period's beat-snap).
+`TYPEWRITER_SPEED_MULTIPLIER` reverted 4×→2× (the earlier "2x sneller" stacking) — the EXTRA perceived speed
+now comes from the 3-letters-per-click grouping, not a further click-rate increase. Math check: 4
+clicks/beat (#923's `CLICKS_PER_BEAT`) × 3 letters/click = 12 letters/beat, matching Han's own numbers.
+
+**Sakura's instrument**: Japanese Musician koto → shamisen (`conversationEntities.js`) — the IN-scale tone
+pool (C4/D♭4/F4) is unchanged, since it belongs to the notes, not the instrument. `shamisen` (GM #106) and
+`shakuhachi` (GM #78, for #924's bird-song layers) added to `instruments.jsx`.
+
+**Hero idle animation bug**: `RpgLevelPanel.jsx`'s hero render hardcoded `frame={moving ? walkFrame : 0}` —
+while standing still, the frame was permanently pinned to 0 (no cycling at all, i.e. no idle animation ever
+played). Fixed to `frame={moving ? walkFrame : petFrame}` — `petFrame` already ticks at the shared
+bpm-coupled idle cadence (§212's `frameMsForBpm`) for the pet/wisp/slime; reused here (§6c) instead of a
+second idle-frame counter.
+
+**Files:** `src/audio/conversationTypewriter.js` (+ `__tests__`, rewritten for the new grouping semantics),
+`src/hooks/useConversationDialogue.js`, `src/audio/conversationEntities.js`, `src/constants/instruments.jsx`,
+`src/components/character/RpgLevelPanel.jsx`.

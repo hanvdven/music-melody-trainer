@@ -7,6 +7,30 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-12 — ✅ #922 round 3: koto->shamisen, typewriter grouping-redesign, hero idle-animatie fix
+
+Han: "sakura NPC: koto -> shamisen" + "tekst: ga terug naar het vorige tempo, dus verlaag met factor 2, maar
+spawn 3 letter per keer (lineair verspreid). dus op 120bpm: elke kwartnoot: 12 letters, 4 audio-beats. Stop
+altijd bij een leesteken met letters genereren, zo ontstaan er wel rusten." + "mijn personage heeft geen
+animatie. Hero moet ook idle animatie tonen."
+
+- `conversationEntities.js`: Japanese Musician instrument koto → shamisen (IN-toonladder tone pool
+  ongewijzigd — die hoort bij de noten, niet bij het instrument). `shamisen` + `shakuhachi` toegevoegd aan
+  `instruments.jsx` (GM #106/#78).
+- `conversationTypewriter.js`: fundamentele herziening van de reveal-eenheid — was 1 teken = 1 click, is nu
+  een GROEP van maximaal `GROUP_SIZE=3` tekens per click, lineair verdeeld binnen die click (fractionele
+  `clickOffset` + `subSpan` voor de audio-duur per noot). Een leesteken sluit zijn groep altijd meteen af
+  (ook als die nog niet vol is) — dat geeft de "rusten" die Han vroeg. 4 clicks/beat × 3 letters/click = 12
+  letters/beat, exact Han's cijfers bij 120bpm.
+- `useConversationDialogue.js`: TYPEWRITER_SPEED_MULTIPLIER 4 → 2 (terug naar het tempo van vóór de laatste
+  2x-versnelling — de extra snelheid komt nu uit de groepering, niet uit een hogere click-rate).
+- `RpgLevelPanel.jsx`: hero's idle-frame was hardcoded op 0 (geen animatie, alleen tijdens lopen cyclede het
+  frame). Hergebruikt nu `petFrame` (al tikkend op #923's gedeelde bpm-gekoppelde cadence) ook voor de
+  hero's idle-animatie i.p.v. een tweede teller te bouwen.
+
+Geverifieerd: `npm run test:run` (708/708, incl. herschreven typewriter-tests voor de nieuwe groeperingslogica),
+lint (0 errors), build groen.
+
 ## 2026-08-12 — ✅ #922 UAT round: npc-aware post-combat, wereld-slime lorem ipsum, 2.5x box, anchor-fix, koto
 
 Han's UAT feedback op §213: level 11 (decorativeWizard) en Sakura (npc "Japanese Musician") toonden geen

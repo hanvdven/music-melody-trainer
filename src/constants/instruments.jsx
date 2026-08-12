@@ -115,13 +115,21 @@ export const INSTRUMENT_GROUPS = [
             // soundfont set the app already loads from (gleitz.github.io/midi-js-soundfonts), program #80
             // "Ocarina", same 'pipe' family as flute/piccolo/recorder — just never added as a playable option).
             { name: 'ocarina', group: 'wind', slug: 'ocarina', family: 'wind' },
+            // #924 (Han 2026-08-12, "bird sounds... doe maar allemaal op shakuhachi"): GM program #78,
+            // 'pipe' family alongside flute/ocarina/piccolo.
+            { name: 'shakuhachi', group: 'wind', slug: 'shakuhachi', family: 'wind' },
         ],
     },
     {
-        // #922 (Han 2026-08-12, RPG conversation system: "japanese musician: koto"): new category — GM
-        // program #108 "Koto", 'ethnic' family, same soundfont CDN as every other instrument here.
+        // #922 (Han 2026-08-12, RPG conversation system: "japanese musician: koto", later changed to
+        // "shamisen"): GM 'ethnic' family (programs #106-108: Shamisen, Koto), same soundfont CDN as every
+        // other instrument here. Koto kept as a general playable option even though the Japanese Musician
+        // now uses shamisen (conversationEntities.js) — no reason to remove a valid instrument choice.
+        // #924 (Han 2026-08-12, "bird sounds... doe maar allemaal op shakuhachi"): shakuhachi is GM 'pipe'
+        // family (#78, same family as flute/ocarina/piccolo) — filed under 'wind' with those, not 'ethnic'.
         label: 'ethnic',
         items: [
+            { name: 'shamisen', group: 'ethnic', slug: 'shamisen', family: 'ethnic' },
             { name: 'koto', group: 'ethnic', slug: 'koto', family: 'ethnic' },
         ],
     },
@@ -226,7 +234,9 @@ const SLUG_TO_ICON = {
     flute: 'flute',
     harmonica: 'harmonica',             // real asset restored from origin/main (Han 2026-06-22)
     ocarina: 'flute',                   // PLACEHOLDER — TODO(icons8): real ocarina asset icons8-ocarina-100.png
+    shakuhachi: 'flute',                // PLACEHOLDER — TODO(icons8): real shakuhachi asset icons8-shakuhachi-100.png
     koto: 'classic-music',              // PLACEHOLDER — TODO(icons8): real koto asset icons8-koto-100.png
+    shamisen: 'classic-music',          // PLACEHOLDER — TODO(icons8): real shamisen asset icons8-shamisen-100.png
     // percussion tuned
     marimba: 'xylophone',
     vibraphone: 'xylophone',            // Han 2026-06-22: use xylophone icon
