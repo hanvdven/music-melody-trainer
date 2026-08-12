@@ -18,7 +18,8 @@
     "test:coverage": "vitest run --coverage",
     "render:overlay": "vite-node scripts/render-overlay.jsx",
     "kanban": "node scripts/start-kanban.mjs",
-    "abc:song": "vite-node scripts/abc-to-song.mjs"
+    "abc:song": "vite-node scripts/abc-to-song.mjs",
+    "generate:bird-sounds": "node scripts/generate-bird-sounds.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
@@ -40,6 +41,7 @@
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "jsdom": "^24.0.0",
+    "midi-file": "^1.2.4",
     "pngjs": "^7.0.0",
     "prettier": "^3.2.5",
     "vite": "^5.4.21",

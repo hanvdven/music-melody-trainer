@@ -7,6 +7,37 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-12 — ✅ #924 World ambient audio: gegenereerde fluit+bas + 3 bird-song lagen
+
+Han: "wereldlevel: speel op de achtergrond zachtjes random generated muziek met een fluit (treble melody) en
+een acoustic_bass in de bas. bpm 100, numrepeats 1, nummeasures 2, c majeur, geef een kans van 2 op drie dat
+de melodie stil is." + "voeg aan de rpg wereld 3 lagen 'bird song' toe... bird sounds.mid... random instarten
+in de juiste bpm, allemaal op shakuhachi." Interview vooraf (§4b/§6b, generation-pipeline impact):
+alleen open-wereld-tab, hergebruik hoofd-pipeline, oneindige loop zonder eigen toggle; 3 lagen = de 3
+MIDI-tracks, herschalen naar wereld-bpm (100), eenmalig per trigger + willekeurige stilte.
+
+- `generateWorldAmbientBlock.js` (puur, zelfde stijl als `generateLevelBackingChunk.js`): `Scale.defaultScale()`
+  (C majeur) + `generateProgression` + `MelodyGenerator` — dezelfde generatie-klassen als de rest van de app,
+  met een eigen vaste flute/acoustic_bass InstrumentSettings, los van de actieve oefeninstellingen.
+- `useWorldAmbientMusic.js`: JIT-blok-loop (genereer → `playMelodies` → wacht blokduur → herhaal), eigen
+  Soundfont-instanties (niet de instrumenten die de gebruiker zelf gekozen heeft), zacht volume (0.28 gain).
+- `scripts/generate-bird-sounds.mjs` (`npm run generate:bird-sounds`, zelfde conventie als de bestiary-
+  generator): parseert `bird sounds.mid` (4 tracks — track 0 = tempo/titel-meta, tracks 1-3 = de 3 lagen) via
+  de nieuwe `midi-file` devDependency, houdt alleen de bovenste noot per gelijktijdige aanslag (bron is
+  2-stemmig), zet MIDI-ticks (960/kwart, eigen 90bpm) om naar de app's eigen tick-eenheid — dus GEEN vaste
+  tempo, herschaalt automatisch naar welke bpm er ook wordt meegegeven bij afspelen. Output:
+  `src/model/birdSoundsManifest.generated.js`.
+- 3 onafhankelijke trigger-loops in `useWorldAmbientMusic.js`: elke laag speelt zijn fragment eenmalig af op
+  shakuhachi, dan 5-30s willekeurige stilte, dan opnieuw — elk met eigen gestaggerde starttijd zodat ze niet
+  gelijk beginnen.
+
+Onderweg ook meteen: koto→shamisen instrumentwissel voor Sakura's Japanese Musician, en shakuhachi als nieuw
+instrument toegevoegd (zie round-3 entry hieronder voor de volledige lijst van kleinere fixes in dezelfde
+sessie).
+
+Geverifieerd: `npm run test:run` (708/708, incl. nieuwe generateWorldAmbientBlock-smoke-tests), lint (0
+errors), build groen. `docs/architecture.md` §216 toegevoegd.
+
 ## 2026-08-12 — ✅ #922 round 3: koto->shamisen, typewriter grouping-redesign, hero idle-animatie fix
 
 Han: "sakura NPC: koto -> shamisen" + "tekst: ga terug naar het vorige tempo, dus verlaag met factor 2, maar

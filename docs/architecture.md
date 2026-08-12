@@ -14055,3 +14055,52 @@ second idle-frame counter.
 **Files:** `src/audio/conversationTypewriter.js` (+ `__tests__`, rewritten for the new grouping semantics),
 `src/hooks/useConversationDialogue.js`, `src/audio/conversationEntities.js`, `src/constants/instruments.jsx`,
 `src/components/character/RpgLevelPanel.jsx`.
+
+### §216. World ambient audio — generated flute+bass loop + 3 bird-song layers (#924, Han 2026-08-12)
+
+**Purpose:** Han: "wereldlevel: speel op de achtergrond zachtjes random generated muziek met een fluit
+(treble melody) en een acoustic_bass in de bas. bpm 100, numrepeats 1, nummeasures 2, c majeur, geef een
+kans van 2 op drie dat de melodie stil is." + "voeg aan de rpg wereld 3 lagen 'bird song' toe... ik heb een
+file toegevoegd: bird sounds.mid... kun je die random instarten in de juiste bpm. Doe maar allemaal op
+shakuhachi." Ambient background audio for the open-world RPG-level tab only (Han's interview answer) — both
+pieces reuse the app's real generation pipeline rather than a hand-rolled parallel system.
+
+**Generated ambient music:**
+- `src/generation/generateWorldAmbientBlock.js` — PURE (no React/Sequencer, mirrors
+  `generateLevelBackingChunk.js`'s "pure generation" boundary, §8): `Scale.defaultScale()` (C major) +
+  `theory/chordGenerator`'s `generateProgression` + `MelodyGenerator` (§3's real generation classes, per
+  Han's explicit choice "hergebruik de hoofd-pipeline") generate one 2-measure flute+bass block, OR return
+  `{ treble: null, bass: null }` on a 2/3-probability silence roll. Fixed `InstrumentSettings` (own flute/
+  acoustic_bass config) — independent of whatever the user's live practice InstrumentSettings/key are.
+- `src/hooks/useWorldAmbientMusic.js` — a `setTimeout`-driven JIT block loop (generate → `playMelodies()` →
+  wait one block's real-time duration → repeat), active only while `characterScreen === 'rpg-level'`. Its
+  OWN dedicated `flute`/`acoustic_bass` Soundfont instances (never the user's configured treble/bass
+  instrument slots). Quiet: `trackGains: { treble: 0.28, bass: 0.28 }` via `playMelodies`'s existing gain
+  parameter (Han: "zachtjes").
+
+**Bird song layers:**
+- `scripts/generate-bird-sounds.mjs` (`npm run generate:bird-sounds`) — a one-time (re-runnable) build-time
+  generator, same convention as `scripts/generate-bestiary-manifest.mjs`: parses `src/songs/world_midis/
+  bird sounds.mid` (format 1, 4 tracks — track 0 is a tempo/title meta track, tracks 1–3 are the 3 actual
+  musical tracks Han confirmed ARE the "3 lagen") via the `midi-file` devDependency, keeps only the TOP note
+  of any simultaneous onset (the source is 2-voice; a bird call reads as one melodic line), and converts
+  MIDI ticks (960/quarter, tempo-embedded) to this app's OWN tick units (`TICKS_PER_WHOLE=48`) — deliberately
+  NOT the MIDI's native tempo, so playback rescales automatically to whatever bpm is passed at play time
+  (Han's explicit choice: "herschaal naar de wereld-bpm", not the MIDI's native 90bpm). Output:
+  `src/model/birdSoundsManifest.generated.js`'s `BIRD_SONG_LAYERS` — 3 plain `{ notes, durations, offsets }`
+  triplets (no instrument/channel data; all 3 always play on shakuhachi).
+- `useWorldAmbientMusic.js`'s second effect: one independent trigger-loop per layer — play the WHOLE phrase
+  once via `playMelodies` (`WORLD_AMBIENT_BPM`), then wait a random 5–30s silence before re-triggering (Han:
+  "eenmalig per trigger + willekeurige stilte erna... zoals echte vogels"). Each layer's first trigger is
+  independently staggered so all 3 don't start in lockstep; being 3 separate timers, they naturally overlap
+  at unrelated moments, same as real birdsong.
+
+**Invariants:** both pieces are fully independent of `Song`/`Sequencer` singleton state — they never touch
+`Song.appendMeasures`, `scheduledMeasures`, or any Sequencer-owned ref; §6's core timing invariants apply
+only to that machinery, not to this decorative background loop (same carve-out `SheetRpgLayer.jsx`'s own
+header comment already documents for the RPG layer generally). Re-run `npm run generate:bird-sounds` after
+ever replacing `bird sounds.mid`.
+
+**Files:** `src/generation/generateWorldAmbientBlock.js` (+ `__tests__`), `src/hooks/useWorldAmbientMusic.js`,
+`src/model/birdSoundsManifest.generated.js`, `scripts/generate-bird-sounds.mjs`, `src/App.jsx` (mount),
+`package.json` (`midi-file` devDependency, `generate:bird-sounds` script). Kanban ticket #924.

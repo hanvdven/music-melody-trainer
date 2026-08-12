@@ -38,6 +38,7 @@ import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS, WIZARD_URL, WIZARD_CROP, WIZARD_
 import { findCreatureByName } from './model/bestiaryAssets';
 import useConversationInstruments from './hooks/useConversationInstruments';
 import useConversationDialogue from './hooks/useConversationDialogue';
+import useWorldAmbientMusic from './hooks/useWorldAmbientMusic';
 import { WIZARD_VICTORY_LINES, NPC_GREETING_LINES, SLIME_DEFEAT_LINES } from './model/conversationContent';
 import LevelStartSplash from './components/levels/LevelStartSplash';
 import LevelPausePopup from './components/levels/LevelPausePopup';
@@ -277,6 +278,9 @@ const App = () => {
     const characterEditor = useCharacterEditor();
     const bestiaryEditor = useBestiaryEditor();
     const rpgLevel = useRpgLevelState();
+    // #924 (Han 2026-08-12, "wereldlevel: speel op de achtergrond zachtjes random generated muziek... +
+    // 3 lagen bird song"): only runs while the open-world RPG-level tab is active.
+    useWorldAmbientMusic({ active: characterScreen === 'rpg-level', context });
     const [showLevelPicker, setShowLevelPicker] = useState(false);   // #661: level-start splash (tanh carousel)
     // Loaded-song title for the header (Han 2026-06-14): "Happy Birthday in G major". Set on song
     // load; cleared when the user generates a fresh exercise (un-pins the melody) — see effect below.
