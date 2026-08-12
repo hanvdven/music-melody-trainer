@@ -7,6 +7,28 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-12 — ✅ #924 Bird/Duck/Butterfly wanderers + graceful Sequencer.stop()
+
+Han bevestigde: pas ook de kern `Sequencer.stop()` aan (1 kwartnoot vertraging op het echte silencen), en
+randomize Bird/Duck tussen alle beschikbare vliegende vogels/eenden i.p.v. één vaste sprite.
+
+- `ldtkWorld.js`: nieuwe `ENTITY_INSTANCES` export — `ENTITY_WORLD_X` hield stiekem maar 1 positie per
+  identifier (latere entiteit overschrijft eerdere bij gelijke naam), nutteloos nu Bird/Duck/Butterfly
+  meerdere keren voorkomen (3/2/4 markers gevonden in de .ldtk-file). Houdt nu ook `y` bij (nieuw — alle
+  vorige entiteiten stonden altijd op dezelfde vaste grondlijn).
+- `RpgLevelPanel.jsx`: `WorldWanderer` — Bird/Butterfly zweven binnen een 256x64px doos rond hun spawnpunt
+  (hergebruikt `oscillate()`, dezelfde primitive als projectile-wobble, i.p.v. een nieuw waypoint-systeem),
+  Duck idled puur horizontaal binnen 32x0px. Bird wisselt tussen ~8s zweven en ~4s stilzitten op de
+  spawnplek. Positie-updates lopen via een ref-gedreven rAF-loop (geen React state per frame, CLAUDE.md §6).
+  Geen "Bird"/"Duck"-sprite in de bestiary — elke instantie kiest random uit een gecureerde pool (Blue
+  Jay/Pidgeon/Pigeon voor bird, Honking Goose voor duck), Butterfly is een exacte match.
+- `Sequencer.js`'s `stop()`: `instrument.stop()` krijgt nu `{ time: context.currentTime + 1 kwartnoot }` —
+  smplr's eigen sample-accurate scheduled-stop (geen setTimeout), zodat een reverb-staart nog een tel mag
+  uitklinken. `isPlaying`/abort/scheduling-cleanup blijven wel meteen — er komen geen NIEUWE noten meer bij.
+
+Geverifieerd: `npm run test:run` (710/711, dezelfde losstaande ldtkWorld-regressie), lint (0 errors), build
+groen. `docs/architecture.md` §221 toegevoegd.
+
 ## 2026-08-12 — 🐞✅ KRITIEK: build was kapot (ontbrekende normal maps) + failsafe + #922/#924 UAT round 7
 
 Han: "welke generatie-regels volgt het level?... Ik wil graag die van de settings" + "hoeveelheid muziek

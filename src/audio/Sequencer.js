@@ -2049,11 +2049,24 @@ class Sequencer {
     // naturally (~0.3–1.0s tail). Note: instrument.stop() also prevents
     // new scheduled-but-not-yet-started notes from sounding, so the
     // abortController + this call together honour the "no new notes" intent.
-    try { this.instruments.treble?.stop(); } catch { /* instrument may not be started */ }
-    try { this.instruments.bass?.stop(); } catch { /* instrument may not be started */ }
-    try { this.instruments.chords?.stop(); } catch { /* instrument may not be started */ }
-    try { this.instruments.percussion?.stop(); } catch { /* instrument may not be started */ }
-    try { this.instruments.metronome?.stop(); } catch { /* instrument may not be started */ }
+    //
+    // #924 round 8 (Han 2026-08-12, "soms stopt het geluid aan het einde van een maat/blok heel abrupt; er
+    // zit altijd wat reverb op, dus na het 'onderbreken' van een noot, wacht 1 kwartnoot om de noot/muziek
+    // echt 'weg te gooien'. geldt voor alle onderbrekingen, ook end song"): the 2026-05-29 fix above still
+    // called instrument.stop() IMMEDIATELY, at the exact instant Stop/End-song fires — a note mid-release
+    // (or its reverb send) gets choked right there. `smplr`'s own `stop({ time })` accepts a precise FUTURE
+    // AudioContext time (sample-accurate, not a `setTimeout` — §6's "no setTimeout for musical timing"
+    // invariant is about scheduling, and this reuses the exact same instrument-level primitive
+    // `playMelodies.js`'s percussion choke already schedules stops with); delaying it by one quarter note
+    // at the CURRENT bpm lets the reverb tail ring the extra beat before being cut. `isPlaying`, the
+    // abortController, and the scheduling-loop cleanup above still fire IMMEDIATELY — no NEW notes get
+    // scheduled — only the already-sounding ones get a beat's grace before being silenced.
+    const stopAt = this.context.currentTime + (this.refs.bpmRef?.current > 0 ? 60 / this.refs.bpmRef.current : 0);
+    try { this.instruments.treble?.stop({ time: stopAt }); } catch { /* instrument may not be started */ }
+    try { this.instruments.bass?.stop({ time: stopAt }); } catch { /* instrument may not be started */ }
+    try { this.instruments.chords?.stop({ time: stopAt }); } catch { /* instrument may not be started */ }
+    try { this.instruments.percussion?.stop({ time: stopAt }); } catch { /* instrument may not be started */ }
+    try { this.instruments.metronome?.stop({ time: stopAt }); } catch { /* instrument may not be started */ }
 
     this.playbackState = null;
     this.scheduledNotes = null;

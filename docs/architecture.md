@@ -14297,3 +14297,48 @@ changes too often/fast to chase silently.
 `src/model/birdSoundsManifest.generated.js`, `src/components/character/DialogueBox.jsx`,
 `src/components/character/RpgLevelBottomPanel.jsx`, `src/components/layout/TabView.jsx`, `src/App.jsx`,
 `src/components/character/RpgLevelPanel.jsx`, `src/components/character/ForegroundFoliageLayer.jsx`.
+
+### §221. Bird/Duck/Butterfly world wanderers + graceful core Sequencer.stop() (#924, Han 2026-08-12)
+
+**Wandering world creatures**: Han added `Bird` (×3), `Duck` (×2), `Butterfly` (×4) entity markers to the
+`.ldtk` file and asked for them to spawn and move there. `ldtkWorld.js`'s existing `ENTITY_WORLD_X` only
+keeps ONE position per identifier (`Object.fromEntries` on a repeated key silently drops all but the last) —
+fine for the single-instance Hero/Pet/Wisp/Slime markers, useless for multi-instance ones. New
+`ENTITY_INSTANCES[identifier]` keeps ALL markers, with both `x` AND `y` (LDtk's own `__worldY` — the first
+entities that need vertical variation at all; every previous world entity always stands on the single fixed
+ground line, `STAND_HEIGHT_PX`).
+
+No literal "Bird"/"Duck" creature exists in the Bestiary — each spawned instance picks a random name from a
+small curated pool of the closest real classified creatures (Han: "randomize de bird tussen alle vliegende
+vogels, en de duck tussen alle eenden") — `BIRD_POOL_NAMES = ['Blue Jay', 'Pidgeon', 'Pigeon']`,
+`DUCK_POOL_NAMES = ['Honking Goose']` (`RpgLevelPanel.jsx`), resolved once per instance via
+`findCreatureByName`, not re-randomized on re-render. Butterfly matches an existing Bestiary creature 1:1.
+
+`WorldWanderer` (`RpgLevelPanel.jsx`) drives the actual movement: Bird/Butterfly wander within a 256×64
+native-px box around their spawn (Han's exact numbers); Duck idles side-to-side within a 32×0 box (purely
+horizontal, no vertical movement at all). Reuses `oscillate()` (`src/utils/oscillate.js`, §6c/§6d — the SAME
+smooth, seeded, bounded wobble primitive projectiles and flying-creature hover already use) for the wander
+path itself, rather than inventing a new waypoint/pathfinding system — `oscillate(seed, t, range/2, speed)`
+is already exactly "a bounded, organic, per-instance-seeded meander over time". Position updates go through
+a REF-driven `requestAnimationFrame` loop writing directly to the DOM node's `style.left`/`style.bottom`
+(CLAUDE.md §6 — no 60Hz React state for position); only the shared animation-frame index (`petFrame`, ticking
+at #923's bpm-coupled cadence) flows through as a normal prop, since that only needs to change every ~150ms.
+Bird additionally duty-cycles between wandering (~8s) and perching motionless at its exact spawn point
+(~4s, independently phase-offset per instance) — Han: "gaat soms idle zitten op de spawnplek". Renders
+through the SAME canonical `WorldCreature` (§6d) the Wisp already uses, so flying-hover-wobble, animation-
+cell selection, etc. all come for free.
+
+**Graceful core Sequencer.stop()** (Han: "het geluid stopt aan het einde van een maat/blok heel abrupt; er
+zit altijd wat reverb op, dus na het 'onderbreken' van een noot, wacht 1 kwartnoot om de noot/muziek echt
+'weg te gooien'. geldt voor alle onderbrekingen, ook end song" — confirmed in interview: yes, touch the core
+Sequencer, not just the new RPG-world systems): `Sequencer.stop()`'s `instrument.stop()` calls (already
+changed once before, 2026-05-29, away from a hard `setVolume(0)` mute specifically to let the release
+envelope ring) now pass `{ time: stopAt }`, where `stopAt = context.currentTime + oneQuarterNoteAtCurrentBpm`
+— smplr's own sample-accurate scheduled-stop primitive (the SAME one `playMelodies.js`'s percussion-choke
+`stopId` mechanism already uses), not a `setTimeout`. `isPlaying`, the `abortController.abort()`, and the
+scheduling-loop cleanup all still fire IMMEDIATELY (no NEW notes get scheduled) — only the ACTUAL silencing
+of already-sounding notes is delayed by one beat, so a reverb tail rings the extra beat instead of being
+choked at the exact instant Stop/End-song fires.
+
+**Files:** `src/levels/ldtk/ldtkWorld.js` (`ENTITY_INSTANCES`), `src/components/character/RpgLevelPanel.jsx`
+(`WorldWanderer`, bird/duck/butterfly pools + rendering), `src/audio/Sequencer.js` (`stop()`).

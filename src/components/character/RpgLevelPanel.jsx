@@ -16,7 +16,8 @@ import LdtkScenery from './LdtkScenery';
 import LdtkAnimatedTiles from './LdtkAnimatedTiles';
 import useLdtkFoliageInstances from './useLdtkFoliageInstances';
 import useDebugMetronome, { useFpsCounters } from './useDebugMetronome';
-import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_WORLD_X, STAND_HEIGHT_PX, LEVEL_PX_HEIGHT } from '../../levels/ldtk/ldtkWorld';
+import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_WORLD_X, ENTITY_INSTANCES, STAND_HEIGHT_PX, LEVEL_PX_HEIGHT } from '../../levels/ldtk/ldtkWorld';
+import { oscillate } from '../../utils/oscillate';
 // #141 (Han 2026-08-05): pre-generated normal maps for the shimmer shader — see
 // scripts/generate-tree-normal-maps.mjs (Sobel height-gradient derived from the diffuse art itself, no
 // hand-painted normal-map asset needed).
@@ -267,6 +268,69 @@ function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
     );
 }
 
+// #924 (Han 2026-08-12, "ik heb entiteiten bird, duck, butterfly toegevoegd... spawn op die plekken.
+// randomize de bird tussen alle vliegende vogels, en de duck tussen alle eenden"): the bestiary has no
+// literal "Bird"/"Duck" creature, so each spawned instance picks a RANDOM name from a small curated pool of
+// the closest real classified creatures (§6c: no bird/duck sprite exists to derive this from automatically
+// — a hand-picked roster, same convention as e.g. TOWNSFOLK_ANIMAL_NAMES in the bestiary generator).
+const BIRD_POOL_NAMES = ['Blue Jay', 'Pidgeon', 'Pigeon'];
+const DUCK_POOL_NAMES = ['Honking Goose'];
+const randomPoolVariant = (pool) => findCreatureByName(pool[Math.floor(Math.random() * pool.length)]);
+
+// #924: one independently-wandering world creature — Bird/Butterfly fly a smooth pseudo-random path within
+// a (rangeX × rangeY) box around their spawn point (Han: "vliegt random van a naar b met een range van
+// 256x64px"); Duck idles side-to-side on the ground within a much smaller, purely-horizontal range (Han:
+// "idle heen en weer met een range van 32x0px"). Reuses `oscillate()` (§6c/§6d — the SAME smooth wobble
+// primitive projectiles/flying-creature-hover already use) for the wander path itself instead of a new
+// waypoint/pathfinding system — it's already exactly "a bounded, organic, seeded meander over time".
+// Position is applied via a REF-driven rAF loop directly on the DOM node (CLAUDE.md §6 "no 60Hz React
+// state for position") — only the shared `frame` prop (animation cell, ticking at #923's bpm-coupled
+// cadence) comes through as a normal prop, since that only needs to change every ~150ms, not every frame.
+function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, frame, zoom, worldToScreenX }) {
+    const elRef = useRef(null);
+    const facingRef = useRef(1);
+    const lastDxRef = useRef(0);
+    const [perched, setPerched] = useState(false);
+    // Stable per-instance seeds so each of several same-type wanderers moves independently, not in lockstep.
+    const seedX = useMemo(() => Math.random() * 10000, []);
+    const seedY = useMemo(() => Math.random() * 10000, []);
+    const perchPhase = useMemo(() => Math.random() * 12000, []);
+
+    useEffect(() => {
+        if (!variant) return undefined;
+        let raf;
+        const tick = () => {
+            const t = performance.now();
+            // Bird-only duty cycle (Han: "gaat soms idle zitten op de spawnplek"): ~8s wandering, ~4s
+            // perched at spawn, independently phase-offset per instance via `perchPhase`.
+            const isPerchedNow = canPerch && ((t + perchPhase) % 12000) > 8000;
+            if (isPerchedNow !== perched) setPerched(isPerchedNow);
+            const dx = isPerchedNow ? 0 : oscillate(seedX, t, rangeX / 2, 0.6);
+            const dy = (isPerchedNow || rangeY <= 0) ? 0 : oscillate(seedY, t, rangeY / 2, 0.6);
+            if (dx !== lastDxRef.current) {
+                facingRef.current = dx >= lastDxRef.current ? 1 : -1;
+                lastDxRef.current = dx;
+            }
+            if (elRef.current) {
+                elRef.current.style.left = `${worldToScreenX(spawnX + dx)}px`;
+                elRef.current.style.bottom = `${(LEVEL_PX_HEIGHT - (spawnY - dy)) * zoom}px`;
+                elRef.current.style.transform = `translateX(-50%) scaleX(${facingRef.current})`;
+            }
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [variant, spawnX, spawnY, rangeX, rangeY, canPerch, zoom]);
+
+    if (!variant) return null;
+    return (
+        <div ref={elRef} style={{ position: 'absolute' }}>
+            <WorldCreature variant={variant} moving={!perched} frame={frame} facing={1} zoom={zoom} />
+        </div>
+    );
+}
+
 // #693 round 8 (Han: "gebruik dezelfde pet als in de avatar selector") / round 12 (Han, dog clipped: "gebruik
 // toch gewoon de sprites uit de bestiary"): the equipped pet sheet IS also classified in the Bestiary
 // manifest (every `characterAssets.js` PET_FILES sheet has a matching `SCANNED_CREATURES` entry — Doggy,
@@ -491,6 +555,22 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // (classified creature, idle only, no click handler — no combat here, this is scenery-adjacent, not
     // the real SheetRpgLayer combat slimes).
     const slimeVariant = useMemo(() => findCreatureByName('Slime'), []);
+    // #924: one random pool-creature variant PER spawned Bird/Duck/Butterfly marker, chosen ONCE (not
+    // re-randomized on every render) — `ENTITY_INSTANCES` keeps every marker (unlike `ENTITY_WORLD_X`,
+    // which only keeps the LAST position per identifier).
+    const birdWanderers = useMemo(
+        () => (ENTITY_INSTANCES.Bird ?? []).map((pos) => ({ ...pos, variant: randomPoolVariant(BIRD_POOL_NAMES) })),
+        [],
+    );
+    const duckWanderers = useMemo(
+        () => (ENTITY_INSTANCES.Duck ?? []).map((pos) => ({ ...pos, variant: randomPoolVariant(DUCK_POOL_NAMES) })),
+        [],
+    );
+    const butterflyVariant = useMemo(() => findCreatureByName('Butterfly'), []);
+    const butterflyWanderers = useMemo(
+        () => (ENTITY_INSTANCES.Butterfly ?? []).map((pos) => ({ ...pos, variant: butterflyVariant })),
+        [butterflyVariant],
+    );
     // #693 round 8 ("gebruik dezelfde pet als in de avatar selector"): whichever pet the player actually
     // equipped in the character screen, resolved via the SAME helper CharacterDoll itself uses (§6c).
     const petUrl = useMemo(() => urlOfLayer('pet', char?.layers?.pet), [char?.layers?.pet]);
@@ -917,6 +997,29 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     <WorldSlime frame={petFrame} zoom={zoom} />
                 </div>
             )}
+
+            {/* #924 (Han 2026-08-12, "spawn op die plekken birds, ducks, en butterfly"): one WorldWanderer
+                per spawned marker (see birdWanderers/duckWanderers/butterflyWanderers above) — Bird/
+                Butterfly fly within a 256x64 native-px box around their spawn, Bird occasionally perches;
+                Duck idles side-to-side within a 32x0 box (no vertical movement at all). */}
+            {sceneryMode === 'LDtk' && birdWanderers.map((w, i) => (
+                <WorldWanderer
+                    key={`bird-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
+                    rangeX={256} rangeY={64} canPerch frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
+                />
+            ))}
+            {sceneryMode === 'LDtk' && duckWanderers.map((w, i) => (
+                <WorldWanderer
+                    key={`duck-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
+                    rangeX={32} rangeY={0} canPerch={false} frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
+                />
+            ))}
+            {sceneryMode === 'LDtk' && butterflyWanderers.map((w, i) => (
+                <WorldWanderer
+                    key={`butterfly-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
+                    rangeX={256} rangeY={64} canPerch={false} frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
+                />
+            ))}
 
             {/* Hero — same paper-doll renderer as everywhere else (§6d), standing on the floor, walking
                 left/right (A/D, arrow keys, edge-hold, or tap-to-move) via `useRpgLevelState`. `noPetChar`:

@@ -57,6 +57,18 @@ export const ENTITY_WORLD_X = Object.fromEntries(
     (ENTITIES_LAYER?.entityInstances ?? []).map((e) => [e.__identifier, e.__worldX]),
 );
 
+// #924 (Han 2026-08-12, "ik heb entiteiten bird, duck, butterfly toegevoegd... spawn op die plekken"):
+// `ENTITY_WORLD_X` above only keeps ONE position per identifier (`Object.fromEntries` on a name that
+// repeats just overwrites, silently dropping every instance but the last) — fine for the single-instance
+// Hero/Pet/Wisp/Slime markers, but Bird/Duck/Butterfly are placed MULTIPLE times each (the file currently
+// has 3 Bird, 2 Duck, 4 Butterfly markers). `ENTITY_INSTANCES[identifier]` keeps ALL of them, with BOTH
+// world axes (`__worldY` too — these are the first entities that actually need vertical variation, e.g. a
+// bird's flight height; every previous entity always stands on the one fixed ground line, STAND_HEIGHT_PX).
+export const ENTITY_INSTANCES = (ENTITIES_LAYER?.entityInstances ?? []).reduce((acc, e) => {
+    (acc[e.__identifier] ??= []).push({ x: e.__worldX, y: e.__worldY });
+    return acc;
+}, {});
+
 // #RAM-level (Han 2026-08-11, "hardcode dat karakter, pet, etc. op 32px van de grond leven"): a fixed
 // native (unzoomed) px height above the level's own bottom edge every standing character/pet/NPC anchors
 // to — Han's own explicit hardcode, not derived from the Hero/Pet/Wisp entities' own Y (which happen to
