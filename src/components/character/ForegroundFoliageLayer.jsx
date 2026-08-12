@@ -902,6 +902,13 @@ export default function ForegroundFoliageLayer({
         // single frame — that one instance just never draws, instead of taking down every other instance
         // (and every future frame) with it.
         async function getTexture(url) {
+            // #924 (Han 2026-08-12, "maak een failsafe voor als de normal maps weg zijn"): a missing
+            // pre-generated normal map asset now resolves to `undefined` at import time (RpgLevelPanel.jsx's
+            // import.meta.glob lookup) rather than failing the build — guard against actually trying to
+            // load `undefined` here (browsers' handling of `<img>.src = undefined` is inconsistent), same
+            // "skip this one instance, log once, never crash the shared render loop" outcome as a genuine
+            // network failure below.
+            if (!url) return null;
             if (textureCache.has(url)) return textureCache.get(url);
             try {
                 const img = await loadImage(url);

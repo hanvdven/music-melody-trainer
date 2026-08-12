@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { playSound, resolveNotePitch } from '../audio/playSound';
+import { playSound } from '../audio/playSound';
 import { buildTypewriterSchedule } from '../audio/conversationTypewriter';
 import { nextMeasureStartTime, nextBeatStartTime, secondsPerBeat } from '../audio/worldClock';
+import { MF_VOLUME } from '../audio/dynamics';
 import { clickMsForBpm, CLICKS_PER_BEAT } from '../components/sheet-music/SheetRpgLayer';
 
 // #922 (Han 2026-08-12, "verhoog het tempo... met een factor twee", then "doe nog maar 2x sneller" (4x
@@ -10,17 +11,21 @@ import { clickMsForBpm, CLICKS_PER_BEAT } from '../components/sheet-music/SheetR
 // rate increase): layered ON TOP of #923's shared clickMsForBpm (still the single source of the tempo-
 // scaled cadence, §6c) — clicks run at 2× the sprite-animation beat, not a second independently-tuned speed.
 const TYPEWRITER_SPEED_MULTIPLIER = 2;
-const METRONOME_CLICK_VOLUME = 0.5;   // Han: "speel de metronoom af op mp volume" (mezzo-piano)
-const ACCENT_NOTE = 'wh';   // woodblock high — downbeat, same convention as useDebugMetronome.js
-const CLICK_NOTE = 'wm';    // woodblock mid — other beats
+// #922 round 7 (Han: "ik wil de 'even ticks' (dus off-tick) op 70% volume van de 'oneven ticks' (die op de
+// beat vallen)"): a simple alternating accent across the GLOBAL click sequence — odd 1-indexed tick numbers
+// (1, 3, 5…) are treated as "on the beat" and play at full MF_VOLUME; even tick numbers (2, 4, 6…) at 70%.
+const OFF_TICK_ACCENT = 0.7;
 
 // #922: orchestrates one full paginated conversation — per-character musical typewriter reveal (one page
-// at a time), an own soft metronome click for the conversation's duration, world-clock-synced start (first
-// page only), and auto-continue between pages. `pages` is a stable array of paragraph strings for the
-// conversation's lifetime (callers must not recreate it every render — it comes straight from wherever the
-// dialogue was opened, e.g. `useRpgLevelState`'s `dialogue.pages`).
+// at a time) and world-clock-synced start (first page only), and auto-continue between pages. `pages` is a
+// stable array of paragraph strings for the conversation's lifetime (callers must not recreate it every
+// render — it comes straight from wherever the dialogue was opened, e.g. `useRpgLevelState`'s
+// `dialogue.pages`).
+// #922 round 6 (Han: "de metronoom hoeft niet meer tijdens tekst, dat was om te testen"): the conversation's
+// own soft metronome click (added while diagnosing the world-clock sync, #922 rounds 1-4) is REMOVED — it
+// was explicitly a temporary diagnostic, not a feature to keep.
 export default function useConversationDialogue({
-    pages, active, context, bpm, timeSignature, profile, metronomeInstrument, autoContinue, onClosed,
+    pages, active, context, bpm, timeSignature, profile, autoContinue, onClosed,
 }) {
     const [pageIndex, setPageIndex] = useState(0);
     const [visibleText, setVisibleText] = useState('');
@@ -29,8 +34,8 @@ export default function useConversationDialogue({
     const startTimeRef = useRef(0);
     const revealedRef = useRef(0);
     const skippedRef = useRef(false);
-    const lastMetronomeBeatRef = useRef(-1);
     const advanceAtRef = useRef(null);
+    const stopHandlesRef = useRef([]);
     const onClosedRef = useRef(onClosed); onClosedRef.current = onClosed;
 
     const text = pages?.[pageIndex] ?? '';
@@ -40,57 +45,58 @@ export default function useConversationDialogue({
     // A fresh conversation (a new `pages` array) always restarts at page 0.
     useEffect(() => { setPageIndex(0); }, [pages]);
 
-    // Per-page reveal + the conversation's own soft metronome click — both driven off the SAME
-    // context.currentTime-anchored rAF loop so they can never drift apart from each other.
+    // Per-page reveal.
     useEffect(() => {
         if (!active || !text || !context) {
             setVisibleText('');
             setPageDone(false);
             return undefined;
         }
-        scheduleRef.current = buildTypewriterSchedule(text, CLICKS_PER_BEAT, { tonePool: profile?.tonePool });
+        const schedule = buildTypewriterSchedule(text, CLICKS_PER_BEAT, { tonePool: profile?.tonePool });
+        scheduleRef.current = schedule;
         // #922 ("in het RPG-level is een wereldklok. zorg dat het gesprek begint op de start van een
         // maat", loosened per follow-up: "start op eerste tel van maat is te streng, start gewoon op eerst
         // volgende beat"): only the FIRST page of a fresh conversation waits for the world clock's next
         // BEAT boundary — later pages (click-advance / auto-continue) start the instant they're shown.
-        startTimeRef.current = pageIndex === 0
-            ? nextBeatStartTime(context, bpm)
-            : context.currentTime;
+        const startTime = pageIndex === 0 ? nextBeatStartTime(context, bpm) : context.currentTime;
+        startTimeRef.current = startTime;
         revealedRef.current = 0;
         skippedRef.current = false;
-        lastMetronomeBeatRef.current = -1;
         setVisibleText('');
         setPageDone(false);
 
-        const spb = secondsPerBeat(bpm);
-        const beatsPerMeasure = timeSignature?.[0] || 4;
+        // #922 round 7 (Han: "ik vind de text clicks een beetje hakkelig klinken"): ALL of this page's
+        // audio is now pre-scheduled up front at PRECISE future AudioContext times (Web Audio's own
+        // sample-accurate scheduling engine), instead of the previous approach of calling playSound at
+        // `context.currentTime` ("now") the instant a rAF tick happened to notice a click boundary had
+        // passed — that quantized every note's actual onset to whichever ~16ms video frame caught it, an
+        // audible timing jitter. The rAF loop below is now VISUAL-reveal only; `stopHandlesRef` lets
+        // skip() cancel any not-yet-played notes (see handleTextClick).
+        const stopHandles = [];
+        if (profile?.instrument) {
+            for (const entry of schedule) {
+                if (!entry.tone) continue;
+                const preciseTime = startTime + (entry.clickOffset * clickMs) / 1000;
+                // Han: "ik wil de 'even ticks' (dus off-tick) op 70% volume van de 'oneven ticks' (die op de
+                // beat vallen)" + "maak... ook de tekst mf" — MF_VOLUME is the base, halved-ish on off-ticks.
+                const tickNumber = Math.floor(entry.clickOffset) + 1;   // 1-indexed
+                const volume = MF_VOLUME * (tickNumber % 2 === 0 ? OFF_TICK_ACCENT : 1);
+                // #922 round 4 (Han: "de tekst klinkt heel bot... maak de duur van de noten 2x zo lang (dan
+                // overlappen ze dus)"): deliberately OVERLAPPING (subSpan × 1.8) — the sharp per-note cutoff
+                // read as curt/robotic; letting consecutive notes ring into each other softens that.
+                const noteDuration = (clickMs / 1000) * (entry.subSpan ?? 1) * 1.8;
+                const stopFn = playSound(entry.tone, profile.instrument, context, preciseTime, noteDuration, volume);
+                if (stopFn) stopHandles.push(stopFn);
+            }
+        }
+        stopHandlesRef.current = stopHandles;
+
         let raf;
         const tick = () => {
-            const schedule = scheduleRef.current;
             const elapsedSec = context.currentTime - startTimeRef.current;
-
-            // #922 round 4 (Han: "ook de tekst playback heeft een eigen metronoom... niet de bedoeling;
-            // alles moet op dezelfde klok lopen"): the beat index is now derived directly from the
-            // ABSOLUTE world clock (context.currentTime / secondsPerBeat), not from elapsedSec-since-this-
-            // conversation's-own-start — so this click always ticks in phase with worldClock.js's grid
-            // (and therefore with the bird-song/ambient-music triggers, #924), never its own local phase.
-            if (elapsedSec >= 0 && metronomeInstrument) {
-                const beatIndex = Math.floor(context.currentTime / spb);
-                if (beatIndex !== lastMetronomeBeatRef.current) {
-                    lastMetronomeBeatRef.current = beatIndex;
-                    const noteId = beatIndex % beatsPerMeasure === 0 ? ACCENT_NOTE : CLICK_NOTE;
-                    const pitch = resolveNotePitch(noteId, null);
-                    if (pitch !== null) {
-                        metronomeInstrument.start({
-                            note: pitch, time: context.currentTime, duration: 0.12,
-                            velocity: Math.floor(METRONOME_CLICK_VOLUME * 127),
-                        });
-                    }
-                }
-            }
-
             // #922 ("klikken in tekstvak voltooit onmiddellijk de huidige paragraaf"): skip() jumps
-            // straight to the full page, silently (no catch-up tones for the skipped characters).
+            // straight to the full page, silently — any pre-scheduled but not-yet-played notes were
+            // already cancelled by handleTextClick before this flag was set.
             if (skippedRef.current) {
                 revealedRef.current = schedule.length;
                 setVisibleText(text);
@@ -99,21 +105,7 @@ export default function useConversationDialogue({
             }
             const elapsedClicks = (elapsedSec * 1000) / clickMs;
             let i = revealedRef.current;
-            while (i < schedule.length && schedule[i].clickOffset <= elapsedClicks) {
-                const entry = schedule[i];
-                if (entry.tone && profile?.instrument) {
-                    // #922 round 3: up to GROUP_SIZE characters now share one click — each note's audible
-                    // length is sized off its own `subSpan` share of the click.
-                    // #922 round 4 (Han: "de tekst klinkt heel bot... maak de duur van de noten 2x zo lang
-                    // (dan overlappen ze dus)"): deliberately OVERLAPPING now (subSpan × 1.8, was × 0.9) —
-                    // Han's own diagnosis was that the sharp per-note cutoff (each note choked right at the
-                    // next note's onset) read as curt/robotic; letting consecutive notes ring into each
-                    // other softens that.
-                    const noteDuration = (clickMs / 1000) * (entry.subSpan ?? 1) * 1.8;
-                    playSound(entry.tone, profile.instrument, context, context.currentTime, noteDuration, 0.8);
-                }
-                i += 1;
-            }
+            while (i < schedule.length && schedule[i].clickOffset <= elapsedClicks) i += 1;
             if (i !== revealedRef.current) {
                 revealedRef.current = i;
                 setVisibleText(text.slice(0, i));
@@ -123,7 +115,7 @@ export default function useConversationDialogue({
         };
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
-    }, [text, pageIndex, clickMs, context, profile, active, bpm, timeSignature, metronomeInstrument]);
+    }, [text, pageIndex, clickMs, context, profile, active, bpm]);
 
     // #922 ("wacht minimaal 1 tel, en tot begin volgende maat, om naar volgende instantie van de tekst te
     // gaan"): a SEPARATE effect (keyed on `pageDone`) so its own rAF wait loop is cleanly cancelled if the
@@ -146,9 +138,13 @@ export default function useConversationDialogue({
         return () => cancelAnimationFrame(raf);
     }, [pageDone, autoContinue, hasNextPage, active, context, bpm, timeSignature]);
 
-    const skip = useCallback(() => { skippedRef.current = true; }, []);
-    // #922: mid-animation click finishes the paragraph instantly; a click on an already-finished page
-    // manually advances (or closes, on the last page) — independent of whether auto-continue is on.
+    // #922: mid-animation click finishes the paragraph instantly (cancelling any pre-scheduled notes past
+    // this point); a click on an already-finished page manually advances (or closes, on the last page) —
+    // independent of whether auto-continue is on.
+    const skip = useCallback(() => {
+        skippedRef.current = true;
+        stopHandlesRef.current.forEach((stopFn) => { try { stopFn?.(); } catch { /* already stopped */ } });
+    }, []);
     const handleTextClick = useCallback(() => {
         if (!pageDone) { skip(); return; }
         if (hasNextPage) setPageIndex((p) => p + 1);

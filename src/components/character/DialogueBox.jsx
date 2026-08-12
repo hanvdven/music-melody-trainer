@@ -28,7 +28,11 @@ export const TEXT_WIDTH = 256 * DIALOGUE_SCALE;
 const BITFANTASY_UNITS_PER_EM = 1024;
 const BITFANTASY_CAP_HEIGHT_UNITS = 448;   // measured 'T' glyph height
 const CAP_HEIGHT_NATIVE_PX = 8;            // Han's own measurement of 'T' on the font's native pixel grid
-const FONT_SIZE = (CAP_HEIGHT_NATIVE_PX * DIALOGUE_SCALE * BITFANTASY_UNITS_PER_EM) / BITFANTASY_CAP_HEIGHT_UNITS;
+// #922 round 7 (Han: "tekst mag 50% kleiner (ondanks mijn eerder regel)"): overrides the pixel-perfect
+// derivation above by half — Han's own explicit call, made with full knowledge of the earlier "match the
+// portrait's per-pixel zoom" rule.
+const FONT_SIZE_OVERRIDE_MULTIPLIER = 0.5;
+const FONT_SIZE = ((CAP_HEIGHT_NATIVE_PX * DIALOGUE_SCALE * BITFANTASY_UNITS_PER_EM) / BITFANTASY_CAP_HEIGHT_UNITS) * FONT_SIZE_OVERRIDE_MULTIPLIER;
 
 // Crops (and, for a multi-frame/multi-row spritesheet, offsets to a specific `row`/`col` cell — default
 // {0,0}, the sheet's first/idle frame) EXACTLY the way SheetRpgLayer/CharacterDoll already render sprites
@@ -152,8 +156,9 @@ export default function DialogueBox({
                         ? <DedicatedPortrait url={dedicatedPortraitUrl} cell={dedicatedPortraitCell} frame={dedicatedPortraitFrame} />
                         : <SpeakerPortrait url={portraitUrl} crop={portraitCrop} cellW={portraitCellW} cellH={portraitCellH} row={portraitRow} col={portraitCol} />}
                     <div style={{ position: 'relative', width: TEXT_WIDTH, display: 'flex', alignItems: 'center', padding: `0 ${14 * DIALOGUE_SCALE / 2}px` }}>
-                        {/* #922 round 6 (Han: "regelafstand mag iets kleiner") — was 1.4. */}
-                        <span style={{ fontFamily: 'Bitfantasy, monospace', fontSize: FONT_SIZE, lineHeight: 1.15, color: 'var(--text-primary)' }}>
+                        {/* #922 round 6 ("regelafstand mag iets kleiner", 1.4->1.15) + round 7 ("regelafstand
+                            mag 20% kleiner", 1.15->0.92). */}
+                        <span style={{ fontFamily: 'Bitfantasy, monospace', fontSize: FONT_SIZE, lineHeight: 0.92, color: 'var(--text-primary)' }}>
                             {text}
                         </span>
                         {hasMorePages && <MorePagesIndicator />}

@@ -7,6 +7,45 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-12 — 🐞✅ KRITIEK: build was kapot (ontbrekende normal maps) + failsafe + #922/#924 UAT round 7
+
+Han: "welke generatie-regels volgt het level?... Ik wil graag die van de settings" + "hoeveelheid muziek
+weinig, 1 maat ipv 2?" + "even ticks op 70% van oneven ticks" + "text clicks hakkelig" + "metronoom hoeft niet
+meer tijdens tekst" + "geluid stopt abrupt... wacht 1 kwartnoot" + "tekst 50% kleiner, regelafstand 20%
+kleiner" + "maak alle muziek en tekst mf, gebruik de midi-velocities" + "ik heb de files geupdatatd, ik heb
+mss een normalmap verwijderd... maak een failsafe."
+
+**KRITIEK gevonden tijdens dit werk**: Han's eigen edits hadden de hele map
+`src/assets/ASSORTED/tiles/trees/generated/` verwijderd — `RpgLevelPanel.jsx` had 6 STATISCHE imports naar
+bestanden daarin, en een missende statische import is een BUILD-TIME fout (niet runtime) — `npm run build`
+was he-le-maal kapot. Opgelost: (1) bestanden opnieuw gegenereerd via het al bestaande
+`node scripts/generate-tree-normal-maps.mjs`; (2) de daadwerkelijke failsafe — statische imports vervangen
+door `import.meta.glob`, die alleen bestanden opneemt die daadwerkelijk bestaan; een ontbrekend bestand geeft
+nu `undefined` i.p.v. de build te breken. Getest door de map opnieuw te verwijderen en `npm run build` te
+draaien — slaagt.
+
+Overige fixes:
+
+- Generatie-instellingen bevestigd volledig los van de live song-settings (al zo, gecontroleerd).
+- `WORLD_AMBIENT_NUM_MEASURES` 2→4 (2 maten bleek al correct — geverifieerd, laatste noot eindigt exact op
+  tick 96 — maar toch verdubbeld voor meer muziek).
+- Metronoom-klik uit `useConversationDialogue.js` verwijderd (was tijdelijk voor debuggen).
+- Tick-accent: oneven ticknummer = volle MF_VOLUME, even = 70%.
+- "Hakkelige" tekst-audio gefixt: alle noten van een pagina worden nu vooraf ingepland op precieze toekomstige
+  AudioContext-tijden (zoals `playMelodies` een heel blok inplant) i.p.v. per-frame "nu" afspelen.
+- Nieuwe gedeelde `MF_VOLUME` (0.7) in `src/audio/dynamics.js`, gebruikt door zowel tekst als
+  ambient-muziek; vogel-lagen dragen nu hun eigen MIDI-velocity mee (`scripts/generate-bird-sounds.mjs`),
+  MF_VOLUME vermenigvuldigt daar bovenop.
+- Font 50% kleiner, regelafstand nog eens 20% kleiner (bovenop vorige ronde).
+
+Nog open (niet in deze ronde): "geluid stopt abrupt, wacht 1 kwartnoot" — raakt mogelijk de kern-
+`Sequencer.stop()` (buiten mijn eigen nieuwe systemen), vraag uitstaand bij Han. Ook: `ldtkWorld.test.js`
+faalt nu (`groundTilesFront` leeg) — losstaand van dit werk, vermoedelijk Han's eigen recente `.ldtk`-edits
+(nieuwe Bird/Duck/Butterfly entiteiten), niet blind gefixt omdat het bestand vaak verandert.
+
+Geverifieerd: `npm run test:run` (710/711, de ene faalt om de hierboven genoemde losstaande reden), lint (0
+errors), build groen (ook getest MET verwijderde normal-map-map). `docs/architecture.md` §220 toegevoegd.
+
 ## 2026-08-12 — ✅ #922/#924 UAT round: nooit auto-sluiten, echte volume-bug, bird-akkoorden, Bitfantasy-font
 
 Han: "auto-continue: als er geen volgende paragraaf is... sluit nooit automatisch een gesprek af." + "de

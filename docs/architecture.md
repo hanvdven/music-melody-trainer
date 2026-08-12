@@ -14230,3 +14230,70 @@ sprite next to it uses (`trueScale = PORTRAIT_SIZE / 64`, also `DIALOGUE_SCALE`)
 **Files:** `src/hooks/useConversationDialogue.js`, `src/hooks/useWorldAmbientMusic.js`,
 `scripts/generate-bird-sounds.mjs`, `src/model/birdSoundsManifest.generated.js`,
 `src/components/character/DialogueBox.jsx`.
+
+### §220. §219 UAT round — more measures, tick-accent, precise audio scheduling, mf dynamics, normal-map failsafe (#922/#924, Han 2026-08-12)
+
+**Generation settings confirmed isolated**: `generateWorldAmbientBlock.js` already uses its own fixed
+`WORLD_AMBIENT_TREBLE_SETTINGS`/`WORLD_AMBIENT_BASS_SETTINGS`/`Scale.defaultScale()` — verified it never
+reads the app's live InstrumentSettings/chord state or "the last played song"'s settings (Han: "welke
+generatie-regels volgt het level? ... Ik wil graag die van de settings").
+
+**More music**: verified `WORLD_AMBIENT_NUM_MEASURES=2` genuinely produced 2 full measures (a generated
+block's last note ends exactly at tick 96 = 2×48 ticks/measure — not a bug, Han's own hypothesis). Doubled
+to 4 measures per block anyway since "2 measures" still read as too little.
+
+**Metronome removed from text playback**: `useConversationDialogue.js`'s own soft metronome click (added
+while diagnosing the world-clock sync) is gone entirely — Han: "dat was om te testen."
+
+**Tick accent**: `useConversationDialogue.js` now derives a 1-indexed `tickNumber` per typewriter character
+(`Math.floor(clickOffset) + 1`) — odd tick numbers play at full `MF_VOLUME`, even ones at 70% (Han: "ik wil
+de 'even ticks' (dus off-tick) op 70% volume van de 'oneven ticks' (die op de beat vallen)").
+
+**"Hakkelig" (choppy) text audio fixed**: the typewriter used to call `playSound(..., context.currentTime,
+...)` — playing each note "now", at whatever rAF-tick happened to notice its click boundary had passed
+(quantizing onset to ~16ms video-frame granularity, an audible jitter source). Now ALL of a page's audio is
+pre-scheduled up front at PRECISE future AudioContext times when the page starts, exactly like
+`playMelodies()` schedules a whole block ahead — Web Audio's own engine handles sample-accurate playback
+regardless of JS main-thread jitter. `skip()` now cancels the pre-scheduled stop-handles for any
+not-yet-played notes past the skip point.
+
+**Auto-continue never closes** (carried over, reiterated): still only advances between existing pages.
+
+**Shared mf dynamic level**: new `src/audio/dynamics.js` exports `MF_VOLUME = 0.7` — used by BOTH the
+conversation typewriter and the generated ambient piano music (Han: "maak alle muziek, en ook de tekst
+mf"). Bird-song layers now carry their OWN `volumes[i]` (the source MIDI's real per-note velocity, captured
+by `scripts/generate-bird-sounds.mjs`, averaged across a chord's members) — Han: "bij de midi files, gebruik
+gewoon de velocities" — `MF_VOLUME` multiplies ON TOP of that per-note velocity at runtime, never replacing
+it.
+
+**Bird chords + polyphony**: (carried over from §219) all simultaneous notes kept, not just the top line.
+
+**CRITICAL build-break + failsafe** (Han: "ik heb de files geupdatatd, ik heb mss een normalmap
+verwijderd... maak een failsafe voor als de normal maps weg zijn. Het level gaat vaak geupdatet worden"):
+Han's own edits had deleted `src/assets/ASSORTED/tiles/trees/generated/` entirely — `RpgLevelPanel.jsx` had
+6 STATIC `import x from '.../generated/....png'` statements for pre-generated normal maps, and a static
+import of a missing file is a Rollup/Vite BUILD-TIME failure, not a runtime one — `npm run build` was
+completely broken. Fixed in two parts: (1) regenerated the missing assets via the existing
+`node scripts/generate-tree-normal-maps.mjs` (Sobel-derived from the diffuse art, no hand-painted asset
+needed — this was ALREADY re-runnable, just hadn't been re-run); (2) the actual failsafe — replaced the 6
+static imports with `import.meta.glob('.../generated/*.png', {eager:true, ...})`, which only includes
+whatever files genuinely exist at build time; a missing one now resolves to `undefined` instead of failing
+the build. `ForegroundFoliageLayer.jsx`'s `getTexture()` (already had an E022-FOLIAGE-TEXTURE-LOAD
+catch-and-skip for genuine network/load failures) now also short-circuits on a falsy `url` up front, so a
+missing normal map degrades to "that one shimmer instance doesn't draw" instead of any ambiguous
+`<img>.src = undefined` behavior. Verified by temporarily removing the `generated/` folder again and
+re-running `npm run build` — succeeds.
+
+**Known pre-existing, unrelated test failure**: `ldtkWorld.test.js`'s "splits every tile bucket into
+back/front of the Entities layer" now fails (`groundTilesFront.length === 0`) — traced to the
+`Grass_decoration_fg` layer's `Grass_Summer` rule group producing zero tiles (both the pre-baked path AND
+the live rule-engine fallback), most likely from Han's own recent `.ldtk` file edits (adding the Bird/Duck/
+Butterfly entities, §221). NOT caused by this round's changes, NOT a build-breaker (an empty tile bucket
+just means no foreground grass decoration renders) — flagged for Han, not fixed blind since the `.ldtk` file
+changes too often/fast to chase silently.
+
+**Files:** `src/generation/generateWorldAmbientBlock.js`, `src/hooks/useConversationDialogue.js`,
+`src/hooks/useWorldAmbientMusic.js`, `src/audio/dynamics.js` (new), `scripts/generate-bird-sounds.mjs`,
+`src/model/birdSoundsManifest.generated.js`, `src/components/character/DialogueBox.jsx`,
+`src/components/character/RpgLevelBottomPanel.jsx`, `src/components/layout/TabView.jsx`, `src/App.jsx`,
+`src/components/character/RpgLevelPanel.jsx`, `src/components/character/ForegroundFoliageLayer.jsx`.

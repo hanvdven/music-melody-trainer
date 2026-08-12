@@ -3,6 +3,7 @@ import { Soundfont } from 'smplr';
 import playMelodies from '../audio/playMelodies';
 import { secondsPerTick } from '../constants/timing';
 import { nextMeasureStartTime } from '../audio/worldClock';
+import { MF_VOLUME } from '../audio/dynamics';
 import {
     generateWorldAmbientBlock, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE, WORLD_AMBIENT_NUM_MEASURES,
 } from '../generation/generateWorldAmbientBlock';
@@ -16,15 +17,14 @@ import { BIRD_SONG_LAYERS } from '../model/birdSoundsManifest.generated';
 // maat"; round 4: "alles op een klok geldt ook voor de tekst, en de toggleable wereldmetronoom" — this is
 // the ONE clock/tempo every RPG-layer audio system reads from now (see useConversationDialogue.js and
 // useDebugMetronome.js's matching fixes).
-// #924 round 5 (Han: "de piano mag een stuk luider, net zo luid als de vogels"): applied by scaling each
-// generated Melody's `.volumes` array directly (see scheduleNextBlock below) — MelodyGenerator always
-// populates `.volumes`, and playMelodies.js reads gain from THAT array whenever it exists, silently
-// ignoring `melody.gain`/`trackGains` overrides. A noticeably higher value than the birds' own 0.22 (not a
-// literal match) — bumped further because even a numerically-equal gain read as much quieter in practice
-// (piano samples respond more dramatically to velocity than the shakuhachi/bird samples do), so matching
-// PERCEIVED loudness needs a higher number. Tune further if still too quiet/loud.
-const AMBIENT_GAIN = 0.6;
-const BIRD_LAYER_GAIN = { treble: 0.22 };
+// #924 round 6 (Han: "maak alle muziek, en ook de tekst mf"): both the generated piano music and the bird
+// layers now scale to the SAME shared MF_VOLUME (src/audio/dynamics.js) — applied by scaling each Melody's
+// `.volumes` array directly (see scheduleNextBlock/triggerOnce below). MelodyGenerator always populates
+// `.volumes`, and playMelodies.js reads gain from THAT array whenever it exists, silently ignoring
+// `melody.gain`/`trackGains` overrides (an earlier `.gain`-only attempt was a silent no-op for generated
+// melodies for exactly this reason). Bird layers now carry their OWN `.volumes` too (the source MIDI's real
+// velocities, scripts/generate-bird-sounds.mjs, "gebruik gewoon de velocities") — MF_VOLUME multiplies on
+// top of that per-note velocity, it doesn't replace it.
 const BIRD_MIN_SILENCE_SEC = 5;
 const BIRD_MAX_SILENCE_SEC = 30;
 // #924 round 2 (Han: "ik heb de file geupdated. Speel altijd maximaal 3."): the source MIDI's own track
@@ -69,16 +69,8 @@ export default function useWorldAmbientMusic({ active, context }) {
                 // melody entry on its own (`if (!melody) continue`), so passing both through unconditionally
                 // is correct and plays whichever one(s) actually generated.
                 const { treble, bass: bassMelody } = generateWorldAmbientBlock({ runId: `world-amb-${Date.now()}` });
-                // #924 round 5 bugfix: MelodyGenerator always populates `.volumes` (defaults to an
-                // all-1s array; some notes get 0.9 for tuplets) — playMelodies.js reads gain from
-                // `melody.volumes[i]` WHENEVER that array exists, completely ignoring `melody.gain`. Setting
-                // `.gain` alone (the previous attempt) was therefore a silent no-op for every generated
-                // melody. Scaling `.volumes` itself is the only way to actually apply AMBIENT_GAIN here (the
-                // raw MIDI-derived bird layers have no `.volumes` array, so THEIR gain correctly came from
-                // playMelodies' trackGains/`.gain` fallback all along — this bug was specific to generated
-                // melodies).
-                if (treble) treble.volumes = treble.volumes.map((v) => v * AMBIENT_GAIN);
-                if (bassMelody) bassMelody.volumes = bassMelody.volumes.map((v) => v * AMBIENT_GAIN);
+                if (treble) treble.volumes = treble.volumes.map((v) => v * MF_VOLUME);
+                if (bassMelody) bassMelody.volumes = bassMelody.volumes.map((v) => v * MF_VOLUME);
                 if (treble || bassMelody) {
                     playMelodies([treble, bassMelody], [treblePiano, bassPiano], context, WORLD_AMBIENT_BPM, startTime);
                 }
@@ -108,16 +100,17 @@ export default function useWorldAmbientMusic({ active, context }) {
             for (let slot = 0; slot < MAX_CONCURRENT_BIRD_LAYERS; slot++) {
                 const triggerOnce = () => {
                     if (cancelled) return;
-                    const layer = BIRD_SONG_LAYERS[Math.floor(Math.random() * BIRD_SONG_LAYERS.length)];
+                    const source = BIRD_SONG_LAYERS[Math.floor(Math.random() * BIRD_SONG_LAYERS.length)];
+                    // Han: "gebruik gewoon de velocities" — scale the layer's OWN per-note velocities
+                    // (scripts/generate-bird-sounds.mjs) by MF_VOLUME, don't replace them with a flat gain.
+                    // Copy the array (never mutate the shared BIRD_SONG_LAYERS export in place).
+                    const layer = { ...source, volumes: source.volumes.map((v) => v * MF_VOLUME) };
                     const lastNoteEnd = layer.offsets.length
                         ? Math.max(...layer.offsets.map((o, i) => o + layer.durations[i]))
                         : 0;
                     const layerDurationSec = lastNoteEnd * secondsPerTick(WORLD_AMBIENT_BPM);
                     const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
-                    playMelodies(
-                        [layer], [shakuhachi], context, WORLD_AMBIENT_BPM, startTime,
-                        null, null, { treble: shakuhachi }, null, BIRD_LAYER_GAIN,
-                    );
+                    playMelodies([layer], [shakuhachi], context, WORLD_AMBIENT_BPM, startTime);
                     const silenceSec = BIRD_MIN_SILENCE_SEC + Math.random() * (BIRD_MAX_SILENCE_SEC - BIRD_MIN_SILENCE_SEC);
                     const waitSec = (startTime - context.currentTime) + layerDurationSec + silenceSec;
                     const id = setTimeout(triggerOnce, waitSec * 1000);

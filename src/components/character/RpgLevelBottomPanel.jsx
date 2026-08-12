@@ -27,12 +27,12 @@ const SPEAKER_PORTRAIT_BY_ENTITY = {
 // it now ALWAYS runs at WORLD_BPM/WORLD_TIME_SIGNATURE (worldClock.js), the same fixed tempo the ambient
 // music, bird songs, and debug metronome all share, instead of the app's live (and irrelevant here) song
 // bpm that used to be threaded down from TabView/App.jsx.
-export default function RpgLevelBottomPanel({ rpgLevel, context, instruments, getConversationProfile }) {
+export default function RpgLevelBottomPanel({ rpgLevel, context, getConversationProfile }) {
     const { dialogue, closeDialogue, autoContinue, toggleAutoContinue } = rpgLevel;
     const profile = dialogue ? getConversationProfile(dialogue.entity) : null;
     const { visibleText, hasNextPage, handleTextClick } = useConversationDialogue({
         pages: dialogue?.pages, active: !!dialogue, context, bpm: WORLD_BPM, timeSignature: WORLD_TIME_SIGNATURE,
-        profile, metronomeInstrument: instruments?.metronome, autoContinue, onClosed: closeDialogue,
+        profile, autoContinue, onClosed: closeDialogue,
     });
 
     if (!dialogue) {

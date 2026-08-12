@@ -19,7 +19,11 @@ import { WORLD_BPM, WORLD_TIME_SIGNATURE } from '../audio/worldClock';
 // a second, independently-defined 100bpm copy that could silently drift out of sync with those.
 export const WORLD_AMBIENT_BPM = WORLD_BPM;
 export const WORLD_AMBIENT_TIME_SIGNATURE = WORLD_TIME_SIGNATURE;
-export const WORLD_AMBIENT_NUM_MEASURES = 2;
+// #924 round 6 (Han: "ik vind de hoeveelheid muziek toch weinig. kan het dat er maar 1 maat gegeneerd
+// wordt ipv 2?" — verified NOT a bug: the generated melody genuinely spans the full 2 measures (last note
+// ends exactly at tick 96 = 2×48 ticks/measure). Doubled anyway to 4 measures per block for noticeably more
+// music, since "2 measures" was still reading as too little).
+export const WORLD_AMBIENT_NUM_MEASURES = 4;
 export const WORLD_AMBIENT_SILENCE_CHANCE = 2 / 3;
 
 // #924 round 4 (Han: "ik nog steeds maar weinig melodie. zet die maar even op piano-instrument, en zelfde

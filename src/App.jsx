@@ -1562,7 +1562,7 @@ const App = () => {
     const levelResultDialogue = useConversationDialogue({
         pages: levelResultPages, active: characterScreen === 'levelResult' && !!level.current,
         context, bpm, timeSignature, profile: levelResultProfile,
-        metronomeInstrument: instruments?.metronome, autoContinue: rpgLevel.autoContinue,
+        autoContinue: rpgLevel.autoContinue,
     });
     const twoHandedBass = useTwoHandedBass({
         active: twoHandedActive,

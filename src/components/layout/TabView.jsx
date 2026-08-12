@@ -159,7 +159,7 @@ const TabView = ({
                 )}
                 {characterScreen === 'stats' && <StatsBottomPanel />}
                 {characterScreen === 'bestiary' && <BestiaryBottomPanel editor={bestiaryEditor} />}
-                {characterScreen === 'rpg-level' && <RpgLevelBottomPanel rpgLevel={rpgLevel} context={context} instruments={instruments} getConversationProfile={getConversationProfile} />}
+                {characterScreen === 'rpg-level' && <RpgLevelBottomPanel rpgLevel={rpgLevel} context={context} getConversationProfile={getConversationProfile} />}
             </div>
         );
     }

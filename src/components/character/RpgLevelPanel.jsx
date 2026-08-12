@@ -20,13 +20,23 @@ import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_W
 // #141 (Han 2026-08-05): pre-generated normal maps for the shimmer shader — see
 // scripts/generate-tree-normal-maps.mjs (Sobel height-gradient derived from the diffuse art itself, no
 // hand-painted normal-map asset needed).
-import treeFoliageSummerNormalUrl from '../../assets/ASSORTED/tiles/trees/generated/tree-foliage-summer-normal.png';
-import grassNormalR5C1Url from '../../assets/ASSORTED/tiles/trees/generated/grass-normal-r5c1.png';
-import grassNormalR5C2Url from '../../assets/ASSORTED/tiles/trees/generated/grass-normal-r5c2.png';
-import grassNormalR5C3Url from '../../assets/ASSORTED/tiles/trees/generated/grass-normal-r5c3.png';
-import grassNormalR6C1Url from '../../assets/ASSORTED/tiles/trees/generated/grass-normal-r6c1.png';
-import grassNormalR7C1Url from '../../assets/ASSORTED/tiles/trees/generated/grass-normal-r7c1.png';
-import crateNormalUrl from '../../assets/ASSORTED/tiles/trees/generated/crate-normal.png';
+// #924 round 7 (Han 2026-08-12, "maak een failsafe voor als de normal maps weg zijn. Het level gaat vaak
+// geupdatet worden"): these used to be 6 STATIC imports — a Vite/Rollup static `import x from '...png'` is
+// resolved at BUILD time, so a missing file is a hard build failure (confirmed: this exact scenario just
+// broke `npm run build` entirely after the `generated/` folder was removed, before being regenerated via
+// `node scripts/generate-tree-normal-maps.mjs`). `import.meta.glob` only includes whatever files actually
+// EXIST at build time — a missing one silently yields `undefined` here instead of failing the whole build;
+// every consumer below already tolerates a missing/undefined normalUrl (ForegroundFoliageLayer's
+// E022-FOLIAGE-TEXTURE-LOAD skips that one shimmer instance rather than crashing the shared render loop).
+const NORMAL_MAP_URLS = import.meta.glob('../../assets/ASSORTED/tiles/trees/generated/*.png', { eager: true, query: '?url', import: 'default' });
+const normalMapUrl = (basename) => NORMAL_MAP_URLS[`../../assets/ASSORTED/tiles/trees/generated/${basename}`];
+const treeFoliageSummerNormalUrl = normalMapUrl('tree-foliage-summer-normal.png');
+const grassNormalR5C1Url = normalMapUrl('grass-normal-r5c1.png');
+const grassNormalR5C2Url = normalMapUrl('grass-normal-r5c2.png');
+const grassNormalR5C3Url = normalMapUrl('grass-normal-r5c3.png');
+const grassNormalR6C1Url = normalMapUrl('grass-normal-r6c1.png');
+const grassNormalR7C1Url = normalMapUrl('grass-normal-r7c1.png');
+const crateNormalUrl = normalMapUrl('crate-normal.png');
 import bgLayer1Url from '../../assets/ASSORTED/backgrounds/Normal BG/GandalfHardcore Background layers_layer 1.png';
 import bgLayer2Url from '../../assets/ASSORTED/backgrounds/Normal BG/GandalfHardcore Background layers_layer 2.png';
 import bgLayer3Url from '../../assets/ASSORTED/backgrounds/Normal BG/GandalfHardcore Background layers_layer 3.png';
