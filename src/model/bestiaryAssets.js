@@ -50,6 +50,13 @@ function buildCreatures() {
             // signals — never hand-typed. Per-animation tags ride through automatically via `animations`'s
             // own `...a` spread above; this is the CREATURE/variant-level tag list.
             tags: m.tags || [],
+            // #924 (Han 2026-08-12, "critters uit critter sheet kijken naar links... butterfly de verkeerde
+            // kant op"): the generator has computed this since #870 ("markeer die naar rechts kijken" —
+            // FACING_RIGHT_NAMES) but it was never actually copied onto the runtime variant object — "Purely
+            // descriptive DATA — no runtime flip behaviour is wired to it yet" per that section's own
+            // comment. Now wired: WorldCreature (RpgLevelPanel.jsx) reads this to know a sprite's OWN native
+            // orientation before applying a caller's desired look-direction flip.
+            facing: m.facing || 'left',
             // #870 (Han 2026-08-12, "human / humanoid / animal / other being. elke entiteit is precies één
             // van deze vier"): a SEPARATE axis from `tags` (see generator's `entry.being` comment) —
             // defaults to 'human' if somehow absent (curated ENEMIES entries never set it).
@@ -135,6 +142,17 @@ export function findCreatureByName(name) {
     const c = SCANNED_CREATURES.find((c) => c.name === name);
     if (!c) return null;
     return c.variants.find((v) => v.variant === 'Plain') || c.variants[0] || null;
+}
+
+// #924 (Han 2026-08-12, "spawn een random critter met tags: critter + nature + (flying/ground/water)"):
+// every classified creature (one per SCANNED_CREATURES entry, its own default 'Plain'-or-first variant,
+// same pick `findCreatureByName` uses) whose tag list contains ALL of `requiredTags` — the RPG-world
+// wanderer spawner picks a random ENTRY from this pool per spawn marker, so any bestiary tagging change
+// automatically flows through with no code change here (§6c).
+export function findCreaturesByTags(requiredTags) {
+    return SCANNED_CREATURES
+        .map((c) => c.variants.find((v) => v.variant === 'Plain') || c.variants[0])
+        .filter((v) => v && requiredTags.every((t) => v.tags.includes(t)));
 }
 
 // #790: like `findCreatureByName`, but for a creature classified with named COLOUR variants (e.g. the

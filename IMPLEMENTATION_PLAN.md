@@ -4476,3 +4476,31 @@ vage "werkt niet". Build clean. Nog te doen: Han test, plakt console-output,
 dan pas een gerichte fix i.p.v. verder gokken. Deze debug-logs MOETEN weer
 verwijderd worden zodra gediagnosticeerd.
 - Nog niet gecommit.
+
+## 2026-08-12 — ✅ #924 ronde 8: generieke tag-gestuurde critter-spawning, camera-stick fix, wander-snelheid, facing-flip, bestiary tag-pass, vogel-volume, tekst-font
+
+Han: "vogel en butterfly gaan veel te snel, verlaag snelheid naar 20%... de
+beesten kleven aan het scherm, maar moeten aan level kleven... critters kijken
+bijna allemaal naar rechts, maar de critters uit critter sheet kijken naar
+links... bestiary: alle dieren uit critter sheet moeten 'critter' en nature tag
+krijgen... Ik heb de LDTK vervangen: critter ground, critter air, critter
+water. spawn een random critter met tags: critter + nature +
+(flying/ground/water)... [tag-toewijzingen per diernaam]" + later "volume van
+de vogels mag 20% lager. font van tekst mag 50% groter."
+
+- ✅ `findCreaturesByTags()` (bestiaryAssets.js) — generieke tag-query, vervangt
+  de hardcoded BIRD_POOL_NAMES/DUCK_POOL_NAMES roster.
+- ✅ `critterWanderers`/`HABITAT_WANDER` (RpgLevelPanel.jsx) — leest
+  `ENTITY_INSTANCES[Critter_air|water|ground]` (+ legacy `Bird`-alias),
+  vervangt birdWanderers/duckWanderers/butterflyWanderers.
+- ✅ Bestiary tag-pass (generate-bestiary-manifest.mjs): nature (alle critters),
+  hostile/ground/water/underwater/flying rosters per Han's lijst, Intellect
+  Devourer naam-fix. Manifest geregenereerd + geverifieerd via vite-node.
+- ✅ Facing-flip echt aangesloten: `variant.facing` (al sinds #870 berekend maar
+  nooit gebruikt) XOR'd tegen de gewenste kijkrichting in `WorldCreature`.
+- ✅ Camera-stick bug gefixed: `worldToScreenXRef` i.p.v. stale closure.
+- ✅ Wander-snelheid -80% (`WANDER_SPEED = 0.6 * 0.2`).
+- ✅ `BIRD_VOLUME_MULTIPLIER = 0.8` (useWorldAmbientMusic.js).
+- ✅ `FONT_SIZE_OVERRIDE_MULTIPLIER = 0.5 * 1.5` (DialogueBox.jsx).
+- architecture.md §222 bijgewerkt. `npm run test:run`/`lint`/`build` groen (1
+  vooraf-bestaande, ongerelateerde ldtkWorld.test.js failure blijft staan).

@@ -394,6 +394,9 @@ const BASE_OVERRIDES = [
     { test: (p) => /char_passive\/Bathtime\.png$/i.test(p), base: 'Bathtime', variant: 'Normal' },
     // #682 (Han 2026-08-04, "mature" category renames)
     { test: (p) => /char_passive\/Art lady\.png$/i.test(p), base: 'Lady Art Pose', variant: null },
+    // #924 (Han 2026-08-12, bestiary pass: "intellect devourer (haal spite/sprites uit de naam)") — the
+    // filename-derived base name picked up the sheet's own "Sprites" suffix.
+    { test: (p) => /Intellect Devourer Sprites\.png$/i.test(p), base: 'Intellect Devourer', variant: null },
     // Dryad sheet.png / Eve sheet.png / Covered Characters sheet.png used to fall through to here (generic
     // single-creature treatment) — #870 (Han 2026-08-11/12) gave the full roster, so they're now split into
     // named variant entries by `threeRowVariantEntries`/`coveredCharacterEntries` (push+continue, below);
@@ -2417,7 +2420,10 @@ for (const entry of manifest) {
     if (entry.category === 'musicians' || entry.base === 'Oriental Musician' || entry.base === 'Tavern Musician') tags.push('musician');
     // Han: "critter: alles uit critter sheet en de critter map" — relPath-based (not `category`, which can
     // be OVERRIDDEN away from 'critters' for things that physically live in that folder, e.g. totems/portal).
-    if (/\/animals\/critters\//i.test(entry.relPath)) tags.push('critter');
+    // #924 (Han 2026-08-12, "bestiary: alle dieren uit critter sheet moeten 'critter' en 'nature' tag
+    // krijgen"): 'nature' rides the SAME relPath check — every critter-sheet animal is by definition wild
+    // fauna, one shared condition rather than a second copy of the same test.
+    if (/\/animals\/critters\//i.test(entry.relPath)) { tags.push('critter'); tags.push('nature'); }
     if (/\/animals\/pets\//i.test(entry.relPath) || entry.base === 'Dog (Small)' || entry.base === 'Cat') tags.push('pet');
     if (/oriental|japanese/i.test(entry.base)) tags.push('oriental');
     // Han: "ken tavern toe aan: lady corset, lady leg, medieval servant, christmas lady, cook, lady can can,
@@ -2491,6 +2497,32 @@ for (const entry of manifest) {
     // key) never picked up 'move' from the key-based rule a few lines up; this closes that gap generically
     // instead of listing the same roster twice.
     if (tags.includes('flying') && !tags.includes('move')) tags.push('move');
+    // #924 (Han 2026-08-12, "bestiary pass"): 'hostile' plus the habitat tags (ground/water/underwater —
+    // 'flying' already exists) used by the RPG-world's "spawn a random critter matching this habitat"
+    // system (useWorldCritterSpawns.js). Explicit name rosters, same §6c convention as RANGED_NAMES/
+    // TOWNSFOLK_ANIMAL_NAMES/ALWAYS_FLYING_NAMES — no formula can derive "this creature is hostile" or
+    // "lives in water" from a name/folder/animation alone.
+    const HOSTILE_NAMES = new Set([
+        'Akaname', 'Brain Mole Monarch', 'Cacodaemon', 'Corrupted Treant', 'Ghoul', 'Giant Fly',
+        'Giant Dragonfly', 'Imp', 'Intellect Devourer',
+    ]);
+    if (HOSTILE_NAMES.has(entry.base)) tags.push('hostile');
+    const GROUND_NATURE_NAMES = new Set([
+        'Acid Ant', 'Armadillo', 'Bloated Bedbug', 'Cat', 'Clucking Chicken', 'Cobra', 'Dainty Pig',
+        'Dung Beetle', 'Ferret', 'Fox', 'Hedgehog', 'Lava Ant', 'Mad Boar', 'Mawing Beaver', 'Meowing Cat',
+        'Panda', 'Pasturing Sheep', 'Porcupine', 'Rhino Beetle', 'Snow Fox', 'Soldier Ant', 'Spider',
+        'Squirrel', 'Stinky Skunk', 'Tiny Chick', 'Tunneling Mole', 'Worm',
+    ]);
+    if (GROUND_NATURE_NAMES.has(entry.base)) tags.push('ground');
+    const WATER_NATURE_NAMES = new Set(['Coral Crab', 'Croaking Toad', 'Slow Turtle']);
+    if (WATER_NATURE_NAMES.has(entry.base)) tags.push('water');
+    const UNDERWATER_NATURE_NAMES = new Set(['Jellyfish', 'Octopus']);
+    if (UNDERWATER_NATURE_NAMES.has(entry.base)) tags.push('underwater');
+    // Han: "geef tag nature en flying (als hij er nog niet op zit) aan: fly (small), bumble bee, honking
+    // goose, leaping frog, pidgeon" — Fly (Small)/Bumble Bee already get 'flying' from their own animation
+    // key / ALWAYS_FLYING_NAMES respectively; this roster only needs the ones that were missing it.
+    const FLYING_NATURE_ADD_NAMES = new Set(['Honking Goose', 'Leaping Frog', 'Pidgeon']);
+    if (FLYING_NATURE_ADD_NAMES.has(entry.base) && !tags.includes('flying')) tags.push('flying');
     if (tags.length) entry.tags = [...new Set(tags)];
 }
 

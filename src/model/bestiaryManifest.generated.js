@@ -9846,7 +9846,8 @@ export default [
     "being": "animal",
     "tags": [
       "pet",
-      "townsfolk"
+      "townsfolk",
+      "ground"
     ]
   },
   {
@@ -9898,7 +9899,8 @@ export default [
     "being": "animal",
     "tags": [
       "pet",
-      "townsfolk"
+      "townsfolk",
+      "ground"
     ]
   },
   {
@@ -11406,7 +11408,8 @@ export default [
     "being": "animal",
     "tags": [
       "pet",
-      "townsfolk"
+      "townsfolk",
+      "ground"
     ]
   },
   {
@@ -11458,7 +11461,8 @@ export default [
     "being": "animal",
     "tags": [
       "pet",
-      "townsfolk"
+      "townsfolk",
+      "ground"
     ]
   },
   {
@@ -12966,7 +12970,8 @@ export default [
     "being": "animal",
     "tags": [
       "pet",
-      "townsfolk"
+      "townsfolk",
+      "ground"
     ]
   },
   {
@@ -13018,7 +13023,8 @@ export default [
     "being": "animal",
     "tags": [
       "pet",
-      "townsfolk"
+      "townsfolk",
+      "ground"
     ]
   },
   {
@@ -57326,7 +57332,9 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "hostile"
     ]
   },
   {
@@ -57487,7 +57495,9 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -57534,7 +57544,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -57581,7 +57593,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "water"
     ]
   },
   {
@@ -57628,7 +57642,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "water"
     ]
   },
   {
@@ -57675,7 +57691,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -57722,7 +57740,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "flying"
     ]
   },
   {
@@ -57769,7 +57789,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "flying"
     ]
   },
   {
@@ -57816,7 +57838,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -57863,7 +57887,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -57910,7 +57936,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -57957,7 +57985,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "water"
     ]
   },
   {
@@ -58004,7 +58034,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -58051,7 +58083,8 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -58098,7 +58131,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -58145,7 +58180,8 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -58192,7 +58228,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -58240,6 +58278,7 @@ export default [
     "being": "animal",
     "tags": [
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -58288,7 +58327,9 @@ export default [
     "being": "other",
     "tags": [
       "critter",
-      "magical"
+      "nature",
+      "magical",
+      "hostile"
     ]
   },
   {
@@ -58336,6 +58377,7 @@ export default [
     "being": "humanoid",
     "tags": [
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -58384,6 +58426,7 @@ export default [
     "being": "other",
     "tags": [
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -58432,6 +58475,7 @@ export default [
     "being": "animal",
     "tags": [
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -58480,6 +58524,7 @@ export default [
     "being": "other",
     "tags": [
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -58532,6 +58577,7 @@ export default [
     "tags": [
       "flying",
       "critter",
+      "nature",
       "magical",
       "move"
     ]
@@ -58585,6 +58631,7 @@ export default [
     "tags": [
       "flying",
       "critter",
+      "nature",
       "magical",
       "move"
     ]
@@ -58634,6 +58681,7 @@ export default [
     "being": "other",
     "tags": [
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -58682,6 +58730,7 @@ export default [
     "being": "other",
     "tags": [
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -58730,6 +58779,7 @@ export default [
     "being": "other",
     "tags": [
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -58782,6 +58832,7 @@ export default [
     "tags": [
       "flying",
       "critter",
+      "nature",
       "magical",
       "move"
     ]
@@ -58831,6 +58882,7 @@ export default [
     "being": "humanoid",
     "tags": [
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -58879,6 +58931,7 @@ export default [
     "being": "humanoid",
     "tags": [
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -58927,6 +58980,7 @@ export default [
     "being": "other",
     "tags": [
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -58974,7 +59028,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -59021,7 +59077,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -59068,7 +59126,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -59115,7 +59175,8 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -59162,7 +59223,8 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -59209,7 +59271,8 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -59256,7 +59319,8 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -59303,7 +59367,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -59350,7 +59416,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -59402,6 +59470,7 @@ export default [
     "tags": [
       "flying",
       "critter",
+      "nature",
       "move"
     ]
   },
@@ -59449,7 +59518,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -59496,7 +59567,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -59548,6 +59621,7 @@ export default [
     "tags": [
       "flying",
       "critter",
+      "nature",
       "move"
     ]
   },
@@ -59595,7 +59669,8 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -59642,7 +59717,9 @@ export default [
     "facing": "right",
     "being": "animal",
     "tags": [
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -59782,7 +59859,9 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "hostile"
     ]
   },
   {
@@ -59909,7 +59988,8 @@ export default [
     "facing": "right",
     "being": "other",
     "tags": [
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -60037,7 +60117,8 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -60186,7 +60267,9 @@ export default [
       "move",
       "attack",
       "critter",
-      "hellish"
+      "nature",
+      "hellish",
+      "hostile"
     ]
   },
   {
@@ -60502,8 +60585,10 @@ export default [
       "move",
       "attack",
       "critter",
+      "nature",
       "pet",
-      "townsfolk"
+      "townsfolk",
+      "ground"
     ]
   },
   {
@@ -60688,7 +60773,9 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -60828,7 +60915,9 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "hostile"
     ]
   },
   {
@@ -61333,7 +61422,8 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -61471,6 +61561,7 @@ export default [
     "tags": [
       "flying",
       "critter",
+      "nature",
       "move"
     ]
   },
@@ -61798,7 +61889,9 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -62000,6 +62093,7 @@ export default [
       "move",
       "attack",
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -62161,6 +62255,7 @@ export default [
     "being": "other",
     "tags": [
       "critter",
+      "nature",
       "ranged"
     ]
   },
@@ -62348,6 +62443,7 @@ export default [
       "move",
       "attack",
       "critter",
+      "nature",
       "ranged"
     ]
   },
@@ -62642,7 +62738,9 @@ export default [
       "move",
       "attack",
       "critter",
-      "townsfolk"
+      "nature",
+      "townsfolk",
+      "ground"
     ]
   },
   {
@@ -62812,7 +62910,9 @@ export default [
       "move",
       "attack",
       "critter",
-      "undead"
+      "nature",
+      "undead",
+      "hostile"
     ]
   },
   {
@@ -62948,7 +63048,9 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "hostile"
     ]
   },
   {
@@ -62992,7 +63094,8 @@ export default [
     "tags": [
       "flying",
       "move",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -63133,6 +63236,7 @@ export default [
     "tags": [
       "flying",
       "critter",
+      "nature",
       "move"
     ]
   },
@@ -63244,7 +63348,8 @@ export default [
     "facing": "right",
     "being": "other",
     "tags": [
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -63355,7 +63460,9 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -63705,7 +63812,8 @@ export default [
     "being": "animal",
     "tags": [
       "move",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -64055,7 +64163,8 @@ export default [
     "being": "animal",
     "tags": [
       "move",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -64405,7 +64514,8 @@ export default [
     "being": "animal",
     "tags": [
       "move",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -64857,6 +64967,7 @@ export default [
       "move",
       "attack",
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -65073,13 +65184,15 @@ export default [
       "move",
       "attack",
       "critter",
-      "hellish"
+      "nature",
+      "hellish",
+      "hostile"
     ]
   },
   {
     "category": "critters",
     "relPath": "../assets/ASSORTED/characters/animals/critters/Intellect Devourer Sprites.png",
-    "base": "Intellect Devourer Sprites",
+    "base": "Intellect Devourer",
     "variant": null,
     "width": 256,
     "height": 192,
@@ -65268,11 +65381,13 @@ export default [
       }
     ],
     "facing": "right",
-    "being": "other",
+    "being": "animal",
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "hostile"
     ]
   },
   {
@@ -65445,7 +65560,9 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "underwater"
     ]
   },
   {
@@ -65688,7 +65805,8 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -65904,6 +66022,7 @@ export default [
       "move",
       "attack",
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -66279,6 +66398,7 @@ export default [
       "move",
       "attack",
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -66498,7 +66618,8 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -66729,7 +66850,9 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "underwater"
     ]
   },
   {
@@ -66959,7 +67082,8 @@ export default [
       "flying",
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -67074,7 +67198,9 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "flying"
     ]
   },
   {
@@ -67211,7 +67337,9 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -67352,6 +67480,7 @@ export default [
     "tags": [
       "flying",
       "critter",
+      "nature",
       "move"
     ]
   },
@@ -67541,7 +67670,8 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -67753,6 +67883,7 @@ export default [
       "move",
       "attack",
       "critter",
+      "nature",
       "magical"
     ]
   },
@@ -68018,7 +68149,9 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -68053,7 +68186,8 @@ export default [
     "facing": "right",
     "being": "other",
     "tags": [
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -68520,7 +68654,9 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -68725,7 +68861,9 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -68918,7 +69056,8 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -69029,6 +69168,7 @@ export default [
     "being": "other",
     "tags": [
       "critter",
+      "nature",
       "townsfolk"
     ]
   },
@@ -69198,7 +69338,8 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -69425,7 +69566,8 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature"
     ]
   },
   {
@@ -69652,7 +69794,9 @@ export default [
     "tags": [
       "move",
       "attack",
-      "critter"
+      "critter",
+      "nature",
+      "ground"
     ]
   },
   {
@@ -73854,7 +73998,8 @@ export default [
     "tags": [
       "flying",
       "move",
-      "hellish"
+      "hellish",
+      "hostile"
     ]
   },
   {

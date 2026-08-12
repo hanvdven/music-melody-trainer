@@ -14342,3 +14342,66 @@ choked at the exact instant Stop/End-song fires.
 
 **Files:** `src/levels/ldtk/ldtkWorld.js` (`ENTITY_INSTANCES`), `src/components/character/RpgLevelPanel.jsx`
 (`WorldWanderer`, bird/duck/butterfly pools + rendering), `src/audio/Sequencer.js` (`stop()`).
+
+### §222. §221 UAT round — generic tag-driven critter spawning, camera-stick fix, wander speed, facing-flip wiring, bestiary tag pass, bird volume, dialogue font size (#924, Han 2026-08-12)
+
+**Generic tag-driven critter spawning replaces the Bird/Duck/Butterfly pools.** Han replaced the `.ldtk`
+file's `Bird`/`Duck`/`Butterfly` markers with generic `Critter_air`/`Critter_water`/(future) `Critter_ground`
+markers and asked for random spawning "critter + nature + (flying/ground/water)" driven by Bestiary tags,
+not a hardcoded name list (§6c). `bestiaryAssets.js` gained `findCreaturesByTags(requiredTags)`, returning
+every classified creature (one variant each, same pick `findCreatureByName` uses) whose tags are a superset
+of `requiredTags` — any future bestiary tagging change flows through automatically. `RpgLevelPanel.jsx`'s
+`critterWanderers` now iterates a `HABITAT_WANDER` map (`flying`/`ground`/`water` → wander box + perch
+flag) over `ENTITY_INSTANCES[Critter_<habitat>]` (with `Bird` kept as a backward-compatible alias for
+`flying`, so pre-rename levels still spawn something), picking one `findCreaturesByTags(['critter',
+'nature', habitatTag])` result per instance. The old `BIRD_POOL_NAMES`/`DUCK_POOL_NAMES` hand-picked rosters
+and the separate `birdWanderers`/`duckWanderers`/`butterflyWanderers` memos are gone — one generic list.
+
+**Bestiary tag pass** (`scripts/generate-bestiary-manifest.mjs`): every critter-sheet animal now also gets
+`nature` (rides the same `relPath` check as the existing `critter` tag — one shared condition, §6c). New
+name-roster-driven tags: `hostile` (Akaname, Brain Mole Monarch, Cacodaemon, Corrupted Treant, Ghoul, Giant
+Fly, Giant Dragonfly, Imp, Intellect Devourer), `ground` (the large land-animal roster Han listed), `water`
+(Coral Crab, Croaking Toad, Slow Turtle), `underwater` (Jellyfish, Octopus), and `flying` added to Honking
+Goose/Leaping Frog/Pidgeon where not already present. "Intellect Devourer" also got a `BASE_OVERRIDES` entry
+stripping the sheet's own "Sprites" filename suffix (Han: "haal spite/sprites uit de naam"). Regenerated
+`src/model/bestiaryManifest.generated.js`; verified via a `vite-node` import of the compiled module (a first
+verification attempt via Python regex-slicing the generated file gave misleading results — always verify
+generated data via actual code execution, not text-pattern-matching on the output).
+
+**Facing-direction flip now actually wired up.** `bestiaryManifest.generated.js` has computed a per-creature
+`facing: 'right'|undefined` field since #870 (`FACING_RIGHT_NAMES`), but §207's own comment said "purely
+descriptive DATA — no runtime flip behaviour is wired to it yet". `bestiaryAssets.js`'s `buildCreatures()`
+now copies it onto the runtime variant (`facing: m.facing || 'left'`); `WorldCreature` (`RpgLevelPanel.jsx`)
+XORs the CALLER's desired look-direction against the sprite's own native orientation
+(`nativeFlip = variant.facing === 'right' ? 1 : -1; scaleX = facing * nativeFlip`) instead of applying the
+caller's direction at face value — most of the critter sheet is natively LEFT-facing, so a naive flip made
+e.g. the butterfly face the wrong way once it started actually moving. `WorldWanderer` no longer applies its
+own separate wrapper-level `scaleX` — it computes movement-direction into `facingRef.current` and passes
+that straight through as `WorldCreature`'s `facing` prop, so there is exactly ONE place the flip math lives.
+
+**Camera-stick bug**: `WorldWanderer`'s rAF tick read `worldToScreenX` from the closure captured when its
+`useEffect` last mounted; since none of the effect's own deps (`variant`/`spawnX`/`spawnY`/`rangeX`/`rangeY`/
+`canPerch`/`zoom`) change while the camera pans, that closure's baked-in `cameraX` went stale — creatures
+tracked the VIEWPORT instead of the level (Han: "de beesten kleven aan het scherm, maar moeten aan level
+kleven"). Fixed with a ref updated every render (`worldToScreenXRef.current = worldToScreenX`, same
+convention other camera-dependent refs in this file already use), read inside the rAF tick instead of the
+closed-over prop — no effect restart needed, so the wander animation itself isn't reset by camera movement.
+
+**Wander speed**: Han: "vogel en butterfly gaan veel te snel, verlaag snelheid naar 20% (dus -80%)" — the
+`oscillate()` speed argument for both dx/dy dropped from `0.6` to `0.6 * 0.2 = 0.12` (`WANDER_SPEED` local
+const in `WorldWanderer`).
+
+**Bird ambient volume**: Han: "volume van de vogels mag 20% lager" — new `BIRD_VOLUME_MULTIPLIER = 0.8`
+constant in `useWorldAmbientMusic.js`, multiplied on top of `MF_VOLUME` for bird layers only (the generated
+ambient piano's own `MF_VOLUME` scaling is untouched — Han's request was bird-specific).
+
+**Dialogue font size**: Han: "font van tekst mag 50% groter" — `DialogueBox.jsx`'s
+`FONT_SIZE_OVERRIDE_MULTIPLIER` (§219/§220's `0.5` "50% kleiner" override) bumped to `0.5 * 1.5 = 0.75`, an
+explicit further override on top of the same base pixel-perfect derivation, not a revert of the prior round.
+
+**Files:** `src/model/bestiaryAssets.js` (`facing` field, `findCreaturesByTags`),
+`scripts/generate-bestiary-manifest.mjs` + regenerated `src/model/bestiaryManifest.generated.js` (nature/
+hostile/ground/water/underwater/flying tag rosters, Intellect Devourer rename), `src/components/character/
+RpgLevelPanel.jsx` (`WorldCreature` facing XOR, generic `critterWanderers`/`HABITAT_WANDER`, camera-stick
+fix, wander speed), `src/hooks/useWorldAmbientMusic.js` (`BIRD_VOLUME_MULTIPLIER`),
+`src/components/character/DialogueBox.jsx` (`FONT_SIZE_OVERRIDE_MULTIPLIER`).

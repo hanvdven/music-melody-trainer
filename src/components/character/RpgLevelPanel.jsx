@@ -3,7 +3,7 @@ import CharacterDoll, { CROP as HERO_CROP, PET_CROP } from './CharacterDoll';
 import { ANIMATIONS, urlOfLayer } from '../../model/characterAssets';
 import { CreatureSprite } from './BestiaryPanels';
 import { frameMsForBpm } from '../sheet-music/SheetRpgLayer';
-import { findMoveAnim, findIdleAnim, isFlyingAnim, findCreatureByName, findVariantByUrl } from '../../model/bestiaryAssets';
+import { findMoveAnim, findIdleAnim, isFlyingAnim, findCreatureByName, findVariantByUrl, findCreaturesByTags } from '../../model/bestiaryAssets';
 import { GROUND_ANCHOR_PX } from '../../model/worldAnchor';
 import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_COLS, SLIME_ROWS, SLIME_COLORS } from '../../model/enemyAssets';
 import { loadImageEl, normalMapCanvasFromCrop } from '../../utils/runtimeNormalMap';
@@ -253,14 +253,22 @@ const HOVER_PX = TILE * ZOOM;
 // #RAM-level (Han 2026-08-11, "zoom in/uit zodat de hoogte van het level precies in de viewbox past"):
 // `zoom` defaults to the module-level `ZOOM` (legacy scenery's fixed 3x) but callers in LDtk mode pass the
 // dynamic per-render zoom instead, so creatures stay correctly scaled to whichever mode is showing.
+// #924 (Han 2026-08-12, "critters uit critter sheet kijken naar links, bijgevolg kijkt de butterfly de
+// verkeerde kant op"): `facing` here is the CALLER's desired look-direction (1=right, -1=left) — but the
+// underlying sprite art itself isn't always drawn facing right by default (most of the critter sheet is
+// natively LEFT-facing; `variant.facing` — wired up in bestiaryAssets.js — says which). The actual mirror
+// applied is the caller's desired direction XOR the sprite's own native one, not the desired direction
+// taken at face value.
 function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
     if (!variant) return null;
     const anim = (moving && findMoveAnim(variant)) || findIdleAnim(variant);
     const cropW = variant.crop.w * zoom, cropH = variant.crop.h * zoom;
     const hoverPx = TILE * zoom;
+    const nativeFlip = variant.facing === 'right' ? 1 : -1;
+    const scaleX = facing * nativeFlip;
     const transform = isFlyingAnim(anim, variant)
-        ? `translate(0px, ${-hoverPx}px) scale(${facing}, 1)`
-        : `scale(${facing}, 1)`;
+        ? `translate(0px, ${-hoverPx}px) scale(${scaleX}, 1)`
+        : `scale(${scaleX}, 1)`;
     return (
         <div style={{ width: cropW, height: cropH, transform }}>
             <CreatureSprite variant={variant} anim={anim} frame={frame} scale={zoom} framed={false} />
@@ -268,53 +276,63 @@ function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
     );
 }
 
-// #924 (Han 2026-08-12, "ik heb entiteiten bird, duck, butterfly toegevoegd... spawn op die plekken.
-// randomize de bird tussen alle vliegende vogels, en de duck tussen alle eenden"): the bestiary has no
-// literal "Bird"/"Duck" creature, so each spawned instance picks a RANDOM name from a small curated pool of
-// the closest real classified creatures (§6c: no bird/duck sprite exists to derive this from automatically
-// — a hand-picked roster, same convention as e.g. TOWNSFOLK_ANIMAL_NAMES in the bestiary generator).
-const BIRD_POOL_NAMES = ['Blue Jay', 'Pidgeon', 'Pigeon'];
-const DUCK_POOL_NAMES = ['Honking Goose'];
-const randomPoolVariant = (pool) => findCreatureByName(pool[Math.floor(Math.random() * pool.length)]);
+// #924 (Han 2026-08-12, "ik heb entiteiten bird, duck, butterfly toegevoegd... spawn op die plekken";
+// LDtk later replaced with generic "critter ground/air/water" markers, "spawn een random critter met tags:
+// critter + nature + (flying/ground/water)"): each spawned marker picks a RANDOM classified creature whose
+// tags match its habitat, via `findCreaturesByTags` (bestiaryAssets.js) — data-driven off the Bestiary's own
+// tagging (§6c), not a hand-picked name list.
+const randomTaggedVariant = (habitatTag) => {
+    const pool = findCreaturesByTags(['critter', 'nature', habitatTag]);
+    return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+};
 
-// #924: one independently-wandering world creature — Bird/Butterfly fly a smooth pseudo-random path within
-// a (rangeX × rangeY) box around their spawn point (Han: "vliegt random van a naar b met een range van
-// 256x64px"); Duck idles side-to-side on the ground within a much smaller, purely-horizontal range (Han:
-// "idle heen en weer met een range van 32x0px"). Reuses `oscillate()` (§6c/§6d — the SAME smooth wobble
-// primitive projectiles/flying-creature-hover already use) for the wander path itself instead of a new
-// waypoint/pathfinding system — it's already exactly "a bounded, organic, seeded meander over time".
+// #924: one independently-wandering world creature — flying/water critters wander a smooth pseudo-random
+// path within a (rangeX × rangeY) box around their spawn point (Han: "vliegt random van a naar b met een
+// range van 256x64px"); ground critters idle side-to-side within a much smaller, purely-horizontal range
+// (Han: "idle heen en weer met een range van 32x0px"). Reuses `oscillate()` (§6c/§6d — the SAME smooth
+// wobble primitive projectiles/flying-creature-hover already use) for the wander path itself instead of a
+// new waypoint/pathfinding system — it's already exactly "a bounded, organic, seeded meander over time".
 // Position is applied via a REF-driven rAF loop directly on the DOM node (CLAUDE.md §6 "no 60Hz React
 // state for position") — only the shared `frame` prop (animation cell, ticking at #923's bpm-coupled
 // cadence) comes through as a normal prop, since that only needs to change every ~150ms, not every frame.
+// #924 round 2 (Han: "de beesten kleven aan het scherm, maar moeten aan level kleven"): `worldToScreenX`
+// used to be read from the CLOSURE captured when this effect last ran (mount time) — since none of the
+// effect's own deps change while the camera pans, that closure's baked-in `cameraX` went stale, so the
+// wanderer tracked the VIEWPORT instead of the world. Read through a ref (updated every render, same
+// convention `zoomRef`/`sizeRef` already use elsewhere in this file) so the rAF loop always sees the
+// CURRENT camera transform without needing to restart (which would reset the wander animation).
 function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, frame, zoom, worldToScreenX }) {
     const elRef = useRef(null);
     const facingRef = useRef(1);
     const lastDxRef = useRef(0);
     const [perched, setPerched] = useState(false);
+    const worldToScreenXRef = useRef(worldToScreenX); worldToScreenXRef.current = worldToScreenX;
     // Stable per-instance seeds so each of several same-type wanderers moves independently, not in lockstep.
     const seedX = useMemo(() => Math.random() * 10000, []);
     const seedY = useMemo(() => Math.random() * 10000, []);
     const perchPhase = useMemo(() => Math.random() * 12000, []);
+    // #924 round 2 (Han: "vogel en butterfly gaan veel te snel, verlaag snelheid naar 20% (dus -80%)").
+    const WANDER_SPEED = 0.6 * 0.2;
 
     useEffect(() => {
         if (!variant) return undefined;
         let raf;
         const tick = () => {
             const t = performance.now();
-            // Bird-only duty cycle (Han: "gaat soms idle zitten op de spawnplek"): ~8s wandering, ~4s
-            // perched at spawn, independently phase-offset per instance via `perchPhase`.
+            // Duty cycle (Han: "gaat soms idle zitten op de spawnplek"): ~8s wandering, ~4s perched at
+            // spawn, independently phase-offset per instance via `perchPhase`.
             const isPerchedNow = canPerch && ((t + perchPhase) % 12000) > 8000;
             if (isPerchedNow !== perched) setPerched(isPerchedNow);
-            const dx = isPerchedNow ? 0 : oscillate(seedX, t, rangeX / 2, 0.6);
-            const dy = (isPerchedNow || rangeY <= 0) ? 0 : oscillate(seedY, t, rangeY / 2, 0.6);
+            const dx = isPerchedNow ? 0 : oscillate(seedX, t, rangeX / 2, WANDER_SPEED);
+            const dy = (isPerchedNow || rangeY <= 0) ? 0 : oscillate(seedY, t, rangeY / 2, WANDER_SPEED);
             if (dx !== lastDxRef.current) {
                 facingRef.current = dx >= lastDxRef.current ? 1 : -1;
                 lastDxRef.current = dx;
             }
             if (elRef.current) {
-                elRef.current.style.left = `${worldToScreenX(spawnX + dx)}px`;
+                elRef.current.style.left = `${worldToScreenXRef.current(spawnX + dx)}px`;
                 elRef.current.style.bottom = `${(LEVEL_PX_HEIGHT - (spawnY - dy)) * zoom}px`;
-                elRef.current.style.transform = `translateX(-50%) scaleX(${facingRef.current})`;
+                elRef.current.style.transform = 'translateX(-50%)';
             }
             raf = requestAnimationFrame(tick);
         };
@@ -326,7 +344,7 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, fram
     if (!variant) return null;
     return (
         <div ref={elRef} style={{ position: 'absolute' }}>
-            <WorldCreature variant={variant} moving={!perched} frame={frame} facing={1} zoom={zoom} />
+            <WorldCreature variant={variant} moving={!perched} frame={frame} facing={facingRef.current} zoom={zoom} />
         </div>
     );
 }
@@ -555,22 +573,34 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // (classified creature, idle only, no click handler — no combat here, this is scenery-adjacent, not
     // the real SheetRpgLayer combat slimes).
     const slimeVariant = useMemo(() => findCreatureByName('Slime'), []);
-    // #924: one random pool-creature variant PER spawned Bird/Duck/Butterfly marker, chosen ONCE (not
-    // re-randomized on every render) — `ENTITY_INSTANCES` keeps every marker (unlike `ENTITY_WORLD_X`,
-    // which only keeps the LAST position per identifier).
-    const birdWanderers = useMemo(
-        () => (ENTITY_INSTANCES.Bird ?? []).map((pos) => ({ ...pos, variant: randomPoolVariant(BIRD_POOL_NAMES) })),
-        [],
-    );
-    const duckWanderers = useMemo(
-        () => (ENTITY_INSTANCES.Duck ?? []).map((pos) => ({ ...pos, variant: randomPoolVariant(DUCK_POOL_NAMES) })),
-        [],
-    );
-    const butterflyVariant = useMemo(() => findCreatureByName('Butterfly'), []);
-    const butterflyWanderers = useMemo(
-        () => (ENTITY_INSTANCES.Butterfly ?? []).map((pos) => ({ ...pos, variant: butterflyVariant })),
-        [butterflyVariant],
-    );
+    // #924 round 2 (Han: "Ik heb de LDTK vervangen: er staat nu in: critter ground, critter air, critter
+    // water. spawn een random critter met tags: critter + nature + (flying/ground/water)"): a single generic
+    // pass over `ENTITY_INSTANCES` for any `Critter_<habitat>` marker (plus the legacy `Bird` identifier,
+    // kept as a backward-compatible alias for the flying habitat so levels authored before the LDtk rename
+    // still spawn something), each picking ONE random `findCreaturesByTags`-matched creature PER instance,
+    // chosen once — not re-randomized on every render. Per-habitat wander box/perch behaviour is the same
+    // shape Han specified for Bird ("range 256x64, soms idle") / Duck ("range 32x0, idle heen en weer");
+    // `ground` (no spawns exist yet in the current level) reuses the same small-range idle shape as `water`.
+    const HABITAT_WANDER = {
+        flying: { rangeX: 256, rangeY: 64, canPerch: true },
+        ground: { rangeX: 32, rangeY: 0, canPerch: false },
+        water: { rangeX: 32, rangeY: 0, canPerch: false },
+    };
+    const critterWanderers = useMemo(() => {
+        const out = [];
+        for (const [habitat, cfg] of Object.entries(HABITAT_WANDER)) {
+            const identifier = habitat === 'flying' ? 'Critter_air' : `Critter_${habitat}`;
+            const positions = [
+                ...(ENTITY_INSTANCES[identifier] ?? []),
+                ...(habitat === 'flying' ? (ENTITY_INSTANCES.Bird ?? []) : []),
+            ];
+            for (const pos of positions) {
+                out.push({ ...pos, ...cfg, variant: randomTaggedVariant(habitat) });
+            }
+        }
+        return out;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     // #693 round 8 ("gebruik dezelfde pet als in de avatar selector"): whichever pet the player actually
     // equipped in the character screen, resolved via the SAME helper CharacterDoll itself uses (§6c).
     const petUrl = useMemo(() => urlOfLayer('pet', char?.layers?.pet), [char?.layers?.pet]);
@@ -998,26 +1028,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 </div>
             )}
 
-            {/* #924 (Han 2026-08-12, "spawn op die plekken birds, ducks, en butterfly"): one WorldWanderer
-                per spawned marker (see birdWanderers/duckWanderers/butterflyWanderers above) — Bird/
-                Butterfly fly within a 256x64 native-px box around their spawn, Bird occasionally perches;
-                Duck idles side-to-side within a 32x0 box (no vertical movement at all). */}
-            {sceneryMode === 'LDtk' && birdWanderers.map((w, i) => (
+            {/* #924 (Han 2026-08-12, "spawn een random critter met tags: critter + nature +
+                (flying/ground/water)"): one WorldWanderer per spawned Critter_* marker (see
+                critterWanderers above) — each variant already carries its own habitat's wander box/perch
+                behaviour from HABITAT_WANDER. */}
+            {sceneryMode === 'LDtk' && critterWanderers.map((w, i) => (
                 <WorldWanderer
-                    key={`bird-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
-                    rangeX={256} rangeY={64} canPerch frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
-                />
-            ))}
-            {sceneryMode === 'LDtk' && duckWanderers.map((w, i) => (
-                <WorldWanderer
-                    key={`duck-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
-                    rangeX={32} rangeY={0} canPerch={false} frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
-                />
-            ))}
-            {sceneryMode === 'LDtk' && butterflyWanderers.map((w, i) => (
-                <WorldWanderer
-                    key={`butterfly-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
-                    rangeX={256} rangeY={64} canPerch={false} frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
+                    key={`critter-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
+                    rangeX={w.rangeX} rangeY={w.rangeY} canPerch={w.canPerch}
+                    frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
                 />
             ))}
 

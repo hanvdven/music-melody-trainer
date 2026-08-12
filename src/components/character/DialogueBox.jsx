@@ -31,7 +31,9 @@ const CAP_HEIGHT_NATIVE_PX = 8;            // Han's own measurement of 'T' on th
 // #922 round 7 (Han: "tekst mag 50% kleiner (ondanks mijn eerder regel)"): overrides the pixel-perfect
 // derivation above by half — Han's own explicit call, made with full knowledge of the earlier "match the
 // portrait's per-pixel zoom" rule.
-const FONT_SIZE_OVERRIDE_MULTIPLIER = 0.5;
+// #924 round 7 (Han: "font van tekst mag 50% groter"): bumps the round-7 0.5 back up by half again (0.5 *
+// 1.5 = 0.75), a further explicit override on top of the same base derivation — not a revert.
+const FONT_SIZE_OVERRIDE_MULTIPLIER = 0.5 * 1.5;
 const FONT_SIZE = ((CAP_HEIGHT_NATIVE_PX * DIALOGUE_SCALE * BITFANTASY_UNITS_PER_EM) / BITFANTASY_CAP_HEIGHT_UNITS) * FONT_SIZE_OVERRIDE_MULTIPLIER;
 
 // Crops (and, for a multi-frame/multi-row spritesheet, offsets to a specific `row`/`col` cell — default
