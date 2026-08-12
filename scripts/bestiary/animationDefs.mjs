@@ -155,6 +155,23 @@ export function skeletonAnimations() {
     ];
 }
 
+// #870 (Han 2026-08-11, "kight mounted: 128x111: cell 1-8 idle, 9-16 graze, 17-23 walk, 24-29 run pike up,
+// 30-35 charge, 36-41 charge hit, 42-50 jump, 51-58 death"): 1280×666 / 128×111 = 10 cols × 6 rows, exact —
+// same row-major 1-indexed frame numbering as horse/goblin/zombie above. Verified self-consistent: 58 frames
+// used out of the 60-cell grid (8+8+7+6+6+6+9+8=58), 2 trailing blank cells. Shared by every colour variant.
+export function knightMountedAnimations() {
+    return [
+        { key: 'idle', label: 'Idle', cells: frameRange(1, 8, 10) },
+        { key: 'graze', label: 'Graze', cells: frameRange(9, 16, 10) },
+        { key: 'walk', label: 'Walk', cells: frameRange(17, 23, 10) },
+        { key: 'runpikeup', label: 'Run Pike Up', cells: frameRange(24, 29, 10) },
+        { key: 'charge', label: 'Charge', cells: frameRange(30, 35, 10) },
+        { key: 'chargehit', label: 'Charge Hit', cells: frameRange(36, 41, 10) },
+        { key: 'jump', label: 'Jump', cells: frameRange(42, 50, 10) },
+        { key: 'death', label: 'Death', cells: frameRange(51, 58, 10) },
+    ];
+}
+
 // #674 (Han: "art lady, last frame is 'statue' variant") — the 7th (last) idle frame is a distinct static
 // pose, not part of the idle loop; split into its own 'statue' animation on the SAME creature.
 export function artLadyAnimations(contentRows) {
@@ -294,4 +311,23 @@ export function devilAnimations(contentRows) {
         { key: 'idle2', label: 'Idle 2', cells: cellsFor([2, 3]) },
         { key: 'emptycauldron', label: 'Empty Cauldron', cells: cellsFor([4]) },
     ];
+}
+
+// #870 (Han 2026-08-11, "heal totem en buff totem: r1 idle, r2 spawn r4 death (r3 mag weg)") — both totems
+// share the exact same 4-row layout (generic idle/move/attack/death guess); row 3 (the old 'attack') is
+// explicitly dropped rather than guessed at, same "??" convention as `boss_spiderAnimations`.
+export function healBuffTotemAnimations(contentRows) {
+    const labels = ['Idle', 'Spawn', null, 'Death'];
+    return contentRows.filter((r) => labels[r.row]).map((r) => ({
+        key: labels[r.row].toLowerCase(), label: labels[r.row], cells: rowCells(r.row, r.frames),
+    }));
+}
+// #870 (Han 2026-08-11, "fire totem (64x32): r1 idle r2 spawn r3 cast r5 death") — row 4 is dropped (Han's
+// spec skips straight from r3 'cast' to r5 'death'); the fire spit projectile lives in a separate file,
+// wired as a portrait companion instead (PORTRAIT_OVERRIDES_BY_NAME in the main script), not a 6th row here.
+export function fireTotemAnimations(contentRows) {
+    const labels = ['Idle', 'Spawn', 'Cast', null, 'Death'];
+    return contentRows.filter((r) => labels[r.row]).map((r) => ({
+        key: labels[r.row].toLowerCase(), label: labels[r.row], cells: rowCells(r.row, r.frames),
+    }));
 }

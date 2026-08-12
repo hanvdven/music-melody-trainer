@@ -318,7 +318,13 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  flex: 0 0 256px;
+  /* #870 (Han 2026-08-13, layout bugfix): was a rigid 256px — far narrower than the actual rendered stage
+     content (sprite/portrait boxes are FRAME_SIZE*PREVIEW_SCALE ~266px EACH, see BestiaryPanels.jsx), which
+     is exactly why the tags/options side columns used to land underneath/behind the (already-overflowing)
+     portrait instead of beside it. `flex: 1 1 560px` gives the tags+stage+options row realistic room to lay
+     out side by side while still letting it grow/shrink with `.cc-bestiary-body`'s available width; the row
+     itself has `flexWrap: wrap` (BestiaryTopPanel) as a safety net for any creature still wider than this. */
+  flex: 1 1 560px;
 }
 .cc-enemy-stage {
   display: flex;
@@ -357,7 +363,10 @@
   text-align: center;
   min-height: 32px;
 }
-.cc-enemy-anims { max-width: 256px; }
+/* #870 (Han 2026-08-13): matches `.cc-enemy-preview`'s new width — was capped at the OLD 256px, which
+   silently re-clipped the "volledige beschikbare breedte" animation row (§870 2026-08-12) back down every
+   time the preview panel grew wider than that. */
+.cc-enemy-anims { max-width: 560px; }
 .cc-enemy-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));

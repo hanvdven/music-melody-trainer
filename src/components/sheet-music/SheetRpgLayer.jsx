@@ -229,7 +229,11 @@ function critterDraw(variant, x, y, frame, preferIdle = false) {
 // #871: `scale`/`preferIdle` are OPTIONAL — every existing call site (scrolling critters) omits them and
 // gets the exact prior behaviour (CRITTER_SCALE, move-preferred animation). The decorative-NPC render
 // branch below is the only caller that passes them, reusing this component rather than a new renderer.
-const Critter = React.memo(forwardRef(function Critter({ x, y, variant, frame, opacity = 1, scale = CRITTER_SCALE, preferIdle = false }, ref) {
+// #870 (Han 2026-08-11, "de japanese musician niet (want zij kijkt al links) - zij wordt abusievelijk
+// gedraaid. Draai terug"): `flip` is also OPTIONAL, defaulting to the prior unconditional-mirror behaviour
+// — only the decorative-NPC call site below passes `flip={false}`, and only for her specific name, since
+// her raw sprite sheet is drawn already facing left (unlike every other critter this component mirrors).
+const Critter = React.memo(forwardRef(function Critter({ x, y, variant, frame, opacity = 1, scale = CRITTER_SCALE, preferIdle = false, flip: shouldFlip = true }, ref) {
     const svgRef = useRef(null);
     const imgRef = useRef(null);
     useImperativeHandle(ref, () => ({
@@ -246,7 +250,7 @@ const Critter = React.memo(forwardRef(function Critter({ x, y, variant, frame, o
     if (!variant) return null;
     const { ox, oy, drawX, drawY } = critterDraw(variant, x, y, frame, preferIdle);
     const viewW = variant.crop.w * scale, viewH = variant.crop.h * scale;
-    const flip = `translate(${2 * variant.crop.x + variant.crop.w}, 0) scale(-1, 1)`;   // face left, matches Slime
+    const flip = shouldFlip ? `translate(${2 * variant.crop.x + variant.crop.w}, 0) scale(-1, 1)` : undefined;   // face left, matches Slime
     return (
         <svg ref={svgRef} x={drawX} y={drawY} width={viewW} height={viewH} opacity={opacity}
             viewBox={`${variant.crop.x} ${variant.crop.y} ${variant.crop.w} ${variant.crop.h}`}>
@@ -2206,7 +2210,7 @@ export default function SheetRpgLayer({
                 up with a combat wizard, same guard shape decorativeWizard uses above. */}
             {!isWizard && !isMixed && sideScroll && npcVariant && (
                 <Critter x={viewRight - npcVariant.crop.w * NPC_SCALE + 2} y={viewBottom - npcVariant.crop.h * NPC_SCALE}
-                    variant={npcVariant} scale={NPC_SCALE} preferIdle
+                    variant={npcVariant} scale={NPC_SCALE} preferIdle flip={npc !== 'Japanese Musician'}
                     frame={((gFrame % npcIdleLen) + npcIdleLen) % npcIdleLen} />
             )}
             {!hideHero && (

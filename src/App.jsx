@@ -320,12 +320,24 @@ const App = () => {
     // app's boot splash on assets nobody may ever request would be dishonest, not helpful.
     const [audioReady, setAudioReady] = useState(false);
     const [spritesReady, setSpritesReady] = useState(document.readyState === 'complete');
+    // #859 (Han 2026-08-11, "ik wacht soms 30s, zou niet mogen"): a hung network fetch (a stalled
+    // CDN request, antivirus intercepting every local request, ...) used to block this boot gate
+    // FOREVER — no timeout on either half of the `audioReady && spritesReady` condition. This
+    // BOOT_GATE_TIMEOUT_MS forces the splash open regardless after 10s so the app is at worst
+    // usable-but-silent instead of stuck; the REAL load (instrument .load promises / window `load`)
+    // is never cancelled, so audio/sprites still finish whenever they actually do — only the splash
+    // stops waiting on them.
+    const BOOT_GATE_TIMEOUT_MS = 10000;
     useEffect(() => {
         if (spritesReady) return undefined;
         const onLoad = () => setSpritesReady(true);
         window.addEventListener('load', onLoad);
-        return () => window.removeEventListener('load', onLoad);
-    }, [spritesReady]);
+        const timer = setTimeout(() => {
+            if (debugMode) logger.warn('App', 'boot-splash sprites-ready timeout (10s) — continuing without waiting further');
+            setSpritesReady(true);
+        }, BOOT_GATE_TIMEOUT_MS);
+        return () => { window.removeEventListener('load', onLoad); clearTimeout(timer); };
+    }, [spritesReady, debugMode]);
 
     useEffect(() => {
         const insts = [instruments.treble, instruments.bass, instruments.percussion, instruments.metronome, instruments.chords];
@@ -334,8 +346,13 @@ const App = () => {
         Promise.all(insts.map((inst) => inst.load || Promise.resolve()))
             .catch((err) => logger.error('App', 'E024-INSTRUMENT-LOAD-WAIT', err))
             .finally(() => { if (!cancelled) setAudioReady(true); });
-        return () => { cancelled = true; };
-    }, [instruments.treble, instruments.bass, instruments.percussion, instruments.metronome, instruments.chords]);
+        const timer = setTimeout(() => {
+            if (cancelled) return;
+            if (debugMode) logger.warn('App', 'boot-splash audio-load timeout (10s) — continuing without waiting further, load keeps running in the background');
+            setAudioReady(true);
+        }, BOOT_GATE_TIMEOUT_MS);
+        return () => { cancelled = true; clearTimeout(timer); };
+    }, [instruments.treble, instruments.bass, instruments.percussion, instruments.metronome, instruments.chords, debugMode]);
 
     useEffect(() => {
         const statusEl = document.getElementById('boot-splash-status');
@@ -2699,9 +2716,12 @@ const App = () => {
                         mode"): while avatar-context is active, TOP/BOTTOM/PERCUSSION/etc select a sheet-music
                         tab that isn't even rendered (TabView's characterScreen branch ignores activeTab
                         entirely, §667) — dead controls. Swap this whole column for the active screen's OWN
-                        category tabs instead (character's skin/ears/hair; bestiary's passive/attack/...); a
-                        screen with no categories (equipment — its top slot-grid is its own picker; stats)
-                        simply renders no tabs here. */}
+                        category tabs instead (character's skin/ears/hair); a screen with no categories
+                        (equipment — its top slot-grid is its own picker; stats) simply renders no tabs here.
+                        #870 (Han 2026-08-12, "de oude 'passive, with portrait, etc.' pre-selecties zijn
+                        vervangen voor het tag-systeem"): bestiary no longer gets a category-tab row at all —
+                        replaced by BestiaryBottomPanel's own filter bar (Mature/Unfinished + tag chips), so
+                        it now renders no tabs here either, same as equipment/stats. */}
                     {characterScreen ? (
                         (characterScreen === 'character'
                             ? CHARACTER_CATEGORIES.map((key) => ({
@@ -2709,12 +2729,7 @@ const App = () => {
                                 active: characterEditor.activeCat === key,
                                 onClick: () => characterEditor.setActiveCat(key),
                             }))
-                            : characterScreen === 'bestiary'
-                                ? bestiaryEditor.categories.map((key) => ({
-                                    key, label: key, active: bestiaryEditor.category === key,
-                                    onClick: () => bestiaryEditor.selectCategory(key),
-                                }))
-                                : []
+                            : []
                         ).map((t) => (
                             <button key={t.key}
                                 className={`tab-button ${t.active ? 'active' : ''}`}

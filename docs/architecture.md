@@ -13319,3 +13319,515 @@ beats...`).
 200-206). Tests: `src/utils/__tests__/melodySlice.test.js`, `src/utils/__tests__/qwertyScheme.test.js`,
 `src/levels/__tests__/songLevels.test.js`. Verified via `npm run test:run` (699/699), `npm run lint`
 (0 errors), `npm run build`.
+
+### §206. Dev-environment root causes for "app won't start" / slow boot (#859), + boot-splash timeout failsafes (Han 2026-08-11)
+
+**Symptom:** Han reported the app sometimes crashing on start with an "impossible" missing-export error
+(e.g. `'/src/audio/drumKits.js' does not provide an export named 'resolvePercussionChord'`, later a
+DIFFERENT missing export `'BPM_MAX'` from `BpmControls.jsx` — both exports verifiably exist in the
+current source), plus an unrelated ~6-10s gap at level start and an app boot that sometimes never
+finishes ("Audio-context initialiseren…" never updates, waited 30s+).
+
+**Root cause 1 — zombie dev-server processes (the crash).** `netstat` showed THREE separate `node`
+processes simultaneously LISTENING on ports 5173/5174/5175, started on three different days. `vite.config.js`
+had `server.strictPort: false`, so every `npm run dev` left running (terminal closed without killing the
+process) silently caused the NEXT dev-server start to drift to a new port instead of failing loudly —
+zombie servers piled up unnoticed for days, each serving an increasingly stale module graph. A browser tab
+talking to a stale zombie server explains both the "impossible" missing-export crash (a DIFFERENT export
+missing each time — whatever was true when THAT zombie was started) and the intermittent never-starts
+behaviour. **Fix:** killed the 3 zombie processes; `server.strictPort` changed `false` → `true` (a second
+dev server now refuses to start instead of silently drifting, surfacing the leftover process immediately).
+
+**Root cause 2 — per-request overhead, almost certainly real-time antivirus (the slow boot/level-start).**
+A HAR capture of one hard-reload showed 3,449 total requests (314 JS + 204 JSX dev-mode ES modules, 2,573
+individual PNG files — mostly per-cell generated tree/grass normal maps — and 280 separate local percussion
+WAV sample files) spanning 100 seconds wall-clock. Individual local dev-server file transforms that should
+take single-digit milliseconds (e.g. `bestiaryManifest.generated.js`) took 1-2.5 SECONDS each; the Vite HMR
+WebSocket connection didn't fail fast, it hung for up to 60 seconds before erroring
+(`Unexpected response code: 400`). Per-request overhead applying uniformly regardless of file type, plus a
+hung (not instantly-rejected) WebSocket handshake, is the signature of real-time antivirus scanning every
+local request — consistent with Han confirming only Windows Defender is active and repeat loads being
+equally slow (ruling out a cold-cache explanation). **Recommended fix (Han to verify):** add a Windows
+Defender exclusion for the project folder (`node_modules` included). Not yet confirmed fixed as of this
+writing — the module-count-per-file architecture (2,573 individual PNG normal-map files, 280 individual WAV
+percussion samples) is real and independently worth reducing later, but is secondary to the antivirus
+hypothesis pending Han's test.
+
+**Boot-splash timeout failsafes (Han: "ik wacht soms 30s, zou niet mogen").** The app-wide boot splash
+(§141) previously had NO timeout on either half of its `audioReady && spritesReady` gate — a hung fetch
+(stalled CDN request, antivirus interception, anything) blocked it forever. Two independent failsafes added:
+
+1. **`App.jsx` (`BOOT_GATE_TIMEOUT_MS = 10000`):** both the sprites-ready (`window` `load` event) and
+   audio-ready (`Promise.all` of instrument `.load`s) effects now race against a 10s `setTimeout` that
+   force-sets their ready flag regardless. The underlying load is NEVER cancelled — it keeps running in the
+   background, and its own original `.then`/`.finally` still fires normally when it eventually settles
+   (a harmless redundant `setState`). In `debugMode`, a `logger.warn` fires noting the timeout occurred, so
+   dev sessions can tell a load is abnormally slow instead of silently swallowing it.
+2. **`index.html` (plain non-module `<script>`, deliberately OUTSIDE `/src/main.jsx`'s module graph):** a
+   10s `setTimeout` that updates `#boot-splash-status`'s text to indicate an abnormal delay. This is the
+   ONLY code that can run if the JS module bundle itself never finishes loading (React hasn't mounted yet,
+   so nothing inside `App.jsx` has executed) — exactly the "text never changes" scenario Han described.
+   Deliberately does NOT remove the splash (unlike #1) — there's no app underneath yet to reveal in that
+   scenario, so removing it would show a blank white page, which reads as MORE broken, not less; it only
+   reassures the user this isn't frozen. `debugMode` cannot be checked here (it's React state that may not
+   exist yet), so this failsafe has no debug-gated variant.
+
+**Invariant:** the boot splash must never be able to block indefinitely — every wait it gates on must have
+a bounded fallback, even if that fallback just means "show the app in a possibly-degraded state" rather
+than "wait forever, silently."
+
+**Files:** `vite.config.js` (`strictPort: true`), `src/App.jsx` (`BOOT_GATE_TIMEOUT_MS` timeouts on both
+boot-gate effects), `index.html` (standalone timeout script). Kanban ticket #859.
+
+### §207. Bestiary pass — new characters, ~20 hand-measured animation breakdowns, character splits/merges (Ladies + Succubus family + Maid sword-down), facing-direction data, and the first tag-filter UI + multi-axis variant toggler (#870, Han 2026-08-11/12)
+
+A large, single-ticket sweep across the bestiary generator (`scripts/generate-bestiary-manifest.mjs` +
+`scripts/bestiary/animationDefs.mjs`), the runtime resolver (`src/model/bestiaryAssets.js`), and the editor
+UI (`src/components/character/useBestiaryEditor.js` + `BestiaryPanels.jsx`). Grouped by sub-topic below;
+each followed the §4b interview/§6c-derive-don't-hardcode/§6d-reuse-canonical-renderer rules — several
+required a chat round-trip with Han to resolve genuine ambiguity before any code was written (documented
+inline at each site as `#870 (Han 2026-08-1X, "...")`).
+
+**Flying-tag corrections.** Pigeon/Scarab Beetle: one specific animation row renamed to `fly`/`Fly` so the
+existing derivation (`isFlyingKeyOrLabel` — any animation key/label matching `/fly|float/i`) picks it up
+automatically. A separate, larger correction: 14 named creatures (Fairy, Brain Mole Monarch, Bumble Bee,
+Dragonfly, Fluttering Pixie, Flying Brain Monster, Giant Fly, Glowing Wisp, Jellyfish, Magical Fairy,
+Octopus, Phoenixling, Plague Bat, Swooping Bat) plus 5 more (Lilim, Pair, Eisheth, Lilith, Morgana) needed
+**every** animation tagged flying, not just one renamed row — a roster Set (`ALWAYS_FLYING_NAMES`, same
+precedent as `MATURE_ROSTER_NAMES`) stamps `'flying'` onto every animation of these creatures directly.
+
+**Eye Monster / Ooze split.** `Eye Monster Sprite Sheet.png`'s 5 rows were previously ONE creature with
+generic idle/move/attack/death/row4 labels; rows 0-2 are Eye Monster's own poses (float/dilate/leak — the
+`float` key auto-derives the flying tag), rows 3-4 are a SEPARATE projectile creature ("Ooze"/"Ooze Ground")
+— split via a new `eyeMonsterEntries()` function (same technique as `expandEvilWizard`).
+
+**Totems + training dummy.** Heal/Buff Totem: idle/spawn/death (the old generic "attack" row dropped). Fire
+Totem: corrected frame size 32×32 → 64×32 (was silently wrong), idle/spawn/cast/death (one row dropped, per
+Han's spec), and its separate "Fire Spit" file is now a projectile-companion portrait (same
+`PORTRAIT_OVERRIDES_BY_NAME` mechanism the Wizard/Flying Brain Monster already use) instead of its own
+bestiary card. Training Dummy: idle/hit1/hit2.
+
+**Angel / Samurai / Knight Mounted / Warrior.** All 3 dropped their `'incomplete'` category override (fully
+worked out now, matching the Goblin/Zombie/Maid precedent). Angel: 96×64, 9/9 rows named. Samurai: 96×64,
+15/18 rows named (3 leftover fall back to generic "Row N" — not guessed at). Knight Mounted: 128×111, 1-
+indexed row-major frame ranges (same convention as Horse/Goblin/Zombie). Warrior: 800×80×64 splits into
+'Sword Sheathed'/'Sword Drawn' VARIANTS of one creature (non-contiguous row groups, like Horse's stitched
+animations) — later relabelled `sprint`→"Walk Backwards", `idleground`→"Slide" per follow-up feedback.
+
+**New characters.** 11 SSW vendor/tavern-NPC sprites (Blacksmith, Gravedigger, Magic/Meat Vendor, Tavern
+Bartender/Guest×3/Musician, Traveling Merchant, Vendor) added as `passive`-category, single continuous-idle
+creatures (same "flatten all cells" treatment as Sleeping Dragon) — 2 frame sizes (64×64 vs 32×64, corrected
+after an initial wrong guess). Ratfolk Axe (64×32) and Ratfolk Mage (32×32) got their real animation labels
+(idle/move/attack/[cast]/hit/death) instead of the generic guess.
+
+**Goddess NPC fix.** §689's original read ("idle frames are empty filler, drop them, rename walk→fly") was
+WRONG for Goddess NPC specifically (right for the separate "Female Goddess", untouched) — her idle IS a
+real hover pose. Now: idle→`float`, the old fly-labelled row→`walk`.
+
+**Facing-direction data (`entry.facing = 'right'`) — descriptive only, no runtime behaviour wired yet.**
+Most bestiary creatures face left by default; a roster (`FACING_RIGHT_NAMES`) plus a category-level rule
+("every `critters`-category entry except the ones sourced from `critters sheet.png`") marks the exceptions.
+Purely data — searchable/inspectable, not yet consumed by any flip logic. **Separately**, a real bug: the
+"Japanese Musician" decorative NPC (`SheetRpgLayer.jsx`'s `Critter` component, used for `levels.json`'s
+`npc` field) was unconditionally mirrored like every other critter, but her raw sprite is already drawn
+facing left — `Critter` now takes an optional `flip` prop (default `true`, unchanged for every other
+caller), and the decorative-NPC call site passes `flip={npc !== 'Japanese Musician'}`.
+
+**Character split & merge — "covered" sheet → 13 named characters + their bare counterparts.**
+`GandalfHardcore Covered Characters sheet.png` (640×832, 13 rows × 2 characters/row, 5-frame idle each) was
+one generic creature; a hand-built roster (`coveredCharacterEntries()`) splits it into the 13 named
+characters Han gave and merges each with its pre-existing "Bare"/"Plain" counterpart already in the manifest
+(Lady Dryad Flowers, Lady Sitting Stone, Lady Flower, Lady Eve, Lady Dryad, Lady Lying Ground, Maid Frontal,
+Maid Backside, Maid Backside 2, Lady Sitting Hair) via `{base, variant}` renames in the post-process loop.
+Two follow-up corrections from Han: the "Lady Flower" name collision with an UNRELATED pre-existing
+passive-category roster character resolved by merging them (recategorized to `mature`, its generic "Sheet
+N" variants renamed to the real colour names); Dryad sheet.png / Eve sheet.png (previously ONE creature each
+with 3 generic idle/move/attack rows) split into 3 real colour-variant entries via a new
+`threeRowVariantEntries()` helper, so each colour merges 1:1 with its matching covered-sheet row.
+
+**Succubus family merge.** Frame-size corrections (previously silently defaulting to the blanket 64×64, and
+corrected once more after Han spot-checked the initial guess): Eisheth/Lilim/Pair → 64×64, Lilith/Morgana →
+64×80 (all 5 also added to the flying roster above); Succubus Mother's BARE variants (Bare/Bare 2/Bare (No
+Wings)/Bare 2 (No Wings)) → 64×64 (Plain is unaffected — Han's correction named only the bare ones — and
+happens to land on 64×64 anyway via the char_with_porttrait blanket), all 10 cells flattened into one
+continuous idle (same treatment as Sleeping Dragon/SSW); the main Succubus sheets → 156×72 (1248×2808 = 8×39,
+was wrongly reading as 19.5 cols). Merges: Eisheth/Lilim/
+Lilith/Morgana/Pair each fold their "X"/"X no bra" pair into one `{Normal, Bare}` creature. Succubus Mother's
+5 wing/bare files merge into one creature (`Plain`/`Bare`/`Bare 2`/`Bare (No Wings)`/`Bare 2 (No Wings)`).
+The main sheet — colour (Plain/Purple/Red/Pale) × bra-state × form (Succubus/Human Form) — merges into ONE
+"Succubus" creature with 10 compound-named variants ("Pale" comes from a SEPARATE "Pale Succubus" folder,
+not a duplicate of the plain file — the folder itself is the 4th colour). 37 of the main sheet's 39 rows got
+real animation labels (idle/idle-hands-back/jump/fly/fall/walk/run/walk-back(-lure)/lure/death×2/dead-burn×2,
+then a "with whip"/"without whip" combat run, then 7 named idle poses, then the 2 transform animations) —
+the "met whip"/"zonder whip" split is encoded as label text ("(Whip)" suffix), NOT a new variant axis (the
+data model was already stretched 2 ways for this family — see the toggle-UI note below). Human Form's 31
+rows do NOT map 1:1 onto the main sheet's 37 labels (count doesn't reconcile even after dropping the 2
+transform rows) — left on the generic fallback, flagged for Han to resolve.
+
+**Maid — sword-down sheets merged in.** Two previously-separate colour-suffixed file sets ("Sheet
+`<colour>`.png", 7 colours, and "Sheet full `<colour>`.png", 6 colours — genuinely two different asset
+batches, not a duplicate) plus the plain/hat sword-down sheets now fold into the main "Maid" creature via the
+pre-existing `mergeMaidEntries()` fold-in mechanism (§687) — extended to also match the "full " filename
+variant, which the original regex didn't cover.
+
+**Bestiary filter/tag UI (new feature) + multi-axis variant toggler (new feature).** Two genuinely new UI
+mechanisms, both requested mid-ticket and confirmed via `AskUserQuestion` before building (Han explicitly
+chose "real toggle UI" over a compact combined-variant-name approach for Maid's Hat/Sword):
+
+- **Category-tab browsing REMOVED** (Han 2026-08-12 follow-up: "ik zie nu alleen de humanoid enemies... ik
+  zou graag de volledige set van bestiary zien... de oude 'passive, with portrait, etc.' pre-selecties zijn
+  vervangen voor het tag-systeem"): the old one-category-visible-at-a-time tab row (previously rendered in
+  App.jsx's MENU SELECTOR column when `characterScreen === 'bestiary'`, driven by `useBestiaryEditor`'s
+  `category`/`selectCategory`/`categories`) is gone entirely — that machinery was deleted, not hidden.
+  `visibleCreatures` (renamed from `inCategory`) now lists every creature passing the filter bar below, full
+  stop; `category` is no longer a display filter anywhere in the bestiary.
+- **Filter bar** (`BestiaryBottomPanel`'s new `BestiaryFilterBar`): "Mature"/"Unfinished" toggles (both
+  default OFF — hide the `mature`/`incomplete` categories until switched on) plus a fixed 16-tag chip row
+  (`BESTIARY_FILTER_TAGS`, Han's own list: human/humanoid/animal/magical/hellish/monstrous/flying/portrait/
+  knight/pet/ranged/musician/seasonal/oriental/trader/tavern). Membership is generator-derived where a
+  reliable signal exists (category for animal/humanoid/portrait/musician; relPath for pet; name-keyword
+  match for knight/oriental/tavern/trader) — human/magical/hellish/monstrous/ranged/seasonal have **no**
+  reliable derivable signal and are NOT guessed at (§6c) — those chips render but currently match nothing,
+  pending a manual classification pass. "Mature" OFF also filters `bare`-tagged variants out of the CURRENTLY
+  SELECTED creature's variant list (`useBestiaryEditor`'s `creature` is now a `useMemo` over `rawCreature`
+  filtering bare variants) — this applies regardless of the creature's own category (e.g. a `passive`
+  creature with a bare side-variant, like Oriental Laying, is affected too).
+- **Multi-axis variant toggler**: generalized, not Maid-specific — any tag present on SOME but not ALL of a
+  creature's variants (`TOGGLABLE_VARIANT_TAGS = ['hat', 'sword']`, generator-tagged on Maid's relevant
+  variants) renders an independent on/off button (same `.cc-toggle-group` chrome as the existing accessory
+  toggler). Toggling switches to the variant matching the new state for THAT tag while preserving every
+  OTHER active toggle's state where a matching variant exists in the data, falling back to the first
+  match otherwise — the underlying art does NOT cover every colour×hat×sword combination (documented
+  limitation since §690), so this degrades gracefully instead of assuming full coverage.
+
+**Invariant:** tags are always DERIVED (generator-side, from category/relPath/name/animation-key signals)
+or explicit roster Sets when no formula exists (§6c) — never hand-typed per manifest entry, and never
+guessed for a signal that doesn't reliably exist yet.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs`, `scripts/bestiary/animationDefs.mjs`,
+`src/model/bestiaryAssets.js` (unchanged — tags/facing pass through automatically),
+`src/components/sheet-music/SheetRpgLayer.jsx` (`Critter`'s new `flip` prop),
+`src/components/character/useBestiaryEditor.js`, `src/components/character/BestiaryPanels.jsx`.
+Kanban ticket #870.
+
+### §208. §207 follow-up — 3 bugfixes + a full tag-system rewrite (`being` axis + subtractive tags), tag-left-of-portrait/search-bar/3-state-Mature/pink-bare UI (#870, Han 2026-08-12)
+
+**Bug 1 — flying creatures not centered/oscillating.** `isFlyingAnim` (`bestiaryAssets.js`) only checked
+`anim.key`/`anim.label` text and `variant.category === 'air'` — it never checked `anim.tags`. §207's
+`ALWAYS_FLYING_NAMES` roster tags animations `flying` WITHOUT renaming key/label (Octopus/Flying Brain
+Monster/Fluttering Pixie etc. keep their real key like `idle`/`attack`), so the centering/oscillation this
+function exists to drive never actually turned on for them. Fixed: `isFlyingAnim` now also returns true when
+`anim.tags?.includes('flying')`.
+
+**Bug 2 — Goddess NPC's idle animation.** §207 restored her idle (previously wrongly dropped as "empty
+filler") and renamed it `float`, tagging her flying. Corrected: she is NOT flying — idle stays `idle`,
+untouched; only the other row (previously `fly`) is renamed `walk`.
+
+**Bug 3 — Ooze/Ooze Ground aren't separate creatures.** They're Eye Monster's projectile (Han: "zijn
+'projectielen' van eye monster (dus extra portret rechts ernaast)") — `eyeMonsterEntries()` now returns ONE
+entry (Eye Monster: float/dilate/leak) with `sidePortraitRelPath`/`sidePortraitCell`/`sidePortraitAnimCols`
+pointing at row 3 (Ooze, in-flight) of the same sheet, same mechanism the Wizard's projectile/Fire Totem's
+fire spit already use. Row 4 ("Ooze Ground", the landed pose) has no second portrait slot to go in — dropped
+rather than guessed into a place it doesn't fit.
+
+**Full tag-system rewrite.** Two separate axes now exist on every manifest entry:
+
+1. **`entry.being`** (human/humanoid/animal/other) — exactly ONE per entity, additive/OR in the UI. Derived:
+   `other` from an explicit name list (barrel/mimic/totem/portal/seed/plant/pumpkin); `animal` from
+   `category === 'animal' || 'critters'`; `humanoid` from `category === 'humanoid'` plus an explicit 2-name
+   exception (Toad/Wizard toad — Han: "de twee toads zijn humanoid én magical" — NOT "Croaking Toad", a
+   literal animal from the Basic Animal Animations pack); everything else defaults to `human` (Han's own
+   explicit fallback: "indien geen tag: human"). Curated `ENEMIES` (11 hand-authored creatures, e.g. Lamia,
+   Slime) get the same axis via a small explicit map (`CURATED_BEING`) — too small a set for a formula,
+   same §6c allowance as the manifest-side name lists.
+2. **`tags`** (subtractive/AND) — `knight` renamed `military` and broadened (mad butcher/warrior/all
+   guards/barbarian/marquise/musketeer/orc/pirate/samurai + every existing "knight"-named entry); `worker`
+   added (lumberjack/blacksmith/gravedigger/etc. — a judgment pass across the roster, explicitly excluding
+   guards/mad butcher which Han routed to `military` instead); `undead` added (skeleton/vampire, extended to
+   zombie/ghoul/mummy/skull as the same obviously-undead archetype); `critter` added
+   (`category === 'critters'`); `portrait` now derives from `relPath` (`char_with_porttrait/` folder) instead
+   of the (already-overridden) `category` field, so Succubus/Warrior — whose category got overridden away
+   from `'portrait'` — still carry the tag; `ranged` is a fixed name list (poop thrower/archer/wizard/fire
+   totem/explosion — no generic "has a projectile" flag exists elsewhere to key off); `musician` gained
+   Oriental Musician explicitly; `tavern` extended to beer/dancer/dancing/jester; `hellish` extended to the
+   whole `/Succubus/` folder (catches Eisheth/Lilim/Lilith/Morgana/Pair, whose OWN names don't contain
+   "succub"); `magical` extended to the "basic magical animations" pack (already literally named for this)
+   plus witch/mage/necromancer/sorceress/pyromancer/druid/golem/elemental/treant/priest. `human`/`monstrous`
+   still have no derivable signal and match nothing.
+3. **Filter semantics** (Han's worked example: "human + animal + hellish + flying" → "(human OF animal) EN
+   hellish EN flying"): `being` is OR-within-the-group (`activeBeings.has(c.being)`), every subtractive tag
+   is AND'd on top (`activeTags` — creature must have, across ITS variants, every active tag). The being
+   group can never reach zero active — `toggleBeing` resets to all 4 if the last one would be turned off.
+
+**UI additions** (`BestiaryPanels.jsx`/`useBestiaryEditor.js`):
+
+- Tag pills shown to the LEFT of the whole `cc-enemy-stage` row (being + every non-`bare` tag on the current
+  variant) — a NEW sibling column wrapping the pre-existing, UNTOUCHED stage div, so `CreatureSprite`'s/
+  `PortraitImage`'s own centering math is never touched (Han: "zonder centrering van het portret aan te
+  passen").
+- Search box under the filter chips (`searchQuery`, substring match on creature name).
+- "Unfinished" toggle removed entirely. "Mature" is now a 3-state cycle button (off → show → only → off):
+  off = hide mature-category creatures AND bare variants (unchanged prior behaviour); show = no additional
+  filtering; only = keep only creatures that are mature-category OR have a bare variant.
+- Bare variants get a SOLID pink fill (`#ff5fa8`) — both the colour-swatch path (replaces the swatch's own
+  colour, same as flying's blue fill replaces an animation button's normal look) and the toggle-group/text-
+  label path (previously had no bare styling at all) — was a thin 2px outline layered on the real colour;
+  Han: "maak de bare variant roze (zoals de flying blauw is)".
+- Category-tab browsing (App.jsx's MENU SELECTOR column, `characterScreen === 'bestiary'`) renders no tabs
+  at all now — deleted, not hidden, per §207's "vervangen voor het tag-systeem" note being acted on fully.
+
+**Succubus frame-size correction round 2** (spot-checked by Han after §207's initial 96×80 guess): Eisheth/
+Lilim/Pair → 64×64, Lilith/Morgana → 64×80, Succubus Mother's BARE variants (Bare/Bare 2/Bare (No Wings)/
+Bare 2 (No Wings)) → 64×64 — Plain is unaffected (Han's correction named only the bare ones).
+
+**Files:** `scripts/generate-bestiary-manifest.mjs`, `src/model/bestiaryAssets.js` (`isFlyingAnim`, `being`
+now denormalized onto both the creature object and each variant), `src/components/character/
+useBestiaryEditor.js`, `src/components/character/BestiaryPanels.jsx`, `src/App.jsx` (bestiary tab row
+removed). Kanban ticket #870.
+
+### §209. §208 follow-up — tag precision pass (ranged/military/being reclassification), row-organized filter chips, `townsfolk`/`bathhouse` tags, Knight Cuman and Dancer split, and Maid's Hat/Sword rebuilt as real per-animation overlay + filter (#870, Han 2026-08-12)
+
+**Tag precision corrections.** `critter` now derives from `relPath` (`/animals/critters/`) instead of the
+(overridable) `category` field, so totems/portal/Eye Monster — physically in that folder but recategorized
+away from `'critters'` — still carry it. `ranged` was name-keyword matching (`archer` caught "Male Wood
+Archer"/"Elf Archer", which have no projectile; missed "Flying Brain Monster", which does) — replaced with
+an explicit roster of the 6 creatures that ACTUALLY have a wired projectile portrait (`Throwing poop`,
+`Archer`, `Wizard (Portrait)`, `Fire TotemSprite Sheet v1.1`, `Explosion`, `Flying Brain Monster`); the
+plain "Wizard" (Sheet 1/2/3) previously shared "Wizard (Portrait)"'s projectile portrait wiring by mistake
+(Han: "geen cast-animatie") — that `PORTRAIT_OVERRIDES_BY_NAME` entry is now deleted, not just excluded from
+the tag. `military` (renamed from `knight` in §208) no longer matches bare "Butcher" (only "Mad butcher"),
+gained `archer`/`crusader`. New tags: `townsfolk` (relPath-based: SSW/char_passive/char_with_attack/
+char_with_porttrait/char_with_walk — every "ordinary NPC" folder), `bathhouse` (name contains bath/bathing).
+`monstrous` removed entirely (had no derivable signal in §208, never populated, never asked for again).
+
+**`being` reclassification** (Han's detailed per-name pass, ~50 creatures moved): explicit override Sets
+applied AFTER the category-derived default — animal→other (Eye Monster, the treants/golems/elementals,
+Flying Brain Monster, Intellect Devourer, Leshy Leaf, Twig Blight); animal→humanoid (Deft Sorceress,
+Fluttering Pixie, Ghoul, Imp, Kobold Priest, Magical Fairy, Novice Pyromancer, the Ratfolks, Vile Witch);
+human→humanoid (Bee Girl, Cheeky Devil, the whole Succubus family, Elf Archer, Fairy, both goddesses, both
+vampires, Frodo, Goblin, Hell Giant, Lady Skull Witch, Large Skull, Rat thief, Skeleton, The Devil, Wizard
+Skeleton, Zombie); human→other (Cacodaemon, Burning Skull, Demon eye, Demon Mine, Explosion, Training
+Dummy, Wisp); human→animal (boss spider). Curated `flying-witch` (ENEMIES, not the manifest) corrected
+humanoid→human, gained `flying`+`magical` tags with EVERY animation (idle/attack/death) tagged flying —
+same small-fixed-list treatment as `CURATED_BEING` (§208), a new sibling `CURATED_TAGS`/
+`CURATED_ALL_ANIMS_FLYING`. `flying-witch`'s ALWAYS_FLYING_NAMES-style siblings from §208 (Lilith/Lilim/
+Eisheth/Pair) were removed from that roster ("zijn niet flying" — Morgana alone actually flies); Flying Eye
+(curated) and Portal (manifest) gained `flying`.
+
+**Succubus Human Form** now copies the main sheet's 37-label list minus the 2 transform labels (Han: "zijn
+hetzelfde als voor succubus, behalve dat de transities missen") — applied positionally even though Human
+Form's real row count (31) doesn't equal 35; `labelsFor`'s existing "extra labels/rows are just unused/
+fall back to Row N" behaviour absorbs the mismatch safely, per Han's explicit instruction to just copy it.
+
+**Succubus frame-size correction round 3.** Succubus Mother's 3 files that are themselves only 144px wide
+(Plain/Bare/Bare 2 — one column, 10 rows) restored to 144×64 (§208 had force-fit them to 64×64, which
+doesn't divide 144 evenly); the loose junk "Succubus sheet.png" preview swatch also fixed to 156×72 (was
+never touched by either round, sitting on a non-exact 64×64 blanket fallback the whole time — 1248×288 = 8×4
+at 156×72, exact, matching its siblings).
+
+**Knight Cuman and Dancer split** into 3 named characters (Cuman Standing/Cuman Sitting/Oriental Dancer,
+one idle each) via a new `expandKnightCumanAndDancer()` — same row-split technique as `expandEvilWizard`.
+
+**Filter UI reorganized into rows** (Han: "maak een volgende rij met..."): `BESTIARY_FILTER_TAG_ROWS`
+replaces the single wrapped `BESTIARY_FILTER_TAGS` line — magical/hellish/undead/flying/ranged; townsfolk/
+musician/worker/seasonal/oriental/trader/tavern/military/bathhouse; pet/critter; portrait/move/attack (2 new
+autotags: has a `move`/`attack`-keyed animation); Mature's 3-state cycle stays its own row. `military`/
+`ranged`/`bathhouse` weren't in Han's row dictation (discussed moments earlier in the same message, clearly
+still wanted) — placed with their closest thematic row rather than dropped.
+
+**Maid Hat/Sword rebuilt** (Han: "maid is nog niet goed... als ik hat aanvink, wil ik de oorspronkelijke
+animatie houden, met de hat superimposed" / "ik wil ook sword / no sword splitsen"): §207/§208's approach
+(Hat and Sword as separate pickable VARIANTS, switched via `toggleVariantTag`) is gone. Now:
+
+- **Hat** is a true per-animation OVERLAY, not a variant swap. "Hat" stops being a selectable Maid colour —
+  `mergeMaidEntries()` (the generator) instead harvests the Hat sheets' animations into a `key → relPath`
+  map and attaches `hatRelPath` to every OTHER colour's matching-key animation (safe because the Hat sheets
+  share the EXACT SAME row/col grid as the plain Maid sheets, confirmed in §671's original note — so the
+  same `cells` already computed for e.g. 'idle' line up pixel-for-pixel on the Hat sheet too, only the image
+  URL differs). `bestiaryAssets.js` resolves `hatRelPath → hatUrl` the same way `relPath → url` already
+  works. The Hat toggle button reuses the EXISTING accessory mechanism (`activeAccessories.hat`,
+  `toggleAccessory`) — `overlayUrls` now also includes `anim.hatUrl` when that toggle is on, so whichever
+  colour/animation is selected keeps showing, with the hat layered on top.
+- **Sword** filters the animation LIST, not a variant swap. `mergeMaidEntries()` tags every "weapon drawn"
+  animation key (combatstance1/2, attack, charge, idlesword, fallgetup, parryhit, death2, idleswordstill)
+  with `tags: ['sword']`. `useBestiaryEditor`'s new `visibleAnimations` filters `variant.animations` by that
+  tag against a `swordOn` boolean (generic — any creature with sword-tagged animations gets this filter;
+  everyone else is unaffected). `animKey` auto-resets to the first visible animation only when the CURRENT
+  selection would become hidden (not on every render), so toggling Sword mid-view doesn't lose the user's
+  place unnecessarily.
+- Both toggles are generic (`hasHatOverlay`/`hasSwordAnims`, computed from whether the CURRENT variant's
+  animations actually carry `hatUrl`/the `sword` tag) — not hardcoded to Maid, so any future creature with
+  the same shape picks them up automatically.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs`, `src/model/bestiaryAssets.js` (`hatUrl` resolution),
+`src/components/character/useBestiaryEditor.js`, `src/components/character/BestiaryPanels.jsx`. Kanban
+ticket #870.
+
+### §210. §209 follow-up — bare rebuilt as an independent toggle (not a variant), tag colours + greyed-out/reset-and-activate filter chips, portrait-centered/tags-left/options-right layout, Townsfolk 3-state toggle, and a long tail of name/tag corrections (#870, Han 2026-08-12)
+
+**Bare is now a THIRD independent toggle** (alongside Hat/Sword), not a selectable swatch (Han: "maak steeds
+bare een aparte toggler (naast kleur)... lady dryad: 3 kleurvarianten x bare variant = 6 varianten"):
+`useBestiaryEditor` splits `creature.variants` into `colorVariants` (swatch row) and `bareVariants` (never
+shown as swatches); a `bareOn` toggle resolves the EFFECTIVE displayed `variant` by stripping the "(Bare)"/
+"Bare" suffix from a bare variant's name and matching it to the selected colour's name, falling back to "the
+only bare variant" for creatures with one shared bare art across several colours (Lady Sitting Stone, Lady
+Flower), and to the first bare variant if no stem match exists. This is purely a variant-index swap (unlike
+Hat's pixel-overlay) since bare siblings are usually a COMPLETELY different sprite sheet/frame size, not the
+same grid — confirmed by Han's own correction below (Lady Dryad's bare is 62×64, not 64×64 like the covered
+side). Bare only ever has something to toggle TO when Mature isn't 'off' (bare-tagged variants are already
+stripped from `creature.variants` entirely at that point, upstream — no double-filtering needed).
+
+**Filter-chip UX.** Tags with zero matching creatures under the CURRENT being/Mature/Townsfolk/search state
+(not the other active tags — Han's own example: Human selected → no Critter matches) render at 35% opacity;
+clicking one calls `selectOnlyTag` instead of `toggleTagFilter` — resets every other filter to its default
+AND activates just that tag, rather than combining into a guaranteed-empty result (Han: "op grijze tag
+klikken: reset alle filters, en zet de grijze tag aan"). `passesFilters` split into `passesNonTagFilters` +
+the tag loop so availability can be checked independently of which tags happen to be active.
+
+**Tag colours** (`TAG_COLOR`, exported from `BestiaryPanels.jsx`): every filter chip AND the tag-pills next
+to the preview now render in a themed hex when active — `flying`/`bare` kept their EXACT pre-existing hex
+(the animation-button blue tint, the swatch pink fill — Han: "mature en flying consistent met de animatie/
+variant tags"); every other tag got a fresh, thematically-grouped colour so the (now ~24-tag) filter bar
+reads at a glance.
+
+**Layout: portrait centered, tags left, colours+togglers right, animations full-width below** (Han:
+"verplaats de kleuren en togglers naar rechts van het portret... centreer het portret... de tags links en de
+opties rechts mogen geen impact op de centrering hebben"): the stage wrapper is `position: relative` +
+`justifyContent: center`; the tag column and the (now-combined) colour-swatch/accessory/Hat/Sword/Bare
+column are BOTH absolutely positioned outside normal flow (left/right respectively), so neither can ever
+push the centered `.cc-enemy-stage` off-center regardless of its own content width — a flex-basis approach
+couldn't guarantee that when the two side columns have unequal width. The animation button row moved below
+everything, `width: 100%`.
+
+**Townsfolk 3-state toggle** (Han: "maak townsfolk een toggler, zoals mature; townsfolk / hostile / all,
+geef een aparte rij") — `townsfolkMode`, identical shape to `matureMode` (own cycle function, own row),
+default `'all'` (matches the ticket's original "toon alles" default). `townsfolk` removed from the ordinary
+tag-chip rows entirely.
+
+**Filter-row reshuffle**: `roman`/`christian` (new tags: `roman` = name contains "roman"; `christian` =
+monk/nun/bishop/crusader/inquisition) get their own row with `oriental`/`seasonal`, per Han's explicit
+dictation; `move`'s autotag broadened to any of move/walk/run/charge/fly (was `move`-key-only).
+
+**Tag/name precision — a long tail of individually-requested corrections**: `critter`/`ranged`/`military`
+already covered in §209; this round added — `townsfolk` excludes goddess/succubus/zombie/skeleton/goblin
+(shared folders with genuinely non-townsfolk residents); `bathhouse` gained "lady tub"/"lady washing" (moved
+OFF `worker`); `worker` gained armorer/artist painter/artist statue/dwarf/lady basket/town crier/meat
+vendor/lady potions (additive, alongside its existing `trader` tag); `seasonal` gained "lady beer"/
+"bavarian"; `hellish` gained "wanderer dark" (also moved animal→humanoid… no — human→humanoid, being axis);
+`Nurse` removed from `MATURE_ROSTER_NAMES` entirely; "Barrel" relabelled Talk/Talk Happy (targeted rename,
+same technique as Wisp/Female Goddess — Barrel shares its roster sheet with ~20 other unrelated characters);
+curated `flying-witch` (ENEMIES) gets `category: 'mature'` on its BESTIARY creature shape only (never
+touching `enemyAssets.js`'s own gameplay-facing `category`); "Uncovered" (Lady Godiva/Damned Female/Damned
+Male/Hell Giant's existing Covered/Uncovered pair) now gets the exact same `bare` tag/hide-when-Mature-off
+treatment "Bare" already had.
+
+**"strip alle bewoording sheet/sheets."** Base-name cleanup: `Buff/Fire/Heal Totem` (were "... Sprite Sheet
+v1.1"), `Orc`, `Samurai`, `Worm Left` (was "Worm Sprite Sheet - Left") — plus 2 renamed-loop-order bugs this
+surfaced and fixed (RANGED_NAMES/FACING_RIGHT_NAMES were still keyed on the OLD pre-rename totem names,
+silently never matching post-rename — same-iteration ordering issue, both rosters use the current post-
+rename spelling now). Two junk files skipped outright rather than renamed (stripping "sheet" from either
+would collide with a REAL creature of that name): "Sheet helper.PNG" (a bare measurement overlay, same role
+as the existing "- Guides" skip) and the loose "Succubus sheet.png" preview swatch. For the ~50 remaining
+"Sheet N"-variant creatures (colour rosters Han never gave real names for) — Han: "meestal is sheet 1/2/3
+een kleurenvariant, probeer die zelf te bepalen" — a new `sampleColorInCells()` (same idea as the existing
+Doggy `sampleColor()`, §671, but scoped to just the cells ONE creature's own animations occupy, since many
+of these share a roster FILE with several other characters) fills in a real sampled `swatchColor` wherever
+no curated `SWATCH_OVERRIDES` hex already exists — the swatch shows the actual pixel colour now instead of
+bare "Sheet N" text (button text only renders when no colour resolves, so this also visually resolves the
+"strip the wording" ask for the VARIANT label without inventing a colour NAME from nothing).
+
+**Named creature fixes**: Knight Cuman and Dancer → 3 characters (unchanged from §209, unaffected by this
+round); Lady Dryad's 3 bare variants corrected to 62×64 (was 64×64, inherited from the shared
+`threeRowVariantEntries()` helper — now takes an optional `frame` param so Eve's 64×64 isn't silently forced
+onto Dryad too); Lady Dryad Flowers' bare pairing removed entirely (Han: "haal de bare variant weg" — the
+source file is now skipped outright, its 3 now-dead override entries removed); Lady Flower's 3 covered-
+colour variants get a real two-colour DIAGONAL swatch (split on "/", each half resolved through a small
+local colour→hex table) instead of showing "Purple/Brown" as text — Han: "benoem niet de kleur, maak een
+vakje (met twee kleuren)".
+
+**Invariant reaffirmed**: swatch/tag DATA is always derived (category/relPath/name/pixel-sample) or an
+explicit small roster where no formula exists — this round's "sample real pixels instead of guessing a
+colour word" for the 50 Sheet-N creatures is the same discipline applied to a new signal type (pixels), not
+an exception to it.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs`, `src/components/character/useBestiaryEditor.js`,
+`src/components/character/BestiaryPanels.jsx`. Kanban ticket #870.
+
+### §211. §210 follow-up — tag rows become OR-within/AND-across with a per-row 'All' button, townsfolk/
+hostile/nature replaces the 3-state townsfolk toggle, the tags/portrait overlap bug is fixed, and a handful
+of entity splits/renames (#870, Han 2026-08-13)
+
+**Filter semantics changed from "one flat AND-everything Set" to "OR within a row, AND across rows"** (Han:
+"maak de tags per rij additief. dus (human OR humanoid) AND (magical OR undead) AND (musician OR military)").
+Every row in `BESTIARY_FILTER_TAG_ROWS`, plus the new `BESTIARY_TOWNSFOLK_ROW`, now behaves this way — a
+creature must match AT LEAST ONE active tag per row it has any active tag in, and rows with zero active tags
+impose no constraint at all (`useBestiaryEditor.js`'s `passesTagRows`). The being row (human/humanoid/animal/
+other) is explicitly EXEMPT from this generic row treatment and gets no 'All' button — Han: "behalve de
+bovenste... want die is wel exhaustief" (every creature has exactly one being, so it was already a complete,
+self-resetting OR group; the tag rows are not exhaustive, which is exactly why they need an explicit 'All'
+escape hatch). Every row (townsfolk row + all `BESTIARY_FILTER_TAG_ROWS` rows) gets an 'All' button appended
+that clears just that row's active tags (`clearTagRow`) — Han: "voeg aan het eind van elke rij een knopje
+'all' toe, die alle tags uitzet, en de filtergroep afzet (want de groepen zijn niet exhaustief)". One shared
+`TagRow` component (`BestiaryPanels.jsx`) renders every row (townsfolk row and every filter row) so this
+logic and chrome lives in exactly one place.
+
+**Townsfolk/Hostile/Nature replaces the old 3-state `townsfolkMode` toggle** (Han: "dan mogen townsfolk en
+hostile twee tags zijn. ik wil een derde optie in die groep: nature; voeg daar alle critters en dieren toe
+die niet onder townsfolk vallen. zet de togglergroep onder de human humanoid animal other selector"): now an
+ordinary 3-tag OR-group row (`BESTIARY_TOWNSFOLK_ROW`), rendered directly under the being row, with the same
+'All' button as every other row. `townsfolk` is still a real generator-derived tag; `hostile`/`nature` are
+NOT separately stored — they're computed live in the hook from `townsfolk` + `being`/`critter` (§6c: pure
+logical complements don't need a redundant roster). Partition: `nature` = animal-or-critter AND NOT
+townsfolk; `hostile` = everything left over (the actual monsters); `townsfolk` = has the `townsfolk` tag.
+Verified via manifest query: farm/pet animals (chicken/cow/horse/pig/Cat/Dog (Small)/Doggy/Tiger/Fox/Fox
+(Small), newly tagged townsfolk below) correctly fall OUT of `nature` and into `townsfolk`, while genuine wild
+critters (Akaname, Armadillo, Croaking Toad, Mad Boar, ...) stay in `nature`.
+
+**Layout bug fixed: tags/options were rendering behind/over the portrait** (Han: "na je herschikking staan de
+tags en varianten denk ik achter of over het portret, en niet ernaast. ik kan ze alleszins niet meer zien").
+Root cause: §210's `position: absolute; left: 0 / right: 0` anchored the side columns to `.cc-enemy-preview`'s
+own box edges, but that box was pinned at a rigid `256px` (`CharacterCreator.css`) while the ACTUAL rendered
+stage content (sprite + portrait boxes, each `FRAME_SIZE * PREVIEW_SCALE` ≈ 266px, `BestiaryPanels.jsx` §148)
+is far wider — it already silently overflowed that 256px box before this round (harmless when nothing else
+occupied the overflow space); once tags/options were also anchored to that same too-narrow box, they landed
+underneath the oversized, already-overflowing sprite instead of beside it. Fix: (1) `.cc-enemy-preview`'s
+flex-basis widened to `560px` (`flex: 1 1 560px`, still allowed to grow/shrink), matched by widening
+`.cc-enemy-anims`'s `max-width` from `256px` to `560px` so the animation row still uses the full available
+width (§210's original ask); (2) tags/stage/options are back in NORMAL document flow as a `flexWrap: wrap`
+flex row (`display:flex; justifyContent:center`) instead of `position:absolute` — this can never overlap
+(worst case an extra-wide multi-box creature wraps its side columns onto their own line), trading §210's
+"impact-free centering guarantee" for robustness against content wider than any fixed pixel guess (which the
+absolute approach silently assumed and got wrong).
+
+**Being tags get colours too** (Han: "geef ook kleurtjes aan de human humanoid animal other tags") —
+human/humanoid/animal/other added to the shared `TAG_COLOR` map (`BestiaryPanels.jsx`) and applied to both
+the being filter-row buttons and the preview's own being pill (`tagPillStyle(creature.being)`), reusing the
+exact same lookup as every other tag (being/tag namespaces never collide, so one map suffices).
+
+**Entity splits/renames** (Han: "voeg aan townsfolk toe: chickens, cows, horses, pigs, dogs, cats, tiger,
+fox" / "dragonfly: splits in twee entiteiten: giant dragonfly, dragonfly (small)" / "noem de kleine vos: fox
+(small)" / "row 4 van giant fly -> fly (small)" / "training dummy -> townsfolk" / "alle entiteiten met fly
+moeten ook de tag 'move' hebben"):
+- `chicken`/`cow`/`horse`/`pig` (farm folder), `Dog (Small)`/`Doggy`/`Cat`/`Tiger`/`Fox`/`Fox (Small)` (pets/
+  critters folders) — explicit `TOWNSFOLK_ANIMAL_NAMES` roster (generator, §6c: no single folder covers
+  "ordinary village animal", same convention as `RANGED_NAMES`/`MATURE_ROSTER_NAMES`). `Training Dummy` added
+  the same way.
+- Two UNRELATED sprites both named "Dragonfly" (a full-size standalone creature; one row of the 16-species
+  shared critters sheet) collided into one creature (`buildCreatures` groups by `${category}::${base}`,
+  bestiaryAssets.js) — split by `relPath` into `Giant Dragonfly` and `Dragonfly (Small)`. `ALWAYS_FLYING_
+  NAMES`'s `'Dragonfly'` entry renamed to `'Giant Dragonfly'` only — the small one already gets `flying` for
+  free from its own `fly`-keyed animation.
+- `fox` (GandalfHardcore pet-companion sprite) renamed `Fox (Small)`, disambiguating from the regular
+  critters-folder `Fox`; `FACING_RIGHT_NAMES` updated to match.
+- Giant Fly's leftover unlabelled "row 4" (2 cells, auto-scanner fallback label "Row 4") split into its own
+  manifest entry `Fly (Small)` (new `splitGiantFlyRow4`, run BEFORE the being/tag-derivation loop so it flows
+  through every generic rule — critter/animal/flying/move — exactly like any other critters-folder entry,
+  no hand-typed being/tags needed).
+- `if (tags.includes('flying')) tags.push('move')` (generator, after all other tag rules): closes a gap where
+  creatures flying via the whole-roster `ALWAYS_FLYING_NAMES` stamp (applied to an unrenamed `idle` animation)
+  never got `move` from the key-based rule, since that rule only looked at animation KEYS
+  (move/walk/run/charge/fly), not the `flying` tag itself.
+
+**Files:** `scripts/generate-bestiary-manifest.mjs`, `src/components/character/useBestiaryEditor.js`,
+`src/components/character/BestiaryPanels.jsx`, `src/components/character/CharacterCreator.css`. Kanban
+ticket #870.

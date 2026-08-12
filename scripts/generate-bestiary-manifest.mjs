@@ -78,7 +78,7 @@ import {
     maidCombatAnimations, maidSwordDownAnimations, poopThrowerAnimations, skeletonAnimations,
     artLadyAnimations, wizardPortraitAnimations, santaVampireAnimations, knightyAnimations,
     knightyRunFastAnimations, knightHeavySheet2Animations, boss_spiderAnimations, largeSkullAnimations,
-    devilAnimations,
+    devilAnimations, healBuffTotemAnimations, fireTotemAnimations, knightMountedAnimations,
 } from './bestiary/animationDefs.mjs';
 
 // ═══ SECTION: FOLDER MAP & CATEGORY OVERRIDES ═══
@@ -89,7 +89,9 @@ const OUT = join(process.cwd(), 'src/model/bestiaryManifest.generated.js');
 // categorisering: passive, with attack, with portrait, with walk") — the single 'characters' bucket is
 // split into 4, still 1:1 on the existing folder names, same principle as §113's original mapping.
 const CATEGORY_FOLDERS = {
-    passive: ['char_passive'],
+    // #870 (Han 2026-08-11, "voeg de nieuwe SSW-karakters toe aan de bestiary") — vendors/tavern folk, no
+    // combat sheets, same 'passive' category as the char_passive pack.
+    passive: ['char_passive', 'SSW'],
     attack: ['char_with_attack'],
     portrait: ['char_with_porttrait'],
     walk: ['char_with_walk'],
@@ -116,7 +118,6 @@ const CATEGORY_OVERRIDES = [
     { test: (p) => /GandalfHardcore Covered Characters sheet\.png$/i.test(p), category: 'mature' },
     { test: (p) => /GandalfHardcore Dryad sheet\.png$/i.test(p), category: 'mature' },
     { test: (p) => /GandalfHardcore Eve sheet\.png$/i.test(p), category: 'mature' },
-    { test: (p) => /GandalfHardcore Flower dryad\.png$/i.test(p), category: 'mature' },
     { test: (p) => /Japanese Characters( Bare)?\.png$/i.test(p), category: 'mature' },
     { test: (p) => /Lovers\.png$/i.test(p), category: 'mature' },
     { test: (p) => /char_passive\/(Character sheet( bare)? |Character sheet\.)/i.test(p) && /Spirit/.test(p), category: 'mature' },
@@ -130,11 +131,10 @@ const CATEGORY_OVERRIDES = [
     // breakdown) — moved to their own tab so they read as distinct from the checked 'portrait' entries.
     // #683 (Han 2026-08-04, "werk deze karakter uit en verplaats naar char + portrait"): Goblin/Zombie/Maid
     // are now fully worked out (real animation breakdowns below) — moved BACK to 'portrait' (their normal
-    // char_with_porttrait folder category). Samurai/Angel/Mounted Knight stay 'incomplete' pending the same
-    // treatment. #689: Goddess is now worked out too (idle dropped, walk→fly) — moved back to 'portrait'.
-    { test: (p) => /char_with_porttrait\/.*Samurai/i.test(p), category: 'incomplete' },
-    { test: (p) => /char_with_porttrait\/.*Angel/i.test(p), category: 'incomplete' },
-    { test: (p) => /char_with_porttrait\/.*Mounted knight/i.test(p), category: 'incomplete' },
+    // char_with_porttrait folder category). #689: Goddess is now worked out too (idle dropped, walk→fly) —
+    // moved back to 'portrait'. #870 (Han 2026-08-11, "je mag deze 3 nu ook het label incomplete droppen"):
+    // Samurai/Angel/Mounted Knight are now worked out too (real breakdowns below) — no more override needed,
+    // they fall back to the folder's normal 'portrait' category like their siblings above.
     // #693 (Han 2026-08-04, critters batch round 2: "verplaats naar flying: cocadaemon" / "verplaats naar
     // other: de portals, de totems, de destructible objects") — checked BEFORE the blanket critters→
     // 'critters' rule below (array order = precedence, `.find()` stops at the first match).
@@ -192,7 +192,9 @@ const isCurated = (name) => !/^Rat thief$/i.test(name) && CURATED_KEYWORDS.some(
 // kind of junk preview-swatch thumbnail (Dress/Goblin/Maid/Mounted knight/Samurai/Zombie colors, verified by
 // listing every "colors" match in the whole tree — no legitimate creature name collides with this suffix).
 // #689 (Han 2026-08-04, "skeletons variations: mag weg") — a junk preview-swatch file, same treatment.
-const EXCLUDED_NAME = /bikini girls|^color variations$|\bcolors$|^skeleton variations$/i;
+// #870 (Han 2026-08-12, "strip alle bewoording sheet/sheets"): "Sheet helper.PNG" is a bare measurement/
+// reference overlay (same non-creature-junk role as the "- Guides" files, §692), not a real creature.
+const EXCLUDED_NAME = /bikini girls|^color variations$|\bcolors$|^skeleton variations$|^Sheet helper$/i;
 // #692 (Han 2026-08-04): a literal " (1)" suffix is Windows' generic "duplicate download" naming — e.g.
 // "Ice Elemental Sprite Sheet (1).png" sitting next to the real "Ice Elemental Sprite Sheet.png" — a byte-
 // identical (or near-identical) accidental double-download, not a genuine second creature/variant.
@@ -305,6 +307,26 @@ const FRAME_OVERRIDES = [
     { test: (p) => /Knight Heavy\/.*Heavy Knighty sheet2/i.test(p), frame: { w: 91, h: 64 } },
     // #683 (Han 2026-08-04, "goblin: frame size 84x64") — exception to the 64×64 blanket rule below.
     { test: (p) => /char_with_porttrait\/.*Goblin.*sheet\.png$/i.test(p), frame: { w: 84, h: 64 } },
+    // #870 (Han 2026-08-11, "angel = 96x64" / "samurai 96x64" / "knight mounted: 128x111") — same kind of
+    // exception as Goblin above, MUST precede the 64×64 blanket rule (array order = precedence). Angel:
+    // 960×576 / 96×64 = 10×9, exact — matches Han's 9 named rows exactly. Samurai: 768×1152 / 96×64 = 8×18,
+    // exact — Han names only 15 of the 18 rows, the rest fall back to generic "Row N" labelling (labelsFor's
+    // positional fallback) rather than being guessed at. Knight Mounted: 1280×666 / 128×111 = 10×6, exact.
+    { test: (p) => /char_with_porttrait\/Angel\//i.test(p), frame: { w: 96, h: 64 } },
+    { test: (p) => /char_with_porttrait\/Samurai\//i.test(p), frame: { w: 96, h: 64 } },
+    { test: (p) => /char_with_porttrait\/Knight Mounted\//i.test(p), frame: { w: 128, h: 111 } },
+    // #870 (Han 2026-08-11/12, succubus batch, corrected 2026-08-12: "succubus mother (enkel bare
+    // varianten), eliseth, lilim, pair = 64x64. lilith, morgana = 64x80"; corrected again same day —
+    // "succubus mother, succubus sheet, herstel de vorige size"): Succubus Mother's 3 files that are
+    // themselves only 144px wide (Plain/Bare/Bare2 — a single COLUMN, 10 rows) restored to 144×64 (64×64
+    // doesn't divide 144 evenly: 2.25 cols); the "no wings" pair (640×64, genuinely fits 64×64 exactly) is
+    // unaffected, left on the blanket rule below. The main Succubus/"Succubus map" sheets (156×72) — all
+    // exceptions to the 64×64 blanket rule below, so MUST precede it. (The loose junk "Succubus sheet.png"
+    // preview swatch is skipped outright now, not framed — see the main scan loop.)
+    { test: (p) => /Succubus\/GandalfHardcore Bonus Succubus (Eisheth|Lilim|Pair)\//i.test(p), frame: { w: 64, h: 64 } },
+    { test: (p) => /Succubus\/GandalfHardcore Bonus Succubus (Lilith|Morgana)\//i.test(p), frame: { w: 64, h: 80 } },
+    { test: (p) => /Succubus\/GandalfHardcore Bonus Succubus Mother\/GandalfHardcore Succubus Mother( bare2?)?\.png$/i.test(p), frame: { w: 144, h: 64 } },
+    { test: (p) => /Succubus\/(GandalfHardcore Succubus|GandalfHardcore Pale Succubus)\//i.test(p), frame: { w: 156, h: 72 } },
     // #672 (Han: "characters: je mag aannemen dat ze 64x64 zijn") — blanket override for all 4 character
     // folders (passive/attack/portrait/walk), replacing the generic square-guess for these.
     { test: (p) => /characters\/(char_passive|char_with_attack|char_with_porttrait|char_with_walk)\//i.test(p), frame: { w: 64, h: 64 } },
@@ -321,6 +343,17 @@ const FRAME_OVERRIDES = [
     // later instruction supersedes the earlier one (same convention used throughout this session).
     { test: (p) => /\/animals\/critters\/(Porcupine|Imp)/i.test(p), frame: { w: 32, h: 32 } },   // Han: "porcupine, imp = 32x32"
     { test: (p) => /\/animals\/critters\/(Cacodaemon|Phoenixling)/i.test(p), frame: { w: 64, h: 64 } },   // Han: "= 64x64"
+    // #870 (Han 2026-08-11, "fire totem (64x32)") — was falling through to the generic square-guess (32x32,
+    // wrong); 448×160 / 64×32 = 7 cols × 5 rows, exact division.
+    { test: (p) => /\/animals\/critters\/Fire TotemSprite Sheet/i.test(p), frame: { w: 64, h: 32 } },
+    // #870 (Han 2026-08-12, "blacksmith, gravedigger, meat_vendor, travelling merchant: 64x64. andere SSW
+    // elk: 32x64") — the auto square-guess was wrong for these (128x128 → guessed as one single 128x128
+    // frame). Specific list MUST precede the catch-all below (array order = precedence).
+    { test: (p) => /\/SSW\/(Blacksmith|Gravedigger|Meat_Vendor|Traveling_Merchant)\.png$/i.test(p), frame: { w: 64, h: 64 } },
+    { test: (p) => /\/SSW\//i.test(p), frame: { w: 32, h: 64 } },
+    // #870 (Han 2026-08-12, "ratfolk axe: 64x32") — was falling through to the generic square-guess (32x32,
+    // wrong); 768×160 / 64×32 = 12 cols × 5 rows, exact — matches Han's 5 named animations exactly.
+    { test: (p) => /\/animals\/critters\/Ratfolk Axe/i.test(p), frame: { w: 64, h: 32 } },
 ];
 function frameOverrideFor(relPath) {
     const hit = FRAME_OVERRIDES.find((o) => o.test(relPath));
@@ -361,15 +394,11 @@ const BASE_OVERRIDES = [
     { test: (p) => /char_passive\/Bathtime\.png$/i.test(p), base: 'Bathtime', variant: 'Normal' },
     // #682 (Han 2026-08-04, "mature" category renames)
     { test: (p) => /char_passive\/Art lady\.png$/i.test(p), base: 'Lady Art Pose', variant: null },
-    { test: (p) => /GandalfHardcore Dryad sheet\.png$/i.test(p), base: 'Lady Dryad', variant: null },
-    { test: (p) => /GandalfHardcore Eve sheet\.png$/i.test(p), base: 'Lady Eve', variant: null },
-    { test: (p) => /GandalfHardcore Flower dryad\.png$/i.test(p), base: 'Lady Dryad Flowers', variant: null },
-    // #682 ("GandalfHardcore Covered Characters sheet.png" — 13-row/26-slot roster with no names given yet;
-    // included as ONE generic creature rather than skipped outright, so the asset isn't silently dropped —
-    // flagged for Han to split into named characters once he provides the roster, mirroring §676's
-    // "sheets 5/6 skipped" precedent for the reverse case (there: skipped for lack of names; here: kept
-    // whole since Han asked for it to be included, just not yet split).
-    { test: (p) => /GandalfHardcore Covered Characters sheet\.png$/i.test(p), base: 'Covered Characters', variant: null },
+    // Dryad sheet.png / Eve sheet.png / Covered Characters sheet.png used to fall through to here (generic
+    // single-creature treatment) — #870 (Han 2026-08-11/12) gave the full roster, so they're now split into
+    // named variant entries by `threeRowVariantEntries`/`coveredCharacterEntries` (push+continue, below);
+    // these lines are unreachable for those files now, left removed rather than as dead entries. (§870
+    // 2026-08-12: "Flower dryad.png" is now skipped outright — "lady dryad flowers: haal de bare variant weg".)
     // #683 (Han 2026-08-04, Goblin's 6 colours) — 3 of the 6 are compound colour words (`parseVariant` only
     // matches a SINGLE token against COLORS) — grouped explicitly for all 6 so none silently mis-parses.
     { test: (p) => /Goblin enemy green sheet\.png$/i.test(p), base: 'Goblin', variant: 'Green' },
@@ -451,6 +480,73 @@ const ROW_LABEL_OVERRIDES = [
     { test: (p) => /\/animals\/critters\/(Green|Purple) Portal/i.test(p), labels: ['Idle', 'Appear', 'Disappear'] },
     // #693 (Han: "human baby (idle, move, idle2, cry, feed, poop; met 3 kleurvarianten: light, dark, yellow)")
     { test: (p) => /\/animals\/critters\/Human Baby Sprite Sheet/i.test(p), labels: ['Idle', 'Move', 'Idle2', 'Cry', 'Feed', 'Poop'] },
+    // #870 (Han 2026-08-11, "training dummy: r1 idle, r2 hit1, r3 hit2")
+    { test: (p) => /\/animals\/critters\/Training Dummy/i.test(p), labels: ['Idle', 'Hit1', 'Hit2'] },
+    // #870 (Han 2026-08-11, "scarb beetle: animatie 3: fly (en tag als flying)") — row 3 (0-indexed row 2)
+    // was previously the generic 'Attack' guess; renamed 'Fly' so the flying-tag derivation (§790,
+    // isFlyingKeyOrLabel below) picks it up automatically, no manual tag needed.
+    { test: (p) => /creatures_ground\/Scarab beetle\.png$/i.test(p), labels: ['Idle', 'Move', 'Fly', 'Death'] },
+    // #870 (Han 2026-08-11, "angel = 96x64: rij1: idle, r2: walk, r3: run, r4: fly, r5: spawn, r6: despawn,
+    // r7: take hit, r8: heal, r9: cast") — one full row per animation, 9 of 9 rows named (see FRAME_OVERRIDES).
+    {
+        test: (p) => /char_with_porttrait\/Angel\//i.test(p),
+        labels: ['Idle', 'Walk', 'Run', 'Fly', 'Spawn', 'Despawn', 'Take Hit', 'Heal', 'Cast'],
+    },
+    // #870 (Han 2026-08-11, "samurai 96x64: r1: idle, r2: run; walk; attack running; attack; jump; fall;
+    // wall slide; landing; attack heavy; block; block hit; dash; rest; seppuku") — read as one row per named
+    // animation starting at r2 (each semicolon-separated word its own row); 15 of the sheet's 18 rows named
+    // (see FRAME_OVERRIDES) — the remaining 3 fall back to generic "Row N" labelling (labelsFor's positional
+    // fallback below) rather than being guessed at.
+    {
+        test: (p) => /char_with_porttrait\/Samurai\//i.test(p),
+        labels: [
+            'Idle', 'Run', 'Walk', 'Attack Running', 'Attack', 'Jump', 'Fall', 'Wall Slide', 'Landing',
+            'Attack Heavy', 'Block', 'Block Hit', 'Dash', 'Rest', 'Seppuku',
+        ],
+    },
+    // #870 (Han 2026-08-12, "ratfolk axe ... anims: idle, move, attack, hit, death")
+    { test: (p) => /\/animals\/critters\/Ratfolk Axe/i.test(p), labels: ['Idle', 'Move', 'Attack', 'Hit', 'Death'] },
+    // #870 (Han 2026-08-12, "ratfolk mage 32x32 anims: idle, move, attack, cast, hit, death")
+    { test: (p) => /\/animals\/critters\/Ratfolk Mage/i.test(p), labels: ['Idle', 'Move', 'Attack', 'Cast', 'Hit', 'Death'] },
+    // #870 (Han 2026-08-11/12, main Succubus sheet, 156×72, "rij per rij" animation list): 39 content rows
+    // at the corrected frame size, 37 of them named here — the trailing "met whip"/"zonder whip" runs are
+    // kept as ONE flat animation list (label text carries the "(Whip)" distinction) rather than a second
+    // variant axis, since the existing {base,variant} model is already stretched two ways (colour × bra) for
+    // this family — a true 3-axis toggle is future UI work, not a data-model change here. Rows 37-38 have no
+    // name in Han's list — left on the generic "Row N" fallback rather than guessed at. Applies to every
+    // colour/bra combination of the MAIN sheet (plain/purple/red × normal/no-bra, both the "Succubus" and
+    // "Pale Succubus" source folders) — NOT the "Human Form" sheets (only 31 rows, see the separate note
+    // below) and NOT the loose junk "Succubus sheet.png" preview swatch (4 rows, untouched).
+    {
+        test: (p) => /Succubus\/(GandalfHardcore Succubus|GandalfHardcore Pale Succubus)\//i.test(p) && !/Human Form/i.test(p),
+        labels: [
+            'Idle', 'Idle Hands Back', 'Jump', 'Fly', 'Fall', 'Walk', 'Run', 'Walk Back', 'Walk Back Lure',
+            'Lure', 'Death 1', 'Death 2', 'Dead Burn 1', 'Dead Burn 2',
+            'Idle (Whip)', 'Attack (Whip) 1', 'Attack (Whip) 2', 'Walk (Whip)', 'Run (Whip)',
+            'Knocked Back Get Up 1', 'Knocked Back Get Up 2', 'Knocked Back Get Up 3', 'Hit',
+            'Fly (Whip)', 'Fly Attack (Whip) 1', 'Fly Attack (Whip) 2', 'Heavy Kick 1', 'Heavy Kick 2',
+            'Idle (Lounging)', 'Idle (Gargoyle)', 'Idle (Lying)', 'Idle (Pose)', 'Idle (Sitting)',
+            'Idle (Spank)', 'Idle (Kneel)', 'Transform Human To Succubus', 'Transform Succubus To Human',
+        ],
+    },
+    // #870 (Han 2026-08-12, "succubus human form: kopieer de animatie-definities (zijn hetzelfde als voor
+    // succubus, behalve dat de transities missen)"): Han's explicit call — same 37-label list as the main
+    // sheet above, minus the trailing 2 transform labels (Human Form has no transform animation, by
+    // definition). Human Form's ACTUAL row count (31) doesn't equal 37-2=35 — applied positionally anyway
+    // (labelsFor's fallback already handles "fewer/more rows than labels" safely): whichever of the 35
+    // labels have a matching row get used, any leftover rows fall back to generic "Row N".
+    {
+        test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus Human Form/i.test(p),
+        labels: [
+            'Idle', 'Idle Hands Back', 'Jump', 'Fly', 'Fall', 'Walk', 'Run', 'Walk Back', 'Walk Back Lure',
+            'Lure', 'Death 1', 'Death 2', 'Dead Burn 1', 'Dead Burn 2',
+            'Idle (Whip)', 'Attack (Whip) 1', 'Attack (Whip) 2', 'Walk (Whip)', 'Run (Whip)',
+            'Knocked Back Get Up 1', 'Knocked Back Get Up 2', 'Knocked Back Get Up 3', 'Hit',
+            'Fly (Whip)', 'Fly Attack (Whip) 1', 'Fly Attack (Whip) 2', 'Heavy Kick 1', 'Heavy Kick 2',
+            'Idle (Lounging)', 'Idle (Gargoyle)', 'Idle (Lying)', 'Idle (Pose)', 'Idle (Sitting)',
+            'Idle (Spank)', 'Idle (Kneel)',
+        ],
+    },
 ];
 function labelsFor(relPath) {
     return ROW_LABEL_OVERRIDES.find((o) => o.test(relPath))?.labels || ROW_LABELS;
@@ -514,6 +610,26 @@ function sampleColor(data) {
     const hex = (v) => Math.round(v / n).toString(16).padStart(2, '0');
     return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
+// #870 (Han 2026-08-12, "strip alle bewoording sheet/sheets. meestal is sheet 1/2/3 een kleurenvariant,
+// probeer die zelf te bepalen"): same idea as `sampleColor` above (Doggy, §671), scoped to just the CELLS
+// one creature's own animations occupy — needed here because many "Sheet N" entries share a roster FILE
+// with several OTHER characters (`expandRosterSheet`), so sampling the whole image would average across
+// all of them.
+function sampleColorInCells(data, width, frame, cells) {
+    let r = 0, g = 0, b = 0, n = 0;
+    for (const { row, col } of cells) {
+        const fx = col * frame.w, fy = row * frame.h;
+        for (let y = fy; y < fy + frame.h; y++) {
+            for (let x = fx; x < fx + frame.w; x++) {
+                const i = (y * width + x) * 4;
+                if (data[i + 3] > ALPHA_THRESHOLD) { r += data[i]; g += data[i + 1]; b += data[i + 2]; n++; }
+            }
+        }
+    }
+    if (!n) return null;
+    const hex = (v) => Math.round(v / n).toString(16).padStart(2, '0');
+    return `#${hex(r)}${hex(g)}${hex(b)}`;
+}
 
 // #684 (Han 2026-08-04, "goblin portraits kleuren niet mee, pak de juiste portraits (ze zijn raar
 // genummerd)"): §683's whole-sprite average-colour match failed — goblins are mostly the SAME green skin
@@ -545,6 +661,18 @@ function analyze(absPath, relPath) {
     // #669 (Han: "sleeping dragon: een lange loop: idle") — ALL cells (row-major across every row of the
     // 5x5 grid) are ONE continuous idle loop, not one animation per row.
     if (/animals\/Sleeping Dragon\.png$/i.test(relPath)) {
+        const cells = contentRows.flatMap(({ row, frames }) => rowCells(row, frames));
+        return { width, height, frame, crop, animations: [{ key: 'idle', label: 'Idle', cells }], contentRows };
+    }
+    // #870 (Han 2026-08-11, "de ssw karakters hebben enkel een lange idle animatie (alle cellen)") — same
+    // "flatten every row into one continuous idle loop" treatment as Sleeping Dragon above.
+    if (/\/SSW\//i.test(relPath)) {
+        const cells = contentRows.flatMap(({ row, frames }) => rowCells(row, frames));
+        return { width, height, frame, crop, animations: [{ key: 'idle', label: 'Idle', cells }], contentRows };
+    }
+    // #870 (Han 2026-08-11, "succubus mother (144x64, alle cellen tezamen 'idle')") — same treatment,
+    // applies to all 5 wing/bare variant files (Succubus Mother / bare / bare2 / bare no wings / bare2 no wings).
+    if (/Succubus\/GandalfHardcore Bonus Succubus Mother\//i.test(relPath)) {
         const cells = contentRows.flatMap(({ row, frames }) => rowCells(row, frames));
         return { width, height, frame, crop, animations: [{ key: 'idle', label: 'Idle', cells }], contentRows };
     }
@@ -583,9 +711,10 @@ const MUSICIAN_ROSTER_NAMES = new Set(['Satyr']);
 // group) is OUT, "Lady Flower Plain" (the roster-4 singleton, §682's split-apart-from-Lady-Flower name) is
 // IN — this Set is checked uniformly by `expandRosterSheet()` regardless of which roster table (spaced/
 // unspaced/sheet-4) it's iterating, so both live in the same list.
+// #870 (Han 2026-08-12, "nurse mag uit de mature categorie") — removed from this list.
 const MATURE_ROSTER_NAMES = new Set([
     'Ladies Bare', 'Lady Back', 'Lady Pose', 'Posing Lady Pose 1', 'Posing Lady Pose 2', 'Posing Lady Pose 3',
-    'Nurse', 'Lady Flower Plain', 'Lady Bare Ass', 'Lady Mini Skirt', 'Lady Sitting Stone Bare', 'Lady Skull Witch',
+    'Lady Flower Plain', 'Lady Bare Ass', 'Lady Mini Skirt', 'Lady Sitting Stone Bare', 'Lady Skull Witch',
     'Lady Sweeping', 'Maid Backside Bare', 'Maid Backside 2 Bare', 'Maid Frontal Bare', 'Maid Lying Ground Bare',
     'Mermaid', 'Seer',
 ]);
@@ -994,6 +1123,156 @@ function expandEvilWizard(absPath, relPath, category) {
     }));
 }
 
+// #870 (Han 2026-08-12, "knigh cuman and dancer: dit zijn 3 karakters met elk een idle animatie: cuman
+// standing, cuman sitting, oriental dancer"): 768×192 = 12 cols × 3 rows — same split-by-row technique as
+// `expandEvilWizard` above.
+function expandKnightCumanAndDancer(absPath, relPath, category) {
+    const buf = readFileSync(absPath);
+    const png = PNG.sync.read(buf);
+    const { width, height, data } = png;
+    const frame = { w: 64, h: 64 };
+    const { contentRows } = scanRows(data, width, height, frame);
+    const ROW_BASES = ['Cuman Standing', 'Cuman Sitting', 'Oriental Dancer'];
+    return contentRows.map(({ row, frames }) => ({
+        category, relPath, base: ROW_BASES[row] || `Knight Cuman and Dancer Row ${row}`, variant: null,
+        width, height, frame, crop: { x: 0, y: 0, w: frame.w, h: frame.h },
+        animations: [{ key: 'idle', label: 'Idle', cells: rowCells(row, frames) }],
+    }));
+}
+
+// #870 (Han 2026-08-11, "warrior (80x64): variant 'sword sheathed' r1 idle..r7 idle ground, r16 death;
+// variant 'sword drawn' r8 idle..r15 attack, r17 death"): 800×1088 / 80×64 = 10 cols × 17 rows, exact —
+// ONE file holding TWO variants (non-contiguous row groups: each variant's death row sits far below its
+// other 7 rows), same "stitched across the sheet" idea as `horseAnimations`, but splitting into two manifest
+// entries (like `eyeMonsterEntries`) rather than one multi-animation creature, since 'sword sheathed' and
+// 'sword drawn' are colour/state VARIANTS of one Warrior, not two different animations of the same pose set.
+function warriorEntries(absPath, relPath, category) {
+    const buf = readFileSync(absPath);
+    const png = PNG.sync.read(buf);
+    const { width, height, data } = png;
+    const frame = { w: 80, h: 64 };
+    const { contentRows } = scanRows(data, width, height, frame);
+    const byRow = Object.fromEntries(contentRows.map((r) => [r.row, r.frames]));
+    const build = (variant, rowDefs) => {
+        const animations = rowDefs
+            .filter(([row]) => byRow[row])
+            .map(([row, key, label]) => ({ key, label, cells: rowCells(row, byRow[row]) }));
+        return {
+            category, relPath, base: 'Warrior', variant, width, height, frame,
+            crop: cropForCells(data, width, frame, animations.flatMap((a) => a.cells)),
+            animations,
+        };
+    };
+    // #870 (Han 2026-08-12, "sprint -> walk backwards, idle ground -> slide") — relabel, both variants.
+    return [
+        build('Sword Sheathed', [
+            [0, 'idle', 'Idle'], [1, 'walk', 'Walk'], [2, 'run', 'Run'], [3, 'walkbackwards', 'Walk Backwards'],
+            [4, 'airup', 'Air Up'], [5, 'airdown', 'Air Down'], [6, 'slide', 'Slide'],
+            [15, 'death', 'Death'],
+        ]),
+        build('Sword Drawn', [
+            [7, 'idle', 'Idle'], [8, 'walk', 'Walk'], [9, 'run', 'Run'], [10, 'walkbackwards', 'Walk Backwards'],
+            [11, 'airup', 'Air Up'], [12, 'airdown', 'Air Down'], [13, 'slide', 'Slide'],
+            [14, 'attack', 'Attack'], [16, 'death', 'Death'],
+        ]),
+    ];
+}
+
+// #870 (Han 2026-08-11, "eye monster (float, dilate, leak) en de twee rijen daaronder zijn een projectiel:
+// ooze + ooze ground"): 256×160 = 8 cols × 5 rows at 32×32 — rows 0-2 are Eye Monster's own 3 poses
+// (previously generic-labelled idle/move/attack), rows 3-4 are a SEPARATE projectile creature ('Ooze'
+// mid-air, 'Ooze Ground' landed), not two more Eye Monster animations — split into two manifest entries so
+// each gets its own bestiary card, same technique as `expandEvilWizard` above.
+// #870 (Han 2026-08-12, "ooze / ooze ground zijn 'projectielen' van eye monster (dus extra portret rechts
+// ernaast)"): correction — Ooze is NOT a separate bestiary creature, it's Eye Monster's projectile
+// companion, same `sidePortrait*` mechanism the Wizard's projectile / Fire Totem's fire spit use. Only the
+// "in flight" Ooze row (3) is used for the animated side-portrait loop — the "Ooze Ground" landed pose (row
+// 4) has no second portrait slot to go in (only one `sidePortrait*` exists per entry) and is dropped rather
+// than guessed into a place it doesn't fit.
+function eyeMonsterEntries(absPath, relPath, category) {
+    const buf = readFileSync(absPath);
+    const png = PNG.sync.read(buf);
+    const { width, height, data } = png;
+    const frame = { w: 32, h: 32 };
+    const { contentRows } = scanRows(data, width, height, frame);
+    const byRow = Object.fromEntries(contentRows.map((r) => [r.row, r.frames]));
+    const rowDefs = [[0, 'float', 'Float'], [1, 'dilate', 'Dilate'], [2, 'leak', 'Leak']];
+    const animations = rowDefs
+        .filter(([row]) => byRow[row])
+        .map(([row, key, label]) => ({ key, label, cells: rowCells(row, byRow[row]) }));
+    return [{
+        category, relPath, base: 'Eye Monster', variant: null, width, height, frame,
+        crop: cropForCells(data, width, frame, animations.flatMap((a) => a.cells)),
+        animations,
+        sidePortraitRelPath: relPath, sidePortraitCell: { row: 3, col: 0 }, sidePortraitFrame: frame,
+        sidePortraitAnimCols: byRow[3] || 1,
+    }];
+}
+
+// #870 (Han 2026-08-11/12, "lady dryad en eve hebben per ongeluk idle/move/attack ipv hun kleurvariant als
+// tags"): Dryad sheet.png / Eve sheet.png are BOTH "3 colour variants stacked as rows", previously read as
+// ONE creature with 3 generic idle/move/attack animations — split into 3 separate VARIANT entries of one
+// creature instead, so each colour is its own bestiary variant (toggler swatch), and so they can merge with
+// the matching covered-sheet colour variants below (same {base, variant} pairing convention as Oriental
+// Laying's Normal/Bare — here 3 colours × Bare, hence the "(Bare)" suffix per variant).
+// #870 (Han 2026-08-12, "lady dryad: de bare varianten zijn 62x64") — `frame` is now a parameter (was
+// hardcoded 64×64 for both this function's callers, Dryad sheet.png and Eve sheet.png) so Dryad's real
+// measurement doesn't also silently apply to Eve.
+function threeRowVariantEntries(absPath, relPath, category, base, variantNames, frame = { w: 64, h: 64 }) {
+    const buf = readFileSync(absPath);
+    const png = PNG.sync.read(buf);
+    const { width, height, data } = png;
+    const { contentRows } = scanRows(data, width, height, frame);
+    return contentRows.map(({ row, frames }, i) => {
+        const cells = rowCells(row, frames);
+        return {
+            category, relPath, base, variant: variantNames[i] || `Row ${row} (Bare)`, width, height, frame,
+            crop: cropForCells(data, width, frame, cells),
+            animations: [{ key: 'idle', label: 'Idle', cells }],
+        };
+    });
+}
+
+// #870 (Han 2026-08-11/12, "covered characters moet gesplitst worden in aparte karakter (met variaties) en
+// gemerged met hun aparte bare variant"): 640×832 = 10 cols × 13 rows at 64×64 — 2 characters per row (cols
+// 0-4 left, cols 5-9 right), each a single 5-frame idle (Han: "alle anims zijn idle"). Roster below maps
+// each (row, slot) to the {base, variant} it merges into — cross-referenced against Han's own bestiary
+// (2026-08-12 chat) against the bare/plain counterparts already in the manifest. Row/slot indices are
+// 0-indexed here; Han's "rN" in his notes is 1-indexed (rN = row N-1).
+// r1(row0) right, r2(row1) both SKIPPED: those 3 cells are "Lady Flower" Purple/Brown, Blue/Red, White/
+// Yellow — Han confirmed (2026-08-12, "1 merge die") these are the SAME character as the existing
+// ROSTER_SHEETS_SPACED "Lady Flower" (Sheet 1/2/3 colour variants) — merged by relabelling that roster
+// entry below (post-process loop) instead of importing a pixel-duplicate here.
+function coveredCharacterEntries(absPath, relPath, category) {
+    const buf = readFileSync(absPath);
+    const png = PNG.sync.read(buf);
+    const { width, height, data } = png;
+    const frame = { w: 64, h: 64 };
+    const build = (row, slot, base, variant) => {
+        const colStart = slot === 'L' ? 0 : 5;
+        const cells = Array.from({ length: 5 }, (_, i) => ({ row, col: colStart + i }));
+        return {
+            category, relPath, base, variant, width, height, frame,
+            crop: cropForCells(data, width, frame, cells),
+            animations: [{ key: 'idle', label: 'Idle', cells }],
+        };
+    };
+    return [
+        build(0, 'L', 'Lady Dryad Flowers', 'Normal'),
+        build(2, 'L', 'Lady Sitting Stone', 'Normal'), build(2, 'R', 'Lady Sitting Stone', 'Dark Skin'),
+        build(3, 'L', 'Lady Sitting Stone', 'Purple Hair'), build(3, 'R', 'Lady Eve', 'Red'),
+        build(4, 'L', 'Lady Eve', 'Green/Gold'), build(4, 'R', 'Lady Eve', 'Demon'),
+        build(5, 'L', 'Lady Dryad', 'Normal'), build(5, 'R', 'Lady Dryad', 'Grey'),
+        build(6, 'L', 'Lady Dryad', 'Red'), build(6, 'R', 'Lady Lying Ground', '1'),
+        build(7, 'L', 'Lady Lying Ground', '2'), build(7, 'R', 'Lady Lying Ground', '3'),
+        build(8, 'L', 'Maid Frontal', '1'), build(8, 'R', 'Maid Frontal', '2'),
+        build(9, 'L', 'Maid Frontal', '3'), build(9, 'R', 'Maid Backside', '1'),
+        build(10, 'L', 'Maid Backside', '2'), build(10, 'R', 'Maid Backside', '3'),
+        build(11, 'L', 'Maid Backside 2', '1'), build(11, 'R', 'Maid Backside 2', '2'),
+        build(12, 'L', 'Maid Backside 2', '3'), build(12, 'R', 'Lady Sitting Hair', 'Normal'),
+    ];
+}
+
 // ═══ SECTION: MAIN SCAN LOOP ═══
 const manifest = [];
 // #671 (Han: "maak een toggler voor hat en backpack") — accessories layer ON TOP of whichever Doggy
@@ -1078,6 +1357,42 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             // different creatures (see `expandEvilWizard` above).
             if (/char_passive\/Evil Wizard\.png$/i.test(relPath)) {
                 manifest.push(...expandEvilWizard(absPath, relPath, category));
+                continue;
+            }
+            // #870 (Han 2026-08-12): Knight Cuman and Dancer splits into 3 named characters (see
+            // expandKnightCumanAndDancer above).
+            if (/char_passive\/Knight Cuman and Dancer ?\.png$/i.test(relPath)) {
+                manifest.push(...expandKnightCumanAndDancer(absPath, relPath, category));
+                continue;
+            }
+
+            // #870 (Han 2026-08-11): Eye Monster's sheet splits into the creature itself + its Ooze
+            // projectile (see eyeMonsterEntries above).
+            if (/\/animals\/critters\/Eye Monster Sprite Sheet\.png$/i.test(relPath)) {
+                manifest.push(...eyeMonsterEntries(absPath, relPath, 'critters'));
+                continue;
+            }
+
+            // #870 (Han 2026-08-11): Warrior's sheet splits into 'Sword Sheathed'/'Sword Drawn' variants
+            // (see warriorEntries above).
+            if (/char_with_attack\/GandalfHardcore Warrior\.png$/i.test(relPath)) {
+                manifest.push(...warriorEntries(absPath, relPath, category));
+                continue;
+            }
+
+            // #870 (Han 2026-08-11/12): Dryad sheet.png / Eve sheet.png split into named colour variants
+            // (see threeRowVariantEntries above); Covered Characters sheet.png splits into its 26 named
+            // characters (see coveredCharacterEntries above).
+            if (/GandalfHardcore Dryad sheet\.png$/i.test(relPath)) {
+                manifest.push(...threeRowVariantEntries(absPath, relPath, categoryOverrideFor(relPath, category), 'Lady Dryad', ['Normal (Bare)', 'Grey (Bare)', 'Red (Bare)'], { w: 62, h: 64 }));
+                continue;
+            }
+            if (/GandalfHardcore Eve sheet\.png$/i.test(relPath)) {
+                manifest.push(...threeRowVariantEntries(absPath, relPath, categoryOverrideFor(relPath, category), 'Lady Eve', ['Red (Bare)', 'Green/Gold (Bare)', 'Demon (Bare)']));
+                continue;
+            }
+            if (/GandalfHardcore Covered Characters sheet\.png$/i.test(relPath)) {
+                manifest.push(...coveredCharacterEntries(absPath, relPath, categoryOverrideFor(relPath, category)));
                 continue;
             }
 
@@ -1187,6 +1502,18 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             // kader ernaast, zoals arrow)") — same whole-file portrait-companion technique as Poop Impact
             // Sheet/arrow.png; never scanned standalone (paired in PORTRAIT_OVERRIDES_BY_NAME below).
             if (/\/animals\/critters\/Flying Brain Monster Mind Blast\.png$/i.test(relPath)) continue;
+            // #870 (Han 2026-08-11, "zet de fire spit als projectel") — same whole-file portrait-companion
+            // technique as Mind Blast above; paired to Fire Totem in PORTRAIT_OVERRIDES_BY_NAME below.
+            if (/\/animals\/critters\/Fire Totem Fire Spit Sprite Sheet\.png$/i.test(relPath)) continue;
+            // #870 (Han 2026-08-12, "strip alle bewoording sheet/sheets"): "Succubus sheet.png" is a loose
+            // junk preview-swatch file (§683's "* colors.png" pattern, just named differently) — stripping
+            // "sheet" from its name would collide with the real "Succubus" creature, so it's skipped outright
+            // instead (it was never wired to anything, only ever its own disconnected 4-row card).
+            if (/\/Succubus\/GandalfHardcore Succubus sheet\.png$/i.test(relPath)) continue;
+            // #870 (Han 2026-08-12, "lady dryad flowers: haal de bare variant weg") — this file WAS her
+            // only bare pairing (merged as variant 'Bare' below); Han wants it gone entirely now, so the
+            // whole file is skipped rather than just excluded from the merge.
+            if (/GandalfHardcore Flower dryad\.png$/i.test(relPath)) continue;
             // #693 — "Leaf Elemental S Dormant.png" is only ever shown as the main Leaf Elemental's
             // "Dormant" animation (added below) — never scanned standalone.
             if (/\/animals\/critters\/Leaf Elemental S Dormant\.png$/i.test(relPath)) continue;
@@ -1297,13 +1624,14 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             // #677 (Han: "santa, vampire lady 2, zij steeds ...")
             if (/(GandalfHardcore Santa Claus|GandalfHardcore Vampire Lady v2)\.png$/i.test(relPath)) analysis.animations = santaVampireAnimations();
             // #689 (Han 2026-08-04, "goddess: idle animatie mag weg (idle frames) walk -> fly en gebruik
-            // die als preview") — 832×64 = 13×1, the SAME layout Santa/Vampire use (5 idle + 8 walk cols) —
-            // reused, then Han's edit applied: idle dropped, 'walk' renamed to 'fly' (and, being the only
-            // animation left, it's automatically what shows by default/as the preview).
+            // die als preview") — 832×64 = 13×1, the SAME layout Santa/Vampire use (5 idle + 8 walk cols).
+            // #870 (Han 2026-08-12, "goddess NPC: float -> walk. Haar idle animatie (eerste 5 frames) is
+            // verdwenen"; corrected same day: "eerste animatie is 'idle' niet float (en dus ook niet
+            // flying)"): correction to §689's premise — the idle frames were NOT empty filler, so idle is
+            // KEPT (stays 'idle' — she is NOT flying), the old 'fly'-labelled row renamed 'walk' instead.
             if (/Goddess\/GandalfHardcore Goddess NPC\.png$/i.test(relPath)) {
                 analysis.animations = santaVampireAnimations()
-                    .filter((a) => a.key !== 'idle')
-                    .map((a) => (a.key === 'walk' ? { key: 'fly', label: 'Fly', cells: a.cells } : a));
+                    .map((a) => (a.key === 'walk' ? { key: 'walk', label: 'Walk', cells: a.cells } : a));
             }
             // #693 (Han 2026-08-04, round 3: "imp only use the first 6 rows") — 256×384 @ 32×32 = 8×12,
             // auto-detects up to 12 content rows; capped to the first 6.
@@ -1361,7 +1689,9 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
                 const firstCells = rowCells(0, 5);
                 const restCells = Array.from({ length: 5 }, (_, i) => ({ row: 0, col: 5 + i }));
                 manifest.push({
-                    category: 'mature', relPath, base: 'Bella Donna', variant: null, width, height, frame,
+                    // #870 (Han 2026-08-11: "bella donna is niet 'mature', die tag mag eraf") — she's fully
+                    // clothed, unlike the other half of this split (Lady Sitting Hair Bare, unchanged below).
+                    category: 'passive', relPath, base: 'Bella Donna', variant: null, width, height, frame,
                     crop: cropForCells(data2, width, frame, firstCells),
                     animations: [{ key: 'idle', label: 'Idle', cells: firstCells }],
                 });
@@ -1434,6 +1764,10 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             if (/boss_spider\.png$/i.test(relPath)) analysis.animations = boss_spiderAnimations(analysis.contentRows);
             if (/Large Skull\.png$/i.test(relPath)) analysis.animations = largeSkullAnimations(analysis.contentRows);
             if (/The Devil\.png$/i.test(relPath)) analysis.animations = devilAnimations(analysis.contentRows);
+            // #870 (Han 2026-08-11)
+            if (/\/animals\/critters\/(Heal|Buff) Totem/i.test(relPath)) analysis.animations = healBuffTotemAnimations(analysis.contentRows);
+            if (/\/animals\/critters\/Fire TotemSprite Sheet/i.test(relPath)) analysis.animations = fireTotemAnimations(analysis.contentRows);
+            if (/char_with_porttrait\/Knight Mounted\//i.test(relPath)) analysis.animations = knightMountedAnimations();
             // #674 (Han: "art lady, last frame is 'statue' variant")
             if (/char_passive\/Art lady\.png$/i.test(relPath)) analysis.animations = artLadyAnimations(analysis.contentRows);
             // #676 (Han: "bathtime bare is 128x64 (twee rijen, een animatie)") — merge both rows into ONE
@@ -1475,17 +1809,23 @@ for (const [category, folders] of Object.entries(CATEGORY_FOLDERS)) {
             // just like sheet1 already is (`BASE_OVERRIDES` above) — extracted generically here (not one
             // override line per colour × file-type, ~40 combinations) and tagged with a source suffix so
             // the merge pass below can group them back onto the matching colour's primary 'Maid' entry.
-            // "Maid Walk with sword down Sheet.png" (no colour word) and "...Sheet hat.png" are left OUT of
-            // this colour grouping — a "Sheet black.png" ALSO exists in the same folder, so the unlabelled
-            // file can't be assumed to be Black (that would collide); what it actually represents is
-            // unclear without a visual check, so it's left as its own ungrouped fallback entry, flagged.
             const maidColorMatch = /(full )?(black|blue|brown|green|purple|red|white|yellow)/i.exec(name);
             const maidColorVariant = maidColorMatch ? `${cap(maidColorMatch[2].toLowerCase())}${maidColorMatch[1] ? ' (White Accent)' : ''}` : null;
             if (/Maid Character 2\/Maid Character2 /i.test(relPath) && maidColorVariant) { base = 'Maid'; variant = `${maidColorVariant} (Sheet2)`; }
             if (/Maid Character 3 Combat\/Maid Combat Sheet /i.test(relPath) && maidColorVariant) { base = 'Maid'; variant = `${maidColorVariant} (Combat)`; }
-            if (/Maid Character 4\/Maid Walk with sword down Sheet [a-z]+\.png$/i.test(relPath) && !/ hat\.png$/i.test(relPath) && maidColorVariant) {
-                base = 'Maid'; variant = `${maidColorVariant} (SwordDown)`;
-            }
+            // #870 (Han 2026-08-12, "voeg de maid sword down en sword down full toe aan de andere MAID;
+            // aslook de sword down sheet 'hat'"): TWO separate colour-suffixed sets exist on disk — "Sheet
+            // <colour>.png" (7 colours, no brown/no white... actually black/blue/green/purple/red/white/
+            // yellow) and "Sheet full <colour>.png" (6 colours: blue/brown/green/purple/red/yellow) — both
+            // merge into the main Maid creature via the SAME mergeMaidEntries fold-in mechanism §687 already
+            // uses for Sheet2/Combat. "full" here means "the full sword-down sheet" (this folder's own
+            // naming), NOT the unrelated "White Accent" meaning `maidColorVariant` gives "full" elsewhere in
+            // this dispatch — colour extracted directly instead of reusing that heuristic, to avoid
+            // mislabelling these "(White Accent)".
+            const swordDownColorMatch = /Maid Walk with sword down Sheet (?:full )?(black|blue|brown|green|purple|red|white|yellow)\.png$/i.exec(relPath);
+            if (swordDownColorMatch) { base = 'Maid'; variant = `${cap(swordDownColorMatch[1].toLowerCase())} (SwordDown)`; }
+            if (/Maid Walk with sword down Sheet\.png$/i.test(relPath)) { base = 'Maid'; variant = 'SwordDown'; }
+            if (/Maid Walk with sword down Sheet hat\.png$/i.test(relPath)) { base = 'Maid'; variant = 'SwordDown (Hat)'; }
             // #690 (Han: "ik mis de hat toggler, en de hoed staat nog als apart karakter vermeld... de
             // aparte maid hats moeten 'gemerget' worden met maid"): the 2 Witch Hat sheets share sheet1's/
             // sheet2's OWN grid (640×576 and 640×320 respectively — same as the plain Maid sheets), so
@@ -1612,7 +1952,34 @@ function mergeMaidEntries(list) {
         for (const extra of g.extras) for (const a of extra.animations) animations.push({ ...a, relPath: extra.relPath });
         merged.push({ ...g.primary, variant: color, animations });
     }
-    return [...others, ...merged];
+    // #870 (Han 2026-08-12, "als ik hat aanvink, wil ik de oorspronkelijk animatie houden, met de hat
+    // superimposed: bv. b/w + hat = toon de maid b/w en plak de hat sprite met de matchende animatie
+    // erover"): "Hat" stops being a selectable colour variant — it becomes a per-animation OVERLAY source
+    // for every OTHER colour instead. The Hat sheets share the exact same row/col grid as the plain Maid
+    // sheets (§671 note), so the SAME `cells` already computed for e.g. 'idle' line up pixel-for-pixel on
+    // the Hat sheet too — only the image URL differs per animation key, resolved here into `hatRelPath`
+    // (mirrors how `relPath` already lets one animation pull from a different file than its own variant).
+    const hatEntry = merged.find((e) => e.variant === 'Hat');
+    const hatRelPathByKey = new Map(
+        (hatEntry?.animations || []).map((a) => [a.key, a.relPath || hatEntry.relPath]),
+    );
+    // #870 (Han 2026-08-12, "ik wil ook sword / no sword splitsen. bij sword horen combat stance t/m idle
+    // sword"): tags every "with weapon drawn" animation so the UI can filter the SAME creature's animation
+    // list by a sword/no-sword toggle, independent of colour — not a variant swap.
+    const SWORD_ANIM_KEYS = new Set([
+        'combatstance1', 'combatstance2', 'attack', 'charge', 'idlesword', 'fallgetup', 'parryhit', 'death2', 'idleswordstill',
+    ]);
+    const final = merged
+        .filter((e) => e.variant !== 'Hat')
+        .map((e) => ({
+            ...e,
+            animations: e.animations.map((a) => ({
+                ...a,
+                ...(hatRelPathByKey.has(a.key) ? { hatRelPath: hatRelPathByKey.get(a.key) } : {}),
+                ...(SWORD_ANIM_KEYS.has(a.key) ? { tags: [...new Set([...(a.tags || []), 'sword'])] } : {}),
+            })),
+        }));
+    return [...others, ...final];
 }
 manifest.splice(0, manifest.length, ...mergeMaidEntries(manifest));
 
@@ -1675,6 +2042,31 @@ for (const entry of manifest) {
     entry.variant = stripBrand(entry.variant);
 }
 
+// #870 (Han 2026-08-13, "row 4 van giant fly -> fly (small)... eigen entiteit"): "Giant Fly Sprite
+// Sheet.png" scans as idle/move/attack/death (rows 0-3) PLUS a leftover unnamed "row 4" (2 cells) that the
+// generic row-scanner couldn't label — it's actually a visually SMALLER, separate fly pose set, not a 5th
+// animation of the same creature (same judgment call as the Dragonfly split below). Split it into its own
+// manifest entry here, BEFORE the being/tag-derivation loop, so "Fly (Small)" flows through every generic
+// rule below (critter tag, animal being, flying/move tags) exactly like any other critters-folder entry —
+// no hand-typed being/tags needed for it (§6c).
+function splitGiantFlyRow4(list) {
+    const out = [];
+    for (const entry of list) {
+        const row4 = entry.base === 'Giant Fly' && entry.animations.find((a) => a.key === 'row 4');
+        if (!row4) { out.push(entry); continue; }
+        out.push({ ...entry, animations: entry.animations.filter((a) => a.key !== 'row 4') });
+        const absPath = join(ROOT, entry.relPath.replace('../assets/ASSORTED/characters/', ''));
+        const png = PNG.sync.read(readFileSync(absPath));
+        const crop = cropForCells(png.data, png.width, entry.frame, row4.cells) || entry.crop;
+        out.push({
+            ...entry, base: 'Fly (Small)', variant: null, crop,
+            animations: [{ key: 'fly', label: 'Fly', cells: row4.cells }],
+        });
+    }
+    return out;
+}
+manifest.splice(0, manifest.length, ...splitGiantFlyRow4(manifest));
+
 // #690 — swatch overrides + the Dog rename are matched against the FINAL (brand-stripped) base/variant
 // strings (the ones SWATCH_OVERRIDES above was written against), so this runs AFTER stripBrand — running
 // it before silently no-op'd on any raw filename that still had a "GandalfHardcore " prefix at the time
@@ -1710,9 +2102,12 @@ const PORTRAIT_OVERRIDES_BY_NAME = [
     // #693 round 3 ("flying brain monster mind blast should be animated: 96x32, 5 frames"): one row, 5
     // frames of 96×32 each (480×32 total, matches the real file) — cycled via `portraitAnimCols`.
     { base: 'Flying Brain Monster', portraitRelPath: '../assets/ASSORTED/characters/animals/critters/Flying Brain Monster Mind Blast.png', portraitCell: { row: 0, col: 0 }, portraitFrame: { w: 96, h: 32 }, portraitAnimCols: 5 },
-    { base: 'Wizard', variant: 'Sheet 1', portraitRelPath: '../assets/ASSORTED/fx/Projectile sheet blue.png', portraitCell: { row: 2, col: 2 }, portraitFrame: { w: 48, h: 16 }, portraitAnimCols: 6, portraitOscillate: true },
-    { base: 'Wizard', variant: 'Sheet 2', portraitRelPath: '../assets/ASSORTED/fx/Projectile sheet blue.png', portraitCell: { row: 2, col: 2 }, portraitFrame: { w: 48, h: 16 }, portraitAnimCols: 6, portraitOscillate: true },
-    { base: 'Wizard', variant: 'Sheet 3', portraitRelPath: '../assets/ASSORTED/fx/Projectile sheet blue.png', portraitCell: { row: 2, col: 2 }, portraitFrame: { w: 48, h: 16 }, portraitAnimCols: 6, portraitOscillate: true },
+    // #870 (Han 2026-08-11, "zet de fire spit als projectel"): 80×16 = 5 frames of 16×16, one row.
+    { baseTest: (b) => /^Fire Totem/i.test(b), portraitRelPath: '../assets/ASSORTED/characters/animals/critters/Fire Totem Fire Spit Sprite Sheet.png', portraitCell: { row: 0, col: 0 }, portraitFrame: { w: 16, h: 16 }, portraitAnimCols: 5, portraitOscillate: true },
+    // #870 (Han 2026-08-12, "wizard (gewoon) heeft onterecht een projectiel, want geen cast-animatie"):
+    // the plain "Wizard" (Sheet 1/2/3 colour variants) previously shared the SAME projectile portrait as
+    // "Wizard (Portrait)" (below, via SIDE_PORTRAIT_OVERRIDES) — removed; this Wizard has no cast animation,
+    // it shouldn't show a projectile at all.
 ];
 // #693 round 3 ("portait/wizard: add the animated projectile right of the portrait") — "Wizard (Portrait)"
 // (the 8-colour char_with_porttrait creature) already uses its ONE portrait slot for its own colour-crop
@@ -1722,16 +2117,158 @@ const PORTRAIT_OVERRIDES_BY_NAME = [
 const SIDE_PORTRAIT_OVERRIDES = [
     { base: 'Wizard (Portrait)', sidePortraitRelPath: '../assets/ASSORTED/fx/Projectile sheet blue.png', sidePortraitCell: { row: 2, col: 2 }, sidePortraitFrame: { w: 48, h: 16 }, sidePortraitAnimCols: 6 },
 ];
+// #870 (Han 2026-08-11/12, "in de bestiary kijken de meeste entiteiten naar links. Deze kijken naar
+// rechts: ... markeer dat die naar rechts kijken"): most creatures face left by default (no flag needed);
+// this roster marks the exceptions with `entry.facing = 'right'`. Purely descriptive DATA — no runtime flip
+// behaviour is wired to it yet (flip logic today is per-call-site scale(-1,1) in RpgLevelPanel/SheetRpgLayer,
+// see the separate Oriental Musician bugfix below), same roster-Set convention as MATURE_ROSTER_NAMES.
+// Some names from Han's list (dragon, lion) have no matching asset yet — skipped rather than guessed at.
+const FACING_RIGHT_NAMES = new Set([
+    'Armorer', 'Baba Yaga', 'Bishop', 'Fairy', 'Frodo', 'Guard Squat', 'Knight Pointy Hat', 'Lady Corset',
+    'Lady Flower', 'Lady Goth', 'Lady Relaxing 1', 'Lady Relaxing 2', 'Lady Relaxing 3', 'Maid Pregnant',
+    'Man Marquise', 'Man Sharpening', 'Nun Dark', 'Oriental Musician', 'Oriental Sitting', 'Pirate',
+    'Roman Female 2', 'Steampunker', 'Throwing poop', 'Town crier', 'Wizard (Camp)', 'Wizard Evil',
+    'Wizard Skeleton', 'Wizard Smoking', 'Archer', 'Wizard (Portrait)', 'Druid',
+    // "alle animals, cat, chicken, cow, dog small, doggy, fox, horse, pig, dragon, lion, cacodaemon, wisp,
+    // rat, boss spider, beetle"
+    'Cat', 'chicken', 'cow', 'Dog (Small)', 'Doggy', 'Fox (Small)', 'horse', 'pig', 'Cacodaemon', 'Wisp', 'Rat',
+    'boss spider', 'Scarab beetle',
+    // "drum lute, lyre, mounted knight"
+    'Drum', 'Lute', 'Musician Lyre', 'mounted knight',
+    // #870 (Han 2026-08-11, "totems (kijken alle drie naar rechts)")
+    'Heal Totem', 'Buff Totem', 'Fire Totem',
+]);
 for (const entry of manifest) {
     // Han: "dog (hernoem dog (small)") — disambiguates from the unrelated "Doggy" creature.
     if (entry.base === 'Dog') entry.base = 'Dog (Small)';
+    // #870 (Han 2026-08-13, "dragonfly: splits in twee entiteiten: giant dragonfly, dragonfly (small)"): two
+    // UNRELATED "Dragonfly" sprites (a full-size standalone creature, and one row of the shared 16-species
+    // critters sheet) shared the same base name and silently collided into one creature — `buildCreatures`
+    // groups by `${category}::${base}` (bestiaryAssets.js), so identical base+category always merges. Split
+    // by `relPath` (the only thing that still tells them apart) into two distinct, correctly-named entities.
+    if (entry.base === 'Dragonfly' && /critters sheet\.png$/i.test(entry.relPath)) entry.base = 'Dragonfly (Small)';
+    if (entry.base === 'Dragonfly' && /Dragonfly Sprite Sheet\.png$/i.test(entry.relPath)) entry.base = 'Giant Dragonfly';
+    // Han: "noem de kleine vos: fox (small)" — disambiguates the small GandalfHardcore pet-companion fox
+    // from the regular, bigger "Fox" sourced from the critters folder (Fox Sprite Sheet.png).
+    if (entry.base === 'fox') entry.base = 'Fox (Small)';
+    // #870 (Han 2026-08-12, "archer (haal sheet weg uit de naam)") — display cleanup, "Archer sheet" -> "Archer".
+    if (entry.base === 'Archer sheet') entry.base = 'Archer';
+    // #870 (Han 2026-08-12, "maid sewing: hernoem: maid lift skirt") + "lady bar maid beers: hernoem
+    // bavarian lady" — display renames; their new tags (tavern/seasonal) are added below via the renamed name.
+    if (entry.base === 'Maid Sewing') entry.base = 'Maid Lift Skirt';
+    if (entry.base === 'Lady Bar Maid Beers') entry.base = 'Bavarian Lady';
+    // #870 (Han 2026-08-12, "strip alle bewoording sheet/sheets") — display cleanup for the remaining base
+    // names that still literally say "sheet" (junk files handled separately, skipped outright above).
+    const STRIP_SHEET_RENAME = {
+        'Buff Totem Sprite Sheet v1.1': 'Buff Totem',
+        'Fire TotemSprite Sheet v1.1': 'Fire Totem',
+        'Heal Totem Sprite Sheet v1.1': 'Heal Totem',
+        'Orc sheet': 'Orc',
+        'Samurai Sheet': 'Samurai',
+        'Worm Sprite Sheet - Left': 'Worm Left',
+    };
+    if (STRIP_SHEET_RENAME[entry.base]) entry.base = STRIP_SHEET_RENAME[entry.base];
+    // "alle critters (behalve die uit de critter sheet)" — category-level rule (not a name list): every
+    // 'critters'-category entry faces right EXCEPT the ones sourced from critters sheet.png (Frog/Pigeon/
+    // Blue Jay/Rat/Snail/Turtle/Firefly/Ladybird/Fly/Butterfly/Mosquito/the CRITTER_ROWS Dragonfly), which
+    // stay the default left-facing.
+    if (entry.category === 'critters' && !/critters sheet\.png$/i.test(entry.relPath)) entry.facing = 'right';
+    if (FACING_RIGHT_NAMES.has(entry.base)) entry.facing = 'right';
+    // #870 (Han 2026-08-11/12): merge each already-mature "Bare"/"Plain" singleton with its new
+    // covered-sheet counterpart above by giving it a matching {base, variant:'Bare'} pair. (Lady Dryad
+    // Flowers had one too — removed 2026-08-12, "haal de bare variant weg", see the file-skip above.)
+    if (entry.base === 'Lady Sitting Stone Bare') { entry.base = 'Lady Sitting Stone'; entry.variant = 'Bare'; }
+    if (entry.base === 'Lady Sitting Hair Bare') { entry.base = 'Lady Sitting Hair'; entry.variant = 'Bare'; }
+    if (entry.base === 'Lady Flower Plain') { entry.base = 'Lady Flower'; entry.variant = 'Bare'; }
+    // #870 (Han 2026-08-12, "1 merge die"): the pre-existing roster "Lady Flower" (3 sheet-colour variants,
+    // previously 'passive') IS the same character as the new covered-sheet colour variants — recategorized
+    // to 'mature' (so it shares an id with the renamed 'Lady Flower Plain'→Bare above) and its generic
+    // "Sheet N" variant labels replaced with the real colour names Han gave for those same 3 rows.
+    if (entry.base === 'Lady Flower' && /^Sheet \d$/.test(entry.variant || '')) {
+        entry.category = 'mature';
+        entry.variant = { 'Sheet 1': 'Purple/Brown', 'Sheet 2': 'Blue/Red', 'Sheet 3': 'White/Yellow' }[entry.variant];
+    }
+    // #870 (Han 2026-08-12, "ook lady flower, benoem niet de kleur, maak een vakje (met twee kleuren)"): the
+    // compound "X/Y" variant names above never resolved to a swatch colour (characterAssets.js's
+    // `variantColor()` only parses a SINGLE colour word) — split on "/" and resolve BOTH halves through the
+    // same colour→hex table (duplicated in miniature here, same "runs under plain Node" boundary every other
+    // hex constant in this file already lives with) for a real two-colour diagonal swatch, then drop the
+    // text name so the swatch shows colour, not words.
+    if (entry.base === 'Lady Flower' && /^\w+\/\w+$/.test(entry.variant || '')) {
+        const LADY_FLOWER_HEX = { purple: '#9c27b0', brown: '#8a5a3b', blue: '#4a80e0', red: '#e53935', white: '#eeeeee', yellow: '#fdd835' };
+        const [c1, c2] = entry.variant.split('/').map((w) => LADY_FLOWER_HEX[w.toLowerCase()]);
+        if (c1) entry.swatchColor = c1;
+        if (c2) entry.swatchColor2 = c2;
+        entry.variant = null;
+    }
+    // #870 (Han 2026-08-12, "je moet steeds de groepjes van 3 mergen met de groepjes van 3; dus bijv. alle
+    // drie de maid frontals zijn varianten; die moeten met maid frontal bare gemerget worden"): each of these
+    // 4 "X Bare" rosters (3 sheet-colour variants each) merges with the new covered-sheet '1'/'2'/'3' colour
+    // variants above — strip " Bare" from the base so the ids match, and mark each Sheet-N variant "N (Bare)"
+    // to pair with covered variant "N" (order assumption: Sheet 1↔'1', Sheet 2↔'2', Sheet 3↔'3').
+    const BARE_TRIO_RENAME = { 'Maid Frontal Bare': 'Maid Frontal', 'Maid Backside Bare': 'Maid Backside', 'Maid Backside 2 Bare': 'Maid Backside 2', 'Maid Lying Ground Bare': 'Lady Lying Ground' };
+    if (BARE_TRIO_RENAME[entry.base]) {
+        entry.base = BARE_TRIO_RENAME[entry.base];
+        const n = /Sheet (\d)/.exec(entry.variant || '')?.[1];
+        if (n) entry.variant = `${n} (Bare)`;
+    }
+    // #870 (Han 2026-08-12, "merg ook in bestiary mature de succubussen met hun no bra variant. No bra zet
+    // als bare"): Eisheth/Lilim/Lilith/Morgana/Pair each merge their "X"/"X no bra" pair into one creature
+    // ({base, variant: 'Normal'|'Bare'}) — explicit per-file rename (not a generic rule) since the raw
+    // filenames aren't consistently patterned ("Eisheth Bonus" vs "Bonus Succubus Lilim" vs "Lilith Bonus").
+    const BONUS_SUCCUBUS_RENAME = [
+        { test: (p) => /Eisheth\/GandalfHardcore Eisheth Bonus\.png$/i.test(p), base: 'Eisheth', variant: 'Normal' },
+        { test: (p) => /Eisheth\/GandalfHardcore Eisheth no bra\.png$/i.test(p), base: 'Eisheth', variant: 'Bare' },
+        { test: (p) => /Lilim\/GandalfHardcore Bonus Succubus Lilim\.png$/i.test(p), base: 'Lilim', variant: 'Normal' },
+        { test: (p) => /Lilim\/GandalfHardcore Bonus Succubus Lilim no bra\.png$/i.test(p), base: 'Lilim', variant: 'Bare' },
+        { test: (p) => /Lilith\/GandalfHardcore Lilith Bonus\.png$/i.test(p), base: 'Lilith', variant: 'Normal' },
+        { test: (p) => /Lilith\/GandalfHardcore Lilith no bra\.png$/i.test(p), base: 'Lilith', variant: 'Bare' },
+        { test: (p) => /Morgana\/GandalfHardcore Morgana\.png$/i.test(p), base: 'Morgana', variant: 'Normal' },
+        { test: (p) => /Morgana\/GandalfHardcore Morgana no bra\.png$/i.test(p), base: 'Morgana', variant: 'Bare' },
+        { test: (p) => /Pair\/GandalfHardcore Bonus Succubus pair\.png$/i.test(p), base: 'Pair', variant: 'Normal' },
+        { test: (p) => /Pair\/GandalfHardcore Bonus Succubus pair no bra\.png$/i.test(p), base: 'Pair', variant: 'Bare' },
+    ];
+    const bsr = BONUS_SUCCUBUS_RENAME.find((r) => r.test(entry.relPath));
+    if (bsr) { entry.base = bsr.base; entry.variant = bsr.variant; }
+    // #870 (Han 2026-08-11, "succubus mother ... 3x + 2x no wings varianten allemaal mergen"): the 5 wing/
+    // bare files merge into one creature; original filenames' own "bare"/"bare2" naming preserved as-is
+    // (Han gave no better names for what distinguishes them from each other).
+    const SUCCUBUS_MOTHER_RENAME = [
+        { test: (p) => /Mother\/GandalfHardcore Succubus Mother\.png$/i.test(p), variant: 'Plain' },
+        { test: (p) => /Mother\/GandalfHardcore Succubus Mother bare\.png$/i.test(p), variant: 'Bare' },
+        { test: (p) => /Mother\/GandalfHardcore Succubus Mother bare2\.png$/i.test(p), variant: 'Bare 2' },
+        { test: (p) => /Mother\/GandalfHardcore Succubus Mother bare no wings\.png$/i.test(p), variant: 'Bare (No Wings)' },
+        { test: (p) => /Mother\/GandalfHardcore Succubus Mother bare2 no wings\.png$/i.test(p), variant: 'Bare 2 (No Wings)' },
+    ];
+    const smr = SUCCUBUS_MOTHER_RENAME.find((r) => r.test(entry.relPath));
+    if (smr) { entry.base = 'Succubus Mother'; entry.variant = smr.variant; }
+    // #870 (Han 2026-08-12, "dit zijn allemaal varianten; inclusief de human form"): every main-sheet colour
+    // (Plain/Purple/Red/Pale) × bra-state (default/Bare) × form (default/Human Form) combination merges into
+    // ONE "Succubus" creature. "Pale" comes from the SEPARATE "Pale Succubus" folder — its plain/no-bra files
+    // would otherwise collide with the "GandalfHardcore Succubus" folder's plain/no-bra files under the same
+    // {base, variant} pair, since neither folder's filename says a colour; the folder itself IS the 4th
+    // colour ("Pale"), not a duplicate.
+    const MAIN_SUCCUBUS_RENAME = [
+        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus\.png$/i.test(p), variant: 'Plain' },
+        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus No Bra sheet\.png$/i.test(p), variant: 'Plain (Bare)' },
+        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus purple\.png$/i.test(p), variant: 'Purple' },
+        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus purple No Bra sheet\.png$/i.test(p), variant: 'Purple (Bare)' },
+        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus red\.png$/i.test(p), variant: 'Red' },
+        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus red No Bra sheet\.png$/i.test(p), variant: 'Red (Bare)' },
+        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus Human Form sheet\.png$/i.test(p), variant: 'Human Form' },
+        { test: (p) => /Succubus\/GandalfHardcore Succubus\/GandalfHardcore Succubus Human Form no Brasheet\.png$/i.test(p), variant: 'Human Form (Bare)' },
+        { test: (p) => /Succubus\/GandalfHardcore Pale Succubus\/GandalfHardcore Succubus\.png$/i.test(p), variant: 'Pale' },
+        { test: (p) => /Succubus\/GandalfHardcore Pale Succubus\/GandalfHardcore Succubus No Bra sheet\.png$/i.test(p), variant: 'Pale (Bare)' },
+    ];
+    const msr = MAIN_SUCCUBUS_RENAME.find((r) => r.test(entry.relPath));
+    if (msr) { entry.base = 'Succubus'; entry.variant = msr.variant; }
     // #693 (Han 2026-08-04, round 2: "goddess: de idle animatie staat er nog steeds; dat zijn lege frames.
     // houdt enkel 'walk' en noem die 'float'"): the roster-column "Female Goddess" (from
     // `expandColumnSheet`/`FEMALE_PIXEL_ART_NAMES` — a DIFFERENT source file than "Goddess NPC" above, which
     // already got this same treatment in §689 but named 'fly' — Han now wants BOTH goddess entries fixed and
     // renamed 'float', not 'fly') — applied here as a targeted post-process since `expandColumnSheet` is
     // shared by 22 other characters and must stay generic.
-    if (entry.base === 'Female Goddess' || entry.base === 'Goddess NPC') {
+    if (entry.base === 'Female Goddess') {
         entry.animations = entry.animations
             .filter((a) => a.key !== 'idle')
             .map((a) => (a.key === 'walk' || a.key === 'fly' ? { key: 'float', label: 'Float', cells: a.cells } : a));
@@ -1742,9 +2279,51 @@ for (const entry of manifest) {
     if (entry.base === 'Wisp') {
         entry.animations = entry.animations.map((a) => (a.key === 'idle' ? { ...a, key: 'float', label: 'Float' } : a));
     }
+    // #870 (Han 2026-08-12, "barrel animaties: talk, talk happy") — same targeted rename, Barrel shares its
+    // roster sheet with ~20 other Male Pixel Art characters that must stay on the generic idle/walk reading.
+    if (entry.base === 'Barrel') {
+        entry.animations = entry.animations.map((a) => (
+            a.key === 'idle' ? { ...a, key: 'talk', label: 'Talk' }
+                : a.key === 'walk' ? { ...a, key: 'talkhappy', label: 'Talk Happy' } : a
+        ));
+    }
+    // #870 (Han 2026-08-11, "van de volgende monsters gelden álle animaties als flying" — correcting the
+    // first pass, which only renamed ONE row per creature): every animation of these 14 creatures counts as
+    // flying, not just their locomotion row — so instead of relying on isFlyingKeyOrLabel matching a single
+    // renamed key, the whole roster gets an explicit 'flying' tag stamped on EVERY animation below, same
+    // roster-Set convention as MATURE_ROSTER_NAMES (no formula can derive "this creature flies" from a name).
+    const ALWAYS_FLYING_NAMES = new Set([
+        'Fairy', 'Brain Mole Monarch', 'Bumble Bee', 'Fluttering Pixie', 'Flying Brain Monster',
+        // #870 (Han 2026-08-13): renamed from 'Dragonfly' — the split-off small critter-row Dragonfly
+        // already gets 'flying' automatically from its own animation key ('fly'), so only the giant one
+        // (whose animations are idle/move/attack/death, same shape as Giant Fly) needs the roster stamp.
+        'Giant Dragonfly',
+        'Giant Fly', 'Glowing Wisp', 'Jellyfish', 'Magical Fairy', 'Octopus', 'Phoenixling', 'Plague Bat',
+        'Swooping Bat',
+        // #870 (Han 2026-08-12, "lilim, pair, eisheth, lilith, morgana (96x80, en flying)"; corrected same
+        // day: "lilith en lilim en eliseth en pair zijn niet flying" — only Morgana actually flies).
+        'Morgana',
+        // #870 (Han 2026-08-12, "flying eye en portal moeten flying tag krijgen") — Portal has no fly/float
+        // animation to derive from; explicit like the rest of this roster. ("Flying Eye" is a curated
+        // ENEMIES entry, not a manifest one — handled separately in useBestiaryEditor.js.)
+        'Portal',
+    ]);
+    if (ALWAYS_FLYING_NAMES.has(entry.base)) {
+        entry.animations = entry.animations.map((a) => ({ ...a, tags: [...new Set([...(a.tags || []), 'flying'])] }));
+    }
     const o = SWATCH_OVERRIDES.find((s) =>
         (s.baseTest ? s.baseTest(entry.base) : s.base === entry.base) && (s.variant ?? null) === (entry.variant ?? null));
     if (o) { entry.swatchColor = o.c1; if (o.c2) entry.swatchColor2 = o.c2; }
+    // #870 (Han 2026-08-12, "sheet 1/2/3 is meestal een kleurenvariant, probeer die zelf te bepalen"): for
+    // every "Sheet N" variant WITHOUT an already-curated swatch (the SWATCH_OVERRIDES lookup above), sample
+    // the real pixel colour from just this creature's own cells (never the whole shared roster file).
+    if (/^Sheet \d+$/.test(entry.variant || '') && !entry.swatchColor) {
+        const absPath = join(ROOT, entry.relPath.replace('../assets/ASSORTED/characters/', ''));
+        const png = PNG.sync.read(readFileSync(absPath));
+        const cells = entry.animations.flatMap((a) => a.cells);
+        const sampled = sampleColorInCells(png.data, png.width, entry.frame, cells);
+        if (sampled) entry.swatchColor = sampled;
+    }
     // Archer's override has no `variant` — it must apply to EVERY colour variant, unlike SWATCH_OVERRIDES
     // (where a missing variant means "match only the variant-less entry"). Only check variant when specified.
     const p = PORTRAIT_OVERRIDES_BY_NAME.find((s) =>
@@ -1771,16 +2350,148 @@ for (const entry of manifest) {
     // flying" and "actually anchors/oscillates as flying" can never disagree.
     const isFlyingKeyOrLabel = (a) => /fly|float/i.test(`${a.key || ''} ${a.label || ''}`) && a.key !== 'sit';
     entry.animations = entry.animations.map((a) => (
-        isFlyingKeyOrLabel(a) ? { ...a, tags: [...(a.tags || []), 'flying'] } : a
+        isFlyingKeyOrLabel(a) ? { ...a, tags: [...new Set([...(a.tags || []), 'flying'])] } : a
     ));
     const tags = [];
-    if (entry.category === 'air' || entry.animations.some(isFlyingKeyOrLabel)) tags.push('flying');
+    if (entry.category === 'air' || entry.animations.some((a) => isFlyingKeyOrLabel(a) || (a.tags || []).includes('flying'))) tags.push('flying');
     if (entry.category === 'mature') tags.push('mature');
     // Han: "geef de bare variant een roze vakje" — the existing bare/Normal sort convention
     // (bestiaryAssets.js's `bareRank`) already identifies this by name; tagged here too so it's searchable
     // alongside every other tag instead of being a one-off regex the UI has to re-run.
-    if (/\bbare\b/i.test(entry.variant || '')) tags.push('bare');
-    if (tags.length) entry.tags = tags;
+    // #870 (Han 2026-08-12, "de damned/uncovered optie moet verborgen zijn als mature uitstaat, hell giant
+    // ook"): "Uncovered" (Lady Godiva/Damned Female/Damned Male/Hell Giant's existing Covered/Uncovered
+    // pair) gets the SAME hide-when-mature-off treatment as "Bare" — same tag, same mechanism.
+    if (/\bbare\b|\buncovered\b/i.test(entry.variant || '')) tags.push('bare');
+    // #870 (Han 2026-08-12, Maid "hat"/"sword" togglables): data-prep only — tags the relevant Maid variants
+    // so a future multi-axis toggle UI (deferred to the filter/tag-UI phase, per Han's choice) has something
+    // to key off; no toggle UI is built here.
+    if (entry.base === 'Maid' && /\bhat\b/i.test(entry.variant || '')) tags.push('hat');
+    if (entry.base === 'Maid' && /sworddown/i.test(entry.variant || '')) tags.push('sword');
+    // #870 (Han 2026-08-12, full tag-system rewrite — "nu moeten we veel gaan taggen"): TWO separate axes.
+    //
+    // 1. `entry.being` — human/humanoid/animal/other, exactly ONE per entity, additive/OR in the UI (Han:
+    //    "elke entiteit is precies één van deze vier. indien geen tag: human"). NOT part of `tags` (a flat
+    //    array can't express "exactly one of these four" — a dedicated field can).
+    const OTHER_BEING_NAMES = /barrel|mimic|totem|portal|\bseed\b|plant|pumpkin/i;
+    // Han: "de twee toads zijn humanoid én magical" — Toad/Wizard toad (char_passive humanoid-toad people),
+    // NOT "Croaking Toad" (a literal small animal from the Basic Animal Animations critter pack).
+    const HUMANOID_TOAD_NAMES = new Set(['Toad', 'Wizard toad']);
+    if (OTHER_BEING_NAMES.test(entry.base)) entry.being = 'other';
+    else if (entry.category === 'animal' || entry.category === 'critters') entry.being = 'animal';
+    else if (entry.category === 'humanoid' || HUMANOID_TOAD_NAMES.has(entry.base)) entry.being = 'humanoid';
+    else entry.being = 'human';
+    // #870 (Han 2026-08-12, detailed reclassification pass — "de volgende moeten van X naar Y verplaatst
+    // worden"): explicit per-name overrides, highest priority, applied AFTER the category-derived default
+    // above (a name this specific can't come from a formula — §6c).
+    const BEING_OVERRIDE = {
+        other: new Set([
+            'Eye Monster', 'Corrupted Treant', 'Grizzled Treant', 'Fire Elemental', 'Flying Brain Monster',
+            'Intellect Devourer Sprites', 'Ice Golem', 'Iron Golem', 'Earth Elemental', 'Water Elemental',
+            'Leshy Leaf', 'Twig Blight',
+            'Cacodaemon', 'Burning Skull', 'Demon eye', 'Demon Mine', 'Explosion', 'Training Dummy', 'Wisp',
+        ]),
+        humanoid: new Set([
+            'Deft Sorceress', 'Fluttering Pixie', 'Ghoul', 'Imp', 'Kobold Priest', 'Magical Fairy',
+            'Novice Pyromancer', 'Ratfolk Axe', 'Ratfolk Mage', 'Vile Witch',
+            'Bee Girl', 'Cheeky Devil', 'Succubus', 'Succubus Mother', 'Eisheth', 'Lilim', 'Lilith', 'Morgana',
+            'Pair', 'Female Succubus', 'Elf Archer', 'Fairy', 'Female Goddess', 'Goddess NPC',
+            'Female Vampire', 'Vampire Lady v2', 'Frodo', 'Goblin', 'Hell Giant', 'Lady Skull Witch',
+            'Large Skull', 'Rat thief', 'Skeleton', 'The Devil', 'Wizard Skeleton', 'Zombie',
+            'Wanderer Dark',   // #870 (Han 2026-08-12, "wanderer dark: ... verplaats naar humaoid")
+        ]),
+        animal: new Set(['boss spider']),
+    };
+    for (const [being, names] of Object.entries(BEING_OVERRIDE)) {
+        if (names.has(entry.base)) entry.being = being;
+    }
+    //
+    // 2. `tags` — subtractive (AND) filters, unaffected by `being`. Each one below is either DERIVED from an
+    //    existing signal (category/relPath/animation) or an explicit name-based roster where Han gave one —
+    //    same §6c convention as flying/mature/bare above. `human`/`monstrous` genuinely have no derivable
+    //    signal and are NOT guessed at — those chips return nothing.
+    if (/char_with_porttrait\//i.test(entry.relPath)) tags.push('portrait');   // Han: "dus ook de succubussen en de warrior"
+    // Han: "portrait move (nieuw: heeft move animatie) attack (nieuw: heeft attack animatie)" — autotags;
+    // corrected same day: "gebruik ook synoniemen van move, om de set uit te breiden: move/walk/run/charge/fly".
+    if (entry.animations.some((a) => ['move', 'walk', 'run', 'charge', 'fly'].includes(a.key))) tags.push('move');
+    if (entry.animations.some((a) => a.key === 'attack')) tags.push('attack');
+    if (entry.category === 'musicians' || entry.base === 'Oriental Musician' || entry.base === 'Tavern Musician') tags.push('musician');
+    // Han: "critter: alles uit critter sheet en de critter map" — relPath-based (not `category`, which can
+    // be OVERRIDDEN away from 'critters' for things that physically live in that folder, e.g. totems/portal).
+    if (/\/animals\/critters\//i.test(entry.relPath)) tags.push('critter');
+    if (/\/animals\/pets\//i.test(entry.relPath) || entry.base === 'Dog (Small)' || entry.base === 'Cat') tags.push('pet');
+    if (/oriental|japanese/i.test(entry.base)) tags.push('oriental');
+    // Han: "ken tavern toe aan: lady corset, lady leg, medieval servant, christmas lady, cook, lady can can,
+    // lady bar" (2 rounds of additions merged into one list).
+    if (/tavern|beer|dancer|dancing|jester|lady corset|lady leg|medieval servant|christmas lady|\bcook\b|lady can can|lady bar\b|maid lift skirt/i.test(entry.base)) tags.push('tavern');
+    if (/vendor|merchant/i.test(entry.base)) tags.push('trader');
+    // Han: "ken trader toe aan: lady potions, wizard evil, steampunker, seer"
+    if (/lady potions|wizard evil|steampunker|\bseer\b/i.test(entry.base)) tags.push('trader');
+    // Han: "lady potions mag worker krijgen" (additive, on top of trader above).
+    if (/lady potions/i.test(entry.base)) tags.push('worker');
+    // Han: "lady beer mag ook naar seasonal"
+    if (/\blady beer\b/i.test(entry.base)) tags.push('seasonal');
+    // Han: "roman, christian" — new tags. "christian; monk, nun, bisop, crusader, inquisition"
+    if (/\broman\b/i.test(entry.base)) tags.push('roman');
+    if (/\bmonk\b|\bnun\b|bishop|crusader|inquisition/i.test(entry.base)) tags.push('christian');
+    // Han: "wanderer dark: voeg hellish tag toe"
+    if (/wanderer dark/i.test(entry.base)) tags.push('hellish');
+    // Han: "knights -> verander naar 'military': voeg toe; mad butcher, warrior, alle guards, barbarian,
+    // marquise, musketeer, orc, pirate, samurai" (plus every existing "knight"-named entry); corrected same
+    // day: "gewone butcher mag uit military" (only "mad butcher" counts, not bare "Butcher") + "archer, male
+    // wood archer, elf archer mogen military" + "crusader".
+    if (/knight|mad butcher|warrior|\bguard\b|barbarian|marquise|musketeer|\borc\b|pirate|samurai|archer|crusader/i.test(entry.base)) tags.push('military');
+    // Han: "voeg een categorie 'worker' toe, doe een pass: lumberjack, blacksmith, ..." — extended to the
+    // obvious labour/trade/service roles across the roster (explicitly excludes "mad butcher"/guards, which
+    // Han routed to `military` above instead); corrected same day with more names: "armorer, artist painter,
+    // artist statue" / "dwarf, grave digger, lady basket, man sharpening, man pickaxe, man rake, man
+    // blacksmith, scribe, town crier, meat vendor, cook".
+    // corrected same day: "lady washing foot: geen worker, wel bathhouse" — removed from this list.
+    if (/lumberjack|blacksmith|gravedigger|grave digger|man rake|man pickaxe|man sharpening|woman laundry|woman basket|\bcook\b|lady sweeping|\bnurse\b|\bscribe\b|seemstress|executioner|plague doctor|medieval servant|armorer|artist painter|artist statue|\bdwarf\b|lady basket|town crier|meat vendor/i.test(entry.base)) tags.push('worker');
+    if (/snowman|santa|christmas|bavarian/i.test(entry.base)) tags.push('seasonal');
+    // Han: "hellish: voeg alles met burning, demon/daemon succubus, toe aan hellish, damned, imp" — the
+    // /Succubus/ folder catches Eisheth/Lilim/Lilith/Morgana/Pair too (succubus-family bonus characters
+    // whose OWN base name doesn't literally contain "succub").
+    if (/burning|demon|daemon|succub|damned|\bimp\b/i.test(entry.base) || /\/Succubus\//i.test(entry.relPath)) tags.push('hellish');
+    // Han: "lady tub: voeg bath house toe" / "lady washing foot: ... wel bathhouse"
+    // Han: "magical: alle wizards, seers, etc." — extended to the "basic magical animations" pack (already
+    // literally named for this) plus the other obvious magical-archetype keywords.
+    if (/wizard|\bseer\b|witch|\bmage\b|necromancer|sorceress|pyromancer|druid|golem|elemental|treant|priest/i.test(entry.base) || /basic magical animations/i.test(entry.relPath)) tags.push('magical');
+    // Han: "undead (nieuw): alles met skeleton" + "voeg undead toe als tag: skeletons, vampires" — extended
+    // to the other obvious undead archetypes already in the roster (zombie/ghoul/mummy/skull).
+    if (/skeleton|vampire|zombie|ghoul|mummy|skull/i.test(entry.base)) tags.push('undead');
+    // Han (corrected 2026-08-12, "er staan te veel in, en er ontbreken er, enkel zij met projectiel. bijv:
+    // male wood archer heeft geen projectiel -> eruit, flying brain monster heeft er wel een -> erin"): a
+    // precise explicit roster of creatures with an ACTUAL wired projectile portrait — NOT a name-keyword
+    // guess (which wrongly caught "Male Wood Archer"/"Elf Archer" with no projectile, and missed "Flying
+    // Brain Monster"). "Wizard" (plain) explicitly excluded — see PORTRAIT_OVERRIDES_BY_NAME above, its
+    // projectile portrait wiring was itself a mistake and has been removed.
+    const RANGED_NAMES = new Set(['Throwing poop', 'Archer', 'Wizard (Portrait)', 'Fire Totem', 'Explosion', 'Flying Brain Monster']);
+    if (RANGED_NAMES.has(entry.base)) tags.push('ranged');
+    // Han: "voeg een categorie 'bathhouse' toe aan alles met bath/bathing in de titel"
+    if (/bath|bathing|lady tub|lady washing/i.test(entry.base)) tags.push('bathhouse');
+    // Han: "maak een nieuwe categorie: townsfolk. alles uit de volgende mappen mag die tag krijgen: SSW,
+    // char_passive, char_with_attack, char_with_portrait, char_with_walk" — relPath-based, covers every
+    // "ordinary NPC" folder (deliberately excludes animals/critters/succubus/etc., which live elsewhere).
+    // Han (corrected 2026-08-12): "haal uit townsfolk: goddess, succubus, zombie, skeleton, goblin" — these
+    // folders are shared with genuinely non-townsfolk (hostile/mythic) residents.
+    if (/\/(SSW|char_passive|char_with_attack|char_with_porttrait|char_with_walk)\//i.test(entry.relPath)
+        && !/goddess|succub|zombie|skeleton|goblin/i.test(entry.base)) tags.push('townsfolk');
+    // Han (2026-08-13): "voeg aan townsfolk toe: chickens, cows, horses, pigs, dogs, cats, tiger, fox" — the
+    // farm/pet animals live OUTSIDE the folders matched above (animals/farm, animals/pets, animals/critters,
+    // animals/Tiger.png), so they need an explicit name roster, same convention as RANGED_NAMES/
+    // MATURE_ROSTER_NAMES (no single folder or formula covers "ordinary village animal").
+    const TOWNSFOLK_ANIMAL_NAMES = new Set([
+        'chicken', 'cow', 'horse', 'pig', 'Dog (Small)', 'Doggy', 'Cat', 'Tiger', 'Fox (Small)', 'Fox',
+    ]);
+    if (TOWNSFOLK_ANIMAL_NAMES.has(entry.base)) tags.push('townsfolk');
+    // Han: "training dummy -> townsfolk"
+    if (entry.base === 'Training Dummy') tags.push('townsfolk');
+    // Han: "alle entiteiten met fly moeten ook de tag 'move' hebben" — some flying creatures (the
+    // ALWAYS_FLYING_NAMES roster, stamped above on an 'idle' animation rather than a renamed 'move'/'fly'
+    // key) never picked up 'move' from the key-based rule a few lines up; this closes that gap generically
+    // instead of listing the same roster twice.
+    if (tags.includes('flying') && !tags.includes('move')) tags.push('move');
+    if (tags.length) entry.tags = [...new Set(tags)];
 }
 
 // ═══ SECTION: OUTPUT ═══

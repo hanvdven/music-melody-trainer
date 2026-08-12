@@ -40,6 +40,20 @@
     <div>Music Melody Trainer laden…</div>
     <div id="boot-splash-status">Audio-context initialiseren…</div>
 </div>
+<script>
+    // #859 (Han 2026-08-11, "de app wil af en toe helemaal niet starten... ik wacht soms 30s"):
+    // a PLAIN (non-module) script, deliberately OUTSIDE the /src/main.jsx module graph — it runs
+    // and can fire its own timeout independently of whether that graph ever finishes loading. The
+    // React-side failsafes in App.jsx (BOOT_GATE_TIMEOUT_MS) can only act once React has mounted;
+    // if the bundle itself is what's stuck (e.g. antivirus scanning every dev-server module
+    // request), this is the only code that can ever run to say so. It does NOT remove the splash —
+    // there's no app underneath yet to reveal, so removing it would just show a blank white page,
+    // which reads as MORE broken, not less. It only reassures that this isn't frozen.
+    setTimeout(function () {
+        var statusEl = document.getElementById('boot-splash-status');
+        if (statusEl) statusEl.textContent = 'Dit duurt ongewoon lang (mogelijk antivirus-scan) — de app laadt nog op de achtergrond…';
+    }, 10000);
+</script>
 <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>

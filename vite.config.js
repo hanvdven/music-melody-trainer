@@ -31,7 +31,13 @@ export default defineConfig(async () => {
     server: {
       host: '0.0.0.0',
       port: 5173,
-      strictPort: false,
+      // #859 (Han 2026-08-11, "soms start level helemaal niet"): silently drifting to a new port
+      // when 5173 is already occupied let old `npm run dev` processes pile up unkilled across
+      // days (found 3 zombie node processes from Aug 9/10/11 all listening simultaneously). A
+      // browser tab pointed at 5173 could then be served by a stale server with an out-of-date
+      // module graph, producing "impossible" missing-export crashes. strictPort:true makes a
+      // second dev server fail loudly instead of masking the leftover process.
+      strictPort: true,
     },
     define: {
       // Injected at build time so debug overlays can show branch/PR without runtime git access.

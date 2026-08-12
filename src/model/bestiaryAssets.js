@@ -21,7 +21,7 @@ function buildCreatures() {
         const url = SHEETS[m.relPath];
         if (!url) continue;   // manifest is stale (file moved/renamed since last generate) — skip gracefully
         const id = `${m.category}::${m.base}`;
-        if (!map.has(id)) map.set(id, { id, category: m.category, name: m.base, variants: [] });
+        if (!map.has(id)) map.set(id, { id, category: m.category, being: m.being || 'human', name: m.base, variants: [] });
         // #687 (Han 2026-08-04, "green knight + green knight run als één set animaties" / knight (heavy)'s
         // "heavy + run + sheet2 zijn allemaal verschillende animaties"): an animation can now be sourced
         // from a DIFFERENT file than its variant's own `relPath` (e.g. the "Run" animation lives in a
@@ -35,6 +35,9 @@ function buildCreatures() {
             ...a,
             ...(a.relPath ? { url: SHEETS[a.relPath] } : {}),
             ...(a.propRelPath ? { propUrl: SHEETS[a.propRelPath] } : {}),
+            // #870 (Han 2026-08-12, Maid "hat superimposed" overlay) — same per-animation url resolution as
+            // `relPath` above, a SEPARATE field so the base sprite and the hat overlay can differ per key.
+            ...(a.hatRelPath ? { hatUrl: SHEETS[a.hatRelPath] } : {}),
         }));
         map.get(id).variants.push({
             variant: m.variant,
@@ -47,6 +50,10 @@ function buildCreatures() {
             // signals — never hand-typed. Per-animation tags ride through automatically via `animations`'s
             // own `...a` spread above; this is the CREATURE/variant-level tag list.
             tags: m.tags || [],
+            // #870 (Han 2026-08-12, "human / humanoid / animal / other being. elke entiteit is precies één
+            // van deze vier"): a SEPARATE axis from `tags` (see generator's `entry.being` comment) —
+            // defaults to 'human' if somehow absent (curated ENEMIES entries never set it).
+            being: m.being || 'human',
             url,
             width: m.width,
             height: m.height,
@@ -178,5 +185,10 @@ export function isFlyingAnim(anim, variant) {
     if (!anim) return false;
     if (anim.key === 'sit') return false;
     if (variant?.category === 'air') return true;
+    // #870 (Han 2026-08-12, "sommige creaturen zijn (octopus, flying brain monster, pixie)... maar niet
+    // gecentreerd en oscillerend"): the ALWAYS_FLYING_NAMES roster (generate-bestiary-manifest.mjs) tags
+    // these creatures' animations `flying` WITHOUT renaming key/label to fly/float — this check was missing
+    // that path entirely, so the tag never actually turned on the centering/oscillation it exists to drive.
+    if (anim.tags?.includes('flying')) return true;
     return /fly|float/i.test(`${anim.key || ''} ${anim.label || ''}`);
 }
