@@ -2883,6 +2883,7 @@ const SheetMusic = ({
                     allOffsets={allOffsets}
                     noteWidth={noteWidth}
                     bpm={bpm}
+                    timeSignature={timeSignature}
                     sideScroll={sideScroll}
                     enemyType={enemyType}
                     wizardSpawnLeadMeasures={wizardSpawnLeadMeasures}

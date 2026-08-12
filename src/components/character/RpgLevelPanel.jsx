@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import CharacterDoll, { CROP as HERO_CROP, PET_CROP } from './CharacterDoll';
 import { ANIMATIONS, urlOfLayer } from '../../model/characterAssets';
 import { CreatureSprite } from './BestiaryPanels';
+import { frameMsForBpm } from '../sheet-music/SheetRpgLayer';
 import { findMoveAnim, findIdleAnim, isFlyingAnim, findCreatureByName, findVariantByUrl } from '../../model/bestiaryAssets';
 import { GROUND_ANCHOR_PX } from '../../model/worldAnchor';
 import { SLIME_FRAME, SLIME_CROP, SLIME_IDLE, SLIME_COLS, SLIME_ROWS, SLIME_COLORS } from '../../model/enemyAssets';
@@ -412,10 +413,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
 
     // Pet idle/walk animation ticks independently of the movement rAF loop (a plain interval is plenty —
     // mirrors useBestiaryEditor's own frame-advance convention).
+    // #923 (Han 2026-08-12, "zorg dat de rpg-framerate in world debug hiermee overeenstemt"): this used to
+    // be a hardcoded 150ms, completely independent of the song's bpm — a SECOND cadence, drifted from the
+    // sheet-music view's own bpm-coupled sprite loop (SheetRpgLayer.jsx). Now reuses that SAME shared
+    // formula (§6c/§6d — one cadence, not two hand-tuned copies) so wisp/pet/slime idle animation in the
+    // open world matches the in-song sprite cadence at any bpm/timeSignature.
     useEffect(() => {
-        const id = setInterval(() => setPetFrame((f) => f + 1), 150);
+        const id = setInterval(() => setPetFrame((f) => f + 1), frameMsForBpm(bpm, timeSignature));
         return () => clearInterval(id);
-    }, []);
+    }, [bpm, timeSignature]);
 
     const { char } = characterEditor;
     const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, setHeldDirection } = rpgLevel;

@@ -7,6 +7,34 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-12 — 🐞✅ #922 Bug: dialogue-box portrait schaal inconsistent (slime te groot) + wizard portret
+
+Han: "check ook of die dialogue box zelfde schaal heeft als het portret. momenteel zie ik
+bijvoorbeeld de slime, die veel groter lijkt dan de 64x64 schaal. als ik het over pixels
+heb, bedoel ik altijd RPG pixel art pixels, en niet schermpixels." Gevolgd door: "en de
+wizard heeft een portret, in dat geval: toon het portret, niet de sprite. schaal mag
+ongeveer 2x zo groot; probeer horizontaal te vullen."
+
+Root cause: `DialogueBox.jsx`'s `SpeakerPortrait` schaalde de crop naar exact 64px hoogte
+(`scale = PORTRAIT_SIZE / crop.h`) — een ANDERE zoomfactor per entiteit afhankelijk van de
+eigen crop-grootte (slime crop.h=29 → ~2.2x, wizard crop.h=52 → ~1.23x). De Bestiary had dit
+al correct opgelost (#693 ronde 3, `PortraitImage`): vaste `trueScale = box/64`, gecentreerd,
+geclipt, nooit uitgerekt — een §6d-schending dat DialogueBox een eigen (foute) conventie had.
+
+Fix (`src/components/character/DialogueBox.jsx`):
+
+- `SpeakerPortrait` gebruikt nu `trueScale = PORTRAIT_SIZE/64` (vast), plus `Frame64Overlay`
+  (hergebruikt uit `BestiaryPanels.jsx`, nu geëxporteerd) voor het decoratieve kader.
+- Nieuwe `DedicatedPortrait`/`dedicatedPortraitUrl` prop-tak: als een entiteit een eigen
+  Bestiary-portret heeft (wizard's `portraitUrl`+`portraitCell`+`portraitFrame`), toont
+  DialogueBox dát i.p.v. de sprite-crop, op 2x schaal (`PORTRAIT_SCALE_2X`) — de hele
+  dialoogbox-rij groeit mee naar 128px voor zo'n spreker.
+- Zie ook memory: `feedback-pixel-terminology.md`, `feedback-canonical-portrait-scale.md`.
+
+Nog niet gedaan: de wizard-caller zelf (post-combat gesprek, #922 hoofdscope) moet nog
+`dedicatedPortraitUrl`/`dedicatedPortraitCell`/`dedicatedPortraitFrame` doorgeven zodra dat
+gesprek gebouwd wordt — deze fix legt alleen de renderer klaar.
+
 ## 2026-08-03 — 🐞✅ #663 Bug: Level 2 metronoom/timpani-desync, metronoom stopt na maat 0, cello niet hoorbaar
 
 Han: "level 2 moet in orde gebracht worden. bug: metronoom, timpanen, lopen niet

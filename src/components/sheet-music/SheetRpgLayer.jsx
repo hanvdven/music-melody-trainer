@@ -50,12 +50,42 @@ const IDLE_MS = 160;   // fallback frame interval when bpm is unknown
 const ATTACK = ANIMATIONS.find((a) => a.key === 'attack') || ANIMATIONS[0];   // hero attack (row 5, 6 frames)
 // On the SHEET the attack uses only the LAST 3 frames of the 6 (Han: the full swing is too long in playback;
 // the creator/menu still plays all 6). One attack cycle = 3 attack frames + a 2-frame delay = 5 frames — i.e.
-// exactly one beat at the bpm-coupled frame rate below, matching the 5-frame idle loop.
+// exactly one beat at the bpm-coupled beat length below, matching the 5-frame idle loop.
 const ATTACK_SHEET_START = 3, ATTACK_SHEET_FRAMES = 3, ATTACK_DELAY = 2;
 const ATTACK_CYCLE = ATTACK_SHEET_FRAMES + ATTACK_DELAY;   // 5 frames
-// Frame interval coupled to tempo (Han): 12/bpm seconds per frame, so the 5-frame idle loops once per
-// quarter-note beat (5 × 12/bpm = 60/bpm s). Faster bpm → faster animation.
-const frameMsForBpm = (bpm) => (bpm > 0 ? 12000 / bpm : IDLE_MS);
+// #923 (Han 2026-08-12, "ik wil dat animatie... in sync zijn met de muziek; maar ook dat ze een 'normale'
+// snelheid hebben. bijvoorbeeld 240bpm en 120bpm moet vergelijkbare head bob hebben"): the animation "beat"
+// is no longer always a quarter note — at extreme tempos a literal quarter-note beat would be far too fast
+// (high bpm) or far too slow (low bpm) to read as a natural idle bob. Instead the NOTE VALUE backing one
+// beat scales with the bpm range (Han's exact table), so the perceived loop speed stays roughly constant:
+//   <=30bpm: 16th note   <=60bpm: 8th note   <=120bpm: quarter (unchanged default range)
+//   <=240bpm: half note  >240bpm: one full measure (uses the level's OWN timeSignature, not a hardcoded 4/4)
+// quarterMs is the one true tempo primitive (standard 60000/bpm); every note value is derived from it so
+// there is a SINGLE formula, not a lookup table per bpm range (§6c).
+// NOTE: this "animation beat" is a SEPARATE concept from the file's own `beatMs` local (literal
+// 60000/bpm quarter-note beat used for slime scroll/arrival timing below) — named `animBeatMsForBpm` to
+// avoid confusing the two; do not conflate them.
+function animBeatMsForBpm(bpm, timeSignature) {
+    if (!(bpm > 0)) return IDLE_MS * 5;   // fallback animBeatMs (5 frames × IDLE_MS) when bpm is unknown
+    const quarterMs = 60000 / bpm;
+    if (bpm <= 30) return quarterMs / 4;                                  // 16th note
+    if (bpm <= 60) return quarterMs / 2;                                  // 8th note
+    if (bpm <= 120) return quarterMs;                                     // quarter note
+    if (bpm <= 240) return quarterMs * 2;                                 // half note
+    const [numerator, denominator] = timeSignature || [4, 4];             // measure length
+    return quarterMs * numerator * (4 / denominator);
+}
+// 5 frames per beat (sprite idle/attack loops, unchanged cadence) and 4 "conversation clicks" per beat
+// (#922's typewriter engine) both derive from the SAME animBeatMs — one shared primitive, not two
+// independently tuned rates that could drift apart (§6c). Exported so #922's conversation engine reuses
+// this exact value.
+export const FRAMES_PER_BEAT = 5;
+export const CLICKS_PER_BEAT = 4;
+// Exported (not just used locally) so RpgLevelPanel.jsx's open-world idle-sprite tick (wisp/pet/slime, its
+// OWN separate `setInterval` loop — a different render path than this sheet-music layer) reuses the SAME
+// formula instead of its previous hardcoded 150ms (§6c/§6d — one cadence formula, not two that can drift).
+export const frameMsForBpm = (bpm, timeSignature) => animBeatMsForBpm(bpm, timeSignature) / FRAMES_PER_BEAT;
+export const clickMsForBpm = (bpm, timeSignature) => animBeatMsForBpm(bpm, timeSignature) / CLICKS_PER_BEAT;
 
 // colour by note length (Han 2026-08-01: RED = short, BLUE = long; green = the middle). §6c formula.
 const slimeColorKey = (d) => (d >= 24 ? 'blue' : d >= 12 ? 'green' : 'red');
@@ -590,7 +620,7 @@ function ensureVisible(char) {
 }
 
 export default function SheetRpgLayer({
-    trebleMelody, startX, pixelsPerTick, allOffsets, noteWidth, bpm,
+    trebleMelody, startX, pixelsPerTick, allOffsets, noteWidth, bpm, timeSignature,
     trebleStart, staffHeight, viewBottom, onOpenCharacter, onSlimesCleared, onSongEnd, onHit, onMiss, onCritterKilled,
     onEnemyTotal, onCritterTotal, combatNote,
     // Bug fix (Han 2026-08-10, "de melodie komt helemaal nooit... het is NIET robuust geïmplementeerd"):
@@ -800,7 +830,7 @@ export default function SheetRpgLayer({
     useEffect(() => { onCritterTotal?.(critterData.length); }, [critterData.length, onCritterTotal]);
 
     // sprite frame duration (bpm-coupled) + beat length — SEPARATE from the render interval (INTERVAL_MS).
-    const frameMs = frameMsForBpm(bpm);
+    const frameMs = frameMsForBpm(bpm, timeSignature);
     const beatMs = bpm > 0 ? 60000 / bpm : 750;
     // #688 (Han 2026-08-04, Level 9 rework: "de projectiles worden gerendered net zoals de slimes; dus
     // twee maten op voorhand. het verschil is, ze zijn onzichtbaar, tot 1 maat voor ze gespeeld moeten

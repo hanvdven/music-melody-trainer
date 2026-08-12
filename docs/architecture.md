@@ -13831,3 +13831,47 @@ moeten ook de tag 'move' hebben"):
 **Files:** `scripts/generate-bestiary-manifest.mjs`, `src/components/character/useBestiaryEditor.js`,
 `src/components/character/BestiaryPanels.jsx`, `src/components/character/CharacterCreator.css`. Kanban
 ticket #870.
+
+### §212. Tempo-scaled animation cadence — note-value-per-bpm-range formula, shared with the open world (#923, Han 2026-08-12)
+
+**Purpose:** Han: "ik wil dat animatie van sprites: head bobs, walking etc. alsook conversatie etc. in sync
+zijn met de muziek; maar ook dat ze een 'normale' snelheid hebben. bijvoorbeeld: 240 bpm en 120 bpm moet
+vergelijkbare head bob hebben." Before this, the RPG layer's sprite idle/attack cadence was ALWAYS one
+literal quarter note per beat (`frameMsForBpm(bpm) = 12000/bpm`) — at very low or very high bpm this reads as
+unnaturally slow or fast, since a "normal" idle bob doesn't actually track a literal quarter note across a
+20x tempo range.
+
+**How it works:** `SheetRpgLayer.jsx`'s `animBeatMsForBpm(bpm, timeSignature)` picks the NOTE VALUE backing
+one "animation beat" from the bpm range (Han's exact table), computed off the one true tempo primitive
+`quarterMs = 60000/bpm` — a formula, not a lookup table (§6c):
+
+- bpm ≤ 30: sixteenth note (`quarterMs/4`)
+- bpm ≤ 60: eighth note (`quarterMs/2`)
+- bpm ≤ 120: quarter note (`quarterMs`) — the original/default behaviour, unchanged in this range
+- bpm ≤ 240: half note (`quarterMs*2`)
+- bpm > 240: one full measure, using the level's OWN `timeSignature` (`quarterMs * numerator * (4/denominator)`),
+  never a hardcoded 4/4
+
+`FRAMES_PER_BEAT = 5` (sprite idle/attack loop, unchanged from before) and `CLICKS_PER_BEAT = 4` (reserved for
+#922's conversation-typing engine) both derive from this SAME `animBeatMsForBpm` result — `frameMsForBpm` and
+`clickMsForBpm` respectively — so animation cadence and (future) dialogue-typing cadence can never drift
+apart from each other.
+
+This is exported and reused by `RpgLevelPanel.jsx`'s open-world idle-sprite tick (wisp/pet/slime), which
+previously ran its OWN independent hardcoded `setInterval(..., 150)` — a second, un-synced cadence. It now
+calls `frameMsForBpm(bpm, timeSignature)` and restarts the interval when either changes, so the open-world
+idle animation matches the in-song sprite cadence at any tempo.
+
+**Invariants:** `animBeatMsForBpm` (and its two derived exports) is the ONLY bpm-to-cadence-ms formula in the
+codebase — do not add a second one for a new caller; import `frameMsForBpm`/`clickMsForBpm` from
+`SheetRpgLayer.jsx` instead. This is decorative RPG-layer/open-world chrome (§6 "not an rAF melody layer" —
+the file's own long-standing header comment), so the §6 core timing invariants (`scheduledMeasures`, no
+`setTimeout` for `setCurrentMeasureIndex`, etc.) do not apply here; a plain interval/rAF-derived elapsed-time
+approach remains correct. Note the pre-existing, UNRELATED `beatMs` local variable inside `SheetRpgLayer.jsx`
+(literal `60000/bpm`, used for slime scroll/arrival-time positioning) is a different concept from this
+animation-cadence `animBeatMs` — the two must not be conflated (see the in-code comment at their definition).
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (formula + exports, `timeSignature` prop added),
+`src/components/sheet-music/SheetMusic.jsx` (passes `timeSignature` through to `<SheetRpgLayer>`),
+`src/components/character/RpgLevelPanel.jsx` (open-world pet/wisp/slime tick now reuses the shared formula).
+Kanban ticket #923; #922 (conversation system) depends on this (`f-f`) for its own typing cadence.
