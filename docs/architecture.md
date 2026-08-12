@@ -14104,3 +14104,41 @@ ever replacing `bird sounds.mid`.
 **Files:** `src/generation/generateWorldAmbientBlock.js` (+ `__tests__`), `src/hooks/useWorldAmbientMusic.js`,
 `src/model/birdSoundsManifest.generated.js`, `scripts/generate-bird-sounds.mjs`, `src/App.jsx` (mount),
 `package.json` (`midi-file` devDependency, `generate:bird-sounds` script). Kanban ticket #924.
+
+### §217. §216 UAT round — one shared world clock, independent silence rolls, load-race fix (#924, Han 2026-08-12)
+
+**Everything now reads the SAME clock** (Han: "de vogel-midi lijkt totaal niet afgestemd op de metronoom.
+start altijd op het begin van een maat" + later "ook de tekst playback heeft een eigen metronoom... niet de
+bedoeling; alles moet op dezelfde klok lopen"): previously three independent timing systems existed — the
+world clock (`worldClock.js`, absolute, anchored to AudioContext creation), the conversation system's own
+soft metronome click (relative to EACH conversation's own `startTimeRef`, its own local phase), and the
+ambient-music/bird-song triggers (ad-hoc `context.currentTime + 0.05`, no grid alignment at all). Fixed:
+
+- `useWorldAmbientMusic.js`: both the generated-music block loop AND the bird-song triggers now start every
+  cycle at `nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE)` — re-snapped
+  every time (not just the first), so `setTimeout` drift can never accumulate.
+- `useConversationDialogue.js`'s metronome click: beat index changed from `elapsedSec-since-this-
+  conversation's-own-start / secondsPerBeat` to `context.currentTime / secondsPerBeat` directly — the
+  ABSOLUTE world-clock grid, same phase as everything else, not a locally-anchored copy.
+
+**Independent per-track silence** (Han: "ik verwacht dat ongeveer 50% van de tijd op z'n minst bas melody
+en/of treble melodie speelt (5/9 kans dat ten minste een van beide speelt...)"): `generateWorldAmbientBlock`
+used to roll ONE shared 2/3-silence chance for the whole block (both tracks silent or both playing
+together) — only a 1/3 chance either track was audible. Treble and bass now each roll their OWN independent
+2/3 chance; `1 - (2/3 × 2/3) = 5/9 ≈ 55.6%` chance at least one plays, matching Han's own math exactly.
+`playMelodies()` already tolerates a `null` melody entry in its array (skips it) — no changes needed there.
+
+**Load-race bugfix** (Han: "ik hoor de bas en treble melodie niet"): the ambient music's flute/acoustic_bass
+Soundfont instances are brand-new (not part of the app's boot-splash `Promise.all(...load)` gate) — the
+first block was scheduled almost immediately after construction, well before the CDN sample data had
+actually loaded, so early `.start()` calls produced no sound. Both effects now `Promise.all([...].load)`
+before scheduling anything; smplr resolves an already-loaded instance's `.load` promise instantly, so this
+costs nothing on subsequent blocks/re-activations.
+
+**Bird-song track count is no longer fixed** (Han: "ik heb de file geupdated. Speel altijd maximaal 3."):
+`scripts/generate-bird-sounds.mjs` now exports EVERY real music track in the source MIDI (currently 6, was
+3) — `useWorldAmbientMusic.js` picks a random 3-of-N subset (`MAX_CONCURRENT_BIRD_LAYERS`) each time the tab
+activates, so replacing the MIDI file with more/fewer tracks never needs a code change.
+
+**Files:** `src/hooks/useWorldAmbientMusic.js`, `src/hooks/useConversationDialogue.js`,
+`src/generation/generateWorldAmbientBlock.js`, `scripts/generate-bird-sounds.mjs`.

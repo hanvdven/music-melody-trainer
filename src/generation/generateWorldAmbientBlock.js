@@ -27,20 +27,25 @@ export const WORLD_AMBIENT_BASS_SETTINGS = new InstrumentSettings(
     'acoustic_bass', 'bass', 2, 4, 20, 'chord', 'emphasize_roots', null, true, { min: 'C2', max: 'C4' }, 'bass', 'fixed', 'C', 12,
 );
 
-// Generates ONE ambient block: either a fresh { treble, bass } Melody pair, or { treble: null, bass: null }
-// when the silence roll hits (Han: 2/3 chance of silence PER 2-measure block).
+// Generates ONE ambient block. Treble and bass each roll their OWN independent 2/3 silence chance (Han,
+// round 3: "ik verwacht dat ongeveer 50% van de tijd op z'n minst bas melody en/of treble melodie speelt
+// (5/9 kans dat ten minste een van beide speelt...)" — that 5/9 figure only comes out of two INDEPENDENT
+// 1/3-chance-to-play rolls: 1 - (2/3 × 2/3) = 5/9. A single shared roll for the whole block (the original
+// implementation) would have given only 1/3, not 5/9.
 export function generateWorldAmbientBlock({ runId = `world-amb-${Date.now()}`, rand = Math.random } = {}) {
-    if (rand() < WORLD_AMBIENT_SILENCE_CHANCE) return { treble: null, bass: null };
+    const trebleSilent = rand() < WORLD_AMBIENT_SILENCE_CHANCE;
+    const bassSilent = rand() < WORLD_AMBIENT_SILENCE_CHANCE;
+    if (trebleSilent && bassSilent) return { treble: null, bass: null };
 
     const scale = Scale.defaultScale();   // C major (Han: "c majeur")
     const chords = generateProgression(scale, WORLD_AMBIENT_NUM_MEASURES, 'random', 'triad');
     const chordProgression = new ChordProgression(chords, 'triad', 'random', 'modal');
 
-    const treble = new MelodyGenerator(
+    const treble = trebleSilent ? null : new MelodyGenerator(
         scale, WORLD_AMBIENT_NUM_MEASURES, WORLD_AMBIENT_TIME_SIGNATURE, WORLD_AMBIENT_TREBLE_SETTINGS,
         chordProgression, WORLD_AMBIENT_TREBLE_SETTINGS.range, `${runId}-treble`,
     ).generateMelody();
-    const bass = new MelodyGenerator(
+    const bass = bassSilent ? null : new MelodyGenerator(
         scale.generateBassScale(), WORLD_AMBIENT_NUM_MEASURES, WORLD_AMBIENT_TIME_SIGNATURE, WORLD_AMBIENT_BASS_SETTINGS,
         chordProgression, WORLD_AMBIENT_BASS_SETTINGS.range, `${runId}-bass`,
     ).generateMelody();

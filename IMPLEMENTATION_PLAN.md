@@ -7,6 +7,27 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-12 — ✅ #924 UAT round: één gedeelde klok, onafhankelijke stilte-rolls, load-race bug
+
+Han: "de vogel-midi lijkt totaal niet afgestemd op de metronoom. start altijd op het begin van een maat." +
+"ik heb de file geupdated. Speel altijd maximaal 3." + "ik hoor de bas en treble melodie niet." + "ook de
+tekst playback heeft een eigen metronoom... niet de bedoeling; alles moet op dezelfde klok lopen." + "ik hoor
+de melodie denk ik wel, maar niet zo vaak... 5/9 kans dat ten minste een van beide speelt".
+
+- `useWorldAmbientMusic.js` + `useConversationDialogue.js`: ALLE timing (ambient-blokken, bird-triggers,
+  gesprek-metronoomklik) leest nu van dezelfde `worldClock.js`-grid (`nextMeasureStartTime`, absolute
+  `context.currentTime`-gebaseerde beat-index) i.p.v. drie losse klokken die elk hun eigen fase hadden.
+- Root cause "geen bas/treble te horen": de fluit/acoustic_bass Soundfont-instanties zijn nieuw aangemaakt
+  (niet onderdeel van de boot-splash load-gate) — eerste blok werd gepland vóórdat de samples geladen waren.
+  Nu `Promise.all([...].load)` afgewacht vóór de eerste scheduling.
+- `generateWorldAmbientBlock.js`: treble en bas rollen nu ONAFHANKELIJK hun eigen 2/3-stilte-kans i.p.v. één
+  gedeelde rol voor het hele blok — geeft exact Han's 5/9-kans dat minstens één van beide hoorbaar is.
+- `scripts/generate-bird-sounds.mjs`: bird-file heeft nu 6 tracks (was 3) — generator exporteert ze allemaal,
+  `useWorldAmbientMusic.js` kiest random een subset van maximaal 3 per keer dat de tab actief wordt.
+
+Geverifieerd: `npm run test:run` (711/711), lint (0 errors), build groen. `docs/architecture.md` §217
+toegevoegd.
+
 ## 2026-08-12 — ✅ #924 World ambient audio: gegenereerde fluit+bas + 3 bird-song lagen
 
 Han: "wereldlevel: speel op de achtergrond zachtjes random generated muziek met een fluit (treble melody) en

@@ -69,8 +69,13 @@ export default function useConversationDialogue({
             const schedule = scheduleRef.current;
             const elapsedSec = context.currentTime - startTimeRef.current;
 
+            // #922 round 4 (Han: "ook de tekst playback heeft een eigen metronoom... niet de bedoeling;
+            // alles moet op dezelfde klok lopen"): the beat index is now derived directly from the
+            // ABSOLUTE world clock (context.currentTime / secondsPerBeat), not from elapsedSec-since-this-
+            // conversation's-own-start — so this click always ticks in phase with worldClock.js's grid
+            // (and therefore with the bird-song/ambient-music triggers, #924), never its own local phase.
             if (elapsedSec >= 0 && metronomeInstrument) {
-                const beatIndex = Math.floor(elapsedSec / spb);
+                const beatIndex = Math.floor(context.currentTime / spb);
                 if (beatIndex !== lastMetronomeBeatRef.current) {
                     lastMetronomeBeatRef.current = beatIndex;
                     const noteId = beatIndex % beatsPerMeasure === 0 ? ACCENT_NOTE : CLICK_NOTE;
