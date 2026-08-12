@@ -128,9 +128,13 @@ export default function useConversationDialogue({
     // #922 ("wacht minimaal 1 tel, en tot begin volgende maat, om naar volgende instantie van de tekst te
     // gaan"): a SEPARATE effect (keyed on `pageDone`) so its own rAF wait loop is cleanly cancelled if the
     // page changes again before the wait elapses (component unmount, a manual click-advance, etc).
+    // #922 round 5 (Han: "auto-continue: als er geen volgende paragraaf is, of een beslissing van de
+    // speler, ga dan niet verder. Dus sluit nooit automatisch een gesprek af."): auto-continue only ever
+    // advances BETWEEN existing pages — on the LAST page it does nothing at all now (used to call
+    // onClosed() automatically, closing the conversation without the player's say-so). The conversation
+    // only ever closes via the player's own click (`handleTextClick` below) or walking away.
     useEffect(() => {
-        if (!pageDone || !active || !context || !autoContinue) return undefined;
-        if (!hasNextPage) { onClosedRef.current?.(); return undefined; }
+        if (!pageDone || !active || !context || !autoContinue || !hasNextPage) return undefined;
         const minWait = secondsPerBeat(bpm);
         advanceAtRef.current = Math.max(context.currentTime + minWait, nextMeasureStartTime(context, bpm, timeSignature));
         let raf;

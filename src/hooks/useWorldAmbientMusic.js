@@ -16,7 +16,14 @@ import { BIRD_SONG_LAYERS } from '../model/birdSoundsManifest.generated';
 // maat"; round 4: "alles op een klok geldt ook voor de tekst, en de toggleable wereldmetronoom" — this is
 // the ONE clock/tempo every RPG-layer audio system reads from now (see useConversationDialogue.js and
 // useDebugMetronome.js's matching fixes).
-const AMBIENT_TRACK_GAIN = 0.22;      // #924 round 4 (Han: "zelfde volume als de vogels") — was 0.28
+// #924 round 5 (Han: "de piano mag een stuk luider, net zo luid als de vogels"): applied by scaling each
+// generated Melody's `.volumes` array directly (see scheduleNextBlock below) — MelodyGenerator always
+// populates `.volumes`, and playMelodies.js reads gain from THAT array whenever it exists, silently
+// ignoring `melody.gain`/`trackGains` overrides. A noticeably higher value than the birds' own 0.22 (not a
+// literal match) — bumped further because even a numerically-equal gain read as much quieter in practice
+// (piano samples respond more dramatically to velocity than the shakuhachi/bird samples do), so matching
+// PERCEIVED loudness needs a higher number. Tune further if still too quiet/loud.
+const AMBIENT_GAIN = 0.6;
 const BIRD_LAYER_GAIN = { treble: 0.22 };
 const BIRD_MIN_SILENCE_SEC = 5;
 const BIRD_MAX_SILENCE_SEC = 30;
@@ -62,12 +69,18 @@ export default function useWorldAmbientMusic({ active, context }) {
                 // melody entry on its own (`if (!melody) continue`), so passing both through unconditionally
                 // is correct and plays whichever one(s) actually generated.
                 const { treble, bass: bassMelody } = generateWorldAmbientBlock({ runId: `world-amb-${Date.now()}` });
+                // #924 round 5 bugfix: MelodyGenerator always populates `.volumes` (defaults to an
+                // all-1s array; some notes get 0.9 for tuplets) — playMelodies.js reads gain from
+                // `melody.volumes[i]` WHENEVER that array exists, completely ignoring `melody.gain`. Setting
+                // `.gain` alone (the previous attempt) was therefore a silent no-op for every generated
+                // melody. Scaling `.volumes` itself is the only way to actually apply AMBIENT_GAIN here (the
+                // raw MIDI-derived bird layers have no `.volumes` array, so THEIR gain correctly came from
+                // playMelodies' trackGains/`.gain` fallback all along — this bug was specific to generated
+                // melodies).
+                if (treble) treble.volumes = treble.volumes.map((v) => v * AMBIENT_GAIN);
+                if (bassMelody) bassMelody.volumes = bassMelody.volumes.map((v) => v * AMBIENT_GAIN);
                 if (treble || bassMelody) {
-                    playMelodies(
-                        [treble, bassMelody], [treblePiano, bassPiano], context, WORLD_AMBIENT_BPM, startTime,
-                        null, null, { treble: treblePiano, bass: bassPiano }, null,
-                        { treble: AMBIENT_TRACK_GAIN, bass: AMBIENT_TRACK_GAIN },
-                    );
+                    playMelodies([treble, bassMelody], [treblePiano, bassPiano], context, WORLD_AMBIENT_BPM, startTime);
                 }
                 const blockMeasureSec = (startTime - context.currentTime)
                     + WORLD_AMBIENT_NUM_MEASURES * WORLD_AMBIENT_TIME_SIGNATURE[0] * (60 / WORLD_AMBIENT_BPM);

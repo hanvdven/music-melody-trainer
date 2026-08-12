@@ -7,6 +7,29 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-12 — ✅ #922/#924 UAT round: nooit auto-sluiten, echte volume-bug, bird-akkoorden, Bitfantasy-font
+
+Han: "auto-continue: als er geen volgende paragraaf is... sluit nooit automatisch een gesprek af." + "de
+piano mag een stuk luider, net zo luid als de vogels." + "kan het dat de vogels maar unisono zijn? ... Ik wil
+dan beide/alle lijnen horen." + "gebruik bit-fantasy als font. T is 8 'pixels' hoog, e is 6 'pixels' hoog...
+regelafstand mag iets kleiner."
+
+- `useConversationDialogue.js`: auto-continue-effect sluit het gesprek niet meer automatisch af op de laatste
+  pagina — doet dan gewoon niets, wacht op de speler.
+- Echte oorzaak volume-bug gevonden: `MelodyGenerator` zet ALTIJD een `.volumes`-array, en `playMelodies.js`
+  leest die vóór `.gain`/`trackGains` — mijn eerdere `.gain`-fix deed dus he-le-maal niets voor gegenereerde
+  muziek (vogels hebben geen `.volumes`, dus die werkten toevallig wel). Nu `.volumes` zelf geschaald, en de
+  waarde flink verhoogd (0.6) omdat zelfs een gelijk getal zachter klinkt dan de vogels (piano-samples
+  reageren sterker op velocity dan de shakuhachi-samples).
+- `scripts/generate-bird-sounds.mjs`: behoudt nu ALLE gelijktijdige noten als akkoord-slot i.p.v. alleen de
+  bovenste stem — `playMelodies.js` ondersteunt akkoord-arrays al nativief.
+- `DialogueBox.jsx`: font Habbo → Bitfantasy, met een via fontTools gemeten schaalformule (T=448/1024em,
+  klopt met Han's "8 pixels") zodat een hoofdletter exact even veel "native pixels" groot rendert als de
+  portret-afbeelding ernaast (dezelfde DIALOGUE_SCALE-zoom). Regelafstand 1.4 → 1.15.
+
+Geverifieerd: `npm run test:run` (711/711), lint (0 errors), build groen. `docs/architecture.md` §219
+toegevoegd.
+
 ## 2026-08-12 — ✅ #924 UAT round 2: WORLD_BPM overal, note-overlap, per-trigger bird-selectie
 
 Han: "alles op een klok geldt ook voor de tekst, en de toggleable wereldmetronoom." + "de tekst klinkt heel

@@ -1,5 +1,5 @@
 import React from 'react';
-import habboFontUrl from '../../assets/fonts/pixel_fonts/Habbo.ttf';
+import bitfantasyFontUrl from '../../assets/fonts/pixel_fonts/Bitfantasy.ttf';
 import { Frame64Overlay } from './BestiaryPanels';
 
 // #693/#864 (Han 2026-08-04 → 2026-08-10): the pixel-art dialogue box originally built for the RPG-world
@@ -16,7 +16,19 @@ import { Frame64Overlay } from './BestiaryPanels';
 const DIALOGUE_SCALE = 2.5;
 export const PORTRAIT_SIZE = 64 * DIALOGUE_SCALE;
 export const TEXT_WIDTH = 256 * DIALOGUE_SCALE;
-const FONT_SIZE = 18 * DIALOGUE_SCALE;
+
+// #922 round 6 (Han 2026-08-12, "gebruik bit-fantasy als font. T is 8 'pixels' hoog, e is 6 'pixels' hoog.
+// Probeer ze hetzelfde te schalen als de afbeelding ernaast"): Bitfantasy.ttf's ACTUAL glyph metrics
+// (measured via fontTools — unitsPerEm=1024, capital 'T' glyph height=448 units) confirm Han's own "8
+// native pixels" measurement (448/1024 em = 0.4375 em; a 6-pixel 'e' at 384 units checks out too: 384/56 ≈
+// 6.86, matching within hand-measurement rounding, where 56 = 448/8 units-per-native-pixel). Deriving
+// FONT_SIZE from these numbers (rather than an eyeballed literal) means a capital letter renders at exactly
+// `CAP_HEIGHT_NATIVE_PX * DIALOGUE_SCALE` px tall — the SAME per-native-pixel zoom as the portrait sprite
+// next to it (`trueScale = PORTRAIT_SIZE / 64`, also DIALOGUE_SCALE).
+const BITFANTASY_UNITS_PER_EM = 1024;
+const BITFANTASY_CAP_HEIGHT_UNITS = 448;   // measured 'T' glyph height
+const CAP_HEIGHT_NATIVE_PX = 8;            // Han's own measurement of 'T' on the font's native pixel grid
+const FONT_SIZE = (CAP_HEIGHT_NATIVE_PX * DIALOGUE_SCALE * BITFANTASY_UNITS_PER_EM) / BITFANTASY_CAP_HEIGHT_UNITS;
 
 // Crops (and, for a multi-frame/multi-row spritesheet, offsets to a specific `row`/`col` cell — default
 // {0,0}, the sheet's first/idle frame) EXACTLY the way SheetRpgLayer/CharacterDoll already render sprites
@@ -94,7 +106,7 @@ export function AutoContinueToggle({ on, onToggle }) {
                 background: on ? 'var(--text-primary)' : 'var(--panel-bg)',
                 color: on ? 'var(--panel-bg)' : 'var(--text-primary)',
                 border: '3px solid var(--text-primary)', borderRadius: 0, imageRendering: 'pixelated',
-                fontFamily: 'HabboPixel, monospace', padding: '4px 6px',
+                fontFamily: 'Bitfantasy, monospace', padding: '4px 6px',
             }}
         >
             <span style={{ fontSize: 10, letterSpacing: 1 }}>AUTO</span>
@@ -127,7 +139,7 @@ export default function DialogueBox({
     return (
         <>
             <style>{`
-                @font-face { font-family: 'HabboPixel'; src: url('${habboFontUrl}') format('truetype'); }
+                @font-face { font-family: 'Bitfantasy'; src: url('${bitfantasyFontUrl}') format('truetype'); }
                 @keyframes dialogue-more-pages-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
             `}</style>
             <div style={{ display: 'flex', alignItems: 'stretch' }}>
@@ -140,7 +152,8 @@ export default function DialogueBox({
                         ? <DedicatedPortrait url={dedicatedPortraitUrl} cell={dedicatedPortraitCell} frame={dedicatedPortraitFrame} />
                         : <SpeakerPortrait url={portraitUrl} crop={portraitCrop} cellW={portraitCellW} cellH={portraitCellH} row={portraitRow} col={portraitCol} />}
                     <div style={{ position: 'relative', width: TEXT_WIDTH, display: 'flex', alignItems: 'center', padding: `0 ${14 * DIALOGUE_SCALE / 2}px` }}>
-                        <span style={{ fontFamily: 'HabboPixel, monospace', fontSize: FONT_SIZE, lineHeight: 1.4, color: 'var(--text-primary)' }}>
+                        {/* #922 round 6 (Han: "regelafstand mag iets kleiner") — was 1.4. */}
+                        <span style={{ fontFamily: 'Bitfantasy, monospace', fontSize: FONT_SIZE, lineHeight: 1.15, color: 'var(--text-primary)' }}>
                             {text}
                         </span>
                         {hasMorePages && <MorePagesIndicator />}

@@ -14190,3 +14190,43 @@ both switched to `acoustic_grand_piano` (was flute/acoustic_bass); `AMBIENT_TRAC
 `src/components/character/RpgLevelPanel.jsx`, `src/components/character/RpgLevelBottomPanel.jsx`,
 `src/components/layout/TabView.jsx`, `src/generation/generateWorldAmbientBlock.js`,
 `src/hooks/useWorldAmbientMusic.js`, `src/hooks/useConversationDialogue.js`, `src/audio/conversationEntities.js`.
+
+### §219. §218 UAT round — never auto-close, real ambient-volume fix, bird chords, Bitfantasy font sizing (#922/#924, Han 2026-08-12)
+
+**Auto-continue never closes a conversation** (Han: "auto-continue: als er geen volgende paragraaf is, of
+een beslissing van de speler, ga dan niet verder. Dus sluit nooit automatisch een gesprek af"):
+`useConversationDialogue.js`'s auto-continue effect used to call `onClosed()` when there was no next page —
+removed entirely. On the last page, auto-continue now does nothing; the conversation only ever closes via
+the player's own click or walking away.
+
+**Ambient-music volume — the REAL bug** (Han: "de piano mag een stuk luider, net zo luid als de vogels"):
+the earlier "same volume as the birds" attempt used `melody.gain`, which `playMelodies.js` NEVER reads for a
+generated melody — `MelodyGenerator` always populates `.volumes` (an array, defaulting to all-1s), and
+`playMelodies.js`'s gain formula checks `melody.volumes[i]` FIRST, only falling back to `.gain` when
+`.volumes` is absent. Since the raw MIDI-derived bird layers have no `.volumes` array, their gain correctly
+came from `.gain`/`trackGains` all along — but the SAME technique was silently a no-op for generated piano
+melodies. Fixed in `useWorldAmbientMusic.js` by scaling `.volumes` directly
+(`treble.volumes = treble.volumes.map(v => v * AMBIENT_GAIN)`). Even after the fix, a numerically-equal
+gain to the birds' 0.22 still read as much quieter in practice (piano soundfont samples respond more
+dramatically to velocity than the shakuhachi/bird samples) — `AMBIENT_GAIN` raised to 0.6 to compensate.
+
+**Bird songs keep ALL simultaneous notes** (Han: "kan het dat de vogels maar unisono zijn? Sommige midi's
+zijn akkoorden.. Ik wil dan beide/alle lijnen horen"): `scripts/generate-bird-sounds.mjs` used to keep only
+the TOP note of each simultaneous onset (deliberately reducing the source's 2-voice material to one melodic
+line). Now keeps every note in a simultaneous group as a CHORD slot (`notes[i]` is an array when >1 note
+shares an onset) — `playMelodies.js` already supports chord slots natively
+(`Array.isArray(rawNote) ? rawNote : [rawNote]`), so no runtime change was needed, only the generator.
+
+**Bitfantasy font, scaled to match the portrait's pixel zoom** (Han: "gebruik bit-fantasy als font. T is 8
+'pixels' hoog, e is 6 'pixels' hoog. Probeer ze hetzelfde te schalen als de afbeelding ernaast. regelafstand
+mag iets kleiner"): `DialogueBox.jsx` swapped from Habbo.ttf to Bitfantasy.ttf. Measured the font's ACTUAL
+glyph metrics via fontTools (unitsPerEm=1024, capital 'T' glyph height=448 units — confirms Han's own "8
+native pixels" estimate: 448/1024 em = 0.4375em; 384-unit 'e' ≈ 6.86 native px, matching his "6 pixels"
+within hand-measurement rounding) and derived `FONT_SIZE = (8 × DIALOGUE_SCALE × 1024) / 448` — a capital
+letter now renders at exactly `8 × DIALOGUE_SCALE` px tall, the SAME per-native-pixel zoom the portrait
+sprite next to it uses (`trueScale = PORTRAIT_SIZE / 64`, also `DIALOGUE_SCALE`). `lineHeight` reduced
+1.4 → 1.15.
+
+**Files:** `src/hooks/useConversationDialogue.js`, `src/hooks/useWorldAmbientMusic.js`,
+`scripts/generate-bird-sounds.mjs`, `src/model/birdSoundsManifest.generated.js`,
+`src/components/character/DialogueBox.jsx`.
