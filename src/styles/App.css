@@ -202,6 +202,7 @@
   --cat-percussion-tuned: #c7b0d0; /* muted mauve */
   --cat-voice: #d4b0b8;            /* faded rose */
   --cat-synth: #a0bcd8;            /* desaturated periwinkle */
+  --cat-ethnic: #d0946a;           /* muted terracotta (#922: koto) */
 }
 
 /* ============================================================
@@ -277,6 +278,7 @@
   --cat-percussion-tuned: #6a5076;
   --cat-voice: #7a4f57;
   --cat-synth: #44607c;
+  --cat-ethnic: #8a5a3e;           /* muted terracotta (#922: koto) */
 }
 
 :root[data-theme='light'],
@@ -320,6 +322,7 @@
   --cat-percussion-tuned: #664c72;
   --cat-voice: #764b53;
   --cat-synth: #405c78;
+  --cat-ethnic: #805638;           /* muted terracotta (#922: koto) */
 }
 
 /* ============================================================

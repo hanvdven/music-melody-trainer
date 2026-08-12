@@ -6,39 +6,45 @@ import { Frame64Overlay } from './BestiaryPanels';
 // Wisp NPC (RpgLevelBottomPanel.jsx), extracted into a reusable component so a second caller (LevelSplash
 // — the level-complete panel, "beneden een dialoogveld, zoals de wisp heeft") gets the EXACT same box,
 // not a hand-rolled second copy (§6d). Only the portrait's sprite (url/crop/cell size/frame) and the text
-// vary per caller — the frame chrome (64px-tall box, square corners, 256px text column) is fixed.
-// #693 round 3 spec (still authoritative): 64px-tall frame, portrait pinned to the left edge at exactly
-// 64×64 (Han: "het linkervak moet 64x64 zijn"), square corners (no border-radius), text column a further
-// 256px wide (Han: "het rechtervak met tekst moet 64 hoog en 256 breed, voor toepassing van scaling
-// factor" — 256 is a clean power-of-2 multiple of the 32px pixel-art grid every sprite here is drawn on).
-export const PORTRAIT_SIZE = 64;
-export const TEXT_WIDTH = 256;
+// vary per caller — the frame chrome (square corners, proportional portrait/text columns) is fixed.
+// #922 (Han 2026-08-12, "het vak is veel te klein, ik had je gevraagd het ongeveer 2,5x groter te maken.
+// kijk eens hoeveel ruimte er is in de bottom view"): the ENTIRE box (portrait + text + font) scales
+// uniformly by `DIALOGUE_SCALE` off the original #693-round-3 base sizes (64×64 portrait / 256-wide text) —
+// a single scale constant so nothing drifts out of proportion. The RPG-level bottom view is ~215–395px
+// tall depending on window size (useAppLayout.js's `btmPanelHeight`/`rpgLevelTopHeight`), comfortably
+// fitting the resulting 160px-tall box.
+const DIALOGUE_SCALE = 2.5;
+export const PORTRAIT_SIZE = 64 * DIALOGUE_SCALE;
+export const TEXT_WIDTH = 256 * DIALOGUE_SCALE;
+const FONT_SIZE = 18 * DIALOGUE_SCALE;
 
 // Crops (and, for a multi-frame/multi-row spritesheet, offsets to a specific `row`/`col` cell — default
 // {0,0}, the sheet's first/idle frame) EXACTLY the way SheetRpgLayer/CharacterDoll already render sprites
 // — the same `background-position` + inner-crop-then-scale technique, not a new one (§6d).
 // #922 fix (Han 2026-08-12, "de slime portret is veel groter dan 64x64 schaal"): this used to scale the
-// CROP to exactly fill the 64px box (`scale = PORTRAIT_SIZE / crop.h`), which zooms different sprites by
-// DIFFERENT factors depending on their own crop height — the slime's small 29px-tall crop got blown up
-// ~2.2x vs the wizard's 52px-tall crop at ~1.23x, so entities looked inconsistently sized next to each
-// other despite both being "64x64 portraits". Switched to the SAME fixed "true size" convention the
-// Bestiary's `PortraitImage` already uses (§6d): `trueScale = box / 64`, independent of crop size — every
-// entity renders at ONE shared RPG-pixel-art-pixel zoom, centered, clipped if it overflows the box (never
-// stretched to fill). Also now draws the same `Frame64Overlay` decorative kader every other 64x64 box in
-// the app uses, instead of a plain border (Han: full visual consistency with the Bestiary).
+// CROP to exactly fill the box (`scale = PORTRAIT_SIZE / crop.h`), which zooms different sprites by
+// DIFFERENT factors depending on their own crop height. Switched to the SAME fixed "true size" convention
+// the Bestiary's `PortraitImage` uses (§6d): `trueScale = box / 64`, independent of crop size.
+// #922 round 2 (Han: "hoe kan het dat de slime anders in het frame geankerd is in de conversatie dan in de
+// bestiary? ik eis consistentie"): this was centering the crop on BOTH axes, like the Bestiary's
+// `PortraitImage` (dedicated portraits — headshots, correctly center-anchored). But a SpeakerPortrait shows
+// a raw SPRITE CROP, not a dedicated portrait — the Bestiary's convention for THAT case is `CreatureSprite`,
+// which anchors bottom-CENTER (a creature standing on the ground, §6d "#682... anker op midden onder").
+// Centering a sprite crop instead of bottom-anchoring it is exactly the kind of category mix-up §6d warns
+// about: two different content types (portrait vs. sprite) need their OWN matching Bestiary convention, not
+// one convention borrowed for both. Fixed to bottom-center, matching `CreatureSprite` exactly.
 export function SpeakerPortrait({ url, crop, cellW = 32, cellH = 32, row = 0, col = 0 }) {
     const trueScale = PORTRAIT_SIZE / 64;
+    const cropW = crop.w * trueScale, cropH = crop.h * trueScale;
     return (
         <div style={{ position: 'relative', width: PORTRAIT_SIZE, height: PORTRAIT_SIZE, overflow: 'hidden', flexShrink: 0, borderRight: '3px solid var(--text-primary)' }}>
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ position: 'relative', width: crop.w * trueScale, height: crop.h * trueScale, overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', left: -crop.x * trueScale, top: -crop.y * trueScale, width: cellW * trueScale, height: cellH * trueScale, overflow: 'hidden' }}>
-                        <div style={{
-                            width: cellW, height: cellH, transform: `scale(${trueScale})`, transformOrigin: 'top left',
-                            backgroundImage: `url("${url}")`, backgroundRepeat: 'no-repeat', backgroundSize: 'auto',
-                            backgroundPosition: `${-col * cellW}px ${-row * cellH}px`, imageRendering: 'pixelated',
-                        }} />
-                    </div>
+            <div style={{ position: 'absolute', left: `calc(50% - ${cropW / 2}px)`, bottom: 0, width: cropW, height: cropH, overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', left: -crop.x * trueScale, top: -crop.y * trueScale, width: cellW * trueScale, height: cellH * trueScale, overflow: 'hidden' }}>
+                    <div style={{
+                        width: cellW, height: cellH, transform: `scale(${trueScale})`, transformOrigin: 'top left',
+                        backgroundImage: `url("${url}")`, backgroundRepeat: 'no-repeat', backgroundSize: 'auto',
+                        backgroundPosition: `${-col * cellW}px ${-row * cellH}px`, imageRendering: 'pixelated',
+                    }} />
                 </div>
             </div>
             <Frame64Overlay box={PORTRAIT_SIZE} />
@@ -46,21 +52,17 @@ export function SpeakerPortrait({ url, crop, cellW = 32, cellH = 32, row = 0, co
     );
 }
 
-// #922 (Han 2026-08-12, "de wizard heeft een portret, in dat geval: toon het portret, niet de sprite.
-// schaal mag ongeveer 2x zo groot; probeer horizontaal te vullen"): when an entity has its OWN dedicated
-// portrait image (the Bestiary's `portraitUrl` + `portraitCell`/`portraitFrame`, e.g. the Wizard's 64x64
-// colour-crop portrait strip — see bestiaryAssets.js), show THAT instead of a cropped sprite frame, at 2x
-// scale, reusing the Bestiary's `PortraitImage` true-size/center/clip/white-backing convention (§6d) rather
-// than a hand-rolled third rendering technique. The portrait asset is itself a 64x64 square, so 2x scale
-// (`PORTRAIT_SCALE_2X`) both fills the widened slot horizontally AND grows it vertically to match — the
-// whole dialogue-box row grows to this height for a dedicated-portrait speaker (see DialogueBox below).
-export const PORTRAIT_SCALE_2X = 2;
-
+// #922 (Han 2026-08-12, "de wizard heeft een portret, in dat geval: toon het portret, niet de sprite"):
+// when an entity has its OWN dedicated portrait image (the Bestiary's `portraitUrl` + `portraitCell`/
+// `portraitFrame`, e.g. the Wizard's 64x64 colour-crop portrait strip — see bestiaryAssets.js), show THAT
+// instead of a cropped sprite frame, reusing the Bestiary's `PortraitImage` true-size/center/clip/
+// white-backing convention (§6d) rather than a hand-rolled third rendering technique. Since the box-wide
+// 2.5× scale above (round 2) now applies to EVERY speaker uniformly, this no longer needs its own separate
+// multiplier — it fills the exact same `PORTRAIT_SIZE` box as `SpeakerPortrait`.
 function DedicatedPortrait({ url, cell, frame }) {
-    const size = PORTRAIT_SIZE * PORTRAIT_SCALE_2X;
-    const trueScale = size / 64;
+    const trueScale = PORTRAIT_SIZE / 64;
     return (
-        <div style={{ position: 'relative', width: size, height: size, overflow: 'hidden', flexShrink: 0, borderRight: '3px solid var(--text-primary)' }}>
+        <div style={{ position: 'relative', width: PORTRAIT_SIZE, height: PORTRAIT_SIZE, overflow: 'hidden', flexShrink: 0, borderRight: '3px solid var(--text-primary)' }}>
             <div style={{ position: 'absolute', inset: 0, background: '#fff' }} />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {!cell
@@ -74,15 +76,14 @@ function DedicatedPortrait({ url, cell, frame }) {
                         }} />
                     )}
             </div>
-            <Frame64Overlay box={size} />
+            <Frame64Overlay box={PORTRAIT_SIZE} />
         </div>
     );
 }
 
 // #922 (Han 2026-08-12, "zet rechts van de tekstbox een toggler (in pixel art stijl): auto-continue"): a
 // small pixel-art switch, matching the dialogue box's own chrome (square corners, `var(--text-primary)`
-// border, HabboPixel font) — rendered as a sibling to the box, not inside it, so it stays a fixed control
-// regardless of the box's own height (64px vs the wizard's 128px dedicated-portrait row).
+// border, HabboPixel font) — rendered as a sibling to the box, not inside it.
 export function AutoContinueToggle({ on, onToggle }) {
     return (
         <button
@@ -102,31 +103,47 @@ export function AutoContinueToggle({ on, onToggle }) {
     );
 }
 
+// #922 (Han 2026-08-12, "ik wil wel het driehoekje" — reinstated after an earlier round dropped it in
+// favour of the AutoContinueToggle): the classic RPG-dialogue "more text below" indicator — a small
+// triangle, bottom-right of the text column, bouncing continuously. Only rendered when `hasMorePages` is
+// true (the hook's own `hasNextPage`) — matches the AUTO toggle's chrome (`var(--text-primary)`), not a
+// separately-coloured decoration.
+function MorePagesIndicator() {
+    return (
+        <div style={{
+            position: 'absolute', right: 12, bottom: 10, width: 0, height: 0,
+            borderLeft: '7px solid transparent', borderRight: '7px solid transparent',
+            borderTop: '9px solid var(--text-primary)', animation: 'dialogue-more-pages-bounce 0.8s infinite',
+            pointerEvents: 'none',
+        }} />
+    );
+}
+
 export default function DialogueBox({
     portraitUrl, portraitCrop, portraitCellW, portraitCellH, portraitRow, portraitCol,
     dedicatedPortraitUrl, dedicatedPortraitCell, dedicatedPortraitFrame, text, onClick,
-    autoContinue, onToggleAutoContinue,
+    autoContinue, onToggleAutoContinue, hasMorePages,
 }) {
-    // #922 (Han 2026-08-12): a speaker with its OWN dedicated portrait (wizard) renders at 2x scale, which
-    // grows the whole row height to match — every other speaker (wisp/slime, sprite-crop mode) keeps the
-    // original 64px row.
-    const rowHeight = dedicatedPortraitUrl ? PORTRAIT_SIZE * PORTRAIT_SCALE_2X : PORTRAIT_SIZE;
     return (
         <>
-            <style>{`@font-face { font-family: 'HabboPixel'; src: url('${habboFontUrl}') format('truetype'); }`}</style>
+            <style>{`
+                @font-face { font-family: 'HabboPixel'; src: url('${habboFontUrl}') format('truetype'); }
+                @keyframes dialogue-more-pages-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+            `}</style>
             <div style={{ display: 'flex', alignItems: 'stretch' }}>
                 <div onClick={onClick} style={{
-                    display: 'flex', alignItems: 'stretch', height: rowHeight,
+                    display: 'flex', alignItems: 'stretch', height: PORTRAIT_SIZE,
                     background: 'var(--panel-bg)', border: '3px solid var(--text-primary)', borderRadius: 0,
                     cursor: onClick ? 'pointer' : 'default', imageRendering: 'pixelated',
                 }}>
                     {dedicatedPortraitUrl
                         ? <DedicatedPortrait url={dedicatedPortraitUrl} cell={dedicatedPortraitCell} frame={dedicatedPortraitFrame} />
                         : <SpeakerPortrait url={portraitUrl} crop={portraitCrop} cellW={portraitCellW} cellH={portraitCellH} row={portraitRow} col={portraitCol} />}
-                    <div style={{ width: TEXT_WIDTH, display: 'flex', alignItems: 'center', padding: '0 14px' }}>
-                        <span style={{ fontFamily: 'HabboPixel, monospace', fontSize: 18, lineHeight: 1.4, color: 'var(--text-primary)' }}>
+                    <div style={{ position: 'relative', width: TEXT_WIDTH, display: 'flex', alignItems: 'center', padding: `0 ${14 * DIALOGUE_SCALE / 2}px` }}>
+                        <span style={{ fontFamily: 'HabboPixel, monospace', fontSize: FONT_SIZE, lineHeight: 1.4, color: 'var(--text-primary)' }}>
                             {text}
                         </span>
+                        {hasMorePages && <MorePagesIndicator />}
                     </div>
                 </div>
                 {onToggleAutoContinue && <AutoContinueToggle on={autoContinue} onToggle={onToggleAutoContinue} />}

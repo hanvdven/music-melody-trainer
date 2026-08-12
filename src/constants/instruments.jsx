@@ -118,6 +118,14 @@ export const INSTRUMENT_GROUPS = [
         ],
     },
     {
+        // #922 (Han 2026-08-12, RPG conversation system: "japanese musician: koto"): new category — GM
+        // program #108 "Koto", 'ethnic' family, same soundfont CDN as every other instrument here.
+        label: 'ethnic',
+        items: [
+            { name: 'koto', group: 'ethnic', slug: 'koto', family: 'ethnic' },
+        ],
+    },
+    {
         // 'percussion tuned' per Han's target naming 2026-06-22. Added xylophone (Han wanted it
         // back as a distinct entry alongside marimba + vibraphone).
         label: 'percussion tuned',
@@ -218,6 +226,7 @@ const SLUG_TO_ICON = {
     flute: 'flute',
     harmonica: 'harmonica',             // real asset restored from origin/main (Han 2026-06-22)
     ocarina: 'flute',                   // PLACEHOLDER — TODO(icons8): real ocarina asset icons8-ocarina-100.png
+    koto: 'classic-music',              // PLACEHOLDER — TODO(icons8): real koto asset icons8-koto-100.png
     // percussion tuned
     marimba: 'xylophone',
     vibraphone: 'xylophone',            // Han 2026-06-22: use xylophone icon
@@ -260,6 +269,7 @@ const CATEGORY_CSS_VAR = {
     'percussion tuned': '--cat-percussion-tuned',
     'voice': '--cat-voice',
     'synth': '--cat-synth',
+    'ethnic': '--cat-ethnic',   // #922 (Han 2026-08-12): new category for koto (Japanese Musician)
 };
 
 // Resolve a category string → `var(--cat-…)` colour expression (falls back to --text-primary for

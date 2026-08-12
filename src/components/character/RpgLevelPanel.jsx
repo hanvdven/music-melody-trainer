@@ -424,7 +424,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     }, [bpm, timeSignature]);
 
     const { char } = characterEditor;
-    const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, setHeldDirection } = rpgLevel;
+    const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, clickSlime, setHeldDirection } = rpgLevel;
 
     // #693 round 7 (Han: "level should start moving when the character is at 1/3 of either screen edge"):
     // a dead-zone follow camera — the camera only moves once the player's ON-SCREEN position leaves the
@@ -892,9 +892,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             )}
 
             {/* Slime — #RAM-level (Han 2026-08-11, "ik zie ook de slime niet; conform de entiteitslaag"):
-                purely decorative, standing at the Slime entity marker, same z-slot as Wisp/hero/pet. */}
+                standing at the Slime entity marker, same z-slot as Wisp/hero/pet.
+                #922 (Han 2026-08-12, "je hebt nu de lorem ipsum op de slime van het level gezet, maar ik wou
+                die op de slime van de RPG-wereld"): now clickable, same walk-then-talk pattern as the Wisp
+                (stopPropagation so it doesn't ALSO walk-to-tap-point on top of walk-to-Slime). */}
             {sceneryMode === 'LDtk' && ENTITY_WORLD_X.Slime != null && (
-                <div style={{ position: 'absolute', left: worldToScreenX(ENTITY_WORLD_X.Slime), bottom: standAnchor, transform: 'translateX(-50%)' }}>
+                <div
+                    onClick={(e) => { e.stopPropagation(); clickSlime(); }}
+                    style={{ position: 'absolute', left: worldToScreenX(ENTITY_WORLD_X.Slime), bottom: standAnchor, transform: 'translateX(-50%)', cursor: 'pointer' }}
+                >
                     <WorldSlime frame={petFrame} zoom={zoom} />
                 </div>
             )}

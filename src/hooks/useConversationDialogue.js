@@ -1,13 +1,14 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { playSound, resolveNotePitch } from '../audio/playSound';
 import { buildTypewriterSchedule } from '../audio/conversationTypewriter';
-import { nextMeasureStartTime, secondsPerBeat } from '../audio/worldClock';
+import { nextMeasureStartTime, nextBeatStartTime, secondsPerBeat } from '../audio/worldClock';
 import { clickMsForBpm, CLICKS_PER_BEAT } from '../components/sheet-music/SheetRpgLayer';
 
-// #922 (Han 2026-08-12, "verhoog het tempo van de typewriter clicks met een factor twee"): layered ON TOP
-// of #923's shared clickMsForBpm (still the single source of the tempo-scaled cadence, §6c) — typing is
-// simply twice as fast as the sprite-animation beat, not a second independently-tuned speed.
-const TYPEWRITER_SPEED_MULTIPLIER = 2;
+// #922 (Han 2026-08-12, "verhoog het tempo... met een factor twee", follow-up: "doe nog maar 2x sneller...!
+// voelt traag" — 2 × 2 = 4×): layered ON TOP of #923's shared clickMsForBpm (still the single source of the
+// tempo-scaled cadence, §6c) — typing is simply 4× as fast as the sprite-animation beat, not a second
+// independently-tuned speed.
+const TYPEWRITER_SPEED_MULTIPLIER = 4;
 const METRONOME_CLICK_VOLUME = 0.5;   // Han: "speel de metronoom af op mp volume" (mezzo-piano)
 const ACCENT_NOTE = 'wh';   // woodblock high — downbeat, same convention as useDebugMetronome.js
 const CLICK_NOTE = 'wm';    // woodblock mid — other beats
@@ -46,12 +47,13 @@ export default function useConversationDialogue({
             setPageDone(false);
             return undefined;
         }
-        scheduleRef.current = buildTypewriterSchedule(text, CLICKS_PER_BEAT, { octave: profile?.octave });
+        scheduleRef.current = buildTypewriterSchedule(text, CLICKS_PER_BEAT, { tonePool: profile?.tonePool });
         // #922 ("in het RPG-level is een wereldklok. zorg dat het gesprek begint op de start van een
-        // maat"): only the FIRST page of a fresh conversation waits for the world clock's next measure
-        // boundary — later pages (click-advance / auto-continue) start the instant they're shown.
+        // maat", loosened per follow-up: "start op eerste tel van maat is te streng, start gewoon op eerst
+        // volgende beat"): only the FIRST page of a fresh conversation waits for the world clock's next
+        // BEAT boundary — later pages (click-advance / auto-continue) start the instant they're shown.
         startTimeRef.current = pageIndex === 0
-            ? nextMeasureStartTime(context, bpm, timeSignature)
+            ? nextBeatStartTime(context, bpm)
             : context.currentTime;
         revealedRef.current = 0;
         skippedRef.current = false;

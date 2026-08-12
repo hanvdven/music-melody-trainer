@@ -13969,3 +13969,60 @@ useConversationInstruments.js`, `src/hooks/useRpgLevelState.js`, `src/components
 RpgLevelBottomPanel.jsx`, `src/components/character/DialogueBox.jsx` (`AutoContinueToggle`), `src/components/
 layout/TabView.jsx`, `src/App.jsx` (levelResult wiring + prop threading), `src/constants/instruments.jsx`
 (ocarina added). Kanban ticket #922.
+
+### §214. §213 UAT round — anchor consistency, box scale, npc-aware post-combat, world-slime lorem ipsum (#922, Han 2026-08-12)
+
+**Fixes from Han's UAT pass on §213:**
+
+- **Post-combat speaker resolution generalized** (was Wizard/Slime-only): a level's `npc` field (e.g.
+  Sakura's "Japanese Musician", resolved via `findCreatureByName` — the SAME lookup SheetRpgLayer already
+  uses to render it in-level, §6c) now takes priority, then `decorativeWizard` (Level 11: a green wizard
+  stands beside even though `enemyType` is still `Slime`) or `enemyType === 'Wizard'`, else the default green
+  slime. `App.jsx`'s `levelResultSpeaker` (`{ kind, entity, variant? }`) drives both the portrait AND the
+  conversation-content pool (`WIZARD_VICTORY_LINES` / `NPC_GREETING_LINES` / `SLIME_DEFEAT_LINES`,
+  `conversationContent.js`).
+- **Lorem ipsum moved**: it belongs to the OPEN-WORLD decorative slime (`useRpgLevelState.js`'s new
+  `clickSlime`, wired onto `RpgLevelPanel.jsx`'s `WorldSlime`), not the post-combat screen — post-combat now
+  gets a short line per speaker kind instead. `openEntityDialogue(entityX, entity, pages)` factors the
+  walk-then-open logic ONE level up so the Wisp and the world Slime share it (§6c) instead of two copies;
+  the "walking away closes it" check now reads the CURRENTLY-open dialogue's own anchor X
+  (`dialogueAnchorXRef`), not a hardcoded Wisp position, so it works for either speaker.
+- **Box scale**: `DialogueBox.jsx` was still using the original #693 64×64/256-wide base sizes — Han: "het
+  vak is veel te klein... ongeveer 2,5x groter". A single `DIALOGUE_SCALE = 2.5` constant now scales the
+  WHOLE box (portrait, text column, font) uniformly, comfortably inside the RPG-level bottom view's real
+  ~215–395px height (`useAppLayout.js`). The Wizard's separate `PORTRAIT_SCALE_2X` (from the earlier round)
+  is RETIRED — `DedicatedPortrait` now shares the exact same `PORTRAIT_SIZE` box as `SpeakerPortrait`, so
+  every speaker's box is the same size (stacking a 2nd multiplier on top of the new 2.5× would have made the
+  wizard disproportionately larger than everyone else).
+- **Anchor consistency fix** (Han: "hoe kan het dat de slime anders in het frame geankerd is in de
+  conversatie dan in de bestiary? ik eis consistentie"): `SpeakerPortrait` was centering sprite crops on
+  BOTH axes — correct for a genuine PORTRAIT (`DedicatedPortrait`/Bestiary's `PortraitImage`, a headshot),
+  but WRONG for a raw SPRITE CROP, which the Bestiary's `CreatureSprite` anchors bottom-CENTER (a creature
+  standing on the ground, §682's "anker op midden onder"). Two different content types need their OWN
+  matching Bestiary convention, not one borrowed for both — `SpeakerPortrait` now bottom-anchors, matching
+  `CreatureSprite` exactly.
+- **Sync loosened**: conversation start now waits for the world clock's next BEAT (`nextBeatStartTime`,
+  `worldClock.js`), not the next full MEASURE — Han: "start op eerste tel van maat is te streng, start
+  gewoon op eerst volgende beat". Auto-continue between pages still waits for the fuller measure boundary
+  (unchanged — Han didn't loosen that one).
+- **Triangle indicator reinstated**: Han wants it after all (an earlier round substituted the AUTO toggle
+  instead). `DialogueBox.jsx`'s `MorePagesIndicator` — a small bouncing triangle, bottom-right of the text
+  column, shown when the hook's `hasNextPage` is true.
+- **Typewriter speed**: 2× → 4× (Han: "doe nog maar 2x sneller...! voelt traag" — stacked on the earlier
+  2×). Still layered on #923's shared `clickMsForBpm`, not a second formula.
+- **Tone pools generalized**: `conversationTypewriter.js`'s tone selection used to assume a diatonic
+  C/D/E-plus-octave triad (`octave` param). Han: "japanese musician: koto. gebruik de IN toonladder, dus
+  noten C4 Db4 en F4 (met zelfde kansverhouding)" — the koto's IN-scale notes aren't a simple octave shift of
+  C/D/E. `buildTypewriterSchedule`/`pickWeightedTone` now take an explicit `tonePool` (`{note, weight}[]`)
+  per entity, defined in `conversationEntities.js` (wisp: C5/D5/E5 70/25/5; Japanese Musician: koto,
+  C4/D♭4/F4 70/25/5 — new `ethnic` instrument category + `--cat-ethnic` CSS var, GM program #108).
+
+**Invariants (updated):** `openEntityDialogue` is the ONE walk-then-open-dialogue helper in
+`useRpgLevelState.js` — new open-world speakers reuse it, don't hand-roll a second copy. `DIALOGUE_SCALE` is
+the ONE scale constant for the whole dialogue box — don't reintroduce a per-speaker multiplier on top of it.
+
+**Files:** `src/App.jsx`, `src/hooks/useRpgLevelState.js`, `src/hooks/useConversationDialogue.js`,
+`src/components/character/RpgLevelPanel.jsx`, `src/components/character/RpgLevelBottomPanel.jsx`,
+`src/components/character/DialogueBox.jsx`, `src/audio/conversationTypewriter.js` (+ tests),
+`src/audio/conversationEntities.js`, `src/audio/worldClock.js`, `src/model/conversationContent.js`,
+`src/constants/instruments.jsx` (koto + `ethnic` category), `src/styles/App.css` (`--cat-ethnic`).

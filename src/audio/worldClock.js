@@ -21,3 +21,13 @@ export function nextMeasureStartTime(context, bpm, timeSignature) {
     const now = context.currentTime;
     return Math.ceil(now / spm) * spm;
 }
+
+// #922 follow-up (Han 2026-08-12, "start op eerste tel van maat is te streng, start gewoon op eerst
+// volgende 'beat' (dus kwartnoot)"): the same grid, one beat granularity instead of a full measure — used
+// for the conversation's OWN start (auto-continue between pages still waits for the fuller measure
+// boundary, unchanged).
+export function nextBeatStartTime(context, bpm) {
+    const spb = secondsPerBeat(bpm);
+    const now = context.currentTime;
+    return Math.ceil(now / spb) * spb;
+}

@@ -38,7 +38,7 @@ import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS, WIZARD_URL, WIZARD_CROP, WIZARD_
 import { findCreatureByName } from './model/bestiaryAssets';
 import useConversationInstruments from './hooks/useConversationInstruments';
 import useConversationDialogue from './hooks/useConversationDialogue';
-import { LOREM_IPSUM_PARAGRAPHS, WIZARD_VICTORY_LINES } from './model/conversationContent';
+import { WIZARD_VICTORY_LINES, NPC_GREETING_LINES, SLIME_DEFEAT_LINES } from './model/conversationContent';
 import LevelStartSplash from './components/levels/LevelStartSplash';
 import LevelPausePopup from './components/levels/LevelPausePopup';
 import SubHeader from './components/layout/SubHeader';
@@ -1508,33 +1508,53 @@ const App = () => {
     // own defensive fix (never miss-score a measure with no real expected root).
     const twoHandedActive = level.active && !level.done && !!level.current?.twoHanded;
     // #864 (Han 2026-08-10, "in het portret staat het portret van de enemy (wizard), en anders een groene
-    // slime"): the level-result dialogue box's speaker portrait — the level's own enemyType decides which
-    // (SheetRpgLayer's combat rendering already treats Wizard as the one special case among enemy types;
-    // every other current type is Slime-shaped, so "wizard, else green slime" covers them all today).
-    const levelResultPortrait = level.current?.enemyType === 'Wizard'
-        ? { url: WIZARD_URL, crop: WIZARD_CROP, cellW: WIZARD_FRAME.w, cellH: WIZARD_FRAME.h }
-        : { url: SLIME_COLORS.green, crop: SLIME_CROP, cellW: SLIME_FRAME.w, cellH: SLIME_FRAME.h };
+    // slime") + #922 round 2 (Han: "level 11 heeft een wizard enemy, ik verwacht het portret te zien. zelfde
+    // bij levels met echte vijanden, toon portret of sprite. bijvoorbeeld bij sakura wil ik de japanese
+    // musician zien... enkel slime bij geen npc enemy"): the earlier Wizard/Slime-only binary missed TWO
+    // other level fields that also mean "there's a real speaker here, not just a slime" — a level's own
+    // named decorative NPC (`npc`, e.g. Sakura's "Japanese Musician" — resolved via the SAME
+    // `findCreatureByName` SheetRpgLayer already uses to render it in-level, §6c/§6d) and `decorativeWizard`
+    // (a green wizard standing beside, even though the actual combat `enemyType` might still be Slime —
+    // Level 11). Priority: named npc > decorativeWizard/Wizard enemyType > default green slime (no real or
+    // decorative NPC at all).
+    const levelResultSpeaker = useMemo(() => {
+        const lv = level.current;
+        const npcName = lv?.npc;
+        if (npcName) {
+            const variant = findCreatureByName(npcName);
+            if (variant) return { kind: 'npc', entity: npcName, variant };
+        }
+        if (lv?.decorativeWizard || lv?.enemyType === 'Wizard') return { kind: 'wizard', entity: 'wizard' };
+        return { kind: 'slime', entity: 'slime' };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [level.current?.id]);
+    const levelResultPortrait = levelResultSpeaker.kind === 'npc'
+        ? { url: levelResultSpeaker.variant.url, crop: levelResultSpeaker.variant.crop, cellW: levelResultSpeaker.variant.frame.w, cellH: levelResultSpeaker.variant.frame.h }
+        : levelResultSpeaker.kind === 'wizard'
+            ? { url: WIZARD_URL, crop: WIZARD_CROP, cellW: WIZARD_FRAME.w, cellH: WIZARD_FRAME.h }
+            : { url: SLIME_COLORS.green, crop: SLIME_CROP, cellW: SLIME_FRAME.w, cellH: SLIME_FRAME.h };
     // #922 (Han 2026-08-12, "de wizard heeft een portret, toon het portret niet de sprite"): the Wizard's
     // OWN dedicated Bestiary portrait (a DIFFERENT asset than the in-combat sprite crop above), shown
-    // instead of the sprite for the post-combat conversation. The green slime has no dedicated portrait, so
-    // it keeps using its sprite crop (`levelResultPortrait` above) exactly as before.
-    const isWizardEnemy = level.current?.enemyType === 'Wizard';
-    const wizardDedicatedPortrait = useMemo(() => (isWizardEnemy ? findCreatureByName('Wizard') : null), [isWizardEnemy]);
-    const levelResultEntity = isWizardEnemy ? 'wizard' : 'slime';
-    // #922 ("de slime vertelt het volledige lorem ipsum, met paginatie" / wizard gets a short victory line):
-    // memoized on the level id so a re-render mid-conversation doesn't reshuffle the content underneath it.
-    const levelResultPages = useMemo(
-        () => (isWizardEnemy
-            ? [WIZARD_VICTORY_LINES[Math.floor(Math.random() * WIZARD_VICTORY_LINES.length)]]
-            : LOREM_IPSUM_PARAGRAPHS),
+    // instead of the sprite for the post-combat conversation. Neither the slime nor Sakura's Japanese
+    // Musician has a dedicated portrait, so both keep using their sprite crop (`levelResultPortrait` above).
+    const wizardDedicatedPortrait = useMemo(() => (levelResultSpeaker.kind === 'wizard' ? findCreatureByName('Wizard') : null), [levelResultSpeaker.kind]);
+    // #922 round 2 (Han: "je hebt nu de lorem ipsum op de slime van het level gezet, maar ik wou die op de
+    // slime van de RPG-wereld"): post-combat now gets a short line per speaker kind — the full lorem ipsum
+    // moved to the open-world slime (useRpgLevelState.js's `clickSlime`). Memoized on the level id so a
+    // re-render mid-conversation doesn't reshuffle the content underneath it.
+    const levelResultPages = useMemo(() => {
+        const pool = levelResultSpeaker.kind === 'wizard' ? WIZARD_VICTORY_LINES
+            : levelResultSpeaker.kind === 'npc' ? NPC_GREETING_LINES
+                : SLIME_DEFEAT_LINES;
+        return [pool[Math.floor(Math.random() * pool.length)]];
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [level.current?.id, isWizardEnemy],
-    );
+    }, [level.current?.id, levelResultSpeaker.kind]);
     // #922: ONE shared instrument cache for the whole app's conversation system (§6c) — created here so
-    // both this post-combat dialogue AND RpgLevelBottomPanel's wisp dialogue (passed down via TabView)
-    // reuse the SAME lazily-loaded Soundfont instances instead of loading ocarina/marimba/xylophone twice.
+    // both this post-combat dialogue AND RpgLevelBottomPanel's wisp/slime dialogue (passed down via
+    // TabView) reuse the SAME lazily-loaded Soundfont instances instead of loading ocarina/marimba/
+    // xylophone/koto twice.
     const getConversationProfile = useConversationInstruments(context);
-    const levelResultProfile = getConversationProfile(levelResultEntity);
+    const levelResultProfile = getConversationProfile(levelResultSpeaker.entity);
     const levelResultDialogue = useConversationDialogue({
         pages: levelResultPages, active: characterScreen === 'levelResult' && !!level.current,
         context, bpm, timeSignature, profile: levelResultProfile,
@@ -2891,6 +2911,7 @@ const App = () => {
                             onClick={levelResultDialogue.handleTextClick}
                             autoContinue={rpgLevel.autoContinue}
                             onToggleAutoContinue={rpgLevel.toggleAutoContinue}
+                            hasMorePages={levelResultDialogue.hasNextPage}
                         />
                     </div>
                 ) : (

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LEVEL_MIN_X as LDTK_MIN_X, LEVEL_MAX_X as LDTK_MAX_X, ENTITY_WORLD_X } from '../levels/ldtk/ldtkWorld';
+import { LOREM_IPSUM_PARAGRAPHS } from '../model/conversationContent';
 
 // #693 (Han 2026-08-04, RPG Level tab round 2): the movement/pet/NPC-dialogue state for the RPG Level
 // preview tab. Lives in its own hook (mirrors `useBestiaryEditor`'s pattern) so the SAME state can be read
@@ -60,8 +61,14 @@ const clampToLevel = (x) => Math.min(LEVEL_MAX_X, Math.max(LEVEL_MIN_X, x));
 const DEFAULT_PLAYER_X = ENTITY_WORLD_X.Hero ?? -150;
 const DEFAULT_PET_X = ENTITY_WORLD_X.Pet ?? (DEFAULT_PLAYER_X - PET_FOLLOW_GAP);
 const DEFAULT_NPC_X = ENTITY_WORLD_X.Wisp ?? 0;
+// #922 (Han 2026-08-12, "je hebt nu de lorem ipsum op de slime van het level gezet, maar ik wou die op de
+// slime van de RPG-wereld"): the DECORATIVE open-world slime (RpgLevelPanel's `WorldSlime`, standing at the
+// `.ldtk` file's own Slime entity marker) — a different sprite from SheetRpgLayer's real in-song combat
+// slimes. Falls back to a fixed spot if the marker is ever missing, same convention as the Wisp/Hero/Pet
+// defaults above.
+const DEFAULT_SLIME_X = ENTITY_WORLD_X.Slime ?? 200;
 
-export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
+export default function useRpgLevelState({ npcX = DEFAULT_NPC_X, slimeX = DEFAULT_SLIME_X } = {}) {
     const [playerX, setPlayerX] = useState(DEFAULT_PLAYER_X);
     const [petX, setPetX] = useState(DEFAULT_PET_X);
     const [facing, setFacing] = useState(1);          // 1 = right, -1 = left
@@ -80,9 +87,11 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
     const petXRef = useRef(petX); petXRef.current = petX;
     const facingRef = useRef(facing); facingRef.current = facing;
     // #922 (Han: "weglopen sluit het gesprek") — read inside the movement tick loop below (mounted once,
-    // `[]` deps) without needing `dialogue`/`npcX` in that effect's dependency array.
+    // `[]` deps) without needing `dialogue`/the entity's X in that effect's dependency array. Set whenever
+    // ANY dialogue opens (wisp OR the open-world slime — see `openEntityDialogue` below), so "walking away
+    // closes it" works for either speaker, not just the wisp.
     const dialogueRef = useRef(dialogue); dialogueRef.current = dialogue;
-    const npcXRef = useRef(npcX); npcXRef.current = npcX;
+    const dialogueAnchorXRef = useRef(npcX);
     const petFollowingRef = useRef(false);
     // Perf fix (Han 2026-08-06, "hakkelig beeld... te veel geladen?"): `moving`/`petMoving` used to be set
     // UNCONDITIONALLY every rAF tick (60/sec) even while standing still, which re-invokes App.jsx's render
@@ -135,16 +144,29 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
     // the movement rAF loop's arrival-epsilon check to fire on the very next tick. Explicitly branching on
     // distance up front removes that indirection (and the "sometimes doesn't open" inconsistency) entirely:
     // already close enough -> open immediately; otherwise walk there first, then open on arrival.
-    const clickNpc = useCallback(() => {
+    // #922: shared "walk to X (if needed), then open a dialogue" logic — reused by BOTH the wisp and the
+    // open-world slime below, so the walk-then-open fix only lives in ONE place (§6c).
+    const openEntityDialogue = useCallback((entityX, entity, pages, walkStopOffset = 24) => {
         setDialogue(null);
+        dialogueAnchorXRef.current = entityX;
+        const open = () => setDialogue({ pages, entity });
+        if (Math.abs(playerXRef.current - entityX) <= NPC_TALK_RANGE) open();
+        else moveTo(entityX - walkStopOffset, open);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [moveTo]);
+
+    const clickNpc = useCallback(() => {
         const line = WISP_LINES[Math.floor(Math.random() * WISP_LINES.length)];
         // #922: `dialogue.pages` is an array (one paragraph per page) so the SAME shape covers both a
-        // single-line NPC (wisp: one page) and a multi-paragraph one (slime's lorem ipsum, App.jsx).
-        const open = () => setDialogue({ pages: [line], entity: 'wisp' });
-        if (Math.abs(playerXRef.current - npcX) <= NPC_TALK_RANGE) open();
-        else moveTo(npcX - 24, open);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [npcX, moveTo]);
+        // single-line NPC (wisp: one page) and a multi-paragraph one (the open-world slime's lorem ipsum).
+        openEntityDialogue(npcX, 'wisp', [line]);
+    }, [npcX, openEntityDialogue]);
+
+    // #922 (Han: "je hebt nu de lorem ipsum op de slime van het level gezet, maar ik wou die op de slime van
+    // de RPG-wereld"): the open-world DECORATIVE slime — click it to hear the full lorem ipsum, paginated.
+    const clickSlime = useCallback(() => {
+        openEntityDialogue(slimeX, 'slime', LOREM_IPSUM_PARAGRAPHS);
+    }, [slimeX, openEntityDialogue]);
 
     // Single rAF loop drives player velocity (keys OR walk-to-target), facing, and the pet's delayed follow.
     useEffect(() => {
@@ -176,7 +198,7 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
                 setPlayerX(playerXRef.current);
                 // #922 (Han: "weglopen sluit het gesprek") — only relevant while actually moving (distance
                 // to the NPC can only grow on a tick where the player moved).
-                if (dialogueRef.current && Math.abs(playerXRef.current - npcXRef.current) > NPC_TALK_RANGE) {
+                if (dialogueRef.current && Math.abs(playerXRef.current - dialogueAnchorXRef.current) > NPC_TALK_RANGE) {
                     setDialogue(null);
                 }
             } else {
@@ -211,7 +233,7 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
 
     return {
         playerX, petX, facing, moving, running, petMoving, dialogue, setDialogue,
-        closeDialogue: () => setDialogue(null), moveTo, clickNpc, setHeldDirection,
+        closeDialogue: () => setDialogue(null), moveTo, clickNpc, clickSlime, setHeldDirection,
         autoContinue, toggleAutoContinue: () => setAutoContinue((a) => !a),
     };
 }

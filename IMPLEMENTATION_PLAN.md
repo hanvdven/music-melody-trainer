@@ -7,6 +7,38 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-12 — ✅ #922 UAT round: npc-aware post-combat, wereld-slime lorem ipsum, 2.5x box, anchor-fix, koto
+
+Han's UAT feedback op §213: level 11 (decorativeWizard) en Sakura (npc "Japanese Musician") toonden geen
+portret/sprite; lorem ipsum stond op de verkeerde slime; het vak was te klein; slime-anchor inconsistent met
+bestiary; sync te streng; driehoekje alsnog gewenst; typewriter nog trager dan gewenst; koto/IN-toonladder
+voor de Japanese Musician.
+
+Gefixt:
+
+- `App.jsx`: `levelResultSpeaker` resolver — npc-veld > decorativeWizard/Wizard-enemyType > default slime.
+  Post-combat toont nu portret/sprite per resolved speaker; lorem ipsum eruit, korte regel erin.
+- `useRpgLevelState.js`: `openEntityDialogue` gedeelde helper (wisp + nieuwe `clickSlime`), lorem ipsum nu
+  op de RPG-wereld-slime (`RpgLevelPanel.jsx`'s `WorldSlime`, nu klikbaar); weglopen-check gebruikt de
+  daadwerkelijk geopende entiteit's positie, niet hardcoded wisp-X.
+- `DialogueBox.jsx`: `DIALOGUE_SCALE = 2.5` (hele vak, niet alleen wizard-portret — die 2x-multiplier is
+  ingetrokken, iedereen deelt nu dezelfde boxgrootte); `SpeakerPortrait` bottom-center geankerd (matcht
+  Bestiary's `CreatureSprite`-conventie voor sprite-crops, i.p.v. de portret-conventie die alleen voor
+  DEDICATED portretten klopt); driehoekje-indicator terug.
+- `worldClock.js`: `nextBeatStartTime` — sync nu op eerstvolgende beat i.p.v. eerstvolgende maat.
+- `useConversationDialogue.js`: TYPEWRITER_SPEED_MULTIPLIER 2 → 4.
+- `conversationTypewriter.js`/`conversationEntities.js`: `octave` → generieke `tonePool` (nodig voor koto's
+  IN-toonladder C4/D♭4/F4, geen simpele octaafverschuiving); nieuwe `ethnic`-instrumentcategorie + koto
+  (GM #108) toegevoegd aan `instruments.jsx` + `--cat-ethnic` in `App.css` (test ving de ontbrekende CSS-var
+  op: `categoryColorVar` heeft een expliciete registratie per categorie, geen automatische afleiding).
+
+Geverifieerd: `npm run test:run` (707/707), lint (0 errors), build groen. `docs/architecture.md` §214
+toegevoegd.
+
+Nog open (nieuw, apart aan te pakken): wereld-achtergrondmuziek (fluit+acoustic_bass, C majeur, bpm 100,
+2 maten, 2/3 kans stilte per blok) — vraagt een interview vóór implementatie (raakt de generation-pipeline,
+CLAUDE.md §6b/§4b).
+
 ## 2026-08-12 — ✅ #922 Conversation system: wereldklok, paginatie, auto-continue, post-combat wired up
 
 Vervolg op de wisp-slice hieronder. Han: "de range van de wisp mag twee octaven omhoog. Verhoog het tempo
