@@ -111,6 +111,10 @@ export const INSTRUMENT_GROUPS = [
             { name: 'oboe', group: 'wind', slug: 'oboe', family: 'wind' },
             { name: 'flute', group: 'wind', slug: 'flute', family: 'wind' },
             { name: 'harmonica', group: 'wind', slug: 'harmonica', family: 'wind' },
+            // #922 (Han 2026-08-12, RPG conversation system: "wisp: ocarina" — confirmed present in the GM
+            // soundfont set the app already loads from (gleitz.github.io/midi-js-soundfonts), program #80
+            // "Ocarina", same 'pipe' family as flute/piccolo/recorder — just never added as a playable option).
+            { name: 'ocarina', group: 'wind', slug: 'ocarina', family: 'wind' },
         ],
     },
     {
@@ -213,6 +217,7 @@ const SLUG_TO_ICON = {
     oboe: 'bassoon',
     flute: 'flute',
     harmonica: 'harmonica',             // real asset restored from origin/main (Han 2026-06-22)
+    ocarina: 'flute',                   // PLACEHOLDER — TODO(icons8): real ocarina asset icons8-ocarina-100.png
     // percussion tuned
     marimba: 'xylophone',
     vibraphone: 'xylophone',            // Han 2026-06-22: use xylophone icon

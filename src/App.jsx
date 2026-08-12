@@ -2872,6 +2872,7 @@ const App = () => {
                     instruments={instruments}
                     manualInstruments={manualInstruments}
                     context={context}
+                    timeSignature={timeSignature}
                     scale={scale}
                     activeClef={activeClef}
                     handleInputTestNote={handleNoteInputCombat}

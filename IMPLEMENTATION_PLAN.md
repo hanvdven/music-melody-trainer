@@ -7,6 +7,35 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-12 — 🔨 #922 Conversation system: musical typewriter engine + wisp slice (partial)
+
+Bouwde de kern van het "gesprekken animeren op de metronoom" systeem (zie BACKLOG/kanban #922 voor de
+volledige oorspronkelijke spec). Klaar in deze pass:
+
+- `src/audio/conversationTypewriter.js` (+ tests): per-teken click-schema — spatie stil maar telt mee, komma
+  = +2 stille clicks, punt = snap naar volgende beat, hoofdletters/leestekens = C3, kleine letters =
+  gewogen C3/D3/E3 (70/25/5).
+- `src/hooks/useConversationTypewriter.js`: rAF/`context.currentTime`-gedreven reveal (zelfde techniek als
+  `useDebugMetronome`), `clickMs` komt uit #923's `clickMsForBpm`. `skip()` maakt de pagina in één klik af.
+- `src/hooks/useConversationInstruments.js`: entiteit→instrument routing (wisp=ocarina, slime=marimba,
+  wizard=xylophone, default=marimba). `ocarina` toegevoegd aan `src/constants/instruments.jsx` (bestond nog
+  niet als optie, wél beschikbaar in de soundfont — Han bevestigd: "zou in soundfont moeten zitten, dus voeg
+  gewoon toe aan de lijst").
+- Wisp volledig doorontwikkeld: 5 random zinnen (wisselende lengte), click-to-walk-then-talk race gefixed
+  (expliciete 128px-afstandscheck i.p.v. impliciet op de arrival-epsilon leunen), weglopen sluit het gesprek.
+
+Nog NIET gedaan (blijft op #922 in `impl`, niet naar `test`):
+
+- Wizard post-combat gesprek (auto-trigger na `onSlimesCleared`) — gebruikt de nieuwe `DedicatedPortrait`
+  uit de eerdere portret-scaling bugfix (zie hieronder), maar de caller zelf is er nog niet.
+- Slime-in-level klik → volledige lorem ipsum met RPG-paginatie (bewegend driehoekje rechtsonder, sync met
+  wereldmetronoom).
+- Eigen zachte metronoomklik tijdens het gesprek + wachten op eerstvolgende maat-beat vóór start (het
+  systeem start nu meteen, zonder wachten).
+
+Geverifieerd: `npm run test:run` (706/706), `npm run lint` (0 errors), `npm run build` groen.
+`docs/architecture.md` §213 toegevoegd (expliciet gemarkeerd als PARTIAL).
+
 ## 2026-08-12 — 🐞✅ #922 Bug: dialogue-box portrait schaal inconsistent (slime te groot) + wizard portret
 
 Han: "check ook of die dialogue box zelfde schaal heeft als het portret. momenteel zie ik

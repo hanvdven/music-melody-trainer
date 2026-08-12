@@ -104,6 +104,7 @@ const TabView = ({
     setDifficultyProgression,
     bpm,
     setBpm,
+    timeSignature,
     generateChords,
     setScale,
     targetHarmonicDifficulty,
@@ -158,7 +159,7 @@ const TabView = ({
                 )}
                 {characterScreen === 'stats' && <StatsBottomPanel />}
                 {characterScreen === 'bestiary' && <BestiaryBottomPanel editor={bestiaryEditor} />}
-                {characterScreen === 'rpg-level' && <RpgLevelBottomPanel rpgLevel={rpgLevel} />}
+                {characterScreen === 'rpg-level' && <RpgLevelBottomPanel rpgLevel={rpgLevel} context={context} bpm={bpm} timeSignature={timeSignature} />}
             </div>
         );
     }

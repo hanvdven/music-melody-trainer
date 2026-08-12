@@ -26,6 +26,23 @@ const PET_FOLLOW_GAP = 64;
 // gap drops back under the trigger distance — hysteresis (`petFollowingRef` below), not a single threshold.
 const PET_CLOSE_ENOUGH = 10;
 const ARRIVE_EPSILON = 4;
+// #922 (Han 2026-08-12, "op de wisp klikken: loop erheen (indien >128 px verwijderd), en start daarna
+// gesprek"): explicit threshold — within this range the conversation opens immediately (no walk-then-arrive
+// indirection at all), otherwise walk first. Also reused as the "walking away closes the conversation"
+// distance (Han: "weglopen sluit het gesprek", no distinct value given — same 128px reads naturally as
+// "still close enough to be talking to it").
+const NPC_TALK_RANGE = 128;
+
+// #922 (Han: "wisp: geef een uit 5 random zinnen, als je erop klikt. Sommige korter, sommige langer."):
+// varying length on purpose — the typewriter reveal (useConversationTypewriter) reads noticeably different
+// at 3 words vs a full sentence, so a flat "5 near-identical lines" wouldn't actually exercise that.
+const WISP_LINES = [
+    'Hello there!',
+    'Have you seen my friends? They wandered off again.',
+    'The music keeps me warm, you know.',
+    'Careful, the slimes bite.',
+    'I like the way you play.',
+];
 
 // #RAM-level (Han 2026-08-10): the walkable world's bounds are now derived from `RAM level.ldtk`'s own
 // level width (ldtkWorld.js), centered on x=0 like the original hand-tuned -1600..1600 span was — NOT a
@@ -59,6 +76,10 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
     const playerXRef = useRef(playerX); playerXRef.current = playerX;
     const petXRef = useRef(petX); petXRef.current = petX;
     const facingRef = useRef(facing); facingRef.current = facing;
+    // #922 (Han: "weglopen sluit het gesprek") — read inside the movement tick loop below (mounted once,
+    // `[]` deps) without needing `dialogue`/`npcX` in that effect's dependency array.
+    const dialogueRef = useRef(dialogue); dialogueRef.current = dialogue;
+    const npcXRef = useRef(npcX); npcXRef.current = npcX;
     const petFollowingRef = useRef(false);
     // Perf fix (Han 2026-08-06, "hakkelig beeld... te veel geladen?"): `moving`/`petMoving` used to be set
     // UNCONDITIONALLY every rAF tick (60/sec) even while standing still, which re-invokes App.jsx's render
@@ -105,10 +126,18 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
     }, []);
 
     // #693 ("Zet de whisp NPC neer. Als ik daarop klik loopt personage erheen, en verschijnt een
-    // tekstballon"): clicking the NPC walks the player to it, then opens the dialogue once arrived.
+    // tekstballon") + #922 fix (Han: "op de wisp klikken: loop erheen (indien >128 px verwijderd), en start
+    // daarna gesprek (nu opent het gesprek niet altijd consistent)"): the OLD version always went through
+    // moveTo()'s walk-then-arrive callback, even when already standing right next to the NPC — relying on
+    // the movement rAF loop's arrival-epsilon check to fire on the very next tick. Explicitly branching on
+    // distance up front removes that indirection (and the "sometimes doesn't open" inconsistency) entirely:
+    // already close enough -> open immediately; otherwise walk there first, then open on arrival.
     const clickNpc = useCallback(() => {
         setDialogue(null);
-        moveTo(npcX - 24, () => setDialogue({ text: 'Hello there!' }));
+        const line = WISP_LINES[Math.floor(Math.random() * WISP_LINES.length)];
+        const open = () => setDialogue({ text: line, entity: 'wisp' });
+        if (Math.abs(playerXRef.current - npcX) <= NPC_TALK_RANGE) open();
+        else moveTo(npcX - 24, open);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [npcX, moveTo]);
 
@@ -140,6 +169,11 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
                 playerXRef.current = clampToLevel(playerXRef.current + vx * speed * dt);
                 if (vx !== facingRef.current) { facingRef.current = vx; setFacing(vx); }
                 setPlayerX(playerXRef.current);
+                // #922 (Han: "weglopen sluit het gesprek") — only relevant while actually moving (distance
+                // to the NPC can only grow on a tick where the player moved).
+                if (dialogueRef.current && Math.abs(playerXRef.current - npcXRef.current) > NPC_TALK_RANGE) {
+                    setDialogue(null);
+                }
             } else {
                 movingSinceRef.current = null;
                 if (runningRef.current) { runningRef.current = false; setRunning(false); }
