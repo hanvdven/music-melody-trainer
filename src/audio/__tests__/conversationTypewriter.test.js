@@ -58,4 +58,11 @@ describe('conversationTypewriter (#922)', () => {
         expect(pickLowercaseTone(() => 0.96)).toBe('E3');
         expect(pickLowercaseTone(() => 0.999)).toBe('E3');
     });
+
+    it('an entity-specific octave (e.g. the wisp\'s +2) shifts every tone, not just some', () => {
+        expect(pickLowercaseTone(() => 0, 5)).toBe('C5');
+        expect(pickLowercaseTone(() => 0.96, 5)).toBe('E5');
+        const schedule = buildTypewriterSchedule('A,b.', 4, { octave: 5, rand: () => 0 });
+        expect(schedule.every((e) => e.tone == null || e.tone.endsWith('5'))).toBe(true);
+    });
 });

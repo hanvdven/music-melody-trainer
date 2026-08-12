@@ -1,9 +1,7 @@
 import React from 'react';
 import { PET_CROP } from './CharacterDoll';
 import DialogueBox from './DialogueBox';
-import useConversationInstruments from '../../hooks/useConversationInstruments';
-import useConversationTypewriter from '../../hooks/useConversationTypewriter';
-import { clickMsForBpm } from '../sheet-music/SheetRpgLayer';
+import useConversationDialogue from '../../hooks/useConversationDialogue';
 import wispUrl from '../../assets/ASSORTED/characters/animals/pets/GandalfHardcore Pet companion/GandalfHardcore Wisp.png';
 
 // #693/#864 (Han 2026-08-04 → 2026-08-10): the pixel-art dialogue box originally built for the RPG-world
@@ -17,17 +15,14 @@ import wispUrl from '../../assets/ASSORTED/characters/animals/pets/GandalfHardco
 // factor" — 256 is a clean power-of-2 multiple of the 32px pixel-art grid every sprite here is drawn on).
 //
 // #922 (Han 2026-08-12, "conversation system"): the dialogue text is now revealed character-by-character
-// with a musical "typewriter" (useConversationTypewriter, #923's tempo-scaled clickMs), played on the
-// wisp's own instrument (ocarina — useConversationInstruments). Clicking while the reveal animation is
-// still running instantly completes it (Han: "klikken tijdens tekst-animatie maakt de hele teksbubbel in
-// een keer af"); clicking again once fully shown closes the conversation.
-export default function RpgLevelBottomPanel({ rpgLevel, context, bpm, timeSignature }) {
-    const { dialogue, closeDialogue } = rpgLevel;
-    const getConversationInstrument = useConversationInstruments(context);
-    const clickMs = clickMsForBpm(bpm, timeSignature);
-    const instrument = dialogue ? getConversationInstrument(dialogue.entity) : null;
-    const { visibleText, done, skip } = useConversationTypewriter({
-        text: dialogue?.text ?? '', clickMs, context, instrument, active: !!dialogue,
+// with a musical "typewriter" (useConversationDialogue, orchestrating #923's tempo-scaled clickMs, the
+// entity's own instrument+octave, the world-clock start-of-measure sync, and an own soft metronome click).
+export default function RpgLevelBottomPanel({ rpgLevel, context, bpm, timeSignature, instruments, getConversationProfile }) {
+    const { dialogue, closeDialogue, autoContinue, toggleAutoContinue } = rpgLevel;
+    const profile = dialogue ? getConversationProfile(dialogue.entity) : null;
+    const { visibleText, handleTextClick } = useConversationDialogue({
+        pages: dialogue?.pages, active: !!dialogue, context, bpm, timeSignature, profile,
+        metronomeInstrument: instruments?.metronome, autoContinue, onClosed: closeDialogue,
     });
 
     if (!dialogue) {
@@ -41,7 +36,8 @@ export default function RpgLevelBottomPanel({ rpgLevel, context, bpm, timeSignat
         <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
             <DialogueBox
                 portraitUrl={wispUrl} portraitCrop={PET_CROP} text={visibleText}
-                onClick={done ? closeDialogue : skip}
+                onClick={handleTextClick}
+                autoContinue={autoContinue} onToggleAutoContinue={toggleAutoContinue}
             />
         </div>
     );

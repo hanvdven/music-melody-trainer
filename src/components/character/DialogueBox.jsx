@@ -79,9 +79,33 @@ function DedicatedPortrait({ url, cell, frame }) {
     );
 }
 
+// #922 (Han 2026-08-12, "zet rechts van de tekstbox een toggler (in pixel art stijl): auto-continue"): a
+// small pixel-art switch, matching the dialogue box's own chrome (square corners, `var(--text-primary)`
+// border, HabboPixel font) — rendered as a sibling to the box, not inside it, so it stays a fixed control
+// regardless of the box's own height (64px vs the wizard's 128px dedicated-portrait row).
+export function AutoContinueToggle({ on, onToggle }) {
+    return (
+        <button
+            onClick={onToggle}
+            style={{
+                marginLeft: 10, minWidth: 56, alignSelf: 'stretch', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: 4, cursor: 'pointer',
+                background: on ? 'var(--text-primary)' : 'var(--panel-bg)',
+                color: on ? 'var(--panel-bg)' : 'var(--text-primary)',
+                border: '3px solid var(--text-primary)', borderRadius: 0, imageRendering: 'pixelated',
+                fontFamily: 'HabboPixel, monospace', padding: '4px 6px',
+            }}
+        >
+            <span style={{ fontSize: 10, letterSpacing: 1 }}>AUTO</span>
+            <span style={{ fontSize: 14 }}>{on ? 'ON' : 'OFF'}</span>
+        </button>
+    );
+}
+
 export default function DialogueBox({
     portraitUrl, portraitCrop, portraitCellW, portraitCellH, portraitRow, portraitCol,
     dedicatedPortraitUrl, dedicatedPortraitCell, dedicatedPortraitFrame, text, onClick,
+    autoContinue, onToggleAutoContinue,
 }) {
     // #922 (Han 2026-08-12): a speaker with its OWN dedicated portrait (wizard) renders at 2x scale, which
     // grows the whole row height to match — every other speaker (wisp/slime, sprite-crop mode) keeps the
@@ -90,19 +114,22 @@ export default function DialogueBox({
     return (
         <>
             <style>{`@font-face { font-family: 'HabboPixel'; src: url('${habboFontUrl}') format('truetype'); }`}</style>
-            <div onClick={onClick} style={{
-                display: 'flex', alignItems: 'stretch', height: rowHeight,
-                background: 'var(--panel-bg)', border: '3px solid var(--text-primary)', borderRadius: 0,
-                cursor: onClick ? 'pointer' : 'default', imageRendering: 'pixelated',
-            }}>
-                {dedicatedPortraitUrl
-                    ? <DedicatedPortrait url={dedicatedPortraitUrl} cell={dedicatedPortraitCell} frame={dedicatedPortraitFrame} />
-                    : <SpeakerPortrait url={portraitUrl} crop={portraitCrop} cellW={portraitCellW} cellH={portraitCellH} row={portraitRow} col={portraitCol} />}
-                <div style={{ width: TEXT_WIDTH, display: 'flex', alignItems: 'center', padding: '0 14px' }}>
-                    <span style={{ fontFamily: 'HabboPixel, monospace', fontSize: 18, lineHeight: 1.4, color: 'var(--text-primary)' }}>
-                        {text}
-                    </span>
+            <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                <div onClick={onClick} style={{
+                    display: 'flex', alignItems: 'stretch', height: rowHeight,
+                    background: 'var(--panel-bg)', border: '3px solid var(--text-primary)', borderRadius: 0,
+                    cursor: onClick ? 'pointer' : 'default', imageRendering: 'pixelated',
+                }}>
+                    {dedicatedPortraitUrl
+                        ? <DedicatedPortrait url={dedicatedPortraitUrl} cell={dedicatedPortraitCell} frame={dedicatedPortraitFrame} />
+                        : <SpeakerPortrait url={portraitUrl} crop={portraitCrop} cellW={portraitCellW} cellH={portraitCellH} row={portraitRow} col={portraitCol} />}
+                    <div style={{ width: TEXT_WIDTH, display: 'flex', alignItems: 'center', padding: '0 14px' }}>
+                        <span style={{ fontFamily: 'HabboPixel, monospace', fontSize: 18, lineHeight: 1.4, color: 'var(--text-primary)' }}>
+                            {text}
+                        </span>
+                    </div>
                 </div>
+                {onToggleAutoContinue && <AutoContinueToggle on={autoContinue} onToggle={onToggleAutoContinue} />}
             </div>
         </>
     );

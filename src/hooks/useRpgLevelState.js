@@ -68,7 +68,10 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
     const [moving, setMoving] = useState(false);
     const [running, setRunning] = useState(false);
     const [petMoving, setPetMoving] = useState(false);
-    const [dialogue, setDialogue] = useState(null);    // { text } | null
+    const [dialogue, setDialogue] = useState(null);    // { pages: string[], entity } | null — #922
+    // #922 (Han: "zet rechts van de tekstbox een toggler: auto-continue"): one shared toggle preference for
+    // every conversation in this RPG-level session (wisp, and App.jsx's post-combat wizard/slime).
+    const [autoContinue, setAutoContinue] = useState(false);
 
     const keysRef = useRef({ left: false, right: false });
     const targetRef = useRef(null);                   // world x the player is walking toward (click/tap/NPC)
@@ -135,7 +138,9 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
     const clickNpc = useCallback(() => {
         setDialogue(null);
         const line = WISP_LINES[Math.floor(Math.random() * WISP_LINES.length)];
-        const open = () => setDialogue({ text: line, entity: 'wisp' });
+        // #922: `dialogue.pages` is an array (one paragraph per page) so the SAME shape covers both a
+        // single-line NPC (wisp: one page) and a multi-paragraph one (slime's lorem ipsum, App.jsx).
+        const open = () => setDialogue({ pages: [line], entity: 'wisp' });
         if (Math.abs(playerXRef.current - npcX) <= NPC_TALK_RANGE) open();
         else moveTo(npcX - 24, open);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,5 +209,9 @@ export default function useRpgLevelState({ npcX = DEFAULT_NPC_X } = {}) {
         return () => cancelAnimationFrame(raf);
     }, []);
 
-    return { playerX, petX, facing, moving, running, petMoving, dialogue, closeDialogue: () => setDialogue(null), moveTo, clickNpc, setHeldDirection };
+    return {
+        playerX, petX, facing, moving, running, petMoving, dialogue, setDialogue,
+        closeDialogue: () => setDialogue(null), moveTo, clickNpc, setHeldDirection,
+        autoContinue, toggleAutoContinue: () => setAutoContinue((a) => !a),
+    };
 }

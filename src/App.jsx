@@ -35,6 +35,10 @@ import LevelSplash from './components/levels/LevelSplash';
 import TwoHandedKeyboardPanel from './components/levels/TwoHandedKeyboardPanel';
 import DialogueBox from './components/character/DialogueBox';
 import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS, WIZARD_URL, WIZARD_CROP, WIZARD_FRAME } from './model/enemyAssets';
+import { findCreatureByName } from './model/bestiaryAssets';
+import useConversationInstruments from './hooks/useConversationInstruments';
+import useConversationDialogue from './hooks/useConversationDialogue';
+import { LOREM_IPSUM_PARAGRAPHS, WIZARD_VICTORY_LINES } from './model/conversationContent';
 import LevelStartSplash from './components/levels/LevelStartSplash';
 import LevelPausePopup from './components/levels/LevelPausePopup';
 import SubHeader from './components/layout/SubHeader';
@@ -1510,6 +1514,32 @@ const App = () => {
     const levelResultPortrait = level.current?.enemyType === 'Wizard'
         ? { url: WIZARD_URL, crop: WIZARD_CROP, cellW: WIZARD_FRAME.w, cellH: WIZARD_FRAME.h }
         : { url: SLIME_COLORS.green, crop: SLIME_CROP, cellW: SLIME_FRAME.w, cellH: SLIME_FRAME.h };
+    // #922 (Han 2026-08-12, "de wizard heeft een portret, toon het portret niet de sprite"): the Wizard's
+    // OWN dedicated Bestiary portrait (a DIFFERENT asset than the in-combat sprite crop above), shown
+    // instead of the sprite for the post-combat conversation. The green slime has no dedicated portrait, so
+    // it keeps using its sprite crop (`levelResultPortrait` above) exactly as before.
+    const isWizardEnemy = level.current?.enemyType === 'Wizard';
+    const wizardDedicatedPortrait = useMemo(() => (isWizardEnemy ? findCreatureByName('Wizard') : null), [isWizardEnemy]);
+    const levelResultEntity = isWizardEnemy ? 'wizard' : 'slime';
+    // #922 ("de slime vertelt het volledige lorem ipsum, met paginatie" / wizard gets a short victory line):
+    // memoized on the level id so a re-render mid-conversation doesn't reshuffle the content underneath it.
+    const levelResultPages = useMemo(
+        () => (isWizardEnemy
+            ? [WIZARD_VICTORY_LINES[Math.floor(Math.random() * WIZARD_VICTORY_LINES.length)]]
+            : LOREM_IPSUM_PARAGRAPHS),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [level.current?.id, isWizardEnemy],
+    );
+    // #922: ONE shared instrument cache for the whole app's conversation system (§6c) — created here so
+    // both this post-combat dialogue AND RpgLevelBottomPanel's wisp dialogue (passed down via TabView)
+    // reuse the SAME lazily-loaded Soundfont instances instead of loading ocarina/marimba/xylophone twice.
+    const getConversationProfile = useConversationInstruments(context);
+    const levelResultProfile = getConversationProfile(levelResultEntity);
+    const levelResultDialogue = useConversationDialogue({
+        pages: levelResultPages, active: characterScreen === 'levelResult' && !!level.current,
+        context, bpm, timeSignature, profile: levelResultProfile,
+        metronomeInstrument: instruments?.metronome, autoContinue: rpgLevel.autoContinue,
+    });
     const twoHandedBass = useTwoHandedBass({
         active: twoHandedActive,
         context,
@@ -2854,7 +2884,13 @@ const App = () => {
                             portraitCrop={levelResultPortrait.crop}
                             portraitCellW={levelResultPortrait.cellW}
                             portraitCellH={levelResultPortrait.cellH}
-                            text="Woah, you beat me...!"
+                            dedicatedPortraitUrl={wizardDedicatedPortrait?.portraitUrl}
+                            dedicatedPortraitCell={wizardDedicatedPortrait?.portraitCell}
+                            dedicatedPortraitFrame={wizardDedicatedPortrait?.portraitFrame}
+                            text={levelResultDialogue.visibleText}
+                            onClick={levelResultDialogue.handleTextClick}
+                            autoContinue={rpgLevel.autoContinue}
+                            onToggleAutoContinue={rpgLevel.toggleAutoContinue}
                         />
                     </div>
                 ) : (
@@ -2873,6 +2909,7 @@ const App = () => {
                     manualInstruments={manualInstruments}
                     context={context}
                     timeSignature={timeSignature}
+                    getConversationProfile={getConversationProfile}
                     scale={scale}
                     activeClef={activeClef}
                     handleInputTestNote={handleNoteInputCombat}

@@ -13876,60 +13876,96 @@ animation-cadence `animBeatMs` — the two must not be conflated (see the in-cod
 `src/components/character/RpgLevelPanel.jsx` (open-world pet/wisp/slime tick now reuses the shared formula).
 Kanban ticket #923; #922 (conversation system) depends on this (`f-f`) for its own typing cadence.
 
-### §213. RPG conversation system — musical typewriter dialogue, wisp slice (#922, Han 2026-08-12) — PARTIAL
+### §213. RPG conversation system — musical typewriter dialogue, world-clock sync, pagination (#922, Han 2026-08-12)
 
 **Purpose:** Han: "ik wil de gesprekken animeren; op de centrale metronoom... elk karakter wordt apart
-'opgeschreven', en duurt 1/16 tel... spaties krijgen geen toon. komma = 1/8 tel. punt = wacht tot
-eerstvolgende kwart tel op metronoom." A per-character "typewriter" dialogue reveal, musically scored, tied
-to #923's tempo-scaled cadence rather than a literal 1/16 note (Han confirmed: conversation clicks use the
-SAME tempo-scaled beat as sprite animation, not a literal 16th note — see §212's `CLICKS_PER_BEAT`).
+'opgeschreven'... spaties krijgen geen toon. komma = 1/8 tel. punt = wacht tot eerstvolgende kwart tel op
+metronoom." A per-character "typewriter" dialogue reveal, musically scored, tied to #923's tempo-scaled
+cadence (conversation clicks use the SAME tempo-scaled beat as sprite animation, not a literal 16th note —
+§212's `CLICKS_PER_BEAT`), running at 2× that cadence (Han, follow-up: "verhoog het tempo van de typewriter
+clicks met een factor twee"), synced to a world clock, with pagination and an auto-continue toggle.
 
 **How it works:**
 - `src/audio/conversationTypewriter.js` — pure, unit-tested scheduling: `buildTypewriterSchedule(text,
-  clicksPerBeat)` walks each character and assigns it a `clickOffset` (space: silent, still 1 click; comma:
-  its own click + 2 silent clicks; period: its own click, then the schedule snaps forward to the next
-  `clicksPerBeat` boundary). Tone selection: uppercase + any punctuation → C3; lowercase → weighted random
-  C3/D3/E3 (70/25/5), via `pickLowercaseTone`.
-- `src/hooks/useConversationTypewriter.js` — drives one page of text against `context.currentTime` via an
-  rAF loop edge-triggered exactly like `useDebugMetronome.js` (§6c/§6d — not a second hand-rolled clock),
-  using `clickMs = clickMsForBpm(bpm, timeSignature)` from §212. Plays each character's tone via the
-  canonical `playSound()` helper (`src/audio/playSound.js`) the instant its `clickOffset` is crossed.
-  Exposes `{ visibleText, done, skip }` — `skip()` (Han: "klikken tijdens tekst-animatie maakt de hele
-  tekstbubbel in een keer af") jumps straight to the full page text, silently, without playing the
-  remaining tones.
-- `src/hooks/useConversationInstruments.js` — lazily-created, cached `Soundfont` instances for the fixed
-  entity→instrument roster (wisp=ocarina, slime=marimba, wizard=xylophone, default=marimba), reusing the
-  same `Soundfont` construction technique `useInstruments.js` uses for the melody-generation roles (§6d).
-  `ocarina` added as a new playable instrument (`src/constants/instruments.jsx`) — GM soundfont program #80,
-  already served by the same CDN (`gleitz.github.io/midi-js-soundfonts`) every other instrument loads from;
-  it had simply never been added to the app's own instrument list before.
-- **Wisp wired up end-to-end** (`RpgLevelBottomPanel.jsx`, `useRpgLevelState.js`): 1-of-5 random sentences of
-  varying length (Han: "sommige korter, sommige langer"); the previous walk-then-open race ("nu opent het
-  gesprek niet altijd consistent") is fixed by branching explicitly on distance — within `NPC_TALK_RANGE`
-  (128px) the dialogue opens immediately, otherwise the hero walks there first, then opens (no longer
-  relying on the movement loop's arrival-epsilon converging exactly through a walk that may already be
-  moot); the SAME 128px threshold closes the dialogue if the player walks away (Han: "weglopen sluit het
-  gesprek").
+  clicksPerBeat, { octave, rand })` walks each character and assigns it a `clickOffset` (space: silent,
+  still 1 click; comma: its own click + 2 silent clicks; period: its own click, then the schedule snaps
+  forward to the next `clicksPerBeat` boundary). Tone selection: uppercase + any punctuation → `C{octave}`;
+  lowercase → weighted random `C/D/E{octave}` (70/25/5), via `pickLowercaseTone`. `octave` (default 3) is
+  per-entity (see `conversationEntities.js` below) — the wisp's is 3+2=5 (Han: "de range van de wisp mag
+  twee octaven omhoog").
+- `src/audio/worldClock.js` — a stable, ALWAYS-ticking beat/measure grid derived purely from
+  `context.currentTime` (which starts at 0 when the AudioContext is created and only increases) plus
+  bpm/timeSignature — `secondsPerBeat`, `secondsPerMeasure`, `nextMeasureStartTime`. Deliberately NOT
+  anchored to "whenever some toggle was flipped on" (that's what `useDebugMetronome.js`'s LOCAL click track
+  does — re-anchoring on every toggle flip would make ITS grid drift; this is a separate, always-consistent
+  primitive). Han: "in het RPG-level is een wereldklok" — this file IS that clock; reuse it (§6c) rather than
+  re-deriving a second beat grid anywhere else in the RPG layer.
+- `src/audio/conversationEntities.js` — single source of truth for the per-entity audio profile (instrument
+  slug + pitch octave): wisp=ocarina/octave 5, slime=marimba/octave 3, wizard=xylophone/octave 3,
+  default=marimba/octave 3.
+- `src/hooks/useConversationInstruments.js` — lazily-created, cached `Soundfont` instances (§6d, same
+  construction technique `useInstruments.js` uses for the melody-generation roles) PLUS a cached `{
+  instrument, octave }` profile object per entity — the caching is load-bearing, not just an optimization:
+  `useConversationDialogue`'s reveal effect depends on `profile`'s IDENTITY, and returning a fresh object
+  literal on every call would restart the typewriter on every parent re-render (App.jsx re-renders ~60x/sec
+  while the hero is moving). `ocarina` added as a new playable instrument (`src/constants/instruments.jsx`)
+  — GM soundfont program #80, already served by the same CDN every other instrument loads from; it had
+  simply never been added to the app's own instrument list before. ONE shared instance of this hook lives in
+  App.jsx (`getConversationProfile`) and is threaded down through `TabView` to `RpgLevelBottomPanel`, so the
+  wisp dialogue and the post-combat wizard/slime dialogue reuse the SAME Soundfont instances instead of
+  loading ocarina/marimba/xylophone twice.
+- `src/hooks/useConversationDialogue.js` — orchestrates one full PAGINATED conversation: per-page reveal
+  (rAF loop edge-triggered against `context.currentTime`, same technique as `useDebugMetronome.js`, §6c/§6d),
+  the conversation's own soft metronome click (Han: "speel tijdens het afspelen ook de metronoom af op mp
+  volume" — plays every real beat via `instruments.metronome` + `resolveNotePitch`, at `velocity ≈ 0.5×127`,
+  completely independent of the user's/debug metronome toggle), world-clock-synced start (ONLY the first
+  page of a fresh conversation waits for `nextMeasureStartTime` — Han: "zorg dat het gesprek begint op de
+  start van een maat"), and auto-continue between pages (Han: "wacht minimaal 1 tel, en tot begin volgende
+  maat" — `Math.max(now + 1 beat, nextMeasureStartTime)`). Exposes `{ visibleText, pageDone, pageIndex,
+  totalPages, hasNextPage, handleTextClick }` — `handleTextClick` (Han: "klikken in tekstvak voltooit
+  onmiddellijk de huidige paragraaf") completes the current page instantly if still animating, otherwise
+  manually advances to the next page (or closes, on the last page) — this works independently of whether
+  auto-continue is on.
+- `DialogueBox.jsx`'s new `AutoContinueToggle` — a small pixel-art switch (square corners, `HabboPixel`
+  font, `var(--text-primary)` border, same chrome language as the box itself) rendered as a sibling to the
+  right of the box (Han: "zet rechts van de tekstbox een toggler"). One shared `autoContinue` preference per
+  RPG-level session, owned by `useRpgLevelState.js`, used by BOTH the wisp dialogue and the post-combat
+  wizard/slime dialogue.
+- `dialogue` state shape is now `{ pages: string[], entity }` (was `{ text, entity }`) — one array entry per
+  paragraph/page, so the SAME shape covers a single-line NPC (wisp: one-element array) and a multi-paragraph
+  one (slime's lorem ipsum) without a separate code path.
 
-**NOT yet implemented (deferred, tracked on ticket #922 — do not treat this ticket as done):**
-- Post-combat wizard conversation (auto-trigger on `onSlimesCleared`), using the new `DedicatedPortrait`
-  mode added to `DialogueBox.jsx` in the §922 portrait-scale bugfix (see the dated 2026-08-12
-  `IMPLEMENTATION_PLAN.md` entry) — the wizard caller itself still needs to be built.
-- In-level slime click → full lorem ipsum with RPG-style pagination (bouncing bottom-right triangle
-  indicator synced to the world metronome, click-to-advance/click-to-skip-page). The typewriter engine above
-  is single-page only so far; pagination (splitting text into pages that fit the 256×64 text box, and the
-  triangle indicator) is new work on top of it.
-- The "own dedicated soft metronome click, independent of the user's main metronome toggle" (Han's design
-  answer) and the "wait for the next measure's first beat before starting" sync gate — the wisp slice starts
-  immediately with no measure-wait and no extra click track; both are deferred to when the world-metronome
-  concept (currently only `RpgLevelPanel.jsx`'s local, debug-only `metronomeOn` toggle) is threaded through
-  to this dialogue system.
+**Wired up (three call sites):**
 
-**Invariants:** the typewriter's clickMs MUST come from `clickMsForBpm` (§212) — never a second, independently
-tuned typing speed. Entity→instrument routing lives in ONE place (`useConversationInstruments.js`) — do not
-add per-caller instrument slug literals elsewhere.
+- **Wisp** (`RpgLevelBottomPanel.jsx`, `useRpgLevelState.js`, open-world RPG-level tab): 1-of-5 random
+  sentences of varying length; the previous walk-then-open race ("nu opent het gesprek niet altijd
+  consistent") fixed by branching explicitly on distance — within `NPC_TALK_RANGE` (128px) the dialogue
+  opens immediately, otherwise the hero walks there first, then opens; the SAME 128px threshold closes the
+  dialogue if the player walks away (Han: "weglopen sluit het gesprek").
+- **Post-combat wizard/slime** (`App.jsx`, the existing `characterScreen === 'levelResult'` DialogueBox,
+  #864): the wizard now shows its OWN dedicated Bestiary portrait (`findCreatureByName('Wizard')`, the
+  `DedicatedPortrait` mode added in the earlier §922 portrait-scale bugfix) at 2× scale, with a short
+  victory line (`WIZARD_VICTORY_LINES`, `src/model/conversationContent.js`); the green slime keeps its
+  sprite-crop portrait and speaks the full lorem ipsum, paginated by PARAGRAPH (`LOREM_IPSUM_PARAGRAPHS`,
+  same file — Han's own word "paragraaf" is literally the page unit, no text-fit measurement needed). This
+  screen was ALREADY the auto-trigger-on-combat-end mechanism (#864's `levelResult` screen) — no new trigger
+  logic needed, only the dialogue content/rendering was upgraded.
 
-**Files:** `src/audio/conversationTypewriter.js` (+ `__tests__`), `src/hooks/useConversationTypewriter.js`,
-`src/hooks/useConversationInstruments.js`, `src/hooks/useRpgLevelState.js`, `src/components/character/
-RpgLevelBottomPanel.jsx`, `src/components/layout/TabView.jsx`, `src/App.jsx` (prop threading),
-`src/constants/instruments.jsx` (ocarina added). Kanban ticket #922 (still `impl`, not `test` — partial).
+**Deliberately not built:** a bouncing/animated "more text" triangle indicator — superseded by the
+`AutoContinueToggle` + `hasNextPage`/`totalPages`/`pageIndex` already exposed by the hook; a future indicator
+can read those without any engine change.
+
+**Invariants:** the typewriter's base clickMs MUST come from `clickMsForBpm` (§212), with the 2× multiplier
+applied on top (never re-derived independently). The world clock (`worldClock.js`) is the ONE beat/measure
+grid for the RPG layer's conversation system — do not anchor a second one to an arbitrary "toggle-on" time.
+Entity→instrument/octave routing lives in ONE place (`conversationEntities.js`) — do not add per-caller
+literals elsewhere. `useConversationInstruments`'s profile cache identity is load-bearing — do not return a
+fresh object literal per call if this hook is ever refactored.
+
+**Files:** `src/audio/conversationTypewriter.js` (+ `__tests__`), `src/audio/worldClock.js`,
+`src/audio/conversationEntities.js`, `src/model/conversationContent.js`, `src/hooks/useConversationDialogue.js`
+(replaces the earlier single-page `useConversationTypewriter.js`, now deleted), `src/hooks/
+useConversationInstruments.js`, `src/hooks/useRpgLevelState.js`, `src/components/character/
+RpgLevelBottomPanel.jsx`, `src/components/character/DialogueBox.jsx` (`AutoContinueToggle`), `src/components/
+layout/TabView.jsx`, `src/App.jsx` (levelResult wiring + prop threading), `src/constants/instruments.jsx`
+(ocarina added). Kanban ticket #922.

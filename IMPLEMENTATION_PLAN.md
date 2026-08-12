@@ -7,6 +7,37 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-12 — ✅ #922 Conversation system: wereldklok, paginatie, auto-continue, post-combat wired up
+
+Vervolg op de wisp-slice hieronder. Han: "de range van de wisp mag twee octaven omhoog. Verhoog het tempo
+van de typewriter clicks met een factor twee. voeg nog twee features toe: klikken in tekstvak voltooit
+onmiddellijk de huidige paragraaf. zet rechts van de tekstbox een toggler (pixel art stijl): auto-continue...
+In het RPG-level is een wereldklok. Zorg dat het gesprek begint op de start van een maat. implementeer de
+rest."
+
+Gebouwd:
+
+- `src/audio/worldClock.js`: stabiele beat/maat-grid op `context.currentTime` (geen toggle-afhankelijke
+  anker) — `nextMeasureStartTime` gebruikt om ELKE conversatie te laten starten op de eerstvolgende maat.
+- `src/audio/conversationEntities.js`: entiteit→instrument+octaaf profiel (wisp nu octaaf 5 = 3+2).
+- `useConversationDialogue.js` (vervangt `useConversationTypewriter.js`): pagina-orkestratie, 2x
+  typewriter-snelheid (bovenop #923's clickMsForBpm, geen aparte formule), eigen zachte metronoomklik op mp
+  volume, auto-continue (wacht >= 1 tel EN tot volgende maat), klik = pagina direct afmaken of doorgaan.
+- `DialogueBox.jsx`: nieuwe `AutoContinueToggle` (pixel art stijl, rechts van de tekstbox).
+- Post-combat (App.jsx's bestaande `levelResult`-scherm, al de auto-trigger na combat): wizard toont nu zijn
+  eigen dedicated portret (2x schaal) met een korte overwinningsregel; groene slime vertelt de volledige
+  lorem ipsum, gepagineerd per paragraaf (`src/model/conversationContent.js`).
+- Bugfix onderweg: `getConversationProfile` gaf elke render een NIEUW object terug, wat de typewriter bij
+  elke re-render van App.jsx zou resetten (App re-rendert ~60x/sec tijdens beweging) — nu gecached per
+  entiteit zodat de referentie stabiel blijft.
+
+Bewust niet gebouwd: het bewegende driehoekje-indicator uit de originele spec — vervangen door de
+AutoContinueToggle + `hasNextPage`/`totalPages`/`pageIndex` die de hook al blootlegt; een indicator kan daar
+later op bouwen zonder de engine te wijzigen.
+
+Geverifieerd: `npm run test:run` (707/707), lint (0 errors), build groen. `docs/architecture.md` §213
+bijgewerkt (niet langer PARTIAL).
+
 ## 2026-08-12 — 🔨 #922 Conversation system: musical typewriter engine + wisp slice (partial)
 
 Bouwde de kern van het "gesprekken animeren op de metronoom" systeem (zie BACKLOG/kanban #922 voor de
