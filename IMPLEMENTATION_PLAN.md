@@ -4526,3 +4526,78 @@ hostile AND (flying/ground/water)"
   unit test conditioneel geskipt zolang de constante 0 is.
 - architecture.md §223 bijgewerkt. `npm run test:run`/`lint`/`build` groen (1
   vooraf-bestaande, ongerelateerde ldtkWorld.test.js failure blijft staan).
+
+## #955 — App boot slowness diagnostic + offline instruments (Han 2026-08-13)
+
+Han: "run a diagnostic why the app boots slowly... let's go for the robust
+solution. I have a full version of FluidR3_GM.sf2 available offline... would
+not be even better to download the full smplr package?"
+
+- ✅ vite.config.js: unbounded GitHub-API `fetch()` (PR-number auto-detect) now
+  has a 2s timeout — could previously stall `npm run dev` from starting.
+- ✅ HMR WebSocket 400 in Codespaces fixed (`server.hmr.clientPort=443`, gated
+  on `CODESPACES=true`, zero effect on local/non-Codespaces dev).
+- ✅ HTTP/2 dev server via `@vitejs/plugin-basic-ssl` — removes the ~6-per-origin
+  connection queueing a HAR capture showed costing up to 2.7s of `blocked` time.
+- ✅ Offline melodic instruments: `scripts/extract-soundfont-samples.mjs`
+  extracts local WAV samples for all 35 picker instruments + woodblock/timpani
+  from Han's local FluidR3_GM.sf2 → `public/samples/Instruments/`. New
+  `createMelodicInstrument()` (localInstruments.js) is now the single local-
+  vs-CDN decision point, wired into ALL 6 call sites that create melodic
+  Soundfont instances (previously only useInstruments.js checked). Verified
+  live: 0 CDN requests at boot, 0 decode errors, build/test/lint green.
+  Han confirmed: "instrument klinken prima" (2026-08-13).
+- 🐞 Han (2026-08-13): "drum pads werken niet zo goed (zoals de tr808)" — the
+  GM percussion kits (`standard`/`electronic`/`jazz`, picked via the
+  percussion instrument dropdown) still load from the CDN (`Soundfont`, not
+  `DrumMachine`/local) and were never in this ticket's scope (only the 35
+  MELODIC picker instruments were extracted). FreePats Percussion (the
+  default, local) works fine per Han. Not urgent per Han — logged, not fixed.
+- ⏳ Sprite/character asset migration to `public/` — confirmed via HAR the
+  single largest remaining boot-request contributor (~1100 of 1606 requests,
+  eager `import.meta.glob` in bestiaryAssets.js/characterAssets.js/
+  enemyAssets.js). Approved by Han ("let's go for the robust solution") but
+  not yet started.
+- architecture.md §224 written. `npm run test:run`/`lint`/`build` green (1
+  pre-existing unrelated ldtkWorld.test.js failure, predates this session).
+
+## #955 follow-up — sprite migration to public/ (Han 2026-08-13, "de grote eerst")
+
+- ✅ `characters/` + `fx/` (933 PNGs) moved from `src/assets/ASSORTED` to `public/ASSORTED` —
+  eliminates the ~1100-of-1606-request eager-glob boot cost identified in the earlier HAR capture.
+  `bestiaryAssets.js`/`characterAssets.js` rebuilt to source from a generated file list
+  (`scripts/generate-assorted-file-list.mjs`) instead of `import.meta.glob`, preserving the exact
+  same key/URL shape so zero downstream consumer logic changed.
+- 🐞 caught + fixed during verification (not shipped): a stale empty directory from a failed `git
+  mv` retry caused a later `cp -r` to double-nest `char_hero/char_hero/...`, silently emptying the
+  Character Editor's data (blank preview, 0 skin/hair options). Caught by evaluating
+  `characterAssets.js`'s runtime output directly, not just eyeballing a screenshot.
+- ✅ Verified: boot-interactive time ~9.3-10.5s → ~3.6s, `/ASSORTED/` boot requests ~1100 → 159,
+  production JS bundle 4487kB → 3665kB. Bestiary panel (311 sprites) and Character Editor (hero
+  doll + hair/skin pickers) both screenshotted and confirmed rendering correctly post-fix.
+  `npm run build`/`lint`/`test:run` green (same 1 pre-existing unrelated ldtkWorld failure).
+- ⏳ NOT migrated this pass (deferred, smaller remaining contributor): `tiles/`, `backgrounds/`,
+  `icons/`, `LDtk/` — different consumption patterns (filename-fuzzy-matching + exclusion list in
+  tilesetUrls.js; `?raw` inline-text import for the .ldtk file, which needs Vite's module graph and
+  can't move to public/ as-is).
+- architecture.md §225 written.
+
+## #925 — randomizationRule `force_chord_roots` ("roots on chord change") — ✅ impl done (Opus/high)
+
+- ✅ New rule `force_chord_roots`: `uniform` pitch selection + a FORCED chord root on every chord-segment
+  onset (passing chords included). `notesPerMeasure` is a MINIMUM for this rule — forced onsets are
+  unioned on top of the top-N ranked slots, never replacing them.
+- ✅ Reuse per §6c/§6d: `walking_bass`'s inline chord-segment IIFE extracted verbatim into a shared
+  `buildChordSegments()` helper (both rules now call it); root pitches via the existing
+  `getRootNotesInRange` (the same helper `emphasize_roots` uses).
+- ✅ Registered in `RULE_FAMILIES.random` (every selector derives from it — no per-selector edits),
+  `FIELD_ITEM_ICONS.rule` + `MELODIC_FAMILY_OF`, `getPlayStyleLabel` ("Roots on Change"),
+  `difficultyCalculator` multiplier 1.0.
+- ✅ Cello default: `LEVEL_CELLO_RULE` in `levels.js`; `LEVEL_BASS_SIMPLE` → notesPerMeasure 2 + new rule,
+  `LEVEL_BASS_DEFAULT` overrides only the rule. `defaultBassInstrumentSettings()` UNTOUCHED (plain bass
+  keeps `emphasize_roots`). Level 15's explicit `tracks.bass` override left as-is — that staff is the
+  player's visible left hand with its own didactic intro text, not the cello backing.
+- ✅ Tests: onset-root, passing-chord onset, notesPerMeasure-as-minimum, parametrised 4/4+5/4+7/8+11/8,
+  uniform-parity for non-onset slots; `useLevel.test.js` expectations updated.
+- ✅ architecture.md §226 written. `test:run` / `build` / `lint` green (same 1 pre-existing unrelated
+  ldtkWorld failure from the in-flight #955 asset migration).

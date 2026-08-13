@@ -163,7 +163,7 @@ export const FIELD_ITEM_ICONS = {
   // melody-type rule → icon (keyed by rule id). Family-level fallback handled by the overlay.
   rule: {
     // random family
-    uniform: Dices, emphasize_roots: Dices, weighted: Dices,
+    uniform: Dices, emphasize_roots: Dices, force_chord_roots: Dices, weighted: Dices,
     // arp family
     arp_up: ArrowUp, arp_down: ArrowUp, arp: ArrowUp, arp_var: ArrowUp, arp_group: ArrowUp,
     // walk family
@@ -221,7 +221,7 @@ export const SMALLEST_NOTE_LABELS = { 1: 'whole', 2: 'half', 4: 'quarter', 8: 'e
 // consecutive same-family run (random / arp / walk / fixed). #435: chords family removed
 // (pairedchord/fullchord became the separate `voices` setting).
 export const MELODIC_FAMILY_OF = {
-  uniform: 'random', emphasize_roots: 'random', weighted: 'random',
+  uniform: 'random', emphasize_roots: 'random', force_chord_roots: 'random', weighted: 'random',
   arp_up: 'arp', arp_down: 'arp', arp: 'arp', arp_var: 'arp', arp_group: 'arp',
   walking_bass: 'walk',
   fixed: 'fixed',

@@ -70,8 +70,9 @@
 // REAL InstrumentSettings/chordSettings field name directly (no separate vocabulary to learn/keep in
 // sync — §6c: reuse, don't re-invent):
 //   notePool           "scale" | "chord" | "all" | "metronome" — which notes the generator draws from.
-//   randomizationRule  "melody type": "uniform" | "emphasize_roots" | "weighted" | "arp" | "arp_var" |
-//                       "arp_group" | "fixed". arp_var/arp_group also use `maxLeap` as their span window.
+//   randomizationRule  "melody type": "uniform" | "emphasize_roots" | "force_chord_roots" | "weighted" |
+//                       "arp" | "arp_var" | "arp_group" | "fixed". arp_var/arp_group also use `maxLeap`
+//                       as their span window. force_chord_roots treats notesPerMeasure as a MINIMUM.
 //   voices             "voices" = polyphony: 1 (single-note melody, default) | 2 | 3 (every active slot
 //                       becomes a chord of that many distinct notes) | "var" (three interleaved melodies
 //                       at 100/60/40% density, coinciding onsets become chords). See InstrumentSettings.js
@@ -345,12 +346,20 @@ const byId = Object.fromEntries(levelsData.map((lvl) => [lvl.id, normalizeLevel(
 // instead of a hardcoded pattern function — Han's exact protocol: "roots on 1, 1 note per measure,
 // variability 0, smallest note denom whole, note pool c2-c3" (range later adjusted to c2-b2, same day).
 // Applied by useLevel.applyConfig.
+//
+// #925 (Han 2026-08-13, "zet voor alle liedjes de cello default op 'on chord change', en roots …
+// notes per measure = 2"): the level cello's rule is now `force_chord_roots` — it plants the chord
+// root on EVERY chord change (passing chords included) and fills the rest of the measure with the
+// usual ranked-slot priority. notesPerMeasure is a MINIMUM under that rule, so 2 means "at least
+// two notes per measure, plus a root for every extra chord change".
+export const LEVEL_CELLO_RULE = 'force_chord_roots';
+
 export const LEVEL_BASS_SIMPLE = {
-    notesPerMeasure: 1,
+    notesPerMeasure: 2,            // #925: minimum under force_chord_roots (was 1)
     smallestNoteDenom: 1,          // whole note
     rhythmVariability: 0,
     notePool: 'chord',
-    randomizationRule: 'emphasize_roots',
+    randomizationRule: LEVEL_CELLO_RULE,
     range: { min: 'C2', max: 'B2' },
 };
 
@@ -362,7 +371,10 @@ export const LEVEL_BASS_DEFAULT = {
     smallestNoteDenom: DEFAULT_BASS.smallestNoteDenom,
     rhythmVariability: DEFAULT_BASS.rhythmVariability,
     notePool: DEFAULT_BASS.notePool,
-    randomizationRule: DEFAULT_BASS.randomizationRule,
+    // #925: the LEVEL cello overrides the app's plain-bass rule. defaultBassInstrumentSettings()
+    // itself is deliberately NOT touched — a plain (non-level, non-cello) bass track keeps
+    // 'emphasize_roots'; only the level cello follows the chord changes.
+    randomizationRule: LEVEL_CELLO_RULE,
     range: DEFAULT_BASS.range,
 };
 

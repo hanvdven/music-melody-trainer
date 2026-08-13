@@ -167,13 +167,15 @@ describe('useLevel (#659 Level 1)', () => {
         const { setters, result } = setup();
         act(() => result.current.start(LEVEL2));
         expect(setters.setBassSettings.mock.calls.at(-1)[0]({})).toMatchObject({
-            instrument: 'cello', notesPerMeasure: 1, smallestNoteDenom: 1, rhythmVariability: 0,
-            notePool: 'chord', randomizationRule: 'emphasize_roots', range: { min: 'C2', max: 'B2' },
+            // #925 (Han 2026-08-13): the level cello now follows the chord changes —
+            // 'force_chord_roots' with notesPerMeasure 2 as a MINIMUM (was 1 / 'emphasize_roots').
+            instrument: 'cello', notesPerMeasure: 2, smallestNoteDenom: 1, rhythmVariability: 0,
+            notePool: 'chord', randomizationRule: 'force_chord_roots', range: { min: 'C2', max: 'B2' },
         });
 
         act(() => result.current.start(LEVEL8));
         expect(setters.setBassSettings.mock.calls.at(-1)[0]({ notesPerMeasure: 1 })).toMatchObject({
-            instrument: 'cello', notesPerMeasure: 2, randomizationRule: 'emphasize_roots',
+            instrument: 'cello', notesPerMeasure: 2, randomizationRule: 'force_chord_roots',
         });
     });
 

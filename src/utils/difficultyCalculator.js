@@ -58,6 +58,8 @@ const RANDOMIZATION_MULTIPLIER = {
   uniform:          1.2,
   weighted:         0.8,
   emphasize_roots:  1.0,
+  // #925: roots are pinned to every chord change — as predictable as emphasize_roots.
+  force_chord_roots: 1.0,
   arp_up:           1.0,
   arp_down:         1.0,
   arp:              1.0,

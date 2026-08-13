@@ -198,7 +198,8 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // (Han's original #663 instruction, from before per-level `key` existed) — for any level that ALSO
         // sets its own `key.tonic` (the vocal-range/key feature added later, §168-170), the chord
         // progression's roots stayed on C regardless, and `fixedBass: true`'s cello (which follows the
-        // chord roots via LEVEL_BASS_SIMPLE's `randomizationRule: 'emphasize_roots'`) audibly played the
+        // chord roots via LEVEL_BASS_SIMPLE's `randomizationRule` — 'emphasize_roots' then,
+        // 'force_chord_roots' since #925) audibly played the
         // WRONG key. Fix: defaults to the level's OWN `key.tonic` when set, falling back to the original
         // 'C4' only when the level has no `key` at all — levels 1-9 (no `key` field) are byte-identical.
         setters.setChordSettings?.((prev) => ({

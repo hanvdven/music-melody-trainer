@@ -29,6 +29,7 @@ export const getPlayStyleLabel = (val) => {
     const mappings = {
         'uniform': 'Uniform',
         'emphasize_roots': 'Roots',
+        'force_chord_roots': 'Roots on Change',
         'weighted': 'Weighted',
         'balanced': 'Balanced',
         'arp_up': 'Arp Up',

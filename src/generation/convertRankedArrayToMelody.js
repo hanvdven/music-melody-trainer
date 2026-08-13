@@ -10,7 +10,7 @@ import { TICKS_PER_WHOLE } from '../constants/timing.js';
  * - slot priority (top / high / low / null)
  * - chord progression & roots
  * - ARP logic (scale/chord/chromatic)
- * - uniform, emphasize roots, weighted rules
+ * - uniform, emphasize roots, force chord roots, weighted rules
  * - percussion handling
  */
 import { findBestSlot } from './proximityUtils.js';
@@ -177,6 +177,34 @@ const convertRankedArrayToMelody = (
         return progressionArray?.[measureIdx];
     };
 
+    // Build chord segments — one per chord event (respects passing chords, whose offsets are
+    // non-uniform). Falls back to one segment per measure when no offset data is available.
+    // SHARED between 'walking_bass' (segment pin/approach) and 'force_chord_roots' (forced root
+    // onsets) — extracted from walking_bass verbatim so chord-onset detection has exactly ONE
+    // implementation (CLAUDE.md §6c: reuse existing logic, never reimplement).
+    // Returns: { chord, nextChord, slotStart, slotEnd }[] in time order.
+    const buildChordSegments = () => {
+        if (chordOffsetEvents && chordOffsetEvents.length > 0 && ticksPerSlot > 0) {
+            return chordOffsetEvents.map((ev, i) => {
+                const next = chordOffsetEvents[i + 1];
+                return {
+                    chord:     ev.chord,
+                    nextChord: chordOffsetEvents[(i + 1) % chordOffsetEvents.length].chord,
+                    slotStart: Math.round(ev.offset / ticksPerSlot),
+                    slotEnd:   next ? Math.round(next.offset / ticksPerSlot) : rankedArray.length,
+                };
+            });
+        }
+        // Fallback: one segment per measure
+        const pLen = Math.max(1, progressionArray?.length ?? 0);
+        return Array.from({ length: numMeasures }, (_, m) => ({
+            chord:     progressionArray?.[m] ?? null,
+            nextChord: progressionArray?.[(m + 1) % pLen] ?? progressionArray?.[0] ?? null,
+            slotStart: m * numberOfSlotsPerMeasure,
+            slotEnd:   (m + 1) * numberOfSlotsPerMeasure,
+        }));
+    };
+
     const getPool = (source, chord) => {
         const s = (source || 'scale').toLowerCase();
         if (s === 'root') return getRootNotesInRange(chord);
@@ -193,6 +221,10 @@ const convertRankedArrayToMelody = (
     // =========================================================================
     // 2. PRIORITY ASSIGNMENT
     // =========================================================================
+    // `rule` is needed here (not just in section 2.5) because 'force_chord_roots' promotes
+    // chord-onset slots to active BEFORE activeSlotsSet is consumed downstream.
+    const rule = (randomizationRule || 'uniform').toLowerCase();
+
     const allSlots = rankedArray.map((rank, idx) => {
         let priority = null;
         if (typeof rank === 'number') {
@@ -237,6 +269,35 @@ const convertRankedArrayToMelody = (
 
     const activeSlotsSet = new Set(allSlots.filter(s => s.priority !== null).map(s => s.index));
 
+    // =========================================================================
+    // 2.1 FORCE_CHORD_ROOTS — forced root onsets (Han #925)
+    // =========================================================================
+    // 'force_chord_roots' behaves exactly like 'uniform' EXCEPT that the slot at the START of
+    // every chord segment (including passing chords) is forced ACTIVE and forced to that chord's
+    // root. Crucially the forced onsets are UNIONED on top of the top-N ranked slots — they never
+    // replace them — so for this rule `notesPerMeasure` is a MINIMUM, not a cap: a measure with
+    // more chord changes than notesPerMeasure simply sounds more notes.
+    //
+    // The slot index is derived arithmetically (round(offset / ticksPerSlot), the exact mapping
+    // walking_bass uses), so it holds for ANY meter incl. odd numerators (5/4, 7/8, 11/8) with no
+    // numerator lookup table (§6c). The ranked-array LENGTH is untouched, so nothing downstream
+    // (Melody.fromFlattenedNotes timeScale, measure slicing, tuplets) shifts.
+    const forcedRootSlots = new Map(); // slotIndex -> chord whose root must sound there
+    if (rule === 'force_chord_roots') {
+        for (const { chord, slotStart } of buildChordSegments()) {
+            if (!chord) continue;
+            // Two chord events that round onto the SAME slot (possible at a coarse
+            // smallestNoteDenom) collapse into one note — the later chord wins.
+            const idx = Math.max(0, Math.min(rankedArray.length - 1, Math.round(slotStart)));
+            forcedRootSlots.set(idx, chord);
+            const s = allSlots[idx];
+            if (s && s.priority === null) {
+                s.priority = 'top';          // downbeat-grade → gets the 0.9 volume tail below
+                activeSlotsSet.add(idx);
+            }
+        }
+    }
+
     logger.debug('convertRanked', 'active slots', {
         active: activeSlotsSet.size, total: rankedArray.length,
         top: allSlots.filter(s => s.priority === 'top').length,
@@ -256,8 +317,6 @@ const convertRankedArrayToMelody = (
     //   direction = 'up' (notes ascend toward L) | 'down' (notes descend toward L).
     //   backwards planning = walks OPPOSITE to direction, starting from L.
     //   span    = 12-semitone window around L; boundary modes: kaats (bounce) / spring (jump).
-
-    const rule = (randomizationRule || 'uniform').toLowerCase();
 
     logger.debug('convertRanked', `rule=${rule}`, {
         pool: typeof randomizationNotes === 'string' ? randomizationNotes : 'custom',
@@ -631,29 +690,9 @@ const convertRankedArrayToMelody = (
             return sorted[0]?.note ?? pickRandom(pool) ?? nextRoot;
         };
 
-        // Build chord segments — one per chord event (respects passing chords).
-        // Falls back to one segment per measure when no offset data is available.
-        const segments = (() => {
-            if (chordOffsetEvents && chordOffsetEvents.length > 0 && ticksPerSlot > 0) {
-                return chordOffsetEvents.map((ev, i) => {
-                    const next = chordOffsetEvents[i + 1];
-                    return {
-                        chord:     ev.chord,
-                        nextChord: chordOffsetEvents[(i + 1) % chordOffsetEvents.length].chord,
-                        slotStart: Math.round(ev.offset / ticksPerSlot),
-                        slotEnd:   next ? Math.round(next.offset / ticksPerSlot) : rankedArray.length,
-                    };
-                });
-            }
-            // Fallback: one segment per measure
-            const pLen = Math.max(1, progressionArray?.length ?? 0);
-            return Array.from({ length: numMeasures }, (_, m) => ({
-                chord:     progressionArray?.[m] ?? null,
-                nextChord: progressionArray?.[(m + 1) % pLen] ?? progressionArray?.[0] ?? null,
-                slotStart: m * numberOfSlotsPerMeasure,
-                slotEnd:   (m + 1) * numberOfSlotsPerMeasure,
-            }));
-        })();
+        // Chord segments — one per chord event (respects passing chords), shared with
+        // 'force_chord_roots' via the buildChordSegments helper in section 1.
+        const segments = buildChordSegments();
 
         // Tonic fallback when no chord progression is active.
         const tonicRoot  = scale.length > 0 ? scale[0] : null;
@@ -854,6 +893,14 @@ const convertRankedArrayToMelody = (
         }
         else if (rule === 'uniform') {
             selectedNote = pickRandom(pool);
+        }
+        else if (rule === 'force_chord_roots') {
+            // Chord-onset slots play that chord's root; every other slot is identical to
+            // 'uniform'. getRootNotesInRange is the SAME helper 'emphasize_roots' uses below —
+            // it filters the already range-clipped fullAvailablePool, so the octave is correct
+            // for the instrument's range without a second pitch path (§6c/§6d).
+            const roots = forcedRootSlots.has(i) ? getRootNotesInRange(forcedRootSlots.get(i)) : [];
+            selectedNote = roots.length > 0 ? pickRandom(roots) : pickRandom(pool);
         }
         else if (rule === 'emphasize_roots') {
             const roots = getRootNotesInRange(chord);

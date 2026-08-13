@@ -174,7 +174,8 @@ Walks the ranked array and assigns notes to active slots:
 - **Active slot detection:** a slot is active when its rank places it within the top `notesPerMeasure` ranks per measure.
 - **Chord lookup:** for each slot, `getActiveChord(offset)` returns the current chord from `chordProgression`.
 - **Note pool filtering:** depending on `notePool` ('scale' | 'chord' | 'all' | 'metronome'), the candidate list is filtered.
-- **Randomization rule:** one of `'uniform'`, `'emphasize_roots'`, `'weighted'`, `'arp'`, `'fixed'` — determines how a note is chosen from the candidate pool.
+- **Randomization rule:** one of `'uniform'`, `'emphasize_roots'`, `'force_chord_roots'`, `'weighted'`, `'arp'`, `'fixed'` — determines how a note is chosen from the candidate pool.
+- **`force_chord_roots` (#925, see §226):** the one rule for which "active slot detection" above is not the whole story — it UNIONS a forced active slot onto every chord-segment start (passing chords included) and pins it to that chord's root, so `notesPerMeasure` acts as a **minimum** rather than a cap.
 - **Null slots:** inactive slots remain `null`; they become continuation ticks in `Melody.fromFlattenedNotes` (see 4f).
 
 **Early-exit special cases** (before convertRankedArrayToMelody):
@@ -14447,3 +14448,245 @@ re-activates automatically once a nonzero value is restored.
 `src/hooks/useWorldAmbientMusic.js` (`BIRD_VOLUME_MULTIPLIER`),
 `src/generation/generateWorldAmbientBlock.js` (`WORLD_AMBIENT_SILENCE_CHANCE`),
 `src/generation/__tests__/generateWorldAmbientBlock.test.js` (conditional skip).
+
+### §224. Offline-first melodic instruments — extracted from a local .sf2, HTTP/2 dev server, unbounded-fetch/HMR-forwarding fixes (#955, Han 2026-08-13)
+
+**Purpose:** Diagnose and fix "the app boots slowly." Root-cause investigation (a real HAR capture
+of a boot: 1606 requests, ~9s) found three independent causes, addressed separately:
+
+1. `vite.config.js` awaited an **unbounded** `fetch()` to the GitHub API (PR-number auto-detect)
+   before the dev server bound its port — a slow/unreachable network call could stall `npm run dev`
+   from starting at all.
+2. The dev server's WebSocket HMR handshake returned HTTP 400 inside GitHub Codespaces — the
+   forwarding proxy terminates TLS on 443, so the browser's HMR client inferred the wrong target
+   port.
+3. **The dominant cost**: melodic instruments (piano, bass, guitar, cello, timpani, and every
+   instrument in the 35-slot picker) loaded from the smplr Soundfont CDN
+   (`gleitz.github.io/midi-js-soundfonts`) on every boot — a real, repeated network dependency, and
+   the reason the app doesn't work fully offline.
+
+**How it works:**
+
+- **`vite.config.js`**: the PR-number `fetch()` now carries `signal: AbortSignal.timeout(2000)` — a
+  dead lookup can never block boot beyond 2s. `server.hmr = { clientPort: 443 }` is applied only
+  when `process.env.CODESPACES === 'true'` (set by Codespaces itself, never true for local dev or a
+  plain devcontainer) — local `npm run dev` is completely unaffected.
+- **HTTP/2 dev server**: `@vitejs/plugin-basic-ssl@1.2.0` (pinned — 2.x requires Vite 6, this
+  project is on 5.4.21) gives the dev server a self-signed cert; Vite automatically upgrades to
+  `Http2SecureServer` whenever `server.https` is set and there's no `server.proxy`. HTTP/2
+  multiplexes unlimited requests over one connection, removing the browser's ~6-connections-per-
+  origin queueing that a HAR capture showed costing up to 2.7s of pure `blocked` time on the
+  slowest boot requests. One-time browser cert-trust click required per machine/profile.
+- **Offline instrument samples**: `scripts/extract-soundfont-samples.mjs` is a one-time, dev-only
+  Node script (uses the `soundfont2` npm package, a devDependency) that parses Han's local
+  `src/assets/FluidR3_GM.sf2` (148MB, not committed) and, for every GM instrument this app actually
+  uses (the 35-slug picker in `src/constants/instruments.jsx`, plus `woodblock` and `timpani` which
+  are used outside the picker), extracts a sparse set of representative note samples (~3-4
+  semitones apart, matching the density real sample libraries use) as small mono 16-bit WAV files
+  under `public/samples/Instruments/<slug>/`. It writes a generated manifest,
+  `src/audio/localInstrumentBuffers.generated.js` (`EXTRACTED_INSTRUMENT_BUFFERS`), consumed by
+  `src/audio/localInstruments.js`'s `LOCAL_INSTRUMENT_BUFFERS`. Re-run the script (never hand-edit
+  the generated file) if the instrument roster or the source `.sf2` changes.
+- **`createMelodicInstrument(context, slug, options)`** (`src/audio/localInstruments.js`) is the
+  single decision point for "local sample vs CDN Soundfont" — returns a `Sampler` (local WAVs) when
+  `LOCAL_INSTRUMENT_BUFFERS[slug]` exists, else falls back to `Soundfont` (CDN). Every place in the
+  app that creates a one-off melodic instrument now calls this instead of duplicating the check:
+  `useInstruments.js` (the user's actual treble/bass/chords/metronome track instruments),
+  `App.jsx` (timpani/cello/wizard-preview dedicated refs), `playInstrumentPreview.js` (instrument
+  picker preview), `useConversationInstruments.js` (NPC dialogue notes), `useWorldAmbientMusic.js`
+  (world ambient piano/bird layers). Before this ticket, only `useInstruments.js` had the
+  local/CDN check, so the app still hit the CDN from five other places even when every instrument
+  was available locally.
+
+**Root-key resolution (why this doesn't sound detuned):** SF2 zones frequently carry an unreliable
+`sample.header.originalPitch` (this soundfont's piano sets it to a constant 60 regardless of the
+zone's real recorded note) — the spec-correct root note is the zone's `OverridingRootKey` generator
+when present, else `originalPitch`. `CoarseTune`/`FineTune` generators plus the sample's own
+`pitchCorrection` add a small cents offset, folded into the nearest-semitone label the sample is
+saved under (no PCM resampling is performed) — the same sub-semitone approximation inherent to any
+sample player interpolating between recorded notes, which this app's CDN-based instruments already
+relied on. Loop points are intentionally not extracted (`Sampler` has no per-sample loop API, and
+neither did the CDN instruments) — sustained notes play through with an envelope, same as before.
+
+**Invariants:**
+- `#` must never appear in a filename served from `public/` — verified empirically that Vite's dev
+  server fails to serve `#`-containing filenames regardless of percent-encoding (the browser/server
+  both treat unescaped `#` as a URL fragment separator early enough that encoding doesn't help).
+  Sharp notes are written to disk as `Fs1.wav` etc.; the buffer map *key* stays `"F#1"` (smplr's own
+  note-name parsing expects the literal `#`) — only the on-disk filename/URL avoids it.
+- Every new one-off melodic `Soundfont`/`Sampler` instantiation must go through
+  `createMelodicInstrument`, never construct `Soundfont`/`Sampler` directly (§6c/§6d) — that is what
+  keeps "local vs CDN" a single decision instead of a per-call-site special case.
+- The `basicSsl()` Vite plugin only mutates `server`/`preview` config; it must never affect
+  `vite build`'s actual bundling (verified: build output identical size/chunking before and after).
+
+**Files:** `vite.config.js` (fetch timeout, Codespaces HMR, `basicSsl()`), `package.json`
+(`@vitejs/plugin-basic-ssl`, `soundfont2` devDependencies), `scripts/extract-soundfont-samples.mjs`
+(new), `src/audio/localInstrumentBuffers.generated.js` (new, generated),
+`src/audio/localInstruments.js` (`createMelodicInstrument`), `src/hooks/useInstruments.js`,
+`src/App.jsx`, `src/audio/playInstrumentPreview.js`, `src/hooks/useConversationInstruments.js`,
+`src/hooks/useWorldAmbientMusic.js` (all switched to `createMelodicInstrument`),
+`public/samples/Instruments/**` (new, 325+ generated WAV files, ~38MB).
+
+**Not yet done (tracked, same ticket):** the sprite/character asset pipeline
+(`src/model/bestiaryAssets.js`, `characterAssets.js`, `enemyAssets.js` and others) still uses eager
+`import.meta.glob` — confirmed via HAR to be ~1100 of the 1606 boot requests, the single largest
+remaining contributor. A migration to `public/`-served static assets was requested (Han: "let's go
+for the robust solution") but not yet implemented in this session.
+
+### §225. Sprite asset migration to public/ — characters/+fx/ eager glob elimination (#955, Han 2026-08-13)
+
+**Purpose:** §224 fixed the network-dependency half of "app boots slowly." A HAR capture after
+that fix still showed the app taking ~9-10s to become interactive, dominated by ~1100 of 1606 boot
+requests — every PNG under `src/assets/ASSORTED/characters/**` and `fx/**`, individually resolved
+via eager `import.meta.glob(pattern, { eager: true, query: '?url', import: 'default' })` calls in
+`bestiaryAssets.js` and `characterAssets.js`. ES module semantics require every static import to
+resolve before the importing module's code runs — so React could not render ANYTHING until all
+~1100 files round-tripped the dev server, regardless of how few were actually on screen.
+
+**How it works:**
+- `public/ASSORTED/characters/` and `public/ASSORTED/fx/` (moved from `src/assets/ASSORTED/`, git
+  history preserved via `git mv`/detected renames) are now served as flat static files, entirely
+  outside Vite's module graph — a URL is just a fixed string (`/ASSORTED/<relPath>`), fetched only
+  when a sprite is actually painted (an `<img>`/canvas/CSS `background-image` reference), not at
+  module-evaluation time.
+- `scripts/generate-assorted-file-list.mjs` (new) walks `public/ASSORTED/{characters,fx}` and
+  writes `src/model/assortedFileList.generated.js` (`ASSORTED_FILES: string[]`, relative to
+  `public/ASSORTED/`) — this replaces the glob's *file-discovery* role (which files exist), since
+  `import.meta.glob` cannot see into `public/` at all.
+- `bestiaryAssets.js`'s `SHEETS` and `characterAssets.js`'s `CHAR_FILES`/`EFFECT_FILES`/`PET_FILES`
+  are now built from `ASSORTED_FILES` (filtered by prefix) instead of a glob call, but constructed
+  to have the **exact same `{relPath: url} shape and key format`** (e.g.
+  `'../assets/ASSORTED/characters/...'` as the key, `'/ASSORTED/characters/...'` as the value) the
+  old glob produced — every downstream consumer (regex-based path extraction in
+  `categorizeCharFile`, the hundreds of hand-tuned suffix-matching overrides in
+  `generate-bestiary-manifest.mjs`) needed **zero changes**.
+- `generate-bestiary-manifest.mjs`'s `ROOT` now points at `public/ASSORTED/characters` (only the
+  scan root changed — the `relPath` STRING TEMPLATE it writes into the manifest is untouched
+  literal text, so re-running it produced a **byte-identical** `bestiaryManifest.generated.js`,
+  verified via diff before committing to a full regen).
+- `RpgLevelBottomPanel.jsx`'s one static `import wispUrl from '...characters/...png'` became a
+  plain string constant (public/ files can't be statically imported as ES modules).
+- `tiles/`, `backgrounds/`, `icons/`, and `LDtk/` (RAM level.ldtk + its Tiled export) intentionally
+  **stayed** in `src/assets/ASSORTED` — smaller eager-glob counts, plus genuinely different
+  consumption patterns (`tilesetUrls.js`'s filename-only fuzzy matching across an exclusion list;
+  `ldtkWorld.js`'s `?raw` inline-text import, which only works inside Vite's module graph, not
+  `public/`) that would need separate, more careful handling. Left as a follow-up if further boot
+  savings are wanted.
+
+**Bug caught during verification (not shipped broken):** an earlier failed `git mv` attempt (some
+subfolders under `characters/` were transiently locked, apparently by AV/indexer activity, and had
+to be retried via `cp` + `rm` instead) left a stale empty `public/ASSORTED/characters/char_hero/`
+directory from a prior partial attempt; a subsequent `cp -r .../char_hero public/ASSORTED/characters/char_hero`
+copied INTO that existing empty directory rather than replacing it (`cp -r`'s standard behavior
+when the destination already exists), producing a `characters/char_hero/char_hero/...` double-
+nested path that silently broke every hero-avatar file lookup (`characterAssets.js`'s `RAW` ended
+up empty, so `basesFor('skin', ...)` returned zero results, and the Character Editor's preview
+rendered as a blank black square). Caught by directly evaluating `characterAssets.js`'s runtime
+output in a live Playwright session (`basesFor('skin','male').length === 0`) rather than trusting
+the boot screenshot alone — the main sheet-music view looked fine throughout, since it doesn't
+touch this code path. Fixed by copying the nested nested contents back up one level and
+regenerating the file list; re-verified `skinBasesCount: 10`, a real `200 image/png` fetch, and a
+visually correct hero doll + Bestiary panel (311 sprites rendering) before treating this as done.
+
+**Measured result** (HAR-equivalent Playwright capture, same machine, before vs. after):
+- Boot-time `interactive` (boot-splash removal): **~9.3-10.5s → ~3.6s**
+- `/ASSORTED/` requests during boot: **~1100 → 159**
+- Total requests during boot: **1606 → 869**
+- Production bundle size: **4487 kB → 3665 kB** (JS, unminified-gzip 1410→943 kB) — the ~1100 PNGs
+  are no longer bundled as JS-reachable modules at all, a side benefit neither this ticket nor §224
+  specifically targeted.
+
+**Invariants:**
+- Any new eager `import.meta.glob` call added under `src/model/`, `src/components/character/`, or
+  `src/levels/ldtk/` referencing `assets/ASSORTED/characters` or `assets/ASSORTED/fx` is a
+  regression — those trees live in `public/ASSORTED/` now; use `ASSORTED_FILES`
+  (`assortedFileList.generated.js`) instead.
+- `scripts/generate-assorted-file-list.mjs` must be re-run after adding/removing/renaming any file
+  under `public/ASSORTED/characters/` or `public/ASSORTED/fx/` — `ASSORTED_FILES` is a static
+  snapshot, not live-scanned at runtime.
+- `bestiaryManifest.generated.js`'s `relPath` values keep their original
+  `'../assets/ASSORTED/characters/...'` text form even though the real file no longer lives there —
+  it is a symbolic key `bestiaryAssets.js` resolves against `ASSORTED_FILES`/`public/`, not a
+  filesystem path. Do not "fix" it to look more accurate; that would require regenerating (and
+  re-verifying) the entire hand-tuned manifest for no behavioural gain.
+
+**Files:** `public/ASSORTED/characters/**`, `public/ASSORTED/fx/**` (moved, git renames),
+`scripts/generate-assorted-file-list.mjs` (new), `src/model/assortedFileList.generated.js` (new,
+generated), `scripts/generate-bestiary-manifest.mjs` (`ROOT` only), `src/model/bestiaryAssets.js`
+(`SHEETS`), `src/model/characterAssets.js` (`CHAR_FILES`/`EFFECT_FILES`/`PET_FILES`),
+`src/components/character/RpgLevelBottomPanel.jsx` (`wispUrl`).
+
+**Not yet done (tracked, same ticket):** `tiles/`, `backgrounds/`, `icons/`, `LDtk/` still glob from
+`src/assets/ASSORTED` — a smaller remaining contributor, deferred (see "How it works" above for why).
+
+---
+
+### §226. `force_chord_roots` — "roots on chord change" randomization rule (#925, Han 2026-08-13)
+
+**Purpose:** Han: *"ik wil een nieuw type randomization: root on chord change … die zou dan netjes de
+root van elk nieuw akkoord spelen, tot een volgend akkoord wordt gegeven … plan eerst op de chord
+changes noten, en vul daarna aan als er nog noten (per measure) over zijn, volgens de gewoonlijke
+prioritering."* The level cello previously used `emphasize_roots`, which only guarantees a root on the
+FIRST active slot of a measure — a chord that changes mid-measure (or a passing chord) was simply not
+heard as a root. `force_chord_roots` makes the bass follow the harmony instead of the barline.
+
+**How it works** (`src/generation/convertRankedArrayToMelody.js`):
+
+1. **Pitch selection is `uniform`.** Every non-onset active slot draws uniformly at random from the
+   instrument's `notePool` — byte-identical behaviour to the `uniform` rule. No approach notes, no
+   arpeggio fill.
+2. **Forced onsets (new section 2.1).** After the normal priority assignment builds `activeSlotsSet`,
+   the rule walks `buildChordSegments()` and, for each segment, converts its start offset to a slot
+   index (`round(offset / ticksPerSlot)` — the same arithmetic `walking_bass` uses). That slot is
+   recorded in a `forcedRootSlots` Map (`slotIndex → chord`) and, if it was inactive, promoted to
+   `priority: 'top'` and added to `activeSlotsSet`.
+3. **Root pitch.** In the main loop the `force_chord_roots` branch picks from
+   `getRootNotesInRange(chord)` — the *same* helper `emphasize_roots` uses — which filters the already
+   range-clipped `fullAvailablePool`, so the octave is correct for the instrument's range with no
+   second pitch path. If the chord has no root inside the range it degrades to a uniform pick.
+
+**Invariants:**
+
+- **`notesPerMeasure` is a MINIMUM for this rule only.** Forced onsets are *unioned on top of* the
+  top-N ranked slots, never replacing them. A measure with more chord changes than `notesPerMeasure`
+  therefore sounds more notes. This is intentional and is exactly what Han asked for.
+- **The ranked-array LENGTH is never changed** — only slot *priorities* are promoted. Nothing
+  downstream (`Melody.fromFlattenedNotes` `timeScale`, measure slicing, tuplet injection) shifts.
+- **No meter special-casing (§6b/§6c).** The forced slot index is derived arithmetically from the
+  meter (`ticksPerSlot = (TICKS_PER_WHOLE * num / den) / slotsPerMeasure`); odd numerators (5/4, 7/8,
+  11/8) need no lookup table and are covered by a parametrised test.
+- **No per-instrument branching.** `force_chord_roots` is a `randomizationRule` *value* usable by any
+  instrument, exactly like `uniform`/`emphasize_roots`. The cello part of this ticket is a pure
+  defaults change in `levels.js`.
+- **Collision rule:** two chord events that round onto the same slot (possible at a coarse
+  `smallestNoteDenom`) collapse into one note — the later chord wins.
+
+**Reuse (§6c/§6d):** `walking_bass`'s inline chord-segment IIFE was extracted verbatim into a shared
+`buildChordSegments()` helper in section 1 of `convertRankedArrayToMelody.js`; `walking_bass` now calls
+it, so chord-onset detection (including the passing-chord-aware `chordOffsetEvents` path and the
+one-segment-per-measure fallback) has exactly one implementation. `rule` was hoisted above section 2
+because the forced-onset pass runs before the arp/walking early-exits.
+
+**Cello / level defaults:** `LEVEL_CELLO_RULE = 'force_chord_roots'` is the single place the level
+cello's rule lives (§6c). `LEVEL_BASS_SIMPLE` (fixed-bass levels) moves to
+`notesPerMeasure: 2` + that rule; `LEVEL_BASS_DEFAULT` keeps every other field derived from
+`InstrumentSettings.defaultBassInstrumentSettings()` and overrides only the rule.
+`defaultBassInstrumentSettings()` itself is deliberately **untouched** — a plain (non-level,
+non-cello) bass track keeps `emphasize_roots`. Level 15 ("Twee handen") keeps its explicit
+`tracks.bass` override (1 note/measure, `emphasize_roots`, C3–G3): that bass staff is the *player's*
+visible left hand, and the level's own intro text promises "grondtoon op de eerste tel van elke maat"
+— it is not the cello backing.
+
+**UI registration:** `RULE_FAMILIES.random` (`src/constants/instrumentRules.js`) — every selector
+(PlayStyleSelector, InstrumentRow, GenerationSetterOverlay) derives its item list from that constant,
+so no selector needed its own edit. Icon + family bracket via `FIELD_ITEM_ICONS.rule` and
+`MELODIC_FAMILY_OF` (`src/constants/generationFields.js`), label "Roots on Change" via
+`getPlayStyleLabel` (`src/utils/labelUtils.js`), difficulty multiplier 1.0 (same as `emphasize_roots`)
+in `src/utils/difficultyCalculator.js`.
+
+**Files:** `src/generation/convertRankedArrayToMelody.js`, `src/constants/instrumentRules.js`,
+`src/constants/generationFields.js`, `src/utils/labelUtils.js`, `src/utils/difficultyCalculator.js`,
+`src/levels/levels.js`, `src/model/InstrumentSettings.js` (jsdoc), `src/hooks/useLevel.js` (comment),
+`src/generation/__tests__/convertRankedArrayToMelody.test.js`,
+`src/hooks/__tests__/useLevel.test.js`.

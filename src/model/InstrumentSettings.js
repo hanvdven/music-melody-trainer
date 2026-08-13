@@ -8,7 +8,7 @@ class InstrumentSettings {
    * @param {number} smallestNoteDenom - Smallest note denomination (e.g. 4, 8, 16)
    * @param {number} rhythmVariability - 0–100 variability in rhythm generation
    * @param {string} notePool - Which notes to draw from: 'scale' | 'chord' | 'all' | 'metronome'
-   * @param {string} randomizationRule - How to select notes: 'uniform' | 'emphasize_roots' | 'weighted' | 'arp' | 'arp_var' | 'arp_group' | 'fixed'. For arp_var/arp_group, maxLeap also controls the span window.
+   * @param {string} randomizationRule - How to select notes: 'uniform' | 'emphasize_roots' | 'force_chord_roots' | 'weighted' | 'arp' | 'arp_var' | 'arp_group' | 'fixed'. For arp_var/arp_group, maxLeap also controls the span window. For force_chord_roots, notesPerMeasure is a MINIMUM (chord-change onsets are added on top).
    * @param {string} strategy - Chord/progression strategy (for chord track): 'pop-1-5-6-4' | 'modal-random' | etc.
    * @param {string} transpositionKey - Instrument transposition key: 'C' (concert, default), 'Bb', 'F', 'Eb', etc.
    *   Affects display only — audio always plays concert pitch. See src/constants/transposingInstruments.js.
