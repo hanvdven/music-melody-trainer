@@ -14465,6 +14465,11 @@ of a boot: 1606 requests, ~9s) found three independent causes, addressed separat
    (`gleitz.github.io/midi-js-soundfonts`) on every boot — a real, repeated network dependency, and
    the reason the app doesn't work fully offline.
 
+> **Superseded for the piano (#988, §227):** the claim below that *every* melodic instrument comes
+> from this .sf2 extraction is no longer true. `acoustic_grand_piano` is now served by smplr's
+> `SplendidGrandPiano` from `public/samples/SplendidGrandPiano/` — see §227. The generated
+> `acoustic_grand_piano` buffer map still exists but is shadowed and unused.
+
 **How it works:**
 
 - **`vite.config.js`**: the PR-number `fetch()` now carries `signal: AbortSignal.timeout(2000)` — a
@@ -14690,3 +14695,77 @@ in `src/utils/difficultyCalculator.js`.
 `src/levels/levels.js`, `src/model/InstrumentSettings.js` (jsdoc), `src/hooks/useLevel.js` (comment),
 `src/generation/__tests__/convertRankedArrayToMelody.test.js`,
 `src/hooks/__tests__/useLevel.test.js`.
+
+---
+
+### §227. SplendidGrandPiano as the default grand piano — locally mirrored samples + per-sample CDN fallback (#988, Han 2026-08-14)
+
+**Purpose:** Han: *"de huidige piano klinkt niet mooi."* The GM `acoustic_grand_piano` the app
+played came from the §224 FluidR3 .sf2 extraction — one recording per key, a single velocity
+layer. smplr ships a dedicated `SplendidGrandPiano` class: 226 recordings across **5 velocity
+layers** (PPP 1–40 with a 1 kHz low-pass, PP 41–67, MP 68–84, MF 85–100, FF 101–127). That class
+now backs the piano slug **everywhere** the app plays piano — UI track instruments, world-ambient
+music, the wizard preview, conversation-typewriter voices and instrument previews — without a
+single call site changing.
+
+**How it works:**
+
+- **Slug unchanged.** `acoustic_grand_piano` remains the slug in `InstrumentSettings`,
+  `instrumentOptions.js`, `constants/instruments.jsx`, `generateWorldAmbientBlock.js` and the UI.
+  Only the engine behind it changed.
+- **One branch, one choke point.** `createMelodicInstrument` (`src/audio/localInstruments.js`) —
+  already the single place the whole app constructs melodic instruments (§224) — gained a first
+  branch returning `new SplendidGrandPiano(context, { destination, baseUrl, storage, formats })`.
+  It sits *before* the `LOCAL_INSTRUMENT_BUFFERS` lookup and deliberately **shadows** the
+  generated `acoustic_grand_piano` entry: `localInstrumentBuffers.generated.js` is regenerated
+  wholesale by `scripts/extract-soundfont-samples.mjs` and its header forbids hand-edits, so the
+  entry is left in place rather than deleted. `disableScheduler` is a Soundfont-only option with
+  no `SplendidGrandPianoConfig` equivalent; the piano branch ignores it (nothing passes it for a
+  melodic slug).
+- **No remote manifest exists.** smplr builds its `SmplrJson` descriptor in-process via
+  `pianoToSmplrJson()` from a `LAYERS` array bundled *inside the smplr package*. There is nothing
+  to mirror but audio. `scripts/download-splendid-grand-piano.mjs` therefore derives its roster
+  from `import { LAYERS } from 'smplr'` (§6c: never a hand-typed file list) — 226 unique names
+  after de-duplication (PPP and PP share the same "PP \*" recordings) — and mirrors them as
+  **.ogg only** (19.0 MB) into `public/samples/SplendidGrandPiano/`. Dev-only, idempotent, not an
+  npm script (same convention as its sibling extractor). Re-run it after upgrading smplr.
+- **Filename sanitizing.** Sample names contain spaces and sharps (`PP D#0`). §224 proved
+  empirically that Vite's public-dir static serving cannot locate a `#`-containing filename, raw
+  **or** %23-encoded — both fall through to the SPA index.html. `SplendidGrandPianoConfig` exposes
+  no `samples.map` hook, so the rewrite happens in the transport: `toLocalFileName` (`#`→`s`,
+  space→`_`, the same convention the §224 extractor writes) is exported from
+  `src/audio/splendidPianoStorage.js` and **imported by the download script**, so writer and
+  reader cannot drift.
+- **Fallback lives in `storage`, not in a `.load.catch`.** smplr's `SampleLoader.load` *silently
+  omits* failed samples and `loadAudioBuffer` returns `undefined` after a `console.warn` on a
+  non-200 — a `try/catch` around the constructor would **never fire**, and the failure mode would
+  be a silently-partial piano. `splendidPianoStorage` implements smplr's `Storage` interface
+  (`{ fetch(url) }`) and retries the original smpldsnds CDN per request. This is also the normal
+  Safari path: `findFirstSupportedFormat` skips ogg there, asks for `.m4a`, finds none locally and
+  is served transparently from the CDN. If **both** sources fail it logs
+  `E029-PIANO-SAMPLE-LOAD` and returns a 404 so smplr's own omit path proceeds — one missing
+  velocity sample must never take down the app.
+- **Shared cache across instances (Han's D2 decision).** smplr's buffer cache is per-
+  `SampleLoader`, i.e. per instance, and the app builds ~8 pianos per session. A module-level
+  `Map<localUrl, Promise<ArrayBuffer>>` in the storage adapter memoizes the fetched bytes. Values
+  are **promises registered before the first `await`**, so instances constructed in the same tick
+  coalesce onto one request instead of racing; each caller gets `new Response(bytes.slice(0))`
+  because a Response body is single-use. A rejected entry is evicted so a later instance may retry.
+
+**Invariants:**
+
+1. No call site may special-case the piano slug — `createMelodicInstrument` stays the only place
+   that knows (§6c). All call sites use only `start`/`stop`/`disconnect`/`load`/`output`, which
+   `SplendidGrandPiano` provides identically.
+2. The piano branch must stay **first**, ahead of the `LOCAL_INSTRUMENT_BUFFERS` lookup, for as
+   long as the generated manifest still carries an `acoustic_grand_piano` entry. Covered by a test.
+3. Local filenames are written and read exclusively through `toLocalFileName`. Never hand-write a
+   sanitized name; never re-implement the rule.
+4. Any future graceful-degradation logic for smplr samples belongs in the storage adapter — smplr
+   swallows load failures, so nothing upstream of `storage.fetch` can observe them.
+
+**Files:** `src/audio/splendidPianoStorage.js` (new), `scripts/download-splendid-grand-piano.mjs`
+(new), `src/audio/localInstruments.js` (piano branch + imports),
+`public/samples/SplendidGrandPiano/*.ogg` (226 new files, 19.0 MB),
+`src/audio/__tests__/splendidPianoStorage.test.js` (new),
+`src/audio/__tests__/localInstruments.test.js` (new), `CLAUDE.md` (§7a E029, §8 ownership row).

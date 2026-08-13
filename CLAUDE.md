@@ -421,6 +421,9 @@ logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
   ref-driven position/animation loop (slime/critter/projectile/scroll-transform updates); caught so the
   loop always reschedules its next frame instead of permanently freezing the level's whole animation —
   same pattern as E023-FOLIAGE-DRAW-FRAME (SheetRpgLayer.jsx)
+- **E029-PIANO-SAMPLE-LOAD** — a SplendidGrandPiano sample failed to load from BOTH the local mirror
+  (`public/samples/SplendidGrandPiano/`) and the smpldsnds CDN; that one velocity sample is omitted
+  rather than failing the piano (splendidPianoStorage.js)
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E025-NEW-FAILURE`) and add it to this list.
 
@@ -466,6 +469,7 @@ Quick guide to which file owns which concern:
 |---|---|
 | All note name primitives | `src/theory/noteUtils.js` |
 | Drum kit sample names | `src/audio/drumKits.js` |
+| Grand-piano sample sourcing (local mirror + CDN fallback) | `src/audio/splendidPianoStorage.js` |
 | Timing constants | `src/constants/timing.js` |
 | Visual block layout (`calculateMusicalBlocks`) | `src/utils/pagination.js` |
 | Block X/Y offset computation (`calculateAllOffsets`) | `src/components/sheet-music/calculateAllOffsets.js` |
