@@ -69,15 +69,19 @@ const QWERTY_SCHEMES = {
 const PianoView = ({
   scale,
   trebleInstrument = null,
-  // #990 (Han 2026-08-14): when the about-to-be-played note is in `expectedNotes`, play it
-  // normally; otherwise (a "wrong" note) route it through `wrongNoteInstrument` instead — a
-  // dedicated instance with chorus+tremolo permanently baked in (see useInstruments.js's
-  // trebleWrongRef). Both optional; when either is null this is a no-op and behaviour is
-  // unchanged (every other PianoView call site — range setters, tone recognizer, etc. — never
-  // passes them). The wrong note keeps sounding through its OWN instrument/effect chain for
-  // exactly as long as it's held, independent of any other note playing at the same time.
+  // #990 (Han 2026-08-14): when the about-to-be-played note is among `expectedNotesRef.current()`
+  // (called FRESH at press time — see resolveInstrumentFor below), play it normally; otherwise (a
+  // "wrong" note) route it through `wrongNoteInstrument` instead — a dedicated instance with
+  // chorus+tremolo permanently baked in (see useInstruments.js's trebleWrongRef). A REF, not a
+  // plain array/prop: the expected-note set can change continuously during RPG combat (slimes
+  // scrolling through a timing window), not just on discrete index-advance events, so it must be
+  // read live rather than trusted as a snapshot — see App.jsx's getExpectedTrebleNotesRef. Both
+  // props optional; when either is null/absent this is a no-op and behaviour is unchanged (every
+  // other PianoView call site — range setters, tone recognizer, etc. — never passes them). The
+  // wrong note keeps sounding through its OWN instrument/effect chain for exactly as long as it's
+  // held, independent of any other note playing at the same time.
   wrongNoteInstrument = null,
-  expectedNotes = null,
+  expectedNotesRef = null,
   interactionMode = 'play',
   onTonicSelect = null,
   // 'set-transpose' interaction (keyboard transposition setter): clicking a key makes THAT key
@@ -463,14 +467,17 @@ const PianoView = ({
   // them to deps here would require wrapping them in useCallback to prevent spurious
   // re-runs. That refactor is tracked separately; for now, intentionally omitted.
   // #990 BUG FIX (Han: "ik denk altijd de correcte noot te horen" — QWERTY never picked up the
-  // wrong-note instrument): expectedNotes/wrongNoteInstrument were NOT in this list, so once this
-  // effect first registered its listeners it kept calling a STALE handlePointerDown closure from
-  // that render — frozen at whatever expectedNotes was (often still null, before the first melody
-  // note loaded). Every later note-advance updated the render body's handlePointerDown, but this
-  // effect's listener never re-registered to pick up the new closure. Both ARE now listed
-  // deliberately, even though the comment above declines the fuller stable-callback refactor.
+  // wrong-note instrument): a first attempt passed `expectedNotes` as a plain array/prop, which
+  // was NOT in this dep list — the registered listener kept calling a STALE handlePointerDown
+  // closure, frozen at whatever that array was on the render this effect last actually re-ran
+  // (often still null, before the first melody note loaded). Switching to `expectedNotesRef` (a
+  // REF — see its prop doc above) fixes this at the root: a ref's IDENTITY never changes across
+  // renders, so listing it here is inert/always-satisfied rather than a real dependency, and
+  // `resolveInstrumentFor` reads `expectedNotesRef.current()` fresh on every call regardless of
+  // which render's closure is holding it. `wrongNoteInstrument` DOES still need to be listed for
+  // real — its identity changes when the dedicated instrument is rebuilt (slug change).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qwertyKeyboardActive, qwertyNoteMap, trebleInstrument, onNoteInput, expectedNotes, wrongNoteInstrument]);
+  }, [qwertyKeyboardActive, qwertyNoteMap, trebleInstrument, onNoteInput, expectedNotesRef, wrongNoteInstrument]);
 
   // NOTE: Web-MIDI input is handled GLOBALLY now (src/hooks/useMidiInput.js, wired in App) so it works in any
   // view, not only while this piano is mounted. The played-note highlight below (playedNotes) still covers
@@ -652,14 +659,17 @@ const PianoView = ({
   };
 
   // #990: pick which instrument a just-pressed CONCERT note (already run through `tn()`) plays
-  // through. Compares via `resolveNotePitch` — the SAME octave-aware pitch resolution `playSound`
-  // itself uses (CLAUDE.md §6c: reuse, don't reimplement) — so an enharmonic respelling (e.g.
+  // through. Calls `expectedNotesRef.current()` FRESH — never trusts a value captured earlier —
+  // then compares via `resolveNotePitch`, the SAME octave-aware pitch resolution `playSound`
+  // itself uses (CLAUDE.md §6c: reuse, don't reimplement), so an enharmonic respelling (e.g.
   // expected "D♭4", played "C♯4") still matches, and a same-letter-different-octave note (D4 vs
-  // D5) correctly does NOT. Falls back to the normal instrument whenever expectedNotes/
+  // D5) correctly does NOT. Falls back to the normal instrument whenever expectedNotesRef/
   // wrongNoteInstrument aren't wired for this PianoView instance (every call site except the
-  // main practice keyboard), or the note matches, or the pitch can't be resolved.
+  // main practice keyboard), the current expected set is empty/unknown, or the note matches.
   const resolveInstrumentFor = (concertNote) => {
-    if (!expectedNotes || !wrongNoteInstrument) return trebleInstrument;
+    if (!expectedNotesRef?.current || !wrongNoteInstrument) return trebleInstrument;
+    const expectedNotes = expectedNotesRef.current();
+    if (!expectedNotes || !expectedNotes.length) return trebleInstrument;
     const pitch = resolveNotePitch(concertNote);
     const isExpected = expectedNotes.some((n) => resolveNotePitch(n) === pitch);
     return isExpected ? trebleInstrument : wrongNoteInstrument;
@@ -692,8 +702,8 @@ const PianoView = ({
     setPlayedNotes((s) => { const n = new Set(s); n.add(note); return n; });   // light up the key
     // Start with long sustain (null duration), store the stop function! Sound the CONCERT note
     // (tn) so a transposed key plays what its label says; press-tracking still keys off `note`.
-    // #990: a "wrong" note (relative to expectedNotes) plays through wrongNoteInstrument instead —
-    // resolved once here so it stays sounding, effected, through this exact note's whole hold.
+    // #990: a "wrong" note (relative to expectedNotesRef.current()) plays through wrongNoteInstrument
+    // instead — resolved once here so it stays sounding, effected, through this exact note's whole hold.
     const concertNote = tn(note);
     const stopFn = playSound(concertNote, resolveInstrumentFor(concertNote), ctx, ctx.currentTime, null);
     if (stopFn) {

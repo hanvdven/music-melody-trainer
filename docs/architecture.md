@@ -14979,20 +14979,39 @@ Han's repro requires, with zero decay/ramp bookkeeping needed.
 
 **Selecting the instrument, at note-on (`PianoView.jsx`, `App.jsx`).** Correctness is normally only
 known via `onNoteInput`, which for pointer/click input fires on RELEASE — too late to influence
-what a `playSound` call already started on press. Since the expected note is already known before
-the key goes down, `PianoView.jsx`'s `resolveInstrumentFor(concertNote)` does the SAME comparison
-synchronously, right before calling `playSound`: it resolves both the played note and every entry
-in `expectedNotes` through `resolveNotePitch` (`playSound.js` — the exact same octave-aware pitch
-resolution `playSound` itself uses, so comparison and playback can never disagree) and picks
-`wrongNoteInstrument` on a mismatch, `trebleInstrument` otherwise. `expectedNotes` is computed in
-`App.jsx` (`expectedTrebleNotes`, a `useMemo` reading `melodiesRef.current.treble.notes[
-inputTestState.activeIndex]` — the same lookup `useInputTest.js` already does internally, read
-from the outside rather than duplicated) and threaded down through `TabView.jsx` only to the main
-practice keyboard, only while `activeClef === 'treble'` (both props default to `null` everywhere
-else — range setters, tone recognizer, etc. — so behaviour there is unchanged). The MIDI input
-path (`App.jsx`'s `handleMidiNoteOn`) does the identical `resolveNotePitch` comparison inline, so a
-physical MIDI keyboard gets the same feedback as click/QWERTY (which itself routes through
-`PianoView.handlePointerDown` via `handleKeyDown`, so one fix covers both).
+what a `playSound` call already started on press. Since the expected note is already knowable
+before the key goes down, `PianoView.jsx`'s `resolveInstrumentFor(concertNote)` does the SAME
+comparison synchronously, right before calling `playSound`: it calls `expectedNotesRef.current()`
+fresh, resolves both the played note and every returned entry through `resolveNotePitch`
+(`playSound.js` — the exact same octave-aware pitch resolution `playSound` itself uses, so
+comparison and playback can never disagree), and picks `wrongNoteInstrument` on a mismatch,
+`trebleInstrument` otherwise.
+
+`expectedNotesRef` is a REF holding a GETTER FUNCTION, not a plain array — deliberately, for two
+reasons that both trace back to real UAT bounces (see the bug logs below):
+1. A ref's identity never changes across renders, so a consumer can list it in a `useEffect`
+   dependency array without the array ever being "different" — eliminating an entire class of
+   stale-closure bug (§990's first UAT bounce) rather than requiring every future consumer to
+   remember to list every relevant prop by hand.
+2. The two contexts that need this value have fundamentally different update cadences.
+   Input-test-mode's expected note changes on discrete index-advance events (`useInputTest.js`'s
+   `activeIndex`) — App.jsx's `getExpectedTrebleNotesRef.current` reads `isInputTestModeRef`/
+   `inputTestStateRef` (refs `useInputTest.js` already returns) and `melodiesRef.current.treble
+   .notes[activeIndex]`, the same lookup `useInputTest.js` does internally, from the outside
+   rather than duplicated. RPG combat's hittable-note set changes CONTINUOUSLY as slimes scroll
+   through the timing window — every render of `getExpectedTrebleNotesRef.current` (reassigned
+   each render, cheap — one function reference swap) checks `level.active` and, if true, delegates
+   to `rpgHittableNotesRef.current()` — SheetRpgLayer's OWN live getter (see its own section
+   above/below) — instead. A plain memoized array could represent case 1 but not case 2; a
+   function read fresh at call time handles both uniformly.
+
+Threaded down through `TabView.jsx` (`expectedTrebleNotesRef` prop) only to the main practice
+keyboard, only while `activeClef === 'treble'` (both `wrongNoteInstrument`/`expectedNotesRef`
+default to `null` everywhere else — range setters, tone recognizer, etc. — so behaviour there is
+unchanged). The MIDI input path (`App.jsx`'s `handleMidiNoteOn`) reads the SAME
+`getExpectedTrebleNotesRef.current()` inline, so a physical MIDI keyboard gets identical feedback
+to click/QWERTY (which itself routes through `PianoView.handlePointerDown` via `handleKeyDown`, so
+one fix covers both).
 
 **Superseded/removed the same day:** the channel-wide `chorusRef`/`tremoloRef` infrastructure
 (attached to all 5 types, `setChorusStrength`/`setTremoloStrength` exports, the fader/manual
@@ -15019,13 +15038,17 @@ second time was removed.
   and D5 as the same note) and never a raw string-equality check (misses enharmonic respellings).
 - **INV-5** — `trebleWrongRef`'s instrument/chorus/tremolo are torn down and rebuilt together on
   every treble slug change, same "#4 leak" discipline as the main instrument.
-- **INV-6** — `PianoView.jsx`'s QWERTY-listener `useEffect` MUST list `expectedNotes` and
-  `wrongNoteInstrument` in its dependency array. See the bug below — omitting either freezes the
-  registered `handleKeyDown` closure at whatever those props were on the last render that changed
-  `qwertyKeyboardActive`/`qwertyNoteMap`/`trebleInstrument`/`onNoteInput`, silently ignoring every
-  later update (e.g. the practice melody's target note advancing).
+- **INV-6** — `expectedNotesRef`/`getExpectedTrebleNotesRef` must stay a REF holding a getter
+  FUNCTION, never a plain memoized array — see both bugs below. A ref's identity is permanently
+  stable (safe to list in any dependency array without ever going stale) and a function read at
+  call time naturally covers both input-test-mode's discrete index-advance updates and RPG
+  combat's continuously-changing hittable-note set, which a snapshot value cannot.
+- **INV-7** — `SheetRpgLayer.jsx`'s `computeInWindowCandidates`/`computeHittableNotes` are the
+  ONLY implementation of "which slime(s) are currently within the graded hit window" — the
+  `combatNote` effect's own `inWindow` lookup calls `computeInWindowCandidates()` rather than
+  recomputing it inline (§6c). Never let a second copy of this filter drift back in.
 
-**Bug: "ik hoor het verschil niet... ik denk altijd de correcte noot te horen" — stale QWERTY closure, fixed same day (#990, Han 2026-08-14)**
+**Bug #1: "ik hoor het verschil niet... ik denk altijd de correcte noot te horen" — stale QWERTY closure (#990, Han 2026-08-14)**
 
 **Symptom:** the dedicated wrong-note instrument (above) was wired up correctly and worked when
 manually verified, but Han reported never actually hearing the effect during real play — every
@@ -15037,24 +15060,57 @@ own dependency array changes. That array was `[qwertyKeyboardActive, qwertyNoteM
 trebleInstrument, onNoteInput]` — a **pre-existing, deliberately-scoped omission** (the effect's
 own comment explains `handlePointerDown`/`Up` are intentionally left out to avoid a larger
 stable-callback refactor) that predates this feature and was harmless until now, because nothing
-it omitted used to change during a session. `expectedNotes` is NOT one of those four — it changes
-on every target-note advance, far more often than the tab/instrument/mapping the effect actually
-watches. The registered `handleKeyDown` closure captured `resolveInstrumentFor` (and therefore
-`expectedNotes`/`wrongNoteInstrument`) from whichever render happened to be current the LAST time
-the effect actually re-ran — typically an early one, before the practice melody had advanced past
-its first note, or before `wrongNoteInstrument` had finished loading — and kept using those stale
-values for the rest of the session. Click/pointer input was unaffected (`onPointerDown` is bound
-inline in JSX, so it always closes over the current render).
+it omitted used to change during a session. The wrong-note plumbing's FIRST cut passed the
+expected note(s) as a plain array prop, which was NOT one of those four — it changed on every
+target-note advance, far more often than the tab/instrument/mapping the effect actually watches.
+The registered `handleKeyDown` closure captured `resolveInstrumentFor` (and therefore that array)
+from whichever render happened to be current the LAST time the effect actually re-ran — typically
+an early one, before the practice melody had advanced past its first note — and kept using that
+stale value for the rest of the session. Click/pointer input was unaffected (`onPointerDown` is
+bound inline in JSX, so it always closes over the current render).
 
-**Fix:** added `expectedNotes` and `wrongNoteInstrument` to the effect's dependency array. A
-targeted addition, not the fuller `useCallback`-stabilization refactor the existing comment
-declines — this fixes the one closure this feature actually depends on without touching the
-effect's other (still-working) behavior.
+**Fix (superseded by Bug #2's ref-based redesign below, but the dependency-array lesson stands):**
+initially fixed by adding the array prop to the effect's dependency array. The REAL, permanent fix
+came one bug later: switching the prop to a ref (`expectedNotesRef`) removes this entire bug class
+structurally — a ref's identity never changes, so it can be listed in any dependency array
+harmlessly, and `resolveInstrumentFor` calls `.current()` fresh on every invocation regardless of
+which render's closure is holding the reference.
 
-**Files:** `src/components/controls/PianoView.jsx`,
-`src/components/controls/__tests__/PianoView.wrongNote.test.jsx` (new — regression-tests exactly
-this: a QWERTY press correctly picks up an `expectedNotes` update that arrives via a LATER
-rerender, not just the first one).
+**Bug #2: RPG-level testing showed no effect at all — wired to the wrong "expected note" system (#990, Han 2026-08-14)**
+
+**Symptom:** after Bug #1's fix, Han tested again and still heard no difference — "ik hoor het
+verschil tussen met en zonder 'fout' effect niet... ik denk altijd de correcte noot te horen."
+
+**Root cause:** Han was testing inside an RPG level ("timerveld" = the side-scrolling combat lane),
+not the classic input-test/practice mode the original implementation targeted.
+`useInputTest.handleInputTestNoteCore` gates its ENTIRE correctness pipeline on
+`isInputTestModeRef.current` (line 228 of that file) — and `startLevel` (`App.jsx`) never sets
+`isInputTestMode` true. RPG combat runs an entirely separate, parallel judgment system
+(`SheetRpgLayer.jsx`'s `combatNote` effect: side-scroll mode matches a played note against
+whichever slime(s) are currently inside a TIME-BASED graded window, `inWindow`/`notesMatch`; the
+static (non-side-scroll) mode matches against a single "next" slime). The App.jsx-computed
+`expectedTrebleNotes` was therefore ALWAYS `null` during real level play — `resolveInstrumentFor`
+always fell back to the normal instrument, never routing to the wrong-note one, regardless of
+Bug #1's fix.
+
+**Fix — the ref-based redesign described in "Selecting the instrument" above.** `expectedNotesRef`
+became a getter FUNCTION (not a value), so it could unify two systems with genuinely different
+update models: `App.jsx`'s `getExpectedTrebleNotesRef.current` checks `level.active` and delegates
+to a NEW `rpgHittableNotesRef` — populated by `SheetRpgLayer.jsx` itself with
+`computeHittableNotes`, extracted from (and now shared by, via `computeInWindowCandidates`) the
+SAME `inWindow`/next-slime logic the `combatNote` effect already used to judge a played note
+reactively (§6c — one implementation). `computeHittableNotes`/`computeInWindowCandidates` read only
+`*Ref.current` values, so they are safe to define once per render (no memoization needed) and
+always reflect the truly current window when CALLED — a real requirement here, since the hittable
+set changes every frame as slimes scroll, not just on discrete events.
+
+**Files:** `src/components/controls/PianoView.jsx`, `src/App.jsx`,
+`src/components/layout/TabView.jsx`, `src/components/sheet-music/SheetRpgLayer.jsx`,
+`src/components/sheet-music/SheetMusic.jsx`,
+`src/components/controls/__tests__/PianoView.wrongNote.test.jsx` (rewritten for the ref-based
+contract — covers a ref mutation with no rerender, the RPG case, alongside the original rerender
+case), `src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx` (2 new cases: non-side-scroll
+next-slime lookup, side-scroll graded-window transition from empty to populated).
 
 ### §230. RPG fx volume / RPG music volume / RPG visibility — 3 Playback Settings setters (#992, Han 2026-08-14)
 

@@ -219,6 +219,36 @@ describe('SheetRpgLayer (#647)', () => {
         vi.useRealTimers();
     });
 
+    it('#990: hittableNotesRef.current() returns the lowest-index not-yet-struck slime in non-side-scroll mode', () => {
+        const hittableNotesRef = { current: null };
+        wrap({
+            trebleMelody: { notes: ['C4', 'D4'], offsets: [0, 12], durations: [12, 12] },
+            hittableNotesRef,
+        });
+        expect(typeof hittableNotesRef.current).toBe('function');
+        expect(hittableNotesRef.current()).toEqual(['C4']);
+    });
+
+    it('#990: hittableNotesRef.current() reflects side-scroll\'s graded timing window (empty before arrival, populated once inside it)', () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+        const hittableNotesRef = { current: null };
+        const base = {
+            startX: 20, pixelsPerTick: null, allOffsets: [0], noteWidth: 20, bpm: 80,
+            trebleStart: 100, staffHeight: 40, viewBottom: 220, viewRight: 500, sideScroll: true,
+            scrollStartTime: 0, // unfreezes the visual clock immediately, see #991's test above
+            trebleMelody: { notes: ['C4'], offsets: [0], durations: [12] },
+            hittableNotesRef,
+        };
+        act(() => { render(<svg><SheetRpgLayer {...base} /></svg>); });
+        // Right at wave start the slime is far from the hit-zone — not yet in the graded window.
+        expect(hittableNotesRef.current()).toEqual([]);
+        // Advance to roughly when the slime is due at the strike line (mirrors the #660 test's own
+        // timing above — well within MUCH_TOO_BEATS of arrival for an 80bpm, beatsOnScreen=8 wave).
+        act(() => { vi.advanceTimersByTime(6000); });
+        expect(hittableNotesRef.current()).toEqual(['C4']);
+        vi.useRealTimers();
+    });
+
     it('#871: an unknown npc name renders nothing extra (findCreatureByName returns null, guarded)', () => {
         const base = {
             startX: 20, pixelsPerTick: null, allOffsets: [0], noteWidth: 20, bpm: 80,

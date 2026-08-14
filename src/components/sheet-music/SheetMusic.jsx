@@ -193,6 +193,9 @@ const SheetMusic = ({
   onRandomizeMeasure,
   onOpenCharacter,                  // #647 — clicking the sheet-music hero opens the character menu
   combatNote,                       // #647 combat — the last played note {note, nonce} (any input source)
+  hittableNotesRef,                 // #990 — ref SheetRpgLayer populates with a live "which note(s)
+                                     // would currently count as a hit" getter, for PianoView's wrong-
+                                     // note routing to read synchronously at note-press time
   // #862 — twoHanded levels bass-hand combat. Named `twoHandedBassMelody` (not `bassMelody`) to avoid
   // colliding with the context-provided `bassMelody` below (the normal app-wide bass staff melody).
   twoHandedBassMelody,
@@ -2910,6 +2913,7 @@ const SheetMusic = ({
                     onEnemyTotal={onEnemyTotal}
                     onCritterTotal={onCritterTotal}
                     combatNote={combatNote}
+                    hittableNotesRef={hittableNotesRef}
                     bassMelody={twoHandedBassMelody}
                     bassCombatEvent={bassCombatEvent}
                     debugMode={debugMode}

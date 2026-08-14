@@ -1047,19 +1047,18 @@ const App = () => {
         }, [buildScorePayload]),
     });
 
-    // #990 (Han 2026-08-14): the currently-expected treble note(s), so PianoView can decide AT
-    // note-on time whether the key about to sound is "wrong" and should route through the
-    // dedicated wrong-note instrument (manualInstruments.trebleWrong) instead of the normal one.
-    // Same lookup useInputTest.js itself already does internally (melodiesRef.current[staff]
-    // ?.notes[activeIndex]) — not duplicated logic, just read from the outside. Treble-only,
-    // matching the wrong-note instrument's own scope; null outside input-test mode or on any
-    // other staff, so PianoView falls back to normal behaviour.
-    const expectedTrebleNotes = useMemo(() => {
-        if (!isInputTestMode || inputTestState.activeStaff !== 'treble') return null;
-        const target = melodiesRef.current?.treble?.notes?.[inputTestState.activeIndex];
-        if (target == null) return null;
-        return Array.isArray(target) ? target : [target];
-    }, [isInputTestMode, inputTestState.activeStaff, inputTestState.activeIndex]);
+    // #990 (Han 2026-08-14): a STABLE ref holding a FUNCTION that returns the currently-expected
+    // treble note(s) — RIGHT NOW, when called — so PianoView/handleMidiNoteOn can decide AT
+    // note-on time whether the key about to sound is "wrong". A ref (not a plain memoized value)
+    // for two reasons: (1) its real implementation needs `level.active`, which is declared further
+    // down (`useLevel(...)`) — assigning `.current` there avoids reordering this whole block past
+    // it; (2) during an RPG level the "expected" set changes continuously as slimes scroll through
+    // the timing window (SheetRpgLayer's `hittableNotesRef`), not just on discrete index-advance
+    // events like input-test mode — a ref read fresh at call time handles both without two
+    // different consumer-side code paths, and sidesteps the whole class of stale-closure bug
+    // PianoView.jsx's QWERTY listener hit (a plain value passed as a prop can go stale between
+    // renders; a stable function that reads live refs internally cannot).
+    const getExpectedTrebleNotesRef = useRef(() => null);
 
     // #647 combat: EVERY played note funnels through handleInputTestNote (piano/QWERTY/mic; MIDI later).
     // Relay it to the sheet-music RPG layer as { note, nonce } so the hero attacks once and the leftmost
@@ -1096,17 +1095,20 @@ const App = () => {
             if (context.state !== 'running') context.resume();
             // #990: same wrong-note routing as PianoView.jsx (resolveNotePitch — octave-aware,
             // matches exactly what playSound resolves the note to) so a MIDI keyboard gets the
-            // same chorus+tremolo feedback on a wrong note as click/QWERTY input.
+            // same chorus+tremolo feedback on a wrong note as click/QWERTY input. Reads the ref
+            // FRESH here (not a captured value), so this never goes stale regardless of when this
+            // callback identity was last created.
             const wrongInst = manualInstruments.trebleWrong;
-            const inst = (expectedTrebleNotes && wrongInst
-                && !expectedTrebleNotes.some((n) => resolveNotePitch(n) === resolveNotePitch(note)))
+            const expected = getExpectedTrebleNotesRef.current();
+            const inst = (expected && wrongInst
+                && !expected.some((n) => resolveNotePitch(n) === resolveNotePitch(note)))
                 ? wrongInst
                 : instruments.treble;
             const stop = playSound(note, inst, context, context.currentTime, null);
             if (stop) midiStopsRef.current[note] = stop;
         }
         handleNoteInputCombat(note, true);
-    }, [context, instruments.treble, manualInstruments.trebleWrong, expectedTrebleNotes, handleNoteInputCombat]);
+    }, [context, instruments.treble, manualInstruments.trebleWrong, handleNoteInputCombat]);
     const handleMidiNoteOff = useCallback((note) => {
         const stop = midiStopsRef.current[note];
         if (stop) { stop(); delete midiStopsRef.current[note]; }
@@ -1182,6 +1184,28 @@ const App = () => {
         setTonic, setSelectedMode, setTheme, setTimeSignature, loadSong: levelLoadSong,
     }), [setNumMeasures, setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode, setTonic, setSelectedMode, setTheme, setTimeSignature, levelLoadSong]);
     const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate, debugMode });
+
+    // #990 (Han 2026-08-14, RPG-level wrong-note feedback): SheetRpgLayer populates this with a
+    // function returning "which note(s) are currently hittable" — the SAME inWindow/next-slime
+    // logic combat itself judges a played note against (§6c: read from the outside, not
+    // duplicated). See the SheetMusic render below for the actual wiring (hittableNotesRef prop).
+    const rpgHittableNotesRef = useRef(null);
+
+    // Real implementation of getExpectedTrebleNotesRef (declared earlier, before `level` existed —
+    // see that declaration's comment for why this is a ref-assignment instead of a hook call here).
+    // Reassigned every render (cheap: one function reference swap) so it always closes over the
+    // CURRENT render's `level.active`; internally it reads refs/rpgHittableNotesRef fresh at CALL
+    // time, not at this assignment time, so callers never see a stale snapshot either way.
+    getExpectedTrebleNotesRef.current = () => {
+        if (level.active) {
+            const notes = rpgHittableNotesRef.current?.();
+            return notes && notes.length ? notes : null;
+        }
+        if (!isInputTestModeRef.current || inputTestStateRef.current.activeStaff !== 'treble') return null;
+        const target = melodiesRef.current?.treble?.notes?.[inputTestStateRef.current.activeIndex];
+        if (target == null) return null;
+        return Array.isArray(target) ? target : [target];
+    };
 
     // #661 rework (Han 2026-08-02: "ik wil dat je playAllMelodies gebruikt... via de bestaande play all
     // melody params"): the old §88 backing hand-rolled its OWN note-by-note scheduling on two throwaway
@@ -2723,6 +2747,7 @@ const App = () => {
                             {...sheetMusicCommonProps}
                             onOpenCharacter={() => { closeAllEditModes(); setCharacterScreen('equipment'); }}   // #647/#667 hero click opens avatar-context
                             combatNote={combatNote}                          // #647 combat — last played note
+                            hittableNotesRef={rpgHittableNotesRef}           // #990 — live "hittable notes" getter
                             // #862 (Han 2026-08-10, "doe maar meteen - ik wil 15 volledig kunnen testen"):
                             // bass-hand combat for twoHanded levels — the melody to spawn bass-slimes from
                             // (already clipped to start at measure 1, §189) and the hit/miss EVENT
@@ -2989,7 +3014,7 @@ const App = () => {
                     scale={scale}
                     activeClef={activeClef}
                     handleInputTestNote={handleNoteInputCombat}
-                    expectedTrebleNotes={expectedTrebleNotes}
+                    expectedTrebleNotesRef={getExpectedTrebleNotesRef}
                     qwertyKeyboardActive={qwertyKeyboardActive}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}

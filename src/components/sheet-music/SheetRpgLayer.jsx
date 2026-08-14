@@ -627,6 +627,14 @@ export default function SheetRpgLayer({
     trebleMelody, startX, pixelsPerTick, allOffsets, noteWidth, bpm, timeSignature,
     trebleStart, staffHeight, viewBottom, onOpenCharacter, onSlimesCleared, onSongEnd, onHit, onMiss, onCritterKilled,
     onEnemyTotal, onCritterTotal, combatNote,
+    // #990 (Han 2026-08-14, RPG-level wrong-note feedback): a ref this component populates with a
+    // FUNCTION returning "which note name(s) would currently count as a hit" — the exact same
+    // inWindow/next-slime logic the combatNote effect below already uses to judge a played note,
+    // just exposed for a SYNCHRONOUS read at note-PRESS time (PianoView.jsx), before the note even
+    // starts sounding, instead of only reactively after playSound already played it. A getter
+    // function, not a snapshot value — the acceptable-note set changes continuously as slimes
+    // scroll through the timing window, unlike a fixed "next expected note" index.
+    hittableNotesRef = null,
     // Bug fix (Han 2026-08-10, "de melodie komt helemaal nooit... het is NIET robuust geïmplementeerd"):
     // a watchdog signal for App.jsx — fired ONCE, the instant this component's own tick clock actually
     // unfreezes (see the rAF loop below). App.jsx uses this to detect + self-heal the case where the
@@ -966,6 +974,32 @@ export default function SheetRpgLayer({
     const onFirstTickUnfrozenRef = useRef(onFirstTickUnfrozen); onFirstTickUnfrozenRef.current = onFirstTickUnfrozen;
     const waveStartRef = useRef(0);                        // tick at which the current wave's clock started
     const geomRef = useRef({});                            // geometry read by the effects/rAF loop "at now"
+
+    // #990: the side-scroll graded-window candidate list — shared by the combatNote effect below
+    // (which needs the full {sl, idx, delta} shape for grading/resolution bookkeeping) AND
+    // `computeHittableNotes` below (which only needs the note names, for a synchronous external
+    // read). One implementation, not two drifting copies (§6c). Reads only *Ref current values, so
+    // it is safe to define once and never redefine per render — it always sees "now" when CALLED.
+    const computeInWindowCandidates = () => {
+        const { beatMs: bMs, beatsOnScreen: bos } = geomRef.current;
+        const elapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
+        return slimesRef.current
+            .map((sl, idx) => ({ sl, idx, delta: elapsedMs - (sl.beat + bos) * bMs }))
+            .filter(({ idx, delta }) => !resolvedRef.current.has(idx) && Math.abs(delta) <= bMs * MUCH_TOO_BEATS);
+    };
+    // #990 (Han 2026-08-14): "which note(s) would currently count as a hit" — exposed via
+    // hittableNotesRef for PianoView.jsx to read synchronously at note-PRESS time, before the note
+    // even starts sounding (the combatNote effect below only judges reactively, after the fact).
+    const computeHittableNotes = () => {
+        if (!geomRef.current.sideScroll) {
+            // Non-side-scroll: a single "next" target, the lowest-index not-yet-struck slime — mirrors
+            // the else-branch target lookup in the combatNote effect below exactly.
+            const k = slimesRef.current.findIndex((_, idx) => !resolvedStaticRef.current.has(idx));
+            return k >= 0 ? [slimesRef.current[k].note] : [];
+        }
+        return computeInWindowCandidates().map(({ sl }) => sl.note);
+    };
+    if (hittableNotesRef) hittableNotesRef.current = computeHittableNotes;
     // #863 perf fix: `dist`/`slimeY`/`bassSlimeY`/`projectileCenterY`/`beatsPerMeasure` added so the main
     // rAF loop (bucket A — scroll transform + live entity positions) can read the latest per-render-computed
     // geometry without closing over stale render-scoped values (the loop's own effect has an intentionally
@@ -1323,9 +1357,7 @@ export default function SheetRpgLayer({
             const elapsedMs = (tickRef.current - waveStartRef.current) * INTERVAL_MS;
             const addJudgment = (category) =>
                 setJudgments((l) => [...l, { id: judgmentIdRef.current++, category, startTick: tickRef.current }]);
-            const inWindow = slimesRef.current
-                .map((sl, idx) => ({ sl, idx, delta: elapsedMs - (sl.beat + bos) * bMs }))
-                .filter(({ idx, delta }) => !resolvedRef.current.has(idx) && Math.abs(delta) <= bMs * MUCH_TOO_BEATS);
+            const inWindow = computeInWindowCandidates(); // #990: shared with hittableNotesRef (§6c)
             const target = inWindow.find(({ sl }) => notesMatch(combatNote.note, sl.note));   // lowest idx = earliest beat
             if (target) {
                 // a wrong first attempt on this slime downgrades the kill to 'on second attempt' (½ point,
