@@ -14942,3 +14942,87 @@ is driven by the judgment engine" and gets its own design/plan cycle.
 `src/components/common/ChorusDebugSlider.jsx` (new),
 `src/audio/__tests__/chorusEffect.test.js` (new), `src/hooks/useInstruments.js`,
 `src/hooks/useInputTest.js`, `src/App.jsx`.
+
+### §230. RPG fx volume / RPG music volume / RPG visibility — 3 Playback Settings setters (#992, Han 2026-08-14)
+
+**Purpose:** 3 new, mutually independent setters in the Playback Settings panel (directly after the
+num-measures/reps row), each a gain- or opacity-multiplier layered ON TOP of an already-tuned,
+UNRELATED existing audio/visual path — not a merge into one bus, not a replacement of the existing
+tuning:
+- **RPG fx volume** — combat one-shot sfx (`playOneShotSfx` in `SheetRpgLayer.jsx`: the "hit on wood"
+  kill sfx and the "damaged" missed-note sfx, treble AND bass, 4 call sites total). Default mezzo-piano.
+- **RPG music volume** — ONE combined knob (Han's explicit spec) covering BOTH the level's backing
+  tracks (bass/metronome/percussion persistent faders, `resolveLevelVolume`/`LEVEL_BACKING_VOLUME`/
+  `LEVEL_BASS_VOLUME` in `App.jsx`) AND the open-world ambient music (generated piano + bird layers,
+  `MF_VOLUME`-based, `useWorldAmbientMusic.js`). Default mezzo-forte.
+- **RPG visibility** — opacity of `SheetRpgLayer.jsx`'s whole root `<g className="rpg-layer">`. Values
+  100 or 50 (percent), default 100.
+
+**How it works — relative-to-default multiplier (the key design decision):** each volume setter's
+multiplier is `selected VOL_STEPS value / that setter's OWN default VOL_STEPS value`
+(`rpgVolumeMultiplier(step, defaultStep)`, `src/audio/dynamics.js`) — never the raw 0-1 `VOL_STEPS`
+fraction applied directly. This matters because the 3 existing paths were ALREADY independently tuned
+(backing at mezzo-piano, ambient at `MF_VOLUME`=0.7) before this ticket; a naive raw-fraction multiply
+would have silently re-baselined all 3 the instant this ticket shipped (e.g. `0.7 * 0.8` = an
+unrequested 20% ambient cut on day one). Picking each new setter's DEFAULT to equal the VOL_STEPS step
+its target path already effectively uses (mp for fx/backing, mf for music) means
+`rpgVolumeMultiplier(default, default) === 1.0` — every existing path sounds/looks byte-for-byte
+identical to before this ticket until the player actually moves a setter. `DEFAULT_RPG_FX_VOLUME` /
+`DEFAULT_RPG_MUSIC_VOLUME` (`src/audio/dynamics.js`) are derived from the canonical `VOL_STEPS` table
+(`SettingsOverlay.jsx`), not hand-picked numbers (§6c). Visibility has no prior tuning to preserve, so
+it maps straight to `opacity = rpgVisibility / 100`.
+
+**State:** all 3 fields live on the existing `playbackConfig` object (`App.jsx`'s `configRef.current`,
+exposed app-wide via `PlaybackConfigContext`/`usePlaybackConfig`) — the same "independent, loose UI
+setting" shape `repsPerMelody` already uses on that object. No new context: every consumer needed
+(`PlaybackSettings.jsx`, `SheetMusic.jsx`→`SheetRpgLayer.jsx`, `App.jsx` itself for
+`useWorldAmbientMusic`/`resolveLevelVolume`) already reaches `playbackConfig` through existing wiring.
+
+**Wiring:**
+- `App.jsx`: `rpgMusicMultiplier = rpgVolumeMultiplier(playbackConfig.rpgMusicVolume,
+  DEFAULT_RPG_MUSIC_VOLUME)`, computed once near `LEVEL_BACKING_VOLUME`, multiplied into the 3
+  `resolveLevelVolume(...)` results (bass/metronome/percussion) before `setVolume`. The
+  `useWorldAmbientMusic()` call (higher up the component, before `playbackConfig` state is declared)
+  reads the equivalent value straight off `configRef.current.rpgMusicVolume` instead — always in sync
+  with `playbackConfig` (kept identical by `setPlaybackConfig`) and this whole component re-renders on
+  every `playbackConfig` update anyway, so this is never stale.
+- `useWorldAmbientMusic.js`: accepts an optional `musicVolumeMultiplier` (default 1), stored in a ref
+  (not read directly inside the scheduling closures) so turning the knob mid-play affects the NEXT
+  scheduled block without tearing down/restarting the hook's own `[active, context]`-only effects.
+  Multiplied on top of `MF_VOLUME` for both the ambient piano blocks and the bird layers (which also
+  keep their own separate `BIRD_VOLUME_MULTIPLIER`, unchanged).
+- `SheetRpgLayer.jsx`: accepts `rpgFxVolume` (raw VOL_STEPS value, default `DEFAULT_RPG_FX_VOLUME`) and
+  `rpgVisibility` (percent, default 100) as plain props (same prop-drilling convention as the existing
+  `debugMode` prop — no context needed at this leaf). A `useMemo`'d `rpgFxVolumeMultiplier =
+  rpgVolumeMultiplier(rpgFxVolume, DEFAULT_RPG_FX_VOLUME)` is multiplied into all 4
+  `playOneShotSfx(...)` call sites' volume argument. `rpgVisibility / 100` is set directly as the root
+  `<g className="rpg-layer">`'s inline `style.opacity` — safe under the §6 "never set opacity via JSX
+  on ANIMATED elements" rule because this outer group is a static, per-render wrapper never mutated by
+  the rAF loop itself (same reasoning that already lets `debugMode` gate an opacity on the inner
+  `realScrollRef` group).
+- `SheetMusic.jsx`: passes `rpgFxVolume={playbackConfig?.rpgFxVolume}` and
+  `rpgVisibility={playbackConfig?.rpgVisibility}` down to `SheetRpgLayer` (it already has
+  `playbackConfig` in scope via `usePlaybackConfig()`).
+
+**UI (`PlaybackSettings.jsx`):** 3 new setter rows, directly after `RepeatMeasureBar` and before the
+"2. CHORDS BLOCK" `SectionHeader` — reuses the SAME `ps-row-3col`/`ps-row-3col-headers`/
+`ps-row-3col-controls` CSS grid pattern the Tonic/Mode/Family row above already uses (§6d, no new row
+component). Each cell is a `GenericStepper` using its existing `options`/`allowedValues` list-popup
+mechanism: the two volume steppers share `RPG_VOLUME_OPTIONS`/`RPG_VOLUME_VALUES` built once from
+`VOL_STEPS` (glyphs never drift from `SettingsOverlay.jsx`'s canonical table); the visibility stepper
+uses a 2-entry `[100, 50]` list.
+
+**Invariants:**
+- **INV-1** — at every setter's own shipped default, its multiplier is EXACTLY 1.0 — moving a setter
+  is opt-in, never a silent re-tune of an existing path.
+- **INV-2** — "RPG music volume" stays ONE combined knob over the level-backing AND ambient paths
+  (Han's explicit spec) — do not split it into two without a new ticket/interview.
+- **INV-3** — the fx/music defaults must stay whatever `DEFAULT_RPG_FX_VOLUME`/
+  `DEFAULT_RPG_MUSIC_VOLUME` compute to from `VOL_STEPS` — never hand-picked numeric literals
+  duplicating those steps (§6c).
+
+**Files:** `src/audio/dynamics.js` (`DEFAULT_RPG_FX_VOLUME`, `DEFAULT_RPG_MUSIC_VOLUME`,
+`rpgVolumeMultiplier`, new), `src/audio/__tests__/dynamics.test.js` (new),
+`src/hooks/useWorldAmbientMusic.js`, `src/hooks/__tests__/useWorldAmbientMusic.test.js` (new),
+`src/components/sheet-music/SheetRpgLayer.jsx`, `src/components/sheet-music/SheetMusic.jsx`,
+`src/components/controls/PlaybackSettings.jsx`, `src/App.jsx`.

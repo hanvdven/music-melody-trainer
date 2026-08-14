@@ -2913,6 +2913,10 @@ const SheetMusic = ({
                     bassMelody={twoHandedBassMelody}
                     bassCombatEvent={bassCombatEvent}
                     debugMode={debugMode}
+                    // #992 — plain props, same prop-drilling convention debugMode above already uses
+                    // (playbackConfig is already in scope here via usePlaybackConfig()).
+                    rpgFxVolume={playbackConfig?.rpgFxVolume}
+                    rpgVisibility={playbackConfig?.rpgVisibility}
                     context={context}
                     scrollStartTime={levelAudioStart}
                     scrollNotation={sideScroll ? {

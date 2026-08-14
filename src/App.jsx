@@ -55,7 +55,7 @@ import useLevel from './hooks/useLevel';
 import useMidiInput from './hooks/useMidiInput';
 import playSound from './audio/playSound';
 import playMelodies from './audio/playMelodies';
-import { Soundfont } from 'smplr';
+import { createMelodicInstrument } from './audio/localInstruments';
 import buildTimpaniPattern from './utils/timpaniPattern';
 import { LEVEL_TIMPANI_SLOT, LEVEL_CELLO_SLOT } from './constants/melodyInstances';
 import useLevelBackingStream from './hooks/useLevelBackingStream';
@@ -64,6 +64,7 @@ import useLevelTrebleStream from './hooks/useLevelTrebleStream';
 import useLevelMixedStream from './hooks/useLevelMixedStream';
 import useLevelKeyModulationStream from './hooks/useLevelKeyModulationStream';
 import { VOL_STEPS } from './components/sheet-music/overlays/SettingsOverlay';
+import { DEFAULT_RPG_FX_VOLUME, DEFAULT_RPG_MUSIC_VOLUME, rpgVolumeMultiplier } from './audio/dynamics';
 import { LEVELS } from './levels/levels';
 import usePlayback from './hooks/usePlayback';
 import useInputTest from './hooks/useInputTest';
@@ -152,6 +153,14 @@ const App = () => {
     const [scale,         setScale,         scaleRef] = useRefState(() => Scale.defaultScale(DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE));
     const configRef = useRef({
         repsPerMelody: 4,
+        // #992 (Han: 3 new Playback Settings setters): independent RPG audio/visual gain knobs, same
+        // "loose UI setting on playbackConfig" shape as repsPerMelody above (see docs/architecture.md
+        // for the full multiplier-semantics writeup). Defaults are DEFAULT_RPG_FX_VOLUME/
+        // DEFAULT_RPG_MUSIC_VOLUME (audio/dynamics.js, mp/mf) so the day-one multiplier is exactly 1.0
+        // on every existing path — see rpgVolumeMultiplier for why that must hold.
+        rpgFxVolume: DEFAULT_RPG_FX_VOLUME,
+        rpgMusicVolume: DEFAULT_RPG_MUSIC_VOLUME,
+        rpgVisibility: 100,
         oddRounds: {
             treble: 1, trebleEye: true,
             bass: 1, bassEye: true,
@@ -282,7 +291,16 @@ const App = () => {
     const rpgLevel = useRpgLevelState();
     // #924 (Han 2026-08-12, "wereldlevel: speel op de achtergrond zachtjes random generated muziek... +
     // 3 lagen bird song"): only runs while the open-world RPG-level tab is active.
-    useWorldAmbientMusic({ active: characterScreen === 'rpg-level', context });
+    // #992 — reads configRef.current directly (not the `playbackConfig` state var, which isn't declared
+    // until further down this component) — configRef.current is kept in perfect sync with playbackConfig
+    // by setPlaybackConfig (below) on every update, and this whole component re-renders on every such
+    // update anyway, so this always reflects the latest value. Same ONE combined knob as
+    // rpgMusicMultiplier further down (App.jsx's own resolveLevelVolume call sites) — see that comment
+    // for the full "why one knob over two unrelated paths" rationale.
+    useWorldAmbientMusic({
+        active: characterScreen === 'rpg-level', context,
+        musicVolumeMultiplier: rpgVolumeMultiplier(configRef.current.rpgMusicVolume, DEFAULT_RPG_MUSIC_VOLUME),
+    });
     const [showLevelPicker, setShowLevelPicker] = useState(false);   // #661: level-start splash (tanh carousel)
     // Loaded-song title for the header (Han 2026-06-14): "Happy Birthday in G major". Set on song
     // load; cleared when the user generates a fresh exercise (un-pins the melody) — see effect below.
@@ -1190,6 +1208,12 @@ const App = () => {
     // was inconclusive: the audio pipeline traced structurally sound, so this is the perceived-loudness
     // mitigation flagged there as a follow-up).
     const LEVEL_BASS_VOLUME = VOL_STEPS.find((s) => s.label === 'mezzo forte').value;
+    // #992 (Han: "RPG music volume" setter) — ONE combined multiplier applied on top of BOTH the level
+    // backing (bass/metronome/percussion, resolveLevelVolume below) AND the open-world ambient music/
+    // birds (useWorldAmbientMusic, MF_VOLUME-based) — Han's explicit spec: one knob over both existing
+    // paths, not two separate ones. At the shipped default (mezzo-forte) this is exactly 1.0, so neither
+    // path's tuned volume changes until the player actually moves the setter (see rpgVolumeMultiplier).
+    const rpgMusicMultiplier = rpgVolumeMultiplier(playbackConfig.rpgMusicVolume, DEFAULT_RPG_MUSIC_VOLUME);
     // Level editor (Han 2026-08-06, "tracks.<name>.volume"): resolves a track's persistent output fader
     // from the level's own `tracks.<name>.volume` (a VOL_STEPS glyph string — "pp"/"p"/"mp"/"mf"/"f"/
     // "silent", see levels.js's schema reference), falling back to the hardcoded defaults above when the
@@ -1209,7 +1233,7 @@ const App = () => {
     const timpaniRef = useRef(null);
     useEffect(() => {
         if (!context) return;
-        try { if (!timpaniRef.current) timpaniRef.current = new Soundfont(context, { instrument: 'timpani', destination: context.destination }); } catch { /* offline / CDN blocked */ }
+        try { if (!timpaniRef.current) timpaniRef.current = createMelodicInstrument(context, 'timpani'); } catch { /* offline / CDN blocked */ }
     }, [context]);
     // #858 (Han 2026-08-10, "doe de refactor 858 nu"): timpani used to be scheduled from a raw
     // pattern array built inline at schedule time, with zero representation in the Melody/
@@ -1234,7 +1258,7 @@ const App = () => {
     const celloRef = useRef(null);
     useEffect(() => {
         if (!context) return;
-        try { if (!celloRef.current) celloRef.current = new Soundfont(context, { instrument: 'cello', destination: context.destination }); } catch { /* offline / CDN blocked */ }
+        try { if (!celloRef.current) celloRef.current = createMelodicInstrument(context, 'cello'); } catch { /* offline / CDN blocked */ }
     }, [context]);
     // #662 (Han 2026-08-03, "timpanen en cello worden niet onderbroken door de stop-knop"): the level's
     // backing is scheduled ALL AT ONCE, far ahead (the whole -1..8 measure span) — unlike the Sequencer's
@@ -1343,9 +1367,11 @@ const App = () => {
         backingScheduledForRef.current = levelAudioStart;
         levelBackingStopFnsRef.current = [];   // fresh schedule — drop any stale handles from a prior level
         const bpm = lvl.bpm || 80;
-        const bassVolume = resolveLevelVolume(lvl, 'bass', LEVEL_BASS_VOLUME);
-        const metronomeVolume = resolveLevelVolume(lvl, 'metronome', LEVEL_BACKING_VOLUME);
-        const percussionVolume = resolveLevelVolume(lvl, 'percussion', LEVEL_BACKING_VOLUME);
+        // #992 — rpgMusicMultiplier applied on top of the resolved value, not replacing it (relative-
+        // to-default semantics, see its own comment above); == 1.0 at the shipped default.
+        const bassVolume = resolveLevelVolume(lvl, 'bass', LEVEL_BASS_VOLUME) * rpgMusicMultiplier;
+        const metronomeVolume = resolveLevelVolume(lvl, 'metronome', LEVEL_BACKING_VOLUME) * rpgMusicMultiplier;
+        const percussionVolume = resolveLevelVolume(lvl, 'percussion', LEVEL_BACKING_VOLUME) * rpgMusicMultiplier;
         setVolume('bass', bassVolume);
         setVolume('metronome', metronomeVolume);
 
@@ -1364,7 +1390,7 @@ const App = () => {
             );
         }
     }, [level.active, level.current, levelAudioStart, context, instruments, bassReady, metronomeReady,
-        levelMelodyReady, setVolume, LEVEL_BACKING_VOLUME, LEVEL_BASS_VOLUME, percussionSettings?.melodic, timeSignature, timpaniMelody]);
+        levelMelodyReady, setVolume, LEVEL_BACKING_VOLUME, LEVEL_BASS_VOLUME, percussionSettings?.melodic, timeSignature, timpaniMelody, rpgMusicMultiplier]);
 
     // #688 (Han 2026-08-04, Level 9 rework: "ik hoor te veel tonen. lijkt of er meerdere melodieën
     // gegenereerd zijn" + "ik verwacht een soepele aangesloten reeks maten... alle 10 maten naadloos"):
@@ -1411,7 +1437,7 @@ const App = () => {
     const wizardPreviewRef = useRef(null);
     useEffect(() => {
         if (!context) return;
-        try { if (!wizardPreviewRef.current) wizardPreviewRef.current = new Soundfont(context, { instrument: 'lead_1_square', destination: context.destination }); } catch { /* offline / CDN blocked */ }
+        try { if (!wizardPreviewRef.current) wizardPreviewRef.current = createMelodicInstrument(context, 'lead_1_square'); } catch { /* offline / CDN blocked */ }
     }, [context]);
     // Dedicated stop-fns ref (NOT the shared `levelBackingStopFnsRef` — that's also used by bass/
     // metronome/timpani schedules and must not be blanket-cancelled from here).

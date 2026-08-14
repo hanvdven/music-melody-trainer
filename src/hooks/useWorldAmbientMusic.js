@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Soundfont } from 'smplr';
 import playMelodies from '../audio/playMelodies';
+import { createMelodicInstrument } from '../audio/localInstruments';
 import { secondsPerTick } from '../constants/timing';
 import { nextMeasureStartTime } from '../audio/worldClock';
 import { MF_VOLUME } from '../audio/dynamics';
@@ -35,14 +35,22 @@ const MAX_CONCURRENT_BIRD_LAYERS = 3;
 // MF_VOLUME scaling above is untouched).
 const BIRD_VOLUME_MULTIPLIER = 0.8 * 0.7;
 
-export default function useWorldAmbientMusic({ active, context }) {
+export default function useWorldAmbientMusic({ active, context, musicVolumeMultiplier = 1 }) {
+    // #992 (Han: "RPG music volume" setter) — the ONE combined knob covering both the ambient piano AND
+    // bird layers below (App.jsx's own resolveLevelVolume call sites get the SAME multiplier for the
+    // level bass/metronome/percussion tracks — one setting, two existing paths, per Han's spec). Kept in
+    // a ref (not read directly as a prop inside the scheduling closures) so turning the knob mid-play
+    // affects the NEXT scheduled block without tearing down/restarting the effects below — those only
+    // depend on [active, context] by design (see their own eslint-disable-next-line comments).
+    const musicVolumeMultiplierRef = useRef(musicVolumeMultiplier);
+    useEffect(() => { musicVolumeMultiplierRef.current = musicVolumeMultiplier; }, [musicVolumeMultiplier]);
     // Own dedicated Soundfont instances — NEVER the user's live configured treble/bass instrument (Han's
     // interview answer: this must not hijack the user's actual practice instrument slots).
     const instrumentsRef = useRef({});
     const getInstrument = (slug) => {
         if (!context) return null;
         if (!instrumentsRef.current[slug]) {
-            instrumentsRef.current[slug] = new Soundfont(context, { instrument: slug, destination: context.destination });
+            instrumentsRef.current[slug] = createMelodicInstrument(context, slug);
         }
         return instrumentsRef.current[slug];
     };
@@ -73,8 +81,10 @@ export default function useWorldAmbientMusic({ active, context }) {
                 // melody entry on its own (`if (!melody) continue`), so passing both through unconditionally
                 // is correct and plays whichever one(s) actually generated.
                 const { treble, bass: bassMelody } = generateWorldAmbientBlock({ runId: `world-amb-${Date.now()}` });
-                if (treble) treble.volumes = treble.volumes.map((v) => v * MF_VOLUME);
-                if (bassMelody) bassMelody.volumes = bassMelody.volumes.map((v) => v * MF_VOLUME);
+                // #992 — rpgMusicVolume's multiplier applied ON TOP of MF_VOLUME (relative-to-default
+                // semantics, see rpgVolumeMultiplier in audio/dynamics.js); == 1.0 at the shipped default.
+                if (treble) treble.volumes = treble.volumes.map((v) => v * MF_VOLUME * musicVolumeMultiplierRef.current);
+                if (bassMelody) bassMelody.volumes = bassMelody.volumes.map((v) => v * MF_VOLUME * musicVolumeMultiplierRef.current);
                 if (treble || bassMelody) {
                     playMelodies([treble, bassMelody], [treblePiano, bassPiano], context, WORLD_AMBIENT_BPM, startTime);
                 }
@@ -108,7 +118,9 @@ export default function useWorldAmbientMusic({ active, context }) {
                     // Han: "gebruik gewoon de velocities" — scale the layer's OWN per-note velocities
                     // (scripts/generate-bird-sounds.mjs) by MF_VOLUME, don't replace them with a flat gain.
                     // Copy the array (never mutate the shared BIRD_SONG_LAYERS export in place).
-                    const layer = { ...source, volumes: source.volumes.map((v) => v * MF_VOLUME * BIRD_VOLUME_MULTIPLIER) };
+                    // #992 — same rpgMusicVolume multiplier as the piano blocks above, on top of the
+                    // birds' own existing MF_VOLUME * BIRD_VOLUME_MULTIPLIER scaling.
+                    const layer = { ...source, volumes: source.volumes.map((v) => v * MF_VOLUME * BIRD_VOLUME_MULTIPLIER * musicVolumeMultiplierRef.current) };
                     const lastNoteEnd = layer.offsets.length
                         ? Math.max(...layer.offsets.map((o, i) => o + layer.durations[i]))
                         : 0;

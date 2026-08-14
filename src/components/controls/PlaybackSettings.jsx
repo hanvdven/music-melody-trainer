@@ -13,11 +13,21 @@ import PlaybackInstrumentSection from './PlaybackInstrumentSection';
 import { calcHarmonicDifficulty } from '../../utils/difficultyCalculator';
 import { DifficultyPanel, HarmonicSlider } from './DifficultyControls';
 import { usePlaybackConfig } from '../../contexts/PlaybackConfigContext';
+import { VOL_STEPS } from '../sheet-music/overlays/SettingsOverlay';
 import { useInstrumentSettings } from '../../contexts/InstrumentSettingsContext';
 import { useDisplaySettings } from '../../contexts/DisplaySettingsContext';
 import { GRID_GENERATOR } from '../../constants/musicLayout';
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// #992 (Han: 3 new Playback Settings setters — RPG fx volume / RPG music volume / RPG visibility):
+// GenericStepper's existing "options" list-popup mechanism (§6c — no new bespoke picker component),
+// built once from the canonical VOL_STEPS table so the glyphs (pp/p/P/F/f/") never drift from the
+// SettingsOverlay.jsx source of truth.
+const RPG_VOLUME_OPTIONS = VOL_STEPS.map((s) => ({ label: s.glyph, value: s.value }));
+const RPG_VOLUME_VALUES = VOL_STEPS.map((s) => s.value);
+const RPG_VISIBILITY_OPTIONS = [{ label: '100%', value: 100 }, { label: '50%', value: 50 }];
+const RPG_VISIBILITY_VALUES = [100, 50];
 
 const PlaybackSettings = ({
   numMeasures,
@@ -347,6 +357,49 @@ const PlaybackSettings = ({
         onMeasuresChange={handleMeasureChangeLocal}
         onRepsChange={handleRepsChangeLocal}
       />
+
+      {/* #992 (Han: 3 new setters directly after the num-measures/reps row): RPG fx volume / RPG music
+          volume / RPG visibility — each a gain/opacity multiplier layered ON TOP of the 3 existing,
+          unrelated volume/visibility paths (see docs/architecture.md and audio/dynamics.js's
+          rpgVolumeMultiplier for the exact relative-to-default semantics). Reuses the SAME 3-col
+          header+controls grid pattern as the Tonic/Mode/Family row above (§6d — no new row component). */}
+      <div className="ps-row-3col ps-row-3col-headers">
+        <div className="ps-col-header-cell">RPG FX Volume</div>
+        <div className="ps-col-header-cell">RPG Music Volume</div>
+        <div className="ps-col-header-cell">RPG Visibility</div>
+      </div>
+      <div className="ps-row-3col ps-row-3col-controls">
+        <GenericStepper
+          value={playbackConfig.rpgFxVolume}
+          label={RPG_VOLUME_OPTIONS.find((o) => o.value === playbackConfig.rpgFxVolume)?.label}
+          allowedValues={RPG_VOLUME_VALUES}
+          options={RPG_VOLUME_OPTIONS}
+          onChange={(val) => setPlaybackConfig((prev) => ({ ...prev, rpgFxVolume: val }))}
+          fontSize="15.5px"
+          fontFamily="serif"
+          height="42px"
+        />
+        <GenericStepper
+          value={playbackConfig.rpgMusicVolume}
+          label={RPG_VOLUME_OPTIONS.find((o) => o.value === playbackConfig.rpgMusicVolume)?.label}
+          allowedValues={RPG_VOLUME_VALUES}
+          options={RPG_VOLUME_OPTIONS}
+          onChange={(val) => setPlaybackConfig((prev) => ({ ...prev, rpgMusicVolume: val }))}
+          fontSize="15.5px"
+          fontFamily="serif"
+          height="42px"
+        />
+        <GenericStepper
+          value={playbackConfig.rpgVisibility}
+          allowedValues={RPG_VISIBILITY_VALUES}
+          options={RPG_VISIBILITY_OPTIONS}
+          suffix="%"
+          onChange={(val) => setPlaybackConfig((prev) => ({ ...prev, rpgVisibility: val }))}
+          fontSize="15.5px"
+          fontFamily="serif"
+          height="42px"
+        />
+      </div>
 
       {/* 2. CHORDS BLOCK */}
       <SectionHeader label="Chords" />

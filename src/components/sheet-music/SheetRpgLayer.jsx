@@ -19,6 +19,7 @@ import {
     HIT_BURST_TOTAL_FRAMES, HIT_BURST_OPACITY,
 } from '../../model/enemyAssets';
 import playOneShotSfx, { HIT_ON_WOOD_FILES, DAMAGED_FILES } from '../../audio/playOneShotSfx';
+import { DEFAULT_RPG_FX_VOLUME, rpgVolumeMultiplier } from '../../audio/dynamics';
 import { noteToMidi } from '../../theory/noteUtils';
 import MelodyNotesLayer from './MelodyNotesLayer';
 import BarlinesLayer from './BarlinesLayer';
@@ -639,6 +640,13 @@ export default function SheetRpgLayer({
     // only resolves the matching visual slime off the event, it never re-derives hit/miss itself (§6c).
     bassMelody = null, bassCombatEvent = null,
     sideScroll = false, viewRight = 0, beatsOnScreen = 8, debugMode = false,
+    // #992 (Han: 3 new Playback Settings setters — RPG fx volume / RPG music volume / RPG visibility):
+    // `rpgFxVolume` is the raw VOL_STEPS value (0-1), converted below into a multiplier relative to its
+    // OWN default (DEFAULT_RPG_FX_VOLUME) — never a raw replacement gain (see rpgVolumeMultiplier).
+    // `rpgVisibility` is a direct percent (100 or 50, no existing path to preserve) mapped straight to
+    // this whole layer's opacity. RPG music volume has no place here — it only touches App.jsx/
+    // useWorldAmbientMusic's audio paths, never anything SheetRpgLayer itself renders or plays.
+    rpgFxVolume = DEFAULT_RPG_FX_VOLUME, rpgVisibility = 100,
     // #661 side-scroll: the REAL scrolling staff is drawn via the canonical renderers (§6d) instead of
     // hand-rolled glyphs. `scrollNotation` = the treble MelodyNotesLayer prop bundle (heads/rests/colours/
     // beams), `scrollBarlines` = the BarlinesLayer prop bundle (moving barlines + measure numbers). Both are
@@ -684,6 +692,13 @@ export default function SheetRpgLayer({
     // own key-modulation mechanic, `npc` is the general-purpose mechanism for any level.
     npc = null,
 }) {
+    // #992 — relative-to-default multiplier applied to every playOneShotSfx() call below (HIT_ON_WOOD/
+    // DAMAGED one-shots); == 1.0 at the shipped default (DEFAULT_RPG_FX_VOLUME), so combat sfx sounds
+    // identical to before this ticket until the player actually moves the setter.
+    const rpgFxVolumeMultiplier = useMemo(
+        () => rpgVolumeMultiplier(rpgFxVolume, DEFAULT_RPG_FX_VOLUME),
+        [rpgFxVolume],
+    );
     const isWizard = enemyType === 'Wizard';
     // Level 10 (Han 2026-08-06, "de noten van de wizardmaten moeten geen slime hebben, maar een
     // projectile krijgen"): a Mixed level shows a STATIC black wizard (like a real Wizard level) but
@@ -1339,7 +1354,9 @@ export default function SheetRpgLayer({
                     const hitStart = Math.floor(Math.random() * HIT_BURST_TOTAL_FRAMES);
                     const frames = Array.from({ length: HIT_FRAMES }, (_, i) => (hitStart + i) % HIT_BURST_TOTAL_FRAMES);
                     setHits((l) => [...l, { id: hitIdRef.current++, startTick: tickRef.current, x: x + SLIME_VIEW_W / 2, y: slimeY, frames }]);
-                    playOneShotSfx(context, HIT_ON_WOOD_FILES, HIT_SFX_VOLUME);
+                    // #992 — rpgFxVolumeMultiplier on top of the tuned constant (relative-to-default,
+                    // see its own comment above).
+                    playOneShotSfx(context, HIT_ON_WOOD_FILES, HIT_SFX_VOLUME * rpgFxVolumeMultiplier);
                 }
                 // per-event audit trail (Han 2026-08-02 "22 missers — vind uit hoe dat kan"): every combat
                 // resolution logs note + delta so a stats mismatch is diagnosable from the console.
@@ -1426,13 +1443,14 @@ export default function SheetRpgLayer({
             const hitStart = Math.floor(Math.random() * HIT_BURST_TOTAL_FRAMES);
             const frames = Array.from({ length: HIT_FRAMES }, (_, i) => (hitStart + i) % HIT_BURST_TOTAL_FRAMES);
             setHits((l) => [...l, { id: hitIdRef.current++, startTick: tickRef.current, x: x + SLIME_VIEW_W / 2, y: bassSlimeY, frames }]);
-            playOneShotSfx(context, HIT_ON_WOOD_FILES, HIT_SFX_VOLUME);
+            // #992 — same rpgFxVolumeMultiplier as the treble hit above.
+            playOneShotSfx(context, HIT_ON_WOOD_FILES, HIT_SFX_VOLUME * rpgFxVolumeMultiplier);
             logger.debug('RpgCombat', 'BASS KILL', { note: bassCombatEvent.note, bassSlime: idx, measureIndex: bassCombatEvent.measureIndex });
         } else if (bassCombatEvent.type === 'miss') {
             // No death animation / killedSet entry — like a missed treble note, it just keeps flying and
             // scrolls off-screen naturally; only the feedback label is shown.
             bassJudgment('missed');
-            playOneShotSfx(context, DAMAGED_FILES, MISS_SFX_VOLUME);
+            playOneShotSfx(context, DAMAGED_FILES, MISS_SFX_VOLUME * rpgFxVolumeMultiplier);
             logger.debug('RpgCombat', 'BASS EXPIRED (missed)', { bassSlime: idx, measureIndex: bassCombatEvent.measureIndex });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1518,7 +1536,8 @@ export default function SheetRpgLayer({
                         // #991 — damagedN.wav one-shot on an actual 'missed' verdict only (not
                         // 'wrongUncorrected'), same "same moment as the existing missed judgment" gate as
                         // the label above (Han interview: no separate 1/8-note threshold check).
-                        playOneShotSfx(context, DAMAGED_FILES, MISS_SFX_VOLUME);
+                        // #992 — same rpgFxVolumeMultiplier as the other 3 playOneShotSfx call sites.
+                        playOneShotSfx(context, DAMAGED_FILES, MISS_SFX_VOLUME * rpgFxVolumeMultiplier);
                     }
                     onMissRef.current?.(reason, 'treble');
                 }
@@ -1884,7 +1903,11 @@ export default function SheetRpgLayer({
     }, [sideScroll, scrollBarlinesClipped, barlineStartX, noteWidth, scrollPPT, debugMode]);
 
     return (
-        <g className="rpg-layer" data-rpg-layer="" style={{ pointerEvents: 'none' }}>
+        // #992 (Han: "RPG visibility" setter, 100 or 50%) — direct opacity on the whole layer's static,
+        // per-render root group (not touched by the rAF loop itself, so this is safe per CLAUDE.md §6's
+        // "never set opacity via JSX on ANIMATED elements" rule — same reasoning already applies to
+        // debugMode's opacity on the inner realScrollRef group below).
+        <g className="rpg-layer" data-rpg-layer="" style={{ pointerEvents: 'none', opacity: rpgVisibility / 100 }}>
             {/* #661 the REAL scrolling staff (notes/rests/colours/beams + barlines/measure numbers), laid out
                 once and translated left every tick. Barlines sit at the pure tick boundary (between notes);
                 notes carry NOTE_STAFF_DX to centre over their slimes. A soft mask fades both lane ends. */}
