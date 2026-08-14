@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { getCanonicalNote, normalizeNoteChars } from '../theory/noteUtils';
+import { resolveActiveInputStaff } from '../utils/activeInputStaff';
 
 /**
  * useInputTest — manages all Input Test Mode state and logic.
@@ -197,10 +198,9 @@ const useInputTest = ({
             const currentMelodies = melodiesRef.current;
             const currentChords = chordProgressionRef.current;
 
-            let targetStaff = 'treble';
-            if (activeTab === 'piano' || activeTab === 'guitar') targetStaff = activeClef;
-            else if (activeTab === 'percussion') targetStaff = 'percussion';
-            else if (activeTab === 'chords' || activeTab === 'generator') targetStaff = 'chords';
+            // #990: this mapping moved to utils/activeInputStaff.js so the chorus effect can
+            // target the SAME channel the player is expected to play on, without a second copy.
+            const targetStaff = resolveActiveInputStaff(activeTab, activeClef);
 
             let firstValidIdx = -1;
             if (targetStaff === 'chords') {

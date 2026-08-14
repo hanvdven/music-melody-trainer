@@ -45,6 +45,8 @@ import LevelPausePopup from './components/levels/LevelPausePopup';
 import SubHeader from './components/layout/SubHeader';
 
 // Hooks
+import ChorusDebugSlider from './components/common/ChorusDebugSlider';
+import { resolveActiveInputStaff } from './utils/activeInputStaff';
 import useRefState from './hooks/useRefState';
 import useWindowSize from './hooks/useWindowSize';
 import useInstruments from './hooks/useInstruments';
@@ -303,7 +305,22 @@ const App = () => {
     const windowSize = useWindowSize();
     const [musicalBlocks, setMusicalBlocks, musicalBlocksRef] = useRefState([1]);
 
-    const { instruments, loadedSlug, manualInstruments, settings: instrumentSettingsHooks, setVolume } = useInstruments(context);
+    const { instruments, loadedSlug, manualInstruments, settings: instrumentSettingsHooks, setVolume, setChorusStrength } = useInstruments(context);
+
+    // #990 debug chorus knob: targets ONLY the currently-active clef/instrument-type (Han's
+    // correction to the plan's "treble+bass together"), resolved through the SAME input-mode
+    // helper Input Test Mode uses. If the active type changed since the last drag, the previously
+    // chorused channel is ramped back to 0 first — otherwise a stale wet signal would stay stuck
+    // on the channel you just navigated away from. Imperative on purpose (no useEffect): audio
+    // params are never driven from a render pass (§6).
+    const chorusDebugStaffRef = useRef(null);
+    const handleChorusDebugChange = (v) => {
+        const staff = resolveActiveInputStaff(activeTab, activeClef);
+        const prevStaff = chorusDebugStaffRef.current;
+        if (prevStaff && prevStaff !== staff) setChorusStrength(prevStaff, 0);
+        chorusDebugStaffRef.current = staff;
+        setChorusStrength(staff, v);
+    };
 
     useEffect(() => {
         instrumentsRef.current = instruments;
@@ -2511,6 +2528,15 @@ const App = () => {
                     {`MIDI: ${midiStatus.state}${midiStatus.inputs.length ? ` [${midiStatus.inputs.join(', ')}]` : ''}`}
                     {midiStatus.lastData ? `\n#${midiStatus.count}  [${midiStatus.lastData.join(', ')}]` : '\n(no events yet)'}
                 </div>
+            )}
+            {/* #990 chorus debug knob (Han: "in debugmode een handmatige chorus-strength regelaar
+                zodat ik met keyboard kan testen hoe het klinkt"). Sits directly under the MIDI
+                dump; drives only the currently-active clef/instrument-type. */}
+            {debugMode && (
+                <ChorusDebugSlider
+                    staff={resolveActiveInputStaff(activeTab, activeClef)}
+                    onChange={handleChorusDebugChange}
+                />
             )}
             {/* Level config debug dump MOVED (Han 2026-08-06, "ik wil de level params zien tijdens het
                 'start level' splash screen, niet tijdens het level") — now lives in LevelStartSplash

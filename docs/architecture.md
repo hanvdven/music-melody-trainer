@@ -14864,3 +14864,81 @@ this sound if 'missed' handling is ever refactored.
 **Files:** `src/audio/playOneShotSfx.js`, `src/components/sheet-music/SheetRpgLayer.jsx`,
 `src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx`.
 
+
+---
+
+### §229. Chorus effect on the instrument output + debug strength knob (#990, Han 2026-08-14)
+
+**Purpose:** Han: *"bij een foute noot chorus (klein beetje vals klinken)"* — when the player
+plays a wrong note on the active instrument, that instrument should detune/chorus slightly. This
+section covers the EFFECT and the DEBUG KNOB only; wiring the effect to the wrong-note judgment
+is a deliberate follow-up slice (see "Out of scope" below).
+
+**How it works.** `src/audio/chorusEffect.js` exports `createChorus(context, { destination })`,
+a classic 3-voice LFO-modulated delay chorus in plain Web Audio:
+
+```
+input(Gain) ─┬─ delay0 (12ms) ─ panner(-0.7) ─┐
+             ├─ delay1 (18ms) ─ panner( 0.0) ─┼─ wet(Gain, 0) ─ destination
+             └─ delay2 (25ms) ─ panner(+0.7) ─┘
+ lfo_i (Osc @ 0.53 / 0.67 / 0.91 Hz) ─ depth_i(Gain) ─ delay_i.delayTime
+```
+
+It is hand-rolled because smplr ships exactly one effect (`Reverb`) and the project has no other
+DSP dependency — adding Tone.js for one effect was rejected (§6c reuse check was done first, not
+after). The returned object is shaped **exactly like smplr's `Reverb`** (`{ input }` plus a
+self-connected output), so it slots into the existing `instrument.output.addEffect(name, effect,
+mix)` pattern verbatim.
+
+`setStrength(strength, { rampSec, time })` clamps to 0…1 and drives TWO coupled params from one
+knob: the wet mix, and the modulation depth (0.8ms → 4ms). Low strength is therefore a quiet,
+subtle detune; high strength is wide and seasick — which is what "een klein beetje vals" versus
+"heel vals" means perceptually.
+
+**Attachment (`src/hooks/useInstruments.js`).** A chorus unit is created for BOTH instances of
+EVERY one of the five types (`treble`/`bass`/`percussion`/`metronome`/`chords`), right where the
+`Reverb` is attached, and added with a CONSTANT send mix of 1 (smplr's `sendEffect` writes
+`gain.value` directly, i.e. a step change = an audible click, so the audible amount is controlled
+inside the unit instead). Uniform attachment is deliberate: Han's requirement is that the effect
+be available on whichever channel is the **current input mode** of the level — treble level →
+treble, bass level → bass, percussion level → percussion — so it cannot be restricted to the
+melodic channels, and no `if (type === …)` branch enters shared wiring (§9c check 5).
+`setChorusStrength(type, strength, rampSec)` is exported next to `setVolume` and applies to both
+the fader-routed instance (sequencer, MIDI) and the manual instance (PianoView, QWERTY).
+
+**Input-mode resolution (`src/utils/activeInputStaff.js`).** The mapping from
+`(activeTab, activeClef)` to a channel key used to live inline in
+`useInputTest.handleToggleInputTest`. #990 needs the identical answer for "which channel does the
+chorus apply to", so it was extracted to `resolveActiveInputStaff(activeTab, activeClef)` and
+both call sites now share it — one source of truth, no drifting second copy (§6c).
+
+**Debug knob (`src/components/common/ChorusDebugSlider.jsx`).** A `debugMode`-gated fixed panel
+under the MIDI debug dump (same visual language), 0–1 range input plus a numeric readout. It
+targets ONLY the currently-active clef/instrument-type (Han's explicit correction to the plan's
+first proposal of driving treble+bass together). `App.jsx`'s `handleChorusDebugChange` resolves
+the staff via `resolveActiveInputStaff` at call time and ramps the *previous* staff back to 0 if
+the active type changed since the last drag, so a stale wet signal can never stay stuck on a
+channel you navigated away from.
+
+**Invariants:**
+- **INV-1** — the chorus wet level is ALWAYS driven imperatively onto the AudioParam via
+  `setTargetAtTime`; never through React state, a prop, or a `useEffect` per note. This is the
+  audio-domain form of the §6 "never set animated opacity via JSX props" rule.
+- **INV-2** — at strength 0 the chorus contributes exact silence and the dry path is unchanged.
+  0 is the app's default state; every unit is constructed at 0.
+- **INV-3** — the send is per-CHANNEL, so while wet > 0 *everything* on that channel (including
+  sequencer playback) is chorused. Acceptable for a short wrong-note pulse and for the debug
+  knob; the follow-up ticket MUST ramp back to 0.
+- **INV-4** — every chorus unit is `disconnect()`ed in the same place its owning instrument is,
+  in `updateInstrument` — it is part of the same documented "#4" leak (added effects staying
+  connected to the fader across instrument switches until nothing is audible).
+
+**Out of scope (follow-up ticket):** wiring `setChorusStrength` into the wrong-note branches
+(`SheetRpgLayer.jsx` `addJudgment('wrongNote')` and `useInputTest.js` `status:'error'`) and
+choosing the release envelope. That slice introduces the genuinely new invariant "an audio effect
+is driven by the judgment engine" and gets its own design/plan cycle.
+
+**Files:** `src/audio/chorusEffect.js` (new), `src/utils/activeInputStaff.js` (new),
+`src/components/common/ChorusDebugSlider.jsx` (new),
+`src/audio/__tests__/chorusEffect.test.js` (new), `src/hooks/useInstruments.js`,
+`src/hooks/useInputTest.js`, `src/App.jsx`.

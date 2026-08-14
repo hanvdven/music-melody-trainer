@@ -3,6 +3,7 @@ import { Soundfont, Reverb, DrumMachine, Sampler, getDrumMachineNames } from 'sm
 import InstrumentSettings from '../model/InstrumentSettings';
 import { LOCAL_PERCUSSION_BUFFERS } from '../audio/drumKits';
 import { LOCAL_INSTRUMENT_BUFFERS } from '../audio/localInstruments';
+import { createChorus } from '../audio/chorusEffect';
 import logger from '../utils/logger';
 
 const VALID_DRUM_KITS = new Set(getDrumMachineNames());
@@ -30,6 +31,11 @@ const useInstruments = (context) => {
   const instancesRef = useRef({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
   const manualInstancesRef = useRef({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
   const fadersRef = useRef({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
+  // #990: one chorus unit per instance (main = fader-routed, manual = direct), per type. Attached
+  // UNIFORMLY to all five types — no `if (type === ...)` branch in shared wiring (§9c check 5).
+  // Silent at rest (strength 0), so the always-on units cost ~30 idle oscillators/delays, which is
+  // nothing next to the reverb AudioWorklets and the WebGL foliage loop already running.
+  const chorusRef = useRef({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
 
   const [treble, setTreble] = useState(null);
   const [bass, setBass] = useState(null);
@@ -79,6 +85,14 @@ const useInstruments = (context) => {
       const currentManual = manualInstancesRef.current[type];
       if (current) { try { current.disconnect(); } catch { /* may already be gone */ } }
       if (currentManual) { try { currentManual.disconnect(); } catch { /* may already be gone */ } }
+      // #990: the chorus units are added to those channels via addEffect, so they are part of the
+      // very same "#4" leak — tear them down in the same place, not later.
+      const currentChorus = chorusRef.current[type];
+      if (currentChorus) {
+        try { currentChorus.main?.disconnect(); } catch { /* may already be gone */ }
+        try { currentChorus.manual?.disconnect(); } catch { /* may already be gone */ }
+        chorusRef.current[type] = null;
+      }
 
       let newInst, newManualInst;
       try {
@@ -130,6 +144,19 @@ const useInstruments = (context) => {
         newManualInst.output.addEffect('reverb', new Effect(context), effectMix);
       }
 
+      // #990 chorus: attached for EVERY type (Han: the effect must be available on whichever
+      // channel is the level's current input mode — treble level → treble, bass level → bass,
+      // percussion level → percussion — so it cannot be hardcoded to the melodic channels).
+      // The send mix is a CONSTANT 1; the audible amount is controlled inside the unit via
+      // setStrength (smplr's sendEffect writes gain.value directly = an audible step/click).
+      // The main unit routes its wet path to the type's own fader so per-instrument volume
+      // applies to it too; the manual unit mirrors its dry destination (context.destination).
+      const mainChorus = createChorus(context, { destination: fadersRef.current[type] });
+      const manualChorus = createChorus(context, { destination: context.destination });
+      newInst.output.addEffect('chorus', mainChorus, 1);
+      newManualInst.output.addEffect('chorus', manualChorus, 1);
+      chorusRef.current[type] = { main: mainChorus, manual: manualChorus };
+
       slugsRef.current[type] = settings.instrument;
       instancesRef.current[type] = newInst;
       manualInstancesRef.current[type] = newManualInst;
@@ -165,6 +192,20 @@ const useInstruments = (context) => {
     }
   };
 
+  /**
+   * #990: set the chorus amount (0…1) on one instrument channel. Deliberately the same
+   * imperative shape as `setVolume` above — this file owns instrument output wiring, and audio
+   * params are written straight to the Web Audio graph, never routed through React state.
+   * Applies to BOTH the fader-routed instance (sequencer, MIDI) and the manual instance
+   * (PianoView clicks, QWERTY), so every way of producing a note sounds identical.
+   */
+  const setChorusStrength = (type, strength, rampSec = 0.03) => {
+    const unit = chorusRef.current[type];
+    if (!unit) return;
+    unit.main?.setStrength(strength, { rampSec });
+    unit.manual?.setStrength(strength, { rampSec });
+  };
+
   return {
     instruments: { treble, bass, percussion, metronome, chords },
     loadedSlug,
@@ -177,6 +218,7 @@ const useInstruments = (context) => {
       chords: [chordSettings, setChordSettings],
     },
     setVolume,
+    setChorusStrength,
   };
 };
 
