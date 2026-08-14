@@ -14838,3 +14838,29 @@ silent-omit path degrade gracefully) rather than attempting a fallback that coul
 `scripts/download-splendid-grand-piano.mjs`, `src/audio/__tests__/splendidPianoStorage.test.js`,
 `public/samples/SplendidGrandPiano/*.wav` (replaces the `.ogg` set), `package.json`.
 
+### §228. "Missed" note judgment plays a random `damagedN.wav` one-shot (#991, Han 2026-08-14)
+
+**Purpose:** Han: when a slime walks past its late threshold un-struck, play one of the three
+`damagedN.wav` RPG voice samples — the same "you got hurt" feedback signal the visual "missed"
+judgment label already gives, at the exact same moment (not a new/separate 1/8-note threshold
+check).
+
+**How it works:** reuses the §180/#825 one-shot-sfx mechanism verbatim (CLAUDE.md §6c) — no new
+playback path. `src/audio/playOneShotSfx.js` gained a third explicit-import trio
+(`damaged1/2/3.wav`, from `src/assets/OTHER/RPG Voice Starter Pack/RPG Voice Starter Pack/Type
+3/` — not yet migrated to `public/`, unrelated to the §225 asset migration) exported as
+`DAMAGED_FILES`, exactly mirroring `HIT_ON_WOOD_FILES`'s pattern. `SheetRpgLayer.jsx` calls
+`playOneShotSfx(context, DAMAGED_FILES, MISS_SFX_VOLUME)` (`MISS_SFX_VOLUME = 0.6`, same value as
+the existing `HIT_SFX_VOLUME`) at the two places a 'missed' judgment already fires: the side-scroll
+expiry effect's `reason !== 'wrongUncorrected'` branch (~line 1512, the primary treble-lane miss —
+'wrongUncorrected' stays silent, matching its existing suppressed-label treatment) and the bass-lane
+mirror's `bassCombatEvent.type === 'miss'` branch (~line 1431). No new call sites, no new grading
+logic — purely an additive side effect on judgments that already existed.
+
+**Invariants:** the sfx fires at the SAME moment as the 'missed' judgment label, never on a separate
+timing check (Han's explicit interview answer) — do not add an independent early-miss threshold for
+this sound if 'missed' handling is ever refactored.
+
+**Files:** `src/audio/playOneShotSfx.js`, `src/components/sheet-music/SheetRpgLayer.jsx`,
+`src/components/sheet-music/__tests__/SheetRpgLayer.test.jsx`.
+

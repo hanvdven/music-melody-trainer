@@ -11,6 +11,11 @@ import logger from '../utils/logger';
 // bundle just to use 2. Each caller-facing "sound" constant below names its own file(s) explicitly.
 import hitOnWood1 from '../assets/sfx/15_Hit_on_wood_1.wav';
 import hitOnWood2 from '../assets/sfx/15_Hit_on_wood_2.wav';
+// #991 (Han 2026-08-14, "missed" note feedback sfx): still under src/assets/ — not part of the
+// in-flight src/assets -> public/ migration happening elsewhere in the repo.
+import damaged1 from '../assets/OTHER/RPG Voice Starter Pack/RPG Voice Starter Pack/Type 3/damaged1.wav';
+import damaged2 from '../assets/OTHER/RPG Voice Starter Pack/RPG Voice Starter Pack/Type 3/damaged2.wav';
+import damaged3 from '../assets/OTHER/RPG Voice Starter Pack/RPG Voice Starter Pack/Type 3/damaged3.wav';
 
 // Decoded once per file, cached — a hit-heavy level must not re-fetch/re-decode the same sample every hit.
 const bufferCache = new Map();   // url -> Promise<AudioBuffer>
@@ -48,3 +53,6 @@ export default function playOneShotSfx(context, urls, volume = 1) {
 
 // #825 — the two "hit on wood" variants the level's hit animation picks between at random.
 export const HIT_ON_WOOD_FILES = [hitOnWood1, hitOnWood2];
+
+// #991 — the three "damaged" variants played on a 'missed' note judgment (RPG levels).
+export const DAMAGED_FILES = [damaged1, damaged2, damaged3];

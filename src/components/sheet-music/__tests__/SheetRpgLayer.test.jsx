@@ -2,6 +2,13 @@ import React from 'react';
 import { render, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import SheetRpgLayer from '../SheetRpgLayer';
+// #991 — keep the real DAMAGED_FILES array (assert its shape) but spy on the play function itself so we
+// don't need a real AudioContext/decode in jsdom.
+vi.mock('../../../audio/playOneShotSfx', async (importOriginal) => {
+    const actual = await importOriginal();
+    return { ...actual, default: vi.fn() };
+});
+import playOneShotSfx, { DAMAGED_FILES } from '../../../audio/playOneShotSfx';
 
 // #647 — a slime under each treble note (coloured by duration), the hero bottom-left. pixelsPerTick is null
 // in the real render (the bug that hid every slime); the index-based fallback via allOffsets + noteWidth
@@ -187,6 +194,29 @@ describe('SheetRpgLayer (#647)', () => {
 
         expect(withHrefs.length).toBe(withoutHrefs.length + 1);
         expect(withHrefs.some((h) => h.toLowerCase().includes('gandalfhardcore'))).toBe(true);
+    });
+
+    it('#991: DAMAGED_FILES has 3 entries; a never-played (expired) treble slime plays a damaged sfx on its "missed" judgment', () => {
+        expect(DAMAGED_FILES).toHaveLength(3);
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date', 'performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+        const onMiss = vi.fn();
+        const base = {
+            startX: 20, pixelsPerTick: null, allOffsets: [0], noteWidth: 20, bpm: 80,
+            trebleStart: 100, staffHeight: 40, viewBottom: 220, viewRight: 500, sideScroll: true, onMiss,
+            // scrollStartTime=0 (not null) unfreezes the visual clock immediately — see the "don't advance
+            // the clock AT ALL until scrollStartTime is real" comment near SheetRpgLayer's rAF loop (~line
+            // 1045); leaving it null (the default) would leave tickRef frozen at 0 forever and the expiry
+            // effect would never fire.
+            scrollStartTime: 0,
+            trebleMelody: { notes: ['C4'], offsets: [0], durations: [12] }, context: {},
+        };
+        act(() => { render(<svg><SheetRpgLayer {...base} combatNote={null} /></svg>); });
+        // never play the note — advance well past (beatsOnScreen + MUCH_TOO_BEATS) * beatMs so the slime's
+        // window closes with zero attempts (the frameTick expiry effect, SheetRpgLayer.jsx ~line 1494-1517).
+        act(() => vi.advanceTimersByTime(8000));
+        expect(onMiss).toHaveBeenCalledWith('missed', 'treble');
+        expect(playOneShotSfx).toHaveBeenCalledWith(base.context, DAMAGED_FILES, expect.any(Number));
+        vi.useRealTimers();
     });
 
     it('#871: an unknown npc name renders nothing extra (findCreatureByName returns null, guarded)', () => {

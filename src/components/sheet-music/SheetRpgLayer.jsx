@@ -18,7 +18,7 @@ import {
     HIT_BURST_URL, HIT_BURST_FRAME, HIT_BURST_CROP, HIT_BURST_COLS, HIT_BURST_ROWS,
     HIT_BURST_TOTAL_FRAMES, HIT_BURST_OPACITY,
 } from '../../model/enemyAssets';
-import playOneShotSfx, { HIT_ON_WOOD_FILES } from '../../audio/playOneShotSfx';
+import playOneShotSfx, { HIT_ON_WOOD_FILES, DAMAGED_FILES } from '../../audio/playOneShotSfx';
 import { noteToMidi } from '../../theory/noteUtils';
 import MelodyNotesLayer from './MelodyNotesLayer';
 import BarlinesLayer from './BarlinesLayer';
@@ -120,6 +120,9 @@ const HIT_BURST_VIEW_W = HIT_BURST_CROP.w * HIT_BURST_SCALE;
 const HIT_BURST_VIEW_H = HIT_BURST_CROP.h * HIT_BURST_SCALE;
 const HIT_FRAMES = 7;
 const HIT_SFX_VOLUME = 0.6;
+// #991 — same volume convention as HIT_SFX_VOLUME (no volume specified in the interview; reusing the
+// sibling constant's value is the safe default, trivially tunable later).
+const MISS_SFX_VOLUME = 0.6;
 // #685 (Han: "oscilleren rond hun centrum ... bereik van 15 units in alle richtingen") — small continuous
 // random-looking wobble (2 independent sine waves per axis, per-projectile phase/frequency so they don't
 // all wobble in lockstep) layered on top of the projectile's real flight position.
@@ -1429,6 +1432,7 @@ export default function SheetRpgLayer({
             // No death animation / killedSet entry — like a missed treble note, it just keeps flying and
             // scrolls off-screen naturally; only the feedback label is shown.
             bassJudgment('missed');
+            playOneShotSfx(context, DAMAGED_FILES, MISS_SFX_VOLUME);
             logger.debug('RpgCombat', 'BASS EXPIRED (missed)', { bassSlime: idx, measureIndex: bassCombatEvent.measureIndex });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1511,6 +1515,10 @@ export default function SheetRpgLayer({
                     // segment is unaffected, only the in-the-moment popup is silenced.
                     if (reason !== 'wrongUncorrected') {
                         setJudgments((l) => [...l, { id: judgmentIdRef.current++, category: reason, startTick: tickRef.current }]);
+                        // #991 — damagedN.wav one-shot on an actual 'missed' verdict only (not
+                        // 'wrongUncorrected'), same "same moment as the existing missed judgment" gate as
+                        // the label above (Han interview: no separate 1/8-note threshold check).
+                        playOneShotSfx(context, DAMAGED_FILES, MISS_SFX_VOLUME);
                     }
                     onMissRef.current?.(reason, 'treble');
                 }
