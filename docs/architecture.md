@@ -14838,6 +14838,43 @@ silent-omit path degrade gracefully) rather than attempting a fallback that coul
 `scripts/download-splendid-grand-piano.mjs`, `src/audio/__tests__/splendidPianoStorage.test.js`,
 `public/samples/SplendidGrandPiano/*.wav` (replaces the `.ogg` set), `package.json`.
 
+**Bug: "piano niet hoorbaar" #3 — `toBitDepth('32f')` silently crushed amplitude 32768x, fixed same day (#988, Han 2026-08-14)**
+
+**Symptom:** after fixing bugs #1 and #2, Han still reported total silence — this time verified
+with a completely isolated `piano-debug-test.html` scratch page that constructed a
+`SplendidGrandPiano` directly (bypassing the whole app, `useInstruments.js`, and the chorus
+wiring from §229 entirely). `load` resolved 226/226 with zero errors, `start()` never threw for
+any note, and a differential test confirmed the bug affected EVERY piano instance in the app
+uniformly (instrument-preview and world-ambient piano were also silent, not just the track
+instrument) — ruling out anything specific to `useInstruments.js`'s treble wiring.
+
+**Root cause:** the mono/32kHz downsample pass (added when Han chose the smaller file size over
+Han 2026-08-14's D1, see "How it works" above) called `wav.toBitDepth('32f')` before
+`wav.toSampleRate(...)`, on the theory that the resampler needed float samples. It didn't need
+that call, and it was actively harmful: `WaveFile.getSamples()` already returns properly
+normalized `Float64Array` values (range -1..1) regardless of the underlying stored bit depth —
+`toBitDepth('32f')` re-normalized those already-normalized values a SECOND time, dividing every
+sample by 32768 again. The result: every WAV file on disk was a valid, correctly-headed,
+correctly-decodable RIFF/WAVE file whose actual audio content peaked at roughly amplitude 0.00003
+instead of the source recording's genuine ~1.0 — inaudible on virtually any real playback device,
+with `decodeAudioData` reporting complete success (a valid, silent buffer is not an error).
+Root-caused by tracing peak amplitude through each transform step in an isolated Node script
+(fetch → decode → `fromScratch` → `toBitDepth('32f')` → `toSampleRate`), which showed the
+32768x drop landing exactly at the `toBitDepth('32f')` call.
+
+**Fix:** removed the `toBitDepth('32f')` call from `scripts/download-splendid-grand-piano.mjs`
+entirely — `toSampleRate()` handles bit-depth-aware sample extraction correctly on its own. Added
+a peak-amplitude guard (`maxAbs < 0.05` → treated as a pipeline failure, not written to disk) so
+a repeat of this bug fails loudly at asset-generation time instead of shipping silently. All 226
+samples regenerated from the CDN and verified (peak amplitude checked for every file, none below
+0.05).
+
+**Invariant added:** never call `wav.toBitDepth('32f')` before `wav.toSampleRate()` in this
+pipeline — `getSamples()`'s normalization already makes the samples resample-ready.
+
+**Files:** `scripts/download-splendid-grand-piano.mjs`,
+`public/samples/SplendidGrandPiano/*.wav` (all 226 regenerated).
+
 ### §228. "Missed" note judgment plays a random `damagedN.wav` one-shot (#991, Han 2026-08-14)
 
 **Purpose:** Han: when a slime walks past its late threshold un-struck, play one of the three

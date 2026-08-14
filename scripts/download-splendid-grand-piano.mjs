@@ -30,6 +30,23 @@
 // This script fetches the Ogg/Opus bytes from the CDN and decodes+re-encodes them to WAV
 // in-process (via `ogg-opus-decoder` + `wavefile`, both devDependencies) — .ogg is never
 // written to disk.
+//
+// Mono, 32kHz (Han's size-vs-quality call, 2026-08-14): the decoded source is 48kHz stereo; a
+// straight re-encode at that rate is 269MB for 226 samples, downsampled+downmixed to 90MB —
+// matching the rate/channel convention every other locally-mirrored instrument already uses.
+//
+// BUG (fixed same day, 2nd "piano niet hoorbaar" UAT bounce): an earlier version of this
+// downsample step called `wav.toBitDepth('32f')` before `wav.toSampleRate(...)`, expecting to
+// need float samples for the resampler. `getSamples()` ALREADY returns properly-normalized
+// Float64Array values regardless of the underlying stored bit depth — `toBitDepth('32f')`
+// re-normalized them a SECOND time, dividing every sample by 32768 again and crushing the
+// amplitude to near-silence (maxAbs ~0.0002, verified in-browser: `decodeAudioData` succeeded
+// with zero errors, `RegionMatcher` found correct sample matches, `start()` never threw — the
+// WAV file was simply, silently, 32768x too quiet). Root-caused with an isolated
+// piano-debug-test.html page that fetched+decoded a sample directly, bypassing the whole app and
+// smplr's Voice internals, and logged the decoded buffer's peak amplitude at each pipeline step.
+// Fix: skip `toBitDepth('32f')` entirely — `toSampleRate()` handles bit-depth-aware sample
+// extraction correctly on its own. NEVER re-add a `toBitDepth('32f')` call before resampling.
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -59,6 +76,14 @@ let skipped = 0;
 let totalBytes = 0;
 const failures = [];
 
+const TARGET_SAMPLE_RATE = 32000; // matches the FluidR3 local-sample convention (§224)
+
+function maxAbs(samples) {
+    let m = 0;
+    for (const v of samples) { const a = Math.abs(v); if (a > m) m = a; }
+    return m;
+}
+
 async function fetchAndConvertOne(name) {
     const outPath = path.join(OUT_DIR, `${toLocalFileName(name)}.${OUT_FORMAT}`);
     if (fs.existsSync(outPath)) {
@@ -87,7 +112,30 @@ async function fetchAndConvertOne(name) {
 
     const wav = new WaveFile();
     wav.fromScratch(channelData.length, sampleRate, '16', channelData);
-    const buf = wav.toBuffer();
+    // DO NOT call wav.toBitDepth('32f') here — see the bug note at the top of this file.
+    wav.toSampleRate(TARGET_SAMPLE_RATE, { method: 'sinc' });
+
+    const numChannels = wav.fmt.numChannels;
+    const samples = wav.getSamples();
+    const mono = numChannels > 1
+        ? Float64Array.from({ length: samples[0].length }, (_, i) => {
+            let sum = 0;
+            for (let c = 0; c < numChannels; c++) sum += samples[c][i];
+            return sum / numChannels;
+        })
+        : (samples[0] ?? samples);
+
+    // Guard against a repeat of the amplitude-crushing bug: any genuinely silent/near-silent
+    // output here means the pipeline broke again, not that the source recording is quiet.
+    const amp = maxAbs(mono);
+    if (amp < 0.05) {
+        failures.push(`${name}: suspiciously quiet after resample/downmix (maxAbs=${amp}) — pipeline bug, not a quiet recording`);
+        return;
+    }
+
+    const out = new WaveFile();
+    out.fromScratch(1, TARGET_SAMPLE_RATE, '16', mono);
+    const buf = out.toBuffer();
     fs.writeFileSync(outPath, buf);
     converted++;
     totalBytes += buf.length;
