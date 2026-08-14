@@ -14912,13 +14912,20 @@ the fader-routed instance (sequencer, MIDI) and the manual instance (PianoView, 
 chorus apply to", so it was extracted to `resolveActiveInputStaff(activeTab, activeClef)` and
 both call sites now share it — one source of truth, no drifting second copy (§6c).
 
-**Debug knob (`src/components/common/ChorusDebugSlider.jsx`).** A `debugMode`-gated fixed panel
-under the MIDI debug dump (same visual language), 0–1 range input plus a numeric readout. It
-targets ONLY the currently-active clef/instrument-type (Han's explicit correction to the plan's
-first proposal of driving treble+bass together). `App.jsx`'s `handleChorusDebugChange` resolves
-the staff via `resolveActiveInputStaff` at call time and ramps the *previous* staff back to 0 if
-the active type changed since the last drag, so a stale wet signal can never stay stuck on a
-channel you navigated away from.
+**Debug knobs (`src/components/common/ChorusDebugSlider.jsx`).** REWORK (Han 2026-08-14, UAT
+bounce): the first cut was ONE slider that dynamically targeted "the currently-active
+clef/instrument-type" via `resolveActiveInputStaff(activeTab, activeClef)`. That broke in
+practice — `activeTab` is the top-level nav tab, not which staff is enabled for practice, so
+toggling the bass staff on/off from within the sheet-music view never changed `activeTab` and the
+slider stayed stuck on treble. Han's concrete fix: *"maak voor debug 4 sliders: chord, treble,
+bas, perc"*. `ChorusDebugSlider` is now a reusable single-slider leaf taking `label`/`onChange`
+props; `App.jsx` renders it 4 times — one per channel (chords/treble/bass/percussion, **not**
+metronome) — stacked under the MIDI debug dump, each instance calling `setChorusStrength(type, v)`
+directly for its one fixed channel. There is no "which channel is active" detection in this debug
+UI anymore, which removes the whole bug class. `resolveActiveInputStaff` / `activeInputStaff.js`
+is unused by this debug UI now but intentionally left in place — it may still be useful for
+non-debug wiring later (e.g. the wrong-note follow-up ticket below, which does need to know the
+level's actual current input channel).
 
 **Invariants:**
 - **INV-1** — the chorus wet level is ALWAYS driven imperatively onto the AudioParam via
