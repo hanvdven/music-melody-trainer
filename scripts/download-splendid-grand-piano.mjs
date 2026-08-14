@@ -35,18 +35,29 @@
 // straight re-encode at that rate is 269MB for 226 samples, downsampled+downmixed to 90MB —
 // matching the rate/channel convention every other locally-mirrored instrument already uses.
 //
-// BUG (fixed same day, 2nd "piano niet hoorbaar" UAT bounce): an earlier version of this
-// downsample step called `wav.toBitDepth('32f')` before `wav.toSampleRate(...)`, expecting to
-// need float samples for the resampler. `getSamples()` ALREADY returns properly-normalized
-// Float64Array values regardless of the underlying stored bit depth — `toBitDepth('32f')`
-// re-normalized them a SECOND time, dividing every sample by 32768 again and crushing the
-// amplitude to near-silence (maxAbs ~0.0002, verified in-browser: `decodeAudioData` succeeded
-// with zero errors, `RegionMatcher` found correct sample matches, `start()` never threw — the
-// WAV file was simply, silently, 32768x too quiet). Root-caused with an isolated
-// piano-debug-test.html page that fetched+decoded a sample directly, bypassing the whole app and
-// smplr's Voice internals, and logged the decoded buffer's peak amplitude at each pipeline step.
-// Fix: skip `toBitDepth('32f')` entirely — `toSampleRate()` handles bit-depth-aware sample
-// extraction correctly on its own. NEVER re-add a `toBitDepth('32f')` call before resampling.
+// BUG, root-caused across TWO rounds (3rd and 4th "piano niet hoorbaar" UAT bounces, same day) —
+// the REAL root cause, confirmed by reading raw int16 bytes straight out of the written .wav
+// file (NOT via wavefile's own `getSamples()`, which turned out to misreport the true stored
+// values and is what sent the first round of debugging down the wrong path):
+//
+//   `WaveFile.fromScratch(channels, rate, '16', samples)` takes `samples` LITERALLY for an
+//   integer bit depth — it expects raw int16-range values (-32768..32767), NOT normalized
+//   -1..1 floats. Every version of this script (and every manual fix attempt) fed it
+//   normalized floats straight from the Opus decoder / `getSamples()`, which get silently
+//   truncated to ~0 (a value like 0.9 becomes the literal integer 1). The resulting .wav files
+//   were valid, correctly-headed, and decoded without error in the browser — the actual stored
+//   audio was just genuinely near-silent garbage. `getSamples()` called on such a file
+//   afterwards STILL reported a misleadingly plausible ~1.0 in some code paths, which is why an
+//   earlier fix attempt (blaming a stray `toBitDepth('32f')` call) looked verified but wasn't:
+//   that earlier "fix" removed a step that was innocent — the corruption had already happened
+//   one line above it, at the `fromScratch(..., '16', ...)` call itself.
+//
+// THE FIX: only ever construct/manipulate samples in **float** representation (`'32f'`, which
+// correctly expects normalized -1..1 input) through decode, resample, and downmix. Convert to
+// 16-bit ONLY via `wav.toBitDepth('16')` at the very end — that is a real bit-depth CONVERTER
+// that does the -1..1 → int16 scaling correctly, unlike `fromScratch` with an integer depth.
+// Verification for this pipeline must read the RAW BYTES of the written file directly
+// (`buffer.readInt16LE`) — never trust `getSamples()` as a proxy for what was actually written.
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -63,7 +74,9 @@ const OUT_DIR = path.join(ROOT, 'public/samples/SplendidGrandPiano');
 const SOURCE_BASE = 'https://smpldsnds.github.io/sfzinstruments-splendid-grand-piano/samples';
 const SOURCE_FORMAT = 'ogg'; // CDN source format we decode FROM — never written to disk.
 const OUT_FORMAT = 'wav'; // local format we actually serve.
-const CONCURRENCY = 8; // lower than the old ogg-only run: each worker also runs a WASM decode.
+const CONCURRENCY = 4; // lower than the old ogg-only run: each worker also runs a WASM decode,
+// and the CDN connection has shown transient failures at higher concurrency — re-run the script
+// (idempotent) if it reports failures rather than raising this back up.
 
 // PPP and PP share the same "PP *" recordings, so the flattened roster has duplicates.
 const names = [...new Set(LAYERS.flatMap((layer) => layer.samples.map(([, sample]) => sample)))];
@@ -77,10 +90,18 @@ let totalBytes = 0;
 const failures = [];
 
 const TARGET_SAMPLE_RATE = 32000; // matches the FluidR3 local-sample convention (§224)
+const WAV_HEADER_BYTES = 44; // standard size for a simple PCM RIFF/WAVE header (no extra chunks)
 
-function maxAbs(samples) {
+// Reads the RAW int16 samples straight out of the written file's bytes — the only trustworthy
+// way to check what was actually persisted (see the bug note above: `getSamples()` misreported
+// the true stored values and is why the underlying bug went undetected for two "fixes").
+function rawInt16MaxAbs(buf) {
+    const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
     let m = 0;
-    for (const v of samples) { const a = Math.abs(v); if (a > m) m = a; }
+    for (let i = WAV_HEADER_BYTES; i < buf.length - 1; i += 2) {
+        const s = Math.abs(view.getInt16(i, true));
+        if (s > m) m = s;
+    }
     return m;
 }
 
@@ -94,7 +115,14 @@ async function fetchAndConvertOne(name) {
     }
     // smplr's own encoding rules for these names (loadAudioBuffer in smplr/dist/index.js).
     const encoded = `${name}.${SOURCE_FORMAT}`.replace(/#/g, '%23').replace(/ /g, '%20');
-    const res = await fetch(`${SOURCE_BASE}/${encoded}`);
+    let res;
+    try {
+        res = await fetch(`${SOURCE_BASE}/${encoded}`);
+    } catch (err) {
+        // Transient connectivity blip to the CDN — do not crash the whole batch, just this one.
+        failures.push(`${name}: fetch error (${err.message})`);
+        return;
+    }
     if (!res.ok) {
         failures.push(`${name}: HTTP ${res.status}`);
         return;
@@ -110,9 +138,11 @@ async function fetchAndConvertOne(name) {
         return;
     }
 
+    // Stay in FLOAT ('32f') representation through decode/resample/downmix — '32f' is the only
+    // depth where fromScratch's input semantics (normalized -1..1) match what the Opus decoder
+    // and getSamples() actually hand back. See the bug note at the top of this file.
     const wav = new WaveFile();
-    wav.fromScratch(channelData.length, sampleRate, '16', channelData);
-    // DO NOT call wav.toBitDepth('32f') here — see the bug note at the top of this file.
+    wav.fromScratch(channelData.length, sampleRate, '32f', channelData);
     wav.toSampleRate(TARGET_SAMPLE_RATE, { method: 'sinc' });
 
     const numChannels = wav.fmt.numChannels;
@@ -125,17 +155,19 @@ async function fetchAndConvertOne(name) {
         })
         : (samples[0] ?? samples);
 
-    // Guard against a repeat of the amplitude-crushing bug: any genuinely silent/near-silent
-    // output here means the pipeline broke again, not that the source recording is quiet.
-    const amp = maxAbs(mono);
-    if (amp < 0.05) {
-        failures.push(`${name}: suspiciously quiet after resample/downmix (maxAbs=${amp}) — pipeline bug, not a quiet recording`);
+    const out = new WaveFile();
+    out.fromScratch(1, TARGET_SAMPLE_RATE, '32f', mono);
+    out.toBitDepth('16'); // the only correct way to reach int16 — a real scaling conversion.
+    const buf = out.toBuffer();
+
+    // Guard against a repeat of this bug class: verify the RAW BYTES actually written, not any
+    // wavefile API's report of what it thinks it wrote.
+    const amp = rawInt16MaxAbs(buf);
+    if (amp < 1500) { // ~0.045 of full scale — real piano recordings peak far louder than this
+        failures.push(`${name}: suspiciously quiet raw bytes after write (maxAbs=${amp}/32767) — pipeline bug, not a quiet recording`);
         return;
     }
 
-    const out = new WaveFile();
-    out.fromScratch(1, TARGET_SAMPLE_RATE, '16', mono);
-    const buf = out.toBuffer();
     fs.writeFileSync(outPath, buf);
     converted++;
     totalBytes += buf.length;

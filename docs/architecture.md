@@ -14838,7 +14838,7 @@ silent-omit path degrade gracefully) rather than attempting a fallback that coul
 `scripts/download-splendid-grand-piano.mjs`, `src/audio/__tests__/splendidPianoStorage.test.js`,
 `public/samples/SplendidGrandPiano/*.wav` (replaces the `.ogg` set), `package.json`.
 
-**Bug: "piano niet hoorbaar" #3 — `toBitDepth('32f')` silently crushed amplitude 32768x, fixed same day (#988, Han 2026-08-14)**
+**Bug: "piano niet hoorbaar" #3 — `fromScratch(..., '16', ...)` takes raw int16 values, not normalized floats; two misdiagnoses before the real fix (#988, Han 2026-08-14)**
 
 **Symptom:** after fixing bugs #1 and #2, Han still reported total silence — this time verified
 with a completely isolated `piano-debug-test.html` scratch page that constructed a
@@ -14848,29 +14848,43 @@ any note, and a differential test confirmed the bug affected EVERY piano instanc
 uniformly (instrument-preview and world-ambient piano were also silent, not just the track
 instrument) — ruling out anything specific to `useInstruments.js`'s treble wiring.
 
-**Root cause:** the mono/32kHz downsample pass (added when Han chose the smaller file size over
-Han 2026-08-14's D1, see "How it works" above) called `wav.toBitDepth('32f')` before
-`wav.toSampleRate(...)`, on the theory that the resampler needed float samples. It didn't need
-that call, and it was actively harmful: `WaveFile.getSamples()` already returns properly
-normalized `Float64Array` values (range -1..1) regardless of the underlying stored bit depth —
-`toBitDepth('32f')` re-normalized those already-normalized values a SECOND time, dividing every
-sample by 32768 again. The result: every WAV file on disk was a valid, correctly-headed,
-correctly-decodable RIFF/WAVE file whose actual audio content peaked at roughly amplitude 0.00003
-instead of the source recording's genuine ~1.0 — inaudible on virtually any real playback device,
-with `decodeAudioData` reporting complete success (a valid, silent buffer is not an error).
-Root-caused by tracing peak amplitude through each transform step in an isolated Node script
-(fetch → decode → `fromScratch` → `toBitDepth('32f')` → `toSampleRate`), which showed the
-32768x drop landing exactly at the `toBitDepth('32f')` call.
+**First (wrong) diagnosis:** the mono/32kHz downsample pass called `wav.toBitDepth('32f')` before
+`wav.toSampleRate(...)`. Tracing peak amplitude through each step in an isolated Node script
+showed a 32768x drop landing exactly at that call, so it was removed and all 226 samples
+regenerated — verified via `wav.getSamples()`, which reported a plausible ~1.0 peak afterward.
+Han re-tested and reported the files were **still** inaudibly quiet when played directly from the
+file manager, outside the app entirely — proof the bug was in the files themselves, and proof
+`getSamples()` could not be trusted as a verification oracle (see below for why).
 
-**Fix:** removed the `toBitDepth('32f')` call from `scripts/download-splendid-grand-piano.mjs`
-entirely — `toSampleRate()` handles bit-depth-aware sample extraction correctly on its own. Added
-a peak-amplitude guard (`maxAbs < 0.05` → treated as a pipeline failure, not written to disk) so
-a repeat of this bug fails loudly at asset-generation time instead of shipping silently. All 226
-samples regenerated from the CDN and verified (peak amplitude checked for every file, none below
-0.05).
+**Real root cause:** `WaveFile.fromScratch(channels, rate, '16', samples)` takes `samples`
+**literally** for an integer bit depth — it expects raw int16-range values (-32768..32767), NOT
+normalized -1..1 floats. Every version of this pipeline (including the "fixed" one above) fed it
+normalized floats straight from the Opus decoder / `getSamples()`, which get silently truncated
+toward zero (a value like 0.9 becomes the literal integer `1`). The written `.wav` files were
+valid, correctly-headed RIFF/WAVE files that decoded without error — the actual stored audio was
+just genuinely near-silent garbage. Confirmed by reading the RAW BYTES back out of a written file
+with `buffer.readInt16LE()`: a known loud test signal (±0.9) that should read back as ±29491
+instead read back as `1`. Crucially, `getSamples()` called on the SAME broken file afterward kept
+reporting a misleading ~1.0 in some code paths — which is exactly why the first "fix" above
+looked verified but wasn't: `toBitDepth('32f')` was innocent, correctly converting already-broken,
+already-near-zero 16-bit integer data into an equally-near-zero float representation; the
+corruption had already happened one call earlier, at `fromScratch(..., '16', ...)` itself.
 
-**Invariant added:** never call `wav.toBitDepth('32f')` before `wav.toSampleRate()` in this
-pipeline — `getSamples()`'s normalization already makes the samples resample-ready.
+**Fix:** the pipeline now stays in **float** representation (`'32f'`, whose input semantics
+correctly match the Opus decoder's/`getSamples()`'s normalized -1..1 output) all the way through
+decode, resample, and downmix, and converts to 16-bit ONLY via `wav.toBitDepth('16')` at the very
+end — a real bit-depth CONVERTER that performs the -1..1 → int16 scaling correctly, unlike
+`fromScratch` with an integer depth. All verification is now done by reading the RAW BYTES of the
+written file (`rawInt16MaxAbs()` in the script, guard threshold ~1500/32767) — `getSamples()` is
+no longer trusted as a proxy for what was actually persisted. All 226 samples regenerated from the
+CDN and verified this way; raw amplitude across the full set ranges 9808–30667 (out of 32767).
+
+**Invariants added:**
+1. Never call `fromScratch(..., '16', floatSamples)` with normalized -1..1 input — integer bit
+   depths take literal integer values. Build/manipulate samples in `'32f'` and convert via
+   `toBitDepth('16')` at the end.
+2. Never trust `wavefile`'s `getSamples()` as verification of what was actually written to disk —
+   read the file's raw bytes directly.
 
 **Files:** `scripts/download-splendid-grand-piano.mjs`,
 `public/samples/SplendidGrandPiano/*.wav` (all 226 regenerated).
@@ -14904,7 +14918,7 @@ this sound if 'missed' handling is ever refactored.
 
 ---
 
-### §229. Chorus effect on the instrument output + debug strength knob (#990, Han 2026-08-14)
+### §229. Chorus effect on the instrument output, triggered on a wrong note (#990, Han 2026-08-14)
 
 **Purpose:** Han: *"bij een foute noot chorus (klein beetje vals klinken)"* — when the player
 plays a wrong note on the active instrument, that instrument should detune/chorus slightly. This
@@ -14949,20 +14963,26 @@ the fader-routed instance (sequencer, MIDI) and the manual instance (PianoView, 
 chorus apply to", so it was extracted to `resolveActiveInputStaff(activeTab, activeClef)` and
 both call sites now share it — one source of truth, no drifting second copy (§6c).
 
-**Debug knobs (`src/components/common/ChorusDebugSlider.jsx`).** REWORK (Han 2026-08-14, UAT
-bounce): the first cut was ONE slider that dynamically targeted "the currently-active
-clef/instrument-type" via `resolveActiveInputStaff(activeTab, activeClef)`. That broke in
-practice — `activeTab` is the top-level nav tab, not which staff is enabled for practice, so
-toggling the bass staff on/off from within the sheet-music view never changed `activeTab` and the
-slider stayed stuck on treble. Han's concrete fix: *"maak voor debug 4 sliders: chord, treble,
-bas, perc"*. `ChorusDebugSlider` is now a reusable single-slider leaf taking `label`/`onChange`
-props; `App.jsx` renders it 4 times — one per channel (chords/treble/bass/percussion, **not**
-metronome) — stacked under the MIDI debug dump, each instance calling `setChorusStrength(type, v)`
-directly for its one fixed channel. There is no "which channel is active" detection in this debug
-UI anymore, which removes the whole bug class. `resolveActiveInputStaff` / `activeInputStaff.js`
-is unused by this debug UI now but intentionally left in place — it may still be useful for
-non-debug wiring later (e.g. the wrong-note follow-up ticket below, which does need to know the
-level's actual current input channel).
+**Debug knobs — added, then removed same day (Han 2026-08-14).** Two rounds of a manual
+strength-testing UI were built and then explicitly retired once Han decided the real wrong-note
+wiring (below) made a separate debug control redundant: a single dynamically-targeted slider
+(broke because `activeTab` — the top-level nav tab — isn't the same thing as which staff is
+enabled for practice), then 4 independent per-channel sliders. Han: *"haal de chorus-slider weer
+weg. je mag op foute noten gewoon chorus 1 zetten."* `ChorusDebugSlider.jsx` and its 4 render
+sites in `App.jsx` are deleted; `resolveActiveInputStaff`/`activeInputStaff.js` is ALSO unused now
+(no remaining caller) but left in place — small, self-contained, and a natural fit if a future
+feature needs "which staff is the level's current input mode" again.
+
+**Wrong-note wiring (`src/App.jsx`, `onNoteWrong`).** The existing `onNoteWrong` callback — the
+same one `useInputTest.triggerError`'s `isTap` path already called to stop the just-played wrong
+note (`instruments.treble?.stop({ note })`) — now ALSO fires the chorus: an instant snap to full
+strength (`setChorusStrength('treble', 1, 0)`, zero ramp = immediate, audible "that was wrong"
+cue), immediately followed by a scheduled decay back to 0 over ~1 second
+(`setChorusStrength('treble', 0, 1)`) so the wobble rings down on roughly the same timescale as
+`useInputTest`'s own `errorTimeoutRef` clears the visual error state, rather than cutting off
+abruptly or lingering past it. Deliberately scoped to `treble` only, matching the existing
+`onNoteWrong`/`isTap` wiring's own scope (it already only ever stopped the treble instrument) —
+not a new staff-aware generalization Han didn't ask for.
 
 **Invariants:**
 - **INV-1** — the chorus wet level is ALWAYS driven imperatively onto the AudioParam via
@@ -14971,20 +14991,13 @@ level's actual current input channel).
 - **INV-2** — at strength 0 the chorus contributes exact silence and the dry path is unchanged.
   0 is the app's default state; every unit is constructed at 0.
 - **INV-3** — the send is per-CHANNEL, so while wet > 0 *everything* on that channel (including
-  sequencer playback) is chorused. Acceptable for a short wrong-note pulse and for the debug
-  knob; the follow-up ticket MUST ramp back to 0.
+  sequencer playback, not just the wrong note itself) is chorused for the duration of the decay.
 - **INV-4** — every chorus unit is `disconnect()`ed in the same place its owning instrument is,
   in `updateInstrument` — it is part of the same documented "#4" leak (added effects staying
   connected to the fader across instrument switches until nothing is audible).
 
-**Out of scope (follow-up ticket):** wiring `setChorusStrength` into the wrong-note branches
-(`SheetRpgLayer.jsx` `addJudgment('wrongNote')` and `useInputTest.js` `status:'error'`) and
-choosing the release envelope. That slice introduces the genuinely new invariant "an audio effect
-is driven by the judgment engine" and gets its own design/plan cycle.
-
-**Files:** `src/audio/chorusEffect.js` (new), `src/utils/activeInputStaff.js` (new),
-`src/components/common/ChorusDebugSlider.jsx` (new),
-`src/audio/__tests__/chorusEffect.test.js` (new), `src/hooks/useInstruments.js`,
+**Files:** `src/audio/chorusEffect.js` (new), `src/utils/activeInputStaff.js` (new, currently
+unused), `src/audio/__tests__/chorusEffect.test.js` (new), `src/hooks/useInstruments.js`,
 `src/hooks/useInputTest.js`, `src/App.jsx`.
 
 ### §230. RPG fx volume / RPG music volume / RPG visibility — 3 Playback Settings setters (#992, Han 2026-08-14)
@@ -15088,3 +15101,69 @@ no new prop threading was needed.
 `src/hooks/useWorldAmbientMusic.js`, `src/hooks/__tests__/useWorldAmbientMusic.test.js` (new),
 `src/components/sheet-music/SheetRpgLayer.jsx`, `src/components/sheet-music/SheetMusic.jsx`,
 `src/components/sheet-music/overlays/SettingsOverlay.jsx` (the 3 fans), `src/App.jsx`.
+
+### §231. Tremolo effect, paired with chorus on a wrong note (#990 follow-up, Han 2026-08-14)
+
+**Purpose:** Han's follow-up once §229's chorus + `onNoteWrong` wiring was confirmed working:
+*"nu nog de chorus + tremolo... moet hoorbaar zijn wanneer er in beeld ook 'wrong note' wordt
+getoond. de noot die dat triggert moet chorus 1 en tremolo 0,7 krijgen."* — the same wrong-note
+moment that already snaps chorus to full strength now ALSO snaps a ~6Hz volume tremolo to depth
+0.7, both audible together. Han clarified the earlier "vibrato" wording explicitly as **volume**
+modulation ("v mod"), not pitch/frequency modulation — this is a classic amplitude tremolo, not a
+pitch-vibrato effect.
+
+**Why tremolo could not reuse chorus's plumbing.** `chorusEffect.js` is a smplr-style SEND: it
+plugs into `instrument.output.addEffect(name, effect, mix)`, which taps a parallel wet copy off
+the channel's internal volume node while the ORIGINAL dry signal keeps flowing to its destination
+unmodified. That is correct for chorus (an "out of tune ensemble" reads as a detuned copy layered
+under the original), but wrong for tremolo — multiplying perceived loudness requires attenuating
+the actual signal in place. A send-based "tremolo" would just add a periodically-gated copy on top
+of an ever-present, unattenuated original: audible as a subtle flutter, not a volume swell/dip.
+
+**How it works (`src/audio/tremoloEffect.js`).** `createTremolo(context, { destination })` builds
+a single modulated `GainNode` (`input`) driven by one 6Hz sine LFO:
+
+```
+input(Gain, base = 1-depth/2) ─ destination
+        ▲
+lfo (Osc @ 6Hz) ─ depthGain(depth/2) ─┘   (connects INTO input.gain — audio-rate signals
+                                            add onto an AudioParam's base value)
+```
+
+`gain(t) = (1 - depth/2) + (depth/2) * sin(2π·6·t)` — swings between `(1-depth)` and `1`. At
+depth 0 the node is transparent (gain pinned at 1, matching chorus's INV-2 "0 = not there"); at
+depth 1 it swings all the way to silence every ~167ms cycle. `setStrength(strength, {rampSec,
+time})` is the same imperative `setTargetAtTime`-only shape as `chorusEffect.js` (CLAUDE.md §6).
+
+**Wired as an INSERT, not a send (`src/hooks/useInstruments.js`).** Because `input` must sit
+in-line between the dry signal and its destination, tremolo lives on each channel's PERSISTENT
+infrastructure (created once per type alongside the fader, in the same `useEffect` that
+initializes `fadersRef` — never torn down on an instrument swap, unlike the per-instrument chorus
+units): the shared fader now connects to `tremoloRef.current[type].main.input` instead of
+straight to `context.destination`, and every manual (click/QWERTY) instrument instance connects
+to `tremoloRef.current[type].manual.input` instead of `context.destination` directly. Both
+chorus units (main and manual) were re-pointed at these same tremolo-insert destinations too —
+otherwise the chorused wet signal would bypass the tremolo insert entirely, and "chorus 1 +
+tremolo 0.7" would only ever audibly combine for the dry portion of the signal, not the chorus'd
+portion. `setTremoloStrength(type, strength, rampSec)` is exported next to `setChorusStrength`.
+
+**Wrong-note trigger (`src/App.jsx`, `onNoteWrong`).** Extends the SAME callback §229 wired up:
+immediately after the chorus snap-and-decay, `setTremoloStrength('treble', 0.7, 0)` (instant) then
+`setTremoloStrength('treble', 0, 1)` (decay over ~1s, matching `useInputTest`'s own
+`errorTimeoutRef` window) — both effects ring down together on the same timescale as the on-screen
+'wrong note' visual clears. Scoped to `treble` only, mirroring `onNoteWrong`'s existing scope.
+
+**Invariants:**
+- **INV-1** — same as chorus's INV-1: the modulated gain is ALWAYS driven imperatively via
+  `setTargetAtTime`, never through React state/props/`useEffect` per note.
+- **INV-2** — at strength 0 the insert is exactly transparent (gain pinned at 1); every unit is
+  constructed at depth 0.
+- **INV-3** — tremolo units are PERSISTENT per-type infrastructure, unlike chorus's per-instrument
+  units — never call `.disconnect()` on them from the instrument-swap "#4 leak" cleanup path; they
+  outlive any number of instrument swaps on that channel.
+- **INV-4** — both chorus AND tremolo's wet/insert destinations must stay aligned (chorus's wet
+  output feeds INTO the same node tremolo wraps) so the two effects combine audibly rather than
+  one silently bypassing the other.
+
+**Files:** `src/audio/tremoloEffect.js` (new), `src/audio/__tests__/tremoloEffect.test.js` (new),
+`src/hooks/useInstruments.js`, `src/App.jsx`.
