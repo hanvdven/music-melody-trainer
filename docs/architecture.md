@@ -14952,8 +14952,8 @@ is driven by the judgment engine" and gets its own design/plan cycle.
 
 ### §230. RPG fx volume / RPG music volume / RPG visibility — 3 Playback Settings setters (#992, Han 2026-08-14)
 
-**Purpose:** 3 new, mutually independent setters in the Playback Settings panel (directly after the
-num-measures/reps row), each a gain- or opacity-multiplier layered ON TOP of an already-tuned,
+**Purpose:** 3 new, mutually independent setters in the in-staff sheet-music settings overlay (directly
+below its measures fan), each a gain- or opacity-multiplier layered ON TOP of an already-tuned,
 UNRELATED existing audio/visual path — not a merge into one bus, not a replacement of the existing
 tuning:
 - **RPG fx volume** — combat one-shot sfx (`playOneShotSfx` in `SheetRpgLayer.jsx`: the "hit on wood"
@@ -15011,13 +15011,28 @@ setting" shape `repsPerMelody` already uses on that object. No new context: ever
   `rpgVisibility={playbackConfig?.rpgVisibility}` down to `SheetRpgLayer` (it already has
   `playbackConfig` in scope via `usePlaybackConfig()`).
 
-**UI (`PlaybackSettings.jsx`):** 3 new setter rows, directly after `RepeatMeasureBar` and before the
-"2. CHORDS BLOCK" `SectionHeader` — reuses the SAME `ps-row-3col`/`ps-row-3col-headers`/
-`ps-row-3col-controls` CSS grid pattern the Tonic/Mode/Family row above already uses (§6d, no new row
-component). Each cell is a `GenericStepper` using its existing `options`/`allowedValues` list-popup
-mechanism: the two volume steppers share `RPG_VOLUME_OPTIONS`/`RPG_VOLUME_VALUES` built once from
-`VOL_STEPS` (glyphs never drift from `SettingsOverlay.jsx`'s canonical table); the visibility stepper
-uses a 2-entry `[100, 50]` list.
+**UI (`SettingsOverlay.jsx`) — the IN-STAFF sheet overlay, not the bottom panel.** The 3 setters render
+as a SECOND setter row of the in-staff settings overlay, directly below the existing measures fan
+(`RPG_ROW_Y = trebleStart − 16`, chosen so this row's 44-unit compact drag band clears the measures /
+repeats row's band at `CHORD_ROW_Y ± 22` and still sits above the staff top). They keep that row's
+0.15-of-system-span column rhythm — `rpg fx` at 0.55, `rpg music` at 0.70 (directly under measures),
+`rpg visibility` at 0.85 — each with the same serif-italic-14 `--text-secondary` caption at `y = −25`.
+
+Each knob is the SAME shared `LeftFanCarousel` tangens fan as the measures / repeats / per-instrument
+volume cells (§6d — the canonical `fanCarousels.jsx` module, `compact` + `invert`, Maestro labels at
+`activeLabelSize={32}`); no hand-rolled control and no copied glyph offsets. A single local
+`renderRpgFan(...)` helper renders all three, with `rpgVolFan(...)` on top of it for the two volume
+knobs, which take their items straight from the canonical `VOL_STEPS` table (glyphs can never drift)
+and resolve the active index through the module's existing `getVolStep`. Visibility uses the ascending
+2-entry `RPG_VISIBILITY_OPTIONS = [50, 100]` (ascending so the fan's "high value sits HIGH" layout puts
+100 above 50). `setPlaybackConfig` is already in this component's scope via `usePlaybackConfig()`, so
+no new prop threading was needed.
+
+> **UAT rework note (Han 2026-08-14, #992):** these setters shipped first in
+> `src/components/controls/PlaybackSettings.jsx` (the bottom TabView panel's num-measures row). That was
+> the WRONG "num measures setter" — Han's "onder de num measures setter" meant the sheet overlay's
+> measures fan. The rows were removed from `PlaybackSettings.jsx` and rebuilt here; ALL of the state /
+> multiplier wiring above was unchanged by that move.
 
 **Invariants:**
 - **INV-1** — at every setter's own shipped default, its multiplier is EXACTLY 1.0 — moving a setter
@@ -15027,9 +15042,12 @@ uses a 2-entry `[100, 50]` list.
 - **INV-3** — the fx/music defaults must stay whatever `DEFAULT_RPG_FX_VOLUME`/
   `DEFAULT_RPG_MUSIC_VOLUME` compute to from `VOL_STEPS` — never hand-picked numeric literals
   duplicating those steps (§6c).
+- **INV-4** — the 3 setters live in the IN-STAFF `SettingsOverlay.jsx` and must stay `LeftFanCarousel`
+  fans there (§6d). Do not re-add them to `PlaybackSettings.jsx` and do not swap them for a bespoke
+  stepper — Han bounced exactly that in UAT.
 
 **Files:** `src/audio/dynamics.js` (`DEFAULT_RPG_FX_VOLUME`, `DEFAULT_RPG_MUSIC_VOLUME`,
 `rpgVolumeMultiplier`, new), `src/audio/__tests__/dynamics.test.js` (new),
 `src/hooks/useWorldAmbientMusic.js`, `src/hooks/__tests__/useWorldAmbientMusic.test.js` (new),
 `src/components/sheet-music/SheetRpgLayer.jsx`, `src/components/sheet-music/SheetMusic.jsx`,
-`src/components/controls/PlaybackSettings.jsx`, `src/App.jsx`.
+`src/components/sheet-music/overlays/SettingsOverlay.jsx` (the 3 fans), `src/App.jsx`.

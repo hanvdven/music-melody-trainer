@@ -7,6 +7,10 @@ import { BeginRepeatSign, EndRepeatSign } from '../repeatSigns';
 // #302: the measures fan drags through every count 1..32 (the old stepper's
 // bounds), derived — not a hand-picked subset (§6c).
 const MEASURE_OPTIONS = Array.from({ length: 32 }, (_, i) => i + 1);
+
+// #992 UAT rework (Han 2026-08-14): the RPG visibility fan's two steps. Ascending so the
+// LeftFanCarousel's "high value sits HIGH on screen" layout puts 100 above 50.
+const RPG_VISIBILITY_OPTIONS = [50, 100];
 import { AXES } from '../../../exercises/exerciseIndex';
 import '../SheetMusic.css';
 import { usePlaybackConfig } from '../../../contexts/PlaybackConfigContext';
@@ -318,6 +322,51 @@ const SettingsOverlay = ({
   const HEADER_Y    = trebleStart - 89;  // all section header labels
   const CHORD_ROW_Y = trebleStart - 64;  // chord row center (vol/vis icons, measure/repeat setters)
 
+  // #992 UAT rework (Han 2026-08-14: "onder de num measures setter" = THIS overlay, not the bottom
+  // TabView panel). A SECOND setter row directly below the measures/repeats row, holding the three
+  // RPG knobs. Y is picked so the row's 44-unit compact drag band (rpgRowY ± 22) clears the measures
+  // row's band (CHORD_ROW_Y ± 22, i.e. down to trebleStart−42) and still sits ABOVE the staff top —
+  // it shares the vertical band of the instrument-row volume fans (volY−6 = trebleStart−10), which
+  // live at the odd/even columns, far left of these.
+  const RPG_ROW_Y = trebleStart - 16;
+  // The measures fan sits at 0.70 and repeats at 0.85 of the system span; the RPG row keeps that same
+  // 0.15 column rhythm, with the middle knob directly under the measures fan.
+  const rpgFanX = (frac) => startX + frac * ((systemEndX ?? endX) - startX);
+
+  // ONE implementation for all three RPG knobs (§6d): the SAME compact, inverted LeftFanCarousel the
+  // measures/repeats/volume fans use, with the SAME serif-italic-14 --text-secondary caption at −25
+  // and the SAME Maestro 32 active label. No new geometry constants, no copy-pasted fan code.
+  const renderRpgFan = (key, frac, caption, items, activeIndex, renderLabel, commit) => (
+    <g key={key} transform={`translate(${rpgFanX(frac)}, ${RPG_ROW_Y})`}>
+      <text x="0" y={-25} fontFamily="serif" fontStyle="italic" fontSize="14"
+        fill="var(--text-secondary)" textAnchor="middle" className="svg-no-interact">{caption}</text>
+      <LeftFanCarousel
+        cx={0}
+        centerY={-6}
+        items={items}
+        activeIndex={activeIndex}
+        renderLabel={renderLabel}
+        labelFontFamily="Maestro"
+        activeLabelSize={32}
+        compact
+        /* Same drag direction as measures/repeats/volume (#430/#434/#435): drag DOWN raises. */
+        invert
+        fieldLines={[]}
+        onCommit={(i) => { onSettingsInteraction?.(); commit(items[i]); }}
+        debugMode={debugMode}
+      />
+    </g>
+  );
+
+  // Both RPG volume knobs are plain VOL_STEPS fans — identical items/label/commit shape as the
+  // per-instrument volume cells above, so the glyphs can never drift from the canonical table.
+  const rpgVolFan = (key, frac, caption, field, value) => renderRpgFan(
+    key, frac, caption, VOL_STEPS,
+    Math.max(0, VOL_STEPS.findIndex(s => s.glyph === getVolStep(value).glyph)),
+    (s) => s.glyph,
+    (s) => setPlaybackConfig(prev => ({ ...prev, [field]: s.value })),
+  );
+
   // Full overlay bounding area — clicks anywhere inside must NOT propagate to the
   // sheet-music click handler (which closes the overlay on any non-note click).
   const overlayTop    = trebleStart - 95;
@@ -481,6 +530,22 @@ const SettingsOverlay = ({
           debugMode={debugMode}
         />
       </g>
+
+      {/* ── RPG ROW (#992, Han: "3 setters onder de num measures setter") ──────
+          RPG fx volume / RPG music volume / RPG visibility, rendered as three MORE
+          LeftFanCarousels one row below the measures fan. These write the same
+          playbackConfig.rpgFxVolume / rpgMusicVolume / rpgVisibility fields the
+          multiplier math in audio/dynamics.js reads (see docs/architecture.md §230);
+          this row is purely their UI. */}
+      {rpgVolFan('rpg-fx', 0.55, 'rpg fx', 'rpgFxVolume', playbackConfig?.rpgFxVolume)}
+      {rpgVolFan('rpg-music', 0.70, 'rpg music', 'rpgMusicVolume', playbackConfig?.rpgMusicVolume)}
+      {renderRpgFan(
+        'rpg-visibility', 0.85, 'rpg visibility',
+        RPG_VISIBILITY_OPTIONS,
+        Math.max(0, RPG_VISIBILITY_OPTIONS.indexOf(playbackConfig?.rpgVisibility ?? 100)),
+        (v) => String(v),
+        (v) => setPlaybackConfig(prev => ({ ...prev, rpgVisibility: v })),
+      )}
 
     </g>
   );
