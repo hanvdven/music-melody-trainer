@@ -45,7 +45,6 @@ import LevelPausePopup from './components/levels/LevelPausePopup';
 import SubHeader from './components/layout/SubHeader';
 
 // Hooks
-import ChorusDebugSlider from './components/common/ChorusDebugSlider';
 import useRefState from './hooks/useRefState';
 import useWindowSize from './hooks/useWindowSize';
 import useInstruments from './hooks/useInstruments';
@@ -322,7 +321,7 @@ const App = () => {
     const windowSize = useWindowSize();
     const [musicalBlocks, setMusicalBlocks, musicalBlocksRef] = useRefState([1]);
 
-    const { instruments, loadedSlug, manualInstruments, settings: instrumentSettingsHooks, setVolume, setChorusStrength } = useInstruments(context);
+    const { instruments, loadedSlug, manualInstruments, settings: instrumentSettingsHooks, setVolume, setChorusStrength, setTremoloStrength } = useInstruments(context);
 
     useEffect(() => {
         instrumentsRef.current = instruments;
@@ -978,9 +977,20 @@ const App = () => {
         // RUBATO_HISTORY_LIMIT is a module-level constant; it never changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [instruments.treble, context, scheduleRubatoAccompaniment]),
+        // #990 (Han 2026-08-14, "op foute noten gewoon chorus 1 zetten" + follow-up "moet hoorbaar
+        // zijn wanneer er in beeld ook 'wrong note' wordt getoond ... chorus 1 en tremolo 0,7"): a
+        // wrong tap gets an immediate, full-strength chorus wobble PLUS a 0.7-depth tremolo on the
+        // treble channel — no ramp-up, an audible "that was wrong" cue the instant the on-screen
+        // 'wrong note' label appears — then both ring back down to 0 over the same window
+        // useInputTest's own errorTimeoutRef uses to clear the error state (1000ms), so the effect
+        // decays alongside the visual error feedback rather than cutting off abruptly or lingering.
         onNoteWrong: useCallback((note) => {
             instruments.treble?.stop({ note });
-        }, [instruments.treble]),
+            setChorusStrength('treble', 1, 0);
+            setChorusStrength('treble', 0, 1);
+            setTremoloStrength('treble', 0.7, 0);
+            setTremoloStrength('treble', 0, 1);
+        }, [instruments.treble, setChorusStrength, setTremoloStrength]),
         // #134 gamification: enrich input-test score events with musical context
         // and forward to the profile. buildScorePayload/recordEventRef read refs
         // only, so this callback is stable.
@@ -2538,21 +2548,6 @@ const App = () => {
                     {`MIDI: ${midiStatus.state}${midiStatus.inputs.length ? ` [${midiStatus.inputs.join(', ')}]` : ''}`}
                     {midiStatus.lastData ? `\n#${midiStatus.count}  [${midiStatus.lastData.join(', ')}]` : '\n(no events yet)'}
                 </div>
-            )}
-            {/* #990 chorus debug knobs (Han: "in debugmode een handmatige chorus-strength regelaar
-                zodat ik met keyboard kan testen hoe het klinkt"). REWORK (UAT bounce 2026-08-14):
-                the original single dynamic-target slider was replaced with 4 independent, always-
-                visible sliders — one per channel (chords/treble/bass/percussion, NOT metronome) —
-                per Han's explicit instruction ("maak voor debug 4 sliders: chord, treble, bas,
-                perc"). Each calls setChorusStrength(type, value) directly; no "which channel is
-                active" detection is needed for this debug UI anymore. Stacked under the MIDI dump. */}
-            {debugMode && (
-                <>
-                    <ChorusDebugSlider label="chords" top={44} onChange={(v) => setChorusStrength('chords', v)} />
-                    <ChorusDebugSlider label="treble" top={72} onChange={(v) => setChorusStrength('treble', v)} />
-                    <ChorusDebugSlider label="bass" top={100} onChange={(v) => setChorusStrength('bass', v)} />
-                    <ChorusDebugSlider label="perc" top={128} onChange={(v) => setChorusStrength('percussion', v)} />
-                </>
             )}
             {/* Level config debug dump MOVED (Han 2026-08-06, "ik wil de level params zien tijdens het
                 'start level' splash screen, niet tijdens het level") — now lives in LevelStartSplash

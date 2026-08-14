@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Soundfont, Reverb, DrumMachine, Sampler, getDrumMachineNames } from 'smplr';
 import InstrumentSettings from '../model/InstrumentSettings';
 import { LOCAL_PERCUSSION_BUFFERS } from '../audio/drumKits';
-import { LOCAL_INSTRUMENT_BUFFERS } from '../audio/localInstruments';
+import { createMelodicInstrument } from '../audio/localInstruments';
 import { createChorus } from '../audio/chorusEffect';
+import { createTremolo } from '../audio/tremoloEffect';
 import logger from '../utils/logger';
 
 const VALID_DRUM_KITS = new Set(getDrumMachineNames());
@@ -36,6 +37,12 @@ const useInstruments = (context) => {
   // Silent at rest (strength 0), so the always-on units cost ~30 idle oscillators/delays, which is
   // nothing next to the reverb AudioWorklets and the WebGL foliage loop already running.
   const chorusRef = useRef({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
+  // #990 follow-up: tremolo is an INSERT (not a send like chorus — see tremoloEffect.js's doc
+  // comment for why), so it lives on the PERSISTENT per-type channel infrastructure (created once
+  // alongside the fader, never torn down on an instrument swap), not per-instrument like chorus.
+  // `main` sits after the fader, `manual` is the stable destination every manual instrument
+  // instance connects to instead of context.destination directly.
+  const tremoloRef = useRef({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
 
   const [treble, setTreble] = useState(null);
   const [bass, setBass] = useState(null);
@@ -62,11 +69,17 @@ const useInstruments = (context) => {
   useEffect(() => {
     if (!context) return;
 
-    // Initialize faders if they don't exist
+    // Initialize faders + tremolo inserts if they don't exist
     ['treble', 'bass', 'percussion', 'metronome', 'chords'].forEach(type => {
+      if (!tremoloRef.current[type]) {
+        tremoloRef.current[type] = {
+          main: createTremolo(context, { destination: context.destination }),
+          manual: createTremolo(context, { destination: context.destination }),
+        };
+      }
       if (!fadersRef.current[type]) {
         const gain = context.createGain();
-        gain.connect(context.destination);
+        gain.connect(tremoloRef.current[type].main.input); // fader -> tremolo insert -> destination
         fadersRef.current[type] = gain;
       }
     });
@@ -97,6 +110,9 @@ const useInstruments = (context) => {
       let newInst, newManualInst;
       try {
         const dest = fadersRef.current[type];
+        // Manual (click/QWERTY) instances route through the type's persistent manual-tremolo
+        // insert instead of straight to context.destination — see tremoloRef above.
+        const manualDest = tremoloRef.current[type].manual.input;
         if (type === 'percussion') {
           const isGMKit = ['standard', 'electronic', 'jazz'].includes(settings.instrument);
           const isLocalKit = settings.instrument === 'FreePats Percussion';
@@ -104,35 +120,25 @@ const useInstruments = (context) => {
           if (isLocalKit) {
             const percSamplerOpts = { destination: dest, buffers: LOCAL_PERCUSSION_BUFFERS, detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
             newInst = new Sampler(context, percSamplerOpts);
-            newManualInst = new Sampler(context, { ...percSamplerOpts, destination: context.destination });
+            newManualInst = new Sampler(context, { ...percSamplerOpts, destination: manualDest });
           } else if (isGMKit) {
             newInst = new Soundfont(context, { instrument: settings.instrument, destination: dest, disableScheduler: true });
-            newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: context.destination, disableScheduler: true });
+            newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: manualDest, disableScheduler: true });
           } else {
             if (!VALID_DRUM_KITS.has(settings.instrument)) {
               logger.warn('useInstruments', `Invalid drum kit: "${settings.instrument}".`);
               return;
             }
             newInst = new DrumMachine(context, { instrument: settings.instrument, destination: dest, disableScheduler: true });
-            newManualInst = new DrumMachine(context, { instrument: settings.instrument, destination: context.destination, disableScheduler: true });
+            newManualInst = new DrumMachine(context, { instrument: settings.instrument, destination: manualDest, disableScheduler: true });
           }
         } else {
-          // Use local FLAC samples when available (avoids CDN dependency for default instruments).
-          // Falls back to smplr Soundfont (CDN) for any slug not in the local map.
-          //
-          // smplr 0.20.0 bug: samplerToSmplrJson includes `defaults: { detune: options.detune }`
-          // in the generated JSON. When options.detune is undefined, it overrides PARAM_DEFAULTS.detune=0
-          // with undefined during resolveParams, producing NaN → "non-finite AudioParam" TypeError.
-          // Passing explicit 0 values here prevents undefined from reaching PARAM_DEFAULTS overrides.
-          const SAMPLER_SAFE_DEFAULTS = { detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
-          const localBuffers = LOCAL_INSTRUMENT_BUFFERS[settings.instrument];
-          if (localBuffers) {
-            newInst = new Sampler(context, { destination: dest, buffers: localBuffers, ...SAMPLER_SAFE_DEFAULTS });
-            newManualInst = new Sampler(context, { destination: context.destination, buffers: localBuffers, ...SAMPLER_SAFE_DEFAULTS });
-          } else {
-            newInst = new Soundfont(context, { instrument: settings.instrument, destination: dest });
-            newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: context.destination });
-          }
+          // #955: local sample first (offline-capable), CDN Soundfont fallback for any slug not
+          // covered by the extracted set — same decision createMelodicInstrument makes for every
+          // other one-off melodic instance in the app (App.jsx's timpani/cello/wizard-preview,
+          // playInstrumentPreview.js, useConversationInstruments.js, useWorldAmbientMusic.js).
+          newInst = createMelodicInstrument(context, settings.instrument, { destination: dest });
+          newManualInst = createMelodicInstrument(context, settings.instrument, { destination: manualDest });
         }
       } catch (e) {
         logger.error('useInstruments', 'E011-INSTRUMENT-CREATE', e, { instrument: settings.instrument });
@@ -149,10 +155,12 @@ const useInstruments = (context) => {
       // percussion level → percussion — so it cannot be hardcoded to the melodic channels).
       // The send mix is a CONSTANT 1; the audible amount is controlled inside the unit via
       // setStrength (smplr's sendEffect writes gain.value directly = an audible step/click).
-      // The main unit routes its wet path to the type's own fader so per-instrument volume
-      // applies to it too; the manual unit mirrors its dry destination (context.destination).
+      // Both units route their wet path through the SAME destination the dry signal uses
+      // (fader for main, tremolo insert for manual) so per-instrument volume AND the tremolo
+      // insert both apply to the chorused signal too — chorus=1 + tremolo=0.7 on a wrong note
+      // must be audible together, not chorus bypassing the tremolo insert.
       const mainChorus = createChorus(context, { destination: fadersRef.current[type] });
-      const manualChorus = createChorus(context, { destination: context.destination });
+      const manualChorus = createChorus(context, { destination: tremoloRef.current[type].manual.input });
       newInst.output.addEffect('chorus', mainChorus, 1);
       newManualInst.output.addEffect('chorus', manualChorus, 1);
       chorusRef.current[type] = { main: mainChorus, manual: manualChorus };
@@ -206,6 +214,19 @@ const useInstruments = (context) => {
     unit.manual?.setStrength(strength, { rampSec });
   };
 
+  /**
+   * #990 follow-up: set the tremolo depth (0…1) on one channel. Same imperative shape as
+   * setChorusStrength/setVolume above. Unlike chorus, the tremolo units are on the PERSISTENT
+   * per-type infrastructure (tremoloRef, created once, never torn down on an instrument swap —
+   * see the tremoloRef declaration above), so this never has to guard against a mid-swap gap.
+   */
+  const setTremoloStrength = (type, strength, rampSec = 0.03) => {
+    const unit = tremoloRef.current[type];
+    if (!unit) return;
+    unit.main?.setStrength(strength, { rampSec });
+    unit.manual?.setStrength(strength, { rampSec });
+  };
+
   return {
     instruments: { treble, bass, percussion, metronome, chords },
     loadedSlug,
@@ -219,6 +240,7 @@ const useInstruments = (context) => {
     },
     setVolume,
     setChorusStrength,
+    setTremoloStrength,
   };
 };
 
