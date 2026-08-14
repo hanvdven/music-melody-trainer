@@ -669,7 +669,10 @@ const PianoView = ({
   const resolveInstrumentFor = (concertNote) => {
     if (!expectedNotesRef?.current || !wrongNoteInstrument) return trebleInstrument;
     const expectedNotes = expectedNotesRef.current();
-    if (!expectedNotes || !expectedNotes.length) return trebleInstrument;
+    // #990 (Han, quick pass): `null` = no judgment context — play normally. `[]` (a context IS
+    // active but nothing is due right now) is the "extra note" case and counts as wrong too.
+    if (expectedNotes == null) return trebleInstrument;
+    if (!expectedNotes.length) return wrongNoteInstrument;
     const pitch = resolveNotePitch(concertNote);
     const isExpected = expectedNotes.some((n) => resolveNotePitch(n) === pitch);
     return isExpected ? trebleInstrument : wrongNoteInstrument;

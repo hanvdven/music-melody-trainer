@@ -136,7 +136,31 @@ describe('PianoView wrong-note instrument routing (#990 regression)', () => {
         expect(trebleInstrument.start).toHaveBeenCalledTimes(1);
     });
 
-    it('falls back to trebleInstrument when expectedNotesRef.current() returns null/empty (nothing currently hittable)', () => {
+    it('falls back to trebleInstrument when expectedNotesRef.current() returns null (no judgment context at all)', () => {
+        const trebleInstrument = makeFakeInstrument();
+        const wrongNoteInstrument = makeFakeInstrument();
+        const scale = Scale.defaultScale();
+        render(
+            <PianoView
+                scale={scale}
+                qwertyKeyboardActive
+                trebleInstrument={trebleInstrument}
+                wrongNoteInstrument={wrongNoteInstrument}
+                expectedNotesRef={{ current: () => null }}
+            />
+        );
+
+        act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' })); });
+
+        expect(trebleInstrument.start).toHaveBeenCalledTimes(1);
+        expect(wrongNoteInstrument.start).not.toHaveBeenCalled();
+    });
+
+    // #990 (Han, quick pass — "moet hoorbaar zijn bij: note when none due (extra note) en wrong"):
+    // an empty array is DIFFERENT from null — it means a judgment context IS active (RPG combat or
+    // input-test mode) but nothing happens to be due right now. That's the "extra note" case, and
+    // it must route through wrongNoteInstrument too, not silently fall back to normal.
+    it('routes through wrongNoteInstrument when expectedNotesRef.current() returns [] (nothing due right now — "extra note")', () => {
         const trebleInstrument = makeFakeInstrument();
         const wrongNoteInstrument = makeFakeInstrument();
         const scale = Scale.defaultScale();
@@ -152,7 +176,7 @@ describe('PianoView wrong-note instrument routing (#990 regression)', () => {
 
         act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' })); });
 
-        expect(trebleInstrument.start).toHaveBeenCalledTimes(1);
-        expect(wrongNoteInstrument.start).not.toHaveBeenCalled();
+        expect(wrongNoteInstrument.start).toHaveBeenCalledTimes(1);
+        expect(trebleInstrument.start).not.toHaveBeenCalled();
     });
 });

@@ -1196,14 +1196,16 @@ const App = () => {
     // Reassigned every render (cheap: one function reference swap) so it always closes over the
     // CURRENT render's `level.active`; internally it reads refs/rpgHittableNotesRef fresh at CALL
     // time, not at this assignment time, so callers never see a stale snapshot either way.
+    // #990 (Han 2026-08-14, quick pass — "moet hoorbaar zijn bij: note when none due (extra note)
+    // en wrong"): `null` = no judgment context at all (play normally); `[]` = a judgment context
+    // IS active but nothing is currently due — that's the "extra note" case, and per Han it counts
+    // as wrong too, not a free pass. PianoView's resolveInstrumentFor treats these two cases
+    // differently, so the distinction must survive here rather than collapsing both to null.
     getExpectedTrebleNotesRef.current = () => {
-        if (level.active) {
-            const notes = rpgHittableNotesRef.current?.();
-            return notes && notes.length ? notes : null;
-        }
+        if (level.active) return rpgHittableNotesRef.current?.() ?? [];
         if (!isInputTestModeRef.current || inputTestStateRef.current.activeStaff !== 'treble') return null;
         const target = melodiesRef.current?.treble?.notes?.[inputTestStateRef.current.activeIndex];
-        if (target == null) return null;
+        if (target == null) return [];
         return Array.isArray(target) ? target : [target];
     };
 
