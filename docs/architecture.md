@@ -14698,7 +14698,7 @@ in `src/utils/difficultyCalculator.js`.
 
 ---
 
-### §227. SplendidGrandPiano as the default grand piano — locally mirrored samples + per-sample CDN fallback (#988, Han 2026-08-14)
+### §227. SplendidGrandPiano as the default grand piano — locally mirrored WAV samples (#988, Han 2026-08-14)
 
 **Purpose:** Han: *"de huidige piano klinkt niet mooi."* The GM `acoustic_grand_piano` the app
 played came from the §224 FluidR3 .sf2 extraction — one recording per key, a single velocity
@@ -14722,13 +14722,27 @@ single call site changing.
   entry is left in place rather than deleted. `disableScheduler` is a Soundfont-only option with
   no `SplendidGrandPianoConfig` equivalent; the piano branch ignores it (nothing passes it for a
   melodic slug).
+- **WAV, not the CDN's native Ogg/Opus — see the bug log below.** The upstream smpldsnds CDN only
+  serves Ogg/Opus and M4A, but real-browser UAT found `decodeAudioData` produces total, silent,
+  error-free failure for the Ogg/Opus files (§227 bug log, "piano niet hoorbaar"). So
+  `scripts/download-splendid-grand-piano.mjs` fetches the CDN's Ogg/Opus bytes, decodes them with
+  a standalone WASM Opus decoder (`ogg-opus-decoder`), and re-encodes to 16-bit PCM WAV
+  (`wavefile`) — entirely in Node, once, at asset-prep time. `.ogg` is never written to disk.
+  `formats: ['wav']` on the `SplendidGrandPiano` constructor makes `findFirstSupportedFormat` pick
+  `wav` unconditionally (`audio.canPlayType('audio/wav')` is "probably" in every evergreen
+  browser) — no Safari-specific branch needed, unlike smplr's own `['ogg','m4a']` default.
+- **Mono, 32 kHz (Han's size-vs-quality call, 2026-08-14).** The decoded Opus source is 48 kHz
+  stereo; a straight WAV re-encode at that rate is 269 MB for 226 samples. Han chose to downmix to
+  mono and resample to 32 kHz — matching the bit depth/rate/channel convention every other
+  locally-mirrored instrument in this app already uses (§224's FluidR3 extraction) — landing at
+  90 MB. Resampling uses `wavefile`'s built-in sinc resampler; downmix is a plain per-sample
+  channel average.
 - **No remote manifest exists.** smplr builds its `SmplrJson` descriptor in-process via
   `pianoToSmplrJson()` from a `LAYERS` array bundled *inside the smplr package*. There is nothing
   to mirror but audio. `scripts/download-splendid-grand-piano.mjs` therefore derives its roster
   from `import { LAYERS } from 'smplr'` (§6c: never a hand-typed file list) — 226 unique names
-  after de-duplication (PPP and PP share the same "PP \*" recordings) — and mirrors them as
-  **.ogg only** (19.0 MB) into `public/samples/SplendidGrandPiano/`. Dev-only, idempotent, not an
-  npm script (same convention as its sibling extractor). Re-run it after upgrading smplr.
+  after de-duplication (PPP and PP share the same "PP \*" recordings). Dev-only, idempotent, not
+  an npm script (same convention as its sibling extractor). Re-run it after upgrading smplr.
 - **Filename sanitizing.** Sample names contain spaces and sharps (`PP D#0`). §224 proved
   empirically that Vite's public-dir static serving cannot locate a `#`-containing filename, raw
   **or** %23-encoded — both fall through to the SPA index.html. `SplendidGrandPianoConfig` exposes
@@ -14736,15 +14750,14 @@ single call site changing.
   space→`_`, the same convention the §224 extractor writes) is exported from
   `src/audio/splendidPianoStorage.js` and **imported by the download script**, so writer and
   reader cannot drift.
-- **Fallback lives in `storage`, not in a `.load.catch`.** smplr's `SampleLoader.load` *silently
-  omits* failed samples and `loadAudioBuffer` returns `undefined` after a `console.warn` on a
-  non-200 — a `try/catch` around the constructor would **never fire**, and the failure mode would
-  be a silently-partial piano. `splendidPianoStorage` implements smplr's `Storage` interface
-  (`{ fetch(url) }`) and retries the original smpldsnds CDN per request. This is also the normal
-  Safari path: `findFirstSupportedFormat` skips ogg there, asks for `.m4a`, finds none locally and
-  is served transparently from the CDN. If **both** sources fail it logs
-  `E029-PIANO-SAMPLE-LOAD` and returns a 404 so smplr's own omit path proceeds — one missing
-  velocity sample must never take down the app.
+- **No live CDN fallback.** Unlike the first version of this feature, `splendidPianoStorage`
+  does NOT retry the CDN on a local miss — the CDN has no WAV to fall back to, and a missing local
+  sample means the asset-prep step didn't run correctly (a build problem to fix at the source, not
+  a runtime degradation path). smplr's `SampleLoader.load` still *silently omits* failed samples
+  (its own contract) and never wraps `storage.fetch` in a try/catch, so the adapter still must
+  never let a fetch failure escape as a rejection — it logs `E029-PIANO-SAMPLE-LOAD` and returns a
+  404 so smplr's own omit path proceeds. One missing sample degrades the piano; it must never take
+  down the app.
 - **Shared cache across instances (Han's D2 decision).** smplr's buffer cache is per-
   `SampleLoader`, i.e. per instance, and the app builds ~8 pianos per session. A module-level
   `Map<localUrl, Promise<ArrayBuffer>>` in the storage adapter memoizes the fetched bytes. Values
@@ -14761,16 +14774,18 @@ single call site changing.
    long as the generated manifest still carries an `acoustic_grand_piano` entry. Covered by a test.
 3. Local filenames are written and read exclusively through `toLocalFileName`. Never hand-write a
    sanitized name; never re-implement the rule.
-4. Any future graceful-degradation logic for smplr samples belongs in the storage adapter — smplr
-   swallows load failures, so nothing upstream of `storage.fetch` can observe them.
+4. The local mirror is WAV-only and self-hosted with no live fallback — a missing/corrupt sample
+   is a build-time asset bug, fixed by re-running the download script, not a runtime path to code
+   around.
 
-**Files:** `src/audio/splendidPianoStorage.js` (new), `scripts/download-splendid-grand-piano.mjs`
-(new), `src/audio/localInstruments.js` (piano branch + imports),
-`public/samples/SplendidGrandPiano/*.ogg` (226 new files, 19.0 MB),
-`src/audio/__tests__/splendidPianoStorage.test.js` (new),
-`src/audio/__tests__/localInstruments.test.js` (new), `CLAUDE.md` (§7a E029, §8 ownership row).
+**Files:** `src/audio/splendidPianoStorage.js`, `scripts/download-splendid-grand-piano.mjs`,
+`src/audio/localInstruments.js` (piano branch + imports),
+`public/samples/SplendidGrandPiano/*.wav` (226 files, 90 MB),
+`src/audio/__tests__/splendidPianoStorage.test.js`, `src/audio/__tests__/localInstruments.test.js`,
+`CLAUDE.md` (§7a E029, §8 ownership row), `package.json` (devDependencies: `ogg-opus-decoder`,
+`wavefile`).
 
-**Bug: "piano niet hoorbaar" — UAT bounce, fixed same day (#988, Han 2026-08-14)**
+**Bug: "piano niet hoorbaar" #1 — SPA-fallback 200, fixed same day (#988, Han 2026-08-14)**
 
 **Symptom:** immediately after shipping the above, Han reported the piano made no sound at all
 (no error, no partial playback — total silence).
@@ -14780,20 +14795,46 @@ single call site changing.
 host) answers a request for a path that doesn't exist under `public/` with `200 text/html` — the
 app's own `index.html` — rather than a 404. Every one of the 226 local sample URLs therefore
 "succeeded" with an HTML payload; smplr fed that to `decodeAudioData`, which fails, and
-`SampleLoader.load` *silently omits* the sample (see the "no `.load.catch`" invariant above) —
-worse, because the adapter had already reported success, the CDN fallback path never ran either.
-226/226 samples vanished with zero errors and zero sound.
+`SampleLoader.load` *silently omits* the sample — worse, because the adapter had already reported
+success, the (then-existing) CDN fallback path never ran either. 226/226 samples vanished with
+zero errors and zero sound.
 
-**Fix:** `splendidPianoStorage.js` now validates that a local `200` response body actually starts
-with the Ogg container magic bytes (`OggS`) before accepting it as a real hit; a 200-but-not-Ogg
-body is treated as a miss so the CDN retry still fires. The check is deliberately local-only — the
-CDN legitimately serves non-Ogg `.m4a` payloads for Safari's `findFirstSupportedFormat` path, which
-must not be rejected by the same guard. Also fixed in the same pass: `playInstrumentPreview.js` was
-constructing `new Soundfont(context, { instrument: slug, ... })` directly instead of calling
-`createMelodicInstrument` — a violation of invariant 1 above that meant instrument previews never
-got the `SplendidGrandPiano` branch for the piano slug. Regression coverage: three new cases in
-`splendidPianoStorage.test.js` (SPA-fallback-as-miss, CDN non-Ogg exemption, cache-failure never
-rejects).
+**Fix (superseded by bug #2 below):** at the time, `splendidPianoStorage.js` was patched to
+validate the local response body's container magic bytes before accepting a 200 as a real hit, so
+a 200-but-wrong-body response fell through to a CDN retry. Also fixed in the same pass:
+`playInstrumentPreview.js` was constructing `new Soundfont(context, { instrument: slug, ... })`
+directly instead of calling `createMelodicInstrument` — a violation of invariant 1 above that
+meant instrument previews never got the `SplendidGrandPiano` branch for the piano slug.
 
-**Files:** `src/audio/splendidPianoStorage.js`, `src/audio/playInstrumentPreview.js`,
-`src/audio/__tests__/splendidPianoStorage.test.js`.
+**Bug: "piano niet hoorbaar" #2 — Ogg/Opus decodes silently in-browser, fixed same day (#988, Han 2026-08-14)**
+
+**Symptom:** after fixing bug #1, Han still reported total silence, this time with the local
+mirror correctly serving real Ogg/Opus bytes (verified: `curl` against the actual running dev
+server returned `200 audio/ogg` with genuine `OggS`/`OpusHead` content for existing samples, and a
+real `200 text/html` SPA fallback for a genuinely-missing name — bug #1's fix was working
+correctly).
+
+**Root cause:** the Ogg/Opus sample bytes themselves were NOT silent — decoding the exact same
+file with a standalone WASM Opus decoder (`ogg-opus-decoder`, run in Node, outside the browser)
+produced full-amplitude PCM (peak ~0.996). The browser's `decodeAudioData`, however, decoded the
+same bytes into **audible silence** with **no error thrown** — a known class of bug where
+`decodeAudioData`'s Opus-in-Ogg path mishandles container details (e.g. the Opus "pre-skip"
+field) that a dedicated decoder handles correctly. This is the same "browser `decodeAudioData` is
+unreliable for compressed formats" risk class already documented one screen up in
+`localInstruments.js`'s own history — an earlier FLAC attempt was reverted for a *hard*
+`EncodingError`; this is the same class of bug, just failing silently instead of throwing, which
+is why bug #1's fix (which only checked "is this really an Ogg file", not "does this Ogg file
+actually produce sound in this browser") did not catch it.
+
+**Fix:** switched the entire local mirror from Ogg/Opus to WAV (see "How it works" above) —
+`scripts/download-splendid-grand-piano.mjs` now decodes+re-encodes at asset-prep time instead of
+shipping the CDN's native compressed format, and `splendidPianoStorage`'s payload-sniffing check
+was changed from an Ogg-magic check to a RIFF/WAVE-magic check. Because there is no WAV on the
+upstream CDN, the per-sample CDN fallback introduced in bug #1's fix was removed entirely — a
+local WAV miss now fails outright (logs `E029-PIANO-SAMPLE-LOAD`, returns 404, lets smplr's own
+silent-omit path degrade gracefully) rather than attempting a fallback that could never succeed.
+
+**Files:** `src/audio/splendidPianoStorage.js`, `src/audio/localInstruments.js`,
+`scripts/download-splendid-grand-piano.mjs`, `src/audio/__tests__/splendidPianoStorage.test.js`,
+`public/samples/SplendidGrandPiano/*.wav` (replaces the `.ogg` set), `package.json`.
+

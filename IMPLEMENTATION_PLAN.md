@@ -7,6 +7,47 @@
 
 Status keys: ✅ done · 🔨 in progress · ⏳ backlog/next phase · 🐞 bug
 
+## 2026-08-14 — ⏳ Nieuwe CR's (interview loopt) — 4 losse features
+
+Han, terwijl #988's WAV-conversie op de achtergrond draaide:
+
+1. **Chorus op foute noot** — bij een foute noot moet een chorus-effect klinken zodat het "een
+   klein beetje vals" klinkt. Doelsignaal (mic-input via pitch-detectie, of on-screen/MIDI-noten)
+   nog te verifiëren — interview loopt.
+2. **Debug: chorus-strength regelaar** — in debugmode een handmatige chorus-sterkte-knop zodat
+   Han met het keyboard kan testen hoe het klinkt, los van de wrong-note-detectielogica (die komt
+   later, wordt later toegepast in het level).
+3. **Enemy "type3: damaged1/2/3" bij 1/8e-late-drempel** — als een vijand voorbij de 1/8e-noot
+   late-drempel loopt, vijand-animatie type3: damaged1/2/3. Relatie tot bestaande
+   timing/grading-logica (gradeHit.js?) en bestaand vijand-animatiesysteem nog te verifiëren.
+4. **3 nieuwe Playback Settings-setters**, onder de "num measures"-setter:
+   - RPG fx volume (slimes/spells/effecten) — default mp
+   - RPG music volume (levelmuziek incl. vogels) — default mf
+   - RPG visibility — opacity van de rpg-layer in het level, 100 of 50.
+
+Interview loopt (research + AskUserQuestion) voordat er iets geïmplementeerd wordt (CLAUDE.md §4b).
+
+## 2026-08-14 — 🔨 #988 SplendidGrandPiano als standaard piano
+
+Han: huidige piano (GM `acoustic_grand_piano`) klinkt niet mooi. smplr heeft een losse
+`SplendidGrandPiano`-klasse (bevestigd in node_modules/smplr, API-compatibel met de bestaande
+Soundfont/Sampler-instanties: start/stop/output/load).
+
+Interview-antwoorden: (1) overal waar nu `acoustic_grand_piano` klinkt — UI-picker, world-ambient,
+wizard-preview, conversation-typewriter, previews — niet alleen de UI-keuze. (2) geen CDN-only:
+Han wil lokale offline samples, zelfde patroon als de bestaande FluidR3_GM-extractie
+(`scripts/extract-soundfont-samples.mjs`). Bron: Han gaf de sample-URL:
+https://smpldsnds.github.io/sfzinstruments-splendid-grand-piano/samples — zelf hosten, CDN alleen
+als fallback.
+
+Design: nieuwe asset-downloadstap → `public/samples/SplendidGrandPiano/`; `createMelodicInstrument`
+(`src/audio/localInstruments.js`) krijgt een branch die `SplendidGrandPiano` bouwt i.p.v.
+Sampler/Soundfont voor de piano-slug, lokaal-eerst met CDN-fallback — blijft het ENE
+choke-point (CLAUDE.md §6c), geen per-call-site special-casing. Architecturale impact (nieuw
+sample-pipeline-formaat, kernbestand instrument-constructie) → gaat door plan_review.
+
+Ticket #988 op kanban-board (design → plan_review → impl → test).
+
 ## 2026-08-12 — ✅ #924 Bird/Duck/Butterfly wanderers + graceful Sequencer.stop()
 
 Han bevestigde: pas ook de kern `Sequencer.stop()` aan (1 kwartnoot vertraging op het echte silencen), en
@@ -4601,3 +4642,19 @@ not be even better to download the full smplr package?"
   uniform-parity for non-onset slots; `useLevel.test.js` expectations updated.
 - ✅ architecture.md §226 written. `test:run` / `build` / `lint` green (same 1 pre-existing unrelated
   ldtkWorld failure from the in-flight #955 asset migration).
+
+## #988 — SplendidGrandPiano als standaard piano (offline samples) ✅ impl
+
+- ✅ Han's decisions: **D1 .ogg only** (226 files / 19.0 MB, Safari's m4a falls through to the CDN);
+  **D2 shared sample cache** across all piano instances in a session.
+- ✅ `scripts/download-splendid-grand-piano.mjs` (dev-only, idempotent, not an npm script): roster
+  derived from smplr's own bundled `LAYERS`, never a hand-typed list. Ran it: 226 files / 19.0 MB
+  into `public/samples/SplendidGrandPiano/`.
+- ✅ `src/audio/splendidPianoStorage.js`: smplr `Storage` adapter — `#`→`s` / space→`_` filename
+  sanitizing (Vite public-dir can't serve `#`, §224), per-sample local→CDN fallback (smplr SILENTLY
+  omits failed samples, so a `.load.catch` would never fire), shared promise-memo so instances
+  built in the same tick coalesce onto one fetch, `E029-PIANO-SAMPLE-LOAD` when both sources fail.
+- ✅ One runtime change: first branch in `createMelodicInstrument`, shadowing the generated
+  `acoustic_grand_piano` buffers. Slug unchanged; zero call-site changes (all 7 verified).
+- ✅ 13 new tests; architecture.md §227 + §224 pointer; CLAUDE.md §7a E029 + §8 ownership row.
+  `test:run` / `build` / `lint` green (same 1 pre-existing unrelated ldtkWorld failure).

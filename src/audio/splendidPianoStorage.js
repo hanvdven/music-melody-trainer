@@ -1,7 +1,7 @@
 /**
  * Sample transport for smplr's `SplendidGrandPiano` (#988).
  *
- * Why this module exists — three problems solved by ONE smplr `Storage` adapter:
+ * Why this module exists — two problems solved by ONE smplr `Storage` adapter:
  *
  * 1. **Local hosting of `#`-containing sample names.** SplendidGrandPiano's sample roster
  *    (smplr's bundled `LAYERS`) uses names like `PP D#0` / `MF C4` — spaces and sharps.
@@ -12,19 +12,28 @@
  *    rewrites every incoming request to the sanitized name. `SplendidGrandPianoConfig`
  *    exposes no `samples.map` hook, so `storage` is the only available seam.
  *
- * 2. **Graceful per-sample CDN fallback.** smplr's `SampleLoader.load` *silently omits*
- *    failed samples (its own doc comment) and `loadAudioBuffer` returns undefined after a
- *    console.warn on a non-200 — so a `try/catch` around the constructor or a `.load.catch()`
- *    would NEVER fire; the failure mode would be a silently-partial piano. The fallback must
- *    therefore live per-request, here, retrying the original smpldsnds CDN.
- *
- * 3. **Shared cache across piano instances (#988 D2, Han).** The app builds several
+ * 2. **Shared cache across piano instances (#988 D2, Han).** The app builds several
  *    SplendidGrandPiano instances per session (UI track instruments, world-ambient,
  *    wizard-preview, conversation typewriter, instrument previews) and smplr's own buffer
  *    cache is per-`SampleLoader`, i.e. per-instance. Without a shared memo each instance
- *    would re-fetch all 226 samples. The memo below stores the in-flight *promise* (not just
- *    the settled bytes) so instances constructed concurrently coalesce onto one network
+ *    would re-fetch/re-decode all 226 samples. The memo below stores the in-flight *promise*
+ *    (not just the settled bytes) so instances constructed concurrently coalesce onto one
  *    request instead of racing.
+ *
+ * There is deliberately NO live CDN fallback (unlike the first version of this module). The
+ * upstream smpldsnds CDN only serves Ogg/Opus and M4A — see the §227 bug-log entry in
+ * docs/architecture.md ("piano niet hoorbaar", 2026-08-14): `decodeAudioData` produced total,
+ * error-free silence for the Ogg/Opus files in real browser testing, even though the same bytes
+ * decoded to full-amplitude PCM via a standalone WASM Opus decoder — the same "browser
+ * decodeAudioData is unreliable for compressed formats" risk class documented one screen up in
+ * localInstruments.js's own history (an earlier FLAC attempt was reverted for a hard
+ * EncodingError). WAV is the format every other locally-mirrored instrument in this app already
+ * uses successfully, so the piano now ONLY ships WAV, self-hosted, converted at asset-prep time
+ * by `scripts/download-splendid-grand-piano.mjs` (fetch Ogg/Opus from the CDN → decode →
+ * re-encode WAV, in Node, once). A missing local sample is therefore a build/asset problem to
+ * fix at the source, not a live degradation path — the storage adapter still never lets a
+ * fetch failure escape as a rejection (smplr's own load contract, see the NOTE below), it just
+ * has nothing else to fall back to.
  *
  * Files on disk are produced by `node scripts/download-splendid-grand-piano.mjs`, which
  * imports `toLocalFileName` from THIS file so writer and reader can never drift.
@@ -33,10 +42,6 @@ import logger from '../utils/logger.js';
 
 /** Where the mirrored samples live in public/ (served at the site root by Vite). */
 export const SPLENDID_LOCAL_BASE_URL = '/samples/SplendidGrandPiano';
-
-/** smplr's own default baseUrl — the upstream source we mirror from and fall back to. */
-export const SPLENDID_REMOTE_BASE_URL =
-    'https://smpldsnds.github.io/sfzinstruments-splendid-grand-piano/samples';
 
 /**
  * Sample name → disk-safe filename. `PP D#0` → `PP_Ds0`.
@@ -49,37 +54,25 @@ export function toLocalFileName(sampleName) {
 
 /**
  * Shared across every SplendidGrandPiano instance in the session: local URL → Promise of the
- * encoded (still compressed, ~19 MB total) sample bytes. Values are promises so concurrent
- * constructions coalesce; a settled entry is replayed with `.slice(0)` because a Response body
- * can only be consumed once.
+ * WAV bytes. Values are promises so concurrent constructions coalesce; a settled entry is
+ * replayed with `.slice(0)` because a Response body can only be consumed once.
  */
 const sampleBytesCache = new Map();
 
-// One warning per session is enough — a cold CDN fallback would otherwise log 226 times.
-let remoteFallbackLogged = false;
-
-/** Rebuild the upstream CDN URL for a sample, with smplr's own percent-encoding rules. */
-function toRemoteUrl(sampleName, ext) {
-    const encoded = `${sampleName}.${ext}`.replace(/#/g, '%23').replace(/ /g, '%20');
-    return `${SPLENDID_REMOTE_BASE_URL}/${encoded}`;
-}
-
 /**
  * #988 UAT bounce ("piano niet hoorbaar"): a 200 is NOT proof the local mirror actually served
- * audio. Vite's dev server (and any SPA host) answers an unmatched path under the public dir with
- * `200 text/html` — the index.html fallback — so `res.ok` is true for a sample that does not exist
- * on disk. Verified against the running dev server: GET /samples/SplendidGrandPiano/MF_As6.ogg
- * returns `200 text/html` (3738 bytes of index.html). Handing that to smplr means
- * `decodeAudioData` throws inside `loadAudioBuffer`, which SILENTLY OMITS the sample — and, worse,
- * the CDN fallback below never runs because we already reported success. A whole velocity layer
- * (or, on Safari, the entire .m4a set, which is deliberately not mirrored) can vanish that way
- * with zero errors and zero sound. So: only accept a local body that really is an Ogg stream.
- * The check is deliberately LOCAL-only — the CDN legitimately serves non-Ogg (.m4a) payloads.
+ * audio. Vite's dev server (and any SPA host) answers an unmatched path under the public dir
+ * with `200 text/html` — the index.html fallback — so `res.ok` is true for a sample that does
+ * not exist on disk. Verified against the running dev server: a nonexistent sample path returns
+ * `200 text/html`. Only accept a local body that really is a RIFF/WAVE stream.
  */
-function isOggPayload(bytes) {
-    if (bytes.byteLength < 4) return false;
-    const magic = new Uint8Array(bytes, 0, 4);
-    return magic[0] === 0x4f && magic[1] === 0x67 && magic[2] === 0x67 && magic[3] === 0x53; // 'OggS'
+function isWavPayload(bytes) {
+    if (bytes.byteLength < 12) return false;
+    const riff = new Uint8Array(bytes, 0, 4);
+    const wave = new Uint8Array(bytes, 8, 4);
+    const isRiff = riff[0] === 0x52 && riff[1] === 0x49 && riff[2] === 0x46 && riff[3] === 0x46; // 'RIFF'
+    const isWave = wave[0] === 0x57 && wave[1] === 0x41 && wave[2] === 0x56 && wave[3] === 0x45; // 'WAVE'
+    return isRiff && isWave;
 }
 
 /**
@@ -90,7 +83,7 @@ export const splendidPianoStorage = {
     async fetch(url) {
         const prefix = `${SPLENDID_LOCAL_BASE_URL}/`;
         // Defensive: anything not addressed at our local mirror is passed straight through
-        // (e.g. if a caller ever constructs the piano with the remote baseUrl).
+        // (e.g. if a caller ever constructs the piano with a different baseUrl).
         if (!url.startsWith(prefix)) return fetch(url);
 
         // smplr encodes '#'→%23 and ' '→%20; decode back to the logical sample name so the
@@ -109,9 +102,7 @@ export const splendidPianoStorage = {
         // on that promise (useWorldAmbientMusic.js schedules its ENTIRE ambient loop inside
         // `treblePiano.load.then(...)`) would then never play a single note, silently. So every
         // path below funnels through the one try/catch at the end and always resolves to a
-        // Response. See the shared-cache note below for why a rejected memo could reach a second,
-        // concurrently-constructed instance (useInstruments builds `newInst` + `newManualInst` in
-        // the same tick) even though the instance that produced it evicts the entry.
+        // Response.
         const cached = sampleBytesCache.get(localUrl);
         if (cached) {
             try {
@@ -123,40 +114,17 @@ export const splendidPianoStorage = {
         }
 
         const bytesPromise = (async () => {
-            let localFailure;
-            try {
-                const res = await fetch(localUrl);
-                if (res.ok) {
-                    const bytes = await res.arrayBuffer();
-                    if (isOggPayload(bytes)) return bytes;
-                    // 200 but not audio → the SPA/index.html fallback (or a wrong filename). Treat
-                    // it as a MISS so the CDN retry below still gets its chance.
-                    localFailure = new Error(
-                        `local sample returned a non-Ogg 200 (${res.headers.get('content-type') || 'unknown type'}, ${bytes.byteLength} bytes) — SPA fallback?`,
-                    );
-                } else {
-                    localFailure = new Error(`local sample HTTP ${res.status}`);
-                }
-            } catch (err) {
-                localFailure = err;
-            }
-
-            // Local miss → transparently serve from the original CDN. This is also the normal
-            // path on Safari, which skips ogg and asks for .m4a (not mirrored locally).
-            if (!remoteFallbackLogged) {
-                remoteFallbackLogged = true;
-                logger.warn(
-                    'splendidPianoStorage',
-                    'local piano sample unavailable — falling back to the smpldsnds CDN for this session',
-                    { localUrl, reason: String(localFailure) },
+            const res = await fetch(localUrl);
+            if (!res.ok) throw new Error(`local sample HTTP ${res.status}`);
+            const bytes = await res.arrayBuffer();
+            if (!isWavPayload(bytes)) {
+                // 200 but not audio → the SPA/index.html fallback (or a wrong filename). There is
+                // no live fallback for this slug (see module doc) — this is a build/asset bug.
+                throw new Error(
+                    `local sample returned a non-WAV 200 (${res.headers.get('content-type') || 'unknown type'}, ${bytes.byteLength} bytes) — SPA fallback or missing asset?`,
                 );
             }
-            const remoteUrl = toRemoteUrl(sampleName, ext);
-            const remote = await fetch(remoteUrl);
-            if (!remote.ok) {
-                throw new Error(`remote sample HTTP ${remote.status} (${remoteUrl})`);
-            }
-            return await remote.arrayBuffer();
+            return bytes;
         })();
 
         // Registered BEFORE the first await so instances constructed in the same tick coalesce
@@ -166,10 +134,9 @@ export const splendidPianoStorage = {
             const bytes = await bytesPromise;
             return new Response(bytes.slice(0));
         } catch (err) {
-            // Both sources failed. Log with a stable code (§7a) and hand smplr a non-200 so its
-            // own silently-omit path proceeds: one missing velocity sample degrades the piano,
-            // it must never take down the app. The rejected promise is evicted so a later
-            // instance may retry (e.g. after the network comes back).
+            // Log with a stable code (§7a) and hand smplr a non-200 so its own silently-omit path
+            // proceeds: one missing sample degrades the piano, it must never take down the app.
+            // The rejected promise is evicted so a later instance may retry.
             sampleBytesCache.delete(localUrl);
             logger.error('splendidPianoStorage', 'E029-PIANO-SAMPLE-LOAD', err, { url, localUrl });
             return new Response(null, { status: 404 });
@@ -180,5 +147,4 @@ export const splendidPianoStorage = {
 /** Test-only escape hatch: drop the shared memo so cases don't leak into each other. */
 export function __resetSplendidPianoCache() {
     sampleBytesCache.clear();
-    remoteFallbackLogged = false;
 }

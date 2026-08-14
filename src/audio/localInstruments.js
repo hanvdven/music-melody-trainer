@@ -57,10 +57,12 @@ export function createMelodicInstrument(context, slug, options = {}) {
   // Deliberately BEFORE the LOCAL_INSTRUMENT_BUFFERS lookup: the generated manifest still has an
   // acoustic_grand_piano entry (#955's .sf2 extraction) and we shadow it rather than deleting it,
   // because localInstrumentBuffers.generated.js is regenerated wholesale by the extractor and its
-  // own header forbids hand-edits. Samples are served local-first with a per-sample CDN fallback
-  // by splendidPianoStorage (smplr silently omits failed samples, so the fallback cannot live in
-  // a .load.catch — see splendidPianoStorage.js). `formats` is smplr's default: Safari skips ogg,
-  // asks for m4a, and the storage adapter serves those from the CDN. `disableScheduler` is a
+  // own header forbids hand-edits. Samples are WAV, served exclusively from the local mirror by
+  // splendidPianoStorage — no CDN fallback (see that module's doc comment for why: the CDN only
+  // has Ogg/Opus and M4A, and Ogg/Opus produced silent-but-error-free playback in real browser
+  // testing, #988's UAT bounce). `formats: ['wav']` makes every browser pick the same format —
+  // `audio.canPlayType('audio/wav')` is unconditionally "probably", so there's no Safari-specific
+  // branch to account for, unlike smplr's own ogg/m4a default. `disableScheduler` is a
   // Soundfont-only option with no SplendidGrandPianoConfig equivalent, so it is ignored here
   // (nothing passes it for a melodic slug today).
   if (slug === SPLENDID_PIANO_SLUG) {
@@ -68,7 +70,7 @@ export function createMelodicInstrument(context, slug, options = {}) {
       destination,
       baseUrl: SPLENDID_LOCAL_BASE_URL,
       storage: splendidPianoStorage,
-      formats: ['ogg', 'm4a'],
+      formats: ['wav'],
     });
   }
 

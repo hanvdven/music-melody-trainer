@@ -30,7 +30,7 @@ describe('createMelodicInstrument', () => {
         expect(inst).toBeInstanceOf(FakeSplendidGrandPiano);
         expect(inst.options.baseUrl).toBe(SPLENDID_LOCAL_BASE_URL);
         expect(inst.options.storage).toBe(splendidPianoStorage);
-        expect(inst.options.formats).toEqual(['ogg', 'm4a']);
+        expect(inst.options.formats).toEqual(['wav']);
     });
 
     it('prefers the piano branch over the generated local buffers (branch-order regression)', () => {
