@@ -65,6 +65,24 @@ function toRemoteUrl(sampleName, ext) {
 }
 
 /**
+ * #988 UAT bounce ("piano niet hoorbaar"): a 200 is NOT proof the local mirror actually served
+ * audio. Vite's dev server (and any SPA host) answers an unmatched path under the public dir with
+ * `200 text/html` — the index.html fallback — so `res.ok` is true for a sample that does not exist
+ * on disk. Verified against the running dev server: GET /samples/SplendidGrandPiano/MF_As6.ogg
+ * returns `200 text/html` (3738 bytes of index.html). Handing that to smplr means
+ * `decodeAudioData` throws inside `loadAudioBuffer`, which SILENTLY OMITS the sample — and, worse,
+ * the CDN fallback below never runs because we already reported success. A whole velocity layer
+ * (or, on Safari, the entire .m4a set, which is deliberately not mirrored) can vanish that way
+ * with zero errors and zero sound. So: only accept a local body that really is an Ogg stream.
+ * The check is deliberately LOCAL-only — the CDN legitimately serves non-Ogg (.m4a) payloads.
+ */
+function isOggPayload(bytes) {
+    if (bytes.byteLength < 4) return false;
+    const magic = new Uint8Array(bytes, 0, 4);
+    return magic[0] === 0x4f && magic[1] === 0x67 && magic[2] === 0x67 && magic[3] === 0x53; // 'OggS'
+}
+
+/**
  * smplr `Storage` implementation: `{ fetch(url) => Promise<Response> }`.
  * Receives the fully-built, percent-encoded URL from smplr's `loadAudioBuffer`.
  */
@@ -83,15 +101,42 @@ export const splendidPianoStorage = {
         const ext = decoded.slice(dot + 1);
         const localUrl = `${prefix}${toLocalFileName(sampleName)}.${ext}`;
 
+        // NOTE: no `await` on a cached promise out here. smplr's `loadAudioBuffer` (see
+        // node_modules/smplr/dist/index.js — `const response = yield storage.fetch(url)`) does NOT
+        // wrap `storage.fetch` in a try/catch; only the later `arrayBuffer()`/`decodeAudioData` are
+        // guarded. A REJECTION escaping this method therefore rejects `SampleLoader.load`'s
+        // `Promise.all`, which rejects `SplendidGrandPiano.load` — permanently. Consumers that gate
+        // on that promise (useWorldAmbientMusic.js schedules its ENTIRE ambient loop inside
+        // `treblePiano.load.then(...)`) would then never play a single note, silently. So every
+        // path below funnels through the one try/catch at the end and always resolves to a
+        // Response. See the shared-cache note below for why a rejected memo could reach a second,
+        // concurrently-constructed instance (useInstruments builds `newInst` + `newManualInst` in
+        // the same tick) even though the instance that produced it evicts the entry.
         const cached = sampleBytesCache.get(localUrl);
-        if (cached) return new Response((await cached).slice(0));
+        if (cached) {
+            try {
+                return new Response((await cached).slice(0));
+            } catch (err) {
+                logger.error('splendidPianoStorage', 'E029-PIANO-SAMPLE-LOAD', err, { url, localUrl, viaCache: true });
+                return new Response(null, { status: 404 });
+            }
+        }
 
         const bytesPromise = (async () => {
             let localFailure;
             try {
                 const res = await fetch(localUrl);
-                if (res.ok) return await res.arrayBuffer();
-                localFailure = new Error(`local sample HTTP ${res.status}`);
+                if (res.ok) {
+                    const bytes = await res.arrayBuffer();
+                    if (isOggPayload(bytes)) return bytes;
+                    // 200 but not audio → the SPA/index.html fallback (or a wrong filename). Treat
+                    // it as a MISS so the CDN retry below still gets its chance.
+                    localFailure = new Error(
+                        `local sample returned a non-Ogg 200 (${res.headers.get('content-type') || 'unknown type'}, ${bytes.byteLength} bytes) — SPA fallback?`,
+                    );
+                } else {
+                    localFailure = new Error(`local sample HTTP ${res.status}`);
+                }
             } catch (err) {
                 localFailure = err;
             }

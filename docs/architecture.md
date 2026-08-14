@@ -14769,3 +14769,31 @@ single call site changing.
 `public/samples/SplendidGrandPiano/*.ogg` (226 new files, 19.0 MB),
 `src/audio/__tests__/splendidPianoStorage.test.js` (new),
 `src/audio/__tests__/localInstruments.test.js` (new), `CLAUDE.md` (§7a E029, §8 ownership row).
+
+**Bug: "piano niet hoorbaar" — UAT bounce, fixed same day (#988, Han 2026-08-14)**
+
+**Symptom:** immediately after shipping the above, Han reported the piano made no sound at all
+(no error, no partial playback — total silence).
+
+**Root cause:** the local-sample check in `splendidPianoStorage.fetch` treated any `res.ok`
+(HTTP 200) from the local mirror as a successful hit. Vite's dev server (and any SPA-style static
+host) answers a request for a path that doesn't exist under `public/` with `200 text/html` — the
+app's own `index.html` — rather than a 404. Every one of the 226 local sample URLs therefore
+"succeeded" with an HTML payload; smplr fed that to `decodeAudioData`, which fails, and
+`SampleLoader.load` *silently omits* the sample (see the "no `.load.catch`" invariant above) —
+worse, because the adapter had already reported success, the CDN fallback path never ran either.
+226/226 samples vanished with zero errors and zero sound.
+
+**Fix:** `splendidPianoStorage.js` now validates that a local `200` response body actually starts
+with the Ogg container magic bytes (`OggS`) before accepting it as a real hit; a 200-but-not-Ogg
+body is treated as a miss so the CDN retry still fires. The check is deliberately local-only — the
+CDN legitimately serves non-Ogg `.m4a` payloads for Safari's `findFirstSupportedFormat` path, which
+must not be rejected by the same guard. Also fixed in the same pass: `playInstrumentPreview.js` was
+constructing `new Soundfont(context, { instrument: slug, ... })` directly instead of calling
+`createMelodicInstrument` — a violation of invariant 1 above that meant instrument previews never
+got the `SplendidGrandPiano` branch for the piano slug. Regression coverage: three new cases in
+`splendidPianoStorage.test.js` (SPA-fallback-as-miss, CDN non-Ogg exemption, cache-failure never
+rejects).
+
+**Files:** `src/audio/splendidPianoStorage.js`, `src/audio/playInstrumentPreview.js`,
+`src/audio/__tests__/splendidPianoStorage.test.js`.

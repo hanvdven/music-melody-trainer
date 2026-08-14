@@ -17,10 +17,11 @@
  * (MEMORY: AudioContext eager init, play handlers call resume before scheduling).
  */
 
-import { Soundfont, Reverb } from 'smplr';
+import { Reverb } from 'smplr';
 import playMelodies from './playMelodies';
 import Melody from '../model/Melody';
 import { secondsPerTick } from '../constants/timing.js';
+import { createMelodicInstrument } from './localInstruments';
 
 // Percussion preview pattern (#495, Han 2026-07-19): [[k,hh], [hh], [s,hh], [ho]] as 4 QUARTER-note
 // beats — bracketed notes share a timeslot. Short IDs from drumKits.js (k=kick, hh=closed hi-hat,
@@ -80,10 +81,7 @@ const playInstrumentPreview = async (staff, slug, instruments, scale, context, b
             // useInstruments.js but with a small reverb for a polished preview sound. We connect
             // directly to context.destination (not through the fader) because this is a transient
             // preview, not a sequenced track instrument. Reverb matches treble/chords mix (0.1).
-            const previewInst = new Soundfont(context, {
-                instrument: slug,
-                destination: context.destination,
-            });
+            const previewInst = createMelodicInstrument(context, slug);
             previewInst.output.addEffect('reverb', new Reverb(context), 0.1);
 
             playMelodies(
