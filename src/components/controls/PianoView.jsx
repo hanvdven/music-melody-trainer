@@ -462,8 +462,15 @@ const PianoView = ({
   // stable (their own deps — instruments, context, etc. — rarely change), so adding
   // them to deps here would require wrapping them in useCallback to prevent spurious
   // re-runs. That refactor is tracked separately; for now, intentionally omitted.
+  // #990 BUG FIX (Han: "ik denk altijd de correcte noot te horen" — QWERTY never picked up the
+  // wrong-note instrument): expectedNotes/wrongNoteInstrument were NOT in this list, so once this
+  // effect first registered its listeners it kept calling a STALE handlePointerDown closure from
+  // that render — frozen at whatever expectedNotes was (often still null, before the first melody
+  // note loaded). Every later note-advance updated the render body's handlePointerDown, but this
+  // effect's listener never re-registered to pick up the new closure. Both ARE now listed
+  // deliberately, even though the comment above declines the fuller stable-callback refactor.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qwertyKeyboardActive, qwertyNoteMap, trebleInstrument, onNoteInput]);
+  }, [qwertyKeyboardActive, qwertyNoteMap, trebleInstrument, onNoteInput, expectedNotes, wrongNoteInstrument]);
 
   // NOTE: Web-MIDI input is handled GLOBALLY now (src/hooks/useMidiInput.js, wired in App) so it works in any
   // view, not only while this piano is mounted. The played-note highlight below (playedNotes) still covers

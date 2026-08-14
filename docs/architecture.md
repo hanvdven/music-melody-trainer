@@ -15019,12 +15019,42 @@ second time was removed.
   and D5 as the same note) and never a raw string-equality check (misses enharmonic respellings).
 - **INV-5** — `trebleWrongRef`'s instrument/chorus/tremolo are torn down and rebuilt together on
   every treble slug change, same "#4 leak" discipline as the main instrument.
+- **INV-6** — `PianoView.jsx`'s QWERTY-listener `useEffect` MUST list `expectedNotes` and
+  `wrongNoteInstrument` in its dependency array. See the bug below — omitting either freezes the
+  registered `handleKeyDown` closure at whatever those props were on the last render that changed
+  `qwertyKeyboardActive`/`qwertyNoteMap`/`trebleInstrument`/`onNoteInput`, silently ignoring every
+  later update (e.g. the practice melody's target note advancing).
 
-**Files:** `src/audio/chorusEffect.js`, `src/audio/tremoloEffect.js`,
-`src/audio/__tests__/chorusEffect.test.js`, `src/audio/__tests__/tremoloEffect.test.js`,
-`src/hooks/useInstruments.js`, `src/audio/playSound.js` (`resolveNotePitch`, exported, reused —
-not modified), `src/components/controls/PianoView.jsx`, `src/components/layout/TabView.jsx`,
-`src/App.jsx`, `src/utils/activeInputStaff.js` (comment corrected, logic untouched).
+**Bug: "ik hoor het verschil niet... ik denk altijd de correcte noot te horen" — stale QWERTY closure, fixed same day (#990, Han 2026-08-14)**
+
+**Symptom:** the dedicated wrong-note instrument (above) was wired up correctly and worked when
+manually verified, but Han reported never actually hearing the effect during real play — every
+note sounded like the correct one, chorused or not.
+
+**Root cause:** `PianoView.jsx`'s QWERTY key-listener lives inside a `useEffect` that
+`addEventListener`s `handleKeyDown`/`handleKeyUp` on `window`, re-registering them only when its
+own dependency array changes. That array was `[qwertyKeyboardActive, qwertyNoteMap,
+trebleInstrument, onNoteInput]` — a **pre-existing, deliberately-scoped omission** (the effect's
+own comment explains `handlePointerDown`/`Up` are intentionally left out to avoid a larger
+stable-callback refactor) that predates this feature and was harmless until now, because nothing
+it omitted used to change during a session. `expectedNotes` is NOT one of those four — it changes
+on every target-note advance, far more often than the tab/instrument/mapping the effect actually
+watches. The registered `handleKeyDown` closure captured `resolveInstrumentFor` (and therefore
+`expectedNotes`/`wrongNoteInstrument`) from whichever render happened to be current the LAST time
+the effect actually re-ran — typically an early one, before the practice melody had advanced past
+its first note, or before `wrongNoteInstrument` had finished loading — and kept using those stale
+values for the rest of the session. Click/pointer input was unaffected (`onPointerDown` is bound
+inline in JSX, so it always closes over the current render).
+
+**Fix:** added `expectedNotes` and `wrongNoteInstrument` to the effect's dependency array. A
+targeted addition, not the fuller `useCallback`-stabilization refactor the existing comment
+declines — this fixes the one closure this feature actually depends on without touching the
+effect's other (still-working) behavior.
+
+**Files:** `src/components/controls/PianoView.jsx`,
+`src/components/controls/__tests__/PianoView.wrongNote.test.jsx` (new — regression-tests exactly
+this: a QWERTY press correctly picks up an `expectedNotes` update that arrives via a LATER
+rerender, not just the first one).
 
 ### §230. RPG fx volume / RPG music volume / RPG visibility — 3 Playback Settings setters (#992, Han 2026-08-14)
 
