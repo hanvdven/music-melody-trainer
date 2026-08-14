@@ -56,6 +56,9 @@ const TabView = ({
     scale,
     activeClef,
     handleInputTestNote,
+    // #990: the currently-expected treble note(s), so the practice keyboard can route a wrong
+    // note through manualInstruments.trebleWrong (chorus+tremolo) at note-on time.
+    expectedTrebleNotes = null,
     qwertyKeyboardActive,
     rangeEditMode,
     clefEditMode,
@@ -216,6 +219,11 @@ const TabView = ({
                                     <PianoView
                                         scale={scale}
                                         trebleInstrument={activeClef === 'treble' ? manualInstruments.treble : manualInstruments.bass}
+                                        // #990: wrong-note feedback (chorus+tremolo) is treble-only, matching
+                                        // the dedicated instrument's own scope — null on bass, so PianoView
+                                        // falls back to always using the normal instrument there.
+                                        wrongNoteInstrument={activeClef === 'treble' ? manualInstruments.trebleWrong : null}
+                                        expectedNotes={activeClef === 'treble' ? expectedTrebleNotes : null}
                                         activeClef={activeClef}
                                         minNote={activeClef === 'treble' ? trebleDisp.min : bassDisp.min}
                                         maxNote={activeClef === 'treble' ? trebleDisp.max : bassDisp.max}

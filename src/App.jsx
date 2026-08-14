@@ -51,7 +51,7 @@ import useInstruments from './hooks/useInstruments';
 import useMelodyState from './hooks/useMelodyState';
 import useLevel from './hooks/useLevel';
 import useMidiInput from './hooks/useMidiInput';
-import playSound from './audio/playSound';
+import playSound, { resolveNotePitch } from './audio/playSound';
 import playMelodies from './audio/playMelodies';
 import { createMelodicInstrument } from './audio/localInstruments';
 import buildTimpaniPattern from './utils/timpaniPattern';
@@ -321,7 +321,7 @@ const App = () => {
     const windowSize = useWindowSize();
     const [musicalBlocks, setMusicalBlocks, musicalBlocksRef] = useRefState([1]);
 
-    const { instruments, loadedSlug, manualInstruments, settings: instrumentSettingsHooks, setVolume, setChorusStrength, setTremoloStrength } = useInstruments(context);
+    const { instruments, loadedSlug, manualInstruments, settings: instrumentSettingsHooks, setVolume } = useInstruments(context);
 
     useEffect(() => {
         instrumentsRef.current = instruments;
@@ -977,20 +977,12 @@ const App = () => {
         // RUBATO_HISTORY_LIMIT is a module-level constant; it never changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [instruments.treble, context, scheduleRubatoAccompaniment]),
-        // #990 (Han 2026-08-14, "op foute noten gewoon chorus 1 zetten" + follow-up "moet hoorbaar
-        // zijn wanneer er in beeld ook 'wrong note' wordt getoond ... chorus 1 en tremolo 0,7"): a
-        // wrong tap gets an immediate, full-strength chorus wobble PLUS a 0.7-depth tremolo on the
-        // treble channel — no ramp-up, an audible "that was wrong" cue the instant the on-screen
-        // 'wrong note' label appears — then both ring back down to 0 over the same window
-        // useInputTest's own errorTimeoutRef uses to clear the error state (1000ms), so the effect
-        // decays alongside the visual error feedback rather than cutting off abruptly or lingering.
-        onNoteWrong: useCallback((note) => {
-            instruments.treble?.stop({ note });
-            setChorusStrength('treble', 1, 0);
-            setChorusStrength('treble', 0, 1);
-            setTremoloStrength('treble', 0.7, 0);
-            setTremoloStrength('treble', 0, 1);
-        }, [instruments.treble, setChorusStrength, setTremoloStrength]),
+        // #990 (Han 2026-08-14, rework): NOT wired anymore — the first cut stopped the wrong note
+        // immediately and ramped a channel-wide chorus+tremolo, but Han's concrete spec is per-NOTE:
+        // the wrong note itself plays WITH chorus+tremolo and keeps sounding until released, while
+        // any correct note held at the same time plays clean. A channel-wide toggle can't do that
+        // (it would bleed onto every note on the channel). See PianoView.jsx's wrongNoteInstrument
+        // prop / instrument selection at note-on time instead — that's the actual fix now.
         // #134 gamification: enrich input-test score events with musical context
         // and forward to the profile. buildScorePayload/recordEventRef read refs
         // only, so this callback is stable.
@@ -1055,6 +1047,20 @@ const App = () => {
         }, [buildScorePayload]),
     });
 
+    // #990 (Han 2026-08-14): the currently-expected treble note(s), so PianoView can decide AT
+    // note-on time whether the key about to sound is "wrong" and should route through the
+    // dedicated wrong-note instrument (manualInstruments.trebleWrong) instead of the normal one.
+    // Same lookup useInputTest.js itself already does internally (melodiesRef.current[staff]
+    // ?.notes[activeIndex]) — not duplicated logic, just read from the outside. Treble-only,
+    // matching the wrong-note instrument's own scope; null outside input-test mode or on any
+    // other staff, so PianoView falls back to normal behaviour.
+    const expectedTrebleNotes = useMemo(() => {
+        if (!isInputTestMode || inputTestState.activeStaff !== 'treble') return null;
+        const target = melodiesRef.current?.treble?.notes?.[inputTestState.activeIndex];
+        if (target == null) return null;
+        return Array.isArray(target) ? target : [target];
+    }, [isInputTestMode, inputTestState.activeStaff, inputTestState.activeIndex]);
+
     // #647 combat: EVERY played note funnels through handleInputTestNote (piano/QWERTY/mic; MIDI later).
     // Relay it to the sheet-music RPG layer as { note, nonce } so the hero attacks once and the leftmost
     // matching slime dies. Wrapping here keeps the existing input-test behaviour untouched.
@@ -1088,11 +1094,19 @@ const App = () => {
     const handleMidiNoteOn = useCallback((note) => {
         if (instruments.treble && context) {
             if (context.state !== 'running') context.resume();
-            const stop = playSound(note, instruments.treble, context, context.currentTime, null);
+            // #990: same wrong-note routing as PianoView.jsx (resolveNotePitch — octave-aware,
+            // matches exactly what playSound resolves the note to) so a MIDI keyboard gets the
+            // same chorus+tremolo feedback on a wrong note as click/QWERTY input.
+            const wrongInst = manualInstruments.trebleWrong;
+            const inst = (expectedTrebleNotes && wrongInst
+                && !expectedTrebleNotes.some((n) => resolveNotePitch(n) === resolveNotePitch(note)))
+                ? wrongInst
+                : instruments.treble;
+            const stop = playSound(note, inst, context, context.currentTime, null);
             if (stop) midiStopsRef.current[note] = stop;
         }
         handleNoteInputCombat(note, true);
-    }, [context, instruments.treble, handleNoteInputCombat]);
+    }, [context, instruments.treble, manualInstruments.trebleWrong, expectedTrebleNotes, handleNoteInputCombat]);
     const handleMidiNoteOff = useCallback((note) => {
         const stop = midiStopsRef.current[note];
         if (stop) { stop(); delete midiStopsRef.current[note]; }
@@ -2975,6 +2989,7 @@ const App = () => {
                     scale={scale}
                     activeClef={activeClef}
                     handleInputTestNote={handleNoteInputCombat}
+                    expectedTrebleNotes={expectedTrebleNotes}
                     qwertyKeyboardActive={qwertyKeyboardActive}
                     rangeEditMode={rangeEditMode}
                     clefEditMode={clefEditMode}

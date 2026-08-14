@@ -1,7 +1,7 @@
 // components/PianoView.jsx
 import React, { useMemo, useEffect, useRef, useState } from 'react';
 import logger from '../../utils/logger';
-import playSound from '../../audio/playSound';
+import playSound, { resolveNotePitch } from '../../audio/playSound';
 import { standardizeTonic, getRelativeNoteName } from '../../theory/convertToDisplayNotes';
 import generateAllNotesArray from '../../theory/allNotesArray';
 import { getCanonicalNote, ENHARMONIC_PAIRS, getNoteSemitone, chordNoteColor } from '../../theory/noteUtils';
@@ -69,6 +69,15 @@ const QWERTY_SCHEMES = {
 const PianoView = ({
   scale,
   trebleInstrument = null,
+  // #990 (Han 2026-08-14): when the about-to-be-played note is in `expectedNotes`, play it
+  // normally; otherwise (a "wrong" note) route it through `wrongNoteInstrument` instead — a
+  // dedicated instance with chorus+tremolo permanently baked in (see useInstruments.js's
+  // trebleWrongRef). Both optional; when either is null this is a no-op and behaviour is
+  // unchanged (every other PianoView call site — range setters, tone recognizer, etc. — never
+  // passes them). The wrong note keeps sounding through its OWN instrument/effect chain for
+  // exactly as long as it's held, independent of any other note playing at the same time.
+  wrongNoteInstrument = null,
+  expectedNotes = null,
   interactionMode = 'play',
   onTonicSelect = null,
   // 'set-transpose' interaction (keyboard transposition setter): clicking a key makes THAT key
@@ -635,6 +644,20 @@ const PianoView = ({
     }
   };
 
+  // #990: pick which instrument a just-pressed CONCERT note (already run through `tn()`) plays
+  // through. Compares via `resolveNotePitch` — the SAME octave-aware pitch resolution `playSound`
+  // itself uses (CLAUDE.md §6c: reuse, don't reimplement) — so an enharmonic respelling (e.g.
+  // expected "D♭4", played "C♯4") still matches, and a same-letter-different-octave note (D4 vs
+  // D5) correctly does NOT. Falls back to the normal instrument whenever expectedNotes/
+  // wrongNoteInstrument aren't wired for this PianoView instance (every call site except the
+  // main practice keyboard), or the note matches, or the pitch can't be resolved.
+  const resolveInstrumentFor = (concertNote) => {
+    if (!expectedNotes || !wrongNoteInstrument) return trebleInstrument;
+    const pitch = resolveNotePitch(concertNote);
+    const isExpected = expectedNotes.some((n) => resolveNotePitch(n) === pitch);
+    return isExpected ? trebleInstrument : wrongNoteInstrument;
+  };
+
   const handlePointerDown = async (note, e) => {
     if (note === 'halfKey' || note === 'placeholder') return;
     // Transposition setter: a click sets the transposition (clicked key → C) and plays nothing.
@@ -662,7 +685,10 @@ const PianoView = ({
     setPlayedNotes((s) => { const n = new Set(s); n.add(note); return n; });   // light up the key
     // Start with long sustain (null duration), store the stop function! Sound the CONCERT note
     // (tn) so a transposed key plays what its label says; press-tracking still keys off `note`.
-    const stopFn = playSound(tn(note), trebleInstrument, ctx, ctx.currentTime, null);
+    // #990: a "wrong" note (relative to expectedNotes) plays through wrongNoteInstrument instead —
+    // resolved once here so it stays sounding, effected, through this exact note's whole hold.
+    const concertNote = tn(note);
+    const stopFn = playSound(concertNote, resolveInstrumentFor(concertNote), ctx, ctx.currentTime, null);
     if (stopFn) {
       activeStopsRef.current[note] = stopFn;
     }

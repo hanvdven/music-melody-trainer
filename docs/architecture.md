@@ -14918,87 +14918,113 @@ this sound if 'missed' handling is ever refactored.
 
 ---
 
-### §229. Chorus effect on the instrument output, triggered on a wrong note (#990, Han 2026-08-14)
+### §229. Wrong-note audio feedback — a dedicated chorus+tremolo instrument, per note (#990, Han 2026-08-14)
 
-**Purpose:** Han: *"bij een foute noot chorus (klein beetje vals klinken)"* — when the player
-plays a wrong note on the active instrument, that instrument should detune/chorus slightly. This
-section covers the EFFECT and the DEBUG KNOB only; wiring the effect to the wrong-note judgment
-is a deliberate follow-up slice (see "Out of scope" below).
+**Purpose:** Han: *"bij een foute noot chorus (klein beetje vals klinken)"*, later refined with a
+tremolo pairing and — critically — a precise per-note contract from real testing: *"Note in
+timerveld: C4. Ik speel een D4 → de noot D4 wordt afgespeeld met tremolo en chorus. Ik zie: wrong
+note in beeld, totdat ik de noot loslaat. Ik speel daarna een C4 (maar de D4 is nog ingedrukt): Ik
+hoor C4 zonder tremolo + chorus, maar de D4 blijft gewoon klinken tot ze wordt losgelaten."* — a
+wrong note plays chorused+tremolo'd for exactly as long as it is HELD, and a correct note played
+*simultaneously* on the same channel must sound clean, unaffected by the other note's effect.
 
-**How it works.** `src/audio/chorusEffect.js` exports `createChorus(context, { destination })`,
-a classic 3-voice LFO-modulated delay chorus in plain Web Audio:
+**Two effect units, built for different jobs (`src/audio/chorusEffect.js`, `src/audio/tremoloEffect.js`).**
+- `createChorus(context, { destination })` — a 3-voice LFO-modulated delay chorus (delays
+  12/18/25ms, non-harmonic LFO rates 0.53/0.67/0.91Hz so the voices never phase-lock). Shaped like
+  smplr's `Reverb` (`{ input }`), so it plugs into `instrument.output.addEffect(name, effect,
+  mix)` — a SEND: a parallel wet copy is summed on top of the ever-present dry signal.
+- `createTremolo(context, { destination })` — a single ~6Hz sine-modulated `GainNode`. Han
+  clarified explicitly: *"geen f mod, maar v mod graag"* — **volume** modulation, not pitch. This
+  must be an INSERT, not a send: multiplying perceived loudness requires attenuating the actual
+  signal in place. A send-based "tremolo" would just add a periodically-gated copy on top of an
+  unattenuated original — audible as a subtle flutter, not a real volume swell/dip. `gain(t) =
+  (1-depth/2) + (depth/2)·sin(2π·6·t)`, swinging between `(1-depth)` and `1`.
+
+Both share the same imperative-only `setStrength(strength, {rampSec, time})` shape — always
+`setTargetAtTime` on the raw AudioParam, never React state/props/`useEffect` per note (CLAUDE.md
+§6, the audio-domain form of "never set animated opacity via JSX props").
+
+**Why a channel-wide toggle does not work — and what replaced it.** The first two implementation
+rounds tried a REACTIVE approach: ramp a shared per-channel chorus+tremolo strength up then back
+down whenever `useInputTest`'s wrong-note judgment fired. Han confirmed by ear it didn't do what
+he needed, then gave the precise repro above — which makes the reason clear: smplr's per-channel
+`output`/`addEffect` model mixes every note on that channel into ONE shared bus. Ramping a
+channel-wide effect necessarily bleeds onto every simultaneously-sounding note, not just the wrong
+one, and cannot "keep going on this one specific note while the next note plays clean" — the
+underlying judgment also only fires *after* the note has already started playing (see below), so
+by the time "wrong" is known, ramping can't retroactively change what already started sounding.
+
+The fix: a **second, permanently-effected instrument dedicated to wrong notes**, selected AT
+NOTE-ON TIME instead of reacted to afterward. `useInstruments.js`'s `trebleWrongRef` builds one
+extra instrument (same timbre/slug as the live `trebleSettings.instrument`, rebuilt on slug change
+exactly like the main instrument) permanently wired chorus=1 + tremolo=0.7 (`setStrength(..., {
+rampSec: 0 })` once, at construction — no runtime ramping at all):
 
 ```
-input(Gain) ─┬─ delay0 (12ms) ─ panner(-0.7) ─┐
-             ├─ delay1 (18ms) ─ panner( 0.0) ─┼─ wet(Gain, 0) ─ destination
-             └─ delay2 (25ms) ─ panner(+0.7) ─┘
- lfo_i (Osc @ 0.53 / 0.67 / 0.91 Hz) ─ depth_i(Gain) ─ delay_i.delayTime
+instrument (dry) ──────────────┐
+                                 ▼
+                          tremolo.input (insert, depth 0.7, permanent)
+                                 ▲
+chorus (send, strength 1) ──────┘   (chorus's wet destination IS tremolo.input,
+                                      so the chorused signal is tremolo'd too)
+                                 │
+                                 ▼
+                           destination
 ```
 
-It is hand-rolled because smplr ships exactly one effect (`Reverb`) and the project has no other
-DSP dependency — adding Tone.js for one effect was rejected (§6c reuse check was done first, not
-after). The returned object is shaped **exactly like smplr's `Reverb`** (`{ input }` plus a
-self-connected output), so it slots into the existing `instrument.output.addEffect(name, effect,
-mix)` pattern verbatim.
+Exposed as `manualInstruments.trebleWrong`. Because it is a genuinely separate smplr instance with
+its own voices, playing a note through it is completely independent of whatever else is playing
+through the normal `manualInstruments.treble` at the same instant — which is exactly the isolation
+Han's repro requires, with zero decay/ramp bookkeeping needed.
 
-`setStrength(strength, { rampSec, time })` clamps to 0…1 and drives TWO coupled params from one
-knob: the wet mix, and the modulation depth (0.8ms → 4ms). Low strength is therefore a quiet,
-subtle detune; high strength is wide and seasick — which is what "een klein beetje vals" versus
-"heel vals" means perceptually.
+**Selecting the instrument, at note-on (`PianoView.jsx`, `App.jsx`).** Correctness is normally only
+known via `onNoteInput`, which for pointer/click input fires on RELEASE — too late to influence
+what a `playSound` call already started on press. Since the expected note is already known before
+the key goes down, `PianoView.jsx`'s `resolveInstrumentFor(concertNote)` does the SAME comparison
+synchronously, right before calling `playSound`: it resolves both the played note and every entry
+in `expectedNotes` through `resolveNotePitch` (`playSound.js` — the exact same octave-aware pitch
+resolution `playSound` itself uses, so comparison and playback can never disagree) and picks
+`wrongNoteInstrument` on a mismatch, `trebleInstrument` otherwise. `expectedNotes` is computed in
+`App.jsx` (`expectedTrebleNotes`, a `useMemo` reading `melodiesRef.current.treble.notes[
+inputTestState.activeIndex]` — the same lookup `useInputTest.js` already does internally, read
+from the outside rather than duplicated) and threaded down through `TabView.jsx` only to the main
+practice keyboard, only while `activeClef === 'treble'` (both props default to `null` everywhere
+else — range setters, tone recognizer, etc. — so behaviour there is unchanged). The MIDI input
+path (`App.jsx`'s `handleMidiNoteOn`) does the identical `resolveNotePitch` comparison inline, so a
+physical MIDI keyboard gets the same feedback as click/QWERTY (which itself routes through
+`PianoView.handlePointerDown` via `handleKeyDown`, so one fix covers both).
 
-**Attachment (`src/hooks/useInstruments.js`).** A chorus unit is created for BOTH instances of
-EVERY one of the five types (`treble`/`bass`/`percussion`/`metronome`/`chords`), right where the
-`Reverb` is attached, and added with a CONSTANT send mix of 1 (smplr's `sendEffect` writes
-`gain.value` directly, i.e. a step change = an audible click, so the audible amount is controlled
-inside the unit instead). Uniform attachment is deliberate: Han's requirement is that the effect
-be available on whichever channel is the **current input mode** of the level — treble level →
-treble, bass level → bass, percussion level → percussion — so it cannot be restricted to the
-melodic channels, and no `if (type === …)` branch enters shared wiring (§9c check 5).
-`setChorusStrength(type, strength, rampSec)` is exported next to `setVolume` and applies to both
-the fader-routed instance (sequencer, MIDI) and the manual instance (PianoView, QWERTY).
-
-**Input-mode resolution (`src/utils/activeInputStaff.js`).** The mapping from
-`(activeTab, activeClef)` to a channel key used to live inline in
-`useInputTest.handleToggleInputTest`. #990 needs the identical answer for "which channel does the
-chorus apply to", so it was extracted to `resolveActiveInputStaff(activeTab, activeClef)` and
-both call sites now share it — one source of truth, no drifting second copy (§6c).
-
-**Debug knobs — added, then removed same day (Han 2026-08-14).** Two rounds of a manual
-strength-testing UI were built and then explicitly retired once Han decided the real wrong-note
-wiring (below) made a separate debug control redundant: a single dynamically-targeted slider
-(broke because `activeTab` — the top-level nav tab — isn't the same thing as which staff is
-enabled for practice), then 4 independent per-channel sliders. Han: *"haal de chorus-slider weer
-weg. je mag op foute noten gewoon chorus 1 zetten."* `ChorusDebugSlider.jsx` and its 4 render
-sites in `App.jsx` are deleted; `resolveActiveInputStaff`/`activeInputStaff.js` is ALSO unused now
-(no remaining caller) but left in place — small, self-contained, and a natural fit if a future
-feature needs "which staff is the level's current input mode" again.
-
-**Wrong-note wiring (`src/App.jsx`, `onNoteWrong`).** The existing `onNoteWrong` callback — the
-same one `useInputTest.triggerError`'s `isTap` path already called to stop the just-played wrong
-note (`instruments.treble?.stop({ note })`) — now ALSO fires the chorus: an instant snap to full
-strength (`setChorusStrength('treble', 1, 0)`, zero ramp = immediate, audible "that was wrong"
-cue), immediately followed by a scheduled decay back to 0 over ~1 second
-(`setChorusStrength('treble', 0, 1)`) so the wobble rings down on roughly the same timescale as
-`useInputTest`'s own `errorTimeoutRef` clears the visual error state, rather than cutting off
-abruptly or lingering past it. Deliberately scoped to `treble` only, matching the existing
-`onNoteWrong`/`isTap` wiring's own scope (it already only ever stopped the treble instrument) —
-not a new staff-aware generalization Han didn't ask for.
+**Superseded/removed the same day:** the channel-wide `chorusRef`/`tremoloRef` infrastructure
+(attached to all 5 types, `setChorusStrength`/`setTremoloStrength` exports, the fader/manual
+tremolo-insert rewiring for every channel), the reactive `onNoteWrong` ramp-and-decay callback in
+`App.jsx` (including its pre-existing `instruments.treble?.stop({note})` — Han's spec requires the
+wrong note to KEEP sounding until released, not stop), and two rounds of a manual debug-slider UI
+(`ChorusDebugSlider.jsx` — a single dynamically-targeted slider, then 4 independent per-channel
+sliders; Han: *"haal de chorus-slider weer weg. je mag op foute noten gewoon chorus 1 zetten"*).
+`src/utils/activeInputStaff.js` (`resolveActiveInputStaff`) survives — it reverted to its original
+sole caller, `useInputTest.js` itself, once the debug UI that briefly needed the same answer a
+second time was removed.
 
 **Invariants:**
-- **INV-1** — the chorus wet level is ALWAYS driven imperatively onto the AudioParam via
-  `setTargetAtTime`; never through React state, a prop, or a `useEffect` per note. This is the
-  audio-domain form of the §6 "never set animated opacity via JSX props" rule.
-- **INV-2** — at strength 0 the chorus contributes exact silence and the dry path is unchanged.
-  0 is the app's default state; every unit is constructed at 0.
-- **INV-3** — the send is per-CHANNEL, so while wet > 0 *everything* on that channel (including
-  sequencer playback, not just the wrong note itself) is chorused for the duration of the decay.
-- **INV-4** — every chorus unit is `disconnect()`ed in the same place its owning instrument is,
-  in `updateInstrument` — it is part of the same documented "#4" leak (added effects staying
-  connected to the fader across instrument switches until nothing is audible).
+- **INV-1** — both units' gain params are ALWAYS driven imperatively via `setTargetAtTime`, never
+  through React state/props/`useEffect` per note.
+- **INV-2** — the dedicated wrong-note instrument's effects are permanent (set once at
+  construction, never ramped) — "wrong" vs "correct" is decided by WHICH instrument plays a note,
+  not by any runtime strength change.
+- **INV-3** — wrong-note feedback is treble-only, matching the pre-existing `onNoteWrong` scope
+  it replaced — not a new bass/percussion/chords generalization Han didn't ask for.
+- **INV-4** — the comparison in `resolveInstrumentFor`/`handleMidiNoteOn` MUST use
+  `resolveNotePitch` (octave-aware, identical to what `playSound` itself resolves) — never a
+  pitch-class-only comparison (e.g. `getNoteSemitone`, which discards octave and would treat D4
+  and D5 as the same note) and never a raw string-equality check (misses enharmonic respellings).
+- **INV-5** — `trebleWrongRef`'s instrument/chorus/tremolo are torn down and rebuilt together on
+  every treble slug change, same "#4 leak" discipline as the main instrument.
 
-**Files:** `src/audio/chorusEffect.js` (new), `src/utils/activeInputStaff.js` (new, currently
-unused), `src/audio/__tests__/chorusEffect.test.js` (new), `src/hooks/useInstruments.js`,
-`src/hooks/useInputTest.js`, `src/App.jsx`.
+**Files:** `src/audio/chorusEffect.js`, `src/audio/tremoloEffect.js`,
+`src/audio/__tests__/chorusEffect.test.js`, `src/audio/__tests__/tremoloEffect.test.js`,
+`src/hooks/useInstruments.js`, `src/audio/playSound.js` (`resolveNotePitch`, exported, reused —
+not modified), `src/components/controls/PianoView.jsx`, `src/components/layout/TabView.jsx`,
+`src/App.jsx`, `src/utils/activeInputStaff.js` (comment corrected, logic untouched).
 
 ### §230. RPG fx volume / RPG music volume / RPG visibility — 3 Playback Settings setters (#992, Han 2026-08-14)
 
@@ -15101,69 +15127,3 @@ no new prop threading was needed.
 `src/hooks/useWorldAmbientMusic.js`, `src/hooks/__tests__/useWorldAmbientMusic.test.js` (new),
 `src/components/sheet-music/SheetRpgLayer.jsx`, `src/components/sheet-music/SheetMusic.jsx`,
 `src/components/sheet-music/overlays/SettingsOverlay.jsx` (the 3 fans), `src/App.jsx`.
-
-### §231. Tremolo effect, paired with chorus on a wrong note (#990 follow-up, Han 2026-08-14)
-
-**Purpose:** Han's follow-up once §229's chorus + `onNoteWrong` wiring was confirmed working:
-*"nu nog de chorus + tremolo... moet hoorbaar zijn wanneer er in beeld ook 'wrong note' wordt
-getoond. de noot die dat triggert moet chorus 1 en tremolo 0,7 krijgen."* — the same wrong-note
-moment that already snaps chorus to full strength now ALSO snaps a ~6Hz volume tremolo to depth
-0.7, both audible together. Han clarified the earlier "vibrato" wording explicitly as **volume**
-modulation ("v mod"), not pitch/frequency modulation — this is a classic amplitude tremolo, not a
-pitch-vibrato effect.
-
-**Why tremolo could not reuse chorus's plumbing.** `chorusEffect.js` is a smplr-style SEND: it
-plugs into `instrument.output.addEffect(name, effect, mix)`, which taps a parallel wet copy off
-the channel's internal volume node while the ORIGINAL dry signal keeps flowing to its destination
-unmodified. That is correct for chorus (an "out of tune ensemble" reads as a detuned copy layered
-under the original), but wrong for tremolo — multiplying perceived loudness requires attenuating
-the actual signal in place. A send-based "tremolo" would just add a periodically-gated copy on top
-of an ever-present, unattenuated original: audible as a subtle flutter, not a volume swell/dip.
-
-**How it works (`src/audio/tremoloEffect.js`).** `createTremolo(context, { destination })` builds
-a single modulated `GainNode` (`input`) driven by one 6Hz sine LFO:
-
-```
-input(Gain, base = 1-depth/2) ─ destination
-        ▲
-lfo (Osc @ 6Hz) ─ depthGain(depth/2) ─┘   (connects INTO input.gain — audio-rate signals
-                                            add onto an AudioParam's base value)
-```
-
-`gain(t) = (1 - depth/2) + (depth/2) * sin(2π·6·t)` — swings between `(1-depth)` and `1`. At
-depth 0 the node is transparent (gain pinned at 1, matching chorus's INV-2 "0 = not there"); at
-depth 1 it swings all the way to silence every ~167ms cycle. `setStrength(strength, {rampSec,
-time})` is the same imperative `setTargetAtTime`-only shape as `chorusEffect.js` (CLAUDE.md §6).
-
-**Wired as an INSERT, not a send (`src/hooks/useInstruments.js`).** Because `input` must sit
-in-line between the dry signal and its destination, tremolo lives on each channel's PERSISTENT
-infrastructure (created once per type alongside the fader, in the same `useEffect` that
-initializes `fadersRef` — never torn down on an instrument swap, unlike the per-instrument chorus
-units): the shared fader now connects to `tremoloRef.current[type].main.input` instead of
-straight to `context.destination`, and every manual (click/QWERTY) instrument instance connects
-to `tremoloRef.current[type].manual.input` instead of `context.destination` directly. Both
-chorus units (main and manual) were re-pointed at these same tremolo-insert destinations too —
-otherwise the chorused wet signal would bypass the tremolo insert entirely, and "chorus 1 +
-tremolo 0.7" would only ever audibly combine for the dry portion of the signal, not the chorus'd
-portion. `setTremoloStrength(type, strength, rampSec)` is exported next to `setChorusStrength`.
-
-**Wrong-note trigger (`src/App.jsx`, `onNoteWrong`).** Extends the SAME callback §229 wired up:
-immediately after the chorus snap-and-decay, `setTremoloStrength('treble', 0.7, 0)` (instant) then
-`setTremoloStrength('treble', 0, 1)` (decay over ~1s, matching `useInputTest`'s own
-`errorTimeoutRef` window) — both effects ring down together on the same timescale as the on-screen
-'wrong note' visual clears. Scoped to `treble` only, mirroring `onNoteWrong`'s existing scope.
-
-**Invariants:**
-- **INV-1** — same as chorus's INV-1: the modulated gain is ALWAYS driven imperatively via
-  `setTargetAtTime`, never through React state/props/`useEffect` per note.
-- **INV-2** — at strength 0 the insert is exactly transparent (gain pinned at 1); every unit is
-  constructed at depth 0.
-- **INV-3** — tremolo units are PERSISTENT per-type infrastructure, unlike chorus's per-instrument
-  units — never call `.disconnect()` on them from the instrument-swap "#4 leak" cleanup path; they
-  outlive any number of instrument swaps on that channel.
-- **INV-4** — both chorus AND tremolo's wet/insert destinations must stay aligned (chorus's wet
-  output feeds INTO the same node tremolo wraps) so the two effects combine audibly rather than
-  one silently bypassing the other.
-
-**Files:** `src/audio/tremoloEffect.js` (new), `src/audio/__tests__/tremoloEffect.test.js` (new),
-`src/hooks/useInstruments.js`, `src/App.jsx`.

@@ -32,17 +32,17 @@ const useInstruments = (context) => {
   const instancesRef = useRef({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
   const manualInstancesRef = useRef({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
   const fadersRef = useRef({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
-  // #990: one chorus unit per instance (main = fader-routed, manual = direct), per type. Attached
-  // UNIFORMLY to all five types — no `if (type === ...)` branch in shared wiring (§9c check 5).
-  // Silent at rest (strength 0), so the always-on units cost ~30 idle oscillators/delays, which is
-  // nothing next to the reverb AudioWorklets and the WebGL foliage loop already running.
-  const chorusRef = useRef({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
-  // #990 follow-up: tremolo is an INSERT (not a send like chorus — see tremoloEffect.js's doc
-  // comment for why), so it lives on the PERSISTENT per-type channel infrastructure (created once
-  // alongside the fader, never torn down on an instrument swap), not per-instrument like chorus.
-  // `main` sits after the fader, `manual` is the stable destination every manual instrument
-  // instance connects to instead of context.destination directly.
-  const tremoloRef = useRef({ treble: null, bass: null, percussion: null, metronome: null, chords: null });
+  // #990 (Han 2026-08-14, rework): wrong-note feedback is NOT a channel-wide effect toggle —
+  // Han's spec is per-NOTE ("D4 wordt afgespeeld met tremolo en chorus... ik hoor C4 zonder
+  // tremolo+chorus, maar de D4 blijft gewoon klinken tot ze wordt losgelaten" — i.e. a wrong note
+  // held simultaneously with a correct one must NOT bleed its effect onto the correct note, and
+  // must keep sounding, effected, for exactly as long as it's held). smplr's per-channel
+  // `output`/`addEffect` model can't isolate one note's effect from another played on the SAME
+  // instrument at the same time — the fix is a SEPARATE, permanently-effected instrument
+  // dedicated to wrong notes, selected at note-on time (PianoView.jsx) instead of the normal
+  // treble instrument. See trebleWrongRef below.
+  const trebleWrongRef = useRef(null); // { instrument, chorus, tremolo, slug }
+  const [trebleWrong, setTrebleWrong] = useState(null);
 
   const [treble, setTreble] = useState(null);
   const [bass, setBass] = useState(null);
@@ -69,17 +69,11 @@ const useInstruments = (context) => {
   useEffect(() => {
     if (!context) return;
 
-    // Initialize faders + tremolo inserts if they don't exist
+    // Initialize faders if they don't exist
     ['treble', 'bass', 'percussion', 'metronome', 'chords'].forEach(type => {
-      if (!tremoloRef.current[type]) {
-        tremoloRef.current[type] = {
-          main: createTremolo(context, { destination: context.destination }),
-          manual: createTremolo(context, { destination: context.destination }),
-        };
-      }
       if (!fadersRef.current[type]) {
         const gain = context.createGain();
-        gain.connect(tremoloRef.current[type].main.input); // fader -> tremolo insert -> destination
+        gain.connect(context.destination);
         fadersRef.current[type] = gain;
       }
     });
@@ -98,21 +92,10 @@ const useInstruments = (context) => {
       const currentManual = manualInstancesRef.current[type];
       if (current) { try { current.disconnect(); } catch { /* may already be gone */ } }
       if (currentManual) { try { currentManual.disconnect(); } catch { /* may already be gone */ } }
-      // #990: the chorus units are added to those channels via addEffect, so they are part of the
-      // very same "#4" leak — tear them down in the same place, not later.
-      const currentChorus = chorusRef.current[type];
-      if (currentChorus) {
-        try { currentChorus.main?.disconnect(); } catch { /* may already be gone */ }
-        try { currentChorus.manual?.disconnect(); } catch { /* may already be gone */ }
-        chorusRef.current[type] = null;
-      }
 
       let newInst, newManualInst;
       try {
         const dest = fadersRef.current[type];
-        // Manual (click/QWERTY) instances route through the type's persistent manual-tremolo
-        // insert instead of straight to context.destination — see tremoloRef above.
-        const manualDest = tremoloRef.current[type].manual.input;
         if (type === 'percussion') {
           const isGMKit = ['standard', 'electronic', 'jazz'].includes(settings.instrument);
           const isLocalKit = settings.instrument === 'FreePats Percussion';
@@ -120,17 +103,17 @@ const useInstruments = (context) => {
           if (isLocalKit) {
             const percSamplerOpts = { destination: dest, buffers: LOCAL_PERCUSSION_BUFFERS, detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
             newInst = new Sampler(context, percSamplerOpts);
-            newManualInst = new Sampler(context, { ...percSamplerOpts, destination: manualDest });
+            newManualInst = new Sampler(context, { ...percSamplerOpts, destination: context.destination });
           } else if (isGMKit) {
             newInst = new Soundfont(context, { instrument: settings.instrument, destination: dest, disableScheduler: true });
-            newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: manualDest, disableScheduler: true });
+            newManualInst = new Soundfont(context, { instrument: settings.instrument, destination: context.destination, disableScheduler: true });
           } else {
             if (!VALID_DRUM_KITS.has(settings.instrument)) {
               logger.warn('useInstruments', `Invalid drum kit: "${settings.instrument}".`);
               return;
             }
             newInst = new DrumMachine(context, { instrument: settings.instrument, destination: dest, disableScheduler: true });
-            newManualInst = new DrumMachine(context, { instrument: settings.instrument, destination: manualDest, disableScheduler: true });
+            newManualInst = new DrumMachine(context, { instrument: settings.instrument, destination: context.destination, disableScheduler: true });
           }
         } else {
           // #955: local sample first (offline-capable), CDN Soundfont fallback for any slug not
@@ -138,7 +121,7 @@ const useInstruments = (context) => {
           // other one-off melodic instance in the app (App.jsx's timpani/cello/wizard-preview,
           // playInstrumentPreview.js, useConversationInstruments.js, useWorldAmbientMusic.js).
           newInst = createMelodicInstrument(context, settings.instrument, { destination: dest });
-          newManualInst = createMelodicInstrument(context, settings.instrument, { destination: manualDest });
+          newManualInst = createMelodicInstrument(context, settings.instrument, { destination: context.destination });
         }
       } catch (e) {
         logger.error('useInstruments', 'E011-INSTRUMENT-CREATE', e, { instrument: settings.instrument });
@@ -149,21 +132,6 @@ const useInstruments = (context) => {
         newInst.output.addEffect('reverb', new Effect(context), effectMix);
         newManualInst.output.addEffect('reverb', new Effect(context), effectMix);
       }
-
-      // #990 chorus: attached for EVERY type (Han: the effect must be available on whichever
-      // channel is the level's current input mode — treble level → treble, bass level → bass,
-      // percussion level → percussion — so it cannot be hardcoded to the melodic channels).
-      // The send mix is a CONSTANT 1; the audible amount is controlled inside the unit via
-      // setStrength (smplr's sendEffect writes gain.value directly = an audible step/click).
-      // Both units route their wet path through the SAME destination the dry signal uses
-      // (fader for main, tremolo insert for manual) so per-instrument volume AND the tremolo
-      // insert both apply to the chorused signal too — chorus=1 + tremolo=0.7 on a wrong note
-      // must be audible together, not chorus bypassing the tremolo insert.
-      const mainChorus = createChorus(context, { destination: fadersRef.current[type] });
-      const manualChorus = createChorus(context, { destination: tremoloRef.current[type].manual.input });
-      newInst.output.addEffect('chorus', mainChorus, 1);
-      newManualInst.output.addEffect('chorus', manualChorus, 1);
-      chorusRef.current[type] = { main: mainChorus, manual: manualChorus };
 
       slugsRef.current[type] = settings.instrument;
       instancesRef.current[type] = newInst;
@@ -191,6 +159,40 @@ const useInstruments = (context) => {
     chordSettings.instrument
   ]);
 
+  // #990 (Han 2026-08-14, rework): the dedicated wrong-note instrument — same timbre as the live
+  // treble instrument, but with chorus (strength 1) and tremolo (depth 0.7) permanently wired in
+  // and always on, so simply choosing to play a note THROUGH this instance (instead of the normal
+  // `treble`) is what makes it audibly "wrong" — no runtime ramping/toggling needed. Rebuilt
+  // whenever the treble slug changes, same "#4 leak" teardown discipline as the main instrument.
+  useEffect(() => {
+    if (!context) return;
+    if (trebleWrongRef.current?.slug === trebleSettings.instrument) return;
+
+    const old = trebleWrongRef.current;
+    if (old) {
+      try { old.instrument.disconnect(); } catch { /* may already be gone */ }
+      try { old.chorus.disconnect(); } catch { /* may already be gone */ }
+      try { old.tremolo.disconnect(); } catch { /* may already be gone */ }
+    }
+
+    try {
+      // Chain: instrument (dry) + chorus (wet) both feed tremolo.input, which modulates the SUM
+      // and forwards to destination — see tremoloEffect.js's doc comment for why tremolo must be
+      // an insert (in-line) rather than a send like chorus.
+      const tremolo = createTremolo(context, { destination: context.destination });
+      tremolo.setStrength(0.7, { rampSec: 0 });
+      const chorus = createChorus(context, { destination: tremolo.input });
+      chorus.setStrength(1, { rampSec: 0 });
+      const instrument = createMelodicInstrument(context, trebleSettings.instrument, { destination: tremolo.input });
+      instrument.output.addEffect('chorus', chorus, 1);
+
+      trebleWrongRef.current = { instrument, chorus, tremolo, slug: trebleSettings.instrument };
+      setTrebleWrong(instrument);
+    } catch (e) {
+      logger.error('useInstruments', 'E011-INSTRUMENT-CREATE', e, { instrument: trebleSettings.instrument, wrongNote: true });
+    }
+  }, [context, trebleSettings.instrument]);
+
   const setVolume = (type, volume, time = null) => {
     const fader = fadersRef.current[type];
     if (fader && context) {
@@ -200,37 +202,14 @@ const useInstruments = (context) => {
     }
   };
 
-  /**
-   * #990: set the chorus amount (0…1) on one instrument channel. Deliberately the same
-   * imperative shape as `setVolume` above — this file owns instrument output wiring, and audio
-   * params are written straight to the Web Audio graph, never routed through React state.
-   * Applies to BOTH the fader-routed instance (sequencer, MIDI) and the manual instance
-   * (PianoView clicks, QWERTY), so every way of producing a note sounds identical.
-   */
-  const setChorusStrength = (type, strength, rampSec = 0.03) => {
-    const unit = chorusRef.current[type];
-    if (!unit) return;
-    unit.main?.setStrength(strength, { rampSec });
-    unit.manual?.setStrength(strength, { rampSec });
-  };
-
-  /**
-   * #990 follow-up: set the tremolo depth (0…1) on one channel. Same imperative shape as
-   * setChorusStrength/setVolume above. Unlike chorus, the tremolo units are on the PERSISTENT
-   * per-type infrastructure (tremoloRef, created once, never torn down on an instrument swap —
-   * see the tremoloRef declaration above), so this never has to guard against a mid-swap gap.
-   */
-  const setTremoloStrength = (type, strength, rampSec = 0.03) => {
-    const unit = tremoloRef.current[type];
-    if (!unit) return;
-    unit.main?.setStrength(strength, { rampSec });
-    unit.manual?.setStrength(strength, { rampSec });
-  };
-
   return {
     instruments: { treble, bass, percussion, metronome, chords },
     loadedSlug,
-    manualInstruments: { treble: manualTreble, bass: manualBass, percussion: manualPercussion, metronome: manualMetronome },
+    // #990: `trebleWrong` is a dedicated, permanently chorus+tremolo'd instrument for wrong-note
+    // feedback (treble only, matching the pre-existing onNoteWrong scope) — see the trebleWrongRef
+    // effect above. Lives alongside the other manual (click/QWERTY) instances since that's what
+    // PianoView.jsx's trebleInstrument prop is fed from.
+    manualInstruments: { treble: manualTreble, bass: manualBass, percussion: manualPercussion, metronome: manualMetronome, trebleWrong },
     settings: {
       treble: [trebleSettings, setTrebleSettings],
       bass: [bassSettings, setBassSettings],
@@ -239,8 +218,6 @@ const useInstruments = (context) => {
       chords: [chordSettings, setChordSettings],
     },
     setVolume,
-    setChorusStrength,
-    setTremoloStrength,
   };
 };
 
