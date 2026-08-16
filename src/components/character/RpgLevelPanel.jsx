@@ -596,22 +596,6 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // tiles, would repeat the perf problem viewport culling was built to avoid).
     const litGroundTexturesBack = useLdtkLitGroundTextures(world.groundTilesBack, world.gridSize, LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT, sceneryMode);
     const litGroundTexturesFront = useLdtkLitGroundTextures(world.groundTilesFront, world.gridSize, LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT, sceneryMode);
-    // #925 follow-up (Han 2026-08-16, bug found via LdtkLitGround diagnostic logging): NPC_X/playerX are
-    // ABSOLUTE LDtk world coordinates (from useRpgLevelState, clamped to LEVEL_MIN_X..LEVEL_MAX_X), but
-    // every LDtk tile-derived "worldX" this shimmer/lit-ground pipeline uses (tile.worldX post
-    // tileFromLdtkEntry's `offsetX = lvl.worldX - LEVEL_MIN_X`, and this file's own foliageInstanceProps'
-    // `worldX: inst.localX`) is CANVAS-LOCAL — 0-based relative to LEVEL_MIN_X, spanning the stitched
-    // multi-level strip. Passing NPC_X/playerX straight into a light's `worldX` compares two different
-    // coordinate spaces, off by exactly LEVEL_MIN_X — invisible before the multi-level split (#925/#1021,
-    // when LEVEL_MIN_X was effectively 0), and apparently never actually re-verified since (§1023's own
-    // UAT checked pixel-switch granularity and movement, not point-light position tracking). Subtracting
-    // LEVEL_MIN_X converts both lights into the SAME canvas-local space every LDtk consumer already uses.
-    // Scoped to LDtk-mode mounts only — Legacy mode's own `lights` literals use a different, untouched
-    // convention (single hardcoded level, no LEVEL_MIN_X concept) and are left as-is.
-    const ldtkLights = useMemo(() => [
-        { worldX: NPC_X - LEVEL_MIN_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
-        { worldX: playerX - LEVEL_MIN_X, worldHeight: 32, color: HERO_LIGHT_COLOR01 },
-    ], [playerX]);
 
     useEffect(() => {
         const el = containerRef.current;
@@ -638,6 +622,22 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
 
     const { char } = characterEditor;
     const { playerX, petX, facing, moving, running, petMoving, moveTo, clickNpc, clickSlime, setHeldDirection } = rpgLevel;
+    // #925 follow-up (Han 2026-08-16, bug found via LdtkLitGround diagnostic logging): NPC_X/playerX are
+    // ABSOLUTE LDtk world coordinates (from useRpgLevelState, clamped to LEVEL_MIN_X..LEVEL_MAX_X), but
+    // every LDtk tile-derived "worldX" this shimmer/lit-ground pipeline uses (tile.worldX post
+    // tileFromLdtkEntry's `offsetX = lvl.worldX - LEVEL_MIN_X`, and this file's own foliageInstanceProps'
+    // `worldX: inst.localX`) is CANVAS-LOCAL — 0-based relative to LEVEL_MIN_X, spanning the stitched
+    // multi-level strip. Passing NPC_X/playerX straight into a light's `worldX` compares two different
+    // coordinate spaces, off by exactly LEVEL_MIN_X — invisible before the multi-level split (#925/#1021,
+    // when LEVEL_MIN_X was effectively 0), and apparently never actually re-verified since (§1023's own
+    // UAT checked pixel-switch granularity and movement, not point-light position tracking). Subtracting
+    // LEVEL_MIN_X converts both lights into the SAME canvas-local space every LDtk consumer already uses.
+    // Scoped to LDtk-mode mounts only — Legacy mode's own `lights` literals use a different, untouched
+    // convention (single hardcoded level, no LEVEL_MIN_X concept) and are left as-is.
+    const ldtkLights = useMemo(() => [
+        { worldX: NPC_X - LEVEL_MIN_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
+        { worldX: playerX - LEVEL_MIN_X, worldHeight: 32, color: HERO_LIGHT_COLOR01 },
+    ], [playerX]);
 
     // #693 round 7 (Han: "level should start moving when the character is at 1/3 of either screen edge"):
     // a dead-zone follow camera — the camera only moves once the player's ON-SCREEN position leaves the
