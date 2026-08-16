@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { loadImageEl } from '../../utils/runtimeNormalMap';
 import { LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT } from '../../levels/ldtk/ldtkWorld';
+import { loadTileImages, drawTilesToCanvas } from './ldtkTileCompositing';
 
 // #RAM-level (Han 2026-08-10): renders a `buildWorld()` result (ldtkWorld.js) as the RPG hub's scenery.
 // Ground/background tiles are composited ONCE per world-config change into a plain <canvas> per layer
@@ -23,34 +23,11 @@ function useCompositedLayer(tiles, gridSize) {
         setReady(false);
         const canvas = canvasRef.current;
         if (!canvas || tiles.length === 0) return undefined;
-        const urls = [...new Set(tiles.map((t) => t.tilesetUrl))];
-        Promise.all(urls.map((u) => loadImageEl(u))).then((imgs) => {
+        loadTileImages(tiles).then((imgByUrl) => {
             if (cancelled) return;
-            const imgByUrl = new Map(urls.map((u, i) => [u, imgs[i]]));
             const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = false;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            for (const tile of tiles) {
-                const img = imgByUrl.get(tile.tilesetUrl);
-                if (!img) continue;
-                // #RAM-level (Han 2026-08-11, "de tiles zijn gespiegeld over de y-as. jij hebt ze wel in
-                // de juiste volgorde neergezet, maar niet gespiegeld"): LDtk's own per-tile flip bitmask
-                // (`tile.flipX`/`flipY`, from `entry.f` — e.g. Pine_forest_trunks alternates flipped
-                // trunks for variety) was read into the tile object but never applied when drawing. A
-                // flipped draw needs a save/scale/translate around just that one blit, not a global
-                // transform (every other tile on this same canvas must stay unflipped).
-                if (tile.flipX || tile.flipY) {
-                    ctx.save();
-                    const cx = tile.worldX + gridSize / 2, cy = tile.worldY + gridSize / 2;
-                    ctx.translate(cx, cy);
-                    ctx.scale(tile.flipX ? -1 : 1, tile.flipY ? -1 : 1);
-                    ctx.translate(-cx, -cy);
-                    ctx.drawImage(img, tile.src[0], tile.src[1], gridSize, gridSize, tile.worldX, tile.worldY, gridSize, gridSize);
-                    ctx.restore();
-                } else {
-                    ctx.drawImage(img, tile.src[0], tile.src[1], gridSize, gridSize, tile.worldX, tile.worldY, gridSize, gridSize);
-                }
-            }
+            drawTilesToCanvas(ctx, tiles, gridSize, imgByUrl);
             setReady(true);
         });
         return () => { cancelled = true; };

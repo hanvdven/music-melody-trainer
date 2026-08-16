@@ -424,6 +424,11 @@ logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
 - **E029-PIANO-SAMPLE-LOAD** — a SplendidGrandPiano sample failed to load from BOTH the local mirror
   (`public/samples/SplendidGrandPiano/`) and the smpldsnds CDN; that one velocity sample is omitted
   rather than failing the piano (splendidPianoStorage.js)
+- **E030-LDTK-LIT-GROUND-SHADER-COMPILE** — the static ground/building/decor lighting shader
+  (`LdtkLitGround.jsx`) failed to compile/link; that layer renders nothing rather than crashing the level
+- **E031-LDTK-LIT-GROUND-DRAW-FRAME** — an unexpected error during one WebGL frame of `LdtkLitGround.jsx`'s
+  draw loop; caught so the loop always reschedules its next frame instead of permanently dying, same
+  pattern as E023-FOLIAGE-DRAW-FRAME
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E025-NEW-FAILURE`) and add it to this list.
 

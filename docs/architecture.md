@@ -15660,3 +15660,80 @@ true reflection needs a second render pass, a real perf/architecture discussion,
 `src/components/character/RpgLevelPanel.jsx` (`!moving` gate removed, water tile routing, white-cap debug
 sliders, `CULL_MARGIN_PX`), `src/components/character/useLdtkWaterInstances.js` (new),
 `src/components/character/LdtkAnimatedTiles.jsx` (water branch removed, campfire-only now).
+
+### §237. Normal maps + lighting on ground/building/decor layers — a second, static WebGL pass (#993/#1024, Han 2026-08-16)
+
+**Purpose:** Han's ask: "all layers except background must get a normal map and react to light. Layers
+BEHIND Entities are fully lit, layers IN FRONT of entities are only lit within 2px of the edge." Before
+this, only foliage/water/floor/tent (rendered through `ForegroundFoliageLayer.jsx`'s per-instance shimmer
+shader) were normal-map-lit — the entire ground/terrain/building/decor tile set (`world.groundTilesBack/
+Front` from `ldtkWorld.js`, everything `LdtkScenery.jsx` composited as a flat, unlit Canvas2D image) had no
+lighting at all.
+
+**Why NOT the per-instance shimmer approach (architectural decision, confirmed with Han 2026-08-16):** the
+ground/building/decor tile set is thousands of tiles (a single level's `Bg_pine` alone has ~1400) — an
+order of magnitude bigger than foliage's ~450 distinct crops. Routing that many tiles through
+`ForegroundFoliageLayer`'s one-`gl.drawArrays`-call-per-instance pattern, even with viewport culling, would
+risk reintroducing the exact perf problem culling was built to solve for foliage — worse, since terrain
+fills the WHOLE visible screen densely instead of scattering sparsely. Instead: composite the whole tile
+bucket into ONE diffuse texture + ONE normal-map texture (same technique `LdtkScenery.jsx` already used for
+diffuse), and light it with exactly ONE full-viewport WebGL quad per frame, sampling a UV window that
+slides with the camera. Cost scales with SCREEN pixels, not tile count, regardless of level size. Chunking
+the source textures (for worlds too big for one texture) is explicitly deferred to #1022 (Han: "ik denk er
+sowieso aan om met chunks te gaan werken voor parallax etc.").
+
+**Shared lighting GLSL (CLAUDE.md §6d):** rather than fork a second lighting implementation,
+`foliageLightingGLSL.js` is a new module holding the PURE lighting/blend GLSL functions that were already
+proven-working in `ForegroundFoliageLayer.jsx`'s shader (`rgb2hsv`/`hsv2rgb`, `screenBlend`/`colorDodge`/
+`compositeBlend`, `blendLight`/`blendLightDual`, `anyNeighborTransparent`/`edgeLightFactor`, `FLAT_NORMAL`,
+`applyPointLight`/`applyPointLights`, and the `MAX_LIGHTS`/light-array + lighting-param uniform blocks) as
+GLSL source strings, interpolated into BOTH shaders' `FRAGMENT_SRC`. Pure relocation from
+`ForegroundFoliageLayer.jsx` — verified with the full test suite + a careful read-through, no logic change
+(`edgeLightFactor` gained an explicit `sampler2D` parameter instead of reading a module-level `uDiffuse`
+directly, since it's now concatenated into two shaders with two different diffuse samplers — the only
+non-cosmetic change). Both shaders read the SAME `foliageParams` debug dials — ONE set of lighting knobs in
+the debug panel, not two. `EDGE_LIGHT_PIXELS` changed `3.0` → `2.0` (Han's explicit choice: one shared
+constant across every edge-lit consumer — existing crates/fences included, not a separate value for the
+new layers).
+
+**How it works:**
+
+1. `ldtkTileCompositing.js` (new, extracted from `LdtkScenery.jsx`'s own `useCompositedLayer` — pure
+   relocation, CLAUDE.md §6c) exports `loadTileImages`/`drawTilesToCanvas`, the tile-blitting loop shared
+   by `LdtkScenery.jsx` (unchanged behavior) and the new hook below.
+2. `useLdtkLitGroundTextures.js` (new) composites a tile bucket into one `<canvas>` (diffuse), then runs
+   the SAME generic Sobel normal-map generator (`runtimeNormalMap.js`'s `sobelNormalMap`, already used by
+   `useLdtkFoliageInstances.js`/`useLdtkWaterInstances.js` per-crop) over the WHOLE composited image in one
+   pass — simpler than the per-crop approach, since there's no animation/frame-cycling here.
+3. `LdtkLitGround.jsx` (new) is a second WebGL canvas/context (own stacking slot, same ~8-16-context budget
+   `ForegroundFoliageLayer.jsx`'s own header comment already reasons about) that uploads those two textures
+   once (re-uploaded only when the composited canvases themselves change, e.g. a season/city/tier toggle —
+   NOT every frame) and draws ONE full-viewport quad per frame. The fragment shader derives each
+   fragment's screen position directly from `gl_FragCoord` (no `vUV` varying at all — same "avoid
+   interpolation-precision drift" reasoning as the §236 Y-axis pixel-switch fix, doubly justified here since
+   this quad already covers the whole canvas), converts it to a level-local texture UV via `uLevelLeftPx`/
+   `uCanvasBottomScreenY`/`uZoom` (mirroring exactly how `LdtkScenery.jsx` positions its own `<canvas>` via
+   CSS `left`/`bottom`), and discards fragments outside the level's own extent.
+4. Coordinate convention: this shader's per-fragment `worldX`/`groundDist` use the SAME canvas-local
+   (0-based, relative to the multi-level stitched strip — see §233) convention `ForegroundFoliageLayer`
+   instances already pass as their own `worldX`, NOT LDtk's absolute world coordinates — kept consistent
+   with the `lights` prop values already working correctly for foliage/water today.
+5. `RpgLevelPanel.jsx` mounts `LdtkLitGround` twice (back/front of Entities, mirroring the existing
+   foliage/water split), drawn ON TOP of the existing flat `LdtkScenery` composite for that bucket — the
+   flat version stays underneath as the "textures not ready yet" fallback (same pattern
+   `ForegroundFoliageLayer`'s own flat-DOM-fallback already uses), covered by opaque lit pixels once ready.
+   Back-of-entities passes `edgeLitOnly={false}` (full lighting); front-of-entities passes
+   `edgeLitOnly={true}` (2px edge-only, per Han's ask). Background parallax layers (`world.backgroundLayers`)
+   are explicitly untouched — still flat/unlit via `LdtkScenery`, per Han's "alle lagen BEHALVE
+   achtergrond."
+
+**Invariant:** `LdtkLitGround` never receives foliage/water tiles (those keep their own per-instance
+shimmer pipeline) — only `world.groundTilesBack/Front` (ground/terrain/buildings/decor).
+
+**Files:** `src/components/character/foliageLightingGLSL.js` (new, shared lighting GLSL),
+`src/components/character/ldtkTileCompositing.js` (new, shared tile-blitting),
+`src/components/character/useLdtkLitGroundTextures.js` (new), `src/components/character/LdtkLitGround.jsx`
+(new), `src/components/character/ForegroundFoliageLayer.jsx` (lighting GLSL extracted, `EDGE_LIGHT_PIXELS`
+2.0), `src/components/character/LdtkScenery.jsx` (reuses `ldtkTileCompositing.js`, otherwise unchanged),
+`src/components/character/RpgLevelPanel.jsx` (two new `LdtkLitGround` mounts). Error codes
+E030-LDTK-LIT-GROUND-SHADER-COMPILE, E031-LDTK-LIT-GROUND-DRAW-FRAME (CLAUDE.md §7a).

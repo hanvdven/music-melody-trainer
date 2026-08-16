@@ -17,7 +17,9 @@ import LdtkScenery from './LdtkScenery';
 import LdtkAnimatedTiles from './LdtkAnimatedTiles';
 import useLdtkFoliageInstances from './useLdtkFoliageInstances';
 import useDebugMetronome, { useFpsCounters } from './useDebugMetronome';
-import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_WORLD_X, ENTITY_INSTANCES, STAND_HEIGHT_PX, LEVEL_PX_HEIGHT } from '../../levels/ldtk/ldtkWorld';
+import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_WORLD_X, ENTITY_INSTANCES, STAND_HEIGHT_PX, LEVEL_PX_HEIGHT, LEVEL_PX_WIDTH } from '../../levels/ldtk/ldtkWorld';
+import useLdtkLitGroundTextures from './useLdtkLitGroundTextures';
+import LdtkLitGround from './LdtkLitGround';
 import { oscillate } from '../../utils/oscillate';
 // #141 (Han 2026-08-05): pre-generated normal maps for the shimmer shader — see
 // scripts/generate-tree-normal-maps.mjs (Sobel height-gradient derived from the diffuse art itself, no
@@ -586,6 +588,14 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     const nonWaterAnimatedTilesFront = useMemo(() => world.animatedTilesFront.filter((t) => t.kind !== 'water'), [world.animatedTilesFront]);
     const waterInstancesBack = useLdtkWaterInstances(waterTilesBack, world.gridSize, sceneryMode);
     const waterInstancesFront = useLdtkWaterInstances(waterTilesFront, world.gridSize, sceneryMode);
+    // #925 follow-up (Han 2026-08-16, "alle lagen behalve achtergrond moeten normal map krijgen en
+    // reageren op licht"): ground/terrain/building/decor tiles (world.groundTilesBack/Front — everything
+    // EXCEPT background parallax layers and foliage, which already have their own lit pipelines) get a
+    // normal-map-lit pass too, via a SEPARATE static WebGL layer (LdtkLitGround.jsx) — see that file's own
+    // header comment for why this ISN'T the same per-instance approach foliage/water use (thousands of
+    // tiles, would repeat the perf problem viewport culling was built to avoid).
+    const litGroundTexturesBack = useLdtkLitGroundTextures(world.groundTilesBack, world.gridSize, LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT, sceneryMode);
+    const litGroundTexturesFront = useLdtkLitGroundTextures(world.groundTilesFront, world.gridSize, LEVEL_PX_WIDTH, LEVEL_PX_HEIGHT, sceneryMode);
 
     useEffect(() => {
         const el = containerRef.current;
@@ -984,6 +994,23 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     gridSize={world.gridSize} leftPxForFactor={leftPxForFactor} zoom={zoom} groundAnchor={0}
                 />
             )}
+            {/* #925 follow-up (Han 2026-08-16): lit ground/building/decor, drawn ON TOP of the flat
+                LdtkScenery composite above — covers it with opaque, normal-map-lit pixels once its own
+                textures are ready, same "flat fallback stays underneath until the WebGL layer is ready"
+                pattern foliage already uses (see that layer's own comment). Back-of-entities = full
+                lighting (edgeLitOnly=false). */}
+            {sceneryMode === 'LDtk' && litGroundTexturesBack && (
+                <LdtkLitGround
+                    widthPx={size.w} heightPx={size.h}
+                    textures={litGroundTexturesBack} levelPxWidth={LEVEL_PX_WIDTH} levelPxHeight={LEVEL_PX_HEIGHT}
+                    leftPx={leftPxForFactor(1)} canvasBottomScreenY={size.h} zoom={zoom}
+                    lights={[
+                        { worldX: NPC_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
+                        { worldX: playerX, worldHeight: 32, color: HERO_LIGHT_COLOR01 },
+                    ]}
+                    params={foliageParams} edgeLitOnly={false}
+                />
+            )}
             {sceneryMode === 'LDtk' && (
                 <LdtkAnimatedTiles
                     animatedTiles={cullTilesToViewport(nonWaterAnimatedTilesBack)} worldToScreenX={localWorldToScreenX}
@@ -1193,6 +1220,21 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 <LdtkScenery
                     groundTiles={groundAndFoliageFront} gridSize={world.gridSize}
                     leftPxForFactor={leftPxForFactor} zoom={zoom} groundAnchor={0}
+                />
+            )}
+            {/* #925 follow-up (Han 2026-08-16): front-of-entities ground/building/decor — edge-lit only
+                (Han: "de lagen vóór entities worden alleen belicht op 2px van de rand"), see
+                EDGE_LIGHT_PIXELS in foliageLightingGLSL.js. */}
+            {sceneryMode === 'LDtk' && litGroundTexturesFront && (
+                <LdtkLitGround
+                    widthPx={size.w} heightPx={size.h}
+                    textures={litGroundTexturesFront} levelPxWidth={LEVEL_PX_WIDTH} levelPxHeight={LEVEL_PX_HEIGHT}
+                    leftPx={leftPxForFactor(1)} canvasBottomScreenY={size.h} zoom={zoom}
+                    lights={[
+                        { worldX: NPC_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
+                        { worldX: playerX, worldHeight: 32, color: HERO_LIGHT_COLOR01 },
+                    ]}
+                    params={foliageParams} edgeLitOnly={true}
                 />
             )}
             {sceneryMode === 'LDtk' && (
