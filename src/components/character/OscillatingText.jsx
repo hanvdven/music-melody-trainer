@@ -10,10 +10,14 @@ import { oscillate } from '../../utils/oscillate';
 // SheetRpgLayer.jsx's own imperative-ref animation convention (§193/§863 round 2) rather than a React
 // state re-render per frame.
 //
+// #925 round 2 (Han 2026-08-16, "mag 50% minder groot, en 100% trager"): range halved (2 -> 1 game px),
+// speed halved (oscillate()'s own `speed` multiplier, default 1 -> 0.5 here) from the round-1 defaults.
+const OSC_SPEED = 0.5;
+
 // `rangeGamePx`: the oscillation range in RPG/GAME pixels (never screen px, per this project's own
 // pixel-terminology rule — see docs memory "Pixels = RPG sprite pixels"). The caller supplies `scale`
 // (its own native-px-to-display-px zoom constant, e.g. DIALOGUE_SCALE) to convert.
-export default function OscillatingText({ text, scale, rangeGamePx = 2, style }) {
+export default function OscillatingText({ text, scale, rangeGamePx = 1, style }) {
     const spanRefs = useRef([]);
     const liveRef = useRef({ scale, rangeGamePx });
     liveRef.current = { scale, rangeGamePx };
@@ -27,7 +31,7 @@ export default function OscillatingText({ text, scale, rangeGamePx = 2, style })
             const rangePx = r * s;
             spanRefs.current.forEach((el, i) => {
                 if (!el) return;
-                const dy = oscillate(i, t, rangePx);
+                const dy = oscillate(i, t, rangePx, OSC_SPEED);
                 el.style.transform = `translateY(${dy}px)`;
             });
             raf = requestAnimationFrame(animate);

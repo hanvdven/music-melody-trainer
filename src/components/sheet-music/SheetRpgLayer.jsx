@@ -132,7 +132,9 @@ const PROJECTILE_OSCILLATE_RANGE = 7.5;
 // #925 follow-up (Han 2026-08-16, "letters van tekst moeten een heel klein beetje oscilleren
 // (individueel), range 2 game pixels"): a much smaller, subtler range than the projectile wobble above —
 // a per-letter jitter, not a visible flight-path wobble.
-const JUDGMENT_LETTER_OSCILLATE_RANGE = 2;
+// #925 round 2 (Han: "mag 50% minder groot, en 100% trager"): range halved, speed halved.
+const JUDGMENT_LETTER_OSCILLATE_RANGE = 1;
+const JUDGMENT_LETTER_OSCILLATE_SPEED = 0.5;
 // #661 horizontal nudge for the scrolling staff so a Maestro notehead (drawn at its left edge, head centre
 // ≈ +6) sits centred over the slime below it (slime centre = slimeX + SLIME_VIEW_W/2), matching the accepted
 // Level-1 note/slime alignment. Applied as a constant x-shift on the whole moving staff group.
@@ -1271,7 +1273,7 @@ export default function SheetRpgLayer({
                 // don't sync up either.
                 entry.charEls?.forEach((el, i) => {
                     if (!el) return;
-                    const dy = oscillate(entry.id * 31 + i, t, JUDGMENT_LETTER_OSCILLATE_RANGE);
+                    const dy = oscillate(entry.id * 31 + i, t, JUDGMENT_LETTER_OSCILLATE_RANGE, JUDGMENT_LETTER_OSCILLATE_SPEED);
                     el.setAttribute('transform', `translate(0, ${dy})`);
                 });
             });
