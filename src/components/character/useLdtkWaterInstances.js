@@ -22,6 +22,14 @@ import { LEVEL_PX_HEIGHT } from '../../levels/ldtk/ldtkWorld';
 // tile gets its OWN independent offset regardless of whether it shares a src with another tile. Fixed by
 // keying `startOffsetsRef` by ARRAY INDEX instead of by src, reproducing that exact per-placement
 // independence.
+//
+// #925 ROUND 3 (Han, "ik heb ook behoefte aan vsync" — clarified: the animation feels detached/choppy
+// from the screen, wants it smoother): `setInterval` callbacks are NOT synchronized to the display's own
+// refresh — they fire on an independent JS timer that can drift or bunch up relative to actual paints,
+// which is what reads as "not vsync'd." requestAnimationFrame callbacks, by contrast, fire once per
+// display refresh, right before paint. Replaced the flat interval with an rAF loop that accumulates real
+// elapsed time and only advances `tick` (still every ~FRAME_MS of elapsed time — same animation SPEED,
+// just delivered in lockstep with actual frames instead of an independent timer).
 const FRAME_MS = 150;   // matches LdtkAnimatedTiles.jsx's own FRAME_MS — same animation cadence
 
 export default function useLdtkWaterInstances(waterTiles, gridSize, sceneryMode) {
@@ -33,7 +41,7 @@ export default function useLdtkWaterInstances(waterTiles, gridSize, sceneryMode)
         if (sceneryMode !== 'LDtk' || waterTiles.length === 0) { setInstances([]); return undefined; }
         let cancelled = false;
         let tick = 0;
-        let intervalId;
+        let raf;
 
         (async () => {
             const urls = [...new Set(waterTiles.map((t) => t.tilesetUrl))];
@@ -84,10 +92,24 @@ export default function useLdtkWaterInstances(waterTiles, gridSize, sceneryMode)
             };
 
             publish();
-            intervalId = setInterval(() => { tick += 1; publish(); }, FRAME_MS);
+            let lastTickTime = performance.now();
+            const loop = (now) => {
+                if (cancelled) return;
+                if (now - lastTickTime >= FRAME_MS) {
+                    // Catch up by exactly however many whole FRAME_MS windows elapsed (never more than
+                    // one per rAF callback in practice, but robust to a throttled/backgrounded tab
+                    // resuming after a long gap) instead of drifting behind real time.
+                    const steps = Math.floor((now - lastTickTime) / FRAME_MS);
+                    tick += steps;
+                    lastTickTime += steps * FRAME_MS;
+                    publish();
+                }
+                raf = requestAnimationFrame(loop);
+            };
+            raf = requestAnimationFrame(loop);
         })();
 
-        return () => { cancelled = true; if (intervalId) clearInterval(intervalId); };
+        return () => { cancelled = true; if (raf) cancelAnimationFrame(raf); };
     }, [waterTiles, gridSize, sceneryMode]);
 
     return instances;

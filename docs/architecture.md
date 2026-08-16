@@ -15606,3 +15606,57 @@ note log for the full split):**
 **Files:** `src/levels/ldtk/ldtkAutoTile.js` (`cellValue`, `ruleMatches`, `evaluateRuleGroup`),
 `src/levels/ldtk/ldtkWorld.js` (`findHorizontalNeighbor`, `autoLayerTilesForLevel`),
 `src/levels/ldtk/__tests__/ldtkAutoTile.test.js` (new `horizontal neighbor stitching` cases).
+
+### §236. Shimmer: pixel-switch Y-axis fix, active-while-moving, water shimmer, white caps (#993/#1023/#1029/#1030, Han 2026-08-16)
+
+**Purpose:** A round of follow-ups to the #141 tree/grass shimmer shader (`ForegroundFoliageLayer.jsx`),
+split off epic #993:
+
+1. **Pixel-switch Y-axis fix (#1023):** the wave-grain quantization's X axis was already fixed (round 20)
+   to derive its native-pixel column from `gl_FragCoord.x` instead of the interpolated `vUV.x` varying,
+   for stable whole-pixel stepping. The Y axis never got the same treatment — `groundDist`/`nativeY` were
+   still derived from `vUV.y`, letting the highlight step at sub-native-pixel (effectively screen-pixel)
+   precision vertically. `nativeY` is now derived from `gl_FragCoord.y`, undoing the vertex shader's
+   deliberate Y-flip (`gl_Position = vec4(clip.x, -clip.y, ...)`) via a new `uCanvasSize` fragment
+   uniform (shared with the vertex shader by name — must stay `highp` in both stages, same rule as
+   `uScreenPos`/`uSizePx`, round 23's critical bug). One value now serves both the wave/grain math AND
+   texel sampling (previously two separate `vUV.y`-derived computations that could disagree).
+2. **Shimmer active while moving (#1023):** `RpgLevelPanel.jsx` used to unmount the shimmer WebGL layer
+   entirely while the hero walked (a round-1 perf tradeoff, `!moving` gate). Han re-measured and found
+   the performance impact small enough to remove the gate — shimmer now runs continuously.
+3. **Water shimmer (#1029, two rounds):** water tiles (`kind: 'water'` in `buildWorld()`'s
+   `animatedTilesBack/Front`) are pulled out of `LdtkAnimatedTiles`'s plain DOM frame-cycling and
+   rendered through `ForegroundFoliageLayer` instead — diffuse AND shimmer both, via a new
+   `useLdtkWaterInstances.js` hook mirroring `useLdtkFoliageInstances.js`'s normal-map-per-crop
+   generation (same generic Sobel utility, CLAUDE.md §6d). Round 1 broke water's own frame-cycling by
+   keying each tile's random animation-start-offset by its `(tilesetUrl, src)` identity — since water
+   tiles legitimately repeat the same `src` across many placements, this forced every placement sharing a
+   `src` into lockstep, diverging from `LdtkAnimatedTiles.jsx`'s original per-REACT-COMPONENT-INSTANCE
+   (i.e. per array position) independent offset. Round 2 keys `startOffsetsRef` by array INDEX instead,
+   reproducing that independence exactly; the frame-cycle formula itself
+   (`col = (tile.logicalCol+tick+startOffset) % totalLogicalCols`, `row = tile.logicalRow`) is copied
+   verbatim from `LdtkAnimatedTiles.jsx`'s water branch, never reinvented. `LdtkAnimatedTiles.jsx` now
+   only ever receives campfire tiles.
+4. **White caps (#1030):** a diffuse pixel whose luminance exceeds `uWhiteCapThreshold` gets pulled
+   further toward pure white by `uWhiteCapStrength` — runs on `trueColor` after the wave highlight but
+   before ambient-darkening/point-lighting, so a cap still dims in the dark like everything else. Global
+   shimmer params (not water-specific — a no-op wherever the source art has no near-white pixels),
+   defaults `threshold: 0.85, strength: 0.6`, both live-tunable in the Foliage params debug panel.
+5. **Smoother water animation timing / "vsync" (#1030):** `useLdtkWaterInstances`'s frame tick moved from
+   a flat `setInterval(150ms)` to a `requestAnimationFrame` loop that accumulates real elapsed time and
+   advances the tick every ~150ms of elapsed time — same animation speed, but delivered in lockstep with
+   actual display paints instead of an independent JS timer that can drift/bunch up.
+6. **Despawn mitigation (#1030):** `RpgLevelPanel.jsx`'s shimmer-instance `CULL_MARGIN_PX` widened
+   200→400 as a mitigation for water tiles reportedly going invisible during fast camera pans. Not
+   confirmed as a full fix — cull-margin size can only shrink the window where a fast-enough pan still
+   outruns it, not eliminate the category of bug; flag if it recurs.
+
+**Deferred (own tickets, need further design/dependency work):** general tile-seam gaps between adjacent
+tiles (#1031, not water-specific, needs its own repro) and real scene reflection on water above the
+waterline (#1032, needs #1024's normal-maps-on-all-layers first plus a dedicated design interview — a
+true reflection needs a second render pass, a real perf/architecture discussion, not a quick add).
+
+**Files:** `src/components/character/ForegroundFoliageLayer.jsx` (Y-axis fix, white caps, `uCanvasSize`),
+`src/components/character/RpgLevelPanel.jsx` (`!moving` gate removed, water tile routing, white-cap debug
+sliders, `CULL_MARGIN_PX`), `src/components/character/useLdtkWaterInstances.js` (new),
+`src/components/character/LdtkAnimatedTiles.jsx` (water branch removed, campfire-only now).

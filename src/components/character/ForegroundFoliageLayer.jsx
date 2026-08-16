@@ -169,6 +169,13 @@ uniform float uNormalStrength;
 // before; >0 adds a purely distance-based (no ndotl gating) glow from each light, summed with the existing
 // directional term — see applyPointLight's own comment.
 uniform float uFlatIllumination;
+// #925 follow-up (Han 2026-08-16, "de 100% witte pixels mogen een witte 'kop'/glans geven op het water"):
+// fully-bright diffuse pixels (water-crest art, or any other near-white source pixel) get pulled further
+// toward pure white, on top of the existing wave highlight — global params like every other shimmer dial
+// (round 11's "put every tunable in the debug" convention), not water-specific, since the effect is a
+// no-op wherever the source art has no near-white pixels to begin with.
+uniform float uWhiteCapThreshold;   // diffuse luminance above which the cap starts kicking in (0..1)
+uniform float uWhiteCapStrength;    // 0 = no effect, 1 = fully pulled to pure white at max luminance
 
 const float GRAIN_CELL = 1.0;     // native-px grain size — not yet exposed to the debug panel
 const vec3 HIGHLIGHT_COLOR = vec3(1.0, 1.0, 0.95);
@@ -639,6 +646,17 @@ void main() {
         return;
     }
 
+    // #925 follow-up: white caps — a near-white source pixel (e.g. a water-crest highlight painted into
+    // the art) gets pulled further toward pure white, proportional to how far its own luminance already
+    // is above uWhiteCapThreshold. Runs on trueColor (after the wave highlight, before ambient/lighting)
+    // so caps participate in the SAME ambient-darken/point-light pipeline as everything else — a cap in a
+    // dark corner still dims with the rest of the scene, it doesn't ignore lighting.
+    float diffuseLum = dot(diffuse.rgb, vec3(0.299, 0.587, 0.114));
+    if (diffuseLum > uWhiteCapThreshold) {
+        float capMix = clamp((diffuseLum - uWhiteCapThreshold) / max(1.0 - uWhiteCapThreshold, 0.0001), 0.0, 1.0) * uWhiteCapStrength;
+        trueColor = mix(trueColor, vec3(1.0), capMix);
+    }
+
     // Global illumination (round 11): darken toward AMBIENT_DARK_COLOR, never pure black; point lights then
     // REVEAL trueColor back out of the darkness (see applyPointLight) instead of adding brightness on top.
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
@@ -797,6 +815,11 @@ export const DEFAULT_FOLIAGE_PARAMS = {
     // term weak for a flat surface not facing the light head-on; this flat/radial term bypasses that gate
     // entirely. Round 27 preset: 0.2.
     flatIllumination: 0.2,
+    // #925 follow-up (Han 2026-08-16, "de 100% witte pixels mogen een witte 'kop'/glans geven op het
+    // water"): only near-white source pixels (>0.85 luminance) get pulled the rest of the way toward pure
+    // white, at 60% strength — a visible but not overpowering crest glare.
+    whiteCapThreshold: 0.85,
+    whiteCapStrength: 0.6,
 };
 
 export default function ForegroundFoliageLayer({
@@ -902,6 +925,8 @@ export default function ForegroundFoliageLayer({
         const uGlobalIllumination = gl.getUniformLocation(program, 'uGlobalIllumination');
         const uNormalStrength = gl.getUniformLocation(program, 'uNormalStrength');
         const uFlatIllumination = gl.getUniformLocation(program, 'uFlatIllumination');
+        const uWhiteCapThreshold = gl.getUniformLocation(program, 'uWhiteCapThreshold');
+        const uWhiteCapStrength = gl.getUniformLocation(program, 'uWhiteCapStrength');
 
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -1015,6 +1040,8 @@ export default function ForegroundFoliageLayer({
             gl.uniform1f(uStretchAmount, p.stretchAmount);
             gl.uniform1f(uNormalStrength, p.normalStrength);
             gl.uniform1f(uFlatIllumination, p.flatIllumination);
+            gl.uniform1f(uWhiteCapThreshold, p.whiteCapThreshold);
+            gl.uniform1f(uWhiteCapStrength, p.whiteCapStrength);
 
             for (const inst of instancesRef.current) {
                 const diffuseTex = await getTexture(inst.diffuseUrl);

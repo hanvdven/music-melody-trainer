@@ -773,7 +773,13 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // whole level only need to draw the handful currently on-screen — this filters by already-projected
     // `screenX` (a fixed pixel margin around the viewport) right before handing instances to the shader,
     // cutting the typical per-frame instance count from ~1000 to whatever's actually visible.
-    const CULL_MARGIN_PX = 200;
+    // #925 follow-up (Han 2026-08-16, "de watertiles zijn soms niet zichtbaar (despawn), vooral tijdens
+    // veel schermbeweging"): widened from 200 — a fast camera pan can move a tile from "just inside the
+    // old margin" to "just outside the viewport" across a couple of frames, and the reverse on re-entry;
+    // a bigger buffer gives more slack before a genuinely visible tile gets culled. Mitigation, not a
+    // structural fix — flag if this doesn't fully resolve it, since cull-margin size can only ever reduce
+    // the WINDOW where a fast-enough pan still outruns it, not eliminate it category.
+    const CULL_MARGIN_PX = 400;
     const cullToViewport = (instances) => instances.filter((inst) => inst.screenX > -CULL_MARGIN_PX && inst.screenX < size.w + CULL_MARGIN_PX);
     // Same idea for the (cheaper, DOM-based) animated water/campfire overlay — filtered by raw world
     // position before it ever reaches `LdtkAnimatedTiles`, so off-screen tiles don't even mount a
@@ -1556,6 +1562,11 @@ function FoliageParamsPanel({ params, onChange, onReset }) {
                 full relief (current look), 0.0 fully flat "from above". The floor ignores this entirely and
                 is ALWAYS flat (Han: "normal map van de floor tiles mag toch globaal 'van boven' zijn"). */}
             <ParamSlider label="Normal map strength" value={params.normalStrength} min={0} max={1} step={0.01} onChange={(v) => onChange('normalStrength', v)} />
+            {/* #925 follow-up (Han 2026-08-16, "de 100% witte pixels mogen een witte 'kop'/glans geven op
+                het water") — global params, see ForegroundFoliageLayer's own uWhiteCapThreshold/Strength
+                comment for why this isn't water-specific despite the water motivation. */}
+            <ParamSlider label="White cap: threshold" value={params.whiteCapThreshold} min={0.5} max={1} step={0.01} onChange={(v) => onChange('whiteCapThreshold', v)} />
+            <ParamSlider label="White cap: strength" value={params.whiteCapStrength} min={0} max={1} step={0.01} onChange={(v) => onChange('whiteCapStrength', v)} />
             {/* #RAM-level (Han 2026-08-11, "verplaats wind en time of day togglers naar links World
                 settings"): Wind and Time-of-day moved to the World debug panel (top-left) — see that
                 panel's own LevelPicker calls, driven by the SAME `foliageParams`/`setFoliageParam`. */}
