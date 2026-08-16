@@ -1,4 +1,5 @@
 import { loadImageEl } from '../../utils/runtimeNormalMap';
+import logger from '../../utils/logger';
 
 // #925 follow-up (Han 2026-08-16): the tile-blitting loop LdtkScenery.jsx's `useCompositedLayer` already
 // used (draw every tile of a bucket onto one canvas, once, native resolution) is exactly what the new
@@ -6,10 +7,18 @@ import { loadImageEl } from '../../utils/runtimeNormalMap';
 // the result — extracted here so both consumers share ONE tile-blitting implementation (CLAUDE.md §6c/§6d)
 // instead of forking a second copy of the flip/draw logic.
 
-// Resolves every distinct tileset URL referenced by `tiles` once, in parallel.
+// #925 follow-up (Han 2026-08-16): a plain `Promise.all` would let ONE failed tileset URL (network
+// hiccup, a genuinely missing asset) reject the WHOLE call — silently leaving a caller's `textures`/
+// `ready` state stuck forever with no trace, exactly the failure mode `ForegroundFoliageLayer.jsx`'s own
+// `getTexture` already guards against (round 21's critical bug fix). Each URL is now caught individually
+// and logged once; a failed tileset's tiles are just skipped by `drawTilesToCanvas` below (`imgByUrl.get`
+// returns undefined for it), instead of taking down the entire composited layer.
 export async function loadTileImages(tiles) {
     const urls = [...new Set(tiles.map((t) => t.tilesetUrl))];
-    const imgs = await Promise.all(urls.map((u) => loadImageEl(u)));
+    const imgs = await Promise.all(urls.map((u) => loadImageEl(u).catch((err) => {
+        logger.error('ldtkTileCompositing', 'E033-LDTK-TILE-IMAGE-LOAD', err, { url: u });
+        return null;
+    })));
     return new Map(urls.map((u, i) => [u, imgs[i]]));
 }
 

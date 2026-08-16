@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { sobelNormalMap } from '../../utils/runtimeNormalMap';
 import { loadTileImages, drawTilesToCanvas } from './ldtkTileCompositing';
+import logger from '../../utils/logger';
 
 // #925 follow-up (Han 2026-08-16, "alle lagen behalve achtergrond moeten normal map krijgen en reageren
 // op licht"): composites a tile bucket (ground/terrain/buildings/decor — everything LdtkScenery.jsx used
@@ -23,27 +24,38 @@ export default function useLdtkLitGroundTextures(tiles, gridSize, levelPxWidth, 
             return undefined;
         }
         let cancelled = false;
+        // #925 diagnostic (Han: back-of-entities lit layer shows nothing at all, not even a
+        // debug-channel raw-position gradient — consistent with this hook's promise NEVER resolving for
+        // that bucket, e.g. one bad tileset URL among the many groundTilesBack references rejecting the
+        // WHOLE Promise.all silently). Wrapped in try/catch + logged so a real failure surfaces in the
+        // console instead of leaving `textures` stuck at null forever with no trace (CLAUDE.md §7a).
         (async () => {
-            const imgByUrl = await loadTileImages(tiles);
-            if (cancelled) return;
+            try {
+                logger.debug('useLdtkLitGroundTextures', 'compositing start', { tileCount: tiles.length, levelPxWidth, levelPxHeight });
+                const imgByUrl = await loadTileImages(tiles);
+                if (cancelled) return;
 
-            if (!diffuseCanvasRef.current) diffuseCanvasRef.current = document.createElement('canvas');
-            if (!normalCanvasRef.current) normalCanvasRef.current = document.createElement('canvas');
-            const diffuseCanvas = diffuseCanvasRef.current;
-            const normalCanvas = normalCanvasRef.current;
-            diffuseCanvas.width = normalCanvas.width = levelPxWidth;
-            diffuseCanvas.height = normalCanvas.height = levelPxHeight;
+                if (!diffuseCanvasRef.current) diffuseCanvasRef.current = document.createElement('canvas');
+                if (!normalCanvasRef.current) normalCanvasRef.current = document.createElement('canvas');
+                const diffuseCanvas = diffuseCanvasRef.current;
+                const normalCanvas = normalCanvasRef.current;
+                diffuseCanvas.width = normalCanvas.width = levelPxWidth;
+                diffuseCanvas.height = normalCanvas.height = levelPxHeight;
 
-            const diffuseCtx = diffuseCanvas.getContext('2d');
-            diffuseCtx.clearRect(0, 0, levelPxWidth, levelPxHeight);
-            drawTilesToCanvas(diffuseCtx, tiles, gridSize, imgByUrl);
+                const diffuseCtx = diffuseCanvas.getContext('2d');
+                diffuseCtx.clearRect(0, 0, levelPxWidth, levelPxHeight);
+                drawTilesToCanvas(diffuseCtx, tiles, gridSize, imgByUrl);
 
-            const imageData = diffuseCtx.getImageData(0, 0, levelPxWidth, levelPxHeight);
-            const normalData = sobelNormalMap(imageData);
-            normalCanvas.getContext('2d').putImageData(normalData, 0, 0);
+                const imageData = diffuseCtx.getImageData(0, 0, levelPxWidth, levelPxHeight);
+                const normalData = sobelNormalMap(imageData);
+                normalCanvas.getContext('2d').putImageData(normalData, 0, 0);
 
-            if (cancelled) return;
-            setTextures({ diffuseCanvas, normalCanvas });
+                if (cancelled) return;
+                logger.debug('useLdtkLitGroundTextures', 'compositing done', { tileCount: tiles.length });
+                setTextures({ diffuseCanvas, normalCanvas });
+            } catch (err) {
+                logger.error('useLdtkLitGroundTextures', 'E032-LDTK-LIT-GROUND-TEXTURE-COMPOSITE', err, { tileCount: tiles.length });
+            }
         })();
         return () => { cancelled = true; };
     }, [tiles, gridSize, levelPxWidth, levelPxHeight, sceneryMode]);

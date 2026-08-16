@@ -429,6 +429,12 @@ logger.error('Sequencer', 'E010-PLAY-MELODY', err, { bpm: 120 });
 - **E031-LDTK-LIT-GROUND-DRAW-FRAME** — an unexpected error during one WebGL frame of `LdtkLitGround.jsx`'s
   draw loop; caught so the loop always reschedules its next frame instead of permanently dying, same
   pattern as E023-FOLIAGE-DRAW-FRAME
+- **E032-LDTK-LIT-GROUND-TEXTURE-COMPOSITE** — compositing a lit-ground tile bucket's diffuse+normal-map
+  textures threw (`useLdtkLitGroundTextures.js`); that layer's `textures` stays `null` (renders nothing,
+  falls back to the flat `LdtkScenery` composite underneath) instead of failing silently with no trace
+- **E033-LDTK-TILE-IMAGE-LOAD** — one tileset image referenced by an LDtk tile bucket failed to load
+  (`ldtkTileCompositing.js`, shared by `LdtkScenery.jsx` and `useLdtkLitGroundTextures.js`); that tileset's
+  tiles are just skipped by the composite rather than failing the whole layer
 
 When you add a new `logger.error` call, allocate a new code (e.g. `E025-NEW-FAILURE`) and add it to this list.
 
