@@ -295,13 +295,10 @@ export default function LdtkLitGround({
                 loggedOnceRef.current = true;
                 const worldXAtScreen0 = (0 - lp * dpr) / (z * dpr);
                 const worldXAtScreenMax = (canvas.width - lp * dpr) / (z * dpr);
-                logger.debug('LdtkLitGround', 'diagnostic snapshot', {
-                    edgeLitOnly: elo, leftPx: lp, canvasBottomScreenY: cb, zoom: z,
-                    levelPxWidth: lw, levelPxHeight: lh,
-                    lights: activeLights,
-                    worldXRangeOnScreen: [worldXAtScreen0, worldXAtScreenMax],
-                    lightRadius: p.lightRadius, lightHeightRadius: p.lightHeightRadius,
-                });
+                // Plain string, not a nested object — avoids Chrome's collapsed "(2) [{…}, {…}]" object
+                // preview that isn't visible in a copy/pasted or exported console log.
+                const lightsSummary = activeLights.map((l, i) => `#${i} worldX=${l.worldX?.toFixed(1)} worldHeight=${l.worldHeight}`).join(' | ');
+                logger.debug('LdtkLitGround', `diagnostic: edgeLitOnly=${elo} worldXRangeOnScreen=[${worldXAtScreen0.toFixed(1)}, ${worldXAtScreenMax.toFixed(1)}] lightRadius=${p.lightRadius} lightHeightRadius=${p.lightHeightRadius} lights: ${lightsSummary}`);
             }
             gl.uniform3fv(u.uLightColor, lightColorBuf);
 
