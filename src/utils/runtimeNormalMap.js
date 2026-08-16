@@ -16,10 +16,17 @@ function luminanceAt(data, width, height, x, y) {
     return (data[i] + data[i + 1] + data[i + 2]) / (3 * 255);
 }
 
-export function sobelNormalMap(imageData) {
+// #925 follow-up (Han 2026-08-16, "traag inladen van blokken... veel flitsen, zeker bij veel
+// schermbeweging"): extracted the per-row Sobel pass out of `sobelNormalMap` so a caller with a HUGE
+// image (the lit-ground layer's full-level composite, e.g. 7872x272 — ~2.1M pixels) can spread the work
+// across multiple `requestIdleCallback` slices instead of blocking one frame for the whole image (the
+// literal cause of the console's own "[Violation] requestAnimationFrame handler took Nms" warnings).
+// Writes into the CALLER's own `out` ImageData so partial progress is visible in a shared buffer — see
+// `useLdtkLitGroundTextures.js` for the chunked caller; `sobelNormalMap` below still does everything in
+// one pass for every other (small, per-crop) caller, unchanged.
+export function sobelNormalMapRows(imageData, out, yStart, yEnd) {
     const { width, height, data } = imageData;
-    const out = new ImageData(width, height);
-    for (let y = 0; y < height; y++) {
+    for (let y = yStart; y < yEnd; y++) {
         for (let x = 0; x < width; x++) {
             const tl = luminanceAt(data, width, height, x - 1, y - 1), t = luminanceAt(data, width, height, x, y - 1), tr = luminanceAt(data, width, height, x + 1, y - 1);
             const l = luminanceAt(data, width, height, x - 1, y), r = luminanceAt(data, width, height, x + 1, y);
@@ -36,6 +43,11 @@ export function sobelNormalMap(imageData) {
             out.data[i + 3] = 255;   // data texture, not blended — always opaque
         }
     }
+}
+
+export function sobelNormalMap(imageData) {
+    const out = new ImageData(imageData.width, imageData.height);
+    sobelNormalMapRows(imageData, out, 0, imageData.height);
     return out;
 }
 
