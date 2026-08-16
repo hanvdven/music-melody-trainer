@@ -34,8 +34,24 @@ function cellRandom(cx, cy, ruleUid, salt) {
     return mulberry32(seed)();
 }
 
-function cellValue(csv, w, h, cx, cy, outOfBoundsValue) {
-    if (cx < 0 || cy < 0 || cx >= w || cy >= h) return outOfBoundsValue;
+// #925 follow-up (Han 2026-08-16, "de terrain tiles tegen elkaar zetten voordat de berekening gedaan
+// wordt"): §233 already stitches level POSITIONS into one continuous strip, but each level's autotile
+// rules were still evaluated against ONLY that level's own IntGrid — an edge cell's neighbor lookup
+// fell straight to `outOfBoundsValue` (empty) even when a real, pixel-adjacent level's terrain sits
+// right there. `left`/`right` (optional `{csv, width, height}` for the horizontally adjacent level's
+// SAME layer) let an out-of-range x lookup read the neighbor's real edge column instead of faking
+// emptiness. Vertical out-of-range (cy) and no-neighbor cases are unchanged — only horizontal stitching
+// is in scope per Han's 2026-08-16 interview answer.
+function cellValue(csv, w, h, cx, cy, outOfBoundsValue, left, right) {
+    if (cy < 0 || cy >= h) return outOfBoundsValue;
+    if (cx < 0) {
+        if (left && cy < left.height) return left.csv[cy * left.width + (left.width + cx)];
+        return outOfBoundsValue;
+    }
+    if (cx >= w) {
+        if (right && cy < right.height) return right.csv[cy * right.width + (cx - w)];
+        return outOfBoundsValue;
+    }
     return csv[cy * w + cx];
 }
 
@@ -44,7 +60,7 @@ function cellValue(csv, w, h, cx, cy, outOfBoundsValue) {
 // pattern `[0,-1,0,2,1,0,0,0,0]` only matches cells whose center IntGrid value is 1/Ground, left neighbor
 // is 2/Water, and top neighbor is NOT 1/Ground — reproduced exactly against the file's own precomputed
 // tile placements before this engine was trusted for anything else).
-function ruleMatches(rule, csv, w, h, cx, cy) {
+function ruleMatches(rule, csv, w, h, cx, cy, left, right) {
     const n = rule.size;
     const half = (n - 1) / 2;
     const pattern = rule.pattern;
@@ -54,7 +70,7 @@ function ruleMatches(rule, csv, w, h, cx, cy) {
         if (want === 0) continue;
         const dy = Math.floor(i / n) - half;
         const dx = (i % n) - half;
-        const actual = cellValue(csv, w, h, cx + dx, cy + dy, oob);
+        const actual = cellValue(csv, w, h, cx + dx, cy + dy, oob, left, right);
         if (want > 0 && actual !== want) return false;
         if (want < 0 && actual === -want) return false;
     }
@@ -81,7 +97,7 @@ export function tileIdToSrc(tileset, tileId) {
 // Runs one rule GROUP's rules (in priority/array order) against every non-empty IntGrid cell. Returns
 // tile placements in the same shape LDtk's own exported `autoLayerTiles` uses (`{px:[x,y], src:[sx,sy]}`)
 // so a caller never needs to distinguish an engine-computed tile from a `.ldtk` file's pre-baked one.
-export function evaluateRuleGroup(ruleGroup, { csv, width, height, gridSize, tileset }) {
+export function evaluateRuleGroup(ruleGroup, { csv, width, height, gridSize, tileset, left, right }) {
     const out = [];
     if (!ruleGroup) return out;
     for (let cy = 0; cy < height; cy++) {
@@ -92,7 +108,7 @@ export function evaluateRuleGroup(ruleGroup, { csv, width, height, gridSize, til
             for (const rule of ruleGroup.rules) {
                 if (rule.active === false) continue;
                 if (!ruleAppliesAtStride(rule, cx, cy)) continue;
-                if (!ruleMatches(rule, csv, width, height, cx, cy)) continue;
+                if (!ruleMatches(rule, csv, width, height, cx, cy, left, right)) continue;
                 const chance = rule.chance ?? 1;
                 if (chance < 1 && cellRandom(cx, cy, rule.uid, 1) >= chance) continue;
                 const options = rule.tileRectsIds || [];

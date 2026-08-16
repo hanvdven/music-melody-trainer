@@ -15213,3 +15213,396 @@ no new prop threading was needed.
 `src/hooks/useWorldAmbientMusic.js`, `src/hooks/__tests__/useWorldAmbientMusic.test.js` (new),
 `src/components/sheet-music/SheetRpgLayer.jsx`, `src/components/sheet-music/SheetMusic.jsx`,
 `src/components/sheet-music/overlays/SettingsOverlay.jsx` (the 3 fans), `src/App.jsx`.
+
+---
+
+### §231. Non-4/4 level bugfix pass — beatsOnScreen generalized, bass notesPerMeasure=1, forced roots on every measure downbeat, woodblock remap, metronome mf (#889, Han 2026-08-14)
+
+**Purpose:** five bundled fixes/tweaks from one ticket, grouped here because they landed together.
+
+**1. `beatsOnScreen` generalized for procedural (non-song) levels.** §226's #871 fix
+(`deriveBeatsOnScreen`, `src/levels/levels.js`) only ever applied to song-backed levels via
+`songLevelDefaults()`. Six hand-authored procedural levels (id 102 [6/8], 103 [3/4], 109 [7/8], 113
+[5/4], 117 [3/4], 120 [7/8]) still hardcoded a literal `beatsOnScreen` in `levels.json` copy-pasted
+from the 4/4-only levels 1-9 — wrong for every one of them (e.g. 3/4 should be 6 quarter-beats, not
+8). Fix: `deriveBeatsOnScreen(timeSignature)` extracted as a shared top-level helper in `levels.js`;
+`normalizeLevel()` now applies it as a fallback default for ANY `sideScroll` level (song or
+procedural) that omits `beatsOnScreen`, same "explicit field always wins, omitted → derived" pattern
+already used for `numRepeats`/`totalMeasures`. The 6 wrong literals were deleted from `levels.json` so
+they fall through to the correct derived value; level 113's intro text (which referenced the wrong
+"beatsOnScreen: 6") was also corrected.
+
+**2. Bass `notesPerMeasure` level-default reverted 2 → 1.** #925 (§226) had bumped both
+`LEVEL_BASS_SIMPLE` and `LEVEL_BASS_DEFAULT`'s `notesPerMeasure` from 1 to 2 as the MINIMUM under
+`force_chord_roots`. Han reverted this back to 1 for both level bass presets (app-wide
+`InstrumentSettings.defaultBassInstrumentSettings()`, used by plain non-level bass, is untouched —
+still 2). `LEVEL_BASS_DEFAULT.notesPerMeasure` is now a literal `1` instead of derived from
+`DEFAULT_BASS.notesPerMeasure`, since the level value now deliberately diverges from the app-wide
+default (same pattern already used for `randomizationRule` there).
+
+**3. `force_chord_roots` now also forces a root on every measure's first slot.** §226 only forced a
+root at chord-SEGMENT starts — a measure whose downbeat didn't coincide with a chord change (chord
+sustained from the previous measure) got no forced root there. `convertRankedArrayToMelody.js`
+section 2.1 now has a second pass after the chord-segment loop: for every measure, if its first slot
+(`m * numberOfSlotsPerMeasure`) isn't already in `forcedRootSlots`, it's forced using
+`getActiveChord(m, randomizationNotes, idx)` — resolving to whichever chord is sounding there (current
+or carried-over from a previous measure), exactly like the segment-start forcing. A no-op when the
+segment loop already claimed that exact slot. Meter-agnostic — no numerator lookup table (§6b/§6c).
+
+**4. Woodblock MIDI remap.** `DEFAULT_NOTE_MAPPING` and all 5 per-kit `KIT_NOTE_MAPPINGS` overrides in
+`src/audio/drumKits.js`: `wh`/`wm`/`wl` changed from `91/86/81` (G6/D6/A5) to `96/84/72` (C7/C6/C5,
+canonical C4=60 per `noteUtils.js`). Still bare MIDI numbers routed through the metronome Soundfont
+(`METRONOME_NOTE_IDS`), unchanged mechanism — only the pitches moved.
+
+**5. Metronome default level-volume raised to mf.** New `LEVEL_METRONOME_VOLUME` constant in
+`App.jsx` (mezzo-forte, 0.8), separate from `LEVEL_BACKING_VOLUME` (mezzo-piano, 0.6, still used by
+percussion/timpani). Only the metronome's resolved default changed — `resolveLevelVolume(lvl,
+'metronome', LEVEL_METRONOME_VOLUME)` — a level's own explicit `tracks.metronome.volume` still wins
+(e.g. level 118's existing `"mf"` override is now redundant but harmless).
+
+**Follow-up (Han 2026-08-14, "de invliegende noten hebben dezelfde hardcoded 8-kwart-tellen offset"):**
+point 1 above only fixed WHAT `beatsOnScreen` is computed to on the normalized level object
+(`level.current.beatsOnScreen`) — it was never actually threaded through to the component that uses
+it for rendering. `SheetRpgLayer.jsx` takes `beatsOnScreen` as a prop with its OWN independent
+hardcoded default (`= 8`, 4/4-only), and neither `App.jsx`'s `<SheetMusic>` call nor `SheetMusic.jsx`
+itself ever passed the level's derived value down — so every side-scroll level, any time signature,
+silently used the flat literal `8` for the actual note/slime flight-in timing (`sideScrollX`, the
+staff scroll transform, the Wizard projectile visibility gate, hit/miss timing windows — see
+`SheetRpgLayer.jsx` lines ~1038, 1157, 1526, 1665, 1702-1708, 2110). Meanwhile the AUDIO lead-in
+scheduling (App.jsx's cello/metronome pre-roll) already correctly derived from `timeSignature` +
+`LEVEL_LEAD_IN_BARS` — so non-4/4 levels had a live audio/visual mismatch. Fixed by wiring the prop
+through: `App.jsx`'s `<SheetMusic>` call now passes `beatsOnScreen={level.active ?
+(level.current.beatsOnScreen ?? 8) : 8}`; `SheetMusic.jsx` destructures `beatsOnScreen = 8` and
+forwards it to `<SheetRpgLayer beatsOnScreen={beatsOnScreen} ...>` instead of relying on that
+component's own internal default.
+
+**Files:** `src/levels/levels.js`, `src/levels/levels.json`, `src/generation/convertRankedArrayToMelody.js`,
+`src/audio/drumKits.js`, `src/App.jsx`, `src/components/sheet-music/SheetMusic.jsx`.
+
+---
+
+### §232. Note-release cutoff — real sample looping (sustain) + "let ring" (decay percussion), cello range (#889 follow-up, Han 2026-08-14)
+
+**Purpose:** Han: *"cello is heel lelijk; die stopt vrij abrupt... noten worden on release meteen
+afgesloten. Dit is een app-wide probleem. Zeker hoorbaar bij percussie-instrumenten als
+vibraphone... sommige instrumenten worden nogal bruut afgesneden, bijv. SAW... harmonica ook."*
+Two DISTINCT root causes, two distinct fixes — conflating them (as the first draft of this ticket
+briefly did for vibraphone, see the UAT correction below) produces the wrong behaviour.
+
+**Root cause 1 — no ADSR bug, but samples had no sustain data.** The app has no ADSR of its own;
+smplr's own per-voice envelope (`ampRelease`, a linear gain ramp on `.stop()`) already worked
+correctly. The real problem: `scripts/extract-soundfont-samples.mjs` extracted only the SF2's raw,
+un-looped sample data and explicitly discarded loop points ("smplr's plain Sampler has no
+per-sample loop API"). Any instrument whose natural sustain in the SF2 comes from LOOPING a short
+waveform segment while a note is held (cello, harmonica, saw, organ, strings, choir, pads, …) ended
+up with a WAV file only as long as that short raw segment (measured: 0.0–0.4s for several
+instruments) — the recorded audio simply ran out long before any stop()/release logic could matter,
+regardless of the note's notated duration. **Not fixable by tuning `ampRelease`** — the audio data
+to sustain longer didn't exist in the files at all.
+
+**Fix 1 — native Web Audio looping, driven by real SF2 loop points.** `soundfont2` (the SF2 parser
+already in use) exposes `sample.header.startLoop`/`endLoop` (frame offsets, already normalized
+relative to the sample's own data start — `soundfont2`'s `getSamples()` does `startLoop -= start`).
+`extract-soundfont-samples.mjs` now reads the zone's `SampleModes` generator (id 54): SampleModes 1
+or 3 (loop-while-held) with `endLoop > startLoop` → the note's manifest entry gets `loopStart`/
+`loopEnd` in SECONDS (`startLoop / sampleRate`). SampleModes 0 (no loop, the common case for
+struck/plucked instruments) → no loop fields, unchanged one-shot playback. **No new/longer audio
+files are needed** — the existing short WAV already contains the loop region; only two extra
+numbers per note are stored (`localInstrumentBuffers.generated.js`: `{ file, loopStart?, loopEnd?
+}` per note, replacing the old bare URL string).
+
+**Playback — moved off the plain `Sampler` class.** smplr 0.20.0's `Sampler` class (flat
+note→URL `buffers` map) has no channel for per-sample loop metadata, even though the underlying
+`Smplr`/`Voice` engine fully supports native `AudioBufferSourceNode.loop/.loopStart/.loopEnd`.
+`createMelodicInstrument` (`src/audio/localInstruments.js`) now builds local instruments via
+`Smplr` directly, fed a `SmplrJson` built by smplr's OWN exported `soundfontToSmplrJson(noteNames,
+loopData)` — the exact function smplr's CDN `Soundfont` class uses for its own separately-hosted
+loop-data JSON (`§6c`/`§6d`: reuse, don't hand-roll the same keyRange-spreading/loop-region logic a
+second time) — with only `json.samples` (baseUrl/formats/map) swapped afterwards to point at this
+app's local WAV files instead of smplr's base64/CDN note data. `loopData` is keyed by MIDI pitch
+(`noteToMidi` from `theory/noteUtils.js`, canonical C4=60 — matches smplr's own internal
+`noteNameToMidi`). A duration-driven note (`playMelodies.js`'s existing `duration` field, unchanged)
+loops for the whole held span then releases via the existing `ampRelease` ramp — this is how "hold a
+cello note for 60 seconds" works without any 60-second audio file.
+
+**SAW special case (Han: "voor saw: beschouw hele sample als loop"):** `lead_2_sawtooth`'s own raw
+sample in this .sf2 is inherently very short regardless of SampleModes — `ALWAYS_LOOP_WHOLE_SAMPLE`
+(extraction script) force-loops the ENTIRE short recording (`loopStart:0, loopEnd:<full length>`)
+for this one slug, rather than relying on (often absent/degenerate) SF2 loop flags. Harmonica's
+short-but-nonzero samples were left as extracted (its SF2 zones DO have valid loop points, so Fix 1
+already covers it generically).
+
+**Root cause 2 — one-shot DECAY instruments cut short by their notated duration.** Marimba,
+xylophone, koto, and the melodic `woodblock` slug (the metronome's own instrument — NOT the
+`wh`/`wm`/`wl` percussion pad IDs, a different thing, `drumKits.js`) are struck/plucked-once
+instruments whose SF2 zones carry NO loop points (`SampleModes 0`) — their natural decay is exactly
+as long as the recording, nothing more. The bug here was `playMelodies.js` scheduling a stop() at
+`noteDuration + ampRelease` regardless of the instrument's own natural length, truncating the decay
+early for any note shorter than the sample.
+
+**Fix 2 — "let ring": skip stop() scheduling entirely.** `LET_RING_INSTRUMENTS`
+(`src/constants/instruments.jsx`) is a curated set (not a formula — "does this timbre naturally
+decay after being struck" is an editorial classification, same precedent as `GM_PROGRAM`/
+`PERCUSSION_KIT_CATEGORIES`, §6c). `playMelodies.js` checks `LET_RING_INSTRUMENTS.has(instrument.
+instrumentSlug)` (every `createMelodicInstrument`-built instrument is now tagged with its own slug)
+and passes `duration: undefined` for these — smplr's `playNote_fn` only schedules a stop() when
+`duration != null`, so the sample simply plays to its own natural end, exactly once, uncut. The
+`maxEndTime` (Sequencer timing) calculation skips these items (no real duration to reflect), same
+treatment as the pre-existing percussion-interruptGroup 60s sentinel it sits next to.
+
+**UAT correction (Han: "vibra still missing its tail") — vibraphone moved from Fix 2 to Fix 1.**
+The first draft put vibraphone in `LET_RING_INSTRUMENTS` alongside the other 4 mallet instruments
+by analogy ("struck once, decays"). Measurement showed this was wrong: vibraphone's FluidR3_GM
+zones are the ONE mallet instrument that DOES carry real SF2 loop points (SampleModes 1/3) — a real
+vibraphone has a sustain/damper pedal and can ring indefinitely while held, the same "hold a note"
+case Fix 1 exists for. Excluding it from looping was cutting off the very sustain mechanism the
+soundfont provides. Moved to the loop path (removed from `NEVER_LOOP_LOCAL` in the extraction
+script and from `LET_RING_INSTRUMENTS`) — **it must NOT be in both**: a looping instrument that
+never gets a real stop() would ring forever, since looping has no natural sample end to fall back
+on. **Invariant: `LET_RING_INSTRUMENTS` and any instrument with real loop data are mutually
+exclusive by construction** (`NEVER_LOOP_LOCAL` in the extraction script must stay a superset of, or
+equal to, `LET_RING_INSTRUMENTS` minus any SF2-driven exceptions like vibraphone — checked by hand,
+not code, since the extraction script can't import the app's JSX constants file, see its own
+comment).
+
+**Cello range (Han: "ook te hoog voor mijn gevoel. Zet de cello range op g#1-g2" — purpose: "een
+constante 'dreigende' ondertoon"):** `LEVEL_BASS_SIMPLE.range` (`src/levels/levels.js`, level 2's
+cello) changed from `C2-B2` to `G#1-G2`. The lowest actually-recorded local cello sample is `C#2`
+(`localInstrumentBuffers.generated.js`) — `G#1` sits below it, so notes down there play via
+downward pitch-shift/detune from that lowest sample; Han explicitly accepted this trade-off over
+staying inside the sampled range. `LEVEL_BASS_DEFAULT` (the non-simplified "Level 8" bass) and the
+app-wide `defaultBassInstrumentSettings()` range were deliberately left untouched — the request was
+specifically about the level cello track.
+
+**Explicitly NOT changed (Han's own scope calls):** the cello's "~3 beats not 4" measure-duration
+complaint (Han: "gewoon root-op-akkoordwissel [...] Het probleem was gerelateerd aan de AHR/env
+bug") — `force_chord_roots`'s generation-time behaviour (§226) is untouched; the complaint's
+resolution is Fix 1 above (the note now actually sustains for its notated length instead of running
+out of sample audio). SAW's short duration was ultimately accepted as normal ("is denk ik normaal,
+het is gewoon een heel kort sample, net als saw") once the whole-sample-loop fix was in place.
+
+**Files:** `scripts/extract-soundfont-samples.mjs`, `src/audio/localInstrumentBuffers.generated.js`
+(regenerated, 328 sample files unchanged in content/count), `src/audio/localInstruments.js`,
+`src/audio/playMelodies.js`, `src/constants/instruments.jsx`, `src/levels/levels.js`,
+
+### §233. Multi-level LDtk world stitching — seamless traversal on the same worldY (#925, Han 2026-08-14)
+
+**Purpose:** Han split the single-level `RAM level.ldtk` hub file into several `Level_N` entries in
+LDtk's "Free" world layout (currently `Level_0`..`Level_5`). Levels sharing the same `worldY` sit
+side-by-side and must be walkable seamlessly, end to end, as one continuous strip (currently
+`Level_0 <-> Level_1 <-> Level_3 <-> Level_4`, all at `worldY=0`). Levels at a DIFFERENT `worldY`
+(`Level_2` at `-272`, `Level_5` at `272`) are interiors/alt-biomes with no door/stairs mechanism yet —
+they must stay completely out of the walkable world for now. The hero/pet/wisp/NPC/slime always spawn
+at the `.ldtk` file's own `Hero` entity marker, wherever that marker currently lives (Level_1 today).
+
+**Interview decisions (Han 2026-08-14):**
+
+- Level_2/Level_5 are fully excluded from this feature — no code path loads them yet; they'll be
+  wired up separately once there's an actual interior-entry mechanism.
+- Entities from every reachable level are merged and all shown simultaneously (Level_0's two birds,
+  Level_1's full NPC/shop/wisp/slime cast, and whatever Level_3/4 grow over time) — no level is
+  "decor-only".
+- Which levels are "the walkable set" is derived at runtime, not hardcoded to level identifiers or to
+  `worldY===0`: it's whichever `worldY` the level containing the `Hero` entity marker sits at. This
+  keeps working unchanged if levels are added/removed/reordered at that height later ("er komt nog
+  meer" — Han expects more levels at the edges over time); the world's outer edges (before Level_0,
+  after Level_4) remain a hard clamp/dead end until then.
+
+**How it works:** `ldtkWorld.js` (`findHeroLevel`, `REACHABLE_LEVELS`, `LEVEL_LAYERS`):
+
+1. Scans every level's `Entities` layer for a `Hero` marker to find `HERO_LEVEL`, then filters
+   `ldtk.levels` to those sharing `HERO_LEVEL.worldY`, sorted left-to-right by `worldX`.
+2. `LEVEL_MIN_X`/`LEVEL_MAX_X`/`LEVEL_PX_WIDTH` now span the WHOLE stitched strip (leftmost reachable
+   level's `worldX` .. rightmost level's `worldX + pxWid`), not one level — every existing consumer
+   (camera clamp in `useRpgLevelState.js`, composited canvas width in `LdtkScenery.jsx`) already reads
+   these as "the world bounds" and needed no further change. `LEVEL_PX_HEIGHT` is the max `pxHei`
+   across reachable levels (currently all equal).
+3. Every tile-emitting helper (`staticLayerTiles`, `preBakedTilesForLevel`, `autoLayerTilesForLevel`,
+   `grassTilesFor`) now loops over `LEVEL_LAYERS` (one `{ lvl, layers }` per reachable level) and merges
+   each level's own instance of a given layer identifier, instead of reading a single hardcoded level.
+   `grassTilesFor`'s pre-baked-vs-live-rule-engine fallback (§ "reken je zelf de probabiliteit uit")
+   is now decided PER LEVEL, not once globally — a level whose bake doesn't cover the requested season
+   no longer blanks out the other levels' correctly-baked tiles.
+4. `tileFromLdtkEntry(entry, tileset, identifier, lvl)` shifts each level's LOCAL tile px into the
+   shared composited-canvas space: `offsetX = lvl.worldX - LEVEL_MIN_X` (positions the level within the
+   stitched strip), `offsetY = LEVEL_PX_HEIGHT - lvl.pxHei` (bottom-aligns levels of differing height so
+   the ground line still lines up).
+5. `ENTITY_WORLD_X`/`ENTITY_INSTANCES` are built from `entityInstances` merged across every reachable
+   level's `Entities` layer. LDtk's own `__worldX`/`__worldY` are already ABSOLUTE world coordinates
+   (`lvl.worldX/worldY + entity.px[...]`), so entities from different levels are directly comparable
+   with no extra offset math — unlike tiles, which are level-local and need step 4's shift.
+6. `LAYER_INDEX`/`isInFrontOfEntities` (§ "houd goed de volgorde van lagen aan", back/front split) is
+   computed once from any one reachable level, since every level in one `.ldtk` file shares the same
+   layer order.
+
+**Invariant:** the reachable set is always derived from the Hero entity's own `worldY`, never a
+hardcoded level count/identifier list — adding a new level at that same height, or moving the Hero
+marker to a different level within that height, must not require a code change here.
+
+**Layer-order follow-up (Han 2026-08-14, "de volgorde in LDTK is correct"):** flagged during this work
+that `Blacksmith_level_3_full`/`Alchemist_level_3_full`/`Interior_Back_Walls`/`Alchemist_decor` now sit
+BEHIND the `Entities` layer (previously in front), making `groundTilesFront` always empty. Han confirmed
+the current LDtk layer order is intentional — `ldtkWorld.test.js`'s back/front test was updated to only
+assert the invariant that still holds (every tile's `inFront` flag matches its bucket), not that
+`groundTilesFront` is non-empty (only `Grass_decoration_fg`, a foliage layer, is actually in front now).
+
+**Files:** `src/levels/ldtk/ldtkWorld.js` (rewritten for multi-level: `findHeroLevel`, `REACHABLE_LEVELS`,
+`LEVEL_LAYERS`, per-level tile/entity merging, `tileFromLdtkEntry` offset math). No changes needed in
+`useRpgLevelState.js` or `RpgLevelPanel.jsx` — both already consumed `LEVEL_MIN_X`/`LEVEL_MAX_X`/
+`ENTITY_WORLD_X`/`ENTITY_INSTANCES` generically.
+
+### §234. Bestiary pass — Crab/Duck/Goose/Town crier, bird-species tag, critter-tag corrections, day/night spawn gating, no-teleport bezier wander-return, water-swim habitat, bestiary face-right flip (#989, Han 2026-08-14)
+
+**Purpose:** A large "bestiary pass" ticket (#989, L3) covering new creature content dropped in
+`src/assets/ASSET DROP/`, a round of tag/naming corrections to the existing roster, and several RPG-world
+critter-spawn/movement engine fixes. Executed directly from a literal, exhaustive chat spec (interview
+already answered in the ticket text — file-placement/row-mapping/grouping decisions confirmed via
+`AskUserQuestion` before implementing, per §4b).
+
+**New creatures** (`scripts/generate-bestiary-manifest.mjs`), files moved from `ASSET DROP` into
+`public/ASSORTED/characters/animals/critters/` (Crab, water-birds) and `char_passive/` (Town crier,
+replacing the pre-existing lower-frame-count file):
+
+- **Crab** (128×128, 4×4 grid @32×32) — `ROW_LABEL_OVERRIDES` entry `['Idle','Move','Death','Attack']`
+  (Han's explicit row order — NOT the default Idle/Move/Attack/Death). Tags: `water`, `critter` (folder-
+  derived), `nature` (via `WATER_NATURE_NAMES`), `being: 'animal'` (category-derived).
+- **Duck** (`duck_1`..`duck_8`) / **Goose** (`goose_1`..`goose_3`) — `water-birds.png` (32×352, 11 rows,
+  each a single static colour pose) split via `expandNamedRows` into two creatures, one variant per row.
+  Tags: `bird`, `on_water` (new — see below), `critter`, `being: 'animal'`.
+- **Town crier** — file replaced (576×64/9 cols → 640×64/10 cols); no generator change needed, already
+  a plain `char_passive` single-continuous-idle entry (same treatment as the 11 SSW NPCs, §207).
+
+**Bird species + renames.** New `bird` tag (`BIRD_NAMES` roster: Blue Jay, Pigeon (Collared Dove), Goose,
+Pigeon (Rock Dove), Duck) — narrower than `flying`, lets the RPG world's bird spawner require an actual
+bird species, not any flying critter. The two previously-confusing "Pigeon" (correctly spelled, from the
+packed `critters sheet.png`, 2-row idle+fly) and "Pidgeon" (misspelled, standalone 4-row sprite file) are
+renamed to **Pigeon (Collared Dove)** and **Pigeon (Rock Dove)** respectively (rename runs early in the
+main tag-derivation loop so every downstream Set — `CRITTER_SHEET_SPECIES_NAMES`, `FLYING_NATURE_ADD_NAMES`
+— was updated to the new names). Pigeon (Rock Dove)'s last animation relabelled `Death` → `Fly`.
+
+**Tag corrections (one-time snapshot, not persistent rules).** `NO_CRITTER_NAMES` strips the `critter` tag
+from an explicit union of Han's named list (Giant Fly, Bat, Mosquito, Giant Dragonfly, Brain Mole Monarch,
+Phoenixling, Cacodaemon, Green/Purple Portal, Eye Monster, Flying Brain Monster) and the `HOSTILE_NAMES`
+roster AS IT STOOD when this ran (Eye Monster added to `HOSTILE_NAMES` in the same pass) — deliberately a
+literal name list, not "if hostile then no critter" (Han: "geen 'regel' die later ook nog geldt"), so a
+future hostile addition does NOT automatically lose `critter`. New `night` tag (Plague Bat, Swooping Bat)
+feeds day/night spawn gating below. Firefly: `lightsource` tag (descriptive only, no consumer wired yet,
+same convention `facing` originally was) + yellow-green `swatchColor` (`#c6e02c`, `SWATCH_OVERRIDES`).
+
+**RPG-world entity syntax rename + habitat routing** (`RpgLevelPanel.jsx`): LDtk marker identifiers
+renamed to Han's new `X_criteria` convention — `X_bird_flying`, `X_critter_flying`, `X_critter_ground`,
+`X_on_water` (was `Bird`/`Critter_air`/`Critter_ground`/`Critter_water`). `HABITAT_CONFIG` maps each
+identifier to its own required-tags list: `X_bird_flying` → `['bird','flying']` (plus an extra runtime
+guard — `isFlyingAnim` checked against the picked variant's own animations — since a bird-tagged creature
+isn't guaranteed to actually have a fly-keyed/labelled animation); `X_critter_flying` → `['critter',
+'flying']` (any flying critter, not bird-restricted); `X_critter_ground` → `['critter','ground']`;
+`X_on_water` → `['critter','on_water']`.
+
+**Day/night/dusk-dawn spawn gating.** `randomTaggedVariant(requiredTags, timeOfDay)` reads the SAME
+`foliageParams.timeOfDay` debug toggle the lighting tint already uses (§141 round 27): `day` excludes
+`night`-tagged creatures, `night` requires the `night` tag, `dusk-dawn` has no restriction. `critterWanderers`
+now depends on `foliageParams.timeOfDay` (re-rolls spawns on toggle — a rare debug action, acceptable).
+
+**No-teleport wander/return + bezier arc** (`WorldWanderer`). Symptom: the old code snapped `dx`/`dy`
+straight to 0 the instant a flying/bird wanderer's duty-cycle flipped to "perched" — an instantaneous jump
+from wherever the sine-oscillation wander curve happened to be, back to the spawn point (Han: "ik zie nu
+A->B x C -> D; ik verwacht: A -> B -> C -> D"). Fixed with an explicit 3-state machine per wanderer —
+`wander` (unchanged sine-oscillation path) → `return` (entering this state captures the CURRENT position
+and eases it to the spawn point over `RETURN_DURATION_MS` = 1200ms along a QUADRATIC BEZIER, control point
+offset perpendicular to the straight start→spawn line so the path arcs instead of cutting a straight line —
+"dynamically built" per return since the start point is wherever wandering stopped) → `perch`. Continuous
+motion throughout; ground/water wanderers don't use this state machine (they have no perch phase).
+
+**Water-swim habitat** (`X_on_water`, `swim: true` in `HABITAT_CONFIG`). A separate, simpler ping-pong
+motion — horizontal-only (`spawnY` held fixed, "geen verticale drift"), constant `SWIM_SPEED = 4` game
+px/sec, bouncing between the two edges of `waterSpan`. `waterSpanNear(spawnX, spawnY, world)` derives that
+span from the world's own `animatedTilesBack`/`animatedTilesFront` (`kind === 'water'`), taking the
+contiguous run of water tiles at the spawn point's own row and insetting `WATER_EDGE_MARGIN = 16` px from
+each end — falls back to a small fixed span around the spawn point if no water tile is found there
+(defensive; should not happen for a correctly-placed marker).
+
+**Anchor center-center alignment.** Every `WorldWanderer` instance now applies `transform: translate(-50%,
+50%)` on its position wrapper (was `translateX(-50%)` only) — LDtk's own entity anchor is the marker's
+CENTER, but the wrapper's `bottom` CSS anchors the div's own BOTTOM edge there; the added `translateY(50%)`
+shifts the whole wrapper down by half its own height so its vertical center lands on the entity's Y.
+
+**Bestiary "face right" preview flip** (`BestiaryPanels.jsx`). Han: "laat alle wezens uit de bestiary naar
+rechts kijken, zodat ik meteen kan zien of ze correct georiënteerd zijn." `CreatureSprite` (the ONE
+canonical sprite renderer, §6d — also used by movement-direction-aware world placements) gained an opt-in
+`mirror` prop (default `false`, `scaleX(-1)` on the whole rendered box) — deliberately NOT baked into the
+renderer unconditionally, since `RpgLevelPanel`'s `WorldCreature` already computes its own facing flip from
+actual walk direction × the sprite's native orientation, and forcing "always right" there would fight that
+logic. Only `BestiaryPanels.jsx`'s own top-view preview and bottom-view thumbnail call sites pass
+`mirror={variant.facing !== 'right'}` — every other `CreatureSprite` consumer (persona preview, character
+doll, world placements) is unaffected. `entry.facing` itself (native orientation data, `bestiaryAssets.js`
+defaults it to `'left'`) is unchanged — this is purely a display-time mirror in the Bestiary tab, not a
+change to the underlying per-creature orientation data the RPG world still needs for correct walk-direction
+flipping.
+
+**Deliberately NOT done in this pass (needs Han's visual UAT — subjective path-shape/tuning feedback
+can't be verified from code alone):** the return-path bezier's exact "bow" amount/duration are a first
+reasonable pass, not iterated against the running app; the water-swim behaviour and day/night gating are
+implemented per spec but unverified in-browser. Flag any of these that don't look right and they'll be
+tuned in a follow-up round, same as every other multi-round bestiary ticket (§207 etc.).
+
+**Files:** `scripts/generate-bestiary-manifest.mjs` (Crab/water-birds entries, Pigeon/Pidgeon rename,
+`BIRD_NAMES`/`ON_WATER_NAMES`/`NIGHT_NAMES`/`NO_CRITTER_NAMES`, Firefly swatch), regenerated
+`src/model/bestiaryManifest.generated.js` + `src/model/assortedFileList.generated.js`,
+`src/components/character/RpgLevelPanel.jsx` (`HABITAT_CONFIG`, `randomTaggedVariant`, `waterSpanNear`,
+`WorldWanderer` state machine), `src/components/character/BestiaryPanels.jsx` (`CreatureSprite` `mirror`
+prop + its two call sites), `src/levels/ldtk/__tests__/ldtkWorld.test.js` (unrelated pre-existing fix, see
+§233 above), moved sprite files under `public/ASSORTED/characters/`.
+`src/audio/__tests__/localInstruments.test.js`, `src/hooks/__tests__/useLevel.test.js`.
+
+### §235. Seamless level-boundary tile stitching — autotile rule evaluation sees the real neighbor (#993/#1021, Han 2026-08-16)
+
+**Purpose:** §233 stitched level POSITIONS into one continuous, walkable strip (geometric placement,
+entity merging, camera bounds) but never touched terrain TEXTURE continuity. `autoLayerTilesForLevel`
+still evaluated each level's autotile rules against ONLY that level's own IntGrid CSV — a cell right at
+a level's left/right edge always saw `rule.outOfBoundsValue` (empty) for its off-grid pattern neighbors,
+even though a real, pixel-adjacent level's terrain sits right there. That produced a visible ground-
+pattern seam at every level boundary, distinct from (and left unfixed by) §233's positional stitching.
+
+**Interview decisions (Han 2026-08-16, split off epic #993 "level pass" per CLAUDE.md §9c — see #993's
+note log for the full split):**
+
+- Streaming/load-unload of neighboring levels is explicitly OUT of scope here — eager-loading all
+  reachable levels is not yet a proven perf problem, so it's deferred to a separate backlog ticket
+  (#1022, `f-f`-dependent on this one).
+- Boundary-aware tiles are computed ONCE, at `buildWorld()`/module-load time (same as every other
+  autotile evaluation already is) — no per-frame or per-level-crossing recomputation.
+- Scope is horizontal neighbors only (same `worldY`, as already defined by §233's `REACHABLE_LEVELS`).
+  Vertical/interior levels (doors, stairs) remain out of reach, unchanged from §233.
+
+**How it works:**
+
+1. `ldtkAutoTile.js`'s `cellValue`/`ruleMatches`/`evaluateRuleGroup` gained optional `left`/`right`
+   parameters (`{csv, width, height}` — the neighboring level's own Terrain IntGrid). When a pattern
+   lookup's `cx` falls outside the requesting grid (`cx < 0` or `cx >= w`), `cellValue` now reads the
+   neighbor's real edge column (`left`'s rightmost column / `right`'s leftmost column) instead of
+   returning `outOfBoundsValue`, PROVIDED the neighbor covers that `cy` row; otherwise (no neighbor, or
+   `cy` beyond a shorter neighbor's height) behavior is byte-for-byte identical to before this change.
+   Vertical out-of-range (`cy`) is untouched — horizontal-only, per the interview.
+2. `ldtkWorld.js` gained `findHorizontalNeighbor(lvl, direction)` — a generic lookup against the already
+   worldX-sorted `REACHABLE_LEVELS`: a level counts as a neighbor only if it is pixel-touching
+   (`neighbor.worldX + neighbor.pxWid === lvl.worldX` for 'left', symmetric for 'right'). No hardcoded
+   level identifiers (CLAUDE.md §6c) — a gap between two levels, or the outermost levels' open ends,
+   correctly resolve to "no neighbor" (old oob-fallback behavior, unchanged).
+3. `autoLayerTilesForLevel` resolves its level's left/right neighbor's `layers.Terrain` (via the
+   existing `LEVEL_LAYERS` list) once, and passes `{csv, width, height}` for each into every
+   `evaluateRuleGroup` call for that level — so every AutoLayer (Terrain_Tiles, Water_tile, Pavement,
+   grass decoration, …) gets seam-aware edges "for free" via the single shared call site.
+
+**Invariants:**
+
+- Reused the existing rule engine (`evaluateRuleGroup`/`ruleMatches`/`cellValue`) — no second autotile
+  implementation (CLAUDE.md §6d).
+- Neighbor adjacency is derived purely from `worldX`/`pxWid` arithmetic, never a level-id/name table
+  (CLAUDE.md §6c) — adding/removing/reordering levels in the LDtk editor needs no code change here,
+  consistent with §233's existing invariant for `REACHABLE_LEVELS`.
+- Non-adjacent levels (a gap, or a different `worldY`) never get cross-stitched — `findHorizontalNeighbor`
+  only matches exact pixel-touching boundaries.
+
+**Files:** `src/levels/ldtk/ldtkAutoTile.js` (`cellValue`, `ruleMatches`, `evaluateRuleGroup`),
+`src/levels/ldtk/ldtkWorld.js` (`findHorizontalNeighbor`, `autoLayerTilesForLevel`),
+`src/levels/ldtk/__tests__/ldtkAutoTile.test.js` (new `horizontal neighbor stitching` cases).

@@ -1,70 +1,104 @@
 // #RAM-level (Han 2026-08-10): builds the renderable tile list for the RPG hub scene from
 // `RAM level.ldtk`, gating season/city/building-tier per `buildWorld`'s params. Scenery-only — no
-// entities, no combat, no side-scroll-level concerns (see the interview notes in the plan this shipped
+// combat, no side-scroll-level concerns (see the interview notes in the plan this shipped
 // under). `RpgLevelPanel.jsx` is the only consumer.
 import ramLevelRaw from '../../assets/ASSORTED/LDtk/RAM level.ldtk?raw';
 import { evaluateRuleGroup } from './ldtkAutoTile';
 import { tilesetUrlFor } from './tilesetUrls';
 
 const ldtk = JSON.parse(ramLevelRaw);
-const LEVEL = ldtk.levels[0];
 const TILESETS_BY_UID = Object.fromEntries(ldtk.defs.tilesets.map((t) => [t.uid, t]));
 const LAYER_DEFS_BY_IDENTIFIER = Object.fromEntries(ldtk.defs.layers.map((l) => [l.identifier, l]));
-const LAYER_INSTANCES_BY_IDENTIFIER = Object.fromEntries(LEVEL.layerInstances.map((l) => [l.__identifier, l]));
 
-// #RAM-level (Han 2026-08-11, "ik zie dat alle 'lagen' áchter de entiteiten staan; houd goed de volgorde
-// van lagen aan"): LDtk's `layerInstances` array IS the paint order — index 0 is the FRONTMOST layer
-// (rendered last/on top), the last index is the FARTHEST BACK. This app previously rendered ALL scenery
-// behind the hero/pet/Wisp regardless of where each source layer actually sits relative to the `Entities`
-// layer in that order. `LAYER_INDEX`/`ENTITIES_INDEX` let every tile know whether its OWN source layer is
-// in front of or behind the Entities layer, so `RpgLevelPanel.jsx` can split rendering into two passes
-// (behind-entities, then entities, then in-front-of-entities) instead of one flat "scenery then hero".
-const LAYER_INDEX = Object.fromEntries(LEVEL.layerInstances.map((l, i) => [l.__identifier, i]));
+// #925 (Han 2026-08-14, "zorg dat ik naadloos kan doorlopen van levels op dezelfde verticale hoogte;
+// spawn altijd waar de hero entity staat; levels op andere hoogte zijn niet bereikbaar"): Han split
+// the single-level `.ldtk` file into several `Level_N` entries laid out in LDtk's "Free" world mode.
+// Levels sharing the SAME `worldY` sit side-by-side (walkable, contiguous on X); levels at a
+// DIFFERENT `worldY` are interiors/alt-biomes (currently Level_2, Level_5) with no door/stairs
+// mechanism yet to reach them, so they must stay out of this walkable world entirely.
+//
+// Which `worldY` counts as "the walkable one" is derived from wherever the Hero entity marker
+// actually is (currently Level_1) rather than hardcoded to a level identifier or worldY=0 — per
+// Han's own answer in the interview ("er komt nog meer" levels later), this must keep working
+// unchanged if levels are added/removed/reordered in the LDtk editor at that same height.
+function findHeroLevel() {
+    for (const lvl of ldtk.levels) {
+        const entities = lvl.layerInstances.find((li) => li.__identifier === 'Entities');
+        if (entities?.entityInstances.some((e) => e.__identifier === 'Hero')) return lvl;
+    }
+    return ldtk.levels[0];
+}
+const HERO_LEVEL = findHeroLevel();
+
+// Sorted left-to-right by worldX so every per-level loop below naturally emits tiles/entities in
+// paint/scan order — not load-bearing for correctness (every tile carries its own worldX), but keeps
+// debugging sane.
+const REACHABLE_LEVELS = ldtk.levels
+    .filter((lvl) => lvl.worldY === HERO_LEVEL.worldY)
+    .sort((a, b) => a.worldX - b.worldX);
+
+// One `{ __identifier -> layerInstance }` map per reachable level, built once — every per-layer helper
+// below looks a level's own instance of a given layer identifier up here instead of re-scanning
+// `layerInstances` per call.
+const LEVEL_LAYERS = REACHABLE_LEVELS.map((lvl) => ({
+    lvl, layers: Object.fromEntries(lvl.layerInstances.map((li) => [li.__identifier, li])),
+}));
+
+// #925 follow-up (Han 2026-08-16): finds the level that's PIXEL-ADJACENT to `lvl` on `direction`
+// ('left'/'right'), purely from worldX/pxWid arithmetic against the already-reachable, already-sorted
+// set — no hardcoded level identifiers (CLAUDE.md §6c). Returns undefined for the outermost levels
+// (nothing touches them) or if a gap exists between levels, matching AC3 (non-adjacent levels must
+// never get cross-stitched).
+function findHorizontalNeighbor(lvl, direction) {
+    if (direction === 'left') return REACHABLE_LEVELS.find((n) => n.worldX + n.pxWid === lvl.worldX);
+    return REACHABLE_LEVELS.find((n) => n.worldX === lvl.worldX + lvl.pxWid);
+}
+
+// #RAM-level (Han 2026-08-10, carried over from the single-level version): `RAM level.ldtk` uses
+// LDtk's "Free" world layout — each level sits at its own `worldX`/`worldY` within a shared world
+// grid, and the app adopts LDtk's OWN world coordinate space directly rather than inventing a
+// centered origin. `LEVEL_MIN_X`/`LEVEL_MAX_X` now span the WHOLE stitched strip of reachable levels
+// (leftmost level's `worldX` .. rightmost level's `worldX + pxWid`), not just one level, so every
+// consumer (camera clamp, spawn bounds, composited canvas width) automatically covers the full
+// walkable world without knowing how many levels make it up.
+export const LEVEL_MIN_X = Math.min(...REACHABLE_LEVELS.map((l) => l.worldX));
+export const LEVEL_MAX_X = Math.max(...REACHABLE_LEVELS.map((l) => l.worldX + l.pxWid));
+export const LEVEL_PX_WIDTH = LEVEL_MAX_X - LEVEL_MIN_X;
+// Reachable levels currently all share the same native height (272px); `Math.max` (not just the first
+// level's height) so a future level of a different height still produces a tall-enough composited
+// canvas instead of clipping — `tileFromLdtkEntry` below bottom-aligns each level's own tiles inside
+// that shared canvas height so the ground line still lines up regardless.
+export const LEVEL_PX_HEIGHT = Math.max(...REACHABLE_LEVELS.map((l) => l.pxHei));
+
+// #RAM-level (Han 2026-08-11, "ik zie dat alle 'lagen' áchter de entiteiten staan; houd goed de
+// volgorde van lagen aan"): LDtk's `layerInstances` array IS the paint order — index 0 is the
+// FRONTMOST layer (rendered last/on top), the last index is the FARTHEST BACK. Every level in one
+// `.ldtk` file shares the SAME layer definitions in the SAME order (verified: every `Level_N` lists
+// its `layerInstances` identifiers in an identical sequence), so this only needs computing once from
+// any one reachable level rather than per-level.
+const LAYER_INDEX = Object.fromEntries(REACHABLE_LEVELS[0].layerInstances.map((l, i) => [l.__identifier, i]));
 const ENTITIES_INDEX = LAYER_INDEX.Entities;
 // A lower array index = more toward the FRONT; undefined (identifier not found) defaults to "behind" —
 // the safe fallback if a referenced layer is ever removed from the file.
 const isInFrontOfEntities = (identifier) => (LAYER_INDEX[identifier] ?? Infinity) < ENTITIES_INDEX;
 
-// #RAM-level (Han 2026-08-11, "level heeft nu een maximum-breedte die niet overeenkomt met de level
-// breedte" + "entities spawnen te ver naar rechts"): `RAM level.ldtk` uses LDtk's "Free" world layout —
-// Level_0 itself sits at an arbitrary `worldX`/`worldY` within a shared world grid (currently
-// worldX=-1792, NOT 0), and this app previously ignored that entirely, inventing its OWN centered origin
-// (`-pxWid/2..+pxWid/2`) that silently RE-CENTERED on every edit to the level's width — so every time Han
-// resized the level in the LDtk editor, the app's spawn points/camera bounds drifted even though nothing
-// in the editor had actually moved. Fixed by adopting LDtk's OWN world coordinate space directly: tile
-// PIXELS stay LEVEL-LOCAL (`entry.px`, unshifted — that's what the composited canvas draws at, see
-// LdtkScenery.jsx) while the level's `worldX` is exposed here as `LEVEL_MIN_X` — the ONE offset
-// `RpgLevelPanel.jsx` applies when placing that whole canvas in the scene (`leftPxForFactor`). Entities
-// use LDtk's own precomputed `__worldX` field directly (`lvl.worldX + entity.px[0]`, already correct — no
-// re-derivation needed). This makes the app's world coordinates a 1:1 mirror of what Han sees in the LDtk
-// editor, stable across edits that don't move existing content.
-export const LEVEL_MIN_X = LEVEL.worldX;
-export const LEVEL_MAX_X = LEVEL.worldX + LEVEL.pxWid;
-// Native (unzoomed) level extent — every ground/background tile's `worldY` is measured downward from the
-// level's own top edge; a renderer bottom-anchoring the whole scene to the app's GROUND_ANCHOR line needs
-// this height to know where the level's bottom edge (the ground) falls.
-export const LEVEL_PX_WIDTH = LEVEL.pxWid;
-export const LEVEL_PX_HEIGHT = LEVEL.pxHei;
+// #925 (Han 2026-08-14): spawn/entity markers now come from ALL reachable levels' `Entities` layers
+// merged together — Level_0 only has a couple of flying critters, the populated cast (Hero, Wisp, Pet,
+// Slime, shops' NPCs) lives in Level_1, and Level_3/4 may grow their own over time. `__worldX`/
+// `__worldY` are LDtk's own precomputed ABSOLUTE world coordinates (already `lvl.worldX/worldY +
+// entity.px[...]`), so entities from different levels are directly comparable with no extra offset
+// math — unlike tiles (below), which are level-LOCAL pixels composited into one shared canvas.
+const ALL_ENTITY_INSTANCES = LEVEL_LAYERS.flatMap(({ layers }) => layers.Entities?.entityInstances ?? []);
 
-// #RAM-level (Han 2026-08-11, "spawn personage op entity hero (staat in het level)"): the `Entities`
-// layer's Wisp/Pet/Hero/Slime markers, TRUE world-X (LDtk's own `__worldX`, already `lvl.worldX +
-// entity.px[0]` — no re-derivation) — the app's hero/pet/wisp always stand on one fixed ground line (see
-// STAND_HEIGHT_PX below), so only X varies per entity. Falls back to `undefined` per-identifier if the
-// Entities layer or a given entity is ever removed from the file, so callers can defend with their own
-// fallback rather than this module crashing.
-const ENTITIES_LAYER = LAYER_INSTANCES_BY_IDENTIFIER.Entities;
-export const ENTITY_WORLD_X = Object.fromEntries(
-    (ENTITIES_LAYER?.entityInstances ?? []).map((e) => [e.__identifier, e.__worldX]),
-);
+// Single-instance markers (Hero/Pet/Wisp/Slime): `__identifier -> worldX`. Falls back to `undefined`
+// per-identifier if a marker is ever missing, so callers can defend with their own fallback rather
+// than this module crashing.
+export const ENTITY_WORLD_X = Object.fromEntries(ALL_ENTITY_INSTANCES.map((e) => [e.__identifier, e.__worldX]));
 
 // #924 (Han 2026-08-12, "ik heb entiteiten bird, duck, butterfly toegevoegd... spawn op die plekken"):
-// `ENTITY_WORLD_X` above only keeps ONE position per identifier (`Object.fromEntries` on a name that
-// repeats just overwrites, silently dropping every instance but the last) — fine for the single-instance
-// Hero/Pet/Wisp/Slime markers, but Bird/Duck/Butterfly are placed MULTIPLE times each (the file currently
-// has 3 Bird, 2 Duck, 4 Butterfly markers). `ENTITY_INSTANCES[identifier]` keeps ALL of them, with BOTH
-// world axes (`__worldY` too — these are the first entities that actually need vertical variation, e.g. a
-// bird's flight height; every previous entity always stands on the one fixed ground line, STAND_HEIGHT_PX).
-export const ENTITY_INSTANCES = (ENTITIES_LAYER?.entityInstances ?? []).reduce((acc, e) => {
+// multi-instance markers (Bird/Duck/Butterfly/Critter_*/NPC) keep EVERY placed instance, across every
+// reachable level, with both world axes (`__worldY` too — birds/critters vary in flight height).
+export const ENTITY_INSTANCES = ALL_ENTITY_INSTANCES.reduce((acc, e) => {
     (acc[e.__identifier] ??= []).push({ x: e.__worldX, y: e.__worldY });
     return acc;
 }, {});
@@ -80,18 +114,18 @@ function tilesetForLayerInstance(li) {
     return li.__tilesetDefUid != null ? TILESETS_BY_UID[li.__tilesetDefUid] : null;
 }
 
-// `worldX`/`worldY` here are LEVEL-LOCAL px (LdtkScenery draws directly at these coordinates into a
-// canvas backing store sized to the level's own extent) — NOT the app's world-coordinate space. The
-// level's own `LEVEL_MIN_X` (= `lvl.worldX`) is the single offset that maps local -> world, applied once
-// when the whole canvas is positioned, not per tile.
-//
-// `entry.f` is LDtk's own per-tile flip bitmask (bit0 = flipX, bit1 = flipY) — e.g. `Pine_forest_trunks`
-// alternates flipped/unflipped trunks for variety (verified in the raw file: `f` values 0/1/2/3 all
-// present on its hand-placed `gridTiles`). Only read here for STATIC entries (this app's own rule-engine
-// output never sets `f` — none of the live-evaluated rules use LDtk's rule-level flipX/flipY, checked).
-function tileFromLdtkEntry(entry, tileset, identifier) {
+// #925 (Han 2026-08-14): tiles are level-LOCAL px in the source file (`entry.px`), but multiple
+// reachable levels now share ONE composited canvas (`LdtkScenery.jsx`), so each level's tiles need
+// shifting into that shared canvas's own local space: `offsetX` slides the level to its position
+// within the stitched strip (leftmost reachable level lands at x=0 of the canvas, matching
+// `LEVEL_MIN_X` being the one offset `RpgLevelPanel.jsx` applies when placing the whole canvas in the
+// scene); `offsetY` bottom-aligns a level against the shared canvas height (`LEVEL_PX_HEIGHT`) so the
+// ground line still lines up even if a future reachable level has a different native height.
+function tileFromLdtkEntry(entry, tileset, identifier, lvl) {
+    const offsetX = lvl.worldX - LEVEL_MIN_X;
+    const offsetY = LEVEL_PX_HEIGHT - lvl.pxHei;
     return {
-        worldX: entry.px[0], worldY: entry.px[1], src: entry.src, tilesetUrl: tilesetUrlFor(tileset),
+        worldX: entry.px[0] + offsetX, worldY: entry.px[1] + offsetY, src: entry.src, tilesetUrl: tilesetUrlFor(tileset),
         sheetW: tileset.pxWid, sheetH: tileset.pxHei,
         flipX: !!(entry.f & 1), flipY: !!(entry.f & 2),
         inFront: isInFrontOfEntities(identifier),
@@ -100,28 +134,34 @@ function tileFromLdtkEntry(entry, tileset, identifier) {
 
 // A plain hand-placed `Tiles` layer, or an `AutoLayer` rendered from its OWN pre-baked `autoLayerTiles`
 // (used for layers this app never needs to re-evaluate live — everything except the season/city-gated
-// ones below, which go through `autoLayerTilesFor` instead).
+// ones below, which go through `autoLayerTilesFor` instead). Merges the same-identifier layer instance
+// across EVERY reachable level (each level authors its own copy of e.g. `Decor` or `Bg_pine`).
 function staticLayerTiles(identifier) {
-    const li = LAYER_INSTANCES_BY_IDENTIFIER[identifier];
-    if (!li) return [];
-    const tileset = tilesetForLayerInstance(li);
-    if (!tileset) return [];
-    const entries = li.__type === 'Tiles' ? li.gridTiles : li.autoLayerTiles;
-    return entries.map((e) => tileFromLdtkEntry(e, tileset, identifier)).filter((t) => t.tilesetUrl);
+    const out = [];
+    for (const { lvl, layers } of LEVEL_LAYERS) {
+        const li = layers[identifier];
+        const tileset = li && tilesetForLayerInstance(li);
+        if (!tileset) continue;
+        const entries = li.__type === 'Tiles' ? li.gridTiles : li.autoLayerTiles;
+        for (const e of entries) {
+            const t = tileFromLdtkEntry(e, tileset, identifier, lvl);
+            if (t.tilesetUrl) out.push(t);
+        }
+    }
+    return out;
 }
 
 // #RAM-level (Han 2026-08-11, "reken je zelf de probabiliteit uit, of geeft LDtk een voorberekende
-// positionering? ik heb het liefst dat je LDtk volgt"): reads the layer's OWN pre-baked `autoLayerTiles`/
-// `gridTiles` (LDtk's real, already-resolved chance/RNG outcome — exact fidelity, no re-derivation), kept
-// to only the tiles whose `t` (tileId) belongs to one of the named rule GROUPS (derived from the rule
-// defs' own `tileRectsIds`, not hardcoded literals). This only works for whichever season/variant was
-// actually active when the file was last saved in the LDtk editor — verified empirically: Fall's tileIds
-// never appear in this file's current baked pool at all (only Summer was baked), so this returns an EMPTY
-// array for un-baked variants and the caller falls back to the live rule engine for those.
-function preBakedTilesFilteredByGroup(identifier, groupNames) {
-    const li = LAYER_INSTANCES_BY_IDENTIFIER[identifier];
+// positionering? ik heb het liefst dat je LDtk volgt"): reads ONE level's OWN pre-baked
+// `autoLayerTiles`/`gridTiles` (LDtk's real, already-resolved chance/RNG outcome), kept to only the
+// tiles whose `t` (tileId) belongs to one of the named rule GROUPS (derived from the rule defs' own
+// `tileRectsIds`, not hardcoded literals). Only works for whichever season/variant was actually active
+// in THAT level when it was last saved in the LDtk editor — `grassTilesForLevel` below falls back to
+// the live rule engine per-level when a level's own bake is empty, so one level being un-baked doesn't
+// silently blank out the others.
+function preBakedTilesForLevel(lvl, li, identifier, groupNames) {
     const layerDef = LAYER_DEFS_BY_IDENTIFIER[identifier];
-    const tileset = tilesetForLayerInstance(li);
+    const tileset = li && tilesetForLayerInstance(li);
     if (!li || !layerDef || !tileset) return [];
     const allowedIds = new Set();
     for (const groupName of groupNames) {
@@ -130,19 +170,28 @@ function preBakedTilesFilteredByGroup(identifier, groupNames) {
         }
     }
     const entries = li.__type === 'Tiles' ? li.gridTiles : li.autoLayerTiles;
-    return entries.filter((e) => allowedIds.has(e.t)).map((e) => tileFromLdtkEntry(e, tileset, identifier)).filter((t) => t.tilesetUrl);
+    return entries.filter((e) => allowedIds.has(e.t)).map((e) => tileFromLdtkEntry(e, tileset, identifier, lvl)).filter((t) => t.tilesetUrl);
 }
 
-// Re-evaluates an AutoLayer's rule GROUPS live against the Terrain IntGrid (rather than trusting the
-// file's own pre-baked `autoLayerTiles`, which reflects whatever groups happened to be enabled when the
-// file was last saved) — this is what makes the season/city debug toggles actually work.
-function autoLayerTilesFor(identifier, ruleGroupNames) {
-    const li = LAYER_INSTANCES_BY_IDENTIFIER[identifier];
+// Re-evaluates ONE level's AutoLayer rule GROUPS live against that level's OWN Terrain IntGrid (rather
+// than trusting the file's pre-baked `autoLayerTiles`) — this is what makes the season/city debug
+// toggles actually work, and what covers a level whose bake doesn't match the requested groups.
+function autoLayerTilesForLevel(lvl, layers, identifier, ruleGroupNames) {
+    const li = layers[identifier];
     const layerDef = LAYER_DEFS_BY_IDENTIFIER[identifier];
-    const tileset = tilesetForLayerInstance(li);
+    const tileset = li && tilesetForLayerInstance(li);
     if (!li || !layerDef || !tileset) return [];
-    const terrain = LAYER_INSTANCES_BY_IDENTIFIER.Terrain;
+    const terrain = layers.Terrain;
     const engineTileset = { cWid: tileset.__cWid, tileGridSize: tileset.tileGridSize, padding: tileset.padding, spacing: tileset.spacing };
+    // #925 follow-up (Han 2026-08-16): the neighbor's Terrain IntGrid, resolved once per level here
+    // (not per-frame/per-crossing — computed alongside everything else buildWorld() already does at
+    // module load) so edge-cell rule evaluation sees the real adjacent terrain instead of `outOfBoundsValue`.
+    const leftLvl = findHorizontalNeighbor(lvl, 'left');
+    const rightLvl = findHorizontalNeighbor(lvl, 'right');
+    const leftTerrain = leftLvl && LEVEL_LAYERS.find((e) => e.lvl === leftLvl)?.layers.Terrain;
+    const rightTerrain = rightLvl && LEVEL_LAYERS.find((e) => e.lvl === rightLvl)?.layers.Terrain;
+    const left = leftTerrain && { csv: leftTerrain.intGridCsv, width: leftTerrain.__cWid, height: leftTerrain.__cHei };
+    const right = rightTerrain && { csv: rightTerrain.intGridCsv, width: rightTerrain.__cWid, height: rightTerrain.__cHei };
     const out = [];
     for (const groupName of ruleGroupNames) {
         // #RAM-level (Han 2026-08-11, "ik mis ook grass decoration bg en fg"): `Grass_decoration_bg`'s
@@ -153,14 +202,22 @@ function autoLayerTilesFor(identifier, ruleGroupNames) {
         for (const group of groups) {
             const tiles = evaluateRuleGroup(group, {
                 csv: terrain.intGridCsv, width: terrain.__cWid, height: terrain.__cHei,
-                gridSize: terrain.__gridSize, tileset: engineTileset,
+                gridSize: terrain.__gridSize, tileset: engineTileset, left, right,
             });
             for (const t of tiles) {
-                const converted = tileFromLdtkEntry(t, tileset, identifier);
+                const converted = tileFromLdtkEntry(t, tileset, identifier, lvl);
                 if (converted.tilesetUrl) out.push(converted);
             }
         }
     }
+    return out;
+}
+
+// Multi-level wrapper around `autoLayerTilesForLevel` — used directly for groups that are never
+// pre-baked-preferred (Terrain_Tiles, Pavement).
+function autoLayerTilesFor(identifier, ruleGroupNames) {
+    const out = [];
+    for (const { lvl, layers } of LEVEL_LAYERS) out.push(...autoLayerTilesForLevel(lvl, layers, identifier, ruleGroupNames));
     return out;
 }
 
@@ -185,10 +242,11 @@ const FOLIAGE_LAYERS = ['Pine_forest_foliage2', 'Weeping_Willow', 'Main_tree_fol
 // rule (Han's own spec: campfire cycles all "on" rows from a random start frame, or shows the single
 // "off" cell statically; water always cycles its own row).
 //
-// Water reads the layer's own PRE-BAKED `autoLayerTiles` (`staticLayerTiles`, not the live rule engine):
-// its one rule group isn't season/city-gated at all, so there's nothing to re-evaluate live, and using
-// LDtk's own already-correct output sidesteps this app's own stamp-reconstruction logic entirely for a
-// case that turned out to need it least (LDtk's editor already solved it once, use that answer directly).
+// Water reads each level's own PRE-BAKED `autoLayerTiles` (`staticLayerTiles`, not the live rule
+// engine): its one rule group isn't season/city-gated at all, so there's nothing to re-evaluate live,
+// and using LDtk's own already-correct output sidesteps this app's own stamp-reconstruction logic
+// entirely for a case that turned out to need it least (LDtk's editor already solved it once, use that
+// answer directly).
 const ANIMATED_LAYERS = { water: 'Water_tile', campfire: 'Campfire' };
 
 // Everything else with authored art: one tier, always shown, never toggled. Includes whatever plain decor
@@ -234,13 +292,18 @@ function withAnimMeta(tile) {
     };
 }
 
-// Prefers LDtk's own pre-baked, group-filtered tiles (exact fidelity — real chance/RNG outcome, real
-// pivot-adjusted `px`, no re-derivation risk); falls back to the live rule engine only when the requested
-// groups were never baked at all (e.g. a season the file wasn't saved showing) — see
-// `preBakedTilesFilteredByGroup`'s own comment.
+// Prefers each level's own pre-baked, group-filtered tiles (exact fidelity — real chance/RNG outcome,
+// real pivot-adjusted `px`, no re-derivation risk); falls back to the live rule engine PER LEVEL only
+// for a level whose bake didn't include the requested groups at all (e.g. a season that level wasn't
+// saved showing) — done per-level (not once for the whole merged result) so one un-baked level doesn't
+// blank out the others' correctly-baked tiles.
 function grassTilesFor(identifier, groupNames) {
-    const preBaked = preBakedTilesFilteredByGroup(identifier, groupNames);
-    return preBaked.length > 0 ? preBaked : autoLayerTilesFor(identifier, groupNames);
+    const out = [];
+    for (const { lvl, layers } of LEVEL_LAYERS) {
+        const preBaked = preBakedTilesForLevel(lvl, layers[identifier], identifier, groupNames);
+        out.push(...(preBaked.length > 0 ? preBaked : autoLayerTilesForLevel(lvl, layers, identifier, groupNames)));
+    }
+    return out;
 }
 
 const splitByFront = (tiles) => ({ back: tiles.filter((t) => !t.inFront), front: tiles.filter((t) => t.inFront) });
@@ -250,7 +313,8 @@ const splitByFront = (tiles) => ({ back: tiles.filter((t) => !t.inFront), front:
 // LDtk's paint order — see `isInFrontOfEntities`) so `RpgLevelPanel.jsx` can render behind-entities
 // scenery, THEN the hero/pet/Wisp/Slime, THEN in-front-of-entities scenery (Grass_decoration_fg's edge
 // decoration, Blacksmith/Alchemist buildings, interior walls — all genuinely in front of the Entities
-// layer in the source file).
+// layer in the source file). Tiles are drawn from EVERY reachable level (`REACHABLE_LEVELS`), stitched
+// into one continuous strip — see the `#925` comments above for how levels are chosen and offset.
 export function buildWorld({ season = 'Summer', city = 'No_City', tavernTier = 'Tent', bridgeTier = 'Log' } = {}) {
     const seasonGroup = season === 'Fall' ? 'Grass_Fall' : 'Grass_Summer';
     const terrainGroup = season === 'Fall' ? 'Terrain_Fall' : 'Terrain_Summer';
@@ -285,6 +349,6 @@ export function buildWorld({ season = 'Summer', city = 'No_City', tavernTier = '
         groundTilesBack: ground.back, groundTilesFront: ground.front,
         foliageTilesBack: foliage.back, foliageTilesFront: foliage.front,
         animatedTilesBack: animated.back, animatedTilesFront: animated.front,
-        backgroundLayers, gridSize: LAYER_INSTANCES_BY_IDENTIFIER.Terrain.__gridSize,
+        backgroundLayers, gridSize: LEVEL_LAYERS[0].layers.Terrain.__gridSize,
     };
 }

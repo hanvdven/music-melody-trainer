@@ -73,6 +73,44 @@ describe('evaluateRuleGroup', () => {
         expect(evaluateRuleGroup(null, { csv, width: 3, height: 3, gridSize: 16, tileset: TILESET })).toEqual([]);
     });
 
+    // #925 follow-up (Han 2026-08-16): edge cells must see a pixel-adjacent level's REAL terrain
+    // instead of always falling back to outOfBoundsValue — that fallback is exactly the visible seam
+    // at level boundaries this feature fixes.
+    describe('horizontal neighbor stitching', () => {
+        // center must be Ground(1), right neighbor must be Water(2) — only satisfiable by looking
+        // past this grid's own right edge (cx=0, width=1) into a right neighbor.
+        const rule = { uid: 40, size: 3, pattern: [0, 0, 0, 0, 1, 2, 0, 0, 0], tileRectsIds: [[0]] };
+
+        it('reads a right-neighbor grid at the requesting grid\'s right edge instead of using oob', () => {
+            const right = { csv: [2], width: 1, height: 1 };
+            const tiles = evaluateRuleGroup({ rules: [rule] }, { csv: [1], width: 1, height: 1, gridSize: 16, tileset: TILESET, right });
+            expect(tiles.length).toBe(1);
+        });
+
+        it('falls back to outOfBoundsValue when no right neighbor is supplied (regression guard)', () => {
+            const tiles = evaluateRuleGroup({ rules: [rule] }, { csv: [1], width: 1, height: 1, gridSize: 16, tileset: TILESET });
+            expect(tiles.length).toBe(0);
+        });
+
+        it('reads a left-neighbor grid at the requesting grid\'s left edge instead of using oob', () => {
+            const leftRule = { uid: 41, size: 3, pattern: [0, 0, 0, 2, 1, 0, 0, 0, 0], tileRectsIds: [[0]] };
+            const left = { csv: [2], width: 1, height: 1 };
+            const tiles = evaluateRuleGroup({ rules: [leftRule] }, { csv: [1], width: 1, height: 1, gridSize: 16, tileset: TILESET, left });
+            expect(tiles.length).toBe(1);
+        });
+
+        it('falls back to outOfBoundsValue for rows beyond a shorter neighbor\'s height', () => {
+            // Requesting grid is 1 wide x 2 tall; the right neighbor is only 1 row tall, so row cy=1
+            // has no real neighbor data and must behave exactly like the no-neighbor case (oob).
+            const right = { csv: [2], width: 1, height: 1 };
+            const csv1x2 = [1, 1];
+            const tiles = evaluateRuleGroup({ rules: [rule] }, { csv: csv1x2, width: 1, height: 2, gridSize: 16, tileset: TILESET, right });
+            // row 0 matches (real neighbor data = Water), row 1 doesn't (neighbor row out of range -> oob, not Water)
+            expect(tiles.length).toBe(1);
+            expect(tiles[0].px).toEqual([0, 0]);
+        });
+    });
+
     // Reproduces RAM level.ldtk's real Water_tile rule (tileMode "Stamp", tileRectsIds: [[80,120,81,121]]
     // on a 40-column tileset — a real 2x2 water block) to guard against the bug where every tile in a
     // stamp was placed at the SAME single cell instead of spread across its own 2x2 footprint.

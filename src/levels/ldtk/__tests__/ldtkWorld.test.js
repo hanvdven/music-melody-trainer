@@ -91,10 +91,14 @@ describe('buildWorld', () => {
     // #RAM-level (Han 2026-08-11, "houd goed de volgorde van lagen aan; dus plaats ook entities op de
     // z-map die bij de entities hoort"): every tile is tagged with whether its OWN source layer sits in
     // front of or behind the Entities layer in the .ldtk file's paint order.
+    // #925/#989 (Han 2026-08-14, confirmed "de volgorde in LDTK is correct" after the multi-level split):
+    // the current .ldtk file's own layer order puts every ground-tile-emitting layer BEHIND Entities —
+    // `groundTilesFront` is legitimately empty now (only `Grass_decoration_fg`, a FOLIAGE layer, sits in
+    // front). Only assert the invariant that actually still holds: every emitted tile's `inFront` flag
+    // matches the bucket it landed in.
     it('splits every tile bucket into back/front of the Entities layer', () => {
         const world = buildWorld();
         expect(world.groundTilesBack.length).toBeGreaterThan(0);
-        expect(world.groundTilesFront.length).toBeGreaterThan(0);
         for (const t of world.groundTilesBack) expect(t.inFront).toBe(false);
         for (const t of world.groundTilesFront) expect(t.inFront).toBe(true);
     });
