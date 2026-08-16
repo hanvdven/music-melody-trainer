@@ -87,8 +87,20 @@ void main() {
     float groundDist = uLevelPxHeight - localY;
 
     if (uDebugChannel == 2) {
-        vec3 glowOnly = applyPointLights(diffuse.rgb, vec3(0.0), n, worldX, groundDist, edgeFactor);
-        gl_FragColor = vec4(glowOnly, 1.0);
+        // #925 diagnostic (Han: "ik zie geen gloed" on the back-of-entities layer only): raw falloff
+        // visualization instead of the final blended glow, to pinpoint WHICH term is zero — red = X-axis
+        // closeness to the nearest active light, green = Y-axis (height) closeness, blue = worldX/2000
+        // (a coarse position sanity check — should visibly shift as the camera pans if worldX is sane).
+        float dbgFalloffX = 0.0;
+        float dbgFalloffY = 0.0;
+        for (int i = 0; i < MAX_LIGHTS; i++) {
+            if (i >= uLightCount) break;
+            float fx = clamp(1.0 - abs(worldX - uLightWorldX[i]) / uLightRadius, 0.0, 1.0);
+            float fy = clamp(1.0 - abs(groundDist - uLightWorldHeight[i]) / uLightHeightRadius, 0.0, 1.0);
+            dbgFalloffX = max(dbgFalloffX, fx);
+            dbgFalloffY = max(dbgFalloffY, fy);
+        }
+        gl_FragColor = vec4(dbgFalloffX, dbgFalloffY, worldX / 2000.0, 1.0);
         return;
     }
 
