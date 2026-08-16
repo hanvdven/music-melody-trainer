@@ -40,6 +40,13 @@ uniform highp float uCanvasBottomScreenY;
 uniform float uZoom;
 uniform float uLevelPxWidth;
 uniform float uLevelPxHeight;
+// #925 follow-up (Han 2026-08-16, "achtergrond [back-of-entities: gebouwen/decor] toont geen licht,
+// voorgrond wel"): debug view mirroring ForegroundFoliageLayer's own uDebugChannel, so the SAME cycling
+// button/label in the debug panel works here too — 0 final lit, 1 raw normal map (confirms Sobel
+// generation succeeded), 2 light contribution ONLY on a black base (confirms applyPointLights produces
+// anything at all for this bucket), 3 disabled (shows the flat LdtkScenery fallback underneath, for
+// comparison).
+uniform int uDebugChannel;
 
 ${LIGHT_UNIFORMS_GLSL}
 ${LIGHTING_PARAM_UNIFORMS_GLSL}
@@ -55,9 +62,16 @@ void main() {
     float localY = (screenPx.y - uCanvasBottomScreenY) / uZoom + uLevelPxHeight;
     if (localX < 0.0 || localX >= uLevelPxWidth || localY < 0.0 || localY >= uLevelPxHeight) discard;
 
+    if (uDebugChannel == 3) discard;
+
     vec2 uv = vec2(localX / uLevelPxWidth, localY / uLevelPxHeight);
     vec4 diffuse = texture2D(uDiffuse, uv);
     if (diffuse.a < 0.01) discard;
+
+    if (uDebugChannel == 1) {
+        gl_FragColor = vec4(texture2D(uNormal, uv).rgb, 1.0);
+        return;
+    }
 
     vec3 sampledNormal = normalize(texture2D(uNormal, uv).rgb * 2.0 - 1.0);
     vec3 n = normalize(mix(FLAT_NORMAL, sampledNormal, uNormalStrength));
@@ -71,6 +85,12 @@ void main() {
     // shimmer lighting rather than introducing a second coordinate convention.
     float worldX = localX;
     float groundDist = uLevelPxHeight - localY;
+
+    if (uDebugChannel == 2) {
+        vec3 glowOnly = applyPointLights(diffuse.rgb, vec3(0.0), n, worldX, groundDist, edgeFactor);
+        gl_FragColor = vec4(glowOnly, 1.0);
+        return;
+    }
 
     vec3 trueColor = diffuse.rgb;
     vec3 ambientTint = mix(AMBIENT_DARK_COLOR, vec3(1.0), uGlobalIllumination);
@@ -125,14 +145,14 @@ function createTextureFromCanvas(gl, canvas) {
 // entities (full lighting).
 export default function LdtkLitGround({
     widthPx, heightPx, textures, levelPxWidth, levelPxHeight, leftPx, canvasBottomScreenY, zoom,
-    lights = [], params, edgeLitOnly,
+    lights = [], params, edgeLitOnly, debugChannel = 0,
 }) {
     const canvasRef = useRef(null);
     const textureIds = useRef({ diffuse: null, normal: null });
     const glRef = useRef(null);
     const uniformsRef = useRef(null);
     const liveRef = useRef({});
-    liveRef.current = { leftPx, canvasBottomScreenY, zoom, levelPxWidth, levelPxHeight, lights, params, edgeLitOnly };
+    liveRef.current = { leftPx, canvasBottomScreenY, zoom, levelPxWidth, levelPxHeight, lights, params, edgeLitOnly, debugChannel };
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -194,6 +214,7 @@ export default function LdtkLitGround({
             uNormalStrength: gl.getUniformLocation(program, 'uNormalStrength'),
             uFlatIllumination: gl.getUniformLocation(program, 'uFlatIllumination'),
             uEdgeLitOnly: gl.getUniformLocation(program, 'uEdgeLitOnly'),
+            uDebugChannel: gl.getUniformLocation(program, 'uDebugChannel'),
         };
         glRef.current = gl;
 
@@ -219,7 +240,7 @@ export default function LdtkLitGround({
             gl.clear(gl.COLOR_BUFFER_BIT);
             const ids = textureIds.current;
             if (!ids.diffuse || !ids.normal) return;
-            const { leftPx: lp, canvasBottomScreenY: cb, zoom: z, levelPxWidth: lw, levelPxHeight: lh, lights: ls, params: p, edgeLitOnly: elo } = liveRef.current;
+            const { leftPx: lp, canvasBottomScreenY: cb, zoom: z, levelPxWidth: lw, levelPxHeight: lh, lights: ls, params: p, edgeLitOnly: elo, debugChannel: dc } = liveRef.current;
             if (!p || !lw || !lh) return;
             const u = uniformsRef.current;
 
@@ -231,6 +252,7 @@ export default function LdtkLitGround({
             gl.uniform1f(u.uLevelPxWidth, lw);
             gl.uniform1f(u.uLevelPxHeight, lh);
             gl.uniform1i(u.uEdgeLitOnly, elo ? 1 : 0);
+            gl.uniform1i(u.uDebugChannel, dc);
 
             const activeLights = ls.slice(0, MAX_LIGHTS);
             activeLights.forEach((light, i) => {

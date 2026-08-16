@@ -1008,7 +1008,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                         { worldX: NPC_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
                         { worldX: playerX, worldHeight: 32, color: HERO_LIGHT_COLOR01 },
                     ]}
-                    params={foliageParams} edgeLitOnly={false}
+                    params={foliageParams} edgeLitOnly={false} debugChannel={foliageDebugChannel}
                 />
             )}
             {sceneryMode === 'LDtk' && (
@@ -1234,7 +1234,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                         { worldX: NPC_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
                         { worldX: playerX, worldHeight: 32, color: HERO_LIGHT_COLOR01 },
                     ]}
-                    params={foliageParams} edgeLitOnly={true}
+                    params={foliageParams} edgeLitOnly={true} debugChannel={foliageDebugChannel}
                 />
             )}
             {sceneryMode === 'LDtk' && (
