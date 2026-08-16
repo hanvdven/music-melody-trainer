@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import logger from '../../utils/logger';
+import { LIGHT_UNIFORMS_GLSL, LIGHTING_PARAM_UNIFORMS_GLSL, LIGHTING_FUNCTIONS_GLSL, MAX_LIGHTS } from './foliageLightingGLSL';
 
 // #141 (Han 2026-08-05, Factorio-style tree/grass wind-shimmer, stage 1): the app's FIRST WebGL surface —
 // everything else in RpgLevelPanel is plain DOM/CSS. This exists because stage 1 needs a genuine per-pixel
@@ -113,18 +114,17 @@ uniform float uSkewAmount;   // max whole-native-px horizontal shift at the inst
 // canopy + grass tufts only) since Han chose to apply it everywhere skew already applies.
 uniform float uStretchAmount; // max whole-native-px pull-toward-center at the instance's own left/right
                               // edge; 0 at the horizontal center, grows linearly outward
-uniform int uEdgeLitOnly;    // 1 = point lights only tint the outer few px of THIS instance; 0 = full-area
+// #925 follow-up (Han 2026-08-16): uEdgeLitOnly moved into the shared LIGHTING_PARAM_UNIFORMS_GLSL block
+// below (foliageLightingGLSL.js) — same declaration, now shared with LdtkLitGround.jsx's static shader.
 
 // #141 round 13 (Han: "ja graag [directional lighting]. ik ga hooguit 10 lichtbronnen in beeld hebben"):
 // generalized from 2 hardcoded named lights (wisp/hero) to a fixed-size array of up to MAX_LIGHTS — the
 // wisp and hero are just the first two entries RpgLevelPanel.jsx currently populates. uLightWorldHeight
 // is each light's own height ABOVE THE GROUND (0 for a ground-standing character) in the SAME groundDist
 // units the wave/lighting math already uses elsewhere — not a screen position.
-const int MAX_LIGHTS = 10;
-uniform int uLightCount;
-uniform float uLightWorldX[MAX_LIGHTS];
-uniform float uLightWorldHeight[MAX_LIGHTS];
-uniform vec3 uLightColor[MAX_LIGHTS];
+// #925 follow-up: this uniform block now lives in foliageLightingGLSL.js's LIGHT_UNIFORMS_GLSL, shared
+// verbatim with LdtkLitGround.jsx (CLAUDE.md §6d) — interpolated in below.
+${LIGHT_UNIFORMS_GLSL}
 
 // #141 round 11 (Han, NL: "Zet alle params die je gebruikt in de debug" — "put all the params you use in
 // the debug"): every dial Han has actually asked to tune is now a uniform, driven live from a debug panel
@@ -141,34 +141,15 @@ uniform float uWaveSpeedB;        // wave B speed
 uniform float uWaveSteps;
 uniform float uDitherAmount;
 uniform float uHighlightStrength; // wind-wave highlight strength
-uniform float uLightRadius;
-uniform float uLightHeightRadius;
-uniform float uLightStrength;
-uniform float uHuePull;           // blend mode 1's hue-pull amount, AND (round 11) how strongly a point
-                                    // light tints the color it reveals back out of the dark (see below)
 uniform int uWaveBlendMode;       // 0 Screen, 1 HSV Value/Hue boost, 2 Additive RGB, 3 plain Mix
 uniform int uWaveBlendMode2;      // round 12: averaged 50/50 with uWaveBlendMode's result
-uniform int uLightBlendMode;      // same 4 options, chosen independently for the wisp/hero lights
-uniform int uLightBlendMode2;     // round 15 (Han: "light: maak een secundaire blend mode"): averaged
-                                    // 50/50 with uLightBlendMode, mirroring round 12's wave dual-blend
-// #141 round 11 (Han, NL: "voeg nog een param toe: global illumination. Ik wil het donker kunnen maken; ga
-// niet naar helemaal zwart, maar naar donkerblauw" — "add a param: global illumination, able to go dark but
-// toward dark BLUE, never pure black" + "Welke blend moet ik gebruiken zodat een lichtbron dan de
-// oorspronkelijke kleur terug weergeeft (met een beetje geel erdoor)? ... de boom wordt niet wit-geel, maar
-// ik zie ook nog het groen van het blad" — "what blend reveals the ORIGINAL color again near a light source,
-// with a little of the light's color through it — the tree shouldn't go white-yellow, I should still see
-// the leaf's green"): 0 = fully dark (AMBIENT_DARK_COLOR), 1 = full daylight (true color, untouched).
-uniform float uGlobalIllumination;
-// #141 round 19 (Han, NL: "maak ook een slider voor normal map strength voor illumination"): 1.0 = full
-// sampled-normal relief (current look), 0.0 = fully flat "from above" (FLAT_NORMAL) — see main()'s own
-// comment for how this combines with the floor's hard-pinned flat normal and applyPointLight's separate,
-// near-light-only NORMAL_FLATTEN_NEAR_LIGHT.
-uniform float uNormalStrength;
-// #141 round 26 (Han: "voeg een slider toe die naast normal map illumination nog 'flat illumination' doet;
-// radial vanaf de lichtbron... moet worden opgeteld bij de normal map ilum"): 0 (default) = no change from
-// before; >0 adds a purely distance-based (no ndotl gating) glow from each light, summed with the existing
-// directional term — see applyPointLight's own comment.
-uniform float uFlatIllumination;
+// #925 follow-up (Han 2026-08-16): uLightRadius/uLightHeightRadius/uLightStrength/uHuePull/
+// uLightBlendMode(2)/uGlobalIllumination/uNormalStrength/uFlatIllumination/uEdgeLitOnly all moved into
+// the shared LIGHTING_PARAM_UNIFORMS_GLSL block (foliageLightingGLSL.js) — same declarations, now shared
+// verbatim with LdtkLitGround.jsx's static lighting shader (CLAUDE.md §6d). See that file for each dial's
+// own history/reasoning (global illumination toward dark blue, normal-map-strength slider, flat
+// illumination, etc.) — unchanged here, just relocated.
+${LIGHTING_PARAM_UNIFORMS_GLSL}
 // #925 follow-up (Han 2026-08-16, "de 100% witte pixels mogen een witte 'kop'/glans geven op het water"):
 // fully-bright diffuse pixels (water-crest art, or any other near-white source pixel) get pulled further
 // toward pure white, on top of the existing wave highlight — global params like every other shimmer dial
@@ -179,8 +160,9 @@ uniform float uWhiteCapStrength;    // 0 = no effect, 1 = fully pulled to pure w
 
 const float GRAIN_CELL = 1.0;     // native-px grain size — not yet exposed to the debug panel
 const vec3 HIGHLIGHT_COLOR = vec3(1.0, 1.0, 0.95);
-const vec3 AMBIENT_DARK_COLOR = vec3(0.05, 0.08, 0.18);
-const float EDGE_LIGHT_PIXELS = 3.0;
+// #925 follow-up (Han 2026-08-16): AMBIENT_DARK_COLOR and EDGE_LIGHT_PIXELS (changed 3.0 -> 2.0 per
+// Han's explicit choice to share one value across every edge-lit consumer) now live in the shared
+// LIGHTING_FUNCTIONS_GLSL block below (foliageLightingGLSL.js), alongside every other lighting function.
 
 float hash21(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -262,52 +244,13 @@ float quantizeWave(float wave01, float worldX, float groundDist) {
     return floor(waveDithered * uWaveSteps) / max(uWaveSteps - 1.0, 1.0);
 }
 
-// Standard HSV round-trip (round 9) — kept as blend-mode option 1, see blendHighlight/blendLight below.
-vec3 rgb2hsv(vec3 c) {
-    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
-    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
-    float d = q.x - min(q.w, q.y);
-    float e = 1.0e-10;
-    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
-}
-vec3 hsv2rgb(vec3 c) {
-    vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-}
-
-// #141 round 11 (Han, NL: "ik denk dat belichting 'screen blend' moet gebruiken" + "lighting mag subtiel
-// zijn voor heldere objecten, en een groter effect hebben op donkere objecten" — "lighting can be subtle
-// for bright objects and have a bigger effect on dark ones"): screen blend (1-(1-base)*(1-blend)) has
-// EXACTLY that property built into the formula — a bright base (near white) barely changes no matter how
-// strong the blend color, while a dark base shows nearly the full blend color. No separate "reduce on
-// bright pixels" logic needed anywhere else; it falls straight out of this one function.
-vec3 screenBlend(vec3 base, vec3 blendColor) {
-    return 1.0 - (1.0 - base) * (1.0 - blendColor);
-}
-
-// #141 round 19 (Han, NL: "voeg nog wat color blend modes toe. zoals, hue, sat, color, lum, color dodge"):
-// standard Color Dodge (base/(1-blend), the classic "brightens toward the blend color" mode) plus the four
-// classic Photoshop/CSS non-separable HSL composite modes — Hue, Saturation, Color, Luminosity. Approximated
-// via the rgb2hsv/hsv2rgb round-trip already in this file (HSV's "Value" standing in for HSL's
-// "Lightness") rather than adding a whole separate HSL conversion pair — CLAUDE.md §6c: reuse existing
-// machinery instead of duplicating it. Each swaps in one or two channels from blend's HSV onto base's:
-// Hue keeps base's saturation+value, takes blend's hue; Saturation keeps base's hue+value, takes blend's
-// saturation; Color takes blend's hue+saturation, keeps base's value; Luminosity takes blend's value, keeps
-// base's hue+saturation (the exact inverse pairing of Color, per the standard spec).
-vec3 colorDodge(vec3 base, vec3 blendColor) {
-    return clamp(base / max(1.0 - blendColor, 0.0001), 0.0, 1.0);
-}
-vec3 compositeBlend(vec3 base, vec3 blendColor, int mode) {
-    if (mode == 8) return colorDodge(base, blendColor);
-    vec3 hsvBase = rgb2hsv(base);
-    vec3 hsvBlend = rgb2hsv(blendColor);
-    if (mode == 4) return hsv2rgb(vec3(hsvBlend.x, hsvBase.y, hsvBase.z));   // Hue
-    if (mode == 5) return hsv2rgb(vec3(hsvBase.x, hsvBlend.y, hsvBase.z));   // Saturation
-    if (mode == 6) return hsv2rgb(vec3(hsvBlend.x, hsvBlend.y, hsvBase.z));  // Color
-    return hsv2rgb(vec3(hsvBase.x, hsvBase.y, hsvBlend.z));                 // Luminosity (mode == 7)
-}
+// #925 follow-up (Han 2026-08-16): rgb2hsv/hsv2rgb/screenBlend/colorDodge/compositeBlend AND
+// blendLight/blendLightDual/anyNeighborTransparent/edgeLightFactor/FLAT_NORMAL/applyPointLight(s) all
+// moved into the shared LIGHTING_FUNCTIONS_GLSL block (foliageLightingGLSL.js) — same code, now shared
+// verbatim with LdtkLitGround.jsx's static lighting shader (CLAUDE.md §6d). blendHighlight/
+// blendHighlightDual below (the wave-specific highlight, NOT shared — no equivalent in a static shader)
+// still use rgb2hsv/hsv2rgb/compositeBlend, which is why this block must come before them.
+${LIGHTING_FUNCTIONS_GLSL}
 
 // #141 round 11 debug blend-mode selector (Han: "Kun je zorgen dat ik in debug verschillende blend modes
 // kan kiezen voor de beide use cases" — separately selectable for the wind-wave highlight and the point
@@ -352,128 +295,11 @@ vec3 blendHighlightDual(vec3 base, vec3 tintColor, float waveQuant, float streng
 // #141 round 14 (Han, NL: "IPV flicker: maak een tweede wave..."): rounds 12/13's standalone flickerNoise()
 // post-process is REMOVED — the two-wave interference now lives directly in computeWaveQuant (see its own
 // comment above), so there's no separate flicker pass or uFlickerAmount/uFrameSeed uniform anymore.
-
-vec3 blendLight(vec3 base, vec3 lightColor, float intensity, int mode) {
-    if (mode == 0) return screenBlend(base, lightColor * intensity);
-    if (mode == 2) return clamp(base + lightColor * intensity, 0.0, 1.0);
-    if (mode == 3) return mix(base, lightColor, clamp(intensity, 0.0, 1.0));
-    if (mode == 1) {
-        vec3 hsv = rgb2hsv(base);
-        vec3 lightHsv = rgb2hsv(lightColor);
-        hsv.x = mix(hsv.x, lightHsv.x, intensity * uHuePull);
-        hsv.z = clamp(hsv.z + intensity, 0.0, 1.0);
-        return hsv2rgb(hsv);
-    }
-    // #141 round 19: same "opacity mix" treatment as blendHighlight's modes 4-8, see its own comment.
-    return mix(base, compositeBlend(base, lightColor, mode), clamp(intensity, 0.0, 1.0));
-}
-
-// #141 round 15 (Han, NL: "light: maak een secundaire blend mode" — mirrors round 12's
-// blendHighlightDual, this time for the point-light reveal instead of the wind-wave highlight): runs
-// blendLight twice with independently-selected modes and averages the results 50/50.
-vec3 blendLightDual(vec3 base, vec3 lightColor, float intensity, int modeA, int modeB) {
-    vec3 a = blendLight(base, lightColor, intensity, modeA);
-    vec3 b = blendLight(base, lightColor, intensity, modeB);
-    return mix(a, b, 0.5);
-}
-
-// #141 round 10 (Han, NL: "is het mogelijk om lantaarn-invloed op objecten te beperken tot de buitenste paar
-// pixels? als ik straks een hek plaats, blijft dat dan donker... enkel de buitenste paar pixels kleuren
-// mee?"): per-instance opt-in. Samples the diffuse alpha some native px out in each cardinal direction; if
-// any neighbor at that ring is transparent, this fragment is "near an edge" at that ring.
 //
-// #141 round 14 (Han, NL: "kisten: (dus voorgrond): buitenste pixels licht op, de pixels daarna voor 50%,
-// de pixels daarna niet" — "outer pixels light up fully, the ring after that at 50%, beyond that not at
-// all"): was a binary 0/1 — now THREE tiers, checking two ring distances (EDGE_LIGHT_PIXELS and
-// EDGE_LIGHT_PIXELS*2) instead of one.
-bool anyNeighborTransparent(vec2 duv, vec2 off) {
-    if (texture2D(uDiffuse, duv + vec2(off.x, 0.0)).a < 0.5) return true;
-    if (texture2D(uDiffuse, duv - vec2(off.x, 0.0)).a < 0.5) return true;
-    if (texture2D(uDiffuse, duv + vec2(0.0, off.y)).a < 0.5) return true;
-    if (texture2D(uDiffuse, duv - vec2(0.0, off.y)).a < 0.5) return true;
-    return false;
-}
-float edgeLightFactor(vec2 duv, vec2 texelSize) {
-    if (uEdgeLitOnly == 0) return 1.0;
-    if (anyNeighborTransparent(duv, texelSize * EDGE_LIGHT_PIXELS)) return 1.0;
-    if (anyNeighborTransparent(duv, texelSize * EDGE_LIGHT_PIXELS * 2.0)) return 0.5;
-    return 0.0;
-}
-
-// #141 round 11 (Han's day/night ask, see uGlobalIllumination above): a point light's job is to "REVEAL the
-// true color out of the ambient darkness, lightly tinted by the light" — trueColor is the object's real
-// (fully-lit, wave-highlighted) color, currentColor starts as the ambient-darkened version and gets pulled
-// BACK toward a light-tinted version of trueColor as intensity rises, instead of pushing past full
-// brightness. uHuePull doubles as "how much the light's own hue tints the revealed color."
-//
-// #141 round 13 (Han: "ja graag [directional lighting]" — asked after noticing a crate lit up on the wrong
-// side): normal is now part of the intensity calculation, not just distance falloff. lightDir points
-// FROM the fragment TOWARD the light in the same (worldX, groundDist)-ish 2D+ space the rest of this file
-// already uses — a fixed, moderate positive Z component (0.6) approximates "the light is also somewhat
-// toward the viewer," matching the existing ambient term's own assumption, since this is a 2D side-view
-// game with no true depth axis. ndotl then multiplies the falloff: a surface facing the light gets the
-// full effect, a surface facing away gets none, EVEN standing right next to the light source.
-//
-// #141 round 14 BUG FIX (Han, NL: "het licht van personage en wisp komt van onder bladeren, dus de
-// bladeren moeten van onder worden opgelicht, dat is nu andersom. Links-rechts is wel goed" — "the light
-// from character/wisp comes from below the leaves, so the underside should light up — that's backwards
-// right now, left-right is correct"): the Y term was lightWorldHeight - groundDist, which for a
-// ground-level light (height 0) under a high canopy (groundDist large) is a big NEGATIVE value — sign was
-// simply flipped from what the normal map's Y-axis convention needed. Negated to groundDist -
-// lightWorldHeight — X axis untouched, confirmed correct already.
-// #141 round 15 (Han, NL: "de schaduwen zijn nu heel extreem, kan je ook een normal map strength
-// toevoegen? Of kan de normal map strength 'zwakker' oftewel 'platter' worden als je dichterbij staat?" —
-// chose the second option (auto-flatten near the light, no manual slider)): right underneath a light,
-// closeness (the distance falloff BEFORE ndotl) is near 1, and the normal map's own small per-pixel slope
-// variation swings ndotl hard between ~0 and ~1 across neighboring texels — that's the "extreme shadow"
-// look. Blending the sampled normal toward straight-up (FLAT_NORMAL) as closeness rises softens exactly
-// that near-light contrast, without touching the (already-subtle) ambient shading, which isn't the thing
-// Han complained about.
-// #141 round 19: FLAT_NORMAL is now ALSO the target of main()'s own uNormalStrength blend (a separate,
-// always-on dial covering ambient shading too, not just near-light contrast) and the floor's hard-pinned
-// normal — see main()'s own comment where n is computed.
-const vec3 FLAT_NORMAL = vec3(0.0, 0.0, 1.0);
-const float NORMAL_FLATTEN_NEAR_LIGHT = 0.7;
-
-vec3 applyPointLight(vec3 trueColor, vec3 currentColor, vec3 normal, float worldX, float groundDist, float edgeFactor, float lightWorldX, float lightWorldHeight, vec3 lightColor) {
-    float distX = abs(worldX - lightWorldX);
-    float falloffX = clamp(1.0 - distX / uLightRadius, 0.0, 1.0);
-    falloffX = falloffX * falloffX;
-    float heightDiff = abs(groundDist - lightWorldHeight);
-    float falloffY = clamp(1.0 - heightDiff / uLightHeightRadius, 0.0, 1.0);
-    falloffY = falloffY * falloffY;
-    float closeness = falloffX * falloffY;
-    vec3 effectiveNormal = normalize(mix(normal, FLAT_NORMAL, closeness * NORMAL_FLATTEN_NEAR_LIGHT));
-    vec3 lightDir = normalize(vec3(lightWorldX - worldX, groundDist - lightWorldHeight, 0.6));
-    float ndotl = max(dot(effectiveNormal, lightDir), 0.0);
-    float directional = closeness * edgeFactor * uLightStrength * ndotl;
-    // #141 round 26 (Han, NL: "voeg een slider toe die naast normal map illumination nog 'flat
-    // illumination' doet; radial vanaf de lichtbron... moet worden opgeteld bij de normal map ilum"): the
-    // directional term above is fully gated by ndotl — a surface facing AWAY from the light gets exactly
-    // zero, even standing right next to it. "flat" is the same distance-only falloff (closeness/edgeFactor/
-    // strength) WITHOUT the ndotl gate, scaled by the new uFlatIllumination dial (0 = no change from
-    // before) — a purely radial "ambient glow" from the light source, independent of which way anything
-    // faces. Summed with the directional term (not blended/averaged) per Han's explicit "opgeteld" (added).
-    // BUG CAUGHT AFTER SHIPPING (Han's console: "'flat' : Illegal use of reserved word"): "flat" is a
-    // GLSL reserved keyword (an interpolation qualifier, e.g. "flat varying") — illegal as a variable name,
-    // even though it compiles fine as an English word in a comment. Renamed to flatGlow.
-    float flatGlow = closeness * edgeFactor * uLightStrength * uFlatIllumination;
-    float intensity = clamp(directional + flatGlow, 0.0, 1.0);
-    if (intensity <= 0.0) return currentColor;
-    vec3 revealed = blendLightDual(trueColor, lightColor, uHuePull, uLightBlendMode, uLightBlendMode2);
-    return mix(currentColor, revealed, intensity);
-}
-
-// #141 round 13: loops the (now up to MAX_LIGHTS, was hardcoded wisp+hero) light array. GLSL ES 1.00 needs
-// the loop's own bound to be a constant expression (MAX_LIGHTS is), but the break condition inside can
-// still be a runtime uniform (uLightCount) — standard dynamic branching, not a dynamic loop bound.
-vec3 applyPointLights(vec3 trueColor, vec3 currentColor, vec3 normal, float worldX, float groundDist, float edgeFactor) {
-    for (int i = 0; i < MAX_LIGHTS; i++) {
-        if (i >= uLightCount) break;
-        currentColor = applyPointLight(trueColor, currentColor, normal, worldX, groundDist, edgeFactor, uLightWorldX[i], uLightWorldHeight[i], uLightColor[i]);
-    }
-    return currentColor;
-}
+// #925 follow-up (Han 2026-08-16): blendLight/blendLightDual/anyNeighborTransparent/edgeLightFactor/
+// FLAT_NORMAL/NORMAL_FLATTEN_NEAR_LIGHT/applyPointLight/applyPointLights all moved into the shared
+// LIGHTING_FUNCTIONS_GLSL block above (interpolated in earlier in this file) — same code, now shared
+// verbatim with LdtkLitGround.jsx.
 
 // #141 round 15 (Han: "ik snap ook nog steeds niet waarom de grasmat niet reageert op het licht" — the
 // floor used to be a semi-transparent OVERLAY on top of separately-rendered, unlit DOM tiles, capped at
@@ -598,7 +424,7 @@ void main() {
     vec4 diffuse = texture2D(uDiffuse, duv);
     if (uInstanceKind == 0 && diffuse.a < 0.5) discard;
 
-    float edgeFactor = edgeLightFactor(duv, texelSize);
+    float edgeFactor = edgeLightFactor(uDiffuse, duv, texelSize);
 
     if (uDebugChannel == 1) {
         gl_FragColor = vec4(texture2D(uNormal, normalUV).rgb, 1.0);
@@ -756,7 +582,8 @@ function loadImage(url) {
 // and hero are now just the first two entries RpgLevelPanel.jsx populates, with room for more (torches,
 // campfires, a future fence lantern...) without any shader/plumbing changes. Read fresh every frame via a
 // ref so a moving light tracks without recreating the GL context (§141 round 8's original reasoning).
-const MAX_LIGHTS = 10;
+// #925 follow-up (Han 2026-08-16): MAX_LIGHTS now imported from foliageLightingGLSL.js (single source of
+// truth shared with the GLSL uniform-array size and LdtkLitGround.jsx) instead of a local duplicate const.
 
 // #141 round 11 (Han: "Zet alle params die je gebruikt in de debug"): every shader dial Han has actually
 // asked to tune, bundled into one object so RpgLevelPanel's debug panel only needs one piece of state.
