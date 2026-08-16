@@ -164,6 +164,7 @@ export default function LdtkLitGround({
     const glRef = useRef(null);
     const uniformsRef = useRef(null);
     const liveRef = useRef({});
+    const loggedOnceRef = useRef(false);
     liveRef.current = { leftPx, canvasBottomScreenY, zoom, levelPxWidth, levelPxHeight, lights, params, edgeLitOnly, debugChannel };
 
     useEffect(() => {
@@ -228,6 +229,15 @@ export default function LdtkLitGround({
             uEdgeLitOnly: gl.getUniformLocation(program, 'uEdgeLitOnly'),
             uDebugChannel: gl.getUniformLocation(program, 'uDebugChannel'),
         };
+        // #925 diagnostic (Han: point-light params like flat illumination/hue-pull have no visible
+        // effect on this layer even in the real final view, channel 0): a null uniform location means the
+        // GLSL linker stripped that uniform (e.g. dead-code-eliminated) and every gl.uniformXf() call on
+        // it below silently no-ops — this would exactly explain "the slider does nothing." Logged once, at
+        // link time, not per-frame.
+        const nullUniforms = Object.entries(uniformsRef.current).filter(([, loc]) => loc === null).map(([name]) => name);
+        if (nullUniforms.length > 0) {
+            logger.warn('LdtkLitGround', 'uniform locations resolved to null (possibly stripped by the GLSL linker)', { nullUniforms });
+        }
         glRef.current = gl;
 
         const lightWorldXBuf = new Float32Array(MAX_LIGHTS);
@@ -277,6 +287,22 @@ export default function LdtkLitGround({
             gl.uniform1i(u.uLightCount, activeLights.length);
             gl.uniform1fv(u.uLightWorldX, lightWorldXBuf);
             gl.uniform1fv(u.uLightWorldHeight, lightWorldHeightBuf);
+            // #925 diagnostic (Han: flat illumination/hue-pull have no effect even in the real final
+            // view): logged ONCE (not per-frame) so Han can paste the actual runtime values — the
+            // possible-range of worldX this layer computes (from screen x=0 and x=canvas.width) vs. the
+            // light's own worldX tells us directly whether they're even in the same coordinate space.
+            if (!loggedOnceRef.current) {
+                loggedOnceRef.current = true;
+                const worldXAtScreen0 = (0 - lp * dpr) / (z * dpr);
+                const worldXAtScreenMax = (canvas.width - lp * dpr) / (z * dpr);
+                logger.debug('LdtkLitGround', 'diagnostic snapshot', {
+                    edgeLitOnly: elo, leftPx: lp, canvasBottomScreenY: cb, zoom: z,
+                    levelPxWidth: lw, levelPxHeight: lh,
+                    lights: activeLights,
+                    worldXRangeOnScreen: [worldXAtScreen0, worldXAtScreenMax],
+                    lightRadius: p.lightRadius, lightHeightRadius: p.lightHeightRadius,
+                });
+            }
             gl.uniform3fv(u.uLightColor, lightColorBuf);
 
             gl.uniform1f(u.uLightRadius, p.lightRadius);
