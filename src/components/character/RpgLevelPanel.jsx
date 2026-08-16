@@ -20,6 +20,7 @@ import useDebugMetronome, { useFpsCounters } from './useDebugMetronome';
 import { buildWorld, SEASONS, CITY_OPTIONS, TAVERN_TIERS, BRIDGE_TIERS, ENTITY_WORLD_X, ENTITY_INSTANCES, STAND_HEIGHT_PX, LEVEL_PX_HEIGHT, LEVEL_PX_WIDTH } from '../../levels/ldtk/ldtkWorld';
 import useLdtkLitGroundTextures from './useLdtkLitGroundTextures';
 import LdtkLitGround from './LdtkLitGround';
+import useWorldAmbientMusic from '../../hooks/useWorldAmbientMusic';
 import { oscillate } from '../../utils/oscillate';
 // #141 (Han 2026-08-05): pre-generated normal maps for the shimmer shader — see
 // scripts/generate-tree-normal-maps.mjs (Sobel height-gradient derived from the diffuse art itself, no
@@ -341,7 +342,7 @@ const RETURN_DURATION_MS = 1200;
 // separate, much simpler ping-pong motion (no oscillate/bezier — a real world-space back-and-forth,
 // horizontal only) between the water tile span's own edges (`waterSpan`, computed in `waterSpanNear`).
 const SWIM_SPEED = 4;
-function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, frame, zoom, worldToScreenX }) {
+function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, frame, zoom, worldToScreenX, isBird, birdId, birdPositionsRef }) {
     const elRef = useRef(null);
     const facingRef = useRef(1);
     const posRef = useRef({ x: spawnX, y: spawnY });
@@ -416,10 +417,19 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim
                 // wrapper down by half its own (auto) height so its vertical CENTER lands on spawnY instead.
                 elRef.current.style.transform = 'translate(-50%, 50%)';
             }
+            // #925 follow-up (Han 2026-08-16, "enkel bird sounds wanneer bird in beeld"): this is the ONLY
+            // place a bird's true LIVE (wandering) world position exists — posRef never escapes this
+            // component otherwise. Writes into a registry SHARED across every WorldWanderer instance
+            // (owned by RpgLevelPanel, read by useWorldAmbientMusic) so bird-audio visibility/panning can
+            // track the SAME position the sprite itself renders at, not just its static spawn point.
+            if (isBird && birdPositionsRef) birdPositionsRef.current.set(birdId, posRef.current.x);
             raf = requestAnimationFrame(tick);
         };
         raf = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(raf);
+        return () => {
+            cancelAnimationFrame(raf);
+            if (isBird && birdPositionsRef) birdPositionsRef.current.delete(birdId);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, zoom]);
 
@@ -500,10 +510,18 @@ function EdgeHoldZone({ side, widthPx, onHoldStart, onHoldEnd }) {
     );
 }
 
-export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = false, bpm, timeSignature, context, instruments, onGenerateVoice }) {
+export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = false, bpm, timeSignature, context, instruments, onGenerateVoice, rpgMusicVolumeMultiplier = 1 }) {
     const containerRef = useRef(null);
     const [size, setSize] = useState({ w: 0, h: 0 });
     const [petFrame, setPetFrame] = useState(0);
+    // #925 follow-up (Han 2026-08-16, "enkel bird sounds wanneer bird in beeld"): shared registry every
+    // WorldWanderer bird instance writes its own LIVE wandering position into (see that component's own
+    // comment) — read by useWorldAmbientMusic below to gate/pan bird audio by actual on-screen position,
+    // not just a static spawn point. Plain ref (not React state) since it's written up to 60x/sec.
+    const birdPositionsRef = useRef(new Map());
+    // #925 follow-up: see the useWorldAmbientMusic call further down (after localWorldToScreenX/water
+    // tiles are computed) for what this ref actually holds each render.
+    const envAudioRef = useRef(null);
     // #141 round 2 (Han: "Can you implement 3 maps and let me toggle?" — in the spirit of the Factorio FFF's
     // own color-coded shader debug view): cycles ForegroundFoliageLayer's debugChannel (0 final shimmer, 1
     // raw normal map, 2 wave band alone). Gated on `debugMode` like every other debug affordance (§3a).
@@ -770,6 +788,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // adds the level's own world offset before projecting, so callers can pass a local px straight through
     // exactly like `LdtkScenery`'s canvas positioning does.
     const localWorldToScreenX = (localX) => worldToScreenX(LEVEL_MIN_X + localX);
+    // #925 follow-up (Han 2026-08-16, "env audio moet aanpassen aan wat in beeld is"): rebuilt fresh every
+    // render (cheap — just references, no computation) and stashed in a ref so useWorldAmbientMusic's own
+    // internal timers always read LIVE data without needing to tear down/resubscribe on every camera-move
+    // re-render (same "live ref" pattern used throughout this session's other new hooks).
+    envAudioRef.current = {
+        viewportWidth: size.w, localWorldToScreenX, birdPositionsRef,
+        waterTiles: sceneryMode === 'LDtk' ? [...waterTilesBack, ...waterTilesFront] : [],
+    };
+    useWorldAmbientMusic({ active: true, context, musicVolumeMultiplier: rpgMusicVolumeMultiplier, envAudioRef });
     // Hero/pet/Wisp/Slime always stand on this line, regardless of which scenery is showing underneath
     // them — LDtk mode uses the hardcoded `STAND_HEIGHT_PX` (own comment above) scaled by the SAME dynamic
     // zoom every other LDtk element uses; legacy mode keeps its own fixed `GROUND_ANCHOR`.
@@ -1185,6 +1212,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     rangeX={w.rangeX} rangeY={w.rangeY} canPerch={w.canPerch}
                     swim={w.swim} waterSpan={w.waterSpan}
                     frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
+                    isBird={w.tags.includes('bird')} birdId={`critter-${i}`} birdPositionsRef={birdPositionsRef}
                 />
             ))}
 

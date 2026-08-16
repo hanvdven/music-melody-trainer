@@ -4,10 +4,24 @@ import { createMelodicInstrument } from '../audio/localInstruments';
 import { secondsPerTick } from '../constants/timing';
 import { nextMeasureStartTime } from '../audio/worldClock';
 import { MF_VOLUME } from '../audio/dynamics';
+import { computeSpatialPan } from '../audio/spatialPan';
 import {
     generateWorldAmbientBlock, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE, WORLD_AMBIENT_NUM_MEASURES,
 } from '../generation/generateWorldAmbientBlock';
 import { BIRD_SONG_LAYERS } from '../model/birdSoundsManifest.generated';
+
+// #925 follow-up (Han 2026-08-16, "als POC: enkel bird sounds wanneer bird in beeld... water is speciaal:
+// waar de birds 'random' instarten, moet water steeds actief zijn... Graag stereo"): same viewport-margin
+// convention `RpgLevelPanel.jsx`'s own `cullToViewport`/`cullTilesToViewport` already use for "is this
+// on screen" — a bird only gets a voice once its live worldX projects inside the viewport (+ margin).
+const VISIBILITY_MARGIN_PX = 200;
+// How far beyond the viewport edge water is still audible at all (native/game px) before its voice is
+// unloaded entirely (Han: "mag water unloaden als de afstand zo groot is dat het volume 0 is").
+const WATER_MAX_OFFSCREEN_PX = 1200;
+const WATER_NOTE = 'C2';   // #925: "de water cello is gewoon een hele lange noot, dus zonder release"
+const WATER_GAIN = 0.5 * MF_VOLUME;
+const WATER_RECONCILE_MS = 200;   // pan/gain update cadence — smooth enough for a slow-moving camera, cheap
+const BIRD_RECONCILE_MS = 500;    // visibility check cadence — birds don't need frame-perfect pan updates
 
 // #924 (Han 2026-08-12): the open-world RPG-level tab's ambient background audio — quiet generated
 // piano music, plus a handful of independently-triggered "bird song" layers (pre-authored MIDI material,
@@ -27,15 +41,15 @@ import { BIRD_SONG_LAYERS } from '../model/birdSoundsManifest.generated';
 // top of that per-note velocity, it doesn't replace it.
 const BIRD_MIN_SILENCE_SEC = 5;
 const BIRD_MAX_SILENCE_SEC = 30;
-// #924 round 2 (Han: "ik heb de file geupdated. Speel altijd maximaal 3."): the source MIDI's own track
-// count is no longer fixed (currently 6) — always at most this many CONCURRENT trigger slots.
-const MAX_CONCURRENT_BIRD_LAYERS = 3;
+// #925 follow-up: MAX_CONCURRENT_BIRD_LAYERS (a fixed abstract slot count, unrelated to any real bird)
+// is gone — voice count is now naturally bounded by however many bird critters are actually visible at
+// once (see the bird effect below).
 // #924 round 7 (Han: "volume van de vogels mag 20% lager") + round 9 (Han: "reduce the bird sounds another
 // 30%" — 0.8 * 0.7 = 0.56) — multiplies on top of MF_VOLUME, bird layers only (the ambient piano's own
 // MF_VOLUME scaling above is untouched).
 const BIRD_VOLUME_MULTIPLIER = 0.8 * 0.7;
 
-export default function useWorldAmbientMusic({ active, context, musicVolumeMultiplier = 1 }) {
+export default function useWorldAmbientMusic({ active, context, musicVolumeMultiplier = 1, envAudioRef }) {
     // #992 (Han: "RPG music volume" setter) — the ONE combined knob covering both the ambient piano AND
     // bird layers below (App.jsx's own resolveLevelVolume call sites get the SAME multiplier for the
     // level bass/metronome/percussion tracks — one setting, two existing paths, per Han's spec). Kept in
@@ -101,45 +115,168 @@ export default function useWorldAmbientMusic({ active, context, musicVolumeMulti
     // #924 (Han: "eenmalig per trigger + willekeurige stilte erna... herschaal naar de wereld-bpm"; round 2:
     // "start altijd op het begin van een maat"; round 4: "ik hoor de eenden niet, zorg dat je steeds een
     // random track van de midi-file instart; dus ook duck, sparrow_low/high... niet kiezen wanneer ik tab
-    // open, steeds een andere kiezen bij instarten"): MAX_CONCURRENT_BIRD_LAYERS independent trigger SLOTS
-    // (not fixed to specific tracks) — each slot picks a FRESH random layer from the WHOLE pool every time
-    // it fires, not once per tab-activation, so every track (including rarer ones) eventually gets a turn.
+    // open, steeds een andere kiezen bij instarten").
+    // #925 follow-up (Han 2026-08-16, "als POC: enkel bird sounds wanneer bird in beeld... elke zichtbare
+    // vogel zijn eigen stem"): replaced the old MAX_CONCURRENT_BIRD_LAYERS abstract trigger-slot pool
+    // (random, unrelated to any actual on-screen bird) with ONE independent voice PER currently-visible
+    // bird critter (`envAudioRef.current.birdPositionsRef` — see WorldWanderer.jsx's own comment for how
+    // that registry is populated). Each voice gets its OWN Smplr instance routed through its OWN
+    // StereoPannerNode (no existing per-voice dynamic-panning precedent in this codebase — chorusEffect.js's
+    // panner is a fixed width effect, not entity-position-driven) so simultaneous birds can each pan
+    // independently. A voice is created lazily the first time its bird becomes visible and kept alive
+    // (cheap — one Smplr instance, no audible cost while silent) rather than torn down/recreated every
+    // time visibility flips, avoiding instrument-reload churn for a bird wandering in and out of view.
     useEffect(() => {
         if (!active || !context || BIRD_SONG_LAYERS.length === 0) return undefined;
-        const shakuhachi = getInstrument('shakuhachi');
-        const timeoutIds = [];
         let cancelled = false;
-        shakuhachi.load.then(() => {
-            if (cancelled) return;
-            for (let slot = 0; slot < MAX_CONCURRENT_BIRD_LAYERS; slot++) {
-                const triggerOnce = () => {
-                    if (cancelled) return;
-                    const source = BIRD_SONG_LAYERS[Math.floor(Math.random() * BIRD_SONG_LAYERS.length)];
-                    // Han: "gebruik gewoon de velocities" — scale the layer's OWN per-note velocities
-                    // (scripts/generate-bird-sounds.mjs) by MF_VOLUME, don't replace them with a flat gain.
-                    // Copy the array (never mutate the shared BIRD_SONG_LAYERS export in place).
-                    // #992 — same rpgMusicVolume multiplier as the piano blocks above, on top of the
-                    // birds' own existing MF_VOLUME * BIRD_VOLUME_MULTIPLIER scaling.
-                    const layer = { ...source, volumes: source.volumes.map((v) => v * MF_VOLUME * BIRD_VOLUME_MULTIPLIER * musicVolumeMultiplierRef.current) };
-                    const lastNoteEnd = layer.offsets.length
-                        ? Math.max(...layer.offsets.map((o, i) => o + layer.durations[i]))
-                        : 0;
-                    const layerDurationSec = lastNoteEnd * secondsPerTick(WORLD_AMBIENT_BPM);
-                    const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
-                    playMelodies([layer], [shakuhachi], context, WORLD_AMBIENT_BPM, startTime);
-                    const silenceSec = BIRD_MIN_SILENCE_SEC + Math.random() * (BIRD_MAX_SILENCE_SEC - BIRD_MIN_SILENCE_SEC);
-                    const waitSec = (startTime - context.currentTime) + layerDurationSec + silenceSec;
-                    const id = setTimeout(triggerOnce, waitSec * 1000);
-                    timeoutIds.push(id);
-                };
-                // Stagger each slot's FIRST trigger with its own random initial delay so they don't all
-                // start in lockstep the instant the tab opens.
-                const initialDelaySec = Math.random() * BIRD_MAX_SILENCE_SEC;
-                const id = setTimeout(triggerOnce, initialDelaySec * 1000);
-                timeoutIds.push(id);
+        let reconcileId;
+        let panId;
+        const voices = new Map();   // birdId -> { instrument, panner, scheduling }
+
+        const getEnv = () => envAudioRef?.current;
+        const birdScreenX = (birdId) => {
+            const env = getEnv();
+            const worldX = env?.birdPositionsRef?.current?.get(birdId);
+            if (worldX === undefined || !env?.localWorldToScreenX) return null;
+            return env.localWorldToScreenX(worldX);
+        };
+        const isBirdVisible = (birdId) => {
+            const env = getEnv();
+            const screenX = birdScreenX(birdId);
+            if (screenX == null || !env) return false;
+            return screenX > -VISIBILITY_MARGIN_PX && screenX < env.viewportWidth + VISIBILITY_MARGIN_PX;
+        };
+
+        const scheduleForBird = (birdId, voice) => {
+            if (voice.scheduling) return;
+            voice.scheduling = true;
+            const triggerOnce = () => {
+                if (cancelled) return;
+                if (!isBirdVisible(birdId)) { voice.scheduling = false; return; }   // reconcile restarts it once visible again
+                const source = BIRD_SONG_LAYERS[Math.floor(Math.random() * BIRD_SONG_LAYERS.length)];
+                // Han: "gebruik gewoon de velocities" — scale the layer's OWN per-note velocities
+                // (scripts/generate-bird-sounds.mjs) by MF_VOLUME, don't replace them with a flat gain.
+                const layer = { ...source, volumes: source.volumes.map((v) => v * MF_VOLUME * BIRD_VOLUME_MULTIPLIER * musicVolumeMultiplierRef.current) };
+                const lastNoteEnd = layer.offsets.length
+                    ? Math.max(...layer.offsets.map((o, i) => o + layer.durations[i]))
+                    : 0;
+                const layerDurationSec = lastNoteEnd * secondsPerTick(WORLD_AMBIENT_BPM);
+                const startTime = nextMeasureStartTime(context, WORLD_AMBIENT_BPM, WORLD_AMBIENT_TIME_SIGNATURE);
+                playMelodies([layer], [voice.instrument], context, WORLD_AMBIENT_BPM, startTime);
+                const silenceSec = BIRD_MIN_SILENCE_SEC + Math.random() * (BIRD_MAX_SILENCE_SEC - BIRD_MIN_SILENCE_SEC);
+                const waitSec = (startTime - context.currentTime) + layerDurationSec + silenceSec;
+                setTimeout(triggerOnce, waitSec * 1000);
+            };
+            // Stagger this bird's FIRST trigger so several birds becoming visible at once don't sing in lockstep.
+            setTimeout(triggerOnce, Math.random() * BIRD_MAX_SILENCE_SEC * 1000);
+        };
+
+        const ensureVoice = (birdId) => {
+            let voice = voices.get(birdId);
+            if (voice) return voice;
+            const panner = context.createStereoPanner();
+            panner.connect(context.destination);
+            const instrument = createMelodicInstrument(context, 'shakuhachi', { destination: panner });
+            voice = { instrument, panner, scheduling: false };
+            voices.set(birdId, voice);
+            instrument.load.then(() => { if (!cancelled) scheduleForBird(birdId, voice); });
+            return voice;
+        };
+
+        reconcileId = setInterval(() => {
+            const env = getEnv();
+            if (!env?.birdPositionsRef) return;
+            for (const birdId of env.birdPositionsRef.current.keys()) {
+                if (isBirdVisible(birdId)) {
+                    const voice = ensureVoice(birdId);
+                    if (!voice.scheduling) scheduleForBird(birdId, voice);
+                }
             }
+        }, BIRD_RECONCILE_MS);
+
+        panId = setInterval(() => {
+            voices.forEach((voice, birdId) => {
+                const env = getEnv();
+                const screenX = birdScreenX(birdId);
+                if (screenX == null || !env) return;
+                const { pan } = computeSpatialPan(screenX, env.viewportWidth, VISIBILITY_MARGIN_PX);
+                voice.panner.pan.value = pan;
+            });
+        }, BIRD_RECONCILE_MS);
+
+        return () => {
+            cancelled = true;
+            clearInterval(reconcileId);
+            clearInterval(panId);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [active, context]);
+
+    // #925 follow-up (Han 2026-08-16, "water is speciaal: waar de birds 'random' instarten, moet water
+    // steeds actief zijn... de water cello is gewoon een hele lange noot, dus zonder release"): ONE
+    // continuous voice, held indefinitely (a very long note duration, relying on the cello sample's own
+    // real loop points already extracted by `createMelodicInstrument`/`buildLocalSmplrJson` for sustain —
+    // CLAUDE.md §6c, no new looping mechanism invented). Panned/faded by `computeSpatialPan` toward
+    // whichever visible (or nearest off-screen) water tile is closest to view; actually stopped
+    // ("unloaded") once no water is within `WATER_MAX_OFFSCREEN_PX` at all, per Han's own spec.
+    useEffect(() => {
+        if (!active || !context) return undefined;
+        let cancelled = false;
+        let intervalId;
+        const panner = context.createStereoPanner();
+        const gain = context.createGain();
+        gain.gain.value = 0;
+        panner.connect(gain);
+        gain.connect(context.destination);
+        const cello = createMelodicInstrument(context, 'cello', { destination: panner });
+        let stopFn = null;
+
+        const nearestWaterScreenX = (env) => {
+            const tiles = env?.waterTiles;
+            if (!tiles || tiles.length === 0 || !env.localWorldToScreenX) return null;
+            let bestInView = null, inViewCount = 0, inViewSum = 0;
+            let bestOffscreen = null, bestOffscreenDist = Infinity;
+            for (const tile of tiles) {
+                const screenX = env.localWorldToScreenX(tile.worldX);
+                if (screenX >= 0 && screenX <= env.viewportWidth) { inViewSum += screenX; inViewCount++; bestInView = screenX; }
+                else {
+                    const dist = screenX < 0 ? -screenX : screenX - env.viewportWidth;
+                    if (dist < bestOffscreenDist) { bestOffscreenDist = dist; bestOffscreen = screenX; }
+                }
+            }
+            if (inViewCount > 0) return inViewSum / inViewCount;
+            return bestInView ?? bestOffscreen;
+        };
+
+        cello.load.then(() => {
+            if (cancelled) return;
+            intervalId = setInterval(() => {
+                const env = envAudioRef?.current;
+                const screenX = env ? nearestWaterScreenX(env) : null;
+                if (screenX == null) {
+                    if (stopFn) { stopFn(); stopFn = null; }
+                    gain.gain.value = 0;
+                    return;
+                }
+                const { pan, proximity } = computeSpatialPan(screenX, env.viewportWidth, WATER_MAX_OFFSCREEN_PX);
+                panner.pan.value = pan;
+                gain.gain.value = WATER_GAIN * proximity * musicVolumeMultiplierRef.current;
+                if (proximity <= 0) {
+                    if (stopFn) { stopFn(); stopFn = null; }
+                } else if (!stopFn) {
+                    // #925: "een hele lange noot, dus zonder release" — a large fixed duration, not the
+                    // sample's own natural (finite) length; relies on the instrument's real loop points to
+                    // sustain smoothly rather than audibly restarting/clicking every few seconds.
+                    stopFn = cello.start({ note: WATER_NOTE, time: context.currentTime, duration: 3600 });
+                }
+            }, WATER_RECONCILE_MS);
         });
-        return () => { cancelled = true; timeoutIds.forEach(clearTimeout); };
+
+        return () => {
+            cancelled = true;
+            clearInterval(intervalId);
+            if (stopFn) stopFn();
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, context]);
 }

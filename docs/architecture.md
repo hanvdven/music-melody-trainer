@@ -15782,3 +15782,70 @@ existing zoom/scale constant already in scope — never a raw screen-px literal.
 `src/components/character/__tests__/OscillatingText.test.jsx` (new smoke tests, CLAUDE.md §7b),
 `src/components/character/DialogueBox.jsx` (wired in), `src/components/sheet-music/SheetRpgLayer.jsx`
 (`JUDGMENT_LETTER_OSCILLATE_RANGE`, per-`<tspan>` judgment rendering + rAF update).
+
+### §239. Env audio matches view — per-visible-bird spatial voices + one panned water drone (#993/#1025, Han 2026-08-16)
+
+**Purpose:** Han: "ik wil dat env audio matcht met beeld, dus geluid moet aanpassen aan wat in beeld is...
+enkel bird sounds wanneer bird in beeld, en enkel water sound wanneer water in beeld... water is
+speciaal: moet steeds actief zijn... Graag stereo." Before this, §216–223's world-ambient bird audio
+(ticket #924) was pure random scheduling — 3 abstract "trigger slots" picking random pre-authored MIDI
+phrases, entirely disconnected from whether any bird critter was actually visible or where. No water
+sound existed at all. A GM percussion instrument ("perc standard uit de sf2") was also requested but
+does **not exist** in this codebase's sample set (`drumKits.js`'s `GM_ACOUSTIC_KITS` are hard-flagged
+`available: false` — no GM percussion bank in the loaded soundfonts) — explicitly deferred by Han to a
+separate ticket (#1037) rather than block this one.
+
+**Architectural move (Han 2026-08-16, "ga gewoon door"):** `useWorldAmbientMusic`'s call site MOVED from
+`App.jsx` into `RpgLevelPanel.jsx`. The hook needs live bird-critter screen positions and water-tile
+viewport visibility to gate/pan audio — both only exist inside `RpgLevelPanel.jsx` — so rather than build
+a new cross-component data bridge, the hook (pure scheduling, no rendering) moved to where that data
+already lives. `RpgLevelPanel` was already passed `context` as a prop, so this needed no new plumbing
+there; only the `rpgMusicVolume` multiplier (still owned by `App.jsx`'s settings) is passed down as a
+plain prop now. RpgLevelPanel's own mount/unmount lifecycle (already gated on `characterScreen ===
+'rpg-level'`) replaces the hook's old explicit `active` flag — identical behavior, one less prop.
+
+**Bird critter live position bridge:** `WorldWanderer` (the RPG-world critter/bird animation component)
+owns its `posRef` entirely internally — no external code could previously read a bird's live wandering
+position. It now optionally writes its own current worldX into a shared `Map` (`birdPositionsRef`,
+created once in `RpgLevelPanel`, passed to every `WorldWanderer` instance) every tick, keyed by a stable
+per-instance id, ONLY for bird-tagged (`tags.includes('bird')`) instances — deleted on unmount. This is
+the ONLY place a bird's true wandering position exists; `useWorldAmbientMusic` reads it via a `envAudioRef`
+live-ref (rebuilt fresh, cheaply, every `RpgLevelPanel` render — no new React state, matching this
+session's established "live ref" pattern for cross-cutting per-frame data).
+
+**Bird voices — one per VISIBLE bird, not an abstract slot pool:** each bird critter currently on screen
+(`localWorldToScreenX(worldX)` within the viewport ± the SAME `CULL_MARGIN`-style margin
+`RpgLevelPanel.jsx`'s own `cullToViewport` uses) gets its own persistent voice: a dedicated `shakuhachi`
+Smplr instance routed through its own `StereoPannerNode` (no existing per-voice dynamic-panning precedent
+in this codebase — `chorusEffect.js`'s panner is a fixed width effect, not position-driven). A voice is
+created lazily the first time its bird is seen and kept alive (cheap while silent) rather than torn down
+every time visibility flips. Each voice runs the SAME randomized trigger-then-silence loop §924's original
+slots used (pick a random `BIRD_SONG_LAYERS` phrase, play via `playMelodies`, wait 5–30s, repeat) but
+checks visibility before every re-trigger — stops scheduling the moment its bird leaves view, and a
+separate reconcile interval (`BIRD_RECONCILE_MS`) restarts it once visible again. A second, faster
+interval continuously updates each active voice's `panner.pan.value` from its bird's live screen position.
+
+**Water — one continuous, always-searching voice, not per-tile:** a single dedicated `cello` instance +
+panner + gain, held on `WATER_NOTE` with a very long (`duration: 3600`) note rather than the sample's own
+finite length — "een hele lange noot, dus zonder release" — relying on the REAL sample loop points
+`createMelodicInstrument`/`buildLocalSmplrJson` already extract for sustain-capable instruments (CLAUDE.md
+§6c, no new looping mechanism). Every `WATER_RECONCILE_MS`, scans all water tiles currently known to
+`RpgLevelPanel` (`waterTilesBack`/`Front`), averages the screenX of any that are actually in view (or
+finds the single nearest off-screen one if none are), and feeds that into the SAME `computeSpatialPan`
+pan/proximity formula the bird voices use. Gain scales with `proximity`; once no water is within
+`WATER_MAX_OFFSCREEN_PX` of the viewport at all, the sustained note is genuinely stopped (`stopFn()`) —
+"mag water unloaden als de afstand zo groot is dat het volume 0 is" — not just muted, so an unattended,
+water-free area doesn't leave an inaudible voice running forever.
+
+**Shared pan formula (CLAUDE.md §6c):** `src/audio/spatialPan.js`'s `computeSpatialPan(screenX,
+viewportWidth, maxOffscreenPx)` — one function for both birds and water. Per Han's own spec ("in beeld:
+tot 50%-100% L-R, buiten beeld 0-50% L, afstandsgebaseerd"): while in view, pan swings from 50% at
+screen-center to 100% at either edge (never dead-center); once off-screen, pan holds at whichever side it
+left on and decays from 50% toward 0% as `proximity` falls with distance — the caller uses `proximity` to
+fade gain (birds don't currently use the gain axis, only the visibility gate; water uses both).
+
+**Files:** `src/audio/spatialPan.js` (new) + `src/audio/__tests__/spatialPan.test.js` (new, CLAUDE.md
+§7b), `src/hooks/useWorldAmbientMusic.js` (bird effect rewritten, new water effect, `envAudioRef` param),
+`src/components/character/RpgLevelPanel.jsx` (`birdPositionsRef`, `envAudioRef`, hook call moved in here),
+`src/components/character/RpgLevelPanel.jsx`'s `WorldWanderer` (position-registry write), `src/App.jsx`
+(hook call removed, `rpgMusicVolumeMultiplier` passed down as a prop instead).

@@ -38,7 +38,6 @@ import { SLIME_CROP, SLIME_FRAME, SLIME_COLORS, WIZARD_URL, WIZARD_CROP, WIZARD_
 import { findCreatureByName } from './model/bestiaryAssets';
 import useConversationInstruments from './hooks/useConversationInstruments';
 import useConversationDialogue from './hooks/useConversationDialogue';
-import useWorldAmbientMusic from './hooks/useWorldAmbientMusic';
 import { WIZARD_VICTORY_LINES, NPC_GREETING_LINES, SLIME_DEFEAT_LINES } from './model/conversationContent';
 import LevelStartSplash from './components/levels/LevelStartSplash';
 import LevelPausePopup from './components/levels/LevelPausePopup';
@@ -288,17 +287,13 @@ const App = () => {
     const bestiaryEditor = useBestiaryEditor();
     const rpgLevel = useRpgLevelState();
     // #924 (Han 2026-08-12, "wereldlevel: speel op de achtergrond zachtjes random generated muziek... +
-    // 3 lagen bird song"): only runs while the open-world RPG-level tab is active.
-    // #992 — reads configRef.current directly (not the `playbackConfig` state var, which isn't declared
-    // until further down this component) — configRef.current is kept in perfect sync with playbackConfig
-    // by setPlaybackConfig (below) on every update, and this whole component re-renders on every such
-    // update anyway, so this always reflects the latest value. Same ONE combined knob as
-    // rpgMusicMultiplier further down (App.jsx's own resolveLevelVolume call sites) — see that comment
-    // for the full "why one knob over two unrelated paths" rationale.
-    useWorldAmbientMusic({
-        active: characterScreen === 'rpg-level', context,
-        musicVolumeMultiplier: rpgVolumeMultiplier(configRef.current.rpgMusicVolume, DEFAULT_RPG_MUSIC_VOLUME),
-    });
+    // 3 lagen bird song") — #925 follow-up (Han 2026-08-16, "enkel bird sounds wanneer bird in beeld"):
+    // the hook call itself MOVED into RpgLevelPanel.jsx, which already has direct access to `context` AND
+    // live bird-critter positions/water-tile visibility (needed to gate/pan bird+water audio by what's
+    // actually on screen) — RpgLevelPanel is only ever mounted while this tab is active, so that mount
+    // lifecycle now does the same "only run while the open-world RPG-level tab is active" gating this
+    // effect's own `active` flag used to. Only the volume multiplier is still computed here (App.jsx owns
+    // the RPG-music-volume setting) and passed down as a plain prop.
     const [showLevelPicker, setShowLevelPicker] = useState(false);   // #661: level-start splash (tanh carousel)
     // Loaded-song title for the header (Han 2026-06-14): "Happy Birthday in G major". Set on song
     // load; cleared when the user generates a fresh exercise (un-pins the melody) — see effect below.
@@ -1236,6 +1231,11 @@ const App = () => {
     // its backing tracks explicitly audible at mezzo-piano (reusing the canonical VOL_STEPS dynamics table,
     // §6c, rather than a new hardcoded gain constant) and restores full volume on close.
     const LEVEL_BACKING_VOLUME = VOL_STEPS.find((s) => s.label === 'mezzo piano').value;
+    // #889 (Han 2026-08-14, "zet metronoom standaard op mf"): the metronome alone gets a louder
+    // persistent fader than the rest of the backing (percussion/timpani stay at LEVEL_BACKING_VOLUME,
+    // mezzo-piano) — a dedicated constant rather than reusing LEVEL_BASS_VOLUME so the two can diverge
+    // independently later without one accidentally dragging the other along.
+    const LEVEL_METRONOME_VOLUME = VOL_STEPS.find((s) => s.label === 'mezzo forte').value;
     // Han (2026-08-03, "zet de cello op mf, om te testen"): the cello alone gets a louder persistent
     // fader than the rest of the backing (timpani/metronome stay at mezzo-piano) — a deliberate imbalance
     // to test whether it's simply drowned out next to the punchy timpani (§104's inaudible-cello finding
@@ -1404,7 +1404,7 @@ const App = () => {
         // #992 — rpgMusicMultiplier applied on top of the resolved value, not replacing it (relative-
         // to-default semantics, see its own comment above); == 1.0 at the shipped default.
         const bassVolume = resolveLevelVolume(lvl, 'bass', LEVEL_BASS_VOLUME) * rpgMusicMultiplier;
-        const metronomeVolume = resolveLevelVolume(lvl, 'metronome', LEVEL_BACKING_VOLUME) * rpgMusicMultiplier;
+        const metronomeVolume = resolveLevelVolume(lvl, 'metronome', LEVEL_METRONOME_VOLUME) * rpgMusicMultiplier;
         const percussionVolume = resolveLevelVolume(lvl, 'percussion', LEVEL_BACKING_VOLUME) * rpgMusicMultiplier;
         setVolume('bass', bassVolume);
         setVolume('metronome', metronomeVolume);
@@ -2736,7 +2736,7 @@ const App = () => {
                     {characterScreen === 'equipment' && <CharacterAvatarPanel editor={characterEditor} screen="equipment" debugMode={debugMode} />}
                     {characterScreen === 'stats' && <StatsTopPanel />}
                     {characterScreen === 'bestiary' && <BestiaryTopPanel editor={bestiaryEditor} debugMode={debugMode} />}
-                    {characterScreen === 'rpg-level' && <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} bpm={bpm} timeSignature={timeSignature} context={context} instruments={instruments} onGenerateVoice={generateAndPlayVoice} />}
+                    {characterScreen === 'rpg-level' && <RpgLevelPanel characterEditor={characterEditor} rpgLevel={rpgLevel} debugMode={debugMode} bpm={bpm} timeSignature={timeSignature} context={context} instruments={instruments} onGenerateVoice={generateAndPlayVoice} rpgMusicVolumeMultiplier={rpgMusicMultiplier} />}
                     {characterScreen === 'levelResult' && level.current && (
                         <LevelSplash levelName={level.current.name} stats={level.stats}
                             totalEnemies={level.totalEnemies} totalCritters={level.totalCritters}
@@ -2774,6 +2774,16 @@ const App = () => {
                             onEnemyTotal={level.active ? level.setTotalEnemies : undefined}
                             onCritterTotal={level.active ? level.setTotalCritters : undefined}
                             sideScroll={level.active && !!level.current.sideScroll}   // #660 Level 2
+                            // #889 follow-up (Han 2026-08-14, "de invliegende noten hebben dezelfde
+                            // hardcoded 8-kwart-tellen offset"): levels.js's normalizeLevel() derives
+                            // the correct meter-aware beatsOnScreen onto level.current, but it was never
+                            // actually threaded through to SheetRpgLayer — the component silently fell
+                            // back to its own internal `= 8` default (4/4-only) regardless of what
+                            // levels.js computed, so the #889 fix had zero effect on the actual note/
+                            // slime flight timing. `?? 8` only matters for LEVEL1 (not side-scroll,
+                            // beatsOnScreen never derived) and other non-side-scroll levels, where the
+                            // value is unused anyway.
+                            beatsOnScreen={level.active ? (level.current.beatsOnScreen ?? 8) : 8}
                             levelActive={level.active}                                // #662 no slimes outside a level
                             levelMelodyReady={levelMelodyReady}                       // Bug fix 2026-08-06: withhold stale pre-regen melody
                             // Level 10 (Han 2026-08-06, Mixed): SheetRpgLayer now understands 'Mixed'

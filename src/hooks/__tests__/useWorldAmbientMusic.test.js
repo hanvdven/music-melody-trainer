@@ -33,7 +33,10 @@ describe('useWorldAmbientMusic musicVolumeMultiplier (#992)', () => {
     beforeEach(() => vi.clearAllMocks());
 
     it('scales the ambient piano melody volumes by musicVolumeMultiplier on top of MF_VOLUME', async () => {
-        const context = { currentTime: 0 };
+        // #925 follow-up: the hook now also creates a StereoPannerNode/GainNode per env-audio voice
+        // (bird/water spatial panning) — a real AudioContext always has these; stubbed here so the
+        // existing minimal test context keeps working instead of throwing on the new calls.
+        const context = { currentTime: 0, createStereoPanner: () => ({ connect: () => {}, pan: { value: 0 } }), createGain: () => ({ connect: () => {}, gain: { value: 0 } }) };
         const { unmount } = renderHook(() =>
             useWorldAmbientMusic({ active: true, context, musicVolumeMultiplier: 2 }));
         await flush();
@@ -44,7 +47,10 @@ describe('useWorldAmbientMusic musicVolumeMultiplier (#992)', () => {
     });
 
     it('defaults musicVolumeMultiplier to 1 (unchanged existing behaviour) when the caller omits it', async () => {
-        const context = { currentTime: 0 };
+        // #925 follow-up: the hook now also creates a StereoPannerNode/GainNode per env-audio voice
+        // (bird/water spatial panning) — a real AudioContext always has these; stubbed here so the
+        // existing minimal test context keeps working instead of throwing on the new calls.
+        const context = { currentTime: 0, createStereoPanner: () => ({ connect: () => {}, pan: { value: 0 } }), createGain: () => ({ connect: () => {}, gain: { value: 0 } }) };
         const { unmount } = renderHook(() => useWorldAmbientMusic({ active: true, context }));
         await flush();
         expect(playMelodies).toHaveBeenCalled();
