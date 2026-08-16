@@ -15737,3 +15737,48 @@ shimmer pipeline) — only `world.groundTilesBack/Front` (ground/terrain/buildin
 2.0), `src/components/character/LdtkScenery.jsx` (reuses `ldtkTileCompositing.js`, otherwise unchanged),
 `src/components/character/RpgLevelPanel.jsx` (two new `LdtkLitGround` mounts). Error codes
 E030-LDTK-LIT-GROUND-SHADER-COMPILE, E031-LDTK-LIT-GROUND-DRAW-FRAME (CLAUDE.md §7a).
+
+### §238. Individual letter oscillation — dialogue text + judgment labels (#993/#1027, Han 2026-08-16)
+
+**Purpose:** Han: "letters van tekst moeten een heel klein beetje oscilleren (individueel), range 2 game
+pixels" — a subtle per-letter jitter on in-world text, split off epic #993. Two text sites exist in the
+RPG world, both previously rendered as one continuous string in a single element: the dialogue box's
+conversation text (`DialogueBox.jsx`, the #922 "musical typewriter" system) and the floating combat
+judgment labels ("Perfect"/"Missed"/etc., `SheetRpgLayer.jsx`). No damage-number popups or floating NPC
+name labels exist in this codebase to also cover.
+
+**Reuse (CLAUDE.md §6c):** both sites drive the wobble through the SAME `oscillate(seed, tMs, range,
+speed)` function every projectile and flying-creature hover already uses (`src/utils/oscillate.js`) — no
+second wobble formula. `seed` is the character's own index (judgment labels additionally fold in the
+judgment's own id, `id*31+i`, so two simultaneous labels don't wobble in lockstep); range is always
+supplied in RPG/game pixels (never screen px, per this project's pixel-terminology rule) and converted to
+display px by whichever zoom/scale constant is already in scope at that call site.
+
+**How it works:**
+
+1. **Dialogue text** — new `OscillatingText.jsx` (DOM/HTML), a small reusable component: splits `text`
+   into one `<span>` per character (whitespace preserved via `white-space: pre`), and a single shared
+   `requestAnimationFrame` loop sets each span's `style.transform = translateY(...)` directly via refs —
+   NOT React state per frame (CLAUDE.md §6: no 60Hz state churn). Takes a `scale` prop (the caller's own
+   native-px-to-display-px constant, e.g. `DialogueBox.jsx`'s `DIALOGUE_SCALE`) to convert the default
+   `rangeGamePx=2`. Wired into `DialogueBox.jsx` in place of the old plain `<span>{text}</span>`; the
+   #922 typewriter reveal (which slices the string over time) is unaffected — each reveal tick just
+   re-splits whatever substring is currently visible.
+2. **Judgment labels** — SVG, so per-character splitting uses `<tspan>` instead of `<span>`, each with a
+   ref collected onto the SAME `judgmentRefsMap` entry `SheetRpgLayer.jsx`'s existing rAF loop already
+   updates for that label's float-up/fade (`entry.charEls[i]`). Deliberately uses `transform` (not SVG's
+   `dy`) for the per-letter offset — `dy` is CUMULATIVE across sibling tspans in SVG text layout, so
+   giving each character its own `dy` would compound into increasing drift across the word instead of an
+   independent per-letter nudge; `transform="translate(0, dy)"` is purely visual and doesn't feed into
+   subsequent glyphs' layout math. The `<tspan>` ref and the parent `<text>` ref both write into the same
+   map entry defensively (a stub entry is created by whichever fires first — React does not guarantee
+   child-before-parent ref ordering) so this "no assumed order" is provable rather than accidental.
+
+**Invariant:** ranges are always in RPG/game pixels at the call site (`JUDGMENT_LETTER_OSCILLATE_RANGE =
+2` in `SheetRpgLayer.jsx`, `rangeGamePx=2` default in `OscillatingText.jsx`), scaled to display px by the
+existing zoom/scale constant already in scope — never a raw screen-px literal.
+
+**Files:** `src/components/character/OscillatingText.jsx` (new) +
+`src/components/character/__tests__/OscillatingText.test.jsx` (new smoke tests, CLAUDE.md §7b),
+`src/components/character/DialogueBox.jsx` (wired in), `src/components/sheet-music/SheetRpgLayer.jsx`
+(`JUDGMENT_LETTER_OSCILLATE_RANGE`, per-`<tspan>` judgment rendering + rAF update).

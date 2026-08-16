@@ -1,6 +1,7 @@
 import React from 'react';
 import bitfantasyFontUrl from '../../assets/fonts/pixel_fonts/Bitfantasy.ttf';
 import { Frame64Overlay } from './BestiaryPanels';
+import OscillatingText from './OscillatingText';
 
 // #693/#864 (Han 2026-08-04 → 2026-08-10): the pixel-art dialogue box originally built for the RPG-world
 // Wisp NPC (RpgLevelBottomPanel.jsx), extracted into a reusable component so a second caller (LevelSplash
@@ -160,9 +161,10 @@ export default function DialogueBox({
                     <div style={{ position: 'relative', width: TEXT_WIDTH, display: 'flex', alignItems: 'center', padding: `0 ${14 * DIALOGUE_SCALE / 2}px` }}>
                         {/* #922 round 6 ("regelafstand mag iets kleiner", 1.4->1.15) + round 7 ("regelafstand
                             mag 20% kleiner", 1.15->0.92). */}
-                        <span style={{ fontFamily: 'Bitfantasy, monospace', fontSize: FONT_SIZE, lineHeight: 0.92, color: 'var(--text-primary)' }}>
-                            {text}
-                        </span>
+                        <OscillatingText
+                            text={text} scale={DIALOGUE_SCALE}
+                            style={{ fontFamily: 'Bitfantasy, monospace', fontSize: FONT_SIZE, lineHeight: 0.92, color: 'var(--text-primary)' }}
+                        />
                         {hasMorePages && <MorePagesIndicator />}
                     </div>
                 </div>

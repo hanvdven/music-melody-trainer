@@ -129,6 +129,10 @@ const MISS_SFX_VOLUME = 0.6;
 // all wobble in lockstep) layered on top of the projectile's real flight position.
 // #693 (Han 2026-08-04, round 3: "maak de projectile oscillation 50% smaller in both directions") — halved.
 const PROJECTILE_OSCILLATE_RANGE = 7.5;
+// #925 follow-up (Han 2026-08-16, "letters van tekst moeten een heel klein beetje oscilleren
+// (individueel), range 2 game pixels"): a much smaller, subtler range than the projectile wobble above —
+// a per-letter jitter, not a visible flight-path wobble.
+const JUDGMENT_LETTER_OSCILLATE_RANGE = 2;
 // #661 horizontal nudge for the scrolling staff so a Maestro notehead (drawn at its left edge, head centre
 // ≈ +6) sits centred over the slime below it (slime centre = slimeX + SLIME_VIEW_W/2), matching the accepted
 // Level-1 note/slime alignment. Applied as a constant x-shift on the whole moving staff group.
@@ -1250,9 +1254,26 @@ export default function SheetRpgLayer({
                 entry.el.setFrame(SLIME_DEATH.row, deathFrame);
             });
             judgmentRefsMap.current.forEach((entry) => {
+                // #925 follow-up: a stub entry (charEls-only, no `el` yet) can theoretically exist for one
+                // commit if a <tspan>'s ref callback fires before its parent <text>'s — see liveCharRef's
+                // own comment. Guards against that instant rather than assuming a fixed fire order.
+                if (!entry.el) return;
                 const prog = Math.min(1, ((t - entry.startTick) * INTERVAL_MS) / JUDGMENT_MS);
                 entry.el.setAttribute('y', judgmentY(g, entry.lane, prog));
                 entry.el.setAttribute('opacity', 1 - prog);
+                // #925 follow-up (Han 2026-08-16, "letters van tekst moeten een heel klein beetje
+                // oscilleren (individueel), range 2 game pixels"): each character's own <tspan> gets a
+                // SEPARATE, independent wobble via a `transform` (not `dy` — `dy` is cumulative across
+                // sibling tspans in SVG text layout and would drift subsequent letters instead of nudging
+                // each one independently). Same oscillate() every projectile/flying-creature wobble
+                // already uses (§6c), seeded by the character's own index within THIS label so neighboring
+                // letters don't move in lockstep, and this label's own judgment id so different labels
+                // don't sync up either.
+                entry.charEls?.forEach((el, i) => {
+                    if (!el) return;
+                    const dy = oscillate(entry.id * 31 + i, t, JUDGMENT_LETTER_OSCILLATE_RANGE);
+                    el.setAttribute('transform', `translate(0, ${dy})`);
+                });
             });
             hitRefsMap.current.forEach((entry) => {
                 const f = Math.min(framesElapsed(t, entry.startTick, g.hitFrameMs), HIT_FRAMES - 1);
@@ -2211,15 +2232,32 @@ export default function SheetRpgLayer({
                 // #863 round 2: registers this judgment's live `<text>` node so the rAF loop can push
                 // fresh y/opacity every frame instead of waiting for the next `frameTick` re-render.
                 const liveJudgmentRef = (el) => {
-                    if (el) judgmentRefsMap.current.set(j.id, { el, startTick: j.startTick, lane: j.lane });
-                    else judgmentRefsMap.current.delete(j.id);
+                    if (el) {
+                        const existing = judgmentRefsMap.current.get(j.id);
+                        judgmentRefsMap.current.set(j.id, { el, startTick: j.startTick, lane: j.lane, id: j.id, charEls: existing?.charEls || [] });
+                    } else {
+                        judgmentRefsMap.current.delete(j.id);
+                    }
+                };
+                // #925 follow-up: one <tspan> per character so the rAF loop above can nudge each letter
+                // independently (see its own comment) — `liveCharRef` collects them onto the SAME map
+                // entry `liveJudgmentRef` creates, keyed by character index, not a second separate map.
+                // Creates a stub entry if it doesn't exist yet — React doesn't guarantee whether a child
+                // tspan's ref or the parent text's ref fires first, so either callback may run first.
+                const label = GRADE_LABELS[j.category] || j.category;
+                const liveCharRef = (i) => (el) => {
+                    let entry = judgmentRefsMap.current.get(j.id);
+                    if (!entry) { entry = { charEls: [] }; judgmentRefsMap.current.set(j.id, entry); }
+                    entry.charEls[i] = el;
                 };
                 return (
                     <text key={j.id} ref={liveJudgmentRef} x={startX + SLIME_VIEW_W / 2 + 10} y={y}
                         fill={JUDGMENT_COLOR[j.category] || 'var(--text-primary)'} opacity={1 - prog}
                         fontSize="36" fontWeight="700" fontFamily="Georgia, 'Times New Roman', serif"
                         style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                        {GRADE_LABELS[j.category] || j.category}
+                        {label.split('').map((ch, i) => (
+                            <tspan key={i} ref={liveCharRef(i)}>{ch === ' ' ? ' ' : ch}</tspan>
+                        ))}
                     </text>
                 );
             })}
