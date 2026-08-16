@@ -1,34 +1,36 @@
 import { describe, it, expect } from 'vitest';
-import { computeSpatialPan } from '../spatialPan';
+import { computeSpatialPanVolume, CHUNK_PX, AUDIBLE_CHUNKS } from '../spatialPan';
 
-// #925 (Han 2026-08-16, "Graag stereo: in beeld: tot 50%-100% L-R, buiten beeld 0-50% L
-// (afstandsgebaseerd)"): the shared pan/proximity formula every env-audio voice (birds, water) uses.
-describe('computeSpatialPan', () => {
-    it('pans 50% at exact screen-center while in view (never dead-center)', () => {
-        const { pan, proximity } = computeSpatialPan(500, 1000, 1200);
-        expect(pan).toBeCloseTo(0.5, 5);
-        expect(proximity).toBe(1);
+// #925 round 2 (Han 2026-08-17, "Definieer de audio thans in chunks, niet in beeldlengtes... doe dan maar
+// gewone stereo pan + volume, als dat simpeler is"): the shared world-distance pan/volume formula every
+// env-audio voice (birds, water) uses.
+describe('computeSpatialPanVolume', () => {
+    it('is centered (pan 0) and full volume at the source\'s own location', () => {
+        const { pan, gain } = computeSpatialPanVolume(500, 500);
+        expect(pan).toBe(0);
+        expect(gain).toBe(1);
     });
 
-    it('reaches 100% pan at the viewport edges while in view', () => {
-        expect(computeSpatialPan(1000, 1000, 1200).pan).toBeCloseTo(1, 5);
-        expect(computeSpatialPan(0, 1000, 1200).pan).toBeCloseTo(-1, 5);
+    it('reaches full pan and zero gain at AUDIBLE_CHUNKS away', () => {
+        const edge = AUDIBLE_CHUNKS * CHUNK_PX;
+        const right = computeSpatialPanVolume(500 + edge, 500);
+        expect(right.pan).toBeCloseTo(1, 5);
+        expect(right.gain).toBeCloseTo(0, 5);
+        const left = computeSpatialPanVolume(500 - edge, 500);
+        expect(left.pan).toBeCloseTo(-1, 5);
+        expect(left.gain).toBeCloseTo(0, 5);
     });
 
-    it('holds at 50% pan just off-screen, decaying toward 0 with distance', () => {
-        const justOff = computeSpatialPan(-1, 1000, 1200);
-        expect(justOff.pan).toBeCloseTo(-0.5, 1);
-        expect(justOff.proximity).toBeCloseTo(1, 1);
-
-        const farOff = computeSpatialPan(-1200, 1000, 1200);
-        expect(farOff.proximity).toBe(0);
-        expect(farOff.pan).toBe(-0);
+    it('is silent (clamped) beyond AUDIBLE_CHUNKS', () => {
+        const farBeyond = computeSpatialPanVolume(500 + AUDIBLE_CHUNKS * CHUNK_PX * 3, 500);
+        expect(farBeyond.gain).toBe(0);
+        expect(Math.abs(farBeyond.pan)).toBeLessThanOrEqual(1);
     });
 
-    it('is symmetric for left vs right offscreen', () => {
-        const left = computeSpatialPan(-600, 1000, 1200);
-        const right = computeSpatialPan(1600, 1000, 1200);
+    it('is symmetric for left vs right', () => {
+        const right = computeSpatialPanVolume(500 + CHUNK_PX, 500);
+        const left = computeSpatialPanVolume(500 - CHUNK_PX, 500);
         expect(right.pan).toBeCloseTo(-left.pan, 5);
-        expect(right.proximity).toBeCloseTo(left.proximity, 5);
+        expect(right.gain).toBeCloseTo(left.gain, 5);
     });
 });

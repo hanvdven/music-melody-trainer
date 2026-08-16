@@ -34,9 +34,12 @@ describe('useWorldAmbientMusic musicVolumeMultiplier (#992)', () => {
 
     it('scales the ambient piano melody volumes by musicVolumeMultiplier on top of MF_VOLUME', async () => {
         // #925 follow-up: the hook now also creates a StereoPannerNode/GainNode per env-audio voice
-        // (bird/water spatial panning) — a real AudioContext always has these; stubbed here so the
-        // existing minimal test context keeps working instead of throwing on the new calls.
-        const context = { currentTime: 0, createStereoPanner: () => ({ connect: () => {}, pan: { value: 0 } }), createGain: () => ({ connect: () => {}, gain: { value: 0 } }) };
+        // (bird/water spatial panning), with pan/gain updated via `setTargetAtTime` (round 2: smoothed
+        // ramps instead of an instant `.value=` jump, per Han's "abrupt" feedback) — a real AudioContext
+        // always has all of this; stubbed here so the existing minimal test context keeps working instead
+        // of throwing on the new calls.
+        const audioParam = () => ({ value: 0, setTargetAtTime: () => {} });
+        const context = { currentTime: 0, createStereoPanner: () => ({ connect: () => {}, pan: audioParam() }), createGain: () => ({ connect: () => {}, gain: audioParam() }) };
         const { unmount } = renderHook(() =>
             useWorldAmbientMusic({ active: true, context, musicVolumeMultiplier: 2 }));
         await flush();
@@ -48,9 +51,12 @@ describe('useWorldAmbientMusic musicVolumeMultiplier (#992)', () => {
 
     it('defaults musicVolumeMultiplier to 1 (unchanged existing behaviour) when the caller omits it', async () => {
         // #925 follow-up: the hook now also creates a StereoPannerNode/GainNode per env-audio voice
-        // (bird/water spatial panning) — a real AudioContext always has these; stubbed here so the
-        // existing minimal test context keeps working instead of throwing on the new calls.
-        const context = { currentTime: 0, createStereoPanner: () => ({ connect: () => {}, pan: { value: 0 } }), createGain: () => ({ connect: () => {}, gain: { value: 0 } }) };
+        // (bird/water spatial panning), with pan/gain updated via `setTargetAtTime` (round 2: smoothed
+        // ramps instead of an instant `.value=` jump, per Han's "abrupt" feedback) — a real AudioContext
+        // always has all of this; stubbed here so the existing minimal test context keeps working instead
+        // of throwing on the new calls.
+        const audioParam = () => ({ value: 0, setTargetAtTime: () => {} });
+        const context = { currentTime: 0, createStereoPanner: () => ({ connect: () => {}, pan: audioParam() }), createGain: () => ({ connect: () => {}, gain: audioParam() }) };
         const { unmount } = renderHook(() => useWorldAmbientMusic({ active: true, context }));
         await flush();
         expect(playMelodies).toHaveBeenCalled();

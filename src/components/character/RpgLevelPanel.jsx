@@ -788,12 +788,16 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // adds the level's own world offset before projecting, so callers can pass a local px straight through
     // exactly like `LdtkScenery`'s canvas positioning does.
     const localWorldToScreenX = (localX) => worldToScreenX(LEVEL_MIN_X + localX);
-    // #925 follow-up (Han 2026-08-16, "env audio moet aanpassen aan wat in beeld is"): rebuilt fresh every
-    // render (cheap — just references, no computation) and stashed in a ref so useWorldAmbientMusic's own
-    // internal timers always read LIVE data without needing to tear down/resubscribe on every camera-move
-    // re-render (same "live ref" pattern used throughout this session's other new hooks).
+    // #925 follow-up (Han 2026-08-16, "env audio moet aanpassen aan wat in beeld is" — round 2, 2026-08-17,
+    // "definieer audio in chunks, niet in beeldlengtes"): rebuilt fresh every render (cheap — just
+    // references, no computation) and stashed in a ref so useWorldAmbientMusic's own internal timers
+    // always read LIVE data without needing to tear down/resubscribe on every camera-move re-render (same
+    // "live ref" pattern used throughout this session's other new hooks). `listenerX` is the hero's own
+    // ABSOLUTE LDtk world position (playerX, NOT canvas-local) — the same coordinate space
+    // birdPositionsRef's positions are already in (LDtk's own `__worldX`, see ldtkWorld.js); `levelMinX`
+    // lets the hook convert water tiles' canvas-local worldX back to that same absolute space itself.
     envAudioRef.current = {
-        viewportWidth: size.w, localWorldToScreenX, birdPositionsRef,
+        listenerX: playerX, levelMinX: LEVEL_MIN_X, birdPositionsRef,
         waterTiles: sceneryMode === 'LDtk' ? [...waterTilesBack, ...waterTilesFront] : [],
     };
     useWorldAmbientMusic({ active: true, context, musicVolumeMultiplier: rpgMusicVolumeMultiplier, envAudioRef });
