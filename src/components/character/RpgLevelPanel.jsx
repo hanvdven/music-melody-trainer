@@ -12,6 +12,7 @@ import floorTiles2Url from '../../assets/ASSORTED/tiles/tiles/Floor Tiles2.png';
 import treeSheetUrl from '../../assets/ASSORTED/tiles/trees/Trees_foliage_trunk.png';
 import decorUrl from '../../assets/ASSORTED/tiles/int_ext_decoration/Decor.png';
 import ForegroundFoliageLayer, { DEFAULT_FOLIAGE_PARAMS } from './ForegroundFoliageLayer';
+import useLdtkWaterInstances from './useLdtkWaterInstances';
 import LdtkScenery from './LdtkScenery';
 import LdtkAnimatedTiles from './LdtkAnimatedTiles';
 import useLdtkFoliageInstances from './useLdtkFoliageInstances';
@@ -573,6 +574,18 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // layer render in two separate passes (see "houd goed de volgorde van lagen aan" below).
     const foliageInstancesBack = useLdtkFoliageInstances(world.foliageTilesBack, world.gridSize, sceneryMode);
     const foliageInstancesFront = useLdtkFoliageInstances(world.foliageTilesFront, world.gridSize, sceneryMode);
+    // #925 round 2 (Han 2026-08-16, "doe ook de diffusie, gewoon een exacte kopie van de logica voor
+    // boomblaadjes"): water tiles pulled OUT of `animatedTilesBack/Front` (kind:'water') and rendered
+    // through the SAME shimmer shader as foliage instead of `LdtkAnimatedTiles`'s plain DOM frame-cycling
+    // — see useLdtkWaterInstances.js for how it still reproduces water's own frame-cycling animation
+    // (round 2 fix: per-placement independent offsets, not per-src). Campfire (the other animatedTiles
+    // kind) is untouched, still routed to `LdtkAnimatedTiles` below.
+    const waterTilesBack = useMemo(() => world.animatedTilesBack.filter((t) => t.kind === 'water'), [world.animatedTilesBack]);
+    const waterTilesFront = useMemo(() => world.animatedTilesFront.filter((t) => t.kind === 'water'), [world.animatedTilesFront]);
+    const nonWaterAnimatedTilesBack = useMemo(() => world.animatedTilesBack.filter((t) => t.kind !== 'water'), [world.animatedTilesBack]);
+    const nonWaterAnimatedTilesFront = useMemo(() => world.animatedTilesFront.filter((t) => t.kind !== 'water'), [world.animatedTilesFront]);
+    const waterInstancesBack = useLdtkWaterInstances(waterTilesBack, world.gridSize, sceneryMode);
+    const waterInstancesFront = useLdtkWaterInstances(waterTilesFront, world.gridSize, sceneryMode);
 
     useEffect(() => {
         const el = containerRef.current;
@@ -967,15 +980,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             )}
             {sceneryMode === 'LDtk' && (
                 <LdtkAnimatedTiles
-                    animatedTiles={cullTilesToViewport(world.animatedTilesBack)} worldToScreenX={localWorldToScreenX}
+                    animatedTiles={cullTilesToViewport(nonWaterAnimatedTilesBack)} worldToScreenX={localWorldToScreenX}
                     groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
                 />
             )}
-            {sceneryMode === 'LDtk' && foliageInstancesBack.length > 0 && (
+            {sceneryMode === 'LDtk' && (foliageInstancesBack.length > 0 || waterInstancesBack.length > 0) && (
                 <ForegroundFoliageLayer
                     widthPx={size.w}
                     heightPx={size.h}
-                    instances={cullToViewport(foliageInstancesBack.map((inst) => foliageInstanceProps(inst)))}
+                    instances={cullToViewport([...foliageInstancesBack, ...waterInstancesBack].map((inst) => foliageInstanceProps(inst)))}
                     debugChannel={foliageDebugChannel}
                     lights={[
                         { worldX: NPC_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
@@ -1178,15 +1191,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
             )}
             {sceneryMode === 'LDtk' && (
                 <LdtkAnimatedTiles
-                    animatedTiles={cullTilesToViewport(world.animatedTilesFront)} worldToScreenX={localWorldToScreenX}
+                    animatedTiles={cullTilesToViewport(nonWaterAnimatedTilesFront)} worldToScreenX={localWorldToScreenX}
                     groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
                 />
             )}
-            {sceneryMode === 'LDtk' && foliageInstancesFront.length > 0 && (
+            {sceneryMode === 'LDtk' && (foliageInstancesFront.length > 0 || waterInstancesFront.length > 0) && (
                 <ForegroundFoliageLayer
                     widthPx={size.w}
                     heightPx={size.h}
-                    instances={cullToViewport(foliageInstancesFront.map((inst) => foliageInstanceProps(inst)))}
+                    instances={cullToViewport([...foliageInstancesFront, ...waterInstancesFront].map((inst) => foliageInstanceProps(inst)))}
                     debugChannel={foliageDebugChannel}
                     lights={[
                         { worldX: NPC_X, worldHeight: 0, color: WISP_LIGHT_COLOR01 },
