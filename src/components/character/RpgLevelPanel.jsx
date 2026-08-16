@@ -282,10 +282,31 @@ function WorldCreature({ variant, moving, frame, facing = 1, zoom = ZOOM }) {
 // picks a RANDOM classified creature matching that exact criteria, via `findCreaturesByTags`
 // (bestiaryAssets.js) — data-driven off the Bestiary's own tagging/being classification (§6c), not a
 // hand-picked name list.
-const randomTaggedVariant = (habitatTag) => {
-    const pool = findCreaturesByTags(['nature', habitatTag], { excludeTags: ['hostile'], being: 'animal' });
+// #989 (Han 2026-08-14, "bestiary pass" — "day: spawn enkel critters zonder night. dusk/dawn: spawn alle
+// soorten critters. night: spawn enkel critters met night"): reads the SAME `foliageParams.timeOfDay`
+// debug toggle (FoliageParamsPanel) the lighting tint already keys off (§141 round 27) — day excludes
+// 'night'-tagged creatures, night requires the 'night' tag, dusk-dawn has no restriction either way.
+const randomTaggedVariant = (requiredTags, timeOfDay) => {
+    const excludeTags = ['hostile'];
+    if (timeOfDay === 'day') excludeTags.push('night');
+    let pool = findCreaturesByTags(requiredTags, { excludeTags, being: 'animal' });
+    if (timeOfDay === 'night') pool = pool.filter((v) => v.tags.includes('night'));
     return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
 };
+// #989 ("het level heeft 'water tiles'; ze mogen daarop heen en weer zwemmen, minimaal 16px van de rand,
+// geen verticale drift"): the contiguous run of 'water'-kind animated tiles at a swimmer's OWN row (world
+// object's `animatedTiles*` — see ldtkWorld.js), minus a 16px margin on each end, so a swim marker's
+// wander box never drifts onto land. Falls back to a small fixed span around the spawn point if no water
+// tile is found at that exact row (defensive — should not happen for a correctly-placed X_on_water marker).
+const WATER_EDGE_MARGIN = 16;
+function waterSpanNear(spawnX, spawnY, world) {
+    const waterTiles = [...world.animatedTilesBack, ...world.animatedTilesFront].filter((t) => t.kind === 'water');
+    const row = waterTiles.filter((t) => Math.abs(t.worldY - spawnY) < world.gridSize);
+    if (!row.length) return { minX: spawnX - 16, maxX: spawnX + 16 };
+    const minX = Math.min(...row.map((t) => t.worldX)) + WATER_EDGE_MARGIN;
+    const maxX = Math.max(...row.map((t) => t.worldX + world.gridSize)) - WATER_EDGE_MARGIN;
+    return minX <= maxX ? { minX, maxX } : { minX: spawnX, maxX: spawnX };
+}
 
 // #924: one independently-wandering world creature — flying/water critters wander a smooth pseudo-random
 // path within a (rangeX × rangeY) box around their spawn point (Han: "vliegt random van a naar b met een
@@ -302,10 +323,29 @@ const randomTaggedVariant = (habitatTag) => {
 // wanderer tracked the VIEWPORT instead of the world. Read through a ref (updated every render, same
 // convention `zoomRef`/`sizeRef` already use elsewhere in this file) so the rAF loop always sees the
 // CURRENT camera transform without needing to restart (which would reset the wander animation).
-function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, frame, zoom, worldToScreenX }) {
+// #989 (Han 2026-08-14, "bestiary pass" round: "de critters mogen niet 'verspringen', dus bird moet eerst
+// terugvliegen naar rustplek. Ik zie nu A->B x C -> D; ik verwacht: A -> B -> C -> D. [...] Kunnen de
+// dieren een bezier volgen, die dynamisch wordt gebouwd, zodat er geen 'harde knik' in het pad zit?"): the
+// OLD version snapped `dx`/`dy` straight to 0 the instant the duty-cycle flipped to "perched" — an
+// instantaneous teleport from wherever the wander curve happened to be back to the spawn point (Han's
+// "A->B x C->D", the "x" being that jump). Fixed with an explicit 3-state machine (wander/return/perch):
+// entering "return" captures the CURRENT position and eases it back to the spawn point over
+// `RETURN_DURATION_MS` along a quadratic bezier (control point offset PERPENDICULAR to the straight
+// start->spawn line, "dynamically built" per-return since the start point is wherever wandering stopped)
+// instead of a straight cut — continuous motion the whole way, curved rather than linear.
+const RETURN_DURATION_MS = 1200;
+// #989 ("zwemmen mag behoorlijk langzaam ~4 px per seconde (px is altijd game pixels)"): swimmers use a
+// separate, much simpler ping-pong motion (no oscillate/bezier — a real world-space back-and-forth,
+// horizontal only) between the water tile span's own edges (`waterSpan`, computed in `waterSpanNear`).
+const SWIM_SPEED = 4;
+function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, frame, zoom, worldToScreenX }) {
     const elRef = useRef(null);
     const facingRef = useRef(1);
-    const lastDxRef = useRef(0);
+    const posRef = useRef({ x: spawnX, y: spawnY });
+    const swimDirRef = useRef(1);
+    const stateRef = useRef('wander');   // 'wander' | 'return' | 'perch' — flying/bird only (swim/ground skip this)
+    const stateSinceRef = useRef(0);
+    const returnFromRef = useRef({ x: spawnX, y: spawnY });
     const [perched, setPerched] = useState(false);
     const worldToScreenXRef = useRef(worldToScreenX); worldToScreenXRef.current = worldToScreenX;
     // Stable per-instance seeds so each of several same-type wanderers moves independently, not in lockstep.
@@ -318,29 +358,67 @@ function WorldWanderer({ variant, spawnX, spawnY, rangeX, rangeY, canPerch, fram
     useEffect(() => {
         if (!variant) return undefined;
         let raf;
+        posRef.current = { x: spawnX, y: spawnY };
+        stateRef.current = 'wander';
         const tick = () => {
-            const t = performance.now();
-            // Duty cycle (Han: "gaat soms idle zitten op de spawnplek"): ~8s wandering, ~4s perched at
-            // spawn, independently phase-offset per instance via `perchPhase`.
-            const isPerchedNow = canPerch && ((t + perchPhase) % 12000) > 8000;
-            if (isPerchedNow !== perched) setPerched(isPerchedNow);
-            const dx = isPerchedNow ? 0 : oscillate(seedX, t, rangeX / 2, WANDER_SPEED);
-            const dy = (isPerchedNow || rangeY <= 0) ? 0 : oscillate(seedY, t, rangeY / 2, WANDER_SPEED);
-            if (dx !== lastDxRef.current) {
-                facingRef.current = dx >= lastDxRef.current ? 1 : -1;
-                lastDxRef.current = dx;
+            const now = performance.now();
+            if (swim && waterSpan) {
+                const dt = 1 / 60;   // rAF-driven, near-enough-constant step at this very low speed
+                let nx = posRef.current.x + swimDirRef.current * SWIM_SPEED * dt;
+                if (nx >= waterSpan.maxX) { nx = waterSpan.maxX; swimDirRef.current = -1; }
+                else if (nx <= waterSpan.minX) { nx = waterSpan.minX; swimDirRef.current = 1; }
+                if (nx !== posRef.current.x) facingRef.current = swimDirRef.current;
+                posRef.current = { x: nx, y: spawnY };   // "geen verticale drift"
+            } else {
+                const isDutyPerch = canPerch && ((now + perchPhase) % 12000) > 8000;
+                if (isDutyPerch && stateRef.current === 'wander') {
+                    stateRef.current = 'return';
+                    stateSinceRef.current = now;
+                    returnFromRef.current = { ...posRef.current };
+                } else if (!isDutyPerch && stateRef.current !== 'wander') {
+                    stateRef.current = 'wander';
+                }
+                if (stateRef.current === 'return') {
+                    const t = Math.min(1, (now - stateSinceRef.current) / RETURN_DURATION_MS);
+                    const from = returnFromRef.current;
+                    const dxTotal = spawnX - from.x, dyTotal = spawnY - from.y;
+                    const dist = Math.hypot(dxTotal, dyTotal) || 1;
+                    const bow = Math.min(40, dist * 0.35);
+                    const ctrl = { x: (from.x + spawnX) / 2 - (dyTotal / dist) * bow, y: (from.y + spawnY) / 2 + (dxTotal / dist) * bow };
+                    const u = 1 - t;
+                    const nx = u * u * from.x + 2 * u * t * ctrl.x + t * t * spawnX;
+                    const ny = u * u * from.y + 2 * u * t * ctrl.y + t * t * spawnY;
+                    if (nx !== posRef.current.x) facingRef.current = nx >= posRef.current.x ? 1 : -1;
+                    posRef.current = { x: nx, y: ny };
+                    if (t >= 1) stateRef.current = 'perch';
+                    if (perched) setPerched(false);
+                } else if (stateRef.current === 'perch') {
+                    posRef.current = { x: spawnX, y: spawnY };
+                    if (!perched) setPerched(true);
+                } else {
+                    const dx = oscillate(seedX, now, rangeX / 2, WANDER_SPEED);
+                    const dy = rangeY > 0 ? oscillate(seedY, now, rangeY / 2, WANDER_SPEED) : 0;
+                    const nx = spawnX + dx, ny = spawnY - dy;
+                    if (nx !== posRef.current.x) facingRef.current = nx >= posRef.current.x ? 1 : -1;
+                    posRef.current = { x: nx, y: ny };
+                    if (perched) setPerched(false);
+                }
             }
             if (elRef.current) {
-                elRef.current.style.left = `${worldToScreenXRef.current(spawnX + dx)}px`;
-                elRef.current.style.bottom = `${(LEVEL_PX_HEIGHT - (spawnY - dy)) * zoom}px`;
-                elRef.current.style.transform = 'translateX(-50%)';
+                elRef.current.style.left = `${worldToScreenXRef.current(posRef.current.x)}px`;
+                elRef.current.style.bottom = `${(LEVEL_PX_HEIGHT - posRef.current.y) * zoom}px`;
+                // #989 ("zorg dat het anker van de vogels netjes uitlijnt met het anker van de entity in
+                // LDtk, dus midden centrum aan midden centrum"): LDtk's own entity anchor is its CENTER, but
+                // `bottom` above anchors this wrapper's BOTTOM edge there — translateY(50%) shifts the whole
+                // wrapper down by half its own (auto) height so its vertical CENTER lands on spawnY instead.
+                elRef.current.style.transform = 'translate(-50%, 50%)';
             }
             raf = requestAnimationFrame(tick);
         };
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [variant, spawnX, spawnY, rangeX, rangeY, canPerch, zoom]);
+    }, [variant, spawnX, spawnY, rangeX, rangeY, canPerch, swim, waterSpan, zoom]);
 
     if (!variant) return null;
     return (
@@ -582,26 +660,36 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
     // chosen once — not re-randomized on every render. Per-habitat wander box/perch behaviour is the same
     // shape Han specified for Bird ("range 256x64, soms idle") / Duck ("range 32x0, idle heen en weer");
     // `ground` (no spawns exist yet in the current level) reuses the same small-range idle shape as `water`.
-    const HABITAT_WANDER = {
-        flying: { rangeX: 256, rangeY: 64, canPerch: true },
-        ground: { rangeX: 32, rangeY: 0, canPerch: false },
-        water: { rangeX: 32, rangeY: 0, canPerch: false },
+    // #989 (Han 2026-08-14, "ik heb voor de duidelijkheid de entity syntax veranderd: X_criteria, dus
+    // X_on_water, X_bird_flying, X_critter_flying, X_critter_ground"): entity IDENTIFIERS keyed 1:1 to the
+    // new LDtk marker names (was `Critter_<habitat>`/legacy `Bird`). `X_bird_flying` is now its OWN
+    // identifier with a NARROWER tag requirement than `X_critter_flying` — "bird: spawn een random critter
+    // + bird" + "vogels mogen alleen nog maar bird+flying zijn" (checked again below, since not every
+    // bird-tagged creature necessarily has a real fly animation).
+    const HABITAT_CONFIG = {
+        X_bird_flying: { tags: ['bird', 'flying'], rangeX: 256, rangeY: 64, canPerch: true, swim: false },
+        X_critter_flying: { tags: ['critter', 'flying'], rangeX: 256, rangeY: 64, canPerch: true, swim: false },
+        X_critter_ground: { tags: ['critter', 'ground'], rangeX: 32, rangeY: 0, canPerch: false, swim: false },
+        X_on_water: { tags: ['critter', 'on_water'], rangeX: 0, rangeY: 0, canPerch: false, swim: true },
     };
     const critterWanderers = useMemo(() => {
         const out = [];
-        for (const [habitat, cfg] of Object.entries(HABITAT_WANDER)) {
-            const identifier = habitat === 'flying' ? 'Critter_air' : `Critter_${habitat}`;
-            const positions = [
-                ...(ENTITY_INSTANCES[identifier] ?? []),
-                ...(habitat === 'flying' ? (ENTITY_INSTANCES.Bird ?? []) : []),
-            ];
-            for (const pos of positions) {
-                out.push({ ...pos, ...cfg, variant: randomTaggedVariant(habitat) });
+        for (const [identifier, cfg] of Object.entries(HABITAT_CONFIG)) {
+            for (const pos of (ENTITY_INSTANCES[identifier] ?? [])) {
+                let variant = randomTaggedVariant(cfg.tags, foliageParams.timeOfDay);
+                // #989 ("birds zonder fly kunnen niet in bird gespawnd worden"): a bird-tagged creature with
+                // no actual fly-keyed/labelled animation (`isFlyingAnim` checks key/label/tags — same helper
+                // `isFlyingAnim` uses elsewhere) must never be picked for a bird marker specifically.
+                if (identifier === 'X_bird_flying' && variant && !variant.animations.some((a) => isFlyingAnim(a, variant))) {
+                    variant = null;
+                }
+                if (!variant) continue;
+                out.push({ ...pos, ...cfg, variant, waterSpan: cfg.swim ? waterSpanNear(pos.x, pos.y, world) : null });
             }
         }
         return out;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [foliageParams.timeOfDay, world]);
     // #693 round 8 ("gebruik dezelfde pet als in de avatar selector"): whichever pet the player actually
     // equipped in the character screen, resolved via the SAME helper CharacterDoll itself uses (§6c).
     const petUrl = useMemo(() => urlOfLayer('pet', char?.layers?.pet), [char?.layers?.pet]);
@@ -862,13 +950,15 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 renders in its own second pass AFTER the entities instead (search "front-of-entities"). */}
             {/* #RAM-level (Han 2026-08-11, "foliage laag flitst nogal bij bewegen; bij veel beweging is het
                 foliage effect toch te subtiel, dus is slim om dan af te zetten. Maar, toon dan de default
-                ongemodificeerde sprite, ipv niets"): foliage tiles are now ALWAYS included in the flat
-                ground canvas too (merged into `groundTiles` here), not just the WebGL shimmer layer — so
-                there is always a plain, correctly-drawn fallback sprite underneath. The shimmer layer
-                (below) only mounts while the hero is standing still; while moving it's unmounted entirely,
-                leaving the flat version visible (never "nothing") — and as a side benefit this is also
-                what's shown during the first instant after a scenery change, before the batched normal-map
-                generation (useLdtkFoliageInstances.js) has produced anything to shimmer yet. */}
+                ongemodificeerde sprite, ipv niets"): foliage tiles are ALWAYS included in the flat ground
+                canvas too (merged into `groundTiles` here), not just the WebGL shimmer layer — so there is
+                always a plain, correctly-drawn fallback sprite underneath if the shimmer layer's textures
+                haven't resolved yet (see `runtimeTextures`/normal-map-generation gate elsewhere).
+                #925 follow-up (Han 2026-08-16, "shimmer ook actief als personage beweegt... blijkt niet
+                zoveel performance impact te hebben"): the shimmer layer used to unmount entirely while the
+                hero walked (a perf tradeoff from round 1 of this feature); Han re-measured and found the
+                impact small enough to keep shimmer running while moving too — the `!moving` gate is gone,
+                the flat DOM fallback above remains only as the pre-load/no-textures-yet fallback. */}
             {sceneryMode === 'LDtk' && (
                 <LdtkScenery
                     groundTiles={groundAndFoliageBack} backgroundLayers={world.backgroundLayers}
@@ -881,7 +971,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
                 />
             )}
-            {sceneryMode === 'LDtk' && !moving && foliageInstancesBack.length > 0 && (
+            {sceneryMode === 'LDtk' && foliageInstancesBack.length > 0 && (
                 <ForegroundFoliageLayer
                     widthPx={size.w}
                     heightPx={size.h}
@@ -1037,6 +1127,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                 <WorldWanderer
                     key={`critter-${i}`} variant={w.variant} spawnX={w.x} spawnY={w.y}
                     rangeX={w.rangeX} rangeY={w.rangeY} canPerch={w.canPerch}
+                    swim={w.swim} waterSpan={w.waterSpan}
                     frame={petFrame} zoom={zoom} worldToScreenX={worldToScreenX}
                 />
             ))}
@@ -1091,7 +1182,7 @@ export default function RpgLevelPanel({ characterEditor, rpgLevel, debugMode = f
                     groundAnchorPx={0} zoom={zoom} levelPxHeight={LEVEL_PX_HEIGHT} gridSize={world.gridSize}
                 />
             )}
-            {sceneryMode === 'LDtk' && !moving && foliageInstancesFront.length > 0 && (
+            {sceneryMode === 'LDtk' && foliageInstancesFront.length > 0 && (
                 <ForegroundFoliageLayer
                     widthPx={size.w}
                     heightPx={size.h}

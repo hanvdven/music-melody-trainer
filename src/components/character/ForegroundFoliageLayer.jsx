@@ -82,6 +82,10 @@ uniform float uGroundDistOffset;
 // draws. Fixed by explicitly qualifying both as highp here, matching the vertex shader's default exactly.
 uniform highp vec2 uScreenPos;
 uniform highp vec2 uSizePx;
+// #925 follow-up (Han 2026-08-16): shared with the vertex shader (which already declares this — see
+// main()'s own comment below for why the fragment stage needs it too), so must match its precision
+// exactly, same rule as uScreenPos/uSizePx above (round 23's critical bug).
+uniform highp vec2 uCanvasSize;
 uniform int uDebugChannel;   // 0 = final shimmer, 1 = raw normal map, 2 = wave band alone, 3 = disabled
 // #141 round 15 (Han: "je hebt de trunk aan de foliage layer toegevoegd. ik wil hem verlicht, maar geen
 // onderdeel van foliage" + "let op! de kisten op de voorgrond moeten NIET shimmeren" + "en het tentdoek
@@ -491,8 +495,25 @@ void main() {
     float stableUVx = (nativeX + 0.5) / uWorldWidth;
 
     float worldX = uWorldCenterX + (stableUVx - 0.5) * uWorldWidth;
-    float localY = vUV.y * uWorldHeight;
-    float groundDist = uWorldHeight - localY + uGroundDistOffset;
+
+    // #925 follow-up (Han 2026-08-16, "de shimmer 'pixel switch' is niet op het niveau van RPG-pixels,
+    // maar op het niveau van schermpixels"): mirrors the X-axis fix above for Y, which never got the same
+    // treatment — groundDist (and the sampling nativeY below) were still derived from the GPU-interpolated
+    // vUV.y varying, whose limited interpolation precision let the wave-grain quantization (and texel
+    // sampling) step at sub-native-pixel boundaries instead of whole RPG-pixel rows. gl_FragCoord.y is
+    // GL's window coordinate (origin bottom-left, Y UP); this shader's vertex stage deliberately negates
+    // clip.y (gl_Position = vec4(clip.x, -clip.y, ...)) so quads place using top-down CANVAS px
+    // (uScreenPos/uSizePx, matching every other "px" value in this file) — recovering that same canvas-px
+    // convention from gl_FragCoord.y needs undoing that flip via the canvas height (uCanvasSize, declared
+    // above). nativeY (distance from this instance's own TOP edge, in whole native px) is now computed
+    // ONCE here and reused for both the wave/grain math (via groundDist) and texel sampling further below
+    // — previously two separate derivations (one varying-based here, one also varying-based near the
+    // duv/normalUV computation) that could in principle disagree; now provably identical.
+    float pxTopEdgeY = uScreenPos.y - uSizePx.y;
+    float localYPx = (uCanvasSize.y - gl_FragCoord.y) - pxTopEdgeY;
+    float pxPerNativeY = max(uSizePx.y / uWorldHeight, 0.0001);
+    float nativeY = clamp(floor(localYPx / pxPerNativeY), 0.0, uWorldHeight - 1.0);
+    float groundDist = uWorldHeight - (nativeY + 0.5) + uGroundDistOffset;
     vec2 texelSize = vec2((uDiffuseUV.z - uDiffuseUV.x) / uWorldWidth, (uDiffuseUV.w - uDiffuseUV.y) / uWorldHeight);
 
     // Channel 3 (Disabled) and instances with BOTH wave and skew switched off skip the noise sample
@@ -555,9 +576,8 @@ void main() {
     // by the whole-pixel totalShiftPx, clamp, THEN convert to a texel-CENTER UV (+0.5) — every fragment in
     // the same native pixel's footprint computes the identical integer index and therefore the identical
     // UV, so texture2D() always lands solidly in the middle of one texel with no boundary ambiguity,
-    // regardless of skew/stretch. nativeY still comes from vUV.y (untouched by skew/stretch, and Han
-    // hasn't reported vertical artifacts — round 20's fix is scoped to the axis that's actually animated).
-    float nativeY = floor(vUV.y * uWorldHeight);
+    // regardless of skew/stretch. nativeY (now gl_FragCoord-derived, see its own comment above) is reused
+    // unchanged here — untouched by skew/stretch, which only ever shift the X sample.
     float shiftedNativeX = clamp(nativeX + totalShiftPx, 0.0, uWorldWidth - 1.0);
     vec2 duv = vec2(
         mix(uDiffuseUV.x, uDiffuseUV.z, (shiftedNativeX + 0.5) / uWorldWidth),

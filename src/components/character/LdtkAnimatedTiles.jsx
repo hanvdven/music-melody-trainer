@@ -15,6 +15,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 // keeping the quadrant fixed, so every already-correct tile placement is preserved exactly, just with a
 // different source rect each frame. No grouping, no alignment assumption, so it can't misgroup.
 //
+// #925 follow-up (Han 2026-08-16, "wateranimatie uit random plekken... de animatie was eigenlijk al
+// goed, er moest gewoon nog shimmer over"): an attempt to move water's rendering into the WebGL shimmer
+// layer (reimplementing this exact frame-cycle math there) broke the water/quadrant grouping this
+// component already gets right — REVERTED. Water renders through THIS proven-correct component again;
+// shimmer is added as a separate step that must not touch this file's own animation logic.
+//
 // One shared `tick` counter (not one interval per instance) drives every instance; each instance's own
 // displayed frame offset is a per-instance RANDOM value (rolled ONCE, stable across re-renders) added to
 // that shared tick, per Han's "begin op random moment" — instances don't visibly lock-step.
