@@ -384,4 +384,7 @@ const NoteColoringStaffOverlay = ({
     );
 };
 
+// #1045: exported so LevelZeroConfigForm.jsx's per-level colorMode picker can reuse the SAME
+// mode list/order instead of hand-copying a second one (§6c — single source of truth).
+export { SCHEMES };
 export default NoteColoringStaffOverlay;

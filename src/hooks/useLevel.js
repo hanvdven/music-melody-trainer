@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { LEVEL1, wavesForLevel, trebleOnlyEyes, threeLineEyes, LEVEL_BASS_SIMPLE, LEVEL_BASS_DEFAULT } from '../levels/levels';
+import { LEVEL1, wavesForLevel, trebleOnlyEyes, threeLineEyes, LEVEL_BASS_SIMPLE, LEVEL_BASS_DEFAULT, DEFAULT_LEVEL_COLOR_MODE } from '../levels/levels';
 import { DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE } from '../constants/generatorDefaults';
 
 // #659/#660 Level orchestration. Applies a level's config (snapshotting the prior config to restore on
@@ -114,6 +114,12 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // Level editor (Han 2026-08-06, "theme = app kleurenschema"): forces the app's global colour
         // theme for the level's duration, reverted on close (same pattern as `key` above).
         if (lvl.theme) setters.setTheme?.(lvl.theme);
+        // #1045 (Han 2026-08-17, "voeg color mode toe aan de settings van een level"): forces the app's
+        // note-coloring scheme for the level's duration, same unconditional-apply/restore-on-close
+        // pattern as `key`/`bpm`/`timeSignature` above — `normalizeLevel` (levels.js) always fills
+        // `lvl.colorMode` in (explicit level field, else DEFAULT_LEVEL_COLOR_MODE), so the `??` here is
+        // just the same defensive fallback every other level-applied field also carries.
+        setters.setNoteColoringMode?.(lvl.colorMode ?? DEFAULT_LEVEL_COLOR_MODE);
         // `volume`/`visible` are level-editor-only convenience fields (read separately by
         // resolveLevelVolume/computeEyes), NOT InstrumentSettings fields — stripped before spreading
         // onto trebleSettings so they don't leave a stray unused property behind.
@@ -360,6 +366,9 @@ export default function useLevel({ setters, snapshot, regenerate, debugMode = fa
         // Level editor (Han 2026-08-06): revert a level's `theme` override (if any) to whatever the
         // user had selected before the level started.
         setters.setTheme?.(s.theme);
+        // #1045 (Han 2026-08-17): revert a level's `colorMode` override to whatever note-coloring
+        // scheme the user had selected before the level started (same pattern as theme above).
+        setters.setNoteColoringMode?.(s.noteColoringMode);
     }, [setters]);
 
     const close = useCallback(() => {

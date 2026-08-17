@@ -1129,7 +1129,8 @@ const App = () => {
     const levelSnapshot = useCallback(() => ({
         numMeasures, trebleSettings, bassSettings, percussionSettings, chordSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode,
         tonic: scale.tonic, selectedMode, selectedFamily: scale.family, theme, timeSignature,
-    }), [numMeasures, trebleSettings, bassSettings, percussionSettings, chordSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode, scale.tonic, selectedMode, scale.family, theme, timeSignature]);
+        noteColoringMode, // #1045: a level's colorMode override reverts to whatever the user had selected
+    }), [numMeasures, trebleSettings, bassSettings, percussionSettings, chordSettings, playbackConfig, showChordsOddRounds, showChordsEvenRounds, bpm, animationMode, scale.tonic, selectedMode, scale.family, theme, timeSignature, noteColoringMode]);
     // Defer the (re)generation to the next frame so the just-applied config setters have flushed to their
     // refs first (setTrebleSettings mirrors into instrumentSettingsRef only during the render it triggers;
     // randomizeAll reads that ref) — otherwise the FIRST wave would generate from the old settings.
@@ -1185,8 +1186,8 @@ const App = () => {
     const levelSetters = useMemo(() => ({
         setNumMeasures, setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings, setPlaybackConfig,
         setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode,
-        setTonic, setSelectedMode, setTheme, setTimeSignature, loadSong: levelLoadSong,
-    }), [setNumMeasures, setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode, setTonic, setSelectedMode, setTheme, setTimeSignature, levelLoadSong]);
+        setTonic, setSelectedMode, setTheme, setTimeSignature, setNoteColoringMode, loadSong: levelLoadSong,
+    }), [setNumMeasures, setTrebleSettings, setBassSettings, setPercussionSettings, setChordSettings, setPlaybackConfig, setShowChordsOddRounds, setShowChordsEvenRounds, setStartMeasureIndex, setBpm, setAnimationMode, setTonic, setSelectedMode, setTheme, setTimeSignature, setNoteColoringMode, levelLoadSong]);
     const level = useLevel({ setters: levelSetters, snapshot: levelSnapshot, regenerate: levelRegenerate, debugMode });
 
     // #990 (Han 2026-08-14, RPG-level wrong-note feedback): SheetRpgLayer populates this with a

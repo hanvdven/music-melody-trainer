@@ -1,6 +1,8 @@
 import React from 'react';
 import { CHORD_COMPLEXITY, CHORD_STRATEGIES } from '../../constants/generationFields';
 import { DEFAULT_BPM, DEFAULT_TIME_SIG, DEFAULT_SCALE_TONIC, DEFAULT_SCALE_MODE } from '../../constants/generatorDefaults';
+import { DEFAULT_LEVEL_COLOR_MODE } from '../../levels/levels';
+import { SCHEMES as COLOR_MODE_SCHEMES } from '../sheet-music/overlays/NoteColoringStaffOverlay';
 
 // Passing-chord type keys (Han 2026-08-06, "instelbaar: ... passing chords") — same enum
 // InstrumentSettings.defaultChordInstrumentSettings's own comment documents for `passingChordTypes`
@@ -116,6 +118,11 @@ export default function LevelZeroConfigForm({ draft, onChange }) {
                 <Row label="theme">
                     <select value={draft.theme ?? 'default'} onChange={(e) => set('theme', e.target.value)}>
                         {THEME_IDS.map((id) => <option key={id} value={id}>{id}</option>)}
+                    </select>
+                </Row>
+                <Row label="colorMode">
+                    <select value={draft.colorMode ?? DEFAULT_LEVEL_COLOR_MODE} onChange={(e) => set('colorMode', e.target.value)}>
+                        {COLOR_MODE_SCHEMES.map((s) => <option key={s.mode} value={s.mode}>{s.label}</option>)}
                     </select>
                 </Row>
             </Section>

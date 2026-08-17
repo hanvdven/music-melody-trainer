@@ -16891,3 +16891,111 @@ satisfied by the existing design — this is a property to verify, not to implem
 above and was bounced at UAT; the corrected version is the second `[#994-impl-Opus/high]` commit. The
 `§108` and `§110` cross-references in this document were written against the first version and updated
 alongside the correction.
+
+### §249. Per-level color mode setting (#1045, Han 2026-08-17)
+
+**Purpose:** Han: "Voeg color mode toe aan de settings van een level. Zet standaard op subtle chroma."
+A level can now author its own note-coloring scheme (any `NoteColoringStaffOverlay.jsx` `SCHEMES` value
+— `none`/`tonic_scale_keys`/`chords`/`chromatone`/`subtle-chroma`), applied for the level's duration and
+reverted to the player's own choice on exit.
+
+**How it works:** `levels.js`'s `normalizeLevel` fills a `colorMode` field on every level via the same
+"explicit field wins, else derived" convention `beatsOnScreen`/`numRepeats` already use — a new
+`DEFAULT_LEVEL_COLOR_MODE = 'subtle-chroma'` constant when omitted. `useLevel.js`'s `applyConfig` applies
+it unconditionally via `setNoteColoringMode` (same pattern as `key`/`bpm`/`timeSignature`/`theme` — never
+"whatever was ambient"), and `restore()` reverts it from the level's own start-of-session snapshot
+(`App.jsx`'s `levelSnapshot` now also captures `noteColoringMode`). The player can still change it
+manually mid-level via the normal `NoteColoringStaffOverlay` carousel — that's a live app-state change,
+not something the level re-applies continuously. `LevelZeroConfigForm.jsx` gained a `colorMode` picker
+reusing `NoteColoringStaffOverlay.jsx`'s own exported `SCHEMES` list (single source of truth, §6c) rather
+than a second hand-copied mode list.
+
+**Invariant:** any new "level forces app-wide display setting X for its duration" field must follow this
+same three-part shape — normalizeLevel default, applyConfig unconditional apply, snapshot+restore on
+exit — the established pattern for `key`/`theme`/now `colorMode`.
+
+**Files:** `src/levels/levels.js` (`DEFAULT_LEVEL_COLOR_MODE`, `normalizeLevel`'s `colorMode` field),
+`src/hooks/useLevel.js` (`applyConfig`/`restore`), `src/App.jsx` (`levelSetters`, `levelSnapshot`),
+`src/components/levels/LevelZeroConfigForm.jsx` (picker row), `src/components/sheet-music/overlays/
+NoteColoringStaffOverlay.jsx` (`SCHEMES` now exported), `src/levels/__tests__/levelColorMode.test.js` (new).
+
+### §250. Scale FAMILY not switching when loading a song or entering a level (#1047, Han 2026-08-17)
+
+**Symptom:** Han: "als ik een andere toonladder selecteer in de scale selector en dan een nummer start,
+wordt de toonladder niet op de toonladder van het nummer gezet." Loading a song (or a song-backed level)
+whose mode lives in a different scale FAMILY than whatever was last selected — e.g. Sakura's Pentatonic
+`In` while the app was on a Diatonic mode — silently failed to switch family, so the wrong key signature/
+scale stuck around.
+
+**Root cause:** `useScaleManagement.js`'s `setSelectedMode(newMode)` always called
+`updateScaleWithMode({ currentScale: prev, newFamily: prev.family, newMode })` — reusing whatever family
+was already active. Only `ScaleSelector.jsx`'s own wheel-click handler set family+mode together; every
+other caller (`App.jsx`'s `handleLoadSong`, `useLevel.js`'s `applyConfig`) called plain `setSelectedMode`
+and got a mode that doesn't exist in the current family, which `updateScaleWithMode`/`getModeDefinition`
+can't resolve.
+
+**Fix:** `setSelectedMode(newMode, newFamily = null)` gained an optional second parameter, defaulting to
+`prev.family` — every existing caller that only changes mode within the current family (the scale wheel,
+procedural levels) is byte-identical. `loadSong.js` already returned a `scaleFamily` field that nothing
+read; `handleLoadSong` now passes it. `levels.js`'s `songLevelDefaults` gained a `key.family` field
+(from the song's own `generator.scaleFamily`), threaded into `useLevel.js`'s `applyConfig`. The level
+snapshot/restore cycle (`App.jsx`'s `levelSnapshot`, `useLevel.js`'s `restore()`) now also captures/
+restores `scale.family`, so exiting a family-switching level restores the PRE-level family too, not just
+the pre-level mode name inside whatever family the level left active.
+
+**Invariant:** any code path that sets `selectedMode` on behalf of the user (not the user's own manual
+wheel click) must pass the target scale's own family explicitly — never rely on `prev.family`, which is
+only correct when nothing has changed family already.
+
+**Files:** `src/hooks/useScaleManagement.js` (`setSelectedMode` signature), `src/App.jsx`
+(`handleLoadSong`, `levelSnapshot`), `src/levels/levels.js` (`songLevelDefaults`'s `key.family`),
+`src/hooks/useLevel.js` (`applyConfig`, `restore`), `src/hooks/__tests__/useScaleManagement.test.js`
+(new family-switching tests), `src/levels/__tests__/songLevels.test.js` (updated `key` shape assertion).
+
+### §251. Duplicate song lyrics during side-scroll levels (#1044/#1048, Han 2026-08-17)
+
+**Symptom:** Han: "Ik zie lyrics in beeld die meebewegen met de noten, maar ik zie óók statische lyrics."
+
+**Root cause:** `SheetMusic.jsx`'s static text-lyrics render (`LyricsLayer` `variant="text"`) was missing
+the `!sideScroll` gate every sibling staff layer already has (`MelodyNotesLayer` immediately above it,
+`BarlinesLayer`, etc.). During a side-scroll level it rendered simultaneously with the scrolling lyrics
+(`scrollLyrics` prop passed to the RPG layer, already correctly gated `sideScroll && textLyricsActive`).
+
+**Fix:** added `!sideScroll` to the static block's render condition, matching its neighbors.
+
+**Files:** `src/components/sheet-music/SheetMusic.jsx`.
+
+### §252. Timpani drift in non-4-quarter meters + ABC pentatonic mode support (#1044, Han 2026-08-17)
+
+**Symptom (timpani):** Han: "levels met bijv 7/8 maten werken nog niet goed - veel glitches." Investigation
+found `buildTimpaniPattern` (`src/utils/timpaniPattern.js`) derived a single rounded
+`quartersPerMeasure = Math.round(measureTicks / QUARTER)` and laid hits out on a uniform grid of that
+size — exact for any meter that divides evenly into quarter notes, but 7/8 (42 ticks = 3.5 quarters)
+rounds to 4, so each "measure" of hits was actually 48 ticks, 6 ticks longer than the real 42-tick
+measure. That error compounded every measure (levels 109/120), an ever-growing desync between the
+timpani/notation and the real barlines.
+
+**Fix:** each hit's measure membership and beat-within-measure are now derived from its own absolute tick
+position modulo the REAL `measureTicks`, instead of from a rounded per-measure hit count — every measure
+re-syncs to its true boundary, so phase slip within one measure (unavoidable for a meter that doesn't
+divide evenly into quarters) never accumulates into the next. Byte-identical for every meter that already
+divided evenly.
+
+**Symptom (ABC pentatonic scales):** Han: "sakura moet in de 'E In' toonladder, arirang staat in F
+pentatonisch majeur." `scripts/abc-to-song.mjs`'s key parser only recognized the 7 classic diatonic modes
+via a 3-letter-abbreviation table. Arirang's `K:F pentatonic major` threw outright; sakura's `K:A In`
+silently mis-resolved — `sakura.json`'s cached `generator` metadata said `scaleFamily:"Diatonic",
+scaleMode:"Minor"`, unrelated to its own source's actual Pentatonic "In" mode.
+
+**Fix:** `parseKeyField` now matches a full mode PHRASE (not just one word) against every non-Diatonic
+family in `scaleHandler.js`'s own `scaleDefinitions` (imported directly, §6c — no second hand-copied
+scale-name table). A pentatonic mode has no key signature of its own, so its `diatonic` reference field
+(already present on every `scaleHandler.js` mode, e.g. `'In' -> 'Lydian'`) is mapped through the existing
+`MODE_FIFTHS` table to compute the correct notation accidentals. `sakura.json` regenerated (source
+unchanged) — now correctly `Pentatonic`/`In`. Arirang NOT regenerated: the Han-edited
+`src/assets/ASSET DROP/abc/arirang.abc` (moved out of `src/songs/abc/` mid-session — the build script
+still only ever reads whatever `.abc` PATH it's given, so this is a location change, not a functional
+one) has real bar-length mismatches unrelated to this parser fix, flagged separately rather than silently
+generated from bad data.
+
+**Files:** `src/utils/timpaniPattern.js` (+ test), `scripts/abc-to-song.mjs`, `src/songs/data/sakura.json`.

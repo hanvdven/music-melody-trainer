@@ -278,6 +278,10 @@ import { DEFAULT_TIME_SIG } from '../constants/generatorDefaults';
 
 const SONG_BY_ID = Object.fromEntries(SONGS.map((s) => [s.id, s]));
 
+// #1045 (Han 2026-08-17): every level's default note-coloring scheme, unless the level overrides it
+// with its own `colorMode`. Must match one of NoteColoringStaffOverlay.jsx's SCHEMES mode values.
+export const DEFAULT_LEVEL_COLOR_MODE = 'subtle-chroma';
+
 // Bug fix (Han 2026-08-11, #871 follow-up: "scarborough fair: de noten komen na 8 kwart-tellen; dat
 // moet zijn na 2 maten (6 kwarttellen)"), generalized #889 (Han 2026-08-14): `beatsOnScreen` (the
 // slime/note flight lead-time) is always counted in QUARTER-note beats (SheetRpgLayer's
@@ -442,7 +446,14 @@ const normalizeLevel = (lvl) => {
             ? spanForExplicitBeatsOnScreen(merged.beatsOnScreen, merged.timeSignature ?? DEFAULT_TIME_SIG)
             : deriveLevelSpan({ bpm: merged.bpm, timeSignature: merged.timeSignature ?? DEFAULT_TIME_SIG }))
         : null;
-    return { ...merged, numRepeats, totalMeasures, ...(span || {}) };
+    // #1045 (Han 2026-08-17, "Voeg color mode toe aan de settings van een level. Zet standaard op
+    // subtle chroma"): same "explicit field wins, else derived" convention as beatsOnScreen/numRepeats
+    // above — a level can author its own `colorMode` (any NoteColoringStaffOverlay.jsx SCHEMES value:
+    // 'none'/'tonic_scale_keys'/'chords'/'chromatone'/'subtle-chroma'), applied by useLevel's
+    // applyConfig via setNoteColoringMode. Every level gets one (not just sideScroll), matching how
+    // key/bpm/timeSignature are always-applied rather than side-scroll-only.
+    const colorMode = merged.colorMode ?? DEFAULT_LEVEL_COLOR_MODE;
+    return { ...merged, numRepeats, totalMeasures, colorMode, ...(span || {}) };
 };
 
 const byId = Object.fromEntries(levelsData.map((lvl) => [lvl.id, normalizeLevel(lvl)]));
