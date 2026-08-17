@@ -17190,3 +17190,50 @@ occur, however that render was triggered.
 
 **Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (new `frozenScrollPxRef`, written in the
 wave-reset effect, read in place of the old per-render `scrollPx` computation).
+
+### §258. Jutter still visible after §257 — the same JSX-vs-rAF fight, one level down per entity (Han 2026-08-17)
+
+**Symptom:** Han, immediately after §257 shipped: "still a jutter." The group-level scroll transform was
+now stable, but individual moving sprites (slimes, the Wizard's projectile, critters, the Level-11
+switch-flourish) still stuttered.
+
+**Root cause:** identical bug to §257, one layer deeper. Every "live" (Bucket-A, rAF-imperatively-driven)
+sprite component — `Slime`, `Projectile`, `Critter`, `StaticProjectile2` — is a `forwardRef` exposing
+`setPosition`/`setFrame`/`update()` for the rAF loop to call every frame, but each ALSO receives its
+`x`/`y`/`frame` as plain declarative JSX props (e.g. `Slime`'s own `<svg x={x} y={y}>`) which those
+components apply to the DOM on every prop change. The parent's render body recomputed those props fresh
+from `sideScrollX(..., tickRef.current)` inside its `.map()` calls on every `frameTick` render — the same
+"only the INITIAL/first-paint value" intent as §257's `scrollPx`, but never actually pinned to first
+paint, so every re-render re-asserted a fresh (tick-quantized, stale-relative-to-the-rAF-loop) position
+that instantly overwrote whatever smooth spot the rAF loop had already pushed to.
+
+**Fix:** a shared `freezeOnce(cache, key, compute)` helper (mirrors `frozenScrollPxRef`'s pattern,
+generalized to per-entity caching): the first time an entity's key is rendered, its declarative
+x/y/frame props are computed and cached; every later render for the SAME key reuses the cached object
+untouched, so React.memo bails out and never touches that entity's DOM again — the rAF loop owns 100% of
+its ongoing motion. Applied to treble Slime, the Wizard's Projectile, bass Slime, Critter, and the Level
+11 switch-flourish (`StaticProjectile2`) — the five continuously-moving entity types responsible for the
+bulk of visible on-screen motion. Each entity's cache entry is deleted wherever the entity is removed from
+its matching `*RefsMap` (off-screen culled, killed, dying-transition), and every cache is cleared in the
+existing `[notesKey, scrollStartTime]` wave-reset effect, so a reused key or a fresh wave never inherits a
+stale frozen value.
+
+**Known remaining instances of the same pattern (not yet fixed, lower visual impact):** judgment labels,
+hit bursts, spawn-glow flourishes, the Wizard's idle/cast frame, the struck-note ghost-note fly-up, and
+dying-entity death frames all share this exact bug shape (declarative JSX prop + imperative rAF push to
+the same attribute) — but each is a brief, one-shot animation (a few hundred ms) rather than the
+seconds-long continuous glide the five entities above produce, so their contribution to a perceived
+"steady, regular" stutter is far smaller. Flagged here rather than fixed blind; revisit with the same
+`freezeOnce` pattern if Han reports remaining choppiness specifically in judgment/hit/spawn-glow/wizard-
+cast/death-frame animations.
+
+**Invariant:** extends §257's invariant — this class of bug (a "mount-time only" comment on a value that
+is, in fact, a plain re-evaluated expression) can recur at ANY nesting depth wherever a component both (a)
+exposes an imperative ref handle for continuous rAF-driven updates AND (b) also accepts the same
+attribute as a reactive declarative prop. Any NEW Bucket-A entity added to this file must freeze its
+mount-time props the same way — never pass a live/recomputed value into a component whose ref handle
+ALSO owns that attribute.
+
+**Files:** `src/components/sheet-music/SheetRpgLayer.jsx` (`freezeOnce` helper + `frozenSlimePropsRef`/
+`frozenBassSlimePropsRef`/`frozenCritterPropsRef`/`frozenSwitchPropsRef`, all cleared in the wave-reset
+effect; treble Slime/Projectile, bass Slime, Critter, and switch-flourish render call sites updated).

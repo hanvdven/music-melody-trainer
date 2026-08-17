@@ -1004,6 +1004,28 @@ export default function SheetRpgLayer({
     // instead. Written once by the wave-reset effect below (the only place `waveStartRef` changes), read
     // (never written) by the render body.
     const frozenScrollPxRef = useRef(0);
+    // #1050 second follow-up (Han 2026-08-17, "still a jutter" after the scroll-transform freeze above):
+    // the IDENTICAL bug exists one level down, per LIVE entity. Slime/Projectile/Critter/etc. each carry
+    // a forwardRef imperative handle (setPosition/setFrame/…) that the rAF loop drives every frame — but
+    // their declarative x/y/frame/opacity JSX props (e.g. Slime's own `<svg x={x} y={y}>`) were ALSO
+    // recomputed from the live tick on every parent re-render (frameTick cadence) and handed straight
+    // down, so React kept re-asserting a stale snapshot onto the exact same attribute the rAF loop was
+    // smoothly animating — one snap per entity, per re-render, same as the group transform did.
+    // `freezeOnce` pins each entity's declarative props to whatever they were the FIRST time its key was
+    // rendered (their true mount moment) and returns that SAME object on every later call for the same
+    // key, so React.memo sees unchanged props and never touches the DOM again — 100% of ongoing motion
+    // becomes the rAF loop's imperative calls, uninterrupted. Callers MUST delete a key from its cache
+    // wherever they delete it from the matching *RefsMap (culled off-screen / killed / dying transition)
+    // so a later reused key gets a genuine fresh value instead of a stale leftover.
+    const freezeOnce = (cache, key, compute) => {
+        let v = cache.get(key);
+        if (!v) { v = compute(); cache.set(key, v); }
+        return v;
+    };
+    const frozenSlimePropsRef = useRef(new Map());         // treble slime/projectile — keyed by s.key
+    const frozenBassSlimePropsRef = useRef(new Map());
+    const frozenCritterPropsRef = useRef(new Map());
+    const frozenSwitchPropsRef = useRef(new Map());        // Level 11 switch-flourish — keyed by index i
     const geomRef = useRef({});                            // geometry read by the effects/rAF loop "at now"
 
     // #990: the side-scroll graded-window candidate list — shared by the combatNote effect below
@@ -1382,6 +1404,11 @@ export default function SheetRpgLayer({
         setBassDyingList([]); setBassKilledSet(new Set());   // #862 — same fresh-wave reset, bass's own state
         resolvedRef.current = new Set(); wrongAttemptRef.current = new Set(); resolvedStaticRef.current = new Set();
         setSpawnGlows([]); spawnGlowFiredRef.current = new Set();
+        // #1050 second follow-up: a fresh wave means every entity key starts over (even if a key STRING
+        // happens to be reused) — clear every frozen-props cache so nothing inherits a stale position/
+        // frame from the wave that just ended (see `freezeOnce`'s own comment for why these exist).
+        frozenSlimePropsRef.current.clear(); frozenBassSlimePropsRef.current.clear();
+        frozenCritterPropsRef.current.clear(); frozenSwitchPropsRef.current.clear();
         // With an audio anchor (scrollStartTime), t=0 IS the scheduled start, so the wave clock is 0 regardless
         // of WHEN the melody generated (a few frames later). Free-running mode restarts from the current tick.
         // #688 (Level 9 rework): back to ONE continuous melody/single wave (like every other side-scroll
@@ -2191,9 +2218,9 @@ export default function SheetRpgLayer({
                             </g>
                         );
                     }
-                    // #863: initial mount-time position only — this render only happens at frameTick
-                    // cadence now; every subsequent frame's position comes from the rAF loop's imperative
-                    // update via `slimeRefsMap` (registered below), reading the freshest `tickRef.current`.
+                    // Fresh every render — needed for the spawn/off-screen gating checks below, which
+                    // genuinely must track "now". #1050 second follow-up: the DECLARATIVE props handed to
+                    // Slime/Projectile below are a separate concern — see `freezeOnce`'s own comment.
                     const p = sideScrollX(s.beat, tickRef.current);
                     if (itemIsWizard) {
                         // #679 (Han interview: "zelfde beat-gekoppelde aankomsttijd" + "bewegen wél lineair naar
@@ -2211,31 +2238,41 @@ export default function SheetRpgLayer({
                         const visibleSinceMs = (beatsOnScreen - spawnLeadBeats) * beatMs;
                         if (!p.spawned || p.noteX < -PROJECTILE_VIEW_W || (!debugMode && p.msSinceSpawn < visibleSinceMs)) {
                             slimeRefsMap.current.delete(s.key);
+                            frozenSlimePropsRef.current.delete(s.key);
                             return null;
                         }
-                        // #685 ("animatie 4x zo snel"): loop speed multiplied independently of frameMs.
-                        const loopFrame = Math.floor(p.ff * PROJECTILE_ANIM_SPEED) % PROJECTILE_LOOP_FRAMES;
-                        // #685 ("oscilleren rond hun centrum... 15 units in alle richtingen"): small wobble
-                        // layered on top of the real flight position — `tick * INTERVAL_MS` = elapsed ms, a
-                        // smooth continuously-increasing clock (unlike `Date.now()`, stays in sync with the
-                        // audio-anchored rAF loop everything else here already uses).
-                        const nowMs = tickRef.current * INTERVAL_MS;
-                        const oscX = oscillate(s.key, nowMs, PROJECTILE_OSCILLATE_RANGE);
-                        const oscY = oscillate(s.key + 1000, nowMs, PROJECTILE_OSCILLATE_RANGE);
+                        // #1050 second follow-up: frozen at first appearance (see `freezeOnce`) — was
+                        // recomputed (loopFrame/oscX/oscY) from the live tick on every render before, which
+                        // fought the rAF loop's own imperative setPosition/setFrame for this same entity.
+                        const live = freezeOnce(frozenSlimePropsRef.current, s.key, () => {
+                            // #685 ("animatie 4x zo snel"): loop speed multiplied independently of frameMs.
+                            const loopFrame = Math.floor(p.ff * PROJECTILE_ANIM_SPEED) % PROJECTILE_LOOP_FRAMES;
+                            // #685 ("oscilleren rond hun centrum... 15 units in alle richtingen"): small wobble
+                            // layered on top of the real flight position — `tick * INTERVAL_MS` = elapsed ms, a
+                            // smooth continuously-increasing clock (unlike `Date.now()`, stays in sync with the
+                            // audio-anchored rAF loop everything else here already uses).
+                            const nowMs = tickRef.current * INTERVAL_MS;
+                            const oscX = oscillate(s.key, nowMs, PROJECTILE_OSCILLATE_RANGE);
+                            const oscY = oscillate(s.key + 1000, nowMs, PROJECTILE_OSCILLATE_RANGE);
+                            return { x: p.noteX + oscX, y: projectileCenterY + oscY, frame: loopFrame };
+                        });
                         // #863: `ref={liveProjectileRef}` — this is a BUCKET-A live entity; the rAF loop
                         // takes over its position/frame every frame after this initial mount paint.
-                        return <Projectile key={s.key} ref={liveProjectileRef} x={p.noteX + oscX} y={projectileCenterY + oscY} frame={loopFrame} />;
+                        return <Projectile key={s.key} ref={liveProjectileRef} x={live.x} y={live.y} frame={live.frame} />;
                     }
                     if (!p.spawned || p.slimeX < -SLIME_VIEW_W) {
                         slimeRefsMap.current.delete(s.key);
+                        frozenSlimePropsRef.current.delete(s.key);
                         return null;   // not on screen / walked off left
                     }
-                    // Han: a wrong/early note WIGGLES the (still-)next slime — a quick decaying horizontal shake.
-                    // #863: only used for THIS mount-time render; the rAF loop applies the same wiggle offset
-                    // (via `wiggleRef`, refreshed every render — see point 8) on every subsequent frame.
-                    const wf = wiggle && wiggle.index === idx ? framesSince(wiggle.startTick) : -1;
-                    const wdx = wf >= 0 && wf < WIGGLE_FRAMES ? Math.sin(wf * 3.2) * 4 * (1 - wf / WIGGLE_FRAMES) : 0;
-                    return <Slime key={s.key} ref={liveSlimeRef} x={p.slimeX + wdx} y={slimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} />;
+                    // #1050 second follow-up: frozen at first appearance — see `freezeOnce`'s own comment.
+                    // The wiggle shake (Han: a wrong/early note WIGGLES the still-next slime) stays fully
+                    // live regardless — it's driven by `wiggleRef.current.wdx` in the rAF loop (set from the
+                    // render body above, refreshed every render — "point 8"), never by this frozen prop.
+                    const live = freezeOnce(frozenSlimePropsRef.current, s.key, () => (
+                        { x: p.slimeX, y: slimeY, frame: p.walkFrame }
+                    ));
+                    return <Slime key={s.key} ref={liveSlimeRef} x={live.x} y={live.y} colorKey={s.colorKey} row={SLIME_WALK.row} frame={live.frame} />;
                 }
                 // static (Level 1 style): idle under the note; death in place. Wizard is never non-sideScroll
                 // (Level 9's config is sideScroll:true), so this branch stays pure Slime — no isWizard check.
@@ -2260,30 +2297,43 @@ export default function SheetRpgLayer({
                     };
                     return <Slime key={`bass-${s.key}`} ref={liveBassDyingRef} x={dyingEntry.x} y={bassSlimeY} colorKey={s.colorKey} row={SLIME_DEATH.row} frame={deathFrame} />;
                 }
-                const p = sideScrollX(s.beat, tickRef.current);   // #863: initial paint only, see slimeData.map above
-                if (!p.spawned || p.slimeX < -SLIME_VIEW_W) { bassSlimeRefsMap.current.delete(s.key); return null; }
+                const p = sideScrollX(s.beat, tickRef.current);   // fresh — needed for the gating check below
+                if (!p.spawned || p.slimeX < -SLIME_VIEW_W) {
+                    bassSlimeRefsMap.current.delete(s.key);
+                    frozenBassSlimePropsRef.current.delete(s.key);
+                    return null;
+                }
                 const liveBassSlimeRef = (el) => {
                     if (el) bassSlimeRefsMap.current.set(s.key, { el, idx });
                     else bassSlimeRefsMap.current.delete(s.key);
                 };
-                return <Slime key={`bass-${s.key}`} ref={liveBassSlimeRef} x={p.slimeX} y={bassSlimeY} colorKey={s.colorKey} row={SLIME_WALK.row} frame={p.walkFrame} />;
+                // #1050 second follow-up: frozen at first appearance — see `freezeOnce`'s own comment.
+                const live = freezeOnce(frozenBassSlimePropsRef.current, s.key, () => (
+                    { x: p.slimeX, y: bassSlimeY, frame: p.walkFrame }
+                ));
+                return <Slime key={`bass-${s.key}`} ref={liveBassSlimeRef} x={live.x} y={live.y} colorKey={s.colorKey} row={SLIME_WALK.row} frame={live.frame} />;
             })}
             {/* #693 round 8 — critters under rests, exact mirror of the slime render above but simpler: no
                 death animation, just hidden once struck (killedCritters). Same sideScrollX/spawn gating so
                 they scroll in lockstep with everything else. */}
             {sideScroll && critterData.map((c, idx) => {
                 if (killedCritters.has(idx)) { critterRefsMap.current.delete(c.key); return null; }
-                const p = sideScrollX(c.beat, tickRef.current);   // #863: initial paint only, see slimeData.map above
+                const p = sideScrollX(c.beat, tickRef.current);   // fresh — needed for the gating check below
                 if (!p.spawned || p.noteX < -SLIME_VIEW_W || (!debugMode && p.msSinceSpawn < 0)) {
                     critterRefsMap.current.delete(c.key);
+                    frozenCritterPropsRef.current.delete(c.key);
                     return null;
                 }
                 const liveCritterRef = (el) => {
                     if (el) critterRefsMap.current.set(c.key, { el, idx });
                     else critterRefsMap.current.delete(c.key);
                 };
-                const gFrame = Math.floor(p.ff / 4) % 1000;   // slow, gentle idle cycle (not the slime's walk cadence)
-                return <Critter key={c.key} ref={liveCritterRef} x={p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2} y={slimeY} variant={c.variant} frame={gFrame} />;
+                // #1050 second follow-up: frozen at first appearance — see `freezeOnce`'s own comment.
+                const live = freezeOnce(frozenCritterPropsRef.current, c.key, () => {
+                    const gFrame = Math.floor(p.ff / 4) % 1000;   // slow, gentle idle cycle (not the slime's walk cadence)
+                    return { x: p.noteX - (c.variant.crop.w * CRITTER_SCALE) / 2, y: slimeY, frame: gFrame };
+                });
+                return <Critter key={c.key} ref={liveCritterRef} x={live.x} y={live.y} variant={c.variant} frame={live.frame} />;
             })}
             {/* Graded timing zones next to the red strike line (Han 2026-08-02, debug-only for now — Han may
                 place assets here later). Replaces the old #660 spatial hit-zone rect (kills are TIME-window
@@ -2403,14 +2453,21 @@ export default function SheetRpgLayer({
                 rendered; ones beyond the level's actual length simply never spawn (harmless). */}
             {!isWizard && sideScroll && decorativeWizard && SWITCH_LOOKAHEAD.map((k, i) => {
                 const switchBeat = k * 2 * beatsPerMeasure;
-                const p = sideScrollX(switchBeat, tickRef.current);   // #863: initial paint only
-                if (!p.spawned || p.noteX < -STATIC_PROJECTILE2_CROP.w) { switchRefsArr.current[i] = null; return null; }
-                const loopFrame = Math.floor(p.ff) % STATIC_PROJECTILE2_LOOP_FRAMES;
+                const p = sideScrollX(switchBeat, tickRef.current);   // fresh — needed for the gating check below
+                if (!p.spawned || p.noteX < -STATIC_PROJECTILE2_CROP.w) {
+                    switchRefsArr.current[i] = null;
+                    frozenSwitchPropsRef.current.delete(i);
+                    return null;
+                }
                 // #863: bucket-A live entity — `switchRefsArr` (a plain array, SWITCH_LOOKAHEAD is fixed
                 // and ordered) is walked every rAF frame by the main loop above to update position/frame.
+                // #1050 second follow-up: frozen at first appearance — see `freezeOnce`'s own comment.
+                const live = freezeOnce(frozenSwitchPropsRef.current, i, () => (
+                    { x: p.noteX, y: projectileCenterY, frame: Math.floor(p.ff) % STATIC_PROJECTILE2_LOOP_FRAMES }
+                ));
                 return (
                     <StaticProjectile2 key={`switch-${k}`} ref={(el) => { switchRefsArr.current[i] = el; }}
-                        x={p.noteX} y={projectileCenterY} frame={loopFrame} />
+                        x={live.x} y={live.y} frame={live.frame} />
                 );
             })}
             {/* #871 (Han 2026-08-11, "abc music en level namen"): a decorative NPC (levels.json's `npc`
