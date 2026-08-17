@@ -589,6 +589,24 @@ const SheetMusic = ({
   const scaleFactor = Math.min(referenceScaleFactor, containerHeight / logicalHeightForViewBox);
   const logicalScreenWidth = screenWidth / scaleFactor;
 
+  // #1043 follow-up (Han 2026-08-17, "karakter, enemies, npc, critters moeten allemaal een stuk
+  // omlaag... maak het level gewoon wat dieper (behalve als alle balken actief zijn)"): the fix above
+  // (anchoring RPG sprites to `viewBottom`) wasn't enough — `viewBottom` itself was derived from the
+  // small ACTUAL `logicalHeightForViewBox` (tight around whichever staves are visible), so with only
+  // the treble staff shown, sprites landed barely below the staff, nowhere near the physical bottom of
+  // the screen. The `scaleFactor` capping above (Han 2026-08-02) already computes how much vertical
+  // slack `preserveAspectRatio="xMidYMin meet"` leaves at the bottom of the container in that case — it
+  // was just never given anywhere in the viewBox's own coordinate space to land in. Using
+  // `refLogicalHeightForViewBox` (the "all 3 staves" baseline) as the viewBox height for side-scroll
+  // levels makes `containerHeight / levelLogicalHeightForViewBox` land EXACTLY on `scaleFactor` whenever
+  // it was capped — i.e. it fills that already-computed slack instead of leaving it empty — while
+  // leaving `scaleFactor` itself (and therefore staff/note size) completely unchanged. Naturally tapers
+  // to a no-op once enough staves are visible that the actual height already meets/exceeds the
+  // reference (Han's "behalve als alle balken actief zijn"). Non-sideScroll views are untouched.
+  const levelLogicalHeightForViewBox = sideScroll
+    ? Math.max(logicalHeightForViewBox, refLogicalHeightForViewBox)
+    : logicalHeightForViewBox;
+
   const endX = logicalScreenWidth - 10; // 5 unit margin on each side (Starts at 0, viewBox starts at -5)
   const systemEndX = endX + 5;
 
@@ -1719,7 +1737,7 @@ const SheetMusic = ({
           ref={svgRef}
           width="100%"
           height="100%"
-          viewBox={`-5 -30 ${logicalScreenWidth} ${logicalHeightForViewBox}`}
+          viewBox={`-5 -30 ${logicalScreenWidth} ${levelLogicalHeightForViewBox}`}
           // Han 2026-08-02: top-anchored (not vertically centred) — with scaleFactor now capped at
           // the "all 3 staves visible" reference (see above), fewer visible staves leaves vertical
           // slack in the 45% box; xMidYMin keeps the header/hero/treble staff pinned to the same
@@ -2923,7 +2941,7 @@ const SheetMusic = ({
                     clef={clefTreble}
                     trebleStart={trebleStart}
                     staffHeight={staffHeight}
-                    viewBottom={logicalHeightForViewBox - 30}
+                    viewBottom={levelLogicalHeightForViewBox - 30}
                     // #661 (Han 2026-08-02, "de 3 lijnen zichtbaar maken"): bass + percussion ALSO scroll,
                     // same as treble — visual only (no slimes/combat, no audio here; the cello/metronome
                     // audio is scheduled separately via playMelodies, see App.jsx scheduleLevelBacking).
