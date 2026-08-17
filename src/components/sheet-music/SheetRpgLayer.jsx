@@ -733,10 +733,15 @@ export default function SheetRpgLayer({
         : (offset) => { const idx = allOffsets.indexOf(offset); return idx >= 0 ? startX + (idx - 1) * noteWidth : startX; };
 
     // ordered (left→right) slime data for the treble notes (rests/spacers skipped) — the "enemies".
-    const slimeY = trebleStart + staffHeight + 12;   // Han: iets lager
+    // #1043 (Han 2026-08-17, "karakter/enemies moeten wat omlaag ... zet die maar op de onderkant van
+    // het level (baseline)"): was `trebleStart + staffHeight + 12` — relative to the treble staff, so
+    // when the percussion staff is hidden the layout shifts and enemies end up overlapping the key
+    // signature. Anchored to `viewBottom` instead, same convention as `heroY`/`wizardY` below —
+    // independent of which staves are visible.
+    const slimeY = viewBottom - SLIME_VIEW_H;
     // #862 (Han 2026-08-10, "slimes van de basnoten moeten lager staan, transleer ze de staf-afstand"):
     // bass-slimes sit in their OWN lane, translated down by exactly the vertical distance between the
-    // two staves — not a separately-tuned offset.
+    // two staves — not a separately-tuned offset. Relation preserved after #1043's baseline anchor.
     const bassSlimeY = slimeY + (bassStart - trebleStart);
     // #685 (Han 2026-08-04, "zorg dat de projectielen midden op de notenbalk staat (dus ter hoogte van de
     // b4)"): the projectile no longer rides in the slime lane below the staff — it's vertically CENTERED on
