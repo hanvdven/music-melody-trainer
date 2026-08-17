@@ -1094,7 +1094,20 @@ export default function SheetRpgLayer({
     // Reset the "reported once" latch whenever a NEW anchor arrives (a fresh level start or replay) —
     // without this, `debugLoggedUnfreezeRef`/the watchdog signal above would only ever fire for the
     // FIRST level played in the whole app session (this component stays mounted across level changes).
-    useEffect(() => { debugLoggedUnfreezeRef.current = false; }, [scrollStartTime]);
+    //
+    // Bug fix (#1052, Han 2026-08-17, "na tweede keer level starten gaat het helemaal bad... noten
+    // komen nooit"): `clockStartRef` (the FREE-RUNNING fallback anchor, used only while waiting for
+    // the real audio anchor — see the loop below) is lazily set ONCE (`== null ? nowMs : ...`) and was
+    // NEVER reset anywhere. Since this component "stays mounted across level changes" (same reason
+    // debugLoggedUnfreezeRef needs resetting), starting a SECOND level hits a real window where
+    // `scrollStartRef.current` is null again (levelAudioStart resets to null on close, only becomes
+    // real once the new level's instruments are confirmed ready) — during that window the loop fell
+    // back to the STALE clockStartRef from the FIRST level (potentially minutes old), producing a
+    // massive, wrong `t` for every timing formula in the file: spawn gating, hit-detection windows,
+    // wave-start calculations. Exactly "notes never arrive" / hit-detection logging "EXTRA NOTE
+    // (nothing due)" for every real note played. Reset alongside debugLoggedUnfreezeRef — same
+    // trigger, same reasoning: a fresh anchor cycle must never inherit anything from the last one.
+    useEffect(() => { debugLoggedUnfreezeRef.current = false; clockStartRef.current = null; }, [scrollStartTime]);
     useEffect(() => {
         let raf;
         const loop = () => {
