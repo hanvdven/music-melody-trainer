@@ -47,6 +47,7 @@ import { fileURLToPath } from 'node:url';
 import { TICKS_PER_WHOLE } from '../src/constants/timing.js';
 import { DEFAULT_BPM } from '../src/constants/generatorDefaults.js';
 import { normalizeNoteChars } from '../src/theory/noteUtils.js';
+import { scaleDefinitions } from '../src/theory/scaleHandler.js';
 
 // ── tiny exact-rational helpers ───────────────────────────────────────────────────────────────────
 // Durations are multiplied by 1/2, 3/2 and 2/3 (halved notes, broken rhythm, triplets); doing that in
@@ -77,21 +78,72 @@ const MODE_ALIASES = {
     dor: 'Dorian', phr: 'Phrygian', lyd: 'Lydian', mix: 'Mixolydian', loc: 'Locrian',
 };
 
+// Non-Diatonic scale families (Pentatonic etc.) have no circle-of-fifths key signature of their own —
+// scaleHandler.js's own `diatonic` field on each mode already names the closest 7-note church-mode
+// reference for exactly this purpose (see its `getDiatonicIntervals`). Reused here (via the imported
+// `scaleDefinitions`, CLAUDE.md §6c) instead of a second hand-maintained scale-name table: any mode
+// added to scaleHandler.js in the future becomes parseable here automatically. Diatonic's own `diatonic`
+// field spells the church-mode name (Ionian/Aeolian) rather than MODE_FIFTHS's key (Major/Minor).
+const CHURCH_MODE_TO_FIFTHS_KEY = {
+    Ionian: 'Major', Aeolian: 'Minor', Dorian: 'Dorian', Phrygian: 'Phrygian',
+    Lydian: 'Lydian', Mixolydian: 'Mixolydian', Locrian: 'Locrian',
+};
+
+// #1044 follow-up (Han 2026-08-17, arirang "K:F pentatonic major" / sakura "K:A In"): matches a full
+// mode PHRASE (not just a 3-letter ABC abbreviation) against every non-Diatonic family's mode
+// name/wheelName/aliases, case-insensitively. Diatonic is skipped — MODE_ALIASES already owns the
+// standard short ABC forms ("m", "dor", …) for that family.
+function findNonDiatonicMode(modeText) {
+    const needle = modeText.toLowerCase();
+    for (const [family, defs] of Object.entries(scaleDefinitions)) {
+        if (family === 'Diatonic') continue;
+        for (const def of defs) {
+            const candidates = [def.name, def.wheelName, ...(def.aliases || [])].filter(Boolean);
+            if (candidates.some((c) => c.toLowerCase() === needle)) {
+                return { family, mode: def.name, diatonic: def.diatonic };
+            }
+        }
+    }
+    return null;
+}
+
 function parseKeyField(raw) {
     const txt = (raw || '').trim();
-    const m = txt.match(/^([A-G])([#b]?)\s*([A-Za-z]*)/);
-    if (!m) throw new Error(`Unsupported K: field "${raw}" (expected e.g. "G", "Em", "Edor", "Bb").`);
+    // Captures the WHOLE remainder as the mode phrase (not just one word) — standard ABC mode
+    // abbreviations are one word ("m", "dor"), but this app's own scale names can be multi-word
+    // ("pentatonic major").
+    const m = txt.match(/^([A-G])([#b]?)\s*(.*)$/);
+    if (!m) throw new Error(`Unsupported K: field "${raw}" (expected e.g. "G", "Em", "Edor", "Bb", "F pentatonic major").`);
     const [, letter, accidental, modeRaw] = m;
-    const key = modeRaw.toLowerCase().slice(0, 3);
-    const mode = MODE_ALIASES[key] ?? MODE_ALIASES[modeRaw.toLowerCase()] ?? null;
-    if (!mode) throw new Error(`Unsupported mode "${modeRaw}" in K: field "${raw}".`);
-    const fifths = LETTER_FIFTHS[letter] + (accidental === '#' ? 7 : accidental === 'b' ? -7 : 0) + MODE_FIFTHS[mode];
-    // key-signature accidentals, per natural letter
+    const modeText = modeRaw.trim();
+    const shortKey = modeText.toLowerCase().slice(0, 3);
+    const diatonicMode = MODE_ALIASES[shortKey] ?? MODE_ALIASES[modeText.toLowerCase()] ?? null;
+
+    let scaleFamily, mode, fifthsSourceMode;
+    if (diatonicMode) {
+        scaleFamily = 'Diatonic';
+        mode = diatonicMode;
+        fifthsSourceMode = diatonicMode;
+    } else {
+        const found = modeText ? findNonDiatonicMode(modeText) : null;
+        if (!found) throw new Error(`Unsupported mode "${modeRaw}" in K: field "${raw}".`);
+        scaleFamily = found.family;
+        mode = found.mode;
+        // Fall back to Major if a future scale's `diatonic` reference isn't one of the 7 church modes
+        // (shouldn't happen for anything in scaleHandler.js today) — never silently crash a build.
+        fifthsSourceMode = CHURCH_MODE_TO_FIFTHS_KEY[found.diatonic] ?? 'Major';
+    }
+
+    const fifths = LETTER_FIFTHS[letter] + (accidental === '#' ? 7 : accidental === 'b' ? -7 : 0) + MODE_FIFTHS[fifthsSourceMode];
+    // key-signature accidentals, per natural letter — for a non-Diatonic mode this is the accidental
+    // set of its DIATONIC REFERENCE scale (see CHURCH_MODE_TO_FIFTHS_KEY above), which is what ABC note
+    // letters in the tune body are actually spelled against; the pentatonic scale itself just omits 2
+    // of those 7 degrees, it doesn't change which letters carry a sharp/flat.
     const sig = {};
     if (fifths > 0) for (let i = 0; i < Math.min(fifths, 7); i++) sig[SHARP_ORDER[i]] = 1;
     if (fifths < 0) for (let i = 0; i < Math.min(-fifths, 7); i++) sig[FLAT_ORDER[i]] = -1;
     const tonic = normalizeNoteChars(letter + accidental);
-    return { tonic, mode, sig, fifths };
+    return { tonic, mode, scaleFamily, sig, fifths };
 }
 
 // semitone alteration (-2..+2) → the app's Unicode accidental (CLAUDE.md §5b — never ASCII b/# in a
@@ -475,7 +527,13 @@ export function convertAbc(source, { file = 'abc', id = null, emitFermatas = fal
             else if (!built) warnings.push(`${file}: unparsable chord symbol "${c.symbol}" — skipped`);
         });
     } else {
-        // decision 5 — one mechanical tonic triad per measure (a drone), never inferred from the melody
+        // decision 5 — one mechanical tonic triad per measure (a drone), never inferred from the melody.
+        // NOTE: this minor/major check only recognizes the 4 minor-flavored DIATONIC mode names; a
+        // non-Diatonic mode (e.g. "Pentatonic Minor") falls through to a MAJOR triad regardless of its
+        // own diatonic reference. Harmless for every song shipped today (arirang's "Pentatonic Major"
+        // correctly wants major; sakura provides real ABC chord symbols so never reaches this branch at
+        // all) — but a future minor-flavored chordless pentatonic song would need this extended to check
+        // `CHURCH_MODE_TO_FIFTHS_KEY[<that mode's diatonic field>]` instead of `key.mode` directly.
         const tonicSymbol = key.tonic.replace('♯', '#').replace('♭', 'b') + (key.mode === 'Minor' || key.mode === 'Dorian' || key.mode === 'Phrygian' || key.mode === 'Locrian' ? 'm' : '');
         for (let m = 0; m < numMeasures; m++) chords.push(buildChord(tonicSymbol, m * ticksPerMeasure, ticksPerMeasure));
     }
@@ -515,7 +573,7 @@ export function convertAbc(source, { file = 'abc', id = null, emitFermatas = fal
             ],
         },
         generator: {
-            scaleFamily: 'Diatonic',
+            scaleFamily: key.scaleFamily,
             scaleMode: key.mode,
             chordSettings: { strategy: 'tonic-tonic-tonic', chordCount: 1, passingChordTypes: [] },
             // NOTE: deliberately NO `randomizationRule: 'fixed'` (#871) — resolveVoice's fixed+refMelody
